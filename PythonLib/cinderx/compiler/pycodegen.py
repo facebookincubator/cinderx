@@ -32,6 +32,7 @@ from .consts import (
     SC_LOCAL,
 )
 from .optimizer import AstOptimizer
+from .opcodes import NB_OPS
 from .pyassem import Block, PyFlowGraph
 from .symbols import Scope, SymbolVisitor
 from .unparse import to_expr
@@ -3049,6 +3050,59 @@ class CodeGenerator312(CodeGenerator):
                 self.visit(arg)
             nargs = len(node.args)
             self.emit("CALL_METHOD", nargs)
+
+    @staticmethod
+    def find_op_idx(opname: str) -> int:
+        for i, (name, symbol) in enumerate(NB_OPS):
+            if name == opname:
+                print(i)
+                return i
+
+        return -1
+
+    _binary_opargs: dict[type, int] = {
+        ast.Add: find_op_idx("NB_ADD"),
+        ast.Sub: find_op_idx("NB_SUBTRACT"),
+        ast.Mult: find_op_idx("NB_MULTIPLY"),
+        ast.MatMult: find_op_idx("NB_MATRIX_MULTIPLY"),
+        ast.Div: find_op_idx("NB_TRUE_DIVIDE"),
+        ast.FloorDiv: find_op_idx("NB_FLOOR_DIVIDE"),
+        ast.Mod: find_op_idx("NB_MODULO"),
+        ast.Pow: find_op_idx("NB_POWER"),
+        ast.LShift: find_op_idx("NB_LSHIFT"),
+        ast.RShift: find_op_idx("NB_RSHIFT"),
+        ast.BitOr: find_op_idx("NB_OR"),
+        ast.BitXor: find_op_idx("NB_XOR"),
+        ast.BitAnd: find_op_idx("NB_AND"),
+    }
+
+    def visitBinOp(self, node):
+        self.visit(node.left)
+        self.visit(node.right)
+        op = self._binary_opargs[type(node.op)]
+        self.emit("BINARY_OP", op)
+
+    _augmented_opargs = {
+        ast.Add: find_op_idx("NB_INPLACE_ADD"),
+        ast.Sub: find_op_idx("NB_INPLACE_SUBTRACT"),
+        ast.Mult: find_op_idx("NB_INPLACE_MULTIPLY"),
+        ast.MatMult: find_op_idx("NB_INPLACE_MATRIX_MULTIPLY"),
+        ast.Div: find_op_idx("NB_INPLACE_TRUE_DIVIDE"),
+        ast.FloorDiv: find_op_idx("NB_INPLACE_FLOOR_DIVIDE"),
+        ast.Mod: find_op_idx("NB_INPLACE_MODULO"),
+        ast.Pow: find_op_idx("NB_INPLACE_POWER"),
+        ast.RShift: find_op_idx("NB_INPLACE_RSHIFT"),
+        ast.LShift: find_op_idx("NB_INPLACE_LSHIFT"),
+        ast.BitOr: find_op_idx("NB_INPLACE_OR"),
+        ast.BitXor: find_op_idx("NB_INPLACE_XOR"),
+        ast.BitAnd: find_op_idx("NB_INPLACE_AND"),
+    }
+
+    def emitAugRHS(self, node):
+        with self.temp_lineno(node.lineno):
+            self.visit(node.value)
+            op = self._augmented_opargs[type(node.op)]
+            self.emit("BINARY_OP", op)
 
     def _fastcall_helper(self, argcnt, node, args, kwargs):
         # No * or ** args, faster calling sequence.

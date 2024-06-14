@@ -181,3 +181,7 @@ if sys.version_info >= (3, 12):
         PUSH_NULL=1,
         RETURN_CONST=0,
     )
+
+    from opcode import _nb_ops as NB_OPS
+else:
+    NB_OPS: list[tuple[str, str]] = []
