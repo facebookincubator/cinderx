@@ -179,4 +179,5 @@ if sys.version_info >= (3, 12):
         JUMP=0,
         JUMP_BACKWARD=0,
         PUSH_NULL=1,
+        RETURN_CONST=0,
     )

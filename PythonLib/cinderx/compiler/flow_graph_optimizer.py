@@ -506,3 +506,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
                 instr.opname = "NOP"
                 next_instr.opname = "NOP"
                 next_instr.target = None
+        elif next_instr.opname == "RETURN_VALUE":
+            instr.opname = "NOP"
+            next_instr.opname = "RETURN_CONST"
+            next_instr.oparg = instr.oparg
