@@ -1684,12 +1684,13 @@ void* generateDeoptTrampoline(bool generator_mode) {
   a.push(x86::rdx);
   a.push(x86::rcx);
   a.push(x86::rax);
-  annot.add("saveRegisters", &a, annot_cursor);
 
   if (generator_mode) {
     // Restore original RBP for use in epilogue.
     RestoreOriginalGeneratorRBP(a.as<x86::Emitter>());
   }
+
+  annot.add("Save registers", &a, annot_cursor);
 
   // Set up a stack frame for the trampoline so that:
   //
@@ -1726,6 +1727,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   //
   // Load the saved rip passed to us from the JIT-compiled function, which
   // resides where we're supposed to save rbp.
+  annot_cursor = a.cursor();
   auto saved_rbp_addr =
       x86::ptr(x86::rsp, (PhyLocation::NUM_GP_REGS + 2) * kPointerSize);
   a.mov(x86::rdi, saved_rbp_addr);
@@ -1740,6 +1742,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // Save the index of the deopt metadata
   auto deopt_meta_addr = x86::ptr(x86::rbp, -kPointerSize);
   a.mov(deopt_meta_addr, x86::rsi);
+  annot.add("Shuffle rip, rbp, and deopt index", &a, annot_cursor);
 
   // Prep the frame for evaluation in the interpreter.
   //
@@ -1782,7 +1785,6 @@ void* generateDeoptTrampoline(bool generator_mode) {
           PyObject*(PyFrameObject*, Runtime*, std::size_t)>,
       "resumeInInterpreter has unexpected signature");
   a.call(reinterpret_cast<uint64_t>(resumeInInterpreter));
-  annot.add("resumeInInterpreter", &a, annot_cursor);
 
   // If we return a primitive and prepareForDeopt returned null, we need that
   // null in edx/xmm1 to signal error to our caller. Since this trampoline is
@@ -1791,6 +1793,8 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // deopt of primitive-returning functions, just to do this one move.)
   a.mov(x86::edx, x86::eax);
   a.movq(x86::xmm1, x86::eax);
+
+  annot.add("resumeInInterpreter", &a, annot_cursor);
 
   // Now we're done. Get the address of the epilogue and jump there.
   annot_cursor = a.cursor();
@@ -1803,7 +1807,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // clear it manually because we're jumping directly to the epilogue.
   a.sub(x86::rsp, -kPointerSize);
   a.jmp(x86::rdi);
-  annot.add("jumpToRealEpilogue", &a, annot_cursor);
+  annot.add("Jump to real epilogue", &a, annot_cursor);
 
   auto name =
       generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline";
