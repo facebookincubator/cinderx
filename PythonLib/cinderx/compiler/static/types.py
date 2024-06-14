@@ -1090,7 +1090,7 @@ class Value:
         code_gen.emit("FOR_ITER", anchor)
         code_gen.visit(node.target)
         code_gen.visit(node.body)
-        code_gen.emit("JUMP_ABSOLUTE", start)
+        code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
         code_gen.pop_loop()
 
@@ -6642,7 +6642,7 @@ class CRangeIterator(Object[Class]):
         code_gen.emit("POP_JUMP_IF_ZERO", anchor)
         code_gen.visit(node.body)
         self._emit_incr(loop_idx, descr, code_gen)
-        code_gen.emit("JUMP_ABSOLUTE", start)
+        code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
         code_gen.emit("POP_TOP")  # Pop limit
         code_gen.pop_loop()
@@ -7299,7 +7299,7 @@ def common_sequence_emit_forloop(
         code_gen.emit("STORE_LOCAL", (loop_idx, descr))
         code_gen.visit(node.target)
         code_gen.visit(node.body)
-        code_gen.emit("JUMP_ABSOLUTE", start)
+        code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
         code_gen.emit("POP_TOP")  # Pop loop index
         code_gen.emit("POP_TOP")  # Pop list

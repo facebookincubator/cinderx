@@ -750,7 +750,7 @@ class CodeGenerator(ASTVisitor):
         self.visit(node.target)
         self.visitStatements(node.body)
         self.set_no_lineno()
-        self.emit("JUMP_ABSOLUTE", start)
+        self.emitJump(start)
         self.nextBlock(cleanup)
         self.pop_loop()
 
@@ -777,7 +777,7 @@ class CodeGenerator(ASTVisitor):
         self.visit(node.target)
         self.visitStatements(node.body)
         self.set_no_lineno()
-        self.emit("JUMP_ABSOLUTE", start)
+        self.emitJump(start)
         self.setups.pop()
 
         self.nextBlock(except_)
@@ -793,7 +793,7 @@ class CodeGenerator(ASTVisitor):
         if loop is None:
             raise SyntaxError("'break' outside loop", self.syntax_error_position(node))
         self.unwind_setup_entry(loop, preserve_tos=False)
-        self.emit("JUMP_ABSOLUTE", loop.exit)
+        self.emitJump(loop.exit)
         self.nextBlock()
 
     def visitContinue(self, node):
@@ -803,7 +803,7 @@ class CodeGenerator(ASTVisitor):
             raise SyntaxError(
                 "'continue' not properly in loop", self.syntax_error_position(node)
             )
-        self.emit("JUMP_ABSOLUTE", loop.block)
+        self.emitJump(loop.block)
         self.nextBlock()
 
     def syntax_error_position(self, node):
@@ -1130,7 +1130,7 @@ class CodeGenerator(ASTVisitor):
             raise NotImplementedError("unknown comprehension type")
 
         self.nextBlock(if_cleanup)
-        self.emit("JUMP_ABSOLUTE", start)
+        self.emitJump(start)
 
         self.nextBlock(except_)
         self.emit("END_ASYNC_FOR")
@@ -1192,7 +1192,7 @@ class CodeGenerator(ASTVisitor):
             self.nextBlock(skip)
         self.nextBlock(if_cleanup)
         if start:
-            self.emit("JUMP_ABSOLUTE", start)
+            self.emitJump(start)
             self.nextBlock(anchor)
 
     def compile_dictcomp_element(self, elt, val):
@@ -1426,7 +1426,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("YIELD_FROM")
         self.emit("POP_TOP")
         if kind == ASYNC_WITH:
-            self.emit("JUMP_ABSOLUTE", exit_)
+            self.emitJump(exit_)
         else:
             self.emit("JUMP_FORWARD", exit_)
 
@@ -1737,6 +1737,9 @@ class CodeGenerator(ASTVisitor):
         self.emitAugRHS(node)
         self.emit("ROT_THREE")
         self.emit("STORE_SUBSCR")
+
+    def emitJump(self, target):
+        self.emit("JUMP_ABSOLUTE", target)
 
     def visitExec(self, node):
         self.visit(node.expr)
@@ -3058,6 +3061,9 @@ class CodeGenerator312(CodeGenerator):
             return
         self.emit("CALL", argcnt + len(args))
 
+    def emitJump(self, target):
+        self.emit("JUMP", target)
+        
 
 class CinderCodeGenerator(CodeGenerator):
     """

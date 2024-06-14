@@ -527,7 +527,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
         # discard the result of call
         self.emit("POP_TOP")
 
-        self.emit("JUMP_ABSOLUTE", start)
+        self.emitJump(start)
         self.nextBlock(anchor)
         self.pop_loop()
         self.nextBlock(after)

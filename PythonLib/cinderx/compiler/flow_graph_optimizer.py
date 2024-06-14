@@ -93,10 +93,12 @@ class FlowGraphOptimizer:
         block: Block,
     ) -> int | None:
         if instr.opname == "JUMP_IF_FALSE_OR_POP":
+            assert target is not None
             return self.opt_jump_if_false_or_pop(
                 instr_index, instr, next_instr, target, block
             )
         elif instr.opname == "JUMP_IF_TRUE_OR_POP":
+            assert target is not None
             return self.opt_jump_if_true_or_pop(
                 instr_index, instr, next_instr, target, block
             )
@@ -166,10 +168,9 @@ class FlowGraphOptimizer:
         instr_index: int,
         instr: Instruction,
         next_instr: Instruction | None,
-        target: Instruction | None,
+        target: Instruction,
         block: Block,
     ) -> int | None:
-        assert target is not None
         if target.opname == "POP_JUMP_IF_FALSE":
             return instr_index + self.jump_thread(instr, target, "POP_JUMP_IF_FALSE")
         elif target.opname in ("JUMP_ABSOLUTE", "JUMP_FORWARD", "JUMP_IF_FALSE_OR_POP"):
@@ -188,10 +189,9 @@ class FlowGraphOptimizer:
         instr_index: int,
         instr: Instruction,
         next_instr: Instruction | None,
-        target: Instruction | None,
+        target: Instruction,
         block: Block,
     ) -> int | None:
-        assert target is not None
         if target.opname == "POP_JUMP_IF_TRUE":
             return instr_index + self.jump_thread(instr, target, "POP_JUMP_IF_TRUE")
         elif target.opname in ("JUMP_ABSOLUTE", "JUMP_FORWARD", "JUMP_IF_TRUE_OR_POP"):
@@ -369,3 +369,140 @@ class FlowGraphOptimizer:
         block: Block,
     ) -> int | None:
         block.insts = block.insts[: instr_index + 1]
+
+
+class FlowGraphOptimizer312(FlowGraphOptimizer):
+    def dispatch_instr(
+        self,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if instr.opname == "JUMP_IF_FALSE_OR_POP":
+            assert target is not None
+            return self.opt_jump_if_false_or_pop(
+                instr_index, instr, next_instr, target, block
+            )
+        elif instr.opname == "JUMP_IF_TRUE_OR_POP":
+            assert target is not None
+            return self.opt_jump_if_true_or_pop(
+                instr_index, instr, next_instr, target, block
+            )
+        elif instr.opname in ("POP_JUMP_IF_TRUE", "POP_JUMP_IF_FALSE"):
+            return self.opt_pop_jump_if(instr_index, instr, next_instr, target, block)
+        elif instr.opname in ("JUMP", "JUMP_FORWARD"):
+            return self.opt_jump(instr_index, instr, next_instr, target, block)
+        elif instr.opname == "FOR_ITER":
+            return self.opt_for_iter(instr_index, instr, next_instr, target, block)
+        elif instr.opname == "ROT_N":
+            return self.opt_rot_n(instr_index, instr, next_instr, target, block)
+        elif instr.opname == "LOAD_CONST":
+            return self.opt_load_const(instr_index, instr, next_instr, target, block)
+        elif instr.opname == "BUILD_TUPLE":
+            return self.opt_build_tuple(instr_index, instr, next_instr, target, block)
+        elif instr.opname == "RETURN_VALUE":
+            return self.opt_return_value(instr_index, instr, next_instr, target, block)
+
+    def opt_jump_if_false_or_pop(
+        self,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction,
+        block: Block,
+    ) -> int | None:
+        if target.opname == "POP_JUMP_IF_FALSE":
+            return instr_index + self.jump_thread(instr, target, "POP_JUMP_IF_FALSE")
+        elif target.opname in ("JUMP", "JUMP_FORWARD", "JUMP_IF_FALSE_OR_POP"):
+            return instr_index + self.jump_thread(instr, target, "JUMP_IF_FALSE_OR_POP")
+        elif target.opname in ("JUMP_IF_TRUE_OR_POP", "POP_JUMP_IF_TRUE"):
+            if instr.lineno == target.lineno:
+                target_block = instr.target
+                assert target_block and target_block != target_block.next
+                instr.opname = "POP_JUMP_IF_FALSE"
+                instr.target = target_block.next
+                return instr_index
+            return instr_index + 1
+
+    def opt_jump_if_true_or_pop(
+        self,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction,
+        block: Block,
+    ) -> int | None:
+        if target.opname == "POP_JUMP_IF_TRUE":
+            return instr_index + self.jump_thread(instr, target, "POP_JUMP_IF_TRUE")
+        elif target.opname in ("JUMP", "JUMP_FORWARD", "JUMP_IF_TRUE_OR_POP"):
+            return instr_index + self.jump_thread(instr, target, "JUMP_IF_TRUE_OR_POP")
+        elif target.opname in ("JUMP_IF_FALSE_OR_POP", "POP_JUMP_IF_FALSE"):
+            if instr.lineno == target.lineno:
+                target_block = instr.target
+                assert target_block and target_block != target_block.next
+                instr.opname = "POP_JUMP_IF_TRUE"
+                instr.target = target_block.next
+                return instr_index
+            return instr_index + 1
+
+    def opt_pop_jump_if(
+        self,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert target is not None
+        if target.opname in ("JUMP", "JUMP_FORWARD"):
+            return instr_index + self.jump_thread(instr, target, instr.opname)
+
+    def opt_jump(
+        self,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert target is not None
+        if target.opname in ("JUMP", "JUMP_FORWARD"):
+            return instr_index + self.jump_thread(instr, target, "JUMP")
+
+    def opt_load_const(
+        self,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        # Remove LOAD_CONST const; conditional jump
+        const = instr.oparg
+        if next_instr is None:
+            return
+        if next_instr.opname in (
+            "POP_JUMP_IF_FALSE",
+            "POP_JUMP_IF_TRUE",
+        ):
+            is_true = bool(const)
+            instr.opname = "NOP"
+            jump_if_true = next_instr.opname == "POP_JUMP_IF_TRUE"
+            if is_true == jump_if_true:
+                next_instr.opname = "JUMP"
+                block.no_fallthrough = True
+            else:
+                next_instr.opname = "NOP"
+                next_instr.target = None
+        elif next_instr.opname in ("JUMP_IF_FALSE_OR_POP", "JUMP_IF_TRUE_OR_POP"):
+            is_true = bool(const)
+            jump_if_true = next_instr.opname == "JUMP_IF_TRUE_OR_POP"
+            if is_true == jump_if_true:
+                next_instr.opname = "JUMP"
+                block.no_fallthrough = True
+            else:
+                instr.opname = "NOP"
+                next_instr.opname = "NOP"
+                next_instr.target = None

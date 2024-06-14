@@ -289,7 +289,7 @@ def add_test(modname: str, fname: str) -> None:
         self.check_instrs(graph_instrs(graph), script)
 
     # pyre-ignore[16]: Callable has no attribute __name__
-    test_code.__name__ = "test_" + modname.replace("/", "_")[:-3]
+    test_code.__name__ = "test_" + modname.replace("/", "_").replace(".", "_")[:-3]
     setattr(CodeTests, test_code.__name__, test_code)
 
 

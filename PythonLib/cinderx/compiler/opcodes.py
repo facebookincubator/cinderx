@@ -9,8 +9,6 @@ from .opcodebase import Opcode
 
 opcode: Opcode = Opcode()
 for opname, opnum in opmap.items():
-    if opnum > 255:
-        continue
     if opnum in hasname:
         opcode.name_op(opname, opnum)
     elif opnum in hasjrel:
@@ -178,5 +176,7 @@ opcode.stack_effects.update(
 if sys.version_info >= (3, 12):
     opcode.stack_effects.update(
         CALL=lambda oparg, jmp=0: -oparg,
+        JUMP=0,
+        JUMP_BACKWARD=0,
         PUSH_NULL=1,
     )

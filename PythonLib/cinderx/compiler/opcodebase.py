@@ -66,6 +66,10 @@ class Opcode:
             return effect(oparg, jump)  # pyre-ignore[29]
 
     def def_op(self, name: str, op: int) -> None:
+        # Fill in any missing space in the opname list for
+        # opargs which are > 255.
+        while op >= len(self.opname):
+            self.opname.append("<{!r}>".format(op))
         self.opname[op] = name
         self.opmap[name] = op
         setattr(self, name, op)

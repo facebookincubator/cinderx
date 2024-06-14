@@ -23,7 +23,7 @@ from .consts import (
     CO_OPTIMIZED,
     CO_SUPPRESS_JIT,
 )
-from .flow_graph_optimizer import FlowGraphOptimizer
+from .flow_graph_optimizer import FlowGraphOptimizer, FlowGraphOptimizer312
 from .opcodebase import Opcode
 
 
@@ -426,6 +426,7 @@ class IndexedSet:
 class PyFlowGraph(FlowGraph):
 
     super_init = FlowGraph.__init__
+    flow_graph_optimizer: type[FlowGraphOptimizer] = FlowGraphOptimizer
     opcode = opcodes.opcode
 
     def __init__(
@@ -1020,7 +1021,7 @@ class PyFlowGraph(FlowGraph):
         """Optimize a well-formed CFG."""
         assert self.stage == CLOSED, self.stage
 
-        optimizer = FlowGraphOptimizer(self)
+        optimizer = self.flow_graph_optimizer(self)
         for block in self.ordered_blocks:
             optimizer.optimize_basic_block(block)
             optimizer.clean_basic_block(block, -1)
@@ -1183,6 +1184,8 @@ class PyFlowGraphCinder(PyFlowGraph):
 
 
 class PyFlowGraph312(PyFlowGraph):
+    flow_graph_optimizer = FlowGraphOptimizer312
+
     def __init__(
         self,
         name: str,
@@ -1213,6 +1216,22 @@ class PyFlowGraph312(PyFlowGraph):
             return 3 + base_size
         else:
             return 4 + base_size
+
+    def normalize_jumps(self):
+        assert self.stage == ORDERED, self.stage
+
+        seen_blocks = set()
+
+        for block in self.ordered_blocks:
+            seen_blocks.add(block.bid)
+
+            if not block.insts:
+                continue
+
+            last = block.insts[-1]
+            if last.opname == "JUMP":
+                is_forward = last.target.bid not in seen_blocks
+                last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD"
 
     def makeByteCode(self):
         assert self.stage == FLAT, self.stage
