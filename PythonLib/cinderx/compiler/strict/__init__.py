@@ -490,7 +490,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
         Pops that class and append to `<classes>`
         Do not Leave `<classes>` on the stack
         """
-        self.emit("ROT_TWO")
+        self.emit_rotate_stack(2)
         self.emit("LIST_APPEND", 1)
         self.emit("POP_TOP")
 
@@ -522,7 +522,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
         self.emit("FOR_ITER", anchor)
         self.emit("LOAD_GLOBAL", "<freeze-type>")
         # argument need to be top most
-        self.emit("ROT_TWO")
+        self.emit_rotate_stack(2)
         self.emit("CALL_FUNCTION", 1)
         # discard the result of call
         self.emit("POP_TOP")

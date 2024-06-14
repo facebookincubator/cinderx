@@ -3028,9 +3028,9 @@ class StarredArg(ArgEmitter):
                 param.type_ref.resolved() is not None
                 and param.type_ref.resolved() is not code_gen.compiler.type_env.DYNAMIC
             ):
-                code_gen.emit("ROT_TWO")
+                code_gen.emit_rotate_stack(2)
                 code_gen.emit("CAST", param.type_ref.resolved().type_descr)
-                code_gen.emit("ROT_TWO")
+                code_gen.emit_rotate_stack(2)
 
         # Remove the tuple from TOS
         code_gen.emit("POP_TOP")
@@ -4400,7 +4400,7 @@ class PropertyMethod(DecoratedMethod):
     def emit_store_attr_to(
         self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
     ) -> None:
-        code_gen.emit("ROT_TWO")
+        code_gen.emit_rotate_stack(2)
         if self.function.is_final or klass.is_final:
             code_gen.emit("EXTENDED_ARG", 0)
             code_gen.emit("INVOKE_FUNCTION", (self.setter_type_descr, 2))
@@ -4459,7 +4459,7 @@ class CachedPropertyMethod(PropertyMethod):
     def emit_store_attr_to(
         self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
     ) -> None:
-        code_gen.emit("ROT_TWO")
+        code_gen.emit_rotate_stack(2)
         code_gen.emit_invoke_method(self.setter_type_descr, 1)
         code_gen.emit("POP_TOP")
 
@@ -4506,7 +4506,7 @@ class AsyncCachedPropertyMethod(PropertyMethod):
     def emit_store_attr_to(
         self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
     ) -> None:
-        code_gen.emit("ROT_TWO")
+        code_gen.emit_rotate_stack(2)
         code_gen.emit_invoke_method(self.setter_type_descr, 1)
         code_gen.emit("POP_TOP")
 
@@ -6002,12 +6002,12 @@ class Dataclass(Class):
 
             code_gen.emit("DUP_TOP")
             code_gen.emit("LOAD_CONST", name)
-            code_gen.emit("ROT_TWO")
+            code_gen.emit_rotate_stack(2)
             code_gen.emit("STORE_ATTR", "name")
 
             code_gen.emit("DUP_TOP")
             code_gen.emit("LOAD_CONST", field.type_annotation)
-            code_gen.emit("ROT_TWO")
+            code_gen.emit_rotate_stack(2)
             code_gen.emit("STORE_ATTR", "type")
 
             code_gen.emit("DUP_TOP")
@@ -6017,7 +6017,7 @@ class Dataclass(Class):
                 code_gen.emit("LOAD_NAME", "_FIELD_CLASSVAR")
             else:
                 code_gen.emit("LOAD_NAME", "_FIELD_INITVAR")
-            code_gen.emit("ROT_TWO")
+            code_gen.emit_rotate_stack(2)
             code_gen.emit("STORE_ATTR", "_field_type")
 
         code_gen.emit("LOAD_CONST", tuple(self.fields))
@@ -6512,7 +6512,7 @@ class Slot(Object[TClassInv]):
 
     def emit_store_to_slot(self, code_gen: Static310CodeGenerator) -> None:
         if self.is_typed_descriptor_with_default_value():
-            code_gen.emit("ROT_TWO")
+            code_gen.emit_rotate_stack(2)
             code_gen.emit_invoke_method(
                 self.container_type.type_descr + ((self.slot_name, "fset"),), 1
             )
@@ -6819,7 +6819,7 @@ class ExtremumFunction(Object[Class]):
         code_gen.emit("JUMP_FORWARD", endblock)
         code_gen.nextBlock(elseblock)
         # Remove `a` from the stack, `b` was the minimum
-        code_gen.emit("ROT_TWO")
+        code_gen.emit_rotate_stack(2)
         code_gen.emit("POP_TOP")
         code_gen.nextBlock(endblock)
 
@@ -7323,9 +7323,9 @@ def common_literal_emit_type_check(
     code_gen.emit("POP_JUMP_IF_TRUE", end)
     code_gen.nextBlock()
     code_gen.emit("LOAD_GLOBAL", "TypeError")
-    code_gen.emit("ROT_TWO")
+    code_gen.emit_rotate_stack(2)
     code_gen.emit("LOAD_CONST", f"expected {literal_value}, got ")
-    code_gen.emit("ROT_TWO")
+    code_gen.emit_rotate_stack(2)
     code_gen.emit("FORMAT_VALUE")
     code_gen.emit("BUILD_STRING", 2)
     code_gen.emit("CALL_FUNCTION", 1)

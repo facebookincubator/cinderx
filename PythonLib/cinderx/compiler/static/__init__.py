@@ -584,7 +584,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             self.emit("LOAD_CONST", (chkname,))
             self.emit("IMPORT_NAME", "_static")
             self.emit("IMPORT_FROM", chkname)
-            self.emit("ROT_TWO")
+            self.emit_rotate_stack(2)
             self.emit("POP_TOP")
         else:
             super().emit_load_builtin(name)
@@ -746,7 +746,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         self.emit("DUP_TOP")
         typ.emit_load_attr(target, self)
         self.emitAugRHS(node)
-        self.emit("ROT_TWO")
+        self.emit_rotate_stack(2)
         typ.emit_store_attr(target, self)
 
     def emitAugName(self, node: ast.AugAssign) -> None:
@@ -801,7 +801,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             end = self.newBlock("end")
             self.emit("JUMP_FORWARD", end)
             self.nextBlock(cleanup)
-            self.emit("ROT_TWO")
+            self.emit_rotate_stack(2)
             self.emit("POP_TOP")
             self.nextBlock(end)
 

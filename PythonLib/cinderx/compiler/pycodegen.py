@@ -921,7 +921,7 @@ class CodeGenerator(ASTVisitor):
     def emitChainedCompareStep(self, op, value, cleanup, always_pop=False):
         self.visit(value)
         self.emit("DUP_TOP")
-        self.emit("ROT_THREE")
+        self.emit_rotate_stack(3)
         self.defaultEmitCompare(op)
         self.emit(
             "POP_JUMP_IF_FALSE" if always_pop else "JUMP_IF_FALSE_OR_POP", cleanup
@@ -955,7 +955,7 @@ class CodeGenerator(ASTVisitor):
             end = self.newBlock("end")
             self.emit("JUMP_FORWARD", end)
             self.nextBlock(cleanup)
-            self.emit("ROT_TWO")
+            self.emit_rotate_stack(2)
             self.emit("POP_TOP")
             self.nextBlock(end)
 
@@ -1541,12 +1541,30 @@ class CodeGenerator(ASTVisitor):
         first = True
         for elt in elts[1:]:
             if not first:
-                self.emit("ROT_TWO")
+                self.emit_rotate_stack(2)
                 self.emit("POP_TOP")
             self.emit("IMPORT_FROM", elt)
             first = False
         self.storeName(asname)
         self.emit("POP_TOP")
+
+    def emit_rotate_stack(self, count: int) -> None:
+        if count == 2:
+            self.emit("ROT_TWO")
+        elif count == 3:
+            self.emit("ROT_THREE")
+        elif count == 4:
+            self.emit("ROT_FOUR")
+        else:
+            raise ValueError(f"Expected rotate of 2, 3, or 4")
+        
+    def emit_dup(self, count: int = 1):
+        if count == 1:
+            self.emit("DUP")
+        elif count == 2:
+            self.emit("DUP_TOP_TWO")
+        else:
+            raise ValueError(f"Unsupported dup count {count}")
 
     def visitAttribute(self, node):
         self.visit(node.value)
@@ -1730,13 +1748,13 @@ class CodeGenerator(ASTVisitor):
             self.emit("LOAD_ATTR", self.mangle(target.attr))
         self.emitAugRHS(node)
         self.graph.set_lineno(node.target.end_lineno)
-        self.emit("ROT_TWO")
+        self.emit_rotate_stack(2)
         self.emit("STORE_ATTR", self.mangle(target.attr))
 
     def emitAugSubscript(self, node):
         self.visitSubscript(node.target, 1)
         self.emitAugRHS(node)
-        self.emit("ROT_THREE")
+        self.emit_rotate_stack(3)
         self.emit("STORE_SUBSCR")
 
     def emitJump(self, target):
@@ -1928,7 +1946,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("BINARY_SUBSCR")
         elif isinstance(node.ctx, ast.Store):
             if aug_flag:
-                self.emit("DUP_TOP_TWO")
+                self.emit_dup(2)
                 self.emit("BINARY_SUBSCR")
             else:
                 self.emit("STORE_SUBSCR")
@@ -2729,7 +2747,7 @@ class CodeGenerator(ASTVisitor):
 
         elif e.kind == FOR_LOOP:
             if preserve_tos:
-                self.emit("ROT_TWO")
+                self.emit_rotate_stack(2)
             self.emit("POP_TOP")
 
         elif e.kind == TRY_EXCEPT:
@@ -2747,12 +2765,12 @@ class CodeGenerator(ASTVisitor):
 
         elif e.kind == FINALLY_END:
             if preserve_tos:
-                self.emit("ROT_FOUR")
+                self.emit_rotate_stack(4)
             self.emit("POP_TOP")
             self.emit("POP_TOP")
             self.emit("POP_TOP")
             if preserve_tos:
-                self.emit("ROT_FOUR")
+                self.emit_rotate_stack(4)
             self.emit("POP_EXCEPT")
 
         elif e.kind in (WITH, ASYNC_WITH):
@@ -2760,7 +2778,7 @@ class CodeGenerator(ASTVisitor):
             self.set_lineno(e.unwinding_datum)
             self.emit("POP_BLOCK")
             if preserve_tos:
-                self.emit("ROT_TWO")
+                self.emit_rotate_stack(2)
             self.call_exit_with_nones()
             if e.kind == ASYNC_WITH:
                 self.emit("GET_AWAITABLE")
@@ -2774,7 +2792,7 @@ class CodeGenerator(ASTVisitor):
             if datum is not None:
                 self.emit("POP_BLOCK")
             if preserve_tos:
-                self.emit("ROT_FOUR")
+                self.emit_rotate_stack(4)
             self.emit("POP_EXCEPT")
             if datum is not None:
                 self.emit("LOAD_CONST", None)
@@ -2783,7 +2801,7 @@ class CodeGenerator(ASTVisitor):
 
         elif e.kind == POP_VALUE:
             if preserve_tos:
-                self.emit("ROT_TWO")
+                self.emit_rotate_stack(2)
             self.emit("POP_TOP")
 
         else:
@@ -3103,6 +3121,15 @@ class CodeGenerator312(CodeGenerator):
             self.visit(node.value)
             op = self._augmented_opargs[type(node.op)]
             self.emit("BINARY_OP", op)
+
+    def emit_dup(self, count: int = 1):
+        for i in range(count):
+            self.emit("COPY", count)
+
+    def emit_rotate_stack(self, count: int) -> None:
+        # 2 for 2, 3,2 for 3, 4,3,2 for 4.
+        for i in range(count, 1, -1):
+            self.emit("SWAP", i)
 
     def _fastcall_helper(self, argcnt, node, args, kwargs):
         # No * or ** args, faster calling sequence.
