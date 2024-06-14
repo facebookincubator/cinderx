@@ -231,6 +231,10 @@ asmjit::Error MultipleSectionCodeAllocator::addCode(
 
   for (asmjit::Section* section : code->_sections) {
     size_t buffer_size = section->bufferSize();
+    // Might not have generated any cold code.
+    if (buffer_size == 0) {
+      continue;
+    }
     CodeSection code_section = codeSectionFromName(section->name());
     code_section_free_sizes_[code_section] -= buffer_size;
     std::memcpy(code_sections_[code_section], section->data(), buffer_size);

@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 
-#include <Python.h>
 #include "cinder/exports.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
@@ -32,6 +31,7 @@
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/runtime.h"
 
+#include <Python.h>
 #include <fmt/format.h>
 
 #include <algorithm>
@@ -228,12 +228,12 @@ void* NativeGenerator::getVectorcallEntry() {
 
   if (getConfig().multiple_code_sections) {
     Section* cold_text;
-    code.newSection(
+    ASM_CHECK_THROW(code.newSection(
         &cold_text,
         codeSectionName(CodeSection::kCold),
         SIZE_MAX,
         code.textSection()->flags(),
-        code.textSection()->alignment());
+        code.textSection()->alignment()));
   }
 
   as_ = new x86::Builder(&code);
@@ -382,7 +382,6 @@ void* NativeGenerator::getVectorcallEntry() {
         GetFunction()->compilation_phase_timer,
         "Code Generation",
         generateCode(code))
-
   } catch (const AsmJitException& ex) {
     String s;
     FormatOptions formatOptions;
