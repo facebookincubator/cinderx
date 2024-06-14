@@ -9,19 +9,6 @@
 
 namespace jit {
 
-TypeDeoptPatcher::TypeDeoptPatcher(BorrowedRef<PyTypeObject> type)
-    : type_{type} {}
-
-bool TypeDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject>) {
-  patch();
-  return true;
-}
-
-void TypeDeoptPatcher::init() {
-  Runtime::get()->watchType(type_, this);
-}
-
-namespace {
 template <typename Body>
 bool shouldPatchForAttr(
     BorrowedRef<PyTypeObject> old_ty,
@@ -42,14 +29,20 @@ bool shouldPatchForAttr(
   // that succeeds and returns an object that still satisfies our requirements,
   // we attempt to give the type a new version tag before declaring success.
   BorrowedRef<> attr{typeLookupSafe(new_ty, attr_name)};
-
-  if (body(attr)) {
-    return true;
-  }
-
-  return !PyUnstable_Type_AssignVersionTag(new_ty);
+  return body(attr) || !PyUnstable_Type_AssignVersionTag(new_ty);
 }
-} // namespace
+
+TypeDeoptPatcher::TypeDeoptPatcher(BorrowedRef<PyTypeObject> type)
+    : type_{type} {}
+
+bool TypeDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject>) {
+  patch();
+  return true;
+}
+
+void TypeDeoptPatcher::onLink() {
+  Runtime::get()->watchType(type_, this);
+}
 
 TypeAttrDeoptPatcher::TypeAttrDeoptPatcher(
     BorrowedRef<PyTypeObject> type,
@@ -68,10 +61,13 @@ bool TypeAttrDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject> new_ty) {
       });
   if (should_patch) {
     patch();
-    attr_name_.reset();
-    target_object_.reset();
   }
   return should_patch;
+}
+
+void TypeAttrDeoptPatcher::onPatch() {
+  attr_name_.reset();
+  target_object_.reset();
 }
 
 SplitDictDeoptPatcher::SplitDictDeoptPatcher(
@@ -102,9 +98,12 @@ bool SplitDictDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject> new_ty) {
       });
   if (should_patch) {
     patch();
-    attr_name_.reset();
   }
   return should_patch;
+}
+
+void SplitDictDeoptPatcher::onPatch() {
+  attr_name_.reset();
 }
 
 } // namespace jit

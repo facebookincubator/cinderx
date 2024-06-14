@@ -41,12 +41,20 @@ class MyDeoptPatcher : public jit::DeoptPatcher {
  public:
   explicit MyDeoptPatcher(int id) : id_(id) {}
 
-  void init() override {
-    initialized_ = true;
+  void onLink() override {
+    linked_ = true;
   }
 
-  bool isInitialized() const {
-    return initialized_;
+  void onPatch() override {
+    patched_ = true;
+  }
+
+  bool isLinked() const {
+    return linked_;
+  }
+
+  bool isPatched() const {
+    return patched_;
   }
 
   int id() const {
@@ -55,7 +63,8 @@ class MyDeoptPatcher : public jit::DeoptPatcher {
 
  private:
   int id_{-1};
-  bool initialized_{false};
+  bool linked_{false};
+  bool patched_{false};
 };
 
 TEST_F(DeoptPatcherTest, Patch) {
@@ -87,7 +96,8 @@ def func():
   jit::codegen::NativeGenerator ngen(irfunc.get());
   auto jitfunc = generateCode(ngen);
   ASSERT_NE(jitfunc, nullptr);
-  EXPECT_TRUE(patcher->isInitialized());
+  EXPECT_TRUE(patcher->isLinked());
+  EXPECT_FALSE(patcher->isPatched());
 
   // Make sure things work in the nominal case
   bool did_deopt = false;
@@ -97,6 +107,7 @@ def func():
   ASSERT_NE(res, nullptr);
   ASSERT_EQ(PyLong_AsLong(res), 314159);
   EXPECT_FALSE(did_deopt);
+  EXPECT_FALSE(patcher->isPatched());
 
   // Patch and verify that a deopt occurred
   patcher->patch();
@@ -105,4 +116,5 @@ def func():
   ASSERT_NE(res2, nullptr);
   ASSERT_EQ(PyLong_AsLong(res2), 314159);
   EXPECT_TRUE(did_deopt);
+  EXPECT_TRUE(patcher->isPatched());
 }

@@ -22,8 +22,10 @@ class TypeDeoptPatcher : public DeoptPatcher {
   virtual bool maybePatch(BorrowedRef<PyTypeObject> new_ty);
 
  protected:
-  void init() override;
+  void onLink() override;
 
+  // The type being watched.  It outlives this object because this object will
+  // be cleaned up by a type watcher notification.
   BorrowedRef<PyTypeObject> type_;
 };
 
@@ -39,6 +41,8 @@ class TypeAttrDeoptPatcher : public TypeDeoptPatcher {
   bool maybePatch(BorrowedRef<PyTypeObject> new_ty) override;
 
  private:
+  void onPatch() override;
+
   Ref<PyUnicodeObject> attr_name_;
   Ref<> target_object_;
 };
@@ -53,6 +57,8 @@ class SplitDictDeoptPatcher : public TypeDeoptPatcher {
   bool maybePatch(BorrowedRef<PyTypeObject> new_ty) override;
 
  private:
+  void onPatch() override;
+
   Ref<PyUnicodeObject> attr_name_;
 
   // We don't need to hold a strong reference to keys_ like we do for
