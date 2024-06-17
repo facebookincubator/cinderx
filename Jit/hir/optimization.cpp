@@ -76,7 +76,7 @@ Instr* DynamicComparisonElimination::ReplaceCompare(
     Compare* compare,
     IsTruthy* truthy) {
   return CompareBool::create(
-      truthy->GetOutput(),
+      truthy->output(),
       compare->op(),
       compare->GetOperand(0),
       compare->GetOperand(1),
@@ -139,13 +139,13 @@ Instr* DynamicComparisonElimination::ReplaceVectorCall(
 
     slow_path->appendWithOff<IsInstance>(
         bc_off,
-        truthy->GetOutput(),
+        truthy->output(),
         obj_op,
         type_op,
         *get_frame_state(*truthy));
 
     slow_path->appendWithOff<CondBranch>(
-        bc_off, truthy->GetOutput(), cond_branch.true_bb(), prev_false_bb);
+        bc_off, truthy->output(), cond_branch.true_bb(), prev_false_bb);
 
     // we need to update the phis from the previous false case to now
     // be coming from the slow path block.
@@ -203,7 +203,7 @@ void DynamicComparisonElimination::Run(Function& irfunc) {
         break;
       } else if (&*it != truthy) {
         if (it->IsSnapshot()) {
-          if (it->Uses(truthy_target->GetOutput())) {
+          if (it->Uses(truthy_target->output())) {
             snapshots.push_back(&*it);
           }
           continue;
@@ -307,10 +307,10 @@ void PhiElimination::Run(Function& func) {
           // initialized, and we can use a LoadConst<Bottom> to signify that.
           Register* model_value = chaseAssignOperand(value);
           Instr* new_instr;
-          if (model_value == instr.GetOutput()) {
-            new_instr = LoadConst::create(instr.GetOutput(), TBottom);
+          if (model_value == instr.output()) {
+            new_instr = LoadConst::create(instr.output(), TBottom);
           } else {
-            new_instr = Assign::create(instr.GetOutput(), value);
+            new_instr = Assign::create(instr.output(), value);
           }
           new_instr->copyBytecodeOffset(instr);
           assigns_or_loads.emplace_back(new_instr);
@@ -396,9 +396,9 @@ guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
     for (const Instr* instr : new_reg_uses->second) {
       for (std::size_t i = 0; i < instr->NumOperands(); i++) {
         if (instr->GetOperand(i) == new_reg) {
-          if ((instr->GetOutput() != nullptr) &&
+          if ((instr->output() != nullptr) &&
               (instr->IsPhi() || isPassthrough(*instr))) {
-            Register* passthrough_output = instr->GetOutput();
+            Register* passthrough_output = instr->output();
             Type passthrough_type = outputType(*instr, [&](std::size_t ind) {
               if (ind == i) {
                 return relaxed_type;
@@ -458,7 +458,7 @@ void GuardTypeRemoval::Run(Function& func) {
         continue;
       }
 
-      Register* guard_out = instr.GetOutput();
+      Register* guard_out = instr.output();
       Register* guard_in = instr.GetOperand(0);
       if (!guardNeeded(reg_uses, guard_out, guard_in->type())) {
         auto assign = Assign::create(guard_out, guard_in);
@@ -519,7 +519,7 @@ bool CleanCFG::RemoveUnreachableInstructions(CFG* cfg) {
     while (it != block->end()) {
       Instr& instr = *it;
       ++it;
-      if ((instr.GetOutput() == nullptr || !instr.GetOutput()->isA(TBottom)) &&
+      if ((instr.output() == nullptr || !instr.output()->isA(TBottom)) &&
           !instr.IsUnreachable()) {
         continue;
       }
@@ -551,7 +551,7 @@ bool CleanCFG::RemoveUnreachableInstructions(CFG* cfg) {
         Instr& guard_type = *std::prev(it);
         block->insert(
             UseType::create(
-                guard_type.GetOutput(), guard_type.GetOutput()->type()),
+                guard_type.output(), guard_type.output()->type()),
             it);
       }
 
@@ -1030,7 +1030,7 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
     if (instr.IsLoadArg()) {
       auto load_arg = static_cast<LoadArg*>(&instr);
       auto assign = Assign::create(
-          instr.GetOutput(), call_instr->arg(load_arg->arg_idx()));
+          instr.output(), call_instr->arg(load_arg->arg_idx()));
       instr.ReplaceWith(*assign);
       delete &instr;
     }
@@ -1042,7 +1042,7 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
       return_instr->IsReturn(),
       "terminator from inlined function should be Return");
   auto assign = Assign::create(
-      call_instr->instr->GetOutput(), return_instr->GetOperand(0));
+      call_instr->instr->output(), return_instr->GetOperand(0));
   auto return_branch = Branch::create(tail);
   return_instr->ExpandInto({assign, return_branch});
   delete return_instr;
@@ -1202,12 +1202,12 @@ static bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
     // bytearray/bytes/str.maketrans. Not worth optimizing.
     return false;
   }
-  Register* method_reg = invoke.load_method->GetOutput();
+  Register* method_reg = invoke.load_method->output();
   auto load_const = LoadConst::create(
       method_reg, Type::fromObject(irfunc.env.addReference(method_obj.get())));
   auto call_static = VectorCallStatic::create(
       invoke.call_method->NumOperands(),
-      invoke.call_method->GetOutput(),
+      invoke.call_method->output(),
       invoke.call_method->isAwaited(),
       *invoke.call_method->frameState());
   call_static->SetOperand(0, method_reg);
@@ -1233,7 +1233,7 @@ static bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
   auto use_type = UseType::create(receiver, receiver_type.unspecialized());
   invoke.load_method->ExpandInto({use_type, load_const});
   invoke.get_instance->ReplaceWith(
-      *Assign::create(invoke.get_instance->GetOutput(), receiver));
+      *Assign::create(invoke.get_instance->output(), receiver));
   invoke.call_method->ReplaceWith(*call_static);
   delete invoke.load_method;
   delete invoke.get_instance;

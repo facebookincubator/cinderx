@@ -482,7 +482,7 @@ void BasicBlock::addPhiPredecessor(BasicBlock* old_pred, BasicBlock* new_pred) {
       args[block] = phi->GetOperand(i);
     }
 
-    phi->ReplaceWith(*Phi::create(phi->GetOutput(), args));
+    phi->ReplaceWith(*Phi::create(phi->output(), args));
     delete phi;
   }
 }
@@ -504,7 +504,7 @@ void BasicBlock::removePhiPredecessor(BasicBlock* old_pred) {
       }
       args[block] = phi->GetOperand(i);
     }
-    phi->ReplaceWith(*Phi::create(phi->GetOutput(), args));
+    phi->ReplaceWith(*Phi::create(phi->output(), args));
     delete phi;
   }
 }

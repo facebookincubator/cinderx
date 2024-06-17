@@ -84,7 +84,7 @@ struct Env {
   // output, a new Register* will be created and returned.
   template <typename T, typename... Args>
   Register* emit(Args&&... args) {
-    return emitInstr<T>(std::forward<Args>(args)...)->GetOutput();
+    return emitInstr<T>(std::forward<Args>(args)...)->output();
   }
 
   // Similar to emit(), but returns the instruction itself. Useful for
@@ -110,9 +110,9 @@ struct Env {
                  arity,
                  func.env.AllocateRegister(),
                  std::forward<Args>(args)...)
-          ->GetOutput();
+          ->output();
     } else {
-      return emitRawInstr<T>(arity, std::forward<Args>(args)...)->GetOutput();
+      return emitRawInstr<T>(arity, std::forward<Args>(args)...)->output();
     }
   }
 
@@ -126,7 +126,7 @@ struct Env {
     block->insert(instr, cursor);
 
     if constexpr (T::has_output) {
-      Register* output = instr->GetOutput();
+      Register* output = instr->output();
       switch (instr->opcode()) {
         case Opcode::kVectorCall:
         case Opcode::kVectorCallKW:
@@ -404,7 +404,7 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
       // Since we no longer use instr->GetOperand(0), we need to make sure that
       // we don't lose any associated type checks
       env.emit<UseType>(instr->GetOperand(0), ty);
-      Type output_type = instr->GetOutput()->type();
+      Type output_type = instr->output()->type();
       return env.emit<LoadConst>(Type::fromCInt(res, output_type));
     }
   }
@@ -484,14 +484,14 @@ Register* simplifyLoadVarObjectSize(Env& env, const LoadVarObjectSize* instr) {
   if (obj_reg->instr()->IsMakeTuple()) {
     env.emit<UseType>(obj_reg, type);
     size_t size = static_cast<const MakeTuple*>(obj_reg->instr())->nvalues();
-    Type output_type = instr->GetOutput()->type();
+    Type output_type = instr->output()->type();
     return env.emit<LoadConst>(Type::fromCInt(size, output_type));
   }
   if (type.hasValueSpec(TTupleExact) || type.hasValueSpec(TBytesExact)) {
     PyVarObject* obj = reinterpret_cast<PyVarObject*>(type.asObject());
     Py_ssize_t size = obj->ob_size;
     env.emit<UseType>(obj_reg, type);
-    Type output_type = instr->GetOutput()->type();
+    Type output_type = instr->output()->type();
     return env.emit<LoadConst>(Type::fromCInt(size, output_type));
   }
   return nullptr;
@@ -749,7 +749,7 @@ Register* simplifyPrimitiveBoxBool(Env& env, const PrimitiveBoxBool* instr) {
 
 Register* simplifyUnbox(Env& env, const Instr* instr) {
   Register* input_value = instr->GetOperand(0);
-  Type output_type = instr->GetOutput()->type();
+  Type output_type = instr->output()->type();
   if (input_value->instr()->IsPrimitiveBox()) {
     // Simplify unbox(box(x)) -> x
     const auto box = static_cast<PrimitiveBox*>(input_value->instr());
@@ -913,7 +913,7 @@ Register* simplifyLoadAttrMemberDescr(Env& env, const DescrInfo& info) {
       auto check_field =
           env.emitInstr<CheckField>(field, info.attr_name, *info.frame_state);
       check_field->setGuiltyReg(info.receiver);
-      return check_field->GetOutput();
+      return check_field->output();
     }
 
     return env.emitCond(
@@ -950,7 +950,7 @@ Register* simplifyLoadAttrProperty(Env& env, const DescrInfo& info) {
       *info.frame_state);
   call->SetOperand(0, getter_obj);
   call->SetOperand(1, info.receiver);
-  return call->GetOutput();
+  return call->output();
 }
 
 Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
@@ -982,7 +982,7 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
   call->SetOperand(0, descr_reg);
   call->SetOperand(1, info.receiver);
   call->SetOperand(2, type_reg);
-  return env.emit<CheckExc>(call->GetOutput(), *info.frame_state);
+  return env.emit<CheckExc>(call->output(), *info.frame_state);
 }
 
 // Attempt to handle LOAD_ATTR cases where the load is a common case for object
@@ -1075,7 +1075,7 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
 // simplified into a LoadConst.
 Register* simplifyLoadField(Env& env, const LoadField* instr) {
   Register* loadee = instr->GetOperand(0);
-  Type load_output_type = instr->GetOutput()->type();
+  Type load_output_type = instr->output()->type();
   // Ensure that we are dealing with either a integer or a double.
   Type loadee_type = loadee->type();
   if (!loadee_type.hasObjectSpec()) {
@@ -1103,7 +1103,7 @@ Register* simplifyIsNegativeAndErrOccurred(
   // known result. Instead of deleting it, we replace it with load of false -
   // the idea is that if there are other downstream consumers of it, they will
   // still have access to the result. Otherwise, DCE will take care of this.
-  Type output_type = instr->GetOutput()->type();
+  Type output_type = instr->output()->type();
   return env.emit<LoadConst>(Type::fromCInt(0, output_type));
 }
 
@@ -1209,7 +1209,7 @@ static Register* resolveArgs(
       env.func.env.AllocateRegister(), // output register
       /*is_awaited=*/false,
       *instr->frameState());
-  Register* result = new_instr->GetOutput();
+  Register* result = new_instr->output();
 
   // populate the call arguments of the newly created VectorCall
   // the first arg is the function to call
@@ -1276,7 +1276,7 @@ static Register* trySpecializeCCall(Env& env, const VectorCallStatic* instr) {
       Register* result = env.emitVariadic<CallStatic>(
           1,
           reinterpret_cast<void*>(def->ml_meth),
-          instr->GetOutput()->type() | TNullptr,
+          instr->output()->type() | TNullptr,
           /* self */ instr->arg(0));
       return env.emit<CheckExc>(result, *instr->frameState());
     }
@@ -1284,7 +1284,7 @@ static Register* trySpecializeCCall(Env& env, const VectorCallStatic* instr) {
       Register* result = env.emitVariadic<CallStatic>(
           2,
           reinterpret_cast<void*>(def->ml_meth),
-          instr->GetOutput()->type() | TNullptr,
+          instr->output()->type() | TNullptr,
           /* self */ instr->arg(0),
           /* arg */ instr->arg(1));
       return env.emit<CheckExc>(result, *instr->frameState());
@@ -1422,16 +1422,16 @@ void Simplify::Run(Function& irfunc) {
 
         changed = true;
         JIT_CHECK(
-            (new_output == nullptr) == (instr.GetOutput() == nullptr),
+            (new_output == nullptr) == (instr.output() == nullptr),
             "Simplify function should return a new output if and only if the "
             "existing instruction has an output");
         if (new_output != nullptr) {
           JIT_CHECK(
-              new_output->type() <= instr.GetOutput()->type(),
+              new_output->type() <= instr.output()->type(),
               "New output type {} isn't compatible with old output type {}",
               new_output->type(),
-              instr.GetOutput()->type());
-          env.emitRawInstr<Assign>(instr.GetOutput(), new_output);
+              instr.output()->type());
+          env.emitRawInstr<Assign>(instr.output(), new_output);
         }
 
         if (instr.IsCondBranch() || instr.IsCondBranchIterNotDone() ||

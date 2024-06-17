@@ -590,7 +590,7 @@ fun type_hints {
 
   auto bb0 = func->cfg.getBlockById(0);
   const Instr& v0_load = bb0->front();
-  Register* v0 = v0_load.GetOutput();
+  Register* v0 = v0_load.output();
 
   auto bb1 = func->cfg.getBlockById(1);
   const Instr& bb1_hint = bb1->front();
@@ -604,11 +604,11 @@ fun type_hints {
   auto bb4_iter = bb4->begin();
   const Instr& bb4_hint = *(bb4_iter++);
   const Instr& bb4_load = *bb4_iter;
-  Register* v1 = bb4_load.GetOutput();
+  Register* v1 = bb4_load.output();
 
   auto bb5 = func->cfg.getBlockById(5);
   const Instr& bb5_phi = bb5->front();
-  Register* v2 = bb5_phi.GetOutput();
+  Register* v2 = bb5_phi.output();
 
   auto bb6 = func->cfg.getBlockById(6);
 

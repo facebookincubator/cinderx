@@ -392,7 +392,7 @@ struct Env {
 
     for (auto& block : func.cfg.blocks) {
       block.forEachPhi([&](Phi& phi) {
-        auto output = phi.GetOutput();
+        auto output = phi.output();
         add_support_bit(output);
         for (int i = 0, n = phi.NumOperands(); i < n; ++i) {
           auto model = modelReg(phi.GetOperand(i));
@@ -732,7 +732,7 @@ void initializeInState(
   }
 
   block->forEachPhi([&](Phi& phi) {
-    auto inserted = in_state.emplace(phi.GetOutput(), phi.GetOutput()).second;
+    auto inserted = in_state.emplace(phi.output(), phi.output()).second;
     JIT_DCHECK(inserted, "Register shouldn't exist in map yet");
   });
 
@@ -810,7 +810,7 @@ PhiSupport processPhis(
     }
 
     auto& phi = static_cast<Phi&>(instr);
-    auto output = phi.GetOutput();
+    auto output = phi.output();
     auto& rstate = in_state.getModel(output);
 
     // No more analysis is needed if the value isn't refcounted, or if it's
@@ -980,7 +980,7 @@ void stealInputs(
 
 // Track the output of the given instruction.
 void processOutput(Env& env, const Instr& instr, const MemoryEffects& effects) {
-  auto output = instr.GetOutput();
+  auto output = instr.output();
   if (output == nullptr) {
     return;
   }
@@ -1040,7 +1040,7 @@ void processInstr(Env& env, Instr& instr) {
     // any such Registers to Decref together after the last Phi in the block.
     if (!dying_regs.empty()) {
       JIT_DCHECK(dying_regs.size() == 1, "Multiple regs dying after Phi");
-      auto output = instr.GetOutput();
+      auto output = instr.output();
       JIT_DCHECK(
           *dying_regs.begin() == output, "Unexpected value dying after Phi");
       env.deferred_deaths.emplace_back(output);

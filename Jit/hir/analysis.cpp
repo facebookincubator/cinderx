@@ -495,7 +495,7 @@ static void analyzeInstrLiveness(
     const Instr& instr,
     OutputFunc define_output,
     UseFunc use) {
-  if (auto output = instr.GetOutput()) {
+  if (auto output = instr.output()) {
     define_output(output);
   }
 
@@ -609,7 +609,7 @@ AssignmentAnalysis::AssignmentAnalysis(const Function& irfunc, bool is_definite)
     : ForwardDataflowAnalysis(irfunc), args_(), is_definite_(is_definite) {
   for (const auto& instr : *irfunc_.cfg.entry_block) {
     if (instr.IsLoadArg()) {
-      args_.insert(instr.GetOutput());
+      args_.insert(instr.output());
     }
   }
 }
@@ -634,7 +634,7 @@ void AssignmentAnalysis::ComputeGenKill(
     RegisterSet& /* kill */) {
   gen = args_;
   for (const auto& instr : *block) {
-    auto output = instr.GetOutput();
+    auto output = instr.output();
     if (output != nullptr) {
       gen.insert(output);
     }
@@ -751,7 +751,7 @@ RegisterTypeHints::RegisterTypeHints(const Function& irfunc)
           dom_hint_[instr.GetOperand(i)][block.id] = &instr;
         }
       } else if (instr.IsPhi()) {
-        dom_hint_[instr.GetOutput()][block.id] = &instr;
+        dom_hint_[instr.output()][block.id] = &instr;
       }
     }
   }

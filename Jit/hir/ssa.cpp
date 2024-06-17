@@ -180,7 +180,7 @@ void checkRegisters(CheckEnv& env) {
     }
   }
 
-  if (auto output = env.instr->GetOutput()) {
+  if (auto output = env.instr->output()) {
     if (output->instr() != env.instr) {
       fmt::print(
           env.err,
@@ -749,7 +749,7 @@ void reflowTypes(Environment* env, BasicBlock* start) {
               *start->cfg);
         }
 
-        auto dst = instr.GetOutput();
+        auto dst = instr.output();
         if (dst == nullptr) {
           continue;
         }
@@ -797,11 +797,11 @@ void SSAify::Run(BasicBlock* start, Environment* env) {
         return true;
       });
 
-      auto out_reg = instr.GetOutput();
+      auto out_reg = instr.output();
 
       if (out_reg != nullptr) {
         auto new_reg = env_->AllocateRegister();
-        instr.SetOutput(new_reg);
+        instr.setOutput(new_reg);
         ssablock->local_defs[out_reg] = new_reg;
       }
     }
@@ -828,7 +828,7 @@ void SSAify::Run(BasicBlock* start, Environment* env) {
     std::sort(phis.begin(), phis.end(), [](const Phi* a, const Phi* b) -> bool {
       // Sort using > instead of the typical < because we're effectively
       // reversing by looping push_front below.
-      return a->GetOutput()->id() > b->GetOutput()->id();
+      return a->output()->id() > b->output()->id();
     });
     for (auto& phi : phis) {
       block->push_front(phi);

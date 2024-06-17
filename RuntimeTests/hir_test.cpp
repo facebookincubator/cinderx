@@ -864,8 +864,8 @@ TEST_F(HIRCloneTest, CanCloneInstrs) {
       static_cast<LoadConst*>(new_load.get())->type() ==
       static_cast<LoadConst*>(load_const.get())->type());
   EXPECT_NE(load_const, new_load);
-  EXPECT_EQ(load_const->GetOutput()->instr(), load_const.get());
-  EXPECT_EQ(new_load->GetOutput()->instr(), load_const.get());
+  EXPECT_EQ(load_const->output()->instr(), load_const.get());
+  EXPECT_EQ(new_load->output()->instr(), load_const.get());
 }
 
 TEST_F(HIRCloneTest, CanCloneBranches) {
@@ -990,7 +990,7 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   LoadGlobal* orig = static_cast<LoadGlobal*>(&load_global);
   LoadGlobal* dup = static_cast<LoadGlobal*>(dup_load.get());
 
-  EXPECT_EQ(orig->GetOutput(), dup->GetOutput());
+  EXPECT_EQ(orig->output(), dup->output());
   EXPECT_EQ(orig->name_idx(), dup->name_idx());
 
   FrameState* orig_fs = orig->frameState();

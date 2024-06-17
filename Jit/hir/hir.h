@@ -244,12 +244,12 @@ class Instr {
   }
 
   // If this instruction produces a value, return where it will be stored
-  Register* GetOutput() const {
+  Register* output() const {
     return output_;
   }
 
   // Set where the output from this instruction will be stored
-  void SetOutput(Register* dst) {
+  void setOutput(Register* dst) {
     if (output_ != nullptr) {
       output_->set_instr(nullptr);
     }
@@ -368,7 +368,7 @@ class Instr {
   explicit Instr(Opcode opcode) : opcode_(opcode) {}
   Instr(const Instr& other)
       : opcode_(other.opcode()),
-        output_{other.GetOutput()},
+        output_{other.output()},
         bytecode_offset_{other.bytecodeOffset()} {}
 
   void* operator new(std::size_t count, void* ptr) {
@@ -723,7 +723,7 @@ class InstrT<T, opcode, HasOutput, Tys...> : public InstrT<T, opcode, Tys...> {
   template <typename... Args>
   InstrT(Register* dst, Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {
-    this->SetOutput(dst);
+    this->setOutput(dst);
   }
 };
 
@@ -1221,7 +1221,7 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
 
   // A trivial phi merges its output with only one other value.
   Register* isTrivial() const {
-    Register* out = GetOutput();
+    Register* out = output();
     Register* val = nullptr;
     for (std::size_t i = 0; i < NumOperands(); i++) {
       Register* reg = GetOperand(i);

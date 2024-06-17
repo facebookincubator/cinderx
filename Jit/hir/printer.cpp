@@ -715,7 +715,7 @@ void HIRPrinter::Print(
     const Instr& instr,
     bool full_snapshots) {
   Indented(os);
-  if (Register* dst = instr.GetOutput()) {
+  if (Register* dst = instr.output()) {
     os << dst->name();
     if (dst->type() != TTop) {
       os << ":" << dst->type();
@@ -1010,7 +1010,7 @@ nlohmann::json JSONPrinter::PrintBytecode(const Function& func) {
 nlohmann::json JSONPrinter::Print(const Instr& instr) {
   nlohmann::json result;
   result["line"] = instr.lineNumber();
-  Register* output = instr.GetOutput();
+  Register* output = instr.output();
   if (output != nullptr) {
     result["output"] = output->name();
     if (output->type() != TTop) {

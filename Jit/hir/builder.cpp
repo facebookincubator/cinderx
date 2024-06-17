@@ -279,7 +279,7 @@ struct HIRBuilder::TranslationContext {
   template <typename T, typename... Args>
   T* emitChecked(Args&&... args) {
     auto instr = emit<T>(std::forward<Args>(args)...);
-    auto out = instr->GetOutput();
+    auto out = instr->output();
     emit<CheckExc>(out, out, frame);
     return instr;
   }
