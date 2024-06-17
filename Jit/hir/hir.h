@@ -725,10 +725,6 @@ class InstrT<T, opcode, HasOutput, Tys...> : public InstrT<T, opcode, Tys...> {
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {
     this->SetOutput(dst);
   }
-
-  Register* dst() const {
-    return this->GetOutput();
-  }
 };
 
 // TODO(T105350013): Add a compile-time op_types size check
@@ -1063,10 +1059,6 @@ class VectorCallBase : public DeoptBase {
 
   Register* arg(std::size_t i) const {
     return GetOperand(i + 1);
-  }
-
-  Register* dst() const {
-    return this->GetOutput();
   }
 
   bool isAwaited() const {

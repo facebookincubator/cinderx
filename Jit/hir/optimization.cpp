@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/hir/optimization.h"
 
-#include <Python.h>
 #include "cinderx/Common/util.h"
 #include "code.h"
 #include "internal/pycore_interp.h"
@@ -18,6 +17,7 @@
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/pyjit.h"
 
+#include <Python.h>
 #include <fmt/format.h>
 
 #include <list>
@@ -1207,7 +1207,7 @@ static bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
       method_reg, Type::fromObject(irfunc.env.addReference(method_obj.get())));
   auto call_static = VectorCallStatic::create(
       invoke.call_method->NumOperands(),
-      invoke.call_method->dst(),
+      invoke.call_method->GetOutput(),
       invoke.call_method->isAwaited(),
       *invoke.call_method->frameState());
   call_static->SetOperand(0, method_reg);
@@ -1233,7 +1233,7 @@ static bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
   auto use_type = UseType::create(receiver, receiver_type.unspecialized());
   invoke.load_method->ExpandInto({use_type, load_const});
   invoke.get_instance->ReplaceWith(
-      *Assign::create(invoke.get_instance->dst(), receiver));
+      *Assign::create(invoke.get_instance->GetOutput(), receiver));
   invoke.call_method->ReplaceWith(*call_static);
   delete invoke.load_method;
   delete invoke.get_instance;
