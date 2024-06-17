@@ -22,7 +22,7 @@ static const char* REG_NAMES[] = {
 
 std::ostream& operator<<(std::ostream& out, const PhyLocation& loc) {
   if (loc.is_register()) {
-    out << REG_NAMES[loc];
+    out << REG_NAMES[loc.loc];
   } else {
     out << "[RBP - " << -loc.loc << "]";
   }

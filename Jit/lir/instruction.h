@@ -262,13 +262,13 @@ class Instruction {
       OperandBase::DataType data_type = OperandBase::k64bit);
   Operand* allocateFPImmediateInput(double n);
   LinkedOperand* allocateLinkedInput(Instruction* def_instr);
-  Operand* allocatePhyRegisterInput(int loc) {
+  Operand* allocatePhyRegisterInput(PhyLocation loc) {
     return allocateOperand(&Operand::setPhyRegister, loc);
   }
-  Operand* allocateStackInput(int stack) {
+  Operand* allocateStackInput(PhyLocation stack) {
     return allocateOperand(&Operand::setStackSlot, stack);
   }
-  Operand* allocatePhyRegOrStackInput(int loc) {
+  Operand* allocatePhyRegOrStackInput(PhyLocation loc) {
     return allocateOperand(&Operand::setPhyRegOrStackSlot, loc);
   }
   Operand* allocateAddressInput(void* address) {

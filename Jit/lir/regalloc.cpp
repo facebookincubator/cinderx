@@ -683,7 +683,7 @@ bool LinearScanAllocator::tryAllocateFreeReg(
       continue;
     }
 
-    freeUntilPos[interval->allocated_loc] = START_LOCATION;
+    freeUntilPos[interval->allocated_loc.loc] = START_LOCATION;
   }
 
   for (auto& interval : inactive) {
@@ -693,8 +693,8 @@ bool LinearScanAllocator::tryAllocateFreeReg(
 
     auto intersect = interval->intersectWith(*current);
     if (intersect != INVALID_LOCATION) {
-      freeUntilPos[interval->allocated_loc] =
-          std::min(freeUntilPos[interval->allocated_loc], intersect);
+      freeUntilPos[interval->allocated_loc.loc] =
+          std::min(freeUntilPos[interval->allocated_loc.loc], intersect);
     }
   }
 
@@ -710,7 +710,7 @@ bool LinearScanAllocator::tryAllocateFreeReg(
     JIT_DCHECK(
         is_fp == PhyLocation(current->allocated_loc).is_fp_register(),
         "the operand is allocated to an incorrect register type.");
-    size_t areg = current->allocated_loc;
+    size_t areg = current->allocated_loc.loc;
     if (freeUntilPos[areg] != START_LOCATION) {
       reg = areg;
       regFreeUntil = freeUntilPos[areg];
@@ -757,7 +757,7 @@ void LinearScanAllocator::allocateBlockedReg(
     if (interval->vreg->isFp() != is_fp) {
       continue;
     }
-    auto allocated_loc = interval->allocated_loc;
+    auto allocated_loc = interval->allocated_loc.loc;
     nextUsePos[allocated_loc] = getUseAtOrAfter(interval->vreg, current_start);
     reg_active_interval.emplace(allocated_loc, interval);
   }
@@ -766,7 +766,7 @@ void LinearScanAllocator::allocateBlockedReg(
       continue;
     }
     auto intersect = interval->intersectWith(*current);
-    auto allocated_loc = interval->allocated_loc;
+    auto allocated_loc = interval->allocated_loc.loc;
     if (intersect != INVALID_LOCATION) {
       nextUsePos[allocated_loc] = std::min(
           nextUsePos[allocated_loc],
@@ -861,7 +861,7 @@ void LinearScanAllocator::markDisallowedRegisters(
     auto reg = stack_registers.GetFirst();
     stack_registers.RemoveFirst();
 
-    locs[reg] = START_LOCATION;
+    locs[reg.loc] = START_LOCATION;
   }
 }
 
@@ -1174,7 +1174,7 @@ void LinearScanAllocator::rewriteLIRUpdateMapping(
         *interval);
     if (from != to) {
       TRACE("Copying from {} to {}", from, to);
-      copies->addEdge(from, to, interval->vreg->dataType());
+      copies->addEdge(from.loc, to.loc, interval->vreg->dataType());
     }
   }
   mapping_iter->second = interval;
@@ -1250,7 +1250,7 @@ void LinearScanAllocator::resolveEdges() {
 
           auto target = ret_opnd->isFp() ? PhyLocation::XMM0 : PhyLocation::RAX;
           if (reg != target) {
-            copies->addEdge(reg, target, ret_opnd->dataType());
+            copies->addEdge(reg.loc, target, ret_opnd->dataType());
           }
         } else {
           // return <constant>, we need to shuffle the value into rax here
@@ -1377,7 +1377,7 @@ LinearScanAllocator::resolveEdgesGenCopies(
     }
 
     if (from != to) {
-      copies->addEdge(from, to, from_operand->dataType());
+      copies->addEdge(from.loc, to.loc, from_operand->dataType());
     }
   }
 
@@ -1518,9 +1518,9 @@ std::ostream& operator<<(std::ostream& out, const LiveInterval& rhs) {
   if (loc != PhyLocation::REG_INVALID) {
     out << "->";
     if (loc.is_register()) {
-      out << "R" << static_cast<int>(loc);
+      out << "R" << static_cast<int>(loc.loc);
     } else {
-      out << "[RBP - " << -loc << "]";
+      out << "[RBP - " << -loc.loc << "]";
     }
     out << ": ";
   }

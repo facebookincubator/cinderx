@@ -327,7 +327,7 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
   if (instr->output()->dataType() != OperandBase::k8bit) {
     as->movzx(
         AutoTranslator::getGp(instr->output()),
-        asmjit::x86::gpb(instr->output()->getPhyRegister()));
+        asmjit::x86::gpb(instr->output()->getPhyRegister().loc));
   }
 }
 
@@ -346,8 +346,8 @@ void emitStoreGenYieldPoint(
       yield->isYieldFromHandleStopAsyncIteration();
 
   auto calc_spill_offset = [&](size_t live_input_n) {
-    int mem_loc = yield->getInput(live_input_n)->getStackSlot();
-    return mem_loc / kPointerSize;
+    PhyLocation mem = yield->getInput(live_input_n)->getStackSlot();
+      return mem.loc / kPointerSize;
   };
 
   size_t input_n = yield->getNumInputs() - 1;
@@ -381,22 +381,22 @@ void emitLoadResumedYieldInputs(
     const Instruction* instr,
     PhyLocation sent_in_source_loc,
     x86::Gp tstate_reg) {
-  int tstate_loc = instr->getInput(0)->getStackSlot();
-  as->mov(x86::ptr(x86::rbp, tstate_loc), tstate_reg);
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->mov(x86::ptr(x86::rbp, tstate.loc), tstate_reg);
 
   const lir::Operand* target = instr->output();
 
   if (target->isStack()) {
     as->mov(
-        x86::ptr(x86::rbp, target->getStackSlot()),
-        x86::gpq(sent_in_source_loc));
+        x86::ptr(x86::rbp, target->getStackSlot().loc),
+        x86::gpq(sent_in_source_loc.loc));
     return;
   }
 
   if (target->isReg()) {
     PhyLocation target_loc = target->getPhyRegister();
     if (target_loc != sent_in_source_loc) {
-      as->mov(x86::gpq(target_loc), x86::gpq(sent_in_source_loc));
+      as->mov(x86::gpq(target_loc.loc), x86::gpq(sent_in_source_loc.loc));
     }
     return;
   }
@@ -414,8 +414,8 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   // TODO(jbower) Avoid reloading tstate in from memory if it was already in a
   // register before spilling. Still needs to be in memory though so it can be
   // recovered after calling JITRT_MakeGenObject* which will trash it.
-  int tstate_loc = instr->getInput(0)->getStackSlot();
-  as->mov(x86::rsi, x86::ptr(x86::rbp, tstate_loc));
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->mov(x86::rsi, x86::ptr(x86::rbp, tstate.loc));
 
   // Make a generator object to be returned by the epilogue.
   as->lea(x86::rdi, x86::ptr(env->gen_resume_entry_label));
@@ -479,15 +479,15 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
   asmjit::x86::Builder* as = env->as;
 
   // Make sure tstate is in RDI for use in epilogue.
-  int tstate_loc = instr->getInput(0)->getStackSlot();
-  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate_loc));
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
 
   // Value to send goes to RAX so it can be yielded (returned) by epilogue.
   if (instr->getInput(1)->isImm()) {
     as->mov(x86::rax, instr->getInput(1)->getConstant());
   } else {
-    int value_out_loc = instr->getInput(1)->getStackSlot();
-    as->mov(x86::rax, x86::ptr(x86::rbp, value_out_loc));
+    PhyLocation value_out = instr->getInput(1)->getStackSlot();
+    as->mov(x86::rax, x86::ptr(x86::rbp, value_out.loc));
   }
 
   // Arbitrary scratch register for use in emitStoreGenYieldPoint()
@@ -510,18 +510,18 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
   bool skip_initial_send = instr->isYieldFromSkipInitialSend();
 
   // Make sure tstate is in RDI for use in epilogue and here.
-  int tstate_loc = instr->getInput(0)->getStackSlot();
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
   auto tstate_phys_reg = x86::rdi;
-  as->mov(tstate_phys_reg, x86::ptr(x86::rbp, tstate_loc));
+  as->mov(tstate_phys_reg, x86::ptr(x86::rbp, tstate.loc));
 
   // If we're skipping the initial send the send value is actually the first
   // value to yield and so needs to go into RAX to be returned. Otherwise,
   // put initial send value in RSI, the same location future send values will
   // be on resume.
-  int send_value_loc = instr->getInput(1)->getStackSlot();
+  PhyLocation send_value = instr->getInput(1)->getStackSlot();
   const auto send_value_phys_reg =
       skip_initial_send ? PhyLocation::RAX : PhyLocation::RSI;
-  as->mov(x86::gpq(send_value_phys_reg), x86::ptr(x86::rbp, send_value_loc));
+  as->mov(x86::gpq(send_value_phys_reg), x86::ptr(x86::rbp, send_value.loc));
 
   asmjit::Label yield_label = as->newLabel();
   if (skip_initial_send) {
@@ -550,8 +550,8 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
   // point args.
 
   // Load sub-iterator into RDI
-  int iter_loc = instr->getInput(2)->getStackSlot();
-  as->mov(x86::rdi, x86::ptr(x86::rbp, iter_loc));
+  PhyLocation iter_slot = instr->getInput(2)->getStackSlot();
+  as->mov(x86::rdi, x86::ptr(x86::rbp, iter_slot.loc));
 
   uint64_t func = reinterpret_cast<uint64_t>(
       instr->isYieldFromHandleStopAsyncIteration()
@@ -660,15 +660,16 @@ struct RegOperand {
 
     int size = Size == -1 ? LIROperandSizeMapper<N>(instr) : Size;
 
+    PhyLocation reg = LIROperandMapper<N>(instr)->getPhyRegister();
     switch (size) {
       case 8:
-        return asmjit::x86::gpb(LIROperandMapper<N>(instr)->getPhyRegister());
+        return asmjit::x86::gpb(reg.loc);
       case 16:
-        return asmjit::x86::gpw(LIROperandMapper<N>(instr)->getPhyRegister());
+        return asmjit::x86::gpw(reg.loc);
       case 32:
-        return asmjit::x86::gpd(LIROperandMapper<N>(instr)->getPhyRegister());
+        return asmjit::x86::gpd(reg.loc);
       case 64:
-        return asmjit::x86::gpq(LIROperandMapper<N>(instr)->getPhyRegister());
+        return asmjit::x86::gpq(reg.loc);
     }
     JIT_ABORT("Incorrect operand size.");
   }
@@ -679,7 +680,7 @@ struct XmmOperand {
   using asmjit_type = const asmjit::x86::Xmm&;
   static asmjit::x86::Xmm GetAsmOperand(Environ*, const Instruction* instr) {
     return asmjit::x86::xmm(
-        LIROperandMapper<N>(instr)->getPhyRegister() -
+        LIROperandMapper<N>(instr)->getPhyRegister().loc -
         PhyLocation::XMM_REG_BASE);
   }
 };
@@ -705,11 +706,11 @@ asmjit::x86::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
 
   if (index == nullptr) {
     return asmjit::x86::ptr(
-        x86::gpq(base->getPhyRegister()), indirect->getOffset());
+        x86::gpq(base->getPhyRegister().loc), indirect->getOffset());
   } else {
     return asmjit::x86::ptr(
-        x86::gpq(base->getPhyRegister()),
-        x86::gpq(index->getPhyRegister()),
+        x86::gpq(base->getPhyRegister().loc),
+        x86::gpq(index->getPhyRegister().loc),
         indirect->getMultipiler(),
         indirect->getOffset());
   }
@@ -723,7 +724,7 @@ struct MemOperand {
     auto size = LIROperandSizeMapper<N>(instr) / 8;
     asmjit::x86::Mem memptr;
     if (operand->isStack()) {
-      memptr = asmjit::x86::ptr(asmjit::x86::rbp, operand->getStackSlot());
+      memptr = asmjit::x86::ptr(asmjit::x86::rbp, operand->getStackSlot().loc);
     } else if (operand->isMem()) {
       memptr = asmjit::x86::ptr(
           reinterpret_cast<uint64_t>(operand->getMemoryAddress()));

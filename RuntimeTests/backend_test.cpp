@@ -94,8 +94,8 @@ class BackendTest : public RuntimeTest {
     std::vector<int> pushed_regs;
     pushed_regs.reserve(saved_regs.count());
     while (!saved_regs.Empty()) {
-      as.push(asmjit::x86::gpq(saved_regs.GetFirst()));
-      pushed_regs.push_back(saved_regs.GetFirst());
+      as.push(asmjit::x86::gpq(saved_regs.GetFirst().loc));
+      pushed_regs.push_back(saved_regs.GetFirst().loc);
       saved_regs.RemoveFirst();
     }
 

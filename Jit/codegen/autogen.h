@@ -57,14 +57,14 @@ class AutoTranslator {
     switch (data_type) {
       case jit::lir::OperandBase::kDouble:
         return asmjit::x86::xmm(
-            op->getPhyRegister() - PhyLocation::XMM_REG_BASE);
+            op->getPhyRegister().loc - PhyLocation::XMM_REG_BASE);
       default:
         JIT_ABORT("incorrect register type.");
     }
   }
 
   static asmjit::x86::Gp getGp(const jit::lir::OperandBase* op) {
-    return getGp(op, op->getPhyRegister());
+    return getGp(op, op->getPhyRegister().loc);
   }
 
  private:

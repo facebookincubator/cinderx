@@ -18,9 +18,6 @@ namespace jit::codegen {
 struct PhyLocation {
   PhyLocation() : loc(REG_INVALID) {}
   constexpr PhyLocation(int l) : loc(l) {}
-  constexpr operator int() const {
-    return loc;
-  }
   bool is_memory() const {
     return loc < 0;
   }
@@ -131,13 +128,13 @@ struct PhyLocation {
 class PhyRegisterSet {
  public:
   constexpr PhyRegisterSet() : rs_(0) {}
-  constexpr PhyRegisterSet(PhyLocation r) : rs_(0) {
-    rs_ |= (1 << r);
+  explicit constexpr PhyRegisterSet(PhyLocation r) : rs_(0) {
+    rs_ |= (1 << r.loc);
   }
 
   constexpr PhyRegisterSet operator|(PhyLocation reg) const {
     PhyRegisterSet set;
-    set.rs_ = rs_ | (1 << reg);
+    set.rs_ = rs_ | (1 << reg.loc);
     return set;
   }
 
@@ -186,17 +183,17 @@ class PhyRegisterSet {
   }
 
   void Set(PhyLocation reg) {
-    rs_ |= (1 << reg);
+    rs_ |= (1 << reg.loc);
   }
   void Reset(PhyLocation reg) {
-    rs_ &= ~(1 << reg);
+    rs_ &= ~(1 << reg.loc);
   }
   void ResetAll() {
     rs_ = 0;
   }
 
   bool Has(PhyLocation reg) const {
-    return rs_ & (1 << reg);
+    return rs_ & (1 << reg.loc);
   }
 
   constexpr int GetMask() const {

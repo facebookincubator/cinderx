@@ -536,7 +536,7 @@ void NativeGenerator::setupFrameAndSaveCallerRegisters(x86::Gp tstate_reg) {
 
   // Push used callee-saved registers.
   while (!saved_regs.Empty()) {
-    as_->push(x86::gpq(saved_regs.GetFirst()));
+    as_->push(x86::gpq(saved_regs.GetFirst().loc));
     saved_regs.RemoveFirst();
   }
 
@@ -551,7 +551,7 @@ x86::Gp get_arg_location(int arg) {
   auto phyloc = get_arg_location_phy_location(arg);
 
   if (phyloc.is_register()) {
-    return x86::gpq(phyloc);
+    return x86::gpq(phyloc.loc);
   }
 
   JIT_ABORT("should only be used with first six args");
@@ -860,9 +860,9 @@ void NativeGenerator::generatePrologue(
       continue;
     }
     if (arg.is_gp_register()) {
-      as_->mov(x86::gpq(arg), x86::ptr(kArgsReg, i * sizeof(void*)));
+      as_->mov(x86::gpq(arg.loc), x86::ptr(kArgsReg, i * sizeof(void*)));
     } else {
-      as_->movsd(x86::xmm(arg), x86::ptr(kArgsReg, i * sizeof(void*)));
+      as_->movsd(x86::xmm(arg.loc), x86::ptr(kArgsReg, i * sizeof(void*)));
     }
   }
   if (has_extra_args) {
@@ -1054,7 +1054,7 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
 
     std::vector<int> pop_regs;
     while (!saved_regs.Empty()) {
-      int reg = saved_regs.GetFirst();
+      int reg = saved_regs.GetFirst().loc;
       pop_regs.push_back(reg);
       saved_regs.RemoveFirst();
     }
