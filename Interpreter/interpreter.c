@@ -1203,10 +1203,10 @@ main_loop:
             switch (oparg) {
             case 2:
                 cause = POP(); /* cause */
-                /* fall through */
+                __attribute__((fallthrough));
             case 1:
                 exc = POP(); /* exc */
-                /* fall through */
+                __attribute__((fallthrough));
             case 0:
                 if (do_raise(tstate, exc, cause)) {
                     goto exception_unwind;
