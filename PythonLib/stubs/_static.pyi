@@ -84,6 +84,9 @@ TYPED_UINT8: int
 chkdict = PyDict[TypeVar("K"), TypeVar("V")]
 chklist = PyList[TypeVar("T")]
 
+class StaticTypeError(TypeError):
+    ...
+
 class staticarray:
     @classmethod
     def __init__(cls, size: int) -> None: ...

@@ -119,6 +119,7 @@ try:  # noqa: C901
         set_type_static,
         set_type_static_final,
         staticarray,
+        StaticTypeError,
         FAST_LEN_ARRAY,
         FAST_LEN_DICT,
         FAST_LEN_INEXACT,
@@ -182,6 +183,9 @@ except ImportError:
     RAND_MAX = (1 << 31) - 1
     __build_cinder_class__ = __build_class__
     static = None
+
+    class StaticTypeError(TypeError):
+        pass
 
     def is_type_static(_t):
         return False
@@ -354,7 +358,7 @@ def _subs_tvars(
                         # pyre-ignore[6]: In call `issubclass`, ...
                         and not issubclass(subs[i], tvar.__constraints__)
                     ):
-                        raise TypeError(
+                        raise StaticTypeError(
                             f"Invalid type for {tvar.__name__}: {subs[i].__name__} when instantiating {tp.__name__}"
                         )
 
@@ -385,7 +389,7 @@ def make_generic_type(
 ) -> Type[object]:
     # pyre-ignore[16]: object has no attribute __parameters__
     if len(params) != len(gen_type.__parameters__):
-        raise TypeError(f"Incorrect number of type arguments for {gen_type.__name__}")
+        raise StaticTypeError(f"Incorrect number of type arguments for {gen_type.__name__}")
 
     # Substitute params into __args__ replacing instances of __parameters__
     return _subs_tvars(
@@ -539,7 +543,7 @@ def cast(typ, val):
 
     inst_type = type(val)
     if typ not in inst_type.__mro__:
-        raise TypeError(f"expected {typ.__name__}, got {type(val).__name__}")
+        raise StaticTypeError(f"expected {typ.__name__}, got {type(val).__name__}")
 
     return val
 

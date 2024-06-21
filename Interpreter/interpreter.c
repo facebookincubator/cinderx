@@ -5090,7 +5090,7 @@ static int _Ci_CheckArgs(PyThreadState *tstate, PyFrameObject *f, PyCodeObject *
 
             if (!_PyObject_TypeCheckOptional(val, type, optional, exact)) {
                 PyErr_Format(
-                    PyExc_TypeError,
+                    CiExc_StaticTypeError,
                     "%U expected '%s' for argument %U, got '%s'",
                     co->co_name,
                     type->tp_name,

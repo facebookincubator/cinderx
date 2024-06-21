@@ -1,4 +1,4 @@
-from __static__ import Array, int32, int64, int8
+from __static__ import Array, StaticTypeError, int32, int64, int8
 
 import itertools
 import re
@@ -181,7 +181,7 @@ class ArrayTests(StaticTestBase):
             a[2] = 3
             a[3] = 4
             self.assertEqual(f(a), 10)
-            with self.assertRaises(TypeError):
+            with self.assertRaises(StaticTypeError):
                 f(None)
 
     def test_optional_array_enum(self):
@@ -313,7 +313,7 @@ class ArrayTests(StaticTestBase):
         """
         error_msg = re.escape("h expected 'staticarray' for argument x, got 'list'")
         with self.in_module(codestr) as mod:
-            with self.assertRaisesRegex(TypeError, error_msg):
+            with self.assertRaisesRegex(StaticTypeError, error_msg):
                 mod.h(["B"])
 
     # Note: This testcase actually ensures that we don't crash when the JIT is enabled and
@@ -326,7 +326,7 @@ class ArrayTests(StaticTestBase):
         """
         error_msg = re.escape("h expected 'staticarray' for argument x, got 'list'")
         with self.in_module(codestr) as mod:
-            with self.assertRaisesRegex(TypeError, error_msg):
+            with self.assertRaisesRegex(StaticTypeError, error_msg):
                 mod.h(["B"])
 
     def test_array_set_signed(self):

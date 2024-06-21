@@ -103,3 +103,7 @@ from _static import (
     TYPED_UINT64,
     TYPED_UINT8,
 )
+
+from _cinderx import (
+    StaticTypeError
+)

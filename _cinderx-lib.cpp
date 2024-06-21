@@ -771,6 +771,9 @@ PyObject* _cinderx_lib_init() {
     return nullptr;
   }
 
+  CiExc_StaticTypeError =
+      PyErr_NewException("cinderx.StaticTypeError", PyExc_TypeError, nullptr);
+
   // Deliberate single-phase initialization.
   PyObject *m = PyModule_Create(&_cinderx_module);
   if (m == nullptr) {
@@ -813,6 +816,7 @@ PyObject* _cinderx_lib_init() {
     return nullptr;                                                               \
   }
 
+  ADDITEM("StaticTypeError", CiExc_StaticTypeError);
   ADDITEM("StrictModule", &Ci_StrictModule_Type);
   ADDITEM("cached_property", &PyCachedProperty_Type);
   ADDITEM("async_cached_property", &PyAsyncCachedProperty_Type);

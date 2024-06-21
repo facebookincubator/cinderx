@@ -82,7 +82,7 @@ static PyObject* cachedpropthunk_get(
     PyObject* kwnames) {
   size_t nargs = PyVectorcall_NARGS(nargsf);
   if (nargs != 1) {
-    PyErr_SetString(PyExc_TypeError, "cached property get expected 1 argument");
+    PyErr_SetString(CiExc_StaticTypeError, "cached property get expected 1 argument");
     return NULL;
   }
 
@@ -148,7 +148,7 @@ static PyObject* async_cachedpropthunk_get(
   size_t nargs = PyVectorcall_NARGS(nargsf);
   if (nargs != 1) {
     PyErr_SetString(
-        PyExc_TypeError, "async cached property get expected 1 argument");
+        CiExc_StaticTypeError, "async cached property get expected 1 argument");
     return NULL;
   }
 
@@ -282,7 +282,7 @@ static PyObject* rettype_check(
           rt_info->rt_exact))) {
     /* The override returned an incompatible value, report error */
     const char* msg;
-    PyObject* exc_type = PyExc_TypeError;
+    PyObject* exc_type = CiExc_StaticTypeError;
     if (overflow) {
       exc_type = PyExc_OverflowError;
       msg =
@@ -1416,7 +1416,7 @@ static PyObject* propthunk_get(
     PyObject* kwnames) {
   size_t nargs = PyVectorcall_NARGS(nargsf);
   if (nargs != 1) {
-    PyErr_SetString(PyExc_TypeError, "property get expected 1 argument");
+    PyErr_SetString(CiExc_StaticTypeError, "property get expected 1 argument");
     return NULL;
   }
 
@@ -1438,14 +1438,14 @@ static PyObject* propthunk_set(
     PyObject* kwnames) {
   size_t nargs = PyVectorcall_NARGS(nargsf);
   if (nargs != 2) {
-    PyErr_SetString(PyExc_TypeError, "property set expected 1 argument");
+    PyErr_SetString(CiExc_StaticTypeError, "property set expected 1 argument");
     return NULL;
   }
 
   descrsetfunc f = Py_TYPE(thunk->propthunk_target)->tp_descr_set;
   if (f == NULL) {
     PyErr_Format(
-        PyExc_TypeError,
+        CiExc_StaticTypeError,
         "'%s' doesn't support __set__",
         Py_TYPE(thunk->propthunk_target)->tp_name);
     return NULL;
@@ -1503,7 +1503,7 @@ static PyObject* typed_descriptor_thunk_get(
   size_t nargs = PyVectorcall_NARGS(nargsf);
   if (nargs != 1) {
     PyErr_SetString(
-        PyExc_TypeError, "typed descriptor get expected 1 argument");
+        CiExc_StaticTypeError, "typed descriptor get expected 1 argument");
     return NULL;
   }
   descrgetfunc f = _PyTypedDescriptorWithDefaultValue_Type.tp_descr_get;
@@ -1521,7 +1521,7 @@ static PyObject* typed_descriptor_thunk_set(
   size_t nargs = PyVectorcall_NARGS(nargsf);
   if (nargs != 2) {
     PyErr_SetString(
-        PyExc_TypeError, "typed descriptor set expected 2 arguments");
+        CiExc_StaticTypeError, "typed descriptor set expected 2 arguments");
     return NULL;
   }
 
@@ -2036,7 +2036,7 @@ static void set_thunk_type_error(_Py_StaticThunk* thunk, const char* msg) {
   if (thunk->thunk_cls != NULL) {
     name = PyUnicode_FromFormat("%s.%U", thunk->thunk_cls->tp_name, name);
   }
-  PyErr_Format(PyExc_TypeError, msg, name);
+  PyErr_Format(CiExc_StaticTypeError, msg, name);
   if (thunk->thunk_cls != NULL) {
     Py_DECREF(name);
   }
@@ -2529,7 +2529,7 @@ int _PyClassLoader_IsFinalMethodOverridden(
   }
   if (!PyTuple_Check(final_method_names)) {
     PyErr_Format(
-        PyExc_TypeError,
+        CiExc_StaticTypeError,
         "The __final_method_names__ slot for type %R is not a tuple.",
         final_method_names);
     Py_DECREF(final_method_names);
@@ -2546,7 +2546,7 @@ int _PyClassLoader_IsFinalMethodOverridden(
       int compare_result = PyUnicode_Compare(key, current_final_method_name);
       if (compare_result == 0) {
         PyErr_Format(
-            PyExc_TypeError,
+            CiExc_StaticTypeError,
             "%R overrides a final method in the static base class %R",
             key,
             base_type);
@@ -2574,7 +2574,7 @@ static int check_if_final_method_overridden(
   }
   if (!PyTuple_Check(final_method_names)) {
     PyErr_Format(
-        PyExc_TypeError,
+        CiExc_StaticTypeError,
         "The __final_method_names__ slot for type %R is not a tuple.",
         final_method_names);
     Py_DECREF(final_method_names);
@@ -2588,7 +2588,7 @@ static int check_if_final_method_overridden(
     int compare_result = PyUnicode_Compare(name, current_final_method_name);
     if (compare_result == 0) {
       PyErr_Format(
-          PyExc_TypeError,
+          CiExc_StaticTypeError,
           "%R overrides a final method in the static base class %R",
           name,
           base_type);
@@ -2772,7 +2772,7 @@ int _PyClassLoader_UpdateSlot(
           !_PyObject_TypeCheckOptional(
               new_value, (PyTypeObject*)cur_type, cur_optional, cur_exact)) {
         PyErr_Format(
-            PyExc_TypeError,
+            CiExc_StaticTypeError,
             "Cannot assign a %s, because %s.%U is expected to be a %s",
             Py_TYPE(new_value)->tp_name,
             type->tp_name,
@@ -3074,7 +3074,7 @@ static _PyClassLoader_StaticCallReturn type_vtable_lazyinit_impl(
   }
 
   PyErr_Format(
-      PyExc_TypeError, "'%s' has no attribute %U", type->tp_name, name);
+      CiExc_StaticTypeError, "'%s' has no attribute %U", type->tp_name, name);
   return StaticError;
 }
 
@@ -3442,7 +3442,7 @@ static int classloader_verify_type(PyObject* type, PyObject* path) {
     return -1;
   } else if (!PyType_Check(type)) {
     PyErr_Format(
-        PyExc_TypeError,
+        CiExc_StaticTypeError,
         "bad name provided for class loader: %R, not a class",
         path);
     return -1;
@@ -3454,7 +3454,7 @@ static PyObject*
 classloader_instantiate_generic(PyObject* gtd, PyObject* name, PyObject* path) {
   if (!PyType_Check(gtd)) {
     PyErr_Format(
-        PyExc_TypeError,
+        CiExc_StaticTypeError,
         "generic type instantiation without type: %R on "
         "%R from %s",
         path,
@@ -3605,7 +3605,7 @@ static PyObject* classloader_get_member(
 
     if (next == NULL) {
       PyErr_Format(
-          PyExc_TypeError,
+          CiExc_StaticTypeError,
           "bad name provided for class loader, %R doesn't exist in %R",
           name,
           path);
@@ -3629,7 +3629,7 @@ error:
  * and set an error if the type cannot be resolved. */
 int _PyClassLoader_ResolvePrimitiveType(PyObject* descr) {
   if (!PyTuple_Check(descr) || PyTuple_GET_SIZE(descr) < 2) {
-    PyErr_Format(PyExc_TypeError, "unknown type %R", descr);
+    PyErr_Format(CiExc_StaticTypeError, "unknown type %R", descr);
     return -1;
   }
 
@@ -3654,7 +3654,7 @@ int _PyClassLoader_ResolvePrimitiveType(PyObject* descr) {
 PyTypeObject*
 _PyClassLoader_ResolveType(PyObject* descr, int* optional, int* exact) {
   if (!PyTuple_Check(descr) || PyTuple_GET_SIZE(descr) < 2) {
-    PyErr_Format(PyExc_TypeError, "unknown type %R", descr);
+    PyErr_Format(CiExc_StaticTypeError, "unknown type %R", descr);
     return NULL;
   }
 
@@ -4129,7 +4129,7 @@ static int classloader_init_field(PyObject* path, int* field_type) {
   }
 
   Py_DECREF(cur);
-  PyErr_Format(PyExc_TypeError, "bad field for class loader %R", path);
+  PyErr_Format(CiExc_StaticTypeError, "bad field for class loader %R", path);
   return -1;
 }
 
@@ -4274,7 +4274,7 @@ typed_descriptor_set(PyObject* self, PyObject* obj, PyObject* value) {
   }
 
   PyErr_Format(
-      PyExc_TypeError,
+      CiExc_StaticTypeError,
       "expected '%s', got '%s' for attribute '%U'",
       ((PyTypeObject*)td->td_type)->tp_name,
       Py_TYPE(value)->tp_name,
@@ -4414,7 +4414,7 @@ static int typed_descriptor_with_default_value_set(
   }
 
   PyErr_Format(
-      PyExc_TypeError,
+      CiExc_StaticTypeError,
       "expected '%s', got '%s' for attribute '%U'",
       ((PyTypeObject*)td->td_type)->tp_name,
       Py_TYPE(value)->tp_name,
@@ -4486,7 +4486,7 @@ void _PyClassLoader_ArgError(
     switch (Ci_Py_SIG_TYPE_MASK(argtype)) {
       case Ci_Py_SIG_OBJECT:
         PyErr_Format(
-            PyExc_TypeError, "%U() argument %d is missing", func_name, arg);
+            CiExc_StaticTypeError, "%U() argument %d is missing", func_name, arg);
         return;
       case Ci_Py_SIG_STRING:
         expected = "str";
@@ -4498,7 +4498,7 @@ void _PyClassLoader_ArgError(
   }
 
   PyErr_Format(
-      PyExc_TypeError,
+      CiExc_StaticTypeError,
       "%U() argument %d expected %s",
       func_name,
       arg,
@@ -4930,14 +4930,14 @@ static PyObject* classloader_lookup_symbol(
 void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name) {
   if (!PyUnicode_CheckExact(lib_name)) {
     PyErr_Format(
-        PyExc_TypeError,
+        CiExc_StaticTypeError,
         "classloader: 'lib_name' must be a str, got '%s'",
         Py_TYPE(lib_name)->tp_name);
     return NULL;
   }
   if (!PyUnicode_CheckExact(symbol_name)) {
     PyErr_Format(
-        PyExc_TypeError,
+        CiExc_StaticTypeError,
         "classloader: 'symbol_name' must be a str, got '%s'",
         Py_TYPE(symbol_name)->tp_name);
     return NULL;

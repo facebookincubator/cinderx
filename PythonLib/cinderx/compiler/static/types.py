@@ -843,7 +843,7 @@ class Value:
         return visitor.type_env.DYNAMIC
 
     def as_oparg(self) -> int:
-        raise TypeError(f"{self.name} not valid here")
+        raise StaticTypeError(f"{self.name} not valid here")
 
     def can_override(self, override: Value, klass: Class, module: ModuleTable) -> bool:
         return type(self) == type(override)
@@ -8355,7 +8355,7 @@ class OptionalType(UnionType):
         opt_type = self.type_name.opt_type
         if opt_type is None:
             params = ", ".join(t.name for t in self.type_args)
-            raise TypeError(f"OptionalType has invalid type parameters {params}")
+            raise StaticTypeError(f"OptionalType has invalid type parameters {params}")
         return opt_type
 
     def make_generic_type(
