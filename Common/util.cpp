@@ -2,6 +2,7 @@
 
 #include "cinderx/Common/util.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 
@@ -212,7 +213,7 @@ bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
 
 uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
   uint32_t crc = crc32(0, nullptr, 0);
-  BorrowedRef<> bc = code->co_code;
+  BorrowedRef<> bc = PyCode_GetCode(code);
   if (!PyBytes_Check(bc)) {
     return crc;
   }
