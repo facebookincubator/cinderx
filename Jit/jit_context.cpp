@@ -5,11 +5,14 @@
 #include "cinderx/Common/log.h"
 
 #include "cinderx/Jit/codegen/gen_asm.h"
+#include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 
 #include <unordered_set>
 
 namespace jit {
+
+AotContext g_aot_ctx;
 
 namespace {
 
@@ -254,6 +257,65 @@ void Context::finalizeFunc(
     *indirect = compiled.staticEntry();
   }
   return;
+}
+
+void AotContext::init(void* bundle_handle) {
+  JIT_CHECK(
+      bundle_handle_ == nullptr,
+      "Trying to register AOT bundle at {} but already have one at {}",
+      bundle_handle,
+      bundle_handle_);
+  bundle_handle_ = bundle_handle;
+}
+
+void AotContext::destroy() {
+  if (bundle_handle_ == nullptr) {
+    return;
+  }
+
+  // TODO(alexanderm): Unmap compiled functions and empty out private data
+  // structures.
+
+  dlclose(bundle_handle_);
+  bundle_handle_ = nullptr;
+}
+
+void AotContext::registerFunc(const elf::Note& note) {
+  elf::CodeNoteData note_data = elf::parseCodeNote(note);
+  JIT_LOG("  Function {}", note.name);
+  JIT_LOG("    File: {}", note_data.file_name);
+  JIT_LOG("    Line: {}", note_data.lineno);
+  JIT_LOG("    Hash: {:#x}", note_data.hash);
+  JIT_LOG("    Size: {}", note_data.size);
+  JIT_LOG("    Normal Entry: +{:#x}", note_data.normal_entry_offset);
+  JIT_LOG(
+      "    Static Entry: {}",
+      note_data.static_entry_offset
+          ? fmt::format("+{:#x}", *note_data.static_entry_offset)
+          : "");
+
+  // TODO(alexanderm): Use std::piecewise_construct for better efficiency.
+  auto [it, inserted] = funcs_.emplace(note.name, FuncState{});
+  JIT_CHECK(inserted, "Duplicate ELF note for function '{}'", note.name);
+  it->second.note = std::move(note_data);
+
+  // Compute the compiled function's address after dynamic linking.
+  void* address = dlsym(bundle_handle_, note.name.c_str());
+  JIT_CHECK(
+      address != nullptr,
+      "Cannot find AOT-compiled function with name '{}' despite successfully "
+      "loading the AOT bundle",
+      note.name);
+  it->second.compiled_code = {
+      reinterpret_cast<const std::byte*>(address), it->second.note.size};
+  JIT_LOG("    Address: {}", address);
+}
+
+const AotContext::FuncState* AotContext::lookupFuncState(
+    BorrowedRef<PyFunctionObject> func) {
+  std::string name = funcFullname(func);
+  auto it = funcs_.find(name);
+  return it != funcs_.end() ? &it->second : nullptr;
 }
 
 } // namespace jit

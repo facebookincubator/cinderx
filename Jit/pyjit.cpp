@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/pyjit.h"
 
-#include <Python.h>
 #include "cinder/exports.h"
 #include "cinder/genobject_jit.h"
 #include "cinderx/Common/log.h"
@@ -18,6 +17,7 @@
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/elf/writer.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/builder.h"
@@ -29,10 +29,13 @@
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/Jit/lir/inliner.h"
+#include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/type_profiler.h"
+
+#include <Python.h>
 
 #include <atomic>
 #include <charconv>
@@ -1110,6 +1113,88 @@ static PyObject* force_compile(PyObject* /* self */, PyObject* func_obj) {
   return nullptr;
 }
 
+
+static int aot_func_visitor(PyObject* obj, void* arg) {
+  constexpr int kGcVisitContinue = 1;
+
+  auto aot_ctx = reinterpret_cast<AotContext*>(arg);
+  if (!PyFunction_Check(obj)) {
+    return kGcVisitContinue;
+  }
+
+  BorrowedRef<PyFunctionObject> func{obj};
+  auto func_state = aot_ctx->lookupFuncState(func);
+  if (func_state != nullptr) {
+    func->vectorcall = func_state->normalEntry();
+  }
+  return kGcVisitContinue;
+}
+
+static PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
+  JIT_CHECK(
+      jit_ctx != nullptr,
+      "Loading an AOT bundle currently requires the JIT to be enabled");
+
+  if (!PyUnicode_Check(arg)) {
+    PyErr_SetString(
+        PyExc_ValueError, "load_aot_bundle expects a filename string");
+    return nullptr;
+  }
+
+  const char* filename = PyUnicode_AsUTF8(arg);
+
+  // TODO(alexanderm): Verify these options are what we want.
+  auto handle = dlopen(filename, RTLD_NOW | RTLD_GLOBAL);
+  if (handle == nullptr) {
+    std::string msg = fmt::format(
+        "Failed to dlopen() the AOT bundle at {}\n{}", filename, dlerror());
+    PyErr_SetString(PyExc_RuntimeError, msg.c_str());
+    return nullptr;
+  }
+
+  g_aot_ctx.init(handle);
+
+  // TODO(T193608222): It would be great to do something other than mmapping the
+  // entire file into memory, especially since we just loaded it in via
+  // dlopen().
+  MmapFile file;
+  try {
+    file.open(filename);
+  } catch (const std::exception& exn) {
+    PyErr_SetString(PyExc_RuntimeError, exn.what());
+    return nullptr;
+  }
+
+  // Find the function metadata section.
+  std::span<const std::byte> note_span;
+  try {
+    note_span = elf::findSection(file.data(), elf::kFuncNoteSectionName);
+  } catch (const std::exception& exn) {
+    PyErr_SetString(PyExc_RuntimeError, exn.what());
+    return nullptr;
+  }
+  if (note_span.empty()) {
+    PyErr_SetString(
+        PyExc_RuntimeError, "Cannot find note section for function metadata");
+    return nullptr;
+  }
+
+  elf::NoteArray note_array = elf::readNoteSection(note_span);
+
+  // Populate AotContext with data from the note section.
+  for (const elf::Note& note : note_array.notes()) {
+    g_aot_ctx.registerFunc(note);
+  }
+
+  // Now map compiled functions to existing PyFunctionObjects.
+  //
+  // TODO(alexanderm): This is terrible and we should be going the other way,
+  // mapping read notes over to function objects.
+  PyUnstable_GC_VisitObjects(aot_func_visitor, &g_aot_ctx);
+
+  Py_RETURN_NONE;
+}
+
 static PyObject* auto_jit_threshold(PyObject* /* self */, PyObject*) {
   return PyLong_FromLong(getConfig().auto_jit_threshold);
 }
@@ -1681,6 +1766,12 @@ static PyMethodDef jit_methods[] = {
      "Write out all generated code into an ELF file, whose filepath is passed "
      "as the first argument. This is currently intended for debugging "
      "purposes."},
+    {"load_aot_bundle",
+     load_aot_bundle,
+     METH_O,
+     "Load a bundle of ahead-of-time generated code from an ELF file, whose "
+     "filepath is passed as the first argument. Note: This does not actually "
+     "work yet, it's being used for debugging purposes."},
     {"auto_jit_threshold",
      auto_jit_threshold,
      METH_NOARGS,
@@ -2427,6 +2518,8 @@ int _PyJIT_Finalize() {
   _PyJIT_FinalizeInternedStrings();
 
   Runtime::shutdown();
+
+  g_aot_ctx.destroy();
 
   return 0;
 }
