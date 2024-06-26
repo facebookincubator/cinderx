@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/deopt.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/util.h"
 
 #include "cinderx/Jit/bytecode_offsets.h"
@@ -145,7 +146,7 @@ Ref<> profileDeopt(
   // for that case.
   int opcode = -1;
   if (bc_off.value() >= 0) {
-    char* raw_code = PyBytes_AS_STRING(code->co_code);
+    char* raw_code = PyBytes_AS_STRING(PyCode_GetCode(code));
     BytecodeInstruction bc_instr{
         reinterpret_cast<_Py_CODEUNIT*>(raw_code), bc_off};
     opcode = bc_instr.opcode();

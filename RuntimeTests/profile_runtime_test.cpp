@@ -1,6 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
+#include "cinderx/Common/code.h"
+
 #include "cinderx/Jit/runtime.h"
 
 #include "cinderx/RuntimeTests/fixtures.h"
@@ -27,7 +29,7 @@ foo(MyType())
   Ref<PyFunctionObject> foo(getGlobal("foo"));
   ASSERT_NE(foo, nullptr);
   BorrowedRef<PyCodeObject> foo_code = foo->func_code;
-  BorrowedRef<PyBytesObject> foo_bc = foo_code->co_code;
+  BorrowedRef<PyBytesObject> foo_bc = PyCode_GetCode(foo_code);
   ASSERT_TRUE(PyBytes_CheckExact(foo_bc));
 
   // Find the offset of the LOAD_ATTR in foo_bc so we can look up its profile

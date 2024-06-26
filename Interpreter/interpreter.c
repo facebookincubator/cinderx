@@ -7,6 +7,7 @@
 #include "../../Python/ceval.c"
 #endif
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/StaticPython/checked_dict.h"
@@ -415,10 +416,10 @@ Ci_EvalFrame(PyThreadState *tstate, PyFrameObject *f, int throwflag)
     consts = co->co_consts;
     fastlocals = f->f_localsplus;
     freevars = f->f_localsplus + co->co_nlocals;
-    assert(PyBytes_Check(co->co_code));
-    assert(PyBytes_GET_SIZE(co->co_code) <= INT_MAX);
-    assert(PyBytes_GET_SIZE(co->co_code) % sizeof(_Py_CODEUNIT) == 0);
-    assert(_Py_IS_ALIGNED(PyBytes_AS_STRING(co->co_code), sizeof(_Py_CODEUNIT)));
+    assert(PyBytes_Check(PyCode_GetCode(co)));
+    assert(PyBytes_GET_SIZE(PyCode_GetCode(co)) <= INT_MAX);
+    assert(PyBytes_GET_SIZE(PyCode_GetCode(co)) % sizeof(_Py_CODEUNIT) == 0);
+    assert(_Py_IS_ALIGNED(PyBytes_AS_STRING(PyCode_GetCode(co)), sizeof(_Py_CODEUNIT)));
 
     /* facebook begin t39538061 */
     shadow.code = co;
@@ -430,7 +431,7 @@ Ci_EvalFrame(PyThreadState *tstate, PyFrameObject *f, int throwflag)
         global_cache = shadow.shadow->globals;
         first_instr = &shadow.shadow->code[0];
     } else {
-        first_instr = (_Py_CODEUNIT *)PyBytes_AS_STRING(co->co_code);
+        first_instr = (_Py_CODEUNIT *)PyBytes_AS_STRING(PyCode_GetCode(co));
     }
     /* facebook end t39538061 */
 

@@ -4,6 +4,7 @@
 
 #include "cinder/exports.h"
 #include "cinder/genobject_jit.h"
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
@@ -2758,7 +2759,8 @@ void start_instr(ProfileEnv& env, int bcoff_raw) {
   int lineno_raw = env.code->co_linetable != nullptr
       ? PyCode_Addr2Line(env.code, bcoff_raw)
       : -1;
-  int opcode = _Py_OPCODE(PyBytes_AS_STRING(env.code->co_code)[bcoff_raw]);
+  int opcode =
+      _Py_OPCODE(PyBytes_AS_STRING(PyCode_GetCode(env.code))[bcoff_raw]);
   JIT_CHECK(opcode != 0, "Invalid opcode at offset {}", bcoff_raw);
   env.bc_offset = Ref<>::steal(check(PyLong_FromLong(bcoff_raw)));
   env.lineno = Ref<>::steal(check(PyLong_FromLong(lineno_raw)));

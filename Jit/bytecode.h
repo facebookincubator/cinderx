@@ -2,11 +2,13 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Interpreter/opcode.h"
 
 #include "cinderx/Jit/bytecode_offsets.h"
+
+#include <Python.h>
 
 #include <iterator>
 #include <unordered_set>
@@ -117,9 +119,9 @@ class BytecodeInstruction {
 class BytecodeInstructionBlock {
  public:
   explicit BytecodeInstructionBlock(PyCodeObject* code)
-      : instrs_((_Py_CODEUNIT*)PyBytes_AS_STRING(code->co_code)),
+      : instrs_((_Py_CODEUNIT*)PyBytes_AS_STRING(PyCode_GetCode(code))),
         start_idx_(0),
-        end_idx_(PyBytes_Size(code->co_code) / sizeof(_Py_CODEUNIT)) {}
+        end_idx_(PyBytes_Size(PyCode_GetCode(code)) / sizeof(_Py_CODEUNIT)) {}
 
   BytecodeInstructionBlock(_Py_CODEUNIT* instrs, BCIndex start, BCIndex end)
       : instrs_(instrs), start_idx_(start), end_idx_(end) {}

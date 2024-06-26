@@ -1,7 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
-#include <Python.h>
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
@@ -18,6 +18,7 @@
 
 #include "cinderx/RuntimeTests/fixtures.h"
 
+#include <Python.h>
 #include <asmjit/asmjit.h>
 
 #include <algorithm>
@@ -278,7 +279,8 @@ def test(x, y):
     PyCodeObject* code =
         reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
     const int jump_index = 18;
-    ASSERT_EQ(PyBytes_AS_STRING(code->co_code)[22], (char)POP_JUMP_IF_ZERO);
+    ASSERT_EQ(
+        PyBytes_AS_STRING(PyCode_GetCode(code))[22], (char)POP_JUMP_IF_ZERO);
 
     DeoptMetadata dm;
     dm.live_values = {a_val};
