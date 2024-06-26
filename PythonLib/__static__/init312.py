@@ -42,8 +42,8 @@ from .type_code import (
     TYPED_UINT8,
 )
 
-chkdict = Dict[TypeVar("K"), TypeVar("V")]
-chklist = List[TypeVar("V")]
+chkdict = dict[TypeVar("K"), TypeVar("V")]
+chklist = list[TypeVar("V")]
 
 FAST_LEN_ARRAY = 0
 FAST_LEN_DICT = 0
