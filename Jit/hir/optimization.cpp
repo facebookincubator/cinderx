@@ -876,7 +876,7 @@ static bool canInline(
 
     return false;
   }
-  Py_ssize_t ncellvars = PyTuple_GET_SIZE(code->co_cellvars);
+  Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   if (ncellvars > 0) {
     dlogAndCollectFailureStats(
         inline_failure_stats, InlineFailureType::kHasCellvars, fullname);

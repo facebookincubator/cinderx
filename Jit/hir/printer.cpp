@@ -943,11 +943,12 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
     case STORE_DEREF:
     case DELETE_DEREF: {
       PyObject* name_obj;
-      if (oparg < PyTuple_GET_SIZE(code->co_cellvars)) {
-        name_obj = PyTuple_GetItem(code->co_cellvars, oparg);
+      if (oparg < PyTuple_GET_SIZE(PyCode_GetCellvars(code))) {
+        name_obj = PyTuple_GetItem(PyCode_GetCellvars(code), oparg);
       } else {
         name_obj = PyTuple_GetItem(
-            code->co_freevars, oparg - PyTuple_GET_SIZE(code->co_cellvars));
+            code->co_freevars,
+            oparg - PyTuple_GET_SIZE(PyCode_GetCellvars(code)));
       }
       JIT_DCHECK(name_obj != nullptr, "bad name");
       const char* name = PyUnicode_AsUTF8(name_obj);

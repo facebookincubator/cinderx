@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/hir/builder.h"
 
-#include <Python.h>
 #include "boolobject.h"
 #include "ceval.h"
 #include "cinderx/Common/ref.h"
@@ -28,6 +27,7 @@
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/threaded_compile.h"
 
+#include <Python.h>
 #include <folly/tracing/StaticTracepoint.h>
 
 #include <algorithm>
@@ -255,7 +255,7 @@ void HIRBuilder::AllocateRegistersForLocals(
 void HIRBuilder::AllocateRegistersForCells(
     Environment* env,
     FrameState& state) {
-  Py_ssize_t ncells = PyTuple_GET_SIZE(code_->co_cellvars) +
+  Py_ssize_t ncells = PyTuple_GET_SIZE(PyCode_GetCellvars(code_)) +
       PyTuple_GET_SIZE(code_->co_freevars);
   state.cells.clear();
   state.cells.reserve(ncells);
@@ -349,7 +349,7 @@ void HIRBuilder::addLoadArgs(TranslationContext& tc, int num_args) {
 void HIRBuilder::addInitializeCells(
     TranslationContext& tc,
     Register* cur_func) {
-  Py_ssize_t ncellvars = PyTuple_GET_SIZE(code_->co_cellvars);
+  Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code_));
   Py_ssize_t nfreevars = PyTuple_GET_SIZE(code_->co_freevars);
 
   Register* null_reg = ncellvars > 0 ? temps_.AllocateNonStack() : nullptr;

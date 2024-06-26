@@ -1774,8 +1774,8 @@ main_loop:
             PyObject *name, *value, *locals = f->f_locals;
             Py_ssize_t idx;
             assert(locals);
-            assert(oparg >= PyTuple_GET_SIZE(co->co_cellvars));
-            idx = oparg - PyTuple_GET_SIZE(co->co_cellvars);
+            assert(oparg >= PyTuple_GET_SIZE(PyCode_GetCellvars(co)));
+            idx = oparg - PyTuple_GET_SIZE(PyCode_GetCellvars(co));
             assert(idx >= 0 && idx < PyTuple_GET_SIZE(co->co_freevars));
             name = PyTuple_GET_ITEM(co->co_freevars, idx);
             if (PyDict_CheckExact(locals)) {
@@ -5096,8 +5096,8 @@ static int _Ci_CheckArgs(PyThreadState *tstate, PyFrameObject *f, PyCodeObject *
                     co->co_name,
                     type->tp_name,
                     idx < 0 ?
-                        PyTuple_GetItem(co->co_cellvars, -(idx + 1)) :
-                    PyTuple_GetItem(PyCode_GetVarnames(co), idx),
+                      PyTuple_GetItem(PyCode_GetCellvars(co), -(idx + 1)) :
+                      PyTuple_GetItem(PyCode_GetVarnames(co), idx),
                     Py_TYPE(val)->tp_name);
                 Py_DECREF(type);
                 return -1;
@@ -5148,7 +5148,7 @@ static int _Ci_CheckArgs(PyThreadState *tstate, PyFrameObject *f, PyCodeObject *
                 co->co_name,
                 check->tai_type->tp_name,
                 idx < 0 ?
-                    PyTuple_GetItem(co->co_cellvars, -(idx + 1)) :
+                    PyTuple_GetItem(PyCode_GetCellvars(co), -(idx + 1)) :
                     PyTuple_GetItem(PyCode_GetVarnames(co), idx),
                 Py_TYPE(val)->tp_name);
             return -1;

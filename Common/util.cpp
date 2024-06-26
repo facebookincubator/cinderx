@@ -137,9 +137,9 @@ PyObject* getVarnameTuple(PyCodeObject* code, int* idx) {
   }
 
   *idx -= code->co_nlocals;
-  auto ncellvars = PyTuple_GET_SIZE(code->co_cellvars);
+  auto ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   if (*idx < ncellvars) {
-    return code->co_cellvars;
+    return PyCode_GetCellvars(code);
   }
 
   *idx -= ncellvars;

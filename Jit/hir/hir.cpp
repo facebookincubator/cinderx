@@ -918,7 +918,7 @@ Py_ssize_t Function::numVars() const {
     // code might be null if we parsed from textual ir
     return 0;
   }
-  Py_ssize_t num_cellvars = PyTuple_GET_SIZE(code->co_cellvars);
+  Py_ssize_t num_cellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   Py_ssize_t num_freevars = PyTuple_GET_SIZE(code->co_freevars);
   return code->co_nlocals + num_cellvars + num_freevars;
 }
