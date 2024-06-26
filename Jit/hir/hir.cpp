@@ -883,7 +883,7 @@ const Environment::ReferenceSet& Environment::references() const {
 }
 
 bool usesRuntimeFunc(BorrowedRef<PyCodeObject> code) {
-  return PyTuple_GET_SIZE(code->co_freevars) > 0;
+  return PyTuple_GET_SIZE(PyCode_GetFreevars(code)) > 0;
 }
 
 void Function::setCode(BorrowedRef<PyCodeObject> code) {
@@ -919,7 +919,7 @@ Py_ssize_t Function::numVars() const {
     return 0;
   }
   Py_ssize_t num_cellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
-  Py_ssize_t num_freevars = PyTuple_GET_SIZE(code->co_freevars);
+  Py_ssize_t num_freevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code));
   return code->co_nlocals + num_cellvars + num_freevars;
 }
 

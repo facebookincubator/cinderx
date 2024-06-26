@@ -143,7 +143,7 @@ PyObject* getVarnameTuple(PyCodeObject* code, int* idx) {
   }
 
   *idx -= ncellvars;
-  return code->co_freevars;
+  return PyCode_GetFreevars(code);
 }
 
 PyObject* getVarname(PyCodeObject* code, int idx) {

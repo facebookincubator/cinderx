@@ -883,7 +883,7 @@ static bool canInline(
 
     return false;
   }
-  Py_ssize_t nfreevars = PyTuple_GET_SIZE(code->co_freevars);
+  Py_ssize_t nfreevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code));
   if (nfreevars > 0) {
     dlogAndCollectFailureStats(
         inline_failure_stats, InlineFailureType::kHasFreevars, fullname);

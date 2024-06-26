@@ -1776,8 +1776,8 @@ main_loop:
             assert(locals);
             assert(oparg >= PyTuple_GET_SIZE(PyCode_GetCellvars(co)));
             idx = oparg - PyTuple_GET_SIZE(PyCode_GetCellvars(co));
-            assert(idx >= 0 && idx < PyTuple_GET_SIZE(co->co_freevars));
-            name = PyTuple_GET_ITEM(co->co_freevars, idx);
+            assert(idx >= 0 && idx < PyTuple_GET_SIZE(PyCode_GetFreevars(co)));
+            name = PyTuple_GET_ITEM(PyCode_GetFreevars(co), idx);
             if (PyDict_CheckExact(locals)) {
                 value = PyDict_GetItemWithError(locals, name);
                 if (value != NULL) {

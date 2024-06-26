@@ -947,7 +947,7 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
         name_obj = PyTuple_GetItem(PyCode_GetCellvars(code), oparg);
       } else {
         name_obj = PyTuple_GetItem(
-            code->co_freevars,
+            PyCode_GetFreevars(code),
             oparg - PyTuple_GET_SIZE(PyCode_GetCellvars(code)));
       }
       JIT_DCHECK(name_obj != nullptr, "bad name");

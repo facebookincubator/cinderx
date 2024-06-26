@@ -256,7 +256,7 @@ void HIRBuilder::AllocateRegistersForCells(
     Environment* env,
     FrameState& state) {
   Py_ssize_t ncells = PyTuple_GET_SIZE(PyCode_GetCellvars(code_)) +
-      PyTuple_GET_SIZE(code_->co_freevars);
+      PyTuple_GET_SIZE(PyCode_GetFreevars(code_));
   state.cells.clear();
   state.cells.reserve(ncells);
   for (int i = 0; i < ncells; i++) {
@@ -350,7 +350,7 @@ void HIRBuilder::addInitializeCells(
     TranslationContext& tc,
     Register* cur_func) {
   Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code_));
-  Py_ssize_t nfreevars = PyTuple_GET_SIZE(code_->co_freevars);
+  Py_ssize_t nfreevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code_));
 
   Register* null_reg = ncellvars > 0 ? temps_.AllocateNonStack() : nullptr;
   for (int i = 0; i < ncellvars; i++) {
