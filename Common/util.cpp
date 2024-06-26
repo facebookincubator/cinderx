@@ -133,7 +133,7 @@ std::string funcFullname(PyFunctionObject* func) {
 
 PyObject* getVarnameTuple(PyCodeObject* code, int* idx) {
   if (*idx < code->co_nlocals) {
-    return code->co_varnames;
+    return PyCode_GetVarnames(code);
   }
 
   *idx -= code->co_nlocals;

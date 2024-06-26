@@ -634,7 +634,7 @@ main_loop:
             if (value == NULL) {
                 format_exc_check_arg(tstate, PyExc_UnboundLocalError,
                                      UNBOUNDLOCAL_ERROR_MSG,
-                                     PyTuple_GetItem(co->co_varnames, oparg));
+                                     PyTuple_GetItem(PyCode_GetVarnames(co), oparg));
                 goto error;
             }
             Py_INCREF(value);
@@ -5097,7 +5097,7 @@ static int _Ci_CheckArgs(PyThreadState *tstate, PyFrameObject *f, PyCodeObject *
                     type->tp_name,
                     idx < 0 ?
                         PyTuple_GetItem(co->co_cellvars, -(idx + 1)) :
-                        PyTuple_GetItem(co->co_varnames, idx),
+                    PyTuple_GetItem(PyCode_GetVarnames(co), idx),
                     Py_TYPE(val)->tp_name);
                 Py_DECREF(type);
                 return -1;
@@ -5149,7 +5149,7 @@ static int _Ci_CheckArgs(PyThreadState *tstate, PyFrameObject *f, PyCodeObject *
                 check->tai_type->tp_name,
                 idx < 0 ?
                     PyTuple_GetItem(co->co_cellvars, -(idx + 1)) :
-                    PyTuple_GetItem(co->co_varnames, idx),
+                    PyTuple_GetItem(PyCode_GetVarnames(co), idx),
                 Py_TYPE(val)->tp_name);
             return -1;
         }

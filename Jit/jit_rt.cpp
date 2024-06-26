@@ -80,7 +80,7 @@ static int JITRT_BindKeywordArgs(
   // Handle keyword arguments passed as two strided arrays
   if (kwnames != nullptr) {
     for (Py_ssize_t i = 0; i < PyTuple_Size(kwnames); i++) {
-      PyObject** co_varnames;
+      PyObject** varnames;
       PyObject* keyword = PyTuple_GET_ITEM(kwnames, i);
       PyObject* value = args[argcount + i];
       Py_ssize_t j;
@@ -91,9 +91,9 @@ static int JITRT_BindKeywordArgs(
 
       // Speed hack: do raw pointer compares. As names are
       //    normally interned this should almost always hit.
-      co_varnames = ((PyTupleObject*)(co->co_varnames))->ob_item;
+      varnames = ((PyTupleObject*)(PyCode_GetVarnames(co)))->ob_item;
       for (j = co->co_posonlyargcount; j < total_args; j++) {
-        PyObject* name = co_varnames[j];
+        PyObject* name = varnames[j];
         if (name == keyword) {
           goto kw_found;
         }
@@ -101,7 +101,7 @@ static int JITRT_BindKeywordArgs(
 
       // Slow fallback, just in case
       for (j = co->co_posonlyargcount; j < total_args; j++) {
-        PyObject* name = co_varnames[j];
+        PyObject* name = varnames[j];
         int cmp = PyObject_RichCompareBool(keyword, name, Py_EQ);
         if (cmp > 0) {
           goto kw_found;
@@ -167,7 +167,7 @@ static int JITRT_BindKeywordArgs(
       PyObject* name;
       if (arg_space[i] != nullptr)
         continue;
-      name = PyTuple_GET_ITEM(co->co_varnames, i);
+      name = PyTuple_GET_ITEM(PyCode_GetVarnames(co), i);
       if (kwdefs != nullptr) {
         PyObject* def = PyDict_GetItemWithError(kwdefs, name);
         if (def) {
@@ -519,7 +519,7 @@ PyObject* JITRT_ReportStaticArgTypecheckErrors(
     return nullptr;
   }
   for (Py_ssize_t i = code->co_argcount; i < code->co_argcount + nkwonly; i++) {
-    auto name = Ref<>::create(PyTuple_GetItem(code->co_varnames, i));
+    auto name = Ref<>::create(PyTuple_GetItem(PyCode_GetVarnames(code), i));
     PyTuple_SetItem(new_kwnames, i - code->co_argcount, std::move(name));
   }
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf) - nkwonly;
