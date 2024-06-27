@@ -61,13 +61,13 @@ fun jittestmodule:test {
   bb 1 (preds 0) {
     Snapshot
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    Return v16
+    Return<Bool> v16
   }
 
   bb 2 (preds 0) {
     Snapshot
     v17:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return v17
+    Return<Bool> v17
   }
 }
 ---

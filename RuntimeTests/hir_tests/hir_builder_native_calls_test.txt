@@ -41,7 +41,7 @@ fun jittestmodule:test {
         Locals<2> v0 v1
       }
     }
-    Return v5
+    Return<Long> v5
   }
 }
 ---

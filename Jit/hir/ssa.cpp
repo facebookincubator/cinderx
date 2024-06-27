@@ -277,6 +277,7 @@ bool checkFunc(const Function& func, std::ostream& err) {
 static const UnorderedMap<std::string, Type> kBuiltinFunctionTypes = {
     {"dict.copy", TDictExact},
     {"hasattr", TBool},
+    {"isinstance", TBool},
     {"len", TLongExact},
     {"list.copy", TListExact},
     {"list.count", TLongExact},

@@ -20,7 +20,7 @@ fun jittestmodule:Test.__init__ {
     StoreField<x@16> v5 v6 v8
     v10:NoneType = LoadConst<NoneType>
     Incref v10
-    Return v10
+    Return<NoneType> v10
   }
 }
 ---
@@ -41,7 +41,7 @@ fun jittestmodule:Test.__init__ {
     XDecref v7
     v8:NoneType = LoadConst<NoneType>
     Incref v8
-    Return v8
+    Return<NoneType> v8
   }
 }
 ---

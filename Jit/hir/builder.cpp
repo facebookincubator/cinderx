@@ -1043,14 +1043,10 @@ void HIRBuilder::translate(
         }
         case RETURN_VALUE: {
           Register* reg = tc.frame.stack.pop();
-          // TODO add preloader_.returnType() to Return instr here to validate
-          // that all values flowing to return are of correct type; will
-          // require consistency of static compiler and JIT types, see
-          // T86480663
           JIT_CHECK(
               tc.frame.block_stack.isEmpty(),
               "Returning with non-empty block stack");
-          tc.emit<Return>(reg);
+          tc.emit<Return>(reg, preloader_.returnType());
           break;
         }
         case ROT_N: {

@@ -265,7 +265,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v1
+    Return<User[C]> v1
   }
 }
 ---
@@ -297,7 +297,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v1
+    Return<{NoneType|User}> v1
   }
 }
 ---
@@ -1029,7 +1029,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v3
+    Return<Unicode> v3
   }
 }
 ---
@@ -1097,7 +1097,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 3) {
     Snapshot
-    Return v1
+    Return<Unicode> v1
   }
 }
 ---
@@ -1273,7 +1273,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v20
+    Return<Long> v20
   }
 }
 ---
@@ -1308,7 +1308,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v2 = RefineType<ListExact> v2
-    Return v2
+    Return<List> v2
   }
 }
 ---
@@ -1325,7 +1325,7 @@ fun jittestmodule:test {
     v1 = LoadConst<CDouble[1.14]>
     v0 = Assign v1
     v2 = LoadConst<NoneType>
-    Return v2
+    Return<NoneType> v2
   }
 }
 ---
@@ -1419,7 +1419,7 @@ fun jittestmodule:test {
     v10 = LoadField<ob_item@24, CPtr, borrowed> v0
     v11 = LoadArrayItem v10 v9 v0
     Snapshot
-    Return v11
+    Return<Long> v11
   }
 }
 ---
@@ -1496,7 +1496,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v12
+    Return<Long> v12
   }
 }
 ---
@@ -1650,7 +1650,7 @@ fun jittestmodule:test {
     StoreArrayItem v6 v5 v1 v0
     Snapshot
     v8 = LoadConst<NoneType>
-    Return v8
+    Return<NoneType> v8
   }
 }
 ---
