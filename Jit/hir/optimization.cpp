@@ -83,81 +83,6 @@ Instr* DynamicComparisonElimination::ReplaceCompare(
       *get_frame_state(*truthy));
 }
 
-Instr* DynamicComparisonElimination::ReplaceVectorCall(
-    Function& irfunc,
-    CondBranch& cond_branch,
-    BasicBlock& block,
-    VectorCall* vectorcall,
-    IsTruthy* truthy) {
-  auto func = vectorcall->func();
-
-  if (!func->type().hasValueSpec(TObject)) {
-    return nullptr;
-  }
-
-  const Builtins& builtins = Runtime::get()->builtins();
-  auto funcobj = func->type().objectSpec();
-  if (Py_TYPE(funcobj) == &PyCFunction_Type &&
-      builtins.find(((PyCFunctionObject*)funcobj)->m_ml) == "isinstance" &&
-      vectorcall->numArgs() == 2 &&
-      vectorcall->GetOperand(2)->type() <= TType) {
-    auto obj_op = vectorcall->GetOperand(1);
-    auto type_op = vectorcall->GetOperand(2);
-    BCOffset bc_off = cond_branch.bytecodeOffset();
-
-    // We want to replace:
-    //  if isinstance(x, some_type):
-    // with:
-    //   if x.__class__ == some_type or PyObject_IsInstance(x, some_type):
-    // This inlines the common type check case, and eliminates
-    // the truthy case.
-
-    // We do this by updating the existing branch to be
-    // based off the fast path, and if that fails, then
-    // we insert a new basic block which handles the slow path
-    // and branches to the success or failure cases.
-
-    auto obj_type = irfunc.env.AllocateRegister();
-    auto fast_eq = irfunc.env.AllocateRegister();
-
-    auto load_type = LoadField::create(
-        obj_type, obj_op, "ob_type", offsetof(PyObject, ob_type), TType);
-
-    auto compare_type = PrimitiveCompare::create(
-        fast_eq, PrimitiveCompareOp::kEqual, obj_type, type_op);
-
-    load_type->copyBytecodeOffset(*vectorcall);
-    load_type->InsertBefore(*truthy);
-
-    compare_type->copyBytecodeOffset(*vectorcall);
-
-    // Slow path, call isinstance()
-    auto slow_path = block.cfg->AllocateBlock();
-    auto prev_false_bb = cond_branch.false_bb();
-    cond_branch.set_false_bb(slow_path);
-    cond_branch.SetOperand(0, fast_eq);
-
-    slow_path->appendWithOff<IsInstance>(
-        bc_off,
-        truthy->output(),
-        obj_op,
-        type_op,
-        *get_frame_state(*truthy));
-
-    slow_path->appendWithOff<CondBranch>(
-        bc_off, truthy->output(), cond_branch.true_bb(), prev_false_bb);
-
-    // we need to update the phis from the previous false case to now
-    // be coming from the slow path block.
-    prev_false_bb->fixupPhis(&block, slow_path);
-    // and the phis coming in on the success case now have an extra
-    // block from the slow path.
-    cond_branch.true_bb()->addPhiPredecessor(&block, slow_path);
-    return compare_type;
-  }
-  return nullptr;
-}
-
 void DynamicComparisonElimination::Run(Function& irfunc) {
   LivenessAnalysis liveness{irfunc};
   liveness.Run();
@@ -227,14 +152,6 @@ void DynamicComparisonElimination::Run(Function& irfunc) {
       auto compare = static_cast<Compare*>(truthy_target);
 
       replacement = ReplaceCompare(compare, static_cast<IsTruthy*>(truthy));
-    } else if (truthy_target->IsVectorCall()) {
-      auto vectorcall = static_cast<VectorCall*>(truthy_target);
-      replacement = ReplaceVectorCall(
-          irfunc,
-          static_cast<CondBranch&>(instr),
-          block,
-          vectorcall,
-          static_cast<IsTruthy*>(truthy));
     }
 
     if (replacement != nullptr) {
