@@ -47,19 +47,17 @@ class CodeAllocator {
     return used_bytes_;
   }
 
-  const asmjit::Environment& asmJitEnvironment() {
-    return runtime_->environment();
+  const asmjit::Environment& asmJitEnvironment() const {
+    return runtime_.environment();
   }
 
   virtual asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept {
     used_bytes_ += code->codeSize();
-    return runtime_->add(dst, code);
+    return runtime_.add(dst, code);
   }
 
  protected:
-  std::unique_ptr<asmjit::JitRuntime> runtime_{
-      std::make_unique<asmjit::JitRuntime>()};
-
+  asmjit::JitRuntime runtime_;
   std::atomic<size_t> used_bytes_{0};
 
  private:

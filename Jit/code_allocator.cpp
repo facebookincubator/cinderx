@@ -192,7 +192,7 @@ asmjit::Error MultipleSectionCodeAllocator::addCode(
     JIT_LOG(
         "Not enough memory to split code across sections, falling back to "
         "normal allocation.");
-    return runtime_->add(dst, code);
+    return runtime_.add(dst, code);
   }
   // Fix up the offsets for each code section before resolving links.
   // Both the `.text` and `.addrtab` sections are written to the hot section,
