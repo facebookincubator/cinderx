@@ -12,23 +12,9 @@ using namespace jit::codegen;
 
 namespace jit::lir {
 
-void PostRegAllocRewrite::registerRewrites() {
-  registerOneRewriteFunction(rewriteCallInstrs);
-  registerOneRewriteFunction(rewriteBitExtensionInstrs);
-  registerOneRewriteFunction(rewriteBranchInstrs);
-  registerOneRewriteFunction(rewriteLoadInstrs);
-  registerOneRewriteFunction(rewriteCondBranch);
-  registerOneRewriteFunction(rewriteBinaryOpInstrs);
-  registerOneRewriteFunction(removePhiInstructions);
-  registerOneRewriteFunction(rewriteByteMultiply);
+namespace {
 
-  registerOneRewriteFunction(optimizeMoveSequence, 1);
-  registerOneRewriteFunction(optimizeMoveInstrs, 1);
-  registerOneRewriteFunction(rewriteDivide);
-}
-
-Rewrite::RewriteResult PostRegAllocRewrite::removePhiInstructions(
-    instr_iter_t instr_iter) {
+RewriteResult removePhiInstructions(instr_iter_t instr_iter) {
   auto& instr = *instr_iter;
 
   if (instr->opcode() == Instruction::kPhi) {
@@ -40,87 +26,45 @@ Rewrite::RewriteResult PostRegAllocRewrite::removePhiInstructions(
   return kUnchanged;
 }
 
-Rewrite::RewriteResult PostRegAllocRewrite::rewriteCallInstrs(
+// Insert a move from an operand to a memory location given by base + index.
+// This function handles cases where operand is a >32-bit immediate and operand
+// is a stack location.
+void insertMoveToMemoryLocation(
+    BasicBlock* block,
     instr_iter_t instr_iter,
-    Environ* env) {
-  auto instr = instr_iter->get();
-  if (!instr->isCall() && !instr->isVectorCall()) {
-    return kUnchanged;
-  }
-
-  auto output = instr->output();
-  if (instr->isCall() && instr->getNumInputs() == 1 && output->isNone()) {
-    return kUnchanged;
-  }
-
-  int rsp_sub = 0;
-  auto block = instr->basicblock();
-
-  if (instr->isVectorCall()) {
-    rsp_sub = rewriteVectorCallFunctions(instr_iter);
-  } else if (instr->getInput(0)->isImm()) {
-    void* func = reinterpret_cast<void*>(instr->getInput(0)->getConstant());
-    if (func == FUNC_MARKER_BATCHDECREF) {
-      rsp_sub = rewriteBatchDecrefFunction(instr_iter);
+    PhyLocation base,
+    int index,
+    const OperandBase* operand,
+    PhyLocation temp = PhyLocation::RAX) {
+  if (operand->isImm()) {
+    auto constant = operand->getConstant();
+    if (!fitsInt32(constant) || operand->isFp()) {
+      block->allocateInstrBefore(
+          instr_iter, Instruction::kMove, OutPhyReg(temp), Imm(constant));
+      block->allocateInstrBefore(
+          instr_iter, Instruction::kMove, OutInd(base, index), PhyReg(temp));
     } else {
-      rsp_sub = rewriteRegularFunction(instr_iter);
+      block->allocateInstrBefore(
+          instr_iter, Instruction::kMove, OutInd(base, index), Imm(constant));
     }
-  } else {
-    rsp_sub = rewriteRegularFunction(instr_iter);
+    return;
   }
 
-  instr->setNumInputs(1); // leave function self operand only
-  instr->setOpcode(Instruction::kCall);
-
-  // change
-  //   call immediate_addr
-  // to
-  //   mov rax, immediate_addr
-  //   call rax
-  // this is because asmjit would make call to immediate to
-  //   call [address]
-  // where *address == immediate_addr
-  if (instr->getInput(0)->isImm()) {
-    auto imm = instr->getInput(0)->getConstant();
-
+  if (operand->isReg()) {
+    PhyLocation loc = operand->getPhyRegister();
     block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutPhyReg(PhyLocation::RAX), Imm(imm));
-    instr->setNumInputs(0);
-    instr->addOperands(PhyReg(PhyLocation::RAX));
+        instr_iter, Instruction::kMove, OutInd(base, index), PhyReg(loc));
+    return;
   }
 
-  auto next_iter = std::next(instr_iter);
-
-  env->max_arg_buffer_size = std::max<int>(env->max_arg_buffer_size, rsp_sub);
-
-  if (output->isNone()) {
-    return kChanged;
-  }
-
-  const PhyLocation kReturnRegister =
-      output->isFp() ? PhyLocation::XMM0 : PhyLocation::RAX;
-
-  if (!output->isReg() || output->getPhyRegister() != kReturnRegister) {
-    if (output->isReg()) {
-      block->allocateInstrBefore(
-          next_iter,
-          Instruction::kMove,
-          OutPhyReg(output->getPhyRegister(), output->dataType()),
-          PhyReg(kReturnRegister, output->dataType()));
-    } else {
-      block->allocateInstrBefore(
-          next_iter,
-          Instruction::kMove,
-          OutStk(output->getStackSlot(), output->dataType()),
-          PhyReg(kReturnRegister, output->dataType()));
-    }
-  }
-  output->setNone();
-
-  return kChanged;
+  PhyLocation loc = operand->getStackSlot();
+  block->allocateInstrBefore(
+      instr_iter, Instruction::kMove, OutPhyReg(temp), Stk(loc));
+  block->allocateInstrBefore(
+      instr_iter, Instruction::kMove, OutInd(base, index), PhyReg(temp));
 }
 
-int PostRegAllocRewrite::rewriteRegularFunction(instr_iter_t instr_iter) {
+int rewriteRegularFunction(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto block = instr->basicblock();
 
@@ -173,7 +117,7 @@ int PostRegAllocRewrite::rewriteRegularFunction(instr_iter_t instr_iter) {
   return stack_arg_size;
 }
 
-int PostRegAllocRewrite::rewriteVectorCallFunctions(instr_iter_t instr_iter) {
+int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
   // For vector calls there are 4 fixed arguments:
@@ -253,7 +197,7 @@ int PostRegAllocRewrite::rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   return rsp_sub;
 }
 
-int PostRegAllocRewrite::rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
+int rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto block = instr->basicblock();
   constexpr int kArgStart = 1;
@@ -291,8 +235,90 @@ int PostRegAllocRewrite::rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
   return rsp_sub;
 }
 
-Rewrite::RewriteResult PostRegAllocRewrite::rewriteBitExtensionInstrs(
-    instr_iter_t instr_iter) {
+// rewrite call instructions:
+//   - move function arguments to the right registers.
+//   - handle special cases such as JITRT_(Call|Invoke)Function,
+//   JITRT_(Call|Get)Method, etc.
+RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
+  auto instr = instr_iter->get();
+  if (!instr->isCall() && !instr->isVectorCall()) {
+    return kUnchanged;
+  }
+
+  auto output = instr->output();
+  if (instr->isCall() && instr->getNumInputs() == 1 && output->isNone()) {
+    return kUnchanged;
+  }
+
+  int rsp_sub = 0;
+  auto block = instr->basicblock();
+
+  if (instr->isVectorCall()) {
+    rsp_sub = rewriteVectorCallFunctions(instr_iter);
+  } else if (instr->getInput(0)->isImm()) {
+    void* func = reinterpret_cast<void*>(instr->getInput(0)->getConstant());
+    if (func == FUNC_MARKER_BATCHDECREF) {
+      rsp_sub = rewriteBatchDecrefFunction(instr_iter);
+    } else {
+      rsp_sub = rewriteRegularFunction(instr_iter);
+    }
+  } else {
+    rsp_sub = rewriteRegularFunction(instr_iter);
+  }
+
+  instr->setNumInputs(1); // leave function self operand only
+  instr->setOpcode(Instruction::kCall);
+
+  // change
+  //   call immediate_addr
+  // to
+  //   mov rax, immediate_addr
+  //   call rax
+  // this is because asmjit would make call to immediate to
+  //   call [address]
+  // where *address == immediate_addr
+  if (instr->getInput(0)->isImm()) {
+    auto imm = instr->getInput(0)->getConstant();
+
+    block->allocateInstrBefore(
+        instr_iter, Instruction::kMove, OutPhyReg(PhyLocation::RAX), Imm(imm));
+    instr->setNumInputs(0);
+    instr->addOperands(PhyReg(PhyLocation::RAX));
+  }
+
+  auto next_iter = std::next(instr_iter);
+
+  env->max_arg_buffer_size = std::max<int>(env->max_arg_buffer_size, rsp_sub);
+
+  if (output->isNone()) {
+    return kChanged;
+  }
+
+  const PhyLocation kReturnRegister =
+      output->isFp() ? PhyLocation::XMM0 : PhyLocation::RAX;
+
+  if (!output->isReg() || output->getPhyRegister() != kReturnRegister) {
+    if (output->isReg()) {
+      block->allocateInstrBefore(
+          next_iter,
+          Instruction::kMove,
+          OutPhyReg(output->getPhyRegister(), output->dataType()),
+          PhyReg(kReturnRegister, output->dataType()));
+    } else {
+      block->allocateInstrBefore(
+          next_iter,
+          Instruction::kMove,
+          OutStk(output->getStackSlot(), output->dataType()),
+          PhyReg(kReturnRegister, output->dataType()));
+    }
+  }
+  output->setNone();
+
+  return kChanged;
+}
+
+// Replaces ZEXT and SEXT with appropriate MOVE instructions.
+RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
   bool is_sext = instr->opcode() == Instruction::kSext;
@@ -353,8 +379,15 @@ Rewrite::RewriteResult PostRegAllocRewrite::rewriteBitExtensionInstrs(
   return kChanged;
 }
 
-Rewrite::RewriteResult PostRegAllocRewrite::rewriteBranchInstrs(
-    Function* function) {
+// Add (conditional) branch instructions to the end of each basic blocks when
+// necessary.
+// TODO (tiansi): currently, condition to the conditional branches are always
+// comparing against 0, so they are translated directly into machine code,
+// and we don't need to take care of them here right now. But once we start
+// to support different conditions (as we already did in static compiler),
+// we need to also rewrite conditional branches into Jcc instructions.
+// I'll do this in one of the following a few diffs.
+RewriteResult rewriteBranchInstrs(Function* function) {
   auto& blocks = function->basicblocks();
   bool changed = false;
 
@@ -398,8 +431,11 @@ Rewrite::RewriteResult PostRegAllocRewrite::rewriteBranchInstrs(
   return changed ? kChanged : kUnchanged;
 }
 
-Rewrite::RewriteResult PostRegAllocRewrite::optimizeMoveInstrs(
-    instr_iter_t instr_iter) {
+// rewrite move instructions
+// optimimize move instruction in the following cases:
+//   1. remove the move instruction when source and destination are the same
+//   2. rewrite move instruction to xor when the source operand is 0.
+RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto instr_opcode = instr->opcode();
   if (instr_opcode != Instruction::kMove) {
@@ -431,8 +467,8 @@ Rewrite::RewriteResult PostRegAllocRewrite::optimizeMoveInstrs(
   return kUnchanged;
 }
 
-Rewrite::RewriteResult PostRegAllocRewrite::rewriteLoadInstrs(
-    instr_iter_t instr_iter) {
+// Rewrite > 32-bit immediate addressing load.
+RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
   if (!instr->isMove() || instr->getNumInputs() != 1 ||
@@ -464,39 +500,8 @@ Rewrite::RewriteResult PostRegAllocRewrite::rewriteLoadInstrs(
   return kChanged;
 }
 
-Rewrite::RewriteResult PostRegAllocRewrite::rewriteCondBranch(
-    jit::lir::Function* function) {
-  auto& blocks = function->basicblocks();
-
-  bool changed = false;
-  for (auto iter = blocks.begin(); iter != blocks.end();) {
-    BasicBlock* block = *iter;
-    ++iter;
-
-    auto instr_iter = block->getLastInstrIter();
-    if (instr_iter == block->instructions().end()) {
-      continue;
-    }
-
-    BasicBlock* next_block = (iter != blocks.end() ? *iter : nullptr);
-
-    auto instr = instr_iter->get();
-
-    if (instr->isCondBranch()) {
-      doRewriteCondBranch(instr_iter, next_block);
-      changed = true;
-    } else if (instr->isBranchCC() && instr->getNumInputs() == 0) {
-      doRewriteBranchCC(instr_iter, next_block);
-      changed = true;
-    }
-  }
-
-  return changed ? kChanged : kUnchanged;
-}
-
-void PostRegAllocRewrite::doRewriteCondBranch(
-    instr_iter_t instr_iter,
-    BasicBlock* next_block) {
+// Convert CondBranch to Test and BranchCC instructions.
+void doRewriteCondBranch(instr_iter_t instr_iter, BasicBlock* next_block) {
   auto instr = instr_iter->get();
 
   auto input = instr->getInput(0);
@@ -540,9 +545,8 @@ void PostRegAllocRewrite::doRewriteCondBranch(
   }
 }
 
-void PostRegAllocRewrite::doRewriteBranchCC(
-    instr_iter_t instr_iter,
-    BasicBlock* next_block) {
+// Negate BranchCC instructions based on the next (fallthrough) basic block.
+void doRewriteBranchCC(instr_iter_t instr_iter, BasicBlock* next_block) {
   auto instr = instr_iter->get();
   auto block = instr->basicblock();
 
@@ -567,8 +571,37 @@ void PostRegAllocRewrite::doRewriteBranchCC(
   }
 }
 
-Rewrite::RewriteResult PostRegAllocRewrite::rewriteBinaryOpInstrs(
-    instr_iter_t instr_iter) {
+// Convert CondBranch and BranchCC instructions.
+RewriteResult rewriteCondBranch(Function* function) {
+  auto& blocks = function->basicblocks();
+
+  bool changed = false;
+  for (auto iter = blocks.begin(); iter != blocks.end();) {
+    BasicBlock* block = *iter;
+    ++iter;
+
+    auto instr_iter = block->getLastInstrIter();
+    if (instr_iter == block->instructions().end()) {
+      continue;
+    }
+
+    BasicBlock* next_block = (iter != blocks.end() ? *iter : nullptr);
+
+    auto instr = instr_iter->get();
+
+    if (instr->isCondBranch()) {
+      doRewriteCondBranch(instr_iter, next_block);
+      changed = true;
+    } else if (instr->isBranchCC() && instr->getNumInputs() == 0) {
+      doRewriteBranchCC(instr_iter, next_block);
+      changed = true;
+    }
+  }
+
+  return changed ? kChanged : kUnchanged;
+}
+
+RewriteResult rewriteBinaryOpInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
 
   // For a binary operation:
@@ -623,8 +656,8 @@ Rewrite::RewriteResult PostRegAllocRewrite::rewriteBinaryOpInstrs(
   return kUnchanged;
 }
 
-Rewrite::RewriteResult PostRegAllocRewrite::rewriteByteMultiply(
-    instr_iter_t instr_iter) {
+// Rewrite 8-bit multiply to use single-operand imul.
+RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
 
   if (!instr->isMul() || instr->getNumInputs() < 2) {
@@ -667,8 +700,35 @@ Rewrite::RewriteResult PostRegAllocRewrite::rewriteByteMultiply(
   return kChanged;
 }
 
-Rewrite::RewriteResult PostRegAllocRewrite::rewriteDivide(
-    instr_iter_t instr_iter) {
+bool insertMoveToRegister(
+    BasicBlock* block,
+    instr_iter_t instr_iter,
+    Operand* op,
+    PhyLocation location) {
+  if (!op->isReg() || op->getPhyRegister() != location) {
+    auto move = block->allocateInstrBefore(
+        instr_iter, Instruction::kMove, OutPhyReg(location, op->dataType()));
+
+    if (op->isReg()) {
+      move->addOperands(PhyReg(op->getPhyRegister(), op->dataType()));
+    } else if (op->isImm()) {
+      move->addOperands(Imm(op->getConstant()));
+    } else if (op->isStack()) {
+      move->addOperands(Stk(op->getStackSlot(), op->dataType()));
+    } else if (op->isMem()) {
+      JIT_ABORT("Unsupported: div from mem");
+    } else {
+      JIT_ABORT("Unexpected operand base: {}", static_cast<int>(op->type()));
+    }
+
+    op->setPhyRegister(location);
+    return true;
+  }
+  return false;
+}
+
+// Rewrite division instructions to use correct registers.
+RewriteResult rewriteDivide(instr_iter_t instr_iter) {
   Instruction* instr = instr_iter->get();
   if (!instr->isDiv() && !instr->isDivUn()) {
     return kUnchanged;
@@ -790,68 +850,6 @@ Rewrite::RewriteResult PostRegAllocRewrite::rewriteDivide(
   return changed ? kChanged : kUnchanged;
 }
 
-bool PostRegAllocRewrite::insertMoveToRegister(
-    lir::BasicBlock* block,
-    instr_iter_t instr_iter,
-    Operand* op,
-    PhyLocation location) {
-  if (!op->isReg() || op->getPhyRegister() != location) {
-    auto move = block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutPhyReg(location, op->dataType()));
-
-    if (op->isReg()) {
-      move->addOperands(PhyReg(op->getPhyRegister(), op->dataType()));
-    } else if (op->isImm()) {
-      move->addOperands(Imm(op->getConstant()));
-    } else if (op->isStack()) {
-      move->addOperands(Stk(op->getStackSlot(), op->dataType()));
-    } else if (op->isMem()) {
-      JIT_ABORT("Unsupported: div from mem");
-    } else {
-      JIT_ABORT("Unexpected operand base: {}", static_cast<int>(op->type()));
-    }
-
-    op->setPhyRegister(location);
-    return true;
-  }
-  return false;
-}
-
-void PostRegAllocRewrite::insertMoveToMemoryLocation(
-    BasicBlock* block,
-    instr_iter_t instr_iter,
-    PhyLocation base,
-    int index,
-    const OperandBase* operand,
-    PhyLocation temp) {
-  if (operand->isImm()) {
-    auto constant = operand->getConstant();
-    if (!fitsInt32(constant) || operand->isFp()) {
-      block->allocateInstrBefore(
-          instr_iter, Instruction::kMove, OutPhyReg(temp), Imm(constant));
-      block->allocateInstrBefore(
-          instr_iter, Instruction::kMove, OutInd(base, index), PhyReg(temp));
-    } else {
-      block->allocateInstrBefore(
-          instr_iter, Instruction::kMove, OutInd(base, index), Imm(constant));
-    }
-    return;
-  }
-
-  if (operand->isReg()) {
-    PhyLocation loc = operand->getPhyRegister();
-    block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutInd(base, index), PhyReg(loc));
-    return;
-  }
-
-  PhyLocation loc = operand->getStackSlot();
-  block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutPhyReg(temp), Stk(loc));
-  block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutInd(base, index), PhyReg(temp));
-}
-
 // record register-to-memory moves and map between them.
 class RegisterToMemoryMoves {
  public:
@@ -924,8 +922,9 @@ class RegisterToMemoryMoves {
   }
 };
 
-Rewrite::RewriteResult PostRegAllocRewrite::optimizeMoveSequence(
-    BasicBlock* basicblock) {
+// Replace memory input with register when possible within a basic block and
+// remove the unnecessary moves after the replacement.
+RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
   auto changed = kUnchanged;
   RegisterToMemoryMoves registerMemoryMoves;
 
@@ -998,4 +997,22 @@ Rewrite::RewriteResult PostRegAllocRewrite::optimizeMoveSequence(
   }
   return changed;
 }
+
+} // namespace
+
+void PostRegAllocRewrite::registerRewrites() {
+  registerOneRewriteFunction(rewriteCallInstrs);
+  registerOneRewriteFunction(rewriteBitExtensionInstrs);
+  registerOneRewriteFunction(rewriteBranchInstrs);
+  registerOneRewriteFunction(rewriteLoadInstrs);
+  registerOneRewriteFunction(rewriteCondBranch);
+  registerOneRewriteFunction(rewriteBinaryOpInstrs);
+  registerOneRewriteFunction(removePhiInstructions);
+  registerOneRewriteFunction(rewriteByteMultiply);
+
+  registerOneRewriteFunction(optimizeMoveSequence, 1);
+  registerOneRewriteFunction(optimizeMoveInstrs, 1);
+  registerOneRewriteFunction(rewriteDivide);
+}
+
 } // namespace jit::lir

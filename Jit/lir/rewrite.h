@@ -14,48 +14,50 @@
 
 namespace jit::lir {
 
-// this class implements a framework for backend rewrites
+// At what granularity the rewrite is being performed.
+enum RewriteType {
+  kFunction,
+  kBasicBlock,
+  kInstruction,
+};
+
+// What happened as a result of a rewrite operation.
+enum RewriteResult {
+  kUnchanged,
+  kChanged,
+  kRemoved,
+};
+
+using function_rewrite_arg_t = Function*;
+using basic_block_rewrite_arg_t = BasicBlock*;
+using instruction_rewrite_arg_t = instr_iter_t;
+
+template <typename T>
+using function_type_t = std::function<RewriteResult(T)>;
+using function_rewrite_t = function_type_t<function_rewrite_arg_t>;
+using basic_block_rewrite_t = function_type_t<basic_block_rewrite_arg_t>;
+using instruction_rewrite_t = function_type_t<instruction_rewrite_arg_t>;
+
+// This class implements a framework for LIR rewrites.
 class Rewrite {
  public:
-  Rewrite(jit::lir::Function* func, jit::codegen::Environ* env)
-      : function_(func), env_(env) {}
+  Rewrite(Function* func, codegen::Environ* env) : function_(func), env_(env) {}
 
-  jit::lir::Function* function() {
-    return function_;
-  }
-  const jit::lir::Function* function() const {
+  Function* function() {
     return function_;
   }
 
-  jit::codegen::Environ* environment() {
+  const Function* function() const {
+    return function_;
+  }
+
+  codegen::Environ* environment() {
     return env_;
   }
 
-  const jit::codegen::Environ* environment() const {
+  const codegen::Environ* environment() const {
     return env_;
   }
-
-  // Rewrite routine types:
-  //  - kFunction: rewrite the whole function
-  //  - kBasicBlock: rewrite one of the basic blocks
-  //  - kInstruction: rewrite one or more instructions
-  enum RewriteType { kFunction, kBasicBlock, kInstruction };
-
-  enum RewriteResult {
-    kUnchanged, // the element to be rewritten has not been changed
-    kChanged, // the element to be rewritten has been changed
-    kRemoved // the element to be rewritten has been removed
-  };
-
-  using function_rewrite_arg_t = lir::Function*;
-  using basic_block_rewrite_arg_t = lir::BasicBlock*;
-  using instruction_rewrite_arg_t = instr_iter_t;
-
-  template <typename T>
-  using function_type_t = std::function<RewriteResult(T)>;
-  using function_rewrite_t = function_type_t<function_rewrite_arg_t>;
-  using basic_block_rewrite_t = function_type_t<basic_block_rewrite_arg_t>;
-  using instruction_rewrite_t = function_type_t<instruction_rewrite_arg_t>;
 
   template <typename T>
   void registerOneRewriteFunction(RewriteResult (*rewrite)(T), int stage = 0) {
@@ -64,7 +66,7 @@ class Rewrite {
 
   template <typename T>
   void registerOneRewriteFunction(
-      RewriteResult (*rewrite)(T, jit::codegen::Environ*),
+      RewriteResult (*rewrite)(T, codegen::Environ*),
       int stage = 0) {
     registerOneRewriteFunction(
         function_type_t<T>(
@@ -92,8 +94,7 @@ class Rewrite {
  protected:
   // find the most recent instruction affecting flags within the
   // basic block. returns nullptr if not found.
-  static jit::lir::Instruction* findRecentFlagAffectingInstr(
-      instr_iter_t instr_iter);
+  static Instruction* findRecentFlagAffectingInstr(instr_iter_t instr_iter);
 
  private:
   template <typename T>
@@ -141,8 +142,8 @@ class Rewrite {
     return changed;
   }
 
-  jit::lir::Function* function_;
-  jit::codegen::Environ* env_;
+  Function* function_;
+  codegen::Environ* env_;
 
   std::unordered_map<int, std::vector<function_type_t<function_rewrite_arg_t>>>
       function_rewrites_;

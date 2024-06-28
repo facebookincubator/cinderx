@@ -10,9 +10,6 @@
 #include "cinderx/Jit/lir/operand.h"
 
 #include <set>
-#include <unordered_set>
-
-using namespace jit::codegen;
 
 namespace jit::lir {
 
