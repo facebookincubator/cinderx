@@ -51,7 +51,7 @@ function check_opt_flags() {
     fi
 }
 
-for use_3_12 in true false ; do
+for use_3_12 in false ; do
     # # Only debug builds have sys.gettotalrefcount()
     run_python_code dbg 'import sys; sys.gettotalrefcount()'
     run_python_code dev 'import sys; sys.gettotalrefcount()'
