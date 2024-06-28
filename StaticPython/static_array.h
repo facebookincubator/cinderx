@@ -9,7 +9,7 @@
 extern "C" {
 #endif
 
-CiAPI_DATA(PyTypeObject) PyStaticArray_Type;
+extern PyTypeObject PyStaticArray_Type;
 #define PyStaticArray_CheckExact(op) Py_IS_TYPE(op, &PyStaticArray_Type)
 
 typedef struct {
@@ -19,8 +19,8 @@ typedef struct {
 } PyStaticArrayObject;
 
 
-CiAPI_FUNC(int) _Ci_StaticArray_Set(PyObject *array, Py_ssize_t index, PyObject *value);
-CiAPI_FUNC(PyObject*) _Ci_StaticArray_Get(PyObject *array, Py_ssize_t index);
+int _Ci_StaticArray_Set(PyObject *array, Py_ssize_t index, PyObject *value);
+PyObject* _Ci_StaticArray_Get(PyObject *array, Py_ssize_t index);
 
 #ifdef __cplusplus
 }

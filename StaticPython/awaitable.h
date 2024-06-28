@@ -29,7 +29,7 @@ typedef struct _PyClassLoader_Awaitable {
     PyObject *awaiter;
 } _PyClassLoader_Awaitable;
 
-CiAPI_FUNC(PyObject *)
+PyObject *
 _PyClassLoader_NewAwaitableWrapper(
   PyObject *coro,
   int eager,

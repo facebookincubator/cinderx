@@ -24,8 +24,8 @@ typedef struct {
   PyObject* errors;
 } StrictModuleAnalysisResult;
 
-CiAPI_DATA(PyTypeObject) Ci_StrictModuleLoader_Type;
-CiAPI_DATA(PyTypeObject) Ci_StrictModuleAnalysisResult_Type;
+extern PyTypeObject Ci_StrictModuleLoader_Type;
+extern PyTypeObject Ci_StrictModuleAnalysisResult_Type;
 
 // module kind
 #define Ci_NONSTRICT_MODULE_KIND 0

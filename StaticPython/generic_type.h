@@ -32,12 +32,7 @@ typedef struct {
     _PyGenericTypeParam gti_inst[]; /* generic type parameters */
 } _PyGenericTypeInst;
 
-CiAPI_FUNC(PyObject *)_PyClassLoader_GtdGetItem(_PyGenericTypeDef *type, PyObject *args);
-
-CiAPI_STATIC_INLINE_FUNC(_PyGenericTypeDef *)
-_PyClassLoader_GetGenericTypeDefFromType(PyTypeObject *gen_type);
-CiAPI_STATIC_INLINE_FUNC(_PyGenericTypeDef *)
-_PyClassLoader_GetGenericTypeDef(PyObject *gen_inst);
+PyObject * _PyClassLoader_GtdGetItem(_PyGenericTypeDef *type, PyObject *args);
 
 /* gets the generic type definition for an instance if it is an instance of a
  * generic type, or returns NULL if it is not */
@@ -57,9 +52,9 @@ _PyClassLoader_GetGenericTypeDef(PyObject *gen_inst)
     return _PyClassLoader_GetGenericTypeDefFromType(inst_type);
 }
 
-CiAPI_FUNC(int) _PyClassLoader_TypeDealloc(PyTypeObject *type);
-CiAPI_FUNC(int) _PyClassLoader_TypeTraverse(PyTypeObject *type, visitproc visit, void *arg);
-CiAPI_FUNC(void) _PyClassLoader_TypeClear(PyTypeObject *type);
+int _PyClassLoader_TypeDealloc(PyTypeObject *type);
+int _PyClassLoader_TypeTraverse(PyTypeObject *type, visitproc visit, void *arg);
+void _PyClassLoader_TypeClear(PyTypeObject *type);
 
 #ifdef __cplusplus
 }

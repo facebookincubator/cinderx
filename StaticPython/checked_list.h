@@ -10,11 +10,11 @@
 extern "C" {
 #endif
 
-CiAPI_FUNC(PyObject *) Ci_CheckedList_GetItem(PyObject *self, Py_ssize_t);
-CiAPI_FUNC(PyObject *) Ci_CheckedList_New(PyTypeObject *type, Py_ssize_t);
-CiAPI_FUNC(int) Ci_CheckedList_TypeCheck(PyTypeObject *type);
-CiAPI_DATA(_PyGenericTypeDef) Ci_CheckedList_Type;
-CiAPI_DATA(int) Ci_ListOrCheckedList_Append(PyListObject *self, PyObject *v);
+PyObject * Ci_CheckedList_GetItem(PyObject *self, Py_ssize_t);
+PyObject * Ci_CheckedList_New(PyTypeObject *type, Py_ssize_t);
+int Ci_CheckedList_TypeCheck(PyTypeObject *type);
+extern _PyGenericTypeDef Ci_CheckedList_Type;
+int Ci_ListOrCheckedList_Append(PyListObject *self, PyObject *v);
 
 #define Ci_CheckedList_Check(op)                                                    \
     (_PyClassLoader_GetGenericTypeDef((PyObject *)op) == &Ci_CheckedList_Type)

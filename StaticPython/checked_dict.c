@@ -19,11 +19,11 @@
  * Python code.  Statically Typed Python code will be able to call versions
  * of most functionality in a way that elides the type checks */
 
-CiAPI_DATA(_PyGenericTypeDef) Ci_CheckedDict_Type;
+extern _PyGenericTypeDef Ci_CheckedDict_Type;
 
-CiAPI_DATA(PyTypeObject) Ci_CheckedDictKeys_Type;
-CiAPI_DATA(PyTypeObject) Ci_CheckedDictValues_Type;
-CiAPI_DATA(PyTypeObject) Ci_CheckedDictItems_Type;
+extern PyTypeObject Ci_CheckedDictKeys_Type;
+extern PyTypeObject Ci_CheckedDictValues_Type;
+extern PyTypeObject Ci_CheckedDictItems_Type;
 
 #define Ci_CheckedDictKeys_Check(op) PyObject_TypeCheck(op, &Ci_CheckedDictKeys_Type)
 #define Ci_CheckedDictValues_Check(op) PyObject_TypeCheck(op, &Ci_CheckedDictValues_Type)
@@ -32,13 +32,13 @@ CiAPI_DATA(PyTypeObject) Ci_CheckedDictItems_Type;
 # define Ci_CheckedDictViewSet_Check(op) \
     (Ci_CheckedDictKeys_Check(op) || Ci_CheckedDictItems_Check(op))
 
-CiAPI_DATA(PyTypeObject) Ci_CheckedDictIterKey_Type;
-CiAPI_DATA(PyTypeObject) Ci_CheckedDictIterValue_Type;
-CiAPI_DATA(PyTypeObject) Ci_CheckedDictIterItem_Type;
+extern PyTypeObject Ci_CheckedDictIterKey_Type;
+extern PyTypeObject Ci_CheckedDictIterValue_Type;
+extern PyTypeObject Ci_CheckedDictIterItem_Type;
 
-CiAPI_DATA(PyTypeObject) Ci_CheckedDictRevIterKey_Type;
-CiAPI_DATA(PyTypeObject) Ci_CheckedDictRevIterItem_Type;
-CiAPI_DATA(PyTypeObject) Ci_CheckedDictRevIterValue_Type;
+extern PyTypeObject Ci_CheckedDictRevIterKey_Type;
+extern PyTypeObject Ci_CheckedDictRevIterItem_Type;
+PyTypeObject Ci_CheckedDictRevIterValue_Type;
 
 inline int
 Ci_DictOrChecked_SetItem(PyObject *op, PyObject *key, PyObject *value) {

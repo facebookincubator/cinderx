@@ -45,14 +45,14 @@ extern "C" {
 #define _Py_IS_TYPED_ARRAY(x) (x & TYPED_ARRAY)
 #define _Py_IS_TYPED_ARRAY_SIGNED(x) (x & (TYPED_INT_SIGNED << 4))
 
-CiAPI_FUNC(Py_ssize_t) _PyClassLoader_PrimitiveTypeToSize(int primitive_type);
+Py_ssize_t _PyClassLoader_PrimitiveTypeToSize(int primitive_type);
 
-CiAPI_FUNC(int) _PyClassLoader_PrimitiveTypeToStructMemberType(int type);
+int _PyClassLoader_PrimitiveTypeToStructMemberType(int type);
 
-CiAPI_FUNC(PyObject *) _PyClassLoader_Box(uint64_t value, int primitive_type);
-CiAPI_FUNC(uint64_t) _PyClassLoader_Unbox(PyObject *value, int primitive_type);
+PyObject * _PyClassLoader_Box(uint64_t value, int primitive_type);
+uint64_t _PyClassLoader_Unbox(PyObject *value, int primitive_type);
 
-CiAPI_FUNC(int) _PyClassLoader_GetTypeCode(PyTypeObject *type);
+int _PyClassLoader_GetTypeCode(PyTypeObject *type);
 
 static inline
 int _PyObject_TypeCheckOptional(PyObject *val, PyTypeObject *type, int optional, int exact) {

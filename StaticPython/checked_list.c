@@ -3127,7 +3127,7 @@ list___reversed__(PyListObject *self, PyObject *Py_UNUSED(ignored))
 
 /* === End copied from clinic/listobject.c.h === */
 
-CiAPI_DATA(_PyGenericTypeDef) Ci_CheckedList_Type;
+extern _PyGenericTypeDef Ci_CheckedList_Type;
 #define IS_CHECKED_LIST(x)                                                    \
     (_PyClassLoader_GetGenericTypeDef((PyObject *)x) == &Ci_CheckedList_Type)
 
