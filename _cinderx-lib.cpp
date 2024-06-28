@@ -586,7 +586,7 @@ static int cinder_init() {
                 jit::RuntimeFrameState::codeOffset(),
             "Invalid codeOffset for Strobelight");
 #else
-  UPGRADE_ASSERT(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT)
+  UPGRADE_NOTE(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT, T192550846)
 #endif
 
   if (init_already_existing_types() < 0) {

@@ -6,11 +6,15 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#define UPGRADE_ASSERT(msg) \
+#define UPGRADE_ASSERT(tag) \
   { \
-    fprintf(stderr, "UPGRADE_ASSERT %s @ %d: %s\n", __FILE__, __LINE__, #msg); \
+    fprintf(stderr, "UPGRADE_ASSERT %s @ %d: %s\n", __FILE__, __LINE__, #tag); \
     abort(); \
   }
+
+// Essentially structured comments for code which needs upgrading. This should
+// be used sparingly as overuse will lead to hard to debug crashes.
+#define UPGRADE_NOTE(tag, task)
 
 enum {
   // Missing co_code, co_varnames, co_freevars, co_cellvars, co_cell2arg
