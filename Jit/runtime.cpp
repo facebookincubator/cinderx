@@ -11,6 +11,8 @@
 
 #include <memory>
 
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+
 namespace jit {
 
 const int64_t CodeRuntime::kPyCodeOffset =
@@ -40,7 +42,12 @@ void Builtins::init() {
   // modules which can be mutated.  First find builtins, which we have
   // to do a search for because PyEval_GetBuiltins() returns the
   // module dict.
+#if PY_VERSION_HEX < 0x030C0000
   PyObject* mods = _PyInterpreterState_GET()->modules_by_index;
+#else
+  UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
+  PyObject* mods = nullptr;
+#endif
   PyModuleDef* builtins = nullptr;
   for (Py_ssize_t i = 0; i < PyList_GET_SIZE(mods); i++) {
     PyObject* cur = PyList_GET_ITEM(mods, i);

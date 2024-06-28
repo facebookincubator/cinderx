@@ -30,7 +30,7 @@ TEST_F(JITFlagProcessorTest, EmptyHelpMessage) {
 TEST_F(JITFlagProcessorTest, SimpleHelpMessage) {
   auto flag_processor = FlagProcessor();
   int dummy;
-  string a_string = "";
+  std::string a_string = "";
   size_t a_long;
   flag_processor.addOption(
       "a-flag", "ENVIROMENT_VARIABLE", dummy, "Help Message about the flag");
@@ -146,7 +146,7 @@ TEST_F(JITFlagProcessorTest, VarsSetOncmdLineAndEnvVar) {
   // works for strings, longs and boolean flags
   // via cmd line and env variables
   auto flag_processor = FlagProcessor();
-  string dummy = "";
+  std::string dummy = "";
   int vanilla_flag = 0;
   size_t long_flag;
 
@@ -183,13 +183,13 @@ TEST_F(JITFlagProcessorTest, VarsSetOncmdLineAndEnvVar) {
 TEST_F(JITFlagProcessorTest, Callback) {
   // some callbacks can be quite tricky
   auto flag_processor = FlagProcessor();
-  string one_variable = "";
+  std::string one_variable = "";
   int another_variable = 0;
 
   flag_processor.addOption(
       "test-string-flag",
       "STRINGENVVAR",
-      [&one_variable, &another_variable](string what) {
+      [&one_variable, &another_variable](std::string what) {
         one_variable = what;
         another_variable = 99;
       },
@@ -212,7 +212,7 @@ TEST_F(JITFlagProcessorTest, Callback) {
 TEST_F(JITFlagProcessorTest, DebugLoggingCorrect) {
   // correct logging formatted when flags matched?
   auto flag_processor = FlagProcessor();
-  string dummy = "";
+  std::string dummy = "";
 
   flag_processor.addOption(
       "test-string-flag", "STRINGENVVAR", dummy, "test flag description here");
@@ -235,7 +235,7 @@ TEST_F(JITFlagProcessorTest, DebugLoggingCorrect) {
 TEST_F(JITFlagProcessorTest, DebugOverrideLoggingCorrect) {
   // correct logging when default string to log is overriden
   auto flag_processor = FlagProcessor();
-  string dummy = "";
+  std::string dummy = "";
 
   flag_processor
       .addOption(

@@ -4,6 +4,9 @@
 
 #include "structmember.h"         // PyMemberDef
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
+
 /* fb t46346203 */
 
 typedef struct {
@@ -197,7 +200,7 @@ cached_property_init(PyObject *self, PyObject *args, PyObject *kwds)
             return -1;
         }
 
-        Py_TYPE(self) = &PyCachedPropertyWithDescr_Type;
+        Py_SET_TYPE(self, &PyCachedPropertyWithDescr_Type);
     } else {
         name_or_descr = Py_None;
     }
@@ -579,7 +582,7 @@ async_cached_property_init_impl(PyAsyncCachedPropertyDescrObject *self,
             return -1;
         }
 
-        Py_TYPE(self) = &PyAsyncCachedPropertyWithDescr_Type;
+        Py_SET_TYPE(self, &PyAsyncCachedPropertyWithDescr_Type);
         self->name_or_descr = name_or_descr;
     } else if (PyFunction_Check(func)) {
         self->name_or_descr = ((PyFunctionObject *)func)->func_name;
@@ -773,7 +776,7 @@ async_cached_property_init(PyObject *self, PyObject *args, PyObject *kwargs)
 {
     int return_value = -1;
     static const char * const _keywords[] = {"func", "name_or_descr", NULL};
-    static _PyArg_Parser _parser = {NULL, _keywords, "async_cached_property", 0};
+    static _PyArg_Parser _parser = {.keywords = _keywords, .fname = "async_cached_property"};
     PyObject *argsbuf[2];
     PyObject * const *fastargs;
     Py_ssize_t nargs = PyTuple_GET_SIZE(args);
@@ -818,7 +821,7 @@ async_cached_classproperty_new(PyTypeObject *type, PyObject *args, PyObject *kwa
 {
     PyObject *return_value = NULL;
     static const char * const _keywords[] = {"func", NULL};
-    static _PyArg_Parser _parser = {NULL, _keywords, "async_cached_classproperty", 0};
+    static _PyArg_Parser _parser = {.keywords = _keywords, .fname = "async_cached_classproperty"};
     PyObject *argsbuf[1];
     PyObject * const *fastargs;
     Py_ssize_t nargs = PyTuple_GET_SIZE(args);

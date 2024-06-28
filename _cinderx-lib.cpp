@@ -1,9 +1,16 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 #include <Python.h>
+#include "cinderx/Common/log.h"
+
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/hooks.h"
+#include "internal/pycore_shadow_frame.h"
+#include "cinderx/Shadowcode/shadowcode.h"
+#endif
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/_cinderx-lib.h"
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/watchers.h"
@@ -14,12 +21,11 @@
 #include "cinderx/Jit/pyjit_typeslots.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/ParallelGC/parallel_gc.h"
-#include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
 #include "cinderx/StaticPython/methodobject_vectorcall.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
-#include "internal/pycore_shadow_frame.h"
+
 #include <dlfcn.h>
 
 /*
@@ -31,10 +37,12 @@ static PyObject *clear_caches(PyObject *, PyObject *) {
   Py_RETURN_NONE;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 static PyObject *clear_all_shadow_caches(PyObject *, PyObject *) {
   _PyShadow_FreeAll();
   Py_RETURN_NONE;
 }
+#endif
 
 PyDoc_STRVAR(strict_module_patch_doc, "strict_module_patch(mod, name, value)\n\
 Patch a field in a strict module\n\
@@ -96,12 +104,16 @@ static PyObject *set_profile_interp(PyObject *, PyObject *arg) {
   }
 
   PyThreadState *tstate = PyThreadState_Get();
+#if PY_VERSION_HEX < 0x030C0000
   int old_flag = tstate->profile_interp;
   Ci_ThreadState_SetProfileInterp(tstate, is_true);
 
   if (old_flag) {
     Py_RETURN_TRUE;
   }
+#else
+  UPGRADE_ASSERT(PROFILING_CHANGED)
+#endif
   Py_RETURN_FALSE;
 }
 
@@ -400,6 +412,7 @@ static int init_already_existing_types() {
   return 0;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 static void shadowcode_code_sizeof(struct _PyShadowCode *shadow, Py_ssize_t *res) {
     *res += sizeof(_PyShadowCode);
     *res += sizeof(PyObject *) * shadow->l1_cache.size;
@@ -410,6 +423,7 @@ static void shadowcode_code_sizeof(struct _PyShadowCode *shadow, Py_ssize_t *res
     *res += sizeof(_FieldCache) * shadow->field_cache_size;
     *res += sizeof(_Py_CODEUNIT) * shadow->len;
 }
+#endif
 
 static int get_current_code_flags(PyThreadState* tstate) {
     PyCodeObject *cur_code = nullptr;
@@ -426,7 +440,9 @@ static int get_current_code_flags(PyThreadState* tstate) {
 
 static int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
   if (event == PY_CODE_EVENT_DESTROY) {
+#if PY_VERSION_HEX < 0x030C0000
     _PyShadow_ClearCache((PyObject *)co);
+#endif
     _PyJIT_CodeDestroyed(co);
   }
   return 0;
@@ -499,6 +515,7 @@ static int cinderx_func_watcher(
       break;
     case PyFunction_EVENT_MODIFY_KWDEFAULTS:
       break;
+#if PY_VERSION_HEX < 0x030C0000
     case PyFunction_EVENT_MODIFY_QUALNAME:
       // allow reconsideration of whether this function should be compiled
       if (!_PyJIT_IsCompiled(func)) {
@@ -509,6 +526,7 @@ static int cinderx_func_watcher(
         PyEntry_init(func);
       }
       break;
+#endif
     case PyFunction_EVENT_DESTROY:
       _PyJIT_FuncDestroyed(func);
       break;
@@ -518,13 +536,16 @@ static int cinderx_func_watcher(
 }
 
 static int cinderx_type_watcher(PyTypeObject* type) {
+#if PY_VERSION_HEX < 0x030C0000
   _PyShadow_TypeModified(type);
+#endif
   _PyJIT_TypeModified(type);
 
   return 0;
 }
 
 static int cinder_init() {
+#if PY_VERSION_HEX < 0x030C0000
   Ci_hook_type_created = _PyJIT_TypeCreated;
   Ci_hook_type_destroyed = _PyJIT_TypeDestroyed;
   Ci_hook_type_name_modified = _PyJIT_TypeNameModified;
@@ -556,12 +577,17 @@ static int cinder_init() {
   Ci_hook_ShadowFrame_HasGen_JIT = Ci_ShadowFrame_HasGen_JIT;
   Ci_hook_ShadowFrame_GetModuleName_JIT = Ci_ShadowFrame_GetModuleName_JIT;
   Ci_hook_ShadowFrame_WalkAndPopulate = Ci_ShadowFrame_WalkAndPopulate;
+#endif
 
+#if PY_VERSION_HEX < 0x030C0000
   JIT_CHECK(__strobe_CodeRuntime_py_code == jit::CodeRuntime::kPyCodeOffset,
             "Invalid PyCodeOffset for Strobelight");
   JIT_CHECK(__strobe_RuntimeFrameState_py_code ==
                 jit::RuntimeFrameState::codeOffset(),
             "Invalid codeOffset for Strobelight");
+#else
+  UPGRADE_ASSERT(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT)
+#endif
 
   if (init_already_existing_types() < 0) {
     return -1;
@@ -583,7 +609,11 @@ static int cinder_init() {
   WatcherState watcher_state;
   watcher_state.code_watcher = cinderx_code_watcher;
   watcher_state.dict_watcher = cinderx_dict_watcher;
+#if PY_VERSION_HEX < 0x030C0000
   watcher_state.func_watcher = cinderx_func_watcher;
+#else
+  UPGRADE_ASSERT(MISSING_FUNC_EVENT_MODIFY_QUALNAME)
+#endif
   watcher_state.type_watcher = cinderx_type_watcher;
   if (Ci_Watchers_Init(&watcher_state)) {
     return -1;
@@ -600,7 +630,9 @@ static int cinder_init() {
   }
   init_already_existing_funcs();
 
+#if PY_VERSION_HEX < 0x030C0000
   Ci_cinderx_initialized = 1;
+#endif
 
   return 0;
 }
@@ -615,6 +647,7 @@ static int cinder_init() {
 static int cinder_fini() {
   _PyClassLoader_ClearCache();
 
+#if PY_VERSION_HEX < 0x030C0000
   if (PyThreadState_Get()->shadow_frame) {
     // If any Python code is running we can't tell if JIT code is in use. Even
     // if every frame in the callstack is interpreter-owned, some of them could
@@ -623,11 +656,15 @@ static int cinder_fini() {
     JIT_LOG("Python code is executing, cannot cleanly shutdown CinderX.");
     return -1;
   }
+#else
+  UPGRADE_ASSERT(HOW_TO_DETECT_JIT_CODE_RUNNING)
+#endif
 
   if (_PyJIT_Finalize()) {
     return -1;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   if (Ci_cinderx_initialized && Ci_hook__PyShadow_FreeAll()) {
     return -1;
   }
@@ -673,6 +710,7 @@ static int cinder_fini() {
   Ci_hook_PyJIT_GetCurrentCodeFlags = nullptr;
 
   Ci_cinderx_initialized = 0;
+#endif
 
   return 0;
 }
@@ -704,7 +742,9 @@ static PyMethodDef _cinderx_methods[] = {
     {"clear_caches", clear_caches, METH_NOARGS,
      "Clears caches associated with the JIT.  This may have a negative effect "
      "on performance of existing JIT compiled code."},
+#if PY_VERSION_HEX < 0x030C0000
     {"clear_all_shadow_caches", clear_all_shadow_caches, METH_NOARGS, ""},
+#endif
     {"strict_module_patch", strict_module_patch, METH_VARARGS,
      strict_module_patch_doc},
     {"strict_module_patch_delete", strict_module_patch_delete, METH_VARARGS,
@@ -766,10 +806,14 @@ static struct PyModuleDef _cinderx_module = {
 };
 
 PyObject* _cinderx_lib_init() {
+#if PY_VERSION_HEX < 0x030C0000
   if ((_PyInterpreterState_GET()->dlopenflags & RTLD_GLOBAL) == 0) {
     PyErr_SetString(PyExc_ImportError, "Do not import _cinderx directly. Use cinderx instead.");
     return nullptr;
   }
+#else
+  UPGRADE_ASSERT(MISSING_DLOPENFLAGS)
+#endif
 
   CiExc_StaticTypeError =
       PyErr_NewException("cinderx.StaticTypeError", PyExc_TypeError, nullptr);

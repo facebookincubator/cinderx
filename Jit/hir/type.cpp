@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+
 namespace jit::hir {
 
 static_assert(sizeof(Type) == 16, "Type should fit in two registers");
@@ -23,6 +25,7 @@ namespace {
 // For Types where it makes sense, map them to their corresponding
 // PyTypeObject*.
 const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
+#if PY_VERSION_HEX < 0x030C0000
   static auto const map = [] {
     const std::unordered_map<Type, PyTypeObject*> map{
         {TObject, &PyBaseObject_Type},
@@ -62,6 +65,11 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
   }();
 
   return map;
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  static std::unordered_map<Type, PyTypeObject*> map;
+  return map;
+#endif
 }
 
 // Like typeToPyType(), but including Exact types in the key set (e.g., mapping

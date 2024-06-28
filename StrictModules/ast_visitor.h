@@ -3,6 +3,8 @@
 
 #include "cinderx/StrictModules/py_headers.h"
 
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+
 namespace strictmod {
 
 template <typename ET, typename ST, typename MT, typename TAnalyzer>
@@ -81,6 +83,12 @@ class ASTVisitor {
         return static_cast<TAnalyzer*>(this)->visitContinue(stmt);
       case Match_kind:
         return static_cast<TAnalyzer*>(this)->visitMatch(stmt);
+#if PY_VERSION_HEX >= 0x030C0000
+      case TypeAlias_kind:
+      case TryStar_kind:
+        UPGRADE_ASSERT(AST_UPDATES);
+        break;
+#endif
     }
     return static_cast<TAnalyzer*>(this)->defaultVisitStmt();
   }

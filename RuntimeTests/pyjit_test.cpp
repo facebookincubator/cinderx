@@ -61,10 +61,14 @@ def test(a, b):
   Runtime* ngen_rt = Runtime::get();
   CodeRuntime* code_rt = ngen_rt->allocateCodeRuntime(
       code, func->func_builtins, func->func_globals);
+#if PY_VERSION_HEX < 0x030C0000
   EXPECT_EQ(
       *reinterpret_cast<PyCodeObject**>(
           reinterpret_cast<byte*>(code_rt) + __strobe_CodeRuntime_py_code),
       code);
+#else
+  UPGRADE_ASSERT(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT)
+#endif
 }
 
 TEST_F(RuntimeTest, ReadingFromRuntimeFrameStateReadsCode) {
@@ -76,8 +80,12 @@ def test(a, b):
   ASSERT_NE(func, nullptr);
   auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
   RuntimeFrameState rtfs(code, func->func_globals, func->func_builtins);
+#if PY_VERSION_HEX < 0x030C0000
   EXPECT_EQ(
       *reinterpret_cast<PyCodeObject**>(
           reinterpret_cast<byte*>(&rtfs) + __strobe_RuntimeFrameState_py_code),
       code);
+#else
+  UPGRADE_ASSERT(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT)
+#endif
 }

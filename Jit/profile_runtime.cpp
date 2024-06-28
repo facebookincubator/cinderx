@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/profile_runtime.h"
 
-#include "Objects/dict-common.h"
 #include <Python.h>
 #include "cinderx/Common/log.h"
 #include "cinderx/Interpreter/opcode.h"
@@ -17,6 +16,12 @@
 #include <fstream>
 #include <istream>
 #include <ostream>
+
+#if PY_VERSION_HEX < 0x030C0000
+#include "Objects/dict-common.h"
+#endif
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 
 namespace jit {
 
@@ -167,6 +172,7 @@ void ProfileRuntime::profileInstr(
   }
 
   auto profile_stack = [&](auto... stack_offsets) {
+#if PY_VERSION_HEX < 0x030C0000
     FOLLY_SDT(
         python,
         profile_bytecode,
@@ -190,6 +196,9 @@ void ProfileRuntime::profileInstr(
       return obj != nullptr ? Py_TYPE(obj) : nullptr;
     };
     pair.first->second->recordTypes(get_type(stack_offsets)...);
+#else
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+#endif
   };
 
   // TODO(T127457244): Centralize the information about which stack inputs are
@@ -380,7 +389,12 @@ int ProfileRuntime::numCachedKeys(BorrowedRef<PyTypeObject> type) const {
   if (ht->ht_cached_keys == nullptr) {
     return 0;
   }
+#if PY_VERSION_HEX < 0x030C0000
   return ht->ht_cached_keys->dk_nentries;
+#else
+  UPGRADE_ASSERT(CHANGED_PYDICT)
+  return 0;
+#endif
 }
 
 void ProfileRuntime::enumerateCachedKeys(
@@ -391,10 +405,14 @@ void ProfileRuntime::enumerateCachedKeys(
     return;
   }
   BorrowedRef<PyHeapTypeObject> ht(type);
+#if PY_VERSION_HEX < 0x030C0000
   PyDictKeyEntry* entries = _PyDictKeys_GetEntries(ht->ht_cached_keys);
   for (Py_ssize_t i = 0; i < num_keys; ++i) {
     callback(entries[i].me_key);
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYDICT)
+#endif
 }
 
 void ProfileRuntime::registerType(BorrowedRef<PyTypeObject> type) {

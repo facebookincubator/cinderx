@@ -2,7 +2,11 @@
 
 #include "cinderx/Jit/lir/generator.h"
 
+#include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#include "internal/pycore_shadow_frame.h"
+#endif
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
@@ -12,7 +16,6 @@
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_pystate.h"
-#include "internal/pycore_shadow_frame.h"
 #include "listobject.h"
 #include "pystate.h"
 
@@ -36,6 +39,8 @@
 #include <functional>
 #include <sstream>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 // XXX: this file needs to be revisited when we optimize HIR-to-LIR translation
 // in codegen.cpp/h. Currently, this file is almost an identical copy from
 // codegen.cpp with some interfaces changes so that it works with the new
@@ -49,6 +54,7 @@ namespace {
 
 constexpr size_t kRefcountOffset = offsetof(PyObject, ob_refcnt);
 
+#if PY_VERSION_HEX < 0x030C0000
 // _Py_RefTotal is only defined when Py_REF_DEBUG is defined.
 void* kRefTotalAddr =
 #ifdef Py_REF_DEBUG
@@ -57,6 +63,7 @@ void* kRefTotalAddr =
     nullptr
 #endif
     ;
+#endif
 
 // These functions call their counterparts and convert its output from int (32
 // bits) to uint64_t (64 bits). This is solely because the code generator cannot
@@ -496,12 +503,16 @@ void LIRGenerator::MakeIncref(
         OutInd{bbb.getDefInstr(obj), kRefcountOffset}, Instruction::kMove, r1);
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   if (kRefTotalAddr != 0) {
     auto r0 =
         bbb.appendInstr(OutVReg{}, Instruction::kMove, MemImm{kRefTotalAddr});
     bbb.appendInstr(Instruction::kInc, r0);
     bbb.appendInstr(OutMemImm{kRefTotalAddr}, Instruction::kMove, r0);
   }
+#else
+  UPGRADE_ASSERT(REF_TOTAL_CHANGED)
+#endif
   bbb.appendBlock(end_incref);
 }
 
@@ -535,12 +546,16 @@ void LIRGenerator::MakeDecref(
     bbb.appendBlock(mortal);
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   if (kRefTotalAddr != 0) {
     auto r0 =
         bbb.appendInstr(OutVReg{}, Instruction::kMove, MemImm{kRefTotalAddr});
     bbb.appendInstr(Instruction::kDec, r0);
     bbb.appendInstr(OutMemImm{kRefTotalAddr}, Instruction::kMove, r0);
   }
+#else
+  UPGRADE_ASSERT(REF_TOTAL_CHANGED)
+#endif
 
   auto dealloc = bbb.allocateBlock();
   bbb.appendInstr(Instruction::kDec, r1);
@@ -1004,6 +1019,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kCondBranch, is_not_negative, done, check_err);
         bbb.switchBlock(check_err);
 
+#if PY_VERSION_HEX < 0x030C0000
         constexpr int32_t kOffset = offsetof(PyThreadState, curexc_type);
         Instruction* curexc_type = bbb.appendInstr(
             Instruction::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
@@ -1017,6 +1033,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendBranch(
             Instruction::kCondBranch, is_no_err_set, done, set_err);
         bbb.switchBlock(set_err);
+#else
+        UPGRADE_ASSERT(EXCEPTION_HANDLING)
+#endif
 
         // Set to -1 in the error case.
         bbb.appendInstr(Instruction::kDec, instr->output());
@@ -1164,6 +1183,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* cond = bbb.getDefInstr(i.GetOperand(0));
 
         if (opcode == Opcode::kCondBranchIterNotDone) {
+#if PY_VERSION_HEX < 0x030C0000
           auto iter_done_addr =
               reinterpret_cast<uint64_t>(&jit::g_iterDoneSentinel);
           cond = bbb.appendInstr(
@@ -1171,6 +1191,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               OutVReg{OperandBase::k64bit},
               cond,
               Imm{iter_done_addr});
+#else
+          UPGRADE_ASSERT(IMMORTALIZATION_DIFFERENT)
+#endif
         }
 
         bbb.appendInstr(Instruction::kCondBranch, cond);
@@ -1668,6 +1691,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kRaiseAwaitableError: {
+#if PY_VERSION_HEX < 0x030C0000
         const auto& instr = static_cast<const RaiseAwaitableError&>(i);
         bbb.appendInvokeInstruction(
             Cix_format_awaitable_error,
@@ -1676,14 +1700,21 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             static_cast<int>(instr.with_prev_opcode()),
             static_cast<int>(instr.with_opcode()));
         appendGuardAlwaysFail(bbb, instr);
+#else
+        UPGRADE_ASSERT(PYCODEUNIT_NOT_AN_INT)
+#endif
         break;
       }
       case Opcode::kCheckErrOccurred: {
+#if PY_VERSION_HEX < 0x030C0000
         const auto& instr = static_cast<const DeoptBase&>(i);
         constexpr int32_t kOffset = offsetof(PyThreadState, curexc_type);
         Instruction* load = bbb.appendInstr(
             Instruction::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
         appendGuard(bbb, InstrGuardKind::kZero, instr, load);
+#else
+        UPGRADE_ASSERT(EXCEPTION_HANDLING)
+#endif
         break;
       }
       case Opcode::kCheckExc:
@@ -1788,13 +1819,23 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (TranslateSpecializedCall(bbb, instr)) {
           break;
         }
+#if PY_VERSION_HEX < 0x030C0000
         size_t flags = instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_ASSERT(AWAITED_FLAG)
+        size_t flags = 0;
+#endif
         emitVectorCall(bbb, instr, flags, false);
         break;
       }
       case Opcode::kVectorCallKW: {
         auto& instr = static_cast<const VectorCallBase&>(i);
+#if PY_VERSION_HEX < 0x030C0000
         size_t flags = instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_ASSERT(AWAITED_FLAG)
+        size_t flags = 0;
+#endif
         emitVectorCall(bbb, instr, flags, true);
         break;
       }
@@ -1803,7 +1844,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (TranslateSpecializedCall(bbb, instr)) {
           break;
         }
-        size_t flags = (instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0);
+#if PY_VERSION_HEX < 0x030C0000
+        size_t flags = instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_ASSERT(AWAITED_FLAG)
+        size_t flags = 0;
+#endif
         emitVectorCall(bbb, instr, flags, false);
         break;
       }
@@ -1840,7 +1886,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kCallMethod: {
         auto& hir_instr = static_cast<const CallMethod&>(i);
+#if PY_VERSION_HEX < 0x030C0000
         size_t flags = hir_instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_ASSERT(AWAITED_FLAG)
+        size_t flags = 0;
+#endif
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
             Instruction::kVectorCall,
@@ -1940,7 +1991,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
       case Opcode::kInvokeMethod: {
         auto& hir_instr = static_cast<const InvokeMethod&>(i);
+#if PY_VERSION_HEX < 0x030C0000
         size_t flags = hir_instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_ASSERT(AWAITED_FLAG)
+        size_t flags = 0;
+#endif
         auto func = hir_instr.isClassmethod()
             ? reinterpret_cast<uint64_t>(JITRT_InvokeClassMethod)
             : reinterpret_cast<uint64_t>(JITRT_InvokeMethod);
@@ -2629,10 +2685,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               data_reg);
         }
         // Set our shadow frame as top of shadow stack
+#if PY_VERSION_HEX < 0x030C0000
         bbb.appendInstr(
             OutInd{env_->asm_tstate, offsetof(PyThreadState, shadow_frame)},
             Instruction::kMove,
             callee_shadow_frame);
+#else
+        UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
         if (kPyDebug) {
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
@@ -2646,6 +2706,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
+#if PY_VERSION_HEX < 0x030C0000
         // callee_shadow_frame <- tstate.shadow_frame
         Instruction* callee_shadow_frame = bbb.appendInstr(
             OutVReg{},
@@ -2673,7 +2734,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             OutInd{env_->asm_tstate, offsetof(PyThreadState, shadow_frame)},
             Instruction::kMove,
             caller_shadow_frame);
-
+#else
+        UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
         // Unlink PyFrame if needed. Someone might have materialized all of the
         // PyFrames via PyEval_GetFrame or similar.
         auto done_block = bbb.allocateBlock();
@@ -2788,11 +2851,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kWaitHandleLoadWaiter: {
+#if PY_VERSION_HEX < 0x030C0000
         const auto& instr = static_cast<const WaitHandleLoadWaiter&>(i);
         Instruction* base = bbb.getDefInstr(instr.reg());
         int32_t offset = offsetof(Ci_PyWaitHandleObject, wh_waiter);
         bbb.appendInstr(
             instr.output(), Instruction::kMove, Ind{base, offset});
+#else
+        UPGRADE_ASSERT(AWAITED_FLAG)
+#endif
         break;
       }
       case Opcode::kWaitHandleLoadCoroOrResult: {

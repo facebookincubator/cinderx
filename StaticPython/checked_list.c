@@ -6,6 +6,9 @@
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_list.h"
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
+
 static inline int
 Ci_List_CheckIncludingChecked(PyObject *op)
 {
@@ -1856,9 +1859,12 @@ unsafe_long_compare(PyObject *v, PyObject *w, MergeState *ms)
     vl = (PyLongObject*)v;
     wl = (PyLongObject*)w;
 
+#if PY_VERSION_HEX < 0x030C0000
     v0 = Py_SIZE(vl) == 0 ? 0 : (sdigit)vl->ob_digit[0];
     w0 = Py_SIZE(wl) == 0 ? 0 : (sdigit)wl->ob_digit[0];
-
+#else
+    UPGRADE_ASSERT(PYLONG_DATA_CHANGED)
+#endif
     if (Py_SIZE(vl) < 0)
         v0 = -v0;
     if (Py_SIZE(wl) < 0)
@@ -2988,7 +2994,7 @@ list_sort(PyListObject *self, PyObject *const *args, Py_ssize_t nargs, PyObject 
 {
     PyObject *return_value = NULL;
     static const char * const _keywords[] = {"key", "reverse", NULL};
-    static _PyArg_Parser _parser = {NULL, _keywords, "sort", 0};
+    static _PyArg_Parser _parser = {.keywords = _keywords, .fname = "sort"};
     PyObject *argsbuf[2];
     Py_ssize_t noptargs = nargs + (kwnames ? PyTuple_GET_SIZE(kwnames) : 0) - 0;
     PyObject *keyfunc = Py_None;
@@ -3194,7 +3200,7 @@ chklist_alloc(PyTypeObject *type, Py_ssize_t nitems)
     if (state->numfree) {
         state->numfree--;
         op = state->free_list[state->numfree];
-        Py_TYPE(op) = type;
+        Py_SET_TYPE(op, type);
         _Py_NewReference((PyObject *)op);
         Py_INCREF(type);
 #ifdef SHOW_ALLOC_COUNT
@@ -3209,7 +3215,7 @@ chklist_alloc(PyTypeObject *type, Py_ssize_t nitems)
 #endif
     }
     op->ob_item = NULL;
-    Py_SIZE(op) = 0;
+    Py_SET_SIZE(op, 0);
     op->allocated = 0;
     _PyObject_GC_TRACK(op);
     return (PyObject *) op;
@@ -3229,7 +3235,7 @@ Ci_CheckedList_New(PyTypeObject *type, Py_ssize_t size)
         return PyErr_NoMemory();
     }
     op->allocated = size;
-    Py_SIZE(op) = size;
+    Py_SET_SIZE(op, size);
     return (PyObject *) op;
 }
 
@@ -3369,7 +3375,7 @@ chklist_extend(PyListObject *self, PyObject *iterable)
         if (list_resize(self, mn) < 0)
             goto error;
         /* Make the list sane again. */
-        Py_SIZE(self) = m;
+        Py_SET_SIZE(self, m);
     }
 
     /* Run iterator to exhaustion. */
@@ -3390,7 +3396,7 @@ chklist_extend(PyListObject *self, PyObject *iterable)
         if (Py_SIZE(self) < self->allocated) {
             /* steals ref */
             Ci_CheckedList_SET_ITEM(self, Py_SIZE(self), item);
-            ++Py_SIZE(self);
+            Py_SET_SIZE(self, Py_SIZE(self) + 1);
         }
         else {
             int status = app1(self, item);
@@ -3468,7 +3474,7 @@ static PyMethodDef chklist_methods[] = {
 
 static void chklist_dealloc(PyListObject *self)
 {
-  Py_TYPE(self) = &PyList_Type;
+  Py_SET_TYPE(self, &PyList_Type);
   list_dealloc(self);
 }
 

@@ -3,11 +3,17 @@
 #pragma once
 
 #include <Python.h>
+
+#if PY_VERSION_HEX < 0x030C0000
+#include "internal/pycore_shadow_frame_struct.h"
+#endif
+
 #include "cinderx/Common/ref.h"
 #include "frameobject.h"
-#include "internal/pycore_shadow_frame_struct.h"
 
 #include "cinderx/Jit/runtime.h"
+
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 namespace jit {
 
@@ -67,5 +73,15 @@ int Ci_ShadowFrame_WalkAndPopulate(
     int array_capacity,
     int* async_stack_len_out,
     int* sync_stack_len_out);
+
+// In Cinder 3.10 these are declared in cinder/exports.h
+#if PY_VERSION_HEX >= 0x030C0000
+void Ci_WalkAsyncStack(
+    PyThreadState* tstate,
+    CiWalkAsyncStackCallback cb,
+    void* data);
+
+void Ci_WalkStack(PyThreadState* tstate, CiWalkStackCallback cb, void* data);
+#endif
 
 } // extern "C"

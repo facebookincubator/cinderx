@@ -5,7 +5,10 @@
 #include "pycore_unionobject.h" // _PyUnion_Type
 #include "pycore_tuple.h" // _PyTuple_FromArray
 
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 static PyObject *genericinst_cache;
 
@@ -246,8 +249,12 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
     new_type->tp_new = ((_PyGenericTypeDef *)type)->gtd_new;
 #undef COPY_DATA
 
+#if PY_VERSION_HEX < 0x030C0000
     new_inst->gti_type.ht_type.tp_flags |=
         Py_TPFLAGS_HEAPTYPE | Ci_Py_TPFLAGS_FROZEN | Ci_Py_TPFLAGS_GENERIC_TYPE_INST;
+#else
+    UPGRADE_ASSERT(MISSING_PY_TYPEFLAGS_FROZE)
+#endif
     new_inst->gti_type.ht_type.tp_flags &=
         ~(Py_TPFLAGS_READY | Ci_Py_TPFLAGS_GENERIC_TYPE_DEF);
 

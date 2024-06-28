@@ -3,12 +3,14 @@
 #include "cinderx/Jit/frame.h"
 
 #include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/genobject_jit.h"
+#include "internal/pycore_shadow_frame.h"
+#endif
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "internal/pycore_pystate.h"
-#include "internal/pycore_shadow_frame.h"
 #include "pycore_object.h"
 
 #include "cinderx/Jit/bytecode_offsets.h"
@@ -20,7 +22,10 @@
 #include <optional>
 #include <unordered_set>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 static bool is_shadow_frame_for_gen(_PyShadowFrame* shadow_frame) {
+#if PY_VERSION_HEX < 0x030C0000
   // TODO(bsimmers): This condition will need to change when we support eager
   // coroutine execution in the JIT, since there is no PyGenObject* for the
   // frame while executing eagerly (but isGen() will still return true).
@@ -35,6 +40,10 @@ static bool is_shadow_frame_for_gen(_PyShadowFrame* shadow_frame) {
       _PyShadowFrame_GetPtrKind(shadow_frame) == PYSF_PYFRAME &&
       _PyShadowFrame_GetPyFrame(shadow_frame)->f_gen != nullptr;
   return is_jit_gen || is_gen_with_frame;
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
 }
 
 namespace jit {
@@ -84,7 +93,11 @@ CodeRuntime* getCodeRuntime(_PyShadowFrame* shadow_frame) {
     // The shadow frame belongs to a generator; retrieve the CodeRuntime
     // directly from the generator.
     PyGenObject* gen = _PyShadowFrame_GetGen(shadow_frame);
+#if PY_VERSION_HEX < 0x030C0000
     return reinterpret_cast<GenDataFooter*>(gen->gi_jit_data)->code_rt;
+#else
+    UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+#endif
   }
   auto jit_sf = reinterpret_cast<JITShadowFrame*>(shadow_frame);
   _PyShadowFrame_PtrKind rt_ptr_kind = JITShadowFrame_GetRTPtrKind(jit_sf);
@@ -98,6 +111,7 @@ CodeRuntime* getCodeRuntime(_PyShadowFrame* shadow_frame) {
 std::optional<PyFrameObject*> findInnermostPyFrameForShadowFrame(
     PyThreadState* tstate,
     _PyShadowFrame* needle) {
+#if PY_VERSION_HEX < 0x030C0000
   PyFrameObject* prev_py_frame = nullptr;
   _PyShadowFrame* shadow_frame = tstate->shadow_frame;
   while (shadow_frame) {
@@ -108,6 +122,9 @@ std::optional<PyFrameObject*> findInnermostPyFrameForShadowFrame(
     }
     shadow_frame = shadow_frame->prev;
   }
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
   return {};
 }
 
@@ -119,8 +136,13 @@ uintptr_t getIP(_PyShadowFrame* shadow_frame, int frame_size) {
       "shadow frame not executed by the JIT");
   uintptr_t frame_base;
   if (is_shadow_frame_for_gen(shadow_frame)) {
-    PyGenObject* gen = _PyShadowFrame_GetGen(shadow_frame);
-    auto footer = reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
+#if PY_VERSION_HEX < 0x030C0000
+  PyGenObject* gen = _PyShadowFrame_GetGen(shadow_frame);
+  auto footer = reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  GenDataFooter* footer = nullptr;
+#endif
     if (footer->yieldPoint == nullptr) {
       // The generator is running.
       frame_base = footer->originalRbp;
@@ -159,12 +181,17 @@ Ref<PyFrameObject> createPyFrame(
   py_frame_ctor.fc_globals = rtfs.globals();
   py_frame_ctor.fc_builtins = rtfs.builtins();
   py_frame_ctor.fc_code = rtfs.code();
+#if PY_VERSION_HEX < 0x030C0000
   Ref<PyFrameObject> py_frame = Ref<PyFrameObject>::steal(
       _PyFrame_New_NoTrack(tstate, &py_frame_ctor, nullptr));
   _PyObject_GC_TRACK(py_frame);
   // _PyFrame_New_NoTrack links the frame into the thread stack.
   Py_CLEAR(py_frame->f_back);
   return py_frame;
+#else
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  return {};
+#endif
 }
 
 void insertPyFrameBefore(
@@ -172,11 +199,15 @@ void insertPyFrameBefore(
     BorrowedRef<PyFrameObject> frame,
     BorrowedRef<PyFrameObject> cursor) {
   if (cursor == nullptr) {
+#if PY_VERSION_HEX < 0x030C0000
     // Insert frame at the top of the call stack
     Py_XINCREF(tstate->frame);
     frame->f_back = tstate->frame;
     // ThreadState holds a borrowed reference
     tstate->frame = frame;
+#else
+    UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+#endif
     return;
   }
   // Insert frame immediately before cursor in the call stack
@@ -190,6 +221,7 @@ void insertPyFrameBefore(
 void attachPyFrame(
     BorrowedRef<PyFrameObject> py_frame,
     _PyShadowFrame* shadow_frame) {
+#if PY_VERSION_HEX < 0x030C0000
   if (is_shadow_frame_for_gen(shadow_frame)) {
     // Transfer ownership of the new reference to frame to the generator
     // epilogue.  It handles detecting and unlinking the frame if the generator
@@ -217,10 +249,18 @@ void attachPyFrame(
   }
   shadow_frame->data =
       _PyShadowFrame_MakeData(py_frame, PYSF_PYFRAME, PYSF_JIT);
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+#endif
 }
 
 PyFrameState getPyFrameStateForJITGen(PyGenObject* gen) {
+#if PY_VERSION_HEX < 0x030C0000
   JIT_DCHECK(gen->gi_jit_data != nullptr, "not a JIT generator");
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+#endif
   switch (Ci_GetJITGenState(gen)) {
     case Ci_JITGenState_JustStarted: {
       return FRAME_CREATED;
@@ -276,6 +316,7 @@ BorrowedRef<PyFrameObject> materializePyFrame(
     }
   }
   // Update the PyFrameObject to refect the state of the JIT function
+#if PY_VERSION_HEX < 0x030C0000
   py_frame->f_lasti = last_instr_offset.asIndex().value();
   if (is_shadow_frame_for_gen(shadow_frame)) {
     PyGenObject* gen = _PyShadowFrame_GetGen(shadow_frame);
@@ -283,6 +324,9 @@ BorrowedRef<PyFrameObject> materializePyFrame(
   } else {
     py_frame->f_state = FRAME_EXECUTING;
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#endif
   return py_frame;
 }
 
@@ -448,6 +492,7 @@ using FrameHandler =
     std::function<bool(const CodeObjLoc&, PyFrameMaterializer)>;
 
 void doShadowStackWalk(PyThreadState* tstate, FrameHandler handler) {
+#if PY_VERSION_HEX < 0x030C0000
   BorrowedRef<PyFrameObject> prev_py_frame;
   for (_PyShadowFrame* shadow_frame = tstate->shadow_frame;
        shadow_frame != nullptr;
@@ -504,6 +549,9 @@ void doShadowStackWalk(PyThreadState* tstate, FrameHandler handler) {
       }
     }
   }
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
 }
 
 // Invoke handler for each frame on the shadow stack
@@ -521,6 +569,7 @@ using AsyncFrameHandler =
 
 // Invoke handler for each shadow frame on the async stack.
 void walkAsyncShadowStack(PyThreadState* tstate, AsyncFrameHandler handler) {
+#if PY_VERSION_HEX < 0x030C0000
   _PyShadowFrame* shadow_frame = tstate->shadow_frame;
   while (shadow_frame != nullptr) {
     Ref<> qualname =
@@ -557,6 +606,9 @@ void walkAsyncShadowStack(PyThreadState* tstate, AsyncFrameHandler handler) {
       shadow_frame = shadow_frame->prev;
     }
   }
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
 }
 
 const char* shadowFrameKind(_PyShadowFrame* sf) {
@@ -576,12 +628,18 @@ const char* shadowFrameKind(_PyShadowFrame* sf) {
 } // namespace
 
 Ref<PyFrameObject> materializePyFrameForDeopt(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
   UnitState unit_state = getUnitState(tstate->shadow_frame);
   materializePyFrames(tstate, unit_state, nullptr);
   return Ref<PyFrameObject>::steal(tstate->frame);
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+#endif
 }
 
 void assertShadowCallStackConsistent(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
   PyFrameObject* py_frame = tstate->frame;
   _PyShadowFrame* shadow_frame = tstate->shadow_frame;
 
@@ -631,20 +689,28 @@ void assertShadowCallStackConsistent(PyThreadState* tstate) {
     }
     JIT_ABORT("stack walk didn't consume entire python stack");
   }
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
 }
 
 BorrowedRef<PyFrameObject> materializeShadowCallStack(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
   walkShadowStack(
       tstate, [](const CodeObjLoc&, PyFrameMaterializer makePyFrame) {
         makePyFrame();
         return true;
       });
   return tstate->frame;
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
 }
 
 BorrowedRef<PyFrameObject> materializePyFrameForGen(
     PyThreadState* tstate,
     PyGenObject* gen) {
+#if PY_VERSION_HEX < 0x030C0000
   auto gen_footer = reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
   if (gen_footer->state == Ci_JITGenState_Completed) {
     return nullptr;
@@ -672,10 +738,15 @@ BorrowedRef<PyFrameObject> materializePyFrameForGen(
   }
 
   return materializePyFrames(tstate, unit_state, cursor);
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+#endif
 }
 
 RuntimeFrameState runtimeFrameStateFromShadowFrame(
     _PyShadowFrame* shadow_frame) {
+#if PY_VERSION_HEX < 0x030C0000
   JIT_CHECK(shadow_frame != nullptr, "Null shadow frame");
   void* shadow_ptr = _PyShadowFrame_GetPtr(shadow_frame);
   JIT_CHECK(
@@ -700,9 +771,13 @@ RuntimeFrameState runtimeFrameStateFromShadowFrame(
           kind,
           static_cast<void*>(shadow_frame));
   }
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
 }
 
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
   // Get info from the shadow frame if it exists.
   if (_PyShadowFrame* shadow_frame = tstate->shadow_frame) {
     return runtimeFrameStateFromShadowFrame(shadow_frame);
@@ -710,6 +785,10 @@ RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
   PyFrameObject* frame = tstate->frame;
   JIT_CHECK(frame != nullptr, "Do not have a shadow frame or a Python frame");
   return RuntimeFrameState{frame->f_code, frame->f_builtins, frame->f_globals};
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+#endif
 }
 
 } // namespace jit
@@ -763,20 +842,28 @@ int Ci_ShadowFrame_WalkAndPopulate(
 }
 
 void Ci_WalkStack(PyThreadState* tstate, CiWalkStackCallback cb, void* data) {
+#if PY_VERSION_HEX < 0x030C0000
   jit::walkShadowStack(
       tstate, [&](const jit::CodeObjLoc& loc, jit::PyFrameMaterializer) {
         return cb(data, loc.code, loc.lineNo()) == CI_SWD_CONTINUE_STACK_WALK;
       });
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
 }
 
 void Ci_WalkAsyncStack(
     PyThreadState* tstate,
     CiWalkAsyncStackCallback cb,
     void* data) {
+#if PY_VERSION_HEX < 0x030C0000
   jit::walkAsyncShadowStack(
       tstate,
       [&](PyObject* qualname, const jit::CodeObjLoc& loc, PyObject* pyFrame) {
         return cb(data, qualname, loc.code, loc.lineNo(), pyFrame) ==
             CI_SWD_CONTINUE_STACK_WALK;
       });
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
 }

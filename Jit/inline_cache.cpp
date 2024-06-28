@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/inline_cache.h"
 
-#include "Objects/dict-common.h"
 #include <Python.h>
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
@@ -15,7 +14,12 @@
 #include <memory>
 
 // clang-format off
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#include "Objects/dict-common.h"
+#endif
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 #include "internal/pycore_pystate.h"
 #include "internal/pycore_object.h"
 #include "structmember.h"
@@ -63,8 +67,10 @@ TypeWatcher<LoadTypeMethodCache> ltm_watcher;
 
 constexpr uintptr_t kKindMask = 0x07;
 
+#if PY_VERSION_HEX < 0x030C0000
 // Sentinel PyObject that must never escape into user code.
 PyObject g_emptyTypeAttrCache = {_PyObject_EXTRA_INIT 1, nullptr};
+#endif
 
 inline PyDictObject* get_dict(PyObject* obj, Py_ssize_t dictoffset) {
   PyObject** dictptr = (PyObject**)((char*)obj + dictoffset);
@@ -130,6 +136,7 @@ void maybeCollectCacheStats(
 
 PyObject*
 SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+#if PY_VERSION_HEX < 0x030C0000
   PyDictObject* dict = get_or_allocate_dict(obj, dict_offset);
   if (dict == nullptr) {
     return nullptr;
@@ -167,6 +174,10 @@ SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
     Py_DECREF(dictobj);
   }
   return result;
+#else
+  UPGRADE_ASSERT(CHANGED_PYDICT)
+  return nullptr;
+#endif
 }
 
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
@@ -176,7 +187,11 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   }
   PyObject* result = nullptr;
   if (dict->ma_keys == keys) {
+#if PY_VERSION_HEX < 0x030C0000
     result = dict->ma_values[val_offset];
+#else
+  UPGRADE_ASSERT(CHANGED_PYDICT)
+#endif
   } else {
     auto dictobj = reinterpret_cast<PyObject*>(dict);
     Py_INCREF(dictobj);
@@ -755,10 +770,14 @@ void LoadTypeAttrCache::fill(PyTypeObject* type, PyObject* value) {
 }
 
 void LoadTypeAttrCache::reset() {
+#if PY_VERSION_HEX < 0x030C0000
   // We need to return a PyObject* even in the empty case so that subsequent
   // refcounting operations work correctly.
   items[0] = &g_emptyTypeAttrCache;
   items[1] = nullptr;
+#else
+  UPGRADE_ASSERT(IMMORTALIZATION_DIFFERENT)
+#endif
 }
 
 std::string_view kCacheMissReasons[] = {
@@ -927,10 +946,14 @@ void LoadMethodCache::fill(
     return;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
       (type->tp_dictoffset != 0)) {
     return;
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYDICT)
+#endif
 
   for (auto& entry : entries_) {
     if (entry.type == nullptr) {
@@ -1136,10 +1159,14 @@ void LoadTypeMethodCache::fill(
     return;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
       (type->tp_dictoffset != 0)) {
     return;
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYDICT)
+#endif
   ltm_watcher.unwatch(this->type, this);
   this->type = type;
   this->value = value;

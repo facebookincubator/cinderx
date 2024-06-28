@@ -9,7 +9,10 @@
 #include "pyport.h"
 #include "structmember.h"
 
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Interpreter/opcode.h"
@@ -18,6 +21,8 @@
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
 #include <dlfcn.h>
+
+PyObject* CiExc_StaticTypeError = NULL;
 
 static PyObject* classloader_cache;
 static PyObject* classloader_cache_module_to_keys;
@@ -564,7 +569,12 @@ type_vtable_coroutine_classmethod_vectorcall(
     size_t nargsf) {
   PyObject* callable = PyTuple_GET_ITEM(state->tcs_value, 0);
   PyObject* coro;
+#if PY_VERSION_HEX < 0x030C0000
   Py_ssize_t awaited = nargsf & Ci_Py_AWAITED_CALL_MARKER;
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  Py_ssize_t awaited = 0;
+#endif
 
   if (Py_TYPE(callable) == &PyClassMethod_Type) {
     // We need to do some special set up for class methods when invoking.
@@ -2096,6 +2106,7 @@ PyObject* thunk_vectorcall(
         thunk->thunk_cls, res, (_PyClassLoader_RetTypeInfo*)thunk);
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   if (thunk->thunk_flags & Ci_FUNC_FLAGS_COROUTINE) {
     PyObject* coro = _PyObject_Vectorcall(
         func, args, nargsf & ~Ci_Py_AWAITED_CALL_MARKER, kwnames);
@@ -2108,6 +2119,10 @@ PyObject* thunk_vectorcall(
       func, args, nargsf & ~Ci_Py_AWAITED_CALL_MARKER, kwnames);
   return rettype_check(
       thunk->thunk_cls, res, (_PyClassLoader_RetTypeInfo*)thunk);
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  return NULL;
+#endif
 }
 
 static PyObject*
@@ -2134,9 +2149,13 @@ int get_func_or_special_callable(
     PyObject** result);
 
 int _PyClassLoader_InitTypeForPatching(PyTypeObject* type) {
+#if PY_VERSION_HEX < 0x030C0000
   if (!(type->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED)) {
     return 0;
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   _PyType_VTable* vtable = (_PyType_VTable*)type->tp_cache;
   if (vtable != NULL && vtable->vt_original != NULL) {
     return 0;
@@ -2497,6 +2516,7 @@ update_thunk(_Py_StaticThunk* thunk, PyObject* previous, PyObject* new_value) {
    if it exists.
  */
 static PyObject* get_final_method_names(PyTypeObject* type) {
+#if PY_VERSION_HEX < 0x030C0000
   PyObject* mro = type->tp_mro;
   if (mro == NULL) {
     return NULL;
@@ -2517,6 +2537,9 @@ static PyObject* get_final_method_names(PyTypeObject* type) {
       return final_method_names;
     }
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   return NULL;
 }
 
@@ -3258,10 +3281,14 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
 }
 
 int is_static_type(PyTypeObject* type) {
+#if PY_VERSION_HEX < 0x030C0000
   return (type->tp_flags &
           (Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED |
            Ci_Py_TPFLAGS_GENERIC_TYPE_INST)) ||
       !(type->tp_flags & Py_TPFLAGS_HEAPTYPE);
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
 }
 
 /**
@@ -3506,7 +3533,12 @@ static PyObject* classloader_get_member(
     PyObject** container,
     PyObject** containerkey) {
   PyThreadState* tstate = PyThreadState_GET();
+#if PY_VERSION_HEX < 0x030C0000
   PyObject* cur = tstate->interp->modules;
+#else
+  UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
+  PyObject* cur = NULL;
+#endif
 
   if (cur == NULL) {
     PyErr_Format(
@@ -3585,6 +3617,7 @@ static PyObject* classloader_get_member(
       Py_XINCREF(next);
     }
 
+#if PY_VERSION_HEX < 0x030C0000
     if (next == NULL && d == tstate->interp->modules) {
       /* import module in case it's not available in sys.modules */
       PyObject* mod =
@@ -3602,6 +3635,9 @@ static PyObject* classloader_get_member(
       next = (PyObject*)&_PyNone_Type;
       Py_INCREF(next);
     }
+#else
+    UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
+#endif
 
     if (next == NULL) {
       PyErr_Format(
@@ -3997,11 +4033,15 @@ error:
 
 int _PyClassLoader_IsImmutable(PyObject* container) {
   if (PyType_Check(container)) {
+#if PY_VERSION_HEX < 0x030C0000
     PyTypeObject* type = (PyTypeObject*)container;
     if (type->tp_flags & Ci_Py_TPFLAGS_FROZEN ||
         !(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
       return 1;
     }
+#else
+    UPGRADE_ASSERT(MISSING_PY_TYPEFLAGS_FROZEN)
+#endif
   }
 
   if (Ci_StrictModule_CheckExact(container) &&
@@ -4685,7 +4725,12 @@ int _PyClassLoader_HasPrimitiveArgs(PyCodeObject* code) {
 
 int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyObject* key) {
   PyThreadState* tstate = PyThreadState_GET();
+#if PY_VERSION_HEX < 0x030C0000
   PyObject* modules_dict = tstate->interp->modules;
+#else
+  UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
+  PyObject* modules_dict = NULL;
+#endif
   if (((PyObject*)dict) != modules_dict) {
     return 0;
   }
@@ -4710,7 +4755,7 @@ int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyObject* key) {
 static PyObject* invoke_native_helper = NULL;
 
 static inline int import_invoke_native() {
-  if (_Py_UNLIKELY(invoke_native_helper == NULL)) {
+  if (__builtin_expect(invoke_native_helper == NULL, 0)) {
     PyObject* native_utils = PyImport_ImportModule("__static__.native_utils");
     if (native_utils == NULL) {
       return -1;

@@ -38,6 +38,8 @@
 #include <utility>
 #include <vector>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 namespace jit::hir {
 
 // Allocate a temp register that may be used for the stack. It should not be a
@@ -255,6 +257,7 @@ void HIRBuilder::AllocateRegistersForLocals(
 void HIRBuilder::AllocateRegistersForCells(
     Environment* env,
     FrameState& state) {
+#if PY_VERSION_HEX < 0x030C0000
   Py_ssize_t ncells = PyTuple_GET_SIZE(PyCode_GetCellvars(code_)) +
       PyTuple_GET_SIZE(PyCode_GetFreevars(code_));
   state.cells.clear();
@@ -262,6 +265,9 @@ void HIRBuilder::AllocateRegistersForCells(
   for (int i = 0; i < ncells; i++) {
     state.cells.emplace_back(env->AllocateRegister());
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
 }
 
 // Holds the current state of translation for a given basic block
@@ -349,6 +355,7 @@ void HIRBuilder::addLoadArgs(TranslationContext& tc, int num_args) {
 void HIRBuilder::addInitializeCells(
     TranslationContext& tc,
     Register* cur_func) {
+#if PY_VERSION_HEX < 0x030C0000
   Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code_));
   Py_ssize_t nfreevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code_));
 
@@ -394,6 +401,9 @@ void HIRBuilder::addInitializeCells(
     JIT_CHECK(dst != nullptr, "No register for cell {}", cell_idx);
     tc.emit<LoadTupleItem>(dst, func_closure, i);
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
 }
 
 static bool should_snapshot(

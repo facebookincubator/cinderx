@@ -279,8 +279,12 @@ def test(x, y):
     PyCodeObject* code =
         reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
     const int jump_index = 18;
+#if PY_VERSION_HEX < 0x030C0000
     ASSERT_EQ(
         PyBytes_AS_STRING(PyCode_GetCode(code))[22], (char)POP_JUMP_IF_ZERO);
+#else
+    UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
 
     DeoptMetadata dm;
     dm.live_values = {a_val};

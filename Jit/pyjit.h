@@ -4,7 +4,6 @@
 
 #include <Python.h>
 #include "frameobject.h"
-#include "genobject.h"
 
 #include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/pyjit_typeslots.h"

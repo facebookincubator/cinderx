@@ -191,6 +191,7 @@ class RuntimeTest : public ::testing::Test {
   }
 
   bool AddModuleWithBuiltins(BorrowedRef<> module, BorrowedRef<> globals) {
+#if PY_VERSION_HEX < 0x030C0000
     // Look up the builtins module to mimic real code, rather than using its
     // dict.
     auto modules = PyThreadState_Get()->interp->modules;
@@ -199,6 +200,9 @@ class RuntimeTest : public ::testing::Test {
         PyDict_SetItemString(modules, JIT_TEST_MOD_NAME, module) != 0) {
       return true;
     }
+#else
+    UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
+#endif
     return false;
   }
 

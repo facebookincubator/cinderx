@@ -3,7 +3,12 @@
 #ifndef Ci_STATIC_ARRAY_H
 #define Ci_STATIC_ARRAY_H
 
+#include "Python.h"
+
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #ifdef __cplusplus
 extern "C" {

@@ -50,6 +50,7 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
   PyTuple_SET_ITEM(consts.get(), 0, Py_None);
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
+#if PY_VERSION_HEX < 0x030C0000
   auto code = Ref<PyCodeObject>::steal(PyCode_New(
       0,
       0,
@@ -81,4 +82,7 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
 
   ++it;
   EXPECT_EQ(it, bc_block.end());
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
 }

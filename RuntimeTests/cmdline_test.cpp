@@ -428,7 +428,7 @@ const wchar_t* makeWideChar(const char* to_convert) {
 }
 
 TEST_F(CmdLineTest, JITList) {
-  string list_file = tmpnam(nullptr);
+  std::string list_file = tmpnam(nullptr);
   ofstream list_file_handle(list_file);
   list_file_handle.close();
   const wchar_t* xarg =
@@ -447,7 +447,7 @@ TEST_F(CmdLineTest, JITList) {
 }
 
 TEST_F(CmdLineTest, JITLogFile) {
-  string log_file = tmpnam(nullptr);
+  std::string log_file = tmpnam(nullptr);
   ofstream log_file_handle(log_file);
   log_file_handle.close();
   const wchar_t* xarg =
@@ -477,7 +477,7 @@ TEST_F(CmdLineTest, ExplicitJITDisable) {
 }
 
 TEST_F(CmdLineTest, WriteProfile) {
-  string list_file = tmpnam(nullptr);
+  std::string list_file = tmpnam(nullptr);
 
   const wchar_t* xarg = makeWideChar(
       const_cast<char*>(("jit-write-profile=" + list_file).c_str()));

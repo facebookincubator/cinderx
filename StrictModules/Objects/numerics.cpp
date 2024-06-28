@@ -8,6 +8,8 @@
 
 #include <cmath>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 #define INT_OP_BOTH_VALUE(lhs, rhs, make, op, py_op)                         \
   do {                                                                       \
     if ((lhs)->value_ && (rhs)->value_) {                                    \
@@ -1041,7 +1043,13 @@ std::shared_ptr<BaseStrictObject> StrictFloat::float__round__(
   Ref<> selfObj = self->getPyObject();
   _Py_IDENTIFIER(__round__);
   Ref<> round =
-      Ref<>::steal(_PyObject_LookupSpecial(selfObj.get(), &PyId___round__));
+      Ref<>::steal(
+#if PY_VERSION_HEX < 0x030C0000
+        _PyObject_LookupSpecial
+#else
+        _PyObject_LookupSpecialId
+#endif
+        (selfObj.get(), &PyId___round__));
   if (round == nullptr) {
     if (PyErr_Occurred()) {
       PyErr_Clear();

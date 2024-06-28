@@ -1,4 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 #include "cinderx/Common/util.h"
 
@@ -132,6 +135,7 @@ std::string funcFullname(PyFunctionObject* func) {
 }
 
 PyObject* getVarnameTuple(PyCodeObject* code, int* idx) {
+#if PY_VERSION_HEX < 0x030C0000
   if (*idx < code->co_nlocals) {
     return PyCode_GetVarnames(code);
   }
@@ -144,6 +148,10 @@ PyObject* getVarnameTuple(PyCodeObject* code, int* idx) {
 
   *idx -= ncellvars;
   return PyCode_GetFreevars(code);
+#else
+    UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+    return nullptr;
+#endif
 }
 
 PyObject* getVarname(PyCodeObject* code, int idx) {
@@ -187,12 +195,16 @@ BorrowedRef<> typeLookupSafe(
   BorrowedRef<PyTupleObject> mro{type->tp_mro};
   for (size_t i = 0, n = PyTuple_GET_SIZE(mro); i < n; ++i) {
     BorrowedRef<PyTypeObject> base_ty{PyTuple_GET_ITEM(mro, i)};
+#if PY_VERSION_HEX < 0x030C0000
     if (!PyType_HasFeature(base_ty, Py_TPFLAGS_READY) ||
         _PyDict_HasUnsafeKeys(base_ty->tp_dict)) {
       // Abort the whole search if any base class dict is poorly-behaved
       // (before we find the name); it could contain the key we're looking for.
       return nullptr;
     }
+#else
+        UPGRADE_ASSERT(CHANGED_PYDICT)
+#endif
     if (BorrowedRef<> value{PyDict_GetItemWithError(base_ty->tp_dict, name)}) {
       return value;
     }
@@ -212,6 +224,7 @@ bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
 }
 
 uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
+#if PY_VERSION_HEX < 0x030C0000
   uint32_t crc = crc32(0, nullptr, 0);
   BorrowedRef<> bc = PyCode_GetCode(code);
   if (!PyBytes_Check(bc)) {
@@ -225,6 +238,10 @@ uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
   }
 
   return crc32(crc, reinterpret_cast<unsigned char*>(buffer), len);
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+  return 0;
+#endif
 }
 
 std::string codeQualname(BorrowedRef<PyCodeObject> code) {

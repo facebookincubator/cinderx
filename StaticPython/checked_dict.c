@@ -1,4 +1,8 @@
+// For 3.12 this is totally broken. The public functions from checked_dict.h
+// have been stubbed in upgrade_stubs.cpp.
 #include <Python.h>
+
+#if PY_VERSION_HEX < 0x030C0000
 #include "pycore_bitutils.h"         // _Py_bit_length
 #include "pycore_gc.h"               // _PyObject_GC_IS_TRACKED()
 #include "pycore_interp.h"           // PyDict_MAXFREELIST
@@ -8,6 +12,7 @@
 #include "Objects/stringlib/eq.h"    // unicode_eq()
 
 #include "cinder/exports.h"
+#include "Objects/dict-common.h"
 
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -4095,3 +4100,5 @@ dictvalues_reversed(_PyDictViewObject *dv, PyObject *Py_UNUSED(ignored))
 
 
 /* === End copied from dictobject.c === */
+
+#endif // PY_VERSION_HEX < 0x030C0000

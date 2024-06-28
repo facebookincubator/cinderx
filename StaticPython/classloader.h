@@ -2,8 +2,10 @@
 #ifndef Ci_CLASSLOADER_H
 #define Ci_CLASSLOADER_H
 
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/hooks.h"
+#endif
 #include "internal/pycore_moduleobject.h"
 
 #include "cinderx/StaticPython/awaitable.h"
@@ -12,9 +14,13 @@
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/vtable.h"
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+extern PyObject* CiExc_StaticTypeError;
 
 #ifndef Py_LIMITED_API
 
@@ -514,8 +520,13 @@ static inline int _PyClassLoader_IsStaticFunction(PyObject* obj) {
   if (obj == NULL || !PyFunction_Check(obj)) {
     return 0;
   }
+#if PY_VERSION_HEX < 0x030C0000
   return ((PyCodeObject*)(((PyFunctionObject*)obj))->func_code)->co_flags &
       CO_STATICALLY_COMPILED;
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+  return 0;
+#endif
 }
 
 static inline PyMethodDef* _PyClassLoader_GetMethodDef(PyObject* obj) {

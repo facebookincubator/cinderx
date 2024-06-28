@@ -526,6 +526,7 @@ class HIRBuildTest : public RuntimeTest {
 
     auto empty_tuple = Ref<>::steal(PyTuple_New(0));
     auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
+#if PY_VERSION_HEX < 0x030C0000
     auto code = Ref<PyCodeObject>::steal(PyCode_New(
         /*argcount=*/1,
         0,
@@ -552,6 +553,10 @@ class HIRBuildTest : public RuntimeTest {
     assert(irfunc.get());
 
     return irfunc;
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT);
+  return {};
+#endif
   }
 };
 
@@ -607,6 +612,7 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
   auto funcname = Ref<>::steal(PyUnicode_FromString("funcname"));
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
+#if PY_VERSION_HEX < 0x030C0000
   auto code = Ref<PyCodeObject>::steal(PyCode_New(
       0,
       0,
@@ -642,6 +648,9 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
 }
 )";
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT);
+#endif
 }
 
 TEST_F(HIRBuildTest, SetUpdate) {
@@ -679,6 +688,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
   auto varnames =
       Ref<>::steal(PyTuple_Pack(3, param0.get(), param1.get(), param2.get()));
   auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
+#if PY_VERSION_HEX < 0x030C0000
   auto code = Ref<PyCodeObject>::steal(PyCode_New(
       /*argcount=*/3,
       0,
@@ -749,6 +759,9 @@ TEST_F(HIRBuildTest, SetUpdate) {
 }
 )";
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
 }
 
 class EdgeCaseTest : public RuntimeTest {};
@@ -780,6 +793,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   PyTuple_SET_ITEM(consts.get(), 0, Py_None);
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
+#if PY_VERSION_HEX < 0x030C0000
   auto code = Ref<PyCodeObject>::steal(PyCode_New(
       0,
       0,
@@ -815,6 +829,9 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
 }
 )";
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
 }
 
 class CppInlinerTest : public RuntimeTest {};

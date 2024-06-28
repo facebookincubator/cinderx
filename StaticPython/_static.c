@@ -2,10 +2,12 @@
 
 #include <Python.h>
 #include "boolobject.h"
+#if PY_VERSION_HEX < 0x030C0000
 #include "cellobject.h"
+#include "funcobject.h"
+#endif
 #include "dictobject.h"
 #include "frameobject.h"
-#include "funcobject.h"
 #include "import.h"
 #include "methodobject.h"
 #include "object.h"
@@ -21,6 +23,8 @@
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "strictmoduleobject.h"
+
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 PyDoc_STRVAR(
     _static__doc__,
@@ -175,6 +179,7 @@ set_type_code(PyObject* mod, PyObject* const* args, Py_ssize_t nargs) {
 }
 
 PyObject* is_type_static(PyObject* mod, PyObject* type) {
+#if PY_VERSION_HEX < 0x030C0000
   PyTypeObject* pytype;
   if (!PyType_Check(type)) {
     Py_RETURN_FALSE;
@@ -183,6 +188,9 @@ PyObject* is_type_static(PyObject* mod, PyObject* type) {
   if (pytype->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) {
     Py_RETURN_TRUE;
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   Py_RETURN_FALSE;
 }
 
@@ -194,7 +202,11 @@ PyObject* set_type_static(PyObject* mod, PyObject* type) {
         Py_TYPE(type)->tp_name);
     return NULL;
   }
+#if PY_VERSION_HEX < 0x030C0000
   ((PyTypeObject*)type)->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   Py_INCREF(type);
   return type;
 }
@@ -207,7 +219,11 @@ PyObject* set_type_static_final(PyObject* mod, PyObject* type) {
         Py_TYPE(type)->tp_name);
     return NULL;
   }
+#if PY_VERSION_HEX < 0x030C0000
   ((PyTypeObject*)type)->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   ((PyTypeObject*)type)->tp_flags &= ~Py_TPFLAGS_BASETYPE;
   Py_INCREF(type);
   return type;
@@ -300,6 +316,7 @@ static PyObject* ctxmgrwrp_exit(
     }
     PyException_SetTraceback(val, tb);
 
+#if PY_VERSION_HEX < 0x030C0000
     if (ctxmgr != NULL) {
       assert(Py_TYPE(exit)->tp_flags & Py_TPFLAGS_METHOD_DESCRIPTOR);
       PyObject* stack[] = {(PyObject*)ctxmgr, exc, val, tb};
@@ -310,6 +327,9 @@ static PyObject* ctxmgrwrp_exit(
       ret = _PyObject_Vectorcall(
           exit, stack, 3 | Ci_Py_VECTORCALL_INVOKED_METHOD, NULL);
     }
+#else
+    UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
     if (ret == NULL) {
       Py_DECREF(exc);
       Py_DECREF(val);
@@ -348,6 +368,7 @@ static PyObject* ctxmgrwrp_exit(
     }
     Py_RETURN_NONE;
   } else {
+#if PY_VERSION_HEX < 0x030C0000
     PyObject* ret;
     if (ctxmgr != NULL) {
       /* we picked up a method like object and have self for it */
@@ -364,6 +385,9 @@ static PyObject* ctxmgrwrp_exit(
       goto error;
     }
     Py_DECREF(ret);
+#else
+    UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   }
 
   return result;
@@ -399,6 +423,7 @@ static PyObject* get_descr(PyObject* obj, PyObject* self) {
 
 static PyObject*
 call_with_self(PyThreadState* tstate, PyObject* func, PyObject* self) {
+#if PY_VERSION_HEX < 0x030C0000
   if (Py_TYPE(func)->tp_flags & Py_TPFLAGS_METHOD_DESCRIPTOR) {
     PyObject* args[1] = {self};
     return _PyObject_VectorcallTstate(
@@ -413,6 +438,10 @@ call_with_self(PyThreadState* tstate, PyObject* func, PyObject* self) {
     Py_DECREF(func);
     return ret;
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+  return NULL;
+#endif
 }
 
 static PyObject* ctxmgrwrp_enter(
@@ -553,6 +582,7 @@ static PyObject* ctxmgrwrp_vectorcall(
     PyObject* const* args,
     Py_ssize_t nargsf,
     PyObject* kwargs) {
+#if PY_VERSION_HEX < 0x030C0000
   PyWeakReference* wr = (PyWeakReference*)func->func_weakreflist;
   while (wr != NULL && Py_TYPE(wr) != &_PyContextDecoratorWrapper_Type) {
     wr = wr->wr_next;
@@ -620,6 +650,10 @@ static PyObject* ctxmgrwrp_vectorcall(
   Py_XDECREF(ctx_mgr);
   Py_DECREF(exit);
   return res;
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  return NULL;
+#endif
 }
 
 static int ctxmgrwrp_traverse(
@@ -788,6 +822,7 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
 
   PyObject* slots_with_default = NULL;
   PyTypeObject* next;
+#if PY_VERSION_HEX < 0x030C0000
   for (Py_ssize_t i = 1; i < mro_size; i++) {
     next = (PyTypeObject*)PyTuple_GET_ITEM(mro, i);
     if (!(PyType_HasFeature(next, Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED))) {
@@ -798,6 +833,10 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
         PyDict_GetItemString(next->tp_dict, "__slots_with_default__");
     break;
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+  next = NULL;
+#endif
   if (slots_with_default == NULL) {
     // Any class built before `__build_class__` is patched won't have a
     // slots_with_default. In order to support bootstrapping, silently allow
@@ -1061,7 +1100,12 @@ static int type_new_descriptors(
     // find the member that we're updating...  By default we do the base
     // initialization with all of the slots defined, and we're just changing
     // their types and moving them around.
+#if PY_VERSION_HEX < 0x030C0000
     PyMemberDef* mp = PyHeapType_GET_MEMBERS(et);
+#else
+    UPGRADE_ASSERT(MISSING_PyHeapType_GET_MEMBERS)
+    PyMemberDef* mp = NULL;
+#endif
     const char* slot_name = PyUnicode_AsUTF8(name);
     for (Py_ssize_t i = 0; i < nslot; i++, mp++) {
       if (strcmp(slot_name, mp->name) == 0) {
@@ -1129,7 +1173,12 @@ leaked_error:
 
 int init_static_type(PyObject* obj, int leaked_type) {
   PyTypeObject* type = (PyTypeObject*)obj;
+#if PY_VERSION_HEX < 0x030C0000
   PyMemberDef* mp = PyHeapType_GET_MEMBERS(type);
+#else
+  UPGRADE_ASSERT(MISSING_PyHeapType_GET_MEMBERS)
+  PyMemberDef* mp = NULL;
+#endif
   Py_ssize_t nslot = Py_SIZE(type);
 
   _Py_IDENTIFIER(__slot_types__);
@@ -1203,6 +1252,7 @@ int init_static_type(PyObject* obj, int leaked_type) {
 }
 
 static int validate_base_types(PyTypeObject* pytype) {
+#if PY_VERSION_HEX < 0x030C0000
   /* Inheriting a non-static type which inherits a static type is not sound, and
    * we can only catch it at runtime. The compiler can't see the static base
    * through the nonstatic type (which is opaque to it) and thus a) can't verify
@@ -1228,6 +1278,9 @@ static int validate_base_types(PyTypeObject* pytype) {
       nonstatic_base = next;
     }
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   return 0;
 }
 
@@ -1443,7 +1496,11 @@ static PyObject* _static___build_cinder_class__(
     Py_CLEAR(((PyTypeObject*)type)->tp_cache);
     had_type_cache = 1;
   }
+#if PY_VERSION_HEX < 0x030C0000
   pytype->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   if (final) {
     pytype->tp_flags &= ~Py_TPFLAGS_BASETYPE;
   }
@@ -1571,17 +1628,22 @@ static int sp_audit_hook(const char* event, PyObject* args, void* data) {
     return 0;
   }
   PyFunctionObject* func = (PyFunctionObject*)obj;
+#if PY_VERSION_HEX < 0x030C0000
   if (((PyCodeObject*)func->func_code)->co_flags & CO_STATICALLY_COMPILED) {
     PyErr_SetString(
         PyExc_RuntimeError, "Cannot modify __code__ of Static Python function");
     return -1;
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   return 0;
 }
 
 static int sp_audit_hook_installed = 0;
 
 static PyObject* install_sp_audit_hook(PyObject* mod) {
+#if PY_VERSION_HEX < 0x030C0000
   if (sp_audit_hook_installed) {
     Py_RETURN_NONE;
   }
@@ -1602,6 +1664,10 @@ static PyObject* install_sp_audit_hook(PyObject* mod) {
       Py_RETURN_NONE;
     }
   }
+#else
+  UPGRADE_ASSERT(AUDIT_API_CHANGED)
+  PyMemberDef* mp = NULL;
+#endif
 
   PyErr_SetString(
       PyExc_RuntimeError, "Could not install Static Python audit hook");
@@ -1691,12 +1757,16 @@ static struct PyModuleDef _staticmodule = {
     NULL};
 
 PyMODINIT_FUNC PyInit__static(void) {
+#if PY_VERSION_HEX < 0x030C0000
   // _static module requires CinderX to be initialized first
   if (!Ci_cinderx_initialized) {
     PyErr_SetString(
         PyExc_ImportError, "must call cinderx.init() before importing _static");
     return NULL;
   }
+#else
+  UPGRADE_ASSERT(MISSING_CINDERX_INITIALIZED_HOOK)
+#endif
 
   return PyModuleDef_Init(&_staticmodule);
 }

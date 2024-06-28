@@ -4,13 +4,21 @@
 
 #include <Python.h>
 
+// Hack to avoid having to add another dependency to the upgrade stubs.
+// Once we are done with the 3.12 upgrade we can remove this.
+#ifndef __UPGRADE_STUBS_CPP
 #include "cinderx/StaticPython/classloader.h"
+#endif
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// Hack to avoid having to add another dependency to the upgrade stubs.
+// Once we are done with the 3.12 upgrade we can remove this.
+#ifndef __UPGRADE_STUBS_CPP
 extern _PyGenericTypeDef Ci_CheckedDict_Type;
+#endif
 PyObject * Ci_CheckedDict_New(PyTypeObject *type);
 PyObject * Ci_CheckedDict_NewPresized(PyTypeObject *type, Py_ssize_t minused);
 

@@ -3,6 +3,9 @@
 
 #include <cstring>
 #include <stdexcept>
+
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+
 namespace strictmod {
 
 //-------------------------PySymtableDeleter---------------------------
@@ -89,7 +92,11 @@ int SymtableEntry::getFunctionCodeFlag() const {
       flags |= CO_VARKEYWORDS;
     }
     if (!entry_->ste_child_free) {
+#if PY_VERSION_HEX < 0x030C0000
       flags |= CO_NOFREE;
+#else
+      UPGRADE_ASSERT(MISSING_CO_NOFREE)
+#endif
     }
   }
   return flags;

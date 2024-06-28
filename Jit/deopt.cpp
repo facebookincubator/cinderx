@@ -16,6 +16,8 @@
 #include <bit>
 #include <shared_mutex>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 using jit::codegen::PhyLocation;
 
 namespace jit {
@@ -94,6 +96,7 @@ static void reifyLocalsplus(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const MemoryView& mem) {
+#if PY_VERSION_HEX < 0x030C0000
   for (std::size_t i = 0; i < frame_meta.localsplus.size(); i++) {
     auto value = meta.getLocalValue(i, frame_meta);
     if (value == nullptr) {
@@ -104,6 +107,9 @@ static void reifyLocalsplus(
     PyObject* obj = mem.readOwned(*value).release();
     Py_XSETREF(frame->f_localsplus[i], obj);
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#endif
 }
 
 static void reifyStack(
@@ -111,6 +117,7 @@ static void reifyStack(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const MemoryView& mem) {
+#if PY_VERSION_HEX < 0x030C0000
   frame->f_stackdepth = frame_meta.stack.size();
   for (int i = frame_meta.stack.size() - 1; i >= 0; i--) {
     const auto& value = meta.getStackValue(i, frame_meta);
@@ -132,6 +139,9 @@ static void reifyStack(
       frame->f_valuestack[i] = obj.release();
     }
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#endif
 }
 
 Ref<> profileDeopt(
@@ -146,10 +156,14 @@ Ref<> profileDeopt(
   // for that case.
   int opcode = -1;
   if (bc_off.value() >= 0) {
+#if PY_VERSION_HEX < 0x030C0000
     char* raw_code = PyBytes_AS_STRING(PyCode_GetCode(code));
     BytecodeInstruction bc_instr{
         reinterpret_cast<_Py_CODEUNIT*>(raw_code), bc_off};
     opcode = bc_instr.opcode();
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
   }
 
   FOLLY_SDT(
@@ -169,6 +183,7 @@ Ref<> profileDeopt(
 static void reifyBlockStack(
     PyFrameObject* frame,
     const jit::hir::BlockStack& block_stack) {
+#if PY_VERSION_HEX < 0x030C0000
   std::size_t bs_size = block_stack.size();
   frame->f_iblock = bs_size;
   for (std::size_t i = 0; i < bs_size; i++) {
@@ -177,6 +192,9 @@ static void reifyBlockStack(
     frame->f_blockstack[i].b_handler = block.handler_off.asIndex().value();
     frame->f_blockstack[i].b_level = block.stack_level;
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#endif
 }
 
 static void reifyFrameImpl(
@@ -185,6 +203,7 @@ static void reifyFrameImpl(
     bool for_gen_resume,
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs) {
+#if PY_VERSION_HEX < 0x030C0000
   frame->f_locals = nullptr;
   frame->f_trace = nullptr;
   frame->f_trace_opcodes = 0;
@@ -213,6 +232,10 @@ static void reifyFrameImpl(
   reifyStack(frame, meta, frame_meta, mem);
   reifyBlockStack(frame, frame_meta.block_stack);
   // Generator/frame linkage happens in `materializePyFrame` in frame.cpp
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#endif
 }
 
 void reifyFrame(

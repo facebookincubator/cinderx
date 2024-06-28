@@ -3,13 +3,15 @@
 #pragma once
 
 #include <Python.h>
-#include "cinderx/Common/ref.h"
 
 #include <atomic>
 #include <cassert>
 #include <mutex>
 #include <thread>
 #include <vector>
+
+#include "cinderx/Common/ref.h"
+
 
 namespace jit {
 

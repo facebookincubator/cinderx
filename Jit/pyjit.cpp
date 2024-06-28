@@ -2,16 +2,19 @@
 
 #include "cinderx/Jit/pyjit.h"
 
+#include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/genobject_jit.h"
+#include "internal/pycore_shadow_frame.h"
+#include "internal/pycore_ceval.h"
+#endif
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/StrictModules/pystrictmodule.h"
 #include "i386-dis/dis-asm.h"
-#include "internal/pycore_ceval.h"
-#include "internal/pycore_shadow_frame.h"
 #include "pycore_interp.h"
 
 #include "cinderx/Jit/code_allocator.h"
@@ -50,6 +53,8 @@
 #include <thread>
 #include <unordered_set>
 #include <utility>
+
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #define DEFAULT_CODE_SIZE 2 * 1024 * 1024
 
@@ -1618,7 +1623,11 @@ static PyObject* jit_suppress(PyObject*, PyObject* func_obj) {
   }
   PyFunctionObject* func = reinterpret_cast<PyFunctionObject*>(func_obj);
 
+#if PY_VERSION_HEX < 0x030C0000
   reinterpret_cast<PyCodeObject*>(func->func_code)->co_flags |= CO_SUPPRESS_JIT;
+#else
+  UPGRADE_ASSERT(MISSING_SUPPRESS_JIT_FLAG)
+#endif
 
   Py_INCREF(func_obj);
   return func_obj;
@@ -1713,6 +1722,7 @@ static int deopt_gen_impl(PyGenObject* gen) {
       "Generators with inlined calls are not supported (T109706798)");
 
   _PyJIT_GenMaterializeFrame(gen);
+#if PY_VERSION_HEX < 0x030C0000
   _PyShadowFrame_SetOwner(&gen->gi_shadow_frame, PYSF_INTERP);
   reifyGeneratorFrame(
       gen->gi_frame, deopt_meta, deopt_meta.frame_meta[0], footer);
@@ -1720,6 +1730,10 @@ static int deopt_gen_impl(PyGenObject* gen) {
   releaseRefs(deopt_meta, footer);
   JITRT_GenJitDataFree(gen);
   gen->gi_jit_data = nullptr;
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
   return 1;
 }
 
@@ -1935,10 +1949,14 @@ static bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
 
   // There's a config option for forcing all Static Python functions to be
   // compiled.
+#if PY_VERSION_HEX < 0x030C0000
   bool is_static = code->co_flags & CO_STATICALLY_COMPILED;
   if (is_static && getConfig().compile_all_static_functions) {
     return true;
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
 
   return false;
 }
@@ -2136,6 +2154,7 @@ static int install_jit_audit_hook() {
     return -1;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   // PySys_AddAuditHook() can fail to add the hook but still return 0 if an
   // existing audit function aborts the sys.addaudithook event. Since we rely
   // on it for correctness, walk the linked list of audit functions and make
@@ -2147,6 +2166,9 @@ static int install_jit_audit_hook() {
       return 0;
     }
   }
+#else
+  UPGRADE_ASSERT(AUDIT_API_CHANGED)
+#endif
 
   PyErr_SetString(PyExc_RuntimeError, "Could not install JIT audit hook");
   return -1;
@@ -2547,6 +2569,7 @@ PyObject* _PyJIT_GenSend(
     PyFrameObject* f,
     PyThreadState* tstate,
     int finish_yield_from) {
+#if PY_VERSION_HEX < 0x030C0000
   GenDataFooter* gen_footer = genDataFooter(gen);
 
   // state should be valid and the generator should not be completed
@@ -2595,6 +2618,9 @@ PyObject* _PyJIT_GenSend(
   }
 
   return result;
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+#endif
 }
 
 PyFrameObject* _PyJIT_GenMaterializeFrame(PyGenObject* gen) {
@@ -2644,6 +2670,7 @@ PyObject* _PyJIT_GenYieldFromValue(PyGenObject* gen) {
 }
 
 PyObject* _PyJIT_GetGlobals(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
   if (tstate->shadow_frame == nullptr) {
     JIT_CHECK(
         tstate->frame == nullptr,
@@ -2651,10 +2678,14 @@ PyObject* _PyJIT_GetGlobals(PyThreadState* tstate) {
         static_cast<void*>(tstate->frame));
     return nullptr;
   }
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
   return runtimeFrameStateFromThreadState(tstate).globals();
 }
 
 PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
   if (tstate->shadow_frame == nullptr) {
     JIT_CHECK(
         tstate->frame == nullptr,
@@ -2662,6 +2693,9 @@ PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate) {
         static_cast<void*>(tstate->frame));
     return tstate->interp->builtins;
   }
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
   return runtimeFrameStateFromThreadState(tstate).builtins();
 }
 
@@ -2759,6 +2793,7 @@ void start_instr(ProfileEnv& env, int bcoff_raw) {
   int lineno_raw = env.code->co_linetable != nullptr
       ? PyCode_Addr2Line(env.code, bcoff_raw)
       : -1;
+#if PY_VERSION_HEX < 0x030C0000
   int opcode =
       _Py_OPCODE(PyBytes_AS_STRING(PyCode_GetCode(env.code))[bcoff_raw]);
   JIT_CHECK(opcode != 0, "Invalid opcode at offset {}", bcoff_raw);
@@ -2766,6 +2801,9 @@ void start_instr(ProfileEnv& env, int bcoff_raw) {
   env.lineno = Ref<>::steal(check(PyLong_FromLong(lineno_raw)));
   env.opname.reset(s_opnames.at(opcode));
   JIT_CHECK(env.opname != nullptr, "No opname for op {}", opcode);
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
 }
 
 void append_item(
@@ -2891,10 +2929,15 @@ void _PyJIT_ClearTypeProfiles() {
 }
 
 PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
   if (getConfig().init_state == InitState::kInitialized) {
     return jit::materializeShadowCallStack(tstate);
   }
   return tstate->frame;
+#else
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  return nullptr;
+#endif
 }
 
 void _PyJIT_SetDisassemblySyntaxATT(void) {

@@ -10,6 +10,10 @@
 
 #include <unordered_set>
 
+#if PY_VERSION_HEX >= 0x030C0000
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+#endif
+
 namespace jit {
 
 AotContext g_aot_ctx;
@@ -179,7 +183,12 @@ Context::CompilationResult Context::compilePreloader(
   BorrowedRef<PyDictObject> globals = preloader.globals();
 
   int required_flags = CO_OPTIMIZED | CO_NEWLOCALS;
+#if PY_VERSION_HEX < 0x030C0000
   int prohibited_flags = CO_SUPPRESS_JIT;
+#else
+  UPGRADE_ASSERT(MISSING_SUPPRESS_JIT_FLAG)
+  int prohibited_flags = 0;
+#endif
   // Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future
   // is "annotations" which doesn't impact bytecode execution.)
   if (code == nullptr ||

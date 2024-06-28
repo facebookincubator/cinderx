@@ -4,6 +4,8 @@
 
 #include "cinderx/Common/watchers.h"
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 namespace jit {
 
 void GlobalCache::init(PyObject** cache) const {

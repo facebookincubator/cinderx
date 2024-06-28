@@ -15,6 +15,8 @@
 #include <type_traits>
 #include <vector>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 using namespace asmjit;
 using namespace jit::lir;
 using namespace jit::codegen;
@@ -446,7 +448,12 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
 
   // Set RDI to gen->gi_jit_data for use in emitStoreGenYieldPoint() and data
   // copy using 'movsq' below.
+#if PY_VERSION_HEX < 0x030C0000
   auto gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  size_t gi_jit_data_offset = 0;
+#endif
   as->mov(x86::rdi, x86::ptr(gen_reg, gi_jit_data_offset));
 
   // Arbitrary scratch register for use in emitStoreGenYieldPoint().

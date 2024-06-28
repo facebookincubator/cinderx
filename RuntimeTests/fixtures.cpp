@@ -1,6 +1,9 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #include "cinderx/Jit/runtime.h"
 

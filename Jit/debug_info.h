@@ -16,6 +16,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+
 namespace jit {
 
 namespace hir {
@@ -26,9 +28,15 @@ class Instr;
 
 // A location in a code object
 struct CodeObjLoc {
+#if PY_VERSION_HEX < 0x030C0000
   CodeObjLoc(BorrowedRef<PyFrameObject> py_frame)
       : code{py_frame->f_code},
         instr_offset{BCIndex{py_frame->f_lasti}.asOffset()} {}
+#else
+  CodeObjLoc(BorrowedRef<PyFrameObject> py_frame) {
+    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+  }
+#endif
   CodeObjLoc(BorrowedRef<PyCodeObject> code, BCOffset instr_offset)
       : code{code}, instr_offset{instr_offset} {}
 

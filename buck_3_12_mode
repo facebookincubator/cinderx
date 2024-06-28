@@ -1,0 +1,5 @@
+# This Buck modeflags file can be used to make VSCode C++ language services work
+# with 3.12 by locally updating your
+# fbcode/buck_auto_mode/data/buck_auto_mode.toml.
+--config
+cinderx.use_3_12=true

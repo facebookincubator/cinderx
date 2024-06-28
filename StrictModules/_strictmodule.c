@@ -2,7 +2,10 @@
 #include <Python.h>
 
 // Including this here is a hack until _strictmodule.c is migrated to CinderX
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/StrictModules/pystrictmodule.h"
 #include "cinderx/StrictModules/strict_module_checker_interface.h"
 
@@ -10,6 +13,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 
 PyDoc_STRVAR(strictmodule_doc, "Strict Module related types and methods");
 

@@ -13,6 +13,8 @@
 
 #include <utility>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 namespace jit::hir {
 
 Type prim_type_to_type(int prim_type) {
@@ -344,6 +346,7 @@ BorrowedRef<> Preloader::constArg(BytecodeInstruction& bc_instr) const {
 }
 
 bool Preloader::preload() {
+#if PY_VERSION_HEX < 0x030C0000
   if (code_->co_flags & CO_STATICALLY_COMPILED) {
     PyTypeOpt ret_type =
         resolve_type_descr(_PyClassLoader_GetCodeReturnTypeDescr(code_));
@@ -394,6 +397,10 @@ bool Preloader::preload() {
       }
     }
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
 
   jit::BytecodeInstructionBlock bc_instrs{code_};
   for (auto bc_instr : bc_instrs) {

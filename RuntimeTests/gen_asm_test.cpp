@@ -1334,6 +1334,7 @@ TEST_F(ASMGeneratorTest, GetLength) {
   auto varnames = Ref<>::steal(PyTuple_Pack(1, param.get()));
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto empty_string = Ref<>::steal(PyBytes_FromString(""));
+#if PY_VERSION_HEX < 0x030C0000
   auto code = Ref<PyCodeObject>::steal(PyCode_New(
       /*argcount=*/1,
       0,
@@ -1365,6 +1366,9 @@ TEST_F(ASMGeneratorTest, GetLength) {
   auto args = std::to_array({arg.get()});
   auto result = Ref<>::steal(compiled->invoke(func, args.data(), args.size()));
   EXPECT_TRUE(isIntEquals(result, 3));
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
 }
 
 class NewASMGeneratorTest : public RuntimeTest {

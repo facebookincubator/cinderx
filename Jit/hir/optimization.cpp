@@ -3,7 +3,6 @@
 #include "cinderx/Jit/hir/optimization.h"
 
 #include "cinderx/Common/util.h"
-#include "code.h"
 #include "internal/pycore_interp.h"
 
 #include "cinderx/Jit/compiler.h"
@@ -25,6 +24,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 namespace jit::hir {
 
@@ -793,6 +794,7 @@ static bool canInline(
 
     return false;
   }
+#if PY_VERSION_HEX < 0x030C0000
   Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   if (ncellvars > 0) {
     dlogAndCollectFailureStats(
@@ -807,6 +809,9 @@ static bool canInline(
 
     return false;
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
   if (usesRuntimeFunc(code)) {
     dlogAndCollectFailureStats(
         inline_failure_stats, InlineFailureType::kNeedsRuntimeAccess, fullname);
@@ -829,6 +834,7 @@ static bool canInlineWithPreloader(
     }
     return false;
   };
+#if PY_VERSION_HEX < 0x030C0000
   if ((call_instr->instr->IsVectorCall() ||
        call_instr->instr->IsVectorCallStatic()) &&
       (preloader.code()->co_flags & CO_STATICALLY_COMPILED) &&
@@ -840,6 +846,9 @@ static bool canInlineWithPreloader(
         fullname);
     return false;
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
   return true;
 }
 

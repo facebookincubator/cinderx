@@ -15,6 +15,8 @@
 
 #include <memory>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 namespace jit::hir {
 
 const RegisterSet kEmptyRegSet;

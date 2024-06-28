@@ -15,6 +15,8 @@
 #include <unordered_map>
 #include <utility>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 namespace jit::hir {
 
 Type prim_type_to_type(int prim_type);

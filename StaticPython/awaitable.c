@@ -1,3 +1,8 @@
+#include "Python.h"
+
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
+
 #include "cinderx/StaticPython/awaitable.h"
 
 #include "structmember.h"
@@ -214,6 +219,7 @@ static PyMemberDef awaitable_memberlist[] = {
 };
 
 
+#if PY_VERSION_HEX < 0x030C0000
 static PyTypeObject _PyClassLoader_AwaitableType = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name = "awaitable_wrapper",
     sizeof(_PyClassLoader_Awaitable),
@@ -231,9 +237,11 @@ static PyTypeObject _PyClassLoader_AwaitableType = {
     .tp_free = PyObject_GC_Del,
     .tp_members = awaitable_memberlist,
 };
+#endif
 
 PyObject *
 _PyClassLoader_NewAwaitableWrapper(PyObject *coro, int eager, PyObject *state, awaitable_cb cb, awaitable_presend onsend) {
+#if PY_VERSION_HEX < 0x030C0000
     if (PyType_Ready(&_PyClassLoader_AwaitableType) < 0) {
         return NULL;
     }
@@ -260,4 +268,8 @@ _PyClassLoader_NewAwaitableWrapper(PyObject *coro, int eager, PyObject *state, a
     awaitable->coro = coro;
     awaitable->iter = NULL;
     return (PyObject *)awaitable;
+#else
+    UPGRADE_ASSERT(INCOMPLETE_PY_AWAITER)
+    return NULL;
+#endif
 }

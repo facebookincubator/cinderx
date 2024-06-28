@@ -3,7 +3,10 @@
 #pragma once
 
 #include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/genobject_jit.h"
+#endif
+
 #include "cinderx/Common/util.h"
 
 #include "cinderx/Jit/containers.h"
@@ -23,6 +26,8 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 namespace jit {
 
@@ -240,7 +245,12 @@ struct GenDataFooter {
 };
 
 inline GenDataFooter* genDataFooter(PyGenObject* gen) {
+#if PY_VERSION_HEX < 0x030C0000
   return reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  return nullptr;
+#endif
 }
 
 inline PyObject* yieldFromValue(

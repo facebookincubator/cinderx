@@ -1,6 +1,9 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 #include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "structmember.h"
 #include "pycore_initconfig.h"
 #include "pycore_interp.h"

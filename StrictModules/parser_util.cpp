@@ -5,6 +5,8 @@
 
 #include <fstream>
 
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+
 namespace strictmod {
 std::optional<AstAndSymbols> readFromFile(
     const char* filenameStr,
@@ -60,7 +62,11 @@ std::optional<AstAndSymbols> readFromFile(
 
   if (mod == nullptr)
     goto error;
+#if PY_VERSION_HEX < 0x030C0000
   pyFutures = _PyFuture_FromAST(mod, filename);
+#else
+  UPGRADE_ASSERT(AST_UPDATES)
+#endif
   if (pyFutures == nullptr)
     goto error;
   futureAnnotations = pyFutures->ff_features & CO_FUTURE_ANNOTATIONS;
@@ -109,7 +115,11 @@ std::optional<AstAndSymbols> readFromSource(
 
   if (mod == nullptr)
     goto error;
+#if PY_VERSION_HEX < 0x030C0000
   pyFutures = _PyFuture_FromAST(mod, filename);
+#else
+  UPGRADE_ASSERT(AST_UPDATES)
+#endif
   if (pyFutures == nullptr)
     goto error;
   futureAnnotations = pyFutures->ff_features & CO_FUTURE_ANNOTATIONS;

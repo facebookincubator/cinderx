@@ -1,10 +1,11 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Jit/jit_rt.h"
-
-#include "Objects/dict-common.h"
 #include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#include "Objects/dict-common.h"
+#include "pycore_shadow_frame.h"
+#endif
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
@@ -12,8 +13,9 @@
 #include "frameobject.h"
 #include "listobject.h"
 #include "object.h"
-#include "pycore_shadow_frame.h"
 #include "pystate.h"
+
+#include "cinderx/Jit/jit_rt.h"
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/frame.h"
@@ -26,6 +28,9 @@
 #include "internal/pycore_object.h"
 #include "pycore_tuple.h"
 // clang-format on
+
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 
 // This is mostly taken from ceval.c _PyEval_EvalCodeWithName
 // We use the same logic to turn **args, nargsf, and kwnames into
@@ -41,6 +46,10 @@ static int JITRT_BindKeywordArgs(
     Py_ssize_t total_args,
     Ref<PyObject>& kwdict,
     Ref<PyObject>& varargs) {
+#if PY_VERSION_HEX >= 0x030C0000
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+  return 0;
+#else
   PyCodeObject* co = (PyCodeObject*)func->func_code;
   Py_ssize_t argcount = PyVectorcall_NARGS(nargsf);
 
@@ -185,6 +194,7 @@ static int JITRT_BindKeywordArgs(
   }
 
   return 1;
+#endif
 }
 
 // This uses JITRT_BindKeywordArgs to get the newly bound keyword
@@ -214,11 +224,16 @@ PyObject* JITRT_CallWithKeywordArgs(
           total_args,
           kwdict,
           varargs)) {
+#if PY_VERSION_HEX < 0x030C0000
     return JITRT_GET_REENTRY(func->vectorcall)(
         (PyObject*)func,
         arg_space,
         total_args | (nargsf & (Ci_Py_AWAITED_CALL_MARKER)),
         nullptr);
+#else
+    UPGRADE_ASSERT(AWAITED_FLAG)
+    return nullptr;
+#endif
   }
 
   return _PyFunction_Vectorcall((PyObject*)func, args, nargsf, kwnames);
@@ -269,6 +284,7 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
     arg_space[i] = *def_items++;
   }
 
+  #if PY_VERSION_HEX < 0x030C0000
   return reinterpret_cast<staticvectorcallfuncfp>(
       JITRT_GET_REENTRY(func->vectorcall))(
       (PyObject*)func,
@@ -277,6 +293,10 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
       // We lie to C++ here, and smuggle in the number of defaulted args filled
       // in.
       (PyObject*)defaulted_args);
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  return {};
+#endif
 }
 
 JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
@@ -316,6 +336,7 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
     arg_space[i] = *def_items++;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   return reinterpret_cast<staticvectorcallfunc>(
       JITRT_GET_REENTRY(func->vectorcall))(
       (PyObject*)func,
@@ -324,6 +345,10 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
       // We lie to C++ here, and smuggle in the number of defaulted args filled
       // in.
       (PyObject*)defaulted_args);
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  return {};
+#endif
 }
 
 bool JITRT_PackStaticArgs(
@@ -398,7 +423,12 @@ fail:
 }
 
 static inline Py_ssize_t vectorcall_flags(size_t n) {
+#if PY_VERSION_HEX < 0x030C0000
   return n & (Ci_Py_VECTORCALL_ARGUMENT_MASK | PY_VECTORCALL_ARGUMENTS_OFFSET);
+#else
+  UPGRADE_ASSERT(MISSING_VECTORCALL_ARGUMENT_MASK)
+  return 0;
+#endif
 }
 
 // This can either be a static method returning a primitive or a Python object,
@@ -518,10 +548,14 @@ PyObject* JITRT_ReportStaticArgTypecheckErrors(
   if (new_kwnames == nullptr) {
     return nullptr;
   }
+#if PY_VERSION_HEX < 0x030C0000
   for (Py_ssize_t i = code->co_argcount; i < code->co_argcount + nkwonly; i++) {
     auto name = Ref<>::create(PyTuple_GetItem(PyCode_GetVarnames(code), i));
     PyTuple_SetItem(new_kwnames, i - code->co_argcount, std::move(name));
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf) - nkwonly;
   if (code->co_flags & CO_VARKEYWORDS) {
     nargs -= 1;
@@ -535,14 +569,23 @@ static PyFrameObject* allocateFrame(
     PyCodeObject* code,
     PyObject* builtins,
     PyObject* globals) {
+#if PY_VERSION_HEX < 0x030C0000
   if (code->co_mutable->co_zombieframe != nullptr) {
     __builtin_prefetch(code->co_mutable->co_zombieframe);
   }
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
   PyFrameConstructor frame_ctor = {};
   frame_ctor.fc_globals = globals;
   frame_ctor.fc_builtins = builtins;
   frame_ctor.fc_code = reinterpret_cast<PyObject*>(code);
+#if PY_VERSION_HEX < 0x030C0000
   return _PyFrame_New_NoTrack(tstate, &frame_ctor, nullptr);
+#else
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  return {};
+#endif
 }
 
 PyThreadState* JITRT_AllocateAndLinkFrame(
@@ -556,9 +599,14 @@ PyThreadState* JITRT_AllocateAndLinkFrame(
   if (frame == nullptr) {
     return nullptr;
   }
+#if PY_VERSION_HEX < 0x030C0000
   frame->f_state = FRAME_EXECUTING;
 
   tstate->frame = frame;
+#else
+  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+#endif
 
   return tstate;
 }
@@ -576,12 +624,17 @@ void JITRT_DecrefFrame(PyFrameObject* frame) {
 }
 
 void JITRT_UnlinkFrame(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
   PyFrameObject* f = tstate->frame;
 
   f->f_state = FRAME_RETURNED;
 
   tstate->frame = f->f_back;
   JITRT_DecrefFrame(f);
+#else
+  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+#endif
 }
 
 PyObject*
@@ -615,9 +668,14 @@ PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate) {
 template <bool is_awaited>
 static inline PyObject*
 call_function(PyObject* func, PyObject** args, Py_ssize_t nargs) {
+#if PY_VERSION_HEX < 0x030C0000
   size_t flags = PY_VECTORCALL_ARGUMENTS_OFFSET |
       (is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
   return _PyObject_Vectorcall(func, args + 1, (nargs - 1) | flags, nullptr);
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  return {};
+#endif
 }
 
 PyObject*
@@ -639,8 +697,13 @@ call_function_kwargs(PyObject* func, PyObject** args, Py_ssize_t nargs) {
   Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwargs);
   JIT_DCHECK(nkwargs < nargs, "Kwargs map too large");
   nargs -= nkwargs;
+#if PY_VERSION_HEX < 0x030C0000
   size_t flags = PY_VECTORCALL_ARGUMENTS_OFFSET |
       (is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  size_t flags = 0;
+#endif
   return _PyObject_Vectorcall(func, args + 1, (nargs - 1) | flags, kwargs);
 }
 
@@ -715,8 +778,13 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   JIT_DCHECK(PyTuple_CheckExact(pargs), "Expected pargs to be a tuple");
 
   if (_PyVectorcall_Function(func) != nullptr) {
+#if PY_VERSION_HEX < 0x030C0000
     return Ci_PyVectorcall_Call_WithFlags(
         func, pargs, kwargs, is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  return {};
+#endif
   }
   return PyObject_Call(func, pargs, kwargs);
 }
@@ -744,9 +812,15 @@ JITRT_CallFunctionExAwaited(PyObject* func, PyObject* pargs, PyObject* kwargs) {
 template <bool is_awaited>
 static inline PyObject*
 invoke_function(PyObject* func, PyObject** args, Py_ssize_t nargs) {
+
+#if PY_VERSION_HEX < 0x030C0000
   size_t flags = PY_VECTORCALL_ARGUMENTS_OFFSET |
       (is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
   return _PyObject_Vectorcall(func, args + 1, (nargs - 1) | flags, nullptr);
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  return {};
+#endif
 }
 
 PyObject*
@@ -765,7 +839,12 @@ static inline PyObject* call_method(
     PyObject** args,
     Py_ssize_t nargs,
     PyObject* kwnames) {
+#if PY_VERSION_HEX < 0x030C0000
   size_t is_awaited_flag = is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+  UPGRADE_ASSERT(AWAITED_FLAG)
+  size_t is_awaited_flag = 0;
+#endif
   if (callable != Py_None) {
     PyObject* res = _PyObject_Vectorcall(
         callable,
@@ -1193,6 +1272,7 @@ PyObject* JITRT_ImportName(
     return nullptr;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   /* Fast path for not overloaded __import__. */
   if (import_func == tstate->interp->import_func) {
     int ilevel = _PyLong_AsInt(level);
@@ -1209,6 +1289,9 @@ PyObject* JITRT_ImportName(
         ilevel);
     return res;
   }
+#else
+  UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
+#endif
 
   Py_INCREF(import_func);
 
@@ -1233,11 +1316,15 @@ void JITRT_DoRaise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
   // raising a RuntimeError as this would mean prepareForDeopt() does not call
   // PyTraceBack_Here().
   if (exc == nullptr) {
+#if PY_VERSION_HEX < 0x030C0000
     auto* exc_info = _PyErr_GetTopmostException(tstate);
     auto type = exc_info->exc_type;
     if (type == Py_None || type == nullptr) {
       return;
     }
+#else
+    UPGRADE_ASSERT(EXCEPTION_HANDLING)
+#endif
   }
   // We deliberately discard the return value here. In the interpreter a return
   // value of 1 indicates a _valid_ re-raise which skips:
@@ -1276,8 +1363,13 @@ static void* gen_data_allocate(size_t spill_words) {
 }
 
 void JITRT_GenJitDataFree(PyGenObject* gen) {
+#if PY_VERSION_HEX < 0x030C0000
   auto gen_data_footer =
       reinterpret_cast<jit::GenDataFooter*>(gen->gi_jit_data);
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  jit::GenDataFooter* gen_data_footer = nullptr;
+#endif
   auto gen_data = reinterpret_cast<uint64_t*>(gen_data_footer) -
       gen_data_footer->spillWords;
 
@@ -1342,9 +1434,13 @@ static inline PyObject* make_gen_object(
     return nullptr;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   gen->gi_shadow_frame.data = gen->gi_frame == nullptr
       ? _PyShadowFrame_MakeData(code_rt, PYSF_CODE_RT, PYSF_JIT)
       : _PyShadowFrame_MakeData(gen->gi_frame, PYSF_PYFRAME, PYSF_JIT);
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#endif
 
   spill_words = std::max(spill_words, jit::kMinGenSpillWords);
 
@@ -1357,7 +1453,11 @@ static inline PyObject* make_gen_object(
   footer->gen = gen;
   footer->code_rt = code_rt;
 
+#if PY_VERSION_HEX < 0x030C0000
   gen->gi_jit_data = reinterpret_cast<Ci_JITGenData*>(footer);
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+#endif
 
   return reinterpret_cast<PyObject*>(gen);
 }
@@ -1393,11 +1493,16 @@ PyObject* JITRT_MakeGenObjectCoro(
 }
 
 void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
+#if PY_VERSION_HEX < 0x030C0000
   _PyShadowFrame* sf = ts->shadow_frame;
   // TODO(bsimmers): This may need to change when we support eager evaluation of
   // coroutines.
   auto awaiter = reinterpret_cast<PyObject*>(_PyShadowFrame_GetGen(sf));
   _PyAwaitable_SetAwaiter(awaitable, awaiter);
+#else
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+  UPGRADE_ASSERT(INCOMPLETE_PY_AWAITER)
+#endif
 }
 
 JITRT_YieldFromRes
@@ -1430,8 +1535,12 @@ JITRT_YieldFromRes JITRT_YieldFromHandleStopAsyncIteration(
   if ((res.retval == nullptr) && (res.done == 1) &&
       PyErr_ExceptionMatches(PyExc_StopAsyncIteration)) {
     PyErr_Clear();
+#if PY_VERSION_HEX < 0x030C0000
     Py_INCREF(&jit::g_iterDoneSentinel);
     res.retval = &jit::g_iterDoneSentinel;
+#else
+    UPGRADE_ASSERT(IMMORTALIZATION_DIFFERENT)
+#endif
   }
   return res;
 }
@@ -1709,7 +1818,7 @@ PyObject* JITRT_UnpackExToTuple(
     tuple->ob_item[ti++] = PyList_GET_ITEM(list, list_size - j);
   }
   /* Resize the list. */
-  Py_SIZE(list) = list_size - after;
+  Py_SET_SIZE(list, list_size - after);
 
   return reinterpret_cast<PyObject*>(tuple.release());
 }

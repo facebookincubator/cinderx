@@ -297,6 +297,7 @@ std::unique_ptr<ModuleInfo> getStubModuleInfo(
   // new AST
   const char* filename = info->getFilename().c_str();
   Ref<> filenameObj = Ref<>::steal(PyUnicode_FromString(filename));
+#if PY_VERSION_HEX < 0x030C0000
   auto futureFeatures = _PyFuture_FromAST(mod, filenameObj.get());
   auto symbolTable = _PySymtable_Build(mod, filenameObj.get(), futureFeatures);
   PyObject_Free(futureFeatures);
@@ -309,5 +310,9 @@ std::unique_ptr<ModuleInfo> getStubModuleInfo(
       std::unique_ptr<PySymtable, PySymtableDeleter>(symbolTable),
       StubKind::getStubKind(info->getFilename(), false),
       info->getSubmoduleSearchLocations());
+#else
+  UPGRADE_ASSERT(AST_UPDATES)
+  return {};
+#endif
 }
 } // namespace strictmod::compiler

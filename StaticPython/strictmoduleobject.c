@@ -8,6 +8,8 @@
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/classloader.h"
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 static inline PyObject* Ci_StrictModuleGetDictSetter(PyObject *mod) {
     assert(Ci_StrictModule_Check(mod));
     return ((Ci_StrictModuleObject*) mod) -> global_setter;
@@ -16,9 +18,13 @@ static inline PyObject* Ci_StrictModuleGetDictSetter(PyObject *mod) {
 static PyObject *
 strictmodule_repr(Ci_StrictModuleObject *m)
 {
+#if PY_VERSION_HEX < 0x030C0000
     PyInterpreterState *interp = _PyInterpreterState_GET();
 
     return PyObject_CallMethod(interp->importlib, "_module_repr", "O", m);
+#else
+    return NULL;
+#endif
 }
 
 static int
@@ -330,6 +336,7 @@ strictmodule_get_original(PyObject *modules, Ci_StrictModuleObject *self, PyObje
 
 PyObject *
 Ci_StrictModule_GetOriginal(PyObject *obj, PyObject *name) {
+#if PY_VERSION_HEX < 0x030C0000
     // Track down and return the original unpatched value for the given name in
     // module self, and record it in self->originals. It could have been patched
     // in the module we imported it from before we imported it, so we have to do
@@ -339,6 +346,9 @@ Ci_StrictModule_GetOriginal(PyObject *obj, PyObject *name) {
     assert (Ci_StrictModule_Check(obj));
     Ci_StrictModuleObject* self = (Ci_StrictModuleObject *) obj;
     return strictmodule_get_original(PyThreadState_GET()->interp->modules, self, name);
+#else
+    UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
+#endif
 }
 
 int Ci_do_strictmodule_patch(PyObject *self, PyObject *name, PyObject *value) {

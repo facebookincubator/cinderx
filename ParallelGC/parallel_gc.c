@@ -34,7 +34,10 @@
 #include <pycore_pyerrors.h>
 #include <pycore_pystate.h>     // _PyThreadState_GET()
 
+#if PY_VERSION_HEX < 0x030C0000
 #include <cinder/exports.h>
+#endif
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #if defined(__x86_64__) || defined(__amd64)
 #include <immintrin.h>

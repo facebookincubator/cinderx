@@ -2,7 +2,10 @@
 #include <gtest/gtest.h>
 
 #include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/Common/ref.h"
 #include "cinderx/StrictModules/Objects/objects.h"
 #include "unicodeobject.h"

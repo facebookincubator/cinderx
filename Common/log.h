@@ -3,7 +3,6 @@
 #pragma once
 
 #include <Python.h>
-#include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/threaded_compile.h"
@@ -15,6 +14,9 @@
 #include <cstdio>
 #include <iterator>
 #include <string_view>
+
+#include "internal/pycore_pystate.h"
+
 
 namespace jit {
 
@@ -84,6 +86,7 @@ std::string repr(BorrowedRef<> obj);
     JIT_ABORT_IMPL(__VA_ARGS__);                                     \
   }
 
+#if PY_VERSION_HEX < 0x030C0000
 #define JIT_ABORT_IMPL(...)                              \
   {                                                      \
     fmt::print(stderr, __VA_ARGS__);                     \
@@ -98,6 +101,16 @@ std::string repr(BorrowedRef<> obj);
     }                                                    \
     std::abort();                                        \
   }
+#else
+#define JIT_ABORT_IMPL(...)                              \
+  {                                                      \
+    fmt::print(stderr, __VA_ARGS__);                     \
+    fmt::print(stderr, "\n");                            \
+    fmt::print(stderr, "EXCEPTION PRINT NEEDS UPGRADE"); \
+    std::fflush(stderr);                                 \
+    std::abort();                                        \
+  }
+#endif
 
 #ifdef Py_DEBUG
 #define JIT_DABORT(...) JIT_ABORT(__VA_ARGS__)

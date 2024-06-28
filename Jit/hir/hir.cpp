@@ -883,7 +883,12 @@ const Environment::ReferenceSet& Environment::references() const {
 }
 
 bool usesRuntimeFunc(BorrowedRef<PyCodeObject> code) {
+#if PY_VERSION_HEX < 0x030C0000
   return PyTuple_GET_SIZE(PyCode_GetFreevars(code)) > 0;
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+  return false;
+#endif
 }
 
 void Function::setCode(BorrowedRef<PyCodeObject> code) {
@@ -918,9 +923,14 @@ Py_ssize_t Function::numVars() const {
     // code might be null if we parsed from textual ir
     return 0;
   }
+#if PY_VERSION_HEX < 0x030C0000
   Py_ssize_t num_cellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   Py_ssize_t num_freevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code));
   return code->co_nlocals + num_cellvars + num_freevars;
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+  return 0;
+#endif
 }
 
 bool Function::canDeopt() const {

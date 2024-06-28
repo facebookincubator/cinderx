@@ -2,13 +2,16 @@
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 
+#include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#include "internal/pycore_shadow_frame.h"
+#endif
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "frameobject.h"
 #include "internal/pycore_pystate.h"
-#include "internal/pycore_shadow_frame.h"
 
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/autogen.h"
@@ -41,6 +44,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
 using namespace asmjit;
 using namespace jit::hir;
 using namespace jit::lir;
@@ -62,9 +67,17 @@ static constexpr x86::Mem kInFrameOrigDataPtr = x86::ptr(
     x86::rbp,
     -kJITShadowFrameSize + JIT_SHADOW_FRAME_FIELD_OFF(orig_data));
 
+
+#if PY_VERSION_HEX >= 0x030C0000
+static x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
+  UPGRADE_ASSERT(SHADOW_FRAMES);
+  return x86::ptr(tstate_reg);
+}
+#else
 static constexpr x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
   return x86::ptr(tstate_reg, offsetof(PyThreadState, shadow_frame));
 }
+#endif
 
 } // namespace shadow_frame
 
@@ -431,6 +444,9 @@ void NativeGenerator::generateFunctionEntry() {
 }
 
 void NativeGenerator::loadTState(x86::Gp dst_reg) {
+#if PY_VERSION_HEX >= 0x030C0000
+  UPGRADE_ASSERT(TSTATE_FROM_RUNTIME)
+#else
   uint64_t tstate =
       reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
   if (fitsInt32(tstate)) {
@@ -439,6 +455,7 @@ void NativeGenerator::loadTState(x86::Gp dst_reg) {
     as_->mov(dst_reg, tstate);
     as_->mov(dst_reg, x86::ptr(dst_reg));
   }
+#endif
 }
 
 void NativeGenerator::linkOnStackShadowFrame(
@@ -455,7 +472,11 @@ void NativeGenerator::linkOnStackShadowFrame(
   as_->mov(kInFramePrevPtr, scratch_reg);
   // Set data
   if (frame_mode == jit::FrameMode::kNormal) {
+#if PY_VERSION_HEX >= 0x030C0000
+    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#else
     as_->mov(scratch_reg, x86::ptr(tstate_reg, offsetof(PyThreadState, frame)));
+#endif
     static_assert(
         PYSF_PYFRAME == 1 && _PyShadowFrame_NumPtrKindBits == 2,
         "Unexpected constant");
@@ -745,6 +766,7 @@ void NativeGenerator::generatePrologue(
   Label setup_frame = as_->newLabel();
   Label argCheck = as_->newLabel();
 
+#if PY_VERSION_HEX < 0x030C0000
   if (code->co_flags & CO_STATICALLY_COMPILED) {
     // If we've been invoked statically we can skip all of the
     // argument checking because we know our args have been
@@ -766,6 +788,10 @@ void NativeGenerator::generatePrologue(
       as_->ret();
     }
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
+
 
   if (!func_->has_primitive_args) {
     as_->test(x86::rcx, x86::rcx); // test for kwargs
@@ -816,6 +842,7 @@ void NativeGenerator::generatePrologue(
   }
 
   as_->bind(correct_arg_count);
+#if PY_VERSION_HEX < 0x030C0000
   if (code->co_flags & CO_STATICALLY_COMPILED) {
     if (!func_->has_primitive_args) {
       // We weren't called statically, but we've now resolved
@@ -826,6 +853,9 @@ void NativeGenerator::generatePrologue(
       as_->mov(x86::rdx, 0);
     }
   }
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+#endif
 
   env_.addAnnotation("Generic entry", generic_entry_cursor);
 
@@ -1187,7 +1217,12 @@ void NativeGenerator::generateResumeEntry() {
   const auto jit_data_r = x86::r9;
 
   // jit_data_r = gen->gi_jit_data
-  size_t gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
+#if PY_VERSION_HEX < 0x030C0000
+  auto gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  size_t gi_jit_data_offset = 0;
+#endif
   as_->mov(jit_data_r, x86::ptr(gen_r, gi_jit_data_offset));
 
   // Store linked frame address
@@ -1320,8 +1355,13 @@ void NativeGenerator::generateStaticEntryPoint(
 }
 
 bool NativeGenerator::hasStaticEntry() const {
+#if PY_VERSION_HEX < 0x030C0000
   PyCodeObject* code = GetFunction()->code;
   return (code->co_flags & CO_STATICALLY_COMPILED);
+#else
+  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
+  return false;
+#endif
 }
 
 void NativeGenerator::generateCode(CodeHolder& codeholder) {
@@ -1516,6 +1556,9 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
 
   PyFrameObject* frame = f.release();
   PyFrameObject* frame_iter = frame;
+#if PY_VERSION_HEX >= 0x030C0000
+  UPGRADE_ASSERT(SHADOW_FRAMES)
+#else
   _PyShadowFrame* sf_iter = tstate->shadow_frame;
   // Iterate one past the inline depth because that is the caller frame.
   for (int i = deopt_meta.inline_depth(); i >= 0; i--) {
@@ -1527,6 +1570,7 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
     frame_iter = frame_iter->f_back;
     sf_iter = sf_iter->prev;
   }
+#endif
   Ref<> deopt_obj;
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
@@ -1581,6 +1625,7 @@ static PyObject* resumeInInterpreter(
     PyFrameObject* frame,
     Runtime* runtime,
     std::size_t deopt_idx) {
+#if PY_VERSION_HEX < 0x030C0000
   if (frame->f_gen) {
     auto gen = reinterpret_cast<PyGenObject*>(frame->f_gen);
     // It's safe to call JITRT_GenJitDataFree directly here, rather than
@@ -1589,6 +1634,10 @@ static PyObject* resumeInInterpreter(
     JITRT_GenJitDataFree(gen);
     gen->gi_jit_data = nullptr;
   }
+#else
+    UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#endif
   PyThreadState* tstate = PyThreadState_Get();
   PyObject* result = nullptr;
   // Resume all of the inlined frames and the caller
@@ -1604,17 +1653,26 @@ static PyObject* resumeInInterpreter(
     // on the shadow stack for each frame on the Python stack. Unless we are a
     // a generator, the interpreter will insert a new entry on the shadow stack
     // when execution resumes there, so we remove our entry.
+#if PY_VERSION_HEX < 0x030C0000
     if (!frame->f_gen) {
       _PyShadowFrame_Pop(tstate, tstate->shadow_frame);
     }
+#else
+    UPGRADE_ASSERT(SHADOW_FRAMES)
+    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#endif
 
     // Resume one frame.
     PyFrameObject* prev_frame = frame->f_back;
     // Delegate management of `tstate->frame` to the interpreter loop. On
     // entry, it expects that tstate->frame points to the frame for the calling
     // function.
+#if PY_VERSION_HEX < 0x030C0000
     JIT_CHECK(tstate->frame == frame, "unexpected frame at top of stack");
     tstate->frame = prev_frame;
+#else
+    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#endif
     result = PyEval_EvalFrameEx(frame, err_occurred);
     JITRT_DecrefFrame(frame);
     frame = prev_frame;
@@ -1628,7 +1686,11 @@ static PyObject* resumeInInterpreter(
         // result onto the stack in the deeper (> 0) frames. Otherwise, we
         // should just return the value from the native code in the way our
         // native calling convention requires.
+#if PY_VERSION_HEX < 0x030C0000
         frame->f_valuestack[frame->f_stackdepth++] = result;
+#else
+    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+#endif
       }
     }
     inline_depth--;
