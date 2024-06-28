@@ -1386,7 +1386,7 @@ LinearScanAllocator::resolveEdgesGenCopies(
 
 void LinearScanAllocator::rewriteLIREmitCopies(
     BasicBlock* block,
-    BasicBlock::InstrList::iterator instr_iter,
+    instr_iter_t instr_iter,
     std::unique_ptr<CopyGraphWithOperand> copies) {
   for (auto op : copies->process()) {
     PhyLocation from = op.from;

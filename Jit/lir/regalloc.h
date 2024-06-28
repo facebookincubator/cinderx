@@ -303,7 +303,7 @@ class LinearScanAllocator {
   // emit copies before instr_iter
   void rewriteLIREmitCopies(
       lir::BasicBlock* block,
-      lir::BasicBlock::InstrList::iterator instr_iter,
+      instr_iter_t instr_iter,
       std::unique_ptr<CopyGraphWithOperand> copies);
 
   void resolveEdges();

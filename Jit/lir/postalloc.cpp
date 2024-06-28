@@ -103,16 +103,16 @@ Rewrite::RewriteResult PostRegAllocRewrite::rewriteCallInstrs(
   if (!output->isReg() || output->getPhyRegister() != kReturnRegister) {
     if (output->isReg()) {
       block->allocateInstrBefore(
-        next_iter,
-        Instruction::kMove,
-        OutPhyReg(output->getPhyRegister(), output->dataType()),
-        PhyReg(kReturnRegister, output->dataType()));
+          next_iter,
+          Instruction::kMove,
+          OutPhyReg(output->getPhyRegister(), output->dataType()),
+          PhyReg(kReturnRegister, output->dataType()));
     } else {
       block->allocateInstrBefore(
-        next_iter,
-        Instruction::kMove,
-        OutStk(output->getStackSlot(), output->dataType()),
-        PhyReg(kReturnRegister, output->dataType()));
+          next_iter,
+          Instruction::kMove,
+          OutStk(output->getStackSlot(), output->dataType()),
+          PhyReg(kReturnRegister, output->dataType()));
     }
   }
   output->setNone();
@@ -858,7 +858,7 @@ class RegisterToMemoryMoves {
   void addRegisterToMemoryMove(
       PhyLocation from,
       PhyLocation to,
-      Rewrite::instr_iter_t instr_iter) {
+      instr_iter_t instr_iter) {
     JIT_DCHECK(
         from.is_register() && to.is_memory(),
         "Must be a move from register to memory");
@@ -886,7 +886,7 @@ class RegisterToMemoryMoves {
     return PhyLocation::REG_INVALID;
   }
 
-  std::optional<Rewrite::instr_iter_t> getInstrFromMemory(PhyLocation mem) {
+  std::optional<instr_iter_t> getInstrFromMemory(PhyLocation mem) {
     auto iter = mem_to_reg_.find(mem);
     if (iter == mem_to_reg_.end()) {
       return std::nullopt;
@@ -906,8 +906,7 @@ class RegisterToMemoryMoves {
 
  private:
   UnorderedMap<PhyLocation, PhyLocation> reg_to_mem_;
-  UnorderedMap<PhyLocation, std::pair<PhyLocation, Rewrite::instr_iter_t>>
-      mem_to_reg_;
+  UnorderedMap<PhyLocation, std::pair<PhyLocation, instr_iter_t>> mem_to_reg_;
 
   void invalidateRegister(PhyLocation reg) {
     auto iter = reg_to_mem_.find(reg);

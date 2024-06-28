@@ -261,7 +261,7 @@ bool LIRInliner::resolveArguments() {
 void LIRInliner::resolveLoadArg(
     UnorderedMap<OperandBase*, LinkedOperand*>& vreg_map,
     BasicBlock* bb,
-    BasicBlock::InstrList::iterator& instr_it) {
+    instr_iter_t& instr_it) {
   auto instr = instr_it->get();
   JIT_DCHECK(
       instr->getNumInputs() > 0 && instr->getInput(0)->isImm(),

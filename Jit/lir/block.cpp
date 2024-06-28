@@ -43,7 +43,7 @@ BasicBlock* BasicBlock::splitBefore(Instruction* instr) {
       instr->opcode() != Instruction::kPhi, "cannot split block at a phi node");
 
   // find the instruction
-  InstrList::iterator it = instrs_.begin();
+  instr_iter_t it = instrs_.begin();
   while (it != instrs_.end()) {
     if (it->get() == instr) {
       break;
@@ -108,7 +108,7 @@ void BasicBlock::setSuccessor(size_t index, BasicBlock* bb) {
   bb->predecessors_.push_back(this);
 }
 
-BasicBlock::InstrList::iterator BasicBlock::iterator_to(Instruction* instr) {
+BasicBlock::instr_iter_t BasicBlock::iterator_to(Instruction* instr) {
   for (auto it = instrs_.begin(); it != instrs_.end(); ++it) {
     if (it->get() == instr) {
       return it;

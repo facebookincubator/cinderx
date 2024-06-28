@@ -81,7 +81,7 @@ class LIRInliner {
   void resolveLoadArg(
       UnorderedMap<lir::OperandBase*, lir::LinkedOperand*>& vreg_map,
       lir::BasicBlock* bb,
-      lir::BasicBlock::InstrList::iterator& instr_it);
+      instr_iter_t& instr_it);
 
   // For instr_it that aren't kLoadArg,
   // fix up linked arguments that refer to outputs of kLoadArg instructions.

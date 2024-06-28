@@ -49,7 +49,6 @@ class Rewrite {
 
   using function_rewrite_arg_t = lir::Function*;
   using basic_block_rewrite_arg_t = lir::BasicBlock*;
-  using instr_iter_t = jit::lir::BasicBlock::InstrList::iterator;
   using instruction_rewrite_arg_t = instr_iter_t;
 
   template <typename T>
