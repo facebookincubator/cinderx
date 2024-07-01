@@ -19,7 +19,6 @@ try:
             async_cached_property,
             cached_classproperty,
             cached_property,
-            clear_all_shadow_caches,
             clear_caches,
             clear_classloader_caches,
             clear_type_profiles,
@@ -38,6 +37,13 @@ try:
             StrictModule,
             watch_sys_modules,
         )
+        if sys.version_info < (3, 11):
+            from _cinderx import (
+                clear_all_shadow_caches,
+            )
+        else:
+            def clear_all_shadow_caches() -> None:
+                pass
     finally:
         sys.setdlopenflags(old_dlopen_flags)
 except ImportError:
