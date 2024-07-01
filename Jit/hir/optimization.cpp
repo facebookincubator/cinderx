@@ -794,7 +794,6 @@ static bool canInline(
 
     return false;
   }
-#if PY_VERSION_HEX < 0x030C0000
   Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   if (ncellvars > 0) {
     dlogAndCollectFailureStats(
@@ -809,9 +808,6 @@ static bool canInline(
 
     return false;
   }
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-#endif
   if (usesRuntimeFunc(code)) {
     dlogAndCollectFailureStats(
         inline_failure_stats, InlineFailureType::kNeedsRuntimeAccess, fullname);

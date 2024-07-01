@@ -156,14 +156,10 @@ Ref<> profileDeopt(
   // for that case.
   int opcode = -1;
   if (bc_off.value() >= 0) {
-#if PY_VERSION_HEX < 0x030C0000
     char* raw_code = PyBytes_AS_STRING(PyCode_GetCode(code));
     BytecodeInstruction bc_instr{
         reinterpret_cast<_Py_CODEUNIT*>(raw_code), bc_off};
     opcode = bc_instr.opcode();
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-#endif
   }
 
   FOLLY_SDT(

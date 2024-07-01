@@ -29,7 +29,6 @@ foo(MyType())
   Ref<PyFunctionObject> foo(getGlobal("foo"));
   ASSERT_NE(foo, nullptr);
   BorrowedRef<PyCodeObject> foo_code = foo->func_code;
-#if PY_VERSION_HEX < 0x030C0000
   BorrowedRef<PyBytesObject> foo_bc = PyCode_GetCode(foo_code);
   ASSERT_TRUE(PyBytes_CheckExact(foo_bc));
 
@@ -51,7 +50,4 @@ foo(MyType())
   auto types = profile_runtime.getProfiledTypes(foo_code, load_attr);
   ASSERT_EQ(types.size(), 1);
   ASSERT_EQ(types[0], hir::Type::fromTypeExact(my_type));
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-#endif
 }

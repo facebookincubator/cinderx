@@ -135,7 +135,6 @@ std::string funcFullname(PyFunctionObject* func) {
 }
 
 PyObject* getVarnameTuple(PyCodeObject* code, int* idx) {
-#if PY_VERSION_HEX < 0x030C0000
   if (*idx < code->co_nlocals) {
     return PyCode_GetVarnames(code);
   }
@@ -148,10 +147,6 @@ PyObject* getVarnameTuple(PyCodeObject* code, int* idx) {
 
   *idx -= ncellvars;
   return PyCode_GetFreevars(code);
-#else
-    UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-    return nullptr;
-#endif
 }
 
 PyObject* getVarname(PyCodeObject* code, int idx) {
@@ -224,7 +219,6 @@ bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
 }
 
 uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
-#if PY_VERSION_HEX < 0x030C0000
   uint32_t crc = crc32(0, nullptr, 0);
   BorrowedRef<> bc = PyCode_GetCode(code);
   if (!PyBytes_Check(bc)) {
@@ -238,10 +232,6 @@ uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
   }
 
   return crc32(crc, reinterpret_cast<unsigned char*>(buffer), len);
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-  return 0;
-#endif
 }
 
 std::string codeQualname(BorrowedRef<PyCodeObject> code) {

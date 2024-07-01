@@ -883,12 +883,7 @@ const Environment::ReferenceSet& Environment::references() const {
 }
 
 bool usesRuntimeFunc(BorrowedRef<PyCodeObject> code) {
-#if PY_VERSION_HEX < 0x030C0000
   return PyTuple_GET_SIZE(PyCode_GetFreevars(code)) > 0;
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-  return false;
-#endif
 }
 
 void Function::setCode(BorrowedRef<PyCodeObject> code) {

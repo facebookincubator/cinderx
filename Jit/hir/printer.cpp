@@ -831,7 +831,6 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
 }
 
 static int lastLineNumber(PyCodeObject* code) {
-#if PY_VERSION_HEX < 0x030C0000
   int last_line = -1;
   auto end =
       PyBytes_Size(PyCode_GetCode(code)) / (Py_ssize_t)sizeof(_Py_CODEUNIT);
@@ -839,10 +838,6 @@ static int lastLineNumber(PyCodeObject* code) {
     last_line = std::max(last_line, PyCode_Addr2Line(code, off));
   }
   return last_line;
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-  return 0;
-#endif
 }
 
 nlohmann::json JSONPrinter::PrintSource(const Function& func) {
@@ -935,7 +930,6 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
     case LOAD_FAST:
     case STORE_FAST:
     case DELETE_FAST: {
-#if PY_VERSION_HEX < 0x030C0000
       PyObject* name_obj = PyTuple_GetItem(PyCode_GetVarnames(code), oparg);
       JIT_DCHECK(name_obj != nullptr, "bad name");
       const char* name = PyUnicode_AsUTF8(name_obj);
@@ -944,15 +938,10 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
         return fmt::format("{}: (error printing varname)", oparg);
       }
       return fmt::format("{}: {}", oparg, name);
-#else
-      UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-      return "";
-#endif
     }
     case LOAD_DEREF:
     case STORE_DEREF:
     case DELETE_DEREF: {
-#if PY_VERSION_HEX < 0x030C0000
       PyObject* name_obj;
       if (oparg < PyTuple_GET_SIZE(PyCode_GetCellvars(code))) {
         name_obj = PyTuple_GetItem(PyCode_GetCellvars(code), oparg);
@@ -968,10 +957,6 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
         return fmt::format("{}: (error printing freevar)", oparg);
       }
       return fmt::format("{}: {}", oparg, name);
-#else
-      UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-      return "";
-#endif
     }
     case LOAD_ATTR:
     case STORE_ATTR:
@@ -1002,7 +987,6 @@ nlohmann::json JSONPrinter::PrintBytecode(const Function& func) {
   nlohmann::json result;
   result["name"] = "Bytecode";
   result["type"] = "asm";
-#if PY_VERSION_HEX < 0x030C0000
   nlohmann::json block;
   block["name"] = "bb0";
   nlohmann::json instrs_json = nlohmann::json::array();
@@ -1023,9 +1007,6 @@ nlohmann::json JSONPrinter::PrintBytecode(const Function& func) {
   }
   block["instrs"] = instrs_json;
   result["blocks"] = nlohmann::json::array({block});
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-#endif
   return result;
 }
 

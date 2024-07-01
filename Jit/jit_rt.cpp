@@ -46,10 +46,6 @@ static int JITRT_BindKeywordArgs(
     Py_ssize_t total_args,
     Ref<PyObject>& kwdict,
     Ref<PyObject>& varargs) {
-#if PY_VERSION_HEX >= 0x030C0000
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-  return 0;
-#else
   PyCodeObject* co = (PyCodeObject*)func->func_code;
   Py_ssize_t argcount = PyVectorcall_NARGS(nargsf);
 
@@ -194,7 +190,6 @@ static int JITRT_BindKeywordArgs(
   }
 
   return 1;
-#endif
 }
 
 // This uses JITRT_BindKeywordArgs to get the newly bound keyword
@@ -548,14 +543,10 @@ PyObject* JITRT_ReportStaticArgTypecheckErrors(
   if (new_kwnames == nullptr) {
     return nullptr;
   }
-#if PY_VERSION_HEX < 0x030C0000
   for (Py_ssize_t i = code->co_argcount; i < code->co_argcount + nkwonly; i++) {
     auto name = Ref<>::create(PyTuple_GetItem(PyCode_GetVarnames(code), i));
     PyTuple_SetItem(new_kwnames, i - code->co_argcount, std::move(name));
   }
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-#endif
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf) - nkwonly;
   if (code->co_flags & CO_VARKEYWORDS) {
     nargs -= 1;
