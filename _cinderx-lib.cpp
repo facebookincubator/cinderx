@@ -515,7 +515,6 @@ static int cinderx_func_watcher(
       break;
     case PyFunction_EVENT_MODIFY_KWDEFAULTS:
       break;
-#if PY_VERSION_HEX < 0x030C0000
     case PyFunction_EVENT_MODIFY_QUALNAME:
       // allow reconsideration of whether this function should be compiled
       if (!_PyJIT_IsCompiled(func)) {
@@ -526,7 +525,6 @@ static int cinderx_func_watcher(
         PyEntry_init(func);
       }
       break;
-#endif
     case PyFunction_EVENT_DESTROY:
       _PyJIT_FuncDestroyed(func);
       break;
@@ -596,11 +594,7 @@ static int cinder_init() {
   WatcherState watcher_state;
   watcher_state.code_watcher = cinderx_code_watcher;
   watcher_state.dict_watcher = cinderx_dict_watcher;
-#if PY_VERSION_HEX < 0x030C0000
   watcher_state.func_watcher = cinderx_func_watcher;
-#else
-  UPGRADE_ASSERT(MISSING_FUNC_EVENT_MODIFY_QUALNAME)
-#endif
   watcher_state.type_watcher = cinderx_type_watcher;
   if (Ci_Watchers_Init(&watcher_state)) {
     return -1;
