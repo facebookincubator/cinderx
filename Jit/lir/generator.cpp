@@ -197,6 +197,28 @@ ssize_t shadowFrameOffsetOf(const InlineBase* instr) {
   return shadowFrameOffsetBefore(instr) - ssize_t{kJITShadowFrameSize};
 }
 
+// Update _Py_RefTotal using an Inc or Dec operation.
+void updateRefTotal(BasicBlockBuilder& bbb, Instruction::Opcode op) {
+#if PY_VERSION_HEX < 0x030C0000
+  if (kRefTotalAddr == nullptr) {
+    return;
+  }
+  // TODO(T140174965): This should be MemImm, but that breaks the Python test
+  // suite for debug+ASAN builds.  asmjit cannot relocate the address of
+  // _Py_RefTotal.
+  Instruction* addr = bbb.appendInstr(
+      OutVReg{},
+      Instruction::kMove,
+      Imm{reinterpret_cast<uint64_t>(kRefTotalAddr)});
+  auto r0 = bbb.appendInstr(
+      OutVReg{}, Instruction::kMove, Ind{addr, OperandBase::k64bit});
+  bbb.appendInstr(op, r0);
+  bbb.appendInstr(OutInd{addr, OperandBase::k64bit}, Instruction::kMove, r0);
+#else
+  UPGRADE_ASSERT(REF_TOTAL_CHANGED)
+#endif
+}
+
 } // namespace
 
 LIRGenerator::LIRGenerator(
@@ -503,16 +525,8 @@ void LIRGenerator::MakeIncref(
         OutInd{bbb.getDefInstr(obj), kRefcountOffset}, Instruction::kMove, r1);
   }
 
-#if PY_VERSION_HEX < 0x030C0000
-  if (kRefTotalAddr != 0) {
-    auto r0 =
-        bbb.appendInstr(OutVReg{}, Instruction::kMove, MemImm{kRefTotalAddr});
-    bbb.appendInstr(Instruction::kInc, r0);
-    bbb.appendInstr(OutMemImm{kRefTotalAddr}, Instruction::kMove, r0);
-  }
-#else
-  UPGRADE_ASSERT(REF_TOTAL_CHANGED)
-#endif
+  updateRefTotal(bbb, Instruction::kInc);
+
   bbb.appendBlock(end_incref);
 }
 
@@ -546,16 +560,7 @@ void LIRGenerator::MakeDecref(
     bbb.appendBlock(mortal);
   }
 
-#if PY_VERSION_HEX < 0x030C0000
-  if (kRefTotalAddr != 0) {
-    auto r0 =
-        bbb.appendInstr(OutVReg{}, Instruction::kMove, MemImm{kRefTotalAddr});
-    bbb.appendInstr(Instruction::kDec, r0);
-    bbb.appendInstr(OutMemImm{kRefTotalAddr}, Instruction::kMove, r0);
-  }
-#else
-  UPGRADE_ASSERT(REF_TOTAL_CHANGED)
-#endif
+  updateRefTotal(bbb, Instruction::kDec);
 
   auto dealloc = bbb.allocateBlock();
   bbb.appendInstr(Instruction::kDec, r1);
