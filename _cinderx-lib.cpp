@@ -593,19 +593,6 @@ static int cinder_init() {
     return -1;
   }
 
-  // Prevent the linker from omitting the object file containing the parallel
-  // GC implementation. This is the only reference from another translation
-  // unit to symbols defined in the file. Without it the linker will omit the
-  // object file when linking the libpython archive into the main python
-  // binary.
-  //
-  // TODO(T168696266): Remove this once we migrate to cinderx.
-  PyObject *res = Cinder_GetParallelGCSettings();
-  if (res == nullptr) {
-    return -1;
-  }
-  Py_DECREF(res);
-
   WatcherState watcher_state;
   watcher_state.code_watcher = cinderx_code_watcher;
   watcher_state.dict_watcher = cinderx_dict_watcher;
