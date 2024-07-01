@@ -156,6 +156,7 @@ enum OperandSizeType {
   X(BranchS)                                                                  \
   X(BranchNS)                                                                 \
   X(BranchE)                                                                  \
+  X(BranchNE)                                                                 \
   X(BitTest, false, FlagEffects::kSet, kDefault, 1, {1})                      \
   X(Inc, false, FlagEffects::kSet)                                            \
   X(Dec, false, FlagEffects::kSet)                                            \
@@ -309,8 +310,7 @@ class Instruction {
       allocatePhyRegisterInput(first_arg.value)
           ->setDataType(first_arg.data_type);
     } else if constexpr (std::is_same_v<FT, Stk>) {
-      allocateStackInput(first_arg.value)
-          ->setDataType(first_arg.data_type);
+      allocateStackInput(first_arg.value)->setDataType(first_arg.data_type);
     } else if constexpr (std::is_same_v<FT, Imm>) {
       allocateImmediateInput(first_arg.value)->setDataType(first_arg.data_type);
     } else if constexpr (std::is_same_v<FT, FPImm>) {
@@ -503,6 +503,7 @@ class Instruction {
       case kBranchLE:
       case kBranchGE:
       case kBranchE:
+      case kBranchNE:
         return true;
       default:
         return false;
@@ -553,8 +554,9 @@ class Instruction {
       CASE_FLIP(kBranchB, kBranchAE)
       CASE_FLIP(kBranchL, kBranchGE)
       CASE_FLIP(kBranchG, kBranchLE)
+      CASE_FLIP(kBranchE, kBranchNE)
       default:
-        JIT_ABORT("Not a conditional branch opcode.");
+        JIT_ABORT("Not a conditional branch opcode: {}", kOpcodeNames[opcode]);
     }
   }
 
@@ -567,7 +569,9 @@ class Instruction {
       CASE_FLIP(kBranchL, kBranchG)
       CASE_FLIP(kBranchLE, kBranchGE)
       default:
-        JIT_ABORT("Unable to flip direction for opcode.");
+        JIT_ABORT(
+            "Unable to flip branch condition for opcode: {}",
+            kOpcodeNames[opcode]);
     }
   }
 
@@ -582,7 +586,9 @@ class Instruction {
       case kNotEqual:
         return kNotEqual;
       default:
-        JIT_ABORT("Unable to flip direction for comparison opcode.");
+        JIT_ABORT(
+            "Unable to flip comparison direction for opcode: {}",
+            kOpcodeNames[opcode]);
     }
   }
 
@@ -591,9 +597,9 @@ class Instruction {
   static Opcode compareToBranchCC(Opcode opcode) {
     switch (opcode) {
       case kEqual:
-        return kBranchZ;
+        return kBranchE;
       case kNotEqual:
-        return kBranchNZ;
+        return kBranchNE;
       case kGreaterThanUnsigned:
         return kBranchA;
       case kLessThanUnsigned:

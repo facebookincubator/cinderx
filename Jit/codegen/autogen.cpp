@@ -1141,6 +1141,9 @@ BEGIN_RULES(Instruction::kBranchE)
   GEN("b", ASM(je, LBL(0)))
 END_RULES
 
+BEGIN_RULES(Instruction::kBranchNE)
+  GEN("b", ASM(jne, LBL(0)))
+END_RULES
 
 #define DEF_COMPARE_OP_RULES(name, fpcomp) \
 BEGIN_RULES(Instruction::name) \
