@@ -1,0 +1,7 @@
+# Disable check for explicitly marking of functions which return 'null'. We
+# would have to use this excessively due to Python often using null to propagate
+# exceptions.
+
+Checks: '
+-facebook-hte-NullableReturn,
+'
