@@ -65,8 +65,6 @@ class Function {
 
   void sortBasicBlocks();
 
-  void print() const;
-
  private:
   // The containers below hold all the basic blocks for the Function. The deque
   // holds the actual data for blocks and the vector holds their (eventually)

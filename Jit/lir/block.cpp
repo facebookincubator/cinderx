@@ -4,7 +4,6 @@
 
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/lir/function.h"
-#include "cinderx/Jit/lir/printer.h"
 
 #include <algorithm>
 #include <iostream>
@@ -30,10 +29,6 @@ BasicBlock* BasicBlock::insertBasicBlockBetween(BasicBlock* block) {
   new_block->addSuccessor(block);
 
   return new_block;
-}
-
-void BasicBlock::print() const {
-  std::cerr << *this;
 }
 
 BasicBlock* BasicBlock::splitBefore(Instruction* instr) {

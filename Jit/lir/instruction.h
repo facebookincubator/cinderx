@@ -621,8 +621,6 @@ class Instruction {
     }
   }
 
-  void print() const;
-
  private:
   int id_;
   Opcode opcode_;

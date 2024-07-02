@@ -1,7 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 #include "cinderx/Jit/lir/block.h"
-#include "cinderx/Jit/lir/printer.h"
+
+#include "cinderx/Jit/lir/function.h"
 
 #include <iomanip>
 #include <utility>
@@ -77,10 +78,6 @@ bool Instruction::getInputPhyRegUse(size_t i) const {
 
 bool Instruction::inputsLiveAcross() const {
   return InstrProperty::getProperties(opcode_).inputs_live_across;
-}
-
-void Instruction::print() const {
-  std::cerr << *this << std::endl;
 }
 
 InstrProperty::InstrInfo& InstrProperty::getProperties(

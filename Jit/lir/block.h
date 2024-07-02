@@ -184,8 +184,6 @@ class BasicBlock {
     }
   }
 
-  void print() const;
-
   // Split this block before instr.
   // Current basic block contains all instructions up to (but excluding) instr.
   // Return a new block with all instructions (including and) after instr.
