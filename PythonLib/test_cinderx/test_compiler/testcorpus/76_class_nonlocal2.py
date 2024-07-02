@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 # Based on Python-3.4.3/Lib/test/test_scope.py
 
 def testClassNamespaceOverridesClosure(self):

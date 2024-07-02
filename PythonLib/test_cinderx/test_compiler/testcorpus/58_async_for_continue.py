@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 async def test3():
     async for i in x:
         if i > 20:

@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 match ():
     case []:
         pass

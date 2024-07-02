@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 foo(
     a=1,
     b=1,

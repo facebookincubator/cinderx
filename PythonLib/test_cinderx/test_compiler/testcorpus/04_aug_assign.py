@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 a += 1
 a -= 2
 a *= 3

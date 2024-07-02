@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 class Outer:
     def f(self):
         class Inner:

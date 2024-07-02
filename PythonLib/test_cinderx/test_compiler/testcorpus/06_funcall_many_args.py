@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 C.meth(
     a,
     b,

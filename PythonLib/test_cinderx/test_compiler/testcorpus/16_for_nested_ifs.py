@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 for x in y:
     if a:
         if x:

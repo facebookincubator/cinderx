@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 fun(a, kw=1, *c, **d)
 fun(a, *c, kw=1, **d)
 

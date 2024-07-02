@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 def dispatch():
     row_id: int = 0
 

@@ -12,19 +12,18 @@ from .common import glob_test
 
 
 class SbsCorpusCompileTests(TestCase):
-    maxDiff = None
+    maxDiff: None = None
 
 
 # Add a test case for each testcorpus/ file to SbsCorpusCompileTests.  Individual
 # tests can be run with:
 #  python -m test.test_compiler SbsCorpusCompileTests.test_00_const
-def add_test(modname, fname):
-    def test_corpus(self):
+def add_test(modname: str, fname: str) -> None:
+    def test_corpus(self: SbsCorpusCompileTests) -> None:
         with open(fname, "rb") as inp:
             encoding, _lines = detect_encoding(inp.readline)
-            code = b"".join(_lines + inp.readlines()).decode(encoding)
+            code = b"".join(list(_lines) + inp.readlines()).decode(encoding)
             node = ast.parse(code, modname, "exec")
-            node.filename = modname
 
             orig = compile(node, modname, "exec")
             origdump = StringIO()
@@ -38,9 +37,10 @@ def add_test(modname, fname):
                 origdump.getvalue().split("\n"), newdump.getvalue().split("\n")
             )
 
+    # pyre-ignore[16]: Callable `test_corpus` has no attribute `__name__`.
     test_corpus.__name__ = "test_" + modname.replace("/", "_")[:-3]
     setattr(SbsCorpusCompileTests, test_corpus.__name__, test_corpus)
 
 
-corpus_dir = path.join(path.dirname(__file__), "testcorpus")
+corpus_dir: str = path.join(path.dirname(__file__), "testcorpus")
 glob_test(corpus_dir, "**/*.py", add_test)

@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 if a:
     a1
 elif b:

@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 try:
     pass
 except Exception as exc:

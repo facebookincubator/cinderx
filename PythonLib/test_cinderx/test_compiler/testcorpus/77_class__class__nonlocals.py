@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 class Outer:
     class Inner:
         nonlocal __class__

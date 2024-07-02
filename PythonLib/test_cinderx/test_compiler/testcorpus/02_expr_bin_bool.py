@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 a or b or c
 a and b and c
 

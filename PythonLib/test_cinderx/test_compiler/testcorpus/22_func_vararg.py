@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 def foo1(*args):
     func(args)
 
