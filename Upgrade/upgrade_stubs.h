@@ -281,21 +281,6 @@ int PyDict_NextKeepLazy(PyObject *op, Py_ssize_t *ppos, PyObject **pkey, PyObjec
 
 
 /*
- * From Include/funcobject.h (added by us)
- */
-
-/* Temporarily disabling BOLT on this function as we end up with a
- * comparison to the unoptimized function when referred to from a
- * function which isn't being BOLTed */
-#define PyEntry_LazyInit PyEntry_LazyInit_dont_bolt
-
-PyObject* PyEntry_LazyInit(PyFunctionObject *func,
-                           PyObject **stack,
-                           Py_ssize_t nargsf,
-                           PyObject *kwnames);
-
-
-/*
  * Custom Cinder stack walking
  */
 

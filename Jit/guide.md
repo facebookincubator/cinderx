@@ -106,7 +106,7 @@ the body of `f()`.
 By default if the JIT is enabled, all functions are compiled. If a JIT list
 is provided, only functions on that list will be compiled. There is also an
 option to JIT compile all Static Python functions, even if not on the JIT
-list. In addition, the JIT can automatically compile hot functions based on 
+list. In addition, the JIT can automatically compile hot functions based on
 their observed call count at runtime. The threshold used to automatically
 compile hot functions is configurable.
 
@@ -116,8 +116,8 @@ configuration is initialized in the `initFlagProcessor()` function in
 the various options.
 
 When a function is first called, if it should be JIT compiled we attempt to
-compile it (see `PyEntry_LazyInit` and related functions in
-`Python/ceval.c`.)
+compile it (see `Ci_JIT_lazyJITInitFuncObjectVectorcall` and related functions
+in `Jit/entry.cpp`.)
 
 When `cinderjit.disable()` is called (this disables future JIT compilation,
 it does not disable execution of JITted functions), any functions on the JIT

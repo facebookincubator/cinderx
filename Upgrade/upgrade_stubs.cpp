@@ -67,7 +67,6 @@ STUB(PyObject**, Ci_PyObject_GetDictPtrAtOffset, PyObject *obj, Py_ssize_t dicto
 STUB(PyObject*, _PyDict_GetItem_UnicodeExact, PyObject *op, PyObject *key)
 STUB(PyDictKeysObject*, _PyDict_MakeKeysShared, PyObject *op)
 STUB(int, PyDict_NextKeepLazy, PyObject *op, Py_ssize_t *ppos, PyObject **pkey, PyObject **pvalue)
-STUB(PyObject*, PyEntry_LazyInit, PyFunctionObject *func, PyObject **stack, Py_ssize_t nargsf, PyObject *kwnames)
 STUB(int, Ci_set_attribute_error_context, PyObject *v, PyObject *name)
 STUB(void, _PyType_ClearNoShadowingInstances, struct _typeobject *, PyObject *obj)
 STUB(PyObject*, Ci_PyClassMethod_GetFunc, PyObject *method)
@@ -104,5 +103,4 @@ STUB(int, Ci_DictOrChecked_SetItem, PyObject *op, PyObject *key, PyObject *value
 
 STUB(PyObject*, Ci_GetAIter, PyThreadState *tstate, PyObject *obj)
 STUB(PyObject*, Ci_GetANext, PyThreadState *tstate, PyObject *aiter)
-STUB(void, PyEntry_init, PyFunctionObject *func)
 STUB(PyObject*, Ci_EvalFrame, PyThreadState *tstate, PyFrameObject *f, int throwflag)

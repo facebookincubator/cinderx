@@ -15,7 +15,7 @@
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #include "cinderx/CachedProperties/cached_properties.h"
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
@@ -1326,7 +1326,7 @@ static int type_vtable_set_opt_slot(
     Py_ssize_t slot,
     PyObject* value) {
   vectorcallfunc entry = ((PyFunctionObject*)value)->vectorcall;
-  if (entry == (vectorcallfunc)PyEntry_LazyInit) {
+  if (entry == (vectorcallfunc)Ci_JIT_lazyJITInitFuncObjectVectorcall) {
     /* entry point isn't initialized yet, we want to run it once, and
      * then update our own entry point */
     int optional, exact, func_flags;

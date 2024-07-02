@@ -6,6 +6,7 @@
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/elf/reader.h"
+#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 
 #include <unordered_set>
@@ -245,7 +246,7 @@ CompiledFunction* Context::lookupCode(
 void Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
   if (compiled_funcs_.erase(func) != 0) {
     // Reset the entry point.
-    func->vectorcall = (vectorcallfunc)PyEntry_LazyInit;
+    func->vectorcall = (vectorcallfunc)Ci_JIT_lazyJITInitFuncObjectVectorcall;
   }
 }
 

@@ -15,6 +15,7 @@
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/pyjit_result.h"
@@ -347,7 +348,7 @@ static PyObject *get_entire_call_stack_as_qualnames_with_lineno_and_frame(
 static void init_already_existing_funcs() {
   PyUnstable_GC_VisitObjects([](PyObject* obj, void*){
     if (PyFunction_Check(obj)) {
-      PyEntry_init((PyFunctionObject*)obj);
+      jit::initFunctionObjectForJIT((PyFunctionObject*)obj);
     }
     return 1;
   }, nullptr);
@@ -500,16 +501,16 @@ static int cinderx_func_watcher(
 ) {
   switch (event) {
     case PyFunction_EVENT_CREATE:
-      PyEntry_init(func);
+      jit::initFunctionObjectForJIT(func);
       break;
     case PyFunction_EVENT_MODIFY_CODE:
       _PyJIT_FuncModified(func);
       // having deopted the func, we want to immediately consider recompiling.
       // func_set_code will assign this again later, but we do it early so
-      // PyEntry_init can consider the new code object now
+      // initFunctionObjectForJIT can consider the new code object now.
       Py_INCREF(new_value);
       Py_XSETREF(func->func_code, new_value);
-      PyEntry_init(func);
+      jit::initFunctionObjectForJIT(func);
       break;
     case PyFunction_EVENT_MODIFY_DEFAULTS:
       break;
@@ -519,10 +520,11 @@ static int cinderx_func_watcher(
       // allow reconsideration of whether this function should be compiled
       if (!_PyJIT_IsCompiled(func)) {
         // func_set_qualname will assign this again, but we need to assign it
-        // now so that PyEntry_init can consider the new qualname
+        // now so that CiSetJITEntryOnPyFunctionObject can consider the new
+        // qualname.
         Py_INCREF(new_value);
         Py_XSETREF(func->func_qualname, new_value);
-        PyEntry_init(func);
+        jit::initFunctionObjectForJIT(func);
       }
       break;
     case PyFunction_EVENT_DESTROY:

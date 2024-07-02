@@ -19,6 +19,7 @@
 #include "listobject.h"
 #include "pystate.h"
 
+
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
@@ -26,6 +27,7 @@
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/inline_cache.h"
+#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/block_builder.h"
 #include "cinderx/Jit/pyjit.h"
@@ -446,7 +448,7 @@ bool LIRGenerator::TranslateSpecializedCall(
     return _PyVectorcall_Function(callee);
   }();
   if (func == nullptr ||
-      func == reinterpret_cast<vectorcallfunc>(PyEntry_LazyInit)) {
+      func == reinterpret_cast<vectorcallfunc>(Ci_JIT_lazyJITInitFuncObjectVectorcall)) {
     // Bail if the object doesn't support vectorcall, or if it's a function
     // that hasn't been initialized yet.
     return false;

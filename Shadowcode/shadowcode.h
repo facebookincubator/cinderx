@@ -25,6 +25,8 @@
 extern "C" {
 #endif
 
+#define PYSHADOW_INIT_THRESHOLD 50
+
 typedef struct {
     PyWeakReference weakref; /* base weak ref */
     Py_ssize_t invalidate_count;
