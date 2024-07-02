@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
 from typing import Any, Callable, ClassVar, TypeVar, Dict as PyDict, List as PyList
 

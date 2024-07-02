@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
 from types import ModuleType
 from typing import Any, List, Mapping, Type
