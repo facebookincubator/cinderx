@@ -1,3 +1,4 @@
+// Portions copyright (c) Meta Platforms, Inc. and affiliates.
 #include <Python.h>
 #include "pycore_abstract.h"      // _PyIndex_Check()
 #include "pycore_interp.h"        // PyInterpreterState.list

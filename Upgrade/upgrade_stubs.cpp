@@ -1,3 +1,4 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 #define __UPGRADE_STUBS_CPP
 
 #include <Python.h>

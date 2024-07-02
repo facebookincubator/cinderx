@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import __future__
 
 from cinderx.compiler.consts import CO_NOFREE

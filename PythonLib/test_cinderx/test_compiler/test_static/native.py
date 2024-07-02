@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from .common import StaticTestBase, type_mismatch
 
 import _testinternalcapi  # usort: skip

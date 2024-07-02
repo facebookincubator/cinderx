@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 #!/usr/bin/python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # facebook begin t39538061

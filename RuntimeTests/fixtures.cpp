@@ -1,3 +1,4 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #if PY_VERSION_HEX < 0x030C0000

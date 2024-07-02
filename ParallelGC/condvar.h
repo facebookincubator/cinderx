@@ -1,3 +1,5 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 /*
  * Portable condition variable support for windows and pthreads.
  * Everything is inline, this header can be included where needed.

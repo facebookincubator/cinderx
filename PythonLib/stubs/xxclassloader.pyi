@@ -1,4 +1,6 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
+
 from typing import Any, Never
 
 class spamobj:

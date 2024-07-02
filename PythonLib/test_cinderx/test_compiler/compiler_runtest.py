@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 #
 # Helper script for testsuite - generally, run a file thru compiler and
 # disassemble using dis_stable.

@@ -1,4 +1,6 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
+
 from _static import (
     __build_cinder_class__,
     _clear_dlopen_cache,

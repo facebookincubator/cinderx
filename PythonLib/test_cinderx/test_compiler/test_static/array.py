@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import Array, StaticTypeError, int32, int64, int8
 
 import itertools

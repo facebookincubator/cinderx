@@ -1,4 +1,6 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

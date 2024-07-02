@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from unittest import skip
 
 from .common import StaticTestBase

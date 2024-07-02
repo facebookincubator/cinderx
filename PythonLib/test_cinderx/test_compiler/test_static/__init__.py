@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # flake8: noqa
 from .annotated import AnnotatedTests
 from .array import ArrayTests

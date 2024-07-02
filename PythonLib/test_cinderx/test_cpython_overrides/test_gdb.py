@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # Verify that gdb can pretty-print the various PyObject* types
 #
 # The code for testing gdb was adapted from similar work in Unladen Swallow's

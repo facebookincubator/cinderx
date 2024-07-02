@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from dataclasses import (
     _DataclassParams,
     _FIELD,

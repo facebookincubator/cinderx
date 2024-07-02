@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.static.types import (
     PRIM_OP_ADD_INT,

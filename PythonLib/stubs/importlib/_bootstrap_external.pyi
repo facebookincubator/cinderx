@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from _typeshed import Incomplete
 
 path_separators: Incomplete

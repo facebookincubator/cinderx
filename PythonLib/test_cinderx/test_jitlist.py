@@ -1,3 +1,5 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+
 # This is in its own file as it modifies the global JIT-list.
 
 import os

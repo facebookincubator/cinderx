@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import CheckedList
 
 from unittest import skip, skipIf

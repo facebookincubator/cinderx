@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.pycodegen import CinderCodeGenerator
 
 from .common import StaticTestBase

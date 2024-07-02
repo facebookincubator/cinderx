@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import chkdict, int64, is_type_static, make_generic_type, StaticGeneric
 
 import asyncio

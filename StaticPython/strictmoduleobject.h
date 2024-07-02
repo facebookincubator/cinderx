@@ -1,3 +1,4 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 /* Module object interface */
 
 #ifndef Ci_MODULEOBJECT_H

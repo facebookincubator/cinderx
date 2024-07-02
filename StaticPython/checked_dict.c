@@ -1,3 +1,4 @@
+// Portions copyright (c) Meta Platforms, Inc. and affiliates.
 // For 3.12 this is totally broken. The public functions from checked_dict.h
 // have been stubbed in upgrade_stubs.cpp.
 #include <Python.h>

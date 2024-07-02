@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import ast
 from textwrap import dedent
 from typing import final, Optional, Sequence

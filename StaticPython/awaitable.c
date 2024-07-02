@@ -1,3 +1,4 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 #include "Python.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove

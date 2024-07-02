@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from types import MemberDescriptorType
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator

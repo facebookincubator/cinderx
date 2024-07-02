@@ -1,4 +1,6 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
+
 from types import CodeType
 from typing import Any, Type, TypeVar
 

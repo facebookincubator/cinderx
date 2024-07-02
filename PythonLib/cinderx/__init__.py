@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 """High-performance Python runtime extensions."""
 

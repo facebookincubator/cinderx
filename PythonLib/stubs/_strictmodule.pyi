@@ -1,4 +1,6 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
+
 from ast import Module
 from symtable import SymbolTable
 from typing import Any, Callable, List, Protocol

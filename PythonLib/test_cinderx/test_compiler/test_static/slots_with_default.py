@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import builtins
 from cinder import cached_property
 from unittest import skip

@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import sys
 
 from .test_compiler import CompilerTests, GetModuleKindTest

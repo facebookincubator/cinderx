@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.static.types import TypedSyntaxError
 
 from .common import StaticTestBase
