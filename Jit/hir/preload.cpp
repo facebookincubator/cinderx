@@ -3,6 +3,7 @@
 #include "cinderx/Jit/hir/preload.h"
 
 #include <Python.h>
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
@@ -346,8 +347,7 @@ BorrowedRef<> Preloader::constArg(BytecodeInstruction& bc_instr) const {
 }
 
 bool Preloader::preload() {
-#if PY_VERSION_HEX < 0x030C0000
-  if (code_->co_flags & CO_STATICALLY_COMPILED) {
+  if (code_->co_flags & CI_CO_STATICALLY_COMPILED) {
     PyTypeOpt ret_type =
         resolve_type_descr(_PyClassLoader_GetCodeReturnTypeDescr(code_));
     if (std::get<0>(ret_type) == nullptr) {
@@ -363,6 +363,7 @@ bool Preloader::preload() {
     for (int i = 0; i < PyTuple_GET_SIZE(checks); i += 2) {
       long local = PyLong_AsLong(PyTuple_GET_ITEM(checks, i));
       if (local < 0) {
+#if PY_VERSION_HEX < 0x030C0000
         // A negative value for local indicates that it's a cell
         JIT_CHECK(
             code_->co_cell2arg != nullptr,
@@ -372,6 +373,9 @@ bool Preloader::preload() {
         JIT_CHECK(
             arg != CO_CELL_NOT_AN_ARG, "cell not an arg for local {}", local);
         local = arg;
+#else
+  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
+#endif
       }
       PyTypeOpt pytype_opt =
           resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));
@@ -397,10 +401,6 @@ bool Preloader::preload() {
       }
     }
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-#endif
 
   jit::BytecodeInstructionBlock bc_instrs{code_};
   for (auto bc_instr : bc_instrs) {

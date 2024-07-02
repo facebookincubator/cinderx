@@ -8,6 +8,8 @@
 #endif
 #include "internal/pycore_moduleobject.h"
 
+#include "cinderx/Common/extra-py-flags.h"
+
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
@@ -520,13 +522,8 @@ static inline int _PyClassLoader_IsStaticFunction(PyObject* obj) {
   if (obj == NULL || !PyFunction_Check(obj)) {
     return 0;
   }
-#if PY_VERSION_HEX < 0x030C0000
   return ((PyCodeObject*)(((PyFunctionObject*)obj))->func_code)->co_flags &
-      CO_STATICALLY_COMPILED;
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-  return 0;
-#endif
+      CI_CO_STATICALLY_COMPILED;
 }
 
 static inline PyMethodDef* _PyClassLoader_GetMethodDef(PyObject* obj) {

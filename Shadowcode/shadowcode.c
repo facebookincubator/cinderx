@@ -15,6 +15,7 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/code.h"
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/pyjit.h"
@@ -2469,7 +2470,7 @@ _PyShadow_InitCache(PyCodeObject *co)
         }
     }
 
-    if (co->co_flags & CO_STATICALLY_COMPILED &&
+    if (co->co_flags & CI_CO_STATICALLY_COMPILED &&
         PyTuple_Size(co->co_consts) > (Py_ssize_t)sizeof(names) * 8) {
         /* we have lots of consts, let's use a set to count them... */
         func_set = PySet_New(NULL);

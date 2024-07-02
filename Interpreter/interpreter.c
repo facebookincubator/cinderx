@@ -8,6 +8,7 @@
 #endif
 
 #include "cinderx/Common/code.h"
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/StaticPython/checked_dict.h"
@@ -5029,7 +5030,7 @@ Ci_PyFunction_CallStatic(PyFunctionObject *func,
      * all of the arguments are guaranteed to be provided */
 #ifdef Py_DEBUG
     assert(co->co_argcount == nargs);
-    assert(co->co_flags & CO_STATICALLY_COMPILED);
+    assert(co->co_flags & CI_CO_STATICALLY_COMPILED);
     assert(co->co_flags & CO_OPTIMIZED);
     assert(kwnames == NULL);
 #endif
@@ -5182,7 +5183,7 @@ _CiStaticEval_Vector(PyThreadState *tstate, PyFrameConstructor *con,
     }
 
     PyCodeObject *co = (PyCodeObject*)con->fc_code;
-    assert(co->co_flags & CO_STATICALLY_COMPILED);
+    assert(co->co_flags & CI_CO_STATICALLY_COMPILED);
     if (check_args && _Ci_CheckArgs(tstate, f, co) < 0) {
         Py_DECREF(f);
         return NULL;

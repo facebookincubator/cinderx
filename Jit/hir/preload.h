@@ -47,7 +47,7 @@ struct InvokeTarget {
   PyObject** indirect_ptr{nullptr};
   // vtable slot number (INVOKE_METHOD only)
   Py_ssize_t slot{-1};
-  // is a CO_STATICALLY_COMPILED Python function or METH_TYPED builtin
+  // is a CI_CO_STATICALLY_COMPILED Python function or METH_TYPED builtin
   bool is_statically_typed{false};
   // is PyFunctionObject
   bool is_function{false};

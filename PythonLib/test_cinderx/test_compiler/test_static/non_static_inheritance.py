@@ -1,7 +1,7 @@
 import unittest
 from unittest import skip
 
-from cinderx.compiler.consts import CO_STATICALLY_COMPILED
+from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import CinderCodeGenerator
 
 from .common import StaticTestBase
@@ -362,7 +362,7 @@ class NonStaticInheritanceTests(StaticTestBase):
 
     def test_nonstatic_derived_method_in_static_class(self):
         # Having the decorator live in a non-static module ensures that the generated function
-        # doesn't have the CO_STATICALLY_COMPILED flag.
+        # doesn't have the CI_CO_STATICALLY_COMPILED flag.
         nonstatic = """
             def decorate(f):
                 def foo(*args, **kwargs):
@@ -391,7 +391,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             nonstatic, name="nonstatic", code_gen=CinderCodeGenerator
         ), self.in_module(static) as mod:
             # Ensure that the decorator results in a non-static function.
-            self.assertEqual(mod.D.f.__code__.co_flags & CO_STATICALLY_COMPILED, 0)
+            self.assertEqual(mod.D.f.__code__.co_flags & CI_CO_STATICALLY_COMPILED, 0)
             self.assertEqual(mod.invoke_f(mod.C()), 1)
             self.assertEqual(mod.invoke_f(mod.D()), 2)
             # TODO(T131831297): The return value here should be 2 instead of 1.

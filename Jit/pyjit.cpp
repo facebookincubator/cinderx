@@ -10,6 +10,7 @@
 #include "internal/pycore_ceval.h"
 #endif
 #include "cinderx/Common/code.h"
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
@@ -1949,16 +1950,8 @@ static bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
 
   // There's a config option for forcing all Static Python functions to be
   // compiled.
-#if PY_VERSION_HEX < 0x030C0000
-  bool is_static = code->co_flags & CO_STATICALLY_COMPILED;
-  if (is_static && getConfig().compile_all_static_functions) {
-    return true;
-  }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
-
-  return false;
+  bool is_static = code->co_flags & CI_CO_STATICALLY_COMPILED;
+  return is_static && getConfig().compile_all_static_functions;
 }
 
 // Check whether a function should be compiled.

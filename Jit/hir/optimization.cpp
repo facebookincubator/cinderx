@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/hir/optimization.h"
 
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/util.h"
 #include "internal/pycore_interp.h"
 
@@ -830,10 +831,9 @@ static bool canInlineWithPreloader(
     }
     return false;
   };
-#if PY_VERSION_HEX < 0x030C0000
   if ((call_instr->instr->IsVectorCall() ||
        call_instr->instr->IsVectorCallStatic()) &&
-      (preloader.code()->co_flags & CO_STATICALLY_COMPILED) &&
+      (preloader.code()->co_flags & CI_CO_STATICALLY_COMPILED) &&
       (preloader.returnType() <= TPrimitive || has_primitive_args())) {
     // TODO(T122371281) remove this constraint
     dlogAndCollectFailureStats(
@@ -842,9 +842,6 @@ static bool canInlineWithPreloader(
         fullname);
     return false;
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   return true;
 }
 

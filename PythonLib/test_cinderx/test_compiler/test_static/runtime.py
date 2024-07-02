@@ -10,7 +10,7 @@ from copy import deepcopy
 from typing import Optional, TypeVar
 from unittest import skip, skipIf
 
-from cinderx.compiler.consts import CO_STATICALLY_COMPILED
+from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static import StaticCodeGenerator
 from cinderx.compiler.static.types import (
@@ -2125,13 +2125,13 @@ class StaticRuntimeTests(StaticTestBase):
             fn = mod.fn
             self.assertInBytecode(fn, "CALL_FUNCTION")
             self.assertNotInBytecode(fn, "INVOKE_FUNCTION")
-            self.assertFalse(fn.__code__.co_flags & CO_STATICALLY_COMPILED)
+            self.assertFalse(fn.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn(), None)
 
             fn2 = mod.fn2
             self.assertNotInBytecode(fn2, "CALL_FUNCTION")
             self.assertInBytecode(fn2, "INVOKE_FUNCTION")
-            self.assertTrue(fn2.__code__.co_flags & CO_STATICALLY_COMPILED)
+            self.assertTrue(fn2.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn2(), None)
 
     def test_donotcompile_method(self):
@@ -2157,7 +2157,7 @@ class StaticRuntimeTests(StaticTestBase):
             fn2 = C.fn2
             self.assertNotInBytecode(fn2, "CALL_FUNCTION")
             self.assertInBytecode(fn2, "INVOKE_FUNCTION")
-            self.assertTrue(fn2.__code__.co_flags & CO_STATICALLY_COMPILED)
+            self.assertTrue(fn2.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn2(), None)
 
     def test_donotcompile_class(self):
@@ -2183,7 +2183,7 @@ class StaticRuntimeTests(StaticTestBase):
             fn = C.fn
             self.assertInBytecode(fn, "CALL_FUNCTION")
             self.assertNotInBytecode(fn, "INVOKE_FUNCTION")
-            self.assertFalse(fn.__code__.co_flags & CO_STATICALLY_COMPILED)
+            self.assertFalse(fn.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn(), None)
 
     def test_donotcompile_lambda(self):
@@ -2210,13 +2210,13 @@ class StaticRuntimeTests(StaticTestBase):
             fn = C.fn
             lambda_code = self.find_code(fn.__code__)
             self.assertNotInBytecode(lambda_code, "INVOKE_FUNCTION")
-            self.assertFalse(lambda_code.co_flags & CO_STATICALLY_COMPILED)
+            self.assertFalse(lambda_code.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn(), None)
 
             fn2 = C.fn2
             lambda_code2 = self.find_code(fn2.__code__)
             self.assertInBytecode(lambda_code2, "INVOKE_FUNCTION")
-            self.assertTrue(lambda_code2.co_flags & CO_STATICALLY_COMPILED)
+            self.assertTrue(lambda_code2.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn2(), None)
 
     def test_class_static_tpflag(self):

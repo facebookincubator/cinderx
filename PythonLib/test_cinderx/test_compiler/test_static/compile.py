@@ -22,7 +22,7 @@ from unittest import skip, skipIf
 from unittest.mock import patch
 
 import xxclassloader
-from cinderx.compiler.consts import CO_STATICALLY_COMPILED
+from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static import StaticCodeGenerator
 from cinderx.compiler.static.compiler import Compiler
@@ -1800,9 +1800,9 @@ class StaticCompilationTests(StaticTestBase):
         func()
         """
         module = self.compile(codestr)
-        self.assertTrue(module.co_flags & CO_STATICALLY_COMPILED)
+        self.assertTrue(module.co_flags & CI_CO_STATICALLY_COMPILED)
         self.assertTrue(
-            self.find_code(module, name="func").co_flags & CO_STATICALLY_COMPILED
+            self.find_code(module, name="func").co_flags & CI_CO_STATICALLY_COMPILED
         )
 
     def test_invoke_kws(self):

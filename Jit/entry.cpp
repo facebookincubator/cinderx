@@ -1,7 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Jit/entry.h"
-
 #include "cinderx/Jit/pyjit.h"
 
 #include <Python.h>
@@ -22,16 +22,12 @@ void initFunctionObjectForStaticOrNonJIT(PyFunctionObject* func) {
               Ci_JIT_lazyJITInitFuncObjectVectorcall),
       "Double initializing function {}",
       repr(func->func_qualname));
-#if PY_VERSION_HEX < 0x030C0000
-  if (((PyCodeObject*)func->func_code)->co_flags & CO_STATICALLY_COMPILED) {
+  if (((PyCodeObject*)func->func_code)->co_flags & CI_CO_STATICALLY_COMPILED) {
     func->vectorcall =
         reinterpret_cast<vectorcallfunc>(Ci_StaticFunction_Vectorcall);
   } else {
     func->vectorcall = reinterpret_cast<vectorcallfunc>(_PyFunction_Vectorcall);
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS);
-#endif
 }
 
 unsigned int count_calls(PyCodeObject* code) {

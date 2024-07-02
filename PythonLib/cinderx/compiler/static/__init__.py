@@ -322,7 +322,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if self._is_static_compiler_disabled(func):
             return graph
 
-        graph.setFlag(consts.CO_STATICALLY_COMPILED)
+        graph.setFlag(consts.CI_CO_STATICALLY_COMPILED)
         arg_types = self._get_arg_types(func, func_args, graph)
         ret_type = self._get_return_type(func)
         graph.extra_consts.append((arg_types, ret_type.type_descr))

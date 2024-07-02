@@ -7,6 +7,7 @@
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
 #endif
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -766,8 +767,7 @@ void NativeGenerator::generatePrologue(
   Label setup_frame = as_->newLabel();
   Label argCheck = as_->newLabel();
 
-#if PY_VERSION_HEX < 0x030C0000
-  if (code->co_flags & CO_STATICALLY_COMPILED) {
+  if (code->co_flags & CI_CO_STATICALLY_COMPILED) {
     // If we've been invoked statically we can skip all of the
     // argument checking because we know our args have been
     // provided correctly.  But if we have primitives we need to
@@ -788,10 +788,6 @@ void NativeGenerator::generatePrologue(
       as_->ret();
     }
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
-
 
   if (!func_->has_primitive_args) {
     as_->test(x86::rcx, x86::rcx); // test for kwargs
@@ -842,8 +838,7 @@ void NativeGenerator::generatePrologue(
   }
 
   as_->bind(correct_arg_count);
-#if PY_VERSION_HEX < 0x030C0000
-  if (code->co_flags & CO_STATICALLY_COMPILED) {
+  if (code->co_flags & CI_CO_STATICALLY_COMPILED) {
     if (!func_->has_primitive_args) {
       // We weren't called statically, but we've now resolved
       // all arguments to fixed offsets.  Validate that the
@@ -853,9 +848,6 @@ void NativeGenerator::generatePrologue(
       as_->mov(x86::rdx, 0);
     }
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
 
   env_.addAnnotation("Generic entry", generic_entry_cursor);
 
@@ -1355,13 +1347,8 @@ void NativeGenerator::generateStaticEntryPoint(
 }
 
 bool NativeGenerator::hasStaticEntry() const {
-#if PY_VERSION_HEX < 0x030C0000
   PyCodeObject* code = GetFunction()->code;
-  return (code->co_flags & CO_STATICALLY_COMPILED);
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-  return false;
-#endif
+  return (code->co_flags & CI_CO_STATICALLY_COMPILED);
 }
 
 void NativeGenerator::generateCode(CodeHolder& codeholder) {

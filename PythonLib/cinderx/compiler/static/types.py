@@ -131,7 +131,7 @@ from __static__ import (  # noqa: F401
     TYPED_UINT8,
 )
 
-from ..consts import CO_STATICALLY_COMPILED
+from ..consts import CI_CO_STATICALLY_COMPILED
 from ..errors import TypedSyntaxError
 from ..optimizer import AstOptimizer
 from ..pyassem import Block, FVC_REPR
@@ -5641,7 +5641,7 @@ class Dataclass(Class):
             optimized=1,
             firstline=node.lineno,
         )
-        graph.setFlag(CO_STATICALLY_COMPILED)
+        graph.setFlag(CI_CO_STATICALLY_COMPILED)
         graph.extra_consts.append((check_args, return_type_descr))
         return graph
 

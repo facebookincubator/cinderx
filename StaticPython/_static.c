@@ -18,6 +18,7 @@
 #include "structmember.h"
 
 #include "cinderx/CachedProperties/cached_properties.h"
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -1628,15 +1629,11 @@ static int sp_audit_hook(const char* event, PyObject* args, void* data) {
     return 0;
   }
   PyFunctionObject* func = (PyFunctionObject*)obj;
-#if PY_VERSION_HEX < 0x030C0000
-  if (((PyCodeObject*)func->func_code)->co_flags & CO_STATICALLY_COMPILED) {
+  if (((PyCodeObject*)func->func_code)->co_flags & CI_CO_STATICALLY_COMPILED) {
     PyErr_SetString(
         PyExc_RuntimeError, "Cannot modify __code__ of Static Python function");
     return -1;
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   return 0;
 }
 

@@ -62,7 +62,7 @@ try:  # ensure all imports in this module are eager, to avoid cycles
 
     from cinderx.static import install_sp_audit_hook
 
-    from ..consts import CO_STATICALLY_COMPILED
+    from ..consts import CI_CO_STATICALLY_COMPILED
     from .common import (
         DEFAULT_STUB_PATH,
         FIXED_MODULES,
@@ -625,7 +625,7 @@ class StrictSourceFileLoader(SourceFileLoader):
                 "<builtins>": builtins.__dict__,
                 "<init-cached-properties>": self.init_cached_properties,
             }
-            if code.co_flags & CO_STATICALLY_COMPILED:
+            if code.co_flags & CI_CO_STATICALLY_COMPILED:
                 init_static_python()
                 new_dict["<imported-from>"] = code.co_consts[-1]
 
