@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/debug_info.h"
 
-#include "cinderx/Common/ref.h"
-
 #include "cinderx/Jit/hir/hir.h"
 
 #include <algorithm>
