@@ -443,10 +443,6 @@ class Runtime {
   // memory was paged in.
   Ref<> pageInProfilerDependencies();
 
-  std::optional<std::string_view> symbolize(const void* func) {
-    return symbolizer_.symbolize(func);
-  }
-
   // When type is modified or an instance of type has __class__ assigned to,
   // call patcher->maybePatch(new_ty).
   void watchType(BorrowedRef<PyTypeObject> type, TypeDeoptPatcher* patcher);
@@ -519,13 +515,9 @@ class Runtime {
   std::unordered_set<Ref<PyObject>> references_;
   std::vector<std::unique_ptr<DeoptPatcher>> deopt_patchers_;
   Builtins builtins_;
-  Symbolizer symbolizer_;
 
   std::unordered_map<BorrowedRef<PyTypeObject>, std::vector<TypeDeoptPatcher*>>
       type_deopt_patchers_;
 };
-
-// Symbolize and demangle the given function.
-std::optional<std::string> symbolize(const void* func);
 
 } // namespace jit

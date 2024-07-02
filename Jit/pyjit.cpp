@@ -2534,6 +2534,7 @@ int _PyJIT_Finalize() {
   _PyJIT_FinalizeInternedStrings();
 
   Runtime::shutdown();
+  Symbolizer::shutdown();
 
   g_aot_ctx.destroy();
 

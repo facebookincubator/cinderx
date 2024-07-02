@@ -24,6 +24,12 @@ namespace jit {
 
 class Symbolizer {
  public:
+  // Load a process-level Symbolizer instance and return it.
+  static Symbolizer& get();
+
+  // Destroy the process-level Symbolizer instance, if it exists.
+  static void shutdown();
+
   Symbolizer(const char* exe_path = "/proc/self/exe");
 
   bool isInitialized() const {
@@ -56,5 +62,8 @@ class Symbolizer {
 };
 
 std::optional<std::string> demangle(const std::string& mangled_name);
+
+// Symbolize and demangle the given function.
+std::optional<std::string> symbolize(const void* func);
 
 } // namespace jit

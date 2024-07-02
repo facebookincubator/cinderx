@@ -13,6 +13,26 @@
 
 namespace jit {
 
+namespace {
+
+Symbolizer* s_symbolizer = nullptr;
+
+} // namespace
+
+Symbolizer& Symbolizer::get() {
+  if (s_symbolizer == nullptr) {
+    s_symbolizer = new Symbolizer();
+  }
+  return *s_symbolizer;
+}
+
+void Symbolizer::shutdown() {
+  if (s_symbolizer != nullptr) {
+    delete s_symbolizer;
+    s_symbolizer = nullptr;
+  }
+}
+
 Symbolizer::Symbolizer(const char* exe_path) {
   try {
     file_.open(exe_path);
@@ -224,6 +244,18 @@ std::optional<std::string> demangle(const std::string& mangled_name) {
   std::string result{demangled_name};
   std::free(demangled_name);
   return result;
+}
+
+std::optional<std::string> symbolize(const void* func) {
+  if (!g_symbolize_funcs) {
+    return std::nullopt;
+  }
+  std::optional<std::string_view> mangled_name =
+      Symbolizer::get().symbolize(func);
+  if (!mangled_name.has_value()) {
+    return std::nullopt;
+  }
+  return demangle(std::string{*mangled_name});
 }
 
 } // namespace jit
