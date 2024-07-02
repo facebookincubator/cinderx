@@ -25,7 +25,7 @@
 #include "cinderx/StaticPython/static_array.h"
 #include "strictmoduleobject.h"
 
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 PyDoc_STRVAR(
     _static__doc__,
@@ -1753,17 +1753,43 @@ static struct PyModuleDef _staticmodule = {
     NULL,
     NULL};
 
-PyMODINIT_FUNC PyInit__static(void) {
-#if PY_VERSION_HEX < 0x030C0000
-  // _static module requires CinderX to be initialized first
-  if (!Ci_cinderx_initialized) {
+static int check_cinderx_init(void) {
+  PyObject *name = PyUnicode_FromString("_cinderx");
+  if (name == NULL) {
+    PyErr_SetString(PyExc_ImportError, "Error creating string");
+    return 0;
+  }
+
+  PyObject* module = PyImport_GetModule(name);
+  Py_DECREF(name);
+
+  if (module == NULL) {
     PyErr_SetString(
-        PyExc_ImportError, "must call cinderx.init() before importing _static");
+        PyExc_ImportError,
+        "Must import cinderx module and call init() before loading _static");
+    return 0;
+  }
+
+  PyObject* value = PyObject_GetAttrString(module, "initialized");
+  Py_DECREF(module);
+  if (value == NULL) {
+    PyErr_SetString(PyExc_ImportError, "_cinderx.initialized misssing?");
+    return 0;
+  }
+
+  int res = value == Py_True;
+  Py_DECREF(value);
+  if (res) {
+    return 1;
+  }
+  PyErr_SetString(
+      PyExc_ImportError, "_cinderx module loaded but not initialized");
+  return 0;
+}
+
+PyMODINIT_FUNC PyInit__static(void) {
+  if (!check_cinderx_init()) {
     return NULL;
   }
-#else
-  UPGRADE_ASSERT(MISSING_CINDERX_INITIALIZED_HOOK)
-#endif
-
   return PyModuleDef_Init(&_staticmodule);
 }
