@@ -5,7 +5,6 @@
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/util.h"
 
-#include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/symbolizer.h"
 
 #include <Python.h>

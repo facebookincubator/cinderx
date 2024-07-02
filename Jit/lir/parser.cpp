@@ -3,7 +3,6 @@
 #include "cinderx/Jit/lir/parser.h"
 
 #include "cinderx/Jit/codegen/code_section.h"
-#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/symbol_mapping.h"
 
