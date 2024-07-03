@@ -30,11 +30,12 @@
 #include "cinderx/ParallelGC/condvar.h"
 #include "cinderx/ParallelGC/ws_deque.h"
 
-#include <pycore_atomic.h>
 #include <pycore_gc.h>
 #include <pycore_object.h>
 #include <pycore_pyerrors.h>
 #include <pycore_pystate.h>     // _PyThreadState_GET()
+
+#include <stdatomic.h>
 
 #if PY_VERSION_HEX < 0x030C0000
 #include <cinder/exports.h>
@@ -1548,7 +1549,7 @@ struct Ci_ParGCState {
     // Synchronizes all workers before marking reachable objects
     Ci_Barrier mark_barrier;
 
-    _Py_atomic_int num_workers_marking;
+    atomic_int num_workers_marking;
 
     PyMUTEX_T steal_coord_lock;
     Ci_ParGCWorker *steal_coordinator;
@@ -1560,7 +1561,7 @@ struct Ci_ParGCState {
 
     // Tracks the number of workers actively running. When this reaches zero
     // it is safe to destroy shared state.
-    _Py_atomic_int num_workers_active;
+    atomic_int num_workers_active;
 
     size_t num_workers;
     Ci_ParGCWorker workers[];
@@ -1575,14 +1576,14 @@ Ci_should_use_par_gc(Ci_ParGCState *par_gc, int gen)
 static inline int
 Ci_gc_is_collecting_atomic(PyGC_Head *g)
 {
-    uintptr_t prev = _Py_atomic_load_relaxed(((_Py_atomic_address *) &g->_gc_prev));
+    uintptr_t prev = atomic_load_explicit((atomic_uintptr_t*)(&g->_gc_prev), memory_order_relaxed);
     return (prev & PREV_MASK_COLLECTING) != 0;
 }
 
 static inline void
 Ci_gc_get_collecting_and_finalized_atomic(PyGC_Head *g, int *collecting, int *finalized)
 {
-    uintptr_t prev = _Py_atomic_load_relaxed(((_Py_atomic_address *) &g->_gc_prev));
+    uintptr_t prev = atomic_load_explicit((atomic_uintptr_t*)(&g->_gc_prev), memory_order_relaxed);
     *collecting = (prev & PREV_MASK_COLLECTING) != 0;
     *finalized = (prev & _PyGC_PREV_MASK_FINALIZED) != 0;
 }
@@ -1590,13 +1591,13 @@ Ci_gc_get_collecting_and_finalized_atomic(PyGC_Head *g, int *collecting, int *fi
 static inline void
 Ci_gc_decref_atomic(PyGC_Head *g)
 {
-   _Py_atomic_fetch_sub_relaxed(((_Py_atomic_address *) &g->_gc_prev), 1 << _PyGC_PREV_SHIFT);
+    atomic_fetch_sub_explicit((atomic_uintptr_t*)(&g->_gc_prev), 1 << _PyGC_PREV_SHIFT, memory_order_relaxed);
 }
 
 static inline int
 Ci_gc_is_collecting_and_reachable_atomic(PyGC_Head *g, int *finalized)
 {
-    uintptr_t prev = _Py_atomic_load_relaxed(((_Py_atomic_address *) &g->_gc_prev));
+  uintptr_t prev = atomic_load_explicit((atomic_uintptr_t*)(&g->_gc_prev), memory_order_relaxed);
     *finalized = (prev & _PyGC_PREV_MASK_FINALIZED) != 0;
     return (prev >> _PyGC_PREV_SHIFT) && (prev & PREV_MASK_COLLECTING);
 }
@@ -1606,7 +1607,7 @@ Ci_gc_mark_reachable_and_clear_collecting_atomic(PyGC_Head *g, int finalized)
 {
     assert(finalized == 0 || finalized == 1);
     uintptr_t val = (1 << _PyGC_PREV_SHIFT) | (finalized);
-    _Py_atomic_store_relaxed(((_Py_atomic_address *) &g->_gc_prev), val);
+    atomic_store_explicit((atomic_uintptr_t*)(&g->_gc_prev), val, memory_order_relaxed);
 }
 
 // Subtract an incoming ref to op
@@ -1842,9 +1843,9 @@ Ci_ParGCWorker_CoordinateStealing(Ci_ParGCWorker *worker)
     size_t num_workers = par_gc->num_workers;
     while (1) {
         // Marking is finished if we're the only active worker
-        int num_workers_marking = _Py_atomic_load(&par_gc->num_workers_marking);
+        int num_workers_marking = atomic_load(&par_gc->num_workers_marking);
         if (num_workers_marking == 1) {
-            _Py_atomic_fetch_sub(&par_gc->num_workers_marking, 1);
+            atomic_fetch_sub(&par_gc->num_workers_marking, 1);
             Ci_Sema_Post(&par_gc->steal_sema, num_workers - num_workers_marking);
             return;
         }
@@ -1872,7 +1873,7 @@ Ci_ParGCWorker_CoordinateStealing(Ci_ParGCWorker *worker)
                 // was the only other active worker then the coordinator would
                 // incorrectly terminate marking because the numbers of workers
                 // marking wouldn't have been updated.
-                _Py_atomic_fetch_add(&par_gc->num_workers_marking, num_workers_to_wake_up);
+                atomic_fetch_add(&par_gc->num_workers_marking, num_workers_to_wake_up);
                 Ci_Sema_Post(&par_gc->steal_sema, num_workers_to_wake_up);
             }
             return;
@@ -1898,10 +1899,10 @@ Ci_ParGCWorker_MarkReachable(Ci_ParGCWorker *worker)
         } else {
             // Wait until the coordinator wakes us up
             CI_DLOG("Waiting for coordinator");
-            _Py_atomic_fetch_sub(&worker->par_gc->num_workers_marking, 1);
+            atomic_fetch_sub(&worker->par_gc->num_workers_marking, 1);
             Ci_Sema_Wait(&worker->par_gc->steal_sema);
         }
-    } while (_Py_atomic_load(&worker->par_gc->num_workers_marking));
+    } while (atomic_load(&worker->par_gc->num_workers_marking));
 }
 
 static
@@ -1909,7 +1910,7 @@ void Ci_ParGCWorker_Run(Ci_ParGCWorker *worker)
 {
     Ci_ParGCState *par_gc = worker->par_gc;
 
-    _Py_atomic_fetch_add(&par_gc->num_workers_active, 1);
+    atomic_fetch_add(&par_gc->num_workers_active, 1);
     CI_DLOG("Worker started");
 
     // Subtract outgoing references from all GC objects in the generation
@@ -1928,7 +1929,7 @@ void Ci_ParGCWorker_Run(Ci_ParGCWorker *worker)
     // Notify main thread that work is complete
     CI_DLOG("Worker done");
     Ci_Barrier_Wait(&par_gc->done_barrier);
-    _Py_atomic_fetch_sub(&par_gc->num_workers_active, 1);
+    atomic_fetch_sub(&par_gc->num_workers_active, 1);
 }
 
 static void
@@ -2010,7 +2011,7 @@ Ci_ParGCState_New(size_t min_gen, size_t num_threads)
     par_gc->min_gen = min_gen;
 
     Ci_Barrier_Init(&par_gc->mark_barrier, num_threads);
-    _Py_atomic_store(&par_gc->num_workers_marking, 0);
+    atomic_store(&par_gc->num_workers_marking, 0);
 
     MUTEX_INIT(par_gc->steal_coord_lock);
     par_gc->steal_coordinator = NULL;
@@ -2018,7 +2019,7 @@ Ci_ParGCState_New(size_t min_gen, size_t num_threads)
 
     // All worker threads + the main thread
     Ci_Barrier_Init(&par_gc->done_barrier, num_threads + 1);
-    _Py_atomic_store(&par_gc->num_workers_active, 0);
+    atomic_store(&par_gc->num_workers_active, 0);
 
     par_gc->num_workers = num_threads;
     for (size_t i = 0; i < num_threads; i++) {
@@ -2054,7 +2055,7 @@ Ci_ParGCState_Destroy(Ci_ParGCState *par_gc)
     // be performed once we reach this point, we can be sure that all workers
     // no longer need access to any shared state once
     // `par_gc->num_workers_active` reaches zero.
-    while (_Py_atomic_load(&par_gc->num_workers_active)) {
+    while (atomic_load(&par_gc->num_workers_active)) {
         Ci_cpu_pause();
     }
 
@@ -2265,7 +2266,7 @@ Ci_deduce_unreachable_parallel(Ci_ParGCState *par_gc, PyGC_Head *base, PyGC_Head
 
     CI_DLOG("Starting parallel collection of %d objects", num_objects);
 
-    _Py_atomic_store(&par_gc->num_workers_marking, par_gc->num_workers);
+    atomic_store(&par_gc->num_workers_marking, par_gc->num_workers);
     Ci_assign_worker_slices(par_gc->workers, par_gc->num_workers, base, num_objects);
     Ci_ParGCWorker *workers = par_gc->workers;
     for (size_t i = 0; i < par_gc->num_workers; i++) {

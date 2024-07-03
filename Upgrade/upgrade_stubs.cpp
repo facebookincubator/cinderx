@@ -81,11 +81,6 @@ STUB(PyObject*, Ci_StaticFunction_Vectorcall, PyObject *func, PyObject* const* s
 STUB(PyObject*, Ci_PyFunction_CallStatic, PyFunctionObject *func, PyObject* const* args, Py_ssize_t nargsf, PyObject *kwnames)
 STUB(PyObject*, _PyObject_CallNoArg, PyObject* func)
 
-STUB(void, _Py_atomic_fetch_add, _Py_atomic_int *, int)
-STUB(void, _Py_atomic_fetch_sub, _Py_atomic_int *, int)
-STUB(void, _Py_atomic_fetch_sub_relaxed, _Py_atomic_address *, int)
-
-
 /*
  * From checkd_dict.h
  */

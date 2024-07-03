@@ -4,12 +4,9 @@
 #include <Python.h>
 #if PY_VERSION_HEX >= 0x030C0000
 
-#include "pycore_atomic.h"
-
 #include <stdint.h>
 
 #include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
-
 
 #ifdef __cplusplus
 extern "C" {
@@ -70,12 +67,6 @@ Ci_PyGCImpl* Ci_PyGC_GetImpl(struct _gc_runtime_state *gc_state);
  * generation.
  */
 void Ci_PyGC_ClearFreeLists(PyInterpreterState *interp);
-
-// See macros in pycore_atomic.h
-void _Py_atomic_fetch_add(_Py_atomic_int *, int);
-void _Py_atomic_fetch_sub(_Py_atomic_int *, int);
-void _Py_atomic_fetch_sub_relaxed(_Py_atomic_address *, int);
-
 
 /*
  * Generators
