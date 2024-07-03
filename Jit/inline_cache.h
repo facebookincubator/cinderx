@@ -6,7 +6,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/StaticPython/typed-args-info.h"
 
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"

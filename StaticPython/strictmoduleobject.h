@@ -4,7 +4,8 @@
 #ifndef Ci_MODULEOBJECT_H
 #define Ci_MODULEOBJECT_H
 
-#include "moduleobject.h"
+#include <Python.h>
+
 #include "internal/pycore_moduleobject.h"
 
 #ifdef __cplusplus

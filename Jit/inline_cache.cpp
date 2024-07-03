@@ -7,7 +7,6 @@
 #include "cinderx/Common/watchers.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
-#include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/containers.h"
 
 #include <algorithm>
@@ -19,6 +18,7 @@
 #include "Objects/dict-common.h"
 #endif
 #include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 #include "internal/pycore_pystate.h"
 #include "internal/pycore_object.h"

@@ -17,7 +17,6 @@
 
 #include "internal/pycore_pystate.h"
 
-
 namespace jit {
 
 template <typename... Args>

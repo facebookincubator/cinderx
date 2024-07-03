@@ -2,11 +2,12 @@
 #ifndef Ci_CLASSLOADER_H
 #define Ci_CLASSLOADER_H
 
+#include <Python.h>
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/hooks.h"
 #endif
-#include "internal/pycore_moduleobject.h"
 
 #include "cinderx/Common/extra-py-flags.h"
 
@@ -14,9 +15,8 @@
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/type.h"
+#include "cinderx/StaticPython/typed-args-info.h"
 #include "cinderx/StaticPython/vtable.h"
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #ifdef __cplusplus
 extern "C" {
@@ -301,20 +301,6 @@ void _PyClassloader_Clear_DlOpen_Cache(void);
 void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name);
 
 int _PyClassLoader_AddSubclass(PyTypeObject* base, PyTypeObject* type);
-
-typedef struct {
-  int tai_primitive_type;
-  PyTypeObject* tai_type;
-  int tai_argnum;
-  int tai_optional;
-  int tai_exact;
-} _PyTypedArgInfo;
-
-typedef struct {
-  PyObject_VAR_HEAD _PyTypedArgInfo tai_args[1];
-} _PyTypedArgsInfo;
-
-extern PyTypeObject _PyTypedArgsInfo_Type;
 
 _PyTypedArgsInfo* _PyClassLoader_GetTypedArgsInfo(
     PyCodeObject* code,

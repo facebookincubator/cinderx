@@ -28,6 +28,7 @@
 #include <vector>
 
 #include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 namespace jit {
 

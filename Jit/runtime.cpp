@@ -6,6 +6,7 @@
 #include "internal/pycore_interp.h"
 
 #include "cinderx/Jit/type_deopt_patchers.h"
+#include "cinderx/StaticPython/classloader.h"
 
 #include <sys/mman.h>
 
