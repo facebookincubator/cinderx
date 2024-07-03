@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-strict
 import ast
 import dis
 from io import StringIO
