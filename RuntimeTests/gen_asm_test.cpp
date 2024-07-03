@@ -1334,23 +1334,24 @@ TEST_F(ASMGeneratorTest, GetLength) {
   auto varnames = Ref<>::steal(PyTuple_Pack(1, param.get()));
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto empty_string = Ref<>::steal(PyBytes_FromString(""));
-#if PY_VERSION_HEX < 0x030C0000
-  auto code = Ref<PyCodeObject>::steal(PyCode_New(
+  auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
       /*argcount=*/1,
-      0,
+      /*kwargcount=*/0,
       /*nlocals=*/1,
-      0,
-      0,
+      /*stacksize=*/0,
+      /*flags=*/0,
       bytecode,
       consts,
-      empty_tuple,
+      /*names=*/empty_tuple,
       varnames,
-      empty_tuple,
-      empty_tuple,
+      /*freevars=*/empty_tuple,
+      /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      0,
-      empty_string));
+      /*qualname=*/nullptr,
+      /*firstlineno=*/0,
+      /*linetable=*/empty_string,
+      /*exceptiontable=*/nullptr));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
@@ -1366,9 +1367,6 @@ TEST_F(ASMGeneratorTest, GetLength) {
   auto args = std::to_array({arg.get()});
   auto result = Ref<>::steal(compiled->invoke(func, args.data(), args.size()));
   EXPECT_TRUE(isIntEquals(result, 3));
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-#endif
 }
 
 class NewASMGeneratorTest : public RuntimeTest {
