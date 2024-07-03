@@ -9,8 +9,7 @@
 #include "cinderx/Interpreter/opcode.h"
 
 #include "cinderx/Jit/bytecode.h"
-#include "cinderx/Jit/codegen/gen_asm.h"
-#include "cinderx/Jit/hir/optimization.h"
+#include "cinderx/Jit/runtime.h"
 
 #include <utility>
 

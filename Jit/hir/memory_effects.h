@@ -5,8 +5,6 @@
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/hir/alias_class.h"
 
-#include <iosfwd>
-
 namespace jit::hir {
 
 class Instr;

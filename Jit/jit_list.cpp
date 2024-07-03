@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/jit_list.h"
 
-#include "cinderx/Common/util.h"
-
 #include <cstring>
 #include <fstream>
 #include <string>

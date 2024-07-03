@@ -2,11 +2,9 @@
 
 #include "cinderx/Jit/runtime_support.h"
 
-#include <Python.h>
 #include "cinderx/Common/log.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 #include "internal/pycore_pyerrors.h"
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 namespace jit {
 
