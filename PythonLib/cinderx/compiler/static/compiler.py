@@ -400,6 +400,7 @@ class Compiler:
                 ),
                 "set_type_static": self.type_env.DYNAMIC,
                 "native": self.type_env.native_decorator,
+                "mixin": self.type_env.function.exact_type(),
             },
         )
 
