@@ -267,6 +267,7 @@ uint64_t _PyDict_NotifyEvent(PyDict_WatchEvent event,
                     PyObject *key,
                     PyObject *value);
 PyObject** Ci_PyObject_GetDictPtrAtOffset(PyObject *obj, Py_ssize_t dictoffset);
+PyObject* _PyDict_GetItem_Unicode(PyObject *op, PyObject *key);
 PyObject* _PyDict_GetItem_UnicodeExact(PyObject *op, PyObject *key);
 PyDictKeysObject *_PyDict_MakeKeysShared(PyObject *op);
 int PyDict_NextKeepLazy(PyObject *op, Py_ssize_t *ppos, PyObject **pkey, PyObject **pvalue);

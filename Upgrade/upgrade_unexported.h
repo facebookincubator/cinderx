@@ -31,6 +31,8 @@ PyObject* _PyTuple_FromArray(PyObject *const *, Py_ssize_t);
 // pycore_typeobject.h
 static_builtin_state* _PyStaticType_GetState(PyInterpreterState *, PyTypeObject *);
 
+// pycore_unionobject.h
+PyObject *_Py_union_type_or(PyObject *, PyObject *);
 
 #ifdef __cplusplus
 } // extern "C"
