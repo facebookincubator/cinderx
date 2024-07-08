@@ -19,6 +19,7 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -829,9 +830,9 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
     if (!(PyType_HasFeature(next, Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED))) {
       continue;
     }
-    assert(next->tp_dict != NULL);
+    assert(_PyType_GetDict(next) != NULL);
     slots_with_default =
-        PyDict_GetItemString(next->tp_dict, "__slots_with_default__");
+        PyDict_GetItemString(_PyType_GetDict(next), "__slots_with_default__");
     break;
   }
 #else
@@ -851,15 +852,16 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
         type->tp_name);
     return -1;
   }
+  PyObject* tp_dict = _PyType_GetDict(type);
   PyObject* type_slots =
-      PyDict_GetItemString(type->tp_dict, "__slots_with_default__");
+      PyDict_GetItemString(tp_dict, "__slots_with_default__");
   if (type_slots == NULL) {
-    type_slots = type->tp_dict;
+    type_slots = tp_dict;
   }
   Py_ssize_t i = 0;
   PyObject *name, *default_value;
   while (PyDict_Next(slots_with_default, &i, &name, &default_value)) {
-    PyObject* override = PyDict_GetItem(type->tp_dict, name);
+    PyObject* override = PyDict_GetItem(tp_dict, name);
     if (override != NULL && Py_TYPE(override)->tp_descr_get != NULL) {
       // If the subclass overrides the base slot with a descriptor, just leave
       // it be.
@@ -884,7 +886,7 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
         (_PyTypedDescriptorWithDefaultValue*)typed_descriptor;
     PyObject* new_typed_descriptor = _PyTypedDescriptorWithDefaultValue_New(
         td->td_name, td->td_type, td->td_offset, default_value);
-    PyDict_SetItem(type->tp_dict, name, new_typed_descriptor);
+    PyDict_SetItem(tp_dict, name, new_typed_descriptor);
     Py_DECREF(new_typed_descriptor);
   }
   return 0;
@@ -897,7 +899,7 @@ static PyObject* init_subclass(PyObject* self, PyObject* type) {
   }
   // Validate that no Static Python final methods are overridden.
   PyTypeObject* typ = (PyTypeObject*)type;
-  if (_PyClassLoader_IsFinalMethodOverridden(typ->tp_base, typ->tp_dict)) {
+  if (_PyClassLoader_IsFinalMethodOverridden(typ->tp_base, _PyType_GetDict(typ))) {
     return NULL;
   }
   if (create_overridden_slot_descriptors_with_default(typ) < 0) {
@@ -972,7 +974,7 @@ PyObject* get_sortable_slot(
       goto error;
     }
 
-    slot = _PyDict_GetItem_UnicodeExact(type->tp_dict, name);
+    slot = _PyDict_GetItem_UnicodeExact(_PyType_GetDict(type), name);
     if (slot == NULL) {
       PyErr_SetString(PyExc_RuntimeError, "missing slot\n");
       goto error;
@@ -1015,7 +1017,7 @@ static int type_new_descriptors(
     int leaked_type) {
   PyHeapTypeObject* et = (PyHeapTypeObject*)type;
   Py_ssize_t slotoffset = type->tp_base->tp_basicsize;
-  PyObject* dict = type->tp_dict;
+  PyObject* dict = _PyType_GetDict(type);
   int needs_gc = (type->tp_base->tp_flags & Py_TPFLAGS_HAVE_GC) !=
       0; /* non-primitive fields require GC */
 
@@ -1184,7 +1186,7 @@ int init_static_type(PyObject* obj, int leaked_type) {
 
   _Py_IDENTIFIER(__slot_types__);
   PyObject* slot_types =
-      _PyDict_GetItemIdWithError(type->tp_dict, &PyId___slot_types__);
+      _PyDict_GetItemIdWithError(_PyType_GetDict(type), &PyId___slot_types__);
   if (PyErr_Occurred()) {
     return -1;
   }
@@ -1245,7 +1247,7 @@ int init_static_type(PyObject* obj, int leaked_type) {
     }
   }
 
-  if (_PyClassLoader_IsFinalMethodOverridden(type->tp_base, type->tp_dict)) {
+  if (_PyClassLoader_IsFinalMethodOverridden(type->tp_base, _PyType_GetDict(type))) {
     return -1;
   }
 
@@ -1315,7 +1317,7 @@ static int init_cached_properties(
           Py_TYPE(impl_name)->tp_name);
       return -1;
     }
-    PyObject* impl = PyDict_GetItem(type->tp_dict, impl_name);
+    PyObject* impl = PyDict_GetItem(_PyType_GetDict(type), impl_name);
     if (impl == NULL) {
       PyErr_Format(
           PyExc_TypeError, "cached property impl doesn't exist: %R", impl_name);
@@ -1330,7 +1332,7 @@ static int init_cached_properties(
       char attr_name[strlen(name) - strlen(async_prefix) + 1];
       strcpy(attr_name, name + strlen(async_prefix));
       attr = PyUnicode_FromString(attr_name);
-      PyObject* descr = PyDict_GetItem(type->tp_dict, attr);
+      PyObject* descr = PyDict_GetItem(_PyType_GetDict(type), attr);
       if (descr == NULL) {
         PyErr_Format(
             PyExc_TypeError,
@@ -1349,7 +1351,7 @@ static int init_cached_properties(
       char attr_name[strlen(name) - strlen(normal_prefix) + 1];
       strcpy(attr_name, name + strlen(normal_prefix));
       attr = PyUnicode_FromString(attr_name);
-      PyObject* descr = PyDict_GetItem(type->tp_dict, attr);
+      PyObject* descr = PyDict_GetItem(_PyType_GetDict(type), attr);
       if (descr == NULL) {
         PyErr_Format(
             PyExc_TypeError,

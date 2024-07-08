@@ -3,6 +3,7 @@
 #include "cinderx/Jit/inline_cache.h"
 
 #include <Python.h>
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
@@ -542,7 +543,7 @@ PyObject* __attribute__((noinline))
 StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
   BorrowedRef<PyTypeObject> tp(Py_TYPE(obj));
 
-  if (tp->tp_dict == nullptr && PyType_Ready(tp) < 0) {
+  if (_PyType_GetDict(tp) == nullptr && PyType_Ready(tp) < 0) {
     return nullptr;
   } else if (tp->tp_setattro != PyObject_GenericSetAttr) {
     int st = PyObject_SetAttr(obj, name, value);
@@ -607,7 +608,7 @@ LoadAttrCache::invokeSlowPath(PyObject* obj, PyObject* name) {
   if (tp->tp_getattro != PyObject_GenericGetAttr) {
     return PyObject_GetAttr(obj, name);
   }
-  if (tp->tp_dict == nullptr) {
+  if (_PyType_GetDict(tp) == nullptr) {
     if (PyType_Ready(tp) < 0) {
       return nullptr;
     }
@@ -676,7 +677,7 @@ PyObject* LoadTypeAttrCache::doInvoke(PyObject* obj, PyObject* name) {
   }
 
   PyTypeObject* type = reinterpret_cast<PyTypeObject*>(obj);
-  if (type->tp_dict == nullptr) {
+  if (_PyType_GetDict(type) == nullptr) {
     if (PyType_Ready(type) < 0) {
       return nullptr;
     }
@@ -867,7 +868,7 @@ LoadMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
       return {Py_None, res};
     }
     return {nullptr, nullptr};
-  } else if (tp->tp_dict == nullptr && PyType_Ready(tp) < 0) {
+  } else if (_PyType_GetDict(tp) == nullptr && PyType_Ready(tp) < 0) {
     return {nullptr, nullptr};
   }
 
@@ -1004,7 +1005,7 @@ JITRT_LoadMethodResult LoadTypeMethodCache::lookup(
     Py_INCREF(Py_None);
     return {Py_None, res};
   }
-  if (obj->tp_dict == nullptr) {
+  if (_PyType_GetDict(obj) == nullptr) {
     if (PyType_Ready(obj) < 0) {
       return {nullptr, nullptr};
     }

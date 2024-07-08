@@ -1,5 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/generic_type.h"
 
 #include "pycore_unionobject.h" // _PyUnion_Type
@@ -403,7 +404,7 @@ _PyClassLoader_GtdGetItem(_PyGenericTypeDef *type, PyObject *args)
         Py_DECREF(res);
         return NULL;
     }
-    if (_PyDict_SetItemId(((PyTypeObject *)res)->tp_dict, &PyId___module__, mod) == -1) {
+    if (_PyDict_SetItemId(_PyType_GetDict(((PyTypeObject *)res)), &PyId___module__, mod) == -1) {
         Py_DECREF(mod);
         Py_DECREF(res);
         return NULL;  // return NULL on errors

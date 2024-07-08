@@ -358,7 +358,8 @@ static void init_already_existing_funcs() {
 static int override_tp_getset(PyTypeObject *type, PyGetSetDef *tp_getset) {
   type->tp_getset = tp_getset;
   PyGetSetDef *gsp = type->tp_getset;
-  PyObject *dict = type->tp_dict;
+  PyObject *dict = _PyType_GetDict(type);
+  JIT_DCHECK(dict, "Type missing dict: {}", type->tp_name);
   for (; gsp->name != nullptr; gsp++) {
       PyObject *descr = PyDescr_NewGetSet(type, gsp);
       if (descr == nullptr) {

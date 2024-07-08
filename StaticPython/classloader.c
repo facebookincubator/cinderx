@@ -2002,7 +2002,7 @@ static void _PyClassLoader_UpdateDerivedSlot(
       }
 
       PyTypeObject* subtype = (PyTypeObject*)ref;
-      PyObject* override = PyDict_GetItem(subtype->tp_dict, name);
+      PyObject* override = PyDict_GetItem(_PyType_GetDict(subtype), name);
       if (override != NULL) {
         /* subtype overrides the value */
         continue;
@@ -2373,7 +2373,7 @@ int get_func_or_special_callable(
     PyTypeObject* type,
     PyObject* name,
     PyObject** result) {
-  PyObject* dict = type->tp_dict;
+  PyObject* dict = _PyType_GetDict(type);
   if (PyTuple_CheckExact(name)) {
     if (classloader_is_property_tuple((PyTupleObject*)name)) {
       _PyType_VTable* vtable = (_PyType_VTable*)type->tp_cache;
@@ -2444,7 +2444,7 @@ int _PyClassLoader_GetStaticallyInheritedMember(
       Py_INCREF(base);
       *result = base;
       return 0;
-    } else if (next->tp_dict == NULL) {
+    } else if (_PyType_GetDict(next) == NULL) {
       continue;
     } else if (get_func_or_special_callable(next, name, &base)) {
       return -1;
@@ -2756,10 +2756,11 @@ int _PyClassLoader_UpdateSlot(
 
     for (Py_ssize_t i = 1; i < PyTuple_GET_SIZE(mro); i++) {
       PyTypeObject* next = (PyTypeObject*)PyTuple_GET_ITEM(type->tp_mro, i);
-      if (next->tp_dict == NULL) {
+      PyObject* next_dict = _PyType_GetDict(next);
+      if (next_dict == NULL) {
         continue;
       }
-      new_value = PyDict_GetItem(next->tp_dict, name);
+      new_value = PyDict_GetItem(next_dict, name);
       if (new_value != NULL) {
         break;
       }
@@ -3237,7 +3238,7 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
   /* Add indexes for anything that is new in our class */
   int slot_index = PyDict_Size(slotmap);
   i = 0;
-  while (PyDict_Next(self->tp_dict, &i, &key, &value)) {
+  while (PyDict_Next(_PyType_GetDict(self), &i, &key, &value)) {
     if (PyDict_GetItem(slotmap, key) || !used_in_vtable(value)) {
       /* we either share the same slot, or this isn't a static function,
        * so it doesn't need a slot */
@@ -3368,7 +3369,7 @@ _PyType_VTable* _PyClassLoader_EnsureVtable(
   }
 
   if (slotmap == NULL) {
-    slotmap = _PyDict_NewPresized(PyDict_Size(self->tp_dict));
+    slotmap = _PyDict_NewPresized(PyDict_Size(_PyType_GetDict(self)));
   }
 
   if (slotmap == NULL) {
@@ -3585,7 +3586,7 @@ static PyObject* classloader_get_member(
     } else if (PyModule_CheckExact(cur)) {
       d = PyModule_GetDict(cur);
     } else if (PyType_Check(cur)) {
-      d = ((PyTypeObject*)cur)->tp_dict;
+      d = _PyType_GetDict(((PyTypeObject*)cur));
     }
 
     if (containerkey != NULL) {

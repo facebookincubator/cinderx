@@ -6,6 +6,7 @@
 #include "cinderx/Common/util.h"
 
 #include "cinderx/Common/code.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 
@@ -169,9 +170,9 @@ Ref<> stringAsUnicode(std::string_view str) {
 }
 
 std::string typeFullname(PyTypeObject* type) {
-  PyObject* module_str = type->tp_dict
-      ? PyDict_GetItemString(type->tp_dict, "__module__")
-      : nullptr;
+  PyObject* dict = _PyType_GetDict(type);
+  PyObject* module_str =
+      dict ? PyDict_GetItemString(dict, "__module__") : nullptr;
   if (module_str != nullptr && PyUnicode_Check(module_str)) {
     return fmt::format("{}:{}", unicodeAsString(module_str), type->tp_name);
   }
@@ -192,7 +193,7 @@ BorrowedRef<> typeLookupSafe(
     BorrowedRef<PyTypeObject> base_ty{PyTuple_GET_ITEM(mro, i)};
 #if PY_VERSION_HEX < 0x030C0000
     if (!PyType_HasFeature(base_ty, Py_TPFLAGS_READY) ||
-        _PyDict_HasUnsafeKeys(base_ty->tp_dict)) {
+        _PyDict_HasUnsafeKeys(_PyType_GetDict(base_ty))) {
       // Abort the whole search if any base class dict is poorly-behaved
       // (before we find the name); it could contain the key we're looking for.
       return nullptr;
@@ -200,7 +201,7 @@ BorrowedRef<> typeLookupSafe(
 #else
         UPGRADE_ASSERT(CHANGED_PYDICT)
 #endif
-    if (BorrowedRef<> value{PyDict_GetItemWithError(base_ty->tp_dict, name)}) {
+    if (BorrowedRef<> value{PyDict_GetItemWithError(_PyType_GetDict(base_ty), name)}) {
       return value;
     }
     JIT_CHECK(!PyErr_Occurred(), "Thread-unsafe exception during type lookup");

@@ -4,6 +4,7 @@
 #include "pycore_interp.h"        // PyInterpreterState.list
 #include "pycore_object.h"        // _PyObject_GC_TRACK()
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_list.h"
 
@@ -3150,7 +3151,7 @@ static PyObject *chklist_cls_getitem(_PyGenericTypeDef *type, PyObject *args) {
         Py_DECREF(item);
         return NULL;
     }
-    if (_PyDict_SetItemId(new_type->tp_dict, &PyId___module__, module_name) == -1) {
+    if (_PyDict_SetItemId(_PyType_GetDict(new_type), &PyId___module__, module_name) == -1) {
         Py_DECREF(item);
         item = NULL;  // return NULL on errors
     }
