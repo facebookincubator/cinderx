@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 
 #include <Python.h>
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "internal/pycore_interp.h"
@@ -191,18 +192,15 @@ class RuntimeTest : public ::testing::Test {
   }
 
   bool AddModuleWithBuiltins(BorrowedRef<> module, BorrowedRef<> globals) {
-#if PY_VERSION_HEX < 0x030C0000
+
     // Look up the builtins module to mimic real code, rather than using its
     // dict.
-    auto modules = PyThreadState_Get()->interp->modules;
+    auto modules = CI_INTERP_IMPORT_FIELD(PyInterpreterState_Get(), modules);
     auto builtins = PyDict_GetItemString(modules, "builtins");
     if (PyDict_SetItemString(globals, "__builtins__", builtins) != 0 ||
         PyDict_SetItemString(modules, JIT_TEST_MOD_NAME, module) != 0) {
       return true;
     }
-#else
-    UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
-#endif
     return false;
   }
 

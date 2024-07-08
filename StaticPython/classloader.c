@@ -15,6 +15,7 @@
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #include "cinderx/CachedProperties/cached_properties.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -3533,12 +3534,7 @@ static PyObject* classloader_get_member(
     PyObject** container,
     PyObject** containerkey) {
   PyThreadState* tstate = PyThreadState_GET();
-#if PY_VERSION_HEX < 0x030C0000
-  PyObject* cur = tstate->interp->modules;
-#else
-  UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
-  PyObject* cur = NULL;
-#endif
+  PyObject* cur = CI_INTERP_IMPORT_FIELD(tstate->interp, modules);
 
   if (cur == NULL) {
     PyErr_Format(
@@ -3617,8 +3613,7 @@ static PyObject* classloader_get_member(
       Py_XINCREF(next);
     }
 
-#if PY_VERSION_HEX < 0x030C0000
-    if (next == NULL && d == tstate->interp->modules) {
+    if (next == NULL && d == CI_INTERP_IMPORT_FIELD(tstate->interp, modules)) {
       /* import module in case it's not available in sys.modules */
       PyObject* mod =
           PyImport_ImportModuleLevelObject(name, NULL, NULL, NULL, 0);
@@ -3635,10 +3630,6 @@ static PyObject* classloader_get_member(
       next = (PyObject*)&_PyNone_Type;
       Py_INCREF(next);
     }
-#else
-    UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
-#endif
-
     if (next == NULL) {
       PyErr_Format(
           CiExc_StaticTypeError,
@@ -4691,12 +4682,7 @@ int _PyClassLoader_HasPrimitiveArgs(PyCodeObject* code) {
 
 int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyObject* key) {
   PyThreadState* tstate = PyThreadState_GET();
-#if PY_VERSION_HEX < 0x030C0000
-  PyObject* modules_dict = tstate->interp->modules;
-#else
-  UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
-  PyObject* modules_dict = NULL;
-#endif
+  PyObject* modules_dict = CI_INTERP_IMPORT_FIELD(tstate->interp, modules);
   if (((PyObject*)dict) != modules_dict) {
     return 0;
   }

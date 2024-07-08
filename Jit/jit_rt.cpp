@@ -7,6 +7,7 @@
 #include "pycore_shadow_frame.h"
 #endif
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -1263,9 +1264,8 @@ PyObject* JITRT_ImportName(
     return nullptr;
   }
 
-#if PY_VERSION_HEX < 0x030C0000
   /* Fast path for not overloaded __import__. */
-  if (import_func == tstate->interp->import_func) {
+  if (import_func == CI_INTERP_IMPORT_FIELD(tstate->interp, import_func)) {
     int ilevel = _PyLong_AsInt(level);
     if (ilevel == -1 && _PyErr_Occurred(tstate)) {
       return nullptr;
@@ -1279,10 +1279,7 @@ PyObject* JITRT_ImportName(
         fromlist,
         ilevel);
     return res;
-  }
-#else
-  UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
-#endif
+  }  
 
   Py_INCREF(import_func);
 

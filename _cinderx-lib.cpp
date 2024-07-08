@@ -13,6 +13,7 @@
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/_cinderx-lib.h"
 #include "cinderx/CachedProperties/cached_properties.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/entry.h"
@@ -789,14 +790,12 @@ static struct PyModuleDef _cinderx_module = {
 };
 
 PyObject* _cinderx_lib_init() {
-#if PY_VERSION_HEX < 0x030C0000
-  if ((_PyInterpreterState_GET()->dlopenflags & RTLD_GLOBAL) == 0) {
+  int dlopenflags =
+      CI_INTERP_IMPORT_FIELD(PyInterpreterState_Get(), dlopenflags);
+  if ((dlopenflags & RTLD_GLOBAL) == 0) {
     PyErr_SetString(PyExc_ImportError, "Do not import _cinderx directly. Use cinderx instead.");
     return nullptr;
   }
-#else
-  UPGRADE_ASSERT(MISSING_DLOPENFLAGS)
-#endif
 
   CiExc_StaticTypeError =
       PyErr_NewException("cinderx.StaticTypeError", PyExc_TypeError, nullptr);

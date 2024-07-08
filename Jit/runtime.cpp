@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/runtime.h"
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
 #include "internal/pycore_interp.h"
 
@@ -43,12 +44,7 @@ void Builtins::init() {
   // modules which can be mutated.  First find builtins, which we have
   // to do a search for because PyEval_GetBuiltins() returns the
   // module dict.
-#if PY_VERSION_HEX < 0x030C0000
-  PyObject* mods = _PyInterpreterState_GET()->modules_by_index;
-#else
-  UPGRADE_ASSERT(MISSING_INTERP_MOD_FIELDS)
-  PyObject* mods = nullptr;
-#endif
+  PyObject* mods = CI_INTERP_IMPORT_FIELD(_PyInterpreterState_GET(), modules_by_index);
   PyModuleDef* builtins = nullptr;
   for (Py_ssize_t i = 0; i < PyList_GET_SIZE(mods); i++) {
     PyObject* cur = PyList_GET_ITEM(mods, i);
