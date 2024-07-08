@@ -2787,17 +2787,13 @@ void start_instr(ProfileEnv& env, int bcoff_raw) {
   int lineno_raw = env.code->co_linetable != nullptr
       ? PyCode_Addr2Line(env.code, bcoff_raw)
       : -1;
-#if PY_VERSION_HEX < 0x030C0000
-  int opcode =
-      _Py_OPCODE(PyBytes_AS_STRING(PyCode_GetCode(env.code))[bcoff_raw]);
+  BytecodeInstruction bc_instr{env.code, BCOffset{bcoff_raw}};
+  int opcode = bc_instr.opcode();
   JIT_CHECK(opcode != 0, "Invalid opcode at offset {}", bcoff_raw);
   env.bc_offset = Ref<>::steal(check(PyLong_FromLong(bcoff_raw)));
   env.lineno = Ref<>::steal(check(PyLong_FromLong(lineno_raw)));
   env.opname.reset(s_opnames.at(opcode));
   JIT_CHECK(env.opname != nullptr, "No opname for op {}", opcode);
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-#endif
 }
 
 void append_item(

@@ -432,7 +432,7 @@ Ci_EvalFrame(PyThreadState *tstate, PyFrameObject *f, int throwflag)
         global_cache = shadow.shadow->globals;
         first_instr = &shadow.shadow->code[0];
     } else {
-        first_instr = (_Py_CODEUNIT *)PyBytes_AS_STRING(PyCode_GetCode(co));
+        first_instr = codeUnit(co);
     }
     /* facebook end t39538061 */
 

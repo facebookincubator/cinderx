@@ -5,6 +5,7 @@
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include "cinderx/Jit/bytecode_offsets.h"
 
@@ -12,8 +13,6 @@
 
 #include <iterator>
 #include <unordered_set>
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 namespace jit {
 
@@ -24,6 +23,9 @@ extern const std::unordered_set<int> kBlockTerminatorOpcodes;
 // A structured, immutable representation of a CPython bytecode
 class BytecodeInstruction {
  public:
+  BytecodeInstruction(PyCodeObject* code, BCIndex idx)
+      : BytecodeInstruction{codeUnit(code), idx} {}
+
   BytecodeInstruction(_Py_CODEUNIT* instrs, BCIndex idx) : offset_(idx) {
     _Py_CODEUNIT word = instrs[idx.value()];
     opcode_ = _Py_OPCODE(word);
@@ -120,20 +122,11 @@ class BytecodeInstruction {
 // they will not appear in the stream of `BytecodeInstruction`s.
 class BytecodeInstructionBlock {
  public:
-#if PY_VERSION_HEX < 0x030C0000
   explicit BytecodeInstructionBlock(PyCodeObject* code)
-      : instrs_((_Py_CODEUNIT*)PyBytes_AS_STRING(PyCode_GetCode(code))),
-        start_idx_(0),
-        end_idx_(PyBytes_Size(PyCode_GetCode(code)) / sizeof(_Py_CODEUNIT)) {}
-#else
-  explicit BytecodeInstructionBlock(PyCodeObject* code) {
-    UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-    UPGRADE_ASSERT(PYCODEUNIT_NOT_AN_INT)
-  }
-#endif
+      : instrs_{codeUnit(code)}, start_idx_{0}, end_idx_{countInstrs(code)} {}
 
   BytecodeInstructionBlock(_Py_CODEUNIT* instrs, BCIndex start, BCIndex end)
-      : instrs_(instrs), start_idx_(start), end_idx_(end) {}
+      : instrs_{instrs}, start_idx_{start}, end_idx_{end} {}
 
   class Iterator {
    public:

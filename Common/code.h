@@ -72,6 +72,12 @@ static inline PyCodeObject* PyUnstable_Code_New(
 
 #endif
 
+// Get the internal _Py_CODEUNIT buffer from a code object.
+_Py_CODEUNIT* codeUnit(PyCodeObject* code);
+
+// Count the number of bytecode instructions in a code object.
+size_t countInstrs(PyCodeObject* code);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

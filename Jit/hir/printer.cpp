@@ -831,10 +831,10 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
 
 static int lastLineNumber(PyCodeObject* code) {
   int last_line = -1;
-  auto end =
-      PyBytes_Size(PyCode_GetCode(code)) / (Py_ssize_t)sizeof(_Py_CODEUNIT);
-  for (Py_ssize_t off = 0; off < end; off += sizeof(_Py_CODEUNIT)) {
-    last_line = std::max(last_line, PyCode_Addr2Line(code, off));
+  BytecodeInstructionBlock bc_block{code};
+  for (const BytecodeInstruction& bc_instr : bc_block) {
+    BCOffset bc_off = bc_instr.offset();
+    last_line = std::max(last_line, PyCode_Addr2Line(code, bc_off.value()));
   }
   return last_line;
 }
