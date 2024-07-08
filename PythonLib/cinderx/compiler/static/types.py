@@ -8538,6 +8538,10 @@ class ArrayClass(GenericClass):
         assert isinstance(cls, CType)
         return cls
 
+    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+        super().emit_call(node, code_gen)
+        code_gen.emit("REFINE_TYPE", self.type_descr)
+
     def make_generic_type(
         self,
         index: tuple[Class, ...],
