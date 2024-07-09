@@ -586,6 +586,17 @@ Type outputType(
       }
       return TLongExact;
     }
+    case Opcode::kLongInPlaceOp: {
+      auto& inplaceop = static_cast<const LongInPlaceOp&>(instr);
+      if (inplaceop.op() == InPlaceOpKind::kTrueDivide) {
+        return TFloatExact;
+      }
+      if (inplaceop.op() == InPlaceOpKind::kPower) {
+        // Will be floating-point for negative exponents.
+        return TFloatExact | TLongExact;
+      }
+      return TLongExact;
+    }
     case Opcode::kLongCompare:
     case Opcode::kUnicodeCompare:
       return TBool;

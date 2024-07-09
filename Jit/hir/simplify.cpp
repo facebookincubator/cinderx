@@ -668,6 +668,36 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
   return nullptr;
 }
 
+Register* simplifyInPlaceOp(Env& env, const InPlaceOp* instr) {
+  Register* lhs = instr->left();
+  Register* rhs = instr->right();
+  if (lhs->isA(TLongExact) && rhs->isA(TLongExact)) {
+    // All binary ops on TLong's return mutable so can be freely simplified with
+    // no explicit check.
+    switch (instr->op()) {
+      case InPlaceOpKind::kAdd:
+      case InPlaceOpKind::kAnd:
+      case InPlaceOpKind::kFloorDivide:
+      case InPlaceOpKind::kLShift:
+      case InPlaceOpKind::kModulo:
+      case InPlaceOpKind::kMultiply:
+      case InPlaceOpKind::kOr:
+      case InPlaceOpKind::kRShift:
+      case InPlaceOpKind::kSubtract:
+      case InPlaceOpKind::kXor:
+      case InPlaceOpKind::kPower:
+      case InPlaceOpKind::kTrueDivide:
+        env.emit<UseType>(lhs, TLongExact);
+        env.emit<UseType>(rhs, TLongExact);
+        return env.emit<LongInPlaceOp>(instr->op(), lhs, rhs, *instr->frameState());
+      case InPlaceOpKind::kMatrixMultiply:
+        // These will generate an error at runtime.
+        break;
+    }
+  }
+  return nullptr;
+}
+
 Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
   Type left_type = instr->left()->type();
   Type right_type = instr->right()->type();
@@ -1401,6 +1431,8 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
     case Opcode::kBinaryOp:
       return simplifyBinaryOp(env, static_cast<const BinaryOp*>(instr));
+    case Opcode::kInPlaceOp:
+      return simplifyInPlaceOp(env, static_cast<const InPlaceOp*>(instr));
     case Opcode::kLongBinaryOp:
       return simplifyLongBinaryOp(env, static_cast<const LongBinaryOp*>(instr));
     case Opcode::kUnaryOp:

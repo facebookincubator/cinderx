@@ -124,6 +124,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kLoadTypeMethodCacheEntryValue:
     case Opcode::kLoadVarObjectSize:
     case Opcode::kLongBinaryOp:
+    case Opcode::kLongInPlaceOp:
     case Opcode::kLongCompare:
     case Opcode::kMakeCell:
     case Opcode::kMakeCheckedDict:

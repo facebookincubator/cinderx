@@ -140,6 +140,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadMethodSuper:
     case Opcode::kLongBinaryOp:
+    case Opcode::kLongInPlaceOp:
     case Opcode::kMatchClass:
     case Opcode::kMatchKeys:
     case Opcode::kUnaryOp:

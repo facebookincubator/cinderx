@@ -2135,6 +2135,63 @@ class INSTR_CLASS(
   BinaryOpKind op_;
 };
 
+const std::array<binaryfunc, kNumInPlaceOpKinds> kLongInPlaceOpSlotMethods = {
+    // These don't use "nb_inplace" versions because those don't exist and we
+    // fallback to the non-inplace versions
+    PyLong_Type.tp_as_number->nb_add,
+    PyLong_Type.tp_as_number->nb_and,
+    PyLong_Type.tp_as_number->nb_floor_divide,
+    PyLong_Type.tp_as_number->nb_lshift,
+    nullptr, // unsupported: matrix multiply
+    PyLong_Type.tp_as_number->nb_remainder,
+    PyLong_Type.tp_as_number->nb_multiply,
+    PyLong_Type.tp_as_number->nb_or,
+    0, // power is ternary and handled specially
+    PyLong_Type.tp_as_number->nb_rshift,
+    PyLong_Type.tp_as_number->nb_subtract,
+    PyLong_Type.tp_as_number->nb_true_divide,
+    PyLong_Type.tp_as_number->nb_xor,
+};
+
+class INSTR_CLASS(
+    LongInPlaceOp,
+    (TLongExact, TLongExact),
+    HasOutput,
+    Operands<2>,
+    DeoptBase) {
+ public:
+  LongInPlaceOp(
+      Register* dst,
+      InPlaceOpKind op,
+      Register* left,
+      Register* right,
+      const FrameState& frame)
+      : InstrT(dst, left, right, frame), op_(op) {}
+
+  InPlaceOpKind op() const {
+    return op_;
+  }
+
+  binaryfunc slotMethod() const {
+    auto op_kind = static_cast<unsigned long>(op());
+    JIT_CHECK(op_kind < kLongInPlaceOpSlotMethods.size(), "unsupported binop");
+    binaryfunc helper = kLongInPlaceOpSlotMethods[op_kind];
+    JIT_DCHECK(helper != nullptr, "unsupported slot method");
+    return helper;
+  }
+
+  Register* left() const {
+    return GetOperand(0);
+  }
+
+  Register* right() const {
+    return GetOperand(1);
+  }
+
+ private:
+  InPlaceOpKind op_;
+};
+
 // Like Compare but has an Int32 output so it can be used to replace
 // a Compare + IsTruthy.
 class INSTR_CLASS(

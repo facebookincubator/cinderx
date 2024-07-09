@@ -1464,6 +1464,24 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         }
         break;
       }
+      case Opcode::kLongInPlaceOp: {
+        auto instr = static_cast<const LongInPlaceOp*>(&i);
+        if (instr->op() == InPlaceOpKind::kPower) {
+          bbb.appendCallInstruction(
+              instr->output(),
+              PyLong_Type.tp_as_number->nb_power,
+              instr->left(),
+              instr->right(),
+              Py_None);
+        } else {
+          bbb.appendCallInstruction(
+              instr->output(),
+              instr->slotMethod(),
+              instr->left(),
+              instr->right());
+        }
+        break;
+      }
       case Opcode::kUnaryOp: {
         auto unary_op = static_cast<const UnaryOp*>(&i);
 

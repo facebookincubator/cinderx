@@ -108,6 +108,7 @@ namespace jit::hir {
   V(LoadVarObjectSize)                 \
   V(LongCompare)                       \
   V(LongBinaryOp)                      \
+  V(LongInPlaceOp)                     \
   V(MakeCheckedDict)                   \
   V(MakeCheckedList)                   \
   V(MakeCell)                          \
