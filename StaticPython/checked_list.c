@@ -1847,6 +1847,9 @@ unsafe_latin_compare(PyObject *v, PyObject *w, MergeState *ms)
 }
 
 /* Bounded int compare: compare any two longs that fit in a single machine word. */
+
+#if PY_VERSION_HEX < 0x030C0000
+
 static int
 unsafe_long_compare(PyObject *v, PyObject *w, MergeState *ms)
 {
@@ -1861,12 +1864,8 @@ unsafe_long_compare(PyObject *v, PyObject *w, MergeState *ms)
     vl = (PyLongObject*)v;
     wl = (PyLongObject*)w;
 
-#if PY_VERSION_HEX < 0x030C0000
     v0 = Py_SIZE(vl) == 0 ? 0 : (sdigit)vl->ob_digit[0];
     w0 = Py_SIZE(wl) == 0 ? 0 : (sdigit)wl->ob_digit[0];
-#else
-    UPGRADE_ASSERT(PYLONG_DATA_CHANGED)
-#endif
     if (Py_SIZE(vl) < 0)
         v0 = -v0;
     if (Py_SIZE(wl) < 0)
@@ -1876,6 +1875,34 @@ unsafe_long_compare(PyObject *v, PyObject *w, MergeState *ms)
     assert(res == PyObject_RichCompareBool(v, w, Py_LT));
     return res;
 }
+
+#else
+
+static int
+unsafe_long_compare(PyObject *v, PyObject *w, MergeState *ms)
+{
+    PyLongObject *vl, *wl;
+    intptr_t v0, w0;
+    int res;
+
+    /* Modified from Objects/longobject.c:long_compare, assuming: */
+    assert(Py_IS_TYPE(v, &PyLong_Type));
+    assert(Py_IS_TYPE(w, &PyLong_Type));
+    assert(_PyLong_IsCompact((PyLongObject *)v));
+    assert(_PyLong_IsCompact((PyLongObject *)w));
+
+    vl = (PyLongObject*)v;
+    wl = (PyLongObject*)w;
+
+    v0 = _PyLong_CompactValue(vl);
+    w0 = _PyLong_CompactValue(wl);
+
+    res = v0 < w0;
+    assert(res == PyObject_RichCompareBool(v, w, Py_LT));
+    return res;
+}
+
+#endif
 
 /* Float compare: compare any two floats. */
 static int
