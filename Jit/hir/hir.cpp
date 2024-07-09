@@ -919,13 +919,14 @@ Py_ssize_t Function::numVars() const {
     // code might be null if we parsed from textual ir
     return 0;
   }
-#if PY_VERSION_HEX < 0x030C0000
+  // 3.11 added a convenient way of counting locals + free + cell vars, but
+  // otherwise we can compute it manually.
+#if PY_VERSION_HEX >= 0x030B0000
+  return code->co_nlocalsplus;
+#else
   Py_ssize_t num_cellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   Py_ssize_t num_freevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code));
   return code->co_nlocals + num_cellvars + num_freevars;
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-  return 0;
 #endif
 }
 
