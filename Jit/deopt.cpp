@@ -227,7 +227,6 @@ static void reifyFrameImpl(
   reifyBlockStack(frame, frame_meta.block_stack);
   // Generator/frame linkage happens in `materializePyFrame` in frame.cpp
 #else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
   UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
 #endif
 }

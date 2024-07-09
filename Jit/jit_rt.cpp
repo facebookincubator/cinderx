@@ -567,8 +567,6 @@ static PyFrameObject* allocateFrame(
   if (code->co_mutable->co_zombieframe != nullptr) {
     __builtin_prefetch(code->co_mutable->co_zombieframe);
   }
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
 #endif
   PyFrameConstructor frame_ctor = {};
   frame_ctor.fc_globals = globals;
