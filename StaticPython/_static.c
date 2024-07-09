@@ -181,7 +181,6 @@ set_type_code(PyObject* mod, PyObject* const* args, Py_ssize_t nargs) {
 }
 
 PyObject* is_type_static(PyObject* mod, PyObject* type) {
-#if PY_VERSION_HEX < 0x030C0000
   PyTypeObject* pytype;
   if (!PyType_Check(type)) {
     Py_RETURN_FALSE;
@@ -190,9 +189,6 @@ PyObject* is_type_static(PyObject* mod, PyObject* type) {
   if (pytype->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) {
     Py_RETURN_TRUE;
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   Py_RETURN_FALSE;
 }
 
@@ -204,11 +200,7 @@ PyObject* set_type_static(PyObject* mod, PyObject* type) {
         Py_TYPE(type)->tp_name);
     return NULL;
   }
-#if PY_VERSION_HEX < 0x030C0000
   ((PyTypeObject*)type)->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   Py_INCREF(type);
   return type;
 }
@@ -221,11 +213,7 @@ PyObject* set_type_static_final(PyObject* mod, PyObject* type) {
         Py_TYPE(type)->tp_name);
     return NULL;
   }
-#if PY_VERSION_HEX < 0x030C0000
   ((PyTypeObject*)type)->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   ((PyTypeObject*)type)->tp_flags &= ~Py_TPFLAGS_BASETYPE;
   Py_INCREF(type);
   return type;
@@ -824,7 +812,6 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
 
   PyObject* slots_with_default = NULL;
   PyTypeObject* next;
-#if PY_VERSION_HEX < 0x030C0000
   for (Py_ssize_t i = 1; i < mro_size; i++) {
     next = (PyTypeObject*)PyTuple_GET_ITEM(mro, i);
     if (!(PyType_HasFeature(next, Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED))) {
@@ -835,10 +822,6 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
         PyDict_GetItemString(_PyType_GetDict(next), "__slots_with_default__");
     break;
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-  next = NULL;
-#endif
   if (slots_with_default == NULL) {
     // Any class built before `__build_class__` is patched won't have a
     // slots_with_default. In order to support bootstrapping, silently allow
@@ -1255,7 +1238,6 @@ int init_static_type(PyObject* obj, int leaked_type) {
 }
 
 static int validate_base_types(PyTypeObject* pytype) {
-#if PY_VERSION_HEX < 0x030C0000
   /* Inheriting a non-static type which inherits a static type is not sound, and
    * we can only catch it at runtime. The compiler can't see the static base
    * through the nonstatic type (which is opaque to it) and thus a) can't verify
@@ -1281,9 +1263,6 @@ static int validate_base_types(PyTypeObject* pytype) {
       nonstatic_base = next;
     }
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   return 0;
 }
 
@@ -1499,11 +1478,7 @@ static PyObject* _static___build_cinder_class__(
     Py_CLEAR(((PyTypeObject*)type)->tp_cache);
     had_type_cache = 1;
   }
-#if PY_VERSION_HEX < 0x030C0000
   pytype->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   if (final) {
     pytype->tp_flags &= ~Py_TPFLAGS_BASETYPE;
   }

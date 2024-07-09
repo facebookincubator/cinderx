@@ -15,6 +15,7 @@
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #include "cinderx/CachedProperties/cached_properties.h"
+#include "cinderx/Common/extra-py-flags.h"  // @donotremove
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/pyjit.h"
@@ -2150,13 +2151,9 @@ int get_func_or_special_callable(
     PyObject** result);
 
 int _PyClassLoader_InitTypeForPatching(PyTypeObject* type) {
-#if PY_VERSION_HEX < 0x030C0000
   if (!(type->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED)) {
     return 0;
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   _PyType_VTable* vtable = (_PyType_VTable*)type->tp_cache;
   if (vtable != NULL && vtable->vt_original != NULL) {
     return 0;
@@ -2517,7 +2514,6 @@ update_thunk(_Py_StaticThunk* thunk, PyObject* previous, PyObject* new_value) {
    if it exists.
  */
 static PyObject* get_final_method_names(PyTypeObject* type) {
-#if PY_VERSION_HEX < 0x030C0000
   PyObject* mro = type->tp_mro;
   if (mro == NULL) {
     return NULL;
@@ -2538,9 +2534,6 @@ static PyObject* get_final_method_names(PyTypeObject* type) {
       return final_method_names;
     }
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   return NULL;
 }
 
@@ -3283,14 +3276,10 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
 }
 
 int is_static_type(PyTypeObject* type) {
-#if PY_VERSION_HEX < 0x030C0000
   return (type->tp_flags &
           (Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED |
            Ci_Py_TPFLAGS_GENERIC_TYPE_INST)) ||
       !(type->tp_flags & Py_TPFLAGS_HEAPTYPE);
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
 }
 
 /**
