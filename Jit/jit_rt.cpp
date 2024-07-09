@@ -1,12 +1,10 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+
 #include <Python.h>
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#include "Objects/dict-common.h"
-#include "pycore_shadow_frame.h"
-#endif
 #include "cinderx/Common/log.h"
+// Needs to come after `log.h` due to atomic / stdatomic ordering
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
@@ -29,6 +27,10 @@
 #include "internal/pycore_object.h"
 #include "pycore_tuple.h"
 // clang-format on
+#if PY_VERSION_HEX < 0x030C0000
+#include "cinder/exports.h"
+#include "pycore_shadow_frame.h"
+#endif
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove

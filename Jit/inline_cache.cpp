@@ -3,6 +3,7 @@
 #include "cinderx/Jit/inline_cache.h"
 
 #include <Python.h>
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
@@ -16,7 +17,6 @@
 // clang-format off
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
-#include "Objects/dict-common.h"
 #endif
 #include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
@@ -137,7 +137,6 @@ void maybeCollectCacheStats(
 
 PyObject*
 SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-#if PY_VERSION_HEX < 0x030C0000
   PyDictObject* dict = get_or_allocate_dict(obj, dict_offset);
   if (dict == nullptr) {
     return nullptr;
@@ -146,8 +145,8 @@ SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   PyObject* result = Py_None;
   if ((dict->ma_keys == keys) &&
       ((dict->ma_used == val_offset) ||
-       (dict->ma_values[val_offset] != nullptr))) {
-    PyObject* old_value = dict->ma_values[val_offset];
+       (DICT_VALUES(dict)[val_offset] != nullptr))) {
+    PyObject* old_value = DICT_VALUES(dict)[val_offset];
 
     if (!_PyObject_GC_IS_TRACKED(dictobj)) {
       if (_PyObject_GC_MAY_BE_TRACKED(value)) {
@@ -159,7 +158,7 @@ SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
         _PyDict_NotifyEvent(PyDict_EVENT_MODIFIED, dict, name, value);
 
     Py_INCREF(value);
-    dict->ma_values[val_offset] = value;
+    DICT_VALUES(dict)[val_offset] = value;
     dict->ma_version_tag = new_version;
 
     if (old_value == nullptr) {
@@ -175,10 +174,6 @@ SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
     Py_DECREF(dictobj);
   }
   return result;
-#else
-  UPGRADE_ASSERT(CHANGED_PYDICT)
-  return nullptr;
-#endif
 }
 
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
@@ -188,11 +183,7 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   }
   PyObject* result = nullptr;
   if (dict->ma_keys == keys) {
-#if PY_VERSION_HEX < 0x030C0000
-    result = dict->ma_values[val_offset];
-#else
-  UPGRADE_ASSERT(CHANGED_PYDICT)
-#endif
+    result = DICT_VALUES(dict)[val_offset];
   } else {
     auto dictobj = reinterpret_cast<PyObject*>(dict);
     Py_INCREF(dictobj);
@@ -953,7 +944,7 @@ void LoadMethodCache::fill(
     return;
   }
 #else
-  UPGRADE_ASSERT(CHANGED_PYDICT)
+  UPGRADE_ASSERT(CHANGED_NO_SHADOWING_INSTANCES)
 #endif
 
   for (auto& entry : entries_) {
@@ -1166,7 +1157,7 @@ void LoadTypeMethodCache::fill(
     return;
   }
 #else
-  UPGRADE_ASSERT(CHANGED_PYDICT)
+  UPGRADE_ASSERT(CHANGED_NO_SHADOWING_INSTANCES)
 #endif
   ltm_watcher.unwatch(this->type, this);
   this->type = type;

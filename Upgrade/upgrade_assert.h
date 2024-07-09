@@ -25,9 +25,6 @@ enum {
   // Missing f_code, f_lasti, f_gen, f_stackdepth, f_valuestack
   // No longer a frame on PyThreadState. T194018580
   CHANGED_PYFRAMEOBJECT,
-  // Objects/dict-common.h is no longer available so by default PyDictValues is
-  // now an opaque type. T194021668
-  CHANGED_PYDICT,
   // No _jit_data field on generators. T194022335
   GENERATOR_JIT_SUPPORT,  
   SHADOW_FRAMES, // T194018580  

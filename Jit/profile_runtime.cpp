@@ -3,6 +3,7 @@
 #include "cinderx/Jit/profile_runtime.h"
 
 #include <Python.h>
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Interpreter/opcode.h"
 #include "frameobject.h"
@@ -16,9 +17,6 @@
 #include <istream>
 #include <ostream>
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "Objects/dict-common.h"
-#endif
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 
@@ -388,12 +386,7 @@ int ProfileRuntime::numCachedKeys(BorrowedRef<PyTypeObject> type) const {
   if (ht->ht_cached_keys == nullptr) {
     return 0;
   }
-#if PY_VERSION_HEX < 0x030C0000
   return ht->ht_cached_keys->dk_nentries;
-#else
-  UPGRADE_ASSERT(CHANGED_PYDICT)
-  return 0;
-#endif
 }
 
 void ProfileRuntime::enumerateCachedKeys(
@@ -406,12 +399,12 @@ void ProfileRuntime::enumerateCachedKeys(
   BorrowedRef<PyHeapTypeObject> ht(type);
 #if PY_VERSION_HEX < 0x030C0000
   PyDictKeyEntry* entries = _PyDictKeys_GetEntries(ht->ht_cached_keys);
+#else
+  PyDictUnicodeEntry* entries = DK_UNICODE_ENTRIES(ht->ht_cached_keys);
+#endif
   for (Py_ssize_t i = 0; i < num_keys; ++i) {
     callback(entries[i].me_key);
   }
-#else
-  UPGRADE_ASSERT(CHANGED_PYDICT)
-#endif
 }
 
 void ProfileRuntime::registerType(BorrowedRef<PyTypeObject> type) {

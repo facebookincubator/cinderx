@@ -6,6 +6,7 @@
 #include "cinderx/Common/util.h"
 
 #include "cinderx/Common/code.h"
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
@@ -191,16 +192,16 @@ BorrowedRef<> typeLookupSafe(
   BorrowedRef<PyTupleObject> mro{type->tp_mro};
   for (size_t i = 0, n = PyTuple_GET_SIZE(mro); i < n; ++i) {
     BorrowedRef<PyTypeObject> base_ty{PyTuple_GET_ITEM(mro, i)};
-#if PY_VERSION_HEX < 0x030C0000
     if (!PyType_HasFeature(base_ty, Py_TPFLAGS_READY) ||
+#if PY_VERSION_HEX < 0x030C0000
         _PyDict_HasUnsafeKeys(_PyType_GetDict(base_ty))) {
+#else
+        ((PyDictObject *)base_ty->tp_dict)->ma_keys->dk_kind == DICT_KEYS_GENERAL) {
+#endif
       // Abort the whole search if any base class dict is poorly-behaved
       // (before we find the name); it could contain the key we're looking for.
       return nullptr;
     }
-#else
-        UPGRADE_ASSERT(CHANGED_PYDICT)
-#endif
     if (BorrowedRef<> value{PyDict_GetItemWithError(_PyType_GetDict(base_ty), name)}) {
       return value;
     }
