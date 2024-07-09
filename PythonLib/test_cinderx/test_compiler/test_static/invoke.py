@@ -879,6 +879,22 @@ class InvokeTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), 4)
+	
+    def test_invoke_method_takes_2_primitives(self):
+        codestr = """
+            from __static__ import cbool, box
+
+            class C:
+                def __init__(self, x: cbool, y: cbool) -> None:
+                    self.x: cbool = x
+                    self.y: cbool = y
+
+            def f():
+                c = C(True, False)
+                return (box(c.x), box(c.y))
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.f(), (True, False))
 
     def test_cannot_use_keyword_for_posonly_arg(self):
         codestr = """

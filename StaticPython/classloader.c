@@ -351,10 +351,10 @@ static int hydrate_args(
     }
 
     if (cur_arg < Py_SIZE(typed_arg_info) &&
-        typed_arg_info[cur_arg].tai_args[cur_arg].tai_argnum == i) {
+        typed_arg_info->tai_args[cur_arg].tai_argnum == i) {
       call_args[i] = _PyClassLoader_Box(
           (uint64_t)original,
-          typed_arg_info[cur_arg].tai_args[cur_arg].tai_primitive_type);
+          typed_arg_info->tai_args[cur_arg].tai_primitive_type);
       if (call_args[i] == NULL) {
         for (Py_ssize_t free_arg = 0; free_arg < i; free_arg++) {
           Py_CLEAR(free_args[free_arg]);
