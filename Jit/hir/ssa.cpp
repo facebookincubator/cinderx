@@ -380,9 +380,69 @@ Type outputType(
       return TObject;
     }
 
+    case Opcode::kInPlaceOp: {
+      auto& op = static_cast<const InPlaceOp&>(instr);
+      if (op.left()->type() <= TLongExact && op.right()->type() <= TLongExact) {
+        switch(op.op()) {
+          case InPlaceOpKind::kAdd:
+          case InPlaceOpKind::kAnd:
+          case InPlaceOpKind::kFloorDivide:
+          case InPlaceOpKind::kLShift:
+          case InPlaceOpKind::kModulo:
+          case InPlaceOpKind::kMultiply:
+          case InPlaceOpKind::kOr:
+          case InPlaceOpKind::kRShift:
+          case InPlaceOpKind::kSubtract:
+          case InPlaceOpKind::kXor:
+            return TLongExact;
+          case InPlaceOpKind::kMatrixMultiply:
+            // Will be an error at runtime
+            return TObject;
+          case InPlaceOpKind::kPower:
+            // Will be floating-point for negative exponents.
+            return TLongExact | TFloatExact;
+          case InPlaceOpKind::kTrueDivide:
+            return TFloatExact;
+        }
+      }
+      return TObject;
+    }
+
+    case Opcode::kBinaryOp: {
+      auto& op = static_cast<const BinaryOp&>(instr);
+      if (op.left()->type() <= TLongExact && op.right()->type() <= TLongExact) {
+        switch (op.op()) {
+          case BinaryOpKind::kAdd:
+          case BinaryOpKind::kAnd:
+          case BinaryOpKind::kFloorDivide:
+          case BinaryOpKind::kFloorDivideUnsigned:
+          case BinaryOpKind::kLShift:
+          case BinaryOpKind::kModulo:
+          case BinaryOpKind::kModuloUnsigned:
+          case BinaryOpKind::kMultiply:
+          case BinaryOpKind::kOr:
+          case BinaryOpKind::kPowerUnsigned:
+          case BinaryOpKind::kRShift:
+          case BinaryOpKind::kRShiftUnsigned:
+          case BinaryOpKind::kSubtract:
+          case BinaryOpKind::kXor:
+            return TLongExact;
+          case BinaryOpKind::kPower:
+            // Will be floating-point for negative exponents.
+            return TLongExact | TFloatExact;
+          case BinaryOpKind::kTrueDivide:
+            return TFloatExact;
+          case BinaryOpKind::kSubscript:
+          case BinaryOpKind::kMatrixMultiply:
+            // Will be an error at runtime
+            return TObject;
+        }
+      }
+      return TObject;
+    }
+
     case Opcode::kCallMethod:
     case Opcode::kDictSubscr:
-    case Opcode::kBinaryOp:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
     case Opcode::kGetAIter:
@@ -390,7 +450,6 @@ Type outputType(
     case Opcode::kGetIter:
     case Opcode::kImportFrom:
     case Opcode::kImportName:
-    case Opcode::kInPlaceOp:
     case Opcode::kInvokeIterNext:
     case Opcode::kInvokeMethod:
     case Opcode::kLoadAttr:

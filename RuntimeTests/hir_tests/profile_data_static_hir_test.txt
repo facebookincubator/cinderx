@@ -67,7 +67,7 @@ fun jittestmodule:test {
     v13:LongExact = GuardType<LongExact> v6 {
       GuiltyReg v6
     }
-    v15:Object = InPlaceOp<Add> v13 v12 {
+    v15:LongExact = InPlaceOp<Add> v13 v12 {
       FrameState {
         NextInstrOffset 12
         Locals<1> v13
