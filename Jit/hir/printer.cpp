@@ -664,7 +664,7 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kRaiseAwaitableError: {
       const auto& ra = static_cast<const RaiseAwaitableError&>(instr);
-      return fmt::format("{}, {}", ra.with_prev_opcode(), ra.with_opcode());
+      return ra.isAEnter() ? "__aenter__" : "__aexit__";
     }
     case Opcode::kRaiseStatic: {
       const auto& pyerr = static_cast<const RaiseStatic&>(instr);

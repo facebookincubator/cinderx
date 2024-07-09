@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/config.h"
@@ -18,6 +18,8 @@
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/jit_time_log.h"
 
+#include <Python.h>
+
 #include <algorithm>
 #include <array>
 #include <functional>
@@ -29,8 +31,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 namespace jit::hir {
 
@@ -2548,59 +2548,19 @@ class INSTR_CLASS(
   _Py_Identifier* id_;
 };
 
-#if PY_VERSION_HEX < 0x030C0000
 // Format and raise an error after failing to get an iterator for 'async with'.
 class INSTR_CLASS(RaiseAwaitableError, (TType), Operands<1>, DeoptBase) {
  public:
-  RaiseAwaitableError(
-      Register* type,
-      _Py_CODEUNIT with_prev_opcode,
-      _Py_CODEUNIT with_opcode,
-      const FrameState& frame)
-      : InstrT(type, frame),
-        with_prev_opcode_(with_prev_opcode),
-        with_opcode_(with_opcode) {}
+  RaiseAwaitableError(Register* type, bool is_aenter, const FrameState& frame)
+      : InstrT{type, frame}, is_aenter_{is_aenter} {}
 
-  _Py_CODEUNIT with_opcode() const {
-    return with_opcode_;
-  }
-
-  _Py_CODEUNIT with_prev_opcode() const {
-    return with_prev_opcode_;
+  bool isAEnter() const {
+    return is_aenter_;
   }
 
  private:
-  const _Py_CODEUNIT with_prev_opcode_;
-  const _Py_CODEUNIT with_opcode_;
+  bool is_aenter_;
 };
-#else
-class INSTR_CLASS(RaiseAwaitableError, (TType), Operands<1>, DeoptBase) {
- public:
-  RaiseAwaitableError(
-      Register* type,
-      int with_prev_opcode,
-      int with_opcode,
-      const FrameState& frame)
-      : InstrT(type, frame),
-        with_prev_opcode_(with_prev_opcode),
-        with_opcode_(with_opcode) {
-    UPGRADE_ASSERT(PYCODEUNIT_NOT_AN_INT);
-  }
-
-  int with_opcode() const {
-    UPGRADE_ASSERT(PYCODEUNIT_NOT_AN_INT);
-    return 0;
-  }
-
-  int with_prev_opcode() const {
-    UPGRADE_ASSERT(PYCODEUNIT_NOT_AN_INT);
-    return 0;
-  }
- private:
-  const int with_prev_opcode_;
-  const int with_opcode_;
-};
-#endif
 
 // Load a guard (index 0) or value (index 1) from a cache specialized for
 // loading attributes from type receivers

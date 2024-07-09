@@ -2,6 +2,7 @@
 
 
 #include <Python.h>
+
 #include "cinderx/Common/log.h"
 // Needs to come after `log.h` due to atomic / stdatomic ordering
 #include "cinderx/Common/dict.h"
@@ -14,10 +15,9 @@
 #include "object.h"
 #include "pystate.h"
 
-#include "cinderx/Jit/jit_rt.h"
-
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/runtime_support.h"
 
@@ -32,8 +32,8 @@
 #include "pycore_shadow_frame.h"
 #endif
 
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/Upgrade/upgrade_unexported.h" // @donotremove
 
 // This is mostly taken from ceval.c _PyEval_EvalCodeWithName
 // We use the same logic to turn **args, nargsf, and kwnames into
@@ -282,7 +282,7 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
     arg_space[i] = *def_items++;
   }
 
-  #if PY_VERSION_HEX < 0x030C0000
+#if PY_VERSION_HEX < 0x030C0000
   return reinterpret_cast<staticvectorcallfuncfp>(
       JITRT_GET_REENTRY(func->vectorcall))(
       (PyObject*)func,
@@ -776,8 +776,8 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
     return Ci_PyVectorcall_Call_WithFlags(
         func, pargs, kwargs, is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
 #else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  return {};
+    UPGRADE_ASSERT(AWAITED_FLAG)
+    return {};
 #endif
   }
   return PyObject_Call(func, pargs, kwargs);
@@ -806,7 +806,6 @@ JITRT_CallFunctionExAwaited(PyObject* func, PyObject* pargs, PyObject* kwargs) {
 template <bool is_awaited>
 static inline PyObject*
 invoke_function(PyObject* func, PyObject** args, Py_ssize_t nargs) {
-
 #if PY_VERSION_HEX < 0x030C0000
   size_t flags = PY_VECTORCALL_ARGUMENTS_OFFSET |
       (is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
@@ -1281,7 +1280,7 @@ PyObject* JITRT_ImportName(
         fromlist,
         ilevel);
     return res;
-  }  
+  }
 
   Py_INCREF(import_func);
 
@@ -1967,4 +1966,19 @@ PyObject* JITRT_CopyDictWithoutKeys(PyObject* subject, PyObject* keys) {
 PyObject* JITRT_LoadName(PyThreadState* tstate, int name_idx) {
   jit::RuntimeFrameState rtfs = jit::runtimeFrameStateFromThreadState(tstate);
   return PyTuple_GET_ITEM(rtfs.code()->co_names, name_idx);
+}
+
+void JITRT_FormatAwaitableError(
+    PyThreadState* tstate,
+    PyTypeObject* type,
+    bool is_aenter) {
+  if (type->tp_as_async != nullptr && type->tp_as_async->am_await != nullptr) {
+    return;
+  }
+  const char* msg = is_aenter
+      ? "'async with' received an object from __aenter__ "
+        "that does not implement __await__: %.100s"
+      : "'async with' received an object from __aexit__ "
+        "that does not implement __await__: %.100s";
+  _PyErr_Format(tstate, PyExc_TypeError, msg, type->tp_name);
 }

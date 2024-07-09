@@ -12,6 +12,7 @@
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "internal/pycore_import.h"
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pyerrors.h"
@@ -19,15 +20,14 @@
 #include "listobject.h"
 #include "pystate.h"
 
-
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/deopt.h"
+#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/inline_cache.h"
-#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/block_builder.h"
 #include "cinderx/Jit/pyjit.h"
@@ -40,8 +40,6 @@
 
 #include <functional>
 #include <sstream>
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 // XXX: this file needs to be revisited when we optimize HIR-to-LIR translation
 // in codegen.cpp/h. Currently, this file is almost an identical copy from
@@ -448,7 +446,9 @@ bool LIRGenerator::TranslateSpecializedCall(
     return _PyVectorcall_Function(callee);
   }();
   if (func == nullptr ||
-      func == reinterpret_cast<vectorcallfunc>(Ci_JIT_lazyJITInitFuncObjectVectorcall)) {
+      func ==
+          reinterpret_cast<vectorcallfunc>(
+              Ci_JIT_lazyJITInitFuncObjectVectorcall)) {
     // Bail if the object doesn't support vectorcall, or if it's a function
     // that hasn't been initialized yet.
     return false;
@@ -1704,18 +1704,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kRaiseAwaitableError: {
-#if PY_VERSION_HEX < 0x030C0000
         const auto& instr = static_cast<const RaiseAwaitableError&>(i);
         bbb.appendInvokeInstruction(
-            Cix_format_awaitable_error,
+            JITRT_FormatAwaitableError,
             env_->asm_tstate,
             instr.GetOperand(0),
-            static_cast<int>(instr.with_prev_opcode()),
-            static_cast<int>(instr.with_opcode()));
+            instr.isAEnter());
         appendGuardAlwaysFail(bbb, instr);
-#else
-        UPGRADE_ASSERT(PYCODEUNIT_NOT_AN_INT)
-#endif
         break;
       }
       case Opcode::kCheckErrOccurred: {

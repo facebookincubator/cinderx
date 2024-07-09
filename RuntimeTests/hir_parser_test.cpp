@@ -52,7 +52,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
               Return v1
             }
             bb 3 {
-              RaiseAwaitableError<53,52> v1
+              RaiseAwaitableError<__aenter__> v1
             }
          })";
 
@@ -241,8 +241,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_EQ(it->opcode(), Opcode::kRaiseAwaitableError);
   auto rae = static_cast<const RaiseAwaitableError*>(&*it);
   ASSERT_EQ(rae->GetOperand(0)->name(), "v1");
-  ASSERT_EQ(rae->with_opcode(), BEFORE_ASYNC_WITH);
-  ASSERT_EQ(rae->with_prev_opcode(), 53);
+  ASSERT_TRUE(rae->isAEnter());
   ++blocks_it;
 
   ASSERT_EQ(blocks_it, blocks_end);

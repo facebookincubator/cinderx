@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/util.h"
 
 #include "cinderx/Jit/bytecode.h"
@@ -11,6 +10,8 @@
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/stack.h"
+
+#include <Python.h>
 
 #include <deque>
 #include <functional>
@@ -361,8 +362,8 @@ class HIRBuilder {
   void emitGetAwaitable(
       CFG& cfg,
       TranslationContext& tc,
-      int prev_prev_op,
-      int prev_op);
+      const BytecodeInstructionBlock& bc_instrs,
+      BCIndex idx);
   void emitUnpackEx(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);

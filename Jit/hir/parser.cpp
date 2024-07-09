@@ -538,12 +538,15 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     instruction = newInstr<UnaryOp>(dst, op, operand);
   } else if (opcode == "RaiseAwaitableError") {
     expect("<");
-    int prev_opcode = GetNextInteger();
-    expect(",");
-    int opcode = GetNextInteger();
+    std::string_view error = GetNextToken();
+    bool is_aenter = error == "__aenter__";
+    JIT_CHECK(
+        is_aenter || error == "__aexit__",
+        "Bad error string for RaiseAwaitableError: {}",
+        error);
     expect(">");
     auto type_reg = ParseRegister();
-    NEW_INSTR(RaiseAwaitableError, type_reg, prev_opcode, opcode, FrameState{});
+    NEW_INSTR(RaiseAwaitableError, type_reg, is_aenter, FrameState{});
   } else if (opcode == "Return") {
     Type type = TObject;
     if (peekNextToken() == "<") {

@@ -2,9 +2,10 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/StaticPython/typed-args-info.h"
 #include "frameobject.h"
+
+#include <Python.h>
 
 #include <array>
 
@@ -577,3 +578,10 @@ PyObject* JITRT_CopyDictWithoutKeys(PyObject* subject, PyObject* keys);
 /* Load a name from a Python thread's code object.
  */
 PyObject* JITRT_LoadName(PyThreadState* tstate, int name_idx);
+
+/* Reimplements the format_awaitable_error() function from the CPython
+ * interpreter loop. */
+void JITRT_FormatAwaitableError(
+    PyThreadState* tstate,
+    PyTypeObject* type,
+    bool is_aenter);

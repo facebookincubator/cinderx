@@ -9,6 +9,7 @@
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/static_array.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "object.h"
 #include "preload.h"
 #include "structmember.h"
@@ -37,8 +38,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 namespace jit::hir {
 
@@ -1224,10 +1223,7 @@ void HIRBuilder::translate(
           break;
         }
         case GET_AWAITABLE: {
-          BCIndex idx = bc_instr.index();
-          int prev_prev_op = idx > 1 ? bc_instrs.at(idx - 2).opcode() : 0;
-          int prev_op = idx != 0 ? bc_instrs.at(idx - 1).opcode() : 0;
-          emitGetAwaitable(irfunc.cfg, tc, prev_prev_op, prev_op);
+          emitGetAwaitable(irfunc.cfg, tc, bc_instrs, bc_instr.index());
           break;
         }
         case BUILD_STRING: {
@@ -1613,13 +1609,15 @@ void HIRBuilder::emitAnyCall(
     tc.block = await_block.block;
 
     ++bc_it;
-    int prev_prev_op = idx > 0 ? bc_instrs.at(idx - 1).opcode() : 0;
-    emitGetAwaitable(cfg, tc, prev_prev_op, bc_instr.opcode());
+    JIT_CHECK(
+        bc_it->opcode() == GET_AWAITABLE,
+        "Awaited function call must be followed by GET_AWAITABLE");
+    emitGetAwaitable(cfg, tc, bc_instrs, bc_it->index());
 
     ++bc_it;
     JIT_CHECK(
         bc_it->opcode() == LOAD_CONST,
-        "GET_AWAITABLE should always be followed by LOAD_CONST");
+        "GET_AWAITABLE must be followed by LOAD_CONST");
     emitLoadConst(tc, *bc_it);
 
     ++bc_it;
@@ -3470,11 +3468,34 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
   stack.push(out);
 }
 
+static std::pair<bool, bool> checkAsyncWithError(
+    const BytecodeInstructionBlock& bc_instrs,
+    BCIndex idx) {
+  bool error_aenter = false;
+  bool error_aexit = false;
+#if PY_VERSION_HEX < 0x030C0000
+  int prev_prev_op = idx > 1 ? bc_instrs.at(idx - 2).opcode() : 0;
+  int prev_op = idx != 0 ? bc_instrs.at(idx - 1).opcode() : 0;
+  if (prev_op == BEFORE_ASYNC_WITH) {
+    error_aenter = true;
+  } else if (
+      prev_op == WITH_EXCEPT_START ||
+      (prev_op == CALL_FUNCTION && prev_prev_op == DUP_TOP)) {
+    error_aexit = true;
+  }
+#else
+  BytecodeInstruction bc_instr = bc_instrs.at(idx);
+  error_aenter = bc_instr.oparg() == 1;
+  error_aexit = bc_instr.oparg() == 2;
+#endif
+  return std::make_pair(error_aenter, error_aexit);
+}
+
 void HIRBuilder::emitGetAwaitable(
     CFG& cfg,
     TranslationContext& tc,
-    int prev_prev_op,
-    int prev_op) {
+    const BytecodeInstructionBlock& bc_instrs,
+    BCIndex idx) {
   OperandStack& stack = tc.frame.stack;
   Register* iterable = stack.pop();
   Register* iter = temps_.AllocateStack();
@@ -3485,8 +3506,9 @@ void HIRBuilder::emitGetAwaitable(
       iter,
       CallCFunc::Func::k_PyCoro_GetAwaitableIter,
       std::vector<Register*>{iterable});
-  if (prev_op == BEFORE_ASYNC_WITH || prev_op == WITH_EXCEPT_START ||
-      (prev_op == CALL_FUNCTION && prev_prev_op == DUP_TOP)) {
+
+  auto [error_aenter, error_aexit] = checkAsyncWithError(bc_instrs, idx);
+  if (error_aenter || error_aexit) {
     BasicBlock* error_block = cfg.AllocateBlock();
     BasicBlock* ok_block = cfg.AllocateBlock();
     tc.emit<CondBranch>(iter, ok_block, error_block);
@@ -3494,7 +3516,7 @@ void HIRBuilder::emitGetAwaitable(
     Register* type = temps_.AllocateStack();
     tc.emit<LoadField>(
         type, iterable, "ob_type", offsetof(PyObject, ob_type), TType);
-    tc.emit<RaiseAwaitableError>(type, prev_prev_op, prev_op, tc.frame);
+    tc.emit<RaiseAwaitableError>(type, error_aenter, tc.frame);
 
     tc.block = ok_block;
     // TODO(T105038867): Remove once we have RefineTypeInsertion
