@@ -32,7 +32,7 @@ from .consts import (
     SC_LOCAL,
 )
 from .optimizer import AstOptimizer
-from .opcodes import NB_OPS
+from .opcodes import NB_OPS, INTRINSIC_1
 from .pyassem import Block, PyFlowGraph
 from .symbols import Scope, SymbolVisitor
 from .unparse import to_expr
@@ -3078,6 +3078,10 @@ class CodeGenerator312(CodeGenerator):
 
         return -1
 
+    @staticmethod
+    def find_intrinsic_1_idx(oparg: str) -> int:
+        return INTRINSIC_1.index(oparg)
+
     _binary_opargs: dict[type, int] = {
         ast.Add: find_op_idx("NB_ADD"),
         ast.Sub: find_op_idx("NB_SUBTRACT"),
@@ -3099,6 +3103,16 @@ class CodeGenerator312(CodeGenerator):
         self.visit(node.right)
         op = self._binary_opargs[type(node.op)]
         self.emit("BINARY_OP", op)
+
+    # unary ops
+
+    def unaryOp(self, node, op):
+        self.visit(node.operand)
+        if op == "UNARY_POSITIVE":
+            self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_UNARY_POSITIVE"))
+        else:
+            self.emit(op)
+
 
     _augmented_opargs = {
         ast.Add: find_op_idx("NB_INPLACE_ADD"),
