@@ -1,4 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include "cinderx/StrictModules/Objects/numerics.h"
 
 #include "cinderx/StrictModules/Objects/callable.h"
@@ -8,7 +10,10 @@
 
 #include <cmath>
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
+#include "pycore_call.h"
 
 #define INT_OP_BOTH_VALUE(lhs, rhs, make, op, py_op)                         \
   do {                                                                       \
@@ -1061,7 +1066,7 @@ std::shared_ptr<BaseStrictObject> StrictFloat::float__round__(
 
   Ref<> result;
   if (ndigit == nullptr || ndigit == NoneObject()) {
-    result.reset(_PyObject_CallNoArg(round.get()));
+    result.reset(_PyObject_CallNoArgs(round.get()));
   } else {
     auto ndigitNum = std::dynamic_pointer_cast<StrictInt>(ndigit);
     if (ndigitNum == nullptr) {

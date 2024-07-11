@@ -13,6 +13,7 @@
 
 #include "cinder/exports.h"
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/classloader.h"
 
@@ -2638,7 +2639,7 @@ chkdict_fromkeys(PyObject *type, PyObject *const *args, Py_ssize_t nargs)
     }
     value = args[1];
 skip_optional:
-    d = _PyObject_CallNoArg(type);
+    d = _PyObject_CallNoArgs(type);
     if (d == NULL)
         return NULL;
 

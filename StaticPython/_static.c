@@ -11,6 +11,7 @@
 #include "import.h"
 #include "methodobject.h"
 #include "object.h"
+#include "pycore_call.h"
 #include "pycore_object.h"
 #include "pycore_tuple.h"
 #include "pyerrors.h"
@@ -350,11 +351,7 @@ static PyObject* ctxmgrwrp_exit(
         return NULL;
       }
 
-      PyObject* call_none = _PyObject_CallNoArg(_return_none);
-      if (call_none == NULL) {
-        return NULL;
-      }
-      return call_none;
+      return _PyObject_CallNoArgs(_return_none);
     }
     Py_RETURN_NONE;
   } else {

@@ -322,8 +322,6 @@ PyObject* Ci_PyFunction_CallStatic(PyFunctionObject *func,
     static _Py_Identifier name;
 
 
-PyObject* _PyObject_CallNoArg(PyObject* func);
-
 #ifdef __cplusplus
 } // extern "C"
 #endif

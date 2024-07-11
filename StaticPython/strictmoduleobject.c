@@ -3,6 +3,7 @@
 /* Module object implementation */
 
 #include <Python.h>
+#include "pycore_call.h"          // _PyObject_CallNoArgs
 #include "pycore_interp.h"        // PyInterpreterState.importlib
 #include "pycore_pystate.h"       // _PyInterpreterState_GET()
 #include "structmember.h"         // PyMemberDef
@@ -278,7 +279,7 @@ strictmodule_dir(PyObject *self, PyObject *args)
         if (PyDict_Check(dict)) {
             PyObject *dirfunc = PyDict_GetItemString(dict, "__dir__");
             if (dirfunc) {
-                result = _PyObject_CallNoArg(dirfunc);
+                result = _PyObject_CallNoArgs(dirfunc);
             }
             else {
                 result = PyDict_Keys(dict);

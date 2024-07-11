@@ -80,7 +80,6 @@ STUB(void, Ci_RuntimeState_SetProfileInterpPeriod, long)
 STUB(PyObject*, _PyObject_GC_Malloc, size_t)
 STUB(PyObject*, Ci_StaticFunction_Vectorcall, PyObject*, PyObject* const*, size_t, PyObject*)
 STUB(PyObject*, Ci_PyFunction_CallStatic, PyFunctionObject*, PyObject* const*, Py_ssize_t, PyObject*)
-STUB(PyObject*, _PyObject_CallNoArg, PyObject*)
 
 /*
  * From checkd_dict.h
