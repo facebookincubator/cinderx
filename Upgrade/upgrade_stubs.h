@@ -262,10 +262,6 @@ PyObject* Cix_meth_get__text_signature__(PyCFunctionObject *m, void *closure);
 int _PyDict_HasUnsafeKeys(PyObject *dict);
 int _PyDict_HasOnlyUnicodeKeys(PyObject *);
 Py_ssize_t _PyDictKeys_GetSplitIndex(PyDictKeysObject *keys, PyObject *key);
-uint64_t _PyDict_NotifyEvent(PyDict_WatchEvent event,
-                    PyDictObject *mp,
-                    PyObject *key,
-                    PyObject *value);
 PyObject** Ci_PyObject_GetDictPtrAtOffset(PyObject *obj, Py_ssize_t dictoffset);
 PyObject* _PyDict_GetItem_Unicode(PyObject *op, PyObject *key);
 PyObject* _PyDict_GetItem_UnicodeExact(PyObject *op, PyObject *key);
@@ -321,6 +317,11 @@ PyObject* Ci_PyFunction_CallStatic(PyFunctionObject *func,
     UPGRADE_ASSERT("_Py_static_string(" #name ", " #str ")") \
     static _Py_Identifier name;
 
+// Ideally this would live in cinderx/Common/dict.h, but it can't right now
+// because that has conflicts when pulled into checked_dict.c
+// (e.g. redefines _dictkeysobject).
+#define _PyDict_NotifyEvent(EVENT, MP, KEY, VAL) \
+  _PyDict_NotifyEvent(_PyInterpreterState_GET(), (EVENT), (MP), (KEY), (VAL))
 
 #ifdef __cplusplus
 } // extern "C"

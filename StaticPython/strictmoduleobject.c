@@ -2,13 +2,15 @@
 
 /* Module object implementation */
 
+#include "cinderx/StaticPython/strictmoduleobject.h"
+
 #include <Python.h>
+
 #include "pycore_call.h"          // _PyObject_CallNoArgs
 #include "pycore_interp.h"        // PyInterpreterState.importlib
 #include "pycore_pystate.h"       // _PyInterpreterState_GET()
 #include "structmember.h"         // PyMemberDef
 #include "cinderx/Common/py-portability.h"
-#include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/classloader.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove

@@ -1,5 +1,9 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
+
+#include "cinderx/StaticPython/classloader.h"
+
 #include <Python.h>
+
 #include "descrobject.h"
 #include "dictobject.h"
 #include "object.h"
@@ -19,7 +23,6 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/pyjit.h"
-#include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
 #include <dlfcn.h>

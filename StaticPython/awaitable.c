@@ -1,10 +1,11 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include "Python.h"
+
+#include "cinderx/StaticPython/awaitable.h"
+
+#include <Python.h>
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
-
-#include "cinderx/StaticPython/awaitable.h"
 
 #include "structmember.h"
 

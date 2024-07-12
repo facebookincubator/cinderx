@@ -1,15 +1,17 @@
 // Portions copyright (c) Meta Platforms, Inc. and affiliates.
+
+#include "cinderx/StaticPython/checked_list.h"
+
 #include <Python.h>
+
 #include "pycore_abstract.h"      // _PyIndex_Check()
 #include "pycore_interp.h"        // PyInterpreterState.list
 #include "pycore_object.h"        // _PyObject_GC_TRACK()
 
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/classloader.h"
-#include "cinderx/StaticPython/checked_list.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-
 
 static inline int
 Ci_List_CheckIncludingChecked(PyObject *op)

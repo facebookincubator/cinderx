@@ -1,7 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/generic_type.h"
+
+#include "cinderx/Common/dict.h"
+#include "cinderx/Common/py-portability.h"
 
 #include "pycore_unionobject.h" // _PyUnion_Type
 #include "pycore_tuple.h" // _PyTuple_FromArray

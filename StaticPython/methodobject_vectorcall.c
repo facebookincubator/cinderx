@@ -1,5 +1,7 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 
+#include "cinderx/StaticPython/methodobject_vectorcall.h"
+
 #include <Python.h>
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/hooks.h"
@@ -8,7 +10,6 @@
 #include "pycore_pystate.h" // _PyThreadState_GET()
 
 #include "cinderx/StaticPython/classloader.h"
-#include "cinderx/StaticPython/methodobject_vectorcall.h"
 
 typedef void *(*call_self_0)(PyObject *self);
 typedef void *(*call_self_1)(PyObject *self, void *);

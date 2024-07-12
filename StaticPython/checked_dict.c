@@ -1,6 +1,9 @@
 // Portions copyright (c) Meta Platforms, Inc. and affiliates.
 // For 3.12 this is totally broken. The public functions from checked_dict.h
 // have been stubbed in upgrade_stubs.cpp.
+
+#include "cinderx/StaticPython/checked_dict.h"
+
 #include <Python.h>
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -14,8 +17,6 @@
 #include "cinder/exports.h"
 
 #include "cinderx/Common/py-portability.h"
-#include "cinderx/StaticPython/checked_dict.h"
-#include "cinderx/StaticPython/classloader.h"
 
 struct _dictkeyentry {
     /* Cached hash code of me_key. */
