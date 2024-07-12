@@ -800,6 +800,19 @@ void initFlagProcessor() {
         "caches");
 
     xarg_flag_processor.addOption(
+        "jit-refine-static-python",
+        "PYTHONJITREFINESTATICPYTHON",
+        [](int val) {
+          if (use_jit) {
+            getMutableConfig().refine_static_python = !!val;
+          } else {
+            warnJITOff("jit-refine-static-python");
+          }
+        },
+        "Add RefineType instructions to coerce Static Python types to be "
+        "valid");
+
+    xarg_flag_processor.addOption(
         "jit-perfmap",
         "JIT_PERFMAP",
         perf::jit_perfmap,

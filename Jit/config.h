@@ -53,6 +53,13 @@ struct Config {
   bool stable_globals{true};
   // Use inline caches for attribute accesses.
   bool attr_caches{true};
+  // Add RefineType instructions for Static Python values before they get
+  // typechecked.  Enabled by default as HIR doesn't pass through Static Python
+  // types very well right now.  Disable to expose new typing opportunities in
+  // HIR.
+  //
+  // TODO(T195042385): Replace this with actual typing.
+  bool refine_static_python{true};
   HIROptimizations hir_opts;
   size_t batch_compile_workers{0};
   // Sizes (in bytes) of the hot and cold code sections. Only applicable if

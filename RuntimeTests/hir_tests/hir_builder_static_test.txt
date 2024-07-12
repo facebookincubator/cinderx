@@ -265,6 +265,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
+    v1 = RefineType<User[C]> v1
     Return<User[C]> v1
   }
 }
@@ -297,6 +298,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
+    v1 = RefineType<{NoneType|User}> v1
     Return<{NoneType|User}> v1
   }
 }
@@ -1029,6 +1031,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
+    v3 = RefineType<Unicode> v3
     Return<Unicode> v3
   }
 }
@@ -1097,6 +1100,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 3) {
     Snapshot
+    v1 = RefineType<Unicode> v1
     Return<Unicode> v1
   }
 }
@@ -1273,6 +1277,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
+    v20 = RefineType<Long> v20
     Return<Long> v20
   }
 }
@@ -1308,6 +1313,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v2 = RefineType<ListExact> v2
+    v2 = RefineType<List> v2
     Return<List> v2
   }
 }
@@ -1325,6 +1331,7 @@ fun jittestmodule:test {
     v1 = LoadConst<CDouble[1.14]>
     v0 = Assign v1
     v2 = LoadConst<NoneType>
+    v2 = RefineType<NoneType> v2
     Return<NoneType> v2
   }
 }
@@ -1419,6 +1426,7 @@ fun jittestmodule:test {
     v10 = LoadField<ob_item@24, CPtr, borrowed> v0
     v11 = LoadArrayItem v10 v9 v0
     Snapshot
+    v11 = RefineType<Long> v11
     Return<Long> v11
   }
 }
@@ -1496,6 +1504,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
+    v12 = RefineType<Long> v12
     Return<Long> v12
   }
 }
@@ -1650,6 +1659,7 @@ fun jittestmodule:test {
     StoreArrayItem v6 v5 v1 v0
     Snapshot
     v8 = LoadConst<NoneType>
+    v8 = RefineType<NoneType> v8
     Return<NoneType> v8
   }
 }

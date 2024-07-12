@@ -41,6 +41,7 @@ fun jittestmodule:test {
         Locals<2> v0 v1
       }
     }
+    v5 = RefineType<Long> v5
     Return<Long> v5
   }
 }

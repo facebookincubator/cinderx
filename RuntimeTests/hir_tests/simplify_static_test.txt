@@ -51,9 +51,9 @@ fun jittestmodule:test {
     Snapshot
     v9:CInt64[64] = LoadConst<CInt64[64]>
     v11:ImmortalLongExact[111] = LoadConst<ImmortalLongExact[111]>
-    v18:CInt64[111] = LoadConst<CInt64[111]>
-    v19:CInt64[0] = LoadConst<CInt64[0]>
-    v15:CBool = PrimitiveCompare<LessThan> v9 v18
+    v20:CInt64[111] = LoadConst<CInt64[111]>
+    v21:CInt64[0] = LoadConst<CInt64[0]>
+    v15:CBool = PrimitiveCompare<LessThan> v9 v20
     Snapshot
     CondBranch<1, 2> v15
   }
@@ -66,8 +66,8 @@ fun jittestmodule:test {
 
   bb 2 (preds 0) {
     Snapshot
-    v17:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return<Bool> v17
+    v18:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return<Bool> v18
   }
 }
 ---

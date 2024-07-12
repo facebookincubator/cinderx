@@ -50,12 +50,12 @@ fun jittestmodule:test {
     UseType<LongExact> v5
     UseType<ImmortalLongExact[1]> v4
     UseType<ImmortalLongExact[2]> v5
-    v21:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v22:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Snapshot
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v21
+    Return v22
   }
 }
 ---
@@ -115,35 +115,35 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: bool'
     }
     Snapshot
-    v20:Type = LoadField<ob_type@8, Type, borrowed> v3
-    v21:CBool = PrimitiveCompare<Equal> v20 v17
-    CondBranch<4, 5> v21
+    v21:Type = LoadField<ob_type@8, Type, borrowed> v3
+    v22:CBool = PrimitiveCompare<Equal> v21 v17
+    CondBranch<4, 5> v22
   }
 
   bb 4 (preds 0) {
-    v22:Bool = PrimitiveBoxBool v21
+    v23:Bool = PrimitiveBoxBool v22
     Branch<6>
   }
 
   bb 5 (preds 0) {
-    v23:CInt32 = IsInstance v3 v17 {
+    v24:CInt32 = IsInstance v3 v17 {
       FrameState {
         NextInstrOffset 8
         Locals<1> v3
       }
     }
-    v24:CInt32[1] = LoadConst<CInt32[1]>
-    v25:CBool = PrimitiveCompare<Equal> v23 v24
-    v26:Bool = PrimitiveBoxBool v25
+    v25:CInt32[1] = LoadConst<CInt32[1]>
+    v26:CBool = PrimitiveCompare<Equal> v24 v25
+    v27:Bool = PrimitiveBoxBool v26
     Branch<6>
   }
 
   bb 6 (preds 4, 5) {
-    v27:Bool = Phi<4, 5> v22 v26
+    v28:Bool = Phi<4, 5> v23 v27
     Snapshot
     EndInlinedFunction
     Snapshot
-    Return v27
+    Return v28
   }
 }
 ---

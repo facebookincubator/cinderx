@@ -1047,11 +1047,15 @@ void HIRBuilder::translate(
           break;
         }
         case RETURN_VALUE: {
-          Register* reg = tc.frame.stack.pop();
           JIT_CHECK(
               tc.frame.block_stack.isEmpty(),
               "Returning with non-empty block stack");
-          tc.emit<Return>(reg, preloader_.returnType());
+          Register* reg = tc.frame.stack.pop();
+          Type ret_type = preloader_.returnType();
+          if (getConfig().refine_static_python && ret_type < TObject) {
+            tc.emit<RefineType>(reg, ret_type, reg);
+          }
+          tc.emit<Return>(reg, ret_type);
           break;
         }
         case ROT_N: {
@@ -1914,7 +1918,7 @@ void HIRBuilder::fixStaticReturn(
   if (boxed_ret <= TPrimitive) {
     boxed_ret = boxed_ret.asBoxed();
   }
-  if (boxed_ret < TObject) {
+  if (getConfig().refine_static_python && boxed_ret < TObject) {
     tc.emit<RefineType>(ret_val, boxed_ret, ret_val);
   }
 
