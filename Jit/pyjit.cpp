@@ -6,8 +6,8 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/genobject_jit.h"
-#include "internal/pycore_shadow_frame.h"
 #include "internal/pycore_ceval.h"
+#include "internal/pycore_shadow_frame.h"
 #endif
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
@@ -15,6 +15,7 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/StrictModules/pystrictmodule.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "i386-dis/dis-asm.h"
 #include "pycore_interp.h"
 
@@ -55,8 +56,6 @@
 #include <unordered_set>
 #include <utility>
 
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-
 #define DEFAULT_CODE_SIZE 2 * 1024 * 1024
 
 using namespace jit;
@@ -66,7 +65,7 @@ namespace {
 struct CodeData {
   CodeData(PyObject* m, PyObject* b, PyObject* g) {
     JIT_DCHECK(
-        !g_threaded_compile_context.compileRunning(),
+        !getThreadedCompileContext().compileRunning(),
         "unexpected multithreading");
     module = Ref<>::create(m);
     builtins = Ref<>::create(b);
@@ -889,13 +888,13 @@ _PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
 static void compile_worker_thread() {
   JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
   BorrowedRef<> unit;
-  while ((unit = g_threaded_compile_context.nextUnit()) != nullptr) {
+  while ((unit = getThreadedCompileContext().nextUnit()) != nullptr) {
     g_compile_workers_attempted++;
     _PyJIT_Result res = tryCompilePreloaded(unit);
     if (res == PYJIT_RESULT_RETRY) {
       ThreadedCompileSerialize guard;
       g_compile_workers_retries++;
-      g_threaded_compile_context.retryUnit(unit);
+      getThreadedCompileContext().retryUnit(unit);
     }
     JIT_CHECK(
         res != PYJIT_RESULT_NO_PRELOADER,
@@ -938,7 +937,7 @@ static void multithread_compile_units_preloaded(
   int old_gil_check_enabled = _PyRuntime.gilstate.check_enabled;
   _PyRuntime.gilstate.check_enabled = 0;
 
-  g_threaded_compile_context.startCompile(std::move(units));
+  getThreadedCompileContext().startCompile(std::move(units));
   std::vector<std::thread> worker_threads;
   size_t batch_compile_workers = getConfig().batch_compile_workers;
   JIT_CHECK(batch_compile_workers, "Zero workers for compile");
@@ -956,7 +955,7 @@ static void multithread_compile_units_preloaded(
   }
 
   std::vector<BorrowedRef<>> retry_list{
-      g_threaded_compile_context.endCompile()};
+      getThreadedCompileContext().endCompile()};
   compile_units_preloaded(retry_list);
   _PyRuntime.gilstate.check_enabled = old_gil_check_enabled;
 }
@@ -1119,7 +1118,6 @@ static PyObject* force_compile(PyObject* /* self */, PyObject* func_obj) {
   PyErr_SetString(PyExc_RuntimeError, "Unhandled compilation result");
   return nullptr;
 }
-
 
 static int aot_func_visitor(PyObject* obj, void* arg) {
   constexpr int kGcVisitContinue = 1;
@@ -1976,14 +1974,14 @@ IsolatedPreloaders::IsolatedPreloaders() {
   // we should never be called from within the actual multi-threaded-compile;
   // it's not safe to mess with `jit_preloaders` in that context
   JIT_CHECK(
-      !g_threaded_compile_context.compileRunning(),
+      !getThreadedCompileContext().compileRunning(),
       "cannot preload single func from within multi-threaded compile");
   orig_preloaders_.swap(jit_preloaders);
 }
 
 IsolatedPreloaders::~IsolatedPreloaders() {
   JIT_CHECK(
-      !g_threaded_compile_context.compileRunning(),
+      !getThreadedCompileContext().compileRunning(),
       "cannot preload single func from within multi-threaded compile");
   jit_preloaders.swap(orig_preloaders_);
 }
@@ -2363,7 +2361,7 @@ int _PyJIT_RegisterFunction(PyFunctionObject* func) {
   }
 
   JIT_CHECK(
-      !g_threaded_compile_context.compileRunning(),
+      !getThreadedCompileContext().compileRunning(),
       "Not intended for using during threaded compilation");
   int result = 0;
   if (shouldCompile(func)) {

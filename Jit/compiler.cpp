@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/compiler.h"
 
-#include <Python.h>
 #include "cinderx/Common/log.h"
 
 #include "cinderx/Jit/config.h"
@@ -15,6 +14,7 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/jit_time_log.h"
 
+#include <Python.h>
 #include <nlohmann/json.hpp>
 
 #include <chrono>
@@ -145,7 +145,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     BorrowedRef<PyFunctionObject> func) {
   JIT_CHECK(PyFunction_Check(func), "Expected PyFunctionObject");
   JIT_CHECK(
-      !g_threaded_compile_context.compileRunning(),
+      !getThreadedCompileContext().compileRunning(),
       "multi-thread compile must preload first");
   std::unique_ptr<hir::Preloader> preloader =
       hir::Preloader::makePreloader(func);

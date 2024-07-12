@@ -12,7 +12,6 @@
 
 #include "cinderx/Common/ref.h"
 
-
 namespace jit {
 
 // Threaded-compile state for the whole process.
@@ -110,17 +109,18 @@ class ThreadedCompileContext {
   std::vector<BorrowedRef<>> retry_list_;
 };
 
-extern ThreadedCompileContext g_threaded_compile_context;
+// Get a reference to the global ThreadedCompileContext.
+ThreadedCompileContext& getThreadedCompileContext();
 
 // RAII device for acquiring the global threaded-compile lock.
 class ThreadedCompileSerialize {
  public:
   ThreadedCompileSerialize() {
-    g_threaded_compile_context.lock();
+    getThreadedCompileContext().lock();
   }
 
   ~ThreadedCompileSerialize() {
-    g_threaded_compile_context.unlock();
+    getThreadedCompileContext().unlock();
   }
 };
 

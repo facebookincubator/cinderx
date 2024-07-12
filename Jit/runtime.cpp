@@ -4,16 +4,15 @@
 
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
+#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 #include "internal/pycore_interp.h"
 
 #include "cinderx/Jit/type_deopt_patchers.h"
-#include "cinderx/StaticPython/classloader.h"
 
 #include <sys/mman.h>
 
 #include <memory>
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 namespace jit {
 
@@ -44,7 +43,8 @@ void Builtins::init() {
   // modules which can be mutated.  First find builtins, which we have
   // to do a search for because PyEval_GetBuiltins() returns the
   // module dict.
-  PyObject* mods = CI_INTERP_IMPORT_FIELD(_PyInterpreterState_GET(), modules_by_index);
+  PyObject* mods =
+      CI_INTERP_IMPORT_FIELD(_PyInterpreterState_GET(), modules_by_index);
   PyModuleDef* builtins = nullptr;
   for (Py_ssize_t i = 0; i < PyList_GET_SIZE(mods); i++) {
     PyObject* cur = PyList_GET_ITEM(mods, i);
@@ -192,7 +192,7 @@ std::size_t Runtime::addDeoptMetadata(DeoptMetadata&& deopt_meta) {
 
 DeoptMetadata& Runtime::getDeoptMetadata(std::size_t id) {
   JIT_CHECK(
-      g_threaded_compile_context.canAccessSharedData(),
+      getThreadedCompileContext().canAccessSharedData(),
       "getDeoptMetadata() called in unsafe context");
   return deopt_metadata_[id];
 }
