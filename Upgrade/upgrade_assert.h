@@ -47,7 +47,6 @@ enum {
   // This is a macro and used from C code so a bit tricky to stub.
   MISSING_PyHeapType_GET_MEMBERS, // T194021668
   PROFILING_CHANGED, // T194029734
-  HOW_TO_DETECT_JIT_CODE_RUNNING, // T194018580
   EXPORT_JIT_OFFSETS_FOR_STROBELIGHT, // T192550846
 };
 

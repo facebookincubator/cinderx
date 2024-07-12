@@ -632,8 +632,13 @@ static int cinder_init(PyObject* mod) {
 static int cinder_fini() {
   _PyClassLoader_ClearCache();
 
+  bool code_running =
 #if PY_VERSION_HEX < 0x030C0000
-  if (PyThreadState_Get()->shadow_frame) {
+  PyThreadState_Get()->shadow_frame != nullptr;
+#else
+  PyThreadState_Get()->cframe != nullptr;
+#endif
+  if (code_running) {
     // If any Python code is running we can't tell if JIT code is in use. Even
     // if every frame in the callstack is interpreter-owned, some of them could
     // be the result of deopt and JIT code may still be on the native stack.
@@ -641,9 +646,6 @@ static int cinder_fini() {
     JIT_LOG("Python code is executing, cannot cleanly shutdown CinderX.");
     return -1;
   }
-#else
-  UPGRADE_ASSERT(HOW_TO_DETECT_JIT_CODE_RUNNING)
-#endif
 
   if (_PyJIT_Finalize()) {
     return -1;
