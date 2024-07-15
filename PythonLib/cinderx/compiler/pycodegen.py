@@ -3158,6 +3158,54 @@ class CodeGenerator312(CodeGenerator):
 
     def emitJump(self, target):
         self.emit("JUMP", target)
+
+    def _visitSequenceLoad(
+        self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
+    ):
+        if len(elts) > 2 and all(isinstance(elt, ast.Constant) for elt in elts):
+            elts_tuple = tuple(elt.value for elt in elts)
+            if is_tuple and not num_pushed:
+                self.emit("LOAD_CONST", elts_tuple)
+            else:
+                if add_op == "SET_ADD":
+                    elts_tuple = frozenset(elts_tuple)
+                self.emit(build_op, num_pushed)
+                self.emit("LOAD_CONST", elts_tuple)
+                self.emit(extend_op, 1)
+                if is_tuple:
+                    self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE"))
+            return
+
+        big = (len(elts) + num_pushed) > STACK_USE_GUIDELINE
+        starred_load = self.hasStarred(elts)
+        if not starred_load and not big:
+            for elt in elts:
+                self.visit(elt)
+            collection_size = num_pushed + len(elts)
+            self.emit("BUILD_TUPLE" if is_tuple else build_op, collection_size)
+            return
+
+        sequence_built = False
+        if big:
+            self.emit(build_op, num_pushed)
+            sequence_built = True
+        on_stack = 0
+        for elt in elts:
+            if isinstance(elt, ast.Starred):
+                if not sequence_built:
+                    self.emit(build_op, on_stack + num_pushed)
+                    sequence_built = True
+                self.visit(elt.value)
+                self.emit(extend_op, 1)
+            else:
+                self.visit(elt)
+                if sequence_built:
+                    self.emit(add_op, 1)
+                else:
+                    on_stack += 1
+
+        if is_tuple:
+            self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE"))
         
 
 class CinderCodeGenerator(CodeGenerator):
