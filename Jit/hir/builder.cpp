@@ -346,6 +346,9 @@ void HIRBuilder::addLoadArgs(TranslationContext& tc, int num_args) {
 }
 
 // Add a MakeCell for each cellvar and load each freevar from closure.
+//
+// Note: This is only necessary for 3.10.  For 3.12 we have the explicit
+// MAKE_CELL and COPY_FREE_VARS instructions.
 void HIRBuilder::addInitializeCells(
     TranslationContext& tc,
     Register* cur_func) {
@@ -395,8 +398,6 @@ void HIRBuilder::addInitializeCells(
     JIT_CHECK(dst != nullptr, "No register for cell {}", cell_idx);
     tc.emit<LoadTupleItem>(dst, func_closure, i);
   }
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
 #endif
 }
 
