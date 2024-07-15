@@ -30,7 +30,7 @@ void initFunctionObjectForStaticOrNonJIT(PyFunctionObject* func) {
   }
 }
 
-unsigned int count_calls(PyCodeObject* code) {
+unsigned int countCalls(PyCodeObject* code) {
 #if PY_VERSION_HEX < 0x030C0000
   // The interpreter will only increment up to the shadowcode threshold
   // PYSHADOW_INIT_THRESHOLD. After that, it will stop incrementing. If someone
@@ -53,47 +53,12 @@ PyObject* autoJITFuncObjectVectorcall(
     PyObject** stack,
     Py_ssize_t nargsf,
     PyObject* kwnames) {
-  PyCodeObject* code = (PyCodeObject*)func->func_code;
+  auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
+  auto func_obj = reinterpret_cast<PyObject*>(func);
 
-  unsigned ncalls = count_calls(code);
-  unsigned hot_threshold = _PyJIT_AutoJITThreshold();
-  unsigned jit_threshold = hot_threshold + _PyJIT_AutoJITProfileThreshold();
-
-  // If the function is found to be hot then register it to be profiled, and
-  // enable interpreter profiling if it's not already enabled.
-  if (ncalls == hot_threshold && hot_threshold != jit_threshold) {
-#if PY_VERSION_HEX < 0x030C0000
-    _PyJIT_MarkProfilingCandidate(code);
-    PyThreadState* tstate = _PyThreadState_GET();
-    if (!tstate->profile_interp) {
-      tstate->profile_interp = 1;
-      tstate->cframe->use_tracing = _Py_ThreadStateHasTracing(tstate);
-    }
-#else
-    UPGRADE_ASSERT(PROFILING_CHANGED)
-#endif
-  }
-
-  if (ncalls <= jit_threshold) {
-    return _PyFunction_Vectorcall((PyObject*)func, stack, nargsf, kwnames);
-  }
-
-  // Function is about to be compiled, can stop profiling it now.  Disable
-  // interpreter profiling if this is the last profiling candidate and we're
-  // not profiling all bytecodes globally.
-  if (hot_threshold != jit_threshold) {
-#if PY_VERSION_HEX < 0x030C0000
-    _PyJIT_UnmarkProfilingCandidate(code);
-    PyThreadState* tstate = _PyThreadState_GET();
-    if (tstate->profile_interp &&
-        tstate->interp->ceval.profile_instr_period == 0 &&
-        _PyJIT_NumProfilingCandidates() == 0) {
-      tstate->profile_interp = 0;
-      tstate->cframe->use_tracing = _Py_ThreadStateHasTracing(tstate);
-    }
-#else
-    UPGRADE_ASSERT(PROFILING_CHANGED)
-#endif
+  // Interpret function as usual until it passes the call count threshold.
+  if (countCalls(code) <= getConfig().auto_jit_threshold) {
+    return _PyFunction_Vectorcall(func_obj, stack, nargsf, kwnames);
   }
 
   _PyJIT_Result result = _PyJIT_CompileFunction(func);
@@ -109,7 +74,7 @@ PyObject* autoJITFuncObjectVectorcall(
           reinterpret_cast<vectorcallfunc>(autoJITFuncObjectVectorcall),
       "Auto-JIT left function as auto-JIT'able on {}",
       repr(func->func_qualname));
-  return func->vectorcall((PyObject*)func, stack, nargsf, kwnames);
+  return func->vectorcall(func_obj, stack, nargsf, kwnames);
 }
 
 } // namespace

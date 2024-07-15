@@ -158,10 +158,6 @@ bool isPreloaded(BorrowedRef<> unit) {
 static std::unordered_map<PyFunctionObject*, std::chrono::duration<double>>
     jit_time_functions;
 
-// If non-empty, profile information will be written to this filename at
-// shutdown.
-static std::string g_write_profile_file;
-
 // If non-empty, jit compiled functions' names will be written to this filename
 // at shutdown.
 static std::string g_write_compiled_functions_file;
@@ -196,12 +192,6 @@ static std::array<PyObject*, 256> s_opnames;
 static std::array<PyObject*, hir::kNumOpcodes> s_hir_opnames;
 
 static double total_compliation_time = 0.0;
-
-/*
- * Indicates whether or not newly-created interpreter threads should have type
- * profiling enabled by default.
- */
-static int profile_new_interp_threads = 0;
 
 struct CompilationTimer {
   explicit CompilationTimer(BorrowedRef<PyFunctionObject> f)
@@ -259,10 +249,6 @@ static jit::FlagProcessor xarg_flag_processor;
 
 static int use_jit = 0;
 static int jit_help = 0;
-static std::string read_profile_file;
-static std::string write_profile_file;
-static int jit_profile_interp = 0;
-static int jit_profile_interp_period = 0;
 static std::string jl_fn;
 
 static void warnJITOff(const char* flag) {
@@ -314,9 +300,6 @@ static size_t parse_sized_argument(const std::string& val) {
 
 void initFlagProcessor() {
   use_jit = 0;
-  read_profile_file = "";
-  write_profile_file = "";
-  jit_profile_interp = 0;
   jl_fn = "";
   jit_help = 0;
   std::string write_compiled_functions_file = "";
@@ -334,14 +317,6 @@ void initFlagProcessor() {
         },
         "Enable auto-JIT mode, which compiles functions after the given "
         "threshold");
-    xarg_flag_processor.addOption(
-        "jit-auto-profile",
-        "PYTHONJITAUTOPROFILE",
-        [](unsigned threshold) {
-          getMutableConfig().auto_jit_profile_threshold = threshold;
-        },
-        "Combined with -X jit-auto, configure the runtime to type profile each "
-        "function for a number of calls before compiling it");
 
     xarg_flag_processor.addOption(
         "jit-debug",
@@ -530,52 +505,6 @@ void initFlagProcessor() {
             },
             "Load list of functions to compile from <filename>")
         .withFlagParamName("filename");
-
-    xarg_flag_processor
-        .addOption(
-            "jit-read-profile",
-            "PYTHONJITREADPROFILE",
-            read_profile_file,
-            "Load profile data from <filename>")
-        .withFlagParamName("filename");
-
-    xarg_flag_processor
-        .addOption(
-            "jit-write-profile",
-            "PYTHONJITWRITEPROFILE",
-            write_profile_file,
-            "Write profiling data to <filename>")
-        .withFlagParamName("filename");
-
-    xarg_flag_processor
-        .addOption(
-            "jit-profile-strip-pattern",
-            "PYTHONJITPROFILESTRIPPATTERN",
-            [](const std::string& pattern) {
-              try {
-                auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-                profile_runtime.setStripPattern(std::regex{pattern});
-              } catch (const std::regex_error& ree) {
-                JIT_LOG(
-                    "Bad profile strip pattern '{}': {}", pattern, ree.what());
-              }
-            },
-            "Strip the given regex from file paths when computing code keys")
-        .withFlagParamName("pattern");
-
-    xarg_flag_processor.addOption(
-        "jit-profile-interp",
-        "PYTHONJITPROFILEINTERP",
-        jit_profile_interp,
-        "interpreter profiling");
-
-    xarg_flag_processor
-        .addOption(
-            "jit-profile-interp-period",
-            "PYTHONJITPROFILEINTERPPERIOD",
-            jit_profile_interp_period,
-            "interpreter profiling period")
-        .withFlagParamName("period");
 
     xarg_flag_processor.addOption(
         "jit-disable",
@@ -2216,23 +2145,6 @@ int _PyJIT_Initialize() {
     }
   }
 
-  if (!read_profile_file.empty()) {
-    JIT_LOG("Loading profile data from {}", read_profile_file);
-    auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-    if (!profile_runtime.deserialize(read_profile_file)) {
-      return -1;
-    }
-  }
-
-  if (jit_profile_interp) {
-    _PyJIT_SetProfileNewInterpThreads(true);
-    Ci_ThreadState_SetProfileInterpAll(1);
-    Ci_RuntimeState_SetProfileInterpPeriod(jit_profile_interp_period);
-  }
-  if (!write_profile_file.empty()) {
-    g_write_profile_file = write_profile_file;
-  }
-
   if (use_jit || getConfig().force_init) {
     JIT_DLOG("Initializing JIT");
   } else {
@@ -2284,10 +2196,6 @@ int _PyJIT_IsEnabled() {
 
 unsigned _PyJIT_AutoJITThreshold() {
   return getConfig().auto_jit_threshold;
-}
-
-unsigned _PyJIT_AutoJITProfileThreshold() {
-  return getConfig().auto_jit_profile_threshold;
 }
 
 int _PyJIT_IsAutoJITEnabled() {
@@ -2504,14 +2412,6 @@ int _PyJIT_Finalize() {
     dump_jit_stats();
   }
 
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  if (!g_write_profile_file.empty()) {
-    profile_runtime.serialize(g_write_profile_file);
-    g_write_profile_file.clear();
-  }
-
-  profile_runtime.clear();
-
   if (!g_write_compiled_functions_file.empty()) {
     dump_jit_compiled_functions(g_write_compiled_functions_file);
     g_write_compiled_functions_file.clear();
@@ -2704,231 +2604,6 @@ PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate) {
   return runtimeFrameStateFromThreadState(tstate).builtins();
 }
 
-int _PyJIT_IsProfilingCandidate(PyCodeObject* code) {
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  return profile_runtime.isCandidate(code);
-}
-
-unsigned _PyJIT_NumProfilingCandidates(void) {
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  return profile_runtime.numCandidates();
-}
-
-void _PyJIT_MarkProfilingCandidate(PyCodeObject* code) {
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  return profile_runtime.markCandidate(code);
-}
-
-void _PyJIT_UnmarkProfilingCandidate(PyCodeObject* code) {
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  return profile_runtime.unmarkCandidate(code);
-}
-
-void _PyJIT_ProfileCurrentInstr(
-    PyFrameObject* frame,
-    PyObject** stack_top,
-    int opcode,
-    int oparg) {
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  profile_runtime.profileInstr(frame, stack_top, opcode, oparg);
-}
-
-void _PyJIT_CountProfiledInstrs(PyCodeObject* code, Py_ssize_t count) {
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  profile_runtime.countProfiledInstrs(code, count);
-}
-
-namespace {
-
-// ProfileEnv and the functions below that use it are for building the
-// complicated, nested data structure returned by
-// _PyJIT_GetAndClearTypeProfiles().
-struct ProfileEnv {
-  // These members are applicable during the whole process:
-  Ref<> stats_list;
-  Ref<> other_list;
-  Ref<> empty_list;
-  UnorderedMap<BorrowedRef<PyTypeObject>, Ref<>> type_name_cache;
-
-  // These members vary with each code object:
-  BorrowedRef<PyCodeObject> code;
-  Ref<> code_hash;
-  Ref<> qualname;
-  Ref<> firstlineno;
-
-  // These members vary with each instruction:
-  int64_t profiled_hits;
-  Ref<> bc_offset;
-  Ref<> opname;
-  Ref<> lineno;
-};
-
-void init_env(ProfileEnv& env) {
-  env.stats_list = Ref<>::steal(check(PyList_New(0)));
-  env.other_list = Ref<>::steal(check(PyList_New(0)));
-  auto other_str = Ref<>::steal(check(PyUnicode_InternFromString("<other>")));
-  check(PyList_Append(env.other_list, other_str));
-  env.empty_list = Ref<>::steal(check(PyList_New(0)));
-
-  env.type_name_cache.emplace(
-      nullptr, Ref<>::steal(check(PyUnicode_InternFromString("<NULL>"))));
-}
-
-PyObject* get_type_name(ProfileEnv& env, PyTypeObject* ty) {
-  auto pair = env.type_name_cache.emplace(ty, nullptr);
-  Ref<>& cached_name = pair.first->second;
-  if (pair.second) {
-    cached_name = Ref<>::steal(
-        check(PyUnicode_InternFromString(typeFullname(ty).c_str())));
-  }
-  return cached_name;
-}
-
-void start_code(ProfileEnv& env, PyCodeObject* code) {
-  env.code = code;
-  env.code_hash =
-      Ref<>::steal(check(PyLong_FromUnsignedLong(hashBytecode(code))));
-  env.qualname = Ref<>::steal(
-      check(PyUnicode_InternFromString(codeQualname(code).c_str())));
-  env.firstlineno = Ref<>::steal(check(PyLong_FromLong(code->co_firstlineno)));
-  env.profiled_hits = 0;
-}
-
-void start_instr(ProfileEnv& env, int bcoff_raw) {
-  int lineno_raw = env.code->co_linetable != nullptr
-      ? PyCode_Addr2Line(env.code, bcoff_raw)
-      : -1;
-  BytecodeInstruction bc_instr{env.code, BCOffset{bcoff_raw}};
-  int opcode = bc_instr.opcode();
-  JIT_CHECK(opcode != 0, "Invalid opcode at offset {}", bcoff_raw);
-  env.bc_offset = Ref<>::steal(check(PyLong_FromLong(bcoff_raw)));
-  env.lineno = Ref<>::steal(check(PyLong_FromLong(lineno_raw)));
-  env.opname.reset(s_opnames.at(opcode));
-  JIT_CHECK(env.opname != nullptr, "No opname for op {}", opcode);
-}
-
-void append_item(
-    ProfileEnv& env,
-    long count_raw,
-    PyObject* type_names,
-    bool use_op = true) {
-  auto item = Ref<>::steal(check(PyDict_New()));
-  auto normals = Ref<>::steal(check(PyDict_New()));
-  auto ints = Ref<>::steal(check(PyDict_New()));
-  auto count = Ref<>::steal(check(PyLong_FromLong(count_raw)));
-
-  check(PyDict_SetItem(item, s_str_normal, normals));
-  check(PyDict_SetItem(item, s_str_int, ints));
-  check(PyDict_SetItem(normals, s_str_func_qualname, env.qualname));
-  check(PyDict_SetItem(normals, s_str_filename, env.code->co_filename));
-  check(PyDict_SetItem(ints, s_str_code_hash, env.code_hash));
-  check(PyDict_SetItem(ints, s_str_firstlineno, env.firstlineno));
-  check(PyDict_SetItem(ints, s_str_count, count));
-  if (use_op) {
-    check(PyDict_SetItem(ints, s_str_lineno, env.lineno));
-    check(PyDict_SetItem(ints, s_str_bc_offset, env.bc_offset));
-    check(PyDict_SetItem(normals, s_str_opname, env.opname));
-  }
-  if (type_names != nullptr) {
-    auto normvectors = Ref<>::steal(check(PyDict_New()));
-    check(PyDict_SetItem(normvectors, s_str_types, type_names));
-    check(PyDict_SetItem(item, s_str_normvector, normvectors));
-  }
-  check(PyList_Append(env.stats_list, item));
-
-  env.profiled_hits += count_raw;
-}
-
-void build_profile(ProfileEnv& env, ProfileRuntime& profile_runtime) {
-  for (auto& code_pair : profile_runtime) {
-    start_code(env, code_pair.first);
-    const CodeProfile& code_profile = code_pair.second;
-
-    for (auto& profile_pair : code_profile.typed_hits) {
-      const TypeProfiler& profile = *profile_pair.second;
-      if (profile.empty()) {
-        continue;
-      }
-      start_instr(env, profile_pair.first.value());
-
-      for (int row = 0; row < profile.rows() && profile.count(row) != 0;
-           ++row) {
-        auto type_names = Ref<>::steal(check(PyList_New(0)));
-        for (int col = 0; col < profile.cols(); ++col) {
-          PyTypeObject* ty = profile.type(row, col);
-          check(PyList_Append(type_names, get_type_name(env, ty)));
-        }
-        append_item(env, profile.count(row), type_names);
-      }
-
-      if (profile.other() > 0) {
-        append_item(env, profile.other(), env.other_list);
-      }
-    }
-
-    int64_t untyped_hits = code_profile.total_hits - env.profiled_hits;
-    if (untyped_hits != 0) {
-      append_item(env, untyped_hits, nullptr, false);
-    }
-  }
-}
-
-Ref<> make_type_metadata(ProfileEnv& env) {
-  auto& profile_runtime = Runtime::get()->profileRuntime();
-  auto all_meta = Ref<>::steal(check(PyList_New(0)));
-
-  for (auto const& pair : env.type_name_cache) {
-    BorrowedRef<PyTypeObject> ty = pair.first;
-    if (ty == nullptr) {
-      continue;
-    }
-    if (profile_runtime.numCachedKeys(ty) == 0) {
-      continue;
-    }
-    auto key_list = Ref<>::steal(check(PyList_New(0)));
-    profile_runtime.enumerateCachedKeys(
-        ty, [&](BorrowedRef<> key) { check(PyList_Append(key_list, key)); });
-
-    auto normals = Ref<>::steal(check(PyDict_New()));
-    check(PyDict_SetItem(normals, s_str_type_name, get_type_name(env, ty)));
-    auto normvectors = Ref<>::steal(check(PyDict_New()));
-    check(PyDict_SetItem(normvectors, s_str_split_dict_keys, key_list));
-
-    auto item = Ref<>::steal(check(PyDict_New()));
-    check(PyDict_SetItem(item, s_str_normal, normals));
-    check(PyDict_SetItem(item, s_str_normvector, normvectors));
-    check(PyList_Append(all_meta, item));
-  }
-
-  return all_meta;
-}
-
-} // namespace
-
-PyObject* _PyJIT_GetAndClearTypeProfiles() {
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  ProfileEnv env;
-  Ref<> result;
-
-  try {
-    init_env(env);
-    build_profile(env, profile_runtime);
-    result = Ref<>::steal(check(PyDict_New()));
-    check(PyDict_SetItem(result, s_str_profile, env.stats_list));
-    check(PyDict_SetItem(result, s_str_type_metadata, make_type_metadata(env)));
-  } catch (const CAPIError&) {
-    return nullptr;
-  }
-
-  profile_runtime.clear();
-  return result.release();
-}
-
-void _PyJIT_ClearTypeProfiles() {
-  auto& profile_runtime = Runtime::get()->profileRuntime();
-  profile_runtime.clear();
-}
-
 PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
 #if PY_VERSION_HEX < 0x030C0000
   if (getConfig().init_state == InitState::kInitialized) {
@@ -2947,14 +2622,6 @@ void _PyJIT_SetDisassemblySyntaxATT(void) {
 
 int _PyJIT_IsDisassemblySyntaxIntel(void) {
   return is_intel_syntax();
-}
-
-void _PyJIT_SetProfileNewInterpThreads(int enabled) {
-  profile_new_interp_threads = enabled;
-}
-
-int _PyJIT_GetProfileNewInterpThreads(void) {
-  return profile_new_interp_threads;
 }
 
 int _PyPerfTrampoline_IsPreforkCompilationEnabled() {

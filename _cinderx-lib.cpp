@@ -99,73 +99,6 @@ static PyObject *clear_classloader_caches(PyObject *, PyObject *) {
   Py_RETURN_NONE;
 }
 
-static PyObject *set_profile_interp(PyObject *, PyObject *arg) {
-  int is_true = PyObject_IsTrue(arg);
-  if (is_true < 0) {
-    return nullptr;
-  }
-
-  PyThreadState *tstate = PyThreadState_Get();
-#if PY_VERSION_HEX < 0x030C0000
-  int old_flag = tstate->profile_interp;
-  Ci_ThreadState_SetProfileInterp(tstate, is_true);
-
-  if (old_flag) {
-    Py_RETURN_TRUE;
-  }
-#else
-  UPGRADE_ASSERT(PROFILING_CHANGED)
-#endif
-  Py_RETURN_FALSE;
-}
-
-static PyObject *set_profile_interp_all(PyObject *, PyObject *arg) {
-  int is_true = PyObject_IsTrue(arg);
-  if (is_true < 0) {
-    return nullptr;
-  }
-  _PyJIT_SetProfileNewInterpThreads(is_true);
-  Ci_ThreadState_SetProfileInterpAll(is_true);
-
-  Py_RETURN_NONE;
-}
-
-static PyObject *set_profile_interp_period(PyObject *, PyObject *arg) {
-  if (!PyLong_Check(arg)) {
-    PyErr_Format(PyExc_TypeError, "Expected int object, got %.200s",
-                 Py_TYPE(arg)->tp_name);
-    return nullptr;
-  }
-  long val = PyLong_AsLong(arg);
-  if (val == -1 && PyErr_Occurred()) {
-    return nullptr;
-  }
-
-  Ci_RuntimeState_SetProfileInterpPeriod(val);
-  Py_RETURN_NONE;
-}
-
-static PyObject *get_and_clear_type_profiles(PyObject *, PyObject *) {
-  PyObject *full_data = _PyJIT_GetAndClearTypeProfiles();
-  if (full_data == nullptr) {
-    return nullptr;
-  }
-  PyObject *profiles = PyDict_GetItemString(full_data, "profile");
-  Py_XINCREF(profiles);
-  Py_DECREF(full_data);
-  return profiles;
-}
-
-static PyObject *get_and_clear_type_profiles_with_metadata(PyObject *,
-                                                           PyObject *) {
-  return _PyJIT_GetAndClearTypeProfiles();
-}
-
-static PyObject *clear_type_profiles(PyObject *, PyObject *) {
-  _PyJIT_ClearTypeProfiles();
-  Py_RETURN_NONE;
-}
-
 static PyObject *watch_sys_modules(PyObject *, PyObject *) {
   PyObject *sys = PyImport_ImportModule("sys");
   if (sys == nullptr) {
@@ -557,7 +490,6 @@ static int cinder_init(PyObject* mod) {
   Ci_hook_add_subclass = _PyClassLoader_AddSubclass;
   Ci_hook_type_pre_setattr = _PyClassLoader_InitTypeForPatching;
   Ci_hook_type_setattr = _PyClassLoader_UpdateSlot;
-  Ci_hook_JIT_GetProfileNewInterpThread = _PyJIT_GetProfileNewInterpThreads;
   Ci_hook_JIT_GetFrame = _PyJIT_GetFrame;
   Ci_hook_PyCMethod_New = Ci_PyCMethod_New_METH_TYPED;
   Ci_hook_PyDescr_NewMethod = Ci_PyDescr_NewMethod_METH_TYPED;
@@ -661,7 +593,6 @@ static int cinder_fini() {
   Ci_hook_type_name_modified = nullptr;
   Ci_hook_type_pre_setattr = nullptr;
   Ci_hook_type_setattr = nullptr;
-  Ci_hook_JIT_GetProfileNewInterpThread = nullptr;
   Ci_hook_JIT_GetFrame = nullptr;
   Ci_hook_PyDescr_NewMethod = nullptr;
   Ci_hook_WalkStack = nullptr;
@@ -742,22 +673,6 @@ static PyMethodDef _cinderx_methods[] = {
      "Clears classloader caches and vtables on all accessible types. "
      "Will hurt perf; for test isolation where modules and types with "
      "identical names are dynamically created and destroyed."},
-    {"set_profile_interp", set_profile_interp, METH_O,
-     "Enable or disable interpreter profiling for this thread. Returns whether "
-     "or not profiling was enabled before the call."},
-    {"set_profile_interp_all", set_profile_interp_all, METH_O,
-     "Enable or disable interpreter profiling for all threads, including "
-     "threads created after this function returns."},
-    {"set_profile_interp_period", set_profile_interp_period, METH_O,
-     "Set the period, in bytecode instructions, for interpreter profiling."},
-    {"get_and_clear_type_profiles", get_and_clear_type_profiles, METH_NOARGS,
-     "Get and clear accumulated interpreter type profiles."},
-    {"get_and_clear_type_profiles_with_metadata",
-     get_and_clear_type_profiles_with_metadata, METH_NOARGS,
-     "Get and clear accumulated interpreter type profiles, including "
-     "type-specific metadata."},
-    {"clear_type_profiles", clear_type_profiles, METH_NOARGS,
-     "Clear accumulated interpreter type profiles."},
     {"watch_sys_modules", watch_sys_modules, METH_NOARGS,
      "Watch the sys.modules dict to allow invalidating Static Python's "
      "internal caches."},

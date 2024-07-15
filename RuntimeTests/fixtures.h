@@ -3,7 +3,6 @@
 
 #include <gtest/gtest.h>
 
-#include <Python.h>
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
@@ -19,6 +18,8 @@
 #include "cinderx/Jit/pyjit.h"
 
 #include "cinderx/RuntimeTests/testutil.h"
+
+#include <Python.h>
 
 #define JIT_TEST_MOD_NAME "jittestmodule"
 
@@ -41,6 +42,7 @@ class RuntimeTest : public ::testing::Test {
 
     Py_Initialize();
     ASSERT_TRUE(Py_IsInitialized());
+
     if (compile_static_) {
       globals_ = MakeGlobalsStrict();
     } else {
@@ -101,9 +103,6 @@ class RuntimeTest : public ::testing::Test {
         nullptr));
     return res != nullptr;
   }
-
-  // Run some code with profiling enabled, and save the resulting profile data.
-  void runAndProfileCode(const char* src);
 
   Ref<> compileAndGet(const char* src, const char* name) {
     if (!runCode(src)) {
@@ -192,7 +191,6 @@ class RuntimeTest : public ::testing::Test {
   }
 
   bool AddModuleWithBuiltins(BorrowedRef<> module, BorrowedRef<> globals) {
-
     // Look up the builtins module to mimic real code, rather than using its
     // dict.
     auto modules = CI_INTERP_IMPORT_FIELD(PyInterpreterState_Get(), modules);
@@ -243,7 +241,6 @@ class HIRTest : public RuntimeTest {
  public:
   enum Flags {
     kCompileStatic = 1 << 0,
-    kUseProfileData = 1 << 1,
   };
 
   HIRTest(
@@ -254,12 +251,7 @@ class HIRTest : public RuntimeTest {
       : RuntimeTest(flags & kCompileStatic),
         src_is_hir_(src_is_hir),
         src_(src),
-        expected_hir_(expected_hir),
-        use_profile_data_(flags & kUseProfileData) {
-    JIT_CHECK(
-        !src_is_hir || !use_profile_data_,
-        "Profile data tests can't have HIR input");
-  }
+        expected_hir_(expected_hir) {}
 
   void setPasses(std::vector<std::unique_ptr<jit::hir::Pass>> passes) {
     passes_ = std::move(passes);
@@ -272,7 +264,6 @@ class HIRTest : public RuntimeTest {
   bool src_is_hir_;
   std::string src_;
   std::string expected_hir_;
-  bool use_profile_data_;
 };
 
 inline HIRTest::Flags operator|(HIRTest::Flags a, HIRTest::Flags b) {

@@ -252,36 +252,6 @@ invoke_static_function(PyObject *func, PyObject **args, Py_ssize_t nargs, int aw
         NULL);
 }
 
-
-static inline void try_profile_next_instr(PyFrameObject* f,
-                                          PyObject** stack_pointer,
-                                          const _Py_CODEUNIT* next_instr) {
-    int opcode, oparg;
-    NEXTOPARG();
-    while (opcode == EXTENDED_ARG) {
-        int oldoparg = oparg;
-        NEXTOPARG();
-        oparg |= oldoparg << 8;
-    }
-
-    /* _PyJIT_ProfileCurrentInstr owns the canonical list of which instructions
-     * we want to record types for. To save a little work, filter out a few
-     * opcodes that we know the JIT will never care about and account for
-     * roughly 50% of dynamic bytecodes. */
-    switch (opcode) {
-        case LOAD_FAST:
-        case STORE_FAST:
-        case LOAD_CONST:
-        case RETURN_VALUE: {
-            break;
-        }
-        default: {
-            _PyJIT_ProfileCurrentInstr(f, stack_pointer, opcode, oparg);
-            break;
-        }
-    }
-}
-
 // Disable UBSAN integer overflow checks etc. as these are not compatible with
 // some tests for Static Python which are asserting overflow behavior.
 __attribute__((no_sanitize("integer")))
@@ -308,7 +278,6 @@ Ci_EvalFrame(PyThreadState *tstate, PyFrameObject *f, int throwflag)
     _Py_atomic_int * const eval_breaker = &tstate->interp->ceval.eval_breaker;
     PyCodeObject *co;
     _PyShadowFrame shadow_frame;
-    Py_ssize_t profiled_instrs = 0;
 
     const _Py_CODEUNIT *first_instr;
     PyObject *names;
@@ -397,8 +366,8 @@ Ci_EvalFrame(PyThreadState *tstate, PyFrameObject *f, int throwflag)
 
     /* facebook begin t39538061 */
     /* Initialize the inline cache after the code object is "hot enough" */
-    if (!tstate->profile_interp && co->co_mutable->shadow == NULL &&
-        Ci_cinderx_initialized && _PyEval_ShadowByteCodeEnabled) {
+    if (co->co_mutable->shadow == NULL && Ci_cinderx_initialized &&
+        _PyEval_ShadowByteCodeEnabled) {
         if (++(co->co_mutable->ncalls) > PYSHADOW_INIT_THRESHOLD) {
             if (_PyShadow_InitCache(co) == -1) {
                 goto error;
@@ -407,11 +376,6 @@ Ci_EvalFrame(PyThreadState *tstate, PyFrameObject *f, int throwflag)
         }
     }
     /* facebook end t39538061 */
-
-    int profiling_candidate = 0;
-    if (tstate->profile_interp) {
-      profiling_candidate = _PyJIT_IsProfilingCandidate(co);
-    }
 
     names = co->co_names;
     consts = co->co_consts;
@@ -537,27 +501,6 @@ main_loop:
         NEXTOPARG();
 
         struct _ceval_state *ceval = &tstate->interp->ceval;
-
-        if (tstate->profile_interp != 0) {
-          int do_profile = 0;
-
-          // Profile if we're we've hit the global sampling period.
-          if (ceval->profile_instr_period > 0 &&
-              ++ceval->profile_instr_counter == ceval->profile_instr_period) {
-            ceval->profile_instr_counter = 0;
-            do_profile = 1;
-          }
-
-          // Profile if the code object has been marked as hot by AutoJIT.
-          if (profiling_candidate) {
-            do_profile = 1;
-          }
-
-          if (do_profile) {
-            profiled_instrs++;
-            try_profile_next_instr(f, stack_pointer, next_instr - 1);
-          }
-        }
 
         if (PyDTrace_LINE_ENABLED())
             maybe_dtrace_line(f, &trace_info, instr_prev);
@@ -4987,10 +4930,6 @@ exit_eval_frame:
     /* Restore previous cframe */
     tstate->cframe = trace_info.cframe.previous;
     tstate->cframe->use_tracing = trace_info.cframe.use_tracing;
-
-    if (profiled_instrs != 0) {
-        _PyJIT_CountProfiledInstrs(f->f_code, profiled_instrs);
-    }
 
     if (f->f_gen == NULL) {
         _PyShadowFrame_Pop(tstate, &shadow_frame);

@@ -6,7 +6,6 @@
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/perf_jitdump.h"
-#include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/pyjit.h"
 
 #include "cinderx/RuntimeTests/fixtures.h"
@@ -474,52 +473,6 @@ TEST_F(CmdLineTest, ExplicitJITDisable) {
           []() { ASSERT_EQ(_PyJIT_IsEnabled(), 0); },
           true),
       0);
-}
-
-TEST_F(CmdLineTest, WriteProfile) {
-  std::string list_file = tmpnam(nullptr);
-
-  const wchar_t* xarg = makeWideChar(
-      const_cast<char*>(("jit-write-profile=" + list_file).c_str()));
-
-  // Just the profile output file isn't enough to enable profiling.
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          xarg,
-          const_cast<char*>(("PYTHONJITWRITEPROFILE=" + list_file).c_str()),
-          []() { _PyJIT_SetProfileNewInterpThreads(0); },
-          []() { ASSERT_EQ(_PyJIT_GetProfileNewInterpThreads(), 0); }),
-      0);
-
-  delete[] xarg;
-
-  filesystem::remove(list_file);
-}
-
-TEST_F(CmdLineTest, ProfileInterp) {
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-profile-interp",
-          "PYTHONJITPROFILEINTERP",
-          []() { _PyJIT_SetProfileNewInterpThreads(0); },
-          []() { ASSERT_EQ(_PyJIT_GetProfileNewInterpThreads(), 1); }),
-      0);
-}
-
-TEST_F(CmdLineTest, ReadProfile) {
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-read-profile=fname",
-          "PYTHONJITREADPROFILE=fname",
-          []() {},
-          []() {
-            ASSERT_TRUE(
-                testing::internal::GetCapturedStderr().find(
-                    "Loading profile data from fname") != std::string::npos);
-          },
-          false,
-          true),
-      -2);
 }
 
 TEST_F(CmdLineTest, DisplayHelpMessage) {

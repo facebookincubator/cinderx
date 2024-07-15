@@ -65,13 +65,6 @@ PyAPI_FUNC(int) _PyJIT_IsAutoJITEnabled(void);
 PyAPI_FUNC(unsigned) _PyJIT_AutoJITThreshold(void);
 
 /*
- * Get the number of calls needed to profile hot functions when using AutoJIT.
- * This is added on top of the normal threshold.  Returns 0 when AutoJIT is
- * disabled.
- */
-PyAPI_FUNC(unsigned) _PyJIT_AutoJITProfileThreshold(void);
-
-/*
  * JIT compile func and patch its entry point.
  *
  * On success, positional only calls to func will use the JIT compiled version.
@@ -227,48 +220,6 @@ PyAPI_FUNC(PyObject*) _PyJIT_GetGlobals(PyThreadState* tstate);
 PyAPI_FUNC(PyObject*) _PyJIT_GetBuiltins(PyThreadState* tstate);
 
 /*
- * Check if a code object should be profiled for type information.
- */
-PyAPI_FUNC(int) _PyJIT_IsProfilingCandidate(PyCodeObject* code);
-
-/*
- * Count the number of code objects currently marked as profiling candidates.
- */
-PyAPI_FUNC(unsigned) _PyJIT_NumProfilingCandidates(void);
-
-/*
- * Mark a code object as a good candidate for type profiling.
- */
-PyAPI_FUNC(void) _PyJIT_MarkProfilingCandidate(PyCodeObject* code);
-
-/*
- * Unmark a code object as a good candidate for type profiling
- */
-PyAPI_FUNC(void) _PyJIT_UnmarkProfilingCandidate(PyCodeObject* code);
-
-/*
- * Record a type profile for the current instruction.
- */
-PyAPI_FUNC(void) _PyJIT_ProfileCurrentInstr(
-    PyFrameObject* frame,
-    PyObject** stack_top,
-    int opcode,
-    int oparg);
-
-/*
- * Record profiled instructions for the given code object upon exit from a
- * frame, some of which may not have had their types recorded.
- */
-PyAPI_FUNC(void)
-    _PyJIT_CountProfiledInstrs(PyCodeObject* code, Py_ssize_t count);
-
-/*
- * Get and clear, or just clear, information about the recorded type profiles.
- */
-PyAPI_FUNC(PyObject*) _PyJIT_GetAndClearTypeProfiles(void);
-PyAPI_FUNC(void) _PyJIT_ClearTypeProfiles(void);
-
-/*
  * Returns a borrowed reference to the top-most frame of tstate.
  *
  * When shadow frame mode is active, calling this function will materialize
@@ -281,9 +232,6 @@ PyAPI_FUNC(PyFrameObject*) _PyJIT_GetFrame(PyThreadState* tstate);
  */
 PyAPI_FUNC(void) _PyJIT_SetDisassemblySyntaxATT(void);
 PyAPI_FUNC(int) _PyJIT_IsDisassemblySyntaxIntel(void);
-
-PyAPI_FUNC(void) _PyJIT_SetProfileNewInterpThreads(int);
-PyAPI_FUNC(int) _PyJIT_GetProfileNewInterpThreads(void);
 
 PyAPI_FUNC(int) _PyPerfTrampoline_IsPreforkCompilationEnabled(void);
 PyAPI_FUNC(void) _PyPerfTrampoline_CompilePerfTrampolinePreFork(void);

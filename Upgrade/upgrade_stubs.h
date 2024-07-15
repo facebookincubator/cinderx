@@ -298,8 +298,6 @@ PyObject* Ci_PyClassMethod_GetFunc(PyObject *method);
 PyObject* Ci_PyStaticMethod_GetFunc(PyObject *sm);
 int PyUnstable_PerfTrampoline_CompileCode(PyCodeObject *);
 int PyUnstable_PerfTrampoline_SetPersistAfterFork(int enable);
-void Ci_ThreadState_SetProfileInterpAll(int enabled);
-void Ci_RuntimeState_SetProfileInterpPeriod(long);
 PyObject* _PyObject_GC_Malloc(size_t size);
 
 PyObject* Ci_StaticFunction_Vectorcall(PyObject *func, PyObject* const* stack,

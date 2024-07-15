@@ -167,13 +167,9 @@ int main(int argc, char* argv[]) {
   register_test("simplify_test.txt");
   register_test("simplify_uses_guard_types.txt");
   register_test("dead_code_elimination_test.txt");
-  register_test("profile_data_hir_test.txt", HIRTest::kUseProfileData);
   register_test(
       "dead_code_elimination_and_simplify_test.txt", HIRTest::kCompileStatic);
   register_test("simplify_static_test.txt", HIRTest::kCompileStatic);
-  register_test(
-      "profile_data_static_hir_test.txt",
-      HIRTest::kUseProfileData | HIRTest::kCompileStatic);
   register_json_test("json_test.txt");
   register_test("builtin_load_method_elimination_test.txt");
   register_test("all_passes_test.txt");

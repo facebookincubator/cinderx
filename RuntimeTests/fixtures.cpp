@@ -10,23 +10,6 @@
 
 #include <sstream>
 
-void RuntimeTest::runAndProfileCode(const char* src) {
-  // Disable the JIT temporarily so we get maximum coverage from the
-  // interpreter.
-  int jit_enabled = _PyJIT_IsEnabled();
-  _PyJIT_Disable();
-  Ci_ThreadState_SetProfileInterpAll(1);
-  Ci_RuntimeState_SetProfileInterpPeriod(1);
-
-  ASSERT_TRUE(compile_static_ ? runStaticCode(src) : runCode(src));
-
-  Ci_ThreadState_SetProfileInterpAll(0);
-  Ci_RuntimeState_SetProfileInterpPeriod(0);
-  if (jit_enabled) {
-    _PyJIT_Enable();
-  }
-}
-
 std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
     BorrowedRef<PyFunctionObject> func) {
   if (!jit::preloadFuncAndDeps(func)) {
@@ -48,11 +31,7 @@ void HIRTest::TestBody() {
   }
 
   std::unique_ptr<Function> irfunc;
-  if (use_profile_data_) {
-    ASSERT_NO_FATAL_FAILURE(runAndProfileCode(src_.c_str()));
-    Ref<PyFunctionObject> func = getGlobal("test");
-    irfunc = buildHIR(func);
-  } else if (src_is_hir_) {
+  if (src_is_hir_) {
     irfunc = HIRParser{}.ParseHIR(src_.c_str());
     ASSERT_FALSE(passes_.empty())
         << "HIR tests don't make sense without a pass to test";

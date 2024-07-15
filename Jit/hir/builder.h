@@ -8,7 +8,6 @@
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/preload.h"
-#include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/stack.h"
 
 #include <Python.h>
@@ -146,11 +145,6 @@ class HIRBuilder {
       Function& irfunc,
       const jit::BytecodeInstructionBlock& bc_instrs,
       const TranslationContext& tc);
-  void emitProfiledTypes(
-      TranslationContext& tc,
-      const ProfileRuntime& profile_runtime,
-      const CodeKey& codeKey,
-      const BytecodeInstruction& bc_instr);
 
   void emitBinaryOp(
       TranslationContext& tc,

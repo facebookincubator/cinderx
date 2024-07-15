@@ -24,7 +24,6 @@
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
-#include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/threaded_compile.h"
 
@@ -629,67 +628,6 @@ BasicBlock* HIRBuilder::buildHIRImpl(
   return entry_block;
 }
 
-void HIRBuilder::emitProfiledTypes(
-    TranslationContext& tc,
-    const ProfileRuntime& profile_runtime,
-    const CodeKey& code_key,
-    const BytecodeInstruction& bc_instr) {
-  if (bc_instr.opcode() == CALL_METHOD) {
-    // TODO(T107300350): Ignore profiling data for CALL_METHOD because we lie
-    // about its stack inputs.
-    return;
-  }
-
-  std::vector<Type> types = profile_runtime.getProfiledTypes(
-      tc.frame.code, code_key, bc_instr.offset());
-
-  if (types.empty() || types.size() > tc.frame.stack.size()) {
-    // The types are either absent or invalid (e.g., from a different version
-    // of the code than what we're running now).
-    return;
-  }
-
-  // TODO(T115140951): Add a more robust method of determining what type
-  // information differs between interpreter runs and static JITted bytecode
-  if (bc_instr.opcode() == STORE_FIELD) {
-    auto& [offset, type, name] = preloader_.fieldInfo(constArg(bc_instr));
-    if (type <= TPrimitive) {
-      return;
-    }
-  }
-
-  // Except for a few special cases, all instructions profile all of their
-  // inputs, with deeper stack elements first.
-  // TODO(T127457244): Centralize this information.
-  ssize_t stack_idx = types.size() - 1;
-  if (bc_instr.opcode() == CALL_FUNCTION) {
-    stack_idx = bc_instr.oparg();
-  } else if (
-      bc_instr.opcode() == CALL_METHOD ||
-      bc_instr.opcode() == CALL_FUNCTION_KW) {
-    stack_idx = bc_instr.oparg() + 1;
-  } else if (bc_instr.opcode() == WITH_EXCEPT_START) {
-    stack_idx = 6;
-  }
-  for (auto& type : types) {
-    if (type != TTop) {
-      FOLLY_SDT(
-          python,
-          guard_from_profile,
-          codeQualname(tc.frame.code).c_str(),
-          bc_instr.offset().value(),
-          bc_instr.opcode(),
-          bc_instr.oparg(),
-          type.toString().c_str());
-
-      Register* value = tc.frame.stack.top(stack_idx);
-      GuardType* guard = tc.emit<GuardType>(value, type, value);
-      guard->setGuiltyReg(value);
-    }
-    stack_idx--;
-  }
-}
-
 InlineResult HIRBuilder::inlineHIR(
     Function* caller,
     FrameState* caller_frame_state) {
@@ -766,9 +704,6 @@ void HIRBuilder::translate(
   std::unordered_set<BasicBlock*> processed;
   std::unordered_set<BasicBlock*> loop_headers;
 
-  auto const& profile_runtime = Runtime::get()->profileRuntime();
-  auto code_key = profile_runtime.codeKey(tc.frame.code);
-
   while (!queue.empty()) {
     auto tc = std::move(queue.front());
     queue.pop_front();
@@ -793,8 +728,6 @@ void HIRBuilder::translate(
     for (auto bc_it = bc_block.begin(); bc_it != bc_block.end(); ++bc_it) {
       BytecodeInstruction bc_instr = *bc_it;
       tc.setCurrentInstr(bc_instr);
-
-      emitProfiledTypes(tc, profile_runtime, code_key, bc_instr);
 
       // Translate instruction
       switch (bc_instr.opcode()) {

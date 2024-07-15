@@ -46,7 +46,6 @@ enum {
   MISSING_PY_TYPEFLAGS_FROZEN, // T194029468
   // This is a macro and used from C code so a bit tricky to stub.
   MISSING_PyHeapType_GET_MEMBERS, // T194021668
-  PROFILING_CHANGED, // T194029734
   EXPORT_JIT_OFFSETS_FOR_STROBELIGHT, // T192550846
 };
 
