@@ -16,8 +16,9 @@ namespace jit::codegen {
 // A physical location (register or stack slot). If this represents a stack
 // slot (is_memory() is true) then `loc` is relative to RBP.
 struct PhyLocation {
-  PhyLocation() : loc(REG_INVALID) {}
-  constexpr PhyLocation(int l) : loc(l) {}
+  PhyLocation() : loc(REG_INVALID), bitSize(64) {}
+  constexpr PhyLocation(int l, int s = 64) : loc(l), bitSize(s) {}
+ 
   bool is_memory() const {
     return loc < 0;
   }
@@ -32,6 +33,7 @@ struct PhyLocation {
   }
 
   int loc;
+  size_t bitSize;
 
 #define FOREACH_GP(X) \
   X(RAX)              \
@@ -96,6 +98,11 @@ struct PhyLocation {
       return fmt::format("[RBP{}]", loc);
     }
     return regName(static_cast<Reg>(loc));
+  }
+
+  int getRegSize() const {
+    // TODO: Hardcoding XMM size temporarily for correctness.
+    return (loc >= XMM0 && loc <= XMM15) ? 128 : bitSize;
   }
 
 #define COUNT_REGS(...) +1

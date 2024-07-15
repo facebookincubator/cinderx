@@ -105,8 +105,11 @@ class OperandBase {
 
   virtual DataType dataType() const = 0;
   int sizeInBits() const {
-    auto s = dataType();
-    switch (s) {
+    return OperandBase::getSizeInBitsFromDataType(dataType());
+  }
+
+  static int getSizeInBitsFromDataType(DataType dt) {
+    switch (dt) {
       case k8bit:
         return 8;
       case k16bit:
@@ -407,8 +410,12 @@ class Operand : public OperandBase {
   DataType dataType() const override {
     return data_type_;
   }
+
   void setDataType(DataType data_type) {
     data_type_ = data_type;
+    if (auto loc_ptr = std::get_if<PhyLocation>(&value_)) {
+      loc_ptr->bitSize = OperandBase::getSizeInBitsFromDataType(data_type);
+    }
   }
 
   Type type() const override {
