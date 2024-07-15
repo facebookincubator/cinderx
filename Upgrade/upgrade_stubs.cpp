@@ -79,6 +79,18 @@ STUB(PyObject*, Ci_StaticFunction_Vectorcall, PyObject*, PyObject* const*, size_
 STUB(PyObject*, Ci_PyFunction_CallStatic, PyFunctionObject*, PyObject* const*, Py_ssize_t, PyObject*)
 
 /*
+ * From checkd_dict.h
+ */
+
+STUB(PyObject*, Ci_CheckedDict_New, PyTypeObject*)
+STUB(PyObject*, Ci_CheckedDict_NewPresized, PyTypeObject*, Py_ssize_t)
+STUB(int, Ci_CheckedDict_Check, PyObject*)
+STUB(int, Ci_CheckedDict_TypeCheck, PyTypeObject*)
+STUB(int, Ci_CheckedDict_SetItem, PyObject*, PyObject*, PyObject*)
+STUB(int, Ci_DictOrChecked_SetItem, PyObject*, PyObject*, PyObject*)
+
+
+/*
  * From interpter.h
  */
 
