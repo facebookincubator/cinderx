@@ -16,7 +16,7 @@ constexpr int PhyLocation::XMM_REG_BASE;
 
 static const char* REG_NAMES[] = {
 #define REG_STRING(r, ...) #r,
-    FOREACH_GP(REG_STRING) FOREACH_XMM(REG_STRING)
+    FOREACH_GP64(REG_STRING) FOREACH_XMM(REG_STRING)
 #undef REG_STRING
 };
 
