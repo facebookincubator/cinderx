@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/hir/preload.h"
 
-#include <Python.h>
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
@@ -11,9 +10,9 @@
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/runtime.h"
 
-#include <utility>
+#include <Python.h>
 
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+#include <utility>
 
 namespace jit::hir {
 
@@ -346,59 +345,9 @@ BorrowedRef<> Preloader::constArg(BytecodeInstruction& bc_instr) const {
 }
 
 bool Preloader::preload() {
-  if (code_->co_flags & CI_CO_STATICALLY_COMPILED) {
-    PyTypeOpt ret_type =
-        resolve_type_descr(_PyClassLoader_GetCodeReturnTypeDescr(code_));
-    if (std::get<0>(ret_type) == nullptr) {
-      JIT_LOG(
-          "unknown return type descr {} during preloading of {}",
-          repr(_PyClassLoader_GetCodeReturnTypeDescr(code_)),
-          fullname());
-      return false;
-    }
-    return_type_ = to_jit_type(ret_type);
-    BorrowedRef<PyTupleObject> checks = reinterpret_cast<PyTupleObject*>(
-        _PyClassLoader_GetCodeArgumentTypeDescrs(code_));
-    for (int i = 0; i < PyTuple_GET_SIZE(checks); i += 2) {
-      long local = PyLong_AsLong(PyTuple_GET_ITEM(checks, i));
-      if (local < 0) {
-#if PY_VERSION_HEX < 0x030C0000
-        // A negative value for local indicates that it's a cell
-        JIT_CHECK(
-            code_->co_cell2arg != nullptr,
-            "no cell2arg but negative local {}",
-            local);
-        long arg = code_->co_cell2arg[-1 * (local + 1)];
-        JIT_CHECK(
-            arg != CO_CELL_NOT_AN_ARG, "cell not an arg for local {}", local);
-        local = arg;
-#else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT)
-#endif
-      }
-      PyTypeOpt pytype_opt =
-          resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));
-      if (std::get<0>(pytype_opt) == nullptr) {
-        JIT_LOG(
-            "unknown type descr {} during preloading of {}",
-            repr(PyTuple_GET_ITEM(checks, i + 1)),
-            fullname());
-        return false;
-      }
-      JIT_CHECK(
-          std::get<0>(pytype_opt) !=
-              reinterpret_cast<PyTypeObject*>(&PyObject_Type),
-          "shouldn't generate type checks for object");
-      Type type = to_jit_type(pytype_opt);
-      check_arg_types_.emplace(local, type);
-      check_arg_pytypes_.emplace(local, std::move(pytype_opt));
-      if (type <= TPrimitive) {
-        has_primitive_args_ = true;
-        if (local == 0) {
-          has_primitive_first_arg_ = true;
-        }
-      }
-    }
+  bool is_static = code_->co_flags & CI_CO_STATICALLY_COMPILED;
+  if (is_static && !preloadStatic()) {
+    return false;
   }
 
   jit::BytecodeInstructionBlock bc_instrs{code_};
@@ -502,6 +451,66 @@ bool Preloader::preload() {
     prim_args_info_ = Ref<_PyTypedArgsInfo>::steal(
         _PyClassLoader_GetTypedArgsInfo(code_, true));
   }
+  return true;
+}
+
+bool Preloader::preloadStatic() {
+  PyTypeOpt ret_type =
+      resolve_type_descr(_PyClassLoader_GetCodeReturnTypeDescr(code_));
+  if (std::get<0>(ret_type) == nullptr) {
+    JIT_LOG(
+        "unknown return type descr {} during preloading of {}",
+        repr(_PyClassLoader_GetCodeReturnTypeDescr(code_)),
+        fullname());
+    return false;
+  }
+  return_type_ = to_jit_type(ret_type);
+  BorrowedRef<PyTupleObject> checks = reinterpret_cast<PyTupleObject*>(
+      _PyClassLoader_GetCodeArgumentTypeDescrs(code_));
+  for (int i = 0; i < PyTuple_GET_SIZE(checks); i += 2) {
+    long local = PyLong_AsLong(PyTuple_GET_ITEM(checks, i));
+    if (local < 0) {
+#if PY_VERSION_HEX < 0x030C0000
+      // A negative value for local indicates that it's a cell
+      JIT_CHECK(
+          code_->co_cell2arg != nullptr,
+          "no cell2arg but negative local {}",
+          local);
+      long arg = code_->co_cell2arg[-1 * (local + 1)];
+      JIT_CHECK(
+          arg != CO_CELL_NOT_AN_ARG, "cell not an arg for local {}", local);
+      local = arg;
+#else
+      JIT_ABORT(
+          "In Static Python function {}, hit negative local {} at index {}",
+          fullname(),
+          local,
+          i);
+#endif
+    }
+    PyTypeOpt pytype_opt = resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));
+    if (std::get<0>(pytype_opt) == nullptr) {
+      JIT_LOG(
+          "unknown type descr {} during preloading of {}",
+          repr(PyTuple_GET_ITEM(checks, i + 1)),
+          fullname());
+      return false;
+    }
+    JIT_CHECK(
+        std::get<0>(pytype_opt) !=
+            reinterpret_cast<PyTypeObject*>(&PyObject_Type),
+        "shouldn't generate type checks for object");
+    Type type = to_jit_type(pytype_opt);
+    check_arg_types_.emplace(local, type);
+    check_arg_pytypes_.emplace(local, std::move(pytype_opt));
+    if (type <= TPrimitive) {
+      has_primitive_args_ = true;
+      if (local == 0) {
+        has_primitive_first_arg_ = true;
+      }
+    }
+  }
+
   return true;
 }
 

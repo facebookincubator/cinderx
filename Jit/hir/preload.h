@@ -180,6 +180,9 @@ class Preloader {
   bool canCacheGlobals() const;
   bool preload();
 
+  // Preload information only relevant to Static Python functions.
+  bool preloadStatic();
+
   explicit Preloader(
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
