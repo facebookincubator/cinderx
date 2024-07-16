@@ -4016,14 +4016,17 @@ error:
 
 int _PyClassLoader_IsImmutable(PyObject* container) {
   if (PyType_Check(container)) {
-#if PY_VERSION_HEX < 0x030C0000
     PyTypeObject* type = (PyTypeObject*)container;
+#if PY_VERSION_HEX < 0x030C0000
     if (type->tp_flags & Ci_Py_TPFLAGS_FROZEN ||
         !(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
       return 1;
     }
 #else
-    UPGRADE_ASSERT(MISSING_PY_TYPEFLAGS_FROZEN)
+    if (type->tp_flags & Py_TPFLAGS_IMMUTABLETYPE ||
+        !(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
+      return 1;
+    }
 #endif
   }
 

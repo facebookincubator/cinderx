@@ -256,7 +256,8 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
     new_inst->gti_type.ht_type.tp_flags |=
         Py_TPFLAGS_HEAPTYPE | Ci_Py_TPFLAGS_FROZEN | Ci_Py_TPFLAGS_GENERIC_TYPE_INST;
 #else
-    UPGRADE_ASSERT(MISSING_PY_TYPEFLAGS_FROZE)
+    new_inst->gti_type.ht_type.tp_flags |=
+        Py_TPFLAGS_HEAPTYPE | Py_TPFLAGS_IMMUTABLETYPE | Ci_Py_TPFLAGS_GENERIC_TYPE_INST;
 #endif
     new_inst->gti_type.ht_type.tp_flags &=
         ~(Py_TPFLAGS_READY | Ci_Py_TPFLAGS_GENERIC_TYPE_DEF);
