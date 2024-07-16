@@ -2068,8 +2068,7 @@ class CodeGenerator(ASTVisitor):
         if big:
             self.emit(build_op, num_pushed)
             sequence_built = True
-        on_stack = 0
-        for elt in elts:
+        for on_stack, elt in enumerate(elts):
             if isinstance(elt, ast.Starred):
                 if not sequence_built:
                     self.emit(build_op, on_stack + num_pushed)
@@ -2080,8 +2079,6 @@ class CodeGenerator(ASTVisitor):
                 self.visit(elt)
                 if sequence_built:
                     self.emit(add_op, 1)
-                else:
-                    on_stack += 1
 
         if is_tuple:
             self.emit("LIST_TO_TUPLE")
@@ -3189,8 +3186,7 @@ class CodeGenerator312(CodeGenerator):
         if big:
             self.emit(build_op, num_pushed)
             sequence_built = True
-        on_stack = 0
-        for elt in elts:
+        for on_stack, elt in enumerate(elts):
             if isinstance(elt, ast.Starred):
                 if not sequence_built:
                     self.emit(build_op, on_stack + num_pushed)
@@ -3201,8 +3197,6 @@ class CodeGenerator312(CodeGenerator):
                 self.visit(elt)
                 if sequence_built:
                     self.emit(add_op, 1)
-                else:
-                    on_stack += 1
 
         if is_tuple:
             self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE"))
