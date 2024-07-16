@@ -822,7 +822,8 @@ struct AddDebugEntryAction {
       &asmjit::x86::Builder::instr,            \
       OperandList<args>>
 
-#define CALL(func) CallAction<func>
+// Can't be named CALL as that conflicts with the opcode.
+#define CALL_C(func) CallAction<func>
 
 #define ADDDEBUGENTRY() AddDebugEntryAction
 
@@ -873,7 +874,7 @@ struct AddDebugEntryAction {
 // one of the types listed above and "*" represents one or more above types.
 // Please note that while "?" can appear anywhere in a pattern, "*" can only be
 // used at the end of a pattern.
-// The actions can be ASM and CALL, meaning generating an assembly instruction
+// The actions can be ASM and CALL_C, meaning generating an assembly instruction
 // and call a user-defined function, respectively. The first argument of ASM
 // action is the mnemonic of the instruction to be generated, and the following
 // arguments are the operands to the instruction. Currently, we have four types
@@ -924,11 +925,11 @@ BEGIN_RULES(Instruction::kMove)
 END_RULES
 
 BEGIN_RULES(Instruction::kGuard)
-  GEN(ANY, CALL(TranslateGuard));
+  GEN(ANY, CALL_C(TranslateGuard));
 END_RULES
 
 BEGIN_RULES(Instruction::kDeoptPatchpoint)
-  GEN(ANY, CALL(TranslateDeoptPatchpoint));
+  GEN(ANY, CALL_C(TranslateDeoptPatchpoint));
 END_RULES
 
 BEGIN_RULES(Instruction::kNegate)
@@ -1147,11 +1148,11 @@ END_RULES
 
 #define DEF_COMPARE_OP_RULES(name, fpcomp) \
 BEGIN_RULES(Instruction::name) \
-  GEN("Rrr", CALL(TranslateCompare)) \
-  GEN("Rri", CALL(TranslateCompare)) \
-  GEN("Rrm", CALL(TranslateCompare)) \
+  GEN("Rrr", CALL_C(TranslateCompare)) \
+  GEN("Rri", CALL_C(TranslateCompare)) \
+  GEN("Rrm", CALL_C(TranslateCompare)) \
   if (fpcomp) { \
-    GEN("Rxx", CALL(TranslateCompare)) \
+    GEN("Rxx", CALL_C(TranslateCompare)) \
   } \
 END_RULES
 
@@ -1183,23 +1184,23 @@ BEGIN_RULES(Instruction::kBitTest)
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldInitial)
-  GEN(ANY, CALL(translateYieldInitial))
+  GEN(ANY, CALL_C(translateYieldInitial))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldFrom)
-  GEN(ANY, CALL(translateYieldFrom))
+  GEN(ANY, CALL_C(translateYieldFrom))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldFromSkipInitialSend)
-  GEN(ANY, CALL(translateYieldFrom))
+  GEN(ANY, CALL_C(translateYieldFrom))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldFromHandleStopAsyncIteration)
-  GEN(ANY, CALL(translateYieldFrom))
+  GEN(ANY, CALL_C(translateYieldFrom))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldValue)
-  GEN(ANY, CALL(translateYieldValue))
+  GEN(ANY, CALL_C(translateYieldValue))
 END_RULES
 
 BEGIN_RULES(Instruction::kSelect)
