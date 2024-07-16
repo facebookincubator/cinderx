@@ -24,6 +24,7 @@
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/ParallelGC/parallel_gc.h"
 #include "cinderx/StaticPython/classloader.h"
+#include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
 #include "cinderx/StaticPython/methodobject_vectorcall.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"

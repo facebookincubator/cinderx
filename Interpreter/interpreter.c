@@ -16,6 +16,7 @@
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
+#include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/static_array.h"
 
 PyObject *Ci_GetAIter(PyThreadState *tstate, PyObject *obj) {

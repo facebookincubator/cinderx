@@ -12,6 +12,7 @@
 #include "cinderx/Common/extra-py-flags.h"
 
 #include "cinderx/StaticPython/awaitable.h"
+#include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/type.h"

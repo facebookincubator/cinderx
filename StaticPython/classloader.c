@@ -23,11 +23,10 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/pyjit.h"
+#include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
 #include <dlfcn.h>
-
-PyObject* CiExc_StaticTypeError = NULL;
 
 static PyObject* classloader_cache;
 static PyObject* classloader_cache_module_to_keys;
