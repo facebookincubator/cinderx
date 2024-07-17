@@ -17,6 +17,10 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030C0000
+#include "internal/pycore_intrinsics.h"
+#endif
+
 using namespace jit;
 using namespace jit::hir;
 
@@ -501,13 +505,20 @@ fun foo {
   EXPECT_EQ(HIRPrinter{}.ToString(*func), expected);
 }
 
+template <class T>
+Ref<> toByteString(T&& data) {
+  auto sp = std::span{data};
+  return Ref<>::steal(PyBytes_FromStringAndSize(
+      reinterpret_cast<const char*>(sp.data()), sp.size_bytes()));
+}
+
 class HIRBuildTest : public RuntimeTest {
  public:
+  template <class T>
   std::unique_ptr<Function> build_test(
-      const char* bc,
-      size_t bc_size,
+      T&& bc,
       const std::vector<PyObject*>& locals /* borrowed */) {
-    auto bytecode = Ref<>::steal(PyBytes_FromStringAndSize(bc, bc_size));
+    Ref<> bytecode = toByteString(std::span{std::forward<T>(bc)});
     assert(bytecode.get());
     const int nlocals = locals.size();
 
@@ -562,8 +573,8 @@ TEST_F(HIRBuildTest, GetLength) {
   //  0 LOAD_FAST  0
   //  2 GET_LENGTH
   //  4 RETURN_VALUE
-  const char bc[] = {LOAD_FAST, 0, GET_LEN, 0, RETURN_VALUE, 0};
-  std::unique_ptr<Function> irfunc = build_test(bc, sizeof(bc), {Py_None});
+  uint8_t bc[] = {LOAD_FAST, 0, GET_LEN, 0, RETURN_VALUE, 0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
   ASSERT_NE(irfunc.get(), nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
@@ -603,8 +614,8 @@ TEST_F(HIRBuildTest, GetLength) {
 TEST_F(HIRBuildTest, LoadAssertionError) {
   //  0 LOAD_ASSERTION_ERROR
   //  2 RETURN_VALUE
-  const char bc[] = {LOAD_ASSERTION_ERROR, 0, RETURN_VALUE, 0};
-  auto bytecode = Ref<>::steal(PyBytes_FromStringAndSize(bc, sizeof(bc)));
+  uint8_t bc[] = {LOAD_ASSERTION_ERROR, 0, RETURN_VALUE, 0};
+  Ref<> bytecode = toByteString(bc);
   ASSERT_NE(bytecode.get(), nullptr);
   auto filename = Ref<>::steal(PyUnicode_FromString("filename"));
   auto funcname = Ref<>::steal(PyUnicode_FromString("funcname"));
@@ -657,23 +668,29 @@ TEST_F(HIRBuildTest, SetUpdate) {
   //  8 ROT_TWO
   //  10 POP_TOP
   //  12 RETURN_VALUE
-  const char bc[] = {
+  uint8_t bc[] = {
       LOAD_FAST,
       0,
       LOAD_FAST,
       1,
       LOAD_FAST,
       2,
-      static_cast<char>(SET_UPDATE),
+      SET_UPDATE,
       1,
+
+#if PY_VERSION_HEX < 0x030B0000
       ROT_TWO,
       0,
+#else
+      SWAP,
+      2,
+#endif
       POP_TOP,
       0,
       RETURN_VALUE,
       0,
   };
-  auto bytecode = Ref<>::steal(PyBytes_FromStringAndSize(bc, sizeof(bc)));
+  Ref<> bytecode = toByteString(bc);
   ASSERT_NE(bytecode.get(), nullptr);
   auto filename = Ref<>::steal(PyUnicode_FromString("filename"));
   auto funcname = Ref<>::steal(PyUnicode_FromString("funcname"));
@@ -767,7 +784,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   //  4 LOAD_CONST    0
   //  6 RETURN_VALUE
   //  8 JUMP_ABSOLUTE 4
-  const char bc[] = {
+  uint8_t bc[] = {
       LOAD_CONST,
       0,
       RETURN_VALUE,
@@ -776,9 +793,13 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
       0,
       RETURN_VALUE,
       0,
+#if PY_VERSION_HEX < 0x030C0000
       JUMP_ABSOLUTE,
+#else
+      JUMP_BACKWARD,
+#endif
       4};
-  auto bytecode = Ref<>::steal(PyBytes_FromStringAndSize(bc, sizeof(bc)));
+  Ref<> bytecode = toByteString(bc);
   ASSERT_NE(bytecode.get(), nullptr);
   auto filename = Ref<>::steal(PyUnicode_FromString("filename"));
   auto funcname = Ref<>::steal(PyUnicode_FromString("funcname"));
@@ -1012,8 +1033,10 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   EXPECT_TRUE(orig->live_regs() == dup->live_regs());
 }
 
+// ROT_N was removed in 3.11.
+#if PY_VERSION_HEX < 0x030B0000
 TEST_F(HIRBuildTest, ROT_N) {
-  const char bc[] = {
+  uint8_t bc[] = {
       LOAD_FAST,
       0,
       LOAD_FAST,
@@ -1034,7 +1057,7 @@ TEST_F(HIRBuildTest, ROT_N) {
       0};
 
   std::unique_ptr<Function> irfunc =
-      build_test(bc, sizeof(bc), {Py_None, Py_None, Py_None, Py_None});
+      build_test(bc, {Py_None, Py_None, Py_None, Py_None});
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1112,11 +1135,11 @@ TEST_F(HIRBuildTest, ROT_N) {
 
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
+#endif
 
 TEST_F(HIRBuildTest, MatchMapping) {
-  const char bc[] = {LOAD_FAST, 0, MATCH_MAPPING, 0, RETURN_VALUE, 0};
-
-  std::unique_ptr<Function> irfunc = build_test(bc, sizeof(bc), {Py_None});
+  uint8_t bc[] = {LOAD_FAST, 0, MATCH_MAPPING, 0, RETURN_VALUE, 0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1163,9 +1186,8 @@ TEST_F(HIRBuildTest, MatchMapping) {
 }
 
 TEST_F(HIRBuildTest, MatchSequence) {
-  const char bc[] = {LOAD_FAST, 0, MATCH_SEQUENCE, 0, RETURN_VALUE, 0};
-
-  std::unique_ptr<Function> irfunc = build_test(bc, sizeof(bc), {Py_None});
+  uint8_t bc[] = {LOAD_FAST, 0, MATCH_SEQUENCE, 0, RETURN_VALUE, 0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1212,11 +1234,9 @@ TEST_F(HIRBuildTest, MatchSequence) {
 }
 
 TEST_F(HIRBuildTest, MatchKeys) {
-  const char bc[] = {
-      LOAD_FAST, 0, LOAD_FAST, 1, MATCH_KEYS, 0, RETURN_VALUE, 0};
+  uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, MATCH_KEYS, 0, RETURN_VALUE, 0};
 
-  std::unique_ptr<Function> irfunc =
-      build_test(bc, sizeof(bc), {Py_None, Py_None});
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1279,18 +1299,9 @@ TEST_F(HIRBuildTest, MatchKeys) {
 }
 
 TEST_F(HIRBuildTest, ListExtend) {
-  const char bc[] = {
-      LOAD_FAST,
-      0,
-      LOAD_FAST,
-      1,
-      static_cast<char>(LIST_EXTEND),
-      1,
-      RETURN_VALUE,
-      0};
+  uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, LIST_EXTEND, 1, RETURN_VALUE, 0};
 
-  std::unique_ptr<Function> irfunc =
-      build_test(bc, sizeof(bc), {Py_None, Py_None});
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1332,9 +1343,19 @@ TEST_F(HIRBuildTest, ListExtend) {
 }
 
 TEST_F(HIRBuildTest, ListToTuple) {
-  const char bc[] = {LOAD_FAST, 0, LIST_TO_TUPLE, 0, RETURN_VALUE, 0};
-
-  std::unique_ptr<Function> irfunc = build_test(bc, sizeof(bc), {Py_None});
+  uint8_t bc[] = {
+      LOAD_FAST,
+      0,
+#if PY_VERSION_HEX < 0x030C0000
+      LIST_TO_TUPLE,
+      0,
+#else
+      CALL_INTRINSIC_1,
+      INTRINSIC_LIST_TO_TUPLE,
+#endif
+      RETURN_VALUE,
+      0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {

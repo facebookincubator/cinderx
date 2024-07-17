@@ -6,6 +6,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include "cinderx/Jit/bytecode_offsets.h"
 
