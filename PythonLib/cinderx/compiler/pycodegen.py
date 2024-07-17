@@ -1626,7 +1626,7 @@ class CodeGenerator(ASTVisitor):
                 continue
             elif isinstance(stmt, ast.AnnAssign):
                 return True
-            elif isinstance(stmt, (ast.stmt, ast.ExceptHandler)):
+            elif isinstance(stmt, (ast.stmt, ast.ExceptHandler, ast.match_case)):
                 for field in stmt._fields:
                     child = getattr(stmt, field)
                     if isinstance(child, list):
