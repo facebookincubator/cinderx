@@ -9,6 +9,7 @@
 #include "internal/pycore_ceval.h"
 #include "internal/pycore_shadow_frame.h"
 #endif
+#include "cinderx/Common/audit.h"
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
@@ -2083,28 +2084,11 @@ static int jit_audit_hook(const char* event, PyObject* args, void* /* data */) {
 
 static int install_jit_audit_hook() {
   void* kData = nullptr;
-  if (PySys_AddAuditHook(jit_audit_hook, kData) < 0) {
+  if (!installAuditHook(jit_audit_hook, kData)) {
+    PyErr_SetString(PyExc_RuntimeError, "Could not install JIT audit hook");
     return -1;
   }
-
-#if PY_VERSION_HEX < 0x030C0000
-  // PySys_AddAuditHook() can fail to add the hook but still return 0 if an
-  // existing audit function aborts the sys.addaudithook event. Since we rely
-  // on it for correctness, walk the linked list of audit functions and make
-  // sure ours is there.
-  _PyRuntimeState* runtime = &_PyRuntime;
-  for (_Py_AuditHookEntry* e = runtime->audit_hook_head; e != nullptr;
-       e = e->next) {
-    if (e->hookCFunction == jit_audit_hook && e->userData == kData) {
-      return 0;
-    }
-  }
-#else
-  UPGRADE_ASSERT(AUDIT_API_CHANGED)
-#endif
-
-  PyErr_SetString(PyExc_RuntimeError, "Could not install JIT audit hook");
-  return -1;
+  return 0;
 }
 
 int _PyJIT_Initialize() {
