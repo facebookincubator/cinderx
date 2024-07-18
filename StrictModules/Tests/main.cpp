@@ -12,6 +12,7 @@
 #endif
 
 #include <filesystem>
+#include <fmt/format.h>
 #include <iostream>
 
 static void remap_txt_path(std::string& path) {
@@ -81,9 +82,11 @@ int main(int argc, char* argv[]) {
   boost::filesystem::path python_install =
       build::getResourcePath("cinderx/StrictModules/Tests/python_install");
   {
+    std::string python_ver_str =
+        fmt::format("python{}.{}", PY_MAJOR_VERSION, PY_MINOR_VERSION);
     std::string python_install_str =
-        (python_install / "lib" / "python3.10").string() + ":" +
-        (python_install / "lib" / "python3.10" / "lib-dynload").string();
+        (python_install / "lib" / python_ver_str).string() + ":" +
+        (python_install / "lib" / python_ver_str / "lib-dynload").string();
     std::cout << "PYTHONPATH=" << python_install_str << std::endl;
     setenv("PYTHONPATH", python_install_str.c_str(), 1);
   }
