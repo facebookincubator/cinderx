@@ -565,11 +565,12 @@ static int cinder_init(PyObject* mod) {
 static int cinder_fini() {
   _PyClassLoader_ClearCache();
 
+  PyThreadState* tstate = PyThreadState_Get();
   bool code_running =
 #if PY_VERSION_HEX < 0x030C0000
-  PyThreadState_Get()->shadow_frame != nullptr;
+  tstate->shadow_frame != nullptr;
 #else
-  PyThreadState_Get()->cframe != nullptr;
+  tstate->cframe != &tstate->root_cframe;
 #endif
   if (code_running) {
     // If any Python code is running we can't tell if JIT code is in use. Even
