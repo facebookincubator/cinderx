@@ -317,7 +317,7 @@ class StrictLoaderTest(StrictTestBase):
             """,
         )
         with self.sbx.in_strict_module("a") as a:
-            self.assertInBytecode(a.f, "INVOKE_FUNCTION", (("a", "g"), 0))
+            self.assertInBytecode(a.f, "INVOKE_FUNCTION", ((("a",), "g"), 0))
             self.assertEqual(a.f(), 42)
 
     def test_strict_second_import(self) -> None:
@@ -353,12 +353,12 @@ class StrictLoaderTest(StrictTestBase):
         )
         with self.sbx.in_strict_module("a") as a1:
             self.assertEqual(a1.g(), 42)
-            self.assertInBytecode(a1.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a1.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
         # ensure pycs exist and we can import from them
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a2.g(), 42)
         # modify dependency, but not module a
         self.sbx.write_file(
@@ -412,7 +412,7 @@ class StrictLoaderTest(StrictTestBase):
         )
         # bytecode for 'a' should now have an INVOKE_FUNCTION
         with self.sbx.in_strict_module("a") as a3:
-            self.assertInBytecode(a3.g, "INVOKE_FUNCTION", (("a", "f"), 0))
+            self.assertInBytecode(a3.g, "INVOKE_FUNCTION", ((("a",), "f"), 0))
             self.assertEqual(a3.g(), 43)
 
     def test_static_dependency_deleted_pyc_invalidation(self) -> None:
@@ -435,12 +435,12 @@ class StrictLoaderTest(StrictTestBase):
         )
         with self.sbx.in_strict_module("a") as a1:
             self.assertEqual(a1.g(), 42)
-            self.assertInBytecode(a1.g, "INVOKE_FUNCTION", (("b", "f"), 0))
+            self.assertInBytecode(a1.g, "INVOKE_FUNCTION", ((("b",), "f"), 0))
         # ensure pycs exist and we can import from them
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", (("b", "f"), 0))
+            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("b",), "f"), 0))
             self.assertEqual(a2.g(), 42)
         b_path.unlink()
         # bytecode for 'a' should now have CALL_FUNCTION instead
@@ -498,7 +498,7 @@ class StrictLoaderTest(StrictTestBase):
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a2.g(), 42)
         # modify dependency, but not module a
         self.sbx.write_file(
@@ -549,7 +549,7 @@ class StrictLoaderTest(StrictTestBase):
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a2.g(), 42)
         self.sbx.write_file(
             "b.py",
@@ -561,7 +561,7 @@ class StrictLoaderTest(StrictTestBase):
         )
         # unchecked hash, so changes are not respected
         with self.sbx.in_strict_module("a") as a3:
-            self.assertInBytecode(a3.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a3.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a3.g(), 42)
 
     def test_cached_attr(self) -> None:

@@ -35,7 +35,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.f,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
             self.assertEqual(C().f(), 42)
 
@@ -43,7 +43,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 f,
                 "INVOKE_METHOD",
-                (((mod.__name__, "C", "f"), 0)),
+                ((((mod.__name__, "C"), "f"), 0)),
             )
 
     def test_simple_async(self):
@@ -67,7 +67,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.f,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
             a = C().f()
             self.assertEqual(mod.calls, 0)
@@ -95,7 +95,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.f.fget,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
             self.assertEqual(C().f, 42)
 
@@ -122,7 +122,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.f.func,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
             c = C()
             self.assertEqual(c.f, 43)
@@ -151,7 +151,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.f.func,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
             c = C()
             x = c.f.__await__()
@@ -184,7 +184,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.__dict__["f"].__func__,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
             self.assertEqual(C().f(), 42)
             self.assertEqual(C.f(), 42)
@@ -209,7 +209,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.__dict__["f"].__func__,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
 
     def test_static_method_compat_with_arg(self):
@@ -232,7 +232,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.__dict__["f"].__func__,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
             self.assertEqual(C().f(C()), 42)
             self.assertEqual(C.f(C()), 42)
@@ -266,7 +266,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.__dict__["f"].__func__,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
             f = mod.f
             self.assertEqual(f(C()), 42)
@@ -290,12 +290,12 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 f,
                 "INVOKE_FUNCTION",
-                ((("__static__", "ExcContextDecorator", "_recreate_cm"), 1)),
+                (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
             self.assertEqual(f(), 42)
 
             g = mod.g
-            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__, "f"), 0)))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", ((((mod.__name__,), "f"), 0)))
 
     def test_recreate_cm(self):
         codestr = """
@@ -315,7 +315,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.f,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, "MyDecorator", "_recreate_cm"), 1)),
+                ((((mod.__name__, "MyDecorator"), "_recreate_cm"), 1)),
             )
             self.assertEqual(C().f(), 42)
 
@@ -340,7 +340,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.f,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, "MyDecorator", "_recreate_cm"), 1)),
+                ((((mod.__name__, "MyDecorator"), "_recreate_cm"), 1)),
             )
             self.assertEqual(C().f(), 42)
 
@@ -384,12 +384,12 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.f,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, "MyDecorator1", "_recreate_cm"), 1)),
+                ((((mod.__name__, "MyDecorator1"), "_recreate_cm"), 1)),
             )
             self.assertInBytecode(
                 C.f,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, "MyDecorator2", "_recreate_cm"), 1)),
+                ((((mod.__name__, "MyDecorator2"), "_recreate_cm"), 1)),
             )
             self.assertEqual(
                 mod.calls,
@@ -431,7 +431,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.x,
                 "INVOKE_METHOD",
-                (((mod.__name__, "C", "f"), 0)),
+                ((((mod.__name__, "C"), "f"), 0)),
             )
 
     def test_simple_method(self):
@@ -467,7 +467,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertInBytecode(
                 C.x,
                 "INVOKE_METHOD",
-                (((mod.__name__, "C", "f"), 0)),
+                ((((mod.__name__, "C"), "f"), 0)),
             )
 
     def test_cross_module(self) -> None:
@@ -501,7 +501,7 @@ class ContextDecoratorTests(StaticTestBase):
         self.assertInBytecode(
             f,
             "INVOKE_METHOD",
-            ((("__static__", "ExcContextDecorator", "_recreate_cm"), 0)),
+            (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 0)),
         )
 
     def test_nonstatic_base(self):

@@ -27,7 +27,7 @@ class DeclarationVisitorTests(StaticTestBase):
         """
         bcomp = self.compiler(a=acode, b=bcode).compile_module("b")
         x = self.find_code(bcomp, "f")
-        self.assertInBytecode(x, "INVOKE_FUNCTION", (("a", "C", "f"), 1))
+        self.assertInBytecode(x, "INVOKE_FUNCTION", ((("a", "C"), "f"), 1))
 
     def test_cross_module_nested(self) -> None:
         for parent, close in [
@@ -72,7 +72,7 @@ class DeclarationVisitorTests(StaticTestBase):
         """
         comp = self.compiler(a=acode, b=bcode)
         f = self.find_code(comp.compile_module("b"))
-        self.assertInBytecode(f, "INVOKE_FUNCTION", (("a", "A", "B", "f"), 1))
+        self.assertInBytecode(f, "INVOKE_FUNCTION", ((("a", "A", "B"), "f"), 1))
         with comp.in_module("b") as bmod:
             self.assertEqual(bmod.f(), 42)
 
@@ -92,7 +92,7 @@ class DeclarationVisitorTests(StaticTestBase):
         """
         bcomp = self.compiler(a=acode, b=bcode).compile_module("b")
         x = self.find_code(bcomp, "f")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("a", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("a", "C"), "f"), 0))
 
     def test_cross_module_inst_decl_final_dynamic_is_invoked(self) -> None:
         acode = """
@@ -206,7 +206,7 @@ class DeclarationVisitorTests(StaticTestBase):
         """
         bcomp = self.compiler(a=acode, b=bcode).compile_module("b")
         x = self.find_code(bcomp, "f")
-        self.assertInBytecode(x, "INVOKE_FUNCTION", (("a", "C", "f"), 1))
+        self.assertInBytecode(x, "INVOKE_FUNCTION", ((("a", "C"), "f"), 1))
 
     def test_cross_module_type_checking(self) -> None:
         acode = """
@@ -225,7 +225,7 @@ class DeclarationVisitorTests(StaticTestBase):
         """
         bcomp = self.compiler(a=acode, b=bcode).compile_module("b")
         x = self.find_code(bcomp, "f")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("a", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("a", "C"), "f"), 0))
 
     def test_cross_module_rewrite(self) -> None:
         acode = """
@@ -255,7 +255,7 @@ class DeclarationVisitorTests(StaticTestBase):
         acomp = compiler.compile("a", "a.py", ast.parse(dedent(acode)), optimize=1)
         bcomp = compiler.compile("b", "b.py", compiler.btree, optimize=1)
         x = self.find_code(self.find_code(acomp, "C"), "f")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("b", "B", "g"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("b", "B"), "g"), 0))
 
     def test_declaring_toplevel_local_after_decl_visit_error(self) -> None:
         codestr = """

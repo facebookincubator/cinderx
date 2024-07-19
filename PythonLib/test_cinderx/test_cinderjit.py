@@ -3089,15 +3089,15 @@ class EagerCoroutineDispatch(StaticTestBase):
         """
         with self.in_module(codestr, name="test_invoke_function") as mod:
             self.assertInBytecode(
-                mod.await_x, "INVOKE_FUNCTION", (("test_invoke_function", "x"), 0)
+                mod.await_x, "INVOKE_FUNCTION", ((("test_invoke_function",), "x"), 0)
             )
             self.assertInBytecode(
                 mod.await_await_x,
                 "INVOKE_FUNCTION",
-                (("test_invoke_function", "await_x"), 0),
+                ((("test_invoke_function",), "await_x"), 0),
             )
             self.assertInBytecode(
-                mod.call_x, "INVOKE_FUNCTION", (("test_invoke_function", "x"), 0)
+                mod.call_x, "INVOKE_FUNCTION", ((("test_invoke_function",), "x"), 0)
             )
             mod.x = _testcapi.TestAwaitedCall()
             self.assertIsInstance(mod.x, _testcapi.TestAwaitedCall)
@@ -3133,10 +3133,10 @@ class EagerCoroutineDispatch(StaticTestBase):
         """
         with self.in_module(codestr, name="test_invoke_method") as mod:
             self.assertInBytecode(
-                mod.await_x, "INVOKE_METHOD", (("test_invoke_method", "X", "x"), 0)
+                mod.await_x, "INVOKE_METHOD", ((("test_invoke_method", "X",), "x"), 0)
             )
             self.assertInBytecode(
-                mod.call_x, "INVOKE_METHOD", (("test_invoke_method", "X", "x"), 0)
+                mod.call_x, "INVOKE_METHOD", ((("test_invoke_method", "X",), "x"), 0)
             )
             awaited_capturer = mod.X.x = _testcapi.TestAwaitedCall()
             self.assertIsNone(awaited_capturer.last_awaited())

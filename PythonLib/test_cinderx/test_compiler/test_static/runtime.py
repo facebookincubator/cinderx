@@ -132,7 +132,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr, name="t2") as mod:
             fn = mod.fn
             self.assertInBytecode(
-                fn, "INVOKE_FUNCTION", (("t2", "E", "__setattr__"), 3)
+                fn, "INVOKE_FUNCTION", ((("t2", "E"), "__setattr__"), 3)
             )
             res = fn()
             self.assertEqual(res.hihello, "itsme")
@@ -426,7 +426,7 @@ class StaticRuntimeTests(StaticTestBase):
         """
         c = self.compile(codestr, modname="foo.py")
         test = self.find_code(c, "test")
-        self.assertInBytecode(test, "INVOKE_FUNCTION", (("foo.py", "x"), 2))
+        self.assertInBytecode(test, "INVOKE_FUNCTION", ((("foo.py",), "x"), 2))
         with self.in_module(codestr) as mod:
             test_callable = mod.test
             self.assertEqual(test_callable(), "hello" + my_int)
@@ -440,7 +440,7 @@ class StaticRuntimeTests(StaticTestBase):
                 return await f()
         """
         with self.in_strict_module(codestr) as mod:
-            self.assertInBytecode(mod.g, "INVOKE_FUNCTION", ((mod.__name__, "f"), 0))
+            self.assertInBytecode(mod.g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 0))
             self.assertNotInBytecode(mod.g, "CAST")
             self.assertEqual(asyncio.run(mod.g()), 1)
 
@@ -458,7 +458,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.g,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "f"), 0),
+                (((mod.__name__,), "f"), 0),
             )
             self.assertEqual(asyncio.run(mod.g()), 1)
             self.assert_not_jitted(mod.f)
@@ -475,7 +475,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.g,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "f"), 2),
+                (((mod.__name__,), "f"), 2),
             )
             self.assertEqual(asyncio.run(mod.g()), 3)
 
@@ -496,7 +496,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 g,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "f"), 2),
+                (((mod.__name__,), "f"), 2),
             )
             self.assertEqual(asyncio.run(g()), 3)
 
@@ -521,7 +521,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "g"), 0),
+                (((mod.__name__,), "g"), 0),
             )
             asyncio.run(mod.f())
 
@@ -540,7 +540,7 @@ class StaticRuntimeTests(StaticTestBase):
         """
         with self.in_strict_module(codestr) as mod:
             self.assertInBytecode(
-                mod.C.g, "INVOKE_METHOD", ((mod.__name__, "C", "f"), 0)
+                mod.C.g, "INVOKE_METHOD", (((mod.__name__, "C"), "f"), 0)
             )
             self.assertEqual(asyncio.run(mod.C().g()), 1)
 
@@ -557,7 +557,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.C.g,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", "f"), 2),
+                (((mod.__name__, "C"), "f"), 2),
             )
             self.assertEqual(asyncio.run(mod.C().g()), 3)
 
@@ -589,7 +589,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "C", "g"), 1),
+                (((mod.__name__, "C"), "g"), 1),
             )
             asyncio.run(mod.f())
 
@@ -2451,6 +2451,6 @@ class StaticRuntimeTests(StaticTestBase):
             f = mod.f
             with self.assertRaisesRegex(
                 TypeError,
-                rf"bad name provided for class loader, 'B' doesn't exist in \('{mod.__name__}', 'A', 'B', '!'\)",
+                rf"bad name provided for class loader: 'B' doesn't exist in type '<class '.*.A'>'",
             ):
                 f()

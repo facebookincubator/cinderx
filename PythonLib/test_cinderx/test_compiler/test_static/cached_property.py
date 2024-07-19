@@ -62,7 +62,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", ("x", "fget")), 0),
+                (((mod.__name__, "C"), ("x", "fget")), 0),
             )
             r = mod.f()
             self.assertEqual(r.hit_count, 1)
@@ -92,7 +92,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", ("x", "fget")), 0),
+                (((mod.__name__, "C"), ("x", "fget")), 0),
             )
             r = mod.f()
             self.assertEqual(r.hit_count, 1)
@@ -385,7 +385,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", ("x", "fget")), 0),
+                (((mod.__name__, "C"), ("x", "fget")), 0),
             )
             r = asyncio.run(mod.f())
             self.assertEqual(r.hit_count, 1)
@@ -415,7 +415,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", ("x", "fget")), 0),
+                (((mod.__name__, "C"), ("x", "fget")), 0),
             )
             r = asyncio.run(mod.f())
             self.assertEqual(r.hit_count, 1)

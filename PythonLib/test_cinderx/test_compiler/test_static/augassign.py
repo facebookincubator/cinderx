@@ -25,8 +25,8 @@ class AugAssignTests(StaticTestBase):
         """
         code = self.compile(codestr, modname="foo")
         code = self.find_code(code, name="f")
-        self.assertInBytecode(code, "LOAD_FIELD", ("foo", "C", "x"))
-        self.assertInBytecode(code, "STORE_FIELD", ("foo", "C", "x"))
+        self.assertInBytecode(code, "LOAD_FIELD", (("foo", "C"), "x"))
+        self.assertInBytecode(code, "STORE_FIELD", (("foo", "C"), "x"))
 
     def test_primitive_int(self):
         codestr = """

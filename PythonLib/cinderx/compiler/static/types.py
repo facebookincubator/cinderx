@@ -3334,8 +3334,8 @@ class Callable(Object[TClass]):
     def type_descr(self) -> TypeDescr:
         cont = self.container_type
         if cont:
-            return cont.type_descr + (self.func_name,)
-        return (self.module_name, self.func_name)
+            return (cont.type_descr, self.func_name)
+        return ((self.module_name,), self.func_name)
 
     def set_container_type(self, klass: Class | None) -> None:
         self.container_type = klass.inexact_type() if klass is not None else klass
@@ -3929,7 +3929,7 @@ class InitSubclassFunction(Function):
         gen = code_gen.make_func_codegen(node, node.args, node.name, first_lineno)
 
         gen.emit("LOAD_FAST", node.args.args[0].arg)
-        gen.emit("INVOKE_FUNCTION", (("_static", "init_subclass"), 1))
+        gen.emit("INVOKE_FUNCTION", ((("_static", ), "init_subclass"), 1))
         gen.emit("POP_TOP")
 
         code_gen.processBody(node, body, gen)
@@ -4422,11 +4422,11 @@ class PropertyMethod(DecoratedMethod):
 
     @property
     def getter_type_descr(self) -> TypeDescr:
-        return self.container_descr + ((self.function.func_name, "fget"),)
+        return (self.container_descr, (self.function.func_name, "fget"))
 
     @property
     def setter_type_descr(self) -> TypeDescr:
-        return self.container_descr + ((self.function.func_name, "fset"),)
+        return (self.container_descr, (self.function.func_name, "fset"))
 
     def resolve_attr(
         self, node: ast.Attribute, visitor: GenericVisitor[object]
@@ -5239,7 +5239,7 @@ class DataclassField(Object[DataclassFieldType]):
     @property
     def type_descr(self) -> TypeDescr:
         assert self.base_class is not None
-        return (*self.base_class.type_descr, self.field_name)
+        return (self.base_class.type_descr, self.field_name)
 
     @property
     def unwrapped_type(self) -> tuple[Class, type[Class]]:
@@ -6502,27 +6502,25 @@ class Slot(Object[TClassInv]):
     def emit_load_from_slot(self, code_gen: Static310CodeGenerator) -> None:
         if self.is_typed_descriptor_with_default_value():
             code_gen.emit_invoke_method(
-                self.container_type.type_descr + ((self.slot_name, "fget"),), 0
+                (self.container_type.type_descr, (self.slot_name, "fget")), 0
             )
             return
 
         type_descr = self.container_type.type_descr
-        type_descr += (self.slot_name,)
-        code_gen.emit("LOAD_FIELD", type_descr)
+        code_gen.emit("LOAD_FIELD", (type_descr, self.slot_name))
 
     def emit_store_to_slot(self, code_gen: Static310CodeGenerator) -> None:
         if self.is_typed_descriptor_with_default_value():
             code_gen.emit_rotate_stack(2)
             code_gen.emit_invoke_method(
-                self.container_type.type_descr + ((self.slot_name, "fset"),), 1
+                (self.container_type.type_descr, (self.slot_name, "fset")), 1
             )
             # fset will return None, consume it
             code_gen.emit("POP_TOP")
             return
 
         type_descr = self.container_type.type_descr
-        type_descr += (self.slot_name,)
-        code_gen.emit("STORE_FIELD", type_descr)
+        code_gen.emit("STORE_FIELD", (type_descr, self.slot_name))
 
 
 class BoxFunction(Object[Class]):
@@ -8637,7 +8635,7 @@ class CheckedDictInstance(Object[CheckedDict]):
         self, node: ast.Subscript, code_gen: Static310CodeGenerator
     ) -> None:
         dict_descr = self.klass.type_descr
-        getitem_descr = dict_descr + ("__getitem__",)
+        getitem_descr = (dict_descr, "__getitem__")
         code_gen.emit("EXTENDED_ARG", 0)
         code_gen.emit("INVOKE_FUNCTION", (getitem_descr, 2))
 
@@ -8649,7 +8647,7 @@ class CheckedDictInstance(Object[CheckedDict]):
         code_gen.emit("ROT_THREE")
         code_gen.emit("ROT_THREE")
         dict_descr = self.klass.type_descr
-        setitem_descr = dict_descr + ("__setitem__",)
+        setitem_descr = (dict_descr, "__setitem__")
         code_gen.emit("EXTENDED_ARG", 0)
         code_gen.emit("INVOKE_FUNCTION", (setitem_descr, 3))
         code_gen.emit("POP_TOP")
@@ -8774,7 +8772,7 @@ class CheckedListInstance(Object[CheckedList]):
         if index_is_ctype:
             code_gen.emit("SEQUENCE_GET", SEQ_CHECKED_LIST)
         else:
-            update_descr = self.klass.type_descr + ("__getitem__",)
+            update_descr = (self.klass.type_descr, "__getitem__")
             code_gen.emit_invoke_method(update_descr, 1)
 
     def emit_store_subscr(
@@ -8796,7 +8794,7 @@ class CheckedListInstance(Object[CheckedList]):
         code_gen.emit("ROT_THREE")
         code_gen.emit("ROT_THREE")
 
-        setitem_descr = self.klass.type_descr + ("__setitem__",)
+        setitem_descr = (self.klass.type_descr, "__setitem__")
         code_gen.emit_invoke_method(setitem_descr, 2)
         code_gen.emit("POP_TOP")
 

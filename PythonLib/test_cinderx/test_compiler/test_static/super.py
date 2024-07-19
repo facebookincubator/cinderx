@@ -39,7 +39,7 @@ class SuperTests(StaticTestBase):
         """
         with self.in_strict_module(codestr) as mod:
             self.assertInBytecode(
-                mod.B.g, "INVOKE_FUNCTION", ((mod.__name__, "A", "f"), 1)
+                mod.B.g, "INVOKE_FUNCTION", (((mod.__name__, "A"), "f"), 1)
             )
             self.assertEqual(mod.foo(), 4)
 
@@ -62,7 +62,7 @@ class SuperTests(StaticTestBase):
         """
         with self.in_strict_module(codestr) as mod:
             self.assertInBytecode(
-                mod.B.g, "INVOKE_FUNCTION", ((mod.__name__, "AA", "f"), 1)
+                mod.B.g, "INVOKE_FUNCTION", (((mod.__name__, "AA"), "f"), 1)
             )
             self.assertEqual(mod.foo(), 4)
 

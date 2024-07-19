@@ -237,7 +237,7 @@ class StaticPatchTests(StaticTestBase):
                 TypeError,
                 re.escape(
                     "bad name provided for class loader, "
-                    + f"'f' doesn't exist in ('{mod.__name__}', 'f')"
+                    + f"<module '{mod.__name__}'> has no member 'f'"
                 ),
             ):
                 g()
@@ -493,7 +493,7 @@ class StaticPatchTests(StaticTestBase):
             g = mod.g
             for i in range(100):
                 self.assertEqual(g(), 42)
-            self.assertInBytecode(g, "INVOKE_FUNCTION", ((mod.__name__, "f"), 0))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 0))
             mod.patch("f", lambda: 100)
             self.assertEqual(g(), 100)
 
@@ -507,7 +507,7 @@ class StaticPatchTests(StaticTestBase):
         """
         with self.in_strict_module(codestr, enable_patching=True) as mod:
             g = mod.g
-            self.assertInBytecode(g, "INVOKE_FUNCTION", ((mod.__name__, "f"), 0))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 0))
             self.assertEqual(g(), 42)
             mod.patch("f", Mock(return_value=100))
             self.assertEqual(g(), 100)
@@ -747,7 +747,7 @@ class StaticPatchTests(StaticTestBase):
         """
         f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(
-            f, "INVOKE_METHOD", ((("builtins", "list", "reverse"), 0))
+            f, "INVOKE_METHOD", (((("builtins", "list"), "reverse"), 0))
         )
         with self.in_module(codestr) as mod:
             # Now cause vtables to be inited
@@ -778,7 +778,7 @@ class StaticPatchTests(StaticTestBase):
         """
         f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(
-            f, "INVOKE_METHOD", ((("builtins", "list", "reverse"), 0))
+            f, "INVOKE_METHOD", (((("builtins", "list"), "reverse"), 0))
         )
         with self.in_module(codestr) as mod:
             # Now cause vtables to be inited
@@ -810,7 +810,7 @@ class StaticPatchTests(StaticTestBase):
         """
         f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(
-            f, "INVOKE_METHOD", ((("<module>", "StaticType", "foo"), 0))
+            f, "INVOKE_METHOD", (((("<module>", "StaticType"), "foo"), 0))
         )
         with self.in_module(codestr) as mod:
             SubType = mod.SubType
@@ -857,7 +857,7 @@ class StaticPatchTests(StaticTestBase):
             code = self.compile(codestr)
             f = self.find_code(code, "f")
             self.assertInBytecode(
-                f, "INVOKE_METHOD", ((("<module>", "StaticType", "foo"), 0))
+                f, "INVOKE_METHOD", (((("<module>", "StaticType"), "foo"), 0))
             )
             with self.in_module(codestr) as mod:
                 SubType = mod.SubType
@@ -888,7 +888,7 @@ class StaticPatchTests(StaticTestBase):
                 return "foo"
         """
         f = self.find_code(self.compile(codestr), "f")
-        self.assertInBytecode(f, "INVOKE_METHOD", ((("<module>", "Base", "foo"), 0)))
+        self.assertInBytecode(f, "INVOKE_METHOD", (((("<module>", "Base"), "foo"), 0)))
         with self.in_module(codestr) as mod:
             Grand = mod.Grand
             grandfoo = mod.grandfoo
@@ -917,7 +917,7 @@ class StaticPatchTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             x, C = mod.x, mod.C
@@ -939,7 +939,7 @@ class StaticPatchTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             x, C = mod.x, mod.C

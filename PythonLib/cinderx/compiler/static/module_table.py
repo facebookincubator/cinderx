@@ -515,7 +515,7 @@ class ModuleTable:
         self, name: str, requester: str
     ) -> tuple[Value | None, TypeDescr | None]:
         if val := self.get_child(name, requester):
-            return val, (self.name, name)
+            return val, ((self.name,), name)
         elif val := self.compiler.builtins.get_child_intrinsic(name):
             return val, None
         return None, None

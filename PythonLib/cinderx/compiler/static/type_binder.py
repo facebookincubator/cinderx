@@ -1553,7 +1553,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                     del self.type_state.refined_fields[value.id][node.attr]
 
         if isinstance(base, ModuleInstance):
-            self.set_node_data(node, TypeDescr, (base.module_name, node.attr))
+            self.set_node_data(node, TypeDescr, ((base.module_name, ), node.attr))
         if self.is_refinable(node):
             self.set_node_data(node, PreserveRefinedFields, PRESERVE_REFINED_FIELDS)
             # If we're storing a field at a refinable position, mark it so that codegen
@@ -1773,12 +1773,14 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                 # it's only None at module scope, we know we are at function scope here
                 assert context_qualname is not None
                 self.module.record_dependency(context_qualname, (mod_name, alias.name))
+                child = self.compiler.modules[mod_name].get_child(
+                            alias.name, context_qualname
+                        )
+                print(type(child), child)
                 self.declare_local(
                     name,
                     (
-                        self.compiler.modules[mod_name].get_child(
-                            alias.name, context_qualname
-                        )
+                        child
                         or self.type_env.DYNAMIC
                     ),
                 )

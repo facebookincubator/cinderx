@@ -18,7 +18,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -40,7 +40,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -65,7 +65,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "B", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "B"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -87,7 +87,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 1))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 1))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -113,7 +113,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "B", ("f", "fget")), 0)))
+        self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "B"), ("f", "fget")), 0)))
 
         with self.in_strict_module(codestr) as mod:
             d = mod.D()
@@ -137,7 +137,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "B", ("f", "fget")), 0)))
+        self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "B"), ("f", "fget")), 0)))
 
         with self.in_module(codestr) as mod:
             d = mod.D()
@@ -158,7 +158,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "B", ("f", "fget")), 0)))
+        self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "B"), ("f", "fget")), 0)))
 
         with self.in_strict_module(codestr) as mod:
             d = mod.B()
@@ -186,7 +186,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "B", ("f", "fget")), 0)))
+        self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "B"), ("f", "fget")), 0)))
 
         with self.in_strict_module(codestr) as mod:
             d = mod.B()
@@ -207,7 +207,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "B", ("f", "fget")), 0)))
+        self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "B"), ("f", "fget")), 0)))
 
         with self.in_strict_module(codestr) as mod:
 
@@ -238,7 +238,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "B", ("f", "fget")), 0)))
+        self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "B"), ("f", "fget")), 0)))
 
         with self.in_strict_module(codestr) as mod:
 
@@ -329,7 +329,7 @@ class InvokeTests(StaticTestBase):
     def mixed_override_test(self, test_case, nonstatic_subclass, base_class_names):
         code = self.compile(test_case, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "B", ("f", "fget")), 0)))
+        self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "B"), ("f", "fget")), 0)))
 
         with self.in_strict_module(test_case) as mod:
             expected = 42
@@ -385,7 +385,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C", ("f", "fget")), 0)))
+        self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "C"), ("f", "fget")), 0)))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -406,7 +406,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -429,7 +429,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -450,7 +450,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -473,7 +473,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -494,7 +494,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
 
@@ -520,7 +520,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
 
@@ -549,7 +549,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
 
@@ -587,7 +587,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -630,7 +630,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
 
@@ -659,7 +659,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -681,7 +681,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
 
@@ -712,7 +712,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
 
@@ -737,7 +737,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 2))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 2))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -761,7 +761,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "g"), 2))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "g"), 2))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -781,7 +781,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", ("x", "fget")), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), ("x", "fget")), 0))
 
         with self.in_module(codestr) as mod:
 
@@ -809,7 +809,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -830,7 +830,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -853,7 +853,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
@@ -879,7 +879,7 @@ class InvokeTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), 4)
-	
+
     def test_invoke_method_takes_2_primitives(self):
         codestr = """
             from __static__ import cbool, box
@@ -932,7 +932,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_FUNCTION", (("foo", "C", "f"), 1))
+        self.assertInBytecode(x, "INVOKE_FUNCTION", ((("foo", "C"), "f"), 1))
 
         with self.in_strict_module(codestr) as mod:
             c = mod.C()

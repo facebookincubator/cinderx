@@ -163,7 +163,7 @@ class ModuleTests(StaticTestBase):
         """
         compiler = self.compiler(a=acode, b=bcode, c=ccode)
         f = self.find_code(compiler.compile_module("c"), "f")
-        self.assertInBytecode(f, "INVOKE_FUNCTION", (("a", "foo"), 1))
+        self.assertInBytecode(f, "INVOKE_FUNCTION", ((("a",), "foo"), 1))
 
     def test_module_special_name_access(self) -> None:
         acode = """

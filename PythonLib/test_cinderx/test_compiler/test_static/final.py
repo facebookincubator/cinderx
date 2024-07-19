@@ -812,7 +812,7 @@ class FinalTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertInBytecode(
-                mod.foo, "INVOKE_FUNCTION", ((mod.__name__, "C", "foo"), 1)
+                mod.foo, "INVOKE_FUNCTION", (((mod.__name__, "C"), "foo"), 1)
             )
             self.assertEqual(mod.foo(mod.D()), 4)
 
@@ -839,7 +839,7 @@ class FinalTests(StaticTestBase):
                 CV: ClassVar[int] = 84
 
             self.assertInBytecode(
-                mod.foo, "INVOKE_FUNCTION", ((mod.__name__, "C", "foo"), 1)
+                mod.foo, "INVOKE_FUNCTION", (((mod.__name__, "C"), "foo"), 1)
             )
             self.assertEqual(mod.foo(mod.C()), 42)
             self.assertEqual(mod.foo(D()), 84)
@@ -866,7 +866,7 @@ class FinalTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertInBytecode(
-                mod.foo, "INVOKE_FUNCTION", ((mod.__name__, "C", "foo"), 1)
+                mod.foo, "INVOKE_FUNCTION", (((mod.__name__, "C"), "foo"), 1)
             )
             self.assertEqual(mod.foo(mod.C()), 42)
             self.assertEqual(mod.foo(mod.D()), 63)

@@ -2589,7 +2589,7 @@ class PrimitivesTests(StaticTestBase):
                 return x(1,2,3,4,5,6,7,8)
         """
         with self.in_strict_module(codestr) as mod:
-            self.assertInBytecode(mod.y, "INVOKE_FUNCTION", ((mod.__name__, "x"), 8))
+            self.assertInBytecode(mod.y, "INVOKE_FUNCTION", (((mod.__name__, ), "x"), 8))
             self.assertEqual(mod.y(), (1, 2, 3, 4, 5, 6, 7, 8))
             self.assertEqual(mod.x(1, 2, 3, 4, 5, 6, 7, 8), (1, 2, 3, 4, 5, 6, 7, 8))
 
@@ -2871,7 +2871,7 @@ class PrimitivesTests(StaticTestBase):
             self.assertInBytecode(
                 mod.fib,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "fib"), 1),
+                (((mod.__name__, ), "fib"), 1),
             )
             self.assertEqual(mod.fib(2), 1)
             self.assert_jitted(mod.fib)
@@ -3442,7 +3442,7 @@ class PrimitivesTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f, C = mod.f, mod.C
-            self.assertInBytecode(f, "LOAD_FIELD", (mod.__name__, "C", "x"))
+            self.assertInBytecode(f, "LOAD_FIELD", ((mod.__name__, "C"), "x"))
             self.assertInBytecode(f, "POP_JUMP_IF_ZERO")
             self.assertIs(C(True).x, True)
             self.assertIs(C(False).x, False)

@@ -399,7 +399,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertEqual(mod.invoke_d_f(), 1)
             # TODO(T131831297): This should be an INVOKE_METHOD.
             self.assertInBytecode(
-                mod.invoke_d_f, "INVOKE_FUNCTION", ((mod.__name__, "C", "f"), 1)
+                mod.invoke_d_f, "INVOKE_FUNCTION", (((mod.__name__, "C"), "f"), 1)
             )
 
     def test_nonstatic_override_init_subclass(self):

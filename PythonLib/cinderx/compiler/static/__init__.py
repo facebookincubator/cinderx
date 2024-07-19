@@ -403,7 +403,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         self.emit(
             "INVOKE_FUNCTION",
-            (("_static", "__build_cinder_class__"), 7 + len(node.bases)),
+            ((("_static",), "__build_cinder_class__"), 7 + len(node.bases)),
         )
 
     def processBody(
@@ -476,7 +476,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             init_graph.emit("POP_TOP")
 
             init_graph.emit("LOAD_FAST", "cls")
-            init_graph.emit("INVOKE_FUNCTION", (("_static", "init_subclass"), 1))
+            init_graph.emit("INVOKE_FUNCTION", ((("_static",), "init_subclass"), 1))
             init_graph.emit("RETURN_VALUE")
 
             gen.emit("LOAD_CLOSURE", "__class__")
@@ -1017,7 +1017,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         self.set_lineno(node)
         list_descr = list_type.klass.type_descr
-        extend_descr = list_descr + ("extend",)
+        extend_descr = (list_descr, "extend")
         built_final_list = False
         elements = 0
 
