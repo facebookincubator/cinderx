@@ -329,13 +329,6 @@ static PyGetSetDef Ci_meth_getset[] = {
 };
 
 static int init_already_existing_types() {
-  PyUnstable_GC_VisitObjects([](PyObject* obj, void*) {
-    if (PyType_Check(obj) && PyType_HasFeature((PyTypeObject*)obj, Py_TPFLAGS_READY)) {
-      _PyJIT_TypeCreated((PyTypeObject*)obj);
-    }
-    return 1;
-  }, nullptr);
-
   if (override_tp_getset(&PyMethodDescr_Type, Ci_method_getset) < 0) {
     return -1;
   }
@@ -482,7 +475,6 @@ static int cinderx_type_watcher(PyTypeObject* type) {
 
 static int cinder_init(PyObject* mod) {
 #if PY_VERSION_HEX < 0x030C0000
-  Ci_hook_type_created = _PyJIT_TypeCreated;
   Ci_hook_type_destroyed = _PyJIT_TypeDestroyed;
   Ci_hook_type_name_modified = _PyJIT_TypeNameModified;
   Ci_hook_type_dealloc = _PyClassLoader_TypeDealloc;
@@ -590,7 +582,6 @@ static int cinder_fini() {
     return -1;
   }
 
-  Ci_hook_type_created = nullptr;
   Ci_hook_type_destroyed = nullptr;
   Ci_hook_type_name_modified = nullptr;
   Ci_hook_type_pre_setattr = nullptr;

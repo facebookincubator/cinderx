@@ -8,7 +8,6 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
-#include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
 
@@ -841,9 +840,7 @@ Register* simplifyLoadAttrSplitDict(
     return nullptr;
   }
   BorrowedRef<PyHeapTypeObject> ht(type);
-  auto& profile_runtime = Runtime::get()->profileRuntime();
-  if (ht->ht_cached_keys == nullptr ||
-      !profile_runtime.hasPrimedDictKeys(type)) {
+  if (ht->ht_cached_keys == nullptr) {
     return nullptr;
   }
   PyDictKeysObject* keys = ht->ht_cached_keys;

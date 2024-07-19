@@ -95,7 +95,6 @@ PyAPI_FUNC(int) _PyJIT_RegisterFunction(PyFunctionObject* func);
  * Informs the JIT that a type, function, or code object is being created,
  * modified, or destroyed.
  */
-PyAPI_FUNC(void) _PyJIT_TypeCreated(PyTypeObject* type);
 PyAPI_FUNC(void) _PyJIT_TypeModified(PyTypeObject* type);
 PyAPI_FUNC(void) _PyJIT_TypeNameModified(PyTypeObject* type);
 PyAPI_FUNC(void) _PyJIT_TypeDestroyed(PyTypeObject* type);

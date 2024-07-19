@@ -38,9 +38,7 @@
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/perf_jitdump.h"
-#include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/runtime.h"
-#include "cinderx/Jit/type_profiler.h"
 
 #include <Python.h>
 
@@ -178,10 +176,8 @@ static std::string g_write_compiled_functions_file;
   X(normal)                 \
   X(normvector)             \
   X(opname)                 \
-  X(profile)                \
   X(reason)                 \
   X(split_dict_keys)        \
-  X(type_metadata)          \
   X(type_name)              \
   X(types)
 
@@ -2296,12 +2292,6 @@ int _PyJIT_RegisterFunction(PyFunctionObject* func) {
   return result;
 }
 
-void _PyJIT_TypeCreated(PyTypeObject* type) {
-  JIT_DCHECK(PyType_HasFeature(type, Py_TPFLAGS_READY), "type not ready");
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  profile_runtime.registerType(type);
-}
-
 void _PyJIT_TypeModified(PyTypeObject* type) {
   if (auto rt = Runtime::getUnchecked()) {
     rt->notifyTypeModified(type, type);
@@ -2311,16 +2301,12 @@ void _PyJIT_TypeModified(PyTypeObject* type) {
 void _PyJIT_TypeNameModified(PyTypeObject* type) {
   // We assume that this is a very rare case, and simply give up on tracking
   // the type if it happens.
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  profile_runtime.unregisterType(type);
   if (auto rt = Runtime::getUnchecked()) {
     rt->notifyTypeModified(type, type);
   }
 }
 
 void _PyJIT_TypeDestroyed(PyTypeObject* type) {
-  auto& profile_runtime = jit::Runtime::get()->profileRuntime();
-  profile_runtime.unregisterType(type);
   if (auto rt = Runtime::getUnchecked()) {
     rt->notifyTypeModified(type, nullptr);
   }

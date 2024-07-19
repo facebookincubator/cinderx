@@ -16,7 +16,6 @@
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/jit_rt.h"
-#include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/slab_arena.h"
 #include "cinderx/Jit/symbolizer.h"
 #include "cinderx/Jit/threaded_compile.h"
@@ -429,7 +428,6 @@ class Runtime {
     return builtins_;
   }
 
-  ProfileRuntime& profileRuntime();
   GlobalCacheManager& globalCaches();
 
   // Some profilers need to walk the code_rt->code->qualname chain for jitted
@@ -507,10 +505,6 @@ class Runtime {
   std::vector<DeoptMetadata> deopt_metadata_;
   DeoptStats deopt_stats_;
   GuardFailureCallback guard_failure_callback_;
-
-  // Note: Ideally this would be separate from JIT metadata.  It should be
-  // usable even when the JIT is fully reset.
-  ProfileRuntime profile_runtime_;
 
   // References to Python objects held by this Runtime
   std::unordered_set<Ref<PyObject>> references_;

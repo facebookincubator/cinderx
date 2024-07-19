@@ -123,10 +123,6 @@ void Runtime::mlockProfilerDependencies() {
   code_runtimes_.mlock();
 }
 
-ProfileRuntime& Runtime::profileRuntime() {
-  return profile_runtime_;
-}
-
 GlobalCacheManager& Runtime::globalCaches() {
   return global_caches_;
 }
