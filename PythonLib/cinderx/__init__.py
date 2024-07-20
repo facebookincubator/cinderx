@@ -5,54 +5,52 @@
 import os
 import sys
 
+# We need to make the symbols from _cinderx available process wide as they
+# are used in other CinderX modules like _static, etc.
+old_dlopen_flags: int = sys.getdlopenflags()
+sys.setdlopenflags(old_dlopen_flags | os.RTLD_GLOBAL)
 try:
-    # We need to make the symbols from _cinderx available process wide as they
-    # are used in other CinderX modules like _static, etc.
-    old_dlopen_flags: int = sys.getdlopenflags()
-    sys.setdlopenflags(old_dlopen_flags | os.RTLD_GLOBAL)
-    try:
+    from _cinderx import (
+        _compile_perf_trampoline_pre_fork,
+        _get_entire_call_stack_as_qualnames_with_lineno,
+        _get_entire_call_stack_as_qualnames_with_lineno_and_frame,
+        _is_compile_perf_trampoline_pre_fork_enabled,
+        async_cached_classproperty,
+        async_cached_property,
+        cached_classproperty,
+        cached_property,
+        clear_caches,
+        clear_classloader_caches,
+        disable_parallel_gc,
+        enable_parallel_gc,
+        get_parallel_gc_settings,
+        init as cinderx_init,
+        strict_module_patch,
+        strict_module_patch_delete,
+        strict_module_patch_enabled,
+        StrictModule,
+        watch_sys_modules,
+    )
+    if sys.version_info < (3, 11):
         from _cinderx import (
-            _compile_perf_trampoline_pre_fork,
-            _get_entire_call_stack_as_qualnames_with_lineno,
-            _get_entire_call_stack_as_qualnames_with_lineno_and_frame,
-            _is_compile_perf_trampoline_pre_fork_enabled,
-            async_cached_classproperty,
-            async_cached_property,
-            cached_classproperty,
-            cached_property,
-            clear_caches,
-            clear_classloader_caches,
-            disable_parallel_gc,
-            enable_parallel_gc,
-            get_parallel_gc_settings,
-            init as cinderx_init,
-            strict_module_patch,
-            strict_module_patch_delete,
-            strict_module_patch_enabled,
-            StrictModule,
-            watch_sys_modules,
+            clear_all_shadow_caches,
         )
-        if sys.version_info < (3, 11):
-            from _cinderx import (
-                clear_all_shadow_caches,
-            )
-        else:
-            def clear_all_shadow_caches() -> None:
-                pass
-    finally:
-        sys.setdlopenflags(old_dlopen_flags)
-except ImportError:
+    else:
+        def clear_all_shadow_caches() -> None:
+            pass
+except (ModuleNotFoundError, ImportError):
+    if os.environ.get("CINDERX_ALLOW__CINDERX_FAILURE") is None:
+        raise
     cinderx_init = None
+finally:
+    sys.setdlopenflags(old_dlopen_flags)
 
 
 def init() -> None:
     """Initialize CinderX."""
     if cinderx_init is None:
-        # I don't like letting this pass silently, but currently the build
-        # breaks unless we do, due to the build bootstrapping itself with the
-        # built binary when CinderX isn't built yet. This won't be an issue
-        # after buckification and removing the `site.py` call to cinderx init.
         return
+
     cinderx_init()
 
     # Turn _static into a StrictModule so we can do direct invokes against it
