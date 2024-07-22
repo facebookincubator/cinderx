@@ -245,38 +245,6 @@ int _PyClassLoader_IsFinalMethodOverridden(
 #define Ci_FUNC_FLAGS_STATICMETHOD 0x04
 
 #ifndef Py_LIMITED_API
-typedef struct {
-  PyObject_HEAD PyObject* td_name;
-  PyObject* td_type; /* tuple type reference or type object once resolved */
-  Py_ssize_t td_offset;
-  int td_optional;
-  int td_exact;
-} _PyTypedDescriptor;
-
-extern PyTypeObject _PyTypedDescriptor_Type;
-
-PyObject*
-_PyTypedDescriptor_New(PyObject* name, PyObject* type, Py_ssize_t offset);
-
-extern PyTypeObject _PyTypedDescriptorWithDefaultValue_Type;
-
-typedef struct {
-  PyObject_HEAD PyObject* td_name;
-  PyObject* td_type; /* tuple type reference or type object once resolved */
-  PyObject* td_default; /* the default value to return from the get if offset is
-                           null */
-  Py_ssize_t td_offset;
-  int td_optional;
-  int td_exact;
-} _PyTypedDescriptorWithDefaultValue;
-
-extern PyTypeObject _PyTypedDescriptor_Type;
-
-PyObject* _PyTypedDescriptorWithDefaultValue_New(
-    PyObject* name,
-    PyObject* type,
-    Py_ssize_t offset,
-    PyObject* default_value);
 
 int _PyClassLoader_UpdateModuleName(
     Ci_StrictModuleObject* mod,

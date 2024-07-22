@@ -25,6 +25,7 @@
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
+#include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "strictmoduleobject.h"
 
