@@ -15,6 +15,7 @@
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 #include "cinderx/StaticPython/vtable.h"
@@ -33,26 +34,6 @@ typedef struct _PyClassLoader_StaticCallReturn {
   void* rax;
   void* rdx;
 } _PyClassLoader_StaticCallReturn;
-
-typedef struct {
-  PyObject_HEAD;
-  PyObject* mt_original;
-} _PyClassLoader_MethodThunk;
-
-/**
-    In order to ensure sanity of types at runtime, we need to check the return
-   values of functions and ensure they remain compatible with the declared
-   return type (even if the callable is patched).
-
-    This structure helps us do that.
-*/
-typedef struct {
-  _PyClassLoader_MethodThunk rt_base;
-  PyTypeObject* rt_expected;
-  PyObject* rt_name;
-  int rt_optional;
-  int rt_exact;
-} _PyClassLoader_RetTypeInfo;
 
 typedef struct {
   PyObject_HEAD PyObject* prop_get;
@@ -93,11 +74,6 @@ typedef struct {
   }
 
 PyObject* Ci_PyMethodDef_GetTypedSignature(PyMethodDef* method);
-
-typedef struct {
-  _PyClassLoader_RetTypeInfo tcs_rt;
-  PyObject* tcs_value;
-} _PyClassLoader_TypeCheckState;
 
 Py_ssize_t _PyClassLoader_ResolveMethod(PyObject* path);
 Py_ssize_t _PyClassLoader_ResolveFieldOffset(PyObject* path, int* field_type);
