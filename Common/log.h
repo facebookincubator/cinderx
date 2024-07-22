@@ -101,13 +101,15 @@ std::string repr(BorrowedRef<> obj);
     std::abort();                                        \
   }
 #else
-#define JIT_ABORT_IMPL(...)                              \
-  {                                                      \
-    fmt::print(stderr, __VA_ARGS__);                     \
-    fmt::print(stderr, "\n");                            \
-    fmt::print(stderr, "EXCEPTION PRINT NEEDS UPGRADE"); \
-    std::fflush(stderr);                                 \
-    std::abort();                                        \
+#define JIT_ABORT_IMPL(...)                               \
+  {                                                       \
+    fmt::print(stderr, __VA_ARGS__);                      \
+    fmt::print(stderr, "\n");                             \
+    std::fflush(stderr);                                  \
+    if (PyErr_Occurred()) {                               \
+      PyErr_DisplayException(PyErr_GetRaisedException()); \
+    }                                                     \
+    std::abort();                                         \
   }
 #endif
 
