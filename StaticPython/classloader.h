@@ -101,7 +101,6 @@ typedef struct {
 
 Py_ssize_t _PyClassLoader_ResolveMethod(PyObject* path);
 Py_ssize_t _PyClassLoader_ResolveFieldOffset(PyObject* path, int* field_type);
-int _PyClassLoader_ResolvePrimitiveType(PyObject* descr);
 int _PyClassLoader_GetTypeCode(PyTypeObject* type);
 
 int _PyClassLoader_AddSubclass(PyTypeObject* base, PyTypeObject* type);

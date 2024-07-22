@@ -87,6 +87,8 @@ void _PyClassLoader_ClearCache(void);
 // Gets the class loader cache which is used to cache resolutions of members.
 PyObject* _PyClassLoader_GetCache();
 
+int _PyClassLoader_ResolvePrimitiveType(PyObject* descr);
+
 #ifdef __cplusplus
 }
 #endif
