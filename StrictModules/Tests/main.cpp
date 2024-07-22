@@ -13,7 +13,6 @@
 
 #include <filesystem>
 #include <fmt/format.h>
-#include <iostream>
 
 static void remap_txt_path(std::string& path) {
 #ifdef BUCK_BUILD
@@ -87,7 +86,6 @@ int main(int argc, char* argv[]) {
     std::string python_install_str =
         (python_install / "lib" / python_ver_str).string() + ":" +
         (python_install / "lib" / python_ver_str / "lib-dynload").string();
-    std::cout << "PYTHONPATH=" << python_install_str << std::endl;
     setenv("PYTHONPATH", python_install_str.c_str(), 1);
   }
 #endif

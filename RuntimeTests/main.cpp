@@ -18,7 +18,6 @@
 
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <fmt/format.h>
 
 static constexpr char g_disabled_prefix[] = "@disabled";
@@ -143,7 +142,6 @@ int main(int argc, char* argv[]) {
     std::string python_install_str =
         (python_install / "lib" / python_ver_str).string() + ":" +
         (python_install / "lib" / python_ver_str / "lib-dynload").string();
-    std::cout << "PYTHONPATH=" << python_install_str << std::endl;
     setenv("PYTHONPATH", python_install_str.c_str(), 1);
   }
   if (PyImport_AppendInittab("_cinderx", PyInit__cinderx) != 0) {
