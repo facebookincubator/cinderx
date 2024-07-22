@@ -6,12 +6,10 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/hooks.h"
-#include "internal/pycore_shadow_frame.h"
 #include "cinderx/Shadowcode/shadowcode.h"
+#include "internal/pycore_shadow_frame.h"
 #endif
 
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-#include "cinderx/_cinderx-lib.h"
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
@@ -24,10 +22,12 @@
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/ParallelGC/parallel_gc.h"
 #include "cinderx/StaticPython/classloader.h"
-#include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
+#include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/methodobject_vectorcall.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/_cinderx-lib.h"
 
 #include <dlfcn.h>
 
@@ -35,25 +35,27 @@
  * Misc. Python-facing utility functions.
  */
 
-static PyObject *clear_caches(PyObject *, PyObject *) {
+static PyObject* clear_caches(PyObject*, PyObject*) {
   jit::Runtime::get()->globalCaches().clear();
   Py_RETURN_NONE;
 }
 
 #if PY_VERSION_HEX < 0x030C0000
-static PyObject *clear_all_shadow_caches(PyObject *, PyObject *) {
+static PyObject* clear_all_shadow_caches(PyObject*, PyObject*) {
   _PyShadow_FreeAll();
   Py_RETURN_NONE;
 }
 #endif
 
-PyDoc_STRVAR(strict_module_patch_doc, "strict_module_patch(mod, name, value)\n\
+PyDoc_STRVAR(
+    strict_module_patch_doc,
+    "strict_module_patch(mod, name, value)\n\
 Patch a field in a strict module\n\
 Requires patching to be enabled");
-static PyObject *strict_module_patch(PyObject *, PyObject *args) {
-  PyObject *mod;
-  PyObject *name;
-  PyObject *value;
+static PyObject* strict_module_patch(PyObject*, PyObject* args) {
+  PyObject* mod;
+  PyObject* name;
+  PyObject* value;
   if (!PyArg_ParseTuple(args, "OUO", &mod, &name, &value)) {
     return nullptr;
   }
@@ -63,13 +65,14 @@ static PyObject *strict_module_patch(PyObject *, PyObject *args) {
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(strict_module_patch_delete_doc,
-             "strict_module_patch_delete(mod, name)\n\
+PyDoc_STRVAR(
+    strict_module_patch_delete_doc,
+    "strict_module_patch_delete(mod, name)\n\
 Delete a field in a strict module\n\
 Requires patching to be enabled");
-static PyObject *strict_module_patch_delete(PyObject *, PyObject *args) {
-  PyObject *mod;
-  PyObject *name;
+static PyObject* strict_module_patch_delete(PyObject*, PyObject* args) {
+  PyObject* mod;
+  PyObject* name;
   if (!PyArg_ParseTuple(args, "OU", &mod, &name)) {
     return nullptr;
   }
@@ -79,10 +82,11 @@ static PyObject *strict_module_patch_delete(PyObject *, PyObject *args) {
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(strict_module_patch_enabled_doc,
-             "strict_module_patch_enabled(mod)\n\
+PyDoc_STRVAR(
+    strict_module_patch_enabled_doc,
+    "strict_module_patch_enabled(mod)\n\
 Gets whether patching is enabled on the strict module");
-static PyObject *strict_module_patch_enabled(PyObject *, PyObject *mod) {
+static PyObject* strict_module_patch_enabled(PyObject*, PyObject* mod) {
   if (!Ci_StrictModule_Check(mod)) {
     PyErr_SetString(PyExc_TypeError, "expected strict module object");
     return nullptr;
@@ -93,20 +97,20 @@ static PyObject *strict_module_patch_enabled(PyObject *, PyObject *mod) {
   Py_RETURN_FALSE;
 }
 
-static PyObject *clear_classloader_caches(PyObject *, PyObject *) {
+static PyObject* clear_classloader_caches(PyObject*, PyObject*) {
   _PyClassLoader_ClearVtables();
   _PyClassLoader_ClearCache();
   _PyClassLoader_ClearGenericTypes();
   Py_RETURN_NONE;
 }
 
-static PyObject *watch_sys_modules(PyObject *, PyObject *) {
-  PyObject *sys = PyImport_ImportModule("sys");
+static PyObject* watch_sys_modules(PyObject*, PyObject*) {
+  PyObject* sys = PyImport_ImportModule("sys");
   if (sys == nullptr) {
     Py_RETURN_NONE;
   }
 
-  PyObject *modules = PyObject_GetAttrString(sys, "modules");
+  PyObject* modules = PyObject_GetAttrString(sys, "modules");
   Py_DECREF(sys);
   if (modules == nullptr) {
     Py_RETURN_NONE;
@@ -116,8 +120,9 @@ static PyObject *watch_sys_modules(PyObject *, PyObject *) {
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(cinder_enable_parallel_gc_doc,
-             "enable_parallel_gc(min_generation=2, num_threads=0)\n\
+PyDoc_STRVAR(
+    cinder_enable_parallel_gc_doc,
+    "enable_parallel_gc(min_generation=2, num_threads=0)\n\
 \n\
 Enable parallel garbage collection for generations >= `min_generation`.\n\
 \n\
@@ -128,16 +133,18 @@ Calling this more than once has no effect. Call `cinder.disable_parallel_gc()`\n
 and then call this function to change the configuration.\n\
 \n\
 A ValueError is raised if the generation or number of threads is invalid.");
-static PyObject *cinder_enable_parallel_gc(PyObject *, PyObject *args,
-                                           PyObject *kwargs) {
-  static char *argnames[] = {const_cast<char *>("min_generation"),
-                             const_cast<char *>("num_threads"), nullptr};
+static PyObject*
+cinder_enable_parallel_gc(PyObject*, PyObject* args, PyObject* kwargs) {
+  static char* argnames[] = {
+      const_cast<char*>("min_generation"),
+      const_cast<char*>("num_threads"),
+      nullptr};
 
   int min_gen = 2;
   int num_threads = 0;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ii", argnames, &min_gen,
-                                   &num_threads)) {
+  if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "|ii", argnames, &min_gen, &num_threads)) {
     return nullptr;
   }
 
@@ -157,19 +164,22 @@ static PyObject *cinder_enable_parallel_gc(PyObject *, PyObject *args,
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(cinder_disable_parallel_gc_doc, "disable_parallel_gc()\n\
+PyDoc_STRVAR(
+    cinder_disable_parallel_gc_doc,
+    "disable_parallel_gc()\n\
 \n\
 Disable parallel garbage collection.\n\
 \n\
 This only affects the next collection; calling this from a finalizer does not\n\
 affect the current collection.");
-static PyObject *cinder_disable_parallel_gc(PyObject *,
-                                            PyObject *) {
+static PyObject* cinder_disable_parallel_gc(PyObject*, PyObject*) {
   Cinder_DisableParallelGC();
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(cinder_get_parallel_gc_settings_doc, "get_parallel_gc_settings()\n\
+PyDoc_STRVAR(
+    cinder_get_parallel_gc_settings_doc,
+    "get_parallel_gc_settings()\n\
 \n\
 Return the settings used by the parallel garbage collector or\n\
 None if the parallel collector is not enabled.\n\
@@ -179,45 +189,47 @@ collector is enabled:\n\
 \n\
     num_threads: Number of threads used.\n\
     min_generation: The minimum generation for which parallel gc is enabled.");
-static PyObject *cinder_get_parallel_gc_settings(PyObject *,
-                                                 PyObject *) {
+static PyObject* cinder_get_parallel_gc_settings(PyObject*, PyObject*) {
   return Cinder_GetParallelGCSettings();
 }
 
-static PyObject*
-compile_perf_trampoline_pre_fork(PyObject *, PyObject *) {
-    _PyPerfTrampoline_CompilePerfTrampolinePreFork();
-    Py_RETURN_NONE;
+static PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
+  _PyPerfTrampoline_CompilePerfTrampolinePreFork();
+  Py_RETURN_NONE;
 }
 
-static PyObject*
-is_compile_perf_trampoline_pre_fork_enabled(PyObject *, PyObject *) {
-    if(_PyPerfTrampoline_IsPreforkCompilationEnabled()) {
-        Py_RETURN_TRUE;
-    }
-    Py_RETURN_FALSE;
+static PyObject* is_compile_perf_trampoline_pre_fork_enabled(
+    PyObject*,
+    PyObject*) {
+  if (_PyPerfTrampoline_IsPreforkCompilationEnabled()) {
+    Py_RETURN_TRUE;
+  }
+  Py_RETURN_FALSE;
 }
 
 typedef struct {
-  PyObject *list;
+  PyObject* list;
   int hasError;
   int collectFrame;
 } StackWalkState;
 
-static CiStackWalkDirective frame_data_collector(void *data, PyObject *fqname,
-                                                 PyCodeObject *code, int lineno,
-                                                 PyObject *pyframe) {
-  PyObject *lineNoObj;
+static CiStackWalkDirective frame_data_collector(
+    void* data,
+    PyObject* fqname,
+    PyCodeObject* code,
+    int lineno,
+    PyObject* pyframe) {
+  PyObject* lineNoObj;
   int failed;
 
-  StackWalkState *state = (StackWalkState *)data;
+  StackWalkState* state = (StackWalkState*)data;
   if (fqname == nullptr) {
-    fqname = ((PyCodeObject *)code)->co_qualname;
+    fqname = ((PyCodeObject*)code)->co_qualname;
     if (!fqname || !PyUnicode_Check(fqname)) {
-      fqname = ((PyCodeObject *)code)->co_name;
+      fqname = ((PyCodeObject*)code)->co_name;
     }
   }
-  PyObject *t = PyTuple_New(2 + state->collectFrame);
+  PyObject* t = PyTuple_New(2 + state->collectFrame);
   if (t == nullptr) {
     goto fail;
   }
@@ -233,7 +245,7 @@ static CiStackWalkDirective frame_data_collector(void *data, PyObject *fqname,
   PyTuple_SET_ITEM(t, 1, lineNoObj);
 
   if (state->collectFrame) {
-    PyObject *o = pyframe;
+    PyObject* o = pyframe;
     if (!o) {
       o = Py_None;
     }
@@ -250,8 +262,8 @@ fail:
   return CI_SWD_STOP_STACK_WALK;
 }
 
-static PyObject *collect_stack(int collectFrame) {
-  PyObject *stack = PyList_New(0);
+static PyObject* collect_stack(int collectFrame) {
+  PyObject* stack = PyList_New(0);
   if (stack == nullptr) {
     return nullptr;
   }
@@ -264,29 +276,31 @@ static PyObject *collect_stack(int collectFrame) {
   return stack;
 }
 
-static PyObject *
-get_entire_call_stack_as_qualnames_with_lineno(PyObject *,
-                                               PyObject *) {
+static PyObject* get_entire_call_stack_as_qualnames_with_lineno(
+    PyObject*,
+    PyObject*) {
   return collect_stack(0);
 }
 
-static PyObject *get_entire_call_stack_as_qualnames_with_lineno_and_frame(
-    PyObject *, PyObject *) {
+static PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
+    PyObject*,
+    PyObject*) {
   return collect_stack(1);
 }
-
 
 /*
  * (De)initialization functions
  */
 
 static void init_already_existing_funcs() {
-  PyUnstable_GC_VisitObjects([](PyObject* obj, void*){
-    if (PyFunction_Check(obj)) {
-      jit::initFunctionObjectForJIT((PyFunctionObject*)obj);
-    }
-    return 1;
-  }, nullptr);
+  PyUnstable_GC_VisitObjects(
+      [](PyObject* obj, void*) {
+        if (PyFunction_Check(obj)) {
+          jit::initFunctionObjectForJIT((PyFunctionObject*)obj);
+        }
+        return 1;
+      },
+      nullptr);
 }
 
 static std::unique_ptr<PyGetSetDef[]> s_func_getset;
@@ -377,35 +391,40 @@ static void init_already_existing_types() {
 }
 
 #if PY_VERSION_HEX < 0x030C0000
-static void shadowcode_code_sizeof(struct _PyShadowCode *shadow, Py_ssize_t *res) {
-    *res += sizeof(_PyShadowCode);
-    *res += sizeof(PyObject *) * shadow->l1_cache.size;
-    *res += sizeof(PyObject *) * shadow->cast_cache.size;
-    *res += sizeof(PyObject **) * shadow->globals_size;
-    *res += sizeof(_PyShadow_InstanceAttrEntry **) *
-            shadow->polymorphic_caches_size;
-    *res += sizeof(_FieldCache) * shadow->field_cache_size;
-    *res += sizeof(_Py_CODEUNIT) * shadow->len;
+static void shadowcode_code_sizeof(
+    struct _PyShadowCode* shadow,
+    Py_ssize_t* res) {
+  *res += sizeof(_PyShadowCode);
+  *res += sizeof(PyObject*) * shadow->l1_cache.size;
+  *res += sizeof(PyObject*) * shadow->cast_cache.size;
+  *res += sizeof(PyObject**) * shadow->globals_size;
+  *res +=
+      sizeof(_PyShadow_InstanceAttrEntry**) * shadow->polymorphic_caches_size;
+  *res += sizeof(_FieldCache) * shadow->field_cache_size;
+  *res += sizeof(_Py_CODEUNIT) * shadow->len;
 }
 #endif
 
 static int get_current_code_flags(PyThreadState* tstate) {
-    PyCodeObject *cur_code = nullptr;
-    Ci_WalkStack(tstate, [](void *ptr, PyCodeObject *code, int) {
-      PyCodeObject **topmost_code = (PyCodeObject **) ptr;
-      *topmost_code = code;
-      return CI_SWD_STOP_STACK_WALK;
-    }, &cur_code);
-    if (!cur_code) {
-        return -1;
-    }
-    return cur_code->co_flags;
+  PyCodeObject* cur_code = nullptr;
+  Ci_WalkStack(
+      tstate,
+      [](void* ptr, PyCodeObject* code, int) {
+        PyCodeObject** topmost_code = (PyCodeObject**)ptr;
+        *topmost_code = code;
+        return CI_SWD_STOP_STACK_WALK;
+      },
+      &cur_code);
+  if (!cur_code) {
+    return -1;
+  }
+  return cur_code->co_flags;
 }
 
 static int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
   if (event == PY_CODE_EVENT_DESTROY) {
 #if PY_VERSION_HEX < 0x030C0000
-    _PyShadow_ClearCache((PyObject *)co);
+    _PyShadow_ClearCache((PyObject*)co);
 #endif
     _PyJIT_CodeDestroyed(co);
   }
@@ -413,11 +432,10 @@ static int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
 }
 
 static int cinderx_dict_watcher(
-  PyDict_WatchEvent event,
-  PyObject* dict_obj,
-  PyObject* key_obj,
-  PyObject* new_value
-) {
+    PyDict_WatchEvent event,
+    PyObject* dict_obj,
+    PyObject* key_obj,
+    PyObject* new_value) {
   JIT_DCHECK(PyDict_Check(dict_obj), "Expecting dict from dict watcher");
   BorrowedRef<PyDictObject> dict{dict_obj};
 
@@ -458,10 +476,9 @@ static int cinderx_dict_watcher(
 }
 
 static int cinderx_func_watcher(
-  PyFunction_WatchEvent event,
-  PyFunctionObject* func,
-  PyObject* new_value
-) {
+    PyFunction_WatchEvent event,
+    PyFunctionObject* func,
+    PyObject* new_value) {
   switch (event) {
     case PyFunction_EVENT_CREATE:
       jit::initFunctionObjectForJIT(func);
@@ -541,11 +558,13 @@ static int cinder_init(PyObject* mod) {
 #endif
 
 #if PY_VERSION_HEX < 0x030C0000
-  JIT_CHECK(__strobe_CodeRuntime_py_code == jit::CodeRuntime::kPyCodeOffset,
-            "Invalid PyCodeOffset for Strobelight");
-  JIT_CHECK(__strobe_RuntimeFrameState_py_code ==
-                jit::RuntimeFrameState::codeOffset(),
-            "Invalid codeOffset for Strobelight");
+  JIT_CHECK(
+      __strobe_CodeRuntime_py_code == jit::CodeRuntime::kPyCodeOffset,
+      "Invalid PyCodeOffset for Strobelight");
+  JIT_CHECK(
+      __strobe_RuntimeFrameState_py_code ==
+          jit::RuntimeFrameState::codeOffset(),
+      "Invalid codeOffset for Strobelight");
 #else
   UPGRADE_NOTE(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT, T192550846)
 #endif
@@ -592,9 +611,9 @@ static int cinder_fini() {
   PyThreadState* tstate = PyThreadState_Get();
   bool code_running =
 #if PY_VERSION_HEX < 0x030C0000
-  tstate->shadow_frame != nullptr;
+      tstate->shadow_frame != nullptr;
 #else
-  tstate->cframe != &tstate->root_cframe;
+      tstate->cframe != &tstate->root_cframe;
 #endif
   if (code_running) {
     // If any Python code is running we can't tell if JIT code is in use. Even
@@ -636,9 +655,9 @@ static int cinder_fini() {
   Ci_hook_ShadowFrame_WalkAndPopulate = nullptr;
 
   /* These hooks are not safe to unset, since there may be SP generic types that
-   * outlive finalization of the cinder module, and if we don't have the hooks in
-   * place for their cleanup, we will have leaks. But these hooks also have no
-   * effect for any type other than an SP generic type, so they are generally
+   * outlive finalization of the cinder module, and if we don't have the hooks
+   * in place for their cleanup, we will have leaks. But these hooks also have
+   * no effect for any type other than an SP generic type, so they are generally
    * harmless to leave in place, even if the runtime is shutdown and
    * reinitialized. */
 
@@ -660,7 +679,7 @@ static int cinder_fini() {
 
 static bool g_was_initialized = false;
 
-static PyObject* init(PyObject *self, PyObject * /*obj*/) {
+static PyObject* init(PyObject* self, PyObject* /*obj*/) {
   if (g_was_initialized) {
     Py_RETURN_FALSE;
   }
@@ -672,7 +691,7 @@ static PyObject* init(PyObject *self, PyObject * /*obj*/) {
   Py_RETURN_TRUE;
 }
 
-static void module_free(void *) {
+static void module_free(void*) {
   if (g_was_initialized) {
     g_was_initialized = false;
     JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
@@ -680,50 +699,77 @@ static void module_free(void *) {
 }
 
 static PyMethodDef _cinderx_methods[] = {
-    {"init", init, METH_NOARGS,
+    {"init",
+     init,
+     METH_NOARGS,
      "This must be called early. Preferably before any user code is run."},
-    {"clear_caches", clear_caches, METH_NOARGS,
+    {"clear_caches",
+     clear_caches,
+     METH_NOARGS,
      "Clears caches associated with the JIT.  This may have a negative effect "
      "on performance of existing JIT compiled code."},
 #if PY_VERSION_HEX < 0x030C0000
     {"clear_all_shadow_caches", clear_all_shadow_caches, METH_NOARGS, ""},
 #endif
-    {"strict_module_patch", strict_module_patch, METH_VARARGS,
+    {"strict_module_patch",
+     strict_module_patch,
+     METH_VARARGS,
      strict_module_patch_doc},
-    {"strict_module_patch_delete", strict_module_patch_delete, METH_VARARGS,
+    {"strict_module_patch_delete",
+     strict_module_patch_delete,
+     METH_VARARGS,
      strict_module_patch_delete_doc},
-    {"strict_module_patch_enabled", strict_module_patch_enabled, METH_O,
+    {"strict_module_patch_enabled",
+     strict_module_patch_enabled,
+     METH_O,
      strict_module_patch_enabled_doc},
-    {"clear_classloader_caches", clear_classloader_caches, METH_NOARGS,
+    {"clear_classloader_caches",
+     clear_classloader_caches,
+     METH_NOARGS,
      "Clears classloader caches and vtables on all accessible types. "
      "Will hurt perf; for test isolation where modules and types with "
      "identical names are dynamically created and destroyed."},
-    {"watch_sys_modules", watch_sys_modules, METH_NOARGS,
+    {"watch_sys_modules",
+     watch_sys_modules,
+     METH_NOARGS,
      "Watch the sys.modules dict to allow invalidating Static Python's "
      "internal caches."},
-    {"enable_parallel_gc", (PyCFunction)cinder_enable_parallel_gc,
-     METH_VARARGS | METH_KEYWORDS, cinder_enable_parallel_gc_doc},
-    {"disable_parallel_gc", cinder_disable_parallel_gc, METH_NOARGS,
+    {"enable_parallel_gc",
+     (PyCFunction)cinder_enable_parallel_gc,
+     METH_VARARGS | METH_KEYWORDS,
+     cinder_enable_parallel_gc_doc},
+    {"disable_parallel_gc",
+     cinder_disable_parallel_gc,
+     METH_NOARGS,
      cinder_disable_parallel_gc_doc},
-    {"get_parallel_gc_settings", cinder_get_parallel_gc_settings, METH_NOARGS,
+    {"get_parallel_gc_settings",
+     cinder_get_parallel_gc_settings,
+     METH_NOARGS,
      cinder_get_parallel_gc_settings_doc},
-    {"_compile_perf_trampoline_pre_fork", compile_perf_trampoline_pre_fork,
-     METH_NOARGS, "Compile perf-trampoline entries before forking"},
+    {"_compile_perf_trampoline_pre_fork",
+     compile_perf_trampoline_pre_fork,
+     METH_NOARGS,
+     "Compile perf-trampoline entries before forking"},
     {"_is_compile_perf_trampoline_pre_fork_enabled",
-     is_compile_perf_trampoline_pre_fork_enabled, METH_NOARGS,
+     is_compile_perf_trampoline_pre_fork_enabled,
+     METH_NOARGS,
      "Return whether compile perf-trampoline entries before fork is enabled or "
      "not"},
     {"_get_entire_call_stack_as_qualnames_with_lineno",
-     get_entire_call_stack_as_qualnames_with_lineno, METH_NOARGS,
+     get_entire_call_stack_as_qualnames_with_lineno,
+     METH_NOARGS,
      "Return the current stack as a list of tuples (qualname, lineno)."},
     {"_get_entire_call_stack_as_qualnames_with_lineno_and_frame",
-     get_entire_call_stack_as_qualnames_with_lineno_and_frame, METH_NOARGS,
+     get_entire_call_stack_as_qualnames_with_lineno_and_frame,
+     METH_NOARGS,
      "Return the current stack as a list of tuples (qualname, lineno, PyFrame "
      "| None)."},
     {nullptr, nullptr, 0, nullptr}};
 
 static struct PyModuleDef _cinderx_module = {
-    PyModuleDef_HEAD_INIT,  "_cinderx", "The internal CinderX extension module",
+    PyModuleDef_HEAD_INIT,
+    "_cinderx",
+    "The internal CinderX extension module",
     /*m_size=*/-1, // Doesn't support sub-interpreters
     _cinderx_methods,
     /*m_slots=*/nullptr,
@@ -736,7 +782,9 @@ PyObject* _cinderx_lib_init() {
   int dlopenflags =
       CI_INTERP_IMPORT_FIELD(PyInterpreterState_Get(), dlopenflags);
   if ((dlopenflags & RTLD_GLOBAL) == 0) {
-    PyErr_SetString(PyExc_ImportError, "Do not import _cinderx directly. Use cinderx instead.");
+    PyErr_SetString(
+        PyExc_ImportError,
+        "Do not import _cinderx directly. Use cinderx instead.");
     return nullptr;
   }
 
@@ -747,7 +795,7 @@ PyObject* _cinderx_lib_init() {
   }
 
   // Deliberate single-phase initialization.
-  PyObject *m = PyModule_Create(&_cinderx_module);
+  PyObject* m = PyModule_Create(&_cinderx_module);
   if (m == nullptr) {
     return nullptr;
   }
@@ -771,7 +819,7 @@ PyObject* _cinderx_lib_init() {
     return nullptr;
   }
 
-  PyObject *cached_classproperty =
+  PyObject* cached_classproperty =
       PyType_FromSpec(&_PyCachedClassProperty_TypeSpec);
   if (cached_classproperty == nullptr) {
     return nullptr;
@@ -783,9 +831,9 @@ PyObject* _cinderx_lib_init() {
   }
   Py_DECREF(cached_classproperty);
 
-#define ADDITEM(NAME, OBJECT)                                                  \
-  if (PyObject_SetAttrString(m, NAME, (PyObject *)OBJECT) < 0) {               \
-    return nullptr;                                                               \
+#define ADDITEM(NAME, OBJECT)                                   \
+  if (PyObject_SetAttrString(m, NAME, (PyObject*)OBJECT) < 0) { \
+    return nullptr;                                             \
   }
 
   ADDITEM("initialized", Py_False);
