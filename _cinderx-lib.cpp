@@ -289,57 +289,91 @@ static void init_already_existing_funcs() {
   }, nullptr);
 }
 
-static int override_tp_getset(PyTypeObject *type, PyGetSetDef *tp_getset) {
-  type->tp_getset = tp_getset;
-  PyGetSetDef *gsp = type->tp_getset;
-  PyObject *dict = _PyType_GetDict(type);
-  JIT_DCHECK(dict, "Type missing dict: {}", type->tp_name);
-  for (; gsp->name != nullptr; gsp++) {
-      PyObject *descr = PyDescr_NewGetSet(type, gsp);
-      if (descr == nullptr) {
-          return -1;
-      }
+static std::unique_ptr<PyGetSetDef[]> s_func_getset;
+static std::unique_ptr<PyGetSetDef[]> s_class_method_getset;
+static std::unique_ptr<PyGetSetDef[]> s_method_getset;
 
-      if (PyDict_SetDefault(dict, PyDescr_NAME(descr), descr) == nullptr) {
-          Py_DECREF(descr);
-          return -1;
-      }
-      Py_DECREF(descr);
+// Count the number of elements in a PyGetSetDef array.
+static size_t getsetLen(PyGetSetDef* getset) {
+  size_t len = 0;
+  for (PyGetSetDef* def = getset; def->name != nullptr; ++def) {
+    ++len;
   }
-
-  PyType_Modified(type);
-  return 0;
+  return len;
 }
 
-static PyGetSetDef Ci_method_getset[] = {
-  {.name = "__doc__", .get = (getter)Cix_method_get_doc, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__qualname__", .get = (getter)Cix_descr_get_qualname, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__text_signature__", .get = (getter)Cix_method_get_text_signature, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__typed_signature__", .get = (getter)Ci_method_get_typed_signature, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {},
-};
+// Override the getset array for a type with a new one that contains an extra
+// typed signature getter.
+static void getsetOverride(
+    PyTypeObject* type,
+    std::unique_ptr<PyGetSetDef[]>& targetArray,
+    getter typeSigGetter) {
+  constexpr std::string_view kGetterName{"__typed_signature__"};
 
-static PyGetSetDef Ci_meth_getset[] = {
-  {.name = "__doc__", .get = (getter)Cix_meth_get__doc__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__name__", .get = (getter)Cix_meth_get__name__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__qualname__", .get = (getter)Cix_meth_get__qualname__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__text_signature__", .get = (getter)Cix_meth_get__text_signature__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__typed_signature__", .get = (getter)Ci_meth_get__typed_signature__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {},
-};
+  PyGetSetDef* original = type->tp_getset;
+  size_t len = getsetLen(original);
 
-static int init_already_existing_types() {
-  if (override_tp_getset(&PyMethodDescr_Type, Ci_method_getset) < 0) {
-    return -1;
-  }
-  if (override_tp_getset(&PyClassMethodDescr_Type, Ci_method_getset) < 0) {
-    return -1;
-  }
-  if (override_tp_getset(&PyCFunction_Type, Ci_meth_getset) < 0) {
-    return -1;
+  // Might be re-initializing CinderX, when that happens the typed signature
+  // getters are already installed.
+  if (original == targetArray.get()) {
+    PyGetSetDef* member = &original[len - 1];
+    JIT_CHECK(
+        member->name == kGetterName && member->get == typeSigGetter,
+        "PyTypeObject should already have typed signature getter");
+    return;
   }
 
-  return 0;
+  // Need two extra spots, one for the new getter and another that acts as a
+  // null terminator.
+  size_t newLen = len + 2;
+
+  // Allocate a new array, keeping the original argument array around because it
+  // still needs to be read from.
+  auto newArray = std::make_unique<PyGetSetDef[]>(newLen);
+  memset(newArray.get(), 0, newLen * sizeof(PyGetSetDef));
+  memcpy(newArray.get(), original, len * sizeof(PyGetSetDef));
+
+  // Tack on the signature getter.
+  PyGetSetDef* def = &newArray[len];
+  def->name = kGetterName.data();
+  def->get = typeSigGetter;
+
+  // Override the type's getset array and assign it to global scope.
+  targetArray = std::move(newArray);
+  type->tp_getset = targetArray.get();
+
+  // Assign a descr for the new getter.  Will abort on failure as there's no way
+  // to recover right now.
+  auto descr = Ref<>::steal(PyDescr_NewGetSet(type, def));
+  JIT_CHECK(
+      descr != nullptr, "Failed to create descr for typed signature getter");
+  BorrowedRef<> dict = _PyType_GetDict(type);
+  JIT_CHECK(
+      PyDict_SetDefault(dict, PyDescr_NAME(descr.get()), descr.get()) !=
+          nullptr,
+      "Failed to assign typed signature descr on type");
+
+  PyType_Modified(type);
+}
+
+static void init_already_existing_types() {
+  // Update getset functions for callable types to include typed signature
+  // getters.
+  //
+  // NB: This persists after cinderx is unloaded.  Ideally we would put the
+  // original arrays back.
+  getsetOverride(
+      &PyCFunction_Type,
+      s_func_getset,
+      reinterpret_cast<getter>(Ci_meth_get__typed_signature__));
+  getsetOverride(
+      &PyClassMethodDescr_Type,
+      s_class_method_getset,
+      reinterpret_cast<getter>(Ci_method_get_typed_signature));
+  getsetOverride(
+      &PyMethodDescr_Type,
+      s_method_getset,
+      reinterpret_cast<getter>(Ci_method_get_typed_signature));
 }
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -516,9 +550,7 @@ static int cinder_init(PyObject* mod) {
   UPGRADE_NOTE(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT, T192550846)
 #endif
 
-  if (init_already_existing_types() < 0) {
-    return -1;
-  }
+  init_already_existing_types();
 
   WatcherState watcher_state;
   watcher_state.code_watcher = cinderx_code_watcher;

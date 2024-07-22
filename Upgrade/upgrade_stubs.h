@@ -374,21 +374,6 @@ funcptr Cix_method_enter_call(PyThreadState *tstate, PyObject *func);
 PyObject * builtin_next(PyObject *self, PyObject *const *args, Py_ssize_t nargs);
 PyObject * Ci_Builtin_Next_Core(PyObject *it, PyObject *def);
 
-
-/*
- * Exported descr/method accessors
- */
-
-PyObject* Cix_method_get_doc(PyMethodDescrObject *descr, void *closure);
-PyObject* Cix_descr_get_qualname(PyDescrObject *descr, void *closure);
-PyObject* Cix_method_get_text_signature(PyMethodDescrObject *descr, void *closure);
-PyObject* Cix_meth_get__doc__(PyCFunctionObject *m, void *closure);
-PyObject* Cix_meth_get__name__(PyCFunctionObject *m, void *closure);
-PyObject* Cix_meth_get__qualname__(PyCFunctionObject *m, void *closure);
-PyObject* Cix_meth_get__self__(PyCFunctionObject *m, void *closure);
-PyObject* Cix_meth_get__text_signature__(PyCFunctionObject *m, void *closure);
-
-
 /*
  * Dicts/Objects
  */
