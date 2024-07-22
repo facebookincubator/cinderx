@@ -7,7 +7,6 @@
 #include "cinderx/RuntimeTests/testutil.h"
 
 #include <exception>
-#include <iostream>
 #include <list>
 
 // tests to ensure FlagProcessor is correctly processing command

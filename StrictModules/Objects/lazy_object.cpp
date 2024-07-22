@@ -3,7 +3,6 @@
 
 #include "cinderx/StrictModules/Compiler/abstract_module_loader.h"
 
-#include <iostream>
 namespace strictmod::objects {
 
 StrictLazyObject::StrictLazyObject(

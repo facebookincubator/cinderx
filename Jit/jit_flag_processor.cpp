@@ -7,7 +7,6 @@
 #include <Python.h>
 #include <fmt/format.h>
 
-#include <iostream>
 #include <memory>
 #include <sstream>
 #include <string>

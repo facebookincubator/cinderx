@@ -6,7 +6,6 @@
 #include "cinderx/Jit/lir/function.h"
 
 #include <algorithm>
-#include <iostream>
 
 namespace jit::lir {
 

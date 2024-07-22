@@ -18,8 +18,8 @@
 #include <asm-generic/errno-base.h>
 #include <math.h>
 
-#include <iostream>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <utility>
 

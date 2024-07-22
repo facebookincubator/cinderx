@@ -8,7 +8,7 @@
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/operand.h"
 
-#include <iostream>
+#include <iosfwd>
 #include <unordered_map>
 
 namespace jit::lir {
