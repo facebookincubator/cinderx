@@ -3178,23 +3178,18 @@ static int classloader_init_slot(PyObject* path) {
     return -1;
   }
 
-  PyTypeObject* target_type;
-  PyObject* cur = classloader_get_member(
-      path, PyTuple_GET_SIZE(path), (PyObject**)&target_type, NULL);
-  if (cur == NULL) {
-    assert(target_type == NULL);
+  PyObject* target_type = _PyClassLoader_ResolveContainer(PyTuple_GET_ITEM(path, 0));
+  if (target_type == NULL) {
     return -1;
-  } else if (_PyClassLoader_VerifyType((PyObject*)target_type, path)) {
-    Py_DECREF(cur);
+  } else if (_PyClassLoader_VerifyType(target_type, path)) {
     Py_XDECREF(target_type);
     return -1;
   }
 
   /* Now we need to update or make the v-table for this type */
-  _PyType_VTable* vtable = _PyClassLoader_EnsureVtable(target_type, 0);
+  _PyType_VTable* vtable = _PyClassLoader_EnsureVtable((PyTypeObject *)target_type, 0);
   if (vtable == NULL) {
     Py_XDECREF(target_type);
-    Py_DECREF(cur);
     return -1;
   }
 
@@ -3204,28 +3199,22 @@ static int classloader_init_slot(PyObject* path) {
   if (new_index == NULL) {
     PyErr_Format(
         PyExc_RuntimeError,
-        "unable to resolve v-table slot %R in %s for %s (%R) is_static: %s used: %s",
+        "unable to resolve v-table slot %R in %s is_static: %s",
         slot_name,
-        target_type->tp_name,
-        Py_TYPE(cur)->tp_name,
-        cur,
-        is_static_type(target_type) ? "true" : "false",
-        used_in_vtable(cur) ? "true" : "false");
+        ((PyTypeObject *)target_type)->tp_name,
+        is_static_type((PyTypeObject *)target_type) ? "true" : "false");
     Py_DECREF(target_type);
-    Py_DECREF(cur);
     return -1;
   }
   assert(new_index != NULL);
 
   if (PyDict_SetItem(classloader_cache, path, new_index) ||
-      type_init_subclass_vtables(target_type)) {
+      type_init_subclass_vtables((PyTypeObject *)target_type)) {
     Py_DECREF(target_type);
-    Py_DECREF(cur);
     return -1;
   }
 
   Py_DECREF(target_type);
-  Py_DECREF(cur);
   return 0;
 }
 
