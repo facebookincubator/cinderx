@@ -56,6 +56,8 @@ int _PyClassLoader_TypeDealloc(PyTypeObject *type);
 int _PyClassLoader_TypeTraverse(PyTypeObject *type, visitproc visit, void *arg);
 void _PyClassLoader_TypeClear(PyTypeObject *type);
 
+PyObject *_PyClassLoader_GetGenericInst(PyObject *type, PyObject **args, Py_ssize_t nargs);
+
 #ifdef __cplusplus
 }
 #endif

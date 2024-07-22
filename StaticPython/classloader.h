@@ -103,8 +103,6 @@ Py_ssize_t _PyClassLoader_ResolveMethod(PyObject* path);
 Py_ssize_t _PyClassLoader_ResolveFieldOffset(PyObject* path, int* field_type);
 int _PyClassLoader_ResolvePrimitiveType(PyObject* descr);
 int _PyClassLoader_GetTypeCode(PyTypeObject* type);
-PyTypeObject*
-_PyClassLoader_ResolveType(PyObject* descr, int* optional, int* exact);
 
 int _PyClassLoader_AddSubclass(PyTypeObject* base, PyTypeObject* type);
 
@@ -138,7 +136,6 @@ PyObject* _PyClassLoader_ResolveReturnType(
     int* func_flags);
 
 PyMethodDescrObject* _PyClassLoader_ResolveMethodDef(PyObject* path);
-void _PyClassLoader_ClearCache(void);
 
 PyObject* _PyClassLoader_GetReturnTypeDescr(PyFunctionObject* func);
 PyObject* _PyClassLoader_GetCodeReturnTypeDescr(PyCodeObject* code);
