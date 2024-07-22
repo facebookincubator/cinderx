@@ -23,6 +23,16 @@
 
 #define JIT_TEST_MOD_NAME "jittestmodule"
 
+#define THROW(...)             \
+  {                            \
+    if (PyErr_Occurred()) {    \
+      PyErr_Print();           \
+    }                          \
+    throw std::runtime_error { \
+      fmt::format(__VA_ARGS__) \
+    };                         \
+  }
+
 class RuntimeTest : public ::testing::Test {
  public:
   RuntimeTest(bool compile_static = false) : compile_static_(compile_static) {}
@@ -66,33 +76,36 @@ class RuntimeTest : public ::testing::Test {
         << "JIT should be disabled with Py_FinalizeEx";
   }
 
-  bool runCode(const char* src) {
-    return runCodeModuleExec(src, "cinderx.compiler", "exec_cinder");
+  void runCode(const char* src) {
+    runCodeModuleExec(src, "cinderx.compiler", "exec_cinder");
   }
 
-  bool runStaticCode(const char* src) {
-    return runCodeModuleExec(src, "cinderx.compiler.static", "exec_static");
+  void runStaticCode(const char* src) {
+    runCodeModuleExec(src, "cinderx.compiler.static", "exec_static");
   }
 
-  bool runCodeModuleExec(
+  void runCodeModuleExec(
       const char* src,
       const char* compiler_module,
       const char* exec_fn) {
     auto compiler = Ref<>::steal(PyImport_ImportModule(compiler_module));
     if (compiler == nullptr) {
-      return false;
+      THROW("Failed to load compiler module '{}'", compiler_module);
     }
     auto exec_static = Ref<>::steal(PyObject_GetAttrString(compiler, exec_fn));
     if (exec_static == nullptr) {
-      return false;
+      THROW(
+          "Failed to load function '{}' from compiler module '{}'",
+          exec_fn,
+          compiler_module);
     }
     auto src_code = Ref<>::steal(PyUnicode_FromString(src));
     if (src_code == nullptr) {
-      return false;
+      THROW("Failed to convert code string into unicode object");
     }
     auto mod_name = Ref<>::steal(PyUnicode_FromString(JIT_TEST_MOD_NAME));
     if (mod_name == nullptr) {
-      return false;
+      THROW("Failed to create unicode object for '{}'", JIT_TEST_MOD_NAME);
     }
     auto res = Ref<>::steal(PyObject_CallFunctionObjArgs(
         exec_static,
@@ -101,28 +114,26 @@ class RuntimeTest : public ::testing::Test {
         globals_.get(),
         mod_name.get(),
         nullptr));
-    return res != nullptr;
+    if (res == nullptr) {
+      THROW("Failed running compiler '{}:{}'", compiler_module, exec_fn);
+    }
   }
 
   Ref<> compileAndGet(const char* src, const char* name) {
-    if (!runCode(src)) {
-      return Ref<>(nullptr);
-    }
+    runCode(src);
     return getGlobal(name);
   }
 
   Ref<> compileStaticAndGet(const char* src, const char* name) {
-    if (!runStaticCode(src)) {
-      if (PyErr_Occurred()) {
-        PyErr_Print();
-      }
-      return Ref<>(nullptr);
-    }
+    runStaticCode(src);
     return getGlobal(name);
   }
 
   Ref<> getGlobal(const char* name) {
     PyObject* obj = PyDict_GetItemString(globals_, name);
+    if (obj == nullptr) {
+      THROW("Failed to load global '{}' after compilation", name);
+    }
     return Ref<>::create(obj);
   }
 

@@ -168,11 +168,11 @@ TEST_F(HIRTypeTest, UniquePyType) {
   ASSERT_NE(one, nullptr);
   EXPECT_EQ(Type::fromObject(one).uniquePyType(), nullptr);
 
-  ASSERT_TRUE(runCode(R"(
+  runCode(R"(
 class MyClass:
   pass
 my_obj = MyClass()
-)"));
+)");
   Ref<PyTypeObject> my_class(getGlobal("MyClass"));
   ASSERT_NE(my_class, nullptr);
   Ref<> my_obj(getGlobal("my_obj"));
@@ -216,11 +216,11 @@ TEST_F(HIRTypeTest, RuntimePyType) {
   ASSERT_NE(one, nullptr);
   EXPECT_EQ(Type::fromObject(one).runtimePyType(), &PyLong_Type);
 
-  ASSERT_TRUE(runCode(R"(
+  runCode(R"(
 class MyClass:
   pass
 my_obj = MyClass()
-)"));
+)");
   Ref<PyTypeObject> my_class(getGlobal("MyClass"));
   ASSERT_NE(my_class, nullptr);
   Ref<> my_obj(getGlobal("my_obj"));
@@ -251,11 +251,11 @@ TEST_F(HIRTypeTest, IsExact) {
   auto three = Ref<>::steal(PyLong_FromLong(3));
   EXPECT_TRUE(Type::fromObject(three).isExact());
 
-  ASSERT_TRUE(runCode(R"(
+  runCode(R"(
 class MyClass:
   pass
 my_obj = MyClass()
-)"));
+)");
   Ref<PyTypeObject> my_class(getGlobal("MyClass"));
   ASSERT_NE(my_class, nullptr);
   Ref<> my_obj(getGlobal("my_obj"));
@@ -365,13 +365,13 @@ TEST_F(HIRTypeTest, ToString) {
   EXPECT_EQ(Type::fromCInt(56789, TCInt64).toString(), "CInt64[56789]");
   EXPECT_EQ(Type::fromCUInt(56789, TCUInt64).toString(), "CUInt64[56789]");
 
-  ASSERT_TRUE(runCode("class MyClass: pass\nobj = MyClass()"));
+  runCode("class MyClass: pass\nobj = MyClass()");
   Ref<> my_pyobj(getGlobal("obj"));
   ASSERT_NE(my_pyobj, nullptr);
   auto my_obj = Type::fromObject(my_pyobj);
   EXPECT_EQ(my_obj.toString(), "MortalObjectUser[MyClass:0xdeadbeef]");
 
-  ASSERT_TRUE(runCode("obj = len"));
+  runCode("obj = len");
   Ref<> len_func(getGlobal("obj"));
   ASSERT_NE(len_func, nullptr);
   auto len_func_type = Type::fromObject(len_func);
@@ -502,7 +502,7 @@ class MyClass(metaclass=Metaclass):
 
 obj = MyClass()
 )";
-  ASSERT_TRUE(runCode(py_src));
+  runCode(py_src);
 
   Ref<PyTypeObject> metaclass_pytype(getGlobal("Metaclass"));
   ASSERT_NE(metaclass_pytype, nullptr);
@@ -550,7 +550,7 @@ class MyInt(int):
 class MyStr(str):
   pass
 )";
-  ASSERT_TRUE(runCode(py_src));
+  runCode(py_src);
 
   Ref<PyTypeObject> my_class_pytype(getGlobal("MyClass"));
   ASSERT_NE(my_class_pytype, nullptr);
@@ -768,7 +768,7 @@ class MySubBaseException(MyBaseException): pass
 class MyException(Exception): pass
 class MyBoth(MyException, MyBaseException): pass
 )";
-  ASSERT_TRUE(runCode(py_src));
+  runCode(py_src);
 
   Ref<PyTypeObject> my_base_exc_pytype(getGlobal("MyBaseException"));
   ASSERT_NE(my_base_exc_pytype, nullptr);
@@ -842,7 +842,7 @@ class IntSubObjectSub(IntSub, ObjectSub):
 class IntSubObjectSub2(IntSub, ObjectSub):
   pass
 )";
-  ASSERT_TRUE(runCode(py_src));
+  runCode(py_src);
 
   Ref<PyTypeObject> obj_sub_pytype(getGlobal("ObjectSub"));
   ASSERT_NE(obj_sub_pytype, nullptr);

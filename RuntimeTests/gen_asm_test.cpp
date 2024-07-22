@@ -13,7 +13,6 @@
 
 #include <asmjit/asmjit.h>
 
-#include <iostream>
 #include <string>
 #include <utility>
 
@@ -1295,7 +1294,7 @@ def test_override_builtin_import(locals):
     return repr(captured_data) == "[['x', 7, None, None, 0], ['x.y', 7, None, None, 0]]"
 )";
 
-  ASSERT_TRUE(runCode(pycode)) << "Failed compiling";
+  runCode(pycode);
 
   auto pyfunc = getGlobal("test_override_builtin_import");
   ASSERT_NE(pyfunc, nullptr)
