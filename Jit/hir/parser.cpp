@@ -708,9 +708,24 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
 
     auto names = Ref<PyListObject>::steal(PyUnicode_Split(mod_name, dot, -1));
     JIT_CHECK(names != nullptr, "unknown func");
-    auto type_descr =
-        Ref<>::steal(_PyTuple_FromArray(names->ob_item, Py_SIZE(names.get())));
-    JIT_CHECK(type_descr != nullptr, "unknown func");
+    
+    auto container_descr = Ref<PyTupleObject>::steal(PyTuple_New(Py_SIZE(names.get()) - 1));
+    JIT_CHECK(container_descr != nullptr, "failed to allocate container");
+    for (Py_ssize_t i = 0; i<Py_SIZE(names.get()) - 1; i++) {  
+      PyObject *comp = PyList_GET_ITEM(names.get(), i);
+      PyTuple_SET_ITEM(container_descr.get(), i, comp);
+      Py_INCREF(comp);
+    }
+
+    auto type_descr = Ref<>::steal(PyTuple_New(2));
+    JIT_CHECK(type_descr != nullptr, "failed to allocate type_descr");
+    
+    PyTuple_SET_ITEM(type_descr.get(), 0, (PyObject*)container_descr.get());
+    Py_INCREF(container_descr.get());
+    PyObject *func_name = PyList_GET_ITEM(names, Py_SIZE(names.get()) - 1);
+    PyTuple_SET_ITEM(type_descr.get(), 1, func_name);
+    Py_INCREF(func_name);
+
     PyObject* container = nullptr;
     auto func = Ref<PyFunctionObject>::steal(
         _PyClassLoader_ResolveFunction(type_descr, &container));
