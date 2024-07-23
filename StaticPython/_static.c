@@ -158,11 +158,6 @@ static int _static_exec(PyObject* m) {
   return 0;
 }
 
-static struct PyModuleDef_Slot _static_slots[] = {
-    {Py_mod_exec, _static_exec},
-    {0, NULL},
-};
-
 PyObject*
 set_type_code(PyObject* mod, PyObject* const* args, Py_ssize_t nargs) {
   PyTypeObject* type;
@@ -1706,48 +1701,30 @@ static struct PyModuleDef _staticmodule = {
     _static__doc__,
     0,
     static_methods,
-    _static_slots,
+    NULL,
     NULL,
     NULL,
     NULL};
 
-static int check_cinderx_init(void) {
-  PyObject *name = PyUnicode_FromString("_cinderx");
-  if (name == NULL) {
-    PyErr_SetString(PyExc_ImportError, "Error creating string");
-    return 0;
+int _Ci_CreateStaticModule(void) {
+  PyObject* mod = PyModule_Create(&_staticmodule);
+  if (mod == NULL) {
+    return -1;
   }
 
-  PyObject* module = PyImport_GetModule(name);
-  Py_DECREF(name);
-
-  if (module == NULL) {
-    PyErr_SetString(
-        PyExc_ImportError,
-        "Must import cinderx module and call init() before loading _static");
-    return 0;
+  PyObject* modname = PyUnicode_InternFromString("_static");
+  if (modname == NULL) {
+    Py_DECREF(mod);
+    return -1;
   }
 
-  PyObject* value = PyObject_GetAttrString(module, "initialized");
-  Py_DECREF(module);
-  if (value == NULL) {
-    PyErr_SetString(PyExc_ImportError, "_cinderx.initialized misssing?");
-    return 0;
+  PyObject* modules = PyImport_GetModuleDict();
+  int st = _PyImport_FixupExtensionObject(mod, modname, modname, modules);
+  Py_DECREF(modname);
+  if (st == -1 || _static_exec(mod) < 0) {
+    Py_DECREF(mod);
+    return -1;
   }
 
-  int res = value == Py_True;
-  Py_DECREF(value);
-  if (res) {
-    return 1;
-  }
-  PyErr_SetString(
-      PyExc_ImportError, "_cinderx module loaded but not initialized");
   return 0;
-}
-
-PyMODINIT_FUNC PyInit__static(void) {
-  if (!check_cinderx_init()) {
-    return NULL;
-  }
-  return PyModuleDef_Init(&_staticmodule);
 }

@@ -21,6 +21,7 @@
 #include "cinderx/Jit/pyjit_typeslots.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/ParallelGC/parallel_gc.h"
+#include "cinderx/StaticPython/_static.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
 #include "cinderx/StaticPython/errors.h"
@@ -594,6 +595,11 @@ static int cinder_init(PyObject* mod) {
 #if PY_VERSION_HEX < 0x030C0000
   Ci_cinderx_initialized = 1;
 #endif
+
+  // Create _static module
+  if (_Ci_CreateStaticModule() < 0) {
+    return -1;
+  }
 
   return PyObject_SetAttrString(mod, "initialized", Py_True);
 }
