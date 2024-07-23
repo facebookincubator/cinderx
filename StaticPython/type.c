@@ -12,6 +12,7 @@
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/type.h"
+#include "cinderx/StaticPython/typed_method_def.h"
 
 #include "cinderx/StaticPython/vtable.h"
 
