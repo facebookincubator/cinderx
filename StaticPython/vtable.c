@@ -1,6 +1,7 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 
 #include "cinderx/StaticPython/vtable.h"
+#include "cinderx/Jit/entry.h"
 
 static void
 vtabledealloc(_PyType_VTable *op)
@@ -51,3 +52,14 @@ PyTypeObject _PyType_VTableType = {
     .tp_traverse = (traverseproc)vtabletraverse,
     .tp_clear = (inquiry)vtableclear,
 };
+
+PyObject* _PyClassLoader_InvokeMethod(
+    _PyType_VTable* vtable,
+    Py_ssize_t slot,
+    PyObject** args,
+    Py_ssize_t nargsf) {
+  vectorcallfunc func =
+      JITRT_GET_NORMAL_ENTRY_FROM_STATIC(vtable->vt_entries[slot].vte_entry);
+  PyObject* state = vtable->vt_entries[slot].vte_state;
+  return func(state, args, nargsf, NULL);
+}

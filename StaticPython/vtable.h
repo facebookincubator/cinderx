@@ -44,6 +44,12 @@ typedef struct {
 
 extern PyTypeObject _PyType_VTableType;
 
+PyObject* _PyClassLoader_InvokeMethod(
+    _PyType_VTable* vtable,
+    Py_ssize_t slot,
+    PyObject** args,
+    Py_ssize_t nargsf);
+    
 #ifdef __cplusplus
 }
 #endif

@@ -825,17 +825,6 @@ __attribute__((__used__)) void* vtable_arg_thunk_vectorcall_only_native(
 
 VTABLE_THUNK(vtable_arg_thunk_vectorcall_only, PyObject)
 
-PyObject* _PyClassLoader_InvokeMethod(
-    _PyType_VTable* vtable,
-    Py_ssize_t slot,
-    PyObject** args,
-    Py_ssize_t nargsf) {
-  vectorcallfunc func =
-      JITRT_GET_NORMAL_ENTRY_FROM_STATIC(vtable->vt_entries[slot].vte_entry);
-  PyObject* state = vtable->vt_entries[slot].vte_state;
-  return func(state, args, nargsf, NULL);
-}
-
 __attribute__((__used__)) PyObject* type_vtable_func_overridable_vectorcall(
     _PyClassLoader_TypeCheckState* state,
     PyObject** args,
