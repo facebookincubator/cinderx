@@ -21,7 +21,7 @@
 #include "cinderx/Common/extra-py-flags.h"  // @donotremove
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Jit/entry.h"
-#include "cinderx/Jit/pyjit.h"
+#include "cinderx/Jit/global_cache.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/modulethunks.h"

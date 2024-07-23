@@ -6,6 +6,26 @@
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
+
+extern "C" {
+
+PyObject**
+_PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key) {
+  try {
+    auto cache = jit::_PyJIT_GetGlobalCacheManager()->findGlobalCache(
+        builtins, globals, key);
+    return cache.valuePtr();
+  } catch (std::bad_alloc&) {
+    return nullptr;
+  }
+}
+
+PyObject** _PyJIT_GetDictCache(PyObject* dict, PyObject* key) {
+  return _PyJIT_GetGlobalCache(dict, dict, key);
+}
+
+}
+
 namespace jit {
 
 void GlobalCache::init(PyObject** cache) const {
@@ -268,6 +288,12 @@ void GlobalCacheManager::disableCaches(const std::vector<GlobalCache>& caches) {
     disableCache(cache);
     unwatchDictKey(dict, name, cache);
   }
+}
+
+static GlobalCacheManager s_global_cache_manager;
+
+GlobalCacheManager* _PyJIT_GetGlobalCacheManager() {
+  return &s_global_cache_manager;
 }
 
 } // namespace jit

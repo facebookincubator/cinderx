@@ -2,6 +2,8 @@
 
 #pragma once
 
+#ifdef __cplusplus
+
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 
@@ -164,4 +166,38 @@ class GlobalCacheManager {
       watch_map_;
 };
 
+GlobalCacheManager* _PyJIT_GetGlobalCacheManager();
+
 } // namespace jit
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
+/*
+ * Gets the global cache for the given builtins and globals dictionaries and
+ * key.  The global that is pointed to will automatically be updated as
+ * builtins and globals change.  The value that is pointed to will be NULL if
+ * the dictionaries can no longer be tracked or if the value is no longer
+ * defined, in which case the dictionaries need to be consulted.  This will
+ * return NULL if the required tracking cannot be initialized.
+ */
+PyAPI_FUNC(PyObject**)
+    _PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key);
+
+/*
+ * Gets the cache for the given dictionary and key.  The value that is pointed
+ * to will automatically be updated as the dictionary changes.  The value that
+ * is pointed to will be NULL if the dictionaries can no longer be tracked or if
+ * the value is no longer defined, in which case the dictionaries need to be
+ * consulted.  This will return NULL if the required tracking cannot be
+ * initialized.
+ */
+PyAPI_FUNC(PyObject**) _PyJIT_GetDictCache(PyObject* dict, PyObject* key);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
