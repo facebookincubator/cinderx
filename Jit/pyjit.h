@@ -5,6 +5,7 @@
 #include <Python.h>
 #include "frameobject.h"
 
+#include "cinderx/Jit/compile.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/pyjit_typeslots.h"
@@ -64,33 +65,6 @@ PyAPI_FUNC(int) _PyJIT_IsAutoJITEnabled(void);
  * Returns 0 when AutoJIT is disabled.
  */
 PyAPI_FUNC(unsigned) _PyJIT_AutoJITThreshold(void);
-
-/*
- * JIT compile func and patch its entry point.
- *
- * On success, positional only calls to func will use the JIT compiled version.
- *
- * Returns PYJIT_RESULT_OK on success.
- */
-PyAPI_FUNC(_PyJIT_Result) _PyJIT_CompileFunction(PyFunctionObject* func);
-
-/*
- * Registers a function with the JIT to be compiled in the future.
- *
- * The JIT will still be informed by _PyJIT_CompileFunction before the
- * function executes for the first time.  The JIT can choose to compile
- * the function at some future point.  Currently the JIT will compile
- * the function before it shuts down to make sure all eligable functions
- * were compiled.
- *
- * The JIT will not keep the function alive, instead it will be informed
- * that the function is being de-allocated via _PyJIT_UnregisterFunction
- * before the function goes away.
- *
- * Returns 1 if the function is registered with JIT or is already compiled,
- * and 0 otherwise.
- */
-PyAPI_FUNC(int) _PyJIT_RegisterFunction(PyFunctionObject* func);
 
 /*
  * Informs the JIT that a type, function, or code object is being created,
@@ -166,13 +140,6 @@ PyAPI_FUNC(void) _PyJIT_GenDealloc(PyGenObject* gen);
  * Return current sub-iterator from JIT generator or NULL if there is none.
  */
 PyAPI_FUNC(PyObject*) _PyJIT_GenYieldFromValue(PyGenObject* gen);
-
-/*
- * Checks if the given function is JITed.
-
- * Returns 1 if the function is JITed, 0 if not.
- */
-PyAPI_FUNC(int) _PyJIT_IsCompiled(PyFunctionObject* func);
 
 /*
  * Returns a borrowed reference to the globals for the top-most Python function
