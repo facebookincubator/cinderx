@@ -95,6 +95,9 @@ extern PyObject* _PyClassLoader_PropertyThunkSet_New(PyObject* property);
 extern PyObject* _PyClassLoader_TypedDescriptorThunkGet_New(PyObject* property);
 extern PyObject* _PyClassLoader_TypedDescriptorThunkSet_New(PyObject* property);
 
+void
+_PyClassLoader_UpdateThunk(_Py_StaticThunk* thunk, PyObject* previous, PyObject* new_value);
+
 #ifdef __cplusplus
 }
 #endif

@@ -14,6 +14,7 @@
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
+#include "cinderx/StaticPython/functype.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/type.h"
@@ -35,14 +36,6 @@ typedef struct _PyClassLoader_StaticCallReturn {
   void* rax;
   void* rdx;
 } _PyClassLoader_StaticCallReturn;
-
-typedef struct {
-  PyObject_HEAD PyObject* prop_get;
-  PyObject* prop_set;
-  PyObject* prop_del;
-  PyObject* prop_doc;
-  int getter_doc;
-} Ci_propertyobject;
 
 Py_ssize_t _PyClassLoader_ResolveMethod(PyObject* path);
 Py_ssize_t _PyClassLoader_ResolveFieldOffset(PyObject* path, int* field_type);
@@ -72,12 +65,6 @@ int _PyClassLoader_IsImmutable(PyObject* container);
 /* Resolves a function and returns the underlying object and the
  * container.  Static functions return the underlying callable */
 PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container);
-
-PyObject* _PyClassLoader_ResolveReturnType(
-    PyObject* func,
-    int* optional,
-    int* exact,
-    int* func_flags);
 
 PyMethodDescrObject* _PyClassLoader_ResolveMethodDef(PyObject* path);
 
@@ -185,10 +172,6 @@ int _PyClassLoader_IsFinalMethodOverridden(
   (sizeof(void*) == 8 ? Ci_Py_SIG_UINT64 : Ci_Py_SIG_UINT32)
 #define Ci_Py_SIG_TYPE_MASK(x) ((x) >> 2)
 
-#define Ci_FUNC_FLAGS_COROUTINE 0x01
-#define Ci_FUNC_FLAGS_CLASSMETHOD 0x02
-#define Ci_FUNC_FLAGS_STATICMETHOD 0x04
-
 #ifndef Py_LIMITED_API
 
 int _PyClassLoader_UpdateModuleName(
@@ -212,22 +195,11 @@ void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name);
 
 int _PyClassLoader_AddSubclass(PyTypeObject* base, PyTypeObject* type);
 
-_PyTypedArgsInfo* _PyClassLoader_GetTypedArgsInfo(
-    PyCodeObject* code,
-    int only_primitives);
 _PyTypedArgsInfo* _PyClassLoader_GetTypedArgsInfoFromThunk(
     PyObject* thunk,
     PyObject* container,
     int only_primitives);
 int _PyClassLoader_HasPrimitiveArgs(PyCodeObject* code);
-
-static inline int _PyClassLoader_IsStaticFunction(PyObject* obj) {
-  if (obj == NULL || !PyFunction_Check(obj)) {
-    return 0;
-  }
-  return ((PyCodeObject*)(((PyFunctionObject*)obj))->func_code)->co_flags &
-      CI_CO_STATICALLY_COMPILED;
-}
 
 static inline int _PyClassLoader_IsStaticCallable(PyObject* obj) {
   return _PyClassLoader_IsStaticFunction(obj) ||
