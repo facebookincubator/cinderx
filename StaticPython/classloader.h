@@ -174,11 +174,6 @@ int _PyClassLoader_IsFinalMethodOverridden(
 
 #ifndef Py_LIMITED_API
 
-int _PyClassLoader_UpdateModuleName(
-    Ci_StrictModuleObject* mod,
-    PyObject* name,
-    PyObject* new_value);
-
 int _PyClassLoader_UpdateSlot(
     PyTypeObject* type,
     PyObject* name,

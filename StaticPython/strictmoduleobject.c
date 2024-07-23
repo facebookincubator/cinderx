@@ -11,7 +11,7 @@
 #include "pycore_pystate.h"       // _PyInterpreterState_GET()
 #include "structmember.h"         // PyMemberDef
 #include "cinderx/Common/py-portability.h"
-#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/StaticPython/modulethunks.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
