@@ -402,51 +402,7 @@ __attribute__((__used__)) PyObject* type_vtable_coroutine_vectorcall(
     _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf) {
-  PyObject* coro;
-  PyObject* callable = state->tcs_value;
-  if (PyFunction_Check(callable)) {
-    coro = _PyObject_Vectorcall(callable, args, nargsf, NULL);
-  } else if (Py_TYPE(callable) == &PyClassMethod_Type) {
-    // We need to do some special set up for class methods when invoking.
-    callable = Ci_PyClassMethod_GetFunc(state->tcs_value);
-    coro = _PyObject_Vectorcall(callable, args, nargsf, NULL);
-  } else if (Py_TYPE(callable)->tp_descr_get != NULL) {
-    PyObject* self = args[0];
-    PyObject* get = Py_TYPE(callable)->tp_descr_get(
-        callable, self, (PyObject*)Py_TYPE(self));
-    if (get == NULL) {
-      return NULL;
-    }
-
-    Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-
-    coro = _PyObject_Vectorcall(get, args + 1, (nargs - 1), NULL);
-    Py_DECREF(get);
-  } else {
-    // self isn't passed if we're not a descriptor
-    coro = _PyObject_Vectorcall(callable, args + 1, nargsf - 1, NULL);
-  }
-  if (coro == NULL) {
-    return NULL;
-  }
-
-  int eager = Ci_PyWaitHandle_CheckExact(coro);
-  if (eager) {
-    Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
-    if (handle->wh_waiter == NULL) {
-      if (_PyClassLoader_CheckReturnType(
-              Py_TYPE(callable),
-              handle->wh_coro_or_result,
-              (_PyClassLoader_RetTypeInfo*)state)) {
-        return coro;
-      }
-      Ci_PyWaitHandle_Release(coro);
-      return NULL;
-    }
-  }
-
-  return _PyClassLoader_NewAwaitableWrapper(
-      coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);
+  return _PyClassLoader_CallCoroutine(state, args, nargsf);
 }
 
 __attribute__((__used__)) _PyClassLoader_StaticCallReturn
@@ -465,7 +421,7 @@ type_vtable_coroutine_native(
     return StaticError;
   }
   _PyClassLoader_StaticCallReturn res;
-  res.rax = type_vtable_coroutine_vectorcall(state, call_args, arg_count);
+  res.rax = _PyClassLoader_CallCoroutine(state, call_args, arg_count);
   res.rdx = (void*)(uint64_t)(res.rax != NULL);
   free_hydrated_args(free_args, arg_count);
   return res;
@@ -1564,7 +1520,7 @@ PyObject* thunk_vectorcall(
     }
 
     if (thunk->thunk_flags & Ci_FUNC_FLAGS_COROUTINE) {
-      return type_vtable_coroutine_vectorcall(
+      return _PyClassLoader_CallCoroutine(
           (_PyClassLoader_TypeCheckState*)thunk, args, nargs);
     }
     PyObject* res = _PyObject_Vectorcall(func, args + 1, nargs - 1, kwnames);

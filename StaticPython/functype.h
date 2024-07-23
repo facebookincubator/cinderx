@@ -61,6 +61,11 @@ typedef struct {
 
 PyObject* _PyClassLoader_MaybeUnwrapCallable(PyObject* func);
 
+PyObject* _PyClassLoader_CallCoroutine(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject* const* args,
+    size_t nargsf);
+    
 #ifdef __cplusplus
 }
 #endif
