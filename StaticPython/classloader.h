@@ -32,6 +32,11 @@ extern PyObject* CiExc_StaticTypeError;
 
 #endif
 
+typedef struct _PyClassLoader_StaticCallReturn {
+  void* rax;
+  void* rdx;
+} _PyClassLoader_StaticCallReturn;
+
 Py_ssize_t _PyClassLoader_ResolveMethod(PyObject* path);
 Py_ssize_t _PyClassLoader_ResolveFieldOffset(PyObject* path, int* field_type);
 int _PyClassLoader_GetTypeCode(PyTypeObject* type);
@@ -62,6 +67,10 @@ int _PyClassLoader_IsImmutable(PyObject* container);
 PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container);
 
 PyMethodDescrObject* _PyClassLoader_ResolveMethodDef(PyObject* path);
+
+PyObject* _PyClassLoader_GetReturnTypeDescr(PyFunctionObject* func);
+PyObject* _PyClassLoader_GetCodeReturnTypeDescr(PyCodeObject* code);
+PyObject* _PyClassLoader_GetCodeArgumentTypeDescrs(PyCodeObject* code);
 
 /* Checks whether any method in the members dict overrides a final method in the
    base type. This API explicitly takes in a base_type and members_dict instead
