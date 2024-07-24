@@ -38,7 +38,7 @@
  */
 
 static PyObject* clear_caches(PyObject*, PyObject*) {
-  jit::_PyJIT_GetGlobalCacheManager()->clear();
+  jit::Runtime::get()->globalCaches().clear();
   Py_RETURN_NONE;
 }
 
@@ -441,14 +441,14 @@ static int cinderx_dict_watcher(
   JIT_DCHECK(PyDict_Check(dict_obj), "Expecting dict from dict watcher");
   BorrowedRef<PyDictObject> dict{dict_obj};
 
-  jit::GlobalCacheManager* globalCaches = jit::_PyJIT_GetGlobalCacheManager();;
+  jit::GlobalCacheManager& globalCaches = jit::Runtime::get()->globalCaches();
 
   switch (event) {
     case PyDict_EVENT_ADDED:
     case PyDict_EVENT_MODIFIED:
     case PyDict_EVENT_DELETED: {
       if (key_obj == nullptr || !PyUnicode_CheckExact(key_obj)) {
-        globalCaches->notifyDictUnwatch(dict);
+        globalCaches.notifyDictUnwatch(dict);
         break;
       }
       // key is overwhemingly likely to be interned, since in normal code it
@@ -461,16 +461,16 @@ static int cinderx_dict_watcher(
         Py_DECREF(key_obj);
       }
       BorrowedRef<PyUnicodeObject> key{key_obj};
-      globalCaches->notifyDictUpdate(dict, key, new_value);
+      globalCaches.notifyDictUpdate(dict, key, new_value);
       _PyClassLoader_NotifyDictChange(dict, key);
       break;
     }
     case PyDict_EVENT_CLEARED:
-      globalCaches->notifyDictClear(dict);
+      globalCaches.notifyDictClear(dict);
       break;
     case PyDict_EVENT_CLONED:
     case PyDict_EVENT_DEALLOCATED:
-      globalCaches->notifyDictUnwatch(dict);
+      globalCaches.notifyDictUnwatch(dict);
       break;
   }
 

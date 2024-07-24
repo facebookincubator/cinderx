@@ -428,6 +428,8 @@ class Runtime {
     return builtins_;
   }
 
+  GlobalCacheManager& globalCaches();
+
   // Some profilers need to walk the code_rt->code->qualname chain for jitted
   // functions on the call stack. The JIT rarely touches this memory and, as a
   // result, the OS may page it out. Out of process profilers (i.e. those that
@@ -497,6 +499,7 @@ class Runtime {
   SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
   SlabArena<void*> pointer_caches_;
 
+  GlobalCacheManager global_caches_;
   FunctionEntryCacheMap function_entry_caches_;
 
   std::vector<DeoptMetadata> deopt_metadata_;
