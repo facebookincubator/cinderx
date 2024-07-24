@@ -295,7 +295,6 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
         PyType_Ready((PyTypeObject *)new_inst)) {
         goto error;
     }
-
     if (new_type->tp_base != NULL) {
       new_type->tp_new = new_type->tp_base->tp_new;
     }

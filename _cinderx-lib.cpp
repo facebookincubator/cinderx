@@ -27,7 +27,6 @@
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/methodobject_vectorcall.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
-#include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/_cinderx-lib.h"
 

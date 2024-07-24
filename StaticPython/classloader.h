@@ -165,6 +165,11 @@ int _PyClassLoader_IsFinalMethodOverridden(
 
 #ifndef Py_LIMITED_API
 
+int _PyClassLoader_UpdateSlot(
+    PyTypeObject* type,
+    PyObject* name,
+    PyObject* new_value);
+
 int _PyClassLoader_InitTypeForPatching(PyTypeObject* type);
 
 PyObject* _PyClassloader_SizeOf_DlSym_Cache(void);
@@ -181,6 +186,11 @@ _PyTypedArgsInfo* _PyClassLoader_GetTypedArgsInfoFromThunk(
     PyObject* container,
     int only_primitives);
 int _PyClassLoader_HasPrimitiveArgs(PyCodeObject* code);
+
+static inline int _PyClassLoader_IsStaticCallable(PyObject* obj) {
+  return _PyClassLoader_IsStaticFunction(obj) ||
+      _PyClassLoader_IsStaticBuiltin(obj);
+}
 
 int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyObject* key);
 
