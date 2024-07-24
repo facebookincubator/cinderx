@@ -526,7 +526,7 @@ static int cinderx_type_watcher(PyTypeObject* type) {
   return 0;
 }
 
-static int cinder_init(PyObject* mod) {
+static int cinder_init() {
 #if PY_VERSION_HEX < 0x030C0000
   Ci_hook_type_destroyed = _PyJIT_TypeDestroyed;
   Ci_hook_type_name_modified = _PyJIT_TypeNameModified;
@@ -602,7 +602,7 @@ static int cinder_init(PyObject* mod) {
     return -1;
   }
 
-  return PyObject_SetAttrString(mod, "initialized", Py_True);
+  return 0;
 }
 
 // Attempts to shutdown CinderX. This is very much a best-effort with the
@@ -686,11 +686,11 @@ static int cinder_fini() {
 
 static bool g_was_initialized = false;
 
-static PyObject* init(PyObject* self, PyObject* /*obj*/) {
+static PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
   if (g_was_initialized) {
     Py_RETURN_FALSE;
   }
-  if (cinder_init(self)) {
+  if (cinder_init()) {
     PyErr_SetString(PyExc_RuntimeError, "Failed to initialize CinderX");
     return nullptr;
   }
@@ -843,7 +843,6 @@ PyObject* _cinderx_lib_init() {
     return nullptr;                                             \
   }
 
-  ADDITEM("initialized", Py_False);
   ADDITEM("StaticTypeError", CiExc_StaticTypeError);
   ADDITEM("StrictModule", &Ci_StrictModule_Type);
   ADDITEM("cached_property", &PyCachedProperty_Type);
