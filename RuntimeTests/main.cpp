@@ -155,31 +155,31 @@ int main(int argc, char* argv[]) {
   register_test("clean_cfg_test.txt");
   register_test("dynamic_comparison_elimination_test.txt");
   register_test("hir_builder_test.txt");
-  register_test("hir_builder_static_test.txt", RuntimeTest::kCompileStatic);
+  register_test("hir_builder_static_test.txt", RuntimeTest::kStaticCompiler);
   register_test("guard_type_removal_test.txt");
   register_test("inliner_test.txt");
   register_test("inliner_elimination_test.txt");
-  register_test("inliner_static_test.txt", RuntimeTest::kCompileStatic);
+  register_test("inliner_static_test.txt", RuntimeTest::kStaticCompiler);
   register_test(
-      "inliner_elimination_static_test.txt", RuntimeTest::kCompileStatic);
+      "inliner_elimination_static_test.txt", RuntimeTest::kStaticCompiler);
   register_test("phi_elimination_test.txt");
   register_test("refcount_insertion_test.txt");
   register_test(
-      "refcount_insertion_static_test.txt", RuntimeTest::kCompileStatic);
-  register_test("super_access_test.txt", RuntimeTest::kCompileStatic);
+      "refcount_insertion_static_test.txt", RuntimeTest::kStaticCompiler);
+  register_test("super_access_test.txt", RuntimeTest::kStaticCompiler);
   register_test("simplify_test.txt");
   register_test("simplify_uses_guard_types.txt");
   register_test("dead_code_elimination_test.txt");
   register_test(
       "dead_code_elimination_and_simplify_test.txt",
-      RuntimeTest::kCompileStatic);
-  register_test("simplify_static_test.txt", RuntimeTest::kCompileStatic);
+      RuntimeTest::kStaticCompiler);
+  register_test("simplify_static_test.txt", RuntimeTest::kStaticCompiler);
   register_json_test("json_test.txt");
   register_test("builtin_load_method_elimination_test.txt");
   register_test("all_passes_test.txt");
-  register_test("all_passes_static_test.txt", RuntimeTest::kCompileStatic);
+  register_test("all_passes_static_test.txt", RuntimeTest::kStaticCompiler);
   register_test(
-      "hir_builder_native_calls_test.txt", RuntimeTest::kCompileStatic);
+      "hir_builder_native_calls_test.txt", RuntimeTest::kStaticCompiler);
 
   wchar_t* argv0 = Py_DecodeLocale(argv[0], nullptr);
   if (argv0 == nullptr) {

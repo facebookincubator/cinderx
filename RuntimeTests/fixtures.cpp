@@ -38,7 +38,7 @@ void HIRTest::TestBody() {
     ASSERT_NE(irfunc, nullptr);
     ASSERT_TRUE(checkFunc(*irfunc, std::cout));
     reflowTypes(*irfunc);
-  } else if (isCompileStatic()) {
+  } else if (isStaticCompiler()) {
     ASSERT_NO_FATAL_FAILURE(CompileToHIRStatic(src_.c_str(), "test", irfunc));
   } else {
     ASSERT_NO_FATAL_FAILURE(CompileToHIR(src_.c_str(), "test", irfunc));

@@ -34,11 +34,26 @@
 class RuntimeTest : public ::testing::Test {
  public:
   enum Flags {
-    kCompileStatic = 1 << 0,
-    kJit = 1 << 1,
+    kJit = 1 << 0,
+    // Use CinderX's bytecode compiler implemented in Python.
+    kCinderCompiler = 1 << 1,
+    // Use the Static Python bytecode compiler.
+    kStaticCompiler = 1 << 2,
   };
 
-  RuntimeTest(Flags flags = kJit) : flags_{flags} {}
+  static constexpr Flags kDefaultFlags{
+      static_cast<Flags>(kJit | kCinderCompiler)};
+
+  RuntimeTest(Flags flags = kDefaultFlags) : flags_{flags} {
+    // TODO(T190613453): Python compiler doesn't work with 3.12 yet.
+#if PY_VERSION_HEX >= 0x030C0000
+    flags_ = static_cast<Flags>(flags_ & ~kCinderCompiler);
+#endif
+
+    JIT_CHECK(
+        !isCinderCompiler() || !isStaticCompiler(),
+        "Cannot use both the static and the cinder compiler");
+  }
 
   void SetUp() override {
     ASSERT_FALSE(_PyJIT_IsEnabled())
@@ -53,7 +68,7 @@ class RuntimeTest : public ::testing::Test {
     ASSERT_TRUE(Py_IsInitialized());
 
 
-    globals_ = isCompileStatic() ? MakeGlobalsStrict() : MakeGlobals();
+    globals_ = isStaticCompiler() ? MakeGlobalsStrict() : MakeGlobals();
     ASSERT_NE(globals_, nullptr);
 
     isolated_preloaders_.emplace();
@@ -79,6 +94,21 @@ class RuntimeTest : public ::testing::Test {
 
   void runStaticCode(const char* src) {
     runCodeModuleExec(src, "cinderx.compiler.static", "exec_static");
+  }
+
+  // Compile code with the stock CPython bytecode compiler and then run it.
+  void runStockCode(const char* src) {
+    const char* filename = "fake_runtime_tests_filename.py";
+    // Code isn't limited to being a single expression or statement.
+    int start = Py_file_input;
+    auto code = Ref<>::steal(Py_CompileString(src, filename, start));
+    if (code == nullptr) {
+      THROW("Failed to compile code using the CPython compiler");
+    }
+    auto result = Ref<>::steal(PyEval_EvalCode(code, globals_, globals_));
+    if (result == nullptr) {
+      THROW("Failed to execute code that was compiled by the CPython compiler");
+    }
   }
 
   void runCodeModuleExec(
@@ -117,12 +147,23 @@ class RuntimeTest : public ::testing::Test {
   }
 
   Ref<> compileAndGet(const char* src, const char* name) {
-    runCode(src);
+    if (isCinderCompiler()) {
+      runCode(src);
+    } else if (isStaticCompiler()) {
+      runStaticCode(src);
+    } else {
+      runStockCode(src);
+    }
     return getGlobal(name);
   }
 
   Ref<> compileStaticAndGet(const char* src, const char* name) {
     runStaticCode(src);
+    return getGlobal(name);
+  }
+
+  Ref<> compileStockAndGet(const char* src, const char* name) {
+    runStockCode(src);
     return getGlobal(name);
   }
 
@@ -237,8 +278,12 @@ class RuntimeTest : public ::testing::Test {
     ASSERT_NE(irfunc, nullptr) << "failed constructing HIR";
   }
 
-  bool isCompileStatic() const {
-    return flags_ & kCompileStatic;
+  bool isStaticCompiler() const {
+    return flags_ & kStaticCompiler;
+  }
+
+  bool isCinderCompiler() const {
+    return flags_ & kCinderCompiler;
   }
 
   bool isJit() const {
