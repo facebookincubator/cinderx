@@ -300,7 +300,7 @@ GlobalCache Preloader::getGlobalCache(BorrowedRef<> name_obj) const {
       "trying to get a globals cache with unwatchable builtins and/or globals");
   JIT_CHECK(PyUnicode_CheckExact(name_obj), "Name must be a str");
   BorrowedRef<PyUnicodeObject> name{name_obj};
-  return jit::Runtime::get()->globalCaches().findGlobalCache(
+  return _PyJIT_GetGlobalCacheManager()->findGlobalCache(
       builtins_, globals_, name);
 }
 

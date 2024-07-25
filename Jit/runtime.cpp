@@ -109,7 +109,7 @@ std::optional<PyMethodDef*> Builtins::find(const std::string& name) const {
 Runtime* Runtime::s_runtime_{nullptr};
 
 void Runtime::shutdown() {
-  s_runtime_->globalCaches().clear();
+  _PyJIT_GetGlobalCacheManager()->clear();
   delete s_runtime_;
   s_runtime_ = nullptr;
 }
@@ -121,10 +121,6 @@ void Runtime::mlockProfilerDependencies() {
     ::mlock(code->co_qualname, Py_SIZE(code->co_qualname));
   }
   code_runtimes_.mlock();
-}
-
-GlobalCacheManager& Runtime::globalCaches() {
-  return global_caches_;
 }
 
 Ref<> Runtime::pageInProfilerDependencies() {
