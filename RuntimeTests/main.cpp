@@ -14,11 +14,11 @@
 #include "tools/cxx/Resources.h"
 #endif
 
+#include <fmt/format.h>
 #include <sys/resource.h>
 
 #include <cstdlib>
 #include <cstring>
-#include <fmt/format.h>
 
 static constexpr char g_disabled_prefix[] = "@disabled";
 
@@ -34,7 +34,7 @@ static void remap_txt_path(std::string& path) {
 
 static void register_test(
     std::string path,
-    HIRTest::Flags flags = HIRTest::Flags{}) {
+    RuntimeTest::Flags extra_flags = RuntimeTest::Flags{}) {
   remap_txt_path(path);
   auto suite = ReadHIRTestSuite(path.c_str());
   if (suite == nullptr) {
@@ -69,10 +69,10 @@ static void register_test(
         __LINE__,
         [=] {
           auto test = new HIRTest(
+              RuntimeTest::kJit | extra_flags,
               test_case.src_is_hir,
               test_case.src,
-              test_case.expected_hir,
-              flags);
+              test_case.expected_hir);
           if (has_passes) {
             jit::hir::PassRegistry registry;
             std::vector<std::unique_ptr<jit::hir::Pass>> passes;
@@ -155,27 +155,31 @@ int main(int argc, char* argv[]) {
   register_test("clean_cfg_test.txt");
   register_test("dynamic_comparison_elimination_test.txt");
   register_test("hir_builder_test.txt");
-  register_test("hir_builder_static_test.txt", HIRTest::kCompileStatic);
+  register_test("hir_builder_static_test.txt", RuntimeTest::kCompileStatic);
   register_test("guard_type_removal_test.txt");
   register_test("inliner_test.txt");
   register_test("inliner_elimination_test.txt");
-  register_test("inliner_static_test.txt", HIRTest::kCompileStatic);
-  register_test("inliner_elimination_static_test.txt", HIRTest::kCompileStatic);
+  register_test("inliner_static_test.txt", RuntimeTest::kCompileStatic);
+  register_test(
+      "inliner_elimination_static_test.txt", RuntimeTest::kCompileStatic);
   register_test("phi_elimination_test.txt");
   register_test("refcount_insertion_test.txt");
-  register_test("refcount_insertion_static_test.txt", HIRTest::kCompileStatic);
-  register_test("super_access_test.txt", HIRTest::kCompileStatic);
+  register_test(
+      "refcount_insertion_static_test.txt", RuntimeTest::kCompileStatic);
+  register_test("super_access_test.txt", RuntimeTest::kCompileStatic);
   register_test("simplify_test.txt");
   register_test("simplify_uses_guard_types.txt");
   register_test("dead_code_elimination_test.txt");
   register_test(
-      "dead_code_elimination_and_simplify_test.txt", HIRTest::kCompileStatic);
-  register_test("simplify_static_test.txt", HIRTest::kCompileStatic);
+      "dead_code_elimination_and_simplify_test.txt",
+      RuntimeTest::kCompileStatic);
+  register_test("simplify_static_test.txt", RuntimeTest::kCompileStatic);
   register_json_test("json_test.txt");
   register_test("builtin_load_method_elimination_test.txt");
   register_test("all_passes_test.txt");
-  register_test("all_passes_static_test.txt", HIRTest::kCompileStatic);
-  register_test("hir_builder_native_calls_test.txt", HIRTest::kCompileStatic);
+  register_test("all_passes_static_test.txt", RuntimeTest::kCompileStatic);
+  register_test(
+      "hir_builder_native_calls_test.txt", RuntimeTest::kCompileStatic);
 
   wchar_t* argv0 = Py_DecodeLocale(argv[0], nullptr);
   if (argv0 == nullptr) {

@@ -30,9 +30,8 @@ using namespace std;
 using namespace jit::lir;
 
 class CmdLineTest : public RuntimeTest {
-  bool setUpJit() const {
-    return false;
-  }
+ public:
+  CmdLineTest() : RuntimeTest{RuntimeTest::Flags{}} {}
 };
 
 int try_flag_and_envvar_effect(

@@ -23,29 +23,28 @@
 
 #define JIT_TEST_MOD_NAME "jittestmodule"
 
-#define THROW(...)             \
-  {                            \
-    if (PyErr_Occurred()) {    \
-      PyErr_Print();           \
-    }                          \
-    throw std::runtime_error { \
-      fmt::format(__VA_ARGS__) \
-    };                         \
+#define THROW(...)                                      \
+  {                                                     \
+    if (PyErr_Occurred()) {                             \
+      PyErr_Print();                                    \
+    }                                                   \
+    throw std::runtime_error{fmt::format(__VA_ARGS__)}; \
   }
 
 class RuntimeTest : public ::testing::Test {
  public:
-  RuntimeTest(bool compile_static = false) : compile_static_(compile_static) {}
+  enum Flags {
+    kCompileStatic = 1 << 0,
+    kJit = 1 << 1,
+  };
 
-  virtual bool setUpJit() const {
-    return true;
-  }
+  RuntimeTest(Flags flags = kJit) : flags_{flags} {}
 
   void SetUp() override {
     ASSERT_FALSE(_PyJIT_IsEnabled())
         << "Haven't called Py_Initialize yet but the JIT says it's enabled";
 
-    bool jit = setUpJit();
+    bool jit = isJit();
     if (jit) {
       jit::getMutableConfig().force_init = true;
     }
@@ -53,18 +52,16 @@ class RuntimeTest : public ::testing::Test {
     Py_Initialize();
     ASSERT_TRUE(Py_IsInitialized());
 
-    if (compile_static_) {
-      globals_ = MakeGlobalsStrict();
-    } else {
-      globals_ = MakeGlobals();
-    }
+
+    globals_ = isCompileStatic() ? MakeGlobalsStrict() : MakeGlobals();
     ASSERT_NE(globals_, nullptr);
+
     isolated_preloaders_.emplace();
   }
 
   void TearDown() override {
     isolated_preloaders_.reset();
-    if (setUpJit()) {
+    if (isJit()) {
       jit::getMutableConfig().force_init = false;
     }
 
@@ -240,29 +237,38 @@ class RuntimeTest : public ::testing::Test {
     ASSERT_NE(irfunc, nullptr) << "failed constructing HIR";
   }
 
- protected:
-  bool compile_static_;
+  bool isCompileStatic() const {
+    return flags_ & kCompileStatic;
+  }
+
+  bool isJit() const {
+    return flags_ & kJit;
+  }
 
  private:
   Ref<> globals_;
   std::optional<jit::IsolatedPreloaders> isolated_preloaders_;
+  Flags flags_;
 };
+
+constexpr RuntimeTest::Flags operator|(
+    RuntimeTest::Flags a,
+    RuntimeTest::Flags b) {
+  return static_cast<RuntimeTest::Flags>(
+      static_cast<int>(a) | static_cast<int>(b));
+}
 
 class HIRTest : public RuntimeTest {
  public:
-  enum Flags {
-    kCompileStatic = 1 << 0,
-  };
-
   HIRTest(
+      Flags flags,
       bool src_is_hir,
       const std::string& src,
-      const std::string& expected_hir,
-      Flags flags)
-      : RuntimeTest(flags & kCompileStatic),
-        src_is_hir_(src_is_hir),
-        src_(src),
-        expected_hir_(expected_hir) {}
+      const std::string& expected_hir)
+      : RuntimeTest{flags},
+        src_{src},
+        expected_hir_{expected_hir},
+        src_is_hir_{src_is_hir} {}
 
   void setPasses(std::vector<std::unique_ptr<jit::hir::Pass>> passes) {
     passes_ = std::move(passes);
@@ -272,19 +278,15 @@ class HIRTest : public RuntimeTest {
 
  private:
   std::vector<std::unique_ptr<jit::hir::Pass>> passes_;
-  bool src_is_hir_;
   std::string src_;
   std::string expected_hir_;
+  bool src_is_hir_;
 };
-
-inline HIRTest::Flags operator|(HIRTest::Flags a, HIRTest::Flags b) {
-  return static_cast<HIRTest::Flags>(static_cast<int>(a) | static_cast<int>(b));
-}
 
 class HIRJSONTest : public RuntimeTest {
  public:
   HIRJSONTest(const std::string& src, const std::string& expected_json)
-      : RuntimeTest(), src_(src), expected_json_(expected_json) {}
+      : src_(src), expected_json_(expected_json) {}
 
   void TestBody() override;
 
