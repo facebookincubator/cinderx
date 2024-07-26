@@ -413,11 +413,25 @@ typedef CiStackWalkDirective (*CiWalkAsyncStackCallback)(void *data,
 
 int Ci_set_attribute_error_context(PyObject *v, PyObject *name);
 void _PyType_ClearNoShadowingInstances(struct _typeobject *, PyObject *obj);
-PyObject* Ci_PyClassMethod_GetFunc(PyObject *method);
-PyObject* Ci_PyStaticMethod_GetFunc(PyObject *sm);
 int PyUnstable_PerfTrampoline_CompileCode(PyCodeObject *);
 int PyUnstable_PerfTrampoline_SetPersistAfterFork(int enable);
 PyObject* _PyObject_GC_Malloc(size_t size);
+
+// Get the callable out of a classmethod object.
+//
+// TODO: This and Ci_PyStaticMethod_GetFunc() should be used for 3.10 as well.
+static inline PyObject* Ci_PyClassMethod_GetFunc(PyObject* classmethod) {
+  PyMemberDef* member = &Py_TYPE(classmethod)->tp_members[0];
+  assert(strcmp(member->name, "__func__") == 0);
+  Py_ssize_t offset = member->offset;
+  return *((PyObject**)((char*)classmethod + offset));
+}
+
+// Get the callable out of a staticmethod object.
+static inline PyObject* Ci_PyStaticMethod_GetFunc(PyObject* staticmethod) {
+  // classmethod and staticmethod have the same underlying structure.
+  return Ci_PyClassMethod_GetFunc(staticmethod);
+}
 
 PyObject* Ci_StaticFunction_Vectorcall(PyObject *func, PyObject* const* stack,
                        size_t nargsf, PyObject *kwnames);

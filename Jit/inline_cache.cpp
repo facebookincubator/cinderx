@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/inline_cache.h"
 
-#include <Python.h>
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
@@ -10,6 +9,8 @@
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
 #include "cinderx/Jit/containers.h"
+
+#include <Python.h>
 
 #include <algorithm>
 #include <memory>
@@ -93,8 +94,9 @@ inline PyDictObject* get_or_allocate_dict(
   return dict;
 }
 
-PyObject* __attribute__((noinline))
-raise_attribute_error(PyObject* obj, PyObject* name) {
+PyObject* __attribute__((noinline)) raise_attribute_error(
+    PyObject* obj,
+    PyObject* name) {
   PyErr_Format(
       PyExc_AttributeError,
       "'%.50s' object has no attribute '%U'",
@@ -593,8 +595,9 @@ PyObject* LoadAttrCache::doInvoke(PyObject* obj, PyObject* name) {
 }
 
 // NB: The logic here needs to be kept in-sync with PyObject_GenericGetAttr
-PyObject* __attribute__((noinline))
-LoadAttrCache::invokeSlowPath(PyObject* obj, PyObject* name) {
+PyObject* __attribute__((noinline)) LoadAttrCache::invokeSlowPath(
+    PyObject* obj,
+    PyObject* name) {
   BorrowedRef<PyTypeObject> tp(Py_TYPE(obj));
   if (tp->tp_getattro != PyObject_GenericGetAttr) {
     return PyObject_GetAttr(obj, name);
