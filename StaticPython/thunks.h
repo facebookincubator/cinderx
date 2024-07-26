@@ -15,7 +15,7 @@ extern PyTypeObject _PyType_PropertyThunk;
 extern PyTypeObject _PyType_TypedDescriptorThunk;
 
 typedef struct {
-  PyObject_HEAD;
+  PyObject_HEAD
   PyObject* mt_original;
 } _PyClassLoader_MethodThunk;
 
@@ -40,7 +40,7 @@ typedef struct {
 } _PyClassLoader_TypeCheckState;
 
 typedef struct {
-  PyObject_HEAD;
+  PyObject_HEAD
   PyObject* propthunk_target;
   /* the vectorcall entry point for the thunk */
   vectorcallfunc propthunk_vectorcall;
@@ -65,7 +65,7 @@ typedef struct {
 } _Py_StaticThunk;
 
 typedef struct {
-  PyObject_HEAD;
+  PyObject_HEAD
   PyObject* propthunk_target;
   /* the vectorcall entry point for the thunk */
   vectorcallfunc propthunk_vectorcall;
@@ -75,14 +75,14 @@ extern _Py_CachedPropertyThunk* _Py_CachedPropertyThunk_New(PyObject* property);
 extern PyObject* _Py_CachedPropertyThunk_GetFunc(PyObject* thunk);
 
 typedef struct {
-  PyObject_HEAD;
+  PyObject_HEAD
   PyObject* propthunk_target;
   /* the vectorcall entry point for the thunk */
   vectorcallfunc propthunk_vectorcall;
 } _Py_PropertyThunk;
 
 typedef struct {
-  PyObject_HEAD;
+  PyObject_HEAD
   PyObject* typed_descriptor_thunk_target;
   /* the vectorcall entry point for the thunk */
   vectorcallfunc typed_descriptor_thunk_vectorcall;

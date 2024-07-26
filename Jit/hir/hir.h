@@ -750,7 +750,7 @@ class InstrT<T, opcode, HasOutput, Tys...> : public InstrT<T, opcode, Tys...> {
    private:                                     \
     friend InstrT;                              \
     using InstrT::InstrT;                       \
-  };
+  }
 
 #define FOREACH_BINARY_OP_KIND(V) \
   V(Add)                          \
@@ -2052,7 +2052,7 @@ DEFINE_SIMPLE_INSTR(
     (TUnicodeExact, TUnicodeExact),
     HasOutput,
     Operands<2>,
-    DeoptBase)
+    DeoptBase);
 
 DEFINE_SIMPLE_INSTR(
     CopyDictWithoutKeys,
@@ -2066,14 +2066,14 @@ DEFINE_SIMPLE_INSTR(
     (TUnicodeExact, TCInt64),
     HasOutput,
     Operands<2>,
-    DeoptBase)
+    DeoptBase);
 
 DEFINE_SIMPLE_INSTR(
     UnicodeSubscr,
     (TUnicodeExact, TCInt64),
     HasOutput,
     Operands<2>,
-    DeoptBase)
+    DeoptBase);
 
 // NB: This needs to be in the order that the values appear in the
 // BinaryOpKind enum
@@ -4132,7 +4132,7 @@ struct TypedArgument {
     ThreadedCompileSerialize guard;
     this->pytype = Ref<PyTypeObject>::create(pytype);
     thread_safe_flags = pytype->tp_flags & kThreadSafeFlagsMask;
-  };
+  }
 
   TypedArgument(const TypedArgument& other)
       : locals_idx(other.locals_idx),
@@ -4142,7 +4142,7 @@ struct TypedArgument {
         thread_safe_flags(other.thread_safe_flags) {
     ThreadedCompileSerialize guard;
     pytype = Ref<PyTypeObject>::create(other.pytype);
-  };
+  }
 
   TypedArgument& operator=(const TypedArgument& other) {
     locals_idx = other.locals_idx;
@@ -4153,7 +4153,7 @@ struct TypedArgument {
     ThreadedCompileSerialize guard;
     pytype = Ref<PyTypeObject>::create(other.pytype);
     return *this;
-  };
+  }
 
   ~TypedArgument() {
     ThreadedCompileSerialize guard;

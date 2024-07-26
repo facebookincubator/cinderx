@@ -244,4 +244,4 @@ asmjit::Error MultipleSectionCodeAllocator::addCode(
   return asmjit::kErrorOk;
 }
 
-}; // namespace jit
+} // namespace jit

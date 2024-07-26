@@ -45,7 +45,7 @@ typedef struct {
  * Need to make sure it's not optimized away. */
 void __attribute__((noinline)) __jit_debug_register_code() {
   __asm("");
-};
+}
 
 /* We will add new code entries to the link list rooted here. If the JIT ever
  * becomes multithreaded this will need to be protected by a mutex. */

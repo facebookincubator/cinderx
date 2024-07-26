@@ -122,4 +122,4 @@ void populateCodeSections(
     asmjit::CodeHolder& code,
     void* entry);
 
-}; // namespace jit
+} // namespace jit

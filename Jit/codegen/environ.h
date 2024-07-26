@@ -15,8 +15,6 @@
 namespace jit::codegen {
 
 struct Environ {
-  Environ(){};
-
   // Metadata for annotated disassembly.
   Annotations annotations;
 

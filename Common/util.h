@@ -325,5 +325,5 @@ inline constexpr D bit_cast(const S& src) {
 // this is for non-test builds. define FRIEND_TEST here so we don't
 // have to include the googletest header in our headers to be tested.
 #ifndef FRIEND_TEST
-#define FRIEND_TEST(test_case_name, test_name)
+#define FRIEND_TEST(test_case_name, test_name) friend class test_case_name
 #endif

@@ -193,7 +193,7 @@ class Preloader {
         globals_(Ref<>::create(globals)),
         fullname_(fullname) {
     JIT_CHECK(PyCode_Check(code_), "Expected PyCodeObject");
-  };
+  }
 
   Ref<PyCodeObject> code_;
   Ref<PyDictObject> builtins_;

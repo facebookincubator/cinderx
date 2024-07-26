@@ -656,9 +656,9 @@ DECLARE_TYPE_ARG(OutFPImm, double, true)
 DECLARE_TYPE_ARG(OutMemImm, void*, true)
 DECLARE_TYPE_ARG(OutStk, PhyLocation, true)
 DECLARE_TYPE_ARG(OutLbl, BasicBlock*, true)
-DECLARE_TYPE_ARG(OutDbl, double, true);
-DECLARE_TYPE_ARG(OutInd, MemoryIndirect, true);
-DECLARE_TYPE_ARG(OutVReg, void, true);
+DECLARE_TYPE_ARG(OutDbl, double, true)
+DECLARE_TYPE_ARG(OutInd, MemoryIndirect, true)
+DECLARE_TYPE_ARG(OutVReg, void, true)
 
 } // namespace jit::lir
 
