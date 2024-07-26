@@ -15,6 +15,14 @@ vtabledealloc(_PyType_VTable *op)
     for (Py_ssize_t i = 0; i < op->vt_size; i++) {
         Py_XDECREF(op->vt_entries[i].vte_state);
     }
+    _PyType_GenericTypeRef *gtr = op->vt_gtr;
+    if (gtr != NULL) {
+        Py_CLEAR(gtr->gtr_gtd);
+        for (Py_ssize_t i = 0;i < gtr->gtr_typeparam_count; i++) {
+            Py_CLEAR(gtr->gtr_typeparams[i]);
+        }
+        PyMem_Free(gtr);
+    }
     PyObject_GC_Del((PyObject *)op);
 }
 
@@ -27,6 +35,13 @@ vtabletraverse(_PyType_VTable *op, visitproc visit, void *arg)
     Py_VISIT(op->vt_original);
     Py_VISIT(op->vt_thunks);
     Py_VISIT(op->vt_specials);
+    _PyType_GenericTypeRef *gtr = op->vt_gtr;
+    if (gtr != NULL) {
+        Py_VISIT(gtr->gtr_gtd);
+        for (Py_ssize_t i = 0; i < gtr->gtr_typeparam_count; i++) {
+            Py_VISIT(gtr->gtr_typeparams[i]);
+        }
+    }
     return 0;
 }
 
@@ -39,6 +54,13 @@ vtableclear(_PyType_VTable *op)
     Py_CLEAR(op->vt_original);
     Py_CLEAR(op->vt_thunks);
     Py_CLEAR(op->vt_specials);
+    _PyType_GenericTypeRef *gtr = op->vt_gtr;
+    if (gtr != NULL) {
+        Py_CLEAR(gtr->gtr_gtd);
+        for (Py_ssize_t i = 0; i < gtr->gtr_typeparam_count; i++) {
+            Py_CLEAR(gtr->gtr_typeparams[i]);
+        }
+    }
     return 0;
 }
 

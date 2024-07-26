@@ -1341,6 +1341,7 @@ _PyType_VTable* _PyClassLoader_EnsureVtable(
   vtable->vt_specials = NULL;
   vtable->vt_slotmap = slotmap;
   vtable->vt_typecode = TYPED_OBJECT;
+  vtable->vt_gtr = NULL;
   self->tp_cache = (PyObject*)vtable;
   memset(&vtable->vt_entries[0], 0, sizeof(_PyType_VTableEntry) * slot_count);
 

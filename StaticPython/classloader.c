@@ -153,16 +153,27 @@ static int clear_vtables_recurse(PyTypeObject* type) {
   PyObject* subclasses = type->tp_subclasses;
   PyObject* ref;
   if (type->tp_cache != NULL) {
-    // If the type has a type code we need to preserve it, but we'll clear
-    // everything else
-    int type_code = ((_PyType_VTable*)type->tp_cache)->vt_typecode;
-    Py_CLEAR(type->tp_cache);
-    if (type_code != TYPED_OBJECT) {
+    _PyType_VTable* old_vtable = (_PyType_VTable*)type->tp_cache;
+    type->tp_cache = NULL;
+
+    if (old_vtable->vt_typecode != TYPED_OBJECT || old_vtable->vt_gtr != NULL) {
+      // If the type has a type code or references to its generic parameters
+      // we need to preserve them, but we'll keep everything else
       _PyType_VTable* vtable = _PyClassLoader_EnsureVtable(type, 0);
-      if (vtable != NULL) {
-        vtable->vt_typecode = type_code;
+      if (vtable == NULL) {
+        type->tp_cache = (PyObject*)old_vtable;
+        // We were unable to create the new vtable, and so we don't
+        // want to lose track of the type code or the generic type
+        // tracking.
+        return -1;
       }
+
+      vtable->vt_typecode = old_vtable->vt_typecode;
+      vtable->vt_gtr = old_vtable->vt_gtr;
     }
+
+    old_vtable->vt_gtr = NULL; // don't free it, we'll move it to the new vtable
+    Py_CLEAR(old_vtable);
   }
   if (subclasses != NULL) {
     Py_ssize_t i = 0;

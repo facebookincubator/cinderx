@@ -19,6 +19,14 @@ typedef struct {
     vectorcallfunc vte_entry;
 } _PyType_VTableEntry;
 
+typedef struct {
+    // The generic type definition for this instantation
+    PyObject *gtr_gtd;
+    Py_ssize_t gtr_typeparam_count;
+    // The type params for this instantiation
+    PyTypeObject *gtr_typeparams[0];
+} _PyType_GenericTypeRef;
+
 /**
     This is the core datastructure used for efficient call dispatch at runtime.
     It is initialized lazily on Static types when a callable on any of them is
@@ -36,6 +44,9 @@ typedef struct {
     /* Dict[tuple[...], special_thunk] A special thunk is a wrapper around a v-table slot
      * for a getter or a setter, stored under the special name (name, "fget"/"fset" )*/
     PyObject *vt_specials;
+    /* Generic type instantiation info, used to manage the lifetime of the generic type
+     * instantation parameters */
+    _PyType_GenericTypeRef *vt_gtr;
     /* Size of the vtable */
     Py_ssize_t vt_size;
     int vt_typecode;

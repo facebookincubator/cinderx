@@ -1,6 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 #include "cinderx/StaticPython/generic_type.h"
+#include "cinderx/StaticPython/vtable.h"
+#include "cinderx/StaticPython/vtable_builder.h"
 
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
@@ -203,6 +205,8 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
     if (new_inst == NULL) {
         return NULL;
     }
+
+    _PyType_GenericTypeRef *gtr = NULL;
     PyObject_INIT_VAR(new_inst, &PyType_Type, 0);
 
     /* We've allocated the heap on the type, mark it as a heap type. */
@@ -211,8 +215,9 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
     memset(((char *)new_inst) + sizeof(PyVarObject),
            0,
            sizeof(PyHeapTypeObject) - sizeof(PyObject));
+    PyTypeObject *old_type = (PyTypeObject *)type;
     PyTypeObject *new_type = (PyTypeObject *)new_inst;
-#define COPY_DATA(name) new_type->name = ((PyTypeObject *)type)->name;
+#define COPY_DATA(name) new_type->name = old_type->name;
     COPY_DATA(tp_basicsize);
     COPY_DATA(tp_itemsize);
     new_type->tp_dealloc = geninst_dealloc;
@@ -231,7 +236,6 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
     COPY_DATA(tp_setattro);
     COPY_DATA(tp_as_buffer);
     COPY_DATA(tp_flags);
-    COPY_DATA(tp_doc);
     COPY_DATA(tp_traverse);
     COPY_DATA(tp_clear);
     COPY_DATA(tp_richcompare);
@@ -250,6 +254,16 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
     COPY_DATA(tp_alloc);
     COPY_DATA(tp_new);
     COPY_DATA(tp_free);
+    if (old_type->tp_doc != NULL) {
+        // tp_doc is heap allocated, so we need to copy it.
+        size_t len = strlen(old_type->tp_doc) + 1;
+        char *new_doc = PyObject_Malloc(len);
+        if (new_doc == NULL) {
+            goto error;
+        }
+        memcpy(new_doc, old_type->tp_doc, len);
+        new_type->tp_doc = new_doc;
+    }
     new_type->tp_new = ((_PyGenericTypeDef *)type)->gtd_new;
 #undef COPY_DATA
 
@@ -268,6 +282,13 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
 
     new_inst->gti_size = nargs;
 
+    // The lifetime of the generic type parameters is managed by the vtable
+    gtr = PyMem_Malloc(sizeof(_PyType_GenericTypeRef) + sizeof(PyObject *) * nargs);
+    if (gtr == NULL) {
+        goto error;
+    }
+    gtr->gtr_gtd = type;
+    gtr->gtr_typeparam_count = nargs;
     for (int i = 0; i < nargs; i++) {
         PyObject *opt_type = get_optional_type(args[i]);
         if (opt_type == NULL) {
@@ -278,6 +299,7 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
             new_inst->gti_inst[i].gtp_type = (PyTypeObject *)opt_type;
             new_inst->gti_inst[i].gtp_optional = 1;
         }
+        gtr->gtr_typeparams[i] = new_inst->gti_inst[i].gtp_type;
     }
 
     PyObject *name = gti_calc_name(type, new_inst);
@@ -297,6 +319,12 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
         goto error;
     }
 
+    _PyType_VTable *vtable = _PyClassLoader_EnsureVtable((PyTypeObject*)new_inst, 0);
+    if (vtable == NULL) {
+        goto error;
+    }
+
+    vtable->vt_gtr = gtr;
     if (new_type->tp_base != NULL) {
       new_type->tp_new = new_type->tp_base->tp_new;
     }
@@ -304,6 +332,9 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
     PyObject_GC_Track((PyObject *)new_inst);
     return (PyObject *)new_inst;
 error:
+    if (gtr != NULL) {
+        PyMem_Free(gtr);
+    }
     Py_DECREF(new_inst);
     return (PyObject *)new_inst;
 }
@@ -415,43 +446,4 @@ _PyClassLoader_GtdGetItem(_PyGenericTypeDef *type, PyObject *args)
     Py_DECREF(mod);
 
     return res;
-}
-
-int
-_PyClassLoader_TypeDealloc(PyTypeObject *type)
-{
-    if (type->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST) {
-        _PyGenericTypeInst *gti = (_PyGenericTypeInst *)type;
-        for (Py_ssize_t i = 0; i < gti->gti_size; i++) {
-            Py_XDECREF(gti->gti_inst[i].gtp_type);
-        }
-        Py_XDECREF(gti->gti_gtd);
-        return 1;
-    }
-    return 0;
-}
-
-int
-_PyClassLoader_TypeTraverse(PyTypeObject *type, visitproc visit, void *arg)
-{
-    if (type->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST) {
-        _PyGenericTypeInst *gti = (_PyGenericTypeInst *)type;
-        Py_VISIT(gti->gti_gtd);
-        for (Py_ssize_t i = 0; i < gti->gti_size; i++) {
-            Py_VISIT(gti->gti_inst[i].gtp_type);
-        }
-    }
-    return 0;
-}
-
-void
-_PyClassLoader_TypeClear(PyTypeObject *type)
-{
-    if (type->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST) {
-        _PyGenericTypeInst *gti = (_PyGenericTypeInst *)type;
-        Py_CLEAR(gti->gti_gtd);
-        for (Py_ssize_t i = 0; i < gti->gti_size; i++) {
-            Py_CLEAR(gti->gti_inst[i].gtp_type);
-        }
-    }
 }
