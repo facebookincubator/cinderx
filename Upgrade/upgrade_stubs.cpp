@@ -99,6 +99,6 @@ STUB_WEAK(PyObject*, _PyDict_LoadGlobal, PyDictObject*, PyDictObject*, PyObject*
 STUB_WEAK(PyObject*, _PyTuple_FromArray, PyObject * const*, Py_ssize_t)
 STUB_WEAK(static_builtin_state*, _PyStaticType_GetState, PyInterpreterState *, PyTypeObject *)
 STUB_WEAK(PyObject*, _Py_union_type_or, PyObject *, PyObject *)
-STUB_WEAK(void, _PyDict_SendEvent, int, PyDict_WatchEvent, PyDictObject *, PyObject *,  PyObject *);
+STUB_WEAK(void, _PyDict_SendEvent, int, PyDict_WatchEvent, PyDictObject *, PyObject *,  PyObject *)
 
 } // extern "C"
