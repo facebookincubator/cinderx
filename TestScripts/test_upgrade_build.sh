@@ -9,5 +9,8 @@ for d in * ; do
   if ! [ -d "$d" ] || [[ "$d" == *Interpreter* ]] || [[ "$d" == *Shadowcode* ]]; then
     continue
   fi
-  buck2 build --local-only --no-remote-cache -c cinderx.use_3_12=true fbcode//cinderx/"$d"/...
+  buck2 build -c cinderx.use_3_12=true fbcode//cinderx/"$d"/...
 done
+
+# Check for dynamic linking errors which may only occur when loading the module
+buck2 run -c cinderx.use_3_12=true fbcode//cinderx:python -- -c 'import cinderx'
