@@ -5,7 +5,6 @@
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
-#include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/Interpreter/interpreter.h"
 
 #define STUB(ret, func, args...) ret func(args) { \

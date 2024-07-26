@@ -10,6 +10,8 @@
 #include "pycore_object.h"           // _PyObject_GC_TRACK()
 #include "pycore_pystate.h"          // _Py_InterpreterState_GET
 #include "Objects/stringlib/eq.h"    // unicode_eq()
+#include "cinderx/StaticPython/typed_method_def.h"
+#include "cinderx/StaticPython/generic_type.h"
 
 #if PY_VERSION_HEX >= 0x030C0000
 
@@ -134,7 +136,7 @@ struct _dictkeysobject {
  * Python code.  Statically Typed Python code will be able to call versions
  * of most functionality in a way that elides the type checks */
 
-extern _PyGenericTypeDef Ci_CheckedDict_Type;
+extern _PyGenericTypeDef Ci_CheckedDict_GenericType;
 
 extern PyTypeObject Ci_CheckedDictKeys_Type;
 extern PyTypeObject Ci_CheckedDictValues_Type;
@@ -2228,7 +2230,7 @@ PyDoc_STRVAR(dictionary_doc,
 /* === End copied from dictobject.c === */
 
 #define IS_CHECKED_DICT(x)                                                    \
-    (_PyClassLoader_GetGenericTypeDef((PyObject *)x) == &Ci_CheckedDict_Type)
+    (_PyClassLoader_GetGenericTypeDef((PyObject *)x) == &Ci_CheckedDict_GenericType)
 
 static inline int
 Ci_Dict_CheckIncludingChecked(PyObject *x)
@@ -2245,7 +2247,7 @@ Ci_CheckedDict_Check(PyObject *x)
 int
 Ci_CheckedDict_TypeCheck(PyTypeObject *type)
 {
-    return _PyClassLoader_GetGenericTypeDefFromType(type) == &Ci_CheckedDict_Type;
+    return _PyClassLoader_GetGenericTypeDefFromType(type) == &Ci_CheckedDict_GenericType;
 }
 
 /* Consumes a reference to the keys object */
@@ -2857,7 +2859,7 @@ chkdict_richcompare(PyObject *v, PyObject *w, int op)
     return res;
 }
 
-_PyGenericTypeDef Ci_CheckedDict_Type = {
+_PyGenericTypeDef Ci_CheckedDict_GenericType = {
     .gtd_type =
         {
             PyVarObject_HEAD_INIT(&PyType_Type, 0) "__static__.chkdict[K, V]",
@@ -2902,6 +2904,8 @@ _PyGenericTypeDef Ci_CheckedDict_Type = {
         },
     .gtd_size = 2
 };
+
+PyTypeObject *Ci_CheckedDict_Type = (PyTypeObject *)&Ci_CheckedDict_GenericType;
 
 /* === Copied from dictobject.c === */
 

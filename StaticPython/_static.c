@@ -36,8 +36,8 @@ PyDoc_STRVAR(
     "_static contains types related to static Python\n");
 
 static int _static_exec(PyObject* m) {
-  if (PyType_Ready((PyTypeObject*)&Ci_CheckedDict_Type) < 0 ||
-      PyModule_AddObjectRef(m, "chkdict", (PyObject*)&Ci_CheckedDict_Type) <
+  if (PyType_Ready(Ci_CheckedDict_Type) < 0 ||
+      PyModule_AddObjectRef(m, "chkdict", (PyObject *)Ci_CheckedDict_Type) <
           0) {
     return -1;
   }
