@@ -11,6 +11,8 @@
     UPGRADE_ASSERT(Hit stubbed function: func); \
   }
 
+extern "C" {
+
 STUB(Ci_PyGCImpl*, Ci_PyGC_SetImpl, struct _gc_runtime_state*, Ci_PyGCImpl*)
 STUB(Ci_PyGCImpl*, Ci_PyGC_GetImpl, struct _gc_runtime_state*)
 STUB(void, Ci_PyGC_ClearFreeLists, PyInterpreterState*)
@@ -38,7 +40,7 @@ STUB(int, Cix_eval_frame_handle_pending, PyThreadState*)
 STUB(PyObject*, Cix_special_lookup, PyThreadState*, PyObject*, _Py_Identifier*)
 STUB(void, Cix_format_kwargs_error, PyThreadState*, PyObject*, PyObject*)
 STUB(void, Cix_format_awaitable_error, PyThreadState*, PyTypeObject*, int, int)
-STUB(PyFrameObject*, Cix_PyEval_MakeFrameVector, PyThreadState*, PyFrameConstructor*, PyObject*, PyObject**, Py_ssize_t, PyObject*)
+STUB(PyFrameObject*, Cix_PyEval_MakeFrameVector, PyThreadState*, PyFrameConstructor*, PyObject*, PyObject * const*, Py_ssize_t, PyObject*)
 STUB(PyObject*, Cix_SuperLookupMethodOrAttr, PyThreadState*, PyObject*, PyTypeObject*, PyObject*, PyObject*, int, int*)
 STUB(int, Cix_do_raise, PyThreadState*, PyObject*, PyObject*)
 STUB(void, Cix_format_exc_check_arg, PyThreadState*, PyObject*, const char*, PyObject*)
@@ -94,6 +96,9 @@ STUB_WEAK(PyObject*, _PyAsyncGenValueWrapperNew, PyThreadState*, PyObject *)
 STUB_WEAK(int, _PyObjectDict_SetItem, PyTypeObject*, PyObject **, PyObject*, PyObject*)
 STUB_WEAK(void, _PyDictKeys_DecRef, PyDictKeysObject*)
 STUB_WEAK(PyObject*, _PyDict_LoadGlobal, PyDictObject*, PyDictObject*, PyObject*)
-STUB_WEAK(PyObject*, _PyTuple_FromArray, PyObject* *, Py_ssize_t)
+STUB_WEAK(PyObject*, _PyTuple_FromArray, PyObject * const*, Py_ssize_t)
 STUB_WEAK(static_builtin_state*, _PyStaticType_GetState, PyInterpreterState *, PyTypeObject *)
 STUB_WEAK(PyObject*, _Py_union_type_or, PyObject *, PyObject *)
+STUB_WEAK(void, _PyDict_SendEvent, int, PyDict_WatchEvent, PyDictObject *, PyObject *,  PyObject *);
+
+} // extern "C"
