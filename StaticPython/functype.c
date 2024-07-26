@@ -10,6 +10,8 @@
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
 
+#include "cinderx/Common/property.h"
+
 #include "cinderx/CachedProperties/cached_properties.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove

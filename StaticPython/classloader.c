@@ -368,29 +368,6 @@ error:
   return cache;
 }
 
-int _PyClassLoader_IsImmutable(PyObject* container) {
-  if (PyType_Check(container)) {
-    PyTypeObject* type = (PyTypeObject*)container;
-#if PY_VERSION_HEX < 0x030C0000
-    if (type->tp_flags & Ci_Py_TPFLAGS_FROZEN ||
-        !(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
-      return 1;
-    }
-#else
-    if (type->tp_flags & Py_TPFLAGS_IMMUTABLETYPE ||
-        !(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
-      return 1;
-    }
-#endif
-  }
-
-  if (Ci_StrictModule_CheckExact(container) &&
-      ((Ci_StrictModuleObject*)container)->global_setter == NULL) {
-    return 1;
-  }
-  return 0;
-}
-
 PyMethodDescrObject* _PyClassLoader_ResolveMethodDef(PyObject* path) {
   PyTypeObject* target_type;
   PyObject* cur = _PyClassLoader_ResolveMember(

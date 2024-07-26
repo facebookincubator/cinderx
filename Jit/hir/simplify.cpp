@@ -1,6 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/Common/property.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "structmember.h"
 

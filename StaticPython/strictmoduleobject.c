@@ -15,6 +15,29 @@
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
+int _PyClassLoader_IsImmutable(PyObject* container) {
+  if (PyType_Check(container)) {
+    PyTypeObject* type = (PyTypeObject*)container;
+#if PY_VERSION_HEX < 0x030C0000
+    if (type->tp_flags & Ci_Py_TPFLAGS_FROZEN ||
+        !(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
+      return 1;
+    }
+#else
+    if (type->tp_flags & Py_TPFLAGS_IMMUTABLETYPE ||
+        !(type->tp_flags & Py_TPFLAGS_HEAPTYPE)) {
+      return 1;
+    }
+#endif
+  }
+
+  if (Ci_StrictModule_CheckExact(container) &&
+      ((Ci_StrictModuleObject*)container)->global_setter == NULL) {
+    return 1;
+  }
+  return 0;
+}
+
 static inline PyObject* Ci_StrictModuleGetDictSetter(PyObject *mod) {
     assert(Ci_StrictModule_Check(mod));
     return ((Ci_StrictModuleObject*) mod) -> global_setter;

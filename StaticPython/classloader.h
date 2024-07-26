@@ -54,9 +54,6 @@ int _PyClassLoader_IsPatchedThunk(PyObject* obj);
  */
 PyObject** _PyClassLoader_ResolveIndirectPtr(PyObject* path);
 
-/* Checks to see if the given container is immutable */
-int _PyClassLoader_IsImmutable(PyObject* container);
-
 /* Resolves a function and returns the underlying object and the
  * container.  Static functions return the underlying callable */
 PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container);

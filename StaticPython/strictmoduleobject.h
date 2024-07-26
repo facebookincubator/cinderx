@@ -50,6 +50,9 @@ static inline PyObject* Ci_StrictModuleGetDict(PyObject *mod) {
     return ((Ci_StrictModuleObject*) mod) -> globals;
 }
 
+/* Checks to see if the given container is immutable */
+int _PyClassLoader_IsImmutable(PyObject* container);
+
 #ifdef __cplusplus
 }
 #endif

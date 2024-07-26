@@ -51,14 +51,6 @@ PyObject* _PyClassLoader_GetFunctionName(PyObject* name);
 #define Ci_FUNC_FLAGS_STATICMETHOD 0x04
 
 
-typedef struct {
-  PyObject_HEAD PyObject* prop_get;
-  PyObject* prop_set;
-  PyObject* prop_del;
-  PyObject* prop_doc;
-  int getter_doc;
-} Ci_propertyobject;
-
 PyObject* _PyClassLoader_MaybeUnwrapCallable(PyObject* func);
 
 PyObject* _PyClassLoader_CallCoroutine(
