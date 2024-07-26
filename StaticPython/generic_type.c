@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/string.h"
 
 #include "pycore_unionobject.h" // _PyUnion_Type
 #include "pycore_tuple.h" // _PyTuple_FromArray
@@ -30,20 +31,20 @@ get_optional_type(PyObject *type)
     PyObject *name = NULL;
 
     if (!PyType_Check(type)) {
-        _Py_IDENTIFIER(__args__);
-        _Py_IDENTIFIER(__origin__);
-        _Py_IDENTIFIER(_name);
+        DEFINE_STATIC_STRING(__args__);
+        DEFINE_STATIC_STRING(__origin__);
+        DEFINE_STATIC_STRING(_name);
 
-        args = _PyObject_GetAttrId(type, &PyId___args__);
+        args = PyObject_GetAttr(type, s___args__);
         if (args == NULL) {
             PyErr_Clear();
             goto done;
-        } else if(!PyTuple_CheckExact(args) || PyTuple_GET_SIZE(args) != 2) {
+        } else if (!PyTuple_CheckExact(args) || PyTuple_GET_SIZE(args) != 2) {
             goto done;
         }
 
         if (Py_TYPE(type) != &_PyUnion_Type) {
-            origin = _PyObject_GetAttrId(type, &PyId___origin__);
+            origin = PyObject_GetAttr(type, s___origin__);
             if (origin == NULL) {
                 PyErr_Clear();
                 goto done;
@@ -51,7 +52,7 @@ get_optional_type(PyObject *type)
                 goto done;
             }
 
-            name = _PyObject_GetAttrId(origin, &PyId__name);
+            name = PyObject_GetAttr(origin, s__name);
             if (name == NULL) {
                 PyErr_Clear();
                 goto done;
@@ -391,24 +392,22 @@ _PyClassLoader_GtdGetItem(_PyGenericTypeDef *type, PyObject *args)
     PyObject *mod;
     const char *base_name = ((PyTypeObject *)type)->tp_name;
     const char *s = strrchr(base_name, '.');
-    _Py_IDENTIFIER(__module__);
-    _Py_IDENTIFIER(builtins);
+    DEFINE_STATIC_STRING(__module__);
+    DEFINE_STATIC_STRING(builtins);
 
     if (s != NULL) {
         mod = PyUnicode_FromStringAndSize(
             base_name, (Py_ssize_t)(s - base_name));
         if (mod != NULL)
             PyUnicode_InternInPlace(&mod);
-    }
-    else {
-        mod = _PyUnicode_FromId(&PyId_builtins);
-        Py_XINCREF(mod);
+    } else {
+        mod = s_builtins;
     }
     if (mod == NULL) {
         Py_DECREF(res);
         return NULL;
     }
-    if (_PyDict_SetItemId(_PyType_GetDict(((PyTypeObject *)res)), &PyId___module__, mod) == -1) {
+    if (PyDict_SetItem(_PyType_GetDict(((PyTypeObject *)res)), s___module__, mod) == -1) {
         Py_DECREF(mod);
         Py_DECREF(res);
         return NULL;  // return NULL on errors

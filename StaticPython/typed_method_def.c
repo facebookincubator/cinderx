@@ -2,6 +2,7 @@
 
 #include "cinderx/StaticPython/typed_method_def.h"
 
+#include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
@@ -75,30 +76,30 @@ void _PyClassLoader_ArgError(
 }
 
 static int Ci_populate_type_info(PyObject* arg_info, int argtype) {
-  _Py_IDENTIFIER(NoneType);
-  _Py_IDENTIFIER(object);
-  _Py_IDENTIFIER(str);
-  _Py_static_string(__static__int8, "__static__.int8");
-  _Py_static_string(__static__int16, "__static__.int16");
-  _Py_static_string(__static__int32, "__static__.int32");
-  _Py_static_string(__static__int64, "__static__.int64");
-  _Py_static_string(__static__uint8, "__static__.uint8");
-  _Py_static_string(__static__uint16, "__static__.uint16");
-  _Py_static_string(__static__uint32, "__static__.uint32");
-  _Py_static_string(__static__uint64, "__static__.uint64");
-  _Py_IDENTIFIER(optional);
-  _Py_IDENTIFIER(type_param);
-  _Py_IDENTIFIER(type);
+  DEFINE_STATIC_STRING(NoneType);
+  DEFINE_STATIC_STRING(object);
+  DEFINE_STATIC_STRING(optional);
+  DEFINE_STATIC_STRING(str);
+  DEFINE_STATIC_STRING(type);
+  DEFINE_STATIC_STRING(type_param);
+  DEFINE_NAMED_STATIC_STRING(s___static__int8, "__static__.int8");
+  DEFINE_NAMED_STATIC_STRING(s___static__int16, "__static__.int16");
+  DEFINE_NAMED_STATIC_STRING(s___static__int32, "__static__.int32");
+  DEFINE_NAMED_STATIC_STRING(s___static__int64, "__static__.int64");
+  DEFINE_NAMED_STATIC_STRING(s___static__uint8, "__static__.uint8");
+  DEFINE_NAMED_STATIC_STRING(s___static__uint16, "__static__.uint16");
+  DEFINE_NAMED_STATIC_STRING(s___static__uint32, "__static__.uint32");
+  DEFINE_NAMED_STATIC_STRING(s___static__uint64, "__static__.uint64");
 
   if ((argtype & Ci_Py_SIG_OPTIONAL) &&
-      _PyDict_SetItemId(arg_info, &PyId_optional, Py_True)) {
+      PyDict_SetItem(arg_info, s_optional, Py_True)) {
     return -1;
   }
 
   if (argtype & Ci_Py_SIG_TYPE_PARAM) {
     /* indicate the type parameter */
     PyObject* type = PyLong_FromLong(Ci_Py_SIG_TYPE_MASK(argtype));
-    if (_PyDict_SetItemId(arg_info, &PyId_type_param, type)) {
+    if (PyDict_SetItem(arg_info, s_type_param, type)) {
       Py_DECREF(type);
       return -1;
     }
@@ -108,43 +109,43 @@ static int Ci_populate_type_info(PyObject* arg_info, int argtype) {
     switch (argtype & ~Ci_Py_SIG_OPTIONAL) {
       case Ci_Py_SIG_ERROR:
       case Ci_Py_SIG_VOID:
-        name = _PyUnicode_FromId(&PyId_NoneType);
+        name = s_NoneType;
         break;
       case Ci_Py_SIG_OBJECT:
-        name = _PyUnicode_FromId(&PyId_object);
+        name = s_object;
         break;
       case Ci_Py_SIG_STRING:
-        name = _PyUnicode_FromId(&PyId_str);
+        name = s_str;
         break;
       case Ci_Py_SIG_INT8:
-        name = _PyUnicode_FromId(&__static__int8);
+        name = s___static__int8;
         break;
       case Ci_Py_SIG_INT16:
-        name = _PyUnicode_FromId(&__static__int16);
+        name = s___static__int16;
         break;
       case Ci_Py_SIG_INT32:
-        name = _PyUnicode_FromId(&__static__int32);
+        name = s___static__int32;
         break;
       case Ci_Py_SIG_INT64:
-        name = _PyUnicode_FromId(&__static__int64);
+        name = s___static__int64;
         break;
       case Ci_Py_SIG_UINT8:
-        name = _PyUnicode_FromId(&__static__uint8);
+        name = s___static__uint8;
         break;
       case Ci_Py_SIG_UINT16:
-        name = _PyUnicode_FromId(&__static__uint16);
+        name = s___static__uint16;
         break;
       case Ci_Py_SIG_UINT32:
-        name = _PyUnicode_FromId(&__static__uint32);
+        name = s___static__uint32;
         break;
       case Ci_Py_SIG_UINT64:
-        name = _PyUnicode_FromId(&__static__uint64);
+        name = s___static__uint64;
         break;
       default:
         PyErr_SetString(PyExc_RuntimeError, "unknown type");
         return -1;
     }
-    if (name == NULL || _PyDict_SetItemId(arg_info, &PyId_type, name)) {
+    if (name == NULL || PyDict_SetItem(arg_info, s_type, name)) {
       return -1;
     }
   }
@@ -152,8 +153,8 @@ static int Ci_populate_type_info(PyObject* arg_info, int argtype) {
 }
 
 PyObject* Ci_PyMethodDef_GetTypedSignature(PyMethodDef* method) {
-  _Py_IDENTIFIER(default);
-  _Py_IDENTIFIER(type);
+  DEFINE_STATIC_STRING(default);
+  DEFINE_STATIC_STRING(type);
   if (!(method->ml_flags & Ci_METH_TYPED)) {
     Py_RETURN_NONE;
   }
@@ -189,7 +190,7 @@ PyObject* Ci_PyMethodDef_GetTypedSignature(PyMethodDef* method) {
       if (name == NULL) {
         Py_DECREF(res);
         return NULL;
-      } else if (_PyDict_SetItemId(arg_info, &PyId_type, name)) {
+      } else if (PyDict_SetItem(arg_info, s_type, name)) {
         Py_DECREF(name);
         Py_DECREF(res);
         return NULL;
@@ -198,7 +199,7 @@ PyObject* Ci_PyMethodDef_GetTypedSignature(PyMethodDef* method) {
     }
 
     if ((*sig)->se_default_value != NULL &&
-        _PyDict_SetItemId(arg_info, &PyId_default, (*sig)->se_default_value)) {
+        PyDict_SetItem(arg_info, s_default, (*sig)->se_default_value)) {
       Py_DECREF(res);
       return NULL;
     }

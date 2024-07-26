@@ -4,6 +4,8 @@
 
 #include <Python.h>
 
+#include "cinderx/Common/string.h"
+
 #include "pycore_bitutils.h"         // _Py_bit_length
 #include "pycore_gc.h"               // _PyObject_GC_IS_TRACKED()
 #include "pycore_interp.h"           // PyDict_MAXFREELIST
@@ -16,11 +18,6 @@
 #if PY_VERSION_HEX >= 0x030C0000
 
 #include "pycore_call.h"             // _PyObject_CallNoArgs()
-
-// As defined in cpython/object.h, but we don't get them due to Py_BUILD_CORE
-#define _Py_static_string_init(value) { .string = (value), .index = -1 }
-#define _Py_static_string(varname, value)  static _Py_Identifier varname = _Py_static_string_init(value)
-#define _Py_IDENTIFIER(varname) _Py_static_string(PyId_##varname, #varname)
 
 #endif
 
@@ -2643,9 +2640,9 @@ chkdict_update_common_fast(PyObject *self, PyObject *arg, PyObject *kwds)
         } else if (PyDict_Check(arg)) {
             result = chkdict_merge_iterable(self, arg);
         } else {
-            _Py_IDENTIFIER(keys);
+            DEFINE_STATIC_STRING(keys);
             PyObject *func;
-            if (_PyObject_LookupAttrId(arg, &PyId_keys, &func) < 0) {
+            if (_PyObject_LookupAttr(arg, s_keys, &func) < 0) {
                 result = -1;
             } else if (func != NULL) {
                 Py_DECREF(func);
@@ -3426,7 +3423,7 @@ dict___reversed___impl(CiChkDictObject *self)
 static PyObject *
 dictiter_reduce(dictiterobject *di, PyObject *Py_UNUSED(ignored))
 {
-    _Py_IDENTIFIER(iter);
+    DEFINE_STATIC_STRING(iter);
     /* copy the iterator state */
     dictiterobject tmp = *di;
     Py_XINCREF(tmp.di_dict);
@@ -3436,7 +3433,7 @@ dictiter_reduce(dictiterobject *di, PyObject *Py_UNUSED(ignored))
     if (list == NULL) {
         return NULL;
     }
-    return Py_BuildValue("N(N)", _PyEval_GetBuiltinId(&PyId_iter), list);
+    return Py_BuildValue("N(N)", _PyEval_GetBuiltin(s_iter), list);
 }
 
 PyTypeObject Ci_CheckedDictRevIterItem_Type = {
@@ -3703,9 +3700,9 @@ dictviews_sub(PyObject *self, PyObject *other)
         return NULL;
     }
 
-    _Py_IDENTIFIER(difference_update);
-    PyObject *tmp = _PyObject_CallMethodIdOneArg(
-            result, &PyId_difference_update, other);
+    DEFINE_STATIC_STRING(difference_update);
+    PyObject *tmp = _PyObject_CallMethodOneArg(
+            result, s_difference_update, other);
     if (tmp == NULL) {
         Py_DECREF(result);
         return NULL;
@@ -3741,8 +3738,8 @@ Ci_CheckedDictView_Intersect(PyObject* self, PyObject *other)
     /* if other is a set and self is smaller than other,
        reuse set intersection logic */
     if (PySet_CheckExact(other) && len_self <= PyObject_Size(other)) {
-        _Py_IDENTIFIER(intersection);
-        return _PyObject_CallMethodIdObjArgs(other, &PyId_intersection, self, NULL);
+        DEFINE_STATIC_STRING(intersection);
+        return PyObject_CallMethodObjArgs(other, s_intersection, self, NULL);
     }
 
     /* if other is another dict view, and it is bigger than self,
@@ -3882,9 +3879,8 @@ dictitems_xor(PyObject *self, PyObject *other)
     }
     key = val1 = val2 = NULL;
 
-    _Py_IDENTIFIER(items);
-    PyObject *remaining_pairs = _PyObject_CallMethodIdNoArgs(temp_dict,
-                                                             &PyId_items);
+    DEFINE_STATIC_STRING(items);
+    PyObject *remaining_pairs = _PyObject_CallMethodNoArgs(temp_dict, s_items);
     if (remaining_pairs == NULL) {
         goto error;
     }
@@ -3916,9 +3912,9 @@ dictviews_xor(PyObject* self, PyObject *other)
         return NULL;
     }
 
-    _Py_IDENTIFIER(symmetric_difference_update);
-    PyObject *tmp = _PyObject_CallMethodIdOneArg(
-            result, &PyId_symmetric_difference_update, other);
+    DEFINE_STATIC_STRING(symmetric_difference_update);
+    PyObject *tmp = _PyObject_CallMethodOneArg(
+            result, s_symmetric_difference_update, other);
     if (tmp == NULL) {
         Py_DECREF(result);
         return NULL;

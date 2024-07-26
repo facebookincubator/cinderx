@@ -4,6 +4,7 @@
 
 #include <Python.h>
 
+#include "cinderx/Common/string.h"
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 
@@ -163,8 +164,8 @@ awaitable_throw(_PyClassLoader_Awaitable *self, PyObject *args)
         }
         self->iter = iter;
     }
-    _Py_IDENTIFIER(throw);
-    PyObject *method = _PyObject_GetAttrId(iter, &PyId_throw);
+    DEFINE_STATIC_STRING(throw);
+    PyObject *method = PyObject_GetAttr(iter, s_throw);
     if (method == NULL) {
         return NULL;
     }
@@ -202,8 +203,8 @@ awaitable_close(_PyClassLoader_Awaitable *self, PyObject *val)
         }
         self->iter = iter;
     }
-    _Py_IDENTIFIER(close);
-    PyObject *ret = _PyObject_CallMethodIdObjArgs(iter, &PyId_close, val, NULL);
+    DEFINE_STATIC_STRING(close);
+    PyObject *ret = PyObject_CallMethodObjArgs(iter, s_close, val, NULL);
     Py_CLEAR(self->iter);
     return ret;
 }

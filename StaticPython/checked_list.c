@@ -11,6 +11,7 @@
 #include "cinderx/StaticPython/typed_method_def.h"
 
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/string.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
@@ -2930,27 +2931,27 @@ listreviter_setstate(listreviterobject *it, PyObject *state)
 static PyObject *
 listiter_reduce_general(void *_it, int forward)
 {
-    _Py_IDENTIFIER(iter);
-    _Py_IDENTIFIER(reversed);
+    DEFINE_STATIC_STRING(iter);
+    DEFINE_STATIC_STRING(reversed);
     PyObject *list;
 
     /* the objects are not the same, index is of different types! */
     if (forward) {
         listiterobject *it = (listiterobject *)_it;
         if (it->it_seq)
-            return Py_BuildValue("N(O)n", _PyEval_GetBuiltinId(&PyId_iter),
+            return Py_BuildValue("N(O)n", _PyEval_GetBuiltin(s_iter),
                                  it->it_seq, it->it_index);
     } else {
         listreviterobject *it = (listreviterobject *)_it;
         if (it->it_seq)
-            return Py_BuildValue("N(O)n", _PyEval_GetBuiltinId(&PyId_reversed),
+            return Py_BuildValue("N(O)n", _PyEval_GetBuiltin(s_reversed),
                                  it->it_seq, it->it_index);
     }
     /* empty iterator, create an empty list */
     list = PyList_New(0);
     if (list == NULL)
         return NULL;
-    return Py_BuildValue("N(N)", _PyEval_GetBuiltinId(&PyId_iter), list);
+    return Py_BuildValue("N(N)", _PyEval_GetBuiltin(s_iter), list);
 }
 
 /* === End copied from listobject.c === */
@@ -3178,18 +3179,13 @@ static PyObject *chklist_cls_getitem(_PyGenericTypeDef *type, PyObject *args) {
     if (item == NULL) {
         return NULL;
     }
-    _Py_IDENTIFIER(__module__);
+    DEFINE_STATIC_STRING(__static__);
+    DEFINE_STATIC_STRING(__module__);
     PyTypeObject *new_type = (PyTypeObject *)item;
-    PyObject *module_name = PyUnicode_FromString("__static__");
-    if (module_name == NULL) {
-        Py_DECREF(item);
-        return NULL;
-    }
-    if (_PyDict_SetItemId(_PyType_GetDict(new_type), &PyId___module__, module_name) == -1) {
+    if (PyDict_SetItem(_PyType_GetDict(new_type), s___module__, s___static__) == -1) {
         Py_DECREF(item);
         item = NULL;  // return NULL on errors
     }
-    Py_DECREF(module_name);
     return item;
 }
 

@@ -22,6 +22,7 @@
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -431,15 +432,14 @@ call_with_self(PyThreadState* tstate, PyObject* func, PyObject* self) {
 static PyObject* ctxmgrwrp_enter(
     _Py_ContextManagerWrapper* self,
     PyObject** ctxmgr) {
-  _Py_IDENTIFIER(__exit__);
-  _Py_IDENTIFIER(__enter__);
-  _Py_IDENTIFIER(_recreate_cm);
+  DEFINE_STATIC_STRING(__enter__);
+  DEFINE_STATIC_STRING(__exit__);
+  DEFINE_STATIC_STRING(_recreate_cm);
 
   PyThreadState* tstate = _PyThreadState_GET();
 
   if (self->recreate_cache_version != Py_TYPE(self->ctxdec)->tp_version_tag) {
-    self->recreate_cm =
-        _PyType_LookupId(Py_TYPE(self->ctxdec), &PyId__recreate_cm);
+    self->recreate_cm = _PyType_Lookup(Py_TYPE(self->ctxdec), s__recreate_cm);
     if (self->recreate_cm == NULL) {
       PyErr_Format(
           PyExc_TypeError,
@@ -459,8 +459,8 @@ static PyObject* ctxmgrwrp_enter(
   if (self->cache_version != Py_TYPE(ctx_mgr)->tp_version_tag) {
     /* we probably get the same type back from _recreate_cm over and
      * over again, so we cache the lookups for enter and exit */
-    self->enter = _PyType_LookupId(Py_TYPE(ctx_mgr), &PyId___enter__);
-    self->exit = _PyType_LookupId(Py_TYPE(ctx_mgr), &PyId___exit__);
+    self->enter = _PyType_Lookup(Py_TYPE(ctx_mgr), s___enter__);
+    self->exit = _PyType_Lookup(Py_TYPE(ctx_mgr), s___exit__);
     if (self->enter == NULL || self->exit == NULL) {
       Py_DECREF(ctx_mgr);
       PyErr_Format(
@@ -888,11 +888,11 @@ static PyObject* init_subclass(PyObject* self, PyObject* type) {
 // Gets the __build_class__ builtin so that we can defer class creation to it.
 // Returns a new reference.
 static PyObject* get_build_class() {
-  _Py_IDENTIFIER(__build_class__);
+  DEFINE_STATIC_STRING(__build_class__);
   PyObject* bltins = PyEval_GetBuiltins();
   PyObject* bc;
   if (PyDict_CheckExact(bltins)) {
-    bc = _PyDict_GetItemIdWithError(bltins, &PyId___build_class__);
+    bc = PyDict_GetItemWithError(bltins, s___build_class__);
     if (bc == NULL) {
       if (!PyErr_Occurred()) {
         PyErr_SetString(PyExc_NameError, "__build_class__ not found");
@@ -901,10 +901,7 @@ static PyObject* get_build_class() {
     }
     Py_INCREF(bc);
   } else {
-    PyObject* build_class_str = _PyUnicode_FromId(&PyId___build_class__);
-    if (build_class_str == NULL)
-      return NULL;
-    bc = PyObject_GetItem(bltins, build_class_str);
+    bc = PyObject_GetItem(bltins, s___build_class__);
     if (bc == NULL) {
       if (PyErr_ExceptionMatches(PyExc_KeyError))
         PyErr_SetString(PyExc_NameError, "__build_class__ not found");
@@ -998,9 +995,9 @@ static int type_new_descriptors(
   int needs_gc = (type->tp_base->tp_flags & Py_TPFLAGS_HAVE_GC) !=
       0; /* non-primitive fields require GC */
 
-  _Py_IDENTIFIER(__slots_with_default__);
+  DEFINE_STATIC_STRING(__slots_with_default__);
   PyObject* slots_with_default =
-      _PyDict_GetItemIdWithError(dict, &PyId___slots_with_default__);
+      PyDict_GetItemWithError(dict, s___slots_with_default__);
   if (slots_with_default == NULL && PyErr_Occurred()) {
     return -1;
   }
@@ -1161,9 +1158,9 @@ int init_static_type(PyObject* obj, int leaked_type) {
 #endif
   Py_ssize_t nslot = Py_SIZE(type);
 
-  _Py_IDENTIFIER(__slot_types__);
+  DEFINE_STATIC_STRING(__slot_types__);
   PyObject* slot_types =
-      _PyDict_GetItemIdWithError(_PyType_GetDict(type), &PyId___slot_types__);
+      PyDict_GetItemWithError(_PyType_GetDict(type), s___slot_types__);
   if (PyErr_Occurred()) {
     return -1;
   }
@@ -1374,7 +1371,7 @@ static PyObject* _static___build_cinder_class__(
     PyObject* self,
     PyObject* const* args,
     Py_ssize_t nargs) {
-  _Py_IDENTIFIER(__final_method_names__);
+  DEFINE_STATIC_STRING(__final_method_names__);
 
   PyObject* mkw;
   PyObject* type = NULL;
@@ -1454,7 +1451,7 @@ static PyObject* _static___build_cinder_class__(
   int res;
   res = _PyObject_GenericSetAttrWithDict(
       type,
-      _PyUnicode_FromId(&PyId___final_method_names__),
+      s___final_method_names__,
       final_method_names,
       NULL);
   if (res != 0) {

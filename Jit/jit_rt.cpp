@@ -8,6 +8,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/string.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "frameobject.h"
@@ -1248,13 +1249,13 @@ PyObject* JITRT_ImportName(
     PyObject* name,
     PyObject* fromlist,
     PyObject* level) {
-  _Py_IDENTIFIER(__import__);
+  DEFINE_STATIC_STRING(__import__);
   PyObject *import_func, *res;
   PyObject* stack[5];
   PyObject* globals = PyEval_GetGlobals();
   PyObject* builtins = tstate->interp->builtins;
 
-  import_func = _PyDict_GetItemIdWithError(builtins, &PyId___import__);
+  import_func = PyDict_GetItemWithError(builtins, s___import__);
   JIT_DCHECK(
       import_func || !PyErr_Occurred(),
       "_PyDict_GetItemIdWithError should only fail with invalid identifiers");

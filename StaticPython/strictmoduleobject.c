@@ -10,6 +10,7 @@
 #include "pycore_interp.h"        // PyInterpreterState.importlib
 #include "pycore_pystate.h"       // _PyInterpreterState_GET()
 #include "structmember.h"         // PyMemberDef
+#include "cinderx/Common/string.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/modulethunks.h"
 
@@ -253,12 +254,12 @@ error:
 
 static PyObject * StrictModule_GetNameObject(Ci_StrictModuleObject *self)
 {
+    DEFINE_STATIC_STRING(__name__);
     Ci_StrictModuleObject *m = (Ci_StrictModuleObject *)self;
-    _Py_IDENTIFIER(__name__);
     PyObject * name;
     PyObject *d = m->globals;
     if (d == NULL || !PyDict_Check(d) ||
-        (name = _PyDict_GetItemIdWithError(d, &PyId___name__)) == NULL ||
+        (name = PyDict_GetItemWithError(d, s___name__)) == NULL ||
         !PyUnicode_Check(name))
     {
         if (!PyErr_Occurred()) {
@@ -296,13 +297,14 @@ static PyObject * strict_module_patch_enabled(PyObject *self, void *closure)
 static PyObject *
 strictmodule_dir(PyObject *self, PyObject *args)
 {
-    _Py_IDENTIFIER(__dict__);
+    DEFINE_STATIC_STRING(__dict__);
+    DEFINE_STATIC_STRING(__dir__);
     PyObject *result = NULL;
-    PyObject *dict = _PyObject_GetAttrId(self, &PyId___dict__);
+    PyObject *dict = PyObject_GetAttr(self, s___dict__);
 
     if (dict != NULL) {
         if (PyDict_Check(dict)) {
-            PyObject *dirfunc = PyDict_GetItemString(dict, "__dir__");
+            PyObject *dirfunc = PyDict_GetItemWithError(dict, s___dir__);
             if (dirfunc) {
                 result = _PyObject_CallNoArgs(dirfunc);
             }
@@ -504,8 +506,8 @@ strictmodule_lookupattro_impl(Ci_StrictModuleObject *m, PyObject *name, int supp
         return NULL;
     }
     if (m->globals) {
-        _Py_IDENTIFIER(__getattr__);
-        PyObject *getattr = _PyDict_GetItemIdWithError(m->globals, &PyId___getattr__);
+        DEFINE_STATIC_STRING(__getattr__);
+        PyObject *getattr = PyDict_GetItemWithError(m->globals, s___getattr__);
         if (getattr) {
             PyObject* stack[1] = {name};
             PyObject *res = _PyObject_FastCall(getattr, stack, 1);
@@ -519,8 +521,8 @@ strictmodule_lookupattro_impl(Ci_StrictModuleObject *m, PyObject *name, int supp
             return NULL;
         }
 
-        _Py_IDENTIFIER(__name__);
-        PyObject *mod_name = _PyDict_GetItemIdWithError(m->globals, &PyId___name__);
+        DEFINE_STATIC_STRING(__name__);
+        PyObject *mod_name = PyDict_GetItemWithError(m->globals, s___name__);
         if (mod_name && PyUnicode_Check(mod_name)) {
             if (!suppress) {
                 PyErr_Format(PyExc_AttributeError,

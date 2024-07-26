@@ -1,9 +1,10 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cached_properties.h"
+#include "cinderx/CachedProperties/cached_properties.h"
 
 #include "structmember.h"         // PyMemberDef
 
+#include "cinderx/Common/string.h"
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 
@@ -602,12 +603,12 @@ async_cached_property_init_impl(PyAsyncCachedPropertyDescrObject *self,
 
 static inline int import_async_lazy_value() {
     if (_AsyncLazyValue_Type == NULL) {
-        _Py_IDENTIFIER(AsyncLazyValue);
+        DEFINE_STATIC_STRING(AsyncLazyValue);
         PyObject *asyncio = PyImport_ImportModule("_asyncio");
         if (asyncio == NULL) {
             return -1;
         }
-        _AsyncLazyValue_Type = _PyObject_GetAttrId(asyncio, &PyId_AsyncLazyValue);
+        _AsyncLazyValue_Type = PyObject_GetAttr(asyncio, s_AsyncLazyValue);
         Py_DECREF(asyncio);
         if (_AsyncLazyValue_Type == NULL) {
             return -1;
