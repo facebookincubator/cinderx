@@ -235,8 +235,6 @@ PyObject* CiCoro_New_NoFrame(PyThreadState *tstate, PyCodeObject *code);
 PyObject* CiAsyncGen_New_NoFrame(PyCodeObject *code);
 PyObject* CiGen_New_NoFrame(PyCodeObject *code);
 
-void Ci_PyAwaitable_SetAwaiter(PyObject *receiver, PyObject *awaiter);
-typedef void (*setawaiterfunc)(PyObject *receiver, PyObject *awaiter);
 typedef struct {
     PyAsyncMethods ame_async_methods;
     sendfunc ame_send;
