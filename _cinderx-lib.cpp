@@ -691,7 +691,9 @@ static PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
     Py_RETURN_FALSE;
   }
   if (cinder_init()) {
-    PyErr_SetString(PyExc_RuntimeError, "Failed to initialize CinderX");
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_RuntimeError, "Failed to initialize CinderX");
+    }
     return nullptr;
   }
   g_was_initialized = true;
