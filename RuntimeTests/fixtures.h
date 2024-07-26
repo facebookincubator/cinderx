@@ -89,6 +89,16 @@ class RuntimeTest : public ::testing::Test {
   }
 
   void runCode(const char* src) {
+    if (isCinderCompiler()) {
+      runCinderCode(src);
+    } else if (isStaticCompiler()) {
+      runStaticCode(src);
+    } else {
+      runStockCode(src);
+    }
+  }
+
+  void runCinderCode(const char* src) {
     runCodeModuleExec(src, "cinderx.compiler", "exec_cinder");
   }
 
@@ -147,13 +157,7 @@ class RuntimeTest : public ::testing::Test {
   }
 
   Ref<> compileAndGet(const char* src, const char* name) {
-    if (isCinderCompiler()) {
-      runCode(src);
-    } else if (isStaticCompiler()) {
-      runStaticCode(src);
-    } else {
-      runStockCode(src);
-    }
+    runCode(src);
     return getGlobal(name);
   }
 
