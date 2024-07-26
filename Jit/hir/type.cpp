@@ -25,7 +25,6 @@ namespace {
 // For Types where it makes sense, map them to their corresponding
 // PyTypeObject*.
 const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
-#if PY_VERSION_HEX < 0x030C0000
   static auto const map = [] {
     const std::unordered_map<Type, PyTypeObject*> map{
         {TObject, &PyBaseObject_Type},
@@ -47,14 +46,20 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
         {TTuple, &PyTuple_Type},
         {TType, &PyType_Type},
         {TUnicode, &PyUnicode_Type},
+#if PY_VERSION_HEX < 0x030C0000
         {TWaitHandle, &Ci_PyWaitHandle_Type},
+#else
+        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
+#endif
         {TNoneType, &_PyNone_Type},
     };
 
     // After construction, verify that all appropriate types have an entry in
-    // this table.
+    // this table. Except for TWaitHandle, which hasn't been ported to 3.12 yet.
 #define CHECK_TY(name, bits, lifetime, flags)                         \
   JIT_CHECK(                                                          \
+      /* UPGRADE_NOTE(AWAITED_FLAG, T194027914) */                    \
+      T##name <= TWaitHandle ||                                       \
       ((flags)&kTypeHasUniquePyType) == 0 || map.count(T##name) == 1, \
       "Type {} missing entry in typeToPyType()",                      \
       T##name);
@@ -65,11 +70,6 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
   }();
 
   return map;
-#else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  static std::unordered_map<Type, PyTypeObject*> map;
-  return map;
-#endif
 }
 
 // Like typeToPyType(), but including Exact types in the key set (e.g., mapping

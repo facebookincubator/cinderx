@@ -67,6 +67,8 @@ def func(x):
   return x + 1
 )";
   Ref<PyObject> func_obj{compileAndGet(source, "func")};
+  ASSERT_TRUE(func_obj != nullptr);
+
   BorrowedRef<PyFunctionObject> func{func_obj};
   BorrowedRef<PyCodeObject> code{func->func_code};
   std::unique_ptr<CompiledFunction> compiled_func = Compiler().Compile(func);

@@ -21,8 +21,10 @@ TEST_F(FrameStateCreationTest, InitialInstrOffset) {
   EXPECT_EQ(frame.instr_offset().value() % sizeof(_Py_CODEUNIT), 0);
 }
 
-#define EXPECT_HIR_EQ(irfunc, expected) \
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected)
+#define EXPECT_HIR_EQ(irfunc, expected) {                    \
+  ASSERT_TRUE(irfunc != nullptr);                            \
+  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected); \
+}
 
 TEST_F(FrameStateCreationTest, LoadGlobal) {
   const char* src = R"(

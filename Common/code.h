@@ -4,8 +4,6 @@
 
 #include <Python.h>
 
-#include <assert.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -43,15 +41,10 @@ static inline PyCodeObject* PyUnstable_Code_New(
     PyObject* cellvars,
     PyObject* filename,
     PyObject* name,
-    PyObject* qualname,
+    PyObject* Py_UNUSED(qualname),
     int firstlineno,
     PyObject* linetable,
-    PyObject* exceptiontable) {
-  // Added in 3.11, cannot be used in 3.10.  The only other option would be
-  // dropping them on the floor.
-  assert(!qualname);
-  assert(!exceptiontable);
-
+    PyObject* Py_UNUSED(exceptiontable)) {
   return PyCode_New(
       argcount,
       kwonlyargcount,

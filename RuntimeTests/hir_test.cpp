@@ -552,20 +552,17 @@ class HIRBuildTest : public RuntimeTest {
         /*cellvars=*/empty_tuple,
         filename,
         funcname,
-        /*qualname=*/nullptr,
+        /*qualname=*/funcname,
         /*firstlineno=*/0,
         /*linetable=*/empty_bytes,
-        /*exceptiontable=*/nullptr));
-    assert(code.get());
+        /*exceptiontable=*/empty_bytes));
+    assert(code != nullptr);
 
     auto func =
         Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
-    assert(func.get());
+    assert(func != nullptr);
 
-    std::unique_ptr<Function> irfunc(buildHIR(func));
-    assert(irfunc.get());
-
-    return irfunc;
+    return buildHIR(func);
   }
 };
 
@@ -575,7 +572,7 @@ TEST_F(HIRBuildTest, GetLength) {
   //  4 RETURN_VALUE
   uint8_t bc[] = {LOAD_FAST, 0, GET_LEN, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
-  ASSERT_NE(irfunc.get(), nullptr);
+  ASSERT_NE(irfunc, nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -635,10 +632,10 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/nullptr,
+      /*qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_bytes,
-      /*exceptiontable=*/nullptr));
+      /*exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
@@ -715,10 +712,10 @@ TEST_F(HIRBuildTest, SetUpdate) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/nullptr,
+      /*qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_bytes,
-      /*exceptiontable=*/nullptr));
+      /*exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
@@ -822,10 +819,10 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/nullptr,
+      /*qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_bytes,
-      /*exceptiontable=*/nullptr));
+      /*exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
@@ -1058,6 +1055,7 @@ TEST_F(HIRBuildTest, ROT_N) {
 
   std::unique_ptr<Function> irfunc =
       build_test(bc, {Py_None, Py_None, Py_None, Py_None});
+  ASSERT_NE(irfunc, nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1140,6 +1138,7 @@ TEST_F(HIRBuildTest, ROT_N) {
 TEST_F(HIRBuildTest, MatchMapping) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_MAPPING, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
+  ASSERT_NE(irfunc, nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1188,6 +1187,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
 TEST_F(HIRBuildTest, MatchSequence) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_SEQUENCE, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
+  ASSERT_NE(irfunc, nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1235,8 +1235,8 @@ TEST_F(HIRBuildTest, MatchSequence) {
 
 TEST_F(HIRBuildTest, MatchKeys) {
   uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, MATCH_KEYS, 0, RETURN_VALUE, 0};
-
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
+  ASSERT_NE(irfunc, nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1300,8 +1300,8 @@ TEST_F(HIRBuildTest, MatchKeys) {
 
 TEST_F(HIRBuildTest, ListExtend) {
   uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, LIST_EXTEND, 1, RETURN_VALUE, 0};
-
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
+  ASSERT_NE(irfunc, nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1356,6 +1356,7 @@ TEST_F(HIRBuildTest, ListToTuple) {
       RETURN_VALUE,
       0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
+  ASSERT_NE(irfunc, nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
