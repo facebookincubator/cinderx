@@ -42,7 +42,7 @@ awaitable_get_iter(_PyClassLoader_Awaitable *self) {
         return NULL;
     }
     if (self->awaiter != NULL) {
-       _PyAwaitable_SetAwaiter(iter, self->awaiter);
+       Ci_PyAwaitable_SetAwaiter(iter, self->awaiter);
     }
     if (PyCoro_CheckExact(iter)) {
         PyObject *yf = _PyGen_yf((PyGenObject*)iter);
@@ -116,7 +116,7 @@ awaitable_itersend(_PyClassLoader_Awaitable *self,
 static void
 awaitable_setawaiter(_PyClassLoader_Awaitable *awaitable, PyObject *awaiter) {
     if (awaitable->iter != NULL) {
-        _PyAwaitable_SetAwaiter(awaitable->iter, awaiter);
+        Ci_PyAwaitable_SetAwaiter(awaitable->iter, awaiter);
     }
     awaitable->awaiter = awaiter;
 }

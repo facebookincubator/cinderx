@@ -1485,7 +1485,7 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
   // TODO(bsimmers): This may need to change when we support eager evaluation of
   // coroutines.
   auto awaiter = reinterpret_cast<PyObject*>(_PyShadowFrame_GetGen(sf));
-  _PyAwaitable_SetAwaiter(awaitable, awaiter);
+  Ci_PyAwaitable_SetAwaiter(awaitable, awaiter);
 #else
   UPGRADE_ASSERT(SHADOW_FRAMES)
   UPGRADE_ASSERT(INCOMPLETE_PY_AWAITER)
