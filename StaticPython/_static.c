@@ -42,8 +42,8 @@ static int _static_exec(PyObject* m) {
     return -1;
   }
 
-  if (PyType_Ready((PyTypeObject*)&Ci_CheckedList_Type) < 0 ||
-      PyModule_AddObjectRef(m, "chklist", (PyObject*)&Ci_CheckedList_Type) <
+  if (PyType_Ready(Ci_CheckedList_Type) < 0 ||
+      PyModule_AddObjectRef(m, "chklist", (PyObject*)Ci_CheckedList_Type) <
           0) {
     return -1;
   }

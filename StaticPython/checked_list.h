@@ -4,8 +4,6 @@
 
 #include <Python.h>
 
-#include "cinderx/StaticPython/classloader.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -13,13 +11,12 @@ extern "C" {
 PyObject * Ci_CheckedList_GetItem(PyObject *self, Py_ssize_t);
 PyObject * Ci_CheckedList_New(PyTypeObject *type, Py_ssize_t);
 int Ci_CheckedList_TypeCheck(PyTypeObject *type);
-extern _PyGenericTypeDef Ci_CheckedList_Type;
+extern PyTypeObject *Ci_CheckedList_Type;
 int Ci_ListOrCheckedList_Append(PyListObject *self, PyObject *v);
 
-#define Ci_CheckedList_Check(op)                                                    \
-    (_PyClassLoader_GetGenericTypeDef((PyObject *)op) == &Ci_CheckedList_Type)
+int Ci_CheckedList_Check(PyObject *op);
 
-#define Ci_CheckedList_CAST(op) (assert(Ci_CheckedList_Check(op)), (PyListObject *)(op))
+#define Ci_CheckedList_CAST(op) (assert(Ci_CheckedList_Check((PyObject *)op)), (PyListObject *)(op))
 
 #define Ci_CheckedList_GET_ITEM(op, i) (Ci_CheckedList_CAST(op)->ob_item[i])
 #define Ci_CheckedList_SET_ITEM(op, i, v) ((void)(Ci_CheckedList_CAST(op)->ob_item[i] = (v)))

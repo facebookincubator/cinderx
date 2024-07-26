@@ -7,9 +7,10 @@
 #include "pycore_abstract.h"      // _PyIndex_Check()
 #include "pycore_interp.h"        // PyInterpreterState.list
 #include "pycore_object.h"        // _PyObject_GC_TRACK()
+#include "cinderx/StaticPython/generic_type.h"
+#include "cinderx/StaticPython/typed_method_def.h"
 
 #include "cinderx/Common/py-portability.h"
-#include "cinderx/StaticPython/classloader.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
@@ -1984,7 +1985,7 @@ list_sort_impl(PyListObject *self, PyObject *keyfunc, int reverse)
     PyObject **keys;
 
     assert(self != NULL);
-    assert(Ci_CheckedList_Check(self));
+    assert(Ci_CheckedList_Check((PyObject *)self));
     if (keyfunc == Py_None)
         keyfunc = NULL;
 
@@ -2882,7 +2883,7 @@ listreviter_next(listreviterobject *it)
 
     index = it->it_index;
     if (index>=0 && index < Ci_CheckedList_GET_SIZE(seq)) {
-        item = Ci_CheckedList_GET_ITEM(seq, index);
+        item = Ci_CheckedList_GET_ITEM((PyObject *)seq, index);
         it->it_index--;
         Py_INCREF(item);
         return item;
@@ -2897,7 +2898,7 @@ static PyObject *
 listreviter_len(listreviterobject *it, PyObject *Py_UNUSED(ignored))
 {
     Py_ssize_t len = it->it_index + 1;
-    if (it->it_seq == NULL || Ci_CheckedList_GET_SIZE(it->it_seq) < len)
+    if (it->it_seq == NULL || Ci_CheckedList_GET_SIZE((PyObject *)it->it_seq) < len)
         len = 0;
     return PyLong_FromSsize_t(len);
 }
@@ -3164,9 +3165,13 @@ list___reversed__(PyListObject *self, PyObject *Py_UNUSED(ignored))
 
 /* === End copied from clinic/listobject.c.h === */
 
-extern _PyGenericTypeDef Ci_CheckedList_Type;
+extern _PyGenericTypeDef Ci_CheckedList_GenericType;
 #define IS_CHECKED_LIST(x)                                                    \
-    (_PyClassLoader_GetGenericTypeDef((PyObject *)x) == &Ci_CheckedList_Type)
+    (_PyClassLoader_GetGenericTypeDef((PyObject *)x) == &Ci_CheckedList_GenericType)
+
+int Ci_CheckedList_Check(PyObject *op) {
+    return IS_CHECKED_LIST(op);
+}
 
 static PyObject *chklist_cls_getitem(_PyGenericTypeDef *type, PyObject *args) {
     PyObject *item = _PyClassLoader_GtdGetItem(type, args);
@@ -3273,7 +3278,7 @@ Ci_CheckedList_New(PyTypeObject *type, Py_ssize_t size)
 int
 Ci_CheckedList_TypeCheck(PyTypeObject* type)
 {
-    return _PyClassLoader_GetGenericTypeDefFromType(type) == &Ci_CheckedList_Type;
+    return _PyClassLoader_GetGenericTypeDefFromType(type) == &Ci_CheckedList_GenericType;
 }
 
 static PyObject *
@@ -3592,7 +3597,7 @@ chklist_init(PyListObject *self, PyObject *args, PyObject *kwds)
     return 0;
 }
 
-_PyGenericTypeDef Ci_CheckedList_Type = {
+_PyGenericTypeDef Ci_CheckedList_GenericType = {
   .gtd_type =
       {
         PyVarObject_HEAD_INIT(&PyType_Type, 0) "chklist[T]",
@@ -3638,6 +3643,8 @@ _PyGenericTypeDef Ci_CheckedList_Type = {
   .gtd_size = 1,
   .gtd_new = NULL,
 };
+
+PyTypeObject  *Ci_CheckedList_Type = (PyTypeObject*)&Ci_CheckedList_GenericType;
 
 int
 Ci_ListOrCheckedList_Append(PyListObject *self, PyObject *v)
