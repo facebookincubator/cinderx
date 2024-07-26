@@ -9,7 +9,8 @@
 #include "pycore_interp.h"
 #include "pycore_pystate.h" // _PyInterpreterState_GET()
 
-#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/StaticPython/generic_type.h"
+#include "cinderx/StaticPython/typed_method_def.h"
 
 PyDoc_STRVAR(xxclassloader__doc__,
              "xxclassloader contains helpers for testing the class loader\n");
