@@ -10,7 +10,6 @@
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/StaticPython/classloader.h"
 #include "frameobject.h"
 #include "internal/pycore_pystate.h"
 
