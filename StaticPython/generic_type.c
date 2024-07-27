@@ -8,13 +8,14 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 
-#include "pycore_unionobject.h" // _PyUnion_Type
 #include "pycore_tuple.h" // _PyTuple_FromArray
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+
+PyTypeObject* _CiUnion_Type;
 
 static PyObject *genericinst_cache;
 
@@ -45,7 +46,7 @@ get_optional_type(PyObject *type)
             goto done;
         }
 
-        if (Py_TYPE(type) != &_PyUnion_Type) {
+        if (Py_TYPE(type) != _CiUnion_Type) {
             origin = PyObject_GetAttr(type, s___origin__);
             if (origin == NULL) {
                 PyErr_Clear();

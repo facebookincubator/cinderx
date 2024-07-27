@@ -1621,6 +1621,17 @@ static PyObject* install_sp_audit_hook(PyObject* mod) {
   Py_RETURN_NONE;
 }
 
+// Initialize the _Ci_UnionType global reference.
+static int init_union_type() {
+  PyObject* unionobj = PyNumber_Or(
+     (PyObject*)&PyLong_Type, (PyObject*)&PyUnicode_Type);
+  if (unionobj != NULL) {
+    _CiUnion_Type = Py_TYPE(unionobj);
+    Py_DECREF(unionobj);
+  }
+  return _CiUnion_Type != NULL ? 0 : -1;
+}
+
 static PyMethodDef static_methods[] = {
     {"set_type_code",
      (PyCFunction)(void (*)(void))set_type_code,
@@ -1704,6 +1715,10 @@ static struct PyModuleDef _staticmodule = {
     NULL};
 
 int _Ci_CreateStaticModule(void) {
+  if (init_union_type() < 0) {
+    return -1;
+  }
+
   PyObject* mod = PyModule_Create(&_staticmodule);
   if (mod == NULL) {
     return -1;
