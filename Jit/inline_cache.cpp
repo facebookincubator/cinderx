@@ -3,6 +3,7 @@
 #include "cinderx/Jit/inline_cache.h"
 
 #include "cinderx/Common/dict.h"
+#include "cinderx/Common/func.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"

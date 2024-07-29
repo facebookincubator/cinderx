@@ -10,6 +10,7 @@
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
 
+#include "cinderx/Common/func.h"
 #include "cinderx/Common/property.h"
 
 #include "cinderx/CachedProperties/cached_properties.h"

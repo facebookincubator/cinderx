@@ -16,6 +16,7 @@
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/func.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/global_cache.h"

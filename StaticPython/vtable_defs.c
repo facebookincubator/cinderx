@@ -14,6 +14,8 @@
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Upgrade/upgrade_stubs.h"
 
+#include "cinderx/Common/func.h"
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif

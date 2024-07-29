@@ -19,6 +19,7 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/extra-py-flags.h"  // @donotremove
+#include "cinderx/Common/func.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/Jit/entry.h"
