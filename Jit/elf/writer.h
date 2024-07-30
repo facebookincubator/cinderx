@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include <Python.h>
-
 #include "cinderx/Jit/elf/dynamic.h"
 #include "cinderx/Jit/elf/hash.h"
 #include "cinderx/Jit/elf/header.h"
 #include "cinderx/Jit/elf/note.h"
 #include "cinderx/Jit/elf/string.h"
 #include "cinderx/Jit/elf/symbol.h"
+
+#include <Python.h>
 
 #include <cstddef>
 #include <cstdint>

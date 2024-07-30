@@ -2,20 +2,20 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/StaticPython/classloader.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/type.h"
 
+#include <Python.h>
+
 #include <map>
 #include <unordered_map>
 #include <utility>
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 namespace jit::hir {
 

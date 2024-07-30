@@ -2,9 +2,10 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
+
+#include <Python.h>
 
 #include <memory>
 #include <string>

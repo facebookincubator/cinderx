@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "internal/pycore_interp.h"
 
 #include "cinderx/Jit/compiler.h"
@@ -25,8 +26,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 namespace jit::hir {
 
@@ -469,8 +468,7 @@ bool CleanCFG::RemoveUnreachableInstructions(CFG* cfg) {
         // from removing it.
         Instr& guard_type = *std::prev(it);
         block->insert(
-            UseType::create(
-                guard_type.output(), guard_type.output()->type()),
+            UseType::create(guard_type.output(), guard_type.output()->type()),
             it);
       }
 
@@ -948,8 +946,8 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
 
     if (instr.IsLoadArg()) {
       auto load_arg = static_cast<LoadArg*>(&instr);
-      auto assign = Assign::create(
-          instr.output(), call_instr->arg(load_arg->arg_idx()));
+      auto assign =
+          Assign::create(instr.output(), call_instr->arg(load_arg->arg_idx()));
       instr.ReplaceWith(*assign);
       delete &instr;
     }
@@ -960,8 +958,8 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   JIT_CHECK(
       return_instr->IsReturn(),
       "terminator from inlined function should be Return");
-  auto assign = Assign::create(
-      call_instr->instr->output(), return_instr->GetOperand(0));
+  auto assign =
+      Assign::create(call_instr->instr->output(), return_instr->GetOperand(0));
   auto return_branch = Branch::create(tail);
   return_instr->ExpandInto({assign, return_branch});
   delete return_instr;

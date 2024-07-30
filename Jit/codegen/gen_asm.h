@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
 
@@ -13,6 +12,7 @@
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/printer.h"
 
+#include <Python.h>
 #include <asmjit/asmjit.h>
 
 #include <algorithm>

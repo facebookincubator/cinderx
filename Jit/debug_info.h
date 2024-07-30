@@ -2,21 +2,20 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/ref.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 #include "frameobject.h"
 
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/containers.h"
 
+#include <Python.h>
 #include <asmjit/asmjit.h>
 
 #include <cstdint>
 #include <optional>
 #include <unordered_map>
 #include <vector>
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 namespace jit {
 
@@ -33,9 +32,8 @@ struct CodeObjLoc {
       : code{py_frame->f_code},
         instr_offset{BCIndex{py_frame->f_lasti}.asOffset()} {}
 #else
-  CodeObjLoc(BorrowedRef<PyFrameObject> py_frame) {
-    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-  }
+  CodeObjLoc(BorrowedRef<PyFrameObject> py_frame){
+      UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)}
 #endif
   CodeObjLoc(BorrowedRef<PyCodeObject> code, BCOffset instr_offset)
       : code{code}, instr_offset{instr_offset} {}

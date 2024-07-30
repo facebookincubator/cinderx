@@ -461,9 +461,9 @@ static void elfctx_append_uleb128(ELFObjectContext* ctx, uint32_t v) {
 #define DWRF_UV(x) (ctx->p = p, elfctx_append_uleb128(ctx, (x)), p = ctx->p)
 #define DWRF_SV(x) (ctx->p = p, elfctx_append_sleb128(ctx, (x)), p = ctx->p)
 #define DWRF_STR(str) (ctx->p = p, elfctx_append_string(ctx, (str)), p = ctx->p)
-#define DWRF_ALIGNNOP(s)           \
-  while ((uintptr_t)p & ((s)-1)) { \
-    *p++ = DWRF_CFA_nop;           \
+#define DWRF_ALIGNNOP(s)             \
+  while ((uintptr_t)p & ((s) - 1)) { \
+    *p++ = DWRF_CFA_nop;             \
   }
 #define DWRF_SECTION(name, stmt)                              \
   {                                                           \
@@ -646,7 +646,7 @@ elf_init_section(ELFObjectContext* ctx, int sect, ELFSectionInitFn init) {
 }
 
 #define ALIGN_SECTION(p, a) \
-  ((p) = (uint8_t*)(((uintptr_t)(p) + ((a)-1)) & ~(uintptr_t)((a)-1)))
+  ((p) = (uint8_t*)(((uintptr_t)(p) + ((a) - 1)) & ~(uintptr_t)((a) - 1)))
 
 /* Build in-memory ELF object. */
 static void elfctx_build_object(ELFObjectContext* ctx) {

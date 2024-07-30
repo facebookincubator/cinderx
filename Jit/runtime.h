@@ -8,6 +8,8 @@
 #endif
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/debug_info.h"
@@ -25,9 +27,6 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 namespace jit {
 

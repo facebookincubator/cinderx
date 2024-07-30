@@ -275,46 +275,26 @@ bool checkFunc(const Function& func, std::ostream& err) {
 }
 
 static const UnorderedMap<std::string, Type> kBuiltinFunctionTypes = {
-    {"dict.copy", TDictExact},
-    {"hasattr", TBool},
-    {"isinstance", TBool},
-    {"len", TLongExact},
-    {"list.copy", TListExact},
-    {"list.count", TLongExact},
-    {"list.index", TLongExact},
-    {"str.capitalize", TUnicodeExact},
-    {"str.center", TUnicodeExact},
-    {"str.count", TLongExact},
-    {"str.endswith", TBool},
-    {"str.find", TLongExact},
-    {"str.format", TUnicodeExact},
-    {"str.index", TLongExact},
-    {"str.isalnum", TBool},
-    {"str.isalpha", TBool},
-    {"str.isascii", TBool},
-    {"str.isdecimal", TBool},
-    {"str.isdigit", TBool},
-    {"str.isidentifier", TBool},
-    {"str.islower", TBool},
-    {"str.isnumeric", TBool},
-    {"str.isprintable", TBool},
-    {"str.isspace", TBool},
-    {"str.istitle", TBool},
-    {"str.isupper", TBool},
-    {"str.join", TUnicodeExact},
-    {"str.lower", TUnicodeExact},
-    {"str.lstrip", TUnicodeExact},
-    {"str.partition", TTupleExact},
-    {"str.replace", TUnicodeExact},
-    {"str.rfind", TLongExact},
-    {"str.rindex", TLongExact},
-    {"str.rpartition", TTupleExact},
-    {"str.rsplit", TListExact},
-    {"str.split", TListExact},
-    {"str.splitlines", TListExact},
-    {"str.upper", TUnicodeExact},
-    {"tuple.count", TLongExact},
-    {"tuple.index", TLongExact},
+    {"dict.copy", TDictExact},      {"hasattr", TBool},
+    {"isinstance", TBool},          {"len", TLongExact},
+    {"list.copy", TListExact},      {"list.count", TLongExact},
+    {"list.index", TLongExact},     {"str.capitalize", TUnicodeExact},
+    {"str.center", TUnicodeExact},  {"str.count", TLongExact},
+    {"str.endswith", TBool},        {"str.find", TLongExact},
+    {"str.format", TUnicodeExact},  {"str.index", TLongExact},
+    {"str.isalnum", TBool},         {"str.isalpha", TBool},
+    {"str.isascii", TBool},         {"str.isdecimal", TBool},
+    {"str.isdigit", TBool},         {"str.isidentifier", TBool},
+    {"str.islower", TBool},         {"str.isnumeric", TBool},
+    {"str.isprintable", TBool},     {"str.isspace", TBool},
+    {"str.istitle", TBool},         {"str.isupper", TBool},
+    {"str.join", TUnicodeExact},    {"str.lower", TUnicodeExact},
+    {"str.lstrip", TUnicodeExact},  {"str.partition", TTupleExact},
+    {"str.replace", TUnicodeExact}, {"str.rfind", TLongExact},
+    {"str.rindex", TLongExact},     {"str.rpartition", TTupleExact},
+    {"str.rsplit", TListExact},     {"str.split", TListExact},
+    {"str.splitlines", TListExact}, {"str.upper", TUnicodeExact},
+    {"tuple.count", TLongExact},    {"tuple.index", TLongExact},
 };
 
 Type returnType(PyMethodDef* meth) {
@@ -383,7 +363,7 @@ Type outputType(
     case Opcode::kInPlaceOp: {
       auto& op = static_cast<const InPlaceOp&>(instr);
       if (op.left()->type() <= TLongExact && op.right()->type() <= TLongExact) {
-        switch(op.op()) {
+        switch (op.op()) {
           case InPlaceOpKind::kAdd:
           case InPlaceOpKind::kAnd:
           case InPlaceOpKind::kFloorDivide:

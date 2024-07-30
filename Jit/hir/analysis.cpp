@@ -4,6 +4,7 @@
 
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include "cinderx/Jit/dataflow.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -14,8 +15,6 @@
 #include <fmt/ostream.h>
 
 #include <memory>
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 namespace jit::hir {
 

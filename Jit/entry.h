@@ -59,7 +59,6 @@ PyObject* Ci_JIT_lazyJITInitFuncObjectVectorcall(
 #define JITRT_GET_NORMAL_ENTRY_FROM_STATIC(entry) \
   ((vectorcallfunc)(((char*)entry) - JITRT_STATIC_ENTRY_OFFSET))
 
-
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -2,10 +2,10 @@
 
 #include "cinderx/Jit/lir/c_helper_translations.h"
 
-#include <fmt/format.h>
-
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/c_helper_translations_auto.h"
+
+#include <fmt/format.h>
 
 #include <initializer_list>
 

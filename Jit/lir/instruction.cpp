@@ -1,7 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 #include "cinderx/Jit/lir/block.h"
-
 #include "cinderx/Jit/lir/function.h"
 
 #include <iomanip>

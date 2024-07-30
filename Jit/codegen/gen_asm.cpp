@@ -10,6 +10,7 @@
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "frameobject.h"
 #include "internal/pycore_pystate.h"
 
@@ -44,8 +45,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-
 using namespace asmjit;
 using namespace jit::hir;
 using namespace jit::lir;
@@ -66,7 +65,6 @@ static constexpr x86::Mem kInFrameDataPtr =
 static constexpr x86::Mem kInFrameOrigDataPtr = x86::ptr(
     x86::rbp,
     -kJITShadowFrameSize + JIT_SHADOW_FRAME_FIELD_OFF(orig_data));
-
 
 #if PY_VERSION_HEX >= 0x030C0000
 static x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
@@ -1621,8 +1619,8 @@ static PyObject* resumeInInterpreter(
     gen->gi_jit_data = nullptr;
   }
 #else
-    UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
-    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
 #endif
   PyThreadState* tstate = PyThreadState_Get();
   PyObject* result = nullptr;
@@ -1675,7 +1673,7 @@ static PyObject* resumeInInterpreter(
 #if PY_VERSION_HEX < 0x030C0000
         frame->f_valuestack[frame->f_stackdepth++] = result;
 #else
-    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
+        UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
 #endif
       }
     }

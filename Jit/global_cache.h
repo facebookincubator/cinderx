@@ -176,7 +176,6 @@ GlobalCacheManager* _PyJIT_GetGlobalCacheManager();
 extern "C" {
 #endif
 
-
 /*
  * Gets the global cache for the given builtins and globals dictionaries and
  * key.  The global that is pointed to will automatically be updated as

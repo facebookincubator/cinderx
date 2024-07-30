@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/util.h"
+
+#include <Python.h>
 
 #include <limits>
 #include <ostream>

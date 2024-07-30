@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include <Python.h>
-#include "frameobject.h"
-
 #include "cinderx/Jit/compile.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/pyjit_typeslots.h"
+
+#include <Python.h>
 
 #ifdef __cplusplus
 #include "cinderx/Jit/hir/preload.h"

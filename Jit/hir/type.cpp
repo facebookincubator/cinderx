@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/StaticPython/static_array.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -12,8 +13,6 @@
 #include <cstring>
 #include <unordered_map>
 #include <vector>
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 namespace jit::hir {
 
@@ -56,13 +55,12 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
 
     // After construction, verify that all appropriate types have an entry in
     // this table. Except for TWaitHandle, which hasn't been ported to 3.12 yet.
-#define CHECK_TY(name, bits, lifetime, flags)                         \
-  JIT_CHECK(                                                          \
-      /* UPGRADE_NOTE(AWAITED_FLAG, T194027914) */                    \
-      T##name <= TWaitHandle ||                                       \
-      ((flags)&kTypeHasUniquePyType) == 0 || map.count(T##name) == 1, \
-      "Type {} missing entry in typeToPyType()",                      \
-      T##name);
+#define CHECK_TY(name, bits, lifetime, flags)                                  \
+  JIT_CHECK(/* UPGRADE_NOTE(AWAITED_FLAG, T194027914) */                       \
+            T##name <= TWaitHandle || ((flags) & kTypeHasUniquePyType) == 0 || \
+                map.count(T##name) == 1,                                       \
+            "Type {} missing entry in typeToPyType()",                         \
+            T##name);
     HIR_TYPES(CHECK_TY)
 #undef CHECK_TY
 

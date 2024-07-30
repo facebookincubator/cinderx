@@ -18,7 +18,7 @@ namespace jit::codegen {
 struct PhyLocation {
   PhyLocation() : loc(REG_INVALID), bitSize(64) {}
   constexpr PhyLocation(int l, int s = 64) : loc(l), bitSize(s) {}
- 
+
   bool is_memory() const {
     return loc < 0;
   }
@@ -89,22 +89,22 @@ struct PhyLocation {
   X(R14W)               \
   X(R15W)
 
-#define FOREACH_GP8(X)  \
-  X(AL)                 \
-  X(CL)                 \
-  X(DL)                 \
-  X(BL)                 \
-  X(SPL)                \
-  X(BPL)                \
-  X(SIL)                \
-  X(DIL)                \
-  X(R8B)                \
-  X(R9B)                \
-  X(R10B)               \
-  X(R11B)               \
-  X(R12B)               \
-  X(R13B)               \
-  X(R14B)               \
+#define FOREACH_GP8(X) \
+  X(AL)                \
+  X(CL)                \
+  X(DL)                \
+  X(BL)                \
+  X(SPL)               \
+  X(BPL)               \
+  X(SIL)               \
+  X(DIL)               \
+  X(R8B)               \
+  X(R9B)               \
+  X(R10B)              \
+  X(R11B)              \
+  X(R12B)              \
+  X(R13B)              \
+  X(R14B)              \
   X(R15B)
 
 #define FOREACH_XMM(X) \
@@ -128,8 +128,7 @@ struct PhyLocation {
   enum Reg : int {
     REG_INVALID = -1,
 #define DECLARE_REG(v, ...) v,
-    FOREACH_GP64(DECLARE_REG)
-    FOREACH_XMM(DECLARE_REG)
+    FOREACH_GP64(DECLARE_REG) FOREACH_XMM(DECLARE_REG)
 #undef DECLARE_REG
   };
 
@@ -157,9 +156,9 @@ struct PhyLocation {
 
   static const char* reg32Name(Reg reg) {
     constexpr std::array<const char*, NUM_GP_REGS> gp32_names = {
-  #define TO_STR(v) #v,
-      FOREACH_GP32(TO_STR)
-  #undef TO_STR
+#define TO_STR(v) #v,
+        FOREACH_GP32(TO_STR)
+#undef TO_STR
     };
     JIT_CHECK(reg >= 0 && reg < gp32_names.size(), "Bad register ID: {}", reg);
     return gp32_names[reg];
@@ -167,9 +166,9 @@ struct PhyLocation {
 
   static const char* reg16Name(Reg reg) {
     constexpr std::array<const char*, NUM_GP_REGS> gp16_names = {
-  #define TO_STR(v) #v,
-      FOREACH_GP16(TO_STR)
-  #undef TO_STR
+#define TO_STR(v) #v,
+        FOREACH_GP16(TO_STR)
+#undef TO_STR
     };
     JIT_CHECK(reg >= 0 && reg < gp16_names.size(), "Bad register ID: {}", reg);
     return gp16_names[reg];
@@ -177,9 +176,9 @@ struct PhyLocation {
 
   static const char* reg8Name(Reg reg) {
     constexpr std::array<const char*, NUM_GP_REGS> gp8_names = {
-  #define TO_STR(v) #v,
-      FOREACH_GP8(TO_STR)
-  #undef TO_STR
+#define TO_STR(v) #v,
+        FOREACH_GP8(TO_STR)
+#undef TO_STR
     };
     JIT_CHECK(reg >= 0 && reg < gp8_names.size(), "Bad register ID: {}", reg);
     return gp8_names[reg];

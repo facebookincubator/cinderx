@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
@@ -11,6 +10,8 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/jit_rt.h"
+
+#include <Python.h>
 
 #include <array>
 #include <memory>

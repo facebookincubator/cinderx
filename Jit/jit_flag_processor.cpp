@@ -74,9 +74,10 @@ Option& FlagProcessor::addOption(
     const std::string environment_variable,
     std::string& variable_to_bind_to,
     const std::string flag_description) {
-  function<void(std::string)> setter = [&variable_to_bind_to](std::string flag_value) {
-    variable_to_bind_to = flag_value;
-  };
+  function<void(std::string)> setter =
+      [&variable_to_bind_to](std::string flag_value) {
+        variable_to_bind_to = flag_value;
+      };
   return addOption(
       cmdline_flag, environment_variable, setter, flag_description);
 }
@@ -110,22 +111,22 @@ Option& FlagProcessor::addOption(
     const std::string environment_variable,
     size_t& variable_to_bind_to,
     const std::string flag_description) {
-  function<void(std::string)> setter = [&variable_to_bind_to,
-                                   &cmdline_flag,
-                                   &environment_variable](std::string flag_value) {
-    try {
-      // The callback only gets called for empty X-options, not empty
-      // environment variables. This makes `-X foo` equivalent to `-X foo=1`,
-      // but `PYTHONFOO=` is not equivalent to `PYTHONFOO=1`.
-      variable_to_bind_to = flag_value == "" ? 1 : std::stoull(flag_value);
-    } catch (std::exception const&) {
-      JIT_LOG(
-          "Invalid unsigned long value for {}/{}: {}",
-          cmdline_flag,
-          environment_variable,
-          flag_value);
-    }
-  };
+  function<void(std::string)> setter =
+      [&variable_to_bind_to, &cmdline_flag, &environment_variable](
+          std::string flag_value) {
+        try {
+          // The callback only gets called for empty X-options, not empty
+          // environment variables. This makes `-X foo` equivalent to `-X
+          // foo=1`, but `PYTHONFOO=` is not equivalent to `PYTHONFOO=1`.
+          variable_to_bind_to = flag_value == "" ? 1 : std::stoull(flag_value);
+        } catch (std::exception const&) {
+          JIT_LOG(
+              "Invalid unsigned long value for {}/{}: {}",
+              cmdline_flag,
+              environment_variable,
+              flag_value);
+        }
+      };
   return addOption(
       cmdline_flag, environment_variable, setter, flag_description);
 }
@@ -241,7 +242,8 @@ std::string FlagProcessor::jitXOptionHelpMessage() {
       "available:\n\n";
   for (auto const& option : options_) {
     if (!option->hidden_flag) {
-      std::string fmt_env_var = option->getFormatted_environment_variable().empty()
+      std::string fmt_env_var =
+          option->getFormatted_environment_variable().empty()
           ? ""
           : fmt::format(
                 "; also {}", option->getFormatted_environment_variable());

@@ -1768,8 +1768,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         env_->code_rt->addReference(builtins);
         PyObject* name =
             PyTuple_GET_ITEM(instr->code()->co_names, instr->name_idx());
-        auto cache =
-            _PyJIT_GetGlobalCacheManager()->findGlobalCache(builtins, globals, name);
+        auto cache = _PyJIT_GetGlobalCacheManager()->findGlobalCache(
+            builtins, globals, name);
         bbb.appendInstr(
             instr->output(), Instruction::kMove, MemImm{cache.valuePtr()});
         break;

@@ -688,7 +688,8 @@ Register* simplifyInPlaceOp(Env& env, const InPlaceOp* instr) {
       case InPlaceOpKind::kTrueDivide:
         env.emit<UseType>(lhs, TLongExact);
         env.emit<UseType>(rhs, TLongExact);
-        return env.emit<LongInPlaceOp>(instr->op(), lhs, rhs, *instr->frameState());
+        return env.emit<LongInPlaceOp>(
+            instr->op(), lhs, rhs, *instr->frameState());
       case InPlaceOpKind::kMatrixMultiply:
         // These will generate an error at runtime.
         break;
@@ -1261,47 +1262,33 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
     env.emit<UseType>(target, target->type());
     return env.emit<GetLength>(instr->arg(0), *instr->frameState());
   }
-  if (isBuiltin(target, "isinstance") && 
-      instr->numArgs() == 2 && 
-      instr->GetOperand(2)->type() <= TType && 
+  if (isBuiltin(target, "isinstance") && instr->numArgs() == 2 &&
+      instr->GetOperand(2)->type() <= TType &&
       !(instr->GetOperand(2)->type() <= TTuple)) {
     auto obj_op = instr->GetOperand(1);
     auto type_op = instr->GetOperand(2);
 
     auto obj_type = env.emit<LoadField>(
-      obj_op,
-      "ob_type",
-      offsetof(PyObject, ob_type),
-      TType
-    );
+        obj_op, "ob_type", offsetof(PyObject, ob_type), TType);
 
     auto compare_type = env.emit<PrimitiveCompare>(
-      PrimitiveCompareOp::kEqual, 
-      obj_type, 
-      type_op
-    );
-    
+        PrimitiveCompareOp::kEqual, obj_type, type_op);
+
     return env.emitCond(
-      [&] (BasicBlock* fast_path, BasicBlock* slow_path) {
-        env.emit<CondBranch>(compare_type, fast_path, slow_path);
-      }, 
-      [&] { // Fast path
-        return env.emit<PrimitiveBoxBool>(compare_type);
-      }, 
-      [&] { // Slow path
-        auto isinstance_call = env.emit<IsInstance>(
-          obj_op,
-          type_op,
-          *instr->frameState()
-        );
-        auto true_output = env.emit<LoadConst>(Type::fromCInt(1, TCInt32));
-        auto compare_output = env.emit<PrimitiveCompare>(
-          PrimitiveCompareOp::kEqual, 
-          isinstance_call, 
-          true_output
-        );
-        return env.emit<PrimitiveBoxBool>(compare_output);
-      });
+        [&](BasicBlock* fast_path, BasicBlock* slow_path) {
+          env.emit<CondBranch>(compare_type, fast_path, slow_path);
+        },
+        [&] { // Fast path
+          return env.emit<PrimitiveBoxBool>(compare_type);
+        },
+        [&] { // Slow path
+          auto isinstance_call =
+              env.emit<IsInstance>(obj_op, type_op, *instr->frameState());
+          auto true_output = env.emit<LoadConst>(Type::fromCInt(1, TCInt32));
+          auto compare_output = env.emit<PrimitiveCompare>(
+              PrimitiveCompareOp::kEqual, isinstance_call, true_output);
+          return env.emit<PrimitiveBoxBool>(compare_output);
+        });
   }
   if (target_type.hasValueSpec(TFunc)) {
     BorrowedRef<PyFunctionObject> func{target_type.objectSpec()};

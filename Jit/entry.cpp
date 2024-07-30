@@ -1,7 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Jit/entry.h"
+
+#include "cinderx/Common/extra-py-flags.h"
+
 #include "cinderx/Jit/pyjit.h"
 
 #include <Python.h>

@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
@@ -15,8 +16,6 @@
 
 #include <bit>
 #include <shared_mutex>
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 using jit::codegen::PhyLocation;
 

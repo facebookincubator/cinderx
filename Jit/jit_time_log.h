@@ -2,10 +2,11 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/util.h"
 
 #include "cinderx/Jit/containers.h"
+
+#include <Python.h>
 
 #include <chrono>
 #include <memory>
@@ -59,11 +60,11 @@ class CompilationPhaseTimer {
   CompilationPhaseTimer(
       const std::string& function_name_,
       const std::function<time_point()>& time_provider_)
-      : function_name_(function_name_), time_provider_(time_provider_){}
+      : function_name_(function_name_), time_provider_(time_provider_) {}
   CompilationPhaseTimer(const std::string& function_name_)
       : CompilationPhaseTimer(function_name_, []() {
           return std::chrono::steady_clock::now();
-        }){}
+        }) {}
 
   void start(const std::string& phase_name);
 

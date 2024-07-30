@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "cinderx/Common/ref.h"
+
 #include <Python.h>
 
 #include <atomic>
@@ -9,8 +11,6 @@
 #include <mutex>
 #include <thread>
 #include <vector>
-
-#include "cinderx/Common/ref.h"
 
 namespace jit {
 

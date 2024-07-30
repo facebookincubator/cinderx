@@ -2,13 +2,14 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/Common/util.h"
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/runtime.h"
+
+#include <Python.h>
 
 #include <cstddef>
 #include <span>

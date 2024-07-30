@@ -3,9 +3,7 @@
 #include "cinderx/Jit/global_cache.h"
 
 #include "cinderx/Common/watchers.h"
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 extern "C" {
 
@@ -23,7 +21,6 @@ _PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key) {
 PyObject** _PyJIT_GetDictCache(PyObject* dict, PyObject* key) {
   return _PyJIT_GetGlobalCache(dict, dict, key);
 }
-
 }
 
 namespace jit {

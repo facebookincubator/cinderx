@@ -633,13 +633,13 @@ struct OperandArg<void, true> {
   static constexpr bool is_output = true;
 };
 
-// Creates a new struct type so that types like Stk and PhyReg are different from each other.
-// This is needed because we need std::is_same_v<Stk, PhyReg> = false.
-// If we used `using` then they would be aliases of each other.
-#define DECLARE_TYPE_ARG(__T, __V, __O)     \
-struct __T : public OperandArg<__V, __O> {  \
-  using OperandArg::OperandArg;             \
-};
+// Creates a new struct type so that types like Stk and PhyReg are different
+// from each other. This is needed because we need std::is_same_v<Stk, PhyReg> =
+// false. If we used `using` then they would be aliases of each other.
+#define DECLARE_TYPE_ARG(__T, __V, __O)      \
+  struct __T : public OperandArg<__V, __O> { \
+    using OperandArg::OperandArg;            \
+  };
 
 DECLARE_TYPE_ARG(PhyReg, PhyLocation, false)
 DECLARE_TYPE_ARG(Imm, uint64_t, false)

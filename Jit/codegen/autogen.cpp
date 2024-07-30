@@ -3,6 +3,7 @@
 #include "cinderx/Jit/codegen/autogen.h"
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
 #include "cinderx/Jit/codegen/x86_64.h"
@@ -14,8 +15,6 @@
 
 #include <type_traits>
 #include <vector>
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 using namespace asmjit;
 using namespace jit::lir;
@@ -349,7 +348,7 @@ void emitStoreGenYieldPoint(
 
   auto calc_spill_offset = [&](size_t live_input_n) {
     PhyLocation mem = yield->getInput(live_input_n)->getStackSlot();
-      return mem.loc / kPointerSize;
+    return mem.loc / kPointerSize;
   };
 
   size_t input_n = yield->getNumInputs() - 1;

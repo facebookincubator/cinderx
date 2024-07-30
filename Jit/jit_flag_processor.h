@@ -23,7 +23,7 @@ struct Option {
   std::string debug_message;
   bool hidden_flag = false;
 
-  Option(){}
+  Option() {}
 
   std::string getFormatted_cmdline_flag();
   std::string getFormatted_environment_variable();

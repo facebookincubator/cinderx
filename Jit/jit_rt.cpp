@@ -1,9 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+#include "cinderx/Common/log.h"
 
 #include <Python.h>
-
-#include "cinderx/Common/log.h"
 // Needs to come after `log.h` due to atomic / stdatomic ordering
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"

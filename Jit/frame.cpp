@@ -10,6 +10,7 @@
 #endif
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "internal/pycore_pystate.h"
 #include "pycore_object.h"
 
@@ -21,8 +22,6 @@
 #include <functional>
 #include <optional>
 #include <unordered_set>
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 static bool is_shadow_frame_for_gen(_PyShadowFrame* shadow_frame) {
 #if PY_VERSION_HEX < 0x030C0000
@@ -137,11 +136,11 @@ uintptr_t getIP(_PyShadowFrame* shadow_frame, int frame_size) {
   uintptr_t frame_base;
   if (is_shadow_frame_for_gen(shadow_frame)) {
 #if PY_VERSION_HEX < 0x030C0000
-  PyGenObject* gen = _PyShadowFrame_GetGen(shadow_frame);
-  auto footer = reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
+    PyGenObject* gen = _PyShadowFrame_GetGen(shadow_frame);
+    auto footer = reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
-  GenDataFooter* footer = nullptr;
+    UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+    GenDataFooter* footer = nullptr;
 #endif
     if (footer->yieldPoint == nullptr) {
       // The generator is running.

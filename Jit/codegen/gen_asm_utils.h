@@ -2,11 +2,10 @@
 
 #pragma once
 
-#include <Python.h>
-
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/lir/instruction.h"
 
+#include <Python.h>
 #include <asmjit/asmjit.h>
 
 namespace jit::codegen {
