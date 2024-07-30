@@ -64,10 +64,10 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/nullptr,
+      /*qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_bytes,
-      /*exceptiontable=*/nullptr));
+      /*exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   jit::BytecodeInstructionBlock bc_block{code};

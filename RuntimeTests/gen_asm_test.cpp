@@ -1347,10 +1347,10 @@ TEST_F(ASMGeneratorTest, GetLength) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/nullptr,
+      /*qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_string,
-      /*exceptiontable=*/nullptr));
+      /*exceptiontable=*/empty_string));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
