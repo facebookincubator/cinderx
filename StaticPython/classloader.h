@@ -179,7 +179,7 @@ _PyTypedArgsInfo* _PyClassLoader_GetTypedArgsInfoFromThunk(
     int only_primitives);
 int _PyClassLoader_HasPrimitiveArgs(PyCodeObject* code);
 
-int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyObject* key);
+int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyDict_WatchEvent event, PyObject* key, PyObject *value);
 
 PyObject* _PyClassloader_InvokeNativeFunction(
     PyObject* lib_name,

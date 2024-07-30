@@ -20,10 +20,12 @@
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/property.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
+#include "cinderx/StaticPython/objectkey.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
@@ -1237,6 +1239,143 @@ int _PyClassLoader_ReinitVtable(PyTypeObject* type, _PyType_VTable* vtable) {
   return 0;
 }
 
+// A dictionary which maps from a type's tp_subclasses back to
+// a weakref to the type. The subclass dictionary is wrapped in
+// a object key which will compare compare equal to the original
+// dictionary and hash to its address.
+static PyObject *subclass_map;
+
+static PyObject *get_tp_subclasses(PyTypeObject *self) {
+  PyObject **subclasses_addr = (PyObject **)&self->tp_subclasses;
+
+#if PY_VERSION_HEX >= 0x030C0000
+   if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
+    PyInterpreterState *interp = _PyInterpreterState_GET();
+    static_builtin_state *state = _PyStaticType_GetState(interp, self);
+    subclasses_addr = (PyObject**)&state->tp_subclasses;
+   }
+#endif
+
+  PyObject *subclasses = *subclasses_addr;
+   if (subclasses == NULL) {
+    // We need to watch subclasses to be able to init subclass
+    // vtables, so if it doesn't exist yet we'll create it.
+    subclasses = *subclasses_addr = PyDict_New();
+  }
+  return subclasses;
+}
+
+static int track_type_dict(PyObject *track_map, PyTypeObject *type, PyObject *dict) {
+  if (_PyDict_Contains_KnownHash(track_map, dict, (Py_hash_t)dict)) {
+    // Already tracked
+    return 0;
+  }
+
+  // We will remove the object key from the dictionary
+  // when the subclasses dictionary is freed.
+  PyObject *key = _Ci_ObjectKey_New(dict);
+  if (key == NULL) {
+    return -1;
+  }
+
+  PyObject *ref = PyWeakref_NewRef((PyObject *)type, NULL);
+  if (ref == NULL) {
+      Py_DECREF(key);
+      return -1;
+  }
+
+  if (PyDict_SetItem(track_map, key, ref) < 0) {
+    Py_DECREF(key);
+    Py_DECREF(ref);
+    return -1;
+  }
+
+  Ci_Watchers_WatchDict(dict);
+  Py_DECREF(key);
+  Py_DECREF(ref);
+  return 0;
+}
+
+PyTypeObject *get_tracked_type(PyObject *track_map, PyDictObject *dict) {
+  PyObject *type_ref = _PyDict_GetItem_KnownHash(track_map, (PyObject *)dict, (Py_hash_t)dict);
+  if (type_ref != NULL) {
+    assert(PyWeakref_CheckRef(type_ref));
+    return (PyTypeObject*)PyWeakref_GetObject(type_ref);
+  }
+  return NULL;
+}
+
+
+// Starts tracking a type's tp_subclasses dictionary so that
+// we can be informed when a new subclass is added.
+static int track_subclasses(PyTypeObject *self) {
+  if (subclass_map == NULL) {
+    subclass_map = PyDict_New();
+    if (subclass_map == NULL) {
+      return -1;
+    }
+  }
+
+  PyObject *subclasses = get_tp_subclasses(self);
+  if (subclasses == NULL) {
+    return -1;
+  }
+
+  return track_type_dict(subclass_map, self, subclasses);
+}
+
+// When a base class already has a subclass initialized and a new
+// subclass is defined we need to eagerly initialize its v-tables,
+// otherwise an invoke could hit a NULL v-table.  This gets called
+// when a new entry is added to a types tp_subclasses.
+int _PyClassLoader_AddSubclass(PyTypeObject* base, PyTypeObject* type) {
+  if (base->tp_cache == NULL) {
+    /* nop if base class vtable isn't initialized */
+    return 0;
+  }
+
+  _PyType_VTable* vtable = _PyClassLoader_EnsureVtable(type, 0);
+  if (vtable == NULL) {
+    return -1;
+  }
+  return 0;
+}
+
+int _PyClassLoader_CheckSubclassChange(PyDictObject* dict, PyDict_WatchEvent event, PyObject* key, PyObject *value)
+{
+  switch (event) {
+    case PyDict_EVENT_ADDED: {
+      if (subclass_map != NULL && PyLong_CheckExact(key) && value != NULL && PyWeakref_CheckRef(value)) {
+          // See if this dictionary is a "tp_subclasses" dictionary for a type
+          // object, if so then we are adding a subclass where the key is the
+          // address of the subclass and the value is a weakref to the type.
+          PyTypeObject *base = get_tracked_type(subclass_map, dict);
+          if (base != NULL) {
+            PyObject *subclass = PyWeakref_GetObject(value);
+            if (_PyClassLoader_AddSubclass(base, (PyTypeObject*)subclass) < 0) {
+              return -1;
+            }
+          }
+      }
+      break;
+    }
+    case PyDict_EVENT_DEALLOCATED: {
+      if (subclass_map == NULL) {
+          break;
+      }
+
+      PyTypeObject *base = get_tracked_type(subclass_map, dict);
+      if (base != NULL) {
+        return _PyDict_DelItem_KnownHash(subclass_map, (PyObject*)dict, (Py_hash_t)(void*)dict);
+      }
+      break;
+    }
+    default:
+      break;
+  }
+  return 0;
+}
+
 
 /**
     Creates a vtable for a type. Goes through the MRO, and recursively creates
@@ -1354,6 +1493,9 @@ _PyType_VTable* _PyClassLoader_EnsureVtable(
 
   PyObject_GC_Track(vtable);
 
+  if (track_subclasses(self) < 0) {
+    return NULL;
+  }
   if (init_subclasses && _PyClassLoader_InitSubclassVtables(self)) {
     return NULL;
   }

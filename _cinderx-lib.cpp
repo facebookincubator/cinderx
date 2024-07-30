@@ -22,6 +22,7 @@
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/methodobject_vectorcall.h"
+#include "cinderx/StaticPython/objectkey.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
@@ -451,6 +452,8 @@ static int cinderx_dict_watcher(
     case PyDict_EVENT_ADDED:
     case PyDict_EVENT_MODIFIED:
     case PyDict_EVENT_DELETED: {
+      _PyClassLoader_NotifyDictChange(dict, event, key_obj, new_value);
+
       if (key_obj == nullptr || !PyUnicode_CheckExact(key_obj)) {
         globalCaches->notifyDictUnwatch(dict);
         break;
@@ -466,14 +469,16 @@ static int cinderx_dict_watcher(
       }
       BorrowedRef<PyUnicodeObject> key{key_obj};
       globalCaches->notifyDictUpdate(dict, key, new_value);
-      _PyClassLoader_NotifyDictChange(dict, key);
       break;
     }
     case PyDict_EVENT_CLEARED:
       globalCaches->notifyDictClear(dict);
       break;
     case PyDict_EVENT_CLONED:
+      globalCaches->notifyDictUnwatch(dict);
+      break;
     case PyDict_EVENT_DEALLOCATED:
+      _PyClassLoader_NotifyDictChange(dict, event, key_obj, new_value);
       globalCaches->notifyDictUnwatch(dict);
       break;
   }
@@ -534,7 +539,6 @@ static int cinder_init() {
 #if PY_VERSION_HEX < 0x030C0000
   Ci_hook_type_destroyed = _PyJIT_TypeDestroyed;
   Ci_hook_type_name_modified = _PyJIT_TypeNameModified;
-  Ci_hook_add_subclass = _PyClassLoader_AddSubclass;
   Ci_hook_type_pre_setattr = _PyClassLoader_InitTypeForPatching;
   Ci_hook_type_setattr = _PyClassLoader_UpdateSlot;
   Ci_hook_JIT_GetFrame = _PyJIT_GetFrame;
@@ -662,7 +666,6 @@ static int cinder_fini() {
   Ci_hook_PyJIT_GenYieldFromValue = nullptr;
   Ci_hook_PyJIT_GenMaterializeFrame = nullptr;
   Ci_hook__PyShadow_FreeAll = nullptr;
-  Ci_hook_add_subclass = nullptr;
   Ci_hook_MaybeStrictModule_Dict = nullptr;
   Ci_hook_ShadowFrame_GetCode_JIT = nullptr;
   Ci_hook_ShadowFrame_HasGen_JIT = nullptr;
@@ -829,6 +832,9 @@ PyObject* _cinderx_lib_init() {
     return nullptr;
   }
   if (PyType_Ready(&PyAsyncCachedClassProperty_Type) < 0) {
+    return nullptr;
+  }
+  if (PyType_Ready(&_Ci_ObjectKeyType) < 0) {
     return nullptr;
   }
 

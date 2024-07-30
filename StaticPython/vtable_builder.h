@@ -42,6 +42,8 @@ static inline int _PyClassLoader_IsStaticCallable(PyObject* obj) {
       _PyClassLoader_IsStaticBuiltin(obj);
 }
 
+int _PyClassLoader_CheckSubclassChange(PyDictObject* dict, PyDict_WatchEvent event, PyObject* key, PyObject *value);
+
 #ifdef __cplusplus
 }
 #endif

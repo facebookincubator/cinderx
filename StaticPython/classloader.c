@@ -406,21 +406,13 @@ PyMethodDescrObject* _PyClassLoader_ResolveMethodDef(PyObject* path) {
   return NULL;
 }
 
-int _PyClassLoader_AddSubclass(PyTypeObject* base, PyTypeObject* type) {
-  if (base->tp_cache == NULL) {
-    /* nop if base class vtable isn't initialized */
-    return 0;
-  }
-
-  _PyType_VTable* vtable = _PyClassLoader_EnsureVtable(type, 0);
-  if (vtable == NULL) {
+int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyDict_WatchEvent event, PyObject* key, PyObject *value) {
+  if (_PyClassLoader_CheckModuleChange(dict, key) < 0 ||
+      _PyClassLoader_CheckSubclassChange(dict, event, key, value) < 0) {
     return -1;
   }
-  return 0;
-}
 
-int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyObject* key) {
-  return _PyClassLoader_CheckModuleChange(dict, key);
+  return 0;
 }
 
 static int classloader_init_field(PyObject* path, int* field_type) {
