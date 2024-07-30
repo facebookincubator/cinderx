@@ -173,6 +173,10 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       bool is_awaited);
+  void emitResume(
+      CFG& cfg,
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitIsOp(TranslationContext& tc, int oparg);
   void emitContainsOp(TranslationContext& tc, int oparg);
   void emitCompareOp(TranslationContext& tc, int compare_op);

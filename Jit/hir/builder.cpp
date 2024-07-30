@@ -183,6 +183,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     RAISE_VARARGS,
     REFINE_TYPE,
     RERAISE,
+    RESUME,
     RETURN_PRIMITIVE,
     RETURN_VALUE,
     ROT_FOUR,
@@ -807,6 +808,10 @@ void HIRBuilder::translate(
         case INVOKE_METHOD:
         case INVOKE_NATIVE: {
           emitAnyCall(irfunc.cfg, tc, bc_it, bc_instrs);
+          break;
+        }
+        case RESUME: {
+          emitResume(irfunc.cfg, tc, bc_instr);
           break;
         }
         case IS_OP: {
@@ -1567,6 +1572,19 @@ void HIRBuilder::emitAnyCall(
 
     tc.block = post_await_block.block;
   }
+}
+
+void HIRBuilder::emitResume(
+    CFG& cfg,
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  if (bc_instr.oparg() >= 2) {
+    return;
+  }
+  TranslationContext succ(cfg.AllocateBlock(), tc.frame);
+  succ.snapshot();
+  insertEvalBreakerCheck(cfg, tc.block, succ.block, tc.frame);
+  tc.block = succ.block;
 }
 
 void HIRBuilder::emitBinaryOp(
