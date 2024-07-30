@@ -7,6 +7,7 @@
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 #include "internal/pycore_interp.h"
+#include "internal/pycore_pystate.h"
 
 #include "cinderx/Jit/type_deopt_patchers.h"
 

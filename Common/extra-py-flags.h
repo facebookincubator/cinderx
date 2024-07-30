@@ -12,6 +12,6 @@
 #if PY_VERSION_HEX >= 0x030C0000
 
 // Stealing one of the old values used by stackless
-#define Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED  (1UL << 15)
+#define Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED (1UL << 15)
 
 #endif

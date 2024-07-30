@@ -2,11 +2,15 @@
 
 #pragma once
 
-#include <Python.h>
-
 #include "cinderx/Common/ref.h"
+
+#if PY_VERSION_HEX < 0x030C0000
+#include "internal/pycore_pystate.h"
+#endif
+
 #include "cinderx/Jit/threaded_compile.h"
 
+#include <Python.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <fmt/printf.h>
@@ -14,8 +18,6 @@
 #include <cstdio>
 #include <iterator>
 #include <string_view>
-
-#include "internal/pycore_pystate.h"
 
 namespace jit {
 

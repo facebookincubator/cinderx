@@ -1,7 +1,4 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include <Python.h>
-
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include "cinderx/Common/util.h"
 
@@ -10,7 +7,9 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
+#include <Python.h>
 #include <zlib.h>
 
 #include <cstdarg>

@@ -1,7 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include <Python.h>
 #include "cinderx/Common/log.h"
+
+#include <Python.h>
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
@@ -11,15 +12,10 @@
 #endif
 
 #include "cinderx/CachedProperties/cached_properties.h"
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Interpreter/interpreter.h"
-#include "cinderx/Jit/entry.h"
-#include "cinderx/Jit/frame.h"
-#include "cinderx/Jit/pyjit.h"
-#include "cinderx/Jit/pyjit_result.h"
-#include "cinderx/Jit/pyjit_typeslots.h"
-#include "cinderx/Jit/runtime.h"
 #include "cinderx/ParallelGC/parallel_gc.h"
 #include "cinderx/StaticPython/_static.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -30,6 +26,14 @@
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/_cinderx-lib.h"
+#include "internal/pycore_pystate.h"
+
+#include "cinderx/Jit/entry.h"
+#include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/pyjit.h"
+#include "cinderx/Jit/pyjit_result.h"
+#include "cinderx/Jit/pyjit_typeslots.h"
+#include "cinderx/Jit/runtime.h"
 
 #include <dlfcn.h>
 
@@ -441,7 +445,7 @@ static int cinderx_dict_watcher(
   JIT_DCHECK(PyDict_Check(dict_obj), "Expecting dict from dict watcher");
   BorrowedRef<PyDictObject> dict{dict_obj};
 
-  jit::GlobalCacheManager* globalCaches = jit::_PyJIT_GetGlobalCacheManager();;
+  jit::GlobalCacheManager* globalCaches = jit::_PyJIT_GetGlobalCacheManager();
 
   switch (event) {
     case PyDict_EVENT_ADDED:

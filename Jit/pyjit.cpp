@@ -18,7 +18,8 @@
 #include "cinderx/StrictModules/pystrictmodule.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "i386-dis/dis-asm.h"
-#include "pycore_interp.h"
+#include "internal/pycore_interp.h"
+#include "internal/pycore_pystate.h"
 
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
