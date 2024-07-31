@@ -46,6 +46,16 @@ finally:
     sys.setdlopenflags(old_dlopen_flags)
 
 
+def strictify_static() -> None:
+    """Turn _static into a StrictModule so we can do direct invokes against it."""
+
+    import _static
+
+    # if it has a __file__ attribute, libregrtest will try to write to it
+    if hasattr(_static, "__file__"):
+        del _static.__file__
+        sys.modules["_static"] = StrictModule(_static.__dict__, False)
+
 def init() -> None:
     """Initialize CinderX."""
     if cinderx_init is None:
@@ -53,10 +63,8 @@ def init() -> None:
 
     cinderx_init()
 
-    # Turn _static into a StrictModule so we can do direct invokes against it
-    import _static
-
-    # if it has a __file__ attribute, libregrtest will try to write to it
-    if hasattr(_static, "__file__"):
-        del _static.__file__
-    sys.modules["_static"] = StrictModule(_static.__dict__, False)
+    # TODO(T194028831): _static module is not being initialized properly, fail open.
+    try:
+        strictify_static()
+    except ImportError:
+        pass
