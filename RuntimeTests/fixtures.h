@@ -67,6 +67,11 @@ class RuntimeTest : public ::testing::Test {
     Py_Initialize();
     ASSERT_TRUE(Py_IsInitialized());
 
+    // This should use _PyJIT_Enabled(), but that doesn't actually get set to
+    // true in RuntimeTests, even when the JIT is running.  Generally the first
+    // failure we see is trying to use the code allocator and crashing.
+    ASSERT_TRUE(!jit || jit::CodeAllocator::exists())
+        << "Configured to use the JIT but it wasn't initialized";
 
     globals_ = isStaticCompiler() ? MakeGlobalsStrict() : MakeGlobals();
     ASSERT_NE(globals_, nullptr);
@@ -85,6 +90,8 @@ class RuntimeTest : public ::testing::Test {
     ASSERT_EQ(result, 0) << "Failed finalizing the interpreter";
 
     ASSERT_FALSE(_PyJIT_IsEnabled())
+        << "JIT should be disabled with Py_FinalizeEx";
+    ASSERT_FALSE(jit::CodeAllocator::exists())
         << "JIT should be disabled with Py_FinalizeEx";
   }
 

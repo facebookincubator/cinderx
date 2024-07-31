@@ -33,8 +33,13 @@ class CodeAllocator {
 
   // Get the global code allocator for this process.
   static CodeAllocator* get() {
-    JIT_CHECK(s_global_code_allocator_ != nullptr, "No global code allocator");
+    JIT_CHECK(exists(), "No global code allocator");
     return s_global_code_allocator_;
+  }
+
+  // Check if the global code allocator has been created.
+  static bool exists() {
+    return s_global_code_allocator_ != nullptr;
   }
 
   // To be called once by JIT initialization after enough configuration has been
