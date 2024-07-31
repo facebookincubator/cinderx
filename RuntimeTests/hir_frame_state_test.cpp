@@ -1,7 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
-#include <Python.h>
 #include "cinderx/Interpreter/opcode.h"
 
 #include "cinderx/Jit/hir/builder.h"
@@ -10,6 +9,8 @@
 
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
+
+#include <Python.h>
 
 using namespace jit::hir;
 
@@ -21,10 +22,11 @@ TEST_F(FrameStateCreationTest, InitialInstrOffset) {
   EXPECT_EQ(frame.instr_offset().value() % sizeof(_Py_CODEUNIT), 0);
 }
 
-#define EXPECT_HIR_EQ(irfunc, expected) {                    \
-  ASSERT_TRUE(irfunc != nullptr);                            \
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected); \
-}
+#define EXPECT_HIR_EQ(irfunc, expected)                        \
+  {                                                            \
+    ASSERT_TRUE(irfunc != nullptr);                            \
+    EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected); \
+  }
 
 TEST_F(FrameStateCreationTest, LoadGlobal) {
   const char* src = R"(

@@ -1,7 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
-#include <Python.h>
 #include "cinderx/Common/ref.h"
 
 #include "cinderx/Jit/codegen/autogen.h"
@@ -18,6 +17,8 @@
 
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
+
+#include <Python.h>
 
 #include <filesystem>
 #include <fstream>

@@ -1,13 +1,14 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
-#include <Python.h>
 #include "cinderx/Interpreter/opcode.h"
 
 #include "cinderx/Jit/bytecode.h"
 
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
+
+#include <Python.h>
 
 using BytecodeInstructionIteratorTest = RuntimeTest;
 

@@ -1,7 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
-#include <Python.h>
 #include "cinderx/Interpreter/opcode.h"
 
 #include "cinderx/Jit/hir/analysis.h"
@@ -11,6 +10,8 @@
 #include "cinderx/Jit/hir/ssa.h"
 
 #include "cinderx/RuntimeTests/fixtures.h"
+
+#include <Python.h>
 
 using namespace jit::hir;
 
