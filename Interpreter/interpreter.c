@@ -11,7 +11,6 @@
 
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
-#include "cinderx/Jit/pyjit.h"
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
