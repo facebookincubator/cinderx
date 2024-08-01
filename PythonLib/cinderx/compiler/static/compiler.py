@@ -168,6 +168,7 @@ class Compiler:
             "Warning": self.type_env.warning,
             "ZeroDivisionError": self.type_env.zero_division_error,
             "__name__": self.type_env.str.instance,
+            "__file__": self.type_env.str.instance,
             "bool": self.type_env.bool.exact_type(),
             "bytes": self.type_env.bytes.exact_type(),
             "bytearray": self.type_env.DYNAMIC,
