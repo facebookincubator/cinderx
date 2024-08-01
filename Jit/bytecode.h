@@ -122,11 +122,14 @@ class BytecodeInstruction {
 // they will not appear in the stream of `BytecodeInstruction`s.
 class BytecodeInstructionBlock {
  public:
-  explicit BytecodeInstructionBlock(PyCodeObject* code)
-      : instrs_{codeUnit(code)}, start_idx_{0}, end_idx_{countInstrs(code)} {}
+  explicit BytecodeInstructionBlock(BorrowedRef<PyCodeObject> code)
+      : code_{code}, start_idx_{0}, end_idx_{countInstrs(code)} {}
 
-  BytecodeInstructionBlock(_Py_CODEUNIT* instrs, BCIndex start, BCIndex end)
-      : instrs_{instrs}, start_idx_{start}, end_idx_{end} {}
+  BytecodeInstructionBlock(
+      BorrowedRef<PyCodeObject> code,
+      BCIndex start,
+      BCIndex end)
+      : code_{code}, start_idx_{start}, end_idx_{end} {}
 
   class Iterator {
    public:
@@ -136,13 +139,14 @@ class BytecodeInstructionBlock {
     using pointer = const value_type*;
     using reference = const value_type&;
 
-    Iterator(_Py_CODEUNIT* instr, BCIndex idx, BCIndex end_idx)
-        : instr_(instr), idx_(idx), end_idx_(end_idx), bci_(0, 0, BCOffset{0}) {
+    Iterator(BorrowedRef<PyCodeObject> code, BCIndex idx, BCIndex end_idx)
+        : code_{code}, idx_{idx}, end_idx_{end_idx}, bci_{0, 0, BCOffset{0}} {
       if (!atEnd()) {
-        // Iterator end() methods are supposed to be past the logical end
-        // of the underlying data structure and should not be accessed
-        // directly. Dereferencing instr would be a heap buffer overflow.
-        bci_ = BytecodeInstruction(_Py_OPCODE(*instr), _Py_OPARG(*instr), idx);
+        // Iterator end() methods are supposed to be past the logical end of the
+        // underlying data structure and should not be accessed
+        // directly. Dereferencing the current instr would be a heap buffer
+        // overflow.
+        bci_ = BytecodeInstruction(currentOpcode(), currentOparg(), idx);
         consumeExtendedArgs();
       }
     }
@@ -164,7 +168,6 @@ class BytecodeInstructionBlock {
     }
 
     Iterator& operator++() {
-      instr_++;
       idx_++;
       consumeExtendedArgs();
       return *this;
@@ -177,7 +180,7 @@ class BytecodeInstructionBlock {
     }
 
     bool operator==(const Iterator& other) const {
-      return instr_ == other.instr_;
+      return code_ == other.code_ && idx_ == other.idx_;
     }
 
     bool operator!=(const Iterator& other) const {
@@ -191,30 +194,47 @@ class BytecodeInstructionBlock {
    private:
     void consumeExtendedArgs() {
       int accum = 0;
-      while (!atEnd() && (_Py_OPCODE(*instr_) == EXTENDED_ARG)) {
-        accum = (accum << 8) | _Py_OPARG(*instr_);
-        instr_++;
+      while (!atEnd() && currentOpcode() == EXTENDED_ARG) {
+        accum = (accum << 8) | currentOparg();
         idx_++;
       }
       if (!atEnd()) {
-        int opcode = _Py_OPCODE(*instr_);
-        int oparg = (accum << 8) | _Py_OPARG(*instr_);
+        int opcode = currentOpcode();
+        int oparg = (accum << 8) | currentOparg();
         bci_ = BytecodeInstruction(opcode, oparg, idx_);
       }
     }
 
-    _Py_CODEUNIT* instr_;
+    _Py_CODEUNIT* currentInstr() const {
+      return codeUnit(code_) + idx_.value();
+    }
+
+    int currentOpcode() const {
+      JIT_DCHECK(
+          !atEnd(),
+          "Trying to access bytecode instruction past end of code object");
+      return _Py_OPCODE(*currentInstr());
+    }
+
+    int currentOparg() const {
+      JIT_DCHECK(
+          !atEnd(),
+          "Trying to access bytecode instruction past end of code object");
+      return _Py_OPARG(*currentInstr());
+    }
+
+    BorrowedRef<PyCodeObject> code_;
     BCIndex idx_;
     BCIndex end_idx_;
     BytecodeInstruction bci_;
   };
 
   Iterator begin() const {
-    return Iterator(instrs_ + start_idx_, start_idx_, end_idx_);
+    return Iterator{code_, start_idx_, end_idx_};
   }
 
   Iterator end() const {
-    return Iterator(instrs_ + end_idx_, end_idx_, end_idx_);
+    return Iterator{code_, end_idx_, end_idx_};
   }
 
   BCOffset startOffset() const {
@@ -233,19 +253,23 @@ class BytecodeInstructionBlock {
     JIT_CHECK(
         start_idx_ == 0,
         "Instructions can only be looked up by index when start_idx_ == 0");
-    return BytecodeInstruction(instrs_, idx);
+    return BytecodeInstruction(code_, idx);
   }
 
   BytecodeInstruction lastInstr() const {
-    return BytecodeInstruction(instrs_, end_idx_ - 1);
+    return BytecodeInstruction(code_, end_idx_ - 1);
+  }
+
+  BorrowedRef<PyCodeObject> code() const {
+    return code_;
   }
 
   _Py_CODEUNIT* bytecode() const {
-    return instrs_;
+    return codeUnit(code_);
   }
 
  private:
-  _Py_CODEUNIT* instrs_;
+  BorrowedRef<PyCodeObject> code_;
   BCIndex start_idx_;
   BCIndex end_idx_;
 };

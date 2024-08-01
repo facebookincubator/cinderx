@@ -523,7 +523,7 @@ HIRBuilder::BlockMap HIRBuilder::createBlocks(
     block_map.bc_blocks.emplace(
         std::piecewise_construct,
         std::forward_as_tuple(block),
-        std::forward_as_tuple(bc_block.bytecode(), start_idx, end_idx));
+        std::forward_as_tuple(bc_block.code(), start_idx, end_idx));
   }
 
   return block_map;
