@@ -13,9 +13,9 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 #include "cinderx/CachedProperties/cached_properties.h"
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h"  // @donotremove
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/property.h"
@@ -30,6 +30,8 @@
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable_defs.h"
+
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
 static int rettype_check_traverse(
     _PyClassLoader_RetTypeInfo* op,
@@ -1245,6 +1247,10 @@ int _PyClassLoader_ReinitVtable(PyTypeObject* type, _PyType_VTable* vtable) {
 // dictionary and hash to its address.
 static PyObject *subclass_map;
 
+// A dictionary which maps from a type's dictionary back to
+// a weakref to the type.
+static PyObject *dict_map;
+
 static PyObject *get_tp_subclasses(PyTypeObject *self) {
   PyObject **subclasses_addr = (PyObject **)&self->tp_subclasses;
 
@@ -1324,6 +1330,22 @@ static int track_subclasses(PyTypeObject *self) {
   return track_type_dict(subclass_map, self, subclasses);
 }
 
+static int track_dict(PyTypeObject *self) {
+  if (dict_map == NULL) {
+    dict_map = PyDict_New();
+    if (dict_map == NULL) {
+      return -1;
+    }
+  }
+
+  PyObject *dict = getBorrowedTypeDict(self);
+  if (dict == NULL) {
+    return -1;
+  }
+
+  return track_type_dict(dict_map, self, dict);
+}
+
 // When a base class already has a subclass initialized and a new
 // subclass is defined we need to eagerly initialize its v-tables,
 // otherwise an invoke could hit a NULL v-table.  This gets called
@@ -1357,6 +1379,16 @@ int _PyClassLoader_CheckSubclassChange(PyDictObject* dict, PyDict_WatchEvent eve
             }
           }
       }
+    }
+    __attribute__((fallthrough));
+    case PyDict_EVENT_MODIFIED:
+    case PyDict_EVENT_DELETED: {
+      if (PyUnicode_CheckExact(key) && dict_map != NULL) {
+        PyTypeObject *type = get_tracked_type(dict_map, dict);
+        if (type != NULL) {
+          return _PyClassLoader_InitTypeForPatching(type);
+        }
+      }
       break;
     }
     case PyDict_EVENT_DEALLOCATED: {
@@ -1366,7 +1398,12 @@ int _PyClassLoader_CheckSubclassChange(PyDictObject* dict, PyDict_WatchEvent eve
 
       PyTypeObject *base = get_tracked_type(subclass_map, dict);
       if (base != NULL) {
-        return _PyDict_DelItem_KnownHash(subclass_map, (PyObject*)dict, (Py_hash_t)(void*)dict);
+        return _PyDict_DelItem_KnownHash(subclass_map, (PyObject*)dict, (Py_hash_t)dict);
+      }
+
+      PyTypeObject *type = get_tracked_type(dict_map, dict);
+      if (type != NULL) {
+        return _PyDict_DelItem_KnownHash(dict_map, (PyObject*)dict, (Py_hash_t)dict);
       }
       break;
     }
@@ -1699,4 +1736,9 @@ error:
   vtable->vt_original = NULL;
   Py_DECREF(origitems);
   return -1;
+}
+
+int _PyClassLoader_SetTypeStatic(PyTypeObject *type) {
+  type->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
+  return track_dict(type);
 }

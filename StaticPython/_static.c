@@ -28,6 +28,7 @@
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/static_array.h"
+#include "cinderx/StaticPython/vtable_builder.h"
 #include "strictmoduleobject.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
@@ -199,7 +200,7 @@ PyObject* set_type_static(PyObject* mod, PyObject* type) {
         Py_TYPE(type)->tp_name);
     return NULL;
   }
-  ((PyTypeObject*)type)->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
+  _PyClassLoader_SetTypeStatic((PyTypeObject*)type);
   Py_INCREF(type);
   return type;
 }
@@ -212,7 +213,7 @@ PyObject* set_type_static_final(PyObject* mod, PyObject* type) {
         Py_TYPE(type)->tp_name);
     return NULL;
   }
-  ((PyTypeObject*)type)->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
+  _PyClassLoader_SetTypeStatic((PyTypeObject*)type);
   ((PyTypeObject*)type)->tp_flags &= ~Py_TPFLAGS_BASETYPE;
   Py_INCREF(type);
   return type;
@@ -1469,7 +1470,7 @@ static PyObject* _static___build_cinder_class__(
     Py_CLEAR(((PyTypeObject*)type)->tp_cache);
     had_type_cache = 1;
   }
-  pytype->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
+
   if (final) {
     pytype->tp_flags &= ~Py_TPFLAGS_BASETYPE;
   }
@@ -1517,6 +1518,9 @@ static PyObject* _static___build_cinder_class__(
   }
   if (PyTuple_GET_SIZE(cached_properties) &&
       init_cached_properties(pytype, cached_properties) < 0) {
+    goto error;
+  }
+  if (_PyClassLoader_SetTypeStatic(pytype) < 0) {
     goto error;
   }
   // If we were subtyping a class which was known statically then the v-table

@@ -162,8 +162,6 @@ int _PyClassLoader_IsFinalMethodOverridden(
 
 #ifndef Py_LIMITED_API
 
-int _PyClassLoader_InitTypeForPatching(PyTypeObject* type);
-
 PyObject* _PyClassloader_SizeOf_DlSym_Cache(void);
 PyObject* _PyClassloader_SizeOf_DlOpen_Cache(void);
 void _PyClassloader_Clear_DlSym_Cache(void);
