@@ -9,6 +9,7 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "frameobject.h"
 #include "listobject.h"

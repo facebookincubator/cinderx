@@ -12,6 +12,13 @@ PyObject * Ci_GetAIter(PyThreadState *tstate, PyObject *obj);
 PyObject * Ci_GetANext(PyThreadState *tstate, PyObject *aiter);
 PyObject* _Py_HOT_FUNCTION Ci_EvalFrame(PyThreadState *tstate, PyFrameObject *f, int throwflag);
 
+PyObject* Ci_StaticFunction_Vectorcall(PyObject *func, PyObject* const* stack,
+                       size_t nargsf, PyObject *kwnames);
+PyObject* Ci_PyFunction_CallStatic(PyFunctionObject *func,
+                       PyObject* const* args,
+                       Py_ssize_t nargsf,
+                       PyObject *kwnames);
+
 #ifdef __cplusplus
 }
 #endif

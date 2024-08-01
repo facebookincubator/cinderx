@@ -3,6 +3,7 @@
 #include "cinderx/Jit/entry.h"
 
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Interpreter/interpreter.h"
 
 #include "cinderx/Jit/pyjit.h"
 

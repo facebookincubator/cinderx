@@ -1,6 +1,7 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 #include "cinderx/StaticPython/vtable_defs.h"
 
+#include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"

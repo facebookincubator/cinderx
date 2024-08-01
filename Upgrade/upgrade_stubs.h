@@ -287,13 +287,6 @@ int PyUnstable_PerfTrampoline_CompileCode(PyCodeObject *);
 int PyUnstable_PerfTrampoline_SetPersistAfterFork(int enable);
 PyObject* _PyObject_GC_Malloc(size_t size);
 
-PyObject* Ci_StaticFunction_Vectorcall(PyObject *func, PyObject* const* stack,
-                       size_t nargsf, PyObject *kwnames);
-PyObject* Ci_PyFunction_CallStatic(PyFunctionObject *func,
-                       PyObject* const* args,
-                       Py_ssize_t nargsf,
-                       PyObject *kwnames);
-
 #define _Py_IDENTIFIER(name) \
     UPGRADE_ASSERT("_Py_IDENTIFIER(" #name ")") \
     static _Py_Identifier PyId_##name;
