@@ -232,9 +232,6 @@ PyObject *
 PyObject *
     Cix_match_keys(PyThreadState *tstate, PyObject *map, PyObject *keys);
 
-PyObject *
-    Ci_Super_Lookup(PyTypeObject *type, PyObject *obj, PyObject *name,
-                    PyObject *super_instance, int *meth_found);
 int Cix_cfunction_check_kwargs(PyThreadState *tstate, PyObject *func, PyObject *kwnames);
 typedef void (*funcptr)(void);
 funcptr Cix_cfunction_enter_call(PyThreadState *tstate, PyObject *func);
@@ -254,7 +251,6 @@ Py_ssize_t _PyDictKeys_GetSplitIndex(PyDictKeysObject *keys, PyObject *key);
 PyObject** Ci_PyObject_GetDictPtrAtOffset(PyObject *obj, Py_ssize_t dictoffset);
 PyObject* _PyDict_GetItem_Unicode(PyObject *op, PyObject *key);
 PyObject* _PyDict_GetItem_UnicodeExact(PyObject *op, PyObject *key);
-PyDictKeysObject *_PyDict_MakeKeysShared(PyObject *op);
 int PyDict_NextKeepLazy(PyObject *op, Py_ssize_t *ppos, PyObject **pkey, PyObject **pvalue);
 
 
