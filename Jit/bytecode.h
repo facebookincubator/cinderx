@@ -23,7 +23,7 @@ extern const std::unordered_set<int> kBlockTerminatorOpcodes;
 // A structured, immutable representation of a CPython bytecode
 class BytecodeInstruction {
  public:
-  BytecodeInstruction(PyCodeObject* code, BCIndex idx)
+  BytecodeInstruction(BorrowedRef<PyCodeObject> code, BCIndex idx)
       : BytecodeInstruction{codeUnit(code), idx} {}
 
   BytecodeInstruction(_Py_CODEUNIT* instrs, BCIndex idx) : offset_(idx) {
@@ -123,13 +123,16 @@ class BytecodeInstruction {
 class BytecodeInstructionBlock {
  public:
   explicit BytecodeInstructionBlock(BorrowedRef<PyCodeObject> code)
-      : code_{code}, start_idx_{0}, end_idx_{countInstrs(code)} {}
+      : BytecodeInstructionBlock{code, BCIndex{0}, BCIndex{countInstrs(code)}} {
+  }
 
   BytecodeInstructionBlock(
       BorrowedRef<PyCodeObject> code,
       BCIndex start,
       BCIndex end)
-      : code_{code}, start_idx_{start}, end_idx_{end} {}
+      : code_{Ref<PyCodeObject>::create(code)},
+        start_idx_{start},
+        end_idx_{end} {}
 
   class Iterator {
    public:
@@ -140,7 +143,10 @@ class BytecodeInstructionBlock {
     using reference = const value_type&;
 
     Iterator(BorrowedRef<PyCodeObject> code, BCIndex idx, BCIndex end_idx)
-        : code_{code}, idx_{idx}, end_idx_{end_idx}, bci_{0, 0, BCOffset{0}} {
+        : code_{std::move(code)},
+          idx_{idx},
+          end_idx_{end_idx},
+          bci_{0, 0, BCOffset{0}} {
       if (!atEnd()) {
         // Iterator end() methods are supposed to be past the logical end of the
         // underlying data structure and should not be accessed
@@ -223,6 +229,7 @@ class BytecodeInstructionBlock {
       return _Py_OPARG(*currentInstr());
     }
 
+    // Not stored as a Ref because that would make Iterator non-copyable.
     BorrowedRef<PyCodeObject> code_;
     BCIndex idx_;
     BCIndex end_idx_;
@@ -269,7 +276,7 @@ class BytecodeInstructionBlock {
   }
 
  private:
-  BorrowedRef<PyCodeObject> code_;
+  Ref<PyCodeObject> code_;
   BCIndex start_idx_;
   BCIndex end_idx_;
 };
