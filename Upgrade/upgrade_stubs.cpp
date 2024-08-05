@@ -95,7 +95,6 @@ STUB(PyObject*, Ci_PyFunction_CallStatic, T190615535, PyFunctionObject *func, Py
     UPGRADE_ASSERT(Hit stubbed function: func); \
   }
 
-STUB_WEAK(PyObject*, _Py_union_type_or, PyObject *, PyObject *)
 // We can avoid this by notifying our own dictionary watchers manually.
 STUB_WEAK(void, _PyDict_SendEvent, int, PyDict_WatchEvent, PyDictObject *, PyObject *,  PyObject *)
 

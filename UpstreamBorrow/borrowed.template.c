@@ -145,6 +145,32 @@ static_builtin_state* Cix_PyStaticType_GetState(PyInterpreterState *interp, PyTy
 }
 #endif
 
+// These are global singletons used transitively by _Py_union_type_or.
+// We initialize them in init_upstream_borrow().
+PyTypeObject* Cix_PyUnion_Type = NULL;
+#define _PyUnion_Type (*Cix_PyUnion_Type)
+
+#if PY_VERSION_HEX >= 0x030C0000
+PyTypeObject* Cix_PyTypeAlias_Type = NULL;
+#define _PyTypeAlias_Type (*Cix_PyTypeAlias_Type)
+#endif
+
+// Internal dependencies for _Py_union_type_or.
+// @Borrow CPP directives from Objects/unionobject.c
+// @Borrow typedef unionobject from Objects/unionobject.c
+// @Borrow function flatten_args from Objects/unionobject.c [3.10]
+// @Borrow function dedup_and_flatten_args from Objects/unionobject.c [3.10]
+// @Borrow function is_unionable from Objects/unionobject.c
+// @Borrow function is_same from Objects/unionobject.c [3.12]
+// @Borrow function contains from Objects/unionobject.c [3.12]
+// @Borrow function merge from Objects/unionobject.c [3.12]
+// @Borrow function get_types from Objects/unionobject.c [3.12]
+// Rename to avoid clashing with existing version when statically linking.
+#define make_union Cix_make_union
+// @Borrow function make_union from Objects/unionobject.c
+// End internal dependencies.
+#define _Py_union_type_or Cix_Py_union_type_or
+// @Borrow function _Py_union_type_or from Objects/unionobject.c
 
 int init_upstream_borrow(void) {
     PyObject *empty_dict = PyDict_New();
@@ -157,5 +183,34 @@ int init_upstream_borrow(void) {
     Py_EMPTY_KEYS = ((PyDictObject *)empty_dict)->ma_keys;
 #endif
     Py_DECREF(empty_dict);
+
+    // Initialize the Cix_PyUnion_Type global reference.
+    PyObject* unionobj = PyNumber_Or(
+        (PyObject*)&PyLong_Type, (PyObject*)&PyUnicode_Type);
+    if (unionobj != NULL) {
+        Cix_PyUnion_Type = Py_TYPE(unionobj);
+        Py_DECREF(unionobj);
+    }
+    if (Cix_PyUnion_Type == NULL) {
+        return -1;
+    }
+
+#if PY_VERSION_HEX >= 0x030C0000
+    // Initialize the Cix_PyTypeAlias_Type global reference.
+    PyObject *typing_module = PyImport_ImportModule("typing");
+    if (!typing_module) {
+        return -1;
+    }
+    PyObject *type_alias_type = PyObject_GetAttrString(typing_module, "TypeAliasType");
+
+    if (!type_alias_type) {
+        Py_DECREF(typing_module);
+        return -1;
+    }
+    assert(PyType_Check(type_alias_type));
+    Cix_PyTypeAlias_Type = (PyTypeObject*)type_alias_type;
+    Py_DECREF(typing_module);
+#endif
+
     return 0;
 }

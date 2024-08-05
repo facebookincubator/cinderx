@@ -11,9 +11,6 @@
 extern "C" {
 #endif
 
-// pycore_unionobject.h
-PyObject *_Py_union_type_or(PyObject *, PyObject *);
-
 #ifdef __cplusplus
 } // extern "C"
 #endif

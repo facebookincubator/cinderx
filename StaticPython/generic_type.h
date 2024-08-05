@@ -14,10 +14,6 @@ extern "C" {
 /* This type is a generic type definition */
 #define Ci_Py_TPFLAGS_GENERIC_TYPE_DEF (1UL << 16)
 
-// Locally caching the address of the _PyUnion_Type object, which is not
-// directly accessible outside of CPython.
-extern PyTypeObject* _CiUnion_Type;
-
 typedef struct {
     PyTypeObject gtd_type; /* base type object */
     newfunc gtd_new;       /* real tp_new func for instances */

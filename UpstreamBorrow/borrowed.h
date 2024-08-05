@@ -41,6 +41,10 @@ PyObject* Cix_PyTuple_FromArray(PyObject *const *, Py_ssize_t);
 static_builtin_state* Cix_PyStaticType_GetState(PyInterpreterState *, PyTypeObject *);
 #endif
 
+extern PyTypeObject *Cix_PyUnion_Type;
+
+PyObject *Cix_Py_union_type_or(PyObject *, PyObject *);
+
 int init_upstream_borrow(void);
 
 #ifdef __cplusplus

@@ -14,8 +14,6 @@
 #endif
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
-PyTypeObject* _CiUnion_Type;
-
 static PyObject *genericinst_cache;
 
 void
@@ -45,7 +43,7 @@ get_optional_type(PyObject *type)
             goto done;
         }
 
-        if (Py_TYPE(type) != _CiUnion_Type) {
+        if (Py_TYPE(type) != Cix_PyUnion_Type) {
             origin = PyObject_GetAttr(type, s___origin__);
             if (origin == NULL) {
                 PyErr_Clear();
