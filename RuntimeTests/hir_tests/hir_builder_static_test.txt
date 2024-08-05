@@ -101,7 +101,7 @@ fun jittestmodule:test {
   }
 
   bb 7 (preds 2) {
-    v7 = CallCFunc<_PyGen_yf> v6
+    v7 = CallCFunc<Cix_PyGen_yf> v6
     CondBranch<9, 8> v7
   }
 
@@ -1071,7 +1071,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 0) {
-    v6 = CallCFunc<_PyGen_yf> v5
+    v6 = CallCFunc<Cix_PyGen_yf> v5
     CondBranch<4, 3> v6
   }
 

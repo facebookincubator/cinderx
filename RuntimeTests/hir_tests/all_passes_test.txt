@@ -259,7 +259,7 @@ fun jittestmodule:test {
   }
 
   bb 7 (preds 0) {
-    v26:OptObject = CallCFunc<_PyGen_yf> v25
+    v26:OptObject = CallCFunc<Cix_PyGen_yf> v25
     CondBranch<9, 8> v26
   }
 

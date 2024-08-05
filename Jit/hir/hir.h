@@ -1175,7 +1175,7 @@ class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
 #define CallCFunc_FUNCS(X)      \
   X(_PyAsyncGenValueWrapperNew) \
   X(_PyCoro_GetAwaitableIter)   \
-  X(_PyGen_yf)
+  X(Cix_PyGen_yf)
 
   enum class Func {
 #define ENUM_FUNC(name, ...) k##name,

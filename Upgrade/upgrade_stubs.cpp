@@ -98,7 +98,6 @@ STUB(PyObject*, Ci_PyFunction_CallStatic, T190615535, PyFunctionObject *func, Py
     UPGRADE_ASSERT(Hit stubbed function: func); \
   }
 
-STUB_WEAK(PyObject*, _PyGen_yf, PyGenObject*)
 STUB_WEAK(PyObject*, _PyCoro_GetAwaitableIter, PyObject*)
 STUB_WEAK(PyObject*, _PyAsyncGenValueWrapperNew, PyThreadState*, PyObject *)
 STUB_WEAK(int, _PyObjectDict_SetItem, PyTypeObject*, PyObject **, PyObject*, PyObject*)

@@ -10,6 +10,7 @@
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h"
 #include "object.h"
 #include "preload.h"
 #include "structmember.h"
@@ -3482,7 +3483,7 @@ void HIRBuilder::emitGetAwaitable(
   }
 
   // For coroutines only, runtime assert it isn't already awaiting by checking
-  // if it has a sub-iterator using _PyGen_yf().
+  // if it has a sub-iterator using Cix_PyGen_yf().
   TranslationContext block_assert_not_awaited_coro{
       cfg.AllocateBlock(), tc.frame};
   TranslationContext block_done{cfg.AllocateBlock(), tc.frame};
@@ -3493,7 +3494,7 @@ void HIRBuilder::emitGetAwaitable(
       block_done.block);
   Register* yf = temps_.AllocateStack();
   block_assert_not_awaited_coro.emit<CallCFunc>(
-      1, yf, CallCFunc::Func::k_PyGen_yf, std::vector<Register*>{iter});
+      1, yf, CallCFunc::Func::kCix_PyGen_yf, std::vector<Register*>{iter});
   TranslationContext block_coro_already_awaited{cfg.AllocateBlock(), tc.frame};
   block_assert_not_awaited_coro.emit<CondBranch>(
       yf, block_coro_already_awaited.block, block_done.block);

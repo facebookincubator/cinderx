@@ -12,7 +12,6 @@ extern "C" {
 #endif
 
 // genobject.c
-PyObject* _PyGen_yf(PyGenObject *gen);
 PyObject* _PyCoro_GetAwaitableIter(PyObject *o);
 PyObject* _PyAsyncGenValueWrapperNew(PyThreadState *state, PyObject *);
 

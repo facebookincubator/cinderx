@@ -8,6 +8,8 @@
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 
+#include "cinderx/UpstreamBorrow/borrowed.h"
+
 #include "structmember.h"
 
 static int
@@ -46,7 +48,7 @@ awaitable_get_iter(_PyClassLoader_Awaitable *self) {
        Ci_PyAwaitable_SetAwaiter(iter, self->awaiter);
     }
     if (PyCoro_CheckExact(iter)) {
-        PyObject *yf = _PyGen_yf((PyGenObject*)iter);
+        PyObject *yf = Cix_PyGen_yf((PyGenObject*)iter);
         if (yf != NULL) {
             Py_DECREF(yf);
             Py_DECREF(iter);

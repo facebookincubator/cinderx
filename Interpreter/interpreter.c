@@ -18,6 +18,8 @@
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/static_array.h"
 
+#include "cinderx/UpstreamBorrow/borrowed.h"
+
 PyObject *Ci_GetAIter(PyThreadState *tstate, PyObject *obj) {
     unaryfunc getter = NULL;
     PyObject *iter = NULL;
@@ -1213,7 +1215,7 @@ main_loop:
             Py_DECREF(iterable);
 
             if (iter != NULL && PyCoro_CheckExact(iter)) {
-                PyObject *yf = _PyGen_yf((PyGenObject*)iter);
+                PyObject *yf = Cix_PyGen_yf((PyGenObject*)iter);
                 if (yf != NULL) {
                     /* `iter` is a coroutine object that is being
                        awaited, `yf` is a pointer to the current awaitable
