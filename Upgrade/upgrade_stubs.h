@@ -19,7 +19,7 @@ extern "C" {
 #define PY_OPCODES(X)
 
 /*
- * GC
+ * Parallel GC stuff T194027914. 
  */
 
 struct Ci_PyGCImpl;
