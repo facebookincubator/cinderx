@@ -194,25 +194,31 @@ gtd_new_inst(PyObject *type, PyObject **args, Py_ssize_t nargs)
      * be for PyHeapTypeObject's PyMemberDef's).  So we calculate the
      * size by hand.  This is currently fine as we don't support subclasses
      * of generic types. */
-    Py_ssize_t size = _Py_SIZE_ROUND_UP(
-        sizeof(_PyGenericTypeInst) + sizeof(_PyGenericTypeParam) * nargs,
-        SIZEOF_VOID_P);
-
+     Py_ssize_t extra_size = sizeof(_PyGenericTypeInst) + sizeof(_PyGenericTypeParam) * nargs;
+#if PY_VERSION_HEX < 0x030C0000
+    Py_ssize_t basicsize = _Py_SIZE_ROUND_UP(extra_size, SIZEOF_VOID_P);
     _PyGenericTypeInst *new_inst =
-        (_PyGenericTypeInst *)_PyObject_GC_Malloc(size);
+        (_PyGenericTypeInst *)_PyObject_GC_Malloc(basicsize);
     if (new_inst == NULL) {
         return NULL;
     }
 
-    _PyType_GenericTypeRef *gtr = NULL;
     PyObject_INIT_VAR(new_inst, &PyType_Type, 0);
 
-    /* We've allocated the heap on the type, mark it as a heap type. */
-
-    /* Copy the generic def into the instantiation */
     memset(((char *)new_inst) + sizeof(PyVarObject),
            0,
            sizeof(PyHeapTypeObject) - sizeof(PyObject));
+#else
+    _PyGenericTypeInst *new_inst = (_PyGenericTypeInst *)
+        PyUnstable_Object_GC_NewWithExtraData(&PyType_Type, extra_size);
+    if (new_inst == NULL) {
+        return NULL;
+    }
+#endif
+    // Note this must be set to NULL in case we jump to "error:".
+    _PyType_GenericTypeRef *gtr = NULL;
+
+    /* Copy the generic def into the instantiation */
     PyTypeObject *old_type = (PyTypeObject *)type;
     PyTypeObject *new_type = (PyTypeObject *)new_inst;
 #define COPY_DATA(name) new_type->name = old_type->name;
