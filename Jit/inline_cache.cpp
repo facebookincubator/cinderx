@@ -274,7 +274,7 @@ PyObject* DescrOrClassVarMutator::setAttr(
     return nullptr;
   }
   BorrowedRef<PyTypeObject> type(Py_TYPE(obj));
-  int st = _PyObjectDict_SetItem(type, dictptr, name, value);
+  int st = Cix_PyObjectDict_SetItem(type, dictptr, name, value);
   if (st < 0 && PyErr_ExceptionMatches(PyExc_KeyError)) {
     PyErr_SetObject(PyExc_AttributeError, name);
   }
@@ -570,7 +570,7 @@ StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
     return nullptr;
   }
 
-  int res = _PyObjectDict_SetItem(tp, dictptr, name, value);
+  int res = Cix_PyObjectDict_SetItem(tp, dictptr, name, value);
   if (descr != nullptr) {
     _PyType_ClearNoShadowingInstances(tp, descr);
   }

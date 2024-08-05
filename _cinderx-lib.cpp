@@ -26,6 +26,7 @@
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/_cinderx-lib.h"
 #include "internal/pycore_pystate.h"
 
@@ -536,6 +537,9 @@ static int cinderx_type_watcher(PyTypeObject* type) {
 }
 
 static int cinder_init() {
+  if (init_upstream_borrow() < 0) {
+    return -1;
+  }
 #if PY_VERSION_HEX < 0x030C0000
   Ci_hook_type_destroyed = _PyJIT_TypeDestroyed;
   Ci_hook_type_name_modified = _PyJIT_TypeNameModified;

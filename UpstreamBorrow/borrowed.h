@@ -16,7 +16,14 @@ PyObject*
 Cix_PyAsyncGenValueWrapperNew(PyObject *);
 
 int
+Cix_PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,
+                      PyObject *key, PyObject *value);
+
+int
 Cix_set_attribute_error_context(PyObject *v, PyObject *name);
+
+
+int init_upstream_borrow(void);
 
 #ifdef __cplusplus
 } // extern "C"

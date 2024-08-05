@@ -14,3 +14,4 @@ done
 
 # Check for dynamic linking errors which may only occur when loading the module
 buck2 run -c cinderx.use_3_12=true fbcode//cinderx:python -- -c 'import cinderx'
+buck2 run @//mode/opt -c cinderx.use_3_12=true fbcode//cinderx:python -- -c 'import cinderx'

@@ -12,9 +12,6 @@ extern "C" {
 #endif
 
 // dictobject.c
-int
-_PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,
-                      PyObject *key, PyObject *value);
 void
 _PyDictKeys_DecRef(PyDictKeysObject *keys);
 PyObject *

@@ -1409,7 +1409,7 @@ class StoreAttrCacheTests(unittest.TestCase):
         obj.quox = 42
 
         # obj1 is no longer split, but the assignment
-        # didn't go through _PyObjectDict_SetItem, so the type
+        # didn't go through Cix_PyObjectDict_SetItem, so the type
         # still has a valid CACHED_KEYS
         obj1 = Base()
         obj1.__dict__["other"] = 100

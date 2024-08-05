@@ -6,8 +6,7 @@
 
 #include "cinderx/Common/string.h"
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
-
+#include "cinderx/UpstreamBorrow/borrowed.h"
 /* fb t46346203 */
 
 typedef struct {
@@ -290,7 +289,7 @@ cached_property_get(PyObject *self, PyObject *obj, PyObject *cls)
             return NULL;
         }
 
-        if (_PyObjectDict_SetItem(Py_TYPE(obj), _PyObject_GetDictPtr(obj), cp->name_or_descr, res)) {
+        if (Cix_PyObjectDict_SetItem(Py_TYPE(obj), _PyObject_GetDictPtr(obj), cp->name_or_descr, res)) {
             Py_DECREF(res);
             return NULL;
         }
@@ -317,7 +316,7 @@ cached_property_set(PyObject *self, PyObject *obj, PyObject *value)
         return -1;
     }
 
-    return _PyObjectDict_SetItem(Py_TYPE(obj), dictptr, cp->name_or_descr, value);
+    return Cix_PyObjectDict_SetItem(Py_TYPE(obj), dictptr, cp->name_or_descr, value);
 }
 
 static void
@@ -388,7 +387,7 @@ cached_property_clear(PyCachedPropertyDescrObject *self, PyObject *obj)
         return NULL;
     }
 
-    if (_PyObjectDict_SetItem(Py_TYPE(obj), dictptr, cp->name_or_descr, NULL) < 0) {
+    if (Cix_PyObjectDict_SetItem(Py_TYPE(obj), dictptr, cp->name_or_descr, NULL) < 0) {
         if (PyErr_ExceptionMatches(PyExc_KeyError)) {
             PyErr_Clear();
             Py_RETURN_NONE;
@@ -739,7 +738,7 @@ async_cached_property_set(PyObject *self, PyObject *obj, PyObject *value)
         return -1;
     }
 
-    return _PyObjectDict_SetItem(Py_TYPE(obj), dictptr, cp->name_or_descr, value);
+    return Cix_PyObjectDict_SetItem(Py_TYPE(obj), dictptr, cp->name_or_descr, value);
 }
 
 

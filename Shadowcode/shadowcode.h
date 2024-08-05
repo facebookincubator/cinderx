@@ -13,6 +13,7 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Interpreter/opcode.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <stdint.h>
 
@@ -594,7 +595,7 @@ _PyShadow_LoadAttrDictNoDescrMaybeError(_PyShadow_InstanceAttrEntry *entry,
                 (PyCachedPropertyDescrObject *)entry->value;
             PyObject *stack[1] = {owner};
             res = _PyObject_FastCall(cp->func, stack, 1);
-            if (res == NULL || _PyObjectDict_SetItem(Py_TYPE(owner),
+            if (res == NULL || Cix_PyObjectDict_SetItem(Py_TYPE(owner),
                                                     _PyObject_GetDictPtr(owner),
                                                     cp->name_or_descr,
                                                     res)) {
