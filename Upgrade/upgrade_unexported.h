@@ -12,8 +12,6 @@ extern "C" {
 #endif
 
 // dictobject.c
-void
-_PyDictKeys_DecRef(PyDictKeysObject *keys);
 PyObject *
 _PyDict_LoadGlobal(PyDictObject *globals, PyDictObject *builtins, PyObject *key);
 

@@ -95,7 +95,6 @@ STUB(PyObject*, Ci_PyFunction_CallStatic, T190615535, PyFunctionObject *func, Py
     UPGRADE_ASSERT(Hit stubbed function: func); \
   }
 
-STUB_WEAK(void, _PyDictKeys_DecRef, PyDictKeysObject*)
 STUB_WEAK(PyObject*, _PyDict_LoadGlobal, PyDictObject*, PyDictObject*, PyObject*)
 STUB_WEAK(PyObject*, _PyTuple_FromArray, PyObject * const*, Py_ssize_t)
 STUB_WEAK(static_builtin_state*, _PyStaticType_GetState, PyInterpreterState *, PyTypeObject *)
