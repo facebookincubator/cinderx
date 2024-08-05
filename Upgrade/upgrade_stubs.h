@@ -277,7 +277,6 @@ typedef CiStackWalkDirective (*CiWalkAsyncStackCallback)(void *data,
  * Misc
  */
 
-int Ci_set_attribute_error_context(PyObject *v, PyObject *name);
 void _PyType_ClearNoShadowingInstances(struct _typeobject *, PyObject *obj);
 int PyUnstable_PerfTrampoline_CompileCode(PyCodeObject *);
 int PyUnstable_PerfTrampoline_SetPersistAfterFork(int enable);

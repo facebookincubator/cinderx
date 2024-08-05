@@ -12,3 +12,11 @@
 
 #define _PyGen_yf Cix_PyGen_yf
 // @Borrow function _PyGen_yf from Objects/genobject.c
+
+// @Borrow function set_attribute_error_context from Objects/object.c
+
+// Wrapper as set_attribute_error_context is declared "static inline".
+int
+Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
+    return set_attribute_error_context(v, name);
+}

@@ -59,9 +59,6 @@ STUB(PyObject*, _PyDict_GetItem_UnicodeExact, T196879402, PyObject*, PyObject*)
 // Only used by Strict Modules (we added it)
 STUB(int, PyDict_NextKeepLazy, T196879402, PyObject*, Py_ssize_t*, PyObject**, PyObject**)
 
-// Actually a Cix
-STUB(int, Ci_set_attribute_error_context, T???, PyObject*, PyObject*)
-
 STUB(void, _PyType_ClearNoShadowingInstances, T197103405, struct _typeobject *, PyObject*)
 
 // Needs back-porting from 3.13

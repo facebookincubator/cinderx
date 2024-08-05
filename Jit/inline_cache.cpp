@@ -8,6 +8,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include "cinderx/Jit/containers.h"
 
@@ -103,7 +104,7 @@ PyObject* __attribute__((noinline)) raise_attribute_error(
       "'%.50s' object has no attribute '%U'",
       Py_TYPE(obj)->tp_name,
       name);
-  Ci_set_attribute_error_context(obj, name);
+  Cix_set_attribute_error_context(obj, name);
   return nullptr;
 }
 

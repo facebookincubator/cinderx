@@ -11,6 +11,9 @@ extern "C" {
 PyObject *
 Cix_PyGen_yf(PyGenObject *gen);
 
+int
+Cix_set_attribute_error_context(PyObject *v, PyObject *name);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
