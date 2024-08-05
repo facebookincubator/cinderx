@@ -90,7 +90,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 0) {
-    v6 = CallCFunc<_PyCoro_GetAwaitableIter> v2
+    v6 = CallCFunc<Cix_PyCoro_GetAwaitableIter> v2
     v6 = CheckExc v6 {
       FrameState {
         NextInstrOffset 8
@@ -1061,7 +1061,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v5 = CallCFunc<_PyCoro_GetAwaitableIter> v4
+    v5 = CallCFunc<Cix_PyCoro_GetAwaitableIter> v4
     v5 = CheckExc v5 {
       FrameState {
         NextInstrOffset 12

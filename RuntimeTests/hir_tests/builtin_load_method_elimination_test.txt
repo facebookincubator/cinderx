@@ -228,7 +228,7 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 0) {
-    v20:OptObject = CallCFunc<_PyCoro_GetAwaitableIter> v15
+    v20:OptObject = CallCFunc<Cix_PyCoro_GetAwaitableIter> v15
     v21:Object = CheckExc v20 {
       FrameState {
         NextInstrOffset 8

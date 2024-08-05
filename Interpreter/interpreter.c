@@ -86,7 +86,7 @@ PyObject *Ci_GetANext(PyThreadState *tstate, PyObject *aiter) {
             return NULL;
         }
 
-        awaitable = _PyCoro_GetAwaitableIter(next_iter);
+        awaitable = Cix_PyCoro_GetAwaitableIter(next_iter);
         if (awaitable == NULL) {
             _PyErr_FormatFromCause(
                 PyExc_TypeError,
@@ -1200,7 +1200,7 @@ main_loop:
         case TARGET(GET_AWAITABLE): {
             PREDICTED(GET_AWAITABLE);
             PyObject *iterable = TOP();
-            PyObject *iter = _PyCoro_GetAwaitableIter(iterable);
+            PyObject *iter = Cix_PyCoro_GetAwaitableIter(iterable);
 
             if (iter == NULL) {
                 int opcode_at_minus_3 = 0;

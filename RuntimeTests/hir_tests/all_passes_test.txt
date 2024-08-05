@@ -246,7 +246,7 @@ fun jittestmodule:test {
         Locals<1> v14
       }
     }
-    v24:OptObject = CallCFunc<_PyCoro_GetAwaitableIter> v19
+    v24:OptObject = CallCFunc<Cix_PyCoro_GetAwaitableIter> v19
     Decref v19
     v25:Object = CheckExc v24 {
       LiveValues<2> b:v14 o:v24

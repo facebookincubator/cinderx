@@ -3457,11 +3457,11 @@ void HIRBuilder::emitGetAwaitable(
   Register* iterable = stack.pop();
   Register* iter = temps_.AllocateStack();
 
-  // Most work is done by existing _PyCoro_GetAwaitableIter() utility.
+  // Most work is done by existing Cix_PyCoro_GetAwaitableIter() utility.
   tc.emit<CallCFunc>(
       1,
       iter,
-      CallCFunc::Func::k_PyCoro_GetAwaitableIter,
+      CallCFunc::Func::kCix_PyCoro_GetAwaitableIter,
       std::vector<Register*>{iterable});
 
   auto [error_aenter, error_aexit] = checkAsyncWithError(bc_instrs, idx);

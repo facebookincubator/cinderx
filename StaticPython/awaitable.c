@@ -40,7 +40,7 @@ awaitable_dealloc(_PyClassLoader_Awaitable *self)
 
 static PyObject *
 awaitable_get_iter(_PyClassLoader_Awaitable *self) {
-    PyObject *iter = _PyCoro_GetAwaitableIter(self->coro);
+    PyObject *iter = Cix_PyCoro_GetAwaitableIter(self->coro);
     if (iter == NULL) {
         return NULL;
     }
