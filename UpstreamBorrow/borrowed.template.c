@@ -114,6 +114,20 @@ Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
     return set_attribute_error_context(v, name);
 }
 
+#if PY_VERSION_HEX >= 0x030C0000
+// Internal dependencies for _PyTuple_FromArray.
+// Unfortunately these macros can't be borrowed by pulling in the CPP
+// directives as they are #undef'd after use.
+#define STATE (interp->tuple)
+#define FREELIST_FINALIZED (STATE.numfree[0] < 0)
+// @Borrow function maybe_freelist_pop from Objects/tupleobject.c [3.12]
+// @Borrow function tuple_get_empty from Objects/tupleobject.c [3.12]
+// @Borrow function tuple_alloc from Objects/tupleobject.c [3.12]
+// End internal dependencies for _PyTuple_FromArray.
+#define _PyTuple_FromArray Cix_PyTuple_FromArray
+// @Borrow function _PyTuple_FromArray from Objects/tupleobject.c [3.12]
+#endif
+
 int init_upstream_borrow(void) {
     PyObject *empty_dict = PyDict_New();
     if (empty_dict == NULL) {

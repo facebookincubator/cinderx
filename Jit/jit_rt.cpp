@@ -75,7 +75,7 @@ static int JITRT_BindKeywordArgs(
 
   // Pack other positional arguments into the *args argument
   if (co->co_flags & CO_VARARGS) {
-    varargs = Ref<>::steal(_PyTuple_FromArray(args + n, argcount - n));
+    varargs = Ref<>::steal(Cix_PyTuple_FromArray(args + n, argcount - n));
     if (varargs == nullptr) {
       return 0;
     }

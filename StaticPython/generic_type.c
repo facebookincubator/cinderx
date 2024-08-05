@@ -7,8 +7,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
-
-#include "pycore_tuple.h" // _PyTuple_FromArray
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
@@ -382,7 +381,7 @@ _PyClassLoader_GetGenericInst(PyObject *type,
         if (nargs == 1) {
             res = PyObject_GetItem(type, args[0]);
         } else {
-            PyObject *argstuple = _PyTuple_FromArray(args, nargs);
+            PyObject *argstuple = Cix_PyTuple_FromArray(args, nargs);
             if (argstuple == NULL) {
                 Py_DECREF(key);
                 return NULL;

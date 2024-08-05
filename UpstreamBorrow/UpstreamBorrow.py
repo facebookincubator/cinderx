@@ -18,7 +18,7 @@ from clang.cindex import (
 T_COMPILATION_DB = list[dict[str, str | list[str]]]
 
 BORROW_CPP_DIRECTIVES_PATTERN: re.Pattern[str] = re.compile(
-    r".*// @Borrow CPP directives from (\S+)"
+    r".*// @Borrow CPP directives from (\S+)(?: \[(.*?)\])?"
 )
 BORROW_DECL_PATTERN: re.Pattern[str] = re.compile(
     r"// @Borrow (function|typedef) (\S+) from (\S+)(?: \[(.*?)\])?"
@@ -132,6 +132,13 @@ def extract_declaration(
     raise Exception(f"Could not find {kind} for '{name}' in {parsed_file.source_file}")
 
 
+def parse_version_set(input_string: str | None) -> set[str]:
+    if input_string:
+        return {v.strip() for v in input_string.split(",")}
+    else:
+        return set()
+
+
 def parse_borrow_info(
     input_string: str,
 ) -> tuple[CursorKind, str, str, set[str]] | None:
@@ -139,7 +146,7 @@ def parse_borrow_info(
         kind_str = match.group(1)
         function_name = match.group(2)
         source_file = match.group(3)
-        versions = match.group(4)
+        version_set = parse_version_set(match.group(4))
 
         if kind_str == "function":
             # pyre-ignore[16]: `CursorKind` has no attribute `FUNCTION_DECL`.
@@ -149,11 +156,6 @@ def parse_borrow_info(
             kind = CursorKind.TYPEDEF_DECL
         else:
             raise Exception(f"Unknown kind: {kind_str}")
-
-        if versions:
-            version_set = {v.strip() for v in versions.split(",")}
-        else:
-            version_set = set()
 
         return kind, function_name, source_file, version_set
     else:
@@ -174,7 +176,10 @@ def process_file(
     def extract(
         extractor_func: Callable[[ParsedFile], list[str]],
         source_file: str,
+        version_set: set[str],
     ) -> list[str]:
+        if len(version_set) != 0 and version not in version_set:
+            return []
         if parsed_files.get(source_file) is None:
             parsed_files[source_file] = ParsedFile(source_file, compile_commands_db)
         return extractor_func(parsed_files[source_file])
@@ -187,12 +192,19 @@ def process_file(
             kind, name, source_file, version_set = match
             if len(version_set) == 0 or version in version_set:
                 output_lines.extend(
-                    extract(partial(extract_declaration, name, kind), source_file)
+                    extract(
+                        partial(extract_declaration, name, kind),
+                        source_file,
+                        version_set,
+                    )
                 )
 
         elif match := BORROW_CPP_DIRECTIVES_PATTERN.match(line):
             source_file = match.group(1)
-            output_lines.extend(extract(extract_preprocessor_directives, source_file))
+            version_set = parse_version_set(match.group(2))
+            output_lines.extend(
+                extract(extract_preprocessor_directives, source_file, version_set)
+            )
 
         else:
             output_lines.append(line)

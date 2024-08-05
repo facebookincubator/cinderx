@@ -13,7 +13,6 @@
 #include "object.h"
 #include "pycore_call.h"
 #include "pycore_object.h"
-#include "pycore_tuple.h"
 #include "pyerrors.h"
 #include "pyport.h"
 #include "structmember.h"
@@ -29,6 +28,7 @@
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/vtable_builder.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 #include "strictmoduleobject.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
@@ -1437,7 +1437,7 @@ static PyObject* _static___build_cinder_class__(
       call_args[nargs - extra_args + cur] = value;
       call_names[cur++] = key;
     }
-    call_names_tuple = _PyTuple_FromArray(call_names, kwarg_count);
+    call_names_tuple = Cix_PyTuple_FromArray(call_names, kwarg_count);
     if (call_names_tuple == NULL) {
       goto error;
     }

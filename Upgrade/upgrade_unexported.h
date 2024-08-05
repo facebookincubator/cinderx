@@ -11,9 +11,6 @@
 extern "C" {
 #endif
 
-// pycore_tuple.h
-PyObject* _PyTuple_FromArray(PyObject *const *, Py_ssize_t);
-
 // pycore_typeobject.h
 static_builtin_state* _PyStaticType_GetState(PyInterpreterState *, PyTypeObject *);
 
