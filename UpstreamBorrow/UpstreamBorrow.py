@@ -236,12 +236,18 @@ def main(
         compile_commands_db: T_COMPILATION_DB = json.load(f)
 
     llvm_driver_example = compile_commands_db[0]["arguments"][1]
-    assert llvm_driver_example.startswith(
-        "--cc=fbcode/third-party-buck/platform010/build/llvm-fb/"
+    m = re.match(
+        r"--cc=fbcode/third-party-buck/platform(\d+)/build/llvm-fb/(\d+)/",
+        llvm_driver_example,
     )
-    llvm_lib_path = (
-        "/".join(llvm_driver_example[len("--cc=") :].split("/")[:-2])
-    ) + "/lib"
+    if not m:
+        raise Exception(f"Could not find LLVM version in {llvm_driver_example}")
+    platform_version = m.group(1)
+    llvm_version = int(m.group(2))
+    # LLVM prior to 17 (specifically 15) seems to have a bug which slightly
+    # breaks parsing of some files.
+    llvm_version = max(llvm_version, 17)
+    llvm_lib_path = f"fbcode/third-party-buck/platform{platform_version}/build/llvm-fb/{llvm_version}/lib"
     print(f"Setting LLVM library path to: {llvm_lib_path}")
     Config.set_library_path(llvm_lib_path)
     process_file(source_file, output_file, compile_commands_db, version)
