@@ -29,15 +29,6 @@ class Set:
         c.elts.update(self.elts)
         return c
 
-
-class Stack(list):
-    def push(self, elt):
-        self.append(elt)
-
-    def top(self):
-        return self[-1]
-
-
 MANGLE_LEN = 256  # magic constant from compile.c
 
 

@@ -259,7 +259,7 @@ class CodeGenerator(ASTVisitor):
         self.symbols = symbols
         self.graph = graph
         self.scopes = symbols.scopes
-        self.setups = misc.Stack()
+        self.setups: list[Entry] = []
         self.last_lineno = None
         self._setupGraphDelegation()
         self.interactive = False
@@ -730,7 +730,7 @@ class CodeGenerator(ASTVisitor):
         self.nextBlock(after)
 
     def push_loop(self, kind, start, end):
-        self.setups.push(Entry(kind, start, end, None))
+        self.setups.append(Entry(kind, start, end, None))
 
     def pop_loop(self):
         self.setups.pop()
@@ -769,7 +769,7 @@ class CodeGenerator(ASTVisitor):
 
         self.nextBlock(start)
 
-        self.setups.push(Entry(FOR_LOOP, start, end, None))
+        self.setups.append(Entry(FOR_LOOP, start, end, None))
         self.emit("SETUP_FINALLY", except_)
         self.emit("GET_ANEXT")
         self.emit("LOAD_CONST", None)
@@ -1253,14 +1253,14 @@ class CodeGenerator(ASTVisitor):
         self.emit("SETUP_FINALLY", except_)
         self.nextBlock(body)
 
-        self.setups.push(Entry(TRY_EXCEPT, body, None, None))
+        self.setups.append(Entry(TRY_EXCEPT, body, None, None))
         self.visitStatements(node.body)
         self.setups.pop()
         self.set_no_lineno()
         self.emit("POP_BLOCK")
         self.emit("JUMP_FORWARD", orElse)
         self.nextBlock(except_)
-        self.setups.push(Entry(EXCEPTION_HANDLER, None, None, None))
+        self.setups.append(Entry(EXCEPTION_HANDLER, None, None, None))
 
         last = len(node.handlers) - 1
         for i in range(len(node.handlers)):
@@ -1292,7 +1292,7 @@ class CodeGenerator(ASTVisitor):
 
                 self.emit("SETUP_FINALLY", cleanup_end)
                 self.nextBlock(cleanup_body)
-                self.setups.push(
+                self.setups.append(
                     Entry(HANDLER_CLEANUP, cleanup_body, cleanup_end, target)
                 )
                 self.visit(body)
@@ -1319,7 +1319,7 @@ class CodeGenerator(ASTVisitor):
                 self.emit("POP_TOP")
                 self.emit("POP_TOP")
                 self.nextBlock(cleanup_body)
-                self.setups.push(Entry(HANDLER_CLEANUP, cleanup_body, None, None))
+                self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, None))
                 self.visit(body)
                 self.setups.pop()
                 self.set_no_lineno()
@@ -1364,7 +1364,7 @@ class CodeGenerator(ASTVisitor):
         self.emit("SETUP_FINALLY", end)
 
         self.nextBlock(body)
-        self.setups.push(Entry(FINALLY_TRY, body, end, finalbody))
+        self.setups.append(Entry(FINALLY_TRY, body, end, finalbody))
         try_body()
         self.emit_noline("POP_BLOCK")
         self.setups.pop()
@@ -1372,7 +1372,7 @@ class CodeGenerator(ASTVisitor):
         self.emit_noline("JUMP_FORWARD", exit_)
 
         self.nextBlock(end)
-        self.setups.push(Entry(FINALLY_END, end, None, None))
+        self.setups.append(Entry(FINALLY_END, end, None, None))
         finalbody()
         self.setups.pop()
         self.emit("RERAISE", 0)
@@ -1402,7 +1402,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("SETUP_WITH", finally_)
 
         self.nextBlock(block)
-        self.setups.push(Entry(kind, block, finally_, node))
+        self.setups.append(Entry(kind, block, finally_, node))
         if item.optional_vars:
             self.visit(item.optional_vars)
         else:
@@ -2753,7 +2753,7 @@ class CodeGenerator(ASTVisitor):
         elif e.kind == FINALLY_TRY:
             self.emit("POP_BLOCK")
             if preserve_tos:
-                self.setups.push(Entry(POP_VALUE, None, None, None))
+                self.setups.append(Entry(POP_VALUE, None, None, None))
             assert callable(e.unwinding_datum)
             e.unwinding_datum()
             if preserve_tos:
@@ -2817,7 +2817,7 @@ class CodeGenerator(ASTVisitor):
         copy = self.setups.pop()
         self.unwind_setup_entry(copy, preserve_tos)
         loop = self.unwind_setup_entries(preserve_tos, stop_on_loop)
-        self.setups.push(copy)
+        self.setups.append(copy)
         return loop
 
     @property
