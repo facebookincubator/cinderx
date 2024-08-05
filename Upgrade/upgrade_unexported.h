@@ -11,10 +11,6 @@
 extern "C" {
 #endif
 
-// dictobject.c
-PyObject *
-_PyDict_LoadGlobal(PyDictObject *globals, PyDictObject *builtins, PyObject *key);
-
 // pycore_tuple.h
 PyObject* _PyTuple_FromArray(PyObject *const *, Py_ssize_t);
 

@@ -11,6 +11,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/StaticPython/classloader.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 #include "frameobject.h"
 #include "listobject.h"
 #include "object.h"
@@ -633,7 +634,7 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
 PyObject*
 JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
   PyObject* result =
-      _PyDict_LoadGlobal((PyDictObject*)globals, (PyDictObject*)builtins, name);
+      Cix_PyDict_LoadGlobal((PyDictObject*)globals, (PyDictObject*)builtins, name);
   if ((result == nullptr) && !PyErr_Occurred()) {
     // name is converted to a `char*` by format_exc_check_arg
     Cix_format_exc_check_arg(

@@ -103,6 +103,9 @@ static PyDictKeysObject *Py_EMPTY_KEYS = NULL;
 #define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
 // @Borrow function _PyObjectDict_SetItem from Objects/dictobject.c
 
+#define _PyDict_LoadGlobal Cix_PyDict_LoadGlobal
+// @Borrow function _PyDict_LoadGlobal from Objects/dictobject.c
+
 // @Borrow function set_attribute_error_context from Objects/object.c
 
 // Wrapper as set_attribute_error_context is declared "static inline".

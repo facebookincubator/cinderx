@@ -15,6 +15,9 @@ Cix_PyCoro_GetAwaitableIter(PyObject *o);
 PyObject*
 Cix_PyAsyncGenValueWrapperNew(PyObject *);
 
+PyObject *
+Cix_PyDict_LoadGlobal(PyDictObject *globals, PyDictObject *builtins, PyObject *key);
+
 int
 Cix_PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,
                       PyObject *key, PyObject *value);

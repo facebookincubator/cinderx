@@ -1637,12 +1637,12 @@ main_loop:
             if (PyDict_CheckExact(f->f_globals)) {
                 assert(PyDict_CheckExact(f->f_builtins));
                 name = GETITEM(names, oparg);
-                v = _PyDict_LoadGlobal((PyDictObject *)f->f_globals,
+                v = Cix_PyDict_LoadGlobal((PyDictObject *)f->f_globals,
                                        (PyDictObject *)f->f_builtins,
                                        name);
                 if (v == NULL) {
                     if (!_PyErr_Occurred(tstate)) {
-                        /* _PyDict_LoadGlobal() returns NULL without raising
+                        /* Cix_PyDict_LoadGlobal() returns NULL without raising
                          * an exception if the key doesn't exist */
                         format_exc_check_arg(tstate, PyExc_NameError,
                                              NAME_ERROR_MSG, name);
@@ -2968,12 +2968,12 @@ main_loop:
 
             if (v == NULL) {
                 name = _PyShadow_GetOriginalName(&shadow, next_instr);
-                v = _PyDict_LoadGlobal((PyDictObject *)f->f_globals,
+                v = Cix_PyDict_LoadGlobal((PyDictObject *)f->f_globals,
                                        (PyDictObject *)f->f_builtins,
                                        name);
                 if (v == NULL) {
                     if (!PyErr_Occurred()) {
-                        /* _PyDict_LoadGlobal() returns NULL without raising
+                        /* Cix_PyDict_LoadGlobal() returns NULL without raising
                          * an exception if the key doesn't exist */
                         format_exc_check_arg(
                             tstate, PyExc_NameError, NAME_ERROR_MSG, name);
