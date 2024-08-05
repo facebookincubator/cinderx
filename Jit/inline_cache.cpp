@@ -23,7 +23,6 @@
 #endif
 #include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 #include "internal/pycore_pystate.h"
 #include "internal/pycore_object.h"
 #include "structmember.h"

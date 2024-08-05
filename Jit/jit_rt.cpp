@@ -35,7 +35,6 @@
 #endif
 
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "cinderx/Upgrade/upgrade_unexported.h" // @donotremove
 
 // This is mostly taken from ceval.c _PyEval_EvalCodeWithName
 // We use the same logic to turn **args, nargsf, and kwnames into

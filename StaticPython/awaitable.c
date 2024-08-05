@@ -6,8 +6,6 @@
 
 #include "cinderx/Common/string.h"
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
-
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include "structmember.h"

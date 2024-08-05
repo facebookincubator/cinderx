@@ -4,7 +4,6 @@
 #include <Python.h>
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-#include "cinderx/Upgrade/upgrade_unexported.h"  // @donotremove
 #include "cinderx/Interpreter/interpreter.h"
 
 #define STUB(ret, func, task, args...) ret func(args) { \
@@ -81,10 +80,6 @@ STUB(PyObject*, Ci_EvalFrame, T190615535, PyThreadState*, PyFrameObject*, int)
 STUB(PyObject*, Ci_StaticFunction_Vectorcall, T190615535, PyObject *func, PyObject* const* stack, size_t nargsf, PyObject *kwnames)
 STUB(PyObject*, Ci_PyFunction_CallStatic, T190615535, PyFunctionObject *func, PyObject* const* args, Py_ssize_t nargsf, PyObject *kwnames)
 
-
-/*
- * From upgrade_unexported.h
- */
 
 // These functions are all not exported so they are unavailable when libpython
 // is dynamically linked. However, they are available if linking is static, as
