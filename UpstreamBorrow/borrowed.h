@@ -4,6 +4,10 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030C0000
+#include "pycore_typeobject.h"
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -33,6 +37,9 @@ PyObject* Cix_PyTuple_FromArray(PyObject *const *, Py_ssize_t);
 #define Cix_PyTuple_FromArray _PyTuple_FromArray
 #endif
 
+#if PY_VERSION_HEX >= 0x030C0000
+static_builtin_state* Cix_PyStaticType_GetState(PyInterpreterState *, PyTypeObject *);
+#endif
 
 int init_upstream_borrow(void);
 

@@ -11,9 +11,6 @@
 extern "C" {
 #endif
 
-// pycore_typeobject.h
-static_builtin_state* _PyStaticType_GetState(PyInterpreterState *, PyTypeObject *);
-
 // pycore_unionobject.h
 PyObject *_Py_union_type_or(PyObject *, PyObject *);
 

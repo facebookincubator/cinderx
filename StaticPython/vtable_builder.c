@@ -30,6 +30,7 @@
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable_defs.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 
@@ -1257,7 +1258,7 @@ static PyObject *get_tp_subclasses(PyTypeObject *self) {
 #if PY_VERSION_HEX >= 0x030C0000
    if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
     PyInterpreterState *interp = _PyInterpreterState_GET();
-    static_builtin_state *state = _PyStaticType_GetState(interp, self);
+    static_builtin_state *state = Cix_PyStaticType_GetState(interp, self);
     subclasses_addr = (PyObject**)&state->tp_subclasses;
    }
 #endif

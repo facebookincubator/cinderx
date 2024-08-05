@@ -128,6 +128,24 @@ Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
 // @Borrow function _PyTuple_FromArray from Objects/tupleobject.c [3.12]
 #endif
 
+// Internal dependencies for _PyStaticType_GetState.
+// @Borrow function static_builtin_index_is_set from Objects/typeobject.c [3.12]
+// @Borrow function static_builtin_index_get from Objects/typeobject.c [3.12]
+// @Borrow function static_builtin_state_get from Objects/typeobject.c [3.12]
+// End internal dependencies.
+#if PY_VERSION_HEX >= 0x030C0000
+// Include _PyStaticType_GetState with its original name but weakly as we use
+// some static inline functions from CPython headers which depend on this.
+__attribute__((weak))
+#endif
+// @Borrow function _PyStaticType_GetState from Objects/typeobject.c [3.12]
+#if PY_VERSION_HEX >= 0x030C0000
+static_builtin_state* Cix_PyStaticType_GetState(PyInterpreterState *interp, PyTypeObject *self) {
+    return _PyStaticType_GetState(interp, self);
+}
+#endif
+
+
 int init_upstream_borrow(void) {
     PyObject *empty_dict = PyDict_New();
     if (empty_dict == NULL) {
