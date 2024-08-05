@@ -188,8 +188,8 @@ class SlotsWithDefaultTests(StaticTestBase):
             x: int = 1
         """
         with self.in_module(codestr) as mod:
-            with self.assertRaisesRegex(
-                TypeError, "Cannot assign a str, because C.x is expected to be a int"
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Overriding property C.x with str when expected to be a int."
             ):
                 mod.C.x = "A"
 
@@ -608,9 +608,9 @@ class SlotsWithDefaultTests(StaticTestBase):
             return c.x
         """
         with self.in_module(codestr, enable_patching=True) as mod:
-            with self.assertRaisesRegex(
-                TypeError,
-                "Cannot assign a MagicMock, because C.x is expected to be a int",
+            with self.assertWarnsRegex(
+                RuntimeWarning,
+                "Overriding property C.x with MagicMock when expected to be a int."
             ), patch(f"{mod.__name__}.C.x", return_value=1) as mock:
                 c = mod.C()
 

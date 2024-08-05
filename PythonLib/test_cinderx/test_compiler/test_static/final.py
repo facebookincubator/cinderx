@@ -736,8 +736,8 @@ class FinalTests(StaticTestBase):
                 return 0
         """
         with self.in_module(codestr) as mod:
-            with self.assertRaisesRegex(
-                TypeError, r"'foo' overrides a final method in the static base class"
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Overriding final method `foo` by adding override to type `D`, overridden method may be ignored."
             ):
 
                 class D(mod.C):

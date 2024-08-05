@@ -722,7 +722,6 @@ int populate_getter_and_setter(
 
   PyObject* getter_tuple = get_property_getter_descr_tuple(name);
   PyObject* setter_tuple = get_property_setter_descr_tuple(name);
-
   int result = 0;
   if (_PyClassLoader_UpdateSlot(type, (PyObject*)getter_tuple, getter_value)) {
     result = -1;
@@ -779,8 +778,9 @@ static int check_if_final_method_overridden(
     return 0;
   }
   if (!PyTuple_Check(final_method_names)) {
-    PyErr_Format(
-        CiExc_StaticTypeError,
+    PyErr_WarnFormat(
+        PyExc_RuntimeWarning,
+        1,
         "The __final_method_names__ slot for type %R is not a tuple.",
         final_method_names);
     Py_DECREF(final_method_names);
@@ -793,15 +793,17 @@ static int check_if_final_method_overridden(
         PyTuple_GET_ITEM(final_method_names, final_method_index);
     int compare_result = PyUnicode_Compare(name, current_final_method_name);
     if (compare_result == 0) {
-      PyErr_Format(
-          CiExc_StaticTypeError,
-          "%R overrides a final method in the static base class %R",
-          name,
-          base_type);
       Py_DECREF(final_method_names);
       return -1;
     } else if (compare_result == -1 && PyErr_Occurred()) {
       Py_DECREF(final_method_names);
+      PyErr_Clear();
+      PyErr_WarnFormat(
+        PyExc_RuntimeWarning,
+        1,
+        "Comparison with final method %R failed (%U)",
+        name,
+        current_final_method_name);
       return -1;
     }
   }
@@ -933,9 +935,16 @@ int _PyClassLoader_UpdateSlot(
   /* This check needs to be happen before we look into the vtable, as non-static
      subclasses of static classes won't necessarily have vtables already
      constructed. */
-  if (check_if_final_method_overridden(type, name)) {
-    return -1;
+  if (PyUnicode_Check(name) && check_if_final_method_overridden(type, name)) {
+    PyErr_WarnFormat(
+      PyExc_RuntimeWarning,
+      1,
+      "Overriding final method `%U` by adding override to type `%s`, overridden method may be ignored.",
+      name,
+      type->tp_name
+    );
   }
+
   _PyType_VTable* vtable = (_PyType_VTable*)type->tp_cache;
   if (vtable == NULL) {
     return 0;
@@ -1003,16 +1012,14 @@ int _PyClassLoader_UpdateSlot(
       if (new_value_type->tp_descr_get == NULL &&
           !_PyObject_TypeCheckOptional(
               new_value, (PyTypeObject*)cur_type, cur_optional, cur_exact)) {
-        PyErr_Format(
-            CiExc_StaticTypeError,
-            "Cannot assign a %s, because %s.%U is expected to be a %s",
-            Py_TYPE(new_value)->tp_name,
+        PyErr_WarnFormat(
+          PyExc_RuntimeWarning,
+          1,
+          "Overriding property %s.%U with %s when expected to be a %s.",
             type->tp_name,
             name,
+            Py_TYPE(new_value)->tp_name,
             ((PyTypeObject*)cur_type)->tp_name);
-        Py_DECREF(cur_type);
-        Py_DECREF(original);
-        return -1;
       }
     }
     if (populate_getter_and_setter(type, name, new_value) < 0) {
@@ -1353,12 +1360,20 @@ static int track_dict(PyTypeObject *self) {
 // when a new entry is added to a types tp_subclasses.
 int _PyClassLoader_AddSubclass(PyTypeObject* base, PyTypeObject* type) {
   if (base->tp_cache == NULL) {
-    /* nop if base class vtable isn't initialized */
-    return 0;
+    // Even though the v-table isn't initialized we still need to
+    // track changes to the type's dict to report warnings about final
+    // member changes
+    if (track_subclasses(type) < 0 || track_dict(type) < 0) {
+      return -1;
+    }
   }
 
   _PyType_VTable* vtable = _PyClassLoader_EnsureVtable(type, 0);
   if (vtable == NULL) {
+    return -1;
+  }
+
+  if (track_subclasses(type) < 0 || track_dict(type) < 0) {
     return -1;
   }
   return 0;
@@ -1385,9 +1400,12 @@ int _PyClassLoader_CheckSubclassChange(PyDictObject* dict, PyDict_WatchEvent eve
     case PyDict_EVENT_MODIFIED:
     case PyDict_EVENT_DELETED: {
       if (PyUnicode_CheckExact(key) && dict_map != NULL) {
-        PyTypeObject *type = get_tracked_type(dict_map, dict);
+        PyTypeObject *type = (PyTypeObject*)get_tracked_type(dict_map, dict);
         if (type != NULL) {
-          return _PyClassLoader_InitTypeForPatching(type);
+          if ((type->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) && _PyClassLoader_InitTypeForPatching(type) < 0) {
+            return -1;
+          }
+          return _PyClassLoader_UpdateSlot(type, key, value);
         }
       }
       break;
@@ -1741,5 +1759,8 @@ error:
 
 int _PyClassLoader_SetTypeStatic(PyTypeObject *type) {
   type->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
+  if (track_subclasses(type) < 0) {
+    return -1;
+  }
   return track_dict(type);
 }

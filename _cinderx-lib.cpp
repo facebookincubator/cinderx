@@ -543,7 +543,6 @@ static int cinder_init() {
 #if PY_VERSION_HEX < 0x030C0000
   Ci_hook_type_destroyed = _PyJIT_TypeDestroyed;
   Ci_hook_type_name_modified = _PyJIT_TypeNameModified;
-  Ci_hook_type_setattr = _PyClassLoader_UpdateSlot;
   Ci_hook_JIT_GetFrame = _PyJIT_GetFrame;
   Ci_hook_PyCMethod_New = Ci_PyCMethod_New_METH_TYPED;
   Ci_hook_PyDescr_NewMethod = Ci_PyDescr_NewMethod_METH_TYPED;
@@ -657,7 +656,6 @@ static int cinder_fini() {
 
   Ci_hook_type_destroyed = nullptr;
   Ci_hook_type_name_modified = nullptr;
-  Ci_hook_type_setattr = nullptr;
   Ci_hook_JIT_GetFrame = nullptr;
   Ci_hook_PyDescr_NewMethod = nullptr;
   Ci_hook_WalkStack = nullptr;

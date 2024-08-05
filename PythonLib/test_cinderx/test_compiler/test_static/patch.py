@@ -1836,15 +1836,19 @@ class StaticPatchTests(StaticTestBase):
             def x(self) -> int:
                 return 3
 
+        def f(c: C) -> int:
+            return c.x
         """
         with self.in_strict_module(codestr, freeze=False) as mod:
-            with self.assertRaisesRegex(
-                TypeError, "Cannot assign a str, because C.x is expected to be a int"
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Overriding property C.x with str when expected to be a int."
             ):
                 setattr(mod.C, "x", "42")
 
-            # ensures that the value was not patched
-            self.assertEqual(mod.C().x, 3)
+            # value is patched, but users should get runtime error when accessing it.
+            self.assertEqual(mod.C().x, "42")
+            with self.assertRaises(TypeError):
+                mod.f(mod.C())
 
     def test_property_patch_with_good_type(self):
         codestr = """
@@ -1875,8 +1879,8 @@ class StaticPatchTests(StaticTestBase):
             return c.x
         """
         with self.in_strict_module(codestr, freeze=False) as mod:
-            with self.assertRaisesRegex(
-                TypeError, "Cannot assign a str, because C.x is expected to be a int"
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Overriding property C.x with str when expected to be a int."
             ):
                 setattr(mod.C, "x", "42")
 
@@ -2030,8 +2034,8 @@ class StaticPatchTests(StaticTestBase):
         """
         with self.in_strict_module(codestr, freeze=False) as mod:
 
-            with self.assertRaisesRegex(
-                TypeError, "Cannot assign a str, because C.x is expected to be a int"
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Overriding property C.x with str when expected to be a int."
             ):
                 setattr(mod.C, "x", "42")
 
