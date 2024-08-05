@@ -11,9 +11,6 @@
 extern "C" {
 #endif
 
-// genobject.c
-PyObject* _PyAsyncGenValueWrapperNew(PyThreadState *state, PyObject *);
-
 // dictobject.c
 int
 _PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,

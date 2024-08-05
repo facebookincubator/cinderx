@@ -12,6 +12,8 @@ PyObject *
 Cix_PyGen_yf(PyGenObject *gen);
 PyObject*
 Cix_PyCoro_GetAwaitableIter(PyObject *o);
+PyObject*
+Cix_PyAsyncGenValueWrapperNew(PyObject *);
 
 int
 Cix_set_attribute_error_context(PyObject *v, PyObject *name);

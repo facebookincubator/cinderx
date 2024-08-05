@@ -3416,8 +3416,8 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
     tc.emitChecked<CallCFunc>(
         1,
         out,
-        CallCFunc::Func::k_PyAsyncGenValueWrapperNew,
-        std::vector<Register*>{in});
+        CallCFunc::Func::kCix_PyAsyncGenValueWrapperNew,
+        std::vector<Register*>{in});      
     in = out;
     out = temps_.AllocateStack();
   }

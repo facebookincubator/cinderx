@@ -1297,7 +1297,7 @@ main_loop:
             retval = POP();
 
             if (co->co_flags & CO_ASYNC_GENERATOR) {
-                PyObject *w = _PyAsyncGenValueWrapperNew(retval);
+                PyObject *w = Cix_PyAsyncGenValueWrapperNew(retval);
                 Py_DECREF(retval);
                 if (w == NULL) {
                     retval = NULL;

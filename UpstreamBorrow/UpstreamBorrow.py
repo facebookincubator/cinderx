@@ -20,8 +20,8 @@ T_COMPILATION_DB = list[dict[str, str | list[str]]]
 BORROW_CPP_DIRECTIVES_PATTERN: re.Pattern[str] = re.compile(
     r".*// @Borrow CPP directives from (\S+)"
 )
-BORROW_FUNCTION_PATTERN: re.Pattern[str] = re.compile(
-    r"// @Borrow function (\S+) from (\S+)(?: \[(.*?)\])?"
+BORROW_DECL_PATTERN: re.Pattern[str] = re.compile(
+    r"// @Borrow (function|typedef) (\S+) from (\S+)(?: \[(.*?)\])?"
 )
 
 HEADER = """
@@ -112,38 +112,50 @@ def extract_preprocessor_directives(parsed_file: ParsedFile) -> list[str]:
     return directives
 
 
-def extract_function_body(function_name: str, parsed_file: ParsedFile) -> list[str]:
-    print(
-        f"Extracting function body for: {function_name} from {parsed_file.source_file}"
-    )
-    # Find the last "FUNCTION_DECL" as earlier ones might be forward
-    # declarations.
+def extract_declaration(
+    name: str, kind: CursorKind, parsed_file: ParsedFile
+) -> list[str]:
+    print(f"Extracting {kind} for '{name}' from {parsed_file.source_file}")
+    # Find the last declaration as earlier ones might be forward declarations.
     extent = None
     for cursor in parsed_file.translation_unit.cursor.walk_preorder():
-        # pyre-ignore[16]: `CursorKind` has no attribute `FUNCTION_DECL`.
-        if cursor.kind == CursorKind.FUNCTION_DECL and cursor.spelling == function_name:
+        if cursor.kind == kind and cursor.spelling == name:
             extent = cursor.extent
     if extent:
-        return parsed_file.file_content[extent.start.offset : extent.end.offset].split(
-            "\n"
-        )
-    raise Exception(
-        f"Could not find function {function_name} in {parsed_file.source_file}"
-    )
+        content = parsed_file.file_content[
+            extent.start.offset : extent.end.offset
+        ].split("\n")
+        # pyre-ignore[16]: `CursorKind` has no attribute `TYPEDEF_DECL`.
+        if kind == CursorKind.TYPEDEF_DECL:
+            content[-1] += ";"
+        return content
+    raise Exception(f"Could not find {kind} for '{name}' in {parsed_file.source_file}")
 
 
-def parse_borrow_info(input_string: str) -> tuple[str, str, set[str]] | None:
-    if match := BORROW_FUNCTION_PATTERN.match(input_string):
-        function_name = match.group(1)
-        source_file = match.group(2)
-        versions = match.group(3)
+def parse_borrow_info(
+    input_string: str,
+) -> tuple[CursorKind, str, str, set[str]] | None:
+    if match := BORROW_DECL_PATTERN.match(input_string):
+        kind_str = match.group(1)
+        function_name = match.group(2)
+        source_file = match.group(3)
+        versions = match.group(4)
+
+        if kind_str == "function":
+            # pyre-ignore[16]: `CursorKind` has no attribute `FUNCTION_DECL`.
+            kind = CursorKind.FUNCTION_DECL
+        elif kind_str == "typedef":
+            # pyre-ignore[16]: `CursorKind` has no attribute `TYPEDEF_DECL`.
+            kind = CursorKind.TYPEDEF_DECL
+        else:
+            raise Exception(f"Unknown kind: {kind_str}")
 
         if versions:
             version_set = {v.strip() for v in versions.split(",")}
         else:
             version_set = set()
 
-        return function_name, source_file, version_set
+        return kind, function_name, source_file, version_set
     else:
         return None
 
@@ -172,10 +184,10 @@ def process_file(
         line = line.rstrip()
 
         if match := parse_borrow_info(line):
-            function_name, source_file, version_set = match
+            kind, name, source_file, version_set = match
             if len(version_set) == 0 or version in version_set:
                 output_lines.extend(
-                    extract(partial(extract_function_body, function_name), source_file)
+                    extract(partial(extract_declaration, name, kind), source_file)
                 )
 
         elif match := BORROW_CPP_DIRECTIVES_PATTERN.match(line):
