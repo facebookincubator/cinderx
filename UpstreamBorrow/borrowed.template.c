@@ -98,6 +98,7 @@ static PyDictKeysObject *Py_EMPTY_KEYS = NULL;
 // @Borrow function dictkeys_incref from Objects/dictobject.c
 // @Borrow function new_dict from Objects/dictobject.c
 // @Borrow function new_dict_with_shared_keys from Objects/dictobject.c
+// @Borrow function dict_event_name from Objects/dictobject.c [3.12]
 // End internal dependencies.
 
 #define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
@@ -105,6 +106,16 @@ static PyDictKeysObject *Py_EMPTY_KEYS = NULL;
 
 #define _PyDict_LoadGlobal Cix_PyDict_LoadGlobal
 // @Borrow function _PyDict_LoadGlobal from Objects/dictobject.c
+
+
+#if PY_VERSION_HEX >= 0x030C0000
+// Include _PyDict_SendEvent with its original name but weakly as we use
+// some static inline functions from CPython headers which depend on this.
+__attribute__((weak))
+#endif
+// We do not rename to a Cix_ function as this is only used from static
+// inline functions in CPython headers.
+// @Borrow function _PyDict_SendEvent from Objects/dictobject.c [3.12]
 
 // @Borrow function set_attribute_error_context from Objects/object.c
 

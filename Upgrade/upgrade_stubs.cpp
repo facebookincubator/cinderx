@@ -80,17 +80,4 @@ STUB(PyObject*, Ci_EvalFrame, T190615535, PyThreadState*, PyFrameObject*, int)
 STUB(PyObject*, Ci_StaticFunction_Vectorcall, T190615535, PyObject *func, PyObject* const* stack, size_t nargsf, PyObject *kwnames)
 STUB(PyObject*, Ci_PyFunction_CallStatic, T190615535, PyFunctionObject *func, PyObject* const* args, Py_ssize_t nargsf, PyObject *kwnames)
 
-
-// These functions are all not exported so they are unavailable when libpython
-// is dynamically linked. However, they are available if linking is static, as
-// is the case for things like the RuntimeTime/StrictModules tests. So we define
-// them weakly.
-
-#define STUB_WEAK(ret, func, args...) ret __attribute__((weak)) func(args) { \
-    UPGRADE_ASSERT(Hit stubbed function: func); \
-  }
-
-// We can avoid this by notifying our own dictionary watchers manually.
-STUB_WEAK(void, _PyDict_SendEvent, int, PyDict_WatchEvent, PyDictObject *, PyObject *,  PyObject *)
-
 } // extern "C"

@@ -24,3 +24,8 @@ static inline PyObject *getBorrowedTypeDict(PyTypeObject *self) {
   return self->tp_dict;
 #endif
 }
+
+#if PY_VERSION_HEX >= 0x030C0000
+#define _PyDict_NotifyEvent(EVENT, MP, KEY, VAL) \
+  _PyDict_NotifyEvent(_PyInterpreterState_GET(), (EVENT), (MP), (KEY), (VAL))
+#endif

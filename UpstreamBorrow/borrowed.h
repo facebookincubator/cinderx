@@ -26,6 +26,13 @@ int
 Cix_PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,
                       PyObject *key, PyObject *value);
 
+void
+Cix_PyDict_SendEvent(int watcher_bits,
+                  PyDict_WatchEvent event,
+                  PyDictObject *mp,
+                  PyObject *key,
+                  PyObject *value);
+
 int
 Cix_set_attribute_error_context(PyObject *v, PyObject *name);
 

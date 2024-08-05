@@ -290,12 +290,6 @@ PyObject* _PyObject_GC_Malloc(size_t size);
     UPGRADE_ASSERT("_Py_static_string(" #name ", " #str ")") \
     static _Py_Identifier name;
 
-// Ideally this would live in cinderx/Common/dict.h, but it can't right now
-// because that has conflicts when pulled into checked_dict.c
-// (e.g. redefines _dictkeysobject).
-#define _PyDict_NotifyEvent(EVENT, MP, KEY, VAL) \
-  _PyDict_NotifyEvent(_PyInterpreterState_GET(), (EVENT), (MP), (KEY), (VAL))
-
 #ifdef __cplusplus
 } // extern "C"
 #endif
