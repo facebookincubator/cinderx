@@ -154,7 +154,6 @@ int main(int argc, char* argv[]) {
   ::testing::InitGoogleTest(&argc, argv);
   register_test("clean_cfg_test.txt");
   register_test("dynamic_comparison_elimination_test.txt");
-  register_test("hir_builder_test.txt");
   register_test("hir_builder_static_test.txt", RuntimeTest::kStaticCompiler);
   register_test("guard_type_removal_test.txt");
   register_test("inliner_test.txt");
@@ -169,17 +168,17 @@ int main(int argc, char* argv[]) {
   register_test("super_access_test.txt", RuntimeTest::kStaticCompiler);
   register_test("simplify_test.txt");
   register_test("simplify_uses_guard_types.txt");
+  register_test("simplify_static_test.txt", RuntimeTest::kStaticCompiler);
   register_test("dead_code_elimination_test.txt");
   register_test(
       "dead_code_elimination_and_simplify_test.txt",
       RuntimeTest::kStaticCompiler);
-  register_test("simplify_static_test.txt", RuntimeTest::kStaticCompiler);
   register_json_test("json_test.txt");
   register_test("builtin_load_method_elimination_test.txt");
   register_test("all_passes_test.txt");
   register_test("all_passes_static_test.txt", RuntimeTest::kStaticCompiler);
-  register_test(
-      "hir_builder_native_calls_test.txt", RuntimeTest::kStaticCompiler);
+  register_test("native_calls_test.txt", RuntimeTest::kStaticCompiler);
+  register_test("static_array_item.txt", RuntimeTest::kStaticCompiler);
 
   wchar_t* argv0 = Py_DecodeLocale(argv[0], nullptr);
   if (argv0 == nullptr) {
