@@ -1,16 +1,30 @@
 #!/usr/bin/env fbpython
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-strict
+
 import argparse
 import collections
 import os
 import re
 import subprocess
 import sys
+
+from collections.abc import Iterator
 from enum import Enum
+from typing import Generator, Sequence
+
+# Maps HIR variable to its HIR output.
+VarOutputDict = dict[str, Sequence[str]]
+
+# Maps all test cases to their variables.
+TestOutputDict = dict[str, VarOutputDict]
+
+# Maps all test suites to their tests..
+SuiteOutputDict = dict[str, TestOutputDict]
 
 
-def parse_arguments():
+def parse_arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "command",
@@ -26,17 +40,17 @@ def parse_arguments():
     return parser.parse_args()
 
 
-TEST_RUN_RE = re.compile(r"^\[ RUN +\] ([^.]+)\.(.+)$")
-ACTUAL_TEXT_RE = re.compile(r'^    Which is: "(.+)\\n"$')
-EXPECTED_VAR_RE = re.compile(r"^  ([^ ]+)$")
+TEST_RUN_RE: re.Pattern[str] = re.compile(r"^\[ RUN +\] ([^.]+)\.(.+)$")
+ACTUAL_TEXT_RE: re.Pattern[str] = re.compile(r'^    Which is: "(.+)\\n"$')
+EXPECTED_VAR_RE: re.Pattern[str] = re.compile(r"^  ([^ ]+)$")
 
 # special-case common abbrieviations like HIR and CFG when converting
 # camel-cased suite name to its snake-cased file name
-SUITE_NAME_RE = re.compile(r"(HIR|CFG|[A-Z][a-z0-9]+)")
-FINISHED_LINE = "[----------] Global test environment tear-down"
+SUITE_NAME_RE: re.Pattern[str] = re.compile(r"(HIR|CFG|[A-Z][a-z0-9]+)")
+FINISHED_LINE: str = "[----------] Global test environment tear-down"
 
 
-def unescape_gtest_string(s):
+def unescape_gtest_string(s: str) -> str:
     result = []
     s_iter = iter(s)
     try:
@@ -55,7 +69,7 @@ def unescape_gtest_string(s):
     return "".join(result)
 
 
-def get_failed_tests(args):
+def get_failed_tests(args: argparse.Namespace) -> SuiteOutputDict:
     if args.text_input:
         with open(args.text_input, "r") as f:
             stdout = f.read()
@@ -77,6 +91,7 @@ def get_failed_tests(args):
 
     failed_tests = collections.defaultdict(lambda: {})
     line_iter = iter(stdout.split("\n"))
+    test_dict: dict[str, list[str]] = dict()
     while True:
         line = next(line_iter)
         if line == FINISHED_LINE:
@@ -111,12 +126,12 @@ def get_failed_tests(args):
     return failed_tests
 
 
-TESTS_DIR = os.path.normpath(
+TESTS_DIR: str = os.path.normpath(
     os.path.join(os.path.dirname(__file__), "..", "RuntimeTests")
 )
 
 
-def map_suite_to_file_basename(suite_name):
+def map_suite_to_file_basename(suite_name: str) -> str:
     return "_".join(map(str.lower, SUITE_NAME_RE.findall(suite_name)))
 
 
@@ -131,16 +146,20 @@ assert (
 )
 
 
-def map_suite_to_file(suite_name):
+def map_suite_to_file(suite_name: str) -> str:
     snake_name = map_suite_to_file_basename(suite_name)
     return os.path.join(TESTS_DIR, "hir_tests", snake_name + ".txt")
 
 
-def update_text_test(old_lines, suite_name, failed_tests):
-    line_iter = iter(old_lines)
-    new_lines = []
+def update_text_test(
+    old_lines: list[str],
+    suite_name: str,
+    failed_tests: TestOutputDict,
+) -> list[str]:
+    line_iter: Iterator[str] = iter(old_lines)
+    new_lines: list[str] = []
 
-    def expect(exp):
+    def expect(exp: str) -> None:
         line = next(line_iter)
         if line != exp:
             raise RuntimeError(f"Expected '{exp}', got '{line}'")
@@ -186,7 +205,7 @@ def update_text_test(old_lines, suite_name, failed_tests):
     return new_lines
 
 
-def write_if_changed(filename, old_lines, new_lines):
+def write_if_changed(filename: str, old_lines: list[str], new_lines: list[str]) -> None:
     if new_lines == old_lines:
         return
     with open(filename, "w") as f:
@@ -194,13 +213,13 @@ def write_if_changed(filename, old_lines, new_lines):
         f.write("\n".join(new_lines))
 
 
-CPP_TEST_NAME_RE = re.compile(r"^TEST(_F)?\(([^,]+), ([^)]+)\) {")
-CPP_EXPECTED_START_RE = re.compile(r"^(  const char\* ([^ ]+) =)")
+CPP_TEST_NAME_RE: re.Pattern[str] = re.compile(r"^TEST(_F)?\(([^,]+), ([^)]+)\) {")
+CPP_EXPECTED_START_RE: re.Pattern[str] = re.compile(r"^(  const char\* ([^ ]+) =)")
 CPP_EXPECTED_END = ')";'
 CPP_TEST_END = "}"
 
 
-def find_cpp_files(root):
+def find_cpp_files(root: str) -> Generator[str, None, None]:
     for dirpath, dirnames, filenames in os.walk(root):
         for filename in filenames:
             if filename.endswith(".cpp"):
@@ -219,18 +238,20 @@ class State(Enum):
     SKIP_EXPECTED = 3
 
 
-def update_cpp_tests(failed_suites, failed_cpp_tests):
-    def expect_state(estate):
+def update_cpp_tests(
+    failed_suites: SuiteOutputDict, failed_cpp_tests: set[tuple[str, str]]
+) -> None:
+    def expect_state(estate: State) -> None:
         nonlocal state, lineno, cpp_filename
         if state is not estate:
             sys.exit(
                 f"Expected state {estate} at {cpp_filename}:{lineno}, actual {state}"
             )
 
-    def expect_empty_test_dict():
+    def expect_empty_test_dict() -> None:
         if test_dict is not None and len(test_dict) > 0:
             print(
-                f"Coudln't find {len(test_dict)} expected variables in {suite_name}.{test_name}:"
+                f"Couldn't find {len(test_dict)} expected variables in {suite_name}.{test_name}:"
             )
             print(list(test_dict.keys()))
 
@@ -239,7 +260,6 @@ def update_cpp_tests(failed_suites, failed_cpp_tests):
             old_lines = f.read().split("\n")
 
         state = State.WAIT_FOR_TEST
-        test_dict = None
         new_lines = []
         for lineno, line in enumerate(old_lines, 1):
             m = CPP_TEST_NAME_RE.match(line)
@@ -247,7 +267,7 @@ def update_cpp_tests(failed_suites, failed_cpp_tests):
                 new_lines.append(line)
 
                 expect_empty_test_dict()
-                test_dict = None
+                test_dict = {}
 
                 suite_name = m[2]
                 test_name = m[3]
@@ -270,12 +290,10 @@ def update_cpp_tests(failed_suites, failed_cpp_tests):
                 expect_state(State.PROCESS_FAILED_TEST)
                 decl = m[1]
                 varname = m[2]
-                try:
-                    actual_lines = test_dict[varname]
-                    del test_dict[varname]
-                except KeyError:
-                    # This test has multiple expected variables, and this one
-                    # is OK.
+
+                actual_lines = test_dict.pop(varname, None)
+                if actual_lines is None:
+                    # This test has multiple expected variables, and this one is OK.
                     new_lines.append(line)
                     continue
 
@@ -303,7 +321,7 @@ def update_cpp_tests(failed_suites, failed_cpp_tests):
             print(f"{test[0]}.{test[1]}")
 
 
-def main():
+def main() -> None:
     args = parse_arguments()
     failed_cpp_tests = set()
     failed_suites = get_failed_tests(args)
