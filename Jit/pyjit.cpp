@@ -1562,11 +1562,7 @@ static PyObject* jit_suppress(PyObject*, PyObject* func_obj) {
   }
   PyFunctionObject* func = reinterpret_cast<PyFunctionObject*>(func_obj);
 
-#if PY_VERSION_HEX < 0x030C0000
-  reinterpret_cast<PyCodeObject*>(func->func_code)->co_flags |= CO_SUPPRESS_JIT;
-#else
-  UPGRADE_ASSERT(MISSING_SUPPRESS_JIT_FLAG)
-#endif
+  reinterpret_cast<PyCodeObject*>(func->func_code)->co_flags |= CI_CO_SUPPRESS_JIT;
 
   Py_INCREF(func_obj);
   return func_obj;
