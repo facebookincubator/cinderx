@@ -15,22 +15,14 @@
 #endif
 
 namespace jit {
+
 namespace {
 
-void initFunctionObjectForStaticOrNonJIT(PyFunctionObject* func) {
-  // Check that func hasn't already been initialized.
-  JIT_DCHECK(
-      func->vectorcall ==
-          reinterpret_cast<vectorcallfunc>(
-              Ci_JIT_lazyJITInitFuncObjectVectorcall),
-      "Double initializing function {}",
-      repr(func->func_qualname));
-  if (((PyCodeObject*)func->func_code)->co_flags & CI_CO_STATICALLY_COMPILED) {
-    func->vectorcall =
-        reinterpret_cast<vectorcallfunc>(Ci_StaticFunction_Vectorcall);
-  } else {
-    func->vectorcall = reinterpret_cast<vectorcallfunc>(_PyFunction_Vectorcall);
-  }
+void setInterpreted(PyFunctionObject* func) {
+  auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
+  func->vectorcall = (code->co_flags & CI_CO_STATICALLY_COMPILED)
+      ? reinterpret_cast<vectorcallfunc>(Ci_StaticFunction_Vectorcall)
+      : reinterpret_cast<vectorcallfunc>(_PyFunction_Vectorcall);
 }
 
 unsigned int countCalls(PyCodeObject* code) {
@@ -51,7 +43,19 @@ unsigned int countCalls(PyCodeObject* code) {
 #endif
 }
 
-PyObject* autoJITFuncObjectVectorcall(
+_PyJIT_Result tryCompile(BorrowedRef<PyFunctionObject> func) {
+  _PyJIT_Result result =
+      _PyJIT_IsEnabled() ? _PyJIT_CompileFunction(func) : PYJIT_NOT_INITIALIZED;
+  // Reset the function back to the interpreter if there was any non-retryable
+  // failure.
+  if (result != PYJIT_RESULT_OK && result != PYJIT_RESULT_RETRY) {
+    setInterpreted(func);
+  }
+  return result;
+}
+
+// Python function entrypoint when AutoJIT is enabled.
+PyObject* autoJITVectorcall(
     PyFunctionObject* func,
     PyObject** stack,
     Py_ssize_t nargsf,
@@ -64,17 +68,12 @@ PyObject* autoJITFuncObjectVectorcall(
     return _PyFunction_Vectorcall(func_obj, stack, nargsf, kwnames);
   }
 
-  _PyJIT_Result result = _PyJIT_CompileFunction(func);
-  if (result == PYJIT_RESULT_PYTHON_EXCEPTION) {
+  if (tryCompile(func) == PYJIT_RESULT_PYTHON_EXCEPTION) {
     return nullptr;
-  } else if (result != PYJIT_RESULT_OK) {
-    func->vectorcall = reinterpret_cast<vectorcallfunc>(
-        Ci_JIT_lazyJITInitFuncObjectVectorcall);
-    initFunctionObjectForStaticOrNonJIT(func);
   }
+
   JIT_DCHECK(
-      func->vectorcall !=
-          reinterpret_cast<vectorcallfunc>(autoJITFuncObjectVectorcall),
+      func->vectorcall != reinterpret_cast<vectorcallfunc>(autoJITVectorcall),
       "Auto-JIT left function as auto-JIT'able on {}",
       repr(func->func_qualname));
   return func->vectorcall(func_obj, stack, nargsf, kwnames);
@@ -88,14 +87,13 @@ void initFunctionObjectForJIT(PyFunctionObject* func) {
       "Function {} is already compiled",
       repr(func->func_qualname));
   if (_PyJIT_IsAutoJITEnabled()) {
-    func->vectorcall =
-        reinterpret_cast<vectorcallfunc>(autoJITFuncObjectVectorcall);
+    func->vectorcall = reinterpret_cast<vectorcallfunc>(autoJITVectorcall);
     return;
   }
   func->vectorcall =
       reinterpret_cast<vectorcallfunc>(Ci_JIT_lazyJITInitFuncObjectVectorcall);
   if (!_PyJIT_RegisterFunction(func)) {
-    initFunctionObjectForStaticOrNonJIT(func);
+    setInterpreted(func);
   }
 }
 
@@ -106,15 +104,8 @@ PyObject* Ci_JIT_lazyJITInitFuncObjectVectorcall(
     PyObject** stack,
     Py_ssize_t nargsf,
     PyObject* kwnames) {
-  if (!_PyJIT_IsEnabled()) {
-    jit::initFunctionObjectForStaticOrNonJIT(func);
-  } else {
-    _PyJIT_Result result = _PyJIT_CompileFunction(func);
-    if (result == PYJIT_RESULT_PYTHON_EXCEPTION) {
-      return nullptr;
-    } else if (result != PYJIT_RESULT_OK) {
-      jit::initFunctionObjectForStaticOrNonJIT(func);
-    }
+  if (jit::tryCompile(func) == PYJIT_RESULT_PYTHON_EXCEPTION) {
+    return nullptr;
   }
   JIT_DCHECK(
       func->vectorcall !=
