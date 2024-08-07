@@ -64,12 +64,6 @@ STUB(void, _PyType_ClearNoShadowingInstances, T197103405, struct _typeobject *, 
 STUB(int, PyUnstable_PerfTrampoline_CompileCode, T196877712, PyCodeObject *)
 STUB(int, PyUnstable_PerfTrampoline_SetPersistAfterFork, T196877712, int)
 
-// This looks like it was a Cix but has actually changed a bit in 3.12. The problem
-// with using PyObject_Malloc directly is we need to know how much additional space
-// to allocate for the GC info. In 3.12 it might be possible to use
-// PyUnstable_Object_GC_NewWithExtraData
-STUB(PyObject*, _PyObject_GC_Malloc, T???, size_t)
-
 /*
  * From interpter.h
  */

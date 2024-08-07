@@ -280,7 +280,6 @@ typedef CiStackWalkDirective (*CiWalkAsyncStackCallback)(void *data,
 void _PyType_ClearNoShadowingInstances(struct _typeobject *, PyObject *obj);
 int PyUnstable_PerfTrampoline_CompileCode(PyCodeObject *);
 int PyUnstable_PerfTrampoline_SetPersistAfterFork(int enable);
-PyObject* _PyObject_GC_Malloc(size_t size);
 
 #define _Py_IDENTIFIER(name) \
     UPGRADE_ASSERT("_Py_IDENTIFIER(" #name ")") \
