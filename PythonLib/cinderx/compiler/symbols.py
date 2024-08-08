@@ -2,6 +2,7 @@
 # pyre-unsafe
 
 """Module symbol-table generator"""
+from __future__ import annotations
 
 import ast
 import os
@@ -44,6 +45,7 @@ class Scope:
         self.params = {}
         self.frees = {}
         self.cells = {}
+        self.type_params: set[str] = set()
         self.children = []
         self.parent = None
         self.coroutine = False
@@ -58,6 +60,7 @@ class Scope:
         self.generator = False
         self.klass = None
         self.suppress_jit = False
+        self.can_see_class_scope = False
         if klass is not None:
             for i in range(len(klass)):
                 if klass[i] != "_":
@@ -98,6 +101,11 @@ class Scope:
         name = self.mangle(name)
         self.defs[name] = 1
         self.params[name] = 1
+
+    def add_type_param(self, name: str):
+        if name in self.type_params:
+            raise SyntaxError("duplicated type parameter: {!r}".format(name))
+        self.type_params.add(name)
 
     def get_names(self):
         d = {}
@@ -148,10 +156,9 @@ class Scope:
         if not self.nested:
             # If we're not nested we can't possibly have any free variables,
             # as we can't close over class variables.  The exception to this
-            # rule is __class__, which we indeed can close over.
-            if "__class__" in self.frees:
-                return ["__class__"]
-            return []
+            # rule is __class__ or __classdict__, which we indeed can close over.
+            assert set(self.frees).issubset({"__class__", "__classdict__"})
+            return list(self.frees)
 
         free = {}
         free.update(self.frees)
@@ -174,11 +181,13 @@ class Scope:
                 globals = self.add_frees(frees)
                 for name in globals:
                     child.force_global(name)
-            elif "__class__" in child.frees:
-                self.add_frees(["__class__"])
-            elif "__class__" in child.uses and "__class__" not in child.defs:
-                child.frees = {"__class__"}
-                self.add_frees(["__class__"])
+            else:
+                for special in ("__class__", "__classdict__"):
+                    if special in child.frees:
+                        self.add_frees([special])
+                    elif special in child.uses and special not in child.defs:
+                        child.frees[special] = 1
+                        self.add_frees([special])
 
     def force_global(self, name):
         """Force name to be global in scope.
@@ -214,7 +223,7 @@ class Scope:
         child_globals = []
         for name in names:
             sc = self.check_name(name)
-            if name == "__class__":
+            if name == "__class__" or name == "__classdict__":
                 if isinstance(self, ClassScope) or sc == SC_LOCAL:
                     self.cells[name] = 1
                     continue
@@ -226,7 +235,7 @@ class Scope:
                     self.frees[name] = 1
                 elif sc == SC_GLOBAL_IMPLICIT:
                     child_globals.append(name)
-                elif isinstance(self, FunctionScope) and sc == SC_LOCAL:
+                elif isinstance(self, FUNCTION_LIKE_SCOPES) and sc == SC_LOCAL:
                     self.cells[name] = 1
                 elif sc != SC_CELL:
                     child_globals.append(name)
@@ -287,6 +296,20 @@ class ClassScope(Scope):
         self.__super_init(name, module, name, lineno=lineno)
 
 
+class TypeParamScope(Scope):
+    pass
+
+class TypeAliasScope(Scope):
+    pass
+
+class TypeVarBoundScope(Scope):
+    pass
+
+class TypeAliasScope(Scope):
+    pass
+
+FUNCTION_LIKE_SCOPES = (FunctionScope, TypeVarBoundScope, TypeParamScope, TypeAliasScope)
+    
 class SymbolVisitor(ASTVisitor):
     _FunctionScope = FunctionScope
     _GenExprScope = GenExprScope
@@ -297,29 +320,90 @@ class SymbolVisitor(ASTVisitor):
         self.future_annotations = future_flags & CO_FUTURE_ANNOTATIONS
         self.scopes: dict[ast.AST, Scope] = {}
         self.klass = None
+        self.module = ModuleScope()
 
     # node that define new scopes
 
     def visitModule(self, node):
-        scope = self.module = self.scopes[node] = ModuleScope()
+        scope = self.module = self.scopes[node] = self.module
         self.visit(node.body, scope)
 
     def visitInteractive(self, node):
-        scope = self.module = self.scopes[node] = ModuleScope()
+        scope = self.module = self.scopes[node] = self.module
         self.visit(node.body, scope)
 
     visitExpression = visitModule
 
+    # pyre-ignore[11]: Pyre doesn't know TypeAlias
+    def enter_type_params(self, node: ast.ClassDef|ast.FunctionDef|ast.TypeAlias|ast.AsyncFunctionDef, parent: Scope):
+        scope = TypeParamScope(node.name, self.module, self.klass, lineno=node.lineno)
+        parent.add_child(scope)
+        scope.parent = parent
+        # type_params is a list, which is not hashable, so we key off the first element as
+        # there is always at least one.
+        self.scopes[node.type_params[0]] = scope
+        if isinstance(parent, ClassScope):
+            scope.can_see_class_scope = True
+            scope.add_use("__classdict__")
+            parent.add_def("__classdict__")
+
+        if isinstance(node, ast.ClassDef):
+            scope.add_def(".type_params")
+            scope.add_use(".type_params")
+            scope.add_def(".generic_base")
+            scope.add_use(".generic_base")
+
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            scope.add_def(".defaults")
+            scope.add_param(".defaults")
+            if node.args.kw_defaults:
+                scope.add_def(".kwdefaults")
+        return scope
+
+    # pyre-ignore[11]: Pyre doesn't know TypeVar
+    def visitTypeVar(self, node: ast.TypeVar, parent: Scope):
+        parent.add_def(node.name)
+        parent.add_type_param(node.name)
+
+        if node.bound:
+            is_in_class = parent.can_see_class_scope
+            scope = TypeVarBoundScope(node.name, self.module)
+            scope.parent = parent
+            scope.nested = True
+            scope.can_see_class_scope = is_in_class
+            if is_in_class:
+                scope.add_def("__classdict__")
+
+            self.visit(node.bound, scope)
+            self.handle_free_vars(scope, parent)
+
+    # pyre-ignore[11]: Pyre doesn't know TypeVarTuple
+    def visitTypeVarTuple(self, node: ast.TypeVarTuple, parent: Scope) -> None:
+        parent.add_def(node.name)
+        parent.add_type_param(node.name)
+
+    # pyre-ignore[11]: Pyre doesn't know ParamSpec
+    def visitParamSpec(self, node: ast.ParamSpec, parent: Scope) -> None: 
+        parent.add_def(node.name)
+        parent.add_type_param(node.name)
+        
     def visitFunctionDef(self, node, parent):
         if node.decorator_list:
             self.visit(node.decorator_list, parent)
         parent.add_def(node.name)
+
+        type_params = getattr(node, "type_params", ())
+        if type_params:
+            parent = self.enter_type_params(node, parent)
+            for param in type_params:
+                self.visit(param, parent)
+
         scope = self._FunctionScope(
             node.name, self.module, self.klass, lineno=node.lineno
         )
         scope.coroutine = isinstance(node, ast.AsyncFunctionDef)
         scope.parent = parent
-        if parent.nested or isinstance(parent, FunctionScope):
+        if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
             scope.nested = 1
         self.scopes[node] = scope
         self._do_args(scope, node.args)
@@ -360,7 +444,7 @@ class SymbolVisitor(ASTVisitor):
 
         if (
             parent.nested
-            or isinstance(parent, FunctionScope)
+            or isinstance(parent, FUNCTION_LIKE_SCOPES)
             or isinstance(parent, GenExprScope)
         ):
             scope.nested = 1
@@ -429,7 +513,7 @@ class SymbolVisitor(ASTVisitor):
         # outermost iterator expression of a comprehension, even those inside
         # a nested comprehension or a lambda expression.
         scope.comp_iter_expr = parent.comp_iter_expr
-        if parent.nested or isinstance(parent, FunctionScope):
+        if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
             scope.nested = 1
         self.scopes[node] = scope
         self._do_args(scope, node.args)
@@ -471,20 +555,34 @@ class SymbolVisitor(ASTVisitor):
         parent.add_child(scope)
         scope.handle_children()
 
-    def visitClassDef(self, node, parent):
+    def visitClassDef(self, node: ast.ClassDef, parent):
         if node.decorator_list:
             self.visit(node.decorator_list, parent)
+
+        parent.add_def(node.name)
+
+        type_params = getattr(node, "type_params", ())
+
+        orig_parent = parent
+        if type_params:
+            parent = self.enter_type_params(node, parent)
+            for param in type_params:
+                self.visit(param, parent)
+
         for kw in node.keywords:
             self.visit(kw.value, parent)
 
-        parent.add_def(node.name)
         for n in node.bases:
             self.visit(n, parent)
         scope = ClassScope(node.name, self.module, lineno=node.lineno)
         # Set parent ASAP. TODO: Probably makes sense to do that for
         # other scope types either.
         scope.parent = parent
-        if parent.nested or isinstance(parent, FunctionScope):
+        if type_params:
+            scope.add_def("__type_params__")
+            scope.add_use(".type_params")
+                    
+        if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
             scope.nested = 1
         doc = ast.get_docstring(node, False)
         if doc is not None:
@@ -497,9 +595,31 @@ class SymbolVisitor(ASTVisitor):
         self.visit(node.body, scope)
         self.klass = prev
         self.handle_free_vars(scope, parent)
+        # if we have type params then we'll need to leave the type param scope
+        if orig_parent is not parent:
+            self.handle_free_vars(parent, orig_parent)    
+
+    def visitTypeAlias(self, node: ast.TypeAlias, parent):
+        self.visit(node.name, parent)
+        
+        in_class = isinstance(parent, ClassScope)
+        is_generic = len(node.type_params) > 0
+        if is_generic:
+            parent = self.enter_type_params(node, parent)
+            self.visit(node.type_params, parent)
+
+        scope = TypeAliasScope(node.name.id, self.module)
+        scope.parent = parent
+        scope.can_see_class_scope = in_class
+        if in_class:
+            scope.add_use("__classdict__")
+            scope.parent.add_def("__classdict__")
+
+        self.scopes[node] = scope
+        self.visit(node.value, scope)
+        self.handle_free_vars(scope, parent)
 
     # name can be a def or a use
-
     def visitName(self, node, scope):
         if isinstance(node.ctx, ast.Store):
             if scope.comp_iter_target:
@@ -522,7 +642,7 @@ class SymbolVisitor(ASTVisitor):
         else:
             scope.add_use(node.id)
 
-            if node.id == "super" and isinstance(scope, FunctionScope):
+            if node.id == "super" and isinstance(scope, FUNCTION_LIKE_SCOPES):
                 # If super() is used, and special cell var __class__ to class
                 # definition, and free var to the method. This is complicated
                 # by the fact that original Python2 implementation supports

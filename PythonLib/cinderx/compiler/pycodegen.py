@@ -3070,7 +3070,6 @@ class CodeGenerator312(CodeGenerator):
     def find_op_idx(opname: str) -> int:
         for i, (name, symbol) in enumerate(NB_OPS):
             if name == opname:
-                print(i)
                 return i
 
         return -1
