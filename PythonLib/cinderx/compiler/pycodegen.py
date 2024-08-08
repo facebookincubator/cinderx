@@ -3340,6 +3340,23 @@ class CodeGenerator312(CodeGenerator):
         self.emit("BUILD_TUPLE", len(type_params))
 
 
+    def _makeClosure(self, gen, flags) -> None:
+        prefix = ""
+        if not isinstance(gen.tree, ast.ClassDef):
+            prefix = self.get_qual_prefix(gen)
+
+        frees = gen.scope.get_free_vars()
+        if frees:
+            for name in frees:
+                self.emit("LOAD_CLOSURE", name)
+            self.emit("BUILD_TUPLE", len(frees))
+            flags |= 0x08
+
+        gen.set_qual_name(prefix + gen.name)
+        self.emit("LOAD_CONST", gen)
+        self.emit("MAKE_FUNCTION", flags)
+
+
 class CinderCodeGenerator(CodeGenerator):
     """
     Code generator equivalent to `Python/compile.c` in Cinder.
