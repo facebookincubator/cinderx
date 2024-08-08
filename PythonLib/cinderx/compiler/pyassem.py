@@ -12,7 +12,7 @@ try:
 except ImportError:
     _inline_cache_entries = None
 from types import CodeType
-from typing import ClassVar, Generator, List, Optional
+from typing import ClassVar, Generator, List, Optional, Sequence
 
 from . import opcode_cinder, opcodes
 from .consts import (
@@ -435,7 +435,7 @@ class PyFlowGraph(FlowGraph):
         filename: str,
         scope,
         flags: int = 0,
-        args=(),
+        args: Sequence[str]=(),
         kwonlyargs=(),
         starargs=(),
         optimized: int = 0,
@@ -757,6 +757,8 @@ class PyFlowGraph(FlowGraph):
 
     def _convert_LOAD_FAST(self, arg: object) -> int:
         self.fast_vars.add(arg)
+        if isinstance(arg, int):
+            return arg
         return self.varnames.get_index(arg)
 
     def _convert_LOAD_LOCAL(self, arg: object) -> int:

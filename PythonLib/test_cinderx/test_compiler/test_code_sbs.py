@@ -84,7 +84,7 @@ class CodeTests(CompilerTest):
             instrs = tuple(queue.popleft())
             for i, instr in enumerate(instrs):
                 if isinstance(instr.oparg, CodeGenerator):
-                    queue.append(graph_instrs(instr.oparg.graph, instr.oparg.name))
+                    queue.append(graph_instrs(instr.oparg.graph, instr.oparg.graph.name))
                 if cur_scr == len(script):
                     self.fail("Extra bytecodes not expected")
 
@@ -111,7 +111,7 @@ class CodeTests(CompilerTest):
             instrs = queue.popleft()
             for instr in instrs:
                 if isinstance(instr.oparg, CodeGenerator):
-                    queue.append(graph_instrs(instr.oparg.graph, instr.oparg.name))
+                    queue.append(graph_instrs(instr.oparg.graph, instr.oparg.graph.name))
                 scr.write(f"    {instr.opname}({format_oparg(instr)}),\n")
         scr.write("]\n")
 
@@ -391,9 +391,7 @@ class Code:
             return False
 
         if isinstance(self.loc, str):
-            tree = other.tree
-            assert isinstance(tree, (AsyncFunctionDef, ClassDef, FunctionDef))
-            return self.loc == tree.name
+            return self.loc == other.name
         elif isinstance(self.loc, tuple):
             return self.loc == (other.tree.lineno, other.tree.col_offset)
         elif isinstance(self.loc, int):

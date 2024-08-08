@@ -181,9 +181,14 @@ if sys.version_info >= (3, 12):
         PUSH_NULL=1,
         RETURN_CONST=0,
         SWAP=0,
+        COPY=1,
+        CALL_INTRINSIC_1=0,
+        CALL_INTRINSIC_2=-1,
     )
 
-    from opcode import _nb_ops as NB_OPS, _intrinsic_1_descs as INTRINSIC_1
+    from opcode import _nb_ops as NB_OPS,  _intrinsic_1_descs as INTRINSIC_1, _intrinsic_2_descs as INTRINSIC_2
+
 else:
     NB_OPS: list[tuple[str, str]] = []
     INTRINSIC_1: list[str] = []
+    INTRINSIC_2: list[str] = []

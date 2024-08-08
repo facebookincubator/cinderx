@@ -32,7 +32,7 @@ from .consts import (
     SC_LOCAL,
 )
 from .optimizer import AstOptimizer
-from .opcodes import NB_OPS, INTRINSIC_1
+from .opcodes import NB_OPS, INTRINSIC_1, INTRINSIC_2
 from .pyassem import Block, PyFlowGraph
 from .symbols import Scope, SymbolVisitor
 from .unparse import to_expr
@@ -247,6 +247,7 @@ class CodeGenerator(ASTVisitor):
         flags=0,
         optimization_lvl=0,
         future_flags=None,
+        name: Optional[str] = None,
     ):
         super().__init__()
         if parent is not None:
@@ -271,6 +272,7 @@ class CodeGenerator(ASTVisitor):
         self.did_setup_annotations = False
         self._qual_name = None
         self.parent_code_gen = parent
+        self.name = self.get_node_name(node) if name is None else name
 
     def _setupGraphDelegation(self):
         self.emit = self.graph.emit
@@ -2820,20 +2822,27 @@ class CodeGenerator(ASTVisitor):
         self.setups.append(copy)
         return loop
 
-    @property
-    def name(self):
-        if isinstance(self.tree, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
-            return self.tree.name
-        elif isinstance(self.tree, ast.SetComp):
+    def get_node_name(self, node: ast.AST) -> str:
+        if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
+            return node.name
+        elif isinstance(node, ast.SetComp):
             return "<setcomp>"
-        elif isinstance(self.tree, ast.ListComp):
+        elif isinstance(node, ast.ListComp):
             return "<listcomp>"
-        elif isinstance(self.tree, ast.DictComp):
+        elif isinstance(node, ast.DictComp):
             return "<dictcomp>"
-        elif isinstance(self.tree, ast.GeneratorExp):
+        elif isinstance(node, ast.GeneratorExp):
             return "<genexpr>"
-        elif isinstance(self.tree, ast.Lambda):
+        elif isinstance(node, ast.Lambda):
             return "<lambda>"
+        elif isinstance(node, ast.Module):
+            return "<module>"
+        elif isinstance(node, ast.Expression):
+            return "<string>"
+        elif isinstance(node, ast.Interactive):
+            return "<stdin>"
+
+        raise NotImplementedError("Unknown node type: " + type(node).__name__)
 
     def finishFunction(self):
         if self.graph.current.returns:
@@ -2846,12 +2855,9 @@ class CodeGenerator(ASTVisitor):
     def make_child_codegen(
         self,
         tree: FuncOrLambda | CompNode | ast.ClassDef,
-        graph: PyFlowGraph,
-        codegen_type: type[CodeGenerator] | None = None,
+        graph: PyFlowGraph
     ) -> CodeGenerator:
-        if codegen_type is None:
-            codegen_type = type(self)
-        return codegen_type(
+        return type(self)(
             self,
             tree,
             self.symbols,
@@ -3078,6 +3084,10 @@ class CodeGenerator312(CodeGenerator):
     def find_intrinsic_1_idx(oparg: str) -> int:
         return INTRINSIC_1.index(oparg)
 
+    @staticmethod
+    def find_intrinsic_2_idx(oparg: str) -> int:
+        return INTRINSIC_2.index(oparg)
+
     _binary_opargs: dict[type, int] = {
         ast.Add: find_op_idx("NB_ADD"),
         ast.Sub: find_op_idx("NB_SUBTRACT"),
@@ -3200,6 +3210,135 @@ class CodeGenerator312(CodeGenerator):
         if is_tuple:
             self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE"))
         
+    def make_child_codegen(
+        self,
+        tree: FuncOrLambda | CompNode | ast.ClassDef,
+        graph: PyFlowGraph,
+        name: Optional[str] = None,
+    ) -> CodeGenerator312:
+        return type(self)(
+            self,
+            tree,
+            self.symbols,
+            graph,
+            flags=self.flags,
+            optimization_lvl=self.optimization_lvl,
+            name=name,
+        )
+
+    def build_function(
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+        gen: CodeGenerator,
+        first_lineno: int = 0,
+    ) -> None:
+        flags = 0
+        type_params = getattr(node, "type_params", None)
+        if type_params:
+            self.emit("PUSH_NULL")
+
+        if node.args.defaults:
+            for default in node.args.defaults:
+                self.visitDefault(default)
+                flags |= 0x01
+            self.emit("BUILD_TUPLE", len(node.args.defaults))
+
+        kwdefaults = []
+        for kwonly, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+            if default is not None:
+                kwdefaults.append(self.mangle(kwonly.arg))
+                self.visitDefault(default)
+
+        if kwdefaults:
+            self.emit("LOAD_CONST", tuple(kwdefaults))
+            self.emit("BUILD_CONST_KEY_MAP", len(kwdefaults))
+            flags |= 0x02
+
+        outer_gen: CodeGenerator312 = self
+        args = []
+        num_typeparam_args = 0
+        if type_params:
+            assert isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            args = []
+            # The code object produced by CPython is a little wonky, if we have
+            # no defaults, or just defaults, then `co_varnames` has .defaults.
+            # If we have any kwdefaults then it'll have both .defaults and .kwdefaults
+            # even though ".kwdefaults" isn't used and there's only a single arg.
+            # This results in disassembly looking weird in that we have a
+            # LOAD_FAST .defaults when we only have a kwdefaults. We therefore populate
+            # args with both here, and then we'll reset "varnames"
+
+            varnames = []
+            varnames.append(".defaults")
+            if node.args.defaults:
+                args.append(".defaults")
+                num_typeparam_args += 1
+            if kwdefaults:
+                args.append(".kwdefaults")
+                varnames.append(".kwdefaults")
+                num_typeparam_args += 1
+
+            if num_typeparam_args == 2:
+                self.emit("SWAP", 2)
+
+            graph = self.flow_graph(
+                f"<generic parameters of {node.name}>",
+                self.graph.filename,
+                self.symbols.scopes[type_params[0]],
+                flags=0,
+                args=varnames,
+                kwonlyargs=(),
+                starargs=(),
+                optimized=1,
+                docstring=None,
+                firstline=first_lineno,
+                posonlyargs=0,
+            )
+            graph.args = args
+
+            outer_gen = self.make_child_codegen(type_params[0], graph, name=graph.name)
+            outer_gen.optimized = 1
+            outer_gen.compile_type_params(type_params)
+
+            if node.args.defaults or kwdefaults:
+                outer_gen.emit("LOAD_FAST", 0)
+            if node.args.defaults and kwdefaults:
+                outer_gen.emit("LOAD_FAST", 1)
+        
+        if outer_gen.build_annotations(node):
+            flags |= 0x04
+
+        outer_gen._makeClosure(gen, flags)
+
+        if type_params:
+            outer_gen.emit("SWAP", 2)
+            outer_gen.emit("CALL_INTRINSIC_2", self.find_intrinsic_2_idx("INTRINSIC_SET_FUNCTION_TYPE_PARAMS"))
+            outer_gen.emit("RETURN_VALUE")
+            self._makeClosure(outer_gen, 0)
+            if args:
+                self.emit("SWAP", num_typeparam_args + 1)
+
+            self.emit("CALL", num_typeparam_args)
+
+    # pyre-ignore[11]: Annotation is not defined as a valid type    
+    def compile_type_params(self, type_params: List[ast.TypeVar|ast.TypeVarTuple|ast.ParamSpec]) -> None:
+        seen_default = False
+        for param in type_params:
+            # pyre-ignore[16]: Undefined attribute [16]: Module `ast` has no attribute `TypeVar`.
+            if isinstance(param, ast.TypeVar):
+                self.emit("LOAD_CONST", param.name)
+                if param.bound:
+                    raise NotImplementedError("bound")
+                else:
+                    self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_TYPEVAR"))
+
+                self.emit("COPY", 1)
+                self.storeName(param.name)
+            else:
+                raise NotImplementedError(f"unsupported node in type params: {type(param).__name__}")
+
+        self.emit("BUILD_TUPLE", len(type_params))
+
 
 class CinderCodeGenerator(CodeGenerator):
     """
