@@ -184,7 +184,10 @@ if sys.version_info >= (3, 12):
         COPY=1,
         CALL_INTRINSIC_1=0,
         CALL_INTRINSIC_2=-1,
-        MAKE_FUNCTION=lambda oparg, jmp=0: oparg.bit_count()
+        LOAD_FROM_DICT_OR_DEREF=0,
+        LOAD_LOCALS=1,
+        MAKE_FUNCTION=lambda oparg, jmp=0: oparg.bit_count(),
+        LOAD_FROM_DICT_OR_GLOBALS=-1,
     )
 
     from opcode import _nb_ops as NB_OPS,  _intrinsic_1_descs as INTRINSIC_1, _intrinsic_2_descs as INTRINSIC_2

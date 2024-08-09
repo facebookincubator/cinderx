@@ -615,7 +615,7 @@ class PyFlowGraph(FlowGraph):
                 if new_depth > maxdepth:
                     maxdepth = new_depth
 
-                assert depth >= 0
+                assert depth >= 0, instr
 
                 op = self.opcode.opmap[instr.opname]
                 if self.opcode.has_jump(op):
@@ -800,6 +800,8 @@ class PyFlowGraph(FlowGraph):
         "LOAD_LOCAL": _convert_LOAD_LOCAL,
         "STORE_LOCAL": _convert_LOAD_LOCAL,
         "LOAD_NAME": _convert_NAME,
+        "LOAD_FROM_DICT_OR_DEREF": _convert_NAME,
+        "LOAD_FROM_DICT_OR_GLOBALS": _convert_NAME,
         "LOAD_CLOSURE": lambda self, arg: self.closure.get_index(arg),
         "COMPARE_OP": lambda self, arg: self.opcode.CMP_OP.index(arg),
         "LOAD_GLOBAL": _convert_NAME,

@@ -3339,10 +3339,146 @@ class CodeGenerator312(CodeGenerator):
 
         self.emit("BUILD_TUPLE", len(type_params))
 
+    def compile_body(self, gen: CodeGenerator, node: ast.ClassDef) -> None: 
+        if gen.findAnn(node.body):
+            gen.did_setup_annotations = True
+            gen.emit("SETUP_ANNOTATIONS")
+
+        doc = gen.get_docstring(node)
+        if doc is not None:
+            gen.set_lineno(node.body[0])
+            gen.emit("LOAD_CONST", doc)
+            gen.storeName("__doc__")
+
+        walk(self.skip_docstring(node.body), gen)
+
+    def compile_class_body(self, node: ast.ClassDef, first_lineno: int) -> CodeGenerator:
+        gen = self.make_class_codegen(node, first_lineno)
+        
+        gen.emit("LOAD_NAME", "__name__")
+        gen.storeName("__module__")
+        
+        gen.emit("LOAD_CONST", gen.get_qual_prefix(gen) + gen.name)
+        gen.storeName("__qualname__")
+        
+        # pyre-ignore[16]: no attribute type_params
+        if node.type_params:
+            gen.loadName(".type_params")
+            gen.emit("STORE_NAME", "__type_params__")
+        
+        if "__classdict__" in gen.scope.cells:
+            gen.emit("LOAD_LOCALS")
+            gen.emit("STORE_DEREF", "__classdict__")
+
+        self.compile_body(gen, node)
+
+        gen.set_no_lineno()
+
+        if "__classdict__" in gen.scope.cells:
+            gen.emit("LOAD_CLOSURE", "__classdict__")
+            gen.emit("STORE_NAME", "__classdictcell__")
+
+        if "__class__" in gen.scope.cells:
+            gen.emit("LOAD_CLOSURE", "__class__")
+            gen.emit("COPY", 1)
+            gen.emit("STORE_NAME", "__classcell__")
+        else:
+            gen.emit("LOAD_CONST", None)
+        
+        gen.emit("RETURN_VALUE")
+        return gen
+
+    def visitClassDef(self, node: ast.ClassDef) -> None:
+        first_lineno = None
+        immutability_flag = self.find_immutability_flag(node)
+        for decorator in node.decorator_list:
+            if first_lineno is None:
+                first_lineno = decorator.lineno
+            self.visit_decorator(decorator, node)
+
+        first_lineno = node.lineno if first_lineno is None else first_lineno
+        
+        outer_gen: CodeGenerator312 = self
+        # pyre-ignore[16]: no attribute type_params
+        if node.type_params:
+            self.emit("PUSH_NULL")
+            graph = self.flow_graph(
+                f"<generic parameters of {node.name}>",
+                self.graph.filename,
+                self.symbols.scopes[node.type_params[0]],
+                flags=0,
+                args=(),
+                kwonlyargs=(),
+                starargs=(),
+                optimized=1,
+                docstring=None,
+                firstline=first_lineno,
+                posonlyargs=0,
+            )
+            graph.args = ()
+
+            outer_gen = self.make_child_codegen(node.type_params[0], graph, name=graph.name)
+            outer_gen.optimized = 1
+            outer_gen.compile_type_params(node.type_params)
+
+            outer_gen.emit("STORE_DEREF", ".type_params")
+
+        class_gen = outer_gen.compile_class_body(node, first_lineno)
+
+        outer_gen.emit("PUSH_NULL")
+        outer_gen.emit("LOAD_BUILD_CLASS")
+        outer_gen._makeClosure(class_gen, 0)
+        outer_gen.emit("LOAD_CONST", node.name)
+
+        if node.type_params:
+            outer_gen.emit("LOAD_DEREF", ".type_params")
+            outer_gen.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_SUBSCRIPT_GENERIC"))
+            outer_gen.emit("STORE_FAST", ".generic_base")
+
+            outer_gen._call_helper(
+                2,
+                None,
+                node.bases + [ast.Name(".generic_base", lineno=node.lineno, ctx=ast.Load())],
+                node.keywords
+            )
+
+            outer_gen.emit("RETURN_VALUE")
+
+            self._makeClosure(outer_gen, 0)
+            self.emit("CALL", 0)
+        else:
+            outer_gen._call_helper(2, None, node.bases, node.keywords)
+
+
+        for d in reversed(node.decorator_list):
+            self.emit_decorator_call(d, node)
+
+        self.register_immutability(node, immutability_flag)
+        self.post_process_and_store_name(node)
+
+    def get_qual_prefix(self, gen):
+        prefix = ""
+        if gen.scope.global_scope:
+            return prefix
+        # Construct qualname prefix
+        parent = gen.scope.parent
+        while not isinstance(parent, symbols.ModuleScope):
+            if not isinstance(parent, symbols.TypeParamScope):
+                # Only real functions use "<locals>", nested scopes like
+                # comprehensions don't.
+                if parent.is_function_scope:
+                    prefix = parent.name + ".<locals>." + prefix
+                else:
+                    prefix = parent.name + "." + prefix
+                if parent.global_scope:
+                    break
+            parent = parent.parent
+        return prefix
 
     def _makeClosure(self, gen, flags) -> None:
         prefix = ""
-        if not isinstance(gen.tree, ast.ClassDef):
+        # pyre-ignore[16]: Module `ast` has no attribute `TypeVar`.
+        if not isinstance(gen.tree, (ast.ClassDef, ast.TypeVar)):
             prefix = self.get_qual_prefix(gen)
 
         frees = gen.scope.get_free_vars()
@@ -3355,6 +3491,49 @@ class CodeGenerator312(CodeGenerator):
         gen.set_qual_name(prefix + gen.name)
         self.emit("LOAD_CONST", gen)
         self.emit("MAKE_FUNCTION", flags)
+
+    def _nameOp(self, prefix, name):
+        # TODO(T130490253): The JIT suppression should happen in the jit, not the compiler.
+        if (
+            prefix == "LOAD"
+            and name == "super"
+            and isinstance(self.scope, symbols.FunctionScope)
+        ):
+            scope = self.scope.check_name(name)
+            if scope in (SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT):
+                self.scope.suppress_jit = True
+
+        name = self.mangle(name)
+        scope = self.scope.check_name(name)
+
+        if scope == SC_LOCAL:
+            if not self.optimized:
+                self.emit(prefix + "_NAME", name)
+            else:
+                self.emit(prefix + "_FAST", name)
+        elif scope == SC_GLOBAL_EXPLICIT:
+            self.emit(prefix + "_GLOBAL", name)
+        elif scope == SC_GLOBAL_IMPLICIT:
+            if self.scope.can_see_class_scope:
+                self.emit("LOAD_DEREF", "__classdict__")
+                self.emit(prefix + "_FROM_DICT_OR_GLOBALS", name)
+            elif not self.optimized:
+                self.emit(prefix + "_NAME", name)
+            else:
+                self.emit(prefix + "_GLOBAL", name)
+        elif scope == SC_FREE or scope == SC_CELL:
+            if isinstance(self.scope, symbols.ClassScope):
+                if prefix == "STORE" and name not in self.scope.nonlocals:
+                    self.emit(prefix + "_NAME", name)
+                    return
+
+            if isinstance(self.scope, symbols.ClassScope) and prefix == "LOAD":
+                self.emit("LOAD_LOCALS")
+                self.emit("LOAD_FROM_DICT_OR_DEREF", name)
+            else:
+                self.emit(prefix + "_DEREF", name)
+        else:
+            raise RuntimeError(f"unsupported scope for var {name}: {scope}")
 
 
 class CinderCodeGenerator(CodeGenerator):
