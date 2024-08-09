@@ -70,6 +70,12 @@ _Py_CODEUNIT* codeUnit(PyCodeObject* code);
 // Count the number of bytecode instructions in a code object.
 size_t countInstrs(PyCodeObject* code);
 
+// Convert a specialized opcode back to its base form.
+int unspecialize(int opcode);
+
+// Get the byte size of an opcode's inline cache.
+Py_ssize_t inlineCacheSize(int opcode);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

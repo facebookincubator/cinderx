@@ -174,7 +174,9 @@ class BytecodeInstructionBlock {
     }
 
     Iterator& operator++() {
-      idx_++;
+      Py_ssize_t increment = 1 + inlineCacheSize(currentOpcode());
+      // TODO(T137312262): += breaks with how we use CRTP with BCOffsetBase.
+      idx_ = idx_ + increment;
       consumeExtendedArgs();
       return *this;
     }
