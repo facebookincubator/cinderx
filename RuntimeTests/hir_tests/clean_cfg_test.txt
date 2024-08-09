@@ -22,7 +22,7 @@ fun test {
     Return v2
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -41,7 +41,7 @@ fun test {
     Branch<0>
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 (preds 0) {
     v0:NoneType = LoadConst<NoneType>
@@ -56,7 +56,7 @@ def test():
     pass
   def a():
     pass
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
@@ -86,7 +86,7 @@ fun test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -135,7 +135,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -167,7 +167,7 @@ fun test {
     Return v2
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     Unreachable
@@ -193,7 +193,7 @@ fun test {
     Return v2
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -222,7 +222,7 @@ fun test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -259,7 +259,7 @@ fun test {
     Return v6
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -309,7 +309,7 @@ fun test {
     Return v8
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -362,7 +362,7 @@ fun test {
     CondBranch<1, 3> v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -412,7 +412,7 @@ fun test {
     Return v2
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>

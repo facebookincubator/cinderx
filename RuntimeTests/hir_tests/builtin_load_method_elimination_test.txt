@@ -7,7 +7,7 @@ LoadMethodCallMethodOnStrInstanceIsRewrittenToVectorCallStatic
 --- Input ---
 def test():
     return "Hello".upper()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -30,7 +30,7 @@ LoadMethodCallMethodOnStrInstanceWithArgsIsRewrittenToVectorCallStatic
 --- Input ---
 def test(seq):
     return ",".join(seq)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "seq">
@@ -59,7 +59,7 @@ def test(seq, use_comma):
     else:
         sep = "."
     return sep.join(seq)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v9:Object = LoadArg<0; "seq">
@@ -109,7 +109,7 @@ NestedCallMethod
 --- Input ---
 def test(name):
     return "{}.{}".format(name, name.upper())
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v8:Object = LoadArg<0; "name">
@@ -151,7 +151,7 @@ ChainedCallMethod
 --- Input ---
 def test():
   return "x".lower().upper()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -184,7 +184,7 @@ LoadMethodCallMethodAwaitedTurnsIntoVectorCallStaticAwaited
 --- Input ---
 async def test():
     return await "Hello".upper()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v11:OptNoneType = InitialYield {
@@ -275,7 +275,7 @@ LoadMethodOnTypeObjectBecomesCachedWithoutLoadMethodElimination
 --- Input ---
 def test():
     return str.upper("Hello")
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -323,7 +323,7 @@ LoadMethodWithUnknownMethodDoesNotChange
 --- Input ---
 def test():
     return "hello".unknown()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -349,7 +349,7 @@ LoadMethodWithMethClassPassesType
 --- Input ---
 def test():
     return b"".fromhex("FF")
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -374,7 +374,7 @@ LoadMethodWithWrapperDescrPassesInstance
 --- Input ---
 def test():
     return "%s".__mod__(1)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot

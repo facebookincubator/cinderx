@@ -7,7 +7,7 @@ ReturnConstant
 --- Input ---
 def test():
   return 1
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
@@ -21,7 +21,7 @@ def test(x):
   if isinstance(x, str):
     return 1
   return 2
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:Object = LoadArg<0; "x">
@@ -91,7 +91,7 @@ LenReturnsLongExact
 g = [1,2,3]
 def test():
   return len(g)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v3:OptObject = LoadGlobalCached<0; "len">
@@ -126,7 +126,7 @@ HasattrReturnsBool
 --- Input ---
 def test(obj):
     return hasattr(obj, "foo")
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "obj">
@@ -155,7 +155,7 @@ CompareInReturnsBool
 --- Input ---
 def test(x, y):
   return x in y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
@@ -175,7 +175,7 @@ CompareNotInReturnsBool
 --- Input ---
 def test(x, y):
   return x not in y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
@@ -196,7 +196,7 @@ ListAppendMethodEmitsListAppend
 def test():
   x = []
   x.append(1)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
@@ -227,7 +227,7 @@ AwaitedVectorCallStaticEmitsVectorCallStatic
 async def test():
   s = "abc"
   return await s.lower()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v12:Nullptr = LoadConst<Nullptr>
@@ -297,7 +297,7 @@ UnicodeLowerWithMismatchedArgcountEmitsVectorCallStatic
 def test():
   s = "abc"
   return s.lower(1)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
@@ -319,7 +319,7 @@ UnicodeLowerEmitsCallStatic
 def test():
   s = "abc"
   return s.lower()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
@@ -340,7 +340,7 @@ UnicodeRemovePrefixWithMismatchedArgcountEmitsVectorCallStatic
 def test():
   s = "abc"
   return s.removeprefix()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
@@ -361,7 +361,7 @@ UnicodeRemovePrefixEmitsCallStatic
 def test():
   s = "abc"
   return s.removeprefix("a")
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>

@@ -9,7 +9,7 @@ def test():
     x = 0
     x = 4
     return x
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v3:Nullptr = LoadConst<Nullptr>
@@ -27,7 +27,7 @@ def test():
     for i in (0, 1):
         y = i
     return x
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v10:Nullptr = LoadConst<Nullptr>
@@ -93,7 +93,7 @@ def test():
     def inner():
         x = 4
     inner()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -129,7 +129,7 @@ fun test {
     Return<CInt32> v0
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:CInt32 = LoadArg<0, CInt32>

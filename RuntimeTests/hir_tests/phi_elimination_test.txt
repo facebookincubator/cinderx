@@ -20,7 +20,7 @@ fun test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -53,7 +53,7 @@ fun test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -92,7 +92,7 @@ fun test {
     Branch<1>
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -125,7 +125,7 @@ fun test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>

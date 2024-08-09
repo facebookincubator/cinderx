@@ -43,6 +43,7 @@ def parse_arguments() -> argparse.Namespace:
 TEST_RUN_RE: re.Pattern[str] = re.compile(r"^\[ RUN +\] ([^.]+)\.(.+)$")
 ACTUAL_TEXT_RE: re.Pattern[str] = re.compile(r'^    Which is: "(.+)\\n"$')
 EXPECTED_VAR_RE: re.Pattern[str] = re.compile(r"^  ([^ ]+)$")
+VERSION_RE: re.Pattern[str] = re.compile(r"^Python Version: (.+)$")
 
 # special-case common abbrieviations like HIR and CFG when converting
 # camel-cased suite name to its snake-cased file name
@@ -69,11 +70,12 @@ def unescape_gtest_string(s: str) -> str:
     return "".join(result)
 
 
-def get_failed_tests(args: argparse.Namespace) -> SuiteOutputDict:
+def get_test_stdout(args: argparse.Namespace) -> str:
     if args.text_input:
         with open(args.text_input, "r") as f:
-            stdout = f.read()
-    elif args.command:
+            return f.read()
+
+    if args.command:
         proc = subprocess.run(
             args.command + ["--gtest_color=no"],
             stdout=subprocess.PIPE,
@@ -85,9 +87,18 @@ def get_failed_tests(args: argparse.Namespace) -> SuiteOutputDict:
             raise RuntimeError(
                 f"Command exited with {proc.returncode}, suggesting tests did not run to completion"
             )
-        stdout = proc.stdout
-    else:
-        raise RuntimeError("Must give either --text-input or a command")
+        return proc.stdout
+
+    raise RuntimeError("Must give either --text-input or a command to run")
+
+
+def parse_stdout(stdout: str) -> tuple[str, SuiteOutputDict]:
+    """
+    Parse out the Python version and failed test information from stdout.
+    """
+
+    unknown_version = "<UNKNOWN>"
+    py_version = unknown_version
 
     failed_tests = collections.defaultdict(lambda: {})
     line_iter = iter(stdout.split("\n"))
@@ -97,22 +108,25 @@ def get_failed_tests(args: argparse.Namespace) -> SuiteOutputDict:
         if line == FINISHED_LINE:
             break
 
-        match = TEST_RUN_RE.match(line)
-        if match:
-            test_name = (match[1], match[2])
+        if m := VERSION_RE.match(line):
+            py_version = m[1]
+            continue
+
+        if m := TEST_RUN_RE.match(line):
+            test_name = (m[1], m[2])
             test_dict = dict()
             continue
 
-        match = ACTUAL_TEXT_RE.match(line)
-        if not match:
+        m = ACTUAL_TEXT_RE.match(line)
+        if not m:
             continue
 
-        actual_text = unescape_gtest_string(match[1]).split("\n")
+        actual_text = unescape_gtest_string(m[1]).split("\n")
         line = next(line_iter)
-        match = EXPECTED_VAR_RE.match(line)
-        if not match:
+        m = EXPECTED_VAR_RE.match(line)
+        if not m:
             raise RuntimeError(f"Unexpected line '{line}' after actual text")
-        varname = match[1]
+        varname = m[1]
         if varname in test_dict:
             raise RuntimeError(
                 f"Duplicate expect variable name '{varname}' in {test_name[0]}.{test_name[1]}"
@@ -123,7 +137,10 @@ def get_failed_tests(args: argparse.Namespace) -> SuiteOutputDict:
         # Skip the "Which is: ..." line after the expect variable name.
         next(line_iter)
 
-    return failed_tests
+    if py_version == unknown_version:
+        raise RuntimeError("Couldn't figure out Python version from test output")
+
+    return py_version, failed_tests
 
 
 TESTS_DIR: str = os.path.normpath(
@@ -152,9 +169,10 @@ def map_suite_to_file(suite_name: str) -> str:
 
 
 def update_text_test(
-    old_lines: list[str],
     suite_name: str,
+    old_lines: list[str],
     failed_tests: TestOutputDict,
+    py_version: str,
 ) -> list[str]:
     line_index: int = 0
     new_lines: list[str] = []
@@ -202,8 +220,21 @@ def update_text_test(
             while not peek_line().startswith("---"):
                 new_lines.append(next_line())
 
+            # Find the right expected block for the given Python version.
+            expected_version = f"--- Expected {py_version} ---"
+            while True:
+                line = next_line()
+                new_lines.append(line)
+                if not line.startswith("---"):
+                    continue
+                if line == expected_version:
+                    break
+                if not line.startswith("--- Expected"):
+                    raise RuntimeError(
+                        f"Test '{suite_name}.{test_case}' hit {line!r} before seeing expected HIR output for version {py_version!r}"
+                    )
+
             # Figure out what the expected HIR output is supposed to be.
-            expect("--- Expected ---")
             hir_lines = []
             while not peek_line().startswith("---"):
                 hir_lines.append(next_line())
@@ -213,6 +244,13 @@ def update_text_test(
                 hir_lines = next(iter(failed_tests[test_case].values()))
 
             new_lines += hir_lines
+
+            # Process any other expected HIR blocks that come after.
+            if peek_line().startswith("--- Expected"):
+                new_lines.append(next_line())
+                while not peek_line().startswith("---"):
+                    new_lines.append(next_line())
+
     except StopIteration:
         pass
 
@@ -338,7 +376,8 @@ def update_cpp_tests(
 def main() -> None:
     args = parse_arguments()
     failed_cpp_tests = set()
-    failed_suites = get_failed_tests(args)
+    stdout = get_test_stdout(args)
+    py_version, failed_suites = parse_stdout(stdout)
 
     for suite_name, failed_tests in failed_suites.items():
         suite_file = map_suite_to_file(suite_name)
@@ -350,7 +389,7 @@ def main() -> None:
                 failed_cpp_tests.add((suite_name, test_name))
             continue
 
-        new_lines = update_text_test(old_lines, suite_name, failed_tests)
+        new_lines = update_text_test(suite_name, old_lines, failed_tests, py_version)
         write_if_changed(suite_file, old_lines, new_lines)
 
     if len(failed_cpp_tests) > 0:

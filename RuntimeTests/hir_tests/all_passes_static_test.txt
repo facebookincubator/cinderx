@@ -8,7 +8,7 @@ LoopDoesNotBoxIndex
 def test(*x):
   for i in x:
    print(i)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v15:TupleExact = LoadArg<0; "x", TupleExact>

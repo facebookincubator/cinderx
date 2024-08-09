@@ -22,7 +22,7 @@ fun test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -53,7 +53,7 @@ fun test {
     Return v6
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -89,7 +89,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -121,7 +121,7 @@ fun test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -157,7 +157,7 @@ fun test {
     Return v6
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -186,7 +186,7 @@ fun test {
     Return v7
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -226,7 +226,7 @@ fun test {
    Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -278,7 +278,7 @@ fun test {
     Return v7
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -332,7 +332,7 @@ fun test {
     Return v0
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -368,7 +368,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>

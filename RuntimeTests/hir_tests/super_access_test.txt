@@ -8,7 +8,7 @@ class A:
     def f(self):
       super().x = 1
 test = A.f
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
@@ -50,7 +50,7 @@ class A:
     def f(self):
       return super().f
 test = A.f
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
@@ -99,7 +99,7 @@ class A:
     def f(self):
       super().f(a=1)
 test = A.f
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
@@ -159,7 +159,7 @@ class A:
     def f(self):
       super().f()
 test = A.f
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>

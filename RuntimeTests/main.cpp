@@ -20,9 +20,16 @@
 #include <cstdlib>
 #include <cstring>
 
-static constexpr char g_disabled_prefix[] = "@disabled";
+namespace {
 
-static void remap_txt_path(std::string& path) {
+class SkipFixture : public ::testing::Test {
+ public:
+  void TestBody() override {
+    GTEST_SKIP();
+  }
+};
+
+void remap_txt_path(std::string& path) {
 #ifdef BUCK_BUILD
   boost::filesystem::path hir_tests_path =
       build::getResourcePath("cinderx/RuntimeTests/hir_tests");
@@ -32,7 +39,7 @@ static void remap_txt_path(std::string& path) {
 #endif
 }
 
-static void register_test(
+void register_test(
     std::string path,
     RuntimeTest::Flags extra_flags = RuntimeTest::Flags{}) {
   remap_txt_path(path);
@@ -54,12 +61,6 @@ static void register_test(
     }
   }
   for (auto& test_case : suite->test_cases) {
-    if (strncmp(
-            test_case.name.c_str(),
-            g_disabled_prefix,
-            sizeof(g_disabled_prefix) - 1) == 0) {
-      continue;
-    }
     ::testing::RegisterTest(
         suite->name.c_str(),
         test_case.name.c_str(),
@@ -67,12 +68,15 @@ static void register_test(
         nullptr,
         __FILE__,
         __LINE__,
-        [=] {
+        [=]() -> ::testing::Test* {
+          if (test_case.is_skip) {
+            return new SkipFixture{};
+          }
           auto test = new HIRTest(
               RuntimeTest::kJit | extra_flags,
               test_case.src_is_hir,
               test_case.src,
-              test_case.expected_hir);
+              test_case.expected);
           if (has_passes) {
             jit::hir::PassRegistry registry;
             std::vector<std::unique_ptr<jit::hir::Pass>> passes;
@@ -86,19 +90,10 @@ static void register_test(
   }
 }
 
-static void register_json_test(std::string path) {
+void register_json_test(std::string path) {
   remap_txt_path(path);
   auto suite = ReadHIRTestSuite(path);
-  if (suite == nullptr) {
-    std::exit(1);
-  }
   for (auto& test_case : suite->test_cases) {
-    if (strncmp(
-            test_case.name.c_str(),
-            g_disabled_prefix,
-            sizeof(g_disabled_prefix) - 1) == 0) {
-      continue;
-    }
     ::testing::RegisterTest(
         suite->name.c_str(),
         test_case.name.c_str(),
@@ -106,11 +101,14 @@ static void register_json_test(std::string path) {
         nullptr,
         __FILE__,
         __LINE__,
-        [=] {
+        [=]() -> ::testing::Test* {
+          if (test_case.is_skip) {
+            return new SkipFixture{};
+          }
           auto test = new HIRJSONTest(
               test_case.src,
               // Actually JSON
-              test_case.expected_hir);
+              test_case.expected);
           return test;
         });
   }
@@ -121,6 +119,8 @@ static void register_json_test(std::string path) {
 #define QUOTE(x) _QUOTE(x)
 #define _BAKED_IN_PYTHONPATH QUOTE(BAKED_IN_PYTHONPATH)
 #endif
+
+} // namespace
 
 #ifdef BUCK_BUILD
 PyMODINIT_FUNC PyInit__cinderx() {
@@ -152,6 +152,11 @@ int main(int argc, char* argv[]) {
 #endif
 
   ::testing::InitGoogleTest(&argc, argv);
+
+  // Needed for update_hir_expected.py to know which expected output to update.
+  std::cout << "Python Version: " << PY_MAJOR_VERSION << "." << PY_MINOR_VERSION
+            << std::endl;
+
   register_test("clean_cfg_test.txt");
   register_test("dynamic_comparison_elimination_test.txt");
   register_test("hir_builder_static_test.txt", RuntimeTest::kStaticCompiler);

@@ -8,13 +8,11 @@
 #include <vector>
 
 struct HIRTestCase {
-  HIRTestCase(std::string n, bool src_is_hir, std::string src, std::string e)
-      : name(n), src_is_hir(src_is_hir), src(src), expected_hir(e) {}
-
   std::string name;
-  bool src_is_hir;
   std::string src;
-  std::string expected_hir;
+  std::string expected;
+  bool src_is_hir{false};
+  bool is_skip{false};
 };
 
 struct HIRTestSuite {

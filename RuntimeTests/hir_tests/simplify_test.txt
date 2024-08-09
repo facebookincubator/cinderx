@@ -11,7 +11,7 @@ def test(a, b):
         "bbb": b}
 
     return baddict
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v9:Object = LoadArg<0; "a">
@@ -56,7 +56,7 @@ from __static__ import box, int64
 def test():
     x: int64 = 0
     return box(x)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>
@@ -82,7 +82,7 @@ ArgumentsAreUnchecked
 --- Input ---
 def test(x):
   return x
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0; "x">
@@ -96,7 +96,7 @@ VariablesAreUncheckedWhenAssigned
 def test():
   x = 1
   return x
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v2:Nullptr = LoadConst<Nullptr>
@@ -112,7 +112,7 @@ def test(x):
   if x:
     y = 1
   return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
@@ -154,7 +154,7 @@ def test(x):
   else:
     y = 2
   return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "x">
@@ -190,7 +190,7 @@ def test(x):
     if x:
       return 100
   return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -241,7 +241,7 @@ BinaryOpSubscriptFromListIsSpecialized
 def test():
   ls = [1, 2, 3]
   return ls[1]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -291,7 +291,7 @@ fun test {
     Return v2
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -318,7 +318,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -349,7 +349,7 @@ def test():
   s = "foobar"
   i = 3
   return s[i]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -370,7 +370,7 @@ def test():
   s = "foobar"
   i = -2
   return s[i]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -391,7 +391,7 @@ def test():
   s = "foobar"
   i = 6
   return s[i]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -415,7 +415,7 @@ def test():
   s = "foobar"
   i = -7
   return s[i]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -441,7 +441,7 @@ def test():
     local_str = "foobar" if os.argv else "thudgrunt"
     local_int = 3 if os.argv else 5
     return local_str[local_int]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v13:Nullptr = LoadConst<Nullptr>
@@ -563,7 +563,7 @@ fun test {
     Return v1
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -584,7 +584,7 @@ def test():
   else:
     y = True
   return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
@@ -609,7 +609,7 @@ def test():
   else:
     y = True
   return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
@@ -632,7 +632,7 @@ def test():
   if not x:
     y = False
   return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -656,7 +656,7 @@ def test():
   if not x:
     y = False
   return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -678,7 +678,7 @@ def test():
   if not x:
     y = False
   return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -702,7 +702,7 @@ def test():
   if not x:
     y = False
   return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -723,7 +723,7 @@ class Foo:
 
 def test():
   return Foo.bar
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -763,7 +763,7 @@ LoadAttrFromBuiltinTypeIsSpecialized
 --- Input ---
 def test():
   return int.__add__
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -805,7 +805,7 @@ import sys
 
 def test():
   return sys.path
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -835,7 +835,7 @@ fun test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -872,7 +872,7 @@ fun test {
     Return v7
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -895,7 +895,7 @@ def test():
   if x is None:
     return True
   return False
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v8:Nullptr = LoadConst<Nullptr>
@@ -923,7 +923,7 @@ def test():
   if x is y:
     return True
   return False
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v9:Nullptr = LoadConst<Nullptr>
@@ -972,7 +972,7 @@ fun test {
     Return v7
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1035,7 +1035,7 @@ fun test {
     Return v7
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1089,7 +1089,7 @@ fun test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1120,7 +1120,7 @@ fun test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1150,7 +1150,7 @@ fun test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1180,7 +1180,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1211,7 +1211,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1241,7 +1241,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1265,7 +1265,7 @@ def test():
   if a:
     return 1
   return 2
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -1305,7 +1305,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1334,7 +1334,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1363,7 +1363,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1392,7 +1392,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1421,7 +1421,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1450,7 +1450,7 @@ fun test {
     Return v4
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1472,7 +1472,7 @@ TypeIsTurnedIntoFieldLoad
 --- Input ---
 def test(x):
   return type(x)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
@@ -1502,7 +1502,7 @@ fun test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1533,7 +1533,7 @@ fun test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1562,7 +1562,7 @@ fun test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1585,7 +1585,7 @@ BinarySubscrWithConstTupleAndObjectSpecIndexSimplifiesToLoadConst
 def test():
   tup = (1,(2,3,4),5)
   return tup[1][2]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -1609,7 +1609,7 @@ IsBecomesComparisonOutsideIf
 --- Input ---
 def test(x, y):
   return x is y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
@@ -1625,7 +1625,7 @@ IsNotBecomesComparisonOutsideIf
 --- Input ---
 def test(x, y):
   return x is not y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
@@ -1650,7 +1650,7 @@ fun jittestmodule:test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1672,7 +1672,7 @@ def test():
   x = "hello"
   y = " world"
   return x+y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -1696,7 +1696,7 @@ def test():
   x = "hello"
   y = 1
   return x+y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -1727,7 +1727,7 @@ fun test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1749,7 +1749,7 @@ def test():
   a = "abc"
   b = 2
   return a*b
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -1775,7 +1775,7 @@ def test():
   a = "abc"
   b = True
   return a*b
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -1806,7 +1806,7 @@ fun test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1841,7 +1841,7 @@ fun jittestmodule:test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1870,7 +1870,7 @@ fun jittestmodule:test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1899,7 +1899,7 @@ fun jittestmodule:test {
     Return v5
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1926,7 +1926,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1953,7 +1953,7 @@ fun test {
     Return<CBool> v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:CBool = LoadArg<0, CBool>
@@ -1973,7 +1973,7 @@ fun jittestmodule:test {
     Return v2
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v1:Bool = LoadArg<0, Bool>
@@ -1996,7 +1996,7 @@ fun test {
     Return v2
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -2023,7 +2023,7 @@ fun test {
     Return v2
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -2049,7 +2049,7 @@ fun test {
     Return v1
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -2074,7 +2074,7 @@ fun test {
     Return<CInt64> v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:CInt64[63] = LoadConst<CInt64[63]>
@@ -2102,7 +2102,7 @@ fun test {
     Return<CInt64> v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:CInt64[63] = LoadConst<CInt64[63]>
@@ -2131,7 +2131,7 @@ fun test {
     Return<CInt64> v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:CInt64[63] = LoadConst<CInt64[63]>
@@ -2152,7 +2152,7 @@ LoadArrayItemWithInBoundsIndexIntoMakeListTupleReachesThroughIt
 def test(x, y, z):
   t = (x, y, z)
   return t[1]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:Object = LoadArg<0; "x">
@@ -2187,7 +2187,7 @@ LoadArrayItemWithTooBigIndexIntoMakeListTupleKeepsLoadArrayItem
 def test(x, y, z):
   t = (x, y, z)
   return t[3]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:Object = LoadArg<0; "x">
@@ -2225,7 +2225,7 @@ UnpackSequenceWithCorrectNumberOfValuesReachesThroughAllocation
 def test(x, y, z):
   a, b, c = (x, y, z)
   return b
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -2242,7 +2242,7 @@ UnpackSequenceWithIncorrectNumberOfValuesKeepsAllocation
 def test(x, y, z):
   a, c = (x, y, z)
   return a
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v14:Object = LoadArg<0; "x">
@@ -2280,7 +2280,7 @@ LoadVarObjectSizeWithConstTupleEmitsLoadConst
 def test():
   a, b, c = (1,2,3)
   return a
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v13:Nullptr = LoadConst<Nullptr>
@@ -2322,7 +2322,7 @@ fun jittestmodule:test {
     Return v1
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0:CBool[true] = LoadConst<CBool[true]>
@@ -2342,7 +2342,7 @@ fun jittestmodule:test {
     Return v1
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0:CBool[false] = LoadConst<CBool[false]>
@@ -2364,7 +2364,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32[123] = LoadConst<CInt32[123]>
@@ -2390,7 +2390,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32[123] = LoadConst<CInt32[123]>
@@ -2416,7 +2416,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32 = LoadArg<0, CInt32>
@@ -2439,7 +2439,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32[123] = LoadConst<CInt32[123]>
@@ -2465,7 +2465,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32[123] = LoadConst<CInt32[123]>
@@ -2491,7 +2491,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32 = LoadArg<0, CInt32>
@@ -2506,7 +2506,7 @@ PrimitiveCompareEqualBool
 --- Input ---
 def test(x):
   return (x is not None) == True
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -2527,7 +2527,7 @@ PrimitiveCompareNotEqualBool
 --- Input ---
 def test(x):
   return (x is not None) != True
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -2549,7 +2549,7 @@ PrimitiveCompareLessThanBool
 --- Input ---
 def test(x):
   return (x is not None) < True
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -2574,7 +2574,7 @@ LoadVarObjectSizeWithKnownTupleElidesEmitsLoadConst
 def test(a, b, c):
   d, e, f, _ = (a, b, c, 1)  # the 1 forces an UNPACK_SEQUENCE
   return d
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v19:Object = LoadArg<0; "a">
@@ -2624,7 +2624,7 @@ def foo(x, y=4):
 
 def test():
   return foo(1, 2, 3)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2653,7 +2653,7 @@ def foo(x, y=3):
 
 def test():
   return foo(1, 2)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2681,7 +2681,7 @@ def foo(a, b, c=3, d=4):
 
 def test():
   return foo(1, 2)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2714,7 +2714,7 @@ class Foo:
     return x + y
 def test():
   return Foo.regular_meth(1, 2)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2768,7 +2768,7 @@ class Foo:
 
 def test():
   return Foo.meth(1, 2)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2822,7 +2822,7 @@ class Foo:
 
 def test():
   return Foo.meth(1, 2)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2871,7 +2871,7 @@ LoadMethodFromBuiltinTypeIsSpecialized
 --- Input ---
 def test():
   return int.__add__(1, 2)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2922,7 +2922,7 @@ import time
 
 def test():
   return time.time()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2956,7 +2956,7 @@ class A:
     return 1
 def test():
   return A().hello()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2999,7 +2999,7 @@ fun test {
     Return<CInt64> v2
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:CInt64 = LoadArg<0, CInt64>
@@ -3039,7 +3039,7 @@ fun test {
     Return<CInt64> v6
   }
 }
---- Expected ---
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:CInt64 = LoadArg<0, CInt64>
@@ -3085,7 +3085,7 @@ class D(dict):
 def test(x):
   return (bool(x), bytes(x), dict(x), float(x), list(x), set(x), tuple(x),
           type(x), str(x), int(x), object(x), C(x), D(x))
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v28:Object = LoadArg<0; "x">
@@ -3270,7 +3270,7 @@ TestInPlaceLongExact
 def test():
     x = 1
     x += 2
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -3298,7 +3298,7 @@ def test():
     for i in range(10):
         x += 1
     return x
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v12:Nullptr = LoadConst<Nullptr>

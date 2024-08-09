@@ -10,7 +10,7 @@ class C:
 
 async def test(c: C):
     return await c.f()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
@@ -119,7 +119,7 @@ class C:
 
 def test(c: C):
     return c.x
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
@@ -152,7 +152,7 @@ class C:
 
 def test(c: C, x: int):
     c.x = x
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
@@ -183,7 +183,7 @@ TestFastLenList
 --- Input ---
 def test():
     return len([1, 3, 5])
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -219,7 +219,7 @@ def x(a: str, b: int) -> str:
 
 def test() -> str:
     return x("hello", 123)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -244,7 +244,7 @@ async def x(a: str, b: int) -> str:
 
 async def test() -> str:
     return await x("hello", 123)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0 = InitialYield {
@@ -314,7 +314,7 @@ def x(a: int, b: int, c: str, d: float, e: float) -> int:
 def test() -> int:
     p = ("hi", 0.1, 0.2)
     return x(1, 3, *p)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -489,7 +489,7 @@ from typing import List
 
 def test(it) -> List:
     return sorted(it)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "it">
@@ -526,7 +526,7 @@ def test() -> int:
     l = CheckedList[int]([1, 3, -5])
     i: int64 = 2
     return l[i]
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -592,7 +592,7 @@ def test(a: int) -> int:
     def inner() -> int:
         return a
     return a
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Long>
@@ -673,7 +673,7 @@ class A:
 
 def test(self : A):
   self._field.append(1)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
@@ -715,7 +715,7 @@ from __static__ import rand, RAND_MAX, box, int64
 def test():
     x: int64 = rand()
     return box(x)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot

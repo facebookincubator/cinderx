@@ -9,7 +9,7 @@ from __static__ import rand, RAND_MAX, box, int64
 def test():
     x: int64 = rand() // int64(RAND_MAX)
     return box(x)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v9:Nullptr = LoadConst<Nullptr>
@@ -45,7 +45,7 @@ def test() -> bool:
         return True
     else:
         return False
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v8:Nullptr = LoadConst<Nullptr>
@@ -82,7 +82,7 @@ MY_FINAL: Final[float] = 1.23
 def test() -> double:
     d: double = unbox(MY_FINAL)
     return d
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>
@@ -104,7 +104,7 @@ MY_FINAL: Final[int] = 42
 def test() -> uint8:
     u: uint8 = unbox(MY_FINAL)
     return u
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>
@@ -126,7 +126,7 @@ MY_FINAL: Final[int] = 10000
 def test() -> int8:
     i: int8 = unbox(MY_FINAL)
     return i
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>
@@ -149,7 +149,7 @@ from __static__ import cast
 
 def test(x: int):
     return cast(int, x)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v2:Long = LoadArg<0; "x", Long>
@@ -166,7 +166,7 @@ from typing import Optional
 
 def test():
     return cast(Optional[int], None)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -182,7 +182,7 @@ from __static__ import cast
 
 def test(x: bool):
     return cast(bool, x)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v2:Bool = LoadArg<0; "x", Bool>
@@ -198,7 +198,7 @@ from __static__ import cast
 
 def test(x):
     return cast(bool, x)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v2:Object = LoadArg<0; "x">
@@ -219,7 +219,7 @@ LoopDoesNotUseBoxedValue
 def test(*x):
   for i in x:
    print(i)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v15:TupleExact = LoadArg<0; "x", TupleExact>
@@ -317,7 +317,7 @@ from __static__ import int8, int64, box, unbox
 def test(x: int64) -> int8:
     y: int8 = unbox(box(x))
     return y
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:CInt64 = LoadArg<0; "x", CInt64>

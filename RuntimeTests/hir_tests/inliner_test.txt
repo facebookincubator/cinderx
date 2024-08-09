@@ -12,7 +12,7 @@ def foo():
 
 def test():
     return foo()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -45,7 +45,7 @@ def bar():
 
 def test():
     return foo() + bar()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -98,7 +98,7 @@ def foo(left, right):
 def test():
     ls = [1, 2, 3]
     return foo(ls, 1)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
@@ -159,7 +159,7 @@ def foo(left, right):
 
 def test():
     return foo(2, 3)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -196,7 +196,7 @@ def foo():
 
 def test():
     return foo(1)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -223,7 +223,7 @@ def foo(x):
 
 def test():
   return foo()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -249,7 +249,7 @@ def foo(*args):
 
 def test():
     return foo(2, 3)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -277,7 +277,7 @@ def foo(**kwargs):
 
 def test():
     return foo(2, 3)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -305,7 +305,7 @@ def foo():
 
 def test():
     return foo()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -334,7 +334,7 @@ def foo():
 
 def test():
     return foo()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -360,7 +360,7 @@ def test():
   def inside():
     return local
   return inside()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v10:Nullptr = LoadConst<Nullptr>
@@ -415,7 +415,7 @@ def test():
   def inside():
     return 5
   return inside()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -450,7 +450,7 @@ foo = C()
 
 def test():
     return foo()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -475,7 +475,7 @@ def test(x):
   if x < 2:
     return 1
   return x * test(x - 1)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v10:Object = LoadArg<0; "x">
@@ -607,7 +607,7 @@ def foo(left=1, right=2):
 
 def test():
   return foo(3, 4)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -644,7 +644,7 @@ def foo(a=1, b=2):
 
 def test():
     return foo()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -684,7 +684,7 @@ def foo(a, b, c=3, d=4):
 
 def test():
     return foo(1, 2)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot

@@ -12,7 +12,7 @@ class Test:
         self.x: int32 = 0
 
 test = Test.__init__
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v5:User[Test] = LoadArg<0; "self", User[Test]>
@@ -32,7 +32,7 @@ class Test:
         self.x = 0
 
 test = Test.__init__
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v4:User[Test] = LoadArg<0; "self", User[Test]>

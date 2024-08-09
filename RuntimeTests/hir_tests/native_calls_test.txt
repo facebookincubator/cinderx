@@ -14,7 +14,7 @@ def test(i: int) -> int:
     j: int32 = int32(i)
     return box(abs(j))
 
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "i", Long>

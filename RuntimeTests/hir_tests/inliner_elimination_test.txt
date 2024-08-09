@@ -13,7 +13,7 @@ def foo():
 
 def test():
     return foo()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -41,7 +41,7 @@ def bar():
 
 def test():
     return foo() + bar()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -82,7 +82,7 @@ def add(x, y):
 
 def test():
     return add(3, "x")
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot

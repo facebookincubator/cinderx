@@ -10,7 +10,7 @@ from __static__ import rand, RAND_MAX, box, int64
 def test():
     x: int64 = rand() // int64(RAND_MAX)
     return box(x)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v9:Nullptr = LoadConst<Nullptr>
@@ -41,7 +41,7 @@ MY_FINAL: Final[float] = 1.23
 def test() -> double:
     d: double = unbox(MY_FINAL)
     return d
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>

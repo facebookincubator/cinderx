@@ -12,7 +12,7 @@ def foo():
 
 def test():
     return foo()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -36,7 +36,7 @@ def foo(x: int, y: int) -> int:
 
 def test():
     return foo(1, 2)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -70,7 +70,7 @@ def foo() -> int8:
 
 def test() -> int8:
     return foo()
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -95,7 +95,7 @@ def foo(x) -> bool:
 
 def test(x):
     return foo(x)
---- Expected ---
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
