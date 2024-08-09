@@ -24,6 +24,18 @@ fun jittestmodule:Test.__init__ {
     Return<NoneType> v10
   }
 }
+--- Expected 3.12 ---
+fun jittestmodule:Test.__init__ {
+  bb 0 {
+    v5:User[Test] = LoadArg<0; "self", User[Test]>
+    v6:CInt32[0] = LoadConst<CInt32[0]>
+    v8:Nullptr = LoadConst<Nullptr>
+    StoreField<x@16> v5 v6 v8
+    v10:NoneType = LoadConst<NoneType>
+    Incref v10
+    Return<NoneType> v10
+  }
+}
 --- Test Name ---
 StoreFieldIncRef
 --- Input ---
@@ -33,6 +45,19 @@ class Test:
 
 test = Test.__init__
 --- Expected 3.10 ---
+fun jittestmodule:Test.__init__ {
+  bb 0 {
+    v4:User[Test] = LoadArg<0; "self", User[Test]>
+    v5:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    v7:OptObject = LoadField<x@16, OptObject, owned> v4
+    StoreField<x@16> v4 v5 v7
+    XDecref v7
+    v8:NoneType = LoadConst<NoneType>
+    Incref v8
+    Return<NoneType> v8
+  }
+}
+--- Expected 3.12 ---
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v4:User[Test] = LoadArg<0; "self", User[Test]>

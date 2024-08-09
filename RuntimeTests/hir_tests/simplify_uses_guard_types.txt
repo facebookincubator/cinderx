@@ -59,6 +59,42 @@ fun test {
     Return v6
   }
 }
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:ListExact = GuardType<ListExact> v0 {
+      FrameState {
+        NextInstrOffset 0
+      }
+    }
+    v3:LongExact = GuardType<LongExact> v1 {
+      FrameState {
+        NextInstrOffset 0
+      }
+    }
+    UseType<ListExact> v2
+    UseType<LongExact> v3
+    v7:CInt64 = IndexUnbox<IndexError> v3
+    v8:CInt64 = IsNegativeAndErrOccurred v7 {
+      FrameState {
+        NextInstrOffset 6
+        Locals<2> v0 v1
+      }
+    }
+    v9:CInt64 = CheckSequenceBounds v2 v7 {
+      FrameState {
+        NextInstrOffset 6
+        Locals<2> v0 v1
+      }
+    }
+    v10:CPtr = LoadField<ob_item@24, CPtr, borrowed> v2
+    v11:Object = LoadArrayItem v10 v9 v2
+    v6:NoneType = LoadConst<NoneType>
+    Return v6
+  }
+}
 --- Test Name ---
 IsTruthyUsesGuardTypes
 --- Input ---
@@ -89,6 +125,19 @@ fun test {
   }
 }
 --- Expected 3.10 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v7:NoneType = GuardIs<0xdeadbeef> v0 {
+    }
+    UseType<NoneType> v7
+    v8:CInt32[0] = LoadConst<CInt32[0]>
+    v4:NoneType = LoadConst<NoneType>
+    Return v4
+  }
+}
+--- Expected 3.12 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
