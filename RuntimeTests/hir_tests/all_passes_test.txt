@@ -1,26 +1,27 @@
+--- Test Suite Name ---
 AllPassesTest
----
+--- Passes ---
 @AllPasses
----
+--- Test Name ---
 ReturnConstant
----
+--- Input ---
 def test():
   return 1
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Return v1
   }
 }
----
+--- Test Name ---
 IfIsinstanceEmitsLoadFieldAndIsInstance
----
+--- Input ---
 def test(x):
   if isinstance(x, str):
     return 1
   return 2
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v7:Object = LoadArg<0; "x">
@@ -84,13 +85,13 @@ fun jittestmodule:test {
     Return v16
   }
 }
----
+--- Test Name ---
 LenReturnsLongExact
----
+--- Input ---
 g = [1,2,3]
 def test():
   return len(g)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v3:OptObject = LoadGlobalCached<0; "len">
@@ -120,12 +121,12 @@ fun jittestmodule:test {
     Return v10
   }
 }
----
+--- Test Name ---
 HasattrReturnsBool
----
+--- Input ---
 def test(obj):
     return hasattr(obj, "foo")
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "obj">
@@ -149,12 +150,12 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- Test Name ---
 CompareInReturnsBool
----
+--- Input ---
 def test(x, y):
   return x in y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
@@ -169,12 +170,12 @@ fun jittestmodule:test {
     Return v7
   }
 }
----
+--- Test Name ---
 CompareNotInReturnsBool
----
+--- Input ---
 def test(x, y):
   return x not in y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
@@ -189,13 +190,13 @@ fun jittestmodule:test {
     Return v7
   }
 }
----
+--- Test Name ---
 ListAppendMethodEmitsListAppend
----
+--- Input ---
 def test():
   x = []
   x.append(1)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
@@ -220,13 +221,13 @@ fun jittestmodule:test {
     Return v15
   }
 }
----
+--- Test Name ---
 AwaitedVectorCallStaticEmitsVectorCallStatic
----
+--- Input ---
 async def test():
   s = "abc"
   return await s.lower()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v12:Nullptr = LoadConst<Nullptr>
@@ -290,13 +291,13 @@ fun jittestmodule:test {
     Return v30
   }
 }
----
+--- Test Name ---
 UnicodeLowerWithMismatchedArgcountEmitsVectorCallStatic
----
+--- Input ---
 def test():
   s = "abc"
   return s.lower(1)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v7:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
@@ -312,13 +313,13 @@ fun jittestmodule:test {
     Return v13
   }
 }
----
+--- Test Name ---
 UnicodeLowerEmitsCallStatic
----
+--- Input ---
 def test():
   s = "abc"
   return s.lower()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
@@ -333,13 +334,13 @@ fun jittestmodule:test {
     Return v14
   }
 }
----
+--- Test Name ---
 UnicodeRemovePrefixWithMismatchedArgcountEmitsVectorCallStatic
----
+--- Input ---
 def test():
   s = "abc"
   return s.removeprefix()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
@@ -354,13 +355,13 @@ fun jittestmodule:test {
     Return v11
   }
 }
----
+--- Test Name ---
 UnicodeRemovePrefixEmitsCallStatic
----
+--- Input ---
 def test():
   s = "abc"
   return s.removeprefix("a")
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v7:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
@@ -376,4 +377,4 @@ fun jittestmodule:test {
     Return v16
   }
 }
----
+--- End ---

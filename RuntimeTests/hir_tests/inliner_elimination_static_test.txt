@@ -1,18 +1,19 @@
+--- Test Suite Name ---
 InlinerEliminationStaticTest
----
+--- Passes ---
 InlineFunctionCalls
 Simplify
 BeginInlinedFunctionElimination
----
+--- Test Name ---
 Simple
----
+--- Input ---
 def foo():
     # Chosen by fair dice roll. Guaranteed to be random.
     return 4
 
 def test():
     return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -22,9 +23,9 @@ fun jittestmodule:test {
     Return v6
   }
 }
----
+--- Test Name ---
 InlineMultipleFunctions
----
+--- Input ---
 def foo():
     return 3
 
@@ -33,7 +34,7 @@ def bar():
 
 def test():
     return foo() + bar()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -52,15 +53,15 @@ fun jittestmodule:test {
     Return v19
   }
 }
----
+--- Test Name ---
 BeginEndWithMemoryEffectsNotRemoved
----
+--- Input ---
 def add(x, y):
   return x + y
 
 def test():
     return add(3, "x")
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -83,9 +84,9 @@ fun jittestmodule:test {
     Return v16
   }
 }
----
+--- Test Name ---
 InlinedStoreFieldLoadFieldIsEliminated
----
+--- Input ---
 from __static__ import int8
 
 class C:
@@ -97,7 +98,7 @@ class C:
 
 def test() -> int8:
     return C().getfoo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -120,4 +121,4 @@ fun jittestmodule:test {
     Return<CInt8> v28
   }
 }
----
+--- End ---

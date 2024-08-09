@@ -1,15 +1,16 @@
+--- Test Suite Name ---
 DeadCodeEliminationAndSimplifyTest
----
+--- Passes ---
 Simplify
 DeadCodeElimination
----
+--- Test Name ---
 UnboxOfStaticGlobalIsOptimized
----
+--- Input ---
 from __static__ import rand, RAND_MAX, box, int64
 def test():
     x: int64 = rand() // int64(RAND_MAX)
     return box(x)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v9:Nullptr = LoadConst<Nullptr>
@@ -29,9 +30,9 @@ fun jittestmodule:test {
     Return v18
   }
 }
----
+--- Test Name ---
 UnboxOfFinalDoubleIsEliminated
----
+--- Input ---
 from typing import Final
 from __static__ import double, unbox
 
@@ -40,7 +41,7 @@ MY_FINAL: Final[float] = 1.23
 def test() -> double:
     d: double = unbox(MY_FINAL)
     return d
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>
@@ -51,4 +52,4 @@ fun jittestmodule:test {
     Return<CDouble> v9
   }
 }
----
+--- End ---

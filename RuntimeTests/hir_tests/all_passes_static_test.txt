@@ -1,13 +1,14 @@
+--- Test Suite Name ---
 AllPassesStaticTest
----
+--- Passes ---
 @AllPasses
----
+--- Test Name ---
 LoopDoesNotBoxIndex
----
+--- Input ---
 def test(*x):
   for i in x:
    print(i)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v15:TupleExact = LoadArg<0; "x", TupleExact>
@@ -92,4 +93,4 @@ fun jittestmodule:test {
     Return v44
   }
 }
----
+--- End ---

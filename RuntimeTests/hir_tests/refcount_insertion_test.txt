@@ -1,12 +1,13 @@
+--- Test Suite Name ---
 RefcountInsertionTest
----
+--- Passes ---
 RefcountInsertion
----
+--- Test Name ---
 BorrowedReturnValuesAreIncrefed
----
+--- Input ---
 def test(x):
   return x
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0; "x">
@@ -14,9 +15,9 @@ fun jittestmodule:test {
     Return v1
   }
 }
----
+--- Test Name ---
 CopiesDieAcrossEdge
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -38,7 +39,7 @@ fun test {
     Return v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:MortalDictExact = MakeDict<0> {
@@ -94,9 +95,9 @@ fun test {
     Return v3
   }
 }
----
+--- Test Name ---
 OwnedValueDyingAcrossEdgePromotesValueBorrowedFromIt
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -122,7 +123,7 @@ fun test {
     Return v2
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -164,9 +165,9 @@ fun test {
     Return v2
   }
 }
----
+--- Test Name ---
 OwnedValueDyingAcrossEdgeDoesntPromoteValueBorrowedFromOther
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -196,7 +197,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -262,16 +263,16 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 LoopUsingBorrowedValues
----
+--- Input ---
 def test(a, b, l):
     s = a
     for x in l:
         print(s)
         s = b
     use(a, b)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v14:Object = LoadArg<0; "a">
@@ -367,9 +368,9 @@ fun jittestmodule:test {
     Return v48
   }
 }
----
+--- Test Name ---
 LoopUsingOwnedValues
----
+--- Input ---
 def test(l):
     a = something()
     b = something_else()
@@ -378,7 +379,7 @@ def test(l):
         print(s)
         s = b
     use(a, b)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v18:Object = LoadArg<0; "l">
@@ -504,15 +505,15 @@ fun jittestmodule:test {
     Return v58
   }
 }
----
+--- Test Name ---
 LoopUsingTransientValues
----
+--- Input ---
 def test(l):
     s = something()
     for x in l:
         print(s)
         s = something_else()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v14:Object = LoadArg<0; "l">
@@ -624,12 +625,12 @@ fun jittestmodule:test {
     Return v42
   }
 }
----
+--- Test Name ---
 HandlesStoreAttr
----
+--- Input ---
 def test(x, val):
   x.foo = val
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
@@ -646,12 +647,12 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- Test Name ---
 HandlesLoadGlobalCached
----
+--- Input ---
 def test():
   return a_global
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadGlobal<0; "a_global"> {
@@ -662,12 +663,12 @@ fun jittestmodule:test {
     Return v1
   }
 }
----
+--- Test Name ---
 InitListTuple
----
+--- Input ---
 def test(a):
   return (a, a, a)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v2:Object = LoadArg<0; "a">
@@ -685,16 +686,16 @@ fun jittestmodule:test {
     Return v6
   }
 }
----
+--- Test Name ---
 ConditionalInitializedWithArgOrConst
----
+--- Input ---
 def test(pred, val):
     if pred:
         x = val
     else:
         x = 1
     return x
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "pred">
@@ -720,28 +721,28 @@ fun jittestmodule:test {
     Return v13
   }
 }
----
+--- Test Name ---
 ReassignArgToConst
----
+--- Input ---
 def test(val):
     x = 1
     return x
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Return v5
   }
 }
----
+--- Test Name ---
 LoadCellItemOutputIsIncrefed
----
+--- Input ---
 def test(a):
   a.foo()
   def g():
     return a
   return g
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v12:Object = LoadArg<0; "a">
@@ -811,9 +812,9 @@ fun jittestmodule:test {
     Return v23
   }
 }
----
+--- Test Name ---
 XIncrefUsedOnMaybeInitializedValue
----
+--- Input ---
 def test(timings):
     if timings:
         total_time = 0
@@ -821,7 +822,7 @@ def test(timings):
         total_time = total_time + 1
     if timings:
         print(total_time)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v12:Object = LoadArg<0; "timings">
@@ -931,9 +932,9 @@ fun jittestmodule:test {
     Return v35
   }
 }
----
+--- Test Name ---
 ValueBorrowedFromDeadPhiInputHasCorrectSupport
----
+--- Input ---
 def test(a, b, c):
     v = dict()
     if b:
@@ -945,7 +946,7 @@ def test(a, b, c):
     # a should now borrowed from the original arg or b, not v
     b = None
     print(a)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v15:Object = LoadArg<0; "a">
@@ -1056,9 +1057,9 @@ fun jittestmodule:test {
     Return v51
   }
 }
----
+--- Test Name ---
 MustNotBeImmortal
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -1076,7 +1077,7 @@ fun jittestmodule:test {
     Return v14
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0>
@@ -1098,9 +1099,9 @@ fun jittestmodule:test {
     Return v14
   }
 }
----
+--- Test Name ---
 OptimizeLongDecrefRuns
----
+--- Input ---
 def test():
   gen = lambda: 1
   fun = lambda a, b, c, d, e: a + b + c + d + e
@@ -1110,7 +1111,7 @@ def test():
   d = gen()
   e = gen()
   return fun(a, b, c, d, e)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v19:Nullptr = LoadConst<Nullptr>
@@ -1178,9 +1179,9 @@ fun jittestmodule:test {
     Return v49
   }
 }
----
+--- Test Name ---
 DeadCopiesNotInheritedFromPredecessor
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1199,7 +1200,7 @@ fun test {
     Return v1
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1234,4 +1235,4 @@ fun test {
     Return v1
   }
 }
----
+--- End ---

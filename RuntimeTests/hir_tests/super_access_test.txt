@@ -1,13 +1,14 @@
+--- Test Suite Name ---
 SuperAccessTest
----
----
+--- Passes ---
+--- Test Name ---
 SuperStoreAttrNotOptimized
----
+--- Input ---
 class A:
     def f(self):
       super().x = 1
 test = A.f
----
+--- Expected ---
 fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
@@ -42,14 +43,14 @@ fun jittestmodule:A.f {
     Return v8
   }
 }
----
+--- Test Name ---
 SuperLoadAttr
----
+--- Input ---
 class A:
     def f(self):
       return super().f
 test = A.f
----
+--- Expected ---
 fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
@@ -91,14 +92,14 @@ fun jittestmodule:A.f {
     Return v6
   }
 }
----
+--- Test Name ---
 MethodCallWithSuperLoadAttr
----
+--- Input ---
 class A:
     def f(self):
       super().f(a=1)
 test = A.f
----
+--- Expected ---
 fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
@@ -151,14 +152,14 @@ fun jittestmodule:A.f {
     Return v10
   }
 }
----
+--- Test Name ---
 MethodCallWithSuper
----
+--- Input ---
 class A:
     def f(self):
       super().f()
 test = A.f
----
+--- Expected ---
 fun jittestmodule:A.f {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
@@ -210,4 +211,4 @@ fun jittestmodule:A.f {
     Return v9
   }
 }
----
+--- End ---

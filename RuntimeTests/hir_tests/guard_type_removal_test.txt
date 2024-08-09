@@ -1,9 +1,10 @@
+--- Test Suite Name ---
 GuardTypeRemovalTest
----
+--- Passes ---
 GuardTypeRemoval
----
+--- Test Name ---
 GuardTypeRemovalRemovesUnusedGuardType
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -21,7 +22,7 @@ fun test {
     Return v5
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -36,9 +37,9 @@ fun test {
     Return v5
   }
 }
----
+--- Test Name ---
 KeepsGuardTypeWhenRefineTypeIsntSufficientRefinement
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -52,7 +53,7 @@ fun test {
     Return v6
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -69,9 +70,9 @@ fun test {
     Return v6
   }
 }
----
+--- Test Name ---
 FrameStateUsesDontKeepGuardsAlive
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -88,7 +89,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -105,9 +106,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 PrimitiveUnboxUsesInputType
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -120,7 +121,7 @@ fun test {
     Return v5
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -140,9 +141,9 @@ fun test {
     Return v5
   }
 }
----
+--- Test Name ---
 RemovesGuardTypeWhenRefineTypeIsSufficientRefinement
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -156,7 +157,7 @@ fun test {
     Return v6
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -168,9 +169,9 @@ fun test {
     Return v6
   }
 }
----
+--- Test Name ---
 KeepsGuardTypeThroughPassthroughDependency
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -185,7 +186,7 @@ fun test {
     Return v7
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -202,9 +203,9 @@ fun test {
     Return v7
   }
 }
----
+--- Test Name ---
 RemovesGuardTypesFromPhisThatReferenceThemselves
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -225,7 +226,7 @@ fun test {
    Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -251,9 +252,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 KeepGuardTypesFromPhisWhoseTypeRefinementIsNeeded
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -277,7 +278,7 @@ fun test {
     Return v7
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -307,9 +308,9 @@ fun test {
     Return v7
   }
 }
----
+--- Test Name ---
 RemoveGuardTypesFromUnusedPhis
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -331,7 +332,7 @@ fun test {
     Return v0
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -354,9 +355,9 @@ fun test {
     Return v0
   }
 }
----
+--- Test Name ---
 KeepsGuardTypeWhenGuardIsIsUsed
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -367,7 +368,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -382,4 +383,4 @@ fun test {
     Return v4
   }
 }
----
+--- End ---

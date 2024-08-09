@@ -32,18 +32,19 @@ struct HIRTestSuite {
 //
 // File format:
 //
+// --- Test Suite Name ---
 // <Test suite name>
-// ---
+// --- Passes ---
 // <Optimization pass name 1>
 // <Optimization pass name 2>
 // ...
-// ---
+// --- Test Name ---
 // <Test case name>
-// ---
+// --- Input ---
 // <Python code>
-// ---
+// --- Expected ---
 // <HIR>
-// ---
+// --- End ---
 //
 std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& path);
 

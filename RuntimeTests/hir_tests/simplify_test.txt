@@ -1,16 +1,17 @@
+--- Test Suite Name ---
 SimplifyTest
----
+--- Passes ---
 Simplify
----
+--- Test Name ---
 LoadTupleItemToLoadConst
----
+--- Input ---
 def test(a, b):
     baddict = {
         "aaa": a,
         "bbb": b}
 
     return baddict
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v9:Object = LoadArg<0; "a">
@@ -47,15 +48,15 @@ fun jittestmodule:test {
     Return v15
   }
 }
----
+--- Test Name ---
 LoadConstRedundantConversion
----
+--- Input ---
 from __static__ import box, int64
 
 def test():
     x: int64 = 0
     return box(x)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>
@@ -76,12 +77,12 @@ fun jittestmodule:test {
     Return v10
   }
 }
----
+--- Test Name ---
 ArgumentsAreUnchecked
----
+--- Input ---
 def test(x):
   return x
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0; "x">
@@ -89,13 +90,13 @@ fun jittestmodule:test {
     Return v1
   }
 }
----
+--- Test Name ---
 VariablesAreUncheckedWhenAssigned
----
+--- Input ---
 def test():
   x = 1
   return x
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v2:Nullptr = LoadConst<Nullptr>
@@ -104,14 +105,14 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Test Name ---
 VariablesAreCheckedIfConditionallyAssigned
----
+--- Input ---
 def test(x):
   if x:
     y = 1
   return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
@@ -144,16 +145,16 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 VariablesAreUncheckedIfAssignedOnAllFlows
----
+--- Input ---
 def test(x):
   if x:
     y = 1
   else:
     y = 2
   return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "x">
@@ -180,16 +181,16 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 VariablesAreUncheckedOnSubgraphsWhereAssigned
----
+--- Input ---
 def test(x):
   if x:
     y = 1
     if x:
       return 100
   return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -234,13 +235,13 @@ fun jittestmodule:test {
     Return v17
   }
 }
----
+--- Test Name ---
 BinaryOpSubscriptFromListIsSpecialized
----
+--- Input ---
 def test():
   ls = [1, 2, 3]
   return ls[1]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -278,9 +279,9 @@ fun jittestmodule:test {
     Return v18
   }
 }
----
+--- Test Name ---
 BinaryOpSubscriptFromNonListEmitsBinaryOp
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -290,7 +291,7 @@ fun test {
     Return v2
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -303,9 +304,9 @@ fun test {
     Return v2
   }
 }
----
+--- Test Name ---
 BinaryOpSubscriptFromTupleIsSpecialized
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -317,7 +318,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -341,14 +342,14 @@ fun test {
     Return v8
   }
 }
----
+--- Test Name ---
 BinaryOpSubscriptConstStringConstLong
----
+--- Input ---
 def test():
   s = "foobar"
   i = 3
   return s[i]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -362,14 +363,14 @@ fun jittestmodule:test {
     Return v13
   }
 }
----
+--- Test Name ---
 BinaryOpSubscriptConstStringConstNegativeLong
----
+--- Input ---
 def test():
   s = "foobar"
   i = -2
   return s[i]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -383,14 +384,14 @@ fun jittestmodule:test {
     Return v13
   }
 }
----
+--- Test Name ---
 BinaryOpSubscriptConstStringConstOutOfBoundsLong
----
+--- Input ---
 def test():
   s = "foobar"
   i = 6
   return s[i]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -407,14 +408,14 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 BinaryOpSubscriptConstStringConstNegativeOutOfBoundsLong
----
+--- Input ---
 def test():
   s = "foobar"
   i = -7
   return s[i]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -431,16 +432,16 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 BinaryOpSubscriptUnicodeSubscr
----
+--- Input ---
 import os
 
 def test():
     local_str = "foobar" if os.argv else "thudgrunt"
     local_int = 3 if os.argv else 5
     return local_str[local_int]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v13:Nullptr = LoadConst<Nullptr>
@@ -542,9 +543,9 @@ fun jittestmodule:test {
     Return v46
   }
 }
----
+--- Test Name ---
 CondBranchOfIsTruthyWithNoneRemovesCondBranch
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -562,7 +563,7 @@ fun test {
     Return v1
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -572,9 +573,9 @@ fun test {
     Return v1
   }
 }
----
+--- Test Name ---
 CondBranchOfIsTruthyWithNoneDeletesUnreachableBlock
----
+--- Input ---
 def test():
   x = None
   y = True
@@ -583,7 +584,7 @@ def test():
   else:
     y = True
   return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
@@ -597,9 +598,9 @@ fun jittestmodule:test {
     Return v17
   }
 }
----
+--- Test Name ---
 CondBranchOfIsTruthyWithTrueDeletesUnreachableBlock
----
+--- Input ---
 def test():
   x = True
   y = True
@@ -608,7 +609,7 @@ def test():
   else:
     y = True
   return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
@@ -622,16 +623,16 @@ fun jittestmodule:test {
     Return v14
   }
 }
----
+--- Test Name ---
 IsTruthyWithZeroTurnsToFalse
----
+--- Input ---
 def test():
   x = 0
   y = True
   if not x:
     y = False
   return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -646,16 +647,16 @@ fun jittestmodule:test {
     Return v13
   }
 }
----
+--- Test Name ---
 IsTruthyWithOneTurnsToTrue
----
+--- Input ---
 def test():
   x = 1
   y = True
   if not x:
     y = False
   return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -668,16 +669,16 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- Test Name ---
 IsTruthyWithEmptyStringTurnsToFalse
----
+--- Input ---
 def test():
   x = ""
   y = True
   if not x:
     y = False
   return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -692,16 +693,16 @@ fun jittestmodule:test {
     Return v13
   }
 }
----
+--- Test Name ---
 IsTruthyWithNonEmptyStringTurnsToTrue
----
+--- Input ---
 def test():
   x = "hello"
   y = True
   if not x:
     y = False
   return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -714,15 +715,15 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- Test Name ---
 LoadAttrFromTypeIsSpecialized
----
+--- Input ---
 class Foo:
   pass
 
 def test():
   return Foo.bar
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -757,12 +758,12 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- Test Name ---
 LoadAttrFromBuiltinTypeIsSpecialized
----
+--- Input ---
 def test():
   return int.__add__
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -797,14 +798,14 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- Test Name ---
 LoadAttrFromModuleIsUnspecialized
----
+--- Input ---
 import sys
 
 def test():
   return sys.path
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -822,9 +823,9 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Test Name ---
 RedundantGuardTypeIsRemoved
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -834,7 +835,7 @@ fun test {
     Return v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -842,9 +843,9 @@ fun test {
     Return v2
   }
 }
----
+--- Test Name ---
 CompareOfTwoNonesTurnsToLoadConst
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -871,7 +872,7 @@ fun test {
     Return v7
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -886,15 +887,15 @@ fun test {
     Return v1
   }
 }
----
+--- Test Name ---
 CompareIsOfNonEqualTypesTurnsToLoadConst
----
+--- Input ---
 def test():
   x = 2
   if x is None:
     return True
   return False
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v8:Nullptr = LoadConst<Nullptr>
@@ -913,16 +914,16 @@ fun jittestmodule:test {
     Return v17
   }
 }
----
+--- Test Name ---
 CompareIsOfKnownObjectsTurnsToLoadConst
----
+--- Input ---
 def test():
   x = 2
   y = 4
   if x is y:
     return True
   return False
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v9:Nullptr = LoadConst<Nullptr>
@@ -941,9 +942,9 @@ fun jittestmodule:test {
     Return v20
   }
 }
----
+--- Test Name ---
 CompareOfTwoLongsTurnsToLongCompare
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -971,7 +972,7 @@ fun test {
     Return v7
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1004,9 +1005,9 @@ fun test {
     Return v6
   }
 }
----
+--- Test Name ---
 CompareOfTwoStringsTurnsToUnicodeCompare
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1034,7 +1035,7 @@ fun test {
     Return v7
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1067,9 +1068,9 @@ fun test {
     Return v6
   }
 }
----
+--- Test Name ---
 CondBranchCheckTypeWithKnownTypeTransformsToBranch
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1088,7 +1089,7 @@ fun test {
     Return v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1098,9 +1099,9 @@ fun test {
     Return v2
   }
 }
----
+--- Test Name ---
 CondBranchCheckTypeWithKnownIncompatibleTypeTransformsToBranch
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1119,7 +1120,7 @@ fun test {
     Return v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1129,9 +1130,9 @@ fun test {
     Return v3
   }
 }
----
+--- Test Name ---
 CondBranchCheckTypeWithNoTypeInformationDoesNotTransform
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1149,7 +1150,7 @@ fun test {
     Return v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -1166,9 +1167,9 @@ fun test {
     Return v3
   }
 }
----
+--- Test Name ---
 IsTruthyWithObjectRemainsIsTruthy
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1179,7 +1180,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1197,9 +1198,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 IsTruthyWithBoolRewritesToPrimitiveCompare
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1210,7 +1211,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1227,9 +1228,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 IsTruthyWithListExactRewritesToLoadField
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1240,7 +1241,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1256,15 +1257,15 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 IsTruthyWithListExactWithObjSpecRewritesToLoadField
----
+--- Input ---
 a = [1,2,3]
 def test():
   if a:
     return 1
   return 2
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -1291,9 +1292,9 @@ fun jittestmodule:test {
     Return v8
   }
 }
----
+--- Test Name ---
 IsTruthyWithTupleExactRewritesToLoadField
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1304,7 +1305,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1320,9 +1321,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 IsTruthyWithArrayExactRewritesToLoadField
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1333,7 +1334,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1349,9 +1350,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 IsTruthyWithDictExactRewritesToLoadField
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1362,7 +1363,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1378,9 +1379,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 IsTruthyWithSetExactRewritesToLoadField
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1391,7 +1392,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1407,9 +1408,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 IsTruthyWithUnicodeExactRewritesToLoadField
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1420,7 +1421,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1436,9 +1437,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 IsTruthyWithLongExactRewritesToPrimitiveCompare
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1449,7 +1450,7 @@ fun test {
     Return v4
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1466,12 +1467,12 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 TypeIsTurnedIntoFieldLoad
----
+--- Input ---
 def test(x):
   return type(x)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
@@ -1487,9 +1488,9 @@ fun jittestmodule:test {
     Return v8
   }
 }
----
+--- Test Name ---
 BinaryOpWithLeftAndRightLongExactTurnsIntoLongBinaryOp
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1501,7 +1502,7 @@ fun test {
     Return v5
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1518,9 +1519,9 @@ fun test {
     Return v6
   }
 }
----
+--- Test Name ---
 BinaryOpWithObjSpecLeftAndRightLongExactTurnsIntoLoadConst
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1532,7 +1533,7 @@ fun test {
     Return v5
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1547,9 +1548,9 @@ fun test {
     Return v7
   }
 }
----
+--- Test Name ---
 BinaryOpTrueDivideWithLeftAndRightLongExactTurnsIntoLongBinaryOpFloat
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1561,7 +1562,7 @@ fun test {
     Return v5
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1578,13 +1579,13 @@ fun test {
     Return v6
   }
 }
----
+--- Test Name ---
 BinarySubscrWithConstTupleAndObjectSpecIndexSimplifiesToLoadConst
----
+--- Input ---
 def test():
   tup = (1,(2,3,4),5)
   return tup[1][2]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Nullptr = LoadConst<Nullptr>
@@ -1603,12 +1604,12 @@ fun jittestmodule:test {
     Return v15
   }
 }
----
+--- Test Name ---
 IsBecomesComparisonOutsideIf
----
+--- Input ---
 def test(x, y):
   return x is y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
@@ -1619,12 +1620,12 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- Test Name ---
 IsNotBecomesComparisonOutsideIf
----
+--- Input ---
 def test(x, y):
   return x is not y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Object = LoadArg<0; "x">
@@ -1635,9 +1636,9 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- Test Name ---
 DontSpecializeLongSubscript
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -1649,7 +1650,7 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1664,14 +1665,14 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Test Name ---
 UnicodeConcatEmittedWhenWhenAddingString
----
+--- Input ---
 def test():
   x = "hello"
   y = " world"
   return x+y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -1688,14 +1689,14 @@ fun jittestmodule:test {
     Return v13
   }
 }
----
+--- Test Name ---
 UnicodeConcatDoesNotEmitWhenStringAddingLong
----
+--- Input ---
 def test():
   x = "hello"
   y = 1
   return x+y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -1712,9 +1713,9 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 UnicodeConcatEmittedWhenSimplyfingAddingTwoUnicode
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1726,7 +1727,7 @@ fun test {
     Return v5
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1741,14 +1742,14 @@ fun test {
     Return v6
   }
 }
----
+--- Test Name ---
 UnicodeRepeatEmittedWhenMultiplyingString
----
+--- Input ---
 def test():
   a = "abc"
   b = 2
   return a*b
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -1767,14 +1768,14 @@ fun jittestmodule:test {
     Return v15
   }
 }
----
+--- Test Name ---
 UnicodeRepeatDoesNotEmitWhenStringMultipliedByNonLongExact
----
+--- Input ---
 def test():
   a = "abc"
   b = True
   return a*b
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -1791,9 +1792,9 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 UnicodeRepeatEmittedWhenSimplyfingMultiplyWithNonConstLongExact
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1805,7 +1806,7 @@ fun test {
     Return v5
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1826,9 +1827,9 @@ fun test {
     Return v8
   }
 }
----
+--- Test Name ---
 BinarySubscrWithDictExactAndUnicodeExactEmitsDictSubscr
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -1840,7 +1841,7 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1855,9 +1856,9 @@ fun jittestmodule:test {
     Return v6
   }
 }
----
+--- Test Name ---
 BinarySubscrWithDictExactAndLongExactEmitsDictSubscr
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -1869,7 +1870,7 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1884,9 +1885,9 @@ fun jittestmodule:test {
     Return v6
   }
 }
----
+--- Test Name ---
 BinarySubscrWithDictExactAndDictExactEmitsDictSubscr
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -1898,7 +1899,7 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1913,9 +1914,9 @@ fun jittestmodule:test {
     Return v6
   }
 }
----
+--- Test Name ---
 GuardIsReturnsIntersectionOfInputAndTarget
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -1925,7 +1926,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:Object = LoadArg<0>
@@ -1939,9 +1940,9 @@ fun jittestmodule:test {
     Unreachable
   }
 }
----
+--- Test Name ---
 CompareOfBoxedBoolToTrueSimplifiedToOriginalBool
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1952,7 +1953,7 @@ fun test {
     Return<CBool> v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:CBool = LoadArg<0, CBool>
@@ -1961,9 +1962,9 @@ fun test {
     Return<CBool> v0
   }
 }
----
+--- Test Name ---
 BooleanNotTurnsIntoPrimitive
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -1972,7 +1973,7 @@ fun jittestmodule:test {
     Return v2
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v1:Bool = LoadArg<0, Bool>
@@ -1983,9 +1984,9 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Test Name ---
 GetLengthWithListTurnsIntoLoadField
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -1995,7 +1996,7 @@ fun test {
     Return v2
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -2010,9 +2011,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 GetLengthWithTupleTurnsIntoLoadField
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -2022,7 +2023,7 @@ fun test {
     Return v2
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -2037,9 +2038,9 @@ fun test {
     Return v4
   }
 }
----
+--- Test Name ---
 GetLengthWithUnknownRemainsGetLength
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -2048,7 +2049,7 @@ fun test {
     Return v1
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -2060,9 +2061,9 @@ fun test {
     Return v1
   }
 }
----
+--- Test Name ---
 CheckSequenceBoundsWithKnownInBoundsIndexEliminated
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -2073,7 +2074,7 @@ fun test {
     Return<CInt64> v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:CInt64[63] = LoadConst<CInt64[63]>
@@ -2088,9 +2089,9 @@ fun test {
     Return<CInt64> v2
   }
 }
----
+--- Test Name ---
 CheckSequenceBoundsWithKnownInBoundsNegativeIndexEliminated
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -2101,7 +2102,7 @@ fun test {
     Return<CInt64> v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:CInt64[63] = LoadConst<CInt64[63]>
@@ -2117,9 +2118,9 @@ fun test {
     Return<CInt64> v4
   }
 }
----
+--- Test Name ---
 CheckSequenceBoundsWithKnownOutOfBoundsIndexNotEliminated
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -2130,7 +2131,7 @@ fun test {
     Return<CInt64> v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:CInt64[63] = LoadConst<CInt64[63]>
@@ -2145,13 +2146,13 @@ fun test {
     Return<CInt64> v3
   }
 }
----
+--- Test Name ---
 LoadArrayItemWithInBoundsIndexIntoMakeListTupleReachesThroughIt
----
+--- Input ---
 def test(x, y, z):
   t = (x, y, z)
   return t[1]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v7:Object = LoadArg<0; "x">
@@ -2180,13 +2181,13 @@ fun jittestmodule:test {
     Return v8
   }
 }
----
+--- Test Name ---
 LoadArrayItemWithTooBigIndexIntoMakeListTupleKeepsLoadArrayItem
----
+--- Input ---
 def test(x, y, z):
   t = (x, y, z)
   return t[3]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v7:Object = LoadArg<0; "x">
@@ -2218,13 +2219,13 @@ fun jittestmodule:test {
     Return v22
   }
 }
----
+--- Test Name ---
 UnpackSequenceWithCorrectNumberOfValuesReachesThroughAllocation
----
+--- Input ---
 def test(x, y, z):
   a, b, c = (x, y, z)
   return b
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -2235,13 +2236,13 @@ fun jittestmodule:test {
     Return v7
   }
 }
----
+--- Test Name ---
 UnpackSequenceWithIncorrectNumberOfValuesKeepsAllocation
----
+--- Input ---
 def test(x, y, z):
   a, c = (x, y, z)
   return a
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v14:Object = LoadArg<0; "x">
@@ -2273,13 +2274,13 @@ fun jittestmodule:test {
     }
   }
 }
----
+--- Test Name ---
 LoadVarObjectSizeWithConstTupleEmitsLoadConst
----
+--- Input ---
 def test():
   a, b, c = (1,2,3)
   return a
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v13:Nullptr = LoadConst<Nullptr>
@@ -2310,9 +2311,9 @@ fun jittestmodule:test {
     Return v44
   }
 }
----
+--- Test Name ---
 PrimitiveBoxWithTrueEmitsLoadConstTrue
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -2321,7 +2322,7 @@ fun jittestmodule:test {
     Return v1
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0:CBool[true] = LoadConst<CBool[true]>
@@ -2330,9 +2331,9 @@ fun jittestmodule:test {
     Return v2
   }
 }
----
+--- Test Name ---
 PrimitiveBoxWithFalseEmitsLoadConstFalse
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -2341,7 +2342,7 @@ fun jittestmodule:test {
     Return v1
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0:CBool[false] = LoadConst<CBool[false]>
@@ -2350,9 +2351,9 @@ fun jittestmodule:test {
     Return v2
   }
 }
----
+--- Test Name ---
 PrimitiveCompareEqualWithEqualInputsEmitsLoadConstTrue
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -2363,7 +2364,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32[123] = LoadConst<CInt32[123]>
@@ -2376,9 +2377,9 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Test Name ---
 PrimitiveCompareEqualWithInequalInputsEmitsLoadConstFalse
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -2389,7 +2390,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32[123] = LoadConst<CInt32[123]>
@@ -2402,9 +2403,9 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Test Name ---
 PrimitiveCompareEqualWithUnknownInputsDoesNotSimplify
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -2415,7 +2416,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32 = LoadArg<0, CInt32>
@@ -2425,9 +2426,9 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Test Name ---
 PrimitiveCompareNotEqualWithEqualInputsEmitsLoadConstFalse
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -2438,7 +2439,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32[123] = LoadConst<CInt32[123]>
@@ -2451,9 +2452,9 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Test Name ---
 PrimitiveCompareNotEqualWithInequalInputsEmitsLoadConstTrue
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -2464,7 +2465,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32[123] = LoadConst<CInt32[123]>
@@ -2477,9 +2478,9 @@ fun jittestmodule:test {
     Return v5
   }
 }
----
+--- Test Name ---
 PrimitiveCompareNotEqualWithUnknownInputsDoesNotSimplify
----
+--- Input ---
 # HIR
 fun jittestmodule:test {
   bb 0 {
@@ -2490,7 +2491,7 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0:CInt32 = LoadArg<0, CInt32>
@@ -2500,12 +2501,12 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Test Name ---
 PrimitiveCompareEqualBool
----
+--- Input ---
 def test(x):
   return (x is not None) == True
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -2521,12 +2522,12 @@ fun jittestmodule:test {
     Return v14
   }
 }
----
+--- Test Name ---
 PrimitiveCompareNotEqualBool
----
+--- Input ---
 def test(x):
   return (x is not None) != True
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -2543,12 +2544,12 @@ fun jittestmodule:test {
     Return v14
   }
 }
----
+--- Test Name ---
 PrimitiveCompareLessThanBool
----
+--- Input ---
 def test(x):
   return (x is not None) < True
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v6:Object = LoadArg<0; "x">
@@ -2567,13 +2568,13 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 LoadVarObjectSizeWithKnownTupleElidesEmitsLoadConst
----
+--- Input ---
 def test(a, b, c):
   d, e, f, _ = (a, b, c, 1)  # the 1 forces an UNPACK_SEQUENCE
   return d
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v19:Object = LoadArg<0; "a">
@@ -2615,15 +2616,15 @@ fun jittestmodule:test {
     Return v19
   }
 }
----
+--- Test Name ---
 VectorCallWithTooManyArgsStaysTheSame
----
+--- Input ---
 def foo(x, y=4):
   return x
 
 def test():
   return foo(1, 2, 3)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2644,15 +2645,15 @@ fun jittestmodule:test {
     Return v10
   }
 }
----
+--- Test Name ---
 VectorCallWithUnnecessaryDefaultsKeepsArgs
----
+--- Input ---
 def foo(x, y=3):
   return x
 
 def test():
   return foo(1, 2)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2672,15 +2673,15 @@ fun jittestmodule:test {
     Return v8
   }
 }
----
+--- Test Name ---
 VectorCallHasDefaultsFilledIn
----
+--- Input ---
 def foo(a, b, c=3, d=4):
   return x
 
 def test():
   return foo(1, 2)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2705,15 +2706,15 @@ fun jittestmodule:test {
     Return v13
   }
 }
----
+--- Test Name ---
 LoadMethodFromTypeIsSpecialized
----
+--- Input ---
 class Foo:
   def regular_meth(x, y):
     return x + y
 def test():
   return Foo.regular_meth(1, 2)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2757,9 +2758,9 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 LoadClassMethodFromTypeIsSpecialized
----
+--- Input ---
 class Foo:
   @classmethod
   def meth(cls, x, y):
@@ -2767,7 +2768,7 @@ class Foo:
 
 def test():
   return Foo.meth(1, 2)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2811,9 +2812,9 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 LoadStaticMethodFromTypeIsSpecialized
----
+--- Input ---
 class Foo:
   @staticmethod
   def meth(x, y):
@@ -2821,7 +2822,7 @@ class Foo:
 
 def test():
   return Foo.meth(1, 2)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2865,12 +2866,12 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 LoadMethodFromBuiltinTypeIsSpecialized
----
+--- Input ---
 def test():
   return int.__add__(1, 2)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2914,14 +2915,14 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 LoadMethodFromModuleIsSpecialized
----
+--- Input ---
 import time
 
 def test():
   return time.time()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2946,16 +2947,16 @@ fun jittestmodule:test {
     Return v8
   }
 }
----
+--- Test Name ---
 LoadClassMethodFromInstanceIsUnspecialized
----
+--- Input ---
 class A:
   @classmethod
   def hello(cls):
     return 1
 def test():
   return A().hello()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -2986,9 +2987,9 @@ fun jittestmodule:test {
     Return v10
   }
 }
----
+--- Test Name ---
 UnboxOfBoxedPrimitiveUsesOriginalPrimitive
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -2998,7 +2999,7 @@ fun test {
     Return<CInt64> v2
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:CInt64 = LoadArg<0, CInt64>
@@ -3010,9 +3011,9 @@ fun test {
     Return<CInt64> v0
   }
 }
----
+--- Test Name ---
 UnboxOfBoxedPrimitiveDoesNotSeeThroughPhi
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -3038,7 +3039,7 @@ fun test {
     Return<CInt64> v6
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:CInt64 = LoadArg<0, CInt64>
@@ -3071,9 +3072,9 @@ fun test {
     Return<CInt64> v6
   }
 }
----
+--- Test Name ---
 TestCallBuiltinTypes
----
+--- Input ---
 class C:
   pass
 
@@ -3084,7 +3085,7 @@ class D(dict):
 def test(x):
   return (bool(x), bytes(x), dict(x), float(x), list(x), set(x), tuple(x),
           type(x), str(x), int(x), object(x), C(x), D(x))
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v28:Object = LoadArg<0; "x">
@@ -3263,13 +3264,13 @@ fun jittestmodule:test {
     Return v81
   }
 }
----
+--- Test Name ---
 TestInPlaceLongExact
----
+--- Input ---
 def test():
     x = 1
     x += 2
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -3289,15 +3290,15 @@ fun jittestmodule:test {
     Return v12
   }
 }
----
+--- Test Name ---
 TestInPlaceLongExactLoop
----
+--- Input ---
 def test():
     x = 1
     for i in range(10):
         x += 1
     return x
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v12:Nullptr = LoadConst<Nullptr>
@@ -3378,4 +3379,4 @@ fun jittestmodule:test {
     Return v23
   }
 }
----
+--- End ---

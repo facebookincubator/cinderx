@@ -1,18 +1,19 @@
+--- Test Suite Name ---
 InlinerEliminationTest
----
+--- Passes ---
 InlineFunctionCalls
 Simplify
 BeginInlinedFunctionElimination
----
+--- Test Name ---
 Simple
----
+--- Input ---
 def foo():
     # Chosen by fair dice roll. Guaranteed to be random.
     return 4
 
 def test():
     return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -29,9 +30,9 @@ fun jittestmodule:test {
     Return v7
   }
 }
----
+--- Test Name ---
 InlineMultipleFunctions
----
+--- Input ---
 def foo():
     return 3
 
@@ -40,7 +41,7 @@ def bar():
 
 def test():
     return foo() + bar()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -73,15 +74,15 @@ fun jittestmodule:test {
     Return v25
   }
 }
----
+--- Test Name ---
 BeginEndWithMemoryEffectsNotRemoved
----
+--- Input ---
 def add(x, y):
   return x + y
 
 def test():
     return add(3, "x")
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -111,4 +112,4 @@ fun jittestmodule:test {
     Return v17
   }
 }
----
+--- End ---

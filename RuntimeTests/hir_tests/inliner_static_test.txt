@@ -1,17 +1,18 @@
+--- Test Suite Name ---
 InlinerStaticTest
----
+--- Passes ---
 InlineFunctionCalls
 Simplify
----
+--- Test Name ---
 InvokeStaticFunctionWithNoArgs
----
+--- Input ---
 def foo():
     # Chosen by fair dice roll. Guaranteed to be random.
     return 4
 
 def test():
     return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -26,16 +27,16 @@ fun jittestmodule:test {
     Return v6
   }
 }
----
+--- Test Name ---
 InvokeStaticFunctionWithArgs
----
+--- Input ---
 def foo(x: int, y: int) -> int:
     # Chosen by fair dice roll. Guaranteed to be random.
     return x + y
 
 def test():
     return foo(1, 2)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -58,9 +59,9 @@ fun jittestmodule:test {
     Return v22
   }
 }
----
+--- Test Name ---
 InvokeStaticFunctionReturningCType
----
+--- Input ---
 from __static__ import int8
 
 def foo() -> int8:
@@ -69,7 +70,7 @@ def foo() -> int8:
 
 def test() -> int8:
     return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -84,9 +85,9 @@ fun jittestmodule:test {
     Return<CInt8> v6
   }
 }
----
+--- Test Name ---
 CalleeWithNonPrimitiveReturnHasObjectReturnType
----
+--- Input ---
 def foo(x) -> bool:
     # isinstance is typed by SP as returning bool but returns object in the
     # JIT.
@@ -94,7 +95,7 @@ def foo(x) -> bool:
 
 def test(x):
     return foo(x)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v3:Object = LoadArg<0; "x">
@@ -146,4 +147,4 @@ fun jittestmodule:test {
     Return v28
   }
 }
----
+--- End ---

@@ -1,24 +1,37 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include "cinderx/RuntimeTests/testutil.h"
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
+#include <fmt/format.h>
 
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <string_view>
 
-static const std::string kDelim = "---";
+namespace {
 
-static std::ostream& err(const std::string& path) {
-  std::cerr << "ERROR [" << path << "]: ";
-  return std::cerr;
+constexpr std::string_view kDelim = "---";
+
+template <class T>
+std::ostream& err(const T& path) {
+  return std::cerr << "ERROR [" << path << "]: ";
 }
 
 bool read_delim(std::ifstream& /* file */) {
   return false;
+}
+
+// Remove whitespace from the beginning and end of a string.
+void trimWhitespace(std::string_view& s) {
+  while (!s.empty() && std::isspace(s[0])) {
+    s.remove_prefix(1);
+  }
+  while (!s.empty() && std::isspace(s.back())) {
+    s.remove_suffix(1);
+  }
 }
 
 struct FileGuard {
@@ -30,41 +43,33 @@ struct FileGuard {
 };
 
 struct Result {
-  bool is_error;
   std::string error;
 
   static Result Ok() {
-    Result result = {
-        .is_error = false,
-        .error = std::string(),
-    };
-    return result;
+    return Result{};
   }
 
-  static Result Error(const char* fmt, ...) {
-    char buf[2048];
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(buf, 2048, fmt, args);
-    std::string s(buf);
-    Result result = {.is_error = true, .error = s};
-    return result;
+  template <class... Args>
+  static Result Error(fmt::format_string<Args...> fmt, Args&&... args) {
+    return Result{fmt::format(fmt, std::forward<Args>(args)...)};
   }
 
-  static Result ErrorFromErrno(const char* prefix) {
-    std::ostringstream os;
-    if (prefix != nullptr) {
-      os << prefix << ": ";
-    }
-    os << strerror(errno);
-    Result result = {.is_error = true, .error = os.str()};
-    return result;
+  static Result ErrorFromErrno(std::string_view prefix) {
+    return Result{fmt::format("{}: {}", prefix, strerror(errno))};
+  }
+
+  bool isError() const {
+    return !error.empty();
   }
 };
 
 struct Reader {
   explicit Reader(const std::string& p, std::ifstream& f)
       : path(p), file(f), line_num(0) {}
+
+  char PeekChar() {
+    return file.peek();
+  }
 
   Result ReadLine(std::string& s) {
     if (!std::getline(file, s)) {
@@ -74,34 +79,63 @@ struct Reader {
     return Result::Ok();
   }
 
-  Result ReadDelim() {
-    std::string line;
-    auto result = ReadLine(line);
-    if (result.is_error) {
-      return result;
+  // Parse out the message inside of a delimiter line.
+  Result ParseDelim(std::string_view& line) {
+    if (!line.starts_with(kDelim)) {
+      return Result::Error(
+          "Expected delimiter at line {} does not start with {}",
+          line_num,
+          kDelim);
     }
-    if (line != kDelim) {
-      return Result::Error("Expected delimiter at line %d", line_num);
+    if (!line.ends_with(kDelim)) {
+      return Result::Error(
+          "Expected delimiter at line {} does not end with {}",
+          line_num,
+          kDelim);
+    }
+    if (line.size() <= kDelim.size() * 2) {
+      return Result::Error(
+          "Expected delimiter at line {} is too short: {}", line_num, line);
+    }
+    line.remove_prefix(kDelim.size());
+    line.remove_suffix(kDelim.size());
+    trimWhitespace(line);
+    return Result::Ok();
+  }
+
+  // Match a line to a delimiter with a given message inside of it.
+  Result MatchDelim(std::string_view line, std::string_view expected) {
+    ParseDelim(line);
+    if (line != expected) {
+      return Result::Error(
+          "Expected delimiter at line {} to contain '{}', but it is '{}'",
+          line_num,
+          expected,
+          line);
     }
     return Result::Ok();
   }
 
+  Result ReadDelim(std::string_view expected) {
+    std::string line;
+    auto result = ReadLine(line);
+    if (result.isError()) {
+      return result;
+    }
+    return MatchDelim(line, expected);
+  }
+
   Result ReadUntilDelim(std::string& s) {
     std::ostringstream os;
-    std::string line;
-    bool done = false;
     Result result;
-    while (!done) {
+    while (!IsExhausted() && PeekChar() != kDelim[0]) {
+      std::string line;
       auto result = ReadLine(line);
-      if (result.is_error) {
+      if (result.isError()) {
         s = os.str();
         return result;
       }
-      if (line == kDelim) {
-        done = true;
-      } else {
-        os << line << std::endl;
-      }
+      os << line << std::endl;
     }
     s = os.str();
     return Result::Ok();
@@ -115,6 +149,8 @@ struct Reader {
   std::ifstream& file;
   int line_num;
 };
+
+} // namespace
 
 std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
   std::ifstream file;
@@ -133,58 +169,76 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
 
   auto suite = std::make_unique<HIRTestSuite>();
   Reader reader(path, file);
-  Result result = reader.ReadLine(suite->name);
-  if (result.is_error) {
-    err(path) << "Failed reading test suite name: " << result.error
+
+  Result result = reader.ReadDelim("Test Suite Name");
+  if (result.isError()) {
+    err(path) << "Failed reading first line of the file: " << result.error
               << std::endl;
     return nullptr;
   }
-  result = reader.ReadDelim();
-  if (result.is_error) {
+  result = reader.ReadLine(suite->name);
+  if (result.isError()) {
     err(path) << "Failed reading test suite name: " << result.error
               << std::endl;
     return nullptr;
   }
 
-  std::string pass_name;
-  result = reader.ReadLine(pass_name);
-  if (result.is_error) {
-    err(path) << "Failed reading pass name: " << result.error << std::endl;
+  result = reader.ReadDelim("Passes");
+  if (result.isError()) {
+    err(path) << result.error << std::endl;
     return nullptr;
   }
-  while (pass_name != kDelim) {
-    suite->pass_names.push_back(pass_name);
+
+  while (!reader.IsExhausted() && reader.PeekChar() != kDelim[0]) {
+    std::string pass_name;
     result = reader.ReadLine(pass_name);
-    if (result.is_error) {
+    if (result.isError()) {
       err(path) << "Failed reading pass name: " << result.error << std::endl;
       return nullptr;
     }
+    suite->pass_names.push_back(pass_name);
   }
 
   while (!reader.IsExhausted()) {
-    std::string name;
-    Result result = reader.ReadUntilDelim(name);
-    if (result.is_error) {
-      if (reader.IsExhausted() && name.empty()) {
-        break;
-      } else {
-        err(path) << "Incomplete test case at end of file" << std::endl;
-        return nullptr;
-      }
-    }
-    // Ignore newlines at the end of test names.
-    if (!name.empty() && name.back() == '\n') {
-      name.pop_back();
+    std::string line;
+
+    std::string name_buf;
+    result = reader.ReadLine(line);
+    if (result.isError()) {
+      err(path) << "Failed to read test case or end delimiter line: "
+                << result.error << std::endl;
+      return nullptr;
     }
 
+    auto name_result = reader.MatchDelim(line, "Test Name");
+    auto end_result = reader.MatchDelim(line, "End");
+    if (!end_result.isError()) {
+      break;
+    }
+    if (name_result.isError()) {
+      err(path) << result.error << std::endl;
+      return nullptr;
+    }
+
+    result = reader.ReadLine(name_buf);
+    if (result.isError()) {
+      err(path) << "Failed to read out test name: " << result.error
+                << std::endl;
+      return nullptr;
+    }
+
+    std::string_view name = name_buf;
+    trimWhitespace(name);
+
     std::string src;
+    result = reader.ReadDelim("Input");
+    if (result.isError()) {
+      err(path) << result.error << std::endl;
+      return nullptr;
+    }
     result = reader.ReadUntilDelim(src);
-    if (result.is_error) {
-      if (reader.IsExhausted()) {
-        err(path) << "Incomplete test case at end of file" << std::endl;
-      } else {
-        err(path) << "Failed reading test case " << result.error << std::endl;
-      }
+    if (result.isError()) {
+      err(path) << "Failed reading test case: " << result.error << std::endl;
       return nullptr;
     }
 
@@ -195,18 +249,19 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
       src = src.substr(strlen(hir_tag));
     }
 
+    result = reader.ReadDelim("Expected");
+    if (result.isError()) {
+      err(path) << result.error << std::endl;
+      return nullptr;
+    }
     std::string hir;
     result = reader.ReadUntilDelim(hir);
-    if (result.is_error) {
-      if (reader.IsExhausted()) {
-        err(path) << "Incomplete test case at end of file" << std::endl;
-      } else {
-        err(path) << "Failed reading test case " << result.error << std::endl;
-      }
+    if (result.isError()) {
+      err(path) << "Failed reading test case: " << result.error << std::endl;
       return nullptr;
     }
 
-    suite->test_cases.emplace_back(name, src_is_hir, src, hir);
+    suite->test_cases.emplace_back(std::string{name}, src_is_hir, src, hir);
   }
 
   return suite;

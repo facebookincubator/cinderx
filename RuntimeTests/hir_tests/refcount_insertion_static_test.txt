@@ -1,9 +1,10 @@
+--- Test Suite Name ---
 RefcountInsertionStaticTest
----
+--- Passes ---
 RefcountInsertion
----
+--- Test Name ---
 IntFieldInitNoRefCount
----
+--- Input ---
 from __static__ import int32
 
 class Test:
@@ -11,7 +12,7 @@ class Test:
         self.x: int32 = 0
 
 test = Test.__init__
----
+--- Expected ---
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v5:User[Test] = LoadArg<0; "self", User[Test]>
@@ -23,15 +24,15 @@ fun jittestmodule:Test.__init__ {
     Return<NoneType> v10
   }
 }
----
+--- Test Name ---
 StoreFieldIncRef
----
+--- Input ---
 class Test:
     def __init__(self) -> None:
         self.x = 0
 
 test = Test.__init__
----
+--- Expected ---
 fun jittestmodule:Test.__init__ {
   bb 0 {
     v4:User[Test] = LoadArg<0; "self", User[Test]>
@@ -44,4 +45,4 @@ fun jittestmodule:Test.__init__ {
     Return<NoneType> v8
   }
 }
----
+--- End ---

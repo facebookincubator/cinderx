@@ -1,17 +1,18 @@
+--- Test Suite Name ---
 InlinerTest
----
+--- Passes ---
 InlineFunctionCalls
 Simplify
----
+--- Test Name ---
 Simple
----
+--- Input ---
 def foo():
     # Chosen by fair dice roll. Guaranteed to be random.
     return 4
 
 def test():
     return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -33,9 +34,9 @@ fun jittestmodule:test {
     Return v7
   }
 }
----
+--- Test Name ---
 InlineMultipleFunctions
----
+--- Input ---
 def foo():
     return 3
 
@@ -44,7 +45,7 @@ def bar():
 
 def test():
     return foo() + bar()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -88,16 +89,16 @@ fun jittestmodule:test {
     Return v25
   }
 }
----
+--- Test Name ---
 TypesFromCallerFlowIntoCallee
----
+--- Input ---
 def foo(left, right):
   return left[right]
 
 def test():
     ls = [1, 2, 3]
     return foo(ls, 1)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
@@ -150,15 +151,15 @@ fun jittestmodule:test {
     Return v33
   }
 }
----
+--- Test Name ---
 PositionalArguments
----
+--- Input ---
 def foo(left, right):
     return left + right
 
 def test():
     return foo(2, 3)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -187,15 +188,15 @@ fun jittestmodule:test {
     Return v22
   }
 }
----
+--- Test Name ---
 CallWithTooManyArgsIsNotInlined
----
+--- Input ---
 def foo():
     return 4
 
 def test():
     return foo(1)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -214,15 +215,15 @@ fun jittestmodule:test {
     Return v6
   }
 }
----
+--- Test Name ---
 CallWithTooFewArgsIsNotInlined
----
+--- Input ---
 def foo(x):
   return 4
 
 def test():
   return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -240,15 +241,15 @@ fun jittestmodule:test {
     Return v4
   }
 }
----
+--- Test Name ---
 CalleeWithStarArgs
----
+--- Input ---
 def foo(*args):
     return args[0] + args[1]
 
 def test():
     return foo(2, 3)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -268,15 +269,15 @@ fun jittestmodule:test {
     Return v8
   }
 }
----
+--- Test Name ---
 CalleeWithKwargs
----
+--- Input ---
 def foo(**kwargs):
     return 5
 
 def test():
     return foo(2, 3)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -296,15 +297,15 @@ fun jittestmodule:test {
     Return v8
   }
 }
----
+--- Test Name ---
 CalleeCoroutine
----
+--- Input ---
 def foo():
   yield
 
 def test():
     return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -322,9 +323,9 @@ fun jittestmodule:test {
     Return v4
   }
 }
----
+--- Test Name ---
 CalleeWithCellvars
----
+--- Input ---
 def foo():
   local = 5
   def inside():
@@ -333,7 +334,7 @@ def foo():
 
 def test():
     return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -351,15 +352,15 @@ fun jittestmodule:test {
     Return v4
   }
 }
----
+--- Test Name ---
 CalleeWithCellvars2
----
+--- Input ---
 def test():
   local = 5
   def inside():
     return local
   return inside()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v10:Nullptr = LoadConst<Nullptr>
@@ -407,14 +408,14 @@ fun jittestmodule:test {
     Return v20
   }
 }
----
+--- Test Name ---
 CalleeFunctionWithoutObjectSpec
----
+--- Input ---
 def test():
   def inside():
     return 5
   return inside()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Nullptr = LoadConst<Nullptr>
@@ -438,9 +439,9 @@ fun jittestmodule:test {
     Return v11
   }
 }
----
+--- Test Name ---
 CalleeNonFunction
----
+--- Input ---
 class C:
   def __call__(self):
     pass
@@ -449,7 +450,7 @@ foo = C()
 
 def test():
     return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -467,14 +468,14 @@ fun jittestmodule:test {
     Return v4
   }
 }
----
+--- Test Name ---
 Recursive
----
+--- Input ---
 def test(x):
   if x < 2:
     return 1
   return x * test(x - 1)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v10:Object = LoadArg<0; "x">
@@ -598,15 +599,15 @@ fun jittestmodule:test {
     Return v23
   }
 }
----
+--- Test Name ---
 CalleeWithUnusedDefaultsIsInlined
----
+--- Input ---
 def foo(left=1, right=2):
   return left + right
 
 def test():
   return foo(3, 4)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -635,15 +636,15 @@ fun jittestmodule:test {
     Return v22
   }
 }
----
+--- Test Name ---
 CalleeWithDefaultsNoneSuppliedIsInlined
----
+--- Input ---
 def foo(a=1, b=2):
     return a+b
 
 def test():
     return foo()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -675,15 +676,15 @@ fun jittestmodule:test {
     Return v23
   }
 }
----
+--- Test Name ---
 CalleeWithMixedDefaultsIsInlined
----
+--- Input ---
 def foo(a, b, c=3, d=4):
     return a+b+c+d
 
 def test():
     return foo(1, 2)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -729,4 +730,4 @@ fun jittestmodule:test {
     Return v41
   }
 }
----
+--- End ---

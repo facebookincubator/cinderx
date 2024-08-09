@@ -1,12 +1,13 @@
+--- Test Suite Name ---
 BuiltinLoadMethodEliminationTest
----
+--- Passes ---
 BuiltinLoadMethodElimination
----
+--- Test Name ---
 LoadMethodCallMethodOnStrInstanceIsRewrittenToVectorCallStatic
----
+--- Input ---
 def test():
     return "Hello".upper()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -24,12 +25,12 @@ fun jittestmodule:test {
     Return v7
   }
 }
----
+--- Test Name ---
 LoadMethodCallMethodOnStrInstanceWithArgsIsRewrittenToVectorCallStatic
----
+--- Input ---
 def test(seq):
     return ",".join(seq)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:Object = LoadArg<0; "seq">
@@ -49,16 +50,16 @@ fun jittestmodule:test {
     Return v10
   }
 }
----
+--- Test Name ---
 LoadMethodCallMethodOnNonObjSpecStrInstanceWithArgsIsRewrittenToVectorCallStatic
----
+--- Input ---
 def test(seq, use_comma):
     if use_comma:
         sep = ","
     else:
         sep = "."
     return sep.join(seq)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v9:Object = LoadArg<0; "seq">
@@ -103,12 +104,12 @@ fun jittestmodule:test {
     Return v25
   }
 }
----
+--- Test Name ---
 NestedCallMethod
----
+--- Input ---
 def test(name):
     return "{}.{}".format(name, name.upper())
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v8:Object = LoadArg<0; "name">
@@ -145,12 +146,12 @@ fun jittestmodule:test {
     Return v17
   }
 }
----
+--- Test Name ---
 ChainedCallMethod
----
+--- Input ---
 def test():
   return "x".lower().upper()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -178,12 +179,12 @@ fun jittestmodule:test {
     Return v13
   }
 }
----
+--- Test Name ---
 LoadMethodCallMethodAwaitedTurnsIntoVectorCallStaticAwaited
----
+--- Input ---
 async def test():
     return await "Hello".upper()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v11:OptNoneType = InitialYield {
@@ -269,12 +270,12 @@ fun jittestmodule:test {
     Return v26
   }
 }
----
+--- Test Name ---
 LoadMethodOnTypeObjectBecomesCachedWithoutLoadMethodElimination
----
+--- Input ---
 def test():
     return str.upper("Hello")
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -317,12 +318,12 @@ fun jittestmodule:test {
     Return v10
   }
 }
----
+--- Test Name ---
 LoadMethodWithUnknownMethodDoesNotChange
----
+--- Input ---
 def test():
     return "hello".unknown()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -343,12 +344,12 @@ fun jittestmodule:test {
     Return v7
   }
 }
----
+--- Test Name ---
 LoadMethodWithMethClassPassesType
----
+--- Input ---
 def test():
     return b"".fromhex("FF")
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -368,12 +369,12 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- Test Name ---
 LoadMethodWithWrapperDescrPassesInstance
----
+--- Input ---
 def test():
     return "%s".__mod__(1)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -392,4 +393,4 @@ fun jittestmodule:test {
     Return v9
   }
 }
----
+--- End ---

@@ -1,8 +1,9 @@
+--- Test Suite Name ---
 NativeCallsTest
----
----
+--- Passes ---
+--- Test Name ---
 NativeInvokeBasic
----
+--- Input ---
 from __static__ import native, int32, box
 
 @native("libc.so.6")
@@ -13,7 +14,7 @@ def test(i: int) -> int:
     j: int32 = int32(i)
     return box(abs(j))
 
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "i", Long>
@@ -45,4 +46,4 @@ fun jittestmodule:test {
     Return<Long> v5
   }
 }
----
+--- End ---

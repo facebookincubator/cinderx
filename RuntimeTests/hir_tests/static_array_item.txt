@@ -1,13 +1,14 @@
+--- Test Suite Name ---
 StaticArrayItemTest
----
----
+--- Passes ---
+--- Test Name ---
 ArrayLookupEmitsLoadLoadArrayItem
----
+--- Input ---
 from __static__ import int64, Array, box
 
 def test(a: Array[int64]) -> int64:
     return a[2]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
@@ -41,14 +42,14 @@ fun jittestmodule:test {
     Return<CInt64> v6
   }
 }
----
+--- Test Name ---
 ArrayAssignEmitsStoreArrayItem
----
+--- Input ---
 from __static__ import int64, Array, box
 
 def test(a: Array[int64]) -> None:
     a[2] = 3
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Array>
@@ -86,4 +87,4 @@ fun jittestmodule:test {
     Return<NoneType> v8
   }
 }
----
+--- End ---

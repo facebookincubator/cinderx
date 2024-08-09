@@ -1,14 +1,15 @@
+--- Test Suite Name ---
 SimplifyStaticTest
----
+--- Passes ---
 Simplify
----
+--- Test Name ---
 UnboxOfRandMaxIsEliminated
----
+--- Input ---
 from __static__ import rand, RAND_MAX, box, int64
 def test():
     x: int64 = rand() // int64(RAND_MAX)
     return box(x)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v9:Nullptr = LoadConst<Nullptr>
@@ -30,9 +31,9 @@ fun jittestmodule:test {
     Return v18
   }
 }
----
+--- Test Name ---
 UnboxOfFinalIsEliminated
----
+--- Input ---
 from typing import Final
 from __static__ import int64, unbox
 
@@ -44,7 +45,7 @@ def test() -> bool:
         return True
     else:
         return False
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v8:Nullptr = LoadConst<Nullptr>
@@ -70,9 +71,9 @@ fun jittestmodule:test {
     Return<Bool> v18
   }
 }
----
+--- Test Name ---
 UnboxOfFinalDoubleIsEliminated
----
+--- Input ---
 from typing import Final
 from __static__ import double, unbox
 
@@ -81,7 +82,7 @@ MY_FINAL: Final[float] = 1.23
 def test() -> double:
     d: double = unbox(MY_FINAL)
     return d
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>
@@ -92,9 +93,9 @@ fun jittestmodule:test {
     Return<CDouble> v9
   }
 }
----
+--- Test Name ---
 UnboxOfFinalUnsignedIsEliminated
----
+--- Input ---
 from typing import Final
 from __static__ import uint8, unbox
 
@@ -103,7 +104,7 @@ MY_FINAL: Final[int] = 42
 def test() -> uint8:
     u: uint8 = unbox(MY_FINAL)
     return u
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>
@@ -114,9 +115,9 @@ fun jittestmodule:test {
     Return<CUInt8> v10
   }
 }
----
+--- Test Name ---
 UnboxOfFinalWithOverflowIsNotEliminated
----
+--- Input ---
 from typing import Final
 from __static__ import int8, unbox
 
@@ -125,7 +126,7 @@ MY_FINAL: Final[int] = 10000
 def test() -> int8:
     i: int8 = unbox(MY_FINAL)
     return i
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v4:Nullptr = LoadConst<Nullptr>
@@ -141,14 +142,14 @@ fun jittestmodule:test {
     Return<CInt8> v7
   }
 }
----
+--- Test Name ---
 CastOfKnownInexactTypeIsEliminated
----
+--- Input ---
 from __static__ import cast
 
 def test(x: int):
     return cast(int, x)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v2:Long = LoadArg<0; "x", Long>
@@ -157,15 +158,15 @@ fun jittestmodule:test {
     Return v2
   }
 }
----
+--- Test Name ---
 CastOfKnownInexactOptionalTypeIsEliminated
----
+--- Input ---
 from __static__ import cast
 from typing import Optional
 
 def test():
     return cast(Optional[int], None)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -174,14 +175,14 @@ fun jittestmodule:test {
     Return v2
   }
 }
----
+--- Test Name ---
 CastOfKnownExactTypeIsEliminated
----
+--- Input ---
 from __static__ import cast
 
 def test(x: bool):
     return cast(bool, x)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v2:Bool = LoadArg<0; "x", Bool>
@@ -190,14 +191,14 @@ fun jittestmodule:test {
     Return v2
   }
 }
----
+--- Test Name ---
 CastOfUnknownExactTypeIsNotEliminated
----
+--- Input ---
 from __static__ import cast
 
 def test(x):
     return cast(bool, x)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v2:Object = LoadArg<0; "x">
@@ -212,13 +213,13 @@ fun jittestmodule:test {
     Return v4
   }
 }
----
+--- Test Name ---
 LoopDoesNotUseBoxedValue
----
+--- Input ---
 def test(*x):
   for i in x:
    print(i)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v15:TupleExact = LoadArg<0; "x", TupleExact>
@@ -308,15 +309,15 @@ fun jittestmodule:test {
     Return v44
   }
 }
----
+--- Test Name ---
 UnboxBoxWithDifferentSizesNotOptimized
----
+--- Input ---
 from __static__ import int8, int64, box, unbox
 
 def test(x: int64) -> int8:
     y: int8 = unbox(box(x))
     return y
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v5:CInt64 = LoadArg<0; "x", CInt64>
@@ -338,4 +339,4 @@ fun jittestmodule:test {
     Return<CInt8> v9
   }
 }
----
+--- End ---

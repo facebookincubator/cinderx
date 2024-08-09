@@ -1,9 +1,10 @@
+--- Test Suite Name ---
 SimplifyUsesGuardTypes
----
+--- Passes ---
 Simplify
----
+--- Test Name ---
 SimplifyBinaryOpSubscriptUsesGuardTypes
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -22,7 +23,7 @@ fun test {
     Return v6
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -58,9 +59,9 @@ fun test {
     Return v6
   }
 }
----
+--- Test Name ---
 IsTruthyUsesGuardTypes
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -87,7 +88,7 @@ fun test {
     Return v6
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -100,4 +101,4 @@ fun test {
     Return v4
   }
 }
----
+--- End ---

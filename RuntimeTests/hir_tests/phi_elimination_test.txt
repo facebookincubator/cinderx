@@ -1,9 +1,10 @@
+--- Test Suite Name ---
 PhiEliminationTest
----
+--- Passes ---
 PhiElimination
----
+--- Test Name ---
 EliminatesSimpleTrivialPhi
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -19,7 +20,7 @@ fun test {
     Return v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -31,9 +32,9 @@ fun test {
     Return v1
   }
 }
----
+--- Test Name ---
 EliminatesTrivialPhisWithSelfInput
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -52,7 +53,7 @@ fun test {
     Return v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -67,9 +68,9 @@ fun test {
     Return v0
   }
 }
----
+--- Test Name ---
 EliminatesCascadingTrivialPhis
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -91,7 +92,7 @@ fun test {
     Branch<1>
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -102,9 +103,9 @@ fun test {
     Branch<1>
   }
 }
----
+--- Test Name ---
 DoesntEliminateNontrivialPhis
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -124,7 +125,7 @@ fun test {
     Return v3
   }
 }
----
+--- Expected ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -146,4 +147,4 @@ fun test {
     Return v3
   }
 }
----
+--- End ---

@@ -1,15 +1,16 @@
+--- Test Suite Name ---
 HIRBuilderStaticTest
----
----
+--- Passes ---
+--- Test Name ---
 TestInvokeAsyncMethod
----
+--- Input ---
 class C:
     async def f(self) -> int:
         return 1
 
 async def test(c: C):
     return await c.f()
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
@@ -108,9 +109,9 @@ fun jittestmodule:test {
     Return v2
   }
 }
----
+--- Test Name ---
 TestLoadField
----
+--- Input ---
 class C:
     x: int
     def __init__(self):
@@ -118,7 +119,7 @@ class C:
 
 def test(c: C):
     return c.x
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
@@ -141,9 +142,9 @@ fun jittestmodule:test {
     Return v1
   }
 }
----
+--- Test Name ---
 TestStoreField
----
+--- Input ---
 class C:
     x: int
     def __init__(self):
@@ -151,7 +152,7 @@ class C:
 
 def test(c: C, x: int):
     c.x = x
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
@@ -177,12 +178,12 @@ fun jittestmodule:test {
     Return v3
   }
 }
----
+--- Test Name ---
 TestFastLenList
----
+--- Input ---
 def test():
     return len([1, 3, 5])
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -210,15 +211,15 @@ fun jittestmodule:test {
     Return v4
   }
 }
----
+--- Test Name ---
 TestInvokeFunction
----
+--- Input ---
 def x(a: str, b: int) -> str:
     return a + str(b)
 
 def test() -> str:
     return x("hello", 123)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -235,15 +236,15 @@ fun jittestmodule:test {
     Return<Unicode> v3
   }
 }
----
+--- Test Name ---
 TestInvokeAsyncFunction
----
+--- Input ---
 async def x(a: str, b: int) -> str:
     return a + str(b)
 
 async def test() -> str:
     return await x("hello", 123)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = InitialYield {
@@ -304,16 +305,16 @@ fun jittestmodule:test {
     Return<Unicode> v1
   }
 }
----
+--- Test Name ---
 TestLoadIterableArg
----
+--- Input ---
 def x(a: int, b: int, c: str, d: float, e: float) -> int:
     return 7
 
 def test() -> int:
     p = ("hi", 0.1, 0.2)
     return x(1, 3, *p)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -481,14 +482,14 @@ fun jittestmodule:test {
     Return<Long> v20
   }
 }
----
+--- Test Name ---
 TestRefineType
----
+--- Input ---
 from typing import List
 
 def test(it) -> List:
     return sorted(it)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "it">
@@ -517,15 +518,15 @@ fun jittestmodule:test {
     Return<List> v2
   }
 }
----
+--- Test Name ---
 TestCheckedListGetItemCInt
----
+--- Input ---
 from __static__ import CheckedList, int64
 def test() -> int:
     l = CheckedList[int]([1, 3, -5])
     i: int64 = 2
     return l[i]
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -584,14 +585,14 @@ fun jittestmodule:test {
     Return<Long> v11
   }
 }
----
+--- Test Name ---
 TestLoadArgCellType
----
+--- Input ---
 def test(a: int) -> int:
     def inner() -> int:
         return a
     return a
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Long>
@@ -662,9 +663,9 @@ fun jittestmodule:test {
     Return<Long> v12
   }
 }
----
+--- Test Name ---
 ListAppendAddsRefineType
----
+--- Input ---
 from typing import List
 class A:
   def __init__(self):
@@ -672,7 +673,7 @@ class A:
 
 def test(self : A):
   self._field.append(1)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
@@ -706,15 +707,15 @@ fun jittestmodule:test {
     Return v4
   }
 }
----
+--- Test Name ---
 CIntTypeEmitsConvertPrimitive
----
+--- Input ---
 from __static__ import rand, RAND_MAX, box, int64
 
 def test():
     x: int64 = rand()
     return box(x)
----
+--- Expected ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -731,4 +732,4 @@ fun jittestmodule:test {
     Return v4
   }
 }
----
+--- End ---
