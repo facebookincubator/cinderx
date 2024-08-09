@@ -3388,6 +3388,9 @@ class CodeGenerator312(CodeGenerator):
         gen.emit("RETURN_VALUE")
         return gen
 
+    def emit_decorator_call(self, decorator: AST, class_def: ClassDef) -> None:
+        self.emit("CALL", 0)
+
     def visitClassDef(self, node: ast.ClassDef) -> None:
         first_lineno = None
         immutability_flag = self.find_immutability_flag(node)
