@@ -156,49 +156,63 @@ def update_text_test(
     suite_name: str,
     failed_tests: TestOutputDict,
 ) -> list[str]:
-    line_iter: Iterator[str] = iter(old_lines)
+    line_index: int = 0
     new_lines: list[str] = []
 
-    def expect(exp: str) -> None:
-        line = next(line_iter)
+    def peek_line() -> str:
+        nonlocal line_index
+        if line_index >= len(old_lines):
+            raise StopIteration
+        return old_lines[line_index]
+
+    def next_line() -> str:
+        nonlocal line_index
+        line = peek_line()
+        line_index += 1
+        return line
+
+    def expect(exp: str, actual: str | None = None) -> None:
+        line = actual or next_line()
         if line != exp:
             raise RuntimeError(f"Expected '{exp}', got '{line}'")
         new_lines.append(line)
 
+    expect("--- Test Suite Name ---")
     expect(suite_name)
-    expect("---")
-    # Optional pass names
-    line = next(line_iter)
-    new_lines.append(line)
-    while line != "---":
-        line = next(line_iter)
-        new_lines.append(line)
+    expect("--- Passes ---")
+
+    # Optional pass names.
+    while not peek_line().startswith("---"):
+        new_lines.append(next_line())
 
     try:
         while True:
-            test_case = next(line_iter)
-            if test_case == "@disabled":
-                test_case += "\n" + next(line_iter)
-            new_lines.append(test_case)
-            expect("---")
-            while True:
-                line = next(line_iter)
+            line = next_line()
+            if line == "--- End ---":
                 new_lines.append(line)
-                if line == "---":
-                    break
+                break
+            expect("--- Test Name ---", line)
 
+            test_case = next_line()
+            if test_case == "@disabled":
+                test_case += "\n" + next_line()
+            new_lines.append(test_case)
+
+            expect("--- Input ---")
+            while not peek_line().startswith("---"):
+                new_lines.append(next_line())
+
+            # Figure out what the expected HIR output is supposed to be.
+            expect("--- Expected ---")
             hir_lines = []
-            line = next(line_iter)
-            while line != "---":
-                hir_lines.append(line)
-                line = next(line_iter)
-
+            while not peek_line().startswith("---"):
+                hir_lines.append(next_line())
             if test_case in failed_tests:
                 # For text HIR tests, there should only be one element in the
                 # failed test dict.
                 hir_lines = next(iter(failed_tests[test_case].values()))
+
             new_lines += hir_lines
-            new_lines.append("---")
     except StopIteration:
         pass
 
