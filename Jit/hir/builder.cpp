@@ -181,6 +181,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     PRIMITIVE_LOAD_CONST,
     PRIMITIVE_UNARY_OP,
     PRIMITIVE_UNBOX,
+    PUSH_NULL,
     RAISE_VARARGS,
     REFINE_TYPE,
     RERAISE,
@@ -735,6 +736,10 @@ void HIRBuilder::translate(
       // Translate instruction
       switch (bc_instr.opcode()) {
         case NOP: {
+          break;
+        }
+        case PUSH_NULL: {
+          emitPushNull(tc);
           break;
         }
         case BINARY_ADD:
@@ -1490,6 +1495,13 @@ static inline BinaryOpKind get_bin_op_kind(
       break;
     }
   }
+}
+
+void HIRBuilder::emitPushNull(TranslationContext& tc) {
+  auto& stack = tc.frame.stack;
+  Register* tmp = temps_.AllocateStack();
+  tc.emit<LoadConst>(tmp, TNullptr);
+  stack.push(tmp);
 }
 
 void HIRBuilder::emitAnyCall(

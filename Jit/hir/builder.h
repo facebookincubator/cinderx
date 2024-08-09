@@ -146,6 +146,8 @@ class HIRBuilder {
       const jit::BytecodeInstructionBlock& bc_instrs,
       const TranslationContext& tc);
 
+  void emitPushNull(TranslationContext& tc);
+
   void emitBinaryOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
