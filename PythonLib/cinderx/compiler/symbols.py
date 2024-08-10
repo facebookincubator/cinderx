@@ -118,6 +118,9 @@ class Scope:
     def get_children(self):
         return self.children
 
+    def inline_nested_comprehensions(self) -> None:
+        pass
+
     def DEBUG(self):
         print(self.name, self.nested and "nested" or "")
         print("\tglobals: ", self.globals)
@@ -169,6 +172,11 @@ class Scope:
         return sorted(free.keys())
 
     def handle_children(self):
+        for child in self.children:
+            child.handle_children()
+
+        self.inline_nested_comprehensions()
+
         for child in self.children:
             if child.name in self.explicit_globals:
                 child.global_scope = True
@@ -324,6 +332,8 @@ class SymbolVisitor(ASTVisitor):
     def visitModule(self, node):
         scope = self.module = self.scopes[node] = self.module
         self.visit(node.body, scope)
+        for child in scope.children:
+            child.handle_children()
 
     def visitInteractive(self, node):
         scope = self.module = self.scopes[node] = self.module
@@ -372,7 +382,7 @@ class SymbolVisitor(ASTVisitor):
                 scope.add_def("__classdict__")
 
             self.visit(node.bound, scope)
-            self.handle_free_vars(scope, parent)
+            parent.add_child(scope)
 
     # pyre-ignore[11]: Pyre doesn't know TypeVarTuple
     def visitTypeVarTuple(self, node: ast.TypeVarTuple, parent: Scope) -> None:
@@ -408,7 +418,8 @@ class SymbolVisitor(ASTVisitor):
             if not self.future_annotations:
                 self.visit(node.returns, parent)
         self.visit(node.body, scope)
-        self.handle_free_vars(scope, parent)
+
+        parent.add_child(scope)
 
     visitAsyncFunctionDef = visitFunctionDef
 
@@ -463,7 +474,7 @@ class SymbolVisitor(ASTVisitor):
 
         self.scopes[node] = scope
 
-        self.handle_free_vars(scope, parent)
+        parent.add_child(scope)
 
     # Whether to generate code for comprehensions inline or as nested scope
     # is configurable, but we compute nested scopes for them unconditionally
@@ -515,7 +526,7 @@ class SymbolVisitor(ASTVisitor):
         self.scopes[node] = scope
         self._do_args(scope, node.args)
         self.visit(node.body, scope)
-        self.handle_free_vars(scope, parent)
+        parent.add_child(scope)
 
     def _do_args(self, scope, args):
         for n in args.defaults:
@@ -547,10 +558,6 @@ class SymbolVisitor(ASTVisitor):
             scope.add_param(args.kwarg.arg)
             if args.kwarg.annotation and not self.future_annotations:
                 self.visit(args.kwarg.annotation, scope.parent)
-
-    def handle_free_vars(self, scope, parent):
-        parent.add_child(scope)
-        scope.handle_children()
 
     def visitClassDef(self, node: ast.ClassDef, parent):
         if node.decorator_list:
@@ -591,10 +598,7 @@ class SymbolVisitor(ASTVisitor):
         self.klass = node.name
         self.visit(node.body, scope)
         self.klass = prev
-        self.handle_free_vars(scope, parent)
-        # if we have type params then we'll need to leave the type param scope
-        if orig_parent is not parent:
-            self.handle_free_vars(parent, orig_parent)    
+        parent.add_child(scope)
 
     def visitTypeAlias(self, node: ast.TypeAlias, parent):
         self.visit(node.name, parent)
@@ -614,7 +618,7 @@ class SymbolVisitor(ASTVisitor):
 
         self.scopes[node] = scope
         self.visit(node.value, scope)
-        self.handle_free_vars(scope, parent)
+        parent.add_child(scope)
 
     # name can be a def or a use
     def visitName(self, node, scope):
@@ -849,7 +853,7 @@ class CinderFunctionScope(FunctionScope):
         if self._inline_comprehensions:
             self._inlinable_comprehensions.append(comp)
 
-    def inline_nested_comprehensions(self):
+    def inline_nested_comprehensions(self) -> None:
         if not self._inlinable_comprehensions:
             return
         # collect set of names that should not be shadowed
@@ -983,9 +987,7 @@ class CinderSymbolVisitor(SymbolVisitor):
 
         self.scopes[node] = scope
 
-        scope.inline_nested_comprehensions()
-
-        self.handle_free_vars(scope, parent)
+        parent.add_child(scope)
 
     visitSetComp = visitGeneratorExp
     visitListComp = visitGeneratorExp
@@ -1004,9 +1006,7 @@ class CinderSymbolVisitor(SymbolVisitor):
         self._do_args(scope, node.args)
         self.visit(node.body, scope)
 
-        scope.inline_nested_comprehensions()
-
-        self.handle_free_vars(scope, parent)
+        parent.add_child(scope)
 
     def visitFunctionDef(self, node, parent):
         if node.decorator_list:
@@ -1026,8 +1026,7 @@ class CinderSymbolVisitor(SymbolVisitor):
                 self.visit(node.returns, parent)
         self.visit(node.body, scope)
 
-        scope.inline_nested_comprehensions()
-        self.handle_free_vars(scope, parent)
+        parent.add_child(scope)
 
     visitAsyncFunctionDef = visitFunctionDef
 
