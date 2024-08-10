@@ -94,9 +94,6 @@ class Scope:
         # explicit global for module too
         self.module.explicit_globals[name] = 1
 
-    def add_free(self, name):
-        self.add_frees([name])
-
     def add_param(self, name):
         name = self.mangle(name)
         self.defs[name] = 1
@@ -896,7 +893,10 @@ class CinderFunctionScope(FunctionScope):
             # add them as free in current scope
             for d in comp.uses:
                 if comp.check_name(d) == SC_FREE and d not in self.defs:
-                    self.add_free(d)
+                    sc = self.check_name(d)
+                    if sc == SC_UNKNOWN:
+                        # name is missing in current scope - add it
+                        self.frees[d] = 1
 
             # go through free names in comprehension
             # and check if current scope has corresponding def
