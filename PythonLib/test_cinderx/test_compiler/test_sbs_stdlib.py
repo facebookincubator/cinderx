@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import ast
 import dis
+import hashlib
 from io import StringIO
 from os import path
 from tokenize import detect_encoding
@@ -43,7 +44,7 @@ def add_test(modname, fname):
         if p in fname:
             return
 
-    modname = path.relpath(fname, REPO_ROOT)
+    modname = fname.replace(libpath, "")
 
     def test_stdlib(self):
         with open(fname, "rb") as inp:
@@ -71,9 +72,9 @@ def add_test(modname, fname):
                     f.write(newdump.getvalue())
                 raise
 
-    name = "test_stdlib_" + modname.replace("/", "_")[:-3]
+    name = "test_stdlib_" + modname.replace("/", "_").replace('.','')[:-2]
     test_stdlib.__name__ = name
-    n = hash(name) % N_SBS_TEST_CLASSES
+    n = int(hashlib.md5(name.encode('ascii')).hexdigest(), 16) % N_SBS_TEST_CLASSES
     setattr(SbsCompileTests[n], test_stdlib.__name__, test_stdlib)
 
 
