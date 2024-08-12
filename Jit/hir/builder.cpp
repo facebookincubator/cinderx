@@ -188,6 +188,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     REFINE_TYPE,
     RERAISE,
     RESUME,
+    RETURN_CONST,
     RETURN_PRIMITIVE,
     RETURN_VALUE,
     ROT_FOUR,
@@ -428,6 +429,7 @@ static bool should_snapshot(
     case POP_JUMP_IF_TRUE:
     case POP_JUMP_IF_ZERO:
     case POP_JUMP_IF_NONZERO:
+    case RETURN_CONST:
     case RETURN_PRIMITIVE:
     case RETURN_VALUE:
     case RAISE_VARARGS:
@@ -981,6 +983,20 @@ void HIRBuilder::translate(
         }
         case POP_TOP: {
           tc.frame.stack.pop();
+          break;
+        }
+        case RETURN_CONST: {
+          Register* reg = temps_.AllocateStack();
+          JIT_CHECK(
+              bc_instr.oparg() < PyTuple_Size(code_->co_consts),
+              "RETURN_CONST index out of bounds");
+          Type type = Type::fromObject(
+              PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg()));
+          tc.emit<LoadConst>(reg, type);
+          if (getConfig().refine_static_python && type < TObject) {
+            tc.emit<RefineType>(reg, type, reg);
+          }
+          tc.emit<Return>(reg, type);
           break;
         }
         case RETURN_PRIMITIVE: {
