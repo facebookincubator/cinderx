@@ -34,6 +34,7 @@
 #include <algorithm>
 #include <deque>
 #include <memory>
+#include <optional>
 #include <set>
 #include <unordered_set>
 #include <utility>
@@ -74,6 +75,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     BINARY_MATRIX_MULTIPLY,
     BINARY_MODULO,
     BINARY_MULTIPLY,
+    BINARY_OP,
     BINARY_OR,
     BINARY_POWER,
     BINARY_RSHIFT,
@@ -749,6 +751,7 @@ void HIRBuilder::translate(
         case BINARY_MATRIX_MULTIPLY:
         case BINARY_MODULO:
         case BINARY_MULTIPLY:
+        case BINARY_OP:
         case BINARY_OR:
         case BINARY_POWER:
         case BINARY_RSHIFT:
@@ -1444,56 +1447,137 @@ void BlockCanonicalizer::Run(
   }
 }
 
-static inline BinaryOpKind get_bin_op_kind(
-    const jit::BytecodeInstruction& bc_instr) {
-  switch (bc_instr.opcode()) {
-    case BINARY_ADD: {
+static std::optional<BinaryOpKind> getBinaryOpKindFromOpcode(int opcode) {
+  switch (opcode) {
+    case BINARY_ADD:
       return BinaryOpKind::kAdd;
-    }
-    case BINARY_AND: {
+    case BINARY_AND:
       return BinaryOpKind::kAnd;
-    }
-    case BINARY_FLOOR_DIVIDE: {
+    case BINARY_FLOOR_DIVIDE:
       return BinaryOpKind::kFloorDivide;
-    }
-    case BINARY_LSHIFT: {
+    case BINARY_LSHIFT:
       return BinaryOpKind::kLShift;
-    }
-    case BINARY_MATRIX_MULTIPLY: {
+    case BINARY_MATRIX_MULTIPLY:
       return BinaryOpKind::kMatrixMultiply;
-    }
-    case BINARY_MODULO: {
+    case BINARY_MODULO:
       return BinaryOpKind::kModulo;
-    }
-    case BINARY_MULTIPLY: {
+    case BINARY_MULTIPLY:
       return BinaryOpKind::kMultiply;
-    }
-    case BINARY_OR: {
+    case BINARY_OR:
       return BinaryOpKind::kOr;
-    }
-    case BINARY_POWER: {
+    case BINARY_POWER:
       return BinaryOpKind::kPower;
-    }
-    case BINARY_RSHIFT: {
+    case BINARY_RSHIFT:
       return BinaryOpKind::kRShift;
-    }
-    case BINARY_SUBSCR: {
+    case BINARY_SUBSCR:
       return BinaryOpKind::kSubscript;
-    }
-    case BINARY_SUBTRACT: {
+    case BINARY_SUBTRACT:
       return BinaryOpKind::kSubtract;
-    }
-    case BINARY_TRUE_DIVIDE: {
+    case BINARY_TRUE_DIVIDE:
       return BinaryOpKind::kTrueDivide;
-    }
-    case BINARY_XOR: {
+    case BINARY_XOR:
       return BinaryOpKind::kXor;
-    }
-    default: {
-      JIT_ABORT("Unhandled binary op {}", bc_instr.opcode());
-      // NOTREACHED
-      break;
-    }
+    default:
+      return std::nullopt;
+  }
+}
+
+static std::optional<BinaryOpKind> getBinaryOpKindFromOparg(int oparg) {
+  switch (oparg) {
+    case NB_ADD:
+      return BinaryOpKind::kAdd;
+    case NB_AND:
+      return BinaryOpKind::kAnd;
+    case NB_FLOOR_DIVIDE:
+      return BinaryOpKind::kFloorDivide;
+    case NB_LSHIFT:
+      return BinaryOpKind::kLShift;
+    case NB_MATRIX_MULTIPLY:
+      return BinaryOpKind::kMatrixMultiply;
+    case NB_MULTIPLY:
+      return BinaryOpKind::kMultiply;
+    case NB_REMAINDER:
+      return BinaryOpKind::kModulo;
+    case NB_OR:
+      return BinaryOpKind::kOr;
+    case NB_POWER:
+      return BinaryOpKind::kPower;
+    case NB_RSHIFT:
+      return BinaryOpKind::kRShift;
+    case NB_SUBTRACT:
+      return BinaryOpKind::kSubtract;
+    case NB_TRUE_DIVIDE:
+      return BinaryOpKind::kTrueDivide;
+    case NB_XOR:
+      return BinaryOpKind::kXor;
+    default:
+      return std::nullopt;
+  }
+}
+
+static std::optional<InPlaceOpKind> getInPlaceOpKindFromOpcode(int opcode) {
+  switch (opcode) {
+    case INPLACE_ADD:
+      return InPlaceOpKind::kAdd;
+    case INPLACE_AND:
+      return InPlaceOpKind::kAnd;
+    case INPLACE_FLOOR_DIVIDE:
+      return InPlaceOpKind::kFloorDivide;
+    case INPLACE_LSHIFT:
+      return InPlaceOpKind::kLShift;
+    case INPLACE_MATRIX_MULTIPLY:
+      return InPlaceOpKind::kMatrixMultiply;
+    case INPLACE_MODULO:
+      return InPlaceOpKind::kModulo;
+    case INPLACE_MULTIPLY:
+      return InPlaceOpKind::kMultiply;
+    case INPLACE_OR:
+      return InPlaceOpKind::kOr;
+    case INPLACE_POWER:
+      return InPlaceOpKind::kPower;
+    case INPLACE_RSHIFT:
+      return InPlaceOpKind::kRShift;
+    case INPLACE_SUBTRACT:
+      return InPlaceOpKind::kSubtract;
+    case INPLACE_TRUE_DIVIDE:
+      return InPlaceOpKind::kTrueDivide;
+    case INPLACE_XOR:
+      return InPlaceOpKind::kXor;
+    default:
+      return std::nullopt;
+  }
+}
+
+static std::optional<InPlaceOpKind> getInPlaceOpKindFromOparg(int oparg) {
+  switch (oparg) {
+    case NB_INPLACE_ADD:
+      return InPlaceOpKind::kAdd;
+    case NB_INPLACE_AND:
+      return InPlaceOpKind::kAnd;
+    case NB_INPLACE_FLOOR_DIVIDE:
+      return InPlaceOpKind::kFloorDivide;
+    case NB_INPLACE_LSHIFT:
+      return InPlaceOpKind::kLShift;
+    case NB_INPLACE_MATRIX_MULTIPLY:
+      return InPlaceOpKind::kMatrixMultiply;
+    case NB_INPLACE_MULTIPLY:
+      return InPlaceOpKind::kMultiply;
+    case NB_INPLACE_REMAINDER:
+      return InPlaceOpKind::kModulo;
+    case NB_INPLACE_OR:
+      return InPlaceOpKind::kOr;
+    case NB_INPLACE_POWER:
+      return InPlaceOpKind::kPower;
+    case NB_INPLACE_RSHIFT:
+      return InPlaceOpKind::kRShift;
+    case NB_INPLACE_SUBTRACT:
+      return InPlaceOpKind::kSubtract;
+    case NB_INPLACE_TRUE_DIVIDE:
+      return InPlaceOpKind::kTrueDivide;
+    case NB_INPLACE_XOR:
+      return InPlaceOpKind::kXor;
+    default:
+      return std::nullopt;
   }
 }
 
@@ -1607,59 +1691,38 @@ void HIRBuilder::emitBinaryOp(
   Register* right = stack.pop();
   Register* left = stack.pop();
   Register* result = temps_.AllocateStack();
-  BinaryOpKind op_kind = get_bin_op_kind(bc_instr);
+
+  int opcode = bc_instr.opcode();
+  int oparg = bc_instr.oparg();
+
+  BinaryOpKind op_kind;
+  if (opcode == BINARY_OP) {
+    auto opt_op_kind = getBinaryOpKindFromOparg(oparg);
+    if (opt_op_kind) {
+      op_kind = *opt_op_kind;
+    } else {
+      // BINARY_OP can also contain inplace opargs.
+      auto opt_op_kind = getInPlaceOpKindFromOparg(oparg);
+      JIT_CHECK(
+          opt_op_kind.has_value(),
+          "Unrecognized oparg for BINARY_OP: {}",
+          oparg);
+      InPlaceOpKind op_kind = *opt_op_kind;
+      tc.emit<InPlaceOp>(result, op_kind, left, right, tc.frame);
+      stack.push(result);
+      return;
+    }
+  } else {
+    auto opt_op_kind = getBinaryOpKindFromOpcode(opcode);
+    JIT_CHECK(
+        opt_op_kind.has_value(),
+        "Unrecognized opcode for binary operation opcode {}",
+        opcode);
+    op_kind = *opt_op_kind;
+  }
+
   tc.emit<BinaryOp>(result, op_kind, left, right, tc.frame);
   stack.push(result);
-}
-
-static inline InPlaceOpKind get_inplace_op_kind(
-    const jit::BytecodeInstruction& bc_instr) {
-  switch (bc_instr.opcode()) {
-    case INPLACE_ADD: {
-      return InPlaceOpKind::kAdd;
-    }
-    case INPLACE_AND: {
-      return InPlaceOpKind::kAnd;
-    }
-    case INPLACE_FLOOR_DIVIDE: {
-      return InPlaceOpKind::kFloorDivide;
-    }
-    case INPLACE_LSHIFT: {
-      return InPlaceOpKind::kLShift;
-    }
-    case INPLACE_MATRIX_MULTIPLY: {
-      return InPlaceOpKind::kMatrixMultiply;
-    }
-    case INPLACE_MODULO: {
-      return InPlaceOpKind::kModulo;
-    }
-    case INPLACE_MULTIPLY: {
-      return InPlaceOpKind::kMultiply;
-    }
-    case INPLACE_OR: {
-      return InPlaceOpKind::kOr;
-    }
-    case INPLACE_POWER: {
-      return InPlaceOpKind::kPower;
-    }
-    case INPLACE_RSHIFT: {
-      return InPlaceOpKind::kRShift;
-    }
-    case INPLACE_SUBTRACT: {
-      return InPlaceOpKind::kSubtract;
-    }
-    case INPLACE_TRUE_DIVIDE: {
-      return InPlaceOpKind::kTrueDivide;
-    }
-    case INPLACE_XOR: {
-      return InPlaceOpKind::kXor;
-    }
-    default: {
-      JIT_ABORT("Unhandled inplace op {}", bc_instr.opcode());
-      // NOTREACHED
-      break;
-    }
-  }
 }
 
 void HIRBuilder::emitInPlaceOp(
@@ -1669,7 +1732,13 @@ void HIRBuilder::emitInPlaceOp(
   Register* right = stack.pop();
   Register* left = stack.pop();
   Register* result = temps_.AllocateStack();
-  InPlaceOpKind op_kind = get_inplace_op_kind(bc_instr);
+  int opcode = bc_instr.opcode();
+  auto opt_op_kind = getInPlaceOpKindFromOpcode(opcode);
+  JIT_CHECK(
+      opt_op_kind.has_value(),
+      "Unrecognized inplace operation opcode {}",
+      opcode);
+  InPlaceOpKind op_kind = *opt_op_kind;
   tc.emit<InPlaceOp>(result, op_kind, left, right, tc.frame);
   stack.push(result);
 }
@@ -3429,7 +3498,7 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
         1,
         out,
         CallCFunc::Func::kCix_PyAsyncGenValueWrapperNew,
-        std::vector<Register*>{in});      
+        std::vector<Register*>{in});
     in = out;
     out = temps_.AllocateStack();
   }

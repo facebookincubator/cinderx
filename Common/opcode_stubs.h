@@ -69,6 +69,30 @@
   X(STORE_SLICE)                       \
   X(SWAP)
 
+#define STUB_NB_DEFS(X) \
+  X(ADD)                \
+  X(AND)                \
+  X(FLOOR_DIVIDE)       \
+  X(LSHIFT)             \
+  X(MATRIX_MULTIPLY)    \
+  X(MULTIPLY)           \
+  X(REMAINDER)          \
+  X(OR)                 \
+  X(POWER)              \
+  X(RSHIFT)             \
+  X(SUBTRACT)           \
+  X(TRUE_DIVIDE)        \
+  X(XOR)
+
+enum {
+#define DEFINE_NB(X) NB_##X,
+  STUB_NB_DEFS(DEFINE_NB)
+#undef DEFINE_NB
+#define DEFINE_NB_INPLACE(X) NB_INPLACE_##X,
+  STUB_NB_DEFS(DEFINE_NB_INPLACE)
+#undef DEFINE_NB_INPLACE
+};
+
 #else
 
 #define STUB_OPCODE_DEFS(X)        \

@@ -3161,18 +3161,35 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v5:Nullptr = LoadConst<Nullptr>
+    v7:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v6:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
-    v8:MortalUnicodeExact[" world"] = LoadConst<MortalUnicodeExact[" world"]>
-    v13:UnicodeExact = UnicodeConcat v6 v8 {
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 14
-        Locals<2> v6 v8
+        NextInstrOffset 2
+        Locals<2> v7 v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
+    v14:MortalUnicodeExact[" world"] = LoadConst<MortalUnicodeExact[" world"]>
+    v19:UnicodeExact = UnicodeConcat v12 v14 {
+      FrameState {
+        NextInstrOffset 16
+        Locals<2> v12 v14
       }
     }
     Snapshot
-    Return v13
+    Return v19
   }
 }
 --- Test Name ---
@@ -3202,18 +3219,35 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v5:Nullptr = LoadConst<Nullptr>
+    v7:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v6:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
-    v8:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v12:Object = BinaryOp<Add> v6 v8 {
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 14
-        Locals<2> v6 v8
+        NextInstrOffset 2
+        Locals<2> v7 v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
+    v14:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v18:Object = BinaryOp<Add> v12 v14 {
+      FrameState {
+        NextInstrOffset 16
+        Locals<2> v12 v14
       }
     }
     Snapshot
-    Return v12
+    Return v18
   }
 }
 --- Test Name ---
@@ -3289,20 +3323,37 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v5:Nullptr = LoadConst<Nullptr>
+    v7:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
-    v8:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v16:CInt64[2] = LoadConst<CInt64[2]>
-    v17:CInt64[0] = LoadConst<CInt64[0]>
-    v15:UnicodeExact = UnicodeRepeat v6 v16 {
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 14
-        Locals<2> v6 v8
+        NextInstrOffset 2
+        Locals<2> v7 v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v14:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v22:CInt64[2] = LoadConst<CInt64[2]>
+    v23:CInt64[0] = LoadConst<CInt64[0]>
+    v21:UnicodeExact = UnicodeRepeat v12 v22 {
+      FrameState {
+        NextInstrOffset 16
+        Locals<2> v12 v14
       }
     }
     Snapshot
-    Return v15
+    Return v21
   }
 }
 --- Test Name ---
@@ -3332,18 +3383,35 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v5:Nullptr = LoadConst<Nullptr>
+    v7:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
-    v8:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v12:Object = BinaryOp<Multiply> v6 v8 {
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 14
-        Locals<2> v6 v8
+        NextInstrOffset 2
+        Locals<2> v7 v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
+    v14:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v18:Object = BinaryOp<Multiply> v12 v14 {
+      FrameState {
+        NextInstrOffset 16
+        Locals<2> v12 v14
       }
     }
     Snapshot
-    Return v12
+    Return v18
   }
 }
 --- Test Name ---
