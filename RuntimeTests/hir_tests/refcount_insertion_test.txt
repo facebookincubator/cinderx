@@ -1324,27 +1324,43 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v5:Object = LoadArg<0; "pred">
-    v6:Object = LoadArg<1; "val">
-    v7:Nullptr = LoadConst<Nullptr>
-    v9:CInt32 = IsTruthy v5 {
-      LiveValues<3> b:v5 b:v6 unc:v7
+    v7:Object = LoadArg<0; "pred">
+    v8:Object = LoadArg<1; "val">
+    v9:Nullptr = LoadConst<Nullptr>
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<4, 3> v10
+  }
+
+  bb 4 (preds 0) {
+    v11:CInt32 = RunPeriodicTasks {
+      LiveValues<3> b:v7 b:v8 unc:v9
       FrameState {
-        NextInstrOffset 4
-        Locals<3> v5 v6 v7
+        NextInstrOffset 2
+        Locals<3> v7 v8 v9
       }
     }
-    CondBranch<1, 2> v9
+    Branch<3>
   }
 
-  bb 1 (preds 0) {
-    Incref v6
-    Return v6
+  bb 3 (preds 0, 4) {
+    v16:CInt32 = IsTruthy v7 {
+      LiveValues<3> b:v7 b:v8 unc:v9
+      FrameState {
+        NextInstrOffset 6
+        Locals<3> v7 v8 v9
+      }
+    }
+    CondBranch<1, 2> v16
   }
 
-  bb 2 (preds 0) {
-    v13:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    Return v13
+  bb 1 (preds 3) {
+    Incref v8
+    Return v8
+  }
+
+  bb 2 (preds 3) {
+    v20:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return v20
   }
 }
 --- Test Name ---
