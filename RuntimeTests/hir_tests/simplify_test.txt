@@ -4678,17 +4678,34 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<0; "x">
     Snapshot
-    v8:NoneType = LoadConst<NoneType>
-    v9:CBool = PrimitiveCompare<NotEqual> v6 v8
-    v10:Bool = PrimitiveBoxBool v9
-    v11:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    UseType<Bool> v10
-    UseType<Bool> v11
-    v14:Bool = PrimitiveBoxBool v9
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
     Snapshot
-    Return v14
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<1> v8
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:NoneType = LoadConst<NoneType>
+    v14:CBool = PrimitiveCompare<NotEqual> v8 v13
+    v15:Bool = PrimitiveBoxBool v14
+    v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<Bool> v15
+    UseType<Bool> v16
+    v19:Bool = PrimitiveBoxBool v14
+    Snapshot
+    Return v19
   }
 }
 --- Test Name ---
@@ -4716,18 +4733,35 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
+    v8:Object = LoadArg<0; "x">
     Snapshot
-    v8:NoneType = LoadConst<NoneType>
-    v9:CBool = PrimitiveCompare<NotEqual> v6 v8
-    v10:Bool = PrimitiveBoxBool v9
-    v11:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    UseType<Bool> v10
-    UseType<Bool> v11
-    v13:CBool = PrimitiveCompare<NotEqual> v10 v11
-    v14:Bool = PrimitiveBoxBool v13
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
     Snapshot
-    Return v14
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<1> v8
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:NoneType = LoadConst<NoneType>
+    v14:CBool = PrimitiveCompare<NotEqual> v8 v13
+    v15:Bool = PrimitiveBoxBool v14
+    v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<Bool> v15
+    UseType<Bool> v16
+    v18:CBool = PrimitiveCompare<NotEqual> v15 v16
+    v19:Bool = PrimitiveBoxBool v18
+    Snapshot
+    Return v19
   }
 }
 --- Test Name ---
@@ -4780,11 +4814,14 @@ fun jittestmodule:test {
     v14:CBool = PrimitiveCompare<NotEqual> v8 v13
     v15:Bool = PrimitiveBoxBool v14
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    UseType<Bool> v15
-    UseType<Bool> v16
-    v19:Bool = PrimitiveBoxBool v14
+    v17:Object = Compare<LessThan> v15 v16 {
+      FrameState {
+        NextInstrOffset 12
+        Locals<1> v8
+      }
+    }
     Snapshot
-    Return v19
+    Return v17
   }
 }
 --- Test Name ---

@@ -2154,6 +2154,10 @@ void HIRBuilder::emitContainsOp(TranslationContext& tc, int oparg) {
 }
 
 void HIRBuilder::emitCompareOp(TranslationContext& tc, int compare_op) {
+  #if PY_VERSION_HEX >= 0x030B0000
+  compare_op >>= 4;
+  #endif
+
   JIT_CHECK(compare_op >= Py_LT, "Invalid op {}", compare_op);
   JIT_CHECK(compare_op <= Py_GE, "Invalid op {}", compare_op);
   auto& stack = tc.frame.stack;
