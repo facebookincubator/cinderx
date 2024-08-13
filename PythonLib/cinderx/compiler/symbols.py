@@ -134,7 +134,7 @@ class Scope:
         for child in self.children:
             child.DEBUG()
 
-    def check_name(self, name):
+    def check_name(self, name: str) -> int:
         """Return scope of name.
 
         The scope of a name could be LOCAL, GLOBAL, FREE, or CELL.
@@ -476,11 +476,7 @@ class SymbolVisitor(ASTVisitor):
         self.visit(node.body, scope)
         scope.analyze_block(free=set(), global_vars=set())
 
-    def visitInteractive(self, node):
-        scope = self.module = self.scopes[node] = self.module
-        self.visit(node.body, scope)
-
-    visitExpression = visitModule
+    visitInteractive = visitExpression = visitModule
 
     # pyre-ignore[11]: Pyre doesn't know TypeAlias
     def enter_type_params(self, node: ast.ClassDef|ast.FunctionDef|ast.TypeAlias|ast.AsyncFunctionDef, parent: Scope):
@@ -746,16 +742,19 @@ class SymbolVisitor(ASTVisitor):
         
         in_class = isinstance(parent, ClassScope)
         is_generic = len(node.type_params) > 0
+        alias_parent = parent
         if is_generic:
-            parent = self.enter_type_params(node, parent)
-            self.visit(node.type_params, parent)
+            alias_parent = self.enter_type_params(node, parent)
+            self.visit(node.type_params, alias_parent)
 
         scope = TypeAliasScope(node.name.id, self.module)
-        scope.parent = parent
+        if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
+            scope.nested = 1
+        scope.parent = alias_parent
         scope.can_see_class_scope = in_class
         if in_class:
             scope.add_use("__classdict__")
-            scope.parent.add_def("__classdict__")
+            parent.add_def("__classdict__")
 
         self.scopes[node] = scope
         self.visit(node.value, scope)

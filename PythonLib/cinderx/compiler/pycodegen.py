@@ -2841,6 +2841,10 @@ class CodeGenerator(ASTVisitor):
             return "<string>"
         elif isinstance(node, ast.Interactive):
             return "<stdin>"
+        # pyre-ignore[16]: Module `ast` has no attribute `TypeAlias`.
+        elif hasattr(ast, "TypeAlias") and isinstance(node, ast.TypeAlias):
+            # pyre-ignore[16]: `_ast.AST` has no attribute `name`
+            return node.name.id
 
         raise NotImplementedError("Unknown node type: " + type(node).__name__)
 
@@ -2854,7 +2858,8 @@ class CodeGenerator(ASTVisitor):
 
     def make_child_codegen(
         self,
-        tree: FuncOrLambda | CompNode | ast.ClassDef,
+        # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
+        tree: FuncOrLambda | CompNode | ast.ClassDef | ast.TypeAlias,
         graph: PyFlowGraph
     ) -> CodeGenerator:
         return type(self)(
@@ -3459,6 +3464,65 @@ class CodeGenerator312(CodeGenerator):
         self.register_immutability(node, immutability_flag)
         self.post_process_and_store_name(node)
 
+    def make_type_alias_code_gen(self, node: ast.TypeAlias) -> CodeGenerator312:
+        filename = self.graph.filename
+        symbols = self.symbols
+
+        scope = symbols.scopes[node]
+        graph = self.flow_graph(
+            node.name.id,
+            filename,
+            scope,
+            optimized=0,
+            firstline=node.lineno,
+        )
+
+        res = self.make_child_codegen(node, graph)
+        res.optimized = 1
+        return res
+
+    def visitTypeAlias(self, node: ast.TypeAlias) -> None:
+        outer_gen: CodeGenerator312 = self
+        if node.type_params:
+            self.emit("PUSH_NULL")
+            graph = self.flow_graph(
+                f"<generic parameters of {node.name.id}>",
+                self.graph.filename,
+                self.symbols.scopes[node.type_params[0]],
+                flags=0,
+                args=(),
+                kwonlyargs=(),
+                starargs=(),
+                optimized=1,
+                docstring=None,
+                firstline=node.lineno,
+                posonlyargs=0,
+            )
+            graph.args = ()
+
+            outer_gen = self.make_child_codegen(node.type_params[0], graph, name=graph.name)
+            outer_gen.optimized = 1
+            outer_gen.emit("LOAD_CONST", node.name.id)
+            outer_gen.compile_type_params(node.type_params)
+        else:
+            outer_gen.emit("LOAD_CONST", node.name.id)
+            outer_gen.emit("LOAD_CONST", None)
+
+        code_gen = outer_gen.make_type_alias_code_gen(node)
+        code_gen.visit(node.value)
+        code_gen.emit("RETURN_VALUE")
+
+        outer_gen._makeClosure(code_gen, 0)
+        outer_gen.emit("BUILD_TUPLE", 3)
+        outer_gen.emit("CALL_INTRINSIC_1", outer_gen.find_intrinsic_1_idx("INTRINSIC_TYPEALIAS"))
+
+        if node.type_params:
+            outer_gen.emit("RETURN_VALUE")
+            self._makeClosure(outer_gen, 0)
+            self.emit("CALL", 0)
+
+        self.storeName(node.name.id)
+            
     def get_qual_prefix(self, gen):
         prefix = ""
         if gen.scope.global_scope:
@@ -3532,6 +3596,9 @@ class CodeGenerator312(CodeGenerator):
 
             if isinstance(self.scope, symbols.ClassScope) and prefix == "LOAD":
                 self.emit("LOAD_LOCALS")
+                self.emit("LOAD_FROM_DICT_OR_DEREF", name)
+            elif self.scope.can_see_class_scope:
+                self.emit("LOAD_DEREF", "__classdict__")
                 self.emit("LOAD_FROM_DICT_OR_DEREF", name)
             else:
                 self.emit(prefix + "_DEREF", name)
