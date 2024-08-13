@@ -16,7 +16,7 @@
 
 #endif
 
-static inline PyObject *getBorrowedTypeDict(PyTypeObject *self) {
+static inline PyObject* getBorrowedTypeDict(PyTypeObject* self) {
 #if PY_VERSION_HEX >= 0x030C0000
   return _PyType_GetDict(self);
 #else

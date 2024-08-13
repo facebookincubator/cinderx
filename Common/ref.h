@@ -117,7 +117,7 @@ struct std::hash<BorrowedRef<T>> {
  * Ref is destroyed.
  *
  * A Ref cannot be copied; it uniquely owns its reference. Ownership can be
- * transfered via a move, or a BorrowedRef can be constructed from a Ref.
+ * transferred via a move, or a BorrowedRef can be constructed from a Ref.
  *
  * One common use case is to use a Ref to create a new reference from a
  * borrowed reference that was returned from a call to the runtime, e.g.
