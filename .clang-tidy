@@ -2,6 +2,8 @@
 # would have to use this excessively due to Python often using null to propagate
 # exceptions.
 
+InheritParentConfig: true
+
 Checks: '
 -facebook-hte-NullableReturn,
 '

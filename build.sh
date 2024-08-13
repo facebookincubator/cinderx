@@ -24,7 +24,7 @@ while [[ $# -gt 0 ]]; do
       shift # past value
       ;;
     *)
-      echo "Unknown option: $key"
+      echo "Unknown option: $1"
       exit 1
       ;;
   esac
@@ -32,10 +32,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 if [ -z "$BUILD_ROOT" ] ; then
-  BUILD_ROOT=$(
-    git rev-parse --is-inside-work-tree >/dev/null 2>&1 &&
-    git rev-parse --show-toplevel ||
-    hg root)
+  BUILD_ROOT=$(git rev-parse --show-toplevel 2> /dev/null || hg root)
 fi
 
 if [ -z "$PYTHON_BIN" ] ; then
@@ -47,10 +44,12 @@ VENV_DIR="$BUILD_ROOT/_cinderx_venv/"
 if ! [ -f "$VENV_DIR/bin/activate" ] ; then
   rm -rf "$VENV_DIR"
   "$PYTHON_BIN" -mvenv --without-pip "$VENV_DIR"
+  # shellcheck disable=SC1091
   . "$VENV_DIR"/bin/activate
   # Uses Python from our venv
   python3 "$MODULE_SRC_DIR"/pip.pyz install "$MODULE_SRC_DIR"/setuptools-65.6.0-py3-none-any.whl
 else
+  # shellcheck disable=SC1091
   . "$VENV_DIR"/bin/activate
 fi
 
@@ -60,6 +59,6 @@ cd "$MODULE_SRC_DIR"
 # Uses Python from our venv
 python3 setup.py build -b "$MODULE_BUILD_DIR"
 
-if ! [ -z "$OUTPUT_DIR" ] ; then
+if [ -n "$OUTPUT_DIR" ] ; then
   ln -sf "$MODULE_BUILD_DIR"/lib.*/*so "$OUTPUT_DIR/"
 fi

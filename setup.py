@@ -5,12 +5,13 @@
 # LICENSE file in the root directory of this source tree.
 
 import os
-import setuptools
+from concurrent.futures import ThreadPoolExecutor
+
+from distutils.command.build_ext import build_ext
 
 from typing import List
 
-from distutils.command.build_ext import build_ext
-from concurrent.futures import ThreadPoolExecutor
+import setuptools
 
 
 MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
@@ -250,15 +251,16 @@ CACHEDPROPS_SRCS = [
 ]
 
 ALL_SRCS = (
-    CINDERX_SRCS +
-    JIT_SRCS +
-    I386_DASM_SRCS +
-    ASMJIT_SRCS +
-    SHADOWCODE_SRCS +
-    STRICTM_SRCS +
-    STATICPYTHON_SRCS +
-    CACHEDPROPS_SRCS
+    CINDERX_SRCS
+    + JIT_SRCS
+    + I386_DASM_SRCS
+    + ASMJIT_SRCS
+    + SHADOWCODE_SRCS
+    + STRICTM_SRCS
+    + STATICPYTHON_SRCS
+    + CACHEDPROPS_SRCS
 )
+
 
 # Monkey-patch the ability to compile C++ files (but not C files) with
 # -std=c++20 and perform compilation in parallel.
@@ -270,11 +272,26 @@ class CinderBuildExt(build_ext):
         with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
             compilation_futures = []
 
-            def new_compile(sources, output_dir=None, macros=None,
-                    include_dirs=None, debug=0, extra_preargs=None,
-                    extra_postargs=None, depends=None):
-                r = old_compile_func(sources, output_dir, macros,
-                    include_dirs, debug, extra_preargs, extra_postargs, depends)
+            def new_compile(
+                sources,
+                output_dir=None,
+                macros=None,
+                include_dirs=None,
+                debug=0,
+                extra_preargs=None,
+                extra_postargs=None,
+                depends=None,
+            ):
+                r = old_compile_func(
+                    sources,
+                    output_dir,
+                    macros,
+                    include_dirs,
+                    debug,
+                    extra_preargs,
+                    extra_postargs,
+                    depends,
+                )
                 for fut in compilation_futures:
                     fut.result()
                 return r
@@ -282,8 +299,17 @@ class CinderBuildExt(build_ext):
             def new__compile(obj, src, ext, cc_args, extra_postargs, pp_opts):
                 if src.endswith(".cpp"):
                     cc_args = cc_args + ["-std=c++20"]
-                compilation_futures.append(executor.submit(old__compile_func,
-                    obj, src, ext, cc_args, extra_postargs, pp_opts))
+                compilation_futures.append(
+                    executor.submit(
+                        old__compile_func,
+                        obj,
+                        src,
+                        ext,
+                        cc_args,
+                        extra_postargs,
+                        pp_opts,
+                    )
+                )
 
             self.compiler.compile = new_compile
             self.compiler._compile = new__compile
@@ -294,14 +320,16 @@ class CinderBuildExt(build_ext):
 with open("README.md", encoding="utf-8") as fh:
     long_description = fh.read()
 
+
 def find_header_files(directories: List[str]) -> List[str]:
     header_files = []
     for directory in directories:
-        for root, dirs, files in os.walk(directory):
+        for root, _dirs, files in os.walk(directory):
             for file in files:
-                if file.endswith('.h'):
+                if file.endswith(".h"):
                     header_files.append(os.path.join(root, file))
     return header_files
+
 
 dep_header_files = find_header_files(INCLUDE_DEPS_DIRS)
 
