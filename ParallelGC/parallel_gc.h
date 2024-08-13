@@ -23,7 +23,7 @@ PyAPI_FUNC(int) Cinder_EnableParallelGC(size_t min_gen, size_t num_threads);
  * Returns a dictionary containing parallel gc settings or None when
  * parallel gc is disabled.
  */
-PyAPI_FUNC(PyObject *) Cinder_GetParallelGCSettings(void);
+PyAPI_FUNC(PyObject*) Cinder_GetParallelGCSettings(void);
 
 /*
  * Disable parallel gc.
