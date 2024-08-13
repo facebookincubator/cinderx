@@ -1264,7 +1264,7 @@ void HIRBuilder::translate(
         }
         case GEN_START: {
           // In the interpreter this instruction behaves like POP_TOP because
-          // it assumes a generator will always be sent a superflous None value
+          // it assumes a generator will always be sent a superfluous None value
           // to start execution via the stack. We skip doing this for JIT
           // functions. This should be fine as long as we can't de-opt after the
           // function is started but before GEN_START. This check ensures this.
@@ -2154,9 +2154,9 @@ void HIRBuilder::emitContainsOp(TranslationContext& tc, int oparg) {
 }
 
 void HIRBuilder::emitCompareOp(TranslationContext& tc, int compare_op) {
-  #if PY_VERSION_HEX >= 0x030B0000
+#if PY_VERSION_HEX >= 0x030B0000
   compare_op >>= 4;
-  #endif
+#endif
 
   JIT_CHECK(compare_op >= Py_LT, "Invalid op {}", compare_op);
   JIT_CHECK(compare_op <= Py_GE, "Invalid op {}", compare_op);

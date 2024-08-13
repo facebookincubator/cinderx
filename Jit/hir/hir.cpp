@@ -3,10 +3,10 @@
 #include "cinderx/Jit/hir/hir.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/Jit/threaded_compile.h"
-#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <fmt/format.h>
 

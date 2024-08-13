@@ -122,7 +122,7 @@ struct LiveInterval {
   // starts either from loc (if loc falls into a LiveRange of the original
   // LiveInterval), or from the next LiveRange after loc (if loc falls outside
   // any LiveRange of the original LiveInterval).
-  // If the current interval cannot be splitted at location loc, return nullptr.
+  // If the current interval cannot be split at location loc, return nullptr.
   std::unique_ptr<LiveInterval> splitAt(LIRLocation loc);
 
   void allocateTo(PhyLocation loc) {

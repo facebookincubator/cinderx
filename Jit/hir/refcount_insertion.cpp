@@ -598,7 +598,7 @@ void killRegisterImpl(
 }
 
 // Kill a list of registers that have died, in an order that is predictable and
-// avoids unecessary promotions from borrowed to owned.
+// avoids unnecessary promotions from borrowed to owned.
 void killRegisters(
     Env& env,
     const std::vector<Register*>& regs,

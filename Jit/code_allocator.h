@@ -24,7 +24,7 @@ namespace jit {
   by avoiding independent huge-page pools which are all a little under-utilized.
 
   We may one day need non-global code allocators if we want to do fancy things
-  like accomodate memory pools with different allocation characteristics, or
+  like accommodate memory pools with different allocation characteristics, or
   have multiple threads which might compile independently.
 */
 class CodeAllocator {

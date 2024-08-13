@@ -41,7 +41,7 @@ struct Option {
 
   // Normally, when the relevant flag is set a debug log message
   // will be generated. By setting the debug message here, this
-  // auto generated message will be overriden
+  // auto generated message will be overridden
   Option& withDebugMessageOverride(const std::string debug_message) {
     this->debug_message = debug_message;
     return *this;

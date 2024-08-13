@@ -2289,7 +2289,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const LoadSplitDictItem*>(&i);
         Register* dict = instr->GetOperand(0);
         // Users of LoadSplitDictItem are required to verify that dict has a
-        // split table, so it's safe to load and acess ma_values with no
+        // split table, so it's safe to load and access ma_values with no
         // additional checks here.
         Instruction* ma_values = bbb.appendInstr(
             OutVReg{},

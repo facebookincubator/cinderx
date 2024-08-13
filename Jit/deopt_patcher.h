@@ -10,7 +10,7 @@ namespace jit {
 
 // A DeoptPatcher is used by the runtime to invalidate compiled code when an
 // invariant that the compiled code relies on is invalidated. It is intended
-// to be used in conjuction with the DeoptPatchpoint HIR instruction.
+// to be used in conjunction with the DeoptPatchpoint HIR instruction.
 //
 // Most users will want to subclass DeoptPatcher and implement their own
 // `init()` method. This will typically arrange things so that `patch()` will

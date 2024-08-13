@@ -644,8 +644,8 @@ void initFlagProcessor() {
             "",
             [](std::string flag_value) { parseAndSetFuncList(flag_value); },
             "Measure time taken in compilation phases and output summary to "
-            "stderr or approperiate logfile. Only functions in comma seperated "
-            "<function_list> list will be included. Comma seperated list may "
+            "stderr or approperiate logfile. Only functions in comma separated "
+            "<function_list> list will be included. Comma separated list may "
             "include wildcards, * and ?. Wildcards are processed in glob "
             "fashion and not as regex.")
         .withFlagParamName("function_list")
@@ -1562,7 +1562,8 @@ static PyObject* jit_suppress(PyObject*, PyObject* func_obj) {
   }
   PyFunctionObject* func = reinterpret_cast<PyFunctionObject*>(func_obj);
 
-  reinterpret_cast<PyCodeObject*>(func->func_code)->co_flags |= CI_CO_SUPPRESS_JIT;
+  reinterpret_cast<PyCodeObject*>(func->func_code)->co_flags |=
+      CI_CO_SUPPRESS_JIT;
 
   Py_INCREF(func_obj);
   return func_obj;

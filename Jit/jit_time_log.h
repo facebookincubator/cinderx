@@ -29,7 +29,7 @@ using time_point = std::chrono::steady_clock::time_point;
 // flag_value is expected to be the value associate with a the flag jit-time
 // and represents the function list for which compilation phase times are
 // expected to be captured for such that a breakdown may be presented
-// the individual functions are comma seperated and may contain wildcards
+// the individual functions are comma separated and may contain wildcards
 // wildcards will be glob processed (not treated as regex)
 // e.g. -X jit-time=*
 //      -X jit-time=__main__:*

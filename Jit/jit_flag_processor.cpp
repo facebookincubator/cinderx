@@ -158,7 +158,7 @@ void FlagProcessor::setFlags(PyObject* cmdline_args) {
       found = option->cmdline_flag;
     }
     if (found.empty() && !option->environment_variable.empty()) {
-      // check to see if it can be found via an enviroment variable
+      // check to see if it can be found via an environment variable
       const char* envval = Py_GETENV(option->environment_variable.c_str());
       if (envval != nullptr && envval[0] != '\0') {
         option->callback_on_match(envval);
@@ -167,7 +167,7 @@ void FlagProcessor::setFlags(PyObject* cmdline_args) {
     }
 
     if (!found.empty()) {
-      // use overriden debug message if it's been defined
+      // use overridden debug message if it's been defined
       JIT_DLOG(
           "{} has been specified - {}",
           found,

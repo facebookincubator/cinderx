@@ -632,8 +632,8 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
 
 PyObject*
 JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
-  PyObject* result =
-      Cix_PyDict_LoadGlobal((PyDictObject*)globals, (PyDictObject*)builtins, name);
+  PyObject* result = Cix_PyDict_LoadGlobal(
+      (PyDictObject*)globals, (PyDictObject*)builtins, name);
   if ((result == nullptr) && !PyErr_Occurred()) {
     // name is converted to a `char*` by format_exc_check_arg
     Cix_format_exc_check_arg(
@@ -722,7 +722,7 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   // on "kw" going into partial_new() triggers an optimization where the kwargs
   // are not copied. This fails test_functoools.TestPartial*.test_kwargs_copy
   // which asserts it's not possible to alter the kwargs after the call. A
-  // tempting alternative to this explicit ref managment is to set-up
+  // tempting alternative to this explicit ref management is to set-up
   // the memory effects of CallEx to steal the kwargs input. Unfortunately this
   // breaks test_contextlib.ContextManagerTestCase.test_nokeepref by keeping
   // kwargs and their contents alive for longer than expected.

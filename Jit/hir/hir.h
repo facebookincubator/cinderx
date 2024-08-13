@@ -1172,7 +1172,7 @@ class INSTR_CLASS(
 class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
  public:
 // List of allowed functions
-#define CallCFunc_FUNCS(X)      \
+#define CallCFunc_FUNCS(X)         \
   X(Cix_PyAsyncGenValueWrapperNew) \
   X(Cix_PyCoro_GetAwaitableIter)   \
   X(Cix_PyGen_yf)
