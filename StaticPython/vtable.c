@@ -1,67 +1,62 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 
 #include "cinderx/StaticPython/vtable.h"
+
 #include "cinderx/Jit/entry.h"
 
-static void
-vtabledealloc(_PyType_VTable *op)
-{
-    PyObject_GC_UnTrack((PyObject *)op);
-    Py_XDECREF(op->vt_slotmap);
-    Py_XDECREF(op->vt_thunks);
-    Py_XDECREF(op->vt_original);
-    Py_XDECREF(op->vt_specials);
+static void vtabledealloc(_PyType_VTable* op) {
+  PyObject_GC_UnTrack((PyObject*)op);
+  Py_XDECREF(op->vt_slotmap);
+  Py_XDECREF(op->vt_thunks);
+  Py_XDECREF(op->vt_original);
+  Py_XDECREF(op->vt_specials);
 
-    for (Py_ssize_t i = 0; i < op->vt_size; i++) {
-        Py_XDECREF(op->vt_entries[i].vte_state);
+  for (Py_ssize_t i = 0; i < op->vt_size; i++) {
+    Py_XDECREF(op->vt_entries[i].vte_state);
+  }
+  _PyType_GenericTypeRef* gtr = op->vt_gtr;
+  if (gtr != NULL) {
+    Py_CLEAR(gtr->gtr_gtd);
+    for (Py_ssize_t i = 0; i < gtr->gtr_typeparam_count; i++) {
+      Py_CLEAR(gtr->gtr_typeparams[i]);
     }
-    _PyType_GenericTypeRef *gtr = op->vt_gtr;
-    if (gtr != NULL) {
-        Py_CLEAR(gtr->gtr_gtd);
-        for (Py_ssize_t i = 0;i < gtr->gtr_typeparam_count; i++) {
-            Py_CLEAR(gtr->gtr_typeparams[i]);
-        }
-        PyMem_Free(gtr);
-    }
-    PyObject_GC_Del((PyObject *)op);
+    PyMem_Free(gtr);
+  }
+  PyObject_GC_Del((PyObject*)op);
 }
 
-static int
-vtabletraverse(_PyType_VTable *op, visitproc visit, void *arg)
-{
-    for (Py_ssize_t i = 0; i < op->vt_size; i++) {
-        Py_VISIT(op->vt_entries[i].vte_state);
+static int vtabletraverse(_PyType_VTable* op, visitproc visit, void* arg) {
+  for (Py_ssize_t i = 0; i < op->vt_size; i++) {
+    Py_VISIT(op->vt_entries[i].vte_state);
+  }
+  Py_VISIT(op->vt_original);
+  Py_VISIT(op->vt_thunks);
+  Py_VISIT(op->vt_specials);
+  _PyType_GenericTypeRef* gtr = op->vt_gtr;
+  if (gtr != NULL) {
+    Py_VISIT(gtr->gtr_gtd);
+    for (Py_ssize_t i = 0; i < gtr->gtr_typeparam_count; i++) {
+      Py_VISIT(gtr->gtr_typeparams[i]);
     }
-    Py_VISIT(op->vt_original);
-    Py_VISIT(op->vt_thunks);
-    Py_VISIT(op->vt_specials);
-    _PyType_GenericTypeRef *gtr = op->vt_gtr;
-    if (gtr != NULL) {
-        Py_VISIT(gtr->gtr_gtd);
-        for (Py_ssize_t i = 0; i < gtr->gtr_typeparam_count; i++) {
-            Py_VISIT(gtr->gtr_typeparams[i]);
-        }
-    }
-    return 0;
+  }
+  return 0;
 }
 
-static int
-vtableclear(_PyType_VTable *op)
-{
-    for (Py_ssize_t i = 0; i < op->vt_size; i++) {
-        Py_CLEAR(op->vt_entries[i].vte_state);
+static int vtableclear(_PyType_VTable* op) {
+  for (Py_ssize_t i = 0; i < op->vt_size; i++) {
+    Py_CLEAR(op->vt_entries[i].vte_state);
+  }
+  Py_CLEAR(op->vt_original);
+  Py_CLEAR(op->vt_thunks);
+  Py_CLEAR(op->vt_specials);
+  _PyType_GenericTypeRef* gtr = op->vt_gtr;
+  if (gtr != NULL) {
+    Py_CLEAR(gtr->gtr_gtd);
+    for (Py_ssize_t i = 0; i < gtr->gtr_typeparam_count; i++) {
+      Py_CLEAR(gtr->gtr_typeparams[i]);
     }
-    Py_CLEAR(op->vt_original);
-    Py_CLEAR(op->vt_thunks);
-    Py_CLEAR(op->vt_specials);
-    _PyType_GenericTypeRef *gtr = op->vt_gtr;
-    if (gtr != NULL) {
-        Py_CLEAR(gtr->gtr_gtd);
-        for (Py_ssize_t i = 0; i < gtr->gtr_typeparam_count; i++) {
-            Py_CLEAR(gtr->gtr_typeparams[i]);
-        }
-    }
-    return 0;
+  }
+  return 0;
 }
 
 PyTypeObject _PyType_VTableType = {
@@ -70,7 +65,7 @@ PyTypeObject _PyType_VTableType = {
     sizeof(_PyType_VTableEntry),
     .tp_dealloc = (destructor)vtabledealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
-                Py_TPFLAGS_TUPLE_SUBCLASS, /* tp_flags */
+        Py_TPFLAGS_TUPLE_SUBCLASS, /* tp_flags */
     .tp_traverse = (traverseproc)vtabletraverse,
     .tp_clear = (inquiry)vtableclear,
 };

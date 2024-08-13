@@ -1,21 +1,11 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 
 #include <Python.h>
-#include "boolobject.h"
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cellobject.h"
 #include "funcobject.h"
 #endif
-#include "dictobject.h"
-#include "frameobject.h"
-#include "import.h"
-#include "methodobject.h"
-#include "object.h"
-#include "pycore_call.h"
-#include "pycore_object.h"
-#include "pyerrors.h"
-#include "pyport.h"
-#include "structmember.h"
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/audit.h"
@@ -28,10 +18,19 @@
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/vtable_builder.h"
-#include "cinderx/UpstreamBorrow/borrowed.h"
-#include "strictmoduleobject.h"
-
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h"
+#include "dictobject.h"
+#include "frameobject.h"
+#include "import.h"
+#include "methodobject.h"
+#include "object.h"
+#include "pycore_call.h"
+#include "pycore_object.h"
+#include "pyerrors.h"
+#include "pyport.h"
+#include "strictmoduleobject.h"
+#include "structmember.h"
 
 PyDoc_STRVAR(
     _static__doc__,
@@ -39,14 +38,12 @@ PyDoc_STRVAR(
 
 static int _static_exec(PyObject* m) {
   if (PyType_Ready(Ci_CheckedDict_Type) < 0 ||
-      PyModule_AddObjectRef(m, "chkdict", (PyObject *)Ci_CheckedDict_Type) <
-          0) {
+      PyModule_AddObjectRef(m, "chkdict", (PyObject*)Ci_CheckedDict_Type) < 0) {
     return -1;
   }
 
   if (PyType_Ready(Ci_CheckedList_Type) < 0 ||
-      PyModule_AddObjectRef(m, "chklist", (PyObject*)Ci_CheckedList_Type) <
-          0) {
+      PyModule_AddObjectRef(m, "chklist", (PyObject*)Ci_CheckedList_Type) < 0) {
     return -1;
   }
 
@@ -698,7 +695,8 @@ PyObject* make_context_decorator_wrapper(
   if (nargs != 3) {
     PyErr_SetString(
         PyExc_TypeError,
-        "expected 3 arguments: context decorator, wrapper func, and original func");
+        "expected 3 arguments: context decorator, wrapper func, and original "
+        "func");
     return NULL;
   } else if (PyType_Ready(&_PyContextDecoratorWrapper_Type)) {
     return NULL;
@@ -826,7 +824,8 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
   if (!PyDict_CheckExact(slots_with_default)) {
     PyErr_Format(
         PyExc_TypeError,
-        "The `__slots_with_default__` attribute of the class `%s` is not a dict.",
+        "The `__slots_with_default__` attribute of the class `%s` is not a "
+        "dict.",
         type->tp_name);
     return -1;
   }
@@ -877,7 +876,8 @@ static PyObject* init_subclass(PyObject* self, PyObject* type) {
   }
   // Validate that no Static Python final methods are overridden.
   PyTypeObject* typ = (PyTypeObject*)type;
-  if (_PyClassLoader_IsFinalMethodOverridden(typ->tp_base, _PyType_GetDict(typ))) {
+  if (_PyClassLoader_IsFinalMethodOverridden(
+          typ->tp_base, _PyType_GetDict(typ))) {
     return NULL;
   }
   if (create_overridden_slot_descriptors_with_default(typ) < 0) {
@@ -1222,7 +1222,8 @@ int init_static_type(PyObject* obj, int leaked_type) {
     }
   }
 
-  if (_PyClassLoader_IsFinalMethodOverridden(type->tp_base, _PyType_GetDict(type))) {
+  if (_PyClassLoader_IsFinalMethodOverridden(
+          type->tp_base, _PyType_GetDict(type))) {
     return -1;
   }
 
@@ -1245,7 +1246,8 @@ static int validate_base_types(PyTypeObject* pytype) {
         PyErr_Format(
             PyExc_TypeError,
             "Static compiler cannot verify that static type '%s' is a valid "
-            "override of static base '%s' because intervening base '%s' is non-static.",
+            "override of static base '%s' because intervening base '%s' is "
+            "non-static.",
             pytype->tp_name,
             next->tp_name,
             nonstatic_base->tp_name);
@@ -1451,10 +1453,7 @@ static PyObject* _static___build_cinder_class__(
 
   int res;
   res = _PyObject_GenericSetAttrWithDict(
-      type,
-      s___final_method_names__,
-      final_method_names,
-      NULL);
+      type, s___final_method_names__, final_method_names, NULL);
   if (res != 0) {
     goto error;
   }
@@ -1652,7 +1651,8 @@ static PyMethodDef static_methods[] = {
     {"posix_clock_gettime_ns",
      (PyCFunction)&posix_clock_gettime_ns_def,
      Ci_METH_TYPED,
-     "Returns time in nanoseconds as an int64. Note: Does no error checks at all."},
+     "Returns time in nanoseconds as an int64. Note: Does no error checks at "
+     "all."},
     {"_property_missing_fget",
      (PyCFunction)&static_property_missing_fget_def,
      Ci_METH_TYPED,

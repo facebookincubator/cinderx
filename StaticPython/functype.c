@@ -2,6 +2,9 @@
 
 #include "cinderx/StaticPython/functype.h"
 
+#include "cinderx/CachedProperties/cached_properties.h"
+#include "cinderx/Common/func.h"
+#include "cinderx/Common/property.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
@@ -9,12 +12,6 @@
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
-
-#include "cinderx/Common/func.h"
-#include "cinderx/Common/property.h"
-
-#include "cinderx/CachedProperties/cached_properties.h"
-
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/hooks.h"
@@ -134,7 +131,6 @@ static PyObject* classloader_get_static_type(const char* name) {
   Py_DECREF(mod);
   return type;
 }
-
 
 PyObject* _PyClassLoader_ResolveReturnType(
     PyObject* func,
@@ -305,8 +301,6 @@ PyObject* _PyClassLoader_ResolveReturnType(
   return (PyObject*)res;
 }
 
-
-
 PyObject* _PyClassLoader_GetReturnTypeDescr(PyFunctionObject* func) {
   return _PyClassLoader_GetCodeReturnTypeDescr((PyCodeObject*)func->func_code);
 }
@@ -380,7 +374,8 @@ PyObject* _PyClassLoader_CheckReturnType(
     if (overflow) {
       exc_type = PyExc_OverflowError;
       msg =
-          "unexpected return type from %s%s%U, expected %s, got out-of-range %s (%R)";
+          "unexpected return type from %s%s%U, expected %s, got out-of-range "
+          "%s (%R)";
     } else if (rt_info->rt_optional) {
       msg =
           "unexpected return type from %s%s%U, expected Optional[%s], "
@@ -405,7 +400,9 @@ PyObject* _PyClassLoader_CheckReturnType(
   return ret;
 }
 
-PyObject* _PyClassLoader_CheckReturnCallback(_PyClassLoader_Awaitable* awaitable, PyObject* result) {
+PyObject* _PyClassLoader_CheckReturnCallback(
+    _PyClassLoader_Awaitable* awaitable,
+    PyObject* result) {
   if (result == NULL) {
     return NULL;
   }

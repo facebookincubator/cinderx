@@ -2,8 +2,6 @@
 
 #include "cinderx/StaticPython/classloader.h"
 
-#include <Python.h>
-
 #include "descrobject.h"
 #include "dictobject.h"
 #include "object.h"
@@ -12,25 +10,27 @@
 #include "pyport.h"
 #include "structmember.h"
 
+#include <Python.h>
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-
 #include "cinderx/CachedProperties/cached_properties.h"
-#include "cinderx/Common/extra-py-flags.h"  // @donotremove
+#include "cinderx/Common/extra-py-flags.h" // @donotremove
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
-#include "cinderx/Jit/entry.h"
-#include "cinderx/Jit/global_cache.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/modulethunks.h"
-#include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/StaticPython/vtable_defs.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+
+#include "cinderx/Jit/entry.h"
+#include "cinderx/Jit/global_cache.h"
 
 #include <dlfcn.h>
 
@@ -215,12 +215,13 @@ int _PyClassLoader_ClearVtables() {
 static int classloader_init_slot(PyObject* path) {
   /* path is "mod.submod.Class.func", start search from
    * sys.modules */
-  PyObject *classloader_cache = _PyClassLoader_GetCache();
+  PyObject* classloader_cache = _PyClassLoader_GetCache();
   if (classloader_cache == NULL) {
     return -1;
   }
 
-  PyObject* target_type = _PyClassLoader_ResolveContainer(PyTuple_GET_ITEM(path, 0));
+  PyObject* target_type =
+      _PyClassLoader_ResolveContainer(PyTuple_GET_ITEM(path, 0));
   if (target_type == NULL) {
     return -1;
   } else if (_PyClassLoader_VerifyType(target_type, path)) {
@@ -229,7 +230,8 @@ static int classloader_init_slot(PyObject* path) {
   }
 
   /* Now we need to update or make the v-table for this type */
-  _PyType_VTable* vtable = _PyClassLoader_EnsureVtable((PyTypeObject *)target_type, 0);
+  _PyType_VTable* vtable =
+      _PyClassLoader_EnsureVtable((PyTypeObject*)target_type, 0);
   if (vtable == NULL) {
     Py_XDECREF(target_type);
     return -1;
@@ -243,15 +245,15 @@ static int classloader_init_slot(PyObject* path) {
         PyExc_RuntimeError,
         "unable to resolve v-table slot %R in %s is_static: %s",
         slot_name,
-        ((PyTypeObject *)target_type)->tp_name,
-        is_static_type((PyTypeObject *)target_type) ? "true" : "false");
+        ((PyTypeObject*)target_type)->tp_name,
+        is_static_type((PyTypeObject*)target_type) ? "true" : "false");
     Py_DECREF(target_type);
     return -1;
   }
   assert(new_index != NULL);
 
   if (PyDict_SetItem(classloader_cache, path, new_index) ||
-      _PyClassLoader_InitSubclassVtables((PyTypeObject *)target_type)) {
+      _PyClassLoader_InitSubclassVtables((PyTypeObject*)target_type)) {
     Py_DECREF(target_type);
     return -1;
   }
@@ -265,7 +267,7 @@ static int classloader_init_slot(PyObject* path) {
     e.g ("my_mod", "MyClass", "my_method")
 */
 Py_ssize_t _PyClassLoader_ResolveMethod(PyObject* path) {
-  PyObject *classloader_cache = _PyClassLoader_GetCache();
+  PyObject* classloader_cache = _PyClassLoader_GetCache();
   if (classloader_cache == NULL) {
     return -1;
   }
@@ -307,8 +309,8 @@ PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container) {
   }
 
   if (original != NULL) {
-    PyObject* res =
-        (PyObject*)_PyClassLoader_GetOrMakeThunk(func, original, *container, containerkey);
+    PyObject* res = (PyObject*)_PyClassLoader_GetOrMakeThunk(
+        func, original, *container, containerkey);
     Py_DECREF(func);
     assert(res != NULL);
     return res;
@@ -334,8 +336,8 @@ PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container) {
 PyObject** _PyClassLoader_ResolveIndirectPtr(PyObject* path) {
   PyObject* container;
   PyObject* name;
-  PyObject* func =
-      _PyClassLoader_ResolveMember(path, PyTuple_GET_SIZE(path), &container, &name);
+  PyObject* func = _PyClassLoader_ResolveMember(
+      path, PyTuple_GET_SIZE(path), &container, &name);
   if (func == NULL) {
     return NULL;
   }
@@ -366,7 +368,8 @@ PyObject** _PyClassLoader_ResolveIndirectPtr(PyObject* path) {
     /* we pass func in for original here.  Either the thunk will already exist
      * in which case the value has been patched, or it won't yet exist in which
      * case func is the original function in the type. */
-    _Py_StaticThunk* thunk = _PyClassLoader_GetOrMakeThunk(func, func, container, name);
+    _Py_StaticThunk* thunk =
+        _PyClassLoader_GetOrMakeThunk(func, func, container, name);
     if (thunk == NULL) {
       goto error;
     }
@@ -406,7 +409,11 @@ PyMethodDescrObject* _PyClassLoader_ResolveMethodDef(PyObject* path) {
   return NULL;
 }
 
-int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyDict_WatchEvent event, PyObject* key, PyObject *value) {
+int _PyClassLoader_NotifyDictChange(
+    PyDictObject* dict,
+    PyDict_WatchEvent event,
+    PyObject* key,
+    PyObject* value) {
   if (_PyClassLoader_CheckModuleChange(dict, key) < 0 ||
       _PyClassLoader_CheckSubclassChange(dict, event, key, value) < 0) {
     return -1;
@@ -504,7 +511,7 @@ static int classloader_init_field(PyObject* path, int* field_type) {
  * ('module', 'class', 'field_name')
  */
 Py_ssize_t _PyClassLoader_ResolveFieldOffset(PyObject* path, int* field_type) {
-  PyObject *classloader_cache = _PyClassLoader_GetCache();
+  PyObject* classloader_cache = _PyClassLoader_GetCache();
   if (classloader_cache == NULL) {
   }
 

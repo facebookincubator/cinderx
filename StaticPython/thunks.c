@@ -2,12 +2,12 @@
 
 #include "cinderx/StaticPython/thunks.h"
 
-#include <stddef.h>
-
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
+
+#include <stddef.h>
 
 static PyObject*
 thunk_call(_Py_StaticThunk* thunk, PyObject* args, PyObject* kwds) {
@@ -381,7 +381,7 @@ PyObject* _PyClassLoader_TypedDescriptorThunkGet_New(PyObject* property) {
   thunk->typed_descriptor_thunk_vectorcall =
       (vectorcallfunc)typed_descriptor_thunk_get;
   thunk->is_setter = 0;
-  return (PyObject *)thunk;
+  return (PyObject*)thunk;
 }
 
 PyObject* _PyClassLoader_TypedDescriptorThunkSet_New(PyObject* property) {
@@ -395,11 +395,13 @@ PyObject* _PyClassLoader_TypedDescriptorThunkSet_New(PyObject* property) {
   thunk->typed_descriptor_thunk_vectorcall =
       (vectorcallfunc)typed_descriptor_thunk_set;
   thunk->is_setter = 1;
-  return (PyObject *)thunk;
+  return (PyObject*)thunk;
 }
 
-void
-_PyClassLoader_UpdateThunk(_Py_StaticThunk* thunk, PyObject* previous, PyObject* new_value) {
+void _PyClassLoader_UpdateThunk(
+    _Py_StaticThunk* thunk,
+    PyObject* previous,
+    PyObject* new_value) {
   Py_CLEAR(thunk->thunk_tcs.tcs_value);
   if (new_value != NULL) {
     PyObject* unwrapped_new = _PyClassLoader_MaybeUnwrapCallable(new_value);

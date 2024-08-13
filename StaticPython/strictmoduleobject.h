@@ -4,7 +4,11 @@
 #ifndef Ci_MODULEOBJECT_H
 #define Ci_MODULEOBJECT_H
 
+// Need to include Python.h before the pycore_moduleobject.h.
+//
+// clang-format off
 #include <Python.h>
+// clang-format on
 
 #include "internal/pycore_moduleobject.h"
 
@@ -17,37 +21,37 @@ extern PyTypeObject Ci_StrictModule_Type;
 #define Ci_StrictModule_Check(op) PyObject_TypeCheck(op, &Ci_StrictModule_Type)
 #define Ci_StrictModule_CheckExact(op) (Py_TYPE(op) == &Ci_StrictModule_Type)
 
-PyObject * Ci_StrictModule_New(PyTypeObject*, PyObject*, PyObject*);
+PyObject* Ci_StrictModule_New(PyTypeObject*, PyObject*, PyObject*);
 
 #if !defined(Py_LIMITED_API)
-int Ci_strictmodule_is_unassigned(PyObject *dict, PyObject *name);
-PyObject * Ci_StrictModule_GetOriginal(PyObject *obj, PyObject *name);
-int Ci_do_strictmodule_patch(PyObject *self, PyObject *name, PyObject *value);
-PyObject * Ci_StrictModule_GetDictSetter(PyObject *);
-PyObject * Ci_StrictModule_GetDict(PyObject *);
+int Ci_strictmodule_is_unassigned(PyObject* dict, PyObject* name);
+PyObject* Ci_StrictModule_GetOriginal(PyObject* obj, PyObject* name);
+int Ci_do_strictmodule_patch(PyObject* self, PyObject* name, PyObject* value);
+PyObject* Ci_StrictModule_GetDictSetter(PyObject*);
+PyObject* Ci_StrictModule_GetDict(PyObject*);
 #endif
 
 typedef struct {
-    PyObject_HEAD
-    PyObject *globals;
-    PyObject *global_setter;
-    PyObject *originals;
-    PyObject *static_thunks;
-    PyObject *imported_from;
-    PyObject *weaklist;
+  PyObject_HEAD
+  PyObject* globals;
+  PyObject* global_setter;
+  PyObject* originals;
+  PyObject* static_thunks;
+  PyObject* imported_from;
+  PyObject* weaklist;
 } Ci_StrictModuleObject;
 
-static inline PyObject* Ci_MaybeStrictModule_Dict(PyObject *op) {
-    if (Ci_StrictModule_Check(op)) {
-        return ((Ci_StrictModuleObject *)op)->globals;
-    }
+static inline PyObject* Ci_MaybeStrictModule_Dict(PyObject* op) {
+  if (Ci_StrictModule_Check(op)) {
+    return ((Ci_StrictModuleObject*)op)->globals;
+  }
 
-    return ((PyModuleObject *)op)->md_dict;
+  return ((PyModuleObject*)op)->md_dict;
 }
 
-static inline PyObject* Ci_StrictModuleGetDict(PyObject *mod) {
-    assert(Ci_StrictModule_Check(mod));
-    return ((Ci_StrictModuleObject*) mod) -> globals;
+static inline PyObject* Ci_StrictModuleGetDict(PyObject* mod) {
+  assert(Ci_StrictModule_Check(mod));
+  return ((Ci_StrictModuleObject*)mod)->globals;
 }
 
 /* Checks to see if the given container is immutable */

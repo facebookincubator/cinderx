@@ -12,16 +12,18 @@ Py_ssize_t _PyClassLoader_PrimitiveTypeToSize(int primitive_type);
 
 int _PyClassLoader_PrimitiveTypeToStructMemberType(int type);
 
-PyObject * _PyClassLoader_Box(uint64_t value, int primitive_type);
-uint64_t _PyClassLoader_Unbox(PyObject *value, int primitive_type);
+PyObject* _PyClassLoader_Box(uint64_t value, int primitive_type);
+uint64_t _PyClassLoader_Unbox(PyObject* value, int primitive_type);
 
-int _PyClassLoader_GetTypeCode(PyTypeObject *type);
+int _PyClassLoader_GetTypeCode(PyTypeObject* type);
 
-static inline
-int _PyObject_TypeCheckOptional(PyObject *val, PyTypeObject *type, int optional, int exact) {
-    return Py_TYPE(val) == type ||
-           (optional && val == Py_None) ||
-           (!exact && PyObject_TypeCheck(val, type));
+static inline int _PyObject_TypeCheckOptional(
+    PyObject* val,
+    PyTypeObject* type,
+    int optional,
+    int exact) {
+  return Py_TYPE(val) == type || (optional && val == Py_None) ||
+      (!exact && PyObject_TypeCheck(val, type));
 }
 
 PyObject* _PyClassLoader_GetModuleAttr(PyObject* module, PyObject* name);

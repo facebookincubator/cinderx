@@ -8,7 +8,7 @@
 extern "C" {
 #endif
 
-extern PyObject *CiExc_StaticTypeError;
+extern PyObject* CiExc_StaticTypeError;
 
 #ifdef __cplusplus
 }

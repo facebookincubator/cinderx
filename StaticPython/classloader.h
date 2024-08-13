@@ -10,16 +10,15 @@
 #endif
 
 #include "cinderx/Common/extra-py-flags.h"
-
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/errors.h"
-#include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/functype.h"
+#include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/type.h"
-#include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/typed-args-info.h"
+#include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
 
 #ifdef __cplusplus
@@ -177,7 +176,11 @@ _PyTypedArgsInfo* _PyClassLoader_GetTypedArgsInfoFromThunk(
     int only_primitives);
 int _PyClassLoader_HasPrimitiveArgs(PyCodeObject* code);
 
-int _PyClassLoader_NotifyDictChange(PyDictObject* dict, PyDict_WatchEvent event, PyObject* key, PyObject *value);
+int _PyClassLoader_NotifyDictChange(
+    PyDictObject* dict,
+    PyDict_WatchEvent event,
+    PyObject* key,
+    PyObject* value);
 
 PyObject* _PyClassloader_InvokeNativeFunction(
     PyObject* lib_name,

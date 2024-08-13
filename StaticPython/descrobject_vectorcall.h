@@ -8,11 +8,11 @@ extern "C" {
 
 #include <Python.h>
 
-vectorcallfunc
-Ci_PyDescr_NewMethod_METH_TYPED(PyMethodDef *method);
+vectorcallfunc Ci_PyDescr_NewMethod_METH_TYPED(PyMethodDef* method);
 
-PyObject *
-Ci_method_get_typed_signature(PyMethodDescrObject *descr, void *closure);
+PyObject* Ci_method_get_typed_signature(
+    PyMethodDescrObject* descr,
+    void* closure);
 
 #ifdef __cplusplus
 }

@@ -2,4 +2,4 @@
 
 #include "cinderx/StaticPython/errors.h"
 
-PyObject *CiExc_StaticTypeError = NULL;
+PyObject* CiExc_StaticTypeError = NULL;

@@ -5,7 +5,7 @@
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 const Ci_Py_SigElement Ci_Py_Sig_T0 = {Ci_Py_SIG_TYPE_PARAM_IDX(0)};
 const Ci_Py_SigElement Ci_Py_Sig_T1 = {Ci_Py_SIG_TYPE_PARAM_IDX(1)};
@@ -35,7 +35,6 @@ const Ci_Py_SigElement Ci_Py_Sig_UINT16 = {Ci_Py_SIG_UINT16};
 const Ci_Py_SigElement Ci_Py_Sig_UINT32 = {Ci_Py_SIG_UINT32};
 const Ci_Py_SigElement Ci_Py_Sig_UINT64 = {Ci_Py_SIG_UINT64};
 
-
 #define GENINST_GET_PARAM(self, i) \
   (((_PyGenericTypeInst*)Py_TYPE(self))->gti_inst[i].gtp_type)
 
@@ -56,7 +55,10 @@ void _PyClassLoader_ArgError(
     switch (Ci_Py_SIG_TYPE_MASK(argtype)) {
       case Ci_Py_SIG_OBJECT:
         PyErr_Format(
-            CiExc_StaticTypeError, "%U() argument %d is missing", func_name, arg);
+            CiExc_StaticTypeError,
+            "%U() argument %d is missing",
+            func_name,
+            arg);
         return;
       case Ci_Py_SIG_STRING:
         expected = "str";

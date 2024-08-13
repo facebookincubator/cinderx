@@ -2,11 +2,11 @@
 
 #pragma once
 
-#include <Python.h>
-
 #include "cinderx/StaticPython/functype.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
+
+#include <Python.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +29,6 @@ int _PyClassLoader_GetStaticallyInheritedMember(
     PyObject* name,
     PyObject** result);
 
-
 int _PyClassLoader_InitTypeForPatching(PyTypeObject* type);
 
 int _PyClassLoader_UpdateSlot(
@@ -42,9 +41,13 @@ static inline int _PyClassLoader_IsStaticCallable(PyObject* obj) {
       _PyClassLoader_IsStaticBuiltin(obj);
 }
 
-int _PyClassLoader_CheckSubclassChange(PyDictObject* dict, PyDict_WatchEvent event, PyObject* key, PyObject *value);
+int _PyClassLoader_CheckSubclassChange(
+    PyDictObject* dict,
+    PyDict_WatchEvent event,
+    PyObject* key,
+    PyObject* value);
 
-int _PyClassLoader_SetTypeStatic(PyTypeObject *type);
+int _PyClassLoader_SetTypeStatic(PyTypeObject* type);
 
 #ifdef __cplusplus
 }

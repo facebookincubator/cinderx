@@ -13,8 +13,7 @@ typedef struct {
 } _PyTypedArgInfo;
 
 typedef struct {
-  PyObject_VAR_HEAD
-  _PyTypedArgInfo tai_args[1];
+  PyObject_VAR_HEAD _PyTypedArgInfo tai_args[1];
 } _PyTypedArgsInfo;
 
 extern PyTypeObject _PyTypedArgsInfo_Type;

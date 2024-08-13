@@ -2,8 +2,9 @@
 
 #pragma once
 
-#include <Python.h>
 #include "cinderx/StaticPython/thunks.h"
+
+#include <Python.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,10 +17,9 @@ extern "C" {
 // form when we're invoking from the interpreter or somewhere that can't use
 // the native calling convention.
 #if defined(_M_X64) || defined(_M_AMD64) || defined(__x86_64__)
-#define VTABLE_THUNK(name, _arg1_type)                                            \
-  __attribute__((naked)) PyObject* name##_dont_bolt(_arg1_type* state,              \
-                                                    PyObject** args,                \
-                                                    size_t nargsf) {                \
+#define VTABLE_THUNK(name, _arg1_type)                                                \
+  __attribute__((naked)) PyObject* name##_dont_bolt(                                  \
+      _arg1_type* state, PyObject** args, size_t nargsf) {                            \
     __asm__(                                                                        \
                 /* static_entry: */                                                 \
                 /* we explicitly encode the jmp forward to static_entry_impl so */  \
@@ -75,7 +75,6 @@ extern "C" {
   }
 #endif
 
-
 typedef struct _PyClassLoader_StaticCallReturn {
   void* rax;
   void* rdx;
@@ -95,7 +94,9 @@ int _PyClassLoader_HydrateArgs(
     PyObject** free_args);
 
 // Frees the arguments which were hydrated with _PyClassLoader_HydrateArgs
-void _PyClassLoader_FreeHydratedArgs(PyObject** free_args, Py_ssize_t arg_count);
+void _PyClassLoader_FreeHydratedArgs(
+    PyObject** free_args,
+    Py_ssize_t arg_count);
 
 // Gets the number of arguments that this callable will be called with
 // when dispatched via a v-table entry.
@@ -106,20 +107,60 @@ PyObject* _PyVTable_coroutine_vectorcall(
     PyObject* const* args,
     size_t nargsf);
 
-PyObject* _PyVTable_func_lazyinit_dont_bolt(PyObject* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_thunk_ret_primitive_not_jitted_dont_bolt(PyObject* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_coroutine_classmethod_dont_bolt(_PyClassLoader_TypeCheckState* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_coroutine_property_dont_bolt(_PyClassLoader_TypeCheckState* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_coroutine_dont_bolt(_PyClassLoader_TypeCheckState* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_nonfunc_property_dont_bolt(_PyClassLoader_TypeCheckState* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_func_overridable_dont_bolt(_PyClassLoader_TypeCheckState* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_classmethod_overridable_dont_bolt(_PyClassLoader_TypeCheckState* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_nonfunc_dont_bolt(_PyClassLoader_TypeCheckState* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_staticmethod_dont_bolt(PyObject* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_classmethod_dont_bolt(PyObject* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_thunk_vectorcall_only_dont_bolt(PyObject* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_descr_dont_bolt(PyObject* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_func_missing_dont_bolt(PyObject* state, PyObject** args, size_t nargsf);
+PyObject* _PyVTable_func_lazyinit_dont_bolt(
+    PyObject* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_thunk_ret_primitive_not_jitted_dont_bolt(
+    PyObject* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_coroutine_classmethod_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_coroutine_property_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_coroutine_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_nonfunc_property_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_func_overridable_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_classmethod_overridable_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_nonfunc_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_staticmethod_dont_bolt(
+    PyObject* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_classmethod_dont_bolt(
+    PyObject* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_thunk_vectorcall_only_dont_bolt(
+    PyObject* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject*
+_PyVTable_descr_dont_bolt(PyObject* state, PyObject** args, size_t nargsf);
+PyObject* _PyVTable_func_missing_dont_bolt(
+    PyObject* state,
+    PyObject** args,
+    size_t nargsf);
 #ifdef __cplusplus
 }
 #endif

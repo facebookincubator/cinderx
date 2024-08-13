@@ -2,17 +2,16 @@
 
 #pragma once
 
-#include <Python.h>
-
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/typed-args-info.h"
-#include "cinderx/Common/extra-py-flags.h"
+
+#include <Python.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 static inline int _PyClassLoader_IsStaticFunction(PyObject* obj) {
   if (obj == NULL || !PyFunction_Check(obj)) {
@@ -40,8 +39,13 @@ _PyTypedArgsInfo* _PyClassLoader_GetTypedArgsInfoFromThunk(
 PyObject* _PyClassLoader_GetReturnTypeDescr(PyFunctionObject* func);
 PyObject* _PyClassLoader_GetCodeReturnTypeDescr(PyCodeObject* code);
 PyObject* _PyClassLoader_GetCodeArgumentTypeDescrs(PyCodeObject* code);
-PyObject* _PyClassLoader_CheckReturnType(PyTypeObject* cls, PyObject* ret, _PyClassLoader_RetTypeInfo* rt_info);
-PyObject* _PyClassLoader_CheckReturnCallback(_PyClassLoader_Awaitable* awaitable, PyObject* result);
+PyObject* _PyClassLoader_CheckReturnType(
+    PyTypeObject* cls,
+    PyObject* ret,
+    _PyClassLoader_RetTypeInfo* rt_info);
+PyObject* _PyClassLoader_CheckReturnCallback(
+    _PyClassLoader_Awaitable* awaitable,
+    PyObject* result);
 
 int _PyClassLoader_IsPropertyName(PyTupleObject* name);
 PyObject* _PyClassLoader_GetFunctionName(PyObject* name);
@@ -50,14 +54,13 @@ PyObject* _PyClassLoader_GetFunctionName(PyObject* name);
 #define Ci_FUNC_FLAGS_CLASSMETHOD 0x02
 #define Ci_FUNC_FLAGS_STATICMETHOD 0x04
 
-
 PyObject* _PyClassLoader_MaybeUnwrapCallable(PyObject* func);
 
 PyObject* _PyClassLoader_CallCoroutine(
     _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf);
-    
+
 #ifdef __cplusplus
 }
 #endif

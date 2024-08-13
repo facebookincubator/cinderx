@@ -2,10 +2,10 @@
 
 #pragma once
 
-#include <Python.h>
-
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/thunks.h"
+
+#include <Python.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -1,7 +1,6 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 #include "cinderx/StaticPython/vtable_builder.h"
 
-#include <Python.h>
 #include "descrobject.h"
 #include "dictobject.h"
 #include "object.h"
@@ -10,18 +9,19 @@
 #include "pyport.h"
 #include "structmember.h"
 
+#include <Python.h>
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/dict.h"
-#include "cinderx/Common/extra-py-flags.h"  // @donotremove
+#include "cinderx/Common/extra-py-flags.h" // @donotremove
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/property.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
-#include "cinderx/Jit/entry.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
@@ -30,9 +30,10 @@
 #include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable_defs.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
+#include "cinderx/Jit/entry.h"
 
 static int rettype_check_traverse(
     _PyClassLoader_RetTypeInfo* op,
@@ -47,7 +48,6 @@ static int rettype_check_clear(_PyClassLoader_RetTypeInfo* op) {
   Py_CLEAR(op->rt_name);
   return 0;
 }
-
 
 static int _PyClassLoader_TypeCheckState_traverse(
     _PyClassLoader_TypeCheckState* op,
@@ -344,13 +344,15 @@ static int _PyVTable_set_opt_slot(
     } else {
       Py_XDECREF(vtable->vt_entries[slot].vte_state);
       vtable->vt_entries[slot].vte_state = value;
-      vtable->vt_entries[slot].vte_entry = _PyClassLoader_GetStaticFunctionEntry((PyFunctionObject*)value);
+      vtable->vt_entries[slot].vte_entry =
+          _PyClassLoader_GetStaticFunctionEntry((PyFunctionObject*)value);
       Py_INCREF(value);
     }
   } else {
     Py_XDECREF(vtable->vt_entries[slot].vte_state);
     vtable->vt_entries[slot].vte_state = value;
-    vtable->vt_entries[slot].vte_entry = _PyClassLoader_GetStaticFunctionEntry((PyFunctionObject*)value);
+    vtable->vt_entries[slot].vte_entry =
+        _PyClassLoader_GetStaticFunctionEntry((PyFunctionObject*)value);
     Py_INCREF(value);
   }
   return 0;
@@ -512,7 +514,6 @@ int _PyClassLoader_InitSubclassVtables(PyTypeObject* target_type) {
   return 0;
 }
 
-
 static void _PyClassLoader_UpdateDerivedSlot(
     PyTypeObject* type,
     PyObject* name,
@@ -641,20 +642,21 @@ static PyObject* classloader_get_property_fget(
 
     return classloader_cache_new_special(type, name, (PyObject*)thunk);
   } else if (Py_TYPE(property) == &PyAsyncCachedPropertyWithDescr_Type) {
-    _Py_AsyncCachedPropertyThunk* thunk = _Py_AsyncCachedPropertyThunk_New(property);
+    _Py_AsyncCachedPropertyThunk* thunk =
+        _Py_AsyncCachedPropertyThunk_New(property);
     if (thunk == NULL) {
       return NULL;
     }
 
     return classloader_cache_new_special(type, name, (PyObject*)thunk);
   } else if (Py_TYPE(property) == &_PyTypedDescriptorWithDefaultValue_Type) {
-    PyObject *thunk = _PyClassLoader_TypedDescriptorThunkGet_New(property);
+    PyObject* thunk = _PyClassLoader_TypedDescriptorThunkGet_New(property);
     if (thunk == NULL) {
       return NULL;
     }
     return classloader_cache_new_special(type, name, thunk);
   } else {
-    PyObject *thunk = _PyClassLoader_PropertyThunkGet_New(property);
+    PyObject* thunk = _PyClassLoader_PropertyThunkGet_New(property);
     if (thunk == NULL) {
       return NULL;
     }
@@ -680,13 +682,13 @@ static PyObject* classloader_get_property_fset(
     Py_XINCREF(func);
     return func;
   } else if (Py_TYPE(property) == &_PyTypedDescriptorWithDefaultValue_Type) {
-    PyObject *thunk = _PyClassLoader_TypedDescriptorThunkSet_New(property);
+    PyObject* thunk = _PyClassLoader_TypedDescriptorThunkSet_New(property);
     if (thunk == NULL) {
       return NULL;
     }
     return classloader_cache_new_special(type, name, thunk);
   } else {
-    PyObject *thunk = _PyClassLoader_PropertyThunkSet_New(property);
+    PyObject* thunk = _PyClassLoader_PropertyThunkSet_New(property);
     if (thunk == NULL) {
       return NULL;
     }
@@ -799,18 +801,17 @@ static int check_if_final_method_overridden(
       Py_DECREF(final_method_names);
       PyErr_Clear();
       PyErr_WarnFormat(
-        PyExc_RuntimeWarning,
-        1,
-        "Comparison with final method %R failed (%U)",
-        name,
-        current_final_method_name);
+          PyExc_RuntimeWarning,
+          1,
+          "Comparison with final method %R failed (%U)",
+          name,
+          current_final_method_name);
       return -1;
     }
   }
   Py_DECREF(final_method_names);
   return 0;
 }
-
 
 int _PyClassLoader_IsFinalMethodOverridden(
     PyTypeObject* base_type,
@@ -937,12 +938,12 @@ int _PyClassLoader_UpdateSlot(
      constructed. */
   if (PyUnicode_Check(name) && check_if_final_method_overridden(type, name)) {
     PyErr_WarnFormat(
-      PyExc_RuntimeWarning,
-      1,
-      "Overriding final method `%U` by adding override to type `%s`, overridden method may be ignored.",
-      name,
-      type->tp_name
-    );
+        PyExc_RuntimeWarning,
+        1,
+        "Overriding final method `%U` by adding override to type `%s`, "
+        "overridden method may be ignored.",
+        name,
+        type->tp_name);
   }
 
   _PyType_VTable* vtable = (_PyType_VTable*)type->tp_cache;
@@ -1013,9 +1014,9 @@ int _PyClassLoader_UpdateSlot(
           !_PyObject_TypeCheckOptional(
               new_value, (PyTypeObject*)cur_type, cur_optional, cur_exact)) {
         PyErr_WarnFormat(
-          PyExc_RuntimeWarning,
-          1,
-          "Overriding property %s.%U with %s when expected to be a %s.",
+            PyExc_RuntimeWarning,
+            1,
+            "Overriding property %s.%U with %s when expected to be a %s.",
             type->tp_name,
             name,
             Py_TYPE(new_value)->tp_name,
@@ -1109,7 +1110,6 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
   return 0;
 }
 
-
 /**
     This is usually what we use as the initial entrypoint in v-tables. Then,
     when a method is called, this traverses the MRO, finds the correct callable,
@@ -1162,7 +1162,8 @@ static _PyClassLoader_StaticCallReturn _PyVTable_lazyinit_impl(
           PyObject* call_args[arg_count];
           PyObject* free_args[arg_count];
 
-          if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) < 0) {
+          if (_PyClassLoader_HydrateArgs(
+                  code, arg_count, args, call_args, free_args) < 0) {
             return StaticError;
           }
 
@@ -1171,8 +1172,9 @@ static _PyClassLoader_StaticCallReturn _PyVTable_lazyinit_impl(
           _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
           if (obj_res != NULL) {
             int optional = 0, exact = 0, func_flags = 0, type_code;
-            PyTypeObject* type = (PyTypeObject *)_PyClassLoader_ResolveReturnType(
-                callable, &optional, &exact, &func_flags);
+            PyTypeObject* type =
+                (PyTypeObject*)_PyClassLoader_ResolveReturnType(
+                    callable, &optional, &exact, &func_flags);
             if (type != NULL &&
                 (type_code = _PyClassLoader_GetTypeCode(type)) !=
                     TYPED_OBJECT) {
@@ -1212,8 +1214,7 @@ __attribute__((__used__)) PyObject* _PyVTable_lazyinit_vectorcall(
     PyObject* thunk,
     PyObject** args,
     Py_ssize_t nargsf) {
-  return (PyObject*)_PyVTable_lazyinit_impl(thunk, (void**)args, nargsf, 0)
-      .rax;
+  return (PyObject*)_PyVTable_lazyinit_impl(thunk, (void**)args, nargsf, 0).rax;
 }
 
 __attribute__((__used__)) _PyClassLoader_StaticCallReturn
@@ -1253,25 +1254,25 @@ int _PyClassLoader_ReinitVtable(PyTypeObject* type, _PyType_VTable* vtable) {
 // a weakref to the type. The subclass dictionary is wrapped in
 // a object key which will compare compare equal to the original
 // dictionary and hash to its address.
-static PyObject *subclass_map;
+static PyObject* subclass_map;
 
 // A dictionary which maps from a type's dictionary back to
 // a weakref to the type.
-static PyObject *dict_map;
+static PyObject* dict_map;
 
-static PyObject *get_tp_subclasses(PyTypeObject *self) {
-  PyObject **subclasses_addr = (PyObject **)&self->tp_subclasses;
+static PyObject* get_tp_subclasses(PyTypeObject* self) {
+  PyObject** subclasses_addr = (PyObject**)&self->tp_subclasses;
 
 #if PY_VERSION_HEX >= 0x030C0000
-   if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
-    PyInterpreterState *interp = _PyInterpreterState_GET();
-    static_builtin_state *state = Cix_PyStaticType_GetState(interp, self);
+  if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
+    PyInterpreterState* interp = _PyInterpreterState_GET();
+    static_builtin_state* state = Cix_PyStaticType_GetState(interp, self);
     subclasses_addr = (PyObject**)&state->tp_subclasses;
-   }
+  }
 #endif
 
-  PyObject *subclasses = *subclasses_addr;
-   if (subclasses == NULL) {
+  PyObject* subclasses = *subclasses_addr;
+  if (subclasses == NULL) {
     // We need to watch subclasses to be able to init subclass
     // vtables, so if it doesn't exist yet we'll create it.
     subclasses = *subclasses_addr = PyDict_New();
@@ -1279,7 +1280,8 @@ static PyObject *get_tp_subclasses(PyTypeObject *self) {
   return subclasses;
 }
 
-static int track_type_dict(PyObject *track_map, PyTypeObject *type, PyObject *dict) {
+static int
+track_type_dict(PyObject* track_map, PyTypeObject* type, PyObject* dict) {
   if (_PyDict_Contains_KnownHash(track_map, dict, (Py_hash_t)dict)) {
     // Already tracked
     return 0;
@@ -1287,15 +1289,15 @@ static int track_type_dict(PyObject *track_map, PyTypeObject *type, PyObject *di
 
   // We will remove the object key from the dictionary
   // when the subclasses dictionary is freed.
-  PyObject *key = _Ci_ObjectKey_New(dict);
+  PyObject* key = _Ci_ObjectKey_New(dict);
   if (key == NULL) {
     return -1;
   }
 
-  PyObject *ref = PyWeakref_NewRef((PyObject *)type, NULL);
+  PyObject* ref = PyWeakref_NewRef((PyObject*)type, NULL);
   if (ref == NULL) {
-      Py_DECREF(key);
-      return -1;
+    Py_DECREF(key);
+    return -1;
   }
 
   if (PyDict_SetItem(track_map, key, ref) < 0) {
@@ -1310,8 +1312,9 @@ static int track_type_dict(PyObject *track_map, PyTypeObject *type, PyObject *di
   return 0;
 }
 
-PyTypeObject *get_tracked_type(PyObject *track_map, PyDictObject *dict) {
-  PyObject *type_ref = _PyDict_GetItem_KnownHash(track_map, (PyObject *)dict, (Py_hash_t)dict);
+PyTypeObject* get_tracked_type(PyObject* track_map, PyDictObject* dict) {
+  PyObject* type_ref =
+      _PyDict_GetItem_KnownHash(track_map, (PyObject*)dict, (Py_hash_t)dict);
   if (type_ref != NULL) {
     assert(PyWeakref_CheckRef(type_ref));
     return (PyTypeObject*)PyWeakref_GetObject(type_ref);
@@ -1319,10 +1322,9 @@ PyTypeObject *get_tracked_type(PyObject *track_map, PyDictObject *dict) {
   return NULL;
 }
 
-
 // Starts tracking a type's tp_subclasses dictionary so that
 // we can be informed when a new subclass is added.
-static int track_subclasses(PyTypeObject *self) {
+static int track_subclasses(PyTypeObject* self) {
   if (subclass_map == NULL) {
     subclass_map = PyDict_New();
     if (subclass_map == NULL) {
@@ -1330,7 +1332,7 @@ static int track_subclasses(PyTypeObject *self) {
     }
   }
 
-  PyObject *subclasses = get_tp_subclasses(self);
+  PyObject* subclasses = get_tp_subclasses(self);
   if (subclasses == NULL) {
     return -1;
   }
@@ -1338,7 +1340,7 @@ static int track_subclasses(PyTypeObject *self) {
   return track_type_dict(subclass_map, self, subclasses);
 }
 
-static int track_dict(PyTypeObject *self) {
+static int track_dict(PyTypeObject* self) {
   if (dict_map == NULL) {
     dict_map = PyDict_New();
     if (dict_map == NULL) {
@@ -1346,7 +1348,7 @@ static int track_dict(PyTypeObject *self) {
     }
   }
 
-  PyObject *dict = getBorrowedTypeDict(self);
+  PyObject* dict = getBorrowedTypeDict(self);
   if (dict == NULL) {
     return -1;
   }
@@ -1379,30 +1381,35 @@ int _PyClassLoader_AddSubclass(PyTypeObject* base, PyTypeObject* type) {
   return 0;
 }
 
-int _PyClassLoader_CheckSubclassChange(PyDictObject* dict, PyDict_WatchEvent event, PyObject* key, PyObject *value)
-{
+int _PyClassLoader_CheckSubclassChange(
+    PyDictObject* dict,
+    PyDict_WatchEvent event,
+    PyObject* key,
+    PyObject* value) {
   switch (event) {
     case PyDict_EVENT_ADDED: {
-      if (subclass_map != NULL && PyLong_CheckExact(key) && value != NULL && PyWeakref_CheckRef(value)) {
-          // See if this dictionary is a "tp_subclasses" dictionary for a type
-          // object, if so then we are adding a subclass where the key is the
-          // address of the subclass and the value is a weakref to the type.
-          PyTypeObject *base = get_tracked_type(subclass_map, dict);
-          if (base != NULL) {
-            PyObject *subclass = PyWeakref_GetObject(value);
-            if (_PyClassLoader_AddSubclass(base, (PyTypeObject*)subclass) < 0) {
-              return -1;
-            }
+      if (subclass_map != NULL && PyLong_CheckExact(key) && value != NULL &&
+          PyWeakref_CheckRef(value)) {
+        // See if this dictionary is a "tp_subclasses" dictionary for a type
+        // object, if so then we are adding a subclass where the key is the
+        // address of the subclass and the value is a weakref to the type.
+        PyTypeObject* base = get_tracked_type(subclass_map, dict);
+        if (base != NULL) {
+          PyObject* subclass = PyWeakref_GetObject(value);
+          if (_PyClassLoader_AddSubclass(base, (PyTypeObject*)subclass) < 0) {
+            return -1;
           }
+        }
       }
     }
-    __attribute__((fallthrough));
+      __attribute__((fallthrough));
     case PyDict_EVENT_MODIFIED:
     case PyDict_EVENT_DELETED: {
       if (PyUnicode_CheckExact(key) && dict_map != NULL) {
-        PyTypeObject *type = (PyTypeObject*)get_tracked_type(dict_map, dict);
+        PyTypeObject* type = (PyTypeObject*)get_tracked_type(dict_map, dict);
         if (type != NULL) {
-          if ((type->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) && _PyClassLoader_InitTypeForPatching(type) < 0) {
+          if ((type->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) &&
+              _PyClassLoader_InitTypeForPatching(type) < 0) {
             return -1;
           }
           return _PyClassLoader_UpdateSlot(type, key, value);
@@ -1412,17 +1419,19 @@ int _PyClassLoader_CheckSubclassChange(PyDictObject* dict, PyDict_WatchEvent eve
     }
     case PyDict_EVENT_DEALLOCATED: {
       if (subclass_map == NULL) {
-          break;
+        break;
       }
 
-      PyTypeObject *base = get_tracked_type(subclass_map, dict);
+      PyTypeObject* base = get_tracked_type(subclass_map, dict);
       if (base != NULL) {
-        return _PyDict_DelItem_KnownHash(subclass_map, (PyObject*)dict, (Py_hash_t)dict);
+        return _PyDict_DelItem_KnownHash(
+            subclass_map, (PyObject*)dict, (Py_hash_t)dict);
       }
 
-      PyTypeObject *type = get_tracked_type(dict_map, dict);
+      PyTypeObject* type = get_tracked_type(dict_map, dict);
       if (type != NULL) {
-        return _PyDict_DelItem_KnownHash(dict_map, (PyObject*)dict, (Py_hash_t)dict);
+        return _PyDict_DelItem_KnownHash(
+            dict_map, (PyObject*)dict, (Py_hash_t)dict);
       }
       break;
     }
@@ -1431,7 +1440,6 @@ int _PyClassLoader_CheckSubclassChange(PyDictObject* dict, PyDict_WatchEvent eve
   }
   return 0;
 }
-
 
 /**
     Creates a vtable for a type. Goes through the MRO, and recursively creates
@@ -1621,40 +1629,39 @@ PyObject* _PyClassLoader_ResolveMember(
   }
 
   if (PyTuple_GET_SIZE(path) != 2) {
-    PyErr_Format(
-      CiExc_StaticTypeError,
-      "bad descriptor: %R",
-      path
-    );
+    PyErr_Format(CiExc_StaticTypeError, "bad descriptor: %R", path);
     return NULL;
   }
 
-  PyObject *container_obj = _PyClassLoader_ResolveContainer(PyTuple_GET_ITEM(path, 0));
+  PyObject* container_obj =
+      _PyClassLoader_ResolveContainer(PyTuple_GET_ITEM(path, 0));
   if (container_obj == NULL) {
     return NULL;
   }
 
-  PyObject *attr_name = PyTuple_GET_ITEM(path, 1);
+  PyObject* attr_name = PyTuple_GET_ITEM(path, 1);
   if (containerkey) {
     *containerkey = attr_name;
   }
 
-  PyObject *attr;
+  PyObject* attr;
   if (PyType_Check(container_obj)) {
-    PyObject *type_dict = ((PyTypeObject*)container_obj)->tp_dict;
-     if (!PyTuple_CheckExact(attr_name)) {
+    PyObject* type_dict = ((PyTypeObject*)container_obj)->tp_dict;
+    if (!PyTuple_CheckExact(attr_name)) {
       attr = PyDict_GetItem(type_dict, attr_name);
       if (attr == NULL) {
         PyErr_Format(
             CiExc_StaticTypeError,
             "bad name provided for class loader, %R doesn't exist in type %s",
             attr_name,
-            ((PyTypeObject *)container_obj)->tp_name);
-          goto error;
+            ((PyTypeObject*)container_obj)->tp_name);
+        goto error;
       }
       Py_INCREF(attr);
-    } else if (get_func_or_special_callable((PyTypeObject*)container_obj, attr_name, &attr) < 0) {
-        goto error;
+    } else if (
+        get_func_or_special_callable(
+            (PyTypeObject*)container_obj, attr_name, &attr) < 0) {
+      goto error;
     }
   } else {
     attr = _PyClassLoader_GetModuleAttr(container_obj, attr_name);
@@ -1757,7 +1764,7 @@ error:
   return -1;
 }
 
-int _PyClassLoader_SetTypeStatic(PyTypeObject *type) {
+int _PyClassLoader_SetTypeStatic(PyTypeObject* type) {
   type->tp_flags |= Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED;
   if (track_subclasses(type) < 0) {
     return -1;

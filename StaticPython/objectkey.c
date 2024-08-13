@@ -1,34 +1,33 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 #include "cinderx/StaticPython/objectkey.h"
 
-static PyObject *objectkey_richcmp(_Ci_ObjectKey *self, PyObject *other, int op) {
-    if (op != Py_EQ && op != Py_NE) {
-        Py_RETURN_NOTIMPLEMENTED;
+static PyObject*
+objectkey_richcmp(_Ci_ObjectKey* self, PyObject* other, int op) {
+  if (op != Py_EQ && op != Py_NE) {
+    Py_RETURN_NOTIMPLEMENTED;
+  }
+  if (op == Py_EQ) {
+    if (Py_TYPE(other) == &_Ci_ObjectKeyType) {
+      if (self->obj == ((_Ci_ObjectKey*)other)->obj) {
+        Py_RETURN_TRUE;
+      }
+    } else if (self->obj == other) {
+      Py_RETURN_TRUE;
     }
-    if (op == Py_EQ) {
-        if (Py_TYPE(other) == &_Ci_ObjectKeyType) {
-            if (self->obj == ((_Ci_ObjectKey*)other)->obj) {
-                Py_RETURN_TRUE;
-            }
-        } else if (self->obj == other) {
-            Py_RETURN_TRUE;
-        }
-    } else {
-        if (Py_TYPE(other) == &_Ci_ObjectKeyType) {
-            if (self->obj != ((_Ci_ObjectKey*)other)->obj) {
-                Py_RETURN_TRUE;
-            }
-        } else if (self->obj != other) {
-            Py_RETURN_TRUE;
-        }
+  } else {
+    if (Py_TYPE(other) == &_Ci_ObjectKeyType) {
+      if (self->obj != ((_Ci_ObjectKey*)other)->obj) {
+        Py_RETURN_TRUE;
+      }
+    } else if (self->obj != other) {
+      Py_RETURN_TRUE;
     }
-    Py_RETURN_FALSE;
+  }
+  Py_RETURN_FALSE;
 }
 
-static Py_hash_t
-objectkey_hash(_Ci_ObjectKey *self)
-{
-    return (Py_hash_t)self->obj;
+static Py_hash_t objectkey_hash(_Ci_ObjectKey* self) {
+  return (Py_hash_t)self->obj;
 }
 
 PyTypeObject _Ci_ObjectKeyType = {
@@ -39,10 +38,10 @@ PyTypeObject _Ci_ObjectKeyType = {
     .tp_hash = (hashfunc)objectkey_hash,
 };
 
-PyObject *_Ci_ObjectKey_New(PyObject *obj) {
-    _Ci_ObjectKey *res = PyObject_New(_Ci_ObjectKey, &_Ci_ObjectKeyType);
-    if (res != NULL) {
-        res->obj = obj; // borrowed
-    }
-    return (PyObject*)res;
+PyObject* _Ci_ObjectKey_New(PyObject* obj) {
+  _Ci_ObjectKey* res = PyObject_New(_Ci_ObjectKey, &_Ci_ObjectKeyType);
+  if (res != NULL) {
+    res->obj = obj; // borrowed
+  }
+  return (PyObject*)res;
 }

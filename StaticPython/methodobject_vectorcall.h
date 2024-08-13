@@ -9,11 +9,9 @@ extern "C" {
 
 #include <Python.h>
 
-vectorcallfunc
-Ci_PyCMethod_New_METH_TYPED(PyMethodDef *method);
+vectorcallfunc Ci_PyCMethod_New_METH_TYPED(PyMethodDef* method);
 
-PyObject *
-Ci_meth_get__typed_signature__(PyCFunctionObject *m, void *closure);
+PyObject* Ci_meth_get__typed_signature__(PyCFunctionObject* m, void* closure);
 
 #ifdef __cplusplus
 }

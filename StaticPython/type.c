@@ -1,196 +1,180 @@
-
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include <Python.h>
+#include "cinderx/StaticPython/type.h"
 
+#include "cinderx/Common/py-portability.h"
+#include "cinderx/StaticPython/errors.h"
+#include "cinderx/StaticPython/generic_type.h"
+#include "cinderx/StaticPython/typed_method_def.h"
+#include "cinderx/StaticPython/vtable.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h"
 #include "dictobject.h"
 #include "object.h"
 #include "pycore_object.h" // PyHeapType_CINDER_EXTRA
-#include "pystate.h"
 #include "pycore_unionobject.h"
-
-#include "cinderx/StaticPython/errors.h"
-#include "cinderx/StaticPython/generic_type.h"
-#include "cinderx/StaticPython/type.h"
-#include "cinderx/StaticPython/typed_method_def.h"
-#include "cinderx/UpstreamBorrow/borrowed.h"
-
-
-#include "cinderx/StaticPython/vtable.h"
-
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-
-#include "cinderx/Common/py-portability.h"
-
+#include "pystate.h"
 #include "structmember.h"
+
+#include <Python.h>
 
 static PyObject* classloader_cache;
 static PyObject* classloader_cache_module_to_keys;
 
-Py_ssize_t
-_PyClassLoader_PrimitiveTypeToSize(int primitive_type)
-{
-    switch (primitive_type) {
+Py_ssize_t _PyClassLoader_PrimitiveTypeToSize(int primitive_type) {
+  switch (primitive_type) {
     case TYPED_INT8:
-        return sizeof(char);
+      return sizeof(char);
     case TYPED_INT16:
-        return sizeof(short);
+      return sizeof(short);
     case TYPED_INT32:
-        return sizeof(int);
+      return sizeof(int);
     case TYPED_INT64:
-        return sizeof(long);
+      return sizeof(long);
     case TYPED_UINT8:
-        return sizeof(unsigned char);
+      return sizeof(unsigned char);
     case TYPED_UINT16:
-        return sizeof(unsigned short);
+      return sizeof(unsigned short);
     case TYPED_UINT32:
-        return sizeof(unsigned int);
+      return sizeof(unsigned int);
     case TYPED_UINT64:
-        return sizeof(unsigned long);
+      return sizeof(unsigned long);
     case TYPED_BOOL:
-        return sizeof(char);
+      return sizeof(char);
     case TYPED_DOUBLE:
-        return sizeof(double);
+      return sizeof(double);
     case TYPED_SINGLE:
-        return sizeof(float);
+      return sizeof(float);
     case TYPED_CHAR:
-        return sizeof(char);
+      return sizeof(char);
     case TYPED_OBJECT:
-        return sizeof(PyObject *);
+      return sizeof(PyObject*);
     default:
-        PyErr_Format(
-            PyExc_ValueError, "unknown struct type: %d", primitive_type);
-        return -1;
-    }
+      PyErr_Format(PyExc_ValueError, "unknown struct type: %d", primitive_type);
+      return -1;
+  }
 }
 
-int
-_PyClassLoader_PrimitiveTypeToStructMemberType(int primitive_type)
-{
-    switch (primitive_type) {
+int _PyClassLoader_PrimitiveTypeToStructMemberType(int primitive_type) {
+  switch (primitive_type) {
     case TYPED_INT8:
-        return T_BYTE;
+      return T_BYTE;
     case TYPED_INT16:
-        return T_SHORT;
+      return T_SHORT;
     case TYPED_INT32:
-        return T_INT;
+      return T_INT;
     case TYPED_INT64:
-        return T_LONG;
+      return T_LONG;
     case TYPED_UINT8:
-        return T_UBYTE;
+      return T_UBYTE;
     case TYPED_UINT16:
-        return T_USHORT;
+      return T_USHORT;
     case TYPED_UINT32:
-        return T_UINT;
+      return T_UINT;
     case TYPED_UINT64:
-        return T_ULONG;
+      return T_ULONG;
     case TYPED_BOOL:
-        return T_BOOL;
+      return T_BOOL;
     case TYPED_DOUBLE:
-        return T_DOUBLE;
+      return T_DOUBLE;
     case TYPED_SINGLE:
-        return T_FLOAT;
+      return T_FLOAT;
     case TYPED_CHAR:
-        return T_CHAR;
+      return T_CHAR;
     case TYPED_OBJECT:
-        return T_OBJECT_EX;
+      return T_OBJECT_EX;
     default:
-        PyErr_Format(
-            PyExc_ValueError, "unknown struct type: %d", primitive_type);
-        return -1;
-    }
+      PyErr_Format(PyExc_ValueError, "unknown struct type: %d", primitive_type);
+      return -1;
+  }
 }
 
-PyObject *
-_PyClassLoader_Box(uint64_t value, int primitive_type)
-{
-    PyObject* new_val;
-    double dbl;
-    switch (primitive_type) {
-        case TYPED_BOOL:
-            new_val = value ? Py_True : Py_False;
-            Py_INCREF(new_val);
-            break;
-        case TYPED_INT8:
-            new_val = PyLong_FromLong((int8_t)value);
-            break;
-        case TYPED_INT16:
-            new_val = PyLong_FromLong((int16_t)value);
-            break;
-        case TYPED_INT32:
-            new_val = PyLong_FromLong((int32_t)value);
-            break;
-        case TYPED_INT64:
-            new_val = PyLong_FromSsize_t((Py_ssize_t)value);
-            break;
-        case TYPED_UINT8:
-            new_val = PyLong_FromUnsignedLong((uint8_t)value);
-            break;
-        case TYPED_UINT16:
-            new_val = PyLong_FromUnsignedLong((uint16_t)value);
-            break;
-        case TYPED_UINT32:
-            new_val = PyLong_FromUnsignedLong((uint32_t)value);
-            break;
-        case TYPED_UINT64:
-            new_val = PyLong_FromSize_t((size_t)value);
-            break;
-        case TYPED_DOUBLE:
-            memcpy(&dbl, &value, sizeof(double));
-            new_val = PyFloat_FromDouble(dbl);
-            break;
-        default:
-            assert(0);
-            PyErr_SetString(PyExc_RuntimeError, "unsupported primitive type");
-            new_val = NULL;
-            break;
-    }
-    return new_val;
+PyObject* _PyClassLoader_Box(uint64_t value, int primitive_type) {
+  PyObject* new_val;
+  double dbl;
+  switch (primitive_type) {
+    case TYPED_BOOL:
+      new_val = value ? Py_True : Py_False;
+      Py_INCREF(new_val);
+      break;
+    case TYPED_INT8:
+      new_val = PyLong_FromLong((int8_t)value);
+      break;
+    case TYPED_INT16:
+      new_val = PyLong_FromLong((int16_t)value);
+      break;
+    case TYPED_INT32:
+      new_val = PyLong_FromLong((int32_t)value);
+      break;
+    case TYPED_INT64:
+      new_val = PyLong_FromSsize_t((Py_ssize_t)value);
+      break;
+    case TYPED_UINT8:
+      new_val = PyLong_FromUnsignedLong((uint8_t)value);
+      break;
+    case TYPED_UINT16:
+      new_val = PyLong_FromUnsignedLong((uint16_t)value);
+      break;
+    case TYPED_UINT32:
+      new_val = PyLong_FromUnsignedLong((uint32_t)value);
+      break;
+    case TYPED_UINT64:
+      new_val = PyLong_FromSize_t((size_t)value);
+      break;
+    case TYPED_DOUBLE:
+      memcpy(&dbl, &value, sizeof(double));
+      new_val = PyFloat_FromDouble(dbl);
+      break;
+    default:
+      assert(0);
+      PyErr_SetString(PyExc_RuntimeError, "unsupported primitive type");
+      new_val = NULL;
+      break;
+  }
+  return new_val;
 }
 
-uint64_t
-_PyClassLoader_Unbox(PyObject *value, int primitive_type)
-{
-    uint64_t new_val;
-    double res;
-    switch (primitive_type) {
-        case TYPED_BOOL:
-            new_val = value == Py_True ? 1 : 0;
-            break;
-        case TYPED_INT8:
-        case TYPED_INT16:
-        case TYPED_INT32:
-        case TYPED_INT64:
-            new_val = (uint64_t)PyLong_AsLong(value);
-            break;
-        case TYPED_UINT8:
-        case TYPED_UINT16:
-        case TYPED_UINT32:
-        case TYPED_UINT64:
-            new_val = (uint64_t)PyLong_AsUnsignedLong(value);
-            break;
-        case TYPED_DOUBLE:
-            res = PyFloat_AsDouble(value);
-            memcpy(&new_val, &res, sizeof(double));
-            break;
-        default:
-            assert(0);
-            PyErr_SetString(PyExc_RuntimeError, "unsupported primitive type");
-            new_val = 0;
-            break;
-    }
-    return new_val;
+uint64_t _PyClassLoader_Unbox(PyObject* value, int primitive_type) {
+  uint64_t new_val;
+  double res;
+  switch (primitive_type) {
+    case TYPED_BOOL:
+      new_val = value == Py_True ? 1 : 0;
+      break;
+    case TYPED_INT8:
+    case TYPED_INT16:
+    case TYPED_INT32:
+    case TYPED_INT64:
+      new_val = (uint64_t)PyLong_AsLong(value);
+      break;
+    case TYPED_UINT8:
+    case TYPED_UINT16:
+    case TYPED_UINT32:
+    case TYPED_UINT64:
+      new_val = (uint64_t)PyLong_AsUnsignedLong(value);
+      break;
+    case TYPED_DOUBLE:
+      res = PyFloat_AsDouble(value);
+      memcpy(&new_val, &res, sizeof(double));
+      break;
+    default:
+      assert(0);
+      PyErr_SetString(PyExc_RuntimeError, "unsupported primitive type");
+      new_val = 0;
+      break;
+  }
+  return new_val;
 }
 
-int _PyClassLoader_GetTypeCode(PyTypeObject *type) {
-    if (type->tp_cache == NULL) {
-        return TYPED_OBJECT;
-    }
+int _PyClassLoader_GetTypeCode(PyTypeObject* type) {
+  if (type->tp_cache == NULL) {
+    return TYPED_OBJECT;
+  }
 
-    return ((_PyType_VTable *)type->tp_cache)->vt_typecode;
+  return ((_PyType_VTable*)type->tp_cache)->vt_typecode;
 }
 
-static PyObject *
+static PyObject*
 classloader_instantiate_generic(PyObject* gtd, PyObject* name, PyObject* path) {
   if (!PyType_Check(gtd)) {
     PyErr_Format(
@@ -205,7 +189,7 @@ classloader_instantiate_generic(PyObject* gtd, PyObject* name, PyObject* path) {
   PyObject* tmp_tuple = PyTuple_New(PyTuple_GET_SIZE(name));
   for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(name); i++) {
     int optional, exact;
-    PyObject* param = (PyObject *)_PyClassLoader_ResolveType(
+    PyObject* param = (PyObject*)_PyClassLoader_ResolveType(
         PyTuple_GET_ITEM(name, i), &optional, &exact);
     if (param == NULL) {
       Py_DECREF(tmp_tuple);
@@ -252,7 +236,8 @@ static PyObject* resolve_module(PyThreadState* tstate, PyObject* module_name) {
   if (sys_modules == NULL) {
     PyErr_Format(
         PyExc_RuntimeError,
-        "classloader_get_member() when import system is pre-init or post-teardown");
+        "classloader_get_member() when import system is pre-init or "
+        "post-teardown");
     return NULL;
   }
 
@@ -277,17 +262,18 @@ static PyObject* resolve_module(PyThreadState* tstate, PyObject* module_name) {
 
 // Resolves a container (module or type) to the underlying object.
 // Descriptor is in the format (module_name, type_name | None)
-PyObject *
-_PyClassLoader_ResolveContainer(PyObject* container_path)
-{
+PyObject* _PyClassLoader_ResolveContainer(PyObject* container_path) {
   if (!PyTuple_Check(container_path)) {
-    PyErr_Format(PyExc_TypeError, "bad type descriptor, expected module and type %R", container_path);
+    PyErr_Format(
+        PyExc_TypeError,
+        "bad type descriptor, expected module and type %R",
+        container_path);
     return NULL;
   }
 
-  PyObject *module_name = PyTuple_GET_ITEM(container_path, 0);
+  PyObject* module_name = PyTuple_GET_ITEM(container_path, 0);
   PyThreadState* tstate = PyThreadState_GET();
-  PyObject *module = resolve_module(tstate, module_name);
+  PyObject* module = resolve_module(tstate, module_name);
   if (module == NULL) {
     return NULL;
   }
@@ -297,10 +283,9 @@ _PyClassLoader_ResolveContainer(PyObject* container_path)
     return module;
   }
 
-  PyObject *type_name = PyTuple_GET_ITEM(container_path, 1);
-  PyObject *type = _PyClassLoader_GetModuleAttr(module, type_name);
-  if (type == Py_None &&
-      PyModule_CheckExact(module) &&
+  PyObject* type_name = PyTuple_GET_ITEM(container_path, 1);
+  PyObject* type = _PyClassLoader_GetModuleAttr(module, type_name);
+  if (type == Py_None && PyModule_CheckExact(module) &&
       PyModule_GetDict(module) == tstate->interp->builtins) {
     /* special case builtins.None, it's used to represent NoneType */
     Py_DECREF(type);
@@ -314,31 +299,32 @@ _PyClassLoader_ResolveContainer(PyObject* container_path)
         break;
       }
 
-      PyObject *type_arg = PyTuple_GET_ITEM(container_path, i);
+      PyObject* type_arg = PyTuple_GET_ITEM(container_path, i);
       if (PyTuple_CheckExact(type_arg)) {
-          // Generic type instantation
-          PyObject *new_type = classloader_instantiate_generic(type, type_arg, Py_None);
-          Py_DECREF(type);
-          type = new_type;
-      } else if (PyUnicode_Check(type_arg) &&
+        // Generic type instantation
+        PyObject* new_type =
+            classloader_instantiate_generic(type, type_arg, Py_None);
+        Py_DECREF(type);
+        type = new_type;
+      } else if (
+          PyUnicode_Check(type_arg) &&
           (PyUnicode_CompareWithASCIIString(type_arg, "?") == 0 ||
-          PyUnicode_CompareWithASCIIString(type_arg, "#") == 0 ||
-          PyUnicode_CompareWithASCIIString(type_arg, "!") == 0)) {
+           PyUnicode_CompareWithASCIIString(type_arg, "#") == 0 ||
+           PyUnicode_CompareWithASCIIString(type_arg, "!") == 0)) {
         // Optional, primitive, final specification
         continue;
       } else {
         // Nested type
-        PyObject *new_type = PyDict_GetItem(
-          ((PyTypeObject *)type)->tp_dict,
-          type_arg
-        );
+        PyObject* new_type =
+            PyDict_GetItem(((PyTypeObject*)type)->tp_dict, type_arg);
         if (new_type == NULL) {
-            PyErr_Format(
+          PyErr_Format(
               CiExc_StaticTypeError,
-              "bad name provided for class loader: %R doesn't exist in type '%R'",
+              "bad name provided for class loader: %R doesn't exist in type "
+              "'%R'",
               type_arg,
               type);
-            return NULL;
+          return NULL;
         }
         Py_DECREF(type);
         Py_INCREF(new_type);
@@ -504,7 +490,7 @@ int _PyClassLoader_ResolvePrimitiveType(PyObject* descr) {
   PyObject* last_elem = PyTuple_GetItem(descr, PyTuple_GET_SIZE(descr) - 1);
   if (!PyUnicode_CheckExact(last_elem) ||
       PyUnicode_CompareWithASCIIString(last_elem, "#") != 0) {
-      return TYPED_OBJECT;
+    return TYPED_OBJECT;
   }
 
   int optional, exact;

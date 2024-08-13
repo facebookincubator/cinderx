@@ -1,9 +1,9 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 #pragma once
 
-#include <Python.h>
-
 #include "cinderx/StaticPython/generic_type.h"
+
+#include <Python.h>
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -28,7 +28,7 @@ extern "C" {
 
 // Gets one of TYPED_INT_8BIT, TYPED_INT_16BIT, etc.. from TYPED_INT8,
 // TYPED_UINT8, etc... also TYPED_SIZE(TYPED_BOOL) == TYPED_INT_8BIT
-#define TYPED_SIZE(typed_int)  ((typed_int>>1) & 3)
+#define TYPED_SIZE(typed_int) ((typed_int >> 1) & 3)
 
 #define TYPED_OBJECT 0x08
 #define TYPED_DOUBLE 0x09
@@ -44,7 +44,6 @@ extern "C" {
 
 #define _Py_IS_TYPED_ARRAY(x) (x & TYPED_ARRAY)
 #define _Py_IS_TYPED_ARRAY_SIGNED(x) (x & (TYPED_INT_SIGNED << 4))
-
 
 #define Ci_METH_TYPED 0x0400
 
@@ -95,7 +94,6 @@ PyObject* Ci_PyMethodDef_GetTypedSignature(PyMethodDef* method);
 #define Ci_Py_SIG_SIZE_T \
   (sizeof(void*) == 8 ? Ci_Py_SIG_UINT64 : Ci_Py_SIG_UINT32)
 #define Ci_Py_SIG_TYPE_MASK(x) ((x) >> 2)
-
 
 extern const Ci_Py_SigElement Ci_Py_Sig_T0;
 extern const Ci_Py_SigElement Ci_Py_Sig_T1;
