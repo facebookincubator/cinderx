@@ -311,7 +311,7 @@ TEST_F(CmdLineTest, JITEnable) {
       0);
 }
 
-// start of tests associated with flags the setting of which is dependant upon
+// start of tests associated with flags the setting of which is dependent upon
 // if jit is enabled
 TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
   ASSERT_EQ(
@@ -383,7 +383,7 @@ TEST_F(CmdLineTest, JITEnabledFlags_MatchLineNumbers) {
       0);
 }
 
-// end of tests associated with flags the setting of which is dependant upon if
+// end of tests associated with flags the setting of which is dependent upon if
 // jit is enabled
 
 TEST_F(CmdLineTest, JITEnabledFlags_BatchCompileWorkers) {

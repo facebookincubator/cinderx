@@ -46,7 +46,7 @@ struct HIRTestSuite {
 //
 std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& path);
 
-// flag string will be added to enviroment variables and a key will be
+// flag string will be added to environment variables and a key will be
 // returned, the key can be later used to remove the item via unsetenv
 // the key will then need to be freed
 const char* parseAndSetEnvVar(const char* env_name);

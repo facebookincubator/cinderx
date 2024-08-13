@@ -10,7 +10,7 @@
 #include <list>
 
 // tests to ensure FlagProcessor is correctly processing command
-// line and enviroment variable parameters and producing a
+// line and environment variable parameters and producing a
 // pretty help message for JIT associated X parameters
 
 using JITFlagProcessorTest = RuntimeTest;
@@ -232,7 +232,7 @@ TEST_F(JITFlagProcessorTest, DebugLoggingCorrect) {
 }
 
 TEST_F(JITFlagProcessorTest, DebugOverrideLoggingCorrect) {
-  // correct logging when default string to log is overriden
+  // correct logging when default string to log is overridden
   auto flag_processor = FlagProcessor();
   std::string dummy = "";
 
@@ -259,7 +259,7 @@ TEST_F(JITFlagProcessorTest, DebugOverrideLoggingCorrect) {
 }
 
 TEST_F(JITFlagProcessorTest, FlagWithNoEnvVar) {
-  // some flags have no enviroment variable associated with them
+  // some flags have no environment variable associated with them
   auto flag_processor = FlagProcessor();
   int the_variable = 0;
 
