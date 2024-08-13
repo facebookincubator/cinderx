@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 x = 1
 
+
 def g():
     return 1
 

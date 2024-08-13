@@ -11,8 +11,9 @@
 #include "tools/cxx/Resources.h"
 #endif
 
-#include <filesystem>
 #include <fmt/format.h>
+
+#include <filesystem>
 
 static void remap_txt_path(std::string& path) {
 #ifdef BUCK_BUILD

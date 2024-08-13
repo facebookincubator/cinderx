@@ -1,19 +1,17 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include <Python.h>
-
 #include "cinderx/StrictModules/Objects/numerics.h"
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/StrictModules/Objects/callable.h"
 #include "cinderx/StrictModules/Objects/callable_wrapper.h"
 #include "cinderx/StrictModules/Objects/object_interface.h"
 #include "cinderx/StrictModules/Objects/objects.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "pycore_call.h"
+
+#include <Python.h>
 
 #include <cmath>
-
-#include "cinderx/Common/py-portability.h"
-#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
-
-#include "pycore_call.h"
 
 #define INT_OP_BOTH_VALUE(lhs, rhs, make, op, py_op)                         \
   do {                                                                       \
@@ -1047,14 +1045,13 @@ std::shared_ptr<BaseStrictObject> StrictFloat::float__round__(
   // no C API for round, so we have to use the float method
   Ref<> selfObj = self->getPyObject();
   _Py_IDENTIFIER(__round__);
-  Ref<> round =
-      Ref<>::steal(
+  Ref<> round = Ref<>::steal(
 #if PY_VERSION_HEX < 0x030C0000
-        _PyObject_LookupSpecial
+      _PyObject_LookupSpecial
 #else
-        _PyObject_LookupSpecialId
+      _PyObject_LookupSpecialId
 #endif
-        (selfObj.get(), &PyId___round__));
+      (selfObj.get(), &PyId___round__));
   if (round == nullptr) {
     if (PyErr_Occurred()) {
       PyErr_Clear();

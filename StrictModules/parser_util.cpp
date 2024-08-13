@@ -2,10 +2,9 @@
 #include "cinderx/StrictModules/parser_util.h"
 
 #include "cinderx/StrictModules/pycore_dependencies.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <fstream>
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 namespace strictmod {
 std::optional<AstAndSymbols> readFromFile(

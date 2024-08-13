@@ -24,10 +24,7 @@ std::string sourceRelativePath(const char* path) {
           path)
       .string();
 #else
-  return std::filesystem::path(__FILE__)
-      .parent_path()
-      .append(path)
-      .string();
+  return std::filesystem::path(__FILE__).parent_path().append(path).string();
 #endif
 }
 

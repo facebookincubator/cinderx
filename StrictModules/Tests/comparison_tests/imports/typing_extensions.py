@@ -1,5 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from typing import _SpecialForm, _type_check, _GenericAlias, Protocol
+from typing import _GenericAlias, _SpecialForm, _type_check, Protocol
 
 
 def _dict_new(cls, *args, **kwargs):

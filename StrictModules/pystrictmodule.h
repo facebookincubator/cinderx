@@ -1,8 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #pragma once
 
-#include <Python.h>
 #include "cinderx/StrictModules/strict_module_checker_interface.h"
+
+#include <Python.h>
 
 #ifndef Py_LIMITED_API
 #ifdef __cplusplus
@@ -10,11 +11,13 @@ extern "C" {
 #endif
 
 typedef struct {
-  PyObject_HEAD StrictModuleChecker* checker;
+  PyObject_HEAD
+  StrictModuleChecker* checker;
 } StrictModuleLoaderObject;
 
 typedef struct {
-  PyObject_HEAD int valid_module;
+  PyObject_HEAD
+  int valid_module;
   PyObject* module_name;
   PyObject* file_name;
   int module_kind;

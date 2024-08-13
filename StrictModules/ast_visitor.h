@@ -2,8 +2,7 @@
 #pragma once
 
 #include "cinderx/StrictModules/py_headers.h"
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 namespace strictmod {
 

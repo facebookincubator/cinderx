@@ -1,10 +1,10 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include "cinderx/StrictModules/symbol_table.h"
 
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
+
 #include <cstring>
 #include <stdexcept>
-
-#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
 
 namespace strictmod {
 
