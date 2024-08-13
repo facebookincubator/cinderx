@@ -243,7 +243,9 @@ def main(
             ["hg", "root"], capture_output=True, encoding="utf-8", check=True
         ).stdout.strip()
     except subprocess.CalledProcessError as e:
-        raise Exception(f"Failing stdout:\n{e.stdout}\nFailing stderr:\n{e.stderr}\n") from e
+        raise Exception(
+            f"Failing stdout:\n{e.stdout}\nFailing stderr:\n{e.stderr}\n"
+        ) from e
     os.chdir(fbsource_root)
 
     print(f"Processing {source_file} -> {output_file}")

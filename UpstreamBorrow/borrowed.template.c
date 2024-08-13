@@ -13,14 +13,12 @@
 #define _PyGen_yf Cix_PyGen_yf
 // @Borrow function _PyGen_yf from Objects/genobject.c
 
-
 // Internal dependencies for _PyCoro_GetAwaitableIter.
 // @Borrow function gen_is_coroutine from Objects/genobject.c
 // End internal dependencies for _PyCoro_GetAwaitableIter.
 
 #define _PyCoro_GetAwaitableIter Cix_PyCoro_GetAwaitableIter
 // @Borrow function _PyCoro_GetAwaitableIter from Objects/genobject.c
-
 
 // Internal dependencies for _PyAsyncGenValueWrapperNew.
 // @Borrow typedef _PyAsyncGenWrappedValue from Objects/genobject.c
@@ -40,12 +38,10 @@
 // the JIT we could get the value from the thread-state register. This would be
 // slightly more efficient, but quite a bit more work and async-generators are
 // rare. So we just wrap it up here.
-PyObject*
-Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
+PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
   return __PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
 }
 #endif
-
 
 // _Py_IncRefTotal is used by internal functions in 3.12 dictobject.c.
 // Pragmatically @Borrow'ing this doesn't seem worth it at this stage. We would
@@ -57,16 +53,15 @@ Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
 // or to copy that anyway.
 #if defined(Py_DEBUG) && PY_VERSION_HEX >= 0x030C0000
 #define _Py_IncRefTotal __Py_IncRefTotal
-static void _Py_IncRefTotal(PyInterpreterState *interp) {
-    interp->object_state.reftotal++;
+static void _Py_IncRefTotal(PyInterpreterState* interp) {
+  interp->object_state.reftotal++;
 }
 
 #define _Py_DecRefTotal __Py_DecRefTotal
-static void _Py_DecRefTotal(PyInterpreterState *interp) {
-    interp->object_state.reftotal--;
+static void _Py_DecRefTotal(PyInterpreterState* interp) {
+  interp->object_state.reftotal--;
 }
 #endif
-
 
 // @Borrow CPP directives from Objects/dictobject.c
 
@@ -74,10 +69,10 @@ static void _Py_DecRefTotal(PyInterpreterState *interp) {
 // check for them with pointer equality. Fortunately we are able to get
 // the values in init_upstream_borrow().
 #if PY_VERSION_HEX < 0x030C0000
-static PyObject **empty_values = NULL;
+static PyObject** empty_values = NULL;
 #else
 #undef Py_EMPTY_KEYS
-static PyDictKeysObject *Py_EMPTY_KEYS = NULL;
+static PyDictKeysObject* Py_EMPTY_KEYS = NULL;
 #endif
 
 // Internal dependencies for things borrowed from dictobject.c.
@@ -107,7 +102,6 @@ static PyDictKeysObject *Py_EMPTY_KEYS = NULL;
 #define _PyDict_LoadGlobal Cix_PyDict_LoadGlobal
 // @Borrow function _PyDict_LoadGlobal from Objects/dictobject.c
 
-
 #if PY_VERSION_HEX >= 0x030C0000
 // Include _PyDict_SendEvent with its original name but weakly as we use
 // some static inline functions from CPython headers which depend on this.
@@ -122,7 +116,7 @@ __attribute__((weak))
 // Wrapper as set_attribute_error_context is declared "static inline".
 int
 Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
-    return set_attribute_error_context(v, name);
+  return set_attribute_error_context(v, name);
 }
 
 #if PY_VERSION_HEX >= 0x030C0000
@@ -151,8 +145,9 @@ __attribute__((weak))
 #endif
 // @Borrow function _PyStaticType_GetState from Objects/typeobject.c [3.12]
 #if PY_VERSION_HEX >= 0x030C0000
-static_builtin_state* Cix_PyStaticType_GetState(PyInterpreterState *interp, PyTypeObject *self) {
-    return _PyStaticType_GetState(interp, self);
+static_builtin_state*
+Cix_PyStaticType_GetState(PyInterpreterState* interp, PyTypeObject* self) {
+  return _PyStaticType_GetState(interp, self);
 }
 #endif
 
@@ -184,44 +179,45 @@ PyTypeObject* Cix_PyTypeAlias_Type = NULL;
 // @Borrow function _Py_union_type_or from Objects/unionobject.c
 
 int init_upstream_borrow(void) {
-    PyObject *empty_dict = PyDict_New();
-    if (empty_dict == NULL) {
-        return -1;
-    }
+  PyObject* empty_dict = PyDict_New();
+  if (empty_dict == NULL) {
+    return -1;
+  }
 #if PY_VERSION_HEX < 0x030C0000
-    empty_values = ((PyDictObject *)empty_dict)->ma_values;
+  empty_values = ((PyDictObject*)empty_dict)->ma_values;
 #else
-    Py_EMPTY_KEYS = ((PyDictObject *)empty_dict)->ma_keys;
+  Py_EMPTY_KEYS = ((PyDictObject*)empty_dict)->ma_keys;
 #endif
-    Py_DECREF(empty_dict);
+  Py_DECREF(empty_dict);
 
-    // Initialize the Cix_PyUnion_Type global reference.
-    PyObject* unionobj = PyNumber_Or(
-        (PyObject*)&PyLong_Type, (PyObject*)&PyUnicode_Type);
-    if (unionobj != NULL) {
-        Cix_PyUnion_Type = Py_TYPE(unionobj);
-        Py_DECREF(unionobj);
-    }
-    if (Cix_PyUnion_Type == NULL) {
-        return -1;
-    }
+  // Initialize the Cix_PyUnion_Type global reference.
+  PyObject* unionobj =
+      PyNumber_Or((PyObject*)&PyLong_Type, (PyObject*)&PyUnicode_Type);
+  if (unionobj != NULL) {
+    Cix_PyUnion_Type = Py_TYPE(unionobj);
+    Py_DECREF(unionobj);
+  }
+  if (Cix_PyUnion_Type == NULL) {
+    return -1;
+  }
 
 #if PY_VERSION_HEX >= 0x030C0000
-    // Initialize the Cix_PyTypeAlias_Type global reference.
-    PyObject *typing_module = PyImport_ImportModule("typing");
-    if (!typing_module) {
-        return -1;
-    }
-    PyObject *type_alias_type = PyObject_GetAttrString(typing_module, "TypeAliasType");
+  // Initialize the Cix_PyTypeAlias_Type global reference.
+  PyObject* typing_module = PyImport_ImportModule("typing");
+  if (!typing_module) {
+    return -1;
+  }
+  PyObject* type_alias_type =
+      PyObject_GetAttrString(typing_module, "TypeAliasType");
 
-    if (!type_alias_type) {
-        Py_DECREF(typing_module);
-        return -1;
-    }
-    assert(PyType_Check(type_alias_type));
-    Cix_PyTypeAlias_Type = (PyTypeObject*)type_alias_type;
+  if (!type_alias_type) {
     Py_DECREF(typing_module);
+    return -1;
+  }
+  assert(PyType_Check(type_alias_type));
+  Cix_PyTypeAlias_Type = (PyTypeObject*)type_alias_type;
+  Py_DECREF(typing_module);
 #endif
 
-    return 0;
+  return 0;
 }
