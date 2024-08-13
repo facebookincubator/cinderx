@@ -61,6 +61,8 @@ class Scope:
         self.klass = None
         self.suppress_jit = False
         self.can_see_class_scope = False
+        self.child_free = False
+        self.free = False
         if klass is not None:
             for i in range(len(klass)):
                 if klass[i] != "_":
@@ -77,7 +79,8 @@ class Scope:
 
     def add_def(self, name, kind=DEF_NORMAL):
         mangled = self.mangle(name)
-        self.defs[mangled] = kind | self.defs.get(mangled, 1)
+        if name not in self.nonlocals:
+            self.defs[mangled] = kind | self.defs.get(mangled, 1)
 
     def add_use(self, name):
         self.uses[self.mangle(name)] = 1
@@ -118,17 +121,18 @@ class Scope:
     def get_children(self):
         return self.children
 
-    def inline_nested_comprehensions(self) -> None:
-        pass
-
     def DEBUG(self):
-        print(self.name, self.nested and "nested" or "")
+        print(self.name, type(self), self.nested and "nested" or "", "global scope" if  self.global_scope  else "")
         print("\tglobals: ", self.globals)
         print("\texplicit_globals: ", self.explicit_globals)
         print("\tcells: ", self.cells)
         print("\tdefs: ", self.defs)
         print("\tuses: ", self.uses)
         print("\tfrees:", self.frees)
+        print("\tnonlocals:", self.nonlocals)
+        print("\tparams:", self.params)
+        for child in self.children:
+            child.DEBUG()
 
     def check_name(self, name):
         """Return scope of name.
@@ -152,104 +156,241 @@ class Scope:
         else:
             return SC_GLOBAL_IMPLICIT
 
-    def get_free_vars(self):
-        if not self.nested:
-            # If we're not nested we can't possibly have any free variables,
-            # as we can't close over class variables.  The exception to this
-            # rule is __class__ or __classdict__, which we indeed can close over.
-            assert set(self.frees).issubset({"__class__", "__classdict__"})
-            return list(self.frees)
+    def get_free_vars(self) -> list[str]:
+        return sorted(self.frees.keys())
 
-        free = {}
-        free.update(self.frees)
-        for name in self.uses.keys():
-            if (
-                name not in self.defs
-                and name not in self.globals
-                and name not in self.explicit_globals
-            ):
-                free[name] = 1
-        return sorted(free.keys())
+    def analyze_block(self, free: set[str], global_vars: set[str], bound: set[str]|None = None, implicit_globals: set[str]|None = None):
+        local: set[str] = set()
+        implicit_globals_in_block: set[str] = set()
+        inlinable_comprehensions = []
+        # Allocate new global and bound variable dictionaries.  These
+        # dictionaries hold the names visible in nested blocks.  For
+        # ClassScopes, the bound and global names are initialized
+        # before analyzing names, because class bindings aren't
+        # visible in methods.  For other blocks, they are initialized
+        # after names are analyzed.
 
-    def handle_children(self):
-        for child in self.children:
-            child.handle_children()
+        new_global: set[str] = set()
+        new_free: set[str] = set()
+        new_bound: set[str] = set()
 
-        self.inline_nested_comprehensions()
+        if isinstance(self, ClassScope):
+            new_global |= global_vars
+            if bound is not None:
+                new_bound |= bound
+            
+        self.analyze_names(bound, local, free, global_vars)
+        # Populate global and bound sets to be passed to children.
+        if not isinstance(self, ClassScope):
+            if isinstance(self, FUNCTION_LIKE_SCOPES):
+                new_bound |= local
+            if bound:
+                new_bound |= bound
+
+            new_global |= global_vars
+        else:
+            # Special case __class__/__classdict__
+            new_bound.add("__class__")
+            new_bound.add("__classdict__")
+            
+        # create set of names that inlined comprehension should never stomp on
+        # collect all local defs and params
+        local_names = set(self.defs.keys()) | set(self.uses.keys())
+
+        # in case comprehension will be inlined, track its set of free locals separately
+        all_free = set()
 
         for child in self.children:
             if child.name in self.explicit_globals:
                 child.global_scope = True
-            if child.nested:
-                frees = child.get_free_vars()
 
-                globals = self.add_frees(frees)
-                for name in globals:
-                    child.force_global(name)
-            else:
-                for special in ("__class__", "__classdict__"):
-                    if special in child.frees:
-                        self.add_frees([special])
-                    elif special in child.uses and special not in child.defs:
-                        child.frees[special] = 1
-                        self.add_frees([special])
+            child_free = all_free
 
-    def force_global(self, name):
-        """Force name to be global in scope.
+            maybe_inline_comp = (
+                isinstance(self, FunctionScope) and 
+                self._inline_comprehensions and
+                isinstance(child, GenExprScope) and
+                not child.generator
+            )
+            if maybe_inline_comp:
+                child_free = set()
 
-        Some child of the current node had a free reference to name.
-        When the child was processed, it was labelled a free
-        variable.  Now that all its enclosing scope have been
-        processed, the name is known to be a global or builtin.  So
-        walk back down the child chain and set the name to be global
-        rather than free.
+            child.analyze_child_block(new_bound, new_free, new_global, child_free, implicit_globals_in_block)
+            inline_comp = maybe_inline_comp and not child.child_free
+            
+            if inline_comp:
+                # record the comprehension
+                inlinable_comprehensions.append(
+                    (child, child_free)
+                )
+            elif maybe_inline_comp:
+                all_free.update(child_free)
+                child_free = all_free
 
-        Be careful to stop if a child does not think the name is
-        free.
-        """
-        self.globals[name] = 1
-        if name in self.frees:
-            del self.frees[name]
-        # special case for __class__:
-        # in a class scope, __class__ is free when used, but defined
-        # for its children
+            local_names |= child_free
+
+        local_names |= implicit_globals_in_block
+
+        if implicit_globals is not None:
+            # merge collected implicit globals into set for the outer scope
+            implicit_globals |= implicit_globals_in_block
+            implicit_globals.update(self.globals.keys())
+
+        # collect inlinable comprehensions
+        if inlinable_comprehensions:
+            for comp, comp_all_free in reversed(inlinable_comprehensions):
+                exists = comp.local_names_include_defs(local_names)
+                if not exists:
+                    # comprehension can be inlined
+                    self.merge_comprehension_symbols(
+                        comp,
+                        comp_all_free
+                    )
+                    # remove child from parent
+                    self.children.remove(comp)
+                    for c in comp.children:
+                        c.parent = self
+                    # mark comprehension as inlined
+                    comp.inlined = True
+                all_free |= comp_all_free
+
         for child in self.children:
-            if child.check_name(name) == SC_FREE:
-                if not isinstance(self, ClassScope) or name != "__class__":
-                    child.force_global(name)
+            if child.free or child.child_free:
+                self.child_free = True
 
-    def add_frees(self, names):
-        """Process list of free vars from nested scope.
+        new_free |= all_free
 
-        Returns a list of names that are either 1) declared global in the
-        parent or 2) undefined in a top-level parent.  In either case,
-        the nested scope should treat them as globals.
-        """
-        child_globals = []
-        for name in names:
-            sc = self.check_name(name)
-            if name == "__class__" or name == "__classdict__":
-                if isinstance(self, ClassScope) or sc == SC_LOCAL:
-                    self.cells[name] = 1
-                    continue
-                elif self.findParentClass() is not None:
-                    self.frees[name] = 1
-                    continue
-            if self.nested:
-                if sc == SC_UNKNOWN or sc == SC_FREE or isinstance(self, ClassScope):
-                    self.frees[name] = 1
-                elif sc == SC_GLOBAL_IMPLICIT:
-                    child_globals.append(name)
-                elif isinstance(self, FUNCTION_LIKE_SCOPES) and sc == SC_LOCAL:
-                    self.cells[name] = 1
-                elif sc != SC_CELL:
-                    child_globals.append(name)
+        if isinstance(self, FUNCTION_LIKE_SCOPES):
+            self.analyze_cells(new_free)
+        elif isinstance(self, ClassScope):
+            # drop class free
+            for drop_free in ["__class__", "__classdict__"]:
+                if drop_free in new_free:
+                    new_free.remove(drop_free)
+                    # we need a class closure cell (CPython sets ste_needs_class_closure
+                    # and adds this later whiel compiling when entering a class scope)
+                    self.cells[drop_free] = 1
+
+        self.update_symbols(bound, new_free)
+        free |= new_free
+
+    def update_symbols(self, bound: set[str]|None, new_free: set[str]) -> None:
+        # Record not yet resolved free variables from children (if any)
+        for name in new_free:
+            if isinstance(self, ClassScope) and (name in self.defs or name in self.globals):
+                # Handle a free variable in a method of
+                # the class that has the same name as a local
+                # or global in the class scope.
+                self.frees[name] = 1
+                continue
+            if bound and name not in bound:
+                # it's a global
+                continue
+
+            # Propagate new free symbol up the lexical stack
+            self.frees[name] = 1
+
+    def local_names_include_defs(self, local_names: set[str]) -> bool:
+        overlap = local_names.intersection(self.defs.keys())
+
+        # skip non-locals as they are defined in enclosing scope
+        overlap.difference_update(self.nonlocals.keys())
+        return len(overlap) != 0 and overlap != {".0"}
+
+    def merge_comprehension_symbols(self, comp: Scope, comp_all_free: set[str]) -> None:
+        # merge defs from comprehension scope into current scope
+        for v in comp.defs:
+            if v != ".0":
+                self.add_def(v)
+
+        # for names that are free in comprehension
+        # and not present in defs of current scope -
+        # add them as free in current scope
+        for d in comp.uses:
+            if comp.check_name(d) == SC_FREE and d not in self.defs:
+                sc = self.check_name(d)
+                if sc == SC_UNKNOWN:
+                    # name is missing in current scope - add it
+                    self.frees[d] = 1
+            elif comp.check_name(d) == SC_GLOBAL_IMPLICIT:
+                self.globals[d] = 1
+
+        # go through free names in comprehension
+        # and check if current scope has corresponding def
+        # if yes - name is no longer free after inlining
+        for f in list(comp.frees.keys()):
+            if f in self.defs:
+                comp_all_free.remove(f)
+
+        # move names uses in comprehension to current scope
+        for u in comp.uses.keys():
+            if u != ".0" or u == "__classdict__":
+                self.add_use(u)
+
+        # cell vars in comprehension become cells in current scope
+        for c in comp.cells.keys():
+            if c != ".0":
+                self.cells[c] = 1
+
+    def analyze_cells(self, free: set[str]) -> None:
+        for name in self.defs:
+            if name in free and name not in self.explicit_globals:
+                self.cells[name] = 1
+                if name in free:
+                    free.remove(name)
+
+    def analyze_child_block(self, bound: set[str], free: set[str], global_vars: set[str], child_free: set[str], implicit_globals: set[str]):
+        temp_bound = set(bound)
+        temp_free = set(free)
+        temp_global = set(free)
+
+        self.analyze_block(temp_free, temp_global, temp_bound, implicit_globals)
+        child_free |= temp_free
+
+    def analyze_names(self, bound: set[str]|None, local: set[str], free: set[str], global_vars: set[str]) -> None:
+        # Go through all the known symbols in the block and analyze them
+        for name in self.explicit_globals:
+            if name in self.nonlocals:
+                err = SyntaxError(f"name {name} is nonlocal and global")
+                err.lineno = self.lineno
+                raise err
+            global_vars.add(name)
+            if bound and name in bound:
+                bound.remove(name)
+
+        for name in self.nonlocals:
+            if not bound:
+                # TODO: We should flow in and set the filename too
+                err = SyntaxError(f"nonlocal declaration not allowed at module level")
+                err.lineno = self.lineno
+                raise err
+            if name not in bound:
+                err = SyntaxError(f"no binding for nonlocal '{name}' found")
+                err.lineno = self.lineno
+                raise err
+            self.frees[name] = 1
+            self.free = True
+            free.add(name)
+
+        for name in self.defs:
+            if name in self.explicit_globals or name in self.globals:
+                continue
+            local.add(name)
+            global_vars.discard(name)
+
+        for name in self.uses:
+            if name in self.defs or name in self.explicit_globals:
+                continue
+            if bound is not None and name in bound:
+                self.frees[name] = 1
+                self.free = True
+                free.add(name)
+            elif name in global_vars:
+                self.globals[name] = 1
             else:
-                if sc == SC_LOCAL:
-                    self.cells[name] = 1
-                elif sc != SC_CELL:
-                    child_globals.append(name)
-        return child_globals
+                if self.nested:
+                    self.free = True
+                self.globals[name] = 1                    
 
     def get_cell_vars(self):
         return sorted(self.cells.keys())
@@ -273,6 +414,7 @@ class ModuleScope(Scope):
 
 class FunctionScope(Scope):
     is_function_scope = True
+    _inline_comprehensions = False
 
 
 class GenExprScope(FunctionScope):
@@ -332,8 +474,7 @@ class SymbolVisitor(ASTVisitor):
     def visitModule(self, node):
         scope = self.module = self.scopes[node] = self.module
         self.visit(node.body, scope)
-        for child in scope.children:
-            child.handle_children()
+        scope.analyze_block(free=set(), global_vars=set())
 
     def visitInteractive(self, node):
         scope = self.module = self.scopes[node] = self.module
@@ -689,10 +830,11 @@ class SymbolVisitor(ASTVisitor):
 
                 elif isinstance(cur, FunctionScope):
                     # If we find a FunctionBlock entry, add as GLOBAL/LOCAL or NONLOCAL/LOCAL
-                    scope.frees[name] = 1
                     if name not in cur.explicit_globals:
+                        scope.frees[name] = 1
                         scope.nonlocals[name] = 1
                     else:
+                        scope.explicit_globals[name] = 1
                         scope.add_use(name)
                     cur.add_def(name)
                     break
@@ -852,83 +994,6 @@ class CinderFunctionScope(FunctionScope):
     def add_comprehension(self, comp):
         if self._inline_comprehensions:
             self._inlinable_comprehensions.append(comp)
-
-    def inline_nested_comprehensions(self) -> None:
-        if not self._inlinable_comprehensions:
-            return
-        # collect set of names that should not be shadowed
-        # by new names introduced by comprehensions
-        local_names = set(self.defs.keys()) | self.uses.keys()
-
-        for child in self.children:
-            # include all free/implicitly global names from children
-            for free in child.get_free_vars():
-                sc = self.check_name(free)
-                if sc == SC_FREE or sc == SC_GLOBAL_IMPLICIT:
-                    local_names.add(free)
-
-        if ".0" in local_names:
-            local_names.remove(".0")
-
-        for comp in self._inlinable_comprehensions:
-            # unsafe to inline a comprehension with cells
-            if comp.cells:
-                continue
-            # this check is only necessary to match symtable.c, where it's hard
-            # to distinguish "has cells" from "otherwise has child scopes with
-            # free vars"
-            if any(c.get_free_vars() for c in comp.children):
-                continue
-
-            # do not inline comprehensions if new names would
-            # conflict with existing local names
-            # exclude non-locals as they are defined in outer scope
-            defs = set(comp.defs.keys()) - comp.nonlocals.keys()
-            if defs & local_names:
-                continue
-
-            # merge defs from comprehension scope into current scope
-            for v in defs:
-                if v != ".0":
-                    self.add_def(v)
-
-            # for names that are free in comprehension
-            # and not present in defs of current scope -
-            # add them as free in current scope
-            for d in comp.uses:
-                if comp.check_name(d) == SC_FREE and d not in self.defs:
-                    sc = self.check_name(d)
-                    if sc == SC_UNKNOWN:
-                        # name is missing in current scope - add it
-                        self.frees[d] = 1
-
-            # go through free names in comprehension
-            # and check if current scope has corresponding def
-            # if yes - name is no longer free after inlining
-            for f in list(comp.frees.keys()):
-                if f in self.defs:
-                    del comp.frees[f]
-
-            # move names uses in comprehension to current scope
-            for u in comp.uses.keys():
-                if u != ".0":
-                    self.add_use(u)
-
-            # cell vars in comprehension become cells in current scope
-            for c in comp.cells.keys():
-                if c != ".0":
-                    self.cells[c] = 1
-
-            # splice children of comprehension into current scope
-            # replacing existing entry for 'comp'
-            i = self.children.index(comp)
-            self.children[i : i + 1] = comp.children
-            for c in comp.children:
-                c.parent = self
-
-            # mark comprehension as inlined
-            comp.inlined = True
-
 
 class CinderGenExprScope(GenExprScope, CinderFunctionScope):
     inlined = False

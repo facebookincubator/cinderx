@@ -141,7 +141,7 @@ class FinalTests(StaticTestBase):
                     a = 0
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, "Cannot assign to a Final variable"
+            SyntaxError, "no binding for nonlocal 'a' found"
         ):
             self.compile(codestr, modname="foo")
 

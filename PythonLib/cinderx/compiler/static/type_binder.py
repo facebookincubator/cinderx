@@ -1776,7 +1776,6 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                 child = self.compiler.modules[mod_name].get_child(
                             alias.name, context_qualname
                         )
-                print(type(child), child)
                 self.declare_local(
                     name,
                     (
