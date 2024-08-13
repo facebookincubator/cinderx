@@ -8,7 +8,6 @@ import re
 import shlex
 import subprocess
 import sys
-import tempfile
 
 JITLIST_FILENAME = "jitlist.txt"
 
@@ -61,7 +60,7 @@ def get_compiled_funcs(command):
         encoding=sys.stderr.encoding,
     )
     if proc.returncode == 0:
-        sys.exit(f"Command succeeded during jit-list generation")
+        sys.exit("Command succeeded during jit-list generation")
 
     funcs = set()
     for line in proc.stderr.splitlines():
@@ -70,7 +69,7 @@ def get_compiled_funcs(command):
             continue
         funcs.add(m[1])
     if len(funcs) == 0:
-        sys.exit(f"No compiled functions found")
+        sys.exit("No compiled functions found")
     # We want a deterministic jitlist, unaffected by the order functions happen
     # to be compiled in.
     return sorted(funcs)
@@ -78,9 +77,9 @@ def get_compiled_funcs(command):
 
 # Return two halves of the given list. For odd-length lists, the second half
 # will be larger.
-def split_list(l):
-    half = len(l) // 2
-    return l[0:half], l[half:]
+def split_list(items):
+    half = len(items) // 2
+    return items[0:half], items[half:]
 
 
 # Attempt to reduce the `jitlist` argument as much as possible, returning the
@@ -129,9 +128,9 @@ def run_bisect(command, jit_list_file):
 
     logging.info("Verifying jit-list")
     if run_with_jitlist(command, jitlist):
-        sys.exit(f"Command succeeded with full jit-list")
+        sys.exit("Command succeeded with full jit-list")
     if not run_with_jitlist(command, []):
-        sys.exit(f"Command failed with empty jit-list")
+        sys.exit("Command failed with empty jit-list")
 
     jitlist = bisect_impl(command, [], jitlist)
     write_jitlist(jitlist)
@@ -146,7 +145,11 @@ def parse_args():
     parser.add_argument(
         "--verbose", "-v", action="store_true", help="Enable verbose logging"
     )
-    parser.add_argument("--initial-jit-list-file", help="initial jitlist file (default: auto-detect the initial jit list)", default=None)
+    parser.add_argument(
+        "--initial-jit-list-file",
+        help="initial jitlist file (default: auto-detect the initial jit list)",
+        default=None,
+    )
     parser.add_argument("command", nargs=argparse.REMAINDER)
 
     return parser.parse_args()

@@ -39,28 +39,25 @@ import uuid
 from dataclasses import dataclass
 from pathlib import Path
 
+from typing import Any, Dict, IO, Iterable, List, Optional, Set, Tuple
+
 from test import support
 from test.cinder_support import is_asan_build
-from test.support import os_helper
 from test.libregrtest.cmdline import Namespace
 from test.libregrtest.main import Regrtest
 from test.libregrtest.runtest import (
-    NOTTESTS,
-    STDTESTS,
-    findtests,
-    runtest,
     ChildError,
-    Interrupted,
-    Failed,
+    findtests,
+    NOTTESTS,
     Passed,
     ResourceDenied,
+    runtest,
     Skipped,
-    TestResult,
+    STDTESTS,
 )
 from test.libregrtest.runtest_mp import get_cinderjit_xargs
 from test.libregrtest.setup import setup_tests
-
-from typing import Dict, Iterable, IO, List, Optional, Set, Tuple
+from test.support import os_helper
 
 MAX_WORKERS = 64
 
@@ -90,6 +87,7 @@ RR_RECORD_BASE_CMD = [
     "record",
 ]
 
+
 @dataclass
 class ActiveTest:
     worker_pid: int
@@ -100,7 +98,10 @@ class ActiveTest:
 
 class ReplayInfo:
     def __init__(
-        self, pid: int, test_log: str, rr_trace_dir: Optional[str],
+        self,
+        pid: int,
+        test_log: str,
+        rr_trace_dir: Optional[str],
     ) -> None:
         self.pid = pid
         self.test_log = test_log
@@ -135,7 +136,7 @@ class ReplayInfo:
         msg += f".\n Replay using '{cmd}'"
         if self.rr_trace_dir is not None:
             # TODO: Add link to fdb documentation
-            msg += (f"\n Replay recording with: fdb replay debug {self.rr_trace_dir}")
+            msg += f"\n Replay recording with: fdb replay debug {self.rr_trace_dir}"
         return msg
 
     def should_share(self):
@@ -155,29 +156,23 @@ class Message:
     pass
 
 
+@dataclass(frozen=True)
 class RunTest(Message):
-    def __init__(self, test_name: str) -> None:
-        self.test_name = test_name
+    test_name: str
 
 
+@dataclass(frozen=True)
 class TestStarted(Message):
-    def __init__(
-        self,
-        worker_pid: int,
-        test_name: str,
-        test_log: str,
-        rr_trace_dir: Optional[str],
-    ) -> None:
-        self.worker_pid = worker_pid
-        self.test_name = test_name
-        self.test_log = test_log
-        self.rr_trace_dir = rr_trace_dir
+    worker_pid: int
+    test_name: str
+    test_log: str
+    rr_trace_dir: str | None
 
 
+@dataclass(frozen=True)
 class TestComplete(Message):
-    def __init__(self, test_name: str, result) -> None:
-        self.test_name = test_name
-        self.result = result
+    test_name: str
+    result: Any
 
 
 class ShutdownWorker(Message):
@@ -205,9 +200,11 @@ class MessagePipe:
         self.outfile.close()
 
     def recv(self) -> None:
+        # @lint-ignore PYTHONPICKLEISBAD
         return pickle.load(self.infile)
 
     def send(self, message) -> None:
+        # @lint-ignore PYTHONPICKLEISBAD
         pickle.dump(message, self.outfile)
         self.outfile.flush()
 
@@ -278,7 +275,8 @@ class WorkSender:
         assert self.popen is not None
         r = self.popen.wait()
         if r != 0 and self.rr_trace_dir is not None:
-            print(f"Worker with PID {self.pid} ended with exit code {r}.\n"
+            print(
+                f"Worker with PID {self.pid} ended with exit code {r}.\n"
                 # TODO: Add link to fdb documentation
                 f"Replay recording with: fdb replay debug {self.rr_trace_dir}"
             )
@@ -294,11 +292,11 @@ class ASANLogManipulator:
         if not is_asan_build():
             return
 
-        asan_options = os.environ.get('ASAN_OPTIONS', '')
+        asan_options = os.environ.get("ASAN_OPTIONS", "")
         log_path_base = None
-        for option in asan_options.split(','):
-            if option.startswith('log_path='):
-                log_path_base = option[len('log_path='):]
+        for option in asan_options.split(","):
+            if option.startswith("log_path="):
+                log_path_base = option[len("log_path=") :]
                 break
 
         if log_path_base is None:
@@ -309,10 +307,11 @@ class ASANLogManipulator:
         ctypes.pythonapi["__sanitizer_set_report_fd"](fd)
 
         # IO must not close the fd or ASAN will not be able to write final info.
-        self._io = io.TextIOWrapper(io.FileIO(fd, 'a', closefd=False), encoding='utf-8')
+        self._io = io.TextIOWrapper(io.FileIO(fd, "a", closefd=False), encoding="utf-8")
         self._log_path_base = log_path_base
         self._base_asan_options = [
-            opt for opt in asan_options.split(',') if not opt.startswith('log_path=')]
+            opt for opt in asan_options.split(",") if not opt.startswith("log_path=")
+        ]
 
         # Monkey patch individual test logging support
         old_startTest = unittest.TextTestResult.startTest
@@ -333,10 +332,10 @@ class ASANLogManipulator:
     def put_env_module_log_path(self, module_name: str) -> None:
         if self._base_asan_options is None:
             return
-        new_asan_options = (
-            self._base_asan_options +
-            [f"log_path={self._log_path_base}-sub_process_of-{module_name}"])
-        os.putenv("ASAN_OPTIONS", ','.join(new_asan_options))
+        new_asan_options = self._base_asan_options + [
+            f"log_path={self._log_path_base}-sub_process_of-{module_name}"
+        ]
+        os.putenv("ASAN_OPTIONS", ",".join(new_asan_options))
 
 
 def get_cinderx_dir() -> Path:
@@ -381,7 +380,8 @@ class WorkReceiver:
 
 
 def start_worker(
-    ns: types.SimpleNamespace, worker_timeout: int, use_rr: bool) -> WorkSender:
+    ns: types.SimpleNamespace, worker_timeout: int, use_rr: bool
+) -> WorkSender:
     """Start a worker process we can use to run tests"""
     d_r, w_w = os.pipe()
     os.set_inheritable(d_r, True)
@@ -448,10 +448,9 @@ def manage_worker(
         if isinstance(msg, RunTest):
             resultq.put(
                 TestStarted(
-                    worker.pid,
-                    msg.test_name,
-                    worker.test_log.path,
-                    worker.rr_trace_dir))
+                    worker.pid, msg.test_name, worker.test_log.path, worker.rr_trace_dir
+                )
+            )
         try:
             worker.send(msg)
             result = worker.recv()
@@ -502,11 +501,12 @@ def _setupCinderIgnoredTests(ns: Namespace, use_rr: bool) -> Tuple[List[str], Se
     if use_rr:
         skip_list_files.append("rr_skip_tests.txt")
 
-    if sysconfig.get_config_var('ENABLE_CINDERX_MODULE') == "no":
+    if sysconfig.get_config_var("ENABLE_CINDERX_MODULE") == "no":
         skip_list_files.append("no_cinderx_skip_tests.txt")
 
     try:
-        import cinderjit
+        import cinderjit  # noqa: F401
+
         skip_list_files.append("cinder_jit_ignore_tests.txt")
     except ImportError:
         pass
@@ -534,7 +534,7 @@ def _setupCinderIgnoredTests(ns: Namespace, use_rr: bool) -> Tuple[List[str], Se
         with open(os.path.join(os.path.dirname(__file__), skip_file)) as fp:
             for line in fp:
                 line = line.strip()
-                if not line or line.startswith('#'):
+                if not line or line.startswith("#"):
                     continue
                 if len({".", "*"} & set(line)):
                     ns.ignore_tests.append(line)
@@ -584,7 +584,7 @@ class MultiWorkerCinderRegrtest(Regrtest):
             )
         return replay_infos
 
-    def _run_tests_with_n_workers(
+    def _run_tests_with_n_workers(  # noqa: C901
         self, tests: Iterable[str], n_workers: int, replay_infos: List[ReplayInfo]
     ) -> None:
         resultq = queue.Queue()
@@ -595,7 +595,7 @@ class MultiWorkerCinderRegrtest(Regrtest):
             testq.put(RunTest(test))
 
         threads = []
-        for i in range(n_workers):
+        for _i in range(n_workers):
             testq.put(ShutdownWorker())
             t = threading.Thread(
                 target=manage_worker,
@@ -605,7 +605,8 @@ class MultiWorkerCinderRegrtest(Regrtest):
                     resultq,
                     self._worker_timeout,
                     self._worker_respawn_interval,
-                    self._use_rr),
+                    self._use_rr,
+                ),
             )
             t.start()
             threads.append(t)
@@ -621,10 +622,8 @@ class MultiWorkerCinderRegrtest(Regrtest):
                     continue
                 if isinstance(msg, TestStarted):
                     active_tests[msg.test_name] = ActiveTest(
-                        msg.worker_pid,
-                        time.time(),
-                        msg.test_log,
-                        msg.rr_trace_dir)
+                        msg.worker_pid, time.time(), msg.test_log, msg.rr_trace_dir
+                    )
                     print(
                         f"Running test '{msg.test_name}' on worker "
                         f"{msg.worker_pid}",
@@ -641,12 +640,13 @@ class MultiWorkerCinderRegrtest(Regrtest):
                         err = f"TEST ERROR: {msg.result} in pid {worker_pid}"
                         if rr_trace_dir:
                             # TODO: Add link to fdb documentation
-                            err += (f" Replay recording with: fdb replay debug {rr_trace_dir}")
+                            err += f" Replay recording with: fdb replay debug {rr_trace_dir}"
                         log_err(f"{err}\n")
                         if worker_pid not in worker_infos:
                             log = active_tests[msg.test_name].worker_test_log
-                            worker_infos[worker_pid] = (
-                                ReplayInfo(worker_pid, log, rr_trace_dir))
+                            worker_infos[worker_pid] = ReplayInfo(
+                                worker_pid, log, rr_trace_dir
+                            )
                         replay_info = worker_infos[worker_pid]
                         if isinstance(result, ChildError):
                             replay_info.crashed = msg.test_name
@@ -685,8 +685,11 @@ class MultiWorkerCinderRegrtest(Regrtest):
         if not self._recording_metadata_path:
             return
 
-        recordings = [{"tests": info.broken_tests(), "recording_path": info.rr_trace_dir}
-                for info in replay_infos if info.should_share()]
+        recordings = [
+            {"tests": info.broken_tests(), "recording_path": info.rr_trace_dir}
+            for info in replay_infos
+            if info.should_share()
+        ]
 
         metadata = {"recordings": recordings}
 
@@ -741,7 +744,8 @@ class MultiWorkerCinderRegrtest(Regrtest):
         sys.exit(0)
 
     def _selectDefaultCinderTests(
-            self, test_filters: Tuple[List[str], Set[str]], test_cinderx_dir: Path) -> None:
+        self, test_filters: Tuple[List[str], Set[str]], test_cinderx_dir: Path
+    ) -> None:
         stdtest, nottests = test_filters
         # Initial set of tests are the core Python/Cinder ones.
         tests = ["test." + t for t in findtests(None, stdtest, nottests)]
@@ -822,8 +826,9 @@ def _patched_runtest_inner2(ns: Namespace, tests_name: str) -> bool:
 
     if gc.garbage:
         support.environment_altered = True
-        runtest.print_warning(f"{test_name} created {len(gc.garbage)} "
-                      f"uncollectable object(s).")
+        runtest.print_warning(
+            f"{tests_name} created {len(gc.garbage)} " f"uncollectable object(s)."
+        )
 
         # move the uncollectable objects somewhere,
         # so we don't see them again
@@ -841,6 +846,7 @@ class UserSelectedCinderRegrtest(Regrtest):
 
     def _main(self, tests, kwargs):
         import test.libregrtest.runtest as runtest
+
         runtest._runtest_inner2 = _patched_runtest_inner2
 
         self.ns.fail_env_changed = True
@@ -862,6 +868,7 @@ class UserSelectedCinderRegrtest(Regrtest):
             # makes it hard to do this without monkey-patching or writing a ton
             # of new code.
             from unittest import TextTestResult
+
             old_init = TextTestResult.__init__
 
             def force_dots_output(self, *args, **kwargs):
@@ -898,10 +905,10 @@ def fix_env_always_changed_issue():
     # Build a list of our already existing child-processes.
     current_pid = os.getpid()
     result = subprocess.run(
-        ["pgrep", "-P", str(current_pid)], capture_output=True, text=True)
+        ["pgrep", "-P", str(current_pid)], capture_output=True, text=True
+    )
     pids = result.stdout.strip().split("\n")
     child_pids_ignore = {int(pid) for pid in pids if pid}
-
 
     # This is a copy of test.support.reap_children() altered to ignore our
     # initial children. We monkey-patch this version in below.
@@ -913,7 +920,7 @@ def fix_env_always_changed_issue():
         """
 
         # Need os.waitpid(-1, os.WNOHANG): Windows is not supported
-        if not (hasattr(os, 'waitpid') and hasattr(os, 'WNOHANG')):
+        if not (hasattr(os, "waitpid") and hasattr(os, "WNOHANG")):
             return
 
         # Reap all our dead child processes so we don't leave zombies around.
@@ -934,7 +941,6 @@ def fix_env_always_changed_issue():
 
             support.print_warning(f"reap_children() reaped child process {pid}")
             support.environment_altered = True
-
 
     support.reap_children = reap_children
 
@@ -973,7 +979,8 @@ def dispatcher_main(args):
         if args.use_rr:
             print(
                 "Consider cleaning out RR data with: "
-                f"rm -rf {CINDER_RUNNER_LOG_DIR}/rr-*")
+                f"rm -rf {CINDER_RUNNER_LOG_DIR}/rr-*"
+            )
 
 
 def replay_main(args):
@@ -994,13 +1001,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
 
-
     # Limit the amount of RAM per process by default to cause a quick OOM on
     # runaway loops. This 8GiB number is arbitrary but seems to be enough at
     # the time of writing.
-    mem_limit_default = (
-        -1 if is_asan_build() else 8192 * 1024 * 1024
-    )
+    mem_limit_default = -1 if is_asan_build() else 8192 * 1024 * 1024
 
     # Increase default stack size for threads in ASAN builds as this can use
     # a lot more stack space.
@@ -1021,7 +1025,7 @@ if __name__ == "__main__":
         "cmd_fd", type=int, help="Readable fd to receive commands to execute"
     )
     worker_parser.add_argument(
-        "result_fd", type=int, help="Writeable fd to write test results"
+        "result_fd", type=int, help="Writable fd to write test results"
     )
     worker_parser.add_argument("ns", help="Serialized namespace")
     worker_parser.set_defaults(func=worker_main)
@@ -1103,13 +1107,11 @@ if __name__ == "__main__":
 
     # Equivalent of 'ulimit -s unlimited'.
     resource.setrlimit(
-        resource.RLIMIT_STACK,
-        (resource.RLIM_INFINITY, resource.RLIM_INFINITY))
+        resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+    )
 
     if args.memory_limit != -1:
-        resource.setrlimit(
-            resource.RLIMIT_AS,
-            (args.memory_limit, args.memory_limit))
+        resource.setrlimit(resource.RLIMIT_AS, (args.memory_limit, args.memory_limit))
 
     if hasattr(args, "func"):
         args.func(args)

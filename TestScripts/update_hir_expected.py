@@ -10,7 +10,6 @@ import re
 import subprocess
 import sys
 
-from collections.abc import Iterator
 from enum import Enum
 from typing import Generator, Sequence
 
@@ -102,7 +101,7 @@ def parse_stdout(stdout: str) -> tuple[str, SuiteOutputDict]:
 
     failed_tests = collections.defaultdict(lambda: {})
     line_iter = iter(stdout.split("\n"))
-    test_dict: dict[str, list[str]] = dict()
+    test_dict: dict[str, list[str]] = {}
     while True:
         line = next(line_iter)
         if line == FINISHED_LINE:
@@ -114,7 +113,7 @@ def parse_stdout(stdout: str) -> tuple[str, SuiteOutputDict]:
 
         if m := TEST_RUN_RE.match(line):
             test_name = (m[1], m[2])
-            test_dict = dict()
+            test_dict = {}
             continue
 
         m = ACTUAL_TEXT_RE.match(line)
@@ -168,7 +167,7 @@ def map_suite_to_file(suite_name: str) -> str:
     return os.path.join(TESTS_DIR, "hir_tests", snake_name + ".txt")
 
 
-def update_text_test(
+def update_text_test(  # noqa: C901
     suite_name: str,
     old_lines: list[str],
     failed_tests: TestOutputDict,
@@ -272,7 +271,7 @@ CPP_TEST_END = "}"
 
 
 def find_cpp_files(root: str) -> Generator[str, None, None]:
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, _dirnames, filenames in os.walk(root):
         for filename in filenames:
             if filename.endswith(".cpp"):
                 yield os.path.join(dirpath, filename)
@@ -290,7 +289,7 @@ class State(Enum):
     SKIP_EXPECTED = 3
 
 
-def update_cpp_tests(
+def update_cpp_tests(  # noqa: C901
     failed_suites: SuiteOutputDict, failed_cpp_tests: set[tuple[str, str]]
 ) -> None:
     def expect_state(estate: State) -> None:
@@ -313,7 +312,7 @@ def update_cpp_tests(
 
         state = State.WAIT_FOR_TEST
         new_lines = []
-        for lineno, line in enumerate(old_lines, 1):
+        for lineno, line in enumerate(old_lines, 1):  # noqa: B007
             m = CPP_TEST_NAME_RE.match(line)
             if m is not None:
                 new_lines.append(line)

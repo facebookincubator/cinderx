@@ -38,6 +38,8 @@ function run_python_code() {
 function check_opt_flags() {
     local mode=$1
     local should_opt=$2
+    # shellcheck disable=SC2046
+    # shellcheck disable=SC2155
     local libpython=$(echo $(run_buck2 "$mode" fbcode//cinderx:dist-path)/lib/libpython3.*.so)
     if strings "$libpython" | grep -- "-O3 -fno-omit-frame-pointer" >/dev/null ; then
         if [[ "$should_opt" == "yes" ]] ; then
