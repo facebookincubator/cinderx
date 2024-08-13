@@ -4,13 +4,13 @@
 #include <Python.h>
 #if PY_VERSION_HEX >= 0x030C0000
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-#define UPGRADE_ASSERT(tag) \
-  { \
+#define UPGRADE_ASSERT(tag)                                                    \
+  {                                                                            \
     fprintf(stderr, "UPGRADE_ASSERT %s @ %d: %s\n", __FILE__, __LINE__, #tag); \
-    abort(); \
+    abort();                                                                   \
   }
 
 // Essentially structured comments for code which needs upgrading. This should
@@ -39,7 +39,8 @@ enum {
   INCOMPLETE_PY_AWAITER, // T192550846
   AST_UPDATES, // T194029115
   MISSING_CO_NOFREE, // T194029115
-  // Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED, Ci_Py_VECTORCALL_INVOKED_METHOD. T194028831
+  // Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED, Ci_Py_VECTORCALL_INVOKED_METHOD.
+  // T194028831
   NEED_STATIC_FLAGS,
   // This is a macro and used from C code so a bit tricky to stub.
   MISSING_PyHeapType_GET_MEMBERS, // T194021668
