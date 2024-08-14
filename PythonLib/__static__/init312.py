@@ -8,25 +8,13 @@ import random
 import time
 from asyncio import iscoroutinefunction
 from types import UnionType as typesUnion
+
 # pyre-ignore[21]: No _GenericAlias, _tp_cache
-from typing import (
-    _GenericAlias,
-    _tp_cache,
-    Dict,
-    final,
-    Iterator,
-    List,
-    Literal,
-    Optional,
-    Tuple,
-    Type,
-    TypeVar,
-    Union,
-)
+from typing import _GenericAlias, _tp_cache, Dict, final, Literal, Type, TypeVar, Union
 from weakref import WeakValueDictionary
 
 from .enum import Enum, IntEnum, StringEnum  # noqa: F401
-from .type_code import (
+from .type_code import (  # noqa: F401
     type_code,
     TYPED_BOOL,
     TYPED_CHAR,
@@ -34,8 +22,8 @@ from .type_code import (
     TYPED_INT16,
     TYPED_INT32,
     TYPED_INT64,
-    TYPED_INT_64BIT,
     TYPED_INT8,
+    TYPED_INT_64BIT,
     TYPED_OBJECT,
     TYPED_SINGLE,
     TYPED_UINT16,
@@ -73,7 +61,7 @@ PRIM_OP_LE_DBL = 0
 PRIM_OP_LE_INT = 0
 PRIM_OP_LE_UN_INT = 0
 PRIM_OP_LSHIFT_INT = 0
-PRIM_OP_LT_DBL =0
+PRIM_OP_LT_DBL = 0
 PRIM_OP_LT_INT = 0
 PRIM_OP_LT_UN_INT = 0
 PRIM_OP_MOD_DBL = 0
@@ -108,19 +96,10 @@ SEQ_TUPLE = 0
 
 try:  # noqa: C901
     from cinderx import static
-    from cinderx.static import (
+    from cinderx.static import (  # noqa: F401
         __build_cinder_class__,
         chkdict,
         chklist,
-        is_type_static,
-        make_recreate_cm,
-        posix_clock_gettime_ns,
-        rand,
-        RAND_MAX,
-        set_type_final,
-        set_type_static,
-        set_type_static_final,
-        staticarray,
         FAST_LEN_ARRAY,
         FAST_LEN_DICT,
         FAST_LEN_INEXACT,
@@ -128,6 +107,9 @@ try:  # noqa: C901
         FAST_LEN_SET,
         FAST_LEN_STR,
         FAST_LEN_TUPLE,
+        is_type_static,
+        make_recreate_cm,
+        posix_clock_gettime_ns,
         PRIM_OP_ADD_DBL,
         PRIM_OP_ADD_INT,
         PRIM_OP_AND_INT,
@@ -169,6 +151,8 @@ try:  # noqa: C901
         PRIM_OP_SUB_DBL,
         PRIM_OP_SUB_INT,
         PRIM_OP_XOR_INT,
+        rand,
+        RAND_MAX,
         SEQ_ARRAY_INT64,
         SEQ_CHECKED_LIST,
         SEQ_LIST,
@@ -179,6 +163,10 @@ try:  # noqa: C901
         SEQ_REPEAT_REVERSED,
         SEQ_SUBSCR_UNCHECKED,
         SEQ_TUPLE,
+        set_type_final,
+        set_type_static,
+        set_type_static_final,
+        staticarray,
     )
 except ImportError:
     RAND_MAX = (1 << 31) - 1
@@ -224,7 +212,6 @@ except ImportError:
 
         def __class_getitem__(cls, key) -> type[staticarray]:
             return staticarray
-
 
 
 try:
@@ -416,8 +403,10 @@ def _replace_types(
 
     # Remove the existing StaticGeneric base...
     bases = tuple(
+        base
         # pyre-ignore[16]: object has no attribute __orig_bases__
-        base for base in gen_type.__orig_bases__ if not isinstance(base, StaticGeneric)
+        for base in gen_type.__orig_bases__
+        if not isinstance(base, StaticGeneric)
     )
 
     new_dict["__args__"] = subs

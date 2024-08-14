@@ -131,6 +131,8 @@ from __static__ import (  # noqa: F401
     TYPED_UINT8,
 )
 
+from cinderx.static import StaticTypeError
+
 from ..consts import CI_CO_STATICALLY_COMPILED
 from ..errors import TypedSyntaxError
 from ..optimizer import AstOptimizer

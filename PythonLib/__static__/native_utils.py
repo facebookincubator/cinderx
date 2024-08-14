@@ -4,13 +4,11 @@
 from __future__ import annotations
 
 import ctypes
-from typing import Callable, Tuple
 
 from cinderx.static import (
     resolve_primitive_descr,
     TYPED_BOOL,
     TYPED_CHAR,
-    TYPED_DOUBLE,
     TYPED_INT16,
     TYPED_INT32,
     TYPED_INT64,
@@ -40,7 +38,7 @@ _static_to_ctype: dict[int, object] = {
 def _create_args(
     signature: tuple[tuple[str, ...], ...], args: tuple[object]
 ) -> list[object]:
-    arg_descrs, ret_descr = signature[:-1], signature[-1]
+    arg_descrs = signature[:-1]
 
     n = len(arg_descrs)
     if n != len(args):
