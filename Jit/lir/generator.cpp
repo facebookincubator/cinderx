@@ -215,7 +215,7 @@ void updateRefTotal(BasicBlockBuilder& bbb, Instruction::Opcode op) {
   bbb.appendInstr(op, r0);
   bbb.appendInstr(OutInd{addr, OperandBase::k64bit}, Instruction::kMove, r0);
 #else
-  UPGRADE_ASSERT(REF_TOTAL_CHANGED)
+  UPGRADE_NOTE(REF_TOTAL_CHANGED, T194027565)
 #endif
 }
 

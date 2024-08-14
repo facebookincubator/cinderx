@@ -31,6 +31,7 @@ typedef struct {
   double xmm1;
 } JITRT_StaticCallFPReturn;
 
+#if PY_VERSION_HEX < 0x030C0000
 /*
  * Allocate a new PyFrameObject and link it into the current thread's
  * call stack.
@@ -42,6 +43,11 @@ PyThreadState* JITRT_AllocateAndLinkFrame(
     PyCodeObject* code,
     PyObject* builtins,
     PyObject* globals);
+#else
+PyThreadState* JITRT_AllocateAndLinkInterpreterFrame(
+    PyFunctionObject* code,
+    PyCodeObject* jit_code_object);
+#endif
 
 /*
  * Helper function to decref a frame.

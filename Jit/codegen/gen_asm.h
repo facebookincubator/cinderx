@@ -24,6 +24,11 @@
 #include <unordered_set>
 #include <vector>
 
+// Use a special define to keep it clear why much code changes in 3.12+
+#if PY_VERSION_HEX < 0x030C0000
+#define SHADOW_FRAMES 1
+#endif
+
 namespace jit::codegen {
 
 // Generate the final stage trampoline that is responsible for finishing
@@ -131,12 +136,19 @@ class NativeGenerator {
   void initializeFrameHeader(
       asmjit::x86::Gp tstate_reg,
       asmjit::x86::Gp scratch_reg);
-  void setupFrameAndSaveCallerRegisters(asmjit::x86::Gp tstate_reg);
+  void setupFrameAndSaveCallerRegisters(
+#ifdef SHADOW_FRAMES
+      asmjit::x86::Gp tstate_reg
+#endif
+  );
   void generatePrologue(
       asmjit::Label correct_arg_count,
       asmjit::Label native_entry_point);
   void loadOrGenerateLinkFrame(
       asmjit::x86::Gp tstate_reg,
+#if PY_VERSION_HEX >= 0x030C0000
+      asmjit::x86::Gp func_reg,
+#endif
       const std::vector<
           std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
           save_regs);

@@ -52,6 +52,7 @@ using namespace jit::util;
 
 namespace jit::codegen {
 
+#ifdef SHADOW_FRAMES
 namespace {
 
 namespace shadow_frame {
@@ -66,20 +67,14 @@ static constexpr x86::Mem kInFrameOrigDataPtr = x86::ptr(
     x86::rbp,
     -kJITShadowFrameSize + JIT_SHADOW_FRAME_FIELD_OFF(orig_data));
 
-#if PY_VERSION_HEX >= 0x030C0000
-static x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
-  UPGRADE_ASSERT(SHADOW_FRAMES);
-  return x86::ptr(tstate_reg);
-}
-#else
 static constexpr x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
   return x86::ptr(tstate_reg, offsetof(PyThreadState, shadow_frame));
 }
-#endif
 
 } // namespace shadow_frame
 
 } // namespace
+#endif // SHADOW_FRAMES
 
 void RestoreOriginalGeneratorRBP(x86::Emitter* as) {
   size_t original_rbp_offset = offsetof(GenDataFooter, originalRbp);
@@ -89,6 +84,7 @@ void RestoreOriginalGeneratorRBP(x86::Emitter* as) {
 void NativeGenerator::generateEpilogueUnlinkFrame(
     x86::Gp tstate_r,
     bool is_generator) {
+#ifdef SHADOW_FRAMES
   // It's safe to use caller saved registers in this function
   auto scratch_reg = tstate_r == x86::rsi ? x86::rdx : x86::rsi;
   x86::Mem shadow_stack_top_ptr = shadow_frame::getStackTopPtr(tstate_r);
@@ -122,6 +118,8 @@ void NativeGenerator::generateEpilogueUnlinkFrame(
   asmjit::Label done = as_->newLabel();
   if (might_have_heap_frame) {
     as_->jnc(done);
+#endif
+
     auto saved_rax_ptr = x86::ptr(x86::rbp, -8);
 
     jit::hir::Type ret_type = func_->return_type;
@@ -139,8 +137,10 @@ void NativeGenerator::generateEpilogueUnlinkFrame(
     } else {
       as_->mov(x86::rax, saved_rax_ptr);
     }
+#ifdef SHADOW_FRAMES
     as_->bind(done);
   }
+#endif
 }
 
 // Scratch register used by the various deopt trampolines.
@@ -456,6 +456,7 @@ void NativeGenerator::loadTState(x86::Gp dst_reg) {
 #endif
 }
 
+#ifdef SHADOW_FRAMES
 void NativeGenerator::linkOnStackShadowFrame(
     x86::Gp tstate_reg,
     x86::Gp scratch_reg) {
@@ -470,11 +471,7 @@ void NativeGenerator::linkOnStackShadowFrame(
   as_->mov(kInFramePrevPtr, scratch_reg);
   // Set data
   if (frame_mode == jit::FrameMode::kNormal) {
-#if PY_VERSION_HEX >= 0x030C0000
-    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-#else
     as_->mov(scratch_reg, x86::ptr(tstate_reg, offsetof(PyThreadState, frame)));
-#endif
     static_assert(
         PYSF_PYFRAME == 1 && _PyShadowFrame_NumPtrKindBits == 2,
         "Unexpected constant");
@@ -505,8 +502,13 @@ void NativeGenerator::initializeFrameHeader(
     linkOnStackShadowFrame(tstate_reg, scratch_reg);
   }
 }
+#endif
 
-void NativeGenerator::setupFrameAndSaveCallerRegisters(x86::Gp tstate_reg) {
+void NativeGenerator::setupFrameAndSaveCallerRegisters(
+#ifdef SHADOW_FRAMES
+    x86::Gp tstate_reg
+#endif
+) {
   // During execution, the stack looks like the diagram below. The column to
   // left indicates how many words on the stack each line occupies.
   //
@@ -548,10 +550,12 @@ void NativeGenerator::setupFrameAndSaveCallerRegisters(x86::Gp tstate_reg) {
   as_->sub(x86::rsp, spill_stack);
   env_.last_callee_saved_reg_off = spill_stack + saved_regs_size;
 
+#ifdef SHADOW_FRAMES
   x86::Gp scratch_reg = x86::rax;
   as_->push(scratch_reg);
   initializeFrameHeader(tstate_reg, scratch_reg);
   as_->pop(scratch_reg);
+#endif
 
   // Push used callee-saved registers.
   while (!saved_regs.Empty()) {
@@ -580,6 +584,9 @@ constexpr size_t kConstStackAlignmentRequirement = 16;
 
 void NativeGenerator::loadOrGenerateLinkFrame(
     asmjit::x86::Gp tstate_reg,
+#if PY_VERSION_HEX >= 0x030C0000
+    asmjit::x86::Gp func_reg,
+#endif
     const std::vector<
         std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
         save_regs) {
@@ -629,6 +636,7 @@ void NativeGenerator::loadOrGenerateLinkFrame(
         as_->push(x86::rax);
       }
 
+#if PY_VERSION_HEX < 0x030C0000
       as_->mov(
           x86::rdi,
           reinterpret_cast<intptr_t>(
@@ -643,6 +651,14 @@ void NativeGenerator::loadOrGenerateLinkFrame(
               codeRuntime()->frameState()->globals().get()));
 
       as_->call(reinterpret_cast<uint64_t>(JITRT_AllocateAndLinkFrame));
+#else
+      JIT_DCHECK(func_reg == x86::rdi, "func_reg must be rdi");
+#ifdef Py_DEBUG
+      as_->mov(x86::rsi, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
+#endif
+      as_->call(
+          reinterpret_cast<uint64_t>(JITRT_AllocateAndLinkInterpreterFrame));
+#endif
       as_->mov(tstate_reg, x86::rax);
 
       if (align_stack) {
@@ -862,8 +878,11 @@ void NativeGenerator::generatePrologue(
   as_->bind(setup_frame);
   loadOrGenerateLinkFrame(
       x86::r11,
+#if PY_VERSION_HEX >= 0x030C0000
+      kFuncPtrReg,
+#endif
       {
-          {x86::rdi, kFuncPtrReg}, // func
+          {kFuncPtrReg, kFuncPtrReg}, // func
           {x86::rsi, kArgsReg} // args
       });
   env_.addAnnotation("Link frame", frame_cursor);
@@ -897,7 +916,11 @@ void NativeGenerator::generatePrologue(
   auto native_entry_cursor = as_->cursor();
   as_->bind(native_entry_point);
 
-  setupFrameAndSaveCallerRegisters(x86::r11);
+  setupFrameAndSaveCallerRegisters(
+#ifdef SHADOW_FRAMES
+      x86::r11
+#endif
+  );
 
   env_.addAnnotation("Native entry", native_entry_cursor);
 }
@@ -1198,7 +1221,11 @@ void NativeGenerator::generateResumeEntry() {
   as_->bind(env_.gen_resume_entry_label);
 
   generateFunctionEntry();
-  setupFrameAndSaveCallerRegisters(x86::rcx);
+  setupFrameAndSaveCallerRegisters(
+#ifdef SHADOW_FRAMES
+      x86::rcx
+#endif
+  );
 
   // Setup RBP to use storage in generator rather than stack.
 
@@ -1327,7 +1354,11 @@ void NativeGenerator::generateStaticEntryPoint(
     }
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   loadOrGenerateLinkFrame(x86::r11, save_regs);
+#else
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+#endif
 
   if (total_args + 1 > ARGUMENT_REGS.size()) {
     as_->lea(x86::r10, x86::ptr(x86::rbp, 16));

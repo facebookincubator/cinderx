@@ -178,6 +178,36 @@ PyTypeObject* Cix_PyTypeAlias_Type = NULL;
 #define _Py_union_type_or Cix_Py_union_type_or
 // @Borrow function _Py_union_type_or from Objects/unionobject.c
 
+#if PY_VERSION_HEX >= 0x030C0000
+// Internal dependencies for _PyThreadState_*Frame.
+// @Borrow CPP directives from Objects/obmalloc.c [3.12]
+#define _PyObject_VirtualAlloc __PyObject_VirtualAlloc
+// @Borrow function _PyObject_VirtualAlloc from Objects/obmalloc.c [3.12]
+#define _PyObject_VirtualFree __PyObject_VirtualFree
+// @Borrow function _PyObject_VirtualFree from Objects/obmalloc.c [3.12]
+// @Borrow CPP directives from Python/pystate.c [3.12]
+// @Borrow function allocate_chunk from Python/pystate.c [3.12]
+// @Borrow function push_chunk from Python/pystate.c [3.12]
+// End internal dependencies.
+#define _PyThreadState_PushFrame Cix_PyThreadState_PushFrame
+// @Borrow function _PyThreadState_PushFrame from Python/pystate.c [3.12]
+#define _PyThreadState_PopFrame Cix_PyThreadState_PopFrame
+// @Borrow function _PyThreadState_PopFrame from Python/pystate.c [3.12]
+
+// Internal dependencies for _PyFrame_ClearExceptCode.
+// @Borrow CPP directives from Python/frame.c [3.12]
+__attribute__((weak))
+// @Borrow function _PyFrame_New_NoTrack from Objects/frameobject.c [3.12]
+__attribute__((weak))
+// @Borrow function _PyFrame_MakeAndSetFrameObject from Python/frame.c [3.12]
+// @Borrow function take_ownership from Python/frame.c [3.12]
+#define _PyFrame_ClearLocals __PyFrame_ClearLocals
+// @Borrow function _PyFrame_ClearLocals from Python/frame.c [3.12]
+// End internal dependencies.
+#define _PyFrame_ClearExceptCode Cix_PyFrame_ClearExceptCode
+// @Borrow function _PyFrame_ClearExceptCode from Python/frame.c [3.12]
+#endif
+
 int init_upstream_borrow(void) {
   PyObject* empty_dict = PyDict_New();
   if (empty_dict == NULL) {

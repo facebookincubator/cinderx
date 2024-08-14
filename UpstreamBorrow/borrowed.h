@@ -5,6 +5,7 @@
 #include <Python.h>
 
 #if PY_VERSION_HEX >= 0x030C0000
+#include "pycore_frame.h"
 #include "pycore_typeobject.h"
 #endif
 
@@ -52,6 +53,19 @@ static_builtin_state* Cix_PyStaticType_GetState(
 extern PyTypeObject* Cix_PyUnion_Type;
 
 PyObject* Cix_Py_union_type_or(PyObject*, PyObject*);
+
+#if PY_VERSION_HEX >= 0x030C0000
+_PyInterpreterFrame* Cix_PyThreadState_PushFrame(
+    PyThreadState* tstate,
+    size_t size);
+
+void Cix_PyThreadState_PopFrame(
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame);
+
+void Cix_PyFrame_ClearExceptCode(_PyInterpreterFrame* frame);
+
+#endif
 
 int init_upstream_borrow(void);
 

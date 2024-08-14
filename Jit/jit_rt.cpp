@@ -559,26 +559,20 @@ PyObject* JITRT_ReportStaticArgTypecheckErrors(
   return Ci_StaticFunction_Vectorcall(func, args, nargs | flags, new_kwnames);
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 static PyFrameObject* allocateFrame(
     PyThreadState* tstate,
     PyCodeObject* code,
     PyObject* builtins,
     PyObject* globals) {
-#if PY_VERSION_HEX < 0x030C0000
   if (code->co_mutable->co_zombieframe != nullptr) {
     __builtin_prefetch(code->co_mutable->co_zombieframe);
   }
-#endif
   PyFrameConstructor frame_ctor = {};
   frame_ctor.fc_globals = globals;
   frame_ctor.fc_builtins = builtins;
   frame_ctor.fc_code = reinterpret_cast<PyObject*>(code);
-#if PY_VERSION_HEX < 0x030C0000
   return _PyFrame_New_NoTrack(tstate, &frame_ctor, nullptr);
-#else
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
-  return {};
-#endif
 }
 
 PyThreadState* JITRT_AllocateAndLinkFrame(
@@ -592,17 +586,63 @@ PyThreadState* JITRT_AllocateAndLinkFrame(
   if (frame == nullptr) {
     return nullptr;
   }
-#if PY_VERSION_HEX < 0x030C0000
+
   frame->f_state = FRAME_EXECUTING;
 
   tstate->frame = frame;
-#else
-  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
-#endif
 
   return tstate;
 }
+#else // PY_VERSION_HEX >= 0x030C0000
+
+/*
+ * The reference for this is _PyEvalFramePushAndInit in ceval.c.
+ */
+PyThreadState* JITRT_AllocateAndLinkInterpreterFrame(
+    PyFunctionObject* func,
+    // This is only set on Py_DEBUG otherwise it's garbage.
+    PyCodeObject* jit_code_object) {
+  PyThreadState* tstate = PyThreadState_GET();
+  JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
+  JIT_DCHECK(
+      PyCode_Check(func->func_code),
+      "Non-code object for JIT function: {}",
+      jit::repr(reinterpret_cast<PyObject*>(func)));
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+  // Given this assertion we actually don't need to incref the code object as
+  // happens in _PyFrame_Initialize.
+  JIT_DCHECK(co == jit_code_object, "Code object mismatch");
+  _PyInterpreterFrame* frame =
+      Cix_PyThreadState_PushFrame(tstate, co->co_framesize);
+  // Frame allocation failure is very unlikely - it can only happen if we run
+  // out of memory. If this happens we behave less gracefully than the
+  // interpreter as we don't have references to args to allow for proper
+  // clean-up. Maybe we'll want to change this in future if it limits
+  // us from getting something like a stack-trace on this kind of failure.
+  JIT_CHECK(frame != nullptr, "Failed to allocate _PyInterpreterFrame");
+  _PyFrame_Initialize(
+      frame,
+      func,
+      /* locals= */ nullptr,
+      co,
+      // Zero all of localsplus. This allows _PyFrame_ClearExceptCode to
+      // safely clear the locals.
+      0);
+  // For some reason this is not bumped in _PyFrame_Initialize but it is
+  // released in _PyFrame_ClearExceptCode.
+  Py_INCREF(func);
+
+  // Re-use the existing cframe to avoid having to manage a new one. There
+  // should always be one due to the existence of a the per-thread root cframe.
+  // The cframe idea seems to have only transiently been needed in 3.11 and is
+  // now a loose end removed in 3.13.
+  frame->previous = tstate->cframe->current_frame;
+  tstate->cframe->current_frame = frame;
+
+  return tstate;
+}
+
+#endif
 
 void JITRT_DecrefFrame(PyFrameObject* frame) {
   if (Py_REFCNT(frame) > 1) {
@@ -625,8 +665,17 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
   tstate->frame = f->f_back;
   JITRT_DecrefFrame(f);
 #else
-  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  /*
+   * The reference for this is _PyEvalFrameClearAndPop in ceval.c.
+   */
+
+  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
+  tstate->cframe->current_frame = tstate->cframe->current_frame->previous;
+  // This is needed particularly because it handles the work of copying
+  // data to a PyFrameObject if one has escaped the function.
+  Cix_PyFrame_ClearExceptCode(frame);
+  Py_DECREF(frame->f_code);
+  Cix_PyThreadState_PopFrame(tstate, frame);
 #endif
 }
 
@@ -1397,6 +1446,7 @@ static inline PyObject* make_gen_object(
       gen = reinterpret_cast<PyGenObject*>(CiGen_New_NoFrame(code));
     }
   } else {
+#if PY_VERSION_HEX < 0x030C0000
     PyFrameObject* f = allocateFrame(
         tstate,
         code,
@@ -1417,6 +1467,9 @@ static inline PyObject* make_gen_object(
       gen = reinterpret_cast<PyGenObject*>(
           PyGen_NewWithQualName(f, code->co_name, code->co_qualname));
     }
+#else
+    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT);
+#endif
   }
   if (gen == nullptr) {
     return nullptr;
