@@ -239,17 +239,17 @@ LIRGenerator::LIRGenerator(
 
 BasicBlock* LIRGenerator::GenerateEntryBlock() {
   auto block = lir_func_->allocateBasicBlock();
-  auto bindVReg = [&](int phy_reg) {
+  auto bindVReg = [&](PhyLocation phy_reg) {
     auto instr = block->allocateInstr(Instruction::kBind, nullptr);
     instr->output()->setVirtualRegister();
     instr->allocatePhyRegisterInput(phy_reg);
     return instr;
   };
 
-  env_->asm_extra_args = bindVReg(jit::codegen::PhyLocation::R10);
-  env_->asm_tstate = bindVReg(jit::codegen::PhyLocation::R11);
+  env_->asm_extra_args = bindVReg(codegen::INITIAL_EXTRA_ARGS_REG);
+  env_->asm_tstate = bindVReg(codegen::INITIAL_TSTATE_REG);
   if (func_->uses_runtime_func) {
-    env_->asm_func = bindVReg(jit::codegen::PhyLocation::RDI);
+    env_->asm_func = bindVReg(codegen::INITIAL_FUNC_REG);
   }
 
   return block;

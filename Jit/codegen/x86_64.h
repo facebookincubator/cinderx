@@ -352,6 +352,14 @@ constexpr auto FP_ARGUMENT_REGS = std::to_array({
     PhyLocation::XMM7,
 });
 
+// This is where the function prologue will initially store this data at entry
+// to the function body. The register allocator may move things around from
+// there.
+constexpr PhyLocation INITIAL_EXTRA_ARGS_REG = PhyLocation::R10;
+constexpr PhyLocation INITIAL_TSTATE_REG = PhyLocation::R11;
+// This is often provided by the first argument in the vector call protocol.
+constexpr PhyLocation INITIAL_FUNC_REG = ARGUMENT_REGS[0];
+
 } // namespace jit::codegen
 
 namespace std {

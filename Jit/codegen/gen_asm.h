@@ -151,7 +151,6 @@ class NativeGenerator {
       asmjit::Label correct_arg_count,
       asmjit::Label native_entry_point);
   void loadOrGenerateLinkFrame(
-      asmjit::x86::Gp tstate_reg,
 #if PY_VERSION_HEX >= 0x030C0000
       asmjit::x86::Gp func_reg,
 #endif

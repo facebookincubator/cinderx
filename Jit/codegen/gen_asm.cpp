@@ -588,13 +588,13 @@ x86::Gp get_arg_location(int arg) {
 constexpr size_t kConstStackAlignmentRequirement = 16;
 
 void NativeGenerator::loadOrGenerateLinkFrame(
-    asmjit::x86::Gp tstate_reg,
 #if PY_VERSION_HEX >= 0x030C0000
     asmjit::x86::Gp func_reg,
 #endif
     const std::vector<
         std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
         save_regs) {
+  x86::Gp tstate_reg = x86::gpq(INITIAL_TSTATE_REG.loc);
   auto load_tstate_and_move = [&]() {
     loadTState(tstate_reg);
     for (const auto& pair : save_regs) {
@@ -875,8 +875,8 @@ void NativeGenerator::generatePrologue(
   }
 
   // Args are now validated, setup frame
-  constexpr auto kFuncPtrReg = x86::rdi;
-  constexpr auto kArgsReg = x86::r10;
+  constexpr auto kFuncPtrReg = x86::gpq(INITIAL_FUNC_REG.loc);
+  constexpr auto kArgsReg = x86::gpq(INITIAL_EXTRA_ARGS_REG.loc);
   constexpr auto kArgsPastSixReg = kArgsReg;
 
   asmjit::BaseNode* frame_cursor = as_->cursor();
@@ -887,7 +887,6 @@ void NativeGenerator::generatePrologue(
     save_regs.emplace_back(x86::rdi, kFuncPtrReg);
   }
   loadOrGenerateLinkFrame(
-      x86::r11,
 #if PY_VERSION_HEX >= 0x030C0000
       kFuncPtrReg,
 #endif
@@ -1362,7 +1361,7 @@ void NativeGenerator::generateStaticEntryPoint(
   }
 
 #if PY_VERSION_HEX < 0x030C0000
-  loadOrGenerateLinkFrame(x86::r11, save_regs);
+  loadOrGenerateLinkFrame(save_regs);
 #else
   UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
 #endif
