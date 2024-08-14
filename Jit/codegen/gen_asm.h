@@ -44,7 +44,9 @@ class NativeGenerator {
         deopt_trampoline_generators_(generateDeoptTrampoline(true)),
         failed_deferred_compile_trampoline_(
             generateFailedDeferredCompileTrampoline()),
+#if PY_VERSION_HEX < 0x030C0000
         frame_header_size_(calcFrameHeaderSize(func)),
+#endif
         max_inline_depth_(calcMaxInlineDepth(func)) {
     env_.has_inlined_functions = max_inline_depth_ > 0;
   }
@@ -58,7 +60,9 @@ class NativeGenerator {
         deopt_trampoline_(deopt_trampoline),
         deopt_trampoline_generators_(deopt_trampoline_generators),
         failed_deferred_compile_trampoline_(failed_deferred_compile_trampoline),
+#if PY_VERSION_HEX < 0x030C0000
         frame_header_size_(calcFrameHeaderSize(func)),
+#endif
         max_inline_depth_(calcMaxInlineDepth(func)) {
     env_.has_inlined_functions = max_inline_depth_ > 0;
   }
@@ -122,7 +126,9 @@ class NativeGenerator {
 
   size_t compiled_size_{0};
   int spill_stack_size_{-1};
-  int frame_header_size_;
+#if PY_VERSION_HEX < 0x030C0000
+  const int frame_header_size_;
+#endif
   int max_inline_depth_;
 
   bool hasStaticEntry() const;

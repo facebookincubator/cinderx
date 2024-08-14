@@ -119,6 +119,7 @@ PyAPI_FUNC(void) _PyJIT_GenDealloc(PyGenObject* gen);
  */
 PyAPI_FUNC(PyObject*) _PyJIT_GenYieldFromValue(PyGenObject* gen);
 
+#if PY_VERSION_HEX < 0x030C0000
 /*
  * Returns a borrowed reference to the globals for the top-most Python function
  * associated with tstate.
@@ -130,6 +131,7 @@ PyAPI_FUNC(PyObject*) _PyJIT_GetGlobals(PyThreadState* tstate);
  * associated with tstate.
  */
 PyAPI_FUNC(PyObject*) _PyJIT_GetBuiltins(PyThreadState* tstate);
+#endif
 
 /*
  * Returns a borrowed reference to the top-most frame of tstate.

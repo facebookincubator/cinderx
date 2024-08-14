@@ -340,7 +340,12 @@ void* NativeGenerator::getVectorcallEntry() {
 
   LinearScanAllocator lsalloc(
       lir_func.get(),
+#if PY_VERSION_HEX < 0x030C0000
       frame_header_size_ + max_inline_depth_ * kJITShadowFrameSize);
+#else
+      0);
+  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
+#endif
   COMPILE_TIMER(
       GetFunction()->compilation_phase_timer,
       "Register Allocation",
@@ -1566,6 +1571,7 @@ static void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
 
 static PyFrameObject*
 prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
+#if PY_VERSION_HEX < 0x030C0000
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
   PyThreadState* tstate = _PyThreadState_UncheckedGet();
@@ -1573,9 +1579,6 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
 
   PyFrameObject* frame = f.release();
   PyFrameObject* frame_iter = frame;
-#if PY_VERSION_HEX >= 0x030C0000
-  UPGRADE_ASSERT(SHADOW_FRAMES)
-#else
   _PyShadowFrame* sf_iter = tstate->shadow_frame;
   // Iterate one past the inline depth because that is the caller frame.
   for (int i = deopt_meta.inline_depth(); i >= 0; i--) {
@@ -1587,7 +1590,6 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
     frame_iter = frame_iter->f_back;
     sf_iter = sf_iter->prev;
   }
-#endif
   Ref<> deopt_obj;
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
@@ -1636,6 +1638,10 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
     }
   }
   return frame;
+#else
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  return nullptr;
+#endif
 }
 
 static PyObject* resumeInInterpreter(
@@ -1651,10 +1657,6 @@ static PyObject* resumeInInterpreter(
     JITRT_GenJitDataFree(gen);
     gen->gi_jit_data = nullptr;
   }
-#else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
-  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-#endif
   PyThreadState* tstate = PyThreadState_Get();
   PyObject* result = nullptr;
   // Resume all of the inlined frames and the caller
@@ -1670,26 +1672,16 @@ static PyObject* resumeInInterpreter(
     // on the shadow stack for each frame on the Python stack. Unless we are a
     // a generator, the interpreter will insert a new entry on the shadow stack
     // when execution resumes there, so we remove our entry.
-#if PY_VERSION_HEX < 0x030C0000
     if (!frame->f_gen) {
       _PyShadowFrame_Pop(tstate, tstate->shadow_frame);
     }
-#else
-    UPGRADE_ASSERT(SHADOW_FRAMES)
-    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-#endif
-
     // Resume one frame.
     PyFrameObject* prev_frame = frame->f_back;
     // Delegate management of `tstate->frame` to the interpreter loop. On
     // entry, it expects that tstate->frame points to the frame for the calling
     // function.
-#if PY_VERSION_HEX < 0x030C0000
     JIT_CHECK(tstate->frame == frame, "unexpected frame at top of stack");
     tstate->frame = prev_frame;
-#else
-    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-#endif
     result = PyEval_EvalFrameEx(frame, err_occurred);
     JITRT_DecrefFrame(frame);
     frame = prev_frame;
@@ -1703,16 +1695,16 @@ static PyObject* resumeInInterpreter(
         // result onto the stack in the deeper (> 0) frames. Otherwise, we
         // should just return the value from the native code in the way our
         // native calling convention requires.
-#if PY_VERSION_HEX < 0x030C0000
         frame->f_valuestack[frame->f_stackdepth++] = result;
-#else
-        UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-#endif
       }
     }
     inline_depth--;
   }
   return result;
+#else
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  return nullptr;
+#endif
 }
 
 void* generateDeoptTrampoline(bool generator_mode) {
@@ -1985,12 +1977,14 @@ void NativeGenerator::generateAssemblyBody(const asmjit::CodeHolder& code) {
   }
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 int NativeGenerator::calcFrameHeaderSize(const hir::Function* func) {
   if (func == nullptr || func->code->co_flags & kCoFlagsAnyGenerator) {
     return 0;
   }
   return sizeof(FrameHeader);
 }
+#endif
 
 // calcMaxInlineDepth must work with nullptr HIR functions because it's valid
 // to call NativeGenerator with only LIR (e.g., from a test). In the case of an

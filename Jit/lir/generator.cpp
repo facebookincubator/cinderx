@@ -189,6 +189,7 @@ emitSubclassCheck(BasicBlockBuilder& bbb, hir::Register* obj, Type type) {
 
 #undef FOREACH_FAST_BUILTIN
 
+#if PY_VERSION_HEX < 0x030C0000
 ssize_t shadowFrameOffsetBefore(const InlineBase* instr) {
   return -instr->inlineDepth() * ssize_t{kJITShadowFrameSize};
 }
@@ -196,6 +197,7 @@ ssize_t shadowFrameOffsetBefore(const InlineBase* instr) {
 ssize_t shadowFrameOffsetOf(const InlineBase* instr) {
   return shadowFrameOffsetBefore(instr) - ssize_t{kJITShadowFrameSize};
 }
+#endif
 
 // Update _Py_RefTotal using an Inc or Dec operation.
 void updateRefTotal(BasicBlockBuilder& bbb, Instruction::Opcode op) {
@@ -2629,6 +2631,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kBeginInlinedFunction: {
+#if PY_VERSION_HEX < 0x030C0000
         JIT_DCHECK(
             getConfig().stable_code,
             "Inlined code stores references to code objects");
@@ -2688,28 +2691,27 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               data_reg);
         }
         // Set our shadow frame as top of shadow stack
-#if PY_VERSION_HEX < 0x030C0000
         bbb.appendInstr(
             OutInd{env_->asm_tstate, offsetof(PyThreadState, shadow_frame)},
             Instruction::kMove,
             callee_shadow_frame);
-#else
-        UPGRADE_ASSERT(SHADOW_FRAMES)
-#endif
         if (kPyDebug) {
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
+#else
+        UPGRADE_ASSERT(SUPPORT_JIT_INLINING)
+#endif
         break;
       }
       case Opcode::kEndInlinedFunction: {
+#if PY_VERSION_HEX < 0x030C0000
         // TODO(T109706798): Support calling from generators and inlining
         // generators.
         if (kPyDebug) {
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
-#if PY_VERSION_HEX < 0x030C0000
         // callee_shadow_frame <- tstate.shadow_frame
         Instruction* callee_shadow_frame = bbb.appendInstr(
             OutVReg{},
@@ -2737,9 +2739,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             OutInd{env_->asm_tstate, offsetof(PyThreadState, shadow_frame)},
             Instruction::kMove,
             caller_shadow_frame);
-#else
-        UPGRADE_ASSERT(SHADOW_FRAMES)
-#endif
         // Unlink PyFrame if needed. Someone might have materialized all of the
         // PyFrames via PyEval_GetFrame or similar.
         auto done_block = bbb.allocateBlock();
@@ -2753,6 +2752,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
         break;
+#else
+        UPGRADE_ASSERT(SUPPORT_JIT_INLINING)
+#endif
       }
       case Opcode::kIsTruthy: {
         bbb.appendCallInstruction(i.output(), PyObject_IsTrue, i.GetOperand(0));

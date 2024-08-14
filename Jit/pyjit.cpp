@@ -1644,6 +1644,7 @@ static PyObject* disable_hir_inliner(PyObject* /* self */, PyObject*) {
 // If the given generator-like object is a suspended JIT generator, deopt it
 // and return 1. Otherwise, return 0.
 static int deopt_gen_impl(PyGenObject* gen) {
+#if PY_VERSION_HEX < 0x030C0000
   GenDataFooter* footer = genDataFooter(gen);
   if (Ci_GenIsCompleted(gen) || footer == nullptr) {
     return 0;
@@ -1658,7 +1659,6 @@ static int deopt_gen_impl(PyGenObject* gen) {
       "Generators with inlined calls are not supported (T109706798)");
 
   _PyJIT_GenMaterializeFrame(gen);
-#if PY_VERSION_HEX < 0x030C0000
   _PyShadowFrame_SetOwner(&gen->gi_shadow_frame, PYSF_INTERP);
   reifyGeneratorFrame(
       gen->gi_frame, deopt_meta, deopt_meta.frame_meta[0], footer);
@@ -1666,11 +1666,10 @@ static int deopt_gen_impl(PyGenObject* gen) {
   releaseRefs(deopt_meta, footer);
   JITRT_GenJitDataFree(gen);
   gen->gi_jit_data = nullptr;
+  return 1;
 #else
   UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
-  UPGRADE_ASSERT(SHADOW_FRAMES)
 #endif
-  return 1;
 }
 
 static PyObject* deopt_gen(PyObject*, PyObject* gen) {
@@ -2482,9 +2481,14 @@ PyObject* _PyJIT_GenSend(
 }
 
 PyFrameObject* _PyJIT_GenMaterializeFrame(PyGenObject* gen) {
+#if PY_VERSION_HEX < 0x030C0000
   PyThreadState* tstate = PyThreadState_Get();
   PyFrameObject* frame = jit::materializePyFrameForGen(tstate, gen);
   return frame;
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  return nullptr;
+#endif
 }
 
 int _PyJIT_GenVisitRefs(PyGenObject* gen, visitproc visit, void* arg) {
@@ -2527,8 +2531,8 @@ PyObject* _PyJIT_GenYieldFromValue(PyGenObject* gen) {
   return yield_from;
 }
 
-PyObject* _PyJIT_GetGlobals(PyThreadState* tstate) {
 #if PY_VERSION_HEX < 0x030C0000
+PyObject* _PyJIT_GetGlobals(PyThreadState* tstate) {
   if (tstate->shadow_frame == nullptr) {
     JIT_CHECK(
         tstate->frame == nullptr,
@@ -2536,14 +2540,10 @@ PyObject* _PyJIT_GetGlobals(PyThreadState* tstate) {
         static_cast<void*>(tstate->frame));
     return nullptr;
   }
-#else
-  UPGRADE_ASSERT(SHADOW_FRAMES)
-#endif
   return runtimeFrameStateFromThreadState(tstate).globals();
 }
 
 PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate) {
-#if PY_VERSION_HEX < 0x030C0000
   if (tstate->shadow_frame == nullptr) {
     JIT_CHECK(
         tstate->frame == nullptr,
@@ -2551,11 +2551,9 @@ PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate) {
         static_cast<void*>(tstate->frame));
     return tstate->interp->builtins;
   }
-#else
-  UPGRADE_ASSERT(SHADOW_FRAMES)
-#endif
   return runtimeFrameStateFromThreadState(tstate).builtins();
 }
+#endif
 
 PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
 #if PY_VERSION_HEX < 0x030C0000

@@ -271,6 +271,7 @@ fail:
 }
 
 static PyObject* collect_stack(int collectFrame) {
+#if PY_VERSION_HEX < 0x030C0000
   PyObject* stack = PyList_New(0);
   if (stack == nullptr) {
     return nullptr;
@@ -282,6 +283,12 @@ static PyObject* collect_stack(int collectFrame) {
     Py_CLEAR(stack);
   }
   return stack;
+#else
+  // As we don't have shadow frames and qualnames are upstream we can probably
+  // do this all using the normal C-API now.
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  return nullptr;
+#endif
 }
 
 static PyObject* get_entire_call_stack_as_qualnames_with_lineno(
@@ -414,6 +421,7 @@ static void shadowcode_code_sizeof(
 #endif
 
 static int get_current_code_flags(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
   PyCodeObject* cur_code = nullptr;
   Ci_WalkStack(
       tstate,
@@ -427,6 +435,9 @@ static int get_current_code_flags(PyThreadState* tstate) {
     return -1;
   }
   return cur_code->co_flags;
+#else
+  return tstate->cframe->current_frame->f_code->co_flags;
+#endif
 }
 
 static int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {

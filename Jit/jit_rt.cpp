@@ -1436,6 +1436,7 @@ static inline PyObject* make_gen_object(
     size_t spill_words,
     jit::CodeRuntime* code_rt,
     PyCodeObject* code) {
+#if PY_VERSION_HEX < 0x030C0000
   PyGenObject* gen = nullptr;
   if (jit::getConfig().frame_mode == jit::FrameMode::kShadow) {
     if (mode == MakeGenObjectMode::kCoroutine) {
@@ -1446,7 +1447,6 @@ static inline PyObject* make_gen_object(
       gen = reinterpret_cast<PyGenObject*>(CiGen_New_NoFrame(code));
     }
   } else {
-#if PY_VERSION_HEX < 0x030C0000
     PyFrameObject* f = allocateFrame(
         tstate,
         code,
@@ -1467,21 +1467,14 @@ static inline PyObject* make_gen_object(
       gen = reinterpret_cast<PyGenObject*>(
           PyGen_NewWithQualName(f, code->co_name, code->co_qualname));
     }
-#else
-    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT);
-#endif
   }
   if (gen == nullptr) {
     return nullptr;
   }
 
-#if PY_VERSION_HEX < 0x030C0000
   gen->gi_shadow_frame.data = gen->gi_frame == nullptr
       ? _PyShadowFrame_MakeData(code_rt, PYSF_CODE_RT, PYSF_JIT)
       : _PyShadowFrame_MakeData(gen->gi_frame, PYSF_PYFRAME, PYSF_JIT);
-#else
-  UPGRADE_ASSERT(SHADOW_FRAMES)
-#endif
 
   spill_words = std::max(spill_words, jit::kMinGenSpillWords);
 
@@ -1494,13 +1487,13 @@ static inline PyObject* make_gen_object(
   footer->gen = gen;
   footer->code_rt = code_rt;
 
-#if PY_VERSION_HEX < 0x030C0000
   gen->gi_jit_data = reinterpret_cast<Ci_JITGenData*>(footer);
-#else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
-#endif
 
   return reinterpret_cast<PyObject*>(gen);
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  return nullptr;
+#endif
 }
 
 PyObject* JITRT_MakeGenObject(
@@ -1541,7 +1534,6 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
   auto awaiter = reinterpret_cast<PyObject*>(_PyShadowFrame_GetGen(sf));
   Ci_PyAwaitable_SetAwaiter(awaitable, awaiter);
 #else
-  UPGRADE_ASSERT(SHADOW_FRAMES)
   UPGRADE_ASSERT(INCOMPLETE_PY_AWAITER)
 #endif
 }

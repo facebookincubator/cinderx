@@ -30,40 +30,6 @@ STUB(PyObject*, CiAsyncGen_New_NoFrame, T194022335, PyCodeObject*)
 STUB(PyObject*, CiGen_New_NoFrame, T194022335, PyCodeObject*)
 STUB(int, Ci_PyWaitHandle_CheckExact, T194027914, PyObject*)
 STUB(void, Ci_PyWaitHandle_Release, T194027914, PyObject*)
-STUB(
-    uintptr_t,
-    _PyShadowFrame_MakeData,
-    T194018580,
-    void*,
-    _PyShadowFrame_PtrKind,
-    _PyShadowFrame_Owner)
-STUB(
-    void,
-    _PyShadowFrame_SetOwner,
-    T194018580,
-    _PyShadowFrame*,
-    _PyShadowFrame_Owner)
-STUB(void, _PyShadowFrame_Pop, T194018580, PyThreadState*, _PyShadowFrame*)
-STUB(
-    _PyShadowFrame_PtrKind,
-    _PyShadowFrame_GetPtrKind,
-    T194018580,
-    _PyShadowFrame*)
-STUB(_PyShadowFrame_Owner, _PyShadowFrame_GetOwner, T194018580, _PyShadowFrame*)
-STUB(PyGenObject*, _PyShadowFrame_GetGen, T194018580, _PyShadowFrame*)
-STUB(
-    _PyShadowFrame_PtrKind,
-    T194018580,
-    JITShadowFrame_GetRTPtrKind,
-    JITShadowFrame*)
-STUB(void*, JITShadowFrame_GetRTPtr, T194018580, JITShadowFrame*)
-STUB(PyFrameObject*, _PyShadowFrame_GetPyFrame, T194018580, _PyShadowFrame*)
-STUB(PyCodeObject*, _PyShadowFrame_GetCode, T194018580, _PyShadowFrame*)
-STUB(
-    PyObject*,
-    _PyShadowFrame_GetFullyQualifiedName,
-    T194018580,
-    _PyShadowFrame* shadow_frame)
 STUB(int, Cix_eval_frame_handle_pending, T196762792, PyThreadState*)
 STUB(
     PyObject*,
