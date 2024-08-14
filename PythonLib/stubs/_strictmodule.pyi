@@ -16,7 +16,6 @@ STUB_KIND_MASK_TYPING: int
 class StrictModuleError(Exception):
     pass
 
-
 class StrictAnalysisResult:
     ast: Module
     errors: List[tuple[str, str, int, int]]
