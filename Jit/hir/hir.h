@@ -1199,6 +1199,10 @@ class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
     return kFuncNames[static_cast<size_t>(func_)];
   }
 
+  Func func() const {
+    return func_;
+  }
+
  private:
   const Func func_;
 

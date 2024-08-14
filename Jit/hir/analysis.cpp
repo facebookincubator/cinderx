@@ -8,7 +8,7 @@
 
 #include "cinderx/Jit/dataflow.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/memory_effects.h"
+#include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/printer.h"
 
 #include <fmt/format.h>

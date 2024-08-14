@@ -5,7 +5,7 @@
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/hir/analysis.h"
-#include "cinderx/Jit/hir/memory_effects.h"
+#include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"

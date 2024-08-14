@@ -64,7 +64,7 @@ JIT_SRCS = [
     "Jit/hir/alias_class.cpp",
     "Jit/hir/analysis.cpp",
     "Jit/hir/builder.cpp",
-    "Jit/hir/memory_effects.cpp",
+    "Jit/hir/instr_effects.cpp",
     "Jit/hir/optimization.cpp",
     "Jit/hir/parser.cpp",
     "Jit/hir/preload.cpp",

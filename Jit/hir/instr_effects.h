@@ -33,4 +33,7 @@ struct MemoryEffects {
 
 MemoryEffects memoryEffects(const Instr& inst);
 
+// Return true if the instruction may call arbitrary (Python) code.
+bool hasArbitraryExecution(const Instr& inst);
+
 } // namespace jit::hir

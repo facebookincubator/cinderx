@@ -12,7 +12,7 @@
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/memory_effects.h"
+#include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/jit_rt.h"
