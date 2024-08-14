@@ -876,15 +876,17 @@ void NativeGenerator::generatePrologue(
 
   asmjit::BaseNode* frame_cursor = as_->cursor();
   as_->bind(setup_frame);
+  std::vector<std::pair<const x86::Reg&, const x86::Reg&>> save_regs;
+  save_regs.emplace_back(x86::rsi, kArgsReg);
+  if (GetFunction()->uses_runtime_func) {
+    save_regs.emplace_back(x86::rdi, kFuncPtrReg);
+  }
   loadOrGenerateLinkFrame(
       x86::r11,
 #if PY_VERSION_HEX >= 0x030C0000
       kFuncPtrReg,
 #endif
-      {
-          {kFuncPtrReg, kFuncPtrReg}, // func
-          {x86::rsi, kArgsReg} // args
-      });
+      save_regs);
   env_.addAnnotation("Link frame", frame_cursor);
 
   asmjit::BaseNode* load_args_cursor = as_->cursor();
