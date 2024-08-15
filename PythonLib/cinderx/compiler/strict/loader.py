@@ -48,17 +48,7 @@ try:  # ensure all imports in this module are eager, to avoid cycles
         PyCompileError,
     )
     from types import CodeType, ModuleType
-    from typing import (
-        Callable,
-        cast,
-        Collection,
-        Dict,
-        final,
-        Iterable,
-        Mapping,
-        Optional,
-        Type,
-    )
+    from typing import Callable, cast, Collection, final, Iterable, Mapping
 
     from cinderx.static import install_sp_audit_hook
 
@@ -70,7 +60,7 @@ try:  # ensure all imports in this module are eager, to avoid cycles
     )
     from .compiler import Compiler, Dependencies, SourceInfo, TIMING_LOGGER_TYPE
     from .flag_extractor import Flags
-except:
+except BaseException:
     raise
 
 

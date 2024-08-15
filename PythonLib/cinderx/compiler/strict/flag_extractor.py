@@ -6,10 +6,9 @@ from __future__ import annotations
 
 import ast
 
-import sys
-from ast import Import, ImportFrom
+from ast import Import
 from dataclasses import dataclass
-from typing import Any, Optional, Sequence, Union
+from typing import Any, Sequence
 
 from ..symbols import ModuleScope, Scope, SymbolVisitor
 

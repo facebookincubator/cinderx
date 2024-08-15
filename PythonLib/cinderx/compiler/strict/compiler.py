@@ -5,49 +5,26 @@
 from __future__ import annotations
 
 import ast
-import builtins
 import logging
 import os
 import symtable
 import sys
 from contextlib import nullcontext
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from symtable import SymbolTable as PythonSymbolTable, SymbolTableFactory
 from types import CodeType
-from typing import (
-    Callable,
-    ContextManager,
-    Dict,
-    final,
-    Iterable,
-    List,
-    Optional,
-    Set,
-    Tuple,
-    TYPE_CHECKING,
-)
+from typing import Callable, ContextManager, final, Iterable, TYPE_CHECKING
 
-from cinderx.strictmodule import (
-    NONSTRICT_MODULE_KIND,
-    STATIC_MODULE_KIND,
-    StrictAnalysisResult,
-    StrictModuleLoader,
-    STUB_KIND_MASK_TYPING,
-)
+from cinderx.strictmodule import StrictAnalysisResult, StrictModuleLoader
 
 from ..errors import TypedSyntaxError
 from ..pycodegen import compile as python_compile
 from ..static import Compiler as StaticCompiler, ModuleTable, StaticCodeGenerator
-from . import _static_module_ported, strict_compile
+from . import strict_compile
 from .class_conflict_checker import check_class_conflict
 from .common import StrictModuleError
 from .flag_extractor import FlagExtractor, Flags
 from .rewriter import remove_annotations, rewrite
-
-if _static_module_ported:
-    from cinderx.static import __build_cinder_class__
-else:
-    from __static__ import __build_cinder_class__
 
 if TYPE_CHECKING:
     from cinderx.strictmodule import IStrictModuleLoader, StrictModuleLoaderFactory
@@ -358,7 +335,7 @@ class Compiler(StaticCompiler):
         # it is currently running with the strict compiler.
         try:
             check_class_conflict(mod.ast, filename, symbols)
-        except StrictModuleError as e:
+        except StrictModuleError:
             if self.raise_on_error:
                 raise
 

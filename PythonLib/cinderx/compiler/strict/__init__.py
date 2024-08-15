@@ -19,11 +19,11 @@ from ast import (
     stmt,
 )
 from types import CodeType
-from typing import Any, cast, Dict, final, List, Mapping, Optional
+from typing import Any, cast, final, Mapping
 
 from .. import consts, symbols
 from ..pyassem import PyFlowGraph, PyFlowGraphCinder
-from ..pycodegen import (
+from ..pycodegen import (  # noqa: F401
     CinderCodeGenerator,
     CodeGenerator,
     Entry,
@@ -61,9 +61,9 @@ class FindClassDef(NodeVisitor):
                 break
         else:
             self.has_class = True
-        for stmt in node.body:
+        for body_stmt in node.body:
             # also consider inner classes
-            self.visit(stmt)
+            self.visit(body_stmt)
 
     def visit_FunctionDef(self, node: FunctionDef) -> None:
         # do not go into func body
@@ -367,7 +367,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
 
             return f"<{desc} {handler.name} at {str(id(handler))}>"
 
-        for i, handler in enumerate(node.handlers):
+        for handler in node.handlers:
             handler_name = handler.name
             if handler_name is None or not self.feature_extractor.is_global(
                 handler_name, self.scope

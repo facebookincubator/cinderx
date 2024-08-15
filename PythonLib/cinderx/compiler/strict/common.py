@@ -25,27 +25,12 @@ from ast import (
     Try,
 )
 from collections import deque
+from dataclasses import dataclass
 from symtable import Class, SymbolTable
-from typing import (
-    Callable,
-    Dict,
-    final,
-    Generic,
-    List,
-    Mapping,
-    MutableMapping,
-    Optional,
-    Type,
-    TypeVar,
-)
+from typing import Callable, Dict, final, Generic, Mapping, MutableMapping, TypeVar
 
-from .runtime import (
-    _mark_cached_property,
-    freeze_type,
-    loose_slots,
-    mutable,
-    strict_slots,
-)
+from .runtime import freeze_type, mutable
+
 
 # Increment this whenever we change the output of the strict modules
 # interpreter. It must stay below 32768 (15 bits), because we use the high bit
@@ -81,15 +66,13 @@ TScopeData = TypeVar("TData", covariant=True)
 SymbolMap = Dict[AST, SymbolTable]
 
 
+@dataclass(frozen=True)
 class StrictModuleError(Exception):
-    def __init__(
-        self, msg: str, filename: str, lineno: int, col: int, metadata: str = ""
-    ) -> None:
-        self.msg = msg
-        self.filename = filename
-        self.lineno = lineno
-        self.col = col
-        self.metadata = metadata
+    msg: str
+    filename: str
+    lineno: int
+    col: int
+    metadata: str = ""
 
 
 @final

@@ -38,7 +38,6 @@ from symtable import SymbolTable
 from types import ModuleType
 from typing import (
     cast,
-    Dict,
     final,
     Generic,
     Iterable,
@@ -47,7 +46,6 @@ from typing import (
     MutableMapping,
     Optional,
     Sequence,
-    Set,
     TypeVar,
     Union,
 )
@@ -922,7 +920,6 @@ class ImmutableTransformer(SymbolVisitor[None, ScopeData], AstRewriter):
         scope_data = self.visit_Func_Inner(node, True, scope_node=orig_node).scope_data
         scope_data.visit_decorators(node)
 
-        orig_name = node.name
         self.check_cached_prop(node, scope_data, outer_scope)
 
         return node

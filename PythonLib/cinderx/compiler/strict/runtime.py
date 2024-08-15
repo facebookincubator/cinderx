@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-from typing import Type
 
 try:
     from cinder import freeze_type as cinder_freeze

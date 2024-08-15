@@ -22,7 +22,7 @@ from ast import (
     Name,
 )
 from symtable import SymbolTable
-from typing import final, List, MutableMapping, Optional, Set
+from typing import final, MutableMapping
 
 from ..consts import CO_FUTURE_ANNOTATIONS
 from ..pycodegen import find_futures
