@@ -1,3 +1,4 @@
+# pyre-strict
 # pyre-ignore[3]: Returning None
 def outer():    
     x = 0

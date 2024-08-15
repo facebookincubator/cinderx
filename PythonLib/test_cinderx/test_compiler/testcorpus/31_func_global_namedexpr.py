@@ -1,3 +1,4 @@
+# pyre-strict
 # pyre-ignore[3]: Returning None
 def f():
     global GLOBAL_VAR
