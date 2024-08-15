@@ -29,6 +29,7 @@ class Set:
         c.elts.update(self.elts)
         return c
 
+
 MANGLE_LEN = 256  # magic constant from compile.c
 
 

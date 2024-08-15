@@ -6,13 +6,14 @@ from __future__ import annotations
 
 import sys
 from contextlib import contextmanager
+
 try:
     # pyre-ignore[21]: No _inline_cache_entries
     from opcode import _inline_cache_entries
 except ImportError:
     _inline_cache_entries = None
 from types import CodeType
-from typing import ClassVar, Generator, List, Optional, Sequence
+from typing import ClassVar, Generator, Optional, Sequence
 
 from . import opcode_cinder, opcodes
 from .consts import (
@@ -128,9 +129,7 @@ class FlowGraph:
         self.do_not_emit_bytecode = 0
 
     def blocks_in_reverse_allocation_order(self):
-        yield from sorted(
-            self.ordered_blocks, key=lambda b: b.alloc_id, reverse=True
-        )
+        yield from sorted(self.ordered_blocks, key=lambda b: b.alloc_id, reverse=True)
 
     @contextmanager
     def new_compile_scope(self) -> Generator[CompileScope, None, None]:
@@ -435,7 +434,7 @@ class PyFlowGraph(FlowGraph):
         filename: str,
         scope,
         flags: int = 0,
-        args: Sequence[str]=(),
+        args: Sequence[str] = (),
         kwonlyargs=(),
         starargs=(),
         optimized: int = 0,
@@ -717,7 +716,9 @@ class PyFlowGraph(FlowGraph):
                     if op in self.opcode.hasjrel:
                         offset -= pc
 
-                    if self.instrsize(inst.opname, oparg) != self.instrsize("NOP", offset):
+                    if self.instrsize(inst.opname, oparg) != self.instrsize(
+                        "NOP", offset
+                    ):
                         extended_arg_recompile = True
 
                     assert offset >= 0, "Offset value: %d" % offset
@@ -1206,7 +1207,20 @@ class PyFlowGraph312(PyFlowGraph):
         posonlyargs: int = 0,
         qualname: Optional[str] = None,
     ) -> None:
-        super().__init__(name, filename, scope, flags, args, kwonlyargs, starargs, optimized, klass, docstring, firstline, posonlyargs)
+        super().__init__(
+            name,
+            filename,
+            scope,
+            flags,
+            args,
+            kwonlyargs,
+            starargs,
+            optimized,
+            klass,
+            docstring,
+            firstline,
+            posonlyargs,
+        )
         self.qualname = qualname or name
 
     def instrsize(self, opname: str, oparg: int):
@@ -1256,9 +1270,8 @@ class PyFlowGraph312(PyFlowGraph):
                 lnotab.addCode(self.opcode.EXTENDED_ARG, (oparg >> 8) & 0xFF)
             lnotab.addCode(self.opcode.opmap[t.opname], oparg & 0xFF)
             base_size = _inline_cache_entries[opcodes.opcode.opmap[t.opname]]
-            for i in range(base_size):
+            for _i in range(base_size):
                 lnotab.addCode(0, 0)
-
 
         # Since the linetable format writes the end offset of bytecodes, we can't commit the
         # last write until all the instructions are iterated over.
@@ -1283,10 +1296,11 @@ class PyFlowGraph312(PyFlowGraph):
             self.qualname,
             firstline,
             lnotab,
-            b'', # Exception table
+            b"",  # Exception table
             tuple(self.freevars),
             tuple(self.cellvars),
         )
+
 
 class LineAddrTable:
     """linetable / lnotab

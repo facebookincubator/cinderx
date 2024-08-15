@@ -6,20 +6,8 @@ from __future__ import annotations
 
 import ast
 import operator
-import sys
-from ast import Bytes, cmpop, Constant, copy_location, Ellipsis, NameConstant, Num, Str
-from typing import (
-    Any,
-    Callable,
-    cast,
-    Dict,
-    Iterable,
-    Mapping,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from ast import cmpop, Constant, copy_location
+from typing import Any, Callable, Iterable, Mapping
 
 from .visitor import ASTRewriter
 
@@ -48,12 +36,12 @@ INVERSE_OPS: Mapping[type[cmpop], type[cmpop]] = {
 BIN_OPS: Mapping[type[ast.operator], Callable[[object, object], object]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
-    ast.Mult: lambda l, r: safe_multiply(l, r, PyLimits),
+    ast.Mult: lambda lhs, rhs: safe_multiply(lhs, rhs, PyLimits),
     ast.Div: operator.truediv,
     ast.FloorDiv: operator.floordiv,
-    ast.Mod: lambda l, r: safe_mod(l, r, PyLimits),
-    ast.Pow: lambda l, r: safe_power(l, r, PyLimits),
-    ast.LShift: lambda l, r: safe_lshift(l, r, PyLimits),
+    ast.Mod: lambda lhs, rhs: safe_mod(lhs, rhs, PyLimits),
+    ast.Pow: lambda lhs, rhs: safe_power(lhs, rhs, PyLimits),
+    ast.LShift: lambda lhs, rhs: safe_lshift(lhs, rhs, PyLimits),
     ast.RShift: operator.rshift,
     ast.BitOr: operator.or_,
     ast.BitXor: operator.xor,

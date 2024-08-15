@@ -12,7 +12,7 @@ import sys
 from ast import AST, ClassDef
 from builtins import compile as builtin_compile
 from contextlib import contextmanager
-from typing import Dict, Union
+from typing import Union
 
 from . import consts, future, misc, pyassem, symbols
 from .consts import (
@@ -31,8 +31,8 @@ from .consts import (
     SC_GLOBAL_IMPLICIT,
     SC_LOCAL,
 )
+from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
 from .optimizer import AstOptimizer
-from .opcodes import NB_OPS, INTRINSIC_1, INTRINSIC_2
 from .pyassem import Block, PyFlowGraph
 from .symbols import Scope, SymbolVisitor
 from .unparse import to_expr
@@ -40,7 +40,7 @@ from .visitor import ASTVisitor, walk
 
 TYPE_CHECKING = False
 if TYPE_CHECKING:
-    from typing import Generator, List, Optional, Sequence, Type, Union
+    from typing import Generator, List, Optional, Sequence
 
 try:
     from cinder import _set_qualname
@@ -839,7 +839,7 @@ class CodeGenerator(ASTVisitor):
         self.nextBlock(end)
 
     def visitBoolOp(self, node):
-        self.visitTest(node, type(node.op) == ast.Or)
+        self.visitTest(node, type(node.op) is ast.Or)
 
     _cmp_opcode: dict[type, str] = {
         ast.Eq: "==",
@@ -1558,8 +1558,8 @@ class CodeGenerator(ASTVisitor):
         elif count == 4:
             self.emit("ROT_FOUR")
         else:
-            raise ValueError(f"Expected rotate of 2, 3, or 4")
-        
+            raise ValueError("Expected rotate of 2, 3, or 4")
+
     def emit_dup(self, count: int = 1):
         if count == 1:
             self.emit("DUP")
@@ -2860,7 +2860,7 @@ class CodeGenerator(ASTVisitor):
         self,
         # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
         tree: FuncOrLambda | CompNode | ast.ClassDef | ast.TypeAlias,
-        graph: PyFlowGraph
+        graph: PyFlowGraph,
     ) -> CodeGenerator:
         return type(self)(
             self,
@@ -3079,7 +3079,7 @@ class CodeGenerator312(CodeGenerator):
 
     @staticmethod
     def find_op_idx(opname: str) -> int:
-        for i, (name, symbol) in enumerate(NB_OPS):
+        for i, (name, _symbol) in enumerate(NB_OPS):
             if name == opname:
                 return i
 
@@ -3120,10 +3120,12 @@ class CodeGenerator312(CodeGenerator):
     def unaryOp(self, node, op):
         self.visit(node.operand)
         if op == "UNARY_POSITIVE":
-            self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_UNARY_POSITIVE"))
+            self.emit(
+                "CALL_INTRINSIC_1",
+                self.find_intrinsic_1_idx("INTRINSIC_UNARY_POSITIVE"),
+            )
         else:
             self.emit(op)
-
 
     _augmented_opargs = {
         ast.Add: find_op_idx("NB_INPLACE_ADD"),
@@ -3148,7 +3150,7 @@ class CodeGenerator312(CodeGenerator):
             self.emit("BINARY_OP", op)
 
     def emit_dup(self, count: int = 1):
-        for i in range(count):
+        for _i in range(count):
             self.emit("COPY", count)
 
     def emit_rotate_stack(self, count: int) -> None:
@@ -3184,7 +3186,10 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("LOAD_CONST", elts_tuple)
                 self.emit(extend_op, 1)
                 if is_tuple:
-                    self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE"))
+                    self.emit(
+                        "CALL_INTRINSIC_1",
+                        self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE"),
+                    )
             return
 
         big = (len(elts) + num_pushed) > STACK_USE_GUIDELINE
@@ -3213,8 +3218,10 @@ class CodeGenerator312(CodeGenerator):
                     self.emit(add_op, 1)
 
         if is_tuple:
-            self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE"))
-        
+            self.emit(
+                "CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE")
+            )
+
     def make_child_codegen(
         self,
         tree: FuncOrLambda | CompNode | ast.ClassDef,
@@ -3309,7 +3316,7 @@ class CodeGenerator312(CodeGenerator):
                 outer_gen.emit("LOAD_FAST", 0)
             if node.args.defaults and kwdefaults:
                 outer_gen.emit("LOAD_FAST", 1)
-        
+
         if outer_gen.build_annotations(node):
             flags |= 0x04
 
@@ -3317,7 +3324,10 @@ class CodeGenerator312(CodeGenerator):
 
         if type_params:
             outer_gen.emit("SWAP", 2)
-            outer_gen.emit("CALL_INTRINSIC_2", self.find_intrinsic_2_idx("INTRINSIC_SET_FUNCTION_TYPE_PARAMS"))
+            outer_gen.emit(
+                "CALL_INTRINSIC_2",
+                self.find_intrinsic_2_idx("INTRINSIC_SET_FUNCTION_TYPE_PARAMS"),
+            )
             outer_gen.emit("RETURN_VALUE")
             self._makeClosure(outer_gen, 0)
             if args:
@@ -3325,9 +3335,11 @@ class CodeGenerator312(CodeGenerator):
 
             self.emit("CALL", num_typeparam_args)
 
-    # pyre-ignore[11]: Annotation is not defined as a valid type    
-    def compile_type_params(self, type_params: List[ast.TypeVar|ast.TypeVarTuple|ast.ParamSpec]) -> None:
-        seen_default = False
+    def compile_type_params(
+        self,
+        # pyre-ignore[11]: Annotation is not defined as a valid type
+        type_params: List[ast.TypeVar | ast.TypeVarTuple | ast.ParamSpec],
+    ) -> None:
         for param in type_params:
             # pyre-ignore[16]: Undefined attribute [16]: Module `ast` has no attribute `TypeVar`.
             if isinstance(param, ast.TypeVar):
@@ -3335,16 +3347,21 @@ class CodeGenerator312(CodeGenerator):
                 if param.bound:
                     raise NotImplementedError("bound")
                 else:
-                    self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_TYPEVAR"))
+                    self.emit(
+                        "CALL_INTRINSIC_1",
+                        self.find_intrinsic_1_idx("INTRINSIC_TYPEVAR"),
+                    )
 
                 self.emit("COPY", 1)
                 self.storeName(param.name)
             else:
-                raise NotImplementedError(f"unsupported node in type params: {type(param).__name__}")
+                raise NotImplementedError(
+                    f"unsupported node in type params: {type(param).__name__}"
+                )
 
         self.emit("BUILD_TUPLE", len(type_params))
 
-    def compile_body(self, gen: CodeGenerator, node: ast.ClassDef) -> None: 
+    def compile_body(self, gen: CodeGenerator, node: ast.ClassDef) -> None:
         if gen.findAnn(node.body):
             gen.did_setup_annotations = True
             gen.emit("SETUP_ANNOTATIONS")
@@ -3357,20 +3374,22 @@ class CodeGenerator312(CodeGenerator):
 
         walk(self.skip_docstring(node.body), gen)
 
-    def compile_class_body(self, node: ast.ClassDef, first_lineno: int) -> CodeGenerator:
+    def compile_class_body(
+        self, node: ast.ClassDef, first_lineno: int
+    ) -> CodeGenerator:
         gen = self.make_class_codegen(node, first_lineno)
-        
+
         gen.emit("LOAD_NAME", "__name__")
         gen.storeName("__module__")
-        
+
         gen.emit("LOAD_CONST", gen.get_qual_prefix(gen) + gen.name)
         gen.storeName("__qualname__")
-        
+
         # pyre-ignore[16]: no attribute type_params
         if node.type_params:
             gen.loadName(".type_params")
             gen.emit("STORE_NAME", "__type_params__")
-        
+
         if "__classdict__" in gen.scope.cells:
             gen.emit("LOAD_LOCALS")
             gen.emit("STORE_DEREF", "__classdict__")
@@ -3389,7 +3408,7 @@ class CodeGenerator312(CodeGenerator):
             gen.emit("STORE_NAME", "__classcell__")
         else:
             gen.emit("LOAD_CONST", None)
-        
+
         gen.emit("RETURN_VALUE")
         return gen
 
@@ -3405,7 +3424,7 @@ class CodeGenerator312(CodeGenerator):
             self.visit_decorator(decorator, node)
 
         first_lineno = node.lineno if first_lineno is None else first_lineno
-        
+
         outer_gen: CodeGenerator312 = self
         # pyre-ignore[16]: no attribute type_params
         if node.type_params:
@@ -3425,7 +3444,9 @@ class CodeGenerator312(CodeGenerator):
             )
             graph.args = ()
 
-            outer_gen = self.make_child_codegen(node.type_params[0], graph, name=graph.name)
+            outer_gen = self.make_child_codegen(
+                node.type_params[0], graph, name=graph.name
+            )
             outer_gen.optimized = 1
             outer_gen.compile_type_params(node.type_params)
 
@@ -3440,14 +3461,18 @@ class CodeGenerator312(CodeGenerator):
 
         if node.type_params:
             outer_gen.emit("LOAD_DEREF", ".type_params")
-            outer_gen.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_SUBSCRIPT_GENERIC"))
+            outer_gen.emit(
+                "CALL_INTRINSIC_1",
+                self.find_intrinsic_1_idx("INTRINSIC_SUBSCRIPT_GENERIC"),
+            )
             outer_gen.emit("STORE_FAST", ".generic_base")
 
             outer_gen._call_helper(
                 2,
                 None,
-                node.bases + [ast.Name(".generic_base", lineno=node.lineno, ctx=ast.Load())],
-                node.keywords
+                node.bases
+                + [ast.Name(".generic_base", lineno=node.lineno, ctx=ast.Load())],
+                node.keywords,
             )
 
             outer_gen.emit("RETURN_VALUE")
@@ -3456,7 +3481,6 @@ class CodeGenerator312(CodeGenerator):
             self.emit("CALL", 0)
         else:
             outer_gen._call_helper(2, None, node.bases, node.keywords)
-
 
         for d in reversed(node.decorator_list):
             self.emit_decorator_call(d, node)
@@ -3500,7 +3524,9 @@ class CodeGenerator312(CodeGenerator):
             )
             graph.args = ()
 
-            outer_gen = self.make_child_codegen(node.type_params[0], graph, name=graph.name)
+            outer_gen = self.make_child_codegen(
+                node.type_params[0], graph, name=graph.name
+            )
             outer_gen.optimized = 1
             outer_gen.emit("LOAD_CONST", node.name.id)
             outer_gen.compile_type_params(node.type_params)
@@ -3514,7 +3540,9 @@ class CodeGenerator312(CodeGenerator):
 
         outer_gen._makeClosure(code_gen, 0)
         outer_gen.emit("BUILD_TUPLE", 3)
-        outer_gen.emit("CALL_INTRINSIC_1", outer_gen.find_intrinsic_1_idx("INTRINSIC_TYPEALIAS"))
+        outer_gen.emit(
+            "CALL_INTRINSIC_1", outer_gen.find_intrinsic_1_idx("INTRINSIC_TYPEALIAS")
+        )
 
         if node.type_params:
             outer_gen.emit("RETURN_VALUE")
@@ -3522,7 +3550,7 @@ class CodeGenerator312(CodeGenerator):
             self.emit("CALL", 0)
 
         self.storeName(node.name.id)
-            
+
     def get_qual_prefix(self, gen):
         prefix = ""
         if gen.scope.global_scope:

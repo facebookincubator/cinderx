@@ -8,8 +8,6 @@ from .optimizer import safe_lshift, safe_mod, safe_multiply, safe_power
 
 TYPE_CHECKING = False
 if TYPE_CHECKING:
-    from typing import Dict, Optional, Tuple
-
     from .pyassem import Block, Instruction, PyFlowGraph
 
 

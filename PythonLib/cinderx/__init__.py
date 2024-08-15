@@ -10,7 +10,7 @@ import sys
 old_dlopen_flags: int = sys.getdlopenflags()
 sys.setdlopenflags(old_dlopen_flags | os.RTLD_GLOBAL)
 try:
-    from _cinderx import (
+    from _cinderx import (  # noqa: F401
         _compile_perf_trampoline_pre_fork,
         _get_entire_call_stack_as_qualnames_with_lineno,
         _get_entire_call_stack_as_qualnames_with_lineno_and_frame,
@@ -31,14 +31,15 @@ try:
         StrictModule,
         watch_sys_modules,
     )
+
     if sys.version_info < (3, 11):
-        from _cinderx import (
-            clear_all_shadow_caches,
-        )
+        from _cinderx import clear_all_shadow_caches
     else:
+
         def clear_all_shadow_caches() -> None:
             pass
-except (ModuleNotFoundError, ImportError):
+
+except ImportError:
     if os.environ.get("CINDERX_ALLOW__CINDERX_FAILURE") is None:
         raise
     cinderx_init = None
@@ -55,6 +56,7 @@ def strictify_static() -> None:
     if hasattr(_static, "__file__"):
         del _static.__file__
         sys.modules["_static"] = StrictModule(_static.__dict__, False)
+
 
 def init() -> None:
     """Initialize CinderX."""

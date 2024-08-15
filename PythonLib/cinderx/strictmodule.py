@@ -4,9 +4,12 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from _strictmodule import IStrictModuleLoader, StrictModuleLoaderFactory
+    from _strictmodule import (  # noqa: F401
+        IStrictModuleLoader,
+        StrictModuleLoaderFactory,
+    )
 
-from _strictmodule import (
+from _strictmodule import (  # noqa: F401
     NONSTRICT_MODULE_KIND,
     STATIC_MODULE_KIND,
     STRICT_MODULE_KIND,
@@ -17,4 +20,3 @@ from _strictmodule import (
     STUB_KIND_MASK_STRICT,
     STUB_KIND_MASK_TYPING,
 )
-

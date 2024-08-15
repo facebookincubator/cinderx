@@ -90,7 +90,9 @@ class Scope:
         if name in self.uses or name in self.defs:
             pass  # XXX warn about global following def/use
         if name in self.params:
-            raise SyntaxError("{} in {} is global and parameter".format(name, self.name))
+            raise SyntaxError(
+                "{} in {} is global and parameter".format(name, self.name)
+            )
         self.explicit_globals[name] = 1
         self.module.add_def(name)
         # Seems to be behavior of Py3.5, "global foo" sets foo as
@@ -122,7 +124,12 @@ class Scope:
         return self.children
 
     def DEBUG(self):
-        print(self.name, type(self), self.nested and "nested" or "", "global scope" if  self.global_scope  else "")
+        print(
+            self.name,
+            type(self),
+            self.nested and "nested" or "",
+            "global scope" if self.global_scope else "",
+        )
         print("\tglobals: ", self.globals)
         print("\texplicit_globals: ", self.explicit_globals)
         print("\tcells: ", self.cells)
@@ -159,7 +166,13 @@ class Scope:
     def get_free_vars(self) -> list[str]:
         return sorted(self.frees.keys())
 
-    def analyze_block(self, free: set[str], global_vars: set[str], bound: set[str]|None = None, implicit_globals: set[str]|None = None):
+    def analyze_block(
+        self,
+        free: set[str],
+        global_vars: set[str],
+        bound: set[str] | None = None,
+        implicit_globals: set[str] | None = None,
+    ):
         local: set[str] = set()
         implicit_globals_in_block: set[str] = set()
         inlinable_comprehensions = []
@@ -178,7 +191,7 @@ class Scope:
             new_global |= global_vars
             if bound is not None:
                 new_bound |= bound
-            
+
         self.analyze_names(bound, local, free, global_vars)
         # Populate global and bound sets to be passed to children.
         if not isinstance(self, ClassScope):
@@ -192,7 +205,7 @@ class Scope:
             # Special case __class__/__classdict__
             new_bound.add("__class__")
             new_bound.add("__classdict__")
-            
+
         # create set of names that inlined comprehension should never stomp on
         # collect all local defs and params
         local_names = set(self.defs.keys()) | set(self.uses.keys())
@@ -207,22 +220,22 @@ class Scope:
             child_free = all_free
 
             maybe_inline_comp = (
-                isinstance(self, FunctionScope) and 
-                self._inline_comprehensions and
-                isinstance(child, GenExprScope) and
-                not child.generator
+                isinstance(self, FunctionScope)
+                and self._inline_comprehensions
+                and isinstance(child, GenExprScope)
+                and not child.generator
             )
             if maybe_inline_comp:
                 child_free = set()
 
-            child.analyze_child_block(new_bound, new_free, new_global, child_free, implicit_globals_in_block)
+            child.analyze_child_block(
+                new_bound, new_free, new_global, child_free, implicit_globals_in_block
+            )
             inline_comp = maybe_inline_comp and not child.child_free
-            
+
             if inline_comp:
                 # record the comprehension
-                inlinable_comprehensions.append(
-                    (child, child_free)
-                )
+                inlinable_comprehensions.append((child, child_free))
             elif maybe_inline_comp:
                 all_free.update(child_free)
                 child_free = all_free
@@ -242,10 +255,7 @@ class Scope:
                 exists = comp.local_names_include_defs(local_names)
                 if not exists:
                     # comprehension can be inlined
-                    self.merge_comprehension_symbols(
-                        comp,
-                        comp_all_free
-                    )
+                    self.merge_comprehension_symbols(comp, comp_all_free)
                     # remove child from parent
                     self.children.remove(comp)
                     for c in comp.children:
@@ -274,10 +284,12 @@ class Scope:
         self.update_symbols(bound, new_free)
         free |= new_free
 
-    def update_symbols(self, bound: set[str]|None, new_free: set[str]) -> None:
+    def update_symbols(self, bound: set[str] | None, new_free: set[str]) -> None:
         # Record not yet resolved free variables from children (if any)
         for name in new_free:
-            if isinstance(self, ClassScope) and (name in self.defs or name in self.globals):
+            if isinstance(self, ClassScope) and (
+                name in self.defs or name in self.globals
+            ):
                 # Handle a free variable in a method of
                 # the class that has the same name as a local
                 # or global in the class scope.
@@ -339,7 +351,14 @@ class Scope:
                 if name in free:
                     free.remove(name)
 
-    def analyze_child_block(self, bound: set[str], free: set[str], global_vars: set[str], child_free: set[str], implicit_globals: set[str]):
+    def analyze_child_block(
+        self,
+        bound: set[str],
+        free: set[str],
+        global_vars: set[str],
+        child_free: set[str],
+        implicit_globals: set[str],
+    ):
         temp_bound = set(bound)
         temp_free = set(free)
         temp_global = set(free)
@@ -347,7 +366,13 @@ class Scope:
         self.analyze_block(temp_free, temp_global, temp_bound, implicit_globals)
         child_free |= temp_free
 
-    def analyze_names(self, bound: set[str]|None, local: set[str], free: set[str], global_vars: set[str]) -> None:
+    def analyze_names(
+        self,
+        bound: set[str] | None,
+        local: set[str],
+        free: set[str],
+        global_vars: set[str],
+    ) -> None:
         # Go through all the known symbols in the block and analyze them
         for name in self.explicit_globals:
             if name in self.nonlocals:
@@ -390,7 +415,7 @@ class Scope:
             else:
                 if self.nested:
                     self.free = True
-                self.globals[name] = 1                    
+                self.globals[name] = 1
 
     def get_cell_vars(self):
         return sorted(self.cells.keys())
@@ -446,17 +471,23 @@ class ClassScope(Scope):
 class TypeParamScope(Scope):
     pass
 
+
 class TypeAliasScope(Scope):
     pass
+
 
 class TypeVarBoundScope(Scope):
     pass
 
-class TypeAliasScope(Scope):
-    pass
 
-FUNCTION_LIKE_SCOPES = (FunctionScope, TypeVarBoundScope, TypeParamScope, TypeAliasScope)
-    
+FUNCTION_LIKE_SCOPES = (
+    FunctionScope,
+    TypeVarBoundScope,
+    TypeParamScope,
+    TypeAliasScope,
+)
+
+
 class SymbolVisitor(ASTVisitor):
     _FunctionScope = FunctionScope
     _GenExprScope = GenExprScope
@@ -478,8 +509,12 @@ class SymbolVisitor(ASTVisitor):
 
     visitInteractive = visitExpression = visitModule
 
-    # pyre-ignore[11]: Pyre doesn't know TypeAlias
-    def enter_type_params(self, node: ast.ClassDef|ast.FunctionDef|ast.TypeAlias|ast.AsyncFunctionDef, parent: Scope):
+    def enter_type_params(
+        self,
+        # pyre-ignore[11]: Pyre doesn't know TypeAlias
+        node: ast.ClassDef | ast.FunctionDef | ast.TypeAlias | ast.AsyncFunctionDef,
+        parent: Scope,
+    ):
         scope = TypeParamScope(node.name, self.module, self.klass, lineno=node.lineno)
         parent.add_child(scope)
         scope.parent = parent
@@ -527,10 +562,10 @@ class SymbolVisitor(ASTVisitor):
         parent.add_type_param(node.name)
 
     # pyre-ignore[11]: Pyre doesn't know ParamSpec
-    def visitParamSpec(self, node: ast.ParamSpec, parent: Scope) -> None: 
+    def visitParamSpec(self, node: ast.ParamSpec, parent: Scope) -> None:
         parent.add_def(node.name)
         parent.add_type_param(node.name)
-        
+
     def visitFunctionDef(self, node, parent):
         if node.decorator_list:
             self.visit(node.decorator_list, parent)
@@ -704,7 +739,6 @@ class SymbolVisitor(ASTVisitor):
 
         type_params = getattr(node, "type_params", ())
 
-        orig_parent = parent
         if type_params:
             parent = self.enter_type_params(node, parent)
             for param in type_params:
@@ -722,7 +756,7 @@ class SymbolVisitor(ASTVisitor):
         if type_params:
             scope.add_def("__type_params__")
             scope.add_use(".type_params")
-                    
+
         if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
             scope.nested = 1
         doc = ast.get_docstring(node, False)
@@ -739,7 +773,7 @@ class SymbolVisitor(ASTVisitor):
 
     def visitTypeAlias(self, node: ast.TypeAlias, parent):
         self.visit(node.name, parent)
-        
+
         in_class = isinstance(parent, ClassScope)
         is_generic = len(node.type_params) > 0
         alias_parent = parent
@@ -993,6 +1027,7 @@ class CinderFunctionScope(FunctionScope):
     def add_comprehension(self, comp):
         if self._inline_comprehensions:
             self._inlinable_comprehensions.append(comp)
+
 
 class CinderGenExprScope(GenExprScope, CinderFunctionScope):
     inlined = False

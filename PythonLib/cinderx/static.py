@@ -1,7 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
-from _static import (
+from _cinderx import StaticTypeError  # noqa: F401
+from _static import (  # noqa: F401
     __build_cinder_class__,
     _clear_dlopen_cache,
     _clear_dlsym_cache,
@@ -104,8 +105,4 @@ from _static import (
     TYPED_UINT32,
     TYPED_UINT64,
     TYPED_UINT8,
-)
-
-from _cinderx import (
-    StaticTypeError
 )

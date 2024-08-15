@@ -12,12 +12,11 @@
 # pyre-strict
 
 import dis as _dis
-import opcode
 import re
 import sys
 from pprint import pformat
 from types import CodeType
-from typing import Dict, Generator, Iterable, List, Optional, Pattern, TextIO, Tuple
+from typing import Dict, Generator, Iterable, Optional, Pattern, TextIO, Tuple
 
 
 def _make_stable(
@@ -38,8 +37,7 @@ def _make_stable(
 
 def _stable_repr(obj: object) -> str:
     if isinstance(obj, frozenset):
-        replacement = frozenset([i for i in sorted(obj, key=lambda x: repr(x))])
-        return repr(replacement)
+        obj = frozenset(sorted(obj, key=repr))
     return repr(obj)
 
 
@@ -215,11 +213,11 @@ coding_re: Pattern[bytes] = re.compile(
 
 def open_with_coding(fname: str) -> TextIO:
     with open(fname, "rb") as f:
-        l = f.readline()
-        m = coding_re.match(l)
+        line = f.readline()
+        m = coding_re.match(line)
         if not m:
-            l = f.readline()
-            m = coding_re.match(l)
+            line = f.readline()
+            m = coding_re.match(line)
         encoding = "utf-8"
         if m:
             encoding = m.group(1).decode()

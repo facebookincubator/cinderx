@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
+
 class Opcode:
     CMP_OP = (
         "<",

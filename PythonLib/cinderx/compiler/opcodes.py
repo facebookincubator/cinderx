@@ -4,7 +4,17 @@
 
 import sys
 
-from opcode import opmap, hasname, hasjrel, hascompare, hasconst, haslocal, hasfree, hasjabs
+from opcode import (
+    hascompare,
+    hasconst,
+    hasfree,
+    hasjabs,
+    hasjrel,
+    haslocal,
+    hasname,
+    opmap,
+)
+
 from .opcodebase import Opcode
 
 opcode: Opcode = Opcode()
@@ -190,7 +200,11 @@ if sys.version_info >= (3, 12):
         LOAD_FROM_DICT_OR_GLOBALS=-1,
     )
 
-    from opcode import _nb_ops as NB_OPS,  _intrinsic_1_descs as INTRINSIC_1, _intrinsic_2_descs as INTRINSIC_2
+    from opcode import (
+        _intrinsic_1_descs as INTRINSIC_1,
+        _intrinsic_2_descs as INTRINSIC_2,
+        _nb_ops as NB_OPS,
+    )
 
 else:
     NB_OPS: list[tuple[str, str]] = []

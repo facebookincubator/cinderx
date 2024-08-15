@@ -78,7 +78,7 @@ else:
     if sys.version_info >= (3, 12):
         compiler = pycodegen.CodeGenerator312
         if args.static:
-            print('Static code generation not supported in 3.12 yet')
+            print("Static code generation not supported in 3.12 yet")
             sys.exit(1)
     else:
         compiler = pycodegen.CinderCodeGenerator

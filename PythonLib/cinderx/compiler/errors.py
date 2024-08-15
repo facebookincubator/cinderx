@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ast import AST
-    from typing import Generator, List, Optional, Tuple
+    from typing import Generator
 
 
 class TypedSyntaxError(SyntaxError):
