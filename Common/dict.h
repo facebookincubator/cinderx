@@ -3,6 +3,11 @@
 #pragma once
 
 #include <Python.h>
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #if PY_VERSION_HEX < 0x030C0000
 
@@ -28,4 +33,23 @@ static inline PyObject* getBorrowedTypeDict(PyTypeObject* self) {
 #if PY_VERSION_HEX >= 0x030C0000
 #define _PyDict_NotifyEvent(EVENT, MP, KEY, VAL) \
   _PyDict_NotifyEvent(_PyInterpreterState_GET(), (EVENT), (MP), (KEY), (VAL))
+#endif
+
+// Check if a dictionary is guaranteed to only contain unicode/string keys.
+//
+// Does not scan the dictionary, so if internally the dictionary is a
+// "general-purpose" kind but happens to only contain strings this will still
+// return false.
+static inline bool hasOnlyUnicodeKeys(PyObject* dict) {
+  assert(PyDict_Check(dict));
+
+#if PY_VERSION_HEX >= 0x030C0000
+  return DK_IS_UNICODE(((PyDictObject*)dict)->ma_keys);
+#else
+  return _PyDict_HasOnlyUnicodeKeys(dict);
+#endif
+}
+
+#ifdef __cplusplus
+} // extern "C"
 #endif

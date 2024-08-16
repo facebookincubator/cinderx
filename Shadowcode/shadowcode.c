@@ -15,6 +15,7 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/code.h"
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/watchers.h"
@@ -986,8 +987,8 @@ void _PyShadow_InitGlobal(
     PyObject* globals,
     PyObject* builtins,
     PyObject* name) {
-  if (!_PyShadow_EnsureInit() || !_PyDict_HasOnlyUnicodeKeys(builtins) ||
-      !_PyDict_HasOnlyUnicodeKeys(globals)) {
+  if (!_PyShadow_EnsureInit() || !hasOnlyUnicodeKeys(builtins) ||
+      !hasOnlyUnicodeKeys(globals)) {
     return;
   }
 
