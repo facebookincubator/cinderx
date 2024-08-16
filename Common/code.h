@@ -73,8 +73,14 @@ size_t countInstrs(PyCodeObject* code);
 // Convert a specialized opcode back to its base form.
 int unspecialize(int opcode);
 
-// Get the byte size of an opcode's inline cache.
-Py_ssize_t inlineCacheSize(int opcode);
+// Convert an instrumented opcode back to its base form.
+int uninstrument(PyCodeObject* code, int index);
+
+// Get the byte side of an opcode's inline cache.
+//
+// This needs to take a code object and an opcode index to process instrumented
+// opcodes.
+Py_ssize_t inlineCacheSize(PyCodeObject* code, int index);
 
 #ifdef __cplusplus
 } // extern "C"
