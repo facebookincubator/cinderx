@@ -790,11 +790,13 @@ void Ci_WalkAsyncStack(
 #include "cinderx/Upgrade/upgrade_assert.h"
 
 namespace jit {
-RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate){
-    UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)}
+
+RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
+}
 
 Ref<PyFrameObject> materializePyFrameForDeopt(PyThreadState* tstate) {
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
 }
 } // namespace jit
 

@@ -598,28 +598,25 @@ PyThreadState* JITRT_AllocateAndLinkFrame(
 /*
  * The reference for this is _PyEvalFramePushAndInit in ceval.c.
  */
-PyThreadState* JITRT_AllocateAndLinkInterpreterFrame(
+static inline PyThreadState* allocate_and_link_interpreter_frame(
     PyFunctionObject* func,
-    // This is only set on Py_DEBUG otherwise it's garbage.
-    PyCodeObject* jit_code_object) {
+    PyCodeObject* co) {
   PyThreadState* tstate = PyThreadState_GET();
   JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
   JIT_DCHECK(
       PyCode_Check(func->func_code),
       "Non-code object for JIT function: {}",
       jit::repr(reinterpret_cast<PyObject*>(func)));
-  PyCodeObject* co = (PyCodeObject*)func->func_code;
-  // Given this assertion we actually don't need to incref the code object as
-  // happens in _PyFrame_Initialize.
-  JIT_DCHECK(co == jit_code_object, "Code object mismatch");
-  _PyInterpreterFrame* frame =
-      Cix_PyThreadState_PushFrame(tstate, co->co_framesize);
+
   // Frame allocation failure is very unlikely - it can only happen if we run
   // out of memory. If this happens we behave less gracefully than the
   // interpreter as we don't have references to args to allow for proper
   // clean-up. Maybe we'll want to change this in future if it limits
   // us from getting something like a stack-trace on this kind of failure.
+  _PyInterpreterFrame* frame =
+      Cix_PyThreadState_PushFrame(tstate, co->co_framesize);
   JIT_CHECK(frame != nullptr, "Failed to allocate _PyInterpreterFrame");
+
   _PyFrame_Initialize(
       frame,
       func,
@@ -640,6 +637,22 @@ PyThreadState* JITRT_AllocateAndLinkInterpreterFrame(
   tstate->cframe->current_frame = frame;
 
   return tstate;
+}
+
+PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Debug(
+    PyFunctionObject* func,
+    PyCodeObject* jit_code_object) {
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+  // Given this assertion we actually don't need to incref the code object as
+  // happens in _PyFrame_Initialize.
+  JIT_DCHECK(co == jit_code_object, "Code object mismatch");
+  return allocate_and_link_interpreter_frame(func, co);
+}
+
+PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Release(
+    PyFunctionObject* func) {
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+  return allocate_and_link_interpreter_frame(func, co);
 }
 
 #endif

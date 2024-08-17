@@ -44,9 +44,14 @@ PyThreadState* JITRT_AllocateAndLinkFrame(
     PyObject* builtins,
     PyObject* globals);
 #else
-PyThreadState* JITRT_AllocateAndLinkInterpreterFrame(
-    PyFunctionObject* code,
+
+PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Debug(
+    PyFunctionObject* func,
     PyCodeObject* jit_code_object);
+
+PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Release(
+    PyFunctionObject* func);
+
 #endif
 
 /*

@@ -658,11 +658,15 @@ void NativeGenerator::loadOrGenerateLinkFrame(
       as_->call(reinterpret_cast<uint64_t>(JITRT_AllocateAndLinkFrame));
 #else
       JIT_DCHECK(func_reg == x86::rdi, "func_reg must be rdi");
-#ifdef Py_DEBUG
-      as_->mov(x86::rsi, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
-#endif
-      as_->call(
-          reinterpret_cast<uint64_t>(JITRT_AllocateAndLinkInterpreterFrame));
+      if (kPyDebug) {
+        as_->mov(
+            x86::rsi, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
+        as_->call(reinterpret_cast<uint64_t>(
+            JITRT_AllocateAndLinkInterpreterFrame_Debug));
+      } else {
+        as_->call(reinterpret_cast<uint64_t>(
+            JITRT_AllocateAndLinkInterpreterFrame_Release));
+      }
 #endif
       as_->mov(tstate_reg, x86::rax);
 
