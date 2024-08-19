@@ -22,7 +22,7 @@ BORROW_CPP_DIRECTIVES_PATTERN: re.Pattern[str] = re.compile(
     r".*// @Borrow CPP directives from (\S+)(?: \[(.*?)\])?"
 )
 BORROW_DECL_PATTERN: re.Pattern[str] = re.compile(
-    r"// @Borrow (function|typedef) (\S+) from (\S+)(?: \[(.*?)\])?"
+    r"// @Borrow (function|typedef|var) (\S+) from (\S+)(?: \[(.*?)\])?"
 )
 
 HEADER = """
@@ -127,7 +127,7 @@ def extract_declaration(
             extent.start.offset : extent.end.offset
         ].split("\n")
         # pyre-ignore[16]: `CursorKind` has no attribute `TYPEDEF_DECL`.
-        if kind == CursorKind.TYPEDEF_DECL:
+        if kind in (CursorKind.TYPEDEF_DECL, CursorKind.VAR_DECL):
             content[-1] += ";"
         return content
     raise Exception(f"Could not find {kind} for '{name}' in {parsed_file.source_file}")
@@ -155,6 +155,9 @@ def parse_borrow_info(
         elif kind_str == "typedef":
             # pyre-ignore[16]: `CursorKind` has no attribute `TYPEDEF_DECL`.
             kind = CursorKind.TYPEDEF_DECL
+        elif kind_str == "var":
+            # pyre-ignore[16]: `CursorKind` has no attribute `VAR_DECL`.
+            kind = CursorKind.VAR_DECL
         else:
             raise Exception(f"Unknown kind: {kind_str}")
 

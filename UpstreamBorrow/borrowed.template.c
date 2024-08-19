@@ -206,6 +206,12 @@ __attribute__((weak))
 // End internal dependencies.
 #define _PyFrame_ClearExceptCode Cix_PyFrame_ClearExceptCode
 // @Borrow function _PyFrame_ClearExceptCode from Python/frame.c [3.12]
+
+// @Borrow var DE_INSTRUMENT from Python/instrumentation.c [3.12]
+uint8_t
+Cix_DEINSTRUMENT(uint8_t op) {
+  return DE_INSTRUMENT[op];
+}
 #endif
 
 int init_upstream_borrow(void) {
