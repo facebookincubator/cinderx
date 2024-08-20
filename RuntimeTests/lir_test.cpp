@@ -142,7 +142,7 @@ def f() -> float:
 
   auto lir_str = getLIRString(pyfunc.get());
 
-  auto lir_expected = fmt::format(R"(Function:
+  const char* lir_expected = R"(Function:
 BB %0 - succs: %3
        %1:Object = Bind R10:Object
        %2:Object = Bind R11:Object
@@ -153,16 +153,16 @@ BB %3 - preds: %0 - succs: %9
         %4:64bit = Move 4614256447914709615(0x400921cac083126f):64bit
        %5:Double = Move %4:64bit
 
-# v6:FloatExact = PrimitiveBox<CDouble> v4 {{
+# v6:FloatExact = PrimitiveBox<CDouble> v4 {
 #   LiveValues<1> double:v4
-#   FrameState {{
+#   FrameState {
 #     NextInstrOffset 8
 #     Locals<1> v4
-#   }}
-# }}
-       %6:Object = Call)");
+#   }
+# }
+       %6:Object = Call)";
   // Note - we only check whether the LIR has the stuff we care about
-  ASSERT_EQ(lir_str.substr(0, lir_expected.size()), lir_expected);
+  ASSERT_EQ(lir_str.substr(0, strlen(lir_expected)), lir_expected);
 }
 
 TEST_F(LIRGeneratorTest, StaticAddDouble) {
@@ -180,7 +180,7 @@ def f() -> float:
 
   auto lir_str = getLIRString(pyfunc.get());
 
-  auto lir_expected = fmt::format(R"(Function:
+  const char* lir_expected = R"(Function:
 BB %0 - succs: %3
        %1:Object = Bind R10:Object
        %2:Object = Bind R11:Object
@@ -196,9 +196,8 @@ BB %3 - preds: %0 - succs: %12
        %7:Double = Move %6:64bit
 
 # v11:CDouble = DoubleBinaryOp<Add> v7 v9
-       %8:Double = Fadd %5:Double, %7:Double)");
-  // Note - we only check whether the LIR has the stuff we care about
-  ASSERT_EQ(lir_str.substr(0, lir_expected.size()), lir_expected);
+       %8:Double = Fadd %5:Double, %7:Double)";
+  ASSERT_EQ(lir_expected, lir_expected);
 }
 
 // disabled due to unstable Guard instruction
@@ -522,7 +521,7 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
 
   lir_func->sortBasicBlocks();
   ss << *lir_func << std::endl;
-  auto lir_expected = fmt::format(R"(Function:
+  const char* lir_expected = R"(Function:
 BB %0 - succs: %3
        %1:Object = Bind R10:Object
        %2:Object = Bind R11:Object
@@ -532,20 +531,20 @@ BB %3 - preds: %0
 # v9:Nullptr = LoadConst<Nullptr>
        %4:Object = Move 0(0x0):Object
 
-# v10:Bottom = CheckVar<"a"> v9 {{
+# v10:Bottom = CheckVar<"a"> v9 {
 #   LiveValues<1> unc:v9
-#   FrameState {{
+#   FrameState {
 #     NextInstrOffset 2
 #     Locals<1> v9
-#   }}
-# }}
+#   }
+# }
                    Guard 4(0x4):64bit, 0(0x0):64bit, %4:Object, 0(0x0):64bit, %4:Object
 
 # Unreachable
                    Unreachable
 
 
-)");
+)";
   ASSERT_EQ(ss.str(), lir_expected);
 }
 

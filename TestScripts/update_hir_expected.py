@@ -11,7 +11,7 @@ import subprocess
 import sys
 
 from enum import Enum
-from typing import Generator, Sequence
+from typing import Generator, Iterator, Sequence
 
 # Maps HIR variable to its HIR output.
 VarOutputDict = dict[str, Sequence[str]]
@@ -39,6 +39,9 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+BUCK_TIMESTAMP_RE: re.Pattern[str] = re.compile(
+    r"^\[\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}-\d{2}:\d{2}\] "
+)
 TEST_RUN_RE: re.Pattern[str] = re.compile(r"^\[ RUN +\] ([^.]+)\.(.+)$")
 ACTUAL_TEXT_RE: re.Pattern[str] = re.compile(r'^    Which is: "(.+)\\n"$')
 EXPECTED_VAR_RE: re.Pattern[str] = re.compile(r"^  ([^ ]+)$")
@@ -47,7 +50,6 @@ VERSION_RE: re.Pattern[str] = re.compile(r"^Python Version: (.+)$")
 # special-case common abbrieviations like HIR and CFG when converting
 # camel-cased suite name to its snake-cased file name
 SUITE_NAME_RE: re.Pattern[str] = re.compile(r"(HIR|CFG|[A-Z][a-z0-9]+)")
-FINISHED_LINE: str = "[----------] Global test environment tear-down"
 
 
 def unescape_gtest_string(s: str) -> str:
@@ -91,6 +93,12 @@ def get_test_stdout(args: argparse.Namespace) -> str:
     raise RuntimeError("Must give either --text-input or a command to run")
 
 
+# Optionally strip Buck formatted timestamp to allow input from Buck.
+def timestamp_stripped_lineiter(lineiter: Iterator[str]) -> Generator[str, None, None]:
+    for line in lineiter:
+        yield BUCK_TIMESTAMP_RE.sub("", line)
+
+
 def parse_stdout(stdout: str) -> tuple[str, SuiteOutputDict]:
     """
     Parse out the Python version and failed test information from stdout.
@@ -100,13 +108,10 @@ def parse_stdout(stdout: str) -> tuple[str, SuiteOutputDict]:
     py_version = unknown_version
 
     failed_tests = collections.defaultdict(lambda: {})
-    line_iter = iter(stdout.split("\n"))
+    line_iter = timestamp_stripped_lineiter(iter(stdout.split("\n")))
     test_dict: dict[str, list[str]] = {}
-    while True:
-        line = next(line_iter)
-        if line == FINISHED_LINE:
-            break
-
+    test_name: tuple[str, str] = ("??", "??")
+    for line in line_iter:
         if m := VERSION_RE.match(line):
             py_version = m[1]
             continue
@@ -306,7 +311,9 @@ def update_cpp_tests(  # noqa: C901
             )
             print(list(test_dict.keys()))
 
+    test_dict = {}
     for cpp_filename in find_cpp_files(TESTS_DIR):
+        print(f"Considering updating tests in {cpp_filename}")
         with open(cpp_filename, "r") as f:
             old_lines = f.read().split("\n")
 
