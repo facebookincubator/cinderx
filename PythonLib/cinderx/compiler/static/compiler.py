@@ -219,6 +219,7 @@ class Compiler:
             "all": reflect_builtin_function(all, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "any": reflect_builtin_function(any, None, self.type_env),
+            "anext": reflect_builtin_function(anext, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "ascii": reflect_builtin_function(ascii, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
