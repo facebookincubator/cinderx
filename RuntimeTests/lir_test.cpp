@@ -37,16 +37,16 @@ class LIRGeneratorTest : public RuntimeTest {
 
     PyObject* globals = PyFunction_GetGlobals(func_obj);
     if (!PyDict_CheckExact(globals)) {
-      return nullptr;
+      return "";
     }
 
     if (!PyDict_CheckExact(func->func_builtins)) {
-      return nullptr;
+      return "";
     }
 
     std::unique_ptr<jit::hir::Function> irfunc(buildHIR(func));
     if (irfunc == nullptr) {
-      return nullptr;
+      return "";
     }
 
     Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);

@@ -3,6 +3,7 @@
 #pragma once
 
 #include <Python.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -81,6 +82,9 @@ int uninstrument(PyCodeObject* code, int index);
 // This needs to take a code object and an opcode index to process instrumented
 // opcodes.
 Py_ssize_t inlineCacheSize(PyCodeObject* code, int index);
+
+// Get the name index from a LOAD_ATTR's oparg.
+int loadAttrIndex(int oparg);
 
 // Get the name index from a LOAD_GLOBAL's oparg.
 int loadGlobalIndex(int oparg);

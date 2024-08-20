@@ -854,7 +854,7 @@ void HIRBuilder::translate(
           break;
         }
         case LOAD_METHOD: {
-          emitLoadMethod(tc, irfunc.env, bc_instr);
+          emitLoadMethod(tc, bc_instr.oparg());
           break;
         }
         case LOAD_METHOD_SUPER: {
@@ -2244,20 +2244,29 @@ void HIRBuilder::emitDeleteAttr(
 void HIRBuilder::emitLoadAttr(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
+  int oparg = bc_instr.oparg();
+  int name_idx = loadAttrIndex(oparg);
+
+  // In 3.12 LOAD_METHOD has been merged into LOAD_ATTR, and the oparg tells you
+  // which one it should be.
+#if PY_VERSION_HEX >= 0x030C0000
+  if (oparg & 1) {
+    emitLoadMethod(tc, name_idx);
+    return;
+  }
+#endif
+
   Register* receiver = tc.frame.stack.pop();
   Register* result = temps_.AllocateStack();
-  tc.emit<LoadAttr>(result, receiver, bc_instr.oparg(), tc.frame);
+  tc.emit<LoadAttr>(result, receiver, name_idx, tc.frame);
   tc.frame.stack.push(result);
 }
 
-void HIRBuilder::emitLoadMethod(
-    TranslationContext& tc,
-    Environment& env,
-    const jit::BytecodeInstruction& bc_instr) {
+void HIRBuilder::emitLoadMethod(TranslationContext& tc, int name_idx) {
   Register* receiver = tc.frame.stack.pop();
   Register* result = temps_.AllocateStack();
   Register* method_instance = temps_.AllocateStack();
-  tc.emit<LoadMethod>(result, receiver, bc_instr.oparg(), tc.frame);
+  tc.emit<LoadMethod>(result, receiver, name_idx, tc.frame);
   tc.emit<GetSecondOutput>(method_instance, TOptObject, result);
   tc.frame.stack.push(result);
   tc.frame.stack.push(method_instance);

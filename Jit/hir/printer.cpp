@@ -969,7 +969,9 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
     case LOAD_GLOBAL:
     case STORE_GLOBAL:
     case DELETE_GLOBAL: {
-      int name_idx = opcode == LOAD_GLOBAL ? loadGlobalIndex(oparg) : oparg;
+      int name_idx = (opcode == LOAD_ATTR)
+          ? loadAttrIndex(oparg)
+          : (opcode == LOAD_GLOBAL ? loadGlobalIndex(oparg) : oparg);
       PyObject* name_obj = PyTuple_GetItem(code->co_names, name_idx);
       JIT_DCHECK(name_obj != nullptr, "bad name");
       const char* name = PyUnicode_AsUTF8(name_obj);

@@ -96,6 +96,14 @@ Py_ssize_t inlineCacheSize(
 #endif
 }
 
+int loadAttrIndex(int oparg) {
+#if PY_VERSION_HEX >= 0x030C0000
+  return oparg >> 1;
+#else
+  return oparg;
+#endif
+}
+
 int loadGlobalIndex(int oparg) {
 #if PY_VERSION_HEX >= 0x030B0000
   return oparg >> 1;
