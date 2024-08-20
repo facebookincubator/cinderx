@@ -82,6 +82,9 @@ int uninstrument(PyCodeObject* code, int index);
 // opcodes.
 Py_ssize_t inlineCacheSize(PyCodeObject* code, int index);
 
+// Get the name index from a LOAD_GLOBAL's oparg.
+int loadGlobalIndex(int oparg);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

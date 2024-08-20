@@ -969,14 +969,15 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
     case LOAD_GLOBAL:
     case STORE_GLOBAL:
     case DELETE_GLOBAL: {
-      PyObject* name_obj = PyTuple_GetItem(code->co_names, oparg);
+      int name_idx = opcode == LOAD_GLOBAL ? loadGlobalIndex(oparg) : oparg;
+      PyObject* name_obj = PyTuple_GetItem(code->co_names, name_idx);
       JIT_DCHECK(name_obj != nullptr, "bad name");
       const char* name = PyUnicode_AsUTF8(name_obj);
       if (name == nullptr) {
         PyErr_Clear();
-        return fmt::format("{}: (error printing name)", oparg);
+        return fmt::format("{}: (error printing name)", name_idx);
       }
-      return fmt::format("{}: {}", oparg, name);
+      return fmt::format("{}: {}", name_idx, name);
     }
     default:
       return std::to_string(oparg);

@@ -96,4 +96,12 @@ Py_ssize_t inlineCacheSize(
 #endif
 }
 
+int loadGlobalIndex(int oparg) {
+#if PY_VERSION_HEX >= 0x030B0000
+  return oparg >> 1;
+#else
+  return oparg;
+#endif
+}
+
 } // extern "C"

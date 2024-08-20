@@ -2858,8 +2858,14 @@ void HIRBuilder::emitSequenceSet(
 void HIRBuilder::emitLoadGlobal(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  auto name_idx = bc_instr.oparg();
+  int name_idx = loadGlobalIndex(bc_instr.oparg());
   Register* result = temps_.AllocateStack();
+
+#if PY_VERSION_HEX >= 0x030B0000
+  if (bc_instr.oparg() & 1) {
+    emitPushNull(tc);
+  }
+#endif
 
   auto try_fast_path = [&] {
     if (!getConfig().stable_code || !getConfig().stable_globals) {

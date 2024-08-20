@@ -361,10 +361,10 @@ bool Preloader::preload() {
         }
         PyObject* names = code_->co_names;
         Py_ssize_t names_len = PyTuple_Size(names);
-        int name_idx = bc_instr.oparg();
+        int name_idx = loadGlobalIndex(bc_instr.oparg());
         JIT_CHECK(
             name_idx < names_len,
-            "Preloaded LOAD_GLOBAL[{}] for names tuple of length {}",
+            "Preloaded LOAD_GLOBAL with index {} for names tuple of length {}",
             name_idx,
             names_len);
 
