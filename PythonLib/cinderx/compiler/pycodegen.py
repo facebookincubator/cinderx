@@ -1466,10 +1466,13 @@ class CodeGenerator(ASTVisitor):
 
     # misc
 
+    def emit_print(self):
+        self.emit("PRINT_EXPR")
+
     def visitExpr(self, node):
         if self.interactive:
             self.visit(node.value)
-            self.emit("PRINT_EXPR")
+            self.emit_print()
         elif is_const(node.value):
             self.emit("NOP")
         else:
@@ -3157,6 +3160,11 @@ class CodeGenerator312(CodeGenerator):
         # 2 for 2, 3,2 for 3, 4,3,2 for 4.
         for i in range(count, 1, -1):
             self.emit("SWAP", i)
+
+    def emit_print(self):
+        self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_PRINT"))
+        self.set_no_lineno()
+        self.emit("POP_TOP")
 
     def _fastcall_helper(self, argcnt, node, args, kwargs):
         # No * or ** args, faster calling sequence.
