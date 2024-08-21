@@ -191,18 +191,13 @@ BorrowedRef<> typeLookupSafe(
   for (size_t i = 0, n = PyTuple_GET_SIZE(mro); i < n; ++i) {
     BorrowedRef<PyTypeObject> base_ty{PyTuple_GET_ITEM(mro, i)};
     if (!PyType_HasFeature(base_ty, Py_TPFLAGS_READY) ||
-#if PY_VERSION_HEX < 0x030C0000
-        _PyDict_HasUnsafeKeys(_PyType_GetDict(base_ty))) {
-#else
-        ((PyDictObject*)base_ty->tp_dict)->ma_keys->dk_kind ==
-            DICT_KEYS_GENERAL) {
-#endif
+        !hasOnlyUnicodeKeys(getBorrowedTypeDict(base_ty))) {
       // Abort the whole search if any base class dict is poorly-behaved
       // (before we find the name); it could contain the key we're looking for.
       return nullptr;
     }
     if (BorrowedRef<> value{
-            PyDict_GetItemWithError(_PyType_GetDict(base_ty), name)}) {
+            PyDict_GetItemWithError(getBorrowedTypeDict(base_ty), name)}) {
       return value;
     }
     JIT_CHECK(!PyErr_Occurred(), "Thread-unsafe exception during type lookup");
