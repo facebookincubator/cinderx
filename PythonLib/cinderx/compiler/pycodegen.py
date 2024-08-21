@@ -3088,13 +3088,11 @@ class CodeGenerator312(CodeGenerator):
 
         return -1
 
-    @staticmethod
-    def find_intrinsic_1_idx(oparg: str) -> int:
-        return INTRINSIC_1.index(oparg)
+    def emit_call_intrinsic_1(self, oparg: str):
+        self.emit("CALL_INTRINSIC_1", INTRINSIC_1.index(oparg))
 
-    @staticmethod
-    def find_intrinsic_2_idx(oparg: str) -> int:
-        return INTRINSIC_2.index(oparg)
+    def emit_call_intrinsic_2(self, oparg: str):
+        self.emit("CALL_INTRINSIC_2", INTRINSIC_2.index(oparg))
 
     _binary_opargs: dict[type, int] = {
         ast.Add: find_op_idx("NB_ADD"),
@@ -3123,10 +3121,7 @@ class CodeGenerator312(CodeGenerator):
     def unaryOp(self, node, op):
         self.visit(node.operand)
         if op == "UNARY_POSITIVE":
-            self.emit(
-                "CALL_INTRINSIC_1",
-                self.find_intrinsic_1_idx("INTRINSIC_UNARY_POSITIVE"),
-            )
+            self.emit_call_intrinsic_1("INTRINSIC_UNARY_POSITIVE")
         else:
             self.emit(op)
 
@@ -3162,7 +3157,7 @@ class CodeGenerator312(CodeGenerator):
             self.emit("SWAP", i)
 
     def emit_print(self):
-        self.emit("CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_PRINT"))
+        self.emit_call_intrinsic_1("INTRINSIC_PRINT")
         self.set_no_lineno()
         self.emit("POP_TOP")
 
@@ -3194,10 +3189,7 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("LOAD_CONST", elts_tuple)
                 self.emit(extend_op, 1)
                 if is_tuple:
-                    self.emit(
-                        "CALL_INTRINSIC_1",
-                        self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE"),
-                    )
+                    self.emit_call_intrinsic_1("INTRINSIC_LIST_TO_TUPLE")
             return
 
         big = (len(elts) + num_pushed) > STACK_USE_GUIDELINE
@@ -3226,9 +3218,7 @@ class CodeGenerator312(CodeGenerator):
                     self.emit(add_op, 1)
 
         if is_tuple:
-            self.emit(
-                "CALL_INTRINSIC_1", self.find_intrinsic_1_idx("INTRINSIC_LIST_TO_TUPLE")
-            )
+            self.emit_call_intrinsic_1("INTRINSIC_LIST_TO_TUPLE")
 
     def make_child_codegen(
         self,
@@ -3332,10 +3322,7 @@ class CodeGenerator312(CodeGenerator):
 
         if type_params:
             outer_gen.emit("SWAP", 2)
-            outer_gen.emit(
-                "CALL_INTRINSIC_2",
-                self.find_intrinsic_2_idx("INTRINSIC_SET_FUNCTION_TYPE_PARAMS"),
-            )
+            outer_gen.emit_call_intrinsic_2("INTRINSIC_SET_FUNCTION_TYPE_PARAMS")
             outer_gen.emit("RETURN_VALUE")
             self._makeClosure(outer_gen, 0)
             if args:
@@ -3355,10 +3342,7 @@ class CodeGenerator312(CodeGenerator):
                 if param.bound:
                     raise NotImplementedError("bound")
                 else:
-                    self.emit(
-                        "CALL_INTRINSIC_1",
-                        self.find_intrinsic_1_idx("INTRINSIC_TYPEVAR"),
-                    )
+                    self.emit_call_intrinsic_1("INTRINSIC_TYPEVAR")
 
                 self.emit("COPY", 1)
                 self.storeName(param.name)
@@ -3469,10 +3453,7 @@ class CodeGenerator312(CodeGenerator):
 
         if node.type_params:
             outer_gen.emit("LOAD_DEREF", ".type_params")
-            outer_gen.emit(
-                "CALL_INTRINSIC_1",
-                self.find_intrinsic_1_idx("INTRINSIC_SUBSCRIPT_GENERIC"),
-            )
+            outer_gen.emit_call_intrinsic_1("INTRINSIC_SUBSCRIPT_GENERIC")
             outer_gen.emit("STORE_FAST", ".generic_base")
 
             outer_gen._call_helper(
@@ -3548,9 +3529,7 @@ class CodeGenerator312(CodeGenerator):
 
         outer_gen._makeClosure(code_gen, 0)
         outer_gen.emit("BUILD_TUPLE", 3)
-        outer_gen.emit(
-            "CALL_INTRINSIC_1", outer_gen.find_intrinsic_1_idx("INTRINSIC_TYPEALIAS")
-        )
+        outer_gen.emit_call_intrinsic_1("INTRINSIC_TYPEALIAS")
 
         if node.type_params:
             outer_gen.emit("RETURN_VALUE")
