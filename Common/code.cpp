@@ -4,7 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/opcode_stubs.h"
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
 #if PY_VERSION_HEX >= 0x030C0000
 
@@ -23,27 +23,6 @@
 #endif
 
 extern "C" {
-
-// List of all opcodes that have an instrumented form.
-//
-// Does not include INSTRUMENTED_LINE or INSTRUMENTED_INSTRUCTION.
-#define INSTRUMENTED_EQUIVALENTS(X) \
-  X(CALL)                           \
-  X(CALL_FUNCTION_EX)               \
-  X(END_FOR)                        \
-  X(END_SEND)                       \
-  X(FOR_ITER)                       \
-  X(JUMP_BACKWARD)                  \
-  X(JUMP_FORWARD)                   \
-  X(LOAD_SUPER_ATTR)                \
-  X(POP_JUMP_IF_FALSE)              \
-  X(POP_JUMP_IF_NONE)               \
-  X(POP_JUMP_IF_NOT_NONE)           \
-  X(POP_JUMP_IF_TRUE)               \
-  X(RESUME)                         \
-  X(RETURN_CONST)                   \
-  X(RETURN_VALUE)                   \
-  X(YIELD_VALUE)
 
 _Py_CODEUNIT* codeUnit(PyCodeObject* code) {
   PyObject* bytes_obj = PyCode_GetCode(code);
@@ -69,21 +48,25 @@ int unspecialize(int opcode) {
 
 int uninstrument(PyCodeObject* code, int index) {
   int opcode = _Py_OPCODE(codeUnit(code)[index]);
-  switch (opcode) {
-#define CASE(OPCODE)          \
-  case INSTRUMENTED_##OPCODE: \
-    return OPCODE;
-    INSTRUMENTED_EQUIVALENTS(CASE)
-#undef CASE
+
 #if PY_VERSION_HEX >= 0x030C0000
-    case INSTRUMENTED_INSTRUCTION:
-      return code->_co_monitoring->per_instruction_opcodes[index];
-    case INSTRUMENTED_LINE:
-      return code->_co_monitoring->lines[index].original_opcode;
-#endif
-    default:
-      return opcode;
+  // Check if there's an equivalent opcode without instrumentation.
+  uint8_t base_opcode = Cix_DEINSTRUMENT(static_cast<uint8_t>(opcode));
+  if (base_opcode != 0) {
+    return base_opcode;
   }
+
+  // Instrumented lines and arbitrary instrumented instructions need to check
+  // different tables.
+  if (opcode == INSTRUMENTED_INSTRUCTION) {
+    return code->_co_monitoring->per_instruction_opcodes[index];
+  }
+  if (opcode == INSTRUMENTED_LINE) {
+    return code->_co_monitoring->lines[index].original_opcode;
+  }
+#endif
+
+  return opcode;
 }
 
 Py_ssize_t inlineCacheSize(
