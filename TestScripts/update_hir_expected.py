@@ -270,6 +270,11 @@ def write_if_changed(filename: str, old_lines: list[str], new_lines: list[str]) 
 
 
 CPP_TEST_NAME_RE: re.Pattern[str] = re.compile(r"^TEST(_F)?\(([^,]+), ([^)]+)\) {")
+CPP_MACRO_IF_3_12_START_RE: re.Pattern[str] = re.compile(
+    r"^#if PY_VERSION_HEX >= 0x030C0000"
+)
+CPP_MACRO_ELSE_RE: re.Pattern[str] = re.compile(r"^#else")
+CPP_MACRO_ENDIF_RE: re.Pattern[str] = re.compile(r"^#endif")
 CPP_EXPECTED_START_RE: re.Pattern[str] = re.compile(r"^(  const char\* ([^ ]+) =)")
 CPP_EXPECTED_END = ')";'
 CPP_TEST_END = "}"
@@ -295,8 +300,12 @@ class State(Enum):
 
 
 def update_cpp_tests(  # noqa: C901
-    failed_suites: SuiteOutputDict, failed_cpp_tests: set[tuple[str, str]]
+    failed_suites: SuiteOutputDict,
+    failed_cpp_tests: set[tuple[str, str]],
+    py_version: str,
 ) -> None:
+    assert py_version in ("3.10", "3.12"), "Only 3.10 and 3.12 versions supported"
+
     def expect_state(estate: State) -> None:
         nonlocal state, lineno, cpp_filename
         if state is not estate:
@@ -318,6 +327,8 @@ def update_cpp_tests(  # noqa: C901
             old_lines = f.read().split("\n")
 
         state = State.WAIT_FOR_TEST
+        in_version_block = None
+        needs_to_close_upgraded_block = False
         new_lines = []
         for lineno, line in enumerate(old_lines, 1):  # noqa: B007
             m = CPP_TEST_NAME_RE.match(line)
@@ -343,6 +354,21 @@ def update_cpp_tests(  # noqa: C901
                 new_lines.append(line)
                 continue
 
+            if CPP_MACRO_IF_3_12_START_RE.match(line):
+                assert (
+                    in_version_block is None
+                ), f"Nested version blocks @ line {lineno}"
+                in_version_block = "3.12"
+                continue
+
+            if in_version_block == "3.12" and CPP_MACRO_ELSE_RE.match(line):
+                in_version_block = "3.10"
+                continue
+
+            if in_version_block is not None and CPP_MACRO_ENDIF_RE.match(line):
+                in_version_block = None
+                continue
+
             m = CPP_EXPECTED_START_RE.match(line)
             if m is not None:
                 expect_state(State.PROCESS_FAILED_TEST)
@@ -352,6 +378,19 @@ def update_cpp_tests(  # noqa: C901
                 actual_lines = test_dict.pop(varname, None)
                 if actual_lines is None:
                     # This test has multiple expected variables, and this one is OK.
+                    new_lines.append(line)
+                    continue
+
+                if in_version_block is not None and in_version_block != py_version:
+                    continue
+                # Upgrade to a Python version switched block
+                if in_version_block is None and py_version == "3.12":
+                    new_lines.append("#if PY_VERSION_HEX >= 0x030C0000")
+                    new_lines.append(decl + ' R"(' + actual_lines[0])
+                    new_lines += actual_lines[1:]
+                    new_lines.append(CPP_EXPECTED_END)
+                    new_lines.append("#else")
+                    needs_to_close_upgraded_block = True
                     new_lines.append(line)
                     continue
 
@@ -365,10 +404,17 @@ def update_cpp_tests(  # noqa: C901
             if state is State.SKIP_EXPECTED:
                 if line == CPP_EXPECTED_END:
                     new_lines.append(line)
+                    if needs_to_close_upgraded_block:
+                        new_lines.append("#endif")
+                        needs_to_close_upgraded_block = False
                     state = State.PROCESS_FAILED_TEST
                 continue
 
             new_lines.append(line)
+
+            if line == CPP_EXPECTED_END and needs_to_close_upgraded_block:
+                new_lines.append("#endif")
+                needs_to_close_upgraded_block = False
 
         expect_empty_test_dict()
         write_if_changed(cpp_filename, old_lines, new_lines)
@@ -399,7 +445,7 @@ def main() -> None:
         write_if_changed(suite_file, old_lines, new_lines)
 
     if len(failed_cpp_tests) > 0:
-        update_cpp_tests(failed_suites, failed_cpp_tests)
+        update_cpp_tests(failed_suites, failed_cpp_tests, py_version)
 
 
 if __name__ == "__main__":
