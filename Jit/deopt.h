@@ -212,6 +212,12 @@ struct DeoptMetadata {
       CodeRuntime* code_rt);
 };
 
+#if PY_VERSION_HEX < 0x030C0000
+using CiPyFrameObjType = PyFrameObject;
+#else
+using CiPyFrameObjType = _PyInterpreterFrame;
+#endif
+
 // Update `frame` so that execution can resume in the interpreter.
 //
 // `deopt_idx` is the index of `meta` in the Runtime's list of
@@ -230,7 +236,7 @@ struct DeoptMetadata {
 // May return a reference to an object that is relevant to the deopt event. The
 // meaning of this object depends on meta.reason.
 void reifyFrame(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs);
@@ -238,7 +244,7 @@ void reifyFrame(
 // Like reifyFrame(), but for a suspended generator. Takes a single base
 // pointer for spill data rather than a full set of registers.
 void reifyGeneratorFrame(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const void* base);

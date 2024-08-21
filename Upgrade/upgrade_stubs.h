@@ -166,7 +166,6 @@ PyObject* Cix_SuperLookupMethodOrAttr(
     PyObject* name,
     int call_no_args,
     int* meth_found);
-int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause);
 void Cix_format_exc_check_arg(
     PyThreadState*,
     PyObject*,

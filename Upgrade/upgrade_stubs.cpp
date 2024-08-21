@@ -74,7 +74,6 @@ STUB(
     PyObject*,
     int,
     int*)
-STUB(int, Cix_do_raise, T196762792, PyThreadState*, PyObject*, PyObject*)
 STUB(
     void,
     Cix_format_exc_check_arg,

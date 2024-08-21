@@ -1366,15 +1366,16 @@ void JITRT_DoRaise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
   // raising a RuntimeError as this would mean prepareForDeopt() does not call
   // PyTraceBack_Here().
   if (exc == nullptr) {
+    _PyErr_StackItem* exc_info = _PyErr_GetTopmostException(tstate);
+    PyObject* type_or_value =
 #if PY_VERSION_HEX < 0x030C0000
-    auto* exc_info = _PyErr_GetTopmostException(tstate);
-    auto type = exc_info->exc_type;
-    if (type == Py_None || type == nullptr) {
+        exc_info->exc_type;
+#else
+        exc_info->exc_value;
+#endif
+    if (Py_IsNone(type_or_value) || type_or_value == nullptr) {
       return;
     }
-#else
-    UPGRADE_ASSERT(EXCEPTION_HANDLING)
-#endif
   }
   // We deliberately discard the return value here. In the interpreter a return
   // value of 1 indicates a _valid_ re-raise which skips:

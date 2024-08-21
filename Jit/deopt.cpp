@@ -14,6 +14,10 @@
 
 #include <folly/tracing/StaticTracepoint.h>
 
+#if PY_VERSION_HEX >= 0x030C0000
+#include "pycore_frame.h"
+#endif
+
 #include <bit>
 #include <shared_mutex>
 
@@ -91,33 +95,40 @@ Ref<> MemoryView::readOwned(const LiveValue& value) const {
 }
 
 static void reifyLocalsplus(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const MemoryView& mem) {
 #if PY_VERSION_HEX < 0x030C0000
+  PyObject** localsplus = &frame->f_localsplus[0];
+#else
+  PyObject** localsplus = &frame->localsplus[0];
+#endif
   for (std::size_t i = 0; i < frame_meta.localsplus.size(); i++) {
-    auto value = meta.getLocalValue(i, frame_meta);
+    const LiveValue* value = meta.getLocalValue(i, frame_meta);
     if (value == nullptr) {
       // Value is dead
-      Py_CLEAR(frame->f_localsplus[i]);
-      continue;
+      Py_CLEAR(*localsplus);
+    } else {
+      PyObject* obj = mem.readOwned(*value).release();
+      Py_XSETREF(*localsplus, obj);
     }
-    PyObject* obj = mem.readOwned(*value).release();
-    Py_XSETREF(frame->f_localsplus[i], obj);
+    localsplus++;
   }
-#else
-  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-#endif
 }
 
 static void reifyStack(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const MemoryView& mem) {
 #if PY_VERSION_HEX < 0x030C0000
   frame->f_stackdepth = frame_meta.stack.size();
+  PyObject** stack_top = &frame->f_valuestack[frame->f_stackdepth - 1];
+#else
+  frame->stacktop = frame->f_code->co_nlocalsplus + frame_meta.stack.size();
+  PyObject** stack_top = &frame->localsplus[frame->stacktop - 1];
+#endif
   for (int i = frame_meta.stack.size() - 1; i >= 0; i--) {
     const auto& value = meta.getStackValue(i, frame_meta);
     Ref<> obj = mem.readOwned(value);
@@ -130,17 +141,15 @@ static void reifyStack(
       // which we need to replace with nullptr to match the interpreter
       // semantics.
       if (obj == Py_None) {
-        frame->f_valuestack[i] = nullptr;
+        *stack_top = nullptr;
       } else {
-        frame->f_valuestack[i] = obj.release();
+        *stack_top = obj.release();
       }
     } else {
-      frame->f_valuestack[i] = obj.release();
+      *stack_top = obj.release();
     }
+    stack_top--;
   }
-#else
-  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-#endif
 }
 
 Ref<> profileDeopt(
@@ -173,10 +182,11 @@ Ref<> profileDeopt(
   return guilty_obj;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
+
 static void reifyBlockStack(
     PyFrameObject* frame,
     const jit::hir::BlockStack& block_stack) {
-#if PY_VERSION_HEX < 0x030C0000
   std::size_t bs_size = block_stack.size();
   frame->f_iblock = bs_size;
   for (std::size_t i = 0; i < bs_size; i++) {
@@ -185,9 +195,6 @@ static void reifyBlockStack(
     frame->f_blockstack[i].b_handler = block.handler_off.asIndex().value();
     frame->f_blockstack[i].b_level = block.stack_level;
   }
-#else
-  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-#endif
 }
 
 static void reifyFrameImpl(
@@ -196,7 +203,6 @@ static void reifyFrameImpl(
     bool for_gen_resume,
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs) {
-#if PY_VERSION_HEX < 0x030C0000
   frame->f_locals = nullptr;
   frame->f_trace = nullptr;
   frame->f_trace_opcodes = 0;
@@ -225,13 +231,35 @@ static void reifyFrameImpl(
   reifyStack(frame, meta, frame_meta, mem);
   reifyBlockStack(frame, frame_meta.block_stack);
   // Generator/frame linkage happens in `materializePyFrame` in frame.cpp
-#else
-  UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)
-#endif
 }
 
+#else // PY_VERSION_HEX < 0x030C0000
+
+static void reifyFrameImpl(
+    _PyInterpreterFrame* frame,
+    const DeoptMetadata& meta,
+    bool for_gen_resume,
+    const DeoptFrameMetadata& frame_meta,
+    const uint64_t* regs) {
+  frame->prev_instr = _PyCode_CODE(frame->f_code) +
+      (BCIndex{frame_meta.next_instr_offset} - 1).value();
+  if (meta.reason == DeoptReason::kYieldFrom && for_gen_resume) {
+    UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+    // The DeoptMetadata for YieldFrom-like instructions defaults to the state
+    // for raising an exception. If we're going to resume execution, we need to
+    // pull the instruction pointer back by one, to repeat the YIELD_FROM
+    // bytecode.
+    // frame->f_lasti--;
+  }
+  MemoryView mem{regs};
+  reifyLocalsplus(frame, meta, frame_meta, mem);
+  reifyStack(frame, meta, frame_meta, mem);
+}
+
+#endif // PY_VERSION_HEX >= 0x030C0000
+
 void reifyFrame(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs) {
@@ -239,7 +267,7 @@ void reifyFrame(
 }
 
 void reifyGeneratorFrame(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const void* base) {

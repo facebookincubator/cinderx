@@ -233,6 +233,15 @@ Cix_DEINSTRUMENT(uint8_t op) {
 // @Borrow function _PyLineTable_NextAddressRange from Objects/codeobject.c [3.12]
 #endif
 
+// Internal dependencies for Cix_do_raise.
+#define _PyErr_SetRaisedException __PyErr_SetRaisedException
+// @Borrow function _PyErr_SetRaisedException from Python/errors.c [3.12]
+// End internal dependencies.
+// @Borrow function do_raise from Python/ceval.c
+int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
+  return do_raise(tstate, exc, cause);
+}
+
 int init_upstream_borrow(void) {
   PyObject* empty_dict = PyDict_New();
   if (empty_dict == NULL) {

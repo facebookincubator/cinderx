@@ -1583,12 +1583,12 @@ static void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
       name);
 }
 
-static PyFrameObject*
+static CiPyFrameObjType*
 prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
-#if PY_VERSION_HEX < 0x030C0000
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
   PyThreadState* tstate = _PyThreadState_UncheckedGet();
+#if PY_VERSION_HEX < 0x030C0000
   Ref<PyFrameObject> f = materializePyFrameForDeopt(tstate);
 
   PyFrameObject* frame = f.release();
@@ -1604,6 +1604,11 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
     frame_iter = frame_iter->f_back;
     sf_iter = sf_iter->prev;
   }
+#else
+  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
+  reifyFrame(frame, deopt_meta, deopt_meta.frame_meta.at(0), regs);
+  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
+#endif
   Ref<> deopt_obj;
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
@@ -1652,17 +1657,13 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
     }
   }
   return frame;
-#else
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
-  return nullptr;
-#endif
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 static PyObject* resumeInInterpreter(
     PyFrameObject* frame,
     Runtime* runtime,
     std::size_t deopt_idx) {
-#if PY_VERSION_HEX < 0x030C0000
   if (frame->f_gen) {
     auto gen = reinterpret_cast<PyGenObject*>(frame->f_gen);
     // It's safe to call JITRT_GenJitDataFree directly here, rather than
@@ -1715,11 +1716,33 @@ static PyObject* resumeInInterpreter(
     inline_depth--;
   }
   return result;
-#else
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
-  return nullptr;
-#endif
 }
+
+#else
+
+static PyObject* resumeInInterpreter(
+    _PyInterpreterFrame* frame,
+    Runtime* runtime,
+    std::size_t deopt_idx) {
+  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
+  UPGRADE_NOTE(GENERATOR_JIT_SUPPORT, T194022335)
+  PyThreadState* tstate = PyThreadState_Get();
+
+  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
+  int err_occurred = (deopt_meta.reason != DeoptReason::kGuardFailure);
+
+  // Delegate management of the frame to the interpreter loop. On entry, it
+  // expects tstate->cframe->current_frame points to the frame for the calling
+  // function. We don't need to go back a tstate->cframe as we borrowed an
+  // existing one when we linked our frame in.
+  JIT_CHECK(
+      tstate->cframe->current_frame == frame,
+      "unexpected frame at top of stack");
+  tstate->cframe->current_frame = frame->previous;
+  return _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
+}
+
+#endif
 
 void* generateDeoptTrampoline(bool generator_mode) {
   CodeHolder code;
@@ -1839,7 +1862,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   static_assert(
       std::is_same_v<
           decltype(prepareForDeopt),
-          PyFrameObject*(const uint64_t*, Runtime*, std::size_t)>,
+          CiPyFrameObjType*(const uint64_t*, Runtime*, std::size_t)>,
       "prepareForDeopt has unexpected signature");
   a.call(reinterpret_cast<uint64_t>(prepareForDeopt));
 
@@ -1866,7 +1889,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   static_assert(
       std::is_same_v<
           decltype(resumeInInterpreter),
-          PyObject*(PyFrameObject*, Runtime*, std::size_t)>,
+          PyObject*(CiPyFrameObjType*, Runtime*, std::size_t)>,
       "resumeInInterpreter has unexpected signature");
   a.call(reinterpret_cast<uint64_t>(resumeInInterpreter));
 

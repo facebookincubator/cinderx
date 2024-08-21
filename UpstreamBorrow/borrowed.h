@@ -71,6 +71,8 @@ int Cix_PyCode_InitAddressRange(PyCodeObject* co, PyCodeAddressRange* bounds);
 int Cix_PyLineTable_NextAddressRange(PyCodeAddressRange* range);
 #endif
 
+int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause);
+
 int init_upstream_borrow(void);
 
 #ifdef __cplusplus
