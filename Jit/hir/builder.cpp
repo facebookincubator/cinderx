@@ -2154,9 +2154,9 @@ void HIRBuilder::emitContainsOp(TranslationContext& tc, int oparg) {
 }
 
 void HIRBuilder::emitCompareOp(TranslationContext& tc, int compare_op) {
-#if PY_VERSION_HEX >= 0x030B0000
-  compare_op >>= 4;
-#endif
+  if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+    compare_op >>= 4;
+  }
 
   JIT_CHECK(compare_op >= Py_LT, "Invalid op {}", compare_op);
   JIT_CHECK(compare_op <= Py_GE, "Invalid op {}", compare_op);
@@ -2249,12 +2249,12 @@ void HIRBuilder::emitLoadAttr(
 
   // In 3.12 LOAD_METHOD has been merged into LOAD_ATTR, and the oparg tells you
   // which one it should be.
-#if PY_VERSION_HEX >= 0x030C0000
-  if (oparg & 1) {
-    emitLoadMethod(tc, name_idx);
-    return;
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    if (oparg & 1) {
+      emitLoadMethod(tc, name_idx);
+      return;
+    }
   }
-#endif
 
   Register* receiver = tc.frame.stack.pop();
   Register* result = temps_.AllocateStack();
@@ -2870,11 +2870,11 @@ void HIRBuilder::emitLoadGlobal(
   int name_idx = loadGlobalIndex(bc_instr.oparg());
   Register* result = temps_.AllocateStack();
 
-#if PY_VERSION_HEX >= 0x030B0000
-  if (bc_instr.oparg() & 1) {
-    emitPushNull(tc);
+  if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+    if (bc_instr.oparg() & 1) {
+      emitPushNull(tc);
+    }
   }
-#endif
 
   auto try_fast_path = [&] {
     if (!getConfig().stable_code || !getConfig().stable_globals) {
@@ -3546,21 +3546,21 @@ static std::pair<bool, bool> checkAsyncWithError(
     BCIndex idx) {
   bool error_aenter = false;
   bool error_aexit = false;
-#if PY_VERSION_HEX < 0x030C0000
-  int prev_prev_op = idx > 1 ? bc_instrs.at(idx - 2).opcode() : 0;
-  int prev_op = idx != 0 ? bc_instrs.at(idx - 1).opcode() : 0;
-  if (prev_op == BEFORE_ASYNC_WITH) {
-    error_aenter = true;
-  } else if (
-      prev_op == WITH_EXCEPT_START ||
-      (prev_op == CALL_FUNCTION && prev_prev_op == DUP_TOP)) {
-    error_aexit = true;
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    int prev_prev_op = idx > 1 ? bc_instrs.at(idx - 2).opcode() : 0;
+    int prev_op = idx != 0 ? bc_instrs.at(idx - 1).opcode() : 0;
+    if (prev_op == BEFORE_ASYNC_WITH) {
+      error_aenter = true;
+    } else if (
+        prev_op == WITH_EXCEPT_START ||
+        (prev_op == CALL_FUNCTION && prev_prev_op == DUP_TOP)) {
+      error_aexit = true;
+    }
+  } else {
+    BytecodeInstruction bc_instr = bc_instrs.at(idx);
+    error_aenter = bc_instr.oparg() == 1;
+    error_aexit = bc_instr.oparg() == 2;
   }
-#else
-  BytecodeInstruction bc_instr = bc_instrs.at(idx);
-  error_aenter = bc_instr.oparg() == 1;
-  error_aexit = bc_instr.oparg() == 2;
-#endif
   return std::make_pair(error_aenter, error_aexit);
 }
 

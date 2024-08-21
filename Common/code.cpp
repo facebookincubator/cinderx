@@ -80,19 +80,17 @@ Py_ssize_t inlineCacheSize(
 }
 
 int loadAttrIndex(int oparg) {
-#if PY_VERSION_HEX >= 0x030C0000
-  return oparg >> 1;
-#else
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    return oparg >> 1;
+  }
   return oparg;
-#endif
 }
 
 int loadGlobalIndex(int oparg) {
-#if PY_VERSION_HEX >= 0x030B0000
-  return oparg >> 1;
-#else
+  if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+    return oparg >> 1;
+  }
   return oparg;
-#endif
 }
 
 } // extern "C"
