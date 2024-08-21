@@ -54,7 +54,13 @@ struct InvokeTarget {
   // is PyMethodDescrObject or PyCFunction (has a PyMethodDef)
   bool is_builtin{false};
   // needs the function object available at runtime (e.g. for freevars)
-  bool uses_runtime_func{false};
+  bool uses_runtime_func{
+#if PY_VERSION_HEX < 0x030C0000
+      false
+#else
+      true
+#endif
+  };
   // underlying C function implementation for builtins
   void* builtin_c_func{nullptr};
   // expected nargs for builtin; if matched, can x64 invoke even if untyped

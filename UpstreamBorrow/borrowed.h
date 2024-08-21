@@ -66,6 +66,9 @@ void Cix_PyThreadState_PopFrame(
 void Cix_PyFrame_ClearExceptCode(_PyInterpreterFrame* frame);
 
 uint8_t Cix_DEINSTRUMENT(uint8_t op);
+
+int Cix_PyCode_InitAddressRange(PyCodeObject* co, PyCodeAddressRange* bounds);
+int Cix_PyLineTable_NextAddressRange(PyCodeAddressRange* range);
 #endif
 
 int init_upstream_borrow(void);

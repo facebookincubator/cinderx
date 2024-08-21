@@ -357,6 +357,7 @@ constexpr auto FP_ARGUMENT_REGS = std::to_array({
 // there.
 constexpr PhyLocation INITIAL_EXTRA_ARGS_REG = PhyLocation::R10;
 constexpr PhyLocation INITIAL_TSTATE_REG = PhyLocation::R11;
+constexpr PhyLocation INITIAL_INTERPRETER_FRAME_REG = PhyLocation::R12;
 // This is often provided by the first argument in the vector call protocol.
 constexpr PhyLocation INITIAL_FUNC_REG = ARGUMENT_REGS[0];
 

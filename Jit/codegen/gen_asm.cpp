@@ -614,8 +614,18 @@ void NativeGenerator::loadOrGenerateLinkFrame(
     }
   };
 
+  auto load_interpreter_frame = [&]() {
+#if PY_VERSION_HEX >= 0x030C0000
+    x86::Gp frame_reg = x86::gpq(INITIAL_INTERPRETER_FRAME_REG.loc);
+    as_->mov(frame_reg, x86::ptr(tstate_reg, offsetof(PyThreadState, cframe)));
+    as_->mov(
+        frame_reg, x86::ptr(frame_reg, offsetof(_PyCFrame, current_frame)));
+#endif
+  };
+
   if (isGen()) {
     load_tstate_and_move();
+    load_interpreter_frame();
     return;
   }
 
@@ -687,6 +697,7 @@ void NativeGenerator::loadOrGenerateLinkFrame(
       break;
     }
   }
+  load_interpreter_frame();
 }
 
 void NativeGenerator::generatePrologue(

@@ -105,6 +105,7 @@ struct Environ {
   jit::lir::Instruction* asm_tstate{nullptr};
   jit::lir::Instruction* asm_extra_args{nullptr};
   jit::lir::Instruction* asm_func{nullptr};
+  jit::lir::Instruction* asm_interpreter_frame{nullptr};
 
   // Maps HIR values to the HIR values they were copied from. Used for LIR
   // generation purposes.

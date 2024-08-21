@@ -186,6 +186,7 @@ bool Instr::isReplayable() const {
     case Opcode::kRaiseStatic:
     case Opcode::kRefineType:
     case Opcode::kStealCellItem:
+    case Opcode::kUpdatePrevInstr:
     case Opcode::kUnicodeCompare:
     case Opcode::kUnicodeConcat:
     case Opcode::kUnicodeSubscr:
@@ -886,7 +887,11 @@ const Environment::ReferenceSet& Environment::references() const {
 }
 
 bool usesRuntimeFunc(BorrowedRef<PyCodeObject> code) {
+#if PY_VERSION_HEX < 0x030C0000
   return PyTuple_GET_SIZE(PyCode_GetFreevars(code)) > 0;
+#else
+  return true;
+#endif
 }
 
 void Function::setCode(BorrowedRef<PyCodeObject> code) {

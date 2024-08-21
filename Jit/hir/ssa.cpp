@@ -763,6 +763,7 @@ Type outputType(
     case Opcode::kStoreArrayItem:
     case Opcode::kStoreField:
     case Opcode::kUnreachable:
+    case Opcode::kUpdatePrevInstr:
     case Opcode::kUseType:
     case Opcode::kWaitHandleRelease:
     case Opcode::kXDecref:

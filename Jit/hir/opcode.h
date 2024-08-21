@@ -149,6 +149,7 @@ namespace jit::hir {
   V(UnicodeSubscr)                     \
   V(UnpackExToTuple)                   \
   V(Unreachable)                       \
+  V(UpdatePrevInstr)                   \
   V(UseType)                           \
   V(VectorCall)                        \
   V(VectorCallStatic)                  \

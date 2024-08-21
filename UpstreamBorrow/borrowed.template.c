@@ -1,6 +1,8 @@
 // This file is processed by UpstreamBorrow.py. To see the generated output:
 // buck build --out=- fbcode//cinderx/UpstreamBorrow:gen_borrowed.c
 
+// clang-format off
+
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 // @Borrow CPP directives from Objects/genobject.c
@@ -212,6 +214,23 @@ uint8_t
 Cix_DEINSTRUMENT(uint8_t op) {
   return DE_INSTRUMENT[op];
 }
+
+// Internal dependencies for bytecode address to line number mapping.
+// @Borrow CPP directives from Objects/codeobject.c [3.12]
+// @Borrow function scan_varint from Objects/codeobject.c [3.12]
+// @Borrow function scan_signed_varint from Objects/codeobject.c [3.12]
+// @Borrow function get_line_delta from Objects/codeobject.c [3.12]
+// @Borrow function next_code_delta from Objects/codeobject.c [3.12]
+// @Borrow function is_no_line_marker from Objects/codeobject.c [3.12]
+// @Borrow function at_end from Objects/codeobject.c [3.12]
+// @Borrow function advance from Objects/codeobject.c [3.12]
+#define _PyLineTable_InitAddressRange __PyLineTable_InitAddressRange
+// @Borrow function _PyLineTable_InitAddressRange from Objects/codeobject.c [3.12]
+// End internal dependencies.
+#define _PyCode_InitAddressRange Cix_PyCode_InitAddressRange
+// @Borrow function _PyCode_InitAddressRange from Objects/codeobject.c [3.12]
+#define _PyLineTable_NextAddressRange Cix_PyLineTable_NextAddressRange
+// @Borrow function _PyLineTable_NextAddressRange from Objects/codeobject.c [3.12]
 #endif
 
 int init_upstream_borrow(void) {

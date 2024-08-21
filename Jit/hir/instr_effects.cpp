@@ -77,8 +77,8 @@ MemoryEffects memoryEffects(const Instr& inst) {
     // These push/pop shadow frames and should not get DCE'd.
     case Opcode::kBeginInlinedFunction:
     case Opcode::kEndInlinedFunction:
-      return commonEffects(inst, AOther);
-
+    // Updates the _PyInterpreterFrame
+    case Opcode::kUpdatePrevInstr:
     // Can write to fields of its operands.
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kWaitHandleRelease:
@@ -399,6 +399,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kUnicodeRepeat:
     case Opcode::kUnicodeSubscr:
     case Opcode::kUnreachable:
+    case Opcode::kUpdatePrevInstr:
     case Opcode::kUseType:
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kWaitHandleLoadWaiter:

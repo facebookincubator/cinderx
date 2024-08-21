@@ -120,6 +120,17 @@ class DeadCodeElimination : public Pass {
   }
 };
 
+class InsertUpdatePrevInstr : public Pass {
+ public:
+  InsertUpdatePrevInstr() : Pass("InsertUpdatePrevInstr") {}
+
+  void Run(Function& irfunc) override;
+
+  static std::unique_ptr<InsertUpdatePrevInstr> Factory() {
+    return std::make_unique<InsertUpdatePrevInstr>();
+  }
+};
+
 class GuardTypeRemoval : public Pass {
  public:
   GuardTypeRemoval() : Pass("GuardTypeRemoval") {}

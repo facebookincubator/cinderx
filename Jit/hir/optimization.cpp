@@ -2,9 +2,11 @@
 
 #include "cinderx/Jit/hir/optimization.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 #include "internal/pycore_interp.h"
 
 #include "cinderx/Jit/compiler.h"
@@ -60,6 +62,9 @@ PassRegistry::PassRegistry() {
   addPass(GuardTypeRemoval::Factory);
   addPass(BeginInlinedFunctionElimination::Factory);
   addPass(BuiltinLoadMethodElimination::Factory);
+#if PY_VERSION_HEX >= 0x030C0000
+  addPass(InsertUpdatePrevInstr::Factory);
+#endif
   // AllPasses is only used for testing.
   addPass(AllPasses::Factory);
 }
@@ -286,6 +291,61 @@ void DeadCodeElimination::Run(Function& func) {
     }
   }
 }
+
+#if PY_VERSION_HEX >= 0x030C0000
+class BytecodeIndexToLine {
+ public:
+  explicit BytecodeIndexToLine(PyCodeObject* co)
+      : indexToLine_{byteCodeIndexSize(co)} {
+    PyCodeAddressRange range;
+    Cix_PyCode_InitAddressRange(co, &range);
+    int idx = 0;
+    while (Cix_PyLineTable_NextAddressRange(&range)) {
+      JIT_DCHECK(idx < indexToLine_.size(), "idx overflowed code size")
+      JIT_DCHECK(idx == range.ar_start, "Index does not line up with range");
+      for (; idx < range.ar_end; idx++) {
+        indexToLine_.emplace_back(range.ar_line);
+      }
+    }
+  }
+
+  int lineNoFor(BCIndex index) const {
+    if (index.value() < 0) {
+      return -1;
+    }
+    JIT_DCHECK(
+        index.value() < indexToLine_.size(),
+        "Index out of range {} < {}",
+        index.value(),
+        indexToLine_.size());
+    return indexToLine_[index.value()];
+  }
+
+ private:
+  std::vector<int> indexToLine_;
+};
+
+void InsertUpdatePrevInstr::Run(Function& func) {
+  BytecodeIndexToLine bc_idx_to_line(func.code);
+
+  // -1 is a "valid" line number result meaning "no line number"
+  int prev_emitted_line_no = INT_MAX;
+  for (BasicBlock& block : func.cfg.blocks) {
+    for (Instr& instr : block) {
+      if (!hasArbitraryExecution(instr)) {
+        continue;
+      }
+      int cur_line_no = bc_idx_to_line.lineNoFor(instr.bytecodeOffset());
+      if (cur_line_no != prev_emitted_line_no) {
+        Instr* update_instr = UpdatePrevInstr::create();
+        update_instr->copyBytecodeOffset(instr);
+        update_instr->InsertBefore(instr);
+        prev_emitted_line_no = cur_line_no;
+      }
+    }
+  }
+}
+#endif
 
 using RegUses = std::unordered_map<Register*, std::unordered_set<Instr*>>;
 

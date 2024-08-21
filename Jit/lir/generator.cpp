@@ -251,6 +251,10 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
   if (func_->uses_runtime_func) {
     env_->asm_func = bindVReg(codegen::INITIAL_FUNC_REG);
   }
+#if PY_VERSION_HEX >= 0x030C0000
+  env_->asm_interpreter_frame =
+      bindVReg(jit::codegen::INITIAL_INTERPRETER_FRAME_REG);
+#endif
 
   return block;
 }
@@ -2923,6 +2927,23 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto& instr = static_cast<const GetAIter&>(i);
         bbb.appendCallInstruction(
             instr.output(), Ci_GetANext, env_->asm_tstate, instr.GetOperand(0));
+        break;
+      }
+      case Opcode::kUpdatePrevInstr: {
+#if PY_VERSION_HEX >= 0x030C0000
+        _Py_CODEUNIT* prev_instr_ptr =
+            (i.bytecodeOffset().asIndex().value() - 1) +
+            codeUnit(i.code().get());
+        reinterpret_cast<intptr_t>(
+            (i.bytecodeOffset().asIndex().value() - 1) +
+            codeUnit(i.code().get()));
+        bbb.appendInstr(
+            OutInd{
+                env_->asm_interpreter_frame,
+                offsetof(_PyInterpreterFrame, prev_instr)},
+            Instruction::kMove,
+            prev_instr_ptr);
+#endif
         break;
       }
     }

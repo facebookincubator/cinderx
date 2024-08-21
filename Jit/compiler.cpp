@@ -134,8 +134,12 @@ void Compiler::runPasses(
   runPassIf(hir::DeadCodeElimination{}, PassConfig::kDeadCodeElim);
   runPassIf(hir::CleanCFG{}, PassConfig::kCleanCFG);
 
-  // RefcountInsertion must come last.
   runPass(jit::hir::RefcountInsertion{}, irfunc, callback);
+
+#if PY_VERSION_HEX >= 0x030C0000
+  runPassIf(
+      jit::hir::InsertUpdatePrevInstr{}, PassConfig::kInsertUpdatePrevInstr);
+#endif
 
   JIT_LOGIF(
       g_dump_final_hir, "Optimized HIR for {}:\n{}", irfunc.fullname, irfunc);

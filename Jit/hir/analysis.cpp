@@ -194,6 +194,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kSetFunctionAttr:
     case Opcode::kSnapshot:
     case Opcode::kStoreField:
+    case Opcode::kUpdatePrevInstr:
     case Opcode::kUnreachable:
     case Opcode::kWaitHandleRelease:
     case Opcode::kXDecref:

@@ -462,7 +462,11 @@ fun foo {
   std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.ParseHIR(hir);
   ASSERT_NE(irfunc, nullptr);
 
-  Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+  Compiler::runPasses(
+      *irfunc,
+      static_cast<PassConfig>(
+          // We don't have a code-object for kInsertUpdatePrevInstr.
+          PassConfig::kAllExceptInliner & ~PassConfig::kInsertUpdatePrevInstr));
 
   jit::codegen::Environ env;
   jit::Runtime rt;
@@ -479,11 +483,19 @@ fun foo {
   ss << *lir_func << std::endl;
 
   auto lir_expected = fmt::format(
+#if PY_VERSION_HEX >= 0x030C0000
+      R"(
+# CondBranchCheckType<1, 3, Tuple> v1
+         %7:8bit = Call {0}({0:#x}):64bit, %6:Object
+                   CondBranch %7:8bit, BB%9, BB%11
+)",
+#else
       R"(
 # CondBranchCheckType<1, 3, Tuple> v1
          %5:8bit = Call {0}({0:#x}):64bit, %4:Object
                    CondBranch %5:8bit, BB%7, BB%9
 )",
+#endif
       reinterpret_cast<uint64_t>(__Invoke_PyTuple_Check));
   EXPECT_NE(ss.str().find(lir_expected.c_str()), std::string::npos);
 }
@@ -506,7 +518,11 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
   std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.ParseHIR(hir_source);
   ASSERT_NE(irfunc, nullptr);
 
-  Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+  Compiler::runPasses(
+      *irfunc,
+      static_cast<PassConfig>(
+          // We don't have a code-object for kInsertUpdatePrevInstr.
+          PassConfig::kAllExceptInliner & ~PassConfig::kInsertUpdatePrevInstr));
 
   jit::codegen::Environ env;
   jit::Runtime rt;
@@ -521,6 +537,34 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
 
   lir_func->sortBasicBlocks();
   ss << *lir_func << std::endl;
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* lir_expected = R"(Function:
+BB %0 - succs: %5
+       %1:Object = Bind R10:Object
+       %2:Object = Bind R11:Object
+       %3:Object = Bind RDI:Object
+       %4:Object = Bind R12:Object
+
+BB %5 - preds: %0
+
+# v9:Nullptr = LoadConst<Nullptr>
+       %6:Object = Move 0(0x0):Object
+
+# v10:Bottom = CheckVar<"a"> v9 {
+#   LiveValues<1> unc:v9
+#   FrameState {
+#     NextInstrOffset 2
+#     Locals<1> v9
+#   }
+# }
+                   Guard 4(0x4):64bit, 0(0x0):64bit, %6:Object, 0(0x0):64bit, %6:Object
+
+# Unreachable
+                   Unreachable
+
+
+)";
+#else
   const char* lir_expected = R"(Function:
 BB %0 - succs: %3
        %1:Object = Bind R10:Object
@@ -545,6 +589,7 @@ BB %3 - preds: %0
 
 
 )";
+#endif
   ASSERT_EQ(ss.str(), lir_expected);
 }
 

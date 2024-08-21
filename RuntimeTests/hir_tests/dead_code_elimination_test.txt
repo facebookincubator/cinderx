@@ -21,18 +21,18 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v5:Nullptr = LoadConst<Nullptr>
+    v7:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v6:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v6
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
   }
 
   bb 2 (preds 0) {
     Snapshot
-    v7:CInt32 = RunPeriodicTasks {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
         NextInstrOffset 2
-        Locals<1> v5
+        Locals<1> v7
       }
     }
     Branch<1>
@@ -40,8 +40,8 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v11:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    Return v11
+    v13:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    Return v13
   }
 }
 --- Test Name ---

@@ -711,6 +711,10 @@ static std::string format_immediates(const Instr& instr) {
       const auto& dp = static_cast<const DeoptPatchpoint&>(instr);
       return fmt::format("{}", getStablePointer(dp.patcher()));
     }
+    case Opcode::kUpdatePrevInstr: {
+      const auto& upi = static_cast<const UpdatePrevInstr&>(instr);
+      return fmt::format("idx:{}", upi.bytecodeOffset().asIndex() - 1);
+    }
   }
   JIT_ABORT("Invalid opcode {}", static_cast<int>(instr.opcode()));
 }
