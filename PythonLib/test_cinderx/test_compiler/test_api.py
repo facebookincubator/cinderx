@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-strict
 import __future__
 
 import ast
