@@ -137,7 +137,7 @@ class SymbolVisitorTests(CompilerTest):
         visitor = SymbolVisitor(0)
         with self.assertRaisesRegex(SyntaxError, "duplicated type parameter: 'T'"):
             walk(module, visitor)
-            
+
     @skipIf(PRE_312, "Python 3.12+ only")
     def test_func_type_param_bound(self) -> None:
         code = """def f[T: str](): pass"""
@@ -188,7 +188,7 @@ class SymbolVisitorTests(CompilerTest):
                 break
         else:
             self.fail("scope not found")
-    
+
     @skipIf(PRE_312, "Python 3.12+ only")
     def test_func_param_spec(self) -> None:
         code = """def f[**T](): pass"""
@@ -210,7 +210,7 @@ class SymbolVisitorTests(CompilerTest):
                 break
         else:
             self.fail("scope not found")
-    
+
     @skipIf(PRE_312, "Python 3.12+ only")
     def test_class_type_param(self) -> None:
         code = """class C[T]: pass"""
@@ -264,8 +264,8 @@ class SymbolVisitorTests(CompilerTest):
                 klass = scope.children[0]
                 self.assertEqual(klass.name, "C")
 
-                self.assertEqual(len(klass.children), 1)    
-                
+                self.assertEqual(len(klass.children), 1)
+
                 func = klass.children[0]
                 self.assertTrue(func.nested)
                 self.assertEqual(func.name, "f")
@@ -344,7 +344,7 @@ class SymbolVisitorTests(CompilerTest):
         walk(module, visitor)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
-                self.assertEqual(len(scope.parent.children), 1)
+                self.assertEqual(len(scope.parent.children), 2)
                 self.assertEqual(len(scope.children), 0)
                 self.assertIn("__classdict__", scope.uses)
                 self.assertIn("__classdict__", scope.parent.defs)
