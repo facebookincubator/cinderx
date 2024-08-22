@@ -53,6 +53,11 @@ PyObject* autoJITVectorcall(
     PyObject* const* stack,
     size_t nargsf,
     PyObject* kwnames) {
+  JIT_DCHECK(
+      PyFunction_Check(func_obj),
+      "Called AutoJIT wrapper with {} object instead of a function",
+      Py_TYPE(func_obj)->tp_name);
+
   auto func = reinterpret_cast<PyFunctionObject*>(func_obj);
   auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
 
@@ -79,6 +84,10 @@ PyObject* jitVectorcall(
     PyObject* const* stack,
     size_t nargsf,
     PyObject* kwnames) {
+  JIT_DCHECK(
+      PyFunction_Check(func_obj),
+      "Called JIT wrapper with {} object instead of a function",
+      Py_TYPE(func_obj)->tp_name);
   auto func = reinterpret_cast<PyFunctionObject*>(func_obj);
   if (tryCompile(func) == PYJIT_RESULT_PYTHON_EXCEPTION) {
     return nullptr;
