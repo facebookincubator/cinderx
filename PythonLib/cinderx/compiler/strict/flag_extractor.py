@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import ast
 
-from ast import Import
+from ast import Import, Module
 from dataclasses import dataclass
 from typing import Any, Sequence
 
@@ -49,28 +49,28 @@ class FlagExtractor(SymbolVisitor):
         self.seen_docstring = False
         self.seen_import = False
 
-    def get_flags(self, node: ast.AST | Sequence[ast.AST]) -> Flags:
-        self.visit(node)
+    def get_flags(self, node: ast.AST) -> Flags:
+        assert isinstance(node, ast.Module)
+        self._handle_module(node)
         return Flags(is_static=self.is_static, is_strict=self.is_strict)
 
-    def visit(self, node: ast.AST | Sequence[ast.AST], *args: Any) -> None:
-        super().visit(node, *args)
+    def _handle_module(self, node: Module) -> None:
+        for child in node.body:
+            match child:
+                case ast.Expr(ast.Constant(value)) if isinstance(
+                    value, str
+                ) and not self.seen_docstring:
+                    self.seen_docstring = True
+                case ast.ImportFrom(module) if module == "__future__":
+                    pass
+                case ast.Constant(_):
+                    pass
+                case ast.Import(_) as import_node:
+                    self._handle_import(import_node)
+                case _:
+                    self.flag_may_appear = False
 
-        match node:
-            case ast.Expr(ast.Constant(value)) if isinstance(
-                value, str
-            ) and not self.seen_docstring:
-                self.seen_docstring = True
-            case ast.ImportFrom(module) if module == "__future__":
-                pass
-            case ast.Module(_) | ast.Constant(_):
-                pass
-            case ast.Import(_) as node:
-                self._handle_import(node, *args)
-            case _:
-                self.flag_may_appear = False
-
-    def _handle_import(self, node: Import, scope: Scope) -> None:
+    def _handle_import(self, node: Import) -> None:
         for import_ in node.names:
             name = import_.name
 
@@ -82,9 +82,6 @@ class FlagExtractor(SymbolVisitor):
                 raise BadFlagException(
                     f"Cinder flag {name} must be at the top of a file"
                 )
-
-            if not isinstance(scope, ModuleScope):
-                raise BadFlagException(f"{name} must be a globally namespaced import")
 
             if len(node.names) > 1:
                 raise BadFlagException(
