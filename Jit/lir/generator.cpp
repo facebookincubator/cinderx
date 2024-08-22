@@ -452,10 +452,7 @@ bool LIRGenerator::TranslateSpecializedCall(
     ThreadedCompileSerialize guard;
     return _PyVectorcall_Function(callee);
   }();
-  if (func == nullptr ||
-      func ==
-          reinterpret_cast<vectorcallfunc>(
-              Ci_JIT_lazyJITInitFuncObjectVectorcall)) {
+  if (func == nullptr || isJitEntryFunction(func)) {
     // Bail if the object doesn't support vectorcall, or if it's a function
     // that hasn't been initialized yet.
     return false;

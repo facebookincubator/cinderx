@@ -241,7 +241,7 @@ CompiledFunction* Context::lookupCode(
 void Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
   if (compiled_funcs_.erase(func) != 0) {
     // Reset the entry point.
-    func->vectorcall = (vectorcallfunc)Ci_JIT_lazyJITInitFuncObjectVectorcall;
+    func->vectorcall = getInterpretedVectorcall(func);
   }
 }
 

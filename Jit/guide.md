@@ -116,8 +116,7 @@ configuration is initialized in the `initFlagProcessor()` function in
 the various options.
 
 When a function is first called, if it should be JIT compiled we attempt to
-compile it (see `Ci_JIT_lazyJITInitFuncObjectVectorcall` and related functions
-in `Jit/entry.cpp`.)
+compile it (see `scheduleJitCompile` and related functions in `Jit/entry.cpp`.)
 
 When `cinderjit.disable()` is called (this disables future JIT compilation,
 it does not disable execution of JITted functions), any functions on the JIT

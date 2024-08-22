@@ -14,16 +14,9 @@
 #include "pycore_interp.h"
 #endif
 
-namespace jit {
+extern "C" {
 
 namespace {
-
-void setInterpreted(PyFunctionObject* func) {
-  auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
-  func->vectorcall = (code->co_flags & CI_CO_STATICALLY_COMPILED)
-      ? reinterpret_cast<vectorcallfunc>(Ci_StaticFunction_Vectorcall)
-      : reinterpret_cast<vectorcallfunc>(_PyFunction_Vectorcall);
-}
 
 unsigned int countCalls(PyCodeObject* code) {
 #if PY_VERSION_HEX < 0x030C0000
@@ -49,23 +42,24 @@ _PyJIT_Result tryCompile(BorrowedRef<PyFunctionObject> func) {
   // Reset the function back to the interpreter if there was any non-retryable
   // failure.
   if (result != PYJIT_RESULT_OK && result != PYJIT_RESULT_RETRY) {
-    setInterpreted(func);
+    func->vectorcall = getInterpretedVectorcall(func);
   }
   return result;
 }
 
-// Python function entrypoint when AutoJIT is enabled.
+// Python function entry point when AutoJIT is enabled.
 PyObject* autoJITVectorcall(
-    PyFunctionObject* func,
-    PyObject** stack,
-    Py_ssize_t nargsf,
+    PyObject* func_obj,
+    PyObject* const* stack,
+    size_t nargsf,
     PyObject* kwnames) {
+  auto func = reinterpret_cast<PyFunctionObject*>(func_obj);
   auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
-  auto func_obj = reinterpret_cast<PyObject*>(func);
 
   // Interpret function as usual until it passes the call count threshold.
-  if (countCalls(code) <= getConfig().auto_jit_threshold) {
-    return _PyFunction_Vectorcall(func_obj, stack, nargsf, kwnames);
+  if (countCalls(code) <= jit::getConfig().auto_jit_threshold) {
+    auto entry = getInterpretedVectorcall(func);
+    return entry(func_obj, stack, nargsf, kwnames);
   }
 
   if (tryCompile(func) == PYJIT_RESULT_PYTHON_EXCEPTION) {
@@ -73,45 +67,57 @@ PyObject* autoJITVectorcall(
   }
 
   JIT_DCHECK(
-      func->vectorcall != reinterpret_cast<vectorcallfunc>(autoJITVectorcall),
+      func->vectorcall != autoJITVectorcall,
       "Auto-JIT left function as auto-JIT'able on {}",
-      repr(func->func_qualname));
+      jit::repr(func->func_qualname));
+  return func->vectorcall(func_obj, stack, nargsf, kwnames);
+}
+
+// Python function entry point when the JIT is enabled, but not AutoJIT.
+PyObject* jitVectorcall(
+    PyObject* func_obj,
+    PyObject* const* stack,
+    size_t nargsf,
+    PyObject* kwnames) {
+  auto func = reinterpret_cast<PyFunctionObject*>(func_obj);
+  if (tryCompile(func) == PYJIT_RESULT_PYTHON_EXCEPTION) {
+    return nullptr;
+  }
+  JIT_DCHECK(
+      func->vectorcall != jitVectorcall,
+      "Lazy JIT left function as lazy-JIT'able on {}",
+      jit::repr(func->func_qualname));
   return func->vectorcall(func_obj, stack, nargsf, kwnames);
 }
 
 } // namespace
 
-void initFunctionObjectForJIT(PyFunctionObject* func) {
+void scheduleJitCompile(PyFunctionObject* func) {
   JIT_DCHECK(
       !_PyJIT_IsCompiled(func),
       "Function {} is already compiled",
-      repr(func->func_qualname));
+      jit::repr(func->func_qualname));
+
   if (_PyJIT_IsAutoJITEnabled()) {
-    func->vectorcall = reinterpret_cast<vectorcallfunc>(autoJITVectorcall);
+    func->vectorcall = autoJITVectorcall;
     return;
   }
-  func->vectorcall =
-      reinterpret_cast<vectorcallfunc>(Ci_JIT_lazyJITInitFuncObjectVectorcall);
+
+  func->vectorcall = jitVectorcall;
   if (!_PyJIT_RegisterFunction(func)) {
-    setInterpreted(func);
+    func->vectorcall = getInterpretedVectorcall(func);
   }
 }
 
-} // namespace jit
-
-PyObject* Ci_JIT_lazyJITInitFuncObjectVectorcall(
-    PyFunctionObject* func,
-    PyObject** stack,
-    Py_ssize_t nargsf,
-    PyObject* kwnames) {
-  if (jit::tryCompile(func) == PYJIT_RESULT_PYTHON_EXCEPTION) {
-    return nullptr;
-  }
-  JIT_DCHECK(
-      func->vectorcall !=
-          reinterpret_cast<vectorcallfunc>(
-              Ci_JIT_lazyJITInitFuncObjectVectorcall),
-      "Lazy JIT left function as lazy-JIT'able on {}",
-      jit::repr(func->func_qualname));
-  return func->vectorcall((PyObject*)func, stack, nargsf, kwnames);
+bool isJitEntryFunction(vectorcallfunc func) {
+  return func == autoJITVectorcall || func == jitVectorcall;
 }
+
+vectorcallfunc getInterpretedVectorcall(PyFunctionObject* func) {
+  auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
+  return (code->co_flags & CI_CO_STATICALLY_COMPILED)
+      ? Ci_StaticFunction_Vectorcall
+      : _PyFunction_Vectorcall;
+}
+
+} // extern "C"

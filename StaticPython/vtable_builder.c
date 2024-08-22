@@ -291,9 +291,9 @@ static int _PyVTable_set_opt_slot(
     Py_ssize_t slot,
     PyObject* value) {
   vectorcallfunc entry = ((PyFunctionObject*)value)->vectorcall;
-  if (entry == (vectorcallfunc)Ci_JIT_lazyJITInitFuncObjectVectorcall) {
-    /* entry point isn't initialized yet, we want to run it once, and
-     * then update our own entry point */
+  if (isJitEntryFunction(entry)) {
+    /* entry point isn't initialized yet, we want to run it until it changes,
+     * and then update our own entry point */
     int optional, exact, func_flags;
     PyTypeObject* ret_type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
         value, &optional, &exact, &func_flags);

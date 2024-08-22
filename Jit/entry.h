@@ -3,28 +3,40 @@
 #pragma once
 
 #include <Python.h>
+#include <stdbool.h>
 
 #ifdef __cplusplus
-namespace jit {
-
-void initFunctionObjectForJIT(PyFunctionObject* func);
-
-} // namespace jit
-
 extern "C" {
-#endif // __cplusplus
+#endif
 
-/* Temporarily disabling BOLT on this function as we end up with a
- * comparison to the unoptimized function when referred to from a
- * function which isn't being BOLTed */
-#define Ci_JIT_lazyJITInitFuncObjectVectorcall \
-  Ci_JIT_lazyJITInitFuncObjectVectorcall_dont_bolt
+/*
+ * Overwrite the entry point of a function so that it tries to JIT-compile
+ * itself in the future.
+ *
+ * By default this will trigger the JIT the next time the function is called,
+ * unless AutoJIT is enabled, in that case the function will compile after it is
+ * called more times than the AutoJIT threshold.  Before that it will run
+ * through the interpreter.
+ */
+void scheduleJitCompile(PyFunctionObject* func);
 
-PyObject* Ci_JIT_lazyJITInitFuncObjectVectorcall(
-    PyFunctionObject* func,
-    PyObject** stack,
-    Py_ssize_t nargsf,
-    PyObject* kwnames);
+/*
+ * Check if a Python function entry point is a wrapper that will JIT-compile the
+ * function in the future.
+ *
+ * Note: The compilation could happen in any number of future function calls,
+ * it's determined by what the value of the AutoJIT threshold is.
+ */
+bool isJitEntryFunction(vectorcallfunc func);
+
+/*
+ * Get the appropriate entry point that will execute a function object in the
+ * interpreter.
+ *
+ * This is a different function for Static Python functions versus "normal"
+ * Python functions.
+ */
+vectorcallfunc getInterpretedVectorcall(PyFunctionObject* func);
 
 /*
  * Specifies the offset from a JITed function entry point where the re-entry

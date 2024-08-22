@@ -698,13 +698,17 @@ __attribute__((__used__)) PyObject* _PyVTable_func_lazyinit_vectorcall(
 
   PyObject* res =
       func->vectorcall((PyObject*)func, (PyObject**)args, nargsf, NULL);
-  if (vtable->vt_entries[index].vte_state == state) {
+
+  // Update to the compiled function once the JIT has kicked in.
+  if (vtable->vt_entries[index].vte_state == state &&
+      !isJitEntryFunction(func->vectorcall)) {
     vtable->vt_entries[index].vte_state = (PyObject*)func;
     vtable->vt_entries[index].vte_entry =
         _PyClassLoader_GetStaticFunctionEntry(func);
     Py_INCREF(func);
     Py_DECREF(state);
   }
+
   return res;
 }
 

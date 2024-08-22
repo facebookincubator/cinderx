@@ -311,7 +311,7 @@ static void init_already_existing_funcs() {
   PyUnstable_GC_VisitObjects(
       [](PyObject* obj, void*) {
         if (PyFunction_Check(obj)) {
-          jit::initFunctionObjectForJIT((PyFunctionObject*)obj);
+          scheduleJitCompile((PyFunctionObject*)obj);
         }
         return 1;
       },
@@ -504,16 +504,16 @@ static int cinderx_func_watcher(
     PyObject* new_value) {
   switch (event) {
     case PyFunction_EVENT_CREATE:
-      jit::initFunctionObjectForJIT(func);
+      scheduleJitCompile(func);
       break;
     case PyFunction_EVENT_MODIFY_CODE:
       _PyJIT_FuncModified(func);
       // having deopted the func, we want to immediately consider recompiling.
       // func_set_code will assign this again later, but we do it early so
-      // initFunctionObjectForJIT can consider the new code object now.
+      // scheduleJitCompile() can consider the new code object now.
       Py_INCREF(new_value);
       Py_XSETREF(func->func_code, new_value);
-      jit::initFunctionObjectForJIT(func);
+      scheduleJitCompile(func);
       break;
     case PyFunction_EVENT_MODIFY_DEFAULTS:
       break;
@@ -527,7 +527,7 @@ static int cinderx_func_watcher(
         // qualname.
         Py_INCREF(new_value);
         Py_XSETREF(func->func_qualname, new_value);
-        jit::initFunctionObjectForJIT(func);
+        scheduleJitCompile(func);
       }
       break;
     case PyFunction_EVENT_DESTROY:
