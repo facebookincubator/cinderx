@@ -334,6 +334,50 @@ class ShadowCodeTests(unittest.TestCase):
             self.assertIs(f(c_no_x), C.x)
             self.assertEqual(f(c_x), 42)
 
+    def test_split_dict_descr_set(self):
+        callcount = 0
+
+        class Descr:
+            def __set__(self, obj, value):
+                nonlocal callcount
+                callcount += 1
+
+        class C:
+            x = Descr()
+
+        def f(c):
+            c.x = 1
+            return callcount
+
+        c = C()
+        for i in range(REPETITION):
+            self.assertEqual(f(c), i + 1)
+
+    def test_combined_dict_descr_set(self):
+        callcount = 0
+
+        class Descr:
+            def __set__(self, obj, value):
+                nonlocal callcount
+                callcount += 1
+
+        class C:
+            x = Descr()
+
+        def f(c):
+            c.x = 1
+            return callcount
+
+        # unsplit the dicts for C instances
+        a = C()
+        a.foo = 1
+        b = C()
+        b.bar = 2
+
+        c = C()
+        for i in range(REPETITION):
+            self.assertEqual(f(c), i + 1)
+
     def test_module(self):
         version = sys.version
 

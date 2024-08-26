@@ -115,9 +115,9 @@ static int _PyShadow_IsCacheValid(PyObject* obj) {
 #define _PyShadow_LoadMethodDictNoDescr _PyShadow_LoadMethodDictDescr
 
 #define _PyShadow_StoreAttrDictNoDescr _PyShadow_StoreAttrDict
-#define _PyShadow_StoreAttrDictDescr _PyShadow_StoreAttrDict
+#define _PyShadow_StoreAttrDictDescr _PyShadow_StoreAttrDescr
 #define _PyShadow_StoreAttrNoDictDescr _PyShadow_StoreAttrDescr
-#define _PyShadow_StoreAttrSplitDictDescr _PyShadow_StoreAttrSplitDict
+#define _PyShadow_StoreAttrSplitDictDescr _PyShadow_StoreAttrDescr
 
 #define _PyShadow_StoreAttrNoDictMethod _PyShadow_StoreAttrDescr
 
@@ -150,7 +150,7 @@ PY_CACHE_INST_TYPE(
     DictDescr,
     LOAD_ATTR_DICT_DESCR,
     LOAD_METHOD_DICT_DESCR,
-    STORE_ATTR_DICT)
+    STORE_ATTR_DESCR)
 PY_CACHE_INST_TYPE(
     Slot,
     LOAD_ATTR_SLOT,
@@ -165,7 +165,7 @@ PY_CACHE_INST_TYPE(
     SplitDictDescr,
     LOAD_ATTR_SPLIT_DICT_DESCR,
     LOAD_METHOD_SPLIT_DICT_DESCR,
-    STORE_ATTR_SPLIT_DICT)
+    STORE_ATTR_DESCR)
 PY_CACHE_INST_TYPE(
     SplitDict,
     LOAD_ATTR_SPLIT_DICT,
