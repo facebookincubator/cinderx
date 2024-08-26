@@ -5,11 +5,9 @@
 from __future__ import annotations
 
 import ast
-from dataclasses import dataclass
-from typing import Dict, Optional, Sequence, Set, Tuple, TYPE_CHECKING
+from typing import Dict, Sequence, Set, Tuple, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .type_binder import TypeBinder
     from .types import Value
 
     RefinedFields = Dict[str, Tuple[Value, int, Set[ast.AST]]]

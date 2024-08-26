@@ -4,9 +4,6 @@
 
 from __future__ import annotations
 
-import ast
-
-import sys
 from ast import (
     AnnAssign,
     Assign,
@@ -25,7 +22,7 @@ from ast import (
     While,
     With,
 )
-from typing import List, TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, Union
 
 from .module_table import DeferredImport, ModuleTable
 from .types import (
@@ -34,7 +31,6 @@ from .types import (
     DecoratedMethod,
     Function,
     InitSubclassFunction,
-    ModuleInstance,
     ResolvedTypeRef,
     TypeEnvironment,
     TypeName,
@@ -129,7 +125,7 @@ class DeclarationVisitor(GenericVisitor[None]):
                     )
                 )
             for cur_type in klasses:
-                if type(cur_type) != type(klasses[0]):
+                if type(cur_type) is not type(klasses[0]):
                     self.syntax_error("Incompatible subtypes", node)
             klass = klasses[0]
 

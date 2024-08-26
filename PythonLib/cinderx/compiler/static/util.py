@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import ast
 import sys
-from typing import Callable, cast, Mapping, Tuple, Type
+from typing import Callable, Mapping
 
 COMPARE_OPS: Mapping[type[ast.cmpop], Callable[[object, object], bool]] = {
     ast.Gt: lambda a, b: a > b,

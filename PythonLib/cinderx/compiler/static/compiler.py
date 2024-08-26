@@ -8,7 +8,7 @@ import ast
 import builtins
 from ast import AST
 from types import CodeType
-from typing import Any, Dict, Optional, Tuple, Type, TYPE_CHECKING
+from typing import Any, TYPE_CHECKING
 
 from .. import consts
 from ..errors import ErrorSink
@@ -411,7 +411,6 @@ class Compiler:
             "Lib/dataclasses.py",
             self,
             {
-                "dataclass": self.type_env.dataclass,
                 "Field": self.type_env.dataclass_field,
                 "InitVar": self.type_env.initvar,
                 "dataclass": self.type_env.dataclass,

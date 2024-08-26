@@ -61,18 +61,7 @@ from ast import (
 )
 from contextlib import contextmanager
 from enum import IntEnum
-from typing import (
-    cast,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Sequence,
-    Set,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import Generator, Optional, Sequence, TYPE_CHECKING
 
 from ..consts import SC_CELL, SC_FREE, SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT, SC_LOCAL
 from ..errors import CollectingErrorSink, TypedSyntaxError
@@ -155,7 +144,7 @@ class BindingScope:
         if isinstance(node, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
             self.name = node.name
         else:
-            self.name = f"<unknown>"
+            self.name = "<unknown>"
         self.qualname = make_qualname(parent_qualname, self.name)
 
     def branch(self) -> LocalsBranch:
@@ -389,9 +378,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                 res = self.get_type(node)
                 return res if isinstance(res, Class) else None
 
-    def visit(
-        self, node: AST | Sequence[AST], *args: object
-    ) -> NarrowingEffect | None:
+    def visit(self, node: AST | Sequence[AST], *args: object) -> NarrowingEffect | None:
         """This override is only here to give Pyre the return type information."""
         ret = super().visit(node, *args)
         if (
@@ -988,9 +975,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         self.set_type(node, final_type or self.type_env.DYNAMIC)
         return effect
 
-    def visitBinOp(
-        self, node: BinOp, type_ctx: Class | None = None
-    ) -> NarrowingEffect:
+    def visitBinOp(self, node: BinOp, type_ctx: Class | None = None) -> NarrowingEffect:
         # If we're taking pow, the output type is always double, regardless of
         # the input types, and we need to clear the type context to avoid coercing improperly.
         if isinstance(node.op, ast.Pow):
@@ -1044,9 +1029,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         self.set_type(node, self.type_env.DYNAMIC)
         return NO_EFFECT
 
-    def visitIfExp(
-        self, node: IfExp, type_ctx: Class | None = None
-    ) -> NarrowingEffect:
+    def visitIfExp(self, node: IfExp, type_ctx: Class | None = None) -> NarrowingEffect:
         effect = self.visit(node.test) or NO_EFFECT
         effect.apply(self.type_state)
         self.clear_refinements_for_nonbool_test(node.test)
@@ -1066,9 +1049,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         )
         return NO_EFFECT
 
-    def visitSlice(
-        self, node: Slice, type_ctx: Class | None = None
-    ) -> NarrowingEffect:
+    def visitSlice(self, node: Slice, type_ctx: Class | None = None) -> NarrowingEffect:
         lower = node.lower
         if lower:
             self.visitExpectedType(
@@ -1219,9 +1200,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             self.check_can_assign_from(type_class, gen_type, node)
         return type_ctx
 
-    def visitSet(
-        self, node: ast.Set, type_ctx: Class | None = None
-    ) -> NarrowingEffect:
+    def visitSet(self, node: ast.Set, type_ctx: Class | None = None) -> NarrowingEffect:
         for elt in node.elts:
             self.visitExpectedType(
                 elt, self.type_env.DYNAMIC, "set members cannot be primitives"
@@ -1289,16 +1268,17 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             if isinstance(src, (ast.Tuple, ast.List)) and len(target.elts) == len(
                 src.elts
             ):
-                for target, inner_value in zip(target.elts, src.elts):
+                for inner_target, inner_value in zip(target.elts, src.elts):
                     self.assign_value(
-                        target, self.get_type(inner_value), src=inner_value
+                        inner_target, self.get_type(inner_value), src=inner_value
                     )
             elif isinstance(src, ast.Constant):
                 t = src.value
                 if isinstance(t, tuple) and len(t) == len(target.elts):
-                    for target, inner_value in zip(target.elts, t):
+                    for inner_target, inner_value in zip(target.elts, t):
                         self.assign_value(
-                            target, self.type_env.constant_types[type(inner_value)]
+                            inner_target,
+                            self.type_env.constant_types[type(inner_value)],
                         )
                 else:
                     for val in target.elts:
@@ -1386,18 +1366,14 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
 
         self.scopes.pop()
 
-    def visitAwait(
-        self, node: Await, type_ctx: Class | None = None
-    ) -> NarrowingEffect:
+    def visitAwait(self, node: Await, type_ctx: Class | None = None) -> NarrowingEffect:
         self.visitExpectedType(
             node.value, self.type_env.DYNAMIC, "cannot await a primitive value"
         )
         self.get_type(node.value).bind_await(node, self, type_ctx)
         return NO_EFFECT
 
-    def visitYield(
-        self, node: Yield, type_ctx: Class | None = None
-    ) -> NarrowingEffect:
+    def visitYield(self, node: Yield, type_ctx: Class | None = None) -> NarrowingEffect:
         value = node.value
         if value is not None:
             self.visitExpectedType(
@@ -1479,9 +1455,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             right = comparator
         return NO_EFFECT
 
-    def visitCall(
-        self, node: Call, type_ctx: Class | None = None
-    ) -> NarrowingEffect:
+    def visitCall(self, node: Call, type_ctx: Class | None = None) -> NarrowingEffect:
         self.visit(node.func)
         return self.get_type(node.func).bind_call(node, self, type_ctx)
 
@@ -1553,7 +1527,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                     del self.type_state.refined_fields[value.id][node.attr]
 
         if isinstance(base, ModuleInstance):
-            self.set_node_data(node, TypeDescr, ((base.module_name, ), node.attr))
+            self.set_node_data(node, TypeDescr, ((base.module_name,), node.attr))
         if self.is_refinable(node):
             self.set_node_data(node, PreserveRefinedFields, PRESERVE_REFINED_FIELDS)
             # If we're storing a field at a refinable position, mark it so that codegen
@@ -1590,9 +1564,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         self.set_type(node, self.type_env.DYNAMIC)
         return NO_EFFECT
 
-    def visitName(
-        self, node: Name, type_ctx: Class | None = None
-    ) -> NarrowingEffect:
+    def visitName(self, node: Name, type_ctx: Class | None = None) -> NarrowingEffect:
         self.set_node_data(node, PreserveRefinedFields, PRESERVE_REFINED_FIELDS)
         found_name = self.visiting_assignment_target
         cur_scope = self.symbols.scopes[self.scope]
@@ -1774,14 +1746,11 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                 assert context_qualname is not None
                 self.module.record_dependency(context_qualname, (mod_name, alias.name))
                 child = self.compiler.modules[mod_name].get_child(
-                            alias.name, context_qualname
-                        )
+                    alias.name, context_qualname
+                )
                 self.declare_local(
                     name,
-                    (
-                        child
-                        or self.type_env.DYNAMIC
-                    ),
+                    (child or self.type_env.DYNAMIC),
                 )
 
     def visit_check_terminal(self, nodes: Sequence[ast.stmt]) -> TerminalKind:
@@ -1945,7 +1914,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                     effect.apply(self.type_state)
                     self.clear_refinements_for_nonbool_test(test)
 
-                terminates = self.visit_check_terminal(body)
+                self.visit_check_terminal(body)
                 # reset any declarations from the loop body to avoid redeclaration errors
                 self.binding_scope.decl_types = entry_decls.copy()
             branch.merge()
@@ -2134,7 +2103,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         self.assign_name(node, name, self.type_env.DYNAMIC)
 
     def visitMatchOr(self, node: MatchOr) -> None:
-        branch = self.binding_scope.branch()
+        self.binding_scope.branch()
         for pattern in node.patterns:
             self.visit(pattern)
 

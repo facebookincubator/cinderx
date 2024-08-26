@@ -4,61 +4,9 @@
 
 from __future__ import annotations
 
-from __static__ import chkdict, chklist
-
-import ast
-import dataclasses
-
-import sys
-from ast import (
-    AnnAssign,
-    Assign,
-    AST,
-    AsyncFunctionDef,
-    Attribute,
-    Bytes,
-    Call,
-    ClassDef,
-    cmpop,
-    Constant,
-    copy_location,
-    expr,
-    FunctionDef,
-    NameConstant,
-    Num,
-    Return,
-    Starred,
-    Str,
-)
-from copy import copy
-from enum import Enum, IntEnum
-from functools import cached_property
-from types import (
-    BuiltinFunctionType,
-    GetSetDescriptorType,
-    MethodDescriptorType,
-    WrapperDescriptorType,
-)
-from typing import (
-    Callable as typingCallable,
-    cast,
-    ClassVar as typingClassVar,
-    Dict,
-    Generic,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
-    TYPE_CHECKING,
-    TypeVar,
-    Union,
-)
-
 from __static__ import (  # noqa: F401
+    chkdict,
+    chklist,
     FAST_LEN_ARRAY,
     FAST_LEN_DICT,
     FAST_LEN_INEXACT,
@@ -129,6 +77,54 @@ from __static__ import (  # noqa: F401
     TYPED_UINT32,
     TYPED_UINT64,
     TYPED_UINT8,
+)
+
+import ast
+import dataclasses
+
+from ast import (
+    AnnAssign,
+    Assign,
+    AST,
+    AsyncFunctionDef,
+    Attribute,
+    Bytes,
+    Call,
+    ClassDef,
+    cmpop,
+    Constant,
+    copy_location,
+    expr,
+    FunctionDef,
+    NameConstant,
+    Num,
+    Return,
+    Starred,
+    Str,
+)
+from copy import copy
+from enum import Enum, IntEnum
+from functools import cached_property
+from types import (
+    BuiltinFunctionType,
+    GetSetDescriptorType,
+    MethodDescriptorType,
+    WrapperDescriptorType,
+)
+from typing import (
+    Callable as typingCallable,
+    cast,
+    ClassVar as typingClassVar,
+    Dict,
+    Generic,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+    TypeVar,
 )
 
 from cinderx.static import StaticTypeError
@@ -848,7 +844,7 @@ class Value:
         raise StaticTypeError(f"{self.name} not valid here")
 
     def can_override(self, override: Value, klass: Class, module: ModuleTable) -> bool:
-        return type(self) == type(override)
+        return type(self) is type(override)
 
     def resolve_attr(
         self, node: ast.Attribute, visitor: GenericVisitor[object]
@@ -1002,7 +998,7 @@ class Value:
     ) -> None:
         if klass is klass.type_env.dynamic:
             code_gen.perf_warning(
-                f"Define the object's class in a Static Python "
+                "Define the object's class in a Static Python "
                 "module for more efficient attribute store",
                 node,
             )
@@ -1557,7 +1553,7 @@ class Class(Object["Class"]):
     @property
     def instance_name(self) -> str:
         # We need to break the loop for `builtins.type`, as `builtins.type`'s instance is a Class.
-        if type(self.instance) == Class:
+        if type(self.instance) is Class:
             return "type"
         return self.instance.name
 
@@ -2782,7 +2778,7 @@ class ArgMapping:
                     resolved_type = self.visit_arg(visitor, param, arg, "keyword")
                     self.emitters.append(SpilledKeywordArg(tmp_name, resolved_type))
                     break
-                elif self.kwargs[candidate_kw][0] == None:
+                elif self.kwargs[candidate_kw][0] is None:
                     variadic_idx = candidate_kw
             else:
                 if variadic_idx is not None:
@@ -3423,14 +3419,14 @@ class Callable(Object[TClass]):
         if self.has_vararg != override.has_vararg:
             module.syntax_error(
                 f"{override.readable_name} overrides {self.readable_name} inconsistently. "
-                f"Functions differ by including *args",
+                "Functions differ by including *args",
                 override.node,
             )
 
         if self.has_kwarg != override.has_kwarg:
             module.syntax_error(
                 f"{override.readable_name} overrides {self.readable_name} inconsistently. "
-                f"Functions differ by including **kwargs",
+                "Functions differ by including **kwargs",
                 override.node,
             )
 
@@ -3602,9 +3598,7 @@ class InlineRewriter(ASTRewriter):
         super().__init__()
         self.replacements = replacements
 
-    def visit(
-        self, node: TAst | Sequence[AST], *args: object
-    ) -> AST | Sequence[AST]:
+    def visit(self, node: TAst | Sequence[AST], *args: object) -> AST | Sequence[AST]:
         res = super().visit(node, *args)
         if res is node:
             if isinstance(node, AST):
@@ -3821,7 +3815,7 @@ class Function(Callable[Class], FunctionContainer):
         if inlined_call is None:
             return self.emit_call_self(node, code_gen)
 
-        for name, (arg, store) in inlined_call.spills.items():
+        for arg, store in inlined_call.spills.values():
             code_gen.visit(arg)
 
             code_gen.get_type(store).emit_name(store, code_gen)
@@ -3931,7 +3925,7 @@ class InitSubclassFunction(Function):
         gen = code_gen.make_func_codegen(node, node.args, node.name, first_lineno)
 
         gen.emit("LOAD_FAST", node.args.args[0].arg)
-        gen.emit("INVOKE_FUNCTION", ((("_static", ), "init_subclass"), 1))
+        gen.emit("INVOKE_FUNCTION", ((("_static",), "init_subclass"), 1))
         gen.emit("POP_TOP")
 
         code_gen.processBody(node, body, gen)
@@ -4791,7 +4785,7 @@ class NativeDecorator(Callable[Class]):
         type_ctx: Class | None,
         self_expr: ast.expr | None = None,
     ) -> NarrowingEffect:
-        result = super().bind_call_self(node, visitor, type_ctx, self_expr)
+        super().bind_call_self(node, visitor, type_ctx, self_expr)
 
         lib_arg = self.args_by_name.get("lib")
         assert lib_arg is not None  # ensured by declaration visit
@@ -4802,7 +4796,7 @@ class NativeDecorator(Callable[Class]):
             lib_arg_final_node = visitor.get_final_literal(lib_arg_node)
             if lib_arg_final_node is None:
                 visitor.syntax_error(
-                    f"@native decorator 'lib' argument must be a `str`",
+                    "@native decorator 'lib' argument must be a `str`",
                     lib_arg_node,
                 )
             lib_arg_node = lib_arg_final_node
@@ -4861,7 +4855,7 @@ class NativeDecorator(Callable[Class]):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @native")
+        raise TypedSyntaxError("Cannot decorate a class with @native")
 
 
 class PropertyDecorator(Class):
@@ -4878,7 +4872,7 @@ class PropertyDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @property")
+        raise TypedSyntaxError("Cannot decorate a class with @property")
 
 
 class CachedPropertyDecorator(Class):
@@ -4895,7 +4889,7 @@ class CachedPropertyDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @cached_property")
+        raise TypedSyntaxError("Cannot decorate a class with @cached_property")
 
 
 class AsyncCachedPropertyDecorator(Class):
@@ -4912,7 +4906,7 @@ class AsyncCachedPropertyDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @async_cached_property")
+        raise TypedSyntaxError("Cannot decorate a class with @async_cached_property")
 
 
 class IdentityDecorator(Class):
@@ -4946,7 +4940,7 @@ class OverloadDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @overload")
+        raise TypedSyntaxError("Cannot decorate a class with @overload")
 
 
 # The transient name here is meant to imply that even though we understand the decorated method
@@ -4981,7 +4975,7 @@ class PropertySetterDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @property.setter")
+        raise TypedSyntaxError("Cannot decorate a class with @property.setter")
 
 
 class DataclassDecorator(Callable[Class]):
@@ -5040,7 +5034,7 @@ class DataclassDecorator(Callable[Class]):
     def resolve_decorate_function(
         self, fn: Function | DecoratedMethod, decorator: expr
     ) -> Function | DecoratedMethod | None:
-        raise TypedSyntaxError(f"Cannot decorate a function or method with @dataclass")
+        raise TypedSyntaxError("Cannot decorate a function or method with @dataclass")
 
     def resolve_decorate_class(
         self,
@@ -5873,7 +5867,7 @@ class Dataclass(Class):
         graph.emit("RETURN_VALUE")
 
         num_defaults = 0
-        for name, field in self.init_fields.items():
+        for field in self.init_fields.values():
             if field.default is not None:
                 num_defaults += 1
                 field.load_default(self, code_gen)
@@ -7241,7 +7235,7 @@ def common_sequence_emit_len(
 ) -> None:
     if len(node.args) != 1:
         raise code_gen.syntax_error(
-            f"Can only pass a single argument when checking sequence length", node
+            "Can only pass a single argument when checking sequence length", node
         )
     code_gen.visit(node.args[0])
     code_gen.emit("FAST_LEN", oparg)
@@ -7269,9 +7263,9 @@ def common_sequence_emit_forloop(
     else:
         fast_len_oparg = FAST_LEN_LIST
     descr = ("__static__", "int64", "#")
-    start = code_gen.newBlock(f"seq_forloop_start")
-    anchor = code_gen.newBlock(f"seq_forloop_anchor")
-    after = code_gen.newBlock(f"seq_forloop_after")
+    start = code_gen.newBlock("seq_forloop_start")
+    anchor = code_gen.newBlock("seq_forloop_anchor")
+    after = code_gen.newBlock("seq_forloop_after")
     with code_gen.new_loopidx() as loop_idx:
         code_gen.set_lineno(node)
         code_gen.push_loop(FOR_LOOP, start, after)
@@ -8382,7 +8376,7 @@ class ArrayInstance(Object["ArrayClass"]):
             # should never happen
             raise SyntaxError(f"Invalid Array type: {idx}")
         if idx.size != 3 or not idx.signed:
-            raise SyntaxError(f"Only int64 Arrays are currently supported")
+            raise SyntaxError("Only int64 Arrays are currently supported")
         return SEQ_ARRAY_INT64
 
     def get_iter_type(self, node: ast.expr, visitor: TypeBinder) -> Value:
@@ -9437,7 +9431,7 @@ class CDoubleInstance(CInstance["CDoubleType"]):
         rtype = visitor.get_type(right)
         if rtype != self:
             if rtype == self.klass.type_env.float.exact_type().instance:
-                visitor.visitExpectedType(right, self, f"can't compare {{}} to {{}}")
+                visitor.visitExpectedType(right, self, "can't compare {} to {}")
             else:
                 visitor.syntax_error(f"can't compare {self.name} to {rtype.name}", node)
 
@@ -9457,7 +9451,7 @@ class CDoubleInstance(CInstance["CDoubleType"]):
         ltype = visitor.get_type(left)
         if ltype != self:
             if ltype == self.klass.type_env.float.exact_type().instance:
-                visitor.visitExpectedType(left, self, f"can't compare {{}} to {{}}")
+                visitor.visitExpectedType(left, self, "can't compare {} to {}")
             else:
                 visitor.syntax_error(f"can't compare {self.name} to {ltype.name}", node)
 
@@ -9737,7 +9731,7 @@ class ContextDecoratorClass(Class):
                     exit_ret_type = exit_method.return_type.resolved()
                     if (
                         isinstance(exit_ret_type, BoolClass)
-                        and exit_ret_type.literal_value == False
+                        and exit_ret_type.literal_value is False
                     ):
                         return False
                 return True

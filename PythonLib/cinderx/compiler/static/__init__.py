@@ -28,16 +28,7 @@ from ast import (
 )
 from contextlib import contextmanager
 from types import CodeType
-from typing import (
-    Any,
-    Callable as typingCallable,
-    cast,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Type,
-)
+from typing import Any, Callable as typingCallable, cast, Generator
 
 from .. import consts, opcode_static
 from ..opcodebase import Opcode
@@ -828,7 +819,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         end = self.newBlock()
         for child in node.values[:-1]:
             self.get_type(child).emit_jumpif_pop(
-                child, end, type(node.op) == ast.Or, self
+                child, end, type(node.op) is ast.Or, self
             )
             self.nextBlock()
         self.visit(node.values[-1])
@@ -1106,7 +1097,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             return True if kb == KnownBoolean.TRUE else False
 
     def visitIf(self, node: ast.If) -> None:
-        test_type = self.get_type(node.test)
+        self.get_type(node.test)
 
         test_const = self.get_bool_const(node.test)
 

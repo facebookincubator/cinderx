@@ -18,19 +18,7 @@ from ast import (
 )
 from contextlib import nullcontext
 from enum import Enum
-from typing import (
-    cast,
-    ContextManager,
-    Dict,
-    List,
-    Optional,
-    overload,
-    Set,
-    Tuple,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import cast, ContextManager, Optional, TYPE_CHECKING
 
 from ..errors import TypedSyntaxError
 from ..symbols import ModuleScope, Scope
