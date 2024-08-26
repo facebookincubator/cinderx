@@ -11,7 +11,7 @@ extern "C" {
 
 /*
  * Overwrite the entry point of a function so that it tries to JIT-compile
- * itself in the future.  Do nothing if the JIT is currently disabled.
+ * itself in the future.
  *
  * By default this will trigger the JIT the next time the function is called,
  * unless AutoJIT is enabled, in that case the function will compile after it is
