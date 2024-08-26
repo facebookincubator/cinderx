@@ -3,9 +3,10 @@ from __static__ import Array, StaticTypeError, int32, int64, int8
 
 import itertools
 import re
+import unittest
 from copy import deepcopy
+from test.cinder_support import is_asan_build
 from typing import Mapping
-from unittest import skipIf
 
 from cinderx.compiler.static.types import (
     FAST_LEN_ARRAY,
@@ -162,6 +163,7 @@ class ArrayTests(StaticTestBase):
             class C(Array):
                 pass
 
+    @unittest.skipIf(is_asan_build(), "T199794603 - Triggers ASAN error")
     def test_array_enum(self):
         codestr = """
             from __static__ import Array, clen, int64, box
