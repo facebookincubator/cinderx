@@ -1852,15 +1852,54 @@ class CodeGenerator(ASTVisitor):
                     self.emit("DICT_MERGE", 1)
         self.emit("CALL_FUNCTION_EX", int(nkwelts > 0))
 
-    def visitCall(self, node):
+    # Used in subclasses to specialise `super` calls.
+
+    def _is_super_call(self, node):
         if (
-            node.keywords
-            or not isinstance(node.func, ast.Attribute)
-            or not isinstance(node.func.ctx, ast.Load)
-            or any(isinstance(arg, ast.Starred) for arg in node.args)
-            or len(node.args) >= STACK_USE_GUIDELINE
+            not isinstance(node, ast.Call)
+            or not isinstance(node.func, ast.Name)
+            or node.func.id != "super"
+            or node.keywords
         ):
-            # We cannot optimize this call
+            return False
+
+        # check that 'super' only appear as implicit global:
+        # it is not defined in local or modules scope
+        if self.scope.check_name("super") != SC_GLOBAL_IMPLICIT or (
+            self.module_gen.scope.check_name("super") != SC_GLOBAL_IMPLICIT
+            and self.module_gen.scope.check_name("super") != SC_LOCAL
+        ):
+            return False
+
+        if len(node.args) == 2:
+            return True
+        if len(node.args) == 0:
+            if len(self.scope.params) == 0:
+                return False
+            return self.scope.check_name("__class__") == SC_FREE
+
+        return False
+
+    def _emit_args_for_super(self, super_call, attr):
+        if len(super_call.args) == 0:
+            self.loadName("__class__")
+            self.loadName(next(iter(self.scope.params)))
+        else:
+            for arg in super_call.args:
+                self.visit(arg)
+        return (self.mangle(attr), len(super_call.args) == 0)
+
+    def _can_optimize_call(self, node):
+        return (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.ctx, ast.Load)
+            and not node.keywords
+            and not any(isinstance(arg, ast.Starred) for arg in node.args)
+            and len(node.args) < STACK_USE_GUIDELINE
+        )
+
+    def visitCall(self, node):
+        if not self._can_optimize_call(node):
             self.visit(node.func)
             self._call_helper(0, node, node.args, node.keywords)
             return
@@ -3059,13 +3098,7 @@ class CodeGenerator312(CodeGenerator):
     flow_graph = pyassem.PyFlowGraph312
 
     def visitCall(self, node):
-        if (
-            node.keywords
-            or not isinstance(node.func, ast.Attribute)
-            or not isinstance(node.func.ctx, ast.Load)
-            or any(isinstance(arg, ast.Starred) for arg in node.args)
-            or len(node.args) >= STACK_USE_GUIDELINE
-        ):
+        if not self._can_optimize_call(node):
             # We cannot optimize this call
             self.emit("PUSH_NULL")
             self.visit(node.func)
@@ -3073,12 +3106,21 @@ class CodeGenerator312(CodeGenerator):
             return
 
         self.visit(node.func.value)
+
         with self.temp_lineno(node.func.end_lineno):
-            self.emit("LOAD_METHOD", self.mangle(node.func.attr))
+            if self._is_super_call():
+                self.emit("LOAD_GLOBAL", "super")
+                func = node.func
+                load_arg, is_zero = self._emit_args_for_super(func.value, func.attr)
+                op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
+                self.emit("LOAD_SUPER_ATTR", (op, load_arg, is_zero))
+            else:
+                self.emit("LOAD_METHOD", self.mangle(node.func.attr))
+
             for arg in node.args:
                 self.visit(arg)
-            nargs = len(node.args)
-            self.emit("CALL_METHOD", nargs)
+            # TODO: CALL_METHOD has also gone away in 3.12
+            self.emit("CALL_METHOD", len(node.args))
 
     @staticmethod
     def find_op_idx(opname: str) -> int:
@@ -3620,6 +3662,15 @@ class CodeGenerator312(CodeGenerator):
         else:
             raise RuntimeError(f"unsupported scope for var {name}: {scope}")
 
+    def visitAttribute(self, node):
+        if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
+            self.emit("LOAD_GLOBAL", "super")
+            load_arg, is_zero = self._emit_args_for_super(node.value, node.attr)
+            op = "LOAD_ZERO_SUPER_ATTR" if is_zero else "LOAD_SUPER_ATTR"
+            self.emit("LOAD_SUPER_ATTR", (op, load_arg, is_zero))
+        else:
+            super().visitAttribute(node)
+
 
 class CinderCodeGenerator(CodeGenerator):
     """
@@ -3707,41 +3758,6 @@ class CinderCodeGenerator(CodeGenerator):
 
         return code
 
-    def _is_super_call(self, node):
-        if (
-            not isinstance(node, ast.Call)
-            or not isinstance(node.func, ast.Name)
-            or node.func.id != "super"
-            or node.keywords
-        ):
-            return False
-
-        # check that 'super' only appear as implicit global:
-        # it is not defined in local or modules scope
-        if self.scope.check_name("super") != SC_GLOBAL_IMPLICIT or (
-            self.module_gen.scope.check_name("super") != SC_GLOBAL_IMPLICIT
-            and self.module_gen.scope.check_name("super") != SC_LOCAL
-        ):
-            return False
-
-        if len(node.args) == 2:
-            return True
-        if len(node.args) == 0:
-            if len(self.scope.params) == 0:
-                return False
-            return self.scope.check_name("__class__") == SC_FREE
-
-        return False
-
-    def _emit_args_for_super(self, super_call, attr):
-        if len(super_call.args) == 0:
-            self.loadName("__class__")
-            self.loadName(next(iter(self.scope.params)))
-        else:
-            for arg in super_call.args:
-                self.visit(arg)
-        return (self.mangle(attr), len(super_call.args) == 0)
-
     def visitAttribute(self, node):
         if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
             self.emit("LOAD_GLOBAL", "super")
@@ -3751,13 +3767,8 @@ class CinderCodeGenerator(CodeGenerator):
             super().visitAttribute(node)
 
     def visitCall(self, node):
-        if (
-            not isinstance(node.func, ast.Attribute)
-            or not isinstance(node.func.ctx, ast.Load)
-            or node.keywords
-            or any(isinstance(arg, ast.Starred) for arg in node.args)
-            or len(node.args) >= STACK_USE_GUIDELINE
-            or not self._is_super_call(node.func.value)
+        if not self._can_optimize_call(node) or not self._is_super_call(
+            node.func.value
         ):
             # We cannot optimize this call
             return super().visitCall(node)

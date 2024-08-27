@@ -774,6 +774,18 @@ class PyFlowGraph(FlowGraph):
         assert isinstance(arg, tuple), "invalid oparg {arg!r}"
         return self._convert_LOAD_CONST((self._convert_NAME(arg[0]), arg[1]))
 
+    def _convert_LOAD_SUPER_ATTR(self, arg: object) -> int:
+        assert isinstance(arg, tuple), "invalid oparg {arg!r}"
+        op, name, zero_args = arg
+        arg = self._convert_LOAD_CONST((self._convert_NAME(name), zero_args))
+        mask = {
+            "LOAD_SUPER_ATTR": 2,
+            "LOAD_ZERO_SUPER_ATTR": 0,
+            "LOAD_SUPER_METHOD": 3,
+            "LOAD_ZERO_SUPER_METHOD": 1,
+        }
+        return (arg << 2) | mask[op]
+
     def _convert_DEREF(self, arg: object) -> int:
         # Sometimes, both cellvars and freevars may contain the same var
         # (e.g., for class' __class__). In this case, prefer freevars.
@@ -825,11 +837,20 @@ class PyFlowGraph(FlowGraph):
         "REFINE_TYPE": _convert_LOAD_CONST,
         "LOAD_METHOD_SUPER": _convert_LOAD_SUPER,
         "LOAD_ATTR_SUPER": _convert_LOAD_SUPER,
+        "LOAD_SUPER_ATTR": _convert_LOAD_SUPER_ATTR,
+        "LOAD_ZERO_SUPER_ATTR": _convert_LOAD_SUPER_ATTR,
+        "LOAD_SUPER_METHOD": _convert_LOAD_SUPER_ATTR,
+        "LOAD_ZERO_SUPER_METHOD": _convert_LOAD_SUPER_ATTR,
         "LOAD_TYPE": _convert_LOAD_CONST,
     }
 
     # Converters which add an entry to co_consts
-    _const_converters = {_convert_LOAD_CONST, _convert_LOAD_LOCAL, _convert_LOAD_SUPER}
+    _const_converters = {
+        _convert_LOAD_CONST,
+        _convert_LOAD_LOCAL,
+        _convert_LOAD_SUPER,
+        _convert_LOAD_SUPER_ATTR,
+    }
     # Opcodes which reference an entry in co_consts
     _const_opcodes = set()
     for op, converter in _converters.items():

@@ -198,6 +198,7 @@ if sys.version_info >= (3, 12):
         LOAD_LOCALS=1,
         MAKE_FUNCTION=lambda oparg, jmp=0: oparg.bit_count(),
         LOAD_FROM_DICT_OR_GLOBALS=-1,
+        LOAD_SUPER_ATTR=-1,
     )
 
     from opcode import (
