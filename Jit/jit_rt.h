@@ -142,20 +142,6 @@ PyObject* JITRT_LoadGlobalFromThreadState(
 PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate);
 
 /*
- * Perform a positional-only function call
- *
- * args[0] is expected to point to the callable and args[1] through args[nargs -
- * 1] are expected to point to the arguments to the call.
- */
-PyObject* JITRT_CallFunction(PyObject* func, PyObject** args, Py_ssize_t nargs);
-
-/*
- * As JITRT_CallFunction but eagerly starts coroutines.
- */
-PyObject*
-JITRT_CallFunctionAwaited(PyObject* func, PyObject** args, Py_ssize_t nargs);
-
-/*
  * Perform a combined positional and kwargs function call
  *
  * args[0] points to the callable and args[1] - args[nargs - 2] are all argument
@@ -189,7 +175,7 @@ PyObject*
 JITRT_CallFunctionExAwaited(PyObject* func, PyObject* pargs, PyObject* kwargs);
 
 /*
- * Perform a positional-only function call.
+ * Perform a function or method call.
  *
  * This is designed to be used in tandem with JITRT_GetMethod to optimize
  * calls that look like instance method calls (e.g. `self.foo()`) to avoid the
@@ -201,17 +187,8 @@ JITRT_CallFunctionExAwaited(PyObject* func, PyObject* pargs, PyObject* kwargs);
  */
 PyObject* JITRT_CallMethod(
     PyObject* callable,
-    PyObject** args,
-    Py_ssize_t nargs,
-    PyObject* kwnames);
-
-/*
- * As JITRT_CallMethod but eagerly starts coroutines.
- */
-PyObject* JITRT_CallMethodAwaited(
-    PyObject* callable,
-    PyObject** args,
-    Py_ssize_t nargs,
+    PyObject* const* args,
+    size_t nargsf,
     PyObject* kwnames);
 
 /*

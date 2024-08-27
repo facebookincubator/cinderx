@@ -1896,11 +1896,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kCallMethod: {
         auto& hir_instr = static_cast<const CallMethod&>(i);
-#if PY_VERSION_HEX < 0x030C0000
-        size_t flags = hir_instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
-#else
-        UPGRADE_ASSERT(AWAITED_FLAG)
         size_t flags = 0;
+#if PY_VERSION_HEX < 0x030C0000
+        flags |= hir_instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),

@@ -722,29 +722,6 @@ PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate) {
 
 template <bool is_awaited>
 static inline PyObject*
-call_function(PyObject* func, PyObject** args, Py_ssize_t nargs) {
-#if PY_VERSION_HEX < 0x030C0000
-  size_t flags = PY_VECTORCALL_ARGUMENTS_OFFSET |
-      (is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
-  return _PyObject_Vectorcall(func, args + 1, (nargs - 1) | flags, nullptr);
-#else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  return {};
-#endif
-}
-
-PyObject*
-JITRT_CallFunction(PyObject* func, PyObject** args, Py_ssize_t nargs) {
-  return call_function<false>(func, args, nargs);
-}
-
-PyObject*
-JITRT_CallFunctionAwaited(PyObject* func, PyObject** args, Py_ssize_t nargs) {
-  return call_function<true>(func, args, nargs);
-}
-
-template <bool is_awaited>
-static inline PyObject*
 call_function_kwargs(PyObject* func, PyObject** args, Py_ssize_t nargs) {
   PyObject* kwargs = args[nargs - 1];
   JIT_DCHECK(PyTuple_CheckExact(kwargs), "Kwargs map must be a tuple");
@@ -887,49 +864,20 @@ JITRT_InvokeFunctionAwaited(PyObject* func, PyObject** args, Py_ssize_t nargs) {
   return invoke_function<true>(func, args, nargs);
 }
 
-template <bool is_awaited>
-static inline PyObject* call_method(
-    PyObject* callable,
-    PyObject** args,
-    Py_ssize_t nargs,
-    PyObject* kwnames) {
-#if PY_VERSION_HEX < 0x030C0000
-  size_t is_awaited_flag = is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0;
-#else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  size_t is_awaited_flag = 0;
-#endif
-  if (callable != Py_None) {
-    PyObject* res = _PyObject_Vectorcall(
-        callable,
-        args,
-        (nargs) | PY_VECTORCALL_ARGUMENTS_OFFSET | is_awaited_flag,
-        kwnames);
-    return res;
-  } else {
-    PyObject* res = _PyObject_Vectorcall(
-        args[0],
-        args + 1,
-        (nargs - 1) | PY_VECTORCALL_ARGUMENTS_OFFSET | is_awaited_flag,
-        kwnames);
-    return res;
-  }
-}
-
 PyObject* JITRT_CallMethod(
     PyObject* callable,
-    PyObject** args,
-    Py_ssize_t nargs,
+    PyObject* const* args,
+    size_t nargsf,
     PyObject* kwnames) {
-  return call_method<false>(callable, args, nargs, kwnames);
-}
-
-PyObject* JITRT_CallMethodAwaited(
-    PyObject* callable,
-    PyObject** args,
-    Py_ssize_t nargs,
-    PyObject* kwnames) {
-  return call_method<true>(callable, args, nargs, kwnames);
+  // Trying to call a function rather than a method on an object.  Shift the
+  // arguments over by one.
+  if (Py_IsNone(callable)) {
+    callable = args[0];
+    args += 1;
+    nargsf -= 1;
+  }
+  return _PyObject_Vectorcall(
+      callable, args, nargsf | PY_VECTORCALL_ARGUMENTS_OFFSET, kwnames);
 }
 
 void JITRT_Dealloc(PyObject* obj) {
