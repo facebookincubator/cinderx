@@ -142,24 +142,6 @@ PyObject* JITRT_LoadGlobalFromThreadState(
 PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate);
 
 /*
- * Perform a combined positional and kwargs function call
- *
- * args[0] points to the callable and args[1] - args[nargs - 2] are all argument
- * values, and args[nargs - 1] is a tuple of strings mapping the last
- * len(args[nargs - 1]) args to named positions.
- */
-PyObject*
-JITRT_CallFunctionKWArgs(PyObject* func, PyObject** args, Py_ssize_t nargs);
-
-/*
- * As JITRT_CallFunctionKWArgs but eagerly starts coroutines.
- */
-PyObject* JITRT_CallFunctionKWArgsAwaited(
-    PyObject* func,
-    PyObject** args,
-    Py_ssize_t nargs);
-
-/*
  * Helper to perform a Python call with dynamically determined arguments.
  *
  * pargs will be a possibly empty tuple of positional arguments, kwargs will be
@@ -252,18 +234,6 @@ PyObject* JITRT_InvokeClassMethod(
     PyObject** args,
     Py_ssize_t nargs,
     PyObject* kwnames);
-
-/*
- * Invokes a function that was compiled statically.
- */
-PyObject*
-JITRT_InvokeFunction(PyObject* func, PyObject** args, Py_ssize_t nargs);
-
-/*
- * As JITRT_InvokeFunction but eagerly starts coroutines.
- */
-PyObject*
-JITRT_InvokeFunctionAwaited(PyObject* func, PyObject** args, Py_ssize_t nargs);
 
 /*
  * Loads an indirect function, optionally loading it from the descriptor

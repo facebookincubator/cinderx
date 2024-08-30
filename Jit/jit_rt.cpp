@@ -720,35 +720,14 @@ PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate) {
   return rtfs.globals();
 }
 
-template <bool is_awaited>
-static inline PyObject*
-call_function_kwargs(PyObject* func, PyObject** args, Py_ssize_t nargs) {
-  PyObject* kwargs = args[nargs - 1];
-  JIT_DCHECK(PyTuple_CheckExact(kwargs), "Kwargs map must be a tuple");
-  nargs--;
-  Py_ssize_t nkwargs = PyTuple_GET_SIZE(kwargs);
-  JIT_DCHECK(nkwargs < nargs, "Kwargs map too large");
-  nargs -= nkwargs;
-#if PY_VERSION_HEX < 0x030C0000
-  size_t flags = PY_VECTORCALL_ARGUMENTS_OFFSET |
-      (is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
-#else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  size_t flags = 0;
-#endif
-  return _PyObject_Vectorcall(func, args + 1, (nargs - 1) | flags, kwargs);
-}
+PyObject* JITRT_LoadFunctionIndirect(PyObject** func, PyObject* descr) {
+  PyObject* res = *func;
+  if (!res) {
+    res = _PyClassLoader_ResolveFunction(descr, nullptr);
+    Py_XDECREF(res);
+  }
 
-PyObject*
-JITRT_CallFunctionKWArgs(PyObject* func, PyObject** args, Py_ssize_t nargs) {
-  return call_function_kwargs<false>(func, args, nargs);
-}
-
-PyObject* JITRT_CallFunctionKWArgsAwaited(
-    PyObject* func,
-    PyObject** args,
-    Py_ssize_t nargs) {
-  return call_function_kwargs<true>(func, args, nargs);
+  return res;
 }
 
 template <bool is_awaited>
@@ -821,16 +800,6 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   return PyObject_Call(func, pargs, kwargs);
 }
 
-PyObject* JITRT_LoadFunctionIndirect(PyObject** func, PyObject* descr) {
-  PyObject* res = *func;
-  if (!res) {
-    res = _PyClassLoader_ResolveFunction(descr, nullptr);
-    Py_XDECREF(res);
-  }
-
-  return res;
-}
-
 PyObject*
 JITRT_CallFunctionEx(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   return call_function_ex<false>(func, pargs, kwargs);
@@ -839,29 +808,6 @@ JITRT_CallFunctionEx(PyObject* func, PyObject* pargs, PyObject* kwargs) {
 PyObject*
 JITRT_CallFunctionExAwaited(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   return call_function_ex<true>(func, pargs, kwargs);
-}
-
-template <bool is_awaited>
-static inline PyObject*
-invoke_function(PyObject* func, PyObject** args, Py_ssize_t nargs) {
-#if PY_VERSION_HEX < 0x030C0000
-  size_t flags = PY_VECTORCALL_ARGUMENTS_OFFSET |
-      (is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
-  return _PyObject_Vectorcall(func, args + 1, (nargs - 1) | flags, nullptr);
-#else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  return {};
-#endif
-}
-
-PyObject*
-JITRT_InvokeFunction(PyObject* func, PyObject** args, Py_ssize_t nargs) {
-  return invoke_function<false>(func, args, nargs);
-}
-
-PyObject*
-JITRT_InvokeFunctionAwaited(PyObject* func, PyObject** args, Py_ssize_t nargs) {
-  return invoke_function<true>(func, args, nargs);
 }
 
 PyObject* JITRT_Call(
