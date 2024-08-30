@@ -1221,12 +1221,26 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v1:Object = LoadGlobal<0; "a_global"> {
+    v5:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v5
+  }
+
+  bb 2 (preds 0) {
+    v6:CInt32 = RunPeriodicTasks {
       FrameState {
         NextInstrOffset 2
       }
     }
-    Return v1
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    v7:Object = LoadGlobal<0; "a_global"> {
+      FrameState {
+        NextInstrOffset 4
+      }
+    }
+    Return v7
   }
 }
 --- Test Name ---
@@ -1907,112 +1921,131 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v15:Object = LoadArg<0; "a">
-    v16:Object = LoadArg<1; "b">
-    v17:Object = LoadArg<2; "c">
-    v18:Nullptr = LoadConst<Nullptr>
-    v19:OptObject = LoadGlobalCached<0; "dict">
-    v20:ImmortalTypeExact[dict:obj] = GuardIs<0xdeadbeef> v19 {
+    v21:Object = LoadArg<0; "a">
+    v22:Object = LoadArg<1; "b">
+    v23:Object = LoadArg<2; "c">
+    v25:Nullptr = LoadConst<Nullptr>
+    v26:CInt32 = LoadEvalBreaker
+    CondBranch<6, 5> v26
+  }
+
+  bb 6 (preds 0) {
+    v27:CInt32 = RunPeriodicTasks {
+      LiveValues<4> b:v21 b:v22 b:v23 unc:v25
+      FrameState {
+        NextInstrOffset 2
+        Locals<4> v21 v22 v23 v25
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    v32:Nullptr = LoadConst<Nullptr>
+    v33:OptObject = LoadGlobalCached<0; "dict">
+    v34:ImmortalTypeExact[dict:obj] = GuardIs<0xdeadbeef> v33 {
       Descr 'LOAD_GLOBAL: dict'
-      LiveValues<5> b:v15 b:v16 b:v17 unc:v18 b:v19
+      LiveValues<6> b:v21 b:v22 b:v23 unc:v25 unc:v32 b:v33
       FrameState {
-        NextInstrOffset 0
-        Locals<4> v15 v16 v17 v18
+        NextInstrOffset 2
+        Locals<4> v21 v22 v23 v25
       }
     }
-    v21:DictExact = VectorCall<0> v20 {
-      LiveValues<5> b:v15 b:v16 b:v17 unc:v18 unc:v20
-      FrameState {
-        NextInstrOffset 4
-        Locals<4> v15 v16 v17 v18
-      }
-    }
-    v24:CInt32 = IsTruthy v16 {
-      LiveValues<4> b:v15 b:v16 b:v17 o:v21
-      FrameState {
-        NextInstrOffset 10
-        Locals<4> v15 v16 v17 v21
-      }
-    }
-    CondBranch<1, 5> v24
-  }
-
-  bb 1 (preds 0) {
-    Branch<2>
-  }
-
-  bb 5 (preds 0) {
-    Branch<2>
-  }
-
-  bb 2 (preds 1, 5) {
-    v27:Object = Phi<1, 5> v21 v15
-    v31:OptObject = LoadGlobalCached<1; "print">
-    v32:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v31 {
-      Descr 'LOAD_GLOBAL: print'
-      LiveValues<5> b:v16 b:v17 o:v21 b:v27 b:v31
+    v35:Object = CallMethod<2> v32 v34 {
+      LiveValues<6> b:v21 b:v22 b:v23 unc:v25 unc:v32 unc:v34
       FrameState {
         NextInstrOffset 14
-        Locals<4> v27 v16 v17 v21
+        Locals<4> v21 v22 v23 v25
       }
     }
-    v34:Object = VectorCall<1> v32 v21 {
-      LiveValues<5> b:v16 b:v17 o:v21 b:v27 b:v32
-      FrameState {
-        NextInstrOffset 20
-        Locals<4> v27 v16 v17 v21
-      }
-    }
-    Decref v34
-    v36:CInt32 = IsTruthy v17 {
-      LiveValues<4> b:v16 b:v17 o:v21 b:v27
+    v38:CInt32 = IsTruthy v22 {
+      LiveValues<4> b:v21 b:v22 b:v23 o:v35
       FrameState {
         NextInstrOffset 26
-        Locals<4> v27 v16 v17 v21
+        Locals<4> v21 v22 v23 v35
       }
     }
-    CondBranch<3, 6> v36
+    CondBranch<1, 9> v38
+  }
+
+  bb 1 (preds 5) {
+    Branch<2>
+  }
+
+  bb 9 (preds 5) {
+    Branch<2>
+  }
+
+  bb 2 (preds 1, 9) {
+    v41:Object = Phi<1, 9> v35 v21
+    v45:Nullptr = LoadConst<Nullptr>
+    v46:OptObject = LoadGlobalCached<1; "print">
+    v47:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v46 {
+      Descr 'LOAD_GLOBAL: print'
+      LiveValues<6> b:v22 b:v23 o:v35 b:v41 unc:v45 b:v46
+      FrameState {
+        NextInstrOffset 30
+        Locals<4> v41 v22 v23 v35
+      }
+    }
+    v49:Object = CallMethod<3> v45 v47 v35 {
+      LiveValues<6> b:v22 b:v23 o:v35 b:v41 unc:v45 b:v47
+      FrameState {
+        NextInstrOffset 44
+        Locals<4> v41 v22 v23 v35
+      }
+    }
+    Decref v49
+    v51:CInt32 = IsTruthy v23 {
+      LiveValues<4> b:v22 b:v23 o:v35 b:v41
+      FrameState {
+        NextInstrOffset 56
+        Locals<4> v41 v22 v23 v35
+      }
+    }
+    CondBranch<3, 8> v51
   }
 
   bb 3 (preds 2) {
-    v39:NoneType = LoadConst<NoneType>
-    Incref v39
+    v54:NoneType = LoadConst<NoneType>
+    Incref v54
     Branch<4>
   }
 
-  bb 6 (preds 2) {
-    Incref v16
+  bb 8 (preds 2) {
+    Incref v22
     Branch<4>
   }
 
-  bb 4 (preds 3, 6) {
-    v42:Object = Phi<3, 6> v21 v16
-    v44:{DictExact|NoneType} = Phi<3, 6> v39 v21
-    v45:NoneType = LoadConst<NoneType>
-    v47:OptObject = LoadGlobalCached<1; "print">
-    v48:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v47 {
+  bb 4 (preds 3, 8) {
+    v57:Object = Phi<3, 8> v35 v22
+    v59:Object = Phi<3, 8> v54 v35
+    v60:NoneType = LoadConst<NoneType>
+    v62:Nullptr = LoadConst<Nullptr>
+    v63:OptObject = LoadGlobalCached<1; "print">
+    v64:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v63 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v17 b:v27 o:v42 o:v44 b:v45 b:v47
+      LiveValues<7> b:v23 b:v41 o:v57 o:v59 b:v60 unc:v62 b:v63
       FrameState {
-        NextInstrOffset 34
-        Locals<4> v27 v42 v17 v44
+        NextInstrOffset 64
+        Locals<4> v41 v57 v23 v59
       }
     }
-    Incref v27
-    Decref v42
-    v50:Object = VectorCall<1> v48 v27 {
-      LiveValues<5> b:v17 o:v27 o:v44 b:v45 b:v48
+    Incref v41
+    Decref v57
+    v66:Object = CallMethod<3> v62 v64 v41 {
+      LiveValues<6> b:v23 o:v41 o:v59 b:v60 unc:v62 b:v64
       FrameState {
-        NextInstrOffset 44
-        Locals<4> v27 v45 v17 v44
+        NextInstrOffset 82
+        Locals<4> v41 v60 v23 v59
       }
     }
-    Decref v27
-    Decref v44
-    Decref v50
-    v51:NoneType = LoadConst<NoneType>
-    Incref v51
-    Return v51
+    Decref v41
+    Decref v59
+    Decref v66
+    v67:NoneType = LoadConst<NoneType>
+    Incref v67
+    Return<NoneType> v67
   }
 }
 --- Test Name ---

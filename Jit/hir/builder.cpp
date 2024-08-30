@@ -92,6 +92,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     BUILD_SLICE,
     BUILD_STRING,
     BUILD_TUPLE,
+    CALL,
     CALL_FUNCTION,
     CALL_FUNCTION_EX,
     CALL_FUNCTION_KW,
@@ -146,6 +147,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     JUMP_IF_NOT_EXC_MATCH,
     JUMP_IF_TRUE_OR_POP,
     JUMP_IF_ZERO_OR_POP,
+    KW_NAMES,
     LIST_APPEND,
     LIST_EXTEND,
     LIST_TO_TUPLE,
@@ -811,6 +813,7 @@ void HIRBuilder::translate(
           emitBuildConstKeyMap(tc, bc_instr);
           break;
         }
+        case CALL:
         case CALL_FUNCTION:
         case CALL_FUNCTION_EX:
         case CALL_FUNCTION_KW:
@@ -823,6 +826,10 @@ void HIRBuilder::translate(
         }
         case RESUME: {
           emitResume(irfunc.cfg, tc, bc_instr);
+          break;
+        }
+        case KW_NAMES: {
+          emitKwNames(tc, bc_instr);
           break;
         }
         case IS_OP: {
@@ -1360,6 +1367,11 @@ void HIRBuilder::translate(
     }
   }
 
+  JIT_CHECK(
+      kwnames_ == nullptr,
+      "Stashed a KW_NAMES value for function {} but never consumed it",
+      irfunc.fullname);
+
   for (auto block : loop_headers) {
     insertEvalBreakerCheckForLoop(irfunc.cfg, block);
   }
@@ -1635,8 +1647,24 @@ void HIRBuilder::emitAnyCall(
       emitCallKWArgs(tc, bc_instr, is_awaited);
       break;
     }
+    case CALL:
     case CALL_METHOD: {
-      emitCallMethod(tc, bc_instr, flags);
+      auto num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 2;
+      if (kwnames_ != nullptr) {
+        num_operands += 1;
+        flags |= CallFlags::KwArgs;
+      }
+      auto call =
+          tc.emitVariadic<CallMethod>(temps_, num_operands, flags, tc.frame);
+
+      if (kwnames_ != nullptr) {
+        JIT_CHECK(
+            call->GetOperand(num_operands - 1) == nullptr,
+            "Somehow already set the kwnames argument");
+        call->SetOperand(num_operands - 1, kwnames_);
+        kwnames_ = nullptr;
+      }
+
       break;
     }
     case INVOKE_FUNCTION: {
@@ -1699,6 +1727,26 @@ void HIRBuilder::emitResume(
   succ.snapshot();
   insertEvalBreakerCheck(cfg, tc.block, succ.block, tc.frame);
   tc.block = succ.block;
+}
+
+void HIRBuilder::emitKwNames(
+    TranslationContext& tc,
+    const BytecodeInstruction& bc_instr) {
+  auto index = bc_instr.oparg();
+  auto consts_len = PyTuple_Size(code_->co_consts);
+  JIT_CHECK(
+      index < consts_len,
+      "KW_NAMES index {} is greater than co_consts length {}",
+      index,
+      consts_len);
+  JIT_CHECK(
+      kwnames_ == nullptr,
+      "Trying to save KW_NAMES({}) but previous kwnames_ value wasn't consumed "
+      "by a CALL* opcode yet",
+      index);
+
+  tc.emit<LoadConst>(
+      kwnames_, Type::fromObject(PyTuple_GET_ITEM(code_->co_consts, index)));
 }
 
 void HIRBuilder::emitBinaryOp(

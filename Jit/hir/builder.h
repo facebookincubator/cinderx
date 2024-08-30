@@ -179,6 +179,7 @@ class HIRBuilder {
       CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitKwNames(TranslationContext& tc, const BytecodeInstruction& bc_instr);
   void emitIsOp(TranslationContext& tc, int oparg);
   void emitContainsOp(TranslationContext& tc, int oparg);
   void emitCompareOp(TranslationContext& tc, int compare_op);
@@ -485,6 +486,9 @@ class HIRBuilder {
   const Preloader& preloader_;
 
   TempAllocator temps_{nullptr};
+
+  // Tracks the most recent constant read from a KW_NAMES opcode.
+  Register* kwnames_{nullptr};
 };
 
 } // namespace jit::hir

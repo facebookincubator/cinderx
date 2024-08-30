@@ -1906,9 +1906,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
-        // kwnames
-        // TODO(T140174965): This should be MemImm.
-        instr->addOperands(Imm{0});
+        if (!(hir_instr.flags() & CallFlags::KwArgs)) {
+          // TODO(T140174965): This should be MemImm.
+          instr->addOperands(Imm{0});
+        }
         break;
       }
 

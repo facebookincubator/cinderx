@@ -135,22 +135,41 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v4:Nullptr = LoadConst<Nullptr>
+    v8:Func = LoadCurrentFunc
+    v9:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v5:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
-    v7:OptObject = LoadGlobalCached<0; "box">
-    v8:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v7 {
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<1> v9
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    v15:Nullptr = LoadConst<Nullptr>
+    v16:OptObject = LoadGlobalCached<0; "box">
+    v17:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v16 {
       Descr 'LOAD_GLOBAL: box'
     }
     Snapshot
-    v10:Object = VectorCall<1> v8 v5 {
+    v19:Object = CallMethod<3> v15 v17 v13 {
       FrameState {
-        NextInstrOffset 10
-        Locals<1> v5
+        NextInstrOffset 20
+        Locals<1> v13
       }
     }
     Snapshot
-    Return v10
+    Return v19
   }
 }
 --- Test Name ---
@@ -1025,103 +1044,121 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v13:Nullptr = LoadConst<Nullptr>
+    v16:Func = LoadCurrentFunc
+    v17:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v14:OptObject = LoadGlobalCached<0; "os">
-    v15:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v14 {
+    v18:CInt32 = LoadEvalBreaker
+    CondBranch<8, 7> v18
+  }
+
+  bb 8 (preds 0) {
+    Snapshot
+    v19:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<2> v17 v17
+      }
+    }
+    Branch<7>
+  }
+
+  bb 7 (preds 0, 8) {
+    Snapshot
+    v22:OptObject = LoadGlobalCached<0; "os">
+    v23:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v22 {
       Descr 'LOAD_GLOBAL: os'
     }
     Snapshot
-    v41:Object = LoadAttrCached<1; "argv"> v15 {
+    v54:Object = LoadAttrCached<1; "argv"> v23 {
       FrameState {
-        NextInstrOffset 4
-        Locals<2> v13 v13
+        NextInstrOffset 14
+        Locals<2> v17 v17
       }
     }
     Snapshot
-    v17:CInt32 = IsTruthy v41 {
+    v25:CInt32 = IsTruthy v54 {
       FrameState {
-        NextInstrOffset 6
-        Locals<2> v13 v13
+        NextInstrOffset 34
+        Locals<2> v17 v17
       }
     }
-    CondBranch<1, 2> v17
+    CondBranch<1, 2> v25
   }
 
-  bb 1 (preds 0) {
+  bb 1 (preds 7) {
     Snapshot
-    v18:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
+    v26:ImmortalUnicodeExact["foobar"] = LoadConst<ImmortalUnicodeExact["foobar"]>
     Branch<3>
   }
 
-  bb 2 (preds 0) {
+  bb 2 (preds 7) {
     Snapshot
-    v20:MortalUnicodeExact["thudgrunt"] = LoadConst<MortalUnicodeExact["thudgrunt"]>
+    v28:ImmortalUnicodeExact["thudgrunt"] = LoadConst<ImmortalUnicodeExact["thudgrunt"]>
     Branch<3>
   }
 
   bb 3 (preds 1, 2) {
-    v22:MortalUnicodeExact = Phi<1, 2> v18 v20
+    v30:ImmortalUnicodeExact = Phi<1, 2> v26 v28
     Snapshot
-    v26:OptObject = LoadGlobalCached<0; "os">
-    v27:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v26 {
+    v34:OptObject = LoadGlobalCached<0; "os">
+    v35:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v34 {
       Descr 'LOAD_GLOBAL: os'
     }
     Snapshot
-    v42:Object = LoadAttrCached<1; "argv"> v27 {
+    v49:Object = LoadAttrCached<1; "argv"> v35 {
       FrameState {
-        NextInstrOffset 18
-        Locals<2> v22 v13
+        NextInstrOffset 54
+        Locals<2> v30 v17
       }
     }
     Snapshot
-    v29:CInt32 = IsTruthy v42 {
+    v37:CInt32 = IsTruthy v49 {
       FrameState {
-        NextInstrOffset 20
-        Locals<2> v22 v13
+        NextInstrOffset 74
+        Locals<2> v30 v17
       }
     }
-    CondBranch<4, 5> v29
+    CondBranch<4, 5> v37
   }
 
   bb 4 (preds 3) {
     Snapshot
-    v30:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v38:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     Branch<6>
   }
 
   bb 5 (preds 3) {
     Snapshot
-    v32:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
+    v40:ImmortalLongExact[5] = LoadConst<ImmortalLongExact[5]>
     Branch<6>
   }
 
   bb 6 (preds 4, 5) {
-    v34:ImmortalLongExact = Phi<4, 5> v30 v32
+    v42:ImmortalLongExact = Phi<4, 5> v38 v40
     Snapshot
-    UseType<UnicodeExact> v22
-    UseType<LongExact> v34
-    v43:CInt64 = IndexUnbox<IndexError> v34
-    v44:CInt64 = IsNegativeAndErrOccurred v43 {
+    UseType<UnicodeExact> v30
+    UseType<LongExact> v42
+    v50:CInt64 = IndexUnbox<IndexError> v42
+    v51:CInt64 = IsNegativeAndErrOccurred v50 {
       FrameState {
-        NextInstrOffset 34
-        Locals<2> v22 v34
+        NextInstrOffset 88
+        Locals<2> v30 v42
       }
     }
-    v45:CInt64 = CheckSequenceBounds v22 v43 {
+    v52:CInt64 = CheckSequenceBounds v30 v50 {
       FrameState {
-        NextInstrOffset 34
-        Locals<2> v22 v34
+        NextInstrOffset 88
+        Locals<2> v30 v42
       }
     }
-    v46:UnicodeExact = UnicodeSubscr v22 v45 {
+    v53:UnicodeExact = UnicodeSubscr v30 v52 {
       FrameState {
-        NextInstrOffset 34
-        Locals<2> v22 v34
+        NextInstrOffset 88
+        Locals<2> v30 v42
       }
     }
     Snapshot
-    Return v46
+    Return v53
   }
 }
 --- Test Name ---
@@ -1544,36 +1581,53 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v5:Func = LoadCurrentFunc
     Snapshot
-    v2:OptObject = LoadGlobalCached<0; "Foo">
-    v3:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v2 {
-      Descr 'LOAD_GLOBAL: Foo'
-    }
-    Snapshot
-    UseType<Type> v3
-    v5:OptObject = LoadTypeAttrCacheItem<0, 0>
-    v6:CBool = PrimitiveCompare<Equal> v5 v3
-    CondBranch<1, 2> v6
-  }
-
-  bb 1 (preds 0) {
-    v7:Object = LoadTypeAttrCacheItem<0, 1>
-    Branch<3>
+    v6:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v6
   }
 
   bb 2 (preds 0) {
-    v8:Object = FillTypeAttrCache<0, 1> v3 {
+    Snapshot
+    v7:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 2
       }
     }
-    Branch<3>
+    Branch<1>
   }
 
-  bb 3 (preds 1, 2) {
-    v9:Object = Phi<1, 2> v7 v8
+  bb 1 (preds 0, 2) {
     Snapshot
-    Return v9
+    v8:OptObject = LoadGlobalCached<0; "Foo">
+    v9:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    Snapshot
+    UseType<Type> v9
+    v11:OptObject = LoadTypeAttrCacheItem<0, 0>
+    v12:CBool = PrimitiveCompare<Equal> v11 v9
+    CondBranch<3, 4> v12
+  }
+
+  bb 3 (preds 1) {
+    v13:Object = LoadTypeAttrCacheItem<0, 1>
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v14:Object = FillTypeAttrCache<0, 1> v9 {
+      FrameState {
+        NextInstrOffset 14
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v15:Object = Phi<3, 4> v13 v14
+    Snapshot
+    Return v15
   }
 }
 --- Test Name ---
@@ -1619,36 +1673,53 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v5:Func = LoadCurrentFunc
     Snapshot
-    v2:OptObject = LoadGlobalCached<0; "int">
-    v3:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v2 {
-      Descr 'LOAD_GLOBAL: int'
-    }
-    Snapshot
-    UseType<Type> v3
-    v5:OptObject = LoadTypeAttrCacheItem<0, 0>
-    v6:CBool = PrimitiveCompare<Equal> v5 v3
-    CondBranch<1, 2> v6
-  }
-
-  bb 1 (preds 0) {
-    v7:Object = LoadTypeAttrCacheItem<0, 1>
-    Branch<3>
+    v6:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v6
   }
 
   bb 2 (preds 0) {
-    v8:Object = FillTypeAttrCache<0, 1> v3 {
+    Snapshot
+    v7:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 2
       }
     }
-    Branch<3>
+    Branch<1>
   }
 
-  bb 3 (preds 1, 2) {
-    v9:Object = Phi<1, 2> v7 v8
+  bb 1 (preds 0, 2) {
     Snapshot
-    Return v9
+    v8:OptObject = LoadGlobalCached<0; "int">
+    v9:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v8 {
+      Descr 'LOAD_GLOBAL: int'
+    }
+    Snapshot
+    UseType<Type> v9
+    v11:OptObject = LoadTypeAttrCacheItem<0, 0>
+    v12:CBool = PrimitiveCompare<Equal> v11 v9
+    CondBranch<3, 4> v12
+  }
+
+  bb 3 (preds 1) {
+    v13:Object = LoadTypeAttrCacheItem<0, 1>
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v14:Object = FillTypeAttrCache<0, 1> v9 {
+      FrameState {
+        NextInstrOffset 14
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v15:Object = Phi<3, 4> v13 v14
+    Snapshot
+    Return v15
   }
 }
 --- Test Name ---
@@ -1679,19 +1750,36 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v5:Func = LoadCurrentFunc
     Snapshot
-    v2:OptObject = LoadGlobalCached<0; "sys">
-    v3:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v2 {
+    v6:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v7:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:OptObject = LoadGlobalCached<0; "sys">
+    v9:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v8 {
       Descr 'LOAD_GLOBAL: sys'
     }
     Snapshot
-    v5:Object = LoadAttrCached<1; "path"> v3 {
+    v11:Object = LoadAttrCached<1; "path"> v9 {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 14
       }
     }
     Snapshot
-    Return v5
+    Return v11
   }
 }
 --- Test Name ---
@@ -2399,28 +2487,45 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v7:Func = LoadCurrentFunc
     Snapshot
-    v4:OptObject = LoadGlobalCached<0; "a">
-    v5:MortalListExact[list:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<4, 3> v8
+  }
+
+  bb 4 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot
+    v10:OptObject = LoadGlobalCached<0; "a">
+    v11:MortalListExact[list:0xdeadbeef] = GuardIs<0xdeadbeef> v10 {
       Descr 'LOAD_GLOBAL: a'
     }
     Snapshot
-    UseType<MortalListExact> v5
-    v9:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v5
-    v10:CInt32 = IntConvert<CInt32> v9
-    CondBranch<1, 2> v10
+    UseType<MortalListExact> v11
+    v17:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v11
+    v18:CInt32 = IntConvert<CInt32> v17
+    CondBranch<1, 2> v18
   }
 
-  bb 1 (preds 0) {
+  bb 1 (preds 3) {
     Snapshot
-    v7:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    Return v7
+    v13:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return<ImmortalLongExact[1]> v13
   }
 
-  bb 2 (preds 0) {
+  bb 2 (preds 3) {
     Snapshot
-    v8:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    Return v8
+    v15:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    Return<ImmortalLongExact[2]> v15
   }
 }
 --- Test Name ---
@@ -2719,17 +2824,40 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v3:Object = LoadArg<0; "x">
+    v7:Object = LoadArg<0; "x">
+    v8:Func = LoadCurrentFunc
     Snapshot
-    v4:OptObject = LoadGlobalCached<0; "type">
-    v5:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v4 {
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<1> v7
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:Nullptr = LoadConst<Nullptr>
+    v13:OptObject = LoadGlobalCached<0; "type">
+    v14:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v13 {
       Descr 'LOAD_GLOBAL: type'
     }
     Snapshot
-    UseType<ImmortalTypeExact[type:obj]> v5
-    v8:Type = LoadField<ob_type@8, Type, borrowed> v3
+    v16:Object = CallMethod<3> v12 v14 v7 {
+      FrameState {
+        NextInstrOffset 16
+        Locals<1> v7
+      }
+    }
     Snapshot
-    Return v8
+    Return v16
   }
 }
 --- Test Name ---
@@ -4877,22 +5005,40 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v9:Func = LoadCurrentFunc
     Snapshot
-    v5:OptObject = LoadGlobalCached<0; "foo">
-    v6:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v5 {
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:Nullptr = LoadConst<Nullptr>
+    v13:OptObject = LoadGlobalCached<0; "foo">
+    v14:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v13 {
       Descr 'LOAD_GLOBAL: foo'
     }
     Snapshot
-    v7:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v8:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v9:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
-    v10:Object = VectorCall<3> v6 v7 v8 v9 {
+    v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v17:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v18:Object = CallMethod<5> v12 v14 v15 v16 v17 {
       FrameState {
-        NextInstrOffset 10
+        NextInstrOffset 20
       }
     }
     Snapshot
-    Return v10
+    Return v18
   }
 }
 --- Test Name ---
@@ -4926,21 +5072,39 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v8:Func = LoadCurrentFunc
     Snapshot
-    v4:OptObject = LoadGlobalCached<0; "foo">
-    v5:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v11:Nullptr = LoadConst<Nullptr>
+    v12:OptObject = LoadGlobalCached<0; "foo">
+    v13:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v12 {
       Descr 'LOAD_GLOBAL: foo'
     }
     Snapshot
-    v6:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v7:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v8:Object = VectorCall<2> v5 v6 v7 {
+    v14:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v15:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v16:Object = CallMethod<4> v11 v13 v14 v15 {
       FrameState {
-        NextInstrOffset 8
+        NextInstrOffset 18
       }
     }
     Snapshot
-    Return v8
+    Return v16
   }
 }
 --- Test Name ---
@@ -4979,26 +5143,39 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v8:Func = LoadCurrentFunc
     Snapshot
-    v4:OptObject = LoadGlobalCached<0; "foo">
-    v5:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v11:Nullptr = LoadConst<Nullptr>
+    v12:OptObject = LoadGlobalCached<0; "foo">
+    v13:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v12 {
       Descr 'LOAD_GLOBAL: foo'
     }
     Snapshot
-    v6:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v7:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v9:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
-    v10:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    v11:Tuple = LoadField<func_defaults@56, Tuple, borrowed> v5
-    v12:MortalTupleExact[tuple:0xdeadbeef] = GuardIs<0xdeadbeef> v11 {
-    }
-    v13:Object = VectorCall<4> v5 v6 v7 v9 v10 {
+    v14:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v15:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v16:Object = CallMethod<4> v11 v13 v14 v15 {
       FrameState {
-        NextInstrOffset 8
+        NextInstrOffset 18
       }
     }
     Snapshot
-    Return v13
+    Return v16
   }
 }
 --- Test Name ---
@@ -5056,45 +5233,62 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v9:Func = LoadCurrentFunc
     Snapshot
-    v6:OptObject = LoadGlobalCached<0; "Foo">
-    v7:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v6 {
-      Descr 'LOAD_GLOBAL: Foo'
-    }
-    Snapshot
-    UseType<Type> v7
-    v13:OptType = LoadTypeMethodCacheEntryType<0>
-    v14:CBool = PrimitiveCompare<Equal> v13 v7
-    CondBranch<1, 2> v14
-  }
-
-  bb 1 (preds 0) {
-    v15:Object = LoadTypeMethodCacheEntryValue<0> v7
-    Branch<3>
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
-    v16:Object = FillTypeMethodCache<0, 1> v7 {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 2
       }
     }
-    Branch<3>
+    Branch<1>
   }
 
-  bb 3 (preds 1, 2) {
-    v17:Object = Phi<1, 2> v15 v16
-    v9:OptObject = GetSecondOutput<OptObject> v17
+  bb 1 (preds 0, 2) {
     Snapshot
-    v10:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v11:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v12:Object = CallMethod<4> v17 v9 v10 v11 {
+    v12:OptObject = LoadGlobalCached<0; "Foo">
+    v13:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v12 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    Snapshot
+    UseType<Type> v13
+    v19:OptType = LoadTypeMethodCacheEntryType<0>
+    v20:CBool = PrimitiveCompare<Equal> v19 v13
+    CondBranch<3, 4> v20
+  }
+
+  bb 3 (preds 1) {
+    v21:Object = LoadTypeMethodCacheEntryValue<0> v13
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v22:Object = FillTypeMethodCache<0, 1> v13 {
       FrameState {
-        NextInstrOffset 10
+        NextInstrOffset 14
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v23:Object = Phi<3, 4> v21 v22
+    v15:OptObject = GetSecondOutput<OptObject> v23
+    Snapshot
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v17:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v18:Object = CallMethod<4> v23 v15 v16 v17 {
+      FrameState {
+        NextInstrOffset 38
       }
     }
     Snapshot
-    Return v12
+    Return v18
   }
 }
 --- Test Name ---
@@ -5154,45 +5348,62 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v9:Func = LoadCurrentFunc
     Snapshot
-    v6:OptObject = LoadGlobalCached<0; "Foo">
-    v7:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v6 {
-      Descr 'LOAD_GLOBAL: Foo'
-    }
-    Snapshot
-    UseType<Type> v7
-    v13:OptType = LoadTypeMethodCacheEntryType<0>
-    v14:CBool = PrimitiveCompare<Equal> v13 v7
-    CondBranch<1, 2> v14
-  }
-
-  bb 1 (preds 0) {
-    v15:Object = LoadTypeMethodCacheEntryValue<0> v7
-    Branch<3>
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
-    v16:Object = FillTypeMethodCache<0, 1> v7 {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 2
       }
     }
-    Branch<3>
+    Branch<1>
   }
 
-  bb 3 (preds 1, 2) {
-    v17:Object = Phi<1, 2> v15 v16
-    v9:OptObject = GetSecondOutput<OptObject> v17
+  bb 1 (preds 0, 2) {
     Snapshot
-    v10:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v11:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v12:Object = CallMethod<4> v17 v9 v10 v11 {
+    v12:OptObject = LoadGlobalCached<0; "Foo">
+    v13:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v12 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    Snapshot
+    UseType<Type> v13
+    v19:OptType = LoadTypeMethodCacheEntryType<0>
+    v20:CBool = PrimitiveCompare<Equal> v19 v13
+    CondBranch<3, 4> v20
+  }
+
+  bb 3 (preds 1) {
+    v21:Object = LoadTypeMethodCacheEntryValue<0> v13
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v22:Object = FillTypeMethodCache<0, 1> v13 {
       FrameState {
-        NextInstrOffset 10
+        NextInstrOffset 14
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v23:Object = Phi<3, 4> v21 v22
+    v15:OptObject = GetSecondOutput<OptObject> v23
+    Snapshot
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v17:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v18:Object = CallMethod<4> v23 v15 v16 v17 {
+      FrameState {
+        NextInstrOffset 38
       }
     }
     Snapshot
-    Return v12
+    Return v18
   }
 }
 --- Test Name ---
@@ -5252,45 +5463,62 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v9:Func = LoadCurrentFunc
     Snapshot
-    v6:OptObject = LoadGlobalCached<0; "Foo">
-    v7:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v6 {
-      Descr 'LOAD_GLOBAL: Foo'
-    }
-    Snapshot
-    UseType<Type> v7
-    v13:OptType = LoadTypeMethodCacheEntryType<0>
-    v14:CBool = PrimitiveCompare<Equal> v13 v7
-    CondBranch<1, 2> v14
-  }
-
-  bb 1 (preds 0) {
-    v15:Object = LoadTypeMethodCacheEntryValue<0> v7
-    Branch<3>
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
-    v16:Object = FillTypeMethodCache<0, 1> v7 {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 2
       }
     }
-    Branch<3>
+    Branch<1>
   }
 
-  bb 3 (preds 1, 2) {
-    v17:Object = Phi<1, 2> v15 v16
-    v9:OptObject = GetSecondOutput<OptObject> v17
+  bb 1 (preds 0, 2) {
     Snapshot
-    v10:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v11:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v12:Object = CallMethod<4> v17 v9 v10 v11 {
+    v12:OptObject = LoadGlobalCached<0; "Foo">
+    v13:MortalTypeExact[Foo:obj] = GuardIs<0xdeadbeef> v12 {
+      Descr 'LOAD_GLOBAL: Foo'
+    }
+    Snapshot
+    UseType<Type> v13
+    v19:OptType = LoadTypeMethodCacheEntryType<0>
+    v20:CBool = PrimitiveCompare<Equal> v19 v13
+    CondBranch<3, 4> v20
+  }
+
+  bb 3 (preds 1) {
+    v21:Object = LoadTypeMethodCacheEntryValue<0> v13
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v22:Object = FillTypeMethodCache<0, 1> v13 {
       FrameState {
-        NextInstrOffset 10
+        NextInstrOffset 14
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v23:Object = Phi<3, 4> v21 v22
+    v15:OptObject = GetSecondOutput<OptObject> v23
+    Snapshot
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v17:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v18:Object = CallMethod<4> v23 v15 v16 v17 {
+      FrameState {
+        NextInstrOffset 38
       }
     }
     Snapshot
-    Return v12
+    Return v18
   }
 }
 --- Test Name ---
@@ -5345,45 +5573,62 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v9:Func = LoadCurrentFunc
     Snapshot
-    v6:OptObject = LoadGlobalCached<0; "int">
-    v7:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v6 {
-      Descr 'LOAD_GLOBAL: int'
-    }
-    Snapshot
-    UseType<Type> v7
-    v13:OptType = LoadTypeMethodCacheEntryType<0>
-    v14:CBool = PrimitiveCompare<Equal> v13 v7
-    CondBranch<1, 2> v14
-  }
-
-  bb 1 (preds 0) {
-    v15:Object = LoadTypeMethodCacheEntryValue<0> v7
-    Branch<3>
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
   }
 
   bb 2 (preds 0) {
-    v16:Object = FillTypeMethodCache<0, 1> v7 {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 2
       }
     }
-    Branch<3>
+    Branch<1>
   }
 
-  bb 3 (preds 1, 2) {
-    v17:Object = Phi<1, 2> v15 v16
-    v9:OptObject = GetSecondOutput<OptObject> v17
+  bb 1 (preds 0, 2) {
     Snapshot
-    v10:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v11:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v12:Object = CallMethod<4> v17 v9 v10 v11 {
+    v12:OptObject = LoadGlobalCached<0; "int">
+    v13:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v12 {
+      Descr 'LOAD_GLOBAL: int'
+    }
+    Snapshot
+    UseType<Type> v13
+    v19:OptType = LoadTypeMethodCacheEntryType<0>
+    v20:CBool = PrimitiveCompare<Equal> v19 v13
+    CondBranch<3, 4> v20
+  }
+
+  bb 3 (preds 1) {
+    v21:Object = LoadTypeMethodCacheEntryValue<0> v13
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    v22:Object = FillTypeMethodCache<0, 1> v13 {
       FrameState {
-        NextInstrOffset 10
+        NextInstrOffset 14
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    v23:Object = Phi<3, 4> v21 v22
+    v15:OptObject = GetSecondOutput<OptObject> v23
+    Snapshot
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v17:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v18:Object = CallMethod<4> v23 v15 v16 v17 {
+      FrameState {
+        NextInstrOffset 38
       }
     }
     Snapshot
-    Return v12
+    Return v18
   }
 }
 --- Test Name ---
@@ -5421,26 +5666,44 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v7:Func = LoadCurrentFunc
     Snapshot
-    v4:OptObject = LoadGlobalCached<0; "time">
-    v5:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v4 {
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v9:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v10:Nullptr = LoadConst<Nullptr>
+    v11:OptObject = LoadGlobalCached<0; "time">
+    v12:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v11 {
       Descr 'LOAD_GLOBAL: time'
     }
     Snapshot
-    v9:Object = LoadModuleMethodCached<0; "time"> v5 {
+    v15:Object = LoadAttrCached<0; "time"> v12 {
       FrameState {
-        NextInstrOffset 4
-      }
-    }
-    v7:OptObject = GetSecondOutput<OptObject> v9
-    Snapshot
-    v8:Object = CallMethod<2> v9 v7 {
-      FrameState {
-        NextInstrOffset 6
+        NextInstrOffset 14
+        Stack<1> v10
       }
     }
     Snapshot
-    Return v8
+    v14:Object = CallMethod<2> v10 v15 {
+      FrameState {
+        NextInstrOffset 34
+      }
+    }
+    Snapshot
+    Return v14
   }
 }
 --- Test Name ---
@@ -5486,32 +5749,50 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v9:Func = LoadCurrentFunc
     Snapshot
-    v5:OptObject = LoadGlobalCached<0; "A">
-    v6:MortalTypeExact[A:obj] = GuardIs<0xdeadbeef> v5 {
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:Nullptr = LoadConst<Nullptr>
+    v13:OptObject = LoadGlobalCached<0; "A">
+    v14:MortalTypeExact[A:obj] = GuardIs<0xdeadbeef> v13 {
       Descr 'LOAD_GLOBAL: A'
     }
     Snapshot
-    v7:Object = VectorCall<0> v6 {
+    v15:Object = CallMethod<2> v12 v14 {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 14
       }
     }
     Snapshot
-    v11:Object = LoadMethodCached<1; "hello"> v7 {
+    v19:Object = LoadMethodCached<1; "hello"> v15 {
       FrameState {
-        NextInstrOffset 6
+        NextInstrOffset 22
       }
     }
-    v9:OptObject = GetSecondOutput<OptObject> v11
+    v17:OptObject = GetSecondOutput<OptObject> v19
     Snapshot
-    v10:Object = CallMethod<2> v11 v9 {
+    v18:Object = CallMethod<2> v19 v17 {
       FrameState {
-        NextInstrOffset 8
+        NextInstrOffset 42
       }
     }
     Snapshot
-    Return v10
+    Return v18
   }
 }
 --- Test Name ---
@@ -5839,180 +6120,216 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v28:Object = LoadArg<0; "x">
+    v44:Object = LoadArg<0; "x">
+    v45:Func = LoadCurrentFunc
     Snapshot
-    v29:OptObject = LoadGlobalCached<0; "bool">
-    v30:ImmortalTypeExact[bool:obj] = GuardIs<0xdeadbeef> v29 {
+    v46:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v46
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v47:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<1> v44
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v49:Nullptr = LoadConst<Nullptr>
+    v50:OptObject = LoadGlobalCached<0; "bool">
+    v51:ImmortalTypeExact[bool:obj] = GuardIs<0xdeadbeef> v50 {
       Descr 'LOAD_GLOBAL: bool'
     }
     Snapshot
-    v32:Bool = VectorCall<1> v30 v28 {
+    v53:Object = CallMethod<3> v49 v51 v44 {
       FrameState {
-        NextInstrOffset 6
-        Locals<1> v28
+        NextInstrOffset 16
+        Locals<1> v44
       }
     }
     Snapshot
-    v33:OptObject = LoadGlobalCached<1; "bytes">
-    v34:ImmortalTypeExact[bytes:obj] = GuardIs<0xdeadbeef> v33 {
+    v54:Nullptr = LoadConst<Nullptr>
+    v55:OptObject = LoadGlobalCached<1; "bytes">
+    v56:ImmortalTypeExact[bytes:obj] = GuardIs<0xdeadbeef> v55 {
       Descr 'LOAD_GLOBAL: bytes'
     }
     Snapshot
-    v36:BytesExact = VectorCall<1> v34 v28 {
+    v58:Object = CallMethod<3> v54 v56 v44 {
       FrameState {
-        NextInstrOffset 12
-        Locals<1> v28
-        Stack<1> v32
+        NextInstrOffset 36
+        Locals<1> v44
+        Stack<1> v53
       }
     }
     Snapshot
-    v37:OptObject = LoadGlobalCached<2; "dict">
-    v38:ImmortalTypeExact[dict:obj] = GuardIs<0xdeadbeef> v37 {
+    v59:Nullptr = LoadConst<Nullptr>
+    v60:OptObject = LoadGlobalCached<2; "dict">
+    v61:ImmortalTypeExact[dict:obj] = GuardIs<0xdeadbeef> v60 {
       Descr 'LOAD_GLOBAL: dict'
     }
     Snapshot
-    v40:DictExact = VectorCall<1> v38 v28 {
+    v63:Object = CallMethod<3> v59 v61 v44 {
       FrameState {
-        NextInstrOffset 18
-        Locals<1> v28
-        Stack<2> v32 v36
+        NextInstrOffset 56
+        Locals<1> v44
+        Stack<2> v53 v58
       }
     }
     Snapshot
-    v41:OptObject = LoadGlobalCached<3; "float">
-    v42:ImmortalTypeExact[float:obj] = GuardIs<0xdeadbeef> v41 {
+    v64:Nullptr = LoadConst<Nullptr>
+    v65:OptObject = LoadGlobalCached<3; "float">
+    v66:ImmortalTypeExact[float:obj] = GuardIs<0xdeadbeef> v65 {
       Descr 'LOAD_GLOBAL: float'
     }
     Snapshot
-    v44:FloatExact = VectorCall<1> v42 v28 {
+    v68:Object = CallMethod<3> v64 v66 v44 {
       FrameState {
-        NextInstrOffset 24
-        Locals<1> v28
-        Stack<3> v32 v36 v40
+        NextInstrOffset 76
+        Locals<1> v44
+        Stack<3> v53 v58 v63
       }
     }
     Snapshot
-    v45:OptObject = LoadGlobalCached<4; "list">
-    v46:ImmortalTypeExact[list:obj] = GuardIs<0xdeadbeef> v45 {
+    v69:Nullptr = LoadConst<Nullptr>
+    v70:OptObject = LoadGlobalCached<4; "list">
+    v71:ImmortalTypeExact[list:obj] = GuardIs<0xdeadbeef> v70 {
       Descr 'LOAD_GLOBAL: list'
     }
     Snapshot
-    v48:ListExact = VectorCall<1> v46 v28 {
+    v73:Object = CallMethod<3> v69 v71 v44 {
       FrameState {
-        NextInstrOffset 30
-        Locals<1> v28
-        Stack<4> v32 v36 v40 v44
+        NextInstrOffset 96
+        Locals<1> v44
+        Stack<4> v53 v58 v63 v68
       }
     }
     Snapshot
-    v49:OptObject = LoadGlobalCached<5; "set">
-    v50:ImmortalTypeExact[set:obj] = GuardIs<0xdeadbeef> v49 {
+    v74:Nullptr = LoadConst<Nullptr>
+    v75:OptObject = LoadGlobalCached<5; "set">
+    v76:ImmortalTypeExact[set:obj] = GuardIs<0xdeadbeef> v75 {
       Descr 'LOAD_GLOBAL: set'
     }
     Snapshot
-    v52:SetExact = VectorCall<1> v50 v28 {
+    v78:Object = CallMethod<3> v74 v76 v44 {
       FrameState {
-        NextInstrOffset 36
-        Locals<1> v28
-        Stack<5> v32 v36 v40 v44 v48
+        NextInstrOffset 116
+        Locals<1> v44
+        Stack<5> v53 v58 v63 v68 v73
       }
     }
     Snapshot
-    v53:OptObject = LoadGlobalCached<6; "tuple">
-    v54:ImmortalTypeExact[tuple:obj] = GuardIs<0xdeadbeef> v53 {
+    v79:Nullptr = LoadConst<Nullptr>
+    v80:OptObject = LoadGlobalCached<6; "tuple">
+    v81:ImmortalTypeExact[tuple:obj] = GuardIs<0xdeadbeef> v80 {
       Descr 'LOAD_GLOBAL: tuple'
     }
     Snapshot
-    v56:TupleExact = VectorCall<1> v54 v28 {
+    v83:Object = CallMethod<3> v79 v81 v44 {
       FrameState {
-        NextInstrOffset 42
-        Locals<1> v28
-        Stack<6> v32 v36 v40 v44 v48 v52
+        NextInstrOffset 136
+        Locals<1> v44
+        Stack<6> v53 v58 v63 v68 v73 v78
       }
     }
     Snapshot
-    v57:OptObject = LoadGlobalCached<7; "type">
-    v58:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v57 {
+    v84:Nullptr = LoadConst<Nullptr>
+    v85:OptObject = LoadGlobalCached<7; "type">
+    v86:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v85 {
       Descr 'LOAD_GLOBAL: type'
     }
     Snapshot
-    UseType<ImmortalTypeExact[type:obj]> v58
-    v82:Type = LoadField<ob_type@8, Type, borrowed> v28
+    v88:Object = CallMethod<3> v84 v86 v44 {
+      FrameState {
+        NextInstrOffset 156
+        Locals<1> v44
+        Stack<7> v53 v58 v63 v68 v73 v78 v83
+      }
+    }
     Snapshot
-    v61:OptObject = LoadGlobalCached<8; "str">
-    v62:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v61 {
+    v89:Nullptr = LoadConst<Nullptr>
+    v90:OptObject = LoadGlobalCached<8; "str">
+    v91:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v90 {
       Descr 'LOAD_GLOBAL: str'
     }
     Snapshot
-    v64:UnicodeExact = VectorCall<1> v62 v28 {
+    v93:Object = CallMethod<3> v89 v91 v44 {
       FrameState {
-        NextInstrOffset 54
-        Locals<1> v28
-        Stack<8> v32 v36 v40 v44 v48 v52 v56 v82
+        NextInstrOffset 176
+        Locals<1> v44
+        Stack<8> v53 v58 v63 v68 v73 v78 v83 v88
       }
     }
     Snapshot
-    v65:OptObject = LoadGlobalCached<9; "int">
-    v66:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v65 {
+    v94:Nullptr = LoadConst<Nullptr>
+    v95:OptObject = LoadGlobalCached<9; "int">
+    v96:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v95 {
       Descr 'LOAD_GLOBAL: int'
     }
     Snapshot
-    v68:LongExact = VectorCall<1> v66 v28 {
+    v98:Object = CallMethod<3> v94 v96 v44 {
       FrameState {
-        NextInstrOffset 60
-        Locals<1> v28
-        Stack<9> v32 v36 v40 v44 v48 v52 v56 v82 v64
+        NextInstrOffset 196
+        Locals<1> v44
+        Stack<9> v53 v58 v63 v68 v73 v78 v83 v88 v93
       }
     }
     Snapshot
-    v69:OptObject = LoadGlobalCached<10; "object">
-    v70:ImmortalTypeExact[object:obj] = GuardIs<0xdeadbeef> v69 {
+    v99:Nullptr = LoadConst<Nullptr>
+    v100:OptObject = LoadGlobalCached<10; "object">
+    v101:ImmortalTypeExact[object:obj] = GuardIs<0xdeadbeef> v100 {
       Descr 'LOAD_GLOBAL: object'
     }
     Snapshot
-    v72:ObjectExact = VectorCall<1> v70 v28 {
+    v103:Object = CallMethod<3> v99 v101 v44 {
       FrameState {
-        NextInstrOffset 66
-        Locals<1> v28
-        Stack<10> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68
+        NextInstrOffset 216
+        Locals<1> v44
+        Stack<10> v53 v58 v63 v68 v73 v78 v83 v88 v93 v98
       }
     }
     Snapshot
-    v73:OptObject = LoadGlobalCached<11; "C">
-    v74:MortalTypeExact[C:obj] = GuardIs<0xdeadbeef> v73 {
+    v104:Nullptr = LoadConst<Nullptr>
+    v105:OptObject = LoadGlobalCached<11; "C">
+    v106:MortalTypeExact[C:obj] = GuardIs<0xdeadbeef> v105 {
       Descr 'LOAD_GLOBAL: C'
     }
     Snapshot
-    v76:Object = VectorCall<1> v74 v28 {
+    v108:Object = CallMethod<3> v104 v106 v44 {
       FrameState {
-        NextInstrOffset 72
-        Locals<1> v28
-        Stack<11> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68 v72
+        NextInstrOffset 236
+        Locals<1> v44
+        Stack<11> v53 v58 v63 v68 v73 v78 v83 v88 v93 v98 v103
       }
     }
     Snapshot
-    v77:OptObject = LoadGlobalCached<12; "D">
-    v78:MortalTypeExact[D:obj] = GuardIs<0xdeadbeef> v77 {
+    v109:Nullptr = LoadConst<Nullptr>
+    v110:OptObject = LoadGlobalCached<12; "D">
+    v111:MortalTypeExact[D:obj] = GuardIs<0xdeadbeef> v110 {
       Descr 'LOAD_GLOBAL: D'
     }
     Snapshot
-    v80:Object = VectorCall<1> v78 v28 {
+    v113:Object = CallMethod<3> v109 v111 v44 {
       FrameState {
-        NextInstrOffset 78
-        Locals<1> v28
-        Stack<12> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68 v72 v76
+        NextInstrOffset 256
+        Locals<1> v44
+        Stack<12> v53 v58 v63 v68 v73 v78 v83 v88 v93 v98 v103 v108
       }
     }
     Snapshot
-    v81:MortalTupleExact = MakeTuple<13> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68 v72 v76 v80 {
+    v114:MortalTupleExact = MakeTuple<13> v53 v58 v63 v68 v73 v78 v83 v88 v93 v98 v103 v108 v113 {
       FrameState {
-        NextInstrOffset 80
-        Locals<1> v28
-        Stack<13> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68 v72 v76 v80
+        NextInstrOffset 264
+        Locals<1> v44
+        Stack<13> v53 v58 v63 v68 v73 v78 v83 v88 v93 v98 v103 v108 v113
       }
     }
     Snapshot
-    Return v81
+    Return v114
   }
 }
 --- Test Name ---

@@ -1254,10 +1254,7 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
 class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
  public:
   CallMethod(Register* dst, CallFlags flags, const FrameState& frame)
-      : InstrT{dst, frame}, flags_{flags} {
-    JIT_CHECK(
-        !(flags_ & CallFlags::KwArgs), "CallMethod doesn't support kwargs");
-  }
+      : InstrT{dst, frame}, flags_{flags} {}
 
   // The function to call
   Register* func() const {
