@@ -815,6 +815,10 @@ PyObject* JITRT_Call(
     PyObject* const* args,
     size_t nargsf,
     PyObject* kwnames) {
+  JIT_DCHECK(
+      (nargsf & PY_VECTORCALL_ARGUMENTS_OFFSET),
+      "JITRT_Call must always be called as a vectorcall");
+
   // Trying to call a function rather than a method on an object.  Shift the
   // arguments over by one.
   //
@@ -826,8 +830,8 @@ PyObject* JITRT_Call(
     args += 1;
     nargsf -= 1;
   }
-  return _PyObject_Vectorcall(
-      callable, args, nargsf | PY_VECTORCALL_ARGUMENTS_OFFSET, kwnames);
+
+  return _PyObject_Vectorcall(callable, args, nargsf, kwnames);
 }
 
 void JITRT_Dealloc(PyObject* obj) {
