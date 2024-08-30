@@ -219,28 +219,26 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     Register* val = ParseRegister();
     instruction = newInstr<FormatValue>(dst, fmt_spec, val, conversion);
   } else if (opcode == "CallEx") {
-    bool is_awaited = false;
+    auto flags = CallExFlags::None;
     if (peekNextToken() == "<") {
       expect("<");
-      expect("awaited");
+      while (peekNextToken() != ">") {
+        auto tok = GetNextToken();
+        if (tok == "awaited") {
+          flags |= CallExFlags::Awaited;
+        } else if (tok == "kwargs") {
+          flags |= CallExFlags::KwArgs;
+        }
+        if (peekNextToken() == ",") {
+          expect(",");
+        }
+      }
       expect(">");
-      is_awaited = true;
-    }
-    Register* func = ParseRegister();
-    Register* pargs = ParseRegister();
-    instruction = newInstr<CallEx>(dst, func, pargs, is_awaited);
-  } else if (opcode == "CallExKw") {
-    bool is_awaited = false;
-    if (peekNextToken() == "<") {
-      expect("<");
-      expect("awaited");
-      expect(">");
-      is_awaited = true;
     }
     Register* func = ParseRegister();
     Register* pargs = ParseRegister();
     Register* kwargs = ParseRegister();
-    instruction = newInstr<CallExKw>(dst, func, pargs, kwargs, is_awaited);
+    instruction = newInstr<CallEx>(dst, func, pargs, kwargs, flags);
   } else if (opcode == "ImportFrom") {
     expect("<");
     int name_idx = GetNextInteger();

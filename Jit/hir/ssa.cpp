@@ -344,8 +344,6 @@ Type outputType(
   switch (instr.opcode()) {
     case Opcode::kCallEx:
       return returnType(static_cast<const CallEx&>(instr).func()->type());
-    case Opcode::kCallExKw:
-      return returnType(static_cast<const CallExKw&>(instr).func()->type());
     case Opcode::kVectorCall:
     case Opcode::kVectorCallKW:
     case Opcode::kVectorCallStatic:

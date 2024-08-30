@@ -1876,16 +1876,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kCallEx: {
         auto& instr = static_cast<const CallEx&>(i);
-        auto rt_helper = instr.isAwaited() ? JITRT_CallFunctionExAwaited
-                                           : JITRT_CallFunctionEx;
-        bbb.appendCallInstruction(
-            instr.output(), rt_helper, instr.func(), instr.pargs(), nullptr);
-        break;
-      }
-      case Opcode::kCallExKw: {
-        auto& instr = static_cast<const CallExKw&>(i);
-        auto rt_helper = instr.isAwaited() ? JITRT_CallFunctionExAwaited
-                                           : JITRT_CallFunctionEx;
+        auto rt_helper = (instr.flags() & CallExFlags::Awaited)
+            ? JITRT_CallFunctionExAwaited
+            : JITRT_CallFunctionEx;
         bbb.appendCallInstruction(
             instr.output(),
             rt_helper,

@@ -39,8 +39,8 @@ TEST_F(HIRParserTest, ParsesHIR) {
               v1 = VectorCall<1> v2 v3
               v1 = VectorCallKW<1> v2 v3
               v1 = VectorCallStatic<1> v2 v3
-              v1 = CallExKw v2 v3 v4
-              v1 = CallEx v2 v3
+              v1 = CallEx<kwargs> v2 v3 v4
+              v1 = CallEx v2 v3 v4
               v1 = ImportFrom<2> v3
               v1 = ImportName<2> v3 v4
               Decref v2
@@ -165,11 +165,12 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_EQ(static_cast<VectorCallStatic&>(*it).arg(0)->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
-  ASSERT_EQ(it->opcode(), Opcode::kCallExKw);
-  ASSERT_EQ(static_cast<CallExKw&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<CallExKw&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<CallExKw&>(*it).pargs()->name(), "v3");
-  ASSERT_EQ(static_cast<CallExKw&>(*it).kwargs()->name(), "v4");
+  ASSERT_EQ(it->opcode(), Opcode::kCallEx);
+  ASSERT_EQ(static_cast<CallEx&>(*it).flags(), CallExFlags::KwArgs);
+  ASSERT_EQ(static_cast<CallEx&>(*it).output()->name(), "v1");
+  ASSERT_EQ(static_cast<CallEx&>(*it).func()->name(), "v2");
+  ASSERT_EQ(static_cast<CallEx&>(*it).pargs()->name(), "v3");
+  ASSERT_EQ(static_cast<CallEx&>(*it).kwargs()->name(), "v4");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kCallEx);

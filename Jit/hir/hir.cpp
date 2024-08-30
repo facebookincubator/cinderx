@@ -202,7 +202,6 @@ bool Instr::isReplayable() const {
     case Opcode::kBuildSlice:
     case Opcode::kCallCFunc:
     case Opcode::kCallEx:
-    case Opcode::kCallExKw:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
     case Opcode::kCallStaticRetVoid:

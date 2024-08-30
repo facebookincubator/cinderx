@@ -1805,18 +1805,22 @@ void HIRBuilder::emitCallEx(
     bool is_awaited) {
   Register* dst = temps_.AllocateStack();
   OperandStack& stack = tc.frame.stack;
-  if (bc_instr.oparg() & 0x1) {
-    Register* kwargs = stack.pop();
-    Register* pargs = stack.pop();
-    Register* func = stack.pop();
-    CallExKw* call = tc.emit<CallExKw>(dst, func, pargs, kwargs, is_awaited);
-    call->setFrameState(tc.frame);
+  bool has_kwargs = bc_instr.oparg() & 0x1;
+  Register* kwargs = nullptr;
+  if (has_kwargs) {
+    kwargs = stack.pop();
   } else {
-    Register* pargs = stack.pop();
-    Register* func = stack.pop();
-    CallEx* call = tc.emit<CallEx>(dst, func, pargs, is_awaited);
-    call->setFrameState(tc.frame);
+    Register* nullp = temps_.AllocateNonStack();
+    tc.emit<LoadConst>(nullp, TNullptr);
+    kwargs = nullp;
   }
+  Register* pargs = stack.pop();
+  Register* func = stack.pop();
+  auto flags = has_kwargs ? CallExFlags::KwArgs : CallExFlags::None;
+  if (is_awaited) {
+    flags |= CallExFlags::Awaited;
+  }
+  tc.emit<CallEx>(dst, func, pargs, kwargs, flags, tc.frame);
   stack.push(dst);
 }
 

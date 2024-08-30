@@ -314,11 +314,10 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kCallEx: {
       const auto& call = static_cast<const CallEx&>(instr);
-      return call.isAwaited() ? "awaited" : "";
-    }
-    case Opcode::kCallExKw: {
-      const auto& call = static_cast<const CallExKw&>(instr);
-      return call.isAwaited() ? "awaited" : "";
+      return fmt::format(
+          "{}{}",
+          (call.flags() & CallExFlags::Awaited) ? ", awaited" : "",
+          (call.flags() & CallExFlags::KwArgs) ? ", kwargs" : "");
     }
     case Opcode::kBinaryOp: {
       const auto& bin_op = static_cast<const BinaryOp&>(instr);

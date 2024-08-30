@@ -1089,62 +1089,55 @@ DEFINE_SIMPLE_INSTR(
     Operands<>,
     VectorCallBase);
 
-class INSTR_CLASS(
-    CallEx,
-    (TObject, TObject),
-    HasOutput,
-    Operands<2>,
-    DeoptBase) {
- public:
-  CallEx(Register* dst, Register* func, Register* pargs, bool is_awaited)
-      : InstrT(dst, func, pargs), is_awaited_(is_awaited) {}
-  CallEx(
-      Register* dst,
-      Register* func,
-      Register* pargs,
-      bool is_awaited,
-      const FrameState& frame)
-      : InstrT(dst, func, pargs, frame), is_awaited_(is_awaited) {}
+enum class CallExFlags {
+  None = 0,
 
-  // The function to call
-  Register* func() const {
-    return GetOperand(0);
-  }
-
-  Register* pargs() const {
-    return GetOperand(1);
-  }
-
-  bool isAwaited() const {
-    return is_awaited_;
-  }
-
- private:
-  const bool is_awaited_;
+  KwArgs = 1 << 0,
+  Awaited = 1 << 1,
 };
 
+constexpr uint32_t raw(CallExFlags flags) {
+  return static_cast<uint32_t>(flags);
+}
+
+constexpr CallExFlags operator|(const CallExFlags& a, const CallExFlags& b) {
+  return static_cast<CallExFlags>(raw(a) | raw(b));
+}
+
+constexpr CallExFlags& operator|=(CallExFlags& a, const CallExFlags& b) {
+  a = a | b;
+  return a;
+}
+
+// Common case is to test for flags so this returns a bool.
+constexpr bool operator&(const CallExFlags& a, const CallExFlags& b) {
+  return static_cast<bool>(raw(a) & raw(b));
+}
+
 class INSTR_CLASS(
-    CallExKw,
-    (TObject, TObject, TObject),
+    CallEx,
+    (TObject, TObject, TOptObject),
     HasOutput,
     Operands<3>,
     DeoptBase) {
  public:
-  CallExKw(
+  CallEx(
       Register* dst,
       Register* func,
       Register* pargs,
       Register* kwargs,
-      bool is_awaited)
-      : InstrT(dst, func, pargs, kwargs), is_awaited_(is_awaited) {}
-  CallExKw(
+      CallExFlags flags)
+      : InstrT{dst, func, pargs, kwargs}, flags_{flags} {}
+  CallEx(
       Register* dst,
       Register* func,
       Register* pargs,
       Register* kwargs,
-      bool is_awaited,
+      CallExFlags flags,
       const FrameState& frame)
-      : InstrT(dst, func, pargs, kwargs, frame), is_awaited_(is_awaited) {}
+      : CallEx{dst, func, pargs, kwargs, flags} {
+    setFrameState(frame);
+  }
 
   // The function to call
   Register* func() const {
@@ -1159,12 +1152,12 @@ class INSTR_CLASS(
     return GetOperand(2);
   }
 
-  bool isAwaited() const {
-    return is_awaited_;
+  CallExFlags flags() const {
+    return flags_;
   }
 
  private:
-  const bool is_awaited_;
+  CallExFlags flags_;
 };
 
 // Call to one of the C functions defined by CallCFunc_FUNCS. We have a static
