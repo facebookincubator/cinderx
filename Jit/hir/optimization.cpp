@@ -1235,7 +1235,7 @@ void BuiltinLoadMethodElimination::Run(Function& irfunc) {
           continue;
         }
 
-        if (isAnyLoadMethod(*func_instr) && !isLoadMethodBase(*func_instr)) {
+        if (!isLoadMethodBase(*func_instr)) {
           // {FillTypeMethodCache | LoadTypeMethodCacheEntryValue} and
           // CallMethod represent loading and invoking methods off a type (e.g.
           // dict.fromkeys(...)) which do not need to follow
@@ -1245,11 +1245,6 @@ void BuiltinLoadMethodElimination::Run(Function& irfunc) {
           continue;
         }
 
-        JIT_DCHECK(
-            isLoadMethodBase(*func_instr),
-            "Load{{,Module}}Method/CallMethod should be paired but got "
-            "{}/CallMethod",
-            func_instr->opname());
         auto lm = static_cast<LoadMethodBase*>(func_instr);
 
         JIT_DCHECK(
