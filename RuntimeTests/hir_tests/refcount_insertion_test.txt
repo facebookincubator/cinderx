@@ -1941,28 +1941,27 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0, 6) {
-    v32:Nullptr = LoadConst<Nullptr>
     v33:OptObject = LoadGlobalCached<0; "dict">
     v34:ImmortalTypeExact[dict:obj] = GuardIs<0xdeadbeef> v33 {
       Descr 'LOAD_GLOBAL: dict'
-      LiveValues<6> b:v21 b:v22 b:v23 unc:v25 unc:v32 b:v33
+      LiveValues<5> b:v21 b:v22 b:v23 unc:v25 b:v33
       FrameState {
         NextInstrOffset 2
         Locals<4> v21 v22 v23 v25
       }
     }
-    v35:Object = CallMethod<2> v32 v34 {
-      LiveValues<6> b:v21 b:v22 b:v23 unc:v25 unc:v32 unc:v34
+    v71:DictExact = VectorCall<0> v34 {
+      LiveValues<5> b:v21 b:v22 b:v23 unc:v25 unc:v34
       FrameState {
         NextInstrOffset 14
         Locals<4> v21 v22 v23 v25
       }
     }
     v38:CInt32 = IsTruthy v22 {
-      LiveValues<4> b:v21 b:v22 b:v23 o:v35
+      LiveValues<4> b:v21 b:v22 b:v23 o:v71
       FrameState {
         NextInstrOffset 26
-        Locals<4> v21 v22 v23 v35
+        Locals<4> v21 v22 v23 v71
       }
     }
     CondBranch<1, 9> v38
@@ -1977,30 +1976,29 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 1, 9) {
-    v41:Object = Phi<1, 9> v35 v21
-    v45:Nullptr = LoadConst<Nullptr>
+    v41:Object = Phi<1, 9> v71 v21
     v46:OptObject = LoadGlobalCached<1; "print">
     v47:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v46 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v22 b:v23 o:v35 b:v41 unc:v45 b:v46
+      LiveValues<5> b:v22 b:v23 b:v41 b:v46 o:v71
       FrameState {
         NextInstrOffset 30
-        Locals<4> v41 v22 v23 v35
+        Locals<4> v41 v22 v23 v71
       }
     }
-    v49:Object = CallMethod<3> v45 v47 v35 {
-      LiveValues<6> b:v22 b:v23 o:v35 b:v41 unc:v45 b:v47
+    v69:Object = VectorCall<1> v47 v71 {
+      LiveValues<5> b:v22 b:v23 b:v41 b:v47 o:v71
       FrameState {
         NextInstrOffset 44
-        Locals<4> v41 v22 v23 v35
+        Locals<4> v41 v22 v23 v71
       }
     }
-    Decref v49
+    Decref v69
     v51:CInt32 = IsTruthy v23 {
-      LiveValues<4> b:v22 b:v23 o:v35 b:v41
+      LiveValues<4> b:v22 b:v23 b:v41 o:v71
       FrameState {
         NextInstrOffset 56
-        Locals<4> v41 v22 v23 v35
+        Locals<4> v41 v22 v23 v71
       }
     }
     CondBranch<3, 8> v51
@@ -2018,14 +2016,13 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 3, 8) {
-    v57:Object = Phi<3, 8> v35 v22
-    v59:Object = Phi<3, 8> v54 v35
+    v57:Object = Phi<3, 8> v71 v22
+    v59:{DictExact|NoneType} = Phi<3, 8> v54 v71
     v60:NoneType = LoadConst<NoneType>
-    v62:Nullptr = LoadConst<Nullptr>
     v63:OptObject = LoadGlobalCached<1; "print">
     v64:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v63 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<7> b:v23 b:v41 o:v57 o:v59 b:v60 unc:v62 b:v63
+      LiveValues<6> b:v23 b:v41 o:v57 o:v59 b:v60 b:v63
       FrameState {
         NextInstrOffset 64
         Locals<4> v41 v57 v23 v59
@@ -2033,8 +2030,8 @@ fun jittestmodule:test {
     }
     Incref v41
     Decref v57
-    v66:Object = CallMethod<3> v62 v64 v41 {
-      LiveValues<6> b:v23 o:v41 o:v59 b:v60 unc:v62 b:v64
+    v70:Object = VectorCall<1> v64 v41 {
+      LiveValues<5> b:v23 o:v41 o:v59 b:v60 b:v64
       FrameState {
         NextInstrOffset 82
         Locals<4> v41 v60 v23 v59
@@ -2042,7 +2039,7 @@ fun jittestmodule:test {
     }
     Decref v41
     Decref v59
-    Decref v66
+    Decref v70
     v67:NoneType = LoadConst<NoneType>
     Incref v67
     Return<NoneType> v67

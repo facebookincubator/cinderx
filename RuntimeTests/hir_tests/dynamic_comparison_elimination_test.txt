@@ -240,29 +240,46 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: str'
     }
     Snapshot
-    v22:Object = CallMethod<4> v16 v18 v11 v21 {
+    v29:Type = LoadField<ob_type@8, Type, borrowed> v11
+    v30:CBool = PrimitiveCompare<Equal> v29 v21
+    CondBranch<5, 6> v30
+  }
+
+  bb 5 (preds 3) {
+    v31:Bool = PrimitiveBoxBool v30
+    Branch<7>
+  }
+
+  bb 6 (preds 3) {
+    v32:CInt32 = IsInstance v11 v21 {
       FrameState {
         NextInstrOffset 26
         Locals<1> v11
       }
     }
-    Snapshot
-    v23:CInt32 = IsTruthy v22 {
-      FrameState {
-        NextInstrOffset 34
-        Locals<1> v11
-      }
-    }
-    CondBranch<1, 2> v23
+    v33:CInt32[1] = LoadConst<CInt32[1]>
+    v34:CBool = PrimitiveCompare<Equal> v32 v33
+    v35:Bool = PrimitiveBoxBool v34
+    Branch<7>
   }
 
-  bb 1 (preds 3) {
+  bb 7 (preds 5, 6) {
+    v36:Bool = Phi<5, 6> v31 v35
+    Snapshot
+    UseType<Bool> v36
+    v37:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v38:CBool = PrimitiveCompare<Equal> v36 v37
+    v39:CInt32 = IntConvert<CInt32> v38
+    CondBranch<1, 2> v38
+  }
+
+  bb 1 (preds 7) {
     Snapshot
     v24:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Return<ImmortalLongExact[1]> v24
   }
 
-  bb 2 (preds 3) {
+  bb 2 (preds 7) {
     Snapshot
     v26:NoneType = LoadConst<NoneType>
     Return<NoneType> v26

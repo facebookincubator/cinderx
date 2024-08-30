@@ -1250,6 +1250,33 @@ static Register* resolveArgs(
   return result;
 }
 
+Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
+  // If this is statically known to be trying to call a function, update to
+  // using a VectorCall directly.
+  if (instr->func()->type() <= TNullptr) {
+    Instr* call = nullptr;
+    if (instr->flags() & CallFlags::KwArgs) {
+      call = env.emitRawInstr<VectorCallKW>(
+          instr->NumOperands() - 1,
+          env.func.env.AllocateRegister(),
+          instr->flags() & CallFlags::Awaited,
+          *instr->frameState());
+    } else {
+      call = env.emitRawInstr<VectorCall>(
+          instr->NumOperands() - 1,
+          env.func.env.AllocateRegister(),
+          instr->flags() & CallFlags::Awaited,
+          *instr->frameState());
+    }
+    for (size_t i = 1; i < instr->NumOperands(); ++i) {
+      call->SetOperand(i - 1, instr->GetOperand(i));
+    }
+    return call->output();
+  }
+
+  return nullptr;
+}
+
 Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
   Register* target = instr->GetOperand(0);
   Type target_type = target->type();
@@ -1438,6 +1465,9 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
     case Opcode::kStoreAttr:
       return simplifyStoreAttr(env, static_cast<const StoreAttr*>(instr));
+
+    case Opcode::kCallMethod:
+      return simplifyCallMethod(env, static_cast<const CallMethod*>(instr));
 
     case Opcode::kVectorCall:
       return simplifyVectorCall(env, static_cast<const VectorCall*>(instr));
