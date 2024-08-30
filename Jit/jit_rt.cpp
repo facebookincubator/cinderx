@@ -866,7 +866,7 @@ JITRT_LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name) {
 
 JITRT_LoadMethodResult JITRT_GetMethodFromSuper(
     PyObject* global_super,
-    PyObject* type,
+    PyTypeObject* type,
     PyObject* self,
     PyObject* name,
     bool no_args_in_super_call) {
@@ -874,7 +874,7 @@ JITRT_LoadMethodResult JITRT_GetMethodFromSuper(
   PyObject* result = Cix_SuperLookupMethodOrAttr(
       PyThreadState_GET(),
       global_super,
-      (PyTypeObject*)type,
+      type,
       self,
       name,
       no_args_in_super_call,
@@ -901,14 +901,14 @@ JITRT_LoadMethodResult JITRT_GetMethodFromSuper(
 
 PyObject* JITRT_GetAttrFromSuper(
     PyObject* global_super,
-    PyObject* type,
+    PyTypeObject* type,
     PyObject* self,
     PyObject* name,
     bool no_args_in_super_call) {
   return Cix_SuperLookupMethodOrAttr(
       PyThreadState_GET(),
       global_super,
-      (PyTypeObject*)type,
+      type,
       self,
       name,
       no_args_in_super_call,

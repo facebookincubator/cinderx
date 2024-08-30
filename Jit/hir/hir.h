@@ -2699,13 +2699,13 @@ class LoadSuperBase : public DeoptBaseWithNameIdx {
 
 DEFINE_SIMPLE_INSTR(
     LoadMethodSuper,
-    (TObject, TObject, TObject),
+    (TObject, TType, TObject),
     HasOutput,
     Operands<3>,
     LoadSuperBase);
 DEFINE_SIMPLE_INSTR(
     LoadAttrSuper,
-    (TObject, TObject, TObject),
+    (TObject, TType, TObject),
     HasOutput,
     Operands<3>,
     LoadSuperBase);

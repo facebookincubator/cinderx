@@ -190,7 +190,7 @@ JITRT_LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
  */
 JITRT_LoadMethodResult JITRT_GetMethodFromSuper(
     PyObject* global_super,
-    PyObject* type,
+    PyTypeObject* type,
     PyObject* self,
     PyObject* name,
     bool no_args_in_super_call);
@@ -200,7 +200,7 @@ JITRT_LoadMethodResult JITRT_GetMethodFromSuper(
  */
 PyObject* JITRT_GetAttrFromSuper(
     PyObject* super_globals,
-    PyObject* type,
+    PyTypeObject* type,
     PyObject* self,
     PyObject* name,
     bool no_args_in_super_call);

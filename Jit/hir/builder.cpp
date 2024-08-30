@@ -2333,20 +2333,12 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
   PyObject* oparg = PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg());
   int name_idx = PyLong_AsLong(PyTuple_GET_ITEM(oparg, 0));
   bool no_args_in_super_call = PyTuple_GET_ITEM(oparg, 1) == Py_True;
-  if (load_method) {
-    Register* method_instance = temps_.AllocateStack();
-    tc.emit<LoadMethodSuper>(
-        result,
-        global_super,
-        type,
-        receiver,
-        name_idx,
-        no_args_in_super_call,
-        tc.frame);
-    tc.emit<GetSecondOutput>(method_instance, TOptObject, result);
-    tc.frame.stack.push(result);
-    tc.frame.stack.push(method_instance);
-  } else {
+
+  // This is assumed to be a type object by the rest of the JIT.  Ideally it
+  // would be typed by whatever pushes it onto the stack.
+  tc.emit<RefineType>(type, TType, type);
+
+  if (!load_method) {
     tc.emit<LoadAttrSuper>(
         result,
         global_super,
@@ -2356,7 +2348,21 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
         no_args_in_super_call,
         tc.frame);
     tc.frame.stack.push(result);
+    return;
   }
+
+  Register* method_instance = temps_.AllocateStack();
+  tc.emit<LoadMethodSuper>(
+      result,
+      global_super,
+      type,
+      receiver,
+      name_idx,
+      no_args_in_super_call,
+      tc.frame);
+  tc.emit<GetSecondOutput>(method_instance, TOptObject, result);
+  tc.frame.stack.push(result);
+  tc.frame.stack.push(method_instance);
 }
 
 void HIRBuilder::emitLoadDeref(

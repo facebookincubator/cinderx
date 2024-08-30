@@ -101,7 +101,7 @@ TEST_F(HIROperandTypeTest, LoadMethodSuperReturnsTypesForMultipleOperands) {
   EXPECT_EQ(op_type.type, TObject);
 
   op_type = instr->GetOperandType(1);
-  EXPECT_EQ(op_type.type, TObject);
+  EXPECT_EQ(op_type.type, TType);
   EXPECT_EQ(op_type.kind, Constraint::kType);
 
   op_type = instr->GetOperandType(2);

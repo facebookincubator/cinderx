@@ -116,6 +116,7 @@ fun jittestmodule:A.f {
         Stack<2> v4 v5
       }
     }
+    v5 = RefineType<Type> v5
     v6 = LoadAttrSuper<1; "f", true> v4 v5 v0 {
       FrameState {
         NextInstrOffset 8
@@ -207,6 +208,7 @@ fun jittestmodule:A.f {
         Stack<2> v4 v5
       }
     }
+    v5 = RefineType<Type> v5
     v6 = LoadAttrSuper<1; "f", true> v4 v5 v0 {
       FrameState {
         NextInstrOffset 8
@@ -320,6 +322,7 @@ fun jittestmodule:A.f {
         Stack<2> v4 v5
       }
     }
+    v5 = RefineType<Type> v5
     v6 = LoadMethodSuper<1; "f", true> v4 v5 v0 {
       FrameState {
         NextInstrOffset 8
