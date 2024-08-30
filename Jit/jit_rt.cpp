@@ -864,14 +864,18 @@ JITRT_InvokeFunctionAwaited(PyObject* func, PyObject** args, Py_ssize_t nargs) {
   return invoke_function<true>(func, args, nargs);
 }
 
-PyObject* JITRT_CallMethod(
+PyObject* JITRT_Call(
     PyObject* callable,
     PyObject* const* args,
     size_t nargsf,
     PyObject* kwnames) {
   // Trying to call a function rather than a method on an object.  Shift the
   // arguments over by one.
-  if (Py_IsNone(callable)) {
+  //
+  // In theory this is supposed to expect nullptr on the stack, but our HIR
+  // implementation of LOAD_ATTR/LOAD_METHOD uses Py_None.  Check for nullptr
+  // just in case.
+  if (callable == nullptr || Py_IsNone(callable)) {
     callable = args[0];
     args += 1;
     nargsf -= 1;

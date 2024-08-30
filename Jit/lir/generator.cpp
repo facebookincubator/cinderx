@@ -1901,7 +1901,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             hir_instr.output(),
             Instruction::kVectorCall,
             // TODO(T140174965): This should be MemImm.
-            Imm{reinterpret_cast<uint64_t>(JITRT_CallMethod)},
+            Imm{reinterpret_cast<uint64_t>(JITRT_Call)},
             Imm{flags});
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});

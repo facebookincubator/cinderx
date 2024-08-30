@@ -177,15 +177,19 @@ JITRT_CallFunctionExAwaited(PyObject* func, PyObject* pargs, PyObject* kwargs);
 /*
  * Perform a function or method call.
  *
- * This is designed to be used in tandem with JITRT_GetMethod to optimize
- * calls that look like instance method calls (e.g. `self.foo()`) to avoid the
- * creation of bound methods.
+ * If it's a method call, then `args[0]` will be the receiver of the method
+ * lookup (e.g. `self`). The rest of `args` will be the positional and keyword
+ * arguments to the call.
  *
- * args[0] is expected to point to the receiver of the method lookup (e.g.
- * `self` in the example above) args[1] through args[nargs - 1] are expected to
- * point to the arguments to the call.
+ * If it's a function call, then `callable` will be Py_None and the actual
+ * callable will be stored in `args[0]`.  The rest of `args` is then the same as
+ * the method case.
+ *
+ * Note: Technically for the function call case, `callable` should be NULL and
+ * not Py_None, but we use NULL return values in HIR to determine where to
+ * deopt.
  */
-PyObject* JITRT_CallMethod(
+PyObject* JITRT_Call(
     PyObject* callable,
     PyObject* const* args,
     size_t nargsf,
