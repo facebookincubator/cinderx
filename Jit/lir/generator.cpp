@@ -1233,7 +1233,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kLoadAttr: {
-        auto instr = static_cast<const LoadAttrCached*>(&i);
+        auto instr = static_cast<const LoadAttr*>(&i);
         hir::Register* dst = instr->output();
         hir::Register* base = instr->GetOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
