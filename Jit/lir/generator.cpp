@@ -1831,22 +1831,22 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (TranslateSpecializedCall(bbb, instr)) {
           break;
         }
-#if PY_VERSION_HEX < 0x030C0000
-        size_t flags = instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
-#else
-        UPGRADE_ASSERT(AWAITED_FLAG)
         size_t flags = 0;
+#if PY_VERSION_HEX < 0x030C0000
+        flags |= instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
         emitVectorCall(bbb, instr, flags, false);
         break;
       }
       case Opcode::kVectorCallKW: {
         auto& instr = static_cast<const VectorCallBase&>(i);
-#if PY_VERSION_HEX < 0x030C0000
-        size_t flags = instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
-#else
-        UPGRADE_ASSERT(AWAITED_FLAG)
         size_t flags = 0;
+#if PY_VERSION_HEX < 0x030C0000
+        flags |= instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
         emitVectorCall(bbb, instr, flags, true);
         break;
@@ -1856,11 +1856,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         if (TranslateSpecializedCall(bbb, instr)) {
           break;
         }
-#if PY_VERSION_HEX < 0x030C0000
-        size_t flags = instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
-#else
-        UPGRADE_ASSERT(AWAITED_FLAG)
         size_t flags = 0;
+#if PY_VERSION_HEX < 0x030C0000
+        flags |= instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
         emitVectorCall(bbb, instr, flags, false);
         break;
