@@ -219,15 +219,15 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     Register* val = ParseRegister();
     instruction = newInstr<FormatValue>(dst, fmt_spec, val, conversion);
   } else if (opcode == "CallEx") {
-    auto flags = CallExFlags::None;
+    auto flags = CallFlags::None;
     if (peekNextToken() == "<") {
       expect("<");
       while (peekNextToken() != ">") {
         auto tok = GetNextToken();
         if (tok == "awaited") {
-          flags |= CallExFlags::Awaited;
+          flags |= CallFlags::Awaited;
         } else if (tok == "kwargs") {
-          flags |= CallExFlags::KwArgs;
+          flags |= CallFlags::KwArgs;
         }
         if (peekNextToken() == ",") {
           expect(",");
@@ -313,11 +313,11 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
   } else if (opcode == "CallMethod") {
     expect("<");
     int num_args = GetNextInteger();
-    bool is_awaited = false;
+    auto flags = CallFlags::None;
     if (peekNextToken() == ",") {
       expect(",");
       expect("awaited");
-      is_awaited = true;
+      flags |= CallFlags::Awaited;
     }
     expect(">");
     std::vector<Register*> args(num_args);
@@ -325,7 +325,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
         args.begin(),
         args.end(),
         std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
-    instruction = newInstr<CallMethod>(args.size(), dst, is_awaited);
+    instruction = newInstr<CallMethod>(args.size(), dst, flags);
     for (std::size_t i = 0; i < args.size(); i++) {
       instruction->SetOperand(i, args[i]);
     }

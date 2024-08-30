@@ -1182,10 +1182,11 @@ static bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
   Register* method_reg = invoke.load_method->output();
   auto load_const = LoadConst::create(
       method_reg, Type::fromObject(irfunc.env.addReference(method_obj.get())));
+  bool is_awaited = invoke.call_method->flags() & CallFlags::Awaited;
   auto call_static = VectorCallStatic::create(
       invoke.call_method->NumOperands(),
       invoke.call_method->output(),
-      invoke.call_method->isAwaited(),
+      is_awaited,
       *invoke.call_method->frameState());
   call_static->SetOperand(0, method_reg);
   if (Py_TYPE(method_obj) == &PyClassMethodDescr_Type) {

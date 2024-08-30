@@ -316,8 +316,8 @@ static std::string format_immediates(const Instr& instr) {
       const auto& call = static_cast<const CallEx&>(instr);
       return fmt::format(
           "{}{}",
-          (call.flags() & CallExFlags::Awaited) ? ", awaited" : "",
-          (call.flags() & CallExFlags::KwArgs) ? ", kwargs" : "");
+          (call.flags() & CallFlags::Awaited) ? ", awaited" : "",
+          (call.flags() & CallFlags::KwArgs) ? ", kwargs" : "");
     }
     case Opcode::kBinaryOp: {
       const auto& bin_op = static_cast<const BinaryOp&>(instr);
@@ -345,7 +345,9 @@ static std::string format_immediates(const Instr& instr) {
     case Opcode::kCallMethod: {
       const auto& call = static_cast<const CallMethod&>(instr);
       return fmt::format(
-          "{}{}", call.NumOperands(), call.isAwaited() ? ", awaited" : "");
+          "{}{}",
+          call.NumOperands(),
+          (call.flags() & CallFlags::Awaited) ? ", awaited" : "");
     }
     case Opcode::kCallStatic: {
       const auto& call = static_cast<const CallStatic&>(instr);

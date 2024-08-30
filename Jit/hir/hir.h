@@ -1040,6 +1040,31 @@ class INSTR_CLASS(SetFunctionAttr, (TObject, TFunc), Operands<2>) {
   FunctionAttr field_;
 };
 
+enum class CallFlags : uint32_t {
+  None = 0,
+
+  KwArgs = 1 << 0,
+  Awaited = 1 << 1,
+};
+
+constexpr uint32_t raw(CallFlags flags) {
+  return static_cast<uint32_t>(flags);
+}
+
+constexpr CallFlags operator|(const CallFlags& a, const CallFlags& b) {
+  return static_cast<CallFlags>(raw(a) | raw(b));
+}
+
+constexpr CallFlags& operator|=(CallFlags& a, const CallFlags& b) {
+  a = a | b;
+  return a;
+}
+
+// Common case is to test for flags so this returns a bool.
+constexpr bool operator&(const CallFlags& a, const CallFlags& b) {
+  return static_cast<bool>(raw(a) & raw(b));
+}
+
 class VectorCallBase : public DeoptBase {
  public:
   VectorCallBase(Opcode op, bool is_awaited)
@@ -1089,31 +1114,6 @@ DEFINE_SIMPLE_INSTR(
     Operands<>,
     VectorCallBase);
 
-enum class CallExFlags {
-  None = 0,
-
-  KwArgs = 1 << 0,
-  Awaited = 1 << 1,
-};
-
-constexpr uint32_t raw(CallExFlags flags) {
-  return static_cast<uint32_t>(flags);
-}
-
-constexpr CallExFlags operator|(const CallExFlags& a, const CallExFlags& b) {
-  return static_cast<CallExFlags>(raw(a) | raw(b));
-}
-
-constexpr CallExFlags& operator|=(CallExFlags& a, const CallExFlags& b) {
-  a = a | b;
-  return a;
-}
-
-// Common case is to test for flags so this returns a bool.
-constexpr bool operator&(const CallExFlags& a, const CallExFlags& b) {
-  return static_cast<bool>(raw(a) & raw(b));
-}
-
 class INSTR_CLASS(
     CallEx,
     (TObject, TObject, TOptObject),
@@ -1126,14 +1126,15 @@ class INSTR_CLASS(
       Register* func,
       Register* pargs,
       Register* kwargs,
-      CallExFlags flags)
+      CallFlags flags)
       : InstrT{dst, func, pargs, kwargs}, flags_{flags} {}
+
   CallEx(
       Register* dst,
       Register* func,
       Register* pargs,
       Register* kwargs,
-      CallExFlags flags,
+      CallFlags flags,
       const FrameState& frame)
       : CallEx{dst, func, pargs, kwargs, flags} {
     setFrameState(frame);
@@ -1152,12 +1153,12 @@ class INSTR_CLASS(
     return GetOperand(2);
   }
 
-  CallExFlags flags() const {
+  CallFlags flags() const {
     return flags_;
   }
 
  private:
-  CallExFlags flags_;
+  CallFlags flags_;
 };
 
 // Call to one of the C functions defined by CallCFunc_FUNCS. We have a static
@@ -1252,8 +1253,11 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
 // operands are arguments to the call.
 class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
  public:
-  CallMethod(Register* dst, bool is_awaited, const FrameState& frame)
-      : InstrT(dst, frame), is_awaited_(is_awaited) {}
+  CallMethod(Register* dst, CallFlags flags, const FrameState& frame)
+      : InstrT{dst, frame}, flags_{flags} {
+    JIT_CHECK(
+        !(flags_ & CallFlags::KwArgs), "CallMethod doesn't support kwargs");
+  }
 
   // The function to call
   Register* func() const {
@@ -1273,12 +1277,12 @@ class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
     return GetOperand(i + 2);
   }
 
-  bool isAwaited() const {
-    return is_awaited_;
+  CallFlags flags() const {
+    return flags_;
   }
 
  private:
-  const bool is_awaited_;
+  CallFlags flags_;
 };
 
 class INSTR_CLASS(InvokeMethod, (TObject), HasOutput, Operands<>, DeoptBase) {

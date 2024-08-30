@@ -166,7 +166,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kCallEx);
-  ASSERT_EQ(static_cast<CallEx&>(*it).flags(), CallExFlags::KwArgs);
+  ASSERT_EQ(static_cast<CallEx&>(*it).flags(), CallFlags::KwArgs);
   ASSERT_EQ(static_cast<CallEx&>(*it).output()->name(), "v1");
   ASSERT_EQ(static_cast<CallEx&>(*it).func()->name(), "v2");
   ASSERT_EQ(static_cast<CallEx&>(*it).pargs()->name(), "v3");

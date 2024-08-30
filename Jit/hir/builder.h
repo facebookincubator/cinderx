@@ -162,7 +162,7 @@ class HIRBuilder {
   void emitCallEx(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
+      CallFlags flags);
   void emitCallFunction(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
@@ -174,7 +174,7 @@ class HIRBuilder {
   void emitCallMethod(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
+      CallFlags flags);
   void emitResume(
       CFG& cfg,
       TranslationContext& tc,

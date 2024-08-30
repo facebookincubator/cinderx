@@ -1620,6 +1620,7 @@ void HIRBuilder::emitAnyCall(
       // note: this .at() doesn't skip EXTENDED_ARG, but GET_AWAITABLE is never
       // preceded by EXTENDED_ARG, since it has no oparg
       bc_instrs.at(idx + 1).opcode() == GET_AWAITABLE;
+  auto flags = is_awaited ? CallFlags::Awaited : CallFlags::None;
   bool call_used_is_awaited = true;
   switch (bc_instr.opcode()) {
     case CALL_FUNCTION: {
@@ -1627,7 +1628,7 @@ void HIRBuilder::emitAnyCall(
       break;
     }
     case CALL_FUNCTION_EX: {
-      emitCallEx(tc, bc_instr, is_awaited);
+      emitCallEx(tc, bc_instr, flags);
       break;
     }
     case CALL_FUNCTION_KW: {
@@ -1635,7 +1636,7 @@ void HIRBuilder::emitAnyCall(
       break;
     }
     case CALL_METHOD: {
-      emitCallMethod(tc, bc_instr, is_awaited);
+      emitCallMethod(tc, bc_instr, flags);
       break;
     }
     case INVOKE_FUNCTION: {
@@ -1802,13 +1803,14 @@ void HIRBuilder::emitCallFunction(
 void HIRBuilder::emitCallEx(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
-    bool is_awaited) {
+    CallFlags flags) {
   Register* dst = temps_.AllocateStack();
   OperandStack& stack = tc.frame.stack;
   bool has_kwargs = bc_instr.oparg() & 0x1;
   Register* kwargs = nullptr;
   if (has_kwargs) {
     kwargs = stack.pop();
+    flags |= CallFlags::KwArgs;
   } else {
     Register* nullp = temps_.AllocateNonStack();
     tc.emit<LoadConst>(nullp, TNullptr);
@@ -1816,10 +1818,6 @@ void HIRBuilder::emitCallEx(
   }
   Register* pargs = stack.pop();
   Register* func = stack.pop();
-  auto flags = has_kwargs ? CallExFlags::KwArgs : CallExFlags::None;
-  if (is_awaited) {
-    flags |= CallExFlags::Awaited;
-  }
   tc.emit<CallEx>(dst, func, pargs, kwargs, flags, tc.frame);
   stack.push(dst);
 }
@@ -1835,9 +1833,9 @@ void HIRBuilder::emitCallKWArgs(
 void HIRBuilder::emitCallMethod(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
-    bool is_awaited) {
+    CallFlags flags) {
   std::size_t num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 2;
-  tc.emitVariadic<CallMethod>(temps_, num_operands, is_awaited, tc.frame);
+  tc.emitVariadic<CallMethod>(temps_, num_operands, flags, tc.frame);
 }
 
 void HIRBuilder::emitBuildSlice(

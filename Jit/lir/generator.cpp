@@ -1876,7 +1876,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kCallEx: {
         auto& instr = static_cast<const CallEx&>(i);
-        auto rt_helper = (instr.flags() & CallExFlags::Awaited)
+        auto rt_helper = (instr.flags() & CallFlags::Awaited)
             ? JITRT_CallFunctionExAwaited
             : JITRT_CallFunctionEx;
         bbb.appendCallInstruction(
@@ -1891,7 +1891,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto& hir_instr = static_cast<const CallMethod&>(i);
         size_t flags = 0;
 #if PY_VERSION_HEX < 0x030C0000
-        flags |= hir_instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+        flags |= (hir_instr.flags() & CallFlags::Awaited)
+            ? Ci_Py_AWAITED_CALL_MARKER
+            : 0;
 #else
         UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
