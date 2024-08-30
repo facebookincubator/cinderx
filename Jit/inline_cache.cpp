@@ -948,7 +948,8 @@ void LoadMethodCache::fill(
     return;
   }
 #else
-  UPGRADE_ASSERT(CHANGED_NO_SHADOWING_INSTANCES)
+  UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
+  return;
 #endif
 
   for (auto& entry : entries_) {
@@ -1157,12 +1158,14 @@ void LoadTypeMethodCache::fill(
 
 #if PY_VERSION_HEX < 0x030C0000
   if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
-      (type->tp_dictoffset != 0)) {
+      type->tp_dictoffset != 0) {
     return;
   }
 #else
-  UPGRADE_ASSERT(CHANGED_NO_SHADOWING_INSTANCES)
+  UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
+  return;
 #endif
+
   ltm_watcher.unwatch(this->type, this);
   this->type = type;
   this->value = value;
