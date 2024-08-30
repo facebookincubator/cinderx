@@ -223,16 +223,14 @@ PyObject* JITRT_CallWithKeywordArgs(
           total_args,
           kwdict,
           varargs)) {
+    size_t new_nargsf = total_args;
 #if PY_VERSION_HEX < 0x030C0000
-    return JITRT_GET_REENTRY(func->vectorcall)(
-        (PyObject*)func,
-        arg_space,
-        total_args | (nargsf & (Ci_Py_AWAITED_CALL_MARKER)),
-        nullptr);
+    new_nargsf |= (nargsf & Ci_Py_AWAITED_CALL_MARKER);
 #else
-    UPGRADE_ASSERT(AWAITED_FLAG)
-    return nullptr;
+    UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
+    return JITRT_GET_REENTRY(func->vectorcall)(
+        (PyObject*)func, arg_space, new_nargsf, nullptr);
   }
 
   return _PyFunction_Vectorcall((PyObject*)func, args, nargsf, kwnames);
@@ -283,19 +281,21 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
     arg_space[i] = *def_items++;
   }
 
+  size_t new_nargsf = argcount;
 #if PY_VERSION_HEX < 0x030C0000
+  new_nargsf |= (nargsf & Ci_Py_AWAITED_CALL_MARKER);
+#else
+  UPGRADE_NOTE(AWAITED_FLAG, T194027914)
+#endif
+
   return reinterpret_cast<staticvectorcallfuncfp>(
       JITRT_GET_REENTRY(func->vectorcall))(
       (PyObject*)func,
       arg_space,
-      argcount | (nargsf & (Ci_Py_AWAITED_CALL_MARKER)),
+      new_nargsf,
       // We lie to C++ here, and smuggle in the number of defaulted args filled
       // in.
       (PyObject*)defaulted_args);
-#else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  return {};
-#endif
 }
 
 JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
@@ -335,19 +335,21 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
     arg_space[i] = *def_items++;
   }
 
+  size_t new_nargsf = argcount;
 #if PY_VERSION_HEX < 0x030C0000
+  new_nargsf |= (nargsf & Ci_Py_AWAITED_CALL_MARKER);
+#else
+  UPGRADE_NOTE(AWAITED_FLAG, T194027914)
+#endif
+
   return reinterpret_cast<staticvectorcallfunc>(
       JITRT_GET_REENTRY(func->vectorcall))(
       (PyObject*)func,
       arg_space,
-      argcount | (nargsf & (Ci_Py_AWAITED_CALL_MARKER)),
+      new_nargsf,
       // We lie to C++ here, and smuggle in the number of defaulted args filled
       // in.
       (PyObject*)defaulted_args);
-#else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  return {};
-#endif
 }
 
 bool JITRT_PackStaticArgs(
@@ -788,15 +790,15 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   }
   JIT_DCHECK(PyTuple_CheckExact(pargs), "Expected pargs to be a tuple");
 
-  if (_PyVectorcall_Function(func) != nullptr) {
 #if PY_VERSION_HEX < 0x030C0000
+  if (_PyVectorcall_Function(func) != nullptr) {
     return Ci_PyVectorcall_Call_WithFlags(
         func, pargs, kwargs, is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
-#else
-    UPGRADE_ASSERT(AWAITED_FLAG)
-    return {};
-#endif
   }
+#else
+  UPGRADE_NOTE(AWAITED_FLAG, T194027914)
+#endif
+
   return PyObject_Call(func, pargs, kwargs);
 }
 
