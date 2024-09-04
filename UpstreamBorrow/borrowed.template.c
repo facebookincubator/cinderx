@@ -1,3 +1,5 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 // This file is processed by UpstreamBorrow.py. To see the generated output:
 // buck build --out=- fbcode//cinderx/UpstreamBorrow:gen_borrowed.c
 
