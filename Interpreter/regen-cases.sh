@@ -11,7 +11,8 @@ buck run fbcode//cinderx:python -- \
         --emit-line-directives \
         -o Includes/generated_cases.c.h \
         -m Includes/opcode_metadata.h \
-        Includes/bytecodes.c
+        Includes/bytecodes.c \
+        cinder-bytecodes.c
 
 gen='generated'
 sed -i "1i // @$gen" Includes/generated_cases.c.h
