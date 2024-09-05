@@ -50,14 +50,15 @@ TEST_F(HIROperandTypeTest, VectorCallHasVariadicOperandTypes) {
   auto f = func.env.AllocateRegister();
   auto arg1 = func.env.AllocateRegister();
   auto arg2 = func.env.AllocateRegister();
-  std::unique_ptr<Instr> one_call(VectorCall::create(1, dst, false));
+  std::unique_ptr<Instr> one_call(VectorCall::create(1, dst, CallFlags::None));
   one_call->SetOperand(0, f);
   OperandType op_type = one_call->GetOperandType(0);
 
   EXPECT_EQ(op_type.type, TOptObject);
   EXPECT_EQ(op_type.kind, Constraint::kType);
 
-  std::unique_ptr<Instr> three_call(VectorCall::create(3, dst, false));
+  std::unique_ptr<Instr> three_call(
+      VectorCall::create(3, dst, CallFlags::None));
   three_call->SetOperand(0, f);
   three_call->SetOperand(1, arg1);
   three_call->SetOperand(2, arg2);

@@ -37,8 +37,8 @@ TEST_F(HIRParserTest, ParsesHIR) {
               v2 = LoadConst<NoneType>
               Incref v2
               v1 = VectorCall<1> v2 v3
-              v1 = VectorCallKW<1> v2 v3
-              v1 = VectorCallStatic<1> v2 v3
+              v1 = VectorCall<1, kwnames> v2 v3
+              v1 = VectorCall<1, static> v2 v3
               v1 = CallEx<kwargs> v2 v3 v4
               v1 = CallEx v2 v3 v4
               v1 = ImportFrom<2> v3
@@ -145,24 +145,27 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kVectorCall);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).flags(), CallFlags::None);
   ASSERT_EQ(static_cast<VectorCall&>(*it).numArgs(), 1);
   ASSERT_EQ(static_cast<VectorCall&>(*it).output()->name(), "v1");
   ASSERT_EQ(static_cast<VectorCall&>(*it).func()->name(), "v2");
   ASSERT_EQ(static_cast<VectorCall&>(*it).arg(0)->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
-  ASSERT_EQ(it->opcode(), Opcode::kVectorCallKW);
-  ASSERT_EQ(static_cast<VectorCallKW&>(*it).numArgs(), 1);
-  ASSERT_EQ(static_cast<VectorCallKW&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<VectorCallKW&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<VectorCallKW&>(*it).arg(0)->name(), "v3");
+  ASSERT_EQ(it->opcode(), Opcode::kVectorCall);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).flags(), CallFlags::KwArgs);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).numArgs(), 1);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).output()->name(), "v1");
+  ASSERT_EQ(static_cast<VectorCall&>(*it).func()->name(), "v2");
+  ASSERT_EQ(static_cast<VectorCall&>(*it).arg(0)->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
-  ASSERT_EQ(it->opcode(), Opcode::kVectorCallStatic);
-  ASSERT_EQ(static_cast<VectorCallStatic&>(*it).numArgs(), 1);
-  ASSERT_EQ(static_cast<VectorCallStatic&>(*it).output()->name(), "v1");
-  ASSERT_EQ(static_cast<VectorCallStatic&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<VectorCallStatic&>(*it).arg(0)->name(), "v3");
+  ASSERT_EQ(it->opcode(), Opcode::kVectorCall);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).flags(), CallFlags::Static);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).numArgs(), 1);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).output()->name(), "v1");
+  ASSERT_EQ(static_cast<VectorCall&>(*it).func()->name(), "v2");
+  ASSERT_EQ(static_cast<VectorCall&>(*it).arg(0)->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kCallEx);

@@ -151,8 +151,6 @@ namespace jit::hir {
   V(UpdatePrevInstr)                   \
   V(UseType)                           \
   V(VectorCall)                        \
-  V(VectorCallStatic)                  \
-  V(VectorCallKW)                      \
   V(WaitHandleLoadCoroOrResult)        \
   V(WaitHandleLoadWaiter)              \
   V(WaitHandleRelease)                 \

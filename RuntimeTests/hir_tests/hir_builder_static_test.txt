@@ -1006,7 +1006,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v6 = LoadConst<MortalObjectUser[wrapper_descriptor:0xdeadbeef]>
-    v7 = VectorCallStatic<2> v6 v2 v3 {
+    v7 = VectorCall<2, static> v6 v2 v3 {
       FrameState {
         NextInstrOffset 14
         Locals<2> v0 v1
@@ -1065,7 +1065,7 @@ fun jittestmodule:test {
     }
     Snapshot
     v6 = LoadConst<MortalObjectUser[wrapper_descriptor:0xdeadbeef]>
-    v7 = VectorCallStatic<2> v6 v2 v3 {
+    v7 = VectorCall<2, static> v6 v2 v3 {
       FrameState {
         NextInstrOffset 14
         Locals<2> v0 v1

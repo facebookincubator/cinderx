@@ -163,14 +163,6 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       CallFlags flags);
-  void emitCallFunction(
-      TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
-  void emitCallKWArgs(
-      TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
   void emitCallMethod(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
@@ -268,7 +260,7 @@ class HIRBuilder {
   bool emitInvokeFunction(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
+      CallFlags flags);
   bool emitInvokeNative(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);

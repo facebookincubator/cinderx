@@ -767,11 +767,12 @@ struct AbstractCall {
         instr(instr) {}
 
   Register* arg(std::size_t i) const {
-    if (instr->opcode() == Opcode::kInvokeStaticFunction) {
-      auto f = dynamic_cast<InvokeStaticFunction*>(instr);
+    if (instr->IsInvokeStaticFunction()) {
+      auto f = static_cast<InvokeStaticFunction*>(instr);
       return f->arg(i + 1);
     }
-    if (auto f = dynamic_cast<VectorCallBase*>(instr)) {
+    if (instr->IsVectorCall()) {
+      auto f = static_cast<VectorCall*>(instr);
       return f->arg(i);
     }
     JIT_ABORT("Unsupported call type {}", instr->opname());
@@ -889,8 +890,7 @@ static bool canInlineWithPreloader(
     }
     return false;
   };
-  if ((call_instr->instr->IsVectorCall() ||
-       call_instr->instr->IsVectorCallStatic()) &&
+  if (call_instr->instr->IsVectorCall() &&
       (preloader.code()->co_flags & CI_CO_STATICALLY_COMPILED) &&
       (preloader.returnType() <= TPrimitive || has_primitive_args())) {
     // TODO(T122371281) remove this constraint
@@ -1044,8 +1044,11 @@ void InlineFunctionCalls::Run(Function& irfunc) {
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {
       // TODO(emacs): Support InvokeMethod
-      if (instr.IsVectorCall() || instr.IsVectorCallStatic()) {
-        auto call = static_cast<VectorCallBase*>(&instr);
+      if (instr.IsVectorCall()) {
+        auto call = static_cast<VectorCall*>(&instr);
+        if (call->flags() & CallFlags::KwArgs) {
+          continue;
+        }
         Register* target = call->func();
         if (!target->type().hasValueSpec(TFunc)) {
           JIT_DLOG(
@@ -1182,11 +1185,10 @@ static bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
   Register* method_reg = invoke.load_method->output();
   auto load_const = LoadConst::create(
       method_reg, Type::fromObject(irfunc.env.addReference(method_obj.get())));
-  bool is_awaited = invoke.call_method->flags() & CallFlags::Awaited;
-  auto call_static = VectorCallStatic::create(
+  auto call_static = VectorCall::create(
       invoke.call_method->NumOperands(),
       invoke.call_method->output(),
-      is_awaited,
+      invoke.call_method->flags() | CallFlags::Static,
       *invoke.call_method->frameState());
   call_static->SetOperand(0, method_reg);
   if (Py_TYPE(method_obj) == &PyClassMethodDescr_Type) {

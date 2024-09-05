@@ -331,12 +331,14 @@ static std::string format_immediates(const Instr& instr) {
       const auto& branch = static_cast<const Branch&>(instr);
       return fmt::format("{}", branch.target()->id);
     }
-    case Opcode::kVectorCall:
-    case Opcode::kVectorCallStatic:
-    case Opcode::kVectorCallKW: {
-      const auto& call = static_cast<const VectorCallBase&>(instr);
+    case Opcode::kVectorCall: {
+      const auto& call = static_cast<const VectorCall&>(instr);
       return fmt::format(
-          "{}{}", call.numArgs(), call.isAwaited() ? ", awaited" : "");
+          "{}{}{}{}",
+          call.numArgs(),
+          (call.flags() & CallFlags::Awaited) ? ", awaited" : "",
+          (call.flags() & CallFlags::KwArgs) ? ", kwnames" : "",
+          (call.flags() & CallFlags::Static) ? ", static" : "");
     }
     case Opcode::kCallCFunc: {
       const auto& call = static_cast<const CallCFunc&>(instr);

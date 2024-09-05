@@ -91,26 +91,6 @@ extern "C" PyObject* __Invoke_PyList_Extend(
   return none_val;
 }
 
-void emitVectorCall(
-    BasicBlockBuilder& bbb,
-    const VectorCallBase& hir_instr,
-    size_t flags,
-    bool kwnames) {
-  Instruction* instr = bbb.appendInstr(
-      hir_instr.output(),
-      Instruction::kVectorCall,
-      // TODO(T140174965): This should be MemImm.
-      Imm{reinterpret_cast<uint64_t>(_PyObject_Vectorcall)},
-      Imm{flags});
-  for (hir::Register* arg : hir_instr.GetOperands()) {
-    instr->addOperands(VReg{bbb.getDefInstr(arg)});
-  }
-  if (!kwnames) {
-    // TODO(T140174965): This should be MemImm.
-    instr->addOperands(Imm{0});
-  }
-}
-
 void finishYield(
     BasicBlockBuilder& bbb,
     Instruction* instr,
@@ -386,7 +366,11 @@ void LIRGenerator::addLiveRegOperands(
 // Attempt to emit a type-specialized call, returning true if successful.
 bool LIRGenerator::TranslateSpecializedCall(
     BasicBlockBuilder& bbb,
-    const hir::VectorCallBase& hir_instr) {
+    const hir::VectorCall& hir_instr) {
+  if (hir_instr.flags() & CallFlags::KwArgs) {
+    return false;
+  }
+
   hir::Register* callable = hir_instr.func();
   if (!callable->type().hasValueSpec(TObject)) {
     return false;
@@ -1827,42 +1811,31 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kVectorCall: {
-        auto& instr = static_cast<const VectorCallBase&>(i);
-        if (TranslateSpecializedCall(bbb, instr)) {
+        auto& hir_instr = static_cast<const VectorCall&>(i);
+        if (TranslateSpecializedCall(bbb, hir_instr)) {
           break;
         }
         size_t flags = 0;
 #if PY_VERSION_HEX < 0x030C0000
-        flags |= instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+        flags |= (hir_instr.flags() & CallFlags::Awaited)
+            ? Ci_Py_AWAITED_CALL_MARKER
+            : 0;
 #else
         UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
-        emitVectorCall(bbb, instr, flags, false);
-        break;
-      }
-      case Opcode::kVectorCallKW: {
-        auto& instr = static_cast<const VectorCallBase&>(i);
-        size_t flags = 0;
-#if PY_VERSION_HEX < 0x030C0000
-        flags |= instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
-#else
-        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
-#endif
-        emitVectorCall(bbb, instr, flags, true);
-        break;
-      }
-      case Opcode::kVectorCallStatic: {
-        auto& instr = static_cast<const VectorCallBase&>(i);
-        if (TranslateSpecializedCall(bbb, instr)) {
-          break;
+        Instruction* instr = bbb.appendInstr(
+            hir_instr.output(),
+            Instruction::kVectorCall,
+            // TODO(T140174965): This should be MemImm.
+            Imm{reinterpret_cast<uint64_t>(_PyObject_Vectorcall)},
+            Imm{flags});
+        for (hir::Register* arg : hir_instr.GetOperands()) {
+          instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
-        size_t flags = 0;
-#if PY_VERSION_HEX < 0x030C0000
-        flags |= instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
-#else
-        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
-#endif
-        emitVectorCall(bbb, instr, flags, false);
+        if (!(hir_instr.flags() & CallFlags::KwArgs)) {
+          // TODO(T140174965): This should be MemImm.
+          instr->addOperands(Imm{0});
+        }
         break;
       }
       case Opcode::kCallCFunc: {

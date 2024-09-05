@@ -145,8 +145,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:
     case Opcode::kVectorCall:
-    case Opcode::kVectorCallKW:
-    case Opcode::kVectorCallStatic:
       return commonEffects(inst, AManagedHeapAny);
 
     // Steals the reference to its second input and gives it to the cell
@@ -468,8 +466,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:
     case Opcode::kVectorCall:
-    case Opcode::kVectorCallKW:
-    case Opcode::kVectorCallStatic:
     case Opcode::kXDecref:
     case Opcode::kYieldAndYieldFrom:
     case Opcode::kYieldFrom:

@@ -160,8 +160,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kUnicodeSubscr:
     case Opcode::kUnpackExToTuple:
     case Opcode::kVectorCall:
-    case Opcode::kVectorCallKW:
-    case Opcode::kVectorCallStatic:
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kWaitHandleLoadWaiter:
     case Opcode::kYieldAndYieldFrom:

@@ -285,8 +285,6 @@ bool Instr::isReplayable() const {
     case Opcode::kUnpackExToTuple:
     case Opcode::kUnreachable:
     case Opcode::kVectorCall:
-    case Opcode::kVectorCallStatic:
-    case Opcode::kVectorCallKW:
     case Opcode::kWaitHandleRelease:
     case Opcode::kYieldAndYieldFrom:
     case Opcode::kYieldFrom:

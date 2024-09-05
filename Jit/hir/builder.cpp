@@ -1635,16 +1635,20 @@ void HIRBuilder::emitAnyCall(
   auto flags = is_awaited ? CallFlags::Awaited : CallFlags::None;
   bool call_used_is_awaited = true;
   switch (bc_instr.opcode()) {
-    case CALL_FUNCTION: {
-      emitCallFunction(tc, bc_instr, is_awaited);
+    case CALL_FUNCTION:
+    case CALL_FUNCTION_KW: {
+      // Operands include the function arguments plus the function itself.
+      auto num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 1;
+      // Add one more operand for the kwnames tuple at the end.
+      if (bc_instr.opcode() == CALL_FUNCTION_KW) {
+        num_operands++;
+        flags |= CallFlags::KwArgs;
+      }
+      tc.emitVariadic<VectorCall>(temps_, num_operands, flags);
       break;
     }
     case CALL_FUNCTION_EX: {
       emitCallEx(tc, bc_instr, flags);
-      break;
-    }
-    case CALL_FUNCTION_KW: {
-      emitCallKWArgs(tc, bc_instr, is_awaited);
       break;
     }
     case CALL:
@@ -1668,7 +1672,7 @@ void HIRBuilder::emitAnyCall(
       break;
     }
     case INVOKE_FUNCTION: {
-      call_used_is_awaited = emitInvokeFunction(tc, bc_instr, is_awaited);
+      call_used_is_awaited = emitInvokeFunction(tc, bc_instr, flags);
       break;
     }
     case INVOKE_NATIVE: {
@@ -1840,14 +1844,6 @@ void HIRBuilder::emitUnaryOp(
   tc.frame.stack.push(result);
 }
 
-void HIRBuilder::emitCallFunction(
-    TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    bool is_awaited) {
-  std::size_t num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 1;
-  tc.emitVariadic<VectorCall>(temps_, num_operands, is_awaited);
-}
-
 void HIRBuilder::emitCallEx(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
@@ -1868,14 +1864,6 @@ void HIRBuilder::emitCallEx(
   Register* func = stack.pop();
   tc.emit<CallEx>(dst, func, pargs, kwargs, flags, tc.frame);
   stack.push(dst);
-}
-
-void HIRBuilder::emitCallKWArgs(
-    TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    bool is_awaited) {
-  std::size_t num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 2;
-  tc.emitVariadic<VectorCallKW>(temps_, num_operands, is_awaited);
 }
 
 void HIRBuilder::emitCallMethod(
@@ -2033,7 +2021,7 @@ void HIRBuilder::fixStaticReturn(
 bool HIRBuilder::emitInvokeFunction(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
-    bool is_awaited) {
+    CallFlags flags) {
   BorrowedRef<> arg = constArg(bc_instr);
   BorrowedRef<> descr = PyTuple_GET_ITEM(arg.get(), 0);
   long nargs = PyLong_AsLong(PyTuple_GET_ITEM(arg.get(), 1));
@@ -2085,15 +2073,16 @@ bool HIRBuilder::emitInvokeFunction(
         target.indirect_ptr, descr, funcreg, tc.frame);
   }
 
-  std::vector<Register*> arg_regs = setupStaticArgs(tc, target, nargs, false);
+  std::vector<Register*> arg_regs =
+      setupStaticArgs(tc, target, nargs, false /*statically_invoked*/);
 
   Register* out = temps_.AllocateStack();
-  VectorCallBase* call;
   if (target.container_is_immutable) {
-    call = tc.emit<VectorCallStatic>(nargs + 1, out, is_awaited);
-  } else {
-    call = tc.emit<VectorCall>(nargs + 1, out, is_awaited);
+    flags |= CallFlags::Static;
   }
+
+  // Add one for the function argument.
+  auto call = tc.emit<VectorCall>(nargs + 1, out, flags);
   for (auto i = 0; i < nargs; i++) {
     call->SetOperand(i + 1, arg_regs.at(i));
   }
@@ -3426,8 +3415,7 @@ Register* HIRBuilder::emitSetupWithCommon(
   stack.push(exit);
 
   Register* enter_result = temps_.AllocateStack();
-  VectorCall* call =
-      tc.emit<VectorCall>(1, enter_result, false /* is_awaited */);
+  auto call = tc.emit<VectorCall>(1, enter_result, CallFlags::None);
   call->setFrameState(tc.frame);
   call->SetOperand(0, enter);
   return enter_result;

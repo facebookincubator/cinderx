@@ -129,8 +129,6 @@ struct Env {
       Register* output = instr->output();
       switch (instr->opcode()) {
         case Opcode::kVectorCall:
-        case Opcode::kVectorCallKW:
-        case Opcode::kVectorCallStatic:
           // We don't know the exact output type until its operands are
           // populated.
           output->set_type(TObject);
@@ -973,10 +971,7 @@ Register* simplifyLoadAttrProperty(Env& env, const DescrInfo& info) {
   env.emit<UseType>(info.receiver, info.type);
   Register* getter_obj = env.emit<LoadConst>(Type::fromObject(getter));
   auto call = env.emitRawInstr<VectorCall>(
-      2,
-      env.func.env.AllocateRegister(),
-      /* is_awaited= */ false,
-      *info.frame_state);
+      2, env.func.env.AllocateRegister(), CallFlags::None, *info.frame_state);
   call->SetOperand(0, getter_obj);
   call->SetOperand(1, info.receiver);
   return call->output();
@@ -1236,7 +1231,7 @@ static Register* resolveArgs(
   auto new_instr = env.emitRawInstr<VectorCall>(
       resolved_args.size() + 1,
       env.func.env.AllocateRegister(), // output register
-      /*is_awaited=*/false,
+      CallFlags::None,
       *instr->frameState());
   Register* result = new_instr->output();
 
@@ -1254,20 +1249,11 @@ Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
   // If this is statically known to be trying to call a function, update to
   // using a VectorCall directly.
   if (instr->func()->type() <= TNullptr) {
-    Instr* call = nullptr;
-    if (instr->flags() & CallFlags::KwArgs) {
-      call = env.emitRawInstr<VectorCallKW>(
-          instr->NumOperands() - 1,
-          env.func.env.AllocateRegister(),
-          instr->flags() & CallFlags::Awaited,
-          *instr->frameState());
-    } else {
-      call = env.emitRawInstr<VectorCall>(
-          instr->NumOperands() - 1,
-          env.func.env.AllocateRegister(),
-          instr->flags() & CallFlags::Awaited,
-          *instr->frameState());
-    }
+    auto call = env.emitRawInstr<VectorCall>(
+        instr->NumOperands() - 1,
+        env.func.env.AllocateRegister(),
+        instr->flags(),
+        *instr->frameState());
     for (size_t i = 1; i < instr->NumOperands(); ++i) {
       call->SetOperand(i - 1, instr->GetOperand(i));
     }
@@ -1277,7 +1263,69 @@ Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
   return nullptr;
 }
 
+// Translate VectorCall to CallStatic whenever possible, saving stack
+// manipulation costs (pushing args to stack).
+static Register* trySpecializeCCall(Env& env, const VectorCall* instr) {
+  if (instr->flags() & CallFlags::Awaited) {
+    // We can't pass the awaited flag outside of vectorcall.
+    return nullptr;
+  }
+  Register* callable = instr->func();
+  Type callable_type = callable->type();
+  PyObject* callable_obj = callable_type.asObject();
+  if (callable_obj == nullptr) {
+    return nullptr;
+  }
+
+  // Non METH_STATIC and METH_CLASS tp_methods on types are stored as
+  // PyMethodDescr inside tp_dict. Check out:
+  // Objects/typeobject.c#type_add_method
+  if (Py_TYPE(callable_obj) == &PyMethodDescr_Type) {
+    auto meth = reinterpret_cast<PyMethodDescrObject*>(callable_obj);
+    PyMethodDef* def = meth->d_method;
+    if (def->ml_flags & METH_NOARGS && instr->numArgs() == 1) {
+      Register* result = env.emitVariadic<CallStatic>(
+          1,
+          reinterpret_cast<void*>(def->ml_meth),
+          instr->output()->type() | TNullptr,
+          /* self */ instr->arg(0));
+      return env.emit<CheckExc>(result, *instr->frameState());
+    }
+    if (def->ml_flags & METH_O && instr->numArgs() == 2) {
+      Register* result = env.emitVariadic<CallStatic>(
+          2,
+          reinterpret_cast<void*>(def->ml_meth),
+          instr->output()->type() | TNullptr,
+          /* self */ instr->arg(0),
+          /* arg */ instr->arg(1));
+      return env.emit<CheckExc>(result, *instr->frameState());
+    }
+  }
+  return nullptr;
+}
+
+Register* simplifyVectorCallStatic(Env& env, const VectorCall* instr) {
+  if (!(instr->flags() & CallFlags::Static)) {
+    return nullptr;
+  }
+  Register* func = instr->func();
+  if (isBuiltin(func, "list.append") && instr->numArgs() == 2) {
+    env.emit<UseType>(func, func->type());
+    env.emit<ListAppend>(instr->arg(0), instr->arg(1), *instr->frameState());
+    return env.emit<LoadConst>(TNoneType);
+  }
+
+  return trySpecializeCCall(env, instr);
+}
+
 Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
+  if (Register* result = simplifyVectorCallStatic(env, instr)) {
+    return result;
+  }
+  if (instr->flags() & CallFlags::KwArgs) {
+    return nullptr;
+  }
+
   Register* target = instr->GetOperand(0);
   Type target_type = target->type();
   if (target_type == env.type_object && instr->NumOperands() == 2) {
@@ -1332,60 +1380,6 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
     if (instr->numArgs() != static_cast<size_t>(code->co_argcount)) {
       return resolveArgs(env, instr, func);
     }
-  }
-  return nullptr;
-}
-
-// Translate VectorCallStatic to CallStatic whenever possible, saving stack
-// manipulation costs (pushing args to stack)
-static Register* trySpecializeCCall(Env& env, const VectorCallStatic* instr) {
-  if (instr->isAwaited()) {
-    // We can't pass the awaited flag outside of vectorcall.
-    return nullptr;
-  }
-  Register* callable = instr->func();
-  Type callable_type = callable->type();
-  PyObject* callable_obj = callable_type.asObject();
-  if (callable_obj == nullptr) {
-    return nullptr;
-  }
-
-  // Non METH_STATIC and METH_CLASS tp_methods on types are stored as
-  // PyMethodDescr inside tp_dict. Check out:
-  // Objects/typeobject.c#type_add_method
-  if (Py_TYPE(callable_obj) == &PyMethodDescr_Type) {
-    auto meth = reinterpret_cast<PyMethodDescrObject*>(callable_obj);
-    PyMethodDef* def = meth->d_method;
-    if (def->ml_flags & METH_NOARGS && instr->numArgs() == 1) {
-      Register* result = env.emitVariadic<CallStatic>(
-          1,
-          reinterpret_cast<void*>(def->ml_meth),
-          instr->output()->type() | TNullptr,
-          /* self */ instr->arg(0));
-      return env.emit<CheckExc>(result, *instr->frameState());
-    }
-    if (def->ml_flags & METH_O && instr->numArgs() == 2) {
-      Register* result = env.emitVariadic<CallStatic>(
-          2,
-          reinterpret_cast<void*>(def->ml_meth),
-          instr->output()->type() | TNullptr,
-          /* self */ instr->arg(0),
-          /* arg */ instr->arg(1));
-      return env.emit<CheckExc>(result, *instr->frameState());
-    }
-  }
-  return nullptr;
-}
-
-Register* simplifyVectorCallStatic(Env& env, const VectorCallStatic* instr) {
-  Register* func = instr->func();
-  if (isBuiltin(func, "list.append") && instr->numArgs() == 2) {
-    env.emit<UseType>(func, func->type());
-    env.emit<ListAppend>(instr->arg(0), instr->arg(1), *instr->frameState());
-    return env.emit<LoadConst>(TNoneType);
-  }
-  if (Register* result = trySpecializeCCall(env, instr)) {
-    return result;
   }
   return nullptr;
 }
@@ -1471,9 +1465,7 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
     case Opcode::kVectorCall:
       return simplifyVectorCall(env, static_cast<const VectorCall*>(instr));
-    case Opcode::kVectorCallStatic:
-      return simplifyVectorCallStatic(
-          env, static_cast<const VectorCallStatic*>(instr));
+
     default:
       return nullptr;
   }

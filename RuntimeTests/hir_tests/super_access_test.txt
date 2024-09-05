@@ -219,7 +219,7 @@ fun jittestmodule:A.f {
     Snapshot
     v7 = LoadConst<ImmortalLongExact[1]>
     v8 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v9 = VectorCallKW<2> v6 v7 v8 {
+    v9 = VectorCall<2, kwnames> v6 v7 v8 {
       FrameState {
         NextInstrOffset 14
         Locals<1> v0
@@ -272,7 +272,7 @@ fun jittestmodule:A.f {
     Snapshot
     v7 = LoadConst<ImmortalLongExact[1]>
     v8 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v9 = VectorCallKW<2> v6 v7 v8 {
+    v9 = VectorCall<2, kwnames> v6 v7 v8 {
       FrameState {
         NextInstrOffset 14
         Locals<1> v0

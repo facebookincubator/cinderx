@@ -542,7 +542,7 @@ fun jittestmodule:test {
     }
     v14:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
     v34:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
-    v19:UnicodeExact = VectorCallStatic<1, awaited> v34 v14 {
+    v19:UnicodeExact = VectorCall<1, awaited, static> v34 v14 {
       LiveValues<2> b:v14 b:v34
       FrameState {
         NextInstrOffset 12
@@ -606,7 +606,7 @@ fun jittestmodule:test {
     }
     v14:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
     v34:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
-    v19:UnicodeExact = VectorCallStatic<1, awaited> v34 v14 {
+    v19:UnicodeExact = VectorCall<1, awaited, static> v34 v14 {
       LiveValues<2> b:v14 b:v34
       FrameState {
         NextInstrOffset 12
@@ -669,7 +669,7 @@ fun jittestmodule:test {
     v7:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
     v14:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
     v12:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v13:UnicodeExact = VectorCallStatic<2> v14 v7 v12 {
+    v13:UnicodeExact = VectorCall<2, static> v14 v7 v12 {
       LiveValues<3> b:v7 unc:v12 b:v14
       FrameState {
         NextInstrOffset 12
@@ -704,7 +704,7 @@ fun jittestmodule:test {
     v21:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
     v19:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     UpdatePrevInstr<idx:14>
-    v20:UnicodeExact = VectorCallStatic<2> v21 v14 v19 {
+    v20:UnicodeExact = VectorCall<2, static> v21 v14 v19 {
       LiveValues<3> unc:v14 unc:v19 b:v21
       FrameState {
         NextInstrOffset 32
@@ -780,7 +780,7 @@ fun jittestmodule:test {
   bb 0 {
     v6:MortalUnicodeExact["abc"] = LoadConst<MortalUnicodeExact["abc"]>
     v12:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
-    v11:Object = VectorCallStatic<1> v12 v6 {
+    v11:Object = VectorCall<1, static> v12 v6 {
       LiveValues<2> b:v6 b:v12
       FrameState {
         NextInstrOffset 10
@@ -814,7 +814,7 @@ fun jittestmodule:test {
     v13:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v19:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
     UpdatePrevInstr<idx:13>
-    v18:Object = VectorCallStatic<1> v19 v13 {
+    v18:Object = VectorCall<1, static> v19 v13 {
       LiveValues<2> unc:v13 b:v19
       FrameState {
         NextInstrOffset 30

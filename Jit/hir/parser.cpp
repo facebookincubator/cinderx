@@ -166,16 +166,22 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     expect("<");
     branches_.emplace(instr, GetNextInteger());
     expect(">");
-  } else if (
-      opcode == "VectorCall" || opcode == "VectorCallStatic" ||
-      opcode == "VectorCallKW") {
+  } else if (opcode == "VectorCall") {
     expect("<");
     int num_args = GetNextInteger();
-    bool is_awaited = false;
-    if (peekNextToken() == ",") {
+    auto flags = CallFlags::None;
+    while (peekNextToken() != ">") {
       expect(",");
-      expect("awaited");
-      is_awaited = true;
+      std::string_view tok = GetNextToken();
+      if (tok == "awaited") {
+        flags |= CallFlags::Awaited;
+      } else if (tok == "kwnames") {
+        flags |= CallFlags::KwArgs;
+      } else if (tok == "static") {
+        flags |= CallFlags::Static;
+      } else {
+        JIT_ABORT("Unexpected VectorCall immediate '{}'", tok);
+      }
     }
     expect(">");
     auto func = ParseRegister();
@@ -185,16 +191,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
         args.end(),
         std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
 
-    if (opcode == "VectorCall") {
-      instruction = newInstr<VectorCall>(num_args + 1, dst, is_awaited);
-    } else if (opcode == "VectorCallStatic") {
-      instruction = newInstr<VectorCallStatic>(num_args + 1, dst, is_awaited);
-    } else if (opcode == "VectorCallKW") {
-      instruction = newInstr<VectorCallKW>(num_args + 1, dst, is_awaited);
-    } else {
-      JIT_ABORT("Unhandled opcode {}", opcode);
-    }
-
+    instruction = newInstr<VectorCall>(num_args + 1, dst, flags);
     instruction->SetOperand(0, func);
     for (int i = 0; i < num_args; i++) {
       instruction->SetOperand(i + 1, args[i]);

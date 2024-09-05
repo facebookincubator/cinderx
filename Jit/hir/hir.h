@@ -1045,6 +1045,7 @@ enum class CallFlags : uint32_t {
 
   KwArgs = 1 << 0,
   Awaited = 1 << 1,
+  Static = 1 << 2,
 };
 
 constexpr uint32_t raw(CallFlags flags) {
@@ -1065,12 +1066,12 @@ constexpr bool operator&(const CallFlags& a, const CallFlags& b) {
   return static_cast<bool>(raw(a) & raw(b));
 }
 
-class VectorCallBase : public DeoptBase {
+class INSTR_CLASS(VectorCall, (TOptObject), HasOutput, Operands<>, DeoptBase) {
  public:
-  VectorCallBase(Opcode op, bool is_awaited)
-      : DeoptBase(op), is_awaited_(is_awaited) {}
-  VectorCallBase(Opcode op, bool is_awaited, const FrameState& frame)
-      : DeoptBase(op, frame), is_awaited_(is_awaited) {
+  VectorCall(Register* dst, CallFlags flags) : InstrT{dst}, flags_{flags} {}
+
+  VectorCall(Register* dst, CallFlags flags, const FrameState& frame)
+      : VectorCall{dst, flags} {
     setFrameState(frame);
   }
 
@@ -1087,32 +1088,13 @@ class VectorCallBase : public DeoptBase {
     return GetOperand(i + 1);
   }
 
-  bool isAwaited() const {
-    return is_awaited_;
+  CallFlags flags() const {
+    return flags_;
   }
 
  private:
-  const bool is_awaited_;
+  CallFlags flags_;
 };
-
-DEFINE_SIMPLE_INSTR(
-    VectorCall,
-    (TOptObject),
-    HasOutput,
-    Operands<>,
-    VectorCallBase);
-DEFINE_SIMPLE_INSTR(
-    VectorCallStatic,
-    (TOptObject),
-    HasOutput,
-    Operands<>,
-    VectorCallBase);
-DEFINE_SIMPLE_INSTR(
-    VectorCallKW,
-    (TOptObject),
-    HasOutput,
-    Operands<>,
-    VectorCallBase);
 
 class INSTR_CLASS(
     CallEx,
@@ -1127,7 +1109,10 @@ class INSTR_CLASS(
       Register* pargs,
       Register* kwargs,
       CallFlags flags)
-      : InstrT{dst, func, pargs, kwargs}, flags_{flags} {}
+      : InstrT{dst, func, pargs, kwargs}, flags_{flags} {
+    JIT_CHECK(
+        !(flags_ & CallFlags::Static), "CallEx doesn't support Static Python");
+  }
 
   CallEx(
       Register* dst,
@@ -1254,7 +1239,11 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
 class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
  public:
   CallMethod(Register* dst, CallFlags flags, const FrameState& frame)
-      : InstrT{dst, frame}, flags_{flags} {}
+      : InstrT{dst, frame}, flags_{flags} {
+    JIT_CHECK(
+        !(flags_ & CallFlags::Static),
+        "CallMethod doesn't support Static Python");
+  }
 
   // The function to call
   Register* func() const {
