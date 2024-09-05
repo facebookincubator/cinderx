@@ -2949,11 +2949,21 @@ void HIRBuilder::emitMakeFunction(
     const jit::BytecodeInstruction& bc_instr) {
   int oparg = bc_instr.oparg();
   Register* func = temps_.AllocateStack();
-  Register* qualname = tc.frame.stack.pop();
+
+  // In 3.10 the function's qualname is on the stack.  In 3.11+ it's computed
+  // from the code object, so we use a sentinel Nullptr value here.
+  Register* qualname = nullptr;
+  if constexpr (PY_VERSION_HEX < 0x030B0000) {
+    qualname = tc.frame.stack.pop();
+  } else {
+    qualname = temps_.AllocateNonStack();
+    tc.emit<LoadConst>(qualname, TNullptr);
+  }
+
   Register* codeobj = tc.frame.stack.pop();
 
   // make a function
-  tc.emit<MakeFunction>(func, qualname, codeobj, tc.frame);
+  tc.emit<MakeFunction>(func, codeobj, qualname, tc.frame);
 
   if (oparg & 0x08) {
     Register* closure = tc.frame.stack.pop();

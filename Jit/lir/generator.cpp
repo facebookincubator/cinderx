@@ -2483,8 +2483,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kMakeFunction: {
         auto instr = static_cast<const MakeFunction*>(&i);
-        auto qualname = instr->GetOperand(0);
-        auto code = instr->GetOperand(1);
+        auto code = instr->GetOperand(0);
+        auto qualname = instr->GetOperand(1);
 
         Instruction* globals;
         if (getConfig().stable_globals) {
@@ -2504,12 +2504,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               env_->asm_tstate);
         }
 
-        bbb.appendCallInstruction(
-            instr->output(),
-            PyFunction_NewWithQualName,
-            code,
-            globals,
-            qualname);
+        if (!qualname->isA(TNullptr)) {
+          bbb.appendCallInstruction(
+              instr->output(),
+              PyFunction_NewWithQualName,
+              code,
+              globals,
+              qualname);
+        } else {
+          bbb.appendCallInstruction(
+              instr->output(), PyFunction_New, code, globals);
+        }
         break;
       }
       case Opcode::kSetFunctionAttr: {

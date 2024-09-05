@@ -1140,7 +1140,7 @@ fun jittestmodule:test {
     Snapshot
     v8 = LoadConst<MortalCode["inner"]>
     v9 = LoadConst<MortalUnicodeExact["test.<locals>.inner"]>
-    v10 = MakeFunction v9 v8 {
+    v10 = MakeFunction v8 v9 {
       FrameState {
         NextInstrOffset 16
         Locals<2> v3 v1

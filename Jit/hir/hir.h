@@ -936,12 +936,11 @@ class INSTR_CLASS(BuildSlice, (TObject), HasOutput, Operands<>, DeoptBase) {
   }
 };
 
-// Builds a new Function object, with the given qualified name and codeobj
-// Takes a qualname as operand 0
-// Takes a codeobj as operand 1
+// Builds a new Function object, with the given code object and optionally a
+// qualified name.
 DEFINE_SIMPLE_INSTR(
     MakeFunction,
-    (TObject, TCode),
+    (TCode, TOptObject),
     HasOutput,
     Operands<2>,
     DeoptBase);

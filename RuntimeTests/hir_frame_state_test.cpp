@@ -1604,6 +1604,83 @@ def test(x):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      NextInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      NextInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      NextInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v0 = CheckVar<"x"> v0 {
+      FrameState {
+        NextInstrOffset 4
+        Locals<2> v0 v1
+      }
+    }
+    v5 = MakeTuple<1> v0 {
+      FrameState {
+        NextInstrOffset 6
+        Locals<2> v0 v1
+        Stack<1> v0
+      }
+    }
+    Snapshot {
+      NextInstrOffset 6
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
+    v6 = LoadConst<MortalCode["foo"]>
+    v8 = LoadConst<Nullptr>
+    v7 = MakeFunction v6 v8 {
+      FrameState {
+        NextInstrOffset 10
+        Locals<2> v0 v1
+        Stack<1> v5
+      }
+    }
+    SetFunctionAttr<func_defaults> v5 v7
+    Snapshot {
+      NextInstrOffset 10
+      Locals<2> v0 v1
+      Stack<1> v7
+    }
+    v1 = Assign v7
+    v1 = CheckVar<"foo"> v1 {
+      FrameState {
+        NextInstrOffset 14
+        Locals<2> v0 v1
+      }
+    }
+    Return v1
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1631,7 +1708,7 @@ def test(x):
     }
     v3 = LoadConst<MortalCode["foo"]>
     v4 = LoadConst<MortalUnicodeExact["test.<locals>.foo"]>
-    v5 = MakeFunction v4 v3 {
+    v5 = MakeFunction v3 v4 {
       FrameState {
         NextInstrOffset 10
         Locals<2> v0 v1
@@ -1655,6 +1732,7 @@ def test(x):
   }
 }
 )";
+#endif
   EXPECT_HIR_EQ(irfunc, expected);
 }
 

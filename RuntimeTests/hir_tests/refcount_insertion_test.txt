@@ -1479,7 +1479,7 @@ fun jittestmodule:test {
     }
     v21:MortalCode["g"] = LoadConst<MortalCode["g"]>
     v22:MortalUnicodeExact["test.<locals>.g"] = LoadConst<MortalUnicodeExact["test.<locals>.g"]>
-    v23:MortalFunc = MakeFunction v22 v21 {
+    v23:MortalFunc = MakeFunction v21 v22 {
       LiveValues<5> unc:v13 o:v14 o:v20 b:v21 b:v22
       FrameState {
         NextInstrOffset 18
@@ -2127,7 +2127,7 @@ fun jittestmodule:test {
     v19:Nullptr = LoadConst<Nullptr>
     v20:MortalCode["<lambda>"] = LoadConst<MortalCode["<lambda>"]>
     v21:MortalUnicodeExact["test.<locals>.<lambd"...] = LoadConst<MortalUnicodeExact["test.<locals>.<lambd"...]>
-    v22:MortalFunc = MakeFunction v21 v20 {
+    v22:MortalFunc = MakeFunction v20 v21 {
       LiveValues<3> unc:v19 b:v20 b:v21
       FrameState {
         NextInstrOffset 6
@@ -2136,7 +2136,7 @@ fun jittestmodule:test {
     }
     v24:MortalCode["<lambda>"] = LoadConst<MortalCode["<lambda>"]>
     v25:MortalUnicodeExact["test.<locals>.<lambd"...] = LoadConst<MortalUnicodeExact["test.<locals>.<lambd"...]>
-    v26:MortalFunc = MakeFunction v25 v24 {
+    v26:MortalFunc = MakeFunction v24 v25 {
       LiveValues<4> unc:v19 o:v22 b:v24 b:v25
       FrameState {
         NextInstrOffset 14
@@ -2192,69 +2192,85 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v19:Nullptr = LoadConst<Nullptr>
-    v20:MortalCode["<lambda>"] = LoadConst<MortalCode["<lambda>"]>
-    v21:MortalUnicodeExact["test.<locals>.<lambd"...] = LoadConst<MortalUnicodeExact["test.<locals>.<lambd"...]>
-    v22:MortalFunc = MakeFunction v21 v20 {
-      LiveValues<3> unc:v19 b:v20 b:v21
+    v29:Nullptr = LoadConst<Nullptr>
+    v30:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v30
+  }
+
+  bb 2 (preds 0) {
+    v31:CInt32 = RunPeriodicTasks {
+      LiveValues<1> unc:v29
+      FrameState {
+        NextInstrOffset 2
+        Locals<7> v29 v29 v29 v29 v29 v29 v29
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    v39:MortalCode["<lambda>"] = LoadConst<MortalCode["<lambda>"]>
+    v40:Nullptr = LoadConst<Nullptr>
+    v41:MortalFunc = MakeFunction v39 v40 {
+      LiveValues<3> unc:v29 b:v39 unc:v40
       FrameState {
         NextInstrOffset 6
-        Locals<7> v19 v19 v19 v19 v19 v19 v19
+        Locals<7> v29 v29 v29 v29 v29 v29 v29
       }
     }
-    v24:MortalCode["<lambda>"] = LoadConst<MortalCode["<lambda>"]>
-    v25:MortalUnicodeExact["test.<locals>.<lambd"...] = LoadConst<MortalUnicodeExact["test.<locals>.<lambd"...]>
-    v26:MortalFunc = MakeFunction v25 v24 {
-      LiveValues<4> unc:v19 o:v22 b:v24 b:v25
+    v43:MortalCode["<lambda>"] = LoadConst<MortalCode["<lambda>"]>
+    v44:Nullptr = LoadConst<Nullptr>
+    v45:MortalFunc = MakeFunction v43 v44 {
+      LiveValues<4> unc:v29 o:v41 b:v43 unc:v44
       FrameState {
-        NextInstrOffset 14
-        Locals<7> v22 v19 v19 v19 v19 v19 v19
+        NextInstrOffset 12
+        Locals<7> v41 v29 v29 v29 v29 v29 v29
       }
     }
-    v29:Object = VectorCall<0> v22 {
-      LiveValues<3> unc:v19 o:v22 o:v26
+    v75:Object = VectorCall<0> v41 {
+      LiveValues<3> unc:v29 o:v41 o:v45
       FrameState {
         NextInstrOffset 20
-        Locals<7> v22 v26 v19 v19 v19 v19 v19
+        Locals<7> v41 v45 v29 v29 v29 v29 v29
       }
     }
-    v32:Object = VectorCall<0> v22 {
-      LiveValues<4> unc:v19 o:v22 o:v26 o:v29
+    v76:Object = VectorCall<0> v41 {
+      LiveValues<4> unc:v29 o:v41 o:v45 o:v75
       FrameState {
-        NextInstrOffset 26
-        Locals<7> v22 v26 v29 v19 v19 v19 v19
+        NextInstrOffset 34
+        Locals<7> v41 v45 v75 v29 v29 v29 v29
       }
     }
-    v35:Object = VectorCall<0> v22 {
-      LiveValues<5> unc:v19 o:v22 o:v26 o:v29 o:v32
+    v77:Object = VectorCall<0> v41 {
+      LiveValues<5> unc:v29 o:v41 o:v45 o:v75 o:v76
       FrameState {
-        NextInstrOffset 32
-        Locals<7> v22 v26 v29 v32 v19 v19 v19
+        NextInstrOffset 48
+        Locals<7> v41 v45 v75 v76 v29 v29 v29
       }
     }
-    v38:Object = VectorCall<0> v22 {
-      LiveValues<6> unc:v19 o:v22 o:v26 o:v29 o:v32 o:v35
+    v78:Object = VectorCall<0> v41 {
+      LiveValues<6> unc:v29 o:v41 o:v45 o:v75 o:v76 o:v77
       FrameState {
-        NextInstrOffset 38
-        Locals<7> v22 v26 v29 v32 v35 v19 v19
+        NextInstrOffset 62
+        Locals<7> v41 v45 v75 v76 v77 v29 v29
       }
     }
-    v41:Object = VectorCall<0> v22 {
-      LiveValues<7> unc:v19 o:v22 o:v26 o:v29 o:v32 o:v35 o:v38
+    v79:Object = VectorCall<0> v41 {
+      LiveValues<7> unc:v29 o:v41 o:v45 o:v75 o:v76 o:v77 o:v78
       FrameState {
-        NextInstrOffset 44
-        Locals<7> v22 v26 v29 v32 v35 v38 v19
+        NextInstrOffset 76
+        Locals<7> v41 v45 v75 v76 v77 v78 v29
       }
     }
-    v49:Object = VectorCall<5> v26 v29 v32 v35 v38 v41 {
-      LiveValues<7> o:v22 o:v26 o:v29 o:v32 o:v35 o:v38 o:v41
+    v80:Object = VectorCall<5> v45 v75 v76 v77 v78 v79 {
+      LiveValues<7> o:v41 o:v45 o:v75 o:v76 o:v77 o:v78 o:v79
       FrameState {
-        NextInstrOffset 60
-        Locals<7> v22 v26 v29 v32 v35 v38 v41
+        NextInstrOffset 100
+        Locals<7> v41 v45 v75 v76 v77 v78 v79
       }
     }
-    BatchDecref v22 v26 v29 v32 v35 v38 v41
-    Return v49
+    BatchDecref v41 v45 v75 v76 v77 v78 v79
+    Return v80
   }
 }
 --- Test Name ---

@@ -793,7 +793,7 @@ fun jittestmodule:test {
     Snapshot
     v15:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
     v16:MortalUnicodeExact["test.<locals>.inside"] = LoadConst<MortalUnicodeExact["test.<locals>.inside"]>
-    v17:MortalFunc = MakeFunction v16 v15 {
+    v17:MortalFunc = MakeFunction v15 v16 {
       FrameState {
         NextInstrOffset 14
         Locals<1> v10
@@ -876,7 +876,7 @@ fun jittestmodule:test {
     Snapshot
     v6:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
     v7:MortalUnicodeExact["test.<locals>.inside"] = LoadConst<MortalUnicodeExact["test.<locals>.inside"]>
-    v8:MortalFunc = MakeFunction v7 v6 {
+    v8:MortalFunc = MakeFunction v6 v7 {
       FrameState {
         NextInstrOffset 6
         Locals<1> v5
@@ -896,25 +896,45 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v5:Nullptr = LoadConst<Nullptr>
+    v9:Func = LoadCurrentFunc
+    v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v6:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
-    v7:MortalUnicodeExact["test.<locals>.inside"] = LoadConst<MortalUnicodeExact["test.<locals>.inside"]>
-    v8:MortalFunc = MakeFunction v7 v6 {
+    v11:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<1> v10
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v14:MortalCode["inside"] = LoadConst<MortalCode["inside"]>
+    v15:Nullptr = LoadConst<Nullptr>
+    v16:MortalFunc = MakeFunction v14 v15 {
       FrameState {
         NextInstrOffset 6
-        Locals<1> v5
+        Locals<1> v10
       }
     }
     Snapshot
-    v11:Object = VectorCall<0> v8 {
+    v18:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v21:Object = VectorCall<0> v16 {
       FrameState {
-        NextInstrOffset 12
-        Locals<1> v8
+        NextInstrOffset 14
+        Locals<1> v16
       }
     }
     Snapshot
-    Return v11
+    Return v21
   }
 }
 --- Test Name ---

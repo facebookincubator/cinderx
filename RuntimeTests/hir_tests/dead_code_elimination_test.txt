@@ -185,7 +185,7 @@ fun jittestmodule:test {
     Snapshot
     v7:MortalCode["inner"] = LoadConst<MortalCode["inner"]>
     v8:MortalUnicodeExact["test.<locals>.inner"] = LoadConst<MortalUnicodeExact["test.<locals>.inner"]>
-    v9:MortalFunc = MakeFunction v8 v7 {
+    v9:MortalFunc = MakeFunction v7 v8 {
       FrameState {
         NextInstrOffset 6
         Locals<1> v6
@@ -206,26 +206,45 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Nullptr = LoadConst<Nullptr>
+    v11:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v7:MortalCode["inner"] = LoadConst<MortalCode["inner"]>
-    v8:MortalUnicodeExact["test.<locals>.inner"] = LoadConst<MortalUnicodeExact["test.<locals>.inner"]>
-    v9:MortalFunc = MakeFunction v8 v7 {
+    v12:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v12
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v13:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<1> v11
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v15:MortalCode["inner"] = LoadConst<MortalCode["inner"]>
+    v16:Nullptr = LoadConst<Nullptr>
+    v17:MortalFunc = MakeFunction v15 v16 {
       FrameState {
         NextInstrOffset 6
-        Locals<1> v6
+        Locals<1> v11
       }
     }
     Snapshot
-    v12:Object = VectorCall<0> v9 {
+    v19:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v24:Object = VectorCall<0> v17 {
       FrameState {
-        NextInstrOffset 12
-        Locals<1> v9
+        NextInstrOffset 14
+        Locals<1> v17
       }
     }
     Snapshot
-    v13:NoneType = LoadConst<NoneType>
-    Return v13
+    v22:NoneType = LoadConst<NoneType>
+    Return<NoneType> v22
   }
 }
 --- Test Name ---
