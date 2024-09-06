@@ -142,6 +142,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     IS_OP,
     JUMP_ABSOLUTE,
     JUMP_BACKWARD,
+    JUMP_BACKWARD_NO_INTERRUPT,
     JUMP_FORWARD,
     JUMP_IF_FALSE_OR_POP,
     JUMP_IF_NONZERO_OR_POP,
@@ -428,6 +429,7 @@ static bool should_snapshot(
     // to another basic block.
     case JUMP_ABSOLUTE:
     case JUMP_BACKWARD:
+    case JUMP_BACKWARD_NO_INTERRUPT:
     case JUMP_FORWARD:
     case POP_JUMP_IF_FALSE:
     case POP_JUMP_IF_TRUE:
@@ -969,6 +971,7 @@ void HIRBuilder::translate(
           tc.emit<Branch>(target);
           break;
         }
+        case JUMP_BACKWARD_NO_INTERRUPT:
         case JUMP_FORWARD: {
           auto target_off = bc_instr.GetJumpTarget();
           auto target = getBlockAtOff(target_off);

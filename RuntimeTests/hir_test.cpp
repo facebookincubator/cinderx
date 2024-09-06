@@ -908,6 +908,91 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
+TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
+  //  0 LOAD_CONST    0
+  //  2 RETURN_VALUE
+  //
+  //  4 LOAD_CONST    0
+  //  6 RETURN_VALUE
+  //  8 JUMP_ABSOLUTE 4
+  uint8_t bc[] = {
+      LOAD_CONST,
+      0,
+      RETURN_VALUE,
+      0,
+      LOAD_CONST,
+      0,
+      RETURN_VALUE,
+      0,
+#if PY_VERSION_HEX < 0x030C0000
+      JUMP_ABSOLUTE,
+      4,
+#else
+      JUMP_BACKWARD_NO_INTERRUPT,
+      2,
+#endif
+  };
+  Ref<> bytecode = toByteString(bc);
+  ASSERT_NE(bytecode.get(), nullptr);
+  auto filename = Ref<>::steal(PyUnicode_FromString("filename"));
+  auto funcname = Ref<>::steal(PyUnicode_FromString("funcname"));
+  auto consts = Ref<>::steal(PyTuple_New(1));
+  Py_INCREF(Py_None);
+  PyTuple_SET_ITEM(consts.get(), 0, Py_None);
+  auto empty_tuple = Ref<>::steal(PyTuple_New(0));
+  auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
+  auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
+      /*argcount=*/0,
+      /*kwonlyargcount=*/0,
+      /*nlocals=*/0,
+      /*stacksize=*/0,
+      /*flags=*/0,
+      bytecode,
+      consts,
+      /*names=*/empty_tuple,
+      /*varnames=*/empty_tuple,
+      /*freevars=*/empty_tuple,
+      /*cellvars=*/empty_tuple,
+      filename,
+      funcname,
+      /*qualname=*/funcname,
+      /*firstlineno=*/0,
+      /*linetable=*/empty_bytes,
+      /*exceptiontable=*/empty_bytes));
+  ASSERT_NE(code.get(), nullptr);
+
+  auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
+  ASSERT_NE(func.get(), nullptr);
+
+  std::unique_ptr<Function> irfunc(buildHIR(func));
+  ASSERT_NE(irfunc.get(), nullptr);
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadCurrentFunc
+    Snapshot {
+      NextInstrOffset 0
+    }
+    v1 = LoadConst<NoneType>
+    Return v1
+  }
+}
+)";
+#else
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    Snapshot {
+      NextInstrOffset 0
+    }
+    v0 = LoadConst<NoneType>
+    Return v0
+  }
+}
+)";
+#endif
+  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+}
+
 class CppInlinerTest : public RuntimeTest {};
 
 TEST_F(CppInlinerTest, ChangingCalleeFunctionCodeCausesDeopt) {
