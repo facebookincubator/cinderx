@@ -141,6 +141,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     INVOKE_NATIVE,
     IS_OP,
     JUMP_ABSOLUTE,
+    JUMP_BACKWARD,
     JUMP_FORWARD,
     JUMP_IF_FALSE_OR_POP,
     JUMP_IF_NONZERO_OR_POP,
@@ -426,6 +427,7 @@ static bool should_snapshot(
     // same basic block doesn't make sense, as control immediately transfers
     // to another basic block.
     case JUMP_ABSOLUTE:
+    case JUMP_BACKWARD:
     case JUMP_FORWARD:
     case POP_JUMP_IF_FALSE:
     case POP_JUMP_IF_TRUE:
@@ -957,13 +959,19 @@ void HIRBuilder::translate(
           break;
         }
         case JUMP_ABSOLUTE:
+        case JUMP_BACKWARD: {
+          auto target_off = bc_instr.GetJumpTarget();
+          auto target = getBlockAtOff(target_off);
+          if (target_off <= bc_instr.offset() ||
+              bc_instr.opcode() != JUMP_ABSOLUTE) {
+            loop_headers.emplace(target);
+          }
+          tc.emit<Branch>(target);
+          break;
+        }
         case JUMP_FORWARD: {
           auto target_off = bc_instr.GetJumpTarget();
           auto target = getBlockAtOff(target_off);
-          if ((bc_instr.opcode() == JUMP_ABSOLUTE) &&
-              (target_off <= bc_instr.offset())) {
-            loop_headers.emplace(target);
-          }
           tc.emit<Branch>(target);
           break;
         }

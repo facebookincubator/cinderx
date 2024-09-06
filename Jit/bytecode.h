@@ -92,6 +92,9 @@ class BytecodeInstruction {
         IsBranch(),
         "calling GetJumpTargetAsIndex() on non-branch gives nonsense");
     if (kRelBranchOpcodes.count(opcode())) {
+      if (opcode() == JUMP_BACKWARD) {
+        return NextInstrIndex() - oparg();
+      }
       return NextInstrIndex() + oparg();
     }
     return BCIndex{oparg()};

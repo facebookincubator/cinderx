@@ -841,10 +841,12 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
       0,
 #if PY_VERSION_HEX < 0x030C0000
       JUMP_ABSOLUTE,
+      4,
 #else
       JUMP_BACKWARD,
+      2,
 #endif
-      4};
+  };
   Ref<> bytecode = toByteString(bc);
   ASSERT_NE(bytecode.get(), nullptr);
   auto filename = Ref<>::steal(PyUnicode_FromString("filename"));
@@ -879,7 +881,19 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
   ASSERT_NE(irfunc.get(), nullptr);
-
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadCurrentFunc
+    Snapshot {
+      NextInstrOffset 0
+    }
+    v1 = LoadConst<NoneType>
+    Return v1
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     Snapshot {
@@ -890,6 +904,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   }
 }
 )";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
