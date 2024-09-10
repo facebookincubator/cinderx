@@ -382,7 +382,7 @@ class Instr {
   static void* allocate(std::size_t fixed_size, std::size_t num_operands) {
     auto variable_size = num_operands * kPointerSize;
     char* ptr = static_cast<char*>(
-        malloc(variable_size + fixed_size + sizeof(std::size_t)));
+        calloc(variable_size + fixed_size + sizeof(std::size_t), 1));
     ptr += variable_size;
     *reinterpret_cast<size_t*>(ptr) = num_operands;
     ptr += sizeof(std::size_t);
@@ -1237,11 +1237,15 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
 // operands are arguments to the call.
 class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
  public:
-  CallMethod(Register* dst, CallFlags flags, const FrameState& frame)
-      : InstrT{dst, frame}, flags_{flags} {
+  CallMethod(Register* dst, CallFlags flags) : InstrT{dst}, flags_{flags} {
     JIT_CHECK(
         !(flags_ & CallFlags::Static),
         "CallMethod doesn't support Static Python");
+  }
+
+  CallMethod(Register* dst, CallFlags flags, const FrameState& frame)
+      : CallMethod{dst, flags} {
+    setFrameState(frame);
   }
 
   // The function to call

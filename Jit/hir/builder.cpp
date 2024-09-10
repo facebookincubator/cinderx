@@ -1639,13 +1639,21 @@ void HIRBuilder::emitAnyCall(
     case CALL:
     case CALL_METHOD: {
       auto num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 2;
+      auto num_stack_inputs = num_operands;
       if (kwnames_ != nullptr) {
         num_operands += 1;
         flags |= CallFlags::KwArgs;
       }
-      auto call =
-          tc.emitVariadic<CallMethod>(temps_, num_operands, flags, tc.frame);
 
+      // Manually set up the instruction instead of using emitVariadic.
+      // kwnames_ isn't on the stack, but it has to be part of the operand
+      // count.
+      Register* out = temps_.AllocateStack();
+      auto call = tc.emit<CallMethod>(num_operands, out, flags);
+      for (auto i = num_stack_inputs; i > 0; i--) {
+        Register* arg = tc.frame.stack.pop();
+        call->SetOperand(i - 1, arg);
+      }
       if (kwnames_ != nullptr) {
         JIT_CHECK(
             call->GetOperand(num_operands - 1) == nullptr,
@@ -1653,7 +1661,9 @@ void HIRBuilder::emitAnyCall(
         call->SetOperand(num_operands - 1, kwnames_);
         kwnames_ = nullptr;
       }
+      call->setFrameState(tc.frame);
 
+      tc.frame.stack.push(out);
       break;
     }
     case INVOKE_FUNCTION: {
@@ -1734,6 +1744,7 @@ void HIRBuilder::emitKwNames(
       "by a CALL* opcode yet",
       index);
 
+  kwnames_ = temps_.AllocateNonStack();
   tc.emit<LoadConst>(
       kwnames_, Type::fromObject(PyTuple_GET_ITEM(code_->co_consts, index)));
 }
@@ -1849,14 +1860,6 @@ void HIRBuilder::emitCallEx(
   Register* func = stack.pop();
   tc.emit<CallEx>(dst, func, pargs, kwargs, flags, tc.frame);
   stack.push(dst);
-}
-
-void HIRBuilder::emitCallMethod(
-    TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    CallFlags flags) {
-  std::size_t num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 2;
-  tc.emitVariadic<CallMethod>(temps_, num_operands, flags, tc.frame);
 }
 
 void HIRBuilder::emitBuildSlice(
