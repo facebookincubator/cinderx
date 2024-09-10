@@ -14,7 +14,7 @@ from typing import Generator, Iterable, Sequence
 
 from cinderx.compiler import pyassem
 from cinderx.compiler.pyassem import Instruction
-from cinderx.compiler.pycodegen import CodeGenerator
+from cinderx.compiler.pycodegen import CodeGenerator, ResumeOparg
 
 from .common import CompilerTest, glob_test
 
@@ -283,11 +283,23 @@ def add_test(modname: str, fname: str) -> None:
             )
 
         script = eval(parts[1], globals(), SCRIPT_CONTEXT)
-        for i, value in enumerate(script):
-            if value == ...:
-                script[i] = SkipAny()
+        transformed = []
 
-        self.check_instrs(graph_instrs(graph), script)
+        should_add_resume = sys.version_info[:2] >= (3, 12)
+        if should_add_resume:
+            transformed.append(Op("RESUME", int(ResumeOparg.ScopeEntry)))
+
+        for value in script:
+            if value == ...:
+                transformed.append(SkipAny())
+            elif isinstance(value, Op) and value.opname == "CODE_START":
+                transformed.append(value)
+                if should_add_resume:
+                    transformed.append(Op("RESUME", int(ResumeOparg.ScopeEntry)))
+            else:
+                transformed.append(value)
+
+        self.check_instrs(graph_instrs(graph), transformed)
 
     # pyre-ignore[16]: Callable has no attribute __name__
     test_code.__name__ = "test_" + modname.replace("/", "_").replace(".", "_")[:-3]

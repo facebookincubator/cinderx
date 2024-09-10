@@ -12,6 +12,7 @@ import sys
 from ast import AST, ClassDef
 from builtins import compile as builtin_compile
 from contextlib import contextmanager
+from enum import IntEnum
 from typing import Union
 
 from . import consts, future, misc, pyassem, symbols
@@ -145,7 +146,7 @@ def make_compiler(
     mode,
     flags=0,
     optimize=-1,
-    generator=None,
+    generator: CodeGenerator | None = None,
     modname=_DEFAULT_MODNAME,
     ast_optimizer_enabled=True,
 ):
@@ -273,6 +274,7 @@ class CodeGenerator(ASTVisitor):
         self._qual_name = None
         self.parent_code_gen = parent
         self.name = self.get_node_name(node) if name is None else name
+        self.emitResume(ResumeOparg.ScopeEntry)
 
     def _setupGraphDelegation(self):
         self.emit = self.graph.emit
@@ -285,7 +287,7 @@ class CodeGenerator(ASTVisitor):
         """Return a code object"""
         return self.graph.getCode()
 
-    def set_qual_name(self, qualname):
+    def set_qual_name(self, qualname: str):
         pass
 
     @contextmanager
@@ -961,7 +963,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("POP_TOP")
             self.nextBlock(end)
 
-    def get_qual_prefix(self, gen):
+    def get_qual_prefix(self, gen: CodeGenerator):
         prefix = ""
         if gen.scope.global_scope:
             return prefix
@@ -979,7 +981,7 @@ class CodeGenerator(ASTVisitor):
             parent = parent.parent
         return prefix
 
-    def _makeClosure(self, gen, flags):
+    def _makeClosure(self, gen: CodeGenerator, flags: int) -> None:
         prefix = ""
         if not isinstance(gen.tree, ast.ClassDef):
             prefix = self.get_qual_prefix(gen)
@@ -1570,6 +1572,9 @@ class CodeGenerator(ASTVisitor):
             self.emit("DUP_TOP_TWO")
         else:
             raise ValueError(f"Unsupported dup count {count}")
+
+    def emitResume(self, oparg: ResumeOparg) -> None:
+        pass
 
     def visitAttribute(self, node):
         self.visit(node.value)
@@ -3094,8 +3099,18 @@ class Entry:
         self.unwinding_datum = unwinding_datum
 
 
+class ResumeOparg(IntEnum):
+    ScopeEntry = 0
+    Yield = 1
+    YieldFrom = 2
+    Await = 3
+
+
 class CodeGenerator312(CodeGenerator):
     flow_graph = pyassem.PyFlowGraph312
+
+    def emitResume(self, oparg: ResumeOparg) -> None:
+        self.emit("RESUME", int(oparg))
 
     def visitCall(self, node):
         if not self._can_optimize_call(node):
@@ -3599,7 +3614,7 @@ class CodeGenerator312(CodeGenerator):
             parent = parent.parent
         return prefix
 
-    def _makeClosure(self, gen, flags) -> None:
+    def _makeClosure(self, gen: CodeGenerator, flags: int) -> None:
         prefix = ""
         # pyre-ignore[16]: Module `ast` has no attribute `TypeVar`.
         if not isinstance(gen.tree, (ast.ClassDef, ast.TypeVar)):
@@ -3749,7 +3764,7 @@ class CinderCodeGenerator(CodeGenerator):
             self.emit("LOAD_CONST", None)
             self.emit("YIELD_FROM")
 
-    def set_qual_name(self, qualname):
+    def set_qual_name(self, qualname: str) -> None:
         self._qual_name = qualname
 
     def getCode(self):

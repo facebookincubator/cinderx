@@ -48,6 +48,7 @@ FVS_HAVE_SPEC = 0x4
 
 opcode.stack_effects.update(
     NOP=0,
+    RESUME=0,
     POP_TOP=-1,
     ROT_TWO=0,
     ROT_THREE=0,
