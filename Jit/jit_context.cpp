@@ -211,7 +211,12 @@ Context::CompilationResult Context::compilePreloader(
   }
 
   compile_depth++;
-  std::unique_ptr<CompiledFunction> compiled = jit_compiler_.Compile(preloader);
+  std::unique_ptr<CompiledFunction> compiled;
+  try {
+    compiled = jit_compiler_.Compile(preloader);
+  } catch (const std::exception& exn) {
+    JIT_DLOG("{}", exn.what());
+  }
   compile_depth--;
 
   ThreadedCompileSerialize guard;

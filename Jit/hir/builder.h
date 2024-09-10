@@ -94,15 +94,9 @@ std::unique_ptr<Function> buildHIR(const Preloader& preloader);
 // leading to a bunch of distinct exit blocks) into Branches to one Return
 // block (one exit block), which the caller can transform into an Assign to the
 // output register of the original call instruction.
-//
-// Call InlineResult::succeeded to determine if the inline was successful.
 struct InlineResult {
-  BasicBlock* entry;
-  BasicBlock* exit;
-
-  bool succeeded() const {
-    return entry != nullptr && exit != nullptr;
-  }
+  BasicBlock* entry{nullptr};
+  BasicBlock* exit{nullptr};
 };
 
 class HIRBuilder {
@@ -472,6 +466,9 @@ class HIRBuilder {
       Register* dst,
       Register* src,
       Type type);
+
+  // Check that a code object can be compiled into HIR.
+  void checkTranslate();
 
   BorrowedRef<PyCodeObject> code_;
   BlockMap block_map_;

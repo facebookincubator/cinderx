@@ -45,9 +45,6 @@ class LIRGeneratorTest : public RuntimeTest {
     }
 
     std::unique_ptr<jit::hir::Function> irfunc(buildHIR(func));
-    if (irfunc == nullptr) {
-      return "";
-    }
 
     Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
 

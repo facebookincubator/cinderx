@@ -78,7 +78,6 @@ def func():
   ASSERT_NE(pyfunc, nullptr);
 
   auto irfunc = buildHIR(pyfunc);
-  ASSERT_NE(irfunc, nullptr);
 
   jit::hir::Instr* term = irfunc->cfg.entry_block->GetTerminator();
   ASSERT_NE(term, nullptr);

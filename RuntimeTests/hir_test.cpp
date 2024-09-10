@@ -572,7 +572,6 @@ TEST_F(HIRBuildTest, GetLength) {
   //  4 RETURN_VALUE
   uint8_t bc[] = {LOAD_FAST, 0, GET_LEN, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
-  ASSERT_NE(irfunc, nullptr);
 
 #if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
@@ -677,7 +676,6 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
   ASSERT_NE(func.get(), nullptr);
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
-  ASSERT_NE(irfunc.get(), nullptr);
 
 #if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
@@ -771,7 +769,6 @@ TEST_F(HIRBuildTest, SetUpdate) {
   ASSERT_NE(func.get(), nullptr);
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
-  ASSERT_NE(irfunc.get(), nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -880,7 +877,6 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   ASSERT_NE(func.get(), nullptr);
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
-  ASSERT_NE(irfunc.get(), nullptr);
 #if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1204,7 +1200,6 @@ TEST_F(HIRBuildTest, ROT_N) {
 
   std::unique_ptr<Function> irfunc =
       build_test(bc, {Py_None, Py_None, Py_None, Py_None});
-  ASSERT_NE(irfunc, nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
@@ -1287,7 +1282,6 @@ TEST_F(HIRBuildTest, ROT_N) {
 TEST_F(HIRBuildTest, MatchMapping) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_MAPPING, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
-  ASSERT_NE(irfunc, nullptr);
 
 #if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
@@ -1381,7 +1375,6 @@ TEST_F(HIRBuildTest, MatchMapping) {
 TEST_F(HIRBuildTest, MatchSequence) {
   uint8_t bc[] = {LOAD_FAST, 0, MATCH_SEQUENCE, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
-  ASSERT_NE(irfunc, nullptr);
 
 #if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
@@ -1475,7 +1468,6 @@ TEST_F(HIRBuildTest, MatchSequence) {
 TEST_F(HIRBuildTest, MatchKeys) {
   uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, MATCH_KEYS, 0, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
-  ASSERT_NE(irfunc, nullptr);
 
 #if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
@@ -1601,7 +1593,6 @@ TEST_F(HIRBuildTest, MatchKeys) {
 TEST_F(HIRBuildTest, ListExtend) {
   uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, LIST_EXTEND, 1, RETURN_VALUE, 0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
-  ASSERT_NE(irfunc, nullptr);
 
 #if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
@@ -1696,7 +1687,6 @@ TEST_F(HIRBuildTest, ListToTuple) {
       RETURN_VALUE,
       0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
-  ASSERT_NE(irfunc, nullptr);
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {

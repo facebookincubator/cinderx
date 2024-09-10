@@ -218,10 +218,6 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();
   }
-  if (irfunc == nullptr) {
-    JIT_DLOG("Lowering to HIR failed {}", fullname);
-    return nullptr;
-  }
 
   if (g_dump_hir) {
     JIT_LOG("Initial HIR for {}:\n{}", fullname, *irfunc);

@@ -958,11 +958,16 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
     return;
   }
   HIRBuilder hir_builder(*preloader);
-  InlineResult result =
-      hir_builder.inlineHIR(&caller, caller_frame_state.get());
-  if (result.entry == nullptr) {
+
+  InlineResult result;
+  try {
+    result = hir_builder.inlineHIR(&caller, caller_frame_state.get());
+  } catch (const std::exception& exn) {
     JIT_DLOG(
-        "Tried and failed to inline {} into {}", fullname, caller.fullname);
+        "Tried to inline {} into {}, but failed with {}",
+        fullname,
+        caller.fullname,
+        exn.what());
     return;
   }
 

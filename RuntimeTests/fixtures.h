@@ -275,7 +275,6 @@ class RuntimeTest : public ::testing::Test {
     ASSERT_NE(func.get(), nullptr) << "failed creating function";
 
     irfunc = buildHIR(func);
-    ASSERT_NE(irfunc, nullptr) << "failed constructing HIR";
   }
 
   void CompileToHIRStatic(
@@ -286,7 +285,6 @@ class RuntimeTest : public ::testing::Test {
     ASSERT_NE(func.get(), nullptr) << "failed creating function";
 
     irfunc = buildHIR(func);
-    ASSERT_NE(irfunc, nullptr) << "failed constructing HIR";
   }
 
   bool isStaticCompiler() const {

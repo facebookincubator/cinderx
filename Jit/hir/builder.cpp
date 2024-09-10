@@ -224,32 +224,11 @@ const std::unordered_set<int> kSupportedOpcodes = {
     YIELD_VALUE,
 };
 
-static bool can_translate(PyCodeObject* code) {
-  static const std::unordered_set<std::string> kBannedNames{
-      "eval", "exec", "locals"};
-  PyObject* names = code->co_names;
-  std::unordered_set<Py_ssize_t> banned_name_ids;
-  auto name_at = [&](Py_ssize_t i) {
-    return PyUnicode_AsUTF8(PyTuple_GET_ITEM(names, i));
-  };
-  for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(names); i++) {
-    if (kBannedNames.count(name_at(i))) {
-      banned_name_ids.insert(i);
-    }
-  }
-  for (auto& bci : BytecodeInstructionBlock{code}) {
-    auto opcode = bci.opcode();
-    int oparg = bci.oparg();
-    if (!kSupportedOpcodes.count(opcode)) {
-      JIT_DLOG("Unsupported opcode: {}", opcode);
-      return false;
-    } else if (opcode == LOAD_GLOBAL && banned_name_ids.count(oparg)) {
-      JIT_DLOG("'{}' unsupported", name_at(oparg));
-      return false;
-    }
-  }
-  return true;
-}
+const std::unordered_set<std::string_view> kBannedNames{
+    "eval",
+    "exec",
+    "locals",
+};
 
 void HIRBuilder::AllocateRegistersForLocals(
     Environment* env,
@@ -564,10 +543,7 @@ std::unique_ptr<Function> buildHIR(const Preloader& preloader) {
 // are a few bytecodes that do not (e.g. SETUP_FINALLY). We will need to deal
 // with that if we ever want to support compiling them.
 std::unique_ptr<Function> HIRBuilder::buildHIR() {
-  if (!can_translate(code_)) {
-    JIT_DLOG("Can't translate all opcodes in {}", preloader_.fullname());
-    return nullptr;
-  }
+  checkTranslate();
 
   std::unique_ptr<Function> irfunc = preloader_.makeFunction();
   buildHIRImpl(irfunc.get(), /*frame_state=*/nullptr);
@@ -645,10 +621,8 @@ BasicBlock* HIRBuilder::buildHIRImpl(
 InlineResult HIRBuilder::inlineHIR(
     Function* caller,
     FrameState* caller_frame_state) {
-  if (!can_translate(code_)) {
-    JIT_DLOG("Can't translate all opcodes in {}", preloader_.fullname());
-    return {nullptr, nullptr};
-  }
+  checkTranslate();
+
   BasicBlock* entry_block = buildHIRImpl(caller, caller_frame_state);
   // Make one block with a Return that merges the return branches from the
   // callee. After SSA, it will turn into a massive Phi. The caller can find
@@ -3967,6 +3941,34 @@ ExecutionBlock HIRBuilder::popBlock(CFG& cfg, TranslationContext& tc) {
 
 BorrowedRef<> HIRBuilder::constArg(const BytecodeInstruction& bc_instr) {
   return PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg());
+}
+
+void HIRBuilder::checkTranslate() {
+  PyObject* names = code_->co_names;
+  std::unordered_set<Py_ssize_t> banned_name_ids;
+  auto name_at = [&](Py_ssize_t i) {
+    return PyUnicode_AsUTF8(PyTuple_GET_ITEM(names, i));
+  };
+  for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(names); i++) {
+    if (kBannedNames.count(name_at(i))) {
+      banned_name_ids.insert(i);
+    }
+  }
+  for (auto& bci : BytecodeInstructionBlock{code_}) {
+    auto opcode = bci.opcode();
+    int oparg = bci.oparg();
+    if (!kSupportedOpcodes.count(opcode)) {
+      throw std::runtime_error{fmt::format(
+          "Cannot compile {} to HIR because it contains unsupported opcode {}",
+          preloader_.fullname(),
+          opcode)};
+    } else if (opcode == LOAD_GLOBAL && banned_name_ids.count(oparg)) {
+      throw std::runtime_error{fmt::format(
+          "Cannot compile {} to HIR because it uses banned global '{}'",
+          preloader_.fullname(),
+          name_at(oparg))};
+    }
+  }
 }
 
 } // namespace jit::hir
