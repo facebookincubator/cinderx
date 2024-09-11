@@ -81,3 +81,8 @@ test.test_concurrent_futures.test_shutdown.ProcessPoolForkserverProcessPoolShutd
 
 # This fails with a negative reference count even without CinderX being loaded.
 test.test_set.TestSet.test_c_api
+
+# This is skipped in CI because we don't have a TTY. Make sure it's also skipped
+# on devservers so the list of expected pass/fail tests is consistent on both
+# platforms.
+test_ioctl

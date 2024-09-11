@@ -176,7 +176,10 @@ def start_worker(
 
     pipe = MessagePipe(d_r, d_w)
 
-    worker_ns = json.dumps(dataclasses.asdict(runtests_config))
+    runtest_config_file = tempfile.NamedTemporaryFile(
+        mode="w", encoding="utf-8", delete=False
+    )
+    json.dump(dataclasses.asdict(runtests_config), runtest_config_file.file)
     cmd = [
         sys.executable,
         *get_cinderjit_xargs(),
@@ -184,7 +187,7 @@ def start_worker(
         "worker",
         str(w_r),
         str(w_w),
-        worker_ns,
+        str(runtest_config_file.name),
     ]
     env = dict(os.environ)
     # This causes fdb/rr to panic when its set to a unicode value. This is
@@ -272,6 +275,7 @@ class MultiWorkerCinderRegrtest:
         no_retry_on_test_errors: bool,
         huntrleaks: bool,
         num_workers: int,
+        json_summary_file: str | None,
     ):
         self._cinder_regr_runner_logfile = logfile
         self._success_on_test_errors = success_on_test_errors
@@ -282,6 +286,7 @@ class MultiWorkerCinderRegrtest:
         self._no_retry_on_test_errors = no_retry_on_test_errors
         self._huntrleaks = huntrleaks
         self._num_workers = num_workers
+        self._json_summary_file = json_summary_file
 
         self._ntests_done = 0
         self._interrupted = False
@@ -329,6 +334,7 @@ class MultiWorkerCinderRegrtest:
     def _run_tests_with_n_workers(  # noqa: C901
         self, tests: Iterable[str], n_workers: int, replay_infos: List[ReplayInfo]
     ) -> None:
+        runtests_config = self._runtests_config.copy(tests=())
         resultq = queue.Queue()
         testq = queue.Queue()
         ntests_remaining = 0
@@ -342,7 +348,7 @@ class MultiWorkerCinderRegrtest:
             t = threading.Thread(
                 target=manage_worker,
                 args=(
-                    self._runtests_config,
+                    runtests_config,
                     testq,
                     resultq,
                     self._worker_timeout,
@@ -505,6 +511,20 @@ class MultiWorkerCinderRegrtest:
             # False, False => quiet, print_slowest
             self._results.display_result(self._runtests_config.tests, False, False)
 
+        if self._json_summary_file:
+            print("Writing JSON summary to", self._json_summary_file)
+            with open(self._json_summary_file, "w") as f:
+                json.dump(
+                    {
+                        "bad": sorted(self._results.bad),
+                        "good": sorted(self._results.good),
+                        "skipped": sorted(self._results.skipped),
+                        "resource_denied": sorted(self._results.resource_denied),
+                        "run_no_tests": sorted(self._results.run_no_tests),
+                    },
+                    f,
+                )
+
         if not self._success_on_test_errors:
             # True, True => fail_env_changed, fail_rerun
             sys.exit(self._results.get_exitcode(True, True))
@@ -546,7 +566,7 @@ class MultiWorkerCinderRegrtest:
         return skip_modules, skip_patterns
 
     def _selectTests(self, exclude: Set[str]) -> List[str]:
-        # Initial set of tests are the core Python/Cinder ones.
+        # Initial set of tests are the core Python ones.
         tests = libregrtest_findtests.findtests(
             exclude=exclude,
             base_mod="test",
@@ -554,14 +574,13 @@ class MultiWorkerCinderRegrtest:
         )
 
         # Add CinderX tests
-        # cinderx_tests = libregrtest_findtests.findtests(
-        #     testdir=get_test_cinderx_dir(),
-        #     exclude=exclude,
-        #     split_test_dirs=CINDERX_SPLIT_TEST_DIRS,
-        #     base_mod="test_cinderx",
-        # )
-        # return cinderx_tests
-        # tests.extend(cinderx_tests)
+        cinderx_tests = libregrtest_findtests.findtests(
+            testdir=get_test_cinderx_dir(),
+            exclude=exclude,
+            split_test_dirs=CINDERX_SPLIT_TEST_DIRS,
+            base_mod="test_cinderx",
+        )
+        tests.extend(cinderx_tests)
 
         return tests
 
@@ -696,7 +715,9 @@ def worker_main(args):
     sys.path.insert(0, str(get_cinderx_dir() / "PythonLib"))
     patch_libregrtest_to_use_loadTestsFromName()
     libregrtest_setup.setup_process()
-    worker_runtests_dict = json.loads(args.runtests)
+    with open(args.runtest_config_json_file, "r") as f:
+        worker_runtests_dict = json.load(f)
+    os.unlink(args.runtest_config_json_file)
     worker_runtests = libregrtest_runtests.RunTests(**worker_runtests_dict)
     with MessagePipe(args.cmd_fd, args.result_fd) as pipe:
         asan_log = ASANLogManipulator()
@@ -743,6 +764,7 @@ def dispatcher_main(args):
                 args.no_retry_on_test_errors,
                 args.huntrleaks,
                 num_workers,
+                args.json_summary_file,
             )
             print(f"Spawning {num_workers} workers")
             test_runner.run()
@@ -790,10 +812,17 @@ def main():
     worker_parser.add_argument(
         "result_fd", type=int, help="Writable fd to write test results"
     )
-    worker_parser.add_argument("runtests", help='Serialized "runtests" data')
+    worker_parser.add_argument(
+        "runtest_config_json_file",
+        type=str,
+        help="JSON file to read runtest config from",
+    )
     worker_parser.set_defaults(func=worker_main)
 
     dispatcher_parser = subparsers.add_parser("dispatcher")
+    dispatcher_parser.add_argument(
+        "--json-summary-file", type=str, help="Path to write JSON summary to"
+    )
     dispatcher_parser.add_argument(
         "--num-workers",
         type=int,
