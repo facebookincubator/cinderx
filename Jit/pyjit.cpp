@@ -1666,10 +1666,10 @@ static int deopt_gen_impl(PyGenObject* gen) {
   releaseRefs(deopt_meta, footer);
   JITRT_GenJitDataFree(gen);
   gen->gi_jit_data = nullptr;
-  return 1;
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_NOTE(GENERATOR_JIT_SUPPORT, T194022335)
 #endif
+  return 1;
 }
 
 static PyObject* deopt_gen(PyObject*, PyObject* gen) {

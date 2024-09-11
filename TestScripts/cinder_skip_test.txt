@@ -1,3 +1,7 @@
+#
+# Skips added for 3.10 start here.
+#
+
 test.test_rlcompleter.TestRlcompleter.test_global_matches
 
 
@@ -11,10 +15,10 @@ test.test_embed.EmbeddingTests.test_subinterps_distinct_state
 test.test_embed.EmbeddingTests.test_subinterps_main
 test.test_multibytecodec.Test_IncrementalEncoder.test_subinterp
 test.test_threading.SubinterpThreadingTests.*
-test.test_interpreters.*
+test_interpreters
 test.test_capi.CAPITest.test_getitem_with_error
 test.test_repl.TestInteractiveInterpreter.test_no_memory
-test.test__opcode.*
+test__opcode
 test.test_dis.*.test_widths
 test.test_asyncgen.AsyncGenAsyncioTest.test_async_gen_asyncio_gc_aclose_09
 test.test_fork1.ForkTest.test_threaded_import_lock_fork
@@ -29,3 +33,14 @@ test.test_dis.DisTests.test_bug_1333982
 test.test_dis.DisTests.test_disassemble_recursive
 test.test_dis.DisWithFileTests.test_bug_1333982
 test.test_dis.DisWithFileTests.test_disassemble_recursive
+
+
+#
+# Skips added for 3.12 start here.
+#
+
+# All of these tests use sub-interpreters which are incompatible with CinderX.
+test.test_capi.test_misc.SubinterpreterTest.*
+test.test_capi.test_misc.TestPendingCalls.test_isolated_subinterpreter
+test.test_capi.test_getargs.Test_testcapi.test_gh_119213
+test.test_import.SubinterpImportTests.*
