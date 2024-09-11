@@ -19,6 +19,7 @@
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
 #include "cinderx/Jit/config.h"
+#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -32,7 +33,6 @@
 #include "cinderx/Jit/lir/regalloc.h"
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/Jit/perf_jitdump.h"
-#include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/runtime.h"
 
 #include <Python.h>

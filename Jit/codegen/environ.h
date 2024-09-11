@@ -7,7 +7,6 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/inline_cache.h"
-#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/runtime.h"
 
 #include <asmjit/asmjit.h>

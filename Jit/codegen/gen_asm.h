@@ -9,8 +9,7 @@
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/jit_rt.h"
-#include "cinderx/Jit/lir/printer.h"
+#include "cinderx/Jit/lir/function.h"
 
 #include <Python.h>
 #include <asmjit/asmjit.h>

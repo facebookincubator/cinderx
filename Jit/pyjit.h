@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Jit/compile.h"
-#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/pyjit_typeslots.h"
 

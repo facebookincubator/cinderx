@@ -22,7 +22,6 @@
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/Jit/code_allocator.h"
-#include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/elf/reader.h"
@@ -51,6 +50,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <thread>
 #include <unordered_set>
