@@ -7,7 +7,6 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinderx/Common/ref.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "frameobject.h"
 #include "internal/pycore_shadow_frame_struct.h"
 
 #include "cinderx/Jit/runtime.h"
@@ -86,13 +85,14 @@ void Ci_WalkStack(PyThreadState* tstate, CiWalkStackCallback cb, void* data);
 #else // PY_VERSION_HEX < 0x030C0000
 
 #include "cinderx/Common/ref.h"
-#include "frameobject.h"
 
 #include "cinderx/Jit/runtime.h"
 
 namespace jit {
+
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate);
 Ref<PyFrameObject> materializePyFrameForDeopt(PyThreadState* tstate);
+
 } // namespace jit
 
 #endif
