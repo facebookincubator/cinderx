@@ -50,7 +50,7 @@ constexpr bool kPyDebug =
 #endif
 
 constexpr bool kImmortalInstances =
-#ifdef Py_IMMORTAL_INSTANCES
+#if defined(Py_IMMORTAL_INSTANCES) || PY_VERSION_HEX >= 0x030C0000
     true;
 #else
     false;
