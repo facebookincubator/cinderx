@@ -1486,12 +1486,7 @@ JITRT_YieldFromRes JITRT_YieldFromHandleStopAsyncIteration(
   if ((res.retval == nullptr) && (res.done == 1) &&
       PyErr_ExceptionMatches(PyExc_StopAsyncIteration)) {
     PyErr_Clear();
-#if PY_VERSION_HEX < 0x030C0000
-    Py_INCREF(&jit::g_iterDoneSentinel);
     res.retval = &jit::g_iterDoneSentinel;
-#else
-    UPGRADE_ASSERT(IMMORTALIZATION_DIFFERENT)
-#endif
   }
   return res;
 }

@@ -1176,7 +1176,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* cond = bbb.getDefInstr(i.GetOperand(0));
 
         if (opcode == Opcode::kCondBranchIterNotDone) {
-#if PY_VERSION_HEX < 0x030C0000
           auto iter_done_addr =
               reinterpret_cast<uint64_t>(&jit::g_iterDoneSentinel);
           cond = bbb.appendInstr(
@@ -1184,9 +1183,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               OutVReg{OperandBase::k64bit},
               cond,
               Imm{iter_done_addr});
-#else
-          UPGRADE_ASSERT(IMMORTALIZATION_DIFFERENT)
-#endif
         }
 
         bbb.appendInstr(Instruction::kCondBranch, cond);

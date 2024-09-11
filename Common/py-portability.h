@@ -17,3 +17,7 @@
 #define _PyType_GetDict(type) ((type)->tp_dict)
 #define _PyObject_CallNoArgs _PyObject_CallNoArg
 #endif
+
+#if PY_VERSION_HEX < 0x030C0000
+#define _Py_IMMORTAL_REFCNT kImmortalInitialCount
+#endif

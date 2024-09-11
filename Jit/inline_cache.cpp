@@ -70,10 +70,15 @@ TypeWatcher<LoadTypeMethodCache> ltm_watcher;
 
 constexpr uintptr_t kKindMask = 0x07;
 
-#if PY_VERSION_HEX < 0x030C0000
 // Sentinel PyObject that must never escape into user code.
-PyObject g_emptyTypeAttrCache = {_PyObject_EXTRA_INIT 1, nullptr};
+PyObject g_emptyTypeAttrCache = {
+    _PyObject_EXTRA_INIT
+#if PY_VERSION_HEX >= 0x030C0000
+    {.ob_refcnt = _Py_IMMORTAL_REFCNT},
+#else
+        _Py_IMMORTAL_REFCNT,
 #endif
+    nullptr};
 
 inline PyDictObject* get_dict(PyObject* obj, Py_ssize_t dictoffset) {
   PyObject** dictptr = (PyObject**)((char*)obj + dictoffset);
@@ -766,14 +771,10 @@ void LoadTypeAttrCache::fill(PyTypeObject* type, PyObject* value) {
 }
 
 void LoadTypeAttrCache::reset() {
-#if PY_VERSION_HEX < 0x030C0000
   // We need to return a PyObject* even in the empty case so that subsequent
   // refcounting operations work correctly.
   items[0] = &g_emptyTypeAttrCache;
   items[1] = nullptr;
-#else
-  UPGRADE_ASSERT(IMMORTALIZATION_DIFFERENT)
-#endif
 }
 
 std::string_view kCacheMissReasons[] = {

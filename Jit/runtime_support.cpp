@@ -2,17 +2,20 @@
 
 #include "cinderx/Jit/runtime_support.h"
 
-#include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 #include "internal/pycore_pyerrors.h"
 
 namespace jit {
 
-#if PY_VERSION_HEX < 0x030C0000
 PyObject g_iterDoneSentinel = {
-    _PyObject_EXTRA_INIT kImmortalInitialCount,
-    nullptr};
+    _PyObject_EXTRA_INIT
+#if PY_VERSION_HEX >= 0x030C0000
+    {.ob_refcnt = _Py_IMMORTAL_REFCNT},
+#else
+        _Py_IMMORTAL_REFCNT,
 #endif
+    nullptr};
 
 PyObject* invokeIterNext(PyObject* iterator) {
   PyObject* val = (*iterator->ob_type->tp_iternext)(iterator);
@@ -25,13 +28,8 @@ PyObject* invokeIterNext(PyObject* iterator) {
     }
     PyErr_Clear();
   }
-#if PY_VERSION_HEX < 0x030C0000
   Py_INCREF(&g_iterDoneSentinel);
   return &g_iterDoneSentinel;
-#else
-  UPGRADE_ASSERT(IMMORTALIZATION_DIFFERENT)
-  return nullptr;
-#endif
 }
 
 } // namespace jit
