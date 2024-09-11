@@ -232,9 +232,19 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
   if (func_->uses_runtime_func) {
     env_->asm_func = bindVReg(codegen::INITIAL_FUNC_REG);
   }
+
 #if PY_VERSION_HEX >= 0x030C0000
-  env_->asm_interpreter_frame =
-      bindVReg(jit::codegen::INITIAL_INTERPRETER_FRAME_REG);
+  // Load the current interpreter frame pointer from tstate.
+  Instruction* cframe = block->allocateInstr(
+      Instruction::kMove,
+      nullptr /* HIR instruction */,
+      OutVReg{},
+      Ind{env_->asm_tstate, offsetof(PyThreadState, cframe)});
+  env_->asm_interpreter_frame = block->allocateInstr(
+      Instruction::kMove,
+      nullptr /* HIR instruction */,
+      OutVReg{},
+      Ind{cframe, offsetof(_PyCFrame, current_frame)});
 #endif
 
   return block;

@@ -359,14 +359,17 @@ def update_cpp_tests(  # noqa: C901
                     in_version_block is None
                 ), f"Nested version blocks @ line {lineno}"
                 in_version_block = "3.12"
+                new_lines.append(line)
                 continue
 
             if in_version_block == "3.12" and CPP_MACRO_ELSE_RE.match(line):
                 in_version_block = "3.10"
+                new_lines.append(line)
                 continue
 
             if in_version_block is not None and CPP_MACRO_ENDIF_RE.match(line):
                 in_version_block = None
+                new_lines.append(line)
                 continue
 
             m = CPP_EXPECTED_START_RE.match(line)

@@ -483,8 +483,8 @@ fun foo {
 #if PY_VERSION_HEX >= 0x030C0000
       R"(
 # CondBranchCheckType<1, 3, Tuple> v1
-         %7:8bit = Call {0}({0:#x}):64bit, %6:Object
-                   CondBranch %7:8bit, BB%9, BB%11
+         %8:8bit = Call {0}({0:#x}):64bit, %7:Object
+                   CondBranch %8:8bit, BB%10, BB%12
 )",
 #else
       R"(
@@ -494,7 +494,12 @@ fun foo {
 )",
 #endif
       reinterpret_cast<uint64_t>(__Invoke_PyTuple_Check));
-  EXPECT_NE(ss.str().find(lir_expected.c_str()), std::string::npos);
+  if (ss.str().find(lir_expected.c_str()) == std::string::npos) {
+    FAIL() << "Couldn't find expected string " << std::endl
+           << lir_expected << std::endl
+           << "In:" << std::endl
+           << ss.str() << std::endl;
+  }
 }
 
 TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
@@ -536,16 +541,17 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
   ss << *lir_func << std::endl;
 #if PY_VERSION_HEX >= 0x030C0000
   const char* lir_expected = R"(Function:
-BB %0 - succs: %5
+BB %0 - succs: %6
        %1:Object = Bind R10:Object
        %2:Object = Bind R11:Object
        %3:Object = Bind RDI:Object
-       %4:Object = Bind R12:Object
+       %4:Object = Move [%2:Object + 0x38]:Object
+       %5:Object = Move [%4:Object]:Object
 
-BB %5 - preds: %0
+BB %6 - preds: %0
 
 # v9:Nullptr = LoadConst<Nullptr>
-       %6:Object = Move 0(0x0):Object
+       %7:Object = Move 0(0x0):Object
 
 # v10:Bottom = CheckVar<"a"> v9 {
 #   LiveValues<1> unc:v9
@@ -554,7 +560,7 @@ BB %5 - preds: %0
 #     Locals<1> v9
 #   }
 # }
-                   Guard 4(0x4):64bit, 0(0x0):64bit, %6:Object, 0(0x0):64bit, %6:Object
+                   Guard 4(0x4):64bit, 0(0x0):64bit, %7:Object, 0(0x0):64bit, %7:Object
 
 # Unreachable
                    Unreachable
