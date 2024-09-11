@@ -4,7 +4,6 @@
 
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/jit_rt.h"
 
 #include <Python.h>
 #include <fmt/format.h>

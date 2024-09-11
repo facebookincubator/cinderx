@@ -7,9 +7,9 @@
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include "cinderx/Jit/bytecode_offsets.h"
-#include "cinderx/Jit/codegen/gen_asm.h"
+#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/analysis.h"
-#include "cinderx/Jit/jit_rt.h"
+#include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/runtime.h"
 
 #include <folly/tracing/StaticTracepoint.h>
