@@ -41,8 +41,9 @@ from pathlib import Path
 
 from typing import Any, Dict, IO, Iterable, List, Optional, Set, Tuple
 
+from cinderx.test_support import get_cinderjit_xargs, is_asan_build
+
 from test import support
-from test.cinder_support import is_asan_build
 from test.libregrtest.cmdline import Namespace
 from test.libregrtest.main import Regrtest
 from test.libregrtest.runtest import (
@@ -55,7 +56,6 @@ from test.libregrtest.runtest import (
     Skipped,
     STDTESTS,
 )
-from test.libregrtest.runtest_mp import get_cinderjit_xargs
 from test.libregrtest.setup import setup_tests
 from test.support import os_helper
 

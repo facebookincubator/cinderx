@@ -41,7 +41,7 @@ from cinderx.compiler.static.types import (
     Value,
 )
 
-from test.cinder_support import skipUnlessJITEnabled
+from cinderx.test_support import skipUnlessJITEnabled
 
 from .common import (
     add_fixed_module,

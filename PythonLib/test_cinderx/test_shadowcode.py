@@ -16,7 +16,7 @@ from collections import UserDict
 from types import CodeType, FunctionType
 from unittest import skipIf
 
-from test.cinder_support import CINDERJIT_ENABLED
+from cinderx.test_support import CINDERJIT_ENABLED
 from test.support.script_helper import assert_python_ok, run_python_until_end
 
 # Sets the number of repetitions required in order to hit caching

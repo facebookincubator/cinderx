@@ -5,7 +5,7 @@ import itertools
 import re
 import unittest
 from copy import deepcopy
-from test.cinder_support import is_asan_build
+from cinderx.test_support import is_asan_build
 from typing import Mapping
 
 from cinderx.compiler.static.types import (

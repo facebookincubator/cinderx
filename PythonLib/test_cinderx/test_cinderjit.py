@@ -3,7 +3,6 @@
 import _testcapi
 import asyncio
 import builtins
-import cinder
 import dis
 import faulthandler
 import gc
@@ -29,7 +28,7 @@ from textwrap import dedent
 import _testcindercapi
 
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
-from test import cinder_support
+import cinderx.test_support as cinder_support
 
 try:
     with warnings.catch_warnings():

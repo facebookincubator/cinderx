@@ -8,7 +8,8 @@ import types
 import unittest
 import warnings
 
-from test import cinder_support, support
+from test import support
+from cinderx import test_support as cinder_support
 from test.support import import_helper, maybe_get_event_loop_policy, warnings_helper
 from test.support.script_helper import assert_python_ok
 

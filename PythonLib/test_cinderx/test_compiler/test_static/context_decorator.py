@@ -5,7 +5,7 @@ import asyncio
 import inspect
 from unittest import skip, skipIf
 
-from test.cinder_support import get_await_stack
+from cinderx.test_support import get_await_stack
 
 from .common import StaticTestBase
 

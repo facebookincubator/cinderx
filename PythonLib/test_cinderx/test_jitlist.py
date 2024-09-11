@@ -5,7 +5,7 @@
 import os
 import unittest
 
-from test import cinder_support
+from cinderx import test_support as cinder_support
 
 
 try:
