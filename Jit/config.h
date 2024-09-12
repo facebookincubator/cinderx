@@ -32,6 +32,13 @@ struct HIROptimizations {
   bool simplify{true};
 };
 
+struct GdbOptions {
+  // Whether GDB support is enabled.
+  bool supported{false};
+  // Whether to write generated ELF objects to disk.
+  bool write_elf_objects{false};
+};
+
 struct Config {
   // Initialization state of the JIT.
   InitState init_state{InitState::kNotInitialized};
@@ -72,6 +79,7 @@ struct Config {
   // inline caches used by the JIT.
   uint32_t attr_cache_size{1};
   uint32_t auto_jit_threshold{0};
+  GdbOptions gdb;
   bool compile_perf_trampoline_prefork{false};
 };
 

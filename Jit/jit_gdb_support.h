@@ -8,12 +8,6 @@ namespace jit {
 class CompiledFunction;
 }
 
-extern int g_gdb_support;
-extern int g_gdb_write_elf_objects;
-extern int g_gdb_stubs_support;
-
-int gdb_support_enabled(void);
-
 int register_raw_debug_symbol(
     const char* function_name,
     const char* filename,

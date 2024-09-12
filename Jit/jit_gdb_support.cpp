@@ -5,15 +5,12 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 
-#include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/compiled_function.h"
+#include "cinderx/Jit/config.h"
 
 #include <fcntl.h>
 #include <stddef.h>
 #include <stdio.h>
-
-int g_gdb_support = 0;
-int g_gdb_write_elf_objects = 0;
-int g_gdb_stubs_support = 0;
 
 /* Begin GDB hook */
 
@@ -86,7 +83,7 @@ register_elf_ctx(ELFObjectContext* ctx, const char* type, void* ptr) {
 
   memcpy(elf_object_start, elfctx_get_object_ptr(ctx), elf_object_size);
 
-  if (g_gdb_write_elf_objects) {
+  if (jit::getConfig().gdb.write_elf_objects) {
     // Write the ELF object to /tmp
     struct jit_string_t* filename =
         ss_sprintf_alloc("/tmp/cinder_%s_%p_elf", type, ptr);
@@ -129,7 +126,7 @@ int register_raw_debug_symbol(
     void* code_addr,
     size_t code_size,
     size_t stack_size) {
-  if (!g_gdb_support) {
+  if (!jit::getConfig().gdb.supported) {
     return 1;
   }
 
@@ -168,7 +165,7 @@ int register_pycode_debug_symbol(
     PyCodeObject* codeobj,
     const char* fullname,
     jit::CompiledFunction* compiled_func) {
-  if (!g_gdb_support) {
+  if (!jit::getConfig().gdb.supported) {
     return 1;
   }
 

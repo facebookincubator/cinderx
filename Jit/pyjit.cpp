@@ -443,23 +443,17 @@ void initFlagProcessor() {
         "PYTHONJITGDBSUPPORT",
         [](std::string) {
           g_debug = 1;
-          g_gdb_support = 1;
+          getMutableConfig().gdb.supported = true;
         },
         "GDB support and JIT debug mode");
-
-    xarg_flag_processor.addOption(
-        "jit-gdb-stubs-support",
-        "PYTHONJITGDBSTUBSSUPPORT",
-        g_gdb_stubs_support,
-        "GDB support for stubs");
 
     xarg_flag_processor.addOption(
         "jit-gdb-write-elf",
         "PYTHONJITGDBWRITEELF",
         [](std::string) {
           g_debug = 1;
-          g_gdb_support = 1;
-          g_gdb_write_elf_objects = 1;
+          getMutableConfig().gdb.supported = true;
+          getMutableConfig().gdb.write_elf_objects = true;
         },
         "Debugging aid, GDB support with ELF output");
 

@@ -200,20 +200,12 @@ TEST_F(CmdLineTest, BasicFlags) {
           "PYTHONJITGDBSUPPORT",
           []() {
             g_debug = 0;
-            g_gdb_support = 0;
+            getMutableConfig().gdb.supported = false;
           },
           []() {
             ASSERT_EQ(g_debug, 1);
-            ASSERT_EQ(g_gdb_support, 1);
+            ASSERT_TRUE(getConfig().gdb.supported);
           }),
-      0);
-
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-gdb-stubs-support",
-          "PYTHONJITGDBSTUBSSUPPORT",
-          []() { g_gdb_stubs_support = 0; },
-          []() { ASSERT_EQ(g_gdb_stubs_support, 1); }),
       0);
 
   ASSERT_EQ(
@@ -222,13 +214,13 @@ TEST_F(CmdLineTest, BasicFlags) {
           "PYTHONJITGDBWRITEELF",
           []() {
             g_debug = 0;
-            g_gdb_support = 0;
-            g_gdb_write_elf_objects = 0;
+            getMutableConfig().gdb.supported = false;
+            getMutableConfig().gdb.write_elf_objects = false;
           },
           []() {
             ASSERT_EQ(g_debug, 1);
-            ASSERT_EQ(g_gdb_support, 1);
-            ASSERT_EQ(g_gdb_write_elf_objects, 1);
+            ASSERT_TRUE(getConfig().gdb.supported);
+            ASSERT_TRUE(getConfig().gdb.write_elf_objects);
           }),
       0);
 
