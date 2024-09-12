@@ -1,9 +1,12 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Common/log.h"
+#include "cinderx/Jit/jit_rt.h"
 
-#include <Python.h>
-// Needs to come after `log.h` due to atomic / stdatomic ordering
+// clang-format off
+// Needs to be sequenced before `log.h` due to atomic vs stdatomic.h ordering.
+#include "cinderx/Common/log.h"
+// clang-format on
+
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
@@ -11,15 +14,10 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/StaticPython/classloader.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "frameobject.h"
-#include "listobject.h"
-#include "object.h"
-#include "pystate.h"
 
-#include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/frame.h"
-#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/runtime_support.h"
 
@@ -27,14 +25,13 @@
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_pystate.h"
 #include "internal/pycore_object.h"
-#include "pycore_tuple.h"
+#include "internal/pycore_tuple.h"
 // clang-format on
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
-#include "pycore_shadow_frame.h"
+#include "internal/pycore_shadow_frame.h"
 #endif
-
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 // This is mostly taken from ceval.c _PyEval_EvalCodeWithName
 // We use the same logic to turn **args, nargsf, and kwnames into
@@ -852,7 +849,7 @@ PyObject* JITRT_UnaryNot(PyObject* value) {
   return nullptr;
 }
 
-JITRT_LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name) {
+LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name) {
   PyObject* method = nullptr;
   int found = _PyObject_GetMethod(obj, name, &method);
   if (method == nullptr) {
@@ -866,7 +863,7 @@ JITRT_LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name) {
   return {method, obj};
 }
 
-JITRT_LoadMethodResult JITRT_GetMethodFromSuper(
+LoadMethodResult JITRT_GetMethodFromSuper(
     PyObject* global_super,
     PyTypeObject* type,
     PyObject* self,

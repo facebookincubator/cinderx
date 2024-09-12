@@ -9,6 +9,7 @@
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/deopt_patcher.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
 
 #include <asmjit/x86/x86operand.h>

@@ -9,7 +9,6 @@
 
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
-#include "cinderx/Jit/jit_rt.h"
 
 #include <Python.h>
 
@@ -234,9 +233,9 @@ class LoadMethodCache {
 
   ~LoadMethodCache();
 
-  static JITRT_LoadMethodResult
+  static LoadMethodResult
   lookupHelper(LoadMethodCache* cache, BorrowedRef<> obj, BorrowedRef<> name);
-  JITRT_LoadMethodResult lookup(BorrowedRef<> obj, BorrowedRef<> name);
+  LoadMethodResult lookup(BorrowedRef<> obj, BorrowedRef<> name);
   void typeChanged(PyTypeObject* type);
 
   void initCacheStats(const char* filename, const char* method_name);
@@ -244,7 +243,7 @@ class LoadMethodCache {
   const CacheStats* cacheStats();
 
  private:
-  JITRT_LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
+  LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
   void fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> value);
 
   std::array<Entry, 4> entries_;
@@ -270,17 +269,15 @@ class LoadTypeMethodCache {
   bool is_unbound_meth;
 
   ~LoadTypeMethodCache();
-  static JITRT_LoadMethodResult lookupHelper(
+  static LoadMethodResult lookupHelper(
       LoadTypeMethodCache* cache,
       BorrowedRef<PyTypeObject> obj,
       BorrowedRef<> name);
-  static JITRT_LoadMethodResult getValueHelper(
+  static LoadMethodResult getValueHelper(
       LoadTypeMethodCache* cache,
       BorrowedRef<> obj);
 
-  JITRT_LoadMethodResult lookup(
-      BorrowedRef<PyTypeObject> obj,
-      BorrowedRef<> name);
+  LoadMethodResult lookup(BorrowedRef<PyTypeObject> obj, BorrowedRef<> name);
   void typeChanged(BorrowedRef<PyTypeObject> type);
 
   void initCacheStats(const char* filename, const char* method_name);
@@ -296,16 +293,16 @@ class LoadTypeMethodCache {
 
 class LoadModuleMethodCache {
  public:
-  static JITRT_LoadMethodResult lookupHelper(
+  static LoadMethodResult lookupHelper(
       LoadModuleMethodCache* cache,
       BorrowedRef<> obj,
       BorrowedRef<> name);
-  JITRT_LoadMethodResult lookup(BorrowedRef<> obj, BorrowedRef<> name);
+  LoadMethodResult lookup(BorrowedRef<> obj, BorrowedRef<> name);
   BorrowedRef<> moduleObj();
   BorrowedRef<> value();
 
  private:
-  JITRT_LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
+  LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
   void fill(BorrowedRef<> obj, BorrowedRef<> value, uint64_t version);
 
   // This corresponds to module __dict__'s version which allows us

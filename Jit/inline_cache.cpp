@@ -797,14 +797,14 @@ LoadMethodCache::~LoadMethodCache() {
   }
 }
 
-JITRT_LoadMethodResult LoadMethodCache::lookupHelper(
+LoadMethodResult LoadMethodCache::lookupHelper(
     LoadMethodCache* cache,
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   return cache->lookup(obj, name);
 }
 
-JITRT_LoadMethodResult LoadMethodCache::lookup(
+LoadMethodResult LoadMethodCache::lookup(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
@@ -846,8 +846,9 @@ const CacheStats* LoadMethodCache::cacheStats() {
   return cache_stats_.get();
 }
 
-JITRT_LoadMethodResult __attribute__((noinline))
-LoadMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
+LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
+    BorrowedRef<> obj,
+    BorrowedRef<> name) {
   PyTypeObject* tp = Py_TYPE(obj);
   PyObject* descr;
   descrgetfunc f = nullptr;
@@ -969,14 +970,14 @@ LoadTypeMethodCache::~LoadTypeMethodCache() {
   }
 }
 
-JITRT_LoadMethodResult LoadTypeMethodCache::lookupHelper(
+LoadMethodResult LoadTypeMethodCache::lookupHelper(
     LoadTypeMethodCache* cache,
     BorrowedRef<PyTypeObject> obj,
     BorrowedRef<> name) {
   return cache->lookup(obj, name);
 }
 
-JITRT_LoadMethodResult LoadTypeMethodCache::getValueHelper(
+LoadMethodResult LoadTypeMethodCache::getValueHelper(
     LoadTypeMethodCache* cache,
     BorrowedRef<> obj) {
   PyObject* result = cache->value;
@@ -991,7 +992,7 @@ JITRT_LoadMethodResult LoadTypeMethodCache::getValueHelper(
 }
 
 // This needs to be kept in sync with PyType_Type.tp_getattro.
-JITRT_LoadMethodResult LoadTypeMethodCache::lookup(
+LoadMethodResult LoadTypeMethodCache::lookup(
     BorrowedRef<PyTypeObject> obj,
     BorrowedRef<> name) {
   PyTypeObject* metatype = Py_TYPE(obj);
@@ -1174,14 +1175,14 @@ void LoadTypeMethodCache::fill(
   ltm_watcher.watch(type, this);
 }
 
-JITRT_LoadMethodResult LoadModuleMethodCache::lookupHelper(
+LoadMethodResult LoadModuleMethodCache::lookupHelper(
     LoadModuleMethodCache* cache,
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   return cache->lookup(obj, name);
 }
 
-JITRT_LoadMethodResult LoadModuleMethodCache::lookup(
+LoadMethodResult LoadModuleMethodCache::lookup(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   if (module_obj_ == obj && value_ != nullptr) {
@@ -1210,7 +1211,7 @@ BorrowedRef<> LoadModuleMethodCache::value() {
   return value_;
 }
 
-JITRT_LoadMethodResult __attribute__((noinline))
+LoadMethodResult __attribute__((noinline))
 LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
   BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
   uint64_t dict_version = 0;

@@ -2,21 +2,14 @@
 
 #pragma once
 
+#include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/typed-args-info.h"
-#include "frameobject.h"
 
 #include <Python.h>
-
-#include <array>
 
 namespace jit {
 class CodeRuntime;
 }
-
-struct JITRT_LoadMethodResult {
-  PyObject* func;
-  PyObject* inst;
-};
 
 // static->static call convention for primitive returns is to return error flag
 // in rdx (null means error occurred); for C helpers that need to implement this
@@ -180,7 +173,7 @@ PyObject* JITRT_Call(
 /*
  * Perform a method lookup on an object.
  */
-JITRT_LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
+LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
 
 /*
  * Perform an attribute lookup in a super class
@@ -188,7 +181,7 @@ JITRT_LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
  * This is used to avoid bound method creation for attribute lookups that
  * correspond to method calls (e.g. `self.foo()`).
  */
-JITRT_LoadMethodResult JITRT_GetMethodFromSuper(
+LoadMethodResult JITRT_GetMethodFromSuper(
     PyObject* global_super,
     PyTypeObject* type,
     PyObject* self,
@@ -371,20 +364,6 @@ PyObject* JITRT_BuildString(
     PyObject** args,
     size_t nargsf,
     void* /*unused*/);
-
-// Per-function entry point function to resume a JIT generator. Arguments are:
-//   - Generator instance to be resumed.
-//   - A value to send in or NULL to raise the current global error on resume.
-//   - A boolean indicating if we need to break out of the current yield-from.
-//   - The current thread-state instance.
-//  Returns result of computation which is a "yielded" value unless the state of
-//  the generator is _PyJITGenState_Completed, in which case it is a "return"
-//  value. If the return is NULL, an exception has been raised.
-typedef PyObject* (*GenResumeFunc)(
-    PyObject* gen,
-    PyObject* send_value,
-    uint64_t finish_yield_from,
-    PyThreadState* tstate);
 
 /*
  * Create generator instance for use during InitialYield in a JIT generator.
