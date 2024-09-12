@@ -1111,7 +1111,7 @@ nlohmann::json JSONPrinter::Print(const CFG& cfg) {
 void JSONPrinter::Print(
     nlohmann::json& passes,
     const Function& func,
-    const char* pass_name,
+    std::string_view pass_name,
     std::size_t time_ns) {
   nlohmann::json result;
   result["name"] = pass_name;

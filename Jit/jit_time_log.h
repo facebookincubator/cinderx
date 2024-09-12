@@ -11,6 +11,7 @@
 #include <chrono>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace jit {
@@ -43,7 +44,7 @@ bool captureCompilationTimeFor(const std::string& function_name);
 
 class SubPhaseTimer {
  public:
-  explicit SubPhaseTimer(const std::string& sub_phase_name)
+  explicit SubPhaseTimer(std::string_view sub_phase_name)
       : sub_phase_name{sub_phase_name} {}
 
   std::string sub_phase_name;
@@ -66,7 +67,7 @@ class CompilationPhaseTimer {
           return std::chrono::steady_clock::now();
         }) {}
 
-  void start(const std::string& phase_name);
+  void start(std::string_view phase_name);
 
   // when final start end pair is called with no nesting, then
   // dumpPhaseTimingsAndTidy is invoked and the output dumped to the JIT debug

@@ -71,7 +71,8 @@ static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
 }
 
 void Compiler::runPasses(jit::hir::Function& irfunc, PassConfig config) {
-  PostPassFunction callback = [](hir::Function&, const char*, std::size_t) {};
+  PostPassFunction callback =
+      [](hir::Function&, std::string_view, std::size_t) {};
   runPasses(irfunc, config, callback);
 }
 
@@ -215,11 +216,12 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     hir::JSONPrinter hir_printer;
     passes.emplace_back(hir_printer.PrintSource(*irfunc));
     passes.emplace_back(hir_printer.PrintBytecode(*irfunc));
-    PostPassFunction dump =
-        [&hir_printer, &passes](
-            hir::Function& func, const char* pass_name, std::size_t time_ns) {
-          hir_printer.Print(passes, func, pass_name, time_ns);
-        };
+    PostPassFunction dump = [&hir_printer, &passes](
+                                hir::Function& func,
+                                std::string_view pass_name,
+                                std::size_t time_ns) {
+      hir_printer.Print(passes, func, pass_name, time_ns);
+    };
     dump(*irfunc, "Initial HIR", hir_build_time_ns);
     COMPILE_TIMER(
         irfunc->compilation_phase_timer,

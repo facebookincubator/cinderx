@@ -13,12 +13,13 @@
 
 #include <cstddef>
 #include <span>
+#include <string_view>
 #include <utility>
 
 namespace jit {
 
 using PostPassFunction = std::function<
-    void(hir::Function& func, const char* pass_name, std::size_t time_ns)>;
+    void(hir::Function& func, std::string_view pass_name, std::size_t time_ns)>;
 
 // Controls what compiler passes are run.
 enum PassConfig : uint64_t {

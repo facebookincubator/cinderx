@@ -9,7 +9,6 @@
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 #include "internal/pycore_interp.h"
 
-#include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
@@ -30,53 +29,6 @@
 #include <vector>
 
 namespace jit::hir {
-
-class AllPasses : public Pass {
- public:
-  AllPasses() : Pass("@AllPasses") {}
-
-  void Run(Function& irfunc) override {
-    Compiler::runPasses(irfunc, PassConfig::kAll);
-  }
-
-  static std::unique_ptr<AllPasses> Factory() {
-    return std::make_unique<AllPasses>();
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(AllPasses);
-};
-
-PassRegistry::PassRegistry() {
-  auto addPass = [&](const PassFactory& factory) {
-    factories_.emplace(factory()->name(), factory);
-  };
-  addPass(RefcountInsertion::Factory);
-  addPass(CopyPropagation::Factory);
-  addPass(CleanCFG::Factory);
-  addPass(DynamicComparisonElimination::Factory);
-  addPass(PhiElimination::Factory);
-  addPass(InlineFunctionCalls::Factory);
-  addPass(Simplify::Factory);
-  addPass(DeadCodeElimination::Factory);
-  addPass(GuardTypeRemoval::Factory);
-  addPass(BeginInlinedFunctionElimination::Factory);
-  addPass(BuiltinLoadMethodElimination::Factory);
-#if PY_VERSION_HEX >= 0x030C0000
-  addPass(InsertUpdatePrevInstr::Factory);
-#endif
-  // AllPasses is only used for testing.
-  addPass(AllPasses::Factory);
-}
-
-std::unique_ptr<Pass> PassRegistry::MakePass(const std::string& name) {
-  auto it = factories_.find(name);
-  if (it != factories_.end()) {
-    return it->second();
-  } else {
-    return nullptr;
-  }
-}
 
 Instr* DynamicComparisonElimination::ReplaceCompare(
     Compare* compare,

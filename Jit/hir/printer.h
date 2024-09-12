@@ -66,7 +66,7 @@ class JSONPrinter {
   void Print(
       nlohmann::json& passes,
       const Function& func,
-      const char* pass_name,
+      std::string_view pass_name,
       std::size_t time_ns);
   nlohmann::json Print(const CFG& cfg);
   nlohmann::json Print(const BasicBlock& instr);

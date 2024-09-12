@@ -7,6 +7,9 @@
 #include "cinderx/_cinderx-lib.h"
 #endif
 
+#include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/hir/optimization.h"
+
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
@@ -21,6 +24,35 @@
 #include <cstring>
 
 namespace {
+
+using jit::Compiler;
+using jit::PassConfig;
+using jit::hir::Function;
+using jit::hir::Pass;
+using jit::hir::PassRegistry;
+
+class AllPasses : public Pass {
+ public:
+  AllPasses() : Pass("@AllPasses") {}
+
+  void Run(Function& irfunc) override {
+    Compiler::runPasses(irfunc, PassConfig::kAll);
+  }
+
+  static std::unique_ptr<AllPasses> Factory() {
+    return std::make_unique<AllPasses>();
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(AllPasses);
+};
+
+class TestPassRegistry : public PassRegistry {
+ public:
+  TestPassRegistry() {
+    addPass(AllPasses::Factory);
+  }
+};
 
 class SkipFixture : public ::testing::Test {
  public:
@@ -50,9 +82,9 @@ void register_test(
   auto pass_names = suite->pass_names;
   bool has_passes = !pass_names.empty();
   if (has_passes) {
-    jit::hir::PassRegistry registry;
+    TestPassRegistry registry;
     for (auto& pass_name : pass_names) {
-      auto pass = registry.MakePass(pass_name);
+      auto pass = registry.makePass(pass_name);
       if (pass == nullptr) {
         std::cerr << "ERROR [" << path << "] Unknown pass name " << pass_name
                   << std::endl;
@@ -78,10 +110,10 @@ void register_test(
               test_case.src,
               test_case.expected);
           if (has_passes) {
-            jit::hir::PassRegistry registry;
-            std::vector<std::unique_ptr<jit::hir::Pass>> passes;
+            TestPassRegistry registry;
+            std::vector<std::unique_ptr<Pass>> passes;
             for (auto& pass_name : pass_names) {
-              passes.push_back(registry.MakePass(pass_name));
+              passes.push_back(registry.makePass(pass_name));
             }
             test->setPasses(std::move(passes));
           }
