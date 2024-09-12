@@ -102,25 +102,21 @@ class CompiledFunction {
   hir::OpcodeCounts hir_opcode_counts_;
 };
 
-// same as CompiledFunction class but keeps HIR and LIR classes for debug
-// purposes
+// Same as CompiledFunction but keeps the HIR function around for debugging.
 class CompiledFunctionDebug : public CompiledFunction {
  public:
   template <typename... Args>
-  CompiledFunctionDebug(
+  explicit CompiledFunctionDebug(
       std::unique_ptr<hir::Function> irfunc,
-      std::unique_ptr<codegen::NativeGenerator> ngen,
       Args&&... args)
-      : CompiledFunction(std::forward<Args>(args)...),
-        irfunc_(std::move(irfunc)),
-        ngen_(std::move(ngen)) {}
+      : CompiledFunction{std::forward<Args>(args)...},
+        irfunc_{std::move(irfunc)} {}
 
   void disassemble() const override;
   void printHIR() const override;
 
  private:
   std::unique_ptr<hir::Function> irfunc_;
-  std::unique_ptr<codegen::NativeGenerator> ngen_;
 };
 
 typedef std::function<

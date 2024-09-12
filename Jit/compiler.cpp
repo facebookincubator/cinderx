@@ -308,7 +308,6 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     irfunc->setCompilationPhaseTimer(nullptr);
     return std::make_unique<CompiledFunctionDebug>(
         std::move(irfunc),
-        std::move(ngen),
         code,
         entry,
         static_entry,
