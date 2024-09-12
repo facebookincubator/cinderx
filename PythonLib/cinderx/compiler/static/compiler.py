@@ -95,6 +95,7 @@ class Compiler:
             TypeName("builtins", "int"),
             self.type_env,
             pytype=int,
+            # pyre-fixme[16]: Module `__static__` has no attribute `RAND_MAX`.
             literal_value=RAND_MAX,
             is_final=True,
         )

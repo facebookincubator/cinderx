@@ -871,6 +871,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                 and self.type_env.dynamic.can_assign_from(value_type.klass)
             ):
                 assert isinstance(target.value, ast.Name)
+                # pyre-fixme[16]: `expr` has no attribute `id`.
                 self.type_state.refined_fields.setdefault(target.value.id, {})[
                     target.attr
                 ] = (
