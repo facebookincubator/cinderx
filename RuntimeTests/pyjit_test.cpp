@@ -21,7 +21,7 @@ class PyJITTest : public RuntimeTest {
   void SetUp() override {
     RuntimeTest::SetUp();
 
-    if (_PyJIT_IsEnabled()) {
+    if (isJitUsable()) {
       is_enabled = 1;
       _PyJIT_Finalize();
     }

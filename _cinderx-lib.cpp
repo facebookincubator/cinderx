@@ -32,6 +32,7 @@
 
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/pyjit_typeslots.h"
@@ -209,7 +210,7 @@ static PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
 static PyObject* is_compile_perf_trampoline_pre_fork_enabled(
     PyObject*,
     PyObject*) {
-  if (_PyPerfTrampoline_IsPreforkCompilationEnabled()) {
+  if (jit::perf::isPreforkCompilationEnabled()) {
     Py_RETURN_TRUE;
   }
   Py_RETURN_FALSE;

@@ -18,4 +18,9 @@ Config& getMutableConfig() {
   return s_config;
 }
 
+bool isJitUsable() {
+  return getConfig().is_enabled &&
+      getConfig().init_state == InitState::kInitialized;
+}
+
 } // namespace jit

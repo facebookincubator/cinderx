@@ -38,7 +38,7 @@ unsigned int countCalls(PyCodeObject* code) {
 
 _PyJIT_Result tryCompile(BorrowedRef<PyFunctionObject> func) {
   _PyJIT_Result result =
-      _PyJIT_IsEnabled() ? _PyJIT_CompileFunction(func) : PYJIT_NOT_INITIALIZED;
+      jit::isJitUsable() ? _PyJIT_CompileFunction(func) : PYJIT_NOT_INITIALIZED;
   // Reset the function back to the interpreter if there was any non-retryable
   // failure.
   if (result != PYJIT_RESULT_OK && result != PYJIT_RESULT_RETRY) {

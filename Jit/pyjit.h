@@ -49,11 +49,6 @@ PyAPI_FUNC(int) _PyJIT_Enable(void);
 PyAPI_FUNC(void) _PyJIT_Disable(void);
 
 /*
- * Returns 1 if JIT compilation is enabled and 0 otherwise.
- */
-PyAPI_FUNC(int) _PyJIT_IsEnabled(void);
-
-/*
  * Returns 1 if auto-JIT is enabled and 0 otherwise.
  */
 PyAPI_FUNC(int) _PyJIT_IsAutoJITEnabled(void);
@@ -146,7 +141,6 @@ PyAPI_FUNC(PyFrameObject*) _PyJIT_GetFrame(PyThreadState* tstate);
 PyAPI_FUNC(void) _PyJIT_SetDisassemblySyntaxATT(void);
 PyAPI_FUNC(int) _PyJIT_IsDisassemblySyntaxIntel(void);
 
-PyAPI_FUNC(int) _PyPerfTrampoline_IsPreforkCompilationEnabled(void);
 PyAPI_FUNC(void) _PyPerfTrampoline_CompilePerfTrampolinePreFork(void);
 
 #ifdef __cplusplus

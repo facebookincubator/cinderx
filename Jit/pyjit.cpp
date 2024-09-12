@@ -2160,11 +2160,6 @@ int _PyJIT_Initialize() {
   return 0;
 }
 
-int _PyJIT_IsEnabled() {
-  return (getConfig().init_state == InitState::kInitialized) &&
-      getConfig().is_enabled;
-}
-
 unsigned _PyJIT_AutoJITThreshold() {
   return getConfig().auto_jit_threshold;
 }
@@ -2239,14 +2234,14 @@ int _PyJIT_RegisterFunction(PyFunctionObject* func) {
     return 1;
   }
 
-  bool skip = !_PyJIT_IsEnabled();
+  bool skip = !isJitUsable();
   auto max_code_size = getConfig().max_code_size;
   if ((!skip) && max_code_size) {
     skip = CodeAllocator::get()->usedBytes() >= max_code_size;
   }
 
   if (skip) {
-    if (_PyPerfTrampoline_IsPreforkCompilationEnabled()) {
+    if (perf::isPreforkCompilationEnabled()) {
       perf_trampoline_reg_units.emplace(reinterpret_cast<PyObject*>(func));
     }
     return 0;
@@ -2259,7 +2254,7 @@ int _PyJIT_RegisterFunction(PyFunctionObject* func) {
   if (shouldCompile(func)) {
     jit_reg_units.emplace(reinterpret_cast<PyObject*>(func));
     result = 1;
-  } else if (_PyPerfTrampoline_IsPreforkCompilationEnabled()) {
+  } else if (perf::isPreforkCompilationEnabled()) {
     perf_trampoline_reg_units.emplace(reinterpret_cast<PyObject*>(func));
   }
 
@@ -2310,14 +2305,14 @@ void _PyJIT_FuncModified(PyFunctionObject* func) {
 }
 
 void _PyJIT_FuncDestroyed(PyFunctionObject* func) {
-  if (_PyJIT_IsEnabled()) {
+  if (isJitUsable()) {
     auto func_obj = reinterpret_cast<PyObject*>(func);
     jit_reg_units.erase(func_obj);
     if (handle_unit_deleted_during_preload != nullptr) {
       handle_unit_deleted_during_preload(func_obj);
     }
   }
-  if (_PyPerfTrampoline_IsPreforkCompilationEnabled()) {
+  if (perf::isPreforkCompilationEnabled()) {
     perf_trampoline_reg_units.erase(reinterpret_cast<PyObject*>(func));
   }
   if (jit_ctx) {
@@ -2326,7 +2321,7 @@ void _PyJIT_FuncDestroyed(PyFunctionObject* func) {
 }
 
 void _PyJIT_CodeDestroyed(PyCodeObject* code) {
-  if (_PyJIT_IsEnabled()) {
+  if (isJitUsable()) {
     auto code_obj = reinterpret_cast<PyObject*>(code);
     jit_reg_units.erase(code_obj);
     jit_code_data.erase(code);
@@ -2569,12 +2564,8 @@ int _PyJIT_IsDisassemblySyntaxIntel(void) {
   return is_intel_syntax();
 }
 
-int _PyPerfTrampoline_IsPreforkCompilationEnabled() {
-  return getConfig().compile_perf_trampoline_prefork;
-}
-
 void _PyPerfTrampoline_CompilePerfTrampolinePreFork(void) {
-  if (_PyPerfTrampoline_IsPreforkCompilationEnabled()) {
+  if (perf::isPreforkCompilationEnabled()) {
     PyUnstable_PerfTrampoline_SetPersistAfterFork(1);
     compile_perf_trampoline_entries();
   }

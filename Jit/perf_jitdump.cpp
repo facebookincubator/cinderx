@@ -4,9 +4,9 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-#include "pycore_ceval.h"
+#include "internal/pycore_ceval.h"
 
-#include "cinderx/Jit/pyjit.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/threaded_compile.h"
 
 #include <Python.h>
@@ -395,8 +395,7 @@ void copyFileInfo(FileInfo& info) {
   info = {};
 
   if (parent_filename.starts_with("/tmp/perf-") &&
-      parent_filename.ends_with(".map") &&
-      _PyPerfTrampoline_IsPreforkCompilationEnabled()) {
+      parent_filename.ends_with(".map") && isPreforkCompilationEnabled()) {
     JIT_LOG(
         "File {} has already been copied to {} by the perf trampoline, "
         "skipping copy.",
@@ -414,7 +413,7 @@ void copyFileInfo(FileInfo& info) {
     }
   } else if (
       parent_filename.starts_with("/tmp/perf-") &&
-      parent_filename.ends_with(".map") && _PyJIT_IsEnabled()) {
+      parent_filename.ends_with(".map") && isJitUsable()) {
     // The JIT is still enabled: copy the file to allow for more compilation
     // in this process.
     if (!copyJitFile(parent_filename)) {
@@ -425,7 +424,7 @@ void copyFileInfo(FileInfo& info) {
     }
   } else {
     unlink(child_filename.c_str());
-    if (_PyJIT_IsEnabled()) {
+    if (isJitUsable()) {
       // The JIT is still enabled: copy the file to allow for more compilation
       // in this process.
       if (auto new_pid_map = copyFile(parent_filename, child_filename)) {
@@ -478,6 +477,10 @@ void copyJitdumpFile() {
 }
 
 } // namespace
+
+bool isPreforkCompilationEnabled() {
+  return getConfig().compile_perf_trampoline_prefork;
+}
 
 void registerFunction(
     const std::vector<std::pair<void*, std::size_t>>& code_sections,

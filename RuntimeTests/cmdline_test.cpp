@@ -288,7 +288,7 @@ TEST_F(CmdLineTest, JITEnable) {
           "PYTHONJIT",
           []() {},
           []() {
-            ASSERT_EQ(_PyJIT_IsEnabled(), 1);
+            ASSERT_TRUE(isJitUsable());
             ASSERT_EQ(
                 _PyJIT_IsDisassemblySyntaxIntel(), 0); // default to AT&T syntax
           }),
@@ -299,7 +299,7 @@ TEST_F(CmdLineTest, JITEnable) {
           L"jit=0",
           "PYTHONJIT=0",
           []() {},
-          []() { ASSERT_EQ(_PyJIT_IsEnabled(), 0); }),
+          []() { ASSERT_FALSE(isJitUsable()); }),
       0);
 }
 
@@ -428,7 +428,7 @@ TEST_F(CmdLineTest, JITList) {
           xarg,
           const_cast<char*>(("PYTHONJITLISTFILE=" + list_file).c_str()),
           []() { _PyJIT_SetDisassemblySyntaxATT(); },
-          []() { ASSERT_EQ(_PyJIT_IsEnabled(), 1); }),
+          []() { ASSERT_TRUE(isJitUsable()); }),
       0);
 
   delete[] xarg;
@@ -460,7 +460,7 @@ TEST_F(CmdLineTest, ExplicitJITDisable) {
           L"jit-disable",
           "PYTHONJITDISABLE",
           []() {},
-          []() { ASSERT_EQ(_PyJIT_IsEnabled(), 0); },
+          []() { ASSERT_FALSE(isJitUsable()); },
           true),
       0);
 }

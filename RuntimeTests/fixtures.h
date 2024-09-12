@@ -56,7 +56,7 @@ class RuntimeTest : public ::testing::Test {
   }
 
   void SetUp() override {
-    ASSERT_FALSE(_PyJIT_IsEnabled())
+    ASSERT_FALSE(jit::isJitUsable())
         << "Haven't called Py_Initialize yet but the JIT says it's enabled";
 
     bool jit = isJit();
@@ -89,7 +89,7 @@ class RuntimeTest : public ::testing::Test {
     int result = Py_FinalizeEx();
     ASSERT_EQ(result, 0) << "Failed finalizing the interpreter";
 
-    ASSERT_FALSE(_PyJIT_IsEnabled())
+    ASSERT_FALSE(jit::isJitUsable())
         << "JIT should be disabled with Py_FinalizeEx";
     ASSERT_FALSE(jit::CodeAllocator::exists())
         << "JIT should be disabled with Py_FinalizeEx";

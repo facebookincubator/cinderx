@@ -89,4 +89,7 @@ const Config& getConfig();
 // Get the JIT's current config object with the intent of modifying it.
 Config& getMutableConfig();
 
+// Check that the JIT is configured to be enabled and it is initialized.
+bool isJitUsable();
+
 } // namespace jit
