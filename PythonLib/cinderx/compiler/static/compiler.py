@@ -265,7 +265,20 @@ class Compiler:
             "vars": reflect_builtin_function(vars, None, self.type_env),
             # FIXME: This is IG-specific. Add a way to customize the set of builtins
             # while initializing the loader.
+            # List from https://www.internalfb.com/code/fbsource/[5f9467ab16be43bf56aa9d7f18580a14bff36de7]/fbcode/instagram-server/distillery/bootstrap/dev.py?lines=49
             "slog": self.type_env.DYNAMIC,
+            "slogo": self.type_env.DYNAMIC,
+            "slogb": self.type_env.DYNAMIC,
+            "slogg": self.type_env.DYNAMIC,
+            "slogv": self.type_env.DYNAMIC,
+            "slogp": self.type_env.DYNAMIC,
+            "slogy": self.type_env.DYNAMIC,
+            "slogr": self.type_env.DYNAMIC,
+            "slogdor": self.type_env.DYNAMIC,
+            "sloga": self.type_env.DYNAMIC,
+            "slogf": self.type_env.DYNAMIC,
+            "slogrq": self.type_env.DYNAMIC,
+            "slog0": self.type_env.DYNAMIC,
         }
         strict_builtins = StrictBuiltins(builtins_children, self.type_env)
         typing_children = {
