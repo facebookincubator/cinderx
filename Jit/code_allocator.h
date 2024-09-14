@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace jit {
@@ -90,7 +91,7 @@ class CodeAllocatorCinder : public CodeAllocator {
 
  private:
   // List of chunks allocated for use in deallocation
-  std::vector<void*> allocations_;
+  std::vector<std::span<uint8_t>> allocations_;
 
   // Pointer to next free address in the current chunk
   uint8_t* current_alloc_{nullptr};

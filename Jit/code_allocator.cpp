@@ -69,8 +69,9 @@ void CodeAllocator::freeGlobalCodeAllocator() {
 }
 
 CodeAllocatorCinder::~CodeAllocatorCinder() {
-  for (void* alloc : allocations_) {
-    JIT_CHECK(munmap(alloc, kAllocSize) == 0, "Freeing code memory failed");
+  for (std::span<uint8_t> alloc : allocations_) {
+    JIT_CHECK(
+        munmap(alloc.data(), alloc.size()) == 0, "Freeing code memory failed");
   }
 }
 
@@ -96,7 +97,7 @@ asmjit::Error CodeAllocatorCinder::addCode(
       huge_allocs_++;
     }
     current_alloc_ = static_cast<uint8_t*>(res);
-    allocations_.emplace_back(res);
+    allocations_.emplace_back(res, alloc_size);
     current_alloc_free_ = alloc_size;
   }
 
