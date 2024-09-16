@@ -57,11 +57,10 @@
 #include <unordered_set>
 #include <utility>
 
-#define DEFAULT_CODE_SIZE 2 * 1024 * 1024
-
 using namespace jit;
 
 namespace {
+
 // Extra information needed to compile a PyCodeObject.
 struct CodeData {
   CodeData(PyObject* m, PyObject* b, PyObject* g) {
@@ -78,90 +77,56 @@ struct CodeData {
   Ref<PyDictObject> globals;
 };
 
+std::chrono::milliseconds total_time;
+std::unordered_map<PyFunctionObject*, std::chrono::milliseconds> function_times;
+
+struct CompilationTimer {
+  using Clock = std::chrono::steady_clock;
+
+  explicit CompilationTimer(BorrowedRef<PyFunctionObject> func)
+      : start{Clock::now()}, func{func} {}
+
+  ~CompilationTimer() {
+    auto end = Clock::now();
+    auto time_span =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+    total_time += time_span;
+    jit::ThreadedCompileSerialize guard;
+    function_times.emplace(func, time_span);
+  }
+
+  std::chrono::steady_clock::time_point start;
+  BorrowedRef<PyFunctionObject> func;
+};
+
 // Amount of time taken to batch compile everything when disable_jit is called
-long g_batch_compilation_time_ms = 0;
+std::chrono::milliseconds g_batch_compilation_time;
 
-} // namespace
-
-static Context* jit_ctx{nullptr};
-static JITList* g_jit_list{nullptr};
+Context* jit_ctx{nullptr};
+JITList* g_jit_list{nullptr};
 
 // Function and code objects ("units") registered for compilation.
-static std::unordered_set<BorrowedRef<>> jit_reg_units;
+std::unordered_set<BorrowedRef<>> jit_reg_units;
 
 // Function and code objects ("units") registered for pre-fork perf-trampoline
 // compilation.
-static std::unordered_set<BorrowedRef<>> perf_trampoline_reg_units;
+std::unordered_set<BorrowedRef<>> perf_trampoline_reg_units;
 
 // Only set during preloading. Used to keep track of functions that were
 // deleted as a side effect of preloading.
 using UnitDeletedCallback = std::function<void(PyObject*)>;
-static UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
+UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
 
 // Every unit that is a code object has corresponding entry in jit_code_data.
-static std::unordered_map<BorrowedRef<PyCodeObject>, CodeData> jit_code_data;
+std::unordered_map<BorrowedRef<PyCodeObject>, CodeData> jit_code_data;
+
 // Every unit has an entry in jit_preloaders during batch compile.
-static PreloaderMap jit_preloaders;
-
-namespace jit {
-
-static hir::Preloader* ensurePreloader(BorrowedRef<> unit) {
-  std::unique_ptr<hir::Preloader> preloader;
-  BorrowedRef<PyCodeObject> code;
-  hir::Preloader* res = lookupPreloader(unit);
-  if (res) {
-    return res;
-  }
-  if (PyFunction_Check(unit)) {
-    BorrowedRef<PyFunctionObject> func{unit};
-    preloader = hir::Preloader::makePreloader(func);
-    code = func->func_code;
-  } else {
-    JIT_CHECK(
-        PyCode_Check(unit),
-        "Expected function or code object, not {}",
-        unit->ob_type->tp_name);
-    code = BorrowedRef<PyCodeObject>(unit);
-    const CodeData& data = map_get(jit_code_data, code);
-    preloader = hir::Preloader::makePreloader(
-        code, data.builtins, data.globals, codeFullname(data.module, code));
-  }
-  if (preloader) {
-    res = preloader.get();
-    JIT_CHECK(
-        jit_preloaders.emplace(code, std::move(preloader)).second,
-        "created a duplicate preloader");
-    return res;
-  }
-  return nullptr;
-}
-
-hir::Preloader* lookupPreloader(BorrowedRef<> unit) {
-  BorrowedRef<PyCodeObject> code = unit != nullptr && PyFunction_Check(unit)
-      ? reinterpret_cast<PyFunctionObject*>(unit.get())->func_code
-      : unit.get();
-  JIT_CHECK(code != nullptr, "Trying to map a null code object to a preloader");
-  JIT_CHECK(
-      PyCode_Check(code),
-      "Compilation unit has to be a code object but is instead {}",
-      typeFullname(Py_TYPE(code)));
-
-  auto it = jit_preloaders.find(code);
-  return it != jit_preloaders.end() ? it->second.get() : nullptr;
-}
-
-bool isPreloaded(BorrowedRef<> unit) {
-  return lookupPreloader(unit) != nullptr;
-}
-
-} // namespace jit
-
-static std::unordered_map<PyFunctionObject*, std::chrono::duration<double>>
-    jit_time_functions;
+PreloaderMap jit_preloaders;
 
 // If non-empty, jit compiled functions' names will be written to this filename
 // at shutdown.
-static std::string g_write_compiled_functions_file;
+std::string g_write_compiled_functions_file;
 
 // Frequently-used strings that we intern at JIT startup and hold references to.
 #define INTERNED_STRINGS(X) \
@@ -187,32 +152,17 @@ static std::string g_write_compiled_functions_file;
 INTERNED_STRINGS(DECLARE_STR)
 #undef DECLARE_STR
 
-static std::array<PyObject*, 256> s_opnames;
-static std::array<PyObject*, hir::kNumOpcodes> s_hir_opnames;
+std::array<PyObject*, 256> s_opnames;
+std::array<PyObject*, hir::kNumOpcodes> s_hir_opnames;
 
-static double total_compliation_time = 0.0;
+std::atomic<int> g_compile_workers_attempted;
+int g_compile_workers_retries;
 
-struct CompilationTimer {
-  explicit CompilationTimer(BorrowedRef<PyFunctionObject> f)
-      : start(std::chrono::steady_clock::now()), func(f) {}
+jit::FlagProcessor xarg_flag_processor;
 
-  ~CompilationTimer() {
-    auto end = std::chrono::steady_clock::now();
-    std::chrono::duration<double> time_span =
-        std::chrono::duration_cast<std::chrono::duration<double>>(end - start);
-
-    double time = time_span.count();
-    total_compliation_time += time;
-    jit::ThreadedCompileSerialize guard;
-    jit_time_functions.emplace(func, time_span);
-  }
-
-  std::chrono::steady_clock::time_point start;
-  BorrowedRef<PyFunctionObject> func{nullptr};
-};
-
-static std::atomic<int> g_compile_workers_attempted;
-static int g_compile_workers_retries;
+int use_jit = 0;
+int jit_help = 0;
+std::string jl_fn;
 
 void setJitLogFile(std::string log_filename) {
   // Redirect logging to a file if configured.
@@ -244,17 +194,11 @@ void setASMSyntax(std::string asm_syntax) {
   }
 }
 
-static jit::FlagProcessor xarg_flag_processor;
-
-static int use_jit = 0;
-static int jit_help = 0;
-static std::string jl_fn;
-
-static void warnJITOff(const char* flag) {
+void warnJITOff(const char* flag) {
   JIT_LOG("Warning: JIT disabled; {} has no effect", flag);
 }
 
-static size_t parse_sized_argument(const std::string& val) {
+size_t parse_sized_argument(const std::string& val) {
   std::string parsed;
   // " 1024 k" should parse OK - so remove the space.
   std::remove_copy_if(
@@ -783,7 +727,7 @@ void initFlagProcessor() {
   }
 }
 
-static std::string unitFullname(BorrowedRef<> unit) {
+std::string unitFullname(BorrowedRef<> unit) {
   if (unit == nullptr) {
     return "<nullptr>";
   }
@@ -804,23 +748,38 @@ static std::string unitFullname(BorrowedRef<> unit) {
       "<Unknown Python object {}>", static_cast<void*>(unit.get()));
 }
 
-namespace jit {
-
-// Compile the given function or code object with a preloader from the global
-// map.
-_PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
-  BorrowedRef<PyFunctionObject> func;
-  if (PyFunction_Check(unit)) {
-    func = BorrowedRef<PyFunctionObject>{unit};
+hir::Preloader* ensurePreloader(BorrowedRef<> unit) {
+  std::unique_ptr<hir::Preloader> preloader;
+  BorrowedRef<PyCodeObject> code;
+  hir::Preloader* res = lookupPreloader(unit);
+  if (res) {
+    return res;
   }
-  hir::Preloader* preloader = lookupPreloader(unit);
-  return preloader ? jit_ctx->compilePreloader(func, *preloader)
-                   : PYJIT_RESULT_NO_PRELOADER;
+  if (PyFunction_Check(unit)) {
+    BorrowedRef<PyFunctionObject> func{unit};
+    preloader = hir::Preloader::makePreloader(func);
+    code = func->func_code;
+  } else {
+    JIT_CHECK(
+        PyCode_Check(unit),
+        "Expected function or code object, not {}",
+        unit->ob_type->tp_name);
+    code = BorrowedRef<PyCodeObject>(unit);
+    const CodeData& data = map_get(jit_code_data, code);
+    preloader = hir::Preloader::makePreloader(
+        code, data.builtins, data.globals, codeFullname(data.module, code));
+  }
+  if (preloader) {
+    res = preloader.get();
+    JIT_CHECK(
+        jit_preloaders.emplace(code, std::move(preloader)).second,
+        "created a duplicate preloader");
+    return res;
+  }
+  return nullptr;
 }
 
-} // namespace jit
-
-static void compile_worker_thread() {
+void compile_worker_thread() {
   JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
   BorrowedRef<> unit;
   while ((unit = getThreadedCompileContext().nextUnit()) != nullptr) {
@@ -839,7 +798,7 @@ static void compile_worker_thread() {
   JIT_DLOG("Finished compile worker in thread {}", std::this_thread::get_id());
 }
 
-static void compile_perf_trampoline_entries() {
+void compile_perf_trampoline_entries() {
   for (const auto& unit : perf_trampoline_reg_units) {
     if (PyFunction_Check(unit)) {
       PyFunctionObject* func = (PyFunctionObject*)unit.get();
@@ -852,14 +811,13 @@ static void compile_perf_trampoline_entries() {
   perf_trampoline_reg_units.clear();
 }
 
-static void compile_units_preloaded(const std::vector<BorrowedRef<>> units) {
+void compile_units_preloaded(const std::vector<BorrowedRef<>> units) {
   for (auto unit : units) {
     tryCompilePreloaded(unit);
   }
 }
 
-static void multithread_compile_units_preloaded(
-    std::vector<BorrowedRef<>>&& units) {
+void multithread_compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
   // Disable checks for using GIL protected data across threads.
   // Conceptually what we're doing here is saying we're taking our own
   // responsibility for managing locking of CPython runtime data structures.
@@ -895,7 +853,7 @@ static void multithread_compile_units_preloaded(
   _PyRuntime.gilstate.check_enabled = old_gil_check_enabled;
 }
 
-static bool compile_all() {
+bool compile_all() {
   JIT_CHECK(jit_ctx, "JIT not initialized");
 
   std::vector<BorrowedRef<>> compilation_units;
@@ -948,7 +906,7 @@ static bool compile_all() {
   return true;
 }
 
-static PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
+PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   if (!getConfig().multithreaded_compile_test) {
     PyErr_SetString(
         PyExc_NotImplementedError, "multithreaded_compile_test not enabled");
@@ -973,14 +931,14 @@ static PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   Py_RETURN_NONE;
 }
 
-static PyObject* is_multithreaded_compile_test_enabled(PyObject*, PyObject*) {
+PyObject* is_multithreaded_compile_test_enabled(PyObject*, PyObject*) {
   if (getConfig().multithreaded_compile_test) {
     Py_RETURN_TRUE;
   }
   Py_RETURN_FALSE;
 }
 
-static PyObject*
+PyObject*
 disable_jit(PyObject* /* self */, PyObject* const* args, Py_ssize_t nargs) {
   if (nargs > 1) {
     PyErr_SetString(PyExc_TypeError, "disable expects 0 or 1 arg");
@@ -999,9 +957,8 @@ disable_jit(PyObject* /* self */, PyObject* const* args, Py_ssize_t nargs) {
       return nullptr;
     }
     std::chrono::time_point end = std::chrono::steady_clock::now();
-    g_batch_compilation_time_ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start)
-            .count();
+    g_batch_compilation_time =
+        std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
     jit_code_data.clear();
   }
@@ -1010,11 +967,11 @@ disable_jit(PyObject* /* self */, PyObject* const* args, Py_ssize_t nargs) {
   Py_RETURN_NONE;
 }
 
-static PyObject* get_batch_compilation_time_ms(PyObject*, PyObject*) {
-  return PyLong_FromLong(g_batch_compilation_time_ms);
+PyObject* get_batch_compilation_time_ms(PyObject*, PyObject*) {
+  return PyLong_FromLong(g_batch_compilation_time.count());
 }
 
-static PyObject* force_compile(PyObject* /* self */, PyObject* func_obj) {
+PyObject* force_compile(PyObject* /* self */, PyObject* func_obj) {
   if (!PyFunction_Check(func_obj)) {
     PyErr_SetString(PyExc_TypeError, "force_compile expected a function");
     return nullptr;
@@ -1054,7 +1011,7 @@ static PyObject* force_compile(PyObject* /* self */, PyObject* func_obj) {
   return nullptr;
 }
 
-static int aot_func_visitor(PyObject* obj, void* arg) {
+int aot_func_visitor(PyObject* obj, void* arg) {
   constexpr int kGcVisitContinue = 1;
 
   auto aot_ctx = reinterpret_cast<AotContext*>(arg);
@@ -1070,7 +1027,7 @@ static int aot_func_visitor(PyObject* obj, void* arg) {
   return kGcVisitContinue;
 }
 
-static PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
+PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
   JIT_CHECK(
       jit_ctx != nullptr,
       "Loading an AOT bundle currently requires the JIT to be enabled");
@@ -1135,15 +1092,11 @@ static PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
   Py_RETURN_NONE;
 }
 
-static PyObject* auto_jit_threshold(PyObject* /* self */, PyObject*) {
+PyObject* auto_jit_threshold(PyObject* /* self */, PyObject*) {
   return PyLong_FromLong(getConfig().auto_jit_threshold);
 }
 
-int _PyJIT_IsCompiled(PyFunctionObject* func) {
-  return jit_ctx != nullptr ? jit_ctx->didCompile(func) : 0;
-}
-
-static PyObject* is_jit_compiled(PyObject* /* self */, PyObject* func) {
+PyObject* is_jit_compiled(PyObject* /* self */, PyObject* func) {
   if (!PyFunction_Check(func)) {
     PyErr_SetString(
         PyExc_RuntimeError, "Must call is_jit_compiled with a function object");
@@ -1156,7 +1109,7 @@ static PyObject* is_jit_compiled(PyObject* /* self */, PyObject* func) {
   Py_RETURN_FALSE;
 }
 
-static PyObject* print_hir(PyObject* /* self */, PyObject* func) {
+PyObject* print_hir(PyObject* /* self */, PyObject* func) {
   if (!PyFunction_Check(func)) {
     PyErr_SetString(PyExc_TypeError, "arg 1 must be a function");
     return nullptr;
@@ -1174,7 +1127,7 @@ static PyObject* print_hir(PyObject* /* self */, PyObject* func) {
   }
 }
 
-static PyObject* disassemble(PyObject* /* self */, PyObject* func) {
+PyObject* disassemble(PyObject* /* self */, PyObject* func) {
   if (!PyFunction_Check(func)) {
     PyErr_SetString(PyExc_TypeError, "arg 1 must be a function");
     return nullptr;
@@ -1192,7 +1145,7 @@ static PyObject* disassemble(PyObject* /* self */, PyObject* func) {
   }
 }
 
-static PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
+PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
   JIT_CHECK(
       jit_ctx != nullptr,
       "JIT context not initialized despite cinderjit module having been "
@@ -1231,14 +1184,14 @@ static PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
   Py_RETURN_NONE;
 }
 
-static PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
+PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
   if (g_jit_list == nullptr) {
     Py_RETURN_NONE;
   }
   return g_jit_list->getList().release();
 }
 
-static PyObject* jit_list_append(PyObject* /* self */, PyObject* line) {
+PyObject* jit_list_append(PyObject* /* self */, PyObject* line) {
   if (g_jit_list == nullptr) {
     g_jit_list = JITList::create().release();
   }
@@ -1252,7 +1205,7 @@ static PyObject* jit_list_append(PyObject* /* self */, PyObject* line) {
   Py_RETURN_NONE;
 }
 
-static PyObject* get_compiled_functions(PyObject* /* self */, PyObject*) {
+PyObject* get_compiled_functions(PyObject* /* self */, PyObject*) {
   auto funcs = Ref<>::steal(PyList_New(0));
   if (funcs == nullptr) {
     return nullptr;
@@ -1265,38 +1218,31 @@ static PyObject* get_compiled_functions(PyObject* /* self */, PyObject*) {
   return funcs.release();
 }
 
-static PyObject* get_compilation_time(PyObject* /* self */, PyObject*) {
-  PyObject* res =
-      PyLong_FromLong(static_cast<long>(total_compliation_time * 1000));
-  return res;
+PyObject* get_compilation_time(PyObject* /* self */, PyObject*) {
+  return PyLong_FromLong(static_cast<long>(total_time.count()));
 }
 
-static PyObject* get_function_compilation_time(
-    PyObject* /* self */,
-    PyObject* func) {
-  auto iter =
-      jit_time_functions.find(reinterpret_cast<PyFunctionObject*>(func));
-  if (iter == jit_time_functions.end()) {
+PyObject* get_function_compilation_time(PyObject* /* self */, PyObject* func) {
+  auto iter = function_times.find(reinterpret_cast<PyFunctionObject*>(func));
+  if (iter == function_times.end()) {
     Py_RETURN_NONE;
   }
-
-  PyObject* res = PyLong_FromLong(iter->second.count() * 1000);
-  return res;
+  return PyLong_FromLong(iter->second.count());
 }
 
-static PyObject* get_inlined_functions_stats(PyObject*, PyObject* func) {
+PyObject* get_inlined_functions_stats(PyObject*, PyObject* func) {
   if (jit_ctx == nullptr) {
     Py_RETURN_NONE;
   }
   return jit_ctx->inlinedFunctionsStats(func).release();
 }
 
-static PyObject* get_num_inlined_functions(PyObject*, PyObject* func) {
+PyObject* get_num_inlined_functions(PyObject*, PyObject* func) {
   int size = jit_ctx != nullptr ? jit_ctx->numInlinedFunctions(func) : 0;
   return PyLong_FromLong(size);
 }
 
-static PyObject* get_function_hir_opcode_counts(PyObject*, PyObject* func) {
+PyObject* get_function_hir_opcode_counts(PyObject*, PyObject* func) {
   if (jit_ctx == nullptr) {
     Py_RETURN_NONE;
   }
@@ -1327,7 +1273,7 @@ static PyObject* get_function_hir_opcode_counts(PyObject*, PyObject* func) {
   return dict.release();
 }
 
-static PyObject* mlock_profiler_dependencies(PyObject* /* self */, PyObject*) {
+PyObject* mlock_profiler_dependencies(PyObject* /* self */, PyObject*) {
   if (jit_ctx == nullptr) {
     Py_RETURN_NONE;
   }
@@ -1335,12 +1281,10 @@ static PyObject* mlock_profiler_dependencies(PyObject* /* self */, PyObject*) {
   Py_RETURN_NONE;
 }
 
-static PyObject* page_in_profiler_dependencies(PyObject*, PyObject*) {
+PyObject* page_in_profiler_dependencies(PyObject*, PyObject*) {
   Ref<> qualnames = Runtime::get()->pageInProfilerDependencies();
   return qualnames.release();
 }
-
-namespace {
 
 // Simple wrapper functions to turn nullptr or -1 return values from C-API
 // functions into a thrown exception. Meant for repetitive runs of C-API calls
@@ -1424,9 +1368,7 @@ Ref<> make_deopt_stats() {
   return stats;
 }
 
-} // namespace
-
-static PyObject* get_and_clear_runtime_stats(PyObject* /* self */, PyObject*) {
+PyObject* get_and_clear_runtime_stats(PyObject* /* self */, PyObject*) {
   auto stats = Ref<>::steal(PyDict_New());
   if (stats == nullptr) {
     return nullptr;
@@ -1442,12 +1384,12 @@ static PyObject* get_and_clear_runtime_stats(PyObject* /* self */, PyObject*) {
   return stats.release();
 }
 
-static PyObject* clear_runtime_stats(PyObject* /* self */, PyObject*) {
+PyObject* clear_runtime_stats(PyObject* /* self */, PyObject*) {
   Runtime::get()->clearDeoptStats();
   Py_RETURN_NONE;
 }
 
-static PyObject* get_compiled_size(PyObject* /* self */, PyObject* func) {
+PyObject* get_compiled_size(PyObject* /* self */, PyObject* func) {
   if (jit_ctx == nullptr) {
     return PyLong_FromLong(0);
   }
@@ -1456,7 +1398,7 @@ static PyObject* get_compiled_size(PyObject* /* self */, PyObject* func) {
   return PyLong_FromLong(size);
 }
 
-static PyObject* get_compiled_stack_size(PyObject* /* self */, PyObject* func) {
+PyObject* get_compiled_stack_size(PyObject* /* self */, PyObject* func) {
   if (jit_ctx == nullptr) {
     return PyLong_FromLong(0);
   }
@@ -1465,9 +1407,7 @@ static PyObject* get_compiled_stack_size(PyObject* /* self */, PyObject* func) {
   return PyLong_FromLong(size);
 }
 
-static PyObject* get_compiled_spill_stack_size(
-    PyObject* /* self */,
-    PyObject* func) {
+PyObject* get_compiled_spill_stack_size(PyObject* /* self */, PyObject* func) {
   if (jit_ctx == nullptr) {
     return PyLong_FromLong(0);
   }
@@ -1476,11 +1416,11 @@ static PyObject* get_compiled_spill_stack_size(
   return PyLong_FromLong(size);
 }
 
-static PyObject* jit_frame_mode(PyObject* /* self */, PyObject*) {
+PyObject* jit_frame_mode(PyObject* /* self */, PyObject*) {
   return PyLong_FromLong(static_cast<int>(getConfig().frame_mode));
 }
 
-static PyObject* get_supported_opcodes(PyObject* /* self */, PyObject*) {
+PyObject* get_supported_opcodes(PyObject* /* self */, PyObject*) {
   auto set = Ref<>::steal(PySet_New(nullptr));
   if (set == nullptr) {
     return nullptr;
@@ -1499,9 +1439,7 @@ static PyObject* get_supported_opcodes(PyObject* /* self */, PyObject*) {
   return set.release();
 }
 
-static PyObject* get_and_clear_inline_cache_stats(
-    PyObject* /* self */,
-    PyObject*) {
+PyObject* get_and_clear_inline_cache_stats(PyObject* /* self */, PyObject*) {
   auto stats = Ref<>::steal(PyDict_New());
   if (stats == nullptr) {
     return nullptr;
@@ -1550,7 +1488,8 @@ static PyObject* get_and_clear_inline_cache_stats(
 
   return stats.release();
 }
-static PyObject* jit_suppress(PyObject*, PyObject* func_obj) {
+
+PyObject* jit_suppress(PyObject*, PyObject* func_obj) {
   if (!PyFunction_Check(func_obj)) {
     PyErr_SetString(PyExc_TypeError, "Input must be a function");
     return nullptr;
@@ -1564,7 +1503,7 @@ static PyObject* jit_suppress(PyObject*, PyObject* func_obj) {
   return func_obj;
 }
 
-static PyObject* get_allocator_stats(PyObject*, PyObject*) {
+PyObject* get_allocator_stats(PyObject*, PyObject*) {
   auto base_allocator = CodeAllocator::get();
   if (base_allocator == nullptr) {
     Py_RETURN_NONE;
@@ -1610,14 +1549,14 @@ static PyObject* get_allocator_stats(PyObject*, PyObject*) {
   return stats.release();
 }
 
-static PyObject* is_hir_inliner_enabled(PyObject* /* self */, PyObject*) {
+PyObject* is_hir_inliner_enabled(PyObject* /* self */, PyObject*) {
   if (getConfig().hir_opts.inliner) {
     Py_RETURN_TRUE;
   }
   Py_RETURN_FALSE;
 }
 
-static PyObject* is_inline_cache_stats_collection_enabled(
+PyObject* is_inline_cache_stats_collection_enabled(
     PyObject* /* self */,
     PyObject*) {
   if (g_collect_inline_cache_stats) {
@@ -1626,19 +1565,19 @@ static PyObject* is_inline_cache_stats_collection_enabled(
   Py_RETURN_FALSE;
 }
 
-static PyObject* enable_hir_inliner(PyObject* /* self */, PyObject*) {
+PyObject* enable_hir_inliner(PyObject* /* self */, PyObject*) {
   getMutableConfig().hir_opts.inliner = true;
   Py_RETURN_NONE;
 }
 
-static PyObject* disable_hir_inliner(PyObject* /* self */, PyObject*) {
+PyObject* disable_hir_inliner(PyObject* /* self */, PyObject*) {
   getMutableConfig().hir_opts.inliner = false;
   Py_RETURN_NONE;
 }
 
 // If the given generator-like object is a suspended JIT generator, deopt it
 // and return 1. Otherwise, return 0.
-static int deopt_gen_impl(PyGenObject* gen) {
+int deopt_gen_impl(PyGenObject* gen) {
 #if PY_VERSION_HEX < 0x030C0000
   GenDataFooter* footer = genDataFooter(gen);
   if (Ci_GenIsCompleted(gen) || footer == nullptr) {
@@ -1667,7 +1606,7 @@ static int deopt_gen_impl(PyGenObject* gen) {
   return 1;
 }
 
-static PyObject* deopt_gen(PyObject*, PyObject* gen) {
+PyObject* deopt_gen(PyObject*, PyObject* gen) {
   if (!PyGen_Check(gen) && !PyCoro_CheckExact(gen) &&
       !PyAsyncGen_CheckExact(gen)) {
     PyErr_Format(
@@ -1686,7 +1625,7 @@ static PyObject* deopt_gen(PyObject*, PyObject* gen) {
   Py_RETURN_FALSE;
 }
 
-static int deopt_gen_visitor(PyObject* obj, void*) {
+int deopt_gen_visitor(PyObject* obj, void*) {
   if (PyGen_Check(obj) || PyCoro_CheckExact(obj) ||
       PyAsyncGen_CheckExact(obj)) {
     deopt_gen_impl(reinterpret_cast<PyGenObject*>(obj));
@@ -1694,12 +1633,12 @@ static int deopt_gen_visitor(PyObject* obj, void*) {
   return 1;
 }
 
-static PyObject* after_fork_child(PyObject*, PyObject*) {
+PyObject* after_fork_child(PyObject*, PyObject*) {
   perf::afterForkChild();
   Py_RETURN_NONE;
 }
 
-static PyMethodDef jit_methods[] = {
+PyMethodDef jit_methods[] = {
     {"disable",
      (PyCFunction)(void*)disable_jit,
      METH_FASTCALL,
@@ -1859,7 +1798,7 @@ static PyMethodDef jit_methods[] = {
     {nullptr, nullptr, 0, nullptr},
 };
 
-static PyModuleDef jit_module = {
+PyModuleDef jit_module = {
     PyModuleDef_HEAD_INIT,
     "cinderjit", /* m_name */
     nullptr, /* m_doc */
@@ -1871,7 +1810,7 @@ static PyModuleDef jit_module = {
     nullptr, /* m_free */
 };
 
-static bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
+bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
   // No explicit list implies everything can and should be compiled.
   if (g_jit_list == nullptr) {
     return true;
@@ -1884,74 +1823,21 @@ static bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
 }
 
 // Check whether a function should be compiled.
-static bool shouldCompile(BorrowedRef<PyFunctionObject> func) {
+bool shouldCompile(BorrowedRef<PyFunctionObject> func) {
   return shouldAlwaysCompile(func->func_code) ||
       g_jit_list->lookupFunc(func) == 1;
 }
 
 // Check whether a code object should be compiled. Intended for nested code
 // objects.
-static bool shouldCompile(
-    BorrowedRef<> module_name,
-    BorrowedRef<PyCodeObject> code) {
+bool shouldCompile(BorrowedRef<> module_name, BorrowedRef<PyCodeObject> code) {
   return (
       shouldAlwaysCompile(code) || (g_jit_list->lookupCode(code) == 1) ||
       (g_jit_list->lookupName(module_name, code->co_qualname) == 1));
 }
 
-namespace jit {
-
-IsolatedPreloaders::IsolatedPreloaders() {
-  // we should never be called from within the actual multi-threaded-compile;
-  // it's not safe to mess with `jit_preloaders` in that context
-  JIT_CHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "cannot preload single func from within multi-threaded compile");
-  orig_preloaders_.swap(jit_preloaders);
-}
-
-IsolatedPreloaders::~IsolatedPreloaders() {
-  JIT_CHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "cannot preload single func from within multi-threaded compile");
-  jit_preloaders.swap(orig_preloaders_);
-}
-
-bool preloadFuncAndDeps(BorrowedRef<PyFunctionObject> func) {
-  std::vector<BorrowedRef<PyFunctionObject>> worklist;
-  worklist.push_back(func);
-  while (worklist.size() > 0) {
-    BorrowedRef<PyFunctionObject> f = worklist.back();
-    worklist.pop_back();
-    hir::Preloader* preloader = ensurePreloader(f);
-    if (!preloader) {
-      return false;
-    }
-    for (const auto& [descr, target] : preloader->invokeFunctionTargets()) {
-      if (target->is_function && target->is_statically_typed &&
-          !isPreloaded(target->func()) && shouldCompile(target->func())) {
-        worklist.push_back(target->func());
-      }
-    }
-    for (const auto& [idx, name] : preloader->globalNames()) {
-      BorrowedRef<> obj = preloader->global(idx);
-      if (!obj || !PyFunction_Check(obj)) {
-        continue;
-      }
-      BorrowedRef<PyFunctionObject> func =
-          reinterpret_cast<PyFunctionObject*>(obj.get());
-      if (!isPreloaded(func) && shouldCompile(func)) {
-        worklist.push_back(func);
-      }
-    }
-  }
-  return true;
-}
-
-} // namespace jit
-
 // preload func and dependencies, then compile func
-static _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
+_PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
   // isolate preloaders state since batch preloading might trigger a call to a
   // jitable function, resulting in a single-function compile
   IsolatedPreloaders ip;
@@ -1962,7 +1848,7 @@ static _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
 // Call posix.register_at_fork(None, None, cinderjit.after_fork_child), if it
 // exists. Returns 0 on success or if the module/function doesn't exist, and -1
 // on any other errors.
-static int register_fork_callback(BorrowedRef<> cinderjit_module) {
+int register_fork_callback(BorrowedRef<> cinderjit_module) {
   auto os_module = Ref<>::steal(
       PyImport_ImportModuleLevel("posix", nullptr, nullptr, nullptr, 0));
   if (os_module == nullptr) {
@@ -1994,7 +1880,7 @@ static int register_fork_callback(BorrowedRef<> cinderjit_module) {
 }
 
 // Initialize some interned strings that can be used even when the JIT is off.
-int _PyJIT_InitializeInternedStrings() {
+int initializeInternedStrings() {
 #define INTERN_STR(s)                                            \
   if ((s_str_##s = PyUnicode_InternFromString(#s)) == nullptr) { \
     return -1;                                                   \
@@ -2030,23 +1916,9 @@ int _PyJIT_InitializeInternedStrings() {
   return 0;
 }
 
-void _PyJIT_FinalizeInternedStrings() {
-#define CLEAR_STR(s) Py_CLEAR(s_str_##s);
-  INTERNED_STRINGS(CLEAR_STR)
-#undef CLEAR_STR
-
-  for (PyObject*& opname : s_opnames) {
-    Py_CLEAR(opname);
-  }
-
-  for (PyObject*& opname : s_hir_opnames) {
-    Py_CLEAR(opname);
-  }
-}
-
 // Informs the JIT that an instance has had an assignment to its __class__
 // field.
-static void instanceTypeAssigned(PyTypeObject* old_ty, PyTypeObject* new_ty) {
+void instanceTypeAssigned(PyTypeObject* old_ty, PyTypeObject* new_ty) {
   if (auto rt = Runtime::getUnchecked()) {
     rt->notifyTypeModified(old_ty, new_ty);
   }
@@ -2054,7 +1926,7 @@ static void instanceTypeAssigned(PyTypeObject* old_ty, PyTypeObject* new_ty) {
 
 // JIT audit event callback. For now, we only pay attention to when an object's
 // __class__ is assigned to.
-static int jit_audit_hook(const char* event, PyObject* args, void* /* data */) {
+int jit_audit_hook(const char* event, PyObject* args, void* /* data */) {
   if (strcmp(event, "object.__setattr__") != 0 || PyTuple_GET_SIZE(args) != 3) {
     return 0;
   }
@@ -2070,7 +1942,7 @@ static int jit_audit_hook(const char* event, PyObject* args, void* /* data */) {
   return 0;
 }
 
-static int install_jit_audit_hook() {
+int install_jit_audit_hook() {
   void* kData = nullptr;
   if (!installAuditHook(jit_audit_hook, kData)) {
     PyErr_SetString(PyExc_RuntimeError, "Could not install JIT audit hook");
@@ -2079,12 +1951,86 @@ static int install_jit_audit_hook() {
   return 0;
 }
 
+// Recursively search the given co_consts tuple for any code objects that are
+// on the current jit-list, using the given module name to form a
+// fully-qualified function name.
+std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
+    BorrowedRef<> module,
+    BorrowedRef<> root_consts) {
+  std::queue<PyObject*> consts_tuples;
+  std::unordered_set<PyCodeObject*> visited;
+  std::vector<BorrowedRef<PyCodeObject>> result;
+
+  consts_tuples.push(root_consts);
+  while (!consts_tuples.empty()) {
+    PyObject* consts = consts_tuples.front();
+    consts_tuples.pop();
+
+    for (size_t i = 0, size = PyTuple_GET_SIZE(consts); i < size; ++i) {
+      BorrowedRef<PyCodeObject> code = PyTuple_GET_ITEM(consts, i);
+      if (!PyCode_Check(code) || !visited.insert(code).second ||
+          code->co_qualname == nullptr || !shouldCompile(module, code)) {
+        continue;
+      }
+
+      result.emplace_back(code);
+      consts_tuples.emplace(code->co_consts);
+    }
+  }
+
+  return result;
+}
+
+void dump_jit_stats() {
+  auto stats = Ref<>::steal(get_and_clear_runtime_stats(nullptr, nullptr));
+  if (stats == nullptr) {
+    return;
+  }
+  auto stats_str = Ref<>::steal(PyObject_Str(stats));
+  if (!stats_str) {
+    return;
+  }
+
+  JIT_LOG("JIT runtime stats:\n{}", PyUnicode_AsUTF8(stats_str.get()));
+}
+
+void dump_jit_compiled_functions(const std::string& filename) {
+  std::ofstream file(filename);
+  if (!file) {
+    JIT_LOG("Failed to open {} when dumping jit compiled functions", filename);
+    return;
+  }
+  for (BorrowedRef<PyFunctionObject> func : jit_ctx->compiledFuncs()) {
+    file << funcFullname(func) << std::endl;
+  }
+}
+
+void finalizeInternedStrings() {
+#define CLEAR_STR(s) Py_CLEAR(s_str_##s);
+  INTERNED_STRINGS(CLEAR_STR)
+#undef CLEAR_STR
+
+  for (PyObject*& opname : s_opnames) {
+    Py_CLEAR(opname);
+  }
+
+  for (PyObject*& opname : s_hir_opnames) {
+    Py_CLEAR(opname);
+  }
+}
+
+} // namespace
+
+int _PyJIT_IsCompiled(PyFunctionObject* func) {
+  return jit_ctx != nullptr ? jit_ctx->didCompile(func) : 0;
+}
+
 int _PyJIT_Initialize() {
   if (getConfig().init_state == InitState::kInitialized) {
     return 0;
   }
 
-  if (_PyJIT_InitializeInternedStrings() == -1) {
+  if (initializeInternedStrings() == -1) {
     return -1;
   }
 
@@ -2156,7 +2102,7 @@ int _PyJIT_Initialize() {
 
   JIT_DLOG("JIT is {}", getConfig().is_enabled ? "enabled" : "disabled");
 
-  total_compliation_time = 0.0;
+  total_time = std::chrono::milliseconds::zero();
 
   return 0;
 }
@@ -2195,36 +2141,6 @@ _PyJIT_Result _PyJIT_CompileFunction(PyFunctionObject* raw_func) {
   CompilationTimer timer(func);
   jit_reg_units.erase(func);
   return compile_func(func);
-}
-
-// Recursively search the given co_consts tuple for any code objects that are
-// on the current jit-list, using the given module name to form a
-// fully-qualified function name.
-static std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
-    BorrowedRef<> module,
-    BorrowedRef<> root_consts) {
-  std::queue<PyObject*> consts_tuples;
-  std::unordered_set<PyCodeObject*> visited;
-  std::vector<BorrowedRef<PyCodeObject>> result;
-
-  consts_tuples.push(root_consts);
-  while (!consts_tuples.empty()) {
-    PyObject* consts = consts_tuples.front();
-    consts_tuples.pop();
-
-    for (size_t i = 0, size = PyTuple_GET_SIZE(consts); i < size; ++i) {
-      BorrowedRef<PyCodeObject> code = PyTuple_GET_ITEM(consts, i);
-      if (!PyCode_Check(code) || !visited.insert(code).second ||
-          code->co_qualname == nullptr || !shouldCompile(module, code)) {
-        continue;
-      }
-
-      result.emplace_back(code);
-      consts_tuples.emplace(code->co_consts);
-    }
-  }
-
-  return result;
 }
 
 int _PyJIT_RegisterFunction(PyFunctionObject* func) {
@@ -2332,30 +2248,6 @@ void _PyJIT_CodeDestroyed(PyCodeObject* code) {
   }
 }
 
-static void dump_jit_stats() {
-  auto stats = Ref<>::steal(get_and_clear_runtime_stats(nullptr, nullptr));
-  if (stats == nullptr) {
-    return;
-  }
-  auto stats_str = Ref<>::steal(PyObject_Str(stats));
-  if (!stats_str) {
-    return;
-  }
-
-  JIT_LOG("JIT runtime stats:\n{}", PyUnicode_AsUTF8(stats_str.get()));
-}
-
-static void dump_jit_compiled_functions(const std::string& filename) {
-  std::ofstream file(filename);
-  if (!file) {
-    JIT_LOG("Failed to open {} when dumping jit compiled functions", filename);
-    return;
-  }
-  for (BorrowedRef<PyFunctionObject> func : jit_ctx->compiledFuncs()) {
-    file << funcFullname(func) << std::endl;
-  }
-}
-
 int _PyJIT_Finalize() {
   // Disable the JIT first so nothing we do in here ends up attempting to
   // invoke the JIT while we're finalizing our data structures.
@@ -2399,7 +2291,7 @@ int _PyJIT_Finalize() {
     CodeAllocator::freeGlobalCodeAllocator();
   }
 
-  _PyJIT_FinalizeInternedStrings();
+  finalizeInternedStrings();
 
   Runtime::shutdown();
   Symbolizer::shutdown();
@@ -2571,3 +2463,84 @@ void _PyPerfTrampoline_CompilePerfTrampolinePreFork(void) {
     compile_perf_trampoline_entries();
   }
 }
+
+namespace jit {
+
+hir::Preloader* lookupPreloader(BorrowedRef<> unit) {
+  BorrowedRef<PyCodeObject> code = unit != nullptr && PyFunction_Check(unit)
+      ? reinterpret_cast<PyFunctionObject*>(unit.get())->func_code
+      : unit.get();
+  JIT_CHECK(code != nullptr, "Trying to map a null code object to a preloader");
+  JIT_CHECK(
+      PyCode_Check(code),
+      "Compilation unit has to be a code object but is instead {}",
+      typeFullname(Py_TYPE(code)));
+
+  auto it = jit_preloaders.find(code);
+  return it != jit_preloaders.end() ? it->second.get() : nullptr;
+}
+
+bool isPreloaded(BorrowedRef<> unit) {
+  return lookupPreloader(unit) != nullptr;
+}
+
+// Compile the given function or code object with a preloader from the global
+// map.
+_PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
+  BorrowedRef<PyFunctionObject> func;
+  if (PyFunction_Check(unit)) {
+    func = BorrowedRef<PyFunctionObject>{unit};
+  }
+  hir::Preloader* preloader = lookupPreloader(unit);
+  return preloader ? jit_ctx->compilePreloader(func, *preloader)
+                   : PYJIT_RESULT_NO_PRELOADER;
+}
+
+IsolatedPreloaders::IsolatedPreloaders() {
+  // we should never be called from within the actual multi-threaded-compile;
+  // it's not safe to mess with `jit_preloaders` in that context
+  JIT_CHECK(
+      !getThreadedCompileContext().compileRunning(),
+      "cannot preload single func from within multi-threaded compile");
+  orig_preloaders_.swap(jit_preloaders);
+}
+
+IsolatedPreloaders::~IsolatedPreloaders() {
+  JIT_CHECK(
+      !getThreadedCompileContext().compileRunning(),
+      "cannot preload single func from within multi-threaded compile");
+  jit_preloaders.swap(orig_preloaders_);
+}
+
+bool preloadFuncAndDeps(BorrowedRef<PyFunctionObject> func) {
+  std::vector<BorrowedRef<PyFunctionObject>> worklist;
+  worklist.push_back(func);
+  while (worklist.size() > 0) {
+    BorrowedRef<PyFunctionObject> f = worklist.back();
+    worklist.pop_back();
+    hir::Preloader* preloader = ensurePreloader(f);
+    if (!preloader) {
+      return false;
+    }
+    for (const auto& [descr, target] : preloader->invokeFunctionTargets()) {
+      if (target->is_function && target->is_statically_typed &&
+          !isPreloaded(target->func()) && shouldCompile(target->func())) {
+        worklist.push_back(target->func());
+      }
+    }
+    for (const auto& [idx, name] : preloader->globalNames()) {
+      BorrowedRef<> obj = preloader->global(idx);
+      if (!obj || !PyFunction_Check(obj)) {
+        continue;
+      }
+      BorrowedRef<PyFunctionObject> func =
+          reinterpret_cast<PyFunctionObject*>(obj.get());
+      if (!isPreloaded(func) && shouldCompile(func)) {
+        worklist.push_back(func);
+      }
+    }
+  }
+  return true;
+}
+
+} // namespace jit
