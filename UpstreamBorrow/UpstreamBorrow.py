@@ -23,6 +23,9 @@ T_COMPILATION_DB = list[dict[str, str | list[str]]]
 BORROW_CPP_DIRECTIVES_PATTERN: re.Pattern[str] = re.compile(
     r".*// @Borrow CPP directives from (\S+)(?: \[(.*?)\])?"
 )
+BORROW_CPP_DIRECTIVES_NOINCLUDE_PATTERN: re.Pattern[str] = re.compile(
+    r".*// @Borrow CPP directives noinclude from (\S+)(?: \[(.*?)\])?"
+)
 BORROW_DECL_PATTERN: re.Pattern[str] = re.compile(
     r"// @Borrow (function|typedef|var) (\S+) from (\S+)(?: \[(.*?)\])?"
 )
@@ -99,20 +102,30 @@ class ParsedFile:
 
         with open(source_file, "r") as f:
             self.file_content: str = f.read()
+            self.lines = self.file_content.split("\n")
 
 
-def extract_preprocessor_directives(parsed_file: ParsedFile) -> list[str]:
+def extract_preprocessor_directives(
+    parsed_file: ParsedFile, includes: bool = True
+) -> list[str]:
     print(f"Extracting preprocessor directives from: {parsed_file.source_file}")
 
     directives = []
     continuation = False
-    for line in parsed_file.file_content.split("\n"):
+    for line in parsed_file.lines:
         line = line.rstrip()
         if continuation or line.lstrip().startswith("#"):
-            directives.append(line)
+            if includes or not line.startswith("#include"):
+                directives.append(line)
             continuation = line.endswith("\\")
 
     return directives
+
+
+def extract_preprocessor_directives_noinclude(
+    parsed_file: ParsedFile,
+) -> list[str]:
+    return extract_preprocessor_directives(parsed_file, includes=False)
 
 
 def extract_declaration(
@@ -125,12 +138,8 @@ def extract_declaration(
         if cursor.kind == kind and cursor.spelling == name:
             extent = cursor.extent
     if extent:
-        content = parsed_file.file_content[
-            extent.start.offset : extent.end.offset
-        ].split("\n")
-        # pyre-ignore[16]: `CursorKind` has no attribute `TYPEDEF_DECL`.
-        if kind in (CursorKind.TYPEDEF_DECL, CursorKind.VAR_DECL):
-            content[-1] += ";"
+        # We don't need column info; we always extract complete lines
+        content = parsed_file.lines[extent.start.line - 1 : extent.end.line]
         return content
     raise Exception(f"Could not find {kind} for '{name}' in {parsed_file.source_file}")
 
@@ -210,6 +219,15 @@ def process_file(
             version_set = parse_version_set(match.group(2))
             output_lines.extend(
                 extract(extract_preprocessor_directives, source_file, version_set)
+            )
+
+        elif match := BORROW_CPP_DIRECTIVES_NOINCLUDE_PATTERN.match(line):
+            source_file = match.group(1)
+            version_set = parse_version_set(match.group(2))
+            output_lines.extend(
+                extract(
+                    extract_preprocessor_directives_noinclude, source_file, version_set
+                )
             )
 
         else:
