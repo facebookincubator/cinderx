@@ -13,6 +13,7 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/dict.h"
+#include "cinderx/Common/func.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Interpreter/interpreter.h"
@@ -308,15 +309,35 @@ static PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
  * (De)initialization functions
  */
 
-static void init_already_existing_funcs() {
-  PyUnstable_GC_VisitObjects(
-      [](PyObject* obj, void*) {
-        if (PyFunction_Check(obj)) {
-          scheduleJitCompile((PyFunctionObject*)obj);
-        }
-        return 1;
-      },
-      nullptr);
+// Visit a Python function on CinderX module initialization.
+static int function_visitor(BorrowedRef<PyFunctionObject> func) {
+  // Ensure the code object can track how often it is called.
+  BorrowedRef<PyCodeObject> code = func->func_code;
+  JIT_CHECK(
+      initCodeExtra(code),
+      "Failed to initialize extra data for {}",
+      jit::funcFullname(func));
+
+  // Schedule the function to be compiled if desired.
+  scheduleJitCompile(func);
+
+  return 1;
+}
+
+// Visit a Python object on CinderX module initialization.
+static int object_visitor(PyObject* obj, [[maybe_unused]] void* arg) {
+  if (PyFunction_Check(obj)) {
+    return function_visitor(reinterpret_cast<PyFunctionObject*>(obj));
+  }
+
+  return 1;
+}
+
+// Visit every Python object on CinderX module initialization.
+static void init_existing_objects() {
+  initCodeExtraIndex();
+
+  PyUnstable_GC_VisitObjects(object_visitor, nullptr);
 }
 
 static std::unique_ptr<PyGetSetDef[]> s_func_getset;
@@ -442,12 +463,20 @@ static int get_current_code_flags(PyThreadState* tstate) {
 }
 
 static int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
-  if (event == PY_CODE_EVENT_DESTROY) {
+  switch (event) {
+    case PY_CODE_EVENT_CREATE:
+      initCodeExtra(co);
+      break;
+    case PY_CODE_EVENT_DESTROY:
 #if PY_VERSION_HEX < 0x030C0000
-    _PyShadow_ClearCache((PyObject*)co);
+      _PyShadow_ClearCache((PyObject*)co);
 #endif
-    _PyJIT_CodeDestroyed(co);
+      _PyJIT_CodeDestroyed(co);
+      break;
+    default:
+      break;
   }
+
   return 0;
 }
 
@@ -610,7 +639,7 @@ static int cinder_init() {
     }
     return -1;
   }
-  init_already_existing_funcs();
+  init_existing_objects();
 
 #if PY_VERSION_HEX < 0x030C0000
   Ci_cinderx_initialized = 1;
@@ -660,6 +689,8 @@ static int cinder_fini() {
   if (_PyJIT_Finalize()) {
     return -1;
   }
+
+  finiCodeExtraIndex();
 
 #if PY_VERSION_HEX < 0x030C0000
   if (Ci_cinderx_initialized && Ci_hook__PyShadow_FreeAll()) {

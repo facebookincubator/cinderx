@@ -3,6 +3,8 @@
 #pragma once
 
 #include <Python.h>
+#include <stdbool.h>
+#include <stddef.h>
 
 #ifdef __cplusplus
 extern "C" {
@@ -65,6 +67,15 @@ static inline PyCodeObject* PyUnstable_Code_New(
 
 #endif
 
+#if PY_VERSION_HEX < 0x030C0000
+
+// Renamed in 3.12.
+#define PyUnstable_Eval_RequestCodeExtraIndex _PyEval_RequestCodeExtraIndex
+#define PyUnstable_Code_GetExtra _PyCode_GetExtra
+#define PyUnstable_Code_SetExtra _PyCode_SetExtra
+
+#endif
+
 // Get the internal _Py_CODEUNIT buffer from a code object.
 _Py_CODEUNIT* codeUnit(PyCodeObject* code);
 
@@ -97,6 +108,28 @@ static inline constexpr int byteCodeIndexSize(PyCodeObject* co) {
   return (_PyCode_NBYTES(co) - sizeof(PyCodeObject) + 1) / sizeof(_Py_CODEUNIT);
 }
 #endif
+
+// Extra data attached to a code object.
+typedef struct {
+  // Number of times the code object has been called.
+  uint64_t calls;
+} CodeExtra;
+
+// Initialize and finalize the index of the extra data Cinder attaches onto code
+// objects.
+void initCodeExtraIndex();
+void finiCodeExtraIndex();
+
+// Allocate and set a new extra data object on a code object.
+//
+// Return true on success, set a Python error and return false on failure.
+bool initCodeExtra(PyCodeObject* code);
+
+// Get the extra data object associated with a code object.
+//
+// Return NULL without setting an error if the code object doesn't have extra
+// data attached to it.
+CodeExtra* codeExtra(PyCodeObject* code);
 
 #ifdef __cplusplus
 } // extern "C"

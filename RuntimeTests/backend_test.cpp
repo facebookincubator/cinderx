@@ -265,6 +265,34 @@ def get_user_id(user):
       << "Incorrect user id returned";
 }
 
+TEST_F(BackendTest, CallCountTest) {
+  const char* src = R"(
+def foo(x: int) -> int:
+  return x + 1
+
+for i in range(30):
+  foo(i)
+)";
+
+  Ref<> foo = compileAndGet(src, "foo");
+  ASSERT_TRUE(PyFunction_Check(foo));
+
+  BorrowedRef<PyCodeObject> code =
+      reinterpret_cast<PyFunctionObject*>(foo.get())->func_code;
+
+#if PY_VERSION_HEX < 0x030C0000
+  uint64_t ncalls = code->co_mutable->ncalls;
+#else
+  auto extra = codeExtra(code);
+  ASSERT_NE(extra, nullptr) << "Failed to load code object extra data";
+  uint64_t ncalls = extra->calls;
+#endif
+
+  // TODO(T190615535): This is waiting on the 3.12 custom interpreter loop.
+  // Once we have that in place, we can start incrementing call counts in 3.12.
+  ASSERT_EQ(ncalls, 30);
+}
+
 // floating-point arithmetic test
 TEST_F(BackendTest, FPArithmetic) {
   double a = 3.12;

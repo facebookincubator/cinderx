@@ -18,21 +18,21 @@ extern "C" {
 
 namespace {
 
-unsigned int countCalls(PyCodeObject* code) {
+uint64_t countCalls(PyCodeObject* code) {
 #if PY_VERSION_HEX < 0x030C0000
   // The interpreter will only increment up to the shadowcode threshold
   // PYSHADOW_INIT_THRESHOLD. After that, it will stop incrementing. If someone
   // sets -X jit-auto above the PYSHADOW_INIT_THRESHOLD, we still have to keep
   // counting.
-  unsigned int ncalls = code->co_mutable->ncalls;
+  unsigned ncalls = code->co_mutable->ncalls;
   if (ncalls > PYSHADOW_INIT_THRESHOLD) {
     ncalls++;
     code->co_mutable->ncalls = ncalls;
   }
   return ncalls;
 #else
-  UPGRADE_ASSERT(CHANGED_PYCODEOBJECT);
-  return 0;
+  auto extra = codeExtra(code);
+  return extra != nullptr ? extra->calls : 0;
 #endif
 }
 

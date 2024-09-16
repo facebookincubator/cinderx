@@ -22,6 +22,13 @@
 
 #endif
 
+namespace {
+
+// Index used for fetching code object extra data.
+Py_ssize_t code_extra_index = -1;
+
+} // namespace
+
 extern "C" {
 
 _Py_CODEUNIT* codeUnit(PyCodeObject* code) {
@@ -91,6 +98,87 @@ int loadGlobalIndex(int oparg) {
     return oparg >> 1;
   }
   return oparg;
+}
+
+// Before 3.12, Cinder relies on Shadowcode's call count tracking.
+constexpr bool kUseCodeExtra = PY_VERSION_HEX >= 0x030C0000;
+
+void initCodeExtraIndex() {
+  if constexpr (!kUseCodeExtra) {
+    return;
+  }
+  JIT_CHECK(
+      code_extra_index == -1,
+      "Cannot re-initialize code extra index without finalizing it first");
+
+  code_extra_index = PyUnstable_Eval_RequestCodeExtraIndex(PyMem_Free);
+}
+
+void finiCodeExtraIndex() {
+  if constexpr (!kUseCodeExtra) {
+    return;
+  }
+  JIT_CHECK(
+      code_extra_index != -1,
+      "Cannot finalize code extra index without initializing it first");
+
+  code_extra_index = -1;
+}
+
+bool initCodeExtra(PyCodeObject* code) {
+  if constexpr (!kUseCodeExtra) {
+    return true;
+  }
+  JIT_CHECK(
+      code_extra_index != -1,
+      "Cannot initialize code object extra data without registering the index");
+
+  auto code_obj = reinterpret_cast<PyObject*>(code);
+
+  // Make sure that this isn't going to overwrite existing extra data.
+  void* existing = nullptr;
+  if (PyUnstable_Code_GetExtra(code_obj, code_extra_index, &existing) < 0) {
+    JIT_CHECK(PyErr_Occurred(), "Expect a Python error when this API fails");
+    return false;
+  }
+  if (existing != nullptr) {
+    return true;
+  }
+
+  auto extra = reinterpret_cast<CodeExtra*>(PyMem_Calloc(1, sizeof(CodeExtra)));
+  if (extra == nullptr) {
+    PyErr_NoMemory();
+    return false;
+  }
+
+  if (PyUnstable_Code_SetExtra(code_obj, code_extra_index, extra) < 0) {
+    assert(PyErr_Occurred());
+    return false;
+  }
+
+  return true;
+}
+
+CodeExtra* codeExtra(PyCodeObject* code) {
+  if constexpr (!kUseCodeExtra) {
+    return nullptr;
+  }
+  JIT_CHECK(
+      code_extra_index != -1,
+      "Cannot fetch code object extra data without registering the index");
+
+  auto code_obj = reinterpret_cast<PyObject*>(code);
+
+  void* data_ptr = nullptr;
+  if (PyUnstable_Code_GetExtra(code_obj, code_extra_index, &data_ptr) < 0) {
+    PyErr_WriteUnraisable(code_obj);
+  }
+  if (data_ptr == nullptr) {
+    JIT_DLOG(
+        "Missing extra data on code object {}",
+        PyUnicode_AsUTF8(code->co_qualname));
+  }
+  return reinterpret_cast<CodeExtra*>(data_ptr);
 }
 
 } // extern "C"
