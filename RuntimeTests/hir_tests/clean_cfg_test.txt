@@ -89,12 +89,33 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v7:Nullptr = LoadConst<Nullptr>
+    v11:Func = LoadCurrentFunc
+    v12:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v8:Bottom = CheckVar<"a"> v7 {
+    v13:CInt32 = LoadEvalBreaker
+    CondBranch<4, 3> v13
+  }
+
+  bb 4 (preds 0) {
+    Snapshot
+    v14:CInt32 = RunPeriodicTasks {
       FrameState {
         NextInstrOffset 2
-        Locals<1> v7
+        Locals<1> v12
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot
+    v16:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v17:Bottom = CheckVar<"a"> v12 {
+      FrameState {
+        NextInstrOffset 6
+        Locals<1> v12
+        Stack<1> v16
       }
     }
     Unreachable

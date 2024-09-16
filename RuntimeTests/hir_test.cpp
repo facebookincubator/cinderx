@@ -582,12 +582,6 @@ TEST_F(HIRBuildTest, GetLength) {
       NextInstrOffset 0
       Locals<1> v0
     }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        NextInstrOffset 2
-        Locals<1> v0
-      }
-    }
     v2 = GetLength v0 {
       FrameState {
         NextInstrOffset 4
@@ -1292,12 +1286,6 @@ TEST_F(HIRBuildTest, MatchMapping) {
       NextInstrOffset 0
       Locals<1> v0
     }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        NextInstrOffset 2
-        Locals<1> v0
-      }
-    }
     v2 = LoadField<ob_type@8, Type, borrowed> v0
     v3 = LoadField<tp_flags@168, CUInt64, borrowed> v2
     v4 = LoadConst<CUInt64[64]>
@@ -1385,12 +1373,6 @@ TEST_F(HIRBuildTest, MatchSequence) {
       NextInstrOffset 0
       Locals<1> v0
     }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        NextInstrOffset 2
-        Locals<1> v0
-      }
-    }
     v2 = LoadField<ob_type@8, Type, borrowed> v0
     v3 = LoadField<tp_flags@168, CUInt64, borrowed> v2
     v4 = LoadConst<CUInt64[32]>
@@ -1477,19 +1459,6 @@ TEST_F(HIRBuildTest, MatchKeys) {
     Snapshot {
       NextInstrOffset 0
       Locals<2> v0 v1
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        NextInstrOffset 2
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"param1"> v1 {
-      FrameState {
-        NextInstrOffset 4
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
     }
     v3 = MatchKeys v0 v1 {
       FrameState {
@@ -1602,19 +1571,6 @@ TEST_F(HIRBuildTest, ListExtend) {
     Snapshot {
       NextInstrOffset 0
       Locals<2> v0 v1
-    }
-    v0 = CheckVar<"param0"> v0 {
-      FrameState {
-        NextInstrOffset 2
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"param1"> v1 {
-      FrameState {
-        NextInstrOffset 4
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
     }
     v3 = ListExtend v0 v1 {
       FrameState {

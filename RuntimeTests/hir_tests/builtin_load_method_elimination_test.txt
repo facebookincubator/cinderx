@@ -110,17 +110,17 @@ fun jittestmodule:test {
     Snapshot
     v13:ImmortalUnicodeExact[","] = LoadConst<ImmortalUnicodeExact[","]>
     UseType<ImmortalUnicodeExact> v13
-    v18:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
+    v17:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
     v15:ImmortalUnicodeExact[","] = Assign v13
     Snapshot
-    v17:UnicodeExact = VectorCall<2, static> v18 v13 v8 {
+    v16:UnicodeExact = VectorCall<2, static> v17 v13 v8 {
       FrameState {
         NextInstrOffset 28
         Locals<1> v8
       }
     }
     Snapshot
-    Return v17
+    Return v16
   }
 }
 --- Test Name ---
@@ -202,42 +202,42 @@ fun jittestmodule:test {
 
   bb 4 (preds 0, 5) {
     Snapshot
-    v22:CInt32 = IsTruthy v13 {
+    v21:CInt32 = IsTruthy v13 {
       FrameState {
         NextInstrOffset 6
         Locals<3> v12 v13 v15
       }
     }
-    CondBranch<1, 2> v22
+    CondBranch<1, 2> v21
   }
 
   bb 1 (preds 4) {
     Snapshot
-    v23:ImmortalUnicodeExact[","] = LoadConst<ImmortalUnicodeExact[","]>
+    v22:ImmortalUnicodeExact[","] = LoadConst<ImmortalUnicodeExact[","]>
     Branch<3>
   }
 
   bb 2 (preds 4) {
     Snapshot
-    v25:ImmortalUnicodeExact["."] = LoadConst<ImmortalUnicodeExact["."]>
+    v24:ImmortalUnicodeExact["."] = LoadConst<ImmortalUnicodeExact["."]>
     Branch<3>
   }
 
   bb 3 (preds 1, 2) {
-    v29:ImmortalUnicodeExact = Phi<1, 2> v23 v25
+    v28:ImmortalUnicodeExact = Phi<1, 2> v22 v24
     Snapshot
-    UseType<ImmortalUnicodeExact> v29
-    v35:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
-    v32:ImmortalUnicodeExact = Assign v29
+    UseType<ImmortalUnicodeExact> v28
+    v32:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
+    v30:ImmortalUnicodeExact = Assign v28
     Snapshot
-    v34:UnicodeExact = VectorCall<2, static> v35 v29 v12 {
+    v31:UnicodeExact = VectorCall<2, static> v32 v28 v12 {
       FrameState {
         NextInstrOffset 42
-        Locals<3> v12 v13 v29
+        Locals<3> v12 v13 v28
       }
     }
     Snapshot
-    Return v34
+    Return v31
   }
 }
 --- Test Name ---
@@ -307,34 +307,34 @@ fun jittestmodule:test {
     Snapshot
     v16:MortalUnicodeExact["{}.{}"] = LoadConst<MortalUnicodeExact["{}.{}"]>
     UseType<MortalUnicodeExact> v16
-    v25:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
+    v23:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
     v18:MortalUnicodeExact["{}.{}"] = Assign v16
     Snapshot
-    v26:Object = LoadMethodCached<1; "upper"> v11 {
+    v24:Object = LoadMethodCached<1; "upper"> v11 {
       FrameState {
         NextInstrOffset 30
         Locals<1> v11
-        Stack<3> v25 v18 v11
+        Stack<3> v23 v18 v11
       }
     }
-    v22:OptObject = GetSecondOutput<OptObject> v26
+    v20:OptObject = GetSecondOutput<OptObject> v24
     Snapshot
-    v23:Object = CallMethod<2> v26 v22 {
+    v21:Object = CallMethod<2> v24 v20 {
       FrameState {
         NextInstrOffset 50
         Locals<1> v11
-        Stack<3> v25 v18 v11
+        Stack<3> v23 v18 v11
       }
     }
     Snapshot
-    v24:UnicodeExact = VectorCall<3, static> v25 v16 v11 v23 {
+    v22:UnicodeExact = VectorCall<3, static> v23 v16 v11 v21 {
       FrameState {
         NextInstrOffset 58
         Locals<1> v11
       }
     }
     Snapshot
-    Return v24
+    Return v22
   }
 }
 --- Test Name ---

@@ -73,26 +73,26 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v23:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v24:MortalDictExact = MakeDict<2> {
+    v21:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    v22:MortalDictExact = MakeDict<2> {
       FrameState {
         NextInstrOffset 10
         Locals<3> v12 v13 v15
-        Stack<3> v12 v13 v23
+        Stack<3> v12 v13 v21
       }
     }
-    UseType<MortalTupleExact[tuple:0xdeadbeef]> v23
-    v31:ImmortalUnicodeExact["aaa"] = LoadConst<ImmortalUnicodeExact["aaa"]>
-    v26:CInt32 = SetDictItem v24 v31 v12 {
+    UseType<MortalTupleExact[tuple:0xdeadbeef]> v21
+    v28:ImmortalUnicodeExact["aaa"] = LoadConst<ImmortalUnicodeExact["aaa"]>
+    v24:CInt32 = SetDictItem v22 v28 v12 {
       FrameState {
         NextInstrOffset 10
         Locals<3> v12 v13 v15
         Stack<2> v12 v13
       }
     }
-    UseType<MortalTupleExact[tuple:0xdeadbeef]> v23
-    v32:ImmortalUnicodeExact["bbb"] = LoadConst<ImmortalUnicodeExact["bbb"]>
-    v28:CInt32 = SetDictItem v24 v32 v13 {
+    UseType<MortalTupleExact[tuple:0xdeadbeef]> v21
+    v29:ImmortalUnicodeExact["bbb"] = LoadConst<ImmortalUnicodeExact["bbb"]>
+    v26:CInt32 = SetDictItem v22 v29 v13 {
       FrameState {
         NextInstrOffset 10
         Locals<3> v12 v13 v15
@@ -100,7 +100,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v24
+    Return v22
   }
 }
 --- Test Name ---
@@ -162,14 +162,14 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: box'
     }
     Snapshot
-    v20:Object = VectorCall<1> v17 v13 {
+    v19:Object = VectorCall<1> v17 v13 {
       FrameState {
         NextInstrOffset 20
         Locals<1> v13
       }
     }
     Snapshot
-    Return v20
+    Return v19
   }
 }
 --- Test Name ---
@@ -296,34 +296,52 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v4:Object = LoadArg<0; "x">
-    v5:Nullptr = LoadConst<Nullptr>
+    v7:Object = LoadArg<0; "x">
+    v8:Func = LoadCurrentFunc
+    v9:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v7:CInt32 = IsTruthy v4 {
-      FrameState {
-        NextInstrOffset 4
-        Locals<2> v4 v5
-      }
-    }
-    CondBranch<1, 2> v7
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<4, 3> v10
   }
 
-  bb 1 (preds 0) {
+  bb 4 (preds 0) {
     Snapshot
-    v8:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<2> v7 v9
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot
+    v14:CInt32 = IsTruthy v7 {
+      FrameState {
+        NextInstrOffset 6
+        Locals<2> v7 v9
+      }
+    }
+    CondBranch<1, 2> v14
+  }
+
+  bb 1 (preds 3) {
+    Snapshot
+    v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Branch<2>
   }
 
-  bb 2 (preds 0, 1) {
-    v11:OptImmortalLongExact = Phi<0, 1> v5 v8
+  bb 2 (preds 1, 3) {
+    v18:OptImmortalLongExact = Phi<1, 3> v15 v9
     Snapshot
-    v12:ImmortalLongExact = CheckVar<"y"> v11 {
+    v19:ImmortalLongExact = CheckVar<"y"> v18 {
       FrameState {
-        NextInstrOffset 10
-        Locals<2> v4 v11
+        NextInstrOffset 12
+        Locals<2> v7 v18
       }
     }
-    Return v12
+    Return v19
   }
 }
 --- Test Name ---
@@ -386,25 +404,25 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v16:CInt32 = IsTruthy v8 {
+    v15:CInt32 = IsTruthy v8 {
       FrameState {
         NextInstrOffset 6
         Locals<2> v8 v10
       }
     }
-    CondBranch<1, 2> v16
+    CondBranch<1, 2> v15
   }
 
   bb 1 (preds 3) {
     Snapshot
-    v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    Return v17
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return v16
   }
 
   bb 2 (preds 3) {
     Snapshot
-    v20:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    Return v20
+    v18:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    Return v18
   }
 }
 --- Test Name ---
@@ -464,46 +482,64 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v6:Object = LoadArg<0; "x">
-    v7:Nullptr = LoadConst<Nullptr>
+    v9:Object = LoadArg<0; "x">
+    v10:Func = LoadCurrentFunc
+    v11:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v9:CInt32 = IsTruthy v6 {
-      FrameState {
-        NextInstrOffset 4
-        Locals<2> v6 v7
-      }
-    }
-    CondBranch<1, 3> v9
+    v12:CInt32 = LoadEvalBreaker
+    CondBranch<5, 4> v12
   }
 
-  bb 1 (preds 0) {
+  bb 5 (preds 0) {
     Snapshot
-    v10:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v13:CInt32 = IsTruthy v6 {
+    v13:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 12
-        Locals<2> v6 v10
+        NextInstrOffset 2
+        Locals<2> v9 v11
       }
     }
-    CondBranch<2, 3> v13
+    Branch<4>
+  }
+
+  bb 4 (preds 0, 5) {
+    Snapshot
+    v16:CInt32 = IsTruthy v9 {
+      FrameState {
+        NextInstrOffset 6
+        Locals<2> v9 v11
+      }
+    }
+    CondBranch<1, 3> v16
+  }
+
+  bb 1 (preds 4) {
+    Snapshot
+    v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v19:CInt32 = IsTruthy v9 {
+      FrameState {
+        NextInstrOffset 14
+        Locals<2> v9 v17
+      }
+    }
+    CondBranch<2, 3> v19
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v14:ImmortalLongExact[100] = LoadConst<ImmortalLongExact[100]>
-    Return v14
+    v20:ImmortalLongExact[100] = LoadConst<ImmortalLongExact[100]>
+    Return<ImmortalLongExact[100]> v20
   }
 
-  bb 3 (preds 0, 1) {
-    v16:OptImmortalLongExact = Phi<0, 1> v7 v10
+  bb 3 (preds 1, 4) {
+    v23:OptImmortalLongExact = Phi<1, 4> v17 v11
     Snapshot
-    v17:ImmortalLongExact = CheckVar<"y"> v16 {
+    v24:ImmortalLongExact = CheckVar<"y"> v23 {
       FrameState {
         NextInstrOffset 18
-        Locals<2> v6 v16
+        Locals<2> v9 v23
       }
     }
-    Return v17
+    Return v24
   }
 }
 --- Test Name ---
@@ -589,21 +625,21 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v19:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     UseType<ListExact> v14
-    UseType<LongExact> v19
-    v26:CInt64[1] = LoadConst<CInt64[1]>
-    v27:CInt64[0] = LoadConst<CInt64[0]>
-    v23:CInt64 = CheckSequenceBounds v14 v26 {
+    UseType<LongExact> v18
+    v25:CInt64[1] = LoadConst<CInt64[1]>
+    v26:CInt64[0] = LoadConst<CInt64[0]>
+    v22:CInt64 = CheckSequenceBounds v14 v25 {
       FrameState {
         NextInstrOffset 16
         Locals<1> v14
       }
     }
-    v24:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
-    v25:Object = LoadArrayItem v24 v23 v14
+    v23:CPtr = LoadField<ob_item@24, CPtr, borrowed> v14
+    v24:Object = LoadArrayItem v23 v22 v14
     Snapshot
-    Return v25
+    Return v24
   }
 }
 --- Test Name ---
@@ -754,9 +790,9 @@ fun jittestmodule:test {
     v16:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     UseType<ImmortalUnicodeExact["foobar"]> v14
     UseType<ImmortalLongExact[3]> v16
-    v21:ImmortalUnicodeExact["b"] = LoadConst<ImmortalUnicodeExact["b"]>
+    v19:ImmortalUnicodeExact["b"] = LoadConst<ImmortalUnicodeExact["b"]>
     Snapshot
-    Return v21
+    Return v19
   }
 }
 --- Test Name ---
@@ -807,9 +843,9 @@ fun jittestmodule:test {
     v16:ImmortalLongExact[-2] = LoadConst<ImmortalLongExact[-2]>
     UseType<ImmortalUnicodeExact["foobar"]> v14
     UseType<ImmortalLongExact[-2]> v16
-    v21:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
+    v19:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
     Snapshot
-    Return v21
+    Return v19
   }
 }
 --- Test Name ---
@@ -861,14 +897,14 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalUnicodeExact["foobar"] = LoadConst<ImmortalUnicodeExact["foobar"]>
     v16:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
-    v20:Object = BinaryOp<Subscript> v14 v16 {
+    v18:Object = BinaryOp<Subscript> v14 v16 {
       FrameState {
         NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
     Snapshot
-    Return v20
+    Return v18
   }
 }
 --- Test Name ---
@@ -920,14 +956,14 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalUnicodeExact["foobar"] = LoadConst<ImmortalUnicodeExact["foobar"]>
     v16:MortalLongExact[-7] = LoadConst<MortalLongExact[-7]>
-    v20:Object = BinaryOp<Subscript> v14 v16 {
+    v18:Object = BinaryOp<Subscript> v14 v16 {
       FrameState {
         NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
     Snapshot
-    Return v20
+    Return v18
   }
 }
 --- Test Name ---
@@ -1069,14 +1105,14 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: os'
     }
     Snapshot
-    v54:Object = LoadAttrCached<1; "argv"> v23 {
+    v52:Object = LoadAttrCached<1; "argv"> v23 {
       FrameState {
         NextInstrOffset 14
         Locals<2> v17 v17
       }
     }
     Snapshot
-    v25:CInt32 = IsTruthy v54 {
+    v25:CInt32 = IsTruthy v52 {
       FrameState {
         NextInstrOffset 34
         Locals<2> v17 v17
@@ -1105,14 +1141,14 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: os'
     }
     Snapshot
-    v49:Object = LoadAttrCached<1; "argv"> v35 {
+    v47:Object = LoadAttrCached<1; "argv"> v35 {
       FrameState {
         NextInstrOffset 54
         Locals<2> v30 v17
       }
     }
     Snapshot
-    v37:CInt32 = IsTruthy v49 {
+    v37:CInt32 = IsTruthy v47 {
       FrameState {
         NextInstrOffset 74
         Locals<2> v30 v17
@@ -1138,27 +1174,27 @@ fun jittestmodule:test {
     Snapshot
     UseType<UnicodeExact> v30
     UseType<LongExact> v42
-    v50:CInt64 = IndexUnbox<IndexError> v42
-    v51:CInt64 = IsNegativeAndErrOccurred v50 {
+    v48:CInt64 = IndexUnbox<IndexError> v42
+    v49:CInt64 = IsNegativeAndErrOccurred v48 {
       FrameState {
         NextInstrOffset 88
         Locals<2> v30 v42
       }
     }
-    v52:CInt64 = CheckSequenceBounds v30 v50 {
+    v50:CInt64 = CheckSequenceBounds v30 v48 {
       FrameState {
         NextInstrOffset 88
         Locals<2> v30 v42
       }
     }
-    v53:UnicodeExact = UnicodeSubscr v30 v52 {
+    v51:UnicodeExact = UnicodeSubscr v30 v50 {
       FrameState {
         NextInstrOffset 88
         Locals<2> v30 v42
       }
     }
     Snapshot
-    Return v53
+    Return v51
   }
 }
 --- Test Name ---
@@ -1252,10 +1288,10 @@ fun jittestmodule:test {
     v16:NoneType = LoadConst<NoneType>
     v18:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<NoneType> v16
-    v28:CInt32[0] = LoadConst<CInt32[0]>
+    v25:CInt32[0] = LoadConst<CInt32[0]>
     Snapshot
-    v25:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return v25
+    v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v23
   }
 }
 --- Test Name ---
@@ -1309,10 +1345,10 @@ fun jittestmodule:test {
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v18:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalBool[True]> v16
-    v28:CInt32[1] = LoadConst<CInt32[1]>
+    v25:CInt32[1] = LoadConst<CInt32[1]>
     Snapshot
-    v22:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    Return v22
+    v21:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v21
   }
 }
 --- Test Name ---
@@ -1365,11 +1401,11 @@ fun jittestmodule:test {
     v15:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalLongExact[0]> v15
-    v26:CInt32[0] = LoadConst<CInt32[0]>
+    v24:CInt32[0] = LoadConst<CInt32[0]>
     Snapshot
-    v21:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    v20:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Snapshot
-    Return v21
+    Return v20
   }
 }
 --- Test Name ---
@@ -1420,7 +1456,7 @@ fun jittestmodule:test {
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalLongExact[1]> v15
-    v26:CInt32[1] = LoadConst<CInt32[1]>
+    v24:CInt32[1] = LoadConst<CInt32[1]>
     Snapshot
     Return v17
   }
@@ -1475,11 +1511,11 @@ fun jittestmodule:test {
     v15:ImmortalUnicodeExact[""] = LoadConst<ImmortalUnicodeExact[""]>
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalUnicodeExact[""]> v15
-    v26:CInt32[0] = LoadConst<CInt32[0]>
+    v24:CInt32[0] = LoadConst<CInt32[0]>
     Snapshot
-    v21:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    v20:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
     Snapshot
-    Return v21
+    Return v20
   }
 }
 --- Test Name ---
@@ -1530,7 +1566,7 @@ fun jittestmodule:test {
     v15:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     UseType<ImmortalUnicodeExact["hello"]> v15
-    v26:CInt32[1] = LoadConst<CInt32[1]>
+    v24:CInt32[1] = LoadConst<CInt32[1]>
     Snapshot
     Return v17
   }
@@ -1970,14 +2006,14 @@ fun jittestmodule:test {
     v20:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     UseType<ImmortalLongExact[2]> v18
     UseType<ImmortalLongExact[4]> v20
-    v31:CBool[false] = LoadConst<CBool[false]>
-    UseType<CBool[false]> v31
-    v32:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    UseType<ImmortalBool[False]> v32
-    v33:CInt32[0] = LoadConst<CInt32[0]>
+    v29:CBool[false] = LoadConst<CBool[false]>
+    UseType<CBool[false]> v29
+    v30:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    UseType<ImmortalBool[False]> v30
+    v31:CInt32[0] = LoadConst<CInt32[0]>
     Snapshot
-    v29:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return<ImmortalBool[False]> v29
+    v27:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return<ImmortalBool[False]> v27
   }
 }
 --- Test Name ---
@@ -2851,9 +2887,9 @@ fun jittestmodule:test {
     }
     Snapshot
     UseType<ImmortalTypeExact[type:obj]> v14
-    v18:Type = LoadField<ob_type@8, Type, borrowed> v7
+    v17:Type = LoadField<ob_type@8, Type, borrowed> v7
     Snapshot
-    Return v18
+    Return v17
   }
 }
 --- Test Name ---
@@ -3045,17 +3081,17 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v14:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     UseType<MortalTupleExact[tuple:0xdeadbeef]> v14
-    UseType<ImmortalLongExact[1]> v17
-    v21:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    UseType<ImmortalLongExact[1]> v16
+    v20:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     Snapshot
-    v19:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    UseType<MortalTupleExact[tuple:0xdeadbeef]> v21
-    UseType<ImmortalLongExact[2]> v19
-    v22:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v18:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    UseType<MortalTupleExact[tuple:0xdeadbeef]> v20
+    UseType<ImmortalLongExact[2]> v18
+    v21:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     Snapshot
-    Return v22
+    Return v21
   }
 }
 --- Test Name ---
@@ -3098,9 +3134,9 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v16:CBool = PrimitiveCompare<Equal> v7 v8
-    v17:Bool = PrimitiveBoxBool v16
-    Return v17
+    v14:CBool = PrimitiveCompare<Equal> v7 v8
+    v15:Bool = PrimitiveBoxBool v14
+    Return v15
   }
 }
 --- Test Name ---
@@ -3143,9 +3179,9 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v16:CBool = PrimitiveCompare<NotEqual> v7 v8
-    v17:Bool = PrimitiveBoxBool v16
-    Return v17
+    v14:CBool = PrimitiveCompare<NotEqual> v7 v8
+    v15:Bool = PrimitiveBoxBool v14
+    Return v15
   }
 }
 --- Test Name ---
@@ -3241,14 +3277,14 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
     v16:MortalUnicodeExact[" world"] = LoadConst<MortalUnicodeExact[" world"]>
-    v21:UnicodeExact = UnicodeConcat v14 v16 {
+    v19:UnicodeExact = UnicodeConcat v14 v16 {
       FrameState {
         NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
     Snapshot
-    Return v21
+    Return v19
   }
 }
 --- Test Name ---
@@ -3300,14 +3336,14 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
     v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v20:Object = BinaryOp<Add> v14 v16 {
+    v18:Object = BinaryOp<Add> v14 v16 {
       FrameState {
         NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
     Snapshot
-    Return v20
+    Return v18
   }
 }
 --- Test Name ---
@@ -3405,16 +3441,16 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v24:CInt64[2] = LoadConst<CInt64[2]>
-    v25:CInt64[0] = LoadConst<CInt64[0]>
-    v23:UnicodeExact = UnicodeRepeat v14 v24 {
+    v22:CInt64[2] = LoadConst<CInt64[2]>
+    v23:CInt64[0] = LoadConst<CInt64[0]>
+    v21:UnicodeExact = UnicodeRepeat v14 v22 {
       FrameState {
         NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
     Snapshot
-    Return v23
+    Return v21
   }
 }
 --- Test Name ---
@@ -3466,14 +3502,14 @@ fun jittestmodule:test {
     Snapshot
     v14:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v20:Object = BinaryOp<Multiply> v14 v16 {
+    v18:Object = BinaryOp<Multiply> v14 v16 {
       FrameState {
         NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
     Snapshot
-    Return v20
+    Return v18
   }
 }
 --- Test Name ---
@@ -4079,7 +4115,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v24:MortalTupleExact = MakeTuple<3> v10 v11 v12 {
+    v21:MortalTupleExact = MakeTuple<3> v10 v11 v12 {
       FrameState {
         NextInstrOffset 10
         Locals<4> v10 v11 v12 v14
@@ -4087,15 +4123,15 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v27:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    UseType<TupleExact> v24
-    UseType<LongExact> v27
-    v33:CInt64[1] = LoadConst<CInt64[1]>
-    v34:CInt64[0] = LoadConst<CInt64[0]>
-    UseType<MortalTupleExact> v24
-    UseType<CInt64[1]> v33
-    UseType<TupleExact> v24
-    UseType<CInt64[1]> v33
+    v23:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    UseType<TupleExact> v21
+    UseType<LongExact> v23
+    v29:CInt64[1] = LoadConst<CInt64[1]>
+    v30:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<MortalTupleExact> v21
+    UseType<CInt64[1]> v29
+    UseType<TupleExact> v21
+    UseType<CInt64[1]> v29
     Snapshot
     Return v11
   }
@@ -4164,7 +4200,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v24:MortalTupleExact = MakeTuple<3> v10 v11 v12 {
+    v21:MortalTupleExact = MakeTuple<3> v10 v11 v12 {
       FrameState {
         NextInstrOffset 10
         Locals<4> v10 v11 v12 v14
@@ -4172,20 +4208,20 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v27:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
-    UseType<TupleExact> v24
-    UseType<LongExact> v27
-    v33:CInt64[3] = LoadConst<CInt64[3]>
-    v34:CInt64[0] = LoadConst<CInt64[0]>
-    v31:CInt64 = CheckSequenceBounds v24 v33 {
+    v23:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    UseType<TupleExact> v21
+    UseType<LongExact> v23
+    v29:CInt64[3] = LoadConst<CInt64[3]>
+    v30:CInt64[0] = LoadConst<CInt64[0]>
+    v27:CInt64 = CheckSequenceBounds v21 v29 {
       FrameState {
         NextInstrOffset 18
-        Locals<4> v10 v11 v12 v24
+        Locals<4> v10 v11 v12 v21
       }
     }
-    v32:Object = LoadArrayItem<Offset[24]> v24 v31 v24
+    v28:Object = LoadArrayItem<Offset[24]> v21 v27 v21
     Snapshot
-    Return v32
+    Return v28
   }
 }
 --- Test Name ---
@@ -4298,7 +4334,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v32:MortalTupleExact = MakeTuple<3> v17 v18 v19 {
+    v29:MortalTupleExact = MakeTuple<3> v17 v18 v19 {
       FrameState {
         NextInstrOffset 10
         Locals<5> v17 v18 v19 v21 v21
@@ -4306,19 +4342,19 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    UseType<MortalTupleExact> v32
-    v33:CInt64[24] = LoadConst<CInt64[24]>
-    v34:CPtr = LoadFieldAddress v32 v33
-    UseType<MortalTupleExact> v32
-    v59:CInt64[3] = LoadConst<CInt64[3]>
-    v38:CInt64[2] = LoadConst<CInt64[2]>
-    UseType<CInt64[3]> v59
-    UseType<CInt64[2]> v38
-    v60:CBool[false] = LoadConst<CBool[false]>
+    UseType<MortalTupleExact> v29
+    v30:CInt64[24] = LoadConst<CInt64[24]>
+    v31:CPtr = LoadFieldAddress v29 v30
+    UseType<MortalTupleExact> v29
+    v55:CInt64[3] = LoadConst<CInt64[3]>
+    v35:CInt64[2] = LoadConst<CInt64[2]>
+    UseType<CInt64[3]> v55
+    UseType<CInt64[2]> v35
+    v56:CBool[false] = LoadConst<CBool[false]>
     Snapshot
     Deopt {
       Descr 'UNPACK_SEQUENCE'
-      GuiltyReg v32
+      GuiltyReg v29
     }
   }
 }
@@ -4387,25 +4423,25 @@ fun jittestmodule:test {
     v24:CInt64[24] = LoadConst<CInt64[24]>
     v25:CPtr = LoadFieldAddress v23 v24
     UseType<MortalTupleExact[tuple:0xdeadbeef]> v23
-    v49:CInt64[3] = LoadConst<CInt64[3]>
+    v48:CInt64[3] = LoadConst<CInt64[3]>
     v29:CInt64[3] = LoadConst<CInt64[3]>
-    UseType<CInt64[3]> v49
+    UseType<CInt64[3]> v48
     UseType<CInt64[3]> v29
-    v50:CBool[true] = LoadConst<CBool[true]>
+    v49:CBool[true] = LoadConst<CBool[true]>
     v31:CInt64[2] = LoadConst<CInt64[2]>
     UseType<MortalTupleExact[tuple:0xdeadbeef]> v23
     UseType<CInt64[2]> v31
-    v51:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v50:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v34:CInt64[1] = LoadConst<CInt64[1]>
     UseType<MortalTupleExact[tuple:0xdeadbeef]> v23
     UseType<CInt64[1]> v34
-    v52:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v51:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v36:CInt64[0] = LoadConst<CInt64[0]>
     UseType<MortalTupleExact[tuple:0xdeadbeef]> v23
     UseType<CInt64[0]> v36
-    v53:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v52:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Snapshot
-    Return v53
+    Return v52
   }
 }
 --- Test Name ---
@@ -4732,15 +4768,15 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v15:NoneType = LoadConst<NoneType>
-    v16:CBool = PrimitiveCompare<NotEqual> v9 v15
-    v17:Bool = PrimitiveBoxBool v16
-    v18:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v14:NoneType = LoadConst<NoneType>
+    v15:CBool = PrimitiveCompare<NotEqual> v9 v14
+    v16:Bool = PrimitiveBoxBool v15
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<Bool> v16
     UseType<Bool> v17
-    UseType<Bool> v18
-    v21:Bool = PrimitiveBoxBool v16
+    v20:Bool = PrimitiveBoxBool v15
     Snapshot
-    Return v21
+    Return v20
   }
 }
 --- Test Name ---
@@ -4788,16 +4824,16 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v15:NoneType = LoadConst<NoneType>
-    v16:CBool = PrimitiveCompare<NotEqual> v9 v15
-    v17:Bool = PrimitiveBoxBool v16
-    v18:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v14:NoneType = LoadConst<NoneType>
+    v15:CBool = PrimitiveCompare<NotEqual> v9 v14
+    v16:Bool = PrimitiveBoxBool v15
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    UseType<Bool> v16
     UseType<Bool> v17
-    UseType<Bool> v18
-    v20:CBool = PrimitiveCompare<NotEqual> v17 v18
-    v21:Bool = PrimitiveBoxBool v20
+    v19:CBool = PrimitiveCompare<NotEqual> v16 v17
+    v20:Bool = PrimitiveBoxBool v19
     Snapshot
-    Return v21
+    Return v20
   }
 }
 --- Test Name ---
@@ -4847,18 +4883,18 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v15:NoneType = LoadConst<NoneType>
-    v16:CBool = PrimitiveCompare<NotEqual> v9 v15
-    v17:Bool = PrimitiveBoxBool v16
-    v18:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v19:Object = Compare<LessThan> v17 v18 {
+    v14:NoneType = LoadConst<NoneType>
+    v15:CBool = PrimitiveCompare<NotEqual> v9 v14
+    v16:Bool = PrimitiveBoxBool v15
+    v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v18:Object = Compare<LessThan> v16 v17 {
       FrameState {
         NextInstrOffset 12
         Locals<1> v9
       }
     }
     Snapshot
-    Return v19
+    Return v18
   }
 }
 --- Test Name ---
@@ -4935,36 +4971,36 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v39:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v40:MortalTupleExact = MakeTuple<4> v22 v23 v24 v39 {
+    v36:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v37:MortalTupleExact = MakeTuple<4> v22 v23 v24 v36 {
       FrameState {
         NextInstrOffset 12
         Locals<7> v22 v23 v24 v26 v26 v26 v26
-        Stack<4> v22 v23 v24 v39
+        Stack<4> v22 v23 v24 v36
       }
     }
     Snapshot
-    UseType<MortalTupleExact> v40
-    v41:CInt64[24] = LoadConst<CInt64[24]>
-    v42:CPtr = LoadFieldAddress v40 v41
-    UseType<MortalTupleExact> v40
-    v77:CInt64[4] = LoadConst<CInt64[4]>
-    v46:CInt64[4] = LoadConst<CInt64[4]>
-    UseType<CInt64[4]> v77
-    UseType<CInt64[4]> v46
-    v78:CBool[true] = LoadConst<CBool[true]>
-    v48:CInt64[3] = LoadConst<CInt64[3]>
-    UseType<TupleExact> v40
-    UseType<CInt64[3]> v48
-    v51:CInt64[2] = LoadConst<CInt64[2]>
-    UseType<TupleExact> v40
-    UseType<CInt64[2]> v51
-    v53:CInt64[1] = LoadConst<CInt64[1]>
-    UseType<TupleExact> v40
-    UseType<CInt64[1]> v53
-    v55:CInt64[0] = LoadConst<CInt64[0]>
-    UseType<TupleExact> v40
-    UseType<CInt64[0]> v55
+    UseType<MortalTupleExact> v37
+    v38:CInt64[24] = LoadConst<CInt64[24]>
+    v39:CPtr = LoadFieldAddress v37 v38
+    UseType<MortalTupleExact> v37
+    v73:CInt64[4] = LoadConst<CInt64[4]>
+    v43:CInt64[4] = LoadConst<CInt64[4]>
+    UseType<CInt64[4]> v73
+    UseType<CInt64[4]> v43
+    v74:CBool[true] = LoadConst<CBool[true]>
+    v45:CInt64[3] = LoadConst<CInt64[3]>
+    UseType<TupleExact> v37
+    UseType<CInt64[3]> v45
+    v48:CInt64[2] = LoadConst<CInt64[2]>
+    UseType<TupleExact> v37
+    UseType<CInt64[2]> v48
+    v50:CInt64[1] = LoadConst<CInt64[1]>
+    UseType<TupleExact> v37
+    UseType<CInt64[1]> v50
+    v52:CInt64[0] = LoadConst<CInt64[0]>
+    UseType<TupleExact> v37
+    UseType<CInt64[0]> v52
     Snapshot
     Return v22
   }
@@ -6147,185 +6183,185 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: bool'
     }
     Snapshot
-    v115:Bool = VectorCall<1> v51 v44 {
+    v102:Bool = VectorCall<1> v51 v44 {
       FrameState {
         NextInstrOffset 16
         Locals<1> v44
       }
     }
     Snapshot
-    v54:Nullptr = LoadConst<Nullptr>
-    v55:OptObject = LoadGlobalCached<1; "bytes">
-    v56:ImmortalTypeExact[bytes:obj] = GuardIs<0xdeadbeef> v55 {
+    v53:Nullptr = LoadConst<Nullptr>
+    v54:OptObject = LoadGlobalCached<1; "bytes">
+    v55:ImmortalTypeExact[bytes:obj] = GuardIs<0xdeadbeef> v54 {
       Descr 'LOAD_GLOBAL: bytes'
     }
     Snapshot
-    v116:BytesExact = VectorCall<1> v56 v44 {
+    v103:BytesExact = VectorCall<1> v55 v44 {
       FrameState {
         NextInstrOffset 36
         Locals<1> v44
-        Stack<1> v115
+        Stack<1> v102
       }
     }
     Snapshot
-    v59:Nullptr = LoadConst<Nullptr>
-    v60:OptObject = LoadGlobalCached<2; "dict">
-    v61:ImmortalTypeExact[dict:obj] = GuardIs<0xdeadbeef> v60 {
+    v57:Nullptr = LoadConst<Nullptr>
+    v58:OptObject = LoadGlobalCached<2; "dict">
+    v59:ImmortalTypeExact[dict:obj] = GuardIs<0xdeadbeef> v58 {
       Descr 'LOAD_GLOBAL: dict'
     }
     Snapshot
-    v117:DictExact = VectorCall<1> v61 v44 {
+    v104:DictExact = VectorCall<1> v59 v44 {
       FrameState {
         NextInstrOffset 56
         Locals<1> v44
-        Stack<2> v115 v116
+        Stack<2> v102 v103
       }
     }
     Snapshot
-    v64:Nullptr = LoadConst<Nullptr>
-    v65:OptObject = LoadGlobalCached<3; "float">
-    v66:ImmortalTypeExact[float:obj] = GuardIs<0xdeadbeef> v65 {
+    v61:Nullptr = LoadConst<Nullptr>
+    v62:OptObject = LoadGlobalCached<3; "float">
+    v63:ImmortalTypeExact[float:obj] = GuardIs<0xdeadbeef> v62 {
       Descr 'LOAD_GLOBAL: float'
     }
     Snapshot
-    v118:FloatExact = VectorCall<1> v66 v44 {
+    v105:FloatExact = VectorCall<1> v63 v44 {
       FrameState {
         NextInstrOffset 76
         Locals<1> v44
-        Stack<3> v115 v116 v117
+        Stack<3> v102 v103 v104
+      }
+    }
+    Snapshot
+    v65:Nullptr = LoadConst<Nullptr>
+    v66:OptObject = LoadGlobalCached<4; "list">
+    v67:ImmortalTypeExact[list:obj] = GuardIs<0xdeadbeef> v66 {
+      Descr 'LOAD_GLOBAL: list'
+    }
+    Snapshot
+    v106:ListExact = VectorCall<1> v67 v44 {
+      FrameState {
+        NextInstrOffset 96
+        Locals<1> v44
+        Stack<4> v102 v103 v104 v105
       }
     }
     Snapshot
     v69:Nullptr = LoadConst<Nullptr>
-    v70:OptObject = LoadGlobalCached<4; "list">
-    v71:ImmortalTypeExact[list:obj] = GuardIs<0xdeadbeef> v70 {
-      Descr 'LOAD_GLOBAL: list'
-    }
-    Snapshot
-    v119:ListExact = VectorCall<1> v71 v44 {
-      FrameState {
-        NextInstrOffset 96
-        Locals<1> v44
-        Stack<4> v115 v116 v117 v118
-      }
-    }
-    Snapshot
-    v74:Nullptr = LoadConst<Nullptr>
-    v75:OptObject = LoadGlobalCached<5; "set">
-    v76:ImmortalTypeExact[set:obj] = GuardIs<0xdeadbeef> v75 {
+    v70:OptObject = LoadGlobalCached<5; "set">
+    v71:ImmortalTypeExact[set:obj] = GuardIs<0xdeadbeef> v70 {
       Descr 'LOAD_GLOBAL: set'
     }
     Snapshot
-    v120:SetExact = VectorCall<1> v76 v44 {
+    v107:SetExact = VectorCall<1> v71 v44 {
       FrameState {
         NextInstrOffset 116
         Locals<1> v44
-        Stack<5> v115 v116 v117 v118 v119
+        Stack<5> v102 v103 v104 v105 v106
       }
     }
     Snapshot
-    v79:Nullptr = LoadConst<Nullptr>
-    v80:OptObject = LoadGlobalCached<6; "tuple">
-    v81:ImmortalTypeExact[tuple:obj] = GuardIs<0xdeadbeef> v80 {
+    v73:Nullptr = LoadConst<Nullptr>
+    v74:OptObject = LoadGlobalCached<6; "tuple">
+    v75:ImmortalTypeExact[tuple:obj] = GuardIs<0xdeadbeef> v74 {
       Descr 'LOAD_GLOBAL: tuple'
     }
     Snapshot
-    v121:TupleExact = VectorCall<1> v81 v44 {
+    v108:TupleExact = VectorCall<1> v75 v44 {
       FrameState {
         NextInstrOffset 136
         Locals<1> v44
-        Stack<6> v115 v116 v117 v118 v119 v120
+        Stack<6> v102 v103 v104 v105 v106 v107
       }
     }
     Snapshot
-    v84:Nullptr = LoadConst<Nullptr>
-    v85:OptObject = LoadGlobalCached<7; "type">
-    v86:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v85 {
+    v77:Nullptr = LoadConst<Nullptr>
+    v78:OptObject = LoadGlobalCached<7; "type">
+    v79:ImmortalTypeExact[type:obj] = GuardIs<0xdeadbeef> v78 {
       Descr 'LOAD_GLOBAL: type'
     }
     Snapshot
-    UseType<ImmortalTypeExact[type:obj]> v86
-    v128:Type = LoadField<ob_type@8, Type, borrowed> v44
+    UseType<ImmortalTypeExact[type:obj]> v79
+    v115:Type = LoadField<ob_type@8, Type, borrowed> v44
     Snapshot
-    v89:Nullptr = LoadConst<Nullptr>
-    v90:OptObject = LoadGlobalCached<8; "str">
-    v91:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v90 {
+    v81:Nullptr = LoadConst<Nullptr>
+    v82:OptObject = LoadGlobalCached<8; "str">
+    v83:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v82 {
       Descr 'LOAD_GLOBAL: str'
     }
     Snapshot
-    v123:UnicodeExact = VectorCall<1> v91 v44 {
+    v110:UnicodeExact = VectorCall<1> v83 v44 {
       FrameState {
         NextInstrOffset 176
         Locals<1> v44
-        Stack<8> v115 v116 v117 v118 v119 v120 v121 v128
+        Stack<8> v102 v103 v104 v105 v106 v107 v108 v115
       }
     }
     Snapshot
-    v94:Nullptr = LoadConst<Nullptr>
-    v95:OptObject = LoadGlobalCached<9; "int">
-    v96:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v95 {
+    v85:Nullptr = LoadConst<Nullptr>
+    v86:OptObject = LoadGlobalCached<9; "int">
+    v87:ImmortalTypeExact[int:obj] = GuardIs<0xdeadbeef> v86 {
       Descr 'LOAD_GLOBAL: int'
     }
     Snapshot
-    v124:LongExact = VectorCall<1> v96 v44 {
+    v111:LongExact = VectorCall<1> v87 v44 {
       FrameState {
         NextInstrOffset 196
         Locals<1> v44
-        Stack<9> v115 v116 v117 v118 v119 v120 v121 v128 v123
+        Stack<9> v102 v103 v104 v105 v106 v107 v108 v115 v110
       }
     }
     Snapshot
-    v99:Nullptr = LoadConst<Nullptr>
-    v100:OptObject = LoadGlobalCached<10; "object">
-    v101:ImmortalTypeExact[object:obj] = GuardIs<0xdeadbeef> v100 {
+    v89:Nullptr = LoadConst<Nullptr>
+    v90:OptObject = LoadGlobalCached<10; "object">
+    v91:ImmortalTypeExact[object:obj] = GuardIs<0xdeadbeef> v90 {
       Descr 'LOAD_GLOBAL: object'
     }
     Snapshot
-    v125:ObjectExact = VectorCall<1> v101 v44 {
+    v112:ObjectExact = VectorCall<1> v91 v44 {
       FrameState {
         NextInstrOffset 216
         Locals<1> v44
-        Stack<10> v115 v116 v117 v118 v119 v120 v121 v128 v123 v124
+        Stack<10> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111
       }
     }
     Snapshot
-    v104:Nullptr = LoadConst<Nullptr>
-    v105:OptObject = LoadGlobalCached<11; "C">
-    v106:MortalTypeExact[C:obj] = GuardIs<0xdeadbeef> v105 {
+    v93:Nullptr = LoadConst<Nullptr>
+    v94:OptObject = LoadGlobalCached<11; "C">
+    v95:MortalTypeExact[C:obj] = GuardIs<0xdeadbeef> v94 {
       Descr 'LOAD_GLOBAL: C'
     }
     Snapshot
-    v126:Object = VectorCall<1> v106 v44 {
+    v113:Object = VectorCall<1> v95 v44 {
       FrameState {
         NextInstrOffset 236
         Locals<1> v44
-        Stack<11> v115 v116 v117 v118 v119 v120 v121 v128 v123 v124 v125
+        Stack<11> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112
       }
     }
     Snapshot
-    v109:Nullptr = LoadConst<Nullptr>
-    v110:OptObject = LoadGlobalCached<12; "D">
-    v111:MortalTypeExact[D:obj] = GuardIs<0xdeadbeef> v110 {
+    v97:Nullptr = LoadConst<Nullptr>
+    v98:OptObject = LoadGlobalCached<12; "D">
+    v99:MortalTypeExact[D:obj] = GuardIs<0xdeadbeef> v98 {
       Descr 'LOAD_GLOBAL: D'
     }
     Snapshot
-    v127:Object = VectorCall<1> v111 v44 {
+    v114:Object = VectorCall<1> v99 v44 {
       FrameState {
         NextInstrOffset 256
         Locals<1> v44
-        Stack<12> v115 v116 v117 v118 v119 v120 v121 v128 v123 v124 v125 v126
+        Stack<12> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112 v113
       }
     }
     Snapshot
-    v114:MortalTupleExact = MakeTuple<13> v115 v116 v117 v118 v119 v120 v121 v128 v123 v124 v125 v126 v127 {
+    v101:MortalTupleExact = MakeTuple<13> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112 v113 v114 {
       FrameState {
         NextInstrOffset 264
         Locals<1> v44
-        Stack<13> v115 v116 v117 v118 v119 v120 v121 v128 v123 v124 v125 v126 v127
+        Stack<13> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112 v113 v114
       }
     }
     Snapshot
-    Return v114
+    Return v101
   }
 }
 --- Test Name ---
@@ -6378,18 +6414,18 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     Snapshot
     v13:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v16:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v15:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     UseType<LongExact> v13
-    UseType<LongExact> v16
-    v21:LongExact = LongInPlaceOp<Add> v13 v16 {
+    UseType<LongExact> v15
+    v20:LongExact = LongInPlaceOp<Add> v13 v15 {
       FrameState {
         NextInstrOffset 12
         Locals<1> v13
       }
     }
     Snapshot
-    v19:NoneType = LoadConst<NoneType>
-    Return<NoneType> v19
+    v18:NoneType = LoadConst<NoneType>
+    Return<NoneType> v18
   }
 }
 --- Test Name ---

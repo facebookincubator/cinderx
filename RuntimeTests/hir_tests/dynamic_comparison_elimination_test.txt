@@ -235,54 +235,54 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: isinstance'
     }
     Snapshot
-    v20:OptObject = LoadGlobalCached<1; "str">
-    v21:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v20 {
+    v19:OptObject = LoadGlobalCached<1; "str">
+    v20:ImmortalTypeExact[str:obj] = GuardIs<0xdeadbeef> v19 {
       Descr 'LOAD_GLOBAL: str'
     }
     Snapshot
-    v29:Type = LoadField<ob_type@8, Type, borrowed> v11
-    v30:CBool = PrimitiveCompare<Equal> v29 v21
-    CondBranch<5, 6> v30
+    v28:Type = LoadField<ob_type@8, Type, borrowed> v11
+    v29:CBool = PrimitiveCompare<Equal> v28 v20
+    CondBranch<5, 6> v29
   }
 
   bb 5 (preds 3) {
-    v31:Bool = PrimitiveBoxBool v30
+    v30:Bool = PrimitiveBoxBool v29
     Branch<7>
   }
 
   bb 6 (preds 3) {
-    v32:CInt32 = IsInstance v11 v21 {
+    v31:CInt32 = IsInstance v11 v20 {
       FrameState {
         NextInstrOffset 26
         Locals<1> v11
       }
     }
-    v33:CInt32[1] = LoadConst<CInt32[1]>
-    v34:CBool = PrimitiveCompare<Equal> v32 v33
-    v35:Bool = PrimitiveBoxBool v34
+    v32:CInt32[1] = LoadConst<CInt32[1]>
+    v33:CBool = PrimitiveCompare<Equal> v31 v32
+    v34:Bool = PrimitiveBoxBool v33
     Branch<7>
   }
 
   bb 7 (preds 5, 6) {
-    v36:Bool = Phi<5, 6> v31 v35
+    v35:Bool = Phi<5, 6> v30 v34
     Snapshot
-    UseType<Bool> v36
-    v37:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v38:CBool = PrimitiveCompare<Equal> v36 v37
-    v39:CInt32 = IntConvert<CInt32> v38
-    CondBranch<1, 2> v38
+    UseType<Bool> v35
+    v36:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v37:CBool = PrimitiveCompare<Equal> v35 v36
+    v38:CInt32 = IntConvert<CInt32> v37
+    CondBranch<1, 2> v37
   }
 
   bb 1 (preds 7) {
     Snapshot
-    v24:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    Return<ImmortalLongExact[1]> v24
+    v23:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    Return<ImmortalLongExact[1]> v23
   }
 
   bb 2 (preds 7) {
     Snapshot
-    v26:NoneType = LoadConst<NoneType>
-    Return<NoneType> v26
+    v25:NoneType = LoadConst<NoneType>
+    Return<NoneType> v25
   }
 }
 --- End ---

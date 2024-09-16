@@ -160,6 +160,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     LOAD_CONST,
     LOAD_DEREF,
     LOAD_FAST,
+    LOAD_FAST_CHECK,
     LOAD_FIELD,
     LOAD_GLOBAL,
     LOAD_ITERABLE_ARG,
@@ -430,6 +431,7 @@ static bool should_snapshot(
     case LOAD_CLOSURE:
     case LOAD_CONST:
     case LOAD_FAST:
+    case LOAD_FAST_CHECK:
     case LOAD_LOCAL:
     case NOP:
     case POP_TOP:
@@ -874,7 +876,8 @@ void HIRBuilder::translate(
           emitLoadConst(tc, bc_instr);
           break;
         }
-        case LOAD_FAST: {
+        case LOAD_FAST:
+        case LOAD_FAST_CHECK: {
           emitLoadFast(tc, bc_instr);
           break;
         }
@@ -2401,7 +2404,10 @@ void HIRBuilder::emitLoadFast(
     const jit::BytecodeInstruction& bc_instr) {
   int var_idx = bc_instr.oparg();
   Register* var = tc.frame.locals[var_idx];
-  tc.emit<CheckVar>(var, var, getVarname(code_, var_idx), tc.frame);
+  // Pre-3.12, LOAD_FAST behaves like LOAD_FAST_CHECK.
+  if (bc_instr.opcode() == LOAD_FAST_CHECK || PY_VERSION_HEX < 0x030C0000) {
+    tc.emit<CheckVar>(var, var, getVarname(code_, var_idx), tc.frame);
+  }
   tc.frame.stack.push(var);
 }
 
