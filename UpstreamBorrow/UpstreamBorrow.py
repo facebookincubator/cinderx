@@ -102,7 +102,7 @@ class ParsedFile:
 
         with open(source_file, "r") as f:
             self.file_content: str = f.read()
-            self.lines = self.file_content.split("\n")
+            self.lines: list[str] = self.file_content.split("\n")
 
 
 def extract_preprocessor_directives(
