@@ -789,10 +789,11 @@ void HIRPrinter::Print(
 void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
   Indented(os) << "NextInstrOffset " << state.next_instr_offset << std::endl;
 
-  auto nlocals = state.locals.size();
+  auto nlocals = state.nlocals;
   if (nlocals > 0) {
     Indented(os) << "Locals<" << nlocals << ">";
-    for (auto reg : state.locals) {
+    for (int i = 0; i < nlocals; ++i) {
+      auto reg = state.localsplus[i];
       if (reg == nullptr) {
         os << " <null>";
       } else {
@@ -802,10 +803,12 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
     os << std::endl;
   }
 
-  auto ncells = state.cells.size();
+  auto nlocalsplus = state.localsplus.size();
+  auto ncells = nlocalsplus - state.nlocals;
   if (ncells > 0) {
     Indented(os) << "Cells<" << ncells << ">";
-    for (auto reg : state.cells) {
+    for (int i = nlocals; i < nlocalsplus; ++i) {
+      auto reg = state.localsplus[i];
       if (reg == nullptr) {
         os << " <null>";
       } else {

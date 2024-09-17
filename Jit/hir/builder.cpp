@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/hir/builder.h"
 
-#include "boolobject.h"
 #include "ceval.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/opcode.h"
@@ -11,10 +10,6 @@
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "object.h"
-#include "preload.h"
-#include "structmember.h"
-#include "type.h"
 
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/bytecode.h"
@@ -102,6 +97,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     CONVERT_PRIMITIVE,
     CONTAINS_OP,
     COPY_DICT_WITHOUT_KEYS,
+    COPY_FREE_VARS,
     DELETE_ATTR,
     DELETE_FAST,
     DELETE_SUBSCR,
@@ -168,6 +164,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     LOAD_METHOD,
     LOAD_METHOD_SUPER,
     LOAD_TYPE,
+    MAKE_CELL,
     MAKE_FUNCTION,
     MAP_ADD,
     MATCH_CLASS,
@@ -231,27 +228,15 @@ const std::unordered_set<std::string_view> kBannedNames{
     "locals",
 };
 
-void HIRBuilder::AllocateRegistersForLocals(
-    Environment* env,
-    FrameState& state) {
-  auto nlocals = code_->co_nlocals;
-  state.locals.clear();
-  state.locals.reserve(nlocals);
-  for (int i = 0; i < nlocals; i++) {
-    state.locals.emplace_back(env->AllocateRegister());
+void HIRBuilder::allocateLocalsplus(Environment* env, FrameState& state) {
+  int nlocalsplus = numLocalsplus(code_);
+  state.localsplus.clear();
+  state.localsplus.reserve(nlocalsplus);
+  for (int i = 0; i < nlocalsplus; ++i) {
+    state.localsplus.emplace_back(env->AllocateRegister());
   }
-}
 
-void HIRBuilder::AllocateRegistersForCells(
-    Environment* env,
-    FrameState& state) {
-  Py_ssize_t ncells = PyTuple_GET_SIZE(PyCode_GetCellvars(code_)) +
-      PyTuple_GET_SIZE(PyCode_GetFreevars(code_));
-  state.cells.clear();
-  state.cells.reserve(ncells);
-  for (int i = 0; i < ncells; i++) {
-    state.cells.emplace_back(env->AllocateRegister());
-  }
+  state.nlocals = numLocals(code_);
 }
 
 // Holds the current state of translation for a given basic block
@@ -323,8 +308,8 @@ void HIRBuilder::addLoadArgs(TranslationContext& tc, int num_args) {
       ? code->co_argcount + code->co_kwonlyargcount
       : -1;
   for (int i = 0; i < num_args; i++) {
-    // Arguments in CPython are the first N locals
-    Register* dst = tc.frame.locals[i];
+    // Arguments in CPython are the first N locals.
+    Register* dst = tc.frame.localsplus[i];
     JIT_CHECK(dst != nullptr, "No register for argument {}", i);
     if (i == starargs_idx) {
       tc.emit<LoadArg>(dst, i, TTupleExact);
@@ -339,54 +324,38 @@ void HIRBuilder::addLoadArgs(TranslationContext& tc, int num_args) {
 //
 // Note: This is only necessary for 3.10.  For 3.12 we have the explicit
 // MAKE_CELL and COPY_FREE_VARS instructions.
-void HIRBuilder::addInitializeCells(
-    TranslationContext& tc,
-    Register* cur_func) {
+void HIRBuilder::addInitializeCells(TranslationContext& tc) {
 #if PY_VERSION_HEX < 0x030C0000
-  Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code_));
-  Py_ssize_t nfreevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code_));
+  int nlocals = tc.frame.nlocals;
+  int ncellvars = numCellvars(code_);
+  int nfreevars = numFreevars(code_);
 
   Register* null_reg = ncellvars > 0 ? temps_.AllocateNonStack() : nullptr;
-  for (int i = 0; i < ncellvars; i++) {
+  for (int i = 0; i < ncellvars; ++i) {
     int arg = CO_CELL_NOT_AN_ARG;
-    auto dst = tc.frame.cells[i];
+    Register* dst = tc.frame.localsplus[i + nlocals];
     JIT_CHECK(dst != nullptr, "No register for cell {}", i);
     Register* cell_contents = null_reg;
     if (code_->co_cell2arg != nullptr &&
         (arg = code_->co_cell2arg[i]) != CO_CELL_NOT_AN_ARG) {
       // cell is for argument local number `arg`
       JIT_CHECK(
-          static_cast<unsigned>(arg) < tc.frame.locals.size(),
+          static_cast<unsigned>(arg) < tc.frame.nlocals,
           "co_cell2arg says cell {} is local {} but locals size is {}",
           i,
           arg,
-          tc.frame.locals.size());
-      cell_contents = tc.frame.locals[arg];
+          tc.frame.nlocals);
+      cell_contents = tc.frame.localsplus[arg];
     }
     tc.emit<MakeCell>(dst, cell_contents, tc.frame);
     if (arg != CO_CELL_NOT_AN_ARG) {
       // Clear the local once we have it in a cell.
-      tc.frame.locals[arg] = null_reg;
+      tc.frame.localsplus[arg] = null_reg;
     }
   }
 
-  if (nfreevars == 0) {
-    return;
-  }
-
-  JIT_CHECK(cur_func != nullptr, "No cur_func in function with freevars");
-  Register* func_closure = temps_.AllocateNonStack();
-  tc.emit<LoadField>(
-      func_closure,
-      cur_func,
-      "func_closure",
-      offsetof(PyFunctionObject, func_closure),
-      TTuple);
-  for (int i = 0; i < nfreevars; i++) {
-    auto cell_idx = i + ncellvars;
-    Register* dst = tc.frame.cells[cell_idx];
-    JIT_CHECK(dst != nullptr, "No register for cell {}", cell_idx);
-    tc.emit<LoadTupleItem>(dst, func_closure, i);
+  if (nfreevars != 0) {
+    emitCopyFreeVars(tc, nfreevars);
   }
 #endif
 }
@@ -587,19 +556,17 @@ BasicBlock* HIRBuilder::buildHIRImpl(
           preloader_.globals(),
           preloader_.builtins(),
           /*parent=*/frame_state}};
-  AllocateRegistersForLocals(&irfunc->env, entry_tc.frame);
-  AllocateRegistersForCells(&irfunc->env, entry_tc.frame);
+  allocateLocalsplus(&irfunc->env, entry_tc.frame);
 
   addLoadArgs(entry_tc, preloader_.numArgs());
-  Register* cur_func = nullptr;
   // TODO(emacs): Check if the code object or preloader uses runtime func and
   // drop the frame_state == nullptr check. Inlined functions should load a
   // const instead of using LoadCurrentFunc.
   if (frame_state == nullptr && irfunc->uses_runtime_func) {
-    cur_func = temps_.AllocateNonStack();
-    entry_tc.emit<LoadCurrentFunc>(cur_func);
+    func_ = temps_.AllocateNonStack();
+    entry_tc.emit<LoadCurrentFunc>(func_);
   }
-  addInitializeCells(entry_tc, cur_func);
+  addInitializeCells(entry_tc);
 
   if (code_->co_flags & kCoFlagsAnyGenerator) {
     // InitialYield must be after args are loaded so they can be spilled to
@@ -812,6 +779,14 @@ void HIRBuilder::translate(
           emitKwNames(tc, bc_instr);
           break;
         }
+        case MAKE_CELL: {
+          emitMakeCell(tc, bc_instr.oparg());
+          break;
+        }
+        case COPY_FREE_VARS: {
+          emitCopyFreeVars(tc, bc_instr.oparg());
+          break;
+        }
         case IS_OP: {
           emitIsOp(tc, bc_instr.oparg());
           break;
@@ -857,7 +832,13 @@ void HIRBuilder::translate(
           break;
         }
         case LOAD_CLOSURE: {
-          tc.frame.stack.push(tc.frame.cells[bc_instr.oparg()]);
+          // <3.11, the oparg was the cell index.  >=3.11 it's the same index as
+          // any other local / frame value.
+          int idx = bc_instr.oparg();
+          if constexpr (PY_VERSION_HEX < 0x030B0000) {
+            idx += tc.frame.nlocals;
+          }
+          tc.frame.stack.push(tc.frame.localsplus[idx]);
           break;
         }
         case LOAD_DEREF: {
@@ -1225,7 +1206,7 @@ void HIRBuilder::translate(
         }
         case DELETE_FAST: {
           int var_idx = bc_instr.oparg();
-          Register* var = tc.frame.locals[var_idx];
+          Register* var = tc.frame.localsplus[var_idx];
           tc.emit<LoadConst>(var, TNullptr);
           break;
         }
@@ -2345,23 +2326,72 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
   tc.frame.stack.push(method_instance);
 }
 
+void HIRBuilder::emitMakeCell(TranslationContext& tc, int local_idx) {
+  JIT_CHECK(
+      local_idx >= tc.frame.nlocals,
+      "Argument is an index for a cell so it should be past the locals");
+  Register* local = tc.frame.localsplus[local_idx];
+  Register* cell = temps_.AllocateNonStack();
+  tc.emit<MakeCell>(cell, local, tc.frame);
+  moveOverwrittenStackRegisters(tc, local);
+  tc.emit<Assign>(local, cell);
+}
+
+void HIRBuilder::emitCopyFreeVars(TranslationContext& tc, int nfreevars) {
+  JIT_CHECK(nfreevars > 0, "Can't initialize {} freevars", nfreevars);
+  JIT_CHECK(
+      nfreevars == numFreevars(code_),
+      "COPY_FREE_VARS oparg doesn't match the function's freevars tuple");
+  JIT_CHECK(func_ != nullptr, "No func_ in function with freevars");
+
+  Register* func_closure = temps_.AllocateNonStack();
+  tc.emit<LoadField>(
+      func_closure,
+      func_,
+      "func_closure",
+      offsetof(PyFunctionObject, func_closure),
+      TTuple);
+  for (int i = 0; i < nfreevars; ++i) {
+    int local_idx = i + tc.frame.nlocals + numCellvars(code_);
+    Register* dst = tc.frame.localsplus[local_idx];
+    JIT_CHECK(dst != nullptr, "No register for free var {}", i);
+    tc.emit<LoadTupleItem>(dst, func_closure, i);
+  }
+}
+
 void HIRBuilder::emitLoadDeref(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
+  // <3.11, the oparg was the cell index.  >=3.11 it's the same index as any
+  // other local / frame value.
   int idx = bc_instr.oparg();
-  Register* src = tc.frame.cells[idx];
+  if constexpr (PY_VERSION_HEX < 0x030B0000) {
+    idx += tc.frame.nlocals;
+  }
+
+  Register* src = tc.frame.localsplus[idx];
   Register* dst = temps_.AllocateStack();
-  int frame_idx = tc.frame.locals.size() + idx;
+
   tc.emit<LoadCellItem>(dst, src);
-  tc.emit<CheckVar>(dst, dst, getVarname(code_, frame_idx), tc.frame);
+
+  BorrowedRef<> name = getVarname(code_, idx);
+  tc.emit<CheckVar>(dst, dst, name, tc.frame);
+
   tc.frame.stack.push(dst);
 }
 
 void HIRBuilder::emitStoreDeref(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
+  // <3.11, the oparg was the cell index.  >=3.11 it's the same index as any
+  // other local / frame value.
+  int idx = bc_instr.oparg();
+  if constexpr (PY_VERSION_HEX < 0x030B0000) {
+    idx += tc.frame.nlocals;
+  }
+
   Register* old = temps_.AllocateStack();
-  Register* dst = tc.frame.cells[bc_instr.oparg()];
+  Register* dst = tc.frame.localsplus[idx];
   Register* src = tc.frame.stack.pop();
   tc.emit<StealCellItem>(old, dst);
   tc.emit<SetCellItem>(dst, src, old);
@@ -2403,7 +2433,7 @@ void HIRBuilder::emitLoadFast(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   int var_idx = bc_instr.oparg();
-  Register* var = tc.frame.locals[var_idx];
+  Register* var = tc.frame.localsplus[var_idx];
   // Pre-3.12, LOAD_FAST behaves like LOAD_FAST_CHECK.
   if (bc_instr.opcode() == LOAD_FAST_CHECK || PY_VERSION_HEX < 0x030C0000) {
     tc.emit<CheckVar>(var, var, getVarname(code_, var_idx), tc.frame);
@@ -2418,7 +2448,7 @@ void HIRBuilder::emitLoadLocal(
       PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg());
   int index = PyLong_AsLong(PyTuple_GET_ITEM(index_and_descr, 0));
 
-  auto var = tc.frame.locals[index];
+  auto var = tc.frame.localsplus[index];
   tc.frame.stack.push(var);
 }
 
@@ -2429,7 +2459,7 @@ void HIRBuilder::emitStoreLocal(
   PyObject* index_and_descr =
       PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg());
   int index = PyLong_AsLong(PyTuple_GET_ITEM(index_and_descr, 0));
-  auto dst = tc.frame.locals[index];
+  auto dst = tc.frame.localsplus[index];
   moveOverwrittenStackRegisters(tc, dst);
   tc.emit<Assign>(dst, src);
 }
@@ -3191,7 +3221,7 @@ void HIRBuilder::emitStoreFast(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   Register* src = tc.frame.stack.pop();
-  Register* dst = tc.frame.locals[bc_instr.oparg()];
+  Register* dst = tc.frame.localsplus[bc_instr.oparg()];
   JIT_DCHECK(dst != nullptr, "no register");
   moveOverwrittenStackRegisters(tc, dst);
   tc.emit<Assign>(dst, src);

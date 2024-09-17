@@ -53,8 +53,8 @@ struct FrameState {
   }
   FrameState& operator=(const FrameState& other) {
     next_instr_offset = other.next_instr_offset;
-    locals = other.locals;
-    cells = other.cells;
+    localsplus = other.localsplus;
+    nlocals = other.nlocals;
     stack = other.stack;
     JIT_DCHECK(
         this != other.parent, "FrameStates should not be self-referential");
@@ -97,12 +97,13 @@ struct FrameState {
   // transferred to the interpreter.
   BCOffset next_instr_offset{0};
 
-  // Local variables
-  std::vector<Register*> locals;
+  // Combination of local variables, cell variables (used by closures of inner
+  // functions), and free variables (our closure), in that order.
+  std::vector<Register*> localsplus;
 
-  // Cells for cellvars (used by closures of inner functions) and freevars (our
-  // closure)
-  std::vector<Register*> cells;
+  // Number of local variables. Stored as a field directly because in tests
+  // there's no code object for us to inspect.
+  int nlocals{0};
 
   OperandStack stack;
   BlockStack block_stack;
@@ -129,12 +130,7 @@ struct FrameState {
         return false;
       }
     }
-    for (auto& reg : locals) {
-      if (reg != nullptr && !func(reg)) {
-        return false;
-      }
-    }
-    for (auto& reg : cells) {
+    for (auto& reg : localsplus) {
       if (reg != nullptr && !func(reg)) {
         return false;
       }
@@ -148,8 +144,7 @@ struct FrameState {
   bool operator==(const FrameState& other) const {
     return (next_instr_offset == other.next_instr_offset) &&
         (stack == other.stack) && (block_stack == other.block_stack) &&
-        (locals == other.locals) && (cells == other.cells) &&
-        (code == other.code);
+        (localsplus == other.localsplus) && (code == other.code);
   }
 
   bool operator!=(const FrameState& other) const {

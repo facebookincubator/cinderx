@@ -384,14 +384,10 @@ DeoptMetadata DeoptMetadata::fromInstr(
 
   auto populate_localsplus =
       [get_reg_idx](DeoptFrameMetadata& meta, hir::FrameState* fs) {
-        std::size_t nlocals = fs->locals.size();
-        std::size_t ncells = fs->cells.size();
-        meta.localsplus.resize(nlocals + ncells, -1);
-        for (std::size_t i = 0; i < nlocals; i++) {
-          meta.localsplus[i] = get_reg_idx(fs->locals[i]);
-        }
-        for (std::size_t i = 0; i < ncells; i++) {
-          meta.localsplus[nlocals + i] = get_reg_idx(fs->cells[i]);
+        size_t nlocalsplus = fs->localsplus.size();
+        meta.localsplus.resize(nlocalsplus, -1);
+        for (size_t i = 0; i < nlocalsplus; ++i) {
+          meta.localsplus[i] = get_reg_idx(fs->localsplus[i]);
         }
       };
 

@@ -8,14 +8,10 @@
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/preload.h"
-#include "cinderx/Jit/stack.h"
 
 #include <Python.h>
 
-#include <deque>
-#include <functional>
 #include <memory>
-#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -181,6 +177,8 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       bool load_method);
+  void emitCopyFreeVars(TranslationContext& tc, int nfreevars);
+  void emitMakeCell(TranslationContext& tc, int local_idx);
   void emitLoadDeref(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -422,9 +420,8 @@ class HIRBuilder {
       const FrameState& frame);
   void addInitialYield(TranslationContext& tc);
   void addLoadArgs(TranslationContext& tc, int num_args);
-  void addInitializeCells(TranslationContext& tc, Register* cur_func);
-  void AllocateRegistersForLocals(Environment* env, FrameState& state);
-  void AllocateRegistersForCells(Environment* env, FrameState& state);
+  void addInitializeCells(TranslationContext& tc);
+  void allocateLocalsplus(Environment* env, FrameState& state);
   void moveOverwrittenStackRegisters(TranslationContext& tc, Register* dst);
   bool tryEmitDirectMethodCall(
       const InvokeTarget& target,
@@ -471,6 +468,9 @@ class HIRBuilder {
   const Preloader& preloader_;
 
   TempAllocator temps_{nullptr};
+
+  // Tracks the function for compilations that require it.
+  Register* func_{nullptr};
 
   // Tracks the most recent constant read from a KW_NAMES opcode.
   Register* kwnames_{nullptr};

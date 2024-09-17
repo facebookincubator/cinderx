@@ -784,9 +784,12 @@ FrameState HIRParser::parseFrameState() {
     if (token == "NextInstrOffset") {
       fs.next_instr_offset = BCOffset{GetNextInteger()};
     } else if (token == "Locals") {
-      fs.locals = parseRegisterVector();
+      fs.localsplus = parseRegisterVector();
+      fs.nlocals = fs.localsplus.size();
     } else if (token == "Cells") {
-      fs.cells = parseRegisterVector();
+      for (auto reg : parseRegisterVector()) {
+        fs.localsplus.push_back(reg);
+      }
     } else if (token == "Stack") {
       for (Register* r : parseRegisterVector()) {
         fs.stack.push(r);

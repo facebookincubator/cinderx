@@ -181,4 +181,28 @@ CodeExtra* codeExtra(PyCodeObject* code) {
   return reinterpret_cast<CodeExtra*>(data_ptr);
 }
 
+int numLocals(PyCodeObject* code) {
+  return code->co_nlocals;
+}
+
+int numCellvars(PyCodeObject* code) {
+#if PY_VERSION_HEX >= 0x030B0000
+  return code->co_ncellvars;
+#else
+  return PyTuple_GET_SIZE(PyCode_GetCellvars(code));
+#endif
+}
+
+int numFreevars(PyCodeObject* code) {
+#if PY_VERSION_HEX >= 0x030B0000
+  return code->co_nfreevars;
+#else
+  return PyTuple_GET_SIZE(PyCode_GetFreevars(code));
+#endif
+}
+
+int numLocalsplus(PyCodeObject* code) {
+  return numLocals(code) + numCellvars(code) + numFreevars(code);
+}
+
 } // extern "C"

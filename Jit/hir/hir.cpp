@@ -919,19 +919,8 @@ int Function::numArgs() const {
 }
 
 Py_ssize_t Function::numVars() const {
-  if (code == nullptr) {
-    // code might be null if we parsed from textual ir
-    return 0;
-  }
-  // 3.11 added a convenient way of counting locals + free + cell vars, but
-  // otherwise we can compute it manually.
-#if PY_VERSION_HEX >= 0x030B0000
-  return code->co_nlocalsplus;
-#else
-  Py_ssize_t num_cellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
-  Py_ssize_t num_freevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code));
-  return code->co_nlocals + num_cellvars + num_freevars;
-#endif
+  // Code might be null if we parsed from textual HIR.
+  return code != nullptr ? numLocalsplus(code) : 0;
 }
 
 bool Function::canDeopt() const {

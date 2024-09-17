@@ -131,6 +131,12 @@ bool initCodeExtra(PyCodeObject* code);
 // data attached to it.
 CodeExtra* codeExtra(PyCodeObject* code);
 
+// Count the various frame variables that a code object will use.
+int numLocals(PyCodeObject* code);
+int numCellvars(PyCodeObject* code);
+int numFreevars(PyCodeObject* code);
+int numLocalsplus(PyCodeObject* code);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
