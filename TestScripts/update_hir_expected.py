@@ -266,7 +266,7 @@ def write_if_changed(filename: str, old_lines: list[str], new_lines: list[str]) 
         return
     with open(filename, "w") as f:
         print(f"Rewriting {filename}")
-        f.write("\n".join(new_lines))
+        f.write("\n".join(new_lines) + "\n")
 
 
 CPP_TEST_NAME_RE: re.Pattern[str] = re.compile(r"^TEST(_F)?\(([^,]+), ([^)]+)\) {")
@@ -378,14 +378,16 @@ def update_cpp_tests(  # noqa: C901
                 decl = m[1]
                 varname = m[2]
 
+                if in_version_block is not None and in_version_block != py_version:
+                    new_lines.append(line)
+                    continue
+
                 actual_lines = test_dict.pop(varname, None)
                 if actual_lines is None:
                     # This test has multiple expected variables, and this one is OK.
                     new_lines.append(line)
                     continue
 
-                if in_version_block is not None and in_version_block != py_version:
-                    continue
                 # Upgrade to a Python version switched block
                 if in_version_block is None and py_version == "3.12":
                     new_lines.append("#if PY_VERSION_HEX >= 0x030C0000")
