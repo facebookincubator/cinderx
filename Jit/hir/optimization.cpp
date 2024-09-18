@@ -923,6 +923,9 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
     return;
   }
 
+  JIT_DLOG(
+      "Inlining {} @ {}", fullname, reinterpret_cast<void*>(func->func_code));
+
   BasicBlock* head = call_instr->instr->block();
   BasicBlock* tail = head->splitAfter(*call_instr->instr);
   auto begin_inlined_function = BeginInlinedFunction::create(

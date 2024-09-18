@@ -44,7 +44,7 @@ def run_with_jitlist(command, jitlist):
     return proc.returncode == 0
 
 
-COMPILED_FUNC_RE = re.compile(r" -- Compiling ([^ ]+) @ 0x[0-9a-f]+$")
+COMPILED_FUNC_RE = re.compile(r" -- (Compiling|Inlining) ([^ ]+) @ 0x[0-9a-f]+$")
 
 
 def get_compiled_funcs(command):
@@ -67,7 +67,7 @@ def get_compiled_funcs(command):
         m = COMPILED_FUNC_RE.search(line)
         if m is None:
             continue
-        funcs.add(m[1])
+        funcs.add(m[2])
     if len(funcs) == 0:
         sys.exit("No compiled functions found")
     # We want a deterministic jitlist, unaffected by the order functions happen
