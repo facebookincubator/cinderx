@@ -832,6 +832,9 @@ class Value:
     def finish_bind(self, module: ModuleTable, klass: Class | None) -> Value | None:
         return self
 
+    def validate_overrides(self, module: ModuleTable, klass: Class | None) -> None:
+        pass
+
     def make_generic_type(self, index: GenericTypeIndex) -> Class | None:
         pass
 
@@ -1899,29 +1902,33 @@ class Class(Object["Class"]):
     ) -> Value | None:
         node = self.inexact_type()._member_nodes.get(name, None)
         with module.error_context(node):
-            new_value = my_value.finish_bind(module, self)
-            if new_value is None:
-                return None
-            my_value = new_value
+            return my_value.finish_bind(module, self)
 
-            for base in self.mro[1:]:
-                value = base.members.get(name)
-                if value is not None:
-                    self.check_incompatible_override(my_value, value, module)
+    def validate_overrides(self, module: ModuleTable, klass: Class | None) -> None:
+        to_remove: set[str] = set()
+        for name, my_value in self.members.items():
+            node = self.inexact_type()._member_nodes.get(name, None)
+            with module.error_context(node):
+                for base in self.mro[1:]:
+                    base_value = base.members.get(name)
+                    if base_value is not None:
+                        self.check_incompatible_override(my_value, base_value, module)
 
-                if isinstance(value, Slot) and isinstance(my_value, Slot):
-                    # use the base class slot
-                    if value.is_final or not value.assigned_on_class:
-                        return None
+                    if isinstance(base_value, Slot) and isinstance(my_value, Slot):
+                        # use the base class slot
+                        if base_value.is_final or not base_value.assigned_on_class:
+                            to_remove.add(name)
+                            break
 
-                    # For class values we are introducing a new slot which
-                    # can be accessed from the derived type.  We end up
-                    # creating a slot with a default value so the value can
-                    # be stored on the instance.
-                    my_value.override = value
-                    my_value.type_ref = value.type_ref
+                        # For class values we are introducing a new slot which
+                        # can be accessed from the derived type.  We end up
+                        # creating a slot with a default value so the value can
+                        # be stored on the instance.
+                        my_value.override = base_value
+                        my_value.type_ref = base_value.type_ref
 
-        return my_value
+        for name in to_remove:
+            del self.members[name]
 
     def define_slot(
         self,

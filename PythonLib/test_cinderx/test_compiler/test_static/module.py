@@ -240,6 +240,32 @@ class ModuleTests(StaticTestBase):
         compiler = self.decl_visit(**{"a": acode, "b": bcode})
         compiler.compile_module("b")
 
+    def test_recursive_imports_subclassing_cross_dependency(self) -> None:
+        acode = """
+            from typing import TYPE_CHECKING, Optional
+            if TYPE_CHECKING:
+                from b import X
+
+            class C:
+                def __init__(self):
+                    self.foo: Optional[X] = None
+
+                @property
+                def prop(self) -> int:
+                    return 42
+        """
+        bcode = """
+            from a import C
+
+            class X(C):
+                @property
+                def prop(self) -> int:
+                    return 42
+        """
+        # we decl-visit `a` first, making this a cycle (if imports are eager)
+        compiler = self.decl_visit(**{"a": acode, "b": bcode})
+        compiler.compile_module("b")
+
     def test_actual_cyclic_reference(self) -> None:
         acode = """
             from b import B

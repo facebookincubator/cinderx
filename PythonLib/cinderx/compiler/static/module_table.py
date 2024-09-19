@@ -452,9 +452,19 @@ class ModuleTable:
             if name not in self._children:
                 self._children[name] = self.compiler.type_env.DYNAMIC
         # We don't need these anymore...
-        self.decls.clear()
         self.implicit_decl_names.clear()
         self.finish_bind_done = True
+
+    def validate_overrides(self) -> None:
+        for _node, name, _value in self.decls:
+            if name is None:
+                continue
+
+            child = self._children.get(name, None)
+            if isinstance(child, Value):
+                child.validate_overrides(self, None)
+
+        self.decls.clear()
 
     def resolve_type(self, node: ast.AST, requester: str) -> Class | None:
         with self.ann_visitor.temporary_context_qualname(requester):

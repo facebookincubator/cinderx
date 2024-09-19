@@ -7,6 +7,7 @@ from __future__ import annotations
 import ast
 import builtins
 from ast import AST
+from collections import deque
 from types import CodeType
 from typing import Any, TYPE_CHECKING
 
@@ -471,6 +472,7 @@ class Compiler:
             )
 
         self.intrinsic_modules: set[str] = set(self.modules.keys())
+        self.decl_visitors: deque[DeclarationVisitor] = deque()
 
     def __getitem__(self, name: str) -> ModuleTable:
         return self.modules[name]
@@ -484,9 +486,25 @@ class Compiler:
         tree = AstOptimizer(optimize=optimize > 0).visit(tree)
         self.ast_cache[name] = tree
 
+        # Track if we're the first module being compiled, if we are then
+        # we want to finish up the validation of all of the modules that
+        # are imported and compiled for the first time because they were
+        # imported from this module, this is a little bit odd because we
+        # need to finish_bind first before we can validate the overrides
+        # and we may have circular references between modules.
+        validate_classes = not self.decl_visitors
         decl_visit = DeclarationVisitor(name, filename, self, optimize)
+        self.decl_visitors.append(decl_visit)
         decl_visit.visit(tree)
         decl_visit.finish_bind()
+
+        if validate_classes:
+            # Validate that the overrides for all of the modules we
+            # have compiled from this top-level module.
+            while self.decl_visitors:
+                decl_visit = self.decl_visitors.popleft()
+                decl_visit.module.validate_overrides()
+
         return tree
 
     def bind(
