@@ -873,7 +873,7 @@ fun jittestmodule:test {
     Snapshot
     v29:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v32:Object = VectorCall<0> v27 {
+    v31:Object = VectorCall<0> v27 {
       FrameState {
         NextInstrOffset 24
         Locals<1> v27
@@ -881,7 +881,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v32
+    Return v31
   }
 }
 --- Test Name ---
