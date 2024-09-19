@@ -109,10 +109,6 @@ JITList* g_jit_list{nullptr};
 // Function and code objects ("units") registered for compilation.
 std::unordered_set<BorrowedRef<>> jit_reg_units;
 
-// Function and code objects ("units") registered for pre-fork perf-trampoline
-// compilation.
-std::unordered_set<BorrowedRef<>> perf_trampoline_reg_units;
-
 // Only set during preloading. Used to keep track of functions that were
 // deleted as a side effect of preloading.
 using UnitDeletedCallback = std::function<void(PyObject*)>;
@@ -796,19 +792,6 @@ void compile_worker_thread() {
         unitFullname(unit));
   }
   JIT_DLOG("Finished compile worker in thread {}", std::this_thread::get_id());
-}
-
-void compile_perf_trampoline_entries() {
-  for (const auto& unit : perf_trampoline_reg_units) {
-    if (PyFunction_Check(unit)) {
-      PyFunctionObject* func = (PyFunctionObject*)unit.get();
-      if (PyUnstable_PerfTrampoline_CompileCode(
-              reinterpret_cast<PyCodeObject*>(func->func_code)) == -1) {
-        JIT_LOG("Failed to compile perf trampoline entry");
-      }
-    }
-  }
-  perf_trampoline_reg_units.clear();
 }
 
 void compile_units_preloaded(const std::vector<BorrowedRef<>> units) {
@@ -2158,9 +2141,6 @@ int _PyJIT_RegisterFunction(PyFunctionObject* func) {
   }
 
   if (skip) {
-    if (perf::isPreforkCompilationEnabled()) {
-      perf_trampoline_reg_units.emplace(reinterpret_cast<PyObject*>(func));
-    }
     return 0;
   }
 
@@ -2171,8 +2151,6 @@ int _PyJIT_RegisterFunction(PyFunctionObject* func) {
   if (shouldCompile(func)) {
     jit_reg_units.emplace(reinterpret_cast<PyObject*>(func));
     result = 1;
-  } else if (perf::isPreforkCompilationEnabled()) {
-    perf_trampoline_reg_units.emplace(reinterpret_cast<PyObject*>(func));
   }
 
   // If we have an active jit-list, scan this function's code object for any
@@ -2228,9 +2206,6 @@ void _PyJIT_FuncDestroyed(PyFunctionObject* func) {
     if (handle_unit_deleted_during_preload != nullptr) {
       handle_unit_deleted_during_preload(func_obj);
     }
-  }
-  if (perf::isPreforkCompilationEnabled()) {
-    perf_trampoline_reg_units.erase(reinterpret_cast<PyObject*>(func));
   }
   if (jit_ctx) {
     jit_ctx->funcDestroyed(func);
@@ -2455,13 +2430,6 @@ void _PyJIT_SetDisassemblySyntaxATT(void) {
 
 int _PyJIT_IsDisassemblySyntaxIntel(void) {
   return is_intel_syntax();
-}
-
-void _PyPerfTrampoline_CompilePerfTrampolinePreFork(void) {
-  if (perf::isPreforkCompilationEnabled()) {
-    PyUnstable_PerfTrampoline_SetPersistAfterFork(1);
-    compile_perf_trampoline_entries();
-  }
 }
 
 namespace jit {

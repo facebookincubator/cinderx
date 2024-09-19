@@ -101,7 +101,7 @@ PyObject* jitVectorcall(
 
 } // namespace
 
-void scheduleJitCompile(PyFunctionObject* func) {
+bool scheduleJitCompile(PyFunctionObject* func) {
   JIT_DCHECK(
       !_PyJIT_IsCompiled(func),
       "Function {} is already compiled",
@@ -109,13 +109,16 @@ void scheduleJitCompile(PyFunctionObject* func) {
 
   if (_PyJIT_IsAutoJITEnabled()) {
     func->vectorcall = autoJITVectorcall;
-    return;
+    return true;
   }
 
   func->vectorcall = jitVectorcall;
   if (!_PyJIT_RegisterFunction(func)) {
     func->vectorcall = getInterpretedVectorcall(func);
+    return false;
   }
+
+  return true;
 }
 
 bool isJitEntryFunction(vectorcallfunc func) {

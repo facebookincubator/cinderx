@@ -41,17 +41,22 @@
 
 #include <dlfcn.h>
 
+namespace {
+
+// Function objects registered for pre-fork perf-trampoline compilation.
+std::unordered_set<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;
+
 /*
  * Misc. Python-facing utility functions.
  */
 
-static PyObject* clear_caches(PyObject*, PyObject*) {
+PyObject* clear_caches(PyObject*, PyObject*) {
   jit::_PyJIT_GetGlobalCacheManager()->clear();
   Py_RETURN_NONE;
 }
 
 #if PY_VERSION_HEX < 0x030C0000
-static PyObject* clear_all_shadow_caches(PyObject*, PyObject*) {
+PyObject* clear_all_shadow_caches(PyObject*, PyObject*) {
   _PyShadow_FreeAll();
   Py_RETURN_NONE;
 }
@@ -62,7 +67,7 @@ PyDoc_STRVAR(
     "strict_module_patch(mod, name, value)\n\
 Patch a field in a strict module\n\
 Requires patching to be enabled");
-static PyObject* strict_module_patch(PyObject*, PyObject* args) {
+PyObject* strict_module_patch(PyObject*, PyObject* args) {
   PyObject* mod;
   PyObject* name;
   PyObject* value;
@@ -80,7 +85,7 @@ PyDoc_STRVAR(
     "strict_module_patch_delete(mod, name)\n\
 Delete a field in a strict module\n\
 Requires patching to be enabled");
-static PyObject* strict_module_patch_delete(PyObject*, PyObject* args) {
+PyObject* strict_module_patch_delete(PyObject*, PyObject* args) {
   PyObject* mod;
   PyObject* name;
   if (!PyArg_ParseTuple(args, "OU", &mod, &name)) {
@@ -96,7 +101,7 @@ PyDoc_STRVAR(
     strict_module_patch_enabled_doc,
     "strict_module_patch_enabled(mod)\n\
 Gets whether patching is enabled on the strict module");
-static PyObject* strict_module_patch_enabled(PyObject*, PyObject* mod) {
+PyObject* strict_module_patch_enabled(PyObject*, PyObject* mod) {
   if (!Ci_StrictModule_Check(mod)) {
     PyErr_SetString(PyExc_TypeError, "expected strict module object");
     return nullptr;
@@ -107,14 +112,14 @@ static PyObject* strict_module_patch_enabled(PyObject*, PyObject* mod) {
   Py_RETURN_FALSE;
 }
 
-static PyObject* clear_classloader_caches(PyObject*, PyObject*) {
+PyObject* clear_classloader_caches(PyObject*, PyObject*) {
   _PyClassLoader_ClearVtables();
   _PyClassLoader_ClearCache();
   _PyClassLoader_ClearGenericTypes();
   Py_RETURN_NONE;
 }
 
-static PyObject* watch_sys_modules(PyObject*, PyObject*) {
+PyObject* watch_sys_modules(PyObject*, PyObject*) {
   PyObject* sys = PyImport_ImportModule("sys");
   if (sys == nullptr) {
     Py_RETURN_NONE;
@@ -143,7 +148,7 @@ Calling this more than once has no effect. Call `cinder.disable_parallel_gc()`\n
 and then call this function to change the configuration.\n\
 \n\
 A ValueError is raised if the generation or number of threads is invalid.");
-static PyObject*
+PyObject*
 cinder_enable_parallel_gc(PyObject*, PyObject* args, PyObject* kwargs) {
   static char* argnames[] = {
       const_cast<char*>("min_generation"),
@@ -182,7 +187,7 @@ Disable parallel garbage collection.\n\
 \n\
 This only affects the next collection; calling this from a finalizer does not\n\
 affect the current collection.");
-static PyObject* cinder_disable_parallel_gc(PyObject*, PyObject*) {
+PyObject* cinder_disable_parallel_gc(PyObject*, PyObject*) {
   Cinder_DisableParallelGC();
   Py_RETURN_NONE;
 }
@@ -199,18 +204,31 @@ collector is enabled:\n\
 \n\
     num_threads: Number of threads used.\n\
     min_generation: The minimum generation for which parallel gc is enabled.");
-static PyObject* cinder_get_parallel_gc_settings(PyObject*, PyObject*) {
+PyObject* cinder_get_parallel_gc_settings(PyObject*, PyObject*) {
   return Cinder_GetParallelGCSettings();
 }
 
-static PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
-  _PyPerfTrampoline_CompilePerfTrampolinePreFork();
+PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
+  if (!jit::perf::isPreforkCompilationEnabled()) {
+    Py_RETURN_NONE;
+  }
+
+  PyUnstable_PerfTrampoline_SetPersistAfterFork(1);
+
+  for (BorrowedRef<PyFunctionObject> func : perf_trampoline_worklist) {
+    BorrowedRef<PyCodeObject> code = func->func_code;
+    if (PyUnstable_PerfTrampoline_CompileCode(code) == -1) {
+      JIT_LOG(
+          "Failed to compile perf trampoline for function {}",
+          jit::funcFullname(func));
+    }
+  }
+  perf_trampoline_worklist.clear();
+
   Py_RETURN_NONE;
 }
 
-static PyObject* is_compile_perf_trampoline_pre_fork_enabled(
-    PyObject*,
-    PyObject*) {
+PyObject* is_compile_perf_trampoline_pre_fork_enabled(PyObject*, PyObject*) {
   if (jit::perf::isPreforkCompilationEnabled()) {
     Py_RETURN_TRUE;
   }
@@ -223,7 +241,7 @@ typedef struct {
   int collectFrame;
 } StackWalkState;
 
-static CiStackWalkDirective frame_data_collector(
+CiStackWalkDirective frame_data_collector(
     void* data,
     PyObject* fqname,
     PyCodeObject* code,
@@ -272,7 +290,7 @@ fail:
   return CI_SWD_STOP_STACK_WALK;
 }
 
-static PyObject* collect_stack(int collectFrame) {
+PyObject* collect_stack(int collectFrame) {
 #if PY_VERSION_HEX < 0x030C0000
   PyObject* stack = PyList_New(0);
   if (stack == nullptr) {
@@ -293,16 +311,23 @@ static PyObject* collect_stack(int collectFrame) {
 #endif
 }
 
-static PyObject* get_entire_call_stack_as_qualnames_with_lineno(
-    PyObject*,
-    PyObject*) {
+PyObject* get_entire_call_stack_as_qualnames_with_lineno(PyObject*, PyObject*) {
   return collect_stack(0);
 }
 
-static PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
+PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
     PyObject*,
     PyObject*) {
   return collect_stack(1);
+}
+
+// Schedule a function to be JIT-compiled.  If that fails, then also try
+// compiling a perf trampoline for the Python function.
+void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
+  bool scheduled = scheduleJitCompile(func);
+  if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
+    perf_trampoline_worklist.emplace(func);
+  }
 }
 
 /*
@@ -310,7 +335,7 @@ static PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
  */
 
 // Visit a Python function on CinderX module initialization.
-static int function_visitor(BorrowedRef<PyFunctionObject> func) {
+int function_visitor(BorrowedRef<PyFunctionObject> func) {
   // Ensure the code object can track how often it is called.
   BorrowedRef<PyCodeObject> code = func->func_code;
   JIT_CHECK(
@@ -319,13 +344,13 @@ static int function_visitor(BorrowedRef<PyFunctionObject> func) {
       jit::funcFullname(func));
 
   // Schedule the function to be compiled if desired.
-  scheduleJitCompile(func);
+  scheduleCompile(func);
 
   return 1;
 }
 
 // Visit a Python object on CinderX module initialization.
-static int object_visitor(PyObject* obj, [[maybe_unused]] void* arg) {
+int object_visitor(PyObject* obj, [[maybe_unused]] void* arg) {
   if (PyFunction_Check(obj)) {
     return function_visitor(reinterpret_cast<PyFunctionObject*>(obj));
   }
@@ -334,18 +359,18 @@ static int object_visitor(PyObject* obj, [[maybe_unused]] void* arg) {
 }
 
 // Visit every Python object on CinderX module initialization.
-static void init_existing_objects() {
+void init_existing_objects() {
   initCodeExtraIndex();
 
   PyUnstable_GC_VisitObjects(object_visitor, nullptr);
 }
 
-static std::unique_ptr<PyGetSetDef[]> s_func_getset;
-static std::unique_ptr<PyGetSetDef[]> s_class_method_getset;
-static std::unique_ptr<PyGetSetDef[]> s_method_getset;
+std::unique_ptr<PyGetSetDef[]> s_func_getset;
+std::unique_ptr<PyGetSetDef[]> s_class_method_getset;
+std::unique_ptr<PyGetSetDef[]> s_method_getset;
 
 // Count the number of elements in a PyGetSetDef array.
-static size_t getsetLen(PyGetSetDef* getset) {
+size_t getsetLen(PyGetSetDef* getset) {
   size_t len = 0;
   for (PyGetSetDef* def = getset; def->name != nullptr; ++def) {
     ++len;
@@ -355,7 +380,7 @@ static size_t getsetLen(PyGetSetDef* getset) {
 
 // Override the getset array for a type with a new one that contains an extra
 // typed signature getter.
-static void getsetOverride(
+void getsetOverride(
     PyTypeObject* type,
     std::unique_ptr<PyGetSetDef[]>& targetArray,
     getter typeSigGetter) {
@@ -407,7 +432,7 @@ static void getsetOverride(
   PyType_Modified(type);
 }
 
-static void init_already_existing_types() {
+void init_already_existing_types() {
   // Update getset functions for callable types to include typed signature
   // getters.
   //
@@ -428,9 +453,7 @@ static void init_already_existing_types() {
 }
 
 #if PY_VERSION_HEX < 0x030C0000
-static void shadowcode_code_sizeof(
-    struct _PyShadowCode* shadow,
-    Py_ssize_t* res) {
+void shadowcode_code_sizeof(struct _PyShadowCode* shadow, Py_ssize_t* res) {
   *res += sizeof(_PyShadowCode);
   *res += sizeof(PyObject*) * shadow->l1_cache.size;
   *res += sizeof(PyObject*) * shadow->cast_cache.size;
@@ -442,7 +465,7 @@ static void shadowcode_code_sizeof(
 }
 #endif
 
-static int get_current_code_flags(PyThreadState* tstate) {
+int get_current_code_flags(PyThreadState* tstate) {
 #if PY_VERSION_HEX < 0x030C0000
   PyCodeObject* cur_code = nullptr;
   Ci_WalkStack(
@@ -462,7 +485,7 @@ static int get_current_code_flags(PyThreadState* tstate) {
 #endif
 }
 
-static int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
+int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
   switch (event) {
     case PY_CODE_EVENT_CREATE:
       initCodeExtra(co);
@@ -480,7 +503,7 @@ static int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
   return 0;
 }
 
-static int cinderx_dict_watcher(
+int cinderx_dict_watcher(
     PyDict_WatchEvent event,
     PyObject* dict_obj,
     PyObject* key_obj,
@@ -528,22 +551,22 @@ static int cinderx_dict_watcher(
   return 0;
 }
 
-static int cinderx_func_watcher(
+int cinderx_func_watcher(
     PyFunction_WatchEvent event,
     PyFunctionObject* func,
     PyObject* new_value) {
   switch (event) {
     case PyFunction_EVENT_CREATE:
-      scheduleJitCompile(func);
+      scheduleCompile(func);
       break;
     case PyFunction_EVENT_MODIFY_CODE:
       _PyJIT_FuncModified(func);
       // having deopted the func, we want to immediately consider recompiling.
       // func_set_code will assign this again later, but we do it early so
-      // scheduleJitCompile() can consider the new code object now.
+      // scheduleCompile() can consider the new code object now.
       Py_INCREF(new_value);
       Py_XSETREF(func->func_code, new_value);
-      scheduleJitCompile(func);
+      scheduleCompile(func);
       break;
     case PyFunction_EVENT_MODIFY_DEFAULTS:
       break;
@@ -557,10 +580,13 @@ static int cinderx_func_watcher(
         // qualname.
         Py_INCREF(new_value);
         Py_XSETREF(func->func_qualname, new_value);
-        scheduleJitCompile(func);
+        scheduleCompile(func);
       }
       break;
     case PyFunction_EVENT_DESTROY:
+      if (jit::perf::isPreforkCompilationEnabled()) {
+        perf_trampoline_worklist.erase(func);
+      }
       _PyJIT_FuncDestroyed(func);
       break;
   }
@@ -568,7 +594,7 @@ static int cinderx_func_watcher(
   return 0;
 }
 
-static int cinderx_type_watcher(PyTypeObject* type) {
+int cinderx_type_watcher(PyTypeObject* type) {
 #if PY_VERSION_HEX < 0x030C0000
   _PyShadow_TypeModified(type);
 #endif
@@ -577,7 +603,7 @@ static int cinderx_type_watcher(PyTypeObject* type) {
   return 0;
 }
 
-static int cinder_init() {
+int cinder_init() {
   if (init_upstream_borrow() < 0) {
     return -1;
   }
@@ -667,7 +693,7 @@ static int cinder_init() {
 // runtime. However, for now the only thing we truly support is loading
 // CinderX once ASAP on start-up, and then never unloading it until complete
 // process shutdown.
-static int cinder_fini() {
+int cinder_fini() {
   _PyClassLoader_ClearCache();
 
   PyThreadState* tstate = PyThreadState_Get();
@@ -734,9 +760,9 @@ static int cinder_fini() {
   return 0;
 }
 
-static bool g_was_initialized = false;
+bool g_was_initialized = false;
 
-static PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
+PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
   if (g_was_initialized) {
     Py_RETURN_FALSE;
   }
@@ -750,14 +776,14 @@ static PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
   Py_RETURN_TRUE;
 }
 
-static void module_free(void*) {
+void module_free(void*) {
   if (g_was_initialized) {
     g_was_initialized = false;
     JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
   }
 }
 
-static PyMethodDef _cinderx_methods[] = {
+PyMethodDef _cinderx_methods[] = {
     {"init",
      init,
      METH_NOARGS,
@@ -825,7 +851,7 @@ static PyMethodDef _cinderx_methods[] = {
      "| None)."},
     {nullptr, nullptr, 0, nullptr}};
 
-static struct PyModuleDef _cinderx_module = {
+struct PyModuleDef _cinderx_module = {
     PyModuleDef_HEAD_INIT,
     "_cinderx",
     "The internal CinderX extension module",
@@ -836,6 +862,8 @@ static struct PyModuleDef _cinderx_module = {
     /*m_clear=*/nullptr,
     /*m_free=*/module_free,
 };
+
+} // namespace
 
 PyObject* _cinderx_lib_init() {
   int dlopenflags =

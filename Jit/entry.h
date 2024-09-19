@@ -17,8 +17,10 @@ extern "C" {
  * unless AutoJIT is enabled, in that case the function will compile after it is
  * called more times than the AutoJIT threshold.  Before that it will run
  * through the interpreter.
+ *
+ * Return true if the function was successfully scheduled for compilation.
  */
-void scheduleJitCompile(PyFunctionObject* func);
+bool scheduleJitCompile(PyFunctionObject* func);
 
 /*
  * Check if a Python function entry point is a wrapper that will JIT-compile the
