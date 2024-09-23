@@ -1691,3 +1691,36 @@ TEST_F(HIRBuildTest, ListToTuple) {
 )";
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
+
+TEST_F(HIRBuildTest, LoadFastAndClear) {
+#if PY_VERSION_HEX >= 0x030C0000
+  uint8_t bc[] = {
+      LOAD_FAST_AND_CLEAR, 1, LOAD_FAST_CHECK, 0, POP_TOP, 0, RETURN_VALUE, 0};
+
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
+
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      NextInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = Assign v1
+    v1 = LoadConst<Nullptr>
+    v0 = CheckVar<"param0"> v0 {
+      FrameState {
+        NextInstrOffset 4
+        Locals<2> v0 v1
+        Stack<1> v3
+      }
+    }
+    Return v3
+  }
+}
+)";
+
+  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+#endif
+}

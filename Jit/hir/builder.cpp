@@ -156,6 +156,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     LOAD_CONST,
     LOAD_DEREF,
     LOAD_FAST,
+    LOAD_FAST_AND_CLEAR,
     LOAD_FAST_CHECK,
     LOAD_FIELD,
     LOAD_GLOBAL,
@@ -390,6 +391,7 @@ static bool should_snapshot(
     case LOAD_CLOSURE:
     case LOAD_CONST:
     case LOAD_FAST:
+    case LOAD_FAST_AND_CLEAR:
     case LOAD_FAST_CHECK:
     case LOAD_LOCAL:
     case NOP:
@@ -874,6 +876,7 @@ void HIRBuilder::translate(
           break;
         }
         case LOAD_FAST:
+        case LOAD_FAST_AND_CLEAR:
         case LOAD_FAST_CHECK: {
           emitLoadFast(tc, bc_instr);
           break;
@@ -2461,6 +2464,10 @@ void HIRBuilder::emitLoadFast(
     tc.emit<CheckVar>(var, var, getVarname(code_, var_idx), tc.frame);
   }
   tc.frame.stack.push(var);
+  if (bc_instr.opcode() == LOAD_FAST_AND_CLEAR) {
+    moveOverwrittenStackRegisters(tc, var);
+    tc.emit<LoadConst>(var, TNullptr);
+  }
 }
 
 void HIRBuilder::emitLoadLocal(
