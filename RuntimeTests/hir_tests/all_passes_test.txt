@@ -25,7 +25,7 @@ fun jittestmodule:test {
     UpdatePrevInstr<idx:-1>
     v6:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Branch<1>
@@ -52,7 +52,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: isinstance'
       LiveValues<2> b:v7 b:v8
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v7
       }
     }
@@ -61,7 +61,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: str'
       LiveValues<3> b:v7 b:v9 b:v11
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v7
         Stack<1> v9
       }
@@ -80,7 +80,7 @@ fun jittestmodule:test {
     v20:CInt32 = IsInstance v7 v12 {
       LiveValues<2> b:v7 unc:v12
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<1> v7
       }
     }
@@ -120,7 +120,7 @@ fun jittestmodule:test {
     v14:CInt32 = RunPeriodicTasks {
       LiveValues<1> b:v11
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v11
       }
     }
@@ -134,7 +134,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: isinstance'
       LiveValues<3> b:v11 unc:v16 b:v17
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v11
       }
     }
@@ -143,7 +143,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: str'
       LiveValues<4> b:v11 unc:v16 b:v18 b:v19
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 12
         Locals<1> v11
         Stack<2> v16 v18
       }
@@ -163,7 +163,7 @@ fun jittestmodule:test {
     v31:CInt32 = IsInstance v11 v20 {
       LiveValues<2> b:v11 unc:v20
       FrameState {
-        NextInstrOffset 26
+        CurInstrOffset 24
         Locals<1> v11
       }
     }
@@ -204,7 +204,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: len'
       LiveValues<1> b:v3
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
       }
     }
     v5:OptObject = LoadGlobalCached<1; "g">
@@ -212,7 +212,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: g'
       LiveValues<2> b:v4 b:v5
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Stack<1> v4
       }
     }
@@ -220,7 +220,7 @@ fun jittestmodule:test {
     v10:LongExact = PrimitiveBox<CInt64> v9 {
       LiveValues<1> s:v9
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
       }
     }
     Return v10
@@ -237,7 +237,7 @@ fun jittestmodule:test {
     UpdatePrevInstr<idx:-1>
     v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Branch<1>
@@ -250,7 +250,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: len'
       LiveValues<2> unc:v10 b:v11
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
       }
     }
     v13:OptObject = LoadGlobalCached<1; "g">
@@ -258,7 +258,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: g'
       LiveValues<3> unc:v10 b:v12 b:v13
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 12
         Stack<2> v10 v12
       }
     }
@@ -266,7 +266,7 @@ fun jittestmodule:test {
     v19:LongExact = PrimitiveBox<CInt64> v18 {
       LiveValues<1> s:v18
       FrameState {
-        NextInstrOffset 24
+        CurInstrOffset 22
       }
     }
     Return v19
@@ -286,7 +286,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: hasattr'
       LiveValues<2> b:v4 b:v5
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v4
       }
     }
@@ -294,7 +294,7 @@ fun jittestmodule:test {
     v9:Bool = VectorCall<2> v6 v4 v8 {
       LiveValues<3> b:v4 b:v6 b:v8
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<1> v4
       }
     }
@@ -314,7 +314,7 @@ fun jittestmodule:test {
     v11:CInt32 = RunPeriodicTasks {
       LiveValues<1> b:v8
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v8
       }
     }
@@ -327,7 +327,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: hasattr'
       LiveValues<2> b:v8 b:v14
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v8
       }
     }
@@ -336,7 +336,7 @@ fun jittestmodule:test {
     v18:Bool = VectorCall<2> v15 v8 v16 {
       LiveValues<3> b:v8 b:v15 unc:v16
       FrameState {
-        NextInstrOffset 18
+        CurInstrOffset 16
         Locals<1> v8
       }
     }
@@ -356,7 +356,7 @@ fun jittestmodule:test {
     v7:Bool = Compare<In> v3 v4 {
       LiveValues<2> b:v3 b:v4
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<2> v3 v4
       }
     }
@@ -377,7 +377,7 @@ fun jittestmodule:test {
     v10:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v6 b:v7
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<2> v6 v7
       }
     }
@@ -389,7 +389,7 @@ fun jittestmodule:test {
     v13:Bool = Compare<In> v6 v7 {
       LiveValues<2> b:v6 b:v7
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<2> v6 v7
       }
     }
@@ -409,7 +409,7 @@ fun jittestmodule:test {
     v7:Bool = Compare<NotIn> v3 v4 {
       LiveValues<2> b:v3 b:v4
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<2> v3 v4
       }
     }
@@ -430,7 +430,7 @@ fun jittestmodule:test {
     v10:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v6 b:v7
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<2> v6 v7
       }
     }
@@ -442,7 +442,7 @@ fun jittestmodule:test {
     v13:Bool = Compare<NotIn> v6 v7 {
       LiveValues<2> b:v6 b:v7
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<2> v6 v7
       }
     }
@@ -462,7 +462,7 @@ fun jittestmodule:test {
     v8:MortalListExact = MakeList<0> {
       LiveValues<1> unc:v7
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v7
       }
     }
@@ -470,7 +470,7 @@ fun jittestmodule:test {
     v17:CInt32 = ListAppend v8 v13 {
       LiveValues<2> o:v8 unc:v13
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<1> v8
       }
     }
@@ -493,7 +493,7 @@ fun jittestmodule:test {
     v13:CInt32 = RunPeriodicTasks {
       LiveValues<1> unc:v11
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v11
       }
     }
@@ -504,7 +504,7 @@ fun jittestmodule:test {
     v15:MortalListExact = MakeList<0> {
       LiveValues<1> unc:v11
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v11
       }
     }
@@ -512,7 +512,7 @@ fun jittestmodule:test {
     v24:CInt32 = ListAppend v15 v19 {
       LiveValues<2> o:v15 unc:v19
       FrameState {
-        NextInstrOffset 32
+        CurInstrOffset 30
         Locals<1> v15
       }
     }
@@ -536,7 +536,7 @@ fun jittestmodule:test {
     v13:OptNoneType = InitialYield {
       LiveValues<1> unc:v12
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
         Locals<1> v12
       }
     }
@@ -545,7 +545,7 @@ fun jittestmodule:test {
     v19:UnicodeExact = VectorCall<1, awaited, static> v34 v14 {
       LiveValues<2> b:v14 b:v34
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<1> v14
       }
     }
@@ -554,7 +554,7 @@ fun jittestmodule:test {
     v25:Object = CheckExc v24 {
       LiveValues<2> b:v14 o:v24
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<1> v14
       }
     }
@@ -572,7 +572,7 @@ fun jittestmodule:test {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> b:v14>> {
       LiveValues<1> b:v14
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<1> v14
       }
     }
@@ -584,7 +584,7 @@ fun jittestmodule:test {
     v30:Object = YieldFrom v27 v25 {
       LiveValues<3> b:v14 o:v25 b:v27
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<1> v14
         Stack<1> v25
       }
@@ -600,7 +600,7 @@ fun jittestmodule:test {
     v13:OptNoneType = InitialYield {
       LiveValues<1> unc:v12
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset 0
         Locals<1> v12
       }
     }
@@ -609,7 +609,7 @@ fun jittestmodule:test {
     v19:UnicodeExact = VectorCall<1, awaited, static> v34 v14 {
       LiveValues<2> b:v14 b:v34
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 12
         Locals<1> v14
       }
     }
@@ -618,7 +618,7 @@ fun jittestmodule:test {
     v25:Object = CheckExc v24 {
       LiveValues<2> b:v14 o:v24
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 12
         Locals<1> v14
       }
     }
@@ -636,7 +636,7 @@ fun jittestmodule:test {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> b:v14>> {
       LiveValues<1> b:v14
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 12
         Locals<1> v14
       }
     }
@@ -648,7 +648,7 @@ fun jittestmodule:test {
     v30:Object = YieldFrom v27 v25 {
       LiveValues<3> b:v14 o:v25 b:v27
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 12
         Locals<1> v14
         Stack<1> v25
       }
@@ -672,7 +672,7 @@ fun jittestmodule:test {
     v13:UnicodeExact = VectorCall<2, static> v14 v7 v12 {
       LiveValues<3> b:v7 unc:v12 b:v14
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<1> v7
       }
     }
@@ -692,7 +692,7 @@ fun jittestmodule:test {
     v12:CInt32 = RunPeriodicTasks {
       LiveValues<1> unc:v10
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v10
       }
     }
@@ -707,7 +707,7 @@ fun jittestmodule:test {
     v19:UnicodeExact = VectorCall<2, static> v20 v14 v18 {
       LiveValues<3> unc:v14 unc:v18 b:v20
       FrameState {
-        NextInstrOffset 32
+        CurInstrOffset 30
         Locals<1> v14
       }
     }
@@ -728,7 +728,7 @@ fun jittestmodule:test {
     v14:UnicodeExact = CheckExc v13 {
       LiveValues<2> b:v6 o:v13
       FrameState {
-        NextInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v6
       }
     }
@@ -748,7 +748,7 @@ fun jittestmodule:test {
     v11:CInt32 = RunPeriodicTasks {
       LiveValues<1> unc:v9
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v9
       }
     }
@@ -762,7 +762,7 @@ fun jittestmodule:test {
     v20:UnicodeExact = CheckExc v19 {
       LiveValues<2> unc:v13 o:v19
       FrameState {
-        NextInstrOffset 30
+        CurInstrOffset 28
         Locals<1> v13
       }
     }
@@ -783,7 +783,7 @@ fun jittestmodule:test {
     v11:Object = VectorCall<1, static> v12 v6 {
       LiveValues<2> b:v6 b:v12
       FrameState {
-        NextInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v6
       }
     }
@@ -803,7 +803,7 @@ fun jittestmodule:test {
     v11:CInt32 = RunPeriodicTasks {
       LiveValues<1> unc:v9
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v9
       }
     }
@@ -817,7 +817,7 @@ fun jittestmodule:test {
     v17:Object = VectorCall<1, static> v18 v13 {
       LiveValues<2> unc:v13 b:v18
       FrameState {
-        NextInstrOffset 30
+        CurInstrOffset 28
         Locals<1> v13
       }
     }
@@ -839,7 +839,7 @@ fun jittestmodule:test {
     v16:Object = CheckExc v15 {
       LiveValues<2> b:v7 o:v15
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<1> v7
       }
     }
@@ -859,7 +859,7 @@ fun jittestmodule:test {
     v12:CInt32 = RunPeriodicTasks {
       LiveValues<1> unc:v10
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v10
       }
     }
@@ -874,7 +874,7 @@ fun jittestmodule:test {
     v22:Object = CheckExc v21 {
       LiveValues<2> unc:v14 o:v21
       FrameState {
-        NextInstrOffset 32
+        CurInstrOffset 30
         Locals<1> v14
       }
     }

@@ -18,7 +18,7 @@ fun jittestmodule:test {
     Snapshot
     v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      NextInstrOffset 4
+      CurInstrOffset 2
     }
     Snapshot
     v6:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
@@ -33,7 +33,7 @@ fun jittestmodule:test {
     Snapshot
     v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      NextInstrOffset 4
+      CurInstrOffset 4
     }
     Snapshot
     v6:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
@@ -59,7 +59,7 @@ fun jittestmodule:test {
     v5:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v6:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      NextInstrOffset 8
+      CurInstrOffset 6
     }
     Snapshot
     UseType<LongExact> v4
@@ -82,7 +82,7 @@ fun jittestmodule:test {
     v5:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v6:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      NextInstrOffset 8
+      CurInstrOffset 8
     }
     Snapshot
     UseType<LongExact> v4
@@ -114,7 +114,7 @@ fun jittestmodule:test {
     Snapshot
     v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      NextInstrOffset 4
+      CurInstrOffset 2
     }
     Snapshot
     v6:CInt8[4] = LoadConst<CInt8[4]>
@@ -129,7 +129,7 @@ fun jittestmodule:test {
     Snapshot
     v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      NextInstrOffset 4
+      CurInstrOffset 4
     }
     Snapshot
     v6:CInt8[4] = LoadConst<CInt8[4]>
@@ -155,7 +155,7 @@ fun jittestmodule:test {
     Snapshot
     v5:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      NextInstrOffset 6
+      CurInstrOffset 4
       Locals<1> v3
     }
     Snapshot
@@ -182,7 +182,7 @@ fun jittestmodule:test {
   bb 5 (preds 0) {
     v24:CInt32 = IsInstance v3 v17 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<1> v3
       }
     }
@@ -207,7 +207,7 @@ fun jittestmodule:test {
     Snapshot
     v5:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      NextInstrOffset 6
+      CurInstrOffset 6
       Locals<1> v3
     }
     Snapshot
@@ -234,7 +234,7 @@ fun jittestmodule:test {
   bb 5 (preds 0) {
     v24:CInt32 = IsInstance v3 v17 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
         Locals<1> v3
       }
     }

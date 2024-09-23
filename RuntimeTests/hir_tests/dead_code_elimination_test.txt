@@ -31,7 +31,7 @@ fun jittestmodule:test {
     Snapshot
     v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v7
       }
     }
@@ -63,7 +63,7 @@ fun jittestmodule:test {
     v15:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v16:Object = GetIter v15 {
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<3> v11 v13 v10
       }
     }
@@ -81,7 +81,7 @@ fun jittestmodule:test {
     Snapshot
     v23:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 12
         Locals<3> v11 v21 v22
         Stack<1> v16
       }
@@ -93,7 +93,7 @@ fun jittestmodule:test {
     Snapshot
     v28:Object = InvokeIterNext v16 {
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 12
         Locals<3> v11 v21 v22
         Stack<1> v16
       }
@@ -121,7 +121,7 @@ fun jittestmodule:test {
     v15:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v16:Object = GetIter v15 {
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 12
         Locals<3> v11 v13 v10
       }
     }
@@ -140,7 +140,7 @@ fun jittestmodule:test {
     Snapshot
     v23:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 12
         Locals<3> v11 v21 v22
         Stack<1> v16
       }
@@ -152,7 +152,7 @@ fun jittestmodule:test {
     Snapshot
     v28:Object = InvokeIterNext v16 {
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 14
         Locals<3> v11 v21 v22
         Stack<1> v16
       }
@@ -186,14 +186,14 @@ fun jittestmodule:test {
     v8:MortalUnicodeExact["test.<locals>.inner"] = LoadConst<MortalUnicodeExact["test.<locals>.inner"]>
     v9:MortalFunc = MakeFunction v7 v8 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<1> v6
       }
     }
     Snapshot
     v12:Object = VectorCall<0> v9 {
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<1> v9
       }
     }
@@ -215,7 +215,7 @@ fun jittestmodule:test {
     Snapshot
     v13:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v11
       }
     }
@@ -228,7 +228,7 @@ fun jittestmodule:test {
     v16:Nullptr = LoadConst<Nullptr>
     v17:MortalFunc = MakeFunction v15 v16 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<1> v11
       }
     }
@@ -237,7 +237,7 @@ fun jittestmodule:test {
     Snapshot
     v23:Object = VectorCall<0> v17 {
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 12
         Locals<1> v17
       }
     }

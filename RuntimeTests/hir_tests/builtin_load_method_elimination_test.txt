@@ -18,7 +18,7 @@ fun jittestmodule:test {
     Snapshot
     v7:UnicodeExact = VectorCall<1, static> v8 v4 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
       }
     }
     Snapshot
@@ -38,7 +38,7 @@ fun jittestmodule:test {
     Snapshot
     v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Branch<1>
@@ -53,7 +53,7 @@ fun jittestmodule:test {
     Snapshot
     v13:UnicodeExact = VectorCall<1, static> v14 v10 {
       FrameState {
-        NextInstrOffset 26
+        CurInstrOffset 24
       }
     }
     Snapshot
@@ -77,7 +77,7 @@ fun jittestmodule:test {
     Snapshot
     v10:UnicodeExact = VectorCall<2, static> v11 v6 v5 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<1> v5
       }
     }
@@ -99,7 +99,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v8
       }
     }
@@ -115,7 +115,7 @@ fun jittestmodule:test {
     Snapshot
     v16:UnicodeExact = VectorCall<2, static> v17 v13 v8 {
       FrameState {
-        NextInstrOffset 28
+        CurInstrOffset 26
         Locals<1> v8
       }
     }
@@ -141,7 +141,7 @@ fun jittestmodule:test {
     Snapshot
     v13:CInt32 = IsTruthy v10 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<3> v9 v10 v11
       }
     }
@@ -169,7 +169,7 @@ fun jittestmodule:test {
     Snapshot
     v25:UnicodeExact = VectorCall<2, static> v26 v20 v9 {
       FrameState {
-        NextInstrOffset 22
+        CurInstrOffset 20
         Locals<3> v9 v10 v20
       }
     }
@@ -193,7 +193,7 @@ fun jittestmodule:test {
     Snapshot
     v17:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<3> v12 v13 v15
       }
     }
@@ -204,7 +204,7 @@ fun jittestmodule:test {
     Snapshot
     v21:CInt32 = IsTruthy v13 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<3> v12 v13 v15
       }
     }
@@ -232,7 +232,7 @@ fun jittestmodule:test {
     Snapshot
     v31:UnicodeExact = VectorCall<2, static> v32 v28 v12 {
       FrameState {
-        NextInstrOffset 42
+        CurInstrOffset 40
         Locals<3> v12 v13 v28
       }
     }
@@ -257,7 +257,7 @@ fun jittestmodule:test {
     Snapshot
     v19:Object = LoadMethodCached<1; "upper"> v8 {
       FrameState {
-        NextInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v8
         Stack<3> v18 v11 v8
       }
@@ -266,7 +266,7 @@ fun jittestmodule:test {
     Snapshot
     v16:Object = CallMethod<2> v19 v15 {
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<1> v8
         Stack<3> v18 v11 v8
       }
@@ -274,7 +274,7 @@ fun jittestmodule:test {
     Snapshot
     v17:UnicodeExact = VectorCall<3, static> v18 v9 v8 v16 {
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 12
         Locals<1> v8
       }
     }
@@ -296,7 +296,7 @@ fun jittestmodule:test {
     Snapshot
     v14:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v11
       }
     }
@@ -312,7 +312,7 @@ fun jittestmodule:test {
     Snapshot
     v24:Object = LoadMethodCached<1; "upper"> v11 {
       FrameState {
-        NextInstrOffset 30
+        CurInstrOffset 28
         Locals<1> v11
         Stack<3> v23 v18 v11
       }
@@ -321,7 +321,7 @@ fun jittestmodule:test {
     Snapshot
     v21:Object = CallMethod<2> v24 v20 {
       FrameState {
-        NextInstrOffset 50
+        CurInstrOffset 48
         Locals<1> v11
         Stack<3> v23 v18 v11
       }
@@ -329,7 +329,7 @@ fun jittestmodule:test {
     Snapshot
     v22:UnicodeExact = VectorCall<3, static> v23 v16 v11 v21 {
       FrameState {
-        NextInstrOffset 58
+        CurInstrOffset 56
         Locals<1> v11
       }
     }
@@ -353,7 +353,7 @@ fun jittestmodule:test {
     Snapshot
     v10:UnicodeExact = VectorCall<1, static> v14 v7 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
       }
     }
     Snapshot
@@ -363,7 +363,7 @@ fun jittestmodule:test {
     Snapshot
     v13:UnicodeExact = VectorCall<1, static> v15 v10 {
       FrameState {
-        NextInstrOffset 10
+        CurInstrOffset 8
       }
     }
     Snapshot
@@ -383,7 +383,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Branch<1>
@@ -398,7 +398,7 @@ fun jittestmodule:test {
     Snapshot
     v16:UnicodeExact = VectorCall<1, static> v20 v13 {
       FrameState {
-        NextInstrOffset 26
+        CurInstrOffset 24
       }
     }
     Snapshot
@@ -408,7 +408,7 @@ fun jittestmodule:test {
     Snapshot
     v19:UnicodeExact = VectorCall<1, static> v21 v16 {
       FrameState {
-        NextInstrOffset 54
+        CurInstrOffset 52
       }
     }
     Snapshot
@@ -425,7 +425,7 @@ fun jittestmodule:test {
   bb 0 {
     v11:OptNoneType = InitialYield {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Snapshot
@@ -436,7 +436,7 @@ fun jittestmodule:test {
     Snapshot
     v15:UnicodeExact = VectorCall<1, awaited, static> v28 v12 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
       }
     }
     CondBranchCheckType<4, 2, WaitHandle> v15
@@ -453,7 +453,7 @@ fun jittestmodule:test {
     SetCurrentAwaiter v16
     v18:Object = YieldAndYieldFrom v17 v16 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Stack<1> v15
       }
     }
@@ -468,7 +468,7 @@ fun jittestmodule:test {
     v20:OptObject = CallCFunc<Cix_PyCoro_GetAwaitableIter> v15
     v21:Object = CheckExc v20 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
       }
     }
     CondBranchCheckType<7, 8, ObjectUser[coroutine:Exact]> v21
@@ -482,7 +482,7 @@ fun jittestmodule:test {
   bb 9 (preds 7) {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
       }
     }
   }
@@ -492,7 +492,7 @@ fun jittestmodule:test {
     SetCurrentAwaiter v21
     v25:Object = YieldFrom v23 v21 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Stack<1> v21
       }
     }
@@ -510,7 +510,7 @@ fun jittestmodule:test {
   bb 0 {
     v11:OptNoneType = InitialYield {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset 0
       }
     }
     Snapshot
@@ -521,7 +521,7 @@ fun jittestmodule:test {
     Snapshot
     v15:UnicodeExact = VectorCall<1, awaited, static> v28 v12 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
       }
     }
     CondBranchCheckType<4, 2, WaitHandle> v15
@@ -538,7 +538,7 @@ fun jittestmodule:test {
     SetCurrentAwaiter v16
     v18:Object = YieldAndYieldFrom v17 v16 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
         Stack<1> v15
       }
     }
@@ -553,7 +553,7 @@ fun jittestmodule:test {
     v20:OptObject = CallCFunc<Cix_PyCoro_GetAwaitableIter> v15
     v21:Object = CheckExc v20 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
       }
     }
     CondBranchCheckType<7, 8, ObjectUser[coroutine:Exact]> v21
@@ -567,7 +567,7 @@ fun jittestmodule:test {
   bb 9 (preds 7) {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
       }
     }
   }
@@ -577,7 +577,7 @@ fun jittestmodule:test {
     SetCurrentAwaiter v21
     v25:Object = YieldFrom v23 v21 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
         Stack<1> v21
       }
     }
@@ -619,7 +619,7 @@ fun jittestmodule:test {
   bb 2 (preds 0) {
     v14:Object = FillTypeMethodCache<0, 1> v6 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
       }
     }
     Branch<3>
@@ -632,7 +632,7 @@ fun jittestmodule:test {
     v9:MortalUnicodeExact["Hello"] = LoadConst<MortalUnicodeExact["Hello"]>
     v10:Object = CallMethod<3> v15 v8 v9 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
       }
     }
     Snapshot
@@ -652,7 +652,7 @@ fun jittestmodule:test {
     Snapshot
     v10:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Branch<1>
@@ -679,7 +679,7 @@ fun jittestmodule:test {
   bb 4 (preds 1) {
     v20:Object = FillTypeMethodCache<0, 1> v12 {
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 12
       }
     }
     Branch<5>
@@ -692,7 +692,7 @@ fun jittestmodule:test {
     v15:ImmortalUnicodeExact["Hello"] = LoadConst<ImmortalUnicodeExact["Hello"]>
     v16:Object = CallMethod<3> v21 v14 v15 {
       FrameState {
-        NextInstrOffset 36
+        CurInstrOffset 34
       }
     }
     Snapshot
@@ -711,14 +711,14 @@ fun jittestmodule:test {
     v4:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
     v8:Object = LoadMethodCached<0; "unknown"> v4 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
       }
     }
     v6:OptObject = GetSecondOutput<OptObject> v8
     Snapshot
     v7:Object = CallMethod<2> v8 v6 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
       }
     }
     Snapshot
@@ -738,7 +738,7 @@ fun jittestmodule:test {
     Snapshot
     v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Branch<1>
@@ -749,14 +749,14 @@ fun jittestmodule:test {
     v10:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
     v14:Object = LoadMethodCached<0; "unknown"> v10 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
       }
     }
     v12:OptObject = GetSecondOutput<OptObject> v14
     Snapshot
     v13:Object = CallMethod<2> v14 v12 {
       FrameState {
-        NextInstrOffset 26
+        CurInstrOffset 24
       }
     }
     Snapshot
@@ -781,7 +781,7 @@ fun jittestmodule:test {
     v11:ImmortalTypeExact[bytes:obj] = LoadConst<ImmortalTypeExact[bytes:obj]>
     v9:Object = VectorCall<2, static> v10 v11 v8 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
       }
     }
     Snapshot
@@ -801,7 +801,7 @@ fun jittestmodule:test {
     Snapshot
     v10:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Branch<1>
@@ -818,7 +818,7 @@ fun jittestmodule:test {
     v17:ImmortalTypeExact[bytes:obj] = LoadConst<ImmortalTypeExact[bytes:obj]>
     v15:Object = VectorCall<2, static> v16 v17 v14 {
       FrameState {
-        NextInstrOffset 28
+        CurInstrOffset 26
       }
     }
     Snapshot
@@ -842,7 +842,7 @@ fun jittestmodule:test {
     v8:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v9:Object = VectorCall<2, static> v10 v5 v8 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
       }
     }
     Snapshot
@@ -862,7 +862,7 @@ fun jittestmodule:test {
     Snapshot
     v10:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Branch<1>
@@ -878,7 +878,7 @@ fun jittestmodule:test {
     v14:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v15:Object = VectorCall<2, static> v16 v11 v14 {
       FrameState {
-        NextInstrOffset 28
+        CurInstrOffset 26
       }
     }
     Snapshot
