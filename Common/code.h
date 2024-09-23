@@ -79,8 +79,11 @@ static inline PyCodeObject* PyUnstable_Code_New(
 // Get the internal _Py_CODEUNIT buffer from a code object.
 _Py_CODEUNIT* codeUnit(PyCodeObject* code);
 
-// Count the number of bytecode instructions in a code object.
-size_t countInstrs(PyCodeObject* code);
+// Count the number of "indicies" in a code object. This used to make more
+// sense when each instruction occupied a fix nubmer of bytes in the bytecode.
+// However, in some cases it's still helpful to consider sizeof(_Py_CODEUNIT)
+// sized chunks.
+size_t countIndicies(PyCodeObject* code);
 
 // Convert a specialized opcode back to its base form.
 int unspecialize(int opcode);
@@ -88,7 +91,7 @@ int unspecialize(int opcode);
 // Convert an instrumented opcode back to its base form.
 int uninstrument(PyCodeObject* code, int index);
 
-// Get the byte side of an opcode's inline cache.
+// Get the byte size of an opcode's inline cache.
 //
 // This needs to take a code object and an opcode index to process instrumented
 // opcodes.

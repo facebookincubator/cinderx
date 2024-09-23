@@ -52,7 +52,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: isinstance'
       LiveValues<2> b:v7 b:v8
       FrameState {
-        NextInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v7
       }
     }
@@ -61,7 +61,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: str'
       LiveValues<3> b:v7 b:v9 b:v11
       FrameState {
-        NextInstrOffset 2
+        NextInstrOffset 4
         Locals<1> v7
         Stack<1> v9
       }
@@ -134,7 +134,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: isinstance'
       LiveValues<3> b:v11 unc:v16 b:v17
       FrameState {
-        NextInstrOffset 2
+        NextInstrOffset 4
         Locals<1> v11
       }
     }
@@ -143,7 +143,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: str'
       LiveValues<4> b:v11 unc:v16 b:v18 b:v19
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 14
         Locals<1> v11
         Stack<2> v16 v18
       }
@@ -204,7 +204,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: len'
       LiveValues<1> b:v3
       FrameState {
-        NextInstrOffset 0
+        NextInstrOffset 2
       }
     }
     v5:OptObject = LoadGlobalCached<1; "g">
@@ -212,7 +212,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: g'
       LiveValues<2> b:v4 b:v5
       FrameState {
-        NextInstrOffset 2
+        NextInstrOffset 4
         Stack<1> v4
       }
     }
@@ -250,7 +250,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: len'
       LiveValues<2> unc:v10 b:v11
       FrameState {
-        NextInstrOffset 2
+        NextInstrOffset 4
       }
     }
     v13:OptObject = LoadGlobalCached<1; "g">
@@ -258,7 +258,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: g'
       LiveValues<3> unc:v10 b:v12 b:v13
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 14
         Stack<2> v10 v12
       }
     }
@@ -286,7 +286,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: hasattr'
       LiveValues<2> b:v4 b:v5
       FrameState {
-        NextInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v4
       }
     }
@@ -327,7 +327,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: hasattr'
       LiveValues<2> b:v8 b:v14
       FrameState {
-        NextInstrOffset 2
+        NextInstrOffset 4
         Locals<1> v8
       }
     }

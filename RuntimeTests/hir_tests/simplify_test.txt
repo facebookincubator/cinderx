@@ -6461,7 +6461,6 @@ fun jittestmodule:test {
         Locals<2> v13 v12
       }
     }
-    Snapshot
     Branch<4>
   }
 
@@ -6476,7 +6475,7 @@ fun jittestmodule:test {
     Snapshot
     v25:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v23 v24
         Stack<1> v19
       }

@@ -782,7 +782,8 @@ FrameState HIRParser::parseFrameState() {
   auto token = GetNextToken();
   while (token != "}") {
     if (token == "NextInstrOffset") {
-      fs.next_instr_offset = BCOffset{GetNextInteger()};
+      fs.cur_instr_offs =
+          BCOffset{GetNextInteger() - static_cast<int>(sizeof(_Py_CODEUNIT))};
     } else if (token == "Locals") {
       fs.localsplus = parseRegisterVector();
       fs.nlocals = fs.localsplus.size();

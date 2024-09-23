@@ -37,8 +37,8 @@ class ReifyFrameTest : public RuntimeTest {};
 
 static inline Ref<> runInInterpreterViaReify(
     BorrowedRef<PyFunctionObject> func,
-    DeoptMetadata& dm,
-    DeoptFrameMetadata& dfm,
+    const DeoptMetadata& dm,
+    const DeoptFrameMetadata& dfm,
     uint64_t regs[PhyLocation::NUM_GP_REGS]) {
 #if PY_VERSION_HEX < 0x030C0000
   PyThreadState* tstate = PyThreadState_Get();
@@ -98,12 +98,13 @@ def test(a, b):
 
   DeoptMetadata dm;
   dm.live_values = {a_val, b_val};
+  dm.reason = DeoptReason::kGuardFailure;
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
-  dfm.next_instr_offset = BCOffset{0};
+  dfm.cause_instr_idx = BCOffset{0};
   dm.frame_meta.push_back(dfm);
 
-  Ref<> result = runInInterpreterViaReify(func, dm, dfm, regs);
+  Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
   ASSERT_NE(result, nullptr);
   ASSERT_TRUE(PyLong_CheckExact(result));
@@ -140,17 +141,18 @@ def test(a, b):
 
   DeoptMetadata dm;
   dm.live_values = {a_val, b_val};
+  dm.reason = DeoptReason::kGuardFailure;
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 1};
 #if PY_VERSION_HEX >= 0x030C0000
-  dfm.next_instr_offset = BCOffset{6};
+  dfm.cause_instr_idx = BCOffset{6};
 #else
-  dfm.next_instr_offset = BCOffset{4};
+  dfm.cause_instr_idx = BCOffset{4};
 #endif
   dm.frame_meta.push_back(dfm);
 
-  Ref<> result = runInInterpreterViaReify(func, dm, dfm, regs);
+  Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
   ASSERT_NE(result, nullptr);
   ASSERT_TRUE(PyLong_CheckExact(result));
@@ -189,17 +191,18 @@ def test(a, b):
 
   DeoptMetadata dm;
   dm.live_values = {a_val, b_val};
+  dm.reason = DeoptReason::kGuardFailure;
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 1};
 #if PY_VERSION_HEX >= 0x030C0000
-  dfm.next_instr_offset = BCOffset{6};
+  dfm.cause_instr_idx = BCOffset{6};
 #else
-  dfm.next_instr_offset = BCOffset{4};
+  dfm.cause_instr_idx = BCOffset{4};
 #endif
   dm.frame_meta.push_back(dfm);
 
-  Ref<> result = runInInterpreterViaReify(func, dm, dfm, regs);
+  Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
   ASSERT_NE(result, nullptr);
   ASSERT_TRUE(PyLong_CheckExact(result));
@@ -247,18 +250,19 @@ def test(num):
       LiveValue::Source::kUnknown};
 
   DeoptMetadata dm;
+  dm.reason = DeoptReason::kGuardFailure;
   dm.live_values = {num_val, fact_val, tmp_val};
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 2};
 #if PY_VERSION_HEX >= 0x030C0000
-  dfm.next_instr_offset = BCOffset{10};
+  dfm.cause_instr_idx = BCOffset{10};
 #else
-  dfm.next_instr_offset = BCOffset{8};
+  dfm.cause_instr_idx = BCOffset{8};
 #endif
   dm.frame_meta.push_back(dfm);
 
-  Ref<> result = runInInterpreterViaReify(func, dm, dfm, regs);
+  Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
   ASSERT_NE(result, nullptr);
   ASSERT_TRUE(PyLong_CheckExact(result));
@@ -302,13 +306,15 @@ def test(x, y):
 
     DeoptMetadata dm;
     dm.live_values = {a_val};
+    dm.reason = DeoptReason::kGuardFailure;
     DeoptFrameMetadata dfm;
     dfm.localsplus = {0};
     dfm.stack = {0};
-    dfm.next_instr_offset = BCOffset(jump_index);
+    dfm.cause_instr_idx = BCOffset(jump_index);
     dm.frame_meta.push_back(dfm);
 
-    Ref<> result = runInInterpreterViaReify(func, dm, dfm, regs);
+    Ref<> result =
+        runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
     ASSERT_NE(result, nullptr);
     ASSERT_TRUE(PyBool_Check(result));
