@@ -5,20 +5,16 @@ import json
 import os
 import re
 import subprocess
+from collections import defaultdict
+from dataclasses import dataclass
 from functools import partial
 from typing import Callable
 
 import click
 
-from clang.cindex import (
-    Config,
-    CursorKind,
-    Index,
-    TranslationUnit,
-    TranslationUnitLoadError,
-)
+from clang.cindex import CursorKind
 
-T_COMPILATION_DB = list[dict[str, str | list[str]]]
+from .clang_parser import FileParser, ParsedFile
 
 BORROW_CPP_DIRECTIVES_PATTERN: re.Pattern[str] = re.compile(
     r".*// @Borrow CPP directives from (\S+)(?: \[(.*?)\])?"
@@ -38,74 +34,6 @@ HEADER = """
 // See the Buck target fbcode//cinderx/UpstreamBorrow:gen_borrowed.c.
 
 """
-
-
-def filter_cpp_args(args: list[str]) -> list[str]:
-    new_args = []
-    append_next = False
-    for arg in args:
-        if append_next:
-            new_args.append(arg)
-            append_next = False
-        elif arg in ["-I", "-isystem", "-idirafter", "-iquote", "-D", "-U", "-Xclang"]:
-            new_args.append(arg)
-            append_next = True
-        elif (
-            arg
-            in [
-                "-nostdinc",
-                "-nostdinc++",
-                "-no-canonical-prefixes",
-                "-pthread",
-                "-no-pthread",
-                "-pthreads",
-            ]
-            or arg.startswith("-finput-charset=")
-            or arg.startswith("-I")
-            or arg.startswith("-U")
-            or arg.startswith("-D")
-            or arg.startswith("-std=")
-        ):
-            new_args.append(arg)
-    return new_args
-
-
-class ParsedFile:
-    def __init__(
-        self,
-        source_file: str,
-        compile_commands_db: T_COMPILATION_DB,
-    ) -> None:
-        args = []
-        for command in compile_commands_db:
-            file = command["file"]
-            assert type(file) is str
-            if file.endswith(source_file):
-                source_file = file
-                args = command["arguments"]
-                assert type(args) is list
-                args = filter_cpp_args(args)
-                break
-        else:
-            raise Exception(f"Could not find compile command for {source_file}")
-
-        self.source_file = source_file
-        print("Loading: ", source_file)
-
-        index = Index.create()
-        try:
-            self.translation_unit: TranslationUnit = index.parse(source_file, args=args)
-        except TranslationUnitLoadError as e:
-            # Unfortunately this is the main exception raised from index.parse()
-            # and is completely useless. Chances are the error is in the args or
-            # the file path.
-            raise Exception(
-                f"Failed to parse file: {source_file}, used args: {args}"
-            ) from e
-
-        with open(source_file, "r") as f:
-            self.file_content: str = f.read()
-            self.lines: list[str] = self.file_content.split("\n")
 
 
 def extract_preprocessor_directives(
@@ -132,28 +60,6 @@ def extract_preprocessor_directives(
     return directives
 
 
-def extract_preprocessor_directives_noinclude(
-    parsed_file: ParsedFile,
-) -> list[str]:
-    return extract_preprocessor_directives(parsed_file, includes=False)
-
-
-def extract_declaration(
-    name: str, kind: CursorKind, parsed_file: ParsedFile
-) -> list[str]:
-    print(f"Extracting {kind} for '{name}' from {parsed_file.source_file}")
-    # Find the last declaration as earlier ones might be forward declarations.
-    extent = None
-    for cursor in parsed_file.translation_unit.cursor.walk_preorder():
-        if cursor.kind == kind and cursor.spelling == name:
-            extent = cursor.extent
-    if extent:
-        # We don't need column info; we always extract complete lines
-        content = parsed_file.lines[extent.start.line - 1 : extent.end.line]
-        return content
-    raise Exception(f"Could not find {kind} for '{name}' in {parsed_file.source_file}")
-
-
 def parse_version_set(input_string: str | None) -> set[str]:
     if input_string:
         return {v.strip() for v in input_string.split(",")}
@@ -161,91 +67,167 @@ def parse_version_set(input_string: str | None) -> set[str]:
         return set()
 
 
-def parse_borrow_info(
-    input_string: str,
-) -> tuple[CursorKind, str, str, set[str]] | None:
-    if match := BORROW_DECL_PATTERN.match(input_string):
-        kind_str = match.group(1)
-        function_name = match.group(2)
-        source_file = match.group(3)
-        version_set = parse_version_set(match.group(4))
+@dataclass
+class Decl:
+    kind: CursorKind
+    name: str
+    source_file: str
+    version_set: set[str]
 
-        if kind_str == "function":
-            # pyre-ignore[16]: `CursorKind` has no attribute `FUNCTION_DECL`.
-            kind = CursorKind.FUNCTION_DECL
-        elif kind_str == "typedef":
-            # pyre-ignore[16]: `CursorKind` has no attribute `TYPEDEF_DECL`.
-            kind = CursorKind.TYPEDEF_DECL
-        elif kind_str == "var":
-            # pyre-ignore[16]: `CursorKind` has no attribute `VAR_DECL`.
-            kind = CursorKind.VAR_DECL
-        else:
-            raise Exception(f"Unknown kind: {kind_str}")
 
-        return kind, function_name, source_file, version_set
-    else:
+@dataclass
+class CppDirective:
+    source_file: str
+    version_set: set[str]
+    includes: bool
+
+
+def parse_borrow_info(input_string: str) -> Decl | None:
+    match = BORROW_DECL_PATTERN.match(input_string)
+    if not match:
         return None
 
+    kind_str = match.group(1)
+    name = match.group(2)
+    source_file = match.group(3)
+    version_set = parse_version_set(match.group(4))
 
-def process_file(
-    input_filename: str,
-    output_filename: str,
-    compile_commands_db: T_COMPILATION_DB,
-    version: str,
-) -> None:
-    with open(input_filename, "r") as f:
-        input_lines = f.readlines()
+    if kind_str == "function":
+        # pyre-ignore[16]: `CursorKind` has no attribute `FUNCTION_DECL`.
+        kind = CursorKind.FUNCTION_DECL
+    elif kind_str == "typedef":
+        # pyre-ignore[16]: `CursorKind` has no attribute `TYPEDEF_DECL`.
+        kind = CursorKind.TYPEDEF_DECL
+    elif kind_str == "var":
+        # pyre-ignore[16]: `CursorKind` has no attribute `VAR_DECL`.
+        kind = CursorKind.VAR_DECL
+    else:
+        raise Exception(f"Unknown kind: {kind_str}")
 
-    parsed_files: dict[str, ParsedFile] = {}
+    return Decl(kind, name, source_file, version_set)
 
-    def extract(
-        extractor_func: Callable[[ParsedFile], list[str]],
-        source_file: str,
-        version_set: set[str],
-    ) -> list[str]:
-        if len(version_set) != 0 and version not in version_set:
-            return []
-        if parsed_files.get(source_file) is None:
-            parsed_files[source_file] = ParsedFile(source_file, compile_commands_db)
-        return extractor_func(parsed_files[source_file])
 
-    output_lines = []
-    for line in input_lines:
-        line = line.rstrip()
+class TemplateFileProcessor:
+    input_filename: str
+    output_filename: str
+    file_parser: FileParser
+    version: str
+    input_lines: list[str | Decl | CppDirective]
+    needed: dict[str, dict[CursorKind, set[str]]]
+    decls: dict[str, dict[str, list[str]]]
+    output_lines: list[str]
 
-        if match := parse_borrow_info(line):
-            kind, name, source_file, version_set = match
-            if len(version_set) == 0 or version in version_set:
-                output_lines.extend(
-                    extract(
-                        partial(extract_declaration, name, kind),
-                        source_file,
-                        version_set,
-                    )
-                )
+    def __init__(
+        self,
+        input_filename: str,
+        output_filename: str,
+        file_parser: FileParser,
+        version: str,
+    ) -> None:
+        self.input_filename = input_filename
+        self.output_filename = output_filename
+        self.file_parser = file_parser
+        self.version = version
+        self.input_lines = []
+        self.output_lines = []
+        # pyre-ignore[8]: Incompatible attribute type
+        self.needed = defaultdict(lambda: defaultdict(set))
+        self.decls = defaultdict(dict)
 
-        elif match := BORROW_CPP_DIRECTIVES_PATTERN.match(line):
-            source_file = match.group(1)
-            version_set = parse_version_set(match.group(2))
-            output_lines.extend(
-                extract(extract_preprocessor_directives, source_file, version_set)
-            )
+    def _match_version(self, version_set: set[str]) -> bool:
+        return len(version_set) == 0 or self.version in version_set
 
-        elif match := BORROW_CPP_DIRECTIVES_NOINCLUDE_PATTERN.match(line):
-            source_file = match.group(1)
-            version_set = parse_version_set(match.group(2))
-            output_lines.extend(
-                extract(
-                    extract_preprocessor_directives_noinclude, source_file, version_set
-                )
-            )
+    def _read_input_file(self) -> None:
+        """Read the input file and parse borrow directives."""
 
-        else:
-            output_lines.append(line)
+        with open(self.input_filename, "r") as f:
+            input_lines = f.readlines()
 
-    with open(output_filename, "w") as f:
-        f.write(HEADER)
-        f.write("\n".join(output_lines))
+        for line in input_lines:
+            line = line.rstrip()
+
+            if match := parse_borrow_info(line):
+                if self._match_version(match.version_set):
+                    self.input_lines.append(match)
+
+            elif match := BORROW_CPP_DIRECTIVES_PATTERN.match(line):
+                source_file = match.group(1)
+                version_set = parse_version_set(match.group(2))
+                if self._match_version(version_set):
+                    d = CppDirective(source_file, version_set, includes=True)
+                    self.input_lines.append(d)
+
+            elif match := BORROW_CPP_DIRECTIVES_NOINCLUDE_PATTERN.match(line):
+                source_file = match.group(1)
+                version_set = parse_version_set(match.group(2))
+                if self._match_version(version_set):
+                    d = CppDirective(source_file, version_set, includes=False)
+                    self.input_lines.append(d)
+
+            else:
+                self.input_lines.append(line)
+
+    def _process_directives(self) -> None:
+        """Process borrow directives and group required actions."""
+        for line in self.input_lines:
+            match line:
+                case Decl() as d:
+                    self.needed[d.source_file][d.kind].add(d.name)
+                case CppDirective() as d:
+                    # We don't need to do anything here, we extract these in
+                    # generate_output directly since they are done only once
+                    # per file with all the directives extracted in a block.
+                    pass
+                case str():
+                    # Catch malformed borrow directives
+                    if line.startswith("// @Borrow"):
+                        raise RuntimeError(f"@Borrow not processed: {line}")
+
+    def _extract_decls(self) -> None:
+        for source_file, needed_decls in self.needed.items():
+            parsed_file = self.file_parser.parse(source_file)
+            for cursor in parsed_file.translation_unit.cursor.walk_preorder():
+                name = cursor.spelling
+                if name in needed_decls.get(cursor.kind, ()):
+                    if extent := cursor.extent:
+                        # We always extract complete lines
+                        content = parsed_file.lines[
+                            extent.start.line - 1 : extent.end.line
+                        ]
+                        # Overwrite earlier declarations; the last one is the
+                        # function definition.
+                        self.decls[source_file][name] = content
+
+    def _generate_output(self) -> None:
+        out = []
+        for line in self.input_lines:
+            match line:
+                case Decl(kind, name, source_file, _):
+                    lines = self.decls[source_file][name]
+                    if not lines:
+                        raise RuntimeError(
+                            f"Could not find {kind} for '{name}' in {source_file}"
+                        )
+                    out.extend(lines)
+                case CppDirective(source_file, _, includes):
+                    parsed_file = self.file_parser.parse(source_file)
+                    lines = extract_preprocessor_directives(parsed_file, includes)
+                    out.extend(lines)
+                case str():
+                    out.append(line)
+        self.output_lines = out
+
+    def _write_output_file(self) -> None:
+        with open(self.output_filename, "w") as f:
+            f.write(HEADER)
+            f.write("\n".join(self.output_lines))
+
+    def process(self) -> None:
+        self._read_input_file()
+        self._process_directives()
+        self._extract_decls()
+        self._generate_output()
+        self._write_output_file()
 
 
 @click.command()
@@ -259,51 +241,20 @@ def main(
     compile_commands: str,
     version: str,
 ) -> None:
-    print(f"Initial directory: {os.getcwd()}")
 
-    # These must be made absolute before changing the directory below.
-    source_file = os.path.abspath(os.path.join(os.getcwd(), source_file))
-    output_file = os.path.abspath(os.path.join(os.getcwd(), output_file))
-    compile_commands = os.path.abspath(os.path.join(os.getcwd(), compile_commands))
+    def abspath(relpath: str) -> str:
+        return os.path.abspath(os.path.join(os.getcwd(), relpath))
 
-    # This is a hack to make sure we are exactly in the root of an fbsource
-    # checkout. This is needed because the compile commands database as
-    # generated by buck has directories relatively to that location, and
-    # setting the library path for LLVM. This is a bit dirty because it breaks
-    # things like RE. Should work well enough for the cases we care about.
-    try:
-        fbsource_root = subprocess.run(
-            ["hg", "root"], capture_output=True, encoding="utf-8", check=True
-        ).stdout.strip()
-    except subprocess.CalledProcessError as e:
-        raise Exception(
-            f"Failing stdout:\n{e.stdout}\nFailing stderr:\n{e.stderr}\n"
-        ) from e
-    os.chdir(fbsource_root)
+    source_file = abspath(source_file)
+    output_file = abspath(output_file)
+    compile_commands = abspath(compile_commands)
 
     print(f"Processing {source_file} -> {output_file}")
     print(f"Compile commands from: {compile_commands}")
-    print(f"Current directory: {os.getcwd()}")
 
-    with open(compile_commands, "r") as f:
-        compile_commands_db: T_COMPILATION_DB = json.load(f)
-
-    llvm_driver_example = compile_commands_db[0]["arguments"][1]
-    m = re.match(
-        r"--cc=fbcode/third-party-buck/platform(\d+)/build/llvm-fb/(\d+)/",
-        llvm_driver_example,
-    )
-    if not m:
-        raise Exception(f"Could not find LLVM version in {llvm_driver_example}")
-    platform_version = m.group(1)
-    llvm_version = int(m.group(2))
-    # LLVM prior to 17 (specifically 15) seems to have a bug which slightly
-    # breaks parsing of some files.
-    llvm_version = max(llvm_version, 17)
-    llvm_lib_path = f"fbcode/third-party-buck/platform{platform_version}/build/llvm-fb/{llvm_version}/lib"
-    print(f"Setting LLVM library path to: {llvm_lib_path}")
-    Config.set_library_path(llvm_lib_path)
-    process_file(source_file, output_file, compile_commands_db, version)
+    fp = FileParser(compile_commands)
+    p = TemplateFileProcessor(source_file, output_file, fp, version)
+    p.process()
 
 
 if __name__ == "__main__":

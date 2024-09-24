@@ -41,6 +41,11 @@ def filter_cpp_args(args: list[str]) -> list[str]:
         elif arg in ["-I", "-isystem", "-idirafter", "-iquote", "-D", "-U", "-Xclang"]:
             new_args.append(arg)
             append_next = True
+        elif arg == "-DNDEBUG":
+            # The compilation DB we get from buck has -DNDEBUG in its cflags,
+            # but we need to run the clang parser in debug mode, otherwise some
+            # functions we want to borrow are ifdef-ed out.
+            pass
         elif (
             arg
             in [
@@ -64,6 +69,7 @@ def filter_cpp_args(args: list[str]) -> list[str]:
 class ParsedFile:
     source_file: str
     translation_unit: TranslationUnit
+    lines: list[str]
 
     def __init__(self, command: CompilationCommand) -> None:
         source_file = command["file"]
@@ -76,7 +82,7 @@ class ParsedFile:
             args = filter_cpp_args(args)
             self.translation_unit = self.parse_file(source_file, args)
             with open(source_file, "r") as f:
-                self.file_content: str = f.read()
+                self.lines = f.read().split("\n")
 
     @classmethod
     def from_db(
