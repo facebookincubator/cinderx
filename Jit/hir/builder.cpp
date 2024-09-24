@@ -13,7 +13,6 @@
 
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/bytecode.h"
-#include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
