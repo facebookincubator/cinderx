@@ -98,12 +98,12 @@ fun jittestmodule:test {
     v5:MortalUnicodeExact["x"] = LoadConst<MortalUnicodeExact["x"]>
     v6:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:add> {
-      CurInstrOffset 6
+      NextInstrOffset 8
     }
     Snapshot
     v16:Object = BinaryOp<Add> v4 v5 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
         Locals<2> v4 v5
       }
     }
@@ -121,12 +121,12 @@ fun jittestmodule:test {
     v5:MortalUnicodeExact["x"] = LoadConst<MortalUnicodeExact["x"]>
     v6:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:add> {
-      CurInstrOffset 8
+      NextInstrOffset 8
     }
     Snapshot
     v16:Object = BinaryOp<Add> v4 v5 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 6
         Locals<2> v4 v5
       }
     }
@@ -156,7 +156,7 @@ fun jittestmodule:test {
     Snapshot
     v5:ObjectUser[C:Exact] = TpAlloc<C> {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Snapshot
@@ -179,7 +179,7 @@ fun jittestmodule:test {
     Snapshot
     v5:ObjectUser[C:Exact] = TpAlloc<C> {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 2
       }
     }
     Snapshot

@@ -30,7 +30,7 @@ fun test {
     v0 = LoadArg<0>
     v1 = LoadArg<1>
     Snapshot {
-      CurInstrOffset 0
+      NextInstrOffset 0
       Stack<0>
       BlockStack {
       }
@@ -40,14 +40,13 @@ fun test {
   }
 }
 )";
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun test {
   bb 0 {
     v1:Object = LoadArg<1>
     Guard v1 {
       LiveValues<1> b:v1
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 0
       }
     }
     Incref v1
@@ -55,22 +54,6 @@ fun test {
   }
 }
 )";
-#else
-  const char* expected = R"(fun test {
-  bb 0 {
-    v1:Object = LoadArg<1>
-    Guard v1 {
-      LiveValues<1> b:v1
-      FrameState {
-        CurInstrOffset 0
-      }
-    }
-    Incref v1
-    Return v1
-  }
-}
-)";
-#endif
   EXPECT_NO_FATAL_FAILURE(testFillGuards(hir, expected));
 }
 
@@ -79,7 +62,7 @@ TEST_F(GuardTest, BindFrameStateFromInstr) {
   bb 0 {
     v0 = LoadArg<0>
     Snapshot {
-      CurInstrOffset 0
+      NextInstrOffset 0
       Stack<0>
       BlockStack {
       }
@@ -87,12 +70,12 @@ TEST_F(GuardTest, BindFrameStateFromInstr) {
     v1 = LoadGlobal<0>
     CheckExc v1 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 2
         Stack<1> v1
       }
     }
     Snapshot {
-      CurInstrOffset 2
+      NextInstrOffset 2
       Stack<1> v1
     }
     Guard v1
@@ -100,25 +83,24 @@ TEST_F(GuardTest, BindFrameStateFromInstr) {
   }
 }
 )";
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun test {
   bb 0 {
     v1:Object = LoadGlobal<0> {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     CheckExc v1 {
       LiveValues<1> o:v1
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 2
         Stack<1> v1
       }
     }
     Guard v1 {
       LiveValues<1> o:v1
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 2
         Stack<1> v1
       }
     }
@@ -126,33 +108,6 @@ TEST_F(GuardTest, BindFrameStateFromInstr) {
   }
 }
 )";
-#else
-  const char* expected = R"(fun test {
-  bb 0 {
-    v1:Object = LoadGlobal<0> {
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
-    CheckExc v1 {
-      LiveValues<1> o:v1
-      FrameState {
-        CurInstrOffset 2
-        Stack<1> v1
-      }
-    }
-    Guard v1 {
-      LiveValues<1> o:v1
-      FrameState {
-        CurInstrOffset 2
-        Stack<1> v1
-      }
-    }
-    Return v1
-  }
-}
-)";
-#endif
   EXPECT_NO_FATAL_FAILURE(testFillGuards(hir, expected));
 }
 
@@ -162,14 +117,14 @@ fun __main__:test {
   bb 0 {
     v0 = LoadArg<0>
     Snapshot {
-      CurInstrOffset 0
+      NextInstrOffset 0
       Stack<0>
       BlockStack {
       }
     }
     CheckVar<"foo"> v0 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 6
         Stack<0>
       }
     }
@@ -177,124 +132,75 @@ fun __main__:test {
     v2 = LoadGlobal<0>
     CheckExc v2 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 6
         Stack<0>
       }
     }
     Snapshot {
-      CurInstrOffset 6
+      NextInstrOffset 6
       Stack<3> v0 v1 v2
     }
     Guard v2
     v3 = VectorCall<2> v0 v1 v2
     CheckExc v3 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 8
         Stack<0>
       }
     }
     Snapshot {
-      CurInstrOffset 8
+      NextInstrOffset 8
       Stack<1> v3
     }
     Return v3
   }
 }
 )";
-#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun __main__:test {
   bb 0 {
     v0:Object = LoadArg<0>
     CheckVar<"foo"> v0 {
       LiveValues<1> b:v0
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 6
       }
     }
     v1:NoneType = LoadConst<NoneType>
     v2:Object = LoadGlobal<0> {
       LiveValues<2> b:v0 b:v1
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     CheckExc v2 {
       LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 6
       }
     }
     Guard v2 {
       LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 6
         Stack<3> v0 v1 v2
       }
     }
     v3:Object = VectorCall<2> v0 v1 v2 {
       LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Decref v2
     CheckExc v3 {
       LiveValues<1> o:v3
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 8
       }
     }
     Return v3
   }
 }
 )";
-#else
-  const char* expected = R"(fun __main__:test {
-  bb 0 {
-    v0:Object = LoadArg<0>
-    CheckVar<"foo"> v0 {
-      LiveValues<1> b:v0
-      FrameState {
-        CurInstrOffset 6
-      }
-    }
-    v1:NoneType = LoadConst<NoneType>
-    v2:Object = LoadGlobal<0> {
-      LiveValues<2> b:v0 b:v1
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
-    CheckExc v2 {
-      LiveValues<3> b:v0 b:v1 o:v2
-      FrameState {
-        CurInstrOffset 6
-      }
-    }
-    Guard v2 {
-      LiveValues<3> b:v0 b:v1 o:v2
-      FrameState {
-        CurInstrOffset 6
-        Stack<3> v0 v1 v2
-      }
-    }
-    v3:Object = VectorCall<2> v0 v1 v2 {
-      LiveValues<3> b:v0 b:v1 o:v2
-      FrameState {
-        CurInstrOffset -2
-      }
-    }
-    Decref v2
-    CheckExc v3 {
-      LiveValues<1> o:v3
-      FrameState {
-        CurInstrOffset 8
-      }
-    }
-    Return v3
-  }
-}
-)";
-#endif
   EXPECT_NO_FATAL_FAILURE(testFillGuards(hir, expected));
 }

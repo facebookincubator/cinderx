@@ -28,7 +28,7 @@ fun jittestmodule:test {
     v26:CInt32 = RunPeriodicTasks {
       LiveValues<3> b:v15 s:v24 o:v25
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -46,7 +46,7 @@ fun jittestmodule:test {
     v46:CInt64 = IsNegativeAndErrOccurred v24 {
       LiveValues<3> b:v15 s:v24 o:v25
       FrameState {
-        CurInstrOffset 22
+        NextInstrOffset 24
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -54,7 +54,7 @@ fun jittestmodule:test {
     v47:CInt64 = CheckSequenceBounds v15 v24 {
       LiveValues<3> b:v15 s:v24 o:v25
       FrameState {
-        CurInstrOffset 22
+        NextInstrOffset 24
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -67,7 +67,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<6> b:v15 s:v24 o:v25 s:v37 b:v40 b:v48
       FrameState {
-        CurInstrOffset 30
+        NextInstrOffset 32
         Locals<3> v15 v24 v25
         Stack<3> v15 v48 v37
       }
@@ -77,7 +77,7 @@ fun jittestmodule:test {
     v43:Object = VectorCall<1> v41 v48 {
       LiveValues<4> b:v15 s:v37 b:v41 o:v48
       FrameState {
-        CurInstrOffset 38
+        NextInstrOffset 40
         Locals<3> v15 v37 v48
         Stack<1> v15
       }
@@ -113,7 +113,7 @@ fun jittestmodule:test {
     v26:CInt32 = RunPeriodicTasks {
       LiveValues<3> b:v15 s:v24 o:v25
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 6
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -131,7 +131,7 @@ fun jittestmodule:test {
     v46:CInt64 = IsNegativeAndErrOccurred v24 {
       LiveValues<3> b:v15 s:v24 o:v25
       FrameState {
-        CurInstrOffset 24
+        NextInstrOffset 24
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -139,7 +139,7 @@ fun jittestmodule:test {
     v47:CInt64 = CheckSequenceBounds v15 v24 {
       LiveValues<3> b:v15 s:v24 o:v25
       FrameState {
-        CurInstrOffset 24
+        NextInstrOffset 24
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -152,7 +152,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<6> b:v15 s:v24 o:v25 s:v37 b:v40 b:v48
       FrameState {
-        CurInstrOffset 30
+        NextInstrOffset 30
         Locals<3> v15 v24 v25
         Stack<3> v15 v48 v37
       }
@@ -162,7 +162,7 @@ fun jittestmodule:test {
     v43:Object = VectorCall<1> v41 v48 {
       LiveValues<4> b:v15 s:v37 b:v41 o:v48
       FrameState {
-        CurInstrOffset 40
+        NextInstrOffset 40
         Locals<3> v15 v37 v48
         Stack<1> v15
       }

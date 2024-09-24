@@ -24,7 +24,7 @@ fun jittestmodule:test {
     Snapshot
     v18:LongExact = PrimitiveBox<CInt64> v16 {
       FrameState {
-        CurInstrOffset 18
+        NextInstrOffset 20
         Locals<1> v16
       }
     }
@@ -46,7 +46,7 @@ fun jittestmodule:test {
     Snapshot
     v18:LongExact = PrimitiveBox<CInt64> v16 {
       FrameState {
-        CurInstrOffset 20
+        NextInstrOffset 20
         Locals<1> v16
       }
     }
@@ -205,7 +205,7 @@ fun jittestmodule:test {
     v7:CInt8 = PrimitiveUnbox<CInt8> v5
     v8:CInt64 = IsNegativeAndErrOccurred v7 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
         Locals<1> v4
       }
     }
@@ -221,7 +221,7 @@ fun jittestmodule:test {
     v7:CInt8 = PrimitiveUnbox<CInt8> v5
     v8:CInt64 = IsNegativeAndErrOccurred v7 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 6
         Locals<1> v4
       }
     }
@@ -318,7 +318,7 @@ fun jittestmodule:test {
     Snapshot
     v4:Bool = Cast<Exact[bool]> v2 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
         Locals<1> v2
       }
     }
@@ -333,7 +333,7 @@ fun jittestmodule:test {
     Snapshot
     v4:Bool = Cast<Exact[bool]> v2 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 4
         Locals<1> v2
       }
     }
@@ -368,7 +368,7 @@ fun jittestmodule:test {
     Snapshot
     v26:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -389,7 +389,7 @@ fun jittestmodule:test {
     Snapshot
     v34:LongExact = PrimitiveBox<CInt64> v24 {
       FrameState {
-        CurInstrOffset 20
+        NextInstrOffset 22
         Locals<3> v15 v24 v25
         Stack<2> v15 v15
       }
@@ -398,14 +398,14 @@ fun jittestmodule:test {
     UseType<LongExact> v34
     v46:CInt64 = IsNegativeAndErrOccurred v24 {
       FrameState {
-        CurInstrOffset 22
+        NextInstrOffset 24
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
     }
     v47:CInt64 = CheckSequenceBounds v15 v24 {
       FrameState {
-        CurInstrOffset 22
+        NextInstrOffset 24
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -422,7 +422,7 @@ fun jittestmodule:test {
     Snapshot
     v43:Object = VectorCall<1> v41 v48 {
       FrameState {
-        CurInstrOffset 38
+        NextInstrOffset 40
         Locals<3> v15 v37 v48
         Stack<1> v15
       }
@@ -458,7 +458,7 @@ fun jittestmodule:test {
     Snapshot
     v26:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 6
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -479,7 +479,7 @@ fun jittestmodule:test {
     Snapshot
     v34:LongExact = PrimitiveBox<CInt64> v24 {
       FrameState {
-        CurInstrOffset 22
+        NextInstrOffset 22
         Locals<3> v15 v24 v25
         Stack<2> v15 v15
       }
@@ -488,14 +488,14 @@ fun jittestmodule:test {
     UseType<LongExact> v34
     v46:CInt64 = IsNegativeAndErrOccurred v24 {
       FrameState {
-        CurInstrOffset 24
+        NextInstrOffset 24
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
     }
     v47:CInt64 = CheckSequenceBounds v15 v24 {
       FrameState {
-        CurInstrOffset 24
+        NextInstrOffset 24
         Locals<3> v15 v24 v25
         Stack<1> v15
       }
@@ -512,7 +512,7 @@ fun jittestmodule:test {
     Snapshot
     v43:Object = VectorCall<1> v41 v48 {
       FrameState {
-        CurInstrOffset 40
+        NextInstrOffset 40
         Locals<3> v15 v37 v48
         Stack<1> v15
       }
@@ -543,14 +543,14 @@ fun jittestmodule:test {
     Snapshot
     v7:LongExact = PrimitiveBox<CInt64> v5 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
         Locals<2> v5 v6
       }
     }
     v9:CInt8 = PrimitiveUnbox<CInt8> v7
     v10:CInt64 = IsNegativeAndErrOccurred v9 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<2> v5 v6
       }
     }
@@ -565,14 +565,14 @@ fun jittestmodule:test {
     Snapshot
     v7:LongExact = PrimitiveBox<CInt64> v5 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 4
         Locals<2> v5 v6
       }
     }
     v9:CInt8 = PrimitiveUnbox<CInt8> v7
     v10:CInt64 = IsNegativeAndErrOccurred v9 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 8
         Locals<2> v5 v6
       }
     }

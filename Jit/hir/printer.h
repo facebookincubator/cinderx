@@ -54,7 +54,7 @@ class HIRPrinter {
   std::ostream& Indented(std::ostream& os);
 
   int indent_level_{0};
-  bool full_snapshots_;
+  bool full_snapshots_{false};
   std::string line_prefix_;
 };
 

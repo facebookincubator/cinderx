@@ -153,7 +153,7 @@ BB %3 - preds: %0 - succs: %9
 # v6:FloatExact = PrimitiveBox<CDouble> v4 {
 #   LiveValues<1> double:v4
 #   FrameState {
-#     CurInstrOffset 6
+#     NextInstrOffset 8
 #     Locals<1> v4
 #   }
 # }
@@ -508,7 +508,7 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
     v7 = LoadConst<Nullptr>
     v8 = CheckVar<"a"> v7 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 2
         Locals<1> v7
       }
     }
@@ -556,7 +556,7 @@ BB %6 - preds: %0
 # v10:Bottom = CheckVar<"a"> v9 {
 #   LiveValues<1> unc:v9
 #   FrameState {
-#     CurInstrOffset 2
+#     NextInstrOffset 2
 #     Locals<1> v9
 #   }
 # }
@@ -581,7 +581,7 @@ BB %3 - preds: %0
 # v10:Bottom = CheckVar<"a"> v9 {
 #   LiveValues<1> unc:v9
 #   FrameState {
-#     CurInstrOffset 2
+#     NextInstrOffset 2
 #     Locals<1> v9
 #   }
 # }

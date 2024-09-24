@@ -21,7 +21,7 @@ fun jittestmodule:test {
     v14:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v15:MortalDictExact = MakeDict<2> {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<3> v9 v10 v11
         Stack<3> v9 v10 v14
       }
@@ -30,7 +30,7 @@ fun jittestmodule:test {
     v22:MortalUnicodeExact["aaa"] = LoadConst<MortalUnicodeExact["aaa"]>
     v17:CInt32 = SetDictItem v15 v22 v9 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<3> v9 v10 v11
         Stack<2> v9 v10
       }
@@ -39,7 +39,7 @@ fun jittestmodule:test {
     v23:MortalUnicodeExact["bbb"] = LoadConst<MortalUnicodeExact["bbb"]>
     v19:CInt32 = SetDictItem v15 v23 v10 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<3> v9 v10 v11
         Stack<2> v9 v10
       }
@@ -64,7 +64,7 @@ fun jittestmodule:test {
     Snapshot
     v17:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<3> v12 v13 v15
       }
     }
@@ -76,7 +76,7 @@ fun jittestmodule:test {
     v21:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v22:MortalDictExact = MakeDict<2> {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<3> v12 v13 v15
         Stack<3> v12 v13 v21
       }
@@ -85,7 +85,7 @@ fun jittestmodule:test {
     v28:ImmortalUnicodeExact["aaa"] = LoadConst<ImmortalUnicodeExact["aaa"]>
     v24:CInt32 = SetDictItem v22 v28 v12 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<3> v12 v13 v15
         Stack<2> v12 v13
       }
@@ -94,7 +94,7 @@ fun jittestmodule:test {
     v29:ImmortalUnicodeExact["bbb"] = LoadConst<ImmortalUnicodeExact["bbb"]>
     v26:CInt32 = SetDictItem v22 v29 v13 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<3> v12 v13 v15
         Stack<2> v12 v13
       }
@@ -124,7 +124,7 @@ fun jittestmodule:test {
     Snapshot
     v10:Object = VectorCall<1> v8 v5 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<1> v5
       }
     }
@@ -146,7 +146,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v9
       }
     }
@@ -164,7 +164,7 @@ fun jittestmodule:test {
     Snapshot
     v19:Object = VectorCall<1> v17 v13 {
       FrameState {
-        CurInstrOffset 18
+        NextInstrOffset 20
         Locals<1> v13
       }
     }
@@ -199,7 +199,7 @@ fun jittestmodule:test {
     Snapshot
     v7:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v4
       }
     }
@@ -240,7 +240,7 @@ fun jittestmodule:test {
     Snapshot
     v8:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v6
       }
     }
@@ -268,7 +268,7 @@ fun jittestmodule:test {
     Snapshot
     v7:CInt32 = IsTruthy v4 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
         Locals<2> v4 v5
       }
     }
@@ -286,7 +286,7 @@ fun jittestmodule:test {
     Snapshot
     v12:ImmortalLongExact = CheckVar<"y"> v11 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<2> v4 v11
       }
     }
@@ -308,7 +308,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v7 v9
       }
     }
@@ -319,7 +319,7 @@ fun jittestmodule:test {
     Snapshot
     v14:CInt32 = IsTruthy v7 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
         Locals<2> v7 v9
       }
     }
@@ -337,7 +337,7 @@ fun jittestmodule:test {
     Snapshot
     v19:ImmortalLongExact = CheckVar<"y"> v18 {
       FrameState {
-        CurInstrOffset 10
+        NextInstrOffset 12
         Locals<2> v7 v18
       }
     }
@@ -361,7 +361,7 @@ fun jittestmodule:test {
     Snapshot
     v8:CInt32 = IsTruthy v5 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
         Locals<2> v5 v6
       }
     }
@@ -395,7 +395,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v8 v10
       }
     }
@@ -406,7 +406,7 @@ fun jittestmodule:test {
     Snapshot
     v15:CInt32 = IsTruthy v8 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
         Locals<2> v8 v10
       }
     }
@@ -442,7 +442,7 @@ fun jittestmodule:test {
     Snapshot
     v9:CInt32 = IsTruthy v6 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
         Locals<2> v6 v7
       }
     }
@@ -454,7 +454,7 @@ fun jittestmodule:test {
     v10:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v13:CInt32 = IsTruthy v6 {
       FrameState {
-        CurInstrOffset 10
+        NextInstrOffset 12
         Locals<2> v6 v10
       }
     }
@@ -472,7 +472,7 @@ fun jittestmodule:test {
     Snapshot
     v17:ImmortalLongExact = CheckVar<"y"> v16 {
       FrameState {
-        CurInstrOffset 16
+        NextInstrOffset 18
         Locals<2> v6 v16
       }
     }
@@ -494,7 +494,7 @@ fun jittestmodule:test {
     Snapshot
     v13:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v9 v11
       }
     }
@@ -505,7 +505,7 @@ fun jittestmodule:test {
     Snapshot
     v16:CInt32 = IsTruthy v9 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
         Locals<2> v9 v11
       }
     }
@@ -517,7 +517,7 @@ fun jittestmodule:test {
     v17:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v19:CInt32 = IsTruthy v9 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v9 v17
       }
     }
@@ -535,7 +535,7 @@ fun jittestmodule:test {
     Snapshot
     v24:ImmortalLongExact = CheckVar<"y"> v23 {
       FrameState {
-        CurInstrOffset 16
+        NextInstrOffset 18
         Locals<2> v9 v23
       }
     }
@@ -555,7 +555,7 @@ fun jittestmodule:test {
     Snapshot
     v7:MortalListExact = MakeList<0> {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v6
       }
     }
@@ -563,7 +563,7 @@ fun jittestmodule:test {
     v8:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v9:NoneType = ListExtend v7 v8 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
         Locals<1> v6
         Stack<1> v7
       }
@@ -576,7 +576,7 @@ fun jittestmodule:test {
     v20:CInt64[0] = LoadConst<CInt64[0]>
     v16:CInt64 = CheckSequenceBounds v7 v19 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<1> v7
       }
     }
@@ -600,7 +600,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v10
       }
     }
@@ -611,7 +611,7 @@ fun jittestmodule:test {
     Snapshot
     v14:MortalListExact = MakeList<0> {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
         Locals<1> v10
       }
     }
@@ -619,7 +619,7 @@ fun jittestmodule:test {
     v15:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v16:NoneType = ListExtend v14 v15 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<1> v10
         Stack<1> v14
       }
@@ -632,7 +632,7 @@ fun jittestmodule:test {
     v26:CInt64[0] = LoadConst<CInt64[0]>
     v22:CInt64 = CheckSequenceBounds v14 v25 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 16
         Locals<1> v14
       }
     }
@@ -661,7 +661,7 @@ fun test {
     v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v2:Object = BinaryOp<Subscript> v0 v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v2
@@ -674,7 +674,7 @@ fun test {
     v1:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v2:Object = BinaryOp<Subscript> v0 v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v2
@@ -706,12 +706,12 @@ fun test {
     v5:CInt64 = IndexUnbox<IndexError> v3
     v6:CInt64 = IsNegativeAndErrOccurred v5 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v7:CInt64 = CheckSequenceBounds v2 v5 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v8:Object = LoadArrayItem<Offset[24]> v2 v7 v2
@@ -730,12 +730,12 @@ fun test {
     v5:CInt64 = IndexUnbox<IndexError> v3
     v6:CInt64 = IsNegativeAndErrOccurred v5 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v7:CInt64 = CheckSequenceBounds v2 v5 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v8:Object = LoadArrayItem<Offset[24]> v2 v7 v2
@@ -777,7 +777,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v9 v9
       }
     }
@@ -830,7 +830,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v9 v9
       }
     }
@@ -864,7 +864,7 @@ fun jittestmodule:test {
     v8:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
     v12:Object = BinaryOp<Subscript> v6 v8 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v6 v8
       }
     }
@@ -886,7 +886,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v9 v9
       }
     }
@@ -899,7 +899,7 @@ fun jittestmodule:test {
     v16:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
     v18:Object = BinaryOp<Subscript> v14 v16 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
@@ -923,7 +923,7 @@ fun jittestmodule:test {
     v8:MortalLongExact[-7] = LoadConst<MortalLongExact[-7]>
     v12:Object = BinaryOp<Subscript> v6 v8 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v6 v8
       }
     }
@@ -945,7 +945,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v9 v9
       }
     }
@@ -958,7 +958,7 @@ fun jittestmodule:test {
     v16:MortalLongExact[-7] = LoadConst<MortalLongExact[-7]>
     v18:Object = BinaryOp<Subscript> v14 v16 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
@@ -987,14 +987,14 @@ fun jittestmodule:test {
     Snapshot
     v41:Object = LoadAttrCached<1; "argv"> v15 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
         Locals<2> v13 v13
       }
     }
     Snapshot
     v17:CInt32 = IsTruthy v41 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
         Locals<2> v13 v13
       }
     }
@@ -1023,14 +1023,14 @@ fun jittestmodule:test {
     Snapshot
     v42:Object = LoadAttrCached<1; "argv"> v27 {
       FrameState {
-        CurInstrOffset 16
+        NextInstrOffset 18
         Locals<2> v22 v13
       }
     }
     Snapshot
     v29:CInt32 = IsTruthy v42 {
       FrameState {
-        CurInstrOffset 18
+        NextInstrOffset 20
         Locals<2> v22 v13
       }
     }
@@ -1057,19 +1057,19 @@ fun jittestmodule:test {
     v43:CInt64 = IndexUnbox<IndexError> v34
     v44:CInt64 = IsNegativeAndErrOccurred v43 {
       FrameState {
-        CurInstrOffset 32
+        NextInstrOffset 34
         Locals<2> v22 v34
       }
     }
     v45:CInt64 = CheckSequenceBounds v22 v43 {
       FrameState {
-        CurInstrOffset 32
+        NextInstrOffset 34
         Locals<2> v22 v34
       }
     }
     v46:UnicodeExact = UnicodeSubscr v22 v45 {
       FrameState {
-        CurInstrOffset 32
+        NextInstrOffset 34
         Locals<2> v22 v34
       }
     }
@@ -1091,7 +1091,7 @@ fun jittestmodule:test {
     Snapshot
     v19:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v17 v17
       }
     }
@@ -1107,14 +1107,14 @@ fun jittestmodule:test {
     Snapshot
     v52:Object = LoadAttrCached<1; "argv"> v23 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v17 v17
       }
     }
     Snapshot
     v25:CInt32 = IsTruthy v52 {
       FrameState {
-        CurInstrOffset 32
+        NextInstrOffset 34
         Locals<2> v17 v17
       }
     }
@@ -1143,14 +1143,14 @@ fun jittestmodule:test {
     Snapshot
     v47:Object = LoadAttrCached<1; "argv"> v35 {
       FrameState {
-        CurInstrOffset 52
+        NextInstrOffset 54
         Locals<2> v30 v17
       }
     }
     Snapshot
     v37:CInt32 = IsTruthy v47 {
       FrameState {
-        CurInstrOffset 72
+        NextInstrOffset 74
         Locals<2> v30 v17
       }
     }
@@ -1177,19 +1177,19 @@ fun jittestmodule:test {
     v48:CInt64 = IndexUnbox<IndexError> v42
     v49:CInt64 = IsNegativeAndErrOccurred v48 {
       FrameState {
-        CurInstrOffset 86
+        NextInstrOffset 88
         Locals<2> v30 v42
       }
     }
     v50:CInt64 = CheckSequenceBounds v30 v48 {
       FrameState {
-        CurInstrOffset 86
+        NextInstrOffset 88
         Locals<2> v30 v42
       }
     }
     v51:UnicodeExact = UnicodeSubscr v30 v50 {
       FrameState {
-        CurInstrOffset 86
+        NextInstrOffset 88
         Locals<2> v30 v42
       }
     }
@@ -1276,7 +1276,7 @@ fun jittestmodule:test {
     Snapshot
     v13:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v11 v11
       }
     }
@@ -1333,7 +1333,7 @@ fun jittestmodule:test {
     Snapshot
     v13:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v11 v11
       }
     }
@@ -1389,7 +1389,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v10 v10
       }
     }
@@ -1444,7 +1444,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v10 v10
       }
     }
@@ -1499,7 +1499,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v10 v10
       }
     }
@@ -1554,7 +1554,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v10 v10
       }
     }
@@ -1602,7 +1602,7 @@ fun jittestmodule:test {
   bb 2 (preds 0) {
     v8:Object = FillTypeAttrCache<0, 1> v3 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
       }
     }
     Branch<3>
@@ -1627,7 +1627,7 @@ fun jittestmodule:test {
     Snapshot
     v7:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -1654,7 +1654,7 @@ fun jittestmodule:test {
   bb 4 (preds 1) {
     v14:Object = FillTypeAttrCache<0, 1> v9 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
       }
     }
     Branch<5>
@@ -1694,7 +1694,7 @@ fun jittestmodule:test {
   bb 2 (preds 0) {
     v8:Object = FillTypeAttrCache<0, 1> v3 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
       }
     }
     Branch<3>
@@ -1719,7 +1719,7 @@ fun jittestmodule:test {
     Snapshot
     v7:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -1746,7 +1746,7 @@ fun jittestmodule:test {
   bb 4 (preds 1) {
     v14:Object = FillTypeAttrCache<0, 1> v9 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
       }
     }
     Branch<5>
@@ -1776,7 +1776,7 @@ fun jittestmodule:test {
     Snapshot
     v5:Object = LoadAttrCached<1; "path"> v3 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
       }
     }
     Snapshot
@@ -1796,7 +1796,7 @@ fun jittestmodule:test {
     Snapshot
     v7:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -1811,7 +1811,7 @@ fun jittestmodule:test {
     Snapshot
     v11:Object = LoadAttrCached<1; "path"> v9 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
       }
     }
     Snapshot
@@ -1858,7 +1858,7 @@ fun test {
     v3:Object = Compare<Equal> v1 v2
     v4:CInt32 = IsTruthy v3 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 4
         Locals<2> v2 v1
       }
     }
@@ -1993,7 +1993,7 @@ fun jittestmodule:test {
     Snapshot
     v15:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v13 v13
       }
     }
@@ -2029,7 +2029,7 @@ fun test {
     v4 = Compare<Equal> v2 v3
     v5 = IsTruthy v4 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 4
         Locals<2> v2 v3
       }
     }
@@ -2053,12 +2053,12 @@ fun test {
     v1:Object = LoadArg<1>
     v2:LongExact = GuardType<LongExact> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v3:LongExact = GuardType<LongExact> v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v8:Bool = LongCompare<Equal> v2 v3
@@ -2086,12 +2086,12 @@ fun test {
     v1:Object = LoadArg<1>
     v2:LongExact = GuardType<LongExact> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v3:LongExact = GuardType<LongExact> v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v8:Bool = LongCompare<Equal> v2 v3
@@ -2125,7 +2125,7 @@ fun test {
     v4 = Compare<Equal> v2 v3
     v5 = IsTruthy v4 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 4
         Locals<2> v2 v3
       }
     }
@@ -2149,12 +2149,12 @@ fun test {
     v1:Object = LoadArg<1>
     v2:UnicodeExact = GuardType<UnicodeExact> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v3:UnicodeExact = GuardType<UnicodeExact> v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v8:Bool = UnicodeCompare<Equal> v2 v3
@@ -2182,12 +2182,12 @@ fun test {
     v1:Object = LoadArg<1>
     v2:UnicodeExact = GuardType<UnicodeExact> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v3:UnicodeExact = GuardType<UnicodeExact> v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v8:Bool = UnicodeCompare<Equal> v2 v3
@@ -2364,12 +2364,12 @@ fun test {
     v2:Object = Assign v1
     v3:CInt32 = IsTruthy v2 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v4:LongExact = PrimitiveBox<CInt32> v3 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2382,12 +2382,12 @@ fun test {
     v2:Object = Assign v1
     v3:CInt32 = IsTruthy v2 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v4:LongExact = PrimitiveBox<CInt32> v3 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2417,7 +2417,7 @@ fun test {
     v7:CInt32 = IntConvert<CInt32> v6
     v4:LongExact = PrimitiveBox<CInt32> v7 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2434,7 +2434,7 @@ fun test {
     v7:CInt32 = IntConvert<CInt32> v6
     v4:LongExact = PrimitiveBox<CInt32> v7 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2463,7 +2463,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2479,7 +2479,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2533,7 +2533,7 @@ fun jittestmodule:test {
     Snapshot
     v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<3>
@@ -2587,7 +2587,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2603,7 +2603,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2632,7 +2632,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2648,7 +2648,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2677,7 +2677,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2693,7 +2693,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2722,7 +2722,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2738,7 +2738,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2767,7 +2767,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2783,7 +2783,7 @@ fun test {
     v6:CInt32 = IntConvert<CInt32> v5
     v4:LongExact = PrimitiveBox<CInt32> v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2813,7 +2813,7 @@ fun test {
     v7:CInt32 = IntConvert<CInt32> v6
     v4:LongExact = PrimitiveBox<CInt32> v7 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2830,7 +2830,7 @@ fun test {
     v7:CInt32 = IntConvert<CInt32> v6
     v4:LongExact = PrimitiveBox<CInt32> v7 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -2871,7 +2871,7 @@ fun jittestmodule:test {
     Snapshot
     v10:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v7
       }
     }
@@ -2917,7 +2917,7 @@ fun test {
     UseType<LongExact> v4
     v6:LongExact = LongBinaryOp<Add> v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -2934,7 +2934,7 @@ fun test {
     UseType<LongExact> v4
     v6:LongExact = LongBinaryOp<Add> v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3009,7 +3009,7 @@ fun test {
     UseType<LongExact> v4
     v6:FloatExact = LongBinaryOp<TrueDivide> v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3026,7 +3026,7 @@ fun test {
     UseType<LongExact> v4
     v6:FloatExact = LongBinaryOp<TrueDivide> v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3071,7 +3071,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v10
       }
     }
@@ -3125,7 +3125,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v7 v8
       }
     }
@@ -3170,7 +3170,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v7 v8
       }
     }
@@ -3207,7 +3207,7 @@ fun jittestmodule:test {
     v4:LongExact = RefineType<LongExact> v2
     v5:Object = BinaryOp<Subscript> v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v5
@@ -3222,7 +3222,7 @@ fun jittestmodule:test {
     v4:LongExact = RefineType<LongExact> v2
     v5:Object = BinaryOp<Subscript> v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v5
@@ -3244,7 +3244,7 @@ fun jittestmodule:test {
     v8:MortalUnicodeExact[" world"] = LoadConst<MortalUnicodeExact[" world"]>
     v13:UnicodeExact = UnicodeConcat v6 v8 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v6 v8
       }
     }
@@ -3266,7 +3266,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v9 v9
       }
     }
@@ -3279,7 +3279,7 @@ fun jittestmodule:test {
     v16:MortalUnicodeExact[" world"] = LoadConst<MortalUnicodeExact[" world"]>
     v19:UnicodeExact = UnicodeConcat v14 v16 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
@@ -3303,7 +3303,7 @@ fun jittestmodule:test {
     v8:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v12:Object = BinaryOp<Add> v6 v8 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v6 v8
       }
     }
@@ -3325,7 +3325,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v9 v9
       }
     }
@@ -3338,7 +3338,7 @@ fun jittestmodule:test {
     v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v18:Object = BinaryOp<Add> v14 v16 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
@@ -3369,7 +3369,7 @@ fun test {
     v4:UnicodeExact = RefineType<UnicodeExact> v2
     v6:UnicodeExact = UnicodeConcat v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3384,7 +3384,7 @@ fun test {
     v4:UnicodeExact = RefineType<UnicodeExact> v2
     v6:UnicodeExact = UnicodeConcat v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3408,7 +3408,7 @@ fun jittestmodule:test {
     v17:CInt64[0] = LoadConst<CInt64[0]>
     v15:UnicodeExact = UnicodeRepeat v6 v16 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v6 v8
       }
     }
@@ -3430,7 +3430,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v9 v9
       }
     }
@@ -3445,7 +3445,7 @@ fun jittestmodule:test {
     v23:CInt64[0] = LoadConst<CInt64[0]>
     v21:UnicodeExact = UnicodeRepeat v14 v22 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
@@ -3469,7 +3469,7 @@ fun jittestmodule:test {
     v8:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v12:Object = BinaryOp<Multiply> v6 v8 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v6 v8
       }
     }
@@ -3491,7 +3491,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<2> v9 v9
       }
     }
@@ -3504,7 +3504,7 @@ fun jittestmodule:test {
     v16:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v18:Object = BinaryOp<Multiply> v14 v16 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 16
         Locals<2> v14 v16
       }
     }
@@ -3536,12 +3536,12 @@ fun test {
     v6:CInt64 = IndexUnbox<OverflowError> v4
     v7:CInt64 = IsNegativeAndErrOccurred v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v8:UnicodeExact = UnicodeRepeat v3 v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v8
@@ -3557,12 +3557,12 @@ fun test {
     v6:CInt64 = IndexUnbox<OverflowError> v4
     v7:CInt64 = IsNegativeAndErrOccurred v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v8:UnicodeExact = UnicodeRepeat v3 v6 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v8
@@ -3591,7 +3591,7 @@ fun jittestmodule:test {
     v4:UnicodeExact = RefineType<UnicodeExact> v2
     v6:Object = DictSubscr v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3606,7 +3606,7 @@ fun jittestmodule:test {
     v4:UnicodeExact = RefineType<UnicodeExact> v2
     v6:Object = DictSubscr v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3635,7 +3635,7 @@ fun jittestmodule:test {
     v4:LongExact = RefineType<LongExact> v2
     v6:Object = DictSubscr v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3650,7 +3650,7 @@ fun jittestmodule:test {
     v4:LongExact = RefineType<LongExact> v2
     v6:Object = DictSubscr v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3679,7 +3679,7 @@ fun jittestmodule:test {
     v4:DictExact = RefineType<DictExact> v2
     v6:Object = DictSubscr v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3694,7 +3694,7 @@ fun jittestmodule:test {
     v4:DictExact = RefineType<DictExact> v2
     v6:Object = DictSubscr v3 v4 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v6
@@ -3718,7 +3718,7 @@ fun jittestmodule:test {
     v1:Object = LoadArg<0>
     v2:LongExact = GuardType<LongExact> v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v4:Bottom = GuardIs<0xdeadbeef> v2 {
@@ -3732,7 +3732,7 @@ fun jittestmodule:test {
     v1:Object = LoadArg<0>
     v2:LongExact = GuardType<LongExact> v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v4:Bottom = GuardIs<0xdeadbeef> v2 {
@@ -3825,7 +3825,7 @@ fun test {
     v3:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v1
     v4:LongExact = PrimitiveBox<CInt64> v3 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -3840,7 +3840,7 @@ fun test {
     v3:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v1
     v4:LongExact = PrimitiveBox<CInt64> v3 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -3867,7 +3867,7 @@ fun test {
     v3:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v1
     v4:LongExact = PrimitiveBox<CInt64> v3 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -3882,7 +3882,7 @@ fun test {
     v3:CInt64 = LoadField<ob_size@16, CInt64, borrowed> v1
     v4:LongExact = PrimitiveBox<CInt64> v3 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v4
@@ -3905,7 +3905,7 @@ fun test {
     v0:Object = LoadArg<0>
     v1:LongExact = GetLength v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v1
@@ -3917,7 +3917,7 @@ fun test {
     v0:Object = LoadArg<0>
     v1:LongExact = GetLength v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return v1
@@ -3942,7 +3942,7 @@ fun test {
     v0:CInt64[63] = LoadConst<CInt64[63]>
     v1:MortalTupleExact = MakeTuple<1> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v2:CInt64[0] = LoadConst<CInt64[0]>
@@ -3957,7 +3957,7 @@ fun test {
     v0:CInt64[63] = LoadConst<CInt64[63]>
     v1:MortalTupleExact = MakeTuple<1> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v2:CInt64[0] = LoadConst<CInt64[0]>
@@ -3985,7 +3985,7 @@ fun test {
     v0:CInt64[63] = LoadConst<CInt64[63]>
     v1:MortalTupleExact = MakeTuple<1> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v2:CInt64[-1] = LoadConst<CInt64[-1]>
@@ -4001,7 +4001,7 @@ fun test {
     v0:CInt64[63] = LoadConst<CInt64[63]>
     v1:MortalTupleExact = MakeTuple<1> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v2:CInt64[-1] = LoadConst<CInt64[-1]>
@@ -4030,7 +4030,7 @@ fun test {
     v0:CInt64[63] = LoadConst<CInt64[63]>
     v1:MortalTupleExact = MakeTuple<1> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v2:CInt64[1] = LoadConst<CInt64[1]>
@@ -4045,7 +4045,7 @@ fun test {
     v0:CInt64[63] = LoadConst<CInt64[63]>
     v1:MortalTupleExact = MakeTuple<1> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     v2:CInt64[1] = LoadConst<CInt64[1]>
@@ -4070,7 +4070,7 @@ fun jittestmodule:test {
     Snapshot
     v14:MortalTupleExact = MakeTuple<3> v7 v8 v9 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<4> v7 v8 v9 v10
         Stack<3> v7 v8 v9
       }
@@ -4106,7 +4106,7 @@ fun jittestmodule:test {
     Snapshot
     v16:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<4> v10 v11 v12 v14
       }
     }
@@ -4117,7 +4117,7 @@ fun jittestmodule:test {
     Snapshot
     v21:MortalTupleExact = MakeTuple<3> v10 v11 v12 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<4> v10 v11 v12 v14
         Stack<3> v10 v11 v12
       }
@@ -4152,7 +4152,7 @@ fun jittestmodule:test {
     Snapshot
     v14:MortalTupleExact = MakeTuple<3> v7 v8 v9 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<4> v7 v8 v9 v10
         Stack<3> v7 v8 v9
       }
@@ -4165,7 +4165,7 @@ fun jittestmodule:test {
     v24:CInt64[0] = LoadConst<CInt64[0]>
     v21:CInt64 = CheckSequenceBounds v14 v23 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 16
         Locals<4> v7 v8 v9 v14
       }
     }
@@ -4191,7 +4191,7 @@ fun jittestmodule:test {
     Snapshot
     v16:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<4> v10 v11 v12 v14
       }
     }
@@ -4202,7 +4202,7 @@ fun jittestmodule:test {
     Snapshot
     v21:MortalTupleExact = MakeTuple<3> v10 v11 v12 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<4> v10 v11 v12 v14
         Stack<3> v10 v11 v12
       }
@@ -4215,7 +4215,7 @@ fun jittestmodule:test {
     v30:CInt64[0] = LoadConst<CInt64[0]>
     v27:CInt64 = CheckSequenceBounds v21 v29 {
       FrameState {
-        CurInstrOffset 16
+        NextInstrOffset 18
         Locals<4> v10 v11 v12 v21
       }
     }
@@ -4258,7 +4258,7 @@ fun jittestmodule:test {
     Snapshot
     v15:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<6> v9 v10 v11 v13 v13 v13
       }
     }
@@ -4286,7 +4286,7 @@ fun jittestmodule:test {
     Snapshot
     v21:MortalTupleExact = MakeTuple<3> v14 v15 v16 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
         Locals<5> v14 v15 v16 v17 v17
         Stack<3> v14 v15 v16
       }
@@ -4325,7 +4325,7 @@ fun jittestmodule:test {
     Snapshot
     v23:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<5> v17 v18 v19 v21 v21
       }
     }
@@ -4336,7 +4336,7 @@ fun jittestmodule:test {
     Snapshot
     v29:MortalTupleExact = MakeTuple<3> v17 v18 v19 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<5> v17 v18 v19 v21 v21
         Stack<3> v17 v18 v19
       }
@@ -4409,7 +4409,7 @@ fun jittestmodule:test {
     Snapshot
     v19:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<3> v17 v17 v17
       }
     }
@@ -4759,7 +4759,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v9
       }
     }
@@ -4815,7 +4815,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v9
       }
     }
@@ -4852,7 +4852,7 @@ fun jittestmodule:test {
     v11:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v12:Object = Compare<LessThan> v10 v11 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<1> v6
       }
     }
@@ -4874,7 +4874,7 @@ fun jittestmodule:test {
     Snapshot
     v12:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v9
       }
     }
@@ -4889,7 +4889,7 @@ fun jittestmodule:test {
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
     v18:Object = Compare<LessThan> v16 v17 {
       FrameState {
-        CurInstrOffset 10
+        NextInstrOffset 12
         Locals<1> v9
       }
     }
@@ -4914,7 +4914,7 @@ fun jittestmodule:test {
     v26:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v27:MortalTupleExact = MakeTuple<4> v19 v20 v21 v26 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<7> v19 v20 v21 v22 v22 v22 v22
         Stack<4> v19 v20 v21 v26
       }
@@ -4962,7 +4962,7 @@ fun jittestmodule:test {
     Snapshot
     v28:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<7> v22 v23 v24 v26 v26 v26 v26
       }
     }
@@ -4974,7 +4974,7 @@ fun jittestmodule:test {
     v36:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v37:MortalTupleExact = MakeTuple<4> v22 v23 v24 v36 {
       FrameState {
-        CurInstrOffset 10
+        NextInstrOffset 12
         Locals<7> v22 v23 v24 v26 v26 v26 v26
         Stack<4> v22 v23 v24 v36
       }
@@ -5027,7 +5027,7 @@ fun jittestmodule:test {
     v9:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v10:Object = VectorCall<3> v6 v7 v8 v9 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
       }
     }
     Snapshot
@@ -5047,7 +5047,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -5066,7 +5066,7 @@ fun jittestmodule:test {
     v17:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v19:Object = VectorCall<3> v14 v15 v16 v17 {
       FrameState {
-        CurInstrOffset 18
+        NextInstrOffset 20
       }
     }
     Snapshot
@@ -5094,7 +5094,7 @@ fun jittestmodule:test {
     v7:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v8:Object = VectorCall<2> v5 v6 v7 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
       }
     }
     Snapshot
@@ -5114,7 +5114,7 @@ fun jittestmodule:test {
     Snapshot
     v10:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -5132,7 +5132,7 @@ fun jittestmodule:test {
     v15:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v17:Object = VectorCall<2> v13 v14 v15 {
       FrameState {
-        CurInstrOffset 16
+        NextInstrOffset 18
       }
     }
     Snapshot
@@ -5165,7 +5165,7 @@ fun jittestmodule:test {
     }
     v13:Object = VectorCall<4> v5 v6 v7 v9 v10 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
       }
     }
     Snapshot
@@ -5185,7 +5185,7 @@ fun jittestmodule:test {
     Snapshot
     v10:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -5208,7 +5208,7 @@ fun jittestmodule:test {
     }
     v22:Object = VectorCall<4> v13 v14 v15 v18 v19 {
       FrameState {
-        CurInstrOffset 16
+        NextInstrOffset 18
       }
     }
     Snapshot
@@ -5246,7 +5246,7 @@ fun jittestmodule:test {
   bb 2 (preds 0) {
     v16:Object = FillTypeMethodCache<0, 1> v7 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
       }
     }
     Branch<3>
@@ -5260,7 +5260,7 @@ fun jittestmodule:test {
     v11:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v12:Object = CallMethod<4> v17 v9 v10 v11 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
       }
     }
     Snapshot
@@ -5280,7 +5280,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -5307,7 +5307,7 @@ fun jittestmodule:test {
   bb 4 (preds 1) {
     v22:Object = FillTypeMethodCache<0, 1> v13 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
       }
     }
     Branch<5>
@@ -5321,7 +5321,7 @@ fun jittestmodule:test {
     v17:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v18:Object = CallMethod<4> v23 v15 v16 v17 {
       FrameState {
-        CurInstrOffset 36
+        NextInstrOffset 38
       }
     }
     Snapshot
@@ -5361,7 +5361,7 @@ fun jittestmodule:test {
   bb 2 (preds 0) {
     v16:Object = FillTypeMethodCache<0, 1> v7 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
       }
     }
     Branch<3>
@@ -5375,7 +5375,7 @@ fun jittestmodule:test {
     v11:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v12:Object = CallMethod<4> v17 v9 v10 v11 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
       }
     }
     Snapshot
@@ -5395,7 +5395,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -5422,7 +5422,7 @@ fun jittestmodule:test {
   bb 4 (preds 1) {
     v22:Object = FillTypeMethodCache<0, 1> v13 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
       }
     }
     Branch<5>
@@ -5436,7 +5436,7 @@ fun jittestmodule:test {
     v17:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v18:Object = CallMethod<4> v23 v15 v16 v17 {
       FrameState {
-        CurInstrOffset 36
+        NextInstrOffset 38
       }
     }
     Snapshot
@@ -5476,7 +5476,7 @@ fun jittestmodule:test {
   bb 2 (preds 0) {
     v16:Object = FillTypeMethodCache<0, 1> v7 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
       }
     }
     Branch<3>
@@ -5490,7 +5490,7 @@ fun jittestmodule:test {
     v11:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v12:Object = CallMethod<4> v17 v9 v10 v11 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
       }
     }
     Snapshot
@@ -5510,7 +5510,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -5537,7 +5537,7 @@ fun jittestmodule:test {
   bb 4 (preds 1) {
     v22:Object = FillTypeMethodCache<0, 1> v13 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
       }
     }
     Branch<5>
@@ -5551,7 +5551,7 @@ fun jittestmodule:test {
     v17:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v18:Object = CallMethod<4> v23 v15 v16 v17 {
       FrameState {
-        CurInstrOffset 36
+        NextInstrOffset 38
       }
     }
     Snapshot
@@ -5586,7 +5586,7 @@ fun jittestmodule:test {
   bb 2 (preds 0) {
     v16:Object = FillTypeMethodCache<0, 1> v7 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
       }
     }
     Branch<3>
@@ -5600,7 +5600,7 @@ fun jittestmodule:test {
     v11:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v12:Object = CallMethod<4> v17 v9 v10 v11 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
       }
     }
     Snapshot
@@ -5620,7 +5620,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -5647,7 +5647,7 @@ fun jittestmodule:test {
   bb 4 (preds 1) {
     v22:Object = FillTypeMethodCache<0, 1> v13 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
       }
     }
     Branch<5>
@@ -5661,7 +5661,7 @@ fun jittestmodule:test {
     v17:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v18:Object = CallMethod<4> v23 v15 v16 v17 {
       FrameState {
-        CurInstrOffset 36
+        NextInstrOffset 38
       }
     }
     Snapshot
@@ -5686,14 +5686,14 @@ fun jittestmodule:test {
     Snapshot
     v9:Object = LoadModuleMethodCached<0; "time"> v5 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
       }
     }
     v7:OptObject = GetSecondOutput<OptObject> v9
     Snapshot
     v8:Object = CallMethod<2> v9 v7 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
       }
     }
     Snapshot
@@ -5713,7 +5713,7 @@ fun jittestmodule:test {
     Snapshot
     v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -5729,14 +5729,14 @@ fun jittestmodule:test {
     Snapshot
     v15:Object = LoadAttrCached<0; "time"> v12 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Stack<1> v10
       }
     }
     Snapshot
     v16:Object = VectorCall<0> v15 {
       FrameState {
-        CurInstrOffset 32
+        NextInstrOffset 34
       }
     }
     Snapshot
@@ -5763,20 +5763,20 @@ fun jittestmodule:test {
     Snapshot
     v7:Object = VectorCall<0> v6 {
       FrameState {
-        CurInstrOffset 2
+        NextInstrOffset 4
       }
     }
     Snapshot
     v11:Object = LoadMethodCached<1; "hello"> v7 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
       }
     }
     v9:OptObject = GetSecondOutput<OptObject> v11
     Snapshot
     v10:Object = CallMethod<2> v11 v9 {
       FrameState {
-        CurInstrOffset 6
+        NextInstrOffset 8
       }
     }
     Snapshot
@@ -5796,7 +5796,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Branch<1>
@@ -5812,20 +5812,20 @@ fun jittestmodule:test {
     Snapshot
     v19:Object = VectorCall<0> v14 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
       }
     }
     Snapshot
     v20:Object = LoadMethodCached<1; "hello"> v19 {
       FrameState {
-        CurInstrOffset 20
+        NextInstrOffset 22
       }
     }
     v17:OptObject = GetSecondOutput<OptObject> v20
     Snapshot
     v18:Object = CallMethod<2> v20 v17 {
       FrameState {
-        CurInstrOffset 40
+        NextInstrOffset 42
       }
     }
     Snapshot
@@ -5850,7 +5850,7 @@ fun test {
     v0:CInt64 = LoadArg<0, CInt64>
     v1:LongExact = PrimitiveBox<CInt64> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return<CInt64> v0
@@ -5862,7 +5862,7 @@ fun test {
     v0:CInt64 = LoadArg<0, CInt64>
     v1:LongExact = PrimitiveBox<CInt64> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Return<CInt64> v0
@@ -5908,7 +5908,7 @@ fun test {
   bb 1 (preds 0) {
     v3:LongExact = PrimitiveBox<CInt64> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Branch<3>
@@ -5917,7 +5917,7 @@ fun test {
   bb 2 (preds 0) {
     v4:LongExact = PrimitiveBox<CInt64> v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Branch<3>
@@ -5941,7 +5941,7 @@ fun test {
   bb 1 (preds 0) {
     v3:LongExact = PrimitiveBox<CInt64> v0 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Branch<3>
@@ -5950,7 +5950,7 @@ fun test {
   bb 2 (preds 0) {
     v4:LongExact = PrimitiveBox<CInt64> v1 {
       FrameState {
-        CurInstrOffset -2
+        NextInstrOffset 0
       }
     }
     Branch<3>
@@ -5987,7 +5987,7 @@ fun jittestmodule:test {
     Snapshot
     v32:Bool = VectorCall<1> v30 v28 {
       FrameState {
-        CurInstrOffset 4
+        NextInstrOffset 6
         Locals<1> v28
       }
     }
@@ -5999,7 +5999,7 @@ fun jittestmodule:test {
     Snapshot
     v36:BytesExact = VectorCall<1> v34 v28 {
       FrameState {
-        CurInstrOffset 10
+        NextInstrOffset 12
         Locals<1> v28
         Stack<1> v32
       }
@@ -6012,7 +6012,7 @@ fun jittestmodule:test {
     Snapshot
     v40:DictExact = VectorCall<1> v38 v28 {
       FrameState {
-        CurInstrOffset 16
+        NextInstrOffset 18
         Locals<1> v28
         Stack<2> v32 v36
       }
@@ -6025,7 +6025,7 @@ fun jittestmodule:test {
     Snapshot
     v44:FloatExact = VectorCall<1> v42 v28 {
       FrameState {
-        CurInstrOffset 22
+        NextInstrOffset 24
         Locals<1> v28
         Stack<3> v32 v36 v40
       }
@@ -6038,7 +6038,7 @@ fun jittestmodule:test {
     Snapshot
     v48:ListExact = VectorCall<1> v46 v28 {
       FrameState {
-        CurInstrOffset 28
+        NextInstrOffset 30
         Locals<1> v28
         Stack<4> v32 v36 v40 v44
       }
@@ -6051,7 +6051,7 @@ fun jittestmodule:test {
     Snapshot
     v52:SetExact = VectorCall<1> v50 v28 {
       FrameState {
-        CurInstrOffset 34
+        NextInstrOffset 36
         Locals<1> v28
         Stack<5> v32 v36 v40 v44 v48
       }
@@ -6064,7 +6064,7 @@ fun jittestmodule:test {
     Snapshot
     v56:TupleExact = VectorCall<1> v54 v28 {
       FrameState {
-        CurInstrOffset 40
+        NextInstrOffset 42
         Locals<1> v28
         Stack<6> v32 v36 v40 v44 v48 v52
       }
@@ -6085,7 +6085,7 @@ fun jittestmodule:test {
     Snapshot
     v64:UnicodeExact = VectorCall<1> v62 v28 {
       FrameState {
-        CurInstrOffset 52
+        NextInstrOffset 54
         Locals<1> v28
         Stack<8> v32 v36 v40 v44 v48 v52 v56 v82
       }
@@ -6098,7 +6098,7 @@ fun jittestmodule:test {
     Snapshot
     v68:LongExact = VectorCall<1> v66 v28 {
       FrameState {
-        CurInstrOffset 58
+        NextInstrOffset 60
         Locals<1> v28
         Stack<9> v32 v36 v40 v44 v48 v52 v56 v82 v64
       }
@@ -6111,7 +6111,7 @@ fun jittestmodule:test {
     Snapshot
     v72:ObjectExact = VectorCall<1> v70 v28 {
       FrameState {
-        CurInstrOffset 64
+        NextInstrOffset 66
         Locals<1> v28
         Stack<10> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68
       }
@@ -6124,7 +6124,7 @@ fun jittestmodule:test {
     Snapshot
     v76:Object = VectorCall<1> v74 v28 {
       FrameState {
-        CurInstrOffset 70
+        NextInstrOffset 72
         Locals<1> v28
         Stack<11> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68 v72
       }
@@ -6137,7 +6137,7 @@ fun jittestmodule:test {
     Snapshot
     v80:Object = VectorCall<1> v78 v28 {
       FrameState {
-        CurInstrOffset 76
+        NextInstrOffset 78
         Locals<1> v28
         Stack<12> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68 v72 v76
       }
@@ -6145,7 +6145,7 @@ fun jittestmodule:test {
     Snapshot
     v81:MortalTupleExact = MakeTuple<13> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68 v72 v76 v80 {
       FrameState {
-        CurInstrOffset 78
+        NextInstrOffset 80
         Locals<1> v28
         Stack<13> v32 v36 v40 v44 v48 v52 v56 v82 v64 v68 v72 v76 v80
       }
@@ -6168,7 +6168,7 @@ fun jittestmodule:test {
     Snapshot
     v47:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v44
       }
     }
@@ -6185,7 +6185,7 @@ fun jittestmodule:test {
     Snapshot
     v102:Bool = VectorCall<1> v51 v44 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 16
         Locals<1> v44
       }
     }
@@ -6198,7 +6198,7 @@ fun jittestmodule:test {
     Snapshot
     v103:BytesExact = VectorCall<1> v55 v44 {
       FrameState {
-        CurInstrOffset 34
+        NextInstrOffset 36
         Locals<1> v44
         Stack<1> v102
       }
@@ -6212,7 +6212,7 @@ fun jittestmodule:test {
     Snapshot
     v104:DictExact = VectorCall<1> v59 v44 {
       FrameState {
-        CurInstrOffset 54
+        NextInstrOffset 56
         Locals<1> v44
         Stack<2> v102 v103
       }
@@ -6226,7 +6226,7 @@ fun jittestmodule:test {
     Snapshot
     v105:FloatExact = VectorCall<1> v63 v44 {
       FrameState {
-        CurInstrOffset 74
+        NextInstrOffset 76
         Locals<1> v44
         Stack<3> v102 v103 v104
       }
@@ -6240,7 +6240,7 @@ fun jittestmodule:test {
     Snapshot
     v106:ListExact = VectorCall<1> v67 v44 {
       FrameState {
-        CurInstrOffset 94
+        NextInstrOffset 96
         Locals<1> v44
         Stack<4> v102 v103 v104 v105
       }
@@ -6254,7 +6254,7 @@ fun jittestmodule:test {
     Snapshot
     v107:SetExact = VectorCall<1> v71 v44 {
       FrameState {
-        CurInstrOffset 114
+        NextInstrOffset 116
         Locals<1> v44
         Stack<5> v102 v103 v104 v105 v106
       }
@@ -6268,7 +6268,7 @@ fun jittestmodule:test {
     Snapshot
     v108:TupleExact = VectorCall<1> v75 v44 {
       FrameState {
-        CurInstrOffset 134
+        NextInstrOffset 136
         Locals<1> v44
         Stack<6> v102 v103 v104 v105 v106 v107
       }
@@ -6291,7 +6291,7 @@ fun jittestmodule:test {
     Snapshot
     v110:UnicodeExact = VectorCall<1> v83 v44 {
       FrameState {
-        CurInstrOffset 174
+        NextInstrOffset 176
         Locals<1> v44
         Stack<8> v102 v103 v104 v105 v106 v107 v108 v115
       }
@@ -6305,7 +6305,7 @@ fun jittestmodule:test {
     Snapshot
     v111:LongExact = VectorCall<1> v87 v44 {
       FrameState {
-        CurInstrOffset 194
+        NextInstrOffset 196
         Locals<1> v44
         Stack<9> v102 v103 v104 v105 v106 v107 v108 v115 v110
       }
@@ -6319,7 +6319,7 @@ fun jittestmodule:test {
     Snapshot
     v112:ObjectExact = VectorCall<1> v91 v44 {
       FrameState {
-        CurInstrOffset 214
+        NextInstrOffset 216
         Locals<1> v44
         Stack<10> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111
       }
@@ -6333,7 +6333,7 @@ fun jittestmodule:test {
     Snapshot
     v113:Object = VectorCall<1> v95 v44 {
       FrameState {
-        CurInstrOffset 234
+        NextInstrOffset 236
         Locals<1> v44
         Stack<11> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112
       }
@@ -6347,7 +6347,7 @@ fun jittestmodule:test {
     Snapshot
     v114:Object = VectorCall<1> v99 v44 {
       FrameState {
-        CurInstrOffset 254
+        NextInstrOffset 256
         Locals<1> v44
         Stack<12> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112 v113
       }
@@ -6355,7 +6355,7 @@ fun jittestmodule:test {
     Snapshot
     v101:MortalTupleExact = MakeTuple<13> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112 v113 v114 {
       FrameState {
-        CurInstrOffset 262
+        NextInstrOffset 264
         Locals<1> v44
         Stack<13> v102 v103 v104 v105 v106 v107 v108 v115 v110 v111 v112 v113 v114
       }
@@ -6381,7 +6381,7 @@ fun jittestmodule:test {
     UseType<LongExact> v9
     v13:LongExact = LongInPlaceOp<Add> v6 v9 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<1> v6
       }
     }
@@ -6404,7 +6404,7 @@ fun jittestmodule:test {
     Snapshot
     v11:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 0
+        NextInstrOffset 2
         Locals<1> v9
       }
     }
@@ -6419,7 +6419,7 @@ fun jittestmodule:test {
     UseType<LongExact> v15
     v20:LongExact = LongInPlaceOp<Add> v13 v15 {
       FrameState {
-        CurInstrOffset 10
+        NextInstrOffset 12
         Locals<1> v13
       }
     }
@@ -6450,14 +6450,14 @@ fun jittestmodule:test {
     v17:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
     v18:Object = VectorCall<1> v16 v17 {
       FrameState {
-        CurInstrOffset 8
+        NextInstrOffset 10
         Locals<2> v13 v12
       }
     }
     Snapshot
     v19:Object = GetIter v18 {
       FrameState {
-        CurInstrOffset 10
+        NextInstrOffset 12
         Locals<2> v13 v12
       }
     }
@@ -6475,7 +6475,7 @@ fun jittestmodule:test {
     Snapshot
     v25:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v23 v24
         Stack<1> v19
       }
@@ -6487,7 +6487,7 @@ fun jittestmodule:test {
     Snapshot
     v29:Object = InvokeIterNext v19 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 14
         Locals<2> v23 v24
         Stack<1> v19
       }
@@ -6502,7 +6502,7 @@ fun jittestmodule:test {
     UseType<LongExact> v33
     v37:LongExact = LongInPlaceOp<Add> v23 v33 {
       FrameState {
-        CurInstrOffset 20
+        NextInstrOffset 22
         Locals<2> v23 v29
         Stack<1> v19
       }
@@ -6530,14 +6530,14 @@ fun jittestmodule:test {
     v17:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
     v18:Object = VectorCall<1> v16 v17 {
       FrameState {
-        CurInstrOffset 10
+        NextInstrOffset 10
         Locals<2> v13 v12
       }
     }
     Snapshot
     v19:Object = GetIter v18 {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 12
         Locals<2> v13 v12
       }
     }
@@ -6556,7 +6556,7 @@ fun jittestmodule:test {
     Snapshot
     v25:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 12
+        NextInstrOffset 12
         Locals<2> v23 v24
         Stack<1> v19
       }
@@ -6568,7 +6568,7 @@ fun jittestmodule:test {
     Snapshot
     v29:Object = InvokeIterNext v19 {
       FrameState {
-        CurInstrOffset 14
+        NextInstrOffset 14
         Locals<2> v23 v24
         Stack<1> v19
       }
@@ -6583,7 +6583,7 @@ fun jittestmodule:test {
     UseType<LongExact> v33
     v37:LongExact = LongInPlaceOp<Add> v23 v33 {
       FrameState {
-        CurInstrOffset 22
+        NextInstrOffset 22
         Locals<2> v23 v29
         Stack<1> v19
       }
