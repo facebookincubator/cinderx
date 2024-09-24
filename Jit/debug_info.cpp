@@ -160,7 +160,7 @@ uint16_t DebugInfo::getCallerID(const jit::hir::FrameState* caller) {
   LocNode node{
       getCodeObjID(caller->code),
       getCallerID(caller->parent),
-      caller->cur_instr_offs};
+      caller->instr_offset()};
   for (uint16_t i = 0; i < inlined_calls_.size(); i++) {
     if (inlined_calls_[i] == node) {
       return i;

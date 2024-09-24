@@ -156,8 +156,8 @@ Ref<> profileDeopt(
     std::size_t deopt_idx,
     const DeoptMetadata& meta,
     const MemoryView& mem) {
-  BorrowedRef<PyCodeObject> code = meta.innermostFrame().code;
-  BCOffset bc_off = meta.innermostFrame().cause_instr_idx;
+  BorrowedRef<PyCodeObject> code = meta.code();
+  BCOffset bc_off = meta.instr_offset();
 
   // Bytecode offset will be negative if the interpreter wants to resume
   // executing at the start of the function.  Report a negative/invalid opcode
@@ -180,42 +180,6 @@ Ref<> profileDeopt(
   Ref<> guilty_obj = live_val == nullptr ? nullptr : mem.readOwned(*live_val);
   Runtime::get()->recordDeopt(deopt_idx, guilty_obj.get());
   return guilty_obj;
-}
-
-// This function handles all computation of the index to resume at for a given
-// deopt.
-//
-// The first thing is it considers is whether the deopt is a "guard" or due to
-// an exception being raised as part of the execution. Guard failures mean the
-// JITed opcode has failed and needs to be re-run in the interpreter,
-// exceptions mean the opcode has succeeded but there has been an exceptional
-// condition so we want to resume the *next* opcode in the interpreter.
-//
-// There second thing it handles is YIELD_FROM. By default we will be deopting
-// here because an exception was injected into the generator. However, we can
-// also "force deopt" suspended generators as part of CinderX shutdown. In this
-// case the interpreter in future would need to resume at the YIELD_FROM
-// instead of ahead of it.
-static BCIndex getDeoptResumeIndex(
-    const DeoptMetadata& meta,
-    const DeoptFrameMetadata& frame,
-    bool for_gen_resume) {
-  // We only need to consider guards as the deopt cause in the inner-most
-  // inlined location. If we are reifying the conceptual frames for an inlined
-  // function's calleers then these will be resumed by the interpreter in
-  // future and never a JIT guard failure.
-  bool is_innermost = &frame == &meta.innermostFrame();
-  if (is_innermost && meta.reason == DeoptReason::kGuardFailure) {
-    return frame.cause_instr_idx;
-  }
-  BCIndex resume_idx = BCOffset{
-      frame.cause_instr_idx.asOffset().value() + sizeof(_Py_CODEUNIT) +
-      inlineCacheSize(frame.code, frame.cause_instr_idx.value())};
-  if (meta.reason == DeoptReason::kYieldFrom && for_gen_resume) {
-    JIT_DCHECK(meta.inline_depth() == 0, "Inlined generators not supported");
-    resume_idx--;
-  }
-  return resume_idx;
 }
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -250,9 +214,18 @@ static void reifyFrameImpl(
   }
 
   // Instruction pointer
-  frame->f_lasti =
-      getDeoptResumeIndex(meta, frame_meta, for_gen_resume).value() - 1;
-
+  if (frame_meta.next_instr_offset == 0) {
+    frame->f_lasti = -1;
+  } else {
+    frame->f_lasti = (BCIndex{frame_meta.next_instr_offset} - 1).value();
+  }
+  if (meta.reason == DeoptReason::kYieldFrom && for_gen_resume) {
+    // The DeoptMetadata for YieldFrom-like instructions defaults to the state
+    // for raising an exception. If we're going to resume execution, we need to
+    // pull the instruction pointer back by one, to repeat the YIELD_FROM
+    // bytecode.
+    frame->f_lasti--;
+  }
   MemoryView mem{regs};
   reifyLocalsplus(frame, meta, frame_meta, mem);
   reifyStack(frame, meta, frame_meta, mem);
@@ -268,13 +241,16 @@ static void reifyFrameImpl(
     bool for_gen_resume,
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs) {
-  // Note frame->prev_instr doesn't point to the previous instruction, it
-  // actually points to the memory location sizeof(Py_CODEUNIT) bytes before
-  // the next instruction to execute. This means it might point to inline-
-  // cache data or a negative location.
-  int idx = (getDeoptResumeIndex(meta, frame_meta, for_gen_resume) - 1).value();
-  frame->prev_instr = _PyCode_CODE(frame->f_code) + idx;
-
+  frame->prev_instr = _PyCode_CODE(frame->f_code) +
+      (BCIndex{frame_meta.next_instr_offset} - 1).value();
+  if (meta.reason == DeoptReason::kYieldFrom && for_gen_resume) {
+    UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+    // The DeoptMetadata for YieldFrom-like instructions defaults to the state
+    // for raising an exception. If we're going to resume execution, we need to
+    // pull the instruction pointer back by one, to repeat the YIELD_FROM
+    // bytecode.
+    // frame->f_lasti--;
+  }
   MemoryView mem{regs};
   reifyLocalsplus(frame, meta, frame_meta, mem);
   reifyStack(frame, meta, frame_meta, mem);
@@ -447,7 +423,7 @@ DeoptMetadata DeoptMetadata::fromInstr(
     populate_localsplus(meta.frame_meta.at(i), frame);
     populate_stack(meta.frame_meta.at(i), frame);
     meta.frame_meta.at(i).block_stack = frame->block_stack;
-    meta.frame_meta.at(i).cause_instr_idx = frame->cur_instr_offs;
+    meta.frame_meta.at(i).next_instr_offset = frame->next_instr_offset;
     meta.frame_meta.at(i).code = frame->code.get();
   }
 

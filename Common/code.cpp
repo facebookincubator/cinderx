@@ -39,7 +39,7 @@ _Py_CODEUNIT* codeUnit(PyCodeObject* code) {
   return (_Py_CODEUNIT*)PyBytes_AS_STRING(PyCode_GetCode(code));
 }
 
-size_t countIndicies(PyCodeObject* code) {
+size_t countInstrs(PyCodeObject* code) {
   return PyBytes_GET_SIZE(PyCode_GetCode(code)) / sizeof(_Py_CODEUNIT);
 }
 

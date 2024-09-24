@@ -488,7 +488,7 @@ fun jittestmodule:test {
     v29:CInt32 = RunPeriodicTasks {
       LiveValues<6> b:v14 b:v15 b:v16 o:v21 b:v27 o:v28
       FrameState {
-        NextInstrOffset 10
+        NextInstrOffset 8
         Locals<5> v14 v15 v16 v27 v28
         Stack<1> v21
       }
@@ -514,7 +514,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<8> b:v14 b:v15 b:v16 o:v21 b:v27 o:v28 o:v36 b:v38
       FrameState {
-        NextInstrOffset 12
+        NextInstrOffset 10
         Locals<5> v14 v15 v16 v27 v28
         Stack<2> v21 v36
       }
@@ -719,7 +719,7 @@ fun jittestmodule:test {
     v38:CInt32 = RunPeriodicTasks {
       LiveValues<6> b:v18 o:v21 o:v24 o:v29 b:v36 o:v37
       FrameState {
-        NextInstrOffset 22
+        NextInstrOffset 20
         Locals<5> v18 v21 v24 v36 v37
         Stack<1> v29
       }
@@ -745,7 +745,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<8> b:v18 o:v21 o:v24 o:v29 b:v36 o:v37 o:v45 b:v48
       FrameState {
-        NextInstrOffset 24
+        NextInstrOffset 22
         Locals<5> v18 v21 v24 v36 v37
         Stack<2> v29 v45
       }
@@ -964,7 +964,7 @@ fun jittestmodule:test {
     v27:CInt32 = RunPeriodicTasks {
       LiveValues<4> b:v14 o:v20 o:v25 o:v26
       FrameState {
-        NextInstrOffset 12
+        NextInstrOffset 10
         Locals<3> v14 v25 v26
         Stack<1> v20
       }
@@ -990,7 +990,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<6> b:v14 o:v20 o:v25 o:v26 o:v32 b:v35
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 12
         Locals<3> v14 v25 v26
         Stack<2> v20 v32
       }
@@ -1650,7 +1650,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<3> b:v12 o:v27 b:v30
       FrameState {
-        NextInstrOffset 26
+        NextInstrOffset 24
         Locals<2> v12 v27
       }
     }
@@ -1777,7 +1777,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<4> b:v16 o:v34 unc:v36 b:v37
       FrameState {
-        NextInstrOffset 30
+        NextInstrOffset 28
         Locals<2> v16 v34
       }
     }
@@ -1836,7 +1836,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: dict'
       LiveValues<5> b:v15 b:v16 b:v17 unc:v18 b:v19
       FrameState {
-        NextInstrOffset 2
+        NextInstrOffset 0
         Locals<4> v15 v16 v17 v18
       }
     }
@@ -1872,7 +1872,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<5> b:v16 b:v17 o:v21 b:v27 b:v31
       FrameState {
-        NextInstrOffset 16
+        NextInstrOffset 14
         Locals<4> v27 v16 v17 v21
       }
     }
@@ -1914,7 +1914,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<6> b:v17 b:v27 o:v42 o:v44 b:v45 b:v47
       FrameState {
-        NextInstrOffset 36
+        NextInstrOffset 34
         Locals<4> v27 v42 v17 v44
       }
     }
@@ -1963,7 +1963,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: dict'
       LiveValues<5> b:v21 b:v22 b:v23 unc:v25 b:v33
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 2
         Locals<4> v21 v22 v23 v25
       }
     }
@@ -1999,7 +1999,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<5> b:v22 b:v23 b:v39 b:v44 o:v65
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 30
         Locals<4> v39 v22 v23 v65
       }
     }
@@ -2041,7 +2041,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<6> b:v23 b:v39 o:v52 o:v54 b:v55 b:v58
       FrameState {
-        NextInstrOffset 66
+        NextInstrOffset 64
         Locals<4> v39 v52 v23 v54
       }
     }

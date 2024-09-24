@@ -787,8 +787,7 @@ void HIRPrinter::Print(
 }
 
 void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
-  Indented(os) << "NextInstrOffset "
-               << state.cur_instr_offs + sizeof(_Py_CODEUNIT) << std::endl;
+  Indented(os) << "NextInstrOffset " << state.next_instr_offset << std::endl;
 
   auto nlocals = state.nlocals;
   if (nlocals > 0) {

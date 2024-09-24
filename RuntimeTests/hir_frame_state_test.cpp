@@ -18,7 +18,8 @@ class FrameStateCreationTest : public RuntimeTest {};
 
 TEST_F(FrameStateCreationTest, InitialInstrOffset) {
   FrameState frame;
-  EXPECT_EQ(frame.cur_instr_offs.value(), -sizeof(_Py_CODEUNIT));
+  EXPECT_LT(frame.instr_offset(), 0);
+  EXPECT_EQ(frame.instr_offset().value() % sizeof(_Py_CODEUNIT), 0);
 }
 
 #define EXPECT_HIR_EQ(irfunc, expected)                        \
@@ -39,7 +40,7 @@ def test():
   bb 0 {
     v0 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
     }
     v1 = LoadEvalBreaker
     CondBranch<2, 1> v1
@@ -59,7 +60,7 @@ def test():
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
     }
     v3 = LoadGlobal<0; "foo"> {
       FrameState {
@@ -67,7 +68,7 @@ def test():
       }
     }
     Snapshot {
-      NextInstrOffset 14
+      NextInstrOffset 4
       Stack<1> v3
     }
     Return v3
@@ -78,7 +79,7 @@ def test():
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
     }
     v0 = LoadGlobal<0; "foo"> {
       FrameState {
@@ -86,7 +87,7 @@ def test():
       }
     }
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Stack<1> v0
     }
     Return v0
@@ -109,7 +110,7 @@ def test(fs):
   bb 0 {
     v0 = LoadArg<0; "fs">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v2 = LoadGlobal<0; "xs"> {
@@ -119,7 +120,7 @@ def test(fs):
       }
     }
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
       Stack<1> v2
     }
@@ -128,6 +129,11 @@ def test(fs):
         NextInstrOffset 4
         Locals<2> v0 v1
       }
+    }
+    Snapshot {
+      NextInstrOffset 4
+      Locals<2> v0 v1
+      Stack<1> v3
     }
     v2 = Assign v3
     Branch<4>
@@ -140,13 +146,13 @@ def test(fs):
 
   bb 5 (preds 4) {
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 4
       Locals<2> v0 v1
       Stack<1> v2
     }
     v7 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 6
+        NextInstrOffset 4
         Locals<2> v0 v1
         Stack<1> v2
       }
@@ -156,7 +162,7 @@ def test(fs):
 
   bb 1 (preds 4, 5) {
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 4
       Locals<2> v0 v1
       Stack<1> v2
     }
@@ -173,7 +179,7 @@ def test(fs):
 
   bb 2 (preds 1) {
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<2> v2 v3
     }
@@ -183,7 +189,7 @@ def test(fs):
 
   bb 3 (preds 1) {
     Snapshot {
-      NextInstrOffset 12
+      NextInstrOffset 10
       Locals<2> v0 v1
     }
     v5 = LoadConst<NoneType>
@@ -209,7 +215,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"x"> v0 {
@@ -231,7 +237,7 @@ def test(x, y):
 
   bb 1 (preds 0) {
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 4
       Locals<2> v0 v1
     }
     v1 = CheckVar<"y"> v1 {
@@ -246,7 +252,7 @@ def test(x, y):
 
   bb 2 (preds 0, 1) {
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v3
     }
@@ -272,7 +278,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"x"> v0 {
@@ -294,7 +300,7 @@ def test(x, y):
 
   bb 1 (preds 0) {
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 4
       Locals<2> v0 v1
     }
     v1 = CheckVar<"y"> v1 {
@@ -309,7 +315,7 @@ def test(x, y):
 
   bb 2 (preds 0, 1) {
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v3
     }
@@ -334,7 +340,7 @@ def test(f, a):
     v1 = LoadArg<1; "a">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -357,12 +363,12 @@ def test(f, a):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = LoadConst<Nullptr>
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 4
       Locals<2> v0 v1
       Stack<1> v5
     }
@@ -373,7 +379,7 @@ def test(f, a):
       }
     }
     Snapshot {
-      NextInstrOffset 18
+      NextInstrOffset 10
       Locals<2> v0 v1
       Stack<1> v6
     }
@@ -387,7 +393,7 @@ def test(f, a):
     v0 = LoadArg<0; "f">
     v1 = LoadArg<1; "a">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"f"> v0 {
@@ -410,7 +416,7 @@ def test(f, a):
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v2
     }
@@ -436,7 +442,7 @@ def test(f, a):
     v1 = LoadArg<1; "a">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -459,7 +465,7 @@ def test(f, a):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = LoadMethod<0; "bar"> v0 {
@@ -470,7 +476,7 @@ def test(f, a):
     }
     v6 = GetSecondOutput<OptObject> v5
     Snapshot {
-      NextInstrOffset 26
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<2> v5 v6
     }
@@ -481,7 +487,7 @@ def test(f, a):
       }
     }
     Snapshot {
-      NextInstrOffset 36
+      NextInstrOffset 28
       Locals<2> v0 v1
       Stack<1> v7
     }
@@ -495,7 +501,7 @@ def test(f, a):
     v0 = LoadArg<0; "f">
     v1 = LoadArg<1; "a">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"f"> v0 {
@@ -512,7 +518,7 @@ def test(f, a):
     }
     v3 = GetSecondOutput<OptObject> v2
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 4
       Locals<2> v0 v1
       Stack<2> v2 v3
     }
@@ -530,7 +536,7 @@ def test(f, a):
       }
     }
     Snapshot {
-      NextInstrOffset 10
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<1> v4
     }
@@ -555,7 +561,7 @@ def test(f):
     v0 = LoadArg<0; "f">
     v1 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<1> v0
     }
     v2 = LoadEvalBreaker
@@ -578,7 +584,7 @@ def test(f):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<1> v0
     }
     v4 = LoadAttr<0; "a"> v0 {
@@ -588,7 +594,7 @@ def test(f):
       }
     }
     Snapshot {
-      NextInstrOffset 26
+      NextInstrOffset 6
       Locals<1> v0
       Stack<1> v4
     }
@@ -599,7 +605,7 @@ def test(f):
       }
     }
     Snapshot {
-      NextInstrOffset 46
+      NextInstrOffset 26
       Locals<1> v0
       Stack<1> v5
     }
@@ -612,7 +618,7 @@ def test(f):
   bb 0 {
     v0 = LoadArg<0; "f">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<1> v0
     }
     v0 = CheckVar<"f"> v0 {
@@ -628,7 +634,7 @@ def test(f):
       }
     }
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 4
       Locals<1> v0
       Stack<1> v1
     }
@@ -639,7 +645,7 @@ def test(f):
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<1> v0
       Stack<1> v2
     }
@@ -665,7 +671,7 @@ def test(x, y):
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -688,7 +694,7 @@ def test(x, y):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = InPlaceOp<Xor> v0 v1 {
@@ -698,7 +704,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 12
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<1> v5
     }
@@ -715,7 +721,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"x"> v0 {
@@ -738,7 +744,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v2
     }
@@ -766,7 +772,7 @@ def test(x, y):
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -789,7 +795,7 @@ def test(x, y):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = BinaryOp<Add> v0 v1 {
@@ -799,7 +805,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 12
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<1> v5
     }
@@ -813,7 +819,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"x"> v0 {
@@ -836,7 +842,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v2
     }
@@ -861,7 +867,7 @@ def test(x):
     v0 = LoadArg<0; "x">
     v1 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<1> v0
     }
     v2 = LoadEvalBreaker
@@ -884,7 +890,7 @@ def test(x):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<1> v0
     }
     v4 = UnaryOp<Not> v0 {
@@ -894,7 +900,7 @@ def test(x):
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<1> v0
       Stack<1> v4
     }
@@ -907,7 +913,7 @@ def test(x):
   bb 0 {
     v0 = LoadArg<0; "x">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<1> v0
     }
     v0 = CheckVar<"x"> v0 {
@@ -923,7 +929,7 @@ def test(x):
       }
     }
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 4
       Locals<1> v0
       Stack<1> v1
     }
@@ -949,7 +955,7 @@ def test(x, y):
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -972,7 +978,7 @@ def test(x, y):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = StoreAttr<0; "foo"> v0 v1 {
@@ -982,7 +988,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 18
+      NextInstrOffset 8
       Locals<2> v0 v1
     }
     v6 = LoadConst<NoneType>
@@ -997,7 +1003,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v1 = CheckVar<"y"> v1 {
@@ -1020,7 +1026,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
     }
     v3 = LoadConst<NoneType>
@@ -1046,7 +1052,7 @@ def test(x, y):
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -1069,7 +1075,7 @@ def test(x, y):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = LoadConst<ImmortalLongExact[1]>
@@ -1080,7 +1086,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 14
+      NextInstrOffset 10
       Locals<2> v0 v1
     }
     v7 = LoadConst<NoneType>
@@ -1095,7 +1101,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v1 = CheckVar<"y"> v1 {
@@ -1119,7 +1125,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 10
+      NextInstrOffset 8
       Locals<2> v0 v1
     }
     v4 = LoadConst<NoneType>
@@ -1145,7 +1151,7 @@ def test(x, y):
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -1168,7 +1174,7 @@ def test(x, y):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
@@ -1196,7 +1202,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 12
+      NextInstrOffset 10
       Locals<2> v0 v1
       Stack<1> v6
     }
@@ -1210,7 +1216,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"x"> v0 {
@@ -1251,7 +1257,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 10
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<1> v3
     }
@@ -1277,7 +1283,7 @@ def test(x, y):
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -1300,7 +1306,7 @@ def test(x, y):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = MakeList<2> v0 v1 {
@@ -1311,7 +1317,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 10
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<1> v5
     }
@@ -1325,7 +1331,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"x"> v0 {
@@ -1349,7 +1355,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v2
     }
@@ -1375,7 +1381,7 @@ def test(x, y):
     v1 = LoadArg<1; "y">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -1398,7 +1404,7 @@ def test(x, y):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = MakeTuple<2> v0 v1 {
@@ -1409,7 +1415,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 10
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<1> v5
     }
@@ -1423,7 +1429,7 @@ def test(x, y):
     v0 = LoadArg<0; "x">
     v1 = LoadArg<1; "y">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"x"> v0 {
@@ -1447,7 +1453,7 @@ def test(x, y):
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v2
     }
@@ -1474,7 +1480,7 @@ def test(x):
     v0 = LoadArg<0; "x">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v3 = LoadEvalBreaker
@@ -1497,7 +1503,7 @@ def test(x):
 
   bb 1 (preds 0, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v5 = MakeTuple<1> v0 {
@@ -1508,7 +1514,7 @@ def test(x):
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v5
     }
@@ -1523,7 +1529,7 @@ def test(x):
     }
     SetFunctionAttr<func_defaults> v5 v7
     Snapshot {
-      NextInstrOffset 12
+      NextInstrOffset 10
       Locals<2> v0 v1
       Stack<1> v7
     }
@@ -1537,7 +1543,7 @@ def test(x):
   bb 0 {
     v0 = LoadArg<0; "x">
     Snapshot {
-      NextInstrOffset 2
+      NextInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"x"> v0 {
@@ -1554,7 +1560,7 @@ def test(x):
       }
     }
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 4
       Locals<2> v0 v1
       Stack<1> v2
     }
@@ -1569,7 +1575,7 @@ def test(x):
     }
     SetFunctionAttr<func_defaults> v2 v5
     Snapshot {
-      NextInstrOffset 12
+      NextInstrOffset 10
       Locals<2> v0 v1
       Stack<1> v5
     }
@@ -1591,7 +1597,7 @@ def test(x):
 TEST_F(FrameStateCreationTest, GetDominatingFrameState) {
   CFG cfg;
   auto block = cfg.AllocateBlock();
-  FrameState fs{jit::BCOffset{10}};
+  FrameState fs{10};
   block->append<Snapshot>(fs);
 
   auto addCheckExc = [&block]() {
@@ -1610,7 +1616,7 @@ TEST_F(FrameStateCreationTest, GetDominatingFrameState) {
   auto i2_fs = i2->getDominatingFrameState();
   ASSERT_NE(i2_fs, nullptr);
   ASSERT_EQ(*i2_fs, fs);
-  FrameState fs2{jit::BCOffset{20}};
+  FrameState fs2{20};
   block->append<Snapshot>(fs2);
 
   for (int i = 0; i < 5; i++) {

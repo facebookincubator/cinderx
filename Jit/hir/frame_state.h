@@ -52,7 +52,7 @@ struct FrameState {
     *this = other;
   }
   FrameState& operator=(const FrameState& other) {
-    cur_instr_offs = other.cur_instr_offs;
+    next_instr_offset = other.next_instr_offset;
     localsplus = other.localsplus;
     nlocals = other.nlocals;
     stack = other.stack;
@@ -74,8 +74,7 @@ struct FrameState {
     JIT_DCHECK(this != parent, "FrameStates should not be self-referential");
   }
   // Used for testing only.
-  explicit FrameState(BCOffset cur_instr_offs)
-      : cur_instr_offs(cur_instr_offs) {}
+  explicit FrameState(int bc_off) : next_instr_offset(bc_off) {}
 
   // If the function is inlined into another function, the depth at which it
   // is inlined (nested function calls may be inlined). Starts at 1. If the
@@ -94,7 +93,9 @@ struct FrameState {
     return inline_depth;
   }
 
-  BCOffset cur_instr_offs{-static_cast<ssize_t>(sizeof(_Py_CODEUNIT))};
+  // The bytecode offset of the next instruction to be executed once control has
+  // transferred to the interpreter.
+  BCOffset next_instr_offset{0};
 
   // Combination of local variables, cell variables (used by closures of inner
   // functions), and free variables (our closure), in that order.
@@ -114,6 +115,15 @@ struct FrameState {
   // functions during e.g. deopt.
   FrameState* parent{nullptr};
 
+  // The bytecode offset of the current instruction, or -sizeof(_Py_CODEUNIT) if
+  // no instruction has executed. This corresponds to the `f_lasti` field of
+  // PyFrameObject.
+  BCOffset instr_offset() const {
+    return std::max(
+        next_instr_offset - int{sizeof(_Py_CODEUNIT)},
+        BCOffset{-int{sizeof(_Py_CODEUNIT)}});
+  }
+
   bool visitUses(const std::function<bool(Register*&)>& func) {
     for (auto& reg : stack) {
       if (!func(reg)) {
@@ -132,8 +142,8 @@ struct FrameState {
   }
 
   bool operator==(const FrameState& other) const {
-    return (cur_instr_offs == other.cur_instr_offs) && (stack == other.stack) &&
-        (block_stack == other.block_stack) &&
+    return (next_instr_offset == other.next_instr_offset) &&
+        (stack == other.stack) && (block_stack == other.block_stack) &&
         (localsplus == other.localsplus) && (code == other.code);
   }
 

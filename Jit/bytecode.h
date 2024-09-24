@@ -83,22 +83,29 @@ class BytecodeInstruction {
     return IsBranch() || kBlockTerminatorOpcodes.count(opcode());
   }
 
-  BCIndex getJumpTargetIndex(PyCodeObject* code) const {
+  BCOffset GetJumpTarget() const {
+    return GetJumpTargetAsIndex();
+  }
+
+  BCIndex GetJumpTargetAsIndex() const {
     JIT_DCHECK(
         IsBranch(),
         "calling GetJumpTargetAsIndex() on non-branch gives nonsense");
     if (kRelBranchOpcodes.count(opcode())) {
       if (opcode() == JUMP_BACKWARD || opcode() == JUMP_BACKWARD_NO_INTERRUPT) {
-        return nextInstrIndex(code) - oparg();
+        return NextInstrIndex() - oparg();
       }
-      return nextInstrIndex(code) + oparg();
+      return NextInstrIndex() + oparg();
     }
     return BCIndex{oparg()};
   }
 
-  BCIndex nextInstrIndex(PyCodeObject* code) const {
-    return (offset_.asIndex() + 1).asOffset() +
-        inlineCacheSize(code, offset_.asIndex().value());
+  BCOffset NextInstrOffset() const {
+    return NextInstrIndex();
+  }
+
+  BCIndex NextInstrIndex() const {
+    return BCIndex{offset_} + 1;
   }
 
   void ExtendOpArgWith(int changes) {
@@ -119,10 +126,8 @@ class BytecodeInstruction {
 class BytecodeInstructionBlock {
  public:
   explicit BytecodeInstructionBlock(BorrowedRef<PyCodeObject> code)
-      : BytecodeInstructionBlock{
-            code,
-            BCIndex{0},
-            BCIndex{countIndicies(code)}} {}
+      : BytecodeInstructionBlock{code, BCIndex{0}, BCIndex{countInstrs(code)}} {
+  }
 
   BytecodeInstructionBlock(
       BorrowedRef<PyCodeObject> code,
@@ -193,13 +198,7 @@ class BytecodeInstructionBlock {
       return !(*this == other);
     }
 
-    // This doesn't make sense in 3.11+ as instructions don't always take
-    // single _Py_CODEUNIT sized blocks due to inline caching. So this doesn't
-    // tell you anything meaningful. Fortunately, we don't need it beyond 3.10.
-    Py_ssize_t remainingIndicies() const {
-      if constexpr (PY_VERSION_HEX >= 0x030B0000) {
-        JIT_ABORT("remainingIndicies() not supported in 3.11+");
-      }
+    Py_ssize_t remainingInstrs() const {
       return end_idx_ - idx_ - 1;
     }
 
