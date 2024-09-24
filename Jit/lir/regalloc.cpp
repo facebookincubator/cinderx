@@ -2,9 +2,6 @@
 
 #include "cinderx/Jit/lir/regalloc.h"
 
-#include "cinderx/Jit/codegen/copy_graph.h"
-#include "cinderx/Jit/codegen/x86_64.h"
-
 #include <algorithm>
 #include <iostream>
 #include <iterator>

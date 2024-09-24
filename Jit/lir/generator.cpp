@@ -18,8 +18,6 @@
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_pystate.h"
-#include "listobject.h"
-#include "pystate.h"
 
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/config.h"
