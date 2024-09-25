@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "cinderx/Common/extra-py-flags.h"
+
 #include <Python.h>
 
 #ifdef __cplusplus
@@ -23,6 +25,21 @@ PyObject* Ci_PyFunction_CallStatic(
     PyObject* const* args,
     Py_ssize_t nargsf,
     PyObject* kwnames);
+
+/*
+ * Get the appropriate entry point that will execute a function object in the
+ * interpreter.
+ *
+ * This is a different function for Static Python functions versus "normal"
+ * Python functions.
+ */
+static inline vectorcallfunc getInterpretedVectorcall(
+    const PyFunctionObject* func) {
+  const PyCodeObject* code = (const PyCodeObject*)(func->func_code);
+  return (code->co_flags & CI_CO_STATICALLY_COMPILED)
+      ? Ci_StaticFunction_Vectorcall
+      : _PyFunction_Vectorcall;
+}
 
 #ifdef __cplusplus
 }

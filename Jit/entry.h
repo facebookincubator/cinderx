@@ -32,15 +32,6 @@ bool scheduleJitCompile(PyFunctionObject* func);
 bool isJitEntryFunction(vectorcallfunc func);
 
 /*
- * Get the appropriate entry point that will execute a function object in the
- * interpreter.
- *
- * This is a different function for Static Python functions versus "normal"
- * Python functions.
- */
-vectorcallfunc getInterpretedVectorcall(PyFunctionObject* func);
-
-/*
  * Specifies the offset from a JITed function entry point where the re-entry
  * point for calling with the correct bound args lives */
 #define JITRT_CALL_REENTRY_OFFSET (-6)

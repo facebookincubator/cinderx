@@ -125,11 +125,4 @@ bool isJitEntryFunction(vectorcallfunc func) {
   return func == autoJITVectorcall || func == jitVectorcall;
 }
 
-vectorcallfunc getInterpretedVectorcall(PyFunctionObject* func) {
-  auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
-  return (code->co_flags & CI_CO_STATICALLY_COMPILED)
-      ? Ci_StaticFunction_Vectorcall
-      : _PyFunction_Vectorcall;
-}
-
 } // extern "C"
