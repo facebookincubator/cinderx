@@ -1,21 +1,27 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 /* facebook begin t39538061 */
 
+#pragma once
+
+#include <Python.h>
+
+/* Shadowcode only works for Cinder 3.10. */
+#define SHADOWCODE_SUPPORTED \
+  (PY_VERSION_HEX >= 0x030A0000 && PY_VERSION_HEX < 0x030B0000)
+
+#if SHADOWCODE_SUPPORTED
+
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <Objects/dict-common.h> // @manual
-#include <Python.h>
 #include <cinder/ci_api.h>
 #include <cinder/hooks.h>
 #include <pycore_moduleobject.h>
 #include <pycore_object.h>
 #include <stdint.h>
-
-#ifndef Py_SHADOWCODE_H
-#define Py_SHADOWCODE_H
 
 #ifndef Py_LIMITED_API
 
@@ -1552,5 +1558,7 @@ static inline int _PyShadow_StoreAttrSlot(
 #ifdef __cplusplus
 }
 #endif
+
 #endif /* Py_LIMITED_API */
-#endif /* !Py_SHADOWCODE_H */
+
+#endif /* SHADOWCODE_SUPPORTED */

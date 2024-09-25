@@ -13,6 +13,8 @@
 
 #include "cinderx/Shadowcode/shadowcode.h"
 
+#if SHADOWCODE_SUPPORTED
+
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/dict.h"
@@ -2630,3 +2632,5 @@ error:
   Py_DecRef(state.obj_list);
   return -1;
 }
+
+#endif /* SHADOWCODE_SUPPORTED */

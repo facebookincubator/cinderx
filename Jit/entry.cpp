@@ -4,13 +4,13 @@
 
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Shadowcode/shadowcode.h"
 
 #include "cinderx/Jit/pyjit.h"
 
 #include <Python.h>
 
 #if PY_VERSION_HEX < 0x030C0000
-#include "cinderx/Shadowcode/shadowcode.h"
 #include "pycore_interp.h"
 #endif
 
