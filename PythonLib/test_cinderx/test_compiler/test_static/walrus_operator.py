@@ -1,7 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.errors import TypedSyntaxError
 
-from .common import StaticTestBase
+from .common import bad_ret_type, StaticTestBase
 
 
 class WalrusOperatorTests(StaticTestBase):
@@ -75,7 +75,7 @@ class WalrusOperatorTests(StaticTestBase):
             return (b:= 2)
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, r"return type must be Literal\[2\], not None"
+            TypedSyntaxError, bad_ret_type("Literal[2]", "None")
         ):
             self.compile(codestr)
 

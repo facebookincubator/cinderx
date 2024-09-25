@@ -1,7 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.static.types import TypedSyntaxError
 
-from .common import StaticTestBase
+from .common import StaticTestBase, bad_ret_type
 
 
 class AnnotatedTests(StaticTestBase):
@@ -27,7 +27,7 @@ class AnnotatedTests(StaticTestBase):
         """
         with self.assertRaisesRegex(
             TypedSyntaxError,
-            r"return type must be Literal\[0\], not str",
+            bad_ret_type("Literal[0]", "str")
         ):
             self.compile(codestr)
 

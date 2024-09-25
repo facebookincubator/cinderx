@@ -1694,7 +1694,9 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                 and not expected.klass.can_assign_from(returned)
             ):
                 reason = resolve_assign_error_msg(
-                    expected.klass, returned, "return type must be {0}, not {1}"
+                    expected.klass,
+                    returned,
+                    "mismatched types: expected {1} because of return type, found {0} instead",
                 )
                 self.syntax_error(reason, node)
 

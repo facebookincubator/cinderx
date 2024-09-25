@@ -11,7 +11,7 @@ from unittest import skip
 
 from cinderx.compiler.errors import TypedSyntaxError
 
-from .common import StaticTestBase
+from .common import StaticTestBase, bad_ret_type
 
 
 class StaticObjCreationTests(StaticTestBase):
@@ -278,7 +278,7 @@ class StaticObjCreationTests(StaticTestBase):
                 return C(x)
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, "return type must be int, not str"
+            TypedSyntaxError, bad_ret_type("int", "str")
         ):
             self.compile(codestr)
 
@@ -336,7 +336,7 @@ class StaticObjCreationTests(StaticTestBase):
         """
         with self.assertRaisesRegex(
             TypedSyntaxError,
-            "return type must be object, not <module>.C",
+            bad_ret_type("object", "<module>.C"),
         ):
             self.compile(codestr)
 

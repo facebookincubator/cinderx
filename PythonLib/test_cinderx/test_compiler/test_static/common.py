@@ -69,7 +69,7 @@ def type_mismatch(from_type: str, to_type: str) -> str:
 
 
 def bad_ret_type(from_type: str, to_type: str) -> str:
-    return re.escape(f"return type must be {from_type}, not {to_type}")
+    return re.escape(f"mismatched types: expected {to_type} because of return type, found {from_type} instead")
 
 
 def disable_hir_inliner(f):
