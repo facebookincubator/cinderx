@@ -692,179 +692,25 @@ void NativeGenerator::loadOrGenerateLinkFrame(
 void NativeGenerator::generatePrologue(
     Label correct_arg_count,
     Label native_entry_point) {
-  PyCodeObject* code = GetFunction()->code;
-
-  // the generic entry point, including primitive return boxing if needed
-  asmjit::BaseNode* entry_cursor = as_->cursor();
-
-  // same as entry_cursor but only set if we are boxing a primitive return
-  asmjit::BaseNode* box_entry_cursor = nullptr;
-
-  // start of the "real" generic entry, after the return-boxing wrapper
-  asmjit::BaseNode* generic_entry_cursor = nullptr;
-
-  bool returns_primitive = func_->returnsPrimitive();
-  bool returns_double = func_->returnsPrimitiveDouble();
-
-  if (returns_primitive) {
-    // If we return a primitive, then in the generic (non-static) entry path we
-    // need to box it up (since our caller can't handle an actual primitive
-    // return). We do this by generating a small wrapper "function" here that
-    // just calls the real function and then boxes the return value before
-    // returning.
-    Label generic_entry = as_->newLabel();
-    Label box_done = as_->newLabel();
-    Label error = as_->newLabel();
-    jit::hir::Type ret_type = func_->return_type;
-    uint64_t box_func;
-
-    generateFunctionEntry();
-    as_->call(generic_entry);
-
-    // if there was an error, there's nothing to box
-    if (returns_double) {
-      as_->ptest(x86::xmm1, x86::xmm1);
-      as_->je(error);
-    } else {
-      as_->test(x86::edx, x86::edx);
-      as_->je(box_done);
-    }
-
-    if (ret_type <= TCBool) {
-      as_->movzx(x86::edi, x86::al);
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxBool);
-    } else if (ret_type <= TCInt8) {
-      as_->movsx(x86::edi, x86::al);
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
-    } else if (ret_type <= TCUInt8) {
-      as_->movzx(x86::edi, x86::al);
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
-    } else if (ret_type <= TCInt16) {
-      as_->movsx(x86::edi, x86::ax);
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
-    } else if (ret_type <= TCUInt16) {
-      as_->movzx(x86::edi, x86::ax);
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
-    } else if (ret_type <= TCInt32) {
-      as_->mov(x86::edi, x86::eax);
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
-    } else if (ret_type <= TCUInt32) {
-      as_->mov(x86::edi, x86::eax);
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
-    } else if (ret_type <= TCInt64) {
-      as_->mov(x86::rdi, x86::rax);
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxI64);
-    } else if (ret_type <= TCUInt64) {
-      as_->mov(x86::rdi, x86::rax);
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxU64);
-    } else if (returns_double) {
-      // xmm0 already contains the return value
-      box_func = reinterpret_cast<uint64_t>(JITRT_BoxDouble);
-    } else {
-      JIT_ABORT("Unsupported primitive return type {}", ret_type.toString());
-    }
-
-    as_->call(box_func);
-
-    as_->bind(box_done);
-    as_->leave();
-    as_->ret();
-
-    if (returns_double) {
-      as_->bind(error);
-      as_->xor_(x86::rax, x86::rax);
-      as_->leave();
-      as_->ret();
-    }
-
-    box_entry_cursor = entry_cursor;
-    generic_entry_cursor = as_->cursor();
-    as_->bind(generic_entry);
-  } else {
-    generic_entry_cursor = entry_cursor;
-  }
+  // The boxed return wrapper gets generated first, if it is necessary.
+  auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
 
   generateFunctionEntry();
 
-  Label setup_frame = as_->newLabel();
-  Label argCheck = as_->newLabel();
-
-  if (code->co_flags & CI_CO_STATICALLY_COMPILED) {
-    // If we've been invoked statically we can skip all of the
-    // argument checking because we know our args have been
-    // provided correctly.  But if we have primitives we need to
-    // unbox them from their boxed ints.  We usually get to
-    // avoid this by doing direct invokes from JITed code.
-    if (func_->has_primitive_args) {
-      env_.code_rt->addReference(BorrowedRef(func_->prim_args_info));
-      as_->mov(
-          x86::r8, reinterpret_cast<uint64_t>(func_->prim_args_info.get()));
-      if (func_->returnsPrimitiveDouble()) {
-        as_->call(reinterpret_cast<uint64_t>(
-            JITRT_CallStaticallyWithPrimitiveSignatureFP));
-      } else {
-        as_->call(reinterpret_cast<uint64_t>(
-            JITRT_CallStaticallyWithPrimitiveSignature));
-      }
-      as_->leave();
-      as_->ret();
-    }
+  // Verify arguments have been passed in correctly.
+  if (func_->has_primitive_args) {
+    generatePrimitiveArgsPrologue();
+  } else {
+    generateArgcountCheckPrologue(correct_arg_count);
   }
-
-  if (!func_->has_primitive_args) {
-    as_->test(x86::rcx, x86::rcx); // test for kwargs
-    if (!((code->co_flags & (CO_VARARGS | CO_VARKEYWORDS)) ||
-          code->co_kwonlyargcount)) {
-      // If we have varargs or var kwargs we need to dispatch
-      // through our helper regardless if kw args are provided to
-      // create the var args tuple and dict and free them on exit
-      //
-      // Similarly, if the function has keyword-only args, we dispatch
-      // through the helper to check that they were, in fact, passed via
-      // keyword arguments.
-      //
-      // There's a lot of other things that happen in
-      // the helper so there is potentially a lot of room for optimization
-      // here.
-      as_->je(argCheck);
-    }
-
-    // We don't check the length of the kwnames tuple here, normal callers will
-    // never pass the empty tuple.  It is possible for odd callers to still pass
-    // the empty tuple in which case we'll just go through the slow binding
-    // path.
-    as_->call(reinterpret_cast<uint64_t>(JITRT_CallWithKeywordArgs));
-    as_->leave();
-    as_->ret();
-
-    // check that we have a valid number of args
-    if (!(code->co_flags & (CO_VARARGS | CO_VARKEYWORDS))) {
-      as_->bind(argCheck);
-      asmjit::BaseNode* arg_check_cursor = as_->cursor();
-      as_->cmp(x86::edx, GetFunction()->numArgs());
-
-      // We don't have the correct number of arguments. Call a helper to either
-      // fix them up with defaults or raise an approprate exception.
-      as_->jz(correct_arg_count);
-      as_->mov(x86::rcx, GetFunction()->numArgs());
-      as_->call(
-          (returns_double
-               ? reinterpret_cast<uint64_t>(
-                     JITRT_CallWithIncorrectArgcountFPReturn)
-               : reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcount)));
-      as_->leave();
-      as_->ret();
-      env_.addAnnotation(
-          "Check if called with correct argcount", arg_check_cursor);
-    }
-  }
-
   as_->bind(correct_arg_count);
-  if (code->co_flags & CI_CO_STATICALLY_COMPILED) {
+
+  Label setup_frame = as_->newLabel();
+
+  if (hasStaticEntry()) {
     if (!func_->has_primitive_args) {
-      // We weren't called statically, but we've now resolved
-      // all arguments to fixed offsets.  Validate that the
-      // arguments are correctly typed.
+      // We weren't called statically, but we've now resolved all arguments to
+      // fixed offsets.  Validate that the arguments are correctly typed.
       generateStaticMethodTypeChecks(setup_frame);
     } else if (func_->has_primitive_first_arg) {
       as_->mov(x86::rdx, 0);
@@ -878,7 +724,7 @@ void NativeGenerator::generatePrologue(
         "Generic entry (box primitive return)", box_entry_cursor);
   }
 
-  // Args are now validated, setup frame
+  // Args are now validated, setup frame.
   constexpr auto kFuncPtrReg = x86::gpq(INITIAL_FUNC_REG.loc);
   constexpr auto kArgsReg = x86::gpq(INITIAL_EXTRA_ARGS_REG.loc);
   constexpr auto kArgsPastSixReg = kArgsReg;
@@ -898,8 +744,8 @@ void NativeGenerator::generatePrologue(
   env_.addAnnotation("Link frame", frame_cursor);
 
   asmjit::BaseNode* load_args_cursor = as_->cursor();
-  // Move arguments into their expected registers and then
-  // use r10 as the base for additional args.
+  // Move arguments into their expected registers and then set a register as the
+  // base for additional args.
   bool has_extra_args = false;
   for (size_t i = 0; i < env_.arg_locations.size(); i++) {
     PhyLocation arg = env_.arg_locations[i];
@@ -914,15 +760,15 @@ void NativeGenerator::generatePrologue(
     }
   }
   if (has_extra_args) {
-    // load the location of the remaining args, the backend will
-    // deal with loading them from here...
+    // Load the location of the remaining args, the backend will deal with
+    // loading them from here...
     as_->lea(
         kArgsPastSixReg,
         x86::ptr(kArgsReg, (ARGUMENT_REGS.size() - 1) * sizeof(void*)));
   }
   env_.addAnnotation("Load arguments", load_args_cursor);
 
-  // Finally allocate the saved space required for the actual function
+  // Finally allocate the saved space required for the actual function.
   auto native_entry_cursor = as_->cursor();
   as_->bind(native_entry_point);
 
@@ -2000,6 +1846,157 @@ void NativeGenerator::generateAssemblyBody(const asmjit::CodeHolder& code) {
         env_.addAnnotation(instr.get(), cursor);
       }
     }
+  }
+}
+
+void NativeGenerator::generatePrimitiveArgsPrologue() {
+  JIT_CHECK(
+      hasStaticEntry(),
+      "Functions with primitive arguments must have been statically compiled");
+
+  // If we've been invoked statically we can skip all of the argument checking
+  // because we know our args have been provided correctly.  But if we have
+  // primitives we need to unbox them.  We usually get to avoid this by doing
+  // direct invokes from JITed code.
+  BorrowedRef<_PyTypedArgsInfo> info = func_->prim_args_info;
+  env_.code_rt->addReference(info);
+  as_->mov(x86::r8, reinterpret_cast<uint64_t>(info.get()));
+  auto helper = func_->returnsPrimitiveDouble()
+      ? reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignatureFP)
+      : reinterpret_cast<uint64_t>(JITRT_CallStaticallyWithPrimitiveSignature);
+  as_->call(helper);
+  as_->leave();
+  as_->ret();
+}
+
+std::pair<asmjit::BaseNode*, asmjit::BaseNode*>
+NativeGenerator::generateBoxedReturnWrapper() {
+  asmjit::BaseNode* entry_cursor = as_->cursor();
+
+  if (!func_->returnsPrimitive()) {
+    return {entry_cursor, nullptr};
+  }
+
+  Label generic_entry = as_->newLabel();
+  Label box_done = as_->newLabel();
+  Label error = as_->newLabel();
+  jit::hir::Type ret_type = func_->return_type;
+  uint64_t box_func;
+
+  generateFunctionEntry();
+  as_->call(generic_entry);
+
+  // If there was an error, there's nothing to box.
+  bool returns_double = func_->returnsPrimitiveDouble();
+  if (returns_double) {
+    as_->ptest(x86::xmm1, x86::xmm1);
+    as_->je(error);
+  } else {
+    as_->test(x86::edx, x86::edx);
+    as_->je(box_done);
+  }
+
+  if (ret_type <= TCBool) {
+    as_->movzx(x86::edi, x86::al);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxBool);
+  } else if (ret_type <= TCInt8) {
+    as_->movsx(x86::edi, x86::al);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+  } else if (ret_type <= TCUInt8) {
+    as_->movzx(x86::edi, x86::al);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+  } else if (ret_type <= TCInt16) {
+    as_->movsx(x86::edi, x86::ax);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+  } else if (ret_type <= TCUInt16) {
+    as_->movzx(x86::edi, x86::ax);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+  } else if (ret_type <= TCInt32) {
+    as_->mov(x86::edi, x86::eax);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI32);
+  } else if (ret_type <= TCUInt32) {
+    as_->mov(x86::edi, x86::eax);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU32);
+  } else if (ret_type <= TCInt64) {
+    as_->mov(x86::rdi, x86::rax);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxI64);
+  } else if (ret_type <= TCUInt64) {
+    as_->mov(x86::rdi, x86::rax);
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxU64);
+  } else if (returns_double) {
+    // xmm0 already contains the return value
+    box_func = reinterpret_cast<uint64_t>(JITRT_BoxDouble);
+  } else {
+    JIT_ABORT("Unsupported primitive return type {}", ret_type.toString());
+  }
+
+  as_->call(box_func);
+
+  as_->bind(box_done);
+  as_->leave();
+  as_->ret();
+
+  if (returns_double) {
+    as_->bind(error);
+    as_->xor_(x86::rax, x86::rax);
+    as_->leave();
+    as_->ret();
+  }
+
+  as_->bind(generic_entry);
+
+  // New generic entry is after the boxed wrapper.
+  return {as_->cursor(), entry_cursor};
+}
+
+void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
+  BorrowedRef<PyCodeObject> code = GetFunction()->code;
+
+  Label arg_check = as_->newLabel();
+  bool have_varargs = code->co_flags & (CO_VARARGS | CO_VARKEYWORDS);
+
+  // If the code object expects *args or **kwargs we need to dispatch
+  // through our helper regardless if they are provided to create the *args
+  // tuple and the **kwargs dict and free them on exit.
+  //
+  // Similarly, if the function expects keyword-only args, we dispatch
+  // through the helper to check that they were, in fact, passed via keyword
+  // arguments.
+  //
+  // There's a lot of other things that happen in the helper so there is
+  // potentially a lot of room for optimization here.
+  bool will_check_argcount = !have_varargs && code->co_kwonlyargcount == 0;
+  if (will_check_argcount) {
+    as_->test(x86::rcx, x86::rcx);
+    as_->je(arg_check);
+  }
+
+  // We don't check the length of the kwnames tuple here, normal callers will
+  // never pass the empty tuple.  It is possible for odd callers to still pass
+  // the empty tuple in which case we'll just go through the slow binding
+  // path.
+  as_->call(reinterpret_cast<uint64_t>(JITRT_CallWithKeywordArgs));
+  as_->leave();
+  as_->ret();
+
+  // Check that we have a valid number of args.
+  if (will_check_argcount) {
+    as_->bind(arg_check);
+    asmjit::BaseNode* arg_check_cursor = as_->cursor();
+    as_->cmp(x86::edx, GetFunction()->numArgs());
+
+    // We don't have the correct number of arguments. Call a helper to either
+    // fix them up with defaults or raise an approprate exception.
+    as_->jz(correct_arg_count);
+    as_->mov(x86::rcx, GetFunction()->numArgs());
+    auto helper = func_->returnsPrimitiveDouble()
+        ? reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcountFPReturn)
+        : reinterpret_cast<uint64_t>(JITRT_CallWithIncorrectArgcount);
+    as_->call(helper);
+    as_->leave();
+    as_->ret();
+    env_.addAnnotation(
+        "Check if called with correct argcount", arg_check_cursor);
   }
 }
 
