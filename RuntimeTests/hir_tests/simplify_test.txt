@@ -1935,20 +1935,34 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v8:Nullptr = LoadConst<Nullptr>
+    v9:Func = LoadCurrentFunc
+    v10:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v9:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v12:NoneType = LoadConst<NoneType>
-    UseType<ImmortalLongExact[2]> v9
-    UseType<NoneType> v12
-    v18:CBool[false] = LoadConst<CBool[false]>
-    UseType<CBool[false]> v18
-    v19:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    UseType<ImmortalBool[False]> v19
-    v20:CInt32[0] = LoadConst<CInt32[0]>
+    v11:CInt32 = LoadEvalBreaker
+    CondBranch<4, 3> v11
+  }
+
+  bb 4 (preds 0) {
     Snapshot
-    v17:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
-    Return v17
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<1> v10
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot
+    v14:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
+    v16:NoneType = LoadConst<NoneType>
+    UseType<ImmortalLongExact[2]> v14
+    UseType<NoneType> v16
+    v22:CBool[true] = LoadConst<CBool[true]>
+    Snapshot
+    v18:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return<ImmortalBool[False]> v18
   }
 }
 --- Test Name ---

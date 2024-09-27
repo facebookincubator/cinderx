@@ -176,7 +176,9 @@ const std::unordered_set<int> kSupportedOpcodes = {
     POP_BLOCK,
     POP_EXCEPT,
     POP_JUMP_IF_FALSE,
+    POP_JUMP_IF_NONE,
     POP_JUMP_IF_NONZERO,
+    POP_JUMP_IF_NOT_NONE,
     POP_JUMP_IF_TRUE,
     POP_JUMP_IF_ZERO,
     POP_TOP,
@@ -382,7 +384,9 @@ static bool should_snapshot(
     case JUMP_BACKWARD_NO_INTERRUPT:
     case JUMP_FORWARD:
     case POP_JUMP_IF_FALSE:
+    case POP_JUMP_IF_NONE:
     case POP_JUMP_IF_TRUE:
+    case POP_JUMP_IF_NOT_NONE:
     case POP_JUMP_IF_ZERO:
     case POP_JUMP_IF_NONZERO:
     case RETURN_CONST:
@@ -962,6 +966,16 @@ void HIRBuilder::translate(
             loop_headers.emplace(target);
           }
           emitPopJumpIf(tc, bc_instr);
+          break;
+        }
+        case POP_JUMP_IF_NONE:
+        case POP_JUMP_IF_NOT_NONE: {
+          auto target_off = bc_instr.GetJumpTarget();
+          auto target = getBlockAtOff(target_off);
+          if (target_off <= bc_instr.offset()) {
+            loop_headers.emplace(target);
+          }
+          emitPopJumpIfNone(tc, bc_instr);
           break;
         }
         case POP_TOP: {
@@ -3206,6 +3220,26 @@ void HIRBuilder::emitPopJumpIf(
   } else {
     tc.emit<CondBranch>(var, true_block, false_block);
   }
+}
+
+void HIRBuilder::emitPopJumpIfNone(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  Register* var = tc.frame.stack.pop();
+  BCOffset true_offset = bc_instr.GetJumpTarget();
+  BCOffset false_offset = bc_instr.NextInstrOffset();
+
+  BasicBlock* true_block = getBlockAtOff(true_offset);
+  BasicBlock* false_block = getBlockAtOff(false_offset);
+
+  auto none = temps_.AllocateNonStack();
+  tc.emit<LoadConst>(none, Type::fromObject(Py_None));
+  auto is_true = temps_.AllocateNonStack();
+  auto op = bc_instr.opcode() == POP_JUMP_IF_NONE
+      ? PrimitiveCompareOp::kEqual
+      : PrimitiveCompareOp::kNotEqual;
+  tc.emit<PrimitiveCompare>(is_true, op, var, none);
+  tc.emit<CondBranch>(is_true, true_block, false_block);
 }
 
 void HIRBuilder::emitStoreAttr(

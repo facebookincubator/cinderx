@@ -229,6 +229,9 @@ class HIRBuilder {
   void emitPopJumpIf(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitPopJumpIfNone(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitStoreAttr(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
