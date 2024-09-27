@@ -177,6 +177,7 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       bool load_method);
+  void emitCopy(TranslationContext& tc, int item_idx);
   void emitCopyFreeVars(TranslationContext& tc, int nfreevars);
   void emitMakeCell(TranslationContext& tc, int local_idx);
   void emitLoadDeref(

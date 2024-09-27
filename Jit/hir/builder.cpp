@@ -95,6 +95,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     COMPARE_OP,
     CONVERT_PRIMITIVE,
     CONTAINS_OP,
+    COPY,
     COPY_DICT_WITHOUT_KEYS,
     COPY_FREE_VARS,
     DELETE_ATTR,
@@ -782,6 +783,10 @@ void HIRBuilder::translate(
         }
         case MAKE_CELL: {
           emitMakeCell(tc, bc_instr.oparg());
+          break;
+        }
+        case COPY: {
+          emitCopy(tc, bc_instr.oparg());
           break;
         }
         case COPY_FREE_VARS: {
@@ -2337,6 +2342,12 @@ void HIRBuilder::emitMakeCell(TranslationContext& tc, int local_idx) {
   tc.emit<MakeCell>(cell, local, tc.frame);
   moveOverwrittenStackRegisters(tc, local);
   tc.emit<Assign>(local, cell);
+}
+
+void HIRBuilder::emitCopy(TranslationContext& tc, int item_idx) {
+  JIT_CHECK(item_idx > 0, "The index ({}) must be positive!", item_idx);
+  Register* item = tc.frame.stack.peek(item_idx);
+  tc.frame.stack.push(item);
 }
 
 void HIRBuilder::emitCopyFreeVars(TranslationContext& tc, int nfreevars) {
