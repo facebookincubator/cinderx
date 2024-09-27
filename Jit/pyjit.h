@@ -4,7 +4,6 @@
 
 #include "cinderx/Jit/compile.h"
 #include "cinderx/Jit/pyjit_result.h"
-#include "cinderx/Jit/pyjit_typeslots.h"
 
 #include <Python.h>
 
@@ -32,43 +31,7 @@ extern "C" {
  *
  * Returns 0 on success, -1 on error, or -2 if we just printed the jit args.
  */
-PyAPI_FUNC(int) _PyJIT_Initialize(void);
-
-/*
- * Enable the global JIT.
- *
- * _PyJIT_Initialize must be called before calling this.
- *
- * Returns 1 if the JIT is enabled and 0 otherwise.
- */
-PyAPI_FUNC(int) _PyJIT_Enable(void);
-
-/*
- * Disable the global JIT.
- */
-PyAPI_FUNC(void) _PyJIT_Disable(void);
-
-/*
- * Returns 1 if auto-JIT is enabled and 0 otherwise.
- */
-PyAPI_FUNC(int) _PyJIT_IsAutoJITEnabled(void);
-
-/*
- * Get the number of calls needed to mark a function for compilation by AutoJIT.
- * Returns 0 when AutoJIT is disabled.
- */
-PyAPI_FUNC(unsigned) _PyJIT_AutoJITThreshold(void);
-
-/*
- * Informs the JIT that a type, function, or code object is being created,
- * modified, or destroyed.
- */
-PyAPI_FUNC(void) _PyJIT_TypeModified(PyTypeObject* type);
-PyAPI_FUNC(void) _PyJIT_TypeNameModified(PyTypeObject* type);
-PyAPI_FUNC(void) _PyJIT_TypeDestroyed(PyTypeObject* type);
-PyAPI_FUNC(void) _PyJIT_FuncModified(PyFunctionObject* func);
-PyAPI_FUNC(void) _PyJIT_FuncDestroyed(PyFunctionObject* func);
-PyAPI_FUNC(void) _PyJIT_CodeDestroyed(PyCodeObject* code);
+int _PyJIT_Initialize(void);
 
 /*
  * Clean up any resources allocated by the JIT.
@@ -77,9 +40,43 @@ PyAPI_FUNC(void) _PyJIT_CodeDestroyed(PyCodeObject* code);
  *
  * Returns 0 on success or -1 on error.
  */
-PyAPI_FUNC(int) _PyJIT_Finalize(void);
+int _PyJIT_Finalize(void);
 
-/* Dict-watching callbacks, invoked by dictobject.c when appropriate. */
+/*
+ * JIT compile func and patch its entry point.
+ *
+ * On success, positional only calls to func will use the JIT compiled version.
+ *
+ * Returns PYJIT_RESULT_OK on success.
+ */
+_PyJIT_Result _PyJIT_CompileFunction(PyFunctionObject* func);
+
+/*
+ * Registers a function with the JIT to be compiled in the future.
+ *
+ * The JIT will still be informed by _PyJIT_CompileFunction before the function
+ * executes for the first time.  The JIT can choose to compile the function at
+ * some future point.
+ *
+ * The JIT will not keep the function alive, instead it will be informed that
+ * the function is being de-allocated via _PyJIT_FuncDestroyed() before the
+ * function goes away.
+ *
+ * Returns 1 if the function is registered with JIT or is already compiled, and
+ * 0 otherwise.
+ */
+int _PyJIT_RegisterFunction(PyFunctionObject* func);
+
+/*
+ * Informs the JIT that a type, function, or code object is being created,
+ * modified, or destroyed.
+ */
+void _PyJIT_CodeDestroyed(PyCodeObject* code);
+void _PyJIT_FuncDestroyed(PyFunctionObject* func);
+void _PyJIT_FuncModified(PyFunctionObject* func);
+void _PyJIT_TypeDestroyed(PyTypeObject* type);
+void _PyJIT_TypeModified(PyTypeObject* type);
+void _PyJIT_TypeNameModified(PyTypeObject* type);
 
 /*
  * Send into/resume a suspended JIT generator and return the result.
@@ -134,14 +131,6 @@ PyAPI_FUNC(PyObject*) _PyJIT_GetBuiltins(PyThreadState* tstate);
  * PyFrameObjects for any jitted functions on the call stack.
  */
 PyAPI_FUNC(PyFrameObject*) _PyJIT_GetFrame(PyThreadState* tstate);
-
-/*
- * Set output format for function disassembly. E.g. with -X jit-disas-funcs.
- */
-PyAPI_FUNC(void) _PyJIT_SetDisassemblySyntaxATT(void);
-PyAPI_FUNC(int) _PyJIT_IsDisassemblySyntaxIntel(void);
-
-PyAPI_FUNC(void) _PyPerfTrampoline_CompilePerfTrampolinePreFork(void);
 
 #ifdef __cplusplus
 } // extern "C"

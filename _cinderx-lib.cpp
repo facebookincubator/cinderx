@@ -36,7 +36,6 @@
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/pyjit_result.h"
-#include "cinderx/Jit/pyjit_typeslots.h"
 #include "cinderx/Jit/runtime.h"
 
 #include <dlfcn.h>

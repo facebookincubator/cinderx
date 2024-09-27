@@ -10,7 +10,6 @@
 #include "cinderx/Jit/elf/note.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/pyjit_result.h"
-#include "cinderx/Jit/pyjit_typeslots.h"
 
 #include <Python.h>
 

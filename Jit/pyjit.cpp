@@ -946,7 +946,8 @@ disable_jit(PyObject* /* self */, PyObject* const* args, Py_ssize_t nargs) {
     jit_code_data.clear();
   }
 
-  _PyJIT_Disable();
+  getMutableConfig().is_enabled = 0;
+
   Py_RETURN_NONE;
 }
 
@@ -1625,7 +1626,8 @@ PyMethodDef jit_methods[] = {
     {"disable",
      (PyCFunction)(void*)disable_jit,
      METH_FASTCALL,
-     "Disable the jit."},
+     "Compile all functions that are pending compilation and then disable the "
+     "JIT."},
     {"disassemble", disassemble, METH_O, "Disassemble JIT compiled functions"},
     {"dump_elf",
      dump_elf,
@@ -2090,26 +2092,6 @@ int _PyJIT_Initialize() {
   return 0;
 }
 
-unsigned _PyJIT_AutoJITThreshold() {
-  return getConfig().auto_jit_threshold;
-}
-
-int _PyJIT_IsAutoJITEnabled() {
-  return _PyJIT_AutoJITThreshold() > 0;
-}
-
-int _PyJIT_Enable() {
-  if (getConfig().init_state != InitState::kInitialized) {
-    return 0;
-  }
-  getMutableConfig().is_enabled = 1;
-  return 0;
-}
-
-void _PyJIT_Disable() {
-  getMutableConfig().is_enabled = 0;
-}
-
 _PyJIT_Result _PyJIT_CompileFunction(PyFunctionObject* raw_func) {
   if (jit_ctx == nullptr) {
     return PYJIT_NOT_INITIALIZED;
@@ -2422,14 +2404,6 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
   UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
   return nullptr;
 #endif
-}
-
-void _PyJIT_SetDisassemblySyntaxATT(void) {
-  set_att_syntax();
-}
-
-int _PyJIT_IsDisassemblySyntaxIntel(void) {
-  return is_intel_syntax();
 }
 
 namespace jit {

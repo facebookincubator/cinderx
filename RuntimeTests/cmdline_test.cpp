@@ -1,6 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
+#include "i386-dis/dis-asm.h"
+
 #include "cinderx/Jit/codegen/copy_graph.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_list.h"
@@ -289,8 +291,7 @@ TEST_F(CmdLineTest, JITEnable) {
           []() {},
           []() {
             ASSERT_TRUE(isJitUsable());
-            ASSERT_EQ(
-                _PyJIT_IsDisassemblySyntaxIntel(), 0); // default to AT&T syntax
+            ASSERT_EQ(is_intel_syntax(), 0); // default to AT&T syntax
           }),
       0);
 
@@ -395,16 +396,16 @@ TEST_F(CmdLineTest, ASMSyntax) {
       try_flag_and_envvar_effect(
           L"jit-asm-syntax=intel",
           "PYTHONJITASMSYNTAX=intel",
-          []() { _PyJIT_SetDisassemblySyntaxATT(); },
-          []() { ASSERT_EQ(_PyJIT_IsDisassemblySyntaxIntel(), 1); }),
+          []() { set_att_syntax(); },
+          []() { ASSERT_EQ(is_intel_syntax(), 1); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-asm-syntax=att",
           "PYTHONJITASMSYNTAX=att",
-          []() { _PyJIT_SetDisassemblySyntaxATT(); },
-          []() { ASSERT_EQ(_PyJIT_IsDisassemblySyntaxIntel(), 0); }),
+          []() { set_att_syntax(); },
+          []() { ASSERT_EQ(is_intel_syntax(), 0); }),
       0);
 }
 
@@ -427,7 +428,7 @@ TEST_F(CmdLineTest, JITList) {
       try_flag_and_envvar_effect(
           xarg,
           const_cast<char*>(("PYTHONJITLISTFILE=" + list_file).c_str()),
-          []() { _PyJIT_SetDisassemblySyntaxATT(); },
+          []() { set_att_syntax(); },
           []() { ASSERT_TRUE(isJitUsable()); }),
       0);
 

@@ -107,7 +107,7 @@ bool scheduleJitCompile(PyFunctionObject* func) {
       "Function {} is already compiled",
       jit::repr(func->func_qualname));
 
-  if (_PyJIT_IsAutoJITEnabled()) {
+  if (jit::getConfig().auto_jit_threshold > 0) {
     func->vectorcall = autoJITVectorcall;
     return true;
   }
