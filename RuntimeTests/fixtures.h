@@ -301,7 +301,7 @@ class RuntimeTest : public ::testing::Test {
 
  private:
   Ref<> globals_;
-  std::optional<jit::IsolatedPreloaders> isolated_preloaders_;
+  std::optional<jit::hir::IsolatedPreloaders> isolated_preloaders_;
   Flags flags_;
 };
 

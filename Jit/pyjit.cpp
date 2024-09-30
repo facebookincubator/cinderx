@@ -117,9 +117,6 @@ UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
 // Every unit that is a code object has corresponding entry in jit_code_data.
 std::unordered_map<BorrowedRef<PyCodeObject>, CodeData> jit_code_data;
 
-// Every unit has an entry in jit_preloaders during batch compile.
-PreloaderMap jit_preloaders;
-
 // If non-empty, jit compiled functions' names will be written to this filename
 // at shutdown.
 std::string g_write_compiled_functions_file;
@@ -744,6 +741,23 @@ std::string unitFullname(BorrowedRef<> unit) {
       "<Unknown Python object {}>", static_cast<void*>(unit.get()));
 }
 
+hir::Preloader* lookupPreloader(BorrowedRef<> unit) {
+  BorrowedRef<PyCodeObject> code = unit != nullptr && PyFunction_Check(unit)
+      ? reinterpret_cast<PyFunctionObject*>(unit.get())->func_code
+      : unit.get();
+  JIT_CHECK(code != nullptr, "Trying to map a null code object to a preloader");
+  JIT_CHECK(
+      PyCode_Check(code),
+      "Compilation unit has to be a code object but is instead {}",
+      typeFullname(Py_TYPE(code)));
+
+  return hir::preloaderManager().find(code);
+}
+
+bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
+  return lookupPreloader(func) != nullptr;
+}
+
 hir::Preloader* ensurePreloader(BorrowedRef<> unit) {
   std::unique_ptr<hir::Preloader> preloader;
   BorrowedRef<PyCodeObject> code;
@@ -767,9 +781,7 @@ hir::Preloader* ensurePreloader(BorrowedRef<> unit) {
   }
   if (preloader) {
     res = preloader.get();
-    JIT_CHECK(
-        jit_preloaders.emplace(code, std::move(preloader)).second,
-        "created a duplicate preloader");
+    hir::preloaderManager().add(code, std::move(preloader));
     return res;
   }
   return nullptr;
@@ -844,7 +856,7 @@ bool compile_all() {
   std::unordered_set<PyObject*> deleted_units;
 
   auto error_cleanup = [&]() {
-    jit_preloaders.clear();
+    hir::preloaderManager().clear();
     handle_unit_deleted_during_preload = nullptr;
   };
   // first we have to preload everything we are going to compile
@@ -885,7 +897,7 @@ bool compile_all() {
     compile_units_preloaded(std::move(live_compilation_units));
   }
 
-  jit_preloaders.clear();
+  hir::preloaderManager().clear();
   return true;
 }
 
@@ -1825,7 +1837,7 @@ bool shouldCompile(BorrowedRef<> module_name, BorrowedRef<PyCodeObject> code) {
 _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
   // isolate preloaders state since batch preloading might trigger a call to a
   // jitable function, resulting in a single-function compile
-  IsolatedPreloaders ip;
+  hir::IsolatedPreloaders ip;
   return preloadFuncAndDeps(func) ? tryCompilePreloaded(func)
                                   : PYJIT_RESULT_PYTHON_EXCEPTION;
 }
@@ -2236,7 +2248,7 @@ int _PyJIT_Finalize() {
     jit_code_data.clear();
     jit_reg_units.clear();
     JIT_CHECK(
-        jit_preloaders.empty(),
+        hir::preloaderManager().empty(),
         "JIT cannot be finalized while batch compilation is active");
 
     getMutableConfig().init_state = InitState::kFinalized;
@@ -2408,24 +2420,6 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
 
 namespace jit {
 
-hir::Preloader* lookupPreloader(BorrowedRef<> unit) {
-  BorrowedRef<PyCodeObject> code = unit != nullptr && PyFunction_Check(unit)
-      ? reinterpret_cast<PyFunctionObject*>(unit.get())->func_code
-      : unit.get();
-  JIT_CHECK(code != nullptr, "Trying to map a null code object to a preloader");
-  JIT_CHECK(
-      PyCode_Check(code),
-      "Compilation unit has to be a code object but is instead {}",
-      typeFullname(Py_TYPE(code)));
-
-  auto it = jit_preloaders.find(code);
-  return it != jit_preloaders.end() ? it->second.get() : nullptr;
-}
-
-bool isPreloaded(BorrowedRef<> unit) {
-  return lookupPreloader(unit) != nullptr;
-}
-
 // Compile the given function or code object with a preloader from the global
 // map.
 _PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
@@ -2436,22 +2430,6 @@ _PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
   hir::Preloader* preloader = lookupPreloader(unit);
   return preloader ? jit_ctx->compilePreloader(func, *preloader)
                    : PYJIT_RESULT_NO_PRELOADER;
-}
-
-IsolatedPreloaders::IsolatedPreloaders() {
-  // we should never be called from within the actual multi-threaded-compile;
-  // it's not safe to mess with `jit_preloaders` in that context
-  JIT_CHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "cannot preload single func from within multi-threaded compile");
-  orig_preloaders_.swap(jit_preloaders);
-}
-
-IsolatedPreloaders::~IsolatedPreloaders() {
-  JIT_CHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "cannot preload single func from within multi-threaded compile");
-  jit_preloaders.swap(orig_preloaders_);
 }
 
 bool preloadFuncAndDeps(BorrowedRef<PyFunctionObject> func) {

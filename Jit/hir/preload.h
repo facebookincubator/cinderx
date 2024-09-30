@@ -224,4 +224,48 @@ class Preloader {
   Ref<_PyTypedArgsInfo> prim_args_info_;
 };
 
+using PreloaderMap =
+    std::unordered_map<BorrowedRef<PyCodeObject>, std::unique_ptr<Preloader>>;
+
+// Manages a map of code objects to their associated preloaders.
+class PreloaderManager {
+ public:
+  // Add a new code object and preloader pair.  Duplicates are not allowed.
+  void add(
+      BorrowedRef<PyCodeObject> code,
+      std::unique_ptr<Preloader> preloader);
+
+  // Find the preloader for the given code object or function object.
+  Preloader* find(BorrowedRef<PyCodeObject> code);
+  Preloader* find(BorrowedRef<PyFunctionObject> func);
+
+  // Check if there are any preloaders registered.
+  bool empty() const;
+
+  // Clear out all preloaders.
+  void clear();
+
+  // Swap the inner map with the one passed as an argument.  Needed by
+  // IsolatedPreloaders.
+  void swap(PreloaderMap& replacement);
+
+ private:
+  PreloaderMap preloaders_;
+};
+
+// Get the global PreloaderManager object.
+PreloaderManager& preloaderManager();
+
+// RAII device for isolating preloaders state.
+class IsolatedPreloaders {
+ public:
+  IsolatedPreloaders();
+  ~IsolatedPreloaders();
+
+ private:
+  void swap();
+
+  PreloaderMap orig_preloaders_;
+};
+
 } // namespace jit::hir

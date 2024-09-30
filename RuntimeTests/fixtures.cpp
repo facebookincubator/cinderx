@@ -15,7 +15,7 @@ std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
   if (!jit::preloadFuncAndDeps(func)) {
     return nullptr;
   }
-  jit::hir::Preloader* preloader = jit::lookupPreloader(func);
+  jit::hir::Preloader* preloader = jit::hir::preloaderManager().find(func);
   JIT_CHECK(preloader != nullptr, "Failed to find just-created preloader");
   return jit::hir::buildHIR(*preloader);
 }

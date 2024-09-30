@@ -14,10 +14,10 @@
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/instr_effects.h"
+#include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/jit_rt.h"
-#include "cinderx/Jit/pyjit.h"
 
 #include <Python.h>
 #include <fmt/format.h>
@@ -894,7 +894,7 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   // globals, or statically invoked. See `preloadFuncAndDeps` for what
   // dependencies we will preload. In batch-compile mode we can inline anything
   // that is part of the batch.
-  Preloader* preloader = lookupPreloader(func);
+  Preloader* preloader = preloaderManager().find(func);
   if (!preloader) {
     dlogAndCollectFailureStats(
         inline_failure_stats, InlineFailureType::kNeedsPreload, fullname);

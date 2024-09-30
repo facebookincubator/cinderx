@@ -19,6 +19,12 @@
 
 namespace jit::hir {
 
+namespace {
+
+PreloaderManager s_manager;
+
+} // namespace
+
 Type prim_type_to_type(int prim_type) {
   switch (prim_type) {
     case TYPED_BOOL:
@@ -523,6 +529,56 @@ bool Preloader::preloadStatic() {
   }
 
   return true;
+}
+
+void PreloaderManager::add(
+    BorrowedRef<PyCodeObject> code,
+    std::unique_ptr<Preloader> preloader) {
+  auto [_, inserted] = preloaders_.emplace(code, std::move(preloader));
+  JIT_CHECK(inserted, "Can't create duplicate preloaders");
+}
+
+Preloader* PreloaderManager::find(BorrowedRef<PyCodeObject> code) {
+  auto it = preloaders_.find(code);
+  return it != preloaders_.end() ? it->second.get() : nullptr;
+}
+
+Preloader* PreloaderManager::find(BorrowedRef<PyFunctionObject> func) {
+  BorrowedRef<PyCodeObject> code = func->func_code;
+  return find(code);
+}
+
+bool PreloaderManager::empty() const {
+  return preloaders_.empty();
+}
+
+void PreloaderManager::clear() {
+  preloaders_.clear();
+}
+
+void PreloaderManager::swap(PreloaderMap& replacement) {
+  // Should never be called from within the actual multi-threaded compile;
+  // it's not safe to mess with the global preloaders map in that context.
+  JIT_CHECK(
+      !getThreadedCompileContext().compileRunning(),
+      "cannot preload single func from within multi-threaded compile");
+  preloaders_.swap(replacement);
+}
+
+PreloaderManager& preloaderManager() {
+  return s_manager;
+}
+
+IsolatedPreloaders::IsolatedPreloaders() {
+  swap();
+}
+
+IsolatedPreloaders::~IsolatedPreloaders() {
+  swap();
+}
+
+void IsolatedPreloaders::swap() {
+  s_manager.swap(orig_preloaders_);
 }
 
 } // namespace jit::hir

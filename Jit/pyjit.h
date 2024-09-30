@@ -151,16 +151,6 @@ namespace jit {
 _PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit);
 
 /*
- * Load the preloader for a given function or code object, if it exists.
- */
-hir::Preloader* lookupPreloader(BorrowedRef<> unit);
-
-/*
- * Check if a function or code object has been preloaded.
- */
-bool isPreloaded(BorrowedRef<> unit);
-
-/*
  * Preload given function and its compilation dependencies.
  *
  * Dependencies are functions that this function statically invokes (so we want
@@ -173,18 +163,6 @@ bool preloadFuncAndDeps(BorrowedRef<PyFunctionObject> func);
 
 using PreloaderMap = std::
     unordered_map<BorrowedRef<PyCodeObject>, std::unique_ptr<hir::Preloader>>;
-
-/*
- * RAII device for isolating preloaders state. Exposed for test use.
- */
-class IsolatedPreloaders {
- public:
-  IsolatedPreloaders();
-  ~IsolatedPreloaders();
-
- private:
-  PreloaderMap orig_preloaders_;
-};
 
 } // namespace jit
 #endif
