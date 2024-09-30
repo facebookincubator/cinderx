@@ -278,7 +278,7 @@ struct HIRBuilder::TranslationContext {
   }
 
   void setCurrentInstr(const jit::BytecodeInstruction& cur_bci) {
-    frame.next_instr_offset = cur_bci.NextInstrOffset();
+    frame.next_instr_offset = cur_bci.nextInstrOffset();
   }
 
   void snapshot() {
@@ -451,7 +451,7 @@ HIRBuilder::BlockMap HIRBuilder::createBlocks(
   // Mark the beginning of each basic block in the bytecode
   std::set<BCIndex> block_starts = {BCIndex{0}};
   auto maybe_add_next_instr = [&](const BytecodeInstruction& bc_instr) {
-    BCIndex next_instr_idx = bc_instr.NextInstrIndex();
+    BCIndex next_instr_idx = bc_instr.nextInstrOffset();
     if (next_instr_idx < bc_block.size()) {
       block_starts.insert(next_instr_idx);
     }
@@ -459,7 +459,7 @@ HIRBuilder::BlockMap HIRBuilder::createBlocks(
   for (auto bc_instr : bc_block) {
     if (bc_instr.IsBranch()) {
       maybe_add_next_instr(bc_instr);
-      auto target = bc_instr.GetJumpTargetAsIndex();
+      BCIndex target = bc_instr.getJumpTarget();
       block_starts.insert(target);
     } else {
       auto opcode = bc_instr.opcode();
@@ -541,7 +541,7 @@ BasicBlock* HIRBuilder::buildHIRImpl(
   // Ensure that the entry block isn't a loop header
   BasicBlock* entry_block = getBlockAtOff(BCOffset{0});
   for (const auto& bci : bc_instrs) {
-    if (bci.IsBranch() && bci.GetJumpTarget() == 0) {
+    if (bci.IsBranch() && bci.getJumpTarget() == 0) {
       entry_block = irfunc->cfg.AllocateBlock();
       break;
     }
@@ -930,8 +930,8 @@ void HIRBuilder::translate(
         }
         case JUMP_ABSOLUTE:
         case JUMP_BACKWARD: {
-          auto target_off = bc_instr.GetJumpTarget();
-          auto target = getBlockAtOff(target_off);
+          BCOffset target_off = bc_instr.getJumpTarget();
+          BasicBlock* target = getBlockAtOff(target_off);
           if (target_off <= bc_instr.offset() ||
               bc_instr.opcode() != JUMP_ABSOLUTE) {
             loop_headers.emplace(target);
@@ -941,8 +941,8 @@ void HIRBuilder::translate(
         }
         case JUMP_BACKWARD_NO_INTERRUPT:
         case JUMP_FORWARD: {
-          auto target_off = bc_instr.GetJumpTarget();
-          auto target = getBlockAtOff(target_off);
+          BCOffset target_off = bc_instr.getJumpTarget();
+          BasicBlock* target = getBlockAtOff(target_off);
           tc.emit<Branch>(target);
           break;
         }
@@ -959,8 +959,8 @@ void HIRBuilder::translate(
         }
         case POP_JUMP_IF_FALSE:
         case POP_JUMP_IF_TRUE: {
-          auto target_off = bc_instr.GetJumpTarget();
-          auto target = getBlockAtOff(target_off);
+          BCOffset target_off = bc_instr.getJumpTarget();
+          BasicBlock* target = getBlockAtOff(target_off);
           if (target_off <= bc_instr.offset()) {
             loop_headers.emplace(target);
           }
@@ -969,8 +969,8 @@ void HIRBuilder::translate(
         }
         case POP_JUMP_IF_NONE:
         case POP_JUMP_IF_NOT_NONE: {
-          auto target_off = bc_instr.GetJumpTarget();
-          auto target = getBlockAtOff(target_off);
+          BCOffset target_off = bc_instr.getJumpTarget();
+          BasicBlock* target = getBlockAtOff(target_off);
           if (target_off <= bc_instr.offset()) {
             loop_headers.emplace(target);
           }
@@ -1259,9 +1259,9 @@ void HIRBuilder::translate(
           break;
         }
         case GEN_START: {
-          // In the interpreter this instruction behaves like POP_TOP because
-          // it assumes a generator will always be sent a superfluous None value
-          // to start execution via the stack. We skip doing this for JIT
+          // In the interpreter this instruction behaves like POP_TOP because it
+          // assumes a generator will always be sent a superfluous None value to
+          // start execution via the stack. We skip doing this for JIT
           // functions. This should be fine as long as we can't de-opt after the
           // function is started but before GEN_START. This check ensures this.
           JIT_DCHECK(
@@ -1277,8 +1277,7 @@ void HIRBuilder::translate(
           break;
         }
         default: {
-          // NOTREACHED
-          JIT_ABORT("unhandled opcode: {}", bc_instr.opcode());
+          JIT_ABORT("Unhandled opcode: {}", bc_instr.opcode());
           break;
         }
       }
@@ -1612,15 +1611,20 @@ void HIRBuilder::emitAnyCall(
     const jit::BytecodeInstructionBlock& bc_instrs) {
   BytecodeInstruction bc_instr = *bc_it;
   BCIndex idx = bc_instr.index();
-  bool is_awaited = code_->co_flags & CO_COROUTINE &&
-      // We only need to be followed by GET_AWAITABLE to know we are awaited,
-      // but we also need to ensure the following LOAD_CONST and YIELD_FROM are
-      // inside this BytecodeInstructionBlock. This may not be the case if the
-      // 'await' is shared as in 'await (x if y else z)'.
-      bc_it.remainingInstrs() >= 3 &&
-      // note: this .at() doesn't skip EXTENDED_ARG, but GET_AWAITABLE is never
-      // preceded by EXTENDED_ARG, since it has no oparg
-      bc_instrs.at(idx + 1).opcode() == GET_AWAITABLE;
+  bool is_awaited;
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    is_awaited = false;
+  } else {
+    is_awaited = code_->co_flags & CO_COROUTINE &&
+        // We only need to be followed by GET_AWAITABLE to know we are awaited,
+        // but we also need to ensure the following LOAD_CONST and YIELD_FROM
+        // are inside this BytecodeInstructionBlock. This may not be the case if
+        // the 'await' is shared as in 'await (x if y else z)'.
+        bc_it.remainingIndices() >= 3 &&
+        // Note: This .at() doesn't skip EXTENDED_ARG, but GET_AWAITABLE is
+        // never preceded by EXTENDED_ARG, since it has no oparg.
+        bc_instrs.at(idx + 1).opcode() == GET_AWAITABLE;
+  }
   auto flags = is_awaited ? CallFlags::Awaited : CallFlags::None;
   bool call_used_is_awaited = true;
   switch (bc_instr.opcode()) {
@@ -2224,16 +2228,16 @@ void HIRBuilder::emitJumpIf(
       check_truthy = false;
       [[fallthrough]];
     case JUMP_IF_TRUE_OR_POP: {
-      true_offset = bc_instr.GetJumpTarget();
-      false_offset = bc_instr.NextInstrOffset();
+      true_offset = bc_instr.getJumpTarget();
+      false_offset = bc_instr.nextInstrOffset();
       break;
     }
     case JUMP_IF_ZERO_OR_POP:
       check_truthy = false;
       [[fallthrough]];
     case JUMP_IF_FALSE_OR_POP: {
-      false_offset = bc_instr.GetJumpTarget();
-      true_offset = bc_instr.NextInstrOffset();
+      false_offset = bc_instr.getJumpTarget();
+      true_offset = bc_instr.nextInstrOffset();
       break;
     }
     default: {
@@ -3184,14 +3188,14 @@ void HIRBuilder::emitPopJumpIf(
   switch (bc_instr.opcode()) {
     case POP_JUMP_IF_ZERO:
     case POP_JUMP_IF_FALSE: {
-      true_offset = bc_instr.NextInstrOffset();
-      false_offset = bc_instr.GetJumpTarget();
+      true_offset = bc_instr.nextInstrOffset();
+      false_offset = bc_instr.getJumpTarget();
       break;
     }
     case POP_JUMP_IF_NONZERO:
     case POP_JUMP_IF_TRUE: {
-      true_offset = bc_instr.GetJumpTarget();
-      false_offset = bc_instr.NextInstrOffset();
+      true_offset = bc_instr.getJumpTarget();
+      false_offset = bc_instr.nextInstrOffset();
       break;
     }
     default: {
@@ -3219,8 +3223,8 @@ void HIRBuilder::emitPopJumpIfNone(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   Register* var = tc.frame.stack.pop();
-  BCOffset true_offset = bc_instr.GetJumpTarget();
-  BCOffset false_offset = bc_instr.NextInstrOffset();
+  BCOffset true_offset = bc_instr.getJumpTarget();
+  BCOffset false_offset = bc_instr.nextInstrOffset();
 
   BasicBlock* true_block = getBlockAtOff(true_offset);
   BasicBlock* false_block = getBlockAtOff(false_offset);
@@ -3294,8 +3298,8 @@ void HIRBuilder::emitForIter(
   Register* next_val = temps_.AllocateStack();
   tc.emit<InvokeIterNext>(next_val, iterator, tc.frame);
   tc.frame.stack.push(next_val);
-  BasicBlock* footer = getBlockAtOff(bc_instr.GetJumpTarget());
-  BasicBlock* body = getBlockAtOff(bc_instr.NextInstrOffset());
+  BasicBlock* footer = getBlockAtOff(bc_instr.getJumpTarget());
+  BasicBlock* body = getBlockAtOff(bc_instr.nextInstrOffset());
   tc.emit<CondBranchIterNotDone>(next_val, body, footer);
 }
 
@@ -3426,7 +3430,7 @@ void HIRBuilder::emitSetupFinally(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
   BCOffset handler_off =
-      bc_instr.NextInstrOffset() + BCIndex{bc_instr.oparg()}.asOffset();
+      bc_instr.nextInstrOffset() + BCIndex{bc_instr.oparg()}.asOffset();
   int stack_level = tc.frame.stack.size();
   tc.frame.block_stack.push(
       ExecutionBlock{SETUP_FINALLY, handler_off, stack_level});
@@ -3446,7 +3450,7 @@ void HIRBuilder::emitAsyncForHeaderYieldFrom(
   tc.frame.stack.pop();
   tc.frame.stack.push(out);
 
-  BasicBlock* yf_cont_block = getBlockAtOff(bc_instr.NextInstrOffset());
+  BasicBlock* yf_cont_block = getBlockAtOff(bc_instr.nextInstrOffset());
   BCOffset handler_off{tc.frame.block_stack.top().handler_off};
   BasicBlock* yf_done_block = getBlockAtOff(handler_off);
   tc.emit<CondBranchIterNotDone>(out, yf_cont_block, yf_done_block);

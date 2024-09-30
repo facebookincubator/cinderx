@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/bytecode.h"
 
-#include "cinderx/Interpreter/opcode.h"
-
 #include <unordered_set>
 
 namespace jit {

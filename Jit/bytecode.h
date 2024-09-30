@@ -20,20 +20,23 @@ extern const std::unordered_set<int> kBranchOpcodes;
 extern const std::unordered_set<int> kRelBranchOpcodes;
 extern const std::unordered_set<int> kBlockTerminatorOpcodes;
 
-// A structured, immutable representation of a CPython bytecode
+// A structured, immutable representation of a CPython bytecode.
+//
+// This will never represent an EXTENDED_ARG bytecode.  That gets folded in via
+// BytecodeInstructionBlock, and the resulting BytecodeInstruction has the
+// relevant opcode plus a multi-byte oparg.
 class BytecodeInstruction {
  public:
-  BytecodeInstruction(BorrowedRef<PyCodeObject> code, BCIndex idx)
-      : BytecodeInstruction{codeUnit(code), idx} {}
+  BytecodeInstruction(BorrowedRef<PyCodeObject> code, BCOffset offset)
+      : code_{code}, offset_{offset}, oparg_{_Py_OPARG(word())} {}
 
-  BytecodeInstruction(_Py_CODEUNIT* instrs, BCIndex idx) : offset_(idx) {
-    _Py_CODEUNIT word = instrs[idx.value()];
-    opcode_ = _Py_OPCODE(word);
-    oparg_ = _Py_OPARG(word);
-  }
-
-  BytecodeInstruction(int opcode, int oparg, BCOffset offset)
-      : offset_(offset), opcode_(opcode), oparg_(oparg) {}
+  // Constructor where the oparg is being overwritten because of previous
+  // EXTENDED_ARG instructions.
+  BytecodeInstruction(
+      BorrowedRef<PyCodeObject> code,
+      BCOffset offset,
+      int oparg)
+      : code_{code}, offset_{offset}, oparg_{oparg} {}
 
   BCOffset offset() const {
     return offset_;
@@ -44,7 +47,7 @@ class BytecodeInstruction {
   }
 
   int opcode() const {
-    return opcode_;
+    return _Py_OPCODE(word());
   }
 
   int oparg() const {
@@ -55,26 +58,6 @@ class BytecodeInstruction {
     return kBranchOpcodes.count(opcode());
   }
 
-  bool IsCondBranch() const {
-    switch (opcode_) {
-      case FOR_ITER:
-      case POP_JUMP_IF_FALSE:
-      case JUMP_IF_FALSE_OR_POP:
-      case JUMP_IF_NONZERO_OR_POP:
-      case JUMP_IF_TRUE_OR_POP:
-      case JUMP_IF_ZERO_OR_POP: {
-        return true;
-      }
-      default: {
-        return false;
-      }
-    }
-  }
-
-  bool IsRaiseVarargs() const {
-    return opcode() == RAISE_VARARGS;
-  }
-
   bool IsReturn() const {
     return opcode() == RETURN_VALUE || opcode() == RETURN_PRIMITIVE;
   }
@@ -83,38 +66,33 @@ class BytecodeInstruction {
     return IsBranch() || kBlockTerminatorOpcodes.count(opcode());
   }
 
-  BCOffset GetJumpTarget() const {
-    return GetJumpTargetAsIndex();
-  }
-
-  BCIndex GetJumpTargetAsIndex() const {
+  BCOffset getJumpTarget() const {
     JIT_DCHECK(
-        IsBranch(),
-        "calling GetJumpTargetAsIndex() on non-branch gives nonsense");
-    if (kRelBranchOpcodes.count(opcode())) {
-      if (opcode() == JUMP_BACKWARD || opcode() == JUMP_BACKWARD_NO_INTERRUPT) {
-        return NextInstrIndex() - oparg();
-      }
-      return NextInstrIndex() + oparg();
+        IsBranch(), "Calling getJumpTarget() on a non-branch gives nonsense");
+
+    if (!kRelBranchOpcodes.count(opcode())) {
+      return BCIndex{oparg()};
     }
-    return BCIndex{oparg()};
+
+    int delta = oparg();
+    if (opcode() == JUMP_BACKWARD || opcode() == JUMP_BACKWARD_NO_INTERRUPT) {
+      delta = -delta;
+    }
+
+    return BCIndex{nextInstrOffset()} + delta;
   }
 
-  BCOffset NextInstrOffset() const {
-    return NextInstrIndex();
-  }
-
-  BCIndex NextInstrIndex() const {
+  BCOffset nextInstrOffset() const {
     return BCIndex{offset_} + 1;
   }
 
-  void ExtendOpArgWith(int changes) {
-    oparg_ = (changes << 8) | oparg_;
+ private:
+  _Py_CODEUNIT word() const {
+    return codeUnit(code_)[index().value()];
   }
 
- private:
+  BorrowedRef<PyCodeObject> code_;
   BCOffset offset_;
-  int opcode_;
   int oparg_;
 };
 
@@ -126,8 +104,10 @@ class BytecodeInstruction {
 class BytecodeInstructionBlock {
  public:
   explicit BytecodeInstructionBlock(BorrowedRef<PyCodeObject> code)
-      : BytecodeInstructionBlock{code, BCIndex{0}, BCIndex{countInstrs(code)}} {
-  }
+      : BytecodeInstructionBlock{
+            code,
+            BCIndex{0},
+            BCIndex{countIndices(code)}} {}
 
   BytecodeInstructionBlock(
       BorrowedRef<PyCodeObject> code,
@@ -149,13 +129,9 @@ class BytecodeInstructionBlock {
         : code_{std::move(code)},
           idx_{idx},
           end_idx_{end_idx},
-          bci_{0, 0, BCOffset{0}} {
+          bci_{code_, idx, 0} {
       if (!atEnd()) {
-        // Iterator end() methods are supposed to be past the logical end of the
-        // underlying data structure and should not be accessed
-        // directly. Dereferencing the current instr would be a heap buffer
-        // overflow.
-        bci_ = BytecodeInstruction(currentOpcode(), currentOparg(), idx);
+        bci_ = BytecodeInstruction{code_, idx};
         consumeExtendedArgs();
       }
     }
@@ -198,7 +174,15 @@ class BytecodeInstructionBlock {
       return !(*this == other);
     }
 
-    Py_ssize_t remainingInstrs() const {
+    // Count the number of remaining bytecode indices in the block.
+    //
+    // This isn't useful in 3.11+ as instructions are variable length.  So this
+    // doesn't tell you anything meaningful. Fortunately, we don't need it
+    // beyond 3.10.
+    Py_ssize_t remainingIndices() const {
+      if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+        JIT_ABORT("remainingIndices() not supported in 3.11+");
+      }
       return end_idx_ - idx_ - 1;
     }
 
@@ -210,9 +194,8 @@ class BytecodeInstructionBlock {
         idx_++;
       }
       if (!atEnd()) {
-        int opcode = currentOpcode();
-        int oparg = (accum << 8) | currentOparg();
-        bci_ = BytecodeInstruction(opcode, oparg, idx_);
+        accum = (accum << 8) | currentOparg();
+        bci_ = BytecodeInstruction{code_, idx_, accum};
       }
     }
 
@@ -263,21 +246,21 @@ class BytecodeInstructionBlock {
 
   BytecodeInstruction at(BCIndex idx) const {
     JIT_CHECK(
-        start_idx_ == 0,
-        "Instructions can only be looked up by index when start_idx_ == 0");
-    return BytecodeInstruction(code_, idx);
+        idx >= start_idx_ && idx < end_idx_,
+        "Invalid index {}, bytecode block is [{}, {})",
+        idx,
+        start_idx_,
+        end_idx_);
+    return BytecodeInstruction{code_, idx};
   }
 
   BytecodeInstruction lastInstr() const {
+    JIT_CHECK(size() > 0, "Block has no instructions");
     return BytecodeInstruction(code_, end_idx_ - 1);
   }
 
   BorrowedRef<PyCodeObject> code() const {
     return code_;
-  }
-
-  _Py_CODEUNIT* bytecode() const {
-    return codeUnit(code_);
   }
 
  private:
