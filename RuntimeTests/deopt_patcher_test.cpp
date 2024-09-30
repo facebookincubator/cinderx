@@ -26,7 +26,6 @@ class DeoptPatcherTest : public RuntimeTest {
         code,
         reinterpret_cast<vectorcallfunc>(entry),
         ngen.getStaticEntry(),
-        ngen.codeRuntime(),
         stack_size,
         spill_stack_size,
         jit::hir::Function::InlineFunctionStats{},

@@ -5,7 +5,6 @@
 #include "cinderx/Common/util.h"
 
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/runtime.h"
 
 #include <Python.h>
 
@@ -26,7 +25,6 @@ class CompiledFunction {
       std::span<const std::byte> code,
       vectorcallfunc vectorcall_entry,
       void* static_entry,
-      CodeRuntime* code_runtime,
       int stack_size,
       int spill_stack_size,
       hir::Function::InlineFunctionStats inline_function_stats,
@@ -34,7 +32,6 @@ class CompiledFunction {
       : code_(code),
         vectorcall_entry_(vectorcall_entry),
         static_entry_(static_entry),
-        code_runtime_(code_runtime),
         stack_size_(stack_size),
         spill_stack_size_(spill_stack_size),
         inline_function_stats_(std::move(inline_function_stats)),
@@ -63,10 +60,6 @@ class CompiledFunction {
   virtual void printHIR() const;
   virtual void disassemble() const;
 
-  CodeRuntime* codeRuntime() const {
-    return code_runtime_;
-  }
-
   size_t codeSize() const {
     return code_.size();
   }
@@ -93,7 +86,6 @@ class CompiledFunction {
   const std::span<const std::byte> code_;
   vectorcallfunc const vectorcall_entry_;
   void* const static_entry_;
-  CodeRuntime* const code_runtime_;
   const int stack_size_;
   const int spill_stack_size_;
   hir::Function::InlineFunctionStats inline_function_stats_;
