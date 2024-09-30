@@ -72,7 +72,7 @@ class WalrusOperatorTests(StaticTestBase):
         from typing import Final
 
         def fn() -> None:
-            return (b:= 2)
+            return (b := 2)
         """
         with self.assertRaisesRegex(
             TypedSyntaxError, bad_ret_type("Literal[2]", "None")
@@ -85,7 +85,18 @@ class WalrusOperatorTests(StaticTestBase):
 
         def fn() -> int64:
             b: int64
-            return (b:= 2)
+            return (b := 2)
         """
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.fn(), 2)
+
+    def test_walrus_in_conditional(self):
+        codestr = """
+        def f() -> int | None:
+            return 2
+
+        def g() -> None:
+            if x := f():
+                reveal_type(x)
+        """
+        self.revealed_type(codestr, "int")
