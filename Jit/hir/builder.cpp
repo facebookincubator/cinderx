@@ -19,7 +19,6 @@
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
-#include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/threaded_compile.h"
 
 #include <Python.h>
@@ -2026,12 +2025,6 @@ bool HIRBuilder::emitInvokeFunction(
     // try to emit a direct x64 call (InvokeStaticFunction/CallStatic) if we can
 
     if (target.is_function && target.is_statically_typed) {
-      // Try to jit-compile the target function, only if there is a preloader
-      // available in the global map. We don't need to care about the result
-      // here; Python exception is not possible because that can only happen in
-      // preloading, any other result we just move on.
-      jit::tryCompilePreloaded(target.func());
-
       // Direct invoke is safe whether we succeeded in JIT-compiling or not,
       // it'll just have an extra indirection if not JIT compiled.
       Register* out = temps_.AllocateStack();

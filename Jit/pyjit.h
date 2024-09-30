@@ -140,26 +140,26 @@ PyAPI_FUNC(PyFrameObject*) _PyJIT_GetFrame(PyThreadState* tstate);
 namespace jit {
 
 /*
- * JIT compile func or code object, only if a preloader is available.
- *
- * Re-entrant compile that is safe to call from within compilation, because it
- * will only use an already-created preloader, it will not preload, and
- * therefore it cannot raise a Python exception.
- *
- * Returns PYJIT_RESULT_NO_PRELOADER if no preloader is available.
+ * Combines a Python function and the preloader that gets generated for it.
  */
-_PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit);
+struct FuncPreloader {
+  FuncPreloader(BorrowedRef<PyFunctionObject> func, hir::Preloader* preloader)
+      : func{func}, preloader{preloader} {}
+
+  BorrowedRef<PyFunctionObject> func;
+  hir::Preloader* preloader;
+};
 
 /*
- * Preload given function and its compilation dependencies.
+ * Preload a function, along with any functions that it calls that we might want
+ * to compile afterwards as well.  This is to support inlining and faster
+ * invokes for Static Python functions.
  *
- * Dependencies are functions that this function statically invokes (so we want
- * to ensure they are compiled first so we can emit a direct x64 call), and any
- * functions we can detect that this function may call, so they can potentially
- * be inlined. Exposed for test use.
- *
+ * Return a list of preloaders that were created.  There should be at least one
+ * preloader in the list, if it's empty then there was a preloading failure.
  */
-bool preloadFuncAndDeps(BorrowedRef<PyFunctionObject> func);
+std::vector<FuncPreloader> preloadFuncAndDeps(
+    BorrowedRef<PyFunctionObject> func);
 
 using PreloaderMap = std::
     unordered_map<BorrowedRef<PyCodeObject>, std::unique_ptr<hir::Preloader>>;

@@ -12,11 +12,12 @@
 
 std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
     BorrowedRef<PyFunctionObject> func) {
-  if (!jit::preloadFuncAndDeps(func)) {
-    return nullptr;
-  }
-  jit::hir::Preloader* preloader = jit::hir::preloaderManager().find(func);
-  JIT_CHECK(preloader != nullptr, "Failed to find just-created preloader");
+  auto preloaders = jit::preloadFuncAndDeps(func);
+  JIT_CHECK(!preloaders.empty(), "Failed to preload function");
+  auto preloader = preloaders.back().preloader;
+  JIT_CHECK(
+      preloader->code() == func->func_code,
+      "Expecting the last function to compile to be the first one preloaded");
   return jit::hir::buildHIR(*preloader);
 }
 

@@ -69,6 +69,9 @@ struct Config {
   bool refine_static_python{true};
   HIROptimizations hir_opts;
   size_t batch_compile_workers{0};
+  // When a function is being compiled, this is the maximum number of dependent
+  // functions called by it that can be compiled along with it.
+  size_t preload_dependent_limit{99};
   // Sizes (in bytes) of the hot and cold code sections. Only applicable if
   // multiple code sections are enabled.
   size_t cold_code_section_size{0};

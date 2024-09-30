@@ -21,12 +21,8 @@ AotContext g_aot_ctx;
 
 namespace {
 
-// We maintain a set of compilations that are active in all threads, as well
-// as a per-thread recursion limit (since the JIT can invoke itself to try
-// and statically bind calls).
-constexpr int kMaxCompileDepth = 10;
+// We maintain a set of compilations that are active in all threads.
 std::unordered_set<CompilationKey> active_compiles;
-thread_local int compile_depth = 0;
 
 } // namespace
 
@@ -193,10 +189,6 @@ Context::CompilationResult Context::compilePreloader(
     return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
   }
 
-  if (compile_depth == kMaxCompileDepth) {
-    return {nullptr, PYJIT_RESULT_RETRY};
-  }
-
   CompilationKey key{code, builtins, globals};
   {
     // Attempt to atomically transition the code from "not compiled" to "in
@@ -210,14 +202,12 @@ Context::CompilationResult Context::compilePreloader(
     }
   }
 
-  compile_depth++;
   std::unique_ptr<CompiledFunction> compiled;
   try {
     compiled = jit_compiler_.Compile(preloader);
   } catch (const std::exception& exn) {
     JIT_DLOG("{}", exn.what());
   }
-  compile_depth--;
 
   ThreadedCompileSerialize guard;
   active_compiles.erase(key);

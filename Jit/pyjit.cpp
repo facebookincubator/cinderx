@@ -484,6 +484,19 @@ void initFlagProcessor() {
         "across function calls. Enables guarding on and caching global "
         "values.");
 
+    xarg_flag_processor.addOption(
+        "jit-preload-dependent-limit",
+        "PYTHONJITPRELOADDEPENDENTLIMIT",
+        [](int val) {
+          if (use_jit) {
+            getMutableConfig().preload_dependent_limit = val;
+          } else {
+            warnJITOff("jit-preload-dependent-limit");
+          }
+        },
+        "When compiling a function, set the number of dependent functions that "
+        "can be compiled along with it.");
+
     // HIR optimizations.
 
 #define HIR_OPTIMIZATION_OPTION(NAME, OPT, CLI, ENV) \
@@ -741,6 +754,7 @@ std::string unitFullname(BorrowedRef<> unit) {
       "<Unknown Python object {}>", static_cast<void*>(unit.get()));
 }
 
+// Load the preloader for a given function or code object, if it exists.
 hir::Preloader* lookupPreloader(BorrowedRef<> unit) {
   BorrowedRef<PyCodeObject> code = unit != nullptr && PyFunction_Check(unit)
       ? reinterpret_cast<PyFunctionObject*>(unit.get())->func_code
@@ -758,13 +772,19 @@ bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
   return lookupPreloader(func) != nullptr;
 }
 
-hir::Preloader* ensurePreloader(BorrowedRef<> unit) {
+// Load the preloader for a given function or code object.  If it doesn't exist
+// yet, then preload the function and return the new preloader.
+//
+// Can potentially hit a Python exception, if so, will forward that along and
+// return nullptr.
+hir::Preloader* preload(BorrowedRef<> unit) {
+  if (hir::Preloader* existing = lookupPreloader(unit)) {
+    return existing;
+  }
+
   std::unique_ptr<hir::Preloader> preloader;
   BorrowedRef<PyCodeObject> code;
-  hir::Preloader* res = lookupPreloader(unit);
-  if (res) {
-    return res;
-  }
+
   if (PyFunction_Check(unit)) {
     BorrowedRef<PyFunctionObject> func{unit};
     preloader = hir::Preloader::makePreloader(func);
@@ -779,12 +799,34 @@ hir::Preloader* ensurePreloader(BorrowedRef<> unit) {
     preloader = hir::Preloader::makePreloader(
         code, data.builtins, data.globals, codeFullname(data.module, code));
   }
-  if (preloader) {
-    res = preloader.get();
-    hir::preloaderManager().add(code, std::move(preloader));
-    return res;
+
+  if (preloader == nullptr) {
+    JIT_CHECK(
+        PyErr_Occurred(), "Expect a Python exception when preloading fails");
+    return nullptr;
   }
-  return nullptr;
+
+  // Grab a copy of the raw pointer before it gets moved away.
+  auto copy = preloader.get();
+  hir::preloaderManager().add(code, std::move(preloader));
+  return copy;
+}
+
+// JIT compile func or code object, only if a preloader is available.
+//
+// Re-entrant compile that is safe to call from within compilation, because it
+// will only use an already-created preloader, it will not preload, and
+// therefore it cannot raise a Python exception.
+//
+// Returns PYJIT_RESULT_NO_PRELOADER if no preloader is available.
+_PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
+  BorrowedRef<PyFunctionObject> func;
+  if (PyFunction_Check(unit)) {
+    func = BorrowedRef<PyFunctionObject>{unit};
+  }
+  hir::Preloader* preloader = lookupPreloader(unit);
+  return preloader ? jit_ctx->compilePreloader(func, *preloader)
+                   : PYJIT_RESULT_NO_PRELOADER;
 }
 
 void compile_worker_thread() {
@@ -871,7 +913,7 @@ bool compile_all() {
       handle_unit_deleted_during_preload = [&](PyObject* deleted_unit) {
         deleted_units.emplace(deleted_unit);
       };
-      hir::Preloader* preloader = ensurePreloader(unit);
+      hir::Preloader* preloader = preload(unit);
       if (!preloader) {
         error_cleanup();
         return false;
@@ -1833,13 +1875,63 @@ bool shouldCompile(BorrowedRef<> module_name, BorrowedRef<PyCodeObject> code) {
       (g_jit_list->lookupName(module_name, code->co_qualname) == 1));
 }
 
-// preload func and dependencies, then compile func
+// Check if a function has been preloaded.
+bool isPreloaded(BorrowedRef<> unit) {
+  return lookupPreloader(unit) != nullptr;
+}
+
+// Preload a function and its dependencies, then compile them all.
+//
+// Failing to compile a dependent function is a soft failure, and is ignored.
 _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
   // isolate preloaders state since batch preloading might trigger a call to a
   // jitable function, resulting in a single-function compile
   hir::IsolatedPreloaders ip;
-  return preloadFuncAndDeps(func) ? tryCompilePreloaded(func)
-                                  : PYJIT_RESULT_PYTHON_EXCEPTION;
+
+  // Collect a list of functions to compile.  If it's empty then there must have
+  // been a Python error during preloading.
+  std::vector<FuncPreloader> targets = preloadFuncAndDeps(func);
+  if (targets.empty()) {
+    JIT_CHECK(
+        PyErr_Occurred(), "Expect a Python exception when preloading fails");
+    return PYJIT_RESULT_PYTHON_EXCEPTION;
+  }
+
+  if (targets.size() > 1) {
+    JIT_DLOG(
+        "Compiling {} along with {} functions it calls",
+        funcFullname(func),
+        targets.size() - 1);
+  }
+
+  _PyJIT_Result result;
+  for (auto& [target, preloader] : targets) {
+    // Don't compile functions that were preloaded purely for inlining.
+    bool is_static = preloader->code()->co_flags & CI_CO_STATICALLY_COMPILED;
+    if (target != func && !is_static) {
+      continue;
+    }
+
+    result = jit_ctx->compilePreloader(target, *preloader);
+    JIT_CHECK(
+        result != PYJIT_RESULT_PYTHON_EXCEPTION,
+        "Raised a Python exception while JIT-compiling function {}, which is "
+        "not allowed",
+        funcFullname(target));
+    JIT_CHECK(
+        result != PYJIT_RESULT_NO_PRELOADER,
+        "Cannot find a preloader for function {}, despite it just being "
+        "preloaded",
+        funcFullname(target));
+  }
+
+  BorrowedRef<PyFunctionObject> last_func = targets.back().func;
+  JIT_CHECK(
+      last_func == func,
+      "Last compiled function expected to be {}, but got {}",
+      funcFullname(func),
+      funcFullname(last_func));
+  return result;
 }
 
 // Call posix.register_at_fork(None, None, cinderjit.after_fork_child), if it
@@ -2420,47 +2512,53 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
 
 namespace jit {
 
-// Compile the given function or code object with a preloader from the global
-// map.
-_PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
-  BorrowedRef<PyFunctionObject> func;
-  if (PyFunction_Check(unit)) {
-    func = BorrowedRef<PyFunctionObject>{unit};
-  }
-  hir::Preloader* preloader = lookupPreloader(unit);
-  return preloader ? jit_ctx->compilePreloader(func, *preloader)
-                   : PYJIT_RESULT_NO_PRELOADER;
-}
+std::vector<FuncPreloader> preloadFuncAndDeps(
+    BorrowedRef<PyFunctionObject> func) {
+  // Add one for the original function itself.
+  size_t limit = getConfig().preload_dependent_limit + 1;
 
-bool preloadFuncAndDeps(BorrowedRef<PyFunctionObject> func) {
-  std::vector<BorrowedRef<PyFunctionObject>> worklist;
+  std::deque<BorrowedRef<PyFunctionObject>> worklist;
+  std::vector<FuncPreloader> result;
+
   worklist.push_back(func);
-  while (worklist.size() > 0) {
-    BorrowedRef<PyFunctionObject> f = worklist.back();
-    worklist.pop_back();
-    hir::Preloader* preloader = ensurePreloader(f);
-    if (!preloader) {
-      return false;
+
+  while (worklist.size() > 0 && result.size() < limit) {
+    BorrowedRef<PyFunctionObject> f = worklist.front();
+    worklist.pop_front();
+
+    hir::Preloader* preloader = preload(f);
+    if (preloader == nullptr) {
+      return {};
     }
+    result.emplace_back(f, preloader);
+
+    // Preload all invoked Static Python functions because then the JIT can
+    // compile them and emit direct calls to them from the original function.
     for (const auto& [descr, target] : preloader->invokeFunctionTargets()) {
-      if (target->is_function && target->is_statically_typed &&
-          !isPreloaded(target->func()) && shouldCompile(target->func())) {
-        worklist.push_back(target->func());
+      if (!target->is_function || !target->is_statically_typed) {
+        continue;
+      }
+      BorrowedRef<PyFunctionObject> target_func = target->func();
+      if (!isPreloaded(target_func) && shouldCompile(target_func)) {
+        worklist.push_back(target_func);
       }
     }
+
+    // Preload any used functions in case the JIT might want to inline them.
     for (const auto& [idx, name] : preloader->globalNames()) {
       BorrowedRef<> obj = preloader->global(idx);
       if (!obj || !PyFunction_Check(obj)) {
         continue;
       }
-      BorrowedRef<PyFunctionObject> func =
-          reinterpret_cast<PyFunctionObject*>(obj.get());
-      if (!isPreloaded(func) && shouldCompile(func)) {
-        worklist.push_back(func);
+      BorrowedRef<PyFunctionObject> target_func = obj.get();
+      if (!isPreloaded(target_func) && shouldCompile(target_func)) {
+        worklist.push_back(target_func);
       }
     }
   }
-  return true;
+
+  std::reverse(result.begin(), result.end());
+  return result;
 }
 
 } // namespace jit
