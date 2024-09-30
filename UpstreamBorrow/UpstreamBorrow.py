@@ -101,6 +101,9 @@ def parse_borrow_info(input_string: str) -> Decl | None:
     elif kind_str == "var":
         # pyre-ignore[16]: `CursorKind` has no attribute `VAR_DECL`.
         kind = CursorKind.VAR_DECL
+    elif kind_str == "enum":
+        # pyre-ignore[16]: `CursorKind` has no attribute `ENUM_DECL`.
+        kind = CursorKind.ENUM_DECL
     else:
         raise Exception(f"Unknown kind: {kind_str}")
 
