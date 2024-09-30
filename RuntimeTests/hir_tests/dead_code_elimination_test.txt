@@ -238,7 +238,7 @@ fun jittestmodule:test {
     Snapshot
     v23:Object = VectorCall<0> v17 {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
         Locals<1> v17
       }
     }

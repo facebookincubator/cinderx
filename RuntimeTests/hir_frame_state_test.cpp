@@ -64,11 +64,11 @@ def test():
     }
     v3 = LoadGlobal<0; "foo"> {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 12
       }
     }
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 12
       Stack<1> v3
     }
     Return v3
@@ -508,12 +508,12 @@ def test(f, a):
     }
     v6 = CallMethod<3> v5 v0 v1 {
       FrameState {
-        NextInstrOffset 10
+        NextInstrOffset 16
         Locals<2> v0 v1
       }
     }
     Snapshot {
-      NextInstrOffset 10
+      NextInstrOffset 16
       Locals<2> v0 v1
       Stack<1> v6
     }
@@ -604,24 +604,24 @@ def test(f, a):
     }
     v5 = LoadMethod<0; "bar"> v0 {
       FrameState {
-        NextInstrOffset 6
+        NextInstrOffset 24
         Locals<2> v0 v1
       }
     }
     v6 = GetSecondOutput<OptObject> v5
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 24
       Locals<2> v0 v1
       Stack<2> v5 v6
     }
     v7 = CallMethod<3> v5 v6 v1 {
       FrameState {
-        NextInstrOffset 28
+        NextInstrOffset 34
         Locals<2> v0 v1
       }
     }
     Snapshot {
-      NextInstrOffset 28
+      NextInstrOffset 34
       Locals<2> v0 v1
       Stack<1> v7
     }
@@ -723,23 +723,23 @@ def test(f):
     }
     v4 = LoadAttr<0; "a"> v0 {
       FrameState {
-        NextInstrOffset 6
+        NextInstrOffset 24
         Locals<1> v0
       }
     }
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 24
       Locals<1> v0
       Stack<1> v4
     }
     v5 = LoadAttr<1; "b"> v4 {
       FrameState {
-        NextInstrOffset 26
+        NextInstrOffset 44
         Locals<1> v0
       }
     }
     Snapshot {
-      NextInstrOffset 26
+      NextInstrOffset 44
       Locals<1> v0
       Stack<1> v5
     }
@@ -833,12 +833,12 @@ def test(x, y):
     }
     v5 = InPlaceOp<Xor> v0 v1 {
       FrameState {
-        NextInstrOffset 8
+        NextInstrOffset 10
         Locals<2> v0 v1
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 10
       Locals<2> v0 v1
       Stack<1> v5
     }
@@ -934,12 +934,12 @@ def test(x, y):
     }
     v5 = BinaryOp<Add> v0 v1 {
       FrameState {
-        NextInstrOffset 8
+        NextInstrOffset 10
         Locals<2> v0 v1
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 10
       Locals<2> v0 v1
       Stack<1> v5
     }
@@ -1117,12 +1117,12 @@ def test(x, y):
     }
     v5 = StoreAttr<0; "foo"> v0 v1 {
       FrameState {
-        NextInstrOffset 8
+        NextInstrOffset 16
         Locals<2> v0 v1
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 16
       Locals<2> v0 v1
     }
     v6 = LoadConst<NoneType>
@@ -1215,12 +1215,12 @@ def test(x, y):
     v5 = LoadConst<ImmortalLongExact[1]>
     v6 = StoreSubscr v0 v5 v1 {
       FrameState {
-        NextInstrOffset 10
+        NextInstrOffset 12
         Locals<2> v0 v1
       }
     }
     Snapshot {
-      NextInstrOffset 10
+      NextInstrOffset 12
       Locals<2> v0 v1
     }
     v7 = LoadConst<NoneType>

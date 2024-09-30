@@ -1193,7 +1193,7 @@ fun jittestmodule:test {
     v17:NoneType = StoreAttrCached<0; "foo"> v7 v8 {
       LiveValues<2> b:v7 b:v8
       FrameState {
-        NextInstrOffset 8
+        NextInstrOffset 16
         Locals<2> v7 v8
       }
     }
@@ -1237,7 +1237,7 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     v7:Object = LoadGlobal<0; "a_global"> {
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 12
       }
     }
     Return v7
@@ -1747,7 +1747,7 @@ fun jittestmodule:test {
     v45:LongExact = LongBinaryOp<Add> v29 v30 {
       LiveValues<3> b:v16 unc:v29 unc:v30
       FrameState {
-        NextInstrOffset 20
+        NextInstrOffset 22
         Locals<2> v16 v29
       }
     }
@@ -1792,7 +1792,7 @@ fun jittestmodule:test {
     v46:Object = VectorCall<1> v38 v39 {
       LiveValues<3> b:v16 b:v38 o:v39
       FrameState {
-        NextInstrOffset 42
+        NextInstrOffset 48
         Locals<2> v16 v39
       }
     }
@@ -1970,7 +1970,7 @@ fun jittestmodule:test {
     v65:DictExact = VectorCall<0> v34 {
       LiveValues<5> b:v21 b:v22 b:v23 unc:v25 unc:v34
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
         Locals<4> v21 v22 v23 v25
       }
     }
@@ -2006,7 +2006,7 @@ fun jittestmodule:test {
     v63:Object = VectorCall<1> v45 v65 {
       LiveValues<5> b:v22 b:v23 b:v39 b:v45 o:v65
       FrameState {
-        NextInstrOffset 44
+        NextInstrOffset 50
         Locals<4> v39 v22 v23 v65
       }
     }
@@ -2050,7 +2050,7 @@ fun jittestmodule:test {
     v64:Object = VectorCall<1> v59 v39 {
       LiveValues<5> b:v23 o:v39 o:v54 b:v55 b:v59
       FrameState {
-        NextInstrOffset 82
+        NextInstrOffset 88
         Locals<4> v39 v55 v23 v54
       }
     }
@@ -2247,42 +2247,42 @@ fun jittestmodule:test {
     v64:Object = VectorCall<0> v41 {
       LiveValues<3> unc:v29 o:v41 o:v45
       FrameState {
-        NextInstrOffset 20
+        NextInstrOffset 26
         Locals<7> v41 v45 v29 v29 v29 v29 v29
       }
     }
     v65:Object = VectorCall<0> v41 {
       LiveValues<4> unc:v29 o:v41 o:v45 o:v64
       FrameState {
-        NextInstrOffset 34
+        NextInstrOffset 40
         Locals<7> v41 v45 v64 v29 v29 v29 v29
       }
     }
     v66:Object = VectorCall<0> v41 {
       LiveValues<5> unc:v29 o:v41 o:v45 o:v64 o:v65
       FrameState {
-        NextInstrOffset 48
+        NextInstrOffset 54
         Locals<7> v41 v45 v64 v65 v29 v29 v29
       }
     }
     v67:Object = VectorCall<0> v41 {
       LiveValues<6> unc:v29 o:v41 o:v45 o:v64 o:v65 o:v66
       FrameState {
-        NextInstrOffset 62
+        NextInstrOffset 68
         Locals<7> v41 v45 v64 v65 v66 v29 v29
       }
     }
     v68:Object = VectorCall<0> v41 {
       LiveValues<7> unc:v29 o:v41 o:v45 o:v64 o:v65 o:v66 o:v67
       FrameState {
-        NextInstrOffset 76
+        NextInstrOffset 82
         Locals<7> v41 v45 v64 v65 v66 v67 v29
       }
     }
     v69:Object = VectorCall<5> v45 v64 v65 v66 v67 v68 {
       LiveValues<7> o:v41 o:v45 o:v64 o:v65 o:v66 o:v67 o:v68
       FrameState {
-        NextInstrOffset 100
+        NextInstrOffset 106
         Locals<7> v41 v45 v64 v65 v66 v67 v68
       }
     }

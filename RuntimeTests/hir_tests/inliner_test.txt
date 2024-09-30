@@ -63,7 +63,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v11 {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
       }
     }
     Snapshot
@@ -154,7 +154,7 @@ fun jittestmodule:test {
     Snapshot
     v22:Object = VectorCall<0> v15 {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
       }
     }
     Snapshot
@@ -166,14 +166,14 @@ fun jittestmodule:test {
     Snapshot
     v23:Object = VectorCall<0> v19 {
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 38
         Stack<1> v22
       }
     }
     Snapshot
     v21:Object = BinaryOp<Add> v22 v23 {
       FrameState {
-        NextInstrOffset 40
+        NextInstrOffset 42
       }
     }
     Snapshot
@@ -290,7 +290,7 @@ fun jittestmodule:test {
     v23:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v25:Object = VectorCall<2> v22 v16 v23 {
       FrameState {
-        NextInstrOffset 26
+        NextInstrOffset 32
         Locals<1> v16
       }
     }
@@ -366,7 +366,7 @@ fun jittestmodule:test {
     v15:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v17:Object = VectorCall<2> v13 v14 v15 {
       FrameState {
-        NextInstrOffset 18
+        NextInstrOffset 24
       }
     }
     Snapshot
@@ -430,7 +430,7 @@ fun jittestmodule:test {
     v13:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v15:Object = VectorCall<1> v12 v13 {
       FrameState {
-        NextInstrOffset 16
+        NextInstrOffset 22
       }
     }
     Snapshot
@@ -492,7 +492,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v11 {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
       }
     }
     Snapshot
@@ -558,7 +558,7 @@ fun jittestmodule:test {
     v15:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v17:Object = VectorCall<2> v13 v14 v15 {
       FrameState {
-        NextInstrOffset 18
+        NextInstrOffset 24
       }
     }
     Snapshot
@@ -624,7 +624,7 @@ fun jittestmodule:test {
     v15:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
     v17:Object = VectorCall<2> v13 v14 v15 {
       FrameState {
-        NextInstrOffset 18
+        NextInstrOffset 24
       }
     }
     Snapshot
@@ -686,7 +686,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v11 {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
       }
     }
     Snapshot
@@ -751,7 +751,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v11 {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
       }
     }
     Snapshot
@@ -875,7 +875,7 @@ fun jittestmodule:test {
     Snapshot
     v31:Object = VectorCall<0> v27 {
       FrameState {
-        NextInstrOffset 24
+        NextInstrOffset 30
         Locals<1> v27
         Cells<1> v16
       }
@@ -951,7 +951,7 @@ fun jittestmodule:test {
     Snapshot
     v20:Object = VectorCall<0> v16 {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
         Locals<1> v16
       }
     }
@@ -1017,7 +1017,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v11 {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
       }
     }
     Snapshot
@@ -1181,7 +1181,7 @@ fun jittestmodule:test {
     v19:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v20:Object = Compare<LessThan> v14 v19 {
       FrameState {
-        NextInstrOffset 8
+        NextInstrOffset 10
         Locals<1> v14
       }
     }
@@ -1212,7 +1212,7 @@ fun jittestmodule:test {
     v27:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v28:Object = BinaryOp<Subtract> v14 v27 {
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 34
         Locals<1> v14
         Stack<3> v14 v24 v26
       }
@@ -1220,7 +1220,7 @@ fun jittestmodule:test {
     Snapshot
     v31:Object = VectorCall<1> v26 v28 {
       FrameState {
-        NextInstrOffset 36
+        NextInstrOffset 42
         Locals<1> v14
         Stack<1> v14
       }
@@ -1228,7 +1228,7 @@ fun jittestmodule:test {
     Snapshot
     v30:Object = BinaryOp<Multiply> v14 v31 {
       FrameState {
-        NextInstrOffset 44
+        NextInstrOffset 46
         Locals<1> v14
       }
     }
@@ -1304,7 +1304,7 @@ fun jittestmodule:test {
     v15:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
     v17:Object = VectorCall<2> v13 v14 v15 {
       FrameState {
-        NextInstrOffset 18
+        NextInstrOffset 24
       }
     }
     Snapshot
@@ -1385,7 +1385,7 @@ fun jittestmodule:test {
     }
     v18:Object = VectorCall<2> v11 v14 v15 {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 20
       }
     }
     Snapshot
@@ -1482,7 +1482,7 @@ fun jittestmodule:test {
     }
     v22:Object = VectorCall<4> v13 v14 v15 v18 v19 {
       FrameState {
-        NextInstrOffset 18
+        NextInstrOffset 24
       }
     }
     Snapshot

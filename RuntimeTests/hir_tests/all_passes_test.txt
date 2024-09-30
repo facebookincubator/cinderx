@@ -143,7 +143,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: str'
       LiveValues<4> b:v11 unc:v16 b:v18 b:v19
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 12
         Locals<1> v11
         Stack<2> v16 v18
       }
@@ -159,11 +159,11 @@ fun jittestmodule:test {
   }
 
   bb 6 (preds 3) {
-    UpdatePrevInstr<idx:11>
+    UpdatePrevInstr<idx:14>
     v31:CInt32 = IsInstance v11 v20 {
       LiveValues<2> b:v11 unc:v20
       FrameState {
-        NextInstrOffset 26
+        NextInstrOffset 32
         Locals<1> v11
       }
     }
@@ -258,7 +258,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: g'
       LiveValues<3> unc:v10 b:v12 b:v13
       FrameState {
-        NextInstrOffset 4
+        NextInstrOffset 12
         Stack<2> v10 v12
       }
     }
@@ -266,7 +266,7 @@ fun jittestmodule:test {
     v19:LongExact = PrimitiveBox<CInt64> v18 {
       LiveValues<1> s:v18
       FrameState {
-        NextInstrOffset 24
+        NextInstrOffset 30
       }
     }
     Return v19
@@ -332,11 +332,11 @@ fun jittestmodule:test {
       }
     }
     v16:ImmortalUnicodeExact["foo"] = LoadConst<ImmortalUnicodeExact["foo"]>
-    UpdatePrevInstr<idx:7>
+    UpdatePrevInstr<idx:10>
     v18:Bool = VectorCall<2> v15 v8 v16 {
       LiveValues<3> b:v8 b:v15 unc:v16
       FrameState {
-        NextInstrOffset 18
+        NextInstrOffset 24
         Locals<1> v8
       }
     }
@@ -512,7 +512,7 @@ fun jittestmodule:test {
     v24:CInt32 = ListAppend v15 v19 {
       LiveValues<2> o:v15 unc:v19
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 38
         Locals<1> v15
       }
     }
@@ -703,11 +703,11 @@ fun jittestmodule:test {
     v14:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v20:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
     v18:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    UpdatePrevInstr<idx:14>
+    UpdatePrevInstr<idx:17>
     v19:UnicodeExact = VectorCall<2, static> v20 v14 v18 {
       LiveValues<3> unc:v14 unc:v18 b:v20
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 38
         Locals<1> v14
       }
     }
@@ -757,12 +757,12 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     v13:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    UpdatePrevInstr<idx:13>
+    UpdatePrevInstr<idx:16>
     v19:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v13
     v20:UnicodeExact = CheckExc v19 {
       LiveValues<2> unc:v13 o:v19
       FrameState {
-        NextInstrOffset 30
+        NextInstrOffset 36
         Locals<1> v13
       }
     }
@@ -813,11 +813,11 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     v13:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v18:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
-    UpdatePrevInstr<idx:13>
+    UpdatePrevInstr<idx:16>
     v17:Object = VectorCall<1, static> v18 v13 {
       LiveValues<2> unc:v13 b:v18
       FrameState {
-        NextInstrOffset 30
+        NextInstrOffset 36
         Locals<1> v13
       }
     }
@@ -869,12 +869,12 @@ fun jittestmodule:test {
   bb 1 (preds 0, 2) {
     v14:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
     v18:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
-    UpdatePrevInstr<idx:14>
+    UpdatePrevInstr<idx:17>
     v21:OptObject = CallStatic<unicode_removeprefix@0xdeadbeef, 2> v14 v18
     v22:Object = CheckExc v21 {
       LiveValues<2> unc:v14 o:v21
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 38
         Locals<1> v14
       }
     }

@@ -90,7 +90,7 @@ int unspecialize(int opcode);
 // Convert an instrumented opcode back to its base form.
 int uninstrument(PyCodeObject* code, int index);
 
-// Get the byte size of an opcode's inline cache.
+// Get the number of inline cache slots used by an opcode.
 //
 // This needs to take a code object and an opcode index to process instrumented
 // opcodes.

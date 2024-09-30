@@ -83,7 +83,7 @@ class BytecodeInstruction {
   }
 
   BCOffset nextInstrOffset() const {
-    return BCIndex{offset_} + 1;
+    return BCOffset{index() + inlineCacheSize(code_, index().value()) + 1};
   }
 
  private:
