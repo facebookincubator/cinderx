@@ -1392,6 +1392,26 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         self.set_type(node, self.type_env.DYNAMIC)
         return NO_EFFECT
 
+    def refine_truthy(self, node: ast.expr | None) -> NarrowingEffect | None:
+        if node is None or not self.is_refinable(node):
+            return None
+
+        type_ = self.get_type(node)
+        if (
+            not isinstance(type_, UnionInstance)
+            or type_.klass.is_generic_type_definition
+        ):
+            return None
+
+        assert isinstance(node, (ast.Name, ast.Attribute))
+        effect = IsInstanceEffect(
+            node,
+            type_,
+            self.type_env.none.instance,
+            self,
+        )
+        return effect.not_()
+
     def visitCompare(
         self, node: Compare, type_ctx: Class | None = None
     ) -> NarrowingEffect:
@@ -1412,22 +1432,10 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             elif isinstance(right, (Constant, NameConstant)) and right.value is None:
                 other = left
 
-            if other is not None and self.is_refinable(other):
-                var_type = self.get_type(other)
-                if (
-                    isinstance(var_type, UnionInstance)
-                    and not var_type.klass.is_generic_type_definition
-                ):
-                    # This is handled by the is_refinable call. The assert's here to make the type checker happy.
-                    assert isinstance(other, (ast.Name, ast.Attribute))
-                    effect = IsInstanceEffect(
-                        other,
-                        var_type,
-                        self.type_env.none.instance,
-                        self,
-                    )
-                    if isinstance(node.ops[0], IsNot):
-                        effect = effect.not_()
+            if (effect := self.refine_truthy(other)) is not None:
+                if isinstance(node.ops[0], Is):
+                    return effect.not_()
+                else:
                     return effect
 
         self.visit(node.left)
@@ -1608,13 +1616,9 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
 
         if not found_name:
             raise TypedSyntaxError(f"Name `{node.id}` is not defined.")
-        type = self.get_type(node)
-        if (
-            isinstance(type, UnionInstance)
-            and not type.klass.is_generic_type_definition
-        ):
-            effect = IsInstanceEffect(node, type, self.type_env.none.instance, self)
-            return effect.not_()
+
+        if (effect := self.refine_truthy(node)) is not None:
+            return effect
 
         return NO_EFFECT
 
