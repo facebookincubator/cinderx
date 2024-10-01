@@ -3518,7 +3518,16 @@ class CodeGenerator312(CodeGenerator):
                 2,
                 None,
                 node.bases
-                + [ast.Name(".generic_base", lineno=node.lineno, ctx=ast.Load())],
+                + [
+                    ast.Name(
+                        ".generic_base",
+                        lineno=node.lineno,
+                        end_lineno=node.end_lineno,
+                        col_offset=node.col_offset,
+                        end_col_offset=node.end_col_offset,
+                        ctx=ast.Load(),
+                    )
+                ],
                 node.keywords,
             )
 

@@ -8,6 +8,7 @@ import sys
 from ast import AST
 from contextlib import contextmanager
 from dataclasses import dataclass
+from enum import IntEnum
 
 try:
     # pyre-ignore[21]: No _inline_cache_entries
@@ -1322,6 +1323,25 @@ class PyFlowGraph312(PyFlowGraph):
         for _i in range(base_size):
             addCode(0, 0)
 
+    def makeLineTable(self) -> bytes:
+        lpostab = LinePositionTable(self.firstline)
+
+        loc = NO_LOCATION
+        size = 0
+        for t in self.insts:
+            if t.loc != loc:
+                lpostab.emit_location(loc, size)
+                loc = t.loc
+                size = 0
+
+            # The size is in terms of code units
+            size += self.instrsize(t.opname, t.ioparg)
+
+        # Since the linetable format writes the end offset of bytecodes, we can't commit the
+        # last write until all the instructions are iterated over.
+        lpostab.emit_location(loc, size)
+        return lpostab.getTable()
+
     def make_code(self, nlocals, code, consts, firstline, lnotab) -> CodeType:
         # pyre-ignore[19]: Too many arguments (this is right for 3.12)
         return CodeType(
@@ -1424,3 +1444,134 @@ class LineAddrTable:
     def push_entry(self, addr_delta, line_delta):
         self.linetable.append(addr_delta)
         self.linetable.append(cast_signed_byte_to_unsigned(line_delta))
+
+
+class CodeLocationInfoKind(IntEnum):
+    SHORT0 = 0
+    ONE_LINE0 = 10
+    ONE_LINE1 = 11
+    ONE_LINE2 = 12
+    NO_COLUMNS = 13
+    LONG = 14
+    NONE = 15
+
+
+class LinePositionTable:
+    """Generates the Python 3.12 and later position table which tracks
+    line numbers as well as column information."""
+
+    def __init__(self, firstline: int) -> None:
+        self.linetable = bytearray()
+        self.lineno = firstline
+
+    # https://github.com/python/cpython/blob/3.12/Python/assemble.c#L170
+    # https://github.com/python/cpython/blob/3.12/Objects/locations.md
+    def emit_location(self, loc: AST | SrcLocation, size: int) -> None:
+        if size == 0:
+            return
+
+        while size > 8:
+            self.write_entry(loc, 8)
+            size -= 8
+
+        self.write_entry(loc, size)
+
+    def write_entry(self, loc: AST | SrcLocation, size: int) -> None:
+        if loc.lineno < 0:
+            return self.write_entry_no_location(size)
+
+        line_delta = loc.lineno - self.lineno
+        column = loc.col_offset
+        end_column = loc.end_col_offset
+        assert isinstance(end_column, int)
+        assert column >= -1
+        assert end_column >= -1
+        if column < 0 or end_column < 0:
+            if loc.end_lineno == loc.lineno or loc.end_lineno == -1:
+                self.write_no_column(size, line_delta)
+                self.lineno = loc.lineno
+                return
+        elif loc.end_lineno == loc.lineno:
+            if (
+                line_delta == 0
+                and column < 80
+                and end_column - column < 16
+                and end_column >= column
+            ):
+                return self.write_short_form(size, column, end_column)
+            if 0 <= line_delta < 3 and column < 128 and end_column < 128:
+                self.write_one_line_form(size, line_delta, column, end_column)
+                self.lineno = loc.lineno
+                return
+
+        self.write_long_form(loc, size)
+        self.lineno = loc.lineno
+
+    def write_short_form(self, size: int, column: int, end_column: int) -> None:
+        assert size > 0 and size <= 8
+        column_low_bits = column & 7
+        column_group = column >> 3
+        assert column < 80
+        assert end_column >= column
+        assert end_column - column < 16
+        self.write_first_byte(CodeLocationInfoKind.SHORT0 + column_group, size)
+        # Start column / end column
+        self.write_byte((column_low_bits << 4) | (end_column - column))
+
+    def write_one_line_form(
+        self, size: int, line_delta: int, column: int, end_column: int
+    ) -> None:
+        assert size > 0 and size <= 8
+        assert line_delta >= 0 and line_delta < 3
+        assert column < 128
+        assert end_column < 128
+        # Start line delta
+        self.write_first_byte(CodeLocationInfoKind.ONE_LINE0 + line_delta, size)
+        self.write_byte(column)  # Start column
+        self.write_byte(end_column)  # End column
+
+    def write_no_column(self, size: int, line_delta: int) -> None:
+        self.write_first_byte(CodeLocationInfoKind.NO_COLUMNS, size)
+        self.write_signed_varint(line_delta)  # Start line delta
+
+    def write_long_form(self, loc: AST | SrcLocation, size: int) -> None:
+        end_lineno = loc.end_lineno
+        end_col_offset = loc.end_col_offset
+
+        assert size > 0 and size <= 8
+        assert end_lineno is not None and end_col_offset is not None
+        assert end_lineno >= loc.lineno
+
+        self.write_first_byte(CodeLocationInfoKind.LONG, size)
+        self.write_signed_varint(loc.lineno - self.lineno)  # Start line delta
+        self.write_varint(end_lineno - loc.lineno)  # End line delta
+        self.write_varint(loc.col_offset + 1)  # Start column
+        self.write_varint(end_col_offset + 1)  # End column
+
+    def write_entry_no_location(self, size: int) -> None:
+        self.write_first_byte(CodeLocationInfoKind.NONE, size)
+
+    def write_varint(self, value: int) -> None:
+        while value >= 64:
+            self.linetable.append(0x40 | (value & 0x3F))
+            value >>= 6
+
+        self.linetable.append(value)
+
+    def write_signed_varint(self, value: int) -> None:
+        if value < 0:
+            uval = ((-value) << 1) | 1
+        else:
+            uval = value << 1
+
+        self.write_varint(uval)
+
+    def write_first_byte(self, code: int, length: int) -> None:
+        assert code & 0x0F == code
+        self.linetable.append(0x80 | (code << 3) | (length - 1))
+
+    def write_byte(self, code: int) -> None:
+        self.linetable.append(code & 0xFF)
+
+    def getTable(self) -> bytes:
+        return bytes(self.linetable)

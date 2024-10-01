@@ -7,6 +7,7 @@ from .test_corpus import SbsCorpusCompileTests
 from .test_errors import ErrorTests, ErrorTestsBuiltin
 from .test_flags import FlagTests
 from .test_graph import GraphTests
+from .test_linepos import LinePositionTests
 from .test_optimizer import AstOptimizerTests
 from .test_py310 import Python310Tests
 from .test_py37 import Python37Tests
