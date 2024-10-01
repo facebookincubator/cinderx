@@ -1322,6 +1322,21 @@ class PyFlowGraph312(PyFlowGraph):
             tuple(self.cellvars),
         )
 
+    def _convert_LOAD_ATTR(self, arg: object) -> int:
+        # 3.12 uses the low-bit to indicate that the LOAD_ATTR is
+        # part of a LOAD_ATTR/CALL sequence which loads two values,
+        # the first being NULL or the object instance and the 2nd
+        # being the method to be called.
+        if isinstance(arg, tuple):
+            return (self.names.get_index(arg[0]) << 1) | arg[1]
+
+        return self.names.get_index(arg) << 1
+
+    _converters = {
+        **PyFlowGraph._converters,
+        "LOAD_ATTR": _convert_LOAD_ATTR,
+    }
+
 
 class LineAddrTable:
     """linetable / lnotab

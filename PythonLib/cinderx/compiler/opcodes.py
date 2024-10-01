@@ -200,6 +200,9 @@ if sys.version_info >= (3, 12):
         MAKE_FUNCTION=lambda oparg, jmp=0: oparg.bit_count(),
         LOAD_FROM_DICT_OR_GLOBALS=-1,
         LOAD_SUPER_ATTR=-1,
+        LOAD_ATTR=lambda oparg, jmp: (
+            1 if (isinstance(oparg, tuple) and oparg[1]) else 0
+        ),
     )
 
     from opcode import (
