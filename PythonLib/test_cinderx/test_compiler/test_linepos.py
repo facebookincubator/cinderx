@@ -256,6 +256,20 @@ class LinePositionTests(CompilerTest):
                         x.foo += 42
                 """,
                 ("LOAD_ATTR", "STORE_ATTR", "SWAP", "COPY"),
+            ),
+            (
+                """
+                    def f():
+                        return x.foo()
+                """,
+                ("LOAD_ATTR", "CALL")
+            ),
+            (
+                """
+                    def f():
+                        return x.foo(42)
+                """,
+                ("LOAD_ATTR", "CALL")
             )
         ]
         for code, opcodes in test_cases:

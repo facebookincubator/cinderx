@@ -3123,20 +3123,21 @@ class CodeGenerator312(CodeGenerator):
 
         self.visit(node.func.value)
 
-        with self.temp_lineno(node.func.end_lineno):
-            if self._is_super_call(node):
-                self.emit("LOAD_GLOBAL", "super")
-                func = node.func
-                load_arg, is_zero = self._emit_args_for_super(func.value, func.attr)
-                op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
-                self.emit("LOAD_SUPER_ATTR", (op, load_arg, is_zero))
-            else:
-                self.emit("LOAD_ATTR", (self.mangle(node.func.attr), 1))
+        if self._is_super_call(node):
+            self.emit("LOAD_GLOBAL", "super")
+            func = node.func
+            load_arg, is_zero = self._emit_args_for_super(func.value, func.attr)
+            op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
+            self.emit("LOAD_SUPER_ATTR", (op, load_arg, is_zero))
+        else:
+            self.graph.emit_with_loc(
+                "LOAD_ATTR", (self.mangle(node.func.attr), 1), node.func
+            )
 
-            for arg in node.args:
-                self.visit(arg)
+        for arg in node.args:
+            self.visit(arg)
 
-            self.emit("CALL", len(node.args))
+        self.emit("CALL", len(node.args))
 
     @staticmethod
     def find_op_idx(opname: str) -> int:
