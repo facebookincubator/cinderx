@@ -3692,8 +3692,16 @@ class CodeGenerator312(CodeGenerator):
             load_arg, is_zero = self._emit_args_for_super(node.value, node.attr)
             op = "LOAD_ZERO_SUPER_ATTR" if is_zero else "LOAD_SUPER_ATTR"
             self.emit("LOAD_SUPER_ATTR", (op, load_arg, is_zero))
+            return
+
+        self.visit(node.value)
+        if isinstance(node.ctx, ast.Store):
+            op = "STORE_ATTR"
+        elif isinstance(node.ctx, ast.Del):
+            op = "DELETE_ATTR"
         else:
-            super().visitAttribute(node)
+            op = "LOAD_ATTR"
+        self.graph.emit_with_loc(op, self.mangle(node.attr), node)
 
 
 class CinderCodeGenerator(CodeGenerator):

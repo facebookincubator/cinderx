@@ -235,6 +235,13 @@ class LinePositionTests(CompilerTest):
                         x += 42
                 """,
                 "BINARY_OP",
+            ),
+            (
+                """
+                    def f():
+                        x.foo = 42
+                """,
+                "STORE_ATTR",
             )
 
         ]
