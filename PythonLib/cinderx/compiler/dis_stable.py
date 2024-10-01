@@ -69,12 +69,22 @@ def _disassemble_bytes(
         offset_width = len(str(maxoffset))
     else:
         offset_width = 4
-    for instr in _make_stable(
+    if sys.version_info >= (3, 12):
         # pyre-fixme [16]: Module `dis` has no attribute `_get_instructions_bytes`
-        _dis._get_instructions_bytes(
+        instr_bytes = _dis._get_instructions_bytes(
+            code,
+            lambda oparg: varnames[oparg],
+            names,
+            constants,
+            linestarts,
+            line_offset=line_offset,
+        )
+    else:
+        # pyre-fixme [16]: Module `dis` has no attribute `_get_instructions_bytes`
+        instr_bytes = _dis._get_instructions_bytes(
             code, varnames, names, constants, cells, linestarts, line_offset=line_offset
         )
-    ):
+    for instr in _make_stable(instr_bytes):
         new_source_line = (
             show_lineno and instr.starts_line is not None and instr.offset > 0
         )
@@ -144,24 +154,7 @@ class Disassembler:
         consts = tuple(
             [self.co_repr(x) if hasattr(x, "co_code") else x for x in co.co_consts]
         )
-        codeobj = CodeType(
-            co.co_argcount,
-            co.co_posonlyargcount,
-            co.co_kwonlyargcount,
-            co.co_nlocals,
-            co.co_stacksize,
-            co.co_flags,
-            co.co_code,
-            consts,
-            co.co_names,
-            co.co_varnames,
-            co.co_filename,
-            co.co_name,
-            co.co_firstlineno,
-            co.co_linetable,
-            co.co_freevars,
-            co.co_cellvars,
-        )
+        codeobj = co.replace(co_consts=consts)
         disassemble(codeobj, file=file, skip_line_nos=skip_line_nos)
 
     def dump_code(self, co: CodeType, file: Optional[TextIO] = None) -> None:
