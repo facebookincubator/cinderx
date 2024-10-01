@@ -384,12 +384,12 @@ class CodeGenerator(ASTVisitor):
 
     @contextmanager
     def temp_lineno(self, lineno: int) -> Generator[None, None, None]:
-        old_lineno = self.graph.lineno
+        old_loc = self.graph.loc
         self.graph.set_pos(SrcLocation(lineno, lineno, -1, -1))
         try:
             yield
         finally:
-            self.graph.set_pos(SrcLocation(old_lineno, old_lineno, -1, -1))
+            self.graph.set_pos(old_loc)
 
     def skip_docstring(self, body):
         """Given list of statements, representing body of a function, class,
@@ -3068,17 +3068,17 @@ class CodeGenerator(ASTVisitor):
 
     def visit(self, node: Sequence[AST] | AST, *args):
         # Note down the old line number for exprs
-        old_lineno = None
+        old_loc = None
         if isinstance(node, ast.expr):
-            old_lineno = self.graph.lineno
+            old_loc = self.graph.loc
             self.set_pos(node)
         elif isinstance(node, (ast.stmt, ast.pattern)):
             self.set_pos(node)
 
         ret = super().visit(node, *args)
 
-        if old_lineno is not None and old_lineno != self.graph.lineno:
-            self.graph.lineno = old_lineno
+        if old_loc is not None:
+            self.graph.loc = old_loc
 
         return ret
 

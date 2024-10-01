@@ -71,28 +71,32 @@ NO_LOCATION = SrcLocation(-1, -1, -1, -1)
 
 
 class Instruction:
-    __slots__ = ("opname", "oparg", "target", "ioparg", "lineno")
+    __slots__ = ("opname", "oparg", "target", "ioparg", "loc")
 
     def __init__(
         self,
         opname: str,
         oparg: object,
         ioparg: int = 0,
-        lineno: int = -1,
+        loc: AST | SrcLocation = NO_LOCATION,
         target: Block | None = None,
     ):
         self.opname = opname
         self.oparg = oparg
-        self.lineno = lineno
+        self.loc = loc
         self.ioparg = ioparg
         self.target = target
+
+    @property
+    def lineno(self) -> int:
+        return self.loc.lineno
 
     def __repr__(self):
         args = [
             f"{self.opname!r}",
             f"{self.oparg!r}",
             f"{self.ioparg!r}",
-            f"{self.lineno!r}",
+            f"{self.loc!r}",
         ]
         if self.target is not None:
             args.append(f"{self.target!r}")
@@ -104,9 +108,7 @@ class Instruction:
         return opcode.has_jump(op)
 
     def copy(self) -> Instruction:
-        return Instruction(
-            self.opname, self.oparg, self.ioparg, self.lineno, self.target
-        )
+        return Instruction(self.opname, self.oparg, self.ioparg, self.loc, self.target)
 
 
 class CompileScope:
@@ -132,7 +134,7 @@ class FlowGraph:
         self.startBlock(self.entry)
 
         # Source line number to use for next instruction.
-        self.lineno = 0
+        self.loc: AST | SrcLocation = SrcLocation(0, 0, 0, 0)
         # First line of this code block. This field is expected to be set
         # externally and serve as a reference for generating all other
         # line numbers in the code block. (If it's not set, it will be
@@ -224,22 +226,24 @@ class FlowGraph:
     def _disable_debug(self):
         self._debug = 0
 
-    def emit(self, opcode: str, oparg: object = 0, lineno: int | None = None) -> None:
-        if lineno is None:
-            lineno = self.lineno
+    def emit(
+        self, opcode: str, oparg: object = 0, loc: AST | SrcLocation | None = None
+    ) -> None:
+        if loc is None:
+            loc = self.loc
         if isinstance(oparg, Block):
             if not self.do_not_emit_bytecode:
                 self.current.addOutEdge(oparg)
-                self.current.emit(Instruction(opcode, 0, 0, lineno, target=oparg))
+                self.current.emit(Instruction(opcode, 0, 0, loc, target=oparg))
             return
 
         ioparg = self.convertArg(opcode, oparg)
 
         if not self.do_not_emit_bytecode:
-            self.current.emit(Instruction(opcode, oparg, ioparg, lineno))
+            self.current.emit(Instruction(opcode, oparg, ioparg, loc))
 
     def emit_noline(self, opcode: str, oparg: object = 0):
-        self.emit(opcode, oparg, -1)
+        self.emit(opcode, oparg, NO_LOCATION)
 
     def emitWithBlock(self, opcode: str, oparg: object, target: Block):
         if not self.do_not_emit_bytecode:
@@ -247,10 +251,9 @@ class FlowGraph:
             self.current.emit(Instruction(opcode, oparg, target=target))
 
     def set_pos(self, node: AST | SrcLocation) -> None:
-        lineno = node.lineno
         if not self.first_inst_lineno:
-            self.first_inst_lineno = lineno
-        self.lineno = lineno
+            self.first_inst_lineno = node.lineno
+        self.loc = node
 
     def convertArg(self, opcode: str, oparg: object) -> int:
         if isinstance(oparg, int):
@@ -498,7 +501,6 @@ class PyFlowGraph(FlowGraph):
         self.stage = ACTIVE
         self.firstline = firstline
         self.first_inst_lineno = 0
-        self.lineno = 0
         # Add any extra consts that were requested to the const pool
         self.extra_consts = []
         self.initializeConsts()
@@ -515,7 +517,7 @@ class PyFlowGraph(FlowGraph):
 
     def emit_gen_start(self) -> None:
         if self.gen_kind is not None:
-            self.emit("GEN_START", self.gen_kind, -1)
+            self.emit_noline("GEN_START", self.gen_kind)
 
     def setFlag(self, flag: int) -> None:
         self.flags |= flag
@@ -889,7 +891,7 @@ class PyFlowGraph(FlowGraph):
         "LOAD_FAST",
     }
 
-    def makeByteCode(self):
+    def makeByteCode(self) -> None:
         assert self.stage == FLAT, self.stage
         lnotab = self.lnotab
         lnotab.setFirstLine(self.firstline)
@@ -912,7 +914,7 @@ class PyFlowGraph(FlowGraph):
         lnotab.emitCurrentLine()
         self.stage = DONE
 
-    def newCodeObject(self):
+    def newCodeObject(self) -> CodeType:
         assert self.stage == DONE, self.stage
         if (self.flags & CO_NEWLOCALS) == 0:
             nlocals = len(self.fast_vars)
@@ -935,7 +937,7 @@ class PyFlowGraph(FlowGraph):
         consts = consts + tuple(self.extra_consts)
         return self.make_code(nlocals, code, consts, firstline, lnotab)
 
-    def make_code(self, nlocals, code, consts, firstline, lnotab) -> CodeType:
+    def make_code(self, nlocals, code, consts, firstline: int, lnotab) -> CodeType:
         return CodeType(
             len(self.args),
             self.posonlyargs,
@@ -967,17 +969,17 @@ class PyFlowGraph(FlowGraph):
         for block in self.ordered_blocks:
             if not block.insts:
                 continue
-            prev_lineno = -1
+            prev_loc = NO_LOCATION
             for instr in block.insts:
-                if instr.lineno < 0:
-                    instr.lineno = prev_lineno
+                if instr.loc == NO_LOCATION:
+                    instr.loc = prev_loc
                 else:
-                    prev_lineno = instr.lineno
+                    prev_loc = instr.loc
             if not block.no_fallthrough and block.next.num_predecessors == 1:
                 assert block.next.insts
                 next_instr = block.next.insts[0]
-                if next_instr.lineno < 0:
-                    next_instr.lineno = prev_lineno
+                if next_instr.loc == NO_LOCATION:
+                    next_instr.loc = prev_loc
             last_instr = block.insts[-1]
             if last_instr.is_jump(self.opcode) and last_instr.opname not in {
                 # Only actual jumps, not exception handlers
@@ -989,24 +991,24 @@ class PyFlowGraph(FlowGraph):
                 if target.num_predecessors == 1:
                     assert target.insts
                     next_instr = target.insts[0]
-                    if next_instr.lineno < 0:
-                        next_instr.lineno = prev_lineno
+                    if next_instr.loc == NO_LOCATION:
+                        next_instr.loc = prev_loc
 
     def guarantee_lineno_for_exits(self):
-        lineno = self.firstline
-        assert lineno > 0
+        assert self.firstline > 0
+        loc = SrcLocation(self.firstline, self.firstline, 0, 0)
         for block in self.ordered_blocks:
             if not block.insts:
                 continue
             last_instr = block.insts[-1]
-            if last_instr.lineno < 0:
+            if last_instr.loc == NO_LOCATION:
                 # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
                 if last_instr.opname in ("RETURN_VALUE", "RETURN_PRIMITIVE"):
                     for instr in block.insts:
-                        assert instr.lineno < 0
-                        instr.lineno = lineno
+                        assert instr.loc == NO_LOCATION
+                        instr.loc = loc
             else:
-                lineno = last_instr.lineno
+                loc = last_instr.loc
 
     def duplicate_exits_without_lineno(self):
         """
@@ -1033,7 +1035,7 @@ class PyFlowGraph(FlowGraph):
                     and target.num_predecessors > 1
                 ):
                     new_target = target.copy()
-                    new_target.insts[0].lineno = last.lineno
+                    new_target.insts[0].loc = last.loc
                     last.target = new_target
                     target.num_predecessors -= 1
                     new_target.num_predecessors = 1
@@ -1222,7 +1224,7 @@ class PyFlowGraph(FlowGraph):
 class PyFlowGraphCinder(PyFlowGraph):
     opcode = opcode_cinder.opcode
 
-    def make_code(self, nlocals, code, consts, firstline, lnotab) -> CodeType:
+    def make_code(self, nlocals, code, consts, firstline: int, lnotab) -> CodeType:
         if self.scope is not None and self.scope.suppress_jit:
             self.setFlag(CO_SUPPRESS_JIT)
         return super().make_code(nlocals, code, consts, firstline, lnotab)
@@ -1291,7 +1293,7 @@ class PyFlowGraph312(PyFlowGraph):
                 is_forward = last.target.bid not in seen_blocks
                 last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD"
 
-    def makeByteCode(self):
+    def makeByteCode(self) -> None:
         assert self.stage == FLAT, self.stage
         lnotab = self.lnotab
         lnotab.setFirstLine(self.firstline)
@@ -1309,6 +1311,7 @@ class PyFlowGraph312(PyFlowGraph):
             if oparg > 0xFF:
                 lnotab.addCode(self.opcode.EXTENDED_ARG, (oparg >> 8) & 0xFF)
             lnotab.addCode(self.opcode.opmap[t.opname], oparg & 0xFF)
+            # pyre-ignore[16]: No _inline_cache_entries
             base_size = _inline_cache_entries[opcodes.opcode.opmap[t.opname]]
             for _i in range(base_size):
                 lnotab.addCode(0, 0)
@@ -1372,7 +1375,7 @@ class LineAddrTable:
 
     """
 
-    def __init__(self, opcode):
+    def __init__(self, opcode) -> None:
         self.code = []
         self.current_start = 0
         self.current_end = 0
@@ -1381,7 +1384,7 @@ class LineAddrTable:
         self.linetable = []
         self.opcode = opcode
 
-    def setFirstLine(self, lineno):
+    def setFirstLine(self, lineno: int) -> None:
         self.current_line = lineno
         self.prev_line = lineno
 
@@ -1390,7 +1393,7 @@ class LineAddrTable:
         self.code.append(oparg)
         self.current_end += self.opcode.CODEUNIT_SIZE
 
-    def nextLine(self, lineno):
+    def nextLine(self, lineno: int) -> None:
         if not lineno:
             return
         self.emitCurrentLine()

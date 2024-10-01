@@ -134,7 +134,7 @@ class FlowGraphOptimizer:
                     next_instr = block.insts[idx + 1]
                     next_lineno = next_instr.lineno
                     if next_lineno < 0 or next_lineno == lineno:
-                        next_instr.lineno = lineno
+                        next_instr.loc = instr.loc
                         continue
                 else:
                     next_block = block.next
