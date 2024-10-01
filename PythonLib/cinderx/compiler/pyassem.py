@@ -227,11 +227,7 @@ class FlowGraph:
     def _disable_debug(self):
         self._debug = 0
 
-    def emit(
-        self, opcode: str, oparg: object = 0, loc: AST | SrcLocation | None = None
-    ) -> None:
-        if loc is None:
-            loc = self.loc
+    def emit_with_loc(self, opcode: str, oparg: object, loc: AST | SrcLocation) -> None:
         if isinstance(oparg, Block):
             if not self.do_not_emit_bytecode:
                 self.current.addOutEdge(oparg)
@@ -243,8 +239,11 @@ class FlowGraph:
         if not self.do_not_emit_bytecode:
             self.current.emit(Instruction(opcode, oparg, ioparg, loc))
 
-    def emit_noline(self, opcode: str, oparg: object = 0):
-        self.emit(opcode, oparg, NO_LOCATION)
+    def emit(self, opcode: str, oparg: object = 0) -> None:
+        self.emit_with_loc(opcode, oparg, self.loc)
+
+    def emit_noline(self, opcode: str, oparg: object = 0) -> None:
+        self.emit_with_loc(opcode, oparg, NO_LOCATION)
 
     def emitWithBlock(self, opcode: str, oparg: object, target: Block):
         if not self.do_not_emit_bytecode:
