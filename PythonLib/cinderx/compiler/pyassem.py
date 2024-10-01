@@ -5,7 +5,9 @@
 from __future__ import annotations
 
 import sys
+from ast import AST
 from contextlib import contextmanager
+from dataclasses import dataclass
 
 try:
     # pyre-ignore[21]: No _inline_cache_entries
@@ -52,6 +54,20 @@ FVC_REPR = 0x2
 FVC_ASCII = 0x3
 FVS_MASK = 0x4
 FVS_HAVE_SPEC = 0x4
+
+
+@dataclass(frozen=True, slots=True)
+class SrcLocation:
+    lineno: int
+    end_lineno: int
+    col_offset: int
+    end_col_offset: int
+
+    def __repr__(self) -> str:
+        return f"SrcLocation({self.lineno}, {self.end_lineno}, {self.col_offset}, {self.end_col_offset})"
+
+
+NO_LOCATION = SrcLocation(-1, -1, -1, -1)
 
 
 class Instruction:
@@ -230,7 +246,8 @@ class FlowGraph:
             self.current.addOutEdge(target)
             self.current.emit(Instruction(opcode, oparg, target=target))
 
-    def set_pos(self, lineno: int) -> None:
+    def set_pos(self, node: AST | SrcLocation) -> None:
+        lineno = node.lineno
         if not self.first_inst_lineno:
             self.first_inst_lineno = lineno
         self.lineno = lineno

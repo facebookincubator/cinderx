@@ -34,7 +34,7 @@ from .consts import (
 )
 from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
 from .optimizer import AstOptimizer
-from .pyassem import Block, PyFlowGraph
+from .pyassem import Block, NO_LOCATION, PyFlowGraph, SrcLocation
 from .symbols import Scope, SymbolVisitor
 from .unparse import to_expr
 from .visitor import ASTVisitor, walk
@@ -81,7 +81,6 @@ _DEFAULT_MODNAME = sys.intern("<module>")
 
 FuncOrLambda = Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda]
 CompNode = Union[ast.SetComp, ast.DictComp, ast.ListComp]
-
 
 # A soft limit for stack use, to avoid excessive
 # memory use for large constants, etc.
@@ -376,21 +375,21 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emit(prefix + "_NAME", name)
 
-    def set_pos(self, node: AST):
-        self.graph.set_pos(node.lineno)
+    def set_pos(self, node: AST | SrcLocation):
+        self.graph.set_pos(node)
 
     def set_no_pos(self):
         """Mark following instructions as synthetic (no source line number)."""
-        self.graph.set_pos(-1)
+        self.graph.set_pos(NO_LOCATION)
 
     @contextmanager
     def temp_lineno(self, lineno: int) -> Generator[None, None, None]:
         old_lineno = self.graph.lineno
-        self.graph.set_pos(lineno)
+        self.graph.set_pos(SrcLocation(lineno, lineno, -1, -1))
         try:
             yield
         finally:
-            self.graph.set_pos(old_lineno)
+            self.graph.set_pos(SrcLocation(old_lineno, old_lineno, -1, -1))
 
     def skip_docstring(self, body):
         """Given list of statements, representing body of a function, class,
@@ -1757,7 +1756,9 @@ class CodeGenerator(ASTVisitor):
         with self.temp_lineno(node.target.end_lineno):
             self.emit("LOAD_ATTR", self.mangle(target.attr))
         self.emitAugRHS(node)
-        self.graph.set_pos(node.target.end_lineno)
+        self.graph.set_pos(
+            SrcLocation(node.target.end_lineno, node.target.end_lineno, -1, -1)
+        )
         self.emit_rotate_stack(2)
         self.emit("STORE_ATTR", self.mangle(target.attr))
 
