@@ -189,7 +189,8 @@ class TemplateFileProcessor:
     def _extract_decls(self) -> None:
         for source_file, needed_decls in self.needed.items():
             parsed_file = self.file_parser.parse(source_file)
-            for cursor in parsed_file.translation_unit.cursor.walk_preorder():
+            # We only need to look for symbols at top level.
+            for cursor in parsed_file.translation_unit.cursor.get_children():
                 name = cursor.spelling
                 if name in needed_decls.get(cursor.kind, ()):
                     if extent := cursor.extent:
