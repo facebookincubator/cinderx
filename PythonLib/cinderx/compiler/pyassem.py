@@ -15,7 +15,7 @@ try:
 except ImportError:
     _inline_cache_entries = None
 from types import CodeType
-from typing import ClassVar, Generator, Optional, Sequence
+from typing import Callable, ClassVar, Generator, Optional, Sequence
 
 from . import opcode_cinder, opcodes
 from .consts import (
@@ -507,7 +507,6 @@ class PyFlowGraph(FlowGraph):
         self.fast_vars = set()
         self.gen_kind = None
         self.lnotab: LineAddrTable = LineAddrTable()
-        self.code = bytearray()
         self.insts: list[Instruction] = []
         if flags & CO_COROUTINE:
             self.gen_kind = 1
@@ -585,10 +584,10 @@ class PyFlowGraph(FlowGraph):
         self.flattenGraph()
 
         assert self.stage == FLAT, self.stage
-        self.makeByteCode()
+        bytecode = self.make_byte_code()
+        linetable = self.makeLineTable()
         assert self.stage == DONE, self.stage
-        code = self.newCodeObject()
-        return code
+        return self.newCodeObject(bytecode, linetable)
 
     def dump(self, io=None):
         if io:
@@ -892,13 +891,37 @@ class PyFlowGraph(FlowGraph):
         "LOAD_FAST",
     }
 
-    def addCode(self, opcode: int, oparg: int) -> None:
-        self.code.append(opcode)
-        self.code.append(oparg)
-
-    def makeByteCode(self) -> None:
+    def make_byte_code(self) -> bytes:
         assert self.stage == FLAT, self.stage
-        lnotab = self.lnotab
+
+        code = bytearray()
+
+        def addCode(opcode: int, oparg: int) -> None:
+            code.append(opcode)
+            code.append(oparg)
+
+        for t in self.insts:
+            oparg = t.ioparg
+            assert 0 <= oparg <= 0xFFFFFFFF, oparg
+            if oparg > 0xFFFFFF:
+                addCode(self.opcode.EXTENDED_ARG, (oparg >> 24) & 0xFF)
+            if oparg > 0xFFFF:
+                addCode(self.opcode.EXTENDED_ARG, (oparg >> 16) & 0xFF)
+            if oparg > 0xFF:
+                addCode(self.opcode.EXTENDED_ARG, (oparg >> 8) & 0xFF)
+            addCode(self.opcode.opmap[t.opname], oparg & 0xFF)
+            self.emit_inline_cache(t.opname, addCode)
+
+        self.stage = DONE
+        return bytes(code)
+
+    def emit_inline_cache(
+        self, opcode: str, addCode: Callable[[int, int], None]
+    ) -> None:
+        pass
+
+    def makeLineTable(self) -> bytes:
+        lnotab = LineAddrTable()
         lnotab.setFirstLine(self.firstline)
 
         prev_offset = offset = 0
@@ -907,27 +930,14 @@ class PyFlowGraph(FlowGraph):
                 lnotab.nextLine(t.lineno, prev_offset, offset)
                 prev_offset = offset
 
-            oparg = t.ioparg
-            assert 0 <= oparg <= 0xFFFFFFFF, oparg
-            if oparg > 0xFFFFFF:
-                self.addCode(self.opcode.EXTENDED_ARG, (oparg >> 24) & 0xFF)
-            if oparg > 0xFFFF:
-                self.addCode(self.opcode.EXTENDED_ARG, (oparg >> 16) & 0xFF)
-            if oparg > 0xFF:
-                self.addCode(self.opcode.EXTENDED_ARG, (oparg >> 8) & 0xFF)
-            self.addCode(self.opcode.opmap[t.opname], oparg & 0xFF)
-            self.emit_inline_cache(t.opname)
             offset += self.instrsize(t.opname, t.ioparg) * self.opcode.CODEUNIT_SIZE
 
         # Since the linetable format writes the end offset of bytecodes, we can't commit the
         # last write until all the instructions are iterated over.
         lnotab.emitCurrentLine(prev_offset, offset)
-        self.stage = DONE
+        return lnotab.getTable()
 
-    def emit_inline_cache(self, opcode: str) -> None:
-        pass
-
-    def newCodeObject(self) -> CodeType:
+    def newCodeObject(self, code: bytes, lnotab: bytes) -> CodeType:
         assert self.stage == DONE, self.stage
         if (self.flags & CO_NEWLOCALS) == 0:
             nlocals = len(self.fast_vars)
@@ -945,8 +955,6 @@ class PyFlowGraph(FlowGraph):
             firstline = 1
 
         consts = self.getConsts()
-        code = bytes(self.code)
-        lnotab = self.lnotab.getTable()
         consts = consts + tuple(self.extra_consts)
         return self.make_code(nlocals, code, consts, firstline, lnotab)
 
@@ -1306,11 +1314,13 @@ class PyFlowGraph312(PyFlowGraph):
                 is_forward = last.target.bid not in seen_blocks
                 last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD"
 
-    def emit_inline_cache(self, opcode: str) -> None:
+    def emit_inline_cache(
+        self, opcode: str, addCode: Callable[[int, int], None]
+    ) -> None:
         # pyre-ignore[16]: no _inline_cache_entries
         base_size = _inline_cache_entries[opcodes.opcode.opmap[opcode]]
         for _i in range(base_size):
-            self.addCode(0, 0)
+            addCode(0, 0)
 
     def make_code(self, nlocals, code, consts, firstline, lnotab) -> CodeType:
         # pyre-ignore[19]: Too many arguments (this is right for 3.12)
