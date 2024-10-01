@@ -3200,10 +3200,9 @@ class CodeGenerator312(CodeGenerator):
     }
 
     def emitAugRHS(self, node):
-        with self.temp_lineno(node.lineno):
-            self.visit(node.value)
-            op = self._augmented_opargs[type(node.op)]
-            self.emit("BINARY_OP", op)
+        self.visit(node.value)
+        op = self._augmented_opargs[type(node.op)]
+        self.graph.emit_with_loc("BINARY_OP", op, node)
 
     def emit_dup(self, count: int = 1):
         for _i in range(count):

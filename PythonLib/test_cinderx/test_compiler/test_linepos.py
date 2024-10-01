@@ -228,7 +228,15 @@ class LinePositionTests(CompilerTest):
                         return 42
                 """,
                 "RETURN_CONST",
+            ),
+            (
+                """
+                    def f():
+                        x += 42
+                """,
+                "BINARY_OP",
             )
+
         ]
         for code, opcode in test_cases:
             with self.subTest(code=code):

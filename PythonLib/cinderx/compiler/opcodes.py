@@ -203,6 +203,7 @@ if sys.version_info >= (3, 12):
         LOAD_ATTR=lambda oparg, jmp: (
             1 if (isinstance(oparg, tuple) and oparg[1]) else 0
         ),
+        BINARY_OP=-1,
     )
 
     from opcode import (
