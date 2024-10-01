@@ -929,7 +929,7 @@ class Value:
     def emit_subscr(
         self, node: ast.Subscript, code_gen: Static310CodeGenerator
     ) -> None:
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         code_gen.visit(node.value)
         code_gen.visit(node.slice)
         if isinstance(node.ctx, ast.Load):
@@ -1082,7 +1082,7 @@ class Value:
         anchor = code_gen.newBlock("default_forloop_anchor")
         after = code_gen.newBlock("default_forloop_after")
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         code_gen.push_loop(FOR_LOOP, start, after)
         code_gen.visit(node.iter)
         code_gen.emit("GET_ITER")
@@ -2911,7 +2911,7 @@ class ArgMapping:
             code_gen.defaultVisit(self.call)
             return
 
-        code_gen.set_lineno(self.call)
+        code_gen.set_pos(self.call)
 
         for emitter in self.emitters:
             emitter.emit(self.call, code_gen)
@@ -2973,7 +2973,7 @@ class ClassMethodArgMapping(ArgMapping):
         if self.is_instance_call and not self.needs_virtual_invoke(code_gen):
             code_gen.emit("LOAD_TYPE")
 
-        code_gen.set_lineno(self.call)
+        code_gen.set_pos(self.call)
 
         for emitter in self.emitters:
             emitter.emit(self.call, code_gen)
@@ -4014,7 +4014,7 @@ class MethodType(Object[Class]):
         if self.function.func_name in NON_VIRTUAL_METHODS:
             return super().emit_call(node, code_gen)
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
 
         self.function.emit_call_self(node, code_gen, self.target)
 
@@ -6142,7 +6142,7 @@ class BuiltinFunction(Callable[Class]):
         if node.keywords:
             return super().emit_call(node, code_gen)
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         self.emit_call_self(node, code_gen)
 
     def make_generic(
@@ -6347,7 +6347,7 @@ class BuiltinMethod(Callable[Class]):
         if node.keywords:
             return super().emit_call(node, code_gen)
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
 
         if self.args is not None:
             self.desc.emit_call_self(node, code_gen, self.target)
@@ -6356,7 +6356,7 @@ class BuiltinMethod(Callable[Class]):
 
             code_gen.visit(self.target)
 
-            code_gen.set_lineno(node)
+            code_gen.set_pos(node)
             for arg in node.args:
                 code_gen.visit(arg)
 
@@ -6627,7 +6627,7 @@ class CRangeIterator(Object[Class]):
         loop_idx = self._loop_var_name(node)
         descr = ("__static__", "int64", "#")
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         code_gen.push_loop(FOR_LOOP, start, after)
 
         # Put the iteration limit and start value on the stack (a primitive)
@@ -7274,7 +7274,7 @@ def common_sequence_emit_forloop(
     anchor = code_gen.newBlock("seq_forloop_anchor")
     after = code_gen.newBlock("seq_forloop_after")
     with code_gen.new_loopidx() as loop_idx:
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         code_gen.push_loop(FOR_LOOP, start, after)
         code_gen.visit(node.iter)
 
@@ -8904,7 +8904,7 @@ class CInstance(Value, Generic[TClass]):
         raise NotImplementedError("Must be implemented in the subclass")
 
     def emit_binop(self, node: ast.BinOp, code_gen: Static310CodeGenerator) -> None:
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         # In the pow case, the return type isn't the common type.
         ltype = code_gen.get_type(node.left)
         common_type = code_gen.get_opt_node_data(node, BinOpCommonType)
@@ -9237,7 +9237,7 @@ class CIntInstance(CInstance["CIntType"]):
             visitor.set_type(node, self.klass.type_env.cbool.instance)
 
     def emit_unaryop(self, node: ast.UnaryOp, code_gen: Static310CodeGenerator) -> None:
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         code_gen.visit(node.operand)
         if isinstance(node.op, ast.USub):
             code_gen.emit("PRIMITIVE_UNARY_OP", PRIM_OP_NEG_INT)
@@ -9416,7 +9416,7 @@ class CDoubleInstance(CInstance["CDoubleType"]):
             visitor.syntax_error("Cannot invert/not a double", node)
 
     def emit_unaryop(self, node: ast.UnaryOp, code_gen: Static310CodeGenerator) -> None:
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         assert not isinstance(
             node.op, (ast.Invert, ast.Not)
         )  # should be prevent by the type checker

@@ -625,7 +625,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
                     self.emit("POP_TOP")
 
     def visitAttribute(self, node: Attribute) -> None:
-        self.set_lineno(node)
+        self.set_pos(node)
         data = self.get_opt_node_data(node, UsedRefinementField)
         if data is not None and not data.is_source:
             self.emit("LOAD_FAST", data.name)
@@ -668,7 +668,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             self.visit(elt)
 
     def visitAssign(self, node: Assign) -> None:
-        self.set_lineno(node)
+        self.set_pos(node)
         self.visit(node.value)
         dups = len(node.targets) - 1
         for i in range(len(node.targets)):
@@ -680,7 +680,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         self.strictPostVisitAssign(node)
 
     def visitAnnAssign(self, node: ast.AnnAssign) -> None:
-        self.set_lineno(node)
+        self.set_pos(node)
         value = node.value
         if value:
             value_type = self.get_type(value)
@@ -768,7 +768,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         self.get_type(node.target).emit_aug_rhs(node, self)
 
     def visitCompare(self, node: Compare) -> None:
-        self.set_lineno(node)
+        self.set_pos(node)
         self.visit(node.left)
         cleanup = self.newBlock("cleanup")
         left = node.left
@@ -852,7 +852,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if isinstance(self.tree, AsyncFunctionDef):
             assert isinstance(expected, AwaitableType)
             expected = expected.type_args[0]
-        self.set_lineno(node)
+        self.set_pos(node)
         value = node.value
         is_return_constant = isinstance(value, ast.Constant)
         opcode = "RETURN_VALUE"
@@ -921,7 +921,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             and klass.type_def is self.compiler.type_env.checked_dict
         ), dict_type
 
-        self.set_lineno(node)
+        self.set_pos(node)
         elements = 0
         is_unpacking = False
         built_final_dict = False
@@ -1010,7 +1010,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             and klass.type_def is self.compiler.type_env.checked_list
         ), list_type
 
-        self.set_lineno(node)
+        self.set_pos(node)
         list_descr = list_type.klass.type_descr
         extend_descr = (list_descr, "extend")
         built_final_list = False

@@ -573,7 +573,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
     def startModule(self) -> None:
         first_node = self.first_body_node
         if first_node:
-            self.set_lineno(first_node)
+            self.set_pos(first_node)
         self.emit_load_fixed_methods()
         self.emit_init_globals()
         if self.has_class and not self.made_class_list:

@@ -230,7 +230,7 @@ class FlowGraph:
             self.current.addOutEdge(target)
             self.current.emit(Instruction(opcode, oparg, target=target))
 
-    def set_lineno(self, lineno: int) -> None:
+    def set_pos(self, lineno: int) -> None:
         if not self.first_inst_lineno:
             self.first_inst_lineno = lineno
         self.lineno = lineno

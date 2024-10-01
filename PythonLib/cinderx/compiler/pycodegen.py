@@ -376,21 +376,21 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emit(prefix + "_NAME", name)
 
-    def set_lineno(self, node: AST):
-        self.graph.set_lineno(node.lineno)
+    def set_pos(self, node: AST):
+        self.graph.set_pos(node.lineno)
 
-    def set_no_lineno(self):
+    def set_no_pos(self):
         """Mark following instructions as synthetic (no source line number)."""
-        self.graph.set_lineno(-1)
+        self.graph.set_pos(-1)
 
     @contextmanager
     def temp_lineno(self, lineno: int) -> Generator[None, None, None]:
         old_lineno = self.graph.lineno
-        self.graph.set_lineno(lineno)
+        self.graph.set_pos(lineno)
         try:
             yield
         finally:
-            self.graph.set_lineno(old_lineno)
+            self.graph.set_pos(old_lineno)
 
     def skip_docstring(self, body):
         """Given list of statements, representing body of a function, class,
@@ -422,7 +422,7 @@ class CodeGenerator(ASTVisitor):
         # coincide with the line number of first "real" statement in module.
         # If body is empy, then lineno will be set later in assemble.
         if node.body:
-            self.set_lineno(node.body[0])
+            self.set_pos(node.body[0])
 
         if self.findAnn(node.body):
             self.emit("SETUP_ANNOTATIONS")
@@ -445,7 +445,7 @@ class CodeGenerator(ASTVisitor):
         pass
 
     def emit_module_return(self, node: ast.Module) -> None:
-        self.set_no_lineno()
+        self.set_no_pos()
         self.emit("LOAD_CONST", None)
         self.emit("RETURN_VALUE")
 
@@ -639,13 +639,13 @@ class CodeGenerator(ASTVisitor):
 
         doc = gen.get_docstring(node)
         if doc is not None:
-            gen.set_lineno(node.body[0])
+            gen.set_pos(node.body[0])
             gen.emit("LOAD_CONST", doc)
             gen.storeName("__doc__")
 
         self.walkClassBody(node, gen)
 
-        gen.set_no_lineno()
+        gen.set_no_pos()
         if "__class__" in gen.scope.cells:
             gen.emit("LOAD_CLOSURE", "__class__")
             gen.emit("DUP_TOP")
@@ -723,7 +723,7 @@ class CodeGenerator(ASTVisitor):
 
         self.nextBlock(body)
         self.visitStatements(node.body)
-        self.set_lineno(node)
+        self.set_pos(node)
         self.compileJumpIf(node.test, body, True)
 
         self.pop_loop()
@@ -754,7 +754,7 @@ class CodeGenerator(ASTVisitor):
         self.nextBlock(body)
         self.visit(node.target)
         self.visitStatements(node.body)
-        self.set_no_lineno()
+        self.set_no_pos()
         self.emitJump(start)
         self.nextBlock(cleanup)
         self.pop_loop()
@@ -781,12 +781,12 @@ class CodeGenerator(ASTVisitor):
         self.emit("POP_BLOCK")
         self.visit(node.target)
         self.visitStatements(node.body)
-        self.set_no_lineno()
+        self.set_no_pos()
         self.emitJump(start)
         self.setups.pop()
 
         self.nextBlock(except_)
-        self.set_lineno(node.iter)
+        self.set_pos(node.iter)
         self.emit("END_ASYNC_FOR")
         if node.orelse:
             self.visitStatements(node.orelse)
@@ -1016,7 +1016,7 @@ class CodeGenerator(ASTVisitor):
         is_async_function = self.scope.coroutine
         args = self.conjure_arguments([ast.arg(".0", None)])
         gen = self.make_func_codegen(node, args, name, node.lineno)
-        gen.set_lineno(node)
+        gen.set_pos(node)
         is_async_generator = gen.scope.coroutine
 
         # TODO also add check for PyCF_ALLOW_TOP_LEVEL_AWAIT
@@ -1260,7 +1260,7 @@ class CodeGenerator(ASTVisitor):
         self.setups.append(Entry(TRY_EXCEPT, body, None, None))
         self.visitStatements(node.body)
         self.setups.pop()
-        self.set_no_lineno()
+        self.set_no_pos()
         self.emit("POP_BLOCK")
         self.emit("JUMP_FORWARD", orElse)
         self.nextBlock(except_)
@@ -1272,7 +1272,7 @@ class CodeGenerator(ASTVisitor):
             expr = handler.type
             target = handler.name
             body = handler.body
-            self.set_lineno(handler)
+            self.set_pos(handler)
             except_ = self.newBlock(f"try_except_{i}")
             if expr:
                 self.emit("DUP_TOP")
@@ -1285,7 +1285,7 @@ class CodeGenerator(ASTVisitor):
                     self.syntax_error_position(handler),
                 )
             else:
-                self.set_lineno(handler)
+                self.set_pos(handler)
             self.emit("POP_TOP")
             if target:
                 cleanup_end = self.newBlock(f"try_cleanup_end{i}")
@@ -1301,7 +1301,7 @@ class CodeGenerator(ASTVisitor):
                 )
                 self.visit(body)
                 self.setups.pop()
-                self.set_no_lineno()
+                self.set_no_pos()
                 self.emit("POP_BLOCK")
                 self.emit("POP_EXCEPT")
 
@@ -1311,7 +1311,7 @@ class CodeGenerator(ASTVisitor):
                 self.emit("JUMP_FORWARD", end)
 
                 self.nextBlock(cleanup_end)
-                self.set_no_lineno()
+                self.set_no_pos()
                 self.emit("LOAD_CONST", None)
                 self.storeName(target)
                 self.delName(target)
@@ -1326,13 +1326,13 @@ class CodeGenerator(ASTVisitor):
                 self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, None))
                 self.visit(body)
                 self.setups.pop()
-                self.set_no_lineno()
+                self.set_no_pos()
                 self.emit("POP_EXCEPT")
                 self.emit("JUMP_FORWARD", end)
             self.nextBlock(except_)
 
         self.setups.pop()
-        self.set_no_lineno()
+        self.set_no_pos()
         self.emit("RERAISE", 0)
         self.nextBlock(orElse)
         self.visitStatements(node.orelse)
@@ -1343,7 +1343,7 @@ class CodeGenerator(ASTVisitor):
         type_ = handler.type
         if target:
             if type_:
-                self.set_lineno(type_)
+                self.set_pos(type_)
             self.storeName(target)
         else:
             self.emit("POP_TOP")
@@ -1418,11 +1418,11 @@ class CodeGenerator(ASTVisitor):
             self.visitStatements(node.body)
 
         if kind == WITH:
-            self.set_no_lineno()
+            self.set_no_pos()
         self.setups.pop()
         self.emit("POP_BLOCK")
 
-        self.set_lineno(node)
+        self.set_pos(node)
         self.call_exit_with_nones()
 
         if kind == ASYNC_WITH:
@@ -1479,7 +1479,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("NOP")
         else:
             self.visit(node.value)
-            self.set_no_lineno()
+            self.set_no_pos()
             self.emit("POP_TOP")
 
     def visitConstant(self, node: ast.Constant):
@@ -1685,7 +1685,7 @@ class CodeGenerator(ASTVisitor):
         if node.flags == "OP_ASSIGN":
             self.storeName(node.name)
         elif node.flags == "OP_DELETE":
-            self.set_lineno(node)
+            self.set_pos(node)
             self.delName(node.name)
         else:
             print("oops", node.flags)
@@ -1714,7 +1714,7 @@ class CodeGenerator(ASTVisitor):
     # augmented assignment
 
     def visitAugAssign(self, node):
-        self.set_lineno(node.target)
+        self.set_pos(node.target)
         if isinstance(node.target, ast.Attribute):
             self.emitAugAttribute(node)
         elif isinstance(node.target, ast.Name):
@@ -1747,7 +1747,7 @@ class CodeGenerator(ASTVisitor):
         target = node.target
         self.loadName(target.id)
         self.emitAugRHS(node)
-        self.set_lineno(target)
+        self.set_pos(target)
         self.storeName(target.id)
 
     def emitAugAttribute(self, node):
@@ -1757,7 +1757,7 @@ class CodeGenerator(ASTVisitor):
         with self.temp_lineno(node.target.end_lineno):
             self.emit("LOAD_ATTR", self.mangle(target.attr))
         self.emitAugRHS(node)
-        self.graph.set_lineno(node.target.end_lineno)
+        self.graph.set_pos(node.target.end_lineno)
         self.emit_rotate_stack(2)
         self.emit("STORE_ATTR", self.mangle(target.attr))
 
@@ -1935,10 +1935,10 @@ class CodeGenerator(ASTVisitor):
         if preserve_tos:
             self.visit(node.value)
         elif node.value:
-            self.set_lineno(node.value)
+            self.set_pos(node.value)
             self.emit("NOP")
         if not node.value or node.value.lineno != node.lineno:
-            self.set_lineno(node)
+            self.set_pos(node)
             self.emit("NOP")
         self.unwind_setup_entries(preserve_tos)
         if not node.value:
@@ -2286,7 +2286,7 @@ class CodeGenerator(ASTVisitor):
         if has_default:
             cases.pop()
         for case in cases:
-            self.set_lineno(case.pattern)
+            self.set_pos(case.pattern)
             # Only copy the subject if we're *not* on the last case:
             is_last_non_default_case = case is cases[-1]
             if not is_last_non_default_case:
@@ -2313,13 +2313,13 @@ class CodeGenerator(ASTVisitor):
             # If the pattern fails to match, we want the line number of the
             # cleanup to be associated with the failed pattern, not the last line
             # of the body
-            self.set_lineno(case.pattern)
+            self.set_pos(case.pattern)
             self._emit_and_reset_fail_pop(pc)
 
         if has_default:
             # A trailing "case _" is common, and lets us save a bit of redundant
             # pushing and popping in the loop above:
-            self.set_lineno(last_case.pattern)
+            self.set_pos(last_case.pattern)
             if len(node.cases) == 1:
                 # No matches. Done with the subject:
                 self.emit("POP_TOP")
@@ -2608,12 +2608,12 @@ class CodeGenerator(ASTVisitor):
         nattrs = len(attrs)
         for i, attr in enumerate(attrs):
             pattern = patterns[i]
-            self.set_lineno(pattern)
+            self.set_pos(pattern)
             self._check_forbidden_name(attr, ast.Store, pattern)
             for j in range(i + 1, nattrs):
                 other = attrs[j]
                 if attr == other:
-                    self.set_lineno(patterns[j])
+                    self.set_pos(patterns[j])
                     raise self.syntax_error(
                         f"attribute name repeated in class pattern: {attr}", patterns[j]
                     )
@@ -2656,7 +2656,7 @@ class CodeGenerator(ASTVisitor):
         # the order in which extracted elements are placed on the stack.
         control: list[str] | None = None
         for alt in node.patterns:
-            self.set_lineno(alt)
+            self.set_pos(alt)
             pc.stores = []
             # An irrefutable sub-pattern must be last, if it is allowed at all:
             pc.allow_irrefutable = (
@@ -2807,7 +2807,7 @@ class CodeGenerator(ASTVisitor):
             e.unwinding_datum()
             if preserve_tos:
                 self.setups.pop()
-            self.set_no_lineno()
+            self.set_no_pos()
 
         elif e.kind == FINALLY_END:
             if preserve_tos:
@@ -2821,7 +2821,7 @@ class CodeGenerator(ASTVisitor):
 
         elif e.kind in (WITH, ASYNC_WITH):
             assert isinstance(e.unwinding_datum, AST)
-            self.set_lineno(e.unwinding_datum)
+            self.set_pos(e.unwinding_datum)
             self.emit("POP_BLOCK")
             if preserve_tos:
                 self.emit_rotate_stack(2)
@@ -2831,7 +2831,7 @@ class CodeGenerator(ASTVisitor):
                 self.emit("LOAD_CONST", None)
                 self.emit("YIELD_FROM")
             self.emit("POP_TOP")
-            self.set_no_lineno()
+            self.set_no_pos()
 
         elif e.kind == HANDLER_CLEANUP:
             datum = e.unwinding_datum
@@ -2899,7 +2899,7 @@ class CodeGenerator(ASTVisitor):
         if self.graph.current.returns:
             return
         if not isinstance(self.tree, ast.Lambda):
-            self.set_no_lineno()
+            self.set_no_pos()
             self.emit("LOAD_CONST", None)
         self.emit("RETURN_VALUE")
 
@@ -3070,9 +3070,9 @@ class CodeGenerator(ASTVisitor):
         old_lineno = None
         if isinstance(node, ast.expr):
             old_lineno = self.graph.lineno
-            self.set_lineno(node)
+            self.set_pos(node)
         elif isinstance(node, (ast.stmt, ast.pattern)):
-            self.set_lineno(node)
+            self.set_pos(node)
 
         ret = super().visit(node, *args)
 
@@ -3215,7 +3215,7 @@ class CodeGenerator312(CodeGenerator):
 
     def emit_print(self):
         self.emit_call_intrinsic_1("INTRINSIC_PRINT")
-        self.set_no_lineno()
+        self.set_no_pos()
         self.emit("POP_TOP")
 
     def _fastcall_helper(self, argcnt, node, args, kwargs):
@@ -3417,7 +3417,7 @@ class CodeGenerator312(CodeGenerator):
 
         doc = gen.get_docstring(node)
         if doc is not None:
-            gen.set_lineno(node.body[0])
+            gen.set_pos(node.body[0])
             gen.emit("LOAD_CONST", doc)
             gen.storeName("__doc__")
 
@@ -3445,7 +3445,7 @@ class CodeGenerator312(CodeGenerator):
 
         self.compile_body(gen, node)
 
-        gen.set_no_lineno()
+        gen.set_no_pos()
 
         if "__classdict__" in gen.scope.cells:
             gen.emit("LOAD_CLOSURE", "__classdict__")
@@ -3716,7 +3716,7 @@ class CinderCodeGenerator(CodeGenerator):
             gen = self.make_func_codegen(
                 node, self.conjure_arguments([ast.arg(".0", None)]), name, node.lineno
             )
-        gen.set_lineno(node)
+        gen.set_pos(node)
 
         if opcode:
             gen.emit(opcode, oparg)
