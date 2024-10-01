@@ -506,7 +506,8 @@ class PyFlowGraph(FlowGraph):
         self.initializeConsts()
         self.fast_vars = set()
         self.gen_kind = None
-        self.lnotab: LineAddrTable = LineAddrTable(self.opcode)
+        self.lnotab: LineAddrTable = LineAddrTable()
+        self.code = bytearray()
         self.insts: list[Instruction] = []
         if flags & CO_COROUTINE:
             self.gen_kind = 1
@@ -891,28 +892,40 @@ class PyFlowGraph(FlowGraph):
         "LOAD_FAST",
     }
 
+    def addCode(self, opcode: int, oparg: int) -> None:
+        self.code.append(opcode)
+        self.code.append(oparg)
+
     def makeByteCode(self) -> None:
         assert self.stage == FLAT, self.stage
         lnotab = self.lnotab
         lnotab.setFirstLine(self.firstline)
 
+        prev_offset = offset = 0
         for t in self.insts:
-            if lnotab.current_line != t.lineno:
-                lnotab.nextLine(t.lineno)
+            if lnotab.current_line != t.lineno and t.lineno:
+                lnotab.nextLine(t.lineno, prev_offset, offset)
+                prev_offset = offset
+
             oparg = t.ioparg
             assert 0 <= oparg <= 0xFFFFFFFF, oparg
             if oparg > 0xFFFFFF:
-                lnotab.addCode(self.opcode.EXTENDED_ARG, (oparg >> 24) & 0xFF)
+                self.addCode(self.opcode.EXTENDED_ARG, (oparg >> 24) & 0xFF)
             if oparg > 0xFFFF:
-                lnotab.addCode(self.opcode.EXTENDED_ARG, (oparg >> 16) & 0xFF)
+                self.addCode(self.opcode.EXTENDED_ARG, (oparg >> 16) & 0xFF)
             if oparg > 0xFF:
-                lnotab.addCode(self.opcode.EXTENDED_ARG, (oparg >> 8) & 0xFF)
-            lnotab.addCode(self.opcode.opmap[t.opname], oparg & 0xFF)
+                self.addCode(self.opcode.EXTENDED_ARG, (oparg >> 8) & 0xFF)
+            self.addCode(self.opcode.opmap[t.opname], oparg & 0xFF)
+            self.emit_inline_cache(t.opname)
+            offset += self.instrsize(t.opname, t.ioparg) * self.opcode.CODEUNIT_SIZE
 
         # Since the linetable format writes the end offset of bytecodes, we can't commit the
         # last write until all the instructions are iterated over.
-        lnotab.emitCurrentLine()
+        lnotab.emitCurrentLine(prev_offset, offset)
         self.stage = DONE
+
+    def emit_inline_cache(self, opcode: str) -> None:
+        pass
 
     def newCodeObject(self) -> CodeType:
         assert self.stage == DONE, self.stage
@@ -932,7 +945,7 @@ class PyFlowGraph(FlowGraph):
             firstline = 1
 
         consts = self.getConsts()
-        code = self.lnotab.getCode()
+        code = bytes(self.code)
         lnotab = self.lnotab.getTable()
         consts = consts + tuple(self.extra_consts)
         return self.make_code(nlocals, code, consts, firstline, lnotab)
@@ -1293,33 +1306,11 @@ class PyFlowGraph312(PyFlowGraph):
                 is_forward = last.target.bid not in seen_blocks
                 last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD"
 
-    def makeByteCode(self) -> None:
-        assert self.stage == FLAT, self.stage
-        lnotab = self.lnotab
-        lnotab.setFirstLine(self.firstline)
-
-        for t in self.insts:
-            if lnotab.current_line != t.lineno:
-                lnotab.nextLine(t.lineno)
-            oparg = t.ioparg
-            assert 0 <= oparg <= 0xFFFFFFFF, oparg
-
-            if oparg > 0xFFFFFF:
-                lnotab.addCode(self.opcode.EXTENDED_ARG, (oparg >> 24) & 0xFF)
-            if oparg > 0xFFFF:
-                lnotab.addCode(self.opcode.EXTENDED_ARG, (oparg >> 16) & 0xFF)
-            if oparg > 0xFF:
-                lnotab.addCode(self.opcode.EXTENDED_ARG, (oparg >> 8) & 0xFF)
-            lnotab.addCode(self.opcode.opmap[t.opname], oparg & 0xFF)
-            # pyre-ignore[16]: No _inline_cache_entries
-            base_size = _inline_cache_entries[opcodes.opcode.opmap[t.opname]]
-            for _i in range(base_size):
-                lnotab.addCode(0, 0)
-
-        # Since the linetable format writes the end offset of bytecodes, we can't commit the
-        # last write until all the instructions are iterated over.
-        lnotab.emitCurrentLine()
-        self.stage = DONE
+    def emit_inline_cache(self, opcode: str) -> None:
+        # pyre-ignore[16]: no _inline_cache_entries
+        base_size = _inline_cache_entries[opcodes.opcode.opmap[opcode]]
+        for _i in range(base_size):
+            self.addCode(0, 0)
 
     def make_code(self, nlocals, code, consts, firstline, lnotab) -> CodeType:
         # pyre-ignore[19]: Too many arguments (this is right for 3.12)
@@ -1375,37 +1366,26 @@ class LineAddrTable:
 
     """
 
-    def __init__(self, opcode) -> None:
-        self.code = []
-        self.current_start = 0
-        self.current_end = 0
+    def __init__(self) -> None:
         self.current_line = 0
         self.prev_line = 0
         self.linetable = []
-        self.opcode = opcode
 
     def setFirstLine(self, lineno: int) -> None:
         self.current_line = lineno
         self.prev_line = lineno
 
-    def addCode(self, opcode, oparg):
-        self.code.append(opcode)
-        self.code.append(oparg)
-        self.current_end += self.opcode.CODEUNIT_SIZE
+    def nextLine(self, lineno: int, start: int, end: int) -> None:
+        assert lineno
+        self.emitCurrentLine(start, end)
 
-    def nextLine(self, lineno: int) -> None:
-        if not lineno:
-            return
-        self.emitCurrentLine()
-
-        self.current_start = self.current_end
         if self.current_line >= 0:
             self.prev_line = self.current_line
         self.current_line = lineno
 
-    def emitCurrentLine(self):
+    def emitCurrentLine(self, start: int, end: int) -> None:
         # compute deltas
-        addr_delta = self.current_end - self.current_start
+        addr_delta = end - start
         if not addr_delta:
             return
         if self.current_line < 0:
@@ -1428,10 +1408,7 @@ class LineAddrTable:
         assert -128 <= line_delta and line_delta <= 127
         self.push_entry(addr_delta, line_delta)
 
-    def getCode(self):
-        return bytes(self.code)
-
-    def getTable(self):
+    def getTable(self) -> bytes:
         return bytes(self.linetable)
 
     def push_entry(self, addr_delta, line_delta):
