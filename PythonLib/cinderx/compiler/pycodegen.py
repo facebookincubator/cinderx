@@ -3204,6 +3204,16 @@ class CodeGenerator312(CodeGenerator):
         op = self._augmented_opargs[type(node.op)]
         self.graph.emit_with_loc("BINARY_OP", op, node)
 
+    def emitAugAttribute(self, node: ast.AugAssign) -> None:
+        target = node.target
+        assert isinstance(target, ast.Attribute)
+        self.visit(target.value)
+        self.emit("COPY", 1)
+        self.graph.emit("LOAD_ATTR", self.mangle(target.attr))
+        self.emitAugRHS(node)
+        self.emit_rotate_stack(2)
+        self.graph.emit_with_loc("STORE_ATTR", self.mangle(target.attr), node.target)
+
     def emit_dup(self, count: int = 1):
         for _i in range(count):
             self.emit("COPY", count)
