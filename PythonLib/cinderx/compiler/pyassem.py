@@ -504,6 +504,8 @@ class PyFlowGraph(FlowGraph):
         self.initializeConsts()
         self.fast_vars = set()
         self.gen_kind = None
+        self.lnotab: LineAddrTable = LineAddrTable(self.opcode)
+        self.insts: list[Instruction] = []
         if flags & CO_COROUTINE:
             self.gen_kind = 1
         elif flags & CO_ASYNC_GENERATOR:
@@ -889,7 +891,7 @@ class PyFlowGraph(FlowGraph):
 
     def makeByteCode(self):
         assert self.stage == FLAT, self.stage
-        self.lnotab = lnotab = LineAddrTable(self.opcode)
+        lnotab = self.lnotab
         lnotab.setFirstLine(self.firstline)
 
         for t in self.insts:
@@ -1291,7 +1293,7 @@ class PyFlowGraph312(PyFlowGraph):
 
     def makeByteCode(self):
         assert self.stage == FLAT, self.stage
-        self.lnotab = lnotab = LineAddrTable(self.opcode)
+        lnotab = self.lnotab
         lnotab.setFirstLine(self.firstline)
 
         for t in self.insts:
