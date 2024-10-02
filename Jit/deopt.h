@@ -112,10 +112,14 @@ struct DeoptFrameMetadata {
   // The offset of the next bytecode instruction to execute.
   BCOffset next_instr_offset{0};
 
-  BCOffset instr_offset() const {
+  BCOffset instrOffset() const {
     return std::max(
         next_instr_offset - int{sizeof(_Py_CODEUNIT)},
         BCOffset{-int{sizeof(_Py_CODEUNIT)}});
+  }
+
+  BCOffset nextInstrOffset() const {
+    return next_instr_offset;
   }
 };
 
@@ -146,25 +150,33 @@ struct DeoptMetadata {
   // Why we are de-opting
   DeoptReason reason{DeoptReason::kUnhandledException};
 
-  BCOffset instr_offset() const {
+  BCOffset instrOffset() const {
     /* This is tricky: For guard failures, the `next_instr_offset` points to the
        instruction itself, but for exceptions, the next_instr_offset is the
        subsequent instruction. We need to pull the instruction pointer back by 1
        in the non-guard failure cases to point to the right instruction in the
        deopt lineno calculation. */
-    auto const& frame = frame_meta[inline_depth()];
-    return reason == DeoptReason::kGuardFailure ? frame.next_instr_offset
-                                                : frame.instr_offset();
+    auto const& frame = innermostFrame();
+    return reason == DeoptReason::kGuardFailure ? frame.nextInstrOffset()
+                                                : frame.instrOffset();
   }
 
   BorrowedRef<PyCodeObject> code() const {
-    return frame_meta[inline_depth()].code;
+    return innermostFrame().code;
   }
 
   // If part of an inlined function, the depth into the call stack that this
   // code *would* be (1, 2, 3, ...). If not inlined, 0.
   size_t inline_depth() const {
     return frame_meta.size() - 1;
+  }
+
+  DeoptFrameMetadata& innermostFrame() {
+    return frame_meta[inline_depth()];
+  }
+
+  const DeoptFrameMetadata& innermostFrame() const {
+    return frame_meta[inline_depth()];
   }
 
   const LiveValue& getStackValue(int i, const DeoptFrameMetadata& frame) const {

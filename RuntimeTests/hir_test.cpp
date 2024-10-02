@@ -1076,7 +1076,7 @@ TEST_F(HIRCloneTest, CanCloneBorrwedRefFields) {
 TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
   Environment env;
   auto v0 = env.AllocateRegister();
-  FrameState raise_fs{10};
+  FrameState raise_fs{BCOffset{10}};
   std::unique_ptr<Instr> raise_exc(Raise::create(1, raise_fs, v0));
   std::unique_ptr<Instr> new_raise_exc(raise_exc->clone());
   ASSERT_NE(raise_exc.get(), new_raise_exc.get());

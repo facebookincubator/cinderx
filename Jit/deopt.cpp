@@ -157,7 +157,7 @@ Ref<> profileDeopt(
     const DeoptMetadata& meta,
     const MemoryView& mem) {
   BorrowedRef<PyCodeObject> code = meta.code();
-  BCOffset bc_off = meta.instr_offset();
+  BCOffset bc_off = meta.instrOffset();
 
   // Bytecode offset will be negative if the interpreter wants to resume
   // executing at the start of the function.  Report a negative/invalid opcode
@@ -213,12 +213,9 @@ static void reifyFrameImpl(
     frame->f_state = FRAME_UNWINDING;
   }
 
-  // Instruction pointer
-  if (frame_meta.next_instr_offset == 0) {
-    frame->f_lasti = -1;
-  } else {
-    frame->f_lasti = (BCIndex{frame_meta.next_instr_offset} - 1).value();
-  }
+  // Instruction pointer.
+  frame->f_lasti = BCIndex{frame_meta.instrOffset()}.value();
+
   if (meta.reason == DeoptReason::kYieldFrom && for_gen_resume) {
     // The DeoptMetadata for YieldFrom-like instructions defaults to the state
     // for raising an exception. If we're going to resume execution, we need to
@@ -242,7 +239,7 @@ static void reifyFrameImpl(
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs) {
   frame->prev_instr = _PyCode_CODE(frame->f_code) +
-      (BCIndex{frame_meta.next_instr_offset} - 1).value();
+      (BCIndex{frame_meta.nextInstrOffset()} - 1).value();
   if (meta.reason == DeoptReason::kYieldFrom && for_gen_resume) {
     UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
     // The DeoptMetadata for YieldFrom-like instructions defaults to the state
@@ -423,7 +420,7 @@ DeoptMetadata DeoptMetadata::fromInstr(
     populate_localsplus(meta.frame_meta.at(i), frame);
     populate_stack(meta.frame_meta.at(i), frame);
     meta.frame_meta.at(i).block_stack = frame->block_stack;
-    meta.frame_meta.at(i).next_instr_offset = frame->next_instr_offset;
+    meta.frame_meta.at(i).next_instr_offset = frame->nextInstrOffset();
     meta.frame_meta.at(i).code = frame->code.get();
   }
 

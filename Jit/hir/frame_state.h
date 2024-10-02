@@ -48,23 +48,6 @@ using OperandStack = jit::Stack<Register*>;
 // The abstract state of the python frame
 struct FrameState {
   FrameState() = default;
-  FrameState(const FrameState& other) {
-    *this = other;
-  }
-  FrameState& operator=(const FrameState& other) {
-    next_instr_offset = other.next_instr_offset;
-    localsplus = other.localsplus;
-    nlocals = other.nlocals;
-    stack = other.stack;
-    JIT_DCHECK(
-        this != other.parent, "FrameStates should not be self-referential");
-    parent = other.parent;
-    block_stack = other.block_stack;
-    code = other.code;
-    globals = other.globals;
-    builtins = other.builtins;
-    return *this;
-  }
   FrameState(
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> globals,
@@ -73,55 +56,38 @@ struct FrameState {
       : code(code), globals(globals), builtins(builtins), parent(parent) {
     JIT_DCHECK(this != parent, "FrameStates should not be self-referential");
   }
+
   // Used for testing only.
-  explicit FrameState(int bc_off) : next_instr_offset(bc_off) {}
+  explicit FrameState(BCOffset bc_off) : next_instr_offset(bc_off) {}
+
+  FrameState(const FrameState& other) = default;
+  FrameState& operator=(const FrameState& other) = default;
+
+  bool operator==(const FrameState& other) const = default;
+  bool operator!=(const FrameState& other) const = default;
 
   // If the function is inlined into another function, the depth at which it
   // is inlined (nested function calls may be inlined). Starts at 1. If the
   // function is not inlined, 0.
-  int inlineDepth() const {
-    int inline_depth = -1;
-    const FrameState* frame = this;
-    while (frame != nullptr) {
-      frame = frame->parent;
-      inline_depth++;
+  size_t inlineDepth() const {
+    int depth = -1;
+    for (auto frame = this; frame != nullptr; frame = frame->parent) {
+      depth++;
     }
-    JIT_DCHECK(
-        inline_depth >= 0,
-        "expected positive inline depth but got {}",
-        inline_depth);
-    return inline_depth;
+    return depth;
   }
-
-  // The bytecode offset of the next instruction to be executed once control has
-  // transferred to the interpreter.
-  BCOffset next_instr_offset{0};
-
-  // Combination of local variables, cell variables (used by closures of inner
-  // functions), and free variables (our closure), in that order.
-  std::vector<Register*> localsplus;
-
-  // Number of local variables. Stored as a field directly because in tests
-  // there's no code object for us to inspect.
-  int nlocals{0};
-
-  OperandStack stack;
-  BlockStack block_stack;
-  BorrowedRef<PyCodeObject> code;
-  BorrowedRef<PyDictObject> globals;
-  BorrowedRef<PyDictObject> builtins;
-  // Points to the FrameState, if any, into which this was inlined. Used to
-  // construct the metadata needed to reify PyFrameObjects for inlined
-  // functions during e.g. deopt.
-  FrameState* parent{nullptr};
 
   // The bytecode offset of the current instruction, or -sizeof(_Py_CODEUNIT) if
   // no instruction has executed. This corresponds to the `f_lasti` field of
   // PyFrameObject.
-  BCOffset instr_offset() const {
+  BCOffset instrOffset() const {
     return std::max(
         next_instr_offset - int{sizeof(_Py_CODEUNIT)},
         BCOffset{-int{sizeof(_Py_CODEUNIT)}});
+  }
+
+  BCOffset nextInstrOffset() const {
+    return next_instr_offset;
   }
 
   bool visitUses(const std::function<bool(Register*&)>& func) {
@@ -141,24 +107,28 @@ struct FrameState {
     return true;
   }
 
-  bool operator==(const FrameState& other) const {
-    return (next_instr_offset == other.next_instr_offset) &&
-        (stack == other.stack) && (block_stack == other.block_stack) &&
-        (localsplus == other.localsplus) && (code == other.code);
-  }
+  // The bytecode offset of the next instruction to be executed once control has
+  // transferred to the interpreter.
+  BCOffset next_instr_offset{0};
 
-  bool operator!=(const FrameState& other) const {
-    return !(*this == other);
-  }
+  // Combination of local variables, cell variables (used by closures of inner
+  // functions), and free variables (our closure), in that order.
+  std::vector<Register*> localsplus;
 
-  bool hasTryBlock() const {
-    for (auto& bse : block_stack) {
-      if (bse.isTryBlock()) {
-        return true;
-      }
-    }
-    return false;
-  }
+  // Number of local variables. Stored as a field directly because in tests
+  // there's no code object for us to inspect.
+  int nlocals{0};
+
+  OperandStack stack;
+  BlockStack block_stack;
+  BorrowedRef<PyCodeObject> code;
+  BorrowedRef<PyDictObject> globals;
+  BorrowedRef<PyDictObject> builtins;
+
+  // Points to the FrameState, if any, into which this was inlined. Used to
+  // construct the metadata needed to reify PyFrameObjects for inlined
+  // functions during e.g. deopt.
+  FrameState* parent{nullptr};
 };
 
 } // namespace jit::hir

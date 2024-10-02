@@ -12,14 +12,15 @@
 
 #include <Python.h>
 
+using jit::BCOffset;
 using namespace jit::hir;
 
 class FrameStateCreationTest : public RuntimeTest {};
 
 TEST_F(FrameStateCreationTest, InitialInstrOffset) {
   FrameState frame;
-  EXPECT_LT(frame.instr_offset(), 0);
-  EXPECT_EQ(frame.instr_offset().value() % sizeof(_Py_CODEUNIT), 0);
+  EXPECT_LT(frame.instrOffset(), 0);
+  EXPECT_EQ(frame.instrOffset().value() % sizeof(_Py_CODEUNIT), 0);
 }
 
 #define EXPECT_HIR_EQ(irfunc, expected)                        \
@@ -1731,7 +1732,7 @@ def test(x):
 TEST_F(FrameStateCreationTest, GetDominatingFrameState) {
   CFG cfg;
   auto block = cfg.AllocateBlock();
-  FrameState fs{10};
+  FrameState fs{BCOffset{10}};
   block->append<Snapshot>(fs);
 
   auto addCheckExc = [&block]() {
@@ -1750,7 +1751,7 @@ TEST_F(FrameStateCreationTest, GetDominatingFrameState) {
   auto i2_fs = i2->getDominatingFrameState();
   ASSERT_NE(i2_fs, nullptr);
   ASSERT_EQ(*i2_fs, fs);
-  FrameState fs2{20};
+  FrameState fs2{BCOffset{20}};
   block->append<Snapshot>(fs2);
 
   for (int i = 0; i < 5; i++) {

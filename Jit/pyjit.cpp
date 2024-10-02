@@ -1354,7 +1354,7 @@ Ref<> make_deopt_stats() {
     BorrowedRef<PyCodeObject> code = frame_meta.code;
 
     auto func_qualname = code->co_qualname;
-    BCOffset line_offset = meta.instr_offset();
+    BCOffset line_offset = meta.instrOffset();
     int lineno_raw = code->co_linetable != nullptr
         ? PyCode_Addr2Line(code, line_offset.value())
         : -1;

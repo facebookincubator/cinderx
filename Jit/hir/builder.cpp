@@ -249,7 +249,7 @@ struct HIRBuilder::TranslationContext {
   template <typename T, typename... Args>
   T* emit(Args&&... args) {
     auto instr = block->appendWithOff<T>(
-        frame.instr_offset(), std::forward<Args>(args)...);
+        frame.instrOffset(), std::forward<Args>(args)...);
     return instr;
   }
 
