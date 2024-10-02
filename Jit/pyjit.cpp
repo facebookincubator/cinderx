@@ -1890,7 +1890,7 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
 
   // Collect a list of functions to compile.  If it's empty then there must have
   // been a Python error during preloading.
-  std::vector<FuncPreloader> targets = preloadFuncAndDeps(func);
+  std::vector<BorrowedRef<PyFunctionObject>> targets = preloadFuncAndDeps(func);
   if (targets.empty()) {
     JIT_CHECK(
         PyErr_Occurred(), "Expect a Python exception when preloading fails");
@@ -1905,7 +1905,12 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
   }
 
   _PyJIT_Result result;
-  for (auto& [target, preloader] : targets) {
+  for (BorrowedRef<PyFunctionObject> target : targets) {
+    auto preloader = lookupPreloader(target);
+    if (preloader == nullptr) {
+      continue;
+    }
+
     // Don't compile functions that were preloaded purely for inlining.
     bool is_static = preloader->code()->co_flags & CI_CO_STATICALLY_COMPILED;
     if (target != func && !is_static) {
@@ -1925,7 +1930,7 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
         funcFullname(target));
   }
 
-  BorrowedRef<PyFunctionObject> last_func = targets.back().func;
+  BorrowedRef<PyFunctionObject> last_func = targets.back();
   JIT_CHECK(
       last_func == func,
       "Last compiled function expected to be {}, but got {}",
@@ -2512,13 +2517,16 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
 
 namespace jit {
 
-std::vector<FuncPreloader> preloadFuncAndDeps(
+std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> func) {
   // Add one for the original function itself.
   size_t limit = getConfig().preload_dependent_limit + 1;
 
   std::deque<BorrowedRef<PyFunctionObject>> worklist;
-  std::vector<FuncPreloader> result;
+  std::vector<BorrowedRef<PyFunctionObject>> result;
+
+  // Track units that are deleted while preloading.
+  std::unordered_set<PyObject*> deleted_units;
 
   worklist.push_back(func);
 
@@ -2526,11 +2534,19 @@ std::vector<FuncPreloader> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> f = worklist.front();
     worklist.pop_front();
 
+    // This needs to be set every time before preload() is kicked off.
+    // Preloading can run arbitrary Python code, which means it can re-enter the
+    // JIT.
+    handle_unit_deleted_during_preload = [&](PyObject* deleted_unit) {
+      deleted_units.emplace(deleted_unit);
+    };
     hir::Preloader* preloader = preload(f);
+    handle_unit_deleted_during_preload = nullptr;
+
     if (preloader == nullptr) {
       return {};
     }
-    result.emplace_back(f, preloader);
+    result.emplace_back(f);
 
     // Preload all invoked Static Python functions because then the JIT can
     // compile them and emit direct calls to them from the original function.
@@ -2556,6 +2572,18 @@ std::vector<FuncPreloader> preloadFuncAndDeps(
       }
     }
   }
+
+  // Prune out all functions that are no longer alive / allocated.
+  result.erase(
+      std::remove_if(
+          result.begin(),
+          result.end(),
+          [&](BorrowedRef<PyFunctionObject> func) {
+            auto func_obj = reinterpret_cast<PyObject*>(func.get());
+            return deleted_units.contains(func_obj) ||
+                deleted_units.contains(func->func_code);
+          }),
+      result.end());
 
   std::reverse(result.begin(), result.end());
   return result;

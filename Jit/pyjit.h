@@ -140,17 +140,6 @@ PyAPI_FUNC(PyFrameObject*) _PyJIT_GetFrame(PyThreadState* tstate);
 namespace jit {
 
 /*
- * Combines a Python function and the preloader that gets generated for it.
- */
-struct FuncPreloader {
-  FuncPreloader(BorrowedRef<PyFunctionObject> func, hir::Preloader* preloader)
-      : func{func}, preloader{preloader} {}
-
-  BorrowedRef<PyFunctionObject> func;
-  hir::Preloader* preloader;
-};
-
-/*
  * Preload a function, along with any functions that it calls that we might want
  * to compile afterwards as well.  This is to support inlining and faster
  * invokes for Static Python functions.
@@ -158,11 +147,8 @@ struct FuncPreloader {
  * Return a list of preloaders that were created.  There should be at least one
  * preloader in the list, if it's empty then there was a preloading failure.
  */
-std::vector<FuncPreloader> preloadFuncAndDeps(
+std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> func);
-
-using PreloaderMap = std::
-    unordered_map<BorrowedRef<PyCodeObject>, std::unique_ptr<hir::Preloader>>;
 
 } // namespace jit
 #endif
