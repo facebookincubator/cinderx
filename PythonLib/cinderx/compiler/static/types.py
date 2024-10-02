@@ -431,6 +431,7 @@ class TypeEnvironment:
         self.generator_exit: Class = self._builtin_exception_class(
             GeneratorExit, base=self.base_exception
         )
+        self.import_cycle_error: Class = self._builtin_exception_class(ImportCycleError)
         self.import_error: Class = self._builtin_exception_class(ImportError)
         self.indentation_error: Class = self._builtin_exception_class(
             IndentationError, base=self.syntax_error
@@ -512,6 +513,9 @@ class TypeEnvironment:
         )
         self.deprecation_warning: Class = self._builtin_exception_class(
             DeprecationWarning, base=self.warning
+        )
+        self.encoding_warning: Class = self._builtin_exception_class(
+            EncodingWarning, base=self.warning
         )
         self.future_warning: Class = self._builtin_exception_class(
             FutureWarning, base=self.warning
