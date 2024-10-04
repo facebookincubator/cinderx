@@ -1313,9 +1313,11 @@ void HIRBuilder::translate(
       case FOR_ITER: {
         auto condbr = static_cast<CondBranchIterNotDone*>(last_instr);
         auto new_frame = tc.frame;
-        // Sentinel value signaling iteration is complete and the iterator
-        // itself
-        new_frame.stack.discard(2);
+        // For 3.10, pop both the sentinel value signaling iteration is complete
+        // and the iterator itself.
+        // For 3.12, no need for popping the iterator.
+        new_frame.stack.discard(PY_VERSION_HEX >= 0x030C0000 ? 1 : 2);
+
         queue.emplace_back(condbr->true_bb(), tc.frame);
         queue.emplace_back(condbr->false_bb(), new_frame);
         break;

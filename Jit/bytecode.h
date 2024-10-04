@@ -78,7 +78,11 @@ class BytecodeInstruction {
     if (opcode() == JUMP_BACKWARD || opcode() == JUMP_BACKWARD_NO_INTERRUPT) {
       delta = -delta;
     }
-
+    // If the iterator ended normally, we need to jump forward oparg,
+    // then skip following END_FOR instruction.
+    if (PY_VERSION_HEX >= 0x030B0000 && opcode() == FOR_ITER) {
+      delta += 1;
+    }
     return BCIndex{nextInstrOffset()} + delta;
   }
 

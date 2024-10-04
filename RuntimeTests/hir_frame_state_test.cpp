@@ -107,6 +107,125 @@ def test(fs):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "fs">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      NextInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<6, 5> v3
+  }
+
+  bb 6 (preds 0) {
+    Snapshot {
+      NextInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    Snapshot {
+      NextInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = LoadGlobal<0; "xs"> {
+      FrameState {
+        NextInstrOffset 12
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot {
+      NextInstrOffset 12
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
+    v6 = GetIter v5 {
+      FrameState {
+        NextInstrOffset 14
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot {
+      NextInstrOffset 14
+      Locals<2> v0 v1
+      Stack<1> v6
+    }
+    v3 = Assign v6
+    Branch<7>
+  }
+
+  bb 7 (preds 2, 5) {
+    v9 = LoadEvalBreaker
+    CondBranch<8, 1> v9
+  }
+
+  bb 8 (preds 7) {
+    Snapshot {
+      NextInstrOffset 14
+      Locals<2> v0 v1
+      Stack<1> v3
+    }
+    v10 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 14
+        Locals<2> v0 v1
+        Stack<1> v3
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 7, 8) {
+    Snapshot {
+      NextInstrOffset 14
+      Locals<2> v0 v1
+      Stack<1> v3
+    }
+    v7 = InvokeIterNext v3 {
+      FrameState {
+        NextInstrOffset 18
+        Locals<2> v0 v1
+        Stack<1> v3
+      }
+    }
+    v4 = Assign v7
+    CondBranchIterNotDone<2, 4> v4
+  }
+
+  bb 2 (preds 1) {
+    Snapshot {
+      NextInstrOffset 18
+      Locals<2> v0 v1
+      Stack<2> v3 v4
+    }
+    v1 = Assign v4
+    Branch<7>
+  }
+
+  bb 4 (preds 1) {
+    Snapshot {
+      NextInstrOffset 24
+      Locals<2> v0 v1
+      Stack<2> v3 v4
+    }
+    v8 = LoadConst<NoneType>
+    v8 = RefineType<NoneType> v8
+    Return<NoneType> v8
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "fs">
@@ -198,6 +317,7 @@ def test(fs):
   }
 }
 )";
+#endif
   EXPECT_HIR_EQ(irfunc, expected);
 }
 

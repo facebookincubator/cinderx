@@ -6534,82 +6534,101 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v12:Nullptr = LoadConst<Nullptr>
+    v16:Func = LoadCurrentFunc
+    v17:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v13:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v15:OptObject = LoadGlobalCached<0; "range">
-    v16:ImmortalTypeExact[range:obj] = GuardIs<0xdeadbeef> v15 {
+    v18:CInt32 = LoadEvalBreaker
+    CondBranch<6, 5> v18
+  }
+
+  bb 6 (preds 0) {
+    Snapshot
+    v19:CInt32 = RunPeriodicTasks {
+      FrameState {
+        NextInstrOffset 2
+        Locals<2> v17 v17
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    Snapshot
+    v22:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
+    v24:Nullptr = LoadConst<Nullptr>
+    v25:OptObject = LoadGlobalCached<0; "range">
+    v26:ImmortalTypeExact[range:obj] = GuardIs<0xdeadbeef> v25 {
       Descr 'LOAD_GLOBAL: range'
     }
     Snapshot
-    v17:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
-    v18:Object = VectorCall<1> v16 v17 {
+    v27:ImmortalLongExact[10] = LoadConst<ImmortalLongExact[10]>
+    v46:Object = VectorCall<1> v26 v27 {
       FrameState {
-        NextInstrOffset 10
-        Locals<2> v13 v12
+        NextInstrOffset 26
+        Locals<2> v22 v17
       }
     }
     Snapshot
-    v19:Object = GetIter v18 {
+    v29:Object = GetIter v46 {
       FrameState {
-        NextInstrOffset 12
-        Locals<2> v13 v12
+        NextInstrOffset 28
+        Locals<2> v22 v17
       }
     }
     Snapshot
-    Branch<4>
+    Branch<7>
   }
 
-  bb 4 (preds 0, 2) {
-    v23:LongExact = Phi<0, 2> v13 v37
-    v24:OptObject = Phi<0, 2> v12 v29
-    v21:CInt32 = LoadEvalBreaker
-    CondBranch<5, 1> v21
+  bb 7 (preds 2, 5) {
+    v33:LongExact = Phi<2, 5> v45 v22
+    v34:OptObject = Phi<2, 5> v39 v17
+    v31:CInt32 = LoadEvalBreaker
+    CondBranch<8, 1> v31
   }
 
-  bb 5 (preds 4) {
+  bb 8 (preds 7) {
     Snapshot
-    v25:CInt32 = RunPeriodicTasks {
+    v35:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 12
-        Locals<2> v23 v24
-        Stack<1> v19
+        NextInstrOffset 28
+        Locals<2> v33 v34
+        Stack<1> v29
       }
     }
     Branch<1>
   }
 
-  bb 1 (preds 4, 5) {
+  bb 1 (preds 7, 8) {
     Snapshot
-    v29:Object = InvokeIterNext v19 {
+    v39:Object = InvokeIterNext v29 {
       FrameState {
-        NextInstrOffset 14
-        Locals<2> v23 v24
-        Stack<1> v19
+        NextInstrOffset 32
+        Locals<2> v33 v34
+        Stack<1> v29
       }
     }
-    CondBranchIterNotDone<2, 3> v29
+    CondBranchIterNotDone<2, 4> v39
   }
 
   bb 2 (preds 1) {
     Snapshot
-    v33:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    UseType<LongExact> v23
+    v42:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     UseType<LongExact> v33
-    v37:LongExact = LongInPlaceOp<Add> v23 v33 {
+    UseType<LongExact> v42
+    v45:LongExact = LongInPlaceOp<Add> v33 v42 {
       FrameState {
-        NextInstrOffset 22
-        Locals<2> v23 v29
-        Stack<1> v19
+        NextInstrOffset 42
+        Locals<2> v33 v39
+        Stack<1> v29
       }
     }
     Snapshot
-    Branch<4>
+    Branch<7>
   }
 
-  bb 3 (preds 1) {
+  bb 4 (preds 1) {
     Snapshot
-    Return v23
+    Return v33
   }
 }
 --- End ---

@@ -115,60 +115,77 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v10:Nullptr = LoadConst<Nullptr>
+    v14:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v11:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
-    v13:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
-    v15:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v16:Object = GetIter v15 {
+    v15:CInt32 = LoadEvalBreaker
+    CondBranch<6, 5> v15
+  }
+
+  bb 6 (preds 0) {
+    Snapshot
+    v16:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 12
-        Locals<3> v11 v13 v10
+        NextInstrOffset 2
+        Locals<3> v14 v14 v14
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    Snapshot
+    v20:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v22:ImmortalLongExact[0] = LoadConst<ImmortalLongExact[0]>
+    v24:MortalTupleExact[tuple:0xdeadbeef] = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    v25:Object = GetIter v24 {
+      FrameState {
+        NextInstrOffset 14
+        Locals<3> v20 v22 v14
       }
     }
     Snapshot
-    Branch<4>
+    Branch<7>
   }
 
-  bb 4 (preds 0, 2) {
-    v21:Object = Phi<0, 2> v13 v28
-    v22:OptObject = Phi<0, 2> v10 v28
-    v18:CInt32 = LoadEvalBreaker
-    CondBranch<5, 1> v18
+  bb 7 (preds 2, 5) {
+    v30:Object = Phi<2, 5> v37 v22
+    v31:OptObject = Phi<2, 5> v37 v14
+    v27:CInt32 = LoadEvalBreaker
+    CondBranch<8, 1> v27
   }
 
-  bb 5 (preds 4) {
+  bb 8 (preds 7) {
     Snapshot
-    v23:CInt32 = RunPeriodicTasks {
+    v32:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 12
-        Locals<3> v11 v21 v22
-        Stack<1> v16
+        NextInstrOffset 14
+        Locals<3> v20 v30 v31
+        Stack<1> v25
       }
     }
     Branch<1>
   }
 
-  bb 1 (preds 4, 5) {
+  bb 1 (preds 7, 8) {
     Snapshot
-    v28:Object = InvokeIterNext v16 {
+    v37:Object = InvokeIterNext v25 {
       FrameState {
-        NextInstrOffset 14
-        Locals<3> v11 v21 v22
-        Stack<1> v16
+        NextInstrOffset 18
+        Locals<3> v20 v30 v31
+        Stack<1> v25
       }
     }
-    CondBranchIterNotDone<2, 3> v28
+    CondBranchIterNotDone<2, 4> v37
   }
 
   bb 2 (preds 1) {
     Snapshot
-    Branch<4>
+    Branch<7>
   }
 
-  bb 3 (preds 1) {
+  bb 4 (preds 1) {
     Snapshot
-    Return v11
+    Return v20
   }
 }
 --- Test Name ---
