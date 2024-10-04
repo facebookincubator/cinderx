@@ -41,7 +41,6 @@ class ThreadedCompileContext {
     return unit;
   }
 
-  // Assumes we have the lock
   void retryUnit(BorrowedRef<> unit) {
     lock();
     retry_list_.emplace_back(unit);

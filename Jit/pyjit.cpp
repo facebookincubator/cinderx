@@ -149,7 +149,7 @@ std::array<PyObject*, 256> s_opnames;
 std::array<PyObject*, hir::kNumOpcodes> s_hir_opnames;
 
 std::atomic<int> g_compile_workers_attempted;
-int g_compile_workers_retries;
+std::atomic<int> g_compile_workers_retries;
 
 jit::FlagProcessor xarg_flag_processor;
 
@@ -831,12 +831,10 @@ _PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
 
 void compile_worker_thread() {
   JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
-  BorrowedRef<> unit;
-  while ((unit = getThreadedCompileContext().nextUnit()) != nullptr) {
+  while (BorrowedRef<> unit = getThreadedCompileContext().nextUnit()) {
     g_compile_workers_attempted++;
     _PyJIT_Result res = tryCompilePreloaded(unit);
     if (res == PYJIT_RESULT_RETRY) {
-      ThreadedCompileSerialize guard;
       g_compile_workers_retries++;
       getThreadedCompileContext().retryUnit(unit);
     }
