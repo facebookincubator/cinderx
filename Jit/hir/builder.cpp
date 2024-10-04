@@ -105,6 +105,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     DUP_TOP,
     DUP_TOP_TWO,
     END_ASYNC_FOR,
+    END_FOR,
     EXTENDED_ARG,
     FAST_LEN,
     FORMAT_VALUE,
@@ -1032,6 +1033,11 @@ void HIRBuilder::translate(
         }
         case END_ASYNC_FOR: {
           emitEndAsyncFor(tc);
+          break;
+        }
+        case END_FOR: {
+          tc.frame.stack.pop();
+          tc.frame.stack.pop();
           break;
         }
         case SETUP_FINALLY: {
