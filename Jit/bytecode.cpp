@@ -2,55 +2,7 @@
 
 #include "cinderx/Jit/bytecode.h"
 
-#include <unordered_set>
-
 namespace jit {
-
-// these must be opcodes whose oparg is a jump target index
-const std::unordered_set<int> kBranchOpcodes = {
-    FOR_ITER,
-    JUMP_ABSOLUTE,
-    JUMP_BACKWARD,
-    JUMP_BACKWARD_NO_INTERRUPT,
-    JUMP_FORWARD,
-    JUMP_IF_FALSE_OR_POP,
-    JUMP_IF_NONZERO_OR_POP,
-    JUMP_IF_NOT_EXC_MATCH,
-    JUMP_IF_TRUE_OR_POP,
-    JUMP_IF_ZERO_OR_POP,
-    POP_JUMP_IF_FALSE,
-    POP_JUMP_IF_NONE,
-    POP_JUMP_IF_NONZERO,
-    POP_JUMP_IF_NOT_NONE,
-    POP_JUMP_IF_TRUE,
-    POP_JUMP_IF_ZERO,
-};
-
-const std::unordered_set<int> kRelBranchOpcodes = {
-    FOR_ITER,
-    JUMP_BACKWARD,
-    JUMP_BACKWARD_NO_INTERRUPT,
-    JUMP_FORWARD,
-    POP_JUMP_IF_NONE,
-    POP_JUMP_IF_NOT_NONE,
-    SEND,
-    SETUP_FINALLY,
-
-#if PY_VERSION_HEX >= 0x030B0000
-    // These instructions switched from absolute to relative in 3.11.
-    POP_JUMP_IF_FALSE,
-    POP_JUMP_IF_TRUE,
-#endif
-};
-
-// we always consider branches block terminators; no need to duplicate them here
-const std::unordered_set<int> kBlockTerminatorOpcodes = {
-    RAISE_VARARGS,
-    RERAISE,
-    RETURN_CONST,
-    RETURN_PRIMITIVE,
-    RETURN_VALUE,
-};
 
 BytecodeInstruction::BytecodeInstruction(
     BorrowedRef<PyCodeObject> code,
@@ -80,22 +32,57 @@ int BytecodeInstruction::oparg() const {
 }
 
 bool BytecodeInstruction::isBranch() const {
-  return kBranchOpcodes.count(opcode());
+  switch (opcode()) {
+    case FOR_ITER:
+    case JUMP_ABSOLUTE:
+    case JUMP_BACKWARD:
+    case JUMP_BACKWARD_NO_INTERRUPT:
+    case JUMP_FORWARD:
+    case JUMP_IF_FALSE_OR_POP:
+    case JUMP_IF_NONZERO_OR_POP:
+    case JUMP_IF_NOT_EXC_MATCH:
+    case JUMP_IF_TRUE_OR_POP:
+    case JUMP_IF_ZERO_OR_POP:
+    case POP_JUMP_IF_FALSE:
+    case POP_JUMP_IF_NONE:
+    case POP_JUMP_IF_NONZERO:
+    case POP_JUMP_IF_NOT_NONE:
+    case POP_JUMP_IF_TRUE:
+    case POP_JUMP_IF_ZERO:
+    case SEND:
+    case SETUP_FINALLY:
+      return true;
+    default:
+      return false;
+  }
 }
 
 bool BytecodeInstruction::isReturn() const {
-  return opcode() == RETURN_VALUE || opcode() == RETURN_PRIMITIVE;
+  switch (opcode()) {
+    case RETURN_CONST:
+    case RETURN_PRIMITIVE:
+    case RETURN_VALUE:
+      return true;
+    default:
+      return false;
+  }
 }
 
 bool BytecodeInstruction::isTerminator() const {
-  return isBranch() || kBlockTerminatorOpcodes.count(opcode());
+  switch (opcode()) {
+    case RAISE_VARARGS:
+    case RERAISE:
+      return true;
+    default:
+      return isBranch() || isReturn();
+  }
 }
 
 BCOffset BytecodeInstruction::getJumpTarget() const {
   JIT_DCHECK(
       isBranch(), "Calling getJumpTarget() on a non-branch gives nonsense");
 
-  if (!kRelBranchOpcodes.count(opcode())) {
+  if (isAbsoluteControlFlow()) {
     return BCIndex{oparg()};
   }
 
@@ -117,6 +104,26 @@ BCOffset BytecodeInstruction::nextInstrOffset() const {
 
 _Py_CODEUNIT BytecodeInstruction::word() const {
   return codeUnit(code_)[index().value()];
+}
+
+bool BytecodeInstruction::isAbsoluteControlFlow() const {
+  switch (opcode()) {
+    case JUMP_ABSOLUTE:
+    case JUMP_IF_FALSE_OR_POP:
+    case JUMP_IF_NONZERO_OR_POP:
+    case JUMP_IF_NOT_EXC_MATCH:
+    case JUMP_IF_TRUE_OR_POP:
+    case JUMP_IF_ZERO_OR_POP:
+    case POP_JUMP_IF_NONZERO:
+    case POP_JUMP_IF_ZERO:
+      return true;
+    case POP_JUMP_IF_FALSE:
+    case POP_JUMP_IF_TRUE:
+      // These instructions switched from absolute to relative in 3.11.
+      return PY_VERSION_HEX < 0x030B0000;
+    default:
+      return false;
+  }
 }
 
 BytecodeInstructionBlock::BytecodeInstructionBlock(

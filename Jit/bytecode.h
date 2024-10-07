@@ -58,7 +58,12 @@ class BytecodeInstruction {
   BCOffset nextInstrOffset() const;
 
  private:
+  // Get the instruction's full code unit (opcode + oparg).
   _Py_CODEUNIT word() const;
+
+  // Check if this instruction is a control-flow instruction with an absolute
+  // offset as its target.
+  bool isAbsoluteControlFlow() const;
 
   BorrowedRef<PyCodeObject> code_;
   BCOffset offset_;
