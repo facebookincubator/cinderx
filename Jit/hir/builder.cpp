@@ -458,7 +458,7 @@ HIRBuilder::BlockMap HIRBuilder::createBlocks(
     }
   };
   for (auto bc_instr : bc_block) {
-    if (bc_instr.IsBranch()) {
+    if (bc_instr.isBranch()) {
       maybe_add_next_instr(bc_instr);
       BCIndex target = bc_instr.getJumpTarget();
       block_starts.insert(target);
@@ -467,10 +467,10 @@ HIRBuilder::BlockMap HIRBuilder::createBlocks(
       if (
           // We always split after YIELD_FROM to handle the case where it's the
           // top of an async-for loop and so generate a HIR conditional jump.
-          bc_instr.IsTerminator() || (opcode == YIELD_FROM)) {
+          bc_instr.isTerminator() || (opcode == YIELD_FROM)) {
         maybe_add_next_instr(bc_instr);
       } else {
-        JIT_CHECK(!bc_instr.IsTerminator(), "Terminator should split block");
+        JIT_CHECK(!bc_instr.isTerminator(), "Terminator should split block");
       }
     }
   }
@@ -542,7 +542,7 @@ BasicBlock* HIRBuilder::buildHIRImpl(
   // Ensure that the entry block isn't a loop header
   BasicBlock* entry_block = getBlockAtOff(BCOffset{0});
   for (const auto& bci : bc_instrs) {
-    if (bci.IsBranch() && bci.getJumpTarget() == 0) {
+    if (bci.isBranch() && bci.getJumpTarget() == 0) {
       entry_block = irfunc->cfg.AllocateBlock();
       break;
     }
