@@ -747,9 +747,6 @@ class PyFlowGraph(FlowGraph):
 
         self.stage = FLAT
 
-    def sort_cellvars(self):
-        self.closure = self.cellvars + self.freevars
-
     # TODO(T128853358): pull out all converters for static opcodes into
     # StaticPyFlowGraph
 
@@ -1285,6 +1282,22 @@ class PyFlowGraph312(PyFlowGraph):
             posonlyargs,
         )
         self.qualname = qualname or name
+
+    def finalize(self):
+        if self.cellvars or self.freevars:
+            to_insert = []
+            if self.freevars:
+                to_insert.append(Instruction("COPY_FREE_VARS", len(self.freevars)))
+
+            if self.cellvars:
+                # varnames come first
+                offset = len(self.varnames)
+                for i in range(len(self.cellvars)):
+                    to_insert.append(Instruction("MAKE_CELL", offset + i))
+
+            self.entry.insts[0:0] = to_insert
+
+        super().finalize()
 
     def instrsize(self, opname: str, oparg: int):
         # pyre-ignore[16]: no _inline_cache_entries

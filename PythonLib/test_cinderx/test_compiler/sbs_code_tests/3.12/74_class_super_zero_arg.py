@@ -8,6 +8,7 @@ class Foo:
 [
     ...,
     CODE_START("__init__"),
+    ...,
     LOAD_GLOBAL("super"),
     LOAD_DEREF("__class__"),
     LOAD_FAST("self"),

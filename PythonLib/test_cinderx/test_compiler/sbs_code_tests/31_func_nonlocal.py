@@ -7,6 +7,7 @@ def foo():
         a = 2
 # EXPECTED:
 [
+    ...,
     LOAD_CONST(Code(('foo'))),
     ...,
     MAKE_FUNCTION(0),

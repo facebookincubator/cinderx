@@ -285,17 +285,9 @@ def add_test(modname: str, fname: str) -> None:
         script = eval(parts[1], globals(), SCRIPT_CONTEXT)
         transformed = []
 
-        should_add_resume = sys.version_info[:2] >= (3, 12)
-        if should_add_resume:
-            transformed.append(Op("RESUME", int(ResumeOparg.ScopeEntry)))
-
         for value in script:
             if value == ...:
                 transformed.append(SkipAny())
-            elif isinstance(value, Op) and value.opname == "CODE_START":
-                transformed.append(value)
-                if should_add_resume:
-                    transformed.append(Op("RESUME", int(ResumeOparg.ScopeEntry)))
             else:
                 transformed.append(value)
 

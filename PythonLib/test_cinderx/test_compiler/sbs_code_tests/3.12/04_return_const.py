@@ -5,5 +5,6 @@ def f():
 [
     ...,
     CODE_START('f'),
+    ...,
     RETURN_CONST(42),
 ]

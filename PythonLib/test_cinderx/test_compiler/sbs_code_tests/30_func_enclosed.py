@@ -7,11 +7,13 @@ def foo():
 
 # EXPECTED:
 [
+    ...,
     LOAD_CONST(Code(('foo'))),
     ...,
     MAKE_FUNCTION(0),
     ...,
     CODE_START('foo'),
+    ...,
     LOAD_CONST(1),
     STORE_DEREF('a'),
     LOAD_CLOSURE('a'),
@@ -21,6 +23,7 @@ def foo():
     MAKE_FUNCTION(8),
     ...,
     CODE_START('inner'),
+    ...,
     LOAD_DEREF('a'),
     ...,
 ]

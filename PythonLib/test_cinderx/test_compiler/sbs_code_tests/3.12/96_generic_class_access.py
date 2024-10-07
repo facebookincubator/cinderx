@@ -3,6 +3,7 @@ class ClassA[A, B](dict[A, B]):
     pass
 # EXPECTED:
 [
+    ...,
     PUSH_NULL(0),
     LOAD_CONST(Code((2,13))),
     MAKE_FUNCTION(0),

@@ -36,6 +36,7 @@ class C[T]:
     RETURN_VALUE(0),
     
     CODE_START('C'),
+    ...,
     LOAD_NAME('__name__'),
     STORE_NAME('__module__'),
     LOAD_CONST('C'),

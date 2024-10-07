@@ -5,6 +5,7 @@ def f():
 [
     ...,
     CODE_START('f'),
+    ...,
     LOAD_GLOBAL('int'),
     POP_TOP(0),
     ...,

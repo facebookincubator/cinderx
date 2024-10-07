@@ -2,6 +2,7 @@
 def f[T](*, x=42): pass
 # EXPECTED:
 [
+    ...,
     PUSH_NULL(0),
     LOAD_CONST(42),
     LOAD_CONST(('x',)),
@@ -30,5 +31,6 @@ def f[T](*, x=42): pass
     RETURN_VALUE(0),
 
     CODE_START('f'),
+    ...,
     RETURN_CONST(None),
 ]
