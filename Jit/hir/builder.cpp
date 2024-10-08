@@ -366,33 +366,13 @@ void HIRBuilder::addInitializeCells(TranslationContext& tc) {
 static bool should_snapshot(
     const BytecodeInstruction& bci,
     bool is_in_async_for_header_block) {
+  // Taking a snapshot after a terminator doesn't make sense, as control either
+  // transfers to another basic block or the function ends.
+  if (bci.isTerminator()) {
+    return false;
+  }
+
   switch (bci.opcode()) {
-    // These instructions conditionally alter the operand stack based on which
-    // branch is taken, thus we cannot safely take a snapshot in the same basic
-    // block. They're also control instructions, so snapshotting in the same
-    // basic block doesn't make sense anyway.
-    case FOR_ITER:
-    case JUMP_IF_FALSE_OR_POP:
-    case JUMP_IF_NONZERO_OR_POP:
-    case JUMP_IF_TRUE_OR_POP:
-    case JUMP_IF_ZERO_OR_POP:
-    // These are all control instructions. Taking a snapshot after them in the
-    // same basic block doesn't make sense, as control immediately transfers
-    // to another basic block.
-    case JUMP_ABSOLUTE:
-    case JUMP_BACKWARD:
-    case JUMP_BACKWARD_NO_INTERRUPT:
-    case JUMP_FORWARD:
-    case POP_JUMP_IF_FALSE:
-    case POP_JUMP_IF_NONE:
-    case POP_JUMP_IF_TRUE:
-    case POP_JUMP_IF_NOT_NONE:
-    case POP_JUMP_IF_ZERO:
-    case POP_JUMP_IF_NONZERO:
-    case RETURN_CONST:
-    case RETURN_PRIMITIVE:
-    case RETURN_VALUE:
-    case RAISE_VARARGS:
     // These instructions only modify frame state and are always safe to
     // replay. We don't snapshot these in order to limit the amount of
     // unnecessary metadata in the lowered IR.
