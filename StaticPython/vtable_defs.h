@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "cinderx/StaticPython/thunks.h"
-
 #include <Python.h>
+
+#include "cinderx/StaticPython/thunks.h"
 
 #ifdef __cplusplus
 extern "C" {

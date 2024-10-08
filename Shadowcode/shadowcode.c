@@ -15,6 +15,10 @@
 
 #if SHADOWCODE_SUPPORTED
 
+#include <Python.h>
+
+#include "structmember.h"
+
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/dict.h"
@@ -22,12 +26,9 @@
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Interpreter/opcode.h"
-#include "cinderx/StaticPython/strictmoduleobject.h"
-#include "structmember.h"
-
 #include "cinderx/Jit/global_cache.h"
+#include "cinderx/StaticPython/strictmoduleobject.h"
 
-#include <Python.h>
 #include <cinder/exports.h>
 
 // This relies on Python internals.

@@ -2,16 +2,16 @@
 
 #pragma once
 
+#include <Python.h>
+
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
-
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/function.h"
 
-#include <Python.h>
 #include <asmjit/asmjit.h>
 
 #include <algorithm>

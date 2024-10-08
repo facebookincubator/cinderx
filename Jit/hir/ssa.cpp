@@ -3,7 +3,6 @@
 #include "cinderx/Jit/hir/ssa.h"
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/hir.h"

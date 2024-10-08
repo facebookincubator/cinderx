@@ -2,14 +2,13 @@
 
 #pragma once
 
+#include <Python.h>
+
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/opcode_stubs.h"
 #include "cinderx/Interpreter/opcode.h"
-
 #include "cinderx/Jit/bytecode_offsets.h"
-
-#include <Python.h>
 
 #include <iterator>
 

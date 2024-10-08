@@ -2,10 +2,10 @@
 
 #include "cinderx/StaticPython/vtable_builder.h"
 
+#include <Python.h>
+
 #include "internal/pycore_pystate.h"
 #include "structmember.h"
-
-#include <Python.h>
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
@@ -18,6 +18,7 @@
 #include "cinderx/Common/property.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
+#include "cinderx/Jit/entry.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
@@ -28,8 +29,6 @@
 #include "cinderx/StaticPython/vtable_defs.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-
-#include "cinderx/Jit/entry.h"
 
 static int rettype_check_traverse(
     _PyClassLoader_RetTypeInfo* op,

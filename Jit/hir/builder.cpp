@@ -2,15 +2,12 @@
 
 #include "cinderx/Jit/hir/builder.h"
 
+#include <Python.h>
+
 #include "ceval.h"
+
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/opcode.h"
-#include "cinderx/StaticPython/checked_dict.h"
-#include "cinderx/StaticPython/checked_list.h"
-#include "cinderx/StaticPython/static_array.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "cinderx/UpstreamBorrow/borrowed.h"
-
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/containers.h"
@@ -20,8 +17,12 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/threaded_compile.h"
+#include "cinderx/StaticPython/checked_dict.h"
+#include "cinderx/StaticPython/checked_list.h"
+#include "cinderx/StaticPython/static_array.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
-#include <Python.h>
 #include <folly/tracing/StaticTracepoint.h>
 
 #include <algorithm>

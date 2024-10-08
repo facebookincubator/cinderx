@@ -1,12 +1,11 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #pragma once
 
-#include "cinderx/Common/ref.h"
+#include <Python.h>
 
+#include "cinderx/Common/ref.h"
 #include "cinderx/Jit/deopt_patcher.h"
 #include "cinderx/Jit/runtime.h"
-
-#include <Python.h>
 
 #include <variant>
 

@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "cinderx/Common/extra-py-flags.h"
-
 #include <Python.h>
+
+#include "cinderx/Common/extra-py-flags.h"
 
 #ifdef __cplusplus
 extern "C" {

@@ -4,6 +4,11 @@
 #include <Python.h>
 // clang-format on
 
+#include "frameobject.h"
+#include "internal/pycore_call.h"
+#include "internal/pycore_pystate.h"
+#include "structmember.h"
+
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/extra-py-flags.h"
@@ -18,10 +23,6 @@
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "frameobject.h"
-#include "internal/pycore_call.h"
-#include "internal/pycore_pystate.h"
-#include "structmember.h"
 
 PyDoc_STRVAR(
     _static__doc__,

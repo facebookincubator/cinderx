@@ -2,10 +2,8 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
-
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 using namespace jit::hir;

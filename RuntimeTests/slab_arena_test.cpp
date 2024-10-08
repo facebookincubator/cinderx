@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/slab_arena.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <cstring>

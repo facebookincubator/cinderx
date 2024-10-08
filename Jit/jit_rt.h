@@ -2,10 +2,10 @@
 
 #pragma once
 
+#include <Python.h>
+
 #include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/typed-args-info.h"
-
-#include <Python.h>
 
 namespace jit {
 class CodeRuntime;

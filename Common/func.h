@@ -2,9 +2,10 @@
 
 #pragma once
 
+#include <Python.h>
+
 #include "structmember.h"
 
-#include <Python.h>
 #include <assert.h>
 
 #ifdef __cplusplus

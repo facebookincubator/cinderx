@@ -2,16 +2,17 @@
 
 #include "cinderx/StaticPython/checked_list.h"
 
+#include <Python.h>
+
+#include "internal/pycore_abstract.h" // _PyIndex_Check()
+#include "internal/pycore_interp.h" // PyInterpreterState.list
+#include "internal/pycore_object.h" // _PyObject_GC_TRACK()
+
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "internal/pycore_abstract.h" // _PyIndex_Check()
-#include "internal/pycore_interp.h" // PyInterpreterState.list
-#include "internal/pycore_object.h" // _PyObject_GC_TRACK()
-
-#include <Python.h>
 
 static inline int Ci_List_CheckIncludingChecked(PyObject* op) {
   return PyList_Check(op) || Ci_CheckedList_Check(op);

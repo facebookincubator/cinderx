@@ -3,7 +3,6 @@
 #include "cinderx/Jit/compiler.h"
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"

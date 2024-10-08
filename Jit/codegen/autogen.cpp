@@ -3,14 +3,13 @@
 #include "cinderx/Jit/codegen/autogen.h"
 
 #include "cinderx/Common/util.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/deopt_patcher.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <asmjit/x86/x86operand.h>
 

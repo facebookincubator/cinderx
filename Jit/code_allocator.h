@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/codegen/code_section.h"
 
 #include <asmjit/asmjit.h>

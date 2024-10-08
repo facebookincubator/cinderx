@@ -7,9 +7,9 @@
 
 #pragma once
 
-#include "cinderx/Jit/pyjit_result.h"
-
 #include <Python.h>
+
+#include "cinderx/Jit/pyjit_result.h"
 
 #ifdef __cplusplus
 extern "C" {

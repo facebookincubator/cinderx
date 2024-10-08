@@ -7,18 +7,16 @@
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
 #endif
-#include "cinderx/Common/log.h"
-#include "cinderx/Common/util.h"
-#include "cinderx/Interpreter/interpreter.h"
-#include "cinderx/StaticPython/checked_dict.h"
-#include "cinderx/StaticPython/checked_list.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "cinderx/UpstreamBorrow/borrowed.h"
+#include <Python.h>
+
 #include "internal/pycore_import.h"
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_pystate.h"
 
+#include "cinderx/Common/log.h"
+#include "cinderx/Common/util.h"
+#include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
@@ -32,8 +30,11 @@
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/runtime_support.h"
 #include "cinderx/Jit/threaded_compile.h"
+#include "cinderx/StaticPython/checked_dict.h"
+#include "cinderx/StaticPython/checked_list.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
-#include <Python.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 

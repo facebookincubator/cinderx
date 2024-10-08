@@ -46,24 +46,37 @@ DisableFormat:   false
 ForEachMacros:   [ FOR_EACH, FOR_EACH_ENUMERATE, FOR_EACH_KV, FOR_EACH_R, FOR_EACH_RANGE, ]
 IncludeBlocks: Regroup
 IncludeCategories:
-  - Regex:     '<gtest/.*>'
+  # Want to make sure that Python.h is included before any internal/ headers.
+  # Plus it is helpful to have it high up to make PY_VERSION_HEX available early.
+  - Regex:     '^<Python.h>$'
     Priority:  1
-  - Regex:     '"cinderx/Jit/.*"'
-    Priority:  3
-  - Regex:     '"cinderx/RuntimeTests/.*"'
-    Priority:  4
-# Third-party headers that we've vendored in are grouped right before other
-# third-party code.
-  - Regex:     '"cinderx/ThirdParty/.*"'
-    Priority:  5
-# Any other paths in cinderx/ are assumed to be files that used to be in
-# upstream directories, so we group their includes with upstream files.
-  - Regex:     '"(cinderx/)?.*"'
+
+  # Next come the other CPython headers.  This assumes that anything that looks
+  # like "foo.h" is a CPython top-level header.  cinder/ headers are only found
+  # in the 3.10.cinder runtime so they're in the same bucket.
+  - Regex:     '^"[^/]+\.h"$'
     Priority:  2
-  - Regex:     '^<.*\.h(pp)?>'
+  - Regex:     '^"internal/[^/]+\.h"$'
+    Priority:  2
+  - Regex:     '^"cinder/[^/]+\.h"$'
+    Priority:  2
+
+  # This is hacky, but we depend on gtest/ headers showing up early to override
+  # the use of the FRIEND_TEST() macro in cinderx/Common/util.h.  Ideally we
+  # would not do this.
+  - Regex:     '^<gtest/.+\.h>$'
+    Priority:  3
+
+  - Regex:     '^".*\.h(pp)?"'
+    Priority:  4
+  - Regex:     '^".*"$'
+    Priority:  5
+  - Regex:     '^<.*\.h(pp)?>$'
     Priority:  6
-  - Regex:     '^<.*'
+  - Regex:     '^<.*>$'
     Priority:  7
+  - Regex:     '.*'
+    Priority:  8
 IndentCaseLabels: true
 IndentWidth:     2
 IndentWrappedFunctionNames: false

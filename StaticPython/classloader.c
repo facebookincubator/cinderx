@@ -2,9 +2,9 @@
 
 #include "cinderx/StaticPython/classloader.h"
 
-#include "structmember.h"
-
 #include <Python.h>
+
+#include "structmember.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
@@ -14,6 +14,8 @@
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
+#include "cinderx/Jit/entry.h"
+#include "cinderx/Jit/global_cache.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/modulethunks.h"
@@ -22,9 +24,6 @@
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/StaticPython/vtable_defs.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-
-#include "cinderx/Jit/entry.h"
-#include "cinderx/Jit/global_cache.h"
 
 #include <dlfcn.h>
 

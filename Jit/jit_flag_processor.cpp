@@ -2,9 +2,10 @@
 
 #include "cinderx/Jit/jit_flag_processor.h"
 
+#include <Python.h>
+
 #include "cinderx/Common/log.h"
 
-#include <Python.h>
 #include <fmt/format.h>
 
 #include <memory>

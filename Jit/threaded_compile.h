@@ -2,9 +2,9 @@
 
 #pragma once
 
-#include "cinderx/Common/ref.h"
-
 #include <Python.h>
+
+#include "cinderx/Common/ref.h"
 
 #include <atomic>
 #include <cassert>

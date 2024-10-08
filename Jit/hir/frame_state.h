@@ -2,13 +2,12 @@
 
 #pragma once
 
-#include "cinderx/Common/log.h"
+#include <Python.h>
 
+#include "cinderx/Common/log.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/hir/register.h"
 #include "cinderx/Jit/stack.h"
-
-#include <Python.h>
 
 namespace jit::hir {
 

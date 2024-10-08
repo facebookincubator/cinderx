@@ -7,13 +7,14 @@
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
 #endif
-#include "cinderx/Common/extra-py-flags.h"
-#include "cinderx/Common/log.h"
-#include "cinderx/Common/util.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include <Python.h>
+
 #include "frameobject.h"
 #include "internal/pycore_pystate.h"
 
+#include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/log.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
@@ -34,8 +35,8 @@
 #include "cinderx/Jit/lir/verify.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/runtime.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
-#include <Python.h>
 #include <fmt/format.h>
 
 #include <algorithm>

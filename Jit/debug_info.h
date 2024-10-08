@@ -2,14 +2,15 @@
 
 #pragma once
 
-#include "cinderx/Common/ref.h"
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
+#include <Python.h>
+
 #include "frameobject.h"
 
+#include "cinderx/Common/ref.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
-#include <Python.h>
 #include <asmjit/asmjit.h>
 
 #include <cstdint>

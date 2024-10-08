@@ -13,13 +13,12 @@
 #include "cinderx/Common/string.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
-#include "cinderx/StaticPython/classloader.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "cinderx/UpstreamBorrow/borrowed.h"
-
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/runtime_support.h"
+#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 // clang-format off
 #include "internal/pycore_pyerrors.h"

@@ -3,9 +3,9 @@
 
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
-#include "cinderx/Interpreter/interpreter.h"
-
 #include <Python.h>
+
+#include "cinderx/Interpreter/interpreter.h"
 
 #define STUB(ret, func, task, args...)                \
   ret func(args) {                                    \

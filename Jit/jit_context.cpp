@@ -4,7 +4,6 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Interpreter/interpreter.h"
-
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/jit_gdb_support.h"

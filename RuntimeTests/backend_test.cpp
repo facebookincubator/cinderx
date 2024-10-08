@@ -1,8 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
-
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
@@ -14,11 +15,8 @@
 #include "cinderx/Jit/lir/postalloc.h"
 #include "cinderx/Jit/lir/postgen.h"
 #include "cinderx/Jit/lir/regalloc.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
-
-#include <Python.h>
 
 #include <filesystem>
 #include <fstream>

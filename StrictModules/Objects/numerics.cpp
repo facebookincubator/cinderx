@@ -1,15 +1,16 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include "cinderx/StrictModules/Objects/numerics.h"
 
+#include <Python.h>
+
+#include "internal/pycore_call.h"
+
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/StrictModules/Objects/callable.h"
 #include "cinderx/StrictModules/Objects/callable_wrapper.h"
 #include "cinderx/StrictModules/Objects/object_interface.h"
 #include "cinderx/StrictModules/Objects/objects.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "internal/pycore_call.h"
-
-#include <Python.h>
 
 #include <cmath>
 

@@ -6,9 +6,10 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/hooks.h"
 #endif
+#include "internal/pycore_pystate.h" // _PyThreadState_GET()
+
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "internal/pycore_pystate.h" // _PyThreadState_GET()
 
 typedef void* (*call_self_0)(PyObject* self);
 typedef void* (*call_self_1)(PyObject* self, void*);

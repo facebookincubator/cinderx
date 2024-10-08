@@ -2,12 +2,13 @@
 
 #include "cinderx/StaticPython/awaitable.h"
 
+#include <Python.h>
+
+#include "structmember.h"
+
 #include "cinderx/Common/string.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "structmember.h"
-
-#include <Python.h>
 
 static int
 awaitable_traverse(_PyClassLoader_Awaitable* self, visitproc visit, void* arg) {

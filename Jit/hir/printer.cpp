@@ -2,13 +2,13 @@
 
 #include "cinderx/Jit/hir/printer.h"
 
+#include <Python.h>
+
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/symbolizer.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
-#include "cinderx/Jit/symbolizer.h"
-
-#include <Python.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 

@@ -4,6 +4,8 @@
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/compile.h"
+#include "cinderx/Jit/entry.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
@@ -13,9 +15,6 @@
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
 #include "cinderx/Upgrade/upgrade_stubs.h"
-
-#include "cinderx/Jit/compile.h"
-#include "cinderx/Jit/entry.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"

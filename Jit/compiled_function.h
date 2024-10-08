@@ -2,11 +2,10 @@
 
 #pragma once
 
-#include "cinderx/Common/util.h"
-
-#include "cinderx/Jit/hir/hir.h"
-
 #include <Python.h>
+
+#include "cinderx/Common/util.h"
+#include "cinderx/Jit/hir/hir.h"
 
 #include <cstddef>
 #include <span>

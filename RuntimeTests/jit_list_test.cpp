@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/jit_list.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 using JITListTest = RuntimeTest;

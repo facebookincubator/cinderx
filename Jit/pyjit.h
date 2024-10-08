@@ -2,10 +2,10 @@
 
 #pragma once
 
+#include <Python.h>
+
 #include "cinderx/Jit/compile.h"
 #include "cinderx/Jit/pyjit_result.h"
-
-#include <Python.h>
 
 #ifdef __cplusplus
 #include "cinderx/Jit/hir/preload.h"

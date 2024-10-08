@@ -3,6 +3,7 @@
 #pragma once
 
 #include <Python.h>
+
 #include <stdbool.h>
 
 #ifdef __cplusplus

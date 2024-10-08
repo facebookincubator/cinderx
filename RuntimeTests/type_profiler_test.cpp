@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/fixed_type_profiler.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 using namespace jit;

@@ -4,7 +4,6 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/slab.h"
 
 #include <cstddef>

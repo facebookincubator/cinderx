@@ -2,14 +2,13 @@
 
 #include "cinderx/Jit/hir/analysis.h"
 
-#include "cinderx/StaticPython/checked_dict.h"
-#include "cinderx/StaticPython/checked_list.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-
 #include "cinderx/Jit/dataflow.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/printer.h"
+#include "cinderx/StaticPython/checked_dict.h"
+#include "cinderx/StaticPython/checked_list.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>

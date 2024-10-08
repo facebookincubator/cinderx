@@ -2,17 +2,16 @@
 
 #include "cinderx/Jit/inline_cache.h"
 
+#include <Python.h>
+
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
+#include "cinderx/Jit/containers.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
-
-#include "cinderx/Jit/containers.h"
-
-#include <Python.h>
 
 #include <algorithm>
 #include <memory>

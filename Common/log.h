@@ -2,15 +2,11 @@
 
 #pragma once
 
+#include <Python.h>
+
 #include "cinderx/Common/ref.h"
-
-#if PY_VERSION_HEX < 0x030C0000
-#include "internal/pycore_pystate.h"
-#endif
-
 #include "cinderx/Jit/threaded_compile.h"
 
-#include <Python.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <fmt/printf.h>
@@ -45,6 +41,9 @@ extern int g_symbolize_funcs;
 extern int g_dump_stats;
 extern int g_collect_inline_cache_stats;
 extern FILE* g_log_file;
+
+// Print the current Python exception to stderr, if it exists.
+void printPythonException();
 
 // Use PyObject_Repr() to get a string representation of a PyObject. Use with
 // caution - this can end up executing arbitrary Python code. Always succeeds
@@ -87,33 +86,14 @@ std::string repr(BorrowedRef<> obj);
     JIT_ABORT_IMPL(__VA_ARGS__);                                     \
   }
 
-#if PY_VERSION_HEX < 0x030C0000
-#define JIT_ABORT_IMPL(...)                              \
-  {                                                      \
-    fmt::print(stderr, __VA_ARGS__);                     \
-    fmt::print(stderr, "\n");                            \
-    std::fflush(stderr);                                 \
-    PyThreadState* tstate = _PyThreadState_GET();        \
-    if (tstate != NULL && tstate->curexc_type != NULL) { \
-      PyErr_Display(                                     \
-          tstate->curexc_type,                           \
-          tstate->curexc_value,                          \
-          tstate->curexc_traceback);                     \
-    }                                                    \
-    std::abort();                                        \
+#define JIT_ABORT_IMPL(...)          \
+  {                                  \
+    fmt::print(stderr, __VA_ARGS__); \
+    fmt::print(stderr, "\n");        \
+    std::fflush(stderr);             \
+    jit::printPythonException();     \
+    std::abort();                    \
   }
-#else
-#define JIT_ABORT_IMPL(...)                               \
-  {                                                       \
-    fmt::print(stderr, __VA_ARGS__);                      \
-    fmt::print(stderr, "\n");                             \
-    std::fflush(stderr);                                  \
-    if (PyErr_Occurred()) {                               \
-      PyErr_DisplayException(PyErr_GetRaisedException()); \
-    }                                                     \
-    std::abort();                                         \
-  }
-#endif
 
 #ifdef Py_DEBUG
 #define JIT_DABORT(...) JIT_ABORT(__VA_ARGS__)

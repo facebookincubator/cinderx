@@ -1,9 +1,9 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 #pragma once
 
-#include "cinderx/StaticPython/generic_type.h"
-
 #include <Python.h>
+
+#include "cinderx/StaticPython/generic_type.h"
 #ifdef __cplusplus
 extern "C" {
 #endif

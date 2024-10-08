@@ -6,7 +6,6 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/slab_arena.h"
 #include "cinderx/Jit/threaded_compile.h"
 

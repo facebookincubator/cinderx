@@ -9,18 +9,17 @@
 #include "internal/pycore_ceval.h"
 #include "internal/pycore_shadow_frame.h"
 #endif
+#include <Python.h>
+
+#include "internal/pycore_interp.h"
+#include "internal/pycore_pystate.h"
+
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/StrictModules/pystrictmodule.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "i386-dis/dis-asm.h"
-#include "internal/pycore_interp.h"
-#include "internal/pycore_pystate.h"
-
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
@@ -40,8 +39,9 @@
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/runtime.h"
-
-#include <Python.h>
+#include "cinderx/StrictModules/pystrictmodule.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "i386-dis/dis-asm.h"
 
 #include <atomic>
 #include <charconv>

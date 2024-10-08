@@ -2,11 +2,11 @@
 
 #pragma once
 
+#include <Python.h>
+
 #include "cinderx/StaticPython/functype.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
-
-#include <Python.h>
 
 #ifdef __cplusplus
 extern "C" {

@@ -2,10 +2,11 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 
+#include "structmember.h" // PyMemberDef
+
 #include "cinderx/Common/string.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "structmember.h" // PyMemberDef
 /* fb t46346203 */
 
 typedef struct {

@@ -4,7 +4,6 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/codegen/copy_graph.h"
 #include "cinderx/Jit/codegen/x86_64.h"

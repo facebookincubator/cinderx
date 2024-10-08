@@ -2,12 +2,12 @@
 
 #pragma once
 
+#include <Python.h>
+
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/typed-args-info.h"
-
-#include <Python.h>
 
 #ifdef __cplusplus
 extern "C" {

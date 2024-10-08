@@ -2,14 +2,14 @@
 
 #include "cinderx/Jit/runtime.h"
 
-#include "cinderx/Common/py-portability.h"
-#include "cinderx/Common/watchers.h"
-#include "cinderx/StaticPython/classloader.h"
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pystate.h"
 
+#include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
+#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <sys/mman.h>
 

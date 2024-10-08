@@ -4,16 +4,17 @@
 
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
-#include "cinderx/Common/py-portability.h"
-#include "cinderx/Common/string.h"
-#include "cinderx/StaticPython/modulethunks.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include <Python.h>
+
 #include "internal/pycore_call.h" // _PyObject_CallNoArgs
 #include "internal/pycore_interp.h" // PyInterpreterState.importlib
 #include "internal/pycore_pystate.h" // _PyInterpreterState_GET()
 #include "structmember.h" // PyMemberDef
 
-#include <Python.h>
+#include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/string.h"
+#include "cinderx/StaticPython/modulethunks.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 int _PyClassLoader_IsImmutable(PyObject* container) {
   if (PyType_Check(container)) {

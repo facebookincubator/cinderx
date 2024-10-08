@@ -27,12 +27,13 @@
 
 #include "cinderx/ParallelGC/parallel_gc.h"
 
-#include "cinderx/ParallelGC/condvar.h"
-#include "cinderx/ParallelGC/ws_deque.h"
 #include "internal/pycore_gc.h"
 #include "internal/pycore_object.h"
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_pystate.h" // _PyThreadState_GET()
+
+#include "cinderx/ParallelGC/condvar.h"
+#include "cinderx/ParallelGC/ws_deque.h"
 
 #include <stdatomic.h>
 

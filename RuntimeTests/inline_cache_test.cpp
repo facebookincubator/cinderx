@@ -1,18 +1,16 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include <gtest/gtest.h>
-
 #include <Python.h>
+
+#include <gtest/gtest.h>
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
 #include "cinderx/Common/ref.h"
-#include "cinderx/StrictModules/Objects/objects.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-
 #include "cinderx/Jit/inline_cache.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
+#include "cinderx/StrictModules/Objects/objects.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <cstring>
 

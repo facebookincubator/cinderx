@@ -2,18 +2,17 @@
 
 #include "cinderx/Jit/hir/preload.h"
 
+#include <Python.h>
+
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
-#include "cinderx/StaticPython/strictmoduleobject.h"
-#include "cinderx/StaticPython/vtable_builder.h"
-
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/runtime.h"
-
-#include <Python.h>
+#include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/StaticPython/vtable_builder.h"
 
 #include <utility>
 

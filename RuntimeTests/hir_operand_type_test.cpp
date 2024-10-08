@@ -1,17 +1,15 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
 #include "cinderx/Interpreter/opcode.h"
-
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
-
-#include <Python.h>
 
 using namespace jit::hir;
 

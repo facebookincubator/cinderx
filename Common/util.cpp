@@ -2,13 +2,14 @@
 
 #include "cinderx/Common/util.h"
 
+#include <Python.h>
+
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 
-#include <Python.h>
 #include <zlib.h>
 
 #include <cstdarg>

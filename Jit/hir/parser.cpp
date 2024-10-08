@@ -4,9 +4,8 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/StaticPython/classloader.h"
-
 #include "cinderx/Jit/hir/hir.h"
+#include "cinderx/StaticPython/classloader.h"
 
 #include <algorithm>
 #include <cctype>

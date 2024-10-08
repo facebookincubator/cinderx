@@ -8,9 +8,6 @@
 #endif
 
 #include "cinderx/Common/util.h"
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/deopt.h"
@@ -20,6 +17,8 @@
 #include "cinderx/Jit/slab_arena.h"
 #include "cinderx/Jit/symbolizer.h"
 #include "cinderx/Jit/threaded_compile.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <optional>
 #include <string_view>

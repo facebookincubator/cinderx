@@ -11,12 +11,13 @@
 
 #if SHADOWCODE_SUPPORTED
 
+#include "internal/pycore_moduleobject.h"
+#include "internal/pycore_object.h"
+
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "internal/pycore_moduleobject.h"
-#include "internal/pycore_object.h"
 
 #include <Objects/dict-common.h> // @manual
 #include <cinder/ci_api.h>

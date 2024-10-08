@@ -4,13 +4,12 @@
 
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/runtime.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <folly/tracing/StaticTracepoint.h>
 

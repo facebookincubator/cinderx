@@ -1,13 +1,12 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #pragma once
 
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/StaticPython/strictmoduleobject.h"
-#include "internal/pycore_interp.h"
-
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -16,10 +15,8 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/pyjit.h"
-
 #include "cinderx/RuntimeTests/testutil.h"
-
-#include <Python.h>
+#include "cinderx/StaticPython/strictmoduleobject.h"
 
 #define JIT_TEST_MOD_NAME "jittestmodule"
 

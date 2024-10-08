@@ -1,9 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #pragma once
 
-#include "cinderx/StrictModules/strict_module_checker_interface.h"
-
 #include <Python.h>
+
+#include "cinderx/StrictModules/strict_module_checker_interface.h"
 
 #ifndef Py_LIMITED_API
 #ifdef __cplusplus

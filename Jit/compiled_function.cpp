@@ -3,7 +3,6 @@
 #include "cinderx/Jit/compiled_function.h"
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/disassembler.h"
 #include "cinderx/Jit/hir/printer.h"
 

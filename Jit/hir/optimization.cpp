@@ -2,13 +2,13 @@
 
 #include "cinderx/Jit/hir/optimization.h"
 
+#include <Python.h>
+
+#include "internal/pycore_interp.h"
+
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
-#include "internal/pycore_interp.h"
-
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
@@ -18,8 +18,9 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/jit_rt.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
-#include <Python.h>
 #include <fmt/format.h>
 
 #include <list>

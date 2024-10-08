@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/codegen/environ.h"
 
 #include <memory>

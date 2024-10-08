@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/dataflow.h"
 #include "cinderx/Jit/hir/alias_class.h"
 #include "cinderx/Jit/hir/hir.h"

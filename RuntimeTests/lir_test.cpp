@@ -1,8 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
-
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -10,11 +11,9 @@
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postgen.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
-#include <Python.h>
 #include <asm-generic/errno-base.h>
 #include <math.h>
 

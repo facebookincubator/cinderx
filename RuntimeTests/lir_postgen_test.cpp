@@ -6,7 +6,6 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postgen.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 namespace jit::lir {

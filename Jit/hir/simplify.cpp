@@ -1,17 +1,18 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Common/property.h"
-#include "cinderx/StaticPython/strictmoduleobject.h"
+#include <Python.h>
+
 #include "structmember.h"
 
+#include "cinderx/Common/property.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
+#include "cinderx/StaticPython/strictmoduleobject.h"
 
-#include <Python.h>
 #include <fmt/ostream.h>
 
 namespace jit::hir {

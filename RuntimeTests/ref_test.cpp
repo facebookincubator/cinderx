@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <unordered_set>

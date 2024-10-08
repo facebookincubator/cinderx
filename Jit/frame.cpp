@@ -8,16 +8,16 @@
 
 #include "cinder/exports.h"
 #include "cinder/genobject_jit.h"
-#include "cinderx/Common/log.h"
-#include "cinderx/Common/util.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "internal/pycore_object.h"
 #include "internal/pycore_pystate.h"
 #include "internal/pycore_shadow_frame.h"
 
+#include "cinderx/Common/log.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/runtime.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <algorithm>
 #include <functional>

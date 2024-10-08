@@ -3,7 +3,6 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/elf/writer.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <sstream>

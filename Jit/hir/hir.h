@@ -2,12 +2,11 @@
 
 #pragma once
 
+#include <Python.h>
+
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
-#include "cinderx/StaticPython/typed-args-info.h"
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
-
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/deopt_patcher.h"
@@ -17,8 +16,8 @@
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/intrusive_list.h"
 #include "cinderx/Jit/jit_time_log.h"
-
-#include <Python.h>
+#include "cinderx/StaticPython/typed-args-info.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <algorithm>
 #include <array>

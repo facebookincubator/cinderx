@@ -1,5 +1,8 @@
-#pragma once
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+
+#pragma once
+
+#include <Python.h>
 
 #include "internal/pycore_asdl.h"
 #include "internal/pycore_ast.h"

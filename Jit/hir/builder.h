@@ -2,14 +2,13 @@
 
 #pragma once
 
-#include "cinderx/Common/util.h"
+#include <Python.h>
 
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/preload.h"
-
-#include <Python.h>
 
 #include <memory>
 #include <unordered_map>

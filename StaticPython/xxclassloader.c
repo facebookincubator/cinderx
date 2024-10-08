@@ -3,13 +3,14 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
-#include "cinderx/StaticPython/generic_type.h"
-#include "cinderx/StaticPython/typed_method_def.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "internal/pycore_initconfig.h"
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pystate.h" // _PyInterpreterState_GET()
 #include "structmember.h"
+
+#include "cinderx/StaticPython/generic_type.h"
+#include "cinderx/StaticPython/typed_method_def.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 PyDoc_STRVAR(
     xxclassloader__doc__,

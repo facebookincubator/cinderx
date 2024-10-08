@@ -2,6 +2,11 @@
 
 #include "cinderx/StaticPython/type.h"
 
+#include <Python.h>
+
+#include "internal/pycore_unionobject.h"
+#include "structmember.h"
+
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
@@ -9,10 +14,6 @@
 #include "cinderx/StaticPython/vtable.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "internal/pycore_unionobject.h"
-#include "structmember.h"
-
-#include <Python.h>
 
 static PyObject* classloader_cache;
 static PyObject* classloader_cache_module_to_keys;

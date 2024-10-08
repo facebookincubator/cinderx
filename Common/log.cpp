@@ -4,6 +4,10 @@
 
 #include "cinderx/Jit/threaded_compile.h"
 
+#if PY_VERSION_HEX < 0x030C0000
+#include "internal/pycore_pystate.h"
+#endif
+
 namespace jit {
 
 int g_debug = 0;
@@ -21,6 +25,20 @@ int g_symbolize_funcs = 1;
 int g_dump_stats = 0;
 int g_collect_inline_cache_stats = 0;
 FILE* g_log_file = stderr;
+
+void printPythonException() {
+#if PY_VERSION_HEX < 0x030C0000
+  PyThreadState* tstate = _PyThreadState_GET();
+  if (tstate != NULL && tstate->curexc_type != NULL) {
+    PyErr_Display(
+        tstate->curexc_type, tstate->curexc_value, tstate->curexc_traceback);
+  }
+#else
+  if (PyErr_Occurred()) {
+    PyErr_DisplayException(PyErr_GetRaisedException());
+  }
+#endif
+}
 
 std::string repr(BorrowedRef<> obj) {
   jit::ThreadedCompileSerialize guard;

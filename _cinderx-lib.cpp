@@ -1,17 +1,18 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Common/log.h"
-
 #include <Python.h>
+
+#include "cinderx/Common/log.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/hooks.h"
-#include "cinderx/Shadowcode/shadowcode.h"
 #include "internal/pycore_shadow_frame.h"
 #else
 #include "cinder/hooks.h"
 #endif
+
+#include "internal/pycore_pystate.h"
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/dict.h"
@@ -19,7 +20,14 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/entry.h"
+#include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/perf_jitdump.h"
+#include "cinderx/Jit/pyjit.h"
+#include "cinderx/Jit/pyjit_result.h"
+#include "cinderx/Jit/runtime.h"
 #include "cinderx/ParallelGC/parallel_gc.h"
+#include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/StaticPython/_static.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
@@ -31,14 +39,6 @@
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/_cinderx-lib.h"
-#include "internal/pycore_pystate.h"
-
-#include "cinderx/Jit/entry.h"
-#include "cinderx/Jit/frame.h"
-#include "cinderx/Jit/perf_jitdump.h"
-#include "cinderx/Jit/pyjit.h"
-#include "cinderx/Jit/pyjit_result.h"
-#include "cinderx/Jit/runtime.h"
 
 #include <dlfcn.h>
 

@@ -3,7 +3,6 @@
 #include "cinderx/Jit/jit_time_log.h"
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/containers.h"
 
 #include <fmt/core.h>

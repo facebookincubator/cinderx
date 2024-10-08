@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/lir/operand.h"
 
 #include <memory>

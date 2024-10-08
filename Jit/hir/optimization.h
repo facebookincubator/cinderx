@@ -4,7 +4,6 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/type.h"
 

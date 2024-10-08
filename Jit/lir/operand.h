@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/lir/x86_64.h"
 
 #include <cstdint>

@@ -2,17 +2,18 @@
 
 #include "cinderx/StaticPython/checked_dict.h"
 
-#include "Objects/stringlib/eq.h" // unicode_eq()
-#include "cinderx/Common/string.h"
-#include "cinderx/StaticPython/generic_type.h"
-#include "cinderx/StaticPython/typed_method_def.h"
+#include <Python.h>
+
 #include "internal/pycore_bitutils.h" // _Py_bit_length
 #include "internal/pycore_gc.h" // _PyObject_GC_IS_TRACKED()
 #include "internal/pycore_interp.h" // PyDict_MAXFREELIST
 #include "internal/pycore_object.h" // _PyObject_GC_TRACK()
 #include "internal/pycore_pystate.h" // _Py_InterpreterState_GET
 
-#include <Python.h>
+#include "Objects/stringlib/eq.h" // unicode_eq()
+#include "cinderx/Common/string.h"
+#include "cinderx/StaticPython/generic_type.h"
+#include "cinderx/StaticPython/typed_method_def.h"
 
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_call.h" // _PyObject_CallNoArgs()

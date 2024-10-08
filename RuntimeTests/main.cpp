@@ -1,7 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include <gtest/gtest.h>
-
 #include <Python.h>
+
+#include <gtest/gtest.h>
 
 #ifdef BUCK_BUILD
 #include "cinderx/_cinderx-lib.h"
@@ -9,7 +9,6 @@
 
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/optimization.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 

@@ -1,4 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/code.h"
@@ -6,8 +8,6 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
-#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
-
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/compiler.h"
@@ -16,10 +16,8 @@
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
-
-#include <Python.h>
+#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_frame.h"
 #endif

@@ -1,7 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/hir/analysis.h"
