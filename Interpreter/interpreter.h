@@ -12,8 +12,16 @@ extern "C" {
 
 PyObject* Ci_GetAIter(PyThreadState* tstate, PyObject* obj);
 PyObject* Ci_GetANext(PyThreadState* tstate, PyObject* aiter);
+
+#if PY_VERSION_HEX < 0x030C0000
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState* tstate, PyFrameObject* f, int throwflag);
+#else
+PyObject* _Py_HOT_FUNCTION Ci_EvalFrame(
+    PyThreadState* tstate,
+    struct _PyInterpreterFrame* f,
+    int throwflag);
+#endif
 
 PyObject* Ci_StaticFunction_Vectorcall(
     PyObject* func,

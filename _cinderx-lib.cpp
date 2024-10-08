@@ -9,6 +9,8 @@
 #include "cinder/hooks.h"
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "internal/pycore_shadow_frame.h"
+#else
+#include "cinder/hooks.h"
 #endif
 
 #include "cinderx/CachedProperties/cached_properties.h"
@@ -630,6 +632,11 @@ int cinder_init() {
   Ci_hook_ShadowFrame_HasGen_JIT = Ci_ShadowFrame_HasGen_JIT;
   Ci_hook_ShadowFrame_GetModuleName_JIT = Ci_ShadowFrame_GetModuleName_JIT;
   Ci_hook_ShadowFrame_WalkAndPopulate = Ci_ShadowFrame_WalkAndPopulate;
+#else
+  // TODO: Enable this when we have borrowed all the supporting code we need to
+  // get the interpreter actually running.
+  // Ci_hook_EvalFrame = Ci_EvalFrame;
+  Ci_hook_EvalFrame = nullptr;
 #endif
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -754,6 +761,8 @@ int cinder_fini() {
   Ci_hook_PyJIT_GetCurrentCodeFlags = nullptr;
 
   Ci_cinderx_initialized = 0;
+#else
+  Ci_hook_EvalFrame = nullptr;
 #endif
 
   return 0;

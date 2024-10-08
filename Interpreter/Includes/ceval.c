@@ -229,6 +229,7 @@ _PyEvalFrameClearAndPop(PyThreadState *tstate, _PyInterpreterFrame *frame);
 #include <errno.h>
 #endif
 
+#ifndef CINDERX_INTERPRETER
 int
 Py_GetRecursionLimit(void)
 {
@@ -279,7 +280,7 @@ _Py_CheckRecursiveCall(PyThreadState *tstate, const char *where)
     }
     return 0;
 }
-
+#endif // !CINDERX_INTERPRETER
 
 static const binaryfunc binary_ops[] = {
     [NB_ADD] = PyNumber_Add,
@@ -546,6 +547,7 @@ static int exception_group_match(
 
 static int unpack_iterable(PyThreadState *, PyObject *, int, int, PyObject **);
 
+#ifndef CINDERX_INTERPRETER
 PyObject *
 PyEval_EvalCode(PyObject *co, PyObject *globals, PyObject *locals)
 {
@@ -628,7 +630,6 @@ static inline int _Py_EnterRecursivePy(PyThreadState *tstate) {
 static inline void _Py_LeaveRecursiveCallPy(PyThreadState *tstate)  {
     tstate->py_recursion_remaining++;
 }
-
 
 /* Disable unused label warnings.  They are handy for debugging, even
    if computed gotos aren't used. */
@@ -1015,6 +1016,8 @@ resume_with_error:
 #elif defined(_MSC_VER) /* MS_WINDOWS */
 #  pragma warning(pop)
 #endif
+
+#endif // !CINDERX_INTERPRETER
 
 static void
 format_missing(PyThreadState *tstate, const char *kind,
@@ -1652,6 +1655,7 @@ error:
     return NULL;
 }
 
+#ifndef CINDERX_INTERPRETER
 PyObject *
 _PyEval_Vector(PyThreadState *tstate, PyFunctionObject *func,
                PyObject *locals,
@@ -1752,6 +1756,7 @@ fail:
     Py_DECREF(defaults);
     return res;
 }
+#endif // !CINDERX_INTERPRETER
 
 
 /* Logic for the raise statement (too complicated for inlining).
@@ -2109,6 +2114,7 @@ monitor_throw(PyThreadState *tstate,
     do_monitor_exc(tstate, frame, instr, PY_MONITORING_EVENT_PY_THROW);
 }
 
+#ifndef CINDERX_INTERPRETER
 void
 PyThreadState_EnterTracing(PyThreadState *tstate)
 {
@@ -2459,6 +2465,7 @@ _PyEval_SliceIndexNotNone(PyObject *v, Py_ssize_t *pi)
     *pi = x;
     return 1;
 }
+#endif // !CINDERX_INTERPRETER
 
 #define CANNOT_CATCH_MSG "catching classes that do not inherit from "\
                          "BaseException is not allowed"
@@ -2656,6 +2663,7 @@ format_awaitable_error(PyThreadState *tstate, PyTypeObject *type, int oparg)
 }
 
 
+#ifndef CINDERX_INTERPRETER
 Py_ssize_t
 PyUnstable_Eval_RequestCodeExtraIndex(freefunc free)
 {
@@ -2682,3 +2690,4 @@ void Py_LeaveRecursiveCall(void)
 {
     _Py_LeaveRecursiveCall();
 }
+#endif // !CINDERX_INTERPRETER
