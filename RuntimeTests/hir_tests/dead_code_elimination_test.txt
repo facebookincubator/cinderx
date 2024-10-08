@@ -251,8 +251,6 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v19:Nullptr = LoadConst<Nullptr>
-    Snapshot
     v23:Object = VectorCall<0> v17 {
       FrameState {
         NextInstrOffset 20

@@ -377,10 +377,13 @@ static bool should_snapshot(
     // replay. We don't snapshot these in order to limit the amount of
     // unnecessary metadata in the lowered IR.
     case CONVERT_PRIMITIVE:
+    case COPY:
     case DUP_TOP:
     case DUP_TOP_TWO:
+    case END_FOR:
     case EXTENDED_ARG:
     case IS_OP:
+    case KW_NAMES:
     case LOAD_ASSERTION_ERROR:
     case LOAD_CLOSURE:
     case LOAD_CONST:
@@ -394,6 +397,7 @@ static bool should_snapshot(
     case PRIMITIVE_LOAD_CONST:
     case PRIMITIVE_UNARY_OP:
     case PRIMITIVE_UNBOX:
+    case PUSH_NULL:
     case REFINE_TYPE:
     case ROT_FOUR:
     case ROT_THREE:

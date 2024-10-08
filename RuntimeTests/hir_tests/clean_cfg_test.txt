@@ -110,7 +110,6 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v16:Nullptr = LoadConst<Nullptr>
-    Snapshot
     v17:Bottom = CheckVar<"a"> v12 {
       FrameState {
         NextInstrOffset 6

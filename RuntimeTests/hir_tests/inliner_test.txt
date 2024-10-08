@@ -872,7 +872,6 @@ fun jittestmodule:test {
     SetFunctionAttr<func_closure> v24 v27
     Snapshot
     v29:Nullptr = LoadConst<Nullptr>
-    Snapshot
     v31:Object = VectorCall<0> v27 {
       FrameState {
         NextInstrOffset 30
@@ -948,7 +947,6 @@ fun jittestmodule:test {
     }
     Snapshot
     v18:Nullptr = LoadConst<Nullptr>
-    Snapshot
     v20:Object = VectorCall<0> v16 {
       FrameState {
         NextInstrOffset 20

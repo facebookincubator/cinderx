@@ -361,9 +361,8 @@ def test(x, y):
 
   bb 3 (preds 0, 4) {
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 2
       Locals<2> v0 v1
-      Stack<2> v0 v0
     }
     v5 = IsTruthy v0 {
       FrameState {
@@ -491,9 +490,8 @@ def test(x, y):
 
   bb 3 (preds 0, 4) {
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 2
       Locals<2> v0 v1
-      Stack<2> v0 v0
     }
     v5 = IsTruthy v0 {
       FrameState {
@@ -622,11 +620,6 @@ def test(f, a):
       Locals<2> v0 v1
     }
     v5 = LoadConst<Nullptr>
-    Snapshot {
-      NextInstrOffset 4
-      Locals<2> v0 v1
-      Stack<1> v5
-    }
     v6 = CallMethod<3> v5 v0 v1 {
       FrameState {
         NextInstrOffset 16
