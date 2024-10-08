@@ -35,13 +35,18 @@ uint8_t* allocPages(size_t size) {
   return static_cast<uint8_t*>(res);
 }
 
-bool setHugePages(void* ptr, size_t size) {
-  if (madvise(ptr, size, MADV_HUGEPAGE) == -1) {
-    auto end = static_cast<void*>(static_cast<uint8_t*>(ptr) + size);
-    JIT_LOG("Failed to madvise [{}, {}) with MADV_HUGEPAGE", ptr, end);
-    return false;
+bool setHugePages([[maybe_unused]] void* ptr, [[maybe_unused]] size_t size) {
+#ifdef MADV_HUGEPAGE
+  if (madvise(ptr, size, MADV_HUGEPAGE) == 0) {
+    return true;
   }
-  return true;
+
+  auto end = static_cast<void*>(static_cast<uint8_t*>(ptr) + size);
+  JIT_LOG(
+      "Failed to madvise [{}, {}) with MADV_HUGEPAGE, errno=", ptr, end, errno);
+#endif
+
+  return false;
 }
 
 } // namespace
