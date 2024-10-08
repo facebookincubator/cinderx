@@ -5,7 +5,7 @@
 # expected to pass and stops if any fail. It then runs all the other tests, and
 # if any pass reports this and adds to the list of known passing tests.
 
-set -e
+set -xe
 
 cd "$(dirname "$(readlink -f "$0")")"/
 

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+set -x
 
 cd "$(dirname "$(readlink -f "$0")")"/ || exit
 
