@@ -2,12 +2,6 @@
 
 #include "cinderx/StaticPython/classloader.h"
 
-#include "descrobject.h"
-#include "dictobject.h"
-#include "object.h"
-#include "pycore_object.h" // PyHeapType_CINDER_EXTRA
-#include "pyerrors.h"
-#include "pyport.h"
 #include "structmember.h"
 
 #include <Python.h>

@@ -6,9 +6,9 @@
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "pycore_initconfig.h"
-#include "pycore_interp.h"
-#include "pycore_pystate.h" // _PyInterpreterState_GET()
+#include "internal/pycore_initconfig.h"
+#include "internal/pycore_interp.h"
+#include "internal/pycore_pystate.h" // _PyInterpreterState_GET()
 #include "structmember.h"
 
 PyDoc_STRVAR(

@@ -8,9 +8,9 @@
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/modulethunks.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "pycore_call.h" // _PyObject_CallNoArgs
-#include "pycore_interp.h" // PyInterpreterState.importlib
-#include "pycore_pystate.h" // _PyInterpreterState_GET()
+#include "internal/pycore_call.h" // _PyObject_CallNoArgs
+#include "internal/pycore_interp.h" // PyInterpreterState.importlib
+#include "internal/pycore_pystate.h" // _PyInterpreterState_GET()
 #include "structmember.h" // PyMemberDef
 
 #include <Python.h>

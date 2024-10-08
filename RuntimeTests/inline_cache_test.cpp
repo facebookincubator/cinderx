@@ -8,7 +8,6 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/StrictModules/Objects/objects.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "unicodeobject.h"
 
 #include "cinderx/Jit/inline_cache.h"
 

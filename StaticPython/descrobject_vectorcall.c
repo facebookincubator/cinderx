@@ -8,7 +8,7 @@
 #endif
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "pycore_pystate.h" // _PyThreadState_GET()
+#include "internal/pycore_pystate.h" // _PyThreadState_GET()
 
 static inline int Ci_method_check_args(
     PyObject* func,

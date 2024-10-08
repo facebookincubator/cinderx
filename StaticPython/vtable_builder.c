@@ -1,12 +1,8 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
+
 #include "cinderx/StaticPython/vtable_builder.h"
 
-#include "descrobject.h"
-#include "dictobject.h"
-#include "object.h"
-#include "pycore_object.h" // PyHeapType_CINDER_EXTRA
-#include "pyerrors.h"
-#include "pyport.h"
+#include "internal/pycore_pystate.h"
 #include "structmember.h"
 
 #include <Python.h>

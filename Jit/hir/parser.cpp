@@ -5,7 +5,6 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/StaticPython/classloader.h"
-#include "pycore_tuple.h"
 
 #include "cinderx/Jit/hir/hir.h"
 

@@ -8,12 +8,6 @@
 
 #include "cinderx/Jit/pyjit.h"
 
-#include <Python.h>
-
-#if PY_VERSION_HEX < 0x030C0000
-#include "pycore_interp.h"
-#endif
-
 extern "C" {
 
 namespace {

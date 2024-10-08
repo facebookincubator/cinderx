@@ -15,12 +15,12 @@
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "internal/pycore_moduleobject.h"
+#include "internal/pycore_object.h"
 
 #include <Objects/dict-common.h> // @manual
 #include <cinder/ci_api.h>
 #include <cinder/hooks.h>
-#include <pycore_moduleobject.h>
-#include <pycore_object.h>
 #include <stdint.h>
 
 #ifndef Py_LIMITED_API

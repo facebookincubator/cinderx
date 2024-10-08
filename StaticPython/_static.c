@@ -1,11 +1,8 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 
+// clang-format off
 #include <Python.h>
-
-#if PY_VERSION_HEX < 0x030C0000
-#include "cellobject.h"
-#include "funcobject.h"
-#endif
+// clang-format on
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/audit.h"
@@ -17,19 +14,13 @@
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/static_array.h"
+#include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "dictobject.h"
 #include "frameobject.h"
-#include "import.h"
-#include "methodobject.h"
-#include "object.h"
-#include "pycore_call.h"
-#include "pycore_object.h"
-#include "pyerrors.h"
-#include "pyport.h"
-#include "strictmoduleobject.h"
+#include "internal/pycore_call.h"
+#include "internal/pycore_pystate.h"
 #include "structmember.h"
 
 PyDoc_STRVAR(

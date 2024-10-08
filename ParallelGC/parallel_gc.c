@@ -29,11 +29,11 @@
 
 #include "cinderx/ParallelGC/condvar.h"
 #include "cinderx/ParallelGC/ws_deque.h"
+#include "internal/pycore_gc.h"
+#include "internal/pycore_object.h"
+#include "internal/pycore_pyerrors.h"
+#include "internal/pycore_pystate.h" // _PyThreadState_GET()
 
-#include <pycore_gc.h>
-#include <pycore_object.h>
-#include <pycore_pyerrors.h>
-#include <pycore_pystate.h> // _PyThreadState_GET()
 #include <stdatomic.h>
 
 #if PY_VERSION_HEX < 0x030C0000

@@ -7,9 +7,9 @@
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "pycore_abstract.h" // _PyIndex_Check()
-#include "pycore_interp.h" // PyInterpreterState.list
-#include "pycore_object.h" // _PyObject_GC_TRACK()
+#include "internal/pycore_abstract.h" // _PyIndex_Check()
+#include "internal/pycore_interp.h" // PyInterpreterState.list
+#include "internal/pycore_object.h" // _PyObject_GC_TRACK()
 
 #include <Python.h>
 

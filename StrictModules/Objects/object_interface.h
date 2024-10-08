@@ -2,7 +2,7 @@
 #pragma once
 
 #include "cinderx/StrictModules/caller_context.h"
-#include "pycore_ast.h"
+#include "internal/pycore_ast.h"
 
 namespace strictmod::objects {
 class BaseStrictObject;

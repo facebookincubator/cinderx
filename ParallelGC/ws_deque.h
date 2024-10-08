@@ -2,8 +2,7 @@
 
 #pragma once
 
-#include "pyconfig.h"
-
+#include <Python.h>
 #include <stdlib.h>
 
 #if HAVE_STD_ATOMIC

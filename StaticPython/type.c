@@ -9,11 +9,7 @@
 #include "cinderx/StaticPython/vtable.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "dictobject.h"
-#include "object.h"
-#include "pycore_object.h" // PyHeapType_CINDER_EXTRA
-#include "pycore_unionobject.h"
-#include "pystate.h"
+#include "internal/pycore_unionobject.h"
 #include "structmember.h"
 
 #include <Python.h>

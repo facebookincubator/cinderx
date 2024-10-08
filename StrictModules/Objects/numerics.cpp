@@ -7,7 +7,7 @@
 #include "cinderx/StrictModules/Objects/object_interface.h"
 #include "cinderx/StrictModules/Objects/objects.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "pycore_call.h"
+#include "internal/pycore_call.h"
 
 #include <Python.h>
 

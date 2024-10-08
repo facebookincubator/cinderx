@@ -8,7 +8,7 @@
 #endif
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-#include "pycore_pystate.h" // _PyThreadState_GET()
+#include "internal/pycore_pystate.h" // _PyThreadState_GET()
 
 typedef void* (*call_self_0)(PyObject* self);
 typedef void* (*call_self_1)(PyObject* self, void*);
