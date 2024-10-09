@@ -178,6 +178,7 @@ class HIRBuilder {
       bool load_method);
   void emitCopy(TranslationContext& tc, int item_idx);
   void emitCopyFreeVars(TranslationContext& tc, int nfreevars);
+  void emitSwap(TranslationContext& tc, int item_idx);
   void emitMakeCell(TranslationContext& tc, int local_idx);
   void emitLoadDeref(
       TranslationContext& tc,

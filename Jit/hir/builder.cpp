@@ -214,6 +214,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     STORE_FIELD,
     STORE_LOCAL,
     STORE_SUBSCR,
+    SWAP,
     TP_ALLOC,
     UNARY_INVERT,
     UNARY_NEGATIVE,
@@ -405,7 +406,8 @@ static bool should_snapshot(
     case ROT_TWO:
     case ROT_N:
     case STORE_FAST:
-    case STORE_LOCAL: {
+    case STORE_LOCAL:
+    case SWAP: {
       return false;
     }
     // In an async-for header block YIELD_FROM controls whether we end the loop
@@ -780,6 +782,10 @@ void HIRBuilder::translate(
         }
         case COPY_FREE_VARS: {
           emitCopyFreeVars(tc, bc_instr.oparg());
+          break;
+        }
+        case SWAP: {
+          emitSwap(tc, bc_instr.oparg());
           break;
         }
         case IS_OP: {
@@ -2374,6 +2380,15 @@ void HIRBuilder::emitCopyFreeVars(TranslationContext& tc, int nfreevars) {
     JIT_CHECK(dst != nullptr, "No register for free var {}", i);
     tc.emit<LoadTupleItem>(dst, func_closure, i);
   }
+}
+
+void HIRBuilder::emitSwap(TranslationContext& tc, int item_idx) {
+  JIT_CHECK(
+      item_idx >= 2, "The index ({}) must be greater or equal to 2.", item_idx);
+  Register* item = tc.frame.stack.peek(item_idx);
+  Register* top = tc.frame.stack.top();
+  tc.frame.stack.topPut(0, item);
+  tc.frame.stack.topPut(item_idx - 1, top);
 }
 
 void HIRBuilder::emitLoadDeref(

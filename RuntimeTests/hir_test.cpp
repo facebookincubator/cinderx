@@ -762,6 +762,34 @@ TEST_F(HIRBuildTest, SetUpdate) {
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
 
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadArg<1; "param1">
+    v2 = LoadArg<2; "param2">
+    v3 = LoadCurrentFunc
+    Snapshot {
+      NextInstrOffset 0
+      Locals<3> v0 v1 v2
+    }
+    v4 = SetUpdate v1 v2 {
+      FrameState {
+        NextInstrOffset 8
+        Locals<3> v0 v1 v2
+        Stack<2> v0 v1
+      }
+    }
+    Snapshot {
+      NextInstrOffset 8
+      Locals<3> v0 v1 v2
+      Stack<2> v0 v1
+    }
+    Return v1
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
@@ -807,6 +835,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
   }
 }
 )";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
