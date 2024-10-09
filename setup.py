@@ -3,273 +3,34 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+#
+# pyre-unsafe
 
 import os
+import os.path
+import subprocess
+
 from concurrent.futures import ThreadPoolExecutor
+from typing import Callable
 
-from distutils.command.build_ext import build_ext
-
-from typing import List
-
-import setuptools
+from setuptools import Extension, find_packages, setup
+from setuptools.command.build_ext import build_ext
 
 
-MODULE_DIR = os.path.dirname(os.path.realpath(__file__))
-
-THIRD_PARTY_DIR = os.path.realpath(f"{MODULE_DIR}/ThirdParty")
-PYTHON_DIR = os.path.realpath(f"{MODULE_DIR}/..")
-CINDERX_DIR = os.path.realpath(f"{PYTHON_DIR}/cinderx/")
-
-# Paths to be added to the compile command as roots for header paths
-INCLUDE_DIRS = [
-    CINDERX_DIR,
-    f"{PYTHON_DIR}/Include/internal",
-    f"{THIRD_PARTY_DIR}/asmjit/src",
-    f"{THIRD_PARTY_DIR}/fmt-8.1.1/include",
-    f"{THIRD_PARTY_DIR}/json",
-    f"{THIRD_PARTY_DIR}/parallel-hashmap",
-    THIRD_PARTY_DIR,
-]
-
-# Changes to any .h files in these paths will cause a complete rebuild
-INCLUDE_DEPS_DIRS = [
-    f"{PYTHON_DIR}/Include",
-    f"{CINDERX_DIR}",
-]
-
-CINDERX_SRCS = [
-    "_cinderx.cpp",
-    "_cinderx-lib.cpp",
-    "Common/log.cpp",
-    "Common/util.cpp",
-    "Common/watchers.cpp",
-    "Interpreter/interpreter.c",
-    "ParallelGC/parallel_gc.c",
-]
-
-JIT_SRCS = [
-    "Jit/bitvector.cpp",
-    "Jit/bytecode.cpp",
-    "Jit/code_allocator.cpp",
-    "Jit/compiler.cpp",
-    "Jit/config.cpp",
-    "Jit/debug_info.cpp",
-    "Jit/deopt.cpp",
-    "Jit/deopt_patcher.cpp",
-    "Jit/disassembler.cpp",
-    "Jit/elf.cpp",
-    "Jit/frame.cpp",
-    "Jit/global_cache.cpp",
-    "Jit/hir/hir.cpp",
-    "Jit/hir/alias_class.cpp",
-    "Jit/hir/analysis.cpp",
-    "Jit/hir/builder.cpp",
-    "Jit/hir/instr_effects.cpp",
-    "Jit/hir/optimization.cpp",
-    "Jit/hir/parser.cpp",
-    "Jit/hir/preload.cpp",
-    "Jit/hir/printer.cpp",
-    "Jit/hir/refcount_insertion.cpp",
-    "Jit/hir/register.cpp",
-    "Jit/hir/simplify.cpp",
-    "Jit/hir/ssa.cpp",
-    "Jit/hir/type.cpp",
-    "Jit/inline_cache.cpp",
-    "Jit/jit_context.cpp",
-    "Jit/jit_flag_processor.cpp",
-    "Jit/jit_gdb_support.cpp",
-    "Jit/jit_list.cpp",
-    "Jit/jit_rt.cpp",
-    "Jit/jit_time_log.cpp",
-    "Jit/live_type_map.cpp",
-    "Jit/perf_jitdump.cpp",
-    "Jit/profile_runtime.cpp",
-    "Jit/pyjit.cpp",
-    "Jit/runtime.cpp",
-    "Jit/runtime_support.cpp",
-    "Jit/symbolizer.cpp",
-    "Jit/threaded_compile.cpp",
-    "Jit/type_deopt_patchers.cpp",
-    "Jit/type_profiler.cpp",
-    "Jit/codegen/annotations.cpp",
-    "Jit/codegen/autogen.cpp",
-    "Jit/codegen/code_section.cpp",
-    "Jit/codegen/copy_graph.cpp",
-    "Jit/codegen/gen_asm.cpp",
-    "Jit/codegen/gen_asm_utils.cpp",
-    "Jit/codegen/x86_64.cpp",
-    "Jit/lir/block_builder.cpp",
-    "Jit/lir/dce.cpp",
-    "Jit/lir/block.cpp",
-    "Jit/lir/blocksorter.cpp",
-    "Jit/lir/c_helper_translations.cpp",
-    "Jit/lir/c_helper_translations_auto.cpp",
-    "Jit/lir/function.cpp",
-    "Jit/lir/generator.cpp",
-    "Jit/lir/inliner.cpp",
-    "Jit/lir/instruction.cpp",
-    "Jit/lir/operand.cpp",
-    "Jit/lir/parser.cpp",
-    "Jit/lir/postalloc.cpp",
-    "Jit/lir/postgen.cpp",
-    "Jit/lir/printer.cpp",
-    "Jit/lir/regalloc.cpp",
-    "Jit/lir/rewrite.cpp",
-    "Jit/lir/verify.cpp",
-    "Jit/lir/symbol_mapping.cpp",
-]
-
-I386_DASM_SRCS = [
-    "ThirdParty/i386-dis/i386-dis.c",
-    "ThirdParty/i386-dis/dis-buf.c",
-]
-
-ASMJIT_SRCS = [
-    "ThirdParty/asmjit/src/asmjit/arm/a64assembler.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/a64builder.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/a64compiler.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/a64emithelper.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/a64formatter.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/a64func.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/a64instapi.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/a64instdb.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/a64operand.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/a64rapass.cpp",
-    "ThirdParty/asmjit/src/asmjit/arm/armformatter.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/archtraits.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/assembler.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/builder.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/codeholder.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/codewriter.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/compiler.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/constpool.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/cpuinfo.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/emithelper.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/emitter.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/emitterutils.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/environment.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/errorhandler.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/formatter.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/funcargscontext.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/func.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/globals.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/inst.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/jitallocator.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/jitruntime.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/logger.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/operand.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/osutils.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/ralocal.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/rapass.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/rastack.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/string.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/support.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/target.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/type.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/virtmem.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/zone.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/zonehash.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/zonelist.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/zonestack.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/zonetree.cpp",
-    "ThirdParty/asmjit/src/asmjit/core/zonevector.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86assembler.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86builder.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86compiler.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86emithelper.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86formatter.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86func.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86instapi.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86instdb.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86operand.cpp",
-    "ThirdParty/asmjit/src/asmjit/x86/x86rapass.cpp",
-]
-
-STRICTM_SRCS = [
-    "StrictModules/Compiler/analyzed_module.cpp",
-    "StrictModules/Compiler/abstract_module_loader.cpp",
-    "StrictModules/Compiler/module_info.cpp",
-    "StrictModules/Compiler/stub.cpp",
-    "StrictModules/Objects/base_object.cpp",
-    "StrictModules/Objects/callable.cpp",
-    "StrictModules/Objects/instance.cpp",
-    "StrictModules/Objects/module.cpp",
-    "StrictModules/Objects/numerics.cpp",
-    "StrictModules/Objects/type.cpp",
-    "StrictModules/Objects/constants.cpp",
-    "StrictModules/Objects/exception_object.cpp",
-    "StrictModules/Objects/module_type.cpp",
-    "StrictModules/Objects/object_type.cpp",
-    "StrictModules/Objects/string_object.cpp",
-    "StrictModules/Objects/type_type.cpp",
-    "StrictModules/Objects/union.cpp",
-    "StrictModules/Objects/unknown.cpp",
-    "StrictModules/Objects/iterable_objects.cpp",
-    "StrictModules/Objects/iterator_objects.cpp",
-    "StrictModules/Objects/dict_object.cpp",
-    "StrictModules/Objects/function.cpp",
-    "StrictModules/Objects/codeobject.cpp",
-    "StrictModules/Objects/signature.cpp",
-    "StrictModules/Objects/super.cpp",
-    "StrictModules/Objects/property.cpp",
-    "StrictModules/Objects/builtins.cpp",
-    "StrictModules/Objects/lazy_object.cpp",
-    "StrictModules/Objects/genericalias_object.cpp",
-    "StrictModules/Objects/strict_modules_builtins.cpp",
-    "StrictModules/Objects/objects.cpp",
-    "StrictModules/Objects/object_interface.cpp",
-    "StrictModules/symbol_table.cpp",
-    "StrictModules/analyzer.cpp",
-    "StrictModules/ast_visitor.cpp",
-    "StrictModules/parser_util.cpp",
-    "StrictModules/strict_module_checker_interface.cpp",
-    "StrictModules/scope.cpp",
-    "StrictModules/pystrictmodule.cpp",
-    "StrictModules/exceptions.cpp",
-    "StrictModules/error_sink.cpp",
-]
-
-SHADOWCODE_SRCS = [
-    "Shadowcode/shadowcode.c",
-]
-
-STATICPYTHON_SRCS = [
-    "StaticPython/awaitable.c",
-    "StaticPython/checked_dict.c",
-    "StaticPython/checked_list.c",
-    "StaticPython/classloader.c",
-    "StaticPython/descrobject_vectorcall.c",
-    "StaticPython/generic_type.c",
-    "StaticPython/methodobject_vectorcall.c",
-    "StaticPython/static_array.c",
-    "StaticPython/strictmoduleobject.c",
-    "StaticPython/vtable.c",
-]
-
-CACHEDPROPS_SRCS = [
-    "CachedProperties/cached_properties.c",
-]
-
-ALL_SRCS = (
-    CINDERX_SRCS
-    + JIT_SRCS
-    + I386_DASM_SRCS
-    + ASMJIT_SRCS
-    + SHADOWCODE_SRCS
-    + STRICTM_SRCS
-    + STATICPYTHON_SRCS
-    + CACHEDPROPS_SRCS
-)
+def get_compile_workers() -> int:
+    return os.cpu_count() or 1
 
 
-# Monkey-patch the ability to compile C++ files (but not C files) with
-# -std=c++20 and perform compilation in parallel.
 class CinderBuildExt(build_ext):
+    """Monkey-patch the ability to compile C++ files (but not C files) with
+    -std=c++20 and perform compilation in parallel."""
+
     def build_extension(self, ext):
         old_compile_func = self.compiler.compile
         old__compile_func = self.compiler._compile
+        max_workers = get_compile_workers()
 
-        with ThreadPoolExecutor(max_workers=os.cpu_count()) as executor:
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
             compilation_futures = []
 
             def new_compile(
@@ -317,79 +78,235 @@ class CinderBuildExt(build_ext):
             return super().build_extension(ext)
 
 
-with open("README.md", encoding="utf-8") as fh:
-    long_description = fh.read()
-
-
-def find_header_files(directories: List[str]) -> List[str]:
-    header_files = []
+def find_files(directories: list[str], pred: Callable[[str], bool]) -> list[str]:
+    sources = []
     for directory in directories:
-        for root, _dirs, files in os.walk(directory):
-            for file in files:
-                if file.endswith(".h"):
-                    header_files.append(os.path.join(root, file))
-    return header_files
+        for root, dirs, files in os.walk(directory):
+            # Ignore the build directory when scanning for CinderX files.  The projects
+            # in the build directory are built separately and get linked in or included
+            # as header files.
+            for i in range(len(dirs)):
+                if dirs[i] == "_build":
+                    dirs.pop(i)
+                    break
+
+            for f in files:
+                if pred(f):
+                    sources.append(os.path.join(root, f))
+    return sources
 
 
-dep_header_files = find_header_files(INCLUDE_DEPS_DIRS)
+def find_source_files(directories: list[str]) -> list[str]:
+    return find_files(
+        directories,
+        lambda f: f.endswith(".cpp") or f.endswith(".c"),
+    )
 
-setuptools.setup(
-    name="cinderx",
-    version="0.0.3",
-    author="Meta Platforms, Inc.",
-    author_email="cinder@meta.com",
-    description="High-performance Python runtime extensions",
-    long_description=long_description,
-    long_description_content_type="text/markdown",
-    url="https://github.com/facebookincubator/cinder",
-    cmdclass={"build_ext": CinderBuildExt},
-    ext_modules=[
-        setuptools.Extension(
-            "_cinderx",
-            sources=ALL_SRCS,
-            include_dirs=INCLUDE_DIRS,
-            define_macros=[("FMT_HEADER_ONLY", 1), ("Py_BUILD_CORE", None)],
-            extra_compile_args=["-Wno-ambiguous-reversed-operator"],
-            depends=dep_header_files,
-        )
-    ],
-    packages=setuptools.find_packages(),
-    python_requires="==3.10.*",
-)
 
-# Separate from the above so we can skip using CinderBuildExt. This behaves
-# weirdly for these extensions and it's not worth tracking down as this is
-# all very temporary.
-setuptools.setup(
-    name="cinderx_modules",
-    version="0.0.1",
-    author="Meta Platforms, Inc.",
-    author_email="cinder@meta.com",
-    description="High-performance Python runtime extension extensions",
-    url="https://github.com/facebookincubator/cinder",
-    ext_modules=[
-        setuptools.Extension(
-            "_static",
-            sources=["StaticPython/_static.c"],
-            include_dirs=INCLUDE_DIRS,
-            define_macros=[("Py_BUILD_CORE_MODULE", None)],
-            depends=dep_header_files,
-        ),
-        setuptools.Extension(
-            "_strictmodule",
-            sources=["StrictModules/_strictmodule.c"],
-            include_dirs=INCLUDE_DIRS,
-            define_macros=[("Py_BUILD_CORE_MODULE", None)],
-            depends=dep_header_files,
-        ),
-        setuptools.Extension(
-            "xxclassloader",
-            sources=["StaticPython/xxclassloader.c"],
-            include_dirs=INCLUDE_DIRS,
-            define_macros=[("Py_BUILD_CORE_MODULE", None)],
-            depends=dep_header_files,
-        ),
-    ],
-    packages=setuptools.find_packages(),
-    python_requires="==3.10.*",
-)
+def find_header_files(directories: list[str]) -> list[str]:
+    return find_files(directories, lambda f: f.endswith(".h"))
+
+
+def make_dir(working_dir: str, new_dir_name: str) -> str:
+    new_dir = os.path.join(working_dir, new_dir_name)
+    os.makedirs(new_dir, exist_ok=True)
+    return new_dir
+
+
+def run(*args, check: bool = True, **kwargs) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(*args, check=check, encoding="utf-8", **kwargs)
+
+
+def cmake(cwd: str, *args: str) -> None:
+    command = ["cmake", "-S", cwd, "-B", cwd]
+    command.extend(args)
+    run(command)
+
+
+def make(cwd: str) -> None:
+    run(["make", "-j", str(get_compile_workers())], cwd=cwd)
+
+
+def clone(project: str, version: str, cwd: str) -> str:
+    # Ideally would use a shallow clone here but no guarantee as to how deep
+    # `version` is into the history.
+    #
+    # Allow the clone to fail if the
+    result = run(
+        ["git", "clone", project],
+        check=False,
+        stderr=subprocess.PIPE,
+        cwd=cwd,
+    )
+    exists = "already exists" in result.stderr
+    if result.returncode != 0 and not exists:
+        raise RuntimeError(f"Failed to clone {project}\n\nStderr:\n{result.stderr}")
+
+    project_name = project.split("/")[-1]
+    project_dir = os.path.join(cwd, project_name)
+
+    if not exists:
+        run(["git", "switch", "--detach", version], cwd=project_dir)
+
+    return project_dir
+
+
+def initialize_asmjit(working_dir: str) -> tuple[str, str]:
+    project_dir = clone(
+        "https://github.com/asmjit/asmjit",
+        "2e93826348d6cd1325a8b1f7629e193c58332da9",
+        working_dir,
+    )
+
+    cmake(project_dir, "-DASMJIT_STATIC=TRUE")
+    make(project_dir)
+
+    return (os.path.join(project_dir, "src"), project_dir)
+
+
+def initialize_gtest(working_dir: str) -> tuple[str, str]:
+    project_dir = clone(
+        "https://github.com/google/googletest",
+        "v1.15.2",
+        working_dir,
+    )
+
+    # gtest tries to install itself by default.
+    cmake(project_dir, "-DINSTALL_GTEST=OFF")
+    make(project_dir)
+
+    return (
+        os.path.join(project_dir, "googletest", "include"),
+        os.path.join(project_dir, "lib"),
+    )
+
+
+def initialize_fmt(working_dir: str) -> tuple[str, str]:
+    project_dir = clone(
+        "https://github.com/fmtlib/fmt",
+        "11.0.2",
+        working_dir,
+    )
+
+    # FMT_MASTER_PROJECT controls whether tests and other utilities are built.
+    cmake(project_dir, "-DFMT_MASTER_PROJECT=OFF")
+    make(project_dir)
+
+    return (os.path.join(project_dir, "include"), project_dir)
+
+
+def initialize_nlohmann(working_dir: str) -> str:
+    project_dir = clone(
+        "https://github.com/nlohmann/json",
+        "b36f4c477c40356a0ae1204b567cca3c2a57d201",
+        working_dir,
+    )
+
+    return os.path.join(project_dir, "single_include")
+
+
+def main() -> None:
+    top_dir = os.path.dirname(os.path.realpath(__file__))
+    parent_dir = os.path.realpath(os.path.join(top_dir, ".."))
+
+    build_dir = make_dir(top_dir, "_build")
+    asmjit_include_dir, asmjit_library_dir = initialize_asmjit(build_dir)
+    gtest_include_dir, gtest_library_dir = initialize_gtest(build_dir)
+    fmt_include_dir, fmt_library_dir = initialize_fmt(build_dir)
+    json_include_dir = initialize_nlohmann(build_dir)
+
+    include_dirs = [
+        # CinderX includes are prefixed with "cinderx/".
+        parent_dir,
+        # Dependencies.
+        asmjit_include_dir,
+        gtest_include_dir,
+        fmt_include_dir,
+        json_include_dir,
+    ]
+
+    library_dirs = [
+        asmjit_library_dir,
+        gtest_library_dir,
+        fmt_library_dir,
+    ]
+
+    with open("README.md", encoding="utf-8") as fh:
+        long_description = fh.read()
+
+    cinderx_dirs = [top_dir]
+
+    header_files = find_header_files(cinderx_dirs)
+    source_files = find_source_files(cinderx_dirs)
+
+    setup(
+        name="cinderx",
+        version="0.0.3",
+        author="Meta Platforms, Inc.",
+        author_email="cinder@meta.com",
+        description="High-performance Python runtime extensions",
+        long_description=long_description,
+        long_description_content_type="text/markdown",
+        url="https://github.com/facebookincubator/cinder",
+        cmdclass={"build_ext": CinderBuildExt},
+        ext_modules=[
+            Extension(
+                "_cinderx",
+                sources=source_files,
+                include_dirs=include_dirs,
+                library_dirs=library_dirs,
+                define_macros=[
+                    # Not using parallel-hashmap simplifies things quite a bit.
+                    ("JIT_FORCE_STL_CONTAINERS", None),
+                    ("Py_BUILD_CORE", None),
+                ],
+                extra_compile_args=[
+                    "-Wno-ambiguous-reversed-operator",
+                ],
+                depends=header_files,
+            )
+        ],
+    )
+
+    # Separate from the above so we can skip using CinderBuildExt. This behaves
+    # weirdly for these extensions and it's not worth tracking down as this is
+    # all very temporary.
+    setup(
+        name="cinderx_modules",
+        version="0.0.1",
+        author="Meta Platforms, Inc.",
+        author_email="cinder@meta.com",
+        description="High-performance Python runtime extension extensions",
+        url="https://github.com/facebookincubator/cinder",
+        ext_modules=[
+            Extension(
+                "_static",
+                sources=["StaticPython/_static.c"],
+                include_dirs=include_dirs,
+                library_dirs=library_dirs,
+                define_macros=[("Py_BUILD_CORE_MODULE", None)],
+                depends=header_files,
+            ),
+            Extension(
+                "_strictmodule",
+                sources=["StrictModules/_strictmodule.c"],
+                include_dirs=include_dirs,
+                library_dirs=library_dirs,
+                define_macros=[("Py_BUILD_CORE_MODULE", None)],
+                depends=header_files,
+            ),
+            Extension(
+                "xxclassloader",
+                sources=["StaticPython/xxclassloader.c"],
+                include_dirs=include_dirs,
+                library_dirs=library_dirs,
+                define_macros=[("Py_BUILD_CORE_MODULE", None)],
+                depends=header_files,
+            ),
+        ],
+        packages=find_packages(),
+    )
+
+
+if __name__ == "__main__":
+    main()
