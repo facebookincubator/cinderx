@@ -5,107 +5,32 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 
+#include <fmt/format.h>
+
 #include <array>
 #include <iosfwd>
-#include <set>
 #include <string>
-#include <unordered_map>
+#include <string_view>
 
 namespace jit::codegen {
 
-// A physical location (register or stack slot). If this represents a stack
-// slot (is_memory() is true) then `loc` is relative to RBP.
-struct PhyLocation {
-  PhyLocation() : loc(REG_INVALID), bitSize(64) {}
-  constexpr PhyLocation(int l, int s = 64) : loc(l), bitSize(s) {}
-
-  bool is_memory() const {
-    return loc < 0;
-  }
-  bool is_register() const {
-    return loc >= 0;
-  }
-  bool is_gp_register() const {
-    return is_register() && loc < XMM_REG_BASE;
-  }
-  bool is_fp_register() const {
-    return is_register() && loc >= XMM_REG_BASE;
-  }
-
-  int loc;
-  size_t bitSize;
-
-#define FOREACH_GP64(X) \
-  X(RAX)                \
-  X(RCX)                \
-  X(RDX)                \
-  X(RBX)                \
-  X(RSP)                \
-  X(RBP)                \
-  X(RSI)                \
-  X(RDI)                \
-  X(R8)                 \
-  X(R9)                 \
-  X(R10)                \
-  X(R11)                \
-  X(R12)                \
-  X(R13)                \
-  X(R14)                \
-  X(R15)
-
-#define FOREACH_GP32(X) \
-  X(EAX)                \
-  X(ECX)                \
-  X(EDX)                \
-  X(EBX)                \
-  X(ESP)                \
-  X(EBP)                \
-  X(ESI)                \
-  X(EDI)                \
-  X(R8D)                \
-  X(R9D)                \
-  X(R10D)               \
-  X(R11D)               \
-  X(R12D)               \
-  X(R13D)               \
-  X(R14D)               \
-  X(R15D)
-
-#define FOREACH_GP16(X) \
-  X(AX)                 \
-  X(CX)                 \
-  X(DX)                 \
-  X(BX)                 \
-  X(SP)                 \
-  X(BP)                 \
-  X(SI)                 \
-  X(DI)                 \
-  X(R8W)                \
-  X(R9W)                \
-  X(R10W)               \
-  X(R11W)               \
-  X(R12W)               \
-  X(R13W)               \
-  X(R14W)               \
-  X(R15W)
-
-#define FOREACH_GP8(X) \
-  X(AL)                \
-  X(CL)                \
-  X(DL)                \
-  X(BL)                \
-  X(SPL)               \
-  X(BPL)               \
-  X(SIL)               \
-  X(DIL)               \
-  X(R8B)               \
-  X(R9B)               \
-  X(R10B)              \
-  X(R11B)              \
-  X(R12B)              \
-  X(R13B)              \
-  X(R14B)              \
-  X(R15B)
+#define FOREACH_GP(X)      \
+  X(RAX, EAX, AX, AL)      \
+  X(RCX, ECX, CX, CL)      \
+  X(RDX, EDX, DX, DL)      \
+  X(RBX, EBX, BX, BL)      \
+  X(RSP, ESP, SP, SPL)     \
+  X(RBP, EBP, BP, BPL)     \
+  X(RSI, ESI, SI, SIL)     \
+  X(RDI, EDI, DI, DIL)     \
+  X(R8, R8D, R8W, R8B)     \
+  X(R9, R9D, R9W, R9B)     \
+  X(R10, R10D, R10W, R10B) \
+  X(R11, R11D, R11W, R11B) \
+  X(R12, R12D, R12W, R12B) \
+  X(R13, R13D, R13W, R13B) \
+  X(R14, R14D, R14W, R14B) \
+  X(R15, R15D, R15W, R15B)
 
 #define FOREACH_XMM(X) \
   X(XMM0)              \
@@ -125,82 +50,118 @@ struct PhyLocation {
   X(XMM14)             \
   X(XMM15)
 
-  enum Reg : int {
-    REG_INVALID = -1,
-#define DECLARE_REG(v, ...) v,
-    FOREACH_GP64(DECLARE_REG) FOREACH_XMM(DECLARE_REG)
-#undef DECLARE_REG
-  };
+enum class RegId : uint32_t {
+#define DEFINE_REG(V, ...) V,
+  FOREACH_GP(DEFINE_REG) FOREACH_XMM(DEFINE_REG)
+#undef DEFINE_REG
+};
+
+constexpr uint32_t raw(RegId id) {
+  return static_cast<uint32_t>(id);
+}
 
 #define COUNT_REGS(...) +1
-  static constexpr int NUM_GP_REGS = FOREACH_GP64(COUNT_REGS);
-  static constexpr int XMM_REG_BASE = XMM0;
-  static constexpr int NUM_XMM_REGS = FOREACH_XMM(COUNT_REGS);
-  static constexpr int NUM_REGS = NUM_GP_REGS + NUM_XMM_REGS;
+constexpr int NUM_GP_REGS = FOREACH_GP(COUNT_REGS);
+constexpr int XMM_REG_BASE = raw(RegId::XMM0);
+constexpr int NUM_XMM_REGS = FOREACH_XMM(COUNT_REGS);
+constexpr int NUM_REGS = NUM_GP_REGS + NUM_XMM_REGS;
 #undef COUNT_REGS
 
-  static const char* regName(Reg reg) {
-    JIT_CHECK(reg >= 0, "reg must be nonnegative");
-    switch (reg) {
-#define DECLARE_REG(v, ...) \
-  case v:                   \
-    return #v;
-      FOREACH_GP64(DECLARE_REG)
-      FOREACH_XMM(DECLARE_REG)
-#undef DECLARE_REG
-      case REG_INVALID:
-        JIT_ABORT("Invalid register");
-    }
-    JIT_ABORT("Unknown register {}", reg);
+constexpr std::string_view name(RegId id) {
+  switch (id) {
+#define STRING_REG(V, ...) \
+  case RegId::V:           \
+    return #V;
+
+    FOREACH_GP(STRING_REG)
+    FOREACH_XMM(STRING_REG)
+#undef STRING_REG
+    default:
+      JIT_ABORT("Unrecognized register ID {}", raw(id));
+  }
+}
+
+constexpr std::string_view name32(RegId id) {
+  switch (id) {
+#define STRING_REG(V64, V, ...) \
+  case RegId::V64:              \
+    return #V;
+
+    FOREACH_GP(STRING_REG)
+#undef STRING_REG
+    default:
+      JIT_ABORT("Unrecognized 32-bit register ID {}", raw(id));
+  }
+}
+
+constexpr std::string_view name16(RegId id) {
+  switch (id) {
+#define STRING_REG(V64, V32, V, ...) \
+  case RegId::V64:                   \
+    return #V;
+
+    FOREACH_GP(STRING_REG)
+#undef STRING_REG
+    default:
+      JIT_ABORT("Unrecognized 16-bit register ID {}", raw(id));
+  }
+}
+
+constexpr std::string_view name8(RegId id) {
+  switch (id) {
+#define STRING_REG(V64, V32, V16, V, ...) \
+  case RegId::V64:                        \
+    return #V;
+
+    FOREACH_GP(STRING_REG)
+#undef STRING_REG
+    default:
+      JIT_ABORT("Unrecognized 8-bit register ID {}", raw(id));
+  }
+}
+
+// A physical location (register or stack slot). If this represents a stack
+// slot (is_memory() is true) then `loc` is relative to RBP.
+struct PhyLocation {
+  static constexpr int REG_INVALID = -1;
+
+#define DEFINE_REG(V, ...) static constexpr int V = raw(RegId::V);
+  FOREACH_GP(DEFINE_REG)
+  FOREACH_XMM(DEFINE_REG)
+#undef DEFINE_REG
+
+  PhyLocation() = default;
+
+  /* implicit */ constexpr PhyLocation(RegId reg, int size = 64)
+      : PhyLocation{static_cast<int>(reg), size} {}
+
+  /* implicit */ constexpr PhyLocation(int l, int s = 64)
+      : loc(l), bitSize(s) {}
+
+  bool is_memory() const {
+    return loc < 0;
   }
 
-  static const char* reg32Name(Reg reg) {
-    constexpr std::array<const char*, NUM_GP_REGS> gp32_names = {
-#define TO_STR(v) #v,
-        FOREACH_GP32(TO_STR)
-#undef TO_STR
-    };
-    JIT_CHECK(reg >= 0 && reg < gp32_names.size(), "Bad register ID: {}", reg);
-    return gp32_names[reg];
+  bool is_register() const {
+    return loc >= 0;
   }
 
-  static const char* reg16Name(Reg reg) {
-    constexpr std::array<const char*, NUM_GP_REGS> gp16_names = {
-#define TO_STR(v) #v,
-        FOREACH_GP16(TO_STR)
-#undef TO_STR
-    };
-    JIT_CHECK(reg >= 0 && reg < gp16_names.size(), "Bad register ID: {}", reg);
-    return gp16_names[reg];
+  bool is_gp_register() const {
+    return is_register() && loc < XMM_REG_BASE;
   }
 
-  static const char* reg8Name(Reg reg) {
-    constexpr std::array<const char*, NUM_GP_REGS> gp8_names = {
-#define TO_STR(v) #v,
-        FOREACH_GP8(TO_STR)
-#undef TO_STR
-    };
-    JIT_CHECK(reg >= 0 && reg < gp8_names.size(), "Bad register ID: {}", reg);
-    return gp8_names[reg];
+  bool is_fp_register() const {
+    return is_register() && loc >= XMM_REG_BASE;
   }
 
-  std::string toString() const {
-    if (is_memory()) {
-      return fmt::format("[RBP{}]", loc);
-    } else if (bitSize == 32) {
-      return reg32Name(static_cast<Reg>(loc));
-    } else if (bitSize == 16) {
-      return reg16Name(static_cast<Reg>(loc));
-    } else if (bitSize == 8) {
-      return reg8Name(static_cast<Reg>(loc));
-    } else {
-      return regName(static_cast<Reg>(loc));
-    }
-  }
+  int loc{REG_INVALID};
+  size_t bitSize{64};
+
+  std::string toString() const;
 
   int getRegSize() const {
     // TODO: Hardcoding XMM size temporarily for correctness.
-    return (loc >= XMM0 && loc <= XMM15) ? 128 : bitSize;
+    return is_fp_register() ? 128 : bitSize;
   }
 
   bool operator==(const PhyLocation& rhs) const {
@@ -222,6 +183,21 @@ struct PhyLocation {
   // Returns REG_INVALID if name is not a valid register name.
   static PhyLocation parse(const std::string& name);
 };
+
+// Define global definitions like `RAX` and `XMM0`.
+#define DEFINE_PHY_GP_REG(V64, V32, V16, V8) \
+  constexpr PhyLocation V64{RegId::V64, 64}; \
+  constexpr PhyLocation V32{RegId::V64, 32}; \
+  constexpr PhyLocation V16{RegId::V64, 16}; \
+  constexpr PhyLocation V8{RegId::V64, 8};
+
+#define DEFINE_PHY_XMM_REG(V) constexpr PhyLocation V{RegId::V, 128};
+
+FOREACH_GP(DEFINE_PHY_GP_REG)
+FOREACH_XMM(DEFINE_PHY_XMM_REG)
+
+#undef DEFINE_PHY_GP_REG
+#undef DEFINE_PHY_XMM_REG
 
 class PhyRegisterSet {
  public:
@@ -270,12 +246,15 @@ class PhyRegisterSet {
   constexpr bool Empty() const {
     return rs_ == 0;
   }
+
   int count() const {
     return popcount(rs_);
   }
+
   PhyLocation GetFirst() const {
     return __builtin_ctz(rs_);
   }
+
   constexpr void RemoveFirst() {
     rs_ &= (rs_ - 1);
   }
@@ -305,69 +284,51 @@ class PhyRegisterSet {
 std::ostream& operator<<(std::ostream& out, const PhyLocation& loc);
 
 #define ADD_REG(v, ...) | PhyLocation::v
-static constexpr PhyRegisterSet ALL_GP_REGISTERS =
-    PhyRegisterSet() FOREACH_GP64(ADD_REG);
-static constexpr PhyRegisterSet ALL_XMM_REGISTERS =
+constexpr PhyRegisterSet ALL_GP_REGISTERS =
+    PhyRegisterSet() FOREACH_GP(ADD_REG);
+constexpr PhyRegisterSet ALL_XMM_REGISTERS =
     PhyRegisterSet() FOREACH_XMM(ADD_REG);
-static constexpr PhyRegisterSet ALL_REGISTERS =
-    ALL_GP_REGISTERS | ALL_XMM_REGISTERS;
+constexpr PhyRegisterSet ALL_REGISTERS = ALL_GP_REGISTERS | ALL_XMM_REGISTERS;
 #undef ADD_REG
 
-static constexpr PhyRegisterSet STACK_REGISTERS =
-    PhyRegisterSet(PhyLocation::RSP) | PhyLocation::RBP;
+constexpr PhyRegisterSet STACK_REGISTERS = PhyRegisterSet(RSP) | RBP;
 
-static constexpr PhyRegisterSet INIT_REGISTERS =
-    ALL_REGISTERS - STACK_REGISTERS;
+constexpr PhyRegisterSet INIT_REGISTERS = ALL_REGISTERS - STACK_REGISTERS;
 
-static constexpr PhyRegisterSet CALLER_SAVE_REGS =
-    PhyRegisterSet(PhyLocation::RAX) | PhyLocation::RCX | PhyLocation::RDX |
-    PhyLocation::RSI | PhyLocation::RDI | PhyLocation::R8 | PhyLocation::R9 |
-    PhyLocation::R10 | PhyLocation::R11 | ALL_XMM_REGISTERS;
+constexpr PhyRegisterSet CALLER_SAVE_REGS = PhyRegisterSet(RAX) | RCX | RDX |
+    RSI | RDI | R8 | R9 | R10 | R11 | ALL_XMM_REGISTERS;
 
-static constexpr PhyRegisterSet CALLEE_SAVE_REGS =
-    INIT_REGISTERS - CALLER_SAVE_REGS;
+constexpr PhyRegisterSet CALLEE_SAVE_REGS = INIT_REGISTERS - CALLER_SAVE_REGS;
 
-constexpr auto ARGUMENT_REGS = std::to_array({
-    PhyLocation::RDI,
-    PhyLocation::RSI,
-    PhyLocation::RDX,
-    PhyLocation::RCX,
-    PhyLocation::R8,
-    PhyLocation::R9,
-});
+constexpr auto ARGUMENT_REGS = std::to_array({RDI, RSI, RDX, RCX, R8, R9});
 
-constexpr auto RETURN_REGS = std::to_array({
-    PhyLocation::RAX,
-    PhyLocation::RDX,
-});
+constexpr auto RETURN_REGS = std::to_array({RAX, RDX});
 
-constexpr auto FP_ARGUMENT_REGS = std::to_array({
-    PhyLocation::XMM0,
-    PhyLocation::XMM1,
-    PhyLocation::XMM2,
-    PhyLocation::XMM3,
-    PhyLocation::XMM4,
-    PhyLocation::XMM5,
-    PhyLocation::XMM6,
-    PhyLocation::XMM7,
-});
+constexpr auto FP_ARGUMENT_REGS =
+    std::to_array({XMM0, XMM1, XMM2, XMM3, XMM4, XMM5, XMM6, XMM7});
 
 // This is where the function prologue will initially store this data at entry
 // to the function body. The register allocator may move things around from
 // there.
-constexpr PhyLocation INITIAL_EXTRA_ARGS_REG = PhyLocation::R10;
-constexpr PhyLocation INITIAL_TSTATE_REG = PhyLocation::R11;
-constexpr PhyLocation INITIAL_INTERPRETER_FRAME_REG = PhyLocation::R12;
+constexpr PhyLocation INITIAL_EXTRA_ARGS_REG = R10;
+constexpr PhyLocation INITIAL_TSTATE_REG = R11;
+constexpr PhyLocation INITIAL_INTERPRETER_FRAME_REG = R12;
 // This is often provided by the first argument in the vector call protocol.
 constexpr PhyLocation INITIAL_FUNC_REG = ARGUMENT_REGS[0];
 
 } // namespace jit::codegen
 
+inline auto format_as(jit::codegen::RegId reg) {
+  return fmt::underlying(reg);
+}
+
 namespace std {
+
 template <>
 struct hash<jit::codegen::PhyLocation> {
   std::size_t operator()(jit::codegen::PhyLocation const& s) const noexcept {
     return s.loc;
   }
 };
+
 } // namespace std

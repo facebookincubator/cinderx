@@ -267,8 +267,8 @@ void reifyGeneratorFrame(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const void* base) {
-  uint64_t regs[codegen::PhyLocation::NUM_GP_REGS]{};
-  regs[codegen::PhyLocation::RBP] = reinterpret_cast<uint64_t>(base);
+  uint64_t regs[codegen::NUM_GP_REGS]{};
+  regs[codegen::RBP.loc] = reinterpret_cast<uint64_t>(base);
   reifyFrameImpl(frame, meta, true, frame_meta, regs);
 }
 
@@ -289,8 +289,8 @@ void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem) {
 }
 
 void releaseRefs(const DeoptMetadata& meta, const void* base) {
-  uint64_t regs[codegen::PhyLocation::NUM_GP_REGS]{};
-  regs[codegen::PhyLocation::RBP] = reinterpret_cast<uint64_t>(base);
+  uint64_t regs[codegen::NUM_GP_REGS]{};
+  regs[codegen::RBP.loc] = reinterpret_cast<uint64_t>(base);
   releaseRefs(meta, MemoryView{regs});
 }
 

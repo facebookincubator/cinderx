@@ -252,7 +252,7 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
 BasicBlock* LIRGenerator::GenerateExitBlock() {
   auto block = lir_func_->allocateBasicBlock();
   auto instr = block->allocateInstr(Instruction::kMove, nullptr);
-  instr->addOperands(OutPhyReg{PhyLocation::RDI}, VReg{env_->asm_tstate});
+  instr->addOperands(OutPhyReg{codegen::RDI}, VReg{env_->asm_tstate});
   return block;
 }
 
@@ -1960,13 +1960,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Type ret_type = instr->ret_type();
         if (ret_type <= TCDouble) {
           appendGuard(
-              bbb,
-              kind,
-              *instr,
-              PhyReg{PhyLocation::XMM1, OperandBase::kDouble});
+              bbb, kind, *instr, PhyReg{codegen::XMM1, OperandBase::kDouble});
         } else if (ret_type <= TPrimitive) {
           appendGuard(
-              bbb, kind, *instr, PhyReg{PhyLocation::RDX, OperandBase::k32bit});
+              bbb, kind, *instr, PhyReg{codegen::EDX, OperandBase::k32bit});
         } else {
           appendGuard(bbb, kind, *instr, instr->output());
         }
@@ -2048,13 +2045,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               bbb,
               kind,
               hir_instr,
-              PhyReg{PhyLocation::XMM1, OperandBase::kDouble});
+              PhyReg{codegen::XMM1, OperandBase::kDouble});
         } else if (ret_type <= TPrimitive) {
           appendGuard(
-              bbb,
-              kind,
-              hir_instr,
-              PhyReg{PhyLocation::RDX, OperandBase::k32bit});
+              bbb, kind, hir_instr, PhyReg{codegen::EDX, OperandBase::k32bit});
         } else {
           appendGuard(bbb, kind, hir_instr, hir_instr.output());
         }

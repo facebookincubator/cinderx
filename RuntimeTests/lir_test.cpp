@@ -299,11 +299,11 @@ BB %20 - preds: %12 %16
 }
 
 TEST_F(LIRGeneratorTest, ParserDataTypeTest) {
-  auto lir_str = fmt::format(R"(Function:
+  std::string lir_str = R"(Function:
 BB %0 - succs: %7 %10
-         %1:8bit = Bind RDI:8bit
-        %2:32bit = Bind RSI:32bit
-        %3:16bit = Bind R9:16bit
+         %1:8bit = Bind DIL:8bit
+        %2:32bit = Bind ESI:32bit
+        %3:16bit = Bind R9W:16bit
         %4:64bit = Bind R10:64bit
        %5:Object = Move 0(0x0):Object
                    CondBranch %5:Object, BB%7, BB%10
@@ -314,7 +314,7 @@ BB %7 - preds: %0 - succs: %10
 
 BB %10 - preds: %0 %7
 
-)");
+)";
 
   Parser parser;
   auto parsed_func = parser.parse(lir_str);
@@ -384,11 +384,11 @@ bool MemoryIndirectTestCase(std::string_view expected, Args&&... args) {
 }
 
 TEST_F(LIRGeneratorTest, ParserSectionTest) {
-  auto lir_str = fmt::format(R"(Function:
+  std::string lir_str = R"(Function:
 BB %0 - section: hot
-         %1:8bit = Bind RDI:8bit
-        %2:32bit = Bind RSI:32bit
-        %3:16bit = Bind R9:16bit
+         %1:8bit = Bind DIL:8bit
+        %2:32bit = Bind ESI:32bit
+        %3:16bit = Bind R9W:16bit
         %4:64bit = Bind R10:64bit
        %5:Object = Move 0(0x0):Object
                    CondBranch %5:Object, BB%7, BB%10
@@ -399,7 +399,7 @@ BB %7 - preds: %0 - succs: %10 - section: .coldtext
 
 BB %10 - preds: %0 %7 - section: hot
 
-)");
+)";
 
   Parser parser;
   auto parsed_func = parser.parse(lir_str);

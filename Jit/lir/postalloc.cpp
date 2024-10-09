@@ -36,7 +36,7 @@ void insertMoveToMemoryLocation(
     PhyLocation base,
     int index,
     const OperandBase* operand,
-    PhyLocation temp = PhyLocation::RAX) {
+    PhyLocation temp = RAX) {
   if (operand->isImm()) {
     auto constant = operand->getConstant();
     if (!fitsInt32(constant) || operand->isFp()) {
@@ -84,7 +84,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
           block->allocateInstrBefore(
               instr_iter,
               Instruction::kMove,
-              OutPhyReg(PhyLocation::RAX),
+              OutPhyReg(RAX),
               Imm(operand->getConstant()));
         }
         auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
@@ -92,7 +92,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
         move->output()->setDataType(OperandBase::kDouble);
 
         if (operand_imm) {
-          move->allocatePhyRegisterInput(PhyLocation::RAX);
+          move->allocatePhyRegisterInput(RAX);
         } else {
           move->appendInputOperand(instr->releaseInputOperand(i));
         }
@@ -158,7 +158,7 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   move->output()->setPhyRegister(PhyLocation::RDI);
   move->appendInputOperand(instr->releaseInputOperand(2)); // self
 
-  constexpr PhyLocation TMP_REG = PhyLocation::RAX;
+  constexpr PhyLocation TMP_REG = RAX;
   for (size_t i = kFirstArg; i < kFirstArg + num_args; i++) {
     auto arg = instr->getInput(i);
     int arg_offset = (i - kFirstArg) * PTR_SIZE;
@@ -219,7 +219,7 @@ int rewriteBatchDecrefFunction(instr_iter_t instr_iter) {
       OutPhyReg(kArgBaseReg),
       Ind(PhyLocation::RSP, sizeof(void*) * kCallMethodSpSlot));
 
-  constexpr PhyLocation TMP_REG = PhyLocation::RAX;
+  constexpr PhyLocation TMP_REG = RAX;
   for (size_t i = kArgStart; i < instr->getNumInputs(); i++) {
     auto arg = instr->getInput(i);
     auto arg_offset = (i - kArgStart) * sizeof(PyObject*);
@@ -282,9 +282,9 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
     auto imm = instr->getInput(0)->getConstant();
 
     block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutPhyReg(PhyLocation::RAX), Imm(imm));
+        instr_iter, Instruction::kMove, OutPhyReg(RAX), Imm(imm));
     instr->setNumInputs(0);
-    instr->addOperands(PhyReg(PhyLocation::RAX));
+    instr->addOperands(PhyReg(RAX));
   }
 
   auto next_iter = std::next(instr_iter);
@@ -295,8 +295,7 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
     return kChanged;
   }
 
-  const PhyLocation kReturnRegister =
-      output->isFp() ? PhyLocation::XMM0 : PhyLocation::RAX;
+  const PhyLocation kReturnRegister = output->isFp() ? XMM0 : RAX;
 
   if (!output->isReg() || output->getPhyRegister() != kReturnRegister) {
     if (output->isReg()) {
@@ -479,7 +478,7 @@ RewriteResult rewriteLoadInstrs(instr_iter_t instr_iter) {
 
   auto out = instr->output();
   JIT_DCHECK(out->isReg(), "Unable to load to a non-register location.");
-  if (out->getPhyRegister() == PhyLocation::RAX) {
+  if (out->getPhyRegister() == RAX) {
     return kUnchanged;
   }
 
@@ -680,23 +679,23 @@ RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
   }
 
   BasicBlock* block = instr->basicblock();
-  if (in_reg != PhyLocation::RAX) {
+  if (in_reg != RAX) {
     block->allocateInstrBefore(
         instr_iter,
         Instruction::kMove,
-        OutPhyReg(PhyLocation::RAX, OperandBase::k8bit),
+        OutPhyReg(AL, OperandBase::k8bit),
         PhyReg(in_reg, OperandBase::k8bit));
-    input0->setPhyRegister(PhyLocation::RAX);
+    input0->setPhyRegister(RAX);
   }
   // asmjit only recognizes 8-bit imul if RAX is passed as 16-bit.
   input0->setDataType(OperandBase::k16bit);
   output->setNone(); // no output means first input is also output
-  if (out_reg != PhyLocation::RAX) {
+  if (out_reg != RAX) {
     block->allocateInstrBefore(
         std::next(instr_iter),
         Instruction::kMove,
         OutPhyReg(out_reg, OperandBase::k8bit),
-        PhyReg(PhyLocation::RAX, OperandBase::k8bit));
+        PhyReg(AL, OperandBase::k8bit));
   }
   return kChanged;
 }
@@ -749,7 +748,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
     dividend_lower = static_cast<Operand*>(instr->getInput(0));
   }
 
-  PhyLocation out_reg = PhyLocation::RAX;
+  PhyLocation out_reg = RAX;
   if (output->type() != OperandBase::kNone) {
     out_reg = output->getPhyRegister();
   } else {
@@ -774,7 +773,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
         dividend_lower->isImm() ? Instruction::kMove
             : instr->isDiv()    ? Instruction::kMovSX
                                 : Instruction::kMovZX,
-        OutPhyReg(PhyLocation::RAX, OperandBase::k16bit));
+        OutPhyReg(AX, OperandBase::k16bit));
 
     if (dividend_lower->isImm()) {
       dividend_lower->setDataType(OperandBase::k16bit);
@@ -786,14 +785,13 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
 
     instr->removeInputOperand(0); // Imm/rdx, no longer used
 
-    instr->addOperands(PhyReg(PhyLocation::RAX, OperandBase::k16bit));
+    instr->addOperands(PhyReg(AX, OperandBase::k16bit));
     instr->appendInputOperand(std::move(divisor_removed));
     changed = true;
   } else {
     // dividend lower needs to be in rax, we reserved the register
     // in reg_alloc.
-    changed |= insertMoveToRegister(
-        block, instr_iter, dividend_lower, PhyLocation::RAX);
+    changed |= insertMoveToRegister(block, instr_iter, dividend_lower, RAX);
 
     if (dividend_upper != nullptr &&
         (!dividend_upper->isReg() ||
@@ -819,17 +817,11 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
             Py_UNREACHABLE();
         }
         block->allocateInstrBefore(
-            instr_iter,
-            extend,
-            OutPhyReg(PhyLocation::RDX),
-            PhyReg(PhyLocation::RAX));
+            instr_iter, extend, OutPhyReg(RDX), PhyReg(RAX));
       } else {
         // zero rdx
         block->allocateInstrBefore(
-            instr_iter,
-            Instruction::kXor,
-            PhyReg(PhyLocation::RDX),
-            PhyReg(PhyLocation::RDX));
+            instr_iter, Instruction::kXor, PhyReg(RDX), PhyReg(RDX));
       }
 
       dividend_upper->setPhyRegister(PhyLocation::RDX);
@@ -838,7 +830,7 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
     }
   }
 
-  if (out_reg != PhyLocation::RAX) {
+  if (out_reg != RAX) {
     block->allocateInstrBefore(
         std::next(instr_iter),
         Instruction::kMove,

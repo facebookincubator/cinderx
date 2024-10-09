@@ -1152,29 +1152,29 @@ void NativeGenerator::generateStaticEntryPoint(
           checks[check_index].locals_idx == (int)i) {
         if (checks[check_index++].jit_type <= TCDouble &&
             fp_index < FP_ARGUMENT_REGS.size()) {
-          switch (FP_ARGUMENT_REGS[fp_index++]) {
-            case PhyLocation::XMM0:
+          switch (FP_ARGUMENT_REGS[fp_index++].loc) {
+            case XMM0.loc:
               save_regs.emplace_back(x86::xmm0, x86::xmm0);
               break;
-            case PhyLocation::XMM1:
+            case XMM1.loc:
               save_regs.emplace_back(x86::xmm1, x86::xmm1);
               break;
-            case PhyLocation::XMM2:
+            case XMM2.loc:
               save_regs.emplace_back(x86::xmm2, x86::xmm2);
               break;
-            case PhyLocation::XMM3:
+            case XMM3.loc:
               save_regs.emplace_back(x86::xmm3, x86::xmm3);
               break;
-            case PhyLocation::XMM4:
+            case XMM4.loc:
               save_regs.emplace_back(x86::xmm4, x86::xmm4);
               break;
-            case PhyLocation::XMM5:
+            case XMM5.loc:
               save_regs.emplace_back(x86::xmm5, x86::xmm5);
               break;
-            case PhyLocation::XMM6:
+            case XMM6.loc:
               save_regs.emplace_back(x86::xmm6, x86::xmm6);
               break;
-            case PhyLocation::XMM7:
+            case XMM7.loc:
               save_regs.emplace_back(x86::xmm7, x86::xmm7);
               break;
             default:
@@ -1185,23 +1185,23 @@ void NativeGenerator::generateStaticEntryPoint(
       }
 
       if (arg_index + 1 < ARGUMENT_REGS.size()) {
-        switch (ARGUMENT_REGS[++arg_index]) {
-          case PhyLocation::RDI:
+        switch (ARGUMENT_REGS[++arg_index].loc) {
+          case RDI.loc:
             save_regs.emplace_back(x86::rdi, x86::rdi);
             break;
-          case PhyLocation::RSI:
+          case RSI.loc:
             save_regs.emplace_back(x86::rsi, x86::rsi);
             break;
-          case PhyLocation::RDX:
+          case RDX.loc:
             save_regs.emplace_back(x86::rdx, x86::rdx);
             break;
-          case PhyLocation::RCX:
+          case RCX.loc:
             save_regs.emplace_back(x86::rcx, x86::rcx);
             break;
-          case PhyLocation::R8:
+          case R8.loc:
             save_regs.emplace_back(x86::r8, x86::r8);
             break;
-          case PhyLocation::R9:
+          case R9.loc:
             save_regs.emplace_back(x86::r9, x86::r9);
             break;
           default:
@@ -1671,8 +1671,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // Load the saved rip passed to us from the JIT-compiled function, which
   // resides where we're supposed to save rbp.
   annot_cursor = a.cursor();
-  auto saved_rbp_addr =
-      x86::ptr(x86::rsp, (PhyLocation::NUM_GP_REGS + 2) * kPointerSize);
+  auto saved_rbp_addr = x86::ptr(x86::rsp, (NUM_GP_REGS + 2) * kPointerSize);
   a.mov(x86::rdi, saved_rbp_addr);
   // Save rbp and set up our frame
   a.mov(saved_rbp_addr, x86::rbp);
@@ -1706,7 +1705,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   //
   // This isn't strictly necessary but saves 128 bytes on the stack if we end
   // up resuming in the interpreter.
-  a.add(x86::rsp, (PhyLocation::NUM_GP_REGS - 1) * kPointerSize);
+  a.add(x86::rsp, (NUM_GP_REGS - 1) * kPointerSize);
   // We have to restore our scratch register manually since it's callee-saved
   // and the stage 2 trampoline used it to hold the address of this
   // trampoline. We can't rely on the JIT epilogue to restore it for us, as the

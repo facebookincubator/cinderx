@@ -478,7 +478,7 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   as->bind(resume_label);
 
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
-  emitLoadResumedYieldInputs(as, instr, PhyLocation::RSI, x86::rcx);
+  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 }
 
 void translateYieldValue(Environ* env, const Instruction* instr) {
@@ -508,7 +508,7 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
   as->bind(resume_label);
 
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
-  emitLoadResumedYieldInputs(as, instr, PhyLocation::RSI, x86::rcx);
+  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 }
 
 void translateYieldFrom(Environ* env, const Instruction* instr) {
@@ -525,9 +525,9 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
   // put initial send value in RSI, the same location future send values will
   // be on resume.
   PhyLocation send_value = instr->getInput(1)->getStackSlot();
-  const auto send_value_phys_reg =
-      skip_initial_send ? PhyLocation::RAX : PhyLocation::RSI;
-  as->mov(x86::gpq(send_value_phys_reg), x86::ptr(x86::rbp, send_value.loc));
+  const auto send_value_phys_reg = skip_initial_send ? RAX : RSI;
+  as->mov(
+      x86::gpq(send_value_phys_reg.loc), x86::ptr(x86::rbp, send_value.loc));
 
   asmjit::Label yield_label = as->newLabel();
   if (skip_initial_send) {
@@ -566,7 +566,7 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
   emitCall(*env, func, instr);
   // Yielded or final result value now in RAX. If the result was nullptr then
   // done will be set so we'll correctly jump to the following CheckExc.
-  const auto yf_result_phys_reg = PhyLocation::RAX;
+  const auto yf_result_phys_reg = RAX;
   const auto done_r = x86::rdx;
 
   // Restore tstate from callee-saved register.
@@ -686,8 +686,7 @@ struct XmmOperand {
   using asmjit_type = const asmjit::x86::Xmm&;
   static asmjit::x86::Xmm GetAsmOperand(Environ*, const Instruction* instr) {
     return asmjit::x86::xmm(
-        LIROperandMapper<N>(instr)->getPhyRegister().loc -
-        PhyLocation::XMM_REG_BASE);
+        LIROperandMapper<N>(instr)->getPhyRegister().loc - XMM_REG_BASE);
   }
 };
 

@@ -37,7 +37,7 @@ static inline Ref<> runInInterpreterViaReify(
     BorrowedRef<PyFunctionObject> func,
     DeoptMetadata& dm,
     DeoptFrameMetadata& dfm,
-    uint64_t regs[PhyLocation::NUM_GP_REGS]) {
+    uint64_t regs[NUM_GP_REGS]) {
 #if PY_VERSION_HEX < 0x030C0000
   PyThreadState* tstate = PyThreadState_Get();
   PyCodeObject* code =
@@ -74,7 +74,7 @@ def test(a, b):
   Ref<PyFunctionObject> func(compileAndGet(src, "test"));
   ASSERT_NE(func, nullptr);
 
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
 
   auto a = Ref<>::steal(PyLong_FromLong(10));
   ASSERT_NE(a, nullptr);
@@ -116,7 +116,7 @@ def test(a, b):
   Ref<PyFunctionObject> func(compileAndGet(src, "test"));
   ASSERT_NE(func, nullptr);
 
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
 
   auto a = Ref<>::steal(PyLong_FromLong(10));
   ASSERT_NE(a, nullptr);
@@ -164,7 +164,7 @@ def test(a, b):
   ASSERT_NE(func, nullptr);
 
   uint64_t mem[2];
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
   regs[PhyLocation::RBP] = reinterpret_cast<uint64_t>(mem) + sizeof(mem);
 
   auto a = Ref<>::steal(PyLong_FromLong(10));
@@ -216,7 +216,7 @@ def test(num):
   Ref<PyFunctionObject> func(compileAndGet(src, "test"));
   ASSERT_NE(func, nullptr);
 
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
   auto num = Ref<>::steal(PyLong_FromLong(3));
   ASSERT_NE(num, nullptr);
   regs[PhyLocation::RDI] = reinterpret_cast<uint64_t>(num.get());
@@ -282,7 +282,7 @@ def test(x, y):
   }
   ASSERT_NE(func, nullptr);
 
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
 
   for (int i = 0; i < 2; i++) {
     regs[PhyLocation::RDI] = i;
