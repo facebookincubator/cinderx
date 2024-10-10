@@ -603,3 +603,7 @@ def native(so_path):
 
 
 Array = staticarray  # noqa: F811
+
+
+def mixin(cls):
+    return cls
