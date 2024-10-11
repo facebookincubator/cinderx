@@ -22,7 +22,8 @@ function run_tests() {
     EVENT_LOG=$(mktemp)
     PASSING_TESTS=$(mktemp)
     buck test -c cinderx.use_3_12=true "$target" -- \
-        --exclude-test-ids "@$testids_file" --event-log-file="$EVENT_LOG" || true
+        --exclude-test-ids "@$testids_file" --event-log-file="$EVENT_LOG" \
+        --no-record-results || true
 
     jq 'select(.status == 1)
         | [.test_name, .result_id]
