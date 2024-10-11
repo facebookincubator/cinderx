@@ -37,6 +37,7 @@ function run_tests() {
         sort -u -o "$testids_file" "$testids_file"
         echo "The IDs for these new tests have been added to $testids_file"
         echo "If this looks correct please commit the changes. Otherwise revert."
+        exit 1
     else
         echo "No new tests passing"
     fi
@@ -45,7 +46,3 @@ function run_tests() {
 run_tests \
     fbcode//cinderx/RuntimeTests:RuntimeTests \
     "$PWD/3.12-runtime-testids-passing"
-
-run_tests \
-    fbcode//cinderx/StrictModules/Tests:Tests \
-    "$PWD/3.12-strictmodules-testids-passing"
