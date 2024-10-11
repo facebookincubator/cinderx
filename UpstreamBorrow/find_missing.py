@@ -73,7 +73,7 @@ def get_fbsource_root() -> str:
     return fbsource_root
 
 
-def find_py_symbols(syms: Iterable[str]) -> dict[str, list[str]]:
+def find_defs(syms: Iterable[str]) -> dict[str, list[str]]:
     # grep through the cpython source for the definition of each symbol.
     # We take advantage of the fact that the code is formatted like
     # void
@@ -102,16 +102,49 @@ def find_py_symbols(syms: Iterable[str]) -> dict[str, list[str]]:
     return out
 
 
-def find_missing() -> dict[str, list[str]]:
+def find_decls(syms: Iterable[str]) -> dict[str, list[int]]:
+    # grep through the cpython headers for the declaration of each symbol.
+
+    # NOTE: This uses ripgrep rather than grep (and hence relies on ripgrep
+    # being installed locally), since grep cannot mix PCRE character classes
+    # with a pattern file. If this is an issue, modify the pattern below to use
+    # grep character classes instead.
+
+    patfile = "/tmp/patterns-" + str(random.randint(0, 1024))
+    print(patfile)
+    with open(patfile, "w") as f:
+        for sym in syms:
+            f.write(rf"^(\w[\w\s*]*)?\b{sym}\b" + "\n")
+    # We need to grep over the cpython base dir
+    path = os.path.join(get_fbsource_root(), "third-party/python/3.12/Include")
+    ret = run(["rg", "-n", "-f", patfile, path])
+    if not ret:
+        # No missing symbols found
+        return {}
+    out = defaultdict(list)
+    for line in ret.strip().split("\n"):
+        file, lineno, decl = line.split(":", 3)
+        if not file.endswith(".h"):
+            continue
+        if decl.startswith(" ") or decl.startswith("PyAPI_"):
+            continue
+        out[file].append(int(lineno))
+    return out
+
+
+def find_missing_symbols() -> set[str]:
     undef = get_cinderx_undef()
     exported = get_cpython_exported()
-    missing = undef - exported
-    srcs = find_py_symbols(missing)
-    return srcs
+    return undef - exported
+
+
+def find_missing_defs() -> dict[str, list[str]]:
+    missing = find_missing_symbols()
+    return find_defs(missing)
 
 
 def main() -> None:
-    missing = find_missing()
+    missing = find_missing_defs()
     if len(sys.argv) == 2:
         outfile = sys.argv[1]
         with open(outfile, "w") as f:

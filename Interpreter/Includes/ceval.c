@@ -597,8 +597,12 @@ PyEval_EvalFrameEx(PyFrameObject *f, int throwflag)
     return _PyEval_EvalFrame(tstate, f->f_frame, throwflag);
 }
 
+#endif // !CINDERX_INTERPRETER
+
 #include "ceval_macros.h"
 
+
+#ifndef CINDERX_INTERPRETER
 
 int _Py_CheckRecursiveCallPy(
     PyThreadState *tstate)
@@ -621,6 +625,9 @@ int _Py_CheckRecursiveCallPy(
     return 0;
 }
 
+
+#endif // !CINDERX_INTERPRETER
+
 static inline int _Py_EnterRecursivePy(PyThreadState *tstate) {
     return (tstate->py_recursion_remaining-- <= 0) &&
         _Py_CheckRecursiveCallPy(tstate);
@@ -631,6 +638,7 @@ static inline void _Py_LeaveRecursiveCallPy(PyThreadState *tstate)  {
     tstate->py_recursion_remaining++;
 }
 
+#ifndef CINDERX_INTERPRETER
 /* Disable unused label warnings.  They are handy for debugging, even
    if computed gotos aren't used. */
 
