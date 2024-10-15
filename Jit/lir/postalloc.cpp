@@ -176,9 +176,9 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
         PhyReg(PhyLocation::RCX),
         PhyReg(PhyLocation::RCX));
   } else {
-    auto move = block->allocateInstrBefore(
+    auto move_2 = block->allocateInstrBefore(
         instr_iter, Instruction::kMove, OutPhyReg(PhyLocation::RCX));
-    move->appendInputOperand(std::move(last_input));
+    move_2->appendInputOperand(std::move(last_input));
 
     // Subtract the length of kwnames (always a tuple) from nargsf (rdx)
     size_t ob_size_offs = offsetof(PyVarObject, ob_size);
