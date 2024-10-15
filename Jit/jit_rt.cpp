@@ -423,7 +423,7 @@ static inline Py_ssize_t vectorcall_flags(size_t n) {
 #if PY_VERSION_HEX < 0x030C0000
   return n & (Ci_Py_VECTORCALL_ARGUMENT_MASK | PY_VECTORCALL_ARGUMENTS_OFFSET);
 #else
-  UPGRADE_ASSERT(MISSING_VECTORCALL_ARGUMENT_MASK)
+  UPGRADE_ASSERT(MISSING_VECTORCALL_ARGUMENT_MASK);
   return 0;
 #endif
 }
@@ -1318,7 +1318,7 @@ void JITRT_GenJitDataFree(PyGenObject* gen) {
   auto gen_data_footer =
       reinterpret_cast<jit::GenDataFooter*>(gen->gi_jit_data);
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
   jit::GenDataFooter* gen_data_footer = nullptr;
 #endif
   auto gen_data = reinterpret_cast<uint64_t*>(gen_data_footer) -
@@ -1405,7 +1405,7 @@ static inline PyObject* make_gen_object(
 
   return reinterpret_cast<PyObject*>(gen);
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
   return nullptr;
 #endif
 }
@@ -1448,7 +1448,7 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
   auto awaiter = reinterpret_cast<PyObject*>(_PyShadowFrame_GetGen(sf));
   Ci_PyAwaitable_SetAwaiter(awaitable, awaiter);
 #else
-  UPGRADE_ASSERT(INCOMPLETE_PY_AWAITER)
+  UPGRADE_ASSERT(INCOMPLETE_PY_AWAITER);
 #endif
 }
 

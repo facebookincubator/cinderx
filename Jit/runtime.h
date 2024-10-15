@@ -245,7 +245,7 @@ inline GenDataFooter* genDataFooter(PyGenObject* gen) {
 #if PY_VERSION_HEX < 0x030C0000
   return reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
   return nullptr;
 #endif
 }

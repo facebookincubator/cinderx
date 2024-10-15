@@ -1035,7 +1035,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kCondBranch, is_no_err_set, done, set_err);
         bbb.switchBlock(set_err);
 #else
-        UPGRADE_ASSERT(EXCEPTION_HANDLING)
+        UPGRADE_ASSERT(EXCEPTION_HANDLING);
 #endif
 
         // Set to -1 in the error case.
@@ -1714,7 +1714,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
         appendGuard(bbb, InstrGuardKind::kZero, instr, load);
 #else
-        UPGRADE_ASSERT(EXCEPTION_HANDLING)
+        UPGRADE_ASSERT(EXCEPTION_HANDLING);
 #endif
         break;
       }
@@ -1975,7 +1975,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 #if PY_VERSION_HEX < 0x030C0000
         size_t flags = hir_instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
 #else
-        UPGRADE_ASSERT(AWAITED_FLAG)
+        UPGRADE_ASSERT(AWAITED_FLAG);
         size_t flags = 0;
 #endif
         auto func = hir_instr.isClassmethod()
@@ -2675,7 +2675,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
 #else
-        UPGRADE_ASSERT(SUPPORT_JIT_INLINING)
+        UPGRADE_ASSERT(SUPPORT_JIT_INLINING);
 #endif
         break;
       }
@@ -2728,7 +2728,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         }
         break;
 #else
-        UPGRADE_ASSERT(SUPPORT_JIT_INLINING)
+        UPGRADE_ASSERT(SUPPORT_JIT_INLINING);
 #endif
       }
       case Opcode::kIsTruthy: {
@@ -2836,7 +2836,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         int32_t offset = offsetof(Ci_PyWaitHandleObject, wh_waiter);
         bbb.appendInstr(instr.output(), Instruction::kMove, Ind{base, offset});
 #else
-        UPGRADE_ASSERT(AWAITED_FLAG)
+        UPGRADE_ASSERT(AWAITED_FLAG);
 #endif
         break;
       }

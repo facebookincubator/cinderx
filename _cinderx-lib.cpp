@@ -307,7 +307,7 @@ PyObject* collect_stack(int collectFrame) {
 #else
   // As we don't have shadow frames and qualnames are upstream we can probably
   // do this all using the normal C-API now.
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
   return nullptr;
 #endif
 }

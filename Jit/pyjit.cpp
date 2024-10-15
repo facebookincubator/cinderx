@@ -2422,7 +2422,7 @@ PyObject* _PyJIT_GenSend(
 
   return result;
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
 #endif
 }
 
@@ -2432,7 +2432,7 @@ PyFrameObject* _PyJIT_GenMaterializeFrame(PyGenObject* gen) {
   PyFrameObject* frame = jit::materializePyFrameForGen(tstate, gen);
   return frame;
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
   return nullptr;
 #endif
 }
@@ -2508,7 +2508,7 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
   }
   return tstate->frame;
 #else
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
   return nullptr;
 #endif
 }

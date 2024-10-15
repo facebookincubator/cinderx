@@ -33,8 +33,9 @@ struct CodeObjLoc {
       : code{py_frame->f_code},
         instr_offset{BCIndex{py_frame->f_lasti}.asOffset()} {}
 #else
-  CodeObjLoc(BorrowedRef<PyFrameObject> py_frame){
-      UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT)}
+  CodeObjLoc(BorrowedRef<PyFrameObject> py_frame) {
+    UPGRADE_ASSERT(CHANGED_PYFRAMEOBJECT);
+  }
 #endif
   CodeObjLoc(BorrowedRef<PyCodeObject> code, BCOffset instr_offset)
       : code{code}, instr_offset{instr_offset} {}

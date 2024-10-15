@@ -449,7 +449,7 @@ void NativeGenerator::generateFunctionEntry() {
 
 void NativeGenerator::loadTState(x86::Gp dst_reg) {
 #if PY_VERSION_HEX >= 0x030C0000
-  UPGRADE_ASSERT(TSTATE_FROM_RUNTIME)
+  UPGRADE_ASSERT(TSTATE_FROM_RUNTIME);
 #else
   uint64_t tstate =
       reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
@@ -1093,7 +1093,7 @@ void NativeGenerator::generateResumeEntry() {
 #if PY_VERSION_HEX < 0x030C0000
   auto gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
   size_t gi_jit_data_offset = 0;
 #endif
   as_->mov(jit_data_r, x86::ptr(gen_r, gi_jit_data_offset));
@@ -1214,7 +1214,7 @@ void NativeGenerator::generateStaticEntryPoint(
 #if PY_VERSION_HEX < 0x030C0000
   loadOrGenerateLinkFrame(save_regs);
 #else
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED)
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
 #endif
 
   if (total_args + 1 > ARGUMENT_REGS.size()) {

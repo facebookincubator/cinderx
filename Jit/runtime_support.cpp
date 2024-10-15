@@ -2,10 +2,7 @@
 
 #include "cinderx/Jit/runtime_support.h"
 
-#include "internal/pycore_pyerrors.h"
-
 #include "cinderx/Common/py-portability.h"
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 namespace jit {
 

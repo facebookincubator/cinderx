@@ -311,7 +311,7 @@ std::unique_ptr<ModuleInfo> getStubModuleInfo(
       StubKind::getStubKind(info->getFilename(), false),
       info->getSubmoduleSearchLocations());
 #else
-  UPGRADE_ASSERT(AST_UPDATES)
+  UPGRADE_ASSERT(AST_UPDATES);
   return {};
 #endif
 }

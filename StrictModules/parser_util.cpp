@@ -64,7 +64,7 @@ std::optional<AstAndSymbols> readFromFile(
 #if PY_VERSION_HEX < 0x030C0000
   pyFutures = _PyFuture_FromAST(mod, filename);
 #else
-  UPGRADE_ASSERT(AST_UPDATES)
+  UPGRADE_ASSERT(AST_UPDATES);
 #endif
   if (pyFutures == nullptr)
     goto error;
@@ -117,7 +117,7 @@ std::optional<AstAndSymbols> readFromSource(
 #if PY_VERSION_HEX < 0x030C0000
   pyFutures = _PyFuture_FromAST(mod, filename);
 #else
-  UPGRADE_ASSERT(AST_UPDATES)
+  UPGRADE_ASSERT(AST_UPDATES);
 #endif
   if (pyFutures == nullptr)
     goto error;

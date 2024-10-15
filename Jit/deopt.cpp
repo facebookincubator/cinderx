@@ -240,7 +240,7 @@ static void reifyFrameImpl(
   frame->prev_instr = _PyCode_CODE(frame->f_code) +
       (BCIndex{frame_meta.nextInstrOffset()} - 1).value();
   if (meta.reason == DeoptReason::kYieldFrom && for_gen_resume) {
-    UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+    UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
     // The DeoptMetadata for YieldFrom-like instructions defaults to the state
     // for raising an exception. If we're going to resume execution, we need to
     // pull the instruction pointer back by one, to repeat the YIELD_FROM

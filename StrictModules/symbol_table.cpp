@@ -95,7 +95,7 @@ int SymtableEntry::getFunctionCodeFlag() const {
 #if PY_VERSION_HEX < 0x030C0000
       flags |= CO_NOFREE;
 #else
-      UPGRADE_ASSERT(MISSING_CO_NOFREE)
+      UPGRADE_ASSERT(MISSING_CO_NOFREE);
 #endif
     }
   }
