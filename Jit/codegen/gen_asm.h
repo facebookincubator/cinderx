@@ -66,9 +66,9 @@ class NativeGenerator {
     env_.has_inlined_functions = max_inline_depth_ > 0;
   }
 
-  void SetJSONOutput(nlohmann::json* json) {
-    JIT_CHECK(json != nullptr, "expected non-null stream");
-    this->json = json;
+  void SetJSONOutput(nlohmann::json* json_2) {
+    JIT_CHECK(json_2 != nullptr, "expected non-null stream");
+    this->json = json_2;
   }
 
   ~NativeGenerator() {
