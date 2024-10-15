@@ -6433,14 +6433,7 @@ class Slot(Object[TClassInv]):
 
             return True
         elif isinstance(override, PropertyMethod):
-            ot = override.function.return_type
-            it = self.type_ref
-            if ot and it and ot.resolved(True) != (itr := it.resolved(True)):
-                raise TypedSyntaxError(
-                    f"Cannot change type of inherited attribute (inherited type '{itr.instance.name}')"
-                )
-
-            return True
+            raise TypedSyntaxError("Cannot override attribute with property method")
 
         return super().can_override(override, klass, module)
 

@@ -1,8 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
-from unittest import skip, skipIf
 
 from .common import bad_ret_type, StaticTestBase
+from cinderx.compiler.errors import TypedSyntaxError
 
 try:
     import cinderjit
@@ -447,3 +447,60 @@ class PropertyTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertInBytecode(mod.f, "LOAD_ATTR", "a")
+
+    def test_property_override_attribute_call_as_parent_class(self):
+        codestr = """
+            class C:
+                def __init__(self):
+                    self.foo = 42
+
+            class D(C):
+                @property
+                def foo(self) -> int:
+                    return 43
+
+            def bar(c: C) -> int:
+                return c.foo
+        """
+        with self.assertRaisesRegex(
+            TypedSyntaxError, "Cannot override attribute with property method"
+        ):
+            self.compile(codestr)
+
+    def test_property_override_attribute_call_as_child_class(self):
+        codestr = """
+            class C:
+                def __init__(self):
+                    self.foo = 42
+
+            class D(C):
+                @property
+                def foo(self) -> int:
+                    return 43
+
+            def bar(d: D) -> int:
+                return d.foo
+        """
+        with self.assertRaisesRegex(
+            TypedSyntaxError, "Cannot override attribute with property method"
+        ):
+            self.compile(codestr)
+
+    def test_property_override_different_types(self):
+        codestr = """
+            class C:
+                def __init__(self):
+                    self.foo = 42
+
+            class D(C):
+                @property
+                def foo(self) -> str:
+                    return "43"
+
+            def bar(d: D) -> str:
+                return d.foo
+        """
+        with self.assertRaisesRegex(
+            TypedSyntaxError, "Cannot override attribute with property method"
+        ):
+            self.compile(codestr)
