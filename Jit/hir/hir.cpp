@@ -432,10 +432,10 @@ BasicBlock* BasicBlock::splitAfter(Instr& instr) {
   JIT_CHECK(cfg != nullptr, "cannot split unlinked block");
   auto tail = cfg->AllocateBlock();
   for (auto it = std::next(instrs_.iterator_to(instr)); it != instrs_.end();) {
-    auto& instr = *it;
+    auto& instr_2 = *it;
     ++it;
-    instr.unlink();
-    tail->Append(&instr);
+    instr_2.unlink();
+    tail->Append(&instr_2);
   }
 
   for (auto edge : tail->out_edges()) {
@@ -891,9 +891,9 @@ bool usesRuntimeFunc(BorrowedRef<PyCodeObject> code) {
 #endif
 }
 
-void Function::setCode(BorrowedRef<PyCodeObject> code) {
-  this->code.reset(code);
-  uses_runtime_func = usesRuntimeFunc(code);
+void Function::setCode(BorrowedRef<PyCodeObject> code_2) {
+  this->code.reset(code_2);
+  uses_runtime_func = usesRuntimeFunc(code_2);
   frameMode = getConfig().frame_mode;
 }
 
