@@ -369,9 +369,9 @@ Type Type::fromTypeImpl(PyTypeObject* type, bool exact) {
   PyObject* mro = type->tp_mro;
   for (ssize_t i = 0; i < PyTuple_GET_SIZE(mro); ++i) {
     auto ty = reinterpret_cast<PyTypeObject*>(PyTuple_GET_ITEM(mro, i));
-    auto it = type_map.find(ty);
-    if (it != type_map.end()) {
-      auto bits = it->second.bits_;
+    auto it_2 = type_map.find(ty);
+    if (it_2 != type_map.end()) {
+      auto bits = it_2->second.bits_;
       return Type{bits & kUser, kLifetimeTop, type, exact};
     }
   }
