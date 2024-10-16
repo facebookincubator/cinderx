@@ -254,16 +254,14 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
         self.assertNotIn("min", mod.x)
         self.assertNotIn("<assigned:min>", mod.x)
 
-    def test_cant_assign(self) -> None:
+    def test_can_assign(self) -> None:
         code = """
             x = 1
             def f():
                 return x
         """
         mod = self.compile_and_run(code)
-        with self.assertRaises(AttributeError):
-            # pyre-ignore[16]: no attribute x
-            mod.x = 42
+        mod.x = 42
 
     def test_deleted(self) -> None:
         code = """

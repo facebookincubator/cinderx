@@ -371,16 +371,25 @@ int Ci_do_strictmodule_patch(PyObject* self, PyObject* name, PyObject* value) {
   Ci_StrictModuleObject* mod = (Ci_StrictModuleObject*)self;
   PyObject* global_setter = mod->global_setter;
   if (global_setter == NULL) {
-    PyObject* repr = strictmodule_repr(mod);
-    if (repr == NULL) {
+    PyObject* modname = StrictModule_GetNameObject(mod);
+    if (modname == NULL) {
       return -1;
     }
-    PyErr_Format(
-        PyExc_AttributeError,
-        "cannot modify attribute '%U' of strict module %U",
-        name,
-        repr);
-    Py_DECREF(repr);
+    if (value == NULL) {
+      PyErr_Format(
+          PyExc_AttributeError,
+          "cannot delete attribute '%U' of strict module %U",
+          name,
+          modname);
+    } else {
+      PyErr_Format(
+          PyExc_AttributeError,
+          "cannot modify attribute '%U' of strict module %U",
+          name,
+          modname);
+    }
+
+    Py_DECREF(modname);
     return -1;
   }
 
@@ -541,26 +550,7 @@ static int strictmodule_setattro(
     Ci_StrictModuleObject* m,
     PyObject* name,
     PyObject* value) {
-  PyObject* modname = StrictModule_GetNameObject(m);
-  if (modname == NULL) {
-    return -1;
-  }
-  if (value == NULL) {
-    PyErr_Format(
-        PyExc_AttributeError,
-        "cannot delete attribute '%U' of strict module %U",
-        name,
-        modname);
-  } else {
-    PyErr_Format(
-        PyExc_AttributeError,
-        "cannot modify attribute '%U' of strict module %U",
-        name,
-        modname);
-  }
-
-  Py_DECREF(modname);
-  return -1;
+  return Ci_do_strictmodule_patch((PyObject*)m, name, value);
 }
 
 static PyMemberDef strictmodule_members[] = {{NULL}};

@@ -629,6 +629,45 @@ class StrictSourceFileLoader(SourceFileLoader):
             exec(code, module.__dict__)
 
 
+class StrictSourceFileLoaderWithPatching(StrictSourceFileLoader):
+
+    def __init__(
+        self,
+        fullname: str,
+        path: str,
+        import_path: Iterable[str] | None = None,
+        stub_path: str | None = None,
+        allow_list_prefix: Iterable[str] | None = None,
+        allow_list_exact: Iterable[str] | None = None,
+        enable_patching: bool = True,
+        log_source_load: Callable[[str, str | None, bool], None] | None = None,
+        init_cached_properties: None | (
+            Callable[
+                [Mapping[str, str | tuple[str, bool]]],
+                Callable[[type[object]], type[object]],
+            ]
+        ) = None,
+        log_time_func: Callable[[], TIMING_LOGGER_TYPE] | None = None,
+        use_py_compiler: bool = False,
+        # The regexes are parsed on the C++ side, so re.Pattern is not accepted.
+        allow_list_regex: Iterable[str] | None = None,
+    ) -> None:
+        super().__init__(
+            fullname,
+            path,
+            import_path,
+            stub_path,
+            allow_list_prefix,
+            allow_list_exact,
+            enable_patching,
+            log_source_load,
+            init_cached_properties,
+            log_time_func,
+            use_py_compiler,
+            allow_list_regex,
+        )
+
+
 def add_strict_tag(path: str, enable_patching: bool) -> str:
     base, __, ext = path.rpartition(".")
     enable_patching_marker = ".patch" if enable_patching else ""
@@ -636,13 +675,19 @@ def add_strict_tag(path: str, enable_patching: bool) -> str:
     return f"{base}.strict{enable_patching_marker}.{ext}"
 
 
-def _get_supported_file_loaders() -> list[tuple[type[Loader], list[str]]]:
+def _get_supported_file_loaders(
+    enable_patching: bool = False,
+) -> list[tuple[type[Loader], list[str]]]:
     """Returns a list of file-based module loaders.
 
     Each item is a tuple (loader, suffixes).
     """
     extensions = ExtensionFileLoader, EXTENSION_SUFFIXES
-    source = StrictSourceFileLoader, SOURCE_SUFFIXES
+    source = (
+        StrictSourceFileLoaderWithPatching
+        if enable_patching
+        else StrictSourceFileLoader
+    ), SOURCE_SUFFIXES
     bytecode = SourcelessFileLoader, BYTECODE_SUFFIXES
     return [extensions, source, bytecode]
 
@@ -753,9 +798,9 @@ def init_static_python() -> None:
     install_sp_audit_hook()
 
 
-def install() -> None:
+def install(enable_patching: bool = False) -> None:
     """Installs a loader which is capable of loading and validating strict modules"""
-    supported_loaders = _get_supported_file_loaders()
+    supported_loaders = _get_supported_file_loaders(enable_patching)
 
     for index, hook in enumerate(sys.path_hooks):
         if not isinstance(hook, type):

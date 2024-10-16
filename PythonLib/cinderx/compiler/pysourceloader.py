@@ -45,7 +45,7 @@ def _install_py_loader():
     _install_source_loader_helper(PySourceFileLoader)
 
 
-def _install_strict_loader():
+def _install_strict_loader(enable_patching: bool):
     from .strict.loader import install
 
-    install()
+    install(enable_patching)
