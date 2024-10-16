@@ -633,10 +633,7 @@ int cinder_init() {
   Ci_hook_ShadowFrame_GetModuleName_JIT = Ci_ShadowFrame_GetModuleName_JIT;
   Ci_hook_ShadowFrame_WalkAndPopulate = Ci_ShadowFrame_WalkAndPopulate;
 #else
-  // TODO: Enable this when we have borrowed all the supporting code we need to
-  // get the interpreter actually running.
-  // Ci_hook_EvalFrame = Ci_EvalFrame;
-  Ci_hook_EvalFrame = nullptr;
+  Ci_hook_EvalFrame = Ci_EvalFrame;
 #endif
 
 #if PY_VERSION_HEX < 0x030C0000
