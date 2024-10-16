@@ -577,7 +577,7 @@ TEST_F(HIRBuildTest, GetLength) {
     v0 = LoadArg<0; "param0">
     v1 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<1> v0
     }
     v2 = GetLength v0 {
@@ -588,7 +588,7 @@ TEST_F(HIRBuildTest, GetLength) {
       }
     }
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 6
       Locals<1> v0
       Stack<2> v0 v2
     }
@@ -603,7 +603,7 @@ TEST_F(HIRBuildTest, GetLength) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<1> v0
     }
     v0 = CheckVar<"param0"> v0 {
@@ -620,7 +620,7 @@ TEST_F(HIRBuildTest, GetLength) {
       }
     }
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 6
       Locals<1> v0
       Stack<2> v0 v1
     }
@@ -674,7 +674,7 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
   bb 0 {
     v0 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
     }
     v1 = LoadConst<ImmortalTypeExact[AssertionError:obj]>
     Return v1
@@ -685,7 +685,7 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
     }
     v0 = LoadConst<ImmortalTypeExact[AssertionError:obj]>
     Return v0
@@ -770,7 +770,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
     v2 = LoadArg<2; "param2">
     v3 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<3> v0 v1 v2
     }
     v4 = SetUpdate v1 v2 {
@@ -781,7 +781,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 10
       Locals<3> v0 v1 v2
       Stack<2> v0 v1
     }
@@ -796,7 +796,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
     v1 = LoadArg<1; "param1">
     v2 = LoadArg<2; "param2">
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<3> v0 v1 v2
     }
     v0 = CheckVar<"param0"> v0 {
@@ -827,7 +827,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      NextInstrOffset 10
       Locals<3> v0 v1 v2
       Stack<2> v0 v1
     }
@@ -903,7 +903,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   bb 0 {
     v0 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
     }
     v1 = LoadConst<NoneType>
     Return v1
@@ -914,7 +914,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
     }
     v0 = LoadConst<NoneType>
     Return v0
@@ -988,7 +988,7 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
   bb 0 {
     v0 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
     }
     v1 = LoadConst<NoneType>
     Return v1
@@ -999,7 +999,7 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
     }
     v0 = LoadConst<NoneType>
     Return v0
@@ -1114,7 +1114,7 @@ TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
   EXPECT_EQ(orig_raise->kind(), dup_raise->kind());
   EXPECT_EQ(orig_raise->GetOperand(0), dup_raise->GetOperand(0));
   FrameState* orig_raise_fs = orig_raise->frameState();
-  EXPECT_EQ(orig_raise_fs->next_instr_offset, 10);
+  EXPECT_EQ(orig_raise_fs->cur_instr_offs, 10);
   EXPECT_NE(orig_raise_fs, dup_raise->frameState());
 
   std::unique_ptr<Instr> raise_exc_cause(Raise::create(2, raise_fs, v0, v0));
@@ -1226,7 +1226,7 @@ TEST_F(HIRBuildTest, ROT_N) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<4> v0 v1 v2 v3
     }
     v0 = CheckVar<"param0"> v0 {
@@ -1264,7 +1264,7 @@ TEST_F(HIRBuildTest, ROT_N) {
       }
     }
     Snapshot {
-      NextInstrOffset 12
+      NextInstrOffset 14
       Locals<4> v0 v1 v2 v3
       Stack<3> v0 v3 v4
     }
@@ -1276,7 +1276,7 @@ TEST_F(HIRBuildTest, ROT_N) {
       }
     }
     Snapshot {
-      NextInstrOffset 14
+      NextInstrOffset 16
       Locals<4> v0 v1 v2 v3
       Stack<2> v0 v5
     }
@@ -1287,7 +1287,7 @@ TEST_F(HIRBuildTest, ROT_N) {
       }
     }
     Snapshot {
-      NextInstrOffset 16
+      NextInstrOffset 18
       Locals<4> v0 v1 v2 v3
       Stack<1> v6
     }
@@ -1310,7 +1310,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
     v0 = LoadArg<0; "param0">
     v1 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<1> v0
     }
     v2 = LoadField<ob_type@8, Type, borrowed> v0
@@ -1332,7 +1332,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
 
   bb 3 (preds 1, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 6
       Locals<1> v0
       Stack<2> v0 v6
     }
@@ -1346,7 +1346,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<1> v0
     }
     v0 = CheckVar<"param0"> v0 {
@@ -1374,7 +1374,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
 
   bb 3 (preds 1, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 6
       Locals<1> v0
       Stack<2> v0 v5
     }
@@ -1397,7 +1397,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
     v0 = LoadArg<0; "param0">
     v1 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<1> v0
     }
     v2 = LoadField<ob_type@8, Type, borrowed> v0
@@ -1419,7 +1419,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
 
   bb 3 (preds 1, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 6
       Locals<1> v0
       Stack<2> v0 v6
     }
@@ -1433,7 +1433,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<1> v0
     }
     v0 = CheckVar<"param0"> v0 {
@@ -1461,7 +1461,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
 
   bb 3 (preds 1, 2) {
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 6
       Locals<1> v0
       Stack<2> v0 v5
     }
@@ -1484,7 +1484,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
     v0 = LoadArg<0; "param0">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v3 = MatchKeys v0 v1 {
@@ -1513,7 +1513,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
 
   bb 3 (preds 1, 2) {
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<4> v0 v1 v3 v6
     }
@@ -1529,7 +1529,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v0 = CheckVar<"param0"> v0 {
@@ -1571,7 +1571,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
 
   bb 3 (preds 1, 2) {
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<4> v0 v1 v2 v5
     }
@@ -1596,7 +1596,7 @@ TEST_F(HIRBuildTest, ListExtend) {
     v0 = LoadArg<0; "param0">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v3 = ListExtend v0 v1 {
@@ -1607,7 +1607,7 @@ TEST_F(HIRBuildTest, ListExtend) {
       }
     }
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<1> v0
     }
@@ -1620,7 +1620,7 @@ TEST_F(HIRBuildTest, ListExtend) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v0 = CheckVar<"param0"> v0 {
@@ -1644,7 +1644,7 @@ TEST_F(HIRBuildTest, ListExtend) {
       }
     }
     Snapshot {
-      NextInstrOffset 6
+      NextInstrOffset 8
       Locals<2> v0 v1
       Stack<1> v0
     }
@@ -1675,7 +1675,7 @@ TEST_F(HIRBuildTest, ListToTuple) {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<1> v0
     }
     v0 = CheckVar<"param0"> v0 {
@@ -1691,7 +1691,7 @@ TEST_F(HIRBuildTest, ListToTuple) {
       }
     }
     Snapshot {
-      NextInstrOffset 4
+      NextInstrOffset 6
       Locals<1> v0
       Stack<1> v1
     }
@@ -1714,7 +1714,7 @@ TEST_F(HIRBuildTest, LoadFastAndClear) {
     v0 = LoadArg<0; "param0">
     v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Locals<2> v0 v1
     }
     v3 = Assign v1

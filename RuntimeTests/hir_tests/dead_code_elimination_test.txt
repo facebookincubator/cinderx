@@ -67,7 +67,6 @@ fun jittestmodule:test {
         Locals<3> v11 v13 v10
       }
     }
-    Snapshot
     Branch<4>
   }
 
@@ -82,7 +81,7 @@ fun jittestmodule:test {
     Snapshot
     v23:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 12
+        NextInstrOffset 14
         Locals<3> v11 v21 v22
         Stack<1> v16
       }
@@ -143,7 +142,6 @@ fun jittestmodule:test {
         Locals<3> v20 v22 v14
       }
     }
-    Snapshot
     Branch<7>
   }
 
@@ -158,7 +156,7 @@ fun jittestmodule:test {
     Snapshot
     v32:CInt32 = RunPeriodicTasks {
       FrameState {
-        NextInstrOffset 14
+        NextInstrOffset 16
         Locals<3> v20 v30 v31
         Stack<1> v25
       }
@@ -170,7 +168,7 @@ fun jittestmodule:test {
     Snapshot
     v37:Object = InvokeIterNext v25 {
       FrameState {
-        NextInstrOffset 18
+        NextInstrOffset 16
         Locals<3> v20 v30 v31
         Stack<1> v25
       }
@@ -253,7 +251,7 @@ fun jittestmodule:test {
     Snapshot
     v23:Object = VectorCall<0> v17 {
       FrameState {
-        NextInstrOffset 20
+        NextInstrOffset 14
         Locals<1> v17
       }
     }

@@ -1348,11 +1348,11 @@ Ref<> make_deopt_stats() {
   for (auto& pair : runtime->deoptStats()) {
     const DeoptMetadata& meta = runtime->getDeoptMetadata(pair.first);
     const DeoptStat& stat = pair.second;
-    const DeoptFrameMetadata& frame_meta = meta.frame_meta[meta.inline_depth()];
+    const DeoptFrameMetadata& frame_meta = meta.innermostFrame();
     BorrowedRef<PyCodeObject> code = frame_meta.code;
 
     auto func_qualname = code->co_qualname;
-    BCOffset line_offset = meta.instrOffset();
+    BCOffset line_offset = frame_meta.cause_instr_idx;
     int lineno_raw = code->co_linetable != nullptr
         ? PyCode_Addr2Line(code, line_offset.value())
         : -1;

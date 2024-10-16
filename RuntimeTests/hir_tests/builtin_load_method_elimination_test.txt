@@ -53,7 +53,7 @@ fun jittestmodule:test {
     Snapshot
     v13:UnicodeExact = VectorCall<1, static> v14 v10 {
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 26
       }
     }
     Snapshot
@@ -115,7 +115,7 @@ fun jittestmodule:test {
     Snapshot
     v16:UnicodeExact = VectorCall<2, static> v17 v13 v8 {
       FrameState {
-        NextInstrOffset 34
+        NextInstrOffset 28
         Locals<1> v8
       }
     }
@@ -232,7 +232,7 @@ fun jittestmodule:test {
     Snapshot
     v31:UnicodeExact = VectorCall<2, static> v32 v28 v12 {
       FrameState {
-        NextInstrOffset 48
+        NextInstrOffset 42
         Locals<3> v12 v13 v28
       }
     }
@@ -312,7 +312,7 @@ fun jittestmodule:test {
     Snapshot
     v24:Object = LoadMethodCached<1; "upper"> v11 {
       FrameState {
-        NextInstrOffset 48
+        NextInstrOffset 30
         Locals<1> v11
         Stack<3> v23 v18 v11
       }
@@ -321,7 +321,7 @@ fun jittestmodule:test {
     Snapshot
     v21:Object = CallMethod<2> v24 v20 {
       FrameState {
-        NextInstrOffset 56
+        NextInstrOffset 50
         Locals<1> v11
         Stack<3> v23 v18 v11
       }
@@ -329,7 +329,7 @@ fun jittestmodule:test {
     Snapshot
     v22:UnicodeExact = VectorCall<3, static> v23 v16 v11 v21 {
       FrameState {
-        NextInstrOffset 64
+        NextInstrOffset 58
         Locals<1> v11
       }
     }
@@ -398,7 +398,7 @@ fun jittestmodule:test {
     Snapshot
     v16:UnicodeExact = VectorCall<1, static> v20 v13 {
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 26
       }
     }
     Snapshot
@@ -408,7 +408,7 @@ fun jittestmodule:test {
     Snapshot
     v19:UnicodeExact = VectorCall<1, static> v21 v16 {
       FrameState {
-        NextInstrOffset 60
+        NextInstrOffset 54
       }
     }
     Snapshot
@@ -501,7 +501,6 @@ fun jittestmodule:test {
 
   bb 3 (preds 5, 6, 8) {
     v26:Object = Phi<5, 6, 8> v18 v16 v25
-    Snapshot
     Snapshot
     Return v26
   }
@@ -680,7 +679,7 @@ fun jittestmodule:test {
   bb 4 (preds 1) {
     v20:Object = FillTypeMethodCache<0, 1> v12 {
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 14
       }
     }
     Branch<5>
@@ -693,7 +692,7 @@ fun jittestmodule:test {
     v15:ImmortalUnicodeExact["Hello"] = LoadConst<ImmortalUnicodeExact["Hello"]>
     v16:Object = CallMethod<3> v21 v14 v15 {
       FrameState {
-        NextInstrOffset 42
+        NextInstrOffset 36
       }
     }
     Snapshot
@@ -750,14 +749,14 @@ fun jittestmodule:test {
     v10:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
     v14:Object = LoadMethodCached<0; "unknown"> v10 {
       FrameState {
-        NextInstrOffset 24
+        NextInstrOffset 6
       }
     }
     v12:OptObject = GetSecondOutput<OptObject> v14
     Snapshot
     v13:Object = CallMethod<2> v14 v12 {
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 26
       }
     }
     Snapshot
@@ -819,7 +818,7 @@ fun jittestmodule:test {
     v17:ImmortalTypeExact[bytes:obj] = LoadConst<ImmortalTypeExact[bytes:obj]>
     v15:Object = VectorCall<2, static> v16 v17 v14 {
       FrameState {
-        NextInstrOffset 34
+        NextInstrOffset 28
       }
     }
     Snapshot
@@ -879,7 +878,7 @@ fun jittestmodule:test {
     v14:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v15:Object = VectorCall<2, static> v16 v11 v14 {
       FrameState {
-        NextInstrOffset 34
+        NextInstrOffset 28
       }
     }
     Snapshot

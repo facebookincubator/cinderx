@@ -57,7 +57,7 @@ struct FrameState {
   }
 
   // Used for testing only.
-  explicit FrameState(BCOffset bc_off) : next_instr_offset(bc_off) {}
+  explicit FrameState(BCOffset bc_off) : cur_instr_offs(bc_off) {}
 
   FrameState(const FrameState& other) = default;
   FrameState& operator=(const FrameState& other) = default;
@@ -80,13 +80,12 @@ struct FrameState {
   // no instruction has executed. This corresponds to the `f_lasti` field of
   // PyFrameObject.
   BCOffset instrOffset() const {
-    return std::max(
-        next_instr_offset - int{sizeof(_Py_CODEUNIT)},
-        BCOffset{-int{sizeof(_Py_CODEUNIT)}});
+    return cur_instr_offs;
   }
 
   BCOffset nextInstrOffset() const {
-    return next_instr_offset;
+    BCIndex idx = cur_instr_offs;
+    return idx + 1 + inlineCacheSize(code, idx.value());
   }
 
   bool visitUses(const std::function<bool(Register*&)>& func) {
@@ -106,9 +105,8 @@ struct FrameState {
     return true;
   }
 
-  // The bytecode offset of the next instruction to be executed once control has
-  // transferred to the interpreter.
-  BCOffset next_instr_offset{0};
+  // The currently executing instruction.
+  BCOffset cur_instr_offs{-static_cast<ssize_t>(sizeof(_Py_CODEUNIT))};
 
   // Combination of local variables, cell variables (used by closures of inner
   // functions), and free variables (our closure), in that order.

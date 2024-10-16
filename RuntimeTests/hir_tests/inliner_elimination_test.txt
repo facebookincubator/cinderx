@@ -59,7 +59,7 @@ fun jittestmodule:test {
     Snapshot
     v13:Object = VectorCall<0> v11 {
       FrameState {
-        NextInstrOffset 20
+        NextInstrOffset 14
       }
     }
     Snapshot
@@ -139,7 +139,7 @@ fun jittestmodule:test {
     Snapshot
     v22:Object = VectorCall<0> v15 {
       FrameState {
-        NextInstrOffset 20
+        NextInstrOffset 14
       }
     }
     Snapshot
@@ -151,14 +151,14 @@ fun jittestmodule:test {
     Snapshot
     v23:Object = VectorCall<0> v19 {
       FrameState {
-        NextInstrOffset 38
+        NextInstrOffset 32
         Stack<1> v22
       }
     }
     Snapshot
     v21:Object = BinaryOp<Add> v22 v23 {
       FrameState {
-        NextInstrOffset 42
+        NextInstrOffset 40
       }
     }
     Snapshot
@@ -234,7 +234,7 @@ fun jittestmodule:test {
     v15:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
     v17:Object = VectorCall<2> v13 v14 v15 {
       FrameState {
-        NextInstrOffset 24
+        NextInstrOffset 18
       }
     }
     Snapshot

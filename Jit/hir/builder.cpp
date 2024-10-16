@@ -280,18 +280,8 @@ struct HIRBuilder::TranslationContext {
     return call;
   }
 
-  void setCurrentInstr(const jit::BytecodeInstruction& cur_bci) {
-    frame.next_instr_offset = cur_bci.nextInstrOffset();
-  }
-
-  void snapshot() {
-    auto terminator = block->GetTerminator();
-    if ((terminator != nullptr) && terminator->IsSnapshot()) {
-      auto snapshot = static_cast<Snapshot*>(terminator);
-      snapshot->setFrameState(frame);
-    } else {
-      emit<Snapshot>(frame);
-    }
+  void emitSnapshot() {
+    emit<Snapshot>(frame);
   }
 
   BasicBlock* block{nullptr};
@@ -664,8 +654,6 @@ void HIRBuilder::translate(
 
     // Translate remaining instructions into HIR
     auto& bc_block = map_get(block_map_.bc_blocks, tc.block);
-    tc.frame.next_instr_offset = bc_block.startOffset();
-    tc.snapshot();
 
     auto is_in_async_for_header_block = [&tc, &bc_instrs]() {
       if (tc.frame.block_stack.isEmpty()) {
@@ -675,9 +663,35 @@ void HIRBuilder::translate(
       return block_top.isAsyncForHeaderBlock(bc_instrs);
     };
 
+    BytecodeInstruction prev_bc_instr{code_, BCOffset{-2}};
     for (auto bc_it = bc_block.begin(); bc_it != bc_block.end(); ++bc_it) {
       BytecodeInstruction bc_instr = *bc_it;
-      tc.setCurrentInstr(bc_instr);
+
+      tc.frame.cur_instr_offs = bc_instr.offset();
+      Instr* prev_hir_instr = tc.block->GetTerminator();
+      // Outputting too many snapshots is safe but noisy so try to cull.
+      // Note in some cases we'll have a non-empty block without yet having
+      // translated any bytecodes. For example, if this is the first block and
+      // there were prologue HIR instructions.
+      if (
+          // A completely empty block always gets a snapshot.
+          prev_hir_instr == nullptr ||
+          (
+              // If we already have HIR instructions but haven't processed a
+              // bytecode yet then conservatively emit a Snapshot.
+              (prev_bc_instr.offset() < 0 ||
+               // Only emit a Snapshot after bytecode instructions which might
+               // change the frame state.
+               should_snapshot(
+                   prev_bc_instr, is_in_async_for_header_block())))) {
+        if (prev_hir_instr && prev_hir_instr->IsSnapshot()) {
+          auto snapshot = static_cast<Snapshot*>(prev_hir_instr);
+          snapshot->setFrameState(tc.frame);
+        } else {
+          tc.emit<Snapshot>(tc.frame);
+        }
+      }
+      prev_bc_instr = bc_instr;
 
       // Translate instruction
       switch (bc_instr.opcode()) {
@@ -1278,10 +1292,6 @@ void HIRBuilder::translate(
           break;
         }
       }
-
-      if (should_snapshot(bc_instr, is_in_async_for_header_block())) {
-        tc.snapshot();
-      }
     }
     // Insert jumps for blocks that fall through.
     auto last_instr = tc.block->GetTerminator();
@@ -1352,6 +1362,10 @@ void HIRBuilder::translate(
         break;
       }
     }
+    JIT_DCHECK(
+        tc.block->GetTerminator() != nullptr &&
+            !tc.block->GetTerminator()->IsSnapshot(),
+        "opcodes should not end with a snapshot");
   }
 
   JIT_CHECK(
@@ -1730,7 +1744,7 @@ void HIRBuilder::emitResume(
     return;
   }
   TranslationContext succ(cfg.AllocateBlock(), tc.frame);
-  succ.snapshot();
+  succ.emitSnapshot();
   insertEvalBreakerCheck(cfg, tc.block, succ.block, tc.frame);
   tc.block = succ.block;
 }
@@ -1893,13 +1907,13 @@ void HIRBuilder::emitLoadIterableArg(
   Register* tuple;
   if (iterable->type() != TTupleExact) {
     TranslationContext tuple_path{cfg.AllocateBlock(), tc.frame};
-    tuple_path.snapshot();
+    tuple_path.emitSnapshot();
     TranslationContext non_tuple_path{cfg.AllocateBlock(), tc.frame};
-    non_tuple_path.snapshot();
+    non_tuple_path.emitSnapshot();
     tc.emit<CondBranchCheckType>(
         iterable, TTuple, tuple_path.block, non_tuple_path.block);
     tc.block = cfg.AllocateBlock();
-    tc.snapshot();
+    tc.emitSnapshot();
 
     tuple = temps_.AllocateStack();
 
@@ -2860,8 +2874,8 @@ void HIRBuilder::emitFastLen(
 
   if (inexact) {
     TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
-    deopt_path.frame.next_instr_offset = bc_instr.offset();
-    deopt_path.snapshot();
+    deopt_path.frame.cur_instr_offs = bc_instr.offset();
+    deopt_path.emitSnapshot();
     deopt_path.emit<Deopt>();
     collection = tc.frame.stack.pop();
     BasicBlock* fast_path = cfg.AllocateBlock();
@@ -3379,8 +3393,8 @@ void HIRBuilder::emitUnpackSequence(
   Register* seq = stack.top();
 
   TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
-  deopt_path.frame.next_instr_offset = bc_instr.offset();
-  deopt_path.snapshot();
+  deopt_path.frame.cur_instr_offs = bc_instr.offset();
+  deopt_path.emitSnapshot();
   Deopt* deopt = deopt_path.emit<Deopt>();
   deopt->setGuiltyReg(seq);
   deopt->setDescr("UNPACK_SEQUENCE");
@@ -3998,7 +4012,7 @@ void HIRBuilder::insertEvalBreakerCheck(
   check.emit<LoadEvalBreaker>(eval_breaker);
   check.emit<CondBranch>(eval_breaker, body.block, succ);
   // If set, run periodic tasks
-  body.snapshot();
+  body.emitSnapshot();
   body.emit<RunPeriodicTasks>(temps_.AllocateStack(), body.frame);
   body.emit<Branch>(succ);
 }
@@ -4022,7 +4036,7 @@ void HIRBuilder::insertEvalBreakerCheckForExcept(
     CFG& cfg,
     TranslationContext& tc) {
   TranslationContext succ(cfg.AllocateBlock(), tc.frame);
-  succ.snapshot();
+  succ.emitSnapshot();
   insertEvalBreakerCheck(cfg, tc.block, succ.block, tc.frame);
   tc.block = succ.block;
 }

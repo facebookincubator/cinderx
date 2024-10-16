@@ -29,7 +29,7 @@ fun test {
     v0 = LoadArg<0>
     v1 = LoadArg<1>
     Snapshot {
-      NextInstrOffset 0
+      NextInstrOffset 2
       Stack<0>
       BlockStack {
       }
@@ -45,7 +45,7 @@ fun test {
     Guard v1 {
       LiveValues<1> b:v1
       FrameState {
-        NextInstrOffset 0
+        NextInstrOffset 2
       }
     }
     Incref v1

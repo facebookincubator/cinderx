@@ -253,7 +253,7 @@ fun jittestmodule:test {
   bb 6 (preds 3) {
     v31:CInt32 = IsInstance v11 v20 {
       FrameState {
-        NextInstrOffset 32
+        NextInstrOffset 26
         Locals<1> v11
       }
     }
