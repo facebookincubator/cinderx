@@ -29,7 +29,7 @@ fun test {
     v0 = LoadArg<0>
     v1 = LoadArg<1>
     Snapshot {
-      NextInstrOffset 2
+      CurInstrOffset 2
       Stack<0>
       BlockStack {
       }
@@ -45,7 +45,7 @@ fun test {
     Guard v1 {
       LiveValues<1> b:v1
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 2
       }
     }
     Incref v1
@@ -61,7 +61,7 @@ TEST_F(GuardTest, BindFrameStateFromInstr) {
   bb 0 {
     v0 = LoadArg<0>
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Stack<0>
       BlockStack {
       }
@@ -69,12 +69,12 @@ TEST_F(GuardTest, BindFrameStateFromInstr) {
     v1 = LoadGlobal<0>
     CheckExc v1 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 2
         Stack<1> v1
       }
     }
     Snapshot {
-      NextInstrOffset 2
+      CurInstrOffset 2
       Stack<1> v1
     }
     Guard v1
@@ -86,20 +86,20 @@ TEST_F(GuardTest, BindFrameStateFromInstr) {
   bb 0 {
     v1:Object = LoadGlobal<0> {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     CheckExc v1 {
       LiveValues<1> o:v1
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 2
         Stack<1> v1
       }
     }
     Guard v1 {
       LiveValues<1> o:v1
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 2
         Stack<1> v1
       }
     }
@@ -116,14 +116,14 @@ fun __main__:test {
   bb 0 {
     v0 = LoadArg<0>
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Stack<0>
       BlockStack {
       }
     }
     CheckVar<"foo"> v0 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Stack<0>
       }
     }
@@ -131,24 +131,24 @@ fun __main__:test {
     v2 = LoadGlobal<0>
     CheckExc v2 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Stack<0>
       }
     }
     Snapshot {
-      NextInstrOffset 6
+      CurInstrOffset 6
       Stack<3> v0 v1 v2
     }
     Guard v2
     v3 = VectorCall<2> v0 v1 v2
     CheckExc v3 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
         Stack<0>
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      CurInstrOffset 8
       Stack<1> v3
     }
     Return v3
@@ -161,40 +161,40 @@ fun __main__:test {
     CheckVar<"foo"> v0 {
       LiveValues<1> b:v0
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
       }
     }
     v1:NoneType = LoadConst<NoneType>
     v2:Object = LoadGlobal<0> {
       LiveValues<2> b:v0 b:v1
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     CheckExc v2 {
       LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
       }
     }
     Guard v2 {
       LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Stack<3> v0 v1 v2
       }
     }
     v3:Object = VectorCall<2> v0 v1 v2 {
       LiveValues<3> b:v0 b:v1 o:v2
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Decref v2
     CheckExc v3 {
       LiveValues<1> o:v3
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
       }
     }
     Return v3

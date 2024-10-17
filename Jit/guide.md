@@ -208,7 +208,7 @@ fun __main__:f {
     v8:Object = LoadArg<2; "c">
     v10:CInt32 = IsTruthy v8 {
       LiveValues<3> b:v6 b:v7 b:v8
-      NextInstrOffset 4
+      CurInstrOffset 2
       Locals<3> v6 v7 v8
     }
     CondBranch<1, 2> v10
@@ -217,7 +217,7 @@ fun __main__:f {
   bb 1 (preds 0) {
     v13:Object = BinaryOp<Add> v6 v7 {
       LiveValues<3> b:v6 b:v7 b:v8
-      NextInstrOffset 10
+      CurInstrOffset 8
       Locals<3> v6 v7 v8
     }
     Return v13
@@ -262,7 +262,7 @@ instructions as comments):
 ```
 # v13:Object = BinaryOp<Add> v6 v7 {
 #   LiveValues<3> b:v6 b:v7 b:v8
-#   NextInstrOffset 10
+#   CurInstrOffset 10
 #   Locals<3> v6 v7 v8
 # }
       RDI:Object = Move R12:Object
@@ -287,7 +287,7 @@ the above LIR looks like this (HIR instruction context is still preserved):
 ```
 v13:Object = BinaryOp<Add> v6 v7 {
   LiveValues<3> b:v6 b:v7 b:v8
-  NextInstrOffset 10
+  CurInstrOffset 8
   Locals<3> v6 v7 v8
 }
   0x7f30f7db326b:        mov    %r12,%rdi

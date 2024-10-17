@@ -24,7 +24,7 @@ fun jittestmodule:A.f {
     Snapshot
     v6 = VectorCall<0> v5 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<1> v0
         Cells<1> v1
         Stack<1> v4
@@ -33,7 +33,7 @@ fun jittestmodule:A.f {
     Snapshot
     v7 = StoreAttr<1; "x"> v6 v4 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<1> v0
         Cells<1> v1
       }
@@ -59,7 +59,7 @@ fun jittestmodule:A.f {
     Snapshot
     v6 = VectorCall<0> v5 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Locals<1> v0
         Cells<1> v1
         Stack<1> v4
@@ -68,7 +68,7 @@ fun jittestmodule:A.f {
     Snapshot
     v7 = StoreAttr<1; "x"> v6 v4 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
         Locals<1> v0
         Cells<1> v1
       }
@@ -101,7 +101,7 @@ fun jittestmodule:A.f {
     v5 = LoadCellItem v1
     v5 = CheckVar<"__class__"> v5 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v0
         Cells<1> v1
         Stack<1> v4
@@ -110,7 +110,7 @@ fun jittestmodule:A.f {
     Snapshot
     v0 = CheckVar<"self"> v0 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<1> v0
         Cells<1> v1
         Stack<2> v4 v5
@@ -119,7 +119,7 @@ fun jittestmodule:A.f {
     v5 = RefineType<Type> v5
     v6 = LoadAttrSuper<1; "f", true> v4 v5 v0 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<1> v0
         Cells<1> v1
       }
@@ -144,7 +144,7 @@ fun jittestmodule:A.f {
     v5 = LoadCellItem v1
     v5 = CheckVar<"__class__"> v5 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 4
         Locals<1> v0
         Cells<1> v1
         Stack<1> v4
@@ -153,7 +153,7 @@ fun jittestmodule:A.f {
     Snapshot
     v0 = CheckVar<"self"> v0 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Locals<1> v0
         Cells<1> v1
         Stack<2> v4 v5
@@ -161,7 +161,7 @@ fun jittestmodule:A.f {
     }
     v6 = LoadAttrSuper<1; "f", true> v4 v5 v0 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
         Locals<1> v0
         Cells<1> v1
       }
@@ -193,7 +193,7 @@ fun jittestmodule:A.f {
     v5 = LoadCellItem v1
     v5 = CheckVar<"__class__"> v5 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v0
         Cells<1> v1
         Stack<1> v4
@@ -202,7 +202,7 @@ fun jittestmodule:A.f {
     Snapshot
     v0 = CheckVar<"self"> v0 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<1> v0
         Cells<1> v1
         Stack<2> v4 v5
@@ -211,7 +211,7 @@ fun jittestmodule:A.f {
     v5 = RefineType<Type> v5
     v6 = LoadAttrSuper<1; "f", true> v4 v5 v0 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<1> v0
         Cells<1> v1
       }
@@ -221,7 +221,7 @@ fun jittestmodule:A.f {
     v8 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v9 = VectorCall<2, kwnames> v6 v7 v8 {
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 12
         Locals<1> v0
         Cells<1> v1
       }
@@ -247,7 +247,7 @@ fun jittestmodule:A.f {
     v5 = LoadCellItem v1
     v5 = CheckVar<"__class__"> v5 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 4
         Locals<1> v0
         Cells<1> v1
         Stack<1> v4
@@ -256,7 +256,7 @@ fun jittestmodule:A.f {
     Snapshot
     v0 = CheckVar<"self"> v0 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Locals<1> v0
         Cells<1> v1
         Stack<2> v4 v5
@@ -264,7 +264,7 @@ fun jittestmodule:A.f {
     }
     v6 = LoadAttrSuper<1; "f", true> v4 v5 v0 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
         Locals<1> v0
         Cells<1> v1
       }
@@ -274,7 +274,7 @@ fun jittestmodule:A.f {
     v8 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v9 = VectorCall<2, kwnames> v6 v7 v8 {
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 14
         Locals<1> v0
         Cells<1> v1
       }
@@ -307,7 +307,7 @@ fun jittestmodule:A.f {
     v5 = LoadCellItem v1
     v5 = CheckVar<"__class__"> v5 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v0
         Cells<1> v1
         Stack<1> v4
@@ -316,7 +316,7 @@ fun jittestmodule:A.f {
     Snapshot
     v0 = CheckVar<"self"> v0 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<1> v0
         Cells<1> v1
         Stack<2> v4 v5
@@ -325,7 +325,7 @@ fun jittestmodule:A.f {
     v5 = RefineType<Type> v5
     v6 = LoadMethodSuper<1; "f", true> v4 v5 v0 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<1> v0
         Cells<1> v1
       }
@@ -334,7 +334,7 @@ fun jittestmodule:A.f {
     Snapshot
     v8 = CallMethod<2> v6 v7 {
       FrameState {
-        NextInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v0
         Cells<1> v1
       }
@@ -360,7 +360,7 @@ fun jittestmodule:A.f {
     v5 = LoadCellItem v1
     v5 = CheckVar<"__class__"> v5 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 4
         Locals<1> v0
         Cells<1> v1
         Stack<1> v4
@@ -369,7 +369,7 @@ fun jittestmodule:A.f {
     Snapshot
     v0 = CheckVar<"self"> v0 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Locals<1> v0
         Cells<1> v1
         Stack<2> v4 v5
@@ -377,7 +377,7 @@ fun jittestmodule:A.f {
     }
     v6 = LoadMethodSuper<1; "f", true> v4 v5 v0 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 8
         Locals<1> v0
         Cells<1> v1
       }
@@ -386,7 +386,7 @@ fun jittestmodule:A.f {
     Snapshot
     v8 = CallMethod<2> v6 v7 {
       FrameState {
-        NextInstrOffset 10
+        CurInstrOffset 10
         Locals<1> v0
         Cells<1> v1
       }

@@ -254,7 +254,7 @@ TEST_F(HIRParserTest, ParsesFrameState) {
   const char* ir = R"(fun test {
   bb 0 {
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Stack<0>
       BlockStack {
       }
@@ -262,7 +262,7 @@ TEST_F(HIRParserTest, ParsesFrameState) {
     v0 = LoadGlobal<0>
     CheckExc v0
     Snapshot {
-      NextInstrOffset 2
+      CurInstrOffset 2
       Stack<1> v0
     }
     Branch<1>
@@ -270,7 +270,7 @@ TEST_F(HIRParserTest, ParsesFrameState) {
 
   bb 1 {
     Snapshot {
-      NextInstrOffset 2
+      CurInstrOffset 2
       Stack<1> v0
     }
     Return v0
@@ -329,7 +329,7 @@ fun test {
     v0 = LoadArg<0>
     v1 = InvokeStaticFunction<os._exists, 0, Long> {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Return v1
@@ -345,14 +345,14 @@ TEST_F(HIRParserTest, FormatValue) {
     v0 = LoadArg<0>
     v0 = CheckVar<"bar"> v0 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v0
       }
     }
     v1 = LoadConst<Nullptr>
     v2 = FormatValue<None> v1 v0 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v0
       }
     }

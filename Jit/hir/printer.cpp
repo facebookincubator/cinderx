@@ -787,8 +787,7 @@ void HIRPrinter::Print(
 }
 
 void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
-  Indented(os) << "NextInstrOffset "
-               << BCOffset{BCIndex{state.cur_instr_offs} + 1} << std::endl;
+  Indented(os) << "CurInstrOffset " << state.cur_instr_offs << std::endl;
 
   auto nlocals = state.nlocals;
   if (nlocals > 0) {

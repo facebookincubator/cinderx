@@ -46,7 +46,7 @@ fun test {
   const char* expected_err =
       R"(ERROR: Operand 'v100' of instruction 'v1 = UnaryOp<Not> v100 {
   FrameState {
-    NextInstrOffset 0
+    CurInstrOffset -2
   }
 }' not defined at use in bb 0
 ERROR: Operand 'v3' of instruction 'Return v3' not defined at use in bb 3
@@ -408,7 +408,7 @@ fun test {
     v7:NoneType = LoadConst<NoneType>
     v8:Object = InPlaceOp<Subtract> v6 v7 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Branch<1>
@@ -472,7 +472,7 @@ fun test {
     v8:NoneType = LoadConst<NoneType>
     v9:Object = InPlaceOp<Subtract> v7 v8 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Branch<2>
@@ -534,7 +534,7 @@ fun test {
   bb 2 (preds 1) {
     CheckVar<"a"> v2 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Branch<3>
@@ -547,7 +547,7 @@ fun test {
   bb 4 (preds 3) {
     CheckVar<"a"> v2 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Branch<3>
@@ -613,7 +613,7 @@ fun test {
   bb 1 (preds 0, 2) {
     CheckVar<"a"> v2 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v6:NoneType = LoadConst<NoneType>
@@ -627,7 +627,7 @@ fun test {
   bb 3 (preds 2) {
     CheckVar<"a"> v2 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Branch<2>
@@ -705,7 +705,7 @@ fun test {
   bb 2 (preds 1) {
     CheckVar<"a"> v3 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Branch<3>
@@ -810,13 +810,13 @@ fun test {
   bb 2 (preds 1) {
     v12:Object = BinaryOp<Subscript> v6 v8 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v13:NoneType = LoadConst<NoneType>
     v14:Object = BinaryOp<Add> v12 v13 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Decref v12
