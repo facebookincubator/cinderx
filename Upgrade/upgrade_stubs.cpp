@@ -30,7 +30,6 @@ STUB(PyObject*, CiAsyncGen_New_NoFrame, T194022335, PyCodeObject*)
 STUB(PyObject*, CiGen_New_NoFrame, T194022335, PyCodeObject*)
 STUB(int, Ci_PyWaitHandle_CheckExact, T194027914, PyObject*)
 STUB(void, Ci_PyWaitHandle_Release, T194027914, PyObject*)
-STUB(int, Cix_eval_frame_handle_pending, T196762792, PyThreadState*)
 STUB(
     PyObject*,
     Cix_special_lookup,

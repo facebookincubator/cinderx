@@ -3,11 +3,13 @@
 #include "cinderx/Jit/lir/generator.h"
 
 #include <Python.h>
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
+#else
+#include "internal/pycore_ceval.h"
 #endif
-#include <Python.h>
 
 #include "internal/pycore_import.h"
 #include "internal/pycore_interp.h"
@@ -2589,8 +2591,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kRunPeriodicTasks: {
-        bbb.appendCallInstruction(
-            i.output(), Cix_eval_frame_handle_pending, env_->asm_tstate);
+        auto helper =
+#if PY_VERSION_HEX < 0x030C0000
+            Cix_eval_frame_handle_pending
+#else
+            _Py_HandlePending
+#endif
+            ;
+        bbb.appendCallInstruction(i.output(), helper, env_->asm_tstate);
         break;
       }
       case Opcode::kSnapshot: {

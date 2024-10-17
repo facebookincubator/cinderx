@@ -141,7 +141,6 @@ void Ci_PyWaitHandle_Release(PyObject* wait_handle);
  * Interpreter exports
  */
 
-int Cix_eval_frame_handle_pending(PyThreadState* tstate);
 PyObject*
 Cix_special_lookup(PyThreadState* tstate, PyObject* o, _Py_Identifier* id);
 void Cix_format_kwargs_error(
