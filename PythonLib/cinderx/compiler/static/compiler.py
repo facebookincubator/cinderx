@@ -126,7 +126,6 @@ class Compiler:
             "FutureWarning": self.type_env.future_warning,
             "GeneratorExit": self.type_env.generator_exit,
             "IOError": self.type_env.io_error,
-            "ImportCycleError": self.type_env.import_cycle_error,
             "ImportError": self.type_env.import_error,
             "ImportWarning": self.type_env.import_warning,
             "IndentationError": self.type_env.indentation_error,
@@ -284,6 +283,9 @@ class Compiler:
             "slogrq": self.type_env.DYNAMIC,
             "slog0": self.type_env.DYNAMIC,
         }
+        if import_cycle_error := self.type_env.import_cycle_error:
+            builtins_children["ImportCycleError"] = import_cycle_error
+
         strict_builtins = StrictBuiltins(builtins_children, self.type_env)
         typing_children = {
             "Annotated": self.type_env.annotated,

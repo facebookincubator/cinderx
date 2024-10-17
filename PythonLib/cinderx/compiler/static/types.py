@@ -80,6 +80,7 @@ from __static__ import (  # noqa: F401
 )
 
 import ast
+import builtins
 import dataclasses
 
 from ast import (
@@ -431,7 +432,13 @@ class TypeEnvironment:
         self.generator_exit: Class = self._builtin_exception_class(
             GeneratorExit, base=self.base_exception
         )
-        self.import_cycle_error: Class = self._builtin_exception_class(ImportCycleError)
+
+        # This exception is added as a builtin by implementations of Lazy Imports.
+        self.import_cycle_error: Class | None = None
+        # pyre-ignore[16]: Pyre assumes it knows the exact shape of the builtins module.
+        if import_cycle_error := getattr(builtins, "ImportCycleError", None):
+            self.import_cycle_error = self._builtin_exception_class(import_cycle_error)
+
         self.import_error: Class = self._builtin_exception_class(ImportError)
         self.indentation_error: Class = self._builtin_exception_class(
             IndentationError, base=self.syntax_error
