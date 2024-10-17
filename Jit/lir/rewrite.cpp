@@ -3,7 +3,6 @@
 #include "cinderx/Jit/lir/rewrite.h"
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Common/util.h"
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/operand.h"
 

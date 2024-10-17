@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/type_deopt_patchers.h"
 
-#include "structmember.h"
-
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/runtime.h"
 

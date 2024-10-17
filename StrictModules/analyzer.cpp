@@ -7,7 +7,6 @@
 #include "cinderx/StrictModules/caller_context.h"
 #include "cinderx/StrictModules/caller_context_impl.h"
 #include "cinderx/StrictModules/exceptions.h"
-#include "cinderx/StrictModules/pycore_dependencies.h"
 
 namespace strictmod {
 using namespace objects;

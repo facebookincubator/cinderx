@@ -3,7 +3,6 @@
 
 #include "cinderx/StrictModules/Compiler/abstract_module_loader.h"
 #include "cinderx/StrictModules/Compiler/analyzed_module.h"
-#include "cinderx/StrictModules/pycore_dependencies.h"
 
 #include <string>
 #include <utility>

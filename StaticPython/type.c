@@ -4,7 +4,6 @@
 
 #include <Python.h>
 
-#include "internal/pycore_unionobject.h"
 #include "structmember.h"
 
 #include "cinderx/Common/py-portability.h"

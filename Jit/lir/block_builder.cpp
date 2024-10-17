@@ -6,8 +6,6 @@
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/instruction.h"
 
-#include <dlfcn.h>
-
 #include <sstream>
 
 // XXX: this file needs to be revisited when we optimize HIR-to-LIR translation
