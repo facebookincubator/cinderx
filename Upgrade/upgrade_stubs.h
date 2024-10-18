@@ -198,7 +198,6 @@ PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
 
 int _PyDict_HasUnsafeKeys(PyObject* dict);
 Py_ssize_t _PyDictKeys_GetSplitIndex(PyDictKeysObject* keys, PyObject* key);
-PyObject** Ci_PyObject_GetDictPtrAtOffset(PyObject* obj, Py_ssize_t dictoffset);
 PyObject* _PyDict_GetItem_Unicode(PyObject* op, PyObject* key);
 PyObject* _PyDict_GetItem_UnicodeExact(PyObject* op, PyObject* key);
 int PyDict_NextKeepLazy(

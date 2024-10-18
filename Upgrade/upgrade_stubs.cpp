@@ -122,12 +122,6 @@ STUB(
     T196879402,
     PyDictKeysObject*,
     PyObject*)
-STUB(
-    PyObject**,
-    Ci_PyObject_GetDictPtrAtOffset,
-    T196879402,
-    PyObject*,
-    Py_ssize_t)
 STUB(PyObject*, _PyDict_GetItem_Unicode, T196879402, PyObject*, PyObject*)
 STUB(PyObject*, _PyDict_GetItem_UnicodeExact, T196879402, PyObject*, PyObject*)
 // Only used by Strict Modules (we added it)

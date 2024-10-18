@@ -267,7 +267,7 @@ PyObject* DescrOrClassVarMutator::setAttr(
     int st = setter(descr, obj, value);
     return (st == -1) ? nullptr : Py_None;
   }
-  PyObject** dictptr = Ci_PyObject_GetDictPtrAtOffset(obj, dictoffset);
+  PyObject** dictptr = _PyObject_GetDictPtr(obj);
   if (dictptr == nullptr) {
     PyErr_Format(
         PyExc_AttributeError,
@@ -297,7 +297,7 @@ PyObject* DescrOrClassVarMutator::getAttr(PyObject* obj, PyObject* name) {
   }
 
   Ref<> dict;
-  PyObject** dictptr = Ci_PyObject_GetDictPtrAtOffset(obj, dictoffset);
+  PyObject** dictptr = _PyObject_GetDictPtr(obj);
   if (dictptr != nullptr) {
     dict.reset(*dictptr);
   }
@@ -357,7 +357,6 @@ void AttributeMutator::set_descr_or_classvar(
     PyObject* descr) {
   set_type(type, Kind::kDescrOrClassVar);
   descr_or_cvar_.descr = descr;
-  descr_or_cvar_.dictoffset = type->tp_dictoffset;
 }
 
 void AttributeMutator::set_split(

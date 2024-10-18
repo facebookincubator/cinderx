@@ -53,7 +53,6 @@ struct DescrOrClassVarMutator {
   PyObject* setAttr(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttr(PyObject* obj, PyObject* name);
   BorrowedRef<> descr;
-  Py_ssize_t dictoffset;
 };
 
 // An instance of AttributeMutator is specialized to more efficiently perform a
