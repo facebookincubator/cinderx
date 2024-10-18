@@ -8,7 +8,6 @@ from .binop import BinopTests
 from .cached_property import CachedPropertyTests
 from .checked_dict import CheckedDictTests
 from .checked_list import CheckedListTests
-from .class_decorator import ClassDecoratorTests
 from .classmethod import ClassMethodTests
 from .compile import StaticCompilationTests
 from .context_decorator import ContextDecoratorTests

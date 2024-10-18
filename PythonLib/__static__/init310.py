@@ -10,17 +10,7 @@ from asyncio import iscoroutinefunction
 from types import UnionType as typesUnion
 
 # pyre-ignore[21]: No _GenericAlias, _tp_cache
-from typing import (
-    _GenericAlias,
-    _tp_cache,
-    Dict,
-    final,
-    Literal,
-    Protocol,
-    Type,
-    TypeVar,
-    Union,
-)
+from typing import _GenericAlias, _tp_cache, Dict, final, Literal, Type, TypeVar, Union
 from weakref import WeakValueDictionary
 
 from .enum import Enum, IntEnum, StringEnum  # noqa: F401
@@ -617,10 +607,3 @@ Array = staticarray  # noqa: F811
 
 def mixin(cls):
     return cls
-
-
-TClass = TypeVar("TClass", bound=Type[object])
-
-
-class ClassDecorator(Protocol):
-    def __call__(self, cls: TClass) -> TClass: ...

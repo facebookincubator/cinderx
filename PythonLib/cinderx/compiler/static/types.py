@@ -257,13 +257,6 @@ class TypeEnvironment:
         self.all_cint_types: Sequence[CIntType] = (
             self.signed_cint_types + self.unsigned_cint_types
         )
-        self.class_decorator = ClassDecoratorClass(
-            TypeName("__static__", "ClassDecorator"), self
-        )
-        self.class_typevar = GenericParameter("TClass", -1, self, bound=self.type)
-        self.nested_function_class = Class(
-            TypeName("__static__", "<nested function>"), self
-        )
         self.none = NoneType(self)
         self.optional = OptionalType(self)
         self.name_to_type: Mapping[str, Class] = {
@@ -1627,10 +1620,6 @@ class Class(Object["Class"]):
         return self.type_name.readable_name
 
     @property
-    def is_protocol(self) -> bool:
-        return False
-
-    @property
     def is_generic_parameter(self) -> bool:
         """Returns True if this Class represents a generic parameter"""
         return False
@@ -2321,14 +2310,12 @@ class GenericParameter(Class):
         index: int,
         type_env: TypeEnvironment,
         variance: Variance = Variance.INVARIANT,
-        bound: Class | None = None,
     ) -> None:
         super().__init__(
             TypeName("", name), type_env, [], None, None, {}, is_exact=True
         )
         self.index = index
         self.variance = variance
-        self.bound = bound
 
     @property
     def name(self) -> str:
@@ -2336,10 +2323,6 @@ class GenericParameter(Class):
 
     @property
     def is_generic_parameter(self) -> bool:
-        return True
-
-    @property
-    def contains_generic_parameters(self) -> bool:
         return True
 
     def bind_generics(
@@ -2659,7 +2642,6 @@ class ArgMapping:
         self_arg: ast.expr | None,
         args_override: list[ast.expr] | None = None,
         descr_override: TypeDescr | None = None,
-        has_generic_params: bool = False,
     ) -> None:
         self.callable = callable
         self.call = call
@@ -2675,9 +2657,6 @@ class ArgMapping:
         self.spills: dict[int, SpillArg] = {}
         self.dynamic_call = False
         self.descr_override = descr_override
-        self.generic_param_types: dict[Class, Class] | None = (
-            {} if has_generic_params else None
-        )
 
     def bind_args(self, visitor: TypeBinder, skip_self: bool = False) -> None:
         # TODO: handle duplicate args and other weird stuff a-la
@@ -2757,17 +2736,6 @@ class ArgMapping:
                 f"Expected {len(func_args)}, got {self.nseen}",
                 self.call,
             )
-
-        self._finalize_generic_params()
-
-    def _finalize_generic_params(self) -> None:
-        generic_param_types = self.generic_param_types
-
-        if generic_param_types is not None:
-            for emitter in self.emitters:
-                concrete_type = generic_param_types.get(emitter.type)
-                if concrete_type is not None:
-                    emitter.type = concrete_type
 
     def _bind_default_value(self, param: Parameter, visitor: TypeBinder) -> None:
         if isinstance(param.default_val, expr):
@@ -2872,10 +2840,6 @@ class ArgMapping:
             if param.name
             else f"{arg_style} arg {param.index}"
         )
-
-        if resolved_type.contains_generic_parameters:
-            return self._visit_generic_arg(resolved_type, arg, desc)
-
         expected = resolved_type.instance
         visitor.visitExpectedType(
             arg,
@@ -2884,88 +2848,6 @@ class ArgMapping:
         )
 
         return resolved_type
-
-    def _substitute_generic_params(
-        self, resolved_type: Class, arg_type: Class
-    ) -> Class | None:
-        if isinstance(resolved_type, GenericParameter):
-            # Simple case, just matching generic arg to parameter
-            bound = resolved_type.bound
-            if bound is not None and not bound.can_assign_from(arg_type):
-                return None
-
-            return arg_type
-
-        if isinstance(resolved_type, UnionType):
-            # Union is a special case, it's a generic type, but the number of
-            # arguments it has arbitrarily line up with our inputs.
-
-            subs_type: Class | None = None
-            for union_type in resolved_type.type_args:
-                add_type = self._substitute_generic_params(union_type, arg_type)
-                if add_type:
-                    if subs_type is None:
-                        subs_type = add_type
-                    else:
-                        subs_type = self.visitor.type_env.get_union(
-                            (subs_type, add_type)
-                        )
-            return subs_type
-
-        # we should have a generic class which contains the generic argument,
-        # we need to match the generic type arguments.
-        if not arg_type.is_generic_type:
-            return None
-
-        assert isinstance(arg_type, GenericClass)
-        assert isinstance(resolved_type, GenericClass)
-        if len(arg_type.type_args) != len(resolved_type.type_args):
-            return None
-
-        new_args = list(arg_type.type_args)
-        for i, (param_arg, call_arg) in enumerate(
-            zip(resolved_type.type_args, arg_type.type_args)
-        ):
-            if not param_arg.contains_generic_parameters:
-                continue
-
-            new_arg = self._substitute_generic_params(param_arg, call_arg)
-            if new_arg is None:
-                return None
-
-            new_args[i] = new_arg
-
-        return param_arg.make_generic_type(tuple(new_args))
-
-    def _visit_generic_arg(self, resolved_type: Class, arg: expr, desc: str) -> Class:
-        # Generic argument, we'll need to infer the types using all
-        # parameters.
-        self.visitor.visit(arg)
-        arg_type = self.visitor.get_type(arg).klass
-
-        inferred_arg_type = self._substitute_generic_params(resolved_type, arg_type)
-        if inferred_arg_type is None:
-            self.visitor.syntax_error(
-                resolve_assign_error_msg(
-                    resolved_type,
-                    arg_type,
-                    f"type mismatch: {{}} received for {desc}, expected {{}}",
-                ),
-                arg,
-            )
-            return arg_type
-
-        generic_param_types = self.generic_param_types
-        assert generic_param_types is not None
-
-        cur_type = generic_param_types.get(resolved_type)
-        if cur_type is None:
-            generic_param_types[resolved_type] = inferred_arg_type
-        else:
-            combined = self.visitor.type_env.get_union((cur_type, inferred_arg_type))
-            generic_param_types[resolved_type] = combined
-
-        return inferred_arg_type
 
     def needs_virtual_invoke(self, code_gen: Static310CodeGenerator) -> bool:
         if self.callable.is_final:
@@ -3062,15 +2944,6 @@ class ArgMapping:
             code_gen.emit("EXTENDED_ARG", 0)
             descr = self.descr_override or self.callable.type_descr
             code_gen.emit("INVOKE_FUNCTION", (descr, len(func_args)))
-
-    def infer_return_type(self, ret_type: Class) -> Class:
-        # There's still more to do here in the case where the return
-        # type is not directly expressed in the parameter types.
-        generic_param_types = self.generic_param_types
-        if generic_param_types is not None:
-            return generic_param_types.get(ret_type, ret_type).instance
-
-        return ret_type.instance
 
 
 class ClassMethodArgMapping(ArgMapping):
@@ -3590,12 +3463,9 @@ class Callable(Object[TClass]):
             self_expr,
             args_override,
             descr_override=descr_override,
-            has_generic_params=self.has_generic_params,
         )
         arg_mapping.bind_args(visitor)
-        ret_type = arg_mapping.infer_return_type(self.return_type.resolved())
-
-        return arg_mapping, ret_type
+        return arg_mapping, self.return_type.resolved().instance
 
     def bind_call(
         self, node: ast.Call, visitor: TypeBinder, type_ctx: Class | None
@@ -3659,10 +3529,6 @@ class Callable(Object[TClass]):
     ) -> None:
         arg_mapping: ArgMapping = code_gen.get_node_data(node, ArgMapping)
         arg_mapping.emit(code_gen)
-
-    @property
-    def has_generic_params(self) -> bool:
-        return False
 
 
 class AwaitableType(GenericClass):
@@ -4060,35 +3926,6 @@ class Function(Callable[Class], FunctionContainer):
         kwarg = arguments.kwarg
         if kwarg:
             self.has_kwarg = True
-
-    def resolve_decorate_class(
-        self,
-        klass: Class,
-        decorator: expr,
-        visitor: DeclarationVisitor,
-    ) -> Class:
-        # Decorator is allowed if it takes and returns same value
-        if (
-            len(self.args) == 1
-            and isinstance(self.args[0].type_ref.resolved(), GenericParameter)
-            and (self.return_type.resolved() is self.args[0].type_ref.resolved())
-        ):
-            return klass
-
-        return super().resolve_decorate_class(klass, decorator, visitor)
-
-    @cached_property
-    def has_generic_params(self) -> bool:
-        args = self.args
-        if args is None:
-            return False
-
-        for param in args:
-            param_type = param.type_ref.resolved()
-            if param_type.contains_generic_parameters:
-                return True
-
-        return False
 
     def __repr__(self) -> str:
         return f"<{self.name} '{self.name}' instance, args={self.args}>"
@@ -10331,73 +10168,3 @@ def access_path(node: ast.AST) -> list[str]:
         node = node.value
     path.append(node.id)
     return list(reversed(path))
-
-
-class NestedFunctionClass(Class):
-    # Each nested function is specific to its own definition so we only have
-    # a NestedFunctionClass w/ a default instance.
-    def __init__(
-        self, type_name: TypeName, type_env: TypeEnvironment, func: Function
-    ) -> None:
-        super().__init__(type_name, type_env, is_exact=True)
-        self.func = func
-
-
-class ClassDecoratorClass(Class):
-    def __init__(
-        self,
-        type_name: TypeName,
-        type_env: TypeEnvironment,
-        bases: list[Class] | None = None,
-        instance: Value | None = None,
-        klass: Class | None = None,
-        members: dict[str, Value] | None = None,
-        is_exact: bool = False,
-        pytype: type[object] | None = None,
-        is_final: bool = False,
-        has_init_subclass: bool = False,
-    ) -> None:
-        super().__init__(
-            type_name,
-            type_env,
-            bases,
-            ClassDecoratorInstance(self),
-            klass,
-            members,
-            is_exact,
-            pytype,
-            is_final,
-            has_init_subclass,
-        )
-
-    @property
-    def is_protocol(self) -> bool:
-        return True
-
-    def can_assign_from(self, src: Class) -> bool:
-        func = None
-        if isinstance(src, Function):
-            func = src
-        elif isinstance(src, NestedFunctionClass):
-            func = src.func
-
-        if isinstance(func, Function):
-            if len(func.args) == 1:
-                arg_type = func.args[0].type_ref.resolved()
-                if (
-                    isinstance(arg_type, GenericParameter)
-                    and func.return_type.resolved() is arg_type
-                ):
-                    return True
-
-        return super().can_assign_from(src)
-
-
-class ClassDecoratorInstance(Object):
-    def resolve_decorate_class(
-        self,
-        klass: Class,
-        decorator: expr,
-        visitor: DeclarationVisitor,
-    ) -> Class:
-        return klass
