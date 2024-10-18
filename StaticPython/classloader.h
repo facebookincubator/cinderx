@@ -187,7 +187,7 @@ PyObject* _PyClassloader_InvokeNativeFunction(
     PyObject* symbol_name,
     PyObject* signature,
     PyObject** args,
-    int64_t nargs);
+    Py_ssize_t nargs);
 
 PyObject* _PyClassLoader_InvokeMethod(
     _PyType_VTable* vtable,
