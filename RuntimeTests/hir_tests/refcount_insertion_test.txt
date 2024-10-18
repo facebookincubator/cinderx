@@ -645,24 +645,23 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
+    Decref v32
     v56:Nullptr = LoadConst<Nullptr>
     v57:Object = LoadGlobal<1; "use"> {
-      LiveValues<7> b:v19 b:v20 b:v21 o:v32 b:v39 o:v40 unc:v56
+      LiveValues<6> b:v19 b:v20 b:v21 b:v39 o:v40 unc:v56
       FrameState {
         CurInstrOffset 46
         Locals<5> v19 v20 v21 v39 v40
-        Stack<2> v32 v56
+        Stack<1> v56
       }
     }
     v62:Object = VectorCall<2> v57 v19 v20 {
-      LiveValues<7> b:v19 b:v20 b:v21 o:v32 b:v39 o:v40 o:v57
+      LiveValues<6> b:v19 b:v20 b:v21 b:v39 o:v40 o:v57
       FrameState {
         CurInstrOffset 60
         Locals<5> v19 v20 v21 v39 v40
-        Stack<1> v32
       }
     }
-    Decref v32
     XDecref v40
     Decref v57
     Decref v62
@@ -929,24 +928,23 @@ fun jittestmodule:test {
   }
 
   bb 4 (preds 1) {
+    Decref v44
     v68:Nullptr = LoadConst<Nullptr>
     v69:Object = LoadGlobal<3; "use"> {
-      LiveValues<7> b:v25 o:v44 b:v51 o:v52 unc:v68 o:v75 o:v76
+      LiveValues<6> b:v25 b:v51 o:v52 unc:v68 o:v75 o:v76
       FrameState {
         CurInstrOffset 86
         Locals<5> v25 v75 v76 v51 v52
-        Stack<2> v44 v68
+        Stack<1> v68
       }
     }
     v74:Object = VectorCall<2> v69 v75 v76 {
-      LiveValues<7> b:v25 o:v44 b:v51 o:v52 o:v69 o:v75 o:v76
+      LiveValues<6> b:v25 b:v51 o:v52 o:v69 o:v75 o:v76
       FrameState {
         CurInstrOffset 100
         Locals<5> v25 v75 v76 v51 v52
-        Stack<1> v44
       }
     }
-    Decref v44
     XDecref v52
     BatchDecref v69 v74 v75 v76
     v71:NoneType = LoadConst<NoneType>

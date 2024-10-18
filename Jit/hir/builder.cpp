@@ -1041,8 +1041,11 @@ void HIRBuilder::translate(
           break;
         }
         case END_FOR: {
-          tc.frame.stack.pop();
-          tc.frame.stack.pop();
+          // This instruction is only for use when FOR_ITER is specialized for a
+          // generator. As we use unspecialized bytecode only, we modify
+          // BytecodeInstruction::getJumpTarget() to always skip the END_FOR so
+          // that block should never be processed.
+          JIT_ABORT("We should never cross an END_FOR in the HIR builder");
           break;
         }
         case SETUP_FINALLY: {
@@ -1313,11 +1316,9 @@ void HIRBuilder::translate(
       case FOR_ITER: {
         auto condbr = static_cast<CondBranchIterNotDone*>(last_instr);
         auto new_frame = tc.frame;
-        // For 3.10, pop both the sentinel value signaling iteration is complete
+        // Pop both the sentinel value signaling iteration is complete
         // and the iterator itself.
-        // For 3.12, no need for popping the iterator.
-        new_frame.stack.discard(PY_VERSION_HEX >= 0x030C0000 ? 1 : 2);
-
+        new_frame.stack.discard(2);
         queue.emplace_back(condbr->true_bb(), tc.frame);
         queue.emplace_back(condbr->false_bb(), new_frame);
         break;

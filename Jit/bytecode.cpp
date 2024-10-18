@@ -90,12 +90,22 @@ BCOffset BytecodeInstruction::getJumpTarget() const {
   if (opcode() == JUMP_BACKWARD || opcode() == JUMP_BACKWARD_NO_INTERRUPT) {
     delta = -delta;
   }
-  // If the iterator ended normally, we need to jump forward oparg,
-  // then skip following END_FOR instruction.
+  BCIndex target = BCIndex{nextInstrOffset()} + delta;
+  // In 3.11+ the FOR_ITER bytecode encodes a jump to an END_FOR instruction
+  // then at runtime it usually dynamically jumps past this. The only time it
+  // actually goes through the END_FOR is if the FOR_ITER is operating
+  // on a generator and gets adaptively specialized. We always compile
+  // unspecialized bytecode so we can always skip the END_FOR.
+  //
+  // We make this tweak here so it applies both when generating the branching
+  // HIR operation, and when creating block boundaries for bytecode. The END_FOR
+  // will end up on its own in an unreachable block.
   if (PY_VERSION_HEX >= 0x030B0000 && opcode() == FOR_ITER) {
-    delta += 1;
+    BytecodeInstruction target_bc{code_, target};
+    JIT_CHECK(target_bc.opcode() == END_FOR, "Expected END_FOR");
+    return target_bc.nextInstrOffset();
   }
-  return BCIndex{nextInstrOffset()} + delta;
+  return target;
 }
 
 BCOffset BytecodeInstruction::nextInstrOffset() const {
