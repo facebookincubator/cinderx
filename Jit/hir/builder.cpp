@@ -2358,9 +2358,6 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
 }
 
 void HIRBuilder::emitMakeCell(TranslationContext& tc, int local_idx) {
-  JIT_CHECK(
-      local_idx >= tc.frame.nlocals,
-      "Argument is an index for a cell so it should be past the locals");
   Register* local = tc.frame.localsplus[local_idx];
   Register* cell = temps_.AllocateNonStack();
   tc.emit<MakeCell>(cell, local, tc.frame);
