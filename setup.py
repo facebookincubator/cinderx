@@ -16,6 +16,8 @@ from typing import Callable
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 
+BUILD_DIR: str = "_build"
+
 
 def get_compile_workers() -> int:
     return os.cpu_count() or 1
@@ -78,33 +80,30 @@ class CinderBuildExt(build_ext):
             return super().build_extension(ext)
 
 
-def find_files(directories: list[str], pred: Callable[[str], bool]) -> list[str]:
-    sources = []
-    for directory in directories:
-        for root, dirs, files in os.walk(directory):
-            # Ignore the build directory when scanning for CinderX files.  The projects
-            # in the build directory are built separately and get linked in or included
-            # as header files.
-            for i in range(len(dirs)):
-                if dirs[i] == "_build":
-                    dirs.pop(i)
-                    break
-
-            for f in files:
-                if pred(f):
-                    sources.append(os.path.join(root, f))
-    return sources
-
-
-def find_source_files(directories: list[str]) -> list[str]:
-    return find_files(
-        directories,
-        lambda f: f.endswith(".cpp") or f.endswith(".c"),
-    )
+def find_files(path: str, pred: Callable[[str], bool]) -> list[str]:
+    result = []
+    for root, dirs, files in os.walk(path):
+        # Ignore the build directory when scanning for CinderX files.  The projects in
+        # the build directory are built separately and get linked in or included as
+        # header files.
+        for i in range(len(dirs)):
+            if dirs[i] == BUILD_DIR:
+                dirs.pop(i)
+                break
+        for f in files:
+            if pred(f):
+                # Files are returned relative to the top directory.
+                abs_file = os.path.join(root, f)
+                result.append(os.path.relpath(abs_file, path))
+    return result
 
 
-def find_header_files(directories: list[str]) -> list[str]:
-    return find_files(directories, lambda f: f.endswith(".h"))
+def find_source_files(path: str) -> list[str]:
+    return find_files(path, lambda f: f.endswith(".cpp") or f.endswith(".c"))
+
+
+def find_header_files(path: str) -> list[str]:
+    return find_files(path, lambda f: f.endswith(".h"))
 
 
 def make_dir(working_dir: str, new_dir_name: str) -> str:
@@ -209,7 +208,7 @@ def main() -> None:
     top_dir = os.path.dirname(os.path.realpath(__file__))
     parent_dir = os.path.realpath(os.path.join(top_dir, ".."))
 
-    build_dir = make_dir(top_dir, "_build")
+    build_dir = make_dir(top_dir, BUILD_DIR)
     asmjit_include_dir, asmjit_library_dir = initialize_asmjit(build_dir)
     gtest_include_dir, gtest_library_dir = initialize_gtest(build_dir)
     fmt_include_dir, fmt_library_dir = initialize_fmt(build_dir)
@@ -234,10 +233,8 @@ def main() -> None:
     with open("README.md", encoding="utf-8") as fh:
         long_description = fh.read()
 
-    cinderx_dirs = [top_dir]
-
-    header_files = find_header_files(cinderx_dirs)
-    source_files = find_source_files(cinderx_dirs)
+    header_files = find_header_files(top_dir)
+    source_files = find_source_files(top_dir)
 
     setup(
         name="cinderx",
