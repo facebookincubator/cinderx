@@ -90,6 +90,7 @@ from .types import (
     KnownBoolean,
     MethodType,
     ModuleInstance,
+    NestedFunctionClass,
     Object,
     OptionalInstance,
     resolve_assign_error_msg,
@@ -101,6 +102,7 @@ from .types import (
     TType,
     TypeDescr,
     TypeEnvironment,
+    TypeName,
     UnionInstance,
     Value,
 )
@@ -610,7 +612,12 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             if isinstance(self.scope, (FunctionDef, AsyncFunctionDef)):
                 # nested functions can't be invoked against; to ensure we
                 # don't, declare them as dynamic type
-                typ = self.type_env.DYNAMIC
+                if isinstance(func, Function):
+                    typ = NestedFunctionClass(
+                        TypeName(self.context_qualname, node.name), self.type_env, func
+                    ).instance
+                else:
+                    typ = self.type_env.DYNAMIC
             self.declare_local(node.name, typ)
 
     def visitFunctionDef(self, node: FunctionDef) -> None:

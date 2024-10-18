@@ -210,6 +210,14 @@ class Static310CodeGenerator(StrictCodeGenerator):
             enable_patching=self.enable_patching,
         )
 
+    def _is_type_checked(self, t: Class) -> bool:
+        return (
+            t is not self.compiler.type_env.dynamic
+            and t is not self.compiler.type_env.object
+            and not t.contains_generic_parameters
+            and not t.is_protocol
+        )
+
     def _get_arg_types(
         self,
         func: FuncOrLambda | CompNode,
@@ -224,10 +232,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         for i, arg in enumerate(args.posonlyargs):
             t = self.get_type(arg)
-            if (
-                t is not self.compiler.type_env.DYNAMIC
-                and t is not self.compiler.type_env.OBJECT
-            ):
+            if self._is_type_checked(t.klass):
                 arg_checks.append(self._calculate_idx(arg.arg, i, cellvars))
                 arg_checks.append(t.klass.type_descr)
 
@@ -239,10 +244,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
                 if is_comprehension
                 else self.get_type(arg)
             )
-            if (
-                t is not self.compiler.type_env.DYNAMIC
-                and t is not self.compiler.type_env.OBJECT
-            ):
+            if self._is_type_checked(t.klass):
                 arg_checks.append(
                     self._calculate_idx(arg.arg, i + len(args.posonlyargs), cellvars)
                 )
@@ -250,10 +252,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         for i, arg in enumerate(args.kwonlyargs):
             t = self.get_type(arg)
-            if (
-                t is not self.compiler.type_env.DYNAMIC
-                and t is not self.compiler.type_env.OBJECT
-            ):
+            if self._is_type_checked(t.klass):
                 arg_checks.append(
                     self._calculate_idx(
                         arg.arg,
@@ -327,6 +326,8 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if isinstance(func, (FunctionDef, AsyncFunctionDef)):
             function = self.get_func_container(func)
             klass = function.return_type.resolved()
+            if not self._is_type_checked(klass):
+                return self.compiler.type_env.object
         else:
             klass = self.get_type(func).klass
         if isinstance(klass, AwaitableType):
