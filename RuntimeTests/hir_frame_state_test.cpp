@@ -209,7 +209,7 @@ def test(fs):
     Snapshot {
       CurInstrOffset 24
       Locals<2> v0 v1
-      Stack<2> v3 v4
+      Stack<1> v3
     }
     v8 = LoadConst<NoneType>
     v8 = RefineType<NoneType> v8

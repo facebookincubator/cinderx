@@ -1309,8 +1309,7 @@ void HIRBuilder::translate(
     //
     // These bytecodes alter the operand stack along one branch and leave it
     // untouched along the other. Thus, they must be special cased.
-    BytecodeInstruction last_bc_instr = bc_block.lastInstr();
-    switch (last_bc_instr.opcode()) {
+    switch (prev_bc_instr.opcode()) {
       case FOR_ITER: {
         auto condbr = static_cast<CondBranchIterNotDone*>(last_instr);
         auto new_frame = tc.frame;
@@ -1342,7 +1341,7 @@ void HIRBuilder::translate(
         break;
       }
       default: {
-        if (last_bc_instr.opcode() == YIELD_FROM &&
+        if (prev_bc_instr.opcode() == YIELD_FROM &&
             is_in_async_for_header_block()) {
           JIT_CHECK(
               last_instr->IsCondBranchIterNotDone(),

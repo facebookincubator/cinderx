@@ -204,11 +204,6 @@ class BytecodeInstructionBlock {
   // Get the instruction at the given index.
   BytecodeInstruction at(BCIndex idx) const;
 
-  // Get the last instruction in the block.
-  //
-  // The block must be non-empty.
-  BytecodeInstruction lastInstr() const;
-
   // Get the block's code object.
   BorrowedRef<PyCodeObject> code() const;
 

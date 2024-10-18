@@ -168,11 +168,6 @@ BytecodeInstruction BytecodeInstructionBlock::at(BCIndex idx) const {
   return BytecodeInstruction{code_, idx};
 }
 
-BytecodeInstruction BytecodeInstructionBlock::lastInstr() const {
-  JIT_CHECK(size() > 0, "Block has no instructions");
-  return BytecodeInstruction(code_, end_idx_ - 1);
-}
-
 BorrowedRef<PyCodeObject> BytecodeInstructionBlock::code() const {
   return code_;
 }
