@@ -1,6 +1,6 @@
 {
   "bad": [
-    "test.test_set",
+    "test.test_capi",
     "test_cinderx.test___static__",
     "test_cinderx.test_cinderjit",
     "test_cinderx.test_compiler.test_cinder",
@@ -99,7 +99,6 @@
     "test.test_c_locale_coercion",
     "test.test_calendar",
     "test.test_call",
-    "test.test_capi",
     "test.test_cgi",
     "test.test_cgitb",
     "test.test_charmapcodec",
@@ -360,6 +359,7 @@
     "test.test_secrets",
     "test.test_select",
     "test.test_selectors",
+    "test.test_set",
     "test.test_setcomps",
     "test.test_shelve",
     "test.test_shlex",
