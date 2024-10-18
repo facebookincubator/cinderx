@@ -44,3 +44,12 @@ test.test_capi.test_misc.SubinterpreterTest.*
 test.test_capi.test_misc.TestPendingCalls.test_isolated_subinterpreter
 test.test_capi.test_getargs.Test_testcapi.test_gh_119213
 test.test_import.SubinterpImportTests.*
+test.test_int.IntStrDigitLimitsTests.test_int_max_str_digits_is_per_interpreter
+test.test_int.IntSubclassStrDigitLimitsTests.test_int_max_str_digits_is_per_interpreter
+test.test_exceptions.ExceptionTests.test_memory_error_in_subinterp
+test.test_syslog.Test.test_subinterpreter_closelog
+test.test_syslog.Test.test_subinterpreter_openlog
+test.test_syslog.Test.test_subinterpreter_syslog
+test.test_capi.test_misc.Test_testcapi.test_atexit
+test.test_capi.test_misc.TestThreadState.test_gilstate_matches_current
+test.test_capi.test_misc.Test_testcapi.test_current_tstate_matches
