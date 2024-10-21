@@ -776,7 +776,7 @@ class CodeGenerator(ASTVisitor):
         self.emit("SETUP_FINALLY", except_)
         self.emit("GET_ANEXT")
         self.emit("LOAD_CONST", None)
-        self.emit_yield_from(await_=True)
+        self.emit("YIELD_FROM")
         self.emit("POP_BLOCK")
         self.visit(node.target)
         self.visitStatements(node.body)
@@ -1053,7 +1053,7 @@ class CodeGenerator(ASTVisitor):
         if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
             self.emit("GET_AWAITABLE")
             self.emit("LOAD_CONST", None)
-            self.emit_yield_from(await_=True)
+            self.emit("YIELD_FROM")
 
     def visitGeneratorExp(self, node):
         self.compile_comprehension(node, sys.intern("<genexpr>"), node.elt, None, None)
@@ -1103,7 +1103,7 @@ class CodeGenerator(ASTVisitor):
         self.emit("SETUP_FINALLY", except_)
         self.emit("GET_ANEXT")
         self.emit("LOAD_CONST", None)
-        self.emit_yield_from(await_=True)
+        self.emit("YIELD_FROM")
         self.emit("POP_BLOCK")
         self.visit(gen.target)
 
@@ -1399,7 +1399,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("BEFORE_ASYNC_WITH")
             self.emit("GET_AWAITABLE")
             self.emit("LOAD_CONST", None)
-            self.emit_yield_from(await_=True)
+            self.emit("YIELD_FROM")
             self.emit("SETUP_ASYNC_WITH", finally_)
         else:
             self.emit("SETUP_WITH", finally_)
@@ -1427,7 +1427,7 @@ class CodeGenerator(ASTVisitor):
         if kind == ASYNC_WITH:
             self.emit("GET_AWAITABLE")
             self.emit("LOAD_CONST", None)
-            self.emit_yield_from(await_=True)
+            self.emit("YIELD_FROM")
         self.emit("POP_TOP")
         if kind == ASYNC_WITH:
             self.emitJump(exit_)
@@ -1440,7 +1440,7 @@ class CodeGenerator(ASTVisitor):
         if kind == ASYNC_WITH:
             self.emit("GET_AWAITABLE")
             self.emit("LOAD_CONST", None)
-            self.emit_yield_from(await_=True)
+            self.emit("YIELD_FROM")
 
         except_ = self.newBlock()
         self.emit("POP_JUMP_IF_TRUE", except_)
@@ -1563,9 +1563,6 @@ class CodeGenerator(ASTVisitor):
             self.emit("ROT_FOUR")
         else:
             raise ValueError("Expected rotate of 2, 3, or 4")
-
-    def emit_yield_from(self, await_: bool = False) -> None:
-        self.emit("YIELD_FROM")
 
     def emit_dup(self, count: int = 1):
         if count == 1:
@@ -1983,13 +1980,13 @@ class CodeGenerator(ASTVisitor):
         self.visit(node.value)
         self.emit("GET_YIELD_FROM_ITER")
         self.emit("LOAD_CONST", None)
-        self.emit_yield_from()
+        self.emit("YIELD_FROM")
 
     def visitAwait(self, node):
         self.visit(node.value)
         self.emit("GET_AWAITABLE")
         self.emit("LOAD_CONST", None)
-        self.emit_yield_from(await_=True)
+        self.emit("YIELD_FROM")
 
     # slice and subscript stuff
     def visitSubscript(self, node, aug_flag=None):
@@ -2833,7 +2830,7 @@ class CodeGenerator(ASTVisitor):
             if e.kind == ASYNC_WITH:
                 self.emit("GET_AWAITABLE")
                 self.emit("LOAD_CONST", None)
-                self.emit_yield_from(await_=True)
+                self.emit("YIELD_FROM")
             self.emit("POP_TOP")
             self.set_no_pos()
 
@@ -3231,27 +3228,6 @@ class CodeGenerator312(CodeGenerator):
         self.emit_call_intrinsic_1("INTRINSIC_PRINT")
         self.set_no_pos()
         self.emit("POP_TOP")
-
-    def emit_yield_from(self, await_: bool = False) -> None:
-        send = self.newBlock("send")
-        fail = self.newBlock("fail")
-        exit = self.newBlock("exit")
-
-        self.nextBlock(send)
-        self.emit("SEND", exit)
-
-        # Setup try/except to handle StopIteration
-        self.emit("SETUP_FINALLY", fail)
-        self.emit("YIELD_VALUE")
-        self.emit_noline("POP_BLOCK")
-        self.emit("RESUME", 3 if await_ else 2)
-        self.emit("JUMP_BACKWARD_NO_INTERRUPT", send)
-
-        self.nextBlock(fail)
-        self.emit("CLEANUP_THROW")
-
-        self.nextBlock(exit)
-        self.emit("END_SEND")
 
     def _fastcall_helper(self, argcnt, node, args, kwargs):
         # No * or ** args, faster calling sequence.
@@ -3814,7 +3790,7 @@ class CinderCodeGenerator(CodeGenerator):
         if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
             self.emit("GET_AWAITABLE")
             self.emit("LOAD_CONST", None)
-            self.emit_yield_from(await_=True)
+            self.emit("YIELD_FROM")
 
     def set_qual_name(self, qualname: str) -> None:
         self._qual_name = qualname
