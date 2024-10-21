@@ -656,7 +656,7 @@ class CodeGenerator(ASTVisitor):
         self.emit_build_class(node, gen)
 
         for d in reversed(node.decorator_list):
-            self.emit_decorator_call(d, node)
+            self.emit_call_one_arg()
 
         self.register_immutability(node, immutability_flag)
         self.post_process_and_store_name(node)
@@ -674,7 +674,7 @@ class CodeGenerator(ASTVisitor):
     def visit_decorator(self, decorator: AST, class_def: ClassDef) -> None:
         self.visit(decorator)
 
-    def emit_decorator_call(self, decorator: AST, class_def: ClassDef) -> None:
+    def emit_call_one_arg(self) -> None:
         self.emit("CALL_FUNCTION", 1)
 
     def register_immutability(self, node: ClassDef, flag: bool) -> None:
@@ -1048,7 +1048,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("GET_AITER")
         else:
             self.emit("GET_ITER")
-        self.emit("CALL_FUNCTION", 1)
+        self.emit_call_one_arg()
 
         if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
             self.emit("GET_AWAITABLE")
@@ -3528,7 +3528,7 @@ class CodeGenerator312(CodeGenerator):
         gen.emit("RETURN_VALUE")
         return gen
 
-    def emit_decorator_call(self, decorator: AST, class_def: ClassDef) -> None:
+    def emit_call_one_arg(self) -> None:
         self.emit("CALL", 0)
 
     def visitClassDef(self, node: ast.ClassDef) -> None:
@@ -3605,7 +3605,7 @@ class CodeGenerator312(CodeGenerator):
             outer_gen._call_helper(2, None, node.bases, node.keywords)
 
         for d in reversed(node.decorator_list):
-            self.emit_decorator_call(d, node)
+            self.emit_call_one_arg()
 
         self.register_immutability(node, immutability_flag)
         self.post_process_and_store_name(node)
