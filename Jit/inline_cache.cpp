@@ -281,7 +281,13 @@ PyObject* DescrOrClassVarMutator::setAttr(
   if (st < 0 && PyErr_ExceptionMatches(PyExc_KeyError)) {
     PyErr_SetObject(PyExc_AttributeError, name);
   }
-  _PyType_ClearNoShadowingInstances(type, descr);
+#if PY_VERSION_HEX < 0x030C0000
+  if (PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES)) {
+    _PyType_ClearNoShadowingInstances(type, descr);
+  }
+#else
+  UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
+#endif
   return (st == -1) ? nullptr : Py_None;
 }
 
@@ -579,7 +585,13 @@ StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
 
   int res = Cix_PyObjectDict_SetItem(tp, dictptr, name, value);
   if (descr != nullptr) {
-    _PyType_ClearNoShadowingInstances(tp, descr);
+#if PY_VERSION_HEX < 0x030C0000
+    if (PyType_HasFeature(tp, Py_TPFLAGS_NO_SHADOWING_INSTANCES)) {
+      _PyType_ClearNoShadowingInstances(tp, descr);
+    }
+#else
+    UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
+#endif
   }
   if (res != -1) {
     fill(tp, name, descr);
