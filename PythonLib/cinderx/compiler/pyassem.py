@@ -737,12 +737,13 @@ class PyFlowGraph(FlowGraph):
                     if op in self.opcode.hasjrel:
                         offset -= pc
 
+                    offset = abs(offset)
+
                     if self.instrsize(inst.opname, oparg) != self.instrsize(
-                        "NOP", offset
+                        inst.opname, offset
                     ):
                         extended_arg_recompile = True
 
-                    assert offset >= 0, "Offset value: %d" % offset
                     inst.ioparg = offset
 
         self.stage = FLAT
@@ -894,7 +895,9 @@ class PyFlowGraph(FlowGraph):
         code = bytearray()
 
         def addCode(opcode: int, oparg: int) -> None:
-            code.append(opcode)
+            # TODO: Currently we still emit some of the pseudo ops, once we
+            # get zero-cost exceptions in this can go away.
+            code.append(opcode & 0xFF)
             code.append(oparg)
 
         for t in self.insts:
@@ -1315,8 +1318,16 @@ class PyFlowGraph312(PyFlowGraph):
         super().finalize()
 
     def instrsize(self, opname: str, oparg: int):
+        opcode_index = opcodes.opcode.opmap[opname]
         # pyre-ignore[16]: no _inline_cache_entries
-        base_size = _inline_cache_entries[opcodes.opcode.opmap[opname]]
+        if opcode_index >= len(_inline_cache_entries):
+            # TODO: This should never happen as we should remove pseudo
+            # instructions, but we are still missing some functionality
+            # like zero-cost exceptions so we emit things like END_FINALLY
+            base_size = 0
+        else:
+            # pyre-ignore[16]: no _inline_cache_entries
+            base_size = _inline_cache_entries[opcode_index]
         if oparg <= 0xFF:
             return 1 + base_size
         elif oparg <= 0xFFFF:
@@ -1345,8 +1356,13 @@ class PyFlowGraph312(PyFlowGraph):
     def emit_inline_cache(
         self, opcode: str, addCode: Callable[[int, int], None]
     ) -> None:
+        opcode_index = opcodes.opcode.opmap[opcode]
         # pyre-ignore[16]: no _inline_cache_entries
-        base_size = _inline_cache_entries[opcodes.opcode.opmap[opcode]]
+        if opcode_index < len(_inline_cache_entries):
+            # pyre-ignore[16]: no _inline_cache_entries
+            base_size = _inline_cache_entries[opcode_index]
+        else:
+            base_size = 0
         for _i in range(base_size):
             addCode(0, 0)
 
