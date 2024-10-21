@@ -213,7 +213,6 @@ if sys.version_info >= (3, 12):
         END_SEND=-1,
         END_FOR=-2,
         FOR_ITER=lambda oparg, jmp=0: 0 if jmp > 0 else 1,
-        END_ASYNC_FOR=-2,
     )
 
     from opcode import (
