@@ -2,7 +2,7 @@
 import dis
 import unittest
 
-import opcodes.opcode as opcode
+import cinderx.opcode as opcode
 from test.support.import_helper import import_module
 
 _opcode = import_module("_opcode")

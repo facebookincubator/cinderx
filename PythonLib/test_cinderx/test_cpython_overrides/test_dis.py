@@ -6,7 +6,7 @@ import os
 import re
 import contextlib
 
-from opcodes.opcode import shadowop
+from cinderx.opcode import shadowop
 
 def compile_and_get(code_str, funcname):
     _tmp_globals = {}
