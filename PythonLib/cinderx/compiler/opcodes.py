@@ -186,7 +186,7 @@ opcode.stack_effects.update(
 
 if sys.version_info >= (3, 12):
     opcode.stack_effects.update(
-        CALL=lambda oparg, jmp=0: -(oparg + 1),
+        CALL=lambda oparg, jmp=0: -oparg,
         COPY_FREE_VARS=lambda oparg, jmp=0: 0,
         MAKE_CELL=lambda oparg, jmp=0: 0,
         JUMP=0,
