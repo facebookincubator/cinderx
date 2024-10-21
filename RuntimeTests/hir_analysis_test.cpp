@@ -9,7 +9,6 @@
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 #include <memory>
 

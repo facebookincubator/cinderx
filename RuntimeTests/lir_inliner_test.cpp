@@ -6,7 +6,6 @@
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/lir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 using namespace jit;
 using namespace jit::codegen;

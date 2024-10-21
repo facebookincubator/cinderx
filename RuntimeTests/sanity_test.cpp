@@ -4,7 +4,6 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 class SanityTest : public RuntimeTest {};
 

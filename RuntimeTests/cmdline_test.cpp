@@ -11,8 +11,6 @@
 #include "cinderx/RuntimeTests/testutil.h"
 #include "i386-dis/dis-asm.h"
 
-#include <fmt/format.h>
-
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>

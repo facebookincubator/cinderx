@@ -3,7 +3,6 @@
 
 #include <gtest/gtest.h>
 
-#include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/parser.h"

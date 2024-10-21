@@ -3,7 +3,6 @@
 
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 #include <ostream>
 

@@ -6,7 +6,6 @@
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 using BytecodeInstructionIteratorTest = RuntimeTest;
 

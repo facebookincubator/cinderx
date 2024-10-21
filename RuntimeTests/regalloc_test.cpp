@@ -4,7 +4,6 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/parser.h"
-#include "cinderx/Jit/lir/printer.h"
 #include "cinderx/Jit/lir/regalloc.h"
 
 #include <fmt/ostream.h>
