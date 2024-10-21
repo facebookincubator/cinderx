@@ -212,7 +212,6 @@ if sys.version_info >= (3, 12):
         CLEANUP_THROW=-1,
         END_SEND=-1,
         END_FOR=-2,
-        FOR_ITER=lambda oparg, jmp=0: 0 if jmp > 0 else 1,
     )
 
     from opcode import (

@@ -1198,10 +1198,6 @@ class CodeGenerator(ASTVisitor):
         if start:
             self.emitJump(start)
             self.nextBlock(anchor)
-            self.emit_end_for()
-
-    def emit_end_for(self) -> None:
-        pass
 
     def compile_dictcomp_element(self, elt, val):
         self.visit(elt)
@@ -3146,31 +3142,6 @@ class CodeGenerator312(CodeGenerator):
 
         self.emit("CALL", len(node.args))
 
-    def visitFor(self, node):
-        start = self.newBlock("for_start")
-        body = self.newBlock("for_body")
-        cleanup = self.newBlock("for_cleanup")
-        end = self.newBlock("for_end")
-
-        self.push_loop(FOR_LOOP, start, end)
-        self.visit(node.iter)
-        self.emit("GET_ITER")
-
-        self.nextBlock(start)
-        self.emit("FOR_ITER", cleanup)
-        self.nextBlock(body)
-        self.visit(node.target)
-        self.visitStatements(node.body)
-        self.set_no_pos()
-        self.emitJump(start)
-        self.nextBlock(cleanup)
-        self.emit("END_FOR")
-        self.pop_loop()
-
-        if node.orelse:
-            self.visitStatements(node.orelse)
-        self.nextBlock(end)
-
     @staticmethod
     def find_op_idx(opname: str) -> int:
         for i, (name, _symbol) in enumerate(NB_OPS):
@@ -3281,9 +3252,6 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(exit)
         self.emit("END_SEND")
-
-    def emit_end_for(self) -> None:
-        self.emit("END_FOR")
 
     def _fastcall_helper(self, argcnt, node, args, kwargs):
         # No * or ** args, faster calling sequence.

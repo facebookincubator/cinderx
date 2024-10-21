@@ -5,7 +5,7 @@ for i in range(42):
 # EXPECTED:
 [
     ...,
-    FOR_ITER(Block(6)),
+    FOR_ITER(Block(9)),
     STORE_NAME('i'),
     LOAD_NAME('i'),
     LOAD_CONST(4),
@@ -14,6 +14,5 @@ for i in range(42):
     POP_TOP(0),
     JUMP_FORWARD(Block(8)),
     JUMP_BACKWARD(Block(1)),
-    END_FOR(0),
     ...,
 ]
