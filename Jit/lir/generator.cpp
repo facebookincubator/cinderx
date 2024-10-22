@@ -19,6 +19,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Interpreter/iter_helpers.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"

@@ -149,9 +149,6 @@ STUB(int, PyUnstable_PerfTrampoline_SetPersistAfterFork, T196877712, int)
  * From interpter.h
  */
 
-STUB(PyObject*, Ci_GetAIter, T190615535, PyThreadState*, PyObject*)
-STUB(PyObject*, Ci_GetANext, T190615535, PyThreadState*, PyObject*)
-
 STUB(
     PyObject*,
     Ci_StaticFunction_Vectorcall,
