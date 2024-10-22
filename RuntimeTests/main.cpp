@@ -201,7 +201,8 @@ int main(int argc, char* argv[]) {
   register_test("refcount_insertion_test.txt");
   register_test(
       "refcount_insertion_static_test.txt", RuntimeTest::kStaticCompiler);
-  register_test("super_access_test.txt", RuntimeTest::kStaticCompiler);
+  register_test("super_access_static_test.txt", RuntimeTest::kStaticCompiler);
+  register_test("super_access_test.txt");
   register_test("simplify_test.txt");
   register_test("simplify_uses_guard_types.txt");
   register_test("simplify_static_test.txt", RuntimeTest::kStaticCompiler);

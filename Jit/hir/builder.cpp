@@ -165,6 +165,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     LOAD_LOCAL,
     LOAD_METHOD,
     LOAD_METHOD_SUPER,
+    LOAD_SUPER_ATTR,
     LOAD_TYPE,
     MAKE_CELL,
     MAKE_FUNCTION,
@@ -842,7 +843,8 @@ void HIRBuilder::translate(
           emitLoadAssertionError(tc, irfunc.env);
           break;
         }
-        case LOAD_ATTR_SUPER: {
+        case LOAD_ATTR_SUPER:
+        case LOAD_SUPER_ATTR: {
           emitLoadMethodOrAttrSuper(tc, bc_instr, false);
           break;
         }
@@ -2322,9 +2324,17 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
   Register* type = tc.frame.stack.pop();
   Register* global_super = tc.frame.stack.pop();
   Register* result = temps_.AllocateStack();
+
+#if PY_VERSION_HEX >= 0x030B0000
+  int oparg = bc_instr.oparg();
+  int name_idx = oparg >> 2;
+  load_method = oparg & 1;
+  bool no_args_in_super_call = oparg & 2;
+#else
   PyObject* oparg = PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg());
   int name_idx = PyLong_AsLong(PyTuple_GET_ITEM(oparg, 0));
   bool no_args_in_super_call = PyTuple_GET_ITEM(oparg, 1) == Py_True;
+#endif
 
   // This is assumed to be a type object by the rest of the JIT.  Ideally it
   // would be typed by whatever pushes it onto the stack.
