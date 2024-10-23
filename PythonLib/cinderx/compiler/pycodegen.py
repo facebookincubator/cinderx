@@ -1390,7 +1390,7 @@ class CodeGenerator(ASTVisitor):
 
         self.nextBlock(exit_)
 
-    def call_exit_with_nones(self):
+    def emit_call_exit_with_nones(self):
         self.emit("LOAD_CONST", None)
         self.emit("DUP_TOP")
         self.emit("DUP_TOP")
@@ -1408,9 +1408,8 @@ class CodeGenerator(ASTVisitor):
             self.emit("GET_AWAITABLE")
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
-            self.emit("SETUP_ASYNC_WITH", finally_)
-        else:
-            self.emit("SETUP_WITH", finally_)
+
+        self.emit_setup_with(finally_, kind == ASYNC_WITH)
 
         self.nextBlock(block)
         self.setups.append(Entry(kind, block, finally_, node))
@@ -1430,7 +1429,7 @@ class CodeGenerator(ASTVisitor):
         self.emit("POP_BLOCK")
 
         self.set_pos(node)
-        self.call_exit_with_nones()
+        self.emit_call_exit_with_nones()
 
         if kind == ASYNC_WITH:
             self.emit("GET_AWAITABLE")
@@ -1462,6 +1461,9 @@ class CodeGenerator(ASTVisitor):
         self.emit("POP_TOP")
 
         self.nextBlock(exit_)
+
+    def emit_setup_with(self, target: Block, async_: bool) -> None:
+        self.emit("SETUP_ASYNC_WITH" if async_ else "SETUP_WITH", target)
 
     def visitWith(self, node):
         self.visitWith_(node, WITH, 0)
@@ -2837,7 +2839,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("POP_BLOCK")
             if preserve_tos:
                 self.emit_rotate_stack(2)
-            self.call_exit_with_nones()
+            self.emit_call_exit_with_nones()
             if e.kind == ASYNC_WITH:
                 self.emit("GET_AWAITABLE")
                 self.emit("LOAD_CONST", None)
@@ -3286,6 +3288,9 @@ class CodeGenerator312(CodeGenerator):
         self.nextBlock(exit)
         self.emit("END_SEND")
 
+    def emit_setup_with(self, target: Block, async_: bool) -> None:
+        self.emit("SETUP_WITH", target)
+
     def emit_end_for(self) -> None:
         self.emit("END_FOR")
 
@@ -3534,6 +3539,12 @@ class CodeGenerator312(CodeGenerator):
 
     def emit_call_one_arg(self) -> None:
         self.emit("CALL", 0)
+
+    def emit_call_exit_with_nones(self):
+        self.emit("LOAD_CONST", None)
+        self.emit("LOAD_CONST", None)
+        self.emit("LOAD_CONST", None)
+        self.emit("CALL", 2)
 
     def visitClassDef(self, node: ast.ClassDef) -> None:
         first_lineno = None
