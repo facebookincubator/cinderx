@@ -3697,3 +3697,27 @@ class PrimitivesTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             with self.assertRaises(OverflowError):
                 mod.f(128)
+
+    def test_primitive_subtype_int(self):
+        codestr = """
+        from __static__ import int64, box
+
+        def f(x: int64) -> int:
+            return box(x)
+        """
+        with self.in_module(codestr) as mod:
+            class X(int): pass
+
+            self.assertEqual(mod.f(X(128)), 128)
+
+    def test_primitive_subtype_double(self):
+        codestr = """
+        from __static__ import double, box
+
+        def f(x: double) -> float:
+            return box(x)
+        """
+        with self.in_module(codestr) as mod:
+            class X(float): pass
+
+            self.assertEqual(mod.f(X(128.0)), 128.0)

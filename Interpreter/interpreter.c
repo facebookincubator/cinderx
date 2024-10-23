@@ -5001,12 +5001,12 @@ _Ci_CheckArgs(PyThreadState* tstate, PyFrameObject* f, PyCodeObject* co) {
         type = &PyBool_Type;
         Py_INCREF(type);
       } else if (primitive <= TYPED_INT64) {
-        optional = 0;
+        exact = optional = 0;
         Py_DECREF(type);
         type = &PyLong_Type;
         Py_INCREF(type);
       } else if (primitive == TYPED_DOUBLE) {
-        optional = 0;
+        exact = optional = 0;
         Py_DECREF(type);
         type = &PyFloat_Type;
         Py_INCREF(type);

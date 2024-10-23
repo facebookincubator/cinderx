@@ -375,13 +375,13 @@ bool JITRT_PackStaticArgs(
         }
         arg_space[i] = (void*)(arg == Py_True);
       } else if (cur_arg->tai_primitive_type == TYPED_DOUBLE) {
-        if (Py_TYPE(arg) != &PyFloat_Type) {
+        if (!PyFloat_Check(arg)) {
           return true;
         }
         arg_space[i] = bit_cast<void*>(PyFloat_AsDouble(arg));
       } else if (cur_arg->tai_primitive_type <= TYPED_INT64) {
         // Primitive arg check
-        if (Py_TYPE(arg) != &PyLong_Type ||
+        if (!PyLong_Check(arg) ||
             !_PyClassLoader_OverflowCheck(
                 arg, cur_arg->tai_primitive_type, (size_t*)&arg_space[i])) {
           return true;

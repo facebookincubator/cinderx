@@ -133,7 +133,7 @@ _PyClassLoader_OverflowCheck(PyObject* arg, int type, size_t* value) {
       0xFFFFFFFF80000000,
       0x8000000000000000};
 
-  assert(Py_TYPE(arg) == &PyLong_Type);
+  assert(PyLong_Check(arg));
 
   if (type & TYPED_INT_SIGNED) {
     Py_ssize_t ival = PyLong_AsSsize_t(arg);

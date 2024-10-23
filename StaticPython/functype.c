@@ -83,14 +83,14 @@ _PyTypedArgsInfo* _PyClassLoader_GetTypedArgsInfo(
     } else if (prim_type == TYPED_DOUBLE) {
       cur_check->tai_type = &PyFloat_Type;
       cur_check->tai_optional = 0;
-      cur_check->tai_exact = 1;
+      cur_check->tai_exact = 0;
       Py_INCREF(&PyFloat_Type);
       Py_DECREF(ref_type);
     } else if (prim_type != TYPED_OBJECT) {
       assert(prim_type <= TYPED_INT64);
       cur_check->tai_type = &PyLong_Type;
       cur_check->tai_optional = 0;
-      cur_check->tai_exact = 1;
+      cur_check->tai_exact = 0;
       Py_INCREF(&PyLong_Type);
       Py_DECREF(ref_type);
     } else if (only_primitives) {
