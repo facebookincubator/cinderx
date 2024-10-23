@@ -26,7 +26,6 @@ std::unordered_set<CompilationKey> active_compiles;
 } // namespace
 
 Context::~Context() {
-  /* De-optimize any remaining compiled functions. */
   for (auto it = compiled_funcs_.begin(); it != compiled_funcs_.end();) {
     PyFunctionObject* func = *it;
     ++it;
@@ -233,6 +232,21 @@ CompiledFunction* Context::lookupCode(
 }
 
 void Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
+  // There appear to be instances where the runtime is finalizing and goes to
+  // destroy the cinderjit module and deopt all compiled functions, only to find
+  // that some of the compiled functions have already been zeroed out and
+  // possibly deallocated.  In theory this should be covered by funcDestroyed()
+  // but somewhere that isn't being triggered.  This is not a good solution but
+  // it fixes some shutdown crashes for now.
+  if (func->func_module == nullptr && func->func_qualname == nullptr) {
+    JIT_CHECK(
+        _Py_IsFinalizing(),
+        "Trying to deopt destroyed function at {} when runtime is not "
+        "finalizing",
+        reinterpret_cast<void*>(func.get()));
+    return;
+  }
+
   if (compiled_funcs_.erase(func) != 0) {
     // Reset the entry point.
     func->vectorcall = getInterpretedVectorcall(func);

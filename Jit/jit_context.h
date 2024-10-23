@@ -50,6 +50,9 @@ namespace jit {
  */
 class Context {
  public:
+  /*
+   * Will deopt all compiled functions back to the interpreter.
+   */
   ~Context();
 
   /*
