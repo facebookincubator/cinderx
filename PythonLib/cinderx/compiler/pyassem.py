@@ -1283,9 +1283,24 @@ class PyFlowGraph312(PyFlowGraph):
         )
         self.qualname = qualname or name
 
+    def emit_gen_start(self) -> None:
+        # This is handled with the prefix instructions in finalize
+        pass
+
     def finalize(self):
-        if self.cellvars or self.freevars:
+        if self.cellvars or self.freevars or self.gen_kind is not None:
             to_insert = []
+            if self.gen_kind is not None:
+                firstline = self.firstline or self.first_inst_lineno or 1
+                to_insert.append(
+                    Instruction(
+                        "RETURN_GENERATOR",
+                        0,
+                        loc=SrcLocation(firstline, firstline, -1, -1),
+                    )
+                )
+                to_insert.append(Instruction("POP_TOP", 0))
+
             if self.freevars:
                 to_insert.append(Instruction("COPY_FREE_VARS", len(self.freevars)))
 
