@@ -971,7 +971,7 @@ class Value:
     def emit_decorator_call(
         self, class_def: ClassDef, code_gen: Static310CodeGenerator
     ) -> None:
-        code_gen.emit("CALL_FUNCTION", 1)
+        code_gen.emit_call_one_arg()
 
     def emit_delete_attr(
         self, node: ast.Attribute, code_gen: Static310CodeGenerator

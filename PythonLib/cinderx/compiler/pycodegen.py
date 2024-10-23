@@ -675,6 +675,10 @@ class CodeGenerator(ASTVisitor):
         self.visit(decorator)
 
     def emit_decorator_call(self, decorator: AST, class_def: ClassDef) -> None:
+        # Overridden by the static compiler
+        self.emit_call_one_arg()
+
+    def emit_call_one_arg(self) -> None:
         self.emit("CALL_FUNCTION", 1)
 
     def register_immutability(self, node: ClassDef, flag: bool) -> None:
@@ -1048,7 +1052,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("GET_AITER")
         else:
             self.emit("GET_ITER")
-        self.emit("CALL_FUNCTION", 1)
+        self.emit_call_one_arg()
 
         if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
             self.emit("GET_AWAITABLE")
@@ -3528,7 +3532,7 @@ class CodeGenerator312(CodeGenerator):
         gen.emit("RETURN_VALUE")
         return gen
 
-    def emit_decorator_call(self, decorator: AST, class_def: ClassDef) -> None:
+    def emit_call_one_arg(self) -> None:
         self.emit("CALL", 0)
 
     def visitClassDef(self, node: ast.ClassDef) -> None:
