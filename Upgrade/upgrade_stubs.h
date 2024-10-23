@@ -13,12 +13,6 @@ extern "C" {
 #endif
 
 /*
- * Intended to list out all the opcode definitions.  Used by the HIR printer.
- * No way of generating this in 3.12 right now.
- */
-#define PY_OPCODES(X)
-
-/*
  * Parallel GC stuff T194027914.
  */
 

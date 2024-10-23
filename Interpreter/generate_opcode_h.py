@@ -6,6 +6,7 @@
 # flake8: noqa
 
 
+import functools
 import sys
 import tokenize
 
@@ -23,9 +24,16 @@ extern "C" {{
 
 
 /* Instruction opcodes for compiled code */
-""".lstrip()
+
+#define PY_OPCODES(X)
+""".strip()
 
 footer = """
+enum {
+#define OP(op, value) op = value,
+PY_OPCODES(OP)
+#undef OP
+};
 
 #define IS_PSEUDO_OPCODE(op) (((op) >= MIN_PSEUDO_OPCODE) && ((op) <= MAX_PSEUDO_OPCODE))
 
@@ -85,7 +93,7 @@ def write_int_array_from_ops(name, ops, out):
     assert bits == 0
     out.write(f"}};\n")
 
-def main(opcode_py, outfile='Include/opcode.h',
+def main(opcode_py, cinderx_opcode_py, outfile='Include/opcode.h',
          internaloutfile='Include/internal/pycore_opcode.h',
          intrinsicoutfile='Include/internal/pycore_intrinsics.h'):
     opcode = {}
@@ -94,6 +102,10 @@ def main(opcode_py, outfile='Include/opcode.h',
     else:
         fp = open(opcode_py)            # Python 2.7
     with fp:
+        code = fp.read()
+    exec(code, opcode)
+    # Read in the additional cinderx opcodes.
+    with tokenize.open(cinderx_opcode_py) as fp:
         code = fp.read()
     exec(code, opcode)
     opmap = opcode['opmap']
@@ -127,30 +139,47 @@ def main(opcode_py, outfile='Include/opcode.h',
         opname_including_specialized[next_op] = name
         used[next_op] = True
 
+    # Changes for cinderx to write an enum
+    # rather than a series of #defines
+    max_op_len = functools.reduce(
+        lambda m, elem: max(m, len(elem)), opcode['opname'], 0
+    ) + 3 # 3-digit opcode length
+
+    def write_line(opname, opnum):
+        padding = max_op_len - len(opname)
+        fobj.write(" \\\n  X(%s, %*d)" % (opname, padding, opnum))
+
     with open(outfile, 'w') as fobj, open(internaloutfile, 'w') as iobj, open(
             intrinsicoutfile, "w") as nobj:
         fobj.write(header)
         iobj.write(internal_header)
         nobj.write(intrinsic_header)
 
+        pseudo_opcodes = []
+
         for name in opname:
             if name in opmap:
                 op = opmap[name]
                 if op == HAVE_ARGUMENT:
-                    fobj.write(DEFINE.format("HAVE_ARGUMENT", HAVE_ARGUMENT))
-                if op == MIN_PSEUDO_OPCODE:
-                    fobj.write(DEFINE.format("MIN_PSEUDO_OPCODE", MIN_PSEUDO_OPCODE))
+                    write_line("HAVE_ARGUMENT", HAVE_ARGUMENT)
                 if op == MIN_INSTRUMENTED_OPCODE:
-                    fobj.write(DEFINE.format("MIN_INSTRUMENTED_OPCODE", MIN_INSTRUMENTED_OPCODE))
+                    write_line("MIN_INSTRUMENTED_OPCODE", MIN_INSTRUMENTED_OPCODE)
 
-                fobj.write(DEFINE.format(name, op))
-
-                if op == MAX_PSEUDO_OPCODE:
-                    fobj.write(DEFINE.format("MAX_PSEUDO_OPCODE", MAX_PSEUDO_OPCODE))
-
+                if op >= MIN_PSEUDO_OPCODE and op <= MAX_PSEUDO_OPCODE:
+                    # We do not want pseudo-opcodes in the cinderx enum
+                    pseudo_opcodes.append((name, op))
+                else:
+                    write_line(name, op)
 
         for name, op in specialized_opmap.items():
+            write_line(name, op)
+
+        fobj.write("\n\n")
+
+        fobj.write(DEFINE.format("MIN_PSEUDO_OPCODE", MIN_PSEUDO_OPCODE))
+        for name, op in pseudo_opcodes:
             fobj.write(DEFINE.format(name, op))
+        fobj.write(DEFINE.format("MAX_PSEUDO_OPCODE", MAX_PSEUDO_OPCODE))
 
         iobj.write("\nextern const uint32_t _PyOpcode_Jump[9];\n")
         iobj.write("\nextern const uint8_t _PyOpcode_Caches[256];\n")
@@ -239,4 +268,4 @@ def main(opcode_py, outfile='Include/opcode.h',
 
 
 if __name__ == '__main__':
-    main(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4])
+    main(sys.argv[1], "cinderx_opcode.py", sys.argv[2], sys.argv[3], sys.argv[4])
