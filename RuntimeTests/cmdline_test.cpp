@@ -303,13 +303,18 @@ TEST_F(CmdLineTest, JITEnable) {
 // start of tests associated with flags the setting of which is dependent upon
 // if jit is enabled
 TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
+  // Shadow frames don't exist past 3.10.
+  auto shadow_mode =
+      PY_VERSION_HEX >= 0x030B0000 ? FrameMode::kNormal : FrameMode::kShadow;
+
+  // Flag does nothing when JIT is disabled.
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-shadow-frame",
           "PYTHONJITSHADOWFRAME",
           []() {},
-          []() { ASSERT_NE(getConfig().frame_mode, FrameMode::kShadow); },
-          false),
+          []() { ASSERT_EQ(getConfig().frame_mode, FrameMode::kNormal); },
+          false /* enable_jit */),
       0);
 
   ASSERT_EQ(
@@ -317,8 +322,8 @@ TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
           L"jit-shadow-frame",
           "PYTHONJITSHADOWFRAME",
           []() {},
-          []() { ASSERT_EQ(getConfig().frame_mode, FrameMode::kShadow); },
-          true),
+          [=]() { ASSERT_EQ(getConfig().frame_mode, shadow_mode); },
+          true /* enable_jit */),
       0);
 
   // Explicitly disable it.
@@ -327,8 +332,8 @@ TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
           L"jit-shadow-frame=0",
           "PYTHONJITSHADOWFRAME=0",
           []() {},
-          []() { ASSERT_NE(getConfig().frame_mode, FrameMode::kShadow); },
-          true),
+          []() { ASSERT_EQ(getConfig().frame_mode, FrameMode::kNormal); },
+          true /* enable_jit */),
       0);
 }
 

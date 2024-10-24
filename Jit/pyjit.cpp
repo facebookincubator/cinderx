@@ -448,6 +448,12 @@ void initFlagProcessor() {
         "PYTHONJITSHADOWFRAME",
         [](int val) {
           if (use_jit) {
+            if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+              JIT_LOG(
+                  "Warning: Cinder's shadow frames are not supported in Python "
+                  "versions later than 3.10");
+              return;
+            }
             getMutableConfig().frame_mode =
                 val ? FrameMode::kShadow : FrameMode::kNormal;
           } else {
