@@ -1035,9 +1035,7 @@ class CodeGenerator(ASTVisitor):
         if opcode:
             gen.emit(opcode, oparg)
 
-        gen.compile_comprehension_generator(
-            node.generators, 0, 0, elt, val, type(node), True
-        )
+        gen.compile_comprehension_generator(node, 0, 0, elt, val, type(node), True)
 
         if not isinstance(node, ast.GeneratorExp):
             gen.emit("RETURN_VALUE")
@@ -1078,28 +1076,42 @@ class CodeGenerator(ASTVisitor):
         )
 
     def compile_comprehension_generator(
-        self, generators, gen_index, depth, elt, val, type, outermost_gen_is_param
-    ):
-        if generators[gen_index].is_async:
+        self,
+        comp: CompNode,
+        gen_index: int,
+        depth: int,
+        elt: ast.expr,
+        val: ast.expr | None,
+        type: type[ast.AST],
+        outermost_gen_is_param: bool,
+    ) -> None:
+        if comp.generators[gen_index].is_async:
             self.compile_async_comprehension(
-                generators, gen_index, depth, elt, val, type, outermost_gen_is_param
+                comp, gen_index, depth, elt, val, type, outermost_gen_is_param
             )
         else:
             self.compile_sync_comprehension(
-                generators, gen_index, depth, elt, val, type, outermost_gen_is_param
+                comp, gen_index, depth, elt, val, type, outermost_gen_is_param
             )
 
-    def emit_yield(self, gen):
+    def emit_yield(self, scope: Scope) -> None:
         self.emit("YIELD_VALUE")
 
     def compile_async_comprehension(
-        self, generators, gen_index, depth, elt, val, type, outermost_gen_is_param
-    ):
+        self,
+        comp: CompNode,
+        gen_index: int,
+        depth: int,
+        elt: ast.expr,
+        val: ast.expr | None,
+        type: type[ast.AST],
+        outermost_gen_is_param: bool,
+    ) -> None:
         start = self.newBlock("start")
         except_ = self.newBlock("except")
         if_cleanup = self.newBlock("if_cleanup")
 
-        gen = generators[gen_index]
+        gen = comp.generators[gen_index]
         if gen_index == 0 and outermost_gen_is_param:
             self.loadName(".0")
         else:
@@ -1120,13 +1132,13 @@ class CodeGenerator(ASTVisitor):
 
         depth += 1
         gen_index += 1
-        if gen_index < len(generators):
+        if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                generators, gen_index, depth, elt, val, type, False
+                comp, gen_index, depth, elt, val, type, False
             )
         elif type is ast.GeneratorExp:
             self.visit(elt)
-            self.emit_yield(gen)
+            self.emit_yield(self.scopes[comp])
             self.emit("POP_TOP")
         elif type is ast.ListComp:
             self.visit(elt)
@@ -1147,14 +1159,21 @@ class CodeGenerator(ASTVisitor):
         self.emit("END_ASYNC_FOR")
 
     def compile_sync_comprehension(
-        self, generators, gen_index, depth, elt, val, type, outermost_gen_is_param
-    ):
+        self,
+        comp: CompNode,
+        gen_index: int,
+        depth: int,
+        elt: ast.expr,
+        val: ast.expr | None,
+        type: type[ast.AST],
+        outermost_gen_is_param: bool,
+    ) -> None:
         start = self.newBlock("start")
         skip = self.newBlock("skip")
         if_cleanup = self.newBlock("if_cleanup")
         anchor = self.newBlock("anchor")
 
-        gen = generators[gen_index]
+        gen = comp.generators[gen_index]
         if gen_index == 0 and outermost_gen_is_param:
             self.loadName(".0")
         else:
@@ -1179,14 +1198,14 @@ class CodeGenerator(ASTVisitor):
             self.newBlock()
 
         gen_index += 1
-        if gen_index < len(generators):
+        if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
-                generators, gen_index, depth, elt, val, type, False
+                comp, gen_index, depth, elt, val, type, False
             )
         else:
             if type is ast.GeneratorExp:
                 self.visit(elt)
-                self.emit_yield(gen)
+                self.emit_yield(self.scopes[comp])
                 self.emit("POP_TOP")
             elif type is ast.ListComp:
                 self.visit(elt)
@@ -1978,7 +1997,7 @@ class CodeGenerator(ASTVisitor):
             self.visit(node.value)
         else:
             self.emit("LOAD_CONST", None)
-        self.emit_yield(self)
+        self.emit_yield(self.scope)
 
     def visitYieldFrom(self, node):
         if not isinstance(
@@ -3194,8 +3213,8 @@ class CodeGenerator312(CodeGenerator):
     def emit_call_intrinsic_2(self, oparg: str):
         self.emit("CALL_INTRINSIC_2", INTRINSIC_2.index(oparg))
 
-    def emit_yield(self, gen):
-        if gen.scope.generator and gen.scope.coroutine:
+    def emit_yield(self, scope: Scope) -> None:
+        if scope.generator and scope.coroutine:
             self.emit_call_intrinsic_1("INTRINSIC_ASYNC_GEN_WRAP")
         self.emit("YIELD_VALUE")
         self.emitResume(ResumeOparg.Yield)
@@ -3830,7 +3849,7 @@ class CinderCodeGenerator(CodeGenerator):
             gen.emit(opcode, oparg)
 
         gen.compile_comprehension_generator(
-            node.generators, 0, 0, elt, val, type(node), not scope.inlined
+            node, 0, 0, elt, val, type(node), not scope.inlined
         )
 
         if scope.inlined:

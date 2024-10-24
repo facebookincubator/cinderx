@@ -12,6 +12,7 @@
     POP_BLOCK(0),
     STORE_FAST('i'),
     LOAD_FAST('i'),
+    CALL_INTRINSIC_1(4),
     YIELD_VALUE(0),
     ...,
 ]
