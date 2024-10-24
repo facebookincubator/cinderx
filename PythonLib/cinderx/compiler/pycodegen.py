@@ -1089,6 +1089,9 @@ class CodeGenerator(ASTVisitor):
                 generators, gen_index, depth, elt, val, type, outermost_gen_is_param
             )
 
+    def emit_yield(self, gen):
+        self.emit("YIELD_VALUE")
+
     def compile_async_comprehension(
         self, generators, gen_index, depth, elt, val, type, outermost_gen_is_param
     ):
@@ -1123,7 +1126,7 @@ class CodeGenerator(ASTVisitor):
             )
         elif type is ast.GeneratorExp:
             self.visit(elt)
-            self.emit("YIELD_VALUE")
+            self.emit_yield(gen)
             self.emit("POP_TOP")
         elif type is ast.ListComp:
             self.visit(elt)
@@ -1183,7 +1186,7 @@ class CodeGenerator(ASTVisitor):
         else:
             if type is ast.GeneratorExp:
                 self.visit(elt)
-                self.emit("YIELD_VALUE")
+                self.emit_yield(gen)
                 self.emit("POP_TOP")
             elif type is ast.ListComp:
                 self.visit(elt)
@@ -1975,7 +1978,7 @@ class CodeGenerator(ASTVisitor):
             self.visit(node.value)
         else:
             self.emit("LOAD_CONST", None)
-        self.emit("YIELD_VALUE")
+        self.emit_yield(self)
 
     def visitYieldFrom(self, node):
         if not isinstance(
@@ -3190,6 +3193,12 @@ class CodeGenerator312(CodeGenerator):
 
     def emit_call_intrinsic_2(self, oparg: str):
         self.emit("CALL_INTRINSIC_2", INTRINSIC_2.index(oparg))
+
+    def emit_yield(self, gen):
+        if gen.scope.generator and gen.scope.coroutine:
+            self.emit_call_intrinsic_1("INTRINSIC_ASYNC_GEN_WRAP")
+        self.emit("YIELD_VALUE")
+        self.emitResume(ResumeOparg.Yield)
 
     _binary_opargs: dict[type, int] = {
         ast.Add: find_op_idx("NB_ADD"),
