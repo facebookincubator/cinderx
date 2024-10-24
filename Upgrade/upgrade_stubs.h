@@ -153,14 +153,6 @@ PyFrameObject* Cix_PyEval_MakeFrameVector(
     PyObject* const* args,
     Py_ssize_t argcount,
     PyObject* kwnames);
-PyObject* Cix_SuperLookupMethodOrAttr(
-    PyThreadState* tstate,
-    PyObject* global_super,
-    PyTypeObject* type,
-    PyObject* self,
-    PyObject* name,
-    int call_no_args,
-    int* meth_found);
 void Cix_format_exc_check_arg(
     PyThreadState*,
     PyObject*,

@@ -30,6 +30,8 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
+#else
+#include "internal/pycore_typeobject.h"
 #endif
 
 // This is mostly taken from ceval.c _PyEval_EvalCodeWithName
@@ -869,14 +871,19 @@ LoadMethodResult JITRT_GetMethodFromSuper(
     PyObject* name,
     bool no_args_in_super_call) {
   int meth_found = 0;
-  PyObject* result = Cix_SuperLookupMethodOrAttr(
-      PyThreadState_GET(),
-      global_super,
-      type,
-      self,
-      name,
-      no_args_in_super_call,
-      &meth_found);
+  PyObject* result =
+#if PY_VERSION_HEX < 0x030C0000
+      Cix_SuperLookupMethodOrAttr(
+          PyThreadState_GET(),
+          global_super,
+          type,
+          self,
+          name,
+          no_args_in_super_call,
+          &meth_found);
+#else
+      _PySuper_Lookup(type, self, name, &meth_found);
+#endif
   if (result == nullptr) {
     return {nullptr, nullptr};
   }
@@ -903,6 +910,7 @@ PyObject* JITRT_GetAttrFromSuper(
     PyObject* self,
     PyObject* name,
     bool no_args_in_super_call) {
+#if PY_VERSION_HEX < 0x030C0000
   return Cix_SuperLookupMethodOrAttr(
       PyThreadState_GET(),
       global_super,
@@ -911,6 +919,9 @@ PyObject* JITRT_GetAttrFromSuper(
       name,
       no_args_in_super_call,
       nullptr);
+#else
+  return _PySuper_Lookup(type, self, name, nullptr /* meth_found */);
+#endif
 }
 
 PyObject* JITRT_InvokeMethod(

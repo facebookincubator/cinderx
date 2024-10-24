@@ -63,17 +63,6 @@ STUB(
     Py_ssize_t,
     PyObject*)
 STUB(
-    PyObject*,
-    Cix_SuperLookupMethodOrAttr,
-    T196762792,
-    PyThreadState*,
-    PyObject*,
-    PyTypeObject*,
-    PyObject*,
-    PyObject*,
-    int,
-    int*)
-STUB(
     void,
     Cix_format_exc_check_arg,
     T196762792,
