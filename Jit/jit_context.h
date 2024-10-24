@@ -190,6 +190,11 @@ class Context {
       compiled_codes_;
 
   /*
+   * Set of compilations that are currently active, across all threads.
+   */
+  UnorderedSet<CompilationKey> active_compiles_;
+
+  /*
    * Code which is being kept alive in case it was in use when
    * clearCache was called. Only intended to be used during
    * multithreaded_compile_test.

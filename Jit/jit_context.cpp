@@ -18,13 +18,6 @@ namespace jit {
 
 AotContext g_aot_ctx;
 
-namespace {
-
-// We maintain a set of compilations that are active in all threads.
-std::unordered_set<CompilationKey> active_compiles;
-
-} // namespace
-
 Context::~Context() {
   for (auto it = compiled_funcs_.begin(); it != compiled_funcs_.end();) {
     PyFunctionObject* func = *it;
@@ -195,7 +188,7 @@ Context::CompilationResult Context::compilePreloader(
     if (CompiledFunction* compiled = lookupCode(code, builtins, globals)) {
       return {compiled, PYJIT_RESULT_OK};
     }
-    if (!active_compiles.insert(key).second) {
+    if (!active_compiles_.insert(key).second) {
       return {nullptr, PYJIT_RESULT_RETRY};
     }
   }
@@ -208,7 +201,7 @@ Context::CompilationResult Context::compilePreloader(
   }
 
   ThreadedCompileSerialize guard;
-  active_compiles.erase(key);
+  active_compiles_.erase(key);
   if (compiled == nullptr) {
     return {nullptr, PYJIT_RESULT_UNKNOWN_ERROR};
   }
