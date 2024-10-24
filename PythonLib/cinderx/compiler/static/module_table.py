@@ -500,10 +500,6 @@ class ModuleTable:
         # annotations, does not include function-internal declarations)
         is_decl_dep: bool = False,
     ) -> Class | None:
-        assert self.first_pass_done, (
-            "Type annotations cannot be resolved until after initial pass, "
-            "so that all imports and types are available."
-        )
         with self.ann_visitor.temporary_context_qualname(requester, is_decl_dep):
             return self.ann_visitor.resolve_annotation(
                 node, is_declaration=is_declaration

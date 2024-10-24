@@ -423,6 +423,8 @@ class Compiler:
                 "set_type_static": self.type_env.DYNAMIC,
                 "native": self.type_env.native_decorator,
                 "mixin": self.type_env.function.exact_type(),
+                "ClassDecorator": self.type_env.class_decorator.exact_type(),
+                "TClass": self.type_env.class_typevar.exact_type(),
             },
         )
 

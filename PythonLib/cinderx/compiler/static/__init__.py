@@ -210,6 +210,9 @@ class Static310CodeGenerator(StrictCodeGenerator):
             enable_patching=self.enable_patching,
         )
 
+    def _is_type_checked(self, t: Class) -> bool:
+        return t is not self.compiler.type_env.object and t.is_nominal_type
+
     def _get_arg_types(
         self,
         func: FuncOrLambda | CompNode,
@@ -224,10 +227,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         for i, arg in enumerate(args.posonlyargs):
             t = self.get_type(arg)
-            if (
-                t is not self.compiler.type_env.DYNAMIC
-                and t is not self.compiler.type_env.OBJECT
-            ):
+            if self._is_type_checked(t.klass):
                 arg_checks.append(self._calculate_idx(arg.arg, i, cellvars))
                 arg_checks.append(t.klass.type_descr)
 
@@ -239,10 +239,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
                 if is_comprehension
                 else self.get_type(arg)
             )
-            if (
-                t is not self.compiler.type_env.DYNAMIC
-                and t is not self.compiler.type_env.OBJECT
-            ):
+            if self._is_type_checked(t.klass):
                 arg_checks.append(
                     self._calculate_idx(arg.arg, i + len(args.posonlyargs), cellvars)
                 )
@@ -250,10 +247,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         for i, arg in enumerate(args.kwonlyargs):
             t = self.get_type(arg)
-            if (
-                t is not self.compiler.type_env.DYNAMIC
-                and t is not self.compiler.type_env.OBJECT
-            ):
+            if self._is_type_checked(t.klass):
                 arg_checks.append(
                     self._calculate_idx(
                         arg.arg,
@@ -327,6 +321,8 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if isinstance(func, (FunctionDef, AsyncFunctionDef)):
             function = self.get_func_container(func)
             klass = function.return_type.resolved()
+            if not self._is_type_checked(klass):
+                return self.compiler.type_env.object
         else:
             klass = self.get_type(func).klass
         if isinstance(klass, AwaitableType):
@@ -612,13 +608,13 @@ class Static310CodeGenerator(StrictCodeGenerator):
         effect_nodes: dict[str, ast.AST] = {}
         effect.apply(type_state, effect_nodes)
         for key, value in type_state.local_types.items():
-            if value.klass is not self.compiler.type_env.DYNAMIC:
+            if value.klass.is_nominal_type:
                 self.visit(effect_nodes[key])
                 self.emit("CAST", value.klass.type_descr)
                 self.emit("POP_TOP")
         for base, refinement_dict in type_state.refined_fields.items():
             for attr, (value, _, _) in refinement_dict.items():
-                if value.klass is not self.compiler.type_env.DYNAMIC:
+                if value.klass.is_nominal_type:
                     key = f"{base}.{attr}"
                     self.visit(effect_nodes[key])
                     self.emit("CAST", value.klass.type_descr)
