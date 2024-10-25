@@ -3086,7 +3086,7 @@ class ArgMapping:
             descr = self.descr_override or self.callable.type_descr
             code_gen.emit("INVOKE_FUNCTION", (descr, len(func_args)))
 
-    def infer_return_type(self, ret_type: Class) -> Class:
+    def infer_return_type(self, ret_type: Class) -> Value:
         # There's still more to do here in the case where the return
         # type is not directly expressed in the parameter types.
         generic_param_types = self.generic_param_types
@@ -10440,7 +10440,7 @@ class ClassDecoratorClass(Class):
         return super().can_assign_from(src)
 
 
-class ClassDecoratorInstance(Object):
+class ClassDecoratorInstance(Object[Class]):
     def resolve_decorate_class(
         self,
         klass: Class,

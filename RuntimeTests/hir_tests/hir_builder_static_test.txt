@@ -667,30 +667,22 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v13 = Cast<object> v12 {
-      FrameState {
-        CurInstrOffset 22
-        Locals<1> v0
-        Stack<4> v2 v3 v8 v9
-      }
-    }
-    Snapshot
     CondBranchCheckType<7, 8, Tuple> v9
   }
 
   bb 7 (preds 6) {
     Snapshot
-    v14 = Assign v9
+    v13 = Assign v9
     Branch<9>
   }
 
   bb 8 (preds 6) {
     Snapshot
-    v14 = GetTuple v9 {
+    v13 = GetTuple v9 {
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 20
         Locals<1> v0
-        Stack<4> v2 v3 v8 v13
+        Stack<4> v2 v3 v8 v12
       }
     }
     Branch<9>
@@ -698,40 +690,32 @@ fun jittestmodule:test {
 
   bb 9 (preds 7, 8) {
     Snapshot
-    v15 = LoadConst<CInt64[2]>
-    v16 = PrimitiveBox<CInt64> v15 {
+    v14 = LoadConst<CInt64[2]>
+    v15 = PrimitiveBox<CInt64> v14 {
+      FrameState {
+        CurInstrOffset 20
+        Locals<1> v0
+        Stack<4> v2 v3 v8 v12
+      }
+    }
+    v16 = BinaryOp<Subscript> v13 v15 {
+      FrameState {
+        CurInstrOffset 20
+        Locals<1> v0
+        Stack<4> v2 v3 v8 v12
+      }
+    }
+    Snapshot
+    v17 = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v18 = InvokeStaticFunction<jittestmodule.x, 6, Long> v17 v2 v3 v8 v12 v16 {
       FrameState {
         CurInstrOffset 26
         Locals<1> v0
-        Stack<4> v2 v3 v8 v13
-      }
-    }
-    v17 = BinaryOp<Subscript> v14 v16 {
-      FrameState {
-        CurInstrOffset 26
-        Locals<1> v0
-        Stack<4> v2 v3 v8 v13
       }
     }
     Snapshot
-    v18 = Cast<object> v17 {
-      FrameState {
-        CurInstrOffset 30
-        Locals<1> v0
-        Stack<5> v2 v3 v8 v13 v14
-      }
-    }
-    Snapshot
-    v19 = LoadConst<MortalFunc[function:0xdeadbeef]>
-    v20 = InvokeStaticFunction<jittestmodule.x, 6, Long> v19 v2 v3 v8 v13 v18 {
-      FrameState {
-        CurInstrOffset 38
-        Locals<1> v0
-      }
-    }
-    Snapshot
-    v20 = RefineType<Long> v20
-    Return<Long> v20
+    v18 = RefineType<Long> v18
+    Return<Long> v18
   }
 }
 --- Expected 3.12 ---
