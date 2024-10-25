@@ -13,7 +13,7 @@ from ast import AST, ClassDef
 from builtins import compile as builtin_compile
 from contextlib import contextmanager
 from enum import IntEnum
-from typing import Union
+from typing import cast, Union
 
 from . import consts, future, misc, pyassem, symbols
 from .consts import (
@@ -34,7 +34,7 @@ from .consts import (
 )
 from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
 from .optimizer import AstOptimizer
-from .pyassem import Block, NO_LOCATION, PyFlowGraph, SrcLocation
+from .pyassem import Block, Instruction, NO_LOCATION, PyFlowGraph, SrcLocation
 from .symbols import Scope, SymbolVisitor
 from .unparse import to_expr
 from .visitor import ASTVisitor, walk
@@ -73,6 +73,7 @@ HANDLER_CLEANUP = 8
 POP_VALUE = 9
 EXCEPTION_HANDLER = 10
 ASYNC_COMPREHENSION_GENERATOR = 11
+STOP_ITERATION = 12
 
 _ZERO = (0).to_bytes(4, "little")
 
@@ -2824,7 +2825,12 @@ class CodeGenerator(ASTVisitor):
                 self.emit("POP_TOP")
 
     def unwind_setup_entry(self, e: Entry, preserve_tos: int) -> None:
-        if e.kind in (WHILE_LOOP, EXCEPTION_HANDLER, ASYNC_COMPREHENSION_GENERATOR):
+        if e.kind in (
+            WHILE_LOOP,
+            EXCEPTION_HANDLER,
+            ASYNC_COMPREHENSION_GENERATOR,
+            STOP_ITERATION,
+        ):
             return
 
         elif e.kind == FOR_LOOP:
@@ -3396,6 +3402,53 @@ class CodeGenerator312(CodeGenerator):
             optimization_lvl=self.optimization_lvl,
             name=name,
         )
+
+    def wrap_in_stopiteration_handler(self, gen: CodeGenerator312) -> None:
+        handler = self.newBlock("handler")
+
+        # compile.c handles this with a function that is used nowhere else
+        # (instr_sequence_insert_instruction), so it seems worth just accessing
+        # the block internal insts list rather than bubbling up an accessor
+        # through several layers of containers.
+        # TODO: handler.bid is unassigned at this point.
+        self.graph.current.insts.insert(0, Instruction("SETUP_CLEANUP", handler.bid))
+
+        gen.emit("LOAD_CONST", None)
+        gen.emit("RETURN_VALUE")
+
+        self.nextBlock(handler)
+        gen.emit_call_intrinsic_1("INTRINSIC_STOPITERATION_ERROR")
+        gen.emit("RERAISE", 1)
+
+    def generate_function(
+        self,
+        node: FuncOrLambda,
+        name: str,
+        first_lineno: int,
+    ) -> CodeGenerator:
+        gen = cast(
+            CodeGenerator312,
+            self.make_func_codegen(node, node.args, name, first_lineno),
+        )
+        body = self.skip_docstring(node.body)
+
+        start = self.newBlock("start")
+        self.nextBlock(start)
+
+        scope = gen.scope
+        add_stopiteration_handler = scope.coroutine or scope.generator
+        if add_stopiteration_handler:
+            self.setups.append(Entry(STOP_ITERATION, start, None, None))
+
+        self.processBody(node, body, gen)
+
+        if add_stopiteration_handler:
+            self.wrap_in_stopiteration_handler(gen)
+            self.setups.pop()
+        else:
+            gen.finishFunction()
+
+        return gen
 
     def build_function(
         self,

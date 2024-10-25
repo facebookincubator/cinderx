@@ -21,4 +21,6 @@ def f():
     END_SEND(0),
     POP_TOP(0),
     RETURN_CONST(None),
+    CALL_INTRINSIC_1(3),
+    RERAISE(1),
 ]
