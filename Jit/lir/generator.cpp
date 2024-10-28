@@ -2647,10 +2647,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kMove,
             caller_shadow_frame);
         // Set code object data
-        PyCodeObject* code = instr->code();
-        env_->code_rt->addReference(reinterpret_cast<PyObject*>(code));
+        BorrowedRef<PyCodeObject> code = instr->code();
+        env_->code_rt->addReference(code.getObj());
         PyObject* globals = instr->globals();
-        env_->code_rt->addReference(reinterpret_cast<PyObject*>(globals));
+        env_->code_rt->addReference(globals);
         PyObject* builtins = instr->builtins();
         env_->code_rt->addReference(builtins);
         RuntimeFrameState* rtfs =

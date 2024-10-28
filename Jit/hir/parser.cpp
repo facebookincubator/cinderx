@@ -714,7 +714,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     auto type_descr = Ref<>::steal(PyTuple_New(2));
     JIT_CHECK(type_descr != nullptr, "failed to allocate type_descr");
 
-    PyTuple_SET_ITEM(type_descr.get(), 0, (PyObject*)container_descr.get());
+    PyTuple_SET_ITEM(type_descr.get(), 0, container_descr.getObj());
     Py_INCREF(container_descr.get());
     PyObject* func_name = PyList_GET_ITEM(names, Py_SIZE(names.get()) - 1);
     PyTuple_SET_ITEM(type_descr.get(), 1, func_name);

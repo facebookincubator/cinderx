@@ -11,7 +11,7 @@ template <typename T>
 class RefBase {
  public:
   RefBase() = default;
-  RefBase(std::nullptr_t) {}
+  /* implicit */ RefBase(std::nullptr_t) {}
 
   operator T*() const {
     return ptr_;
@@ -19,7 +19,7 @@ class RefBase {
 
   template <typename X = T>
   operator std::enable_if_t<!std::is_same_v<X, PyObject>, PyObject*>() const {
-    return reinterpret_cast<PyObject*>(ptr_);
+    return getObj();
   }
 
   T* release() {
@@ -30,6 +30,10 @@ class RefBase {
 
   T* get() const {
     return ptr_;
+  }
+
+  PyObject* getObj() const {
+    return reinterpret_cast<PyObject*>(ptr_);
   }
 
   T* operator->() const {

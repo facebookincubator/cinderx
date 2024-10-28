@@ -2583,8 +2583,7 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
           result.begin(),
           result.end(),
           [&](BorrowedRef<PyFunctionObject> func) {
-            auto func_obj = reinterpret_cast<PyObject*>(func.get());
-            return deleted_units.contains(func_obj) ||
+            return deleted_units.contains(func.getObj()) ||
                 deleted_units.contains(func->func_code);
           }),
       result.end());
