@@ -1796,11 +1796,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* value = instr->GetOperand(1);
         Instruction* result = bbb.appendCallInstruction(
             OutVReg{OperandBase::k32bit}, PyObject_SetAttr, base, name, value);
-        // TODO(T140174965): This should be MemImm.
-        Instruction* null =
-            bbb.appendInstr(OutVReg{}, Instruction::kMove, Imm{0});
-        auto none = reinterpret_cast<uint64_t>(Py_None);
-        bbb.appendInstr(dst, Instruction::kSelect, result, null, Imm{none});
+        appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         break;
       }
       case Opcode::kStoreAttrCached: {
@@ -1808,13 +1804,18 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             getConfig().attr_caches,
             "Inline caches must be enabled to use StoreAttrCached");
         auto instr = static_cast<const StoreAttrCached*>(&i);
-        hir::Register* dst = instr->output();
         hir::Register* base = instr->GetOperand(0);
         Instruction* name = getNameFromIdx(bbb, instr);
         hir::Register* value = instr->GetOperand(1);
         auto cache = Runtime::get()->allocateStoreAttrCache();
-        bbb.appendCallInstruction(
-            dst, jit::StoreAttrCache::invoke, cache, base, name, value);
+        Instruction* result = bbb.appendCallInstruction(
+            OutVReg{OperandBase::k32bit},
+            jit::StoreAttrCache::invoke,
+            cache,
+            base,
+            name,
+            value);
+        appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         break;
       }
       case Opcode::kVectorCall: {
@@ -2944,7 +2945,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         case Opcode::kInvokeStaticFunction:
         case Opcode::kRaiseAwaitableError:
         case Opcode::kRaise:
-        case Opcode::kRaiseStatic: {
+        case Opcode::kRaiseStatic:
+        case Opcode::kStoreAttr:
+        case Opcode::kStoreAttrCached: {
           break;
         }
         case Opcode::kCompare: {

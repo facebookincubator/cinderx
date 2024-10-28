@@ -31,7 +31,7 @@ fun jittestmodule:A.f {
       }
     }
     Snapshot
-    v7 = StoreAttr<1; "x"> v6 v4 {
+    StoreAttr<1; "x"> v6 v4 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v0
@@ -39,8 +39,8 @@ fun jittestmodule:A.f {
       }
     }
     Snapshot
-    v8 = LoadConst<NoneType>
-    Return v8
+    v7 = LoadConst<NoneType>
+    Return v7
   }
 }
 --- Expected 3.12 ---

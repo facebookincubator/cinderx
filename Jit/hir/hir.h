@@ -2493,12 +2493,9 @@ DEFINE_SIMPLE_INSTR(
     DeoptBaseWithNameIdx);
 
 // Set the attribute of an object.
-//
-// Places NULL in dst if an error occurred or a non-NULL value otherwise
 DEFINE_SIMPLE_INSTR(
     StoreAttr,
     (TObject, TObject),
-    HasOutput,
     Operands<2>,
     DeoptBaseWithNameIdx);
 
@@ -2506,7 +2503,6 @@ DEFINE_SIMPLE_INSTR(
 DEFINE_SIMPLE_INSTR(
     StoreAttrCached,
     (TObject, TObject),
-    HasOutput,
     Operands<2>,
     DeoptBaseWithNameIdx);
 

@@ -1215,7 +1215,7 @@ def test(x, y):
       CurInstrOffset 2
       Locals<2> v0 v1
     }
-    v5 = StoreAttr<0; "foo"> v0 v1 {
+    StoreAttr<0; "foo"> v0 v1 {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
@@ -1225,9 +1225,9 @@ def test(x, y):
       CurInstrOffset 16
       Locals<2> v0 v1
     }
-    v6 = LoadConst<NoneType>
-    v6 = RefineType<NoneType> v6
-    Return<NoneType> v6
+    v5 = LoadConst<NoneType>
+    v5 = RefineType<NoneType> v5
+    Return<NoneType> v5
   }
 }
 )";
@@ -1253,7 +1253,7 @@ def test(x, y):
         Stack<1> v1
       }
     }
-    v2 = StoreAttr<0; "foo"> v0 v1 {
+    StoreAttr<0; "foo"> v0 v1 {
       FrameState {
         CurInstrOffset 4
         Locals<2> v0 v1
@@ -1263,8 +1263,8 @@ def test(x, y):
       CurInstrOffset 6
       Locals<2> v0 v1
     }
-    v3 = LoadConst<NoneType>
-    Return v3
+    v2 = LoadConst<NoneType>
+    Return v2
   }
 }
 )";

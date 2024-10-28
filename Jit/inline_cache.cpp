@@ -142,22 +142,19 @@ void maybeCollectCacheStats(
 
 } // namespace
 
-PyObject*
-SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-  PyDictObject* dict = get_or_allocate_dict(obj, dict_offset);
+int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+  BorrowedRef<PyDictObject> dict = get_or_allocate_dict(obj, dict_offset);
   if (dict == nullptr) {
-    return nullptr;
+    return -1;
   }
-  PyObject* dictobj = reinterpret_cast<PyObject*>(dict);
-  PyObject* result = Py_None;
   if ((dict->ma_keys == keys) &&
       ((dict->ma_used == val_offset) ||
-       (DICT_VALUES(dict)[val_offset] != nullptr))) {
-    PyObject* old_value = DICT_VALUES(dict)[val_offset];
+       (DICT_VALUES(dict.get())[val_offset] != nullptr))) {
+    PyObject* old_value = DICT_VALUES(dict.get())[val_offset];
 
-    if (!_PyObject_GC_IS_TRACKED(dictobj)) {
+    if (!_PyObject_GC_IS_TRACKED(dict.getObj())) {
       if (_PyObject_GC_MAY_BE_TRACKED(value)) {
-        _PyObject_GC_TRACK(dictobj);
+        _PyObject_GC_TRACK(dict.getObj());
       }
     }
 
@@ -165,7 +162,7 @@ SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
         _PyDict_NotifyEvent(PyDict_EVENT_MODIFIED, dict, name, value);
 
     Py_INCREF(value);
-    DICT_VALUES(dict)[val_offset] = value;
+    DICT_VALUES(dict.get())[val_offset] = value;
     dict->ma_version_tag = new_version;
 
     if (old_value == nullptr) {
@@ -173,14 +170,12 @@ SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
     } else {
       Py_DECREF(old_value);
     }
-  } else {
-    Py_INCREF(dictobj);
-    if (PyDict_SetItem(dictobj, name, value) < 0) {
-      result = nullptr;
-    }
-    Py_DECREF(dictobj);
+
+    return 0;
   }
-  return result;
+
+  auto strong_ref = Ref<>::create(dict);
+  return PyDict_SetItem(dict, name, value);
 }
 
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
@@ -204,20 +199,13 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   return result;
 }
 
-PyObject*
-CombinedMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-  PyDictObject* dict = get_or_allocate_dict(obj, dict_offset);
+int CombinedMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+  BorrowedRef<PyDictObject> dict = get_or_allocate_dict(obj, dict_offset);
   if (dict == nullptr) {
-    return nullptr;
+    return -1;
   }
-  PyObject* result = Py_None;
-  auto dictobj = reinterpret_cast<PyObject*>(dict);
-  Py_INCREF(dictobj);
-  if (PyDict_SetItem(dictobj, name, value) < 0) {
-    result = nullptr;
-  }
-  Py_DECREF(dictobj);
-  return result;
+  auto strong_ref = Ref<>::create(dict);
+  return PyDict_SetItem(dict, name, value);
 }
 
 PyObject* CombinedMutator::getAttr(PyObject* obj, PyObject* name) {
@@ -235,37 +223,30 @@ PyObject* CombinedMutator::getAttr(PyObject* obj, PyObject* name) {
   return result;
 }
 
-PyObject* DataDescrMutator::setAttr(PyObject* obj, PyObject* value) {
-  if (Py_TYPE(descr)->tp_descr_set(descr, obj, value)) {
-    return nullptr;
-  }
-  return Py_None;
+int DataDescrMutator::setAttr(PyObject* obj, PyObject* value) {
+  return Py_TYPE(descr)->tp_descr_set(descr, obj, value);
 }
 
 PyObject* DataDescrMutator::getAttr(PyObject* obj) {
   return Py_TYPE(descr)->tp_descr_get(descr, obj, (PyObject*)Py_TYPE(obj));
 }
 
-PyObject* MemberDescrMutator::setAttr(PyObject* obj, PyObject* value) {
-  if (PyMember_SetOne((char*)obj, memberdef, value)) {
-    return nullptr;
-  }
-  return Py_None;
+int MemberDescrMutator::setAttr(PyObject* obj, PyObject* value) {
+  return PyMember_SetOne((char*)obj, memberdef, value);
 }
 
 PyObject* MemberDescrMutator::getAttr(PyObject* obj) {
   return PyMember_GetOne((char*)obj, memberdef);
 }
 
-PyObject* DescrOrClassVarMutator::setAttr(
+int DescrOrClassVarMutator::setAttr(
     PyObject* obj,
     PyObject* name,
     PyObject* value) {
   descrsetfunc setter = Py_TYPE(descr)->tp_descr_set;
   if (setter != nullptr) {
     auto descr_guard = Ref<>::create(descr);
-    int st = setter(descr, obj, value);
-    return (st == -1) ? nullptr : Py_None;
+    return setter(descr, obj, value);
   }
   PyObject** dictptr = _PyObject_GetDictPtr(obj);
   if (dictptr == nullptr) {
@@ -274,7 +255,7 @@ PyObject* DescrOrClassVarMutator::setAttr(
         "'%.50s' object attribute '%U' is read-only",
         Py_TYPE(obj)->tp_name,
         name);
-    return nullptr;
+    return -1;
   }
   BorrowedRef<PyTypeObject> type(Py_TYPE(obj));
   int st = Cix_PyObjectDict_SetItem(type, dictptr, name, value);
@@ -288,7 +269,7 @@ PyObject* DescrOrClassVarMutator::setAttr(
 #else
   UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
 #endif
-  return (st == -1) ? nullptr : Py_None;
+  return st;
 }
 
 PyObject* DescrOrClassVarMutator::getAttr(PyObject* obj, PyObject* name) {
@@ -386,7 +367,7 @@ void AttributeMutator::set_split(
   split_.keys = keys;
 }
 
-inline PyObject*
+inline int
 AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   AttributeMutator::Kind kind = get_kind();
   switch (kind) {
@@ -525,7 +506,7 @@ void AttributeCache::fill(
   ac_watcher.watch(type, this);
 }
 
-PyObject* StoreAttrCache::invoke(
+int StoreAttrCache::invoke(
     StoreAttrCache* cache,
     PyObject* obj,
     PyObject* name,
@@ -533,9 +514,8 @@ PyObject* StoreAttrCache::invoke(
   return cache->doInvoke(obj, name, value);
 }
 
-PyObject*
-StoreAttrCache::doInvoke(PyObject* obj, PyObject* name, PyObject* value) {
-  PyTypeObject* tp = Py_TYPE(obj);
+int StoreAttrCache::doInvoke(PyObject* obj, PyObject* name, PyObject* value) {
+  BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
   for (auto& entry : entries()) {
     if (entry.type() == tp) {
       return entry.setAttr(obj, name, value);
@@ -547,15 +527,14 @@ StoreAttrCache::doInvoke(PyObject* obj, PyObject* name, PyObject* value) {
 // NB: The logic here needs to be kept in sync with
 // _PyObject_GenericSetAttrWithDict, with the proviso that this will never be
 // used to delete attributes.
-PyObject* __attribute__((noinline))
+int __attribute__((noinline))
 StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
   BorrowedRef<PyTypeObject> tp(Py_TYPE(obj));
 
   if (_PyType_GetDict(tp) == nullptr && PyType_Ready(tp) < 0) {
-    return nullptr;
+    return -1;
   } else if (tp->tp_setattro != PyObject_GenericSetAttr) {
-    int st = PyObject_SetAttr(obj, name, value);
-    return st == 0 ? Py_None : nullptr;
+    return PyObject_SetAttr(obj, name, value);
   }
 
   auto name_guard = Ref<>::create(name);
@@ -565,7 +544,7 @@ StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
     if (f != nullptr) {
       int res = f(descr, obj, value);
       fill(tp, name, descr);
-      return (res == -1) ? nullptr : Py_None;
+      return res;
     }
   }
 
@@ -580,7 +559,7 @@ StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
           tp->tp_name,
           name);
     }
-    return nullptr;
+    return -1;
   }
 
   int res = Cix_PyObjectDict_SetItem(tp, dictptr, name, value);
@@ -597,7 +576,7 @@ StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
     fill(tp, name, descr);
   }
 
-  return (res == -1) ? nullptr : Py_None;
+  return res;
 }
 
 PyObject*

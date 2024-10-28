@@ -20,8 +20,9 @@ namespace jit {
 
 // Mutator for an instance attribute that is stored in a split dictionary
 struct SplitMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttr(PyObject* obj, PyObject* name);
+  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+
   uint32_t dict_offset;
   uint32_t val_offset;
   PyDictKeysObject* keys; // Borrowed
@@ -29,29 +30,33 @@ struct SplitMutator {
 
 // Mutator for an instance attribute that is stored in a combined dictionary
 struct CombinedMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttr(PyObject* obj, PyObject* name);
+  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+
   Py_ssize_t dict_offset;
 };
 
 // Mutator for a data descriptor
 struct DataDescrMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* value);
   PyObject* getAttr(PyObject* obj);
+  int setAttr(PyObject* obj, PyObject* value);
+
   BorrowedRef<> descr;
 };
 
 // Mutator for a member descriptor
 struct MemberDescrMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* value);
   PyObject* getAttr(PyObject* obj);
+  int setAttr(PyObject* obj, PyObject* value);
+
   PyMemberDef* memberdef;
 };
 
 // Attribute corresponds to a non-data descriptor or a class variable
 struct DescrOrClassVarMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttr(PyObject* obj, PyObject* name);
+  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+
   BorrowedRef<> descr;
 };
 
@@ -85,8 +90,8 @@ class AttributeMutator {
   void
   set_split(PyTypeObject* type, Py_ssize_t val_offset, PyDictKeysObject* keys);
 
-  PyObject* setAttr(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttr(PyObject* obj, PyObject* name);
+  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
 
  private:
   void set_type(PyTypeObject* type, Kind kind);
@@ -139,15 +144,15 @@ class StoreAttrCache : public AttributeCache {
  public:
   StoreAttrCache() = default;
 
-  // Returns a borrowed reference to Py_None on success; nullptr otherwise.
-  static PyObject*
+  // Return 0 on success and a negative value on failure.
+  static int
   invoke(StoreAttrCache* cache, PyObject* obj, PyObject* name, PyObject* value);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(StoreAttrCache);
 
-  PyObject* doInvoke(PyObject* obj, PyObject* name, PyObject* value);
-  PyObject* invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value);
+  int doInvoke(PyObject* obj, PyObject* name, PyObject* value);
+  int invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value);
 };
 
 // A cache for an individual LoadAttrCached instruction.

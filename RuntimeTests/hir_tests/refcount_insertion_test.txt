@@ -1211,51 +1211,51 @@ def test(x, val):
 --- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
-    v4:Object = LoadArg<0; "x">
-    v5:Object = LoadArg<1; "val">
-    v10:NoneType = StoreAttrCached<0; "foo"> v4 v5 {
-      LiveValues<2> b:v4 b:v5
+    v3:Object = LoadArg<0; "x">
+    v4:Object = LoadArg<1; "val">
+    StoreAttrCached<0; "foo"> v3 v4 {
+      LiveValues<2> b:v3 b:v4
       FrameState {
         CurInstrOffset 4
-        Locals<2> v4 v5
+        Locals<2> v3 v4
       }
     }
-    v9:NoneType = LoadConst<NoneType>
-    Incref v9
-    Return v9
+    v7:NoneType = LoadConst<NoneType>
+    Incref v7
+    Return v7
   }
 }
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v7:Object = LoadArg<0; "x">
-    v8:Object = LoadArg<1; "val">
-    v10:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v10
+    v6:Object = LoadArg<0; "x">
+    v7:Object = LoadArg<1; "val">
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
   }
 
   bb 2 (preds 0) {
-    v11:CInt32 = RunPeriodicTasks {
-      LiveValues<2> b:v7 b:v8
+    v10:CInt32 = RunPeriodicTasks {
+      LiveValues<2> b:v6 b:v7
       FrameState {
         CurInstrOffset 0
-        Locals<2> v7 v8
+        Locals<2> v6 v7
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 0, 2) {
-    v17:NoneType = StoreAttrCached<0; "foo"> v7 v8 {
-      LiveValues<2> b:v7 b:v8
+    StoreAttrCached<0; "foo"> v6 v7 {
+      LiveValues<2> b:v6 b:v7
       FrameState {
         CurInstrOffset 6
-        Locals<2> v7 v8
+        Locals<2> v6 v7
       }
     }
-    v15:NoneType = LoadConst<NoneType>
-    Incref v15
-    Return<NoneType> v15
+    v13:NoneType = LoadConst<NoneType>
+    Incref v13
+    Return<NoneType> v13
   }
 }
 --- Test Name ---

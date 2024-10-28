@@ -584,8 +584,6 @@ Type outputType(
     // respectively. At some point we should get rid of this extra layer and
     // deal with the int return value directly.
     case Opcode::kListExtend:
-    case Opcode::kStoreAttr:
-    case Opcode::kStoreAttrCached:
       return TNoneType;
 
     case Opcode::kListAppend:
@@ -755,6 +753,8 @@ Type outputType(
     case Opcode::kSetFunctionAttr:
     case Opcode::kSnapshot:
     case Opcode::kStoreArrayItem:
+    case Opcode::kStoreAttr:
+    case Opcode::kStoreAttrCached:
     case Opcode::kStoreField:
     case Opcode::kUnreachable:
     case Opcode::kUpdatePrevInstr:
