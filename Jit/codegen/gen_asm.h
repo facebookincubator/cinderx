@@ -30,41 +30,15 @@
 
 namespace jit::codegen {
 
-// Generate the final stage trampoline that is responsible for finishing
-// execution in the interpreter and then returning the result to the caller.
-void* generateDeoptTrampoline(bool generator_mode);
-void* generateFailedDeferredCompileTrampoline();
-
 class NativeGenerator {
  public:
-  NativeGenerator(const hir::Function* func)
-      : func_(func),
-        deopt_trampoline_(generateDeoptTrampoline(false)),
-        deopt_trampoline_generators_(generateDeoptTrampoline(true)),
-        failed_deferred_compile_trampoline_(
-            generateFailedDeferredCompileTrampoline()),
-#if PY_VERSION_HEX < 0x030C0000
-        frame_header_size_(calcFrameHeaderSize(func)),
-#endif
-        max_inline_depth_(calcMaxInlineDepth(func)) {
-    env_.has_inlined_functions = max_inline_depth_ > 0;
-  }
+  explicit NativeGenerator(const hir::Function* func);
 
   NativeGenerator(
       const hir::Function* func,
       void* deopt_trampoline,
       void* deopt_trampoline_generators,
-      void* failed_deferred_compile_trampoline)
-      : func_(func),
-        deopt_trampoline_(deopt_trampoline),
-        deopt_trampoline_generators_(deopt_trampoline_generators),
-        failed_deferred_compile_trampoline_(failed_deferred_compile_trampoline),
-#if PY_VERSION_HEX < 0x030C0000
-        frame_header_size_(calcFrameHeaderSize(func)),
-#endif
-        max_inline_depth_(calcMaxInlineDepth(func)) {
-    env_.has_inlined_functions = max_inline_depth_ > 0;
-  }
+      void* failed_deferred_compile_trampoline);
 
   void SetJSONOutput(nlohmann::json* json_2) {
     JIT_CHECK(json_2 != nullptr, "expected non-null stream");
@@ -189,22 +163,13 @@ class NativeGenerator {
   nlohmann::json* json{nullptr};
 };
 
+// Factory class for creating instances of NativeGenerator that reuse the same
+// trampolines.
 class NativeGeneratorFactory {
  public:
-  NativeGeneratorFactory() {
-    deopt_trampoline_ = generateDeoptTrampoline(false);
-    deopt_trampoline_generators_ = generateDeoptTrampoline(true);
-    failed_deferred_compile_trampoline_ =
-        generateFailedDeferredCompileTrampoline();
-  }
+  NativeGeneratorFactory();
 
-  std::unique_ptr<NativeGenerator> operator()(const hir::Function* func) const {
-    return std::make_unique<NativeGenerator>(
-        func,
-        deopt_trampoline_,
-        deopt_trampoline_generators_,
-        failed_deferred_compile_trampoline_);
-  }
+  std::unique_ptr<NativeGenerator> operator()(const hir::Function* func) const;
 
   DISALLOW_COPY_AND_ASSIGN(NativeGeneratorFactory);
 
@@ -213,9 +178,5 @@ class NativeGeneratorFactory {
   void* deopt_trampoline_generators_;
   void* failed_deferred_compile_trampoline_;
 };
-
-// Returns whether or not we can load/store reg from/to addr with a single
-// instruction.
-bool canLoadStoreAddr(asmjit::x86::Gp reg, int64_t addr);
 
 } // namespace jit::codegen

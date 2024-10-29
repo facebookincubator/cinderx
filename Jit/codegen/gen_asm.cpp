@@ -47,39 +47,528 @@
 #include <vector>
 
 using namespace asmjit;
+using namespace jit;
 using namespace jit::hir;
 using namespace jit::lir;
 using namespace jit::util;
 
 namespace jit::codegen {
 
-#ifdef SHADOW_FRAMES
 namespace {
+
+#ifdef SHADOW_FRAMES
 
 namespace shadow_frame {
 // Shadow stack frames appear at the beginning of native frames for jitted
 // functions
-static constexpr x86::Mem kFramePtr = x86::ptr(x86::rbp, -kJITShadowFrameSize);
-static constexpr x86::Mem kInFramePrevPtr =
+constexpr x86::Mem kFramePtr = x86::ptr(x86::rbp, -kJITShadowFrameSize);
+constexpr x86::Mem kInFramePrevPtr =
     x86::ptr(x86::rbp, -kJITShadowFrameSize + SHADOW_FRAME_FIELD_OFF(prev));
-static constexpr x86::Mem kInFrameDataPtr =
+constexpr x86::Mem kInFrameDataPtr =
     x86::ptr(x86::rbp, -kJITShadowFrameSize + SHADOW_FRAME_FIELD_OFF(data));
-static constexpr x86::Mem kInFrameOrigDataPtr = x86::ptr(
+constexpr x86::Mem kInFrameOrigDataPtr = x86::ptr(
     x86::rbp,
     -kJITShadowFrameSize + JIT_SHADOW_FRAME_FIELD_OFF(orig_data));
 
-static constexpr x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
+constexpr x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
   return x86::ptr(tstate_reg, offsetof(PyThreadState, shadow_frame));
 }
 
 } // namespace shadow_frame
 
-} // namespace
 #endif // SHADOW_FRAMES
 
+#define ASM_CHECK_THROW(exp)                         \
+  {                                                  \
+    auto err = (exp);                                \
+    if (err != kErrorOk) {                           \
+      auto message = DebugUtils::errorAsString(err); \
+      throw AsmJitException(err, #exp, message);     \
+    }                                                \
+  }
+
+#define ASM_CHECK(exp, what)             \
+  {                                      \
+    auto err = (exp);                    \
+    JIT_CHECK(                           \
+        err == kErrorOk,                 \
+        "Failed generating {}: {}",      \
+        (what),                          \
+        DebugUtils::errorAsString(err)); \
+  }
+
+// Scratch register used by the various deopt trampolines.
+//
+// NB: This MUST be r15. If you change the register you'll also need to change
+// the deopt trampoline code that saves all registers.
+const auto deopt_scratch_reg = x86::r15;
+
+// Set RBP to "original RBP" value when called in the context of a generator.
 void RestoreOriginalGeneratorRBP(x86::Emitter* as) {
   size_t original_rbp_offset = offsetof(GenDataFooter, originalRbp);
   as->mov(x86::rbp, x86::ptr(x86::rbp, original_rbp_offset));
+}
+
+void raiseUnboundLocalError(BorrowedRef<> name) {
+  // name is converted into a `char*` in format_exc_check_arg
+  Cix_format_exc_check_arg(
+      _PyThreadState_GET(),
+      PyExc_UnboundLocalError,
+      "local variable '%.200s' referenced before assignment",
+      name);
+}
+
+void raiseUnboundFreevarError(BorrowedRef<> name) {
+  // name is converted into a `char*` in format_exc_check_arg
+  Cix_format_exc_check_arg(
+      _PyThreadState_GET(),
+      PyExc_NameError,
+      "free variable '%.200s' referenced before assignment in enclosing scope",
+      name);
+}
+
+void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
+  PyErr_Format(
+      PyExc_AttributeError,
+      "'%.50s' object has no attribute '%U'",
+      Py_TYPE(receiver)->tp_name,
+      name);
+}
+
+CiPyFrameObjType*
+prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
+  JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
+  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
+  PyThreadState* tstate = _PyThreadState_UncheckedGet();
+#if PY_VERSION_HEX < 0x030C0000
+  Ref<PyFrameObject> f = materializePyFrameForDeopt(tstate);
+
+  PyFrameObject* frame = f.release();
+  PyFrameObject* frame_iter = frame;
+  _PyShadowFrame* sf_iter = tstate->shadow_frame;
+  // Iterate one past the inline depth because that is the caller frame.
+  for (int i = deopt_meta.inline_depth(); i >= 0; i--) {
+    // Transfer ownership of shadow frame to the interpreter. The associated
+    // Python frame will be ignored during future attempts to materialize the
+    // stack.
+    _PyShadowFrame_SetOwner(sf_iter, PYSF_INTERP);
+    reifyFrame(frame_iter, deopt_meta, deopt_meta.frame_meta.at(i), regs);
+    frame_iter = frame_iter->f_back;
+    sf_iter = sf_iter->prev;
+  }
+#else
+  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
+  reifyFrame(frame, deopt_meta, deopt_meta.frame_meta.at(0), regs);
+  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
+#endif
+  Ref<> deopt_obj;
+  // Clear our references now that we've transferred them to the frame
+  MemoryView mem{regs};
+  deopt_obj = profileDeopt(deopt_idx, deopt_meta, mem);
+  releaseRefs(deopt_meta, mem);
+  if (!PyErr_Occurred()) {
+    auto reason = deopt_meta.reason;
+    switch (reason) {
+      case DeoptReason::kGuardFailure: {
+        runtime->guardFailed(deopt_meta);
+        break;
+      }
+      case DeoptReason::kYieldFrom: {
+        break;
+      }
+      case DeoptReason::kUnhandledNullField:
+        raiseAttributeError(deopt_obj, deopt_meta.eh_name);
+        break;
+      case DeoptReason::kUnhandledUnboundLocal:
+        raiseUnboundLocalError(deopt_meta.eh_name);
+        break;
+      case DeoptReason::kUnhandledUnboundFreevar:
+        raiseUnboundFreevarError(deopt_meta.eh_name);
+        break;
+      case DeoptReason::kUnhandledException:
+        JIT_ABORT("unhandled exception without error set");
+        break;
+      case DeoptReason::kRaise:
+        // This code mirrors what happens in _PyEval_EvalFrameDefault although
+        // I'm not sure how to test it. Not clear it can happen with JIT.
+#ifdef NDEBUG
+        if (!PyErr_Occurred()) {
+          PyErr_SetString(
+              PyExc_SystemError, "error return without exception set");
+        }
+#else
+        JIT_CHECK(PyErr_Occurred(), "Error return without exception set");
+#endif
+        break;
+      case DeoptReason::kRaiseStatic:
+        JIT_ABORT("Lost exception when raising static exception");
+        break;
+      case DeoptReason::kReraise:
+        PyErr_SetString(PyExc_RuntimeError, "No active exception to reraise");
+        break;
+    }
+  }
+  return frame;
+}
+
+#if PY_VERSION_HEX < 0x030C0000
+PyObject* resumeInInterpreter(
+    PyFrameObject* frame,
+    Runtime* runtime,
+    std::size_t deopt_idx) {
+  if (frame->f_gen) {
+    auto gen = reinterpret_cast<PyGenObject*>(frame->f_gen);
+    // It's safe to call JITRT_GenJitDataFree directly here, rather than
+    // through _PyJIT_GenDealloc. Ownership of all references have been
+    // transferred to the frame.
+    JITRT_GenJitDataFree(gen);
+    gen->gi_jit_data = nullptr;
+  }
+  PyThreadState* tstate = PyThreadState_Get();
+  PyObject* result = nullptr;
+  // Resume all of the inlined frames and the caller
+  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
+  int inline_depth = deopt_meta.inline_depth();
+  int err_occurred = (deopt_meta.reason != DeoptReason::kGuardFailure);
+  while (inline_depth >= 0) {
+    // TODO(emacs): Investigate skipping resuming frames that do not have
+    // try/catch. Will require re-adding _PyShadowFrame_Pop back for
+    // non-generators and unlinking the frame manually.
+
+    // We need to maintain the invariant that there is at most one shadow frame
+    // on the shadow stack for each frame on the Python stack. Unless we are a
+    // a generator, the interpreter will insert a new entry on the shadow stack
+    // when execution resumes there, so we remove our entry.
+    if (!frame->f_gen) {
+      _PyShadowFrame_Pop(tstate, tstate->shadow_frame);
+    }
+    // Resume one frame.
+    PyFrameObject* prev_frame = frame->f_back;
+    // Delegate management of `tstate->frame` to the interpreter loop. On
+    // entry, it expects that tstate->frame points to the frame for the calling
+    // function.
+    JIT_CHECK(tstate->frame == frame, "unexpected frame at top of stack");
+    tstate->frame = prev_frame;
+    result = PyEval_EvalFrameEx(frame, err_occurred);
+    JITRT_DecrefFrame(frame);
+    frame = prev_frame;
+
+    err_occurred = result == nullptr;
+    // Push the previous frame's result onto the value stack. We can't push
+    // after resuming because f_stacktop is nullptr during execution of a frame.
+    if (!err_occurred) {
+      if (inline_depth > 0) {
+        // The caller is at inline depth 0, so we only attempt to push the
+        // result onto the stack in the deeper (> 0) frames. Otherwise, we
+        // should just return the value from the native code in the way our
+        // native calling convention requires.
+        frame->f_valuestack[frame->f_stackdepth++] = result;
+      }
+    }
+    inline_depth--;
+  }
+  return result;
+}
+
+#else
+
+PyObject* resumeInInterpreter(
+    _PyInterpreterFrame* frame,
+    Runtime* runtime,
+    std::size_t deopt_idx) {
+  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
+  UPGRADE_NOTE(GENERATOR_JIT_SUPPORT, T194022335)
+  PyThreadState* tstate = PyThreadState_Get();
+
+  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
+  int err_occurred = (deopt_meta.reason != DeoptReason::kGuardFailure);
+
+  // Delegate management of the frame to the interpreter loop. On entry, it
+  // expects tstate->cframe->current_frame points to the frame for the calling
+  // function. We don't need to go back a tstate->cframe as we borrowed an
+  // existing one when we linked our frame in.
+  JIT_CHECK(
+      tstate->cframe->current_frame == frame,
+      "unexpected frame at top of stack");
+  tstate->cframe->current_frame = frame->previous;
+  return _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
+}
+
+#endif
+
+// Generate the final stage trampoline that is responsible for finishing
+// execution in the interpreter and then returning the result to the caller.
+void* generateDeoptTrampoline(bool generator_mode) {
+  CodeHolder code;
+  code.init(CodeAllocator::get()->asmJitEnvironment());
+  x86::Builder a(&code);
+  Annotations annot;
+
+  auto annot_cursor = a.cursor();
+  // When we get here the stack has the following layout. The space on the
+  // stack for the call arg buffer / LOAD_METHOD scratch space is always safe
+  // to read, but its contents will depend on the function being compiled as
+  // well as the program point at which deopt occurs. We pass a pointer to it
+  // into the frame reification code so that it can properly reconstruct the
+  // interpreter's stack when the the result of a LOAD_METHOD is on the
+  // stack. See the comments in reifyStack in deopt.cpp for more details.
+  //
+  // +-------------------------+
+  // | ...                     |
+  // | ? call arg buffer       |
+  // | ^ LOAD_METHOD scratch   |
+  // +-------------------------+ <-- end of JIT's fixed frame
+  // | index of deopt metadata |
+  // | saved rip               |
+  // | padding                 |
+  // | address of epilogue     |
+  // | r15                     | <-- rsp
+  // +-------------------------+
+  //
+  // Save registers for use in frame reification. Once these are saved we're
+  // free to clobber any caller-saved registers.
+  //
+  // IF YOU USE CALLEE-SAVED REGISTERS YOU HAVE TO RESTORE THEM MANUALLY BEFORE
+  // THE EXITING THE TRAMPOLINE.
+  a.push(x86::r14);
+  a.push(x86::r13);
+  a.push(x86::r12);
+  a.push(x86::r11);
+  a.push(x86::r10);
+  a.push(x86::r9);
+  a.push(x86::r8);
+  a.push(x86::rdi);
+  a.push(x86::rsi);
+  a.push(x86::rbp);
+  a.push(x86::rsp);
+  a.push(x86::rbx);
+  a.push(x86::rdx);
+  a.push(x86::rcx);
+  a.push(x86::rax);
+
+  if (generator_mode) {
+    // Restore original RBP for use in epilogue.
+    RestoreOriginalGeneratorRBP(a.as<x86::Emitter>());
+  }
+
+  annot.add("Save registers", &a, annot_cursor);
+
+  // Set up a stack frame for the trampoline so that:
+  //
+  // 1. Runtime code in the JIT that is used to update PyFrameObjects can find
+  //    the saved rip at the expected location immediately following the end of
+  //    the JIT's fixed frame.
+  // 2. The JIT-compiled function shows up in C stack straces when it is
+  //    deopting. Only the deopt trampoline will appear in the trace if
+  //    we don't open a frame.
+  //
+  // Right now the stack has the following layout:
+  //
+  // +-------------------------+ <-- end of JIT's fixed frame
+  // | index of deopt metadata |
+  // | saved rip               |
+  // | padding                 |
+  // | address of epilogue     |
+  // | r15                     |
+  // | ...                     |
+  // | rax                     | <-- rsp
+  // +-------------------------+
+  //
+  // We want our frame to look like:
+  //
+  // +-------------------------+ <-- end of JIT's fixed frame
+  // | saved rip               |
+  // | saved rbp               | <-- rbp
+  // | index of deopt metadata |
+  // | address of epilogue     |
+  // | r15                     |
+  // | ...                     |
+  // | rax                     | <-- rsp
+  // +-------------------------+
+  //
+  // Load the saved rip passed to us from the JIT-compiled function, which
+  // resides where we're supposed to save rbp.
+  annot_cursor = a.cursor();
+  auto saved_rbp_addr = x86::ptr(x86::rsp, (NUM_GP_REGS + 2) * kPointerSize);
+  a.mov(x86::rdi, saved_rbp_addr);
+  // Save rbp and set up our frame
+  a.mov(saved_rbp_addr, x86::rbp);
+  a.lea(x86::rbp, saved_rbp_addr);
+  // Load the index of the deopt metadata, which resides where we're supposed to
+  // save rip.
+  auto saved_rip_addr = x86::ptr(x86::rbp, kPointerSize);
+  a.mov(x86::rsi, saved_rip_addr);
+  a.mov(saved_rip_addr, x86::rdi);
+  // Save the index of the deopt metadata
+  auto deopt_meta_addr = x86::ptr(x86::rbp, -kPointerSize);
+  a.mov(deopt_meta_addr, x86::rsi);
+  annot.add("Shuffle rip, rbp, and deopt index", &a, annot_cursor);
+
+  // Prep the frame for evaluation in the interpreter.
+  //
+  // We pass the array of saved registers, a pointer to the runtime, the index
+  // of deopt metadata, and the call method kind.
+  annot_cursor = a.cursor();
+  a.mov(x86::rdi, x86::rsp);
+  a.mov(x86::rsi, reinterpret_cast<uint64_t>(Runtime::get()));
+  a.mov(x86::rdx, deopt_meta_addr);
+  static_assert(
+      std::is_same_v<
+          decltype(prepareForDeopt),
+          CiPyFrameObjType*(const uint64_t*, Runtime*, std::size_t)>,
+      "prepareForDeopt has unexpected signature");
+  a.call(reinterpret_cast<uint64_t>(prepareForDeopt));
+
+  // Clean up saved registers.
+  //
+  // This isn't strictly necessary but saves 128 bytes on the stack if we end
+  // up resuming in the interpreter.
+  a.add(x86::rsp, (NUM_GP_REGS - 1) * kPointerSize);
+  // We have to restore our scratch register manually since it's callee-saved
+  // and the stage 2 trampoline used it to hold the address of this
+  // trampoline. We can't rely on the JIT epilogue to restore it for us, as the
+  // JIT-compiled code may not have spilled it.
+  a.pop(deopt_scratch_reg);
+  annot.add("prepareForDeopt", &a, annot_cursor);
+
+  // Resume execution in the interpreter.
+  annot_cursor = a.cursor();
+  // First argument: frame returned from prepareForDeopt.
+  a.mov(x86::rdi, x86::rax);
+  // Second argument: runtime.
+  a.mov(x86::rsi, reinterpret_cast<uint64_t>(Runtime::get()));
+  // Third argument: DeoptMetadata index.
+  a.mov(x86::rdx, x86::ptr(x86::rsp, kPointerSize));
+  static_assert(
+      std::is_same_v<
+          decltype(resumeInInterpreter),
+          PyObject*(CiPyFrameObjType*, Runtime*, std::size_t)>,
+      "resumeInInterpreter has unexpected signature");
+  a.call(reinterpret_cast<uint64_t>(resumeInInterpreter));
+
+  // If we return a primitive and prepareForDeopt returned null, we need that
+  // null in edx/xmm1 to signal error to our caller. Since this trampoline is
+  // shared, we do this move unconditionally, but even if not needed, it's
+  // harmless. (To eliminate it, we'd need another trampoline specifically for
+  // deopt of primitive-returning functions, just to do this one move.)
+  a.mov(x86::edx, x86::eax);
+  a.movq(x86::xmm1, x86::eax);
+
+  annot.add("resumeInInterpreter", &a, annot_cursor);
+
+  // Now we're done. Get the address of the epilogue and jump there.
+  annot_cursor = a.cursor();
+
+  auto epilogue_addr = x86::ptr(x86::rbp, -2 * kPointerSize);
+  a.mov(x86::rdi, epilogue_addr);
+  // Remove our frame from the stack
+  a.leave();
+  // Clear the saved rip. Normally this would be handled by a `ret`; we must
+  // clear it manually because we're jumping directly to the epilogue.
+  a.sub(x86::rsp, -kPointerSize);
+  a.jmp(x86::rdi);
+  annot.add("Jump to real epilogue", &a, annot_cursor);
+
+  auto name =
+      generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline";
+  void* result{nullptr};
+  ASM_CHECK(a.finalize(), name);
+  ASM_CHECK(CodeAllocator::get()->addCode(&result, &code), name);
+  JIT_LOGIF(
+      g_dump_asm,
+      "Disassembly for {}\n{}",
+      name,
+      annot.disassemble(result, code));
+
+  auto code_size = code.codeSize();
+  register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
+
+  std::vector<std::pair<void*, std::size_t>> code_sections;
+  populateCodeSections(code_sections, code, result);
+  code_sections.emplace_back(result, code_size);
+  perf::registerFunction(code_sections, name);
+  return result;
+}
+
+void* generateFailedDeferredCompileTrampoline() {
+  CodeHolder code;
+  code.init(CodeAllocator::get()->asmJitEnvironment());
+  x86::Builder a(&code);
+  Annotations annot;
+
+  auto annot_cursor = a.cursor();
+
+  a.push(x86::rbp);
+  a.mov(x86::rbp, x86::rsp);
+
+  // save incoming arg registers
+  a.push(x86::r9);
+  a.push(x86::r8);
+  a.push(x86::rcx);
+  a.push(x86::rdx);
+  a.push(x86::rsi);
+  a.push(x86::rdi);
+
+  annot.add("saveRegisters", &a, annot_cursor);
+
+  // r10 contains the function object from our stub
+  a.mov(x86::rdi, x86::r10);
+  a.mov(x86::rsi, x86::rsp);
+  a.call(reinterpret_cast<uint64_t>(JITRT_FailedDeferredCompileShim));
+  a.leave();
+  a.ret();
+
+  const char* name = "failedDeferredCompileTrampoline";
+  ASM_CHECK(a.finalize(), name);
+  void* result{nullptr};
+  ASM_CHECK(CodeAllocator::get()->addCode(&result, &code), name);
+
+  JIT_LOGIF(
+      g_dump_asm,
+      "Disassembly for {}\n{}",
+      name,
+      annot.disassemble(result, code));
+
+  auto code_size = code.textSection()->realSize();
+  register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
+  std::vector<std::pair<void*, std::size_t>> code_sections;
+  forEachSection([&](CodeSection section) {
+    auto asmjit_section = code.sectionByName(codeSectionName(section));
+    if (asmjit_section == nullptr || asmjit_section->realSize() == 0) {
+      return;
+    }
+    auto section_start = static_cast<char*>(result) + asmjit_section->offset();
+    code_sections.emplace_back(
+        reinterpret_cast<void*>(section_start), asmjit_section->realSize());
+  });
+  perf::registerFunction(code_sections, name);
+
+  return result;
+}
+
+} // namespace
+
+NativeGenerator::NativeGenerator(const hir::Function* func)
+    : NativeGenerator{
+          func,
+          generateDeoptTrampoline(false),
+          generateDeoptTrampoline(true),
+          generateFailedDeferredCompileTrampoline()} {}
+
+NativeGenerator::NativeGenerator(
+    const hir::Function* func,
+    void* deopt_trampoline,
+    void* deopt_trampoline_generators,
+    void* failed_deferred_compile_trampoline)
+    : func_{func},
+      deopt_trampoline_{deopt_trampoline},
+      deopt_trampoline_generators_{deopt_trampoline_generators},
+      failed_deferred_compile_trampoline_{failed_deferred_compile_trampoline},
+#if PY_VERSION_HEX < 0x030C0000
+      frame_header_size_{calcFrameHeaderSize(func)},
+#endif
+      max_inline_depth_{calcMaxInlineDepth(func)} {
+  env_.has_inlined_functions = max_inline_depth_ > 0;
 }
 
 void NativeGenerator::generateEpilogueUnlinkFrame(
@@ -98,7 +587,7 @@ void NativeGenerator::generateEpilogueUnlinkFrame(
       PYSF_PYFRAME == 1 && _PyShadowFrame_NumPtrKindBits == 2,
       "Unexpected constants");
   bool might_have_heap_frame =
-      func_->canDeopt() || func_->frameMode == jit::FrameMode::kNormal;
+      func_->canDeopt() || func_->frameMode == FrameMode::kNormal;
   if (might_have_heap_frame) {
     as_->bt(
         x86::qword_ptr(scratch_reg, offsetof(_PyShadowFrame, data)),
@@ -123,7 +612,7 @@ void NativeGenerator::generateEpilogueUnlinkFrame(
 
     auto saved_rax_ptr = x86::ptr(x86::rbp, -8);
 
-    jit::hir::Type ret_type = func_->return_type;
+    hir::Type ret_type = func_->return_type;
     if (ret_type <= TCDouble) {
       as_->movsd(saved_rax_ptr, x86::xmm0);
     } else {
@@ -143,12 +632,6 @@ void NativeGenerator::generateEpilogueUnlinkFrame(
   }
 #endif
 }
-
-// Scratch register used by the various deopt trampolines.
-//
-// NB: This MUST be r15. If you change the register you'll also need to change
-// the deopt trampoline code that saves all registers.
-static const auto deopt_scratch_reg = x86::r15;
 
 // these functions call int returning functions and convert their output from
 // int (32 bits) to uint64_t (64 bits). This is solely because the code
@@ -185,25 +668,6 @@ class ThrowableErrorHandler : public ErrorHandler {
     throw AsmJitException(err, "<unknown>", message);
   }
 };
-
-#define ASM_CHECK_THROW(exp)                         \
-  {                                                  \
-    auto err = (exp);                                \
-    if (err != kErrorOk) {                           \
-      auto message = DebugUtils::errorAsString(err); \
-      throw AsmJitException(err, #exp, message);     \
-    }                                                \
-  }
-
-#define ASM_CHECK(exp, what)             \
-  {                                      \
-    auto err = (exp);                    \
-    JIT_CHECK(                           \
-        err == kErrorOk,                 \
-        "Failed generating {}: {}",      \
-        (what),                          \
-        DebugUtils::errorAsString(err)); \
-  }
 
 #ifdef __ASM_DEBUG
 extern "C" void ___debug_helper(const char* name) {
@@ -303,8 +767,8 @@ void* NativeGenerator::getVectorcallEntry() {
     env_.code_rt->addReference(ref);
   }
 
-  jit::lir::LIRGenerator lirgen(GetFunction(), &env_);
-  std::unique_ptr<jit::lir::Function> lir_func;
+  lir::LIRGenerator lirgen(GetFunction(), &env_);
+  std::unique_ptr<lir::Function> lir_func;
 
   COMPILE_TIMER(
       GetFunction()->compilation_phase_timer,
@@ -466,8 +930,8 @@ void NativeGenerator::loadTState(x86::Gp dst_reg) {
 void NativeGenerator::linkOnStackShadowFrame(
     x86::Gp tstate_reg,
     x86::Gp scratch_reg) {
-  const jit::hir::Function* func = GetFunction();
-  jit::FrameMode frame_mode = func->frameMode;
+  const hir::Function* func = GetFunction();
+  FrameMode frame_mode = func->frameMode;
   using namespace shadow_frame;
   x86::Mem shadow_stack_top_ptr = getStackTopPtr(tstate_reg);
   uintptr_t data =
@@ -476,7 +940,7 @@ void NativeGenerator::linkOnStackShadowFrame(
   as_->mov(scratch_reg, shadow_stack_top_ptr);
   as_->mov(kInFramePrevPtr, scratch_reg);
   // Set data
-  if (frame_mode == jit::FrameMode::kNormal) {
+  if (frame_mode == FrameMode::kNormal) {
     as_->mov(scratch_reg, x86::ptr(tstate_reg, offsetof(PyThreadState, frame)));
     static_assert(
         PYSF_PYFRAME == 1 && _PyShadowFrame_NumPtrKindBits == 2,
@@ -490,7 +954,7 @@ void NativeGenerator::linkOnStackShadowFrame(
   // This is only necessary when in normal-frame mode because the frame is
   // already materialized on function entry. It is lazily filled when the frame
   // is materialized in shadow-frame mode.
-  if (frame_mode == jit::FrameMode::kNormal) {
+  if (frame_mode == FrameMode::kNormal) {
     as_->mov(scratch_reg, data);
     as_->mov(shadow_frame::kInFrameOrigDataPtr, scratch_reg);
   }
@@ -1389,445 +1853,6 @@ const char* NativeGenerator::GetPyFunctionName() const {
 }
 #endif
 
-bool canLoadStoreAddr(asmjit::x86::Gp reg, int64_t addr) {
-  return reg == x86::rax || (addr >= INT32_MIN && addr <= INT32_MAX);
-}
-
-static void raiseUnboundLocalError(BorrowedRef<> name) {
-  // name is converted into a `char*` in format_exc_check_arg
-  Cix_format_exc_check_arg(
-      _PyThreadState_GET(),
-      PyExc_UnboundLocalError,
-      "local variable '%.200s' referenced before assignment",
-      name);
-}
-
-static void raiseUnboundFreevarError(BorrowedRef<> name) {
-  // name is converted into a `char*` in format_exc_check_arg
-  Cix_format_exc_check_arg(
-      _PyThreadState_GET(),
-      PyExc_NameError,
-      "free variable '%.200s' referenced before assignment in enclosing scope",
-      name);
-}
-
-static void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
-  PyErr_Format(
-      PyExc_AttributeError,
-      "'%.50s' object has no attribute '%U'",
-      Py_TYPE(receiver)->tp_name,
-      name);
-}
-
-static CiPyFrameObjType*
-prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
-  JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
-  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
-  PyThreadState* tstate = _PyThreadState_UncheckedGet();
-#if PY_VERSION_HEX < 0x030C0000
-  Ref<PyFrameObject> f = materializePyFrameForDeopt(tstate);
-
-  PyFrameObject* frame = f.release();
-  PyFrameObject* frame_iter = frame;
-  _PyShadowFrame* sf_iter = tstate->shadow_frame;
-  // Iterate one past the inline depth because that is the caller frame.
-  for (int i = deopt_meta.inline_depth(); i >= 0; i--) {
-    // Transfer ownership of shadow frame to the interpreter. The associated
-    // Python frame will be ignored during future attempts to materialize the
-    // stack.
-    _PyShadowFrame_SetOwner(sf_iter, PYSF_INTERP);
-    reifyFrame(frame_iter, deopt_meta, deopt_meta.frame_meta.at(i), regs);
-    frame_iter = frame_iter->f_back;
-    sf_iter = sf_iter->prev;
-  }
-#else
-  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
-  reifyFrame(frame, deopt_meta, deopt_meta.frame_meta.at(0), regs);
-  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
-#endif
-  Ref<> deopt_obj;
-  // Clear our references now that we've transferred them to the frame
-  MemoryView mem{regs};
-  deopt_obj = profileDeopt(deopt_idx, deopt_meta, mem);
-  releaseRefs(deopt_meta, mem);
-  if (!PyErr_Occurred()) {
-    auto reason = deopt_meta.reason;
-    switch (reason) {
-      case DeoptReason::kGuardFailure: {
-        runtime->guardFailed(deopt_meta);
-        break;
-      }
-      case DeoptReason::kYieldFrom: {
-        break;
-      }
-      case DeoptReason::kUnhandledNullField:
-        raiseAttributeError(deopt_obj, deopt_meta.eh_name);
-        break;
-      case DeoptReason::kUnhandledUnboundLocal:
-        raiseUnboundLocalError(deopt_meta.eh_name);
-        break;
-      case DeoptReason::kUnhandledUnboundFreevar:
-        raiseUnboundFreevarError(deopt_meta.eh_name);
-        break;
-      case DeoptReason::kUnhandledException:
-        JIT_ABORT("unhandled exception without error set");
-        break;
-      case DeoptReason::kRaise:
-        // This code mirrors what happens in _PyEval_EvalFrameDefault although
-        // I'm not sure how to test it. Not clear it can happen with JIT.
-#ifdef NDEBUG
-        if (!PyErr_Occurred()) {
-          PyErr_SetString(
-              PyExc_SystemError, "error return without exception set");
-        }
-#else
-        JIT_CHECK(PyErr_Occurred(), "Error return without exception set");
-#endif
-        break;
-      case jit::DeoptReason::kRaiseStatic:
-        JIT_ABORT("Lost exception when raising static exception");
-        break;
-      case DeoptReason::kReraise:
-        PyErr_SetString(PyExc_RuntimeError, "No active exception to reraise");
-        break;
-    }
-  }
-  return frame;
-}
-
-#if PY_VERSION_HEX < 0x030C0000
-static PyObject* resumeInInterpreter(
-    PyFrameObject* frame,
-    Runtime* runtime,
-    std::size_t deopt_idx) {
-  if (frame->f_gen) {
-    auto gen = reinterpret_cast<PyGenObject*>(frame->f_gen);
-    // It's safe to call JITRT_GenJitDataFree directly here, rather than
-    // through _PyJIT_GenDealloc. Ownership of all references have been
-    // transferred to the frame.
-    JITRT_GenJitDataFree(gen);
-    gen->gi_jit_data = nullptr;
-  }
-  PyThreadState* tstate = PyThreadState_Get();
-  PyObject* result = nullptr;
-  // Resume all of the inlined frames and the caller
-  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
-  int inline_depth = deopt_meta.inline_depth();
-  int err_occurred = (deopt_meta.reason != DeoptReason::kGuardFailure);
-  while (inline_depth >= 0) {
-    // TODO(emacs): Investigate skipping resuming frames that do not have
-    // try/catch. Will require re-adding _PyShadowFrame_Pop back for
-    // non-generators and unlinking the frame manually.
-
-    // We need to maintain the invariant that there is at most one shadow frame
-    // on the shadow stack for each frame on the Python stack. Unless we are a
-    // a generator, the interpreter will insert a new entry on the shadow stack
-    // when execution resumes there, so we remove our entry.
-    if (!frame->f_gen) {
-      _PyShadowFrame_Pop(tstate, tstate->shadow_frame);
-    }
-    // Resume one frame.
-    PyFrameObject* prev_frame = frame->f_back;
-    // Delegate management of `tstate->frame` to the interpreter loop. On
-    // entry, it expects that tstate->frame points to the frame for the calling
-    // function.
-    JIT_CHECK(tstate->frame == frame, "unexpected frame at top of stack");
-    tstate->frame = prev_frame;
-    result = PyEval_EvalFrameEx(frame, err_occurred);
-    JITRT_DecrefFrame(frame);
-    frame = prev_frame;
-
-    err_occurred = result == nullptr;
-    // Push the previous frame's result onto the value stack. We can't push
-    // after resuming because f_stacktop is nullptr during execution of a frame.
-    if (!err_occurred) {
-      if (inline_depth > 0) {
-        // The caller is at inline depth 0, so we only attempt to push the
-        // result onto the stack in the deeper (> 0) frames. Otherwise, we
-        // should just return the value from the native code in the way our
-        // native calling convention requires.
-        frame->f_valuestack[frame->f_stackdepth++] = result;
-      }
-    }
-    inline_depth--;
-  }
-  return result;
-}
-
-#else
-
-static PyObject* resumeInInterpreter(
-    _PyInterpreterFrame* frame,
-    Runtime* runtime,
-    std::size_t deopt_idx) {
-  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
-  UPGRADE_NOTE(GENERATOR_JIT_SUPPORT, T194022335)
-  PyThreadState* tstate = PyThreadState_Get();
-
-  const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
-  int err_occurred = (deopt_meta.reason != DeoptReason::kGuardFailure);
-
-  // Delegate management of the frame to the interpreter loop. On entry, it
-  // expects tstate->cframe->current_frame points to the frame for the calling
-  // function. We don't need to go back a tstate->cframe as we borrowed an
-  // existing one when we linked our frame in.
-  JIT_CHECK(
-      tstate->cframe->current_frame == frame,
-      "unexpected frame at top of stack");
-  tstate->cframe->current_frame = frame->previous;
-  return _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
-}
-
-#endif
-
-void* generateDeoptTrampoline(bool generator_mode) {
-  CodeHolder code;
-  code.init(CodeAllocator::get()->asmJitEnvironment());
-  x86::Builder a(&code);
-  Annotations annot;
-
-  auto annot_cursor = a.cursor();
-  // When we get here the stack has the following layout. The space on the
-  // stack for the call arg buffer / LOAD_METHOD scratch space is always safe
-  // to read, but its contents will depend on the function being compiled as
-  // well as the program point at which deopt occurs. We pass a pointer to it
-  // into the frame reification code so that it can properly reconstruct the
-  // interpreter's stack when the the result of a LOAD_METHOD is on the
-  // stack. See the comments in reifyStack in deopt.cpp for more details.
-  //
-  // +-------------------------+
-  // | ...                     |
-  // | ? call arg buffer       |
-  // | ^ LOAD_METHOD scratch   |
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved rip               |
-  // | padding                 |
-  // | address of epilogue     |
-  // | r15                     | <-- rsp
-  // +-------------------------+
-  //
-  // Save registers for use in frame reification. Once these are saved we're
-  // free to clobber any caller-saved registers.
-  //
-  // IF YOU USE CALLEE-SAVED REGISTERS YOU HAVE TO RESTORE THEM MANUALLY BEFORE
-  // THE EXITING THE TRAMPOLINE.
-  a.push(x86::r14);
-  a.push(x86::r13);
-  a.push(x86::r12);
-  a.push(x86::r11);
-  a.push(x86::r10);
-  a.push(x86::r9);
-  a.push(x86::r8);
-  a.push(x86::rdi);
-  a.push(x86::rsi);
-  a.push(x86::rbp);
-  a.push(x86::rsp);
-  a.push(x86::rbx);
-  a.push(x86::rdx);
-  a.push(x86::rcx);
-  a.push(x86::rax);
-
-  if (generator_mode) {
-    // Restore original RBP for use in epilogue.
-    RestoreOriginalGeneratorRBP(a.as<x86::Emitter>());
-  }
-
-  annot.add("Save registers", &a, annot_cursor);
-
-  // Set up a stack frame for the trampoline so that:
-  //
-  // 1. Runtime code in the JIT that is used to update PyFrameObjects can find
-  //    the saved rip at the expected location immediately following the end of
-  //    the JIT's fixed frame.
-  // 2. The JIT-compiled function shows up in C stack straces when it is
-  //    deopting. Only the deopt trampoline will appear in the trace if
-  //    we don't open a frame.
-  //
-  // Right now the stack has the following layout:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | index of deopt metadata |
-  // | saved rip               |
-  // | padding                 |
-  // | address of epilogue     |
-  // | r15                     |
-  // | ...                     |
-  // | rax                     | <-- rsp
-  // +-------------------------+
-  //
-  // We want our frame to look like:
-  //
-  // +-------------------------+ <-- end of JIT's fixed frame
-  // | saved rip               |
-  // | saved rbp               | <-- rbp
-  // | index of deopt metadata |
-  // | address of epilogue     |
-  // | r15                     |
-  // | ...                     |
-  // | rax                     | <-- rsp
-  // +-------------------------+
-  //
-  // Load the saved rip passed to us from the JIT-compiled function, which
-  // resides where we're supposed to save rbp.
-  annot_cursor = a.cursor();
-  auto saved_rbp_addr = x86::ptr(x86::rsp, (NUM_GP_REGS + 2) * kPointerSize);
-  a.mov(x86::rdi, saved_rbp_addr);
-  // Save rbp and set up our frame
-  a.mov(saved_rbp_addr, x86::rbp);
-  a.lea(x86::rbp, saved_rbp_addr);
-  // Load the index of the deopt metadata, which resides where we're supposed to
-  // save rip.
-  auto saved_rip_addr = x86::ptr(x86::rbp, kPointerSize);
-  a.mov(x86::rsi, saved_rip_addr);
-  a.mov(saved_rip_addr, x86::rdi);
-  // Save the index of the deopt metadata
-  auto deopt_meta_addr = x86::ptr(x86::rbp, -kPointerSize);
-  a.mov(deopt_meta_addr, x86::rsi);
-  annot.add("Shuffle rip, rbp, and deopt index", &a, annot_cursor);
-
-  // Prep the frame for evaluation in the interpreter.
-  //
-  // We pass the array of saved registers, a pointer to the runtime, the index
-  // of deopt metadata, and the call method kind.
-  annot_cursor = a.cursor();
-  a.mov(x86::rdi, x86::rsp);
-  a.mov(x86::rsi, reinterpret_cast<uint64_t>(Runtime::get()));
-  a.mov(x86::rdx, deopt_meta_addr);
-  static_assert(
-      std::is_same_v<
-          decltype(prepareForDeopt),
-          CiPyFrameObjType*(const uint64_t*, Runtime*, std::size_t)>,
-      "prepareForDeopt has unexpected signature");
-  a.call(reinterpret_cast<uint64_t>(prepareForDeopt));
-
-  // Clean up saved registers.
-  //
-  // This isn't strictly necessary but saves 128 bytes on the stack if we end
-  // up resuming in the interpreter.
-  a.add(x86::rsp, (NUM_GP_REGS - 1) * kPointerSize);
-  // We have to restore our scratch register manually since it's callee-saved
-  // and the stage 2 trampoline used it to hold the address of this
-  // trampoline. We can't rely on the JIT epilogue to restore it for us, as the
-  // JIT-compiled code may not have spilled it.
-  a.pop(deopt_scratch_reg);
-  annot.add("prepareForDeopt", &a, annot_cursor);
-
-  // Resume execution in the interpreter.
-  annot_cursor = a.cursor();
-  // First argument: frame returned from prepareForDeopt.
-  a.mov(x86::rdi, x86::rax);
-  // Second argument: runtime.
-  a.mov(x86::rsi, reinterpret_cast<uint64_t>(Runtime::get()));
-  // Third argument: DeoptMetadata index.
-  a.mov(x86::rdx, x86::ptr(x86::rsp, kPointerSize));
-  static_assert(
-      std::is_same_v<
-          decltype(resumeInInterpreter),
-          PyObject*(CiPyFrameObjType*, Runtime*, std::size_t)>,
-      "resumeInInterpreter has unexpected signature");
-  a.call(reinterpret_cast<uint64_t>(resumeInInterpreter));
-
-  // If we return a primitive and prepareForDeopt returned null, we need that
-  // null in edx/xmm1 to signal error to our caller. Since this trampoline is
-  // shared, we do this move unconditionally, but even if not needed, it's
-  // harmless. (To eliminate it, we'd need another trampoline specifically for
-  // deopt of primitive-returning functions, just to do this one move.)
-  a.mov(x86::edx, x86::eax);
-  a.movq(x86::xmm1, x86::eax);
-
-  annot.add("resumeInInterpreter", &a, annot_cursor);
-
-  // Now we're done. Get the address of the epilogue and jump there.
-  annot_cursor = a.cursor();
-
-  auto epilogue_addr = x86::ptr(x86::rbp, -2 * kPointerSize);
-  a.mov(x86::rdi, epilogue_addr);
-  // Remove our frame from the stack
-  a.leave();
-  // Clear the saved rip. Normally this would be handled by a `ret`; we must
-  // clear it manually because we're jumping directly to the epilogue.
-  a.sub(x86::rsp, -kPointerSize);
-  a.jmp(x86::rdi);
-  annot.add("Jump to real epilogue", &a, annot_cursor);
-
-  auto name =
-      generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline";
-  void* result{nullptr};
-  ASM_CHECK(a.finalize(), name);
-  ASM_CHECK(CodeAllocator::get()->addCode(&result, &code), name);
-  JIT_LOGIF(
-      g_dump_asm,
-      "Disassembly for {}\n{}",
-      name,
-      annot.disassemble(result, code));
-
-  auto code_size = code.codeSize();
-  register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
-
-  std::vector<std::pair<void*, std::size_t>> code_sections;
-  populateCodeSections(code_sections, code, result);
-  code_sections.emplace_back(result, code_size);
-  perf::registerFunction(code_sections, name);
-  return result;
-}
-
-void* generateFailedDeferredCompileTrampoline() {
-  CodeHolder code;
-  code.init(CodeAllocator::get()->asmJitEnvironment());
-  x86::Builder a(&code);
-  Annotations annot;
-
-  auto annot_cursor = a.cursor();
-
-  a.push(x86::rbp);
-  a.mov(x86::rbp, x86::rsp);
-
-  // save incoming arg registers
-  a.push(x86::r9);
-  a.push(x86::r8);
-  a.push(x86::rcx);
-  a.push(x86::rdx);
-  a.push(x86::rsi);
-  a.push(x86::rdi);
-
-  annot.add("saveRegisters", &a, annot_cursor);
-
-  // r10 contains the function object from our stub
-  a.mov(x86::rdi, x86::r10);
-  a.mov(x86::rsi, x86::rsp);
-  a.call(reinterpret_cast<uint64_t>(JITRT_FailedDeferredCompileShim));
-  a.leave();
-  a.ret();
-
-  const char* name = "failedDeferredCompileTrampoline";
-  ASM_CHECK(a.finalize(), name);
-  void* result{nullptr};
-  ASM_CHECK(CodeAllocator::get()->addCode(&result, &code), name);
-
-  JIT_LOGIF(
-      g_dump_asm,
-      "Disassembly for {}\n{}",
-      name,
-      annot.disassemble(result, code));
-
-  auto code_size = code.textSection()->realSize();
-  register_raw_debug_symbol(name, __FILE__, __LINE__, result, code_size, 0);
-  std::vector<std::pair<void*, std::size_t>> code_sections;
-  forEachSection([&](CodeSection section) {
-    auto asmjit_section = code.sectionByName(codeSectionName(section));
-    if (asmjit_section == nullptr || asmjit_section->realSize() == 0) {
-      return;
-    }
-    auto section_start = static_cast<char*>(result) + asmjit_section->offset();
-    code_sections.emplace_back(
-        reinterpret_cast<void*>(section_start), asmjit_section->realSize());
-  });
-  perf::registerFunction(code_sections, name);
-
-  return result;
-}
-
 void NativeGenerator::generateAssemblyBody(const asmjit::CodeHolder& code) {
   auto as = env_.as;
   auto& blocks = lir_func_->basicblocks();
@@ -1880,7 +1905,7 @@ NativeGenerator::generateBoxedReturnWrapper() {
   Label generic_entry = as_->newLabel();
   Label box_done = as_->newLabel();
   Label error = as_->newLabel();
-  jit::hir::Type ret_type = func_->return_type;
+  hir::Type ret_type = func_->return_type;
   uint64_t box_func;
 
   generateFunctionEntry();
@@ -2028,6 +2053,21 @@ int NativeGenerator::calcMaxInlineDepth(const hir::Function* func) {
     }
   }
   return result;
+}
+
+NativeGeneratorFactory::NativeGeneratorFactory()
+    : deopt_trampoline_{generateDeoptTrampoline(false)},
+      deopt_trampoline_generators_{generateDeoptTrampoline(true)},
+      failed_deferred_compile_trampoline_{
+          generateFailedDeferredCompileTrampoline()} {}
+
+std::unique_ptr<NativeGenerator> NativeGeneratorFactory::operator()(
+    const hir::Function* func) const {
+  return std::make_unique<NativeGenerator>(
+      func,
+      deopt_trampoline_,
+      deopt_trampoline_generators_,
+      failed_deferred_compile_trampoline_);
 }
 
 } // namespace jit::codegen
