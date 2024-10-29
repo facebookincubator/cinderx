@@ -281,7 +281,6 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       std::move(irfunc->inline_function_stats);
   std::span<const std::byte> code = ngen->getCodeBuffer();
   void* static_entry = ngen->getStaticEntry();
-  CodeRuntime* code_runtime = ngen->codeRuntime();
 
   if (g_debug) {
     irfunc->setCompilationPhaseTimer(nullptr);
