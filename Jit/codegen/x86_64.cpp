@@ -7,12 +7,6 @@
 
 namespace jit::codegen {
 
-static const char* REG_NAMES[] = {
-#define REG_STRING(r, ...) #r,
-    FOREACH_GP(REG_STRING) FOREACH_XMM(REG_STRING)
-#undef REG_STRING
-};
-
 std::ostream& operator<<(std::ostream& os, const PhyLocation& loc) {
   return os << loc.toString();
 }
