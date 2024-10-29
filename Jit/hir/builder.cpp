@@ -3928,10 +3928,13 @@ void HIRBuilder::emitMatchClass(
   tc.emit<MatchClass>(attrs_tuple, subject, type, nargs, names);
   tc.emit<RefineType>(attrs_tuple, TOptTupleExact, attrs_tuple);
 
-  Register* top = temps_.AllocateStack();
-  Register* second = temps_.AllocateStack();
-  stack.push(second);
-  stack.push(top);
+  Register* tuple_or_none = temps_.AllocateStack();
+  stack.push(tuple_or_none);
+  Register* if_success = nullptr;
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    if_success = temps_.AllocateStack();
+    stack.push(if_success);
+  }
 
   auto true_block = cfg.AllocateBlock();
   auto false_block = cfg.AllocateBlock();
@@ -3939,14 +3942,18 @@ void HIRBuilder::emitMatchClass(
 
   tc.emit<CondBranch>(attrs_tuple, true_block, false_block);
   tc.block = true_block;
-  tc.emit<RefineType>(second, TTupleExact, attrs_tuple);
-  tc.emit<LoadConst>(top, Type::fromObject(Py_True));
+  tc.emit<RefineType>(tuple_or_none, TTupleExact, attrs_tuple);
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    tc.emit<LoadConst>(if_success, Type::fromObject(Py_True));
+  }
   tc.emit<Branch>(done);
 
   tc.block = false_block;
   tc.emit<CheckErrOccurred>(tc.frame);
-  tc.emit<LoadConst>(top, Type::fromObject(Py_False));
-  tc.emit<Assign>(second, subject);
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    tc.emit<LoadConst>(if_success, Type::fromObject(Py_False));
+  }
+  tc.emit<Assign>(tuple_or_none, subject);
   tc.emit<Branch>(done);
 
   tc.block = done;
@@ -3972,18 +3979,26 @@ void HIRBuilder::emitMatchKeys(CFG& cfg, TranslationContext& tc) {
   auto done = cfg.AllocateBlock();
 
   tc.emit<CondBranch>(is_none, true_block, false_block);
-  auto obj = temps_.AllocateStack();
+  Register* if_success = nullptr;
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    if_success = temps_.AllocateStack();
+  }
   tc.block = true_block;
   tc.emit<RefineType>(values_or_none, TNoneType, values_or_none);
-  tc.emit<LoadConst>(obj, Type::fromObject(Py_False));
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    tc.emit<LoadConst>(if_success, Type::fromObject(Py_False));
+  }
   tc.emit<Branch>(done);
 
   tc.block = false_block;
   tc.emit<RefineType>(values_or_none, TTupleExact, values_or_none);
-  tc.emit<LoadConst>(obj, Type::fromObject(Py_True));
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    tc.emit<LoadConst>(if_success, Type::fromObject(Py_True));
+  }
   tc.emit<Branch>(done);
-
-  stack.push(obj);
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    stack.push(if_success);
+  }
   tc.block = done;
 }
 

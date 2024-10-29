@@ -1501,13 +1501,11 @@ TEST_F(HIRBuildTest, MatchKeys) {
 
   bb 1 (preds 0) {
     v3 = RefineType<NoneType> v3
-    v6 = LoadConst<ImmortalBool[False]>
     Branch<3>
   }
 
   bb 2 (preds 0) {
     v3 = RefineType<TupleExact> v3
-    v6 = LoadConst<ImmortalBool[True]>
     Branch<3>
   }
 
@@ -1515,9 +1513,9 @@ TEST_F(HIRBuildTest, MatchKeys) {
     Snapshot {
       CurInstrOffset 6
       Locals<2> v0 v1
-      Stack<4> v0 v1 v3 v6
+      Stack<3> v0 v1 v3
     }
-    v5 = Assign v3
+    v6 = Assign v3
     v3 = Assign v0
     v4 = Assign v1
     Return v6
