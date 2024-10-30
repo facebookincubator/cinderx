@@ -3866,6 +3866,40 @@ class CodeGenerator312(CodeGenerator):
             op = "LOAD_ATTR"
         self.graph.emit_with_loc(op, self.mangle(node.attr), node)
 
+    def emit_pop_except_and_reraise(self) -> None:
+        self.emit("COPY", 3)
+        self.emit("POP_EXCEPT")
+        self.emit("RERAISE", 1)
+
+    def emit_try_finally(self, node, try_body, finalbody, except_protect=False):
+        body = self.newBlock("try_finally_body")
+        end = self.newBlock("try_finally_end")
+        exit_ = self.newBlock("try_finally_exit")
+        cleanup = self.newBlock("cleanup")
+
+        self.emit("SETUP_FINALLY", end)
+
+        self.nextBlock(body)
+        self.setups.append(Entry(FINALLY_TRY, body, end, finalbody))
+        try_body()
+        self.emit_noline("POP_BLOCK")
+        self.setups.pop()
+        finalbody()
+        self.emit_noline("JUMP_FORWARD", exit_)
+
+        self.nextBlock(end)
+        self.emit("SETUP_CLEANUP", cleanup)
+        self.emit("PUSH_EXC_INFO")
+        self.setups.append(Entry(FINALLY_END, end, None, None))
+        finalbody()
+        self.setups.pop()
+        self.emit("RERAISE", 0)
+
+        self.nextBlock(cleanup)
+        self.emit_pop_except_and_reraise()
+
+        self.nextBlock(exit_)
+
 
 class CinderCodeGenerator(CodeGenerator):
     """
