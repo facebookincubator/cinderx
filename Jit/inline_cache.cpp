@@ -1115,7 +1115,7 @@ LoadMethodResult LoadTypeMethodCache::lookup(
   PyErr_Format(
       PyExc_AttributeError,
       "type object '%.50s' has no attribute '%U'",
-      type->tp_name,
+      obj->tp_name,
       name);
   return {nullptr, nullptr};
 }
