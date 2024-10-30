@@ -17,7 +17,7 @@ class FakeCodeType:
 
 @dataclass
 class ExceptionHandlerInfo:
-    # Contains block fields used in 3.12 for makeExceptionTable().
+    # Contains block fields used in 3.12 for make_exception_table().
     offset: int = -1
     preserve_lasti: bool = False
     startdepth: int = -1

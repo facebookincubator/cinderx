@@ -590,10 +590,10 @@ class PyFlowGraph(FlowGraph):
 
         assert self.stage == FLAT, self.stage
         bytecode = self.make_byte_code()
-        linetable = self.makeLineTable()
-        exception_table = self.makeExceptionTable()
+        linetable = self.make_line_table()
+        exception_table = self.make_exception_table()
         assert self.stage == DONE, self.stage
-        return self.newCodeObject(bytecode, linetable, exception_table)
+        return self.new_code_object(bytecode, linetable, exception_table)
 
     def dump(self, io=None):
         if io:
@@ -926,7 +926,7 @@ class PyFlowGraph(FlowGraph):
     ) -> None:
         pass
 
-    def makeLineTable(self) -> bytes:
+    def make_line_table(self) -> bytes:
         lnotab = LineAddrTable()
         lnotab.setFirstLine(self.firstline)
 
@@ -943,11 +943,11 @@ class PyFlowGraph(FlowGraph):
         lnotab.emitCurrentLine(prev_offset, offset)
         return lnotab.getTable()
 
-    def makeExceptionTable(self) -> bytes:
+    def make_exception_table(self) -> bytes:
         # New in 3.12
         return b""
 
-    def newCodeObject(
+    def new_code_object(
         self, code: bytes, lnotab: bytes, exception_table: bytes
     ) -> CodeType:
         assert self.stage == DONE, self.stage
@@ -1382,7 +1382,7 @@ class PyFlowGraph312(PyFlowGraph):
         for _i in range(base_size):
             addCode(0, 0)
 
-    def makeLineTable(self) -> bytes:
+    def make_line_table(self) -> bytes:
         lpostab = LinePositionTable(self.firstline)
 
         loc = NO_LOCATION
@@ -1401,7 +1401,7 @@ class PyFlowGraph312(PyFlowGraph):
         lpostab.emit_location(loc, size)
         return lpostab.getTable()
 
-    def makeExceptionTable(self) -> bytes:
+    def make_exception_table(self) -> bytes:
         exception_table = ExceptionTable()
         ioffset = 0
         handler = None
