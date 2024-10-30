@@ -959,30 +959,29 @@ void LoadMethodCache::fill(
 }
 
 LoadTypeMethodCache::~LoadTypeMethodCache() {
-  if (type != nullptr) {
-    ltm_watcher.unwatch(type, this);
+  if (type_ != nullptr) {
+    ltm_watcher.unwatch(type_, this);
   }
 }
 
 LoadMethodResult LoadTypeMethodCache::lookupHelper(
     LoadTypeMethodCache* cache,
-    BorrowedRef<PyTypeObject> obj,
-    BorrowedRef<> name) {
+    PyTypeObject* obj,
+    PyObject* name) {
   return cache->lookup(obj, name);
 }
 
 LoadMethodResult LoadTypeMethodCache::getValueHelper(
     LoadTypeMethodCache* cache,
-    BorrowedRef<> obj) {
-  PyObject* result = cache->value;
+    PyObject* obj) {
+  PyObject* result = cache->value_;
   Py_INCREF(result);
-  if (cache->is_unbound_meth) {
+  if (cache->is_unbound_meth_) {
     Py_INCREF(obj);
     return {result, obj};
-  } else {
-    Py_INCREF(Py_None);
-    return {Py_None, result};
   }
+  Py_INCREF(Py_None);
+  return {Py_None, result};
 }
 
 // This needs to be kept in sync with PyType_Type.tp_getattro.
@@ -1120,9 +1119,17 @@ LoadMethodResult LoadTypeMethodCache::lookup(
   return {nullptr, nullptr};
 }
 
+PyTypeObject** LoadTypeMethodCache::typeAddr() {
+  return &type_;
+}
+
+BorrowedRef<> LoadTypeMethodCache::value() {
+  return value_;
+}
+
 void LoadTypeMethodCache::typeChanged(BorrowedRef<PyTypeObject> /* type */) {
-  type.reset();
-  value.reset();
+  type_ = nullptr;
+  value_.reset();
 }
 
 void LoadTypeMethodCache::initCacheStats(
@@ -1162,11 +1169,11 @@ void LoadTypeMethodCache::fill(
   return;
 #endif
 
-  ltm_watcher.unwatch(this->type, this);
-  this->type = type;
-  this->value = value;
-  this->is_unbound_meth = is_unbound_meth;
-  ltm_watcher.watch(type, this);
+  ltm_watcher.unwatch(type_, this);
+  type_ = type;
+  value_ = value;
+  is_unbound_meth_ = is_unbound_meth;
+  ltm_watcher.watch(type_, this);
 }
 
 LoadMethodResult LoadModuleMethodCache::lookupHelper(

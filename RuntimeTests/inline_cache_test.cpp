@@ -57,7 +57,7 @@ regular_meth = RequestContext.regular_meth
   PyObject* class_meth = PyDict_GetItemString(locals, "class_meth");
   ASSERT_EQ(PyObject_RichCompareBool(res.func, class_meth, Py_EQ), 1)
       << "Expected method " << class_meth << " to be equal from cache lookup";
-  ASSERT_EQ(cache.value, res.func)
+  ASSERT_EQ(cache.value(), res.func)
       << "Expected method " << py_class_meth << " to be cached";
 
   for (auto& meth : {"static_meth", "regular_meth"}) {
@@ -69,7 +69,7 @@ regular_meth = RequestContext.regular_meth
     PyObject* py_meth = PyDict_GetItemString(locals, meth);
     ASSERT_EQ(PyObject_RichCompareBool(res.inst, py_meth, Py_EQ), 1)
         << "Expected method " << meth << " to be equal from cache lookup";
-    ASSERT_EQ(cache.value, res.inst)
+    ASSERT_EQ(cache.value(), res.inst)
         << "Expected method " << meth << " to be cached";
   }
 }

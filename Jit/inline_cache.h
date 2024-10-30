@@ -267,20 +267,23 @@ class LoadMethodCache {
 // potentially fills the cache.
 class LoadTypeMethodCache {
  public:
-  BorrowedRef<PyTypeObject> type;
-  BorrowedRef<> value;
-  bool is_unbound_meth;
-
   ~LoadTypeMethodCache();
-  static LoadMethodResult lookupHelper(
-      LoadTypeMethodCache* cache,
-      BorrowedRef<PyTypeObject> obj,
-      BorrowedRef<> name);
+
+  static LoadMethodResult
+  lookupHelper(LoadTypeMethodCache* cache, PyTypeObject* obj, PyObject* name);
+
   static LoadMethodResult getValueHelper(
       LoadTypeMethodCache* cache,
-      BorrowedRef<> obj);
+      PyObject* obj);
 
   LoadMethodResult lookup(BorrowedRef<PyTypeObject> obj, BorrowedRef<> name);
+
+  // Get the address of the cached type object.
+  PyTypeObject** typeAddr();
+
+  // Get the cached method value.
+  BorrowedRef<> value();
+
   void typeChanged(BorrowedRef<PyTypeObject> type);
 
   void initCacheStats(const char* filename, const char* method_name);
@@ -291,7 +294,12 @@ class LoadTypeMethodCache {
   void
   fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> value, bool is_bound_meth);
 
+  // Borrowed, but uses a raw pointer as typeAddr() will return the address of
+  // this field for codegen purposes.
+  PyTypeObject* type_;
+  BorrowedRef<> value_;
   std::unique_ptr<CacheStats> cache_stats_;
+  bool is_unbound_meth_;
 };
 
 class LoadModuleMethodCache {

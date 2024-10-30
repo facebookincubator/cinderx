@@ -1293,7 +1293,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         }
         bbb.appendCallInstruction(
             instr->output(),
-            jit::LoadTypeMethodCache::lookupHelper,
+            LoadTypeMethodCache::lookupHelper,
             cache_entry,
             instr->receiver(),
             name);
@@ -1307,7 +1307,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const LoadTypeMethodCacheEntryType*>(&i);
         LoadTypeMethodCache* cache =
             load_type_method_caches_.at(instr->cache_id());
-        BorrowedRef<PyTypeObject>* addr = &cache->type;
+        PyTypeObject** addr = cache->typeAddr();
         bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{addr});
         break;
       }
