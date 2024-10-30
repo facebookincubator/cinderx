@@ -72,7 +72,7 @@ NO_LOCATION = SrcLocation(-1, -1, -1, -1)
 
 
 class Instruction:
-    __slots__ = ("opname", "oparg", "target", "ioparg", "loc")
+    __slots__ = ("opname", "oparg", "target", "ioparg", "loc", "exc_handler")
 
     def __init__(
         self,
@@ -81,12 +81,14 @@ class Instruction:
         ioparg: int = 0,
         loc: AST | SrcLocation = NO_LOCATION,
         target: Block | None = None,
+        exc_handler: Block | None = None,
     ):
         self.opname = opname
         self.oparg = oparg
         self.loc = loc
         self.ioparg = ioparg
         self.target = target
+        self.exc_handler = exc_handler
 
     @property
     def lineno(self) -> int:
@@ -101,6 +103,8 @@ class Instruction:
         ]
         if self.target is not None:
             args.append(f"{self.target!r}")
+        if self.exc_handler is not None:
+            args.append(f"{self.exc_handler!r}")
 
         return f"Instruction({', '.join(args)})"
 
@@ -290,6 +294,7 @@ class Block:
         self.prev: Block | None = None
         self.returns: bool = False
         self.offset: int = 0
+        self.preserve_lasti: False  # used if block is an exception handler
         self.seen: bool = False  # visited during stack depth calculation
         self.startdepth: int = -1
         self.is_exit: bool = False
@@ -586,8 +591,9 @@ class PyFlowGraph(FlowGraph):
         assert self.stage == FLAT, self.stage
         bytecode = self.make_byte_code()
         linetable = self.makeLineTable()
+        exception_table = self.makeExceptionTable()
         assert self.stage == DONE, self.stage
-        return self.newCodeObject(bytecode, linetable)
+        return self.newCodeObject(bytecode, linetable, exception_table)
 
     def dump(self, io=None):
         if io:
@@ -937,7 +943,13 @@ class PyFlowGraph(FlowGraph):
         lnotab.emitCurrentLine(prev_offset, offset)
         return lnotab.getTable()
 
-    def newCodeObject(self, code: bytes, lnotab: bytes) -> CodeType:
+    def makeExceptionTable(self) -> bytes:
+        # New in 3.12
+        return b""
+
+    def newCodeObject(
+        self, code: bytes, lnotab: bytes, exception_table: bytes
+    ) -> CodeType:
         assert self.stage == DONE, self.stage
         if (self.flags & CO_NEWLOCALS) == 0:
             nlocals = len(self.fast_vars)
@@ -956,9 +968,11 @@ class PyFlowGraph(FlowGraph):
 
         consts = self.getConsts()
         consts = consts + tuple(self.extra_consts)
-        return self.make_code(nlocals, code, consts, firstline, lnotab)
+        return self.make_code(nlocals, code, consts, firstline, lnotab, exception_table)
 
-    def make_code(self, nlocals, code, consts, firstline: int, lnotab) -> CodeType:
+    def make_code(
+        self, nlocals, code, consts, firstline: int, lnotab, exception_table=None
+    ) -> CodeType:
         return CodeType(
             len(self.args),
             self.posonlyargs,
@@ -1245,7 +1259,9 @@ class PyFlowGraph(FlowGraph):
 class PyFlowGraphCinder(PyFlowGraph):
     opcode = opcode_cinder.opcode
 
-    def make_code(self, nlocals, code, consts, firstline: int, lnotab) -> CodeType:
+    def make_code(
+        self, nlocals, code, consts, firstline: int, lnotab, exception_table=None
+    ) -> CodeType:
         if self.scope is not None and self.scope.suppress_jit:
             self.setFlag(CO_SUPPRESS_JIT)
         return super().make_code(nlocals, code, consts, firstline, lnotab)
@@ -1385,7 +1401,27 @@ class PyFlowGraph312(PyFlowGraph):
         lpostab.emit_location(loc, size)
         return lpostab.getTable()
 
-    def make_code(self, nlocals, code, consts, firstline, lnotab) -> CodeType:
+    def makeExceptionTable(self) -> bytes:
+        exception_table = ExceptionTable()
+        ioffset = 0
+        handler = None
+        start = -1
+        for instr in self.insts:
+            if instr.exc_handler and (
+                not handler or instr.exc_handler.offset != handler.offset
+            ):
+                if handler:
+                    exception_table.emit_entry(start, ioffset, handler)
+                start = ioffset
+                handler = instr.exc_handler
+            ioffset += self.instrsize(instr.opname, instr.ioparg)
+        if handler:
+            exception_table.emit_entry(start, ioffset, handler)
+        return exception_table.getTable()
+
+    def make_code(
+        self, nlocals, code, consts, firstline, lnotab, exception_table
+    ) -> CodeType:
         # pyre-ignore[19]: Too many arguments (this is right for 3.12)
         return CodeType(
             len(self.args),
@@ -1403,7 +1439,7 @@ class PyFlowGraph312(PyFlowGraph):
             self.qualname,
             firstline,
             lnotab,
-            b"",  # Exception table
+            exception_table,
             tuple(self.freevars),
             tuple(self.cellvars),
         )
@@ -1618,3 +1654,47 @@ class LinePositionTable:
 
     def getTable(self) -> bytes:
         return bytes(self.linetable)
+
+
+class ExceptionTable:
+    """Generates the Python 3.12+ exception table."""
+
+    # https://github.com/python/cpython/blob/3.12/Objects/exception_handling_notes.txt
+
+    def __init__(self):
+        self.exception_table = bytearray()
+
+    def getTable(self) -> bytes:
+        return bytes(self.exception_table)
+
+    def write_byte(self, byte: int) -> None:
+        self.exception_table.append(byte)
+
+    def emit_item(self, value: int, msb: int) -> None:
+        assert (msb | 128) == 128
+        assert value >= 0 and value < (1 << 30)
+        CONTINUATION_BIT = 64
+
+        if value > (1 << 24):
+            self.write_byte((value >> 24) | CONTINUATION_BIT | msb)
+            msb = 0
+        for i in (18, 12, 6):
+            if value >= (1 << i):
+                v = (value >> i) & 0x3F
+                self.write_byte(v | CONTINUATION_BIT | msb)
+                msb = 0
+        self.write_byte((value & 0x3F) | msb)
+
+    def emit_entry(self, start: int, end: int, handler: Block) -> None:
+        size = end - start
+        assert end > start
+        target = handler.offset
+        depth = handler.startdepth - 1
+        if handler.preserve_lasti:
+            depth = depth - 1
+        assert depth >= 0
+        depth_lasti = (depth << 1) | int(handler.preserve_lasti)
+        self.emit_item(start, (1 << 7))
+        self.emit_item(size, 0)
+        self.emit_item(target, 0)
+        self.emit_item(depth_lasti, 0)
