@@ -242,7 +242,7 @@ static PyObject* propthunk_set(
     PyObject* kwnames) {
   size_t nargs = PyVectorcall_NARGS(nargsf);
   if (nargs != 2) {
-    PyErr_SetString(CiExc_StaticTypeError, "property set expected 1 argument");
+    PyErr_SetString(CiExc_StaticTypeError, "property set expected 2 arguments");
     return NULL;
   }
 
