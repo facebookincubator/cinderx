@@ -6,7 +6,8 @@ async def f():
 [
     ...,
     CODE_START('f'),
-    # Block 0 entry
+
+    __BLOCK__('entry: 0'),
     RETURN_GENERATOR(0),
     POP_TOP(0),
     RESUME(0),
@@ -14,17 +15,20 @@ async def f():
     BEFORE_ASYNC_WITH(0),
     GET_AWAITABLE(0),
     LOAD_CONST(None),
-    # Block 1 send
-    SEND(Block(3)),
-    SETUP_FINALLY(Block(2)),
+
+    __BLOCK__('send: 1'),
+    SEND(Block(3, label='exit')),
+    SETUP_FINALLY(Block(2, label='fail')),
     YIELD_VALUE(0),
     POP_BLOCK(0),
     RESUME(3),
-    JUMP_BACKWARD_NO_INTERRUPT(Block(1)),
-    # Block 3 exit
+    JUMP_BACKWARD_NO_INTERRUPT(Block(1, label='send')),
+
+    __BLOCK__('exit: 3'),
     END_SEND(0),
-    SETUP_WITH(Block(8)),
-    # Block 4 with_block
+    SETUP_WITH(Block(8, label='with_finally')),
+
+    __BLOCK__('with_block: 4'),
     STORE_FAST('bar'),
     POP_BLOCK(0),
     LOAD_CONST(None),
@@ -33,59 +37,71 @@ async def f():
     CALL(2),
     GET_AWAITABLE(0),
     LOAD_CONST(None),
-    # Block 5 send
-    SEND(Block(7)),
-    SETUP_FINALLY(Block(6)),
+
+    __BLOCK__('send: 5'),
+    SEND(Block(7, label='exit')),
+    SETUP_FINALLY(Block(6, label='fail')),
     YIELD_VALUE(0),
     POP_BLOCK(0),
     RESUME(3),
-    JUMP_BACKWARD_NO_INTERRUPT(Block(5)),
-    # Block 7 exit
+    JUMP_BACKWARD_NO_INTERRUPT(Block(5, label='send')),
+
+    __BLOCK__('exit: 7'),
     END_SEND(0),
     POP_TOP(0),
-    JUMP_FORWARD(Block(16)),
-    # Block 16 with_exit
+    JUMP_FORWARD(Block(16, label='with_exit')),
+
+    __BLOCK__('with_exit: 16'),
     RETURN_CONST(None),
-    # Block 19 
     CALL_INTRINSIC_1(3),
     RERAISE(1),
 
-    # Block 2 fail
+    __BLOCK__('fail: 2'),
     CLEANUP_THROW(0),
-    # Block 17 explicit_jump
-    JUMP_BACKWARD(Block(3)),
-    # Block 6 fail
+
+    __BLOCK__('explicit_jump: 17'),
+    JUMP_BACKWARD(Block(3, label='exit')),
+
+    __BLOCK__('fail: 6'),
     CLEANUP_THROW(0),
-    # Block 18 explicit_jump
-    JUMP_BACKWARD(Block(7)),
-    # Block 8 with_finally
-    SETUP_CLEANUP(Block(14)),
+
+    __BLOCK__('explicit_jump: 18'),
+    JUMP_BACKWARD(Block(7, label='exit')),
+
+    __BLOCK__('with_finally: 8'),
+    SETUP_CLEANUP(Block(14, label='cleanup')),
     PUSH_EXC_INFO(0),
     WITH_EXCEPT_START(0),
     GET_AWAITABLE(0),
     LOAD_CONST(None),
-    # Block 9 send
-    SEND(Block(11)),
-    SETUP_FINALLY(Block(10)),
+
+    __BLOCK__('send: 9'),
+    SEND(Block(11, label='exit')),
+    SETUP_FINALLY(Block(10, label='fail')),
     YIELD_VALUE(0),
     POP_BLOCK(0),
     RESUME(3),
-    JUMP_BACKWARD_NO_INTERRUPT(Block(9)),
-    # Block 10 fail
+    JUMP_BACKWARD_NO_INTERRUPT(Block(9, label='send')),
+
+    __BLOCK__('fail: 10'),
     CLEANUP_THROW(0),
-    # Block 11 exit
+
+    __BLOCK__('exit: 11'),
     END_SEND(0),
-    POP_JUMP_IF_TRUE(Block(13)),
-    # Block 12 
+    POP_JUMP_IF_TRUE(Block(13, label='suppress')),
+
+    __BLOCK__(': 12'),
     RERAISE(2),
-    # Block 13 cleanup
+
+    __BLOCK__('suppress: 13'),
     POP_TOP(0),
     POP_BLOCK(0),
     POP_EXCEPT(0),
     POP_TOP(0),
     POP_TOP(0),
-    JUMP_BACKWARD(Block(16)),
-    # Block 14 cleanup
+    JUMP_BACKWARD(Block(16, label='with_exit')),
+
+    __BLOCK__('cleanup: 14'),
     COPY(3),
     POP_EXCEPT(0),
     RERAISE(1),

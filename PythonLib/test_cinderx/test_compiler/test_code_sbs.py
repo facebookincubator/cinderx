@@ -21,6 +21,8 @@ from .common import CompilerTest, glob_test
 
 def format_oparg(instr: Instruction) -> str:
     if instr.target is not None:
+        if instr.target.label:
+            return f"Block({instr.target.bid}, label={instr.target.label!r})"
         return f"Block({instr.target.bid})"
     elif isinstance(instr.oparg, CodeGenerator):
         return f"Code(({instr.oparg.tree.lineno},{instr.oparg.tree.col_offset}))"
@@ -34,6 +36,7 @@ DEFAULT_MARKER = "# This is the default script and should be updated to the mini
 SCRIPT_EXPECTED = "# EXPECTED:"
 SCRIPT_EXT = ".scr.py"
 SCRIPT_OPCODE_CODE = "CODE_START"
+BLOCK_START_CODE = "__BLOCK__"
 
 
 class _AnyType:
@@ -70,11 +73,14 @@ def graph_instrs(graph, name=None) -> Generator[Instruction, None, None]:
     if name:
         yield Instruction(SCRIPT_OPCODE_CODE, name)
     for block in graph.getBlocks():
+        yield Instruction(BLOCK_START_CODE, None, target=block)
         yield from block.getInstructions()
 
 
 class CodeTests(CompilerTest):
-    def check_instrs(self, instrs: Iterable[Instruction], script: Sequence[Matcher]) -> None:
+    def check_instrs(
+        self, instrs: Iterable[Instruction], script: Sequence[Matcher]
+    ) -> None:
         if not script:
             self.fail("Script file is empty")
 
@@ -84,14 +90,19 @@ class CodeTests(CompilerTest):
             instrs = tuple(queue.popleft())
             for i, instr in enumerate(instrs):
                 if isinstance(instr.oparg, CodeGenerator):
-                    queue.append(graph_instrs(instr.oparg.graph, instr.oparg.graph.name))
+                    queue.append(
+                        graph_instrs(instr.oparg.graph, instr.oparg.graph.name)
+                    )
                 if cur_scr == len(script):
                     self.fail("Extra bytecodes not expected")
 
                 op = script[cur_scr]
                 inc, error = op.is_match(self, instrs, i, script, cur_scr)
                 if error:
-                    self.fail(error)
+                    # Ignore block starts, they're optional in the script.
+                    if instr.opname != BLOCK_START_CODE:
+                        self.fail(error)
+
                 cur_scr += inc
 
         # make sure we exhausted the script or ended on a ...
@@ -100,19 +111,34 @@ class CodeTests(CompilerTest):
 
         script[cur_scr].end(self, script, cur_scr)
 
-    def gen_default_script(self, scr: TextIOBase, instrs: Iterable[Instruction]) -> None:
+    def gen_default_script(
+        self, scr: TextIOBase, instrs: Iterable[Instruction]
+    ) -> None:
         # generate a default script which matches exactly...  This should
         # be fixed up to a minimal match
         scr.write(SCRIPT_EXPECTED + "\n")
         scr.write(DEFAULT_MARKER + "\n")
         scr.write("[\n")
         queue: deque[Iterable[Instruction]] = deque([instrs])
+        first = True
         while queue:
             instrs = queue.popleft()
             for instr in instrs:
                 if isinstance(instr.oparg, CodeGenerator):
-                    queue.append(graph_instrs(instr.oparg.graph, instr.oparg.graph.name))
-                scr.write(f"    {instr.opname}({format_oparg(instr)}),\n")
+                    queue.append(
+                        graph_instrs(instr.oparg.graph, instr.oparg.graph.name)
+                    )
+                if instr.opname == BLOCK_START_CODE:
+                    target = instr.target
+                    assert target is not None
+                    if not first:
+                        scr.write("\n")
+                    scr.write(
+                        f"    # {instr.opname}('{target.label}: {target.bid}'),\n"
+                    )
+                else:
+                    scr.write(f"    {instr.opname}({format_oparg(instr)}),\n")
+                first = False
         scr.write("]\n")
 
         self.fail(
@@ -311,7 +337,7 @@ class Matcher:
         cur_instr: int,
         script: Sequence[Matcher],
         cur_scr: int,
-    ) -> tuple[int, str|None]:
+    ) -> tuple[int, str | None]:
         raise NotImplementedError()
 
     def end(self, test, script: Sequence[Matcher], cur_scr) -> None:
@@ -346,8 +372,9 @@ class Op(Matcher):
         cur_instr: int,
         script: Sequence[Matcher],
         cur_scr: int,
-    ) -> tuple[int, str|None]:
+    ) -> tuple[int, str | None]:
         instr = instrs[cur_instr]
+
         if is_instr_match(test, self.opname, self.oparg, instr):
             return 1, None
 
@@ -371,8 +398,9 @@ CODE_START = partial(Op, SCRIPT_OPCODE_CODE)
 class Block:
     """Matches an oparg with block target"""
 
-    def __init__(self, bid) -> None:
+    def __init__(self, bid: int, label: str | None = None) -> None:
         self.bid = bid
+        self.label = label
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, pyassem.Block):
@@ -381,6 +409,8 @@ class Block:
         return other.bid == self.bid
 
     def __repr__(self) -> str:
+        if self.label:
+            return f"Block({self.bid}, label={self.label})"
         return f"Block({self.bid})"
 
 
@@ -419,13 +449,14 @@ class SkipAny(Matcher):
         cur_instr: int,
         script: Sequence[Matcher],
         cur_scr: int,
-    ) -> tuple[int, str|None]:
+    ) -> tuple[int, str | None]:
         if cur_scr + 1 != len(script):
             next = script[cur_scr + 1]
             inc, error = next.is_match(test, instrs, cur_instr, script, cur_scr + 1)
             if not error:
                 # skip the ... and the match
                 return inc + 1, None
+            return inc, None
         return 0, None
 
     def end(self, test, script, cur_scr) -> None:
@@ -457,7 +488,7 @@ class SkipBut(SkipAny):
         cur_instr: int,
         script: Sequence[Matcher],
         cur_scr: int,
-    ) -> tuple[int, str|None]:
+    ) -> tuple[int, str | None]:
         instr = instrs[cur_instr]
         for arg in self.args:
             inc, err = arg.is_match(test, instrs, cur_instr, script, cur_scr)
@@ -473,7 +504,37 @@ class SkipBut(SkipAny):
         return f"SkipBut(*{self.args!r})"
 
 
+class BlockStart(Matcher):
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"BLOCK_START({self.name!r})"
+
+    def is_match(
+        self,
+        test: CodeTests,
+        instrs: Sequence[Instruction],
+        cur_instr: int,
+        script: Sequence[Matcher],
+        cur_scr: int,
+    ) -> tuple[int, str | None]:
+        instr = instrs[cur_instr]
+        if instr.opname == BLOCK_START_CODE:
+            label, _, bid = self.name.rpartition(": ")
+            target = instr.target
+            assert target is not None
+            if target.label == label and target.bid == int(bid):
+                return 1, None
+
+        return (
+            0,
+            f"mismatch, expected BLOCK_START({self.name!r}), got {instr.opname} {format_oparg(instr)}",
+        )
+
+
 SCRIPT_CONTEXT = {
     "ANY": partial(Op, Any),
+    BLOCK_START_CODE: BlockStart,
     **{opname: partial(Op, opname) for opname in dis.opmap},
 }
