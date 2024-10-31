@@ -301,7 +301,7 @@ class FlowGraphOptimizer:
             jump_if_true = next_instr.opname == "POP_JUMP_IF_TRUE"
             if is_true == jump_if_true:
                 next_instr.opname = "JUMP_ABSOLUTE"
-                block.no_fallthrough = True
+                block.has_fallthrough = False
             else:
                 next_instr.opname = "NOP"
                 next_instr.target = None
@@ -310,7 +310,7 @@ class FlowGraphOptimizer:
             jump_if_true = next_instr.opname == "JUMP_IF_TRUE_OR_POP"
             if is_true == jump_if_true:
                 next_instr.opname = "JUMP_ABSOLUTE"
-                block.no_fallthrough = True
+                block.has_fallthrough = False
             else:
                 instr.opname = "NOP"
                 next_instr.opname = "NOP"
@@ -490,7 +490,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             jump_if_true = next_instr.opname == "POP_JUMP_IF_TRUE"
             if is_true == jump_if_true:
                 next_instr.opname = "JUMP"
-                block.no_fallthrough = True
+                block.has_fallthrough = False
             else:
                 next_instr.opname = "NOP"
                 next_instr.target = None
@@ -499,7 +499,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             jump_if_true = next_instr.opname == "JUMP_IF_TRUE_OR_POP"
             if is_true == jump_if_true:
                 next_instr.opname = "JUMP"
-                block.no_fallthrough = True
+                block.has_fallthrough = False
             else:
                 instr.opname = "NOP"
                 next_instr.opname = "NOP"

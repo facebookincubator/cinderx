@@ -316,7 +316,7 @@ class Block:
         self.seen: bool = False  # visited during stack depth calculation
         self.startdepth: int = -1
         self.is_exit: bool = False
-        self.no_fallthrough: bool = False
+        self.has_fallthrough: bool = True
         self.num_predecessors: int = 0
         self.alloc_id: int = Block.allocated_block_count
         Block.allocated_block_count += 1
@@ -391,11 +391,11 @@ class Block:
     def copy(self):
         # Cannot copy block if it has fallthrough, since a block can have only one
         # fallthrough predecessor
-        assert self.no_fallthrough
+        assert not self.has_fallthrough
         result = Block()
         result.insts = [instr.copy() for instr in self.insts]
         result.is_exit = self.is_exit
-        result.no_fallthrough = True
+        result.has_fallthrough = False
         return result
 
 
@@ -1024,7 +1024,7 @@ class PyFlowGraph(FlowGraph):
                     instr.loc = prev_loc
                 else:
                     prev_loc = instr.loc
-            if not block.no_fallthrough and block.next.num_predecessors == 1:
+            if block.has_fallthrough and block.next.num_predecessors == 1:
                 assert block.next.insts
                 next_instr = block.next.insts[0]
                 if next_instr.loc == NO_LOCATION:
@@ -1131,7 +1131,7 @@ class PyFlowGraph(FlowGraph):
             if prev_block and prev_block.insts:
                 prev_lineno = prev_block.insts[-1].lineno
             optimizer.clean_basic_block(block, prev_lineno)
-            prev_block = None if block.no_fallthrough else block
+            prev_block = block if block.has_fallthrough else None
 
         self.eliminate_empty_basic_blocks()
         self.remove_unreachable_basic_blocks()
@@ -1148,7 +1148,7 @@ class PyFlowGraph(FlowGraph):
             if last.opname not in {"JUMP_ABSOLUTE", "JUMP_FORWARD"}:
                 continue
             if last.target == block.next:
-                block.no_fallthrough = False
+                block.has_fallthrough = True
                 last.opname = "NOP"
                 last.oparg = last.ioparg = 0
                 last.target = None
@@ -1192,7 +1192,7 @@ class PyFlowGraph(FlowGraph):
                     worklist.append(target)
                     target.num_predecessors += 1
 
-            if not entry.no_fallthrough:
+            if entry.has_fallthrough:
                 worklist.append(entry.next)
                 entry.next.num_predecessors += 1
 
@@ -1214,10 +1214,10 @@ class PyFlowGraph(FlowGraph):
             # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
             if instr.opname in SCOPE_EXIT_OPCODES:
                 block.is_exit = True
-                block.no_fallthrough = True
+                block.has_fallthrough = False
                 continue
             elif instr.opname in UNCONDITIONAL_JUMP_OPCODES:
-                block.no_fallthrough = True
+                block.has_fallthrough = False
             elif not instr.is_jump(self.opcode):
                 continue
             while not instr.target.insts:
@@ -1246,7 +1246,7 @@ class PyFlowGraph(FlowGraph):
             block.insts.append(instr.copy())
         block.next = None
         block.is_exit = True
-        block.no_fallthrough = True
+        block.has_fallthrough = False
 
     def trim_unused_consts(self) -> None:
         """Remove trailing unused constants."""
@@ -1331,7 +1331,7 @@ class PyFlowGraph312(PyFlowGraph):
         # If we have a cold block with fallthrough to a warm block, add
         # an explicit jump instead of fallthrough
         for block in list(self.ordered_blocks):
-            if block not in warm and not block.no_fallthrough and block.next in warm:
+            if block not in warm and block.has_fallthrough and block.next in warm:
                 explicit_jump = self.newBlock("explicit_jump")
                 explicit_jump.bid = self.block_count
                 self.block_count += 1
@@ -1343,7 +1343,7 @@ class PyFlowGraph312(PyFlowGraph):
                 )
 
                 explicit_jump.next = block.next
-                explicit_jump.no_fallthrough = True
+                explicit_jump.has_fallthrough = False
                 block.next = explicit_jump
 
         to_end = [block for block in self.ordered_blocks if block not in warm]
@@ -1366,7 +1366,7 @@ class PyFlowGraph312(PyFlowGraph):
             cur = stack.pop()
             warm.add(cur)
             next = cur.next
-            if next is not None and not cur.no_fallthrough and next not in visited:
+            if next is not None and cur.has_fallthrough and next not in visited:
                 stack.append(next)
                 visited.add(next)
 
