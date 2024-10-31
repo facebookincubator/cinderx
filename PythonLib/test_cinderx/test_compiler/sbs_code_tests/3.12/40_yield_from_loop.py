@@ -17,4 +17,7 @@ def f():
     JUMP_BACKWARD_NO_INTERRUPT(Block(4)),
     ...,
     JUMP_BACKWARD(Block(3)),
+    CLEANUP_THROW(0),
+    JUMP_BACKWARD(Block(6)),
+    ...
 ]

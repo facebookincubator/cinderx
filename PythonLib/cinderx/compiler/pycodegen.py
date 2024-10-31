@@ -1425,6 +1425,7 @@ class CodeGenerator(ASTVisitor):
         block = self.newBlock("with_block")
         finally_ = self.newBlock("with_finally")
         exit_ = self.newBlock("with_exit")
+        cleanup = self.newBlock("cleanup")
         self.visit(item.context_expr)
         if kind == ASYNC_WITH:
             self.emit("BEFORE_ASYNC_WITH")
@@ -1465,25 +1466,32 @@ class CodeGenerator(ASTVisitor):
             self.emit("JUMP_FORWARD", exit_)
 
         self.nextBlock(finally_)
-        self.emit("WITH_EXCEPT_START")
+        self.emit_with_except_cleanup(cleanup)
 
         if kind == ASYNC_WITH:
             self.emit("GET_AWAITABLE")
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
+        self.emit_with_except_finish(cleanup)
+
+        self.nextBlock(exit_)
+
+    def emit_with_except_cleanup(self, cleanup: Block) -> None:
+        self.emit("WITH_EXCEPT_START")
+
+    def emit_with_except_finish(self, cleanup: Block) -> None:
         except_ = self.newBlock()
         self.emit("POP_JUMP_IF_TRUE", except_)
         self.nextBlock()
         self.emit("RERAISE", 1)
+
         self.nextBlock(except_)
         self.emit("POP_TOP")
         self.emit("POP_TOP")
         self.emit("POP_TOP")
         self.emit("POP_EXCEPT")
         self.emit("POP_TOP")
-
-        self.nextBlock(exit_)
 
     def emit_setup_with(self, target: Block, async_: bool) -> None:
         self.emit("SETUP_ASYNC_WITH" if async_ else "SETUP_WITH", target)
@@ -3327,6 +3335,36 @@ class CodeGenerator312(CodeGenerator):
 
     def emit_end_for(self) -> None:
         self.emit("END_FOR")
+
+    def emit_with_except_cleanup(self, cleanup: Block) -> None:
+        self.emit("SETUP_CLEANUP", cleanup)
+        self.emit("PUSH_EXC_INFO")
+        self.emit("WITH_EXCEPT_START")
+
+    def emit_with_except_finish(self, cleanup: Block) -> None:
+        assert cleanup is not None
+        suppress = self.newBlock("suppress")
+        self.emit("POP_JUMP_IF_TRUE", suppress)
+        self.nextBlock()
+        self.emit("RERAISE", 2)
+
+        self.nextBlock(suppress)
+        self.emit("POP_TOP")
+        self.emit("POP_BLOCK")
+        self.emit("POP_EXCEPT")
+        self.emit("POP_TOP")
+        self.emit("POP_TOP")
+
+        exit = self.newBlock("exit")
+        assert exit is not None
+        self.emit("JUMP", exit)
+
+        self.nextBlock(cleanup)
+        self.emit("COPY", 3)
+        self.emit("POP_EXCEPT")
+        self.emit("RERAISE", 1)
+
+        self.nextBlock(exit)
 
     def _fastcall_helper(self, argcnt, node, args, kwargs):
         # No * or ** args, faster calling sequence.

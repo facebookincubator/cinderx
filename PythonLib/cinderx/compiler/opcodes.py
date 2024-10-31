@@ -214,6 +214,9 @@ if sys.version_info >= (3, 12):
         END_FOR=-2,
         FOR_ITER=lambda oparg, jmp=0: 0 if jmp > 0 else 1,
         END_ASYNC_FOR=-2,
+        SETUP_CLEANUP=2,
+        PUSH_EXC_INFO=1,
+        SETUP_FINALLY=lambda oparg, jmp=0: 1 if jmp else 0,
     )
 
     from opcode import (

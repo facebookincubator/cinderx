@@ -57,6 +57,25 @@ FVS_MASK = 0x4
 FVS_HAVE_SPEC = 0x4
 
 
+UNCONDITIONAL_JUMP_OPCODES = (
+    "JUMP_ABSOLUTE",
+    "JUMP_FORWARD",
+    "JUMP",
+    "JUMP_BACKWARD",
+    "JUMP_BACKWARD_NO_INTERRUPT",
+)
+
+SCOPE_EXIT_OPCODES = (
+    "RETURN_VALUE",
+    "RETURN_CONST",
+    "RETURN_PRIMITIVE",
+    "RAISE_VARARGS",
+    "RERAISE",
+)
+
+SETUP_OPCODES = ("SETUP_FINALLY", "SETUP_WITH", "SETUP_CLEANUP")
+
+
 @dataclass(frozen=True, slots=True)
 class SrcLocation:
     lineno: int
@@ -179,7 +198,7 @@ class FlowGraph:
         self.ordered_blocks.extend(scope.blocks)
         self.current = scope.blocks[-1]
 
-    def startBlock(self, block):
+    def startBlock(self, block: Block) -> None:
         if self._debug:
             if self.current:
                 print("end", repr(self.current))
@@ -219,9 +238,8 @@ class FlowGraph:
         self.current.addNext(block)
         self.startBlock(block)
 
-    def newBlock(self, label=""):
-        b = Block(label)
-        return b
+    def newBlock(self, label: str = "") -> Block:
+        return Block(label)
 
     _debug = 0
 
@@ -644,7 +662,7 @@ class PyFlowGraph(FlowGraph):
                 assert depth >= 0, instr
 
                 op = self.opcode.opmap[instr.opname]
-                if self.opcode.has_jump(op):
+                if self.opcode.has_jump(op) or instr.opname == "SETUP_FINALLY":
                     delta = self.opcode.stack_effect_raw(
                         instr.opname, instr.oparg, True
                     )
@@ -660,13 +678,9 @@ class PyFlowGraph(FlowGraph):
                 depth = new_depth
 
                 # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
-                if instr.opname in (
-                    "JUMP_ABSOLUTE",
-                    "JUMP_FORWARD",
-                    "RETURN_VALUE",
-                    "RETURN_PRIMITIVE",
-                    "RAISE_VARARGS",
-                    "RERAISE",
+                if (
+                    instr.opname in SCOPE_EXIT_OPCODES
+                    or instr.opname in UNCONDITIONAL_JUMP_OPCODES
                 ):
                     # Remaining code is dead
                     next = None
@@ -1198,16 +1212,11 @@ class PyFlowGraph(FlowGraph):
         """
         for instr in block.getInstructions():
             # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
-            if instr.opname in (
-                "RETURN_VALUE",
-                "RETURN_PRIMITIVE",
-                "RAISE_VARARGS",
-                "RERAISE",
-            ):
+            if instr.opname in SCOPE_EXIT_OPCODES:
                 block.is_exit = True
                 block.no_fallthrough = True
                 continue
-            elif instr.opname in ("JUMP_ABSOLUTE", "JUMP_FORWARD"):
+            elif instr.opname in UNCONDITIONAL_JUMP_OPCODES:
                 block.no_fallthrough = True
             elif not instr.is_jump(self.opcode):
                 continue
@@ -1305,6 +1314,79 @@ class PyFlowGraph312(PyFlowGraph):
     def emit_gen_start(self) -> None:
         # This is handled with the prefix instructions in finalize
         pass
+
+    def compute_except_handlers(self) -> set[Block]:
+        except_handlers: set[Block] = set()
+        for block in self.ordered_blocks:
+            for instr in block.insts:
+                if instr.opname in SETUP_OPCODES:
+                    except_handlers.add(instr.target)
+                    break
+
+        return except_handlers
+
+    def push_cold_blocks_to_end(self, except_handlers: set[Block]) -> None:
+        warm = self.compute_warm()
+
+        # If we have a cold block with fallthrough to a warm block, add
+        # an explicit jump instead of fallthrough
+        for block in list(self.ordered_blocks):
+            if block not in warm and not block.no_fallthrough and block.next in warm:
+                explicit_jump = self.newBlock("explicit_jump")
+                explicit_jump.bid = self.block_count
+                self.block_count += 1
+                self.current = explicit_jump
+
+                self.emit("JUMP_BACKWARD", block.next)
+                self.ordered_blocks.insert(
+                    self.ordered_blocks.index(block) + 1, explicit_jump
+                )
+
+                explicit_jump.next = block.next
+                explicit_jump.no_fallthrough = True
+                block.next = explicit_jump
+
+        to_end = [block for block in self.ordered_blocks if block not in warm]
+
+        self.ordered_blocks = [block for block in self.ordered_blocks if block in warm]
+
+        self.ordered_blocks.extend(to_end)
+
+    def compute_warm(self) -> set[Block]:
+        """Compute the set of 'warm' blocks, which are blocks that are reachable
+        through normal control flow. 'Cold' blocks are those that are not
+        directly reachable and may be moved to the end of the block list
+        for optimization purposes."""
+
+        stack = [self.entry]
+        visited = set(stack)
+        warm: set[Block] = set()
+
+        while stack:
+            cur = stack.pop()
+            warm.add(cur)
+            next = cur.next
+            if next is not None and not cur.no_fallthrough and next not in visited:
+                stack.append(next)
+                visited.add(next)
+
+            for instr in cur.insts:
+                target = instr.target
+                if (
+                    target is not None
+                    and instr.is_jump(self.opcode)
+                    and target not in visited
+                ):
+                    stack.append(target)
+                    visited.add(target)
+        return warm
+
+    def optimizeCFG(self) -> None:
+        super().optimizeCFG()
+
+        except_handlers = self.compute_except_handlers()
+
+        self.push_cold_blocks_to_end(except_handlers)
 
     def finalize(self):
         if self.cellvars or self.freevars or self.gen_kind is not None:
