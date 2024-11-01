@@ -3952,8 +3952,12 @@ void HIRBuilder::emitMatchClass(
   tc.emit<CheckErrOccurred>(tc.frame);
   if constexpr (PY_VERSION_HEX < 0x030C0000) {
     tc.emit<LoadConst>(if_success, Type::fromObject(Py_False));
+    tc.emit<Assign>(tuple_or_none, subject);
+  } else {
+    Register* none = temps_.AllocateNonStack();
+    tc.emit<LoadConst>(none, Type::fromObject(Py_None));
+    tc.emit<Assign>(tuple_or_none, none);
   }
-  tc.emit<Assign>(tuple_or_none, subject);
   tc.emit<Branch>(done);
 
   tc.block = done;
