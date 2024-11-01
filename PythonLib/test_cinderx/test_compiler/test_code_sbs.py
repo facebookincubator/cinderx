@@ -25,6 +25,8 @@ def format_oparg(instr: Instruction) -> str:
             return f"Block({instr.target.bid}, label={instr.target.label!r})"
         return f"Block({instr.target.bid})"
     elif isinstance(instr.oparg, CodeGenerator):
+        # pyre-fixme[16]: `AST` has no attribute `lineno`.
+        # pyre-fixme[16]: `AST` has no attribute `col_offset`.
         return f"Code(({instr.oparg.tree.lineno},{instr.oparg.tree.col_offset}))"
     elif isinstance(instr.oparg, (str, int, tuple, frozenset, type(None))):
         return repr(instr.oparg)
@@ -427,6 +429,8 @@ class Code:
         if isinstance(self.loc, str):
             return self.loc == other.name
         elif isinstance(self.loc, tuple):
+            # pyre-fixme[16]: `AST` has no attribute `lineno`.
+            # pyre-fixme[16]: `AST` has no attribute `col_offset`.
             return self.loc == (other.tree.lineno, other.tree.col_offset)
         elif isinstance(self.loc, int):
             return self.loc == other.tree.lineno

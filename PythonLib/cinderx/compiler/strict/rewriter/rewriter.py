@@ -123,13 +123,18 @@ TAst = TypeVar("TAst", bound=AST)
 
 
 def make_assign(*a: object, **kw: object) -> Assign:
+    # pyre-fixme[6]: For 1st argument expected `List[expr]` but got `object`.
+    # pyre-fixme[6]: For 2nd argument expected `expr` but got `object`.
+    # pyre-fixme[6]: For 3rd argument expected `Optional[str]` but got `object`.
     node = Assign(*a, **kw)
     node.type_comment = None
     return node
 
 
 def copyline(from_node: AST, to_node: TAst) -> TAst:
+    # pyre-fixme[16]: `AST` has no attribute `lineno`.
     to_node.lineno = from_node.lineno
+    # pyre-fixme[16]: `AST` has no attribute `col_offset`.
     to_node.col_offset = from_node.col_offset
     return to_node
 
@@ -146,8 +151,10 @@ _IMPLICIT_GLOBALS = [
 
 
 def make_function(name: str, pos_args: list[arg]) -> FunctionDef:
+    # pyre-fixme[20]: Argument `args` expected.
     func = lineinfo(ast.FunctionDef())
     func.name = name
+    # pyre-fixme[20]: Argument `args` expected.
     args = ast.arguments()
     args.kwonlyargs = []
     args.kw_defaults = []
@@ -223,6 +230,7 @@ class StrictModuleRewriter:
         for argname in _IMPLICIT_GLOBALS:
             self.visitor.globals.add(argname)
 
+        # pyre-fixme[20]: Argument `type_ignores` expected.
         mod = ast.Module(
             [
                 *self.get_future_imports(),
@@ -763,6 +771,8 @@ class ImmutableTransformer(SymbolVisitor[None, ScopeData], AstRewriter):
                                 lineinfo(
                                     ast.comprehension(
                                         lineinfo(ast.Name("b", ast.Store())),
+                                        # pyre-fixme[6]: For 1st argument expected
+                                        #  `List[expr]` but got `List[Name]`.
                                         lineinfo(ast.List(names, ast.Load())),
                                         [],
                                         0,

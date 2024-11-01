@@ -7377,6 +7377,7 @@ def parse_type(info: dict[str, object], type_env: TypeEnvironment) -> Class:
     optional = info.get("optional", False)
     type = info.get("type")
     if type:
+        # pyre-fixme[6]: For 1st argument expected `str` but got `object`.
         klass = type_env.name_to_type.get(type)
         if klass is None:
             raise NotImplementedError("unsupported type: " + str(type))
@@ -10038,6 +10039,7 @@ class ContextDecoratedMethod(DecoratedMethod):
         )
         call_recreate = ast.Call(load_recreate, [], [])
 
+        # pyre-fixme[6]: For 2nd argument expected `Optional[expr]` but got `List[_T]`.
         with_item = ast.copy_location(ast.withitem(call_recreate, []), body[0])
 
         with_statement = cast(ast.stmt, ast.With([with_item], body))

@@ -679,6 +679,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
     def get_type(self, node: AST) -> Value:
         if self.nodes_default_dynamic:
             return self.module.types.get(node, self.type_env.DYNAMIC)
+        # pyre-fixme[16]: `AST` has no attribute `lineno`.
         assert node in self.module.types, f"node not found: {node}, {node.lineno}"
         return self.module.types[node]
 

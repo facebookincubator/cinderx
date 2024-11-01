@@ -200,6 +200,8 @@ class TemplateFileProcessor:
                         ]
                         # Overwrite earlier declarations; the last one is the
                         # function definition.
+                        # pyre-fixme[6]: For 2nd argument expected `List[str]` but
+                        #  got `str`.
                         self.decls[source_file][name] = content
 
     def _generate_output(self) -> None:

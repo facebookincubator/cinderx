@@ -226,6 +226,8 @@ class AstOptimizer(ASTRewriter):
             if res is not None:
                 return copy_location(res, node)
             if not any(isinstance(e, ast.Starred) for e in elts):
+                # pyre-fixme[6]: For 1st argument expected `List[expr]` but got
+                #  `Sequence[expr]`.
                 return copy_location(ast.Tuple(elts=elts, ctx=node.ctx), node)
             return self.update_node(node, elts=elts)
         elif isinstance(node, ast.Set):

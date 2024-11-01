@@ -437,12 +437,14 @@ class StrictCodeGenerator(CinderCodeGenerator):
     def make_function(
         self, name: str, body: list[stmt], location_node: ast.AST | None = None
     ) -> None:
+        # pyre-fixme[20]: Argument `args` expected.
         func = lineinfo(ast.FunctionDef(), location_node)
         func.name = name
         func.decorator_list = []
         func.returns = None
         func.type_comment = ""
         func.body = body
+        # pyre-fixme[20]: Argument `args` expected.
         args = lineinfo(ast.arguments())
         func.args = args
 

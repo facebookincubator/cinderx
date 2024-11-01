@@ -51,6 +51,7 @@ class Opcode:
             raise ValueError(
                 "stack_effect: opcode does not permit oparg but oparg was specified"
             )
+        # pyre-fixme[6]: For 1st argument expected `Optional[bool]` but got `int`.
         jump_int = {None: -1, True: 1, False: 0}.get(jump)
         if jump_int is None:
             raise ValueError("stack_effect: jump must be False, True or None")
