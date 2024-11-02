@@ -26,6 +26,8 @@ extern "C" {
 #define Cix_PyThreadState_PushFrame _PyThreadState_PushFrame
 #define Cix_PyThreadState_PopFrame _PyThreadState_PopFrame
 #define Cix_PyFrame_ClearExceptCode _PyFrame_ClearExceptCode
+#define Cix_PyUnion_Type _PyUnion_Type
+#define Cix_PyTypeAlias_Type _PyTypeAlias_Type
 #endif
 
 PyObject* Cix_PyGen_yf(PyGenObject* gen);
