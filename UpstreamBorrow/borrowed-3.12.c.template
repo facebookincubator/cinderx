@@ -43,68 +43,6 @@ PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
   return __PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
 }
 
-// _Py_IncRefTotal is used by internal functions in 3.12 dictobject.c.
-// Pragmatically @Borrow'ing this doesn't seem worth it at this stage. We would
-// need UpstreamBorrow.py to somehow not attempt/ignore failure to extract
-// _Py_IncRefTotal on non-debug builds where it's deleted by the CPP. All the
-// simple solutions I can think of seem just as ugly as manually copying. This
-// is made worse by the fact internally _Py_IncRefTotal uses a macro which
-// isn't easily visible to us as it's #undef'd after usage. So we'd need a fix
-// or to copy that anyway.
-#if defined(Py_DEBUG)
-#define _Py_IncRefTotal __Py_IncRefTotal
-static void _Py_IncRefTotal(PyInterpreterState* interp) {
-  interp->object_state.reftotal++;
-}
-
-#define _Py_DecRefTotal __Py_DecRefTotal
-static void _Py_DecRefTotal(PyInterpreterState* interp) {
-  interp->object_state.reftotal--;
-}
-#endif
-
-// @Borrow CPP directives from Objects/dictobject.c
-
-// These are global singletons and some of the functions we're borrowing
-// check for them with pointer equality. Fortunately we are able to get
-// the values in init_upstream_borrow().
-#undef Py_EMPTY_KEYS
-static PyDictKeysObject* Py_EMPTY_KEYS = NULL;
-
-// Internal dependencies for things borrowed from dictobject.c.
-// @Borrow function dictkeys_get_index from Objects/dictobject.c
-// @Borrow function unicode_get_hash from Objects/dictobject.c
-// @Borrow function unicodekeys_lookup_unicode from Objects/dictobject.c
-// @Borrow function unicodekeys_lookup_generic from Objects/dictobject.c
-// @Borrow function dictkeys_generic_lookup from Objects/dictobject.c
-// Rename to avoid clashing with existing version when statically linking.
-#define _Py_dict_lookup __Py_dict_lookup
-// @Borrow function _Py_dict_lookup from Objects/dictobject.c
-// @Borrow function get_dict_state from Objects/dictobject.c
-// @Borrow function new_values from Objects/dictobject.c
-// @Borrow function free_values from Objects/dictobject.c
-// @Borrow function shared_keys_usable_size from Objects/dictobject.c
-// @Borrow function free_keys_object from Objects/dictobject.c
-// @Borrow function dictkeys_decref from Objects/dictobject.c
-// @Borrow function dictkeys_incref from Objects/dictobject.c
-// @Borrow function new_dict from Objects/dictobject.c
-// @Borrow function new_dict_with_shared_keys from Objects/dictobject.c
-// @Borrow function dict_event_name from Objects/dictobject.c
-// End internal dependencies.
-
-#define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
-// @Borrow function _PyObjectDict_SetItem from Objects/dictobject.c
-
-#define _PyDict_LoadGlobal Cix_PyDict_LoadGlobal
-// @Borrow function _PyDict_LoadGlobal from Objects/dictobject.c
-
-// Include _PyDict_SendEvent with its original name but weakly as we use
-// some static inline functions from CPython headers which depend on this.
-__attribute__((weak))
-// We do not rename to a Cix_ function as this is only used from static
-// inline functions in CPython headers.
-// @Borrow function _PyDict_SendEvent from Objects/dictobject.c
-
 // @Borrow function set_attribute_error_context from Objects/object.c
 
 // Wrapper as set_attribute_error_context is declared "static inline".
@@ -166,13 +104,6 @@ int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
 }
 
 int init_upstream_borrow(void) {
-  PyObject* empty_dict = PyDict_New();
-  if (empty_dict == NULL) {
-    return -1;
-  }
-  Py_EMPTY_KEYS = ((PyDictObject*)empty_dict)->ma_keys;
-  Py_DECREF(empty_dict);
-
   // Initialize the Cix_PyUnion_Type global reference.
   PyObject* unionobj =
       PyNumber_Or((PyObject*)&PyLong_Type, (PyObject*)&PyUnicode_Type);

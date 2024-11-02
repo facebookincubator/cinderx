@@ -18,6 +18,8 @@ extern "C" {
 #define Cix_PyStaticType_GetState _PyStaticType_GetState
 #define Cix_PyCode_InitAddressRange _PyCode_InitAddressRange
 #define Cix_PyLineTable_NextAddressRange _PyLineTable_NextAddressRange
+#define Cix_PyObjectDict_SetItem _PyObjectDict_SetItem
+#define Cix_PyDict_LoadGlobal _PyDict_LoadGlobal
 #endif
 
 PyObject* Cix_PyGen_yf(PyGenObject* gen);
