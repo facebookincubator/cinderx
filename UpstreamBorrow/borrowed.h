@@ -15,6 +15,7 @@ extern "C" {
 
 #if PY_VERSION_HEX >= 0x030C0000
 #define Cix_Py_union_type_or _Py_union_type_or
+#define Cix_PyStaticType_GetState _PyStaticType_GetState
 #endif
 
 PyObject* Cix_PyGen_yf(PyGenObject* gen);
