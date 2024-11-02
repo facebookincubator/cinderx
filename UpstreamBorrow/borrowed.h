@@ -20,6 +20,9 @@ extern "C" {
 #define Cix_PyLineTable_NextAddressRange _PyLineTable_NextAddressRange
 #define Cix_PyObjectDict_SetItem _PyObjectDict_SetItem
 #define Cix_PyDict_LoadGlobal _PyDict_LoadGlobal
+#define Cix_PyThreadState_PushFrame _PyThreadState_PushFrame
+#define Cix_PyThreadState_PopFrame _PyThreadState_PopFrame
+#define Cix_PyFrame_ClearExceptCode _PyFrame_ClearExceptCode
 #endif
 
 PyObject* Cix_PyGen_yf(PyGenObject* gen);

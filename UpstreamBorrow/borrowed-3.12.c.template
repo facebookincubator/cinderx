@@ -60,34 +60,6 @@ PyTypeObject* Cix_PyUnion_Type = NULL;
 PyTypeObject* Cix_PyTypeAlias_Type = NULL;
 #define _PyTypeAlias_Type (*Cix_PyTypeAlias_Type)
 
-// Internal dependencies for _PyThreadState_*Frame.
-// @Borrow CPP directives from Objects/obmalloc.c
-#define _PyObject_VirtualAlloc __PyObject_VirtualAlloc
-// @Borrow function _PyObject_VirtualAlloc from Objects/obmalloc.c
-#define _PyObject_VirtualFree __PyObject_VirtualFree
-// @Borrow function _PyObject_VirtualFree from Objects/obmalloc.c
-// @Borrow CPP directives from Python/pystate.c
-// @Borrow function allocate_chunk from Python/pystate.c
-// @Borrow function push_chunk from Python/pystate.c
-// End internal dependencies.
-#define _PyThreadState_PushFrame Cix_PyThreadState_PushFrame
-// @Borrow function _PyThreadState_PushFrame from Python/pystate.c
-#define _PyThreadState_PopFrame Cix_PyThreadState_PopFrame
-// @Borrow function _PyThreadState_PopFrame from Python/pystate.c
-
-// Internal dependencies for _PyFrame_ClearExceptCode.
-// @Borrow CPP directives from Python/frame.c
-__attribute__((weak))
-// @Borrow function _PyFrame_New_NoTrack from Objects/frameobject.c
-__attribute__((weak))
-// @Borrow function _PyFrame_MakeAndSetFrameObject from Python/frame.c
-// @Borrow function take_ownership from Python/frame.c
-#define _PyFrame_ClearLocals __PyFrame_ClearLocals
-// @Borrow function _PyFrame_ClearLocals from Python/frame.c
-// End internal dependencies.
-#define _PyFrame_ClearExceptCode Cix_PyFrame_ClearExceptCode
-// @Borrow function _PyFrame_ClearExceptCode from Python/frame.c
-
 // @Borrow var DE_INSTRUMENT from Python/instrumentation.c
 uint8_t
 Cix_DEINSTRUMENT(uint8_t op) {
