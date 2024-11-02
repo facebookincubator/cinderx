@@ -156,23 +156,6 @@ Cix_DEINSTRUMENT(uint8_t op) {
   return DE_INSTRUMENT[op];
 }
 
-// Internal dependencies for bytecode address to line number mapping.
-// @Borrow CPP directives from Objects/codeobject.c
-// @Borrow function scan_varint from Objects/codeobject.c
-// @Borrow function scan_signed_varint from Objects/codeobject.c
-// @Borrow function get_line_delta from Objects/codeobject.c
-// @Borrow function next_code_delta from Objects/codeobject.c
-// @Borrow function is_no_line_marker from Objects/codeobject.c
-// @Borrow function at_end from Objects/codeobject.c
-// @Borrow function advance from Objects/codeobject.c
-#define _PyLineTable_InitAddressRange __PyLineTable_InitAddressRange
-// @Borrow function _PyLineTable_InitAddressRange from Objects/codeobject.c
-// End internal dependencies.
-#define _PyCode_InitAddressRange Cix_PyCode_InitAddressRange
-// @Borrow function _PyCode_InitAddressRange from Objects/codeobject.c
-#define _PyLineTable_NextAddressRange Cix_PyLineTable_NextAddressRange
-// @Borrow function _PyLineTable_NextAddressRange from Objects/codeobject.c
-
 // Internal dependencies for Cix_do_raise.
 #define _PyErr_SetRaisedException __PyErr_SetRaisedException
 // @Borrow function _PyErr_SetRaisedException from Python/errors.c
