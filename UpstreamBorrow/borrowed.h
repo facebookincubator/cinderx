@@ -37,12 +37,9 @@ void Cix_PyDict_SendEvent(
 
 int Cix_set_attribute_error_context(PyObject* v, PyObject* name);
 
-#if PY_VERSION_HEX >= 0x030C0000
-PyObject* Cix_PyTuple_FromArray(PyObject* const*, Py_ssize_t);
-#else
+// TODO: Get rid of this
 #include "internal/pycore_tuple.h"
 #define Cix_PyTuple_FromArray _PyTuple_FromArray
-#endif
 
 #if PY_VERSION_HEX >= 0x030C0000
 static_builtin_state* Cix_PyStaticType_GetState(
