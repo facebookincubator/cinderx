@@ -127,6 +127,7 @@ Cix_PyStaticType_GetState(PyInterpreterState* interp, PyTypeObject* self) {
   return _PyStaticType_GetState(interp, self);
 }
 
+// TODO: Get rid of this
 // These are global singletons used transitively by _Py_union_type_or.
 // We initialize them in init_upstream_borrow().
 PyTypeObject* Cix_PyUnion_Type = NULL;
@@ -134,21 +135,6 @@ PyTypeObject* Cix_PyUnion_Type = NULL;
 
 PyTypeObject* Cix_PyTypeAlias_Type = NULL;
 #define _PyTypeAlias_Type (*Cix_PyTypeAlias_Type)
-
-// Internal dependencies for _Py_union_type_or.
-// @Borrow CPP directives from Objects/unionobject.c
-// @Borrow typedef unionobject from Objects/unionobject.c
-// @Borrow function is_unionable from Objects/unionobject.c
-// @Borrow function is_same from Objects/unionobject.c
-// @Borrow function contains from Objects/unionobject.c
-// @Borrow function merge from Objects/unionobject.c
-// @Borrow function get_types from Objects/unionobject.c
-// Rename to avoid clashing with existing version when statically linking.
-#define make_union Cix_make_union
-// @Borrow function make_union from Objects/unionobject.c
-// End internal dependencies.
-#define _Py_union_type_or Cix_Py_union_type_or
-// @Borrow function _Py_union_type_or from Objects/unionobject.c
 
 // Internal dependencies for _PyThreadState_*Frame.
 // @Borrow CPP directives from Objects/obmalloc.c
