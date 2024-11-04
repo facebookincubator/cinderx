@@ -24,6 +24,25 @@ using jit::codegen::PhyLocation;
 
 namespace jit {
 
+namespace {
+
+// Set of interned strings for deopt descriptions.
+std::unordered_set<std::string> s_descrs;
+std::shared_mutex s_descrs_mutex;
+
+// Intern a description string and return a reference to it.
+const std::string& internDescr(const std::string& descr) {
+  std::shared_lock reader_guard{s_descrs_mutex};
+  if (auto iter = s_descrs.find(descr); iter != s_descrs.end()) {
+    return *iter;
+  }
+  reader_guard.unlock();
+  std::unique_lock writer_guard{s_descrs_mutex};
+  return *s_descrs.emplace(descr).first;
+}
+
+} // namespace
+
 hir::ValueKind deoptValueKind(hir::Type type) {
   if (type <= jit::hir::TCBool) {
     return jit::hir::ValueKind::kBool;
@@ -463,21 +482,10 @@ DeoptMetadata DeoptMetadata::fromInstr(
     descr = instr.opname();
   }
 
-  {
-    // Set of interned strings for deopt descriptions.
-    static std::unordered_set<std::string> s_descrs;
-    static std::shared_mutex s_descrs_mutex;
+  // This is safe to do because `s_descrs` has process lifetime.
+  const std::string& interned = internDescr(descr);
+  meta.descr = interned.c_str();
 
-    std::shared_lock guard{s_descrs_mutex};
-    auto iter = s_descrs.find(descr);
-    if (iter != s_descrs.end()) {
-      meta.descr = iter->c_str();
-    } else {
-      guard.unlock();
-      std::unique_lock guard{s_descrs_mutex};
-      meta.descr = s_descrs.emplace(descr).first->c_str();
-    }
-  }
   return meta;
 }
 
