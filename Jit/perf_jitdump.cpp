@@ -206,7 +206,7 @@ FileInfo openJitdumpFile() {
   auto fd = fileno(info.file);
 
   // mmap() the jitdump file so perf inject can find it.
-  auto g_jitdump_mmap_addr =
+  g_jitdump_mmap_addr =
       mmap(nullptr, kJitdumpMmapSize, PROT_EXEC, MAP_PRIVATE, fd, 0);
   JIT_CHECK(
       g_jitdump_mmap_addr != MAP_FAILED,
