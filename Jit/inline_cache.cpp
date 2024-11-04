@@ -448,6 +448,11 @@ AttributeMutator* AttributeCache::findEmptyEntry() {
   return it == entries().end() ? nullptr : &*it;
 }
 
+void AttributeCache::fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> name) {
+  BorrowedRef<> descr = _PyType_Lookup(type, name);
+  fill(type, name, descr);
+}
+
 void AttributeCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name,
@@ -524,59 +529,22 @@ int StoreAttrCache::doInvoke(PyObject* obj, PyObject* name, PyObject* value) {
   return invokeSlowPath(obj, name, value);
 }
 
-// NB: The logic here needs to be kept in sync with
-// _PyObject_GenericSetAttrWithDict, with the proviso that this will never be
-// used to delete attributes.
 int __attribute__((noinline))
 StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
-  BorrowedRef<PyTypeObject> tp(Py_TYPE(obj));
-
-  if (_PyType_GetDict(tp) == nullptr && PyType_Ready(tp) < 0) {
-    return -1;
-  } else if (tp->tp_setattro != PyObject_GenericSetAttr) {
-    return PyObject_SetAttr(obj, name, value);
+  int result = PyObject_SetAttr(obj, name, value);
+  if (result < 0) {
+    JIT_DCHECK(
+        PyErr_Occurred(),
+        "PyObject_SetAttr failed so there should be a Python error");
+    return result;
   }
 
-  auto name_guard = Ref<>::create(name);
-  auto descr = Ref<>::create(_PyType_Lookup(tp, name));
-  if (descr != nullptr) {
-    descrsetfunc f = descr->ob_type->tp_descr_set;
-    if (f != nullptr) {
-      int res = f(descr, obj, value);
-      fill(tp, name, descr);
-      return res;
-    }
+  BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
+  if (type->tp_setattro == PyObject_GenericSetAttr) {
+    fill(type, name);
   }
 
-  PyObject** dictptr = _PyObject_GetDictPtr(obj);
-  if (dictptr == nullptr) {
-    if (descr == nullptr) {
-      raise_attribute_error(obj, name);
-    } else {
-      PyErr_Format(
-          PyExc_AttributeError,
-          "'%.50s' object attribute '%U' is read-only",
-          tp->tp_name,
-          name);
-    }
-    return -1;
-  }
-
-  int res = Cix_PyObjectDict_SetItem(tp, dictptr, name, value);
-  if (descr != nullptr) {
-#if PY_VERSION_HEX < 0x030C0000
-    if (PyType_HasFeature(tp, Py_TPFLAGS_NO_SHADOWING_INSTANCES)) {
-      _PyType_ClearNoShadowingInstances(tp, descr);
-    }
-#else
-    UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
-#endif
-  }
-  if (res != -1) {
-    fill(tp, name, descr);
-  }
-
-  return res;
+  return result;
 }
 
 PyObject*
@@ -594,58 +562,23 @@ PyObject* LoadAttrCache::doInvoke(PyObject* obj, PyObject* name) {
   return invokeSlowPath(obj, name);
 }
 
-// NB: The logic here needs to be kept in-sync with PyObject_GenericGetAttr
 PyObject* __attribute__((noinline)) LoadAttrCache::invokeSlowPath(
     PyObject* obj,
     PyObject* name) {
-  BorrowedRef<PyTypeObject> tp(Py_TYPE(obj));
-  if (tp->tp_getattro != PyObject_GenericGetAttr) {
-    return PyObject_GetAttr(obj, name);
-  }
-  if (_PyType_GetDict(tp) == nullptr) {
-    if (PyType_Ready(tp) < 0) {
-      return nullptr;
-    }
+  auto result = Ref<>::steal(PyObject_GetAttr(obj, name));
+  if (result == nullptr) {
+    JIT_DCHECK(
+        PyErr_Occurred(),
+        "PyObject_GetAttr failed so there should be a Python error");
+    return nullptr;
   }
 
-  auto name_guard = Ref<>::create(name);
-  auto descr = Ref<>::create(_PyType_Lookup(tp, name));
-  descrgetfunc f = nullptr;
-  if (descr != nullptr) {
-    f = descr->ob_type->tp_descr_get;
-    if (f != nullptr && PyDescr_IsData(descr)) {
-      fill(tp, name, descr);
-      return f(descr, obj, tp);
-    }
+  BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
+  if (type->tp_getattro == PyObject_GenericGetAttr) {
+    fill(type, name);
   }
 
-  Ref<> dict;
-  PyObject** dictptr = _PyObject_GetDictPtr(obj);
-  if (dictptr != nullptr) {
-    dict.reset(*dictptr);
-  }
-
-  if (dict != nullptr) {
-    auto res = Ref<>::create(PyDict_GetItem(dict, name));
-    if (res != nullptr) {
-      fill(tp, name, descr);
-      return res.release();
-    }
-  }
-
-  if (f != nullptr) {
-    fill(tp, name, descr);
-    return f(descr, obj, tp);
-  }
-
-  if (descr != nullptr) {
-    fill(tp, name, descr);
-    return descr.release();
-  }
-
-  raise_attribute_error(obj, name);
-
-  return nullptr;
+  return result.release();
 }
 
 LoadTypeAttrCache::LoadTypeAttrCache() {

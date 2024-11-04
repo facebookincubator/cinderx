@@ -121,6 +121,8 @@ class AttributeCache {
 
   AttributeMutator* findEmptyEntry();
 
+  void fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> name);
+
   void
   fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> name, BorrowedRef<> descr);
 
