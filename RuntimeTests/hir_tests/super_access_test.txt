@@ -86,7 +86,7 @@ fun jittestmodule:A.f {
       }
     }
     Snapshot
-    v10 = StoreAttr<1; "x"> v9 v6 {
+    StoreAttr<1; "x"> v9 v6 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v0
@@ -94,9 +94,9 @@ fun jittestmodule:A.f {
       }
     }
     Snapshot
-    v11 = LoadConst<NoneType>
-    v11 = RefineType<NoneType> v11
-    Return<NoneType> v11
+    v10 = LoadConst<NoneType>
+    v10 = RefineType<NoneType> v10
+    Return<NoneType> v10
   }
 }
 --- Test Name ---
