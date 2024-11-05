@@ -1295,6 +1295,43 @@ class SymbolVisitor312(SymbolVisitor):
         self.analyze_block(scope, temp_free, temp_global, temp_bound, implicit_globals)
         child_free |= temp_free
 
+    def merge_comprehension_symbols(
+        self, scope: Scope, comp: Scope, comp_all_free: set[str]
+    ) -> None:
+        # merge defs from comprehension scope into current scope
+        for v in comp.defs:
+            if v != ".0":
+                scope.add_def(v)
+
+        # for names that are free in comprehension
+        # and not present in defs of current scope -
+        # add them as free in current scope
+        for d in comp.uses:
+            if comp.check_name(d) == SC_FREE and d not in scope.defs:
+                sc = scope.check_name(d)
+                if sc == SC_UNKNOWN:
+                    # name is missing in current scope - add it
+                    scope.frees[d] = 1
+            elif comp.check_name(d) == SC_GLOBAL_IMPLICIT:
+                scope.globals[d] = 1
+
+        # go through free names in comprehension
+        # and check if current scope has corresponding def
+        # if yes - name is no longer free after inlining
+        for f in list(comp.frees.keys()):
+            if f in scope.defs:
+                comp_all_free.remove(f)
+
+        # move names uses in comprehension to current scope
+        for u in comp.uses.keys():
+            if u != ".0" or u == "__classdict__":
+                scope.add_use(u)
+
+        # cell vars in comprehension become cells in current scope
+        for c in comp.cells.keys():
+            if c != ".0":
+                scope.cells[c] = 1
+
 
 def list_eq(l1, l2):
     return sorted(l1) == sorted(l2)
