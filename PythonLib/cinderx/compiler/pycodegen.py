@@ -3904,6 +3904,11 @@ class CodeGenerator312(CodeGenerator):
             op = "LOAD_ATTR"
         self.graph.emit_with_loc(op, self.mangle(node.attr), node)
 
+    def visitNamedExpr(self, node: ast.NamedExpr) -> None:
+        self.visit(node.value)
+        self.emit("COPY", 1)
+        self.visit(node.target)
+
     def emit_pop_except_and_reraise(self) -> None:
         self.emit("COPY", 3)
         self.emit("POP_EXCEPT")
