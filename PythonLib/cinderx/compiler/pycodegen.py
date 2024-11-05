@@ -3158,6 +3158,7 @@ class ResumeOparg(IntEnum):
 
 class CodeGenerator312(CodeGenerator):
     flow_graph = pyassem.PyFlowGraph312
+    _SymbolVisitor = symbols.SymbolVisitor312
 
     def emitResume(self, oparg: ResumeOparg) -> None:
         self.emit("RESUME", int(oparg))
@@ -3952,7 +3953,10 @@ class CinderCodeGenerator(CodeGenerator):
     """
 
     flow_graph = pyassem.PyFlowGraphCinder
-    _SymbolVisitor = symbols.CinderSymbolVisitor
+    if sys.version_info >= (3, 12):
+        _SymbolVisitor = symbols.SymbolVisitor312
+    else:
+        _SymbolVisitor = symbols.CinderSymbolVisitor
 
     # TODO(T132400505): Split into smaller methods.
     def compile_comprehension(

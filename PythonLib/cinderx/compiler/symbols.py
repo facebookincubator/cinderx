@@ -1143,5 +1143,156 @@ class CinderSymbolVisitor(SymbolVisitor):
     visitAsyncFunctionDef = visitFunctionDef
 
 
+class SymbolVisitor312(SymbolVisitor):
+    def visitModule(self, node):
+        scope = self.module = self.scopes[node] = self.module
+        self.visit(node.body, scope)
+        self.analyze_block(scope, free=set(), global_vars=set())
+
+    # node that define new scopes
+
+    visitInteractive = visitExpression = visitModule
+
+    def analyze_block(
+        self,
+        scope: Scope,
+        free: set[str],
+        global_vars: set[str],
+        bound: set[str] | None = None,
+        implicit_globals: set[str] | None = None,
+    ):
+        local: set[str] = set()
+        implicit_globals_in_block: set[str] = set()
+        inlinable_comprehensions = []
+        # Allocate new global and bound variable dictionaries.  These
+        # dictionaries hold the names visible in nested blocks.  For
+        # ClassScopes, the bound and global names are initialized
+        # before analyzing names, because class bindings aren't
+        # visible in methods.  For other blocks, they are initialized
+        # after names are analyzed.
+
+        new_global: set[str] = set()
+        new_free: set[str] = set()
+        new_bound: set[str] = set()
+
+        if isinstance(scope, ClassScope):
+            new_global |= global_vars
+            if bound is not None:
+                new_bound |= bound
+
+        scope.analyze_names(bound, local, free, global_vars)
+        # Populate global and bound sets to be passed to children.
+        if not isinstance(scope, ClassScope):
+            if isinstance(scope, FUNCTION_LIKE_SCOPES):
+                new_bound |= local
+            if bound:
+                new_bound |= bound
+
+            new_global |= global_vars
+        else:
+            # Special case __class__/__classdict__
+            new_bound.add("__class__")
+            new_bound.add("__classdict__")
+
+        # create set of names that inlined comprehension should never stomp on
+        # collect all local defs and params
+        local_names = set(scope.defs.keys()) | set(scope.uses.keys())
+
+        # in case comprehension will be inlined, track its set of free locals separately
+        all_free: set[str] = set()
+
+        for child in scope.children:
+            if child.name in scope.explicit_globals:
+                child.global_scope = True
+
+            child_free = all_free
+
+            maybe_inline_comp = (
+                isinstance(scope, FunctionScope)
+                and scope._inline_comprehensions
+                and isinstance(child, GenExprScope)
+                and not child.generator
+            )
+            if maybe_inline_comp:
+                child_free = set()
+
+            self.analyze_child_block(
+                child,
+                new_bound,
+                new_free,
+                new_global,
+                child_free,
+                implicit_globals_in_block,
+            )
+            inline_comp = maybe_inline_comp and not child.child_free
+
+            if inline_comp:
+                # record the comprehension
+                inlinable_comprehensions.append((child, child_free))
+            elif maybe_inline_comp:
+                all_free.update(child_free)
+                child_free = all_free
+
+            local_names |= child_free
+
+        local_names |= implicit_globals_in_block
+
+        if implicit_globals is not None:
+            # merge collected implicit globals into set for the outer scope
+            implicit_globals |= implicit_globals_in_block
+            implicit_globals.update(scope.globals.keys())
+
+        # collect inlinable comprehensions
+        if inlinable_comprehensions:
+            for comp, comp_all_free in reversed(inlinable_comprehensions):
+                exists = comp.local_names_include_defs(local_names)
+                if not exists:
+                    # comprehension can be inlined
+                    scope.merge_comprehension_symbols(comp, comp_all_free)
+                    # remove child from parent
+                    scope.children.remove(comp)
+                    for c in comp.children:
+                        c.parent = scope
+                    # mark comprehension as inlined
+                    comp.inlined = True
+                all_free |= comp_all_free
+
+        for child in scope.children:
+            if child.free or child.child_free:
+                scope.child_free = True
+
+        new_free |= all_free
+
+        if isinstance(scope, FUNCTION_LIKE_SCOPES):
+            scope.analyze_cells(new_free)
+        elif isinstance(scope, ClassScope):
+            # drop class free
+            for drop_free in ["__class__", "__classdict__"]:
+                if drop_free in new_free:
+                    new_free.remove(drop_free)
+                    # we need a class closure cell (CPython sets ste_needs_class_closure
+                    # and adds this later whiel compiling when entering a class scope)
+                    scope.cells[drop_free] = 1
+
+        scope.update_symbols(bound, new_free)
+        free |= new_free
+
+    def analyze_child_block(
+        self,
+        scope: Scope,
+        bound: set[str],
+        free: set[str],
+        global_vars: set[str],
+        child_free: set[str],
+        implicit_globals: set[str],
+    ):
+        temp_bound = set(bound)
+        temp_free = set(free)
+        temp_global = set(free)
+
+        self.analyze_block(scope, temp_free, temp_global, temp_bound, implicit_globals)
+        child_free |= temp_free
+
+
 def list_eq(l1, l2):
     return sorted(l1) == sorted(l2)
