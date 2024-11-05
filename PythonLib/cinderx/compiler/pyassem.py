@@ -146,7 +146,7 @@ class CompileScope:
 
 class FlowGraph:
     def __init__(self):
-        self.block_count = 0
+        self.next_block_id = 0
         # List of blocks in the order they should be output for linear
         # code. As we deal with structured code, this order corresponds
         # to the order of source level constructs. (The original
@@ -170,6 +170,11 @@ class FlowGraph:
         self.first_inst_lineno = 0
         # If non-zero, do not emit bytecode
         self.do_not_emit_bytecode = 0
+
+    def get_new_block_id(self) -> int:
+        ret = self.next_block_id
+        self.next_block_id += 1
+        return ret
 
     def blocks_in_reverse_allocation_order(self):
         yield from sorted(self.ordered_blocks, key=lambda b: b.alloc_id, reverse=True)
@@ -195,25 +200,29 @@ class FlowGraph:
         assert block.prev.label == CompileScope.START_MARKER
         block.prev = None
 
-        self.current.addNext(block)
+        self.current.connect_next(block)
         self.ordered_blocks.extend(scope.blocks)
         self.current = scope.blocks[-1]
 
     def startBlock(self, block: Block) -> None:
+        """Add `block` to ordered_blocks and set it as the current block."""
         if self._debug:
             if self.current:
                 print("end", repr(self.current))
                 print("    next", self.current.next)
                 print("    prev", self.current.prev)
-                print("   ", self.current.get_children())
+                print("   ", self.current.get_outgoing())
             print(repr(block))
-        block.bid = self.block_count
-        self.block_count += 1
+        block.bid = self.get_new_block_id()
+        assert block not in self.ordered_blocks
+        self.ordered_blocks.append(block)
         self.current = block
-        if block and block not in self.ordered_blocks:
-            self.ordered_blocks.append(block)
 
     def nextBlock(self, block=None, label=""):
+        """Connect `block` as current.next, then set it as the new `current`
+
+        Create a new block if needed.
+        """
         if self.do_not_emit_bytecode:
             return
         # XXX think we need to specify when there is implicit transfer
@@ -231,15 +240,16 @@ class FlowGraph:
             block = self.newBlock(label=label)
 
         # Note: If the current block ends with an unconditional control
-        # transfer, then it is techically incorrect to add an implicit
+        # transfer, then it is technically incorrect to add an implicit
         # transfer to the block graph. Doing so results in code generation
         # for unreachable blocks.  That doesn't appear to be very common
         # with Python code and since the built-in compiler doesn't optimize
         # it out we don't either.
-        self.current.addNext(block)
+        self.current.connect_next(block)
         self.startBlock(block)
 
     def newBlock(self, label: str = "") -> Block:
+        """Creates a new Block object, but does not add it to the graph."""
         return Block(label)
 
     _debug = 0
@@ -253,7 +263,7 @@ class FlowGraph:
     def emit_with_loc(self, opcode: str, oparg: object, loc: AST | SrcLocation) -> None:
         if isinstance(oparg, Block):
             if not self.do_not_emit_bytecode:
-                self.current.addOutEdge(oparg)
+                self.current.add_out_edge(oparg)
                 self.current.emit(Instruction(opcode, 0, 0, loc, target=oparg))
             return
 
@@ -270,7 +280,7 @@ class FlowGraph:
 
     def emitWithBlock(self, opcode: str, oparg: object, target: Block):
         if not self.do_not_emit_bytecode:
-            self.current.addOutEdge(target)
+            self.current.add_out_edge(target)
             self.current.emit(Instruction(opcode, oparg, target=target))
 
     def set_pos(self, node: AST | SrcLocation) -> None:
@@ -308,9 +318,9 @@ class Block:
 
     def __init__(self, label=""):
         self.insts: list[Instruction] = []
-        self.outEdges = set()
+        self.out_edges = set()
         self.label: str = label
-        self.bid: int | None = None
+        self.bid: int | None = None  # corresponds to b_label.id in cpython
         self.next: Block | None = None
         self.prev: Block | None = None
         self.returns: bool = False
@@ -351,20 +361,15 @@ class Block:
     def getInstructions(self):
         return self.insts
 
-    def addOutEdge(self, block):
-        self.outEdges.add(block)
+    def add_out_edge(self, block) -> None:
+        self.out_edges.add(block)
 
-    def addNext(self, block):
+    def connect_next(self, block) -> None:
+        """Connect `block` as self.next."""
         assert self.next is None, self.next
         self.next = block
         assert block.prev is None, block.prev
         block.prev = self
-
-    def removeNext(self):
-        assert self.next is not None
-        next = self.next
-        next.prev = None
-        self.next = None
 
     def has_return(self):
         # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
@@ -373,8 +378,9 @@ class Block:
             "RETURN_PRIMITIVE",
         )
 
-    def get_children(self):
-        return list(self.outEdges) + ([self.next] if self.next is not None else [])
+    def get_outgoing(self) -> list[Block]:
+        """Get the list of blocks this block can transfer control to."""
+        return list(self.out_edges) + ([self.next] if self.next is not None else [])
 
     def getContainedGraphs(self):
         """Return all graphs contained within this block.
@@ -1087,6 +1093,7 @@ class PyFlowGraph(FlowGraph):
                     and target.num_predecessors > 1
                 ):
                     new_target = target.copy()
+                    new_target.bid = self.get_new_block_id()
                     new_target.insts[0].loc = last.loc
                     last.target = new_target
                     target.num_predecessors -= 1
@@ -1094,8 +1101,6 @@ class PyFlowGraph(FlowGraph):
                     new_target.next = target.next
                     target.next = new_target
                     new_target.prev = target
-                    new_target.bid = self.block_count
-                    self.block_count += 1
                     append_after.setdefault(target, []).append(new_target)
         for after, to_append in append_after.items():
             idx = self.ordered_blocks.index(after) + 1
@@ -1336,8 +1341,7 @@ class PyFlowGraph312(PyFlowGraph):
         for block in list(self.ordered_blocks):
             if block not in warm and block.has_fallthrough and block.next in warm:
                 explicit_jump = self.newBlock("explicit_jump")
-                explicit_jump.bid = self.block_count
-                self.block_count += 1
+                explicit_jump.bid = self.get_new_block_id()
                 self.current = explicit_jump
 
                 self.emit("JUMP_BACKWARD", block.next)
