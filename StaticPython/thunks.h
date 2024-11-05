@@ -81,19 +81,27 @@ typedef struct {
   vectorcallfunc propthunk_vectorcall;
 } _Py_PropertyThunk;
 
+typedef enum {
+  THUNK_SETTER,
+  THUNK_GETTER,
+  THUNK_DELETER
+} TypedDescriptorThunkType;
+
 typedef struct {
   PyObject_HEAD
   PyObject* typed_descriptor_thunk_target;
   /* the vectorcall entry point for the thunk */
   vectorcallfunc typed_descriptor_thunk_vectorcall;
-  int is_setter;
+  TypedDescriptorThunkType type;
 } _Py_TypedDescriptorThunk;
 
 extern PyObject* _PyClassLoader_PropertyThunkGet_New(PyObject* property);
 extern PyObject* _PyClassLoader_PropertyThunkSet_New(PyObject* property);
+extern PyObject* _PyClassLoader_PropertyThunkDel_New(PyObject* property);
 
 extern PyObject* _PyClassLoader_TypedDescriptorThunkGet_New(PyObject* property);
 extern PyObject* _PyClassLoader_TypedDescriptorThunkSet_New(PyObject* property);
+extern PyObject* _PyClassLoader_TypedDescriptorThunkDel_New(PyObject* property);
 
 void _PyClassLoader_UpdateThunk(
     _Py_StaticThunk* thunk,

@@ -26,7 +26,8 @@ int _PyClassLoader_IsPropertyName(PyTupleObject* name) {
     return 0;
   }
   return _PyUnicode_EqualToASCIIString(property_method_name, "fget") ||
-      _PyUnicode_EqualToASCIIString(property_method_name, "fset");
+      _PyUnicode_EqualToASCIIString(property_method_name, "fset") ||
+      _PyUnicode_EqualToASCIIString(property_method_name, "fdel");
 }
 
 PyObject* _PyClassLoader_GetFunctionName(PyObject* name) {
@@ -188,25 +189,31 @@ PyObject* _PyClassLoader_ResolveReturnType(
     }
   } else if (Py_TYPE(func) == &_PyType_TypedDescriptorThunk) {
     _Py_TypedDescriptorThunk* thunk = (_Py_TypedDescriptorThunk*)func;
-    if (thunk->is_setter) {
-      res = &_PyNone_Type;
-      Py_INCREF(res);
-    } else {
-      _PyTypedDescriptorWithDefaultValue* td =
-          (_PyTypedDescriptorWithDefaultValue*)
-              thunk->typed_descriptor_thunk_target;
-      if (PyTuple_CheckExact(td->td_type)) {
-        res = _PyClassLoader_ResolveType(
-            td->td_type, &td->td_optional, &td->td_exact);
-        *optional = td->td_optional;
-        *exact = td->td_exact;
-      } else { // Already resolved.
-        assert(PyType_CheckExact(td->td_type));
-        res = (PyTypeObject*)td->td_type;
-        *optional = td->td_optional;
+    switch (thunk->type) {
+      case THUNK_SETTER:
+      case THUNK_DELETER: {
+        res = &_PyNone_Type;
+        Py_INCREF(res);
+        break;
       }
-      if (res == NULL) {
-        return NULL;
+      case THUNK_GETTER: {
+        _PyTypedDescriptorWithDefaultValue* td =
+            (_PyTypedDescriptorWithDefaultValue*)
+                thunk->typed_descriptor_thunk_target;
+        if (PyTuple_CheckExact(td->td_type)) {
+          res = _PyClassLoader_ResolveType(
+              td->td_type, &td->td_optional, &td->td_exact);
+          *optional = td->td_optional;
+          *exact = td->td_exact;
+        } else { // Already resolved.
+          assert(PyType_CheckExact(td->td_type));
+          res = (PyTypeObject*)td->td_type;
+          *optional = td->td_optional;
+        }
+        if (res == NULL) {
+          return NULL;
+        }
+        break;
       }
     }
   } else if (Py_TYPE(func) == &_PyTypedDescriptorWithDefaultValue_Type) {

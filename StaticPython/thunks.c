@@ -260,6 +260,34 @@ static PyObject* propthunk_set(
   Py_RETURN_NONE;
 }
 
+static PyObject* propthunk_del(
+    _Py_PropertyThunk* thunk,
+    PyObject* const* args,
+    size_t nargsf,
+    PyObject* kwnames) {
+  size_t nargs = PyVectorcall_NARGS(nargsf);
+  if (nargs != 1) {
+    PyErr_Format(
+        CiExc_StaticTypeError,
+        "property del expected 1 argument, got %zu instead",
+        nargs);
+    return NULL;
+  }
+
+  descrsetfunc f = Py_TYPE(thunk->propthunk_target)->tp_descr_set;
+  if (f == NULL) {
+    PyErr_Format(
+        CiExc_StaticTypeError,
+        "'%s' doesn't support __del__",
+        Py_TYPE(thunk->propthunk_target)->tp_name);
+    return NULL;
+  }
+  if (f(thunk->propthunk_target, args[0], NULL)) {
+    return NULL;
+  }
+  Py_RETURN_NONE;
+}
+
 PyTypeObject _PyType_PropertyThunk = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0) "property_thunk",
     sizeof(_Py_PropertyThunk),
@@ -291,6 +319,18 @@ PyObject* _PyClassLoader_PropertyThunkSet_New(PyObject* property) {
     return NULL;
   }
   thunk->propthunk_vectorcall = (vectorcallfunc)propthunk_set;
+  thunk->propthunk_target = property;
+  Py_INCREF(property);
+  return (PyObject*)thunk;
+}
+
+PyObject* _PyClassLoader_PropertyThunkDel_New(PyObject* property) {
+  _Py_PropertyThunk* thunk =
+      PyObject_GC_New(_Py_PropertyThunk, &_PyType_PropertyThunk);
+  if (thunk == NULL) {
+    return NULL;
+  }
+  thunk->propthunk_vectorcall = (vectorcallfunc)propthunk_del;
   thunk->propthunk_target = property;
   Py_INCREF(property);
   return (PyObject*)thunk;
@@ -355,6 +395,30 @@ static PyObject* typed_descriptor_thunk_set(
   return Py_None;
 }
 
+static PyObject* typed_descriptor_thunk_del(
+    _Py_TypedDescriptorThunk* thunk,
+    PyObject* const* args,
+    size_t nargsf,
+    PyObject* kwnames) {
+  size_t nargs = PyVectorcall_NARGS(nargsf);
+  if (nargs != 1) {
+    PyErr_Format(
+        CiExc_StaticTypeError,
+        "typed descriptor del expected 1 argument, got %zu instead",
+        nargs);
+    return NULL;
+  }
+
+  descrsetfunc f = _PyTypedDescriptorWithDefaultValue_Type.tp_descr_set;
+
+  int res = f(thunk->typed_descriptor_thunk_target, args[0], NULL);
+  if (res != 0) {
+    return NULL;
+  }
+  Py_INCREF(Py_None);
+  return Py_None;
+}
+
 PyTypeObject _PyType_TypedDescriptorThunk = {
     PyVarObject_HEAD_INIT(
         &PyType_Type,
@@ -380,7 +444,7 @@ PyObject* _PyClassLoader_TypedDescriptorThunkGet_New(PyObject* property) {
   thunk->typed_descriptor_thunk_target = property;
   thunk->typed_descriptor_thunk_vectorcall =
       (vectorcallfunc)typed_descriptor_thunk_get;
-  thunk->is_setter = 0;
+  thunk->type = THUNK_GETTER;
   return (PyObject*)thunk;
 }
 
@@ -394,7 +458,21 @@ PyObject* _PyClassLoader_TypedDescriptorThunkSet_New(PyObject* property) {
   thunk->typed_descriptor_thunk_target = property;
   thunk->typed_descriptor_thunk_vectorcall =
       (vectorcallfunc)typed_descriptor_thunk_set;
-  thunk->is_setter = 1;
+  thunk->type = THUNK_SETTER;
+  return (PyObject*)thunk;
+}
+
+PyObject* _PyClassLoader_TypedDescriptorThunkDel_New(PyObject* property) {
+  _Py_TypedDescriptorThunk* thunk =
+      PyObject_GC_New(_Py_TypedDescriptorThunk, &_PyType_TypedDescriptorThunk);
+  if (thunk == NULL) {
+    return NULL;
+  }
+  Py_INCREF(property);
+  thunk->typed_descriptor_thunk_target = property;
+  thunk->typed_descriptor_thunk_vectorcall =
+      (vectorcallfunc)typed_descriptor_thunk_del;
+  thunk->type = THUNK_DELETER;
   return (PyObject*)thunk;
 }
 

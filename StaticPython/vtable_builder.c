@@ -88,32 +88,58 @@ static int is_static_type(PyTypeObject* type) {
       !(type->tp_flags & Py_TPFLAGS_HEAPTYPE);
 }
 
-// Steals a reference to the `getter_tuple` and `setter_tuple` objects.
+// Steals a reference to the `getter_tuple`, `setter_tuple`, and `deleter_tuple`
+// objects.
 int update_property_slot(
     PyObject* slotmap,
     int* slot_index,
     PyObject* getter_tuple,
-    PyObject* setter_tuple) {
+    PyObject* setter_tuple,
+    PyObject* deleter_tuple) {
   PyObject* getter_index = PyLong_FromLong((*slot_index)++);
+  if (getter_index == NULL) {
+    Py_DECREF(getter_tuple);
+    Py_DECREF(setter_tuple);
+    Py_DECREF(deleter_tuple);
+    return -1;
+  }
   int err = PyDict_SetItem(slotmap, getter_tuple, getter_index);
   Py_DECREF(getter_index);
   Py_DECREF(getter_tuple);
   if (err) {
     Py_DECREF(setter_tuple);
+    Py_DECREF(deleter_tuple);
     return -1;
   }
+
   PyObject* setter_index = PyLong_FromLong((*slot_index)++);
+  if (setter_index == NULL) {
+    Py_DECREF(setter_tuple);
+    Py_DECREF(deleter_tuple);
+    return -1;
+  }
   err = PyDict_SetItem(slotmap, setter_tuple, setter_index);
   Py_DECREF(setter_index);
   Py_DECREF(setter_tuple);
   if (err) {
+    Py_DECREF(deleter_tuple);
     return -1;
   }
-  return 0;
+
+  PyObject* deleter_index = PyLong_FromLong((*slot_index)++);
+  if (deleter_index == NULL) {
+    Py_DECREF(deleter_tuple);
+    return -1;
+  }
+  err = PyDict_SetItem(slotmap, deleter_tuple, deleter_index);
+  Py_DECREF(deleter_index);
+  Py_DECREF(deleter_tuple);
+  return err;
 }
 
 static PyObject* g_fget = NULL;
 static PyObject* g_fset = NULL;
+static PyObject* g_fdel = NULL;
 
 PyObject* get_descr_tuple(PyObject* name, PyObject* accessor) {
   PyObject* getter_tuple = PyTuple_New(2);
@@ -136,6 +162,13 @@ PyObject* get_property_setter_descr_tuple(PyObject* name) {
     g_fset = PyUnicode_FromStringAndSize("fset", 4);
   }
   return get_descr_tuple(name, g_fset);
+}
+
+PyObject* get_property_deleter_descr_tuple(PyObject* name) {
+  if (g_fdel == NULL) {
+    g_fdel = PyUnicode_FromStringAndSize("fdel", 4);
+  }
+  return get_descr_tuple(name, g_fdel);
 }
 
 int used_in_vtable_worker(PyObject* value) {
@@ -548,6 +581,7 @@ static void _PyClassLoader_UpdateDerivedSlot(
 
 static PyObject* g_missing_fget = NULL;
 static PyObject* g_missing_fset = NULL;
+static PyObject* g_missing_fdel = NULL;
 
 static PyObject* classloader_get_property_missing_fget() {
   if (g_missing_fget == NULL) {
@@ -579,6 +613,22 @@ static PyObject* classloader_get_property_missing_fset() {
     g_missing_fset = func;
   }
   return g_missing_fset;
+}
+
+static PyObject* classloader_get_property_missing_fdel() {
+  if (g_missing_fdel == NULL) {
+    PyObject* mod = PyImport_ImportModule("_static");
+    if (mod == NULL) {
+      return NULL;
+    }
+    PyObject* func = PyObject_GetAttrString(mod, "_property_missing_fdel");
+    Py_DECREF(mod);
+    if (func == NULL) {
+      return NULL;
+    }
+    g_missing_fdel = func;
+  }
+  return g_missing_fdel;
 }
 
 static PyObject* classloader_ensure_specials_cache(PyTypeObject* type) {
@@ -691,6 +741,38 @@ static PyObject* classloader_get_property_fset(
   }
 }
 
+static PyObject* classloader_get_property_fdel(
+    PyTypeObject* type,
+    PyObject* name,
+    PyObject* property) {
+  if (Py_TYPE(property) == &PyProperty_Type) {
+    PyObject* func = ((Ci_propertyobject*)property)->prop_del;
+    if (func == NULL) {
+      func = classloader_get_property_missing_fdel();
+    }
+    Py_XINCREF(func);
+    return func;
+  } else if (
+      Py_TYPE(property) == &PyCachedPropertyWithDescr_Type ||
+      Py_TYPE(property) == &PyAsyncCachedPropertyWithDescr_Type) {
+    PyObject* func = classloader_get_property_missing_fdel();
+    Py_XINCREF(func);
+    return func;
+  } else if (Py_TYPE(property) == &_PyTypedDescriptorWithDefaultValue_Type) {
+    PyObject* thunk = _PyClassLoader_TypedDescriptorThunkDel_New(property);
+    if (thunk == NULL) {
+      return NULL;
+    }
+    return classloader_cache_new_special(type, name, thunk);
+  } else {
+    PyObject* thunk = _PyClassLoader_PropertyThunkDel_New(property);
+    if (thunk == NULL) {
+      return NULL;
+    }
+    return classloader_cache_new_special(type, name, thunk);
+  }
+}
+
 static PyObject* classloader_get_property_method(
     PyTypeObject* type,
     PyObject* property,
@@ -700,7 +782,10 @@ static PyObject* classloader_get_property_method(
     return classloader_get_property_fget(type, (PyObject*)name, property);
   } else if (_PyUnicode_EqualToASCIIString(fname, "fset")) {
     return classloader_get_property_fset(type, (PyObject*)name, property);
+  } else if (_PyUnicode_EqualToASCIIString(fname, "fdel")) {
+    return classloader_get_property_fdel(type, (PyObject*)name, property);
   }
+
   PyErr_Format(
       PyExc_RuntimeError, "bad property method name %R in classloader", fname);
   return NULL;
@@ -716,9 +801,13 @@ int populate_getter_and_setter(
   PyObject* setter_value = new_value == NULL
       ? NULL
       : classloader_get_property_fset(type, name, new_value);
+  PyObject* deleter_value = new_value == NULL
+      ? NULL
+      : classloader_get_property_fdel(type, name, new_value);
 
   PyObject* getter_tuple = get_property_getter_descr_tuple(name);
   PyObject* setter_tuple = get_property_setter_descr_tuple(name);
+  PyObject* deleter_tuple = get_property_deleter_descr_tuple(name);
   int result = 0;
   if (_PyClassLoader_UpdateSlot(type, (PyObject*)getter_tuple, getter_value)) {
     result = -1;
@@ -731,6 +820,13 @@ int populate_getter_and_setter(
   }
   Py_DECREF(setter_tuple);
   Py_XDECREF(setter_value);
+
+  if (_PyClassLoader_UpdateSlot(
+          type, (PyObject*)deleter_tuple, deleter_value)) {
+    result = -1;
+  }
+  Py_DECREF(deleter_tuple);
+  Py_XDECREF(deleter_value);
 
   return result;
 }
@@ -1093,11 +1189,21 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
       if (err) {
         return -1;
       }
+      PyObject* deleter_index = PyLong_FromLong(slot_index++);
+      PyObject* deleter_tuple = get_property_deleter_descr_tuple(key);
+      err = PyDict_SetItem(slotmap, deleter_tuple, deleter_index);
+      Py_DECREF(deleter_index);
+      Py_DECREF(deleter_tuple);
+      if (err) {
+        return -1;
+      }
     } else if (Py_TYPE(value) == &_PyTypedDescriptorWithDefaultValue_Type) {
       PyObject* getter_tuple = get_property_getter_descr_tuple(key);
       PyObject* setter_tuple = get_property_setter_descr_tuple(key);
+      PyObject* deleter_tuple = get_property_deleter_descr_tuple(key);
       if (update_property_slot(
-              slotmap, &slot_index, getter_tuple, setter_tuple) < 0) {
+              slotmap, &slot_index, getter_tuple, setter_tuple, deleter_tuple) <
+          0) {
         return -1;
       }
     }

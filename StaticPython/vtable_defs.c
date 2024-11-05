@@ -55,7 +55,7 @@ Py_ssize_t _PyClassLoader_GetExpectedArgCount(PyObject** callable) {
               ->func;
     } else if (Py_TYPE(original) == &_PyType_TypedDescriptorThunk) {
       // TODO: Test setter case?
-      if (((_Py_TypedDescriptorThunk*)original)->is_setter) {
+      if (((_Py_TypedDescriptorThunk*)original)->type == THUNK_SETTER) {
         arg_count = 2;
       } else {
         arg_count = 1;

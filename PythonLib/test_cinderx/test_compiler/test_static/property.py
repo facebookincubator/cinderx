@@ -31,6 +31,43 @@ class PropertyTests(StaticTestBase):
             self.assertEqual(f(C()), 42)
             self.assertInBytecode(f, "INVOKE_FUNCTION")
 
+    def test_property_deleter(self):
+        codestr = """
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> int:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+
+                @foo.setter
+                def foo(self, value: int) -> None:
+                    self.x = value
+
+                @foo.deleter
+                def foo(self) -> None:
+                    del self.x
+
+            def bar(c: C) -> None:
+                del c.foo
+
+        """
+        with self.in_module(codestr) as mod:
+            C = mod.C
+            c = C()
+            c.foo = 50
+            self.assertEqual(c.foo, 50)
+
+            del c.foo
+            self.assertEqual(c.foo, 42)
+
+            bar = mod.bar
+            self.assertInBytecode(bar, "DELETE_ATTR", "foo")
+
+
+
     def test_property_getter_known_exact(self):
         codestr = """
             class C:

@@ -785,6 +785,17 @@ Ci_Py_TYPED_SIGNATURE(
     &Ci_Py_Sig_Object,
     NULL);
 
+static Py_ssize_t static_property_missing_fdel(PyObject* mod, PyObject* self) {
+  PyErr_SetString(PyExc_AttributeError, "can't del attribute");
+  return -1;
+}
+
+Ci_Py_TYPED_SIGNATURE(
+    static_property_missing_fdel,
+    Ci_Py_SIG_ERROR,
+    &Ci_Py_Sig_Object,
+    NULL);
+
 static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
   PyObject* mro = type->tp_mro;
   if (mro == NULL) {
@@ -1651,6 +1662,10 @@ static PyMethodDef static_methods[] = {
      ""},
     {"_property_missing_fset",
      (PyCFunction)&static_property_missing_fset_def,
+     Ci_METH_TYPED,
+     ""},
+    {"_property_missing_fdel",
+     (PyCFunction)&static_property_missing_fdel_def,
      Ci_METH_TYPED,
      ""},
     {"resolve_primitive_descr",

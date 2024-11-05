@@ -4635,6 +4635,10 @@ class PropertyMethod(DecoratedMethod):
             return PropertySetterDecorator(
                 TypeName("builtins", "property"), self.real_function.klass.type_env
             )
+        elif node.attr == "deleter":
+            return PropertyDeleterDecorator(
+                TypeName("builtins", "property"), self.real_function.klass.type_env
+            )
         return super().resolve_attr(node, visitor)
 
 
@@ -4677,9 +4681,9 @@ class CachedPropertyMethod(PropertyMethod):
     def resolve_attr(
         self, node: ast.Attribute, visitor: GenericVisitor[object]
     ) -> Value | None:
-        if node.attr == "setter":
+        if node.attr == "setter" or node.attr == "deleter":
             visitor.syntax_error(
-                f"cached_property {self.name} does not support setters",
+                f"cached_property {self.name} does not support {node.attr}s",
                 node,
             )
         return super().resolve_attr(node, visitor)
@@ -4724,9 +4728,9 @@ class AsyncCachedPropertyMethod(PropertyMethod):
     def resolve_attr(
         self, node: ast.Attribute, visitor: GenericVisitor[object]
     ) -> Value | None:
-        if node.attr == "setter":
+        if node.attr == "setter" or node.attr == "deleter":
             visitor.syntax_error(
-                f"async_cached_property {self.name} does not support setters",
+                f"async_cached_property {self.name} does not support {node.attr}s",
                 node,
             )
         return super().resolve_attr(node, visitor)
@@ -5180,6 +5184,23 @@ class PropertySetterDecorator(Class):
         visitor: DeclarationVisitor,
     ) -> Class:
         raise TypedSyntaxError("Cannot decorate a class with @property.setter")
+
+
+class PropertyDeleterDecorator(Class):
+    def resolve_decorate_function(
+        self, fn: Function | DecoratedMethod, decorator: expr
+    ) -> Function | DecoratedMethod | None:
+        if fn.klass is not self.type_env.function:
+            return None
+        return TransientDecoratedMethod(fn, decorator)
+
+    def resolve_decorate_class(
+        self,
+        klass: Class,
+        decorator: expr,
+        visitor: DeclarationVisitor,
+    ) -> Class:
+        raise TypedSyntaxError("Cannot decorate a class with @property.deleter")
 
 
 class DataclassDecorator(Callable[Class]):
