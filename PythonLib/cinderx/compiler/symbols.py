@@ -191,41 +191,6 @@ class Scope:
         overlap.difference_update(self.nonlocals.keys())
         return len(overlap) != 0 and overlap != {".0"}
 
-    def merge_comprehension_symbols(self, comp: Scope, comp_all_free: set[str]) -> None:
-        # merge defs from comprehension scope into current scope
-        for v in comp.defs:
-            if v != ".0":
-                self.add_def(v)
-
-        # for names that are free in comprehension
-        # and not present in defs of current scope -
-        # add them as free in current scope
-        for d in comp.uses:
-            if comp.check_name(d) == SC_FREE and d not in self.defs:
-                sc = self.check_name(d)
-                if sc == SC_UNKNOWN:
-                    # name is missing in current scope - add it
-                    self.frees[d] = 1
-            elif comp.check_name(d) == SC_GLOBAL_IMPLICIT:
-                self.globals[d] = 1
-
-        # go through free names in comprehension
-        # and check if current scope has corresponding def
-        # if yes - name is no longer free after inlining
-        for f in list(comp.frees.keys()):
-            if f in self.defs:
-                comp_all_free.remove(f)
-
-        # move names uses in comprehension to current scope
-        for u in comp.uses.keys():
-            if u != ".0" or u == "__classdict__":
-                self.add_use(u)
-
-        # cell vars in comprehension become cells in current scope
-        for c in comp.cells.keys():
-            if c != ".0":
-                self.cells[c] = 1
-
     def analyze_cells(self, free: set[str]) -> None:
         for name in self.defs:
             if name in free and name not in self.explicit_globals:
@@ -981,7 +946,7 @@ class SymbolVisitor310(BaseSymbolVisitor):
                 exists = comp.local_names_include_defs(local_names)
                 if not exists:
                     # comprehension can be inlined
-                    scope.merge_comprehension_symbols(comp, comp_all_free)
+                    self.merge_comprehension_symbols(scope, comp, comp_all_free)
                     # remove child from parent
                     scope.children.remove(comp)
                     for c in comp.children:
@@ -1025,6 +990,43 @@ class SymbolVisitor310(BaseSymbolVisitor):
 
         self.analyze_block(scope, temp_free, temp_global, temp_bound, implicit_globals)
         child_free |= temp_free
+
+    def merge_comprehension_symbols(
+        self, scope: Scope, comp: Scope, comp_all_free: set[str]
+    ) -> None:
+        # merge defs from comprehension scope into current scope
+        for v in comp.defs:
+            if v != ".0":
+                scope.add_def(v)
+
+        # for names that are free in comprehension
+        # and not present in defs of current scope -
+        # add them as free in current scope
+        for d in comp.uses:
+            if comp.check_name(d) == SC_FREE and d not in scope.defs:
+                sc = scope.check_name(d)
+                if sc == SC_UNKNOWN:
+                    # name is missing in current scope - add it
+                    scope.frees[d] = 1
+            elif comp.check_name(d) == SC_GLOBAL_IMPLICIT:
+                scope.globals[d] = 1
+
+        # go through free names in comprehension
+        # and check if current scope has corresponding def
+        # if yes - name is no longer free after inlining
+        for f in list(comp.frees.keys()):
+            if f in scope.defs:
+                comp_all_free.remove(f)
+
+        # move names uses in comprehension to current scope
+        for u in comp.uses.keys():
+            if u != ".0" or u == "__classdict__":
+                scope.add_use(u)
+
+        # cell vars in comprehension become cells in current scope
+        for c in comp.cells.keys():
+            if c != ".0":
+                scope.cells[c] = 1
 
 
 # Alias for the default 3.10 visitor
