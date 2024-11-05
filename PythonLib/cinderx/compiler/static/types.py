@@ -3304,8 +3304,9 @@ class FunctionContainer(Object[Class]):
         terminates = visitor.visit_check_terminal(self.get_function_body())
 
         typ = visitor.get_type(node)
-        if not terminates and not isinstance(
-            typ, (TransientDecoratedMethod, NativeDecoratedFunction)
+        if not terminates and (
+            not isinstance(typ, (TransientDecoratedMethod, NativeDecoratedFunction))
+            or isinstance(typ, TransientPropertyDecoratedMethod)
         ):
             expected = self.get_expected_return()
             if not expected.klass.can_assign_from(visitor.type_env.none):
@@ -5169,13 +5170,17 @@ class TransientDecoratedMethod(DecoratedMethod):
         return self.emit_function_with_decorators(self.real_function, node, code_gen)
 
 
+class TransientPropertyDecoratedMethod(TransientDecoratedMethod):
+    pass
+
+
 class PropertySetterDecorator(Class):
     def resolve_decorate_function(
         self, fn: Function | DecoratedMethod, decorator: expr
     ) -> Function | DecoratedMethod | None:
         if fn.klass is not self.type_env.function:
             return None
-        return TransientDecoratedMethod(fn, decorator)
+        return TransientPropertyDecoratedMethod(fn, decorator)
 
     def resolve_decorate_class(
         self,
@@ -5192,7 +5197,7 @@ class PropertyDeleterDecorator(Class):
     ) -> Function | DecoratedMethod | None:
         if fn.klass is not self.type_env.function:
             return None
-        return TransientDecoratedMethod(fn, decorator)
+        return TransientPropertyDecoratedMethod(fn, decorator)
 
     def resolve_decorate_class(
         self,

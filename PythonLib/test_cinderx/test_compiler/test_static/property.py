@@ -541,3 +541,69 @@ class PropertyTests(StaticTestBase):
             TypedSyntaxError, "Cannot override attribute with property method"
         ):
             self.compile(codestr)
+
+    def test_property_getter_typechecks(self):
+        codestr = """
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> str:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+        """
+        self.type_error(
+            codestr,
+            bad_ret_type("int", "str"),
+            "return self.x",
+        )
+       
+
+    def test_property_setter_typechecks(self):
+        codestr = """
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> int:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+
+                @foo.setter
+                def foo(self, value: int) -> int:
+                    self.x = value
+        """
+        self.type_error(
+            codestr,
+            r"Function has declared return type 'int' but can implicitly return None",
+            "def foo(self, value: int) -> int:"
+        )
+
+
+    def test_property_deleter_typechecks(self):
+        codestr = """
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> int:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+
+                @foo.setter
+                def foo(self, value: int) -> None:
+                    self.x = value
+
+                @foo.deleter
+                def foo(self) -> str:
+                    del self.x
+        """
+        self.type_error(
+            codestr,
+            r"Function has declared return type 'str' but can implicitly return None",
+            "def foo(self) -> str",
+        ) 
+     
