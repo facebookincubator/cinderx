@@ -65,6 +65,12 @@ UNCONDITIONAL_JUMP_OPCODES = (
     "JUMP_BACKWARD_NO_INTERRUPT",
 )
 
+
+# TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
+RETURN_OPCODES = ("RETURN_VALUE", "RETURN_CONST", "RETURN_PRIMITIVE")
+
+
+# TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
 SCOPE_EXIT_OPCODES = (
     "RETURN_VALUE",
     "RETURN_CONST",
@@ -352,8 +358,7 @@ class Block:
         return f"<block label={self.label} bid={self.bid} startdepth={self.startdepth}: {insts}>"
 
     def emit(self, instr: Instruction) -> None:
-        # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
-        if instr.opname in ("RETURN_VALUE", "RETURN_PRIMITIVE"):
+        if instr.opname in RETURN_OPCODES:
             self.returns = True
 
         self.insts.append(instr)
@@ -370,13 +375,6 @@ class Block:
         self.next = block
         assert block.prev is None, block.prev
         block.prev = self
-
-    def has_return(self):
-        # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
-        return self.insts and self.insts[-1].opname in (
-            "RETURN_VALUE",
-            "RETURN_PRIMITIVE",
-        )
 
     def get_outgoing(self) -> list[Block]:
         """Get the list of blocks this block can transfer control to."""
@@ -686,7 +684,6 @@ class PyFlowGraph(FlowGraph):
 
                 depth = new_depth
 
-                # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
                 if (
                     instr.opname in SCOPE_EXIT_OPCODES
                     or instr.opname in UNCONDITIONAL_JUMP_OPCODES
@@ -1060,8 +1057,7 @@ class PyFlowGraph(FlowGraph):
                 continue
             last_instr = block.insts[-1]
             if last_instr.loc == NO_LOCATION:
-                # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
-                if last_instr.opname in ("RETURN_VALUE", "RETURN_PRIMITIVE"):
+                if last_instr.opname in RETURN_OPCODES:
                     for instr in block.insts:
                         assert instr.loc == NO_LOCATION
                         instr.loc = loc
@@ -1219,7 +1215,6 @@ class PyFlowGraph(FlowGraph):
         any jumps point to non-empty blocks by following the next pointer of empty blocks.
         """
         for instr in block.getInstructions():
-            # TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
             if instr.opname in SCOPE_EXIT_OPCODES:
                 block.is_exit = True
                 block.has_fallthrough = False
