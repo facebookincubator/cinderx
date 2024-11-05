@@ -3944,6 +3944,204 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(exit_)
 
+    def compile_comprehension(
+        self,
+        node: CompNode,
+        name: str,
+        elt: ast.expr,
+        val: ast.expr | None,
+        opcode: str,
+        oparg: object = 0,
+    ) -> None:
+        is_async_function = self.scope.coroutine
+        args = self.conjure_arguments([ast.arg(".0", None)])
+        gen = self.make_func_codegen(node, args, name, node.lineno)
+        gen.set_pos(node)
+        is_async_generator = gen.scope.coroutine
+
+        # TODO also add check for PyCF_ALLOW_TOP_LEVEL_AWAIT
+        if (
+            is_async_generator
+            and not is_async_function
+            and not isinstance(node, ast.GeneratorExp)
+        ):
+            raise self.syntax_error(
+                "asynchronous comprehension outside of an asynchronous function", node
+            )
+
+        if opcode:
+            gen.emit(opcode, oparg)
+
+        gen.compile_comprehension_generator(node, 0, 0, elt, val, type(node), True)
+
+        if not isinstance(node, ast.GeneratorExp):
+            gen.emit("RETURN_VALUE")
+
+        gen.finishFunction()
+
+        self._makeClosure(gen, 0)
+
+        # precomputation of outmost iterable
+        self.visit(node.generators[0].iter)
+        if node.generators[0].is_async:
+            self.emit("GET_AITER")
+        else:
+            self.emit("GET_ITER")
+        self.emit_call_one_arg()
+
+        if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
+            self.emit("GET_AWAITABLE")
+            self.emit("LOAD_CONST", None)
+            self.emit_yield_from(await_=True)
+
+    def compile_comprehension_generator(
+        self,
+        comp: CompNode,
+        gen_index: int,
+        depth: int,
+        elt: ast.expr,
+        val: ast.expr | None,
+        type: type[ast.AST],
+        outermost_gen_is_param: bool,
+    ) -> None:
+        if comp.generators[gen_index].is_async:
+            self.compile_async_comprehension(
+                comp, gen_index, depth, elt, val, type, outermost_gen_is_param
+            )
+        else:
+            self.compile_sync_comprehension(
+                comp, gen_index, depth, elt, val, type, outermost_gen_is_param
+            )
+
+    def compile_async_comprehension(
+        self,
+        comp: CompNode,
+        gen_index: int,
+        depth: int,
+        elt: ast.expr,
+        val: ast.expr | None,
+        type: type[ast.AST],
+        outermost_gen_is_param: bool,
+    ) -> None:
+        start = self.newBlock("start")
+        except_ = self.newBlock("except")
+        if_cleanup = self.newBlock("if_cleanup")
+
+        gen = comp.generators[gen_index]
+        if gen_index == 0 and outermost_gen_is_param:
+            self.loadName(".0")
+        else:
+            self.visit(gen.iter)
+            self.emit("GET_AITER")
+
+        self.nextBlock(start)
+        self.emit("SETUP_FINALLY", except_)
+        self.emit("GET_ANEXT")
+        self.emit("LOAD_CONST", None)
+        self.emit_yield_from(await_=True)
+        self.emit("POP_BLOCK")
+        self.visit(gen.target)
+
+        for if_ in gen.ifs:
+            self.compileJumpIf(if_, if_cleanup, False)
+            self.newBlock()
+
+        depth += 1
+        gen_index += 1
+        if gen_index < len(comp.generators):
+            self.compile_comprehension_generator(
+                comp, gen_index, depth, elt, val, type, False
+            )
+        elif type is ast.GeneratorExp:
+            self.visit(elt)
+            self.emit_yield(self.scopes[comp])
+            self.emit("POP_TOP")
+        elif type is ast.ListComp:
+            self.visit(elt)
+            self.emit("LIST_APPEND", depth + 1)
+        elif type is ast.SetComp:
+            self.visit(elt)
+            self.emit("SET_ADD", depth + 1)
+        elif type is ast.DictComp:
+            self.compile_dictcomp_element(elt, val)
+            self.emit("MAP_ADD", depth + 1)
+        else:
+            raise NotImplementedError("unknown comprehension type")
+
+        self.nextBlock(if_cleanup)
+        self.emitJump(start)
+
+        self.nextBlock(except_)
+        self.emit("END_ASYNC_FOR")
+
+    def compile_sync_comprehension(
+        self,
+        comp: CompNode,
+        gen_index: int,
+        depth: int,
+        elt: ast.expr,
+        val: ast.expr | None,
+        type: type[ast.AST],
+        outermost_gen_is_param: bool,
+    ) -> None:
+        start = self.newBlock("start")
+        skip = self.newBlock("skip")
+        if_cleanup = self.newBlock("if_cleanup")
+        anchor = self.newBlock("anchor")
+
+        gen = comp.generators[gen_index]
+        if gen_index == 0 and outermost_gen_is_param:
+            self.loadName(".0")
+        else:
+            if isinstance(gen.iter, (ast.Tuple, ast.List)):
+                elts = gen.iter.elts
+                if len(elts) == 1 and not isinstance(elts[0], ast.Starred):
+                    self.visit(elts[0])
+                    start = None
+            if start:
+                self.visit(gen.iter)
+                self.emit("GET_ITER")
+
+        if start:
+            depth += 1
+            self.nextBlock(start)
+            self.emit("FOR_ITER", anchor)
+            self.nextBlock()
+        self.visit(gen.target)
+
+        for if_ in gen.ifs:
+            self.compileJumpIf(if_, if_cleanup, False)
+            self.newBlock()
+
+        gen_index += 1
+        if gen_index < len(comp.generators):
+            self.compile_comprehension_generator(
+                comp, gen_index, depth, elt, val, type, False
+            )
+        else:
+            if type is ast.GeneratorExp:
+                self.visit(elt)
+                self.emit_yield(self.scopes[comp])
+                self.emit("POP_TOP")
+            elif type is ast.ListComp:
+                self.visit(elt)
+                self.emit("LIST_APPEND", depth + 1)
+            elif type is ast.SetComp:
+                self.visit(elt)
+                self.emit("SET_ADD", depth + 1)
+            elif type is ast.DictComp:
+                self.compile_dictcomp_element(elt, val)
+                self.emit("MAP_ADD", depth + 1)
+            else:
+                raise NotImplementedError("unknown comprehension type")
+
+            self.nextBlock(skip)
+        self.nextBlock(if_cleanup)
+        if start:
+            self.emitJump(start)
+            self.nextBlock(anchor)
+            self.emit_end_for()
+
 
 class CinderCodeGenerator(CodeGenerator):
     """
