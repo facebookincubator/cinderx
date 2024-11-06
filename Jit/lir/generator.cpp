@@ -1260,7 +1260,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Inline caches must be enabled to use LoadTypeAttrCacheEntryType");
         auto instr = static_cast<const LoadTypeAttrCacheEntryType*>(&i);
         LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cache_id());
-        PyObject** addr = &cache->items[0];
+        PyTypeObject** addr = cache->typeAddr();
         bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{addr});
         break;
       }
@@ -1270,7 +1270,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Inline caches must be enabled to use LoadTypeAttrCacheEntryValue");
         auto instr = static_cast<const LoadTypeAttrCacheEntryValue*>(&i);
         LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cache_id());
-        PyObject** addr = &cache->items[1];
+        PyObject** addr = cache->valueAddr();
         bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{addr});
         break;
       }

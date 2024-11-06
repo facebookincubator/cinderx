@@ -179,9 +179,6 @@ class LoadAttrCache : public AttributeCache {
 // A cache for LoadAttr instructions where we expect the receiver to be a type
 // object.
 //
-// The first entry in `items` is a type object. The second entry in `items` is
-// the cached value.  Both are borrowed references.
-//
 // The code for loading an attribute where the expected receiver is a type is
 // specialized into a fast path and a slow path. The first element is loaded
 // from the cache and compared against the receiver. If they are equal, the
@@ -195,14 +192,23 @@ class LoadTypeAttrCache {
 
   static PyObject*
   invoke(LoadTypeAttrCache* cache, PyObject* obj, PyObject* name);
-  PyObject* doInvoke(PyObject* obj, PyObject* name);
-  void typeChanged(PyTypeObject* type);
 
-  std::array<PyObject*, 2> items; // Borrowed
+  // Get the addresses of the type and value cache entries.
+  PyTypeObject** typeAddr();
+  PyObject** valueAddr();
+
+  void typeChanged(BorrowedRef<PyTypeObject> type);
 
  private:
-  void fill(PyTypeObject* type, PyObject* value);
+  PyObject* invokeSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
+
+  void fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> value);
   void reset();
+
+  // Cached type and value, stored as raw pointers so codegen can access them by
+  // address.
+  PyTypeObject* type_;
+  PyObject* value_;
 };
 
 #define FOREACH_CACHE_MISS_REASON(V) \

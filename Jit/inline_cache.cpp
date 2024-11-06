@@ -69,15 +69,10 @@ TypeWatcher<LoadTypeMethodCache> ltm_watcher;
 
 constexpr uintptr_t kKindMask = 0x07;
 
-// Sentinel PyObject that must never escape into user code.
-PyObject g_emptyTypeAttrCache = {
-    _PyObject_EXTRA_INIT
-#if PY_VERSION_HEX >= 0x030C0000
-    {.ob_refcnt = _Py_IMMORTAL_REFCNT},
-#else
-        _Py_IMMORTAL_REFCNT,
-#endif
-    nullptr};
+// Sentinel PyTypeObject that must never escape into user code.
+PyTypeObject s_empty_type_attr_cache = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "EmptyLoadTypeAttrCache",
+};
 
 inline PyDictObject* get_dict(PyObject* obj, Py_ssize_t dictoffset) {
   PyObject** dictptr = (PyObject**)((char*)obj + dictoffset);
@@ -586,92 +581,82 @@ LoadTypeAttrCache::LoadTypeAttrCache() {
 }
 
 LoadTypeAttrCache::~LoadTypeAttrCache() {
-  ltac_watcher.unwatch(items[0], this);
+  ltac_watcher.unwatch(type_, this);
 }
 
 PyObject* LoadTypeAttrCache::invoke(
     LoadTypeAttrCache* cache,
     PyObject* obj,
     PyObject* name) {
-  return cache->doInvoke(obj, name);
+  // The fast path is handled by direct memory access via valueAddr().
+  return cache->invokeSlowPath(obj, name);
 }
 
-// This needs to be kept in sync with PyType_Type.tp_getattro.
-PyObject* LoadTypeAttrCache::doInvoke(PyObject* obj, PyObject* name) {
-  PyTypeObject* metatype = Py_TYPE(obj);
+PyTypeObject** LoadTypeAttrCache::typeAddr() {
+  return &type_;
+}
+
+PyObject** LoadTypeAttrCache::valueAddr() {
+  return &value_;
+}
+
+// NB: This function needs to be kept in sync with PyType_Type.tp_getattro.
+PyObject* LoadTypeAttrCache::invokeSlowPath(
+    BorrowedRef<> obj,
+    BorrowedRef<> name) {
+  BorrowedRef<PyTypeObject> metatype{Py_TYPE(obj)};
   if (metatype->tp_getattro != PyType_Type.tp_getattro) {
     return PyObject_GetAttr(obj, name);
   }
 
-  PyTypeObject* type = reinterpret_cast<PyTypeObject*>(obj);
-  if (_PyType_GetDict(type) == nullptr) {
-    if (PyType_Ready(type) < 0) {
-      return nullptr;
-    }
+  BorrowedRef<PyTypeObject> type{obj};
+  if (!_PyType_IsReady(type) && PyType_Ready(type) < 0) {
+    return nullptr;
   }
 
   descrgetfunc meta_get = nullptr;
-  PyObject* meta_attribute = _PyType_Lookup(metatype, name);
+  auto meta_attribute = Ref<>::create(_PyType_Lookup(metatype, name));
   if (meta_attribute != nullptr) {
-    Py_INCREF(meta_attribute);
     meta_get = Py_TYPE(meta_attribute)->tp_descr_get;
-
     if (meta_get != nullptr && PyDescr_IsData(meta_attribute)) {
-      /* Data descriptors implement tp_descr_set to intercept
-       * writes. Assume the attribute is not overridden in
-       * type's tp_dict (and bases): call the descriptor now.
-       */
-      PyObject* res = meta_get(
-          meta_attribute,
-          reinterpret_cast<PyObject*>(type),
-          reinterpret_cast<PyObject*>(metatype));
-      Py_DECREF(meta_attribute);
-      return res;
+      // Data descriptors implement tp_descr_set to intercept writes. Assume the
+      // attribute is not overridden in type's tp_dict (and bases): call the
+      // descriptor now.
+      return meta_get(meta_attribute, type, metatype);
     }
   }
 
-  /* No data descriptor found on metatype. Look in tp_dict of this
-   * type and its bases */
-  PyObject* attribute = _PyType_Lookup(type, name);
+  // No data descriptor found on metatype. Look in tp_dict of this type and its
+  // bases.
+  auto attribute = Ref<>::create(_PyType_Lookup(type, name));
   if (attribute != nullptr) {
-    /* Implement descriptor functionality, if any */
-    Py_INCREF(attribute);
+    // Implement descriptor functionality, if any.
     descrgetfunc local_get = Py_TYPE(attribute)->tp_descr_get;
 
-    Py_XDECREF(meta_attribute);
+    meta_attribute.reset();
 
     if (local_get != nullptr) {
-      /* nullptr 2nd argument indicates the descriptor was
-       * found on the target object itself (or a base)  */
-      PyObject* res =
-          local_get(attribute, nullptr, reinterpret_cast<PyObject*>(type));
-      Py_DECREF(attribute);
-      return res;
+      // nullptr 2nd argument indicates the descriptor was found on the target
+      // object itself (or a base).
+      return local_get(attribute, nullptr, type);
     }
 
     fill(type, attribute);
-
-    return attribute;
+    return attribute.release();
   }
 
-  /* No attribute found in local __dict__ (or bases): use the
-   * descriptor from the metatype, if any */
+  // No attribute found in local __dict__ (or bases): use the descriptor from
+  // the metatype, if any.
   if (meta_get != nullptr) {
-    PyObject* res;
-    res = meta_get(
-        meta_attribute,
-        reinterpret_cast<PyObject*>(type),
-        reinterpret_cast<PyObject*>(metatype));
-    Py_DECREF(meta_attribute);
-    return res;
+    return meta_get(meta_attribute, type, metatype);
   }
 
-  /* If an ordinary attribute was found on the metatype, return it now */
+  // If an ordinary attribute was found on the metatype, return it now.
   if (meta_attribute != nullptr) {
-    return meta_attribute;
+    return meta_attribute.release();
   }
 
-  /* Give up */
+  // Give up.
   PyErr_Format(
       PyExc_AttributeError,
       "type object '%.50s' has no attribute '%U'",
@@ -680,28 +665,33 @@ PyObject* LoadTypeAttrCache::doInvoke(PyObject* obj, PyObject* name) {
   return nullptr;
 }
 
-void LoadTypeAttrCache::typeChanged(PyTypeObject* /* type */) {
+void LoadTypeAttrCache::typeChanged(
+    [[maybe_unused]] BorrowedRef<PyTypeObject> arg) {
+  JIT_DCHECK(arg == type_, "Type watcher notified the wrong LoadTypeAttrCache");
   reset();
 }
 
-void LoadTypeAttrCache::fill(PyTypeObject* type, PyObject* value) {
+void LoadTypeAttrCache::fill(
+    BorrowedRef<PyTypeObject> type,
+    BorrowedRef<> value) {
   if (!PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
     // the top of `PyType_Modified` for more details.
     return;
   }
-  ltac_watcher.unwatch(items[0], this);
-  items[0] = reinterpret_cast<PyObject*>(type);
-  items[1] = value;
-  ltac_watcher.watch(type, this);
+
+  ltac_watcher.unwatch(type_, this);
+  type_ = type;
+  value_ = value;
+  ltac_watcher.watch(type_, this);
 }
 
 void LoadTypeAttrCache::reset() {
-  // We need to return a PyObject* even in the empty case so that subsequent
+  // We need to return a PyTypeObject* even in the empty case so that subsequent
   // refcounting operations work correctly.
-  items[0] = &g_emptyTypeAttrCache;
-  items[1] = nullptr;
+  type_ = &s_empty_type_attr_cache;
+  value_ = nullptr;
 }
 
 std::string_view kCacheMissReasons[] = {
