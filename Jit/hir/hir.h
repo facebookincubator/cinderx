@@ -2547,26 +2547,34 @@ class INSTR_CLASS(RaiseAwaitableError, (TType), Operands<1>, DeoptBase) {
   bool is_aenter_;
 };
 
-// Load a guard (index 0) or value (index 1) from a cache specialized for
-// loading attributes from type receivers
-class INSTR_CLASS(LoadTypeAttrCacheItem, (), HasOutput, Operands<0>) {
+// Load a type object guard from a cache specialized for loading attributes from
+// type receivers.
+class INSTR_CLASS(LoadTypeAttrCacheEntryType, (), HasOutput, Operands<0>) {
  public:
-  LoadTypeAttrCacheItem(Register* dst, int cache_id, int item_idx)
-      : InstrT(dst), cache_id_(cache_id), item_idx_(item_idx) {
-    JIT_CHECK(item_idx < 2, "only two elements in the cache");
-  }
+  LoadTypeAttrCacheEntryType(Register* dst, int cache_id)
+      : InstrT{dst}, cache_id_{cache_id} {}
 
   int cache_id() const {
     return cache_id_;
   }
 
-  int item_idx() const {
-    return item_idx_;
+ private:
+  int cache_id_;
+};
+
+// Load a value from a cache specialized for loading attributes from type
+// receivers.
+class INSTR_CLASS(LoadTypeAttrCacheEntryValue, (), HasOutput, Operands<0>) {
+ public:
+  LoadTypeAttrCacheEntryValue(Register* dst, int cache_id)
+      : InstrT{dst}, cache_id_{cache_id} {}
+
+  int cache_id() const {
+    return cache_id_;
   }
 
  private:
   int cache_id_;
-  int item_idx_;
 };
 
 // Perform a full attribute lookup. Fill the cache if the receiver is a type

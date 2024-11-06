@@ -1063,7 +1063,7 @@ Register* simplifyLoadAttrTypeReceiver(Env& env, const LoadAttr* load_attr) {
 
   const int cache_id = env.func.env.allocateLoadTypeAttrCache();
   env.emit<UseType>(receiver, TType);
-  Register* guard = env.emit<LoadTypeAttrCacheItem>(cache_id, 0);
+  Register* guard = env.emit<LoadTypeAttrCacheEntryType>(cache_id);
   Register* type_matches =
       env.emit<PrimitiveCompare>(PrimitiveCompareOp::kEqual, guard, receiver);
   return env.emitCond(
@@ -1071,7 +1071,7 @@ Register* simplifyLoadAttrTypeReceiver(Env& env, const LoadAttr* load_attr) {
         env.emit<CondBranch>(type_matches, fast_path, slow_path);
       },
       [&] { // Fast path
-        return env.emit<LoadTypeAttrCacheItem>(cache_id, 1);
+        return env.emit<LoadTypeAttrCacheEntryValue>(cache_id);
       },
       [&] { // Slow path
         int name_idx = load_attr->name_idx();

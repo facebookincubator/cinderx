@@ -1254,13 +1254,23 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->id());
         break;
       }
-      case Opcode::kLoadTypeAttrCacheItem: {
+      case Opcode::kLoadTypeAttrCacheEntryType: {
         JIT_DCHECK(
             getConfig().attr_caches,
-            "Inline caches must be enabled to use LoadTypeAttrCacheItem");
-        auto instr = static_cast<const LoadTypeAttrCacheItem*>(&i);
+            "Inline caches must be enabled to use LoadTypeAttrCacheEntryType");
+        auto instr = static_cast<const LoadTypeAttrCacheEntryType*>(&i);
         LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cache_id());
-        PyObject** addr = &cache->items[instr->item_idx()];
+        PyObject** addr = &cache->items[0];
+        bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{addr});
+        break;
+      }
+      case Opcode::kLoadTypeAttrCacheEntryValue: {
+        JIT_DCHECK(
+            getConfig().attr_caches,
+            "Inline caches must be enabled to use LoadTypeAttrCacheEntryValue");
+        auto instr = static_cast<const LoadTypeAttrCacheEntryValue*>(&i);
+        LoadTypeAttrCache* cache = load_type_attr_caches_.at(instr->cache_id());
+        PyObject** addr = &cache->items[1];
         bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{addr});
         break;
       }
@@ -1272,7 +1282,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* name = getNameFromIdx(bbb, instr);
         bbb.appendCallInstruction(
             instr->output(),
-            jit::LoadTypeAttrCache::invoke,
+            LoadTypeAttrCache::invoke,
             load_type_attr_caches_.at(instr->cache_id()),
             instr->receiver(),
             name);

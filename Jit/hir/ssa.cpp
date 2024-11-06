@@ -597,19 +597,15 @@ Type outputType(
     case Opcode::kIsNegativeAndErrOccurred:
       return TCInt64;
 
-    // Some compute their output type from either their inputs or some other
-    // source.
+      // Some compute their output type from either their inputs or some other
+      // source.
 
-    // Executing LoadTypeAttrCacheItem<cache_id, 1> is only legal if
-    // appropriately guarded by LoadTypeAttrCacheItem<cache_id, 0>, and the
-    // former will always produce a non-null object.
-    //
-    // TODO(bsimmers): We should probably split this into two instructions
-    // rather than changing the output type based on the item index.
-    case Opcode::kLoadTypeAttrCacheItem: {
-      auto item = static_cast<const LoadTypeAttrCacheItem&>(instr).item_idx();
-      return item == 1 ? TObject : TOptObject;
-    }
+    case Opcode::kLoadTypeAttrCacheEntryType:
+      return TOptType;
+    case Opcode::kLoadTypeAttrCacheEntryValue:
+      // Only valid if guarded by a LoadTypeAttrCacheEntryType, which ensures
+      // that this will return a non-null object.
+      return TObject;
     case Opcode::kLoadTypeMethodCacheEntryType:
       return TOptType;
     case Opcode::kLoadTypeMethodCacheEntryValue:

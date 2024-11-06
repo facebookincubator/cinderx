@@ -607,9 +607,13 @@ static std::string format_immediates(const Instr& instr) {
       const auto& build_slice = static_cast<const BuildSlice&>(instr);
       return fmt::format("{}", build_slice.NumOperands());
     }
-    case Opcode::kLoadTypeAttrCacheItem: {
-      const auto& i = static_cast<const LoadTypeAttrCacheItem&>(instr);
-      return fmt::format("{}, {}", i.cache_id(), i.item_idx());
+    case Opcode::kLoadTypeAttrCacheEntryType: {
+      const auto& i = static_cast<const LoadTypeAttrCacheEntryType&>(instr);
+      return fmt::format("{}", i.cache_id());
+    }
+    case Opcode::kLoadTypeAttrCacheEntryValue: {
+      const auto& i = static_cast<const LoadTypeAttrCacheEntryValue&>(instr);
+      return fmt::format("{}", i.cache_id());
     }
     case Opcode::kFillTypeAttrCache: {
       const auto& ftac = static_cast<const FillTypeAttrCache&>(instr);

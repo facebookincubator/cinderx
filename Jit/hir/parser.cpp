@@ -563,12 +563,16 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     expect(">");
     Register* value = ParseRegister();
     NEW_INSTR(GetSecondOutput, dst, ty, value);
-  } else if (opcode == "LoadTypeAttrCacheItem") {
+  } else if (opcode == "LoadTypeAttrCacheEntryType") {
     expect("<");
     int cache_id = GetNextInteger();
-    int item_idx = GetNextInteger();
     expect(">");
-    NEW_INSTR(LoadTypeAttrCacheItem, dst, cache_id, item_idx);
+    NEW_INSTR(LoadTypeAttrCacheEntryType, dst, cache_id);
+  } else if (opcode == "LoadTypeAttrCacheEntryValue") {
+    expect("<");
+    int cache_id = GetNextInteger();
+    expect(">");
+    NEW_INSTR(LoadTypeAttrCacheEntryValue, dst, cache_id);
   } else if (opcode == "FillTypeAttrCache") {
     expect("<");
     int cache_id = GetNextInteger();

@@ -172,9 +172,10 @@ bool Instr::isReplayable() const {
     case Opcode::kLoadGlobalCached:
     case Opcode::kLoadSplitDictItem:
     case Opcode::kLoadTupleItem:
-    case Opcode::kLoadTypeAttrCacheItem:
-    case Opcode::kLoadTypeMethodCacheEntryValue:
+    case Opcode::kLoadTypeAttrCacheEntryType:
+    case Opcode::kLoadTypeAttrCacheEntryValue:
     case Opcode::kLoadTypeMethodCacheEntryType:
+    case Opcode::kLoadTypeMethodCacheEntryValue:
     case Opcode::kLoadVarObjectSize:
     case Opcode::kLongCompare:
     case Opcode::kPrimitiveBox:

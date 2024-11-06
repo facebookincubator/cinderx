@@ -101,7 +101,8 @@ namespace jit::hir {
   V(LoadMethodSuper)                   \
   V(LoadSplitDictItem)                 \
   V(LoadTupleItem)                     \
-  V(LoadTypeAttrCacheItem)             \
+  V(LoadTypeAttrCacheEntryType)        \
+  V(LoadTypeAttrCacheEntryValue)       \
   V(LoadTypeMethodCacheEntryType)      \
   V(LoadTypeMethodCacheEntryValue)     \
   V(LoadVarObjectSize)                 \

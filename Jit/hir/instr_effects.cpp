@@ -238,7 +238,8 @@ MemoryEffects memoryEffects(const Instr& inst) {
           false, AEmpty, {inst.NumOperands(), 1 << 2}, AArrayItem | AListItem};
     case Opcode::kLoadSplitDictItem:
       return borrowFrom(inst, ADictItem);
-    case Opcode::kLoadTypeAttrCacheItem:
+    case Opcode::kLoadTypeAttrCacheEntryType:
+    case Opcode::kLoadTypeAttrCacheEntryValue:
       return borrowFrom(inst, ATypeAttrCache);
     case Opcode::kLoadTypeMethodCacheEntryValue:
       // This instruction will return a struct containing 2 pointers where the
@@ -364,7 +365,8 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kLoadGlobalCached:
     case Opcode::kLoadSplitDictItem:
     case Opcode::kLoadTupleItem:
-    case Opcode::kLoadTypeAttrCacheItem:
+    case Opcode::kLoadTypeAttrCacheEntryType:
+    case Opcode::kLoadTypeAttrCacheEntryValue:
     case Opcode::kLoadTypeMethodCacheEntryType:
     case Opcode::kLoadTypeMethodCacheEntryValue:
     case Opcode::kLoadVarObjectSize:
