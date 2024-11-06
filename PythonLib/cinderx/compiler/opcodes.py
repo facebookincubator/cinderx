@@ -199,8 +199,8 @@ if sys.version_info >= (3, 12):
         CALL_INTRINSIC_2=-1,
         LOAD_FROM_DICT_OR_DEREF=0,
         LOAD_LOCALS=1,
-        MAKE_FUNCTION=lambda oparg, jmp=0: oparg.bit_count(),
-        LOAD_FROM_DICT_OR_GLOBALS=-1,
+        MAKE_FUNCTION=lambda oparg, jmp=0: -oparg.bit_count(),
+        LOAD_FROM_DICT_OR_GLOBALS=0,
         LOAD_SUPER_ATTR=-1,
         LOAD_ATTR=lambda oparg, jmp: (
             1 if (isinstance(oparg, tuple) and oparg[1]) else 0
@@ -212,7 +212,7 @@ if sys.version_info >= (3, 12):
         CLEANUP_THROW=-1,
         END_SEND=-1,
         END_FOR=-2,
-        FOR_ITER=lambda oparg, jmp=0: 0 if jmp > 0 else 1,
+        FOR_ITER=lambda oparg, jmp=0: 1,
         END_ASYNC_FOR=-2,
         SETUP_CLEANUP=2,
         PUSH_EXC_INFO=1,
