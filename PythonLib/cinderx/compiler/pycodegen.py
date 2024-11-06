@@ -13,7 +13,7 @@ from ast import AST, ClassDef
 from builtins import compile as builtin_compile
 from contextlib import contextmanager
 from enum import IntEnum
-from typing import cast, Union
+from typing import cast, Type, Union
 
 from . import consts, future, misc, pyassem, symbols
 from .consts import (
@@ -235,7 +235,7 @@ class CodeGenerator(ASTVisitor):
     __initialized = None
     class_name = None  # provide default for instance variable
     future_flags = 0
-    flow_graph = pyassem.PyFlowGraph
+    flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph310
     _SymbolVisitor = symbols.SymbolVisitor
     pattern_context: type[PatternContext] = PatternContext
 
@@ -3157,7 +3157,7 @@ class ResumeOparg(IntEnum):
 
 
 class CodeGenerator312(CodeGenerator):
-    flow_graph = pyassem.PyFlowGraph312
+    flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
     _SymbolVisitor = symbols.SymbolVisitor312
 
     def emitResume(self, oparg: ResumeOparg) -> None:

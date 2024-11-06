@@ -607,18 +607,7 @@ class PyFlowGraph(FlowGraph):
 
     def getCode(self):
         """Get a Python code object"""
-        self.finalize()
-        assert self.stage == FINAL, self.stage
-
-        self.computeStackDepth()
-        self.flattenGraph()
-
-        assert self.stage == FLAT, self.stage
-        bytecode = self.make_byte_code()
-        linetable = self.make_line_table()
-        exception_table = self.make_exception_table()
-        assert self.stage == DONE, self.stage
-        return self.new_code_object(bytecode, linetable, exception_table)
+        raise NotImplementedError()
 
     def dump(self, io=None):
         if io:
@@ -967,51 +956,6 @@ class PyFlowGraph(FlowGraph):
         # New in 3.12
         return b""
 
-    def new_code_object(
-        self, code: bytes, lnotab: bytes, exception_table: bytes
-    ) -> CodeType:
-        assert self.stage == DONE, self.stage
-        if (self.flags & CO_NEWLOCALS) == 0:
-            nlocals = len(self.fast_vars)
-        else:
-            nlocals = len(self.varnames)
-
-        firstline = self.firstline
-        # For module, .firstline is initially not set, and should be first
-        # line with actual bytecode instruction (skipping docstring, optimized
-        # out instructions, etc.)
-        if not firstline:
-            firstline = self.first_inst_lineno
-        # If no real instruction, fallback to 1
-        if not firstline:
-            firstline = 1
-
-        consts = self.getConsts()
-        consts = consts + tuple(self.extra_consts)
-        return self.make_code(nlocals, code, consts, firstline, lnotab, exception_table)
-
-    def make_code(
-        self, nlocals, code, consts, firstline: int, lnotab, exception_table=None
-    ) -> CodeType:
-        return CodeType(
-            len(self.args),
-            self.posonlyargs,
-            len(self.kwonlyargs),
-            nlocals,
-            self.stacksize,
-            self.flags,
-            code,
-            consts,
-            tuple(self.names),
-            tuple(self.varnames),
-            self.filename,
-            self.name,
-            firstline,
-            lnotab,
-            tuple(self.freevars),
-            tuple(self.cellvars),
-        )
-
     def getConsts(self):
         """Return a tuple for the const slot of the code object"""
         # Just return the constant value, removing the type portion. Order by const index.
@@ -1268,7 +1212,69 @@ class PyFlowGraph(FlowGraph):
         }
 
 
-class PyFlowGraphCinder(PyFlowGraph):
+class PyFlowGraph310(PyFlowGraph):
+    def getCode(self):
+        """Get a Python code object"""
+        self.finalize()
+        assert self.stage == FINAL, self.stage
+
+        self.computeStackDepth()
+        self.flattenGraph()
+
+        assert self.stage == FLAT, self.stage
+        bytecode = self.make_byte_code()
+        linetable = self.make_line_table()
+        exception_table = self.make_exception_table()
+        assert self.stage == DONE, self.stage
+        return self.new_code_object(bytecode, linetable, exception_table)
+
+    def new_code_object(
+        self, code: bytes, lnotab: bytes, exception_table: bytes
+    ) -> CodeType:
+        assert self.stage == DONE, self.stage
+        if (self.flags & CO_NEWLOCALS) == 0:
+            nlocals = len(self.fast_vars)
+        else:
+            nlocals = len(self.varnames)
+
+        firstline = self.firstline
+        # For module, .firstline is initially not set, and should be first
+        # line with actual bytecode instruction (skipping docstring, optimized
+        # out instructions, etc.)
+        if not firstline:
+            firstline = self.first_inst_lineno
+        # If no real instruction, fallback to 1
+        if not firstline:
+            firstline = 1
+
+        consts = self.getConsts()
+        consts = consts + tuple(self.extra_consts)
+        return self.make_code(nlocals, code, consts, firstline, lnotab, exception_table)
+
+    def make_code(
+        self, nlocals, code, consts, firstline: int, lnotab, exception_table=None
+    ) -> CodeType:
+        return CodeType(
+            len(self.args),
+            self.posonlyargs,
+            len(self.kwonlyargs),
+            nlocals,
+            self.stacksize,
+            self.flags,
+            code,
+            consts,
+            tuple(self.names),
+            tuple(self.varnames),
+            self.filename,
+            self.name,
+            firstline,
+            lnotab,
+            tuple(self.freevars),
+            tuple(self.cellvars),
+        )
+
+
+class PyFlowGraphCinder(PyFlowGraph310):
     opcode = opcode_cinder.opcode
 
     def make_code(
@@ -1502,6 +1508,44 @@ class PyFlowGraph312(PyFlowGraph):
         if handler:
             exception_table.emit_entry(start, ioffset, handler)
         return exception_table.getTable()
+
+    def getCode(self):
+        """Get a Python code object"""
+        self.finalize()
+        assert self.stage == FINAL, self.stage
+
+        self.computeStackDepth()
+        self.flattenGraph()
+
+        assert self.stage == FLAT, self.stage
+        bytecode = self.make_byte_code()
+        linetable = self.make_line_table()
+        exception_table = self.make_exception_table()
+        assert self.stage == DONE, self.stage
+        return self.new_code_object(bytecode, linetable, exception_table)
+
+    def new_code_object(
+        self, code: bytes, lnotab: bytes, exception_table: bytes
+    ) -> CodeType:
+        assert self.stage == DONE, self.stage
+        if (self.flags & CO_NEWLOCALS) == 0:
+            nlocals = len(self.fast_vars)
+        else:
+            nlocals = len(self.varnames)
+
+        firstline = self.firstline
+        # For module, .firstline is initially not set, and should be first
+        # line with actual bytecode instruction (skipping docstring, optimized
+        # out instructions, etc.)
+        if not firstline:
+            firstline = self.first_inst_lineno
+        # If no real instruction, fallback to 1
+        if not firstline:
+            firstline = 1
+
+        consts = self.getConsts()
+        consts = consts + tuple(self.extra_consts)
+        return self.make_code(nlocals, code, consts, firstline, lnotab, exception_table)
 
     def make_code(
         self, nlocals, code, consts, firstline, lnotab, exception_table
