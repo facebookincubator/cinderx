@@ -35,7 +35,7 @@ from ..opcodebase import Opcode
 from ..pyassem import Block, IndexedSet, PyFlowGraph, PyFlowGraphCinder
 from ..pycodegen import CodeGenerator, compile, CompNode, FuncOrLambda, PatternContext
 from ..strict import FIXED_MODULES, StrictCodeGenerator
-from ..symbols import ClassScope, ModuleScope, Scope, SymbolVisitor
+from ..symbols import BaseSymbolVisitor, ModuleScope, Scope
 from .compiler import Compiler
 from .definite_assignment_checker import DefiniteAssignmentVisitor
 from .effects import NarrowingEffect, TypeState
@@ -128,7 +128,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         self,
         parent: CodeGenerator | None,
         node: AST,
-        symbols: SymbolVisitor,
+        symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         compiler: Compiler,
         modname: str,

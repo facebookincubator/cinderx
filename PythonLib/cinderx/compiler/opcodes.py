@@ -217,6 +217,9 @@ if sys.version_info >= (3, 12):
         SETUP_CLEANUP=2,
         PUSH_EXC_INFO=1,
         SETUP_FINALLY=lambda oparg, jmp=0: 1 if jmp else 0,
+        LOAD_FAST_AND_CLEAR=1,
+        STORE_FAST_MAYBE_NULL=-1,
+        RERAISE=-1,
     )
 
     from opcode import (

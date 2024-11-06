@@ -32,7 +32,7 @@ from ..pycodegen import (  # noqa: F401
     find_futures,
     FOR_LOOP,
 )
-from ..symbols import FunctionScope, SymbolVisitor
+from ..symbols import BaseSymbolVisitor, FunctionScope
 from ..visitor import walk
 from .common import FIXED_MODULES, lineinfo
 from .feature_extractor import _IMPLICIT_GLOBALS, FeatureExtractor
@@ -116,7 +116,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
         self,
         parent: CodeGenerator | None,
         node: AST,
-        symbols: SymbolVisitor,
+        symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         flags: int = 0,
         optimization_lvl: int = 0,

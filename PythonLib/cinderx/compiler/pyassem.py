@@ -655,7 +655,7 @@ class PyFlowGraph(FlowGraph):
                 if new_depth > maxdepth:
                     maxdepth = new_depth
 
-                assert depth >= 0, instr
+                assert new_depth >= 0, instr
 
                 op = self.opcode.opmap[instr.opname]
                 if self.opcode.has_jump(op) or instr.opname == "SETUP_FINALLY":
@@ -842,7 +842,9 @@ class PyFlowGraph(FlowGraph):
         "BUILD_CHECKED_LIST": _convert_LOAD_CONST,
         "PRIMITIVE_LOAD_CONST": _convert_LOAD_CONST,
         "LOAD_FAST": _convert_LOAD_FAST,
+        "LOAD_FAST_AND_CLEAR": _convert_LOAD_FAST,
         "STORE_FAST": _convert_LOAD_FAST,
+        "STORE_FAST_MAYBE_NULL": _convert_LOAD_FAST,
         "DELETE_FAST": _convert_LOAD_FAST,
         "LOAD_LOCAL": _convert_LOAD_LOCAL,
         "STORE_LOCAL": _convert_LOAD_LOCAL,
@@ -1416,8 +1418,13 @@ class PyFlowGraph312(PyFlowGraph):
             if self.cellvars:
                 # varnames come first
                 offset = len(self.varnames)
-                for i in range(len(self.cellvars)):
-                    to_insert.append(Instruction("MAKE_CELL", offset + i))
+
+                for i, name in enumerate(self.cellvars):
+                    if name in self.varnames:
+                        cell_idx = self.varnames.index(name)
+                    else:
+                        cell_idx = offset + i
+                    to_insert.append(Instruction("MAKE_CELL", cell_idx))
 
             self.entry.insts[0:0] = to_insert
 

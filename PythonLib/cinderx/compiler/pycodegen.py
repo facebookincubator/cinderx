@@ -35,7 +35,7 @@ from .consts import (
 from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
 from .optimizer import AstOptimizer
 from .pyassem import Block, Instruction, NO_LOCATION, PyFlowGraph, SrcLocation
-from .symbols import Scope, SymbolVisitor
+from .symbols import BaseSymbolVisitor, Scope, SymbolVisitor
 from .unparse import to_expr
 from .visitor import ASTVisitor, walk
 
@@ -236,14 +236,14 @@ class CodeGenerator(ASTVisitor):
     class_name = None  # provide default for instance variable
     future_flags = 0
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph310
-    _SymbolVisitor = symbols.SymbolVisitor
+    _SymbolVisitor: type[symbols.BaseSymbolVisitor] = SymbolVisitor
     pattern_context: type[PatternContext] = PatternContext
 
     def __init__(
         self,
         parent: CodeGenerator | None,
         node: AST,
-        symbols: SymbolVisitor,
+        symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         flags=0,
         optimization_lvl=0,
@@ -1087,18 +1087,18 @@ class CodeGenerator(ASTVisitor):
         outermost_gen_is_param: bool,
     ) -> None:
         if comp.generators[gen_index].is_async:
-            self.compile_async_comprehension(
+            self.__compile_async_comprehension(
                 comp, gen_index, depth, elt, val, type, outermost_gen_is_param
             )
         else:
-            self.compile_sync_comprehension(
+            self.__compile_sync_comprehension(
                 comp, gen_index, depth, elt, val, type, outermost_gen_is_param
             )
 
     def emit_yield(self, scope: Scope) -> None:
         self.emit("YIELD_VALUE")
 
-    def compile_async_comprehension(
+    def __compile_async_comprehension(
         self,
         comp: CompNode,
         gen_index: int,
@@ -1159,7 +1159,11 @@ class CodeGenerator(ASTVisitor):
         self.nextBlock(except_)
         self.emit("END_ASYNC_FOR")
 
-    def compile_sync_comprehension(
+    def compile_comprehension_iter(self, gen: ast.comprehension) -> None:
+        self.visit(gen.iter)
+        self.emit("GET_AITER" if gen.is_async else "GET_ITER")
+
+    def __compile_sync_comprehension(
         self,
         comp: CompNode,
         gen_index: int,
@@ -1184,8 +1188,7 @@ class CodeGenerator(ASTVisitor):
                     self.visit(elts[0])
                     start = None
             if start:
-                self.visit(gen.iter)
-                self.emit("GET_ITER")
+                self.compile_comprehension_iter(gen)
 
         if start:
             depth += 1
@@ -3160,6 +3163,23 @@ class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
     _SymbolVisitor = symbols.SymbolVisitor312
 
+    def __init__(
+        self,
+        parent: CodeGenerator | None,
+        node: AST,
+        symbols: BaseSymbolVisitor,
+        graph: PyFlowGraph,
+        flags: int = 0,
+        optimization_lvl: int = 0,
+        future_flags: int | None = None,
+        name: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            parent, node, symbols, graph, flags, optimization_lvl, future_flags, name
+        )
+        self.fast_hidden: set[str] = set()
+        self.inlined_comp_depth = 0
+
     def emitResume(self, oparg: ResumeOparg) -> None:
         self.emit("RESUME", int(oparg))
 
@@ -3857,7 +3877,7 @@ class CodeGenerator312(CodeGenerator):
         scope = self.scope.check_name(name)
 
         if scope == SC_LOCAL:
-            if not self.optimized:
+            if not self.optimized and name not in self.fast_hidden:
                 self.emit(prefix + "_NAME", name)
             else:
                 self.emit(prefix + "_FAST", name)
@@ -3868,7 +3888,10 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("LOAD_DEREF", "__classdict__")
                 self.emit(prefix + "_FROM_DICT_OR_GLOBALS", name)
             elif not self.optimized:
-                self.emit(prefix + "_NAME", name)
+                if self.inlined_comp_depth and prefix == "LOAD":
+                    self.emit("LOAD_GLOBAL", name)
+                else:
+                    self.emit(prefix + "_NAME", name)
             else:
                 self.emit(prefix + "_GLOBAL", name)
         elif scope == SC_FREE or scope == SC_CELL:
@@ -3944,6 +3967,7 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(exit_)
 
+    # TODO(T132400505): Split into smaller methods.
     def compile_comprehension(
         self,
         node: CompNode,
@@ -3954,10 +3978,7 @@ class CodeGenerator312(CodeGenerator):
         oparg: object = 0,
     ) -> None:
         is_async_function = self.scope.coroutine
-        args = self.conjure_arguments([ast.arg(".0", None)])
-        gen = self.make_func_codegen(node, args, name, node.lineno)
-        gen.set_pos(node)
-        is_async_generator = gen.scope.coroutine
+        is_async_generator = self.symbols.scopes[node].coroutine
 
         # TODO also add check for PyCF_ALLOW_TOP_LEVEL_AWAIT
         if (
@@ -3969,10 +3990,33 @@ class CodeGenerator312(CodeGenerator):
                 "asynchronous comprehension outside of an asynchronous function", node
             )
 
+        # fetch the scope that corresponds to comprehension
+        scope = self.scopes[node]
+        outermost = node.generators[0]
+        inlined_state: InlinedComprehensionState | None = None
+        if scope.inlined:
+            # for inlined comprehension process with current generator
+            gen = self
+            gen.compile_comprehension_iter(outermost)
+            inlined_state = self.push_inlined_comprehension_state(scope)
+        else:
+            gen = self.make_func_codegen(
+                node, self.conjure_arguments([ast.arg(".0", None)]), name, node.lineno
+            )
+        gen.set_pos(node)
+
         if opcode:
             gen.emit(opcode, oparg)
+            if scope.inlined:
+                gen.emit("SWAP", 2)
 
-        gen.compile_comprehension_generator(node, 0, 0, elt, val, type(node), True)
+        assert isinstance(gen, CodeGenerator312)
+        gen.__compile_comprehension_generator(
+            node, 0, 0, elt, val, type(node), scope.inlined
+        )
+        if inlined_state is not None:
+            self.pop_inlined_comprehension_state(scope, inlined_state)
+            return
 
         if not isinstance(node, ast.GeneratorExp):
             gen.emit("RETURN_VALUE")
@@ -3994,7 +4038,7 @@ class CodeGenerator312(CodeGenerator):
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
-    def compile_comprehension_generator(
+    def __compile_comprehension_generator(
         self,
         comp: CompNode,
         gen_index: int,
@@ -4002,18 +4046,18 @@ class CodeGenerator312(CodeGenerator):
         elt: ast.expr,
         val: ast.expr | None,
         type: type[ast.AST],
-        outermost_gen_is_param: bool,
+        iter_on_stack: bool,
     ) -> None:
         if comp.generators[gen_index].is_async:
-            self.compile_async_comprehension(
-                comp, gen_index, depth, elt, val, type, outermost_gen_is_param
+            self.__compile_async_comprehension(
+                comp, gen_index, depth, elt, val, type, iter_on_stack
             )
         else:
-            self.compile_sync_comprehension(
-                comp, gen_index, depth, elt, val, type, outermost_gen_is_param
+            self.__compile_sync_comprehension(
+                comp, gen_index, depth, elt, val, type, iter_on_stack
             )
 
-    def compile_async_comprehension(
+    def __compile_async_comprehension(
         self,
         comp: CompNode,
         gen_index: int,
@@ -4021,18 +4065,19 @@ class CodeGenerator312(CodeGenerator):
         elt: ast.expr,
         val: ast.expr | None,
         type: type[ast.AST],
-        outermost_gen_is_param: bool,
+        iter_on_stack: bool,
     ) -> None:
         start = self.newBlock("start")
         except_ = self.newBlock("except")
         if_cleanup = self.newBlock("if_cleanup")
 
         gen = comp.generators[gen_index]
-        if gen_index == 0 and outermost_gen_is_param:
-            self.loadName(".0")
-        else:
-            self.visit(gen.iter)
-            self.emit("GET_AITER")
+        if not iter_on_stack:
+            if gen_index == 0:
+                self.loadName(".0")
+            else:
+                self.visit(gen.iter)
+                self.emit("GET_AITER")
 
         self.nextBlock(start)
         self.emit("SETUP_FINALLY", except_)
@@ -4074,7 +4119,7 @@ class CodeGenerator312(CodeGenerator):
         self.nextBlock(except_)
         self.emit("END_ASYNC_FOR")
 
-    def compile_sync_comprehension(
+    def __compile_sync_comprehension(
         self,
         comp: CompNode,
         gen_index: int,
@@ -4082,7 +4127,7 @@ class CodeGenerator312(CodeGenerator):
         elt: ast.expr,
         val: ast.expr | None,
         type: type[ast.AST],
-        outermost_gen_is_param: bool,
+        iter_on_stack: bool,
     ) -> None:
         start = self.newBlock("start")
         skip = self.newBlock("skip")
@@ -4090,17 +4135,17 @@ class CodeGenerator312(CodeGenerator):
         anchor = self.newBlock("anchor")
 
         gen = comp.generators[gen_index]
-        if gen_index == 0 and outermost_gen_is_param:
-            self.loadName(".0")
-        else:
-            if isinstance(gen.iter, (ast.Tuple, ast.List)):
-                elts = gen.iter.elts
-                if len(elts) == 1 and not isinstance(elts[0], ast.Starred):
-                    self.visit(elts[0])
-                    start = None
-            if start:
-                self.visit(gen.iter)
-                self.emit("GET_ITER")
+        if not iter_on_stack:
+            if gen_index == 0:
+                self.loadName(".0")
+            else:
+                if isinstance(gen.iter, (ast.Tuple, ast.List)):
+                    elts = gen.iter.elts
+                    if len(elts) == 1 and not isinstance(elts[0], ast.Starred):
+                        self.visit(elts[0])
+                        start = None
+                if start:
+                    self.compile_comprehension_iter(gen)
 
         if start:
             depth += 1
@@ -4142,6 +4187,80 @@ class CodeGenerator312(CodeGenerator):
             self.nextBlock(anchor)
             self.emit_end_for()
 
+    def push_inlined_comprehension_state(
+        self, scope: Scope
+    ) -> InlinedComprehensionState:
+        end = self.newBlock("end")
+        cleanup = self.newBlock("cleanup")
+        inlined_state = InlinedComprehensionState(end, cleanup)
+        self.inlined_comp_depth += 1
+
+        # iterate over names bound in the comprehension and ensure we isolate
+        # them from the outer scope as needed
+        for name in scope.defs:
+            if isinstance(self.scope, symbols.ClassScope):
+                self.fast_hidden.add(name)
+                inlined_state.fast_hidden.add(name)
+            elif name in scope.params:
+                # ignore .0
+                continue
+
+            self.emit("LOAD_FAST_AND_CLEAR", name)
+            if name in self.scope.cells:
+                name_idx = (
+                    self.graph.freevars.index(name)
+                    if name in self.scope.frees
+                    else self.graph.cellvars.index(name)
+                )
+                self.emit("MAKE_CELL", name_idx)
+
+            inlined_state.pushed_locals.append(name)
+
+        if inlined_state.pushed_locals:
+            self.emit("SWAP", len(inlined_state.pushed_locals) + 1)
+            self.emit("SETUP_FINALLY", cleanup)
+
+        return inlined_state
+
+    def pop_inlined_comprehension_state(
+        self, scope: Scope, inlined_state: InlinedComprehensionState
+    ) -> None:
+        self.inlined_comp_depth -= 1
+        if inlined_state.pushed_locals:
+            self.emit("POP_BLOCK")
+            self.emit("JUMP", inlined_state.end)
+
+            self.nextBlock(inlined_state.cleanup)
+
+            # discard incomplete comprehension result (beneath exc on stack)
+            self.emit("SWAP", 2)
+            self.emit("POP_TOP")
+            self.restore_inlined_comprehension_locals(inlined_state)
+
+            self.emit("RERAISE")
+
+            self.nextBlock(inlined_state.end)
+            self.restore_inlined_comprehension_locals(inlined_state)
+
+        self.fast_hidden -= inlined_state.fast_hidden
+
+    def restore_inlined_comprehension_locals(
+        self, inlined_state: InlinedComprehensionState
+    ) -> None:
+        self.emit("SWAP", len(inlined_state.pushed_locals) + 1)
+        for local in reversed(inlined_state.pushed_locals):
+            # T190612504: Should be STORE_FAST_MAYBE_NULL and be converted
+            # from a pseudo op by the flowgraph
+            self.emit("STORE_FAST", local)
+
+
+class InlinedComprehensionState:
+    def __init__(self, end: Block, cleanup: Block) -> None:
+        self.pushed_locals = []
+        self.fast_hidden: set[str] = set()
+        self.end = end
+        self.cleanup = cleanup
+
 
 class CinderCodeGenerator(CodeGenerator):
     """
@@ -4156,7 +4275,7 @@ class CinderCodeGenerator(CodeGenerator):
     else:
         _SymbolVisitor = symbols.CinderSymbolVisitor
 
-    # TODO(T132400505): Split into smaller methods.
+    # TODO: Split into smaller methods.
     def compile_comprehension(
         self,
         node: CompNode,
@@ -4166,7 +4285,7 @@ class CinderCodeGenerator(CodeGenerator):
         opcode: str,
         oparg: object = 0,
     ) -> None:
-        # fetch the scope that correspond to comprehension
+        # fetch the scope that corresponds to comprehension
         scope = self.scopes[node]
         if scope.inlined:
             # for inlined comprehension process with current generator

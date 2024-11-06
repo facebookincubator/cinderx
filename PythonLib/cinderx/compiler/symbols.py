@@ -276,6 +276,7 @@ class FunctionScope(Scope):
 
 class GenExprScope(FunctionScope):
     is_function_scope = False
+    inlined = False
 
     __counter = 1
 
@@ -1145,7 +1146,7 @@ class CinderSymbolVisitor(SymbolVisitor):
     visitAsyncFunctionDef = visitFunctionDef
 
 
-class SymbolVisitor312(SymbolVisitor):
+class SymbolVisitor312(BaseSymbolVisitor):
     def visitModule(self, node):
         scope = self.module = self.scopes[node] = self.module
         self.visit(node.body, scope)
@@ -1161,11 +1162,8 @@ class SymbolVisitor312(SymbolVisitor):
         free: set[str],
         global_vars: set[str],
         bound: set[str] | None = None,
-        implicit_globals: set[str] | None = None,
     ):
         local: set[str] = set()
-        implicit_globals_in_block: set[str] = set()
-        inlinable_comprehensions = []
         # Allocate new global and bound variable dictionaries.  These
         # dictionaries hold the names visible in nested blocks.  For
         # ClassScopes, the bound and global names are initialized
@@ -1176,6 +1174,7 @@ class SymbolVisitor312(SymbolVisitor):
         new_global: set[str] = set()
         new_free: set[str] = set()
         new_bound: set[str] = set()
+        inlined_cells: set[str] = set()
 
         if isinstance(scope, ClassScope):
             new_global |= global_vars
@@ -1196,10 +1195,6 @@ class SymbolVisitor312(SymbolVisitor):
             new_bound.add("__class__")
             new_bound.add("__classdict__")
 
-        # create set of names that inlined comprehension should never stomp on
-        # collect all local defs and params
-        local_names = set(scope.defs.keys()) | set(scope.uses.keys())
-
         # in case comprehension will be inlined, track its set of free locals separately
         all_free: set[str] = set()
 
@@ -1209,55 +1204,14 @@ class SymbolVisitor312(SymbolVisitor):
 
             child_free = all_free
 
-            maybe_inline_comp = (
-                isinstance(scope, FunctionScope)
-                and scope._inline_comprehensions
-                and isinstance(child, GenExprScope)
-                and not child.generator
-            )
-            if maybe_inline_comp:
+            inline_comp = isinstance(child, GenExprScope) and not child.generator
+            if inline_comp:
                 child_free = set()
 
-            self.analyze_child_block(
-                child,
-                new_bound,
-                new_free,
-                new_global,
-                child_free,
-                implicit_globals_in_block,
-            )
-            inline_comp = maybe_inline_comp and not child.child_free
+            self.analyze_child_block(child, new_bound, new_free, new_global, child_free)
 
             if inline_comp:
-                # record the comprehension
-                inlinable_comprehensions.append((child, child_free))
-            elif maybe_inline_comp:
-                all_free.update(child_free)
-                child_free = all_free
-
-            local_names |= child_free
-
-        local_names |= implicit_globals_in_block
-
-        if implicit_globals is not None:
-            # merge collected implicit globals into set for the outer scope
-            implicit_globals |= implicit_globals_in_block
-            implicit_globals.update(scope.globals.keys())
-
-        # collect inlinable comprehensions
-        if inlinable_comprehensions:
-            for comp, comp_all_free in reversed(inlinable_comprehensions):
-                exists = comp.local_names_include_defs(local_names)
-                if not exists:
-                    # comprehension can be inlined
-                    scope.merge_comprehension_symbols(comp, comp_all_free)
-                    # remove child from parent
-                    scope.children.remove(comp)
-                    for c in comp.children:
-                        c.parent = scope
-                    # mark comprehension as inlined
-                    comp.inlined = True
-                all_free |= comp_all_free
+                self.inline_comprehension(scope, child, child_free, inlined_cells)
 
         for child in scope.children:
             if child.free or child.child_free:
@@ -1266,7 +1220,7 @@ class SymbolVisitor312(SymbolVisitor):
         new_free |= all_free
 
         if isinstance(scope, FUNCTION_LIKE_SCOPES):
-            scope.analyze_cells(new_free)
+            self.analyze_cells(scope, new_free, inlined_cells)
         elif isinstance(scope, ClassScope):
             # drop class free
             for drop_free in ["__class__", "__classdict__"]:
@@ -1286,19 +1240,34 @@ class SymbolVisitor312(SymbolVisitor):
         free: set[str],
         global_vars: set[str],
         child_free: set[str],
-        implicit_globals: set[str],
     ):
         temp_bound = set(bound)
         temp_free = set(free)
         temp_global = set(free)
 
-        self.analyze_block(scope, temp_free, temp_global, temp_bound, implicit_globals)
+        self.analyze_block(scope, temp_free, temp_global, temp_bound)
         child_free |= temp_free
 
-    def merge_comprehension_symbols(
-        self, scope: Scope, comp: Scope, comp_all_free: set[str]
+    def analyze_cells(
+        self, scope: Scope, free: set[str], inlined_cells: set[str]
+    ) -> None:
+        for name in scope.defs:
+            if (
+                name in free or name in inlined_cells
+            ) and name not in scope.explicit_globals:
+                scope.cells[name] = 1
+                if name in free:
+                    free.remove(name)
+
+    def inline_comprehension(
+        self,
+        scope: Scope,
+        comp: GenExprScope,
+        comp_free: set[str],
+        inlined_cells: set[str],
     ) -> None:
         # merge defs from comprehension scope into current scope
+        comp.inlined = True
         for v in comp.defs:
             if v != ".0":
                 scope.add_def(v)
@@ -1315,12 +1284,17 @@ class SymbolVisitor312(SymbolVisitor):
             elif comp.check_name(d) == SC_GLOBAL_IMPLICIT:
                 scope.globals[d] = 1
 
+        remove_dunder_class = False
         # go through free names in comprehension
         # and check if current scope has corresponding def
         # if yes - name is no longer free after inlining
         for f in list(comp.frees.keys()):
             if f in scope.defs:
-                comp_all_free.remove(f)
+                comp_free.remove(f)
+            elif isinstance(scope, ClassScope) and f == "__class__":
+                scope.globals[f] = 1
+                remove_dunder_class = True
+                comp_free.remove(f)
 
         # move names uses in comprehension to current scope
         for u in comp.uses.keys():
@@ -1330,7 +1304,11 @@ class SymbolVisitor312(SymbolVisitor):
         # cell vars in comprehension become cells in current scope
         for c in comp.cells.keys():
             if c != ".0":
+                inlined_cells.add(c)
                 scope.cells[c] = 1
+
+        if remove_dunder_class:
+            del comp.frees["__class__"]
 
 
 def list_eq(l1, l2):
