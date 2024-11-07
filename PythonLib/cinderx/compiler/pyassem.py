@@ -954,10 +954,6 @@ class PyFlowGraph(FlowGraph):
         lnotab.emitCurrentLine(prev_offset, offset)
         return lnotab.getTable()
 
-    def make_exception_table(self) -> bytes:
-        # New in 3.12
-        return b""
-
     def getConsts(self):
         """Return a tuple for the const slot of the code object"""
         # Just return the constant value, removing the type portion. Order by const index.
@@ -1226,13 +1222,10 @@ class PyFlowGraph310(PyFlowGraph):
         assert self.stage == FLAT, self.stage
         bytecode = self.make_byte_code()
         linetable = self.make_line_table()
-        exception_table = self.make_exception_table()
         assert self.stage == DONE, self.stage
-        return self.new_code_object(bytecode, linetable, exception_table)
+        return self.new_code_object(bytecode, linetable)
 
-    def new_code_object(
-        self, code: bytes, lnotab: bytes, exception_table: bytes
-    ) -> CodeType:
+    def new_code_object(self, code: bytes, lnotab: bytes) -> CodeType:
         assert self.stage == DONE, self.stage
         if (self.flags & CO_NEWLOCALS) == 0:
             nlocals = len(self.fast_vars)
@@ -1251,11 +1244,9 @@ class PyFlowGraph310(PyFlowGraph):
 
         consts = self.getConsts()
         consts = consts + tuple(self.extra_consts)
-        return self.make_code(nlocals, code, consts, firstline, lnotab, exception_table)
+        return self.make_code(nlocals, code, consts, firstline, lnotab)
 
-    def make_code(
-        self, nlocals, code, consts, firstline: int, lnotab, exception_table=None
-    ) -> CodeType:
+    def make_code(self, nlocals, code, consts, firstline: int, lnotab) -> CodeType:
         return CodeType(
             len(self.args),
             self.posonlyargs,
@@ -1279,9 +1270,7 @@ class PyFlowGraph310(PyFlowGraph):
 class PyFlowGraphCinder(PyFlowGraph310):
     opcode = opcode_cinder.opcode
 
-    def make_code(
-        self, nlocals, code, consts, firstline: int, lnotab, exception_table=None
-    ) -> CodeType:
+    def make_code(self, nlocals, code, consts, firstline: int, lnotab) -> CodeType:
         if self.scope is not None and self.scope.suppress_jit:
             self.setFlag(CO_SUPPRESS_JIT)
         return super().make_code(nlocals, code, consts, firstline, lnotab)
