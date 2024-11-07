@@ -266,6 +266,46 @@ class ModuleTests(StaticTestBase):
         compiler = self.decl_visit(**{"a": acode, "b": bcode})
         compiler.compile_module("b")
 
+    def test_class_member_circular_reference(self) -> None:
+        """Resolving the type for an attribute on a class shouldn't trigger
+        the immediate import of a dependency so that a cycle should succeed"""
+        acode = """
+            from b import C
+
+            class X(C):
+                pass
+        """
+        bcode = """
+            if TYPE_CHECKING:
+                from a import X
+
+            class A:
+                x: X
+        """
+        compiler = self.decl_visit(**{"a": acode, "b": bcode})
+        compiler.compile_module("a")
+
+    def test_class_member_circular_reference_generic(self) -> None:
+        """Resolving the type for an attribute on a class shouldn't trigger
+        the immediate import of a dependency so that a cycle should succeed"""
+        acode = """
+            from b import C
+            from typing import Generic, TypeVar
+
+            T = TypeVar('T')
+            class X(Generic[T], C):
+                pass
+        """
+        bcode = """
+            if TYPE_CHECKING:
+                from a import X
+
+            class A:
+                x: X[int]
+        """
+        compiler = self.decl_visit(**{"a": acode, "b": bcode})
+        compiler.compile_module("a")
+
     def test_actual_cyclic_reference(self) -> None:
         acode = """
             from b import B

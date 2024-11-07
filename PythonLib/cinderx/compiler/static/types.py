@@ -1936,6 +1936,10 @@ class Class(Object["Class"]):
         for name, my_value in self.members.items():
             node = self.inexact_type()._member_nodes.get(name, None)
             with module.error_context(node):
+                my_value.validate_overrides(module, self)
+
+            node = self.inexact_type()._member_nodes.get(name, None)
+            with module.error_context(node):
                 for base in self.mro[1:]:
                     base_value = base.members.get(name)
                     if base_value is not None:
@@ -6667,12 +6671,11 @@ class Slot(Object[TClassInv]):
 
         return super().can_override(override, klass, module)
 
-    def finish_bind(self, module: ModuleTable, klass: Class | None) -> Value:
+    def validate_overrides(self, module: ModuleTable, klass: Class | None) -> None:
         if self.is_final and not self.assignment:
             raise TypedSyntaxError(
                 f"Final attribute not initialized: {self.container_type.instance.name}:{self.slot_name}"
             )
-        return self
 
     def resolve_descr_get(
         self,
