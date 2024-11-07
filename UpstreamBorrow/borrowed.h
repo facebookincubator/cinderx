@@ -16,7 +16,6 @@ extern "C" {
 #if PY_VERSION_HEX >= 0x030C0000
 #define Cix_PyGen_yf _PyGen_yf
 #define Cix_PyCoro_GetAwaitableIter _PyCoro_GetAwaitableIter
-#define Cix_PyCoro_GetAwaitableIter _PyCoro_GetAwaitableIter
 #define Cix_Py_union_type_or _Py_union_type_or
 #define Cix_PyStaticType_GetState _PyStaticType_GetState
 #define Cix_PyCode_InitAddressRange _PyCode_InitAddressRange
