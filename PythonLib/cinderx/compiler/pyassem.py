@@ -158,7 +158,7 @@ class FlowGraph:
         # to the order of source level constructs. (The original
         # implementation from Python2 used a complex ordering algorithm
         # which more buggy and erratic than useful.)
-        self.ordered_blocks = []
+        self.ordered_blocks: list[Block] = []
         # Current block being filled in with instructions.
         self.current = None
         self.entry = Block("entry")
@@ -1380,8 +1380,44 @@ class PyFlowGraph312(PyFlowGraph):
                     visited.add(target)
         return warm
 
+    def remove_unused_consts(self) -> None:
+        nconsts = len(self.consts)
+        index_map = [-1] * nconsts
+        index_map[0] = 0  # The first constant may be docstring; keep it always.
+
+        # mark used consts
+        for block in self.ordered_blocks:
+            for instr in block.insts:
+                if self.opcode.opmap[instr.opname] in self.opcode.hasconst:
+                    index_map[instr.ioparg] = instr.ioparg
+
+        used_consts = [x for x in index_map if x > -1]
+        if len(used_consts) == nconsts:
+            return
+
+        reverse_index_mapping = {
+            old_index: index for index, old_index in enumerate(used_consts)
+        }
+
+        # generate the updated consts mapping and the mapping from
+        # the old index to the new index
+        new_consts = {
+            key: reverse_index_mapping[old_index]
+            for key, old_index in self.consts.items()
+            if old_index in reverse_index_mapping
+        }
+        self.consts = new_consts
+
+        # now update the existing opargs
+        for block in self.ordered_blocks:
+            for instr in block.insts:
+                if self.opcode.opmap[instr.opname] in self.opcode.hasconst:
+                    instr.ioparg = reverse_index_mapping[instr.ioparg]
+
     def optimizeCFG(self) -> None:
         super().optimizeCFG()
+
+        self.remove_unused_consts()
 
         except_handlers = self.compute_except_handlers()
 
