@@ -605,7 +605,7 @@ class PyFlowGraph(FlowGraph):
         self.normalize_jumps()
         self.stage = FINAL
 
-    def getCode(self):
+    def getCode(self) -> CodeType:
         """Get a Python code object"""
         raise NotImplementedError()
 
@@ -1211,7 +1211,7 @@ class PyFlowGraph(FlowGraph):
 
 
 class PyFlowGraph310(PyFlowGraph):
-    def getCode(self):
+    def getCode(self) -> CodeType:
         """Get a Python code object"""
         self.finalize()
         assert self.stage == FINAL, self.stage
@@ -1423,37 +1423,106 @@ class PyFlowGraph312(PyFlowGraph):
 
         self.push_cold_blocks_to_end(except_handlers)
 
-    def finalize(self):
-        if self.cellvars or self.freevars or self.gen_kind is not None:
-            to_insert = []
-            if self.gen_kind is not None:
-                firstline = self.firstline or self.first_inst_lineno or 1
-                to_insert.append(
-                    Instruction(
-                        "RETURN_GENERATOR",
-                        0,
-                        loc=SrcLocation(firstline, firstline, -1, -1),
-                    )
-                )
-                to_insert.append(Instruction("POP_TOP", 0))
+    def build_cell_fixed_offsets(self) -> list[int]:
+        nlocals = len(self.varnames)
+        ncellvars = len(self.cellvars)
+        nfreevars = len(self.freevars)
 
-            if self.freevars:
-                to_insert.append(Instruction("COPY_FREE_VARS", len(self.freevars)))
+        noffsets = ncellvars + nfreevars
+        fixed = [nlocals + i for i in range(noffsets)]
 
-            if self.cellvars:
-                # varnames come first
-                offset = len(self.varnames)
+        for varname in self.cellvars:
+            cellindex = self.cellvars.get_index(varname)
+            varindex = self.varnames.get_index(varname)
+            if varindex is not None:
+                fixed[cellindex] = varindex
 
-                for i, name in enumerate(self.cellvars):
-                    if name in self.varnames:
-                        cell_idx = self.varnames.index(name)
-                    else:
-                        cell_idx = offset + i
-                    to_insert.append(Instruction("MAKE_CELL", cell_idx))
+        return fixed
 
+    def insert_prefix_instructions(self, fixed_map: list[int]) -> None:
+        to_insert = []
+
+        if self.freevars:
+            to_insert.append(Instruction("COPY_FREE_VARS", len(self.freevars)))
+
+        if self.cellvars:
+            # self.cellvars has the cells out of order so we sort them before
+            # adding the MAKE_CELL instructions.  Note that we adjust for arg
+            # cells, which come first.
+            nvars = len(self.cellvars) + len(self.varnames)
+            sorted = [0] * nvars
+            for i in range(len(self.cellvars)):
+                sorted[fixed_map[i]] = i + 1
+
+            # varnames come first
+            n_used = i = 0
+            while n_used < len(self.cellvars):
+                index = sorted[i] - 1
+                if index != -1:
+                    to_insert.append(Instruction("MAKE_CELL", index))
+                    n_used += 1
+                i += 1
+
+        if self.gen_kind is not None:
+            firstline = self.firstline or self.first_inst_lineno or 1
+            loc = SrcLocation(firstline, firstline, -1, -1)
+            to_insert.append(Instruction("RETURN_GENERATOR", 0, loc=loc))
+            to_insert.append(Instruction("POP_TOP", 0))
+
+        if to_insert:
             self.entry.insts[0:0] = to_insert
 
-        super().finalize()
+    def fix_cell_offsets(self, fixed_map: list[int]) -> int:
+        nlocals = len(self.varnames)
+        ncellvars = len(self.cellvars)
+        nfreevars = len(self.freevars)
+        noffsets = ncellvars + nfreevars
+
+        # First deal with duplicates (arg cells).
+        num_dropped = 0
+        for i in range(noffsets):
+            if fixed_map[i] == i + nlocals:
+                fixed_map[i] -= num_dropped
+            else:
+                # It was a duplicate (cell/arg).
+                num_dropped += 1
+
+        # Then update offsets, either relative to locals or by cell2arg.
+        for b in self.ordered_blocks:
+            for instr in b.insts:
+                # This is called before extended args are generated.
+                assert instr.opname != "EXTENDED_ARG"
+                if instr.opname in (
+                    "MAKE_CELL",
+                    # TODO: We have converted some of these opargs to their
+                    # referenced values; does that mean we don't care about
+                    # them any more?
+                    # "LOAD_CLOSURE",
+                    # "LOAD_DEREF",
+                    # "STORE_DEREF",
+                    # "DELETE_DEREF",
+                    # "LOAD_FROM_DICT_OR_DEREF",
+                ):
+                    oldoffset = int(instr.oparg)
+                    assert oldoffset >= 0
+                    assert oldoffset < noffsets
+                    assert fixed_map[oldoffset] >= 0
+                    instr.oparg = fixed_map[oldoffset]
+        return num_dropped
+
+    def prepare_localsplus(self) -> int:
+        nlocals = len(self.varnames)
+        ncellvars = len(self.cellvars)
+        nfreevars = len(self.freevars)
+        nlocalsplus = nlocals + ncellvars + nfreevars
+        fixed_map = self.build_cell_fixed_offsets()
+        # This must be called before fix_cell_offsets().
+        self.insert_prefix_instructions(fixed_map)
+        num_dropped = self.fix_cell_offsets(fixed_map)
+        assert num_dropped >= 0
+        nlocalsplus -= num_dropped
+        assert nlocalsplus >= 0
+        return nlocalsplus
 
     def instrsize(self, opname: str, oparg: int):
         opcode_index = opcodes.opcode.opmap[opname]
@@ -1541,8 +1610,11 @@ class PyFlowGraph312(PyFlowGraph):
             exception_table.emit_entry(start, ioffset, handler)
         return exception_table.getTable()
 
-    def getCode(self):
+    def getCode(self) -> CodeType:
         """Get a Python code object"""
+        # TODO(T206903352): We need to pass the return value to make_code at
+        # some point.
+        self.prepare_localsplus()
         self.finalize()
         assert self.stage == FINAL, self.stage
 
@@ -1560,11 +1632,8 @@ class PyFlowGraph312(PyFlowGraph):
         self, code: bytes, lnotab: bytes, exception_table: bytes
     ) -> CodeType:
         assert self.stage == DONE, self.stage
-        if (self.flags & CO_NEWLOCALS) == 0:
-            nlocals = len(self.fast_vars)
-        else:
-            nlocals = len(self.varnames)
 
+        nlocals = len(self.varnames)
         firstline = self.firstline
         # For module, .firstline is initially not set, and should be first
         # line with actual bytecode instruction (skipping docstring, optimized
