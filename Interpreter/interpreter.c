@@ -417,8 +417,6 @@ main_loop:
     f->f_lasti = INSTR_OFFSET();
     NEXTOPARG();
 
-    struct _ceval_state* ceval = &tstate->interp->ceval;
-
     if (PyDTrace_LINE_ENABLED())
       maybe_dtrace_line(f, &trace_info, instr_prev);
 
