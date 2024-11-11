@@ -92,6 +92,9 @@ const std::unordered_set<int> kSupportedOpcodes = {
     CALL_FUNCTION_KW,
     CALL_METHOD,
     CAST,
+    CHECK_EG_MATCH,
+    CHECK_EXC_MATCH,
+    CLEANUP_THROW,
     COMPARE_OP,
     CONVERT_PRIMITIVE,
     CONTAINS_OP,
@@ -190,6 +193,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     PRIMITIVE_LOAD_CONST,
     PRIMITIVE_UNARY_OP,
     PRIMITIVE_UNBOX,
+    PUSH_EXC_INFO,
     PUSH_NULL,
     RAISE_VARARGS,
     REFINE_TYPE,
@@ -1292,6 +1296,13 @@ void HIRBuilder::translate(
           emitDictMerge(tc, bc_instr);
           break;
         }
+        case CHECK_EG_MATCH:
+        case CHECK_EXC_MATCH:
+        case CLEANUP_THROW:
+        case PUSH_EXC_INFO:
+          JIT_ABORT(
+              "Opcode {} should only appear in exception handlers",
+              bc_instr.opcode());
         default: {
           JIT_ABORT("Unhandled opcode: {}", bc_instr.opcode());
           break;
