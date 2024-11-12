@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-unsafe
+
 # Opcodes defined by cinderx
 
 # Cinderx defines its own set of opcodes, which need to be added to the cpython

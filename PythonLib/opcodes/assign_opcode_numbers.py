@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-unsafe
+
 # Assign opcode numbers for python 3.12
 
 # Run from cinderx directory:
