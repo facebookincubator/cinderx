@@ -79,7 +79,7 @@ SCOPE_EXIT_OPCODES = (
     "RERAISE",
 )
 
-SETUP_OPCODES = ("SETUP_FINALLY", "SETUP_WITH", "SETUP_CLEANUP")
+SETUP_OPCODES = ("SETUP_ASYNC_WITH", "SETUP_FINALLY", "SETUP_WITH", "SETUP_CLEANUP")
 
 
 @dataclass(frozen=True, slots=True)
@@ -331,6 +331,7 @@ class Block:
         self.prev: Block | None = None
         self.returns: bool = False
         self.offset: int = 0
+        self.is_exc_handler: bool = False  # used in reachability computations
         self.preserve_lasti: False  # used if block is an exception handler
         self.seen: bool = False  # visited during stack depth calculation
         self.startdepth: int = -1
@@ -978,12 +979,11 @@ class PyFlowGraph(FlowGraph):
                 if next_instr.loc == NO_LOCATION:
                     next_instr.loc = prev_loc
             last_instr = block.insts[-1]
-            if last_instr.is_jump(self.opcode) and last_instr.opname not in {
+            if (
+                last_instr.is_jump(self.opcode)
+                and last_instr.opname not in SETUP_OPCODES
+            ):
                 # Only actual jumps, not exception handlers
-                "SETUP_ASYNC_WITH",
-                "SETUP_WITH",
-                "SETUP_FINALLY",
-            }:
                 target = last_instr.target
                 if target.num_predecessors == 1:
                     assert target.insts
@@ -1021,10 +1021,15 @@ class PyFlowGraph(FlowGraph):
         append_after = {}
         for block in self.blocks_in_reverse_allocation_order():
             if block.insts and (last := block.insts[-1]).is_jump(self.opcode):
-                if last.opname in {"SETUP_ASYNC_WITH", "SETUP_WITH", "SETUP_FINALLY"}:
+                if last.opname in SETUP_OPCODES:
                     continue
                 target = last.target
                 assert target.insts
+                if target.insts[0].opname == "SETUP_CLEANUP":
+                    # We have wrapped this block in a stopiteration handler.
+                    # The SETUP_CLEANUP is a pseudo-op which will be removed in
+                    # a later pass, so it does not need a line number,
+                    continue
                 if (
                     target.is_exit
                     and target.insts[0].lineno < 0
@@ -1143,7 +1148,9 @@ class PyFlowGraph(FlowGraph):
                 entry.next.num_predecessors += 1
 
         self.ordered_blocks = [
-            block for block in self.ordered_blocks if block.bid in reachable_blocks
+            block
+            for block in self.ordered_blocks
+            if block.bid in reachable_blocks or block.is_exc_handler
         ]
         prev = None
         for block in self.ordered_blocks:

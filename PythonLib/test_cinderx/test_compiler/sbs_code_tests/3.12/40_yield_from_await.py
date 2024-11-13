@@ -8,8 +8,8 @@ async def f():
     CALL(0),
     GET_AWAITABLE(0),
     LOAD_CONST(None),
-    SEND(Block(3)),
-    SETUP_FINALLY(Block(2)),
+    SEND(Block(4)),
+    SETUP_FINALLY(Block(3)),
     YIELD_VALUE(0),
     ...,
 ]

@@ -3462,8 +3462,9 @@ class CodeGenerator312(CodeGenerator):
             name=name,
         )
 
-    def wrap_in_stopiteration_handler(self, gen: CodeGenerator312) -> None:
+    def wrap_in_stopiteration_handler(self) -> None:
         handler = self.newBlock("handler")
+        handler.is_exc_handler = True
 
         # compile.c handles this with a function that is used nowhere else
         # (instr_sequence_insert_instruction), so it seems worth just accessing
@@ -3472,12 +3473,12 @@ class CodeGenerator312(CodeGenerator):
         # TODO: handler.bid is unassigned at this point.
         self.graph.current.insts.insert(0, Instruction("SETUP_CLEANUP", handler.bid))
 
-        gen.emit("LOAD_CONST", None)
-        gen.emit("RETURN_VALUE")
+        self.emit("LOAD_CONST", None)
+        self.emit("RETURN_VALUE")
 
         self.nextBlock(handler)
-        gen.emit_call_intrinsic_1("INTRINSIC_STOPITERATION_ERROR")
-        gen.emit("RERAISE", 1)
+        self.emit_call_intrinsic_1("INTRINSIC_STOPITERATION_ERROR")
+        self.emit("RERAISE", 1)
 
     def generate_function(
         self,
@@ -3491,19 +3492,19 @@ class CodeGenerator312(CodeGenerator):
         )
         body = self.skip_docstring(node.body)
 
-        start = self.newBlock("start")
-        self.nextBlock(start)
+        start = gen.newBlock("start")
+        gen.nextBlock(start)
 
         scope = gen.scope
         add_stopiteration_handler = scope.coroutine or scope.generator
         if add_stopiteration_handler:
-            self.setups.append(Entry(STOP_ITERATION, start, None, None))
+            gen.setups.append(Entry(STOP_ITERATION, start, None, None))
 
         self.processBody(node, body, gen)
 
         if add_stopiteration_handler:
-            self.wrap_in_stopiteration_handler(gen)
-            self.setups.pop()
+            gen.wrap_in_stopiteration_handler()
+            gen.setups.pop()
         else:
             gen.finishFunction()
 
