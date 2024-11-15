@@ -1015,7 +1015,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendInstr(instr->output(), Instruction::kMove, Imm{0});
 
         auto check_err = bbb.allocateBlock();
+#if PY_VERSION_HEX < 0x030C0000
         auto set_err = bbb.allocateBlock();
+#endif
         auto done = bbb.allocateBlock();
 
         bbb.appendBranch(

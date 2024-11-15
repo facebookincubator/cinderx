@@ -113,6 +113,7 @@ static void awaitable_setawaiter(
   awaitable->awaiter = awaiter;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 static PyAsyncMethodsWithExtra awaitable_as_async = {
     .ame_async_methods =
         {
@@ -123,6 +124,7 @@ static PyAsyncMethodsWithExtra awaitable_as_async = {
         },
     .ame_setawaiter = (setawaiterfunc)awaitable_setawaiter,
 };
+#endif
 
 static PyObject* awaitable_send(
     _PyClassLoader_Awaitable* self,
@@ -199,6 +201,7 @@ static PyObject* awaitable_close(
   return ret;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 static PyMethodDef awaitable_methods[] = {
     {"send", (PyCFunction)awaitable_send, METH_O, NULL},
     {"throw", (PyCFunction)awaitable_throw, METH_VARARGS, NULL},
@@ -211,7 +214,6 @@ static PyMemberDef awaitable_memberlist[] = {
     {NULL} /* Sentinel */
 };
 
-#if PY_VERSION_HEX < 0x030C0000
 static PyTypeObject _PyClassLoader_AwaitableType = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0).tp_name = "awaitable_wrapper",
     sizeof(_PyClassLoader_Awaitable),
