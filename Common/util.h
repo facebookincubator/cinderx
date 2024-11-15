@@ -49,6 +49,13 @@ constexpr bool kPyDebug =
     false;
 #endif
 
+constexpr bool kPyRefDebug =
+#ifdef Py_REF_DEBUG
+    true;
+#else
+    false;
+#endif
+
 constexpr bool kImmortalInstances =
 #if defined(Py_IMMORTAL_INSTANCES) || PY_VERSION_HEX >= 0x030C0000
     true;

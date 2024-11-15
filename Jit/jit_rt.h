@@ -526,3 +526,6 @@ void JITRT_FormatAwaitableError(
     PyThreadState* tstate,
     PyTypeObject* type,
     bool is_aenter);
+
+void JITRT_IncRefTotal();
+void JITRT_DecRefTotal();

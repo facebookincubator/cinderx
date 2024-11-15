@@ -56,17 +56,6 @@ namespace {
 
 constexpr size_t kRefcountOffset = offsetof(PyObject, ob_refcnt);
 
-#if PY_VERSION_HEX < 0x030C0000
-// _Py_RefTotal is only defined when Py_REF_DEBUG is defined.
-void* kRefTotalAddr =
-#ifdef Py_REF_DEBUG
-    &_Py_RefTotal
-#else
-    nullptr
-#endif
-    ;
-#endif
-
 // These functions call their counterparts and convert its output from int (32
 // bits) to uint64_t (64 bits). This is solely because the code generator cannot
 // support an operand size other than 64 bits at this moment. A future diff will
@@ -181,26 +170,14 @@ ssize_t shadowFrameOffsetOf(const InlineBase* instr) {
 }
 #endif
 
-// Update _Py_RefTotal using an Inc or Dec operation.
+// Update the global ref count total after an Inc or Dec operation.
 void updateRefTotal(BasicBlockBuilder& bbb, Instruction::Opcode op) {
-#if PY_VERSION_HEX < 0x030C0000
-  if (kRefTotalAddr == nullptr) {
-    return;
+  if (kPyRefDebug) {
+    auto helper = reinterpret_cast<uint64_t>(
+        op == Instruction::Opcode::kInc ? JITRT_IncRefTotal
+                                        : JITRT_DecRefTotal);
+    bbb.appendInstr(Instruction::kCall, Imm{helper});
   }
-  // TODO(T140174965): This should be MemImm, but that breaks the Python test
-  // suite for debug+ASAN builds.  asmjit cannot relocate the address of
-  // _Py_RefTotal.
-  Instruction* addr = bbb.appendInstr(
-      OutVReg{},
-      Instruction::kMove,
-      Imm{reinterpret_cast<uint64_t>(kRefTotalAddr)});
-  auto r0 = bbb.appendInstr(
-      OutVReg{}, Instruction::kMove, Ind{addr, OperandBase::k64bit});
-  bbb.appendInstr(op, r0);
-  bbb.appendInstr(OutInd{addr, OperandBase::k64bit}, Instruction::kMove, r0);
-#else
-  UPGRADE_NOTE(REF_TOTAL_CHANGED, T194027565)
-#endif
 }
 
 } // namespace

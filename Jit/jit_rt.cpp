@@ -1946,3 +1946,23 @@ void JITRT_FormatAwaitableError(
         "that does not implement __await__: %.100s";
   _PyErr_Format(tstate, PyExc_TypeError, msg, type->tp_name);
 }
+
+void JITRT_IncRefTotal() {
+#ifdef Py_REF_DEBUG
+#if PY_VERSION_HEX < 0x030C0000
+  _Py_RefTotal++;
+#else
+  _Py_INCREF_IncRefTotal();
+#endif
+#endif
+}
+
+void JITRT_DecRefTotal() {
+#ifdef Py_REF_DEBUG
+#if PY_VERSION_HEX < 0x030C0000
+  _Py_RefTotal--;
+#else
+  _Py_DECREF_DecRefTotal();
+#endif
+#endif
+}
