@@ -710,14 +710,12 @@ void CleanCFG::Run(Function& irfunc) {
 }
 
 struct AbstractCall {
-  AbstractCall(PyFunctionObject* func, size_t nargs, DeoptBase* instr)
-      : func(func), nargs(nargs), instr(instr) {}
-
-  AbstractCall(Register* target, size_t nargs, DeoptBase* instr)
-      : target(target),
-        func(reinterpret_cast<PyFunctionObject*>(target->type().objectSpec())),
-        nargs(nargs),
-        instr(instr) {}
+  AbstractCall(
+      BorrowedRef<PyFunctionObject> func,
+      size_t nargs,
+      DeoptBase* instr,
+      Register* target = nullptr)
+      : func{func}, nargs{nargs}, instr{instr}, target{target} {}
 
   Register* arg(std::size_t i) const {
     if (instr->IsInvokeStaticFunction()) {
@@ -731,32 +729,42 @@ struct AbstractCall {
     JIT_ABORT("Unsupported call type {}", instr->opname());
   }
 
-  Register* target{nullptr};
-  BorrowedRef<PyFunctionObject> func{nullptr};
+  BorrowedRef<PyFunctionObject> func;
   size_t nargs{0};
   DeoptBase* instr{nullptr};
+  Register* target{nullptr};
 };
 
 static void dlogAndCollectFailureStats(
-    Function::InlineFailureStats& inline_failure_stats,
-    InlineFailureType failure_type,
-    const std::string& function) {
-  inline_failure_stats[failure_type].insert(function);
+    Function& caller,
+    AbstractCall* call_instr,
+    InlineFailureType failure_type) {
+  BorrowedRef<PyFunctionObject> func = call_instr->func;
+  std::string callee_name = funcFullname(func);
+  Function::InlineFailureStats& inline_failure_stats =
+      caller.inline_function_stats.failure_stats;
+  inline_failure_stats[failure_type].insert(callee_name);
   JIT_DLOG(
-      "Can't inline {} because {}",
-      function,
+      "Can't inline {} into {} because {}",
+      callee_name,
+      caller.fullname,
       getInlineFailureMessage(failure_type));
 }
 
 static void dlogAndCollectFailureStats(
-    Function::InlineFailureStats& inline_failure_stats,
+    Function& caller,
+    AbstractCall* call_instr,
     InlineFailureType failure_type,
-    const std::string& function,
     const char* tp_name) {
-  inline_failure_stats[failure_type].insert(function);
+  BorrowedRef<PyFunctionObject> func = call_instr->func;
+  std::string callee_name = funcFullname(func);
+  Function::InlineFailureStats& inline_failure_stats =
+      caller.inline_function_stats.failure_stats;
+  inline_failure_stats[failure_type].insert(callee_name);
   JIT_DLOG(
-      "Can't inline {} because {} but a {:.200s}",
-      function,
+      "Can't inline {} into {} because {} but a {:.200s}",
+      callee_name,
+      caller.fullname,
       getInlineFailureMessage(failure_type),
       tp_name);
 }
@@ -764,129 +772,98 @@ static void dlogAndCollectFailureStats(
 // Most of these checks are only temporary and do not in perpetuity prohibit
 // inlining. They are here to simplify bringup of the inliner and can be
 // treated as TODOs.
-static bool canInline(
-    AbstractCall* call_instr,
-    BorrowedRef<PyFunctionObject> func,
-    const std::string& fullname,
-    Function::InlineFailureStats& inline_failure_stats) {
-  if (func->func_kwdefaults != nullptr) {
+static bool canInline(Function& caller, AbstractCall* call_instr) {
+  BorrowedRef<PyFunctionObject> func = call_instr->func;
+
+  BorrowedRef<> globals = func->func_globals;
+  if (!PyDict_Check(globals)) {
     dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasKwdefaults, fullname);
+        caller,
+        call_instr,
+        InlineFailureType::kGlobalsNotDict,
+        Py_TYPE(globals)->tp_name);
     return false;
   }
-  PyCodeObject* code = reinterpret_cast<PyCodeObject*>(func->func_code);
-  if (code->co_kwonlyargcount > 0) {
+
+  BorrowedRef<> builtins = func->func_builtins;
+  if (!PyDict_CheckExact(builtins)) {
     dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasKwOnlyArgs, fullname);
+        caller,
+        call_instr,
+        InlineFailureType::kBuiltinsNotDict,
+        Py_TYPE(builtins)->tp_name);
     return false;
+  }
+
+  auto fail = [&](InlineFailureType failure_type) {
+    dlogAndCollectFailureStats(caller, call_instr, failure_type);
+    return false;
+  };
+
+  if (func->func_kwdefaults != nullptr) {
+    return fail(InlineFailureType::kHasKwdefaults);
+  }
+
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  JIT_CHECK(PyCode_Check(code), "Expected PyCodeObject");
+
+  if (code->co_kwonlyargcount > 0) {
+    return fail(InlineFailureType::kHasKwOnlyArgs);
   }
   if (code->co_flags & CO_VARARGS) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasVarargs, fullname);
-
-    return false;
+    return fail(InlineFailureType::kHasVarargs);
   }
   if (code->co_flags & CO_VARKEYWORDS) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasVarkwargs, fullname);
-
-    return false;
+    return fail(InlineFailureType::kHasVarkwargs);
   }
   JIT_DCHECK(code->co_argcount >= 0, "argcount must be positive");
   if (call_instr->nargs != static_cast<size_t>(code->co_argcount)) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats,
-        InlineFailureType::kCalledWithMismatchedArgs,
-        fullname);
-
-    return false;
+    return fail(InlineFailureType::kCalledWithMismatchedArgs);
   }
   if (code->co_flags & kCoFlagsAnyGenerator) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kIsGenerator, fullname);
-
-    return false;
+    return fail(InlineFailureType::kIsGenerator);
   }
   Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   if (ncellvars > 0) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasCellvars, fullname);
-
-    return false;
+    return fail(InlineFailureType::kHasCellvars);
   }
   Py_ssize_t nfreevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code));
   if (nfreevars > 0) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasFreevars, fullname);
-
-    return false;
+    return fail(InlineFailureType::kHasFreevars);
   }
   if (usesRuntimeFunc(code)) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kNeedsRuntimeAccess, fullname);
-    return false;
+    return fail(InlineFailureType::kNeedsRuntimeAccess);
   }
+
   return true;
 }
 
 // As canInline() for checks which require a preloader.
 static bool canInlineWithPreloader(
+    Function& caller,
     AbstractCall* call_instr,
-    const std::string& fullname,
-    const Preloader& preloader,
-    Function::InlineFailureStats& inline_failure_stats) {
-  auto has_primitive_args = [&]() {
-    for (int i = 0; i < preloader.numArgs(); i++) {
-      if (preloader.checkArgType(i) <= TPrimitive) {
-        return true;
-      }
-    }
-    return false;
-  };
+    const Preloader& preloader) {
   if (call_instr->instr->IsVectorCall() &&
       (preloader.code()->co_flags & CI_CO_STATICALLY_COMPILED) &&
-      (preloader.returnType() <= TPrimitive || has_primitive_args())) {
+      (preloader.returnType() <= TPrimitive || preloader.hasPrimitiveArgs())) {
     // TODO(T122371281) remove this constraint
     dlogAndCollectFailureStats(
-        inline_failure_stats,
-        InlineFailureType::kIsVectorCallWithPrimitives,
-        fullname);
+        caller, call_instr, InlineFailureType::kIsVectorCallWithPrimitives);
     return false;
   }
+
   return true;
 }
 
 void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
-  BorrowedRef<PyFunctionObject> func = call_instr->func;
-  PyCodeObject* code = reinterpret_cast<PyCodeObject*>(func->func_code);
-  JIT_CHECK(PyCode_Check(code), "Expected PyCodeObject");
-  PyObject* globals = func->func_globals;
-  std::string fullname = funcFullname(func);
-  Function::InlineFailureStats& inline_failure_stats =
-      caller.inline_function_stats.failure_stats;
-  if (!PyDict_Check(globals)) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats,
-        InlineFailureType::kGlobalsNotDict,
-        fullname,
-        Py_TYPE(globals)->tp_name);
-    return;
-  }
-  if (!PyDict_CheckExact(func->func_builtins)) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats,
-        InlineFailureType::kBuiltinsNotDict,
-        fullname,
-        Py_TYPE(func->func_builtins)->tp_name);
-    return;
-  }
-  if (!canInline(call_instr, func, fullname, inline_failure_stats)) {
-    JIT_DLOG("Cannot inline {} into {}", fullname, caller.fullname);
+  if (!canInline(caller, call_instr)) {
     return;
   }
 
   auto caller_frame_state =
       std::make_unique<FrameState>(*call_instr->instr->frameState());
+
+  BorrowedRef<PyFunctionObject> callee = call_instr->func;
 
   // We are only able to inline functions that were already preloaded, since we
   // can't safely preload anything mid-compile (preloading can execute arbitrary
@@ -895,22 +872,19 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   // globals, or statically invoked. See `preloadFuncAndDeps` for what
   // dependencies we will preload. In batch-compile mode we can inline anything
   // that is part of the batch.
-  Preloader* preloader = preloaderManager().find(func);
+  Preloader* preloader = preloaderManager().find(callee);
   if (!preloader) {
     dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kNeedsPreload, fullname);
+        caller, call_instr, InlineFailureType::kNeedsPreload);
     return;
   }
 
-  if (!canInlineWithPreloader(
-          call_instr, fullname, *preloader, inline_failure_stats)) {
-    JIT_DLOG(
-        "canInlineWithPreloader vetoes inline of {} into {}",
-        fullname,
-        caller.fullname);
+  if (!canInlineWithPreloader(caller, call_instr, *preloader)) {
     return;
   }
+
   HIRBuilder hir_builder(*preloader);
+  std::string callee_name = funcFullname(callee);
 
   InlineResult result;
   try {
@@ -918,23 +892,23 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   } catch (const std::exception& exn) {
     JIT_DLOG(
         "Tried to inline {} into {}, but failed with {}",
-        fullname,
+        callee_name,
         caller.fullname,
         exn.what());
     return;
   }
 
-  JIT_DLOG(
-      "Inlining {} @ {}", fullname, reinterpret_cast<void*>(func->func_code));
+  JIT_DLOG("Inlining function {} into {}", callee_name, caller.fullname);
 
+  BorrowedRef<PyCodeObject> callee_code{callee->func_code};
   BasicBlock* head = call_instr->instr->block();
   BasicBlock* tail = head->splitAfter(*call_instr->instr);
   auto begin_inlined_function = BeginInlinedFunction::create(
-      code,
-      func->func_builtins,
-      globals,
+      callee_code,
+      callee->func_builtins,
+      callee->func_globals,
       std::move(caller_frame_state),
-      fullname);
+      callee_name);
   auto callee_branch = Branch::create(result.entry);
   if (call_instr->target != nullptr) {
     // Not a static call. Check that __code__ has not been swapped out since
@@ -951,8 +925,7 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
         offsetof(PyFunctionObject, func_code),
         TObject);
     Register* guarded_code = caller.env.AllocateRegister();
-    auto guard_code = GuardIs::create(
-        guarded_code, reinterpret_cast<PyObject*>(code), code_obj);
+    auto guard_code = GuardIs::create(guarded_code, callee_code, code_obj);
     call_instr->instr->ExpandInto(
         {load_code, guard_code, begin_inlined_function, callee_branch});
   } else {
@@ -1007,23 +980,40 @@ void InlineFunctionCalls::Run(Function& irfunc) {
       // TODO(emacs): Support InvokeMethod
       if (instr.IsVectorCall()) {
         auto call = static_cast<VectorCall*>(&instr);
-        if (call->flags() & CallFlags::KwArgs) {
+        Register* target = call->func();
+        const std::string& caller_name = irfunc.fullname;
+        if (!target->isA(TFunc)) {
+          JIT_DLOG(
+              "Can't inline non-function {}:{} into {}",
+              *target,
+              target->type(),
+              caller_name);
           continue;
         }
-        Register* target = call->func();
         if (!target->type().hasValueSpec(TFunc)) {
           JIT_DLOG(
-              "Cannot inline non-function type {} ({}) into {}",
-              target->type(),
+              "Can't inline unknown function {}:{} into {}",
               *target,
-              irfunc.fullname);
+              target->type(),
+              caller_name);
           continue;
         }
-        to_inline.emplace_back(AbstractCall(target, call->numArgs(), call));
+        if (call->flags() & CallFlags::KwArgs) {
+          JIT_DLOG(
+              "Can't inline {}:{} into {} because it has kwargs",
+              *target,
+              target->type(),
+              caller_name);
+          continue;
+        }
+
+        BorrowedRef<PyFunctionObject> callee{target->type().objectSpec()};
+        to_inline.emplace_back(
+            AbstractCall{callee, call->numArgs(), call, target});
       } else if (instr.IsInvokeStaticFunction()) {
         auto call = static_cast<InvokeStaticFunction*>(&instr);
         to_inline.emplace_back(
-            AbstractCall(call->func(), call->NumArgs() - 1, call));
+            AbstractCall{call->func(), call->NumArgs() - 1, call});
       }
     }
   }

@@ -175,6 +175,10 @@ class Preloader {
         bool(code_->co_flags & CO_VARKEYWORDS);
   }
 
+  bool hasPrimitiveArgs() const {
+    return has_primitive_args_;
+  }
+
   std::unique_ptr<InvokeTarget> resolve_target_descr(
       BorrowedRef<> descr,
       int opcode);
