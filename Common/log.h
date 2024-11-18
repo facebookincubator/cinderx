@@ -27,6 +27,7 @@ auto format_to(
 }
 
 extern int g_debug;
+extern int g_debug_inliner;
 extern int g_debug_refcount;
 extern int g_debug_verbose;
 extern int g_dump_hir;

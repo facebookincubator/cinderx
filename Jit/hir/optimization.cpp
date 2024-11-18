@@ -31,6 +31,8 @@
 
 namespace jit::hir {
 
+#define LOG_INLINER(...) JIT_LOGIF(g_debug_inliner, __VA_ARGS__)
+
 Instr* DynamicComparisonElimination::ReplaceCompare(
     Compare* compare,
     IsTruthy* truthy) {
@@ -744,7 +746,7 @@ static void dlogAndCollectFailureStats(
   Function::InlineFailureStats& inline_failure_stats =
       caller.inline_function_stats.failure_stats;
   inline_failure_stats[failure_type].insert(callee_name);
-  JIT_DLOG(
+  LOG_INLINER(
       "Can't inline {} into {} because {}",
       callee_name,
       caller.fullname,
@@ -761,7 +763,7 @@ static void dlogAndCollectFailureStats(
   Function::InlineFailureStats& inline_failure_stats =
       caller.inline_function_stats.failure_stats;
   inline_failure_stats[failure_type].insert(callee_name);
-  JIT_DLOG(
+  LOG_INLINER(
       "Can't inline {} into {} because {} but a {:.200s}",
       callee_name,
       caller.fullname,
@@ -890,7 +892,7 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   try {
     result = hir_builder.inlineHIR(&caller, caller_frame_state.get());
   } catch (const std::exception& exn) {
-    JIT_DLOG(
+    LOG_INLINER(
         "Tried to inline {} into {}, but failed with {}",
         callee_name,
         caller.fullname,
@@ -898,7 +900,7 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
     return;
   }
 
-  JIT_DLOG("Inlining function {} into {}", callee_name, caller.fullname);
+  LOG_INLINER("Inlining function {} into {}", callee_name, caller.fullname);
 
   BorrowedRef<PyCodeObject> callee_code{callee->func_code};
   BasicBlock* head = call_instr->instr->block();
@@ -969,7 +971,7 @@ void InlineFunctionCalls::Run(Function& irfunc) {
   }
   if (irfunc.code->co_flags & kCoFlagsAnyGenerator) {
     // TODO(T109706798): Support inlining into generators
-    JIT_DLOG(
+    LOG_INLINER(
         "Refusing to inline functions into {}: function is a generator",
         irfunc.fullname);
     return;
@@ -983,7 +985,7 @@ void InlineFunctionCalls::Run(Function& irfunc) {
         Register* target = call->func();
         const std::string& caller_name = irfunc.fullname;
         if (!target->isA(TFunc)) {
-          JIT_DLOG(
+          LOG_INLINER(
               "Can't inline non-function {}:{} into {}",
               *target,
               target->type(),
@@ -991,7 +993,7 @@ void InlineFunctionCalls::Run(Function& irfunc) {
           continue;
         }
         if (!target->type().hasValueSpec(TFunc)) {
-          JIT_DLOG(
+          LOG_INLINER(
               "Can't inline unknown function {}:{} into {}",
               *target,
               target->type(),
@@ -999,7 +1001,7 @@ void InlineFunctionCalls::Run(Function& irfunc) {
           continue;
         }
         if (call->flags() & CallFlags::KwArgs) {
-          JIT_DLOG(
+          LOG_INLINER(
               "Can't inline {}:{} into {} because it has kwargs",
               *target,
               target->type(),

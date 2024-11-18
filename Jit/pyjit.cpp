@@ -303,6 +303,12 @@ void initFlagProcessor() {
             "JIT refcount insertion debug mode")
         .withDebugMessageOverride("Enabling");
 
+    xarg_flag_processor.addOption(
+        "jit-debug-inliner",
+        "PYTHONJITDEBUGINLINER",
+        g_debug_inliner,
+        "Enable debug logging for the JIT's HIR inliner");
+
     xarg_flag_processor
         .addOption(
             "jit-dump-hir",

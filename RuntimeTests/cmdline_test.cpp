@@ -124,6 +124,14 @@ TEST_F(CmdLineTest, BasicFlags) {
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
+          L"jit-debug-inliner",
+          "PYTHONJITDEBUGINLINER",
+          []() { g_debug_inliner = 0; },
+          []() { ASSERT_EQ(g_debug_inliner, 1); }),
+      0);
+
+  ASSERT_EQ(
+      try_flag_and_envvar_effect(
           L"jit-dump-hir",
           "PYTHONJITDUMPHIR",
           []() { g_dump_hir = 0; },
