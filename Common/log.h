@@ -7,6 +7,7 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/threaded_compile.h"
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <fmt/printf.h>

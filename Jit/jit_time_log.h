@@ -15,7 +15,8 @@
 
 namespace jit {
 
-using time_point = std::chrono::steady_clock::time_point;
+using Clock = std::chrono::steady_clock;
+using time_point = Clock::time_point;
 
 #define COMPILE_TIMER(com_phase_timer, phase_name, block) \
   if (nullptr != com_phase_timer) {                       \
@@ -40,6 +41,18 @@ void parseAndSetFuncList(const std::string& flag_value);
 // check to see if a function_name_ matches any of the specified function
 // patterns defined via parseAndSetFuncList
 bool captureCompilationTimeFor(const std::string& function_name);
+
+// Simple class with start and finish time points.
+struct Timer {
+  explicit Timer() : start{Clock::now()} {}
+
+  std::chrono::nanoseconds finish() const {
+    auto end = Clock::now();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  }
+
+  time_point start;
+};
 
 class SubPhaseTimer {
  public:

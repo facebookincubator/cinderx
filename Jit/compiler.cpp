@@ -19,18 +19,6 @@
 
 namespace jit {
 
-struct PassTimer {
-  explicit PassTimer() : start(std::chrono::steady_clock::now()) {}
-
-  std::size_t finish() {
-    auto end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-        .count();
-  }
-
-  std::chrono::steady_clock::time_point start;
-};
-
 template <typename T>
 static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
   COMPILE_TIMER(func.compilation_phase_timer,
@@ -42,9 +30,9 @@ static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
                     pass.name(),
                     func);
 
-                PassTimer timer;
+                Timer timer;
                 pass.Run(func);
-                std::size_t time_ns = timer.finish();
+                std::size_t time_ns = timer.finish().count();
                 callback(func, pass.name(), time_ns);
 
                 JIT_LOGIF(
@@ -190,9 +178,9 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     compilation_phase_timer->start("Lowering into HIR");
   }
 
-  PassTimer hir_build_timer;
+  Timer timer;
   std::unique_ptr<jit::hir::Function> irfunc(jit::hir::buildHIR(preloader));
-  std::size_t hir_build_time_ns = hir_build_timer.finish();
+  std::chrono::nanoseconds hir_build_time = timer.finish();
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();
   }
@@ -221,7 +209,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
                                 std::size_t time_ns) {
       hir_printer.Print(passes, func, pass_name, time_ns);
     };
-    dump(*irfunc, "Initial HIR", hir_build_time_ns);
+    dump(*irfunc, "Initial HIR", hir_build_time.count());
     COMPILE_TIMER(
         irfunc->compilation_phase_timer,
         "HIR transformations",
@@ -255,7 +243,14 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     return nullptr;
   }
 
-  JIT_DLOG("Finished compiling {}", fullname);
+  auto compile_time =
+      std::chrono::duration_cast<std::chrono::microseconds>(timer.finish());
+
+  JIT_DLOG(
+      "Finished compiling {} in {}, code size: {} bytes",
+      fullname,
+      compile_time,
+      ngen->getCodeBuffer().size_bytes());
   if (nullptr != irfunc->compilation_phase_timer) {
     irfunc->compilation_phase_timer->end();
     irfunc->setCompilationPhaseTimer(nullptr);
