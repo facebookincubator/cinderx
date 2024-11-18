@@ -555,6 +555,19 @@ void initFlagProcessor() {
     HIR_OPTIMIZATION_OPTION(
         "simplify", simplify, "jit-simplify", "PYTHONJITSIMPLIFY");
 
+    xarg_flag_processor.addOption(
+        "jit-simplify-iteration-limit",
+        "PYTHONJITSIMPLIFYITERATIONLIMIT",
+        getMutableConfig().simplifier.iteration_limit,
+        "Set the maximum number of times the simplifier can run over a "
+        "function");
+    xarg_flag_processor.addOption(
+        "jit-simplify-new-block-limit",
+        "PYTHONJITSIMPLIFYNEWBLOCKLIMIT",
+        getMutableConfig().simplifier.new_block_limit,
+        "Set the maximum number of blocks that can be added by the simplifier "
+        "to a function");
+
     xarg_flag_processor
         .addOption(
             "jit-batch-compile-workers",

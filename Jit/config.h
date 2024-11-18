@@ -32,6 +32,14 @@ struct HIROptimizations {
   bool simplify{true};
 };
 
+struct SimplifierConfig {
+  // The maximum number of times the simplifier can process a function's CFG.
+  size_t iteration_limit{100};
+  // The maximum number of new blocks that can be added by the simplifier to a
+  // function.
+  size_t new_block_limit{1000};
+};
+
 struct GdbOptions {
   // Whether GDB support is enabled.
   bool supported{false};
@@ -68,6 +76,7 @@ struct Config {
   // TODO(T195042385): Replace this with actual typing.
   bool refine_static_python{true};
   HIROptimizations hir_opts;
+  SimplifierConfig simplifier;
   size_t batch_compile_workers{0};
   // When a function is being compiled, this is the maximum number of dependent
   // functions called by it that can be compiled along with it.

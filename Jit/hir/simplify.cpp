@@ -81,6 +81,9 @@ struct Env {
   // The object that corresponds to "type".
   Type type_object{TTop};
 
+  // Number of new basic blocks added by the simplifier.
+  size_t new_blocks{0};
+
   // Create and insert the specified instruction. If the instruction has an
   // output, a new Register* will be created and returned.
   template <typename T, typename... Args>
@@ -151,6 +154,9 @@ struct Env {
   // - do_bb2 should do the same for the second successor.
   template <typename BranchFn, typename Bb1Fn, typename Bb2Fn>
   Register* emitCond(BranchFn do_branch, Bb1Fn do_bb1, Bb2Fn do_bb2) {
+    // bb1, bb2, and the new tail block that's split from the original.
+    new_blocks += 3;
+
     BasicBlock* bb1 = func.cfg.AllocateBlock();
     BasicBlock* bb2 = func.cfg.AllocateBlock();
     do_branch(bb1, bb2);
@@ -1476,8 +1482,17 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
 void Simplify::Run(Function& irfunc) {
   Env env{irfunc};
-  bool changed;
-  do {
+
+  const SimplifierConfig& config = getConfig().simplifier;
+  size_t new_block_limit = config.new_block_limit;
+  size_t iteration_limit = config.iteration_limit;
+
+  // Iterate the simplifier until the CFG stops changing, or we hit limits on
+  // total number of iterations or the number of new blocks added.
+  bool changed = true;
+  for (size_t i = 0;
+       changed && i < iteration_limit && env.new_blocks < new_block_limit;
+       ++i) {
     changed = false;
     for (auto cfg_it = irfunc.cfg.blocks.begin();
          cfg_it != irfunc.cfg.blocks.end();
@@ -1551,6 +1566,12 @@ void Simplify::Run(Function& irfunc) {
           break;
         }
       }
+
+      // Check for going past the new block limit only upon leaving a block.  We
+      // might go past the limit, but not by too much.
+      if (env.new_blocks > new_block_limit) {
+        break;
+      }
     }
 
     if (changed) {
@@ -1559,7 +1580,7 @@ void Simplify::Run(Function& irfunc) {
       reflowTypes(irfunc);
       CleanCFG{}.Run(irfunc);
     }
-  } while (changed);
+  }
 }
 
 } // namespace jit::hir
