@@ -61,6 +61,21 @@ using namespace jit;
 
 namespace {
 
+// RAII device for disabling GIL checking.
+class DisableGilCheck {
+ public:
+  DisableGilCheck() : old_check_enabled_{_PyRuntime.gilstate.check_enabled} {
+    _PyRuntime.gilstate.check_enabled = 0;
+  }
+
+  ~DisableGilCheck() {
+    _PyRuntime.gilstate.check_enabled = old_check_enabled_;
+  }
+
+ private:
+  int old_check_enabled_;
+};
+
 // Extra information needed to compile a PyCodeObject.
 struct CodeData {
   CodeData(PyObject* m, PyObject* b, PyObject* g) {
@@ -850,11 +865,15 @@ _PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
 
 void compile_worker_thread() {
   JIT_DLOG("Started compile worker in thread {}", std::this_thread::get_id());
+
+  size_t attempts = 0;
+  size_t retries = 0;
+
   while (BorrowedRef<> unit = getThreadedCompileContext().nextUnit()) {
-    g_compile_workers_attempted++;
+    attempts++;
     _PyJIT_Result res = tryCompilePreloaded(unit);
     if (res == PYJIT_RESULT_RETRY) {
-      g_compile_workers_retries++;
+      retries++;
       getThreadedCompileContext().retryUnit(unit);
     }
     JIT_CHECK(
@@ -862,16 +881,34 @@ void compile_worker_thread() {
         "Cannot find a JIT preloader for {}",
         unitFullname(unit));
   }
-  JIT_DLOG("Finished compile worker in thread {}", std::this_thread::get_id());
+
+  g_compile_workers_attempted.fetch_add(attempts);
+  g_compile_workers_retries.fetch_add(retries);
+
+  JIT_DLOG(
+      "Finished compile worker in thread {}. Compile attempts: {}, scheduled "
+      "retries: {}",
+      std::this_thread::get_id(),
+      attempts,
+      retries);
 }
 
-void compile_units_preloaded(const std::vector<BorrowedRef<>> units) {
+void compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
   for (auto unit : units) {
     tryCompilePreloaded(unit);
   }
 }
 
 void multithread_compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
+  size_t batch_compile_workers = getConfig().batch_compile_workers;
+  JIT_CHECK(batch_compile_workers, "Zero workers for compile");
+
+  JIT_DLOG(
+      "Running multithread_compile_units_preloaded for {} units with {} "
+      "workers",
+      units.size(),
+      batch_compile_workers);
+
   // Disable checks for using GIL protected data across threads.
   // Conceptually what we're doing here is saying we're taking our own
   // responsibility for managing locking of CPython runtime data structures.
@@ -881,13 +918,10 @@ void multithread_compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
   // unknown other threads. Within our group of cooperating threads we can
   // safely do any read-only operations in parallel, but we grab our own lock if
   // we do a write (e.g. an incref).
-  int old_gil_check_enabled = _PyRuntime.gilstate.check_enabled;
-  _PyRuntime.gilstate.check_enabled = 0;
+  DisableGilCheck gil_check_guard;
 
   getThreadedCompileContext().startCompile(std::move(units));
   std::vector<std::thread> worker_threads;
-  size_t batch_compile_workers = getConfig().batch_compile_workers;
-  JIT_CHECK(batch_compile_workers, "Zero workers for compile");
   {
     // Ensure that no worker threads start compiling until they are all created,
     // in case something else in the process has hooked thread creation to run
@@ -901,10 +935,11 @@ void multithread_compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
     worker_thread.join();
   }
 
-  std::vector<BorrowedRef<>> retry_list{
-      getThreadedCompileContext().endCompile()};
-  compile_units_preloaded(retry_list);
-  _PyRuntime.gilstate.check_enabled = old_gil_check_enabled;
+  auto retry_list = getThreadedCompileContext().endCompile();
+  JIT_DLOG(
+      "multithread_compile_units_preloaded retrying {} units serially",
+      retry_list.size());
+  compile_units_preloaded(std::move(retry_list));
 }
 
 bool compile_all() {
@@ -918,11 +953,17 @@ bool compile_all() {
     hir::preloaderManager().clear();
     handle_unit_deleted_during_preload = nullptr;
   };
-  // first we have to preload everything we are going to compile
+
+  JIT_DLOG(
+      "Starting compile_all with {} registered units", jit_reg_units.size());
+
+  // First we have to preload everything we are going to compile.
   while (jit_reg_units.size() > 0) {
-    std::vector<BorrowedRef<>> preload_units = {
-        jit_reg_units.begin(), jit_reg_units.end()};
+    auto preload_units = std::move(jit_reg_units);
     jit_reg_units.clear();
+    JIT_DLOG(
+        "compile_all preloading a batch of {} units", preload_units.size());
+
     for (auto unit : preload_units) {
       if (deleted_units.contains(unit)) {
         continue;
@@ -940,20 +981,20 @@ bool compile_all() {
   }
   handle_unit_deleted_during_preload = nullptr;
 
-  // Filter out any units that were deleted as a side effect of preloading
-  std::vector<BorrowedRef<>> live_compilation_units;
-  live_compilation_units.reserve(compilation_units.size());
-  for (BorrowedRef<> unit : compilation_units) {
-    if (deleted_units.contains(unit)) {
-      continue;
-    }
-    live_compilation_units.emplace_back(unit);
-  }
+  // Filter out any units that were deleted as a side effect of preloading.
+  std::erase_if(compilation_units, [&](BorrowedRef<> unit) {
+    return deleted_units.contains(unit);
+  });
+
+  JIT_DLOG(
+      "compile_all finished preloading {} units, {} were deleted",
+      compilation_units.size(),
+      deleted_units.size());
 
   if (getConfig().batch_compile_workers > 0) {
-    multithread_compile_units_preloaded(std::move(live_compilation_units));
+    multithread_compile_units_preloaded(std::move(compilation_units));
   } else {
-    compile_units_preloaded(std::move(live_compilation_units));
+    compile_units_preloaded(std::move(compilation_units));
   }
 
   hir::preloaderManager().clear();
