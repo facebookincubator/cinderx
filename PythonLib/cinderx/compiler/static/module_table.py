@@ -327,7 +327,6 @@ class ModuleTable:
         self, name: str, requester: str | DepTrackingOptOut, force_decl: bool = False
     ) -> Value | None:
         if not isinstance(requester, DepTrackingOptOut):
-
             # Using imported_from here is just an optimization that lets us skip
             # one level of transitive-dependency-following later. If modA has
             # "from modB import B", we already record `modA.B -> modB.B`, so
@@ -524,8 +523,7 @@ class ModuleTable:
             and isinstance(node.ctx, ast.Load)
             and (
                 # Ensure the name is not shadowed in the local scope
-                isinstance(scope, ModuleScope)
-                or node.id not in scope.defs
+                isinstance(scope, ModuleScope) or node.id not in scope.defs
             )
         ):
             return final_val

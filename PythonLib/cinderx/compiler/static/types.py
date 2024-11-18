@@ -3185,7 +3185,6 @@ class PositionArg(ArgEmitter):
 
 class StarredArg(ArgEmitter):
     def __init__(self, argument: expr, params: list[Parameter]) -> None:
-
         self.argument = argument
         self.params = params
 
@@ -3399,7 +3398,6 @@ class FunctionContainer(Object[Class]):
         first_lineno: int,
         body: list[ast.stmt],
     ) -> CodeGenerator:
-
         gen = code_gen.make_func_codegen(node, node.args, node.name, first_lineno)
 
         code_gen.processBody(node, body, gen)
@@ -4130,7 +4128,6 @@ class InitSubclassFunction(Function):
         first_lineno: int,
         body: list[ast.stmt],
     ) -> CodeGenerator:
-
         gen = code_gen.make_func_codegen(node, node.args, node.name, first_lineno)
 
         gen.emit("LOAD_FAST", node.args.args[0].arg)
@@ -4880,7 +4877,6 @@ class NativeDecoratedFunction(Function):
         first_lineno: int,
         body: list[ast.stmt],
     ) -> CodeGenerator:
-
         gen = code_gen.make_func_codegen(node, node.args, node.name, first_lineno)
         callable_name = node.name
 
@@ -6599,7 +6595,6 @@ class BuiltinMethod(Callable[Class]):
 
 def get_default_value(default: expr) -> object:
     if not isinstance(default, (Constant, Str, Num, Bytes, NameConstant, ast.Ellipsis)):
-
         default = AstOptimizer().visit(default)
 
     if isinstance(default, Str):
@@ -9844,7 +9839,6 @@ class ProdAssertFunction(Object[Class]):
     def bind_call(
         self, node: ast.Call, visitor: TypeBinder, type_ctx: Class | None
     ) -> NarrowingEffect:
-
         if node.keywords:
             visitor.syntax_error(
                 "prod_assert() does not accept keyword arguments", node
@@ -10047,7 +10041,6 @@ class ContextDecoratedMethod(DecoratedMethod):
     def make_function_body(
         body: list[ast.stmt], fn: Function, decorator: expr
     ) -> list[ast.stmt]:
-
         node = fn.node
         klass = fn.container_type
         dec_name = ContextDecoratedMethod.get_temp_name(fn, decorator)

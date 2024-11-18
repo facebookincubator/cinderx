@@ -226,7 +226,6 @@ class ClassConflictChecker(SymbolVisitor[object, TransformerScope]):
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: AnnAssign) -> None:
-
         self.scopes.scopes[-1].scope_data.visit_AnnAssign(node)
         value = node.value
         if value is not None:

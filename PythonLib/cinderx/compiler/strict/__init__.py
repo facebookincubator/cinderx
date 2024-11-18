@@ -104,7 +104,6 @@ class TryBodyHook(ast.stmt):
 
 
 def get_is_assigned_tracking_name(name: str) -> str:
-
     return f"<assigned:{name}>"
 
 
@@ -262,7 +261,6 @@ class StrictCodeGenerator(CinderCodeGenerator):
                     node.args.append(call_function(node.args[0], "locals"))
 
     def visitCall(self, node: Call) -> None:
-
         self.strictPreVisitCall(node)
 
         super().visitCall(node)

@@ -51,7 +51,7 @@ def _disassemble_bytes(
     linestarts: Optional[Dict[int, int]] = None,
     *,
     file: Optional[TextIO] = None,
-    line_offset: int = 0
+    line_offset: int = 0,
 ) -> None:
     # Omit the line number column entirely if we have no line number info
     show_lineno = linestarts is not None
@@ -103,7 +103,7 @@ def disassemble(
     lasti: int = -1,
     *,
     file: Optional[TextIO] = None,
-    skip_line_nos: bool = False
+    skip_line_nos: bool = False,
 ) -> None:
     cell_names = co.co_cellvars + co.co_freevars
     if skip_line_nos:

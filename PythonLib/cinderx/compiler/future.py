@@ -1,9 +1,7 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
 
-"""Parser for future statements
-
-"""
+"""Parser for future statements"""
 
 import ast
 
@@ -21,7 +19,6 @@ def is_future(stmt):
 
 
 class FutureParser(ASTVisitor):
-
     features = (
         "nested_scopes",
         "generators",

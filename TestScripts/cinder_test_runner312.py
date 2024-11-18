@@ -635,7 +635,6 @@ def fix_env_always_changed_issue():
 # This allows much finer grained control over what tests are run e.g.
 # test.test_asyncgen.AsyncGenTests.test_await_for_iteration.
 def patch_libregrtest_to_use_loadTestsFromName():
-
     # Mostly a copy of test.libregrtest.single.run_unittest
     def patched_run_unittest(test_name):
         loader = libregrtest_single.unittest.TestLoader()

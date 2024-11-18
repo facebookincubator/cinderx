@@ -2048,7 +2048,6 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
 
         continuing_branches = []
         for case in node.cases:
-
             self.visit(case.pattern)
 
             post_if_guard_branch = None

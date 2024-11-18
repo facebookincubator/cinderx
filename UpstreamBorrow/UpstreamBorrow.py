@@ -247,7 +247,6 @@ def main(
     compile_commands: str,
     version: str,
 ) -> None:
-
     def abspath(relpath: str) -> str:
         return os.path.abspath(os.path.join(os.getcwd(), relpath))
 

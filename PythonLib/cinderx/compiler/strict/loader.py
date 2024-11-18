@@ -329,7 +329,8 @@ class StrictSourceFileLoader(SourceFileLoader):
         allow_list_exact: Iterable[str] | None = None,
         enable_patching: bool = False,
         log_source_load: Callable[[str, str | None, bool], None] | None = None,
-        init_cached_properties: None | (
+        init_cached_properties: None
+        | (
             Callable[
                 [Mapping[str, str | tuple[str, bool]]],
                 Callable[[type[object]], type[object]],
@@ -630,7 +631,6 @@ class StrictSourceFileLoader(SourceFileLoader):
 
 
 class StrictSourceFileLoaderWithPatching(StrictSourceFileLoader):
-
     def __init__(
         self,
         fullname: str,
@@ -641,7 +641,8 @@ class StrictSourceFileLoaderWithPatching(StrictSourceFileLoader):
         allow_list_exact: Iterable[str] | None = None,
         enable_patching: bool = True,
         log_source_load: Callable[[str, str | None, bool], None] | None = None,
-        init_cached_properties: None | (
+        init_cached_properties: None
+        | (
             Callable[
                 [Mapping[str, str | tuple[str, bool]]],
                 Callable[[type[object]], type[object]],
@@ -684,10 +685,13 @@ def _get_supported_file_loaders(
     """
     extensions = ExtensionFileLoader, EXTENSION_SUFFIXES
     source = (
-        StrictSourceFileLoaderWithPatching
-        if enable_patching
-        else StrictSourceFileLoader
-    ), SOURCE_SUFFIXES
+        (
+            StrictSourceFileLoaderWithPatching
+            if enable_patching
+            else StrictSourceFileLoader
+        ),
+        SOURCE_SUFFIXES,
+    )
     bytecode = SourcelessFileLoader, BYTECODE_SUFFIXES
     return [extensions, source, bytecode]
 

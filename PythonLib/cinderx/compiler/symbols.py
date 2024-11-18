@@ -2,6 +2,7 @@
 # pyre-unsafe
 
 """Module symbol-table generator"""
+
 from __future__ import annotations
 
 import ast
@@ -1050,7 +1051,6 @@ class CinderGenExprScope(GenExprScope, CinderFunctionScope):
 
 
 class CinderLambdaScope(LambdaScope, CinderFunctionScope):
-
     pass
 
 

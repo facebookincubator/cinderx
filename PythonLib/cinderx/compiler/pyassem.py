@@ -2,6 +2,7 @@
 # pyre-unsafe
 
 """A flow graph representation for Python bytecode"""
+
 from __future__ import annotations
 
 import sys
@@ -474,7 +475,6 @@ class IndexedSet:
 
 
 class PyFlowGraph(FlowGraph):
-
     super_init = FlowGraph.__init__
     flow_graph_optimizer: type[FlowGraphOptimizer] = FlowGraphOptimizer
     opcode = opcodes.opcode
@@ -1327,6 +1327,8 @@ class PyFlowGraph312(PyFlowGraph):
         for block in self.ordered_blocks:
             for instr in block.insts:
                 if instr.opname in SETUP_OPCODES:
+                    # pyre-fixme[6]: For 1st argument expected `Block` but got
+                    #  `Optional[Block]`.
                     except_handlers.add(instr.target)
                     break
 
@@ -1510,6 +1512,8 @@ class PyFlowGraph312(PyFlowGraph):
                     # "DELETE_DEREF",
                     # "LOAD_FROM_DICT_OR_DEREF",
                 ):
+                    # pyre-fixme[6]: For 1st argument expected `Union[SupportsTrunc,
+                    #  str, SupportsIndex, SupportsInt, Buffer]` but got `object`.
                     oldoffset = int(instr.oparg)
                     assert oldoffset >= 0
                     assert oldoffset < noffsets
