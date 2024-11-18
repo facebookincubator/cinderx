@@ -1480,9 +1480,9 @@ void Simplify::Run(Function& irfunc) {
   do {
     changed = false;
     for (auto cfg_it = irfunc.cfg.blocks.begin();
-         cfg_it != irfunc.cfg.blocks.end();) {
+         cfg_it != irfunc.cfg.blocks.end();
+         ++cfg_it) {
       BasicBlock& block = *cfg_it;
-      ++cfg_it;
       env.block = &block;
 
       for (auto blk_it = block.begin(); blk_it != block.end();) {
