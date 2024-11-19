@@ -16,7 +16,7 @@ try:
 except ImportError:
     _inline_cache_entries = None
 from types import CodeType
-from typing import Callable, ClassVar, Generator, Optional, Sequence
+from typing import Callable, ClassVar, Generator, Optional, Sequence, TextIO
 
 from . import debug, opcode_cinder, opcodes
 from .consts import (
@@ -609,12 +609,12 @@ class PyFlowGraph(FlowGraph):
         """Get a Python code object"""
         raise NotImplementedError()
 
-    def dump(self, io=None):
+    def dump(self, io: TextIO | None = None, stack_effect: bool = False) -> None:
         if io:
             with redirect_stdout(io):
-                debug.dump_graph(self)
+                debug.dump_graph(self, stack_effect)
         else:
-            debug.dump_graph(self)
+            debug.dump_graph(self, stack_effect)
 
     def push_block(self, worklist: list[Block], block: Block, depth: int):
         assert (
