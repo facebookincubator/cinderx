@@ -415,6 +415,7 @@ Type outputType(
       return TObject;
     }
 
+    case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kDictSubscr:
     case Opcode::kFillTypeAttrCache:

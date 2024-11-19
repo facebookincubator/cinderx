@@ -18,6 +18,7 @@ namespace jit::hir {
   V(BuildString)                       \
   V(CallCFunc)                         \
   V(CallEx)                            \
+  V(CallIntrinsic)                     \
   V(CallMethod)                        \
   V(CallStatic)                        \
   V(CallStaticRetVoid)                 \

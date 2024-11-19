@@ -344,6 +344,10 @@ static std::string format_immediates(const Instr& instr) {
       const auto& call = static_cast<const CallCFunc&>(instr);
       return call.funcName();
     }
+    case Opcode::kCallIntrinsic: {
+      const auto& call = static_cast<const CallIntrinsic&>(instr);
+      return fmt::format("{}", call.index());
+    }
     case Opcode::kCallMethod: {
       const auto& call = static_cast<const CallMethod&>(instr);
       return fmt::format(

@@ -102,6 +102,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     // arbitrary user code).
     case Opcode::kBinaryOp:
     case Opcode::kCallEx:
+    case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
     case Opcode::kCallStaticRetVoid:
@@ -412,6 +413,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kBatchDecref:
     case Opcode::kBinaryOp:
     case Opcode::kCallEx:
+    case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
     case Opcode::kCallStaticRetVoid:

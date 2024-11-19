@@ -23,6 +23,10 @@
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
+#if PY_VERSION_HEX >= 0x030C0000
+#include "internal/pycore_intrinsics.h"
+#endif
+
 #include <folly/tracing/StaticTracepoint.h>
 
 #include <algorithm>
@@ -90,6 +94,8 @@ const std::unordered_set<int> kSupportedOpcodes = {
     CALL_FUNCTION,
     CALL_FUNCTION_EX,
     CALL_FUNCTION_KW,
+    CALL_INTRINSIC_1,
+    CALL_INTRINSIC_2,
     CALL_METHOD,
     CAST,
     CHECK_EG_MATCH,
@@ -781,6 +787,11 @@ void HIRBuilder::translate(
         case INVOKE_METHOD:
         case INVOKE_NATIVE: {
           emitAnyCall(irfunc.cfg, tc, bc_it, bc_instrs);
+          break;
+        }
+        case CALL_INTRINSIC_1:
+        case CALL_INTRINSIC_2: {
+          emitCallInstrinsic(tc, bc_instr);
           break;
         }
         case RESUME: {
@@ -1747,6 +1758,36 @@ void HIRBuilder::emitAnyCall(
 
     tc.block = post_await_block.block;
   }
+}
+
+void HIRBuilder::emitCallInstrinsic(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  auto oparg = bc_instr.oparg();
+  auto num_operands = 1;
+
+  Register* value = tc.frame.stack.pop();
+  Register* res = temps_.AllocateStack();
+  std::vector<Register*> args;
+#if PY_VERSION_HEX >= 0x030C0000
+  if (bc_instr.opcode() == CALL_INTRINSIC_2) {
+    JIT_CHECK(
+        oparg <= MAX_INTRINSIC_2,
+        "Invalid oparg for binary intrinsic function: {}",
+        oparg);
+    Register* value2 = tc.frame.stack.pop();
+    args.push_back(value2);
+    num_operands = 2;
+  } else {
+    JIT_CHECK(
+        oparg <= MAX_INTRINSIC_1,
+        "Invalid oparg for unary intrinsic function: {}",
+        oparg);
+  }
+#endif
+  args.push_back(value);
+  tc.emit<CallIntrinsic>(num_operands, res, oparg, args);
+  tc.frame.stack.push(res);
 }
 
 void HIRBuilder::emitResume(

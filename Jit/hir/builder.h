@@ -152,6 +152,9 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       CallFlags flags);
+  void emitCallInstrinsic(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitResume(
       CFG& cfg,
       TranslationContext& tc,

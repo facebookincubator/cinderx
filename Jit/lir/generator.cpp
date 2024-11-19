@@ -9,6 +9,7 @@
 #include "internal/pycore_shadow_frame.h"
 #else
 #include "internal/pycore_ceval.h"
+#include "internal/pycore_intrinsics.h"
 #endif
 
 #include "internal/pycore_import.h"
@@ -1854,6 +1855,24 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr.func(),
             instr.pargs(),
             instr.kwargs());
+        break;
+      }
+      case Opcode::kCallIntrinsic: {
+#if PY_VERSION_HEX >= 0x030C0000
+        auto& hir_instr = static_cast<const CallIntrinsic&>(i);
+        const uint64_t* func_array = hir_instr.NumOperands() == 1
+            ? reinterpret_cast<const uint64_t*>(_PyIntrinsics_UnaryFunctions)
+            : reinterpret_cast<const uint64_t*>(_PyIntrinsics_BinaryFunctions);
+        uint64_t func = func_array[hir_instr.index()];
+        Instruction* instr =
+            bbb.appendInstr(hir_instr.output(), Instruction::kCall, Imm{func});
+        instr->addOperands(VReg{env_->asm_tstate});
+        for (hir::Register* arg : hir_instr.GetOperands()) {
+          instr->addOperands(VReg{bbb.getDefInstr(arg)});
+        }
+#else
+        JIT_ABORT("CallIntrinsic is only supported in Python 3.12+");
+#endif
         break;
       }
       case Opcode::kCallMethod: {

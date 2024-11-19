@@ -1187,6 +1187,28 @@ class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
   static const std::vector<const char*> kFuncNames;
 };
 
+class INSTR_CLASS(
+    CallIntrinsic,
+    (TOptObject | TCUInt64),
+    HasOutput,
+    Operands<>) {
+ public:
+  CallIntrinsic(Register* dst, size_t index, const std::vector<Register*>& args)
+      : InstrT(dst), index_(index) {
+    size_t i = 0;
+    for (Register* arg : args) {
+      SetOperand(i++, arg);
+    }
+  }
+
+  size_t index() const {
+    return index_;
+  }
+
+ private:
+  const size_t index_;
+};
+
 // Phi instruction
 class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
  public:
