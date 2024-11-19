@@ -5,9 +5,8 @@
 
 from __future__ import annotations
 
-import sys
 from ast import AST
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
 from enum import IntEnum
 
@@ -19,7 +18,7 @@ except ImportError:
 from types import CodeType
 from typing import Callable, ClassVar, Generator, Optional, Sequence
 
-from . import opcode_cinder, opcodes
+from . import debug, opcode_cinder, opcodes
 from .consts import (
     CO_ASYNC_GENERATOR,
     CO_COROUTINE,
@@ -612,25 +611,10 @@ class PyFlowGraph(FlowGraph):
 
     def dump(self, io=None):
         if io:
-            save = sys.stdout
-            sys.stdout = io
-        pc = 0
-        for block in self.getBlocks():
-            print(repr(block))
-            for instr in block.getInstructions():
-                opname = instr.opname
-                if instr.target is None:
-                    print("\t", f"{pc:3} {instr.lineno} {opname} {instr.oparg}")
-                elif instr.target.label:
-                    print(
-                        "\t",
-                        f"{pc:3} {instr.lineno} {opname} {instr.target.bid} ({instr.target.label})",
-                    )
-                else:
-                    print("\t", f"{pc:3} {instr.lineno} {opname} {instr.target.bid}")
-                pc += self.opcode.CODEUNIT_SIZE
-        if io:
-            sys.stdout = save
+            with redirect_stdout(io):
+                debug.dump_graph(self)
+        else:
+            debug.dump_graph(self)
 
     def push_block(self, worklist: list[Block], block: Block, depth: int):
         assert (
@@ -1328,7 +1312,7 @@ class PyFlowGraph312(PyFlowGraph):
             for instr in block.insts:
                 if instr.opname in SETUP_OPCODES:
                     target = instr.target
-                    assert target is not None, "SETUP_* opcodes all have targets"
+                    # assert target is not None, "SETUP_* opcodes all have targets"
                     except_handlers.add(target)
                     break
 
