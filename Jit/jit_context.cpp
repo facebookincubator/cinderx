@@ -167,16 +167,27 @@ void Context::clearCache() {
 Context::CompilationResult Context::compilePreloader(
     const hir::Preloader& preloader) {
   BorrowedRef<PyCodeObject> code = preloader.code();
+  if (code == nullptr) {
+    JIT_DLOG("Can't compile {} as it has no code object", preloader.fullname());
+    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
+  }
+
   BorrowedRef<PyDictObject> builtins = preloader.builtins();
   BorrowedRef<PyDictObject> globals = preloader.globals();
 
+  // Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future is
+  // "annotations" which doesn't impact bytecode execution.)
   int required_flags = CO_OPTIMIZED | CO_NEWLOCALS;
-  int prohibited_flags = CI_CO_SUPPRESS_JIT;
-  // Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future
-  // is "annotations" which doesn't impact bytecode execution.)
-  if (code == nullptr ||
-      ((code->co_flags & required_flags) != required_flags) ||
-      (code->co_flags & prohibited_flags) != 0) {
+  if ((code->co_flags & required_flags) != required_flags) {
+    JIT_DLOG(
+        "Can't compile {} due to missing required code flags",
+        preloader.fullname());
+    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
+  }
+  if (code->co_flags & CI_CO_SUPPRESS_JIT) {
+    JIT_DLOG(
+        "Can't compile {} as it has had the JIT suppressed",
+        preloader.fullname());
     return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
   }
 
