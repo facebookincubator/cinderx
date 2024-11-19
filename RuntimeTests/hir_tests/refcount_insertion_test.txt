@@ -1552,88 +1552,81 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v15:Object = LoadArg<0; "a">
-    v17:Nullptr = LoadConst<Nullptr>
-    v18:MortalCell = MakeCell v15 {
-      LiveValues<2> b:v15 unc:v17
+    v14:Object = LoadArg<0; "a">
+    v16:Nullptr = LoadConst<Nullptr>
+    v17:MortalCell = MakeCell v14 {
+      LiveValues<2> b:v14 unc:v16
       FrameState {
         CurInstrOffset 0
-        Locals<2> v15 v17
-        Cells<1> v17
+        Locals<2> v14 v16
       }
     }
-    v20:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v20
+    v19:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v19
   }
 
   bb 2 (preds 0) {
-    v21:CInt32 = RunPeriodicTasks {
-      LiveValues<2> unc:v17 o:v18
+    v20:CInt32 = RunPeriodicTasks {
+      LiveValues<2> unc:v16 o:v17
       FrameState {
         CurInstrOffset 2
-        Locals<2> v18 v17
-        Cells<1> v17
+        Locals<2> v17 v16
       }
     }
     Branch<1>
   }
 
   bb 1 (preds 0, 2) {
-    v25:OptObject = LoadCellItem v18
-    v26:Object = CheckVar<"a"> v25 {
-      LiveValues<3> unc:v17 o:v18 b:v25
+    v23:OptObject = LoadCellItem v17
+    v24:Object = CheckVar<"a"> v23 {
+      LiveValues<3> unc:v16 o:v17 b:v23
       FrameState {
         CurInstrOffset 4
-        Locals<2> v18 v17
-        Cells<1> v17
+        Locals<2> v17 v16
       }
     }
-    Incref v26
-    v35:Object = LoadMethodCached<0; "foo"> v26 {
-      LiveValues<3> unc:v17 o:v18 o:v26
+    Incref v24
+    v33:Object = LoadMethodCached<0; "foo"> v24 {
+      LiveValues<3> unc:v16 o:v17 o:v24
       FrameState {
         CurInstrOffset 6
-        Locals<2> v18 v17
-        Cells<1> v17
+        Locals<2> v17 v16
       }
     }
-    Decref v26
-    v28:OptObject = GetSecondOutput<OptObject> v35
-    v29:Object = CallMethod<2> v35 v28 {
-      LiveValues<4> unc:v17 o:v18 o:v28 o:v35
+    Decref v24
+    v26:OptObject = GetSecondOutput<OptObject> v33
+    v27:Object = CallMethod<2> v33 v26 {
+      LiveValues<4> unc:v16 o:v17 o:v26 o:v33
       FrameState {
         CurInstrOffset 26
-        Locals<2> v18 v17
-        Cells<1> v17
+        Locals<2> v17 v16
       }
     }
-    XDecref v28
-    Decref v29
-    Decref v35
-    Incref v18
-    v30:MortalTupleExact = MakeTuple<1> v18 {
-      LiveValues<2> unc:v17 o:v18
+    XDecref v26
+    Decref v27
+    Decref v33
+    Incref v17
+    v28:MortalTupleExact = MakeTuple<1> v17 {
+      LiveValues<2> unc:v16 o:v17
       FrameState {
         CurInstrOffset 38
-        Locals<2> v18 v17
-        Cells<1> v17
-        Stack<1> v18
+        Locals<2> v17 v16
+        Stack<1> v17
       }
     }
-    v31:MortalCode["g"] = LoadConst<MortalCode["g"]>
-    v32:Nullptr = LoadConst<Nullptr>
-    v33:MortalFunc = MakeFunction v31 v32 {
-      LiveValues<5> unc:v17 o:v18 o:v30 b:v31 unc:v32
+    v29:MortalCode["g"] = LoadConst<MortalCode["g"]>
+    v30:Nullptr = LoadConst<Nullptr>
+    v31:MortalFunc = MakeFunction v29 v30 {
+      LiveValues<5> unc:v16 o:v17 o:v28 b:v29 unc:v30
       FrameState {
         CurInstrOffset 42
-        Locals<2> v18 v17
-        Cells<1> v17
-        Stack<1> v30
+        Locals<2> v17 v16
+        Stack<1> v28
       }
     }
-    Decref v18
-    SetFunctionAttr<func_closure> v30 v33
-    Return v33
+    Decref v17
+    SetFunctionAttr<func_closure> v28 v31
+    Return v31
   }
 }
 --- Test Name ---

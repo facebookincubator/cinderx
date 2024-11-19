@@ -109,7 +109,9 @@ struct FrameState {
   BCOffset cur_instr_offs{-static_cast<ssize_t>(sizeof(_Py_CODEUNIT))};
 
   // Combination of local variables, cell variables (used by closures of inner
-  // functions), and free variables (our closure), in that order.
+  // functions), and free variables (our closure). Locals are at the start and
+  // free variables are at the end, but note locals can be cells so there is no
+  // guarantee cells are all in the middle.
   std::vector<Register*> localsplus;
 
   // Number of local variables. Stored as a field directly because in tests

@@ -2406,9 +2406,9 @@ void HIRBuilder::emitCopyFreeVars(TranslationContext& tc, int nfreevars) {
       "func_closure",
       offsetof(PyFunctionObject, func_closure),
       TTuple);
+  int offset = numLocalsplus(code_) - nfreevars;
   for (int i = 0; i < nfreevars; ++i) {
-    int local_idx = i + tc.frame.nlocals + numCellvars(code_);
-    Register* dst = tc.frame.localsplus[local_idx];
+    Register* dst = tc.frame.localsplus[offset + i];
     JIT_CHECK(dst != nullptr, "No register for free var {}", i);
     tc.emit<LoadTupleItem>(dst, func_closure, i);
   }

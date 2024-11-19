@@ -202,7 +202,11 @@ int numFreevars(PyCodeObject* code) {
 }
 
 int numLocalsplus(PyCodeObject* code) {
+#if PY_VERSION_HEX >= 0x030B0000
+  return code->co_nlocalsplus;
+#else
   return numLocals(code) + numCellvars(code) + numFreevars(code);
+#endif
 }
 
 } // extern "C"
