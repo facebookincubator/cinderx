@@ -1327,9 +1327,9 @@ class PyFlowGraph312(PyFlowGraph):
         for block in self.ordered_blocks:
             for instr in block.insts:
                 if instr.opname in SETUP_OPCODES:
-                    # pyre-fixme[6]: For 1st argument expected `Block` but got
-                    #  `Optional[Block]`.
-                    except_handlers.add(instr.target)
+                    target = instr.target
+                    assert target is not None, "SETUP_* opcodes all have targets"
+                    except_handlers.add(target)
                     break
 
         return except_handlers
@@ -1512,9 +1512,9 @@ class PyFlowGraph312(PyFlowGraph):
                     # "DELETE_DEREF",
                     # "LOAD_FROM_DICT_OR_DEREF",
                 ):
-                    # pyre-fixme[6]: For 1st argument expected `Union[SupportsTrunc,
-                    #  str, SupportsIndex, SupportsInt, Buffer]` but got `object`.
-                    oldoffset = int(instr.oparg)
+                    oparg = instr.oparg
+                    assert type(oparg) is int, "Expecting a localsplus index"
+                    oldoffset = int(oparg)
                     assert oldoffset >= 0
                     assert oldoffset < noffsets
                     assert fixed_map[oldoffset] >= 0
