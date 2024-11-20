@@ -3,13 +3,13 @@
 #include "cinderx/Jit/pyjit.h"
 
 #include <Python.h>
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/genobject_jit.h"
 #include "internal/pycore_ceval.h"
 #include "internal/pycore_shadow_frame.h"
 #endif
-#include <Python.h>
 
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pystate.h"
