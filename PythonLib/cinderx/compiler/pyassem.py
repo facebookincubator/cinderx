@@ -544,7 +544,6 @@ class PyFlowGraph(FlowGraph):
         self.initializeConsts()
         self.fast_vars = set()
         self.gen_kind = None
-        self.lnotab: LineAddrTable = LineAddrTable()
         self.insts: list[Instruction] = []
         if flags & CO_COROUTINE:
             self.gen_kind = 1
@@ -612,6 +611,10 @@ class PyFlowGraph(FlowGraph):
         self.stage = ORDERED
         self.normalize_jumps()
         self.stage = FINAL
+
+    def assemble_final_code(self) -> None:
+        """Finish assembling code object components from the final graph."""
+        raise NotImplementedError()
 
     def getCode(self) -> CodeType:
         """Get a Python code object"""
@@ -1207,8 +1210,14 @@ class PyFlowGraph(FlowGraph):
 
 
 class PyFlowGraph310(PyFlowGraph):
-    def getCode(self) -> CodeType:
-        """Get a Python code object"""
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # Final assembled code objects
+        self.bytecode: bytes | None = None
+        self.line_table: bytes | None = None
+
+    def assemble_final_code(self) -> None:
+        """Finish assembling code object components from the final graph."""
         self.finalize()
         assert self.stage == FINAL, self.stage
 
@@ -1216,10 +1225,18 @@ class PyFlowGraph310(PyFlowGraph):
         self.flatten_graph()
 
         assert self.stage == FLAT, self.stage
-        bytecode = self.make_byte_code()
-        linetable = self.make_line_table()
+        self.bytecode = self.make_byte_code()
+        self.line_table = self.make_line_table()
+
+    def getCode(self) -> CodeType:
+        """Get a Python code object"""
+        self.assemble_final_code()
+        bytecode = self.bytecode
+        assert bytecode is not None
+        line_table = self.line_table
+        assert line_table is not None
         assert self.stage == DONE, self.stage
-        return self.new_code_object(bytecode, linetable)
+        return self.new_code_object(bytecode, line_table)
 
     def new_code_object(self, code: bytes, lnotab: bytes) -> CodeType:
         assert self.stage == DONE, self.stage
@@ -1306,16 +1323,22 @@ class PyFlowGraph312(PyFlowGraph):
             posonlyargs,
         )
         self.qualname = qualname or name
+        # Final assembled code objects
+        self.bytecode: bytes | None = None
+        self.line_table: bytes | None = None
+        self.exception_table: bytes | None = None
 
     def emit_gen_start(self) -> None:
         # This is handled with the prefix instructions in finalize
         pass
 
     def push_except_block(self, except_stack: list[Block], instr: Instruction) -> Block:
+        target = instr.target
+        assert target is not None, instr
         if instr.opname in ("SETUP_WITH", "SETUP_CLEANUP"):
-            instr.target.preserve_lasti = True
-        except_stack.append(instr.target)
-        return instr.target
+            target.preserve_lasti = True
+        except_stack.append(target)
+        return target
 
     def label_exception_targets(self):
         def push_todo_block(block: Block) -> None:
@@ -1681,8 +1704,8 @@ class PyFlowGraph312(PyFlowGraph):
         for block in self.ordered_blocks:
             optimizer.clean_basic_block(block, -1)
 
-    def getCode(self) -> CodeType:
-        """Get a Python code object"""
+    def assemble_final_code(self) -> None:
+        """Finish assembling code object components from the final graph."""
         # see compile.c :: optimize_and_assemble_code_unit()
         self.finalize()
         assert self.stage == FINAL, self.stage
@@ -1698,11 +1721,21 @@ class PyFlowGraph312(PyFlowGraph):
         assert self.stage == FLAT, self.stage
 
         # see assemble.c :: _PyAssemble_MakeCodeObject()
-        bytecode = self.make_byte_code()
-        linetable = self.make_line_table()
-        exception_table = self.make_exception_table()
+        self.bytecode = self.make_byte_code()
+        self.line_table = self.make_line_table()
+        self.exception_table = self.make_exception_table()
+
+    def getCode(self) -> CodeType:
+        """Get a Python code object"""
+        self.assemble_final_code()
+        bytecode = self.bytecode
+        assert bytecode is not None
+        line_table = self.line_table
+        assert line_table is not None
+        exception_table = self.exception_table
+        assert exception_table is not None
         assert self.stage == DONE, self.stage
-        return self.new_code_object(bytecode, linetable, exception_table)
+        return self.new_code_object(bytecode, line_table, exception_table)
 
     def new_code_object(
         self, code: bytes, lnotab: bytes, exception_table: bytes
