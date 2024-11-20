@@ -19,7 +19,6 @@ def f():
     JUMP_BACKWARD_NO_INTERRUPT(Block(2)),
 
     __BLOCK__('exit: 4'),
-    SETUP_CLEANUP(None),
     END_SEND(0),
     POP_TOP(0),
     RETURN_CONST(None),

@@ -18,7 +18,6 @@ class C:
     LOAD_FAST_AND_CLEAR('.0'),
     LOAD_FAST_AND_CLEAR('x'),
     SWAP(3),
-    SETUP_FINALLY(Block(6, label='cleanup')),
     BUILD_LIST(0),
     SWAP(2),
 

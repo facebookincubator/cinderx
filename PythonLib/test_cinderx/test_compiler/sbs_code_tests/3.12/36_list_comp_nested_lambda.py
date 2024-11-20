@@ -16,7 +16,6 @@ def f():
     LOAD_FAST_AND_CLEAR('x'),
     MAKE_CELL(0),
     SWAP(2),
-    SETUP_FINALLY(Block(7, label='cleanup')),
     BUILD_LIST(0),
     SWAP(2),
 

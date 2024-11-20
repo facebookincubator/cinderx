@@ -20,19 +20,16 @@ async def f():
 
     __BLOCK__('send: 2'),
     SEND(Block(4, label='exit')),
-    SETUP_FINALLY(Block(3, label='fail')),
     YIELD_VALUE(0),
-    POP_BLOCK(0),
     RESUME(3),
     JUMP_BACKWARD_NO_INTERRUPT(Block(2, label='send')),
 
     __BLOCK__('exit: 4'),
     END_SEND(0),
-    SETUP_WITH(Block(9, label='with_finally')),
 
     __BLOCK__('with_block: 5'),
     STORE_FAST('bar'),
-    POP_BLOCK(0),
+    NOP(0),
     LOAD_CONST(None),
     LOAD_CONST(None),
     LOAD_CONST(None),
@@ -42,9 +39,7 @@ async def f():
 
     __BLOCK__('send: 6'),
     SEND(Block(8, label='exit')),
-    SETUP_FINALLY(Block(7, label='fail')),
     YIELD_VALUE(0),
-    POP_BLOCK(0),
     RESUME(3),
     JUMP_BACKWARD_NO_INTERRUPT(Block(6, label='send')),
 
@@ -54,7 +49,6 @@ async def f():
     JUMP_FORWARD(Block(17, label='with_exit')),
 
     __BLOCK__('with_exit: 17'),
-    SETUP_CLEANUP(None),
     RETURN_CONST(None),
 
     __BLOCK__('fail: 3'),
@@ -70,7 +64,6 @@ async def f():
     JUMP_BACKWARD(Block(8, label='exit')),
 
     __BLOCK__('with_finally: 9'),
-    SETUP_CLEANUP(Block(15, label='cleanup')),
     PUSH_EXC_INFO(0),
     WITH_EXCEPT_START(0),
     GET_AWAITABLE(0),
@@ -78,9 +71,7 @@ async def f():
 
     __BLOCK__('send: 10'),
     SEND(Block(12, label='exit')),
-    SETUP_FINALLY(Block(11, label='fail')),
     YIELD_VALUE(0),
-    POP_BLOCK(0),
     RESUME(3),
     JUMP_BACKWARD_NO_INTERRUPT(Block(10, label='send')),
 
@@ -96,7 +87,6 @@ async def f():
 
     __BLOCK__('suppress: 14'),
     POP_TOP(0),
-    POP_BLOCK(0),
     POP_EXCEPT(0),
     POP_TOP(0),
     POP_TOP(0),

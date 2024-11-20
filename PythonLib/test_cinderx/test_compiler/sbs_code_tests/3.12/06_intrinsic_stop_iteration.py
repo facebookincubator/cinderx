@@ -6,7 +6,8 @@ def f():
     ...,
 
     __BLOCK__('start: 1'),
-    SETUP_CLEANUP(None),
+    # TODO(T190611021): We should have eliminated this NOP
+    NOP(0),
     LOAD_CONST(42),
     YIELD_VALUE(0),
     RESUME(1),

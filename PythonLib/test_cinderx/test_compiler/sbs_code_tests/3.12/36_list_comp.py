@@ -13,7 +13,6 @@ def f():
     GET_ITER(0),
     LOAD_FAST_AND_CLEAR('x'),
     SWAP(2),
-    SETUP_FINALLY(Block(7, label='cleanup')),
     BUILD_LIST(0),
     SWAP(2),
 

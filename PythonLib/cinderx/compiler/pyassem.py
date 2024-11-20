@@ -138,6 +138,11 @@ class Instruction:
         op = opcode.opmap[self.opname]
         return opcode.has_jump(op)
 
+    def set_to_nop(self) -> None:
+        self.opname = "NOP"
+        self.oparg = self.ioparg = 0
+        self.target = None
+
     def copy(self) -> Instruction:
         return Instruction(self.opname, self.oparg, self.ioparg, self.loc, self.target)
 
@@ -332,13 +337,16 @@ class Block:
         self.returns: bool = False
         self.offset: int = 0
         self.is_exc_handler: bool = False  # used in reachability computations
-        self.preserve_lasti: False  # used if block is an exception handler
+        self.preserve_lasti: bool = False  # used if block is an exception handler
         self.seen: bool = False  # visited during stack depth calculation
         self.startdepth: int = -1
         self.is_exit: bool = False
         self.has_fallthrough: bool = True
         self.num_predecessors: int = 0
         self.alloc_id: int = Block.allocated_block_count
+        # for 3.12
+        self.except_stack = []
+
         Block.allocated_block_count += 1
 
     def __repr__(self):
@@ -593,10 +601,10 @@ class PyFlowGraph(FlowGraph):
         for block in self.blocks_in_reverse_allocation_order():
             self.extend_block(block)
         self.optimizeCFG()
-        self.duplicate_exits_without_lineno()
 
         self.stage = CONSTS_CLOSED
         self.trim_unused_consts()
+        self.duplicate_exits_without_lineno()
         self.propagate_line_numbers()
         self.firstline = self.firstline or self.first_inst_lineno or 1
         self.guarantee_lineno_for_exits()
@@ -616,7 +624,7 @@ class PyFlowGraph(FlowGraph):
         else:
             debug.dump_graph(self, stack_effect)
 
-    def push_block(self, worklist: list[Block], block: Block, depth: int):
+    def push_block(self, worklist: list[Block], block: Block, depth: int) -> None:
         assert (
             block.startdepth < 0 or block.startdepth >= depth
         ), f"{block!r}: {block.startdepth} vs {depth}"
@@ -624,7 +632,8 @@ class PyFlowGraph(FlowGraph):
             block.startdepth = depth
             worklist.append(block)
 
-    def stackdepth_walk(self, block):
+    def stackdepth_walk(self, block) -> int:
+        # see flowgraph.c :: _PyCfg_Stackdepth()
         maxdepth = 0
         worklist = []
         self.push_block(worklist, block, 0 if self.gen_kind is None else 1)
@@ -643,7 +652,7 @@ class PyFlowGraph(FlowGraph):
                 assert new_depth >= 0, instr
 
                 op = self.opcode.opmap[instr.opname]
-                if self.opcode.has_jump(op) or instr.opname == "SETUP_FINALLY":
+                if self.opcode.has_jump(op) or instr.opname in SETUP_OPCODES:
                     delta = self.opcode.stack_effect_raw(
                         instr.opname, instr.oparg, True
                     )
@@ -674,7 +683,7 @@ class PyFlowGraph(FlowGraph):
 
         return maxdepth
 
-    def computeStackDepth(self):
+    def compute_stack_depth(self) -> None:
         """Compute the max stack depth.
 
         Find the flow path that needs the largest stack.  We assume that
@@ -687,7 +696,7 @@ class PyFlowGraph(FlowGraph):
                 self.stacksize = self.stackdepth_walk(block)
                 break
 
-    def instrsize(self, opname: str, oparg: int):
+    def instrsize(self, opname: str, oparg: int) -> int:
         if oparg <= 0xFF:
             return 1
         elif oparg <= 0xFFFF:
@@ -697,7 +706,7 @@ class PyFlowGraph(FlowGraph):
         else:
             return 4
 
-    def flattenGraph(self):
+    def flatten_graph(self) -> None:
         """Arrange the blocks in order and resolve jumps"""
         assert self.stage == FINAL, self.stage
         # This is an awful hack that could hurt performance, but
@@ -1084,9 +1093,7 @@ class PyFlowGraph(FlowGraph):
                 continue
             if last.target == block.next:
                 block.has_fallthrough = True
-                last.opname = "NOP"
-                last.oparg = last.ioparg = 0
-                last.target = None
+                last.set_to_nop()
                 optimizer.clean_basic_block(block, -1)
                 maybe_empty_blocks = True
 
@@ -1175,9 +1182,7 @@ class PyFlowGraph(FlowGraph):
         if len(target.insts) > MAX_COPY_SIZE:
             return
         last = block.insts[-1]
-        last.opname = "NOP"
-        last.oparg = last.ioparg = 0
-        last.target = None
+        last.set_to_nop()
         for instr in target.insts:
             block.insts.append(instr.copy())
         block.next = None
@@ -1207,8 +1212,8 @@ class PyFlowGraph310(PyFlowGraph):
         self.finalize()
         assert self.stage == FINAL, self.stage
 
-        self.computeStackDepth()
-        self.flattenGraph()
+        self.compute_stack_depth()
+        self.flatten_graph()
 
         assert self.stage == FLAT, self.stage
         bytecode = self.make_byte_code()
@@ -1306,13 +1311,67 @@ class PyFlowGraph312(PyFlowGraph):
         # This is handled with the prefix instructions in finalize
         pass
 
+    def push_except_block(self, except_stack: list[Block], instr: Instruction) -> Block:
+        if instr.opname in ("SETUP_WITH", "SETUP_CLEANUP"):
+            instr.target.preserve_lasti = True
+        except_stack.append(instr.target)
+        return instr.target
+
+    def label_exception_targets(self):
+        def push_todo_block(block: Block) -> None:
+            todo_stack.append(block)
+            visited.add(block)
+
+        todo_stack = [self.entry]
+        visited = {self.entry}
+        except_stack = []
+        self.entry.except_stack = except_stack
+
+        while todo_stack:
+            block = todo_stack.pop()
+            assert block in visited
+            except_stack = block.except_stack
+            block.except_stack = []
+            handler = except_stack[-1] if except_stack else None
+            for instr in block.insts:
+                if instr.opname in SETUP_OPCODES:
+                    assert instr.target, instr
+                    if instr.target not in visited:
+                        # Copy the block's except stack into the target's except stack
+                        instr.target.except_stack = list(block.except_stack)
+                        push_todo_block(instr.target)
+                    handler = self.push_except_block(except_stack, instr)
+                elif instr.opname == "POP_BLOCK":
+                    handler = except_stack.pop()
+                elif instr.is_jump(self.opcode):
+                    instr.exc_handler = handler
+                    if instr.target not in visited:
+                        if block.has_fallthrough:
+                            # Copy the current except stack into the block's except stack
+                            instr.target.except_stack = list(except_stack)
+                        else:
+                            # Move the current except stack to the block and start a new one
+                            instr.target.except_stack = except_stack
+                            except_stack = []
+                        push_todo_block(instr.target)
+                else:
+                    if instr.opname == "YIELD_VALUE":
+                        assert except_stack is not None
+                        instr.ioparg = len(except_stack)
+                    instr.exc_handler = handler
+
+            if block.has_fallthrough and block.next and block.next not in visited:
+                assert except_stack is not None
+                block.next.except_stack = except_stack
+                push_todo_block(block.next)
+
     def compute_except_handlers(self) -> set[Block]:
         except_handlers: set[Block] = set()
         for block in self.ordered_blocks:
             for instr in block.insts:
                 if instr.opname in SETUP_OPCODES:
                     target = instr.target
-                    # assert target is not None, "SETUP_* opcodes all have targets"
+                    assert target is not None, "SETUP_* opcodes all have targets"
                     except_handlers.add(target)
                     break
 
@@ -1408,11 +1467,11 @@ class PyFlowGraph312(PyFlowGraph):
                     instr.ioparg = reverse_index_mapping[instr.ioparg]
 
     def optimizeCFG(self) -> None:
+        except_handlers = self.compute_except_handlers()
+
         super().optimizeCFG()
 
         self.remove_unused_consts()
-
-        except_handlers = self.compute_except_handlers()
 
         self.push_cold_blocks_to_end(except_handlers)
 
@@ -1605,18 +1664,40 @@ class PyFlowGraph312(PyFlowGraph):
             exception_table.emit_entry(start, ioffset, handler)
         return exception_table.getTable()
 
+    def convert_pseudo_ops(self) -> None:
+        # TODO(T190611021): The graph is actually in the FINAL stage, which
+        # seems wrong because we're still modifying the opcodes.
+        # assert self.stage == ACTIVE, self.stage
+
+        for block in self.ordered_blocks:
+            for instr in block.insts:
+                if instr.opname in SETUP_OPCODES or instr.opname == "POP_BLOCK":
+                    instr.set_to_nop()
+                elif instr.opname == "STORE_FAST_MAYBE_NULL":
+                    instr.opname = "STORE_FAST"
+
+        # Remove redundant NOPs added in the previous pass
+        optimizer = self.flow_graph_optimizer(self)
+        for block in self.ordered_blocks:
+            optimizer.clean_basic_block(block, -1)
+
     def getCode(self) -> CodeType:
         """Get a Python code object"""
-        # TODO(T206903352): We need to pass the return value to make_code at
-        # some point.
-        self.prepare_localsplus()
+        # see compile.c :: optimize_and_assemble_code_unit()
         self.finalize()
         assert self.stage == FINAL, self.stage
 
-        self.computeStackDepth()
-        self.flattenGraph()
+        # TODO(T206903352): We need to pass the return value to make_code at
+        # some point.
+        self.prepare_localsplus()
+        self.label_exception_targets()
+        self.compute_stack_depth()
+        self.convert_pseudo_ops()
 
+        self.flatten_graph()
         assert self.stage == FLAT, self.stage
+
+        # see assemble.c :: _PyAssemble_MakeCodeObject()
         bytecode = self.make_byte_code()
         linetable = self.make_line_table()
         exception_table = self.make_exception_table()

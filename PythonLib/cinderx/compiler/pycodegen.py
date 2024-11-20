@@ -3471,7 +3471,8 @@ class CodeGenerator312(CodeGenerator):
         # the block internal insts list rather than bubbling up an accessor
         # through several layers of containers.
         # TODO: handler.bid is unassigned at this point.
-        self.graph.current.insts.insert(0, Instruction("SETUP_CLEANUP", handler.bid))
+        setup = Instruction("SETUP_CLEANUP", handler, target=handler)
+        self.graph.current.insts.insert(0, setup)
 
         self.emit("LOAD_CONST", None)
         self.emit("RETURN_VALUE")
