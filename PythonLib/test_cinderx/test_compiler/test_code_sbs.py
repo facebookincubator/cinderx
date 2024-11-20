@@ -6,7 +6,7 @@ import dis
 import os
 import sys
 from ast import AsyncFunctionDef, ClassDef, FunctionDef
-from collections import deque
+from collections import defaultdict, deque
 from functools import partial
 from io import SEEK_END, TextIOBase
 from re import escape
@@ -36,6 +36,7 @@ def format_oparg(instr: Instruction) -> str:
 
 DEFAULT_MARKER = "# This is the default script and should be updated to the minimal byte codes to be verified"
 SCRIPT_EXPECTED = "# EXPECTED:"
+SCRIPT_EXC_TABLE = "# EXCEPTION_TABLE:"
 SCRIPT_EXT = ".scr.py"
 SCRIPT_OPCODE_CODE = "CODE_START"
 BLOCK_START_CODE = "__BLOCK__"
@@ -79,6 +80,80 @@ def graph_instrs(graph, name=None) -> Generator[Instruction, None, None]:
         yield from block.getInstructions()
 
 
+class TestFile:
+    """Parsed test case file."""
+
+    _SECTION_HEADERS = {SCRIPT_EXPECTED: "expected", SCRIPT_EXC_TABLE: "exc_table"}
+
+    def __init__(self, fname: str) -> None:
+        self.fname: str = fname
+        self.code: str = ""
+        self.expected: str | None = None
+        self.exc_table: str | None = None
+        self._read_test_file()
+
+    def _read_test_file(self):
+        with open(self.fname) as f:
+            lines = f.readlines()
+
+        sections = defaultdict(list)
+        section = "code"
+        for line in lines:
+            line = line.rstrip()
+            if k := self._SECTION_HEADERS.get(line):
+                section = k
+            else:
+                sections[section].append(line)
+
+        self.code = "\n".join(sections["code"])
+        for section in self._SECTION_HEADERS.values():
+            if section in sections:
+                setattr(self, section, "\n".join(sections[section]))
+
+    def write_default_expected(self, instrs):
+        """Fill in the EXPECTED section of the file with a default script."""
+
+        with open(self.fname) as f:
+            text = f.read()
+            has_nl = text.endswith("\n")
+
+        with open(self.fname, "a") as f:
+            f.seek(0, SEEK_END)
+            if not has_nl:
+                f.write("\n")
+            self._gen_default_script(f, instrs)
+
+    def _gen_default_script(
+        self, scr: TextIOBase, instrs: Iterable[Instruction]
+    ) -> None:
+        # generate a default script which matches exactly...  This should
+        # be fixed up to a minimal match
+        scr.write(SCRIPT_EXPECTED + "\n")
+        scr.write(DEFAULT_MARKER + "\n")
+        scr.write("[\n")
+        queue: deque[Iterable[Instruction]] = deque([instrs])
+        first = True
+        while queue:
+            instrs = queue.popleft()
+            for instr in instrs:
+                if isinstance(instr.oparg, CodeGenerator):
+                    queue.append(
+                        graph_instrs(instr.oparg.graph, instr.oparg.graph.name)
+                    )
+                if instr.opname == BLOCK_START_CODE:
+                    target = instr.target
+                    assert target is not None
+                    if not first:
+                        scr.write("\n")
+                    scr.write(
+                        f"    # {instr.opname}('{target.label}: {target.bid}'),\n"
+                    )
+                else:
+                    scr.write(f"    {instr.opname}({format_oparg(instr)}),\n")
+                first = False
+        scr.write("]\n")
+
+
 class CodeTests(CompilerTest):
     def check_instrs(
         self, instrs: Iterable[Instruction], script: Sequence[Matcher]
@@ -112,40 +187,6 @@ class CodeTests(CompilerTest):
             return
 
         script[cur_scr].end(self, script, cur_scr)
-
-    def gen_default_script(
-        self, scr: TextIOBase, instrs: Iterable[Instruction]
-    ) -> None:
-        # generate a default script which matches exactly...  This should
-        # be fixed up to a minimal match
-        scr.write(SCRIPT_EXPECTED + "\n")
-        scr.write(DEFAULT_MARKER + "\n")
-        scr.write("[\n")
-        queue: deque[Iterable[Instruction]] = deque([instrs])
-        first = True
-        while queue:
-            instrs = queue.popleft()
-            for instr in instrs:
-                if isinstance(instr.oparg, CodeGenerator):
-                    queue.append(
-                        graph_instrs(instr.oparg.graph, instr.oparg.graph.name)
-                    )
-                if instr.opname == BLOCK_START_CODE:
-                    target = instr.target
-                    assert target is not None
-                    if not first:
-                        scr.write("\n")
-                    scr.write(
-                        f"    # {instr.opname}('{target.label}: {target.bid}'),\n"
-                    )
-                else:
-                    scr.write(f"    {instr.opname}({format_oparg(instr)}),\n")
-                first = False
-        scr.write("]\n")
-
-        self.fail(
-            "script file not present, script generated, fixup to be minimal repo and check it in"
-        )
 
     def test_self_empty_script(self) -> None:
         with self.assertRaises(AssertionError):
@@ -289,28 +330,17 @@ def add_test(modname: str, fname: str) -> None:
         return
 
     def test_code(self: CodeTests):
-        with open(fname) as f:
-            test = f.read()
+        test = TestFile(fname)
+        graph = self.to_graph(test.code)
 
-        parts = test.split(SCRIPT_EXPECTED, 1)
-        graph = self.to_graph(parts[0])
+        fixme = "fixup to be a minimal repro and check it in"
+        if test.expected is None:
+            test.write_default_expected(graph_instrs(graph))
+            self.fail(f"test script not present, script generated, {fixme}")
+        elif DEFAULT_MARKER in test.expected:
+            self.fail(f"generated default script marker present, {fixme}")
 
-        if len(parts) == 1:
-            with open(fname, "a") as f:
-                f.seek(0, SEEK_END)
-                if not parts[0].endswith("\n"):
-                    test += "\n"
-
-                self.gen_default_script(f, graph_instrs(graph))
-                self.fail(
-                    "test script not present, script generated, fixup to be minimal repo and check it in"
-                )
-        elif parts[1].find(DEFAULT_MARKER) != -1:
-            self.fail(
-                "generated script present, fixup to be a minimal repo and check it in"
-            )
-
-        script = eval(parts[1], globals(), SCRIPT_CONTEXT)
+        script = eval(test.expected, globals(), SCRIPT_CONTEXT)
         transformed = []
 
         for value in script:
