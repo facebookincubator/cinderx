@@ -4,7 +4,6 @@ def f():
     return [x := 42 for y in 'abc']
 # EXPECTED:
 [
-    # __BLOCK__('entry: 0'),
     ...,
     CODE_START('f'),
 
@@ -16,7 +15,6 @@ def f():
     GET_ITER(0),
     LOAD_FAST_AND_CLEAR('y'),
     SWAP(2),
-    ...,
     BUILD_LIST(0),
     SWAP(2),
 
@@ -35,9 +33,6 @@ def f():
 
     __BLOCK__('anchor: 6'),
     END_FOR(0),
-    ...,
-
-    __BLOCK__('end: 8'),
     SWAP(2),
     STORE_FAST('y'),
     RETURN_VALUE(0),
@@ -48,5 +43,4 @@ def f():
     SWAP(2),
     STORE_FAST('y'),
     RERAISE(0),
-    ...,
 ]

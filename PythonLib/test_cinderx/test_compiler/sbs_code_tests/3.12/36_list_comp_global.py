@@ -8,12 +8,13 @@ def f():
     CODE_START('f'),
 
     __BLOCK__('entry: 0'),
-    ...,
+    RESUME(0),
+
+    __BLOCK__('start: 1'),
     LOAD_CONST('abc'),
     GET_ITER(0),
     LOAD_FAST_AND_CLEAR('y'),
     SWAP(2),
-    ...,
     BUILD_LIST(0),
     SWAP(2),
 
@@ -30,12 +31,14 @@ def f():
 
     __BLOCK__('anchor: 6'),
     END_FOR(0),
-    ...,
-
-    __BLOCK__('end: 8'),
     SWAP(2),
     STORE_FAST('y'),
     RETURN_VALUE(0),
 
-    ...,
+    __BLOCK__('cleanup: 7'),
+    SWAP(2),
+    POP_TOP(0),
+    SWAP(2),
+    STORE_FAST('y'),
+    RERAISE(0),
 ]

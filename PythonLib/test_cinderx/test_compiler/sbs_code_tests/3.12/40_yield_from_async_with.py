@@ -46,9 +46,6 @@ async def f():
     __BLOCK__('exit: 8'),
     END_SEND(0),
     POP_TOP(0),
-    JUMP_FORWARD(Block(17, label='with_exit')),
-
-    __BLOCK__('with_exit: 17'),
     RETURN_CONST(None),
 
     __BLOCK__('fail: 3'),
@@ -90,13 +87,13 @@ async def f():
     POP_EXCEPT(0),
     POP_TOP(0),
     POP_TOP(0),
-    JUMP_BACKWARD(Block(17, label='with_exit')),
+    RETURN_CONST(None),
 
     __BLOCK__('cleanup: 15'),
     COPY(3),
     POP_EXCEPT(0),
     RERAISE(1),
-    
+
     __BLOCK__('handler: 18'),
     CALL_INTRINSIC_1(3),
     RERAISE(1),

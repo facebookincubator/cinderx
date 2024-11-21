@@ -1176,7 +1176,7 @@ class PyFlowGraph(FlowGraph):
         if len(block.insts) == 0:
             return
         last = block.insts[-1]
-        if last.opname not in ("JUMP_ABSOLUTE", "JUMP_FORWARD"):
+        if last.opname not in UNCONDITIONAL_JUMP_OPCODES:
             return
         target = last.target
         assert target is not None

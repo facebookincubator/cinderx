@@ -31,11 +31,6 @@ def f():
     END_FOR(0),
     ...,
 
-    __BLOCK__('end: 8'),
-    SWAP(2),
-    STORE_FAST('x'),
-    RETURN_VALUE(0),
-
     __BLOCK__('cleanup: 7'),
     SWAP(2),
     POP_TOP(0),

@@ -35,9 +35,6 @@ def f():
 
     __BLOCK__('anchor: 6'),
     END_FOR(0),
-    ...,
-
-    __BLOCK__('end: 8'),
     SWAP(2),
     STORE_FAST('x'),
     RETURN_VALUE(0),
@@ -48,6 +45,5 @@ def f():
     SWAP(2),
     STORE_FAST('x'),
     RERAISE(0),
-
     ...,
 ]

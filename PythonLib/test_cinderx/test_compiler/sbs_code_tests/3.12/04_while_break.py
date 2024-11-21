@@ -12,7 +12,7 @@ for i in range(42):
     COMPARE_OP('=='),
     POP_JUMP_IF_FALSE(Block(5)),
     POP_TOP(0),
-    JUMP_FORWARD(Block(8)),
+    RETURN_CONST(None),
     JUMP_BACKWARD(Block(1)),
     END_FOR(0),
     ...,
