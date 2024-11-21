@@ -73,6 +73,14 @@ void CodeAllocator::freeGlobalCodeAllocator() {
   s_global_code_allocator_ = nullptr;
 }
 
+bool CodeAllocator::contains(const void* ptr) const {
+  asmjit::JitAllocator::Span unused;
+  // asmjit docs don't say that query() is thread-safe, but peeking at the
+  // implementation shows that it is.
+  return runtime_.allocator()->query(unused, const_cast<void*>(ptr)) ==
+      asmjit::kErrorOk;
+}
+
 CodeAllocatorCinder::~CodeAllocatorCinder() {
   for (std::span<uint8_t> alloc : allocations_) {
     JIT_CHECK(
@@ -135,6 +143,16 @@ asmjit::Error CodeAllocatorCinder::addCode(
   used_bytes_ += actual_code_size;
 
   return asmjit::kErrorOk;
+}
+
+bool CodeAllocatorCinder::contains(const void* ptr) const {
+  ThreadedCompileSerialize guard;
+  for (std::span<uint8_t> alloc : allocations_) {
+    if (alloc.data() <= ptr && ptr < alloc.data() + alloc.size()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 MultipleSectionCodeAllocator::~MultipleSectionCodeAllocator() {
@@ -248,6 +266,18 @@ asmjit::Error MultipleSectionCodeAllocator::addCode(
   }
 
   return asmjit::kErrorOk;
+}
+
+bool MultipleSectionCodeAllocator::contains(const void* ptr) const {
+  // Have to check both the hot/cold slab and the asmjit allocator.  The latter
+  // is already thread-safe.
+  {
+    ThreadedCompileSerialize guard;
+    if (code_alloc_ <= ptr && ptr < code_alloc_ + total_allocation_size_) {
+      return true;
+    }
+  }
+  return CodeAllocator::contains(ptr);
 }
 
 } // namespace jit

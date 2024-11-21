@@ -61,6 +61,9 @@ class CodeAllocator {
     return runtime_.add(dst, code);
   }
 
+  // Check if a pointer is located within this allocator's memory.
+  virtual bool contains(const void* ptr) const;
+
  protected:
   asmjit::JitRuntime runtime_;
   std::atomic<size_t> used_bytes_{0};
@@ -75,6 +78,7 @@ class CodeAllocatorCinder : public CodeAllocator {
   virtual ~CodeAllocatorCinder();
 
   asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept override;
+  bool contains(const void* ptr) const override;
 
   size_t lostBytes() const {
     return lost_bytes_;
@@ -111,6 +115,7 @@ class MultipleSectionCodeAllocator : public CodeAllocator {
   virtual ~MultipleSectionCodeAllocator();
 
   asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept override;
+  bool contains(const void* ptr) const override;
 
  private:
   void createSlabs() noexcept;

@@ -122,6 +122,8 @@ class BackendTest : public RuntimeTest {
     as.finalize();
     void* func = nullptr;
     CodeAllocator::get()->addCode(&func, &code);
+    EXPECT_TRUE(CodeAllocator::get()->contains(func))
+        << "Compiled function should exist within the CodeAllocator";
     gen.lir_func_.release();
     return func;
   }
