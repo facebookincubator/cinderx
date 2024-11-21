@@ -1613,7 +1613,7 @@ class CodeGenerator(ASTVisitor):
 
     def emit_dup(self, count: int = 1):
         if count == 1:
-            self.emit("DUP")
+            self.emit("DUP_TOP")
         elif count == 2:
             self.emit("DUP_TOP_TWO")
         else:
@@ -1641,7 +1641,7 @@ class CodeGenerator(ASTVisitor):
         for i in range(len(node.targets)):
             elt = node.targets[i]
             if i < dups:
-                self.emit("DUP_TOP")
+                self.emit_dup()
             if isinstance(elt, ast.AST):
                 self.visit(elt)
 
