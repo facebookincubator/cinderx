@@ -1,6 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include "cinderx/Jit/jit_context.h"
+#include "cinderx/Jit/context.h"
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Interpreter/interpreter.h"
