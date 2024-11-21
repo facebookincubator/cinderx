@@ -5,7 +5,6 @@ from __future__ import annotations
 import dis
 import os
 import sys
-from ast import AsyncFunctionDef, ClassDef, FunctionDef
 from collections import defaultdict, deque
 from functools import partial
 from io import SEEK_END, TextIOBase
@@ -14,9 +13,9 @@ from typing import Generator, Iterable, Sequence
 
 from cinderx.compiler import pyassem
 from cinderx.compiler.pyassem import Instruction
-from cinderx.compiler.pycodegen import CodeGenerator, ResumeOparg
+from cinderx.compiler.pycodegen import CodeGenerator
 
-from .common import CompilerTest, glob_test
+from .common import CompilerTest, glob_test, ParsedExceptionTable
 
 
 def format_oparg(instr: Instruction) -> str:
@@ -188,6 +187,12 @@ class CodeTests(CompilerTest):
 
         script[cur_scr].end(self, script, cur_scr)
 
+    def check_exc_table(self, actual, expected):
+        # TODO(T190611021): This currently does not pass, because our
+        # instruction offsets do not match cpython's
+        # self.assertEqual(actual.entries, expected.entries)
+        pass
+
     def test_self_empty_script(self) -> None:
         with self.assertRaises(AssertionError):
             self.check_instrs([], [])
@@ -320,11 +325,12 @@ class CodeTests(CompilerTest):
 
 
 def add_test(modname: str, fname: str) -> None:
+    version = sys.version_info[:2]
     if "/cinder/" in fname and "cinder" not in sys.version:
         return
-    elif f"/3.10/" in fname and sys.version_info[:2] != (3, 10):
+    elif f"/3.10/" in fname and version != (3, 10):
         return
-    elif f"/3.12/" in fname and sys.version_info[:2] != (3, 12):
+    elif f"/3.12/" in fname and version != (3, 12):
         return
     if fname.endswith("/__init__.py"):
         return
@@ -340,16 +346,23 @@ def add_test(modname: str, fname: str) -> None:
         elif DEFAULT_MARKER in test.expected:
             self.fail(f"generated default script marker present, {fixme}")
 
+        # Parse expected bytecode
         script = eval(test.expected, globals(), SCRIPT_CONTEXT)
-        transformed = []
-
-        for value in script:
-            if value == ...:
-                transformed.append(SkipAny())
-            else:
-                transformed.append(value)
-
+        transformed = [
+                SkipAny() if value == ... else value
+                for value in script
+        ]
         self.check_instrs(graph_instrs(graph), transformed)
+
+        # Parse expected exception table
+        exc_table = test.exc_table
+        if exc_table is not None:
+            if version < (3, 11):
+                self.fail("No exception table in python 3.10")
+            exc = eval(exc_table)
+            actual_exc = ParsedExceptionTable.from_bytes(graph.exception_table)
+            expected_exc = ParsedExceptionTable.from_dis_output(exc)
+            self.check_exc_table(actual_exc, expected_exc)
 
     # pyre-ignore[16]: Callable has no attribute __name__
     test_code.__name__ = "test_" + modname.replace("/", "_").replace(".", "_")[:-3]

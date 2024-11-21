@@ -6,16 +6,14 @@ finally:
 # EXPECTED:
 [
   RESUME(0),
-  SETUP_FINALLY(Block(2)),
+  NOP(0),
   LOAD_NAME('a'),
 
   POP_TOP(0),
-  POP_BLOCK(0),
   LOAD_NAME('b'),
   POP_TOP(0),
   RETURN_CONST(None),
 
-  SETUP_CLEANUP(Block(3)),
   PUSH_EXC_INFO(0),
 
   LOAD_NAME('b'),
@@ -26,3 +24,8 @@ finally:
   POP_EXCEPT(0),
   RERAISE(1),
 ]
+# EXCEPTION_TABLE:
+"""
+  4 to 14 -> 30 [0]
+  30 to 44 -> 46 [1] lasti
+"""

@@ -3,10 +3,12 @@
 import dis
 import glob
 import inspect
+import re
 import sys
+from dataclasses import dataclass
 from io import StringIO
 from os import path
-from subprocess import PIPE, run
+from subprocess import run
 from types import CodeType
 from unittest import TestCase
 
@@ -14,6 +16,10 @@ from cinderx.compiler.pycodegen import make_compiler
 
 
 _UNSPECIFIED = object()
+
+# dis exception table output lines look like:
+#   4 to 24 -> 122 [0] lasti
+DIS_EXC_RE = re.compile(r"(\d+) to (\d+) -> (\d+) \[(\d+)\]( lasti)?")
 
 
 def get_repo_root():
@@ -121,7 +127,7 @@ class CompilerTest(TestCase):
             generator=generator,
             ast_optimizer_enabled=ast_optimizer_enabled,
         )
-        gen.graph.finalize()
+        gen.graph.assemble_final_code()
         return gen.graph
 
     def dump_graph(self, graph):
@@ -165,3 +171,49 @@ class CompilerTest(TestCase):
             msg = "(%s,%r) not found in bytecode:\n%s"
             msg = msg % (opname, argval, disassembly)
         self.fail(msg)
+
+
+class _FakeCodeType:
+    def __init__(self, exc_table):
+        self.co_exceptiontable = exc_table
+
+
+@dataclass
+class ExceptionTableEntry:
+    # Copy dis._ExceptionTableEntry into our own class so the typechecker
+    # doesn't complain every time we use it.
+    start: int
+    end: int
+    target: int
+    depth: int
+    lasti: bool
+
+    @classmethod
+    def from_dis_entry(cls, e):
+        return cls(e.start, e.end, e.target, e.depth, e.lasti)
+
+
+class ParsedExceptionTable:
+    def __init__(self, entries: list[ExceptionTableEntry]):
+        self.entries = entries
+
+    @classmethod
+    def from_bytes(cls, exc_table: bytes):
+        code = _FakeCodeType(exc_table)
+        # pyre-ignore[16]: Undefined attribute dis._parse_exception_table
+        parsed_table = dis._parse_exception_table(code)
+        entries = [ExceptionTableEntry.from_dis_entry(e) for e in parsed_table]
+        return cls(entries)
+
+    @classmethod
+    def from_dis_output(cls, exc_table: str):
+        # Lets us paste dis output directly into test cases.
+        lines = [x.strip() for x in exc_table.strip().split("\n")]
+        entries = []
+        for line in lines:
+            if not (m := re.match(DIS_EXC_RE, line)):
+                raise ValueError(f"Invalid exception table entry: {line}")
+            args = [int(m.group(x)) for x in range(1, 5)] + [bool(m.group(5))]
+            # pyre-ignore[6]: for 5th positional argument, expected `bool` but got `int`.
+            entries.append(ExceptionTableEntry(*args))
+        return cls(entries)

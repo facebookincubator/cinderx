@@ -1,18 +1,13 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
 from dataclasses import dataclass
-# pyre-ignore[21]: Undefined import
-from dis import _parse_exception_table, _ExceptionTableEntry as _Entry
 from unittest import TestCase
 from typing import cast
 
 from cinderx.compiler.pyassem import Block, ExceptionTable
 
-
-class FakeCodeType:
-    def __init__(self, exc_table):
-        self.co_exceptiontable = exc_table
+from .common import ExceptionTableEntry as Entry, ParsedExceptionTable
 
 
 @dataclass
@@ -37,12 +32,10 @@ class EncodingTests(TestCase):
             # start/end/target get converted from instructions to bytes
             # when displayed by dis.
             # depth is handler.startdepth - 1 if lasti is not set
-            # pyre-ignore[16]: Undefined attribute dis._ExceptionTableEntry
-            _Entry(start=40, end=56, target=200, depth=2, lasti=False),
+            Entry(start=40, end=56, target=200, depth=2, lasti=False),
             # depth is handler.startdepth - 2 if lasti is set
             # pyre-ignore[16]: Undefined attribute dis._ExceptionTableEntry
-            _Entry(start=40, end=56, target=200, depth=1, lasti=True),
+            Entry(start=40, end=56, target=200, depth=1, lasti=True),
         ]
-        # pyre-ignore[16]: Undefined attribute dis._parse_exception_table
-        actual = _parse_exception_table(FakeCodeType(table))
+        actual = ParsedExceptionTable.from_bytes(table).entries
         self.assertEqual(expected, actual)
