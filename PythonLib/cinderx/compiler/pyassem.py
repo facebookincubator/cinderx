@@ -1489,12 +1489,16 @@ class PyFlowGraph312(PyFlowGraph):
                 if self.opcode.opmap[instr.opname] in self.opcode.hasconst:
                     instr.ioparg = reverse_index_mapping[instr.ioparg]
 
+    def add_checks_for_loads_of_uninitialized_variables(self) -> None:
+        UninitializedVariableChecker(self).check()
+
     def optimizeCFG(self) -> None:
         except_handlers = self.compute_except_handlers()
 
         super().optimizeCFG()
 
         self.remove_unused_consts()
+        self.add_checks_for_loads_of_uninitialized_variables()
 
         self.push_cold_blocks_to_end(except_handlers)
 
@@ -1796,6 +1800,117 @@ class PyFlowGraph312(PyFlowGraph):
         **PyFlowGraph._converters,
         "LOAD_ATTR": _convert_LOAD_ATTR,
     }
+
+
+class UninitializedVariableChecker:
+    # Opcodes which may clear a variable
+    clear_ops = (
+        "DELETE_FAST",
+        "LOAD_FAST_AND_CLEAR",
+        "STORE_FAST_MAYBE_NULL",
+    )
+    # Opcodes which guarantee that a variable is stored
+    stored_ops = ("STORE_FAST", "LOAD_FAST_CHECK")
+
+    def __init__(self, flow_graph: PyFlowGraph312) -> None:
+        self.flow_graph = flow_graph
+        self.stack: list[Block] = []
+        self.unsafe_locals: dict[Block, int] = {}
+        self.visited: set[Block] = set()
+
+    def check(self) -> None:
+        nlocals = len(self.flow_graph.varnames)
+        nparams = len(self.flow_graph.args)
+
+        if nlocals == 0:
+            return
+
+        if nlocals > 64:
+            # To avoid O(nlocals**2) compilation, locals beyond the first
+            # 64 are only analyzed one basicblock at a time: initialization
+            # info is not passed between basicblocks.
+            self.fast_scan_many_locals(nlocals)
+            nlocals = 64
+
+        # First origin of being uninitialized:
+        # The non-parameter locals in the entry block.
+        start_mask = 0
+        for i in range(nparams, nlocals):
+            start_mask |= 1 << i
+
+        self.maybe_push(self.flow_graph.entry, start_mask)
+
+        # Second origin of being uninitialized:
+        # There could be DELETE_FAST somewhere, so
+        # be sure to scan each basicblock at least once.
+        for b in self.flow_graph.ordered_blocks:
+            self.scan_block_for_locals(b)
+
+        # Now propagate the uncertainty from the origins we found: Use
+        # LOAD_FAST_CHECK for any LOAD_FAST where the local could be undefined.
+        while self.stack:
+            block = self.stack.pop()
+            self.visited.remove(block)
+            self.scan_block_for_locals(block)
+
+    def scan_block_for_locals(self, block: Block) -> None:
+        unsafe_mask = self.unsafe_locals.get(block, 0)
+        for instr in block.insts:
+            if instr.exc_handler is not None:
+                self.maybe_push(instr.exc_handler, unsafe_mask)
+
+            if instr.ioparg >= 64:
+                continue
+
+            bit = 1 << instr.ioparg
+            if instr.opname in self.clear_ops:
+                unsafe_mask |= bit
+            elif instr.opname in self.stored_ops:
+                unsafe_mask &= ~bit
+            elif instr.opname == "LOAD_FAST":
+                if unsafe_mask & bit:
+                    instr.opname = "LOAD_FAST_CHECK"
+                unsafe_mask &= ~bit
+
+        if block.next and block.has_fallthrough:
+            self.maybe_push(block.next, unsafe_mask)
+
+        if block.insts and block.insts[-1].is_jump(self.flow_graph.opcode):
+            target = block.insts[-1].target
+            assert target is not None
+            self.maybe_push(target, unsafe_mask)
+
+    def fast_scan_many_locals(self, nlocals: int) -> None:
+        states = [0] * (nlocals - 64)
+        block_num = 0
+        # state[i - 64] == blocknum if local i is guaranteed to
+        # be initialized, i.e., if it has had a previous LOAD_FAST or
+        # STORE_FAST within that basicblock (not followed by
+        # DELETE_FAST/LOAD_FAST_AND_CLEAR/STORE_FAST_MAYBE_NULL).
+        for block in self.flow_graph.ordered_blocks:
+            block_num += 1
+            for instr in block.insts:
+                if instr.ioparg < 64:
+                    continue
+
+                arg = instr.ioparg - 64
+                if instr.opname in self.clear_ops:
+                    states[arg] = block_num - 1
+                elif instr.opname == "STORE_FAST":
+                    states[arg] = block_num
+                elif instr.opname == "LOAD_FAST":
+                    if states[arg] != block_num:
+                        instr.opname = "LOAD_FAST_CHECK"
+                    states[arg] = block_num
+
+    def maybe_push(self, block: Block, unsafe_mask: int) -> None:
+        block_unsafe = self.unsafe_locals.get(block, 0)
+        both = block_unsafe | unsafe_mask
+        if block_unsafe != both:
+            self.unsafe_locals[block] = both
+            if block not in self.visited:
+                self.stack.append(block)
+                self.visited.add(block)
 
 
 class LineAddrTable:

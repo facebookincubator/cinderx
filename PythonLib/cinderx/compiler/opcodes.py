@@ -222,6 +222,7 @@ if sys.version_info >= (3, 12):
         LOAD_FAST_AND_CLEAR=1,
         STORE_FAST_MAYBE_NULL=-1,
         RERAISE=-1,
+        LOAD_FAST_CHECK=1,
     )
 
     from opcode import (
