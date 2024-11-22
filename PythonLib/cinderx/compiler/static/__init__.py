@@ -496,7 +496,6 @@ class Static310CodeGenerator(StrictCodeGenerator):
         class_mems = [
             name
             for name in class_mems_with_overrides
-            # pyre-ignore[16]: `Value` has no attribute `override`.
             if not isinstance(mem := klass.members[name], Slot) or not mem.override
         ]
 

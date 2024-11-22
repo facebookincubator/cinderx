@@ -1607,14 +1607,12 @@ class PyFlowGraph312(PyFlowGraph):
 
     def instrsize(self, opname: str, oparg: int):
         opcode_index = opcodes.opcode.opmap[opname]
-        # pyre-ignore[16]: no _inline_cache_entries
         if opcode_index >= len(_inline_cache_entries):
             # T190611021: This should never happen as we should remove pseudo
             # instructions, but we are still missing some functionality
             # like zero-cost exceptions so we emit things like END_FINALLY
             base_size = 0
         else:
-            # pyre-ignore[16]: no _inline_cache_entries
             base_size = _inline_cache_entries[opcode_index]
         if oparg <= 0xFF:
             return 1 + base_size
@@ -1645,9 +1643,7 @@ class PyFlowGraph312(PyFlowGraph):
         self, opcode: str, addCode: Callable[[int, int], None]
     ) -> None:
         opcode_index = opcodes.opcode.opmap[opcode]
-        # pyre-ignore[16]: no _inline_cache_entries
         if opcode_index < len(_inline_cache_entries):
-            # pyre-ignore[16]: no _inline_cache_entries
             base_size = _inline_cache_entries[opcode_index]
         else:
             base_size = 0

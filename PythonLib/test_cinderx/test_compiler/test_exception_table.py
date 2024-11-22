@@ -34,7 +34,6 @@ class EncodingTests(TestCase):
             # depth is handler.startdepth - 1 if lasti is not set
             Entry(start=40, end=56, target=200, depth=2, lasti=False),
             # depth is handler.startdepth - 2 if lasti is set
-            # pyre-ignore[16]: Undefined attribute dis._ExceptionTableEntry
             Entry(start=40, end=56, target=200, depth=1, lasti=True),
         ]
         actual = ParsedExceptionTable.from_bytes(table).entries

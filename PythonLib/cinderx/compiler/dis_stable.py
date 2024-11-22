@@ -70,7 +70,6 @@ def _disassemble_bytes(
     else:
         offset_width = 4
     if sys.version_info >= (3, 12):
-        # pyre-fixme [16]: Module `dis` has no attribute `_get_instructions_bytes`
         instr_bytes = _dis._get_instructions_bytes(
             code,
             lambda oparg: varnames[oparg],

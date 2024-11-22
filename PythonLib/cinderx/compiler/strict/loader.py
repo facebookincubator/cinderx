@@ -530,8 +530,6 @@ class StrictSourceFileLoader(SourceFileLoader):
     def should_force_strict(self) -> bool:
         return False
 
-    # pyre-ignore[40]: Non-static method `source_to_code` cannot override a static
-    #  method defined in `importlib.abc.InspectLoader`.
     # pyre-fixme[14]: `source_to_code` overrides method defined in `InspectLoader`
     #  inconsistently.
     def source_to_code(
