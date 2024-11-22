@@ -1,10 +1,11 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
+
 #include "cinderx/StaticPython/vtable_defs.h"
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Interpreter/interpreter.h"
-#include "cinderx/Jit/compile.h"
+#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/errors.h"
@@ -951,8 +952,7 @@ vectorcallfunc _PyClassLoader_GetStaticFunctionEntry(PyFunctionObject* func) {
   if (is_static_entry(func->vectorcall)) {
     /* this will always be invoked statically via the v-table */
     return (vectorcallfunc)vtable_static_function_dont_bolt;
-  } else {
-    assert(_PyJIT_IsCompiled(func));
-    return JITRT_GET_STATIC_ENTRY(func->vectorcall);
   }
+  assert(isJitCompiled(func));
+  return JITRT_GET_STATIC_ENTRY(func->vectorcall);
 }

@@ -1,17 +1,21 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+#include "cinderx/_cinderx-lib.h"
+
 #include <Python.h>
 
+// clang-format off
+// This has to be high up here to avoid <atomic> vs <stdatomic.h> include
+// issues.
 #include "cinderx/Common/log.h"
+// clang-format on
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
-#include "cinder/hooks.h"
 #include "internal/pycore_shadow_frame.h"
-#else
-#include "cinder/hooks.h"
 #endif
 
+#include "cinder/hooks.h"
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/CachedProperties/cached_properties.h"
@@ -20,6 +24,7 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/perf_jitdump.h"
@@ -38,7 +43,6 @@
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "cinderx/_cinderx-lib.h"
 
 #include <dlfcn.h>
 
@@ -575,7 +579,7 @@ int cinderx_func_watcher(
       break;
     case PyFunction_EVENT_MODIFY_QUALNAME:
       // allow reconsideration of whether this function should be compiled
-      if (!_PyJIT_IsCompiled(func)) {
+      if (!isJitCompiled(func)) {
         // func_set_qualname will assign this again, but we need to assign it
         // now so that CiSetJITEntryOnPyFunctionObject can consider the new
         // qualname.

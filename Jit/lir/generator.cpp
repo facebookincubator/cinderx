@@ -21,20 +21,22 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/iter_helpers.h"
 #include "cinderx/Jit/codegen/x86_64.h"
+#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/block_builder.h"
-#include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/runtime_support.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
+#include "cinderx/StaticPython/vtable.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
@@ -1947,7 +1949,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         std::stringstream ss;
         Instruction* lir;
-        if (_PyJIT_IsCompiled(func)) {
+        if (isJitCompiled(func)) {
           lir = bbb.appendInstr(
               instr->output(),
               Instruction::kCall,

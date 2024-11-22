@@ -4,6 +4,27 @@
 
 #include <Python.h>
 
+#include <stdbool.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/*
+ * Check if a function has been compiled by Cinder's JIT and has a new
+ * vectorcall entry point.
+ *
+ * Note: This returns false for the initial JIT entry points set by
+ * scheduleJitCompile().
+ */
+bool isJitCompiled(const PyFunctionObject* func);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
+
+#ifdef __cplusplus
+
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/hir/hir.h"
 
@@ -109,3 +130,5 @@ class CompiledFunctionDebug : public CompiledFunction {
 };
 
 } // namespace jit
+
+#endif

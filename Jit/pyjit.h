@@ -4,7 +4,6 @@
 
 #include <Python.h>
 
-#include "cinderx/Jit/compile.h"
 #include "cinderx/Jit/pyjit_result.h"
 
 #ifdef __cplusplus

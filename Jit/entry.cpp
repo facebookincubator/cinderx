@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Shadowcode/shadowcode.h"
 
@@ -95,10 +96,10 @@ PyObject* jitVectorcall(
 } // namespace
 
 bool scheduleJitCompile(PyFunctionObject* func) {
-  JIT_DCHECK(
-      !_PyJIT_IsCompiled(func),
-      "Function {} is already compiled",
-      jit::repr(func->func_qualname));
+  // Could be creating an inner function with an already-compiled code object.
+  if (isJitCompiled(func)) {
+    return true;
+  }
 
   if (jit::getConfig().auto_jit_threshold > 0) {
     func->vectorcall = autoJITVectorcall;

@@ -19,7 +19,8 @@ extern "C" {
  * called more times than the AutoJIT threshold.  Before that it will run
  * through the interpreter.
  *
- * Return true if the function was successfully scheduled for compilation.
+ * Return true if the function was successfully scheduled for compilation, or if
+ * it is already compiled.
  */
 bool scheduleJitCompile(PyFunctionObject* func);
 

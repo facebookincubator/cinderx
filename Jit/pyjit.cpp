@@ -21,11 +21,13 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_allocator.h"
+#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/context.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/elf/writer.h"
+#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/preload.h"
@@ -1081,7 +1083,7 @@ PyObject* force_compile(PyObject* /* self */, PyObject* func_obj) {
 
   BorrowedRef<PyFunctionObject> func = func_obj;
 
-  if (_PyJIT_IsCompiled(func)) {
+  if (isJitCompiled(func)) {
     Py_RETURN_FALSE;
   }
 
@@ -1205,7 +1207,7 @@ PyObject* is_jit_compiled(PyObject* /* self */, PyObject* func) {
     return nullptr;
   }
 
-  if (_PyJIT_IsCompiled(reinterpret_cast<PyFunctionObject*>(func))) {
+  if (isJitCompiled(reinterpret_cast<PyFunctionObject*>(func))) {
     Py_RETURN_TRUE;
   }
   Py_RETURN_FALSE;
@@ -2178,10 +2180,6 @@ void finalizeInternedStrings() {
 }
 
 } // namespace
-
-int _PyJIT_IsCompiled(PyFunctionObject* func) {
-  return jit_ctx != nullptr ? jit_ctx->didCompile(func) : 0;
-}
 
 int _PyJIT_Initialize() {
   if (getConfig().init_state == InitState::kInitialized) {
