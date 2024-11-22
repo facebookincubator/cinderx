@@ -17,8 +17,6 @@
 
 namespace jit {
 
-class CodeRuntime;
-
 // Return the ValueKind to use for a value with the given Type.
 hir::ValueKind deoptValueKind(hir::Type type);
 
@@ -199,12 +197,7 @@ struct DeoptMetadata {
   }
 
   // Construct a `DeoptMetadata` instance from the information in `instr`.
-  //
-  // `optimizable_lms` contains the set of `LoadMethod` instructions for which
-  // we were able to generate optimized code.
-  static DeoptMetadata fromInstr(
-      const jit::hir::DeoptBase& instr,
-      CodeRuntime* code_rt);
+  static DeoptMetadata fromInstr(const jit::hir::DeoptBase& instr);
 };
 
 #if PY_VERSION_HEX < 0x030C0000

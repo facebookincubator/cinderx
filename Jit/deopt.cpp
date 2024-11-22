@@ -5,11 +5,8 @@
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
-#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/printer.h"
-#include "cinderx/Jit/runtime.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <folly/tracing/StaticTracepoint.h>
 
@@ -17,7 +14,6 @@
 #include "internal/pycore_frame.h"
 #endif
 
-#include <bit>
 #include <shared_mutex>
 
 using jit::codegen::PhyLocation;
@@ -195,9 +191,7 @@ Ref<> profileDeopt(
       opcode);
 
   const LiveValue* live_val = meta.getGuiltyValue();
-  Ref<> guilty_obj = live_val == nullptr ? nullptr : mem.readOwned(*live_val);
-  Runtime::get()->recordDeopt(deopt_idx, guilty_obj.get());
-  return guilty_obj;
+  return live_val == nullptr ? nullptr : mem.readOwned(*live_val);
 }
 
 // This function handles all computation of the index to resume at for a given
@@ -378,9 +372,7 @@ static DeoptReason getDeoptReason(const jit::hir::DeoptBase& instr) {
   }
 }
 
-DeoptMetadata DeoptMetadata::fromInstr(
-    const jit::hir::DeoptBase& instr,
-    CodeRuntime* code_rt) {
+DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   auto get_source = [&](jit::hir::Register* reg) {
     reg = hir::modelReg(reg);
     auto instr = reg->instr();

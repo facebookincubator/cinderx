@@ -161,10 +161,10 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
   reifyFrame(frame, deopt_meta, deopt_meta.frame_meta.at(0), regs);
   UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
 #endif
-  Ref<> deopt_obj;
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
-  deopt_obj = profileDeopt(deopt_idx, deopt_meta, mem);
+  Ref<> deopt_obj = profileDeopt(deopt_idx, deopt_meta, mem);
+  runtime->recordDeopt(deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);
   if (!PyErr_Occurred()) {
     auto reason = deopt_meta.reason;

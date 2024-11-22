@@ -190,7 +190,7 @@ DeoptMetadata& Runtime::getDeoptMetadata(std::size_t id) {
   return deopt_metadata_[id];
 }
 
-void Runtime::recordDeopt(std::size_t idx, PyObject* guilty_value) {
+void Runtime::recordDeopt(std::size_t idx, BorrowedRef<> guilty_value) {
   DeoptStat& stat = deopt_stats_[idx];
   stat.count++;
   if (guilty_value != nullptr) {

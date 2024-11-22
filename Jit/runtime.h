@@ -354,7 +354,7 @@ class Runtime {
 
   // Record that a deopt of the given index happened at runtime, with an
   // optional guilty value.
-  void recordDeopt(std::size_t idx, PyObject* guilty_value);
+  void recordDeopt(std::size_t idx, BorrowedRef<> guilty_value);
 
   // Get and/or clear runtime deopt stats.
   const DeoptStats& deoptStats() const;
