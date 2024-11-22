@@ -81,7 +81,7 @@ void _PyJIT_TypeNameModified(PyTypeObject* type);
 /*
  * Send into/resume a suspended JIT generator and return the result.
  */
-PyAPI_FUNC(PyObject*) _PyJIT_GenSend(
+PyObject* _PyJIT_GenSend(
     PyGenObject* gen,
     PyObject* arg,
     int exc,
@@ -92,36 +92,35 @@ PyAPI_FUNC(PyObject*) _PyJIT_GenSend(
 /*
  * Materialize the frame for gen. Returns a borrowed reference.
  */
-PyAPI_FUNC(PyFrameObject*) _PyJIT_GenMaterializeFrame(PyGenObject* gen);
+PyFrameObject* _PyJIT_GenMaterializeFrame(PyGenObject* gen);
 
 /*
  * Visit owned references in a JIT-backed generator object.
  */
-PyAPI_FUNC(int)
-    _PyJIT_GenVisitRefs(PyGenObject* gen, visitproc visit, void* arg);
+int _PyJIT_GenVisitRefs(PyGenObject* gen, visitproc visit, void* arg);
 
 /*
  * Release any JIT-related data in a PyGenObject.
  */
-PyAPI_FUNC(void) _PyJIT_GenDealloc(PyGenObject* gen);
+void _PyJIT_GenDealloc(PyGenObject* gen);
 
 /*
  * Return current sub-iterator from JIT generator or NULL if there is none.
  */
-PyAPI_FUNC(PyObject*) _PyJIT_GenYieldFromValue(PyGenObject* gen);
+PyObject* _PyJIT_GenYieldFromValue(PyGenObject* gen);
 
 #if PY_VERSION_HEX < 0x030C0000
 /*
  * Returns a borrowed reference to the globals for the top-most Python function
  * associated with tstate.
  */
-PyAPI_FUNC(PyObject*) _PyJIT_GetGlobals(PyThreadState* tstate);
+PyObject* _PyJIT_GetGlobals(PyThreadState* tstate);
 
 /*
  * Returns a borrowed reference to the builtins for the top-most Python function
  * associated with tstate.
  */
-PyAPI_FUNC(PyObject*) _PyJIT_GetBuiltins(PyThreadState* tstate);
+PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate);
 #endif
 
 /*
@@ -130,7 +129,7 @@ PyAPI_FUNC(PyObject*) _PyJIT_GetBuiltins(PyThreadState* tstate);
  * When shadow frame mode is active, calling this function will materialize
  * PyFrameObjects for any jitted functions on the call stack.
  */
-PyAPI_FUNC(PyFrameObject*) _PyJIT_GetFrame(PyThreadState* tstate);
+PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate);
 
 #ifdef __cplusplus
 } // extern "C"

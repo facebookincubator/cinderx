@@ -20,7 +20,7 @@ extern "C" {
  *
  * Returns 1 if the function is JITed, 0 if not.
  */
-PyAPI_FUNC(int) _PyJIT_IsCompiled(PyFunctionObject* func);
+int _PyJIT_IsCompiled(PyFunctionObject* func);
 
 #ifdef __cplusplus
 } // extern "C"

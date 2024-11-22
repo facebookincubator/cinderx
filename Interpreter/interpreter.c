@@ -35,8 +35,6 @@ static uint64_t signex_masks[] = {
 // #endif
 // #include "ceval_gil.h"
 
-PyAPI_DATA(int) Py_LazyImportsFlag;
-
 static inline int8_t unbox_primitive_bool_and_decref(PyObject* x) {
   assert(PyBool_Check(x));
   int8_t res = (x == Py_True) ? 1 : 0;

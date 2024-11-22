@@ -183,8 +183,8 @@ extern "C" {
  * defined, in which case the dictionaries need to be consulted.  This will
  * return NULL if the required tracking cannot be initialized.
  */
-PyAPI_FUNC(PyObject**)
-    _PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key);
+PyObject**
+_PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key);
 
 /*
  * Gets the cache for the given dictionary and key.  The value that is pointed
@@ -194,7 +194,7 @@ PyAPI_FUNC(PyObject**)
  * consulted.  This will return NULL if the required tracking cannot be
  * initialized.
  */
-PyAPI_FUNC(PyObject**) _PyJIT_GetDictCache(PyObject* dict, PyObject* key);
+PyObject** _PyJIT_GetDictCache(PyObject* dict, PyObject* key);
 
 #ifdef __cplusplus
 } // extern "C"
