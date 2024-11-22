@@ -5,6 +5,8 @@ finally:
     b
 # EXPECTED:
 [
+  ...,
+
   RESUME(0),
   NOP(0),
   LOAD_NAME('a'),
@@ -26,6 +28,6 @@ finally:
 ]
 # EXCEPTION_TABLE:
 """
-  4 to 14 -> 30 [0]
-  30 to 44 -> 46 [1] lasti
+  4 to 6 -> 14 [0]
+  14 to 20 -> 22 [1] lasti
 """

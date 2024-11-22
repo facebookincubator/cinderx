@@ -215,5 +215,24 @@ class ParsedExceptionTable:
                 raise ValueError(f"Invalid exception table entry: {line}")
             args = [int(m.group(x)) for x in range(1, 5)] + [bool(m.group(5))]
             # pyre-ignore[6]: for 5th positional argument, expected `bool` but got `int`.
-            entries.append(ExceptionTableEntry(*args))
+            e = ExceptionTableEntry(*args)
+            # NOTE: From the you-have-died-of-dis-entry-dept...
+            # When dis displays the exception table entry, it subtracts 2 from
+            # e.end (the stored exception table range has an end one opcode further
+            # than the actual range, that is, if we have the bytecode
+            #     OP1  <handler1>
+            #     OP2  <handler1>
+            #     OP3  <handler2>
+            # then internally handler1's e.end will be the offset of OP3, not
+            # of OP2, so dis tweaks the output to reflect the real range).
+            #
+            # It is not clear why this is not fixed in the exception table code
+            # itself, or why dis always subtracts 2 rather than instrsize(OP2),
+            # but we need to add it back here. (The other option would be to
+            # subtract 2 in ExceptionTableEntry.from_dis_entry(), so that our
+            # internal representation matched the dis printed representation.
+            # I'm not sure whether that would be more or less confusing in
+            # failed test output.)
+            e.end = e.end + 2
+            entries.append(e)
         return cls(entries)

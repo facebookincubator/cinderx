@@ -190,7 +190,7 @@ class CodeTests(CompilerTest):
     def check_exc_table(self, actual, expected):
         # TODO(T190611021): This currently does not pass, because our
         # instruction offsets do not match cpython's
-        # self.assertEqual(actual.entries, expected.entries)
+        self.assertEqual(actual.entries, expected.entries)
         pass
 
     def test_self_empty_script(self) -> None:

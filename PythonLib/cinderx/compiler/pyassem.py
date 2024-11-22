@@ -1360,12 +1360,13 @@ class PyFlowGraph312(PyFlowGraph):
                 if instr.opname in SETUP_OPCODES:
                     assert instr.target, instr
                     if instr.target not in visited:
-                        # Copy the block's except stack into the target's except stack
-                        instr.target.except_stack = list(block.except_stack)
+                        # Copy the current except stack into the target's except stack
+                        instr.target.except_stack = list(except_stack)
                         push_todo_block(instr.target)
                     handler = self.push_except_block(except_stack, instr)
                 elif instr.opname == "POP_BLOCK":
-                    handler = except_stack.pop()
+                    except_stack.pop()
+                    handler = except_stack[-1] if except_stack else None
                 elif instr.is_jump(self.opcode):
                     instr.exc_handler = handler
                     if instr.target not in visited:
@@ -1675,9 +1676,8 @@ class PyFlowGraph312(PyFlowGraph):
         handler = None
         start = -1
         for instr in self.insts:
-            if instr.exc_handler and (
-                not handler or instr.exc_handler.offset != handler.offset
-            ):
+            if handler != instr.exc_handler:
+                # We have hit a boundary where instr.exc_handler has changed
                 if handler:
                     exception_table.emit_entry(start, ioffset, handler)
                 start = ioffset
