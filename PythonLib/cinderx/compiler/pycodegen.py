@@ -3940,27 +3940,42 @@ class CodeGenerator312(CodeGenerator):
         self.emit("POP_EXCEPT")
         self.emit("RERAISE", 1)
 
-    def emit_try_finally(self, node, try_body, finalbody, except_protect=False):
+    def visitTry(self, node: ast.Try):
+        if node.finalbody:
+            self.emit_try_finally(node)
+        else:
+            self.emit_try_except(node)
+
+    def emit_try_finally(self, node):
         body = self.newBlock("try_finally_body")
         end = self.newBlock("try_finally_end")
         exit_ = self.newBlock("try_finally_exit")
         cleanup = self.newBlock("cleanup")
 
+        # try block
         self.emit("SETUP_FINALLY", end)
 
         self.nextBlock(body)
-        self.setups.append(Entry(FINALLY_TRY, body, end, finalbody))
-        try_body()
+        self.setups.append(
+            Entry(FINALLY_TRY, body, end, lambda: self.visitStatements(node.finalbody))
+        )
+        if node.handlers:
+            self.emit_try_except(node)
+        else:
+            self.visitStatements(node.body)
+
         self.emit_noline("POP_BLOCK")
         self.setups.pop()
-        finalbody()
-        self.emit_noline("JUMP_FORWARD", exit_)
+        self.visitStatements(node.finalbody)
+        self.emit_noline("JUMP", exit_)
 
+        # finally block
         self.nextBlock(end)
+        self.set_no_pos()
         self.emit("SETUP_CLEANUP", cleanup)
         self.emit("PUSH_EXC_INFO")
         self.setups.append(Entry(FINALLY_END, end, None, None))
-        finalbody()
+        self.visitStatements(node.finalbody)
         self.setups.pop()
         self.emit("RERAISE", 0)
 
@@ -3968,6 +3983,101 @@ class CodeGenerator312(CodeGenerator):
         self.emit_pop_except_and_reraise()
 
         self.nextBlock(exit_)
+
+    def emit_try_except(self, node):
+        body = self.newBlock("try_body")
+        except_ = self.newBlock("try_except")
+        end = self.newBlock("try_end")
+        cleanup = self.newBlock("try_cleanup")
+
+        self.emit("SETUP_FINALLY", except_)
+
+        self.nextBlock(body)
+        self.setups.append(Entry(TRY_EXCEPT, body, None, None))
+        self.visitStatements(node.body)
+        self.setups.pop()
+        self.emit_noline("POP_BLOCK")
+        self.visitStatements(node.orelse)
+        self.set_no_pos()
+        self.emit("JUMP", end)
+
+        self.nextBlock(except_)
+        self.emit("SETUP_CLEANUP", cleanup)
+        self.emit("PUSH_EXC_INFO")
+
+        # Runtime will push a block here, so we need to account for that
+        self.setups.append(Entry(EXCEPTION_HANDLER, None, None, None))
+
+        last = len(node.handlers) - 1
+        for i in range(len(node.handlers)):
+            handler = node.handlers[i]
+            target = handler.name
+            self.set_pos(handler)
+            except_ = self.newBlock(f"try_except_{i}")
+            if handler.type:
+                self.visit(handler.type)
+                self.emit("CHECK_EXC_MATCH")
+                self.emit("POP_JUMP_IF_FALSE", except_)
+            elif i < last:
+                raise SyntaxError(
+                    "default 'except:' must be last",
+                    self.syntax_error_position(handler),
+                )
+
+            if target:
+                cleanup_end = self.newBlock(f"try_cleanup_end_{i}")
+                cleanup_body = self.newBlock(f"try_cleanup_body_{i}")
+
+                self.storeName(target)
+
+                self.emit("SETUP_CLEANUP", cleanup_end)
+
+                self.nextBlock(cleanup_body)
+                self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, target))
+                self.visitStatements(handler.body)
+                self.setups.pop()
+                self.set_no_pos()
+                self.emit("POP_BLOCK")
+                self.emit("POP_BLOCK")
+                self.emit("POP_EXCEPT")
+                self.emit("LOAD_CONST", None)
+                self.storeName(target)
+                self.delName(target)
+                self.emit("JUMP", end)
+
+                # except:
+                self.nextBlock(cleanup_end)
+                self.set_no_pos()
+                self.emit("LOAD_CONST", None)
+                self.storeName(target)
+                self.delName(target)
+
+                self.emit("RERAISE", 1)
+            else:
+                cleanup_body = self.newBlock(f"try_cleanup_body_{i}")
+                self.emit("POP_TOP")
+                self.nextBlock(cleanup_body)
+                self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, None))
+                self.visitStatements(handler.body)
+                self.setups.pop()
+                self.set_no_pos()
+                self.emit("POP_BLOCK")
+                self.emit("POP_EXCEPT")
+                self.emit("JUMP", end)
+
+            self.nextBlock(except_)
+
+        self.setups.pop()
+        self.set_no_pos()
+        self.emit("RERAISE", 0)
+        self.nextBlock(cleanup)
+        self.pop_except_and_reraise()
+        self.nextBlock(end)
+
+    def pop_except_and_reraise(self):
+        self.emit("COPY", 3)
+        self.emit("POP_EXCEPT")
+        self.emit("RERAISE", 1)
 
     # TODO(T132400505): Split into smaller methods.
     def compile_comprehension(
