@@ -1933,6 +1933,16 @@ void HIRBuilder::emitCallEx(
   }
   Register* pargs = stack.pop();
   Register* func = stack.pop();
+#if PY_VERSION_HEX >= 0x030D0000
+  JIT_ABORT("Unused stack slot in CALL_FUNCTION_EX needs reviewing");
+#endif
+#if PY_VERSION_HEX >= 0x030C0000
+  // This isn't obviously explained by code, docs, or comments but
+  // CALL_FUNCTION_EX in 3.12 has an "unused" value on the stack.
+  // I guess this had something to do with simplifying the bytecode
+  // compiler? This has already changed in upstream main.
+  stack.pop();
+#endif
   tc.emit<CallEx>(dst, func, pargs, kwargs, flags, tc.frame);
   stack.push(dst);
 }
