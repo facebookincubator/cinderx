@@ -281,21 +281,39 @@ class BytecodeIndexToLine {
 };
 
 void InsertUpdatePrevInstr::Run(Function& func) {
+  // If we don't have a valid line table to optimize with, update after every
+  // bytecode.
+  bool update_every_bc = func.code->co_linetable == nullptr ||
+      PyObject_Length(func.code->co_linetable) == 0;
+
   BytecodeIndexToLine bc_idx_to_line(func.code);
 
-  // -1 is a "valid" line number result meaning "no line number"
-  int prev_emitted_line_no = INT_MAX;
+  // This is the previous line number of bytecode depending on update_every_bc.
+  // For line numbers, -1 is a "valid" line number result meaning
+  // "no line number" so we use INT_MAX as the default.
+  int prev_emitted_lno_or_bc = INT_MAX;
   for (BasicBlock& block : func.cfg.blocks) {
     for (Instr& instr : block) {
       if (!hasArbitraryExecution(instr)) {
         continue;
       }
-      int cur_line_no = bc_idx_to_line.lineNoFor(instr.bytecodeOffset());
-      if (cur_line_no != prev_emitted_line_no) {
+      auto add_update_prev_instr = [&]() {
         Instr* update_instr = UpdatePrevInstr::create();
         update_instr->copyBytecodeOffset(instr);
         update_instr->InsertBefore(instr);
-        prev_emitted_line_no = cur_line_no;
+      };
+      if (update_every_bc) {
+        int cur_bc_offs = instr.bytecodeOffset().value();
+        if (cur_bc_offs != prev_emitted_lno_or_bc) {
+          add_update_prev_instr();
+          prev_emitted_lno_or_bc = cur_bc_offs;
+        }
+      } else {
+        int cur_line_no = bc_idx_to_line.lineNoFor(instr.bytecodeOffset());
+        if (cur_line_no != prev_emitted_lno_or_bc) {
+          add_update_prev_instr();
+          prev_emitted_lno_or_bc = cur_line_no;
+        }
       }
     }
   }

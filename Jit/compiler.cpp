@@ -140,6 +140,7 @@ PassConfig createConfig() {
   set(hir_opts.guard_type_removal, PassConfig::kGuardTypeRemoval);
   // Inliner currently depends on code objects being stable.
   set(hir_opts.inliner && getConfig().stable_code, PassConfig::kInliner);
+  set(hir_opts.insert_update_prev_instr, PassConfig::kInsertUpdatePrevInstr);
   set(hir_opts.phi_elim, PassConfig::kPhiElim);
   set(hir_opts.simplify, PassConfig::kSimplify);
 

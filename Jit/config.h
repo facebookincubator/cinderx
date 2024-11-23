@@ -28,6 +28,7 @@ struct HIROptimizations {
   bool guard_type_removal{true};
   // TODO(T156009029): Inliner should be on by default.
   bool inliner{false};
+  bool insert_update_prev_instr{true};
   bool phi_elim{true};
   bool simplify{true};
 };
