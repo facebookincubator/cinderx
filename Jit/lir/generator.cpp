@@ -970,7 +970,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
       case Opcode::kIsNegativeAndErrOccurred: {
         // Emit code to do the following:
-        //   dst = (src == -1 && tstate->curexc_type != nullptr) ? -1 : 0;
+        //   dst = (src == -1 && tstate->current_exception != nullptr) ? -1 : 0;
 
         auto instr = static_cast<const IsNegativeAndErrOccurred*>(&i);
         Type src_type = instr->reg()->type();
@@ -995,32 +995,33 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendInstr(instr->output(), Instruction::kMove, Imm{0});
 
         auto check_err = bbb.allocateBlock();
-#if PY_VERSION_HEX < 0x030C0000
         auto set_err = bbb.allocateBlock();
-#endif
         auto done = bbb.allocateBlock();
 
         bbb.appendBranch(
             Instruction::kCondBranch, is_not_negative, done, check_err);
         bbb.switchBlock(check_err);
 
-#if PY_VERSION_HEX < 0x030C0000
-        constexpr int32_t kOffset = offsetof(PyThreadState, curexc_type);
-        Instruction* curexc_type = bbb.appendInstr(
+        constexpr int32_t kOffset = offsetof(
+            PyThreadState,
+#if PY_VERSION_HEX >= 0x030C0000
+            current_exception
+#else
+            curexc_type
+#endif
+        );
+        Instruction* curexc = bbb.appendInstr(
             Instruction::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
 
         Instruction* is_no_err_set = bbb.appendInstr(
             Instruction::kEqual,
             OutVReg{OperandBase::k8bit},
-            curexc_type,
+            curexc,
             MemImm{0});
 
         bbb.appendBranch(
             Instruction::kCondBranch, is_no_err_set, done, set_err);
         bbb.switchBlock(set_err);
-#else
-        UPGRADE_ASSERT(EXCEPTION_HANDLING);
-#endif
 
         // Set to -1 in the error case.
         bbb.appendInstr(Instruction::kDec, instr->output());
@@ -1701,15 +1702,18 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kCheckErrOccurred: {
-#if PY_VERSION_HEX < 0x030C0000
         const auto& instr = static_cast<const DeoptBase&>(i);
-        constexpr int32_t kOffset = offsetof(PyThreadState, curexc_type);
+        constexpr int32_t kOffset = offsetof(
+            PyThreadState,
+#if PY_VERSION_HEX >= 0x030C0000
+            current_exception
+#else
+            curexc_type
+#endif
+        );
         Instruction* load = bbb.appendInstr(
             Instruction::kMove, OutVReg{}, Ind{env_->asm_tstate, kOffset});
         appendGuard(bbb, InstrGuardKind::kZero, instr, load);
-#else
-        UPGRADE_ASSERT(EXCEPTION_HANDLING);
-#endif
         break;
       }
       case Opcode::kCheckExc:
