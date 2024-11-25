@@ -18,10 +18,6 @@
 #define UPGRADE_NOTE(tag, task)
 
 enum {
-  // Missing co_code, co_varnames, co_freevars, co_cellvars, co_cell2arg
-  // Looks like many instances of co_freevars/cellvars are just checking
-  // the count, and there may be new fields for this. T194019251
-  CHANGED_PYCODEOBJECT,
   // Missing f_code, f_lasti, f_gen, f_stackdepth, f_valuestack
   // No longer a frame on PyThreadState. T194018580
   CHANGED_PYFRAMEOBJECT,
