@@ -274,7 +274,7 @@ class CodeGenerator(ASTVisitor):
         self._qual_name = None
         self.parent_code_gen = parent
         self.name = self.get_node_name(node) if name is None else name
-        self.emitResume(ResumeOparg.ScopeEntry)
+        self.emit_resume(ResumeOparg.ScopeEntry)
 
     def _setupGraphDelegation(self):
         self.emit = self.graph.emit
@@ -1615,7 +1615,7 @@ class CodeGenerator(ASTVisitor):
         else:
             raise ValueError(f"Unsupported dup count {count}")
 
-    def emitResume(self, oparg: ResumeOparg) -> None:
+    def emit_resume(self, oparg: ResumeOparg) -> None:
         pass
 
     def visitAttribute(self, node):
@@ -3160,7 +3160,7 @@ class CodeGenerator312(CodeGenerator):
         self.fast_hidden: set[str] = set()
         self.inlined_comp_depth = 0
 
-    def emitResume(self, oparg: ResumeOparg) -> None:
+    def emit_resume(self, oparg: ResumeOparg) -> None:
         self.emit("RESUME", int(oparg))
 
     def visitCall(self, node):
@@ -3232,7 +3232,7 @@ class CodeGenerator312(CodeGenerator):
         if scope.generator and scope.coroutine:
             self.emit_call_intrinsic_1("INTRINSIC_ASYNC_GEN_WRAP")
         self.emit("YIELD_VALUE")
-        self.emitResume(ResumeOparg.Yield)
+        self.emit_resume(ResumeOparg.Yield)
 
     _binary_opargs: dict[type, int] = {
         ast.Add: find_op_idx("NB_ADD"),
@@ -3322,7 +3322,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("SETUP_FINALLY", fail)
         self.emit("YIELD_VALUE")
         self.emit_noline("POP_BLOCK")
-        self.emit("RESUME", 3 if await_ else 2)
+        self.emit_resume(ResumeOparg.Await if await_ else ResumeOparg.YieldFrom)
         self.emit("JUMP_BACKWARD_NO_INTERRUPT", send)
 
         self.nextBlock(fail)
