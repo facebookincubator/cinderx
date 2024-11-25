@@ -62,6 +62,7 @@ UNCONDITIONAL_JUMP_OPCODES = (
     "JUMP_FORWARD",
     "JUMP",
     "JUMP_BACKWARD",
+    "JUMP_NO_INTERRUPT",
     "JUMP_BACKWARD_NO_INTERRUPT",
 )
 
@@ -1624,21 +1625,25 @@ class PyFlowGraph312(PyFlowGraph):
         else:
             return 4 + base_size
 
-    def normalize_jumps(self):
+    def normalize_jumps_in_block(self, block: Block, seen_blocks: set[Block]) -> None:
+        last = block.insts[-1]
+        if not last.is_jump(self.opcode):
+            return
+        target = last.target
+        assert target is not None
+        is_forward = target.bid not in seen_blocks
+        if last.opname == "JUMP":
+            last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD"
+        elif last.opname == "JUMP_NO_INTERRUPT":
+            last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD_NO_INTERRUPT"
+
+    def normalize_jumps(self) -> None:
         assert self.stage == ORDERED, self.stage
-
         seen_blocks = set()
-
         for block in self.ordered_blocks:
             seen_blocks.add(block.bid)
-
-            if not block.insts:
-                continue
-
-            last = block.insts[-1]
-            if last.opname == "JUMP":
-                is_forward = last.target.bid not in seen_blocks
-                last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD"
+            if block.insts:
+                self.normalize_jumps_in_block(block, seen_blocks)
 
     def emit_inline_cache(
         self, opcode: str, addCode: Callable[[int, int], None]

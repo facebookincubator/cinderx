@@ -208,6 +208,7 @@ if sys.version_info >= (3, 12):
         BINARY_OP=-1,
         RETURN_GENERATOR=1,
         SEND=0,
+        JUMP_NO_INTERRUPT=0,
         JUMP_BACKWARD_NO_INTERRUPT=0,
         CLEANUP_THROW=-1,
         END_SEND=-1,

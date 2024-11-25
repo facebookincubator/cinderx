@@ -3323,7 +3323,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("YIELD_VALUE")
         self.emit_noline("POP_BLOCK")
         self.emit_resume(ResumeOparg.Await if await_ else ResumeOparg.YieldFrom)
-        self.emit("JUMP_BACKWARD_NO_INTERRUPT", send)
+        self.emit("JUMP_NO_INTERRUPT", send)
 
         self.nextBlock(fail)
         self.emit("CLEANUP_THROW")
