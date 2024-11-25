@@ -30,3 +30,10 @@ def f():
     POP_EXCEPT(0),
     RERAISE(1),
 ]
+# EXCEPTION_TABLE:
+{
+    "f": """
+      4 to 14 -> 18 [0]
+      18 to 32 -> 38 [1] lasti
+    """
+}

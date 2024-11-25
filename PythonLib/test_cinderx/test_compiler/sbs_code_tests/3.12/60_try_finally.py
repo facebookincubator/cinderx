@@ -27,7 +27,9 @@ finally:
   RERAISE(1),
 ]
 # EXCEPTION_TABLE:
-"""
-  4 to 6 -> 14 [0]
-  14 to 20 -> 22 [1] lasti
-"""
+{
+    "": """
+      4 to 6 -> 14 [0]
+      14 to 20 -> 22 [1] lasti
+    """
+}

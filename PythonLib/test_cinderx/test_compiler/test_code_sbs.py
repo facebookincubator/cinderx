@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import dis
+import inspect
 import os
 import sys
 from collections import defaultdict, deque
@@ -12,7 +13,7 @@ from re import escape
 from typing import Generator, Iterable, Sequence
 
 from cinderx.compiler import pyassem
-from cinderx.compiler.pyassem import Instruction
+from cinderx.compiler.pyassem import Instruction, PyFlowGraph312
 from cinderx.compiler.pycodegen import CodeGenerator
 
 from .common import CompilerTest, glob_test, ParsedExceptionTable
@@ -187,11 +188,25 @@ class CodeTests(CompilerTest):
 
         script[cur_scr].end(self, script, cur_scr)
 
-    def check_exc_table(self, actual, expected):
-        # TODO(T190611021): This currently does not pass, because our
-        # instruction offsets do not match cpython's
-        self.assertEqual(actual.entries, expected.entries)
-        pass
+    def check_exc_table(self, graph: PyFlowGraph312, fn_name: str, table: str):
+        actual = None  # keep pyre happy
+        if fn_name == "":
+            actual = graph.exception_table
+        else:
+            # We have already converted function graphs to bytecode, so we need
+            # to check consts for code objects.
+            # TODO(T190611021): Handle methods and nested functions.
+            for _, obj in graph.consts:
+                if inspect.iscode(obj) and obj.co_name == fn_name:
+                    # pyre-ignore[16]: `types.CodeType` has no attribute `co_exceptiontable`
+                    actual = obj.co_exceptiontable
+                    break
+            else:
+                raise ValueError(f"function {fn_name} not found in code")
+        assert actual is not None
+        actual_exc = ParsedExceptionTable.from_bytes(actual)
+        expected_exc = ParsedExceptionTable.from_dis_output(table)
+        self.assertEqual(actual_exc.entries, expected_exc.entries)
 
     def test_self_empty_script(self) -> None:
         with self.assertRaises(AssertionError):
@@ -360,9 +375,8 @@ def add_test(modname: str, fname: str) -> None:
             if version < (3, 11):
                 self.fail("No exception table in python 3.10")
             exc = eval(exc_table)
-            actual_exc = ParsedExceptionTable.from_bytes(graph.exception_table)
-            expected_exc = ParsedExceptionTable.from_dis_output(exc)
-            self.check_exc_table(actual_exc, expected_exc)
+            for fn, table in exc.items():
+                self.check_exc_table(graph, fn, table)
 
     # pyre-ignore[16]: Callable has no attribute __name__
     test_code.__name__ = "test_" + modname.replace("/", "_").replace(".", "_")[:-3]
