@@ -27,7 +27,11 @@ from .consts import (
     CO_OPTIMIZED,
     CO_SUPPRESS_JIT,
 )
-from .flow_graph_optimizer import FlowGraphOptimizer, FlowGraphOptimizer312
+from .flow_graph_optimizer import (
+    FlowGraphOptimizer,
+    FlowGraphOptimizer310,
+    FlowGraphOptimizer312,
+)
 from .opcodebase import Opcode
 
 
@@ -1211,6 +1215,8 @@ class PyFlowGraph(FlowGraph):
 
 
 class PyFlowGraph310(PyFlowGraph):
+    flow_graph_optimizer = FlowGraphOptimizer310
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         # Final assembled code objects
