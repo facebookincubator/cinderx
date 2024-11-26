@@ -6567,7 +6567,8 @@ class BuiltinMethod(Callable[Class]):
         return NO_EFFECT
 
     def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
-        if node.keywords:
+        has_starred = any(isinstance(arg, ast.Starred) for arg in node.args)
+        if node.keywords or has_starred:
             return super().emit_call(node, code_gen)
 
         code_gen.set_pos(node)

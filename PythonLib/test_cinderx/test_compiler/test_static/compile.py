@@ -6069,6 +6069,22 @@ class StaticCompilationTests(StaticTestBase):
                 d = bool(v & 0x1)
                 self.assertEqual(mod.f(a, b, c, d), (a | b) & (c | d))
 
+    def test_starred_method_args(self):
+        codestr = """
+        def f(vars: list[int]) -> set[int]:
+            return set().union(*([var] for var in vars))
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.f([1, 2, 3]), {1, 2, 3})
+
+    def test_positional_and_starred_method_args(self):
+        codestr = """
+        def f(vars: list[int]) -> set[int]:
+            return set().union([1, 2], *([var] for var in vars))
+        """
+        with self.in_module(codestr) as mod:
+            self.assertEqual(mod.f([3, 4, 5]), {1, 2, 3, 4, 5})
+
 
 if __name__ == "__main__":
     unittest.main()
