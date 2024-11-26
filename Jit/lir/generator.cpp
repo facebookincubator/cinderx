@@ -1231,8 +1231,12 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const LoadAttrSpecial*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
+#if PY_VERSION_HEX >= 0x030C0000
+            _PyObject_LookupSpecialId,
+#else
             Cix_special_lookup,
             env_->asm_tstate,
+#endif
             instr->GetOperand(0),
             instr->id());
         break;

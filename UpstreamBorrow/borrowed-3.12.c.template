@@ -2,7 +2,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 // This file is processed by UpstreamBorrow.py. To see the generated output:
-// buck build -c cinderx.use_3_12=True --out=- fbcode//cinderx/UpstreamBorrow:gen_borrowed.c
+// buck build -c cinderx.use_3_12=true --out=- fbcode//cinderx/UpstreamBorrow:gen_borrowed.c
 
 // clang-format off
 
@@ -40,6 +40,41 @@ Cix_DEINSTRUMENT(uint8_t op) {
 // @Borrow function do_raise from Python/ceval.c
 int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
   return do_raise(tstate, exc, cause);
+}
+
+// Internal dependencies for match_class.
+// @Borrow function match_class_attr from Python/ceval.c
+// End internal dependencies.
+// @Borrow function match_class from Python/ceval.c
+PyObject* Cix_match_class(
+    PyThreadState* tstate,
+    PyObject* subject,
+    PyObject* type,
+    Py_ssize_t nargs,
+    PyObject* kwargs) {
+  return match_class(tstate, subject, type, nargs, kwargs);
+}
+
+// @Borrow function match_keys from Python/ceval.c
+PyObject* Cix_match_keys(PyThreadState* tstate, PyObject* map, PyObject* keys) {
+  return match_keys(tstate, map, keys);
+}
+
+// @Borrow function format_kwargs_error from Python/ceval.c
+void Cix_format_kwargs_error(
+    PyThreadState* tstate,
+    PyObject* func,
+    PyObject* kwargs) {
+  format_kwargs_error(tstate, func, kwargs);
+}
+
+// @Borrow function format_exc_check_arg from Python/ceval.c
+void Cix_format_exc_check_arg(
+    PyThreadState* tstate,
+    PyObject* exc,
+    const char* format_str,
+    PyObject* obj) {
+  format_exc_check_arg(tstate, exc, format_str, obj);
 }
 
 int init_upstream_borrow(void) {

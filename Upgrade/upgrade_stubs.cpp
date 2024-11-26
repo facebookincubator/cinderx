@@ -31,62 +31,6 @@ STUB(PyObject*, CiGen_New_NoFrame, T194022335, PyCodeObject*)
 STUB(int, Ci_PyWaitHandle_CheckExact, T194027914, PyObject*)
 STUB(void, Ci_PyWaitHandle_Release, T194027914, PyObject*)
 STUB(
-    PyObject*,
-    Cix_special_lookup,
-    T196762792,
-    PyThreadState*,
-    PyObject*,
-    _Py_Identifier*)
-STUB(
-    void,
-    Cix_format_kwargs_error,
-    T196762792,
-    PyThreadState*,
-    PyObject*,
-    PyObject*)
-STUB(
-    void,
-    Cix_format_awaitable_error,
-    T196762792,
-    PyThreadState*,
-    PyTypeObject*,
-    int,
-    int)
-STUB(
-    PyFrameObject*,
-    Cix_PyEval_MakeFrameVector,
-    T196762792,
-    PyThreadState*,
-    PyFrameConstructor*,
-    PyObject*,
-    PyObject* const*,
-    Py_ssize_t,
-    PyObject*)
-STUB(
-    void,
-    Cix_format_exc_check_arg,
-    T196762792,
-    PyThreadState*,
-    PyObject*,
-    const char*,
-    PyObject*)
-STUB(
-    PyObject*,
-    Cix_match_class,
-    T196762792,
-    PyThreadState*,
-    PyObject*,
-    PyObject*,
-    Py_ssize_t,
-    PyObject*)
-STUB(
-    PyObject*,
-    Cix_match_keys,
-    T196762792,
-    PyThreadState*,
-    PyObject*,
-    PyObject*)
-STUB(
     int,
     Cix_cfunction_check_kwargs,
     T196762792,

@@ -86,6 +86,28 @@ int Cix_PyLineTable_NextAddressRange(PyCodeAddressRange* range);
 
 int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause);
 
+// There's some kind of issue with the borrow script in 3.10.cinder where it
+// fails to copy these out correctly. However, it seems fine in 3.12.
+// For 3.10.cinder we modify ceval.c.
+#if PY_VERSION_HEX >= 0x030C0000
+PyObject* Cix_match_class(
+    PyThreadState* tstate,
+    PyObject* subject,
+    PyObject* type,
+    Py_ssize_t nargs,
+    PyObject* kwargs);
+PyObject* Cix_match_keys(PyThreadState* tstate, PyObject* map, PyObject* keys);
+void Cix_format_kwargs_error(
+    PyThreadState* tstate,
+    PyObject* func,
+    PyObject* kwargs);
+void Cix_format_exc_check_arg(
+    PyThreadState* tstate,
+    PyObject* exc,
+    const char* format_str,
+    PyObject* obj);
+#endif
+
 int init_upstream_borrow(void);
 
 #ifdef __cplusplus

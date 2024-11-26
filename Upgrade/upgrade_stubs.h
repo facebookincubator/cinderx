@@ -134,38 +134,6 @@ void Ci_PyWaitHandle_Release(PyObject* wait_handle);
 /*
  * Interpreter exports
  */
-
-PyObject*
-Cix_special_lookup(PyThreadState* tstate, PyObject* o, _Py_Identifier* id);
-void Cix_format_kwargs_error(
-    PyThreadState* tstate,
-    PyObject* func,
-    PyObject* kwargs);
-void Cix_format_awaitable_error(
-    PyThreadState* tstate,
-    PyTypeObject* type,
-    int prevprevopcode,
-    int prevopcode);
-PyFrameObject* Cix_PyEval_MakeFrameVector(
-    PyThreadState* tstate,
-    PyFrameConstructor* con,
-    PyObject* locals,
-    PyObject* const* args,
-    Py_ssize_t argcount,
-    PyObject* kwnames);
-void Cix_format_exc_check_arg(
-    PyThreadState*,
-    PyObject*,
-    const char*,
-    PyObject*);
-PyObject* Cix_match_class(
-    PyThreadState* tstate,
-    PyObject* subject,
-    PyObject* type,
-    Py_ssize_t nargs,
-    PyObject* kwargs);
-PyObject* Cix_match_keys(PyThreadState* tstate, PyObject* map, PyObject* keys);
-
 int Cix_cfunction_check_kwargs(
     PyThreadState* tstate,
     PyObject* func,
