@@ -375,75 +375,59 @@ bool LIRGenerator::TranslateSpecializedCall(
     return false;
   }
 
-  // TODO(bsimmers): This is where we can go bananas with specializing calls to
-  // things like tuple(), list(), etc, hardcoding or inlining calls to tp_new
-  // and tp_init as appropriate. For now, we simply support any callable with a
-  // vectorcall.
-  if (Py_TYPE(callee) == &PyCFunction_Type) {
-    if (PyCFunction_GET_FUNCTION(callee) == (PyCFunction)&builtin_next) {
-      if (hir_instr.numArgs() == 1) {
-        bbb.appendCallInstruction(
-            hir_instr.output(),
-            Ci_Builtin_Next_Core,
-            hir_instr.arg(0),
-            nullptr);
-        return true;
-      } else if (hir_instr.numArgs() == 2) {
-        bbb.appendCallInstruction(
-            hir_instr.output(),
-            Ci_Builtin_Next_Core,
-            hir_instr.arg(0),
-            hir_instr.arg(1));
-        return true;
-      }
-    }
-    switch (
-        PyCFunction_GET_FLAGS(callee) &
-        (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS)) {
-      case METH_NOARGS:
-        if (hir_instr.numArgs() == 0) {
-          bbb.appendCallInstruction(
-              hir_instr.output(),
-              PyCFunction_GET_FUNCTION(callee),
-              PyCFunction_GET_SELF(callee),
-              nullptr);
-          return true;
-        }
-        break;
-      case METH_O:
-        if (hir_instr.numArgs() == 1) {
-          bbb.appendCallInstruction(
-              hir_instr.output(),
-              PyCFunction_GET_FUNCTION(callee),
-              PyCFunction_GET_SELF(callee),
-              hir_instr.arg(0));
-          return true;
-        }
-        break;
-    }
-  }
-
-  auto func = [&]() {
-    ThreadedCompileSerialize guard;
-    return _PyVectorcall_Function(callee);
-  }();
-  if (func == nullptr || isJitEntryFunction(func)) {
-    // Bail if the object doesn't support vectorcall, or if it's a function
-    // that hasn't been initialized yet.
+  // Only inline loading the entry points to native functions.  These objects
+  // will not have their vectorcall entry points modified by the JIT, so it
+  // always makes sense to load them at JIT-time and burn them directly into
+  // code.
+  if (type != &PyCFunction_Type) {
     return false;
   }
 
-  Instruction* instr = bbb.appendInstr(
-      hir_instr.output(),
-      Instruction::kVectorCall,
-      // TODO(T140174965): This should be MemImm.
-      Imm{reinterpret_cast<uint64_t>(func)},
-      Imm{0});
-  for (hir::Register* arg : hir_instr.GetOperands()) {
-    instr->addOperands(VReg{bbb.getDefInstr(arg)});
+  if (PyCFunction_GET_FUNCTION(callee) == (PyCFunction)&builtin_next) {
+    if (hir_instr.numArgs() == 1) {
+      bbb.appendCallInstruction(
+          hir_instr.output(), Ci_Builtin_Next_Core, hir_instr.arg(0), nullptr);
+      return true;
+    } else if (hir_instr.numArgs() == 2) {
+      bbb.appendCallInstruction(
+          hir_instr.output(),
+          Ci_Builtin_Next_Core,
+          hir_instr.arg(0),
+          hir_instr.arg(1));
+      return true;
+    }
   }
-  instr->addOperands(Imm{0});
-  return true;
+
+  // TODO(bsimmers): This is where we can go bananas with specializing calls to
+  // things like tuple(), list(), etc, hardcoding or inlining calls to tp_new
+  // and tp_init as appropriate. For now, we simply support any native callable
+  // with a vectorcall.
+  switch (
+      PyCFunction_GET_FLAGS(callee) &
+      (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS)) {
+    case METH_NOARGS:
+      if (hir_instr.numArgs() == 0) {
+        bbb.appendCallInstruction(
+            hir_instr.output(),
+            PyCFunction_GET_FUNCTION(callee),
+            PyCFunction_GET_SELF(callee),
+            nullptr);
+        return true;
+      }
+      break;
+    case METH_O:
+      if (hir_instr.numArgs() == 1) {
+        bbb.appendCallInstruction(
+            hir_instr.output(),
+            PyCFunction_GET_FUNCTION(callee),
+            PyCFunction_GET_SELF(callee),
+            hir_instr.arg(0));
+        return true;
+      }
+      break;
+  }
+
+  return false;
 }
 
 void LIRGenerator::emitExceptionCheck(
