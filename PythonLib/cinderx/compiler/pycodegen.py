@@ -2086,75 +2086,7 @@ class CodeGenerator(ASTVisitor):
                 self.emit("POP_TOP")
 
     def unwind_setup_entry(self, e: Entry, preserve_tos: int) -> None:
-        if e.kind in (
-            WHILE_LOOP,
-            EXCEPTION_HANDLER,
-            ASYNC_COMPREHENSION_GENERATOR,
-            STOP_ITERATION,
-        ):
-            return
-
-        elif e.kind == FOR_LOOP:
-            if preserve_tos:
-                self.emit_rotate_stack(2)
-            self.emit("POP_TOP")
-
-        elif e.kind == TRY_EXCEPT:
-            self.emit("POP_BLOCK")
-
-        elif e.kind == FINALLY_TRY:
-            self.emit("POP_BLOCK")
-            if preserve_tos:
-                self.setups.append(Entry(POP_VALUE, None, None, None))
-            assert callable(e.unwinding_datum)
-            e.unwinding_datum()
-            if preserve_tos:
-                self.setups.pop()
-            self.set_no_pos()
-
-        elif e.kind == FINALLY_END:
-            if preserve_tos:
-                self.emit_rotate_stack(4)
-            self.emit("POP_TOP")
-            self.emit("POP_TOP")
-            self.emit("POP_TOP")
-            if preserve_tos:
-                self.emit_rotate_stack(4)
-            self.emit("POP_EXCEPT")
-
-        elif e.kind in (WITH, ASYNC_WITH):
-            assert isinstance(e.unwinding_datum, AST)
-            self.set_pos(e.unwinding_datum)
-            self.emit("POP_BLOCK")
-            if preserve_tos:
-                self.emit_rotate_stack(2)
-            self.emit_call_exit_with_nones()
-            if e.kind == ASYNC_WITH:
-                self.emit("GET_AWAITABLE")
-                self.emit("LOAD_CONST", None)
-                self.emit_yield_from(await_=True)
-            self.emit("POP_TOP")
-            self.set_no_pos()
-
-        elif e.kind == HANDLER_CLEANUP:
-            datum = e.unwinding_datum
-            if datum is not None:
-                self.emit("POP_BLOCK")
-            if preserve_tos:
-                self.emit_rotate_stack(4)
-            self.emit("POP_EXCEPT")
-            if datum is not None:
-                self.emit("LOAD_CONST", None)
-                self.storeName(datum)
-                self.delName(datum)
-
-        elif e.kind == POP_VALUE:
-            if preserve_tos:
-                self.emit_rotate_stack(2)
-            self.emit("POP_TOP")
-
-        else:
-            raise Exception(f"Unexpected kind {e.kind}")
+        raise NotImplementedError()
 
     def unwind_setup_entries(
         self, preserve_tos: bool, stop_on_loop: bool = False
@@ -3196,6 +3128,77 @@ class CodeGenerator310(CodeGenerator):
         if is_tuple:
             self.emit("LIST_TO_TUPLE")
 
+    def unwind_setup_entry(self, e: Entry, preserve_tos: int) -> None:
+        if e.kind in (
+            WHILE_LOOP,
+            EXCEPTION_HANDLER,
+            ASYNC_COMPREHENSION_GENERATOR,
+            STOP_ITERATION,
+        ):
+            return
+
+        elif e.kind == FOR_LOOP:
+            if preserve_tos:
+                self.emit_rotate_stack(2)
+            self.emit("POP_TOP")
+
+        elif e.kind == TRY_EXCEPT:
+            self.emit("POP_BLOCK")
+
+        elif e.kind == FINALLY_TRY:
+            self.emit("POP_BLOCK")
+            if preserve_tos:
+                self.setups.append(Entry(POP_VALUE, None, None, None))
+            assert callable(e.unwinding_datum)
+            e.unwinding_datum()
+            if preserve_tos:
+                self.setups.pop()
+            self.set_no_pos()
+
+        elif e.kind == FINALLY_END:
+            if preserve_tos:
+                self.emit_rotate_stack(4)
+            self.emit("POP_TOP")
+            self.emit("POP_TOP")
+            self.emit("POP_TOP")
+            if preserve_tos:
+                self.emit_rotate_stack(4)
+            self.emit("POP_EXCEPT")
+
+        elif e.kind in (WITH, ASYNC_WITH):
+            assert isinstance(e.unwinding_datum, AST)
+            self.set_pos(e.unwinding_datum)
+            self.emit("POP_BLOCK")
+            if preserve_tos:
+                self.emit_rotate_stack(2)
+            self.emit_call_exit_with_nones()
+            if e.kind == ASYNC_WITH:
+                self.emit("GET_AWAITABLE")
+                self.emit("LOAD_CONST", None)
+                self.emit_yield_from(await_=True)
+            self.emit("POP_TOP")
+            self.set_no_pos()
+
+        elif e.kind == HANDLER_CLEANUP:
+            datum = e.unwinding_datum
+            if datum is not None:
+                self.emit("POP_BLOCK")
+            if preserve_tos:
+                self.emit_rotate_stack(4)
+            self.emit("POP_EXCEPT")
+            if datum is not None:
+                self.emit("LOAD_CONST", None)
+                self.storeName(datum)
+                self.delName(datum)
+
+        elif e.kind == POP_VALUE:
+            if preserve_tos:
+                self.emit_rotate_stack(2)
+            self.emit("POP_TOP")
+
+        else:
+            raise Exception(f"Unexpected kind {e.kind}")
+
 
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
@@ -4110,6 +4113,77 @@ class CodeGenerator312(CodeGenerator):
         self.emit("COPY", 3)
         self.emit("POP_EXCEPT")
         self.emit("RERAISE", 1)
+
+    def unwind_setup_entry(self, e: Entry, preserve_tos: int) -> None:
+        if e.kind in (
+            WHILE_LOOP,
+            EXCEPTION_HANDLER,
+            ASYNC_COMPREHENSION_GENERATOR,
+            STOP_ITERATION,
+        ):
+            return
+
+        elif e.kind == FOR_LOOP:
+            if preserve_tos:
+                self.emit_rotate_stack(2)
+            self.emit("POP_TOP")
+
+        elif e.kind == TRY_EXCEPT:
+            self.emit("POP_BLOCK")
+
+        elif e.kind == FINALLY_TRY:
+            self.emit("POP_BLOCK")
+            if preserve_tos:
+                self.setups.append(Entry(POP_VALUE, None, None, None))
+            assert callable(e.unwinding_datum)
+            e.unwinding_datum()
+            if preserve_tos:
+                self.setups.pop()
+            self.set_no_pos()
+
+        elif e.kind == FINALLY_END:
+            if preserve_tos:
+                self.emit_rotate_stack(4)
+            self.emit("POP_TOP")
+            self.emit("POP_TOP")
+            self.emit("POP_TOP")
+            if preserve_tos:
+                self.emit_rotate_stack(4)
+            self.emit("POP_EXCEPT")
+
+        elif e.kind in (WITH, ASYNC_WITH):
+            assert isinstance(e.unwinding_datum, AST)
+            self.set_pos(e.unwinding_datum)
+            self.emit("POP_BLOCK")
+            if preserve_tos:
+                self.emit_rotate_stack(2)
+            self.emit_call_exit_with_nones()
+            if e.kind == ASYNC_WITH:
+                self.emit("GET_AWAITABLE")
+                self.emit("LOAD_CONST", None)
+                self.emit_yield_from(await_=True)
+            self.emit("POP_TOP")
+            self.set_no_pos()
+
+        elif e.kind == HANDLER_CLEANUP:
+            datum = e.unwinding_datum
+            if datum is not None:
+                self.emit("POP_BLOCK")
+            if preserve_tos:
+                self.emit_rotate_stack(4)
+            self.emit("POP_EXCEPT")
+            if datum is not None:
+                self.emit("LOAD_CONST", None)
+                self.storeName(datum)
+                self.delName(datum)
+
+        elif e.kind == POP_VALUE:
+            if preserve_tos:
+                self.emit_rotate_stack(2)
+            self.emit("POP_TOP")
+
+        else:
+            raise Exception(f"Unexpected kind {e.kind}")
 
     # TODO(T132400505): Split into smaller methods.
     def compile_comprehension(
