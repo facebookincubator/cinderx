@@ -4015,7 +4015,7 @@ class CodeGenerator312(CodeGenerator):
         self.setups.append(Entry(FINALLY_END, end, None, None))
         final_body()
         self.setups.pop()
-        self.emit("RERAISE", 0)
+        self.emit_noline("RERAISE", 0)
 
         self.nextBlock(cleanup)
         self.emit_pop_except_and_reraise()
