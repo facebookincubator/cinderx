@@ -3,10 +3,6 @@
 
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
-#include <Python.h>
-
-#include "cinderx/Interpreter/interpreter.h"
-
 #define STUB(ret, func, task, args...)                \
   ret func(args) {                                    \
     UPGRADE_ASSERT(Hit stubbed function : func task); \
