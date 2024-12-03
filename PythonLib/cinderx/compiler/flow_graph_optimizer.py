@@ -405,6 +405,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             instr.opname = "NOP"
             next_instr.opname = "RETURN_CONST"
             next_instr.oparg = instr.oparg
+            next_instr.ioparg = instr.ioparg
         else:
             # The rest of the optimizations are common to 3.10 and 3.12
             return super().opt_load_const(instr_index, instr, next_instr, target, block)
