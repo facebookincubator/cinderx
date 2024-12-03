@@ -774,43 +774,39 @@ void initFlagProcessor() {
   }
 }
 
+// Convert a registered translation unit into a pair of a Python function and
+// its code object.  When the translation unit only refers to a code object
+// (e.g. it's a nested function), the function will be a nullptr.
+std::pair<BorrowedRef<PyFunctionObject>, BorrowedRef<PyCodeObject>> splitUnit(
+    BorrowedRef<> unit) {
+  if (PyFunction_Check(unit)) {
+    BorrowedRef<PyFunctionObject> func{unit};
+    BorrowedRef<PyCodeObject> code{func->func_code};
+    return {func, code};
+  }
+  JIT_CHECK(
+      PyCode_Check(unit),
+      "Translation units must be functions or code objects, got '{}'",
+      Py_TYPE(unit)->tp_name);
+
+  BorrowedRef<PyCodeObject> code{unit};
+  return {nullptr, code};
+}
+
 std::string unitFullname(BorrowedRef<> unit) {
   if (unit == nullptr) {
     return "<nullptr>";
   }
-  if (PyFunction_Check(unit)) {
-    BorrowedRef<PyFunctionObject> func{unit};
+  auto [func, code] = splitUnit(unit);
+  if (func != nullptr) {
     return funcFullname(func);
   }
-  if (PyCode_Check(unit)) {
-    BorrowedRef<PyCodeObject> code{unit};
-    auto iter = jit_code_data.find(code);
-    if (iter == jit_code_data.end()) {
-      return fmt::format(
-          "<Unknown code object {}>", static_cast<void*>(code.get()));
-    }
-    return codeFullname(iter->second.module, code);
+  auto iter = jit_code_data.find(code);
+  if (iter == jit_code_data.end()) {
+    return fmt::format(
+        "<Unknown code object {}>", static_cast<void*>(code.get()));
   }
-  return fmt::format(
-      "<Unknown Python object {}>", static_cast<void*>(unit.get()));
-}
-
-// Load the preloader for a given function or code object, if it exists.
-hir::Preloader* lookupPreloader(BorrowedRef<> unit) {
-  BorrowedRef<PyCodeObject> code = unit != nullptr && PyFunction_Check(unit)
-      ? reinterpret_cast<PyFunctionObject*>(unit.get())->func_code
-      : unit.get();
-  JIT_CHECK(code != nullptr, "Trying to map a null code object to a preloader");
-  JIT_CHECK(
-      PyCode_Check(code),
-      "Compilation unit has to be a code object but is instead {}",
-      typeFullname(Py_TYPE(code)));
-
-  return hir::preloaderManager().find(code);
-}
-
-bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
-  return lookupPreloader(func) != nullptr;
+  return codeFullname(iter->second.module, code);
 }
 
 // Load the preloader for a given function or code object.  If it doesn't exist
@@ -819,23 +815,15 @@ bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
 // Can potentially hit a Python exception, if so, will forward that along and
 // return nullptr.
 hir::Preloader* preload(BorrowedRef<> unit) {
-  if (hir::Preloader* existing = lookupPreloader(unit)) {
+  auto [func, code] = splitUnit(unit);
+  if (hir::Preloader* existing = hir::preloaderManager().find(code)) {
     return existing;
   }
 
   std::unique_ptr<hir::Preloader> preloader;
-  BorrowedRef<PyCodeObject> code;
-
-  if (PyFunction_Check(unit)) {
-    BorrowedRef<PyFunctionObject> func{unit};
+  if (func != nullptr) {
     preloader = hir::Preloader::makePreloader(func);
-    code = func->func_code;
   } else {
-    JIT_CHECK(
-        PyCode_Check(unit),
-        "Expected function or code object, not {}",
-        unit->ob_type->tp_name);
-    code = BorrowedRef<PyCodeObject>(unit);
     const CodeData& data = map_get(jit_code_data, code);
     preloader = hir::Preloader::makePreloader(
         code, data.builtins, data.globals, codeFullname(data.module, code));
@@ -861,11 +849,8 @@ hir::Preloader* preload(BorrowedRef<> unit) {
 //
 // Returns PYJIT_RESULT_NO_PRELOADER if no preloader is available.
 _PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
-  BorrowedRef<PyFunctionObject> func;
-  if (PyFunction_Check(unit)) {
-    func = BorrowedRef<PyFunctionObject>{unit};
-  }
-  hir::Preloader* preloader = lookupPreloader(unit);
+  auto [func, code] = splitUnit(unit);
+  hir::Preloader* preloader = hir::preloaderManager().find(code);
   return preloader ? jit_ctx->compilePreloader(func, *preloader)
                    : PYJIT_RESULT_NO_PRELOADER;
 }
@@ -1941,8 +1926,8 @@ bool shouldCompile(BorrowedRef<> module_name, BorrowedRef<PyCodeObject> code) {
 }
 
 // Check if a function has been preloaded.
-bool isPreloaded(BorrowedRef<> unit) {
-  return lookupPreloader(unit) != nullptr;
+bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
+  return hir::preloaderManager().find(func) != nullptr;
 }
 
 // Preload a function and its dependencies, then compile them all.
@@ -1971,7 +1956,7 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
 
   _PyJIT_Result result;
   for (BorrowedRef<PyFunctionObject> target : targets) {
-    auto preloader = lookupPreloader(target);
+    auto preloader = hir::preloaderManager().find(target);
     if (preloader == nullptr) {
       continue;
     }
