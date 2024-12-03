@@ -92,6 +92,12 @@ CompNode = Union[ast.SetComp, ast.DictComp, ast.ListComp]
 STACK_USE_GUIDELINE = 30
 
 
+class AwaitableKind(IntEnum):
+    Default = 0
+    AsyncEnter = 1
+    AsyncExit = 2
+
+
 def make_header(mtime, size):
     return _ZERO + mtime.to_bytes(4, "little") + size.to_bytes(4, "little")
 
@@ -805,6 +811,9 @@ class CodeGenerator(ASTVisitor):
     def conjure_arguments(self, args: list[ast.arg]) -> ast.arguments:
         return ast.arguments([], args, None, [], [], None, [])
 
+    def emit_get_awaitable(self, kind: AwaitableKind) -> None:
+        raise NotImplementedError()
+
     def visitGeneratorExp(self, node):
         self.compile_comprehension(node, sys.intern("<genexpr>"), node.elt, None, None)
 
@@ -884,7 +893,7 @@ class CodeGenerator(ASTVisitor):
         self.visit(item.context_expr)
         if kind == ASYNC_WITH:
             self.emit("BEFORE_ASYNC_WITH")
-            self.emit("GET_AWAITABLE")
+            self.emit_get_awaitable(AwaitableKind.AsyncEnter)
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
@@ -911,7 +920,7 @@ class CodeGenerator(ASTVisitor):
         self.emit_call_exit_with_nones()
 
         if kind == ASYNC_WITH:
-            self.emit("GET_AWAITABLE")
+            self.emit_get_awaitable(AwaitableKind.AsyncExit)
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
         self.emit("POP_TOP")
@@ -924,7 +933,7 @@ class CodeGenerator(ASTVisitor):
         self.emit_with_except_cleanup(cleanup)
 
         if kind == ASYNC_WITH:
-            self.emit("GET_AWAITABLE")
+            self.emit_get_awaitable(AwaitableKind.AsyncExit)
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
@@ -1367,7 +1376,7 @@ class CodeGenerator(ASTVisitor):
 
     def visitAwait(self, node):
         self.visit(node.value)
-        self.emit("GET_AWAITABLE")
+        self.emit_get_awaitable(AwaitableKind.Default)
         self.emit("LOAD_CONST", None)
         self.emit_yield_from(await_=True)
 
@@ -2639,6 +2648,9 @@ class CodeGenerator310(CodeGenerator):
 
     # Comprehensions --------------------------------------------------
 
+    def emit_get_awaitable(self, kind: AwaitableKind) -> None:
+        self.emit("GET_AWAITABLE")
+
     def compile_comprehension(
         self,
         node: CompNode,
@@ -2687,7 +2699,7 @@ class CodeGenerator310(CodeGenerator):
         self.emit_call_one_arg()
 
         if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
-            self.emit("GET_AWAITABLE")
+            self.emit_get_awaitable(AwaitableKind.Default)
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
@@ -3173,7 +3185,7 @@ class CodeGenerator310(CodeGenerator):
                 self.emit_rotate_stack(2)
             self.emit_call_exit_with_nones()
             if e.kind == ASYNC_WITH:
-                self.emit("GET_AWAITABLE")
+                self.emit_get_awaitable(AwaitableKind.AsyncExit)
                 self.emit("LOAD_CONST", None)
                 self.emit_yield_from(await_=True)
             self.emit("POP_TOP")
@@ -3224,6 +3236,9 @@ class CodeGenerator312(CodeGenerator):
 
     def emit_resume(self, oparg: ResumeOparg) -> None:
         self.emit("RESUME", int(oparg))
+
+    def emit_get_awaitable(self, kind: AwaitableKind) -> None:
+        self.emit("GET_AWAITABLE", int(kind))
 
     def visitCall(self, node):
         if not self._can_optimize_call(node):
@@ -4158,7 +4173,7 @@ class CodeGenerator312(CodeGenerator):
                 self.emit_rotate_stack(2)
             self.emit_call_exit_with_nones()
             if e.kind == ASYNC_WITH:
-                self.emit("GET_AWAITABLE")
+                self.emit_get_awaitable(AwaitableKind.AsyncExit)
                 self.emit("LOAD_CONST", None)
                 self.emit_yield_from(await_=True)
             self.emit("POP_TOP")
@@ -4251,7 +4266,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit_call_one_arg()
 
         if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
-            self.emit("GET_AWAITABLE")
+            self.emit_get_awaitable(AwaitableKind.Default)
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
@@ -4556,7 +4571,7 @@ class CinderCodeGenerator(CodeGenerator310):
         self.emit("CALL_FUNCTION", 1)
 
         if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
-            self.emit("GET_AWAITABLE")
+            self.emit_get_awaitable(AwaitableKind.Default)
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 

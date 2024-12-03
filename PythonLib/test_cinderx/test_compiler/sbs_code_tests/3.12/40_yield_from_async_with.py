@@ -15,7 +15,7 @@ async def f():
     __BLOCK__('start: 1'),
     LOAD_GLOBAL('foo'),
     BEFORE_ASYNC_WITH(0),
-    GET_AWAITABLE(0),
+    GET_AWAITABLE(1),
     LOAD_CONST(None),
 
     __BLOCK__('send: 2'),
@@ -34,7 +34,7 @@ async def f():
     LOAD_CONST(None),
     LOAD_CONST(None),
     CALL(2),
-    GET_AWAITABLE(0),
+    GET_AWAITABLE(2),
     LOAD_CONST(None),
 
     __BLOCK__('send: 6'),
@@ -63,7 +63,7 @@ async def f():
     __BLOCK__('with_finally: 9'),
     PUSH_EXC_INFO(0),
     WITH_EXCEPT_START(0),
-    GET_AWAITABLE(0),
+    GET_AWAITABLE(2),
     LOAD_CONST(None),
 
     __BLOCK__('send: 10'),
