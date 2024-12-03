@@ -3391,6 +3391,8 @@ class CodeGenerator312(CodeGenerator):
         self.emit("END_SEND")
 
     def emit_setup_with(self, target: Block, async_: bool) -> None:
+        if not async_:
+            self.emit("BEFORE_WITH")
         self.emit("SETUP_WITH", target)
 
     def emit_end_for(self) -> None:
