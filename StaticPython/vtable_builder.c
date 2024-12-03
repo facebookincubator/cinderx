@@ -18,7 +18,7 @@
 #include "cinderx/Common/property.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
-#include "cinderx/Jit/entry.h"
+#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
@@ -318,10 +318,49 @@ static int _PyVTable_set_opt_slot(
     _PyType_VTable* vtable,
     Py_ssize_t slot,
     PyObject* value) {
-  vectorcallfunc entry = ((PyFunctionObject*)value)->vectorcall;
-  if (isJitEntryFunction(entry)) {
+  PyFunctionObject* func = (PyFunctionObject*)value;
+  vectorcallfunc entry = func->vectorcall;
+  if (entry == (vectorcallfunc)_PyFunction_Vectorcall) {
+    // non-JITed function, it could return a primitive in which case we need a
+    // stub to unbox the value.
+    int optional, exact, func_flags;
+    PyTypeObject* ret_type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
+        value, &optional, &exact, &func_flags);
+    int type_code = _PyClassLoader_GetTypeCode(ret_type);
+
+    if (type_code != TYPED_OBJECT) {
+      PyObject* tuple = PyTuple_New(2);
+      if (tuple == NULL) {
+        return -1;
+      }
+      PyTuple_SET_ITEM(tuple, 0, value);
+      Py_INCREF(value);
+      PyTuple_SET_ITEM(tuple, 1, (PyObject*)ret_type);
+      Py_INCREF(ret_type);
+      vtable->vt_entries[slot].vte_state = tuple;
+      vtable->vt_entries[slot].vte_entry =
+          (vectorcallfunc)_PyVTable_thunk_ret_primitive_not_jitted_dont_bolt;
+    } else {
+      Py_XDECREF(vtable->vt_entries[slot].vte_state);
+      vtable->vt_entries[slot].vte_state = value;
+      vtable->vt_entries[slot].vte_entry =
+          _PyClassLoader_GetStaticFunctionEntry(func);
+      Py_INCREF(value);
+    }
+  } else if (isJitCompiled(func)) {
+    Py_XDECREF(vtable->vt_entries[slot].vte_state);
+    vtable->vt_entries[slot].vte_state = value;
+    vtable->vt_entries[slot].vte_entry =
+        _PyClassLoader_GetStaticFunctionEntry(func);
+    Py_INCREF(value);
+  } else {
     /* entry point isn't initialized yet, we want to run it until it changes,
-     * and then update our own entry point */
+     * and then update our own entry point
+     *
+     * There's an implicit assumption here that the function has been rewritten
+     * to a JIT entry point, but we don't assert that here as that would require
+     * us to depend on the top-level JIT API.
+     */
     int optional, exact, func_flags;
     PyTypeObject* ret_type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
         value, &optional, &exact, &func_flags);
@@ -349,39 +388,6 @@ static int _PyVTable_set_opt_slot(
     vtable->vt_entries[slot].vte_state = state;
     vtable->vt_entries[slot].vte_entry =
         (vectorcallfunc)_PyVTable_func_lazyinit_dont_bolt;
-  } else if (entry == (vectorcallfunc)_PyFunction_Vectorcall) {
-    // non-JITed function, it could return a primitive in which case we need a
-    // stub to unbox the value.
-    int optional, exact, func_flags;
-    PyTypeObject* ret_type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
-        value, &optional, &exact, &func_flags);
-    int type_code = _PyClassLoader_GetTypeCode(ret_type);
-
-    if (type_code != TYPED_OBJECT) {
-      PyObject* tuple = PyTuple_New(2);
-      if (tuple == NULL) {
-        return -1;
-      }
-      PyTuple_SET_ITEM(tuple, 0, value);
-      Py_INCREF(value);
-      PyTuple_SET_ITEM(tuple, 1, (PyObject*)ret_type);
-      Py_INCREF(ret_type);
-      vtable->vt_entries[slot].vte_state = tuple;
-      vtable->vt_entries[slot].vte_entry =
-          (vectorcallfunc)_PyVTable_thunk_ret_primitive_not_jitted_dont_bolt;
-    } else {
-      Py_XDECREF(vtable->vt_entries[slot].vte_state);
-      vtable->vt_entries[slot].vte_state = value;
-      vtable->vt_entries[slot].vte_entry =
-          _PyClassLoader_GetStaticFunctionEntry((PyFunctionObject*)value);
-      Py_INCREF(value);
-    }
-  } else {
-    Py_XDECREF(vtable->vt_entries[slot].vte_state);
-    vtable->vt_entries[slot].vte_state = value;
-    vtable->vt_entries[slot].vte_entry =
-        _PyClassLoader_GetStaticFunctionEntry((PyFunctionObject*)value);
-    Py_INCREF(value);
   }
   return 0;
 }

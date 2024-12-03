@@ -6,7 +6,6 @@
 #include "cinderx/Common/func.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/compiled_function.h"
-#include "cinderx/Jit/entry.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
@@ -700,8 +699,7 @@ __attribute__((__used__)) PyObject* _PyVTable_func_lazyinit_vectorcall(
       func->vectorcall((PyObject*)func, (PyObject**)args, nargsf, NULL);
 
   // Update to the compiled function once the JIT has kicked in.
-  if (vtable->vt_entries[index].vte_state == state &&
-      !isJitEntryFunction(func->vectorcall)) {
+  if (vtable->vt_entries[index].vte_state == state && isJitCompiled(func)) {
     vtable->vt_entries[index].vte_state = (PyObject*)func;
     vtable->vt_entries[index].vte_entry =
         _PyClassLoader_GetStaticFunctionEntry(func);

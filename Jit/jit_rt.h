@@ -84,10 +84,6 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
     size_t nargsf,
     int argcount);
 
-#define JITRT_CALL_REENTRY_OFFSET (-6)
-#define JITRT_GET_REENTRY(entry) \
-  ((vectorcallfunc)(((char*)entry) + JITRT_CALL_REENTRY_OFFSET))
-
 /* Helper function to report an error when the arguments aren't correct for
  * a static function call.  Dispatches to the eval loop to let the normal
  * argument checking prologue run and then report the error */

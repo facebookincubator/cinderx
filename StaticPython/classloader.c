@@ -14,7 +14,6 @@
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
-#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"

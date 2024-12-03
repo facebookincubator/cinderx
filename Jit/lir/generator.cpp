@@ -25,7 +25,6 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/deopt.h"
-#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/hir/analysis.h"
