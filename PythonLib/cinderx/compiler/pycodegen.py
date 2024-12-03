@@ -423,20 +423,8 @@ class CodeGenerator(ASTVisitor):
     def visitLambda(self, node):
         self.visitFunctionOrLambda(node)
 
-    def visitJoinedStr(self, node):
-        if len(node.values) > STACK_USE_GUIDELINE:
-            self.emit("LOAD_CONST", "")
-            self.emit("LOAD_METHOD", "join")
-            self.emit("BUILD_LIST")
-            for value in node.values:
-                self.visit(value)
-                self.emit("LIST_APPEND", 1)
-            self.emit("CALL_METHOD", 1)
-        else:
-            for value in node.values:
-                self.visit(value)
-            if len(node.values) != 1:
-                self.emit("BUILD_STRING", len(node.values))
+    def visitJoinedStr(self, node: ast.JoinedStr) -> None:
+        raise NotImplementedError()
 
     def visitFormattedValue(self, node):
         self.visit(node.value)
@@ -3211,6 +3199,21 @@ class CodeGenerator310(CodeGenerator):
         else:
             raise Exception(f"Unexpected kind {e.kind}")
 
+    def visitJoinedStr(self, node: ast.JoinedStr) -> None:
+        if len(node.values) > STACK_USE_GUIDELINE:
+            self.emit("LOAD_CONST", "")
+            self.emit("LOAD_METHOD", "join")
+            self.emit("BUILD_LIST")
+            for value in node.values:
+                self.visit(value)
+                self.emit("LIST_APPEND", 1)
+            self.emit("CALL_METHOD", 1)
+        else:
+            for value in node.values:
+                self.visit(value)
+            if len(node.values) != 1:
+                self.emit("BUILD_STRING", len(node.values))
+
 
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
@@ -3265,6 +3268,21 @@ class CodeGenerator312(CodeGenerator):
             self.visit(arg)
 
         self.emit("CALL", len(node.args))
+
+    def visitJoinedStr(self, node: ast.JoinedStr) -> None:
+        if len(node.values) > STACK_USE_GUIDELINE:
+            self.emit("LOAD_CONST", "")
+            self.emit("LOAD_ATTR", ("join", 1))
+            self.emit("BUILD_LIST")
+            for value in node.values:
+                self.visit(value)
+                self.emit("LIST_APPEND", 1)
+            self.emit("CALL", 1)
+        else:
+            for value in node.values:
+                self.visit(value)
+            if len(node.values) != 1:
+                self.emit("BUILD_STRING", len(node.values))
 
     def visitFor(self, node):
         start = self.newBlock("for_start")
