@@ -4143,12 +4143,11 @@ class CodeGenerator312(CodeGenerator):
 
         elif e.kind == FINALLY_END:
             if preserve_tos:
-                self.emit_rotate_stack(4)
-            self.emit("POP_TOP")
-            self.emit("POP_TOP")
+                self.emit("SWAP", 2)
             self.emit("POP_TOP")
             if preserve_tos:
-                self.emit_rotate_stack(4)
+                self.emit("SWAP", 2)
+            self.emit("POP_BLOCK")
             self.emit("POP_EXCEPT")
 
         elif e.kind in (WITH, ASYNC_WITH):
