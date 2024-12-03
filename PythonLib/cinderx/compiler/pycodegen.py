@@ -328,45 +328,6 @@ class CodeGenerator(ASTVisitor):
     def delName(self, name):
         self._nameOp("DELETE", name)
 
-    def _nameOp(self, prefix, name):
-        # TODO(T130490253): The JIT suppression should happen in the jit, not the compiler.
-        if (
-            prefix == "LOAD"
-            and name == "super"
-            and isinstance(self.scope, symbols.FunctionScope)
-        ):
-            scope = self.scope.check_name(name)
-            if scope in (SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT):
-                self.scope.suppress_jit = True
-
-        name = self.mangle(name)
-        scope = self.scope.check_name(name)
-
-        if scope == SC_LOCAL:
-            if not self.optimized:
-                self.emit(prefix + "_NAME", name)
-            else:
-                self.emit(prefix + "_FAST", name)
-        elif scope == SC_GLOBAL_EXPLICIT:
-            self.emit(prefix + "_GLOBAL", name)
-        elif scope == SC_GLOBAL_IMPLICIT:
-            if not self.optimized:
-                self.emit(prefix + "_NAME", name)
-            else:
-                self.emit(prefix + "_GLOBAL", name)
-        elif scope == SC_FREE or scope == SC_CELL:
-            if isinstance(self.scope, symbols.ClassScope):
-                if prefix == "STORE" and name not in self.scope.nonlocals:
-                    self.emit(prefix + "_NAME", name)
-                    return
-
-            if isinstance(self.scope, symbols.ClassScope) and prefix == "LOAD":
-                self.emit(prefix + "_CLASSDEREF", name)
-            else:
-                self.emit(prefix + "_DEREF", name)
-        else:
-            raise RuntimeError("unsupported scope for var %s: %d" % (name, scope))
-
     def _implicitNameOp(self, prefix, name):
         """Emit name ops for names generated implicitly by for loops
 
@@ -648,30 +609,6 @@ class CodeGenerator(ASTVisitor):
     def pop_loop(self):
         self.setups.pop()
 
-    def visitFor(self, node):
-        start = self.newBlock("for_start")
-        body = self.newBlock("for_body")
-        cleanup = self.newBlock("for_cleanup")
-        end = self.newBlock("for_end")
-
-        self.push_loop(FOR_LOOP, start, end)
-        self.visit(node.iter)
-        self.emit("GET_ITER")
-
-        self.nextBlock(start)
-        self.emit("FOR_ITER", cleanup)
-        self.nextBlock(body)
-        self.visit(node.target)
-        self.visitStatements(node.body)
-        self.set_no_pos()
-        self.emitJump(start)
-        self.nextBlock(cleanup)
-        self.pop_loop()
-
-        if node.orelse:
-            self.visitStatements(node.orelse)
-        self.nextBlock(end)
-
     def visitAsyncFor(self, node):
         start = self.newBlock("async_for_try")
         except_ = self.newBlock("except")
@@ -894,15 +831,9 @@ class CodeGenerator(ASTVisitor):
             node, sys.intern("<dictcomp>"), node.key, node.value, "BUILD_MAP"
         )
 
-    def emit_yield(self, scope: Scope) -> None:
-        self.emit("YIELD_VALUE")
-
     def compile_comprehension_iter(self, gen: ast.comprehension) -> None:
         self.visit(gen.iter)
         self.emit("GET_AITER" if gen.is_async else "GET_ITER")
-
-    def emit_end_for(self) -> None:
-        pass
 
     def compile_dictcomp_element(self, elt, val):
         self.visit(elt)
@@ -1019,9 +950,6 @@ class CodeGenerator(ASTVisitor):
 
     # misc
 
-    def emit_print(self):
-        self.emit("PRINT_EXPR")
-
     def visitExpr(self, node):
         if self.interactive:
             self.visit(node.value)
@@ -1105,41 +1033,6 @@ class CodeGenerator(ASTVisitor):
             first = False
         self.storeName(asname)
         self.emit("POP_TOP")
-
-    def emit_rotate_stack(self, count: int) -> None:
-        if count == 2:
-            self.emit("ROT_TWO")
-        elif count == 3:
-            self.emit("ROT_THREE")
-        elif count == 4:
-            self.emit("ROT_FOUR")
-        else:
-            raise ValueError("Expected rotate of 2, 3, or 4")
-
-    def emit_yield_from(self, await_: bool = False) -> None:
-        self.emit("YIELD_FROM")
-
-    def emit_dup(self, count: int = 1):
-        if count == 1:
-            self.emit("DUP_TOP")
-        elif count == 2:
-            self.emit("DUP_TOP_TWO")
-        else:
-            raise ValueError(f"Unsupported dup count {count}")
-
-    def emit_resume(self, oparg: ResumeOparg) -> None:
-        pass
-
-    def visitAttribute(self, node):
-        self.visit(node.value)
-        if isinstance(node.ctx, ast.Store):
-            with self.temp_lineno(node.end_lineno):
-                self.emit("STORE_ATTR", self.mangle(node.attr))
-        elif isinstance(node.ctx, ast.Del):
-            self.emit("DELETE_ATTR", self.mangle(node.attr))
-        else:
-            with self.temp_lineno(node.end_lineno):
-                self.emit("LOAD_ATTR", self.mangle(node.attr))
 
     # next five implement assignments
 
@@ -1292,11 +1185,6 @@ class CodeGenerator(ASTVisitor):
         ast.BitOr: "INPLACE_OR",
     }
 
-    def emitAugRHS(self, node):
-        with self.temp_lineno(node.lineno):
-            self.visit(node.value)
-            self.emit(self._augmented_opcode[type(node.op)])
-
     def emitAugName(self, node):
         target = node.target
         self.loadName(target.id)
@@ -1304,27 +1192,11 @@ class CodeGenerator(ASTVisitor):
         self.set_pos(target)
         self.storeName(target.id)
 
-    def emitAugAttribute(self, node):
-        target = node.target
-        self.visit(target.value)
-        self.emit("DUP_TOP")
-        with self.temp_lineno(node.target.end_lineno):
-            self.emit("LOAD_ATTR", self.mangle(target.attr))
-        self.emitAugRHS(node)
-        self.graph.set_pos(
-            SrcLocation(node.target.end_lineno, node.target.end_lineno, -1, -1)
-        )
-        self.emit_rotate_stack(2)
-        self.emit("STORE_ATTR", self.mangle(target.attr))
-
     def emitAugSubscript(self, node):
         self.visitSubscript(node.target, 1)
         self.emitAugRHS(node)
         self.emit_rotate_stack(3)
         self.emit("STORE_SUBSCR")
-
-    def emitJump(self, target):
-        self.emit("JUMP_ABSOLUTE", target)
 
     def visitExec(self, node):
         self.visit(node.expr)
@@ -1524,40 +1396,7 @@ class CodeGenerator(ASTVisitor):
         else:
             assert 0
 
-    # binary ops
-
-    def binaryOp(self, node, op):
-        self.visit(node.left)
-        self.visit(node.right)
-        self.emit(op)
-
-    _binary_opcode: dict[type, str] = {
-        ast.Add: "BINARY_ADD",
-        ast.Sub: "BINARY_SUBTRACT",
-        ast.Mult: "BINARY_MULTIPLY",
-        ast.MatMult: "BINARY_MATRIX_MULTIPLY",
-        ast.Div: "BINARY_TRUE_DIVIDE",
-        ast.FloorDiv: "BINARY_FLOOR_DIVIDE",
-        ast.Mod: "BINARY_MODULO",
-        ast.Pow: "BINARY_POWER",
-        ast.LShift: "BINARY_LSHIFT",
-        ast.RShift: "BINARY_RSHIFT",
-        ast.BitOr: "BINARY_OR",
-        ast.BitXor: "BINARY_XOR",
-        ast.BitAnd: "BINARY_AND",
-    }
-
-    def visitBinOp(self, node):
-        self.visit(node.left)
-        self.visit(node.right)
-        op = self._binary_opcode[type(node.op)]
-        self.emit(op)
-
     # unary ops
-
-    def unaryOp(self, node, op):
-        self.visit(node.operand)
-        self.emit(op)
 
     _unary_opcode: dict[type, str] = {
         ast.Invert: "UNARY_INVERT",
@@ -1606,49 +1445,6 @@ class CodeGenerator(ASTVisitor):
             if isinstance(elt, ast.Starred):
                 return True
         return False
-
-    def _visitSequenceLoad(
-        self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
-    ):
-        if len(elts) > 2 and all(isinstance(elt, ast.Constant) for elt in elts):
-            elts_tuple = tuple(elt.value for elt in elts)
-            if is_tuple:
-                self.emit("LOAD_CONST", elts_tuple)
-            else:
-                if add_op == "SET_ADD":
-                    elts_tuple = frozenset(elts_tuple)
-                self.emit(build_op, num_pushed)
-                self.emit("LOAD_CONST", elts_tuple)
-                self.emit(extend_op, 1)
-            return
-
-        big = (len(elts) + num_pushed) > STACK_USE_GUIDELINE
-        starred_load = self.hasStarred(elts)
-        if not starred_load and not big:
-            for elt in elts:
-                self.visit(elt)
-            collection_size = num_pushed + len(elts)
-            self.emit("BUILD_TUPLE" if is_tuple else build_op, collection_size)
-            return
-
-        sequence_built = False
-        if big:
-            self.emit(build_op, num_pushed)
-            sequence_built = True
-        for on_stack, elt in enumerate(elts):
-            if isinstance(elt, ast.Starred):
-                if not sequence_built:
-                    self.emit(build_op, on_stack + num_pushed)
-                    sequence_built = True
-                self.visit(elt.value)
-                self.emit(extend_op, 1)
-            else:
-                self.visit(elt)
-                if sequence_built:
-                    self.emit(add_op, 1)
-
-        if is_tuple:
-            self.emit("LIST_TO_TUPLE")
 
     def _visitSequence(self, node, build_op, add_op, extend_op, ctx, is_tuple=False):
         if isinstance(ctx, ast.Store):
@@ -1704,11 +1500,6 @@ class CodeGenerator(ASTVisitor):
         for d in node.dims:
             self.visit(d)
         self.emit("BUILD_TUPLE", len(node.dims))
-
-    def visitNamedExpr(self, node: ast.NamedExpr):
-        self.visit(node.value)
-        self.emit("DUP_TOP")
-        self.visit(node.target)
 
     def _const_value(self, node):
         assert isinstance(node, ast.Constant)
@@ -2454,6 +2245,18 @@ class CodeGenerator(ASTVisitor):
     def emit_try_finally(self, node) -> None:
         raise NotImplementedError()
 
+    def emit_yield_from(self, await_: bool = False) -> None:
+        raise NotImplementedError()
+
+    def emit_resume(self, oparg: ResumeOparg) -> None:
+        raise NotImplementedError()
+
+    def emit_rotate_stack(self, count: int) -> None:
+        raise NotImplementedError()
+
+    def emit_end_for(self) -> None:
+        raise NotImplementedError()
+
     def make_func_codegen(
         self,
         func: FuncOrLambda | CompNode,
@@ -2675,6 +2478,112 @@ class CodeGenerator310(CodeGenerator):
             flags=self.flags,
             optimization_lvl=self.optimization_lvl,
         )
+
+    # Names and attribute access --------------------------------------------------
+
+    def _nameOp(self, prefix, name):
+        # TODO(T130490253): The JIT suppression should happen in the jit, not the compiler.
+        if (
+            prefix == "LOAD"
+            and name == "super"
+            and isinstance(self.scope, symbols.FunctionScope)
+        ):
+            scope = self.scope.check_name(name)
+            if scope in (SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT):
+                self.scope.suppress_jit = True
+
+        name = self.mangle(name)
+        scope = self.scope.check_name(name)
+
+        if scope == SC_LOCAL:
+            if not self.optimized:
+                self.emit(prefix + "_NAME", name)
+            else:
+                self.emit(prefix + "_FAST", name)
+        elif scope == SC_GLOBAL_EXPLICIT:
+            self.emit(prefix + "_GLOBAL", name)
+        elif scope == SC_GLOBAL_IMPLICIT:
+            if not self.optimized:
+                self.emit(prefix + "_NAME", name)
+            else:
+                self.emit(prefix + "_GLOBAL", name)
+        elif scope == SC_FREE or scope == SC_CELL:
+            if isinstance(self.scope, symbols.ClassScope):
+                if prefix == "STORE" and name not in self.scope.nonlocals:
+                    self.emit(prefix + "_NAME", name)
+                    return
+
+            if isinstance(self.scope, symbols.ClassScope) and prefix == "LOAD":
+                self.emit(prefix + "_CLASSDEREF", name)
+            else:
+                self.emit(prefix + "_DEREF", name)
+        else:
+            raise RuntimeError("unsupported scope for var %s: %d" % (name, scope))
+
+    def visitAttribute(self, node):
+        self.visit(node.value)
+        if isinstance(node.ctx, ast.Store):
+            with self.temp_lineno(node.end_lineno):
+                self.emit("STORE_ATTR", self.mangle(node.attr))
+        elif isinstance(node.ctx, ast.Del):
+            self.emit("DELETE_ATTR", self.mangle(node.attr))
+        else:
+            with self.temp_lineno(node.end_lineno):
+                self.emit("LOAD_ATTR", self.mangle(node.attr))
+
+    def visitNamedExpr(self, node: ast.NamedExpr):
+        self.visit(node.value)
+        self.emit("DUP_TOP")
+        self.visit(node.target)
+
+    # Stack manipulation --------------------------------------------------
+
+    def emit_rotate_stack(self, count: int) -> None:
+        if count == 2:
+            self.emit("ROT_TWO")
+        elif count == 3:
+            self.emit("ROT_THREE")
+        elif count == 4:
+            self.emit("ROT_FOUR")
+        else:
+            raise ValueError("Expected rotate of 2, 3, or 4")
+
+    def emit_dup(self, count: int = 1):
+        if count == 1:
+            self.emit("DUP_TOP")
+        elif count == 2:
+            self.emit("DUP_TOP_TWO")
+        else:
+            raise ValueError(f"Unsupported dup count {count}")
+
+    # Loops --------------------------------------------------
+
+    def visitFor(self, node):
+        start = self.newBlock("for_start")
+        body = self.newBlock("for_body")
+        cleanup = self.newBlock("for_cleanup")
+        end = self.newBlock("for_end")
+
+        self.push_loop(FOR_LOOP, start, end)
+        self.visit(node.iter)
+        self.emit("GET_ITER")
+
+        self.nextBlock(start)
+        self.emit("FOR_ITER", cleanup)
+        self.nextBlock(body)
+        self.visit(node.target)
+        self.visitStatements(node.body)
+        self.set_no_pos()
+        self.emitJump(start)
+        self.nextBlock(cleanup)
+        self.pop_loop()
+
+        if node.orelse:
+            self.visitStatements(node.orelse)
+        self.nextBlock(end)
+
+    def emit_end_for(self) -> None:
+        pass
 
     # Class and function definitions --------------------------------------------------
 
@@ -3193,6 +3102,117 @@ class CodeGenerator310(CodeGenerator):
     def emit_setup_with(self, target: Block, async_: bool) -> None:
         self.emit("SETUP_ASYNC_WITH" if async_ else "SETUP_WITH", target)
 
+    # Operators and augmented assignment --------------------------------------------------
+
+    def emitAugRHS(self, node):
+        with self.temp_lineno(node.lineno):
+            self.visit(node.value)
+            self.emit(self._augmented_opcode[type(node.op)])
+
+    def emitAugAttribute(self, node):
+        target = node.target
+        self.visit(target.value)
+        self.emit("DUP_TOP")
+        with self.temp_lineno(node.target.end_lineno):
+            self.emit("LOAD_ATTR", self.mangle(target.attr))
+        self.emitAugRHS(node)
+        self.graph.set_pos(
+            SrcLocation(node.target.end_lineno, node.target.end_lineno, -1, -1)
+        )
+        self.emit_rotate_stack(2)
+        self.emit("STORE_ATTR", self.mangle(target.attr))
+
+    def unaryOp(self, node, op):
+        self.visit(node.operand)
+        self.emit(op)
+
+    def binaryOp(self, node, op):
+        self.visit(node.left)
+        self.visit(node.right)
+        self.emit(op)
+
+    _binary_opcode: dict[type, str] = {
+        ast.Add: "BINARY_ADD",
+        ast.Sub: "BINARY_SUBTRACT",
+        ast.Mult: "BINARY_MULTIPLY",
+        ast.MatMult: "BINARY_MATRIX_MULTIPLY",
+        ast.Div: "BINARY_TRUE_DIVIDE",
+        ast.FloorDiv: "BINARY_FLOOR_DIVIDE",
+        ast.Mod: "BINARY_MODULO",
+        ast.Pow: "BINARY_POWER",
+        ast.LShift: "BINARY_LSHIFT",
+        ast.RShift: "BINARY_RSHIFT",
+        ast.BitOr: "BINARY_OR",
+        ast.BitXor: "BINARY_XOR",
+        ast.BitAnd: "BINARY_AND",
+    }
+
+    def visitBinOp(self, node):
+        self.visit(node.left)
+        self.visit(node.right)
+        op = self._binary_opcode[type(node.op)]
+        self.emit(op)
+
+    # Misc --------------------------------------------------
+
+    def emitJump(self, target) -> None:
+        self.emit("JUMP_ABSOLUTE", target)
+
+    def emit_print(self) -> None:
+        self.emit("PRINT_EXPR")
+
+    def emit_yield(self, scope: Scope) -> None:
+        self.emit("YIELD_VALUE")
+
+    def emit_yield_from(self, await_: bool = False) -> None:
+        self.emit("YIELD_FROM")
+
+    def emit_resume(self, oparg: ResumeOparg) -> None:
+        pass
+
+    def _visitSequenceLoad(
+        self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
+    ) -> None:
+        if len(elts) > 2 and all(isinstance(elt, ast.Constant) for elt in elts):
+            elts_tuple = tuple(elt.value for elt in elts)
+            if is_tuple:
+                self.emit("LOAD_CONST", elts_tuple)
+            else:
+                if add_op == "SET_ADD":
+                    elts_tuple = frozenset(elts_tuple)
+                self.emit(build_op, num_pushed)
+                self.emit("LOAD_CONST", elts_tuple)
+                self.emit(extend_op, 1)
+            return
+
+        big = (len(elts) + num_pushed) > STACK_USE_GUIDELINE
+        starred_load = self.hasStarred(elts)
+        if not starred_load and not big:
+            for elt in elts:
+                self.visit(elt)
+            collection_size = num_pushed + len(elts)
+            self.emit("BUILD_TUPLE" if is_tuple else build_op, collection_size)
+            return
+
+        sequence_built = False
+        if big:
+            self.emit(build_op, num_pushed)
+            sequence_built = True
+        for on_stack, elt in enumerate(elts):
+            if isinstance(elt, ast.Starred):
+                if not sequence_built:
+                    self.emit(build_op, on_stack + num_pushed)
+                    sequence_built = True
+                self.visit(elt.value)
+                self.emit(extend_op, 1)
+            else:
+                self.visit(elt)
+                if sequence_built:
+                    self.emit(add_op, 1)
+
+        if is_tuple:
+            self.emit("LIST_TO_TUPLE")
+
 
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
@@ -3433,12 +3453,12 @@ class CodeGenerator312(CodeGenerator):
             return
         self.emit("CALL", argcnt + len(args))
 
-    def emitJump(self, target):
+    def emitJump(self, target) -> None:
         self.emit("JUMP", target)
 
     def _visitSequenceLoad(
         self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
-    ):
+    ) -> None:
         if len(elts) > 2 and all(isinstance(elt, ast.Constant) for elt in elts):
             elts_tuple = tuple(elt.value for elt in elts)
             if is_tuple and not num_pushed:
