@@ -189,7 +189,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         self,
         tree: FuncOrLambda | CompNode | ast.ClassDef,
         graph: PyFlowGraph,
-    ) -> CodeGenerator:
+    ) -> StrictCodeGenerator:
         if self._is_static_compiler_disabled(tree):
             return StrictCodeGenerator(
                 self,
