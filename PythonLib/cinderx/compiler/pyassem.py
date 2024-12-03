@@ -1553,6 +1553,10 @@ class PyFlowGraph312(PyFlowGraph):
     def add_checks_for_loads_of_uninitialized_variables(self) -> None:
         UninitializedVariableChecker(self).check()
 
+    def inline_small_exit_blocks(self) -> None:
+        for block in self.ordered_blocks:
+            self.extend_block(block)
+
     def is_redundant_pair(
         self, prev_instr: Instruction | None, instr: Instruction
     ) -> bool:
@@ -1594,6 +1598,8 @@ class PyFlowGraph312(PyFlowGraph):
 
         self.eliminate_empty_basic_blocks()
 
+        self.inline_small_exit_blocks()
+
         optimizer = self.flow_graph_optimizer(self)
         for block in self.ordered_blocks:
             optimizer.optimize_basic_block(block)
@@ -1601,12 +1607,14 @@ class PyFlowGraph312(PyFlowGraph):
 
         self.remove_redundant_nops_and_pairs(optimizer)
 
+        self.inline_small_exit_blocks()
+
         for block in self.ordered_blocks:
             # remove redundant nops
             optimizer.clean_basic_block(block, -1)
 
-        self.eliminate_empty_basic_blocks()
         self.remove_unreachable_basic_blocks()
+        self.eliminate_empty_basic_blocks()
 
         maybe_empty_blocks = self.remove_redundant_jumps(optimizer)
 
