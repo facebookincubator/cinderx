@@ -3367,7 +3367,7 @@ class CodeGenerator312(CodeGenerator):
         ast.MatMult: find_op_idx("NB_INPLACE_MATRIX_MULTIPLY"),
         ast.Div: find_op_idx("NB_INPLACE_TRUE_DIVIDE"),
         ast.FloorDiv: find_op_idx("NB_INPLACE_FLOOR_DIVIDE"),
-        ast.Mod: find_op_idx("NB_INPLACE_MODULO"),
+        ast.Mod: find_op_idx("NB_INPLACE_REMAINDER"),
         ast.Pow: find_op_idx("NB_INPLACE_POWER"),
         ast.RShift: find_op_idx("NB_INPLACE_RSHIFT"),
         ast.LShift: find_op_idx("NB_INPLACE_LSHIFT"),
@@ -3379,6 +3379,7 @@ class CodeGenerator312(CodeGenerator):
     def emitAugRHS(self, node):
         self.visit(node.value)
         op = self._augmented_opargs[type(node.op)]
+        assert op != -1, node.op
         self.graph.emit_with_loc("BINARY_OP", op, node)
 
     def emitAugAttribute(self, node: ast.AugAssign) -> None:
