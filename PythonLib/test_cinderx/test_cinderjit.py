@@ -4261,10 +4261,7 @@ class RegressionTests(StaticTestBase):
 class CinderJitModuleTests(StaticTestBase):
     def test_bad_disable(self):
         with self.assertRaises(TypeError):
-            cinderjit.disable(1, 2)
-
-        with self.assertRaises(TypeError):
-            cinderjit.disable(None)
+            cinderjit.disable(1, 2, 3)
 
     def test_jit_suppress(self):
         @cinderjit.jit_suppress

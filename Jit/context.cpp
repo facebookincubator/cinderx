@@ -16,9 +16,9 @@ AotContext g_aot_ctx;
 
 Context::~Context() {
   for (auto it = compiled_funcs_.begin(); it != compiled_funcs_.end();) {
-    PyFunctionObject* func = *it;
+    BorrowedRef<PyFunctionObject> func = *it;
     ++it;
-    deoptFunc(func);
+    deoptFuncImpl(func);
   }
 }
 
@@ -35,22 +35,34 @@ _PyJIT_Result Context::compilePreloader(
   return PYJIT_RESULT_OK;
 }
 
-_PyJIT_Result Context::attachCompiledCode(BorrowedRef<PyFunctionObject> func) {
-  JIT_DCHECK(!didCompile(func), "Function is already compiled");
+bool Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
+  if (deoptFuncImpl(func)) {
+    deopted_funcs_.emplace(func);
+    return true;
+  }
+  return false;
+}
+
+bool Context::reoptFunc(BorrowedRef<PyFunctionObject> func) {
+  JIT_CHECK(
+      !didCompile(func),
+      "Trying to reopt function '{}' but it is already compiled",
+      funcFullname(func));
+
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  if (code->co_flags & CI_CO_SUPPRESS_JIT) {
+    return false;
+  }
+
+  // Might be a nested function that was never explicitly deopted, so ignore the
+  // result of this.
+  deopted_funcs_.erase(func);
 
   if (CompiledFunction* compiled = lookupFunc(func)) {
     finalizeFunc(func, *compiled);
-    return PYJIT_RESULT_OK;
+    return true;
   }
-  return PYJIT_RESULT_CANNOT_SPECIALIZE;
-}
-
-void Context::funcModified(BorrowedRef<PyFunctionObject> func) {
-  deoptFunc(func);
-}
-
-void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
-  compiled_funcs_.erase(func);
+  return false;
 }
 
 bool Context::didCompile(BorrowedRef<PyFunctionObject> func) {
@@ -66,6 +78,10 @@ const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::compiledFuncs() {
   return compiled_funcs_;
 }
 
+const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::deoptedFuncs() {
+  return deopted_funcs_;
+}
+
 void Context::setCinderJitModule(Ref<> mod) {
   cinderjit_module_ = std::move(mod);
 }
@@ -75,6 +91,15 @@ void Context::clearCache() {
     orphaned_compiled_codes_.emplace_back(std::move(entry.second));
   }
   compiled_codes_.clear();
+}
+
+void Context::funcModified(BorrowedRef<PyFunctionObject> func) {
+  deoptFunc(func);
+}
+
+void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
+  compiled_funcs_.erase(func);
+  deopted_funcs_.erase(func);
 }
 
 Context::CompilationResult Context::compilePreloader(
@@ -148,7 +173,29 @@ CompiledFunction* Context::lookupCode(
   return it == compiled_codes_.end() ? nullptr : it->second.get();
 }
 
-void Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
+void Context::finalizeFunc(
+    BorrowedRef<PyFunctionObject> func,
+    const CompiledFunction& compiled) {
+  ThreadedCompileSerialize guard;
+  if (!compiled_funcs_.emplace(func).second) {
+    // Someone else compiled the function between when our caller checked and
+    // called us.
+    return;
+  }
+
+  // In case the function had previously been deopted.
+  deopted_funcs_.erase(func);
+
+  func->vectorcall = compiled.vectorcallEntry();
+  Runtime* rt = Runtime::get();
+  if (rt->hasFunctionEntryCache(func)) {
+    void** indirect = rt->findFunctionEntryCache(func);
+    *indirect = compiled.staticEntry();
+  }
+  return;
+}
+
+bool Context::deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
   // There appear to be instances where the runtime is finalizing and goes to
   // destroy the cinderjit module and deopt all compiled functions, only to find
   // that some of the compiled functions have already been zeroed out and
@@ -161,32 +208,14 @@ void Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
         "Trying to deopt destroyed function at {} when runtime is not "
         "finalizing",
         reinterpret_cast<void*>(func.get()));
-    return;
+    return false;
   }
 
-  if (compiled_funcs_.erase(func) != 0) {
-    // Reset the entry point.
-    func->vectorcall = getInterpretedVectorcall(func);
+  if (compiled_funcs_.erase(func) == 0) {
+    return false;
   }
-}
-
-void Context::finalizeFunc(
-    BorrowedRef<PyFunctionObject> func,
-    const CompiledFunction& compiled) {
-  ThreadedCompileSerialize guard;
-  if (!compiled_funcs_.emplace(func).second) {
-    // Someone else compiled the function between when our caller checked and
-    // called us.
-    return;
-  }
-
-  func->vectorcall = compiled.vectorcallEntry();
-  Runtime* rt = Runtime::get();
-  if (rt->hasFunctionEntryCache(func)) {
-    void** indirect = rt->findFunctionEntryCache(func);
-    *indirect = compiled.staticEntry();
-  }
-  return;
+  func->vectorcall = getInterpretedVectorcall(func);
+  return true;
 }
 
 void AotContext::init(void* bundle_handle) {

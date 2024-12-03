@@ -68,22 +68,25 @@ class Context {
       const hir::Preloader& preloader);
 
   /*
-   * Attach already-compiled code to the given function, if it exists.
+   * De-optimize a function by setting it to run through the interpreter if it
+   * had been previously JIT-compiled.
    *
-   * Intended for (but not limited to) use with nested functions after the JIT
-   * is disabled.
-   *
-   * Will return PYJIT_RESULT_OK if the given function already had compiled code
-   * attached.
+   * Return true if the function was previously JIT-compiled, false otherwise.
    */
-  _PyJIT_Result attachCompiledCode(BorrowedRef<PyFunctionObject> func);
+  bool deoptFunc(BorrowedRef<PyFunctionObject> func);
 
   /*
-   * Callbacks invoked by the runtime when a PyFunctionObject is modified or
-   * destroyed.
+   * Re-optimize a function by setting it to use JIT-compiled code if there's a
+   * matching compiled code object.
+   *
+   * Intended for functions that have been explicitly deopted and for nested
+   * functions.  Nested functions are created and destroyed multiple times but
+   * have the same underlying code object.
+   *
+   * Return true if the function was successfully reopted, false if nothing
+   * happened.
    */
-  void funcModified(BorrowedRef<PyFunctionObject> func);
-  void funcDestroyed(BorrowedRef<PyFunctionObject> func);
+  bool reoptFunc(BorrowedRef<PyFunctionObject> func);
 
   /*
    * Return whether or not this context compiled the supplied function.
@@ -101,6 +104,12 @@ class Context {
   const UnorderedSet<BorrowedRef<PyFunctionObject>>& compiledFuncs();
 
   /*
+   * Get a range over all function objects that have been compiled and since
+   * deopted.
+   */
+  const UnorderedSet<BorrowedRef<PyFunctionObject>>& deoptedFuncs();
+
+  /*
    * Set and hold a reference to the cinderjit Python module.
    */
   void setCinderJitModule(Ref<> mod);
@@ -111,6 +120,13 @@ class Context {
    * used during multithreaded_compile_test.
    */
   void clearCache();
+
+  /*
+   * Callbacks invoked by the runtime when a PyFunctionObject is modified or
+   * destroyed.
+   */
+  void funcModified(BorrowedRef<PyFunctionObject> func);
+  void funcDestroyed(BorrowedRef<PyFunctionObject> func);
 
  private:
   struct CompilationResult {
@@ -126,17 +142,15 @@ class Context {
       BorrowedRef<PyDictObject> globals);
 
   /*
-   * Reset a function's entry point if it was JIT-compiled.
-   */
-  void deoptFunc(BorrowedRef<PyFunctionObject> func);
-
-  /*
    * Record per-function metadata for a newly compiled function and set the
    * function's entrypoint.
    */
   void finalizeFunc(
       BorrowedRef<PyFunctionObject> func,
       const CompiledFunction& compiled);
+
+  /* Deopts a function but doesn't touch deopted_funcs_. */
+  bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func);
 
   /* General purpose jit compiler */
   Compiler jit_compiler_;
@@ -150,6 +164,9 @@ class Context {
 
   /* Set of which functions have JIT-compiled entrypoints. */
   UnorderedSet<BorrowedRef<PyFunctionObject>> compiled_funcs_;
+
+  /* Set of which functions were JIT-compiled but have since been deopted. */
+  UnorderedSet<BorrowedRef<PyFunctionObject>> deopted_funcs_;
 
   /*
    * Set of compilations that are currently active, across all threads.

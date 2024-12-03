@@ -1031,19 +1031,28 @@ PyObject* is_multithreaded_compile_test_enabled(PyObject*, PyObject*) {
   Py_RETURN_FALSE;
 }
 
-PyObject*
-disable_jit(PyObject* /* self */, PyObject* const* args, Py_ssize_t nargs) {
-  if (nargs > 1) {
-    PyErr_SetString(PyExc_TypeError, "disable expects 0 or 1 arg");
-    return nullptr;
-  } else if (nargs == 1 && !PyBool_Check(args[0])) {
-    PyErr_SetString(
-        PyExc_TypeError,
-        "disable expects bool indicating to compile pending functions");
+PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
+  int do_compile_all = 1;
+  int deopt_all = 0;
+
+  const char* keywords[] = {"compile_all", "deopt_all", nullptr};
+
+  if (!PyArg_ParseTupleAndKeywords(
+          args,
+          kwargs,
+          "|pp",
+          const_cast<char**>(keywords),
+          &do_compile_all,
+          &deopt_all)) {
     return nullptr;
   }
+  if (jit_ctx == nullptr) {
+    Py_RETURN_NONE;
+  }
 
-  if (nargs == 0 || args[0] == Py_True) {
+  JIT_DLOG("Disabling the JIT");
+
+  if (do_compile_all) {
     // Compile all of the pending functions/codes before shutting down
     std::chrono::time_point start = std::chrono::steady_clock::now();
     if (!compile_all()) {
@@ -1056,7 +1065,41 @@ disable_jit(PyObject* /* self */, PyObject* const* args, Py_ssize_t nargs) {
     jit_code_data.clear();
   }
 
+  if (deopt_all) {
+    JIT_DLOG("Deopting {} compiled functions", jit_ctx->compiledFuncs().size());
+    size_t success = 0;
+    for (BorrowedRef<PyFunctionObject> func : jit_ctx->compiledFuncs()) {
+      if (jit_ctx->deoptFunc(func)) {
+        success++;
+      } else {
+        JIT_DLOG("Failed to deopt compiled function '{}'", funcFullname(func));
+      }
+    }
+    JIT_DLOG("Deopted {} compiled functions", success);
+  }
+
   getMutableConfig().is_enabled = 0;
+
+  Py_RETURN_NONE;
+}
+
+PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
+  if (jit_ctx == nullptr) {
+    PyErr_SetString(
+        PyExc_RuntimeError,
+        "Trying to re-enable the JIT but it was never initialized");
+    return nullptr;
+  }
+
+  size_t count = 0;
+  for (BorrowedRef<PyFunctionObject> func : jit_ctx->deoptedFuncs()) {
+    jit_ctx->reoptFunc(func);
+    count++;
+  }
+
+  getMutableConfig().is_enabled = 1;
+
+  JIT_DLOG("Re-enabled the JIT and re-optimized {} functions", count);
 
   Py_RETURN_NONE;
 }
@@ -1073,7 +1116,7 @@ PyObject* force_compile(PyObject* /* self */, PyObject* func_obj) {
 
   BorrowedRef<PyFunctionObject> func = func_obj;
 
-  if (isJitCompiled(func)) {
+  if (!isJitUsable() || isJitCompiled(func)) {
     Py_RETURN_FALSE;
   }
 
@@ -1793,10 +1836,15 @@ PyObject* after_fork_child(PyObject*, PyObject*) {
 
 PyMethodDef jit_methods[] = {
     {"disable",
-     (PyCFunction)(void*)disable_jit,
-     METH_FASTCALL,
+     reinterpret_cast<PyCFunction>(disable_jit),
+     METH_VARARGS | METH_KEYWORDS,
      "Compile all functions that are pending compilation and then disable the "
      "JIT."},
+    {"enable",
+     enable_jit,
+     METH_NOARGS,
+     "Re-enable the JIT and re-attach compiled onto previously JIT-compiled "
+     "functions"},
     {"disassemble", disassemble, METH_O, "Disassemble JIT compiled functions"},
     {"dump_elf",
      dump_elf,
@@ -2331,18 +2379,15 @@ _PyJIT_Result _PyJIT_CompileFunction(PyFunctionObject* raw_func) {
 int _PyJIT_RegisterFunction(PyFunctionObject* func) {
   // Attempt to attach already-compiled code even if the JIT is disabled, as
   // long as it hasn't been finalized.
-  if (jit_ctx != nullptr &&
-      jit_ctx->attachCompiledCode(func) == PYJIT_RESULT_OK) {
+  if (jit_ctx != nullptr && jit_ctx->reoptFunc(func)) {
     return 1;
   }
 
-  bool skip = !isJitUsable();
-  auto max_code_size = getConfig().max_code_size;
-  if ((!skip) && max_code_size) {
-    skip = CodeAllocator::get()->usedBytes() >= max_code_size;
+  if (!isJitUsable()) {
+    return 0;
   }
-
-  if (skip) {
+  auto max_code_size = getConfig().max_code_size;
+  if (max_code_size && CodeAllocator::get()->usedBytes() >= max_code_size) {
     return 0;
   }
 
