@@ -510,49 +510,6 @@ class CodeGenerator(ASTVisitor):
         else:
             self.visit(node)
 
-    def generate_function(
-        self,
-        node: FuncOrLambda,
-        name: str,
-        first_lineno: int,
-    ) -> CodeGenerator:
-        gen = self.make_func_codegen(node, node.args, name, first_lineno)
-        body = self.skip_docstring(node.body)
-
-        self.processBody(node, body, gen)
-
-        gen.finishFunction()
-
-        return gen
-
-    def build_function(
-        self,
-        node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
-        gen: CodeGenerator,
-    ) -> None:
-        flags = 0
-        if node.args.defaults:
-            for default in node.args.defaults:
-                self.visitDefault(default)
-                flags |= 0x01
-            self.emit("BUILD_TUPLE", len(node.args.defaults))
-
-        kwdefaults = []
-        for kwonly, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
-            if default is not None:
-                kwdefaults.append(self.mangle(kwonly.arg))
-                self.visitDefault(default)
-
-        if kwdefaults:
-            self.emit("LOAD_CONST", tuple(kwdefaults))
-            self.emit("BUILD_CONST_KEY_MAP", len(kwdefaults))
-            flags |= 0x02
-
-        if self.build_annotations(node):
-            flags |= 0x04
-
-        self._makeClosure(gen, flags)
-
     def build_annotations(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
     ) -> bool:
@@ -570,9 +527,7 @@ class CodeGenerator(ASTVisitor):
 
         return annotation_count > 0
 
-    def visitFunctionOrLambda(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
-    ) -> None:
+    def visitFunctionOrLambda(self, node: FuncOrLambda) -> None:
         if isinstance(node, ast.Lambda):
             name = sys.intern("<lambda>")
             ndecorators, first_lineno = 0, node.lineno
@@ -621,56 +576,6 @@ class CodeGenerator(ASTVisitor):
             self._visitAnnotation(ann)
             return 2
         return 0
-
-    def visitClassDef(self, node: ast.ClassDef) -> None:
-        first_lineno = None
-        immutability_flag = self.find_immutability_flag(node)
-        for decorator in node.decorator_list:
-            if first_lineno is None:
-                first_lineno = decorator.lineno
-            self.visit_decorator(decorator, node)
-
-        first_lineno = node.lineno if first_lineno is None else first_lineno
-        gen = self.make_class_codegen(node, first_lineno)
-        gen.emit("LOAD_NAME", "__name__")
-        gen.storeName("__module__")
-        gen.emit("LOAD_CONST", gen.get_qual_prefix(gen) + gen.name)
-        gen.storeName("__qualname__")
-        if gen.findAnn(node.body):
-            gen.did_setup_annotations = True
-            gen.emit("SETUP_ANNOTATIONS")
-
-        doc = gen.get_docstring(node)
-        if doc is not None:
-            gen.set_pos(node.body[0])
-            gen.emit("LOAD_CONST", doc)
-            gen.storeName("__doc__")
-
-        self.walkClassBody(node, gen)
-
-        gen.set_no_pos()
-        if "__class__" in gen.scope.cells:
-            gen.emit("LOAD_CLOSURE", "__class__")
-            gen.emit("DUP_TOP")
-            gen.emit("STORE_NAME", "__classcell__")
-        else:
-            gen.emit("LOAD_CONST", None)
-        gen.emit("RETURN_VALUE")
-
-        self.emit_build_class(node, gen)
-
-        for d in reversed(node.decorator_list):
-            self.emit_decorator_call(d, node)
-
-        self.register_immutability(node, immutability_flag)
-        self.post_process_and_store_name(node)
-
-    def emit_build_class(self, node: ast.ClassDef, class_body: CodeGenerator):
-        self.emit("LOAD_BUILD_CLASS")
-        self._makeClosure(class_body, 0)
-        self.emit("LOAD_CONST", node.name)
-
-        self._call_helper(2, None, node.bases, node.keywords)
 
     def find_immutability_flag(self, node: ClassDef) -> bool:
         return False
@@ -967,41 +872,6 @@ class CodeGenerator(ASTVisitor):
             self.emit_rotate_stack(2)
             self.emit("POP_TOP")
             self.nextBlock(end)
-
-    def get_qual_prefix(self, gen: CodeGenerator):
-        prefix = ""
-        if gen.scope.global_scope:
-            return prefix
-        # Construct qualname prefix
-        parent = gen.scope.parent
-        while not isinstance(parent, symbols.ModuleScope):
-            # Only real functions use "<locals>", nested scopes like
-            # comprehensions don't.
-            if parent.is_function_scope:
-                prefix = parent.name + ".<locals>." + prefix
-            else:
-                prefix = parent.name + "." + prefix
-            if parent.global_scope:
-                break
-            parent = parent.parent
-        return prefix
-
-    def _makeClosure(self, gen: CodeGenerator, flags: int) -> None:
-        prefix = ""
-        if not isinstance(gen.tree, ast.ClassDef):
-            prefix = self.get_qual_prefix(gen)
-
-        frees = gen.scope.get_free_vars()
-        if frees:
-            for name in frees:
-                self.emit("LOAD_CLOSURE", name)
-            self.emit("BUILD_TUPLE", len(frees))
-            flags |= 0x08
-
-        gen.set_qual_name(prefix + gen.name)
-        self.emit("LOAD_CONST", gen)
-        self.emit("LOAD_CONST", prefix + gen.name)  # py3 qualname
-        self.emit("MAKE_FUNCTION", flags)
 
     def visitDelete(self, node):
         self.visit(node.targets)
@@ -2731,7 +2601,7 @@ class CodeGenerator(ASTVisitor):
 
         raise NotImplementedError("Unknown node type: " + type(node).__name__)
 
-    def finishFunction(self):
+    def finish_function(self):
         if self.graph.current.returns:
             return
         if not isinstance(self.tree, ast.Lambda):
@@ -2745,6 +2615,17 @@ class CodeGenerator(ASTVisitor):
         tree: FuncOrLambda | CompNode | ast.ClassDef | ast.TypeAlias,
         graph: PyFlowGraph,
     ) -> CodeGenerator:
+        raise NotImplementedError()
+
+    def get_qual_prefix(self, gen: CodeGenerator) -> str:
+        raise NotImplementedError()
+
+    def generate_function(
+        self, node: FuncOrLambda, name: str, first_lineno: int
+    ) -> CodeGenerator:
+        raise NotImplementedError()
+
+    def build_function(self, node: FuncOrLambda, gen: CodeGenerator) -> None:
         raise NotImplementedError()
 
     def make_func_codegen(
@@ -2969,6 +2850,135 @@ class CodeGenerator310(CodeGenerator):
             optimization_lvl=self.optimization_lvl,
         )
 
+    # Class and function definitions --------------------------------------------------
+
+    def generate_function(
+        self,
+        node: FuncOrLambda,
+        name: str,
+        first_lineno: int,
+    ) -> CodeGenerator310:
+        gen = cast(
+            CodeGenerator310,
+            self.make_func_codegen(node, node.args, name, first_lineno),
+        )
+        body = self.skip_docstring(node.body)
+
+        self.processBody(node, body, gen)
+
+        gen.finish_function()
+
+        return gen
+
+    def build_function(self, node: FuncOrLambda, gen: CodeGenerator) -> None:
+        flags = 0
+        if node.args.defaults:
+            for default in node.args.defaults:
+                self.visitDefault(default)
+                flags |= 0x01
+            self.emit("BUILD_TUPLE", len(node.args.defaults))
+
+        kwdefaults = []
+        for kwonly, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+            if default is not None:
+                kwdefaults.append(self.mangle(kwonly.arg))
+                self.visitDefault(default)
+
+        if kwdefaults:
+            self.emit("LOAD_CONST", tuple(kwdefaults))
+            self.emit("BUILD_CONST_KEY_MAP", len(kwdefaults))
+            flags |= 0x02
+
+        if self.build_annotations(node):
+            flags |= 0x04
+
+        self.emit_closure(gen, flags)
+
+    def visitClassDef(self, node: ast.ClassDef) -> None:
+        first_lineno = None
+        immutability_flag = self.find_immutability_flag(node)
+        for decorator in node.decorator_list:
+            if first_lineno is None:
+                first_lineno = decorator.lineno
+            self.visit_decorator(decorator, node)
+
+        first_lineno = node.lineno if first_lineno is None else first_lineno
+        gen = self.make_class_codegen(node, first_lineno)
+        gen.emit("LOAD_NAME", "__name__")
+        gen.storeName("__module__")
+        gen.emit("LOAD_CONST", gen.get_qual_prefix(gen) + gen.name)
+        gen.storeName("__qualname__")
+        if gen.findAnn(node.body):
+            gen.did_setup_annotations = True
+            gen.emit("SETUP_ANNOTATIONS")
+
+        doc = gen.get_docstring(node)
+        if doc is not None:
+            gen.set_pos(node.body[0])
+            gen.emit("LOAD_CONST", doc)
+            gen.storeName("__doc__")
+
+        self.walkClassBody(node, gen)
+
+        gen.set_no_pos()
+        if "__class__" in gen.scope.cells:
+            gen.emit("LOAD_CLOSURE", "__class__")
+            gen.emit("DUP_TOP")
+            gen.emit("STORE_NAME", "__classcell__")
+        else:
+            gen.emit("LOAD_CONST", None)
+        gen.emit("RETURN_VALUE")
+
+        self.emit_build_class(node, gen)
+
+        for d in reversed(node.decorator_list):
+            self.emit_decorator_call(d, node)
+
+        self.register_immutability(node, immutability_flag)
+        self.post_process_and_store_name(node)
+
+    def emit_build_class(self, node: ast.ClassDef, class_body: CodeGenerator):
+        self.emit("LOAD_BUILD_CLASS")
+        self.emit_closure(class_body, 0)
+        self.emit("LOAD_CONST", node.name)
+
+        self._call_helper(2, None, node.bases, node.keywords)
+
+    def get_qual_prefix(self, gen: CodeGenerator):
+        prefix = ""
+        if gen.scope.global_scope:
+            return prefix
+        # Construct qualname prefix
+        parent = gen.scope.parent
+        while not isinstance(parent, symbols.ModuleScope):
+            # Only real functions use "<locals>", nested scopes like
+            # comprehensions don't.
+            if parent.is_function_scope:
+                prefix = parent.name + ".<locals>." + prefix
+            else:
+                prefix = parent.name + "." + prefix
+            if parent.global_scope:
+                break
+            parent = parent.parent
+        return prefix
+
+    def emit_closure(self, gen: CodeGenerator, flags: int) -> None:
+        prefix = ""
+        if not isinstance(gen.tree, ast.ClassDef):
+            prefix = self.get_qual_prefix(gen)
+
+        frees = gen.scope.get_free_vars()
+        if frees:
+            for name in frees:
+                self.emit("LOAD_CLOSURE", name)
+            self.emit("BUILD_TUPLE", len(frees))
+            flags |= 0x08
+
+        gen.set_qual_name(prefix + gen.name)
+        self.emit("LOAD_CONST", gen)
+        self.emit("LOAD_CONST", prefix + gen.name)  # py3 qualname
+        self.emit("MAKE_FUNCTION", flags)
+
     # Comprehensions --------------------------------------------------
 
     def compile_comprehension(
@@ -3006,9 +3016,9 @@ class CodeGenerator310(CodeGenerator):
         if not isinstance(node, ast.GeneratorExp):
             gen.emit("RETURN_VALUE")
 
-        gen.finishFunction()
+        gen.finish_function()
 
-        self._makeClosure(gen, 0)
+        self.emit_closure(gen, 0)
 
         # precomputation of outmost iterable
         self.visit(node.generators[0].iter)
@@ -3498,7 +3508,7 @@ class CodeGenerator312(CodeGenerator):
         node: FuncOrLambda,
         name: str,
         first_lineno: int,
-    ) -> CodeGenerator:
+    ) -> CodeGenerator312:
         gen = cast(
             CodeGenerator312,
             self.make_func_codegen(node, node.args, name, first_lineno),
@@ -3519,7 +3529,7 @@ class CodeGenerator312(CodeGenerator):
             gen.wrap_in_stopiteration_handler()
             gen.setups.pop()
         else:
-            gen.finishFunction()
+            gen.finish_function()
 
         return gen
 
@@ -3605,13 +3615,13 @@ class CodeGenerator312(CodeGenerator):
         if outer_gen.build_annotations(node):
             flags |= 0x04
 
-        outer_gen._makeClosure(gen, flags)
+        outer_gen.emit_closure(gen, flags)
 
         if type_params:
             outer_gen.emit("SWAP", 2)
             outer_gen.emit_call_intrinsic_2("INTRINSIC_SET_FUNCTION_TYPE_PARAMS")
             outer_gen.emit("RETURN_VALUE")
-            self._makeClosure(outer_gen, 0)
+            self.emit_closure(outer_gen, 0)
             if args:
                 self.emit("SWAP", num_typeparam_args + 1)
 
@@ -3741,7 +3751,7 @@ class CodeGenerator312(CodeGenerator):
 
         outer_gen.emit("PUSH_NULL")
         outer_gen.emit("LOAD_BUILD_CLASS")
-        outer_gen._makeClosure(class_gen, 0)
+        outer_gen.emit_closure(class_gen, 0)
         outer_gen.emit("LOAD_CONST", node.name)
 
         if node.type_params:
@@ -3768,7 +3778,7 @@ class CodeGenerator312(CodeGenerator):
 
             outer_gen.emit("RETURN_VALUE")
 
-            self._makeClosure(outer_gen, 0)
+            self.emit_closure(outer_gen, 0)
             self.emit("CALL", 0)
         else:
             outer_gen._call_helper(2, None, node.bases, node.keywords)
@@ -3829,18 +3839,18 @@ class CodeGenerator312(CodeGenerator):
         code_gen.visit(node.value)
         code_gen.emit("RETURN_VALUE")
 
-        outer_gen._makeClosure(code_gen, 0)
+        outer_gen.emit_closure(code_gen, 0)
         outer_gen.emit("BUILD_TUPLE", 3)
         outer_gen.emit_call_intrinsic_1("INTRINSIC_TYPEALIAS")
 
         if node.type_params:
             outer_gen.emit("RETURN_VALUE")
-            self._makeClosure(outer_gen, 0)
+            self.emit_closure(outer_gen, 0)
             self.emit("CALL", 0)
 
         self.storeName(node.name.id)
 
-    def get_qual_prefix(self, gen):
+    def get_qual_prefix(self, gen: CodeGenerator) -> str:
         prefix = ""
         if gen.scope.global_scope:
             return prefix
@@ -3859,7 +3869,7 @@ class CodeGenerator312(CodeGenerator):
             parent = parent.parent
         return prefix
 
-    def _makeClosure(self, gen: CodeGenerator, flags: int) -> None:
+    def emit_closure(self, gen: CodeGenerator, flags: int) -> None:
         prefix = ""
         # pyre-ignore[16]: Module `ast` has no attribute `TypeVar`.
         if not isinstance(gen.tree, (ast.ClassDef, ast.TypeVar)):
@@ -4142,9 +4152,9 @@ class CodeGenerator312(CodeGenerator):
         if not isinstance(node, ast.GeneratorExp):
             gen.emit("RETURN_VALUE")
 
-        gen.finishFunction()
+        gen.finish_function()
 
-        self._makeClosure(gen, 0)
+        self.emit_closure(gen, 0)
 
         # precomputation of outmost iterable
         self.visit(node.generators[0].iter)
@@ -4447,9 +4457,9 @@ class CinderCodeGenerator(CodeGenerator310):
         if not isinstance(node, ast.GeneratorExp):
             gen.emit("RETURN_VALUE")
 
-        gen.finishFunction()
+        gen.finish_function()
 
-        self._makeClosure(gen, 0)
+        self.emit_closure(gen, 0)
 
         # precomputation of outmost iterable
         self.visit(node.generators[0].iter)

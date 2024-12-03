@@ -3402,7 +3402,7 @@ class FunctionContainer(Object[Class]):
 
         code_gen.processBody(node, body, gen)
 
-        gen.finishFunction()
+        gen.finish_function()
 
         code_gen.build_function(node, gen)
 
@@ -4136,7 +4136,7 @@ class InitSubclassFunction(Function):
 
         code_gen.processBody(node, body, gen)
 
-        gen.finishFunction()
+        gen.finish_function()
 
         code_gen.build_function(node, gen)
 
@@ -4893,7 +4893,7 @@ class NativeDecoratedFunction(Function):
         gen.emit("LOAD_CONST", None)
         gen.emit("RETURN_VALUE")
 
-        gen.finishFunction()
+        gen.finish_function()
 
         code_gen.build_function(node, gen)
         return gen

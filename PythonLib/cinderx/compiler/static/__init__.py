@@ -350,7 +350,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             # features (we could relax this in the future for classes nested in classes).
             return super().emit_build_class(node, class_body)
 
-        self._makeClosure(class_body, 0)
+        self.emit_closure(class_body, 0)
         self.emit("LOAD_CONST", node.name)
 
         if node.keywords:
