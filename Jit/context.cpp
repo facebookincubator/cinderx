@@ -10,10 +10,6 @@
 
 #include <unordered_set>
 
-#if PY_VERSION_HEX >= 0x030C0000
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
-#endif
-
 namespace jit {
 
 AotContext g_aot_ctx;
