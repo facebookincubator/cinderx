@@ -587,9 +587,6 @@ class CodeGenerator(ASTVisitor):
         # Overridden by the static compiler
         self.emit_call_one_arg()
 
-    def emit_call_one_arg(self) -> None:
-        self.emit("CALL_FUNCTION", 1)
-
     def register_immutability(self, node: ClassDef, flag: bool) -> None:
         """
         Note: make sure this do not have side effect on the
@@ -1087,12 +1084,6 @@ class CodeGenerator(ASTVisitor):
 
         self.nextBlock(exit_)
 
-    def emit_call_exit_with_nones(self):
-        self.emit("LOAD_CONST", None)
-        self.emit("DUP_TOP")
-        self.emit("DUP_TOP")
-        self.emit("CALL_FUNCTION", 3)
-
     def visitWith_(self, node, kind, pos=0):
         item = node.items[pos]
 
@@ -1518,17 +1509,6 @@ class CodeGenerator(ASTVisitor):
         if not big:
             self.emit("BUILD_MAP", nkwargs)
 
-    def _fastcall_helper(self, argcnt, node, args, kwargs):
-        # No * or ** args, faster calling sequence.
-        for arg in args:
-            self.visit(arg)
-        if len(kwargs) > 0:
-            self.visit(kwargs)
-            self.emit("LOAD_CONST", tuple(arg.arg for arg in kwargs))
-            self.emit("CALL_FUNCTION_KW", argcnt + len(args) + len(kwargs))
-            return
-        self.emit("CALL_FUNCTION", argcnt + len(args))
-
     def _call_helper(self, argcnt, node, args, kwargs):
         starred = any(isinstance(arg, ast.Starred) for arg in args)
         mustdictunpack = any(arg.arg is None for arg in kwargs)
@@ -1619,20 +1599,6 @@ class CodeGenerator(ASTVisitor):
             and not any(isinstance(arg, ast.Starred) for arg in node.args)
             and len(node.args) < STACK_USE_GUIDELINE
         )
-
-    def visitCall(self, node):
-        if not self._can_optimize_call(node):
-            self.visit(node.func)
-            self._call_helper(0, node, node.args, node.keywords)
-            return
-
-        self.visit(node.func.value)
-        with self.temp_lineno(node.func.end_lineno):
-            self.emit("LOAD_METHOD", self.mangle(node.func.attr))
-            for arg in node.args:
-                self.visit(arg)
-            nargs = len(node.args)
-            self.emit("CALL_METHOD", nargs)
 
     def checkReturn(self, node):
         if not isinstance(self.tree, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -2628,6 +2594,12 @@ class CodeGenerator(ASTVisitor):
     def build_function(self, node: FuncOrLambda, gen: CodeGenerator) -> None:
         raise NotImplementedError()
 
+    def emit_call_one_arg(self) -> None:
+        raise NotImplementedError()
+
+    def emit_call_exit_with_nones(self) -> None:
+        raise NotImplementedError()
+
     def make_func_codegen(
         self,
         func: FuncOrLambda | CompNode,
@@ -3180,6 +3152,42 @@ class CodeGenerator310(CodeGenerator):
             self.nextBlock(anchor)
             self.emit_end_for()
 
+    # Function calls --------------------------------------------------
+
+    def emit_call_one_arg(self) -> None:
+        self.emit("CALL_FUNCTION", 1)
+
+    def emit_call_exit_with_nones(self) -> None:
+        self.emit("LOAD_CONST", None)
+        self.emit("DUP_TOP")
+        self.emit("DUP_TOP")
+        self.emit("CALL_FUNCTION", 3)
+
+    def _fastcall_helper(self, argcnt, node, args, kwargs) -> None:
+        # No * or ** args, faster calling sequence.
+        for arg in args:
+            self.visit(arg)
+        if len(kwargs) > 0:
+            self.visit(kwargs)
+            self.emit("LOAD_CONST", tuple(arg.arg for arg in kwargs))
+            self.emit("CALL_FUNCTION_KW", argcnt + len(args) + len(kwargs))
+            return
+        self.emit("CALL_FUNCTION", argcnt + len(args))
+
+    def visitCall(self, node):
+        if not self._can_optimize_call(node):
+            self.visit(node.func)
+            self._call_helper(0, node, node.args, node.keywords)
+            return
+
+        self.visit(node.func.value)
+        with self.temp_lineno(node.func.end_lineno):
+            self.emit("LOAD_METHOD", self.mangle(node.func.attr))
+            for arg in node.args:
+                self.visit(arg)
+            nargs = len(node.args)
+            self.emit("CALL_METHOD", nargs)
+
 
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
@@ -3409,7 +3417,7 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(exit)
 
-    def _fastcall_helper(self, argcnt, node, args, kwargs):
+    def _fastcall_helper(self, argcnt, node, args, kwargs) -> None:
         # No * or ** args, faster calling sequence.
         for arg in args:
             self.visit(arg)
@@ -3704,7 +3712,7 @@ class CodeGenerator312(CodeGenerator):
     def emit_call_one_arg(self) -> None:
         self.emit("CALL", 0)
 
-    def emit_call_exit_with_nones(self):
+    def emit_call_exit_with_nones(self) -> None:
         self.emit("LOAD_CONST", None)
         self.emit("LOAD_CONST", None)
         self.emit("LOAD_CONST", None)
