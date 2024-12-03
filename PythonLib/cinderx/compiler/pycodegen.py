@@ -269,12 +269,10 @@ class CodeGenerator(ASTVisitor):
         self.flags = flags
         self.optimization_lvl = optimization_lvl
         self.strip_docstrings = optimization_lvl == 2
-        self.__with_count = 0
         self.did_setup_annotations = False
         self._qual_name = None
         self.parent_code_gen = parent
         self.name = self.get_node_name(node) if name is None else name
-        self.emit_resume(ResumeOparg.ScopeEntry)
 
     def _setupGraphDelegation(self):
         self.emit = self.graph.emit
@@ -297,13 +295,6 @@ class CodeGenerator(ASTVisitor):
             yield
         finally:
             self.graph.do_not_emit_bytecode -= 1
-
-    @contextmanager
-    def noOp(self):
-        yield
-
-    def maybeEmit(self, test):
-        return self.noOp() if test else self.noEmit()
 
     def mangle(self, name):
         if self.class_name is not None:
@@ -420,7 +411,11 @@ class CodeGenerator(ASTVisitor):
     def visitFunctionDef(self, node):
         self.visitFunctionOrLambda(node)
 
-    visitAsyncFunctionDef = visitFunctionDef
+    def visitAsyncFunctionDef(self, node):
+        self.visitFunctionOrLambda(node)
+
+    def visitLambda(self, node):
+        self.visitFunctionOrLambda(node)
 
     def visitJoinedStr(self, node):
         if len(node.values) > STACK_USE_GUIDELINE:
@@ -454,9 +449,6 @@ class CodeGenerator(ASTVisitor):
             self.visit(node.format_spec)
             oparg |= pyassem.FVS_HAVE_SPEC
         self.emit("FORMAT_VALUE", oparg)
-
-    def visitLambda(self, node):
-        self.visitFunctionOrLambda(node)
 
     def processBody(self, node, body, gen):
         if isinstance(body, list):
@@ -2214,49 +2206,6 @@ class CodeGenerator(ASTVisitor):
             self.emit("LOAD_CONST", None)
         self.emit("RETURN_VALUE")
 
-    def make_child_codegen(
-        self,
-        # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
-        tree: FuncOrLambda | CompNode | ast.ClassDef | ast.TypeAlias,
-        graph: PyFlowGraph,
-    ) -> CodeGenerator:
-        raise NotImplementedError()
-
-    def get_qual_prefix(self, gen: CodeGenerator) -> str:
-        raise NotImplementedError()
-
-    def generate_function(
-        self, node: FuncOrLambda, name: str, first_lineno: int
-    ) -> CodeGenerator:
-        raise NotImplementedError()
-
-    def build_function(self, node: FuncOrLambda, gen: CodeGenerator) -> None:
-        raise NotImplementedError()
-
-    def emit_call_one_arg(self) -> None:
-        raise NotImplementedError()
-
-    def emit_call_exit_with_nones(self) -> None:
-        raise NotImplementedError()
-
-    def emit_try_except(self, node) -> None:
-        raise NotImplementedError()
-
-    def emit_try_finally(self, node) -> None:
-        raise NotImplementedError()
-
-    def emit_yield_from(self, await_: bool = False) -> None:
-        raise NotImplementedError()
-
-    def emit_resume(self, oparg: ResumeOparg) -> None:
-        raise NotImplementedError()
-
-    def emit_rotate_stack(self, count: int) -> None:
-        raise NotImplementedError()
-
-    def emit_end_for(self) -> None:
-        raise NotImplementedError()
-
     def make_func_codegen(
         self,
         func: FuncOrLambda | CompNode,
@@ -2423,6 +2372,48 @@ class CodeGenerator(ASTVisitor):
     def visitStatements(self, nodes: Sequence[AST], *args) -> None:
         for node in nodes:
             self.visit(node, *args)
+
+    # Methods defined in subclasses ----------------------------------------------
+
+    def make_child_codegen(
+        self,
+        # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
+        tree: FuncOrLambda | CompNode | ast.ClassDef | ast.TypeAlias,
+        graph: PyFlowGraph,
+    ) -> CodeGenerator:
+        raise NotImplementedError()
+
+    def get_qual_prefix(self, gen: CodeGenerator) -> str:
+        raise NotImplementedError()
+
+    def generate_function(
+        self, node: FuncOrLambda, name: str, first_lineno: int
+    ) -> CodeGenerator:
+        raise NotImplementedError()
+
+    def build_function(self, node: FuncOrLambda, gen: CodeGenerator) -> None:
+        raise NotImplementedError()
+
+    def emit_call_one_arg(self) -> None:
+        raise NotImplementedError()
+
+    def emit_call_exit_with_nones(self) -> None:
+        raise NotImplementedError()
+
+    def emit_try_except(self, node) -> None:
+        raise NotImplementedError()
+
+    def emit_try_finally(self, node) -> None:
+        raise NotImplementedError()
+
+    def emit_yield_from(self, await_: bool = False) -> None:
+        raise NotImplementedError()
+
+    def emit_rotate_stack(self, count: int) -> None:
+        raise NotImplementedError()
+
+    def emit_end_for(self) -> None:
+        raise NotImplementedError()
 
 
 class Entry:
@@ -3126,11 +3117,6 @@ class CodeGenerator310(CodeGenerator):
         self.visit(node.operand)
         self.emit(op)
 
-    def binaryOp(self, node, op):
-        self.visit(node.left)
-        self.visit(node.right)
-        self.emit(op)
-
     _binary_opcode: dict[type, str] = {
         ast.Add: "BINARY_ADD",
         ast.Sub: "BINARY_SUBTRACT",
@@ -3166,9 +3152,6 @@ class CodeGenerator310(CodeGenerator):
 
     def emit_yield_from(self, await_: bool = False) -> None:
         self.emit("YIELD_FROM")
-
-    def emit_resume(self, oparg: ResumeOparg) -> None:
-        pass
 
     def _visitSequenceLoad(
         self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
@@ -3234,6 +3217,7 @@ class CodeGenerator312(CodeGenerator):
         )
         self.fast_hidden: set[str] = set()
         self.inlined_comp_depth = 0
+        self.emit_resume(ResumeOparg.ScopeEntry)
 
     def emit_resume(self, oparg: ResumeOparg) -> None:
         self.emit("RESUME", int(oparg))
