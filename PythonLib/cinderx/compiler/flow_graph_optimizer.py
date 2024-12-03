@@ -13,7 +13,15 @@ if TYPE_CHECKING:
     from .pyassem import Block, Instruction, PyFlowGraph
 
     Handler = Callable[
-        [int, Instruction, Instruction | None, Instruction | None, Block], int | None
+        [
+            "FlowGraphOptimizer",
+            int,
+            Instruction,
+            Instruction | None,
+            Instruction | None,
+            Block,
+        ],
+        int | None,
     ]
 
 
@@ -89,21 +97,6 @@ class FlowGraphOptimizer:
             )
             instr_index = instr_index + 1 if new_index is None else new_index
 
-    def get_handlers(self) -> dict[str, Handler]:
-        return {
-            "JUMP_IF_FALSE_OR_POP": self.opt_jump_if_false_or_pop,
-            "JUMP_IF_TRUE_OR_POP": self.opt_jump_if_true_or_pop,
-            "POP_JUMP_IF_FALSE": self.opt_pop_jump_if,
-            "POP_JUMP_IF_TRUE": self.opt_pop_jump_if,
-            self.JUMP_ABS: self.opt_jump,
-            "JUMP_FORWARD": self.opt_jump,
-            "FOR_ITER": self.opt_for_iter,
-            "ROT_N": self.opt_rot_n,
-            "LOAD_CONST": self.opt_load_const,
-            "BUILD_TUPLE": self.opt_build_tuple,
-            "RETURN_VALUE": self.opt_return_value,
-        }
-
     def dispatch_instr(
         self,
         instr_index: int,
@@ -112,10 +105,9 @@ class FlowGraphOptimizer:
         target: Instruction | None,
         block: Block,
     ) -> int | None:
-        handlers = self.get_handlers()
-        handler = handlers.get(instr.opname)
+        handler = self.handlers.get(instr.opname)
         if handler is not None:
-            return handler(instr_index, instr, next_instr, target, block)
+            return handler(self, instr_index, instr, next_instr, target, block)
 
     def clean_basic_block(self, block: Block, prev_lineno: int) -> None:
         """Remove all NOPs from a function when legal."""
@@ -372,11 +364,28 @@ class FlowGraphOptimizer:
     ) -> int | None:
         block.insts = block.insts[: instr_index + 1]
 
+    handlers: dict[str, Handler] = {
+        "JUMP_IF_FALSE_OR_POP": opt_jump_if_false_or_pop,
+        "JUMP_IF_TRUE_OR_POP": opt_jump_if_true_or_pop,
+        "POP_JUMP_IF_FALSE": opt_pop_jump_if,
+        "POP_JUMP_IF_TRUE": opt_pop_jump_if,
+        "JUMP_FORWARD": opt_jump,
+        "FOR_ITER": opt_for_iter,
+        "ROT_N": opt_rot_n,
+        "LOAD_CONST": opt_load_const,
+        "BUILD_TUPLE": opt_build_tuple,
+        "RETURN_VALUE": opt_return_value,
+    }
+
 
 class FlowGraphOptimizer310(FlowGraphOptimizer):
     """Python 3.10-specifc optimizations."""
 
     JUMP_ABS = "JUMP_ABSOLUTE"
+    handlers: dict[str, Handler] = {
+        **FlowGraphOptimizer.handlers,
+        JUMP_ABS: FlowGraphOptimizer.opt_jump,
+    }
 
 
 class FlowGraphOptimizer312(FlowGraphOptimizer):
@@ -385,7 +394,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
     JUMP_ABS = "JUMP"
 
     def opt_load_const(
-        self,
+        self: FlowGraphOptimizer,
         instr_index: int,
         instr: Instruction,
         next_instr: Instruction | None,
@@ -399,3 +408,9 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         else:
             # The rest of the optimizations are common to 3.10 and 3.12
             return super().opt_load_const(instr_index, instr, next_instr, target, block)
+
+    handlers: dict[str, Handler] = {
+        **FlowGraphOptimizer.handlers,
+        JUMP_ABS: FlowGraphOptimizer.opt_jump,
+        "LOAD_CONST": opt_load_const,
+    }
