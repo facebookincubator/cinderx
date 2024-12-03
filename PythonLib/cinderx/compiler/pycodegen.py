@@ -35,7 +35,7 @@ from .consts import (
 from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
 from .optimizer import AstOptimizer
 from .pyassem import Block, Instruction, NO_LOCATION, PyFlowGraph, SrcLocation
-from .symbols import BaseSymbolVisitor, Scope, SymbolVisitor
+from .symbols import BaseSymbolVisitor, Scope
 from .unparse import to_expr
 from .visitor import ASTVisitor, walk
 
@@ -236,7 +236,7 @@ class CodeGenerator(ASTVisitor):
     class_name = None  # provide default for instance variable
     future_flags = 0
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph310
-    _SymbolVisitor: type[symbols.BaseSymbolVisitor] = SymbolVisitor
+    _SymbolVisitor: type[symbols.BaseSymbolVisitor] = BaseSymbolVisitor
     pattern_context: type[PatternContext] = PatternContext
 
     def __init__(
@@ -3139,6 +3139,26 @@ class ResumeOparg(IntEnum):
     Await = 3
 
 
+class CodeGenerator310(CodeGenerator):
+    flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph310
+    _SymbolVisitor = symbols.SymbolVisitor310
+
+    def __init__(
+        self,
+        parent: CodeGenerator | None,
+        node: AST,
+        symbols: BaseSymbolVisitor,
+        graph: PyFlowGraph,
+        flags: int = 0,
+        optimization_lvl: int = 0,
+        future_flags: int | None = None,
+        name: Optional[str] = None,
+    ) -> None:
+        super().__init__(
+            parent, node, symbols, graph, flags, optimization_lvl, future_flags, name
+        )
+
+
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
     _SymbolVisitor = symbols.SymbolVisitor312
@@ -4351,7 +4371,7 @@ class InlinedComprehensionState:
         self.cleanup = cleanup
 
 
-class CinderCodeGenerator(CodeGenerator):
+class CinderCodeGenerator(CodeGenerator310):
     """
     Code generator equivalent to `Python/compile.c` in Cinder.
 
@@ -4472,7 +4492,7 @@ def get_default_generator():
     if "cinder" in sys.version:
         return CinderCodeGenerator
 
-    return CodeGenerator
+    return CodeGenerator310
 
 
 def get_docstring(
