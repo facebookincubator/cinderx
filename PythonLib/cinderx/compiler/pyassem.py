@@ -1209,6 +1209,7 @@ class PyFlowGraph(FlowGraph):
                     and instr.ioparg > max_const_index
                 ):
                     max_const_index = instr.ioparg
+
         self.consts = {
             key: index for key, index in self.consts.items() if index <= max_const_index
         }
@@ -1812,6 +1813,9 @@ class PyFlowGraph312(PyFlowGraph):
         "LOAD_ATTR": _convert_LOAD_ATTR,
         "LOAD_GLOBAL": _convert_LOAD_GLOBAL,
     }
+
+    _const_opcodes = set(PyFlowGraph._const_opcodes)
+    _const_opcodes.add("RETURN_CONST")
 
 
 class UninitializedVariableChecker:
