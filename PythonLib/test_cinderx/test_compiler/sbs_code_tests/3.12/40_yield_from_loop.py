@@ -9,7 +9,7 @@ def f():
     ...,
     GET_YIELD_FROM_ITER(0),
     LOAD_CONST(None),
-    SEND(Block(7)),
+    SEND(Block(8)),
     ...,
     YIELD_VALUE(0),
     RESUME(2),
@@ -19,6 +19,6 @@ def f():
     ...,
     JUMP_BACKWARD(Block(4)),
     CLEANUP_THROW(0),
-    JUMP_BACKWARD(Block(7)),
+    JUMP_BACKWARD(Block(8)),
     ...
 ]

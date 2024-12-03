@@ -7,7 +7,7 @@ async def f():
     ...,
     GET_ANEXT(0),
     LOAD_CONST(None),
-    SEND(Block(5)),
+    SEND(Block(6)),
     YIELD_VALUE(0),
     ...,
     STORE_FAST('foo'),

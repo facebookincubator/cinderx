@@ -206,7 +206,7 @@ if sys.version_info >= (3, 12):
             1 if (isinstance(oparg, tuple) and oparg[1]) else 0
         ),
         BINARY_OP=-1,
-        RETURN_GENERATOR=1,
+        RETURN_GENERATOR=0,
         SEND=0,
         JUMP_NO_INTERRUPT=0,
         JUMP_BACKWARD_NO_INTERRUPT=0,

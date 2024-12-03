@@ -3391,9 +3391,11 @@ class CodeGenerator312(CodeGenerator):
         send = self.newBlock("send")
         fail = self.newBlock("fail")
         exit = self.newBlock("exit")
+        post_send = self.newBlock("post send")
 
         self.nextBlock(send)
         self.emit("SEND", exit)
+        self.nextBlock(post_send)
 
         # Setup try/except to handle StopIteration
         self.emit("SETUP_FINALLY", fail)
@@ -3531,7 +3533,7 @@ class CodeGenerator312(CodeGenerator):
         # through several layers of containers.
         # TODO: handler.bid is unassigned at this point.
         setup = Instruction("SETUP_CLEANUP", handler, target=handler)
-        self.graph.current.insts.insert(0, setup)
+        self.graph.entry.insts.insert(0, setup)
 
         self.emit("LOAD_CONST", None)
         self.emit("RETURN_VALUE")
