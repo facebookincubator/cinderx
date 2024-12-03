@@ -70,32 +70,7 @@ class FlowGraphOptimizer:
         self.graph = graph
 
     def optimize_basic_block(self, block: Block) -> None:
-        instr_index = 0
-
-        while instr_index < len(block.insts):
-            instr = block.insts[instr_index]
-
-            target_instr: Instruction | None = None
-            if instr.is_jump(self.graph.opcode):
-                target = instr.target
-                assert target is not None
-                # Skip over empty basic blocks.
-                while len(target.insts) == 0:
-                    instr.target = target.next
-                    target = instr.target
-                    assert target is not None
-                target_instr = target.insts[0]
-
-            next_instr = (
-                block.insts[instr_index + 1]
-                if instr_index + 1 < len(block.insts)
-                else None
-            )
-
-            new_index = self.dispatch_instr(
-                instr_index, instr, next_instr, target_instr, block
-            )
-            instr_index = instr_index + 1 if new_index is None else new_index
+        raise NotImplementedError()
 
     def dispatch_instr(
         self,
@@ -293,7 +268,7 @@ class FlowGraphOptimizer:
             "POP_JUMP_IF_TRUE",
         ):
             is_true = bool(const)
-            instr.opname = "NOP"
+            block.insts[instr_index].opname = "NOP"
             jump_if_true = next_instr.opname == "POP_JUMP_IF_TRUE"
             if is_true == jump_if_true:
                 next_instr.opname = self.JUMP_ABS
@@ -308,7 +283,7 @@ class FlowGraphOptimizer:
                 next_instr.opname = self.JUMP_ABS
                 block.has_fallthrough = False
             else:
-                instr.opname = "NOP"
+                block.insts[instr_index].opname = "NOP"
                 next_instr.opname = "NOP"
                 next_instr.target = None
 
@@ -387,11 +362,82 @@ class FlowGraphOptimizer310(FlowGraphOptimizer):
         JUMP_ABS: FlowGraphOptimizer.opt_jump,
     }
 
+    def optimize_basic_block(self, block: Block) -> None:
+        instr_index = 0
+
+        while instr_index < len(block.insts):
+            instr = block.insts[instr_index]
+
+            target_instr: Instruction | None = None
+            if instr.is_jump(self.graph.opcode):
+                target = instr.target
+                assert target is not None
+                # Skip over empty basic blocks.
+                while len(target.insts) == 0:
+                    instr.target = target.next
+                    target = instr.target
+                    assert target is not None
+                target_instr = target.insts[0]
+
+            next_instr = (
+                block.insts[instr_index + 1]
+                if instr_index + 1 < len(block.insts)
+                else None
+            )
+
+            new_index = self.dispatch_instr(
+                instr_index, instr, next_instr, target_instr, block
+            )
+            instr_index = instr_index + 1 if new_index is None else new_index
+
 
 class FlowGraphOptimizer312(FlowGraphOptimizer):
     """Python 3.12-specifc optimizations."""
 
     JUMP_ABS = "JUMP"
+
+    def optimize_basic_block(self, block: Block) -> None:
+        instr_index = 0
+        opt_instr: Instruction | None = None
+        # The handler needs to be called with the original instr and index
+        # because the instr_index may be updated after the first call to
+        # dispatch_instr.
+        while instr_index < len(block.insts):
+            instr = block.insts[instr_index]
+            target_instr: Instruction | None = None
+
+            is_copy_of_load_const = (
+                opt_instr is not None
+                and opt_instr.opname == "LOAD_CONST"
+                and instr.opname == "COPY"
+                and instr.ioparg == 1
+            )
+
+            if not is_copy_of_load_const:
+                opt_instr = instr
+                if instr.is_jump(self.graph.opcode):
+                    target = instr.target
+                    assert target is not None
+                    assert target.insts
+                    # Skip over empty basic blocks.
+                    while len(target.insts) == 0:
+                        instr.target = target.next
+                        target = instr.target
+                        assert target is not None
+                    target_instr = target.insts[0]
+
+            next_instr = (
+                block.insts[instr_index + 1]
+                if instr_index + 1 < len(block.insts)
+                else None
+            )
+
+            assert opt_instr is not None
+            new_index = self.dispatch_instr(
+                instr_index, opt_instr, next_instr, target_instr, block
+            )
+
+            instr_index = instr_index + 1 if new_index is None else new_index
 
     def opt_load_const(
         self: FlowGraphOptimizer,
@@ -402,7 +448,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         block: Block,
     ) -> int | None:
         if next_instr and next_instr.opname == "RETURN_VALUE":
-            instr.opname = "NOP"
+            block.insts[instr_index].opname = "NOP"
             next_instr.opname = "RETURN_CONST"
             next_instr.oparg = instr.oparg
             next_instr.ioparg = instr.ioparg
