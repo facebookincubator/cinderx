@@ -224,6 +224,7 @@ if sys.version_info >= (3, 12):
         STORE_FAST_MAYBE_NULL=-1,
         RERAISE=-1,
         LOAD_FAST_CHECK=1,
+        LOAD_GLOBAL=lambda oparg, jmp=0: 2 if isinstance(oparg, tuple) else 1,
     )
 
     from opcode import (

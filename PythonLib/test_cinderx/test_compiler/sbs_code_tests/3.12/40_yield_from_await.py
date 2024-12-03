@@ -4,7 +4,7 @@ async def f():
 # EXPECTED:
 [
     ...,
-    LOAD_GLOBAL('f'),
+    LOAD_GLOBAL(('f', 1)),
     CALL(0),
     GET_AWAITABLE(0),
     LOAD_CONST(None),

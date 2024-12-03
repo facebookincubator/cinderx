@@ -1803,9 +1803,14 @@ class PyFlowGraph312(PyFlowGraph):
 
         return self.names.get_index(arg) << 1
 
+    def _convert_LOAD_GLOBAL(self, arg: object) -> int:
+        assert isinstance(arg, str)
+        return self.names.get_index(arg) << 1
+
     _converters = {
         **PyFlowGraph._converters,
         "LOAD_ATTR": _convert_LOAD_ATTR,
+        "LOAD_GLOBAL": _convert_LOAD_GLOBAL,
     }
 
 

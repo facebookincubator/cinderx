@@ -409,8 +409,25 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             # The rest of the optimizations are common to 3.10 and 3.12
             return super().opt_load_const(instr_index, instr, next_instr, target, block)
 
+    def opt_push_null(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if next_instr is None:
+            return
+
+        if next_instr.opname == "LOAD_GLOBAL" and (next_instr.ioparg & 1) == 0:
+            instr.opname = "NOP"
+            next_instr.oparg = (next_instr.oparg, 1)
+            next_instr.ioparg |= 1
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer.handlers,
         JUMP_ABS: FlowGraphOptimizer.opt_jump,
         "LOAD_CONST": opt_load_const,
+        "PUSH_NULL": opt_push_null,
     }
