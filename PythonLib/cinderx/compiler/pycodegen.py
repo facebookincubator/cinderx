@@ -934,111 +934,6 @@ class CodeGenerator(ASTVisitor):
         self.emit("RAISE_VARARGS", n)
         self.nextBlock()
 
-    def visitTry(self, node):
-        if node.finalbody:
-            if node.handlers:
-                self.emit_try_finally(
-                    node,
-                    lambda: self.visitTryExcept(node),
-                    lambda: self.visitStatements(node.finalbody),
-                )
-            else:
-                self.emit_try_finally(
-                    node,
-                    lambda: self.visitStatements(node.body),
-                    lambda: self.visitStatements(node.finalbody),
-                )
-            return
-
-        self.visitTryExcept(node)
-
-    def visitTryExcept(self, node):
-        body = self.newBlock("try_body")
-        except_ = self.newBlock("try_handlers")
-        orElse = self.newBlock("try_else")
-        end = self.newBlock("try_end")
-
-        self.emit("SETUP_FINALLY", except_)
-        self.nextBlock(body)
-
-        self.setups.append(Entry(TRY_EXCEPT, body, None, None))
-        self.visitStatements(node.body)
-        self.setups.pop()
-        self.set_no_pos()
-        self.emit("POP_BLOCK")
-        self.emit("JUMP_FORWARD", orElse)
-        self.nextBlock(except_)
-        self.setups.append(Entry(EXCEPTION_HANDLER, None, None, None))
-
-        last = len(node.handlers) - 1
-        for i in range(len(node.handlers)):
-            handler = node.handlers[i]
-            expr = handler.type
-            target = handler.name
-            body = handler.body
-            self.set_pos(handler)
-            except_ = self.newBlock(f"try_except_{i}")
-            if expr:
-                self.emit("DUP_TOP")
-                self.visit(expr)
-                self.emit("JUMP_IF_NOT_EXC_MATCH", except_)
-                self.nextBlock()
-            elif i < last:
-                self.raise_syntax_error(handler, "default 'except:' must be last")
-            else:
-                self.set_pos(handler)
-            self.emit("POP_TOP")
-            if target:
-                cleanup_end = self.newBlock(f"try_cleanup_end{i}")
-                cleanup_body = self.newBlock(f"try_cleanup_body{i}")
-
-                self.storeName(target)
-                self.emit("POP_TOP")
-
-                self.emit("SETUP_FINALLY", cleanup_end)
-                self.nextBlock(cleanup_body)
-                self.setups.append(
-                    Entry(HANDLER_CLEANUP, cleanup_body, cleanup_end, target)
-                )
-                self.visit(body)
-                self.setups.pop()
-                self.set_no_pos()
-                self.emit("POP_BLOCK")
-                self.emit("POP_EXCEPT")
-
-                self.emit("LOAD_CONST", None)
-                self.storeName(target)
-                self.delName(target)
-                self.emit("JUMP_FORWARD", end)
-
-                self.nextBlock(cleanup_end)
-                self.set_no_pos()
-                self.emit("LOAD_CONST", None)
-                self.storeName(target)
-                self.delName(target)
-
-                self.emit("RERAISE", 1)
-
-            else:
-                cleanup_body = self.newBlock(f"try_cleanup_body{i}")
-                self.emit("POP_TOP")
-                self.emit("POP_TOP")
-                self.nextBlock(cleanup_body)
-                self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, None))
-                self.visit(body)
-                self.setups.pop()
-                self.set_no_pos()
-                self.emit("POP_EXCEPT")
-                self.emit("JUMP_FORWARD", end)
-            self.nextBlock(except_)
-
-        self.setups.pop()
-        self.set_no_pos()
-        self.emit("RERAISE", 0)
-        self.nextBlock(orElse)
-        self.visitStatements(node.orelse)
-        self.nextBlock(end)
-
     def emit_except_local(self, handler: ast.ExceptHandler):
         target = handler.name
         type_ = handler.type
@@ -1049,40 +944,6 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emit("POP_TOP")
         self.emit("POP_TOP")
-
-    def emit_try_finally(self, node, try_body, finalbody, except_protect=False):
-        """
-        The overall idea is:
-           SETUP_FINALLY end
-           try-body
-           POP_BLOCK
-           finally-body
-           JUMP exit
-        end:
-           finally-body
-        exit:
-        """
-        body = self.newBlock("try_finally_body")
-        end = self.newBlock("try_finally_end")
-        exit_ = self.newBlock("try_finally_exit")
-
-        self.emit("SETUP_FINALLY", end)
-
-        self.nextBlock(body)
-        self.setups.append(Entry(FINALLY_TRY, body, end, finalbody))
-        try_body()
-        self.emit_noline("POP_BLOCK")
-        self.setups.pop()
-        finalbody()
-        self.emit_noline("JUMP_FORWARD", exit_)
-
-        self.nextBlock(end)
-        self.setups.append(Entry(FINALLY_END, end, None, None))
-        finalbody()
-        self.setups.pop()
-        self.emit("RERAISE", 0)
-
-        self.nextBlock(exit_)
 
     def visitWith_(self, node, kind, pos=0):
         item = node.items[pos]
@@ -1141,25 +1002,6 @@ class CodeGenerator(ASTVisitor):
         self.emit_with_except_finish(cleanup)
 
         self.nextBlock(exit_)
-
-    def emit_with_except_cleanup(self, cleanup: Block) -> None:
-        self.emit("WITH_EXCEPT_START")
-
-    def emit_with_except_finish(self, cleanup: Block) -> None:
-        except_ = self.newBlock()
-        self.emit("POP_JUMP_IF_TRUE", except_)
-        self.nextBlock()
-        self.emit("RERAISE", 1)
-
-        self.nextBlock(except_)
-        self.emit("POP_TOP")
-        self.emit("POP_TOP")
-        self.emit("POP_TOP")
-        self.emit("POP_EXCEPT")
-        self.emit("POP_TOP")
-
-    def emit_setup_with(self, target: Block, async_: bool) -> None:
-        self.emit("SETUP_ASYNC_WITH" if async_ else "SETUP_WITH", target)
 
     def visitWith(self, node):
         self.visitWith_(node, WITH, 0)
@@ -3187,6 +3029,166 @@ class CodeGenerator310(CodeGenerator):
                 self.visit(arg)
             nargs = len(node.args)
             self.emit("CALL_METHOD", nargs)
+
+    # Exceptions and with --------------------------------------------------
+
+    def visitTry(self, node):
+        if node.finalbody:
+            if node.handlers:
+                self.emit_try_finally(
+                    node,
+                    lambda: self.visitTryExcept(node),
+                    lambda: self.visitStatements(node.finalbody),
+                )
+            else:
+                self.emit_try_finally(
+                    node,
+                    lambda: self.visitStatements(node.body),
+                    lambda: self.visitStatements(node.finalbody),
+                )
+            return
+
+        self.visitTryExcept(node)
+
+    def visitTryExcept(self, node):
+        body = self.newBlock("try_body")
+        except_ = self.newBlock("try_handlers")
+        orElse = self.newBlock("try_else")
+        end = self.newBlock("try_end")
+
+        self.emit("SETUP_FINALLY", except_)
+        self.nextBlock(body)
+
+        self.setups.append(Entry(TRY_EXCEPT, body, None, None))
+        self.visitStatements(node.body)
+        self.setups.pop()
+        self.set_no_pos()
+        self.emit("POP_BLOCK")
+        self.emit("JUMP_FORWARD", orElse)
+        self.nextBlock(except_)
+        self.setups.append(Entry(EXCEPTION_HANDLER, None, None, None))
+
+        last = len(node.handlers) - 1
+        for i in range(len(node.handlers)):
+            handler = node.handlers[i]
+            expr = handler.type
+            target = handler.name
+            body = handler.body
+            self.set_pos(handler)
+            except_ = self.newBlock(f"try_except_{i}")
+            if expr:
+                self.emit("DUP_TOP")
+                self.visit(expr)
+                self.emit("JUMP_IF_NOT_EXC_MATCH", except_)
+                self.nextBlock()
+            elif i < last:
+                self.raise_syntax_error(handler, "default 'except:' must be last")
+            else:
+                self.set_pos(handler)
+            self.emit("POP_TOP")
+            if target:
+                cleanup_end = self.newBlock(f"try_cleanup_end{i}")
+                cleanup_body = self.newBlock(f"try_cleanup_body{i}")
+
+                self.storeName(target)
+                self.emit("POP_TOP")
+
+                self.emit("SETUP_FINALLY", cleanup_end)
+                self.nextBlock(cleanup_body)
+                self.setups.append(
+                    Entry(HANDLER_CLEANUP, cleanup_body, cleanup_end, target)
+                )
+                self.visit(body)
+                self.setups.pop()
+                self.set_no_pos()
+                self.emit("POP_BLOCK")
+                self.emit("POP_EXCEPT")
+
+                self.emit("LOAD_CONST", None)
+                self.storeName(target)
+                self.delName(target)
+                self.emit("JUMP_FORWARD", end)
+
+                self.nextBlock(cleanup_end)
+                self.set_no_pos()
+                self.emit("LOAD_CONST", None)
+                self.storeName(target)
+                self.delName(target)
+
+                self.emit("RERAISE", 1)
+
+            else:
+                cleanup_body = self.newBlock(f"try_cleanup_body{i}")
+                self.emit("POP_TOP")
+                self.emit("POP_TOP")
+                self.nextBlock(cleanup_body)
+                self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, None))
+                self.visit(body)
+                self.setups.pop()
+                self.set_no_pos()
+                self.emit("POP_EXCEPT")
+                self.emit("JUMP_FORWARD", end)
+            self.nextBlock(except_)
+
+        self.setups.pop()
+        self.set_no_pos()
+        self.emit("RERAISE", 0)
+        self.nextBlock(orElse)
+        self.visitStatements(node.orelse)
+        self.nextBlock(end)
+
+    def emit_try_finally(self, node, try_body, finalbody, except_protect=False):
+        """
+        The overall idea is:
+           SETUP_FINALLY end
+           try-body
+           POP_BLOCK
+           finally-body
+           JUMP exit
+        end:
+           finally-body
+        exit:
+        """
+        body = self.newBlock("try_finally_body")
+        end = self.newBlock("try_finally_end")
+        exit_ = self.newBlock("try_finally_exit")
+
+        self.emit("SETUP_FINALLY", end)
+
+        self.nextBlock(body)
+        self.setups.append(Entry(FINALLY_TRY, body, end, finalbody))
+        try_body()
+        self.emit_noline("POP_BLOCK")
+        self.setups.pop()
+        finalbody()
+        self.emit_noline("JUMP_FORWARD", exit_)
+
+        self.nextBlock(end)
+        self.setups.append(Entry(FINALLY_END, end, None, None))
+        finalbody()
+        self.setups.pop()
+        self.emit("RERAISE", 0)
+
+        self.nextBlock(exit_)
+
+    def emit_with_except_cleanup(self, cleanup: Block) -> None:
+        self.emit("WITH_EXCEPT_START")
+
+    def emit_with_except_finish(self, cleanup: Block) -> None:
+        except_ = self.newBlock()
+        self.emit("POP_JUMP_IF_TRUE", except_)
+        self.nextBlock()
+        self.emit("RERAISE", 1)
+
+        self.nextBlock(except_)
+        self.emit("POP_TOP")
+        self.emit("POP_TOP")
+        self.emit("POP_TOP")
+        self.emit("POP_EXCEPT")
+        self.emit("POP_TOP")
+
+    def emit_setup_with(self, target: Block, async_: bool) -> None:
+        self.emit("SETUP_ASYNC_WITH" if async_ else "SETUP_WITH", target)
 
 
 class CodeGenerator312(CodeGenerator):
