@@ -1878,10 +1878,31 @@ class PyFlowGraph312(PyFlowGraph):
         assert isinstance(arg, str)
         return self.names.get_index(arg) << 1
 
+    COMPARISON_UNORDERED = 1
+    COMPARISON_LESS_THAN = 2
+    COMPARISON_GREATER_THAN = 4
+    COMPARISON_EQUALS = 8
+    COMPARISON_NOT_EQUALS = (
+        COMPARISON_UNORDERED | COMPARISON_LESS_THAN | COMPARISON_GREATER_THAN
+    )
+
+    COMPARE_MASKS = {
+        "<": COMPARISON_LESS_THAN,
+        "<=": COMPARISON_LESS_THAN | COMPARISON_EQUALS,
+        "==": COMPARISON_EQUALS,
+        "!=": COMPARISON_NOT_EQUALS,
+        ">": COMPARISON_GREATER_THAN,
+        ">=": COMPARISON_GREATER_THAN | COMPARISON_EQUALS,
+    }
+
+    def _convert_COMAPRE_OP(self, arg: object) -> int:
+        return self.opcode.CMP_OP.index(arg) << 4 | PyFlowGraph312.COMPARE_MASKS[arg]
+
     _converters = {
         **PyFlowGraph._converters,
         "LOAD_ATTR": _convert_LOAD_ATTR,
         "LOAD_GLOBAL": _convert_LOAD_GLOBAL,
+        "COMPARE_OP": _convert_COMAPRE_OP,
     }
 
     _const_opcodes = set(PyFlowGraph._const_opcodes)
