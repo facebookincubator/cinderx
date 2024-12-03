@@ -96,44 +96,6 @@ class Context {
   CompiledFunction* lookupFunc(BorrowedRef<PyFunctionObject> func);
 
   /*
-   * Returns the number of functions inlined into a specified JIT-compiled
-   * function.
-   *
-   * Returns -1 if an error occurred.
-   */
-  int numInlinedFunctions(BorrowedRef<PyFunctionObject> func);
-
-  /*
-   * Return a stats object on the functions inlined into a specified
-   * JIT-compiled function.
-   *
-   * Will return nullptr if the supplied function has not been JIT-compiled.
-   */
-  Ref<> inlinedFunctionsStats(BorrowedRef<PyFunctionObject> func);
-
-  /*
-   * Return the HIR opcode counts for a JIT-compiled function, or nullptr if the
-   * function has not been JIT-compiled.
-   */
-  const hir::OpcodeCounts* hirOpcodeCounts(BorrowedRef<PyFunctionObject> func);
-
-  /*
-   * Print the HIR for func to stdout if it was JIT-compiled.
-   * This function is a no-op if func was not JIT-compiled.
-   *
-   * Returns -1 if an error occurred or 0 otherwise.
-   */
-  int printHIR(BorrowedRef<PyFunctionObject> func);
-
-  /*
-   * Print the disassembled code for func to stdout if it was JIT-compiled.
-   * This function is a no-op if func was not JIT-compiled.
-   *
-   * Returns -1 if an error occurred or 0 otherwise.
-   */
-  int disassemble(BorrowedRef<PyFunctionObject> func);
-
-  /*
    * Get a range over all function objects that have been compiled.
    */
   const UnorderedSet<BorrowedRef<PyFunctionObject>>& compiledFuncs();
@@ -179,15 +141,15 @@ class Context {
   /* General purpose jit compiler */
   Compiler jit_compiler_;
 
-  /* Set of which functions have JIT-compiled entrypoints. */
-  UnorderedSet<BorrowedRef<PyFunctionObject>> compiled_funcs_;
-
   /*
    * Map of all compiled code objects, keyed by their address and also their
    * builtins and globals objects.
    */
   UnorderedMap<CompilationKey, std::unique_ptr<CompiledFunction>>
       compiled_codes_;
+
+  /* Set of which functions have JIT-compiled entrypoints. */
+  UnorderedSet<BorrowedRef<PyFunctionObject>> compiled_funcs_;
 
   /*
    * Set of compilations that are currently active, across all threads.

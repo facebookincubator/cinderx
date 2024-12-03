@@ -1198,39 +1198,43 @@ PyObject* is_jit_compiled(PyObject* /* self */, PyObject* func) {
 }
 
 PyObject* print_hir(PyObject* /* self */, PyObject* func) {
+  if (jit_ctx == nullptr) {
+    PyErr_SetString(PyExc_RuntimeError, "JIT is not initialized");
+    return nullptr;
+  }
   if (!PyFunction_Check(func)) {
     PyErr_SetString(PyExc_TypeError, "arg 1 must be a function");
     return nullptr;
   }
 
-  if (!jit_ctx->didCompile(func)) {
-    PyErr_SetString(PyExc_ValueError, "function is not jit compiled");
+  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  if (compiled_func == nullptr) {
+    PyErr_SetString(PyExc_RuntimeError, "function is not jit compiled");
     return nullptr;
   }
 
-  if (jit_ctx->printHIR(func) < 0) {
-    return nullptr;
-  } else {
-    Py_RETURN_NONE;
-  }
+  compiled_func->printHIR();
+  Py_RETURN_NONE;
 }
 
 PyObject* disassemble(PyObject* /* self */, PyObject* func) {
+  if (jit_ctx == nullptr) {
+    PyErr_SetString(PyExc_RuntimeError, "JIT is not initialized");
+    return nullptr;
+  }
   if (!PyFunction_Check(func)) {
     PyErr_SetString(PyExc_TypeError, "arg 1 must be a function");
     return nullptr;
   }
 
-  if (!jit_ctx->didCompile(func)) {
-    PyErr_SetString(PyExc_ValueError, "function is not jit compiled");
+  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  if (compiled_func == nullptr) {
+    PyErr_SetString(PyExc_RuntimeError, "function is not jit compiled");
     return nullptr;
   }
 
-  if (jit_ctx->disassemble(func) < 0) {
-    return nullptr;
-  } else {
-    Py_RETURN_NONE;
-  }
+  compiled_func->disassemble();
+  Py_RETURN_NONE;
 }
 
 PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
@@ -1318,26 +1322,84 @@ PyObject* get_function_compilation_time(PyObject* /* self */, PyObject* func) {
   return PyLong_FromLong(iter->second.count());
 }
 
-PyObject* get_inlined_functions_stats(PyObject*, PyObject* func) {
-  if (jit_ctx == nullptr) {
+PyObject* get_inlined_functions_stats(PyObject* /* self */, PyObject* arg) {
+  if (jit_ctx == nullptr || !PyFunction_Check(arg)) {
     Py_RETURN_NONE;
   }
-  return jit_ctx->inlinedFunctionsStats(func).release();
+  BorrowedRef<PyFunctionObject> func{arg};
+  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  if (compiled_func == nullptr) {
+    Py_RETURN_NONE;
+  }
+
+  auto const& stats = compiled_func->inlinedFunctionsStats();
+  auto py_stats = Ref<>::steal(PyDict_New());
+  if (py_stats == nullptr) {
+    Py_RETURN_NONE;
+  }
+  auto num_inlined_functions =
+      Ref<>::steal(PyLong_FromSize_t(stats.num_inlined_functions));
+  if (num_inlined_functions == nullptr) {
+    Py_RETURN_NONE;
+  }
+  if (PyDict_SetItemString(
+          py_stats, "num_inlined_functions", num_inlined_functions) < 0) {
+    Py_RETURN_NONE;
+  }
+  auto failure_stats = Ref<>::steal(PyDict_New());
+  if (failure_stats == nullptr) {
+    Py_RETURN_NONE;
+  }
+  for (const auto& [reason, functions] : stats.failure_stats) {
+    auto py_failure_reason =
+        Ref<>::steal(PyUnicode_InternFromString(getInlineFailureName(reason)));
+    if (py_failure_reason == nullptr) {
+      Py_RETURN_NONE;
+    }
+    auto py_functions_set = Ref<>::steal(PySet_New(nullptr));
+    if (py_functions_set == nullptr) {
+      Py_RETURN_NONE;
+    }
+    if (PyDict_SetItem(failure_stats, py_failure_reason, py_functions_set) <
+        0) {
+      Py_RETURN_NONE;
+    }
+    for (const auto& function : functions) {
+      auto py_function = Ref<>::steal(PyUnicode_FromString(function.c_str()));
+      if (PySet_Add(py_functions_set, py_function) < 0) {
+        Py_RETURN_NONE;
+      }
+    }
+  }
+  if (PyDict_SetItemString(py_stats, "failure_stats", failure_stats) < 0) {
+    Py_RETURN_NONE;
+  }
+  return py_stats.release();
 }
 
-PyObject* get_num_inlined_functions(PyObject*, PyObject* func) {
-  int size = jit_ctx != nullptr ? jit_ctx->numInlinedFunctions(func) : 0;
+PyObject* get_num_inlined_functions(PyObject* /* self */, PyObject* arg) {
+  if (jit_ctx == nullptr || !PyFunction_Check(arg)) {
+    return PyLong_FromLong(0);
+  }
+  BorrowedRef<PyFunctionObject> func{arg};
+  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  int size = compiled_func != nullptr
+      ? compiled_func->inlinedFunctionsStats().num_inlined_functions
+      : 0;
   return PyLong_FromLong(size);
 }
 
-PyObject* get_function_hir_opcode_counts(PyObject*, PyObject* func) {
-  if (jit_ctx == nullptr) {
+PyObject* get_function_hir_opcode_counts(PyObject* /* self */, PyObject* arg) {
+  if (jit_ctx == nullptr || !PyFunction_Check(arg)) {
     Py_RETURN_NONE;
   }
-  const hir::OpcodeCounts* counts = jit_ctx->hirOpcodeCounts(func);
-  if (counts == nullptr) {
+  BorrowedRef<PyFunctionObject> func{arg};
+  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  if (compiled_func == nullptr) {
     Py_RETURN_NONE;
   }
+
+  const hir::OpcodeCounts& counts = compiled_func->hirOpcodeCounts();
   Ref<> dict = Ref<>::steal(PyDict_New());
   if (dict == nullptr) {
     return nullptr;
@@ -1345,7 +1407,7 @@ PyObject* get_function_hir_opcode_counts(PyObject*, PyObject* func) {
 #define HIR_OP(opname)                                               \
   {                                                                  \
     const size_t idx = static_cast<size_t>(hir::Opcode::k##opname);  \
-    int count = counts->at(idx);                                     \
+    int count = counts.at(idx);                                      \
     if (count != 0) {                                                \
       Ref<> count_obj = Ref<>::steal(PyLong_FromLong(count));        \
       if (count_obj == nullptr) {                                    \
