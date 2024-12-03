@@ -1009,6 +1009,9 @@ class PyFlowGraph(FlowGraph):
             else:
                 loc = last_instr.loc
 
+    def is_exit_without_line_number(self, target: Block) -> bool:
+        raise NotImplementedError()
+
     def duplicate_exits_without_lineno(self):
         """
         PEP 626 mandates that the f_lineno of a frame is correct
@@ -1034,8 +1037,7 @@ class PyFlowGraph(FlowGraph):
                     # a later pass, so it does not need a line number,
                     continue
                 if (
-                    target.is_exit
-                    and target.insts[0].lineno < 0
+                    self.is_exit_without_line_number(target)
                     and target.num_predecessors > 1
                 ):
                     new_target = target.copy()
@@ -1051,6 +1053,11 @@ class PyFlowGraph(FlowGraph):
         for after, to_append in append_after.items():
             idx = self.ordered_blocks.index(after) + 1
             self.ordered_blocks[idx:idx] = reversed(to_append)
+
+        for block in self.ordered_blocks:
+            if block.has_fallthrough and block.next and block.insts:
+                if self.is_exit_without_line_number(block.next):
+                    block.next.insts[0].loc = block.insts[-1].loc
 
     def normalize_jumps(self):
         assert self.stage == ORDERED, self.stage
@@ -1213,6 +1220,9 @@ class PyFlowGraph310(PyFlowGraph):
         self.bytecode: bytes | None = None
         self.line_table: bytes | None = None
 
+    def is_exit_without_line_number(self, target: Block) -> bool:
+        return target.is_exit and target.insts[0].lineno < 0
+
     def optimizeCFG(self) -> None:
         """Optimize a well-formed CFG."""
         assert self.stage == CLOSED, self.stage
@@ -1348,6 +1358,16 @@ class PyFlowGraph312(PyFlowGraph):
         self.bytecode: bytes | None = None
         self.line_table: bytes | None = None
         self.exception_table: bytes | None = None
+
+    def is_exit_without_line_number(self, target: Block) -> bool:
+        if not target.is_exit:
+            return False
+
+        for inst in target.insts:
+            if inst.lineno >= 0:
+                return False
+
+        return True
 
     def emit_gen_start(self) -> None:
         # This is handled with the prefix instructions in finalize
