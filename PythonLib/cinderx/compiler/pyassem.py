@@ -1095,27 +1095,7 @@ class PyFlowGraph(FlowGraph):
 
     def optimizeCFG(self) -> None:
         """Optimize a well-formed CFG."""
-        assert self.stage == CLOSED, self.stage
-
-        optimizer = self.flow_graph_optimizer(self)
-        for block in self.ordered_blocks:
-            optimizer.optimize_basic_block(block)
-            optimizer.clean_basic_block(block, -1)
-
-        for block in self.blocks_in_reverse_allocation_order():
-            self.extend_block(block)
-
-        self.remove_redundant_nops(optimizer)
-
-        self.eliminate_empty_basic_blocks()
-        self.remove_unreachable_basic_blocks()
-
-        maybe_empty_blocks = self.remove_redundant_jumps(optimizer)
-
-        if maybe_empty_blocks:
-            self.eliminate_empty_basic_blocks()
-
-        self.stage = OPTIMIZED
+        raise NotImplementedError()
 
     def eliminate_empty_basic_blocks(self):
         for block in self.ordered_blocks:
@@ -1230,6 +1210,30 @@ class PyFlowGraph310(PyFlowGraph):
         # Final assembled code objects
         self.bytecode: bytes | None = None
         self.line_table: bytes | None = None
+
+    def optimizeCFG(self) -> None:
+        """Optimize a well-formed CFG."""
+        assert self.stage == CLOSED, self.stage
+
+        optimizer = self.flow_graph_optimizer(self)
+        for block in self.ordered_blocks:
+            optimizer.optimize_basic_block(block)
+            optimizer.clean_basic_block(block, -1)
+
+        for block in self.blocks_in_reverse_allocation_order():
+            self.extend_block(block)
+
+        self.remove_redundant_nops(optimizer)
+
+        self.eliminate_empty_basic_blocks()
+        self.remove_unreachable_basic_blocks()
+
+        maybe_empty_blocks = self.remove_redundant_jumps(optimizer)
+
+        if maybe_empty_blocks:
+            self.eliminate_empty_basic_blocks()
+
+        self.stage = OPTIMIZED
 
     def assemble_final_code(self) -> None:
         """Finish assembling code object components from the final graph."""
@@ -1509,9 +1513,30 @@ class PyFlowGraph312(PyFlowGraph):
         UninitializedVariableChecker(self).check()
 
     def optimizeCFG(self) -> None:
+        """Optimize a well-formed CFG."""
         except_handlers = self.compute_except_handlers()
 
-        super().optimizeCFG()
+        assert self.stage == CLOSED, self.stage
+
+        optimizer = self.flow_graph_optimizer(self)
+        for block in self.ordered_blocks:
+            optimizer.optimize_basic_block(block)
+            optimizer.clean_basic_block(block, -1)
+
+        for block in self.blocks_in_reverse_allocation_order():
+            self.extend_block(block)
+
+        self.remove_redundant_nops(optimizer)
+
+        self.eliminate_empty_basic_blocks()
+        self.remove_unreachable_basic_blocks()
+
+        maybe_empty_blocks = self.remove_redundant_jumps(optimizer)
+
+        if maybe_empty_blocks:
+            self.eliminate_empty_basic_blocks()
+
+        self.stage = OPTIMIZED
 
         self.remove_unused_consts()
         self.add_checks_for_loads_of_uninitialized_variables()
