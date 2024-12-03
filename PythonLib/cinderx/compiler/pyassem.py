@@ -1442,7 +1442,9 @@ class PyFlowGraph312(PyFlowGraph):
 
         return except_handlers
 
-    def push_cold_blocks_to_end(self, except_handlers: set[Block]) -> None:
+    def push_cold_blocks_to_end(
+        self, except_handlers: set[Block], optimizer: FlowGraphOptimizer
+    ) -> None:
         warm = self.compute_warm()
 
         # If we have a cold block with fallthrough to a warm block, add
@@ -1462,11 +1464,28 @@ class PyFlowGraph312(PyFlowGraph):
                 explicit_jump.has_fallthrough = False
                 block.next = explicit_jump
 
-        to_end = [block for block in self.ordered_blocks if block not in warm]
+        new_ordered = []
+        to_end = []
+        prev = None
+        for block in self.ordered_blocks:
+            if block in warm:
+                new_ordered.append(block)
+                if prev is not None:
+                    prev.next = block
+                block.prev = prev
+                prev = block
+            else:
+                to_end.append(block)
 
-        self.ordered_blocks = [block for block in self.ordered_blocks if block in warm]
+        for block in to_end:
+            prev.next = block
+            block.prev = prev
+            prev = block
 
-        self.ordered_blocks.extend(to_end)
+        self.ordered_blocks = new_ordered + to_end
+
+        if to_end:
+            self.remove_redundant_jumps(optimizer)
 
     def compute_warm(self) -> set[Block]:
         """Compute the set of 'warm' blocks, which are blocks that are reachable
@@ -1599,7 +1618,7 @@ class PyFlowGraph312(PyFlowGraph):
         self.remove_unused_consts()
         self.add_checks_for_loads_of_uninitialized_variables()
 
-        self.push_cold_blocks_to_end(except_handlers)
+        self.push_cold_blocks_to_end(except_handlers, optimizer)
 
     def build_cell_fixed_offsets(self) -> list[int]:
         nlocals = len(self.varnames)
