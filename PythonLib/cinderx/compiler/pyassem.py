@@ -1974,7 +1974,11 @@ class UninitializedVariableChecker:
 
     def check(self) -> None:
         nlocals = len(self.flow_graph.varnames)
-        nparams = len(self.flow_graph.args)
+        nparams = (
+            len(self.flow_graph.args)
+            + len(self.flow_graph.starargs)
+            + len(self.flow_graph.kwonlyargs)
+        )
 
         if nlocals == 0:
             return
