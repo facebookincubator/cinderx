@@ -1093,7 +1093,7 @@ class PyFlowGraph(FlowGraph):
             if not block.insts:
                 continue
             last = block.insts[-1]
-            if last.opname not in {"JUMP_ABSOLUTE", "JUMP_FORWARD"}:
+            if last.opname not in UNCONDITIONAL_JUMP_OPCODES:
                 continue
             if last.target == block.next:
                 block.has_fallthrough = True
