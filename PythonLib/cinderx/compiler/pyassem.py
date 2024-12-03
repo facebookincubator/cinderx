@@ -281,6 +281,7 @@ class FlowGraph:
             if not self.do_not_emit_bytecode:
                 self.current.add_out_edge(oparg)
                 self.current.emit(Instruction(opcode, 0, 0, loc, target=oparg))
+            oparg.is_jump_target = True
             return
 
         ioparg = self.convertArg(opcode, oparg)
@@ -336,6 +337,7 @@ class Block:
         self.insts: list[Instruction] = []
         self.out_edges = set()
         self.label: str = label
+        self.is_jump_target = False
         self.bid: int | None = None  # corresponds to b_label.id in cpython
         self.next: Block | None = None
         self.prev: Block | None = None
@@ -1512,21 +1514,57 @@ class PyFlowGraph312(PyFlowGraph):
     def add_checks_for_loads_of_uninitialized_variables(self) -> None:
         UninitializedVariableChecker(self).check()
 
+    def is_redundant_pair(
+        self, prev_instr: Instruction | None, instr: Instruction
+    ) -> bool:
+        if prev_instr is not None and instr.opname == "POP_TOP":
+            if prev_instr.opname == "LOAD_CONST":
+                return True
+            elif prev_instr.opname == "COPY" and prev_instr.oparg == 1:
+                return True
+        return False
+
+    def remove_redundant_nops_and_pairs(self, optimizer: FlowGraphOptimizer) -> None:
+        done = False
+        while not done:
+            done = True
+            instr: Instruction | None = None
+            for block in self.ordered_blocks:
+                optimizer.clean_basic_block(block, -1)
+                if block.is_jump_target:
+                    instr = None
+
+                for cur_instr in block.insts:
+                    prev_instr = instr
+                    instr = cur_instr
+
+                    if self.is_redundant_pair(prev_instr, instr):
+                        instr.set_to_nop()
+                        assert prev_instr is not None
+                        prev_instr.set_to_nop()
+                        done = False
+
+                if (instr and instr.is_jump(self.opcode)) or not block.has_fallthrough:
+                    instr = None
+
     def optimizeCFG(self) -> None:
         """Optimize a well-formed CFG."""
         except_handlers = self.compute_except_handlers()
 
         assert self.stage == CLOSED, self.stage
 
+        self.eliminate_empty_basic_blocks()
+
         optimizer = self.flow_graph_optimizer(self)
         for block in self.ordered_blocks:
             optimizer.optimize_basic_block(block)
             optimizer.clean_basic_block(block, -1)
 
-        for block in self.blocks_in_reverse_allocation_order():
-            self.extend_block(block)
+        self.remove_redundant_nops_and_pairs(optimizer)
 
-        self.remove_redundant_nops(optimizer)
+        for block in self.ordered_blocks:
+            # remove redundant nops
+            optimizer.clean_basic_block(block, -1)
 
         self.eliminate_empty_basic_blocks()
         self.remove_unreachable_basic_blocks()
