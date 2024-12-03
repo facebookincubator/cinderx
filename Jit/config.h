@@ -69,6 +69,9 @@ struct Config {
   bool stable_globals{true};
   // Use inline caches for attribute accesses.
   bool attr_caches{true};
+  // Collect stats information about attribute caches.
+  bool collect_attr_cache_stats{false};
+
   // Add RefineType instructions for Static Python values before they get
   // typechecked.  Enabled by default as HIR doesn't pass through Static Python
   // types very well right now.  Disable to expose new typing opportunities in

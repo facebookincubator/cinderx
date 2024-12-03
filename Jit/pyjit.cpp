@@ -394,7 +394,13 @@ void initFlagProcessor() {
     xarg_flag_processor.addOption(
         "jit-enable-inline-cache-stats-collection",
         "PYTHONJITCOLLECTINLINECACHESTATS",
-        [](std::string) { g_collect_inline_cache_stats = 1; },
+        [](int val) {
+          if (use_jit) {
+            getMutableConfig().collect_attr_cache_stats = !!val;
+          } else {
+            warnJITOff("jit-enable-inline-cache-stats-collection");
+          }
+        },
         "Collect inline cache stats (supported stats are cache misses for load "
         "method inline caches");
 
@@ -1708,11 +1714,8 @@ PyObject* is_hir_inliner_enabled(PyObject* /* self */, PyObject*) {
 
 PyObject* is_inline_cache_stats_collection_enabled(
     PyObject* /* self */,
-    PyObject*) {
-  if (g_collect_inline_cache_stats) {
-    Py_RETURN_TRUE;
-  }
-  Py_RETURN_FALSE;
+    PyObject* /* arg */) {
+  return PyBool_FromLong(getConfig().collect_attr_cache_stats);
 }
 
 PyObject* enable_hir_inliner(PyObject* /* self */, PyObject*) {

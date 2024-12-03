@@ -127,7 +127,7 @@ void maybeCollectCacheStats(
     BorrowedRef<PyTypeObject> tp,
     BorrowedRef<> name,
     CacheMissReason reason) {
-  if (!g_collect_inline_cache_stats) {
+  if (!getConfig().collect_attr_cache_stats) {
     return;
   }
   std::string key =

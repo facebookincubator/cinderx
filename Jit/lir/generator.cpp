@@ -1265,7 +1265,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const FillTypeMethodCache*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
         auto cache_entry = load_type_method_caches_.at(instr->cache_id());
-        if (g_collect_inline_cache_stats) {
+        if (getConfig().collect_attr_cache_stats) {
           BorrowedRef<PyCodeObject> code = instr->frameState()->code;
           cache_entry->initCacheStats(
               PyUnicode_AsUTF8(code->co_filename),
@@ -1323,7 +1323,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         hir::Register* base = instr->receiver();
         Instruction* name = getNameFromIdx(bbb, instr);
         auto cache = Runtime::get()->allocateLoadMethodCache();
-        if (g_collect_inline_cache_stats) {
+        if (getConfig().collect_attr_cache_stats) {
           BorrowedRef<PyCodeObject> code = instr->frameState()->code;
           cache->initCacheStats(
               PyUnicode_AsUTF8(code->co_filename),
