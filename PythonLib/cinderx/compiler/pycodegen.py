@@ -945,6 +945,12 @@ class CodeGenerator(ASTVisitor):
             self.emit("POP_TOP")
         self.emit("POP_TOP")
 
+    def visitTry(self, node: ast.Try) -> None:
+        if node.finalbody:
+            self.emit_try_finally(node)
+        else:
+            self.emit_try_except(node)
+
     def visitWith_(self, node, kind, pos=0):
         item = node.items[pos]
 
@@ -2442,6 +2448,12 @@ class CodeGenerator(ASTVisitor):
     def emit_call_exit_with_nones(self) -> None:
         raise NotImplementedError()
 
+    def emit_try_except(self, node) -> None:
+        raise NotImplementedError()
+
+    def emit_try_finally(self, node) -> None:
+        raise NotImplementedError()
+
     def make_func_codegen(
         self,
         func: FuncOrLambda | CompNode,
@@ -3032,25 +3044,7 @@ class CodeGenerator310(CodeGenerator):
 
     # Exceptions and with --------------------------------------------------
 
-    def visitTry(self, node):
-        if node.finalbody:
-            if node.handlers:
-                self.emit_try_finally(
-                    node,
-                    lambda: self.visitTryExcept(node),
-                    lambda: self.visitStatements(node.finalbody),
-                )
-            else:
-                self.emit_try_finally(
-                    node,
-                    lambda: self.visitStatements(node.body),
-                    lambda: self.visitStatements(node.finalbody),
-                )
-            return
-
-        self.visitTryExcept(node)
-
-    def visitTryExcept(self, node):
+    def emit_try_except(self, node):
         body = self.newBlock("try_body")
         except_ = self.newBlock("try_handlers")
         orElse = self.newBlock("try_else")
@@ -3137,7 +3131,7 @@ class CodeGenerator310(CodeGenerator):
         self.visitStatements(node.orelse)
         self.nextBlock(end)
 
-    def emit_try_finally(self, node, try_body, finalbody, except_protect=False):
+    def emit_try_finally(self, node, try_body=None, final_body=None):
         """
         The overall idea is:
            SETUP_FINALLY end
@@ -3153,19 +3147,28 @@ class CodeGenerator310(CodeGenerator):
         end = self.newBlock("try_finally_end")
         exit_ = self.newBlock("try_finally_exit")
 
+        if final_body is None:
+            final_body = lambda: self.visitStatements(node.finalbody)
+        # try block
         self.emit("SETUP_FINALLY", end)
 
         self.nextBlock(body)
-        self.setups.append(Entry(FINALLY_TRY, body, end, finalbody))
-        try_body()
+        self.setups.append(Entry(FINALLY_TRY, body, end, final_body))
+        if try_body is not None:
+            try_body()
+        elif node.handlers:
+            self.emit_try_except(node)
+        else:
+            self.visitStatements(node.body)
         self.emit_noline("POP_BLOCK")
         self.setups.pop()
-        finalbody()
+        final_body()
         self.emit_noline("JUMP_FORWARD", exit_)
 
+        # finally block
         self.nextBlock(end)
         self.setups.append(Entry(FINALLY_END, end, None, None))
-        finalbody()
+        final_body()
         self.setups.pop()
         self.emit("RERAISE", 0)
 
@@ -3972,25 +3975,19 @@ class CodeGenerator312(CodeGenerator):
         self.emit("POP_EXCEPT")
         self.emit("RERAISE", 1)
 
-    def visitTry(self, node: ast.Try):
-        if node.finalbody:
-            self.emit_try_finally(node)
-        else:
-            self.emit_try_except(node)
-
     def emit_try_finally(self, node):
         body = self.newBlock("try_finally_body")
         end = self.newBlock("try_finally_end")
         exit_ = self.newBlock("try_finally_exit")
         cleanup = self.newBlock("cleanup")
 
+        final_body = lambda: self.visitStatements(node.finalbody)
+
         # try block
         self.emit("SETUP_FINALLY", end)
 
         self.nextBlock(body)
-        self.setups.append(
-            Entry(FINALLY_TRY, body, end, lambda: self.visitStatements(node.finalbody))
-        )
+        self.setups.append(Entry(FINALLY_TRY, body, end, final_body))
         if node.handlers:
             self.emit_try_except(node)
         else:
@@ -3998,7 +3995,7 @@ class CodeGenerator312(CodeGenerator):
 
         self.emit_noline("POP_BLOCK")
         self.setups.pop()
-        self.visitStatements(node.finalbody)
+        final_body()
         self.emit_noline("JUMP", exit_)
 
         # finally block
@@ -4007,7 +4004,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("SETUP_CLEANUP", cleanup)
         self.emit("PUSH_EXC_INFO")
         self.setups.append(Entry(FINALLY_END, end, None, None))
-        self.visitStatements(node.finalbody)
+        final_body()
         self.setups.pop()
         self.emit("RERAISE", 0)
 
