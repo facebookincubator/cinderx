@@ -656,13 +656,13 @@ class CodeGenerator(ASTVisitor):
             (self.graph.filename, node.lineno, node.col_offset, source_line or None),
         )
 
-    def compileJumpIfPop(self, test, label, is_if_true):
+    def compileJumpIfPop(self, test: ast.expr, label: Block, is_if_true: bool) -> None:
         self.visit(test)
         self.emit(
             "JUMP_IF_TRUE_OR_POP" if is_if_true else "JUMP_IF_FALSE_OR_POP", label
         )
 
-    def visitTest(self, node, is_if_true: bool):
+    def emit_test(self, node: ast.BoolOp, is_if_true: bool) -> None:
         end = self.newBlock()
         for child in node.values[:-1]:
             self.compileJumpIfPop(child, end, is_if_true)
@@ -670,8 +670,8 @@ class CodeGenerator(ASTVisitor):
         self.visit(node.values[-1])
         self.nextBlock(end)
 
-    def visitBoolOp(self, node):
-        self.visitTest(node, type(node.op) is ast.Or)
+    def visitBoolOp(self, node: ast.BoolOp) -> None:
+        raise NotImplementedError()
 
     _cmp_opcode: dict[type, str] = {
         ast.Eq: "==",
@@ -3214,6 +3214,9 @@ class CodeGenerator310(CodeGenerator):
             if len(node.values) != 1:
                 self.emit("BUILD_STRING", len(node.values))
 
+    def visitBoolOp(self, node: ast.BoolOp) -> None:
+        self.emit_test(node, type(node.op) is ast.Or)
+
 
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
@@ -3242,6 +3245,21 @@ class CodeGenerator312(CodeGenerator):
 
     def emit_get_awaitable(self, kind: AwaitableKind) -> None:
         self.emit("GET_AWAITABLE", int(kind))
+
+    def visitBoolOp(self, node: ast.BoolOp) -> None:
+        if type(node.op) is ast.And:
+            jumpi = "POP_JUMP_IF_FALSE"
+        else:
+            jumpi = "POP_JUMP_IF_TRUE"
+        end = self.newBlock()
+        for value in node.values[:-1]:
+            self.visit(value)
+            self.emit("COPY", 1)
+            self.emit(jumpi, end)
+            self.nextBlock()
+            self.emit("POP_TOP")
+        self.visit(node.values[-1])
+        self.nextBlock(end)
 
     def visitCall(self, node):
         if not self._can_optimize_call(node):
