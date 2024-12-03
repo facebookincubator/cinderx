@@ -1065,18 +1065,7 @@ class PyFlowGraph(FlowGraph):
             elif last.opname == "JUMP_FORWARD" and last.target.bid in seen_blocks:
                 last.opname = "JUMP_ABSOLUTE"
 
-    def optimizeCFG(self):
-        """Optimize a well-formed CFG."""
-        assert self.stage == CLOSED, self.stage
-
-        optimizer = self.flow_graph_optimizer(self)
-        for block in self.ordered_blocks:
-            optimizer.optimize_basic_block(block)
-            optimizer.clean_basic_block(block, -1)
-
-        for block in self.blocks_in_reverse_allocation_order():
-            self.extend_block(block)
-
+    def remove_redundant_nops(self, optimizer: FlowGraphOptimizer) -> None:
         prev_block = None
         for block in self.ordered_blocks:
             prev_lineno = -1
@@ -1085,9 +1074,7 @@ class PyFlowGraph(FlowGraph):
             optimizer.clean_basic_block(block, prev_lineno)
             prev_block = block if block.has_fallthrough else None
 
-        self.eliminate_empty_basic_blocks()
-        self.remove_unreachable_basic_blocks()
-
+    def remove_redundant_jumps(self, optimizer: FlowGraphOptimizer) -> bool:
         # Delete jump instructions made redundant by previous step. If a non-empty
         # block ends with a jump instruction, check if the next non-empty block
         # reached through normal flow control is the target of that jump. If it
@@ -1104,6 +1091,26 @@ class PyFlowGraph(FlowGraph):
                 last.set_to_nop()
                 optimizer.clean_basic_block(block, -1)
                 maybe_empty_blocks = True
+        return maybe_empty_blocks
+
+    def optimizeCFG(self) -> None:
+        """Optimize a well-formed CFG."""
+        assert self.stage == CLOSED, self.stage
+
+        optimizer = self.flow_graph_optimizer(self)
+        for block in self.ordered_blocks:
+            optimizer.optimize_basic_block(block)
+            optimizer.clean_basic_block(block, -1)
+
+        for block in self.blocks_in_reverse_allocation_order():
+            self.extend_block(block)
+
+        self.remove_redundant_nops(optimizer)
+
+        self.eliminate_empty_basic_blocks()
+        self.remove_unreachable_basic_blocks()
+
+        maybe_empty_blocks = self.remove_redundant_jumps(optimizer)
 
         if maybe_empty_blocks:
             self.eliminate_empty_basic_blocks()
