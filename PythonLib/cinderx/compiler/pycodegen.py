@@ -1490,6 +1490,9 @@ class CodeGenerator(ASTVisitor):
             self.visit(d)
         self.emit("BUILD_TUPLE", len(node.dims))
 
+    def emit_dup(self, count: int = 1):
+        raise NotImplementedError()
+
     def _const_value(self, node):
         assert isinstance(node, ast.Constant)
         return node.value
@@ -1585,7 +1588,7 @@ class CodeGenerator(ASTVisitor):
             # Only copy the subject if we're *not* on the last case:
             is_last_non_default_case = case is cases[-1]
             if not is_last_non_default_case:
-                self.emit("DUP_TOP")
+                self.emit_dup()
             pc.stores = []
             # Irrefutable cases must be either guarded, last, or both:
             pc.allow_irrefutable = case.guard is not None or case is last_case
@@ -1938,6 +1941,9 @@ class CodeGenerator(ASTVisitor):
         pc.on_top -= 1
         self._pattern_helper_store_name(node.name, pc, node)
 
+    def emit_rot_n(self, n: int) -> None:
+        raise NotImplementedError()
+
     def visitMatchOr(self, node: ast.MatchOr, pc: PatternContext) -> None:
         """See compiler_pattern_or in compile.c"""
         end = self.newBlock("match_or_end")
@@ -1994,7 +2000,7 @@ class CodeGenerator(ASTVisitor):
                         pc.stores[(icontrol - istores) : (icontrol - istores)] = rotated
                         # Do the same to the stack, using several ROT_Ns:
                         for _ in range(rotations):
-                            self.emit("ROT_N", icontrol + 1)
+                            self.emit_rot_n(icontrol + 1)
             assert control is not None
             self.emit("JUMP_FORWARD", end)
             self.nextBlock()
@@ -2015,7 +2021,7 @@ class CodeGenerator(ASTVisitor):
         nrots = nstores + 1 + pc.on_top + len(pc.stores)
         for i in range(nstores):
             # Rotate this capture to its proper place on the stack:
-            self.emit("ROT_N", nrots)
+            self.emit_rot_n(nrots)
             # Update the list of previous stores with this new name, checking for
             # duplicates:
             name = control[i]
@@ -2041,7 +2047,7 @@ class CodeGenerator(ASTVisitor):
             raise self._error_duplicate_store(name)
 
         # Rotate this object underneath any items we need to preserve:
-        self.emit("ROT_N", pc.on_top + len(pc.stores) + 1)
+        self.emit_rot_n(pc.on_top + len(pc.stores) + 1)
         pc.stores.append(name)
 
     def _check_forbidden_name(
@@ -3217,6 +3223,9 @@ class CodeGenerator310(CodeGenerator):
     def visitBoolOp(self, node: ast.BoolOp) -> None:
         self.emit_test(node, type(node.op) is ast.Or)
 
+    def emit_rot_n(self, n: int) -> None:
+        self.emit("ROT_N", n)
+
 
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
@@ -3484,6 +3493,11 @@ class CodeGenerator312(CodeGenerator):
         self.emit("RERAISE", 1)
 
         self.nextBlock(exit)
+
+    def emit_rot_n(self, n: int) -> None:
+        while 1 < n:
+            self.emit("SWAP", n)
+            n -= 1
 
     def _fastcall_helper(self, argcnt, node, args, kwargs) -> None:
         # No * or ** args, faster calling sequence.
