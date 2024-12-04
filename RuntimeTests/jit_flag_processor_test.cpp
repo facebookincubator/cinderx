@@ -105,9 +105,9 @@ void try_flag_and_envvar_effect(
   PyObject* xoptions = PySys_GetXOptions();
 
   reset_vars();
-  int prev_g_debug_verbose = g_debug_verbose;
+  int prev_g_debug = g_debug;
   if (capture_stderr) {
-    g_debug_verbose = 1;
+    g_debug = 1;
     testing::internal::CaptureStderr();
   }
 
@@ -135,7 +135,7 @@ void try_flag_and_envvar_effect(
   conditions_to_check();
   reset_vars();
   if (capture_stderr) {
-    g_debug_verbose = prev_g_debug_verbose;
+    g_debug = prev_g_debug;
   }
 }
 

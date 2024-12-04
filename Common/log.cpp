@@ -13,7 +13,6 @@ namespace jit {
 int g_debug = 0;
 int g_debug_inliner = 0;
 int g_debug_refcount = 0;
-int g_debug_verbose = 0;
 int g_dump_hir = 0;
 int g_dump_hir_passes = 0;
 std::string g_dump_hir_passes_json;

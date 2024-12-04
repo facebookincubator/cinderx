@@ -30,7 +30,6 @@ auto format_to(
 extern int g_debug;
 extern int g_debug_inliner;
 extern int g_debug_refcount;
-extern int g_debug_verbose;
 extern int g_dump_hir;
 extern int g_dump_hir_passes;
 extern std::string g_dump_hir_passes_json;
@@ -66,7 +65,7 @@ std::string repr(BorrowedRef<> obj);
     JIT_LOG(__VA_ARGS__);    \
   }
 
-#define JIT_DLOG(...) JIT_LOGIF(::jit::g_debug_verbose, __VA_ARGS__)
+#define JIT_DLOG(...) JIT_LOGIF(::jit::g_debug, __VA_ARGS__)
 
 #define JIT_CHECK(COND, ...)                      \
   {                                               \

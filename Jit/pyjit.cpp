@@ -271,13 +271,7 @@ void initFlagProcessor() {
         "threshold");
 
     xarg_flag_processor.addOption(
-        "jit-debug",
-        "PYTHONJITDEBUG",
-        [](std::string) {
-          g_debug = 1;
-          g_debug_verbose = 1;
-        },
-        "JIT debug and extra logging");
+        "jit-debug", "PYTHONJITDEBUG", g_debug, "JIT debug and extra logging");
 
     xarg_flag_processor
         .addOption(

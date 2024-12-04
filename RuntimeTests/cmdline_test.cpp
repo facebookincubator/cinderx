@@ -104,14 +104,8 @@ TEST_F(CmdLineTest, BasicFlags) {
       try_flag_and_envvar_effect(
           L"jit-debug",
           "PYTHONJITDEBUG",
-          []() {
-            g_debug = 0;
-            g_debug_verbose = 0;
-          },
-          []() {
-            ASSERT_EQ(g_debug, 1);
-            ASSERT_EQ(g_debug_verbose, 1);
-          }),
+          []() { g_debug = 0; },
+          []() { ASSERT_EQ(g_debug, 1); }),
       0);
 
   ASSERT_EQ(
