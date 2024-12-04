@@ -1838,172 +1838,191 @@ PyMethodDef jit_methods[] = {
     {"disable",
      reinterpret_cast<PyCFunction>(disable_jit),
      METH_VARARGS | METH_KEYWORDS,
-     "Compile all functions that are pending compilation and then disable the "
-     "JIT."},
+     PyDoc_STR("Compile all functions that are pending compilation and then "
+               "disable the JIT.")},
     {"enable",
      enable_jit,
      METH_NOARGS,
-     "Re-enable the JIT and re-attach compiled onto previously JIT-compiled "
-     "functions"},
-    {"disassemble", disassemble, METH_O, "Disassemble JIT compiled functions"},
+     PyDoc_STR("Re-enable the JIT and re-attach compiled onto previously "
+               "JIT-compiled functions.")},
+    {"disassemble", disassemble, METH_O, "Disassemble JIT compiled functions."},
     {"dump_elf",
      dump_elf,
      METH_O,
-     "Write out all generated code into an ELF file, whose filepath is passed "
-     "as the first argument. This is currently intended for debugging "
-     "purposes."},
+     PyDoc_STR(
+         "Write out all generated code into an ELF file, whose filepath "
+         "is passed as the first argument. This is currently intended for "
+         "debugging purposes.")},
     {"load_aot_bundle",
      load_aot_bundle,
      METH_O,
-     "Load a bundle of ahead-of-time generated code from an ELF file, whose "
-     "filepath is passed as the first argument. Note: This does not actually "
-     "work yet, it's being used for debugging purposes."},
+     PyDoc_STR("Load a bundle of ahead-of-time generated code from an ELF "
+               "file, whose filepath is passed as the first argument. Note: "
+               "This does not actually work yet, it's being used for debugging "
+               "purposes.")},
     {"auto_jit_threshold",
      auto_jit_threshold,
      METH_NOARGS,
-     "Return the current AutoJIT threshold, only makes sense when the JIT is "
-     "enabled."},
+     PyDoc_STR("Return the current AutoJIT threshold, only makes sense when "
+               "the JIT is enabled.")},
     {"is_jit_compiled",
      is_jit_compiled,
      METH_O,
-     "Check if a function is jit compiled."},
+     PyDoc_STR("Check if a function is jit compiled.")},
     {"force_compile",
      force_compile,
      METH_O,
-     "Force a function to be JIT compiled if it hasn't yet"},
+     PyDoc_STR("Force a function to be JIT compiled if it hasn't yet.")},
     {"jit_frame_mode",
      jit_frame_mode,
      METH_NOARGS,
-     "Get JIT frame mode (0 = normal frames, 1 = no frames, 2 = shadow frames"},
-    {"get_jit_list", get_jit_list, METH_NOARGS, "Get the JIT-list"},
-    {"jit_list_append", jit_list_append, METH_O, "Parse a JIT-list line"},
+     PyDoc_STR("Get JIT frame mode (0 = normal frames, 1 = no frames, 2 = "
+               "shadow frames).")},
+    {"get_jit_list",
+     get_jit_list,
+     METH_NOARGS,
+     PyDoc_STR("Get the list of functions to JIT compile.")},
+    {"jit_list_append",
+     jit_list_append,
+     METH_O,
+     PyDoc_STR("Parse a JIT-list line and append it.")},
     {"print_hir",
      print_hir,
      METH_O,
-     "Print the HIR for a jitted function to stdout."},
+     PyDoc_STR("Print the HIR for a jitted function to stdout.")},
     {"get_supported_opcodes",
      get_supported_opcodes,
      METH_NOARGS,
-     "Return a set of all supported opcodes, as ints."},
+     PyDoc_STR("Return a set of all supported opcodes, as ints.")},
     {"get_compiled_functions",
      get_compiled_functions,
      METH_NOARGS,
-     "Return a list of functions that are currently JIT-compiled."},
+     PyDoc_STR("Return a list of functions that are currently JIT-compiled.")},
     {"get_compilation_time",
      get_compilation_time,
      METH_NOARGS,
-     "Return the total time used for JIT compiling functions in milliseconds."},
+     PyDoc_STR("Return the total time used for JIT compiling functions in "
+               "milliseconds.")},
     {"get_function_compilation_time",
      get_function_compilation_time,
      METH_O,
-     "Return the time used for JIT compiling a given function in "
-     "milliseconds."},
+     PyDoc_STR("Return the time used for JIT compiling a given function in "
+               "milliseconds.")},
     {"get_and_clear_runtime_stats",
      get_and_clear_runtime_stats,
      METH_NOARGS,
-     "Returns information about the runtime behavior of JIT-compiled code."},
+     PyDoc_STR("Returns information about the runtime behavior of JIT-compiled "
+               "code.")},
     {"clear_runtime_stats",
      clear_runtime_stats,
      METH_NOARGS,
-     "Clears runtime stats about JIT-compiled code without returning a value."},
+     PyDoc_STR("Clears runtime stats about JIT-compiled code without returning "
+               "a value.")},
     {"get_and_clear_inline_cache_stats",
      get_and_clear_inline_cache_stats,
      METH_NOARGS,
-     "Returns and clears information about the runtime inline cache stats "
-     "behavior of JIT-compiled code. Stats will only be collected with X "
-     "flag jit-enable-inline-cache-stats-collection"},
+     PyDoc_STR(
+         "Returns and clears information about the runtime inline cache stats "
+         "behavior of JIT-compiled code. Stats will only be collected with X "
+         "flag jit-enable-inline-cache-stats-collection.")},
     {"is_inline_cache_stats_collection_enabled",
      is_inline_cache_stats_collection_enabled,
      METH_NOARGS,
-     "Return True if jit-enable-inline-cache-stats-collection is on and False "
-     "otherwise."},
+     PyDoc_STR("Return True if jit-enable-inline-cache-stats-collection is on "
+               "and False otherwise.")},
     {"get_compiled_size",
      get_compiled_size,
      METH_O,
-     "Return code size in bytes for a JIT-compiled function."},
+     PyDoc_STR("Return code size in bytes for a JIT-compiled function.")},
     {"get_compiled_stack_size",
      get_compiled_stack_size,
      METH_O,
-     "Return stack size in bytes for a JIT-compiled function."},
+     PyDoc_STR("Return stack size in bytes for a JIT-compiled function.")},
     {"get_compiled_spill_stack_size",
      get_compiled_spill_stack_size,
      METH_O,
-     "Return stack size in bytes used for register spills for a JIT-compiled "
-     "function."},
+     PyDoc_STR("Return stack size in bytes used for register spills for a "
+               "JIT-compiled function.")},
     {"jit_suppress",
      jit_suppress,
      METH_O,
-     "Decorator to disable the JIT for the decorated function."},
+     PyDoc_STR("Decorator to prevent the JIT from running on a function.")},
     {"multithreaded_compile_test",
      multithreaded_compile_test,
      METH_NOARGS,
-     "Force multi-threaded recompile of still existing JIT functions for test"},
+     PyDoc_STR("Force multi-threaded recompile of still existing JIT functions "
+               "for testing.")},
     {"is_multithreaded_compile_test_enabled",
      is_multithreaded_compile_test_enabled,
      METH_NOARGS,
-     "Return True if multithreaded_compile_test mode is enabled"},
+     PyDoc_STR("Return True if multithreaded_compile_test mode is enabled.")},
     {"get_batch_compilation_time_ms",
      get_batch_compilation_time_ms,
      METH_NOARGS,
-     "Return the number of milliseconds spent in batch compilation when "
-     "disabling the JIT."},
+     PyDoc_STR("Return the number of milliseconds spent in batch compilation "
+               "when disabling the JIT.")},
     {"get_allocator_stats",
      get_allocator_stats,
      METH_NOARGS,
-     "Return stats from the code allocator as a dictionary."},
+     PyDoc_STR("Return stats from the code allocator as a dictionary.")},
     {"is_hir_inliner_enabled",
      is_hir_inliner_enabled,
      METH_NOARGS,
-     "Return True if the HIR inliner is enabled and False otherwise."},
+     PyDoc_STR(
+         "Return True if the HIR inliner is enabled and False otherwise.")},
     {"enable_hir_inliner",
      enable_hir_inliner,
      METH_NOARGS,
-     "Enable the HIR inliner."},
+     PyDoc_STR("Enable the HIR inliner.")},
     {"disable_hir_inliner",
      disable_hir_inliner,
      METH_NOARGS,
-     "Disable the HIR inliner."},
+     PyDoc_STR("Disable the HIR inliner.")},
     {"get_inlined_functions_stats",
      get_inlined_functions_stats,
      METH_O,
-     "Return a dict containing function inlining stats with the the following "
-     "structure: {'num_inlined_functions' => int, 'failure_stats' => { "
-     "failure_reason => set of function names}} )."},
+     PyDoc_STR("Return a dict containing function inlining stats with the the "
+               "following structure: {'num_inlined_functions' => int, "
+               "'failure_stats' => { "
+               "failure_reason => set of function names}} ).")},
     {"get_num_inlined_functions",
      get_num_inlined_functions,
      METH_O,
-     "Return the number of inline sites in this function."},
+     PyDoc_STR("Return the number of inline sites in this function.")},
     {"get_function_hir_opcode_counts",
      get_function_hir_opcode_counts,
      METH_O,
-     "Return a map from HIR opcode name to the count of that opcode in the "
-     "JIT-compiled version of this function."},
+     PyDoc_STR(
+         "Return a map from HIR opcode name to the count of that opcode in the "
+         "JIT-compiled version of this function.")},
     {"mlock_profiler_dependencies",
      mlock_profiler_dependencies,
      METH_NOARGS,
-     "Keep profiler dependencies paged in"},
+     PyDoc_STR("Keep profiler dependencies paged in.")},
     {"page_in_profiler_dependencies",
      page_in_profiler_dependencies,
      METH_NOARGS,
-     "Read the memory needed by ebpf-based profilers."},
+     PyDoc_STR("Read the memory needed by ebpf-based profilers.")},
     {"after_fork_child",
      after_fork_child,
      METH_NOARGS,
-     "Callback to be invoked by the runtime after fork()."},
+     PyDoc_STR("Callback to be invoked by the runtime after fork().")},
     {"_deopt_gen",
      deopt_gen,
      METH_O,
-     "Argument must be a suspended generator, coroutine, or async generator. "
-     "If it is a JIT generator, deopt it, so it will resume in the interpreter "
-     "the next time it executes, and return True. Otherwise, return False. "
-     "Intended only for use in tests."},
+     PyDoc_STR(
+         "Argument must be a suspended generator, coroutine, or async "
+         "generator. If it is a JIT generator, deopt it, so it will resume in "
+         "the interpreter the next time it executes, and return True. "
+         "Otherwise, return False. Intended only for use in tests.")},
     {nullptr, nullptr, 0, nullptr},
 };
 
 PyModuleDef jit_module = {
     PyModuleDef_HEAD_INIT,
     "cinderjit", /* m_name */
-    nullptr, /* m_doc */
+    PyDoc_STR("Control the Cinder JIT compiler. Only available when the JIT "
+              "has been enabled."),
     -1, /* m_size */
     jit_methods, /* m_methods */
     nullptr, /* m_slots */
