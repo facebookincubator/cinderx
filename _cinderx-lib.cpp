@@ -796,14 +796,19 @@ PyMethodDef _cinderx_methods[] = {
     {"init",
      init,
      METH_NOARGS,
-     "This must be called early. Preferably before any user code is run."},
+     PyDoc_STR(
+         "This must be called early. Preferably before any user code is run.")},
     {"clear_caches",
      clear_caches,
      METH_NOARGS,
-     "Clears caches associated with the JIT.  This may have a negative effect "
-     "on performance of existing JIT compiled code."},
+     PyDoc_STR(
+         "Clears caches associated with the JIT.  This may have a "
+         "negative effect on performance of existing JIT compiled code.")},
 #if PY_VERSION_HEX < 0x030C0000
-    {"clear_all_shadow_caches", clear_all_shadow_caches, METH_NOARGS, ""},
+    {"clear_all_shadow_caches",
+     clear_all_shadow_caches,
+     METH_NOARGS,
+     PyDoc_STR("")},
 #endif
     {"strict_module_patch",
      strict_module_patch,
@@ -820,14 +825,16 @@ PyMethodDef _cinderx_methods[] = {
     {"clear_classloader_caches",
      clear_classloader_caches,
      METH_NOARGS,
-     "Clears classloader caches and vtables on all accessible types. "
-     "Will hurt perf; for test isolation where modules and types with "
-     "identical names are dynamically created and destroyed."},
+     PyDoc_STR(
+         "Clears classloader caches and vtables on all accessible types. "
+         "Will hurt perf; for test isolation where modules and types with "
+         "identical names are dynamically created and destroyed.")},
     {"watch_sys_modules",
      watch_sys_modules,
      METH_NOARGS,
-     "Watch the sys.modules dict to allow invalidating Static Python's "
-     "internal caches."},
+     PyDoc_STR(
+         "Watch the sys.modules dict to allow invalidating Static Python's "
+         "internal caches.")},
     {"enable_parallel_gc",
      (PyCFunction)cinder_enable_parallel_gc,
      METH_VARARGS | METH_KEYWORDS,
@@ -843,27 +850,28 @@ PyMethodDef _cinderx_methods[] = {
     {"_compile_perf_trampoline_pre_fork",
      compile_perf_trampoline_pre_fork,
      METH_NOARGS,
-     "Compile perf-trampoline entries before forking"},
+     PyDoc_STR("Compile perf-trampoline entries before forking.")},
     {"_is_compile_perf_trampoline_pre_fork_enabled",
      is_compile_perf_trampoline_pre_fork_enabled,
      METH_NOARGS,
-     "Return whether compile perf-trampoline entries before fork is enabled or "
-     "not"},
+     PyDoc_STR("Return whether compile perf-trampoline entries before fork is "
+               "enabled or not.")},
     {"_get_entire_call_stack_as_qualnames_with_lineno",
      get_entire_call_stack_as_qualnames_with_lineno,
      METH_NOARGS,
-     "Return the current stack as a list of tuples (qualname, lineno)."},
+     PyDoc_STR(
+         "Return the current stack as a list of tuples (qualname, lineno).")},
     {"_get_entire_call_stack_as_qualnames_with_lineno_and_frame",
      get_entire_call_stack_as_qualnames_with_lineno_and_frame,
      METH_NOARGS,
-     "Return the current stack as a list of tuples (qualname, lineno, PyFrame "
-     "| None)."},
+     PyDoc_STR("Return the current stack as a list of tuples (qualname, "
+               "lineno, PyFrame | None).")},
     {nullptr, nullptr, 0, nullptr}};
 
 struct PyModuleDef _cinderx_module = {
     PyModuleDef_HEAD_INIT,
     "_cinderx",
-    "The internal CinderX extension module",
+    PyDoc_STR("The internal CinderX extension module."),
     /*m_size=*/-1, // Doesn't support sub-interpreters
     _cinderx_methods,
     /*m_slots=*/nullptr,
