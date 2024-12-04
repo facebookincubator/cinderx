@@ -392,6 +392,13 @@ class Block:
         assert block.prev is None, block.prev
         block.prev = self
 
+    def insert_next(self, block) -> None:
+        """Insert `block` as self.next in the linked list."""
+        assert block.prev is None, block.prev
+        block.next = self.next
+        block.prev = self
+        self.next = block
+
     def get_outgoing(self) -> list[Block]:
         """Get the list of blocks this block can transfer control to."""
         return list(self.out_edges) + ([self.next] if self.next is not None else [])
@@ -1046,9 +1053,7 @@ class PyFlowGraph(FlowGraph):
                     last.target = new_target
                     target.num_predecessors -= 1
                     new_target.num_predecessors = 1
-                    new_target.next = target.next
-                    target.next = new_target
-                    new_target.prev = target
+                    target.insert_next(new_target)
                     append_after.setdefault(target, []).append(new_target)
         for after, to_append in append_after.items():
             idx = self.ordered_blocks.index(after) + 1
@@ -1749,7 +1754,16 @@ class PyFlowGraph312(PyFlowGraph):
         else:
             return 4 + base_size
 
-    def normalize_jumps_in_block(self, block: Block, seen_blocks: set[Block]) -> None:
+    _reversed_jumps: dict[str, str] = {
+        "POP_JUMP_IF_NOT_NONE": "POP_JUMP_IF_NONE",
+        "POP_JUMP_IF_NONE": "POP_JUMP_IF_NOT_NONE",
+        "POP_JUMP_IF_FALSE": "POP_JUMP_IF_TRUE",
+        "POP_JUMP_IF_TRUE": "POP_JUMP_IF_FALSE",
+    }
+
+    def normalize_jumps_in_block(
+        self, block: Block, seen_blocks: set[Block]
+    ) -> Block | None:
         last = block.insts[-1]
         if not last.is_jump(self.opcode):
             return
@@ -1758,16 +1772,43 @@ class PyFlowGraph312(PyFlowGraph):
         is_forward = target.bid not in seen_blocks
         if last.opname == "JUMP":
             last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD"
+            return
         elif last.opname == "JUMP_NO_INTERRUPT":
             last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD_NO_INTERRUPT"
+            return
+
+        if is_forward:
+            return
+
+        # transform 'conditional jump T' to
+        # 'reversed_jump b_next' followed by 'jump_backwards T'
+        backwards_jump = self.newBlock("backwards_jump")
+        backwards_jump.bid = self.get_new_block_id()
+        self.current = backwards_jump
+        # cpython has `JUMP(target)` here, but it will always get inserted as
+        # the next block in the loop and then transformed to JUMP_BACKWARD by
+        # the above code, since is_forward(target) won't have changed.
+        self.emit("JUMP_BACKWARD", target)
+        last.opname = self._reversed_jumps[last.opname]
+        last.target = block.next
+        block.insert_next(backwards_jump)
+        return backwards_jump
 
     def normalize_jumps(self) -> None:
         assert self.stage == ORDERED, self.stage
         seen_blocks = set()
+        new_blocks = {}
         for block in self.ordered_blocks:
             seen_blocks.add(block.bid)
             if block.insts:
-                self.normalize_jumps_in_block(block, seen_blocks)
+                ret = self.normalize_jumps_in_block(block, seen_blocks)
+                new_blocks[block] = ret
+        new_ordered = []
+        for block in self.ordered_blocks:
+            new_ordered.append(block)
+            if to_add := new_blocks.get(block):
+                new_ordered.append(to_add)
+        self.ordered_blocks = new_ordered
 
     def emit_inline_cache(
         self, opcode: str, addCode: Callable[[int, int], None]
