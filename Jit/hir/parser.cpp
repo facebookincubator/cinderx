@@ -739,6 +739,10 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     instruction = newInstr<InvokeStaticFunction>(argcount, dst, func, ty);
   } else if (opcode == "LoadCurrentFunc") {
     NEW_INSTR(LoadCurrentFunc, dst);
+  } else if (opcode == "LoadEvalBreaker") {
+    NEW_INSTR(LoadEvalBreaker, dst);
+  } else if (opcode == "RunPeriodicTasks") {
+    NEW_INSTR(RunPeriodicTasks, dst);
   } else if (opcode == "ListAppend") {
     auto list = ParseRegister();
     auto value = ParseRegister();
