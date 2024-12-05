@@ -18,9 +18,6 @@
 #define UPGRADE_NOTE(tag, task)
 
 enum {
-  // Missing f_code, f_lasti, f_gen, f_stackdepth, f_valuestack
-  // No longer a frame on PyThreadState. T194018580
-  CHANGED_PYFRAMEOBJECT,
   // No _jit_data field on generators. T194022335
   GENERATOR_JIT_SUPPORT,
   TSTATE_FROM_RUNTIME, // T194018580
