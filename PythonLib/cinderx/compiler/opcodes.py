@@ -227,6 +227,10 @@ if sys.version_info >= (3, 12):
         LOAD_GLOBAL=lambda oparg, jmp=0: 2 if isinstance(oparg, tuple) else 1,
         BEFORE_WITH=1,
         CALL_FUNCTION_EX=lambda oparg, jmp=0: 1 - (4 if oparg & 0x01 else 3),
+        CHECK_EXC_MATCH=0,
+        CHECK_EG_MATCH=0,
+        POP_JUMP_IF_NONE=-1,
+        POP_JUMP_IF_NOT_NONE=-1,
     )
 
     from opcode import (

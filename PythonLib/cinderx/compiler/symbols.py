@@ -1152,6 +1152,9 @@ class SymbolVisitor312(BaseSymbolVisitor):
         self.visit(node.body, scope)
         self.analyze_block(scope, free=set(), global_vars=set())
 
+    def visitTryStar(self, node, scope):
+        return self.visitTry(node, scope)
+
     # node that define new scopes
 
     visitInteractive = visitExpression = visitModule

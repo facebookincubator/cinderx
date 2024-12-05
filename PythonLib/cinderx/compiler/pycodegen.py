@@ -72,8 +72,9 @@ ASYNC_WITH = 7
 HANDLER_CLEANUP = 8
 POP_VALUE = 9
 EXCEPTION_HANDLER = 10
-ASYNC_COMPREHENSION_GENERATOR = 11
-STOP_ITERATION = 12
+EXCEPTION_GROUP_HANDLER = 11
+ASYNC_COMPREHENSION_GENERATOR = 12
+STOP_ITERATION = 13
 
 _ZERO = (0).to_bytes(4, "little")
 
@@ -4047,12 +4048,21 @@ class CodeGenerator312(CodeGenerator):
         self.emit("COPY", 1)
         self.visit(node.target)
 
+    # Exceptions --------------------------------------------------
+
+    # pyre-ignore[11]: Annotation `ast.TryStar` is not defined as a type.
+    def visitTryStar(self, node: ast.TryStar) -> None:
+        if node.finalbody:
+            self.emit_try_finally(node, star=True)
+        else:
+            self.emit_try_star_except(node)
+
     def emit_pop_except_and_reraise(self) -> None:
         self.emit("COPY", 3)
         self.emit("POP_EXCEPT")
         self.emit("RERAISE", 1)
 
-    def emit_try_finally(self, node):
+    def emit_try_finally(self, node, star: bool = False) -> None:
         body = self.newBlock("try_finally_body")
         end = self.newBlock("try_finally_end")
         exit_ = self.newBlock("try_finally_exit")
@@ -4066,7 +4076,10 @@ class CodeGenerator312(CodeGenerator):
         self.nextBlock(body)
         self.setups.append(Entry(FINALLY_TRY, body, end, final_body))
         if node.handlers:
-            self.emit_try_except(node)
+            if star:
+                self.emit_try_star_except(node)
+            else:
+                self.emit_try_except(node)
         else:
             self.visitStatements(node.body)
 
@@ -4090,7 +4103,7 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(exit_)
 
-    def emit_try_except(self, node):
+    def emit_try_except(self, node: ast.Try) -> None:
         body = self.newBlock("try_body")
         except_ = self.newBlock("try_except")
         end = self.newBlock("try_end")
@@ -4175,6 +4188,140 @@ class CodeGenerator312(CodeGenerator):
         self.emit("RERAISE", 0)
         self.nextBlock(cleanup)
         self.pop_except_and_reraise()
+        self.nextBlock(end)
+
+    # pyre-ignore[11]: Annotation `ast.TryStar` is not defined as a type.
+    def emit_try_star_except(self, node: ast.TryStar) -> None:
+        body = self.newBlock("try*_body")
+        except_ = self.newBlock("try*_except")
+        orelse = self.newBlock("try*_orelse")
+        end = self.newBlock("try*_end")
+        cleanup = self.newBlock("try*_cleanup")
+        reraise_star = self.newBlock("try*_reraise_star")
+
+        self.emit("SETUP_FINALLY", except_)
+
+        self.nextBlock(body)
+        self.setups.append(Entry(TRY_EXCEPT, body, None, None))
+        self.visitStatements(node.body)
+        self.setups.pop()
+        self.set_no_pos()
+        self.emit("POP_BLOCK")
+        self.emit("JUMP", orelse)
+
+        self.nextBlock(except_)
+        self.emit("SETUP_CLEANUP", cleanup)
+        self.emit("PUSH_EXC_INFO")
+
+        # Runtime will push a block here, so we need to account for that
+        self.setups.append(Entry(EXCEPTION_GROUP_HANDLER, None, None, "except_handler"))
+
+        n = len(node.handlers)
+        for i in range(n):
+            handler = node.handlers[i]
+            self.set_pos(handler)
+            next_except = self.newBlock(f"next_except_{i}")
+            except_ = next_except
+            except_with_error = self.newBlock(f"except_with_error_{i}")
+            no_match = self.newBlock(f"no_match_{i}")
+            if i == 0:
+                # create empty list for exceptions raised/reraise in the except* blocks
+                self.emit("BUILD_LIST", 0)
+                self.emit("COPY", 2)
+
+            if handler.type:
+                self.visit(handler.type)
+                self.emit("CHECK_EG_MATCH")
+                self.emit("COPY", 1)
+                self.emit("POP_JUMP_IF_NONE", no_match)
+
+            # We need a new block here (cpython creates it in a later pass)
+            self.nextBlock(label="try*_insert_block")
+
+            cleanup_end = self.newBlock("try*_cleanup_end")
+            cleanup_body = self.newBlock("try*_cleanup_body")
+
+            if handler.name:
+                self.storeName(handler.name)
+            else:
+                self.emit("POP_TOP")
+
+            # second try:
+            self.emit("SETUP_CLEANUP", cleanup_end)
+
+            self.nextBlock(cleanup_body)
+            self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, handler.name))
+
+            # second body
+            self.visitStatements(handler.body)
+            self.setups.pop()
+            self.set_no_pos()
+            self.emit("POP_BLOCK")
+            if handler.name:
+                self.emit("LOAD_CONST", None)
+                self.storeName(handler.name)
+                self.delName(handler.name)
+            self.emit("JUMP", except_)
+
+            # except:
+            self.nextBlock(cleanup_end)
+            if handler.name:
+                self.emit("LOAD_CONST", None)
+                self.storeName(handler.name)
+                self.delName(handler.name)
+
+            # add exception raised to the res list
+            self.emit("LIST_APPEND", 3)
+            self.emit("POP_TOP")
+            self.emit("JUMP", except_with_error)
+
+            self.nextBlock(except_)
+            self.emit("NOP")
+            self.emit("JUMP", except_with_error)
+
+            self.nextBlock(no_match)
+            self.set_pos(handler)
+            self.emit("POP_TOP")
+
+            self.nextBlock(except_with_error)
+
+            if i == n - 1:
+                # Add exc to the list (if not None it's the unhandled part of the EG)
+                self.set_no_pos()
+                self.emit("LIST_APPEND", 1)
+                self.emit("JUMP", reraise_star)
+
+        # end handler loop
+
+        self.setups.pop()
+        reraise = self.newBlock("try*_reraise")
+
+        self.nextBlock(reraise_star)
+        self.emit_call_intrinsic_2("INTRINSIC_PREP_RERAISE_STAR")
+        self.emit("COPY", 1)
+        self.emit("POP_JUMP_IF_NOT_NONE", reraise)
+
+        # We need a new block here (cpython creates it in a later pass)
+        self.nextBlock(label="try*_insert_block")
+
+        # Nothing to reraise
+        self.emit("POP_TOP")
+        self.emit("POP_BLOCK")
+        self.emit("POP_EXCEPT")
+        self.emit("JUMP", end)
+
+        self.nextBlock(reraise)
+        self.emit("POP_BLOCK")
+        self.emit("SWAP", 2)
+        self.emit("POP_EXCEPT")
+        self.emit("RERAISE", 0)
+
+        self.nextBlock(cleanup)
+        self.pop_except_and_reraise()
+
+        self.nextBlock(orelse)
+        self.visitStatements(node.orelse)
+
         self.nextBlock(end)
 
     def pop_except_and_reraise(self):
