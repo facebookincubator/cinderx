@@ -9,7 +9,6 @@
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
-#include "cinderx/StrictModules/Objects/objects.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <cstring>

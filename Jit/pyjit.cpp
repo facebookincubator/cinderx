@@ -40,7 +40,6 @@
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/runtime.h"
-#include "cinderx/StrictModules/pystrictmodule.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "i386-dis/dis-asm.h"
 
