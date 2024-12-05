@@ -648,8 +648,6 @@ int cinder_init() {
       __strobe_RuntimeFrameState_py_code ==
           jit::RuntimeFrameState::codeOffset(),
       "Invalid codeOffset for Strobelight");
-#else
-  UPGRADE_NOTE(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT, T192550846)
 #endif
 
   init_already_existing_types();

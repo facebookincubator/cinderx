@@ -65,8 +65,6 @@ def test(a, b):
       *reinterpret_cast<PyCodeObject**>(
           reinterpret_cast<byte*>(code_rt) + __strobe_CodeRuntime_py_code),
       code);
-#else
-  UPGRADE_NOTE(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT, T192550846);
 #endif
 }
 
@@ -84,7 +82,5 @@ def test(a, b):
       *reinterpret_cast<PyCodeObject**>(
           reinterpret_cast<byte*>(&rtfs) + __strobe_RuntimeFrameState_py_code),
       code);
-#else
-  UPGRADE_NOTE(EXPORT_JIT_OFFSETS_FOR_STROBELIGHT, T192550846);
 #endif
 }
