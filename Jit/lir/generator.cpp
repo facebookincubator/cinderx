@@ -1731,13 +1731,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kLoadGlobalCached: {
         JIT_DCHECK(
-            getConfig().stable_code,
-            "Can only use LoadGlobalCached when code objects are stable across "
+            getConfig().stable_frame,
+            "Can only use LoadGlobalCached when frame data is stable across "
             "function calls");
-        JIT_DCHECK(
-            getConfig().stable_globals,
-            "Can only use LoadGlobalCached when globals dictionaries are "
-            "stable across function calls");
         ThreadedCompileSerialize guard;
         auto instr = static_cast<const LoadGlobalCached*>(&i);
         PyObject* globals = instr->globals();
@@ -1755,7 +1751,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kLoadGlobal: {
         auto instr = static_cast<const LoadGlobal*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
-        if (!getConfig().stable_globals) {
+        if (!getConfig().stable_frame) {
           bbb.appendCallInstruction(
               instr->output(),
               JITRT_LoadGlobalFromThreadState,
@@ -2489,7 +2485,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto qualname = instr->GetOperand(1);
 
         Instruction* globals;
-        if (getConfig().stable_globals) {
+        if (getConfig().stable_frame) {
           BorrowedRef<> obj = instr->frameState()->globals;
           env_->code_rt->addReference(obj);
           globals = bbb.appendInstr(
@@ -2617,7 +2613,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kBeginInlinedFunction: {
 #if PY_VERSION_HEX < 0x030C0000
         JIT_DCHECK(
-            getConfig().stable_code,
+            getConfig().stable_frame,
             "Inlined code stores references to code objects");
         // TODO(T109706798): Support calling from generators and inlining
         // generators.
@@ -2998,7 +2994,7 @@ void LIRGenerator::resolvePhiOperands(
 Instruction* LIRGenerator::getNameFromIdx(
     BasicBlockBuilder& bbb,
     const hir::DeoptBaseWithNameIdx* instr) {
-  if (!getConfig().stable_code) {
+  if (!getConfig().stable_frame) {
     return bbb.appendInstr(
         OutVReg{},
         Instruction::kCall,

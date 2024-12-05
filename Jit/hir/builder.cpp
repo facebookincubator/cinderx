@@ -3065,7 +3065,7 @@ void HIRBuilder::emitLoadGlobal(
   }
 
   auto try_fast_path = [&] {
-    if (!getConfig().stable_code || !getConfig().stable_globals) {
+    if (!getConfig().stable_frame) {
       return false;
     }
     BorrowedRef<> value = preloader_.global(name_idx);

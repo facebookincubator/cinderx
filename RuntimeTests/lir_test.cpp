@@ -595,8 +595,8 @@ BB %3 - preds: %0
   ASSERT_EQ(ss.str(), lir_expected);
 }
 
-TEST_F(LIRGeneratorTest, StableGlobals) {
-  getMutableConfig().stable_globals = false;
+TEST_F(LIRGeneratorTest, UnstableGlobals) {
+  getMutableConfig().stable_frame = false;
 
   const char* src = R"(
 def func1(x):
@@ -621,7 +621,7 @@ def func3(x):
   auto slow_path = fmt::format(
       "{}", reinterpret_cast<uint64_t>(JITRT_LoadGlobalFromThreadState));
 
-  EXPECT_FALSE(getConfig().stable_globals);
+  EXPECT_FALSE(getConfig().stable_frame);
 
   EXPECT_EQ(lir_str.find(fast_path), std::string::npos)
       << "Should not call out to JITRT_LoadGlobal as globals aren't stable";
@@ -637,7 +637,7 @@ def func3(x):
   slow_path =
       fmt::format("{}", reinterpret_cast<uint64_t>(JITRT_LoadGlobalsDict));
 
-  EXPECT_FALSE(getConfig().stable_globals);
+  EXPECT_FALSE(getConfig().stable_frame);
 
   EXPECT_NE(lir_str.find(slow_path), std::string::npos)
       << "Should be calling out to JITRT_LoadGlobalsDict as globals "
@@ -674,8 +674,8 @@ def func():
          "are disabled";
 }
 
-TEST_F(LIRGeneratorTest, StableCode) {
-  getMutableConfig().stable_code = false;
+TEST_F(LIRGeneratorTest, UnstableCode) {
+  getMutableConfig().stable_frame = false;
 
   const char* src = R"(
 import sys
@@ -692,7 +692,7 @@ def func():
   auto slow_path =
       fmt::format("{}", reinterpret_cast<uint64_t>(JITRT_LoadName));
 
-  EXPECT_FALSE(getConfig().stable_code);
+  EXPECT_FALSE(getConfig().stable_frame);
 
   EXPECT_NE(lir_str.find(slow_path), std::string::npos)
       << "Should be calling out to JITRT_LoadName as code objects aren't "
