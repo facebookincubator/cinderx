@@ -606,4 +606,39 @@ class PropertyTests(StaticTestBase):
             r"Function has declared return type 'str' but can implicitly return None",
             "def foo(self) -> str",
         ) 
-     
+
+    def test_property_with_class_decorator(self):
+        codestr = """
+            from typing import TypeVar
+
+            _T = TypeVar("_T")
+            def f(klass: _T) -> _T:
+                return klass
+
+            @f
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> int:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+
+                @foo.setter
+                def foo(self, value: int) -> None:
+                    self.x = value
+
+                @foo.deleter
+                def foo(self) -> None:
+                    del self.x
+        """
+
+        with self.in_module(codestr) as mod:
+            C = mod.C
+            c = C()
+            c.foo = 50
+            self.assertEqual(c.foo, 50)
+
+            del c.foo
+            self.assertEqual(c.foo, 42)

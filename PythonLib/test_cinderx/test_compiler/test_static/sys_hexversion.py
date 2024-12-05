@@ -69,12 +69,30 @@ class SysHexVersionTests(StaticTestBase):
                         def b(self):
                             pass
                 """
-                with self.assertRaisesRegex(
-                    TypedSyntaxError, "Cannot redefine local variable A"
-                ):
-                    self.compile(codestr)
+                if op == "in":
+                    self.assertRaisesRegex(
+                        TypeError,
+                        "argument of type 'int' is not iterable",
+                    )
+                else:
+                    with self.in_module(codestr) as mod:
+                        self.assertIn("A", mod.__dict__)
+                        self.assertTrue(
+                            hasattr(mod.A, "a") or hasattr(mod.A, "b"),
+                            f"neither A.a nor A.b is defined in {mod.__dict__}",
+                        )
+                        self.assertTrue(
+                            not hasattr(mod.A, "a") or not hasattr(mod.A, "b"),
+                            f"both A.a and A.b are defined in {mod.__dict__}",
+                        )
+
+                    
 
     def test_sys_hexversion_dynamic_compare(self):
+        somethingcodestr = """
+        X: int = 1
+        """
+
         codestr = f"""
         import sys
         from something import X
@@ -88,10 +106,21 @@ class SysHexVersionTests(StaticTestBase):
                 def b(self):
                     pass
         """
-        with self.assertRaisesRegex(
-            TypedSyntaxError, "Cannot redefine local variable A"
-        ):
-            self.compile(codestr)
+
+        with self.in_module(somethingcodestr, name = "something"):
+            with self.in_module(codestr) as mod:
+                self.assertIn("A", mod.__dict__)
+                self.assertTrue(
+                    hasattr(mod.A, "a") or hasattr(mod.A, "b"),
+                    f"neither A.a nor A.b is defined in {mod.__dict__}",
+                )
+                self.assertTrue(
+                    not hasattr(mod.A, "a") or not hasattr(mod.A, "b"),
+                    f"both A.a and A.b are defined in {mod.__dict__}",
+                )
+
+                a = mod.A()
+                self.assertTrue(hasattr(a, "a"))
 
     # comparing with double is kinda meaningless
     def test_sys_hexversion_compare_double(self):
@@ -107,7 +136,13 @@ class SysHexVersionTests(StaticTestBase):
                 def b(self):
                     pass
         """
-        with self.assertRaisesRegex(
-            TypedSyntaxError, "Cannot redefine local variable A"
-        ):
-            self.compile(codestr)
+        with self.in_module(codestr) as mod:
+            self.assertIn("A", mod.__dict__)
+            self.assertTrue(
+                hasattr(mod.A, "a") or hasattr(mod.A, "b"),
+                f"neither A.a nor A.b is defined in {mod.__dict__}",
+            )
+            self.assertTrue(
+                not hasattr(mod.A, "a") or not hasattr(mod.A, "b"),
+                f"both A.a and A.b are defined in {mod.__dict__}",
+            )

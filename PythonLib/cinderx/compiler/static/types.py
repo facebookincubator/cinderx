@@ -1206,6 +1206,10 @@ class Value:
     def is_truthy_literal(self) -> bool:
         return False
 
+    @property
+    def is_nominal_type(self) -> bool:
+        return True
+
 
 def resolve_instance_attr(
     node: ast.Attribute,
@@ -2470,7 +2474,9 @@ class DynamicClass(Class):
 
 
 class DynamicInstance(Object[DynamicClass]):
-    pass
+    @property
+    def is_nominal_type(self) -> bool:
+        return False
 
 
 class NoneType(Class):
@@ -4178,6 +4184,10 @@ class UnknownDecoratedMethod(FunctionContainer):
                 self.func.module.compiler,
             )
         return ResolvedTypeRef(self.klass.type_env.dynamic)
+
+    @property
+    def is_nominal_type(self) -> bool:
+        return False
 
 
 class MethodType(Object[Class]):

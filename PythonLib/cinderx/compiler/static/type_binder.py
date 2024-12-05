@@ -405,8 +405,11 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         is_final: bool = False,
         is_inferred: bool = False,
     ) -> None:
-        if name in self.decl_types:
+        if name in self.decl_types and (
+            typ.is_nominal_type or self.decl_types[name].type.is_nominal_type
+        ):
             raise TypedSyntaxError(f"Cannot redefine local variable {name}")
+
         if isinstance(typ, CInstance):
             self.check_primitive_scope(name)
         self.binding_scope.declare(
