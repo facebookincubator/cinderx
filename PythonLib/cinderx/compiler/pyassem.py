@@ -16,7 +16,7 @@ try:
 except ImportError:
     _inline_cache_entries = None
 from types import CodeType
-from typing import Callable, ClassVar, Generator, Optional, Sequence, TextIO
+from typing import Callable, ClassVar, Generator, Iterable, Optional, Sequence, TextIO
 
 from . import debug, opcode_cinder, opcodes
 from .consts import (
@@ -198,7 +198,7 @@ class FlowGraph:
         self.next_block_id += 1
         return ret
 
-    def blocks_in_reverse_allocation_order(self):
+    def blocks_in_reverse_allocation_order(self) -> Iterable[Block]:
         yield from sorted(self.ordered_blocks, key=lambda b: b.alloc_id, reverse=True)
 
     @contextmanager
@@ -1025,6 +1025,9 @@ class PyFlowGraph(FlowGraph):
     def is_exit_without_line_number(self, target: Block) -> bool:
         raise NotImplementedError()
 
+    def get_duplicate_exit_visitation_order(self) -> Iterable[Block]:
+        raise NotImplementedError()
+
     def duplicate_exits_without_lineno(self):
         """
         PEP 626 mandates that the f_lineno of a frame is correct
@@ -1038,7 +1041,7 @@ class PyFlowGraph(FlowGraph):
         """
         # Copy all exit blocks without line number that are targets of a jump.
         append_after = {}
-        for block in self.blocks_in_reverse_allocation_order():
+        for block in self.get_duplicate_exit_visitation_order():
             if block.insts and (last := block.insts[-1]).is_jump(self.opcode):
                 if last.opname in SETUP_OPCODES:
                     continue
@@ -1234,6 +1237,9 @@ class PyFlowGraph310(PyFlowGraph):
     def is_exit_without_line_number(self, target: Block) -> bool:
         return target.is_exit and target.insts[0].lineno < 0
 
+    def get_duplicate_exit_visitation_order(self) -> Iterable[Block]:
+        return self.blocks_in_reverse_allocation_order()
+
     def optimizeCFG(self) -> None:
         """Optimize a well-formed CFG."""
         assert self.stage == CLOSED, self.stage
@@ -1379,6 +1385,9 @@ class PyFlowGraph312(PyFlowGraph):
                 return False
 
         return True
+
+    def get_duplicate_exit_visitation_order(self) -> Iterable[Block]:
+        return self.ordered_blocks
 
     def emit_gen_start(self) -> None:
         # This is handled with the prefix instructions in finalize
