@@ -4782,7 +4782,12 @@ class CodeGenerator312(CodeGenerator):
         # iterate over names bound in the comprehension and ensure we isolate
         # them from the outer scope as needed
         for name in scope.defs:
-            if isinstance(self.scope, symbols.ClassScope):
+            # locals handling for names bound in comprehension
+            if (
+                name in scope.defs
+                and name not in scope.nonlocals
+                and name not in scope.params
+            ) or isinstance(self.scope, symbols.ClassScope):
                 self.fast_hidden.add(name)
                 inlined_state.fast_hidden.add(name)
             elif name in scope.params:
