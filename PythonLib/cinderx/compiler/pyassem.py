@@ -617,8 +617,7 @@ class PyFlowGraph(FlowGraph):
 
         for block in self.ordered_blocks:
             self.normalize_basic_block(block)
-        for block in self.blocks_in_reverse_allocation_order():
-            self.extend_block(block)
+
         self.optimizeCFG()
 
         self.stage = CONSTS_CLOSED
@@ -1015,7 +1014,7 @@ class PyFlowGraph(FlowGraph):
                 continue
             last_instr = block.insts[-1]
             if last_instr.loc == NO_LOCATION:
-                if last_instr.opname in RETURN_OPCODES:
+                if last_instr.opname == "RETURN_VALUE":
                     for instr in block.insts:
                         assert instr.loc == NO_LOCATION
                         instr.loc = loc
@@ -1052,6 +1051,7 @@ class PyFlowGraph(FlowGraph):
                     # The SETUP_CLEANUP is a pseudo-op which will be removed in
                     # a later pass, so it does not need a line number,
                     continue
+
                 if (
                     self.is_exit_without_line_number(target)
                     and target.num_predecessors > 1
@@ -1242,6 +1242,9 @@ class PyFlowGraph310(PyFlowGraph):
 
     def optimizeCFG(self) -> None:
         """Optimize a well-formed CFG."""
+        for block in self.blocks_in_reverse_allocation_order():
+            self.extend_block(block)
+
         assert self.stage == CLOSED, self.stage
 
         optimizer = self.flow_graph_optimizer(self)
