@@ -952,7 +952,7 @@ PyObject* get_sortable_slot(
       goto error;
     }
 
-    slot = _PyDict_GetItem_UnicodeExact(_PyType_GetDict(type), name);
+    slot = PyDict_GetItem(_PyType_GetDict(type), name);
     if (slot == NULL) {
       PyErr_SetString(PyExc_RuntimeError, "missing slot\n");
       goto error;

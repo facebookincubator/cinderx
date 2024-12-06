@@ -51,8 +51,6 @@ STUB(
     T196879402,
     PyDictKeysObject*,
     PyObject*)
-STUB(PyObject*, _PyDict_GetItem_Unicode, T196879402, PyObject*, PyObject*)
-STUB(PyObject*, _PyDict_GetItem_UnicodeExact, T196879402, PyObject*, PyObject*)
 // Only used by Strict Modules (we added it)
 STUB(
     int,

@@ -249,7 +249,7 @@ static PyObject* resolve_module(PyThreadState* tstate, PyObject* module_name) {
       _PyErr_ChainExceptions(et, ev, tb);
       return NULL;
     }
-    module = _PyDict_GetItem_Unicode(sys_modules, module_name);
+    module = PyDict_GetItem(sys_modules, module_name);
     assert(module != NULL);
   }
 

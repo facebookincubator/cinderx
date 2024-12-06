@@ -286,12 +286,7 @@ PyObject* DescrOrClassVarMutator::getAttr(PyObject* obj, PyObject* name) {
 
   // Check instance dict.
   if (dict != nullptr) {
-#if PY_VERSION_HEX < 0x030C0000
-    auto res = Ref<>::create(_PyDict_GetItem_UnicodeExact(dict, name));
-#else
-    // TODO(T205031302): Make use of fact that `name` is a Python string.
     auto res = Ref<>::create(PyDict_GetItem(dict, name));
-#endif
     if (res != nullptr) {
       return res.release();
     }
