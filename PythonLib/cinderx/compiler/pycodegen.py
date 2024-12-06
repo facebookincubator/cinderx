@@ -3355,6 +3355,8 @@ class CodeGenerator312(CodeGenerator):
         )
         self.fast_hidden: set[str] = set()
         self.inlined_comp_depth = 0
+        if parent is None:
+            self.set_pos(SrcLocation(0, 1, 0, 0))
         self.emit_resume(ResumeOparg.ScopeEntry)
 
     def emit_resume(self, oparg: ResumeOparg) -> None:
@@ -3813,6 +3815,7 @@ class CodeGenerator312(CodeGenerator):
         graph: PyFlowGraph,
         name: Optional[str] = None,
     ) -> CodeGenerator312:
+        graph.set_pos(SrcLocation(graph.firstline, graph.firstline, 0, 0))
         return type(self)(
             self,
             tree,
