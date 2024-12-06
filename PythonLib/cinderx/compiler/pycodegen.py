@@ -3588,7 +3588,7 @@ class CodeGenerator312(CodeGenerator):
         ast.MatMult: find_op_idx("NB_MATRIX_MULTIPLY"),
         ast.Div: find_op_idx("NB_TRUE_DIVIDE"),
         ast.FloorDiv: find_op_idx("NB_FLOOR_DIVIDE"),
-        ast.Mod: find_op_idx("NB_MODULO"),
+        ast.Mod: find_op_idx("NB_REMAINDER"),
         ast.Pow: find_op_idx("NB_POWER"),
         ast.LShift: find_op_idx("NB_LSHIFT"),
         ast.RShift: find_op_idx("NB_RSHIFT"),
