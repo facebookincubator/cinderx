@@ -44,10 +44,9 @@ bool Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
 }
 
 bool Context::reoptFunc(BorrowedRef<PyFunctionObject> func) {
-  JIT_CHECK(
-      !didCompile(func),
-      "Trying to reopt function '{}' but it is already compiled",
-      funcFullname(func));
+  if (didCompile(func)) {
+    return true;
+  }
 
   BorrowedRef<PyCodeObject> code{func->func_code};
   if (code->co_flags & CI_CO_SUPPRESS_JIT) {
