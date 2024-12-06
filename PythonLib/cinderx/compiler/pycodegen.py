@@ -966,7 +966,7 @@ class CodeGenerator(ASTVisitor):
             asname = alias.asname
             if name == "*":
                 self.namespace = 0
-                self.emit("IMPORT_STAR")
+                self.emit_import_star()
                 # There can only be one name w/ from ... import *
                 assert len(node.names) == 1
                 return
@@ -974,6 +974,9 @@ class CodeGenerator(ASTVisitor):
                 self.emit("IMPORT_FROM", name)
                 self.storeName(asname or name)
         self.emit("POP_TOP")
+
+    def emit_import_star(self) -> None:
+        self.emit("IMPORT_STAR")
 
     def emitImportAs(self, name: str, asname: str):
         elts = name.split(".")
@@ -3287,6 +3290,9 @@ class CodeGenerator310(CodeGenerator):
             self.emit_noline("JUMP_FORWARD", next)
         self.nextBlock(end)
 
+    def emit_import_star(self) -> None:
+        self.emit("IMPORT_STAR")
+
 
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
@@ -3535,6 +3541,10 @@ class CodeGenerator312(CodeGenerator):
 
     def emit_call_intrinsic_2(self, oparg: str):
         self.emit("CALL_INTRINSIC_2", INTRINSIC_2.index(oparg))
+
+    def emit_import_star(self) -> None:
+        self.emit_call_intrinsic_1("INTRINSIC_IMPORT_STAR")
+        self.emit("POP_TOP")
 
     def emit_yield(self, scope: Scope) -> None:
         if scope.generator and scope.coroutine:
