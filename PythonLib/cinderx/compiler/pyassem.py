@@ -148,6 +148,12 @@ class Instruction:
         self.oparg = self.ioparg = 0
         self.target = None
 
+    @property
+    def stores_to(self) -> str | None:
+        if self.opname == "STORE_FAST" or self.opname == "STORE_FAST_MAYBE_NULL":
+            return self.oparg
+        return None
+
     def copy(self) -> Instruction:
         return Instruction(self.opname, self.oparg, self.ioparg, self.loc, self.target)
 

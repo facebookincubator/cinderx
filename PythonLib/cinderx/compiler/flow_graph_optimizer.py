@@ -60,6 +60,8 @@ BINARY_OPS: dict[str, object] = {
     "BINARY_OR": lambda left, right: left | right,
 }
 
+SWAPPABLE: set[str] = {"STORE_FAST", "STORE_FAST_MAYBE_NULL", "POP_TOP"}
+
 
 class FlowGraphOptimizer:
     """Flow graph optimizer."""
@@ -495,10 +497,164 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         if instr_index >= instr.ioparg:
             self.fold_tuple_on_constants(instr_index, instr, block)
 
+    def opt_swap(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if instr.oparg == 1:
+            instr.opname = "NOP"
+            return
+
+        new_index = self.swaptimize(instr_index, block)
+        self.apply_static_swaps(new_index or instr_index, block)
+        return new_index
+
+    def next_swappable_instruction(self, i: int, block: Block, lineno: int) -> None:
+        while i + 1 < len(block.insts):
+            i += 1
+            inst = block.insts[i]
+            if lineno >= 0 and inst.lineno != lineno:
+                # Optimizing across this instruction could cause user-visible
+                # changes in the names bound between line tracing events!
+                return -1
+            elif inst.opname == "NOP":
+                continue
+            elif inst.opname in SWAPPABLE:
+                return i
+
+            return -1
+
+        return -1
+
+    # Attempt to apply SWAPs statically by swapping *instructions* rather than
+    # stack items. For example, we can replace SWAP(2), POP_TOP, STORE_FAST(42)
+    # with the more efficient NOP, STORE_FAST(42), POP_TOP.
+    def apply_static_swaps(self, instr_index: int, block: Block) -> None:
+        # SWAPs are to our left, and potential swaperands are to our right:
+        for i in range(instr_index, -1, -1):
+            swap = block.insts[i]
+            if swap.opname != "SWAP":
+                if swap.opname == "NOP" or swap.opname in SWAPPABLE:
+                    # Nope, but we know how to handle these. Keep looking:
+                    continue
+                # We can't reason about what this instruction does. Bail:
+                return
+
+            j = self.next_swappable_instruction(i, block, -1)
+            if j < 0:
+                return
+
+            k = j
+            lineno = block.insts[j].lineno
+            for i in range(swap.ioparg - 1, 0, -1):
+                k = self.next_swappable_instruction(k, block, lineno)
+                if k < 0:
+                    return
+
+            # The reordering is not safe if the two instructions to be swapped
+            # store to the same location, or if any intervening instruction stores
+            # to the same location as either of them.
+            store_j = block.insts[j].stores_to
+            store_k = block.insts[k].stores_to
+            if store_j is not None or store_k is not None:
+                if store_j == store_k:
+                    return
+                for idx in range(j + 1, k):
+                    store_idx = block.insts[idx].stores_to
+                    if store_idx is not None and (
+                        store_idx == store_j or store_idx == store_k
+                    ):
+                        return
+
+            swap.opname = "NOP"
+            temp = block.insts[j]
+            block.insts[j] = block.insts[k]
+            block.insts[k] = temp
+
+    def swaptimize(self, instr_index: int, block: Block) -> int | None:
+        """Replace an arbitrary run of SWAPs and NOPs with an optimal one that has the
+        same effect."""
+
+        # Find the length of the current sequence of SWAPs and NOPs, and record the
+        # maximum depth of the stack manipulations:
+        instructions = block.insts
+        depth = instructions[instr_index].ioparg
+        more = False
+        for cnt in range(instr_index + 1, len(instructions)):
+            opname = instructions[cnt].opname
+            if opname == "SWAP":
+                depth = max(depth, instructions[cnt].ioparg)
+                more = True
+            elif opname != "NOP":
+                break
+
+        if not more:
+            return
+
+        # Create an array with elements {0, 1, 2, ..., depth - 1}:
+        stack = [i for i in range(depth)]
+        # Simulate the combined effect of these instructions by "running" them on
+        # our "stack":
+        for i in range(instr_index, cnt):
+            if block.insts[i].opname == "SWAP":
+                oparg = instructions[i].ioparg
+                top = stack[0]
+                #  SWAPs are 1-indexed:
+                stack[0] = stack[oparg - 1]
+                stack[oparg - 1] = top
+
+        ## Now we can begin! Our approach here is based on a solution to a closely
+        ## related problem (https://cs.stackexchange.com/a/13938). It's easiest to
+        ## think of this algorithm as determining the steps needed to efficiently
+        ## "un-shuffle" our stack. By performing the moves in *reverse* order,
+        ## though, we can efficiently *shuffle* it! For this reason, we will be
+        ## replacing instructions starting from the *end* of the run. Since the
+        ## solution is optimal, we don't need to worry about running out of space:
+        current = cnt - 1
+        VISITED = -1
+        for i in range(depth):
+            if stack[i] == VISITED or stack[i] == i:
+                continue
+
+            # Okay, we've found an item that hasn't been visited. It forms a cycle
+            # with other items; traversing the cycle and swapping each item with
+            # the next will put them all in the correct place. The weird
+            # loop-and-a-half is necessary to insert 0 into every cycle, since we
+            # can only swap from that position:
+            j = i
+            while True:
+                # Skip the actual swap if our item is zero, since swapping the top
+                # item with itself is pointless:
+                if j:
+                    # SWAPs are 1-indexed:
+                    instructions[current].opname = "SWAP"
+                    instructions[current].ioparg = j + 1
+                    current -= 1
+
+                if stack[j] == VISITED:
+                    # Completed the cycle:
+                    assert j == i
+                    break
+
+                next_j = stack[j]
+                stack[j] = VISITED
+                j = next_j
+
+        while instr_index <= current:
+            instructions[current].opname = "NOP"
+            current -= 1
+
+        return cnt - 1
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer.handlers,
         JUMP_ABS: FlowGraphOptimizer.opt_jump,
         "LOAD_CONST": opt_load_const,
         "PUSH_NULL": opt_push_null,
         "BUILD_TUPLE": opt_build_tuple,
+        "SWAP": opt_swap,
     }
