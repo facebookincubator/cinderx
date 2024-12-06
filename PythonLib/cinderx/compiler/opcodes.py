@@ -233,6 +233,7 @@ if sys.version_info >= (3, 12):
         POP_JUMP_IF_NOT_NONE=-1,
         BINARY_SLICE=-2,
         STORE_SLICE=-4,
+        KW_NAMES=0,
     )
 
     from opcode import (

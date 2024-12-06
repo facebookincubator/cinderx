@@ -1991,10 +1991,12 @@ class PyFlowGraph312(PyFlowGraph):
         "LOAD_ATTR": _convert_LOAD_ATTR,
         "LOAD_GLOBAL": _convert_LOAD_GLOBAL,
         "COMPARE_OP": _convert_COMAPRE_OP,
+        "KW_NAMES": PyFlowGraph._convert_LOAD_CONST,
     }
 
     _const_opcodes = set(PyFlowGraph._const_opcodes)
     _const_opcodes.add("RETURN_CONST")
+    _const_opcodes.add("KW_NAMES")
 
 
 class UninitializedVariableChecker:

@@ -1188,7 +1188,30 @@ class CodeGenerator(ASTVisitor):
         if not big:
             self.emit("BUILD_MAP", nkwargs)
 
-    def _call_helper(self, argcnt, node, args, kwargs):
+    def _fastcall_helper(
+        self,
+        argcnt: int,
+        node: ast.expr | None,
+        args: list[ast.expr],
+        kwargs: list[ast.keyword],
+    ) -> None:
+        # No * or ** args, faster calling sequence.
+        for arg in args:
+            self.visit(arg)
+        if len(kwargs) > 0:
+            self.visit(kwargs)
+            self.emit("LOAD_CONST", tuple(arg.arg for arg in kwargs))
+            self.emit("CALL_FUNCTION_KW", argcnt + len(args) + len(kwargs))
+        else:
+            self.emit("CALL_FUNCTION", argcnt + len(args))
+
+    def _call_helper(
+        self,
+        argcnt: int,
+        node: ast.expr | None,
+        args: list[ast.expr],
+        kwargs: list[ast.keyword],
+    ) -> None:
         starred = any(isinstance(arg, ast.Starred) for arg in args)
         mustdictunpack = any(arg.arg is None for arg in kwargs)
         manyargs = (len(args) + (len(kwargs) * 2)) > STACK_USE_GUIDELINE
@@ -1197,7 +1220,9 @@ class CodeGenerator(ASTVisitor):
 
         # Handle positional arguments.
         if argcnt == 0 and len(args) == 1 and starred:
-            self.visit(args[0].value)
+            star_expr = args[0]
+            assert isinstance(star_expr, ast.Starred)
+            self.visit(star_expr.value)
         else:
             self._visitSequenceLoad(
                 args,
@@ -1278,6 +1303,9 @@ class CodeGenerator(ASTVisitor):
             and not any(isinstance(arg, ast.Starred) for arg in node.args)
             and len(node.args) < STACK_USE_GUIDELINE
         )
+
+    def visitCall(self, node: ast.Call) -> None:
+        raise NotImplementedError()
 
     def checkReturn(self, node):
         if not isinstance(self.tree, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -2823,7 +2851,7 @@ class CodeGenerator310(CodeGenerator):
             return
         self.emit("CALL_FUNCTION", argcnt + len(args))
 
-    def visitCall(self, node):
+    def visitCall(self, node: ast.Call) -> None:
         if not self._can_optimize_call(node):
             self.visit(node.func)
             self._call_helper(0, node, node.args, node.keywords)
@@ -3303,7 +3331,7 @@ class CodeGenerator312(CodeGenerator):
         self.visit(node.values[-1])
         self.nextBlock(end)
 
-    def visitCall(self, node):
+    def visitCall(self, node: ast.Call) -> None:
         if not self._can_optimize_call(node):
             # We cannot optimize this call
             self.emit("PUSH_NULL")
@@ -3657,16 +3685,21 @@ class CodeGenerator312(CodeGenerator):
             self.emit("SWAP", n)
             n -= 1
 
-    def _fastcall_helper(self, argcnt, node, args, kwargs) -> None:
+    def _fastcall_helper(
+        self,
+        argcnt: int,
+        node: ast.expr | None,
+        args: list[ast.expr],
+        kwargs: list[ast.keyword],
+    ) -> None:
         # No * or ** args, faster calling sequence.
         for arg in args:
             self.visit(arg)
         if len(kwargs) > 0:
             self.visit(kwargs)
-            self.emit("LOAD_CONST", tuple(arg.arg for arg in kwargs))
-            self.emit("CALL_FUNCTION_KW", argcnt + len(args) + len(kwargs))
-            return
-        self.emit("CALL", argcnt + len(args))
+            self.emit("KW_NAMES", tuple(arg.arg for arg in kwargs))
+
+        self.emit("CALL", argcnt + len(args) + len(kwargs))
 
     def emitJump(self, target) -> None:
         self.emit("JUMP", target)
@@ -4949,7 +4982,7 @@ class CinderCodeGenerator(CodeGenerator310):
         else:
             super().visitAttribute(node)
 
-    def visitCall(self, node):
+    def visitCall(self, node: ast.Call) -> None:
         if not self._can_optimize_call(node) or not self._is_super_call(
             node.func.value
         ):
