@@ -838,7 +838,14 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emit_try_except(node)
 
-    def visitWith_(self, node, kind, pos=0):
+    def set_with_position_for_exit(
+        self, node: ast.With | ast.AsyncWith, kind: int
+    ) -> None:
+        raise NotImplementedError()
+
+    def visitWith_(
+        self, node: ast.With | ast.AsyncWith, kind: int, pos: int = 0
+    ) -> None:
         item = node.items[pos]
 
         block = self.newBlock("with_block")
@@ -866,8 +873,7 @@ class CodeGenerator(ASTVisitor):
         else:
             self.visitStatements(node.body)
 
-        if kind == WITH:
-            self.set_no_pos()
+        self.set_with_position_for_exit(node, kind)
         self.setups.pop()
         self.emit("POP_BLOCK")
 
@@ -2985,6 +2991,12 @@ class CodeGenerator310(CodeGenerator):
         self.emit("POP_EXCEPT")
         self.emit("POP_TOP")
 
+    def set_with_position_for_exit(
+        self, node: ast.With | ast.AsyncWith, kind: int
+    ) -> None:
+        if kind == WITH:
+            self.set_no_pos()
+
     def emit_setup_with(self, target: Block, async_: bool) -> None:
         self.emit("SETUP_ASYNC_WITH" if async_ else "SETUP_WITH", target)
 
@@ -3679,6 +3691,14 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(exit)
         self.emit("END_SEND")
+
+    def set_with_position_for_exit(
+        self, node: ast.With | ast.AsyncWith, kind: int
+    ) -> None:
+        if kind == WITH:
+            self.set_no_pos()
+        else:
+            self.set_pos(node)
 
     def emit_setup_with(self, target: Block, async_: bool) -> None:
         if not async_:
