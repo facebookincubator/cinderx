@@ -287,32 +287,6 @@ class FlowGraphOptimizer:
                 next_instr.opname = "NOP"
                 next_instr.target = None
 
-    def opt_build_tuple(
-        self,
-        instr_index: int,
-        instr: Instruction,
-        next_instr: Instruction | None,
-        target: Instruction | None,
-        block: Block,
-    ) -> int | None:
-        if (
-            next_instr
-            and next_instr.opname == "UNPACK_SEQUENCE"
-            and instr.ioparg == next_instr.ioparg
-        ):
-            if instr.ioparg == 1:
-                instr.opname = "NOP"
-                next_instr.opname = "NOP"
-            elif instr.ioparg == 2:
-                instr.opname = "ROT_TWO"
-                next_instr.opname = "NOP"
-            elif instr.ioparg == 3:
-                instr.opname = "ROT_THREE"
-                next_instr.opname = "ROT_TWO"
-            return
-        if instr_index >= instr.ioparg:
-            self.fold_tuple_on_constants(instr_index, instr, block)
-
     def fold_tuple_on_constants(
         self, instr_index: int, instr: Instruction, block: Block
     ) -> None:
@@ -348,7 +322,6 @@ class FlowGraphOptimizer:
         "FOR_ITER": opt_for_iter,
         "ROT_N": opt_rot_n,
         "LOAD_CONST": opt_load_const,
-        "BUILD_TUPLE": opt_build_tuple,
         "RETURN_VALUE": opt_return_value,
     }
 
@@ -356,10 +329,37 @@ class FlowGraphOptimizer:
 class FlowGraphOptimizer310(FlowGraphOptimizer):
     """Python 3.10-specifc optimizations."""
 
+    def opt_build_tuple(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if (
+            next_instr
+            and next_instr.opname == "UNPACK_SEQUENCE"
+            and instr.ioparg == next_instr.ioparg
+        ):
+            if instr.ioparg == 1:
+                instr.opname = "NOP"
+                next_instr.opname = "NOP"
+            elif instr.ioparg == 2:
+                instr.opname = "ROT_TWO"
+                next_instr.opname = "NOP"
+            elif instr.ioparg == 3:
+                instr.opname = "ROT_THREE"
+                next_instr.opname = "ROT_TWO"
+            return
+        if instr_index >= instr.ioparg:
+            self.fold_tuple_on_constants(instr_index, instr, block)
+
     JUMP_ABS = "JUMP_ABSOLUTE"
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer.handlers,
         JUMP_ABS: FlowGraphOptimizer.opt_jump,
+        "BUILD_TUPLE": opt_build_tuple,
     }
 
     def optimize_basic_block(self, block: Block) -> None:
@@ -472,9 +472,33 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             next_instr.oparg = (next_instr.oparg, 1)
             next_instr.ioparg |= 1
 
+    def opt_build_tuple(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if (
+            next_instr
+            and next_instr.opname == "UNPACK_SEQUENCE"
+            and instr.ioparg == next_instr.ioparg
+        ):
+            if instr.ioparg == 1:
+                instr.opname = "NOP"
+                next_instr.opname = "NOP"
+            elif instr.ioparg == 2 or instr.ioparg == 3:
+                instr.opname = "NOP"
+                next_instr.opname = "SWAP"
+            return
+        if instr_index >= instr.ioparg:
+            self.fold_tuple_on_constants(instr_index, instr, block)
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer.handlers,
         JUMP_ABS: FlowGraphOptimizer.opt_jump,
         "LOAD_CONST": opt_load_const,
         "PUSH_NULL": opt_push_null,
+        "BUILD_TUPLE": opt_build_tuple,
     }
