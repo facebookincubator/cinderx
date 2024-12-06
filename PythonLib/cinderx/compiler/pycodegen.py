@@ -1159,7 +1159,7 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emitAugSubscript(node)
 
-    _augmented_opcode = {
+    _augmented_opcode: dict[type[ast.operator], str] = {
         ast.Add: "INPLACE_ADD",
         ast.Sub: "INPLACE_SUBTRACT",
         ast.Mult: "INPLACE_MULTIPLY",
@@ -1175,6 +1175,9 @@ class CodeGenerator(ASTVisitor):
         ast.BitOr: "INPLACE_OR",
     }
 
+    def emitAugRHS(self, node: ast.AugAssign) -> None:
+        raise NotImplementedError()
+
     def emitAugName(self, node):
         target = node.target
         self.loadName(target.id)
@@ -1182,11 +1185,8 @@ class CodeGenerator(ASTVisitor):
         self.set_pos(target)
         self.storeName(target.id)
 
-    def emitAugSubscript(self, node):
-        self.visitSubscript(node.target, 1)
-        self.emitAugRHS(node)
-        self.emit_rotate_stack(3)
-        self.emit("STORE_SUBSCR")
+    def emitAugSubscript(self, node: ast.AugAssign) -> None:
+        raise NotImplementedError()
 
     def visitExec(self, node):
         self.visit(node.expr)
@@ -1370,21 +1370,8 @@ class CodeGenerator(ASTVisitor):
         self.emit_yield_from(await_=True)
 
     # slice and subscript stuff
-    def visitSubscript(self, node, aug_flag=None):
-        self.visit(node.value)
-        self.visit(node.slice)
-        if isinstance(node.ctx, ast.Load):
-            self.emit("BINARY_SUBSCR")
-        elif isinstance(node.ctx, ast.Store):
-            if aug_flag:
-                self.emit_dup(2)
-                self.emit("BINARY_SUBSCR")
-            else:
-                self.emit("STORE_SUBSCR")
-        elif isinstance(node.ctx, ast.Del):
-            self.emit("DELETE_SUBSCR")
-        else:
-            assert 0
+    def visitSubscript(self, node: ast.Subscript, aug_flag: bool = False) -> None:
+        raise NotImplementedError()
 
     # unary ops
 
@@ -3034,7 +3021,7 @@ class CodeGenerator310(CodeGenerator):
 
     # Operators and augmented assignment --------------------------------------------------
 
-    def emitAugRHS(self, node):
+    def emitAugRHS(self, node: ast.AugAssign) -> None:
         with self.temp_lineno(node.lineno):
             self.visit(node.value)
             self.emit(self._augmented_opcode[type(node.op)])
@@ -3227,6 +3214,29 @@ class CodeGenerator310(CodeGenerator):
     def emit_rot_n(self, n: int) -> None:
         self.emit("ROT_N", n)
 
+    def emitAugSubscript(self, node: ast.AugAssign) -> None:
+        assert isinstance(node.target, ast.Subscript)
+        self.visitSubscript(node.target, True)
+        self.emitAugRHS(node)
+        self.emit_rotate_stack(3)
+        self.emit("STORE_SUBSCR")
+
+    def visitSubscript(self, node: ast.Subscript, aug_flag: bool = False) -> None:
+        self.visit(node.value)
+        self.visit(node.slice)
+        if isinstance(node.ctx, ast.Load):
+            self.emit("BINARY_SUBSCR")
+        elif isinstance(node.ctx, ast.Store):
+            if aug_flag:
+                self.emit_dup(2)
+                self.emit("BINARY_SUBSCR")
+            else:
+                self.emit("STORE_SUBSCR")
+        elif isinstance(node.ctx, ast.Del):
+            self.emit("DELETE_SUBSCR")
+        else:
+            assert 0
+
 
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
@@ -3337,6 +3347,75 @@ class CodeGenerator312(CodeGenerator):
             self.visitStatements(node.orelse)
         self.nextBlock(end)
 
+    def emit_slice_components(self, node: ast.Slice) -> None:
+        assert node.step is None
+        if node.lower:
+            self.visit(node.lower)
+        else:
+            self.emit("LOAD_CONST", None)
+        if node.upper:
+            self.visit(node.upper)
+        else:
+            self.emit("LOAD_CONST", None)
+
+    def emitAugSubscript(self, node: ast.AugAssign) -> None:
+        subs = node.target
+        assert isinstance(subs, ast.Subscript)
+        self.visit(subs.value)
+
+        if is_simple_slice := (
+            isinstance(subs.slice, ast.Slice) and subs.slice.step is None
+        ):
+            assert isinstance(subs.slice, ast.Slice)
+            self.emit_slice_components(subs.slice)
+            self.emit("COPY", 3)
+            self.emit("COPY", 3)
+            self.emit("COPY", 3)
+            self.emit("BINARY_SLICE")
+        else:
+            self.visit(subs.slice)
+            self.emit("COPY", 2)
+            self.emit("COPY", 2)
+            self.emit("BINARY_SUBSCR")
+
+        self.emitAugRHS(node)
+
+        if is_simple_slice:
+            self.emit("SWAP", 4)
+            self.emit("SWAP", 3)
+            self.emit("SWAP", 2)
+            self.emit("STORE_SLICE")
+        else:
+            self.emit("SWAP", 3)
+            self.emit("SWAP", 2)
+            self.emit("STORE_SUBSCR")
+
+    def visitSubscript(self, node: ast.Subscript, aug_flag: bool = False) -> None:
+        assert not aug_flag  # not used in the 3.12 compiler
+        self.visit(node.value)
+        if (
+            isinstance(node.slice, ast.Slice)
+            and node.slice.step is None
+            and not isinstance(node.ctx, ast.Del)
+        ):
+            self.emit_slice_components(node.slice)
+            if isinstance(node.ctx, ast.Load):
+                self.emit("BINARY_SLICE")
+            else:
+                self.emit("STORE_SLICE")
+            return
+
+        self.visit(node.slice)
+
+        if isinstance(node.ctx, ast.Load):
+            self.emit("BINARY_SUBSCR")
+        elif isinstance(node.ctx, ast.Store):
+            self.emit("STORE_SUBSCR")
+        elif isinstance(node.ctx, ast.Del):
+            self.emit("DELETE_SUBSCR")
+        else:
+            assert 0
+
     @staticmethod
     def find_op_idx(opname: str) -> int:
         for i, (name, _symbol) in enumerate(NB_OPS):
@@ -3404,7 +3483,7 @@ class CodeGenerator312(CodeGenerator):
         ast.BitAnd: find_op_idx("NB_INPLACE_AND"),
     }
 
-    def emitAugRHS(self, node):
+    def emitAugRHS(self, node: ast.AugAssign) -> None:
         self.visit(node.value)
         op = self._augmented_opargs[type(node.op)]
         assert op != -1, node.op

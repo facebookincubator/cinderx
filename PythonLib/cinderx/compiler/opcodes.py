@@ -231,6 +231,8 @@ if sys.version_info >= (3, 12):
         CHECK_EG_MATCH=0,
         POP_JUMP_IF_NONE=-1,
         POP_JUMP_IF_NOT_NONE=-1,
+        BINARY_SLICE=-2,
+        STORE_SLICE=-4,
     )
 
     from opcode import (
