@@ -1820,34 +1820,16 @@ class CodeGenerator(ASTVisitor):
                 )
             self.visit(key)
 
-        self.emit("BUILD_TUPLE", size)
-        self.emit("MATCH_KEYS")
-        # There's now a tuple of keys and a tuple of values on top of the subject:
-        pc.on_top += 2
-        self._jump_to_fail_pop(pc, "POP_JUMP_IF_FALSE")
-        # So far so good. Use that tuple of values on the stack to match
-        # sub-patterns against:
-        for i, pattern in enumerate(patterns):
-            if self._wildcard_check(pattern):
-                continue
-            self.emit_dup()
-            self.emit("LOAD_CONST", i)
-            self.emit("BINARY_SUBSCR")
-            self._visit_subpattern(pattern, pc)
-        # If we get this far, it's a match! We're done with the tuple of values,
-        # and whatever happens next should consume the tuple of keys underneath it:
-        pc.on_top -= 2
-        self.emit("POP_TOP")
-        if star_target:
-            # If we have a starred name, bind a dict of remaining items to it:
-            self.emit("COPY_DICT_WITHOUT_KEYS")
-            self._pattern_helper_store_name(star_target, pc, node)
-        else:
-            # Otherwise, we don't care about this tuple of keys anymore:
-            self.emit("POP_TOP")
-        # Pop the subject:
-        pc.on_top -= 1
-        self.emit("POP_TOP")
+        self.emit_finish_match_mapping(node, pc, star_target, size)
+
+    def emit_finish_match_mapping(
+        self,
+        node: ast.MatchMapping,
+        pc: PatternContext,
+        star_target: str | None,
+        size: int,
+    ) -> None:
+        raise NotImplementedError()
 
     def visitMatchClass(self, node: ast.MatchClass, pc: PatternContext) -> None:
         patterns = node.patterns
@@ -3292,6 +3274,43 @@ class CodeGenerator310(CodeGenerator):
 
     def emit_import_star(self) -> None:
         self.emit("IMPORT_STAR")
+
+    def emit_finish_match_mapping(
+        self,
+        node: ast.MatchMapping,
+        pc: PatternContext,
+        star_target: str | None,
+        size: int,
+    ) -> None:
+        self.emit("BUILD_TUPLE", size)
+        self.emit("MATCH_KEYS")
+        # There's now a tuple of keys and a tuple of values on top of the subject:
+        pc.on_top += 2
+        self._jump_to_fail_pop(pc, "POP_JUMP_IF_FALSE")
+        # So far so good. Use that tuple of values on the stack to match
+        # sub-patterns against:
+        for i, pattern in enumerate(node.patterns):
+            if self._wildcard_check(pattern):
+                continue
+            self.emit_dup()
+            self.emit("LOAD_CONST", i)
+            self.emit("BINARY_SUBSCR")
+            self._visit_subpattern(pattern, pc)
+
+        # If we get this far, it's a match! We're done with the tuple of values,
+        # and whatever happens next should consume the tuple of keys underneath it:
+        pc.on_top -= 2
+        self.emit("POP_TOP")
+        if star_target:
+            # If we have a starred name, bind a dict of remaining items to it:
+            self.emit("COPY_DICT_WITHOUT_KEYS")
+            self._pattern_helper_store_name(star_target, pc, node)
+        else:
+            # Otherwise, we don't care about this tuple of keys anymore:
+            self.emit("POP_TOP")
+        # Pop the subject:
+        pc.on_top -= 1
+        self.emit("POP_TOP")
 
 
 class CodeGenerator312(CodeGenerator):
@@ -4884,6 +4903,54 @@ class CodeGenerator312(CodeGenerator):
             # T190612504: Should be STORE_FAST_MAYBE_NULL and be converted
             # from a pseudo op by the flowgraph
             self.emit("STORE_FAST", local)
+
+    def emit_finish_match_mapping(
+        self,
+        node: ast.MatchMapping,
+        pc: PatternContext,
+        star_target: str | None,
+        size: int,
+    ) -> None:
+        self.emit("BUILD_TUPLE", size)
+        self.emit("MATCH_KEYS")
+        # There's now a tuple of keys and a tuple of values on top of the subject:
+        pc.on_top += 2
+        self.emit("COPY", 1)
+        self.emit("LOAD_CONST", None)
+        self.emit("IS_OP", 1)
+        self._jump_to_fail_pop(pc, "POP_JUMP_IF_FALSE")
+        # So far so good. Use that tuple of values on the stack to match
+        # sub-patterns against:
+        self.emit("UNPACK_SEQUENCE", size)
+        pc.on_top += size - 1
+        for i, pattern in enumerate(node.patterns):
+            pc.on_top -= 1
+            self._visit_subpattern(pattern, pc)
+
+        # If we get this far, it's a match! We're done with the tuple of values,
+        # and whatever happens next should consume the tuple of keys underneath it:
+        pc.on_top -= 2
+        if star_target:
+            # If we have a starred name, bind a dict of remaining items to it (this may
+            # seem a bit inefficient, but keys is rarely big enough to actually impact
+            # runtime):
+            # rest = dict(TOS1)
+            # for key in TOS:
+            #     del rest[key]
+            self.emit("BUILD_MAP", 0)
+            self.emit("SWAP", 3)
+            self.emit("DICT_UPDATE", 2)
+            self.emit("UNPACK_SEQUENCE", size)
+            while size:
+                self.emit("COPY", 1 + size)
+                self.emit("SWAP", 2)
+                self.emit("DELETE_SUBSCR")
+                size -= 1
+            self._pattern_helper_store_name(star_target, pc, node)
+        else:
+            # Otherwise, we don't care about this tuple of keys anymore:
+            self.emit("POP_TOP")
+            self.emit("POP_TOP")
 
 
 class InlinedComprehensionState:
