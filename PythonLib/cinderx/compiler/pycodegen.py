@@ -1831,6 +1831,9 @@ class CodeGenerator(ASTVisitor):
     ) -> None:
         raise NotImplementedError()
 
+    def emit_finish_match_class(self, node: ast.MatchClass, pc: PatternContext) -> None:
+        raise NotImplementedError()
+
     def visitMatchClass(self, node: ast.MatchClass, pc: PatternContext) -> None:
         patterns = node.patterns
         kwd_attrs = node.kwd_attrs
@@ -1855,23 +1858,7 @@ class CodeGenerator(ASTVisitor):
         attr_names = tuple(name for name in kwd_attrs)
         self.emit("LOAD_CONST", attr_names)
         self.emit("MATCH_CLASS", nargs)
-        # TOS is now a tuple of (nargs + nattrs) attributes. Preserve it:
-        pc.on_top += 1
-        self._jump_to_fail_pop(pc, "POP_JUMP_IF_FALSE")
-        for i in range(nargs + nattrs):
-            if i < nargs:
-                pattern = patterns[i]
-            else:
-                pattern = kwd_patterns[i - nargs]
-            if self._wildcard_check(pattern):
-                continue
-            self.emit_dup()
-            self.emit("LOAD_CONST", i)
-            self.emit("BINARY_SUBSCR")
-            self._visit_subpattern(pattern, pc)
-        # Success! Pop the tuple of attributes:
-        pc.on_top -= 1
-        self.emit("POP_TOP")
+        self.emit_finish_match_class(node, pc)
 
     def _validate_kwd_attrs(
         self, attrs: list[str], patterns: list[ast.pattern]
@@ -3274,6 +3261,29 @@ class CodeGenerator310(CodeGenerator):
 
     def emit_import_star(self) -> None:
         self.emit("IMPORT_STAR")
+
+    def emit_finish_match_class(self, node: ast.MatchClass, pc: PatternContext) -> None:
+        # TOS is now a tuple of (nargs + nattrs) attributes. Preserve it:
+        pc.on_top += 1
+        self._jump_to_fail_pop(pc, "POP_JUMP_IF_FALSE")
+        patterns = node.patterns
+        kwd_patterns = node.kwd_patterns
+        nargs = len(patterns)
+        nattrs = len(node.kwd_attrs)
+        for i in range(nargs + nattrs):
+            if i < nargs:
+                pattern = patterns[i]
+            else:
+                pattern = kwd_patterns[i - nargs]
+            if self._wildcard_check(pattern):
+                continue
+            self.emit_dup()
+            self.emit("LOAD_CONST", i)
+            self.emit("BINARY_SUBSCR")
+            self._visit_subpattern(pattern, pc)
+        # Success! Pop the tuple of attributes:
+        pc.on_top -= 1
+        self.emit("POP_TOP")
 
     def emit_finish_match_mapping(
         self,
@@ -4903,6 +4913,35 @@ class CodeGenerator312(CodeGenerator):
             # T190612504: Should be STORE_FAST_MAYBE_NULL and be converted
             # from a pseudo op by the flowgraph
             self.emit("STORE_FAST", local)
+
+    def emit_finish_match_class(self, node: ast.MatchClass, pc: PatternContext) -> None:
+        self.emit("COPY", 1)
+        self.emit("LOAD_CONST", None)
+        self.emit("IS_OP", 1)
+
+        # TOS is now a tuple of (nargs + nattrs) attributes. Preserve it:
+        pc.on_top += 1
+        self._jump_to_fail_pop(pc, "POP_JUMP_IF_FALSE")
+
+        patterns = node.patterns
+        kwd_patterns = node.kwd_patterns
+        nargs = len(patterns)
+        nattrs = len(node.kwd_attrs)
+
+        self.emit("UNPACK_SEQUENCE", nargs + nattrs)
+        pc.on_top += nargs + nattrs - 1
+
+        for i in range(nargs + nattrs):
+            pc.on_top -= 1
+            if i < nargs:
+                pattern = patterns[i]
+            else:
+                pattern = kwd_patterns[i - nargs]
+            if self._wildcard_check(pattern):
+                self.emit("POP_TOP")
+                continue
+
+            self._visit_subpattern(pattern, pc)
 
     def emit_finish_match_mapping(
         self,
