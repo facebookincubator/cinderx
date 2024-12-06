@@ -4660,7 +4660,8 @@ class CodeGenerator312(CodeGenerator):
                 node, self.conjure_arguments([ast.arg(".0", None)]), name, node.lineno
             )
         gen.set_pos(node)
-
+        start = gen.newBlock("start")
+        gen.setups.append(Entry(STOP_ITERATION, start, None, None))
         if opcode:
             gen.emit(opcode, oparg)
             if scope.inlined:
@@ -4677,7 +4678,8 @@ class CodeGenerator312(CodeGenerator):
         if not isinstance(node, ast.GeneratorExp):
             gen.emit("RETURN_VALUE")
 
-        gen.finish_function()
+        gen.wrap_in_stopiteration_handler()
+        gen.setups.pop()
 
         self.emit_closure(gen, 0)
 
