@@ -683,6 +683,11 @@ class CodeGenerator(ASTVisitor):
         ast.GtE: ">=",
     }
 
+    def emit_compile_jump_if_compare(
+        self, test: ast.Compare, next: Block, is_if_true: bool
+    ) -> None:
+        raise NotImplementedError()
+
     def compileJumpIf(self, test: ast.expr, next: Block, is_if_true: bool) -> None:
         if isinstance(test, ast.UnaryOp):
             if isinstance(test.op, ast.Not):
@@ -718,25 +723,7 @@ class CodeGenerator(ASTVisitor):
             return
         elif isinstance(test, ast.Compare):
             if len(test.ops) > 1:
-                cleanup = self.newBlock()
-                self.visit(test.left)
-                for op, comparator in zip(test.ops[:-1], test.comparators[:-1]):
-                    self.emitChainedCompareStep(
-                        op, comparator, cleanup, always_pop=True
-                    )
-                self.visit(test.comparators[-1])
-                self.defaultEmitCompare(test.ops[-1])
-                self.emit(
-                    "POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next
-                )
-                self.nextBlock()
-                end = self.newBlock()
-                self.emit_noline("JUMP_FORWARD", end)
-                self.nextBlock(cleanup)
-                self.emit("POP_TOP")
-                if not is_if_true:
-                    self.emit_noline("JUMP_FORWARD", next)
-                self.nextBlock(end)
+                self.emit_compile_jump_if_compare(test, next, is_if_true)
                 return
 
         self.visit(test)
@@ -753,17 +740,12 @@ class CodeGenerator(ASTVisitor):
         self.visit(node.orelse)
         self.nextBlock(endblock)
 
-    def emitChainedCompareStep(self, op, value, cleanup, always_pop=False):
-        self.visit(value)
-        self.emit_dup()
-        self.emit_rotate_stack(3)
-        self.defaultEmitCompare(op)
-        self.emit(
-            "POP_JUMP_IF_FALSE" if always_pop else "JUMP_IF_FALSE_OR_POP", cleanup
-        )
-        self.nextBlock(label="compare_or_cleanup")
+    def emitChainedCompareStep(
+        self, op: ast.cmpop, value: ast.expr, cleanup: Block, always_pop: bool = False
+    ) -> None:
+        raise NotImplementedError()
 
-    def defaultEmitCompare(self, op):
+    def defaultEmitCompare(self, op: ast.cmpop) -> None:
         if isinstance(op, ast.Is):
             self.emit("IS_OP", 0)
         elif isinstance(op, ast.IsNot):
@@ -775,24 +757,8 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emit("COMPARE_OP", self._cmp_opcode[type(op)])
 
-    def visitCompare(self, node):
-        self.visit(node.left)
-        cleanup = self.newBlock("cleanup")
-        for op, code in zip(node.ops[:-1], node.comparators[:-1]):
-            self.emitChainedCompareStep(op, code, cleanup)
-        # now do the last comparison
-        if node.ops:
-            op = node.ops[-1]
-            code = node.comparators[-1]
-            self.visit(code)
-            self.defaultEmitCompare(op)
-        if len(node.ops) > 1:
-            end = self.newBlock("end")
-            self.emit("JUMP_FORWARD", end)
-            self.nextBlock(cleanup)
-            self.emit_rotate_stack(2)
-            self.emit("POP_TOP")
-            self.nextBlock(end)
+    def visitCompare(self, node: ast.Compare) -> None:
+        raise NotImplementedError()
 
     def visitDelete(self, node):
         self.visit(node.targets)
@@ -3243,6 +3209,56 @@ class CodeGenerator310(CodeGenerator):
         else:
             assert 0
 
+    def emitChainedCompareStep(
+        self, op: ast.cmpop, value: ast.expr, cleanup: Block, always_pop: bool = False
+    ) -> None:
+        self.visit(value)
+        self.emit_dup()
+        self.emit_rotate_stack(3)
+        self.defaultEmitCompare(op)
+        self.emit(
+            "POP_JUMP_IF_FALSE" if always_pop else "JUMP_IF_FALSE_OR_POP", cleanup
+        )
+        self.nextBlock(label="compare_or_cleanup")
+
+    def visitCompare(self, node: ast.Compare) -> None:
+        self.visit(node.left)
+        cleanup = self.newBlock("cleanup")
+        for op, code in zip(node.ops[:-1], node.comparators[:-1]):
+            self.emitChainedCompareStep(op, code, cleanup)
+        # now do the last comparison
+        if node.ops:
+            op = node.ops[-1]
+            code = node.comparators[-1]
+            self.visit(code)
+            self.defaultEmitCompare(op)
+        if len(node.ops) > 1:
+            end = self.newBlock("end")
+            self.emit("JUMP_FORWARD", end)
+            self.nextBlock(cleanup)
+            self.emit_rotate_stack(2)
+            self.emit("POP_TOP")
+            self.nextBlock(end)
+
+    def emit_compile_jump_if_compare(
+        self, test: ast.Compare, next: Block, is_if_true: bool
+    ) -> None:
+        cleanup = self.newBlock()
+        self.visit(test.left)
+        for op, comparator in zip(test.ops[:-1], test.comparators[:-1]):
+            self.emitChainedCompareStep(op, comparator, cleanup, always_pop=True)
+        self.visit(test.comparators[-1])
+        self.defaultEmitCompare(test.ops[-1])
+        self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
+        self.nextBlock()
+        end = self.newBlock()
+        self.emit_noline("JUMP_FORWARD", end)
+        self.nextBlock(cleanup)
+        self.emit("POP_TOP")
+        if not is_if_true:
+            self.emit_noline("JUMP_FORWARD", next)
+        self.nextBlock(end)
+
 
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
@@ -3327,6 +3343,62 @@ class CodeGenerator312(CodeGenerator):
                 self.visit(value)
             if len(node.values) != 1:
                 self.emit("BUILD_STRING", len(node.values))
+
+    def emitChainedCompareStep(
+        self, op: ast.cmpop, value: ast.expr, cleanup: Block, always_pop: bool = False
+    ) -> None:
+        self.visit(value)
+        self.emit("SWAP", 2)
+        self.emit("COPY", 2)
+        self.defaultEmitCompare(op)
+
+    def visitCompare(self, node: ast.Compare) -> None:
+        self.visit(node.left)
+        if len(node.comparators) == 1:
+            self.visit(node.comparators[0])
+            self.defaultEmitCompare(node.ops[0])
+            return
+
+        cleanup = self.newBlock("cleanup")
+        for i in range(len(node.comparators) - 1):
+            self.emitChainedCompareStep(
+                node.ops[i], node.comparators[i], cleanup, False
+            )
+            self.emit("COPY", 1)
+            self.emit("POP_JUMP_IF_FALSE", cleanup)
+            self.nextBlock(label="compare_or_cleanup")
+            self.emit("POP_TOP")
+
+        self.visit(node.comparators[-1])
+        self.defaultEmitCompare(node.ops[-1])
+        end = self.newBlock("end")
+        self.emit("JUMP", end)
+
+        self.nextBlock(cleanup)
+        self.emit("SWAP", 2)
+        self.emit("POP_TOP")
+        self.nextBlock(end)
+
+    def emit_compile_jump_if_compare(
+        self, test: ast.Compare, next: Block, is_if_true: bool
+    ) -> None:
+        cleanup = self.newBlock()
+        self.visit(test.left)
+        for op, comparator in zip(test.ops[:-1], test.comparators[:-1]):
+            self.emitChainedCompareStep(op, comparator, cleanup, always_pop=True)
+            self.emit("POP_JUMP_IF_FALSE", cleanup)
+            self.nextBlock(label="compare_or_cleanup")
+        self.visit(test.comparators[-1])
+        self.defaultEmitCompare(test.ops[-1])
+        self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
+        self.nextBlock()
+        end = self.newBlock()
+        self.emit_noline("JUMP", end)
+        self.nextBlock(cleanup)
+        self.emit("POP_TOP")
+        if not is_if_true:
+            self.emit_noline("JUMP", next)
+        self.nextBlock(end)
 
     def visitFor(self, node):
         start = self.newBlock("for_start")
