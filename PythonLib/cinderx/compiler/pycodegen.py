@@ -3374,15 +3374,14 @@ class CodeGenerator312(CodeGenerator):
             self._call_helper(0, node, node.args, node.keywords)
             return
 
-        self.visit(node.func.value)
-
-        if self._is_super_call(node):
-            self.emit("LOAD_GLOBAL", "super")
+        if self._is_super_call(node.func.value):
+            self.visit(node.func.value.func)
             func = node.func
             load_arg, is_zero = self._emit_args_for_super(func.value, func.attr)
             op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
             self.emit("LOAD_SUPER_ATTR", (op, load_arg, is_zero))
         else:
+            self.visit(node.func.value)
             self.graph.emit_with_loc(
                 "LOAD_ATTR", (self.mangle(node.func.attr), 1), node.func
             )
