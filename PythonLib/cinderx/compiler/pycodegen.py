@@ -495,7 +495,7 @@ class CodeGenerator(ASTVisitor):
         self.build_function(node, gen)
 
         for _ in range(ndecorators):
-            self.emit("CALL_FUNCTION", 1)
+            self.emit_call_one_arg()
 
         if not isinstance(node, ast.Lambda):
             self.storeName(gen.graph.name)
@@ -838,7 +838,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("LOAD_ASSERTION_ERROR")
             if node.msg:
                 self.visit(node.msg)
-                self.emit("CALL_FUNCTION", 1)
+                self.emit_call_one_arg()
                 self.emit("RAISE_VARARGS", 1)
             else:
                 self.emit("RAISE_VARARGS", 1)
