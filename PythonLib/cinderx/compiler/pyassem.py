@@ -860,7 +860,7 @@ class PyFlowGraph(FlowGraph):
         "LOAD_LOCAL": _convert_LOAD_LOCAL,
         "STORE_LOCAL": _convert_LOAD_LOCAL,
         "LOAD_NAME": _convert_NAME,
-        "LOAD_FROM_DICT_OR_DEREF": _convert_NAME,
+        "LOAD_FROM_DICT_OR_DEREF": _convert_DEREF,
         "LOAD_FROM_DICT_OR_GLOBALS": _convert_NAME,
         "LOAD_CLOSURE": lambda self, arg: self.closure.get_index(arg),
         "COMPARE_OP": lambda self, arg: self.opcode.CMP_OP.index(arg),
@@ -1643,8 +1643,8 @@ class PyFlowGraph312(PyFlowGraph):
 
         for varname in self.cellvars:
             cellindex = self.cellvars.get_index(varname)
-            varindex = self.varnames.get_index(varname)
-            if varindex is not None:
+            if varname in self.varnames:
+                varindex = self.varnames.index(varname)
                 fixed[cellindex] = varindex
 
         return fixed
@@ -1653,7 +1653,10 @@ class PyFlowGraph312(PyFlowGraph):
         to_insert = []
 
         if self.freevars:
-            to_insert.append(Instruction("COPY_FREE_VARS", len(self.freevars)))
+            n_freevars = len(self.freevars)
+            to_insert.append(
+                Instruction("COPY_FREE_VARS", n_freevars, ioparg=n_freevars)
+            )
 
         if self.cellvars:
             # self.cellvars has the cells out of order so we sort them before
@@ -1669,7 +1672,7 @@ class PyFlowGraph312(PyFlowGraph):
             while n_used < len(self.cellvars):
                 index = sorted[i] - 1
                 if index != -1:
-                    to_insert.append(Instruction("MAKE_CELL", index))
+                    to_insert.append(Instruction("MAKE_CELL", index, ioparg=index))
                     n_used += 1
                 i += 1
 
@@ -1704,22 +1707,22 @@ class PyFlowGraph312(PyFlowGraph):
                 assert instr.opname != "EXTENDED_ARG"
                 if instr.opname in (
                     "MAKE_CELL",
-                    # TODO: We have converted some of these opargs to their
-                    # referenced values; does that mean we don't care about
-                    # them any more?
-                    # "LOAD_CLOSURE",
-                    # "LOAD_DEREF",
-                    # "STORE_DEREF",
-                    # "DELETE_DEREF",
-                    # "LOAD_FROM_DICT_OR_DEREF",
+                    "LOAD_CLOSURE",
+                    "LOAD_DEREF",
+                    "STORE_DEREF",
+                    "DELETE_DEREF",
+                    "LOAD_FROM_DICT_OR_DEREF",
                 ):
-                    oparg = instr.oparg
-                    assert type(oparg) is int, "Expecting a localsplus index"
-                    oldoffset = int(oparg)
+                    oldoffset = instr.ioparg
                     assert oldoffset >= 0
-                    assert oldoffset < noffsets
+                    assert oldoffset < noffsets, instr.opname
                     assert fixed_map[oldoffset] >= 0
-                    instr.oparg = fixed_map[oldoffset]
+                    if isinstance(instr.oparg, int):
+                        # Only update oparg here if it's already in the int-form
+                        # so that we can assert on the string form in the sbs
+                        # tests.
+                        instr.oparg = fixed_map[oldoffset]
+                    instr.ioparg = fixed_map[oldoffset]
         return num_dropped
 
     def prepare_localsplus(self) -> int:

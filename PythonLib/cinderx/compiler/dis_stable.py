@@ -52,6 +52,7 @@ def _disassemble_bytes(
     *,
     file: Optional[TextIO] = None,
     line_offset: int = 0,
+    localsplusnames: Optional[Tuple[str]] = None,
 ) -> None:
     # Omit the line number column entirely if we have no line number info
     show_lineno = linestarts is not None
@@ -72,7 +73,7 @@ def _disassemble_bytes(
     if sys.version_info >= (3, 12):
         instr_bytes = _dis._get_instructions_bytes(
             code,
-            lambda oparg: varnames[oparg],
+            lambda oparg: localsplusnames[oparg],
             names,
             constants,
             linestarts,
@@ -109,6 +110,11 @@ def disassemble(
         linestarts = None
     else:
         linestarts = dict(_dis.findlinestarts(co))
+    localsplusnames = (
+        co.co_varnames
+        if sys.version_info < (3, 12)
+        else (co.co_varnames + co.co_cellvars + co.co_freevars)
+    )
     _disassemble_bytes(
         co.co_code,
         lasti,
@@ -118,6 +124,7 @@ def disassemble(
         cell_names,
         linestarts,
         file=file,
+        localsplusnames=localsplusnames,
     )
 
 
