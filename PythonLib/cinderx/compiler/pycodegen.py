@@ -755,7 +755,7 @@ class CodeGenerator(ASTVisitor):
 
     def emitChainedCompareStep(self, op, value, cleanup, always_pop=False):
         self.visit(value)
-        self.emit("DUP_TOP")
+        self.emit_dup()
         self.emit_rotate_stack(3)
         self.defaultEmitCompare(op)
         self.emit(
@@ -1150,7 +1150,7 @@ class CodeGenerator(ASTVisitor):
 
     # augmented assignment
 
-    def visitAugAssign(self, node):
+    def visitAugAssign(self, node: ast.AugAssign) -> None:
         self.set_pos(node.target)
         if isinstance(node.target, ast.Attribute):
             self.emitAugAttribute(node)
@@ -1185,6 +1185,9 @@ class CodeGenerator(ASTVisitor):
         self.set_pos(target)
         self.storeName(target.id)
 
+    def emitAugAttribute(self, node: ast.AugAssign) -> None:
+        raise NotImplementedError()
+
     def emitAugSubscript(self, node: ast.AugAssign) -> None:
         raise NotImplementedError()
 
@@ -1195,7 +1198,7 @@ class CodeGenerator(ASTVisitor):
         else:
             self.visit(node.locals)
         if node.globals is None:
-            self.emit("DUP_TOP")
+            self.emit_dup()
         else:
             self.visit(node.globals)
         self.emit("EXEC_STMT")
@@ -1478,8 +1481,13 @@ class CodeGenerator(ASTVisitor):
             self.visit(d)
         self.emit("BUILD_TUPLE", len(node.dims))
 
-    def emit_dup(self, count: int = 1):
+    def emit_dup(self, count: int = 1) -> None:
         raise NotImplementedError()
+
+    def visitNamedExpr(self, node: ast.NamedExpr) -> None:
+        self.visit(node.value)
+        self.emit_dup()
+        self.visit(node.target)
 
     def _const_value(self, node):
         assert isinstance(node, ast.Constant)
@@ -1706,7 +1714,7 @@ class CodeGenerator(ASTVisitor):
             if i == star:
                 assert self._wildcard_star_check(pattern)
                 continue
-            self.emit("DUP_TOP")
+            self.emit_dup()
             if i < star:
                 self.emit("LOAD_CONST", i)
             else:
@@ -1825,7 +1833,7 @@ class CodeGenerator(ASTVisitor):
         for i, pattern in enumerate(patterns):
             if self._wildcard_check(pattern):
                 continue
-            self.emit("DUP_TOP")
+            self.emit_dup()
             self.emit("LOAD_CONST", i)
             self.emit("BINARY_SUBSCR")
             self._visit_subpattern(pattern, pc)
@@ -1878,7 +1886,7 @@ class CodeGenerator(ASTVisitor):
                 pattern = kwd_patterns[i - nargs]
             if self._wildcard_check(pattern):
                 continue
-            self.emit("DUP_TOP")
+            self.emit_dup()
             self.emit("LOAD_CONST", i)
             self.emit("BINARY_SUBSCR")
             self._visit_subpattern(pattern, pc)
@@ -1923,7 +1931,7 @@ class CodeGenerator(ASTVisitor):
 
         # Need to make a copy for (possibly) storing later:
         pc.on_top += 1
-        self.emit("DUP_TOP")
+        self.emit_dup()
         self.visit(pat, pc)
         # Success! Store it:
         pc.on_top -= 1
@@ -1953,7 +1961,7 @@ class CodeGenerator(ASTVisitor):
             ) and old_pc.allow_irrefutable
             pc.fail_pop = []
             pc.on_top = 0
-            self.emit("DUP_TOP")
+            self.emit_dup()
             self.visit(alt, pc)
             # Success!
             nstores = len(pc.stores)
@@ -2445,11 +2453,6 @@ class CodeGenerator310(CodeGenerator):
             with self.temp_lineno(node.end_lineno):
                 self.emit("LOAD_ATTR", self.mangle(node.attr))
 
-    def visitNamedExpr(self, node: ast.NamedExpr):
-        self.visit(node.value)
-        self.emit("DUP_TOP")
-        self.visit(node.target)
-
     # Stack manipulation --------------------------------------------------
 
     def emit_rotate_stack(self, count: int) -> None:
@@ -2462,7 +2465,7 @@ class CodeGenerator310(CodeGenerator):
         else:
             raise ValueError("Expected rotate of 2, 3, or 4")
 
-    def emit_dup(self, count: int = 1):
+    def emit_dup(self, count: int = 1) -> None:
         if count == 1:
             self.emit("DUP_TOP")
         elif count == 2:
@@ -3026,15 +3029,18 @@ class CodeGenerator310(CodeGenerator):
             self.visit(node.value)
             self.emit(self._augmented_opcode[type(node.op)])
 
-    def emitAugAttribute(self, node):
+    def emitAugAttribute(self, node: ast.AugAssign) -> None:
         target = node.target
+        assert isinstance(target, ast.Attribute)
         self.visit(target.value)
         self.emit("DUP_TOP")
-        with self.temp_lineno(node.target.end_lineno):
+        with self.temp_lineno(node.target.end_lineno or -1):
             self.emit("LOAD_ATTR", self.mangle(target.attr))
         self.emitAugRHS(node)
         self.graph.set_pos(
-            SrcLocation(node.target.end_lineno, node.target.end_lineno, -1, -1)
+            SrcLocation(
+                node.target.end_lineno or -1, node.target.end_lineno or -1, -1, -1
+            )
         )
         self.emit_rotate_stack(2)
         self.emit("STORE_ATTR", self.mangle(target.attr))
@@ -3499,7 +3505,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit_rotate_stack(2)
         self.graph.emit_with_loc("STORE_ATTR", self.mangle(target.attr), node.target)
 
-    def emit_dup(self, count: int = 1):
+    def emit_dup(self, count: int = 1) -> None:
         for _i in range(count):
             self.emit("COPY", count)
 
@@ -4121,11 +4127,6 @@ class CodeGenerator312(CodeGenerator):
         else:
             op = "LOAD_ATTR"
         self.graph.emit_with_loc(op, self.mangle(node.attr), node)
-
-    def visitNamedExpr(self, node: ast.NamedExpr) -> None:
-        self.visit(node.value)
-        self.emit("COPY", 1)
-        self.visit(node.target)
 
     # Exceptions --------------------------------------------------
 
