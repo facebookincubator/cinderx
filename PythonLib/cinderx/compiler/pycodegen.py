@@ -3757,6 +3757,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("JUMP", exit)
 
         self.nextBlock(cleanup)
+        self.set_no_pos()
         self.emit("COPY", 3)
         self.emit("POP_EXCEPT")
         self.emit("RERAISE", 1)
