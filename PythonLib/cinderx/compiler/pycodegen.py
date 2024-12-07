@@ -4149,9 +4149,11 @@ class CodeGenerator312(CodeGenerator):
             outer_gen._call_helper(2, None, node.bases, node.keywords)
 
         for d in reversed(node.decorator_list):
+            self.set_pos(d)
             self.emit_decorator_call(d, node)
 
         self.register_immutability(node, immutability_flag)
+        self.set_pos(node)
         self.post_process_and_store_name(node)
 
     def make_type_alias_code_gen(self, node: ast.TypeAlias) -> CodeGenerator312:
