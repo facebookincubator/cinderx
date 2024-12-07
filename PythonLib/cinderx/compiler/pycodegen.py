@@ -4408,6 +4408,7 @@ class CodeGenerator312(CodeGenerator):
                 self.visit(handler.type)
                 self.emit("CHECK_EXC_MATCH")
                 self.emit("POP_JUMP_IF_FALSE", except_)
+                self.nextBlock()
             elif i < last:
                 self.raise_syntax_error(handler, "default 'except:' must be last")
 
