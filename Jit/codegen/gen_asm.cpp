@@ -223,7 +223,6 @@ PyObject* resumeInInterpreter(
     // through _PyJIT_GenDealloc. Ownership of all references have been
     // transferred to the frame.
     JITRT_GenJitDataFree(gen);
-    gen->gi_jit_data = nullptr;
   }
   PyThreadState* tstate = PyThreadState_Get();
   PyObject* result = nullptr;

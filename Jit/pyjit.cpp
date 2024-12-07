@@ -1773,7 +1773,6 @@ int deopt_gen_impl(PyGenObject* gen) {
   gen->gi_frame->f_state = FRAME_SUSPENDED;
   releaseRefs(deopt_meta, footer);
   JITRT_GenJitDataFree(gen);
-  gen->gi_jit_data = nullptr;
 #else
   UPGRADE_NOTE(GENERATOR_JIT_SUPPORT, T194022335)
 #endif

@@ -1329,6 +1329,7 @@ void JITRT_GenJitDataFree(PyGenObject* gen) {
 #if PY_VERSION_HEX < 0x030C0000
   auto gen_data_footer =
       reinterpret_cast<jit::GenDataFooter*>(gen->gi_jit_data);
+  gen->gi_jit_data = nullptr;
 #else
   UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
   jit::GenDataFooter* gen_data_footer = nullptr;
