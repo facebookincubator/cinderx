@@ -682,6 +682,11 @@ class CodeGenerator(ASTVisitor):
     ) -> None:
         raise NotImplementedError()
 
+    def emit_finish_jump_if(
+        self, test: ast.expr, next: Block, is_if_true: bool
+    ) -> None:
+        raise NotImplementedError()
+
     def compileJumpIf(self, test: ast.expr, next: Block, is_if_true: bool) -> None:
         if isinstance(test, ast.UnaryOp):
             if isinstance(test.op, ast.Not):
@@ -720,8 +725,7 @@ class CodeGenerator(ASTVisitor):
                 self.emit_compile_jump_if_compare(test, next, is_if_true)
                 return
 
-        self.visit(test)
-        self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
+        self.emit_finish_jump_if(test, next, is_if_true)
         self.nextBlock()
 
     def visitIfExp(self, node):
@@ -3277,6 +3281,12 @@ class CodeGenerator310(CodeGenerator):
             self.emit_noline("JUMP_FORWARD", next)
         self.nextBlock(end)
 
+    def emit_finish_jump_if(
+        self, test: ast.expr, next: Block, is_if_true: bool
+    ) -> None:
+        self.visit(test)
+        self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
+
     def emit_import_star(self) -> None:
         self.emit("IMPORT_STAR")
 
@@ -3498,6 +3508,13 @@ class CodeGenerator312(CodeGenerator):
         mangled = self.mangle(name)
         self.emit("LOAD_CONST", mangled)
         self.emit("STORE_SUBSCR")
+
+    def emit_finish_jump_if(
+        self, test: ast.expr, next: Block, is_if_true: bool
+    ) -> None:
+        self.visit(test)
+        self.set_pos(test)
+        self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
 
     def visitFor(self, node):
         start = self.newBlock("for_start")
