@@ -4802,16 +4802,24 @@ class CodeGenerator312(CodeGenerator):
             )
         elif type is ast.GeneratorExp:
             self.visit(elt)
+            self.set_pos(elt)
             self.emit_yield(self.scopes[comp])
             self.emit("POP_TOP")
         elif type is ast.ListComp:
             self.visit(elt)
+            self.set_pos(elt)
             self.emit("LIST_APPEND", depth + 1)
         elif type is ast.SetComp:
             self.visit(elt)
+            self.set_pos(elt)
             self.emit("SET_ADD", depth + 1)
         elif type is ast.DictComp:
             self.compile_dictcomp_element(elt, val)
+            self.set_pos(
+                SrcLocation(
+                    elt.lineno, val.end_lineno, elt.col_offset, val.end_col_offset
+                )
+            )
             self.emit("MAP_ADD", depth + 1)
         else:
             raise NotImplementedError("unknown comprehension type")
@@ -4862,23 +4870,31 @@ class CodeGenerator312(CodeGenerator):
             self.newBlock()
 
         gen_index += 1
+        elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
                 comp, gen_index, depth, elt, val, type, False
             )
         else:
             if type is ast.GeneratorExp:
+                self.set_pos(elt)
                 self.visit(elt)
                 self.emit_yield(self.scopes[comp])
                 self.emit("POP_TOP")
             elif type is ast.ListComp:
                 self.visit(elt)
+                self.set_pos(elt)
                 self.emit("LIST_APPEND", depth + 1)
             elif type is ast.SetComp:
+                self.set_pos(elt)
                 self.visit(elt)
                 self.emit("SET_ADD", depth + 1)
             elif type is ast.DictComp:
                 self.compile_dictcomp_element(elt, val)
+                elt_loc = SrcLocation(
+                    elt.lineno, val.end_lineno, elt.col_offset, val.end_col_offset
+                )
+                self.set_pos(elt_loc)
                 self.emit("MAP_ADD", depth + 1)
             else:
                 raise NotImplementedError("unknown comprehension type")
@@ -4886,8 +4902,10 @@ class CodeGenerator312(CodeGenerator):
             self.nextBlock(skip)
         self.nextBlock(if_cleanup)
         if start:
+            self.set_pos(elt_loc)
             self.emitJump(start)
             self.nextBlock(anchor)
+            self.set_pos(comp)
             self.emit_end_for()
 
     def push_inlined_comprehension_state(
@@ -4935,17 +4953,17 @@ class CodeGenerator312(CodeGenerator):
     ) -> None:
         self.inlined_comp_depth -= 1
         if inlined_state.pushed_locals:
-            self.emit("POP_BLOCK")
-            self.emit("JUMP", inlined_state.end)
+            self.emit_noline("POP_BLOCK")
+            self.emit_noline("JUMP", inlined_state.end)
 
             self.nextBlock(inlined_state.cleanup)
 
             # discard incomplete comprehension result (beneath exc on stack)
-            self.emit("SWAP", 2)
-            self.emit("POP_TOP")
+            self.emit_noline("SWAP", 2)
+            self.emit_noline("POP_TOP")
             self.restore_inlined_comprehension_locals(inlined_state)
 
-            self.emit("RERAISE")
+            self.emit_noline("RERAISE")
 
             self.nextBlock(inlined_state.end)
             self.restore_inlined_comprehension_locals(inlined_state)
