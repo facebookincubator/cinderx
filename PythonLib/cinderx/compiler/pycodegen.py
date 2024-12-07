@@ -452,12 +452,6 @@ class CodeGenerator(ASTVisitor):
         else:
             gen.visit(body)
 
-    def _visitAnnotation(self, node):
-        if self.future_flags & consts.CO_FUTURE_ANNOTATIONS:
-            self.emit("LOAD_CONST", to_expr(node))
-        else:
-            self.visit(node)
-
     def build_annotations(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
     ) -> bool:
@@ -1057,23 +1051,20 @@ class CodeGenerator(ASTVisitor):
 
         return False
 
-    def emitStoreAnnotation(self, name: str, annotation: ast.expr):
-        assert self.did_setup_annotations
+    def _visitAnnotation(self, node: ast.expr) -> None:
+        raise NotImplementedError()
 
-        self._visitAnnotation(annotation)
-        self.emit("LOAD_NAME", "__annotations__")
-        mangled = self.mangle(name)
-        self.emit("LOAD_CONST", mangled)
-        self.emit("STORE_SUBSCR")
+    def emit_store_annotation(self, name: str, node: ast.AnnAssign) -> None:
+        raise NotImplementedError()
 
-    def visitAnnAssign(self, node):
+    def visitAnnAssign(self, node: ast.AnnAssign) -> None:
         if node.value:
             self.visit(node.value)
             self.visit(node.target)
         if isinstance(node.target, ast.Name):
             # If we have a simple name in a module or class, store the annotation
             if node.simple and isinstance(self.tree, (ast.Module, ast.ClassDef)):
-                self.emitStoreAnnotation(node.target.id, node.annotation)
+                self.emit_store_annotation(node.target.id, node)
             else:
                 # if not, still visit the annotation so we consistently catch bad ones
                 with self.noEmit():
@@ -2445,6 +2436,21 @@ class CodeGenerator310(CodeGenerator):
         else:
             raise ValueError(f"Unsupported dup count {count}")
 
+    def _visitAnnotation(self, node: ast.expr) -> None:
+        if self.future_flags & consts.CO_FUTURE_ANNOTATIONS:
+            self.emit("LOAD_CONST", to_expr(node))
+        else:
+            self.visit(node)
+
+    def emit_store_annotation(self, name: str, node: ast.AnnAssign) -> None:
+        assert self.did_setup_annotations
+
+        self._visitAnnotation(node.annotation)
+        self.emit("LOAD_NAME", "__annotations__")
+        mangled = self.mangle(name)
+        self.emit("LOAD_CONST", mangled)
+        self.emit("STORE_SUBSCR")
+
     # Loops --------------------------------------------------
 
     def visitFor(self, node):
@@ -3475,6 +3481,23 @@ class CodeGenerator312(CodeGenerator):
         if not is_if_true:
             self.emit_noline("JUMP", next)
         self.nextBlock(end)
+
+    def _visitAnnotation(self, node: ast.expr) -> None:
+        if self.future_flags & consts.CO_FUTURE_ANNOTATIONS:
+            self.set_pos(node)
+            self.emit("LOAD_CONST", to_expr(node))
+        else:
+            self.visit(node)
+
+    def emit_store_annotation(self, name: str, node: ast.AnnAssign) -> None:
+        assert self.did_setup_annotations
+
+        self._visitAnnotation(node.annotation)
+        self.set_pos(node)
+        self.emit("LOAD_NAME", "__annotations__")
+        mangled = self.mangle(name)
+        self.emit("LOAD_CONST", mangled)
+        self.emit("STORE_SUBSCR")
 
     def visitFor(self, node):
         start = self.newBlock("for_start")

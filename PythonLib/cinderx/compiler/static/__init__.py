@@ -693,7 +693,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if isinstance(target, ast.Name):
             # If we have a simple name in a module or class, store the annotation
             if node.simple and isinstance(self.tree, (ast.Module, ast.ClassDef)):
-                self.emitStoreAnnotation(target.id, node.annotation)
+                self.emit_store_annotation(target.id, node)
         elif isinstance(target, ast.Attribute):
             if not node.value:
                 self.checkAnnExpr(target.value)
