@@ -104,7 +104,9 @@ class FlowGraphOptimizer:
                 if idx < num_instrs - 1:
                     next_instr = block.insts[idx + 1]
                     next_lineno = next_instr.lineno
-                    if next_lineno < 0 or next_lineno == lineno:
+                    if next_lineno == lineno:
+                        continue
+                    elif next_lineno < 0:
                         next_instr.loc = instr.loc
                         continue
                 else:
