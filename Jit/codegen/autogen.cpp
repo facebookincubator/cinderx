@@ -411,15 +411,16 @@ void emitLoadResumedYieldInputs(
 void translateYieldInitial(Environ* env, const Instruction* instr) {
   asmjit::x86::Builder* as = env->as;
 
-  // Load tstate into RSI for call to JITRT_MakeGenObject*.
+  // Load tstate into RDI for call to JITRT_MakeGenObject*.
+
   // TODO(jbower) Avoid reloading tstate in from memory if it was already in a
   // register before spilling. Still needs to be in memory though so it can be
   // recovered after calling JITRT_MakeGenObject* which will trash it.
   PhyLocation tstate = instr->getInput(0)->getStackSlot();
-  as->mov(x86::rsi, x86::ptr(x86::rbp, tstate.loc));
+  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
 
   // Make a generator object to be returned by the epilogue.
-  as->lea(x86::rdi, x86::ptr(env->gen_resume_entry_label));
+  as->lea(x86::rsi, x86::ptr(env->gen_resume_entry_label));
   JIT_CHECK(
       env->shadow_frames_and_spill_size % kPointerSize == 0,
       "Bad spill alignment");

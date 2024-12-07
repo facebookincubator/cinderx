@@ -1423,8 +1423,8 @@ static inline PyObject* make_gen_object(
 }
 
 PyObject* JITRT_MakeGenObject(
-    GenResumeFunc resume_entry,
     PyThreadState* tstate,
+    GenResumeFunc resume_entry,
     size_t spill_words,
     jit::CodeRuntime* code_rt,
     PyCodeObject* code) {
@@ -1433,8 +1433,8 @@ PyObject* JITRT_MakeGenObject(
 }
 
 PyObject* JITRT_MakeGenObjectAsyncGen(
-    GenResumeFunc resume_entry,
     PyThreadState* tstate,
+    GenResumeFunc resume_entry,
     size_t spill_words,
     jit::CodeRuntime* code_rt,
     PyCodeObject* code) {
@@ -1443,8 +1443,8 @@ PyObject* JITRT_MakeGenObjectAsyncGen(
 }
 
 PyObject* JITRT_MakeGenObjectCoro(
-    GenResumeFunc resume_entry,
     PyThreadState* tstate,
+    GenResumeFunc resume_entry,
     size_t spill_words,
     jit::CodeRuntime* code_rt,
     PyCodeObject* code) {
