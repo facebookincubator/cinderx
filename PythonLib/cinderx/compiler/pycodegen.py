@@ -4347,9 +4347,9 @@ class CodeGenerator312(CodeGenerator):
             self.emit_try_star_except(node)
 
     def emit_pop_except_and_reraise(self) -> None:
-        self.emit("COPY", 3)
-        self.emit("POP_EXCEPT")
-        self.emit("RERAISE", 1)
+        self.emit_noline("COPY", 3)
+        self.emit_noline("POP_EXCEPT")
+        self.emit_noline("RERAISE", 1)
 
     def emit_try_finally(self, node, star: bool = False) -> None:
         body = self.newBlock("try_finally_body")
