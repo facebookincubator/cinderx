@@ -77,6 +77,7 @@ void _PyJIT_TypeDestroyed(PyTypeObject* type);
 void _PyJIT_TypeModified(PyTypeObject* type);
 void _PyJIT_TypeNameModified(PyTypeObject* type);
 
+#if PY_VERSION_HEX < 0x030C0000
 /*
  * Send into/resume a suspended JIT generator and return the result.
  */
@@ -108,7 +109,6 @@ void _PyJIT_GenDealloc(PyGenObject* gen);
  */
 PyObject* _PyJIT_GenYieldFromValue(PyGenObject* gen);
 
-#if PY_VERSION_HEX < 0x030C0000
 /*
  * Returns a borrowed reference to the globals for the top-most Python function
  * associated with tstate.
@@ -120,7 +120,6 @@ PyObject* _PyJIT_GetGlobals(PyThreadState* tstate);
  * associated with tstate.
  */
 PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate);
-#endif
 
 /*
  * Returns a borrowed reference to the top-most frame of tstate.
@@ -129,6 +128,7 @@ PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate);
  * PyFrameObjects for any jitted functions on the call stack.
  */
 PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate);
+#endif
 
 #ifdef __cplusplus
 } // extern "C"

@@ -2519,6 +2519,7 @@ int _PyJIT_Finalize() {
   return 0;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 PyObject* _PyJIT_GenSend(
     PyGenObject* gen,
     PyObject* arg,
@@ -2526,7 +2527,6 @@ PyObject* _PyJIT_GenSend(
     PyFrameObject* f,
     PyThreadState* tstate,
     int finish_yield_from) {
-#if PY_VERSION_HEX < 0x030C0000
   GenDataFooter* gen_footer = genDataFooter(gen);
 
   // state should be valid and the generator should not be completed
@@ -2575,20 +2575,12 @@ PyObject* _PyJIT_GenSend(
   }
 
   return result;
-#else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
-#endif
 }
 
 PyFrameObject* _PyJIT_GenMaterializeFrame(PyGenObject* gen) {
-#if PY_VERSION_HEX < 0x030C0000
   PyThreadState* tstate = PyThreadState_Get();
   PyFrameObject* frame = jit::materializePyFrameForGen(tstate, gen);
   return frame;
-#else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
-  return nullptr;
-#endif
 }
 
 int _PyJIT_GenVisitRefs(PyGenObject* gen, visitproc visit, void* arg) {
@@ -2631,7 +2623,6 @@ PyObject* _PyJIT_GenYieldFromValue(PyGenObject* gen) {
   return yield_from;
 }
 
-#if PY_VERSION_HEX < 0x030C0000
 PyObject* _PyJIT_GetGlobals(PyThreadState* tstate) {
   if (tstate->shadow_frame == nullptr) {
     JIT_CHECK(
@@ -2653,19 +2644,14 @@ PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate) {
   }
   return runtimeFrameStateFromThreadState(tstate).builtins();
 }
-#endif
 
 PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
-#if PY_VERSION_HEX < 0x030C0000
   if (getConfig().init_state == InitState::kInitialized) {
     return jit::materializeShadowCallStack(tstate);
   }
   return tstate->frame;
-#else
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
-  return nullptr;
-#endif
 }
+#endif
 
 namespace jit {
 
