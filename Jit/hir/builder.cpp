@@ -77,6 +77,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     BINARY_OR,
     BINARY_POWER,
     BINARY_RSHIFT,
+    BINARY_SLICE,
     BINARY_SUBSCR,
     BINARY_SUBTRACT,
     BINARY_TRUE_DIVIDE,
@@ -224,6 +225,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     STORE_FAST,
     STORE_FIELD,
     STORE_LOCAL,
+    STORE_SLICE,
     STORE_SUBSCR,
     SWAP,
     TP_ALLOC,
@@ -1079,6 +1081,14 @@ void HIRBuilder::translate(
         }
         case STORE_LOCAL: {
           emitStoreLocal(tc, bc_instr);
+          break;
+        }
+        case BINARY_SLICE: {
+          emitBinarySlice(tc);
+          break;
+        }
+        case STORE_SLICE: {
+          emitStoreSlice(tc);
           break;
         }
         case STORE_SUBSCR: {
@@ -3363,6 +3373,27 @@ void HIRBuilder::emitStoreFast(
   JIT_DCHECK(dst != nullptr, "no register");
   moveOverwrittenStackRegisters(tc, dst);
   tc.emit<Assign>(dst, src);
+}
+
+void HIRBuilder::emitBinarySlice(TranslationContext& tc) {
+  auto& stack = tc.frame.stack;
+  tc.emitVariadic<BuildSlice>(temps_, 2);
+  Register* slice = stack.pop();
+  Register* container = stack.pop();
+  Register* result = temps_.AllocateStack();
+  tc.emit<BinaryOp>(
+      result, BinaryOpKind::kSubscript, container, slice, tc.frame);
+  tc.frame.stack.push(result);
+}
+
+void HIRBuilder::emitStoreSlice(TranslationContext& tc) {
+  auto& stack = tc.frame.stack;
+  tc.emitVariadic<BuildSlice>(temps_, 2);
+  Register* slice = stack.pop();
+  Register* container = stack.pop();
+  Register* values = stack.pop();
+  Register* result = temps_.AllocateNonStack();
+  tc.emit<StoreSubscr>(result, container, slice, values, tc.frame);
 }
 
 void HIRBuilder::emitStoreSubscr(TranslationContext& tc) {
