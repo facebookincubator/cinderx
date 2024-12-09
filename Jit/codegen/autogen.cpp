@@ -534,7 +534,7 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
   if (skip_initial_send) {
     as->jmp(yield_label);
   } else {
-    // Setup call to JITRT_YieldFrom
+    // Setup call to JITRT_GenSend
 
     // Put tstate and the current generator into RCX and RDI respectively, and
     // set finish_yield_from (RDX) to 0. This register setup matches that when
@@ -562,8 +562,8 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
 
   uint64_t func = reinterpret_cast<uint64_t>(
       instr->isYieldFromHandleStopAsyncIteration()
-          ? JITRT_YieldFromHandleStopAsyncIteration
-          : JITRT_YieldFrom);
+          ? JITRT_GenSendHandleStopAsyncIteration
+          : JITRT_GenSend);
   emitCall(*env, func, instr);
   // Yielded or final result value now in RAX. If the result was nullptr then
   // done will be set so we'll correctly jump to the following CheckExc.
@@ -574,7 +574,7 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
   as->mov(tstate_phys_reg, x86::rbx);
 
   // If not done, jump to epilogue which will yield/return the value from
-  // JITRT_YieldFrom in RAX.
+  // JITRT_GenSend in RAX.
   as->test(done_r, done_r);
   asmjit::Label done_label = as->newLabel();
   as->jnz(done_label);

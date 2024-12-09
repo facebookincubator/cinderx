@@ -397,21 +397,21 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts);
 // The arguments 'gen', 'v', 'finish_yield_from' must match positions with JIT
 // resume entry function (GenResumeFunc) so registers with their values pass
 // straight through.
-struct JITRT_YieldFromRes {
+struct JITRT_GenSendRes {
   PyObject* retval;
   uint64_t done;
 };
-JITRT_YieldFromRes
-JITRT_YieldFrom(PyObject* gen, PyObject* v, uint64_t finish_yield_from);
+JITRT_GenSendRes
+JITRT_GenSend(PyObject* gen, PyObject* v, uint64_t finish_yield_from);
 
 // Used for the `YIELD_FROM` that appears in the bytecode of the header for
 // an `async for` loop.
 //
-// This is identical to JITRT_YieldFrom with the addition that it detects when
+// This is identical to JITRT_GenSend with the addition that it detects when
 // PyExc_StopAsyncIteration has been raised. In such cases the function clears
 // the error and returns a sentinel value indicating that iteration has
 // finished.
-JITRT_YieldFromRes JITRT_YieldFromHandleStopAsyncIteration(
+JITRT_GenSendRes JITRT_GenSendHandleStopAsyncIteration(
     PyObject* gen,
     PyObject* v,
     uint64_t finish_yield_from);

@@ -1465,8 +1465,8 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
 #endif
 }
 
-JITRT_YieldFromRes
-JITRT_YieldFrom(PyObject* gen, PyObject* v, uint64_t finish_yield_from) {
+JITRT_GenSendRes
+JITRT_GenSend(PyObject* gen, PyObject* v, uint64_t finish_yield_from) {
   if (v == nullptr) {
     return {nullptr, 1};
   }
@@ -1487,11 +1487,11 @@ JITRT_YieldFrom(PyObject* gen, PyObject* v, uint64_t finish_yield_from) {
   return {retval, 0};
 }
 
-JITRT_YieldFromRes JITRT_YieldFromHandleStopAsyncIteration(
+JITRT_GenSendRes JITRT_GenSendHandleStopAsyncIteration(
     PyObject* gen,
     PyObject* v,
     uint64_t finish_yield_from) {
-  JITRT_YieldFromRes res = JITRT_YieldFrom(gen, v, finish_yield_from);
+  JITRT_GenSendRes res = JITRT_GenSend(gen, v, finish_yield_from);
   if ((res.retval == nullptr) && (res.done == 1) &&
       PyErr_ExceptionMatches(PyExc_StopAsyncIteration)) {
     PyErr_Clear();
