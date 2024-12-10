@@ -33,7 +33,7 @@ from .consts import (
     SC_LOCAL,
 )
 from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
-from .optimizer import AstOptimizer
+from .optimizer import AstOptimizer, AstOptimizer312
 from .pyassem import Block, Instruction, NO_LOCATION, PyFlowGraph, SrcLocation
 from .symbols import BaseSymbolVisitor, Scope
 from .unparse import to_expr
@@ -3408,6 +3408,12 @@ class CodeGenerator312(CodeGenerator):
         if parent is None:
             self.set_pos(SrcLocation(0, 1, 0, 0))
         self.emit_resume(ResumeOparg.ScopeEntry)
+
+    @classmethod
+    def optimize_tree(cls, optimize: int, tree: AST, string_anns: bool):
+        return AstOptimizer312(optimize=optimize > 0, string_anns=string_anns).visit(
+            tree
+        )
 
     def emit_resume(self, oparg: ResumeOparg) -> None:
         self.emit("RESUME", int(oparg))

@@ -5,8 +5,16 @@ import math
 import sys
 import unittest
 
+from unittest import skipIf
+
 from cinderx.compiler.consts import CO_NEWLOCALS, CO_NOFREE, CO_OPTIMIZED
-from cinderx.compiler.optimizer import AstOptimizer
+from cinderx.compiler.optimizer import (
+    AstOptimizer,
+    enum_format_str_components,
+    F_LJUST,
+    FormatInfo,
+    UnsupportedFormat,
+)
 from cinderx.compiler.pyassem import PyFlowGraph
 from cinderx.compiler.pycodegen import CodeGenerator
 from cinderx.compiler.unparse import to_expr
@@ -352,6 +360,7 @@ class AstOptimizerTests(CompilerTest):
         code = self.compare_graph('x = "fuu"[10]')
         code.assert_both("BINARY_SUBSCR")
 
+    @skipIf(sys.version_info >= (3, 12), "needs updating for 3.12")
     def test_folding_of_unaryops_on_constants(self):
         for line, elem in (
             ("x = -0.5", -0.5),  # unary negative
@@ -374,3 +383,84 @@ class AstOptimizerTests(CompilerTest):
             code = self.compare_graph(line)
             code.assert_both("LOAD_CONST", elem)
             code.assert_both(opname)
+
+    def test_enum_format_str_components(self) -> None:
+        test_cases = [
+            ("%s", ["", FormatInfo("s")]),
+            ("aa%s", ["aa", FormatInfo("s")]),
+            ("%saa", ["", FormatInfo("s"), "aa"]),
+            ("%%s", ["%s"]),
+            ("%-s", ["", FormatInfo("s", flags=F_LJUST)]),
+            ("%99s", ["", FormatInfo("s", width=99)]),
+            # Unsupported format, too many digits
+            ("%999s", None),
+        ]
+
+        for format, expected in test_cases:
+            with self.subTest(format=format, expected=expected):
+                try:
+                    got = list(enum_format_str_components(format))
+                except UnsupportedFormat:
+                    self.assertEqual(expected, None)
+                else:
+                    self.assertEqual(got, expected)
+
+    def assert_formatted_value(
+        self, format_info: FormatInfo, val: ast.expr
+    ) -> ast.FormattedValue:
+        res = format_info.as_formatted_value(val)
+        assert res is not None
+        return res
+
+    def assert_formatted_spec(
+        self, format_info: FormatInfo, val: ast.expr
+    ) -> ast.Constant:
+        formatted_val = format_info.as_formatted_value(val)
+        assert formatted_val is not None
+        res = formatted_val.format_spec
+        assert isinstance(res, ast.Constant)
+        return res
+
+    def test_format_info(self) -> None:
+        val = ast.Constant(None)
+        # unsupported spec
+        self.assertEqual(FormatInfo("!").as_formatted_value(val), None)
+
+        # conversion pass through
+        self.assertEqual(
+            self.assert_formatted_value(FormatInfo("s"), val).conversion, ord("s")
+        )
+        self.assertEqual(
+            self.assert_formatted_value(FormatInfo("r"), val).conversion, ord("r")
+        )
+        self.assertEqual(
+            self.assert_formatted_value(FormatInfo("a"), val).conversion, ord("a")
+        )
+
+        # width
+        self.assertEqual(
+            self.assert_formatted_spec(FormatInfo("s", width=10), val).value, ">10"
+        )
+
+        # zero-width (but no F_LJUST)
+        self.assertEqual(
+            self.assert_formatted_spec(FormatInfo("s", width=0), val).value, "0"
+        )
+
+        # precision
+        self.assertEqual(
+            self.assert_formatted_spec(FormatInfo("s", prec=10), val).value, ".10"
+        )
+
+        # width and precision
+        self.assertEqual(
+            self.assert_formatted_spec(FormatInfo("s", width=1, prec=2), val).value,
+            ">1.2",
+        )
+
+        self.assertEqual(
+            self.assert_formatted_spec(
+                FormatInfo("s", flags=F_LJUST, width=10), val
+            ).value,
+            "10",
+        )

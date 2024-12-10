@@ -984,14 +984,14 @@ class PyFlowGraph(FlowGraph):
                 continue
             prev_loc = NO_LOCATION
             for instr in block.insts:
-                if instr.loc == NO_LOCATION:
+                if instr.loc.lineno < 0:
                     instr.loc = prev_loc
                 else:
                     prev_loc = instr.loc
             if block.has_fallthrough and block.next.num_predecessors == 1:
                 assert block.next.insts
                 next_instr = block.next.insts[0]
-                if next_instr.loc == NO_LOCATION:
+                if next_instr.loc.lineno < 0:
                     next_instr.loc = prev_loc
             last_instr = block.insts[-1]
             if (
@@ -1003,7 +1003,7 @@ class PyFlowGraph(FlowGraph):
                 if target.num_predecessors == 1:
                     assert target.insts
                     next_instr = target.insts[0]
-                    if next_instr.loc == NO_LOCATION:
+                    if next_instr.loc.lineno < 0:
                         next_instr.loc = prev_loc
 
     def guarantee_lineno_for_exits(self):
@@ -1013,7 +1013,7 @@ class PyFlowGraph(FlowGraph):
             if not block.insts:
                 continue
             last_instr = block.insts[-1]
-            if last_instr.loc == NO_LOCATION:
+            if last_instr.loc.lineno < 0:
                 if last_instr.opname == "RETURN_VALUE":
                     for instr in block.insts:
                         assert instr.loc == NO_LOCATION
