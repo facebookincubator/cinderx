@@ -5,15 +5,15 @@ for i in range(42):
 # EXPECTED:
 [
     ...,
-    FOR_ITER(Block(6)),
+    FOR_ITER(Block(6, label='for_cleanup')),
     STORE_NAME('i'),
     LOAD_NAME('i'),
     LOAD_CONST(4),
     COMPARE_OP('=='),
-    POP_JUMP_IF_FALSE(Block(5)),
+    POP_JUMP_IF_TRUE(Block(3)),
+    JUMP_BACKWARD(Block(1, label='for_start')),
     POP_TOP(0),
     RETURN_CONST(None),
-    JUMP_BACKWARD(Block(1)),
     END_FOR(0),
     ...,
 ]

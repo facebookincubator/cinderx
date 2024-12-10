@@ -122,17 +122,7 @@ class FlowGraphOptimizer:
         block.insts = new_instrs
 
     def jump_thread(self, instr: Instruction, target: Instruction, opname: str) -> int:
-        """Attempt to eliminate jumps to jumps by updating inst to jump to
-        target->i_target using the provided opcode. Return 0 if successful, 1 if
-        not; this makes it easier for our callers to revisit the same
-        instruction again only if we changed it."""
-        assert instr.is_jump(self.graph.opcode)
-        assert target.is_jump(self.graph.opcode)
-        if instr.lineno == target.lineno and instr.target != target.target:
-            instr.target = target.target
-            instr.opname = opname
-            return 0
-        return 1
+        raise NotImplementedError()
 
     def opt_jump_if_false_or_pop(
         self,
@@ -187,7 +177,7 @@ class FlowGraphOptimizer:
         block: Block,
     ) -> int | None:
         assert target is not None
-        if target.opname in (self.JUMP_ABS, "JUMP_FORWARD"):
+        if target.opname in (self.JUMP_ABS, "JUMP_FORWARD", "JUMP"):
             return instr_index + self.jump_thread(instr, target, instr.opname)
 
     def opt_jump(
@@ -365,6 +355,19 @@ class FlowGraphOptimizer310(FlowGraphOptimizer):
         JUMP_ABS: FlowGraphOptimizer.opt_jump,
         "BUILD_TUPLE": opt_build_tuple,
     }
+
+    def jump_thread(self, instr: Instruction, target: Instruction, opname: str) -> int:
+        """Attempt to eliminate jumps to jumps by updating inst to jump to
+        target->i_target using the provided opcode. Return 0 if successful, 1 if
+        not; this makes it easier for our callers to revisit the same
+        instruction again only if we changed it."""
+        assert instr.is_jump(self.graph.opcode)
+        assert target.is_jump(self.graph.opcode)
+        if instr.lineno == target.lineno and instr.target != target.target:
+            instr.target = target.target
+            instr.opname = opname
+            return 0
+        return 1
 
     def optimize_basic_block(self, block: Block) -> None:
         instr_index = 0
@@ -671,6 +674,21 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             current -= 1
 
         return cnt - 1
+
+    def jump_thread(self, instr: Instruction, target: Instruction, opname: str) -> int:
+        """Attempt to eliminate jumps to jumps by updating inst to jump to
+        target->i_target using the provided opcode. Return 0 if successful, 1 if
+        not; this makes it easier for our callers to revisit the same
+        instruction again only if we changed it."""
+        assert instr.is_jump(self.graph.opcode)
+        assert target.is_jump(self.graph.opcode)
+        if (
+            instr.lineno == target.lineno or target.lineno == -1
+        ) and instr.target != target.target:
+            instr.target = target.target
+            instr.opname = opname
+            return 0
+        return 1
 
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer.handlers,
