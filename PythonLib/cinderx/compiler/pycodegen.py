@@ -835,19 +835,6 @@ class CodeGenerator(ASTVisitor):
 
     # exception related
 
-    def visitAssert(self, node):
-        if not self.optimization_lvl:
-            end = self.newBlock()
-            self.compileJumpIf(node.test, end, True)
-            self.emit("LOAD_ASSERTION_ERROR")
-            if node.msg:
-                self.visit(node.msg)
-                self.emit_call_one_arg()
-                self.emit("RAISE_VARARGS", 1)
-            else:
-                self.emit("RAISE_VARARGS", 1)
-            self.nextBlock(end)
-
     def visitRaise(self, node):
         n = 0
         if node.exc:
@@ -2461,6 +2448,20 @@ class CodeGenerator310(CodeGenerator):
         else:
             raise RuntimeError("unsupported scope for var %s: %d" % (name, scope))
 
+    def visitAssert(self, node: ast.Assert) -> None:
+        if not self.optimization_lvl:
+            end = self.newBlock()
+            self.compileJumpIf(node.test, end, True)
+
+            self.emit("LOAD_ASSERTION_ERROR")
+            if node.msg:
+                self.visit(node.msg)
+                self.emit_call_one_arg()
+                self.emit("RAISE_VARARGS", 1)
+            else:
+                self.emit("RAISE_VARARGS", 1)
+            self.nextBlock(end)
+
     def visitAttribute(self, node):
         self.visit(node.value)
         if isinstance(node.ctx, ast.Store):
@@ -3413,6 +3414,21 @@ class CodeGenerator312(CodeGenerator):
 
     def emit_get_awaitable(self, kind: AwaitableKind) -> None:
         self.emit("GET_AWAITABLE", int(kind))
+
+    def visitAssert(self, node: ast.Assert) -> None:
+        if not self.optimization_lvl:
+            end = self.newBlock()
+            self.compileJumpIf(node.test, end, True)
+
+            self.graph.emit_with_loc("LOAD_ASSERTION_ERROR", 0, node)
+            if node.msg:
+                self.visit(node.msg)
+                self.set_pos(node)
+                self.emit_call_one_arg()
+                self.graph.emit_with_loc("RAISE_VARARGS", 1, node.test)
+            else:
+                self.emit("RAISE_VARARGS", 1)
+            self.nextBlock(end)
 
     def visitBoolOp(self, node: ast.BoolOp) -> None:
         if type(node.op) is ast.And:
