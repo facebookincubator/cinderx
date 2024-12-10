@@ -3505,6 +3505,7 @@ class CodeGenerator312(CodeGenerator):
 
         cleanup = self.newBlock("cleanup")
         for i in range(len(node.comparators) - 1):
+            self.set_pos(node)
             self.emitChainedCompareStep(
                 node.ops[i], node.comparators[i], cleanup, False
             )
@@ -3529,6 +3530,7 @@ class CodeGenerator312(CodeGenerator):
         cleanup = self.newBlock()
         self.visit(test.left)
         for op, comparator in zip(test.ops[:-1], test.comparators[:-1]):
+            self.set_pos(test)
             self.emitChainedCompareStep(op, comparator, cleanup, always_pop=True)
             self.emit("POP_JUMP_IF_FALSE", cleanup)
             self.nextBlock(label="compare_or_cleanup")
