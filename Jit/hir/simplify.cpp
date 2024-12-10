@@ -10,7 +10,6 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/runtime.h"
-#include "cinderx/Jit/type_deopt_patchers.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
 #include <fmt/ostream.h>

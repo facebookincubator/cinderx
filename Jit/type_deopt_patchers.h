@@ -5,7 +5,6 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/deopt_patcher.h"
-#include "cinderx/Jit/runtime.h"
 
 #include <variant>
 
@@ -21,9 +20,10 @@ class TypeDeoptPatcher : public DeoptPatcher {
 
   virtual bool maybePatch(BorrowedRef<PyTypeObject> new_ty);
 
- protected:
-  void onLink() override;
+  // Access the type being watched.
+  BorrowedRef<PyTypeObject> type() const;
 
+ protected:
   // The type being watched.  It outlives this object because this object will
   // be cleaned up by a type watcher notification.
   BorrowedRef<PyTypeObject> type_;

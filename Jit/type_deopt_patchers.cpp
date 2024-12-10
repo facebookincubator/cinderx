@@ -3,7 +3,6 @@
 #include "cinderx/Jit/type_deopt_patchers.h"
 
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/runtime.h"
 
 namespace jit {
 
@@ -38,8 +37,8 @@ bool TypeDeoptPatcher::maybePatch(BorrowedRef<PyTypeObject>) {
   return true;
 }
 
-void TypeDeoptPatcher::onLink() {
-  Runtime::get()->watchType(type_, this);
+BorrowedRef<PyTypeObject> TypeDeoptPatcher::type() const {
+  return type_;
 }
 
 TypeAttrDeoptPatcher::TypeAttrDeoptPatcher(

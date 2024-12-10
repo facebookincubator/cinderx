@@ -1524,6 +1524,11 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
     uint64_t patchpoint = base + code.labelOffsetFromBase(udp.patchpoint);
     uint64_t deopt_exit = base + code.labelOffsetFromBase(udp.deopt_exit);
     udp.patcher->link(patchpoint, deopt_exit);
+
+    // Register patcher with the runtime if it is type-based.
+    if (auto typed_patcher = dynamic_cast<TypeDeoptPatcher*>(udp.patcher)) {
+      env_.rt->watchType(typed_patcher->type(), typed_patcher);
+    }
   }
 }
 

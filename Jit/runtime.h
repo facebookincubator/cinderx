@@ -17,6 +17,7 @@
 #include "cinderx/Jit/slab_arena.h"
 #include "cinderx/Jit/symbolizer.h"
 #include "cinderx/Jit/threaded_compile.h"
+#include "cinderx/Jit/type_deopt_patchers.h"
 #include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
@@ -27,8 +28,6 @@
 #include <vector>
 
 namespace jit {
-
-class TypeDeoptPatcher;
 
 class GenYieldPoint {
  public:
