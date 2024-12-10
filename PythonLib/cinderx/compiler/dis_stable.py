@@ -197,8 +197,7 @@ class Disassembler:
         print("co_varnames:", co.co_varnames, file=file)
         print("co_cellvars:", co.co_cellvars, file=file)
         print("co_freevars:", co.co_freevars, file=file)
-        if sys.version_info < (3, 12):
-            print("co_lines:", pformat(list(co.co_lines())), file=file)
+        print("co_lines:", pformat(list(co.co_lines())), file=file)
         print(file=file)
         for c in co.co_consts:
             if hasattr(c, "co_code"):
