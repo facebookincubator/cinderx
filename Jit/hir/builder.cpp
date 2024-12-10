@@ -3392,8 +3392,7 @@ void HIRBuilder::emitStoreSlice(TranslationContext& tc) {
   Register* slice = stack.pop();
   Register* container = stack.pop();
   Register* values = stack.pop();
-  Register* result = temps_.AllocateNonStack();
-  tc.emit<StoreSubscr>(result, container, slice, values, tc.frame);
+  tc.emit<StoreSubscr>(container, slice, values, tc.frame);
 }
 
 void HIRBuilder::emitStoreSubscr(TranslationContext& tc) {
@@ -3401,8 +3400,7 @@ void HIRBuilder::emitStoreSubscr(TranslationContext& tc) {
   Register* sub = stack.pop();
   Register* container = stack.pop();
   Register* value = stack.pop();
-  Register* result = temps_.AllocateStack();
-  tc.emit<StoreSubscr>(result, container, sub, value, tc.frame);
+  tc.emit<StoreSubscr>(container, sub, value, tc.frame);
 }
 
 void HIRBuilder::emitGetIter(TranslationContext& tc) {

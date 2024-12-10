@@ -417,7 +417,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     auto receiver = ParseRegister();
     auto index = ParseRegister();
     auto value = ParseRegister();
-    NEW_INSTR(StoreSubscr, dst, receiver, index, value);
+    NEW_INSTR(StoreSubscr, receiver, index, value, FrameState{});
   } else if (opcode == "Assign") {
     auto src = ParseRegister();
     NEW_INSTR(Assign, dst, src);

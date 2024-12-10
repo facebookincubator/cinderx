@@ -1313,7 +1313,7 @@ def test(x, y):
       Locals<2> v0 v1
     }
     v5 = LoadConst<ImmortalLongExact[1]>
-    v6 = StoreSubscr v0 v5 v1 {
+    StoreSubscr v0 v5 v1 {
       FrameState {
         CurInstrOffset 8
         Locals<2> v0 v1
@@ -1323,9 +1323,9 @@ def test(x, y):
       CurInstrOffset 12
       Locals<2> v0 v1
     }
-    v7 = LoadConst<NoneType>
-    v7 = RefineType<NoneType> v7
-    Return<NoneType> v7
+    v6 = LoadConst<NoneType>
+    v6 = RefineType<NoneType> v6
+    Return<NoneType> v6
   }
 }
 )";
@@ -1352,7 +1352,7 @@ def test(x, y):
       }
     }
     v2 = LoadConst<ImmortalLongExact[1]>
-    v3 = StoreSubscr v0 v2 v1 {
+    StoreSubscr v0 v2 v1 {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
@@ -1362,8 +1362,8 @@ def test(x, y):
       CurInstrOffset 8
       Locals<2> v0 v1
     }
-    v4 = LoadConst<NoneType>
-    Return v4
+    v3 = LoadConst<NoneType>
+    Return v3
   }
 }
 )";

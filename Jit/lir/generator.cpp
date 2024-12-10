@@ -2388,13 +2388,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kStoreSubscr: {
         auto instr = static_cast<const StoreSubscr*>(&i);
-        bbb.appendCallInstruction(
-            instr->output(),
+        Instruction* result = bbb.appendCallInstruction(
+            OutVReg{OperandBase::k32bit},
             PyObject_SetItem,
-            instr->container(),
-            instr->index(),
-            instr->value());
-
+            instr->GetOperand(0),
+            instr->GetOperand(1),
+            instr->GetOperand(2));
+        appendGuard(bbb, InstrGuardKind::kNotNegative, *instr, result);
         break;
       }
       case Opcode::kDictSubscr: {
@@ -2943,7 +2943,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         case Opcode::kRaise:
         case Opcode::kRaiseStatic:
         case Opcode::kStoreAttr:
-        case Opcode::kStoreAttrCached: {
+        case Opcode::kStoreAttrCached:
+        case Opcode::kStoreSubscr: {
           break;
         }
         case Opcode::kCompare: {

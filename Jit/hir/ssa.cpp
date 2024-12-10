@@ -592,7 +592,6 @@ Type outputType(
     case Opcode::kSetSetItem:
     case Opcode::kSetUpdate:
     case Opcode::kSetDictItem:
-    case Opcode::kStoreSubscr:
       return TCInt32;
 
     case Opcode::kIsNegativeAndErrOccurred:
@@ -753,6 +752,7 @@ Type outputType(
     case Opcode::kStoreAttr:
     case Opcode::kStoreAttrCached:
     case Opcode::kStoreField:
+    case Opcode::kStoreSubscr:
     case Opcode::kUnreachable:
     case Opcode::kUpdatePrevInstr:
     case Opcode::kUseType:

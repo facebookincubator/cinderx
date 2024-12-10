@@ -3351,42 +3351,11 @@ DEFINE_SIMPLE_INSTR(LoadVarObjectSize, (TOptObject), HasOutput, Operands<1>);
 // Stores into an index
 //
 // Places NULL in dst if an error occurred or a non-NULL value otherwise
-class INSTR_CLASS(
+DEFINE_SIMPLE_INSTR(
     StoreSubscr,
     (TObject, TObject, TOptObject),
-    HasOutput,
     Operands<3>,
-    DeoptBase) {
- public:
-  using InstrT::InstrT;
-
-  // The index we're doing the subscript with
-  Register* index() const {
-    return GetOperand(1);
-  }
-
-  void set_index(Register* receiver) {
-    SetOperand(1, receiver);
-  }
-
-  // The container we're doing the subscript with
-  Register* container() const {
-    return GetOperand(0);
-  }
-
-  void set_container(Register* receiver) {
-    SetOperand(0, receiver);
-  }
-
-  // The value being stored
-  Register* value() const {
-    return GetOperand(2);
-  }
-
-  void set_value(Register* value) {
-    SetOperand(2, value);
-  }
-};
+    DeoptBase);
 
 class INSTR_CLASS(
     DictSubscr,
