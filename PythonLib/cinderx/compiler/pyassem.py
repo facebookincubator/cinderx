@@ -1478,7 +1478,7 @@ class PyFlowGraph312(PyFlowGraph):
                 explicit_jump.bid = self.get_new_block_id()
                 self.current = explicit_jump
 
-                self.emit("JUMP", block.next)
+                self.emit_noline("JUMP", block.next)
                 self.ordered_blocks.insert(
                     self.ordered_blocks.index(block) + 1, explicit_jump
                 )

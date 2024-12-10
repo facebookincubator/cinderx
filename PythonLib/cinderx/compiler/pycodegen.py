@@ -3895,6 +3895,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("RETURN_VALUE")
 
         self.nextBlock(handler)
+        self.set_no_pos()
         self.emit_call_intrinsic_1("INTRINSIC_STOPITERATION_ERROR")
         self.emit("RERAISE", 1)
 
@@ -4834,6 +4835,7 @@ class CodeGenerator312(CodeGenerator):
         self.emitJump(start)
 
         self.nextBlock(except_)
+        self.set_pos(comp)
         self.emit("END_ASYNC_FOR")
 
     def _compile_sync_comprehension(
