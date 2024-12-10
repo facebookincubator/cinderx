@@ -785,6 +785,41 @@ class CodeGenerator(ASTVisitor):
             node, sys.intern("<dictcomp>"), node.key, node.value, "BUILD_MAP"
         )
 
+    # compile_comprehension helper functions
+
+    def make_comprehension_codegen(self, node, name: str) -> CodeGenerator:
+        args = self.conjure_arguments([ast.arg(".0", None)])
+        return self.make_func_codegen(node, args, name, node.lineno)
+
+    def check_async_comprehension(self, node) -> None:
+        # TODO(T209725064): also add check for PyCF_ALLOW_TOP_LEVEL_AWAIT
+        is_async_generator = self.symbols.scopes[node].coroutine
+        is_async_function = self.scope.coroutine
+        if (
+            is_async_generator
+            and not is_async_function
+            and not isinstance(node, ast.GeneratorExp)
+        ):
+            raise self.syntax_error(
+                "asynchronous comprehension outside of an asynchronous function", node
+            )
+
+    def finish_comprehension(self, gen, node) -> None:
+        self.emit_closure(gen, 0)
+
+        # precomputation of outmost iterable
+        self.visit(node.generators[0].iter)
+        if node.generators[0].is_async:
+            self.emit("GET_AITER")
+        else:
+            self.emit("GET_ITER")
+        self.emit_call_one_arg()
+
+        if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
+            self.emit_get_awaitable(AwaitableKind.Default)
+            self.emit("LOAD_CONST", None)
+            self.emit_yield_from(await_=True)
+
     def compile_comprehension_iter(self, gen: ast.comprehension) -> None:
         self.visit(gen.iter)
         self.emit("GET_AITER" if gen.is_async else "GET_ITER")
@@ -2292,6 +2327,9 @@ class CodeGenerator(ASTVisitor):
     def build_function(self, node: FuncOrLambda, gen: CodeGenerator) -> None:
         raise NotImplementedError()
 
+    def emit_closure(self, gen: CodeGenerator, flags: int) -> None:
+        raise NotImplementedError()
+
     def emit_call_one_arg(self) -> None:
         raise NotImplementedError()
 
@@ -2627,23 +2665,10 @@ class CodeGenerator310(CodeGenerator):
         opcode: str,
         oparg: object = 0,
     ) -> None:
-        is_async_function = self.scope.coroutine
-        args = self.conjure_arguments([ast.arg(".0", None)])
-        gen = cast(
-            CodeGenerator310, self.make_func_codegen(node, args, name, node.lineno)
-        )
-        gen.set_pos(node)
-        is_async_generator = gen.scope.coroutine
+        self.check_async_comprehension(node)
 
-        # TODO also add check for PyCF_ALLOW_TOP_LEVEL_AWAIT
-        if (
-            is_async_generator
-            and not is_async_function
-            and not isinstance(node, ast.GeneratorExp)
-        ):
-            raise self.syntax_error(
-                "asynchronous comprehension outside of an asynchronous function", node
-            )
+        gen = cast(CodeGenerator310, self.make_comprehension_codegen(node, name))
+        gen.set_pos(node)
 
         if opcode:
             gen.emit(opcode, oparg)
@@ -2655,20 +2680,7 @@ class CodeGenerator310(CodeGenerator):
 
         gen.finish_function()
 
-        self.emit_closure(gen, 0)
-
-        # precomputation of outmost iterable
-        self.visit(node.generators[0].iter)
-        if node.generators[0].is_async:
-            self.emit("GET_AITER")
-        else:
-            self.emit("GET_ITER")
-        self.emit_call_one_arg()
-
-        if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
-            self.emit_get_awaitable(AwaitableKind.Default)
-            self.emit("LOAD_CONST", None)
-            self.emit_yield_from(await_=True)
+        self.finish_comprehension(gen, node)
 
     def compile_comprehension_generator(
         self,
@@ -4689,7 +4701,6 @@ class CodeGenerator312(CodeGenerator):
         else:
             raise Exception(f"Unexpected kind {e.kind}")
 
-    # TODO(T132400505): Split into smaller methods.
     def compile_comprehension(
         self,
         node: CompNode,
@@ -4699,18 +4710,7 @@ class CodeGenerator312(CodeGenerator):
         opcode: str,
         oparg: object = 0,
     ) -> None:
-        is_async_function = self.scope.coroutine
-        is_async_generator = self.symbols.scopes[node].coroutine
-
-        # TODO also add check for PyCF_ALLOW_TOP_LEVEL_AWAIT
-        if (
-            is_async_generator
-            and not is_async_function
-            and not isinstance(node, ast.GeneratorExp)
-        ):
-            raise self.syntax_error(
-                "asynchronous comprehension outside of an asynchronous function", node
-            )
+        self.check_async_comprehension(node)
 
         # fetch the scope that corresponds to comprehension
         scope = self.scopes[node]
@@ -4722,9 +4722,7 @@ class CodeGenerator312(CodeGenerator):
             gen.compile_comprehension_iter(outermost)
             inlined_state = self.push_inlined_comprehension_state(scope)
         else:
-            gen = self.make_func_codegen(
-                node, self.conjure_arguments([ast.arg(".0", None)]), name, node.lineno
-            )
+            gen = cast(CodeGenerator312, self.make_comprehension_codegen(node, name))
         gen.set_pos(node)
         start = gen.newBlock("start")
         gen.setups.append(Entry(STOP_ITERATION, start, None, None))
@@ -4747,20 +4745,7 @@ class CodeGenerator312(CodeGenerator):
         gen.wrap_in_stopiteration_handler()
         gen.setups.pop()
 
-        self.emit_closure(gen, 0)
-
-        # precomputation of outmost iterable
-        self.visit(node.generators[0].iter)
-        if node.generators[0].is_async:
-            self.emit("GET_AITER")
-        else:
-            self.emit("GET_ITER")
-        self.emit_call_one_arg()
-
-        if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
-            self.emit_get_awaitable(AwaitableKind.Default)
-            self.emit("LOAD_CONST", None)
-            self.emit_yield_from(await_=True)
+        self.finish_comprehension(gen, node)
 
     def compile_comprehension_generator(
         self,
@@ -5099,7 +5084,6 @@ class CinderCodeGenerator(CodeGenerator310):
     else:
         _SymbolVisitor = symbols.CinderSymbolVisitor
 
-    # TODO: Split into smaller methods.
     def compile_comprehension(
         self,
         node: CompNode,
@@ -5109,15 +5093,15 @@ class CinderCodeGenerator(CodeGenerator310):
         opcode: str,
         oparg: object = 0,
     ) -> None:
+        self.check_async_comprehension(node)
+
         # fetch the scope that corresponds to comprehension
         scope = self.scopes[node]
         if scope.inlined:
             # for inlined comprehension process with current generator
             gen = self
         else:
-            gen = self.make_func_codegen(
-                node, self.conjure_arguments([ast.arg(".0", None)]), name, node.lineno
-            )
+            gen = cast(CinderCodeGenerator, self.make_comprehension_codegen(node, name))
         gen.set_pos(node)
 
         if opcode:
@@ -5152,20 +5136,7 @@ class CinderCodeGenerator(CodeGenerator310):
 
         gen.finish_function()
 
-        self.emit_closure(gen, 0)
-
-        # precomputation of outmost iterable
-        self.visit(node.generators[0].iter)
-        if node.generators[0].is_async:
-            self.emit("GET_AITER")
-        else:
-            self.emit("GET_ITER")
-        self.emit("CALL_FUNCTION", 1)
-
-        if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
-            self.emit_get_awaitable(AwaitableKind.Default)
-            self.emit("LOAD_CONST", None)
-            self.emit_yield_from(await_=True)
+        self.finish_comprehension(gen, node)
 
     def set_qual_name(self, qualname: str) -> None:
         self._qual_name = qualname
