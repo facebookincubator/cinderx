@@ -3411,7 +3411,7 @@ class CodeGenerator312(CodeGenerator):
     def visitCall(self, node: ast.Call) -> None:
         if not self._can_optimize_call(node):
             # We cannot optimize this call
-            self.emit("PUSH_NULL")
+            self.graph.emit_with_loc("PUSH_NULL", 0, node.func)
             self.visit(node.func)
             self._call_helper(0, node, node.args, node.keywords)
             return
@@ -3419,6 +3419,7 @@ class CodeGenerator312(CodeGenerator):
         if self._is_super_call(node.func.value):
             self.visit(node.func.value.func)
             func = node.func
+            self.set_pos(node.func.value)
             load_arg, is_zero = self._emit_args_for_super(func.value, func.attr)
             op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
             self.emit("LOAD_SUPER_ATTR", (op, load_arg, is_zero))
