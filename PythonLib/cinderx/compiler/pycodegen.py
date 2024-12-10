@@ -1049,9 +1049,9 @@ class CodeGenerator(ASTVisitor):
             if isinstance(elt, ast.AST):
                 self.visit(elt)
 
-    def checkAnnExpr(self, node):
+    def checkAnnExpr(self, node: ast.expr) -> None:
         self.visit(node)
-        self.emit("POP_TOP")
+        self.graph.emit_with_loc("POP_TOP", 0, node)
 
     def checkAnnSlice(self, node):
         if node.lower:
