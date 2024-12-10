@@ -1910,7 +1910,6 @@ class PyFlowGraph312(PyFlowGraph):
 
         self.flatten_graph()
         assert self.stage == FLAT, self.stage
-
         # see assemble.c :: _PyAssemble_MakeCodeObject()
         self.bytecode = self.make_byte_code()
         self.line_table = self.make_line_table()

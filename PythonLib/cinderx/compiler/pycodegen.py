@@ -1604,6 +1604,12 @@ class CodeGenerator(ASTVisitor):
     def storePatternName(self, name: str, pc: PatternContext) -> None:
         return self.storeName(name)
 
+    def set_match_pos(self, node: AST) -> None:
+        pass
+
+    def emit_match_jump_to_end(self, end: Block) -> None:
+        raise NotImplementedError()
+
     def visitMatch(self, node: ast.Match) -> None:
         """See compiler_match_inner in compile.c"""
         pc = self.pattern_context()
@@ -1631,6 +1637,7 @@ class CodeGenerator(ASTVisitor):
             self.visit(case.pattern, pc)
             assert not pc.on_top
             # It's a match! Store all of the captured names (they're on the stack).
+            self.set_match_pos(case.pattern)
             for name in pc.stores:
                 self.storePatternName(name, pc)
             guard = case.guard
@@ -1641,7 +1648,7 @@ class CodeGenerator(ASTVisitor):
             if not is_last_non_default_case:
                 self.emit("POP_TOP")
             self.visit(case.body)
-            self.emit("JUMP_FORWARD", end)
+            self.emit_match_jump_to_end(end)
             # If the pattern fails to match, we want the line number of the
             # cleanup to be associated with the failed pattern, not the last line
             # of the body
@@ -2011,6 +2018,7 @@ class CodeGenerator(ASTVisitor):
         assert control is not None
         pc = old_pc
         # No match. Pop the remaining copy of the subject and fail:
+        self.set_match_pos(node)
         self.emit("POP_TOP")
         self._jump_to_fail_pop(pc, "JUMP_FORWARD")
         self.nextBlock(end)
@@ -2050,6 +2058,7 @@ class CodeGenerator(ASTVisitor):
             raise self._error_duplicate_store(name)
 
         # Rotate this object underneath any items we need to preserve:
+        self.set_match_pos(loc)
         self.emit_rot_n(pc.on_top + len(pc.stores) + 1)
         pc.stores.append(name)
 
@@ -3310,6 +3319,9 @@ class CodeGenerator310(CodeGenerator):
 
     def emit_import_star(self) -> None:
         self.emit("IMPORT_STAR")
+
+    def emit_match_jump_to_end(self, end: Block) -> None:
+        self.emit("JUMP_FORWARD", end)
 
     def emit_finish_match_class(self, node: ast.MatchClass, pc: PatternContext) -> None:
         # TOS is now a tuple of (nargs + nattrs) attributes. Preserve it:
@@ -5037,6 +5049,12 @@ class CodeGenerator312(CodeGenerator):
             # from a pseudo op by the flowgraph
             self.emit("STORE_FAST", local)
 
+    def set_match_pos(self, node: AST) -> None:
+        self.set_pos(node)
+
+    def emit_match_jump_to_end(self, end: Block) -> None:
+        self.emit_noline("JUMP_FORWARD", end)
+
     def emit_finish_match_class(self, node: ast.MatchClass, pc: PatternContext) -> None:
         self.emit("COPY", 1)
         self.emit("LOAD_CONST", None)
@@ -5091,6 +5109,7 @@ class CodeGenerator312(CodeGenerator):
 
         # If we get this far, it's a match! We're done with the tuple of values,
         # and whatever happens next should consume the tuple of keys underneath it:
+        self.set_match_pos(node)
         pc.on_top -= 2
         if star_target:
             # If we have a starred name, bind a dict of remaining items to it (this may

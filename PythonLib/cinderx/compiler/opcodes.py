@@ -235,6 +235,7 @@ if sys.version_info >= (3, 12):
         STORE_SLICE=-4,
         KW_NAMES=0,
         MATCH_KEYS=1,
+        MATCH_CLASS=-2,
     )
 
     from opcode import (
