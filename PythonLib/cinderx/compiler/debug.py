@@ -1,9 +1,13 @@
 """Debugging output for various internal datatypes."""
 
-# Marked pyre-unsafe so we don't need to import pyassem.py for the typedefs
-# pyre-unsafe
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 
 from .opcodes import opcode
+
+if TYPE_CHECKING:
+    from .pyassem import Block, PyFlowGraph
 
 
 def str_of_oparg(instr) -> str:
@@ -43,15 +47,17 @@ def str_of_block_instr(instr, pc: int = 0, stack_effect: bool = False) -> str:
     return f"{delta:>6} | {pc:3} {str_of_instr(instr)}"
 
 
-def dump_block(block, pc: int = 0, stack_effect: bool = False) -> int:
+def dump_block(
+    graph: PyFlowGraph, block: Block, pc: int = 0, stack_effect: bool = False
+) -> int:
     print(str_of_block_header(block))
     for instr in block.getInstructions():
         print("    ", str_of_block_instr(instr, pc, stack_effect))
-        pc += opcode.CODEUNIT_SIZE
+        pc += graph.instrsize(instr.opname, instr.ioparg) * opcode.CODEUNIT_SIZE
     return pc
 
 
-def dump_graph(graph, stack_effect: bool = False) -> None:
+def dump_graph(graph: PyFlowGraph, stack_effect: bool = False) -> None:
     pc = 0
     for block in graph.getBlocks():
-        pc = dump_block(block, pc, stack_effect)
+        pc = dump_block(graph, block, pc, stack_effect)
