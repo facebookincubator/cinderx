@@ -48,6 +48,8 @@ class Scope:
         self.cells = {}
         self.type_params: set[str] = set()
         self.children = []
+        # Names imported in this scope (the symbols, not the modules)
+        self.imports: set[str] = set()
         self.parent = None
         self.coroutine = False
         self.comp_iter_target = self.comp_iter_expr = 0
@@ -82,6 +84,9 @@ class Scope:
         mangled = self.mangle(name)
         if name not in self.nonlocals:
             self.defs[mangled] = kind | self.defs.get(mangled, 1)
+
+    def add_import(self, name: str) -> None:
+        self.imports.add(name)
 
     def add_use(self, name):
         self.uses[self.mangle(name)] = 1
@@ -163,6 +168,9 @@ class Scope:
             return SC_UNKNOWN
         else:
             return SC_GLOBAL_IMPLICIT
+
+    def is_import(self, name: str) -> bool:
+        return name in self.imports
 
     def get_free_vars(self) -> list[str]:
         return sorted(self.frees.keys())
@@ -723,7 +731,9 @@ class BaseSymbolVisitor(ASTVisitor):
         for alias in node.names:
             if alias.name == "*":
                 continue
-            scope.add_def(alias.asname or alias.name)
+            impname = alias.asname or alias.name
+            scope.add_def(impname)
+            scope.add_import(impname)
 
     def visitImport(self, node, scope):
         for alias in node.names:
@@ -731,7 +741,9 @@ class BaseSymbolVisitor(ASTVisitor):
             i = name.find(".")
             if i > -1:
                 name = name[:i]
-            scope.add_def(alias.asname or name)
+            impname = alias.asname or name
+            scope.add_def(impname)
+            scope.add_import(impname)
 
     def visitGlobal(self, node, scope):
         for name in node.names:

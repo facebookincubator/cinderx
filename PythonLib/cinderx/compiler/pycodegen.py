@@ -1326,7 +1326,7 @@ class CodeGenerator(ASTVisitor):
                 self.visit(arg)
         return (self.mangle(attr), len(super_call.args) == 0)
 
-    def _can_optimize_call(self, node):
+    def _can_optimize_call(self, node: ast.Call) -> bool:
         return (
             isinstance(node.func, ast.Attribute)
             and isinstance(node.func.ctx, ast.Load)
@@ -3444,6 +3444,29 @@ class CodeGenerator312(CodeGenerator):
             self.emit("POP_TOP")
         self.visit(node.values[-1])
         self.nextBlock(end)
+
+    def is_import_originated(self, e: ast.expr) -> bool:
+        # Check whether the global scope has an import named
+        # e, if it is a Name object. For not traversing all the
+        # scope stack every time this function is called, it will
+        # only check the global scope to determine whether something
+        # is imported or not.
+        if not isinstance(e, ast.Name):
+            return False
+
+        scope = self.scope
+        while scope.parent is not None:
+            scope = scope.parent
+
+        return scope.is_import(e.id)
+
+    def _can_optimize_call(self, node: ast.Call) -> bool:
+        if not super()._can_optimize_call(node):
+            return False
+
+        assert isinstance(node.func, ast.Attribute)
+
+        return not self.is_import_originated(node.func.value)
 
     def visitCall(self, node: ast.Call) -> None:
         if not self._can_optimize_call(node):
