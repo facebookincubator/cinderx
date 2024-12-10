@@ -3933,8 +3933,8 @@ class CodeGenerator312(CodeGenerator):
         setup = Instruction("SETUP_CLEANUP", handler, target=handler)
         self.graph.entry.insts.insert(0, setup)
 
-        self.emit("LOAD_CONST", None)
-        self.emit("RETURN_VALUE")
+        self.emit_noline("LOAD_CONST", None)
+        self.emit_noline("RETURN_VALUE")
 
         self.nextBlock(handler)
         self.set_no_pos()
