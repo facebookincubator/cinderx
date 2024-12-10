@@ -3600,11 +3600,11 @@ class CodeGenerator312(CodeGenerator):
         if node.lower:
             self.visit(node.lower)
         else:
-            self.emit("LOAD_CONST", None)
+            self.graph.emit_with_loc("LOAD_CONST", None, node)
         if node.upper:
             self.visit(node.upper)
         else:
-            self.emit("LOAD_CONST", None)
+            self.graph.emit_with_loc("LOAD_CONST", None, node)
 
     def emitAugSubscript(self, node: ast.AugAssign) -> None:
         subs = node.target
