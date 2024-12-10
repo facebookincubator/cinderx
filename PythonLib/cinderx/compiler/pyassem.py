@@ -1809,7 +1809,7 @@ class PyFlowGraph312(PyFlowGraph):
         # cpython has `JUMP(target)` here, but it will always get inserted as
         # the next block in the loop and then transformed to JUMP_BACKWARD by
         # the above code, since is_forward(target) won't have changed.
-        self.emit("JUMP_BACKWARD", target)
+        self.emit_with_loc("JUMP_BACKWARD", target, last.loc)
         last.opname = self._reversed_jumps[last.opname]
         last.target = block.next
         block.insert_next(backwards_jump)
