@@ -198,6 +198,10 @@ class Disassembler:
         print("co_cellvars:", co.co_cellvars, file=file)
         print("co_freevars:", co.co_freevars, file=file)
         print("co_lines:", pformat(list(co.co_lines())), file=file)
+        if sys.version_info >= (3, 12):
+            print("co_positions:", file=file)
+            for i, position in enumerate(co.co_positions()):
+                print(f"Offset {i*2}: {position}", file=file)
         print(file=file)
         for c in co.co_consts:
             if hasattr(c, "co_code"):
