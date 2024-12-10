@@ -465,9 +465,13 @@ class CodeGenerator(ASTVisitor):
                 annotation_count += 2
 
         if annotation_count > 0:
+            self.set_pos(node)
             self.emit("BUILD_TUPLE", annotation_count)
 
         return annotation_count > 0
+
+    def emit_function_decorators(self, node: FuncOrLambda) -> None:
+        raise NotImplementedError()
 
     def visitFunctionOrLambda(self, node: FuncOrLambda) -> None:
         if isinstance(node, ast.Lambda):
@@ -488,8 +492,9 @@ class CodeGenerator(ASTVisitor):
 
         self.build_function(node, gen)
 
-        for _ in range(ndecorators):
-            self.emit_call_one_arg()
+        if ndecorators:
+            assert isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            self.emit_function_decorators(node)
 
         if not isinstance(node, ast.Lambda):
             self.storeName(gen.graph.name)
@@ -2566,6 +2571,10 @@ class CodeGenerator310(CodeGenerator):
 
         self.emit_closure(gen, flags)
 
+    def emit_function_decorators(self, node: FuncOrLambda) -> None:
+        for dec in node.decorator_list:
+            self.emit_call_one_arg()
+
     def visitClassDef(self, node: ast.ClassDef) -> None:
         first_lineno = None
         immutability_flag = self.find_immutability_flag(node)
@@ -4023,6 +4032,13 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("SWAP", num_typeparam_args + 1)
 
             self.emit("CALL", num_typeparam_args)
+
+    def emit_function_decorators(self, node: FuncOrLambda) -> None:
+        # Processed in reversed order as that's how they're called
+        for dec in reversed(node.decorator_list):
+            self.set_pos(dec)
+            self.emit_call_one_arg()
+        self.set_pos(node)
 
     def compile_type_params(
         self,
