@@ -3425,23 +3425,25 @@ class CodeGenerator312(CodeGenerator):
             self._call_helper(0, node, node.args, node.keywords)
             return
 
+        assert isinstance(node.func, ast.Attribute)
+        loc = self.compute_start_location_to_match_attr(node.func, node.func)
+
         if self._is_super_call(node.func.value):
             self.visit(node.func.value.func)
             func = node.func
             self.set_pos(node.func.value)
             load_arg, is_zero = self._emit_args_for_super(func.value, func.attr)
             op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
-            self.emit("LOAD_SUPER_ATTR", (op, load_arg, is_zero))
+            self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
         else:
             self.visit(node.func.value)
-            self.graph.emit_with_loc(
-                "LOAD_ATTR", (self.mangle(node.func.attr), 1), node.func
-            )
+            self.graph.emit_with_loc("LOAD_ATTR", (self.mangle(node.func.attr), 1), loc)
 
         for arg in node.args:
             self.visit(arg)
 
-        self.emit("CALL", len(node.args))
+        loc = self.compute_start_location_to_match_attr(node, node.func)
+        self.graph.emit_with_loc("CALL", len(node.args), loc)
 
     def visitJoinedStr(self, node: ast.JoinedStr) -> None:
         if len(node.values) > STACK_USE_GUIDELINE:
@@ -3712,12 +3714,14 @@ class CodeGenerator312(CodeGenerator):
     def emitAugAttribute(self, node: ast.AugAssign) -> None:
         target = node.target
         assert isinstance(target, ast.Attribute)
+        loc = self.compute_start_location_to_match_attr(target, target)
         self.visit(target.value)
         self.emit("COPY", 1)
-        self.graph.emit("LOAD_ATTR", self.mangle(target.attr))
+        self.graph.emit_with_loc("LOAD_ATTR", self.mangle(target.attr), loc)
         self.emitAugRHS(node)
+        self.set_pos(loc)
         self.emit_rotate_stack(2)
-        self.graph.emit_with_loc("STORE_ATTR", self.mangle(target.attr), node.target)
+        self.emit("STORE_ATTR", self.mangle(target.attr))
 
     def emit_dup(self, count: int = 1) -> None:
         for _i in range(count):
@@ -4350,12 +4354,40 @@ class CodeGenerator312(CodeGenerator):
         else:
             raise RuntimeError(f"unsupported scope for var {name}: {scope}")
 
+    def compute_start_location_to_match_attr(
+        self, base: ast.expr, attr: ast.Attribute
+    ) -> AST | SrcLocation:
+        if base.lineno != attr.end_lineno:
+            lineno = attr.end_lineno
+            end_lineno = base.end_lineno
+            col_offset = base.col_offset
+            end_col_offset = base.end_col_offset
+
+            attr_len = len(attr.attr)
+            if attr_len <= attr.end_col_offset:
+                col_offset = attr.end_col_offset - attr_len
+            else:
+                # GH-94694: Somebody's compiling weird ASTs. Just drop the columns:
+                col_offset = -1
+                end_col_offset = -1
+
+            # Make sure the end position still follows the start position, even for
+            # weird ASTs:
+            end_lineno = max(lineno, end_lineno)
+            if lineno == end_lineno:
+                end_col_offset = max(col_offset, end_col_offset)
+
+            return SrcLocation(lineno, end_lineno, col_offset, end_col_offset)
+
+        return base
+
     def visitAttribute(self, node):
+        loc = self.compute_start_location_to_match_attr(node, node)
         if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
             self.emit("LOAD_GLOBAL", "super")
             load_arg, is_zero = self._emit_args_for_super(node.value, node.attr)
             op = "LOAD_ZERO_SUPER_ATTR" if is_zero else "LOAD_SUPER_ATTR"
-            self.emit("LOAD_SUPER_ATTR", (op, load_arg, is_zero))
+            self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
             return
 
         self.visit(node.value)
@@ -4365,7 +4397,8 @@ class CodeGenerator312(CodeGenerator):
             op = "DELETE_ATTR"
         else:
             op = "LOAD_ATTR"
-        self.graph.emit_with_loc(op, self.mangle(node.attr), node)
+
+        self.graph.emit_with_loc(op, self.mangle(node.attr), loc)
 
     # Exceptions --------------------------------------------------
 
