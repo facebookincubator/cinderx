@@ -201,7 +201,10 @@ if sys.version_info >= (3, 12):
         LOAD_LOCALS=1,
         MAKE_FUNCTION=lambda oparg, jmp=0: -oparg.bit_count(),
         LOAD_FROM_DICT_OR_GLOBALS=0,
-        LOAD_SUPER_ATTR=-1,
+        LOAD_SUPER_ATTR=lambda oparg, jmp: (
+            2 if oparg[0] in ("LOAD_SUPER_METHOD", "LOAD_ZERO_SUPER_METHOD") else 1
+        )
+        - 3,
         LOAD_ATTR=lambda oparg, jmp: (
             1 if (isinstance(oparg, tuple) and oparg[1]) else 0
         ),

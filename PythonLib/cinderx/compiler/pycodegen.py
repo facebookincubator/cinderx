@@ -4451,10 +4451,12 @@ class CodeGenerator312(CodeGenerator):
 
         return base
 
-    def visitAttribute(self, node):
+    def visitAttribute(self, node: ast.Attribute) -> None:
         loc = self.compute_start_location_to_match_attr(node, node)
         if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
-            self.emit("LOAD_GLOBAL", "super")
+            assert isinstance(node.value, ast.Call)
+            self.graph.emit_with_loc("LOAD_GLOBAL", "super", node.value.func)
+            self.set_pos(node.value)
             load_arg, is_zero = self._emit_args_for_super(node.value, node.attr)
             op = "LOAD_ZERO_SUPER_ATTR" if is_zero else "LOAD_SUPER_ATTR"
             self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)

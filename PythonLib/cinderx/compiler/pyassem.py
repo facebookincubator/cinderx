@@ -827,14 +827,14 @@ class PyFlowGraph(FlowGraph):
     def _convert_LOAD_SUPER_ATTR(self, arg: object) -> int:
         assert isinstance(arg, tuple), "invalid oparg {arg!r}"
         op, name, zero_args = arg
-        arg = self._convert_LOAD_CONST((self._convert_NAME(name), zero_args))
+        name_idx = self._convert_NAME(name)
         mask = {
             "LOAD_SUPER_ATTR": 2,
             "LOAD_ZERO_SUPER_ATTR": 0,
             "LOAD_SUPER_METHOD": 3,
             "LOAD_ZERO_SUPER_METHOD": 1,
         }
-        return (arg << 2) | mask[op]
+        return (name_idx << 2) | ((not zero_args) << 1) | mask[op]
 
     def _convert_DEREF(self, arg: object) -> int:
         # Sometimes, both cellvars and freevars may contain the same var
