@@ -123,8 +123,17 @@ def test(x):
   auto tb = Ref<>::steal(etb);
   EXPECT_TRUE(PyErr_GivenExceptionMatches(typ, PyExc_UnboundLocalError));
   ASSERT_NE(val.get(), nullptr);
-  ASSERT_TRUE(PyUnicode_Check(val));
-  std::string msg = PyUnicode_AsUTF8(val);
+
+  std::string msg;
+  if (PY_VERSION_HEX >= 0x030C0000) {
+    auto sval =
+        Ref<>::steal(PyObject_CallMethod(val, "__str__", nullptr /* format */));
+    ASSERT_TRUE(PyUnicode_Check(sval));
+    msg = PyUnicode_AsUTF8(sval);
+  } else {
+    ASSERT_TRUE(PyUnicode_Check(val));
+    msg = PyUnicode_AsUTF8(val);
+  }
   ASSERT_EQ(msg, "local variable 'y' referenced before assignment");
 
   auto tb_frame = Ref<>::steal(PyObject_GetAttrString(tb, "tb_frame"));

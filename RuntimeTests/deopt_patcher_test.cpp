@@ -5,6 +5,7 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
+#include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 class DeoptPatcherTest : public RuntimeTest {
@@ -74,9 +75,15 @@ def func():
 
   auto irfunc = buildHIR(pyfunc);
 
-  jit::hir::Instr* term = irfunc->cfg.entry_block->GetTerminator();
+  // Need to find the return instruction.  It should be the last instruction in
+  // the last block.
+  jit::hir::BasicBlock* entry = irfunc->cfg.entry_block;
+  std::vector<jit::hir::BasicBlock*> postorder =
+      irfunc->cfg.GetPostOrderTraversal(entry);
+  ASSERT_GT(postorder.size(), 0);
+  jit::hir::Instr* term = postorder[0]->GetTerminator();
   ASSERT_NE(term, nullptr);
-  ASSERT_TRUE(term->IsReturn());
+  ASSERT_TRUE(term->IsReturn()) << *term;
 
   // Insert a patchpoint immediately before the return
   jit::Runtime* jit_rt = jit::Runtime::get();

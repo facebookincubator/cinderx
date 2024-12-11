@@ -742,7 +742,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
   } else if (opcode == "LoadEvalBreaker") {
     NEW_INSTR(LoadEvalBreaker, dst);
   } else if (opcode == "RunPeriodicTasks") {
-    NEW_INSTR(RunPeriodicTasks, dst);
+    instruction = newInstr<RunPeriodicTasks>(dst);
   } else if (opcode == "ListAppend") {
     auto list = ParseRegister();
     auto value = ParseRegister();
