@@ -452,11 +452,12 @@ class CodeGenerator(ASTVisitor):
     def build_annotations(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
     ) -> bool:
-        annotation_count = self.annotate_args(node.args)
+        annotation_count = self.annotate_args(node)
         # Cannot annotate return type for lambda
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             returns = node.returns
             if returns:
+                self.set_pos(node)
                 self.emit("LOAD_CONST", "return")
                 self._visitAnnotation(returns)
                 annotation_count += 2
@@ -499,23 +500,27 @@ class CodeGenerator(ASTVisitor):
     def visitDefault(self, node: ast.expr) -> None:
         self.visit(node)
 
-    def annotate_args(self, args: ast.arguments) -> int:
+    def annotate_args(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
+    ) -> int:
+        args = node.args
         annotation_count = 0
         for arg in args.args:
-            annotation_count += self.annotate_arg(arg)
+            annotation_count += self.annotate_arg(node, arg)
         for arg in args.posonlyargs:
-            annotation_count += self.annotate_arg(arg)
+            annotation_count += self.annotate_arg(node, arg)
         if arg := args.vararg:
-            annotation_count += self.annotate_arg(arg)
+            annotation_count += self.annotate_arg(node, arg)
         for arg in args.kwonlyargs:
-            annotation_count += self.annotate_arg(arg)
+            annotation_count += self.annotate_arg(node, arg)
         if arg := args.kwarg:
-            annotation_count += self.annotate_arg(arg)
+            annotation_count += self.annotate_arg(node, arg)
         return annotation_count
 
-    def annotate_arg(self, arg: ast.arg) -> int:
+    def annotate_arg(self, loc: AST, arg: ast.arg) -> int:
         ann = arg.annotation
         if ann:
+            self.set_pos(loc)
             self.emit("LOAD_CONST", self.mangle(arg.arg))
             self._visitAnnotation(ann)
             return 2
