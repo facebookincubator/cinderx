@@ -1772,7 +1772,7 @@ int deopt_gen_impl(PyGenObject* gen) {
       gen->gi_frame, deopt_meta, deopt_meta.frame_meta[0], footer);
   gen->gi_frame->f_state = FRAME_SUSPENDED;
   releaseRefs(deopt_meta, footer);
-  JITRT_GenJitDataFree(gen);
+  jitgen_data_free(gen);
 #else
   UPGRADE_NOTE(GENERATOR_JIT_SUPPORT, T194022335)
 #endif
@@ -2608,7 +2608,7 @@ void _PyJIT_GenDealloc(PyGenObject* gen) {
       return 0;
     });
   }
-  JITRT_GenJitDataFree(gen);
+  jitgen_data_free(gen);
 }
 
 PyObject* _PyJIT_GenYieldFromValue(PyGenObject* gen) {

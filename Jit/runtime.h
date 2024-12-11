@@ -249,6 +249,10 @@ inline GenDataFooter* genDataFooter(PyGenObject* gen) {
 #endif
 }
 
+// Memory management functions for JIT generator data.
+jit::GenDataFooter* jitgen_data_allocate(size_t spill_words);
+void jitgen_data_free(PyGenObject* gen);
+
 inline PyObject* yieldFromValue(
     GenDataFooter* gen_footer,
     const GenYieldPoint* yield_point) {

@@ -219,10 +219,10 @@ PyObject* resumeInInterpreter(
     std::size_t deopt_idx) {
   if (frame->f_gen) {
     auto gen = reinterpret_cast<PyGenObject*>(frame->f_gen);
-    // It's safe to call JITRT_GenJitDataFree directly here, rather than
+    // It's safe to call jitgen_data_free directly here, rather than
     // through _PyJIT_GenDealloc. Ownership of all references have been
     // transferred to the frame.
-    JITRT_GenJitDataFree(gen);
+    jitgen_data_free(gen);
   }
   PyThreadState* tstate = PyThreadState_Get();
   PyObject* result = nullptr;

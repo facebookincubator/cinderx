@@ -1300,56 +1300,6 @@ void JITRT_DoRaise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
   Cix_do_raise(tstate, exc, cause);
 }
 
-// JIT generator data free-list globals
-const size_t kGenDataFreeListMaxSize = 1024;
-static size_t gen_data_free_list_size = 0;
-static void* gen_data_free_list_tail;
-
-static void* gen_data_allocate(size_t spill_words) {
-  if (spill_words > jit::kMinGenSpillWords || !gen_data_free_list_size) {
-    auto data =
-        malloc(spill_words * sizeof(uint64_t) + sizeof(jit::GenDataFooter));
-    auto footer = reinterpret_cast<jit::GenDataFooter*>(
-        reinterpret_cast<uint64_t*>(data) + spill_words);
-    footer->spillWords = spill_words;
-    return data;
-  }
-
-  // All free list entries are spill-word size 89, so we don't need to set
-  // footer->spillWords again, it should still be set to 89 from previous use.
-  JIT_DCHECK(spill_words == jit::kMinGenSpillWords, "invalid size");
-
-  gen_data_free_list_size--;
-  auto res = gen_data_free_list_tail;
-  gen_data_free_list_tail = *reinterpret_cast<void**>(gen_data_free_list_tail);
-  return res;
-}
-
-void JITRT_GenJitDataFree(PyGenObject* gen) {
-#if PY_VERSION_HEX < 0x030C0000
-  auto gen_data_footer =
-      reinterpret_cast<jit::GenDataFooter*>(gen->gi_jit_data);
-  gen->gi_jit_data = nullptr;
-#else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
-  jit::GenDataFooter* gen_data_footer = nullptr;
-#endif
-  auto gen_data = reinterpret_cast<uint64_t*>(gen_data_footer) -
-      gen_data_footer->spillWords;
-
-  if (gen_data_footer->spillWords != jit::kMinGenSpillWords ||
-      gen_data_free_list_size == kGenDataFreeListMaxSize) {
-    free(gen_data);
-    return;
-  }
-
-  if (gen_data_free_list_size) {
-    *reinterpret_cast<void**>(gen_data) = gen_data_free_list_tail;
-  }
-  gen_data_free_list_size++;
-  gen_data_free_list_tail = gen_data;
-}
-
 enum class MakeGenObjectMode {
   kAsyncGenerator,
   kCoroutine,
@@ -1405,9 +1355,7 @@ static inline PyObject* make_gen_object(
 
   spill_words = std::max(spill_words, jit::kMinGenSpillWords);
 
-  auto suspend_data = gen_data_allocate(spill_words);
-  auto footer = reinterpret_cast<jit::GenDataFooter*>(
-      reinterpret_cast<uint64_t*>(suspend_data) + spill_words);
+  jit::GenDataFooter* footer = jit::jitgen_data_allocate(spill_words);
   footer->resumeEntry = resume_entry;
   footer->yieldPoint = nullptr;
   footer->state = Ci_JITGenState_JustStarted;

@@ -302,4 +302,57 @@ void Runtime::notifyTypeModified(
   }
 }
 
+// JIT generator data free-list globals
+#if PY_VERSION_HEX < 0x030C0000
+const size_t kGenDataFreeListMaxSize = 1024;
+#endif
+static size_t gen_data_free_list_size = 0;
+static void* gen_data_free_list_tail;
+
+jit::GenDataFooter* jitgen_data_allocate(size_t spill_words) {
+  spill_words = std::max(spill_words, jit::kMinGenSpillWords);
+  if (spill_words > jit::kMinGenSpillWords || !gen_data_free_list_size) {
+    auto data =
+        malloc(spill_words * sizeof(uint64_t) + sizeof(jit::GenDataFooter));
+    auto footer = reinterpret_cast<jit::GenDataFooter*>(
+        reinterpret_cast<uint64_t*>(data) + spill_words);
+    footer->spillWords = spill_words;
+    return footer;
+  }
+
+  // All free list entries are spill-word size 89, so we don't need to set
+  // footer->spillWords again, it should still be set to 89 from previous use.
+  JIT_DCHECK(spill_words == jit::kMinGenSpillWords, "invalid size");
+
+  gen_data_free_list_size--;
+  void* data = gen_data_free_list_tail;
+  gen_data_free_list_tail = *reinterpret_cast<void**>(gen_data_free_list_tail);
+  return reinterpret_cast<jit::GenDataFooter*>(
+      reinterpret_cast<uint64_t*>(data) + spill_words);
+}
+
+void jitgen_data_free(PyGenObject* gen) {
+#if PY_VERSION_HEX < 0x030C0000
+  auto gen_data_footer =
+      reinterpret_cast<jit::GenDataFooter*>(gen->gi_jit_data);
+  gen->gi_jit_data = nullptr;
+  auto gen_data = reinterpret_cast<uint64_t*>(gen_data_footer) -
+      gen_data_footer->spillWords;
+
+  if (gen_data_footer->spillWords != jit::kMinGenSpillWords ||
+      gen_data_free_list_size == kGenDataFreeListMaxSize) {
+    free(gen_data);
+    return;
+  }
+
+  if (gen_data_free_list_size) {
+    *reinterpret_cast<void**>(gen_data) = gen_data_free_list_tail;
+  }
+  gen_data_free_list_size++;
+  gen_data_free_list_tail = gen_data;
+#else
+  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
+#endif
+}
+
 } // namespace jit

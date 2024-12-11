@@ -340,11 +340,6 @@ PyObject* JITRT_ImportName(
 void JITRT_DoRaise(PyThreadState* tstate, PyObject* exc, PyObject* cause);
 
 /*
- * Frees JIT-specific suspend data allocated in JITRT_MakeGenObject().
- */
-void JITRT_GenJitDataFree(PyGenObject* gen);
-
-/*
  * Formats a f-string value
  */
 PyObject* JITRT_FormatValue(
