@@ -595,7 +595,7 @@ class CodeGenerator(ASTVisitor):
         self.setups.append(Entry(kind, start, end, None))
 
     def pop_loop(self):
-        self.setups.pop()
+        self.pop_setup()
 
     def visitAsyncFor(self, node):
         start = self.newBlock("async_for_try")
@@ -617,7 +617,7 @@ class CodeGenerator(ASTVisitor):
         self.visitStatements(node.body)
         self.set_no_pos()
         self.emitJump(start)
-        self.setups.pop()
+        self.pop_setup(FOR_LOOP)
 
         self.nextBlock(except_)
         self.set_pos(node.iter)
@@ -895,7 +895,7 @@ class CodeGenerator(ASTVisitor):
             self.visitStatements(node.body)
 
         self.set_with_position_for_exit(node, kind)
-        self.setups.pop()
+        self.pop_setup(kind)
         self.emit("POP_BLOCK")
 
         self.set_pos(node)
@@ -2080,6 +2080,12 @@ class CodeGenerator(ASTVisitor):
             if pc.fail_pop:
                 self.emit("POP_TOP")
 
+    def pop_setup(self, kind: int | None = None) -> None:
+        assert (
+            kind is None or self.setups[-1].kind == kind
+        ), f"{self.setups[-1].kind} vs {kind} expected"
+        return self.setups.pop()
+
     def unwind_setup_entry(self, e: Entry, preserve_tos: int) -> None:
         raise NotImplementedError()
 
@@ -2093,7 +2099,7 @@ class CodeGenerator(ASTVisitor):
         if stop_on_loop and top.kind in (WHILE_LOOP, FOR_LOOP):
             return top
 
-        copy = self.setups.pop()
+        copy = self.pop_setup()
         self.unwind_setup_entry(copy, preserve_tos)
         loop = self.unwind_setup_entries(preserve_tos, stop_on_loop)
         self.setups.append(copy)
@@ -2902,7 +2908,7 @@ class CodeGenerator310(CodeGenerator):
 
         self.setups.append(Entry(TRY_EXCEPT, body, None, None))
         self.visitStatements(node.body)
-        self.setups.pop()
+        self.pop_setup(TRY_EXCEPT)
         self.set_no_pos()
         self.emit("POP_BLOCK")
         self.emit("JUMP_FORWARD", orElse)
@@ -2940,7 +2946,7 @@ class CodeGenerator310(CodeGenerator):
                     Entry(HANDLER_CLEANUP, cleanup_body, cleanup_end, target)
                 )
                 self.visit(body)
-                self.setups.pop()
+                self.pop_setup(HANDLER_CLEANUP)
                 self.set_no_pos()
                 self.emit("POP_BLOCK")
                 self.emit("POP_EXCEPT")
@@ -2965,13 +2971,13 @@ class CodeGenerator310(CodeGenerator):
                 self.nextBlock(cleanup_body)
                 self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, None))
                 self.visit(body)
-                self.setups.pop()
+                self.pop_setup(HANDLER_CLEANUP)
                 self.set_no_pos()
                 self.emit("POP_EXCEPT")
                 self.emit("JUMP_FORWARD", end)
             self.nextBlock(except_)
 
-        self.setups.pop()
+        self.pop_setup(EXCEPTION_HANDLER)
         self.set_no_pos()
         self.emit("RERAISE", 0)
         self.nextBlock(orElse)
@@ -3008,7 +3014,7 @@ class CodeGenerator310(CodeGenerator):
         else:
             self.visitStatements(node.body)
         self.emit_noline("POP_BLOCK")
-        self.setups.pop()
+        self.pop_setup(FINALLY_TRY)
         final_body()
         self.emit_noline("JUMP_FORWARD", exit_)
 
@@ -3016,7 +3022,7 @@ class CodeGenerator310(CodeGenerator):
         self.nextBlock(end)
         self.setups.append(Entry(FINALLY_END, end, None, None))
         final_body()
-        self.setups.pop()
+        self.pop_setup(FINALLY_END)
         self.emit("RERAISE", 0)
 
         self.nextBlock(exit_)
@@ -3176,7 +3182,7 @@ class CodeGenerator310(CodeGenerator):
             assert callable(e.unwinding_datum)
             e.unwinding_datum()
             if preserve_tos:
-                self.setups.pop()
+                self.pop_setup(POP_VALUE)
             self.set_no_pos()
 
         elif e.kind == FINALLY_END:
@@ -4019,7 +4025,7 @@ class CodeGenerator312(CodeGenerator):
 
         if add_stopiteration_handler:
             gen.wrap_in_stopiteration_handler()
-            gen.setups.pop()
+            gen.pop_setup(STOP_ITERATION)
         else:
             gen.finish_function()
 
@@ -4520,7 +4526,7 @@ class CodeGenerator312(CodeGenerator):
             self.visitStatements(node.body)
 
         self.emit_noline("POP_BLOCK")
-        self.setups.pop()
+        self.pop_setup(FINALLY_TRY)
         final_body()
         self.emit_noline("JUMP", exit_)
 
@@ -4531,7 +4537,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("PUSH_EXC_INFO")
         self.setups.append(Entry(FINALLY_END, end, None, None))
         final_body()
-        self.setups.pop()
+        self.pop_setup(FINALLY_END)
         self.emit_noline("RERAISE", 0)
 
         self.nextBlock(cleanup)
@@ -4550,7 +4556,7 @@ class CodeGenerator312(CodeGenerator):
         self.nextBlock(body)
         self.setups.append(Entry(TRY_EXCEPT, body, None, None))
         self.visitStatements(node.body)
-        self.setups.pop()
+        self.pop_setup(TRY_EXCEPT)
         self.emit_noline("POP_BLOCK")
         self.visitStatements(node.orelse)
         self.set_no_pos()
@@ -4588,7 +4594,7 @@ class CodeGenerator312(CodeGenerator):
                 self.nextBlock(cleanup_body)
                 self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, target))
                 self.visitStatements(handler.body)
-                self.setups.pop()
+                self.pop_setup(HANDLER_CLEANUP)
                 self.set_no_pos()
                 self.emit("POP_BLOCK")
                 self.emit("POP_BLOCK")
@@ -4612,7 +4618,7 @@ class CodeGenerator312(CodeGenerator):
                 self.nextBlock(cleanup_body)
                 self.setups.append(Entry(HANDLER_CLEANUP, cleanup_body, None, None))
                 self.visitStatements(handler.body)
-                self.setups.pop()
+                self.pop_setup(HANDLER_CLEANUP)
                 self.set_no_pos()
                 self.emit("POP_BLOCK")
                 self.emit("POP_EXCEPT")
@@ -4620,7 +4626,7 @@ class CodeGenerator312(CodeGenerator):
 
             self.nextBlock(except_)
 
-        self.setups.pop()
+        self.pop_setup(EXCEPTION_HANDLER)
         self.set_no_pos()
         self.emit("RERAISE", 0)
         self.nextBlock(cleanup)
@@ -4641,7 +4647,7 @@ class CodeGenerator312(CodeGenerator):
         self.nextBlock(body)
         self.setups.append(Entry(TRY_EXCEPT, body, None, None))
         self.visitStatements(node.body)
-        self.setups.pop()
+        self.pop_setup(TRY_EXCEPT)
         self.set_no_pos()
         self.emit("POP_BLOCK")
         self.emit("JUMP", orelse)
@@ -4691,7 +4697,7 @@ class CodeGenerator312(CodeGenerator):
 
             # second body
             self.visitStatements(handler.body)
-            self.setups.pop()
+            self.pop_setup(HANDLER_CLEANUP)
             self.set_no_pos()
             self.emit("POP_BLOCK")
             if handler.name:
@@ -4730,7 +4736,7 @@ class CodeGenerator312(CodeGenerator):
 
         # end handler loop
 
-        self.setups.pop()
+        self.pop_setup(EXCEPTION_GROUP_HANDLER)
         reraise = self.newBlock("try*_reraise")
 
         self.nextBlock(reraise_star)
@@ -4790,7 +4796,7 @@ class CodeGenerator312(CodeGenerator):
             assert callable(e.unwinding_datum)
             e.unwinding_datum()
             if preserve_tos:
-                self.setups.pop()
+                self.pop_setup(POP_VALUE)
             self.set_no_pos()
 
         elif e.kind == FINALLY_END:
@@ -4871,6 +4877,7 @@ class CodeGenerator312(CodeGenerator):
             node, 0, 0, elt, val, type(node), scope.inlined
         )
         if inlined_state is not None:
+            self.pop_setup(STOP_ITERATION)
             self.pop_inlined_comprehension_state(scope, inlined_state)
             return
 
@@ -4878,7 +4885,7 @@ class CodeGenerator312(CodeGenerator):
             gen.emit("RETURN_VALUE")
 
         gen.wrap_in_stopiteration_handler()
-        gen.setups.pop()
+        gen.pop_setup(STOP_ITERATION)
 
         self.finish_comprehension(gen, node)
 
