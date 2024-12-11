@@ -312,9 +312,6 @@ class CodeGenerator(ASTVisitor):
     def get_module(self):
         raise RuntimeError("should be implemented by subclasses")
 
-    def raise_syntax_error(self, node: ast.AST, msg: str) -> NoReturn:
-        raise SyntaxError(msg, self.syntax_error_position(node))
-
     # Next five methods handle name access
 
     def storeName(self, name):
@@ -628,7 +625,7 @@ class CodeGenerator(ASTVisitor):
         self.emit("NOP")  # for line number
         loop = self.unwind_setup_entries(preserve_tos=False, stop_on_loop=True)
         if loop is None:
-            self.raise_syntax_error(node, "'break' outside loop")
+            raise self.syntax_error("'break' outside loop", node)
         self.unwind_setup_entry(loop, preserve_tos=False)
         self.emitJump(loop.exit)
         self.nextBlock()
@@ -637,15 +634,9 @@ class CodeGenerator(ASTVisitor):
         self.emit("NOP")  # for line number
         loop = self.unwind_setup_entries(preserve_tos=False, stop_on_loop=True)
         if loop is None:
-            self.raise_syntax_error(node, "'continue' not properly in loop")
+            raise self.syntax_error("'continue' not properly in loop", node)
         self.emitJump(loop.block)
         self.nextBlock()
-
-    def syntax_error_position(self, node):
-        import linecache
-
-        source_line = linecache.getline(self.graph.filename, node.lineno)
-        return self.graph.filename, node.lineno, node.col_offset, source_line or None
 
     def syntax_error(self, msg, node):
         import linecache
@@ -932,7 +923,7 @@ class CodeGenerator(ASTVisitor):
 
     def visitAsyncWith(self, node, pos=0):
         if not self.scope.coroutine:
-            self.raise_syntax_error(node, "'async with' outside async function")
+            raise self.syntax_error("'async with' outside async function", node)
         self.visitWith_(node, ASYNC_WITH, 0)
 
     # misc
@@ -1340,9 +1331,9 @@ class CodeGenerator(ASTVisitor):
 
     def checkReturn(self, node):
         if not isinstance(self.tree, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            self.raise_syntax_error(node, "'return' outside function")
+            raise self.syntax_error("'return' outside function", node)
         elif self.scope.coroutine and self.scope.generator and node.value:
-            self.raise_syntax_error(node, "'return' with value in async generator")
+            raise self.syntax_error("'return' with value in async generator", node)
 
     def visitReturn(self, node):
         self.checkReturn(node)
@@ -1370,7 +1361,7 @@ class CodeGenerator(ASTVisitor):
             self.tree,
             (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.GeneratorExp),
         ):
-            self.raise_syntax_error(node, "'yield' outside function")
+            raise self.syntax_error("'yield' outside function", node)
         if node.value:
             self.visit(node.value)
         else:
@@ -1382,9 +1373,9 @@ class CodeGenerator(ASTVisitor):
             self.tree,
             (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.GeneratorExp),
         ):
-            self.raise_syntax_error(node, "'yield' outside function")
+            raise self.syntax_error("'yield' outside function", node)
         elif self.scope.coroutine:
-            self.raise_syntax_error(node, "'yield from' inside async function")
+            raise self.syntax_error("'yield from' inside async function", node)
 
         self.visit(node.value)
         self.emit("GET_YIELD_FROM_ITER")
@@ -1428,12 +1419,12 @@ class CodeGenerator(ASTVisitor):
         for elt in node.elts:
             if isinstance(elt, ast.Starred):
                 if starred is not None:
-                    self.raise_syntax_error(
-                        elt, "multiple starred expressions in assignment"
+                    raise self.syntax_error(
+                        "multiple starred expressions in assignment", elt
                     )
                 elif before >= 256 or len(node.elts) - before - 1 >= (1 << 31) >> 8:
-                    self.raise_syntax_error(
-                        elt, "too many expressions in star-unpacking assignment"
+                    raise self.syntax_error(
+                        "too many expressions in star-unpacking assignment", elt
                     )
                 starred = elt.value
             elif starred:
@@ -1469,11 +1460,11 @@ class CodeGenerator(ASTVisitor):
 
     def visitStarred(self, node):
         if isinstance(node.ctx, ast.Store):
-            self.raise_syntax_error(
-                node, "starred assignment target must be in a list or tuple"
+            raise self.syntax_error(
+                "starred assignment target must be in a list or tuple", node
             )
         else:
-            self.raise_syntax_error(node, "can't use starred expression here")
+            raise self.syntax_error("can't use starred expression here", node)
 
     def visitTuple(self, node):
         self._visitSequence(
@@ -2918,7 +2909,7 @@ class CodeGenerator310(CodeGenerator):
                 self.emit("JUMP_IF_NOT_EXC_MATCH", except_)
                 self.nextBlock()
             elif i < last:
-                self.raise_syntax_error(handler, "default 'except:' must be last")
+                raise self.syntax_error("default 'except:' must be last", handler)
             else:
                 self.set_pos(handler)
             self.emit("POP_TOP")
@@ -4550,7 +4541,7 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("POP_JUMP_IF_FALSE", except_)
                 self.nextBlock()
             elif i < last:
-                self.raise_syntax_error(handler, "default 'except:' must be last")
+                raise self.syntax_error("default 'except:' must be last", handler)
 
             if target:
                 cleanup_end = self.newBlock(f"try_cleanup_end_{i}")
