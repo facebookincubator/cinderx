@@ -1323,13 +1323,7 @@ class CodeGenerator(ASTVisitor):
         return (self.mangle(attr), len(super_call.args) == 0)
 
     def _can_optimize_call(self, node: ast.Call) -> bool:
-        return (
-            isinstance(node.func, ast.Attribute)
-            and isinstance(node.func.ctx, ast.Load)
-            and not node.keywords
-            and not any(isinstance(arg, ast.Starred) for arg in node.args)
-            and len(node.args) < STACK_USE_GUIDELINE
-        )
+        raise NotImplementedError()
 
     def visitCall(self, node: ast.Call) -> None:
         raise NotImplementedError()
@@ -2866,6 +2860,15 @@ class CodeGenerator310(CodeGenerator):
             return
         self.emit("CALL_FUNCTION", argcnt + len(args))
 
+    def _can_optimize_call(self, node: ast.Call) -> bool:
+        return (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.ctx, ast.Load)
+            and not node.keywords
+            and not any(isinstance(arg, ast.Starred) for arg in node.args)
+            and len(node.args) < STACK_USE_GUIDELINE
+        )
+
     def visitCall(self, node: ast.Call) -> None:
         if not self._can_optimize_call(node):
             self.visit(node.func)
@@ -3463,7 +3466,13 @@ class CodeGenerator312(CodeGenerator):
         return scope.is_import(e.id)
 
     def _can_optimize_call(self, node: ast.Call) -> bool:
-        if not super()._can_optimize_call(node):
+        if not (
+            isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.ctx, ast.Load)
+            and not any(isinstance(arg, ast.Starred) for arg in node.args)
+            and not any(arg.arg is None for arg in node.keywords)
+            and len(node.args) + len(node.keywords) < STACK_USE_GUIDELINE
+        ):
             return False
 
         assert isinstance(node.func, ast.Attribute)
@@ -3495,8 +3504,14 @@ class CodeGenerator312(CodeGenerator):
         for arg in node.args:
             self.visit(arg)
 
+        if node.keywords:
+            for arg in node.keywords:
+                self.visit(arg)
+            self.set_pos(node.func)
+            self.emit("KW_NAMES", tuple(arg.arg for arg in node.keywords))
+
         loc = self.compute_start_location_to_match_attr(node, node.func)
-        self.graph.emit_with_loc("CALL", len(node.args), loc)
+        self.graph.emit_with_loc("CALL", len(node.args) + len(node.keywords), loc)
 
     def visitJoinedStr(self, node: ast.JoinedStr) -> None:
         if len(node.values) > STACK_USE_GUIDELINE:
