@@ -692,6 +692,9 @@ def user_selected_main(args):
 
     fix_env_always_changed_issue()
 
+    if args.verbose:
+        sys.argv.append("-v")
+
     # Get our own copy of parsed args so we can decide whether to monkey-patch.
     ns = libregrtest_parse_args(sys.argv[1:])
     if not ns.verbose and not ns.huntrleaks:
@@ -891,6 +894,12 @@ def main():
         action="append",
         required=True,
         help="The name of a test to run (e.g. `test_math`). Can be supplied multiple times.",
+    )
+    user_selected_parser.add_argument(
+        "-v",
+        "--verbose",
+        action="store_true",
+        help="List tests as they run etc.",
     )
     user_selected_parser.add_argument("rest", nargs=argparse.REMAINDER)
     user_selected_parser.set_defaults(func=user_selected_main)
