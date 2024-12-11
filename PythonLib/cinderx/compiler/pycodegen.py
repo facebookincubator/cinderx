@@ -4827,7 +4827,7 @@ class CodeGenerator312(CodeGenerator):
             if datum is not None:
                 self.emit("POP_BLOCK")
             if preserve_tos:
-                self.emit_rotate_stack(4)
+                self.emit("SWAP", 2)
             self.emit("POP_EXCEPT")
             if datum is not None:
                 self.emit("LOAD_CONST", None)
