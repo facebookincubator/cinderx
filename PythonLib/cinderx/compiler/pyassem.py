@@ -1617,6 +1617,8 @@ class PyFlowGraph312(PyFlowGraph):
         """Optimize a well-formed CFG."""
         except_handlers = self.compute_except_handlers()
 
+        self.label_exception_targets()
+
         assert self.stage == CLOSED, self.stage
 
         self.eliminate_empty_basic_blocks()
@@ -1904,7 +1906,6 @@ class PyFlowGraph312(PyFlowGraph):
         # TODO(T206903352): We need to pass the return value to make_code at
         # some point.
         self.prepare_localsplus()
-        self.label_exception_targets()
         self.compute_stack_depth()
         self.convert_pseudo_ops()
 
