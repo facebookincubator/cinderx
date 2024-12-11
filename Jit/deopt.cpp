@@ -203,22 +203,20 @@ Ref<> profileDeopt(
 // exceptions mean the opcode has succeeded but there has been an exceptional
 // condition so we want to resume the *next* opcode in the interpreter.
 //
-// The second thing it handles is YIELD_FROM. By default we will be deopting
-// here because an exception was injected into the generator. However, we can
-// also "force deopt" suspended generators as part of CinderX shutdown. In this
-// case the interpreter in future would need to resume at the YIELD_FROM
-// instead of ahead of it.
+// The second thing it handles is forced deopt. If we're forcing a deopt due to
+// no actual guard failure or exception, then we want to resume at the
+// instruction we're currently stopped on.
 static BCIndex getDeoptResumeIndex(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame,
-    bool for_gen_resume) {
+    bool forced_deopt) {
   // We only need to consider guards as the deopt cause in the inner-most
   // inlined location. If we are reifying the conceptual frames for an inlined
   // function's callers then these will be resumed by the interpreter in
-  // future and will never a JIT guard failure.
+  // future and will never be a JIT guard failure.
   bool is_innermost = &frame == &meta.innermostFrame();
   if ((is_innermost && meta.reason == DeoptReason::kGuardFailure) ||
-      (meta.reason == DeoptReason::kYieldFrom && for_gen_resume)) {
+      forced_deopt) {
     return frame.cause_instr_idx;
   }
   return frame.nextInstrIdx();
@@ -242,22 +240,28 @@ static void reifyBlockStack(
 static void reifyFrameImpl(
     PyFrameObject* frame,
     const DeoptMetadata& meta,
-    bool for_gen_resume,
     const DeoptFrameMetadata& frame_meta,
+    bool forced_deopt,
     const uint64_t* regs) {
   frame->f_locals = nullptr;
   frame->f_trace = nullptr;
   frame->f_trace_opcodes = 0;
   frame->f_trace_lines = 1;
-  if (meta.reason == DeoptReason::kGuardFailure || for_gen_resume) {
-    frame->f_state = FRAME_EXECUTING;
-  } else {
-    frame->f_state = FRAME_UNWINDING;
+
+  // If we're forcing a deopt leave the frame state as-is.
+  if (!forced_deopt) {
+    frame->f_state = meta.reason == DeoptReason::kGuardFailure
+        ? FRAME_EXECUTING
+        : FRAME_UNWINDING;
   }
 
   // Instruction pointer.
   frame->f_lasti =
-      getDeoptResumeIndex(meta, frame_meta, for_gen_resume).value() - 1;
+      getDeoptResumeIndex(meta, frame_meta, forced_deopt).value() - 1;
+
+  // Saturate at -1 as some things specifically check for this to see if a
+  // frame is just created but not run yet.
+  frame->f_lasti = std::max(frame->f_lasti, -1);
 
   MemoryView mem{regs};
   reifyLocalsplus(frame, meta, frame_meta, mem);
@@ -271,14 +275,14 @@ static void reifyFrameImpl(
 static void reifyFrameImpl(
     _PyInterpreterFrame* frame,
     const DeoptMetadata& meta,
-    bool for_gen_resume,
     const DeoptFrameMetadata& frame_meta,
+    bool forced_deopt,
     const uint64_t* regs) {
   // Note frame->prev_instr doesn't point to the previous instruction, it
   // actually points to the memory location sizeof(Py_CODEUNIT) bytes before
   // the next instruction to execute. This means it might point to inline-
   // cache data or a negative location.
-  int idx = (getDeoptResumeIndex(meta, frame_meta, for_gen_resume) - 1).value();
+  int idx = (getDeoptResumeIndex(meta, frame_meta, forced_deopt) - 1).value();
   frame->prev_instr = _PyCode_CODE(frame->f_code) + idx;
 
   MemoryView mem{regs};
@@ -293,7 +297,7 @@ void reifyFrame(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs) {
-  reifyFrameImpl(frame, meta, false, frame_meta, regs);
+  reifyFrameImpl(frame, meta, frame_meta, false /* forced_deopt */, regs);
 }
 
 void reifyGeneratorFrame(
@@ -303,7 +307,7 @@ void reifyGeneratorFrame(
     const void* base) {
   uint64_t regs[codegen::NUM_GP_REGS]{};
   regs[codegen::RBP.loc] = reinterpret_cast<uint64_t>(base);
-  reifyFrameImpl(frame, meta, true, frame_meta, regs);
+  reifyFrameImpl(frame, meta, frame_meta, true /* force_deopt */, regs);
 }
 
 void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem) {

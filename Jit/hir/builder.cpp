@@ -3782,6 +3782,13 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
     in = out;
     out = temps_.AllocateStack();
   }
+  // A YIELD_VALUE itself can't fail, however we may want to throw into
+  // the generator which means we'd deopt. For this reason we update the
+  // bytecode to point at the following instruction as this is where the
+  // interpreter should pick-up execution.
+  BCOffset next_bc_offs{
+      BytecodeInstruction{code_, tc.frame.cur_instr_offs}.nextInstrOffset()};
+  tc.frame.cur_instr_offs = next_bc_offs;
   tc.emit<YieldValue>(out, in, tc.frame);
   stack.push(out);
 }
