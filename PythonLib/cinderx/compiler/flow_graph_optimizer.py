@@ -697,4 +697,6 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         "PUSH_NULL": opt_push_null,
         "BUILD_TUPLE": opt_build_tuple,
         "SWAP": opt_swap,
+        "POP_JUMP_IF_NONE": FlowGraphOptimizer.opt_pop_jump_if,
+        "POP_JUMP_IF_NOT_NONE": FlowGraphOptimizer.opt_pop_jump_if,
     }
