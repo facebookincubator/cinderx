@@ -309,6 +309,9 @@ class CodeGenerator(ASTVisitor):
         else:
             return name
 
+    def check_name(self, name: str) -> int:
+        return self.scope.check_name(name)
+
     def get_module(self):
         raise RuntimeError("should be implemented by subclasses")
 
@@ -1290,6 +1293,12 @@ class CodeGenerator(ASTVisitor):
 
     # Used in subclasses to specialise `super` calls.
 
+    def is_super_shadowed(self) -> bool:
+        if self.check_name("super") != SC_GLOBAL_IMPLICIT:
+            return False
+        module_scope = self.module_gen.check_name("super")
+        return module_scope != SC_GLOBAL_IMPLICIT and module_scope != SC_LOCAL
+
     def _is_super_call(self, node):
         if (
             not isinstance(node, ast.Call)
@@ -1301,18 +1310,15 @@ class CodeGenerator(ASTVisitor):
 
         # check that 'super' only appear as implicit global:
         # it is not defined in local or modules scope
-        if self.scope.check_name("super") != SC_GLOBAL_IMPLICIT or (
-            self.module_gen.scope.check_name("super") != SC_GLOBAL_IMPLICIT
-            and self.module_gen.scope.check_name("super") != SC_LOCAL
-        ):
+        if self.is_super_shadowed():
             return False
 
         if len(node.args) == 2:
             return True
         if len(node.args) == 0:
-            if len(self.scope.params) == 0:
-                return False
-            return self.scope.check_name("__class__") == SC_FREE
+            return (
+                len(self.scope.params) > 0 and self.check_name("__class__") == SC_FREE
+            )
 
         return False
 
@@ -2408,19 +2414,19 @@ class CodeGenerator310(CodeGenerator):
 
     # Names and attribute access --------------------------------------------------
 
-    def _nameOp(self, prefix, name):
+    def _nameOp(self, prefix: str, name: str) -> None:
         # TODO(T130490253): The JIT suppression should happen in the jit, not the compiler.
         if (
             prefix == "LOAD"
             and name == "super"
             and isinstance(self.scope, symbols.FunctionScope)
         ):
-            scope = self.scope.check_name(name)
+            scope = self.check_name(name)
             if scope in (SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT):
                 self.scope.suppress_jit = True
 
         name = self.mangle(name)
-        scope = self.scope.check_name(name)
+        scope = self.check_name(name)
 
         if scope == SC_LOCAL:
             if not self.optimized:
@@ -3415,10 +3421,18 @@ class CodeGenerator312(CodeGenerator):
             parent, node, symbols, graph, flags, optimization_lvl, future_flags, name
         )
         self.fast_hidden: set[str] = set()
+        # Tracks symbols whose scopes are overridden when inlining comprehensions
+        self.temp_symbols: dict[str, int] | None = None
         self.inlined_comp_depth = 0
         if parent is None:
             self.set_pos(SrcLocation(0, 1, 0, 0))
         self.emit_resume(ResumeOparg.ScopeEntry)
+
+    def check_name(self, name: str) -> int:
+        if self.temp_symbols is not None and (result := self.temp_symbols.get(name)):
+            return result
+
+        return super().check_name(name)
 
     def emit_import_name(self, name: str) -> None:
         if isinstance(self.scope, ModuleScope) and not self.setups:
@@ -4393,20 +4407,19 @@ class CodeGenerator312(CodeGenerator):
         self.emit("LOAD_CONST", gen)
         self.emit("MAKE_FUNCTION", flags)
 
-    def _nameOp(self, prefix, name):
+    def _nameOp(self, prefix: str, name: str) -> None:
         # TODO(T130490253): The JIT suppression should happen in the jit, not the compiler.
         if (
             prefix == "LOAD"
             and name == "super"
             and isinstance(self.scope, symbols.FunctionScope)
         ):
-            scope = self.scope.check_name(name)
+            scope = self.check_name(name)
             if scope in (SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT):
                 self.scope.suppress_jit = True
 
         name = self.mangle(name)
-        scope = self.scope.check_name(name)
-
+        scope = self.check_name(name)
         if scope == SC_LOCAL:
             if not self.optimized and name not in self.fast_hidden:
                 self.emit(prefix + "_NAME", name)
@@ -5062,12 +5075,33 @@ class CodeGenerator312(CodeGenerator):
     ) -> InlinedComprehensionState:
         end = self.newBlock("end")
         cleanup = self.newBlock("cleanup")
-        inlined_state = InlinedComprehensionState(end, cleanup)
+        temp_symbols: dict[str, int] | None = None
+        fast_hidden: set[str] = set()
+        pushed_locals: list[str] = []
         self.inlined_comp_depth += 1
 
         # iterate over names bound in the comprehension and ensure we isolate
         # them from the outer scope as needed
         for name in scope.defs:
+            # If a name has different scope inside than outside the comprehension,
+            # we need to temporarily handle it with the right scope while
+            # compiling the comprehension. If it's free in the comprehension
+            # scope, no special handling; it should be handled the same as the
+            # enclosing scope. (If it's free in outer scope and cell in inner
+            # scope, we can't treat it as both cell and free in the same function,
+            # but treating it as free throughout is fine; it's *_DEREF
+            # either way.)
+            compsc = scope.check_name(name)
+            outsc = self.check_name(name)
+            if (
+                compsc != outsc
+                and compsc != SC_FREE
+                and not (compsc == SC_CELL and outsc == SC_FREE)
+            ):
+                if temp_symbols is None:
+                    temp_symbols = {}
+                temp_symbols[name] = compsc
+
             # locals handling for names bound in comprehension
             if (
                 name in scope.defs
@@ -5075,13 +5109,13 @@ class CodeGenerator312(CodeGenerator):
                 and name not in scope.params
             ) or isinstance(self.scope, symbols.ClassScope):
                 self.fast_hidden.add(name)
-                inlined_state.fast_hidden.add(name)
+                fast_hidden.add(name)
             elif name in scope.params:
                 # ignore .0
                 continue
 
             self.emit("LOAD_FAST_AND_CLEAR", name)
-            if name in self.scope.cells:
+            if name in scope.cells:
                 name_idx = (
                     self.graph.freevars.index(name)
                     if name in self.scope.frees
@@ -5089,18 +5123,23 @@ class CodeGenerator312(CodeGenerator):
                 )
                 self.emit("MAKE_CELL", name_idx)
 
-            inlined_state.pushed_locals.append(name)
+            pushed_locals.append(name)
 
-        if inlined_state.pushed_locals:
-            self.emit("SWAP", len(inlined_state.pushed_locals) + 1)
+        if pushed_locals:
+            self.emit("SWAP", len(pushed_locals) + 1)
             self.emit("SETUP_FINALLY", cleanup)
 
-        return inlined_state
+        prev_temp_symbols = self.temp_symbols
+        self.temp_symbols = temp_symbols
+        return InlinedComprehensionState(
+            pushed_locals, fast_hidden, prev_temp_symbols, end, cleanup
+        )
 
     def pop_inlined_comprehension_state(
         self, scope: Scope, inlined_state: InlinedComprehensionState
     ) -> None:
         self.inlined_comp_depth -= 1
+        self.temp_symbols = inlined_state.prev_temp_symbols
         if inlined_state.pushed_locals:
             self.emit_noline("POP_BLOCK")
             self.emit_noline("JUMP", inlined_state.end)
@@ -5214,9 +5253,17 @@ class CodeGenerator312(CodeGenerator):
 
 
 class InlinedComprehensionState:
-    def __init__(self, end: Block, cleanup: Block) -> None:
-        self.pushed_locals = []
-        self.fast_hidden: set[str] = set()
+    def __init__(
+        self,
+        pushed_locals: list[str],
+        fast_hidden: set[str],
+        prev_temp_symbols: dict[str, int] | None,
+        end: Block,
+        cleanup: Block,
+    ) -> None:
+        self.pushed_locals = pushed_locals
+        self.fast_hidden = fast_hidden
+        self.prev_temp_symbols = prev_temp_symbols
         self.end = end
         self.cleanup = cleanup
 
