@@ -2012,6 +2012,7 @@ class PyFlowGraph312(PyFlowGraph):
         "LOAD_GLOBAL": _convert_LOAD_GLOBAL,
         "COMPARE_OP": _convert_COMAPRE_OP,
         "KW_NAMES": PyFlowGraph._convert_LOAD_CONST,
+        "EAGER_IMPORT_NAME": PyFlowGraph._convert_NAME,
     }
 
     _const_opcodes = set(PyFlowGraph._const_opcodes)

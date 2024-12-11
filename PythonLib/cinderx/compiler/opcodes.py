@@ -239,6 +239,7 @@ if sys.version_info >= (3, 12):
         KW_NAMES=0,
         MATCH_KEYS=1,
         MATCH_CLASS=-2,
+        EAGER_IMPORT_NAME=-1,
     )
 
     from opcode import (

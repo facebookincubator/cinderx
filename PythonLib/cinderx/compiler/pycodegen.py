@@ -35,7 +35,7 @@ from .consts import (
 from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
 from .optimizer import AstOptimizer, AstOptimizer312
 from .pyassem import Block, Instruction, NO_LOCATION, PyFlowGraph, SrcLocation
-from .symbols import BaseSymbolVisitor, Scope
+from .symbols import BaseSymbolVisitor, ModuleScope, Scope
 from .unparse import to_expr
 from .visitor import ASTVisitor, walk
 
@@ -968,6 +968,9 @@ class CodeGenerator(ASTVisitor):
     def visitPass(self, node):
         self.emit("NOP")  # for line number
 
+    def emit_import_name(self, name: str) -> None:
+        raise NotImplementedError()
+
     def visitImport(self, node):
         level = 0
         for alias in node.names:
@@ -975,7 +978,7 @@ class CodeGenerator(ASTVisitor):
             asname = alias.asname
             self.emit("LOAD_CONST", level)
             self.emit("LOAD_CONST", None)
-            self.emit("IMPORT_NAME", self.mangle(name))
+            self.emit_import_name(self.mangle(name))
             mod = name.split(".")[0]
             if asname:
                 self.emitImportAs(name, asname)
@@ -987,7 +990,7 @@ class CodeGenerator(ASTVisitor):
         fromlist = tuple(alias.name for alias in node.names)
         self.emit("LOAD_CONST", level)
         self.emit("LOAD_CONST", fromlist)
-        self.emit("IMPORT_NAME", node.module or "")
+        self.emit_import_name(node.module or "")
         for alias in node.names:
             name = alias.name
             asname = alias.asname
@@ -2452,6 +2455,9 @@ class CodeGenerator310(CodeGenerator):
                 self.emit("RAISE_VARARGS", 1)
             self.nextBlock(end)
 
+    def emit_import_name(self, name: str) -> None:
+        self.emit("IMPORT_NAME", name)
+
     def visitAttribute(self, node):
         self.visit(node.value)
         if isinstance(node.ctx, ast.Store):
@@ -3407,6 +3413,12 @@ class CodeGenerator312(CodeGenerator):
         if parent is None:
             self.set_pos(SrcLocation(0, 1, 0, 0))
         self.emit_resume(ResumeOparg.ScopeEntry)
+
+    def emit_import_name(self, name: str) -> None:
+        if isinstance(self.scope, ModuleScope) and not self.setups:
+            self.emit("IMPORT_NAME", name)
+        else:
+            self.emit("EAGER_IMPORT_NAME", name)
 
     @classmethod
     def optimize_tree(cls, optimize: int, tree: AST, string_anns: bool):
