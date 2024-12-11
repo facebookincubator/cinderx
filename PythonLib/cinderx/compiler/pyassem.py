@@ -1097,7 +1097,9 @@ class PyFlowGraph(FlowGraph):
             optimizer.clean_basic_block(block, prev_lineno)
             prev_block = block if block.has_fallthrough else None
 
-    def remove_redundant_jumps(self, optimizer: FlowGraphOptimizer) -> bool:
+    def remove_redundant_jumps(
+        self, optimizer: FlowGraphOptimizer, clean: bool = True
+    ) -> bool:
         # Delete jump instructions made redundant by previous step. If a non-empty
         # block ends with a jump instruction, check if the next non-empty block
         # reached through normal flow control is the target of that jump. If it
@@ -1112,7 +1114,8 @@ class PyFlowGraph(FlowGraph):
             if last.target == block.next:
                 block.has_fallthrough = True
                 last.set_to_nop()
-                optimizer.clean_basic_block(block, -1)
+                if clean:
+                    optimizer.clean_basic_block(block, -1)
                 maybe_empty_blocks = True
         return maybe_empty_blocks
 
@@ -1506,9 +1509,8 @@ class PyFlowGraph312(PyFlowGraph):
             prev = block
 
         self.ordered_blocks = new_ordered + to_end
-
         if to_end:
-            self.remove_redundant_jumps(optimizer)
+            self.remove_redundant_jumps(optimizer, False)
 
     def compute_warm(self) -> set[Block]:
         """Compute the set of 'warm' blocks, which are blocks that are reachable
@@ -1641,16 +1643,12 @@ class PyFlowGraph312(PyFlowGraph):
         self.remove_unreachable_basic_blocks()
         self.eliminate_empty_basic_blocks()
 
-        maybe_empty_blocks = self.remove_redundant_jumps(optimizer)
-
-        if maybe_empty_blocks:
-            self.eliminate_empty_basic_blocks()
+        self.remove_redundant_jumps(optimizer, False)
 
         self.stage = OPTIMIZED
 
         self.remove_unused_consts()
         self.add_checks_for_loads_of_uninitialized_variables()
-
         self.push_cold_blocks_to_end(except_handlers, optimizer)
 
     def build_cell_fixed_offsets(self) -> list[int]:
