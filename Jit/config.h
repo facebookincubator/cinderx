@@ -80,6 +80,10 @@ struct Config {
   bool refine_static_python{true};
   HIROptimizations hir_opts;
   SimplifierConfig simplifier;
+  // Limit on how much the inliner can inline.  The number here is internal to
+  // the inliner, doesn't have any specific meaning, and can change as the
+  // inliner's algorithm changes.
+  size_t inliner_cost_limit{2000};
   size_t batch_compile_workers{0};
   // When a function is being compiled, this is the maximum number of dependent
   // functions called by it that can be compiled along with it.

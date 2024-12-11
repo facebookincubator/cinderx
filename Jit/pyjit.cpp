@@ -573,6 +573,12 @@ void initFlagProcessor() {
         getMutableConfig().simplifier.new_block_limit,
         "Set the maximum number of blocks that can be added by the simplifier "
         "to a function");
+    xarg_flag_processor.addOption(
+        "jit-hir-inliner-cost-limit",
+        "PYTHONJITHIRINLINERCOSTLIMIT",
+        getMutableConfig().inliner_cost_limit,
+        "Limit how much the inliner is able to inline. The number's definition "
+        "is only relevant to the inliner itself.");
 
     xarg_flag_processor
         .addOption(

@@ -789,6 +789,18 @@ static void dlogAndCollectFailureStats(
       tp_name);
 }
 
+// Assigns a cost to every function, to be used when determining whether it
+// makes sense to inline or not.
+static size_t codeCost(BorrowedRef<PyCodeObject> code) {
+  // Manually iterating through the code block to count real opcodes and not
+  // inline caches.  Not the best metric but it's something to start with.
+  size_t num_opcodes = 0;
+  for ([[maybe_unused]] auto& instr : BytecodeInstructionBlock{code}) {
+    num_opcodes++;
+  }
+  return num_opcodes;
+}
+
 // Most of these checks are only temporary and do not in perpetuity prohibit
 // inlining. They are here to simplify bringup of the inliner and can be
 // treated as TODOs.
@@ -875,7 +887,7 @@ static bool canInlineWithPreloader(
   return true;
 }
 
-void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
+static void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   if (!canInline(caller, call_instr)) {
     return;
   }
@@ -994,6 +1006,9 @@ void InlineFunctionCalls::Run(Function& irfunc) {
         irfunc.fullname);
     return;
   }
+
+  // Scan through all function calls in `irfunc` and mark the ones that are
+  // suitable for inlining.
   std::vector<AbstractCall> to_inline;
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {
@@ -1037,15 +1052,37 @@ void InlineFunctionCalls::Run(Function& irfunc) {
       }
     }
   }
+
   if (to_inline.empty()) {
     return;
   }
-  for (auto& instr : to_inline) {
-    inlineFunctionCall(irfunc, &instr);
+
+  size_t cost_limit = getConfig().inliner_cost_limit;
+  size_t cost = codeCost(irfunc.code);
+
+  // Inline as many calls as possible, starting from the top of the function and
+  // working down.
+  for (auto& call : to_inline) {
+    BorrowedRef<PyCodeObject> call_code{call.func->func_code};
+    size_t new_cost = cost + codeCost(call_code);
+    if (new_cost > cost_limit) {
+      LOG_INLINER(
+          "Inliner reached cost limit of {} when trying to inline {} into {}, "
+          "inlining stopping early",
+          new_cost,
+          funcFullname(call.func),
+          irfunc.fullname);
+      break;
+    }
+    cost = new_cost;
+
+    inlineFunctionCall(irfunc, &call);
+
     // We need to reflow types after every inline to propagate new type
     // information from the callee.
     reflowTypes(irfunc);
   }
+
   // The inliner will make some blocks unreachable and we need to remove them
   // to make the CFG valid again. While inlining might make some blocks
   // unreachable and therefore make less work (less to inline), we cannot
