@@ -262,6 +262,42 @@ def manage_worker(
     worker.wait()
 
 
+def _computeSkipTests(huntrleaks, use_rr=False) -> Tuple[Set[str], Set[str]]:
+    skip_list_files = ["devserver_skip_tests.txt", "cinder_skip_test.txt"]
+
+    if support.check_sanitizer(address=True):
+        skip_list_files.append("asan_skip_tests.txt")
+
+    if use_rr:
+        skip_list_files.append("rr_skip_tests.txt")
+
+    try:
+        import cinderjit  # noqa: F401
+
+        skip_list_files.append("cinder_jit_ignore_tests.txt")
+    except ImportError:
+        pass
+
+    if huntrleaks:
+        skip_list_files.append("refleak_skip_tests.txt")
+
+    skip_modules = set()
+    skip_patterns = set()
+
+    for skip_file in skip_list_files:
+        with open(os.path.join(os.path.dirname(__file__), skip_file)) as fp:
+            for line in fp:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if len({".", "*"} & set(line)):
+                    skip_patterns.add(line)
+                else:
+                    skip_modules.add(line)
+
+    return skip_modules, skip_patterns
+
+
 class MultiWorkerCinderRegrtest:
     def __init__(
         self,
@@ -295,10 +331,10 @@ class MultiWorkerCinderRegrtest:
         # False, False => quiet, pgo
         self._logger = libregrtest_logger.Logger(self._results, False, False)
 
-        _skip_modules, skip_patterns = self._computeSkipTests()
+        skip_modules, skip_patterns = _computeSkipTests(self._huntrleaks, self._use_rr)
 
         if tests is None:
-            tests = self._selectTests(_skip_modules)
+            tests = self._selectTests(skip_modules)
 
         self._runtests_config = libregrtest_runtests.RunTests(
             tests=tuple(tests),
@@ -530,41 +566,6 @@ class MultiWorkerCinderRegrtest:
             sys.exit(self._results.get_exitcode(True, True))
         sys.exit(0)
 
-    def _computeSkipTests(self) -> Tuple[Set[str], Set[str]]:
-        skip_list_files = ["devserver_skip_tests.txt", "cinder_skip_test.txt"]
-
-        if support.check_sanitizer(address=True):
-            skip_list_files.append("asan_skip_tests.txt")
-
-        if self._use_rr:
-            skip_list_files.append("rr_skip_tests.txt")
-
-        try:
-            import cinderjit  # noqa: F401
-
-            skip_list_files.append("cinder_jit_ignore_tests.txt")
-        except ImportError:
-            pass
-
-        if self._huntrleaks:
-            skip_list_files.append("refleak_skip_tests.txt")
-
-        skip_modules = set()
-        skip_patterns = set()
-
-        for skip_file in skip_list_files:
-            with open(os.path.join(os.path.dirname(__file__), skip_file)) as fp:
-                for line in fp:
-                    line = line.strip()
-                    if not line or line.startswith("#"):
-                        continue
-                    if len({".", "*"} & set(line)):
-                        skip_patterns.add(line)
-                    else:
-                        skip_modules.add(line)
-
-        return skip_modules, skip_patterns
-
     def _selectTests(self, exclude: Set[str]) -> List[str]:
         # Initial set of tests are the core Python ones.
         tests = libregrtest_findtests.findtests(
@@ -706,6 +707,10 @@ def user_selected_main(args):
             self.dots = True
 
         TextTestResult.__init__ = force_dots_output
+
+    skip_modules, skip_patterns = _computeSkipTests(ns.huntrleaks)
+    sys.argv.extend(sum([["-x", m] for m in skip_modules], []))
+    sys.argv.extend(sum([["-i", p] for p in skip_patterns], []))
 
     libregrtest_main(tests=args.test)
 
