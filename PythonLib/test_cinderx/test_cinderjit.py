@@ -43,7 +43,7 @@ except ImportError:
 
 try:
     import cinderjit
-    from cinderjit import _deopt_gen, is_jit_compiled, jit_suppress
+    from cinderjit import _deopt_gen, is_jit_compiled, force_compile, jit_suppress
 except:
     cinderjit = None
 
@@ -51,6 +51,9 @@ except:
         return func
 
     def _deopt_gen(gen):
+        return False
+
+    def force_compile(func):
         return False
 
     def is_jit_compiled(func):
@@ -5692,6 +5695,33 @@ class HIROpcodeCountTests(unittest.TestCase):
         self.assertEqual(ops.get("Return"), 1)
         self.assertEqual(ops.get("BinaryOp"), 1)
         self.assertGreaterEqual(ops.get("Decref"), 2)
+
+
+@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+class BadArgumentTests(unittest.TestCase):
+    def test_is_compiled(self) -> None:
+        with self.assertRaises(TypeError):
+            is_jit_compiled(None)
+        with self.assertRaises(TypeError):
+            is_jit_compiled(5)
+        with self.assertRaises(TypeError):
+            is_jit_compiled(is_jit_compiled)
+
+    def test_force_compile(self) -> None:
+        with self.assertRaises(TypeError):
+            force_compile(None)
+        with self.assertRaises(TypeError):
+            force_compile(5)
+        with self.assertRaises(TypeError):
+            force_compile(is_jit_compiled)
+
+    def test_jit_suppress(self) -> None:
+        with self.assertRaises(TypeError):
+            jit_suppress(None)
+        with self.assertRaises(TypeError):
+            jit_suppress(5)
+        with self.assertRaises(TypeError):
+            jit_suppress(is_jit_compiled)
 
 
 if __name__ == "__main__":

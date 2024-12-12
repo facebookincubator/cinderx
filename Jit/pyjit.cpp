@@ -1092,13 +1092,25 @@ PyObject* get_batch_compilation_time_ms(PyObject*, PyObject*) {
   return PyLong_FromLong(g_batch_compilation_time.count());
 }
 
-PyObject* force_compile(PyObject* /* self */, PyObject* func_obj) {
-  if (!PyFunction_Check(func_obj)) {
-    PyErr_SetString(PyExc_TypeError, "force_compile expected a function");
+BorrowedRef<PyFunctionObject> get_func_arg(
+    const char* method_name,
+    BorrowedRef<> arg) {
+  if (PyFunction_Check(arg)) {
+    return BorrowedRef<PyFunctionObject>{arg};
+  }
+  PyErr_Format(
+      PyExc_TypeError,
+      "%s expected a Python function, received '%s' object",
+      method_name,
+      Py_TYPE(arg)->tp_name);
+  return nullptr;
+}
+
+PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
+  BorrowedRef<PyFunctionObject> func = get_func_arg("force_compile", arg);
+  if (func == nullptr) {
     return nullptr;
   }
-
-  BorrowedRef<PyFunctionObject> func = func_obj;
 
   if (!isJitUsable() || isJitCompiled(func)) {
     Py_RETURN_FALSE;
@@ -1217,17 +1229,9 @@ PyObject* auto_jit_threshold(PyObject* /* self */, PyObject*) {
   return PyLong_FromLong(getConfig().auto_jit_threshold);
 }
 
-PyObject* is_jit_compiled(PyObject* /* self */, PyObject* func) {
-  if (!PyFunction_Check(func)) {
-    PyErr_SetString(
-        PyExc_RuntimeError, "Must call is_jit_compiled with a function object");
-    return nullptr;
-  }
-
-  if (isJitCompiled(reinterpret_cast<PyFunctionObject*>(func))) {
-    Py_RETURN_TRUE;
-  }
-  Py_RETURN_FALSE;
+PyObject* is_jit_compiled(PyObject* /* self */, PyObject* arg) {
+  BorrowedRef<PyFunctionObject> func = get_func_arg("is_jit_compiled", arg);
+  return func != nullptr ? PyBool_FromLong(isJitCompiled(func)) : nullptr;
 }
 
 PyObject* print_hir(PyObject* /* self */, PyObject* func) {
@@ -1672,18 +1676,17 @@ PyObject* get_and_clear_inline_cache_stats(PyObject* /* self */, PyObject*) {
   return stats.release();
 }
 
-PyObject* jit_suppress(PyObject*, PyObject* func_obj) {
-  if (!PyFunction_Check(func_obj)) {
-    PyErr_SetString(PyExc_TypeError, "Input must be a function");
+PyObject* jit_suppress(PyObject* /* self */, PyObject* arg) {
+  BorrowedRef<PyFunctionObject> func = get_func_arg("jit_suppress", arg);
+  if (func == nullptr) {
     return nullptr;
   }
-  PyFunctionObject* func = reinterpret_cast<PyFunctionObject*>(func_obj);
 
-  reinterpret_cast<PyCodeObject*>(func->func_code)->co_flags |=
-      CI_CO_SUPPRESS_JIT;
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  code->co_flags |= CI_CO_SUPPRESS_JIT;
 
-  Py_INCREF(func_obj);
-  return func_obj;
+  Py_INCREF(arg);
+  return arg;
 }
 
 PyObject* get_allocator_stats(PyObject*, PyObject*) {
