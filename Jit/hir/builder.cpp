@@ -19,6 +19,7 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
+#include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"

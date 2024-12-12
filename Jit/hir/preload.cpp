@@ -11,6 +11,7 @@
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/runtime.h"
+#include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 

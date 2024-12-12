@@ -9,7 +9,7 @@
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/type.h"
-#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/StaticPython/typed-args-info.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <map>
