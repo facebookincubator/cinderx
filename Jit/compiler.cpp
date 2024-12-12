@@ -165,10 +165,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
         Py_TYPE(builtins)->tp_name);
     return nullptr;
   }
-  JIT_DLOG(
-      "Compiling {} @ {}",
-      fullname,
-      reinterpret_cast<void*>(preloader.code().get()));
+  JIT_DLOG("Compiling {}", fullname);
 
   std::unique_ptr<CompilationPhaseTimer> compilation_phase_timer{nullptr};
 
