@@ -44,10 +44,10 @@ if TYPE_CHECKING:
     from typing import Generator, List, Optional, Sequence
 
 try:
-    from cinder import _set_qualname
+    from cinder import _set_qualname as cx_set_qualname
 except ImportError:
 
-    def _set_qualname(code, qualname):
+    def cx_set_qualname(code, qualname):
         pass
 
 
@@ -1334,9 +1334,6 @@ class CodeGenerator(ASTVisitor):
     def _can_optimize_call(self, node: ast.Call) -> bool:
         raise NotImplementedError()
 
-    def visitCall(self, node: ast.Call) -> None:
-        raise NotImplementedError()
-
     def checkReturn(self, node):
         if not isinstance(self.tree, (ast.FunctionDef, ast.AsyncFunctionDef)):
             raise self.syntax_error("'return' outside function", node)
@@ -2313,6 +2310,12 @@ class CodeGenerator(ASTVisitor):
             self.visit(node, *args)
 
     # Methods defined in subclasses ----------------------------------------------
+
+    def visitAttribute(self, node) -> None:
+        raise NotImplementedError()
+
+    def visitCall(self, node: ast.Call) -> None:
+        raise NotImplementedError()
 
     def make_child_codegen(
         self,
@@ -3511,6 +3514,15 @@ class CodeGenerator312(CodeGenerator):
 
         return not self.is_import_originated(node.func.value)
 
+    def emit_super_call(self, node) -> None:
+        self.visit(node.func.value.func)
+        func = node.func
+        self.set_pos(node.func.value)
+        load_arg, is_zero = self._emit_args_for_super(func.value, func.attr)
+        op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
+        loc = self.compute_start_location_to_match_attr(node.func, node.func)
+        self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
+
     def visitCall(self, node: ast.Call) -> None:
         if not self._can_optimize_call(node):
             # We cannot optimize this call
@@ -3520,17 +3532,12 @@ class CodeGenerator312(CodeGenerator):
             return
 
         assert isinstance(node.func, ast.Attribute)
-        loc = self.compute_start_location_to_match_attr(node.func, node.func)
 
         if self._is_super_call(node.func.value):
-            self.visit(node.func.value.func)
-            func = node.func
-            self.set_pos(node.func.value)
-            load_arg, is_zero = self._emit_args_for_super(func.value, func.attr)
-            op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
-            self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
+            self.emit_super_call(node)
         else:
             self.visit(node.func.value)
+            loc = self.compute_start_location_to_match_attr(node.func, node.func)
             self.graph.emit_with_loc("LOAD_ATTR", (self.mangle(node.func.attr), 1), loc)
 
         for arg in node.args:
@@ -4482,15 +4489,18 @@ class CodeGenerator312(CodeGenerator):
 
         return base
 
-    def visitAttribute(self, node: ast.Attribute) -> None:
+    def emit_super_attribute(self, node: ast.Attribute) -> None:
+        assert isinstance(node.value, ast.Call)
+        self.graph.emit_with_loc("LOAD_GLOBAL", "super", node.value.func)
+        self.set_pos(node.value)
+        load_arg, is_zero = self._emit_args_for_super(node.value, node.attr)
+        op = "LOAD_ZERO_SUPER_ATTR" if is_zero else "LOAD_SUPER_ATTR"
         loc = self.compute_start_location_to_match_attr(node, node)
+        self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
+
+    def visitAttribute(self, node):
         if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
-            assert isinstance(node.value, ast.Call)
-            self.graph.emit_with_loc("LOAD_GLOBAL", "super", node.value.func)
-            self.set_pos(node.value)
-            load_arg, is_zero = self._emit_args_for_super(node.value, node.attr)
-            op = "LOAD_ZERO_SUPER_ATTR" if is_zero else "LOAD_SUPER_ATTR"
-            self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
+            self.emit_super_attribute(node)
             return
 
         self.visit(node.value)
@@ -4501,6 +4511,7 @@ class CodeGenerator312(CodeGenerator):
         else:
             op = "LOAD_ATTR"
 
+        loc = self.compute_start_location_to_match_attr(node, node)
         self.graph.emit_with_loc(op, self.mangle(node.attr), loc)
 
     # Exceptions --------------------------------------------------
@@ -5268,18 +5279,54 @@ class InlinedComprehensionState:
         self.cleanup = cleanup
 
 
-class CinderCodeGenerator(CodeGenerator310):
-    """
+class CinderCodeGenBase(CodeGenerator):
+    """Specialize some methods for cinder.
+
     Code generator equivalent to `Python/compile.c` in Cinder.
-
     The base `CodeGenerator` is equivalent to upstream `Python/compile.c`.
+
+    Code in this class should be common to all python versions.
+    Inherit from this class and a concrete code generator, e.g.
+
+    class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
+        ...
+
+    Note that CinderCodeGenBase needs to come first in the list of base
+    classes.
     """
 
+    def set_qual_name(self, qualname: str) -> None:
+        self._qual_name = qualname
+
+    def getCode(self):
+        code = super().getCode()
+        cx_set_qualname(code, self._qual_name)
+        return code
+
+    def visitAttribute(self, node) -> None:
+        if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
+            self.cx_super_attribute(node)
+        else:
+            super().visitAttribute(node)
+
+    def visitCall(self, node: ast.Call) -> None:
+        if self._can_optimize_call(node) and self._is_super_call(node.func.value):
+            self.cx_super_call(node)
+        else:
+            super().visitCall(node)
+
+    # subclasses should implement these
+
+    def cx_super_attribute(self, node) -> None:
+        raise NotImplementedError()
+
+    def cx_super_call(self, node) -> None:
+        raise NotImplementedError()
+
+
+class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
     flow_graph = pyassem.PyFlowGraphCinder
-    if sys.version_info >= (3, 12):
-        _SymbolVisitor = symbols.SymbolVisitor312
-    else:
-        _SymbolVisitor = symbols.CinderSymbolVisitor
+    _SymbolVisitor = symbols.CinderSymbolVisitor
 
     def compile_comprehension(
         self,
@@ -5335,30 +5382,12 @@ class CinderCodeGenerator(CodeGenerator310):
 
         self.finish_comprehension(gen, node)
 
-    def set_qual_name(self, qualname: str) -> None:
-        self._qual_name = qualname
+    def cx_super_attribute(self, node):
+        self.emit("LOAD_GLOBAL", "super")
+        load_arg = self._emit_args_for_super(node.value, node.attr)
+        self.emit("LOAD_ATTR_SUPER", load_arg)
 
-    def getCode(self):
-        code = super().getCode()
-        _set_qualname(code, self._qual_name)
-
-        return code
-
-    def visitAttribute(self, node):
-        if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
-            self.emit("LOAD_GLOBAL", "super")
-            load_arg = self._emit_args_for_super(node.value, node.attr)
-            self.emit("LOAD_ATTR_SUPER", load_arg)
-        else:
-            super().visitAttribute(node)
-
-    def visitCall(self, node: ast.Call) -> None:
-        if not self._can_optimize_call(node) or not self._is_super_call(
-            node.func.value
-        ):
-            # We cannot optimize this call
-            return super().visitCall(node)
-
+    def cx_super_call(self, node):
         with self.temp_lineno(node.func.end_lineno):
             self.emit("LOAD_GLOBAL", "super")
 
@@ -5369,14 +5398,22 @@ class CinderCodeGenerator(CodeGenerator310):
             self.emit("CALL_METHOD", len(node.args))
 
 
+class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
+    flow_graph = pyassem.PyFlowGraphCinder
+
+    def cx_super_attribute(self, node):
+        self.emit_super_attribute(node)
+
+    def cx_super_call(self, node):
+        self.emit_super_call(node)
+
+
 def get_default_generator():
+    cinder = "cinder" in sys.version
     if sys.version_info >= (3, 12):
-        return CodeGenerator312
-
-    if "cinder" in sys.version:
-        return CinderCodeGenerator
-
-    return CodeGenerator310
+        return CinderCodeGenerator312 if cinder else CodeGenerator312
+    else:
+        return CinderCodeGenerator310 if cinder else CodeGenerator310
 
 
 def get_docstring(
@@ -5414,6 +5451,7 @@ class OpFinder:
     visitSubscript = visitAssName
 
 
+CinderCodeGenerator = CinderCodeGenerator310
 PythonCodeGenerator = get_default_generator()
 
 
