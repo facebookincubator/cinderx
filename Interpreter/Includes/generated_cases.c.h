@@ -87,11 +87,7 @@
             assert(value != NULL);
             Py_INCREF(value);
             #line 89 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-            // CINDERX: Inline the STACK_GROW(1) macro to get rid of the
-            // STACK_LEVEL assertion (makes deopt tests pass)
-            {
-                BASIC_STACKADJ(1);
-            }
+            STACK_GROW(1);
             stack_pointer[-1] = value;
             DISPATCH();
         }
@@ -935,8 +931,7 @@
             PyObject *retval = stack_pointer[-1];
             #line 647 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             STACK_SHRINK(1);
-            // CINDERX: Commented out to get deopt tests passing
-            // assert(EMPTY());
+            assert(EMPTY());
             _PyFrame_SetStackPointer(frame, stack_pointer);
             _Py_LeaveRecursiveCallPy(tstate);
             assert(frame != &entry_frame);
