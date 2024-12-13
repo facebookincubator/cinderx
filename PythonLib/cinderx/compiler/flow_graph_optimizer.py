@@ -76,6 +76,9 @@ class FlowGraphOptimizer:
     def optimize_basic_block(self, block: Block) -> None:
         raise NotImplementedError()
 
+    def set_to_nop(self, instr: Instruction) -> None:
+        raise NotImplemented()
+
     def dispatch_instr(
         self,
         instr_index: int,
@@ -215,8 +218,7 @@ class FlowGraphOptimizer:
         block: Block,
     ) -> int | None:
         if instr.ioparg < 2:
-            pass
-            instr.opname = "NOP"
+            self.set_to_nop(instr)
             return
         elif instr.ioparg == 2:
             instr.opname = "ROT_TWO"
@@ -245,7 +247,7 @@ class FlowGraphOptimizer:
             if rot != n:
                 return
         for instr in instrs:
-            instr.opname = "NOP"
+            self.set_to_nop(instr)
 
     def opt_load_const(
         self,
@@ -264,14 +266,14 @@ class FlowGraphOptimizer:
             "POP_JUMP_IF_TRUE",
         ):
             is_true = bool(const)
-            block.insts[instr_index].opname = "NOP"
+            self.set_to_nop(block.insts[instr_index])
             jump_if_true = next_instr.opname == "POP_JUMP_IF_TRUE"
             if is_true == jump_if_true:
                 next_instr.opname = self.JUMP_ABS
                 block.has_fallthrough = False
             else:
-                next_instr.opname = "NOP"
                 next_instr.target = None
+                self.set_to_nop(next_instr)
         elif next_instr.opname in ("JUMP_IF_FALSE_OR_POP", "JUMP_IF_TRUE_OR_POP"):
             is_true = bool(const)
             jump_if_true = next_instr.opname == "JUMP_IF_TRUE_OR_POP"
@@ -279,9 +281,8 @@ class FlowGraphOptimizer:
                 next_instr.opname = self.JUMP_ABS
                 block.has_fallthrough = False
             else:
-                block.insts[instr_index].opname = "NOP"
-                next_instr.opname = "NOP"
-                next_instr.target = None
+                self.set_to_nop(block.insts[instr_index])
+                self.set_to_nop(next_instr)
 
     def fold_tuple_on_constants(
         self, instr_index: int, instr: Instruction, block: Block
@@ -294,7 +295,7 @@ class FlowGraphOptimizer:
             load_const_instrs.append(maybe_load_const)
         newconst = tuple(lc.oparg for lc in load_const_instrs)
         for lc in load_const_instrs:
-            lc.opname = "NOP"
+            self.set_to_nop(lc)
         instr.opname = "LOAD_CONST"
         instr.oparg = newconst
         instr.ioparg = self.graph.convertArg("LOAD_CONST", newconst)
@@ -339,11 +340,11 @@ class FlowGraphOptimizer310(FlowGraphOptimizer):
             and instr.ioparg == next_instr.ioparg
         ):
             if instr.ioparg == 1:
-                instr.opname = "NOP"
-                next_instr.opname = "NOP"
+                self.set_to_nop(instr)
+                self.set_to_nop(next_instr)
             elif instr.ioparg == 2:
                 instr.opname = "ROT_TWO"
-                next_instr.opname = "NOP"
+                self.set_to_nop(next_instr)
             elif instr.ioparg == 3:
                 instr.opname = "ROT_THREE"
                 next_instr.opname = "ROT_TWO"
@@ -357,6 +358,9 @@ class FlowGraphOptimizer310(FlowGraphOptimizer):
         JUMP_ABS: FlowGraphOptimizer.opt_jump,
         "BUILD_TUPLE": opt_build_tuple,
     }
+
+    def set_to_nop(self, instr: Instruction) -> None:
+        instr.opname = "NOP"
 
     def jump_thread(self, instr: Instruction, target: Instruction, opname: str) -> int:
         """Attempt to eliminate jumps to jumps by updating inst to jump to
@@ -404,6 +408,9 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
     """Python 3.12-specifc optimizations."""
 
     JUMP_ABS = "JUMP"
+
+    def set_to_nop(self, instr: Instruction) -> None:
+        instr.set_to_nop()
 
     def optimize_basic_block(self, block: Block) -> None:
         instr_index = 0
@@ -457,10 +464,10 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         block: Block,
     ) -> int | None:
         if next_instr and next_instr.opname == "RETURN_VALUE":
-            block.insts[instr_index].opname = "NOP"
             next_instr.opname = "RETURN_CONST"
             next_instr.oparg = instr.oparg
             next_instr.ioparg = instr.ioparg
+            block.insts[instr_index].set_to_nop()
         elif next_instr is not None and next_instr.opname == "IS_OP":
             jmp_op = (
                 block.insts[instr_index + 2]
@@ -497,7 +504,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             return
 
         if next_instr.opname == "LOAD_GLOBAL" and (next_instr.ioparg & 1) == 0:
-            instr.opname = "NOP"
+            instr.set_to_nop()
             next_instr.oparg = (next_instr.oparg, 1)
             next_instr.ioparg |= 1
 
@@ -515,10 +522,10 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             and instr.ioparg == next_instr.ioparg
         ):
             if instr.ioparg == 1:
-                instr.opname = "NOP"
-                next_instr.opname = "NOP"
+                instr.set_to_nop()
+                next_instr.set_to_nop()
             elif instr.ioparg == 2 or instr.ioparg == 3:
-                instr.opname = "NOP"
+                instr.set_to_nop()
                 next_instr.opname = "SWAP"
             return
         if instr_index >= instr.ioparg:
@@ -533,7 +540,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         block: Block,
     ) -> int | None:
         if instr.oparg == 1:
-            instr.opname = "NOP"
+            instr.set_to_nop()
             return
 
         new_index = self.swaptimize(instr_index, block)
@@ -597,7 +604,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
                     ):
                         return
 
-            swap.opname = "NOP"
+            swap.set_to_nop()
             temp = block.insts[j]
             block.insts[j] = block.insts[k]
             block.insts[k] = temp
@@ -673,7 +680,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
                 j = next_j
 
         while instr_index <= current:
-            instructions[current].opname = "NOP"
+            instructions[current].set_to_nop()
             current -= 1
 
         return cnt - 1
