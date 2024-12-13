@@ -48,12 +48,21 @@ def add_test(modname, fname):
 
     def test_stdlib(self):
         with open(fname, "rb") as inp:
-            encoding, _lines = detect_encoding(inp.readline)
+            try:
+                encoding, _lines = detect_encoding(inp.readline)
+            except SyntaxError:
+                return
             code = b"".join(_lines + inp.readlines()).decode(encoding)
-            node = ast.parse(code, modname, "exec")
+            try:
+                node = ast.parse(code, modname, "exec")
+            except SyntaxError:
+                return
             node.filename = modname
 
-            orig = compile(node, modname, "exec")
+            try:
+                orig = compile(node, modname, "exec")
+            except SyntaxError:
+                return
             origdump = StringIO()
             Disassembler().dump_code(orig, origdump)
 
