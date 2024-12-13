@@ -4178,18 +4178,18 @@ class CodeGenerator312(CodeGenerator):
 
             if num_typeparam_args == 2:
                 self.emit("SWAP", 2)
-
+            gen_param_scope = self.symbols.scopes[type_params[0]]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name}>",
                 self.graph.filename,
-                self.symbols.scopes[type_params[0]],
-                flags=0,
+                gen_param_scope,
+                flags=CO_NESTED if gen_param_scope.nested else 0,
                 args=varnames,
                 kwonlyargs=(),
                 starargs=(),
                 optimized=1,
                 docstring=None,
-                firstline=first_lineno,
+                firstline=first_lineno or node.lineno,
                 posonlyargs=0,
             )
             graph.args = args
@@ -4206,6 +4206,7 @@ class CodeGenerator312(CodeGenerator):
         if outer_gen.build_annotations(node):
             flags |= 0x04
 
+        outer_gen.set_pos(node)
         outer_gen.emit_closure(gen, flags)
 
         if type_params:
@@ -4235,6 +4236,7 @@ class CodeGenerator312(CodeGenerator):
         for param in type_params:
             # pyre-ignore[16]: Undefined attribute [16]: Module `ast` has no attribute `TypeVar`.
             if isinstance(param, ast.TypeVar):
+                self.set_pos(param)
                 self.emit("LOAD_CONST", param.name)
                 if param.bound:
                     raise NotImplementedError("bound")
@@ -4324,11 +4326,12 @@ class CodeGenerator312(CodeGenerator):
         # pyre-ignore[16]: no attribute type_params
         if node.type_params:
             self.emit("PUSH_NULL")
+            gen_param_scope = self.symbols.scopes[node.type_params[0]]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name}>",
                 self.graph.filename,
-                self.symbols.scopes[node.type_params[0]],
-                flags=0,
+                gen_param_scope,
+                flags=CO_NESTED if gen_param_scope.nested else 0,
                 args=(),
                 kwonlyargs=(),
                 starargs=(),
@@ -4345,6 +4348,7 @@ class CodeGenerator312(CodeGenerator):
             outer_gen.optimized = 1
             outer_gen.compile_type_params(node.type_params)
 
+            outer_gen.set_pos(node)
             outer_gen.emit("STORE_DEREF", ".type_params")
 
         class_gen = outer_gen.compile_class_body(node, first_lineno)
@@ -4439,7 +4443,7 @@ class CodeGenerator312(CodeGenerator):
 
         code_gen = outer_gen.make_type_alias_code_gen(node)
         code_gen.visit(node.value)
-        code_gen.emit("RETURN_VALUE")
+        code_gen.graph.emit_with_loc("RETURN_VALUE", 0, loc=node)
 
         outer_gen.emit_closure(code_gen, 0)
         outer_gen.emit("BUILD_TUPLE", 3)
@@ -4512,7 +4516,7 @@ class CodeGenerator312(CodeGenerator):
             if self.scope.can_see_class_scope:
                 self.emit("LOAD_DEREF", "__classdict__")
                 self.emit(prefix + "_FROM_DICT_OR_GLOBALS", name)
-            elif isinstance(self.scope, symbols.ClassScope):
+            elif isinstance(self.scope, ClassScope):
                 if self.inlined_comp_depth:
                     self.emit("LOAD_GLOBAL", name)
                 else:

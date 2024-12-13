@@ -357,6 +357,8 @@ class BaseSymbolVisitor(ASTVisitor):
         parent: Scope,
     ):
         scope = TypeParamScope(node.name, self.module, self.klass, lineno=node.lineno)
+        if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
+            scope.nested = 1
         parent.add_child(scope)
         scope.parent = parent
         # type_params is a list, which is not hashable, so we key off the first element as

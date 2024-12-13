@@ -3,6 +3,7 @@
 # pyre-strict
 import ast
 import dis
+import sys
 from io import StringIO
 from os import path
 from tokenize import detect_encoding
@@ -23,6 +24,9 @@ class SbsCorpusCompileTests(TestCase):
 #  python -m test.test_compiler SbsCorpusCompileTests.test_00_const
 def add_test(modname: str, fname: str) -> None:
     def test_corpus(self: SbsCorpusCompileTests) -> None:
+        if "/3_12/" in fname and sys.version_info[:2] != (3, 12):
+            return
+
         with open(fname, "rb") as inp:
             encoding, _lines = detect_encoding(inp.readline)
             code = b"".join(list(_lines) + inp.readlines()).decode(encoding)
