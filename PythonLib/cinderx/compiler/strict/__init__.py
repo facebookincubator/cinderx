@@ -24,9 +24,11 @@ from typing import Any, cast, final, Mapping
 from .. import consts, symbols
 from ..pyassem import PyFlowGraph, PyFlowGraphCinder
 from ..pycodegen import (  # noqa: F401
-    CinderCodeGenBase,
-    CinderCodeGenerator310,
+    CinderCodeGenerator,
     CodeGenerator,
+    Entry,
+    FINALLY_END,
+    FINALLY_TRY,
     find_futures,
     FOR_LOOP,
 )
@@ -105,7 +107,7 @@ def get_is_assigned_tracking_name(name: str) -> str:
     return f"<assigned:{name}>"
 
 
-class StrictCodeGenBase(CinderCodeGenBase):
+class StrictCodeGenerator(CinderCodeGenerator):
     flow_graph = PyFlowGraphCinder
     class_list_name: str = "<classes>"
 
@@ -155,7 +157,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         optimize: int,
         ast_optimizer_enabled: bool = True,
         builtins: dict[str, Any] = builtins.__dict__,
-    ) -> StrictCodeGenBase:
+    ) -> StrictCodeGenerator:
         future_flags = find_futures(flags, tree)
         if ast_optimizer_enabled:
             tree = cls.optimize_tree(
@@ -623,10 +625,6 @@ class StrictCodeGenBase(CinderCodeGenBase):
         super().visitImportFrom(node)
 
 
-class StrictCodeGenerator310(StrictCodeGenBase, CinderCodeGenerator310):
-    pass
-
-
 def strict_compile(
     name: str,
     filename: str,
@@ -641,6 +639,3 @@ def strict_compile(
 
 
 _static_module_ported = False
-
-
-StrictCodeGenerator = StrictCodeGenerator310

@@ -2317,15 +2317,6 @@ class CodeGenerator(ASTVisitor):
     def visitCall(self, node: ast.Call) -> None:
         raise NotImplementedError()
 
-    def visitFor(self, node) -> None:
-        raise NotImplementedError()
-
-    def visitClassDef(self, node) -> None:
-        raise NotImplementedError()
-
-    def emitJump(self, target) -> None:
-        raise NotImplementedError()
-
     def make_child_codegen(
         self,
         # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
