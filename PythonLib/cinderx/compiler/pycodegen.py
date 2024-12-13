@@ -5258,9 +5258,7 @@ class CodeGenerator312(CodeGenerator):
     ) -> None:
         self.emit("SWAP", len(inlined_state.pushed_locals) + 1)
         for local in reversed(inlined_state.pushed_locals):
-            # T190612504: Should be STORE_FAST_MAYBE_NULL and be converted
-            # from a pseudo op by the flowgraph
-            self.emit("STORE_FAST", local)
+            self.emit("STORE_FAST_MAYBE_NULL", local)
 
     def set_match_pos(self, node: AST) -> None:
         self.set_pos(node)
