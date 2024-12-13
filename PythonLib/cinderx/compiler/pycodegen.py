@@ -1340,7 +1340,7 @@ class CodeGenerator(ASTVisitor):
 
     def is_super_shadowed(self) -> bool:
         if self.check_name("super") != SC_GLOBAL_IMPLICIT:
-            return False
+            return True
         module_scope = self.module_gen.check_name("super")
         return module_scope != SC_GLOBAL_IMPLICIT and module_scope != SC_LOCAL
 
@@ -3578,6 +3578,13 @@ class CodeGenerator312(CodeGenerator):
         op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
         loc = self.compute_start_location_to_match_attr(attr, attr)
         self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
+
+    def is_super_shadowed(self) -> bool:
+        return (
+            super().is_super_shadowed()
+            or "super" in self.module_gen.scope.uses
+            or "super" in self.module_gen.scope.defs
+        )
 
     def visitCall(self, node: ast.Call) -> None:
         if not self._can_optimize_call(node):
