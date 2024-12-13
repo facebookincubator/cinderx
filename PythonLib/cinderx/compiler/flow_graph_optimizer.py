@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from typing import cast
+
 from .optimizer import safe_lshift, safe_mod, safe_multiply, safe_power
 
 TYPE_CHECKING = False
@@ -523,7 +525,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             self.fold_tuple_on_constants(instr_index, instr, block)
 
     def opt_swap(
-        self: FlowGraphOptimizer,
+        self,
         instr_index: int,
         instr: Instruction,
         next_instr: Instruction | None,
@@ -538,7 +540,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         self.apply_static_swaps(new_index or instr_index, block)
         return new_index
 
-    def next_swappable_instruction(self, i: int, block: Block, lineno: int) -> None:
+    def next_swappable_instruction(self, i: int, block: Block, lineno: int) -> int:
         while i + 1 < len(block.insts):
             i += 1
             inst = block.insts[i]
@@ -609,6 +611,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         instructions = block.insts
         depth = instructions[instr_index].ioparg
         more = False
+        cnt = 0
         for cnt in range(instr_index + 1, len(instructions)):
             opname = instructions[cnt].opname
             if opname == "SWAP":
@@ -696,7 +699,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         "LOAD_CONST": opt_load_const,
         "PUSH_NULL": opt_push_null,
         "BUILD_TUPLE": opt_build_tuple,
-        "SWAP": opt_swap,
+        "SWAP": cast("Handler", opt_swap),
         "POP_JUMP_IF_NONE": FlowGraphOptimizer.opt_pop_jump_if,
         "POP_JUMP_IF_NOT_NONE": FlowGraphOptimizer.opt_pop_jump_if,
     }

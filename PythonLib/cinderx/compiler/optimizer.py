@@ -282,13 +282,13 @@ class AstOptimizer(ASTRewriter):
         return self.generic_visit(node)
 
 
-F_LJUST = 1 << 0
-F_SIGN = 1 << 1
-F_BLANK = 1 << 2
-F_ALT = 1 << 3
-F_ZERO = 1 << 4
+F_LJUST: int = 1 << 0
+F_SIGN: int = 1 << 1
+F_BLANK: int = 1 << 2
+F_ALT: int = 1 << 3
+F_ZERO: int = 1 << 4
 
-FLAG_DICT = {
+FLAG_DICT: dict[str, int] = {
     "-": F_LJUST,
     "+": F_SIGN,
     " ": F_BLANK,
@@ -325,7 +325,7 @@ class FormatInfo:
             ast.FormattedValue(
                 arg,
                 ord(self.spec),
-                copy_location(ast.Constant("".join(res), arg), arg) if res else None,
+                copy_location(ast.Constant("".join(res)), arg) if res else None,
             ),
             arg,
         )
@@ -334,7 +334,7 @@ class FormatInfo:
 class FormatParser:
     def __init__(self, val: str) -> None:
         self.val = val
-        self.size = len(val)
+        self.size: int = len(val)
         self.pos = 0
 
     def next_ch(self) -> str:
@@ -370,7 +370,7 @@ class FormatParser:
                 break
         return flags
 
-    def parse_str(self):
+    def parse_str(self) -> str:
         """Parses a string component of the format string up to a %"""
         has_percents = False
         start = self.pos

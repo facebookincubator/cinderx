@@ -500,7 +500,9 @@ class CodeGenerator(ASTVisitor):
 
         return annotation_count > 0
 
-    def emit_function_decorators(self, node: FuncOrLambda) -> None:
+    def emit_function_decorators(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> None:
         raise NotImplementedError()
 
     def visitFunctionOrLambda(self, node: FuncOrLambda) -> None:
@@ -628,6 +630,9 @@ class CodeGenerator(ASTVisitor):
 
     def pop_loop(self):
         self.pop_setup()
+
+    def emitJump(self, target) -> None:
+        raise NotImplementedError()
 
     def visitAsyncFor(self, node):
         start = self.newBlock("async_for_try")
@@ -896,6 +901,15 @@ class CodeGenerator(ASTVisitor):
     ) -> None:
         raise NotImplementedError()
 
+    def emit_setup_with(self, target: Block, async_: bool) -> None:
+        raise NotImplementedError()
+
+    def emit_with_except_cleanup(self, cleanup: Block) -> None:
+        raise NotImplementedError()
+
+    def emit_with_except_finish(self, cleanup: Block) -> None:
+        raise NotImplementedError()
+
     def visitWith_(
         self, node: ast.With | ast.AsyncWith, kind: int, pos: int = 0
     ) -> None:
@@ -1136,8 +1150,10 @@ class CodeGenerator(ASTVisitor):
                 self.checkAnnExpr(node.target.value)
         elif isinstance(node.target, ast.Subscript):
             if not node.value:
-                self.checkAnnExpr(node.target.value)
-                self.checkAnnSubscr(node.target.slice)
+                target = node.target
+                assert isinstance(target, ast.Subscript)
+                self.checkAnnExpr(target.value)
+                self.checkAnnSubscr(target.slice)
         else:
             raise SystemError(
                 f"invalid node type {type(node).__name__} for annotated assignment"
@@ -2112,7 +2128,7 @@ class CodeGenerator(ASTVisitor):
             if pc.fail_pop:
                 self.emit("POP_TOP")
 
-    def pop_setup(self, kind: int | None = None) -> None:
+    def pop_setup(self, kind: int | None = None) -> Entry:
         assert (
             kind is None or self.setups[-1].kind == kind
         ), f"{self.setups[-1].kind} vs {kind} expected"
@@ -2389,6 +2405,11 @@ class CodeGenerator(ASTVisitor):
     def emit_end_for(self) -> None:
         raise NotImplementedError()
 
+    def _visitSequenceLoad(
+        self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
+    ) -> None:
+        raise NotImplementedError()
+
 
 class Entry:
     kind: int
@@ -2621,7 +2642,9 @@ class CodeGenerator310(CodeGenerator):
 
         self.emit_closure(gen, flags)
 
-    def emit_function_decorators(self, node: FuncOrLambda) -> None:
+    def emit_function_decorators(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> None:
         for dec in node.decorator_list:
             self.emit_call_one_arg()
 
@@ -2925,9 +2948,11 @@ class CodeGenerator310(CodeGenerator):
             self._call_helper(0, node, node.args, node.keywords)
             return
 
-        self.visit(node.func.value)
-        with self.temp_lineno(node.func.end_lineno):
-            self.emit("LOAD_METHOD", self.mangle(node.func.attr))
+        attr = node.func
+        assert isinstance(attr, ast.Attribute)
+        self.visit(attr.value)
+        with self.temp_lineno(attr.end_lineno or -1):
+            self.emit("LOAD_METHOD", self.mangle(attr.attr))
             for arg in node.args:
                 self.visit(arg)
             nargs = len(node.args)
@@ -3461,8 +3486,9 @@ class CodeGenerator312(CodeGenerator):
         self.emit_resume(ResumeOparg.ScopeEntry)
 
     def check_name(self, name: str) -> int:
-        if self.temp_symbols is not None and (result := self.temp_symbols.get(name)):
-            return result
+        if (temp_symbols := self.temp_symbols) is not None:
+            if result := temp_symbols.get(name):
+                return result
 
         return super().check_name(name)
 
@@ -3543,13 +3569,14 @@ class CodeGenerator312(CodeGenerator):
 
         return not self.is_import_originated(node.func.value)
 
-    def emit_super_call(self, node) -> None:
-        self.visit(node.func.value.func)
-        func = node.func
-        self.set_pos(node.func.value)
-        load_arg, is_zero = self._emit_args_for_super(func.value, func.attr)
+    def emit_super_call(self, attr: ast.Attribute) -> None:
+        call = attr.value
+        assert isinstance(call, ast.Call)
+        self.visit(call.func)
+        self.set_pos(attr.value)
+        load_arg, is_zero = self._emit_args_for_super(attr.value, attr.attr)
         op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
-        loc = self.compute_start_location_to_match_attr(node.func, node.func)
+        loc = self.compute_start_location_to_match_attr(attr, attr)
         self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
 
     def visitCall(self, node: ast.Call) -> None:
@@ -3560,14 +3587,16 @@ class CodeGenerator312(CodeGenerator):
             self._call_helper(0, node, node.args, node.keywords)
             return
 
-        assert isinstance(node.func, ast.Attribute)
+        attr = node.func
+        assert isinstance(attr, ast.Attribute)
+        loc = self.compute_start_location_to_match_attr(node.func, attr)
 
-        if self._is_super_call(node.func.value):
-            self.emit_super_call(node)
+        if self._is_super_call(attr.value):
+            self.emit_super_call(attr)
         else:
-            self.visit(node.func.value)
-            loc = self.compute_start_location_to_match_attr(node.func, node.func)
-            self.graph.emit_with_loc("LOAD_ATTR", (self.mangle(node.func.attr), 1), loc)
+            self.visit(attr.value)
+            loc = self.compute_start_location_to_match_attr(node.func, attr)
+            self.graph.emit_with_loc("LOAD_ATTR", (self.mangle(attr.attr), 1), loc)
 
         for arg in node.args:
             self.visit(arg)
@@ -3578,7 +3607,7 @@ class CodeGenerator312(CodeGenerator):
             self.set_pos(node.func)
             self.emit("KW_NAMES", tuple(arg.arg for arg in node.keywords))
 
-        loc = self.compute_start_location_to_match_attr(node, node.func)
+        loc = self.compute_start_location_to_match_attr(node, attr)
         self.graph.emit_with_loc("CALL", len(node.args) + len(node.keywords), loc)
 
     def visitJoinedStr(self, node: ast.JoinedStr) -> None:
@@ -4175,7 +4204,9 @@ class CodeGenerator312(CodeGenerator):
 
             self.emit("CALL", num_typeparam_args)
 
-    def emit_function_decorators(self, node: FuncOrLambda) -> None:
+    def emit_function_decorators(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef
+    ) -> None:
         # Processed in reversed order as that's how they're called
         for dec in reversed(node.decorator_list):
             self.set_pos(dec)
@@ -4499,9 +4530,14 @@ class CodeGenerator312(CodeGenerator):
             end_lineno = base.end_lineno
             col_offset = base.col_offset
             end_col_offset = base.end_col_offset
+            assert (
+                end_lineno is not None
+                and lineno is not None
+                and end_col_offset is not None
+            )
 
             attr_len = len(attr.attr)
-            if attr_len <= attr.end_col_offset:
+            if attr.end_col_offset is not None and attr_len <= attr.end_col_offset:
                 col_offset = attr.end_col_offset - attr_len
             else:
                 # GH-94694: Somebody's compiling weird ASTs. Just drop the columns:
@@ -4514,7 +4550,9 @@ class CodeGenerator312(CodeGenerator):
             if lineno == end_lineno:
                 end_col_offset = max(col_offset, end_col_offset)
 
-            return SrcLocation(lineno, end_lineno, col_offset, end_col_offset)
+            return SrcLocation(
+                lineno or -1, end_lineno, col_offset, end_col_offset or 0
+            )
 
         return base
 
@@ -5015,10 +5053,14 @@ class CodeGenerator312(CodeGenerator):
             self.set_pos(elt)
             self.emit("SET_ADD", depth + 1)
         elif type is ast.DictComp:
+            assert val is not None
             self.compile_dictcomp_element(elt, val)
             self.set_pos(
                 SrcLocation(
-                    elt.lineno, val.end_lineno, elt.col_offset, val.end_col_offset
+                    elt.lineno,
+                    val.end_lineno or 0,
+                    elt.col_offset,
+                    val.end_col_offset or 0,
                 )
             )
             self.emit("MAP_ADD", depth + 1)
@@ -5092,9 +5134,13 @@ class CodeGenerator312(CodeGenerator):
                 self.visit(elt)
                 self.emit("SET_ADD", depth + 1)
             elif type is ast.DictComp:
+                assert elt is not None and val is not None
                 self.compile_dictcomp_element(elt, val)
                 elt_loc = SrcLocation(
-                    elt.lineno, val.end_lineno, elt.col_offset, val.end_col_offset
+                    elt.lineno,
+                    val.end_lineno or 0,
+                    elt.col_offset,
+                    val.end_col_offset or 0,
                 )
                 self.set_pos(elt_loc)
                 self.emit("MAP_ADD", depth + 1)
@@ -5339,7 +5385,9 @@ class CinderCodeGenBase(CodeGenerator):
             super().visitAttribute(node)
 
     def visitCall(self, node: ast.Call) -> None:
-        if self._can_optimize_call(node) and self._is_super_call(node.func.value):
+        if self._can_optimize_call(node) and self._is_super_call(
+            cast(ast.Attribute, node.func).value
+        ):
             self.cx_super_call(node)
         else:
             super().visitCall(node)
@@ -5417,10 +5465,12 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
         self.emit("LOAD_ATTR_SUPER", load_arg)
 
     def cx_super_call(self, node):
-        with self.temp_lineno(node.func.end_lineno):
+        attr = node.func
+        assert isinstance(attr, ast.Attribute)
+        with self.temp_lineno(node.func.end_lineno or -1):
             self.emit("LOAD_GLOBAL", "super")
 
-            load_arg = self._emit_args_for_super(node.func.value, node.func.attr)
+            load_arg = self._emit_args_for_super(attr.value, attr.attr)
             self.emit("LOAD_METHOD_SUPER", load_arg)
             for arg in node.args:
                 self.visit(arg)
@@ -5434,7 +5484,7 @@ class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
         self.emit_super_attribute(node)
 
     def cx_super_call(self, node):
-        self.emit_super_call(node)
+        self.emit_super_call(node.func)
 
 
 def get_default_generator():

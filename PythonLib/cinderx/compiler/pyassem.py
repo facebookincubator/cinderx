@@ -153,6 +153,7 @@ class Instruction:
     @property
     def stores_to(self) -> str | None:
         if self.opname == "STORE_FAST" or self.opname == "STORE_FAST_MAYBE_NULL":
+            assert isinstance(self.oparg, str)
             return self.oparg
         return None
 
