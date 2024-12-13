@@ -1142,6 +1142,7 @@ class PyFlowGraph(FlowGraph):
                 while not target.insts and target.next:
                     target = target.next
                 last.target = target
+        self.ordered_blocks = [block for block in self.ordered_blocks if block.insts]
 
     def remove_unreachable_basic_blocks(self):
         # mark all reachable blocks
@@ -1635,7 +1636,6 @@ class PyFlowGraph312(PyFlowGraph):
         optimizer = self.flow_graph_optimizer(self)
         for block in self.ordered_blocks:
             optimizer.optimize_basic_block(block)
-            optimizer.clean_basic_block(block, -1)
 
         self.remove_redundant_nops_and_pairs(optimizer)
 

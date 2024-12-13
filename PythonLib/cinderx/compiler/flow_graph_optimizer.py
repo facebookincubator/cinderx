@@ -427,7 +427,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
                 if instr.is_jump(self.graph.opcode):
                     target = instr.target
                     assert target is not None
-                    assert target.insts
+                    assert target.insts, f"{instr} {target.label} {target.bid}"
                     # Skip over empty basic blocks.
                     while len(target.insts) == 0:
                         instr.target = target.next
