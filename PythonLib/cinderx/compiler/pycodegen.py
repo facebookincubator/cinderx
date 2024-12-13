@@ -4096,7 +4096,9 @@ class CodeGenerator312(CodeGenerator):
         gen.nextBlock(start)
 
         scope = gen.scope
-        add_stopiteration_handler = scope.coroutine or scope.generator
+        add_stopiteration_handler = (
+            scope.coroutine or scope.generator
+        ) and not isinstance(node, ast.Lambda)
         if add_stopiteration_handler:
             gen.setups.append(Entry(STOP_ITERATION, start, None, None))
 
@@ -4105,7 +4107,12 @@ class CodeGenerator312(CodeGenerator):
         if add_stopiteration_handler:
             gen.wrap_in_stopiteration_handler()
             gen.pop_setup(STOP_ITERATION)
+        elif isinstance(node, ast.Lambda) and not scope.generator:
+            gen.set_pos(SrcLocation(node.lineno, node.lineno or 0, 0, 0))
+            gen.emit("RETURN_VALUE")
         else:
+            if isinstance(node, ast.Lambda):
+                gen.set_pos(node.body)
             gen.finish_function()
 
         return gen
