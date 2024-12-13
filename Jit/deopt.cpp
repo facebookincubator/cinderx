@@ -8,7 +8,7 @@
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/printer.h"
 
-#include <folly/tracing/StaticTracepoint.h>
+#include <usdt/usdt.h>
 
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_frame.h"
@@ -182,7 +182,7 @@ Ref<> profileDeopt(
     opcode = bc_instr.opcode();
   }
 
-  FOLLY_SDT(
+  USDT(
       python,
       deopt,
       deoptReasonName(meta.reason),

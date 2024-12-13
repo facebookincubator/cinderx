@@ -28,8 +28,6 @@
 #include "internal/pycore_intrinsics.h"
 #endif
 
-#include <folly/tracing/StaticTracepoint.h>
-
 #include <algorithm>
 #include <deque>
 #include <memory>
