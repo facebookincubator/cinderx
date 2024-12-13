@@ -14,7 +14,7 @@ from importlib.machinery import (
     SourcelessFileLoader,
 )
 
-from . import compile as python_compile
+from .pycodegen import compile as python_compile
 
 
 # pyre-fixme[13]: path inherited but not initialized

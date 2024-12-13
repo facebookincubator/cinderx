@@ -15,14 +15,17 @@ from contextlib import contextmanager
 from enum import IntEnum
 from typing import cast, NoReturn, Type, Union
 
-from . import consts, future, misc, pyassem, symbols
 from .consts import (
     CO_ASYNC_GENERATOR,
     CO_COROUTINE,
+    CO_FUTURE_ANNOTATIONS,
+    CO_FUTURE_BARRY_AS_BDFL,
     CO_GENERATOR,
     CO_NESTED,
     CO_VARARGS,
     CO_VARKEYWORDS,
+    PyCF_COMPILE_MASK,
+    PyCF_MASK,
     PyCF_MASK_OBSOLETE,
     PyCF_ONLY_AST,
     PyCF_SOURCE_IS_UTF8,
@@ -32,10 +35,36 @@ from .consts import (
     SC_GLOBAL_IMPLICIT,
     SC_LOCAL,
 )
+from .future import find_futures as future_find_futures
+from .misc import mangle
 from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
 from .optimizer import AstOptimizer, AstOptimizer312
-from .pyassem import Block, Instruction, NO_LOCATION, PyFlowGraph, SrcLocation
-from .symbols import BaseSymbolVisitor, ModuleScope, Scope
+from .pyassem import (
+    Block,
+    FVC_ASCII,
+    FVC_NONE,
+    FVC_REPR,
+    FVC_STR,
+    FVS_HAVE_SPEC,
+    Instruction,
+    NO_LOCATION,
+    PyFlowGraph,
+    PyFlowGraph310,
+    PyFlowGraph312,
+    PyFlowGraphCinder,
+    SrcLocation,
+)
+from .symbols import (
+    BaseSymbolVisitor,
+    CinderSymbolVisitor,
+    ClassScope,
+    FunctionScope,
+    ModuleScope,
+    Scope,
+    SymbolVisitor310,
+    SymbolVisitor312,
+    TypeParamScope,
+)
 from .unparse import to_expr
 from .visitor import ASTVisitor, walk
 
@@ -163,7 +192,7 @@ def make_compiler(
     if generator is None:
         generator = get_default_generator()
 
-    if flags & ~(consts.PyCF_MASK | PyCF_MASK_OBSOLETE | consts.PyCF_COMPILE_MASK):
+    if flags & ~(PyCF_MASK | PyCF_MASK_OBSOLETE | PyCF_COMPILE_MASK):
         raise ValueError("compile(): unrecognised flags", hex(flags))
 
     flags |= PyCF_SOURCE_IS_UTF8
@@ -171,7 +200,7 @@ def make_compiler(
     if isinstance(source, ast.AST):
         tree = source
     else:
-        tree = parse(source, filename, mode, flags & consts.PyCF_MASK)
+        tree = parse(source, filename, mode, flags & PyCF_MASK)
 
     if flags & PyCF_ONLY_AST:
         return tree
@@ -200,12 +229,12 @@ def all_items_const(seq, begin, end):
 
 
 def find_futures(flags: int, node: ast.Module) -> int:
-    future_flags = flags & consts.PyCF_MASK
-    for feature in future.find_futures(node):
+    future_flags = flags & PyCF_MASK
+    for feature in future_find_futures(node):
         if feature == "barry_as_FLUFL":
-            future_flags |= consts.CO_FUTURE_BARRY_AS_BDFL
+            future_flags |= CO_FUTURE_BARRY_AS_BDFL
         elif feature == "annotations":
-            future_flags |= consts.CO_FUTURE_ANNOTATIONS
+            future_flags |= CO_FUTURE_ANNOTATIONS
     return future_flags
 
 
@@ -242,8 +271,8 @@ class CodeGenerator(ASTVisitor):
     __initialized = None
     class_name = None  # provide default for instance variable
     future_flags = 0
-    flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph310
-    _SymbolVisitor: type[symbols.BaseSymbolVisitor] = BaseSymbolVisitor
+    flow_graph: Type[PyFlowGraph] = PyFlowGraph310
+    _SymbolVisitor: type[BaseSymbolVisitor] = BaseSymbolVisitor
     pattern_context: type[PatternContext] = PatternContext
 
     def __init__(
@@ -305,7 +334,7 @@ class CodeGenerator(ASTVisitor):
 
     def mangle(self, name):
         if self.class_name is not None:
-            return misc.mangle(name, self.class_name)
+            return mangle(name, self.class_name)
         else:
             return name
 
@@ -431,18 +460,18 @@ class CodeGenerator(ASTVisitor):
         self.visit(node.value)
 
         if node.conversion == CONV_STR:
-            oparg = pyassem.FVC_STR
+            oparg = FVC_STR
         elif node.conversion == CONV_REPR:
-            oparg = pyassem.FVC_REPR
+            oparg = FVC_REPR
         elif node.conversion == CONV_ASCII:
-            oparg = pyassem.FVC_ASCII
+            oparg = FVC_ASCII
         else:
             assert node.conversion == -1, str(node.conversion)
-            oparg = pyassem.FVC_NONE
+            oparg = FVC_NONE
 
         if node.format_spec:
             self.visit(node.format_spec)
-            oparg |= pyassem.FVS_HAVE_SPEC
+            oparg |= FVS_HAVE_SPEC
         self.emit("FORMAT_VALUE", oparg)
 
     def processBody(self, node, body, gen):
@@ -1062,7 +1091,7 @@ class CodeGenerator(ASTVisitor):
 
     def checkAnnotation(self, node):
         if isinstance(self.tree, (ast.Module, ast.ClassDef)):
-            if self.future_flags & consts.CO_FUTURE_ANNOTATIONS:
+            if self.future_flags & CO_FUTURE_ANNOTATIONS:
                 with self.noEmit():
                     self._visitAnnotation(node.annotation)
             else:
@@ -2194,10 +2223,10 @@ class CodeGenerator(ASTVisitor):
         first_lineno: int,
     ) -> PyFlowGraph:
         args = [
-            misc.mangle(elt.arg, class_name)
+            mangle(elt.arg, class_name)
             for elt in itertools.chain(func_args.posonlyargs, func_args.args)
         ]
-        kwonlyargs = [misc.mangle(elt.arg, class_name) for elt in func_args.kwonlyargs]
+        kwonlyargs = [mangle(elt.arg, class_name) for elt in func_args.kwonlyargs]
 
         starargs = []
         if va := func_args.vararg:
@@ -2269,7 +2298,7 @@ class CodeGenerator(ASTVisitor):
         future_flags = find_futures(flags, tree)
         if ast_optimizer_enabled:
             tree = cls.optimize_tree(
-                optimize, tree, bool(future_flags & consts.CO_FUTURE_ANNOTATIONS)
+                optimize, tree, bool(future_flags & CO_FUTURE_ANNOTATIONS)
             )
         s = cls._SymbolVisitor(future_flags)
         walk(tree, s)
@@ -2363,8 +2392,8 @@ class CodeGenerator(ASTVisitor):
 
 class Entry:
     kind: int
-    block: pyassem.Block
-    exit: pyassem.Block | None
+    block: Block
+    exit: Block | None
     unwinding_datum: object
 
     def __init__(self, kind, block, exit, unwinding_datum):
@@ -2382,8 +2411,8 @@ class ResumeOparg(IntEnum):
 
 
 class CodeGenerator310(CodeGenerator):
-    flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph310
-    _SymbolVisitor = symbols.SymbolVisitor310
+    flow_graph: Type[PyFlowGraph] = PyFlowGraph310
+    _SymbolVisitor = SymbolVisitor310
 
     def __init__(
         self,
@@ -2422,7 +2451,7 @@ class CodeGenerator310(CodeGenerator):
         if (
             prefix == "LOAD"
             and name == "super"
-            and isinstance(self.scope, symbols.FunctionScope)
+            and isinstance(self.scope, FunctionScope)
         ):
             scope = self.check_name(name)
             if scope in (SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT):
@@ -2444,12 +2473,12 @@ class CodeGenerator310(CodeGenerator):
             else:
                 self.emit(prefix + "_GLOBAL", name)
         elif scope == SC_FREE or scope == SC_CELL:
-            if isinstance(self.scope, symbols.ClassScope):
+            if isinstance(self.scope, ClassScope):
                 if prefix == "STORE" and name not in self.scope.nonlocals:
                     self.emit(prefix + "_NAME", name)
                     return
 
-            if isinstance(self.scope, symbols.ClassScope) and prefix == "LOAD":
+            if isinstance(self.scope, ClassScope) and prefix == "LOAD":
                 self.emit(prefix + "_CLASSDEREF", name)
             else:
                 self.emit(prefix + "_DEREF", name)
@@ -2505,7 +2534,7 @@ class CodeGenerator310(CodeGenerator):
             raise ValueError(f"Unsupported dup count {count}")
 
     def _visitAnnotation(self, node: ast.expr) -> None:
-        if self.future_flags & consts.CO_FUTURE_ANNOTATIONS:
+        if self.future_flags & CO_FUTURE_ANNOTATIONS:
             self.emit("LOAD_CONST", to_expr(node))
         else:
             self.visit(node)
@@ -2652,7 +2681,7 @@ class CodeGenerator310(CodeGenerator):
             return prefix
         # Construct qualname prefix
         parent = gen.scope.parent
-        while not isinstance(parent, symbols.ModuleScope):
+        while not isinstance(parent, ModuleScope):
             # Only real functions use "<locals>", nested scopes like
             # comprehensions don't.
             if parent.is_function_scope:
@@ -3406,8 +3435,8 @@ class CodeGenerator310(CodeGenerator):
 
 
 class CodeGenerator312(CodeGenerator):
-    flow_graph: Type[PyFlowGraph] = pyassem.PyFlowGraph312
-    _SymbolVisitor = symbols.SymbolVisitor312
+    flow_graph: Type[PyFlowGraph] = PyFlowGraph312
+    _SymbolVisitor = SymbolVisitor312
 
     def __init__(
         self,
@@ -3626,7 +3655,7 @@ class CodeGenerator312(CodeGenerator):
         self.nextBlock(end)
 
     def _visitAnnotation(self, node: ast.expr) -> None:
-        if self.future_flags & consts.CO_FUTURE_ANNOTATIONS:
+        if self.future_flags & CO_FUTURE_ANNOTATIONS:
             self.set_pos(node)
             self.emit("LOAD_CONST", to_expr(node))
         else:
@@ -4384,8 +4413,8 @@ class CodeGenerator312(CodeGenerator):
             return prefix
         # Construct qualname prefix
         parent = gen.scope.parent
-        while not isinstance(parent, symbols.ModuleScope):
-            if not isinstance(parent, symbols.TypeParamScope):
+        while not isinstance(parent, ModuleScope):
+            if not isinstance(parent, TypeParamScope):
                 # Only real functions use "<locals>", nested scopes like
                 # comprehensions don't.
                 if parent.is_function_scope:
@@ -4419,7 +4448,7 @@ class CodeGenerator312(CodeGenerator):
         if (
             prefix == "LOAD"
             and name == "super"
-            and isinstance(self.scope, symbols.FunctionScope)
+            and isinstance(self.scope, FunctionScope)
         ):
             scope = self.check_name(name)
             if scope in (SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT):
@@ -4446,12 +4475,12 @@ class CodeGenerator312(CodeGenerator):
             else:
                 self.emit(prefix + "_GLOBAL", name)
         elif scope == SC_FREE or scope == SC_CELL:
-            if isinstance(self.scope, symbols.ClassScope):
+            if isinstance(self.scope, ClassScope):
                 if prefix == "STORE" and name not in self.scope.nonlocals:
                     self.emit(prefix + "_NAME", name)
                     return
 
-            if isinstance(self.scope, symbols.ClassScope) and prefix == "LOAD":
+            if isinstance(self.scope, ClassScope) and prefix == "LOAD":
                 self.emit("LOAD_LOCALS")
                 self.emit("LOAD_FROM_DICT_OR_DEREF", name)
             elif self.scope.can_see_class_scope:
@@ -5118,7 +5147,7 @@ class CodeGenerator312(CodeGenerator):
                 name in scope.defs
                 and name not in scope.nonlocals
                 and name not in scope.params
-            ) or isinstance(self.scope, symbols.ClassScope):
+            ) or isinstance(self.scope, ClassScope):
                 self.fast_hidden.add(name)
                 fast_hidden.add(name)
             elif name in scope.params:
@@ -5325,8 +5354,8 @@ class CinderCodeGenBase(CodeGenerator):
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
-    flow_graph = pyassem.PyFlowGraphCinder
-    _SymbolVisitor = symbols.CinderSymbolVisitor
+    flow_graph = PyFlowGraphCinder
+    _SymbolVisitor = CinderSymbolVisitor
 
     def compile_comprehension(
         self,
@@ -5399,7 +5428,7 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
 
 
 class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
-    flow_graph = pyassem.PyFlowGraphCinder
+    flow_graph = PyFlowGraphCinder
 
     def cx_super_attribute(self, node):
         self.emit_super_attribute(node)

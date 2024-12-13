@@ -18,7 +18,6 @@ except ImportError:
 from types import CodeType
 from typing import Callable, ClassVar, Generator, Iterable, Optional, Sequence, TextIO
 
-from . import debug, opcode_cinder, opcodes
 from .consts import (
     CO_ASYNC_GENERATOR,
     CO_COROUTINE,
@@ -27,12 +26,15 @@ from .consts import (
     CO_OPTIMIZED,
     CO_SUPPRESS_JIT,
 )
+from .debug import dump_graph
 from .flow_graph_optimizer import (
     FlowGraphOptimizer,
     FlowGraphOptimizer310,
     FlowGraphOptimizer312,
 )
+from .opcode_cinder import opcode as cinder_opcode
 from .opcodebase import Opcode
+from .opcodes import opcode as opcodes_opcode
 
 
 MAX_COPY_SIZE = 4
@@ -504,7 +506,7 @@ class IndexedSet:
 class PyFlowGraph(FlowGraph):
     super_init = FlowGraph.__init__
     flow_graph_optimizer: type[FlowGraphOptimizer] = FlowGraphOptimizer
-    opcode = opcodes.opcode
+    opcode = opcodes_opcode
 
     def __init__(
         self,
@@ -642,9 +644,9 @@ class PyFlowGraph(FlowGraph):
     def dump(self, io: TextIO | None = None, stack_effect: bool = False) -> None:
         if io:
             with redirect_stdout(io):
-                debug.dump_graph(self, stack_effect)
+                dump_graph(self, stack_effect)
         else:
-            debug.dump_graph(self, stack_effect)
+            dump_graph(self, stack_effect)
 
     def push_block(self, worklist: list[Block], block: Block, depth: int) -> None:
         assert (
@@ -1335,7 +1337,7 @@ class PyFlowGraph310(PyFlowGraph):
 
 
 class PyFlowGraphCinder(PyFlowGraph310):
-    opcode = opcode_cinder.opcode
+    opcode = cinder_opcode
 
     def make_code(self, nlocals, code, consts, firstline: int, lnotab) -> CodeType:
         if self.scope is not None and self.scope.suppress_jit:
@@ -1758,7 +1760,7 @@ class PyFlowGraph312(PyFlowGraph):
         return nlocalsplus
 
     def instrsize(self, opname: str, oparg: int):
-        opcode_index = opcodes.opcode.opmap[opname]
+        opcode_index = opcodes_opcode.opmap[opname]
         if opcode_index >= len(_inline_cache_entries):
             # T190611021: This should never happen as we should remove pseudo
             # instructions, but we are still missing some functionality
@@ -1834,7 +1836,7 @@ class PyFlowGraph312(PyFlowGraph):
     def emit_inline_cache(
         self, opcode: str, addCode: Callable[[int, int], None]
     ) -> None:
-        opcode_index = opcodes.opcode.opmap[opcode]
+        opcode_index = opcodes_opcode.opmap[opcode]
         if opcode_index < len(_inline_cache_entries):
             base_size = _inline_cache_entries[opcode_index]
         else:
