@@ -3784,7 +3784,17 @@ DEFINE_SIMPLE_INSTR(
     Operands<2>,
     DeoptBase);
 
-DEFINE_SIMPLE_INSTR(UpdatePrevInstr, (), Operands<0>);
+class INSTR_CLASS(UpdatePrevInstr, (), Operands<0>) {
+ public:
+  explicit UpdatePrevInstr(int line_no) : line_no_(line_no) {}
+
+  int lineNo() const {
+    return line_no_;
+  }
+
+ private:
+  int line_no_;
+};
 
 class CFG;
 

@@ -103,15 +103,6 @@ int loadAttrIndex(int oparg);
 // Get the name index from a LOAD_GLOBAL's oparg.
 int loadGlobalIndex(int oparg);
 
-#if PY_VERSION_HEX >= 0x030C0000
-static inline constexpr int byteCodeIndexSize(PyCodeObject* co) {
-  // _PyCode_NBYTES gives code size in bytes including the object header.
-  // The +1 is needed because one byte of the code size is absorbed into
-  // the definition of PyCodeObject.
-  return (_PyCode_NBYTES(co) - sizeof(PyCodeObject) + 1) / sizeof(_Py_CODEUNIT);
-}
-#endif
-
 // Extra data attached to a code object.
 typedef struct {
   // Number of times the code object has been called.

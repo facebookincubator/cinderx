@@ -250,15 +250,20 @@ void DeadCodeElimination::Run(Function& func) {
 #if PY_VERSION_HEX >= 0x030C0000
 class BytecodeIndexToLine {
  public:
-  explicit BytecodeIndexToLine(PyCodeObject* co)
-      : indexToLine_{byteCodeIndexSize(co)} {
+  explicit BytecodeIndexToLine(PyCodeObject* co) {
+    size_t num_indices = countIndices(co);
+    indexToLine_.reserve(num_indices);
     PyCodeAddressRange range;
     Cix_PyCode_InitAddressRange(co, &range);
     int idx = 0;
     while (Cix_PyLineTable_NextAddressRange(&range)) {
-      JIT_DCHECK(idx < indexToLine_.size(), "idx overflowed code size")
-      JIT_DCHECK(idx == range.ar_start, "Index does not line up with range");
-      for (; idx < range.ar_end; idx++) {
+      JIT_DCHECK(idx < num_indices, "idx overflowed code size");
+      JIT_DCHECK(
+          range.ar_start % sizeof(_Py_CODEUNIT) == 0,
+          "offsets should be a multiple of code-units");
+      JIT_DCHECK(
+          idx == range.ar_start / 2, "Index does not line up with range");
+      for (; idx < range.ar_end / 2; idx++) {
         indexToLine_.emplace_back(range.ar_line);
       }
     }
@@ -288,30 +293,30 @@ void InsertUpdatePrevInstr::Run(Function& func) {
 
   BytecodeIndexToLine bc_idx_to_line(func.code);
 
-  // This is the previous line number of bytecode depending on update_every_bc.
-  // For line numbers, -1 is a "valid" line number result meaning
-  // "no line number" so we use INT_MAX as the default.
-  int prev_emitted_lno_or_bc = INT_MAX;
   for (BasicBlock& block : func.cfg.blocks) {
+    // This is the previous line number of bytecode depending on
+    // update_every_bc. For line numbers, -1 is a "valid" line number result
+    // meaning "no line number" so we use INT_MAX as the default.
+    int prev_emitted_lno_or_bc = INT_MAX;
     for (Instr& instr : block) {
       if (!hasArbitraryExecution(instr)) {
         continue;
       }
-      auto add_update_prev_instr = [&]() {
-        Instr* update_instr = UpdatePrevInstr::create();
+      auto add_update_prev_instr = [&](int line_no) {
+        Instr* update_instr = UpdatePrevInstr::create(line_no);
         update_instr->copyBytecodeOffset(instr);
         update_instr->InsertBefore(instr);
       };
       if (update_every_bc) {
         int cur_bc_offs = instr.bytecodeOffset().value();
         if (cur_bc_offs != prev_emitted_lno_or_bc) {
-          add_update_prev_instr();
+          add_update_prev_instr(-1);
           prev_emitted_lno_or_bc = cur_bc_offs;
         }
       } else {
         int cur_line_no = bc_idx_to_line.lineNoFor(instr.bytecodeOffset());
         if (cur_line_no != prev_emitted_lno_or_bc) {
-          add_update_prev_instr();
+          add_update_prev_instr(cur_line_no);
           prev_emitted_lno_or_bc = cur_line_no;
         }
       }

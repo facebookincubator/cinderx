@@ -2910,8 +2910,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // We are directly referencing co_code_adaptive here rather than using
         // codeUnit() as we need to refer to the code the interpreter would
         // execute. codeUnit() returns a pointer to non-adapted bytecode.
-        _Py_CODEUNIT* prev_instr_ptr =
-            (i.bytecodeOffset().asIndex().value() - 1) +
+        _Py_CODEUNIT* prev_instr_ptr = i.bytecodeOffset().asIndex().value() +
             reinterpret_cast<_Py_CODEUNIT*>(i.code()->co_code_adaptive);
         bbb.appendInstr(
             OutInd{
