@@ -14,8 +14,8 @@ class C:
     GET_ITER(0),
     LOAD_FAST_AND_CLEAR('.0'),
     LOAD_FAST_AND_CLEAR('x'),
-    SWAP(3),
-    ...,
+    LOAD_FAST_AND_CLEAR('__class__'),
+    SWAP(4),
     BUILD_LIST(0),
     SWAP(2),
 
@@ -32,10 +32,10 @@ class C:
 
     __BLOCK__('anchor: 5'),
     END_FOR(0),
-    ...,
 
     __BLOCK__('end: 7'),
-    SWAP(3),
+    SWAP(4),
+    STORE_FAST('__class__'),
     STORE_FAST('x'),
     STORE_FAST('.0'),
     POP_TOP(0),
@@ -44,6 +44,6 @@ class C:
     STORE_NAME('__classcell__'),
     RETURN_VALUE(0),
 
-    __BLOCK__('cleanup: 6'),
+    # __BLOCK__('cleanup: 6'),
     ...,
 ]

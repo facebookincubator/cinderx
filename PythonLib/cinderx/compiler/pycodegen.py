@@ -4498,11 +4498,13 @@ class CodeGenerator312(CodeGenerator):
             if self.scope.can_see_class_scope:
                 self.emit("LOAD_DEREF", "__classdict__")
                 self.emit(prefix + "_FROM_DICT_OR_GLOBALS", name)
-            elif not self.optimized:
-                if self.inlined_comp_depth and prefix == "LOAD":
+            elif isinstance(self.scope, symbols.ClassScope):
+                if self.inlined_comp_depth:
                     self.emit("LOAD_GLOBAL", name)
                 else:
-                    self.emit(prefix + "_NAME", name)
+                    self.emit("LOAD_NAME", name)
+            elif not self.optimized:
+                self.emit(prefix + "_NAME", name)
             else:
                 self.emit(prefix + "_GLOBAL", name)
         elif scope == SC_FREE or scope == SC_CELL:
@@ -5168,7 +5170,7 @@ class CodeGenerator312(CodeGenerator):
 
         # iterate over names bound in the comprehension and ensure we isolate
         # them from the outer scope as needed
-        for name in scope.defs:
+        for name in scope.symbols:
             # If a name has different scope inside than outside the comprehension,
             # we need to temporarily handle it with the right scope while
             # compiling the comprehension. If it's free in the comprehension
@@ -5196,7 +5198,7 @@ class CodeGenerator312(CodeGenerator):
             ) or isinstance(self.scope, ClassScope):
                 self.fast_hidden.add(name)
                 fast_hidden.add(name)
-            elif name in scope.params:
+            elif name in scope.params or name not in scope.defs:
                 # ignore .0
                 continue
 

@@ -26,8 +26,11 @@ if sys.version_info[0] >= 3:
 
 MANGLE_LEN = 256
 
-DEF_NORMAL = 1
+DEF_GLOBAL = 1
+DEF_LOCAL = 2
 DEF_COMP_ITER = 2
+DEF_PARAM = 2 << 1
+USE = 2 << 3
 
 
 class Scope:
@@ -40,6 +43,8 @@ class Scope:
         self.lineno = lineno
         self.defs = {}
         self.uses = {}
+        # Defs and uses
+        self.symbols: dict[str, int] = {}
         self.globals = {}
         self.explicit_globals = {}
         self.nonlocals = {}
@@ -80,16 +85,18 @@ class Scope:
             return name
         return mangle(name, self.klass)
 
-    def add_def(self, name, kind=DEF_NORMAL):
+    def add_def(self, name: str, kind: int = DEF_LOCAL) -> None:
         mangled = self.mangle(name)
         if name not in self.nonlocals:
             self.defs[mangled] = kind | self.defs.get(mangled, 1)
+            self.symbols[mangled] = kind | self.defs.get(mangled, 1)
 
     def add_import(self, name: str) -> None:
         self.imports.add(name)
 
-    def add_use(self, name):
+    def add_use(self, name: str) -> None:
         self.uses[self.mangle(name)] = 1
+        self.symbols[self.mangle(name)] = USE
 
     def add_global(self, name):
         name = self.mangle(name)
@@ -100,15 +107,16 @@ class Scope:
                 "{} in {} is global and parameter".format(name, self.name)
             )
         self.explicit_globals[name] = 1
-        self.module.add_def(name)
+        self.module.add_def(name, DEF_GLOBAL)
         # Seems to be behavior of Py3.5, "global foo" sets foo as
         # explicit global for module too
         self.module.explicit_globals[name] = 1
 
-    def add_param(self, name):
+    def add_param(self, name: str) -> None:
         name = self.mangle(name)
         self.defs[name] = 1
         self.params[name] = 1
+        self.symbols[name] = DEF_PARAM
 
     def add_type_param(self, name: str):
         if name in self.type_params:
@@ -1232,6 +1240,11 @@ class SymbolVisitor312(BaseSymbolVisitor):
             if child.free or child.child_free:
                 scope.child_free = True
 
+        # Splice children of inlined comprehensions into our children list
+        for i, child in enumerate(scope.children):
+            if isinstance(child, GenExprScope) and child.inlined:
+                scope.children[i : i + 1] = child.children
+
         new_free |= all_free
 
         if isinstance(scope, FUNCTION_LIKE_SCOPES):
@@ -1274,6 +1287,12 @@ class SymbolVisitor312(BaseSymbolVisitor):
                 if name in free:
                     free.remove(name)
 
+    def is_free_in_any_child(self, comp: GenExprScope, name: str) -> bool:
+        for child in comp.children:
+            if name in child.frees:
+                return True
+        return False
+
     def inline_comprehension(
         self,
         scope: Scope,
@@ -1305,7 +1324,13 @@ class SymbolVisitor312(BaseSymbolVisitor):
         # if yes - name is no longer free after inlining
         for f in list(comp.frees.keys()):
             if f in scope.defs:
-                comp_free.remove(f)
+                # free vars in comprehension that are locals in outer scope can
+                # now simply be locals, unless they are free in comp children,
+                # or if the outer scope is a class block
+                if not self.is_free_in_any_child(comp, f) and not isinstance(
+                    scope, ClassScope
+                ):
+                    comp_free.remove(f)
             elif isinstance(scope, ClassScope) and f == "__class__":
                 scope.globals[f] = 1
                 remove_dunder_class = True
