@@ -1511,6 +1511,8 @@ class PyFlowGraph312(PyFlowGraph):
             block.prev = prev
             prev = block
 
+        block.next = None
+
         self.ordered_blocks = new_ordered + to_end
         if to_end:
             self.remove_redundant_jumps(optimizer, False)
