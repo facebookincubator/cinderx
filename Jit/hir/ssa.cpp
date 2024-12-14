@@ -418,6 +418,7 @@ Type outputType(
     case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kDictSubscr:
+    case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
     case Opcode::kGetAIter:

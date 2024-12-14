@@ -45,6 +45,7 @@ namespace jit::hir {
   V(DictSubscr)                        \
   V(DictUpdate)                        \
   V(DoubleBinaryOp)                    \
+  V(EagerImportName)                   \
   V(EndInlinedFunction)                \
   V(FillTypeAttrCache)                 \
   V(FillTypeMethodCache)               \

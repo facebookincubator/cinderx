@@ -28,6 +28,7 @@
   X(CLEANUP_THROW)                     \
   X(COPY)                              \
   X(COPY_FREE_VARS)                    \
+  X(EAGER_IMPORT_NAME)                 \
   X(END_FOR)                           \
   X(END_SEND)                          \
   X(INSTRUMENTED_CALL)                 \

@@ -114,6 +114,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     DICT_UPDATE,
     DUP_TOP,
     DUP_TOP_TWO,
+    EAGER_IMPORT_NAME,
     END_ASYNC_FOR,
     END_FOR,
     EXTENDED_ARG,
@@ -1206,6 +1207,7 @@ void HIRBuilder::translate(
           emitImportFrom(tc, bc_instr);
           break;
         }
+        case EAGER_IMPORT_NAME:
         case IMPORT_NAME: {
           emitImportName(tc, bc_instr);
           break;
@@ -3729,7 +3731,11 @@ void HIRBuilder::emitImportName(
   Register* fromlist = stack.pop();
   Register* level = stack.pop();
   Register* res = temps_.AllocateStack();
-  tc.emit<ImportName>(res, bc_instr.oparg(), fromlist, level, tc.frame);
+  if (bc_instr.opcode() == EAGER_IMPORT_NAME) {
+    tc.emit<EagerImportName>(res, bc_instr.oparg(), fromlist, level, tc.frame);
+  } else {
+    tc.emit<ImportName>(res, bc_instr.oparg(), fromlist, level, tc.frame);
+  }
   stack.push(res);
 }
 

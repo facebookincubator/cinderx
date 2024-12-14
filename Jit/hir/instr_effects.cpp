@@ -114,6 +114,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kDictMerge:
     case Opcode::kDictUpdate:
     case Opcode::kDictSubscr:
+    case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
     case Opcode::kFormatValue:
@@ -426,6 +427,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:
     case Opcode::kDictUpdate:
+    case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
     case Opcode::kFormatValue:

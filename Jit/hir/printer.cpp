@@ -696,6 +696,11 @@ static std::string format_immediates(const Instr& instr) {
       const auto& import_name = static_cast<const ImportName&>(instr);
       return format_name(import_name, import_name.name_idx());
     }
+    case Opcode::kEagerImportName: {
+      const auto& eager_import_name =
+          static_cast<const EagerImportName&>(instr);
+      return format_name(eager_import_name, eager_import_name.name_idx());
+    }
     case Opcode::kRefineType: {
       const auto& rt = static_cast<const RefineType&>(instr);
       return rt.type().toString();

@@ -247,6 +247,13 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     Register* fromlist = ParseRegister();
     Register* level = ParseRegister();
     instruction = newInstr<ImportName>(dst, name_idx, fromlist, level);
+  } else if (opcode == "EagerImportName") {
+    expect("<");
+    int name_idx = GetNextInteger();
+    expect(">");
+    Register* fromlist = ParseRegister();
+    Register* level = ParseRegister();
+    instruction = newInstr<EagerImportName>(dst, name_idx, fromlist, level);
   } else if (opcode == "MakeList") {
     expect("<");
     int nvalues = GetNextInteger();

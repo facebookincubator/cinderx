@@ -2763,6 +2763,25 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->GetLevel());
         break;
       }
+      case Opcode::kEagerImportName: {
+#if PY_VERSION_HEX >= 0x030C0000
+        auto instr = static_cast<const EagerImportName*>(&i);
+        Instruction* name = getNameFromIdx(bbb, instr);
+        PyObject* globals = instr->frameState()->globals;
+        PyObject* builtins = instr->frameState()->builtins;
+        bbb.appendCallInstruction(
+            i.output(),
+            _PyImport_ImportName,
+            env_->asm_tstate,
+            builtins,
+            globals,
+            Py_None, /* locals, see JITRT_ImportName. */
+            name,
+            instr->GetFromList(),
+            instr->GetLevel());
+#endif
+        break;
+      }
       case Opcode::kRaise: {
         const auto& instr = static_cast<const Raise&>(i);
         hir::Register* exc = nullptr;

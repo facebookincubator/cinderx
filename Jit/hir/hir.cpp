@@ -221,6 +221,7 @@ bool Instr::isReplayable() const {
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:
     case Opcode::kDictUpdate:
+    case Opcode::kEagerImportName:
     case Opcode::kEndInlinedFunction:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:

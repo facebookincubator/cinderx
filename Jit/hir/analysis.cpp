@@ -71,6 +71,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kDictSubscr:
     case Opcode::kDictUpdate:
     case Opcode::kDoubleBinaryOp:
+    case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
     case Opcode::kFormatValue:

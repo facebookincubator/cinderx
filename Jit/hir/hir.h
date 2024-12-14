@@ -3585,6 +3585,30 @@ class INSTR_CLASS(
 };
 
 class INSTR_CLASS(
+    EagerImportName,
+    (TObject, TLong),
+    HasOutput,
+    Operands<2>,
+    DeoptBaseWithNameIdx) {
+ public:
+  EagerImportName(
+      Register* dst,
+      int name_idx,
+      Register* fromlist,
+      Register* level,
+      const FrameState& frame)
+      : InstrT(dst, fromlist, level, name_idx, frame) {}
+
+  Register* GetFromList() const {
+    return GetOperand(0);
+  }
+
+  Register* GetLevel() const {
+    return GetOperand(1);
+  }
+};
+
+class INSTR_CLASS(
     ImportName,
     (TObject, TLong),
     HasOutput,
