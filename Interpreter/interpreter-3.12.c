@@ -50,6 +50,48 @@ static inline PyObject* box_primitive(int type, Py_ssize_t value) {
   }
 }
 
+static inline PyObject* load_field(int field_type, void* addr) {
+    PyObject* value;
+    switch (field_type) {
+        case TYPED_BOOL:
+            value = PyBool_FromLong(*(int8_t*)addr);
+            break;
+        case TYPED_INT8:
+            value = PyLong_FromVoidPtr((void*)(Py_ssize_t) * ((int8_t*)addr));
+            break;
+        case TYPED_INT16:
+            value = PyLong_FromVoidPtr((void*)(Py_ssize_t) * ((int16_t*)addr));
+            break;
+        case TYPED_INT32:
+            value = PyLong_FromVoidPtr((void*)(Py_ssize_t) * ((int32_t*)addr));
+            break;
+        case TYPED_INT64:
+            value = PyLong_FromVoidPtr((void*)(Py_ssize_t) * ((int64_t*)addr));
+            break;
+        case TYPED_UINT8:
+            value = PyLong_FromVoidPtr((void*)(Py_ssize_t) * ((uint8_t*)addr));
+            break;
+        case TYPED_UINT16:
+            value = PyLong_FromVoidPtr((void*)(Py_ssize_t) * ((uint16_t*)addr));
+            break;
+        case TYPED_UINT32:
+            value = PyLong_FromVoidPtr((void*)(Py_ssize_t) * ((uint32_t*)addr));
+            break;
+        case TYPED_UINT64:
+            value = PyLong_FromVoidPtr((void*)(Py_ssize_t) * ((uint64_t*)addr));
+            break;
+        case TYPED_DOUBLE:
+            value = PyFloat_FromDouble(*(double*)addr);
+            break;
+        default:
+            PyErr_SetString(PyExc_RuntimeError, "unsupported field type");
+            return NULL;
+    }
+    return value;
+}
+
+#define FIELD_OFFSET(self, offset) (PyObject**)(((char*)self) + offset)
+
 #define CAST_COERCE_OR_ERROR(val, type, exact)                                     \
     if (type == &PyFloat_Type && PyObject_TypeCheck(val, &PyLong_Type)) {          \
         long lval = PyLong_AsLong(val);                                            \

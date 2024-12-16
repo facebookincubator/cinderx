@@ -4916,7 +4916,7 @@
         TARGET(LOAD_ITERABLE_ARG) {
             PyObject *tup = stack_pointer[-1];
             PyObject *element;
-            #line 143 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 142 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int idx = oparg;
             if (!PyTuple_CheckExact(tup)) {
                 if (tup->ob_type->tp_iter == NULL && !PySequence_Check(tup)) {
@@ -4948,7 +4948,7 @@
 
         TARGET(STORE_LOCAL) {
             PyObject *val = stack_pointer[-1];
-            #line 168 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 167 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* local = GETITEM(frame->f_code->co_consts, oparg);
             int index = _PyLong_AsInt(PyTuple_GET_ITEM(local, 0));
             int type =
@@ -4976,9 +4976,67 @@
             DISPATCH();
         }
 
+        TARGET(LOAD_FIELD) {
+            PyObject *self = stack_pointer[-1];
+            PyObject *value;
+            #line 192 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            PyObject* field = GETITEM(frame->f_code->co_consts, oparg);
+            int field_type;
+            Py_ssize_t offset =
+                _PyClassLoader_ResolveFieldOffset(field, &field_type);
+            if (offset == -1) {
+                goto error;
+            }
+
+            if (field_type == TYPED_OBJECT) {
+                value = *FIELD_OFFSET(self, offset);
+#ifdef ADAPTIVE
+                if (shadow.shadow != NULL) {
+                    assert(offset % sizeof(PyObject*) == 0);
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        LOAD_OBJ_FIELD,
+                        offset / sizeof(PyObject*));
+                }
+#endif
+
+                if (value == NULL) {
+                    PyObject* name =
+                        PyTuple_GET_ITEM(field, PyTuple_GET_SIZE(field) - 1);
+                    PyErr_Format(
+                        PyExc_AttributeError,
+                        "'%.50s' object has no attribute '%U'",
+                        Py_TYPE(self)->tp_name,
+                        name);
+                    goto error;
+                }
+                Py_INCREF(value);
+            } else {
+#ifdef ADAPTIVE
+                if (shadow.shadow != NULL) {
+                    int pos = _PyShadow_CacheFieldType(&shadow, offset, field_type);
+                    if (pos != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow, next_instr, LOAD_PRIMITIVE_FIELD, pos);
+                    }
+                }
+#endif
+
+                value = load_field(field_type, (char*)FIELD_OFFSET(self, offset));
+                if (value == NULL) {
+                    goto error;
+                }
+            }
+            Py_DECREF(self);
+            #line 5032 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            stack_pointer[-1] = value;
+            DISPATCH();
+        }
+
         TARGET(CAST) {
             PyObject *val = stack_pointer[-1];
-            #line 193 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 244 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int optional;
             int exact;
             PyTypeObject* type = _PyClassLoader_ResolveType(
@@ -5012,6 +5070,6 @@
             }
 #endif
             Py_DECREF(type);
-            #line 5015 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5073 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }

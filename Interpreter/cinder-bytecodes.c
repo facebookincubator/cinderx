@@ -138,7 +138,6 @@ dummy_func(
         override inst(NOP, (--)) {
         }
 
-
         inst(LOAD_ITERABLE_ARG, (tup -- element, tup)) {
             int idx = oparg;
             if (!PyTuple_CheckExact(tup)) {
@@ -189,6 +188,58 @@ dummy_func(
 #endif
         }
 
+        inst(LOAD_FIELD, (self -- value)) {
+            PyObject* field = GETITEM(frame->f_code->co_consts, oparg);
+            int field_type;
+            Py_ssize_t offset =
+                _PyClassLoader_ResolveFieldOffset(field, &field_type);
+            if (offset == -1) {
+                goto error;
+            }
+
+            if (field_type == TYPED_OBJECT) {
+                value = *FIELD_OFFSET(self, offset);
+#ifdef ADAPTIVE
+                if (shadow.shadow != NULL) {
+                    assert(offset % sizeof(PyObject*) == 0);
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        LOAD_OBJ_FIELD,
+                        offset / sizeof(PyObject*));
+                }
+#endif
+
+                if (value == NULL) {
+                    PyObject* name =
+                        PyTuple_GET_ITEM(field, PyTuple_GET_SIZE(field) - 1);
+                    PyErr_Format(
+                        PyExc_AttributeError,
+                        "'%.50s' object has no attribute '%U'",
+                        Py_TYPE(self)->tp_name,
+                        name);
+                    goto error;
+                }
+                Py_INCREF(value);
+            } else {
+#ifdef ADAPTIVE
+                if (shadow.shadow != NULL) {
+                    int pos = _PyShadow_CacheFieldType(&shadow, offset, field_type);
+                    if (pos != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow, next_instr, LOAD_PRIMITIVE_FIELD, pos);
+                    }
+                }
+#endif
+
+                value = load_field(field_type, (char*)FIELD_OFFSET(self, offset));
+                if (value == NULL) {
+                    goto error;
+                }
+            }
+            Py_DECREF(self);
+        }
+      
         inst(CAST, (val -- val)) {
             int optional;
             int exact;
