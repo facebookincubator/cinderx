@@ -1806,6 +1806,7 @@ class PyFlowGraph312(PyFlowGraph):
         target = last.target
         assert target is not None
         is_forward = target.bid not in seen_blocks
+        assert last.opname != "JUMP_FOWARD"
         if last.opname == "JUMP":
             last.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD"
             return

@@ -605,7 +605,7 @@ class CodeGenerator(ASTVisitor):
         self.visitStatements(node.body)
 
         if node.orelse:
-            self.emit_noline("JUMP_FORWARD", end)
+            self.emit_jump_forward_noline(end)
             self.nextBlock(orelse)
             self.visitStatements(node.orelse)
 
@@ -724,6 +724,12 @@ class CodeGenerator(ASTVisitor):
         ast.GtE: ">=",
     }
 
+    def emit_jump_forward(self, target: Block) -> None:
+        raise NotImplementedError()
+
+    def emit_jump_forward_noline(self, target: Block) -> None:
+        raise NotImplementedError()
+
     def emit_compile_jump_if_compare(
         self, test: ast.Compare, next: Block, is_if_true: bool
     ) -> None:
@@ -761,7 +767,7 @@ class CodeGenerator(ASTVisitor):
             self.compileJumpIf(test.test, orelse, False)
             # Jump directly to target if test is true and body is matches
             self.compileJumpIf(test.body, next, is_if_true)
-            self.emit_noline("JUMP_FORWARD", end)
+            self.emit_jump_forward_noline(end)
             # Jump directly to target if test is true and orelse matches
             self.nextBlock(orelse)
             self.compileJumpIf(test.orelse, next, is_if_true)
@@ -780,7 +786,7 @@ class CodeGenerator(ASTVisitor):
         elseblock = self.newBlock()
         self.compileJumpIf(node.test, elseblock, False)
         self.visit(node.body)
-        self.emit_noline("JUMP_FORWARD", endblock)
+        self.emit_jump_forward_noline(endblock)
         self.nextBlock(elseblock)
         self.visit(node.orelse)
         self.nextBlock(endblock)
@@ -1648,6 +1654,9 @@ class CodeGenerator(ASTVisitor):
     def emit_match_jump_to_end(self, end: Block) -> None:
         raise NotImplementedError()
 
+    def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext):
+        raise NotImplementedError()
+
     def visitMatch(self, node: ast.Match) -> None:
         """See compiler_match_inner in compile.c"""
         pc = self.pattern_context()
@@ -2050,7 +2059,7 @@ class CodeGenerator(ASTVisitor):
                         for _ in range(rotations):
                             self.emit_rot_n(icontrol + 1)
             assert control is not None
-            self.emit("JUMP_FORWARD", end)
+            self.emit_jump_forward(end)
             self.nextBlock()
             self._emit_and_reset_fail_pop(pc)
         assert control is not None
@@ -2058,7 +2067,7 @@ class CodeGenerator(ASTVisitor):
         # No match. Pop the remaining copy of the subject and fail:
         self.set_match_pos(node)
         self.emit("POP_TOP")
-        self._jump_to_fail_pop(pc, "JUMP_FORWARD")
+        self.emit_match_jump_to_fail_pop_unconditional(pc)
         self.nextBlock(end)
         nstores = len(control)
         # There's a bunch of stuff on the stack between any where the new stores
@@ -3183,6 +3192,12 @@ class CodeGenerator310(CodeGenerator):
     def emitJump(self, target) -> None:
         self.emit("JUMP_ABSOLUTE", target)
 
+    def emit_jump_forward(self, target: Block) -> None:
+        self.emit("JUMP_FORWARD", target)
+
+    def emit_jump_forward_noline(self, target: Block) -> None:
+        self.emit_noline("JUMP_FORWARD", target)
+
     def emit_print(self) -> None:
         self.emit("PRINT_EXPR")
 
@@ -3411,6 +3426,9 @@ class CodeGenerator310(CodeGenerator):
 
     def emit_match_jump_to_end(self, end: Block) -> None:
         self.emit("JUMP_FORWARD", end)
+
+    def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext):
+        self._jump_to_fail_pop(pc, "JUMP_FORWARD")
 
     def emit_finish_match_class(self, node: ast.MatchClass, pc: PatternContext) -> None:
         # TOS is now a tuple of (nargs + nattrs) attributes. Preserve it:
@@ -4021,6 +4039,12 @@ class CodeGenerator312(CodeGenerator):
 
     def emitJump(self, target) -> None:
         self.emit("JUMP", target)
+
+    def emit_jump_forward(self, target: Block) -> None:
+        self.emit("JUMP", target)
+
+    def emit_jump_forward_noline(self, target: Block) -> None:
+        self.emit_noline("JUMP", target)
 
     def _visitSequenceLoad(
         self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
@@ -5355,7 +5379,10 @@ class CodeGenerator312(CodeGenerator):
         self.set_pos(node)
 
     def emit_match_jump_to_end(self, end: Block) -> None:
-        self.emit_noline("JUMP_FORWARD", end)
+        self.emit_noline("JUMP", end)
+
+    def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext):
+        self._jump_to_fail_pop(pc, "JUMP")
 
     def emit_finish_match_class(self, node: ast.MatchClass, pc: PatternContext) -> None:
         self.emit("COPY", 1)
