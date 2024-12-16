@@ -362,10 +362,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         else:
             self.emit("LOAD_CONST", None)
 
-        if "__class__" in class_body.graph.cellvars:
-            self.emit("LOAD_CONST", True)
-        else:
-            self.emit("LOAD_CONST", False)
+        self.emit("LOAD_CONST", class_body.scope.needs_class_closure)
 
         assert klass is not None
         final_methods: list[str] = []
@@ -438,11 +435,12 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         if not klass.has_init_subclass:
             # we define a custom override of __init_subclass__
-            if "__class__" not in gen.scope.cells:
+            if not gen.scope.needs_class_closure:
                 # we need to call super(), which will need to have
                 # __class__ available if it's not already...
                 gen.graph.cellvars.get_index("__class__")
                 gen.scope.cells["__class__"] = 1
+                gen.scope.needs_class_closure = True
 
             init_graph = self.flow_graph(
                 "__init_subclass__",

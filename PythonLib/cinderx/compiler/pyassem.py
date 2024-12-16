@@ -460,7 +460,7 @@ class IndexedSet:
 
     __delitem__ = None
 
-    def __init__(self, iterable=()):
+    def __init__(self, iterable: Iterable[str] = ()):
         self.keys = {}
         for item in iterable:
             self.get_index(item)

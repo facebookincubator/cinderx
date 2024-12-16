@@ -9,6 +9,8 @@ import ast
 import os
 import sys
 
+from typing import Iterable
+
 from .consts import (
     CO_FUTURE_ANNOTATIONS,
     SC_CELL,
@@ -168,6 +170,11 @@ class Scope:
         if name in self.cells:
             return SC_CELL
         if name in self.frees:
+            if isinstance(self, ClassScope) and name in self.defs:
+                # When a class has a free variable for something it
+                # defines it's not really a free variable in the class
+                # scope. CPython handles this with DEF_FREE_CLASS
+                return SC_LOCAL
             return SC_FREE
         if name in self.defs:
             return SC_LOCAL
@@ -283,7 +290,7 @@ class Scope:
                     self.free = True
                 self.globals[name] = 1
 
-    def get_cell_vars(self):
+    def get_cell_vars(self) -> Iterable[str]:
         return sorted(self.cells.keys())
 
     def findParentClass(self):
@@ -333,6 +340,15 @@ class ClassScope(Scope):
 
     def __init__(self, name, module, lineno=0):
         self.__super_init(name, module, name, lineno=lineno)
+        self.needs_class_closure = False
+        self.needs_classdict = False
+
+    def get_cell_vars(self) -> Iterable[str]:
+        yield from self.cells.keys()
+        if self.needs_class_closure:
+            yield "__class__"
+        if self.needs_classdict:
+            yield "__classdict__"
 
 
 class TypeParamScope(Scope):
@@ -1015,12 +1031,12 @@ class SymbolVisitor310(BaseSymbolVisitor):
             scope.analyze_cells(new_free)
         elif isinstance(scope, ClassScope):
             # drop class free
-            for drop_free in ["__class__", "__classdict__"]:
-                if drop_free in new_free:
-                    new_free.remove(drop_free)
-                    # we need a class closure cell (CPython sets ste_needs_class_closure
-                    # and adds this later whiel compiling when entering a class scope)
-                    scope.cells[drop_free] = 1
+            if "__class__" in new_free:
+                new_free.remove("__class__")
+                scope.needs_class_closure = True
+            if "__classdict__" in new_free:
+                new_free.remove("__classdict__")
+                scope.needs_classdict = True
 
         scope.update_symbols(bound, new_free)
         free |= new_free
@@ -1291,12 +1307,12 @@ class SymbolVisitor312(BaseSymbolVisitor):
             self.analyze_cells(scope, new_free, inlined_cells)
         elif isinstance(scope, ClassScope):
             # drop class free
-            for drop_free in ["__class__", "__classdict__"]:
-                if drop_free in new_free:
-                    new_free.remove(drop_free)
-                    # we need a class closure cell (CPython sets ste_needs_class_closure
-                    # and adds this later whiel compiling when entering a class scope)
-                    scope.cells[drop_free] = 1
+            if "__class__" in new_free:
+                new_free.remove("__class__")
+                scope.needs_class_closure = True
+            if "__classdict__" in new_free:
+                new_free.remove("__classdict__")
+                scope.needs_classdict = True
 
         scope.update_symbols(bound, new_free)
         free |= new_free

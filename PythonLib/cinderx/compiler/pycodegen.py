@@ -2233,6 +2233,7 @@ class CodeGenerator(ASTVisitor):
         symbols = self.symbols
 
         scope = symbols.scopes[klass]
+        assert isinstance(scope, ClassScope)
         graph = self.flow_graph(
             klass.name,
             filename,
@@ -2515,11 +2516,6 @@ class CodeGenerator310(CodeGenerator):
             else:
                 self.emit(prefix + "_GLOBAL", name)
         elif scope == SC_FREE or scope == SC_CELL:
-            if isinstance(self.scope, ClassScope):
-                if prefix == "STORE" and name not in self.scope.nonlocals:
-                    self.emit(prefix + "_NAME", name)
-                    return
-
             if isinstance(self.scope, ClassScope) and prefix == "LOAD":
                 self.emit(prefix + "_CLASSDEREF", name)
             else:
@@ -2698,7 +2694,7 @@ class CodeGenerator310(CodeGenerator):
         self.walkClassBody(node, gen)
 
         gen.set_no_pos()
-        if "__class__" in gen.scope.cells:
+        if gen.scope.needs_class_closure:
             gen.emit("LOAD_CLOSURE", "__class__")
             gen.emit("DUP_TOP")
             gen.emit("STORE_NAME", "__classcell__")
@@ -4374,7 +4370,7 @@ class CodeGenerator312(CodeGenerator):
             gen.loadName(".type_params")
             gen.emit("STORE_NAME", "__type_params__")
 
-        if "__classdict__" in gen.scope.cells:
+        if gen.scope.needs_classdict:
             gen.emit("LOAD_LOCALS")
             gen.emit("STORE_DEREF", "__classdict__")
 
@@ -4382,11 +4378,11 @@ class CodeGenerator312(CodeGenerator):
 
         gen.set_no_pos()
 
-        if "__classdict__" in gen.scope.cells:
+        if gen.scope.needs_classdict:
             gen.emit("LOAD_CLOSURE", "__classdict__")
             gen.emit("STORE_NAME", "__classdictcell__")
 
-        if "__class__" in gen.scope.cells:
+        if gen.scope.needs_class_closure:
             gen.emit("LOAD_CLOSURE", "__class__")
             gen.emit("COPY", 1)
             gen.emit("STORE_NAME", "__classcell__")
@@ -4626,11 +4622,6 @@ class CodeGenerator312(CodeGenerator):
             else:
                 self.emit(prefix + "_GLOBAL", name)
         elif scope == SC_FREE or scope == SC_CELL:
-            if isinstance(self.scope, ClassScope):
-                if prefix == "STORE" and name not in self.scope.nonlocals:
-                    self.emit(prefix + "_NAME", name)
-                    return
-
             if isinstance(self.scope, ClassScope) and prefix == "LOAD":
                 self.emit("LOAD_LOCALS")
                 self.emit("LOAD_FROM_DICT_OR_DEREF", name)
