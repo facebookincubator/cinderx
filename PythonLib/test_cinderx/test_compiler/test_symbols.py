@@ -344,10 +344,10 @@ class SymbolVisitorTests(CompilerTest):
         walk(module, visitor)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
-                self.assertEqual(len(scope.parent.children), 2)
+                self.assertEqual(len(scope.parent.children), 1)
                 self.assertEqual(len(scope.children), 0)
                 self.assertIn("__classdict__", scope.uses)
-                self.assertIn("__classdict__", scope.parent.defs)
+                self.assertIn("__classdict__", scope.parent.parent.defs)
                 break
         else:
             self.fail("scope not found")

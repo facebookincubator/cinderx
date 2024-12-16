@@ -523,6 +523,7 @@ class PyFlowGraph(FlowGraph):
         docstring: str | None = None,
         firstline: int = 0,
         posonlyargs: int = 0,
+        suppress_default_const: bool = False,
     ) -> None:
         self.super_init()
         self.name = name
@@ -564,7 +565,8 @@ class PyFlowGraph(FlowGraph):
         self.first_inst_lineno = 0
         # Add any extra consts that were requested to the const pool
         self.extra_consts = []
-        self.initializeConsts()
+        if not suppress_default_const:
+            self.initializeConsts()
         self.fast_vars = set()
         self.gen_kind = None
         self.insts: list[Instruction] = []
@@ -1365,6 +1367,7 @@ class PyFlowGraph312(PyFlowGraph):
         firstline: int = 0,
         posonlyargs: int = 0,
         qualname: Optional[str] = None,
+        suppress_default_const: bool = False,
     ) -> None:
         super().__init__(
             name,
@@ -1379,6 +1382,7 @@ class PyFlowGraph312(PyFlowGraph):
             docstring,
             firstline,
             posonlyargs,
+            suppress_default_const,
         )
         self.qualname = qualname or name
         # Final assembled code objects
@@ -1549,6 +1553,9 @@ class PyFlowGraph312(PyFlowGraph):
 
     def remove_unused_consts(self) -> None:
         nconsts = len(self.consts)
+        if not nconsts:
+            return
+
         index_map = [-1] * nconsts
         index_map[0] = 0  # The first constant may be docstring; keep it always.
 
@@ -1738,7 +1745,9 @@ class PyFlowGraph312(PyFlowGraph):
                 ):
                     oldoffset = instr.ioparg
                     assert oldoffset >= 0
-                    assert oldoffset < noffsets, instr.opname
+                    assert (
+                        oldoffset < noffsets
+                    ), f"{instr.opname} {self.name} {self.firstline} {instr.oparg}"
                     assert fixed_map[oldoffset] >= 0
                     if isinstance(instr.oparg, int):
                         # Only update oparg here if it's already in the int-form

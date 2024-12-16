@@ -119,6 +119,7 @@ class Scope:
         self.symbols[name] = DEF_PARAM
 
     def add_type_param(self, name: str):
+        name = self.mangle(name)
         if name in self.type_params:
             raise SyntaxError("duplicated type parameter: {!r}".format(name))
         self.type_params.add(name)
@@ -221,6 +222,7 @@ class Scope:
         local: set[str],
         free: set[str],
         global_vars: set[str],
+        class_entry: Scope | None = None,
     ) -> None:
         # Go through all the known symbols in the block and analyze them
         for name in self.explicit_globals:
@@ -253,6 +255,21 @@ class Scope:
             global_vars.discard(name)
 
         for name in self.uses:
+            # If we were passed class_entry (i.e., we're in an ste_can_see_class_scope scope)
+            # and the bound name is in that set, then the name is potentially bound both by
+            # the immediately enclosing class namespace, and also by an outer function namespace.
+            # In that case, we want the runtime name resolution to look at only the class
+            # namespace and the globals (not the namespace providing the bound).
+            # Similarly, if the name is explicitly global in the class namespace (through the
+            # global statement), we want to also treat it as a global in this scope.
+            if class_entry is not None and name != "__classdict__":
+                if name in class_entry.globals:
+                    self.explicit_globals[name] = 1
+                    continue
+                elif name in class_entry.defs and name not in class_entry.nonlocals:
+                    self.globals[name] = 1
+                    continue
+
             if name in self.defs or name in self.explicit_globals:
                 continue
             if bound is not None and name in bound:
@@ -346,7 +363,7 @@ class BaseSymbolVisitor(ASTVisitor):
     def __init__(self, future_flags: int):
         super().__init__()
         self.future_annotations = future_flags & CO_FUTURE_ANNOTATIONS
-        self.scopes: dict[ast.AST, Scope] = {}
+        self.scopes: dict[ast.AST | tuple[ast.AST, ...], Scope] = {}
         self.klass = None
         self.module = ModuleScope()
 
@@ -363,7 +380,7 @@ class BaseSymbolVisitor(ASTVisitor):
         scope.parent = parent
         # type_params is a list, which is not hashable, so we key off the first element as
         # there is always at least one.
-        self.scopes[node.type_params[0]] = scope
+        self.scopes[tuple(node.type_params)] = scope
         if isinstance(parent, ClassScope):
             scope.can_see_class_scope = True
             scope.add_use("__classdict__")
@@ -394,9 +411,10 @@ class BaseSymbolVisitor(ASTVisitor):
             scope.nested = True
             scope.can_see_class_scope = is_in_class
             if is_in_class:
-                scope.add_def("__classdict__")
+                scope.add_use("__classdict__")
 
             self.visit(node.bound, scope)
+            self.scopes[node] = scope
             parent.add_child(scope)
 
     # pyre-ignore[11]: Pyre doesn't know TypeVarTuple
@@ -583,9 +601,12 @@ class BaseSymbolVisitor(ASTVisitor):
         type_params = getattr(node, "type_params", ())
 
         if type_params:
+            prev = self.klass
+            self.klass = node.name
             parent = self.enter_type_params(node, parent)
             for param in type_params:
                 self.visit(param, parent)
+            self.klass = prev
 
         for kw in node.keywords:
             self.visit(kw.value, parent)
@@ -625,7 +646,8 @@ class BaseSymbolVisitor(ASTVisitor):
             self.visit(node.type_params, alias_parent)
 
         scope = TypeAliasScope(node.name.id, self.module)
-        if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
+        scope.klass = self.klass
+        if alias_parent.nested or isinstance(alias_parent, FUNCTION_LIKE_SCOPES):
             scope.nested = 1
         scope.parent = alias_parent
         scope.can_see_class_scope = in_class
@@ -635,7 +657,7 @@ class BaseSymbolVisitor(ASTVisitor):
 
         self.scopes[node] = scope
         self.visit(node.value, scope)
-        parent.add_child(scope)
+        alias_parent.add_child(scope)
 
     # name can be a def or a use
     def visitName(self, node, scope):
@@ -1187,6 +1209,7 @@ class SymbolVisitor312(BaseSymbolVisitor):
         free: set[str],
         global_vars: set[str],
         bound: set[str] | None = None,
+        class_entry: Scope | None = None,
     ):
         local: set[str] = set()
         # Allocate new global and bound variable dictionaries.  These
@@ -1206,7 +1229,7 @@ class SymbolVisitor312(BaseSymbolVisitor):
             if bound is not None:
                 new_bound |= bound
 
-        scope.analyze_names(bound, local, free, global_vars)
+        scope.analyze_names(bound, local, free, global_vars, class_entry)
         # Populate global and bound sets to be passed to children.
         if not isinstance(scope, ClassScope):
             if isinstance(scope, FUNCTION_LIKE_SCOPES):
@@ -1233,7 +1256,16 @@ class SymbolVisitor312(BaseSymbolVisitor):
             if inline_comp:
                 child_free = set()
 
-            self.analyze_child_block(child, new_bound, new_free, new_global, child_free)
+            new_class_entry = None
+            if child.can_see_class_scope:
+                if isinstance(scope, ClassScope):
+                    new_class_entry = scope
+                else:
+                    new_class_entry = class_entry
+
+            self.analyze_child_block(
+                child, new_bound, new_free, new_global, child_free, new_class_entry
+            )
 
             if inline_comp:
                 self.inline_comprehension(scope, child, child_free, inlined_cells)
@@ -1270,12 +1302,13 @@ class SymbolVisitor312(BaseSymbolVisitor):
         free: set[str],
         global_vars: set[str],
         child_free: set[str],
+        class_entry: Scope | None = None,
     ):
         temp_bound = set(bound)
         temp_free = set(free)
         temp_global = set(free)
 
-        self.analyze_block(scope, temp_free, temp_global, temp_bound)
+        self.analyze_block(scope, temp_free, temp_global, temp_bound, class_entry)
         child_free |= temp_free
 
     def analyze_cells(

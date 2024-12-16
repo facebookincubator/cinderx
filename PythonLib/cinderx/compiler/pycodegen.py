@@ -278,7 +278,7 @@ class CodeGenerator(ASTVisitor):
     def __init__(
         self,
         parent: CodeGenerator | None,
-        node: AST,
+        node: AST | tuple[AST, ...],
         symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         flags=0,
@@ -293,7 +293,7 @@ class CodeGenerator(ASTVisitor):
         self.future_flags = future_flags or 0
         graph.setFlag(self.future_flags)
         self.module_gen = self if parent is None else parent.module_gen
-        self.tree = node
+        self._tree = node
         self.symbols = symbols
         self.graph = graph
         self.scopes = symbols.scopes
@@ -309,6 +309,14 @@ class CodeGenerator(ASTVisitor):
         self._qual_name = None
         self.parent_code_gen = parent
         self.name = self.get_node_name(node) if name is None else name
+
+    @property
+    def tree(self) -> AST:
+        tree = self._tree
+        if isinstance(tree, AST):
+            return tree
+
+        return tree[0]
 
     def _setupGraphDelegation(self):
         self.emit = self.graph.emit
@@ -2153,7 +2161,7 @@ class CodeGenerator(ASTVisitor):
         self.setups.append(copy)
         return loop
 
-    def get_node_name(self, node: ast.AST) -> str:
+    def get_node_name(self, node: AST | tuple[AST, ...]) -> str:
         if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
             return node.name
         elif isinstance(node, ast.SetComp):
@@ -2438,7 +2446,7 @@ class CodeGenerator310(CodeGenerator):
     def __init__(
         self,
         parent: CodeGenerator | None,
-        node: AST,
+        node: AST | tuple[AST, ...],
         symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         flags: int = 0,
@@ -3466,7 +3474,7 @@ class CodeGenerator312(CodeGenerator):
     def __init__(
         self,
         parent: CodeGenerator | None,
-        node: AST,
+        node: AST | tuple[AST, ...],
         symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         flags: int = 0,
@@ -4052,7 +4060,7 @@ class CodeGenerator312(CodeGenerator):
 
     def make_child_codegen(
         self,
-        tree: FuncOrLambda | CompNode | ast.ClassDef,
+        tree: FuncOrLambda | CompNode | ast.ClassDef | tuple[AST, ...],
         graph: PyFlowGraph,
         name: Optional[str] = None,
     ) -> CodeGenerator312:
@@ -4178,7 +4186,7 @@ class CodeGenerator312(CodeGenerator):
 
             if num_typeparam_args == 2:
                 self.emit("SWAP", 2)
-            gen_param_scope = self.symbols.scopes[type_params[0]]
+            gen_param_scope = self.symbols.scopes[tuple(type_params)]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name}>",
                 self.graph.filename,
@@ -4194,7 +4202,10 @@ class CodeGenerator312(CodeGenerator):
             )
             graph.args = args
 
-            outer_gen = self.make_child_codegen(type_params[0], graph, name=graph.name)
+            outer_gen = self.make_child_codegen(
+                tuple(type_params), graph, name=graph.name
+            )
+            outer_gen.class_name = self.class_name
             outer_gen.optimized = 1
             outer_gen.compile_type_params(type_params)
 
@@ -4239,10 +4250,57 @@ class CodeGenerator312(CodeGenerator):
                 self.set_pos(param)
                 self.emit("LOAD_CONST", param.name)
                 if param.bound:
-                    raise NotImplementedError("bound")
+                    typevar_scope = self.symbols.scopes[param]
+                    graph = self.flow_graph(
+                        param.name,
+                        self.graph.filename,
+                        typevar_scope,
+                        flags=CO_NESTED if typevar_scope.nested else 0,
+                        args=(),
+                        kwonlyargs=(),
+                        starargs=(),
+                        optimized=1,
+                        docstring=None,
+                        firstline=param.lineno,
+                        posonlyargs=0,
+                        suppress_default_const=True,
+                    )
+                    outer_gen = self.make_child_codegen(param, graph, name=graph.name)
+                    outer_gen.class_name = self.class_name
+                    outer_gen.optimized = 1
+                    outer_gen.visit(param.bound)
+                    outer_gen.set_pos(param)
+                    outer_gen.emit("RETURN_VALUE")
+                    # This is dumb but will get optimized away. CPython will call
+                    # optimize_and_assemble which will do this adding the extra const
+                    # and then remove the LOAD_CONST/RETURN_VALUE as it's dead code.
+                    outer_gen.emit("LOAD_CONST", None)
+                    outer_gen.emit("RETURN_VALUE")
+
+                    self.emit_closure(outer_gen, 0)
+
+                    self.emit_call_intrinsic_2(
+                        "INTRINSIC_TYPEVAR_WITH_CONSTRAINTS"
+                        if isinstance(param.bound, ast.Tuple)
+                        else "INTRINSIC_TYPEVAR_WITH_BOUND"
+                    )
                 else:
                     self.emit_call_intrinsic_1("INTRINSIC_TYPEVAR")
 
+                self.emit("COPY", 1)
+                self.storeName(param.name)
+            # pyre-ignore[16]: Module `ast` has no attribute `TypeVarTuple`.
+            elif isinstance(param, ast.TypeVarTuple):
+                self.set_pos(param)
+                self.emit("LOAD_CONST", param.name)
+                self.emit_call_intrinsic_1("INTRINSIC_TYPEVARTUPLE")
+                self.emit("COPY", 1)
+                self.storeName(param.name)
+            # pyre-ignore[16]: Module `ast` has no attribute `ParamSpec`.
+            elif isinstance(param, ast.ParamSpec):
+                self.set_pos(param)
+                self.emit("LOAD_CONST", param.name)
+                self.emit_call_intrinsic_1("INTRINSIC_PARAMSPEC")
                 self.emit("COPY", 1)
                 self.storeName(param.name)
             else:
@@ -4250,6 +4308,7 @@ class CodeGenerator312(CodeGenerator):
                     f"unsupported node in type params: {type(param).__name__}"
                 )
 
+        self.set_pos(type_params[0])
         self.emit("BUILD_TUPLE", len(type_params))
 
     def compile_body(self, gen: CodeGenerator, node: ast.ClassDef) -> None:
@@ -4326,7 +4385,7 @@ class CodeGenerator312(CodeGenerator):
         # pyre-ignore[16]: no attribute type_params
         if node.type_params:
             self.emit("PUSH_NULL")
-            gen_param_scope = self.symbols.scopes[node.type_params[0]]
+            gen_param_scope = self.symbols.scopes[tuple(node.type_params)]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name}>",
                 self.graph.filename,
@@ -4343,8 +4402,9 @@ class CodeGenerator312(CodeGenerator):
             graph.args = ()
 
             outer_gen = self.make_child_codegen(
-                node.type_params[0], graph, name=graph.name
+                tuple(node.type_params), graph, name=graph.name
             )
+            outer_gen.class_name = node.name
             outer_gen.optimized = 1
             outer_gen.compile_type_params(node.type_params)
 
@@ -4359,7 +4419,7 @@ class CodeGenerator312(CodeGenerator):
         outer_gen.emit("LOAD_CONST", node.name)
 
         if node.type_params:
-            outer_gen.emit("LOAD_DEREF", ".type_params")
+            outer_gen.loadName(".type_params")
             outer_gen.emit_call_intrinsic_1("INTRINSIC_SUBSCRIPT_GENERIC")
             outer_gen.emit("STORE_FAST", ".generic_base")
 
@@ -4404,11 +4464,13 @@ class CodeGenerator312(CodeGenerator):
             node.name.id,
             filename,
             scope,
-            optimized=0,
+            optimized=1,
             firstline=node.lineno,
+            flags=CO_NESTED if scope.nested else 0,
         )
 
         res = self.make_child_codegen(node, graph)
+        res.class_name = self.class_name
         res.optimized = 1
         return res
 
@@ -4416,11 +4478,12 @@ class CodeGenerator312(CodeGenerator):
         outer_gen: CodeGenerator312 = self
         if node.type_params:
             self.emit("PUSH_NULL")
+            generic_param_scope = self.symbols.scopes[tuple(node.type_params)]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name.id}>",
                 self.graph.filename,
-                self.symbols.scopes[node.type_params[0]],
-                flags=0,
+                generic_param_scope,
+                flags=CO_NESTED if generic_param_scope.nested else 0,
                 args=(),
                 kwonlyargs=(),
                 starargs=(),
@@ -4432,9 +4495,11 @@ class CodeGenerator312(CodeGenerator):
             graph.args = ()
 
             outer_gen = self.make_child_codegen(
-                node.type_params[0], graph, name=graph.name
+                tuple(node.type_params), graph, name=graph.name
             )
+            outer_gen.class_name = self.class_name
             outer_gen.optimized = 1
+            outer_gen.set_pos(node)
             outer_gen.emit("LOAD_CONST", node.name.id)
             outer_gen.compile_type_params(node.type_params)
         else:
@@ -4445,6 +4510,7 @@ class CodeGenerator312(CodeGenerator):
         code_gen.visit(node.value)
         code_gen.graph.emit_with_loc("RETURN_VALUE", 0, loc=node)
 
+        outer_gen.set_pos(node)
         outer_gen.emit_closure(code_gen, 0)
         outer_gen.emit("BUILD_TUPLE", 3)
         outer_gen.emit_call_intrinsic_1("INTRINSIC_TYPEALIAS")
@@ -4534,7 +4600,7 @@ class CodeGenerator312(CodeGenerator):
             if isinstance(self.scope, ClassScope) and prefix == "LOAD":
                 self.emit("LOAD_LOCALS")
                 self.emit("LOAD_FROM_DICT_OR_DEREF", name)
-            elif self.scope.can_see_class_scope:
+            elif self.scope.can_see_class_scope and prefix == "LOAD":
                 self.emit("LOAD_DEREF", "__classdict__")
                 self.emit("LOAD_FROM_DICT_OR_DEREF", name)
             else:
@@ -4586,7 +4652,11 @@ class CodeGenerator312(CodeGenerator):
         self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
 
     def visitAttribute(self, node):
-        if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
+        if (
+            isinstance(node.ctx, ast.Load)
+            and self._is_super_call(node.value)
+            and node.attr != "__class__"
+        ):
             self.emit_super_attribute(node)
             return
 
