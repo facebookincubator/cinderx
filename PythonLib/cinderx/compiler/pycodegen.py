@@ -715,6 +715,14 @@ class CodeGenerator(ASTVisitor):
     def visitBoolOp(self, node: ast.BoolOp) -> None:
         raise NotImplementedError()
 
+    def emit_bin_op(self, binop: type[ast.operator]) -> None:
+        raise NotImplementedError()
+
+    def visitBinOp(self, node: ast.BinOp) -> None:
+        self.visit(node.left)
+        self.visit(node.right)
+        self.emit_bin_op(type(node.op))
+
     _cmp_opcode: dict[type, str] = {
         ast.Eq: "==",
         ast.NotEq: "!=",
@@ -1814,7 +1822,7 @@ class CodeGenerator(ASTVisitor):
                 # nonnegative index:
                 self.emit("GET_LEN")
                 self.emit("LOAD_CONST", size - i)
-                self.emit("BINARY_SUBTRACT")
+                self.emit_bin_op(ast.Sub)
             self.emit("BINARY_SUBSCR")
             self._visit_subpattern(pattern, pc)
 
@@ -3177,10 +3185,8 @@ class CodeGenerator310(CodeGenerator):
         ast.BitAnd: "BINARY_AND",
     }
 
-    def visitBinOp(self, node):
-        self.visit(node.left)
-        self.visit(node.right)
-        op = self._binary_opcode[type(node.op)]
+    def emit_bin_op(self, binop: type[ast.operator]) -> None:
+        op = self._binary_opcode[binop]
         self.emit(op)
 
     # Misc --------------------------------------------------
@@ -3880,10 +3886,8 @@ class CodeGenerator312(CodeGenerator):
         ast.BitAnd: find_op_idx("NB_AND"),
     }
 
-    def visitBinOp(self, node):
-        self.visit(node.left)
-        self.visit(node.right)
-        op = self._binary_opargs[type(node.op)]
+    def emit_bin_op(self, binop: type[ast.operator]) -> None:
+        op = self._binary_opargs[binop]
         self.emit("BINARY_OP", op)
 
     # unary ops
