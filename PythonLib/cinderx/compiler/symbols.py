@@ -1270,6 +1270,8 @@ class SymbolVisitor312(BaseSymbolVisitor):
             if inline_comp:
                 self.inline_comprehension(scope, child, child_free, inlined_cells)
 
+            new_free |= child_free
+
         for child in scope.children:
             if child.free or child.child_free:
                 scope.child_free = True
