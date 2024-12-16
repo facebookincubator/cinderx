@@ -1701,6 +1701,7 @@ class CodeGenerator(ASTVisitor):
                 self.compileJumpIf(guard, pc.fail_pop[0], False)
             # Success! Pop the subject off, we're done with it:
             if not is_last_non_default_case:
+                self.set_pos(case.pattern)
                 self.emit("POP_TOP")
             self.visit(case.body)
             self.emit_match_jump_to_end(end)
@@ -1783,7 +1784,7 @@ class CodeGenerator(ASTVisitor):
             # Patterns like: [] / [_] / [_, _] / [*_] / [_, *_] / [_, _, *_] / etc.
             self.emit("POP_TOP")
         elif star_wildcard:
-            self._pattern_helper_sequence_subscr(patterns, star, pc)
+            self._pattern_helper_sequence_subscr(node, patterns, star, pc)
         else:
             self._pattern_helper_sequence_unpack(patterns, star, pc)
 
@@ -1798,7 +1799,7 @@ class CodeGenerator(ASTVisitor):
             self._visit_subpattern(pattern, pc)
 
     def _pattern_helper_sequence_subscr(
-        self, patterns: list[ast.pattern], star: int, pc: PatternContext
+        self, node: AST, patterns: list[ast.pattern], star: int, pc: PatternContext
     ) -> None:
         """
         Like _pattern_helper_sequence_unpack, but uses BINARY_SUBSCR instead of
@@ -1824,7 +1825,9 @@ class CodeGenerator(ASTVisitor):
                 self.emit("LOAD_CONST", size - i)
                 self.emit_bin_op(ast.Sub)
             self.emit("BINARY_SUBSCR")
+            self.set_pos(pattern)
             self._visit_subpattern(pattern, pc)
+            self.set_pos(node)
 
         # Pop the subject, we're done with it:
         pc.on_top -= 1
@@ -1959,6 +1962,7 @@ class CodeGenerator(ASTVisitor):
             self._validate_kwd_attrs(kwd_attrs, kwd_patterns)
         self.visit(node.cls)
         attr_names = tuple(name for name in kwd_attrs)
+        self.set_pos(node)
         self.emit("LOAD_CONST", attr_names)
         self.emit("MATCH_CLASS", nargs)
         self.emit_finish_match_class(node, pc)
@@ -2064,9 +2068,12 @@ class CodeGenerator(ASTVisitor):
                         del pc.stores[:rotations]
                         pc.stores[(icontrol - istores) : (icontrol - istores)] = rotated
                         # Do the same to the stack, using several ROT_Ns:
+                        self.set_pos(alt)
                         for _ in range(rotations):
                             self.emit_rot_n(icontrol + 1)
+
             assert control is not None
+            self.set_pos(alt)
             self.emit_jump_forward(end)
             self.nextBlock()
             self._emit_and_reset_fail_pop(pc)
@@ -3556,6 +3563,7 @@ class CodeGenerator312(CodeGenerator):
                 self.emit_call_one_arg()
                 self.graph.emit_with_loc("RAISE_VARARGS", 1, node.test)
             else:
+                self.set_pos(node.test)
                 self.emit("RAISE_VARARGS", 1)
             self.nextBlock(end)
 
@@ -3612,7 +3620,8 @@ class CodeGenerator312(CodeGenerator):
         load_arg, is_zero = self._emit_args_for_super(attr.value, attr.attr)
         op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
         loc = self.compute_start_location_to_match_attr(attr, attr)
-        self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
+        self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), attr)
+        self.graph.emit_with_loc("NOP", 0, loc)
 
     def is_super_shadowed(self) -> bool:
         return (
@@ -3646,7 +3655,7 @@ class CodeGenerator312(CodeGenerator):
         if node.keywords:
             for arg in node.keywords:
                 self.visit(arg)
-            self.set_pos(node.func)
+            self.set_pos(loc)
             self.emit("KW_NAMES", tuple(arg.arg for arg in node.keywords))
 
         loc = self.compute_start_location_to_match_attr(node, attr)
@@ -4243,6 +4252,7 @@ class CodeGenerator312(CodeGenerator):
             outer_gen.optimized = 1
             outer_gen.compile_type_params(type_params)
 
+            outer_gen.set_pos(node)
             if node.args.defaults or kwdefaults:
                 outer_gen.emit("LOAD_FAST", 0)
             if node.args.defaults and kwdefaults:
@@ -4677,8 +4687,7 @@ class CodeGenerator312(CodeGenerator):
         self.set_pos(node.value)
         load_arg, is_zero = self._emit_args_for_super(node.value, node.attr)
         op = "LOAD_ZERO_SUPER_ATTR" if is_zero else "LOAD_SUPER_ATTR"
-        loc = self.compute_start_location_to_match_attr(node, node)
-        self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), loc)
+        self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), node)
 
     def visitAttribute(self, node):
         if (
@@ -5139,6 +5148,7 @@ class CodeGenerator312(CodeGenerator):
                 self.loadName(".0")
             else:
                 self.visit(gen.iter)
+                self.set_pos(comp)
                 self.emit("GET_AITER")
 
         self.nextBlock(start)
@@ -5155,6 +5165,7 @@ class CodeGenerator312(CodeGenerator):
 
         depth += 1
         gen_index += 1
+        elt_loc = elt
         if gen_index < len(comp.generators):
             self.compile_comprehension_generator(
                 comp, gen_index, depth, elt, val, type, False
@@ -5175,19 +5186,19 @@ class CodeGenerator312(CodeGenerator):
         elif type is ast.DictComp:
             assert val is not None
             self.compile_dictcomp_element(elt, val)
-            self.set_pos(
-                SrcLocation(
-                    elt.lineno,
-                    val.end_lineno or 0,
-                    elt.col_offset,
-                    val.end_col_offset or 0,
-                )
+            elt_loc = SrcLocation(
+                elt.lineno,
+                val.end_lineno or 0,
+                elt.col_offset,
+                val.end_col_offset or 0,
             )
+            self.set_pos(elt_loc)
             self.emit("MAP_ADD", depth + 1)
         else:
             raise NotImplementedError("unknown comprehension type")
 
         self.nextBlock(if_cleanup)
+        self.set_pos(elt_loc)
         self.emitJump(start)
 
         self.nextBlock(except_)
@@ -5220,6 +5231,7 @@ class CodeGenerator312(CodeGenerator):
                         self.visit(elts[0])
                         start = None
                 if start:
+                    self.set_pos(comp)
                     self.compile_comprehension_iter(gen)
 
         if start:
@@ -5598,14 +5610,13 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
     def cx_super_call(self, node):
         attr = node.func
         assert isinstance(attr, ast.Attribute)
-        with self.temp_lineno(node.func.end_lineno or -1):
-            self.emit("LOAD_GLOBAL", "super")
+        self.emit("LOAD_GLOBAL", "super")
 
-            load_arg = self._emit_args_for_super(attr.value, attr.attr)
-            self.emit("LOAD_METHOD_SUPER", load_arg)
-            for arg in node.args:
-                self.visit(arg)
-            self.emit("CALL_METHOD", len(node.args))
+        load_arg = self._emit_args_for_super(attr.value, attr.attr)
+        self.emit("LOAD_METHOD_SUPER", load_arg)
+        for arg in node.args:
+            self.visit(arg)
+        self.emit("CALL_METHOD", len(node.args))
 
 
 class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
