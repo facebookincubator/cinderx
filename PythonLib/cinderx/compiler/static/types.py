@@ -1816,7 +1816,7 @@ class Class(Object["Class"]):
 
         init = call_info.init
         if init is not None:
-            code_gen.emit("DUP_TOP")
+            code_gen.emit_dup()
             init.emit(code_gen)
             code_gen.emit("POP_TOP")  # pop None
 
@@ -6236,17 +6236,17 @@ class Dataclass(Class):
             code_gen.emit("LOAD_CONST", tuple(field_args))
             code_gen.emit("CALL_FUNCTION_KW", len(field_args))
 
-            code_gen.emit("DUP_TOP")
+            code_gen.emit_dup()
             code_gen.emit("LOAD_CONST", name)
             code_gen.emit_rotate_stack(2)
             code_gen.emit("STORE_ATTR", "name")
 
-            code_gen.emit("DUP_TOP")
+            code_gen.emit_dup()
             code_gen.emit("LOAD_CONST", field.type_annotation)
             code_gen.emit_rotate_stack(2)
             code_gen.emit("STORE_ATTR", "type")
 
-            code_gen.emit("DUP_TOP")
+            code_gen.emit_dup()
             if field.kind is DataclassFieldKind.FIELD:
                 code_gen.emit("LOAD_NAME", "_FIELD")
             elif field.kind is DataclassFieldKind.CLASSVAR:
@@ -6873,7 +6873,7 @@ class CRangeIterator(Object[Class]):
         code_gen.emit("STORE_LOCAL", (loop_idx, descr))
 
         code_gen.nextBlock(start)
-        code_gen.emit("DUP_TOP")
+        code_gen.emit_dup()
         code_gen.emit("LOAD_LOCAL", (loop_idx, descr))
         code_gen.emit("PRIMITIVE_COMPARE_OP", PRIM_OP_GT_INT)
         code_gen.emit("POP_JUMP_IF_ZERO", anchor)
@@ -7518,8 +7518,8 @@ def common_sequence_emit_forloop(
         code_gen.emit("PRIMITIVE_LOAD_CONST", (0, TYPED_INT64))
         code_gen.emit("STORE_LOCAL", (loop_idx, descr))
         code_gen.nextBlock(start)
-        code_gen.emit("DUP_TOP")  # used for SEQUENCE_GET
-        code_gen.emit("DUP_TOP")  # used for FAST_LEN
+        code_gen.emit_dup()  # used for SEQUENCE_GET
+        code_gen.emit_dup()  # used for FAST_LEN
         code_gen.emit("FAST_LEN", fast_len_oparg)
         code_gen.emit("LOAD_LOCAL", (loop_idx, descr))
         code_gen.emit("PRIMITIVE_COMPARE_OP", PRIM_OP_GT_INT)
@@ -7554,7 +7554,7 @@ def common_literal_emit_type_check(
     comp_opcode: object,
     code_gen: Static310CodeGenerator,
 ) -> None:
-    code_gen.emit("DUP_TOP")
+    code_gen.emit_dup()
     code_gen.emit("LOAD_CONST", literal_value)
     code_gen.emit(comp_opname, comp_opcode)
     end = code_gen.newBlock()

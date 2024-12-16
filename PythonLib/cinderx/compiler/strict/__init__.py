@@ -198,7 +198,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         self.emit("LOAD_NAME", "<fixed-modules>")
         self.emit("LOAD_CONST", "__strict__")
         self.emit("BINARY_SUBSCR")
-        self.emit("DUP_TOP")
+        self.emit_dup()
         self.emit("STORE_GLOBAL", "<strict-modules>")
         self.emit("LOAD_CONST", "freeze_type")
         self.emit("BINARY_SUBSCR")
@@ -542,7 +542,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
 
     def register_immutability(self, node: ClassDef, flag: bool) -> None:
         if self.has_class and flag:
-            self.emit("DUP_TOP")
+            self.emit_dup()
             self.emit_load_class_list()
             self.emit_append_class_list()
         super().register_immutability(node, flag)
@@ -604,7 +604,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
             value = mod.get(var_name)
             if value is not None:
                 # duplicate TOS (mod)
-                self.emit("DUP_TOP")
+                self.emit_dup()
                 # var name
                 self.emit("LOAD_CONST", var_name)
                 self.emit("BINARY_SUBSCR")
