@@ -315,6 +315,24 @@ dummy_func(
             Py_DECREF(type);
         }
         
+
+        inst(PRIMITIVE_UNARY_OP, (val -- res)) {
+            switch (oparg) {
+                INT_UNARY_OPCODE(PRIM_OP_NEG_INT, -)
+                INT_UNARY_OPCODE(PRIM_OP_INV_INT, ~)
+                DBL_UNARY_OPCODE(PRIM_OP_NEG_DBL, -)
+                case PRIM_OP_NOT_INT: {
+                    res = PyLong_AsVoidPtr(val) ? Py_False : Py_True;
+                    Py_INCREF(res);
+                }
+                default:
+                    PyErr_SetString(PyExc_RuntimeError, "unknown op");
+                    goto error;
+            }
+            DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
+        }
+
       // END BYTECODES //
     }
 }

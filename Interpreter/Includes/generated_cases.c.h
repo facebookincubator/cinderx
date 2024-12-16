@@ -5118,3 +5118,28 @@
             #line 5118 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
+
+        TARGET(PRIMITIVE_UNARY_OP) {
+            PyObject *val = stack_pointer[-1];
+            PyObject *res;
+            #line 320 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            switch (oparg) {
+                INT_UNARY_OPCODE(PRIM_OP_NEG_INT, -)
+                INT_UNARY_OPCODE(PRIM_OP_INV_INT, ~)
+                DBL_UNARY_OPCODE(PRIM_OP_NEG_DBL, -)
+                case PRIM_OP_NOT_INT: {
+                    res = PyLong_AsVoidPtr(val) ? Py_False : Py_True;
+                    Py_INCREF(res);
+                }
+                default:
+                    PyErr_SetString(PyExc_RuntimeError, "unknown op");
+                    goto error;
+            }
+            #line 5138 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            Py_DECREF(val);
+            #line 333 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            if (res == NULL) goto pop_1_error;
+            #line 5142 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            stack_pointer[-1] = res;
+            DISPATCH();
+        }

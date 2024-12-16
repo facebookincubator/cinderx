@@ -153,6 +153,15 @@ static inline void store_field(int field_type, void* addr, PyObject* value) {
         goto error;                                                                \
     }
 
+#define INT_UNARY_OPCODE(opid, op)                                           \
+    case opid:                                                               \
+        res = PyLong_FromVoidPtr((void*)(op(size_t) PyLong_AsVoidPtr(val))); \
+        break;
+
+#define DBL_UNARY_OPCODE(opid, op)                          \
+    case opid:                                              \
+      res = PyFloat_FromDouble(op(PyFloat_AS_DOUBLE(val))); \
+      break;
 
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)

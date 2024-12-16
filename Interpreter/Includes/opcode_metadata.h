@@ -407,6 +407,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 2;
         case CAST:
             return 1;
+        case PRIMITIVE_UNARY_OP:
+            return 1;
         default:
             return -1;
     }
@@ -815,6 +817,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case CAST:
             return 1;
+        case PRIMITIVE_UNARY_OP:
+            return 1;
         default:
             return -1;
     }
@@ -1029,5 +1033,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [LOAD_FIELD] = { true, INSTR_FMT_IB },
     [STORE_FIELD] = { true, INSTR_FMT_IB },
     [CAST] = { true, INSTR_FMT_IB },
+    [PRIMITIVE_UNARY_OP] = { true, INSTR_FMT_IB },
 };
 #endif
