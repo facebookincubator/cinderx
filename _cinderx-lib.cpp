@@ -344,7 +344,7 @@ int function_visitor(BorrowedRef<PyFunctionObject> func) {
   // Ensure the code object can track how often it is called.
   BorrowedRef<PyCodeObject> code = func->func_code;
   JIT_CHECK(
-      initCodeExtra(code),
+      !USE_CODE_EXTRA || initCodeExtra(code) != nullptr,
       "Failed to initialize extra data for {}",
       jit::funcFullname(func));
 

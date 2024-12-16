@@ -103,6 +103,9 @@ int loadAttrIndex(int oparg);
 // Get the name index from a LOAD_GLOBAL's oparg.
 int loadGlobalIndex(int oparg);
 
+// Before 3.12, Cinder relies on Shadowcode's call count tracking.
+#define USE_CODE_EXTRA (PY_VERSION_HEX >= 0x030C0000)
+
 // Extra data attached to a code object.
 typedef struct {
   // Number of times the code object has been called.
@@ -114,10 +117,12 @@ typedef struct {
 void initCodeExtraIndex();
 void finiCodeExtraIndex();
 
-// Allocate and set a new extra data object on a code object.
+// Allocate and set a new extra data object on a code object, and then return
+// it.  If the code object already has an attached extra data object, just
+// return that.
 //
-// Return true on success, set a Python error and return false on failure.
-bool initCodeExtra(PyCodeObject* code);
+// Set a Python error and return nullptr on failure.
+CodeExtra* initCodeExtra(PyCodeObject* code);
 
 // Get the extra data object associated with a code object.
 //

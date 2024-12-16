@@ -100,11 +100,8 @@ int loadGlobalIndex(int oparg) {
   return oparg;
 }
 
-// Before 3.12, Cinder relies on Shadowcode's call count tracking.
-constexpr bool kUseCodeExtra = PY_VERSION_HEX >= 0x030C0000;
-
 void initCodeExtraIndex() {
-  if constexpr (!kUseCodeExtra) {
+  if constexpr (!USE_CODE_EXTRA) {
     return;
   }
   JIT_CHECK(
@@ -115,7 +112,7 @@ void initCodeExtraIndex() {
 }
 
 void finiCodeExtraIndex() {
-  if constexpr (!kUseCodeExtra) {
+  if constexpr (!USE_CODE_EXTRA) {
     return;
   }
   JIT_CHECK(
@@ -125,9 +122,9 @@ void finiCodeExtraIndex() {
   code_extra_index = -1;
 }
 
-bool initCodeExtra(PyCodeObject* code) {
-  if constexpr (!kUseCodeExtra) {
-    return true;
+CodeExtra* initCodeExtra(PyCodeObject* code) {
+  if constexpr (!USE_CODE_EXTRA) {
+    return nullptr;
   }
   JIT_CHECK(
       code_extra_index != -1,
@@ -139,28 +136,29 @@ bool initCodeExtra(PyCodeObject* code) {
   void* existing = nullptr;
   if (PyUnstable_Code_GetExtra(code_obj, code_extra_index, &existing) < 0) {
     JIT_CHECK(PyErr_Occurred(), "Expect a Python error when this API fails");
-    return false;
+    return nullptr;
   }
   if (existing != nullptr) {
-    return true;
+    return reinterpret_cast<CodeExtra*>(existing);
   }
 
   auto extra = reinterpret_cast<CodeExtra*>(PyMem_Calloc(1, sizeof(CodeExtra)));
   if (extra == nullptr) {
     PyErr_NoMemory();
-    return false;
+    return nullptr;
   }
 
   if (PyUnstable_Code_SetExtra(code_obj, code_extra_index, extra) < 0) {
-    assert(PyErr_Occurred());
-    return false;
+    JIT_CHECK(PyErr_Occurred(), "Expect a Python error when this API fails");
+    PyMem_Free(extra);
+    return nullptr;
   }
 
-  return true;
+  return extra;
 }
 
 CodeExtra* codeExtra(PyCodeObject* code) {
-  if constexpr (!kUseCodeExtra) {
+  if constexpr (!USE_CODE_EXTRA) {
     return nullptr;
   }
   JIT_CHECK(

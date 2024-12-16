@@ -9,6 +9,8 @@
 #define _PyOpcode_Caches _Ci_Opcode_Caches
 #define _PyOpcode_Jump _Ci_Opcode_Jump
 
+#include "cinderx/Common/code.h"
+
 #include "cinderx/Interpreter/Includes/ceval.c"
 #include "cinderx/StaticPython/classloader.h"
 
@@ -271,6 +273,16 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 start_frame:
     if (_Py_EnterRecursivePy(tstate)) {
         goto exit_unwind;
+    }
+
+    // Update call count.
+    {
+      PyCodeObject* code = frame->f_code;
+      CodeExtra* extra = initCodeExtra(code);
+      if (extra == NULL) {
+        goto exit_unwind;
+      }
+      extra->calls += 1;
     }
 
 resume_frame:
