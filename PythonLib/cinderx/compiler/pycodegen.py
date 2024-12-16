@@ -3584,7 +3584,8 @@ class CodeGenerator312(CodeGenerator):
         scope = self.scope
         while scope.parent is not None:
             scope = scope.parent
-
+        if self.temp_symbols is not None and e.id in self.temp_symbols:
+            return False
         return scope.is_import(e.id)
 
     def _can_optimize_call(self, node: ast.Call) -> bool:
@@ -5303,7 +5304,16 @@ class CodeGenerator312(CodeGenerator):
             # either way.)
             compsc = scope.check_name(name)
             outsc = self.check_name(name)
+            # When a comprehension is inlined into the global scope CPython loses the
+            # DEF_IMPORTED flag. It'll see compsc != outsc and will replace it in the
+            # top-level symbols dict w/ the version from the list comp which doesn't have
+            # the flag set. We simulate this by checking if we're in the module scope and
+            # always putting a value in temp_symbols, we then disable the is_import_originated
+            # check for these names (this is really ugly, and CPython probably doesn't mean
+            # to lose the DEF_IMPORTED flag in these cases).
             if (
+                isinstance(self.scope, ModuleScope) and outsc == SC_GLOBAL_IMPLICIT
+            ) or (
                 compsc != outsc
                 and compsc != SC_FREE
                 and not (compsc == SC_CELL and outsc == SC_FREE)
