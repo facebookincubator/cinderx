@@ -35,6 +35,7 @@ from .flow_graph_optimizer import (
 from .opcode_cinder import opcode as cinder_opcode
 from .opcodebase import Opcode
 from .opcodes import opcode as opcodes_opcode
+from .symbols import ClassScope
 
 
 MAX_COPY_SIZE = 4
@@ -2019,6 +2020,19 @@ class PyFlowGraph312(PyFlowGraph):
     def _convert_COMAPRE_OP(self, arg: object) -> int:
         return self.opcode.CMP_OP.index(arg) << 4 | PyFlowGraph312.COMPARE_MASKS[arg]
 
+    def _convert_LOAD_CLOSURE(self, oparg: object) -> int:
+        # __class__ and __classdict__ are special cased to be cell vars in classes
+        # in get_ref_type in compile.c
+        if isinstance(self.scope, ClassScope) and oparg in (
+            "__class__",
+            "__classdict__",
+        ):
+            return self.closure.get_index(oparg)
+
+        if oparg in self.freevars:
+            return self.freevars.get_index(oparg) + len(self.cellvars)
+        return self.closure.get_index(oparg)
+
     _converters = {
         **PyFlowGraph._converters,
         "LOAD_ATTR": _convert_LOAD_ATTR,
@@ -2026,6 +2040,7 @@ class PyFlowGraph312(PyFlowGraph):
         "COMPARE_OP": _convert_COMAPRE_OP,
         "KW_NAMES": PyFlowGraph._convert_LOAD_CONST,
         "EAGER_IMPORT_NAME": PyFlowGraph._convert_NAME,
+        "LOAD_CLOSURE": _convert_LOAD_CLOSURE,
     }
 
     _const_opcodes = set(PyFlowGraph._const_opcodes)

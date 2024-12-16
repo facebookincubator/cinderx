@@ -5293,7 +5293,8 @@ class CodeGenerator312(CodeGenerator):
             self.emit("LOAD_FAST_AND_CLEAR", name)
             if name in scope.cells:
                 name_idx = (
-                    self.graph.freevars.index(name)
+                    # Matching PyFlowGraph._convert_DEREF offset for free var index
+                    (self.graph.freevars.index(name) + len(self.graph.cellvars))
                     if name in self.scope.frees
                     else self.graph.cellvars.index(name)
                 )
