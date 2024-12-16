@@ -5143,3 +5143,60 @@
             stack_pointer[-1] = res;
             DISPATCH();
         }
+
+        TARGET(PRIMITIVE_BINARY_OP) {
+            PyObject *r = stack_pointer[-1];
+            PyObject *l = stack_pointer[-2];
+            PyObject *res;
+            #line 337 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            switch (oparg) {
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_ADD_INT, +)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_SUB_INT, -)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_MUL_INT, *)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_DIV_INT, /)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_MOD_INT, %)
+                case PRIM_OP_POW_INT: {
+                    double power =
+                        pow((Py_ssize_t)PyLong_AsVoidPtr(l),
+                            (Py_ssize_t)PyLong_AsVoidPtr(r));
+                    res = PyFloat_FromDouble(power);
+                    break;
+                }
+                case PRIM_OP_POW_UN_INT: {
+                    double power =
+                        pow((size_t)PyLong_AsVoidPtr(l), (size_t)PyLong_AsVoidPtr(r));
+                    res = PyFloat_FromDouble(power);
+                    break;
+                }
+
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_LSHIFT_INT, <<)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_RSHIFT_INT, >>)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_XOR_INT, ^)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_OR_INT, |)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_AND_INT, &)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_MOD_UN_INT, %)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_DIV_UN_INT, /)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_RSHIFT_UN_INT, >>)
+                DOUBLE_BIN_OPCODE(PRIM_OP_ADD_DBL, +)
+                DOUBLE_BIN_OPCODE(PRIM_OP_SUB_DBL, -)
+                DOUBLE_BIN_OPCODE(PRIM_OP_MUL_DBL, *)
+                DOUBLE_BIN_OPCODE(PRIM_OP_DIV_DBL, /)
+                case PRIM_OP_POW_DBL: {
+                    double power = pow(PyFloat_AsDouble(l), PyFloat_AsDouble(r));
+                    res = PyFloat_FromDouble(power);
+                    break;
+                }
+                default:
+                    PyErr_SetString(PyExc_RuntimeError, "unknown op");
+                    goto error;
+            }
+            #line 5193 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            Py_DECREF(l);
+            Py_DECREF(r);
+            #line 379 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            if (res == NULL) goto pop_2_error;
+            #line 5198 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            STACK_SHRINK(1);
+            stack_pointer[-1] = res;
+            DISPATCH();
+        }

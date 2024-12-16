@@ -333,6 +333,51 @@ dummy_func(
             ERROR_IF(res == NULL, error);
         }
 
+        inst(PRIMITIVE_BINARY_OP, (l, r -- res)) {
+            switch (oparg) {
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_ADD_INT, +)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_SUB_INT, -)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_MUL_INT, *)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_DIV_INT, /)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_MOD_INT, %)
+                case PRIM_OP_POW_INT: {
+                    double power =
+                        pow((Py_ssize_t)PyLong_AsVoidPtr(l),
+                            (Py_ssize_t)PyLong_AsVoidPtr(r));
+                    res = PyFloat_FromDouble(power);
+                    break;
+                }
+                case PRIM_OP_POW_UN_INT: {
+                    double power =
+                        pow((size_t)PyLong_AsVoidPtr(l), (size_t)PyLong_AsVoidPtr(r));
+                    res = PyFloat_FromDouble(power);
+                    break;
+                }
+
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_LSHIFT_INT, <<)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_RSHIFT_INT, >>)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_XOR_INT, ^)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_OR_INT, |)
+                INT_BIN_OPCODE_SIGNED(PRIM_OP_AND_INT, &)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_MOD_UN_INT, %)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_DIV_UN_INT, /)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_RSHIFT_UN_INT, >>)
+                DOUBLE_BIN_OPCODE(PRIM_OP_ADD_DBL, +)
+                DOUBLE_BIN_OPCODE(PRIM_OP_SUB_DBL, -)
+                DOUBLE_BIN_OPCODE(PRIM_OP_MUL_DBL, *)
+                DOUBLE_BIN_OPCODE(PRIM_OP_DIV_DBL, /)
+                case PRIM_OP_POW_DBL: {
+                    double power = pow(PyFloat_AsDouble(l), PyFloat_AsDouble(r));
+                    res = PyFloat_FromDouble(power);
+                    break;
+                }
+                default:
+                    PyErr_SetString(PyExc_RuntimeError, "unknown op");
+                    goto error;
+            }
+            DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
+        }
       // END BYTECODES //
     }
 }

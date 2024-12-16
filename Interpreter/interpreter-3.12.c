@@ -163,6 +163,24 @@ static inline void store_field(int field_type, void* addr, PyObject* value) {
       res = PyFloat_FromDouble(op(PyFloat_AS_DOUBLE(val))); \
       break;
 
+#define INT_BIN_OPCODE_UNSIGNED(opid, op)                                 \
+    case opid:                                                            \
+        res = PyLong_FromVoidPtr((void*)(((size_t)PyLong_AsVoidPtr(l))op( \
+            (size_t)PyLong_AsVoidPtr(r))));                               \
+        break;
+
+#define INT_BIN_OPCODE_SIGNED(opid, op)                                       \
+    case opid:                                                                \
+        res = PyLong_FromVoidPtr((void*)(((Py_ssize_t)PyLong_AsVoidPtr(l))op( \
+            (Py_ssize_t)PyLong_AsVoidPtr(r))));                               \
+        break;
+
+#define DOUBLE_BIN_OPCODE(opid, op)                                                 \
+    case opid:                                                                      \
+        res = (PyFloat_FromDouble((PyFloat_AS_DOUBLE(l))op(PyFloat_AS_DOUBLE(r)))); \
+        break;
+
+
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 {
