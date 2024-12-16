@@ -4912,3 +4912,36 @@
         TARGET(NOP) {
             DISPATCH();
         }
+
+        TARGET(LOAD_ITERABLE_ARG) {
+            PyObject *tup = stack_pointer[-1];
+            PyObject *element;
+            #line 143 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            int idx = oparg;
+            if (!PyTuple_CheckExact(tup)) {
+                if (tup->ob_type->tp_iter == NULL && !PySequence_Check(tup)) {
+                    PyErr_Format(
+                        PyExc_TypeError,
+                        "argument after * "
+                        "must be an iterable, not %.200s",
+                        tup->ob_type->tp_name);
+                    Py_DECREF(tup);
+                    goto error;
+                }
+                Py_SETREF(tup, PySequence_Tuple(tup));
+                if (tup == NULL) {
+                    goto error;
+                }
+            }
+            element = PyTuple_GetItem(tup, idx);
+            if (!element) {
+                Py_DECREF(tup);
+                goto error;
+            }
+            Py_INCREF(element);
+            #line 4942 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            STACK_GROW(1);
+            stack_pointer[-1] = tup;
+            stack_pointer[-2] = element;
+            DISPATCH();
+        }

@@ -138,6 +138,31 @@ dummy_func(
         override inst(NOP, (--)) {
         }
 
+
+        inst(LOAD_ITERABLE_ARG, (tup -- element, tup)) {
+            int idx = oparg;
+            if (!PyTuple_CheckExact(tup)) {
+                if (tup->ob_type->tp_iter == NULL && !PySequence_Check(tup)) {
+                    PyErr_Format(
+                        PyExc_TypeError,
+                        "argument after * "
+                        "must be an iterable, not %.200s",
+                        tup->ob_type->tp_name);
+                    Py_DECREF(tup);
+                    goto error;
+                }
+                Py_SETREF(tup, PySequence_Tuple(tup));
+                if (tup == NULL) {
+                    goto error;
+                }
+            }
+            element = PyTuple_GetItem(tup, idx);
+            if (!element) {
+                Py_DECREF(tup);
+                goto error;
+            }
+            Py_INCREF(element);
+        }
 // END BYTECODES //
 
     }
