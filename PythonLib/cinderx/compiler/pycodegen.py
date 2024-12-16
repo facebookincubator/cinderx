@@ -59,6 +59,7 @@ from .symbols import (
     CinderSymbolVisitor,
     ClassScope,
     FunctionScope,
+    GenExprScope,
     ModuleScope,
     Scope,
     SymbolVisitor310,
@@ -843,8 +844,9 @@ class CodeGenerator(ASTVisitor):
         is_async_function = self.scope.coroutine
         if (
             is_async_generator
-            and not is_async_function
             and not isinstance(node, ast.GeneratorExp)
+            and not is_async_function
+            and not isinstance(self.scope, GenExprScope)
         ):
             raise self.syntax_error(
                 "asynchronous comprehension outside of an asynchronous function", node

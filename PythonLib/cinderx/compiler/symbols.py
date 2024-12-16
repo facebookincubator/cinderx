@@ -507,6 +507,9 @@ class BaseSymbolVisitor(ASTVisitor):
 
         self.scopes[node] = scope
 
+        if scope.coroutine and not isinstance(node, ast.GeneratorExp):
+            parent.coroutine = True
+
         parent.add_child(scope)
 
     # Whether to generate code for comprehensions inline or as nested scope
