@@ -719,27 +719,28 @@ class BaseSymbolVisitor(ASTVisitor):
         name = node.target.id
         if isinstance(scope, GenExprScope):
             cur = scope
+            mangled = scope.mangle(name)
             while cur:
                 if isinstance(cur, GenExprScope):
-                    if cur.defs.get(name, 0) & DEF_COMP_ITER:
+                    if cur.defs.get(mangled, 0) & DEF_COMP_ITER:
                         raise SyntaxError(
                             f"assignment expression cannot rebind comprehension iteration variable '{name}'"
                         )
 
                 elif isinstance(cur, FunctionScope):
                     # If we find a FunctionBlock entry, add as GLOBAL/LOCAL or NONLOCAL/LOCAL
-                    if name not in cur.explicit_globals:
-                        scope.frees[name] = 1
-                        scope.nonlocals[name] = 1
+                    if mangled not in cur.explicit_globals:
+                        scope.frees[mangled] = 1
+                        scope.nonlocals[mangled] = 1
                     else:
-                        scope.explicit_globals[name] = 1
-                        scope.add_use(name)
-                    cur.add_def(name)
+                        scope.explicit_globals[mangled] = 1
+                        scope.add_use(mangled)
+                    cur.add_def(mangled)
                     break
                 elif isinstance(cur, ModuleScope):
-                    scope.globals[name] = 1
-                    scope.add_use(name)
-                    cur.add_def(name)
+                    scope.globals[mangled] = 1
+                    scope.add_use(mangled)
+                    cur.add_def(mangled)
                     break
                 elif isinstance(cur, ClassScope):
                     raise SyntaxError(

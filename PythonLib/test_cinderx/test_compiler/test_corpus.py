@@ -23,6 +23,9 @@ class SbsCorpusCompileTests(TestCase):
 # tests can be run with:
 #  python -m test.test_compiler SbsCorpusCompileTests.test_00_const
 def add_test(modname: str, fname: str) -> None:
+    if "3_12/" in fname and sys.version_info <= (3, 12):
+        return
+
     def test_corpus(self: SbsCorpusCompileTests) -> None:
         if "/3_12/" in fname and sys.version_info[:2] != (3, 12):
             return
