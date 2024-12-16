@@ -240,6 +240,45 @@ dummy_func(
             Py_DECREF(self);
         }
       
+        inst(STORE_FIELD, (value, self --)) {
+            PyObject* field = GETITEM(frame->f_code->co_consts, oparg);
+            int field_type;
+            Py_ssize_t offset =
+                _PyClassLoader_ResolveFieldOffset(field, &field_type);
+            if (offset == -1) {
+                goto error;
+            }
+
+            PyObject** addr = FIELD_OFFSET(self, offset);
+
+            if (field_type == TYPED_OBJECT) {
+                Py_XDECREF(*addr);
+                *addr = value;
+#ifdef ADAPTIVE
+                if (shadow.shadow != NULL) {
+                    assert(offset % sizeof(PyObject*) == 0);
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        STORE_OBJ_FIELD,
+                        offset / sizeof(PyObject*));
+                }
+#endif
+            } else {
+#ifdef ADAPTIVE
+                if (shadow.shadow != NULL) {
+                    int pos = _PyShadow_CacheFieldType(&shadow, offset, field_type);
+                    if (pos != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow, next_instr, STORE_PRIMITIVE_FIELD, pos);
+                    }
+                }
+#endif
+                store_field(field_type, (char*)addr, value);
+            }
+            Py_DECREF(self);
+        }
+      
         inst(CAST, (val -- val)) {
             int optional;
             int exact;

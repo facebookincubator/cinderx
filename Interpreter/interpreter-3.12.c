@@ -16,6 +16,13 @@
  * so consume 3 units of C stack */
 #define PY_EVAL_C_STACK_UNITS 2
 
+static inline int8_t unbox_primitive_bool_and_decref(PyObject* x) {
+    assert(PyBool_Check(x));
+    int8_t res = (x == Py_True) ? 1 : 0;
+    Py_DECREF(x);
+    return res;
+}
+
 static inline Py_ssize_t unbox_primitive_int_and_decref(PyObject* x) {
     assert(PyLong_Check(x));
     Py_ssize_t res = (Py_ssize_t)PyLong_AsVoidPtr(x);
@@ -88,6 +95,45 @@ static inline PyObject* load_field(int field_type, void* addr) {
             return NULL;
     }
     return value;
+}
+
+static inline void store_field(int field_type, void* addr, PyObject* value) {
+    switch (field_type) {
+        case TYPED_BOOL:
+            *(int8_t*)addr = (int8_t)unbox_primitive_bool_and_decref(value);
+            break;
+        case TYPED_INT8:
+            *(int8_t*)addr = (int8_t)unbox_primitive_int_and_decref(value);
+            break;
+        case TYPED_INT16:
+            *(int16_t*)addr = (int16_t)unbox_primitive_int_and_decref(value);
+            break;
+        case TYPED_INT32:
+            *(int32_t*)addr = (int32_t)unbox_primitive_int_and_decref(value);
+            break;
+        case TYPED_INT64:
+            *(int64_t*)addr = (int64_t)unbox_primitive_int_and_decref(value);
+            break;
+        case TYPED_UINT8:
+            *(uint8_t*)addr = (uint8_t)unbox_primitive_int_and_decref(value);
+            break;
+        case TYPED_UINT16:
+            *(uint16_t*)addr = (uint16_t)unbox_primitive_int_and_decref(value);
+            break;
+        case TYPED_UINT32:
+            *(uint32_t*)addr = (uint32_t)unbox_primitive_int_and_decref(value);
+            break;
+        case TYPED_UINT64:
+            *(uint64_t*)addr = (uint64_t)unbox_primitive_int_and_decref(value);
+            break;
+        case TYPED_DOUBLE:
+            *((double*)addr) = PyFloat_AsDouble(value);
+            Py_DECREF(value);
+            break;
+        default:
+            PyErr_SetString(PyExc_RuntimeError, "unsupported field type");
+            break;
+    }
 }
 
 #define FIELD_OFFSET(self, offset) (PyObject**)(((char*)self) + offset)

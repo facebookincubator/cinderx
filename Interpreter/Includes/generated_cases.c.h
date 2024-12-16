@@ -4964,13 +4964,13 @@
                 Py_ssize_t ival = unbox_primitive_int_and_decref(val);
                 SETLOCAL(index, box_primitive(type, ival));
             }
-    #ifdef ADAPTIVE
+#ifdef ADAPTIVE
             if (shadow.shadow != NULL) {
                 assert(type < 8);
                 _PyShadow_PatchByteCode(
                     &shadow, next_instr, PRIMITIVE_STORE_FAST, (index << 4) | type);
             }
-    #endif
+#endif
             #line 4974 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
@@ -5034,9 +5034,54 @@
             DISPATCH();
         }
 
+        TARGET(STORE_FIELD) {
+            PyObject *self = stack_pointer[-1];
+            PyObject *value = stack_pointer[-2];
+            #line 244 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            PyObject* field = GETITEM(frame->f_code->co_consts, oparg);
+            int field_type;
+            Py_ssize_t offset =
+                _PyClassLoader_ResolveFieldOffset(field, &field_type);
+            if (offset == -1) {
+                goto error;
+            }
+
+            PyObject** addr = FIELD_OFFSET(self, offset);
+
+            if (field_type == TYPED_OBJECT) {
+                Py_XDECREF(*addr);
+                *addr = value;
+#ifdef ADAPTIVE
+                if (shadow.shadow != NULL) {
+                    assert(offset % sizeof(PyObject*) == 0);
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        STORE_OBJ_FIELD,
+                        offset / sizeof(PyObject*));
+                }
+#endif
+            } else {
+#ifdef ADAPTIVE
+                if (shadow.shadow != NULL) {
+                    int pos = _PyShadow_CacheFieldType(&shadow, offset, field_type);
+                    if (pos != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow, next_instr, STORE_PRIMITIVE_FIELD, pos);
+                    }
+                }
+#endif
+                store_field(field_type, (char*)addr, value);
+            }
+            Py_DECREF(self);
+            #line 5077 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            STACK_SHRINK(2);
+            DISPATCH();
+        }
+
         TARGET(CAST) {
             PyObject *val = stack_pointer[-1];
-            #line 244 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 283 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int optional;
             int exact;
             PyTypeObject* type = _PyClassLoader_ResolveType(
@@ -5070,6 +5115,6 @@
             }
 #endif
             Py_DECREF(type);
-            #line 5073 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5118 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
