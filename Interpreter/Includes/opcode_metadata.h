@@ -399,6 +399,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case LOAD_ITERABLE_ARG:
             return 1;
+        case STORE_LOCAL:
+            return 1;
         default:
             return -1;
     }
@@ -799,6 +801,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case LOAD_ITERABLE_ARG:
             return 2;
+        case STORE_LOCAL:
+            return 0;
         default:
             return -1;
     }
@@ -1009,5 +1013,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [RESERVED] = { true, INSTR_FMT_IX },
     [NOP] = { true, INSTR_FMT_IX },
     [LOAD_ITERABLE_ARG] = { true, INSTR_FMT_IB },
+    [STORE_LOCAL] = { true, INSTR_FMT_IB },
 };
 #endif

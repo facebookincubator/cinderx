@@ -4945,3 +4945,33 @@
             stack_pointer[-2] = element;
             DISPATCH();
         }
+
+        TARGET(STORE_LOCAL) {
+            PyObject *val = stack_pointer[-1];
+            #line 168 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            PyObject* local = GETITEM(frame->f_code->co_consts, oparg);
+            int index = _PyLong_AsInt(PyTuple_GET_ITEM(local, 0));
+            int type =
+                _PyClassLoader_ResolvePrimitiveType(PyTuple_GET_ITEM(local, 1));
+
+            if (type < 0) {
+                goto error;
+            }
+
+            if (type == TYPED_DOUBLE) {
+                SETLOCAL(index, val);
+            } else {
+                Py_ssize_t ival = unbox_primitive_int_and_decref(val);
+                SETLOCAL(index, box_primitive(type, ival));
+            }
+    #ifdef ADAPTIVE
+            if (shadow.shadow != NULL) {
+                assert(type < 8);
+                _PyShadow_PatchByteCode(
+                    &shadow, next_instr, PRIMITIVE_STORE_FAST, (index << 4) | type);
+            }
+    #endif
+            #line 4974 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            STACK_SHRINK(1);
+            DISPATCH();
+        }

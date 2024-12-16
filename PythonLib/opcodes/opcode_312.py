@@ -49,9 +49,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     if not interp_only:
         def_op("LOAD_LOCAL", 191)
         hasconst.append(191)
-    if not interp_only:
-        def_op("STORE_LOCAL", 192)
-        hasconst.append(192)
+    def_op("STORE_LOCAL", 192)
+    hasconst.append(192)
     if not interp_only:
         def_op("PRIMITIVE_BOX", 193)
     if not interp_only:

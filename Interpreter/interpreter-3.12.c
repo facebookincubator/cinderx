@@ -10,10 +10,45 @@
 #define _PyOpcode_Jump _Ci_Opcode_Jump
 
 #include "cinderx/Interpreter/Includes/ceval.c"
+#include "cinderx/StaticPython/classloader.h"
 
 /* _PyEval_EvalFrameDefault() is a *big* function,
  * so consume 3 units of C stack */
 #define PY_EVAL_C_STACK_UNITS 2
+
+static inline Py_ssize_t unbox_primitive_int_and_decref(PyObject* x) {
+    assert(PyLong_Check(x));
+    Py_ssize_t res = (Py_ssize_t)PyLong_AsVoidPtr(x);
+    Py_DECREF(x);
+    return res;
+}
+
+static inline PyObject* box_primitive(int type, Py_ssize_t value) {
+  switch (type) {
+    case TYPED_BOOL:
+      return PyBool_FromLong((int8_t)value);
+    case TYPED_INT8:
+    case TYPED_CHAR:
+      return PyLong_FromSsize_t((int8_t)value);
+    case TYPED_INT16:
+      return PyLong_FromSsize_t((int16_t)value);
+    case TYPED_INT32:
+      return PyLong_FromSsize_t((int32_t)value);
+    case TYPED_INT64:
+      return PyLong_FromSsize_t((int64_t)value);
+    case TYPED_UINT8:
+      return PyLong_FromSize_t((uint8_t)value);
+    case TYPED_UINT16:
+      return PyLong_FromSize_t((uint16_t)value);
+    case TYPED_UINT32:
+      return PyLong_FromSize_t((uint32_t)value);
+    case TYPED_UINT64:
+      return PyLong_FromSize_t((uint64_t)value);
+    default:
+      assert(0);
+      return NULL;
+  }
+}
 
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)

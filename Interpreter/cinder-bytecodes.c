@@ -163,7 +163,32 @@ dummy_func(
             }
             Py_INCREF(element);
         }
-// END BYTECODES //
 
+        inst(STORE_LOCAL, (val -- )) {
+            PyObject* local = GETITEM(frame->f_code->co_consts, oparg);
+            int index = _PyLong_AsInt(PyTuple_GET_ITEM(local, 0));
+            int type =
+                _PyClassLoader_ResolvePrimitiveType(PyTuple_GET_ITEM(local, 1));
+
+            if (type < 0) {
+                goto error;
+            }
+
+            if (type == TYPED_DOUBLE) {
+                SETLOCAL(index, val);
+            } else {
+                Py_ssize_t ival = unbox_primitive_int_and_decref(val);
+                SETLOCAL(index, box_primitive(type, ival));
+            }
+#ifdef ADAPTIVE
+            if (shadow.shadow != NULL) {
+                assert(type < 8);
+                _PyShadow_PatchByteCode(
+                    &shadow, next_instr, PRIMITIVE_STORE_FAST, (index << 4) | type);
+            }
+#endif
+        }
+
+      // END BYTECODES //
     }
 }
