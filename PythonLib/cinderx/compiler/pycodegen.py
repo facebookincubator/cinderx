@@ -3702,6 +3702,9 @@ class CodeGenerator312(CodeGenerator):
         if self.future_flags & CO_FUTURE_ANNOTATIONS:
             self.set_pos(node)
             self.emit("LOAD_CONST", to_expr(node))
+        elif isinstance(node, ast.Starred):
+            self.visit(node.value)
+            self.emit("UNPACK_SEQUENCE", 1)
         else:
             self.visit(node)
 
