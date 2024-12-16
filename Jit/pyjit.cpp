@@ -1229,6 +1229,10 @@ PyObject* auto_jit_threshold(PyObject* /* self */, PyObject*) {
   return PyLong_FromLong(getConfig().auto_jit_threshold);
 }
 
+PyObject* is_enabled(PyObject* /* self */, PyObject* /* args */) {
+  return PyBool_FromLong(isJitUsable());
+}
+
 PyObject* is_jit_compiled(PyObject* /* self */, PyObject* arg) {
   BorrowedRef<PyFunctionObject> func = get_func_arg("is_jit_compiled", arg);
   return func != nullptr ? PyBool_FromLong(isJitCompiled(func)) : nullptr;
@@ -1851,6 +1855,10 @@ PyMethodDef jit_methods[] = {
      METH_NOARGS,
      PyDoc_STR("Return the current AutoJIT threshold, only makes sense when "
                "the JIT is enabled.")},
+    {"is_enabled",
+     is_enabled,
+     METH_NOARGS,
+     PyDoc_STR("Check whether the JIT is enabled and usable")},
     {"is_jit_compiled",
      is_jit_compiled,
      METH_O,

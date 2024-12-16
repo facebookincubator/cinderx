@@ -9,6 +9,7 @@ try:
         disable as disable_jit,
         enable as enable_jit,
         force_compile,
+        is_enabled as is_jit_enabled,
         is_jit_compiled,
         jit_suppress,
     )
@@ -32,6 +33,13 @@ class DisableEnableTests(unittest.TestCase):
     process.  They must re-enable the JIT on exit otherwise things will get
     weird.
     """
+
+    def test_is_enabled(self) -> None:
+        self.assertTrue(is_jit_enabled())
+        disable_jit(compile_all=False)
+        self.assertFalse(is_jit_enabled())
+        enable_jit()
+        self.assertTrue(is_jit_enabled())
 
     def test_deopts(self):
         def foo(a, b):
