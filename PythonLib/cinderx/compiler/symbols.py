@@ -1402,7 +1402,6 @@ class SymbolVisitor312(BaseSymbolVisitor):
         for c in comp.cells.keys():
             if c != ".0":
                 inlined_cells.add(c)
-                scope.cells[c] = 1
 
         if remove_dunder_class:
             del comp.frees["__class__"]

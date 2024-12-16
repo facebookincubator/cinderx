@@ -5333,9 +5333,9 @@ class CodeGenerator312(CodeGenerator):
             if name in scope.cells:
                 name_idx = (
                     # Matching PyFlowGraph._convert_DEREF offset for free var index
-                    (self.graph.freevars.index(name) + len(self.graph.cellvars))
+                    (self.graph.freevars.get_index(name) + len(self.graph.cellvars))
                     if name in self.scope.frees
-                    else self.graph.cellvars.index(name)
+                    else self.graph.cellvars.get_index(name)
                 )
                 self.emit("MAKE_CELL", name_idx)
 
