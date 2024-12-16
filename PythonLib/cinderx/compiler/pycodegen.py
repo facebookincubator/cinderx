@@ -530,7 +530,7 @@ class CodeGenerator(ASTVisitor):
 
         gen = self.generate_function(node, name, first_lineno)
 
-        self.build_function(node, gen)
+        self.build_function(node, gen, first_lineno)
 
         if ndecorators:
             assert isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
@@ -2386,7 +2386,9 @@ class CodeGenerator(ASTVisitor):
     ) -> CodeGenerator:
         raise NotImplementedError()
 
-    def build_function(self, node: FuncOrLambda, gen: CodeGenerator) -> None:
+    def build_function(
+        self, node: FuncOrLambda, gen: CodeGenerator, first_lineno: int | None = None
+    ) -> None:
         raise NotImplementedError()
 
     def emit_closure(self, gen: CodeGenerator, flags: int) -> None:
@@ -2626,7 +2628,9 @@ class CodeGenerator310(CodeGenerator):
 
         return gen
 
-    def build_function(self, node: FuncOrLambda, gen: CodeGenerator) -> None:
+    def build_function(
+        self, node: FuncOrLambda, gen: CodeGenerator, first_lineno: int | None = None
+    ) -> None:
         flags = 0
         if node.args.defaults:
             for default in node.args.defaults:
@@ -4139,7 +4143,7 @@ class CodeGenerator312(CodeGenerator):
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
         gen: CodeGenerator,
-        first_lineno: int = 0,
+        first_lineno: int | None = 0,
     ) -> None:
         flags = 0
         type_params = getattr(node, "type_params", None)
