@@ -640,9 +640,6 @@ class CodeGenerator(ASTVisitor):
     def pop_loop(self):
         self.pop_setup()
 
-    def emitJump(self, target) -> None:
-        raise NotImplementedError()
-
     def visitAsyncFor(self, node):
         start = self.newBlock("async_for_try")
         except_ = self.newBlock("except")
@@ -2395,6 +2392,15 @@ class CodeGenerator(ASTVisitor):
         raise NotImplementedError()
 
     def visitCall(self, node: ast.Call) -> None:
+        raise NotImplementedError()
+
+    def visitFor(self, node) -> None:
+        raise NotImplementedError()
+
+    def visitClassDef(self, node) -> None:
+        raise NotImplementedError()
+
+    def emitJump(self, target) -> None:
         raise NotImplementedError()
 
     def make_child_codegen(
