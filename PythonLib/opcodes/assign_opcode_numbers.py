@@ -38,25 +38,22 @@ HEADER = """
 
 # Lib/opcode.py deletes these functions so we need to define them again here.
 # We also need to update opname when we call def_op().
-def def_op(name, op):
-    opmap[name] = op
-    opname[op] = name
+def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
+    def def_op(name, op):
+        opmap[name] = op
+        opname[op] = name
 
+    def name_op(name, op):
+        def_op(name, op)
+        hasname.append(op)
 
-def name_op(name, op):
-    def_op(name, op)
-    hasname.append(op)
+    def jrel_op(name, op):
+        def_op(name, op)
+        hasjrel.append(op)
 
-
-def jrel_op(name, op):
-    def_op(name, op)
-    hasjrel.append(op)
-
-
-def jabs_op(name, op):
-    def_op(name, op)
-    hasjabs.append(op)
-
+    def jabs_op(name, op):
+        def_op(name, op)
+        hasjabs.append(op)
 
 """.lstrip()
 
@@ -76,9 +73,16 @@ def assign_numbers() -> list[str]:
         i += 1
         if i > END_NUM:
             raise ValueError("Not enough free space for cinderx opcodes!")
-        out.append(f'{f}("{name}", {i})')
-        if flags & cx.CONST:
-            out.append(f"hasconst.append({i})")
+        if flags & cx.IMPLEMENTED_IN_INTERPRETER:
+            out.append(f'    {f}("{name}", {i})')
+            if flags & cx.CONST:
+                out.append(f"    hasconst.append({i})")
+        else:
+            out.append("    if not interp_only:")
+            out.append(f'        {f}("{name}", {i})')
+            if flags & cx.CONST:
+                out.append(f"        hasconst.append({i})")
+
     return out
 
 

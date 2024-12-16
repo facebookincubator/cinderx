@@ -104,18 +104,23 @@ def main(opcode_py, cinderx_opcode_py, outfile='Include/opcode.h',
     with fp:
         code = fp.read()
     exec(code, opcode)
-    # Read in the additional cinderx opcodes.
-    with tokenize.open(cinderx_opcode_py) as fp:
-        code = fp.read()
-    exec(code, opcode)
+
     opmap = opcode['opmap']
     opname = opcode['opname']
     hasarg = opcode['hasarg']
     hasconst = opcode['hasconst']
+    hasname = opcode['hasname']
     hasjrel = opcode['hasjrel']
     hasjabs = opcode['hasjabs']
     is_pseudo = opcode['is_pseudo']
     _pseudo_ops = opcode['_pseudo_ops']
+
+    # Read in the additional cinderx opcodes.
+    cinder_opcode = {}
+    with tokenize.open(cinderx_opcode_py) as fp:
+        code = fp.read()
+    exec(code, cinder_opcode)
+    cinder_opcode["init"](opname, opmap, hasname, hasjrel, hasjabs, hasconst, False)
 
     ENABLE_SPECIALIZATION = opcode["ENABLE_SPECIALIZATION"]
     HAVE_ARGUMENT = opcode["HAVE_ARGUMENT"]

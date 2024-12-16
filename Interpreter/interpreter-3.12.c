@@ -23,7 +23,7 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 
 #if USE_COMPUTED_GOTOS
 /* Import the static jump table */
-#include "cinderx/Interpreter/Includes/opcode_targets.h"
+#include "cinderx/Interpreter/cinderx_opcode_targets.h"
 #endif
 
 #ifdef Py_STATS
