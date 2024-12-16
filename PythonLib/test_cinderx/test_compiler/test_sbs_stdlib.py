@@ -32,7 +32,13 @@ for i in range(N_SBS_TEST_CLASSES):
     class_name = f"SbsCompileTests{i}"
     new_class = type(class_name, (TestCase,), {})
     SbsCompileTests.append(new_class)
-    globals()[class_name] = new_class
+    del new_class
+
+
+class DummyTest(TestCase):
+    def test_nop(self) -> None:
+        """Make sure this test doesn't report as running no tests"""
+        pass
 
 
 # Add a test case for each standard library file to SbsCompileTests.  Individual
@@ -81,9 +87,9 @@ def add_test(modname, fname):
                     f.write(newdump.getvalue())
                 raise
 
-    name = "test_stdlib_" + modname.replace("/", "_").replace('.','')[:-2]
+    name = "test_stdlib_" + modname.replace("/", "_").replace(".", "")[:-2]
     test_stdlib.__name__ = name
-    n = int(hashlib.md5(name.encode('ascii')).hexdigest(), 16) % N_SBS_TEST_CLASSES
+    n = int(hashlib.md5(name.encode("ascii")).hexdigest(), 16) % N_SBS_TEST_CLASSES
     setattr(SbsCompileTests[n], test_stdlib.__name__, test_stdlib)
 
 
