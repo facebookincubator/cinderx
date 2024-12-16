@@ -189,6 +189,42 @@ dummy_func(
 #endif
         }
 
+        inst(CAST, (val -- val)) {
+            int optional;
+            int exact;
+            PyTypeObject* type = _PyClassLoader_ResolveType(
+                GETITEM(frame->f_code->co_consts, oparg), &optional, &exact);
+            if (type == NULL) {
+                goto error;
+            }
+            if (!_PyObject_TypeCheckOptional(val, type, optional, exact)) {
+                CAST_COERCE_OR_ERROR(val, type, exact);
+            }
+
+#ifdef ADAPTIVE
+            if (shadow.shadow != NULL) {
+                int offset = _PyShadow_CacheCastType(&shadow, (PyObject*)type);
+                if (offset != -1) {
+                    if (optional) {
+                    if (exact) {
+                        _PyShadow_PatchByteCode(
+                            &shadow, next_instr, CAST_CACHED_OPTIONAL_EXACT, offset);
+                    } else {
+                        _PyShadow_PatchByteCode(
+                            &shadow, next_instr, CAST_CACHED_OPTIONAL, offset);
+                    }
+                    } else if (exact) {
+                    _PyShadow_PatchByteCode(
+                        &shadow, next_instr, CAST_CACHED_EXACT, offset);
+                    } else {
+                    _PyShadow_PatchByteCode(&shadow, next_instr, CAST_CACHED, offset);
+                    }
+                }
+            }
+#endif
+            Py_DECREF(type);
+        }
+        
       // END BYTECODES //
     }
 }

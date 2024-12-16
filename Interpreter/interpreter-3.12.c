@@ -50,6 +50,22 @@ static inline PyObject* box_primitive(int type, Py_ssize_t value) {
   }
 }
 
+#define CAST_COERCE_OR_ERROR(val, type, exact)                                     \
+    if (type == &PyFloat_Type && PyObject_TypeCheck(val, &PyLong_Type)) {          \
+        long lval = PyLong_AsLong(val);                                            \
+        Py_DECREF(val);                                                            \
+        SET_TOP(PyFloat_FromDouble(lval));                                         \
+    } else {                                                                       \
+        PyErr_Format(                                                              \
+            PyExc_TypeError,                                                       \
+            exact ? "expected exactly '%s', got '%s'" : "expected '%s', got '%s'", \
+            type->tp_name,                                                         \
+            Py_TYPE(val)->tp_name);                                                \
+        Py_DECREF(type);                                                           \
+        goto error;                                                                \
+    }
+
+
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 {
