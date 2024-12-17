@@ -333,6 +333,20 @@ dummy_func(
             Py_DECREF(type);
         }
         
+        inst(LIST_DEL, (list, subscr -- )) {
+            int err;
+
+            Py_ssize_t idx = PyLong_AsLong(subscr);
+
+            if (idx == -1 && _PyErr_Occurred(tstate)) {
+                goto error;
+            }
+
+            err = PyList_SetSlice(list, idx, idx + 1, NULL);
+            ERROR_IF(err != -1, error);
+            DECREF_INPUTS();
+        }
+
         inst(PRIMITIVE_UNBOX, (top -- top)) {
             /* We always box values in the interpreter loop (they're only
             * unboxed in the JIT where they can't be introspected at runtime), 
