@@ -511,6 +511,22 @@ dummy_func(
             ERROR_IF(res == NULL, error);
         }
 
+        inst(INVOKE_NATIVE, (args[invoke_native_args(frame->f_code->co_consts, oparg)] -- res)) {
+            PyObject* value = GETITEM(frame->f_code->co_consts, oparg);
+            assert(PyTuple_CheckExact(value));
+            Py_ssize_t nargs = invoke_native_args(frame->f_code->co_consts, oparg);
+
+            PyObject* target = PyTuple_GET_ITEM(value, 0);
+            PyObject* name = PyTuple_GET_ITEM(target, 0);
+            PyObject* symbol = PyTuple_GET_ITEM(target, 1);
+            PyObject* signature = PyTuple_GET_ITEM(value, 1);
+
+            res = _PyClassloader_InvokeNativeFunction(
+                name, symbol, signature, args, nargs);
+            DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
+        }
+
         inst(BUILD_CHECKED_MAP, (map_items[build_checked_map_size(frame->f_code->co_consts, oparg) * 2] -- map)) {
             PyObject* map_info = GETITEM(frame->f_code->co_consts, oparg);
             PyObject* map_type = PyTuple_GET_ITEM(map_info, 0);

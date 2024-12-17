@@ -163,6 +163,13 @@ static Py_ssize_t invoke_function_args(PyObject *consts, int oparg)
     return nargs;
 }
 
+static Py_ssize_t invoke_native_args(PyObject *consts, int oparg)
+{
+    PyObject* value = GETITEM(consts, oparg);
+    PyObject* signature = PyTuple_GET_ITEM(value, 1);
+    return PyTuple_GET_SIZE(signature) - 1;
+}
+
 static Py_ssize_t build_checked_map_size(PyObject *consts, int oparg)
 {
     PyObject* map_info = GETITEM(consts, oparg);
