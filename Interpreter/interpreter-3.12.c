@@ -196,7 +196,7 @@ static Py_ssize_t invoke_native_args(PyObject *consts, int oparg)
     return PyTuple_GET_SIZE(signature) - 1;
 }
 
-static Py_ssize_t build_checked_map_size(PyObject *consts, int oparg)
+static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
 {
     PyObject* map_info = GETITEM(consts, oparg);
     return PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));

@@ -34,9 +34,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     hasconst.append(186)
     def_op("STORE_FIELD", 187)
     hasconst.append(187)
-    if not interp_only:
-        def_op("BUILD_CHECKED_LIST", 188)
-        hasconst.append(188)
+    def_op("BUILD_CHECKED_LIST", 188)
+    hasconst.append(188)
     if not interp_only:
         def_op("LOAD_TYPE", 189)
         hasconst.append(189)

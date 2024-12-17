@@ -809,7 +809,52 @@ dummy_func(
             ERROR_IF(res == NULL, error);
         }
 
-        inst(BUILD_CHECKED_MAP, (map_items[build_checked_map_size(frame->f_code->co_consts, oparg) * 2] -- map)) {
+        inst(BUILD_CHECKED_LIST, (list_items[build_checked_obj_size(frame->f_code->co_consts, oparg)] -- list)) {
+            PyObject* list_info = GETITEM(frame->f_code->co_consts, oparg);
+            PyObject* list_type = PyTuple_GET_ITEM(list_info, 0);
+            Py_ssize_t list_size = PyLong_AsLong(PyTuple_GET_ITEM(list_info, 1));
+
+            int optional;
+            int exact;
+            PyTypeObject* type =
+                _PyClassLoader_ResolveType(list_type, &optional, &exact);
+            assert(!optional);
+
+#ifdef ADAPTIVE
+            if (shadow.shadow != NULL) {
+                PyObject* cache = PyTuple_New(2);
+                if (cache == NULL) {
+                    goto error;
+                }
+                PyTuple_SET_ITEM(cache, 0, (PyObject*)type);
+                Py_INCREF(type);
+                PyObject* size = PyLong_FromLong(list_size);
+                if (size == NULL) {
+                    Py_DECREF(cache);
+                    goto error;
+                }
+                PyTuple_SET_ITEM(cache, 1, size);
+
+                int offset = _PyShadow_CacheCastType(&shadow, cache);
+                Py_DECREF(cache);
+                if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow, next_instr, BUILD_CHECKED_LIST_CACHED, offset);
+                }
+            }
+#endif
+
+            list = Ci_CheckedList_New(type, list_size);
+            ERROR_IF(list == NULL, error);
+
+            Py_DECREF(type);
+
+            for (Py_ssize_t i = 0; i < list_size; i++) {
+                Ci_ListOrCheckedList_SET_ITEM(list, list_size, list_items[i]);
+            }
+        }
+
+        inst(BUILD_CHECKED_MAP, (map_items[build_checked_obj_size(frame->f_code->co_consts, oparg) * 2] -- map)) {
             PyObject* map_info = GETITEM(frame->f_code->co_consts, oparg);
             PyObject* map_type = PyTuple_GET_ITEM(map_info, 0);
             Py_ssize_t map_size = PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));

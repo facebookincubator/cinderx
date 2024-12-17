@@ -5760,10 +5760,63 @@
             DISPATCH();
         }
 
-        TARGET(BUILD_CHECKED_MAP) {
-            PyObject **map_items = (stack_pointer - ((build_checked_map_size(frame->f_code->co_consts, oparg) * 2)));
-            PyObject *map;
+        TARGET(BUILD_CHECKED_LIST) {
+            PyObject **list_items = (stack_pointer - ((build_checked_obj_size(frame->f_code->co_consts, oparg))));
+            PyObject *list;
             #line 813 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            PyObject* list_info = GETITEM(frame->f_code->co_consts, oparg);
+            PyObject* list_type = PyTuple_GET_ITEM(list_info, 0);
+            Py_ssize_t list_size = PyLong_AsLong(PyTuple_GET_ITEM(list_info, 1));
+
+            int optional;
+            int exact;
+            PyTypeObject* type =
+                _PyClassLoader_ResolveType(list_type, &optional, &exact);
+            assert(!optional);
+
+#ifdef ADAPTIVE
+            if (shadow.shadow != NULL) {
+                PyObject* cache = PyTuple_New(2);
+                if (cache == NULL) {
+                    goto error;
+                }
+                PyTuple_SET_ITEM(cache, 0, (PyObject*)type);
+                Py_INCREF(type);
+                PyObject* size = PyLong_FromLong(list_size);
+                if (size == NULL) {
+                    Py_DECREF(cache);
+                    goto error;
+                }
+                PyTuple_SET_ITEM(cache, 1, size);
+
+                int offset = _PyShadow_CacheCastType(&shadow, cache);
+                Py_DECREF(cache);
+                if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow, next_instr, BUILD_CHECKED_LIST_CACHED, offset);
+                }
+            }
+#endif
+
+            list = Ci_CheckedList_New(type, list_size);
+            if (list == NULL) { STACK_SHRINK((build_checked_obj_size(frame->f_code->co_consts, oparg))); goto error; }
+
+            Py_DECREF(type);
+
+            for (Py_ssize_t i = 0; i < list_size; i++) {
+                Ci_ListOrCheckedList_SET_ITEM(list, list_size, list_items[i]);
+            }
+            #line 5809 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            STACK_SHRINK((build_checked_obj_size(frame->f_code->co_consts, oparg)));
+            STACK_GROW(1);
+            stack_pointer[-1] = list;
+            DISPATCH();
+        }
+
+        TARGET(BUILD_CHECKED_MAP) {
+            PyObject **map_items = (stack_pointer - ((build_checked_obj_size(frame->f_code->co_consts, oparg) * 2)));
+            PyObject *map;
+            #line 858 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* map_info = GETITEM(frame->f_code->co_consts, oparg);
             PyObject* map_type = PyTuple_GET_ITEM(map_info, 0);
             Py_ssize_t map_size = PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));
@@ -5800,24 +5853,24 @@
 
             map = Ci_CheckedDict_NewPresized(type, map_size);
             if (map == NULL) {
-            #line 5803 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-                for (int _i = build_checked_map_size(frame->f_code->co_consts, oparg) * 2; --_i >= 0;) {
+            #line 5856 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                for (int _i = build_checked_obj_size(frame->f_code->co_consts, oparg) * 2; --_i >= 0;) {
                     Py_DECREF(map_items[_i]);
                 }
-            #line 850 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 895 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
                 goto error;
             }
             Py_DECREF(type);
 
             Ci_BUILD_DICT(map_size, Ci_CheckedDict_SetItem);
-            #line 5813 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-            for (int _i = build_checked_map_size(frame->f_code->co_consts, oparg) * 2; --_i >= 0;) {
+            #line 5866 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            for (int _i = build_checked_obj_size(frame->f_code->co_consts, oparg) * 2; --_i >= 0;) {
                 Py_DECREF(map_items[_i]);
             }
-            #line 856 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
-            if (map == NULL) { STACK_SHRINK((build_checked_map_size(frame->f_code->co_consts, oparg) * 2)); goto error; }
-            #line 5819 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-            STACK_SHRINK((build_checked_map_size(frame->f_code->co_consts, oparg) * 2));
+            #line 901 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            if (map == NULL) { STACK_SHRINK((build_checked_obj_size(frame->f_code->co_consts, oparg) * 2)); goto error; }
+            #line 5872 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            STACK_SHRINK((build_checked_obj_size(frame->f_code->co_consts, oparg) * 2));
             STACK_GROW(1);
             stack_pointer[-1] = map;
             DISPATCH();
