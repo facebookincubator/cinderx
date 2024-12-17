@@ -415,6 +415,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 1;
         case PRIMITIVE_BINARY_OP:
             return 2;
+        case INVOKE_FUNCTION:
+            return (invoke_function_args(frame->f_code->co_consts, oparg));
         default:
             return -1;
     }
@@ -831,6 +833,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case PRIMITIVE_BINARY_OP:
             return 1;
+        case INVOKE_FUNCTION:
+            return 1;
         default:
             return -1;
     }
@@ -1049,5 +1053,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [PRIMITIVE_UNBOX] = { true, INSTR_FMT_IB },
     [PRIMITIVE_UNARY_OP] = { true, INSTR_FMT_IB },
     [PRIMITIVE_BINARY_OP] = { true, INSTR_FMT_IB },
+    [INVOKE_FUNCTION] = { true, INSTR_FMT_IB },
 };
 #endif

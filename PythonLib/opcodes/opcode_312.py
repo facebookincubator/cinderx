@@ -61,9 +61,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     def_op("LOAD_ITERABLE_ARG", 200)
     if not interp_only:
         def_op("LOAD_MAPPING_ARG", 201)
-    if not interp_only:
-        def_op("INVOKE_FUNCTION", 202)
-        hasconst.append(202)
+    def_op("INVOKE_FUNCTION", 202)
+    hasconst.append(202)
     if not interp_only:
         jabs_op("JUMP_IF_ZERO_OR_POP", 203)
     if not interp_only:

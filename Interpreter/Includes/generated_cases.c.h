@@ -5239,3 +5239,53 @@
             stack_pointer[-1] = res;
             DISPATCH();
         }
+
+        TARGET(INVOKE_FUNCTION) {
+            PyObject **args = (stack_pointer - ((invoke_function_args(frame->f_code->co_consts, oparg))));
+            PyObject *res;
+            #line 406 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            PyObject* value = GETITEM(frame->f_code->co_consts, oparg);
+            int nargs = invoke_function_args(frame->f_code->co_consts, oparg);
+            PyObject* target = PyTuple_GET_ITEM(value, 0);
+            PyObject* container;
+            PyObject* func = _PyClassLoader_ResolveFunction(target, &container);
+            if (func == NULL) { STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg))); goto error; }
+
+            res = _PyObject_Vectorcall(func, args, nargs, NULL);
+#ifdef ADAPTIVE
+            if (shadow.shadow != NULL && nargs < 0x80) {
+                if (_PyClassLoader_IsImmutable(container)) {
+                    /* frozen type, we don't need to worry about indirecting */
+                    int offset = _PyShadow_CacheCastType(&shadow, func);
+                    if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        INVOKE_FUNCTION_CACHED,
+                        (nargs << 8) | offset);
+                    }
+                } else {
+                    PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
+                    int offset = _PyShadow_CacheFunction(&shadow, funcptr);
+                    if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        INVOKE_FUNCTION_INDIRECT_CACHED,
+                        (nargs << 8) | offset);
+                    }
+                }
+            }
+#endif
+
+            Py_DECREF(func);
+            Py_DECREF(container);
+            #line 5278 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            for (int _i = invoke_function_args(frame->f_code->co_consts, oparg); --_i >= 0;) {
+                Py_DECREF(args[_i]);
+            }
+            STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg)));
+            STACK_GROW(1);
+            stack_pointer[-1] = res;
+            DISPATCH();
+        }

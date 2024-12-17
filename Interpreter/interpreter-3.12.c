@@ -155,6 +155,13 @@ static inline void store_field(int field_type, void* addr, PyObject* value) {
         goto error;                                                                \
     }
 
+static Py_ssize_t invoke_function_args(PyObject *consts, int oparg)
+{
+    PyObject* value = GETITEM(consts, oparg);
+    Py_ssize_t nargs = PyLong_AsLong(PyTuple_GET_ITEM(value, 1));
+    return nargs;
+}
+
 #define INT_UNARY_OPCODE(opid, op)                                           \
     case opid:                                                               \
         res = PyLong_FromVoidPtr((void*)(op(size_t) PyLong_AsVoidPtr(val))); \

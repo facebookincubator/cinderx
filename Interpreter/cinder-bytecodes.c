@@ -406,6 +406,50 @@ dummy_func(
             DECREF_INPUTS();
             ERROR_IF(res == NULL, error);
         }
+
+        inst(INVOKE_FUNCTION, (args[invoke_function_args(frame->f_code->co_consts, oparg)] -- res)) {
+            // We should move to encoding the number of args directly in the
+            // opcode, right now pulling them out via invoke_function_args is a little
+            // ugly.
+            PyObject* value = GETITEM(frame->f_code->co_consts, oparg);
+            int nargs = invoke_function_args(frame->f_code->co_consts, oparg);
+            PyObject* target = PyTuple_GET_ITEM(value, 0);
+            PyObject* container;
+            PyObject* func = _PyClassLoader_ResolveFunction(target, &container);
+            ERROR_IF(func == NULL, error);
+
+            res = _PyObject_Vectorcall(func, args, nargs, NULL);
+#ifdef ADAPTIVE
+            if (shadow.shadow != NULL && nargs < 0x80) {
+                if (_PyClassLoader_IsImmutable(container)) {
+                    /* frozen type, we don't need to worry about indirecting */
+                    int offset = _PyShadow_CacheCastType(&shadow, func);
+                    if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        INVOKE_FUNCTION_CACHED,
+                        (nargs << 8) | offset);
+                    }
+                } else {
+                    PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
+                    int offset = _PyShadow_CacheFunction(&shadow, funcptr);
+                    if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        INVOKE_FUNCTION_INDIRECT_CACHED,
+                        (nargs << 8) | offset);
+                    }
+                }
+            }
+#endif
+
+            Py_DECREF(func);
+            Py_DECREF(container);
+            DECREF_INPUTS();
+        }
+
       // END BYTECODES //
     }
 }
