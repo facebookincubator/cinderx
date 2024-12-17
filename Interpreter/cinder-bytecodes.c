@@ -315,6 +315,19 @@ dummy_func(
             Py_DECREF(type);
         }
         
+        inst(PRIMITIVE_UNBOX, (top -- top)) {
+            /* We always box values in the interpreter loop (they're only
+            * unboxed in the JIT where they can't be introspected at runtime), 
+            * so this just does overflow checking here. Oparg indicates the 
+            * type of the unboxed value. */
+            if (PyLong_CheckExact(top)) {
+                size_t value;
+                if (!_PyClassLoader_OverflowCheck(top, oparg, &value)) {
+                    PyErr_SetString(PyExc_OverflowError, "int overflow");
+                    goto error;
+                }
+            }
+        }
 
         inst(PRIMITIVE_UNARY_OP, (val -- res)) {
             switch (oparg) {

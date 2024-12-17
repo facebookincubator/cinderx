@@ -54,8 +54,7 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
         jabs_op("POP_JUMP_IF_ZERO", 194)
     if not interp_only:
         jabs_op("POP_JUMP_IF_NONZERO", 195)
-    if not interp_only:
-        def_op("PRIMITIVE_UNBOX", 196)
+    def_op("PRIMITIVE_UNBOX", 196)
     def_op("PRIMITIVE_BINARY_OP", 197)
     def_op("PRIMITIVE_UNARY_OP", 198)
     if not interp_only:

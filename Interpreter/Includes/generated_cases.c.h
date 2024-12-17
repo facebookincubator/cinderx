@@ -5119,10 +5119,28 @@
             DISPATCH();
         }
 
+        TARGET(PRIMITIVE_UNBOX) {
+            PyObject *top = stack_pointer[-1];
+            #line 319 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            /* We always box values in the interpreter loop (they're only
+            * unboxed in the JIT where they can't be introspected at runtime), 
+            * so this just does overflow checking here. Oparg indicates the 
+            * type of the unboxed value. */
+            if (PyLong_CheckExact(top)) {
+                size_t value;
+                if (!_PyClassLoader_OverflowCheck(top, oparg, &value)) {
+                    PyErr_SetString(PyExc_OverflowError, "int overflow");
+                    goto error;
+                }
+            }
+            #line 5136 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            DISPATCH();
+        }
+
         TARGET(PRIMITIVE_UNARY_OP) {
             PyObject *val = stack_pointer[-1];
             PyObject *res;
-            #line 320 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 333 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             switch (oparg) {
                 INT_UNARY_OPCODE(PRIM_OP_NEG_INT, -)
                 INT_UNARY_OPCODE(PRIM_OP_INV_INT, ~)
@@ -5135,11 +5153,11 @@
                     PyErr_SetString(PyExc_RuntimeError, "unknown op");
                     goto error;
             }
-            #line 5138 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5156 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(val);
-            #line 333 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 346 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             if (res == NULL) goto pop_1_error;
-            #line 5142 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5160 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = res;
             DISPATCH();
         }
@@ -5148,7 +5166,7 @@
             PyObject *r = stack_pointer[-1];
             PyObject *l = stack_pointer[-2];
             PyObject *res;
-            #line 337 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 350 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             switch (oparg) {
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_ADD_INT, +)
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_SUB_INT, -)
@@ -5190,12 +5208,12 @@
                     PyErr_SetString(PyExc_RuntimeError, "unknown op");
                     goto error;
             }
-            #line 5193 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5211 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(l);
             Py_DECREF(r);
-            #line 379 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 392 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             if (res == NULL) goto pop_2_error;
-            #line 5198 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5216 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             DISPATCH();
