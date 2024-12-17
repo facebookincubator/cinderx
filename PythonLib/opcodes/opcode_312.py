@@ -43,9 +43,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
         hasconst.append(189)
     def_op("CAST", 190)
     hasconst.append(190)
-    if not interp_only:
-        def_op("LOAD_LOCAL", 191)
-        hasconst.append(191)
+    def_op("LOAD_LOCAL", 191)
+    hasconst.append(191)
     def_op("STORE_LOCAL", 192)
     hasconst.append(192)
     if not interp_only:

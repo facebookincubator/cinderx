@@ -163,6 +163,21 @@ dummy_func(
             Py_INCREF(element);
         }
 
+        inst(LOAD_LOCAL, (-- value))  {
+            int index = _PyLong_AsInt(PyTuple_GET_ITEM(GETITEM(frame->f_code->co_consts, oparg), 0));
+
+            value = GETLOCAL(index);
+            if (value == NULL) {
+                // Primitive values are default initialized to zero, so they don't
+                // need to be defined. We should consider stop doing that as it can
+                // cause compatibility issues when the same code runs statically and
+                // non statically.
+                value = PyLong_FromLong(0);
+                SETLOCAL(index, value); /* will steal the ref */
+            }
+            Py_INCREF(value);
+        }
+
         inst(STORE_LOCAL, (val -- )) {
             PyObject* local = GETITEM(frame->f_code->co_consts, oparg);
             int index = _PyLong_AsInt(PyTuple_GET_ITEM(local, 0));
