@@ -511,6 +511,52 @@ dummy_func(
             ERROR_IF(res == NULL, error);
         }
 
+        inst(BUILD_CHECKED_MAP, (map_items[build_checked_map_size(frame->f_code->co_consts, oparg) * 2] -- map)) {
+            PyObject* map_info = GETITEM(frame->f_code->co_consts, oparg);
+            PyObject* map_type = PyTuple_GET_ITEM(map_info, 0);
+            Py_ssize_t map_size = PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));
+
+            int optional;
+            int exact;
+            PyTypeObject* type =
+                _PyClassLoader_ResolveType(map_type, &optional, &exact);
+            assert(!optional);
+
+#ifdef ADAPTIVE
+            if (shadow.shadow != NULL) {
+                PyObject* cache = PyTuple_New(2);
+                if (cache == NULL) {
+                    goto error;
+                }
+                PyTuple_SET_ITEM(cache, 0, (PyObject*)type);
+                Py_INCREF(type);
+                PyObject* size = PyLong_FromLong(map_size);
+                if (size == NULL) {
+                    Py_DECREF(cache);
+                    goto error;
+                }
+                PyTuple_SET_ITEM(cache, 1, size);
+
+                int offset = _PyShadow_CacheCastType(&shadow, cache);
+                Py_DECREF(cache);
+                if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow, next_instr, BUILD_CHECKED_MAP_CACHED, offset);
+                }
+            }
+#endif
+
+            map = Ci_CheckedDict_NewPresized(type, map_size);
+            if (map == NULL) {
+                DECREF_INPUTS();
+                goto error;
+            }
+            Py_DECREF(type);
+
+            Ci_BUILD_DICT(map_size, Ci_CheckedDict_SetItem);
+            DECREF_INPUTS();
+            ERROR_IF(map == NULL, error);
+        }
       // END BYTECODES //
     }
 }

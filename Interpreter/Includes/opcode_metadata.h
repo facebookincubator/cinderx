@@ -419,6 +419,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return (invoke_function_args(frame->f_code->co_consts, oparg));
         case INVOKE_METHOD:
             return (invoke_function_args(frame->f_code->co_consts, oparg) + 1);
+        case BUILD_CHECKED_MAP:
+            return (build_checked_map_size(frame->f_code->co_consts, oparg) * 2);
         default:
             return -1;
     }
@@ -839,6 +841,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case INVOKE_METHOD:
             return 1;
+        case BUILD_CHECKED_MAP:
+            return 1;
         default:
             return -1;
     }
@@ -1059,5 +1063,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [PRIMITIVE_BINARY_OP] = { true, INSTR_FMT_IB },
     [INVOKE_FUNCTION] = { true, INSTR_FMT_IB },
     [INVOKE_METHOD] = { true, INSTR_FMT_IB },
+    [BUILD_CHECKED_MAP] = { true, INSTR_FMT_IB },
 };
 #endif

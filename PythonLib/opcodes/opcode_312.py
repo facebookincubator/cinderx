@@ -76,9 +76,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     if not interp_only:
         def_op("LOAD_CLASS", 208)
         hasconst.append(208)
-    if not interp_only:
-        def_op("BUILD_CHECKED_MAP", 209)
-        hasconst.append(209)
+    def_op("BUILD_CHECKED_MAP", 209)
+    hasconst.append(209)
     if not interp_only:
         def_op("SEQUENCE_GET", 210)
     if not interp_only:

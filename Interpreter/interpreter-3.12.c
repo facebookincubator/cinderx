@@ -13,6 +13,7 @@
 
 #include "cinderx/Interpreter/Includes/ceval.c"
 #include "cinderx/StaticPython/classloader.h"
+#include "cinderx/StaticPython/checked_dict.h"
 
 /* _PyEval_EvalFrameDefault() is a *big* function,
  * so consume 3 units of C stack */
@@ -161,6 +162,26 @@ static Py_ssize_t invoke_function_args(PyObject *consts, int oparg)
     Py_ssize_t nargs = PyLong_AsLong(PyTuple_GET_ITEM(value, 1));
     return nargs;
 }
+
+static Py_ssize_t build_checked_map_size(PyObject *consts, int oparg)
+{
+    PyObject* map_info = GETITEM(consts, oparg);
+    return PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));
+}
+
+#define Ci_BUILD_DICT(map_size, set_item)         \
+    for (Py_ssize_t i = 0; i < map_size; i++) {   \
+        int err;                                  \
+        PyObject* key = map_items[2 * i];         \
+        PyObject* value = map_items[2 * i + 1];   \
+        err = set_item(map, key, value);          \
+        if (err != 0) {                           \
+            Py_DECREF(map);                       \
+            map = NULL;                           \
+            break;                                \
+        }                                         \
+    }
+
 
 #define INT_UNARY_OPCODE(opid, op)                                           \
     case opid:                                                               \
