@@ -2,8 +2,10 @@
 #
 # pyre-strict
 
+from contextlib import contextmanager
 from types import FunctionType
-from warnings import warn
+from typing import Generator
+from warnings import catch_warnings, simplefilter, warn
 
 
 INSTALLED: bool = False
@@ -44,3 +46,29 @@ except ImportError:
 
     def jit_suppress(func: FunctionType) -> FunctionType:
         return func
+
+
+@contextmanager
+def pause(deopt_all: bool = False) -> Generator[None, None, None]:
+    """
+    Context manager for temporarily pausing the JIT.
+
+    This will disable the JIT from running on new functions, and if you set
+    `deopt_all`, will also de-optimize all currently compiled functions to the
+    interpreter.  When the JIT is unpaused, the compiled functions will be put
+    back.
+    """
+
+    prev_enabled = is_enabled()
+    if prev_enabled:
+        disable(compile_all=False, deopt_all=deopt_all)
+
+    try:
+        yield
+    finally:
+        if prev_enabled:
+            # Disable the warning from enable() when the JIT is not
+            # installed/initialized.
+            with catch_warnings():
+                simplefilter("ignore")
+                enable()

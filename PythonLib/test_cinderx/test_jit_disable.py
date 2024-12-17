@@ -10,6 +10,7 @@ from cinderx.jit import (
     is_enabled as is_jit_enabled,
     is_jit_compiled,
     jit_suppress,
+    pause as pause_jit,
 )
 
 
@@ -117,6 +118,48 @@ class DisableEnableTests(unittest.TestCase):
         enable_jit()
 
         force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+    def test_pause(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        with pause_jit(deopt_all=False):
+            self.assertFalse(is_jit_enabled())
+            self.assertTrue(is_jit_compiled(foo))
+
+        self.assertTrue(is_jit_enabled())
+        self.assertTrue(is_jit_compiled(foo))
+
+        with pause_jit(deopt_all=True):
+            self.assertFalse(is_jit_enabled())
+            self.assertFalse(is_jit_compiled(foo))
+
+        self.assertTrue(is_jit_enabled())
+        self.assertTrue(is_jit_compiled(foo))
+
+    def test_pause_nested(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        force_compile(foo)
+        self.assertTrue(is_jit_compiled(foo))
+
+        with pause_jit(deopt_all=True):
+            self.assertFalse(is_jit_enabled())
+            self.assertFalse(is_jit_compiled(foo))
+
+            with pause_jit(deopt_all=True):
+                self.assertFalse(is_jit_enabled())
+                self.assertFalse(is_jit_compiled(foo))
+
+            self.assertFalse(is_jit_enabled())
+            self.assertFalse(is_jit_compiled(foo))
+
+        self.assertTrue(is_jit_enabled())
         self.assertTrue(is_jit_compiled(foo))
 
 
