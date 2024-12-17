@@ -333,6 +333,60 @@ dummy_func(
             Py_DECREF(type);
         }
 
+        inst(SEQUENCE_GET, (sequence, idx -- item)) {
+            Py_ssize_t val = (Py_ssize_t)PyLong_AsVoidPtr(idx);
+
+            if (val == -1 && _PyErr_Occurred(tstate)) {
+                goto error;
+            }
+
+            // Adjust index
+            if (val < 0) {
+                val += Py_SIZE(sequence);
+            }
+
+            oparg &= ~SEQ_SUBSCR_UNCHECKED;
+
+            if (oparg == SEQ_LIST) {
+                item = PyList_GetItem(sequence, val);
+                if (item == NULL) {
+                    goto error;
+                }
+                Py_INCREF(item);
+            } else if (oparg == SEQ_LIST_INEXACT) {
+                if (PyList_CheckExact(sequence) ||
+                    Py_TYPE(sequence)->tp_as_sequence->sq_item ==
+                        PyList_Type.tp_as_sequence->sq_item) {
+                    item = PyList_GetItem(sequence, val);
+                    if (item == NULL) {
+                        goto error;
+                    }
+                    Py_INCREF(item);
+                } else {
+                    item = PyObject_GetItem(sequence, idx);
+                    if (item == NULL) {
+                        goto error;
+                    }
+                }
+            } else if (oparg == SEQ_CHECKED_LIST) {
+                item = Ci_CheckedList_GetItem(sequence, val);
+                if (item == NULL) {
+                    goto error;
+                }
+            } else if (oparg == SEQ_ARRAY_INT64) {
+                item = _Ci_StaticArray_Get(sequence, val);
+                if (item == NULL) {
+                    goto error;
+                }
+            } else {
+                PyErr_Format(
+                    PyExc_SystemError, "bad oparg for SEQUENCE_GET: %d", oparg);
+                goto error;
+            }
+
+            DECREF_INPUTS();
+        }
+
         inst(SEQUENCE_SET, (v, sequence, subscr -- )) {
             int err;
 

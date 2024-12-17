@@ -411,6 +411,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 2;
         case CAST:
             return 1;
+        case SEQUENCE_GET:
+            return 2;
         case SEQUENCE_SET:
             return 3;
         case LIST_DEL:
@@ -847,6 +849,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case CAST:
             return 1;
+        case SEQUENCE_GET:
+            return 1;
         case SEQUENCE_SET:
             return 0;
         case LIST_DEL:
@@ -1087,6 +1091,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [LOAD_FIELD] = { true, INSTR_FMT_IB },
     [STORE_FIELD] = { true, INSTR_FMT_IB },
     [CAST] = { true, INSTR_FMT_IB },
+    [SEQUENCE_GET] = { true, INSTR_FMT_IB },
     [SEQUENCE_SET] = { true, INSTR_FMT_IB },
     [LIST_DEL] = { true, INSTR_FMT_IX },
     [PRIMITIVE_UNBOX] = { true, INSTR_FMT_IB },

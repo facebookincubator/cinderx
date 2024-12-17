@@ -14,6 +14,7 @@
 #include "cinderx/Interpreter/Includes/ceval.c"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_dict.h"
+#include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/static_array.h"
 
 /* _PyEval_EvalFrameDefault() is a *big* function,
