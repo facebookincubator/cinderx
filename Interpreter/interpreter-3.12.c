@@ -21,6 +21,16 @@
  * so consume 3 units of C stack */
 #define PY_EVAL_C_STACK_UNITS 2
 
+// These are used to truncate primitives/check signed bits when converting
+// between them
+static uint64_t trunc_masks[] = {0xFF, 0xFFFF, 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF};
+static uint64_t signed_bits[] = {0x80, 0x8000, 0x80000000, 0x8000000000000000};
+static uint64_t signex_masks[] = {
+    0xFFFFFFFFFFFFFF00,
+    0xFFFFFFFFFFFF0000,
+    0xFFFFFFFF00000000,
+    0x0};
+
 static inline int8_t unbox_primitive_bool_and_decref(PyObject* x) {
     assert(PyBool_Check(x));
     int8_t res = (x == Py_True) ? 1 : 0;

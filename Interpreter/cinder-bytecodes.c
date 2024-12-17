@@ -482,6 +482,25 @@ dummy_func(
             ERROR_IF(res == NULL, error);
         }
 
+        inst(CONVERT_PRIMITIVE, (val -- val)) {
+            Py_ssize_t from_type = oparg & 0xFF;
+            Py_ssize_t to_type = oparg >> 4;
+            Py_ssize_t extend_sign =
+                (from_type & TYPED_INT_SIGNED) && (to_type & TYPED_INT_SIGNED);
+            int size = to_type >> 1;
+            size_t ival = (size_t)PyLong_AsVoidPtr(val);
+
+            ival &= trunc_masks[size];
+
+            // Extend the sign if needed
+            if (extend_sign != 0 && (ival & signed_bits[size])) {
+                ival |= (signex_masks[size]);
+            }
+
+            DECREF_INPUTS();
+            val = PyLong_FromSize_t(ival);
+        }
+
         inst(PRIMITIVE_BINARY_OP, (l, r -- res)) {
             switch (oparg) {
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_ADD_INT, +)
