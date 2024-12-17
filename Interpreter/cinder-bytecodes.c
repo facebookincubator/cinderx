@@ -163,6 +163,34 @@ dummy_func(
             Py_INCREF(element);
         }
 
+        inst(LOAD_MAPPING_ARG, (defaultval if (oparg == 3), mapping, name -- value)) {
+            if (!PyDict_Check(mapping) && !Ci_CheckedDict_Check(mapping)) {
+                PyErr_Format(
+                    PyExc_TypeError,
+                    "argument after ** "
+                    "must be a dict, not %.200s",
+                    mapping->ob_type->tp_name);
+                goto error;
+            }
+
+            value = PyDict_GetItemWithError(mapping, name);
+            if (value == NULL) {
+                if (_PyErr_Occurred(tstate)) {
+                    goto error;
+                } else if (oparg == 2) {
+                    PyErr_Format(PyExc_TypeError, "missing argument %U", name);
+                    assert(defaultval == NULL);
+                    goto error;
+                } else {
+                    /* Default value is on the stack */
+                    value = defaultval;
+                }
+            }
+
+            Py_INCREF(value);
+            DECREF_INPUTS();
+        }
+      
         inst(REFINE_TYPE, (unused -- unused)) {
         }
 

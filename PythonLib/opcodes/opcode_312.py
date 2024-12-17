@@ -56,8 +56,7 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     def_op("PRIMITIVE_UNARY_OP", 198)
     def_op("PRIMITIVE_COMPARE_OP", 199)
     def_op("LOAD_ITERABLE_ARG", 200)
-    if not interp_only:
-        def_op("LOAD_MAPPING_ARG", 201)
+    def_op("LOAD_MAPPING_ARG", 201)
     def_op("INVOKE_FUNCTION", 202)
     hasconst.append(202)
     if not interp_only:
