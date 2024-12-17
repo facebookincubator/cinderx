@@ -68,10 +68,6 @@ STUB(
     struct _typeobject*,
     PyObject*)
 
-// Needs back-porting from 3.13
-STUB(int, PyUnstable_PerfTrampoline_CompileCode, T196877712, PyCodeObject*)
-STUB(int, PyUnstable_PerfTrampoline_SetPersistAfterFork, T196877712, int)
-
 /*
  * From interpter.h
  */
