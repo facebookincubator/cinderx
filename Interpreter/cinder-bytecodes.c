@@ -138,6 +138,22 @@ dummy_func(
         override inst(NOP, (--)) {
         }
 
+        inst(POP_JUMP_IF_ZERO, (cond --)) {
+            int is_nonzero = Py_SIZE(cond);
+            Py_DECREF(cond);
+            if (!is_nonzero) {
+                JUMPBY(oparg);
+            }
+        }
+
+        inst(POP_JUMP_IF_NONZERO, (cond --)) {
+            int is_nonzero = Py_SIZE(cond);
+            Py_DECREF(cond);
+            if (is_nonzero) {
+                JUMPBY(oparg);
+            }
+        }
+
         inst(LOAD_ITERABLE_ARG, (tup -- element, tup)) {
             int idx = oparg;
             if (!PyTuple_CheckExact(tup)) {

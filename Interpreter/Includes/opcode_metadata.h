@@ -397,6 +397,10 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case NOP:
             return 0;
+        case POP_JUMP_IF_ZERO:
+            return 1;
+        case POP_JUMP_IF_NONZERO:
+            return 1;
         case LOAD_ITERABLE_ARG:
             return 1;
         case LOAD_MAPPING_ARG:
@@ -851,6 +855,10 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case NOP:
             return 0;
+        case POP_JUMP_IF_ZERO:
+            return 0;
+        case POP_JUMP_IF_NONZERO:
+            return 0;
         case LOAD_ITERABLE_ARG:
             return 2;
         case LOAD_MAPPING_ARG:
@@ -1116,6 +1124,8 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [CACHE] = { true, INSTR_FMT_IX },
     [RESERVED] = { true, INSTR_FMT_IX },
     [NOP] = { true, INSTR_FMT_IX },
+    [POP_JUMP_IF_ZERO] = { true, INSTR_FMT_IB },
+    [POP_JUMP_IF_NONZERO] = { true, INSTR_FMT_IB },
     [LOAD_ITERABLE_ARG] = { true, INSTR_FMT_IB },
     [LOAD_MAPPING_ARG] = { true, INSTR_FMT_IB },
     [REFINE_TYPE] = { true, INSTR_FMT_IX },

@@ -45,10 +45,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     def_op("STORE_LOCAL", 192)
     hasconst.append(192)
     def_op("PRIMITIVE_BOX", 193)
-    if not interp_only:
-        jabs_op("POP_JUMP_IF_ZERO", 194)
-    if not interp_only:
-        jabs_op("POP_JUMP_IF_NONZERO", 195)
+    jabs_op("POP_JUMP_IF_ZERO", 194)
+    jabs_op("POP_JUMP_IF_NONZERO", 195)
     def_op("PRIMITIVE_UNBOX", 196)
     def_op("PRIMITIVE_BINARY_OP", 197)
     def_op("PRIMITIVE_UNARY_OP", 198)
