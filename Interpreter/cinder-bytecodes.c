@@ -485,6 +485,10 @@ dummy_func(
             ERROR_IF(length == NULL, error);
         }
 
+        inst(PRIMITIVE_BOX, (top -- top)) {
+            top = sign_extend_primitive(top, oparg);
+        }
+
         inst(PRIMITIVE_UNBOX, (top -- top)) {
             /* We always box values in the interpreter loop (they're only
             * unboxed in the JIT where they can't be introspected at runtime), 
