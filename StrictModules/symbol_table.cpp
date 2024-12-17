@@ -11,7 +11,11 @@ namespace strictmod {
 //-------------------------PySymtableDeleter---------------------------
 
 void PySymtableDeleter::operator()(PySymtable* p) {
+#if PY_VERSION_HEX < 0x030C0000
   _PySymtable_Free(p);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+#endif
 }
 
 //-------------------------Symtable---------------------------

@@ -52,7 +52,12 @@ int AnalyzedModule::getModKindAsInt() const {
 }
 
 static mod_ty copyAST(mod_ty ast, PyArena* arena) {
+#if PY_VERSION_HEX < 0x030C0000
   return PyAST_obj2mod(Ref<>::steal(PyAST_mod2obj(ast)), arena, 0);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+  return {};
+#endif
 }
 
 Ref<> AnalyzedModule::getPyAst(PyArena* arena) {
@@ -66,7 +71,12 @@ Ref<> AnalyzedModule::getPyAst(PyArena* arena) {
     target = copy;
     preprocessRecord_.originalAst = copy;
   }
+#if PY_VERSION_HEX < 0x030C0000
   Ref<> result = Ref<>::steal(PyAST_mod2obj(target));
   return result;
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+  return {};
+#endif
 }
 } // namespace strictmod::compiler

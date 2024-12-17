@@ -436,6 +436,7 @@ void Analyzer::visitAsyncFunctionDef(const stmt_ty stmt) {
 }
 
 AnalysisResult Analyzer::visitAnnotationHelper(expr_ty annotation) {
+#if PY_VERSION_HEX < 0x030C0000
   if (futureAnnotations_) {
     Ref<> annotationStr = Ref<>::steal(_PyAST_ExprAsUnicode(annotation));
     return std::make_shared<StrictString>(
@@ -443,6 +444,10 @@ AnalysisResult Analyzer::visitAnnotationHelper(expr_ty annotation) {
   } else {
     return visitExpr(annotation);
   }
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+  return {};
+#endif
 }
 
 void Analyzer::addToDunderAnnotationsHelper(
@@ -1475,6 +1480,7 @@ AnalysisResult Analyzer::visitSlice(const expr_ty expr) {
 }
 
 AnalysisResult Analyzer::visitLambda(const expr_ty expr) {
+#if PY_VERSION_HEX < 0x030C0000
   auto lambdaExp = expr->v.Lambda;
   stmt_ty returnStmt = _PyAST_Return(
       lambdaExp.body,
@@ -1496,6 +1502,10 @@ AnalysisResult Analyzer::visitLambda(const expr_ty expr) {
       expr->col_offset,
       expr,
       false);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+  return {};
+#endif
 }
 
 AnalysisResult Analyzer::visitIfExp(const expr_ty expr) {

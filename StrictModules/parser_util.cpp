@@ -48,6 +48,7 @@ std::optional<AstAndSymbols> readFromFile(
     goto error;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   mod = _PyParser_ASTFromFile(
       fp,
       filename,
@@ -58,6 +59,11 @@ std::optional<AstAndSymbols> readFromFile(
       &localflags,
       nullptr,
       arena);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+  localflags;
+  mod = nullptr;
+#endif
 
   if (mod == nullptr)
     goto error;
@@ -88,8 +94,12 @@ error:
   Py_XDECREF(filename);
   if (pyFutures != nullptr)
     PyObject_Free(pyFutures);
+#if PY_VERSION_HEX < 0x030C0000
   if (symbols != nullptr)
     _PySymtable_Free(symbols);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+#endif
 
   return {};
 }
@@ -110,7 +120,12 @@ std::optional<AstAndSymbols> readFromSource(
     goto error;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   mod = _PyParser_ASTFromString(source, filename, mode, &localflags, arena);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+  localflags;
+#endif
 
   if (mod == nullptr)
     goto error;
@@ -134,8 +149,12 @@ error:
   // do not free `mod` since its allocated via arena
   if (pyFutures != nullptr)
     PyObject_Free(pyFutures);
+#if PY_VERSION_HEX < 0x030C0000
   if (symbols != nullptr)
     _PySymtable_Free(symbols);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+#endif
   return {};
 }
 
