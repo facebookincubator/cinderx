@@ -435,6 +435,11 @@ dummy_func(
             DECREF_INPUTS();
         }
 
+        inst(PRIMITIVE_LOAD_CONST, ( -- res)) {
+            res = PyTuple_GET_ITEM(GETITEM(frame->f_code->co_consts, oparg), 0);
+            Py_INCREF(res);
+        }
+
         inst(RETURN_PRIMITIVE, (retval --)) {
             /* In the interpreter, we always return a boxed int. We have a boxed
             * value on the stack already, but we may have to deal with sign

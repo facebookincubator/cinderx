@@ -417,6 +417,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 2;
         case PRIMITIVE_COMPARE_OP:
             return 2;
+        case PRIMITIVE_LOAD_CONST:
+            return 0;
         case RETURN_PRIMITIVE:
             return 1;
         case INVOKE_FUNCTION:
@@ -845,6 +847,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case PRIMITIVE_COMPARE_OP:
             return 1;
+        case PRIMITIVE_LOAD_CONST:
+            return 1;
         case RETURN_PRIMITIVE:
             return 0;
         case INVOKE_FUNCTION:
@@ -1074,6 +1078,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [PRIMITIVE_UNARY_OP] = { true, INSTR_FMT_IB },
     [PRIMITIVE_BINARY_OP] = { true, INSTR_FMT_IB },
     [PRIMITIVE_COMPARE_OP] = { true, INSTR_FMT_IB },
+    [PRIMITIVE_LOAD_CONST] = { true, INSTR_FMT_IB },
     [RETURN_PRIMITIVE] = { true, INSTR_FMT_IB },
     [INVOKE_FUNCTION] = { true, INSTR_FMT_IB },
     [INVOKE_METHOD] = { true, INSTR_FMT_IB },
