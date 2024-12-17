@@ -65,8 +65,7 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
         jabs_op("JUMP_IF_ZERO_OR_POP", 203)
     if not interp_only:
         jabs_op("JUMP_IF_NONZERO_OR_POP", 204)
-    if not interp_only:
-        def_op("FAST_LEN", 205)
+    def_op("FAST_LEN", 205)
     def_op("CONVERT_PRIMITIVE", 206)
     def_op("INVOKE_NATIVE", 207)
     hasconst.append(207)

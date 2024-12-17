@@ -451,6 +451,40 @@ dummy_func(
             DECREF_INPUTS();
         }
 
+        inst(FAST_LEN, (collection -- length)) {
+            int inexact = oparg & FAST_LEN_INEXACT;
+            oparg &= ~FAST_LEN_INEXACT;
+            assert(FAST_LEN_LIST <= oparg && oparg <= FAST_LEN_STR);
+            if (inexact) {
+                if ((oparg == FAST_LEN_LIST && PyList_CheckExact(collection)) ||
+                    (oparg == FAST_LEN_DICT && PyDict_CheckExact(collection)) ||
+                    (oparg == FAST_LEN_SET && PyAnySet_CheckExact(collection)) ||
+                    (oparg == FAST_LEN_TUPLE && PyTuple_CheckExact(collection)) ||
+                    (oparg == FAST_LEN_ARRAY &&
+                    PyStaticArray_CheckExact(collection)) ||
+                    (oparg == FAST_LEN_STR && PyUnicode_CheckExact(collection))) {
+                    inexact = 0;
+                }
+            }
+            if (inexact) {
+                Py_ssize_t res = PyObject_Size(collection);
+                if (res >= 0) {
+                    length = PyLong_FromSsize_t(res);
+                } else {
+                    length = NULL;
+                }
+            } else if (oparg == FAST_LEN_DICT) {
+                length = PyLong_FromLong(((PyDictObject*)collection)->ma_used);
+            } else if (oparg == FAST_LEN_SET) {
+                length = PyLong_FromLong(((PySetObject*)collection)->used);
+            } else {
+                // lists, tuples, arrays are all PyVarObject and use ob_size
+                length = PyLong_FromLong(Py_SIZE(collection));
+            }
+            Py_DECREF(collection);
+            ERROR_IF(length == NULL, error);
+        }
+
         inst(PRIMITIVE_UNBOX, (top -- top)) {
             /* We always box values in the interpreter loop (they're only
             * unboxed in the JIT where they can't be introspected at runtime), 

@@ -417,6 +417,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 3;
         case LIST_DEL:
             return 2;
+        case FAST_LEN:
+            return 1;
         case PRIMITIVE_UNBOX:
             return 1;
         case PRIMITIVE_UNARY_OP:
@@ -857,6 +859,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case LIST_DEL:
             return 0;
+        case FAST_LEN:
+            return 1;
         case PRIMITIVE_UNBOX:
             return 1;
         case PRIMITIVE_UNARY_OP:
@@ -1098,6 +1102,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [SEQUENCE_GET] = { true, INSTR_FMT_IB },
     [SEQUENCE_SET] = { true, INSTR_FMT_IB },
     [LIST_DEL] = { true, INSTR_FMT_IX },
+    [FAST_LEN] = { true, INSTR_FMT_IB },
     [PRIMITIVE_UNBOX] = { true, INSTR_FMT_IB },
     [PRIMITIVE_UNARY_OP] = { true, INSTR_FMT_IB },
     [CONVERT_PRIMITIVE] = { true, INSTR_FMT_IB },
