@@ -625,7 +625,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             return
 
         if isinstance(node.ctx, ast.Store) and data is not None and data.is_used:
-            self.emit("DUP_TOP")
+            self.emit_dup()
             self.emit("STORE_FAST", data.name)
 
         self.get_type(node.value).emit_attr(node, self)
@@ -636,7 +636,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             and data.is_source
             and data.is_used
         ):
-            self.emit("DUP_TOP")
+            self.emit_dup()
             self.emit("STORE_FAST", data.name)
 
     def visitAssignTarget(
@@ -667,7 +667,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         for i in range(len(node.targets)):
             elt = node.targets[i]
             if i < dups:
-                self.emit("DUP_TOP")
+                self.emit_dup()
             if isinstance(elt, ast.AST):
                 self.visitAssignTarget(elt, node, node.value)
         self.strictPostVisitAssign(node)
@@ -731,7 +731,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         assert isinstance(target, ast.Attribute)
         self.visit(target.value)
         typ = self.get_type(target.value)
-        self.emit("DUP_TOP")
+        self.emit_dup()
         typ.emit_load_attr(target, self)
         self.emitAugRHS(node)
         self.emit_rotate_stack(2)
@@ -751,10 +751,10 @@ class Static310CodeGenerator(StrictCodeGenerator):
         self.visit(target.value)
         self.visit(target.slice)
         typ = self.get_type(target.value)
-        self.emit("DUP_TOP_TWO")
+        self.emit_dup(2)
         typ.emit_load_subscr(target, self)
         self.emitAugRHS(node)
-        self.emit("ROT_THREE")
+        self.emit_rotate_stack(3)
         typ.emit_store_subscr(target, self)
 
     def emitAugRHS(self, node: ast.AugAssign) -> None:
@@ -801,8 +801,8 @@ class Static310CodeGenerator(StrictCodeGenerator):
         rtype = self.get_type(value)
         if rtype != optype:
             optype.emit_convert(rtype, self)
-        self.emit("DUP_TOP")
-        self.emit("ROT_THREE")
+        self.emit_dup()
+        self.emit_rotate_stack(3)
         optype.emit_compare(op, self)
         method = optype.emit_jumpif_only if always_pop else optype.emit_jumpif_pop_only
         method(cleanup, False, self)
@@ -938,7 +938,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
                     # {**foo, ...}, we need to generate the empty dict
                     self.emit("BUILD_CHECKED_MAP", (dict_descr, 0))
                     built_final_dict = True
-                self.emit("DUP_TOP")
+                self.emit_dup()
                 self.visit(v)
 
                 self.emit_invoke_method(update_descr, 1)
@@ -948,7 +948,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         if elements or not built_final_dict:
             if built_final_dict:
-                self.emit("DUP_TOP")
+                self.emit_dup()
             self.compile_subgendict(
                 node, len(node.keys) - elements, len(node.keys), dict_descr
             )
@@ -1019,7 +1019,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
                     # We need to generate the empty list to extend in the case of [*foo, ...].
                     self.emit("BUILD_CHECKED_LIST", (list_descr, 0))
                     built_final_list = True
-                self.emit("DUP_TOP")
+                self.emit_dup()
                 self.visit(elt.value)
                 self.emit_invoke_method(extend_descr, 1)
                 self.emit("POP_TOP")
@@ -1028,7 +1028,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         if elements or not built_final_list:
             if built_final_list:
-                self.emit("DUP_TOP")
+                self.emit_dup()
             self.compile_sub_checked_list(
                 node, len(node.elts) - elements, len(node.elts), list_descr
             )

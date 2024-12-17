@@ -7048,7 +7048,7 @@ class ExtremumFunction(Object[Class]):
         else:
             op = ">="
 
-        code_gen.emit("DUP_TOP_TWO")
+        code_gen.emit_dup(2)
         code_gen.emit("COMPARE_OP", op)
         code_gen.emit("POP_JUMP_IF_FALSE", elseblock)
         # Remove `b` from stack, `a` was the minimum
@@ -8678,10 +8678,10 @@ class ArrayInstance(Object["ArrayClass"]):
         else:
             if code_gen.get_type(node.slice).klass != self.klass.type_env.slice:
                 # Falling back to STORE_SUBSCR here, so need to box the value first
-                code_gen.emit("ROT_THREE")
-                code_gen.emit("ROT_THREE")
+                code_gen.emit_rotate_stack(3)
+                code_gen.emit_rotate_stack(3)
                 code_gen.emit("PRIMITIVE_BOX", TYPED_INT64)
-                code_gen.emit("ROT_THREE")
+                code_gen.emit_rotate_stack(3)
             super().emit_store_subscr(node, code_gen)
 
     def __repr__(self) -> str:
@@ -8884,8 +8884,8 @@ class CheckedDictInstance(Object[CheckedDict]):
     ) -> None:
         # We have, from TOS: index, dict, value-to-store
         # We want, from TOS: value-to-store, index, dict
-        code_gen.emit("ROT_THREE")
-        code_gen.emit("ROT_THREE")
+        code_gen.emit_rotate_stack(3)
+        code_gen.emit_rotate_stack(3)
         dict_descr = self.klass.type_descr
         setitem_descr = (dict_descr, "__setitem__")
         code_gen.emit("EXTENDED_ARG", 0)
@@ -9031,8 +9031,8 @@ class CheckedListInstance(Object[CheckedList]):
 
         # We have, from TOS: index, list, value-to-store
         # We want, from TOS: value-to-store, index, list
-        code_gen.emit("ROT_THREE")
-        code_gen.emit("ROT_THREE")
+        code_gen.emit_rotate_stack(3)
+        code_gen.emit_rotate_stack(3)
 
         setitem_descr = (self.klass.type_descr, "__setitem__")
         code_gen.emit_invoke_method(setitem_descr, 2)
