@@ -82,9 +82,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
         def_op("SEQUENCE_SET", 211)
     if not interp_only:
         def_op("LIST_DEL", 212)
-    if not interp_only:
-        def_op("REFINE_TYPE", 213)
-        hasconst.append(213)
+    def_op("REFINE_TYPE", 213)
+    hasconst.append(213)
     def_op("PRIMITIVE_LOAD_CONST", 214)
     hasconst.append(214)
     def_op("RETURN_PRIMITIVE", 215)

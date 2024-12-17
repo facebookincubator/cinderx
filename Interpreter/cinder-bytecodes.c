@@ -163,6 +163,9 @@ dummy_func(
             Py_INCREF(element);
         }
 
+        inst(REFINE_TYPE, (unused -- unused)) {
+        }
+
         inst(LOAD_LOCAL, (-- value))  {
             int index = _PyLong_AsInt(PyTuple_GET_ITEM(GETITEM(frame->f_code->co_consts, oparg), 0));
 
