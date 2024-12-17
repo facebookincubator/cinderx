@@ -166,6 +166,29 @@ dummy_func(
         inst(REFINE_TYPE, (unused -- unused)) {
         }
 
+        inst(TP_ALLOC, (-- inst)) {
+            int optional;
+            int exact;
+            PyTypeObject* type = _PyClassLoader_ResolveType(
+                GETITEM(frame->f_code->co_consts, oparg), &optional, &exact);
+            assert(!optional);
+            ERROR_IF(type == NULL, error);
+
+            inst = type->tp_alloc(type, 0);
+            ERROR_IF(inst == NULL, error);
+
+#ifdef ADAPTIVE
+            if (shadow.shadow != NULL) {
+                int offset = _PyShadow_CacheCastType(&shadow, (PyObject*)type);
+                if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow, next_instr, TP_ALLOC_CACHED, offset);
+                }
+            }
+#endif
+            Py_DECREF(type);
+        }
+
         inst(LOAD_LOCAL, (-- value))  {
             int index = _PyLong_AsInt(PyTuple_GET_ITEM(GETITEM(frame->f_code->co_consts, oparg), 0));
 
