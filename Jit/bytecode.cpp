@@ -124,9 +124,9 @@ bool BytecodeInstruction::isAbsoluteControlFlow() const {
     case JUMP_IF_NOT_EXC_MATCH:
     case JUMP_IF_TRUE_OR_POP:
     case JUMP_IF_ZERO_OR_POP:
+      return true;
     case POP_JUMP_IF_NONZERO:
     case POP_JUMP_IF_ZERO:
-      return true;
     case POP_JUMP_IF_FALSE:
     case POP_JUMP_IF_TRUE:
       // These instructions switched from absolute to relative in 3.11.
