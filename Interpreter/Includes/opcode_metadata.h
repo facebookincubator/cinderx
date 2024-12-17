@@ -439,6 +439,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case RETURN_PRIMITIVE:
             return 1;
+        case LOAD_TYPE:
+            return 1;
         case INVOKE_FUNCTION:
             return (invoke_function_args(frame->f_code->co_consts, oparg));
         case INVOKE_METHOD:
@@ -889,6 +891,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case RETURN_PRIMITIVE:
             return 0;
+        case LOAD_TYPE:
+            return 1;
         case INVOKE_FUNCTION:
             return 1;
         case INVOKE_METHOD:
@@ -1129,6 +1133,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [PRIMITIVE_COMPARE_OP] = { true, INSTR_FMT_IB },
     [PRIMITIVE_LOAD_CONST] = { true, INSTR_FMT_IB },
     [RETURN_PRIMITIVE] = { true, INSTR_FMT_IB },
+    [LOAD_TYPE] = { true, INSTR_FMT_IX },
     [INVOKE_FUNCTION] = { true, INSTR_FMT_IB },
     [INVOKE_METHOD] = { true, INSTR_FMT_IB },
     [INVOKE_NATIVE] = { true, INSTR_FMT_IB },

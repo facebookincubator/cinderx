@@ -689,6 +689,12 @@ dummy_func(
             goto resume_frame;
         }
 
+        inst(LOAD_TYPE, (instance -- type)) {
+            type = (PyObject *)Py_TYPE(instance);
+            Py_INCREF(type);
+            DECREF_INPUTS();
+        }
+
         inst(INVOKE_FUNCTION, (args[invoke_function_args(frame->f_code->co_consts, oparg)] -- res)) {
             // We should move to encoding the number of args directly in the
             // opcode, right now pulling them out via invoke_function_args is a little

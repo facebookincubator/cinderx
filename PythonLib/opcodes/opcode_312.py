@@ -36,9 +36,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     hasconst.append(187)
     def_op("BUILD_CHECKED_LIST", 188)
     hasconst.append(188)
-    if not interp_only:
-        def_op("LOAD_TYPE", 189)
-        hasconst.append(189)
+    def_op("LOAD_TYPE", 189)
+    hasconst.append(189)
     def_op("CAST", 190)
     hasconst.append(190)
     def_op("LOAD_LOCAL", 191)
