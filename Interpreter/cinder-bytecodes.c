@@ -332,7 +332,57 @@ dummy_func(
 #endif
             Py_DECREF(type);
         }
-        
+
+        inst(SEQUENCE_SET, (v, sequence, subscr -- )) {
+            int err;
+
+            Py_ssize_t idx = (Py_ssize_t)PyLong_AsVoidPtr(subscr);
+
+            if (idx == -1 && _PyErr_Occurred(tstate)) {
+                goto error;
+            }
+
+            // Adjust index
+            if (idx < 0) {
+                idx += Py_SIZE(sequence);
+            }
+
+            if (oparg == SEQ_LIST) {
+                err = PyList_SetItem(sequence, idx, v);
+
+                if (err != 0) {
+                    goto error;
+                }
+            } else if (oparg == SEQ_LIST_INEXACT) {
+                if (PyList_CheckExact(sequence) ||
+                    Py_TYPE(sequence)->tp_as_sequence->sq_ass_item ==
+                        PyList_Type.tp_as_sequence->sq_ass_item) {
+                    err = PyList_SetItem(sequence, idx, v);
+
+                    if (err != 0) {
+                        goto error;
+                    }
+                } else {
+                    err = PyObject_SetItem(sequence, subscr, v);
+                    if (err != 0) {
+                        goto error;
+                    }
+                }
+            } else if (oparg == SEQ_ARRAY_INT64) {
+                err = _Ci_StaticArray_Set(sequence, idx, v);
+
+                if (err != 0) {
+                    goto error;
+                }
+            } else {
+                PyErr_Format(
+                    PyExc_SystemError, "bad oparg for SEQUENCE_SET: %d", oparg);
+                goto error;
+            }
+
+            DECREF_INPUTS();
+        }
+
         inst(LIST_DEL, (list, subscr -- )) {
             int err;
 
