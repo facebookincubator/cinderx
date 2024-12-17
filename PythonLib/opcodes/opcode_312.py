@@ -55,8 +55,7 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     def_op("PRIMITIVE_UNBOX", 196)
     def_op("PRIMITIVE_BINARY_OP", 197)
     def_op("PRIMITIVE_UNARY_OP", 198)
-    if not interp_only:
-        def_op("PRIMITIVE_COMPARE_OP", 199)
+    def_op("PRIMITIVE_COMPARE_OP", 199)
     def_op("LOAD_ITERABLE_ARG", 200)
     if not interp_only:
         def_op("LOAD_MAPPING_ARG", 201)

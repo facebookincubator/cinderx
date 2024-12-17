@@ -217,6 +217,28 @@ static Py_ssize_t build_checked_map_size(PyObject *consts, int oparg)
         res = (PyFloat_FromDouble((PyFloat_AS_DOUBLE(l))op(PyFloat_AS_DOUBLE(r)))); \
         break;
 
+#define INT_CMP_OPCODE_UNSIGNED(opid, op)           \
+    case opid:                                      \
+        right = (size_t)PyLong_AsVoidPtr(r);        \
+        left = (size_t)PyLong_AsVoidPtr(l);         \
+        res = (left op right) ? Py_True : Py_False; \
+        Py_INCREF(res);                             \
+        break;
+
+#define INT_CMP_OPCODE_SIGNED(opid, op)               \
+    case opid:                                        \
+        sright = (Py_ssize_t)PyLong_AsVoidPtr(r);     \
+        sleft = (Py_ssize_t)PyLong_AsVoidPtr(l);      \
+        res = (sleft op sright) ? Py_True : Py_False; \
+        Py_INCREF(res);                               \
+        break;
+
+#define DBL_CMP_OPCODE(opid, op)                                                   \
+    case opid:                                                                     \
+        res =                                                                      \
+            ((PyFloat_AS_DOUBLE(l) op PyFloat_AS_DOUBLE(r)) ? Py_True : Py_False); \
+        Py_INCREF(res);                                                            \
+        break;
 
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)

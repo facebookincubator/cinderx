@@ -407,6 +407,34 @@ dummy_func(
             ERROR_IF(res == NULL, error);
         }
 
+        inst(PRIMITIVE_COMPARE_OP, (l, r -- res)) {
+            Py_ssize_t sleft, sright;
+            size_t left, right;
+            switch (oparg) {
+                INT_CMP_OPCODE_SIGNED(PRIM_OP_EQ_INT, ==)
+                INT_CMP_OPCODE_SIGNED(PRIM_OP_NE_INT, !=)
+                INT_CMP_OPCODE_SIGNED(PRIM_OP_LT_INT, <)
+                INT_CMP_OPCODE_SIGNED(PRIM_OP_GT_INT, >)
+                INT_CMP_OPCODE_SIGNED(PRIM_OP_LE_INT, <=)
+                INT_CMP_OPCODE_SIGNED(PRIM_OP_GE_INT, >=)
+                INT_CMP_OPCODE_UNSIGNED(PRIM_OP_LT_UN_INT, <)
+                INT_CMP_OPCODE_UNSIGNED(PRIM_OP_GT_UN_INT, >)
+                INT_CMP_OPCODE_UNSIGNED(PRIM_OP_LE_UN_INT, <=)
+                INT_CMP_OPCODE_UNSIGNED(PRIM_OP_GE_UN_INT, >=)
+                DBL_CMP_OPCODE(PRIM_OP_EQ_DBL, ==)
+                DBL_CMP_OPCODE(PRIM_OP_NE_DBL, !=)
+                DBL_CMP_OPCODE(PRIM_OP_LT_DBL, <)
+                DBL_CMP_OPCODE(PRIM_OP_GT_DBL, >)
+                DBL_CMP_OPCODE(PRIM_OP_LE_DBL, <=)
+                DBL_CMP_OPCODE(PRIM_OP_GE_DBL, >=)
+                default:
+                    PyErr_SetString(PyExc_RuntimeError, "unknown op");
+                    DECREF_INPUTS();
+                    goto error;
+            }
+            DECREF_INPUTS();
+        }
+
         inst(INVOKE_FUNCTION, (args[invoke_function_args(frame->f_code->co_consts, oparg)] -- res)) {
             // We should move to encoding the number of args directly in the
             // opcode, right now pulling them out via invoke_function_args is a little
