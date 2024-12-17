@@ -5289,3 +5289,80 @@
             stack_pointer[-1] = res;
             DISPATCH();
         }
+
+        TARGET(INVOKE_METHOD) {
+            PyObject **args = (stack_pointer - ((invoke_function_args(frame->f_code->co_consts, oparg) + 1)));
+            PyObject *res;
+            #line 446 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            PyObject* value = GETITEM(frame->f_code->co_consts, oparg);
+            Py_ssize_t nargs = invoke_function_args(frame->f_code->co_consts, oparg) + 1;
+            PyObject* target = PyTuple_GET_ITEM(value, 0);
+            int is_classmethod = PyTuple_GET_SIZE(value) == 3 &&
+                (PyTuple_GET_ITEM(value, 2) == Py_True);
+
+            Py_ssize_t slot = _PyClassLoader_ResolveMethod(target);
+            if (slot == -1) {
+            #line 5300 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                for (int _i = invoke_function_args(frame->f_code->co_consts, oparg) + 1; --_i >= 0;) {
+                    Py_DECREF(args[_i]);
+                }
+            #line 455 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+                goto error;
+            }
+
+#ifdef ADAPTIVE
+            assert(*(next_instr - 2) == EXTENDED_ARG);
+            if (shadow.shadow != NULL && nargs < 0x80) {
+                PyMethodDescrObject* method;
+                if ((method = _PyClassLoader_ResolveMethodDef(target)) != NULL) {
+                    int offset = _PyShadow_CacheCastType(&shadow, (PyObject*)method);
+                    if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        INVOKE_FUNCTION_CACHED,
+                        (nargs << 8) | offset);
+                    }
+                } else {
+                    /* We smuggle in the information about whether the invocation was a
+                    * classmethod in the low bit of the oparg. This is necessary, as
+                    * without, the runtime won't be able to get the correct vtable from
+                    * self when the type is passed in.
+                    */
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        INVOKE_METHOD_CACHED,
+                        (slot << 9) | (nargs << 1) | (is_classmethod ? 1 : 0));
+                }
+            }
+#endif
+            PyObject* self = *args;
+
+            _PyType_VTable* vtable;
+            if (is_classmethod) {
+                vtable = (_PyType_VTable*)(((PyTypeObject*)self)->tp_cache);
+            } else {
+                vtable = (_PyType_VTable*)self->ob_type->tp_cache;
+            }
+
+            assert(!PyErr_Occurred());
+
+            res = _PyClassLoader_InvokeMethod(
+                vtable,
+                slot,
+                args,
+                nargs);
+
+            #line 5352 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            for (int _i = invoke_function_args(frame->f_code->co_consts, oparg) + 1; --_i >= 0;) {
+                Py_DECREF(args[_i]);
+            }
+            #line 503 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            if (res == NULL) { STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg) + 1)); goto error; }
+            #line 5358 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg) + 1));
+            STACK_GROW(1);
+            stack_pointer[-1] = res;
+            DISPATCH();
+        }

@@ -28,9 +28,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
         def_op(name, op)
         hasjabs.append(op)
 
-    if not interp_only:
-        def_op("INVOKE_METHOD", 185)
-        hasconst.append(185)
+    def_op("INVOKE_METHOD", 185)
+    hasconst.append(185)
     def_op("LOAD_FIELD", 186)
     hasconst.append(186)
     def_op("STORE_FIELD", 187)
