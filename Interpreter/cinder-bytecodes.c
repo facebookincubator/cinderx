@@ -435,6 +435,26 @@ dummy_func(
             DECREF_INPUTS();
         }
 
+        inst(RETURN_PRIMITIVE, (retval --)) {
+            /* In the interpreter, we always return a boxed int. We have a boxed
+            * value on the stack already, but we may have to deal with sign
+            * extension. */
+            retval = sign_extend_primitive(retval, oparg);
+
+            STACK_SHRINK(1);
+            assert(EMPTY());
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            _Py_LeaveRecursiveCallPy(tstate);
+            assert(frame != &entry_frame);
+            // GH-99729: We need to unlink the frame *before* clearing it:
+            _PyInterpreterFrame *dying = frame;
+            frame = cframe.current_frame = dying->previous;
+            _PyEvalFrameClearAndPop(tstate, dying);
+            frame->prev_instr += frame->return_offset;
+            _PyFrame_StackPush(frame, retval);
+            goto resume_frame;
+        }
+
         inst(INVOKE_FUNCTION, (args[invoke_function_args(frame->f_code->co_consts, oparg)] -- res)) {
             // We should move to encoding the number of args directly in the
             // opcode, right now pulling them out via invoke_function_args is a little

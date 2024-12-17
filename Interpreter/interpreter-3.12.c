@@ -60,6 +60,20 @@ static inline PyObject* box_primitive(int type, Py_ssize_t value) {
   }
 }
 
+static inline PyObject* sign_extend_primitive(PyObject *obj, int type) {
+    if ((type & (TYPED_INT_SIGNED)) && type != (TYPED_DOUBLE)) {
+        /* We have a boxed value on the stack already, but we may have to
+        * deal with sign extension */
+        PyObject* val = obj;
+        size_t ival = (size_t)PyLong_AsVoidPtr(val);
+        if (ival & ((size_t)1) << 63) {
+            obj = PyLong_FromSsize_t((int64_t)ival);
+            Py_DECREF(val);
+        }
+    }
+    return obj;
+}
+
 static inline PyObject* load_field(int field_type, void* addr) {
     PyObject* value;
     switch (field_type) {

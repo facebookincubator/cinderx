@@ -88,8 +88,7 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     if not interp_only:
         def_op("PRIMITIVE_LOAD_CONST", 214)
         hasconst.append(214)
-    if not interp_only:
-        def_op("RETURN_PRIMITIVE", 215)
+    def_op("RETURN_PRIMITIVE", 215)
     if not interp_only:
         def_op("TP_ALLOC", 216)
         hasconst.append(216)
