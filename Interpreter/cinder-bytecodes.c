@@ -695,6 +695,15 @@ dummy_func(
             DECREF_INPUTS();
         }
 
+        inst(LOAD_CLASS, (-- type)) {
+            PyObject* type_descr = GETITEM(frame->f_code->co_consts, oparg);
+            int optional;
+            int exact;
+            type =
+                (PyObject *)_PyClassLoader_ResolveType(type_descr, &optional, &exact);
+            ERROR_IF(type == NULL, error);
+        }
+
         inst(INVOKE_FUNCTION, (args[invoke_function_args(frame->f_code->co_consts, oparg)] -- res)) {
             // We should move to encoding the number of args directly in the
             // opcode, right now pulling them out via invoke_function_args is a little

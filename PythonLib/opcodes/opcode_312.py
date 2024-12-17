@@ -65,9 +65,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
     def_op("CONVERT_PRIMITIVE", 206)
     def_op("INVOKE_NATIVE", 207)
     hasconst.append(207)
-    if not interp_only:
-        def_op("LOAD_CLASS", 208)
-        hasconst.append(208)
+    def_op("LOAD_CLASS", 208)
+    hasconst.append(208)
     def_op("BUILD_CHECKED_MAP", 209)
     hasconst.append(209)
     def_op("SEQUENCE_GET", 210)
