@@ -4918,7 +4918,7 @@
         TARGET(POP_JUMP_IF_ZERO) {
             PyObject *cond = stack_pointer[-1];
             #line 149 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
-            int is_nonzero = Py_SIZE(cond);
+            int is_nonzero = PyObject_IsTrue(cond);
             Py_DECREF(cond);
             if (!is_nonzero) {
                 JUMPBY(oparg);
@@ -4931,7 +4931,7 @@
         TARGET(POP_JUMP_IF_NONZERO) {
             PyObject *cond = stack_pointer[-1];
             #line 157 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
-            int is_nonzero = Py_SIZE(cond);
+            int is_nonzero = PyObject_IsTrue(cond);
             Py_DECREF(cond);
             if (is_nonzero) {
                 JUMPBY(oparg);

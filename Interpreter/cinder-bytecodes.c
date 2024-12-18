@@ -146,7 +146,7 @@ dummy_func(
         }
 
         inst(POP_JUMP_IF_ZERO, (cond --)) {
-            int is_nonzero = Py_SIZE(cond);
+            int is_nonzero = PyObject_IsTrue(cond);
             Py_DECREF(cond);
             if (!is_nonzero) {
                 JUMPBY(oparg);
@@ -154,7 +154,7 @@ dummy_func(
         }
 
         inst(POP_JUMP_IF_NONZERO, (cond --)) {
-            int is_nonzero = Py_SIZE(cond);
+            int is_nonzero = PyObject_IsTrue(cond);
             Py_DECREF(cond);
             if (is_nonzero) {
                 JUMPBY(oparg);
