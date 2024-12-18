@@ -13,9 +13,15 @@ from opcode import (
     haslocal,
     hasname,
     opmap,
+    opname,
 )
 
 from .opcodebase import Opcode
+
+if sys.version_info >= (3, 12):
+    from cinderx import opcode as cinderx_opcode
+
+    cinderx_opcode.init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, False)
 
 opcode: Opcode = Opcode()
 for opname, opnum in opmap.items():

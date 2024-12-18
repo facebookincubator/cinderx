@@ -5,7 +5,7 @@ shadowop = set()
 cinderxop = set()
 
 
-def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst):
+def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only=False):
     def def_op(name, op):
         opname[op] = name
         opmap[name] = op
