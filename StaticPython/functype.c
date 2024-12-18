@@ -441,6 +441,43 @@ PyObject* _PyClassLoader_MaybeUnwrapCallable(PyObject* func) {
   return NULL;
 }
 
+static PyObject* check_coro_return(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject* callable,
+    PyObject* coro) {
+  if (coro == NULL) {
+    return NULL;
+  }
+
+  int eager = Ci_PyWaitHandle_CheckExact(coro);
+  if (eager) {
+    Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
+    if (handle->wh_waiter == NULL) {
+      if (_PyClassLoader_CheckReturnType(
+              Py_TYPE(callable),
+              handle->wh_coro_or_result,
+              (_PyClassLoader_RetTypeInfo*)state)) {
+        return coro;
+      }
+      Ci_PyWaitHandle_Release(coro);
+      return NULL;
+    }
+  }
+
+  return _PyClassLoader_NewAwaitableWrapper(
+      coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);
+}
+
+PyObject* _PyClassLoader_CallCoroutineOverridden(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject* func,
+    PyObject* const* args,
+    size_t nargsf) {
+  PyObject* coro = _PyObject_Vectorcall(func, args, nargsf, NULL);
+
+  return check_coro_return(state, func, coro);
+}
+
 PyObject* _PyClassLoader_CallCoroutine(
     _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
@@ -469,25 +506,6 @@ PyObject* _PyClassLoader_CallCoroutine(
     // self isn't passed if we're not a descriptor
     coro = _PyObject_Vectorcall(callable, args + 1, nargsf - 1, NULL);
   }
-  if (coro == NULL) {
-    return NULL;
-  }
 
-  int eager = Ci_PyWaitHandle_CheckExact(coro);
-  if (eager) {
-    Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
-    if (handle->wh_waiter == NULL) {
-      if (_PyClassLoader_CheckReturnType(
-              Py_TYPE(callable),
-              handle->wh_coro_or_result,
-              (_PyClassLoader_RetTypeInfo*)state)) {
-        return coro;
-      }
-      Ci_PyWaitHandle_Release(coro);
-      return NULL;
-    }
-  }
-
-  return _PyClassLoader_NewAwaitableWrapper(
-      coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);
+  return check_coro_return(state, callable, coro);
 }

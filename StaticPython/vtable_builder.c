@@ -271,6 +271,9 @@ static int _PyVTable_setslot_typecheck(
         _PyClassLoader_IsPropertyName((PyTupleObject*)name)) {
       vtable->vt_entries[slot].vte_entry =
           (vectorcallfunc)_PyVTable_coroutine_property_dont_bolt;
+    } else if (func_flags & Ci_FUNC_FLAGS_STATICMETHOD) {
+      vtable->vt_entries[slot].vte_entry =
+          (vectorcallfunc)_PyVTable_coroutine_staticmethod_dont_bolt;
     } else {
       vtable->vt_entries[slot].vte_entry =
           (vectorcallfunc)_PyVTable_coroutine_dont_bolt;
