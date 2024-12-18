@@ -9,7 +9,7 @@ import builtins
 from ast import AST
 from collections import deque
 from types import CodeType
-from typing import Any, TYPE_CHECKING
+from typing import Any, cast, TYPE_CHECKING
 
 from .. import consts
 from ..errors import ErrorSink
@@ -49,7 +49,7 @@ else:
 
 
 if TYPE_CHECKING:
-    from . import Static310CodeGenerator
+    from . import Static310CodeGenerator, StaticCodeGenBase
 
 try:
     import xxclassloader
@@ -84,7 +84,7 @@ class StrictBuiltins(Object[Class]):
 class Compiler:
     def __init__(
         self,
-        code_generator: type[Static310CodeGenerator],
+        code_generator: type[StaticCodeGenBase],
         error_sink: ErrorSink | None = None,
     ) -> None:
         self.modules: dict[str, ModuleTable] = {}
@@ -539,7 +539,9 @@ class Compiler:
             tree = cached_tree
         # Analyze variable scopes
         future_flags = find_futures(0, tree)
-        s = self.code_generator._SymbolVisitor(future_flags)
+        # TODO(TT209531178): This class still implicitly assumes 3.10
+        code_generator = cast("Static310CodeGenerator", self.code_generator)
+        s = code_generator._SymbolVisitor(future_flags)
         s.visit(tree)
 
         # Analyze the types of objects within local scopes
@@ -602,7 +604,7 @@ class Compiler:
             future_flags=future_flags,
         )
         code_gen.visit(tree)
-        return code_gen
+        return cast("Static310CodeGenerator", code_gen)
 
     def import_module(self, name: str, optimize: int) -> ModuleTable | None:
         pass

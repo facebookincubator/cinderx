@@ -2453,6 +2453,23 @@ class CodeGenerator(ASTVisitor):
     ) -> None:
         raise NotImplementedError()
 
+    def visitAssert(self, node: ast.Assert) -> None:
+        raise NotImplementedError()
+
+    def compile_comprehension(
+        self,
+        node: CompNode,
+        name: str,
+        elt: ast.expr,
+        val: ast.expr | None,
+        opcode: str,
+        oparg: object = 0,
+    ) -> None:
+        raise NotImplementedError()
+
+    def emit_build_class(self, node: ast.ClassDef, class_body: CodeGenerator) -> None:
+        raise NotImplementedError()
+
 
 class Entry:
     kind: int
@@ -2731,7 +2748,7 @@ class CodeGenerator310(CodeGenerator):
         self.register_immutability(node, immutability_flag)
         self.post_process_and_store_name(node)
 
-    def emit_build_class(self, node: ast.ClassDef, class_body: CodeGenerator):
+    def emit_build_class(self, node: ast.ClassDef, class_body: CodeGenerator) -> None:
         self.emit("LOAD_BUILD_CLASS")
         self.emit_closure(class_body, 0)
         self.emit("LOAD_CONST", node.name)

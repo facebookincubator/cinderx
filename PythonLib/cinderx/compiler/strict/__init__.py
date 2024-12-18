@@ -27,6 +27,7 @@ from ..pycodegen import (  # noqa: F401
     CinderCodeGenBase,
     CinderCodeGenerator310,
     CodeGenerator,
+    CodeGenerator310,
     find_futures,
     FOR_LOOP,
 )
@@ -139,7 +140,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         if not parent and isinstance(node, ast.Module) and len(node.body) > 0:
             self.first_body_node = node.body[0]
 
-        if parent and isinstance(parent, StrictCodeGenerator):
+        if parent and isinstance(parent, StrictCodeGenBase):
             self.feature_extractor: FeatureExtractor = parent.feature_extractor
         else:
             self.feature_extractor = FeatureExtractor(builtins, self.future_flags)
@@ -552,7 +553,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
     ) -> None:
         if (
             isinstance(node, (FunctionDef, AsyncFunctionDef))
-            and isinstance(gen, StrictCodeGenerator)
+            and isinstance(gen, StrictCodeGenBase)
             and gen.has_class
         ):
             # initialize the <classes> list
@@ -560,6 +561,8 @@ class StrictCodeGenBase(CinderCodeGenBase):
                 gen.emit_create_class_list()
             # create a try + finally structure where we freeze all classes
             # in the finally block
+            # TODO(T209531178): Fix the base method signature.
+            # pyre-ignore[19]: Call `CodeGenerator.emit_try_finally` expects 1 positional argument, 3 were provided.
             gen.emit_try_finally(
                 None,
                 lambda: super(StrictCodeGenBase, self).processBody(node, body, gen),
