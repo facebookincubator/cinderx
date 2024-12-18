@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+import sys
+
 from .common import StaticTestBase
 
 
@@ -56,7 +58,7 @@ class AugAssignTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             t = mod.t
-            self.assertInBytecode(t, "INPLACE_ADD")
+            self.assertBinOpInBytecode(t, "INPLACE_ADD")
             self.assertEqual(t(), 3)
 
     def test_list(self):

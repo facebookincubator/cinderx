@@ -2533,7 +2533,7 @@ class StaticCompilationTests(StaticTestBase):
                 z = a + b
         """
         f = self.find_code(self.compile(codestr, modname="foo"))
-        self.assertInBytecode(f, "BINARY_ADD")
+        self.assertBinOpInBytecode(f, "BINARY_ADD")
 
     def test_unknown_type_compare(self):
         codestr = """
@@ -5790,7 +5790,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr, optimize=2) as mod:
             g = mod.g
             self.assertInBytecode(g, "LOAD_CONST", 3)
-            self.assertInBytecode(g, "BINARY_ADD")
+            self.assertBinOpInBytecode(g, "BINARY_ADD")
             self.assertEqual(g(1, 2), 4)
 
     def test_inline_recursive(self):

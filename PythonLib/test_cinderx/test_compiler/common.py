@@ -72,6 +72,21 @@ class CompilerTest(TestCase):
                     msg = f"({opname},{argval!r}) occurs in bytecode:\n{disassembly}"
                     self.fail(msg)
 
+    def assertBinOpInBytecode(self, x, binop: str) -> None:
+        if sys.version_info >= (3, 12):
+            binop = "NB_" + binop.removeprefix("BINARY_")
+            # pyre-ignore[21]: Undefined attribute
+            from opcode import _nb_ops
+            # pyre-ignore[16]: Undefined attribute
+            for i, (name, sign) in enumerate(_nb_ops):
+                if name == binop:
+                    self.assertInBytecode(x, "BINARY_OP", i)
+                    break
+            else:
+                self.fail(f"Couldn't find binary op {binop}")
+        else:
+            self.assertInBytecode(x, binop)
+
     def clean_code(self, code: str) -> str:
         return inspect.cleandoc("\n" + code)
 
