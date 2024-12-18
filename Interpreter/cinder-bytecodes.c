@@ -170,7 +170,6 @@ dummy_func(
                         "argument after * "
                         "must be an iterable, not %.200s",
                         tup->ob_type->tp_name);
-                    Py_DECREF(tup);
                     goto error;
                 }
                 Py_SETREF(tup, PySequence_Tuple(tup));
@@ -555,8 +554,8 @@ dummy_func(
                 // lists, tuples, arrays are all PyVarObject and use ob_size
                 length = PyLong_FromLong(Py_SIZE(collection));
             }
-            Py_DECREF(collection);
             ERROR_IF(length == NULL, error);
+            Py_DECREF(collection);
         }
 
         inst(PRIMITIVE_BOX, (top -- top)) {
@@ -590,8 +589,8 @@ dummy_func(
                     PyErr_SetString(PyExc_RuntimeError, "unknown op");
                     goto error;
             }
-            DECREF_INPUTS();
             ERROR_IF(res == NULL, error);
+            DECREF_INPUTS();
         }
 
         inst(CONVERT_PRIMITIVE, (val -- val)) {
@@ -609,8 +608,9 @@ dummy_func(
                 ival |= (signex_masks[size]);
             }
 
-            DECREF_INPUTS();
             val = PyLong_FromSize_t(ival);
+            ERROR_IF(val == NULL, error);
+            DECREF_INPUTS();
         }
 
         inst(PRIMITIVE_BINARY_OP, (l, r -- res)) {
@@ -655,8 +655,8 @@ dummy_func(
                     PyErr_SetString(PyExc_RuntimeError, "unknown op");
                     goto error;
             }
-            DECREF_INPUTS();
             ERROR_IF(res == NULL, error);
+            DECREF_INPUTS();
         }
 
         inst(PRIMITIVE_COMPARE_OP, (l, r -- res)) {
@@ -779,7 +779,6 @@ dummy_func(
 
             Py_ssize_t slot = _PyClassLoader_ResolveMethod(target);
             if (slot == -1) {
-                DECREF_INPUTS();
                 goto error;
             }
 
@@ -827,8 +826,8 @@ dummy_func(
                 args,
                 nargs);
 
-            DECREF_INPUTS();
             ERROR_IF(res == NULL, error);
+            DECREF_INPUTS();
         }
 
         inst(INVOKE_NATIVE, (args[invoke_native_args(frame->f_code->co_consts, oparg)] -- res)) {
@@ -843,8 +842,8 @@ dummy_func(
 
             res = _PyClassloader_InvokeNativeFunction(
                 name, symbol, signature, args, nargs);
-            DECREF_INPUTS();
             ERROR_IF(res == NULL, error);
+            DECREF_INPUTS();
         }
 
         inst(BUILD_CHECKED_LIST, (list_items[build_checked_obj_size(frame->f_code->co_consts, oparg)] -- list)) {
@@ -929,14 +928,13 @@ dummy_func(
 
             map = Ci_CheckedDict_NewPresized(type, map_size);
             if (map == NULL) {
-                DECREF_INPUTS();
                 goto error;
             }
             Py_DECREF(type);
 
             Ci_BUILD_DICT(map_size, Ci_CheckedDict_SetItem);
-            DECREF_INPUTS();
             ERROR_IF(map == NULL, error);
+            DECREF_INPUTS();
         }
       // END BYTECODES //
     }
