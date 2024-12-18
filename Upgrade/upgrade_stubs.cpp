@@ -67,25 +67,4 @@ STUB(
     struct _typeobject*,
     PyObject*)
 
-/*
- * From interpter.h
- */
-
-STUB(
-    PyObject*,
-    Ci_StaticFunction_Vectorcall,
-    T190615535,
-    PyObject* func,
-    PyObject* const* stack,
-    size_t nargsf,
-    PyObject* kwnames)
-STUB(
-    PyObject*,
-    Ci_PyFunction_CallStatic,
-    T190615535,
-    PyFunctionObject* func,
-    PyObject* const* args,
-    Py_ssize_t nargsf,
-    PyObject* kwnames)
-
 } // extern "C"

@@ -641,3 +641,155 @@ resume_with_error:
 }
 
 // clang-format on
+static int
+_Ci_CheckArgs(PyThreadState* tstate, _PyInterpreterFrame* f, PyCodeObject* co) {
+  // In the future we can use co_extra to store the cached arg info
+  PyObject** fastlocals = &f->localsplus[0];
+
+  PyObject* checks = _PyClassLoader_GetCodeArgumentTypeDescrs(co);
+  PyObject* local;
+  PyObject* type_descr;
+  PyTypeObject* type;
+  for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(checks); i += 2) {
+    local = PyTuple_GET_ITEM(checks, i);
+    type_descr = PyTuple_GET_ITEM(checks, i + 1);
+    long idx = PyLong_AsLong(local);
+    // TODO(T210732753): We need to change the compiler to emit positive numbers
+    // always
+    assert(idx >= 0);
+    PyObject* val = fastlocals[idx];
+
+    int optional;
+    int exact;
+    type = _PyClassLoader_ResolveType(type_descr, &optional, &exact);
+    if (type == NULL) {
+      return -1;
+    }
+
+    int primitive = _PyClassLoader_GetTypeCode(type);
+    if (primitive == TYPED_BOOL) {
+      optional = 0;
+      Py_DECREF(type);
+      type = &PyBool_Type;
+      Py_INCREF(type);
+    } else if (primitive <= TYPED_INT64) {
+      exact = optional = 0;
+      Py_DECREF(type);
+      type = &PyLong_Type;
+      Py_INCREF(type);
+    } else if (primitive == TYPED_DOUBLE) {
+      exact = optional = 0;
+      Py_DECREF(type);
+      type = &PyFloat_Type;
+      Py_INCREF(type);
+    } else {
+      assert(primitive == TYPED_OBJECT);
+    }
+
+    if (!_PyObject_TypeCheckOptional(val, type, optional, exact)) {
+      PyErr_Format(
+          CiExc_StaticTypeError,
+          "%U expected '%s' for argument %U, got '%s'",
+          co->co_name,
+          type->tp_name,
+          PyTuple_GET_ITEM(co->co_localsplusnames, idx),
+          Py_TYPE(val)->tp_name);
+      Py_DECREF(type);
+      return -1;
+    }
+
+    Py_DECREF(type);
+
+    if (primitive <= TYPED_INT64) {
+      size_t value;
+      if (!_PyClassLoader_OverflowCheck(val, primitive, &value)) {
+        PyErr_SetString(PyExc_OverflowError, "int overflow");
+        return -1;
+      }
+    }
+  }
+  return 0;
+}
+
+static PyObject* _CiStaticEval_Vector(
+    PyThreadState* tstate,
+    PyFunctionObject* func,
+    PyObject* locals,
+    PyObject* const* args,
+    size_t argcount,
+    PyObject* kwnames,
+    int check_args) {
+  Py_INCREF(func);
+  Py_XINCREF(locals);
+  for (size_t i = 0; i < argcount; i++) {
+    Py_INCREF(args[i]);
+  }
+  if (kwnames) {
+    Py_ssize_t kwcount = PyTuple_GET_SIZE(kwnames);
+    for (Py_ssize_t i = 0; i < kwcount; i++) {
+      Py_INCREF(args[i + argcount]);
+    }
+  }
+  _PyInterpreterFrame* frame =
+      _PyEvalFramePushAndInit(tstate, func, locals, args, argcount, kwnames);
+  if (frame == NULL) {
+    return NULL;
+  }
+
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+  assert(co->co_flags & CI_CO_STATICALLY_COMPILED);
+  if (check_args && _Ci_CheckArgs(tstate, frame, co) < 0) {
+    _PyEvalFrameClearAndPop(tstate, frame);
+    return NULL;
+  }
+
+  EVAL_CALL_STAT_INC(EVAL_CALL_VECTOR);
+  return Ci_EvalFrame(tstate, frame, 0);
+}
+
+PyObject* _Py_HOT_FUNCTION Ci_PyFunction_CallStatic(
+    PyFunctionObject* func,
+    PyObject* const* args,
+    Py_ssize_t nargsf,
+    PyObject* kwnames) {
+  assert(PyFunction_Check(func));
+#ifdef Py_DEBUG
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+
+  Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
+  assert(nargs == 0 || args != NULL);
+#endif
+  PyThreadState* tstate = _PyThreadState_GET();
+  assert(tstate != NULL);
+
+  /* We are bound to a specific function that is known at compile time, and
+   * all of the arguments are guaranteed to be provided */
+#ifdef Py_DEBUG
+  assert(co->co_argcount == nargs);
+  assert(co->co_flags & CI_CO_STATICALLY_COMPILED);
+  assert(co->co_flags & CO_OPTIMIZED);
+  assert(kwnames == NULL);
+#endif
+
+  return _CiStaticEval_Vector(tstate, func, NULL, args, nargsf, NULL, 0);
+}
+
+PyObject* Ci_StaticFunction_Vectorcall(
+    PyObject* func,
+    PyObject* const* stack,
+    size_t nargsf,
+    PyObject* kwnames) {
+  assert(PyFunction_Check(func));
+  Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
+  PyThreadState* tstate = _PyThreadState_GET();
+  assert(nargs == 0 || stack != NULL);
+
+  PyFunctionObject* f = (PyFunctionObject*)func;
+
+  if (((PyCodeObject*)f->func_code)->co_flags & CO_OPTIMIZED) {
+    return _CiStaticEval_Vector(tstate, f, NULL, stack, nargs, kwnames, 1);
+  } else {
+    return _CiStaticEval_Vector(
+        tstate, f, f->func_globals, stack, nargs, kwnames, 1);
+  }
+}
