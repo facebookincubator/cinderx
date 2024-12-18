@@ -1753,7 +1753,7 @@ PyObject* _PyClassLoader_ResolveMember(
 
   PyObject* attr;
   if (PyType_Check(container_obj)) {
-    PyObject* type_dict = ((PyTypeObject*)container_obj)->tp_dict;
+    PyObject* type_dict = _PyType_GetDict((PyTypeObject*)container_obj);
     if (!PyTuple_CheckExact(attr_name)) {
       attr = PyDict_GetItem(type_dict, attr_name);
       if (attr == NULL) {

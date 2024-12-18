@@ -312,7 +312,7 @@ PyObject* _PyClassLoader_ResolveContainer(PyObject* container_path) {
       } else {
         // Nested type
         PyObject* new_type =
-            PyDict_GetItem(((PyTypeObject*)type)->tp_dict, type_arg);
+            PyDict_GetItem(_PyType_GetDict((PyTypeObject*)type), type_arg);
         if (new_type == NULL) {
           PyErr_Format(
               CiExc_StaticTypeError,
