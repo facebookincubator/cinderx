@@ -764,9 +764,9 @@ dummy_func(
                 }
             }
 #endif
-
             Py_DECREF(func);
             Py_DECREF(container);
+            ERROR_IF(res == NULL, error);
             DECREF_INPUTS();
         }
 

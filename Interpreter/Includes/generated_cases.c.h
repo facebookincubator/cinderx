@@ -5691,9 +5691,9 @@
                 }
             }
 #endif
-
             Py_DECREF(func);
             Py_DECREF(container);
+            if (res == NULL) { STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg))); goto error; }
             #line 5697 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = invoke_function_args(frame->f_code->co_consts, oparg); --_i >= 0;) {
                 Py_DECREF(args[_i]);
