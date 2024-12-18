@@ -773,7 +773,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
             optype.emit_compare(op, self)
         if len(node.ops) > 1:
             end = self.newBlock("end")
-            self.emit("JUMP_FORWARD", end)
+            self.emit_jump_forward(end)
             self.nextBlock(cleanup)
             self.emit_rotate_stack(2)
             self.emit("POP_TOP")
@@ -1090,7 +1090,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
             self.visitStatements(node.body)
 
         if node.orelse:
-            self.emit_noline("JUMP_FORWARD", end)
+            self.emit_jump_forward_noline(end)
             self.nextBlock(orelse)
             if test_const is not True:
                 self.visitStatements(node.orelse)
@@ -1127,7 +1127,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
             self.get_type(test.test).emit_jumpif(test.test, orelse, False, self)
             # Jump directly to target if test is true and body is matches
             self.get_type(test.body).emit_jumpif(test.body, next, is_if_true, self)
-            self.emit_noline("JUMP_FORWARD", end)
+            self.emit_jump_forward_noline(end)
             # Jump directly to target if test is true and orelse matches
             self.nextBlock(orelse)
             self.get_type(test.orelse).emit_jumpif(test.orelse, next, is_if_true, self)

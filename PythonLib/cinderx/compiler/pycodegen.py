@@ -325,6 +325,8 @@ class CodeGenerator(ASTVisitor):
         self.emit_noline = self.graph.emit_noline
         self.newBlock = self.graph.newBlock
         self.nextBlock = self.graph.nextBlock
+        self.emit_jump_forward = self.graph.emit_jump_forward
+        self.emit_jump_forward_noline = self.graph.emit_jump_forward_noline
 
     def getCode(self):
         """Return a code object"""
@@ -729,12 +731,6 @@ class CodeGenerator(ASTVisitor):
         ast.GtE: ">=",
     }
 
-    def emit_jump_forward(self, target: Block) -> None:
-        raise NotImplementedError()
-
-    def emit_jump_forward_noline(self, target: Block) -> None:
-        raise NotImplementedError()
-
     def emit_compile_jump_if_compare(
         self, test: ast.Compare, next: Block, is_if_true: bool
     ) -> None:
@@ -976,7 +972,7 @@ class CodeGenerator(ASTVisitor):
         if kind == ASYNC_WITH:
             self.emitJump(exit_)
         else:
-            self.emit("JUMP_FORWARD", exit_)
+            self.emit_jump_forward(exit_)
 
         self.nextBlock(finally_)
         self.emit_with_except_cleanup(cleanup)
@@ -3031,7 +3027,7 @@ class CodeGenerator310(CodeGenerator):
         self.pop_setup(TRY_EXCEPT)
         self.set_no_pos()
         self.emit("POP_BLOCK")
-        self.emit("JUMP_FORWARD", orElse)
+        self.emit_jump_forward(orElse)
         self.nextBlock(except_)
         self.setups.append(Entry(EXCEPTION_HANDLER, None, None, None))
 
@@ -3074,7 +3070,7 @@ class CodeGenerator310(CodeGenerator):
                 self.emit("LOAD_CONST", None)
                 self.storeName(target)
                 self.delName(target)
-                self.emit("JUMP_FORWARD", end)
+                self.emit_jump_forward(end)
 
                 self.nextBlock(cleanup_end)
                 self.set_no_pos()
@@ -3094,7 +3090,7 @@ class CodeGenerator310(CodeGenerator):
                 self.pop_setup(HANDLER_CLEANUP)
                 self.set_no_pos()
                 self.emit("POP_EXCEPT")
-                self.emit("JUMP_FORWARD", end)
+                self.emit_jump_forward(end)
             self.nextBlock(except_)
 
         self.pop_setup(EXCEPTION_HANDLER)
@@ -3136,7 +3132,7 @@ class CodeGenerator310(CodeGenerator):
         self.emit_noline("POP_BLOCK")
         self.pop_setup(FINALLY_TRY)
         final_body()
-        self.emit_noline("JUMP_FORWARD", exit_)
+        self.emit_jump_forward_noline(exit_)
 
         # finally block
         self.nextBlock(end)
@@ -3422,7 +3418,7 @@ class CodeGenerator310(CodeGenerator):
             self.defaultEmitCompare(op)
         if len(node.ops) > 1:
             end = self.newBlock("end")
-            self.emit("JUMP_FORWARD", end)
+            self.emit_jump_forward(end)
             self.nextBlock(cleanup)
             self.emit_rotate_stack(2)
             self.emit("POP_TOP")
@@ -3440,11 +3436,11 @@ class CodeGenerator310(CodeGenerator):
         self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
         self.nextBlock()
         end = self.newBlock()
-        self.emit_noline("JUMP_FORWARD", end)
+        self.emit_jump_forward_noline(end)
         self.nextBlock(cleanup)
         self.emit("POP_TOP")
         if not is_if_true:
-            self.emit_noline("JUMP_FORWARD", next)
+            self.emit_jump_forward_noline(next)
         self.nextBlock(end)
 
     def emit_finish_jump_if(
@@ -3457,7 +3453,7 @@ class CodeGenerator310(CodeGenerator):
         self.emit("IMPORT_STAR")
 
     def emit_match_jump_to_end(self, end: Block) -> None:
-        self.emit("JUMP_FORWARD", end)
+        self.emit_jump_forward(end)
 
     def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext):
         self._jump_to_fail_pop(pc, "JUMP_FORWARD")
@@ -3728,7 +3724,7 @@ class CodeGenerator312(CodeGenerator):
         self.visit(node.comparators[-1])
         self.defaultEmitCompare(node.ops[-1])
         end = self.newBlock("end")
-        self.emit("JUMP", end)
+        self.emit_jump_forward(end)
 
         self.nextBlock(cleanup)
         self.emit("SWAP", 2)
@@ -3750,11 +3746,11 @@ class CodeGenerator312(CodeGenerator):
         self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
         self.nextBlock()
         end = self.newBlock()
-        self.emit_noline("JUMP", end)
+        self.emit_jump_forward_noline(end)
         self.nextBlock(cleanup)
         self.emit("POP_TOP")
         if not is_if_true:
-            self.emit_noline("JUMP", next)
+            self.emit_jump_forward_noline(next)
         self.nextBlock(end)
 
     def _visitAnnotation(self, node: ast.expr) -> None:
@@ -4039,7 +4035,7 @@ class CodeGenerator312(CodeGenerator):
 
         exit = self.newBlock("exit")
         assert exit is not None
-        self.emit("JUMP", exit)
+        self.emit_jump_forward(exit)
 
         self.nextBlock(cleanup)
         self.set_no_pos()
@@ -4071,7 +4067,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("CALL", argcnt + len(args) + len(kwargs))
 
     def emitJump(self, target) -> None:
-        self.emit("JUMP", target)
+        self.emit_jump_forward(target)
 
     def emit_jump_forward(self, target: Block) -> None:
         self.emit("JUMP", target)
@@ -4770,7 +4766,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit_noline("POP_BLOCK")
         self.pop_setup(FINALLY_TRY)
         final_body()
-        self.emit_noline("JUMP", exit_)
+        self.emit_jump_forward_noline(exit_)
 
         # finally block
         self.nextBlock(end)
@@ -4802,7 +4798,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit_noline("POP_BLOCK")
         self.visitStatements(node.orelse)
         self.set_no_pos()
-        self.emit("JUMP", end)
+        self.emit_jump_forward(end)
 
         self.nextBlock(except_)
         self.emit("SETUP_CLEANUP", cleanup)
@@ -4844,7 +4840,7 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("LOAD_CONST", None)
                 self.storeName(target)
                 self.delName(target)
-                self.emit("JUMP", end)
+                self.emit_jump_forward(end)
 
                 # except:
                 self.nextBlock(cleanup_end)
@@ -4864,7 +4860,7 @@ class CodeGenerator312(CodeGenerator):
                 self.set_no_pos()
                 self.emit("POP_BLOCK")
                 self.emit("POP_EXCEPT")
-                self.emit("JUMP", end)
+                self.emit_jump_forward(end)
 
             self.nextBlock(except_)
 
@@ -4892,7 +4888,7 @@ class CodeGenerator312(CodeGenerator):
         self.pop_setup(TRY_EXCEPT)
         self.set_no_pos()
         self.emit("POP_BLOCK")
-        self.emit("JUMP", orelse)
+        self.emit_jump_forward(orelse)
 
         self.nextBlock(except_)
         self.emit("SETUP_CLEANUP", cleanup)
@@ -4946,7 +4942,7 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("LOAD_CONST", None)
                 self.storeName(handler.name)
                 self.delName(handler.name)
-            self.emit("JUMP", except_)
+            self.emit_jump_forward(except_)
 
             # except:
             self.nextBlock(cleanup_end)
@@ -4958,11 +4954,11 @@ class CodeGenerator312(CodeGenerator):
             # add exception raised to the res list
             self.emit("LIST_APPEND", 3)
             self.emit("POP_TOP")
-            self.emit("JUMP", except_with_error)
+            self.emit_jump_forward(except_with_error)
 
             self.nextBlock(except_)
             self.emit("NOP")
-            self.emit("JUMP", except_with_error)
+            self.emit_jump_forward(except_with_error)
 
             self.nextBlock(no_match)
             self.set_pos(handler)
@@ -4974,7 +4970,7 @@ class CodeGenerator312(CodeGenerator):
                 # Add exc to the list (if not None it's the unhandled part of the EG)
                 self.set_no_pos()
                 self.emit("LIST_APPEND", 1)
-                self.emit("JUMP", reraise_star)
+                self.emit_jump_forward(reraise_star)
 
         # end handler loop
 
@@ -4993,7 +4989,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("POP_TOP")
         self.emit("POP_BLOCK")
         self.emit("POP_EXCEPT")
-        self.emit("JUMP", end)
+        self.emit_jump_forward(end)
 
         self.nextBlock(reraise)
         self.emit("POP_BLOCK")
@@ -5393,7 +5389,7 @@ class CodeGenerator312(CodeGenerator):
         self.temp_symbols = inlined_state.prev_temp_symbols
         if inlined_state.pushed_locals:
             self.emit_noline("POP_BLOCK")
-            self.emit_noline("JUMP", inlined_state.end)
+            self.emit_jump_forward_noline(inlined_state.end)
 
             self.nextBlock(inlined_state.cleanup)
 
@@ -5420,7 +5416,7 @@ class CodeGenerator312(CodeGenerator):
         self.set_pos(node)
 
     def emit_match_jump_to_end(self, end: Block) -> None:
-        self.emit_noline("JUMP", end)
+        self.emit_jump_forward_noline(end)
 
     def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext):
         self._jump_to_fail_pop(pc, "JUMP")

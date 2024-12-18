@@ -6053,7 +6053,7 @@ class Dataclass(Class):
                 graph.emit("LOAD_METHOD", name)
                 graph.emit("CALL_METHOD", 0)
                 graph.emit("CAST", field.unwrapped_descr)
-                graph.emit("JUMP_FORWARD", store)
+                graph.emit_jump_forward(store)
 
                 graph.nextBlock(arg_passed)
                 graph.emit("LOAD_FAST", name)
@@ -7028,7 +7028,7 @@ class ExtremumFunction(Object[Class]):
         code_gen.emit("POP_JUMP_IF_FALSE", elseblock)
         # Remove `b` from stack, `a` was the minimum
         code_gen.emit("POP_TOP")
-        code_gen.emit("JUMP_FORWARD", endblock)
+        code_gen.emit_jump_forward(endblock)
         code_gen.nextBlock(elseblock)
         # Remove `a` from the stack, `b` was the minimum
         code_gen.emit_rotate_stack(2)

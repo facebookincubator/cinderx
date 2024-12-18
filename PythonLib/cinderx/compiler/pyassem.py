@@ -582,6 +582,14 @@ class PyFlowGraph(FlowGraph):
         if self.gen_kind is not None:
             self.emit_noline("GEN_START", self.gen_kind)
 
+    # These are here rather than in CodeGenerator because we need to emit jumps
+    # while doing block operations in the flowgraph
+    def emit_jump_forward(self, target: Block) -> None:
+        raise NotImplementedError()
+
+    def emit_jump_forward_noline(self, target: Block) -> None:
+        raise NotImplementedError()
+
     def setFlag(self, flag: int) -> None:
         self.flags |= flag
 
@@ -1250,6 +1258,12 @@ class PyFlowGraph310(PyFlowGraph):
     def get_duplicate_exit_visitation_order(self) -> Iterable[Block]:
         return self.blocks_in_reverse_allocation_order()
 
+    def emit_jump_forward(self, target: Block) -> None:
+        self.emit("JUMP_FORWARD", target)
+
+    def emit_jump_forward_noline(self, target: Block) -> None:
+        self.emit_noline("JUMP_FORWARD", target)
+
     def optimizeCFG(self) -> None:
         """Optimize a well-formed CFG."""
         for block in self.blocks_in_reverse_allocation_order():
@@ -1408,6 +1422,12 @@ class PyFlowGraph312(PyFlowGraph):
         # This is handled with the prefix instructions in finalize
         pass
 
+    def emit_jump_forward(self, target: Block) -> None:
+        self.emit("JUMP", target)
+
+    def emit_jump_forward_noline(self, target: Block) -> None:
+        self.emit_noline("JUMP", target)
+
     def push_except_block(self, except_stack: list[Block], instr: Instruction) -> Block:
         target = instr.target
         assert target is not None, instr
@@ -1490,7 +1510,8 @@ class PyFlowGraph312(PyFlowGraph):
                 explicit_jump.bid = self.get_new_block_id()
                 self.current = explicit_jump
 
-                self.emit_noline("JUMP", block.next)
+                assert (next_block := block.next)
+                self.emit_jump_forward_noline(next_block)
                 self.ordered_blocks.insert(
                     self.ordered_blocks.index(block) + 1, explicit_jump
                 )
