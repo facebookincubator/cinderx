@@ -43,12 +43,17 @@ function run_tests() {
     fi
 }
 
-if [ "$1" == "--update" ] ; then
-  UPDATE_MODE=1
-else
-  UPDATE_MODE=0
-fi
-
-for mode in opt dev-nosan dev ; do
-    run_tests "$mode" "$PWD/3.12-python-expected-tests-$mode.json" "$UPDATE_MODE"
+UPDATE_MODE=0
+BUILD_MODE=opt
+for v in "$@" ; do
+  case "$v" in
+    --update)
+      UPDATE_MODE=1
+      ;;
+    *)
+      BUILD_MODE=$v
+      ;;
+  esac
 done
+
+run_tests "$BUILD_MODE" "$PWD/3.12-python-expected-tests-$BUILD_MODE.json" "$UPDATE_MODE"
