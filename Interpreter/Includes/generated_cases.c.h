@@ -5844,7 +5844,7 @@
             Py_DECREF(type);
 
             for (Py_ssize_t i = 0; i < list_size; i++) {
-                Ci_ListOrCheckedList_SET_ITEM(list, list_size, list_items[i]);
+                Ci_ListOrCheckedList_SET_ITEM(list, i, list_items[i]);
             }
             #line 5849 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK((build_checked_obj_size(frame->f_code->co_consts, oparg)));
