@@ -262,19 +262,6 @@ __attribute__((__used__)) PyObject* _PyVTable_coroutine_classmethod_vectorcall(
   Py_ssize_t awaited = 0;
 #endif
 
-  PyObject* self = args[0];
-  PyObject** dictptr = _PyObject_GetDictPtr(self);
-  PyObject* dict = dictptr != NULL ? *dictptr : NULL;
-  if (dict != NULL) {
-    PyObject* name = state->tcs_rt.rt_name;
-    PyObject* func = PyDict_GetItem(dict, name);
-    if (func != NULL) {
-      Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-      return _PyClassLoader_CallCoroutineOverridden(
-          state, func, args + 1, (nargs - 1) | PY_VECTORCALL_ARGUMENTS_OFFSET);
-    }
-  }
-
   if (Py_TYPE(callable) == &PyClassMethod_Type) {
     // We need to do some special set up for class methods when invoking.
     coro = _PyVTable_classmethod_vectorcall(state->tcs_value, args, nargsf);
@@ -361,22 +348,6 @@ __attribute__((__used__)) PyObject* _PyVTable_coroutine_vectorcall(
     _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf) {
-  PyObject* self = args[0];
-  PyObject** dictptr = _PyObject_GetDictPtr(self);
-  PyObject* dict = dictptr != NULL ? *dictptr : NULL;
-  if (dict != NULL) {
-    PyObject* name = state->tcs_rt.rt_name;
-    PyObject* callable = PyDict_GetItem(dict, name);
-    if (callable != NULL) {
-      Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-      return _PyClassLoader_CallCoroutineOverridden(
-          state,
-          callable,
-          args + 1,
-          (nargs - 1) | PY_VECTORCALL_ARGUMENTS_OFFSET);
-    }
-  }
-
   return _PyClassLoader_CallCoroutine(state, args, nargsf);
 }
 
@@ -395,66 +366,13 @@ _PyVTable_coroutine_native(_PyClassLoader_TypeCheckState* state, void** args) {
     return StaticError;
   }
   _PyClassLoader_StaticCallReturn res;
-  res.rax = _PyVTable_coroutine_vectorcall(state, call_args, arg_count);
+  res.rax = _PyClassLoader_CallCoroutine(state, call_args, arg_count);
   res.rdx = (void*)(uint64_t)(res.rax != NULL);
   _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
   return res;
 }
 
 VTABLE_THUNK(_PyVTable_coroutine, _PyClassLoader_TypeCheckState)
-
-__attribute__((__used__)) PyObject* _PyVTable_coroutine_staticmethod_vectorcall(
-    _PyClassLoader_TypeCheckState* state,
-    PyObject* const* args,
-    size_t nargsf) {
-  PyObject* self = args[0];
-  PyObject** dictptr = _PyObject_GetDictPtr(self);
-  PyObject* dict = dictptr != NULL ? *dictptr : NULL;
-  if (dict != NULL) {
-    PyObject* name = state->tcs_rt.rt_name;
-    PyObject* callable = PyDict_GetItem(dict, name);
-    if (callable != NULL) {
-      Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-      return _PyClassLoader_CallCoroutineOverridden(
-          state,
-          callable,
-          args + 1,
-          (nargs - 1) | PY_VECTORCALL_ARGUMENTS_OFFSET);
-    }
-  }
-
-  // _PyClassLoader_callCoroutine will apply the descriptor protocol, stripping
-  // the arg.
-  return _PyClassLoader_CallCoroutine(state, args, nargsf);
-}
-
-__attribute__((__used__)) _PyClassLoader_StaticCallReturn
-_PyVTable_coroutine_staticmethod_native(
-    _PyClassLoader_TypeCheckState* state,
-    void** args) {
-  PyFunctionObject* func = (PyFunctionObject*)Ci_PyStaticMethod_GetFunc(
-      state->tcs_rt.rt_base.mt_original);
-
-  PyCodeObject* code = (PyCodeObject*)func->func_code;
-  Py_ssize_t arg_count =
-      code->co_argcount + 1; // hydrate self and then we'll drop it
-  PyObject* call_args[arg_count];
-  PyObject* free_args[arg_count];
-
-  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
-      0) {
-    return StaticError;
-  }
-  _PyClassLoader_StaticCallReturn res;
-
-  res.rax =
-      _PyVTable_coroutine_staticmethod_vectorcall(state, call_args, arg_count);
-  res.rdx = (void*)(uint64_t)(res.rax != NULL);
-  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
-  return res;
-}
-
-VTABLE_THUNK(_PyVTable_coroutine_staticmethod, _PyClassLoader_TypeCheckState)
 
 __attribute__((__used__)) PyObject* _PyVTable_nonfunc_property_vectorcall(
     _PyClassLoader_TypeCheckState* state,

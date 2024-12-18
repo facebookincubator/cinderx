@@ -61,12 +61,6 @@ PyObject* _PyClassLoader_CallCoroutine(
     PyObject* const* args,
     size_t nargsf);
 
-PyObject* _PyClassLoader_CallCoroutineOverridden(
-    _PyClassLoader_TypeCheckState* state,
-    PyObject* func,
-    PyObject* const* args,
-    size_t nargsf);
-
 #ifdef __cplusplus
 }
 #endif
