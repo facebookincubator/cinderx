@@ -389,13 +389,13 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case INSTRUMENTED_POP_JUMP_IF_NOT_NONE:
             return 0;
-        case EXTENDED_ARG:
-            return 0;
         case CACHE:
             return 0;
         case RESERVED:
             return 0;
         case NOP:
+            return 0;
+        case EXTENDED_ARG:
             return 0;
         case POP_JUMP_IF_ZERO:
             return 1;
@@ -847,13 +847,13 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case INSTRUMENTED_POP_JUMP_IF_NOT_NONE:
             return 0;
-        case EXTENDED_ARG:
-            return 0;
         case CACHE:
             return 0;
         case RESERVED:
             return 0;
         case NOP:
+            return 0;
+        case EXTENDED_ARG:
             return 0;
         case POP_JUMP_IF_ZERO:
             return 0;
@@ -1120,10 +1120,10 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [INSTRUMENTED_POP_JUMP_IF_FALSE] = { true, INSTR_FMT_IB },
     [INSTRUMENTED_POP_JUMP_IF_NONE] = { true, INSTR_FMT_IB },
     [INSTRUMENTED_POP_JUMP_IF_NOT_NONE] = { true, INSTR_FMT_IB },
-    [EXTENDED_ARG] = { true, INSTR_FMT_IB },
     [CACHE] = { true, INSTR_FMT_IX },
     [RESERVED] = { true, INSTR_FMT_IX },
     [NOP] = { true, INSTR_FMT_IX },
+    [EXTENDED_ARG] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_ZERO] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_NONZERO] = { true, INSTR_FMT_IB },
     [LOAD_ITERABLE_ARG] = { true, INSTR_FMT_IB },

@@ -138,6 +138,13 @@ dummy_func(
         override inst(NOP, (--)) {
         }
 
+        override inst(EXTENDED_ARG, ( -- )) {
+            opcode = next_instr->op.code;
+            oparg = oparg << 8 | next_instr->op.arg;
+            PRE_DISPATCH_GOTO();
+            DISPATCH_GOTO();
+        }
+
         inst(POP_JUMP_IF_ZERO, (cond --)) {
             int is_nonzero = Py_SIZE(cond);
             Py_DECREF(cond);

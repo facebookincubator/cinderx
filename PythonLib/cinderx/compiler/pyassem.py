@@ -1734,8 +1734,6 @@ class PyFlowGraph312(PyFlowGraph):
         # Then update offsets, either relative to locals or by cell2arg.
         for b in self.ordered_blocks:
             for instr in b.insts:
-                # This is called before extended args are generated.
-                assert instr.opname != "EXTENDED_ARG"
                 if instr.opname in (
                     "MAKE_CELL",
                     "LOAD_CLOSURE",
