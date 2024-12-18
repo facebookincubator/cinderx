@@ -417,6 +417,8 @@ class HIRBuilder {
       TranslationContext& tc,
       const BytecodeInstruction& bc_instr);
 
+  void emitSend(TranslationContext& tc, const BytecodeInstruction& bc_instr);
+
   BorrowedRef<> constArg(const jit::BytecodeInstruction& bc_instr);
 
   ExecutionBlock popBlock(CFG& cfg, TranslationContext& tc);
@@ -471,6 +473,8 @@ class HIRBuilder {
 
   // Check that a code object can be compiled into HIR.
   void checkTranslate();
+
+  void advancePastYieldInstr(TranslationContext& tc);
 
   BorrowedRef<PyCodeObject> code_;
   BlockMap block_map_;

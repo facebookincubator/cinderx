@@ -2940,6 +2940,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 #endif
         break;
       }
+      case Opcode::kSend: {
+        auto& hir_instr = static_cast<const Send&>(i);
+        bbb.appendInstr(
+            hir_instr.output(),
+            Instruction::kCall,
+            Imm{reinterpret_cast<uint64_t>(JITRT_GenSend)},
+            hir_instr.GetOperand(0),
+            hir_instr.GetOperand(1),
+            Imm{0});
+        break;
+      }
     }
 
     if (auto db = i.asDeoptBase()) {

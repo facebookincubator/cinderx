@@ -128,7 +128,7 @@ Context::CompilationResult Context::compilePreloader(
     return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
   }
   constexpr int forbidden_flags = PY_VERSION_HEX >= 0x030C0000
-      ? CO_GENERATOR | CO_COROUTINE | CO_ITERABLE_COROUTINE | CO_ASYNC_GENERATOR
+      ? CO_COROUTINE | CO_ITERABLE_COROUTINE | CO_ASYNC_GENERATOR
       : 0;
   if (code->co_flags & forbidden_flags) {
     JIT_DLOG(

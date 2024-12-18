@@ -130,6 +130,7 @@ namespace jit::hir {
   V(RefineType)                        \
   V(Return)                            \
   V(RunPeriodicTasks)                  \
+  V(Send)                              \
   V(SetCellItem)                       \
   V(SetCurrentAwaiter)                 \
   V(SetDictItem)                       \

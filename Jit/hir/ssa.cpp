@@ -439,6 +439,7 @@ Type outputType(
     case Opcode::kLoadMethodSuper:
     case Opcode::kLoadTupleItem:
     case Opcode::kMatchKeys:
+    case Opcode::kSend:
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kYieldAndYieldFrom:
     case Opcode::kYieldFrom:

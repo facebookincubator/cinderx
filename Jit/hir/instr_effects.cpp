@@ -144,6 +144,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kLongInPlaceOp:
     case Opcode::kMatchClass:
     case Opcode::kMatchKeys:
+    case Opcode::kSend:
     case Opcode::kUnaryOp:
     case Opcode::kUnpackExToTuple:
     case Opcode::kVectorCall:
@@ -276,10 +277,17 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kYieldValue:
       return {true, AFuncArgs, {1, 1}, AAny};
 
-    // YieldFrom's output is either the yielded value from the subiter or the
-    // final result from a StopIteration, and is owned in either case.
     case Opcode::kYieldFrom:
+#if PY_VERSION_HEX >= 0x030C0000
+      // In 3.12+ YieldFrom is actually YieldValue but has an additional arg for
+      // the subiterator for use when querying yield-from.
+      return {true, AFuncArgs, {2, 1}, AAny};
+#else
+      [[fallthrough]];
+#endif
     case Opcode::kYieldFromHandleStopAsyncIteration: {
+      // In 3.10 YieldFrom's output is either the yielded value from the subiter
+      // or the final result from a StopIteration, and is owned in either case.
       return commonEffects(inst, AAny);
     }
     // YieldAndYieldFrom is equivalent to YieldFrom composed with YieldValue,
@@ -462,6 +470,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kMatchClass:
     case Opcode::kMatchKeys:
     case Opcode::kRunPeriodicTasks:
+    case Opcode::kSend:
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kSetDictItem:
     case Opcode::kSetSetItem:

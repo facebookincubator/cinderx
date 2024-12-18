@@ -27,6 +27,7 @@
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/pyjit_result.h"
@@ -651,6 +652,9 @@ int cinder_init() {
 #endif
 
   init_already_existing_types();
+#if PY_VERSION_HEX >= 0x030C0000
+  jit::init_jit_genobject_type();
+#endif
 
   WatcherState watcher_state;
   watcher_state.code_watcher = cinderx_code_watcher;

@@ -78,28 +78,8 @@ void Ci_PyGC_ClearFreeLists(PyInterpreterState* interp);
  * Generators
  */
 
-/* Enum shared with the JIT to communicate the current state of a generator.
- * These should be queried via the utility functions below. These may use some
- * other features to determine the overall state of a JIT generator. Notably
- * the yield-point field being null indicates execution is currently active when
- * used in combination with the less specific Ci_JITGenState_Running state.
- */
-typedef enum {
-  /* Generator has freshly been returned from a call to the function itself.
-     Execution of user code has not yet begun. */
-  Ci_JITGenState_JustStarted,
-  /* Execution is in progress and is currently active or the generator is
-     suspended. */
-  Ci_JITGenState_Running,
-  /* Generator has completed execution and should not be resumed again. */
-  Ci_JITGenState_Completed,
-  /* An exception/close request is being processed.  */
-  Ci_JITGenState_Throwing,
-} CiJITGenState;
-
 int Ci_GenIsCompleted(PyGenObject* gen);
 int Ci_GenIsExecuting(PyGenObject* gen);
-CiJITGenState Ci_GetJITGenState(PyGenObject* gen);
 int Ci_JITGenIsExecuting(PyGenObject* gen);
 
 PyObject* CiCoro_New_NoFrame(PyThreadState* tstate, PyCodeObject* code);

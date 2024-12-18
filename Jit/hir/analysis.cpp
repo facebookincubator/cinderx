@@ -145,6 +145,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kPrimitiveUnaryOp:
     case Opcode::kPrimitiveUnbox:
     case Opcode::kRunPeriodicTasks:
+    case Opcode::kSend:
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kSetDictItem:
     case Opcode::kSetSetItem:

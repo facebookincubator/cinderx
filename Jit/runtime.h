@@ -211,6 +211,9 @@ class alignas(16) CodeRuntime {
 //
 // The base address of the complete heap allocated suspend data is:
 //   PyGenObject::gi_jit_data - GenDataFooter::spillWords
+//
+// TODO(T209500214): In 3.12 we should roll this data directly into memory
+// allocated for a generator rather than having it in a separate heap object.
 struct GenDataFooter {
   // Tools which examine/walk the stack expect the following two values to be
   // ahead of RBP.
@@ -224,8 +227,11 @@ struct GenDataFooter {
   // suspended.
   GenYieldPoint* yieldPoint;
 
+#if PY_VERSION_HEX < 0x030C0000
   // Current overall state of the JIT.
+  // In 3.12+ we use the new PyGenObject::gi_frame_state field instead.
   CiJITGenState state;
+#endif
 
   // Allocated space before this struct in 64-bit words.
   size_t spillWords;
@@ -240,18 +246,33 @@ struct GenDataFooter {
   CodeRuntime* code_rt{nullptr};
 };
 
-inline GenDataFooter* genDataFooter(PyGenObject* gen) {
+// Memory management functions for JIT generator data.
+// TODO(T209500214): Eliminate the need for these functions in 3.12+.
+jit::GenDataFooter* jitgen_data_allocate(size_t spill_words);
 #if PY_VERSION_HEX < 0x030C0000
-  return reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
+void jitgen_data_free(PyGenObject* gen);
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
-  return nullptr;
+// Using GenDataFooter directly in 3.12+ avoids a cyclic dependency on the
+// generators-rt library.
+void jitgen_data_free(GenDataFooter* gen_data_footer);
 #endif
+
+#if PY_VERSION_HEX < 0x030C0000
+// In 3.12+ there is no gen->gi_jit_data and this functionality is part of
+// JitGenObject.
+inline GenDataFooter* genDataFooter(PyGenObject* gen) {
+  return reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
 }
 
-// Memory management functions for JIT generator data.
-jit::GenDataFooter* jitgen_data_allocate(size_t spill_words);
-void jitgen_data_free(PyGenObject* gen);
+// Pre 3.12 these fields needed to be at a fixed offset so they can be quickly
+// accessed from C code in genobject.c.
+static_assert(
+    offsetof(GenDataFooter, state) == Ci_GEN_JIT_DATA_OFFSET_STATE,
+    "Byte offset for state shifted");
+static_assert(
+    offsetof(GenDataFooter, yieldPoint) == Ci_GEN_JIT_DATA_OFFSET_YIELD_POINT,
+    "Byte offset for yieldPoint shifted");
+#endif
 
 inline PyObject* yieldFromValue(
     GenDataFooter* gen_footer,
@@ -262,15 +283,6 @@ inline PyObject* yieldFromValue(
               yield_point->yieldFromOffset()))
       : nullptr;
 }
-
-// These fields need to be at a fixed offset so they can be quickly accessed
-// from C code.
-static_assert(
-    offsetof(GenDataFooter, state) == Ci_GEN_JIT_DATA_OFFSET_STATE,
-    "Byte offset for state shifted");
-static_assert(
-    offsetof(GenDataFooter, yieldPoint) == Ci_GEN_JIT_DATA_OFFSET_YIELD_POINT,
-    "Byte offset for yieldPoint shifted");
 
 // The number of words for pre-allocated blocks in the generator suspend data
 // free-list. I chose this based on it covering 99% of the JIT generator
@@ -458,6 +470,8 @@ class Runtime {
       BorrowedRef<PyTypeObject> lookup_type,
       BorrowedRef<PyTypeObject> new_type);
 
+#if PY_VERSION_HEX < 0x030C0000
+  // In 3.12+ the equivalent of this is in generators_rt.cpp.
   template <typename F>
   REQUIRES_CALLABLE(F, int, PyObject*)
   int forEachOwnedRef(PyGenObject* gen, std::size_t deopt_idx, F func) {
@@ -478,6 +492,7 @@ class Runtime {
     }
     return 0;
   }
+#endif
 
  private:
   static Runtime* s_runtime_;

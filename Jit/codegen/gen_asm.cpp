@@ -22,6 +22,7 @@
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
@@ -160,6 +161,11 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
 #else
   _PyInterpreterFrame* frame = tstate->cframe->current_frame;
   reifyFrame(frame, deopt_meta, deopt_meta.frame_meta.at(0), regs);
+  if (frame->f_code->co_flags & kCoFlagsAnyGenerator) {
+    JitGenObject* gen = JitGenObject::cast(_PyFrame_GetGenerator(frame));
+    JIT_CHECK(gen != nullptr, "Not a JIT generator");
+    deopt_jit_gen_object_only(gen);
+  }
   UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
 #endif
   // Clear our references now that we've transferred them to the frame
@@ -277,7 +283,6 @@ PyObject* resumeInInterpreter(
     Runtime* runtime,
     std::size_t deopt_idx) {
   UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
-  UPGRADE_NOTE(GENERATOR_JIT_SUPPORT, T194022335)
   PyThreadState* tstate = PyThreadState_Get();
 
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
@@ -1079,10 +1084,13 @@ void NativeGenerator::loadOrGenerateLinkFrame(
     }
   };
 
+#if PY_VERSION_HEX < 0x030C0000
+  // Prior to 3.12 we did not link a frame on initial generator entry.
   if (isGen()) {
     load_tstate_and_move();
     return;
   }
+#endif
 
   switch (GetFunction()->frameMode) {
     case FrameMode::kShadow:
@@ -1123,14 +1131,29 @@ void NativeGenerator::loadOrGenerateLinkFrame(
       as_->call(reinterpret_cast<uint64_t>(JITRT_AllocateAndLinkFrame));
 #else
       JIT_DCHECK(func_reg == x86::rdi, "func_reg must be rdi");
-      if (kPyDebug) {
-        as_->mov(
-            x86::rsi, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
+      if (isGen()) {
+        uint64_t full_words = env_.shadow_frames_and_spill_size / kPointerSize;
+        as_->mov(x86::rsi, full_words);
+        as_->mov(x86::rdx, reinterpret_cast<intptr_t>(codeRuntime()));
+        as_->lea(x86::rcx, x86::ptr(env_.gen_resume_entry_label));
+        as_->mov(x86::r8, x86::rbp);
         as_->call(reinterpret_cast<uint64_t>(
-            JITRT_AllocateAndLinkInterpreterFrame_Debug));
+            JITRT_AllocateAndLinkGenAndInterpreterFrame));
+        // tstate is now in RAX and GenDataFooter* in RDX. Swap RBP over to the
+        // generator data so spilled data starts getting stored there. There
+        // shouldn't have been any other data stored in the spilled area so far
+        // so no need to copy things over.
+        as_->mov(x86::rbp, x86::rdx);
       } else {
-        as_->call(reinterpret_cast<uint64_t>(
-            JITRT_AllocateAndLinkInterpreterFrame_Release));
+        if (kPyDebug) {
+          as_->mov(
+              x86::rsi, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
+          as_->call(reinterpret_cast<uint64_t>(
+              JITRT_AllocateAndLinkInterpreterFrame_Debug));
+        } else {
+          as_->call(reinterpret_cast<uint64_t>(
+              JITRT_AllocateAndLinkInterpreterFrame_Release));
+        }
       }
 #endif
       as_->mov(tstate_reg, x86::rax);
@@ -1377,22 +1400,49 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
 
   bool is_gen = GetFunction()->code->co_flags & kCoFlagsAnyGenerator;
   if (is_gen) {
+#if PY_VERSION_HEX < 0x030C0000
     // Set generator state to "completed". We access the state via RBP which
     // points to the of spill data and bottom of GenDataFooter.
     auto state_offs = offsetof(GenDataFooter, state);
     as_->mov(
         x86::ptr(x86::rbp, state_offs, sizeof(GenDataFooter::state)),
         Ci_JITGenState_Completed);
+#else
+    // ((GenDataFooter*)rbp)->gen->gi_frame_state = FRAME_COMPLETED
+    // RDX is an arbitrary scratch register - any caller saved reg is fine.
+    auto gen_offs = offsetof(GenDataFooter, gen);
+    as_->mov(x86::rdx, x86::ptr(x86::rbp, gen_offs));
+    as_->mov(
+        x86::ptr(
+            x86::rdx,
+            offsetof(PyGenObject, gi_frame_state),
+            sizeof(PyGenObject::gi_frame_state)),
+        FRAME_COMPLETED);
+#endif
     as_->bind(env_.exit_for_yield_label);
     RestoreOriginalGeneratorRBP(as_->as<x86::Emitter>());
   }
 
+#if PY_VERSION_HEX >= 0x030C0000
+  // Generator frame linkage for resumed generators is handled by the generator
+  // object i.e. in generators_rt. For the initial yield unlinking happens as
+  // part of the YieldInitial LIR instruction.
+  if (!is_gen) {
+    generateEpilogueUnlinkFrame(x86::rdi, false);
+  }
+#else
+  // Ideally this would also be the same in 3.10 as well but I spent maybe half
+  // a day trying to change things and gave up. Our implementation is really
+  // wonky and a clear ownership model is made difficult by shadow frames. It's
+  // probably subtly broken somewhere.
   generateEpilogueUnlinkFrame(x86::rdi, is_gen);
+#endif
 
   // If we return a primitive, set edx/xmm1 to 1 to indicate no error (in case
   // of error, deopt will set it to 0 and jump to hard_exit_label, skipping
   // this.)
   if (func_->returnsPrimitive()) {
+    JIT_CHECK(!is_gen, "generators can't return primitives");
     if (func_->returnsPrimitiveDouble()) {
       // Loads an *integer* 1 in XMM1.. value doesn't matter,
       // but it needs to be non-zero. See pg 124,
@@ -1537,8 +1587,7 @@ void NativeGenerator::generateResumeEntry() {
   // to pretty much anything which doesn't conflict with arg registers.
   const auto scratch_r = x86::r8;
 
-  // arg #1 - rdi = PyGenObject* generator
-  const auto gen_r = x86::rdi;
+  // arg #1 - rdi = PyGenObject/JitGenObject* generator
   // arg #2 - rsi = PyObject* sent_value
   // arg #3 - rdx = finish_yield_from
   // arg #4 - rcx = tstate
@@ -1561,11 +1610,18 @@ void NativeGenerator::generateResumeEntry() {
   // jit_data_r = gen->gi_jit_data
 #if PY_VERSION_HEX < 0x030C0000
   auto gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
+  as_->mov(jit_data_r, x86::ptr(x86::rdi, gi_jit_data_offset));
 #else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
-  size_t gi_jit_data_offset = 0;
+  // TODO(T209501671): Bake offsets in so we don't need this call.
+  as_->mov(x86::rbx, x86::rsi);
+  as_->mov(x86::r12, x86::rdx);
+  as_->mov(x86::r13, x86::rcx);
+  as_->call(reinterpret_cast<uint64_t>(JITRT_GetJITDataFromGen));
+  as_->mov(x86::rsi, x86::rbx);
+  as_->mov(x86::rdx, x86::r12);
+  as_->mov(x86::rcx, x86::r13);
+  as_->mov(jit_data_r, x86::rax);
 #endif
-  as_->mov(jit_data_r, x86::ptr(gen_r, gi_jit_data_offset));
 
   // Store linked frame address
   size_t link_address_offset = offsetof(GenDataFooter, linkAddress);

@@ -5,6 +5,9 @@
 #include <Python.h>
 
 #include "ceval.h"
+#if PY_VERSION_HEX >= 0x030C0000
+#include "pycore_intrinsics.h"
+#endif
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/opcode.h"
@@ -117,6 +120,7 @@ const std::unordered_set<int> kSupportedOpcodes = {
     EAGER_IMPORT_NAME,
     END_ASYNC_FOR,
     END_FOR,
+    END_SEND,
     EXTENDED_ARG,
     FAST_LEN,
     FORMAT_VALUE,
@@ -207,12 +211,14 @@ const std::unordered_set<int> kSupportedOpcodes = {
     RERAISE,
     RESUME,
     RETURN_CONST,
+    RETURN_GENERATOR,
     RETURN_PRIMITIVE,
     RETURN_VALUE,
     ROT_FOUR,
     ROT_N,
     ROT_THREE,
     ROT_TWO,
+    SEND,
     SEQUENCE_GET,
     SEQUENCE_SET,
     SET_ADD,
@@ -564,7 +570,9 @@ BasicBlock* HIRBuilder::buildHIRImpl(
   }
   addInitializeCells(entry_tc);
 
-  if (code_->co_flags & kCoFlagsAnyGenerator) {
+  // In 3.12+ "Initial Yield" has an explicit bytecode instruction in
+  // "RETURN_GENERATOR" and so is emitted at the appropriate time.
+  if (PY_VERSION_HEX < 0x030C0000 && code_->co_flags & kCoFlagsAnyGenerator) {
     // InitialYield must be after args are loaded so they can be spilled to
     // the suspendable state. It must also come before anything which can
     // deopt as generator deopt assumes we're running from state stored
@@ -647,6 +655,19 @@ InlineResult HIRBuilder::inlineHIR(
   }
 
   return {entry_block, exit_block};
+}
+
+void HIRBuilder::advancePastYieldInstr(TranslationContext& tc) {
+  // A YIELD_VALUE/RETURN_GENERATOR doesn't directly fail, however we may want
+  // to throw into the generator which means we'd deopt. In this case we need
+  // bytecode pointer to the following instruction which is where the
+  // interpreter should pick-up execution.
+  BCOffset next_bc_offs{
+      BytecodeInstruction{code_, tc.frame.cur_instr_offs}.nextInstrOffset()};
+  tc.frame.cur_instr_offs = next_bc_offs;
+  JIT_DCHECK(
+      next_bc_offs.asIndex().value() < countIndices(code_),
+      "Yield should not be end of instruction stream");
 }
 
 void HIRBuilder::translate(
@@ -1316,6 +1337,25 @@ void HIRBuilder::translate(
         }
         case DICT_MERGE: {
           emitDictMerge(tc, bc_instr);
+          break;
+        }
+        case RETURN_GENERATOR: {
+          auto out = temps_.AllocateStack();
+          advancePastYieldInstr(tc);
+          tc.emit<InitialYield>(out, tc.frame);
+          tc.frame.stack.push(out);
+          break;
+        }
+        case SEND: {
+          emitSend(tc, bc_instr);
+          break;
+        }
+        case END_SEND: {
+          // Pop the value and iterator off the stack and then push back the
+          // value.
+          Register* value = tc.frame.stack.pop();
+          tc.frame.stack.pop();
+          tc.frame.stack.push(value);
           break;
         }
         case CHECK_EG_MATCH:
@@ -3787,14 +3827,16 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
     in = out;
     out = temps_.AllocateStack();
   }
-  // A YIELD_VALUE itself can't fail, however we may want to throw into
-  // the generator which means we'd deopt. For this reason we update the
-  // bytecode to point at the following instruction as this is where the
-  // interpreter should pick-up execution.
-  BCOffset next_bc_offs{
-      BytecodeInstruction{code_, tc.frame.cur_instr_offs}.nextInstrOffset()};
-  tc.frame.cur_instr_offs = next_bc_offs;
-  tc.emit<YieldValue>(out, in, tc.frame);
+  advancePastYieldInstr(tc);
+  BytecodeInstruction next_bc{code_, tc.frame.cur_instr_offs};
+  // This mirrors what _PyGen_yf() does. I assume the RESUME oparg exists
+  // primarily for this check - values 2 and 3 indicate a "yield from" and
+  // "await" respectively.
+  if (next_bc.opcode() == RESUME && next_bc.oparg() >= 2) {
+    tc.emit<YieldFrom>(out, in, stack.top(), tc.frame);
+  } else {
+    tc.emit<YieldValue>(out, in, tc.frame);
+  }
   stack.push(out);
 }
 
@@ -4126,6 +4168,22 @@ void HIRBuilder::emitDictMerge(
   Register* update = stack.pop();
   Register* out = temps_.AllocateStack();
   tc.emit<DictMerge>(out, dict, update, func, tc.frame);
+}
+
+void HIRBuilder::emitSend(
+    TranslationContext& tc,
+    const BytecodeInstruction& bc_instr) {
+  OperandStack& stack = tc.frame.stack;
+  Register* value_out = stack.pop();
+  Register* iter = stack.top();
+  Register* value_in = temps_.AllocateStack();
+  tc.emit<Send>(iter, value_out, value_in, tc.frame);
+  Register* is_done = temps_.AllocateNonStack();
+  tc.emit<GetSecondOutput>(is_done, TCInt64, value_in);
+  stack.push(value_in);
+  BasicBlock* done_block = getBlockAtOff(bc_instr.getJumpTarget());
+  BasicBlock* continue_block = getBlockAtOff(bc_instr.nextInstrOffset());
+  tc.emit<CondBranch>(is_done, done_block, continue_block);
 }
 
 void HIRBuilder::insertEvalBreakerCheck(

@@ -4,12 +4,18 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030C0000
+#include <utility>
+#endif
+
 #include "cinderx/Common/util.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
 namespace jit {
 class CodeRuntime;
-}
+struct GenDataFooter;
+struct JitGenObject;
+} // namespace jit
 
 // static->static call convention for primitive returns is to return error flag
 // in rdx (null means error occurred); for C helpers that need to implement this
@@ -44,6 +50,19 @@ PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Debug(
 
 PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Release(
     PyFunctionObject* func);
+
+std::pair<PyThreadState*, jit::GenDataFooter*>
+JITRT_AllocateAndLinkGenAndInterpreterFrame(
+    PyFunctionObject* func,
+    uint64_t spill_words,
+    jit::CodeRuntime* code_rt,
+    GenResumeFunc resume_entry,
+    uint64_t original_rbp);
+
+std::pair<jit::JitGenObject*, jit::GenDataFooter*>
+JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate);
+
+jit::GenDataFooter* JITRT_GetJITDataFromGen(PyGenObject* gen);
 
 #endif
 
@@ -356,6 +375,7 @@ PyObject* JITRT_BuildString(
     size_t nargsf,
     void* /*unused*/);
 
+#if PY_VERSION_HEX < 0x030C0000
 /*
  * Create generator instance for use during InitialYield in a JIT generator.
  * There is a variant for each of the different types of generator: iterators,
@@ -381,6 +401,7 @@ PyObject* JITRT_MakeGenObjectCoro(
     size_t spill_words,
     jit::CodeRuntime* code_rt,
     PyCodeObject* code);
+#endif
 
 // Set the awaiter of the given awaitable to be the coroutine at the top of
 // `ts`.

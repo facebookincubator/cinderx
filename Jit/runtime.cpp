@@ -303,9 +303,7 @@ void Runtime::notifyTypeModified(
 }
 
 // JIT generator data free-list globals
-#if PY_VERSION_HEX < 0x030C0000
 const size_t kGenDataFreeListMaxSize = 1024;
-#endif
 static size_t gen_data_free_list_size = 0;
 static void* gen_data_free_list_tail;
 
@@ -331,11 +329,14 @@ jit::GenDataFooter* jitgen_data_allocate(size_t spill_words) {
       reinterpret_cast<uint64_t*>(data) + spill_words);
 }
 
-void jitgen_data_free(PyGenObject* gen) {
 #if PY_VERSION_HEX < 0x030C0000
+void jitgen_data_free(PyGenObject* gen) {
   auto gen_data_footer =
       reinterpret_cast<jit::GenDataFooter*>(gen->gi_jit_data);
   gen->gi_jit_data = nullptr;
+#else
+void jitgen_data_free(GenDataFooter* gen_data_footer) {
+#endif
   auto gen_data = reinterpret_cast<uint64_t*>(gen_data_footer) -
       gen_data_footer->spillWords;
 
@@ -350,9 +351,6 @@ void jitgen_data_free(PyGenObject* gen) {
   }
   gen_data_free_list_size++;
   gen_data_free_list_tail = gen_data;
-#else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT)
-#endif
 }
 
 } // namespace jit

@@ -15,6 +15,7 @@
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/runtime_support.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -597,8 +598,34 @@ PyThreadState* JITRT_AllocateAndLinkFrame(
 #else // PY_VERSION_HEX >= 0x030C0000
 
 /*
- * The reference for this is _PyEvalFramePushAndInit in ceval.c.
+ * The reference for these two functions is _PyEvalFramePushAndInit in ceval.c.
  */
+
+static void init_and_link_interpreter_frame(
+    PyFunctionObject* func,
+    PyCodeObject* co,
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame) {
+  _PyFrame_Initialize(
+      frame,
+      func,
+      /* locals= */ nullptr,
+      co,
+      // Zero all of localsplus. This allows _PyFrame_ClearExceptCode to
+      // safely clear the locals.
+      0);
+  // For some reason this is not bumped in _PyFrame_Initialize but it is
+  // released in _PyFrame_ClearExceptCode.
+  Py_INCREF(func);
+
+  // Re-use the existing cframe to avoid having to manage a new one. There
+  // should always be one due to the existence of a the per-thread root
+  // cframe. The cframe idea seems to have only transiently been needed
+  // in 3.11 and is now a loose end removed in 3.13.
+  frame->previous = tstate->cframe->current_frame;
+  tstate->cframe->current_frame = frame;
+}
+
 static inline PyThreadState* allocate_and_link_interpreter_frame(
     PyFunctionObject* func,
     PyCodeObject* co) {
@@ -618,24 +645,7 @@ static inline PyThreadState* allocate_and_link_interpreter_frame(
       Cix_PyThreadState_PushFrame(tstate, co->co_framesize);
   JIT_CHECK(frame != nullptr, "Failed to allocate _PyInterpreterFrame");
 
-  _PyFrame_Initialize(
-      frame,
-      func,
-      /* locals= */ nullptr,
-      co,
-      // Zero all of localsplus. This allows _PyFrame_ClearExceptCode to
-      // safely clear the locals.
-      0);
-  // For some reason this is not bumped in _PyFrame_Initialize but it is
-  // released in _PyFrame_ClearExceptCode.
-  Py_INCREF(func);
-
-  // Re-use the existing cframe to avoid having to manage a new one. There
-  // should always be one due to the existence of a the per-thread root cframe.
-  // The cframe idea seems to have only transiently been needed in 3.11 and is
-  // now a loose end removed in 3.13.
-  frame->previous = tstate->cframe->current_frame;
-  tstate->cframe->current_frame = frame;
+  init_and_link_interpreter_frame(func, co, tstate, frame);
 
   return tstate;
 }
@@ -654,6 +664,77 @@ PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Release(
     PyFunctionObject* func) {
   PyCodeObject* co = (PyCodeObject*)func->func_code;
   return allocate_and_link_interpreter_frame(func, co);
+}
+
+std::pair<PyThreadState*, jit::GenDataFooter*>
+JITRT_AllocateAndLinkGenAndInterpreterFrame(
+    PyFunctionObject* func,
+    uint64_t spill_words,
+    jit::CodeRuntime* code_rt,
+    GenResumeFunc resume_func,
+    uint64_t original_rbp) {
+  JIT_DCHECK(
+      PyCode_Check(func->func_code),
+      "Non-code object for JIT function: {}",
+      jit::repr(reinterpret_cast<PyObject*>(func)));
+  BorrowedRef<PyCodeObject> co{func->func_code};
+  JIT_DCHECK(co == code_rt->frameState()->code(), "Code object mismatch");
+
+  PyThreadState* tstate = PyThreadState_GET();
+  JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
+
+  // +1 to hold a pointer to JIT data (GenDataFooter)
+  int slots = _PyFrame_NumSlotsForCodeObject(co) + 1;
+  jit::JitGenObject* gen = jit::JitGenObject::cast(
+      PyObject_GC_NewVar(PyGenObject, &jit::JitGen_Type, slots));
+  // See comment in allocate_and_link_interpreter_frame about failure.
+  JIT_CHECK(gen != nullptr, "Failed to allocate JitGenObject");
+
+  gen->gi_frame_state = FRAME_CREATED;
+  gen->gi_weakreflist = nullptr;
+  gen->gi_exc_state.exc_value = nullptr;
+  gen->gi_exc_state.previous_item = nullptr;
+  JIT_DCHECK(func->func_name != nullptr, "func_name is null");
+  gen->gi_name = Py_NewRef(func->func_name);
+  JIT_DCHECK(func->func_qualname != nullptr, "func_qualname is null");
+  gen->gi_qualname = Py_NewRef(func->func_qualname);
+  gen->gi_ci_awaiter = nullptr;
+  _PyObject_GC_TRACK(gen);
+
+  _PyInterpreterFrame* frame =
+      reinterpret_cast<_PyInterpreterFrame*>(&gen->gi_iframe);
+  init_and_link_interpreter_frame(func, co, tstate, frame);
+  frame->owner = FRAME_OWNED_BY_GENERATOR;
+
+  jit::GenDataFooter* footer = jit::jitgen_data_allocate(spill_words);
+  *gen->genDataFooterPtr() = footer;
+  footer->resumeEntry = resume_func;
+  footer->yieldPoint = nullptr;
+  footer->gen = static_cast<PyGenObject*>(gen);
+  footer->code_rt = code_rt;
+  footer->originalRbp = original_rbp;
+  footer->linkAddress = *reinterpret_cast<uint64_t*>(original_rbp);
+  footer->returnAddress = *(reinterpret_cast<uint64_t*>(original_rbp) + 1);
+
+  return {tstate, footer};
+}
+
+std::pair<jit::JitGenObject*, jit::GenDataFooter*>
+JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate) {
+  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
+  tstate->cframe->current_frame = frame->previous;
+  frame->previous = nullptr;
+  jit::JitGenObject* gen =
+      jit::JitGenObject::cast(_PyFrame_GetGenerator(frame));
+
+  return {gen, gen->genDataFooter()};
+}
+
+// TODO(T209501671): Get rid of this.
+jit::GenDataFooter* JITRT_GetJITDataFromGen(PyGenObject* gen) {
+  jit::JitGenObject* jit_gen = jit::JitGenObject::cast(gen);
+  JIT_CHECK(jit_gen, "gen is not a jit::JitGenObject");
+  return jit_gen->genDataFooter();
 }
 
 #endif
@@ -1300,6 +1381,7 @@ void JITRT_DoRaise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
   Cix_do_raise(tstate, exc, cause);
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 enum class MakeGenObjectMode {
   kAsyncGenerator,
   kCoroutine,
@@ -1313,7 +1395,6 @@ static inline PyObject* make_gen_object(
     size_t spill_words,
     jit::CodeRuntime* code_rt,
     PyCodeObject* code) {
-#if PY_VERSION_HEX < 0x030C0000
   PyGenObject* gen = nullptr;
   if (jit::getConfig().frame_mode == jit::FrameMode::kShadow) {
     if (mode == MakeGenObjectMode::kCoroutine) {
@@ -1353,8 +1434,6 @@ static inline PyObject* make_gen_object(
       ? _PyShadowFrame_MakeData(code_rt, PYSF_CODE_RT, PYSF_JIT)
       : _PyShadowFrame_MakeData(gen->gi_frame, PYSF_PYFRAME, PYSF_JIT);
 
-  spill_words = std::max(spill_words, jit::kMinGenSpillWords);
-
   jit::GenDataFooter* footer = jit::jitgen_data_allocate(spill_words);
   footer->resumeEntry = resume_entry;
   footer->yieldPoint = nullptr;
@@ -1365,10 +1444,6 @@ static inline PyObject* make_gen_object(
   gen->gi_jit_data = reinterpret_cast<Ci_JITGenData*>(footer);
 
   return reinterpret_cast<PyObject*>(gen);
-#else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
-  return nullptr;
-#endif
 }
 
 PyObject* JITRT_MakeGenObject(
@@ -1400,6 +1475,7 @@ PyObject* JITRT_MakeGenObjectCoro(
   return make_gen_object<MakeGenObjectMode::kCoroutine>(
       resume_entry, tstate, spill_words, code_rt, code);
 }
+#endif
 
 void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
 #if PY_VERSION_HEX < 0x030C0000

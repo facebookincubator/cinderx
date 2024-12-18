@@ -18,8 +18,6 @@
 #define UPGRADE_NOTE(tag, task)
 
 enum {
-  // No _jit_data field on generators. T194022335
-  GENERATOR_JIT_SUPPORT,
   TSTATE_FROM_RUNTIME, // T194018580
   AWAITED_FLAG, // T194027914
   // Missing tstate->frame. T194018580

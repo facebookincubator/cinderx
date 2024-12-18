@@ -18,6 +18,7 @@
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_allocator.h"
@@ -28,6 +29,7 @@
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/elf/writer.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/inline_cache.h"
@@ -1765,7 +1767,13 @@ PyObject* disable_hir_inliner(PyObject* /* self */, PyObject*) {
 // If the given generator-like object is a suspended JIT generator, deopt it
 // and return 1. Otherwise, return 0.
 int deopt_gen_impl(PyGenObject* gen) {
-#if PY_VERSION_HEX < 0x030C0000
+#if PY_VERSION_HEX >= 0x030C0000
+  if (deopt_jit_gen(gen)) {
+    return 1;
+  }
+  return 0;
+#else
+  JIT_CHECK(!Ci_GenIsExecuting(gen), "Trying to deopt a running generator");
   GenDataFooter* footer = genDataFooter(gen);
   if (Ci_GenIsCompleted(gen) || footer == nullptr) {
     return 0;
@@ -1786,26 +1794,31 @@ int deopt_gen_impl(PyGenObject* gen) {
   gen->gi_frame->f_state = FRAME_SUSPENDED;
   releaseRefs(deopt_meta, footer);
   jitgen_data_free(gen);
-#else
-  UPGRADE_NOTE(GENERATOR_JIT_SUPPORT, T194022335)
-#endif
   return 1;
+#endif
 }
 
-PyObject* deopt_gen(PyObject*, PyObject* gen) {
-  if (!PyGen_Check(gen) && !PyCoro_CheckExact(gen) &&
-      !PyAsyncGen_CheckExact(gen)) {
+PyObject* deopt_gen(PyObject*, PyObject* op) {
+  if (!PyGen_Check(op) && !PyCoro_CheckExact(op) &&
+      !PyAsyncGen_CheckExact(op) && !JitGen_CheckExact(op)) {
     PyErr_Format(
         PyExc_TypeError,
         "Exected generator-like object, got %.200s",
-        Py_TYPE(gen)->tp_name);
+        Py_TYPE(op)->tp_name);
     return nullptr;
   }
-  if (Ci_GenIsExecuting(reinterpret_cast<PyGenObject*>(gen))) {
+  auto gen = reinterpret_cast<PyGenObject*>(op);
+  if (
+#if PY_VERSION_HEX < 0x030C0000
+      gen->gi_frame && _PyFrame_IsExecuting(gen->gi_frame)
+#else
+      gen->gi_frame_state == FRAME_EXECUTING
+#endif
+  ) {
     PyErr_SetString(PyExc_RuntimeError, "generator is executing");
     return nullptr;
   }
-  if (deopt_gen_impl(reinterpret_cast<PyGenObject*>(gen))) {
+  if (deopt_gen_impl(gen)) {
     Py_RETURN_TRUE;
   }
   Py_RETURN_FALSE;
@@ -1813,7 +1826,7 @@ PyObject* deopt_gen(PyObject*, PyObject* gen) {
 
 int deopt_gen_visitor(PyObject* obj, void*) {
   if (PyGen_Check(obj) || PyCoro_CheckExact(obj) ||
-      PyAsyncGen_CheckExact(obj)) {
+      PyAsyncGen_CheckExact(obj) || JitGen_CheckExact(obj)) {
     deopt_gen_impl(reinterpret_cast<PyGenObject*>(obj));
   }
   return 1;

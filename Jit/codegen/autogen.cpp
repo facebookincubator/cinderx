@@ -7,6 +7,7 @@
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/deopt_patcher.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
@@ -409,6 +410,7 @@ void emitLoadResumedYieldInputs(
 }
 
 void translateYieldInitial(Environ* env, const Instruction* instr) {
+#if PY_VERSION_HEX < 0x030C0000
   asmjit::x86::Builder* as = env->as;
 
   // Load tstate into RDI for call to JITRT_MakeGenObject*.
@@ -448,12 +450,7 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
 
   // Set RDI to gen->gi_jit_data for use in emitStoreGenYieldPoint() and data
   // copy using 'movsq' below.
-#if PY_VERSION_HEX < 0x030C0000
   auto gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
-#else
-  UPGRADE_ASSERT(GENERATOR_JIT_SUPPORT);
-  size_t gi_jit_data_offset = 0;
-#endif
   as->mov(x86::rdi, x86::ptr(gen_reg, gi_jit_data_offset));
 
   // Arbitrary scratch register for use in emitStoreGenYieldPoint().
@@ -481,6 +478,43 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
   emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 }
+
+#else
+  asmjit::x86::Builder* as = env->as;
+
+  // Load tstate into RDI for call to
+  // JITRT_UnlinkGenFrameAndReturnGenDataFooter.
+
+  // TODO(jbower) Avoid reloading tstate in from memory if it was already in a
+  // register before spilling. Still needs to be in memory though so it can be
+  // recovered after calling JITRT_MakeGenObject* which will trash it.
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
+
+  emitCall(
+      *env,
+      reinterpret_cast<uint64_t>(JITRT_UnlinkGenFrameAndReturnGenDataFooter),
+      instr);
+  // This will return pointers to a generator in RAX and JIT data in RDX.
+
+  // Arbitrary scratch register for use in emitStoreGenYieldPoint(). Any
+  // caller-saved register not used in this scope will do because we're on the
+  // exit path now.
+  auto scratch_r = x86::r9;
+  asmjit::Label resume_label = as->newLabel();
+  emitStoreGenYieldPoint(as, env, instr, resume_label, x86::rdx, scratch_r);
+
+  // Jump to epilogue
+  as->jmp(env->exit_for_yield_label);
+
+  // Resumed execution in this generator begins here
+  as->bind(resume_label);
+
+  // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
+  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
+}
+
+#endif
 
 void translateYieldValue(Environ* env, const Instruction* instr) {
   asmjit::x86::Builder* as = env->as;
@@ -1186,9 +1220,19 @@ BEGIN_RULES(Instruction::kYieldInitial)
   GEN(ANY, CALL_C(translateYieldInitial))
 END_RULES
 
+#if PY_VERSION_HEX < 0x030C0000
 BEGIN_RULES(Instruction::kYieldFrom)
   GEN(ANY, CALL_C(translateYieldFrom))
 END_RULES
+#else
+// In 3.12+ YieldFrom is a pseudo-op which is YieldValue plus enough
+// information to know which live value contains the target iterator. See
+// emitStoreGenYieldPoint() for where this is captured. The target iterator is
+// used for things like the result of reading gi_yieldfrom.
+BEGIN_RULES(Instruction::kYieldFrom)
+  GEN(ANY, CALL_C(translateYieldValue))
+END_RULES
+#endif
 
 BEGIN_RULES(Instruction::kYieldFromSkipInitialSend)
   GEN(ANY, CALL_C(translateYieldFrom))

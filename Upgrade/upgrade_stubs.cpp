@@ -18,7 +18,6 @@ STUB(
 STUB(Ci_PyGCImpl*, Ci_PyGC_GetImpl, T196759328, struct _gc_runtime_state*)
 STUB(void, Ci_PyGC_ClearFreeLists, T196759328, PyInterpreterState*)
 STUB(int, Ci_GenIsCompleted, T194022335, PyGenObject*)
-STUB(CiJITGenState, Ci_GetJITGenState, T194022335, PyGenObject*)
 STUB(int, Ci_GenIsExecuting, T194022335, PyGenObject*)
 STUB(int, Ci_JITGenIsExecuting, T194022335, PyGenObject*)
 STUB(PyObject*, CiCoro_New_NoFrame, T194022335, PyThreadState*, PyCodeObject*)

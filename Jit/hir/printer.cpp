@@ -274,6 +274,7 @@ static std::string format_immediates(const Instr& instr) {
     case Opcode::kPrimitiveBoxBool:
     case Opcode::kRaise:
     case Opcode::kRunPeriodicTasks:
+    case Opcode::kSend:
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kSetCellItem:
     case Opcode::kSetDictItem:
