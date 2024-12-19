@@ -1,6 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from cinderx.compiler.pycodegen import CinderCodeGenerator
-
 from .common import StaticTestBase
 
 
@@ -10,7 +8,7 @@ class SuperTests(StaticTestBase):
             class A:
                 x = 1
         """
-        with self.in_module(nonstatic, code_gen=CinderCodeGenerator) as nonstatic_mod:
+        with self.in_module(nonstatic, code_gen=self.cinder_codegen) as nonstatic_mod:
             codestr = f"""
                 from {nonstatic_mod.__name__} import A
 

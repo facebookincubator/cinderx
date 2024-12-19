@@ -12,7 +12,7 @@ from subprocess import run
 from types import CodeType
 from unittest import TestCase
 
-from cinderx.compiler.pycodegen import make_compiler
+from cinderx.compiler.pycodegen import CinderCodeGenerator310, CodeGenerator, CodeGenerator312, make_compiler
 
 
 _UNSPECIFIED = object()
@@ -89,6 +89,13 @@ class CompilerTest(TestCase):
 
     def clean_code(self, code: str) -> str:
         return inspect.cleandoc("\n" + code)
+
+    @property
+    def cinder_codegen(self) -> type[CodeGenerator]:
+        if sys.version_info >= (3, 12):
+            return CodeGenerator312
+
+        return CinderCodeGenerator310
 
     def compile(
         self,

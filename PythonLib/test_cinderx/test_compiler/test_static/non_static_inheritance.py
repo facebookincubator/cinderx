@@ -3,7 +3,6 @@ import unittest
 from unittest import skip
 
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
-from cinderx.compiler.pycodegen import CinderCodeGenerator
 
 from .common import StaticTestBase
 
@@ -328,7 +327,7 @@ class NonStaticInheritanceTests(StaticTestBase):
         """
 
         with self.in_module(
-            bases, name="bases", code_gen=CinderCodeGenerator
+            bases, name="bases", code_gen=self.cinder_codegen
         ), self.in_module(codestr) as mod:
             f = mod.f
             self.assertEqual(f(), 42)
@@ -351,7 +350,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 pass
         """
         with self.in_module(base, name="base"), self.in_module(
-            nonstatic, name="nonstatic", code_gen=CinderCodeGenerator
+            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
         ):
             with self.assertRaisesRegex(
                 TypeError,
@@ -389,7 +388,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 return d.f()
         """
         with self.in_module(
-            nonstatic, name="nonstatic", code_gen=CinderCodeGenerator
+            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
         ), self.in_module(static) as mod:
             # Ensure that the decorator results in a non-static function.
             self.assertEqual(mod.D.f.__code__.co_flags & CI_CO_STATICALLY_COMPILED, 0)
@@ -428,7 +427,7 @@ class NonStaticInheritanceTests(StaticTestBase):
 
         """
         with self.in_module(static, name="static") as mod, self.in_module(
-            nonstatic, name="nonstatic", code_gen=CinderCodeGenerator
+            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
         ) as nonstatic_mod:
             self.assertInBytecode(mod.B.get_x, "INVOKE_METHOD")
             self.assertInBytecode(mod.B.set_x, "INVOKE_METHOD")
@@ -460,7 +459,7 @@ class NonStaticInheritanceTests(StaticTestBase):
 
         """
         with self.in_module(static, name="static") as mod, self.in_module(
-            nonstatic, name="nonstatic", code_gen=CinderCodeGenerator
+            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
         ) as nonstatic_mod:
             self.assertInBytecode(mod.B.get_x, "INVOKE_METHOD")
             self.assertInBytecode(mod.B.set_x, "INVOKE_METHOD")
@@ -484,7 +483,7 @@ class NonStaticInheritanceTests(StaticTestBase):
 
         """
         with self.in_module(
-            nonstatic, name="nonstatic", code_gen=CinderCodeGenerator
+            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
         ) as nonstatic_mod, self.in_module(static) as mod:
             self.assertEqual(mod.D.foo, 42)
 
@@ -504,7 +503,7 @@ class NonStaticInheritanceTests(StaticTestBase):
 
         """
         with self.in_module(
-            nonstatic, name="nonstatic", code_gen=CinderCodeGenerator
+            nonstatic, name="nonstatic", code_gen=self.cinder_codegen
         ) as nonstatic_mod, self.in_module(static) as mod:
             self.assertEqual(mod.D.foo, 42)
 
