@@ -5387,7 +5387,7 @@
             }
 
             err = PyList_SetSlice(list, idx, idx + 1, NULL);
-            if (err != -1) goto pop_2_error;
+            if (err != 0) goto pop_2_error;
             #line 5391 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(list);
             Py_DECREF(subscr);

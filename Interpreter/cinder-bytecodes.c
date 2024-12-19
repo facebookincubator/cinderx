@@ -537,7 +537,7 @@ dummy_func(
             }
 
             err = PyList_SetSlice(list, idx, idx + 1, NULL);
-            ERROR_IF(err != -1, error);
+            ERROR_IF(err != 0, error);
             DECREF_INPUTS();
         }
 
