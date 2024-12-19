@@ -127,6 +127,10 @@ PyObject* _PyVTable_coroutine_dont_bolt(
     _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf);
+PyObject* _PyVTable_coroutine_staticmethod_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
 PyObject* _PyVTable_nonfunc_property_dont_bolt(
     _PyClassLoader_TypeCheckState* state,
     PyObject** args,
