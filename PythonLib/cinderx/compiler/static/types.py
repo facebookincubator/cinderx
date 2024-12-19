@@ -1104,6 +1104,7 @@ class Value:
         code_gen.visit(node.body)
         code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
+        code_gen.emit_end_for()
         code_gen.pop_loop()
 
         if node.orelse:

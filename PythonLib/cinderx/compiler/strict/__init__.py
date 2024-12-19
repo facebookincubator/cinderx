@@ -528,6 +528,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
 
         self.emitJump(start)
         self.nextBlock(anchor)
+        self.emit_end_for()
         self.pop_loop()
         self.nextBlock(after)
 
