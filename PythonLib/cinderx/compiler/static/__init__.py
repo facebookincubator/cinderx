@@ -329,7 +329,19 @@ class StaticCodeGenBase(StrictCodeGenBase):
             return
         return klass
 
-    def emit_build_class(self, node: ast.ClassDef, class_body: CodeGenerator) -> None:
+    def emit_build_class(
+        self,
+        node: ast.ClassDef,
+        class_body: CodeGenerator,
+        outer_scope: CodeGenerator | None = None,
+    ) -> None:
+        if (outer_scope is not None and outer_scope is not self) or getattr(
+            node, "type_params", None
+        ):
+            # TODO(T210915794): We don't support type params, we need to pass the
+            # .generic_base as part of the bases
+            raise NotImplementedError("Type params not supported in static Python yet")
+
         klass = self._resolve_class(node)
         if not isinstance(self.scope, ModuleScope) or klass is None:
             # If a class isn't top-level then it's not going to be using static

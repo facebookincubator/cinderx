@@ -4475,6 +4475,48 @@ class CodeGenerator312(CodeGenerator):
         self.emit("LOAD_CONST", None)
         self.emit("CALL", 2)
 
+    def get_generic_base(self, node: ClassDef) -> ast.Name:
+        return ast.Name(
+            ".generic_base",
+            lineno=node.lineno,
+            end_lineno=node.end_lineno,
+            col_offset=node.col_offset,
+            end_col_offset=node.end_col_offset,
+            ctx=ast.Load(),
+        )
+
+    def emit_build_class(
+        self,
+        node: ast.ClassDef,
+        class_body: CodeGenerator,
+        outer_scope: CodeGenerator | None = None,
+    ) -> None:
+        self.emit("PUSH_NULL")
+        self.emit("LOAD_BUILD_CLASS")
+        self.emit_closure(class_body, 0)
+        self.emit("LOAD_CONST", node.name)
+
+        # pyre-ignore[16]: no attribute type_params
+        if node.type_params:
+            self.loadName(".type_params")
+            self.emit_call_intrinsic_1("INTRINSIC_SUBSCRIPT_GENERIC")
+            self.emit("STORE_FAST", ".generic_base")
+
+            self._call_helper(
+                2,
+                None,
+                node.bases + [self.get_generic_base(node)],
+                node.keywords,
+            )
+
+            self.emit("RETURN_VALUE")
+
+            assert outer_scope is not None, "type params are only in 3.12"
+            outer_scope.emit_closure(self, 0)
+            outer_scope.emit("CALL", 0)
+        else:
+            self._call_helper(2, None, node.bases, node.keywords)
+
     def visitClassDef(self, node: ast.ClassDef) -> None:
         first_lineno = None
         immutability_flag = self.find_immutability_flag(node)
@@ -4517,39 +4559,7 @@ class CodeGenerator312(CodeGenerator):
 
         class_gen = outer_gen.compile_class_body(node, first_lineno)
 
-        outer_gen.emit("PUSH_NULL")
-        outer_gen.emit("LOAD_BUILD_CLASS")
-        outer_gen.emit_closure(class_gen, 0)
-        outer_gen.emit("LOAD_CONST", node.name)
-
-        if node.type_params:
-            outer_gen.loadName(".type_params")
-            outer_gen.emit_call_intrinsic_1("INTRINSIC_SUBSCRIPT_GENERIC")
-            outer_gen.emit("STORE_FAST", ".generic_base")
-
-            outer_gen._call_helper(
-                2,
-                None,
-                node.bases
-                + [
-                    ast.Name(
-                        ".generic_base",
-                        lineno=node.lineno,
-                        end_lineno=node.end_lineno,
-                        col_offset=node.col_offset,
-                        end_col_offset=node.end_col_offset,
-                        ctx=ast.Load(),
-                    )
-                ],
-                node.keywords,
-            )
-
-            outer_gen.emit("RETURN_VALUE")
-
-            self.emit_closure(outer_gen, 0)
-            self.emit("CALL", 0)
-        else:
-            outer_gen._call_helper(2, None, node.bases, node.keywords)
+        outer_gen.emit_build_class(node, class_gen, self)
 
         for d in reversed(node.decorator_list):
             self.set_pos(d)

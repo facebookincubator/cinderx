@@ -4,6 +4,7 @@
 
 #include <Python.h>
 
+#include "internal/pycore_object.h" // @donotremove
 #include "internal/pycore_pystate.h"
 #include "structmember.h"
 
@@ -868,6 +869,7 @@ int populate_getter_and_setter(
   return result;
 }
 
+static PyObject* final_method_names_string;
 /* Static types have a slot containing all final methods in their inheritance
    chain. This function returns the contents of that slot by looking up the MRO,
    if it exists.
@@ -882,9 +884,14 @@ static PyObject* get_final_method_names(PyTypeObject* type) {
     PyObject* mro_type = PyTuple_GET_ITEM(mro, i);
     if (((PyTypeObject*)mro_type)->tp_flags &
         Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) {
-      _Py_IDENTIFIER(__final_method_names__);
-      PyObject* final_method_names_string =
-          _PyUnicode_FromId(&PyId___final_method_names__);
+      if (final_method_names_string == NULL) {
+        PyObject* final = PyUnicode_FromString("__final_method_names__");
+        if (final == NULL) {
+          return NULL;
+        }
+        _Py_SetImmortal(final);
+        final_method_names_string = final;
+      }
       PyObject* final_method_names = _PyObject_GenericGetAttrWithDict(
           mro_type,
           final_method_names_string,

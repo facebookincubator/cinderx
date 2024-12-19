@@ -1015,6 +1015,11 @@ error:
   return NULL;
 }
 
+#if PY_VERSION_HEX >= 0x030C0000
+#define PyHeapType_GET_MEMBERS(type) \
+  (PyMemberDef*)PyObject_GetItemData((PyObject*)type);
+#endif
+
 static int type_new_descriptors(
     const PyObject* slots,
     PyTypeObject* type,
@@ -1107,12 +1112,7 @@ static int type_new_descriptors(
     // find the member that we're updating...  By default we do the base
     // initialization with all of the slots defined, and we're just changing
     // their types and moving them around.
-#if PY_VERSION_HEX < 0x030C0000
     PyMemberDef* mp = PyHeapType_GET_MEMBERS(et);
-#else
-    UPGRADE_ASSERT(MISSING_PyHeapType_GET_MEMBERS)
-    PyMemberDef* mp = NULL;
-#endif
     const char* slot_name = PyUnicode_AsUTF8(name);
     for (Py_ssize_t i = 0; i < nslot; i++, mp++) {
       if (strcmp(slot_name, mp->name) == 0) {
@@ -1180,12 +1180,7 @@ leaked_error:
 
 int init_static_type(PyObject* obj, int leaked_type) {
   PyTypeObject* type = (PyTypeObject*)obj;
-#if PY_VERSION_HEX < 0x030C0000
   PyMemberDef* mp = PyHeapType_GET_MEMBERS(type);
-#else
-  UPGRADE_ASSERT(MISSING_PyHeapType_GET_MEMBERS)
-  PyMemberDef* mp = NULL;
-#endif
   Py_ssize_t nslot = Py_SIZE(type);
 
   DEFINE_STATIC_STRING(__slot_types__);

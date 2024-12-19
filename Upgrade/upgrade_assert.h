@@ -29,8 +29,6 @@ enum {
   // Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED
   // T194028831
   NEED_STATIC_FLAGS,
-  // This is a macro and used from C code so a bit tricky to stub.
-  MISSING_PyHeapType_GET_MEMBERS, // T194021668
   SUPPORT_JIT_INLINING, // T198250666
   CHANGED_NO_SHADOWING_INSTANCES, // T200294456
 };
