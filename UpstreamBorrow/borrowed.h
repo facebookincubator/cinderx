@@ -25,8 +25,17 @@ extern "C" {
 #define Cix_PyThreadState_PushFrame _PyThreadState_PushFrame
 #define Cix_PyThreadState_PopFrame _PyThreadState_PopFrame
 #define Cix_PyFrame_ClearExceptCode _PyFrame_ClearExceptCode
-#define Cix_PyUnion_Type _PyUnion_Type
 #define Cix_PyTypeAlias_Type _PyTypeAlias_Type
+#endif
+
+#if PY_VERSION_HEX < 0x030C0000
+// In 3.10 we create a new union object and grab the type and store it here.
+extern PyTypeObject* Cix_PyUnion_Type;
+#else
+// In 3.12 _PyUnion_Type is exported, but it's hidden in an internal header
+// file.
+extern PyTypeObject _PyUnion_Type;
+#define Cix_PyUnion_Type &_PyUnion_Type
 #endif
 
 PyObject* Cix_PyGen_yf(PyGenObject* gen);
@@ -62,8 +71,6 @@ static_builtin_state* Cix_PyStaticType_GetState(
     PyInterpreterState*,
     PyTypeObject*);
 #endif
-
-extern PyTypeObject* Cix_PyUnion_Type;
 
 PyObject* Cix_Py_union_type_or(PyObject*, PyObject*);
 
