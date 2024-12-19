@@ -2733,7 +2733,7 @@ class CodeGenerator310(CodeGenerator):
         gen.set_no_pos()
         if gen.scope.needs_class_closure:
             gen.emit("LOAD_CLOSURE", "__class__")
-            gen.emit("DUP_TOP")
+            gen.emit_dup()
             gen.emit("STORE_NAME", "__classcell__")
         else:
             gen.emit("LOAD_CONST", None)
@@ -2974,8 +2974,8 @@ class CodeGenerator310(CodeGenerator):
 
     def emit_call_exit_with_nones(self) -> None:
         self.emit("LOAD_CONST", None)
-        self.emit("DUP_TOP")
-        self.emit("DUP_TOP")
+        self.emit_dup()
+        self.emit_dup()
         self.emit("CALL_FUNCTION", 3)
 
     def _fastcall_helper(self, argcnt, node, args, kwargs) -> None:
@@ -3043,7 +3043,7 @@ class CodeGenerator310(CodeGenerator):
             self.set_pos(handler)
             except_ = self.newBlock(f"try_except_{i}")
             if expr:
-                self.emit("DUP_TOP")
+                self.emit_dup()
                 self.visit(expr)
                 self.emit("JUMP_IF_NOT_EXC_MATCH", except_)
                 self.nextBlock()
@@ -3182,7 +3182,7 @@ class CodeGenerator310(CodeGenerator):
         target = node.target
         assert isinstance(target, ast.Attribute)
         self.visit(target.value)
-        self.emit("DUP_TOP")
+        self.emit_dup()
         with self.temp_lineno(node.target.end_lineno or -1):
             self.emit("LOAD_ATTR", self.mangle(target.attr))
         self.emitAugRHS(node)
