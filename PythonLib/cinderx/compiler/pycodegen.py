@@ -2432,6 +2432,15 @@ class CodeGenerator(ASTVisitor):
     def emit_call_exit_with_nones(self) -> None:
         raise NotImplementedError()
 
+    def emit_prepare_call(self) -> None:
+        raise NotImplementedError()
+
+    def emit_call(self, nargs: int) -> None:
+        raise NotImplementedError()
+
+    def emit_call_kw(self, nargs: int, kwargs: tuple[str, ...]) -> None:
+        raise NotImplementedError()
+
     def emit_try_except(self, node) -> None:
         raise NotImplementedError()
 
@@ -2968,6 +2977,16 @@ class CodeGenerator310(CodeGenerator):
             self.emit_end_for()
 
     # Function calls --------------------------------------------------
+
+    def emit_prepare_call(self) -> None:
+        pass
+
+    def emit_call(self, nargs: int) -> None:
+        self.emit("CALL_FUNCTION", nargs)
+
+    def emit_call_kw(self, nargs: int, kwargs: tuple[str, ...]) -> None:
+        self.emit("LOAD_CONST", kwargs)
+        self.emit("CALL_FUNCTION_KW", nargs + len(kwargs))
 
     def emit_call_exit_with_nones(self) -> None:
         self.emit("LOAD_CONST", None)
@@ -4424,6 +4443,18 @@ class CodeGenerator312(CodeGenerator):
 
         gen.emit("RETURN_VALUE")
         return gen
+
+    # Function calls --------------------------------------------------
+
+    def emit_prepare_call(self) -> None:
+        self.emit("PUSH_NULL")
+
+    def emit_call(self, nargs: int) -> None:
+        self.emit("CALL", nargs)
+
+    def emit_call_kw(self, nargs: int, kwargs: tuple[str, ...]) -> None:
+        self.emit("KW_NAMES", kwargs)
+        self.emit("CALL", nargs + len(kwargs))
 
     def emit_call_exit_with_nones(self) -> None:
         self.emit("LOAD_CONST", None)

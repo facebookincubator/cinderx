@@ -6138,15 +6138,17 @@ class Dataclass(Class):
         # to prevent infinite loops if any field contains a cycle
         code_gen.emit("LOAD_CONST", 0)
         code_gen.emit("LOAD_CONST", ("recursive_repr",))
+        code_gen.emit_prepare_call()
         code_gen.emit("IMPORT_NAME", "reprlib")
         code_gen.emit("IMPORT_FROM", "recursive_repr")
-        code_gen.emit("CALL_FUNCTION", 0)
+        code_gen.emit_rotate_stack(2)
+        code_gen.emit("POP_TOP")
+        code_gen.emit_call(0)
         code_gen.emit("LOAD_CONST", graph)
         code_gen.emit("LOAD_CONST", f"{self.type_name.qualname}.{graph.name}")
         code_gen.emit("MAKE_FUNCTION", 0)
         code_gen.emit_call_one_arg()
         code_gen.emit("STORE_NAME", "__repr__")
-        code_gen.emit("POP_TOP")
 
     def emit_extra_members(self, node: ClassDef, code_gen: StaticCodeGenBase) -> None:
         # import objects needed from dataclasses and store them on the class
@@ -6176,6 +6178,7 @@ class Dataclass(Class):
 
         # set __dataclass_fields__
         for name, field in self.fields.items():
+            code_gen.emit_prepare_call()
             code_gen.emit("LOAD_NAME", "_field")
             field_args = []
 
@@ -6211,8 +6214,7 @@ class Dataclass(Class):
             code_gen.emit("LOAD_CONST", field.kw_only)
             field_args.append("kw_only")
 
-            code_gen.emit("LOAD_CONST", tuple(field_args))
-            code_gen.emit("CALL_FUNCTION_KW", len(field_args))
+            code_gen.emit_call_kw(0, tuple(field_args))
 
             code_gen.emit_dup()
             code_gen.emit("LOAD_CONST", name)
@@ -6239,6 +6241,7 @@ class Dataclass(Class):
         code_gen.emit("STORE_NAME", "__dataclass_fields__")
 
         # set __dataclass_params__ with the arguments to @dataclass()
+        code_gen.emit_prepare_call()
         code_gen.emit("LOAD_NAME", "_DataclassParams")
         code_gen.emit("LOAD_CONST", self.init)
         code_gen.emit("LOAD_CONST", self.repr)
@@ -6246,7 +6249,7 @@ class Dataclass(Class):
         code_gen.emit("LOAD_CONST", self.order)
         code_gen.emit("LOAD_CONST", self.unsafe_hash)
         code_gen.emit("LOAD_CONST", self.frozen)
-        code_gen.emit("CALL_FUNCTION", 6)
+        code_gen.emit_call(6)
         code_gen.emit("STORE_NAME", "__dataclass_params__")
 
         if self.generate_init:
