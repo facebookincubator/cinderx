@@ -12,7 +12,6 @@ try:  # ensure all imports in this module are eager, to avoid cycles
     import marshal
     import os
     import sys
-    from cinder import StrictModule, watch_sys_modules
 
     from enum import Enum
 
@@ -49,6 +48,8 @@ try:  # ensure all imports in this module are eager, to avoid cycles
     )
     from types import CodeType, ModuleType
     from typing import Callable, cast, Collection, final, Iterable, Mapping
+
+    from _cinderx import StrictModule, watch_sys_modules
 
     from cinderx.static import install_sp_audit_hook
 

@@ -4,14 +4,13 @@ from __static__ import chkdict
 import ast
 import asyncio
 import builtins
-import cinder
 import dis
 import inspect
 import re
 import subprocess
 import sys
 import unittest
-from cinder import StrictModule
+from cinderx import StrictModule
 from io import StringIO
 from os import path
 from pathlib import Path

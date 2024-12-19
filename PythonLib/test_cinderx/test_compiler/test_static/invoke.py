@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
-from cinder import cached_property
+from cinderx import cached_property
 
 from .common import StaticTestBase
 

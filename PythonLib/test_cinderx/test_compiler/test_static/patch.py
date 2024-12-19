@@ -1,11 +1,17 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
-import cinder
+
 import re
 from contextlib import contextmanager
 from textwrap import dedent
 from unittest import skip, skipIf
 from unittest.mock import MagicMock, Mock, patch
+
+try:
+    from cinder import getknobs, setknobs
+except ImportError:
+    getknobs = setknobs = None
+
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 
@@ -23,9 +29,12 @@ xxclassloader = import_module("xxclassloader")
 
 @contextmanager
 def save_restore_knobs():
-    prev = cinder.getknobs()
-    yield
-    cinder.setknobs(prev)
+    if getknobs is not None and setknobs is not None:
+        prev = getknobs()
+        yield
+        setknobs(prev)
+    else:
+        yield
 
 
 class StaticPatchTests(StaticTestBase):

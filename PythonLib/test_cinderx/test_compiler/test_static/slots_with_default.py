@@ -1,9 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import builtins
-from cinder import cached_property
 from unittest import skip
 from unittest.mock import Mock, patch
 
+from cinderx import cached_property
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 
 from .common import StaticTestBase

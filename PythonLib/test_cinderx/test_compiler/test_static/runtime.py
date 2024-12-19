@@ -2,7 +2,6 @@
 from __static__ import chkdict, int64, is_type_static, make_generic_type, StaticGeneric
 
 import asyncio
-import cinder
 import itertools
 import sys
 import time
@@ -10,6 +9,13 @@ from collections import UserDict
 from copy import deepcopy
 from typing import Optional, TypeVar
 from unittest import skip, skipIf
+
+try:
+    from cinder import _get_qualname
+except:
+    def _get_qualname(code):
+        return code.__qualname__
+
 
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -2055,11 +2061,11 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             C = mod.C
-            self.assertEqual(cinder._get_qualname(f.__code__), "f")
+            self.assertEqual(_get_qualname(f.__code__), "f")
 
-            self.assertEqual(cinder._get_qualname(C.x.__code__), "C.x")
-            self.assertEqual(cinder._get_qualname(C.sm.__code__), "C.sm")
-            self.assertEqual(cinder._get_qualname(C.cm.__code__), "C.cm")
+            self.assertEqual(_get_qualname(C.x.__code__), "C.x")
+            self.assertEqual(_get_qualname(C.sm.__code__), "C.sm")
+            self.assertEqual(_get_qualname(C.cm.__code__), "C.cm")
 
     def test_refine_optional_name(self):
         codestr = """

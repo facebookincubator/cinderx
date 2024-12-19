@@ -3,12 +3,12 @@ from __static__ import chkdict, chklist, int64
 
 import inspect
 import unittest
-from cinder import freeze_type
+from cinderx import freeze_type
 
-from inspect import CO_SUPPRESS_JIT
 from re import escape
 from unittest import skip
 
+from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.compiler.errors import TypedSyntaxError
 
 from .common import StaticTestBase, bad_ret_type

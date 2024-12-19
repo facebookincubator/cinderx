@@ -2,7 +2,7 @@
 import asyncio
 import unittest
 
-from cinder import async_cached_property, cached_property
+from cinderx import async_cached_property, cached_property
 from unittest import skip
 
 from cinderx.compiler.errors import TypedSyntaxError

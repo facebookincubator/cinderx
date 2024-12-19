@@ -4,13 +4,13 @@ from __future__ import annotations
 import ast
 import asyncio
 import builtins
-import cinder
+import cinderx
 import gc
 import os
 import re
 import symtable
 import sys
-from cinder import StrictModule
+from cinderx import StrictModule
 from contextlib import contextmanager
 from functools import wraps
 from types import CodeType, FunctionType
@@ -584,13 +584,13 @@ __slot_types__ = {slot_types!r}
 
     def setUp(self):
         # ensure clean classloader/vtable slate for all tests
-        cinder.clear_classloader_caches()
+        cinderx.clear_classloader_caches()
         # ensure our async tests don't change the event loop policy
         policy = maybe_get_event_loop_policy()
         self.addCleanup(lambda: asyncio.set_event_loop_policy(policy))
 
     def subTest(self, **kwargs):
-        cinder.clear_classloader_caches()
+        cinderx.clear_classloader_caches()
         return super().subTest(**kwargs)
 
     def make_async_func_hot(self, func):
