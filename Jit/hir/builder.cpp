@@ -7,6 +7,7 @@
 #include "ceval.h"
 #if PY_VERSION_HEX >= 0x030C0000
 #include "pycore_intrinsics.h"
+#include "pycore_runtime.h"
 #endif
 
 #include "cinderx/Common/ref.h"
@@ -3644,16 +3645,34 @@ void HIRBuilder::emitGetANext(TranslationContext& tc) {
 
 Register* HIRBuilder::emitSetupWithCommon(
     TranslationContext& tc,
+#if PY_VERSION_HEX < 0x030C0000
     _Py_Identifier* enter_id,
-    _Py_Identifier* exit_id) {
+    _Py_Identifier* exit_id
+#else
+    PyObject* enter_id,
+    PyObject* exit_id
+#endif
+) {
   // Load the enter and exit attributes from the manager, push exit, and return
   // the result of calling enter().
   auto& stack = tc.frame.stack;
   Register* manager = stack.pop();
   Register* enter = temps_.AllocateStack();
   Register* exit = temps_.AllocateStack();
-  tc.emit<LoadAttrSpecial>(enter, manager, enter_id, tc.frame);
-  tc.emit<LoadAttrSpecial>(exit, manager, exit_id, tc.frame);
+  tc.emit<LoadAttrSpecial>(
+      enter,
+      manager,
+      enter_id,
+      "'%.200s' object does not support the asynchronous context manager "
+      "protocol",
+      tc.frame);
+  tc.emit<LoadAttrSpecial>(
+      exit,
+      manager,
+      exit_id,
+      "'%.200s' object does not support the asynchronous context manager "
+      "protocol (missed __aexit__ method)",
+      tc.frame);
   stack.push(exit);
 
   Register* enter_result = temps_.AllocateStack();
@@ -3664,10 +3683,15 @@ Register* HIRBuilder::emitSetupWithCommon(
 }
 
 void HIRBuilder::emitBeforeAsyncWith(TranslationContext& tc) {
+#if PY_VERSION_HEX < 0x030C0000
   _Py_IDENTIFIER(__aenter__);
   _Py_IDENTIFIER(__aexit__);
   tc.frame.stack.push(
       emitSetupWithCommon(tc, &PyId___aenter__, &PyId___aexit__));
+#else
+  tc.frame.stack.push(
+      emitSetupWithCommon(tc, &_Py_ID(__aenter__), &_Py_ID(__aexit__)));
+#endif
 }
 
 void HIRBuilder::emitSetupAsyncWith(
@@ -3682,10 +3706,15 @@ void HIRBuilder::emitSetupAsyncWith(
 void HIRBuilder::emitSetupWith(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
+#if PY_VERSION_HEX < 0x030C0000
   _Py_IDENTIFIER(__enter__);
   _Py_IDENTIFIER(__exit__);
   Register* enter_result =
       emitSetupWithCommon(tc, &PyId___enter__, &PyId___exit__);
+#else
+  Register* enter_result =
+      emitSetupWithCommon(tc, &_Py_ID(__aenter__), &_Py_ID(__aexit__));
+#endif
   emitSetupFinally(tc, bc_instr);
   tc.frame.stack.push(enter_result);
 }

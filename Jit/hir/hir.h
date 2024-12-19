@@ -2533,26 +2533,40 @@ DEFINE_SIMPLE_INSTR(DeleteAttr, (TObject), Operands<1>, DeoptBaseWithNameIdx);
 
 // Load an attribute from an object, skipping the instance dictionary but still
 // calling descriptors as appropriate (to create bound methods, for example).
+// Note the lifetime of failure_fmt_str needs to outlive the JIT function.
 class INSTR_CLASS(
     LoadAttrSpecial,
     (TObject),
     HasOutput,
     Operands<1>,
     DeoptBase) {
+#if PY_VERSION_HEX >= 0x030C0000
+  using IDType = PyObject;
+#else
+  using IDType = _Py_Identifier;
+#endif
  public:
   LoadAttrSpecial(
       Register* dst,
       Register* receiver,
-      _Py_Identifier* id,
+      IDType* id,
+      const char* failure_fmt_str,
       const FrameState& frame)
-      : InstrT(dst, receiver, frame), id_(id) {}
+      : InstrT(dst, receiver, frame),
+        id_(id),
+        failure_fmt_str_(failure_fmt_str) {}
 
-  _Py_Identifier* id() const {
+  IDType* id() const {
     return id_;
   }
 
+  const char* failureFmtStr() const {
+    return failure_fmt_str_;
+  }
+
  private:
-  _Py_Identifier* id_;
+  IDType* id_;
+  const char* failure_fmt_str_;
 };
 
 // Format and raise an error after failing to get an iterator for 'async with'.

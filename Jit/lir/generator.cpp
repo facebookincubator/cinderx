@@ -1215,13 +1215,18 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendCallInstruction(
             instr->output(),
 #if PY_VERSION_HEX >= 0x030C0000
-            _PyObject_LookupSpecialId,
+            JITRT_LookupAttrSpecial,
 #else
             Cix_special_lookup,
             env_->asm_tstate,
 #endif
             instr->GetOperand(0),
-            instr->id());
+            instr->id()
+#if PY_VERSION_HEX >= 0x030C0000
+                ,
+            instr->failureFmtStr()
+#endif
+        );
         break;
       }
       case Opcode::kLoadTypeAttrCacheEntryType: {

@@ -494,8 +494,12 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kLoadAttrSpecial: {
       const auto& load = static_cast<const LoadAttrSpecial&>(instr);
+#if PY_VERSION_HEX < 0x030C0000
       _Py_Identifier* id = load.id();
       return fmt::format("\"{}\"", id->string);
+#else
+      return fmt::format("\"{}\"", repr(load.id()));
+#endif
     }
     case Opcode::kLoadMethod:
     case Opcode::kLoadMethodCached:

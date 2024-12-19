@@ -2018,3 +2018,20 @@ void JITRT_DecRefTotal() {
 #endif
 #endif
 }
+
+#if PY_VERSION_HEX >= 0x030C0000
+PyObject* JITRT_LookupAttrSpecial(
+    PyObject* obj,
+    PyObject* attr,
+    const char* failure_fmt_str) {
+  PyObject* res = _PyObject_LookupSpecial(obj, attr);
+  if (res == nullptr && !_PyErr_Occurred(_PyThreadState_GET())) {
+    _PyErr_Format(
+        _PyThreadState_GET(),
+        PyExc_TypeError,
+        failure_fmt_str,
+        Py_TYPE(obj)->tp_name);
+  }
+  return res;
+}
+#endif

@@ -553,3 +553,10 @@ void JITRT_FormatAwaitableError(
 
 void JITRT_IncRefTotal();
 void JITRT_DecRefTotal();
+
+#if PY_VERSION_HEX >= 0x030C0000
+PyObject* JITRT_LookupAttrSpecial(
+    PyObject* obj,
+    PyObject* attr,
+    const char* failure_fmt_str);
+#endif
