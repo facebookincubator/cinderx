@@ -154,6 +154,12 @@ dummy_func(
             PREDICT(JUMP_BACKWARD);
         }
 
+        override inst(LIST_APPEND, (list, unused[oparg-1], v -- list, unused[oparg-1])) {
+            ERROR_IF(Ci_ListOrCheckedList_Append((PyListObject*)list, v) < 0, error);
+            Py_DECREF(v);
+            PREDICT(JUMP_BACKWARD);
+        }
+
         inst(POP_JUMP_IF_ZERO, (cond --)) {
             int is_nonzero = PyObject_IsTrue(cond);
             Py_DECREF(cond);

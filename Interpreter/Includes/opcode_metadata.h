@@ -85,8 +85,6 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 2;
         case BINARY_SUBSCR_GETITEM:
             return 2;
-        case LIST_APPEND:
-            return (oparg-1) + 2;
         case SET_ADD:
             return (oparg-1) + 2;
         case STORE_SUBSCR:
@@ -397,6 +395,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case MAP_ADD:
             return 2;
+        case LIST_APPEND:
+            return (oparg-1) + 2;
         case POP_JUMP_IF_ZERO:
             return 1;
         case POP_JUMP_IF_NONZERO:
@@ -543,8 +543,6 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case BINARY_SUBSCR_GETITEM:
             return 1;
-        case LIST_APPEND:
-            return (oparg-1) + 1;
         case SET_ADD:
             return (oparg-1) + 1;
         case STORE_SUBSCR:
@@ -855,6 +853,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case MAP_ADD:
             return 0;
+        case LIST_APPEND:
+            return (oparg-1) + 1;
         case POP_JUMP_IF_ZERO:
             return 0;
         case POP_JUMP_IF_NONZERO:
@@ -968,7 +968,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [BINARY_SUBSCR_TUPLE_INT] = { true, INSTR_FMT_IXC },
     [BINARY_SUBSCR_DICT] = { true, INSTR_FMT_IXC },
     [BINARY_SUBSCR_GETITEM] = { true, INSTR_FMT_IXC },
-    [LIST_APPEND] = { true, INSTR_FMT_IB },
     [SET_ADD] = { true, INSTR_FMT_IB },
     [STORE_SUBSCR] = { true, INSTR_FMT_IXC },
     [STORE_SUBSCR_LIST_INT] = { true, INSTR_FMT_IXC },
@@ -1124,6 +1123,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [NOP] = { true, INSTR_FMT_IX },
     [EXTENDED_ARG] = { true, INSTR_FMT_IB },
     [MAP_ADD] = { true, INSTR_FMT_IB },
+    [LIST_APPEND] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_ZERO] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_NONZERO] = { true, INSTR_FMT_IB },
     [LOAD_ITERABLE_ARG] = { true, INSTR_FMT_IB },
