@@ -171,7 +171,7 @@ static inline void store_field(int field_type, void* addr, PyObject* value) {
     if (type == &PyFloat_Type && PyObject_TypeCheck(val, &PyLong_Type)) {          \
         long lval = PyLong_AsLong(val);                                            \
         Py_DECREF(val);                                                            \
-        SET_TOP(PyFloat_FromDouble(lval));                                         \
+        val = PyFloat_FromDouble(lval);                                            \
     } else {                                                                       \
         PyErr_Format(                                                              \
             PyExc_TypeError,                                                       \
