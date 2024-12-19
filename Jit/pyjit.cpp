@@ -1773,11 +1773,11 @@ int deopt_gen_impl(PyGenObject* gen) {
   }
   return 0;
 #else
-  JIT_CHECK(!Ci_GenIsExecuting(gen), "Trying to deopt a running generator");
   GenDataFooter* footer = genDataFooter(gen);
-  if (Ci_GenIsCompleted(gen) || footer == nullptr) {
+  if (footer == nullptr || Ci_GenIsCompleted(gen)) {
     return 0;
   }
+  JIT_CHECK(!Ci_GenIsExecuting(gen), "Trying to deopt a running generator");
   JIT_CHECK(
       footer->yieldPoint != nullptr,
       "Suspended JIT generator has nullptr yieldPoint");
