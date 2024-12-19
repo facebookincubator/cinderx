@@ -562,8 +562,6 @@ class StrictCodeGenBase(CinderCodeGenBase):
                 gen.emit_create_class_list()
             # create a try + finally structure where we freeze all classes
             # in the finally block
-            # TODO(T209531178): Fix the base method signature.
-            # pyre-ignore[19]: Call `CodeGenerator.emit_try_finally` expects 1 positional argument, 3 were provided.
             gen.emit_try_finally(
                 None,
                 lambda: super(StrictCodeGenBase, self).processBody(node, body, gen),

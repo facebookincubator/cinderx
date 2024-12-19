@@ -2462,7 +2462,7 @@ class CodeGenerator(ASTVisitor):
     def emit_try_except(self, node) -> None:
         raise NotImplementedError()
 
-    def emit_try_finally(self, node) -> None:
+    def emit_try_finally(self, node, try_body=None, final_body=None) -> None:
         raise NotImplementedError()
 
     def emit_yield_from(self, await_: bool = False) -> None:
@@ -4786,20 +4786,31 @@ class CodeGenerator312(CodeGenerator):
         self.emit_noline("POP_EXCEPT")
         self.emit_noline("RERAISE", 1)
 
-    def emit_try_finally(self, node, star: bool = False) -> None:
+    def emit_try_finally(
+        self, node, try_body=None, final_body=None, star: bool = False
+    ) -> None:
+        assert (
+            try_body is not None and final_body is not None
+        ) or node is not None, "should be called with nodes or body"
         body = self.newBlock("try_finally_body")
         end = self.newBlock("try_finally_end")
         exit_ = self.newBlock("try_finally_exit")
         cleanup = self.newBlock("cleanup")
 
-        final_body = lambda: self.visitStatements(node.finalbody)
+        if final_body is None:
+
+            def final_body():
+                return self.visitStatements(node.finalbody)
 
         # try block
         self.emit("SETUP_FINALLY", end)
 
         self.nextBlock(body)
         self.push_fblock(Entry(FINALLY_TRY, body, end, final_body))
-        if node.handlers:
+        assert node is not None
+        if node is None:
+            try_body()
+        elif node.handlers:
             if star:
                 self.emit_try_star_except(node)
             else:
@@ -4810,6 +4821,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit_noline("POP_BLOCK")
         self.pop_fblock(FINALLY_TRY)
         final_body()
+
         self.emit_jump_forward_noline(exit_)
 
         # finally block
