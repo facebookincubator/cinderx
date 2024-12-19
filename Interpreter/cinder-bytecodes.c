@@ -492,18 +492,22 @@ dummy_func(
             }
 
             if (oparg == SEQ_LIST) {
+                Py_INCREF(v);   // PyList_SetItem steals the reference
                 err = PyList_SetItem(sequence, idx, v);
 
                 if (err != 0) {
+                    Py_DECREF(v);
                     goto error;
                 }
             } else if (oparg == SEQ_LIST_INEXACT) {
                 if (PyList_CheckExact(sequence) ||
                     Py_TYPE(sequence)->tp_as_sequence->sq_ass_item ==
                         PyList_Type.tp_as_sequence->sq_ass_item) {
+                    Py_INCREF(v);   // PyList_SetItem steals the reference
                     err = PyList_SetItem(sequence, idx, v);
 
                     if (err != 0) {
+                        Py_DECREF(v);
                         goto error;
                     }
                 } else {
@@ -513,9 +517,11 @@ dummy_func(
                     }
                 }
             } else if (oparg == SEQ_ARRAY_INT64) {
+                Py_INCREF(v);   // _Ci_StaticArray_Set steals the reference
                 err = _Ci_StaticArray_Set(sequence, idx, v);
 
                 if (err != 0) {
+                    Py_DECREF(v);
                     goto error;
                 }
             } else {
