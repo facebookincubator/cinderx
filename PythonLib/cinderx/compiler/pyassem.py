@@ -593,6 +593,9 @@ class PyFlowGraph(FlowGraph):
     def emit_call_one_arg(self) -> None:
         raise NotImplementedError()
 
+    def emit_super_call(self, name: str, is_zero: bool) -> None:
+        raise NotImplementedError()
+
     def setFlag(self, flag: int) -> None:
         self.flags |= flag
 
@@ -1364,6 +1367,9 @@ class PyFlowGraph310(PyFlowGraph):
 class PyFlowGraphCinder(PyFlowGraph310):
     opcode = cinder_opcode
 
+    def emit_super_call(self, name: str, is_zero: bool) -> None:
+        self.emit("LOAD_METHOD_SUPER", (name, is_zero))
+
     def make_code(self, nlocals, code, consts, firstline: int, lnotab) -> CodeType:
         if self.scope is not None and self.scope.suppress_jit:
             self.setFlag(CO_SUPPRESS_JIT)
@@ -1413,6 +1419,10 @@ class PyFlowGraph312(PyFlowGraph):
 
     def emit_call_one_arg(self) -> None:
         self.emit("CALL", 0)
+
+    def emit_super_call(self, name: str, is_zero: bool) -> None:
+        op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
+        self.emit("LOAD_SUPER_ATTR", (op, name, is_zero))
 
     def is_exit_without_line_number(self, target: Block) -> bool:
         if not target.is_exit:

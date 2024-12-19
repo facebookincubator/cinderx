@@ -5967,7 +5967,7 @@ class Dataclass(Class):
         graph.emit("LOAD_GLOBAL", "super")
         graph.emit("LOAD_CLASS", self.type_descr)
         graph.emit("LOAD_FAST", "self")
-        graph.emit("LOAD_METHOD_SUPER", (method_name, False))
+        graph.emit_super_call(method_name, False)
         graph.emit("LOAD_FAST", "name")
         if delete:
             graph.emit("CALL_METHOD", 1)
