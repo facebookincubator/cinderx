@@ -447,7 +447,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
             init_graph.emit("LOAD_DEREF", "__class__")
             init_graph.emit("LOAD_FAST", "cls")
             init_graph.emit_super_call("__init_subclass__", True)
-            init_graph.emit("CALL_METHOD", 0)
+            init_graph.emit_call_method(0)
             init_graph.emit("POP_TOP")
 
             init_graph.emit("LOAD_FAST", "cls")

@@ -5955,12 +5955,12 @@ class Dataclass(Class):
 
         graph.nextBlock(error)
         graph.emit("LOAD_CLASS", self.type_descr)
-        graph.emit("LOAD_METHOD", "_FrozenInstanceError")
+        graph.emit_load_method("_FrozenInstanceError")
         graph.emit("LOAD_CONST", msg)
         graph.emit("LOAD_FAST", "name")
         graph.emit("FORMAT_VALUE", FVC_REPR)
         graph.emit("BUILD_STRING", 2)
-        graph.emit("CALL_METHOD", 1)
+        graph.emit_call_method(1)
         graph.emit("RAISE_VARARGS", 1)
 
         graph.nextBlock(super_call)
@@ -5970,10 +5970,10 @@ class Dataclass(Class):
         graph.emit_super_call(method_name, False)
         graph.emit("LOAD_FAST", "name")
         if delete:
-            graph.emit("CALL_METHOD", 1)
+            graph.emit_call_method(1)
         else:
             graph.emit("LOAD_FAST", "value")
-            graph.emit("CALL_METHOD", 2)
+            graph.emit_call_method(2)
         graph.emit("POP_TOP")
         graph.emit("LOAD_CONST", None)
         graph.emit("RETURN_VALUE")
@@ -6051,8 +6051,8 @@ class Dataclass(Class):
 
                 graph.nextBlock()
                 graph.emit("LOAD_CLASS", self.type_descr)
-                graph.emit("LOAD_METHOD", name)
-                graph.emit("CALL_METHOD", 0)
+                graph.emit_load_method(name)
+                graph.emit_call_method(0)
                 graph.emit("CAST", field.unwrapped_descr)
                 graph.emit_jump_forward(store)
 
@@ -6064,8 +6064,8 @@ class Dataclass(Class):
                 graph.emit("STORE_FIELD", field.type_descr)
             else:
                 graph.emit("LOAD_CLASS", self.type_descr)
-                graph.emit("LOAD_METHOD", name)
-                graph.emit("CALL_METHOD", 0)
+                graph.emit_load_method(name)
+                graph.emit_call_method(0)
                 graph.emit("CAST", field.unwrapped_descr)
                 graph.emit("LOAD_FAST", self_name)
                 graph.emit("STORE_FIELD", field.type_descr)
@@ -6077,10 +6077,10 @@ class Dataclass(Class):
                 if field.kind is DataclassFieldKind.INITVAR
             ]
             graph.emit("LOAD_FAST", self_name)
-            graph.emit("LOAD_METHOD", "__post_init__")
+            graph.emit_load_method("__post_init__")
             for name in initvar_names:
                 graph.emit("LOAD_FAST", name)
-            graph.emit("CALL_METHOD", len(initvar_names))
+            graph.emit_call_method(len(initvar_names))
             graph.emit("POP_TOP")
 
         graph.emit("LOAD_CONST", None)
@@ -6136,9 +6136,9 @@ class Dataclass(Class):
 
         # Wrap the simple __repr__ function with reprlib.recursive_repr
         # to prevent infinite loops if any field contains a cycle
+        code_gen.emit_prepare_call()
         code_gen.emit("LOAD_CONST", 0)
         code_gen.emit("LOAD_CONST", ("recursive_repr",))
-        code_gen.emit_prepare_call()
         code_gen.emit("IMPORT_NAME", "reprlib")
         code_gen.emit("IMPORT_FROM", "recursive_repr")
         code_gen.emit_rotate_stack(2)

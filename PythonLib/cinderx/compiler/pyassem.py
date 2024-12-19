@@ -596,6 +596,12 @@ class PyFlowGraph(FlowGraph):
     def emit_super_call(self, name: str, is_zero: bool) -> None:
         raise NotImplementedError()
 
+    def emit_load_method(self, name: str) -> None:
+        raise NotImplementedError()
+
+    def emit_call_method(self, argcnt: int) -> None:
+        raise NotImplementedError()
+
     def setFlag(self, flag: int) -> None:
         self.flags |= flag
 
@@ -1261,6 +1267,12 @@ class PyFlowGraph310(PyFlowGraph):
     def emit_call_one_arg(self) -> None:
         self.emit("CALL_FUNCTION", 1)
 
+    def emit_load_method(self, name: str) -> None:
+        self.emit("LOAD_METHOD", name)
+
+    def emit_call_method(self, argcnt: int) -> None:
+        self.emit("CALL_METHOD", argcnt)
+
     def is_exit_without_line_number(self, target: Block) -> bool:
         return target.is_exit and target.insts[0].lineno < 0
 
@@ -1419,6 +1431,12 @@ class PyFlowGraph312(PyFlowGraph):
 
     def emit_call_one_arg(self) -> None:
         self.emit("CALL", 0)
+
+    def emit_load_method(self, name: str) -> None:
+        self.emit("LOAD_ATTR", (name, 1))
+
+    def emit_call_method(self, argcnt: int) -> None:
+        self.emit("CALL", argcnt)
 
     def emit_super_call(self, name: str, is_zero: bool) -> None:
         op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
