@@ -83,6 +83,8 @@ import ast
 import builtins
 import dataclasses
 
+import sys
+
 from ast import (
     AnnAssign,
     Assign,
@@ -6249,7 +6251,14 @@ class Dataclass(Class):
         code_gen.emit("LOAD_CONST", self.order)
         code_gen.emit("LOAD_CONST", self.unsafe_hash)
         code_gen.emit("LOAD_CONST", self.frozen)
-        code_gen.emit_call(6)
+        if sys.version_info >= (3, 12):
+            code_gen.emit("LOAD_CONST", False)  # match_args
+            code_gen.emit("LOAD_CONST", False)  # kw_only
+            code_gen.emit("LOAD_CONST", None)  # slots
+            code_gen.emit("LOAD_CONST", False)  # weakref_slot
+            code_gen.emit_call(10)
+        else:
+            code_gen.emit_call(6)
         code_gen.emit("STORE_NAME", "__dataclass_params__")
 
         if self.generate_init:
