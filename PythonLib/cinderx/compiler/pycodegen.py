@@ -4404,7 +4404,7 @@ class CodeGenerator312(CodeGenerator):
             gen.emit("LOAD_CONST", doc)
             gen.storeName("__doc__")
 
-        walk(self.skip_docstring(node.body), gen)
+        self.walkClassBody(node, gen)
 
     def compile_class_body(
         self, node: ast.ClassDef, first_lineno: int
