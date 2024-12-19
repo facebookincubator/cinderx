@@ -5869,9 +5869,9 @@ class Dataclass(Class):
         graph: PyFlowGraph310Static,
         oparg: int,
     ) -> None:
-        code_gen.emit("LOAD_CONST", graph)
-        code_gen.emit("LOAD_CONST", f"{self.type_name.qualname}.{graph.name}")
-        code_gen.emit("MAKE_FUNCTION", oparg)
+        code_gen.emit_make_function(
+            graph, f"{self.type_name.qualname}.{graph.name}", oparg
+        )
         code_gen.emit("STORE_NAME", graph.name)
 
     def emit_dunder_comparison(
@@ -6146,9 +6146,7 @@ class Dataclass(Class):
         code_gen.emit_rotate_stack(2)
         code_gen.emit("POP_TOP")
         code_gen.emit_call(0)
-        code_gen.emit("LOAD_CONST", graph)
-        code_gen.emit("LOAD_CONST", f"{self.type_name.qualname}.{graph.name}")
-        code_gen.emit("MAKE_FUNCTION", 0)
+        code_gen.emit_make_function(graph, f"{self.type_name.qualname}.{graph.name}", 0)
         code_gen.emit_call_one_arg()
         code_gen.emit("STORE_NAME", "__repr__")
 

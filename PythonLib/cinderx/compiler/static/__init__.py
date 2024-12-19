@@ -456,14 +456,12 @@ class StaticCodeGenBase(StrictCodeGenBase):
 
             gen.emit("LOAD_CLOSURE", "__class__")
             gen.emit("BUILD_TUPLE", 1)
-            gen.emit(
-                "LOAD_CONST",
-                InitSubClassGenerator(
-                    init_graph, self.get_qual_prefix(gen) + ".__init_subclass__"
-                ),
+            init_gen = InitSubClassGenerator(
+                init_graph, self.get_qual_prefix(gen) + ".__init_subclass__"
             )
-            gen.emit("LOAD_CONST", self.get_qual_prefix(gen) + ".__init_subclass__")
-            gen.emit("MAKE_FUNCTION", 8)
+            gen.emit_make_function(
+                init_gen, self.get_qual_prefix(gen) + ".__init_subclass__", 8
+            )
             gen.emit("STORE_NAME", "__init_subclass__")
 
         assert isinstance(gen, Static310CodeGenerator)

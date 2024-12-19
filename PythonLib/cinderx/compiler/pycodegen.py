@@ -13,7 +13,8 @@ from ast import AST, ClassDef
 from builtins import compile as builtin_compile
 from contextlib import contextmanager
 from enum import IntEnum
-from typing import cast, NoReturn, Type, Union
+from types import CodeType
+from typing import cast, Protocol, Type, Union
 
 from .consts import (
     CO_ASYNC_GENERATOR,
@@ -2424,6 +2425,23 @@ class CodeGenerator(ASTVisitor):
         raise NotImplementedError()
 
     def emit_closure(self, gen: CodeGenerator, flags: int) -> None:
+        prefix = ""
+        # pyre-ignore[16]: Module `ast` has no attribute `TypeVar`.
+        if not isinstance(gen.tree, self.unqualified_asts):
+            prefix = self.get_qual_prefix(gen)
+
+        frees = gen.scope.get_free_vars()
+        if frees:
+            for name in frees:
+                self.emit("LOAD_CLOSURE", name)
+            self.emit("BUILD_TUPLE", len(frees))
+            flags |= 0x08
+
+        self.emit_make_function(gen, prefix + gen.name, flags)
+
+    def emit_make_function(
+        self, gen: CodeHolder | CodeGenerator | PyFlowGraph, qualname: str, flags: int
+    ) -> None:
         raise NotImplementedError()
 
     def emit_call_one_arg(self) -> None:
@@ -2502,6 +2520,7 @@ class ResumeOparg(IntEnum):
 class CodeGenerator310(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = PyFlowGraph310
     _SymbolVisitor = SymbolVisitor310
+    unqualified_asts = (ast.ClassDef,)
 
     def __init__(
         self,
@@ -2781,21 +2800,13 @@ class CodeGenerator310(CodeGenerator):
             parent = parent.parent
         return prefix
 
-    def emit_closure(self, gen: CodeGenerator, flags: int) -> None:
-        prefix = ""
-        if not isinstance(gen.tree, ast.ClassDef):
-            prefix = self.get_qual_prefix(gen)
-
-        frees = gen.scope.get_free_vars()
-        if frees:
-            for name in frees:
-                self.emit("LOAD_CLOSURE", name)
-            self.emit("BUILD_TUPLE", len(frees))
-            flags |= 0x08
-
-        gen.set_qual_name(prefix + gen.name)
+    def emit_make_function(
+        self, gen: CodeHolder | CodeGenerator | PyFlowGraph, qualname: str, flags: int
+    ) -> None:
+        if isinstance(gen, CodeGenerator):
+            gen.set_qual_name(qualname)
         self.emit("LOAD_CONST", gen)
-        self.emit("LOAD_CONST", prefix + gen.name)  # py3 qualname
+        self.emit("LOAD_CONST", qualname)  # py3 qualname
         self.emit("MAKE_FUNCTION", flags)
 
     # Comprehensions --------------------------------------------------
@@ -3541,6 +3552,8 @@ class CodeGenerator310(CodeGenerator):
 class CodeGenerator312(CodeGenerator):
     flow_graph: Type[PyFlowGraph] = PyFlowGraph312
     _SymbolVisitor = SymbolVisitor312
+    # pyre-ignore[16]: No such attribute
+    unqualified_asts = (ast.ClassDef, getattr(ast, "TypeVar", None))
 
     def __init__(
         self,
@@ -4632,20 +4645,13 @@ class CodeGenerator312(CodeGenerator):
             parent = parent.parent
         return prefix
 
-    def emit_closure(self, gen: CodeGenerator, flags: int) -> None:
-        prefix = ""
-        # pyre-ignore[16]: Module `ast` has no attribute `TypeVar`.
-        if not isinstance(gen.tree, (ast.ClassDef, ast.TypeVar)):
-            prefix = self.get_qual_prefix(gen)
-
-        frees = gen.scope.get_free_vars()
-        if frees:
-            for name in frees:
-                self.emit("LOAD_CLOSURE", name)
-            self.emit("BUILD_TUPLE", len(frees))
-            flags |= 0x08
-
-        gen.set_qual_name(prefix + gen.name)
+    def emit_make_function(
+        self, gen: CodeHolder | CodeGenerator | PyFlowGraph, qualname: str, flags: int
+    ) -> None:
+        if isinstance(gen, CodeGenerator):
+            gen.set_qual_name(qualname)
+        elif isinstance(gen, PyFlowGraph312):
+            gen.qualname = qualname
         self.emit("LOAD_CONST", gen)
         self.emit("MAKE_FUNCTION", flags)
 
@@ -5721,6 +5727,10 @@ class OpFinder:
 
 CinderCodeGenerator = CinderCodeGenerator310
 PythonCodeGenerator = get_default_generator()
+
+
+class CodeHolder(Protocol):
+    def getCode(self) -> CodeType: ...
 
 
 if __name__ == "__main__":
