@@ -295,20 +295,14 @@ static PyObject* ctxmgrwrp_exit(
     }
     PyException_SetTraceback(val, tb);
 
-#if PY_VERSION_HEX < 0x030C0000
     if (ctxmgr != NULL) {
       assert(Py_TYPE(exit)->tp_flags & Py_TPFLAGS_METHOD_DESCRIPTOR);
       PyObject* stack[] = {(PyObject*)ctxmgr, exc, val, tb};
-      ret = _PyObject_Vectorcall(
-          exit, stack, 4 | Ci_Py_VECTORCALL_INVOKED_METHOD, NULL);
+      ret = _PyObject_Vectorcall(exit, stack, 4, NULL);
     } else {
       PyObject* stack[] = {exc, val, tb};
-      ret = _PyObject_Vectorcall(
-          exit, stack, 3 | Ci_Py_VECTORCALL_INVOKED_METHOD, NULL);
+      ret = _PyObject_Vectorcall(exit, stack, 3, NULL);
     }
-#else
-    UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
     if (ret == NULL) {
       Py_DECREF(exc);
       Py_DECREF(val);
@@ -343,26 +337,20 @@ static PyObject* ctxmgrwrp_exit(
     }
     Py_RETURN_NONE;
   } else {
-#if PY_VERSION_HEX < 0x030C0000
     PyObject* ret;
     if (ctxmgr != NULL) {
       /* we picked up a method like object and have self for it */
       assert(Py_TYPE(exit)->tp_flags & Py_TPFLAGS_METHOD_DESCRIPTOR);
       PyObject* stack[] = {(PyObject*)ctxmgr, Py_None, Py_None, Py_None};
-      ret = _PyObject_Vectorcall(
-          exit, stack, 4 | Ci_Py_VECTORCALL_INVOKED_METHOD, NULL);
+      ret = _PyObject_Vectorcall(exit, stack, 4, NULL);
     } else {
       PyObject* stack[] = {Py_None, Py_None, Py_None};
-      ret = _PyObject_Vectorcall(
-          exit, stack, 3 | Ci_Py_VECTORCALL_INVOKED_METHOD, NULL);
+      ret = _PyObject_Vectorcall(exit, stack, 3, NULL);
     }
     if (ret == NULL) {
       goto error;
     }
     Py_DECREF(ret);
-#else
-    UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-#endif
   }
 
   return result;
@@ -398,25 +386,18 @@ static PyObject* get_descr(PyObject* obj, PyObject* self) {
 
 static PyObject*
 call_with_self(PyThreadState* tstate, PyObject* func, PyObject* self) {
-#if PY_VERSION_HEX < 0x030C0000
   if (Py_TYPE(func)->tp_flags & Py_TPFLAGS_METHOD_DESCRIPTOR) {
     PyObject* args[1] = {self};
-    return _PyObject_VectorcallTstate(
-        tstate, func, args, 1 | Ci_Py_VECTORCALL_INVOKED_METHOD, NULL);
+    return _PyObject_VectorcallTstate(tstate, func, args, 1, NULL);
   } else {
     func = get_descr(func, self);
     if (func == NULL) {
       return NULL;
     }
-    PyObject* ret = _PyObject_VectorcallTstate(
-        tstate, func, NULL, 0 | Ci_Py_VECTORCALL_INVOKED_METHOD, NULL);
+    PyObject* ret = _PyObject_VectorcallTstate(tstate, func, NULL, 0, NULL);
     Py_DECREF(func);
     return ret;
   }
-#else
-  UPGRADE_ASSERT(NEED_STATIC_FLAGS)
-  return NULL;
-#endif
 }
 
 static PyObject* ctxmgrwrp_enter(
