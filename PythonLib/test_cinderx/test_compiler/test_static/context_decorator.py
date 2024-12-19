@@ -995,6 +995,7 @@ class ContextDecoratorTests(StaticTestBase):
         finally:
             loop.close()
 
+    @skipIf(sys.version_info >= (3, 12), "No working get_await_stack T201015581")
     def test_stack_trace(self):
         coro = None
         await_stack = None
@@ -1018,6 +1019,7 @@ class ContextDecoratorTests(StaticTestBase):
         asyncio.run(g_coro)
         self.assertEqual(await_stack, [g_coro])
 
+    @skipIf(sys.version_info >= (3, 12), "No working get_await_stack T201015581")
     def test_stack_trace_non_eager(self):
         coro = None
         await_stack = None
