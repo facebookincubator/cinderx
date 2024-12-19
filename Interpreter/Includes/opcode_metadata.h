@@ -11,6 +11,8 @@ extern int _PyOpcode_num_popped(int opcode, int oparg, bool jump);
 int
 _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
     switch(opcode) {
+        case NOP:
+            return 0;
         case RESUME:
             return 0;
         case INSTRUMENTED_RESUME:
@@ -112,10 +114,6 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
         case INSTRUMENTED_RETURN_CONST:
             return 0;
         case GET_AITER:
-            return 1;
-        case GET_ANEXT:
-            return 1;
-        case GET_AWAITABLE:
             return 1;
         case SEND:
             return 2;
@@ -285,8 +283,6 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 2;
         case GET_ITER:
             return 1;
-        case GET_YIELD_FROM_ITER:
-            return 1;
         case FOR_ITER:
             return 1;
         case INSTRUMENTED_FOR_ITER:
@@ -389,8 +385,12 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case RESERVED:
             return 0;
-        case NOP:
-            return 0;
+        case GET_AWAITABLE:
+            return 1;
+        case GET_ANEXT:
+            return 1;
+        case GET_YIELD_FROM_ITER:
+            return 1;
         case EXTENDED_ARG:
             return 0;
         case MAP_ADD:
@@ -469,6 +469,8 @@ extern int _PyOpcode_num_pushed(int opcode, int oparg, bool jump);
 int
 _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
     switch(opcode) {
+        case NOP:
+            return 0;
         case RESUME:
             return 0;
         case INSTRUMENTED_RESUME:
@@ -570,10 +572,6 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
         case INSTRUMENTED_RETURN_CONST:
             return 0;
         case GET_AITER:
-            return 1;
-        case GET_ANEXT:
-            return 2;
-        case GET_AWAITABLE:
             return 1;
         case SEND:
             return 2;
@@ -743,8 +741,6 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 3;
         case GET_ITER:
             return 1;
-        case GET_YIELD_FROM_ITER:
-            return 1;
         case FOR_ITER:
             return 2;
         case INSTRUMENTED_FOR_ITER:
@@ -847,8 +843,12 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case RESERVED:
             return 0;
-        case NOP:
-            return 0;
+        case GET_AWAITABLE:
+            return 1;
+        case GET_ANEXT:
+            return 2;
+        case GET_YIELD_FROM_ITER:
+            return 1;
         case EXTENDED_ARG:
             return 0;
         case MAP_ADD:
@@ -931,6 +931,7 @@ struct opcode_metadata {
 extern const struct opcode_metadata _PyOpcode_opcode_metadata[256];
 #else
 const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
+    [NOP] = { true, INSTR_FMT_IX },
     [RESUME] = { true, INSTR_FMT_IB },
     [INSTRUMENTED_RESUME] = { true, INSTR_FMT_IB },
     [LOAD_CLOSURE] = { true, INSTR_FMT_IB },
@@ -982,8 +983,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [RETURN_CONST] = { true, INSTR_FMT_IB },
     [INSTRUMENTED_RETURN_CONST] = { true, INSTR_FMT_IB },
     [GET_AITER] = { true, INSTR_FMT_IX },
-    [GET_ANEXT] = { true, INSTR_FMT_IX },
-    [GET_AWAITABLE] = { true, INSTR_FMT_IB },
     [SEND] = { true, INSTR_FMT_IBC },
     [SEND_GEN] = { true, INSTR_FMT_IBC },
     [INSTRUMENTED_YIELD_VALUE] = { true, INSTR_FMT_IX },
@@ -1068,7 +1067,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [MATCH_SEQUENCE] = { true, INSTR_FMT_IX },
     [MATCH_KEYS] = { true, INSTR_FMT_IX },
     [GET_ITER] = { true, INSTR_FMT_IX },
-    [GET_YIELD_FROM_ITER] = { true, INSTR_FMT_IX },
     [FOR_ITER] = { true, INSTR_FMT_IBC },
     [INSTRUMENTED_FOR_ITER] = { true, INSTR_FMT_IB },
     [FOR_ITER_LIST] = { true, INSTR_FMT_IBC },
@@ -1120,7 +1118,9 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [INSTRUMENTED_POP_JUMP_IF_NOT_NONE] = { true, INSTR_FMT_IB },
     [CACHE] = { true, INSTR_FMT_IX },
     [RESERVED] = { true, INSTR_FMT_IX },
-    [NOP] = { true, INSTR_FMT_IX },
+    [GET_AWAITABLE] = { true, INSTR_FMT_IB },
+    [GET_ANEXT] = { true, INSTR_FMT_IX },
+    [GET_YIELD_FROM_ITER] = { true, INSTR_FMT_IX },
     [EXTENDED_ARG] = { true, INSTR_FMT_IB },
     [MAP_ADD] = { true, INSTR_FMT_IB },
     [LIST_APPEND] = { true, INSTR_FMT_IB },

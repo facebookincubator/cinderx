@@ -5,7 +5,9 @@
 //   ../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c
 // Do not edit!
 
-        // TARGET(NOP) overridden by later definition
+        TARGET(NOP) {
+            DISPATCH();
+        }
 
         TARGET(RESUME) {
             #line 141 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
@@ -20,7 +22,7 @@
             else if (_Py_atomic_load_relaxed_int32(&tstate->interp->ceval.eval_breaker) && oparg < 2) {
                 goto handle_eval_breaker;
             }
-            #line 23 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 25 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -51,7 +53,7 @@
                     goto handle_eval_breaker;
                 }
             }
-            #line 54 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 56 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -62,7 +64,7 @@
             value = GETLOCAL(oparg);
             if (value == NULL) goto unbound_local_error;
             Py_INCREF(value);
-            #line 65 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 67 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -74,7 +76,7 @@
             value = GETLOCAL(oparg);
             if (value == NULL) goto unbound_local_error;
             Py_INCREF(value);
-            #line 77 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 79 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -86,7 +88,7 @@
             value = GETLOCAL(oparg);
             assert(value != NULL);
             Py_INCREF(value);
-            #line 89 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 91 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -98,7 +100,7 @@
             value = GETLOCAL(oparg);
             // do not use SETLOCAL here, it decrefs the old value
             GETLOCAL(oparg) = NULL;
-            #line 101 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 103 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -110,7 +112,7 @@
             #line 208 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             value = GETITEM(frame->f_code->co_consts, oparg);
             Py_INCREF(value);
-            #line 113 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 115 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -120,7 +122,7 @@
             PyObject *value = stack_pointer[-1];
             #line 213 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             SETLOCAL(oparg, value);
-            #line 123 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 125 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -134,7 +136,7 @@
                 value = GETLOCAL(oparg);
                 assert(value != NULL);
                 Py_INCREF(value);
-                #line 137 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 139 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 _tmp_2 = value;
             }
             oparg = (next_instr++)->op.arg;
@@ -144,7 +146,7 @@
                 value = GETLOCAL(oparg);
                 assert(value != NULL);
                 Py_INCREF(value);
-                #line 147 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 149 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 _tmp_1 = value;
             }
             STACK_GROW(2);
@@ -162,7 +164,7 @@
                 value = GETLOCAL(oparg);
                 assert(value != NULL);
                 Py_INCREF(value);
-                #line 165 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 167 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 _tmp_2 = value;
             }
             oparg = (next_instr++)->op.arg;
@@ -171,7 +173,7 @@
                 #line 208 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 value = GETITEM(frame->f_code->co_consts, oparg);
                 Py_INCREF(value);
-                #line 174 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 176 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 _tmp_1 = value;
             }
             STACK_GROW(2);
@@ -186,7 +188,7 @@
                 PyObject *value = _tmp_1;
                 #line 213 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 SETLOCAL(oparg, value);
-                #line 189 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 191 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             }
             oparg = (next_instr++)->op.arg;
             {
@@ -195,7 +197,7 @@
                 value = GETLOCAL(oparg);
                 assert(value != NULL);
                 Py_INCREF(value);
-                #line 198 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 200 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 _tmp_1 = value;
             }
             stack_pointer[-1] = _tmp_1;
@@ -209,14 +211,14 @@
                 PyObject *value = _tmp_1;
                 #line 213 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 SETLOCAL(oparg, value);
-                #line 212 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 214 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             }
             oparg = (next_instr++)->op.arg;
             {
                 PyObject *value = _tmp_2;
                 #line 213 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 SETLOCAL(oparg, value);
-                #line 219 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 221 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             }
             STACK_SHRINK(2);
             DISPATCH();
@@ -230,7 +232,7 @@
                 #line 208 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 value = GETITEM(frame->f_code->co_consts, oparg);
                 Py_INCREF(value);
-                #line 233 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 235 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 _tmp_2 = value;
             }
             oparg = (next_instr++)->op.arg;
@@ -240,7 +242,7 @@
                 value = GETLOCAL(oparg);
                 assert(value != NULL);
                 Py_INCREF(value);
-                #line 243 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 245 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 _tmp_1 = value;
             }
             STACK_GROW(2);
@@ -252,7 +254,7 @@
         TARGET(POP_TOP) {
             PyObject *value = stack_pointer[-1];
             #line 223 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
-            #line 255 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 257 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(value);
             STACK_SHRINK(1);
             DISPATCH();
@@ -262,7 +264,7 @@
             PyObject *res;
             #line 227 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             res = NULL;
-            #line 265 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 267 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -274,13 +276,13 @@
             {
                 PyObject *value = _tmp_1;
                 #line 223 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
-                #line 277 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 279 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(value);
             }
             {
                 PyObject *value = _tmp_2;
                 #line 223 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
-                #line 283 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                #line 285 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(value);
             }
             STACK_SHRINK(2);
@@ -300,7 +302,7 @@
                 }
                 PyErr_SetRaisedException(NULL);
             }
-            #line 303 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 305 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(receiver);
             Py_DECREF(value);
             STACK_SHRINK(2);
@@ -312,7 +314,7 @@
             PyObject *receiver = stack_pointer[-2];
             #line 246 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             Py_DECREF(receiver);
-            #line 315 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 317 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -330,7 +332,7 @@
                 PyErr_SetRaisedException(NULL);
             }
             Py_DECREF(receiver);
-            #line 333 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 335 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -341,11 +343,11 @@
             PyObject *res;
             #line 261 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             res = PyNumber_Negative(value);
-            #line 344 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 346 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(value);
             #line 263 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_1_error;
-            #line 348 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 350 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = res;
             DISPATCH();
         }
@@ -355,7 +357,7 @@
             PyObject *res;
             #line 267 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             int err = PyObject_IsTrue(value);
-            #line 358 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 360 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(value);
             #line 269 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (err < 0) goto pop_1_error;
@@ -365,7 +367,7 @@
             else {
                 res = Py_False;
             }
-            #line 368 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 370 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = res;
             DISPATCH();
         }
@@ -375,11 +377,11 @@
             PyObject *res;
             #line 279 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             res = PyNumber_Invert(value);
-            #line 378 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 380 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(value);
             #line 281 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_1_error;
-            #line 382 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 384 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = res;
             DISPATCH();
         }
@@ -396,7 +398,7 @@
             _Py_DECREF_SPECIALIZED(right, (destructor)PyObject_Free);
             _Py_DECREF_SPECIALIZED(left, (destructor)PyObject_Free);
             if (prod == NULL) goto pop_2_error;
-            #line 399 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 401 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = prod;
             next_instr += 1;
@@ -414,7 +416,7 @@
             double dprod = ((PyFloatObject *)left)->ob_fval *
                 ((PyFloatObject *)right)->ob_fval;
             DECREF_INPUTS_AND_REUSE_FLOAT(left, right, dprod, prod);
-            #line 417 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 419 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = prod;
             next_instr += 1;
@@ -433,7 +435,7 @@
             _Py_DECREF_SPECIALIZED(right, (destructor)PyObject_Free);
             _Py_DECREF_SPECIALIZED(left, (destructor)PyObject_Free);
             if (sub == NULL) goto pop_2_error;
-            #line 436 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 438 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = sub;
             next_instr += 1;
@@ -450,7 +452,7 @@
             STAT_INC(BINARY_OP, hit);
             double dsub = ((PyFloatObject *)left)->ob_fval - ((PyFloatObject *)right)->ob_fval;
             DECREF_INPUTS_AND_REUSE_FLOAT(left, right, dsub, sub);
-            #line 453 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 455 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = sub;
             next_instr += 1;
@@ -469,7 +471,7 @@
             _Py_DECREF_SPECIALIZED(left, _PyUnicode_ExactDealloc);
             _Py_DECREF_SPECIALIZED(right, _PyUnicode_ExactDealloc);
             if (res == NULL) goto pop_2_error;
-            #line 472 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 474 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             next_instr += 1;
@@ -506,7 +508,7 @@
             if (*target_local == NULL) goto pop_2_error;
             // The STORE_FAST is already done.
             JUMPBY(INLINE_CACHE_ENTRIES_BINARY_OP + 1);
-            #line 509 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 511 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             DISPATCH();
         }
@@ -522,7 +524,7 @@
             double dsum = ((PyFloatObject *)left)->ob_fval +
                 ((PyFloatObject *)right)->ob_fval;
             DECREF_INPUTS_AND_REUSE_FLOAT(left, right, dsum, sum);
-            #line 525 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 527 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = sum;
             next_instr += 1;
@@ -541,7 +543,7 @@
             _Py_DECREF_SPECIALIZED(right, (destructor)PyObject_Free);
             _Py_DECREF_SPECIALIZED(left, (destructor)PyObject_Free);
             if (sum == NULL) goto pop_2_error;
-            #line 544 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 546 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = sum;
             next_instr += 1;
@@ -566,12 +568,12 @@
             DECREMENT_ADAPTIVE_COUNTER(cache->counter);
             #endif  /* ENABLE_SPECIALIZATION */
             res = PyObject_GetItem(container, sub);
-            #line 569 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 571 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(container);
             Py_DECREF(sub);
             #line 419 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_2_error;
-            #line 574 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 576 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             next_instr += 1;
@@ -596,7 +598,7 @@
             }
             Py_DECREF(container);
             if (res == NULL) goto pop_3_error;
-            #line 599 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 601 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -620,7 +622,7 @@
             Py_DECREF(v);
             Py_DECREF(container);
             if (err) goto pop_4_error;
-            #line 623 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 625 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(4);
             DISPATCH();
         }
@@ -643,7 +645,7 @@
             Py_INCREF(res);
             _Py_DECREF_SPECIALIZED(sub, (destructor)PyObject_Free);
             Py_DECREF(list);
-            #line 646 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 648 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             next_instr += 1;
@@ -668,7 +670,7 @@
             Py_INCREF(res);
             _Py_DECREF_SPECIALIZED(sub, (destructor)PyObject_Free);
             Py_DECREF(tuple);
-            #line 671 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 673 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             next_instr += 1;
@@ -687,14 +689,14 @@
                 if (!_PyErr_Occurred(tstate)) {
                     _PyErr_SetKeyError(sub);
                 }
-            #line 690 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 692 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(dict);
                 Py_DECREF(sub);
             #line 493 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 if (true) goto pop_2_error;
             }
             Py_INCREF(res);  // Do this before DECREF'ing dict, sub
-            #line 697 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 699 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(dict);
             Py_DECREF(sub);
             STACK_SHRINK(1);
@@ -729,7 +731,7 @@
             JUMPBY(INLINE_CACHE_ENTRIES_BINARY_SUBSCR);
             frame->return_offset = 0;
             DISPATCH_INLINED(new_frame);
-            #line 732 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 734 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         // TARGET(LIST_APPEND) overridden by later definition
@@ -739,11 +741,11 @@
             PyObject *set = stack_pointer[-(2 + (oparg-1))];
             #line 530 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             int err = PySet_Add(set, v);
-            #line 742 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 744 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(v);
             #line 532 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (err) goto pop_1_error;
-            #line 746 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 748 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             PREDICT(JUMP_BACKWARD);
             DISPATCH();
@@ -771,13 +773,13 @@
             #endif  /* ENABLE_SPECIALIZATION */
             /* container[sub] = v */
             int err = PyObject_SetItem(container, sub, v);
-            #line 774 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 776 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(v);
             Py_DECREF(container);
             Py_DECREF(sub);
             #line 558 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (err) goto pop_3_error;
-            #line 780 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 782 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(3);
             next_instr += 1;
             DISPATCH();
@@ -804,7 +806,7 @@
             Py_DECREF(old_value);
             _Py_DECREF_SPECIALIZED(sub, (destructor)PyObject_Free);
             Py_DECREF(list);
-            #line 807 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 809 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(3);
             next_instr += 1;
             DISPATCH();
@@ -820,7 +822,7 @@
             int err = _PyDict_SetItem_Take2((PyDictObject *)dict, sub, value);
             Py_DECREF(dict);
             if (err) goto pop_3_error;
-            #line 823 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 825 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(3);
             next_instr += 1;
             DISPATCH();
@@ -832,12 +834,12 @@
             #line 589 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             /* del container[sub] */
             int err = PyObject_DelItem(container, sub);
-            #line 835 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 837 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(container);
             Py_DECREF(sub);
             #line 592 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (err) goto pop_2_error;
-            #line 840 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 842 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             DISPATCH();
         }
@@ -848,11 +850,11 @@
             #line 596 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(oparg <= MAX_INTRINSIC_1);
             res = _PyIntrinsics_UnaryFunctions[oparg](tstate, value);
-            #line 851 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 853 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(value);
             #line 599 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_1_error;
-            #line 855 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 857 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = res;
             DISPATCH();
         }
@@ -864,12 +866,12 @@
             #line 603 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(oparg <= MAX_INTRINSIC_2);
             res = _PyIntrinsics_BinaryFunctions[oparg](tstate, value2, value1);
-            #line 867 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 869 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(value2);
             Py_DECREF(value1);
             #line 606 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_2_error;
-            #line 872 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 874 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -899,7 +901,7 @@
                 break;
             }
             if (true) { STACK_SHRINK(oparg); goto error; }
-            #line 902 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 904 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(INTERPRETER_EXIT) {
@@ -915,7 +917,7 @@
             assert(!_PyErr_Occurred(tstate));
             tstate->c_recursion_remaining += PY_EVAL_C_STACK_UNITS;
             return retval;
-            #line 918 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 920 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(RETURN_VALUE) {
@@ -933,7 +935,7 @@
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
             goto resume_frame;
-            #line 936 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 938 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(INSTRUMENTED_RETURN_VALUE) {
@@ -955,7 +957,7 @@
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
             goto resume_frame;
-            #line 958 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 960 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(RETURN_CONST) {
@@ -973,7 +975,7 @@
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
             goto resume_frame;
-            #line 976 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 978 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(INSTRUMENTED_RETURN_CONST) {
@@ -995,7 +997,7 @@
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
             goto resume_frame;
-            #line 998 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1000 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(GET_AITER) {
@@ -1014,14 +1016,14 @@
                               "'async for' requires an object with "
                               "__aiter__ method, got %.100s",
                               type->tp_name);
-            #line 1017 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1019 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(obj);
             #line 730 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 if (true) goto pop_1_error;
             }
 
             iter = (*getter)(obj);
-            #line 1024 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1026 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(obj);
             #line 735 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (iter == NULL) goto pop_1_error;
@@ -1036,101 +1038,14 @@
                 Py_DECREF(iter);
                 if (true) goto pop_1_error;
             }
-            #line 1039 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1041 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = iter;
             DISPATCH();
         }
 
-        TARGET(GET_ANEXT) {
-            PyObject *aiter = stack_pointer[-1];
-            PyObject *awaitable;
-            #line 750 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
-            unaryfunc getter = NULL;
-            PyObject *next_iter = NULL;
-            PyTypeObject *type = Py_TYPE(aiter);
+        // TARGET(GET_ANEXT) overridden by later definition
 
-            if (PyAsyncGen_CheckExact(aiter)) {
-                awaitable = type->tp_as_async->am_anext(aiter);
-                if (awaitable == NULL) {
-                    goto error;
-                }
-            } else {
-                if (type->tp_as_async != NULL){
-                    getter = type->tp_as_async->am_anext;
-                }
-
-                if (getter != NULL) {
-                    next_iter = (*getter)(aiter);
-                    if (next_iter == NULL) {
-                        goto error;
-                    }
-                }
-                else {
-                    _PyErr_Format(tstate, PyExc_TypeError,
-                                  "'async for' requires an iterator with "
-                                  "__anext__ method, got %.100s",
-                                  type->tp_name);
-                    goto error;
-                }
-
-                awaitable = _PyCoro_GetAwaitableIter(next_iter);
-                if (awaitable == NULL) {
-                    _PyErr_FormatFromCause(
-                        PyExc_TypeError,
-                        "'async for' received an invalid object "
-                        "from __anext__: %.100s",
-                        Py_TYPE(next_iter)->tp_name);
-
-                    Py_DECREF(next_iter);
-                    goto error;
-                } else {
-                    Py_DECREF(next_iter);
-                }
-            }
-
-            #line 1091 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-            STACK_GROW(1);
-            stack_pointer[-1] = awaitable;
-            PREDICT(LOAD_CONST);
-            DISPATCH();
-        }
-
-        TARGET(GET_AWAITABLE) {
-            PREDICTED(GET_AWAITABLE);
-            PyObject *iterable = stack_pointer[-1];
-            PyObject *iter;
-            #line 797 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
-            iter = _PyCoro_GetAwaitableIter(iterable);
-
-            if (iter == NULL) {
-                format_awaitable_error(tstate, Py_TYPE(iterable), oparg);
-            }
-
-            #line 1109 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-            Py_DECREF(iterable);
-            #line 804 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
-
-            if (iter != NULL && PyCoro_CheckExact(iter)) {
-                PyObject *yf = _PyGen_yf((PyGenObject*)iter);
-                if (yf != NULL) {
-                    /* `iter` is a coroutine object that is being
-                       awaited, `yf` is a pointer to the current awaitable
-                       being awaited on. */
-                    Py_DECREF(yf);
-                    Py_CLEAR(iter);
-                    _PyErr_SetString(tstate, PyExc_RuntimeError,
-                                     "coroutine is being awaited already");
-                    /* The code below jumps to `error` if `iter` is NULL. */
-                }
-            }
-
-            if (iter == NULL) goto pop_1_error;
-
-            #line 1129 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-            stack_pointer[-1] = iter;
-            PREDICT(LOAD_CONST);
-            DISPATCH();
-        }
+        // TARGET(GET_AWAITABLE) overridden by later definition
 
         TARGET(SEND) {
             PREDICTED(SEND);
@@ -1189,7 +1104,7 @@
                 }
             }
             Py_DECREF(v);
-            #line 1192 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1107 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = retval;
             next_instr += 1;
             DISPATCH();
@@ -1218,7 +1133,7 @@
             tstate->exc_info = &gen->gi_exc_state;
             JUMPBY(INLINE_CACHE_ENTRIES_SEND);
             DISPATCH_INLINED(gen_frame);
-            #line 1221 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1136 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(INSTRUMENTED_YIELD_VALUE) {
@@ -1240,7 +1155,7 @@
             gen_frame->previous = NULL;
             _PyFrame_StackPush(frame, retval);
             goto resume_frame;
-            #line 1243 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1158 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(YIELD_VALUE) {
@@ -1261,7 +1176,7 @@
             gen_frame->previous = NULL;
             _PyFrame_StackPush(frame, retval);
             goto resume_frame;
-            #line 1264 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1179 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(POP_EXCEPT) {
@@ -1269,7 +1184,7 @@
             #line 942 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             _PyErr_StackItem *exc_info = tstate->exc_info;
             Py_XSETREF(exc_info->exc_value, exc_value);
-            #line 1272 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1187 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -1296,7 +1211,7 @@
             _PyErr_SetRaisedException(tstate, exc);
             monitor_reraise(tstate, frame, next_instr-1);
             goto exception_unwind;
-            #line 1299 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1214 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(END_ASYNC_FOR) {
@@ -1305,7 +1220,7 @@
             #line 968 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(exc && PyExceptionInstance_Check(exc));
             if (PyErr_GivenExceptionMatches(exc, PyExc_StopAsyncIteration)) {
-            #line 1308 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1223 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(awaitable);
                 Py_DECREF(exc);
             #line 971 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
@@ -1316,7 +1231,7 @@
                 monitor_reraise(tstate, frame, next_instr-1);
                 goto exception_unwind;
             }
-            #line 1319 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1234 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             DISPATCH();
         }
@@ -1332,7 +1247,7 @@
             assert(exc_value && PyExceptionInstance_Check(exc_value));
             if (PyErr_GivenExceptionMatches(exc_value, PyExc_StopIteration)) {
                 value = Py_NewRef(((PyStopIterationObject *)exc_value)->value);
-            #line 1335 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1250 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(sub_iter);
                 Py_DECREF(last_sent_val);
                 Py_DECREF(exc_value);
@@ -1344,7 +1259,7 @@
                 monitor_reraise(tstate, frame, next_instr-1);
                 goto exception_unwind;
             }
-            #line 1347 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1262 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = value;
             stack_pointer[-2] = none;
@@ -1355,7 +1270,7 @@
             PyObject *value;
             #line 996 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             value = Py_NewRef(PyExc_AssertionError);
-            #line 1358 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1273 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -1385,7 +1300,7 @@
                     if (true) goto error;
                 }
             }
-            #line 1388 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1303 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = bc;
             DISPATCH();
@@ -1400,7 +1315,7 @@
             if (ns == NULL) {
                 _PyErr_Format(tstate, PyExc_SystemError,
                               "no locals found when storing %R", name);
-            #line 1403 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1318 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(v);
             #line 1032 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 if (true) goto pop_1_error;
@@ -1409,11 +1324,11 @@
                 err = PyDict_SetItem(ns, name, v);
             else
                 err = PyObject_SetItem(ns, name, v);
-            #line 1412 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1327 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(v);
             #line 1039 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (err) goto pop_1_error;
-            #line 1416 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1331 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -1436,7 +1351,7 @@
                                      name);
                 goto error;
             }
-            #line 1439 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1354 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -1457,11 +1372,11 @@
             #endif  /* ENABLE_SPECIALIZATION */
             PyObject **top = stack_pointer + oparg - 1;
             int res = unpack_iterable(tstate, seq, oparg, -1, top);
-            #line 1460 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1375 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(seq);
             #line 1082 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == 0) goto pop_1_error;
-            #line 1464 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1379 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             STACK_GROW(oparg);
             next_instr += 1;
@@ -1478,7 +1393,7 @@
             STAT_INC(UNPACK_SEQUENCE, hit);
             values[0] = Py_NewRef(PyTuple_GET_ITEM(seq, 1));
             values[1] = Py_NewRef(PyTuple_GET_ITEM(seq, 0));
-            #line 1481 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1396 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(seq);
             STACK_SHRINK(1);
             STACK_GROW(oparg);
@@ -1497,7 +1412,7 @@
             for (int i = oparg; --i >= 0; ) {
                 *values++ = Py_NewRef(items[i]);
             }
-            #line 1500 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1415 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(seq);
             STACK_SHRINK(1);
             STACK_GROW(oparg);
@@ -1516,7 +1431,7 @@
             for (int i = oparg; --i >= 0; ) {
                 *values++ = Py_NewRef(items[i]);
             }
-            #line 1519 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1434 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(seq);
             STACK_SHRINK(1);
             STACK_GROW(oparg);
@@ -1530,11 +1445,11 @@
             int totalargs = 1 + (oparg & 0xFF) + (oparg >> 8);
             PyObject **top = stack_pointer + totalargs - 1;
             int res = unpack_iterable(tstate, seq, oparg & 0xFF, oparg >> 8, top);
-            #line 1533 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1448 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(seq);
             #line 1122 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == 0) goto pop_1_error;
-            #line 1537 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1452 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW((oparg & 0xFF) + (oparg >> 8));
             DISPATCH();
         }
@@ -1561,12 +1476,12 @@
             #endif  /* ENABLE_SPECIALIZATION */
             PyObject *name = GETITEM(frame->f_code->co_names, oparg);
             int err = PyObject_SetAttr(owner, name, v);
-            #line 1564 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1479 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(v);
             Py_DECREF(owner);
             #line 1149 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (err) goto pop_2_error;
-            #line 1569 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1484 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             next_instr += 4;
             DISPATCH();
@@ -1577,11 +1492,11 @@
             #line 1153 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             PyObject *name = GETITEM(frame->f_code->co_names, oparg);
             int err = PyObject_SetAttr(owner, name, (PyObject *)NULL);
-            #line 1580 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1495 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(owner);
             #line 1156 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (err) goto pop_1_error;
-            #line 1584 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1499 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -1591,11 +1506,11 @@
             #line 1160 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             PyObject *name = GETITEM(frame->f_code->co_names, oparg);
             int err = PyDict_SetItem(GLOBALS(), name, v);
-            #line 1594 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1509 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(v);
             #line 1163 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (err) goto pop_1_error;
-            #line 1598 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1513 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -1613,7 +1528,7 @@
                 }
                 goto error;
             }
-            #line 1616 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1531 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -1627,7 +1542,7 @@
                 if (true) goto error;
             }
             Py_INCREF(locals);
-            #line 1630 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1545 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = locals;
             DISPATCH();
@@ -1698,7 +1613,7 @@
                     }
                 }
             }
-            #line 1701 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1616 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(mod_or_class_dict);
             stack_pointer[-1] = v;
             DISPATCH();
@@ -1766,7 +1681,7 @@
                     }
                 }
             }
-            #line 1769 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1684 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = v;
             DISPATCH();
@@ -1829,7 +1744,7 @@
                 }
             }
             null = NULL;
-            #line 1832 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1747 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = v;
@@ -1867,7 +1782,7 @@
             Py_INCREF(res);
             STAT_INC(LOAD_GLOBAL, hit);
             null = NULL;
-            #line 1870 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1785 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
@@ -1911,7 +1826,7 @@
             Py_INCREF(res);
             STAT_INC(LOAD_GLOBAL, hit);
             null = NULL;
-            #line 1914 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1829 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
@@ -1925,7 +1840,7 @@
             PyObject *v = GETLOCAL(oparg);
             if (v == NULL) goto unbound_local_error;
             SETLOCAL(oparg, NULL);
-            #line 1928 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1843 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -1939,7 +1854,7 @@
                 goto resume_with_error;
             }
             SETLOCAL(oparg, cell);
-            #line 1942 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1857 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -1955,7 +1870,7 @@
             }
             PyCell_SET(cell, NULL);
             Py_DECREF(oldobj);
-            #line 1958 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1873 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -1995,7 +1910,7 @@
                 Py_INCREF(value);
             }
             Py_DECREF(class_dict);
-            #line 1998 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1913 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = value;
             DISPATCH();
         }
@@ -2010,7 +1925,7 @@
                 if (true) goto error;
             }
             Py_INCREF(value);
-            #line 2013 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1928 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -2023,7 +1938,7 @@
             PyObject *oldobj = PyCell_GET(cell);
             PyCell_SET(cell, v);
             Py_XDECREF(oldobj);
-            #line 2026 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1941 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -2040,7 +1955,7 @@
                 PyObject *o = PyTuple_GET_ITEM(closure, i);
                 frame->localsplus[offset + i] = Py_NewRef(o);
             }
-            #line 2043 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1958 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -2049,13 +1964,13 @@
             PyObject *str;
             #line 1530 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             str = _PyUnicode_JoinArray(&_Py_STR(empty), pieces, oparg);
-            #line 2052 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1967 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = oparg; --_i >= 0;) {
                 Py_DECREF(pieces[_i]);
             }
             #line 1532 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (str == NULL) { STACK_SHRINK(oparg); goto error; }
-            #line 2058 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1973 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_GROW(1);
             stack_pointer[-1] = str;
@@ -2068,7 +1983,7 @@
             #line 1536 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             tup = _PyTuple_FromArraySteal(values, oparg);
             if (tup == NULL) { STACK_SHRINK(oparg); goto error; }
-            #line 2071 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1986 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_GROW(1);
             stack_pointer[-1] = tup;
@@ -2081,7 +1996,7 @@
             #line 1541 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             list = _PyList_FromArraySteal(values, oparg);
             if (list == NULL) { STACK_SHRINK(oparg); goto error; }
-            #line 2084 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 1999 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_GROW(1);
             stack_pointer[-1] = list;
@@ -2102,13 +2017,13 @@
                           "Value after * must be an iterable, not %.200s",
                           Py_TYPE(iterable)->tp_name);
                 }
-            #line 2105 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2020 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(iterable);
             #line 1557 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 if (true) goto pop_1_error;
             }
             assert(Py_IsNone(none_val));
-            #line 2111 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2026 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(iterable);
             STACK_SHRINK(1);
             DISPATCH();
@@ -2119,11 +2034,11 @@
             PyObject *set = stack_pointer[-(2 + (oparg-1))];
             #line 1564 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             int err = _PySet_Update(set, iterable);
-            #line 2122 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2037 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(iterable);
             #line 1566 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (err < 0) goto pop_1_error;
-            #line 2126 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2041 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -2146,7 +2061,7 @@
                 Py_DECREF(set);
                 if (true) { STACK_SHRINK(oparg); goto error; }
             }
-            #line 2149 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2064 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_GROW(1);
             stack_pointer[-1] = set;
@@ -2161,13 +2076,13 @@
                     values, 2,
                     values+1, 2,
                     oparg);
-            #line 2164 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2079 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = oparg*2; --_i >= 0;) {
                 Py_DECREF(values[_i]);
             }
             #line 1592 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (map == NULL) { STACK_SHRINK(oparg*2); goto error; }
-            #line 2170 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2085 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg*2);
             STACK_GROW(1);
             stack_pointer[-1] = map;
@@ -2215,7 +2130,7 @@
                     Py_DECREF(ann_dict);
                 }
             }
-            #line 2218 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2133 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -2233,14 +2148,14 @@
             map = _PyDict_FromItems(
                     &PyTuple_GET_ITEM(keys, 0), 1,
                     values, 1, oparg);
-            #line 2236 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2151 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = oparg; --_i >= 0;) {
                 Py_DECREF(values[_i]);
             }
             Py_DECREF(keys);
             #line 1648 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (map == NULL) { STACK_SHRINK(oparg); goto pop_1_error; }
-            #line 2243 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2158 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             stack_pointer[-1] = map;
             DISPATCH();
@@ -2256,12 +2171,12 @@
                                     "'%.200s' object is not a mapping",
                                     Py_TYPE(update)->tp_name);
                 }
-            #line 2259 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2174 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(update);
             #line 1660 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 if (true) goto pop_1_error;
             }
-            #line 2264 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2179 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(update);
             STACK_SHRINK(1);
             DISPATCH();
@@ -2274,12 +2189,12 @@
 
             if (_PyDict_MergeEx(dict, update, 2) < 0) {
                 format_kwargs_error(tstate, PEEK(3 + oparg), update);
-            #line 2277 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2192 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(update);
             #line 1671 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 if (true) goto pop_1_error;
             }
-            #line 2282 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2197 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(update);
             STACK_SHRINK(1);
             PREDICT(CALL_FUNCTION_EX);
@@ -2295,7 +2210,7 @@
             // don't want to specialize instrumented instructions
             INCREMENT_ADAPTIVE_COUNTER(cache->counter);
             GO_TO_INSTRUCTION(LOAD_SUPER_ATTR);
-            #line 2298 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2213 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(LOAD_SUPER_ATTR) {
@@ -2348,7 +2263,7 @@
                     }
                 }
             }
-            #line 2351 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2266 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(global_super);
             Py_DECREF(class);
             Py_DECREF(self);
@@ -2357,7 +2272,7 @@
             res = PyObject_GetAttr(super, name);
             Py_DECREF(super);
             if (res == NULL) goto pop_3_error;
-            #line 2360 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2275 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
@@ -2379,13 +2294,13 @@
             STAT_INC(LOAD_SUPER_ATTR, hit);
             PyObject *name = GETITEM(frame->f_code->co_names, oparg >> 2);
             res = _PySuper_Lookup((PyTypeObject *)class, self, name, NULL);
-            #line 2382 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2297 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(global_super);
             Py_DECREF(class);
             Py_DECREF(self);
             #line 1757 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_3_error;
-            #line 2388 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2303 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
@@ -2423,7 +2338,7 @@
                 res = res2;
                 res2 = NULL;
             }
-            #line 2426 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2341 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             stack_pointer[-2] = res2;
@@ -2471,7 +2386,7 @@
 
                        NULL | meth | arg1 | ... | argN
                     */
-            #line 2474 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2389 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                     Py_DECREF(owner);
             #line 1834 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                     if (meth == NULL) goto pop_1_error;
@@ -2482,12 +2397,12 @@
             else {
                 /* Classic, pushes one value. */
                 res = PyObject_GetAttr(owner, name);
-            #line 2485 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2400 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(owner);
             #line 1843 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 if (res == NULL) goto pop_1_error;
             }
-            #line 2490 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2405 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
             if (oparg & 1) { stack_pointer[-(1 + ((oparg & 1) ? 1 : 0))] = res2; }
@@ -2514,7 +2429,7 @@
             STAT_INC(LOAD_ATTR, hit);
             Py_INCREF(res);
             res2 = NULL;
-            #line 2517 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2432 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(owner);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
@@ -2555,7 +2470,7 @@
             STAT_INC(LOAD_ATTR, hit);
             Py_INCREF(res);
             res2 = NULL;
-            #line 2558 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2473 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(owner);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
@@ -2621,7 +2536,7 @@
             STAT_INC(LOAD_ATTR, hit);
             Py_INCREF(res);
             res2 = NULL;
-            #line 2624 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2539 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(owner);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
@@ -2646,7 +2561,7 @@
             STAT_INC(LOAD_ATTR, hit);
             Py_INCREF(res);
             res2 = NULL;
-            #line 2649 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2564 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(owner);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
@@ -2673,7 +2588,7 @@
             res = descr;
             assert(res != NULL);
             Py_INCREF(res);
-            #line 2676 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2591 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(cls);
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
@@ -2711,7 +2626,7 @@
             JUMPBY(INLINE_CACHE_ENTRIES_LOAD_ATTR);
             frame->return_offset = 0;
             DISPATCH_INLINED(new_frame);
-            #line 2714 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2629 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN) {
@@ -2745,7 +2660,7 @@
             JUMPBY(INLINE_CACHE_ENTRIES_LOAD_ATTR);
             frame->return_offset = 0;
             DISPATCH_INLINED(new_frame);
-            #line 2748 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2663 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(STORE_ATTR_INSTANCE_VALUE) {
@@ -2771,7 +2686,7 @@
                 Py_DECREF(old_value);
             }
             Py_DECREF(owner);
-            #line 2774 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2689 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             next_instr += 4;
             DISPATCH();
@@ -2821,7 +2736,7 @@
             /* PEP 509 */
             dict->ma_version_tag = new_version;
             Py_DECREF(owner);
-            #line 2824 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2739 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             next_instr += 4;
             DISPATCH();
@@ -2842,7 +2757,7 @@
             *(PyObject **)addr = value;
             Py_XDECREF(old_value);
             Py_DECREF(owner);
-            #line 2845 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2760 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             next_instr += 4;
             DISPATCH();
@@ -2867,12 +2782,12 @@
             #endif  /* ENABLE_SPECIALIZATION */
             assert((oparg >> 4) <= Py_GE);
             res = PyObject_RichCompare(left, right, oparg>>4);
-            #line 2870 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2785 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(left);
             Py_DECREF(right);
             #line 2122 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_2_error;
-            #line 2875 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2790 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             next_instr += 1;
@@ -2894,7 +2809,7 @@
             _Py_DECREF_SPECIALIZED(left, _PyFloat_ExactDealloc);
             _Py_DECREF_SPECIALIZED(right, _PyFloat_ExactDealloc);
             res = (sign_ish & oparg) ? Py_True : Py_False;
-            #line 2897 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2812 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             next_instr += 1;
@@ -2920,7 +2835,7 @@
             _Py_DECREF_SPECIALIZED(left, (destructor)PyObject_Free);
             _Py_DECREF_SPECIALIZED(right, (destructor)PyObject_Free);
             res = (sign_ish & oparg) ? Py_True : Py_False;
-            #line 2923 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2838 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             next_instr += 1;
@@ -2943,7 +2858,7 @@
             assert((oparg & 0xf) == COMPARISON_NOT_EQUALS || (oparg & 0xf) == COMPARISON_EQUALS);
             assert(COMPARISON_NOT_EQUALS + 1 == COMPARISON_EQUALS);
             res = ((COMPARISON_NOT_EQUALS + eq) & oparg) ? Py_True : Py_False;
-            #line 2946 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2861 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             next_instr += 1;
@@ -2956,12 +2871,12 @@
             PyObject *b;
             #line 2172 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             int res = Py_Is(left, right) ^ oparg;
-            #line 2959 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2874 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(left);
             Py_DECREF(right);
             #line 2174 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             b = res ? Py_True : Py_False;
-            #line 2964 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2879 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = b;
             DISPATCH();
@@ -2973,13 +2888,13 @@
             PyObject *b;
             #line 2178 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             int res = PySequence_Contains(right, left);
-            #line 2976 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2891 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(left);
             Py_DECREF(right);
             #line 2180 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res < 0) goto pop_2_error;
             b = (res ^ oparg) ? Py_True : Py_False;
-            #line 2982 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2897 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = b;
             DISPATCH();
@@ -2992,7 +2907,7 @@
             PyObject *match;
             #line 2185 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (check_except_star_type_valid(tstate, match_type) < 0) {
-            #line 2995 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2910 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(exc_value);
                 Py_DECREF(match_type);
             #line 2187 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
@@ -3003,7 +2918,7 @@
             rest = NULL;
             int res = exception_group_match(exc_value, match_type,
                                             &match, &rest);
-            #line 3006 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2921 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(exc_value);
             Py_DECREF(match_type);
             #line 2195 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
@@ -3015,7 +2930,7 @@
             if (!Py_IsNone(match)) {
                 PyErr_SetHandledException(match);
             }
-            #line 3018 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2933 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = match;
             stack_pointer[-2] = rest;
             DISPATCH();
@@ -3028,18 +2943,18 @@
             #line 2206 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(PyExceptionInstance_Check(left));
             if (check_except_type_valid(tstate, right) < 0) {
-            #line 3031 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2946 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                  Py_DECREF(right);
             #line 2209 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                  if (true) goto pop_1_error;
             }
 
             int res = PyErr_GivenExceptionMatches(left, right);
-            #line 3038 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2953 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(right);
             #line 2214 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             b = res ? Py_True : Py_False;
-            #line 3042 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2957 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = b;
             DISPATCH();
         }
@@ -3052,12 +2967,12 @@
             PyObject *name = GETITEM(frame->f_code->co_names, oparg);
             res = _PyImport_ImportName(
                 tstate, BUILTINS(), GLOBALS(), LOCALS(), name, fromlist, level);
-            #line 3055 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2970 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(level);
             Py_DECREF(fromlist);
             #line 2222 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_2_error;
-            #line 3060 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2975 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -3076,12 +2991,12 @@
                 res = _PyImport_ImportName(
                     tstate, BUILTINS(), GLOBALS(), LOCALS(), name, fromlist, level);
             }
-            #line 3079 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2994 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(level);
             Py_DECREF(fromlist);
             #line 2235 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_2_error;
-            #line 3084 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 2999 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -3098,7 +3013,7 @@
                 res = _PyImport_ImportFrom(tstate, from, name);
             }
             if (res == NULL) goto error;
-            #line 3101 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3016 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -3107,7 +3022,7 @@
         TARGET(JUMP_FORWARD) {
             #line 2249 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             JUMPBY(oparg);
-            #line 3110 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3025 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -3116,7 +3031,7 @@
             #line 2253 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(oparg < INSTR_OFFSET());
             JUMPBY(-oparg);
-            #line 3119 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3034 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             CHECK_EVAL_BREAKER();
             DISPATCH();
         }
@@ -3130,7 +3045,7 @@
             }
             else if (!Py_IsTrue(cond)) {
                 int err = PyObject_IsTrue(cond);
-            #line 3133 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3048 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(cond);
             #line 2265 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 if (err == 0) {
@@ -3140,7 +3055,7 @@
                     if (err < 0) goto pop_1_error;
                 }
             }
-            #line 3143 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3058 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -3153,7 +3068,7 @@
             }
             else if (!Py_IsFalse(cond)) {
                 int err = PyObject_IsTrue(cond);
-            #line 3156 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3071 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(cond);
             #line 2281 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 if (err > 0) {
@@ -3163,7 +3078,7 @@
                     if (err < 0) goto pop_1_error;
                 }
             }
-            #line 3166 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3081 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -3172,12 +3087,12 @@
             PyObject *value = stack_pointer[-1];
             #line 2291 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (!Py_IsNone(value)) {
-            #line 3175 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3090 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(value);
             #line 2293 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
                 JUMPBY(oparg);
             }
-            #line 3180 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3095 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -3189,11 +3104,11 @@
                 JUMPBY(oparg);
             }
             else {
-            #line 3192 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3107 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                 Py_DECREF(value);
             #line 2303 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             }
-            #line 3196 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3111 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -3206,7 +3121,7 @@
              * (see bpo-30039).
              */
             JUMPBY(-oparg);
-            #line 3209 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3124 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -3219,7 +3134,7 @@
             if (len_i < 0) goto error;
             len_o = PyLong_FromSsize_t(len_i);
             if (len_o == NULL) goto error;
-            #line 3222 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3137 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = len_o;
             DISPATCH();
@@ -3235,7 +3150,7 @@
             // None on failure.
             assert(PyTuple_CheckExact(names));
             attrs = match_class(tstate, subject, type, oparg, names);
-            #line 3238 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3153 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(subject);
             Py_DECREF(type);
             Py_DECREF(names);
@@ -3247,7 +3162,7 @@
                 if (_PyErr_Occurred(tstate)) goto pop_3_error;
                 attrs = Py_None;  // Failure!
             }
-            #line 3250 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3165 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             stack_pointer[-1] = attrs;
             DISPATCH();
@@ -3259,7 +3174,7 @@
             #line 2339 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             int match = Py_TYPE(subject)->tp_flags & Py_TPFLAGS_MAPPING;
             res = match ? Py_True : Py_False;
-            #line 3262 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3177 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = res;
             PREDICT(POP_JUMP_IF_FALSE);
@@ -3272,7 +3187,7 @@
             #line 2345 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             int match = Py_TYPE(subject)->tp_flags & Py_TPFLAGS_SEQUENCE;
             res = match ? Py_True : Py_False;
-            #line 3275 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3190 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = res;
             PREDICT(POP_JUMP_IF_FALSE);
@@ -3287,7 +3202,7 @@
             // On successful match, PUSH(values). Otherwise, PUSH(None).
             values_or_none = match_keys(tstate, subject, keys);
             if (values_or_none == NULL) goto error;
-            #line 3290 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3205 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = values_or_none;
             DISPATCH();
@@ -3299,50 +3214,16 @@
             #line 2357 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             /* before: [obj]; after [getiter(obj)] */
             iter = PyObject_GetIter(iterable);
-            #line 3302 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3217 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(iterable);
             #line 2360 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (iter == NULL) goto pop_1_error;
-            #line 3306 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3221 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = iter;
             DISPATCH();
         }
 
-        TARGET(GET_YIELD_FROM_ITER) {
-            PyObject *iterable = stack_pointer[-1];
-            PyObject *iter;
-            #line 2364 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
-            /* before: [obj]; after [getiter(obj)] */
-            if (PyCoro_CheckExact(iterable)) {
-                /* `iterable` is a coroutine */
-                if (!(frame->f_code->co_flags & (CO_COROUTINE | CO_ITERABLE_COROUTINE))) {
-                    /* and it is used in a 'yield from' expression of a
-                       regular generator. */
-                    _PyErr_SetString(tstate, PyExc_TypeError,
-                                     "cannot 'yield from' a coroutine object "
-                                     "in a non-coroutine generator");
-                    goto error;
-                }
-                iter = iterable;
-            }
-            else if (PyGen_CheckExact(iterable)) {
-                iter = iterable;
-            }
-            else {
-                /* `iterable` is not a generator. */
-                iter = PyObject_GetIter(iterable);
-                if (iter == NULL) {
-                    goto error;
-                }
-            #line 3337 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-                Py_DECREF(iterable);
-            #line 2387 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
-            }
-            #line 3341 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-            stack_pointer[-1] = iter;
-            PREDICT(LOAD_CONST);
-            DISPATCH();
-        }
+        // TARGET(GET_YIELD_FROM_ITER) overridden by later definition
 
         TARGET(FOR_ITER) {
             PREDICTED(FOR_ITER);
@@ -3380,7 +3261,7 @@
                 DISPATCH();
             }
             // Common case: no jump, leave it to the code generator
-            #line 3383 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3264 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = next;
             next_instr += 1;
@@ -3414,7 +3295,7 @@
                 target = next_instr + INLINE_CACHE_ENTRIES_FOR_ITER + oparg + 1;
             }
             INSTRUMENTED_JUMP(here, target, PY_MONITORING_EVENT_BRANCH);
-            #line 3417 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3298 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -3441,7 +3322,7 @@
             DISPATCH();
         end_for_iter_list:
             // Common case: no jump, leave it to the code generator
-            #line 3444 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3325 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = next;
             next_instr += 1;
@@ -3471,7 +3352,7 @@
             DISPATCH();
         end_for_iter_tuple:
             // Common case: no jump, leave it to the code generator
-            #line 3474 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3355 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = next;
             next_instr += 1;
@@ -3499,7 +3380,7 @@
             if (next == NULL) {
                 goto error;
             }
-            #line 3502 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3383 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = next;
             next_instr += 1;
@@ -3524,7 +3405,7 @@
             assert(next_instr[oparg].op.code == END_FOR ||
                    next_instr[oparg].op.code == INSTRUMENTED_END_FOR);
             DISPATCH_INLINED(gen_frame);
-            #line 3527 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3408 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(BEFORE_ASYNC_WITH) {
@@ -3554,7 +3435,7 @@
                 Py_DECREF(enter);
                 goto error;
             }
-            #line 3557 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3438 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(mgr);
             #line 2572 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             res = _PyObject_CallNoArgs(enter);
@@ -3563,7 +3444,7 @@
                 Py_DECREF(exit);
                 if (true) goto pop_1_error;
             }
-            #line 3566 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3447 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = res;
             stack_pointer[-2] = exit;
@@ -3601,7 +3482,7 @@
                 Py_DECREF(enter);
                 goto error;
             }
-            #line 3604 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3485 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(mgr);
             #line 2608 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             res = _PyObject_CallNoArgs(enter);
@@ -3610,7 +3491,7 @@
                 Py_DECREF(exit);
                 if (true) goto pop_1_error;
             }
-            #line 3613 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3494 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = res;
             stack_pointer[-2] = exit;
@@ -3648,7 +3529,7 @@
             res = PyObject_Vectorcall(exit_func, stack + 1,
                     3 | PY_VECTORCALL_ARGUMENTS_OFFSET, NULL);
             if (res == NULL) goto error;
-            #line 3651 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3532 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -3667,7 +3548,7 @@
             }
             assert(PyExceptionInstance_Check(new_exc));
             exc_info->exc_value = Py_NewRef(new_exc);
-            #line 3670 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3551 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = new_exc;
             stack_pointer[-2] = prev_exc;
@@ -3698,7 +3579,7 @@
             assert(_PyType_HasFeature(Py_TYPE(res2), Py_TPFLAGS_METHOD_DESCRIPTOR));
             res = self;
             assert(oparg & 1);
-            #line 3701 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3582 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
             if (oparg & 1) { stack_pointer[-(1 + ((oparg & 1) ? 1 : 0))] = res2; }
@@ -3722,7 +3603,7 @@
             res2 = Py_NewRef(descr);
             res = self;
             assert(oparg & 1);
-            #line 3725 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3606 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
             if (oparg & 1) { stack_pointer[-(1 + ((oparg & 1) ? 1 : 0))] = res2; }
@@ -3750,7 +3631,7 @@
             res2 = Py_NewRef(descr);
             res = self;
             assert(oparg & 1);
-            #line 3753 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3634 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(((oparg & 1) ? 1 : 0));
             stack_pointer[-1] = res;
             if (oparg & 1) { stack_pointer[-(1 + ((oparg & 1) ? 1 : 0))] = res2; }
@@ -3763,7 +3644,7 @@
             assert(kwnames == NULL);
             assert(oparg < PyTuple_GET_SIZE(frame->f_code->co_consts));
             kwnames = GETITEM(frame->f_code->co_consts, oparg);
-            #line 3766 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3647 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -3781,7 +3662,7 @@
             _PyCallCache *cache = (_PyCallCache *)next_instr;
             INCREMENT_ADAPTIVE_COUNTER(cache->counter);
             GO_TO_INSTRUCTION(CALL);
-            #line 3784 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3665 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(CALL) {
@@ -3873,7 +3754,7 @@
                 Py_DECREF(args[i]);
             }
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 3876 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3757 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -3895,7 +3776,7 @@
             PEEK(oparg + 2) = Py_NewRef(meth);  // method
             Py_DECREF(callable);
             GO_TO_INSTRUCTION(CALL_PY_EXACT_ARGS);
-            #line 3898 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3779 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(CALL_PY_EXACT_ARGS) {
@@ -3930,7 +3811,7 @@
             JUMPBY(INLINE_CACHE_ENTRIES_CALL);
             frame->return_offset = 0;
             DISPATCH_INLINED(new_frame);
-            #line 3933 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3814 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(CALL_PY_WITH_DEFAULTS) {
@@ -3974,7 +3855,7 @@
             JUMPBY(INLINE_CACHE_ENTRIES_CALL);
             frame->return_offset = 0;
             DISPATCH_INLINED(new_frame);
-            #line 3977 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3858 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(CALL_NO_KW_TYPE_1) {
@@ -3992,7 +3873,7 @@
             res = Py_NewRef(Py_TYPE(obj));
             Py_DECREF(obj);
             Py_DECREF(&PyType_Type);  // I.e., callable
-            #line 3995 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3876 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4016,7 +3897,7 @@
             Py_DECREF(arg);
             Py_DECREF(&PyUnicode_Type);  // I.e., callable
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4019 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3900 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4041,7 +3922,7 @@
             Py_DECREF(arg);
             Py_DECREF(&PyTuple_Type);  // I.e., tuple
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4044 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3925 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4077,7 +3958,7 @@
             }
             Py_DECREF(tp);
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4080 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 3961 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4119,7 +4000,7 @@
             Py_DECREF(arg);
             Py_DECREF(callable);
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4122 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4003 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4165,7 +4046,7 @@
                    'invalid'). In those cases an exception is set, so we must
                    handle it.
                 */
-            #line 4168 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4049 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4211,7 +4092,7 @@
             }
             Py_DECREF(callable);
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4214 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4095 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4250,7 +4131,7 @@
             Py_DECREF(callable);
             Py_DECREF(arg);
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4253 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4134 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4290,7 +4171,7 @@
             Py_DECREF(cls);
             Py_DECREF(callable);
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4293 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4174 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4320,7 +4201,7 @@
             JUMPBY(INLINE_CACHE_ENTRIES_CALL + 1);
             assert(next_instr[-1].op.code == POP_TOP);
             DISPATCH();
-            #line 4323 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4204 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(CALL_NO_KW_METHOD_DESCRIPTOR_O) {
@@ -4358,7 +4239,7 @@
             Py_DECREF(arg);
             Py_DECREF(callable);
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4361 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4242 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4400,7 +4281,7 @@
             }
             Py_DECREF(callable);
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4403 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4284 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4442,7 +4323,7 @@
             Py_DECREF(self);
             Py_DECREF(callable);
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4445 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4326 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4483,7 +4364,7 @@
             }
             Py_DECREF(callable);
             if (res == NULL) { STACK_SHRINK(oparg); goto pop_2_error; }
-            #line 4486 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4367 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(oparg);
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
@@ -4495,7 +4376,7 @@
         TARGET(INSTRUMENTED_CALL_FUNCTION_EX) {
             #line 3293 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             GO_TO_INSTRUCTION(CALL_FUNCTION_EX);
-            #line 4498 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4379 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(CALL_FUNCTION_EX) {
@@ -4566,14 +4447,14 @@
                 }
                 result = PyObject_Call(func, callargs, kwargs);
             }
-            #line 4569 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4450 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(func);
             Py_DECREF(callargs);
             Py_XDECREF(kwargs);
             #line 3359 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(PEEK(3 + (oparg & 1)) == NULL);
             if (result == NULL) { STACK_SHRINK(((oparg & 1) ? 1 : 0)); goto pop_3_error; }
-            #line 4576 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4457 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(((oparg & 1) ? 1 : 0));
             STACK_SHRINK(2);
             stack_pointer[-1] = result;
@@ -4617,7 +4498,7 @@
 
             func_obj->func_version = ((PyCodeObject *)codeobj)->co_version;
             func = (PyObject *)func_obj;
-            #line 4620 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4501 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(((oparg & 0x01) ? 1 : 0) + ((oparg & 0x02) ? 1 : 0) + ((oparg & 0x04) ? 1 : 0) + ((oparg & 0x08) ? 1 : 0));
             stack_pointer[-1] = func;
             DISPATCH();
@@ -4645,7 +4526,7 @@
             frame = cframe.current_frame = prev;
             _PyFrame_StackPush(frame, (PyObject *)gen);
             goto resume_frame;
-            #line 4648 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4529 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(BUILD_SLICE) {
@@ -4655,13 +4536,13 @@
             PyObject *slice;
             #line 3423 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             slice = PySlice_New(start, stop, step);
-            #line 4658 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4539 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(start);
             Py_DECREF(stop);
             Py_XDECREF(step);
             #line 3425 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (slice == NULL) { STACK_SHRINK(((oparg == 3) ? 1 : 0)); goto pop_2_error; }
-            #line 4664 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4545 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(((oparg == 3) ? 1 : 0));
             STACK_SHRINK(1);
             stack_pointer[-1] = slice;
@@ -4707,7 +4588,7 @@
             Py_DECREF(value);
             Py_XDECREF(fmt_spec);
             if (result == NULL) { STACK_SHRINK((((oparg & FVS_MASK) == FVS_HAVE_SPEC) ? 1 : 0)); goto pop_1_error; }
-            #line 4710 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4591 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK((((oparg & FVS_MASK) == FVS_HAVE_SPEC) ? 1 : 0));
             stack_pointer[-1] = result;
             DISPATCH();
@@ -4719,7 +4600,7 @@
             #line 3466 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(oparg > 0);
             top = Py_NewRef(bottom);
-            #line 4722 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4603 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = top;
             DISPATCH();
@@ -4746,12 +4627,12 @@
             assert((unsigned)oparg < Py_ARRAY_LENGTH(binary_ops));
             assert(binary_ops[oparg]);
             res = binary_ops[oparg](lhs, rhs);
-            #line 4749 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4630 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(lhs);
             Py_DECREF(rhs);
             #line 3486 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             if (res == NULL) goto pop_2_error;
-            #line 4754 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4635 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             stack_pointer[-1] = res;
             next_instr += 1;
@@ -4763,7 +4644,7 @@
             PyObject *bottom = stack_pointer[-(2 + (oparg-2))];
             #line 3491 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(oparg >= 2);
-            #line 4766 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4647 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = bottom;
             stack_pointer[-(2 + (oparg-2))] = top;
             DISPATCH();
@@ -4782,20 +4663,20 @@
             assert(next_opcode > 0 && next_opcode < 256);
             opcode = next_opcode;
             DISPATCH_GOTO();
-            #line 4785 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4666 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(INSTRUMENTED_JUMP_FORWARD) {
             #line 3509 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             INSTRUMENTED_JUMP(next_instr-1, next_instr+oparg, PY_MONITORING_EVENT_JUMP);
-            #line 4791 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4672 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
         TARGET(INSTRUMENTED_JUMP_BACKWARD) {
             #line 3513 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             INSTRUMENTED_JUMP(next_instr-1, next_instr-oparg, PY_MONITORING_EVENT_JUMP);
-            #line 4798 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4679 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             CHECK_EVAL_BREAKER();
             DISPATCH();
         }
@@ -4810,7 +4691,7 @@
             assert(err == 0 || err == 1);
             int offset = err*oparg;
             INSTRUMENTED_JUMP(here, next_instr + offset, PY_MONITORING_EVENT_BRANCH);
-            #line 4813 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4694 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -4824,7 +4705,7 @@
             assert(err == 0 || err == 1);
             int offset = (1-err)*oparg;
             INSTRUMENTED_JUMP(here, next_instr + offset, PY_MONITORING_EVENT_BRANCH);
-            #line 4827 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4708 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -4841,7 +4722,7 @@
                 offset = 0;
             }
             INSTRUMENTED_JUMP(here, next_instr + offset, PY_MONITORING_EVENT_BRANCH);
-            #line 4844 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4725 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -4858,7 +4739,7 @@
                  offset = oparg;
             }
             INSTRUMENTED_JUMP(here, next_instr + offset, PY_MONITORING_EVENT_BRANCH);
-            #line 4861 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4742 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
@@ -4868,41 +4749,172 @@
             #line 3576 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(0 && "Executing a cache.");
             Py_UNREACHABLE();
-            #line 4871 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4752 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(RESERVED) {
             #line 3581 "../../../fbcode/cinderx/Interpreter/Includes/bytecodes.c"
             assert(0 && "Executing RESERVED instruction.");
             Py_UNREACHABLE();
-            #line 4878 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4759 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         // Override
-        TARGET(NOP) {
+        TARGET(GET_AWAITABLE) {
+            PREDICTED(GET_AWAITABLE);
+            PyObject *iterable = stack_pointer[-1];
+            PyObject *iter;
+            #line 139 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            // CX: Changed from _PyCoro_GetAwaitableIter
+            iter = JitCoro_GetAwaitableIter(iterable);
+
+            if (iter == NULL) {
+                format_awaitable_error(tstate, Py_TYPE(iterable), oparg);
+            }
+
+            #line 4775 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            Py_DECREF(iterable);
+            #line 147 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+
+            // CX: Added JitCoro_CheckExact check
+            if (iter != NULL && (PyCoro_CheckExact(iter) || JitCoro_CheckExact(iter))) {
+                // CX: Changed from _PyGen_yf
+                PyObject *yf = JitGen_yf((PyGenObject*)iter);
+                if (yf != NULL) {
+                    /* `iter` is a coroutine object that is being
+                       awaited, `yf` is a pointer to the current awaitable
+                       being awaited on. */
+                    Py_DECREF(yf);
+                    Py_CLEAR(iter);
+                    _PyErr_SetString(tstate, PyExc_RuntimeError,
+                                     "coroutine is being awaited already");
+                    /* The code below jumps to `error` if `iter` is NULL. */
+                }
+            }
+
+            if (iter == NULL) goto pop_1_error;
+
+            #line 4797 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            stack_pointer[-1] = iter;
+            PREDICT(LOAD_CONST);
+            DISPATCH();
+        }
+
+        // Override
+        TARGET(GET_ANEXT) {
+            PyObject *aiter = stack_pointer[-1];
+            PyObject *awaitable;
+            #line 170 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            unaryfunc getter = NULL;
+            PyObject *next_iter = NULL;
+            PyTypeObject *type = Py_TYPE(aiter);
+
+            if (PyAsyncGen_CheckExact(aiter)) {
+                awaitable = type->tp_as_async->am_anext(aiter);
+                if (awaitable == NULL) {
+                    goto error;
+                }
+            } else {
+                if (type->tp_as_async != NULL){
+                    getter = type->tp_as_async->am_anext;
+                }
+
+                if (getter != NULL) {
+                    next_iter = (*getter)(aiter);
+                    if (next_iter == NULL) {
+                        goto error;
+                    }
+                }
+                else {
+                    _PyErr_Format(tstate, PyExc_TypeError,
+                                  "'async for' requires an iterator with "
+                                  "__anext__ method, got %.100s",
+                                  type->tp_name);
+                    goto error;
+                }
+
+                // CX: Changed from _PyCoro_GetAwaitableIter
+                awaitable = JitCoro_GetAwaitableIter(next_iter);
+                if (awaitable == NULL) {
+                    _PyErr_FormatFromCause(
+                        PyExc_TypeError,
+                        "'async for' received an invalid object "
+                        "from __anext__: %.100s",
+                        Py_TYPE(next_iter)->tp_name);
+
+                    Py_DECREF(next_iter);
+                    goto error;
+                } else {
+                    Py_DECREF(next_iter);
+                }
+            }
+
+            #line 4852 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            STACK_GROW(1);
+            stack_pointer[-1] = awaitable;
+            PREDICT(LOAD_CONST);
+            DISPATCH();
+        }
+
+        // Override
+        TARGET(GET_YIELD_FROM_ITER) {
+            PyObject *iterable = stack_pointer[-1];
+            PyObject *iter;
+            #line 218 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            /* before: [obj]; after [getiter(obj)] */
+            // CX: Added JitCoro_CheckExact check
+            if (JitCoro_CheckExact(iterable) || PyCoro_CheckExact(iterable)) {
+                /* `iterable` is a coroutine */
+                if (!(frame->f_code->co_flags & (CO_COROUTINE | CO_ITERABLE_COROUTINE))) {
+                    /* and it is used in a 'yield from' expression of a
+                       regular generator. */
+                    _PyErr_SetString(tstate, PyExc_TypeError,
+                                     "cannot 'yield from' a coroutine object "
+                                     "in a non-coroutine generator");
+                    goto error;
+                }
+                iter = iterable;
+            }
+            // CX: Added JitGen_CheckExact check
+            else if (JitGen_CheckExact(iterable) || PyGen_CheckExact(iterable)) {
+                iter = iterable;
+            }
+            else {
+                /* `iterable` is not a generator. */
+                iter = PyObject_GetIter(iterable);
+                if (iter == NULL) {
+                    goto error;
+                }
+            #line 4888 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+                Py_DECREF(iterable);
+            #line 243 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            }
+            #line 4892 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            stack_pointer[-1] = iter;
+            PREDICT(LOAD_CONST);
             DISPATCH();
         }
 
         // Override
         TARGET(EXTENDED_ARG) {
-            #line 142 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 248 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             opcode = next_instr->op.code;
             oparg = oparg << 8 | next_instr->op.arg;
             PRE_DISPATCH_GOTO();
             DISPATCH_GOTO();
-            #line 4893 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4905 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         // Override
         TARGET(MAP_ADD) {
             PyObject *value = stack_pointer[-1];
             PyObject *key = stack_pointer[-2];
-            #line 149 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 255 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject *dict = PEEK(oparg + 2);  // key, value are still on the stack
             assert(PyDict_CheckExact(dict) || Ci_CheckedDict_Check(dict));
             /* dict[key] = value */
             if (Ci_DictOrChecked_SetItem(dict, key, value) != 0) goto pop_2_error;
-            #line 4905 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4917 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(key);
             Py_DECREF(value);
             STACK_SHRINK(2);
@@ -4914,10 +4926,10 @@
         TARGET(LIST_APPEND) {
             PyObject *v = stack_pointer[-1];
             PyObject *list = stack_pointer[-(2 + (oparg-1))];
-            #line 158 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 264 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             if (Ci_ListOrCheckedList_Append((PyListObject*)list, v) < 0) goto pop_1_error;
             Py_DECREF(v);
-            #line 4920 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4932 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             PREDICT(JUMP_BACKWARD);
             DISPATCH();
@@ -4925,26 +4937,26 @@
 
         TARGET(POP_JUMP_IF_ZERO) {
             PyObject *cond = stack_pointer[-1];
-            #line 164 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 270 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int is_nonzero = PyObject_IsTrue(cond);
             Py_DECREF(cond);
             if (!is_nonzero) {
                 JUMPBY(oparg);
             }
-            #line 4934 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4946 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
 
         TARGET(POP_JUMP_IF_NONZERO) {
             PyObject *cond = stack_pointer[-1];
-            #line 172 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 278 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int is_nonzero = PyObject_IsTrue(cond);
             Py_DECREF(cond);
             if (is_nonzero) {
                 JUMPBY(oparg);
             }
-            #line 4947 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4959 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -4952,7 +4964,7 @@
         TARGET(LOAD_ITERABLE_ARG) {
             PyObject *tup = stack_pointer[-1];
             PyObject *element;
-            #line 180 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 286 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int idx = oparg;
             if (!PyTuple_CheckExact(tup)) {
                 if (tup->ob_type->tp_iter == NULL && !PySequence_Check(tup)) {
@@ -4969,7 +4981,7 @@
             element = PyTuple_GetItem(tup, idx);
             if (!element) goto pop_1_error;
             Py_INCREF(element);
-            #line 4972 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 4984 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = tup;
             stack_pointer[-2] = element;
@@ -4981,7 +4993,7 @@
             PyObject *mapping = stack_pointer[-2];
             PyObject *defaultval = (oparg == 3) ? stack_pointer[-(2 + ((oparg == 3) ? 1 : 0))] : NULL;
             PyObject *value;
-            #line 199 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 305 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             if (!PyDict_Check(mapping) && !Ci_CheckedDict_Check(mapping)) {
                 PyErr_Format(
                     PyExc_TypeError,
@@ -5006,7 +5018,7 @@
             }
 
             Py_INCREF(value);
-            #line 5009 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5021 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_XDECREF(defaultval);
             Py_DECREF(mapping);
             Py_DECREF(name);
@@ -5022,7 +5034,7 @@
 
         TARGET(TP_ALLOC) {
             PyObject *inst;
-            #line 230 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 336 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int optional;
             int exact;
             PyTypeObject* type = _PyClassLoader_ResolveType(
@@ -5043,7 +5055,7 @@
             }
 #endif
             Py_DECREF(type);
-            #line 5046 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5058 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = inst;
             DISPATCH();
@@ -5051,7 +5063,7 @@
 
         TARGET(LOAD_LOCAL) {
             PyObject *value;
-            #line 253 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 359 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int index = _PyLong_AsInt(PyTuple_GET_ITEM(GETITEM(frame->f_code->co_consts, oparg), 0));
 
             value = GETLOCAL(index);
@@ -5064,7 +5076,7 @@
                 SETLOCAL(index, value); /* will steal the ref */
             }
             Py_INCREF(value);
-            #line 5067 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5079 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = value;
             DISPATCH();
@@ -5072,7 +5084,7 @@
 
         TARGET(STORE_LOCAL) {
             PyObject *val = stack_pointer[-1];
-            #line 268 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 374 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* local = GETITEM(frame->f_code->co_consts, oparg);
             int index = _PyLong_AsInt(PyTuple_GET_ITEM(local, 0));
             int type =
@@ -5096,7 +5108,7 @@
                     &shadow, next_instr, PRIMITIVE_STORE_FAST, (index << 4) | type);
             }
 #endif
-            #line 5099 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5111 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(1);
             DISPATCH();
         }
@@ -5104,7 +5116,7 @@
         TARGET(LOAD_FIELD) {
             PyObject *self = stack_pointer[-1];
             PyObject *value;
-            #line 294 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 400 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* field = GETITEM(frame->f_code->co_consts, oparg);
             int field_type;
             Py_ssize_t offset =
@@ -5154,7 +5166,7 @@
                 }
             }
             Py_DECREF(self);
-            #line 5157 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5169 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = value;
             DISPATCH();
         }
@@ -5162,7 +5174,7 @@
         TARGET(STORE_FIELD) {
             PyObject *self = stack_pointer[-1];
             PyObject *value = stack_pointer[-2];
-            #line 346 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 452 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* field = GETITEM(frame->f_code->co_consts, oparg);
             int field_type;
             Py_ssize_t offset =
@@ -5199,7 +5211,7 @@
                 store_field(field_type, (char*)addr, value);
             }
             Py_DECREF(self);
-            #line 5202 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5214 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK(2);
             DISPATCH();
         }
@@ -5207,7 +5219,7 @@
         TARGET(CAST) {
             PyObject *val = stack_pointer[-1];
             PyObject *res;
-            #line 385 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 491 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int optional;
             int exact;
             PyTypeObject* type = _PyClassLoader_ResolveType(
@@ -5242,7 +5254,7 @@
 #endif
             res = val;
             Py_DECREF(type);
-            #line 5245 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5257 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = res;
             DISPATCH();
         }
@@ -5251,7 +5263,7 @@
             PyObject *idx = stack_pointer[-1];
             PyObject *sequence = stack_pointer[-2];
             PyObject *item;
-            #line 422 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 528 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             Py_ssize_t val = (Py_ssize_t)PyLong_AsVoidPtr(idx);
 
             if (val == -1 && _PyErr_Occurred(tstate)) {
@@ -5302,7 +5314,7 @@
                 goto error;
             }
 
-            #line 5305 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5317 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(sequence);
             Py_DECREF(idx);
             STACK_SHRINK(1);
@@ -5314,7 +5326,7 @@
             PyObject *subscr = stack_pointer[-1];
             PyObject *sequence = stack_pointer[-2];
             PyObject *v = stack_pointer[-3];
-            #line 476 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 582 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int err;
 
             Py_ssize_t idx = (Py_ssize_t)PyLong_AsVoidPtr(subscr);
@@ -5367,7 +5379,7 @@
                 goto error;
             }
 
-            #line 5370 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5382 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(v);
             Py_DECREF(sequence);
             Py_DECREF(subscr);
@@ -5378,7 +5390,7 @@
         TARGET(LIST_DEL) {
             PyObject *subscr = stack_pointer[-1];
             PyObject *list = stack_pointer[-2];
-            #line 532 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 638 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int err;
 
             Py_ssize_t idx = PyLong_AsLong(subscr);
@@ -5389,7 +5401,7 @@
 
             err = PyList_SetSlice(list, idx, idx + 1, NULL);
             if (err != 0) goto pop_2_error;
-            #line 5392 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5404 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(list);
             Py_DECREF(subscr);
             STACK_SHRINK(2);
@@ -5399,7 +5411,7 @@
         TARGET(FAST_LEN) {
             PyObject *collection = stack_pointer[-1];
             PyObject *length;
-            #line 546 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 652 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             int inexact = oparg & FAST_LEN_INEXACT;
             oparg &= ~FAST_LEN_INEXACT;
             assert(FAST_LEN_LIST <= oparg && oparg <= FAST_LEN_STR);
@@ -5431,7 +5443,7 @@
             }
             if (length == NULL) goto pop_1_error;
             Py_DECREF(collection);
-            #line 5434 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5446 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = length;
             DISPATCH();
         }
@@ -5439,19 +5451,19 @@
         TARGET(PRIMITIVE_BOX) {
             PyObject *top = stack_pointer[-1];
             PyObject *res;
-            #line 580 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 686 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             res = sign_extend_primitive(top, oparg);
-            #line 5444 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5456 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             stack_pointer[-1] = res;
             DISPATCH();
         }
 
         TARGET(PRIMITIVE_UNBOX) {
             PyObject *top = stack_pointer[-1];
-            #line 584 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 690 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             /* We always box values in the interpreter loop (they're only
-            * unboxed in the JIT where they can't be introspected at runtime), 
-            * so this just does overflow checking here. Oparg indicates the 
+            * unboxed in the JIT where they can't be introspected at runtime),
+            * so this just does overflow checking here. Oparg indicates the
             * type of the unboxed value. */
             if (PyLong_CheckExact(top)) {
                 size_t value;
@@ -5460,14 +5472,14 @@
                     goto error;
                 }
             }
-            #line 5463 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5475 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             DISPATCH();
         }
 
         TARGET(PRIMITIVE_UNARY_OP) {
             PyObject *val = stack_pointer[-1];
             PyObject *res;
-            #line 598 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 704 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             switch (oparg) {
                 INT_UNARY_OPCODE(PRIM_OP_NEG_INT, -)
                 INT_UNARY_OPCODE(PRIM_OP_INV_INT, ~)
@@ -5481,7 +5493,7 @@
                     goto error;
             }
             if (res == NULL) goto pop_1_error;
-            #line 5484 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5496 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(val);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -5490,7 +5502,7 @@
         TARGET(CONVERT_PRIMITIVE) {
             PyObject *val = stack_pointer[-1];
             PyObject *res;
-            #line 615 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 721 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             Py_ssize_t from_type = oparg & 0xFF;
             Py_ssize_t to_type = oparg >> 4;
             Py_ssize_t extend_sign =
@@ -5507,7 +5519,7 @@
 
             res = PyLong_FromSize_t(ival);
             if (res == NULL) goto pop_1_error;
-            #line 5510 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5522 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(val);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -5517,7 +5529,7 @@
             PyObject *r = stack_pointer[-1];
             PyObject *l = stack_pointer[-2];
             PyObject *res;
-            #line 635 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 741 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             switch (oparg) {
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_ADD_INT, +)
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_SUB_INT, -)
@@ -5560,7 +5572,7 @@
                     goto error;
             }
             if (res == NULL) goto pop_2_error;
-            #line 5563 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5575 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(l);
             Py_DECREF(r);
             STACK_SHRINK(1);
@@ -5572,7 +5584,7 @@
             PyObject *r = stack_pointer[-1];
             PyObject *l = stack_pointer[-2];
             PyObject *res;
-            #line 681 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 787 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             Py_ssize_t sleft, sright;
             size_t left, right;
             switch (oparg) {
@@ -5594,13 +5606,13 @@
                 DBL_CMP_OPCODE(PRIM_OP_GE_DBL, >=)
                 default:
                     PyErr_SetString(PyExc_RuntimeError, "unknown op");
-            #line 5597 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5609 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
                     Py_DECREF(l);
                     Py_DECREF(r);
-            #line 703 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 809 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
                     goto error;
             }
-            #line 5603 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5615 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(l);
             Py_DECREF(r);
             STACK_SHRINK(1);
@@ -5610,10 +5622,10 @@
 
         TARGET(PRIMITIVE_LOAD_CONST) {
             PyObject *res;
-            #line 709 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 815 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             res = PyTuple_GET_ITEM(GETITEM(frame->f_code->co_consts, oparg), 0);
             Py_INCREF(res);
-            #line 5616 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5628 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = res;
             DISPATCH();
@@ -5621,7 +5633,7 @@
 
         TARGET(RETURN_PRIMITIVE) {
             PyObject *retval = stack_pointer[-1];
-            #line 714 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 820 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             /* In the interpreter, we always return a boxed int. We have a boxed
             * value on the stack already, but we may have to deal with sign
             * extension. */
@@ -5639,16 +5651,16 @@
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
             goto resume_frame;
-            #line 5642 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5654 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
         }
 
         TARGET(LOAD_TYPE) {
             PyObject *instance = stack_pointer[-1];
             PyObject *type;
-            #line 734 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 840 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             type = (PyObject *)Py_TYPE(instance);
             Py_INCREF(type);
-            #line 5651 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5663 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(instance);
             stack_pointer[-1] = type;
             DISPATCH();
@@ -5656,14 +5668,14 @@
 
         TARGET(LOAD_CLASS) {
             PyObject *type;
-            #line 740 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 846 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* type_descr = GETITEM(frame->f_code->co_consts, oparg);
             int optional;
             int exact;
             type =
                 (PyObject *)_PyClassLoader_ResolveType(type_descr, &optional, &exact);
             if (type == NULL) goto error;
-            #line 5666 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5678 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_GROW(1);
             stack_pointer[-1] = type;
             DISPATCH();
@@ -5672,7 +5684,7 @@
         TARGET(INVOKE_FUNCTION) {
             PyObject **args = (stack_pointer - ((invoke_function_args(frame->f_code->co_consts, oparg))));
             PyObject *res;
-            #line 749 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 855 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             // We should move to encoding the number of args directly in the
             // opcode, right now pulling them out via invoke_function_args is a little
             // ugly.
@@ -5712,7 +5724,7 @@
             Py_DECREF(func);
             Py_DECREF(container);
             if (res == NULL) { STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg))); goto error; }
-            #line 5715 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5727 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = invoke_function_args(frame->f_code->co_consts, oparg); --_i >= 0;) {
                 Py_DECREF(args[_i]);
             }
@@ -5725,7 +5737,7 @@
         TARGET(INVOKE_METHOD) {
             PyObject **args = (stack_pointer - ((invoke_function_args(frame->f_code->co_consts, oparg) + 1)));
             PyObject *res;
-            #line 792 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 898 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* value = GETITEM(frame->f_code->co_consts, oparg);
             Py_ssize_t nargs = invoke_function_args(frame->f_code->co_consts, oparg) + 1;
             PyObject* target = PyTuple_GET_ITEM(value, 0);
@@ -5782,7 +5794,7 @@
                 nargs);
 
             if (res == NULL) { STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg) + 1)); goto error; }
-            #line 5785 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5797 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = invoke_function_args(frame->f_code->co_consts, oparg) + 1; --_i >= 0;) {
                 Py_DECREF(args[_i]);
             }
@@ -5795,7 +5807,7 @@
         TARGET(INVOKE_NATIVE) {
             PyObject **args = (stack_pointer - ((invoke_native_args(frame->f_code->co_consts, oparg))));
             PyObject *res;
-            #line 852 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 958 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* value = GETITEM(frame->f_code->co_consts, oparg);
             assert(PyTuple_CheckExact(value));
             Py_ssize_t nargs = invoke_native_args(frame->f_code->co_consts, oparg);
@@ -5808,7 +5820,7 @@
             res = _PyClassloader_InvokeNativeFunction(
                 name, symbol, signature, args, nargs);
             if (res == NULL) { STACK_SHRINK((invoke_native_args(frame->f_code->co_consts, oparg))); goto error; }
-            #line 5811 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5823 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = invoke_native_args(frame->f_code->co_consts, oparg); --_i >= 0;) {
                 Py_DECREF(args[_i]);
             }
@@ -5821,7 +5833,7 @@
         TARGET(BUILD_CHECKED_LIST) {
             PyObject **list_items = (stack_pointer - ((build_checked_obj_size(frame->f_code->co_consts, oparg))));
             PyObject *list;
-            #line 868 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 974 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* list_info = GETITEM(frame->f_code->co_consts, oparg);
             PyObject* list_type = PyTuple_GET_ITEM(list_info, 0);
             Py_ssize_t list_size = PyLong_AsLong(PyTuple_GET_ITEM(list_info, 1));
@@ -5864,7 +5876,7 @@
             for (Py_ssize_t i = 0; i < list_size; i++) {
                 Ci_ListOrCheckedList_SET_ITEM(list, i, list_items[i]);
             }
-            #line 5867 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5879 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK((build_checked_obj_size(frame->f_code->co_consts, oparg)));
             STACK_GROW(1);
             stack_pointer[-1] = list;
@@ -5874,7 +5886,7 @@
         TARGET(BUILD_CHECKED_MAP) {
             PyObject **map_items = (stack_pointer - ((build_checked_obj_size(frame->f_code->co_consts, oparg) * 2)));
             PyObject *map;
-            #line 913 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 1019 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* map_info = GETITEM(frame->f_code->co_consts, oparg);
             PyObject* map_type = PyTuple_GET_ITEM(map_info, 0);
             Py_ssize_t map_size = PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));
@@ -5917,7 +5929,7 @@
 
             Ci_BUILD_DICT(map_size, Ci_CheckedDict_SetItem);
             if (map == NULL) { STACK_SHRINK((build_checked_obj_size(frame->f_code->co_consts, oparg) * 2)); goto error; }
-            #line 5920 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5932 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = build_checked_obj_size(frame->f_code->co_consts, oparg) * 2; --_i >= 0;) {
                 Py_DECREF(map_items[_i]);
             }

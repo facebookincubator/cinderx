@@ -135,7 +135,113 @@ dummy_func(
 
 // BEGIN BYTECODES //
 
-        override inst(NOP, (--)) {
+        override inst(GET_AWAITABLE, (iterable -- iter)) {
+            // CX: Changed from _PyCoro_GetAwaitableIter
+            iter = JitCoro_GetAwaitableIter(iterable);
+
+            if (iter == NULL) {
+                format_awaitable_error(tstate, Py_TYPE(iterable), oparg);
+            }
+
+            DECREF_INPUTS();
+
+            // CX: Added JitCoro_CheckExact check
+            if (iter != NULL && (PyCoro_CheckExact(iter) || JitCoro_CheckExact(iter))) {
+                // CX: Changed from _PyGen_yf
+                PyObject *yf = JitGen_yf((PyGenObject*)iter);
+                if (yf != NULL) {
+                    /* `iter` is a coroutine object that is being
+                       awaited, `yf` is a pointer to the current awaitable
+                       being awaited on. */
+                    Py_DECREF(yf);
+                    Py_CLEAR(iter);
+                    _PyErr_SetString(tstate, PyExc_RuntimeError,
+                                     "coroutine is being awaited already");
+                    /* The code below jumps to `error` if `iter` is NULL. */
+                }
+            }
+
+            ERROR_IF(iter == NULL, error);
+
+            PREDICT(LOAD_CONST);
+        }
+
+        override inst(GET_ANEXT, (aiter -- aiter, awaitable)) {
+            unaryfunc getter = NULL;
+            PyObject *next_iter = NULL;
+            PyTypeObject *type = Py_TYPE(aiter);
+
+            if (PyAsyncGen_CheckExact(aiter)) {
+                awaitable = type->tp_as_async->am_anext(aiter);
+                if (awaitable == NULL) {
+                    goto error;
+                }
+            } else {
+                if (type->tp_as_async != NULL){
+                    getter = type->tp_as_async->am_anext;
+                }
+
+                if (getter != NULL) {
+                    next_iter = (*getter)(aiter);
+                    if (next_iter == NULL) {
+                        goto error;
+                    }
+                }
+                else {
+                    _PyErr_Format(tstate, PyExc_TypeError,
+                                  "'async for' requires an iterator with "
+                                  "__anext__ method, got %.100s",
+                                  type->tp_name);
+                    goto error;
+                }
+
+                // CX: Changed from _PyCoro_GetAwaitableIter
+                awaitable = JitCoro_GetAwaitableIter(next_iter);
+                if (awaitable == NULL) {
+                    _PyErr_FormatFromCause(
+                        PyExc_TypeError,
+                        "'async for' received an invalid object "
+                        "from __anext__: %.100s",
+                        Py_TYPE(next_iter)->tp_name);
+
+                    Py_DECREF(next_iter);
+                    goto error;
+                } else {
+                    Py_DECREF(next_iter);
+                }
+            }
+
+            PREDICT(LOAD_CONST);
+        }
+
+        override inst(GET_YIELD_FROM_ITER, (iterable -- iter)) {
+            /* before: [obj]; after [getiter(obj)] */
+            // CX: Added JitCoro_CheckExact check
+            if (JitCoro_CheckExact(iterable) || PyCoro_CheckExact(iterable)) {
+                /* `iterable` is a coroutine */
+                if (!(frame->f_code->co_flags & (CO_COROUTINE | CO_ITERABLE_COROUTINE))) {
+                    /* and it is used in a 'yield from' expression of a
+                       regular generator. */
+                    _PyErr_SetString(tstate, PyExc_TypeError,
+                                     "cannot 'yield from' a coroutine object "
+                                     "in a non-coroutine generator");
+                    goto error;
+                }
+                iter = iterable;
+            }
+            // CX: Added JitGen_CheckExact check
+            else if (JitGen_CheckExact(iterable) || PyGen_CheckExact(iterable)) {
+                iter = iterable;
+            }
+            else {
+                /* `iterable` is not a generator. */
+                iter = PyObject_GetIter(iterable);
+                if (iter == NULL) {
+                    goto error;
+                }
+                DECREF_INPUTS();
+            }
+            PREDICT(LOAD_CONST);
         }
 
         override inst(EXTENDED_ARG, ( -- )) {
@@ -222,7 +328,7 @@ dummy_func(
             Py_INCREF(value);
             DECREF_INPUTS();
         }
-      
+
         inst(REFINE_TYPE, (unused -- unused)) {
         }
 
@@ -341,7 +447,7 @@ dummy_func(
             }
             Py_DECREF(self);
         }
-      
+
         inst(STORE_FIELD, (value, self --)) {
             PyObject* field = GETITEM(frame->f_code->co_consts, oparg);
             int field_type;
@@ -380,7 +486,7 @@ dummy_func(
             }
             Py_DECREF(self);
         }
-      
+
         inst(CAST, (val -- res)) {
             int optional;
             int exact;
@@ -582,8 +688,8 @@ dummy_func(
 
         inst(PRIMITIVE_UNBOX, (top -- top)) {
             /* We always box values in the interpreter loop (they're only
-            * unboxed in the JIT where they can't be introspected at runtime), 
-            * so this just does overflow checking here. Oparg indicates the 
+            * unboxed in the JIT where they can't be introspected at runtime),
+            * so this just does overflow checking here. Oparg indicates the
             * type of the unboxed value. */
             if (PyLong_CheckExact(top)) {
                 size_t value;

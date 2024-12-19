@@ -17,6 +17,9 @@
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/static_array.h"
 
+#include "cinderx/Jit/generators_rt.h"
+
+
 /* _PyEval_EvalFrameDefault() is a *big* function,
  * so consume 3 units of C stack */
 #define PY_EVAL_C_STACK_UNITS 2
