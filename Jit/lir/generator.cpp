@@ -2948,7 +2948,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Imm{reinterpret_cast<uint64_t>(JITRT_GenSend)},
             hir_instr.GetOperand(0),
             hir_instr.GetOperand(1),
-            Imm{0});
+            Imm{0},
+            env_->asm_interpreter_frame);
         break;
       }
     }

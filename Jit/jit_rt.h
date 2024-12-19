@@ -417,8 +417,15 @@ struct JITRT_GenSendRes {
   PyObject* retval;
   uint64_t done;
 };
-JITRT_GenSendRes
-JITRT_GenSend(PyObject* gen, PyObject* v, uint64_t finish_yield_from);
+JITRT_GenSendRes JITRT_GenSend(
+    PyObject* gen,
+    PyObject* v,
+    uint64_t finish_yield_from
+#if PY_VERSION_HEX >= 0x030C0000
+    ,
+    _PyInterpreterFrame* frame
+#endif
+);
 
 // Used for the `YIELD_FROM` that appears in the bytecode of the header for
 // an `async for` loop.
@@ -430,7 +437,12 @@ JITRT_GenSend(PyObject* gen, PyObject* v, uint64_t finish_yield_from);
 JITRT_GenSendRes JITRT_GenSendHandleStopAsyncIteration(
     PyObject* gen,
     PyObject* v,
-    uint64_t finish_yield_from);
+    uint64_t finish_yield_from
+#if PY_VERSION_HEX >= 0x030C0000
+    ,
+    _PyInterpreterFrame* frame
+#endif
+);
 
 /* Unpack a sequence as in unpack_iterable(), and save the
  * results in a tuple.

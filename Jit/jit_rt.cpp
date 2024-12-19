@@ -1489,8 +1489,15 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
 #endif
 }
 
-JITRT_GenSendRes
-JITRT_GenSend(PyObject* gen, PyObject* v, uint64_t finish_yield_from) {
+JITRT_GenSendRes JITRT_GenSend(
+    PyObject* gen,
+    PyObject* v,
+    uint64_t finish_yield_from
+#if PY_VERSION_HEX >= 0x030C0000
+    ,
+    _PyInterpreterFrame* frame
+#endif
+) {
   if (v == nullptr) {
     return {nullptr, 1};
   }
@@ -1499,6 +1506,12 @@ JITRT_GenSend(PyObject* gen, PyObject* v, uint64_t finish_yield_from) {
     return {v, 1};
   }
   PyObject* retval;
+#if PY_VERSION_HEX >= 0x030C0000
+  if (frame->f_code->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)) {
+    Ci_PyAwaitable_SetAwaiter(
+        gen, reinterpret_cast<PyObject*>(_PyFrame_GetGenerator(frame)));
+  }
+#endif
   auto gen_status = PyIter_Send(gen, v, &retval);
 
   if (gen_status == PYGEN_RETURN) {
@@ -1514,8 +1527,21 @@ JITRT_GenSend(PyObject* gen, PyObject* v, uint64_t finish_yield_from) {
 JITRT_GenSendRes JITRT_GenSendHandleStopAsyncIteration(
     PyObject* gen,
     PyObject* v,
-    uint64_t finish_yield_from) {
-  JITRT_GenSendRes res = JITRT_GenSend(gen, v, finish_yield_from);
+    uint64_t finish_yield_from
+#if PY_VERSION_HEX >= 0x030C0000
+    ,
+    _PyInterpreterFrame* frame
+#endif
+) {
+  JITRT_GenSendRes res = JITRT_GenSend(
+      gen,
+      v,
+      finish_yield_from
+#if PY_VERSION_HEX >= 0x030C0000
+      ,
+      frame
+#endif
+  );
   if ((res.retval == nullptr) && (res.done == 1) &&
       PyErr_ExceptionMatches(PyExc_StopAsyncIteration)) {
     PyErr_Clear();
