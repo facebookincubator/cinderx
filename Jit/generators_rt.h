@@ -15,7 +15,7 @@ namespace jit {
 #if PY_VERSION_HEX < 0x030C0000
 
 template <typename PyObjectT>
-int JitGen_CheckExact(PyObjectT*) {
+int JitGen_CheckAny(PyObjectT*) {
   return 0;
 }
 
@@ -23,10 +23,12 @@ int JitGen_CheckExact(PyObjectT*) {
 
 struct GenDataFooter;
 extern PyTypeObject JitGen_Type;
+extern PyTypeObject JitCoro_Type;
 
 template <typename PyObjectT>
-int JitGen_CheckExact(PyObjectT* op) {
-  return Py_IS_TYPE(reinterpret_cast<PyObject*>(op), &JitGen_Type);
+int JitGen_CheckAny(PyObjectT* op) {
+  return Py_IS_TYPE(reinterpret_cast<PyObject*>(op), &JitGen_Type) ||
+      Py_IS_TYPE(reinterpret_cast<PyObject*>(op), &JitCoro_Type);
 }
 
 struct JitGenObject : PyGenObject {
@@ -34,8 +36,8 @@ struct JitGenObject : PyGenObject {
 
   template <typename PyGenObjectT>
   static JitGenObject* cast(PyGenObjectT* gen) {
-    return JitGen_CheckExact(gen) ? reinterpret_cast<JitGenObject*>(gen)
-                                  : nullptr;
+    return JitGen_CheckAny(gen) ? reinterpret_cast<JitGenObject*>(gen)
+                                : nullptr;
   }
 
   GenDataFooter** genDataFooterPtr() {
@@ -86,6 +88,8 @@ void init_jit_genobject_type();
 extern "C" {
 #endif
 
+int JitGen_CheckExact(PyObject* o);
+int JitCoro_CheckExact(PyObject* o);
 PyObject* JitCoro_GetAwaitableIter(PyObject* o);
 PyObject* JitGen_yf(PyGenObject* gen);
 

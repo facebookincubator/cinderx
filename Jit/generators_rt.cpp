@@ -7,6 +7,7 @@
 #include "pycore_frame.h"
 #include "pycore_genobject.h"
 #include "pycore_pyerrors.h" // _PyErr_ClearExcState()
+#include "structmember.h"
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/deopt.h"
@@ -71,14 +72,17 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
         reinterpret_cast<uintptr_t>(gen_footer) + loc.loc);
     Py_VISIT(v);
   }
-  JIT_CHECK(JitGen_CheckExact(obj), "Deopted during GC traversal");
+  JIT_CHECK(JitGen_CheckAny(obj), "Deopted during GC traversal");
   return 0;
 }
 
-void raise_already_running_exception() {
+void raise_already_running_exception(JitGenObject* jit_gen) {
   // If the executor is running we cannot deopt so have to replicate the
   // errors from CPython here.
   const char* msg = "generator already executing";
+  if (Py_TYPE(jit_gen) == &JitCoro_Type) {
+    msg = "coroutine already executing";
+  }
   PyErr_SetString(PyExc_ValueError, msg);
 }
 
@@ -106,7 +110,7 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
   // If we deopted then the interpreter will handle setting frame state and
   // there will no longer be any JIT state. We can check if this happened by
   // seeing if the type of the generator object is no longer a JitGenObject.
-  if (JitGen_CheckExact(gen_obj)) {
+  if (JitGen_CheckAny(gen_obj)) {
     tstate->exc_info = jit_gen->gi_exc_state.previous_item;
     jit_gen->gi_exc_state.previous_item = nullptr;
     tstate->cframe->current_frame = frame->previous;
@@ -138,7 +142,7 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
       (gen->gi_frame_state == FRAME_CREATED && arg && !Py_IsNone(arg))) {
     // Try to deopt to easily reproduce CPython errors.
     if (!deopt_jit_gen(obj)) {
-      raise_already_running_exception();
+      raise_already_running_exception(gen);
       *presult = NULL;
       return PYGEN_ERROR;
     }
@@ -166,7 +170,7 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
   _PyInterpreterFrame* frame =
       reinterpret_cast<_PyInterpreterFrame*>(gen->gi_iframe);
   JIT_DCHECK(
-      JitGen_CheckExact(obj) || frame->previous == NULL,
+      JitGen_CheckAny(obj) || frame->previous == NULL,
       "Previous frame still linked");
 
   /* If the generator just returned (as opposed to yielding), signal
@@ -245,7 +249,7 @@ PyObject* jitgen_throw(PyObject* obj, PyObject* const* args, Py_ssize_t nargs) {
   // Always deopt as an exception being raised internally would cause a JIT
   // generator to deopt anyway.
   if (!deopt_jit_gen(obj)) {
-    raise_already_running_exception();
+    raise_already_running_exception(reinterpret_cast<JitGenObject*>(obj));
     return nullptr;
   }
   return gen_throw_meth(obj, args, nargs);
@@ -256,7 +260,7 @@ PyObject* jitgen_close(PyObject* obj, PyObject*) {
   // would cause a deopt anyway or if the generator is already done then deopt
   // is cheap and won't rexecute in the interpreter.
   if (!deopt_jit_gen(obj)) {
-    raise_already_running_exception();
+    raise_already_running_exception(reinterpret_cast<JitGenObject*>(obj));
     return nullptr;
   }
   return gen_close_meth(obj, nullptr);
@@ -310,6 +314,115 @@ void jitgen_finalize(PyObject* obj) {
   PyGen_Type.tp_finalize(obj);
 }
 
+typedef struct {
+  PyObject_HEAD
+  PyObject* cw_coroutine;
+} JitCoroWrapper;
+
+void jitcoro_wrapper_dealloc(JitCoroWrapper* cw) {
+  PyObject_GC_UnTrack(reinterpret_cast<PyObject*>(cw));
+  Py_CLEAR(cw->cw_coroutine);
+  PyObject_GC_Del(cw);
+}
+
+PyObject* jitcoro_wrapper_iternext(JitCoroWrapper* cw) {
+  return jitgen_iternext(cw->cw_coroutine);
+}
+
+PyObject* jitcoro_wrapper_send(JitCoroWrapper* cw, PyObject* arg) {
+  return jitgen_send(cw->cw_coroutine, arg);
+}
+
+PyObject* jitcoro_wrapper_throw(
+    JitCoroWrapper* cw,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  return jitgen_throw(cw->cw_coroutine, args, nargs);
+}
+
+PyObject* jitcoro_wrapper_close(JitCoroWrapper* cw, PyObject* args) {
+  return jitgen_close(cw->cw_coroutine, args);
+}
+
+int jitcoro_wrapper_traverse(JitCoroWrapper* cw, visitproc visit, void* arg) {
+  Py_VISIT(cw->cw_coroutine);
+  return 0;
+}
+
+static PyMethodDef jitcoro_wrapper_methods[] = {
+    {"send",
+     reinterpret_cast<PyCFunction>(jitcoro_wrapper_send),
+     METH_O,
+     nullptr},
+    {"throw", _PyCFunction_CAST(jitcoro_wrapper_throw), METH_FASTCALL, nullptr},
+    {"close",
+     reinterpret_cast<PyCFunction>(jitcoro_wrapper_close),
+     METH_NOARGS,
+     nullptr},
+    {} /* Sentinel */
+};
+
+PyTypeObject _JitCoroWrapper_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "coroutine_wrapper",
+    sizeof(JitCoroWrapper), /* tp_basicsize */
+    0, /* tp_itemsize */
+    reinterpret_cast<destructor>(
+        jitcoro_wrapper_dealloc), /* destructor tp_dealloc */
+    0, /* tp_vectorcall_offset */
+    nullptr, /* tp_getattr */
+    nullptr, /* tp_setattr */
+    nullptr, /* tp_as_async */
+    nullptr, /* tp_repr */
+    nullptr, /* tp_as_number */
+    nullptr, /* tp_as_sequence */
+    nullptr, /* tp_as_mapping */
+    nullptr, /* tp_hash */
+    nullptr, /* tp_call */
+    nullptr, /* tp_str */
+    PyObject_GenericGetAttr, /* tp_getattro */
+    nullptr, /* tp_setattro */
+    nullptr, /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /* tp_flags */
+    "A wrapper object implementing __await__ for coroutines.",
+    reinterpret_cast<traverseproc>(jitcoro_wrapper_traverse), /* tp_traverse */
+    nullptr, /* tp_clear */
+    nullptr, /* tp_richcompare */
+    0, /* tp_weaklistoffset */
+    PyObject_SelfIter, /* tp_iter */
+    reinterpret_cast<iternextfunc>(jitcoro_wrapper_iternext), /* tp_iternext */
+    jitcoro_wrapper_methods, /* tp_methods */
+    nullptr, /* tp_members */
+    nullptr, /* tp_getset */
+    nullptr, /* tp_base */
+    nullptr, /* tp_dict */
+    nullptr, /* tp_descr_get */
+    nullptr, /* tp_descr_set */
+    0, /* tp_dictoffset */
+    nullptr, /* tp_init */
+    nullptr, /* tp_alloc */
+    nullptr, /* tp_new */
+    nullptr, /* tp_free */
+    nullptr, /* tp_is_gc */
+    nullptr, /* tp_bases */
+    nullptr, /* tp_mro */
+    nullptr, /* tp_cache */
+    nullptr, /* tp_subclasses */
+    nullptr, /* tp_weaklist */
+    nullptr, /* tp_del */
+    0, /* tp_version_tag */
+    jitgen_finalize, /* tp_finalize */
+};
+
+PyObject* jitcoro_await(PyCoroObject* coro) {
+  JitCoroWrapper* cw = PyObject_GC_New(JitCoroWrapper, &_JitCoroWrapper_Type);
+  if (cw == NULL) {
+    return NULL;
+  }
+  cw->cw_coroutine = Py_NewRef(coro);
+  PyObject_GC_Track(cw);
+  return reinterpret_cast<PyObject*>(cw);
+}
+
 static PyMethodDef jitgen_methods[] = {
     {"send", reinterpret_cast<PyCFunction>(jitgen_send), METH_O, nullptr},
     {"throw",
@@ -343,6 +456,57 @@ static PyGetSetDef jitgen_getsetlist[] = {
     {"gi_code", nullptr, nullptr, nullptr},
     {} /* Sentinel */
 };
+
+// The fully null entries are filled in by init_jit_genobject_type()
+static PyGetSetDef jitcoro_getsetlist[] = {
+    {"__name__", nullptr, nullptr, nullptr},
+    {"__qualname__", nullptr, nullptr, nullptr},
+    {"cr_await", (getter)jitgen_getyieldfrom, nullptr, nullptr},
+    {"cr_running", nullptr, nullptr, nullptr},
+    {"cr_frame", nullptr, nullptr, nullptr},
+    {"cr_code", nullptr, nullptr, nullptr},
+    {"cr_suspended", nullptr, nullptr, nullptr},
+    {"cr_ci_awaiter", nullptr, nullptr, nullptr},
+    {"cr_awaiter", nullptr, nullptr, nullptr},
+    {} /* Sentinel */
+};
+
+static PyMemberDef jitcoro_memberlist[] = {
+    {"cr_origin",
+     T_OBJECT,
+     offsetof(PyCoroObject, cr_origin_or_finalizer),
+     READONLY},
+    {} /* Sentinel */
+};
+
+static PyMethodDef jitcoro_methods[] = {
+    {"send", (PyCFunction)jitgen_send, METH_O, nullptr},
+    {"throw", _PyCFunction_CAST(jitgen_throw), METH_FASTCALL, nullptr},
+    {"close", (PyCFunction)jitgen_close, METH_NOARGS, nullptr},
+    {"__sizeof__", (PyCFunction)jitgen_sizeof, METH_NOARGS, nullptr},
+    {"__set_awaiter__", nullptr, METH_O, nullptr},
+    {} /* Sentinel */
+};
+
+static Ci_AsyncMethodsWithExtra jitcoro_as_async = {
+    .ame_async_methods =
+        {
+            .am_await = reinterpret_cast<unaryfunc>(jitcoro_await),
+            .am_send = (sendfunc)jitgen_am_send,
+        },
+    // Filled in by init_jit_genobject_type()
+    .ame_setawaiter = nullptr,
+};
+
+bool jitgen_is_coroutine(PyObject* o) {
+  if (Py_TYPE(o) == &JitGen_Type || PyGen_CheckExact(o)) {
+    PyCodeObject* code = PyGen_GetCode(reinterpret_cast<PyGenObject*>(o));
+    if (code->co_flags & CO_ITERABLE_COROUTINE) {
+      return true;
+    }
+  }
+  return false;
+}
 
 } // namespace
 
@@ -402,9 +566,69 @@ PyTypeObject JitGen_Type = {
     jitgen_finalize, /* tp_finalize */
 };
 
+static_assert(sizeof(PyGenObject) == sizeof(PyCoroObject));
+PyTypeObject JitCoro_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "coroutine", /* tp_name */
+    // These structs are variable-sized so we use offsetof(). This is inherited
+    // from genobject.c. We store our pointer to JIT data in an additional
+    // variable slot at the end of the object.
+    offsetof(PyGenObject, gi_iframe) +
+        offsetof(_PyInterpreterFrame, localsplus) +
+        sizeof(GenDataFooter*), /* tp_basicsize */
+    sizeof(PyObject*), /* tp_itemsize */
+    /* methods */
+    (destructor)jitgen_dealloc, /* tp_dealloc */
+    0, /* tp_vectorcall_offset */
+    nullptr, /* tp_getattr */
+    nullptr, /* tp_setattr */
+    &jitcoro_as_async.ame_async_methods, /* tp_as_async */
+    nullptr, /* tp_repr - filled in by init_jit_genobject_type() */
+    nullptr, /* tp_as_number */
+    nullptr, /* tp_as_sequence */
+    nullptr, /* tp_as_mapping */
+    nullptr, /* tp_hash */
+    nullptr, /* tp_call */
+    nullptr, /* tp_str */
+    PyObject_GenericGetAttr, /* tp_getattro */
+    nullptr, /* tp_setattro */
+    nullptr, /* tp_as_buffer */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+        Ci_TPFLAGS_HAVE_AM_EXTRA, /* tp_flags */
+    nullptr, /* tp_doc */
+    (traverseproc)jitgen_traverse, /* tp_traverse */
+    nullptr, /* tp_clear */
+    nullptr, /* tp_richcompare */
+    offsetof(PyGenObject, gi_weakreflist), /* tp_weaklistoffset */
+    nullptr, /* tp_iter */
+    nullptr, /* tp_iternext */
+    jitcoro_methods, /* tp_methods */
+    jitcoro_memberlist, /* tp_members */
+    jitcoro_getsetlist, /* tp_getset */
+    nullptr, /* tp_base */
+    nullptr, /* tp_dict */
+    nullptr, /* tp_descr_get */
+    nullptr, /* tp_descr_set */
+    0, /* tp_dictoffset */
+    nullptr, /* tp_init */
+    nullptr, /* tp_alloc */
+    nullptr, /* tp_new */
+    nullptr, /* tp_free */
+    nullptr, /* tp_is_gc */
+    nullptr, /* tp_bases */
+    nullptr, /* tp_mro */
+    nullptr, /* tp_cache */
+    nullptr, /* tp_subclasses */
+    nullptr, /* tp_weaklist */
+    nullptr, /* tp_del */
+    0, /* tp_version_tag */
+    jitgen_finalize, /* tp_finalize */
+};
+
 void deopt_jit_gen_object_only(JitGenObject* gen) {
   jitgen_data_free(gen->genDataFooter());
-  Py_SET_TYPE(reinterpret_cast<PyObject*>(gen), &PyGen_Type);
+  PyTypeObject* type =
+      Py_TYPE(gen) == &JitGen_Type ? &PyGen_Type : &PyCoro_Type;
+  Py_SET_TYPE(reinterpret_cast<PyObject*>(gen), type);
 }
 
 bool deopt_jit_gen(PyObject* obj) {
@@ -447,8 +671,9 @@ bool deopt_jit_gen(PyObject* obj) {
 // Cache/copy features of PyGen_Type so we don't need to reimplement them.
 void init_jit_genobject_type() {
   using namespace std::literals;
-  // Copy base type function
+  // Copy base type functions
   JitGen_Type.tp_repr = PyGen_Type.tp_repr;
+  JitCoro_Type.tp_repr = PyCoro_Type.tp_repr;
 
   // Copy globally cached methods
   for (PyMethodDef* gen_methods = PyGen_Type.tp_methods;
@@ -489,6 +714,40 @@ void init_jit_genobject_type() {
     JIT_CHECK(target[i].name == nullptr, "Extra name: {}", target[i].name);
   };
   copy_getset(PyGen_Type.tp_getset, JitGen_Type.tp_getset);
+  copy_getset(PyCoro_Type.tp_getset, JitCoro_Type.tp_getset);
+
+  // Copy methods
+  auto copy_methods = [](PyMethodDef* src, PyMethodDef* target) {
+    int i;
+    for (i = 0; src[i].ml_name != nullptr; ++i) {
+      JIT_CHECK(
+          std::string_view(target[i].ml_name) == src[i].ml_name,
+          "Name mismatch: {} != {}",
+          target[i].ml_name,
+          src[i].ml_name);
+      if (target[i].ml_meth == nullptr) {
+        target[i].ml_meth = src[i].ml_meth;
+      }
+      JIT_CHECK(
+          target[i].ml_flags == src[i].ml_flags,
+          "Flags mismatch for {}",
+          target[i].ml_name);
+      if (target[i].ml_doc == nullptr) {
+        target[i].ml_doc = src[i].ml_doc;
+      }
+    }
+    JIT_CHECK(
+        target[i].ml_name == nullptr, "Extra name: {}", target[i].ml_name);
+  };
+  copy_methods(PyGen_Type.tp_methods, JitGen_Type.tp_methods);
+  copy_methods(PyCoro_Type.tp_methods, JitCoro_Type.tp_methods);
+
+  JIT_CHECK(
+      PyCoro_Type.tp_flags & Ci_TPFLAGS_HAVE_AM_EXTRA,
+      "No AM_EXTRA on coro type");
+  auto coro_ame =
+      reinterpret_cast<Ci_AsyncMethodsWithExtra*>(PyCoro_Type.tp_as_async);
+  jitcoro_as_async.ame_setawaiter = coro_ame->ame_setawaiter;
 }
 
 bool jitgen_is_coroutine(PyObject* o) {
@@ -503,6 +762,14 @@ bool jitgen_is_coroutine(PyObject* o) {
 
 } // namespace jit
 
+int JitGen_CheckExact(PyObject* o) {
+  return Py_TYPE(o) == &jit::JitGen_Type;
+}
+
+int JitCoro_CheckExact(PyObject* o) {
+  return Py_TYPE(o) == &jit::JitCoro_Type;
+}
+
 // This is a slightly modified version of _PyCoro_GetAwaitableIter. It
 // could be a lot shorter and still correct if it just checked whether the input
 // is a JIT coro and deferred to the original implementation if not. However, if
@@ -514,7 +781,7 @@ PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
   unaryfunc getter = NULL;
   PyTypeObject* ot;
 
-  if (/* JitCoro_CheckExact(o) || */ PyCoro_CheckExact(o) ||
+  if (JitCoro_CheckExact(o) || PyCoro_CheckExact(o) ||
       jit::jitgen_is_coroutine(o)) {
     /* 'o' is a coroutine. */
     return Py_NewRef(o);
@@ -527,7 +794,7 @@ PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
   if (getter != NULL) {
     PyObject* res = (*getter)(o);
     if (res != NULL) {
-      if (/* JitCoro_CheckExact(res) || */ PyCoro_CheckExact(res) ||
+      if (JitCoro_CheckExact(res) || PyCoro_CheckExact(res) ||
           jit::jitgen_is_coroutine(res)) {
         /* __await__ must return an *iterator*, not
            a coroutine or another awaitable (see PEP 492) */

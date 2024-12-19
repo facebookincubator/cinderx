@@ -19,6 +19,11 @@ PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
   return _PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
 }
 
+// @Borrow function compute_cr_origin from Objects/genobject.c
+PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_frame) {
+  return compute_cr_origin(origin_depth, current_frame);
+}
+
 // @Borrow function set_attribute_error_context from Objects/object.c
 
 // Wrapper as set_attribute_error_context is declared "static inline".

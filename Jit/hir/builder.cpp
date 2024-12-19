@@ -15,6 +15,7 @@
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/preload.h"
@@ -3473,6 +3474,16 @@ void HIRBuilder::emitGetYieldFromIter(CFG& cfg, TranslationContext& tc) {
   BasicBlock* nop_block = cfg.AllocateBlock();
   BasicBlock* is_coro_block = in_coro ? nop_block : cfg.AllocateBlock();
 
+#if PY_VERSION_HEX >= 0x030C0000
+  BasicBlock* check_coro_block = cfg.AllocateBlock();
+  tc.emit<CondBranchCheckType>(
+      iter_in,
+      Type::fromTypeExact(&JitCoro_Type),
+      is_coro_block,
+      check_coro_block);
+
+  tc.block = check_coro_block;
+#endif
   tc.emit<CondBranchCheckType>(
       iter_in, Type::fromTypeExact(&PyCoro_Type), is_coro_block, next_block);
 
@@ -3931,17 +3942,26 @@ void HIRBuilder::emitGetAwaitable(
   }
 
   // For coroutines only, runtime assert it isn't already awaiting by checking
-  // if it has a sub-iterator using JitGen_yf().
-  TranslationContext block_assert_not_awaited_coro{
-      cfg.AllocateBlock(), tc.frame};
-  TranslationContext block_done{cfg.AllocateBlock(), tc.frame};
+  // if it has a sub-iterator using *Gen_yf().
+  BasicBlock* block_assert_not_awaited_coro = cfg.AllocateBlock();
+  BasicBlock* block_done = cfg.AllocateBlock();
+#if PY_VERSION_HEX >= 0x030C0000
+  BasicBlock* block_check_coro = cfg.AllocateBlock();
+  tc.emit<CondBranchCheckType>(
+      iter,
+      Type::fromTypeExact(&JitCoro_Type),
+      block_assert_not_awaited_coro,
+      block_check_coro);
+  tc.block = block_check_coro;
+#endif
   tc.emit<CondBranchCheckType>(
       iter,
       Type::fromTypeExact(&PyCoro_Type),
-      block_assert_not_awaited_coro.block,
-      block_done.block);
+      block_assert_not_awaited_coro,
+      block_done);
   Register* yf = temps_.AllocateStack();
-  block_assert_not_awaited_coro.emit<CallCFunc>(
+  tc.block = block_assert_not_awaited_coro;
+  tc.emit<CallCFunc>(
       1,
       yf,
 #if PY_VERSION_HEX >= 0x030C0000
@@ -3950,15 +3970,15 @@ void HIRBuilder::emitGetAwaitable(
       CallCFunc::Func::kCix_PyGen_yf,
 #endif
       std::vector<Register*>{iter});
-  TranslationContext block_coro_already_awaited{cfg.AllocateBlock(), tc.frame};
-  block_assert_not_awaited_coro.emit<CondBranch>(
-      yf, block_coro_already_awaited.block, block_done.block);
-  block_coro_already_awaited.emit<RaiseStatic>(
+  BasicBlock* block_coro_already_awaited = cfg.AllocateBlock();
+  tc.emit<CondBranch>(yf, block_coro_already_awaited, block_done);
+  tc.block = block_coro_already_awaited;
+  tc.emit<RaiseStatic>(
       0, PyExc_RuntimeError, "coroutine is being awaited already", tc.frame);
 
   stack.push(iter);
 
-  tc.block = block_done.block;
+  tc.block = block_done;
 }
 
 void HIRBuilder::emitBuildString(

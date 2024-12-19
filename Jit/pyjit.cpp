@@ -1800,7 +1800,7 @@ int deopt_gen_impl(PyGenObject* gen) {
 
 PyObject* deopt_gen(PyObject*, PyObject* op) {
   if (!PyGen_Check(op) && !PyCoro_CheckExact(op) &&
-      !PyAsyncGen_CheckExact(op) && !JitGen_CheckExact(op)) {
+      !PyAsyncGen_CheckExact(op) && !JitGen_CheckAny(op)) {
     PyErr_Format(
         PyExc_TypeError,
         "Exected generator-like object, got %.200s",
@@ -1826,7 +1826,7 @@ PyObject* deopt_gen(PyObject*, PyObject* op) {
 
 int deopt_gen_visitor(PyObject* obj, void*) {
   if (PyGen_Check(obj) || PyCoro_CheckExact(obj) ||
-      PyAsyncGen_CheckExact(obj) || JitGen_CheckExact(obj)) {
+      PyAsyncGen_CheckExact(obj) || JitGen_CheckAny(obj)) {
     deopt_gen_impl(reinterpret_cast<PyGenObject*>(obj));
   }
   return 1;

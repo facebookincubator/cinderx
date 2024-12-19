@@ -41,6 +41,11 @@ extern PyTypeObject _PyUnion_Type;
 PyObject* Cix_PyGen_yf(PyGenObject* gen);
 PyObject* Cix_PyCoro_GetAwaitableIter(PyObject* o);
 PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject*);
+#if PY_VERSION_HEX >= 0x030C0000
+PyObject* Cix_compute_cr_origin(
+    int origin_depth,
+    _PyInterpreterFrame* current_frame);
+#endif
 
 PyObject* Cix_PyDict_LoadGlobal(
     PyDictObject* globals,

@@ -33,6 +33,7 @@
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
 #else
+#include "internal/pycore_object.h"
 #include "internal/pycore_typeobject.h"
 #endif
 
@@ -685,8 +686,12 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
 
   // +1 to hold a pointer to JIT data (GenDataFooter)
   int slots = _PyFrame_NumSlotsForCodeObject(co) + 1;
-  jit::JitGenObject* gen = jit::JitGenObject::cast(
-      PyObject_GC_NewVar(PyGenObject, &jit::JitGen_Type, slots));
+  bool is_coro = !!(co->co_flags & CO_COROUTINE);
+  jit::JitGenObject* gen = is_coro
+      ? jit::JitGenObject::cast(
+            PyObject_GC_NewVar(PyCoroObject, &jit::JitCoro_Type, slots))
+      : jit::JitGenObject::cast(
+            PyObject_GC_NewVar(PyGenObject, &jit::JitGen_Type, slots));
   // See comment in allocate_and_link_interpreter_frame about failure.
   JIT_CHECK(gen != nullptr, "Failed to allocate JitGenObject");
 
@@ -699,6 +704,28 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   JIT_DCHECK(func->func_qualname != nullptr, "func_qualname is null");
   gen->gi_qualname = Py_NewRef(func->func_qualname);
   gen->gi_ci_awaiter = nullptr;
+  gen->gi_hooks_inited = 0;
+  gen->gi_closed = 0;
+  gen->gi_running_async = 0;
+  if (is_coro) {
+    int origin_depth = tstate->coroutine_origin_tracking_depth;
+    if (origin_depth == 0) {
+      gen->gi_origin_or_finalizer = nullptr;
+    } else {
+      PyObject* cr_origin =
+          Cix_compute_cr_origin(origin_depth, tstate->cframe->current_frame);
+      gen->gi_origin_or_finalizer = cr_origin;
+      if (!cr_origin) {
+        JIT_LOG(
+            "Failed to compute cr_origin for {}",
+            jit::repr(func->func_qualname));
+        PyErr_Clear();
+      }
+    }
+  } else {
+    gen->gi_origin_or_finalizer = nullptr;
+  }
+
   _PyObject_GC_TRACK(gen);
 
   _PyInterpreterFrame* frame =

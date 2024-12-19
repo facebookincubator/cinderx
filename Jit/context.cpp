@@ -127,9 +127,8 @@ Context::CompilationResult Context::compilePreloader(
         preloader.fullname());
     return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
   }
-  constexpr int forbidden_flags = PY_VERSION_HEX >= 0x030C0000
-      ? CO_COROUTINE | CO_ITERABLE_COROUTINE | CO_ASYNC_GENERATOR
-      : 0;
+  constexpr int forbidden_flags =
+      PY_VERSION_HEX >= 0x030C0000 ? CO_ASYNC_GENERATOR : 0;
   if (code->co_flags & forbidden_flags) {
     JIT_DLOG(
         "Cannot JIT compile {} as it has prohibited code flags: 0x{:x}",
