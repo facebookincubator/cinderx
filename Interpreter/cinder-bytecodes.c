@@ -145,6 +145,15 @@ dummy_func(
             DISPATCH_GOTO();
         }
 
+        override inst(MAP_ADD, (key, value --)) {
+            PyObject *dict = PEEK(oparg + 2);  // key, value are still on the stack
+            assert(PyDict_CheckExact(dict) || Ci_CheckedDict_Check(dict));
+            /* dict[key] = value */
+            ERROR_IF(Ci_DictOrChecked_SetItem(dict, key, value) != 0, error);
+            DECREF_INPUTS();
+            PREDICT(JUMP_BACKWARD);
+        }
+
         inst(POP_JUMP_IF_ZERO, (cond --)) {
             int is_nonzero = PyObject_IsTrue(cond);
             Py_DECREF(cond);

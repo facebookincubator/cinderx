@@ -209,8 +209,6 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 1;
         case DICT_MERGE:
             return 1;
-        case MAP_ADD:
-            return 2;
         case INSTRUMENTED_LOAD_SUPER_ATTR:
             return 3;
         case LOAD_SUPER_ATTR:
@@ -397,6 +395,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case EXTENDED_ARG:
             return 0;
+        case MAP_ADD:
+            return 2;
         case POP_JUMP_IF_ZERO:
             return 1;
         case POP_JUMP_IF_NONZERO:
@@ -667,8 +667,6 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case DICT_MERGE:
             return 0;
-        case MAP_ADD:
-            return 0;
         case INSTRUMENTED_LOAD_SUPER_ATTR:
             return ((oparg & 1) ? 1 : 0) + 1;
         case LOAD_SUPER_ATTR:
@@ -855,6 +853,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case EXTENDED_ARG:
             return 0;
+        case MAP_ADD:
+            return 0;
         case POP_JUMP_IF_ZERO:
             return 0;
         case POP_JUMP_IF_NONZERO:
@@ -1030,7 +1030,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [BUILD_CONST_KEY_MAP] = { true, INSTR_FMT_IB },
     [DICT_UPDATE] = { true, INSTR_FMT_IB },
     [DICT_MERGE] = { true, INSTR_FMT_IB },
-    [MAP_ADD] = { true, INSTR_FMT_IB },
     [INSTRUMENTED_LOAD_SUPER_ATTR] = { true, INSTR_FMT_IBC00000000 },
     [LOAD_SUPER_ATTR] = { true, INSTR_FMT_IBC },
     [LOAD_SUPER_ATTR_ATTR] = { true, INSTR_FMT_IBC },
@@ -1124,6 +1123,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [RESERVED] = { true, INSTR_FMT_IX },
     [NOP] = { true, INSTR_FMT_IX },
     [EXTENDED_ARG] = { true, INSTR_FMT_IB },
+    [MAP_ADD] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_ZERO] = { true, INSTR_FMT_IB },
     [POP_JUMP_IF_NONZERO] = { true, INSTR_FMT_IB },
     [LOAD_ITERABLE_ARG] = { true, INSTR_FMT_IB },
