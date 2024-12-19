@@ -440,9 +440,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
                 docstring=None,
             )
             init_graph.freevars.get_index("__class__")
-
-            init_graph.nextBlock()
-
+            init_graph.emit_prologue()
             init_graph.emit("LOAD_GLOBAL", "super")
             init_graph.emit("LOAD_DEREF", "__class__")
             init_graph.emit("LOAD_FAST", "cls")

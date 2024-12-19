@@ -5892,6 +5892,7 @@ class Dataclass(Class):
         )
         false = graph.newBlock()
 
+        graph.emit_prologue()
         graph.emit("LOAD_FAST", "other")
         graph.emit("LOAD_TYPE")
         graph.emit("LOAD_FAST", "self")
@@ -5942,6 +5943,7 @@ class Dataclass(Class):
         error = graph.newBlock()
         super_call = graph.newBlock()
 
+        graph.emit_prologue()
         graph.emit("LOAD_FAST", "self")
         # TODO(T92470300): graph.emit("CAST", (self.exact_type().type_descr, False))
         graph.emit("LOAD_TYPE")
@@ -5995,6 +5997,8 @@ class Dataclass(Class):
             (0, self.inexact_type().type_descr),
             self.type_env.int.type_descr,
         )
+
+        graph.emit_prologue()
         graph.emit("LOAD_GLOBAL", "hash")
 
         num_hash_fields = 0
@@ -6036,6 +6040,7 @@ class Dataclass(Class):
             return_type_descr=self.type_env.none.type_descr,
         )
 
+        graph.emit_prologue()
         for name, field in self.true_fields.items():
             if field.default_factory is None:
                 if field.init:
@@ -6116,6 +6121,8 @@ class Dataclass(Class):
             (0, self.inexact_type().type_descr),
             self.type_env.str.type_descr,
         )
+
+        graph.emit_prologue()
         graph.emit("LOAD_FAST", "self")
         graph.emit("LOAD_TYPE")
         graph.emit("LOAD_ATTR", "__qualname__")
