@@ -590,6 +590,9 @@ class PyFlowGraph(FlowGraph):
     def emit_jump_forward_noline(self, target: Block) -> None:
         raise NotImplementedError()
 
+    def emit_call_one_arg(self) -> None:
+        raise NotImplementedError()
+
     def setFlag(self, flag: int) -> None:
         self.flags |= flag
 
@@ -1252,6 +1255,9 @@ class PyFlowGraph310(PyFlowGraph):
         self.bytecode: bytes | None = None
         self.line_table: bytes | None = None
 
+    def emit_call_one_arg(self) -> None:
+        self.emit("CALL_FUNCTION", 1)
+
     def is_exit_without_line_number(self, target: Block) -> bool:
         return target.is_exit and target.insts[0].lineno < 0
 
@@ -1404,6 +1410,9 @@ class PyFlowGraph312(PyFlowGraph):
         self.bytecode: bytes | None = None
         self.line_table: bytes | None = None
         self.exception_table: bytes | None = None
+
+    def emit_call_one_arg(self) -> None:
+        self.emit("CALL", 0)
 
     def is_exit_without_line_number(self, target: Block) -> bool:
         if not target.is_exit:

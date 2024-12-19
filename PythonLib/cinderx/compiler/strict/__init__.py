@@ -418,7 +418,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
                     self.emit("POP_JUMP_IF_TRUE", after)
                     self.emit_load_builtin("NameError")
                     self.emit("LOAD_CONST", f"name '{name}' is not defined")
-                    self.emit("CALL_FUNCTION", 1)
+                    self.emit_call_one_arg()
                     self.emit("RAISE_VARARGS", 1)
                     self.nextBlock(after)
 
@@ -522,7 +522,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         self.emit("LOAD_GLOBAL", "<freeze-type>")
         # argument need to be top most
         self.emit_rotate_stack(2)
-        self.emit("CALL_FUNCTION", 1)
+        self.emit_call_one_arg()
         # discard the result of call
         self.emit("POP_TOP")
 

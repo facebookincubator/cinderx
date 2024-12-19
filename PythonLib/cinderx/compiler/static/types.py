@@ -3374,7 +3374,7 @@ class FunctionContainer(Object[Class]):
         func.emit_function_body(node, code_gen, first_lineno, func.get_function_body())
 
         for _ in range(len(node.decorator_list)):
-            code_gen.emit("CALL_FUNCTION", 1)
+            code_gen.emit_call_one_arg()
 
         return node.name
 
@@ -4280,7 +4280,7 @@ class DecoratedMethod(FunctionContainer):
         self.function.emit_function_body(
             node, code_gen, first_lineno, self.get_function_body()
         )
-        code_gen.emit("CALL_FUNCTION", 1)
+        code_gen.emit_call_one_arg()
         return code_gen
 
     def get_function_body(self) -> list[ast.stmt]:
@@ -4877,7 +4877,7 @@ class NativeDecoratedFunction(Function):
             "LOAD_CONST",
             f"native callable '{callable_name}' can only be called from static modules",
         )
-        gen.emit("CALL_FUNCTION", 1)
+        gen.emit_call_one_arg()
         gen.emit("RAISE_VARARGS", 1)
         gen.emit("LOAD_CONST", None)
         gen.emit("RETURN_VALUE")
@@ -6006,7 +6006,7 @@ class Dataclass(Class):
         else:
             graph.emit("LOAD_CONST", ())
 
-        graph.emit("CALL_FUNCTION", 1)
+        graph.emit_call_one_arg()
         graph.emit("RETURN_VALUE")
 
         self.emit_method(code_gen, graph, 0)
@@ -6143,7 +6143,7 @@ class Dataclass(Class):
         code_gen.emit("LOAD_CONST", graph)
         code_gen.emit("LOAD_CONST", f"{self.type_name.qualname}.{graph.name}")
         code_gen.emit("MAKE_FUNCTION", 0)
-        code_gen.emit("CALL_FUNCTION", 1)
+        code_gen.emit_call_one_arg()
         code_gen.emit("STORE_NAME", "__repr__")
         code_gen.emit("POP_TOP")
 
@@ -7541,7 +7541,7 @@ def common_literal_emit_type_check(
     code_gen.emit_rotate_stack(2)
     code_gen.emit("FORMAT_VALUE")
     code_gen.emit("BUILD_STRING", 2)
-    code_gen.emit("CALL_FUNCTION", 1)
+    code_gen.emit_call_one_arg()
     code_gen.emit("RAISE_VARARGS", 1)
     code_gen.nextBlock(end)
 

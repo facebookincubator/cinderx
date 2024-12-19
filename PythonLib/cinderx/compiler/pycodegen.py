@@ -2427,7 +2427,7 @@ class CodeGenerator(ASTVisitor):
         raise NotImplementedError()
 
     def emit_call_one_arg(self) -> None:
-        raise NotImplementedError()
+        self.graph.emit_call_one_arg()
 
     def emit_call_exit_with_nones(self) -> None:
         raise NotImplementedError()
@@ -2968,9 +2968,6 @@ class CodeGenerator310(CodeGenerator):
             self.emit_end_for()
 
     # Function calls --------------------------------------------------
-
-    def emit_call_one_arg(self) -> None:
-        self.emit("CALL_FUNCTION", 1)
 
     def emit_call_exit_with_nones(self) -> None:
         self.emit("LOAD_CONST", None)
@@ -4427,9 +4424,6 @@ class CodeGenerator312(CodeGenerator):
 
         gen.emit("RETURN_VALUE")
         return gen
-
-    def emit_call_one_arg(self) -> None:
-        self.emit("CALL", 0)
 
     def emit_call_exit_with_nones(self) -> None:
         self.emit("LOAD_CONST", None)
