@@ -9,7 +9,7 @@ from unittest import skip, skipIf
 from unittest.mock import MagicMock, Mock, patch
 
 try:
-    from cinder import getknobs, setknobs
+    from cinderx import getknobs, setknobs
 except ImportError:
     getknobs = setknobs = None
 
@@ -1824,7 +1824,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_patch_cached_property_with_descr(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -1878,7 +1878,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_cached_property_patch_with_bad_type(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -1896,7 +1896,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_cached_property_patch_with_good_type(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
 
         class C:
@@ -1915,7 +1915,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_cached_property_patch_with_none(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
         from typing import Optional
 
         class C:
@@ -2032,7 +2032,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_async_cached_property_patch_with_bad_type(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -2060,7 +2060,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_async_cached_property_patch_with_bad_return_type(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -2098,7 +2098,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_async_cached_property_patch_with_good_return_type(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -2132,7 +2132,7 @@ class StaticPatchTests(StaticTestBase):
     @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_patch_with_good_return_type_already_invoked(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property

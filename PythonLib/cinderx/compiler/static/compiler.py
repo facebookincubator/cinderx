@@ -440,7 +440,7 @@ class Compiler:
             },
         )
 
-        self.modules["cinder"] = ModuleTable(
+        self.modules["cinder"] = self.modules["cinderx"] = ModuleTable(
             "cinder",
             "<cinder>",
             self,

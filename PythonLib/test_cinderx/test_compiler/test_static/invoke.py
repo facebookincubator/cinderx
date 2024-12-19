@@ -96,7 +96,7 @@ class InvokeTests(StaticTestBase):
 
     def test_invoke_cached_property_override_property(self):
         codestr = """
-            from cinder import cached_property
+            from cinderx import cached_property
             class B:
                 @property
                 def f(self):
@@ -122,7 +122,7 @@ class InvokeTests(StaticTestBase):
 
     def test_invoke_typed_descriptor_override_property(self):
         codestr = """
-            from cinder import cached_property
+            from cinderx import cached_property
             class B:
                 @property
                 def f(self) -> int:
@@ -267,7 +267,7 @@ class InvokeTests(StaticTestBase):
         """
 
         base_cachedprop = """
-            from cinder import cached_property
+            from cinderx import cached_property
             class B:
                 @cached_property
                 def f(self) -> int:
@@ -287,7 +287,7 @@ class InvokeTests(StaticTestBase):
         """
 
         derived_cachedprop = """
-            from cinder import cached_property
+            from cinderx import cached_property
             class D(B):
                 @cached_property
                 def f(self) -> int:

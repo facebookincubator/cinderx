@@ -104,7 +104,7 @@ class ContextDecoratorTests(StaticTestBase):
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
-            from cinder import cached_property
+            from cinderx import cached_property
 
             class MyDecorator(ContextDecorator):
                 pass
@@ -134,7 +134,7 @@ class ContextDecoratorTests(StaticTestBase):
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
-            from cinder import async_cached_property
+            from cinderx import async_cached_property
 
             class MyDecorator(ContextDecorator):
                 pass
