@@ -744,6 +744,8 @@ PyObject* make_context_decorator_wrapper(
   return (PyObject*)wrapper_func;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
+
 static int64_t static_rand(PyObject* self) {
   return rand();
 }
@@ -795,6 +797,39 @@ Ci_Py_TYPED_SIGNATURE(
     Ci_Py_SIG_ERROR,
     &Ci_Py_Sig_Object,
     NULL);
+
+#else
+
+static PyObject* static_rand(PyObject* self) {
+  return PyLong_FromLong(rand());
+}
+
+static PyObject* posix_clock_gettime_ns(PyObject* mod) {
+  struct timespec result;
+  int64_t ret;
+
+  clock_gettime(CLOCK_MONOTONIC, &result);
+  ret = result.tv_sec * 1e9 + result.tv_nsec;
+  return PyLong_FromLong(ret);
+}
+
+static PyObject* static_property_missing_fget(PyObject* mod, PyObject* self) {
+  PyErr_SetString(PyExc_AttributeError, "unreadable attribute");
+  return NULL;
+}
+
+static PyObject*
+static_property_missing_fset(PyObject* mod, PyObject* self, PyObject* val) {
+  PyErr_SetString(PyExc_AttributeError, "can't set attribute");
+  return NULL;
+}
+
+static PyObject* static_property_missing_fdel(PyObject* mod, PyObject* self) {
+  PyErr_SetString(PyExc_AttributeError, "can't del attribute");
+  return NULL;
+}
+
+#endif
 
 static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
   PyObject* mro = type->tp_mro;
@@ -1632,7 +1667,11 @@ static PyMethodDef static_methods[] = {
      (PyCFunction)(void (*)(void))set_type_code,
      METH_FASTCALL,
      ""},
+#if PY_VERSION_HEX < 0x030C0000
     {"rand", (PyCFunction)&static_rand_def, Ci_METH_TYPED, ""},
+#else
+    {"rand", (PyCFunction)&static_rand, METH_NOARGS, ""},
+#endif
     {"is_type_static", (PyCFunction)(void (*)(void))is_type_static, METH_O, ""},
     {"set_type_static",
      (PyCFunction)(void (*)(void))set_type_static,
@@ -1651,6 +1690,7 @@ static PyMethodDef static_methods[] = {
      (PyCFunction)(void (*)(void))make_context_decorator_wrapper,
      METH_FASTCALL,
      ""},
+#if PY_VERSION_HEX < 0x030C0000
     {"posix_clock_gettime_ns",
      (PyCFunction)&posix_clock_gettime_ns_def,
      Ci_METH_TYPED,
@@ -1668,6 +1708,25 @@ static PyMethodDef static_methods[] = {
      (PyCFunction)&static_property_missing_fdel_def,
      Ci_METH_TYPED,
      ""},
+#else
+    {"posix_clock_gettime_ns",
+     (PyCFunction)&posix_clock_gettime_ns,
+     METH_NOARGS,
+     "Returns time in nanoseconds as an int64. Note: Does no error checks at "
+     "all."},
+    {"_property_missing_fget",
+     (PyCFunction)&static_property_missing_fget,
+     METH_O,
+     ""},
+    {"_property_missing_fset",
+     (PyCFunction)&static_property_missing_fset,
+     METH_O,
+     ""},
+    {"_property_missing_fdel",
+     (PyCFunction)&static_property_missing_fdel,
+     METH_O,
+     ""},
+#endif
     {"resolve_primitive_descr",
      (PyCFunction)(void (*)(void))resolve_primitive_descr,
      METH_O,

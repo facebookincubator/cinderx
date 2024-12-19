@@ -3087,13 +3087,58 @@ static int chklist_append(PyListObject* self, PyObject* value) {
   return 0;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
+
 Ci_Py_TYPED_SIGNATURE(chklist_append, Ci_Py_SIG_ERROR, &Ci_Py_Sig_T0, NULL);
+
+#else
+static PyObject* chklist_append_wrapper(PyListObject* self, PyObject* value) {
+  if (chklist_append(self, value) < 0) {
+    return NULL;
+  }
+  Py_RETURN_NONE;
+}
+#endif
 
 const Ci_Py_SigElement* const insert_sig[] = {
     &Ci_Py_Sig_SSIZET,
     &Ci_Py_Sig_T0,
     NULL};
+
+#if PY_VERSION_HEX < 0x030C0000
 Ci_PyTypedMethodDef chklist_insert_def = {ins1, insert_sig, Ci_Py_SIG_ERROR};
+#else
+static PyObject* list_insert_wrapper(
+    PyListObject* self,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  Py_ssize_t index;
+  PyObject* object;
+
+  if (!_PyArg_CheckPositional("insert", nargs, 2, 2)) {
+    goto exit;
+  }
+  {
+    Py_ssize_t ival = -1;
+    PyObject* iobj = _PyNumber_Index(args[0]);
+    if (iobj != NULL) {
+      ival = PyLong_AsSsize_t(iobj);
+      Py_DECREF(iobj);
+    }
+    if (ival == -1 && PyErr_Occurred()) {
+      goto exit;
+    }
+    index = ival;
+  }
+  object = args[1];
+  if (ins1(self, index, object) == 0) {
+    Py_RETURN_NONE;
+  }
+
+exit:
+  return NULL;
+}
+#endif
 
 static PyObject* chklist_alloc(PyTypeObject* type, Py_ssize_t nitems) {
   struct _Py_list_state* state = get_list_state();
@@ -3175,7 +3220,9 @@ static inline PyObject* chklist_copy(PyListObject* self) {
   return chklist_slice(self, 0, Py_SIZE(self));
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 Ci_Py_TYPED_SIGNATURE(chklist_copy, Ci_Py_SIG_OBJECT, NULL);
+#endif
 
 static inline int chklist_checkitem(PyListObject* list, PyObject* value) {
   if (!_PyClassLoader_CheckParamType((PyObject*)list, value, 0)) {
@@ -3327,7 +3374,22 @@ static PyObject* chklist_pop(PyListObject* self, PyObject* index) {
   return list_pop_impl(self, index_ssize);
 }
 
+#if PY_VERSION_HEX < 0x030C0000
+
 Ci_Py_TYPED_SIGNATURE(chklist_extend, Ci_Py_SIG_ERROR, &Ci_Py_Sig_Object, NULL);
+
+#else
+
+static PyObject* chklist_extend_wrapper(
+    PyListObject* self,
+    PyObject* iterable) {
+  if (chklist_extend(self, iterable) < 0) {
+    return NULL;
+  }
+  Py_RETURN_NONE;
+}
+
+#endif
 
 static const Ci_Py_SigElement* const getitem_sig[] = {&Ci_Py_Sig_Object, NULL};
 Ci_PyTypedMethodDef chklist_getitem_def = {
@@ -3344,13 +3406,16 @@ Ci_PyTypedMethodDef chklist_setitem_def = {
     setitem_sig,
     Ci_Py_SIG_ERROR};
 
+#if PY_VERSION_HEX < 0x030C0000
 static const Ci_Py_SigElement* const pop_sig[] = {&Ci_Py_Sig_Object_Opt, NULL};
 Ci_PyTypedMethodDef chklist_pop_def = {
     chklist_pop,
     pop_sig,
     Ci_Py_SIG_TYPE_PARAM_IDX(0)};
+#endif
 
 static PyMethodDef chklist_methods[] = {
+#if PY_VERSION_HEX < 0x030C0000
     {"__getitem__",
      (PyCFunction)&chklist_getitem_def,
      Ci_METH_TYPED | METH_COEXIST,
@@ -3359,13 +3424,17 @@ static PyMethodDef chklist_methods[] = {
      (PyCFunction)&chklist_setitem_def,
      Ci_METH_TYPED | METH_COEXIST,
      "Set self[index_or_slice] to value."},
+#else
+    {"__getitem__",
+     (PyCFunction)&list_subscript,
+     METH_O | METH_COEXIST,
+     "x.__getitem__(y) <==> x[y]"},
+#endif
     // TODO(T96351329): We should implement a custom reverse iterator for
     // checked lists.
-    LIST___REVERSED___METHODDEF LIST___SIZEOF___METHODDEF LIST_CLEAR_METHODDEF{
-        "copy",
-        (PyCFunction)&chklist_copy_def,
-        Ci_METH_TYPED,
-        list_copy__doc__},
+    LIST___REVERSED___METHODDEF LIST___SIZEOF___METHODDEF LIST_CLEAR_METHODDEF
+#if PY_VERSION_HEX < 0x030C0000
+    {"copy", (PyCFunction)&chklist_copy_def, Ci_METH_TYPED, list_copy__doc__},
     {"append",
      (PyCFunction)&chklist_append_def,
      Ci_METH_TYPED,
@@ -3379,6 +3448,22 @@ static PyMethodDef chklist_methods[] = {
      Ci_METH_TYPED,
      list_extend__doc__},
     {"pop", (PyCFunction)&chklist_pop_def, Ci_METH_TYPED, list_pop__doc__},
+#else
+    {"copy", (PyCFunction)&chklist_copy, METH_NOARGS, list_copy__doc__},
+    {"append",
+     (PyCFunction)&chklist_append_wrapper,
+     METH_O,
+     list_append__doc__},
+    {"insert",
+     (PyCFunction)&list_insert_wrapper,
+     METH_FASTCALL,
+     list_insert__doc__},
+    {"extend",
+     (PyCFunction)&chklist_extend_wrapper,
+     METH_O,
+     list_extend__doc__},
+    {"pop", (PyCFunction)&chklist_pop, METH_O, list_pop__doc__},
+#endif
     LIST_REMOVE_METHODDEF LIST_INDEX_METHODDEF LIST_COUNT_METHODDEF
         LIST_REVERSE_METHODDEF LIST_SORT_METHODDEF{
             "__class_getitem__",

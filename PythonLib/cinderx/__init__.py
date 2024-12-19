@@ -65,8 +65,4 @@ def init() -> None:
 
     cinderx_init()
 
-    # TODO(T194028831): _static module is not being initialized properly, fail open.
-    try:
-        strictify_static()
-    except ImportError:
-        pass
+    strictify_static()

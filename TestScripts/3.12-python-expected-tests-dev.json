@@ -1,7 +1,6 @@
 {
   "bad": [
     "test.test_capi",
-    "test_cinderx.test___static__",
     "test_cinderx.test_cinderjit",
     "test_cinderx.test_compiler.test_cinder",
     "test_cinderx.test_compiler.test_flags",
@@ -445,6 +444,7 @@
     "test.test_zipimport_support",
     "test.test_zlib",
     "test.test_zoneinfo",
+    "test_cinderx.test___static__",
     "test_cinderx.test_compiler.test_api",
     "test_cinderx.test_compiler.test_code_sbs",
     "test_cinderx.test_compiler.test_corpus",

@@ -681,18 +681,7 @@ int cinder_init() {
 #endif
 
   // Create _static module
-  if (_Ci_CreateStaticModule() < 0) {
-#if PY_VERSION_HEX < 0x030C0000
-    return -1;
-#else
-    // _static won't initialize as long as it can't create static_rand, and that
-    // needs static method flags.
-    UPGRADE_NOTE(NEED_STATIC_FLAGS, T194028831)
-    PyErr_Clear();
-#endif
-  }
-
-  return 0;
+  return _Ci_CreateStaticModule();
 }
 
 // Attempts to shutdown CinderX. This is very much a best-effort with the
