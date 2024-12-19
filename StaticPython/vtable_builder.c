@@ -461,12 +461,20 @@ static int _PyVTable_setslot(
       original, &optional, &exact, &func_flags);
 
   if (ret_type == NULL) {
-    PyErr_Format(
-        PyExc_RuntimeError,
-        "missing type annotation on static compiled method %R of %s",
-        name,
-        tp->tp_name);
-    return -1;
+#if PY_VERSION_HEX >= 0x030C0000
+    // T190615686: Include non-typed methods from generic methods in vtable
+    if (tp->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST) {
+      ret_type = (PyObject*)&PyBaseObject_Type;
+    } else
+#endif
+    {
+      PyErr_Format(
+          PyExc_RuntimeError,
+          "missing type annotation on static compiled method %R of %s",
+          name,
+          tp->tp_name);
+      return -1;
+    }
   }
 
   if (value == NULL) {
@@ -1007,7 +1015,13 @@ static int classloader_get_original_static_def(
     // If a static type has a non-static member (for instance, due to having a
     // decorated method) we need to keep looking up the MRO for a static base.
     if (*original == NULL || !used_in_vtable(*original)) {
-      Py_CLEAR(*original);
+      // T190615686: Include non-typed methods from generic methods in vtable
+#if PY_VERSION_HEX >= 0x030C0000
+      if (!(tp->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST))
+#endif
+      {
+        Py_CLEAR(*original);
+      }
     }
   }
 
@@ -1165,9 +1179,15 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
   i = 0;
   while (PyDict_Next(_PyType_GetDict(self), &i, &key, &value)) {
     if (PyDict_GetItem(slotmap, key) || !used_in_vtable(value)) {
-      /* we either share the same slot, or this isn't a static function,
-       * so it doesn't need a slot */
-      continue;
+#if PY_VERSION_HEX >= 0x030C0000
+      // T190615686: Include non-typed methods from generic methods in vtable
+      if (!(self->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST))
+#endif
+      {
+        /* we either share the same slot, or this isn't a static function,
+         * so it doesn't need a slot */
+        continue;
+      }
     }
     PyObject* index = PyLong_FromLong(slot_index++);
     int err = PyDict_SetItem(slotmap, key, index);
