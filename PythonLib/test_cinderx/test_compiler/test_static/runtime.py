@@ -1696,9 +1696,9 @@ class StaticRuntimeTests(StaticTestBase):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3]
                 for i in l:
                     acc.append(i + 1)
                 return acc
@@ -1706,7 +1706,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(4), [i + 1 for i in range(4)])
+            self.assertEqual(f(), [i + 1 for i in range(4)])
 
     def test_for_iter_tuple(self):
         codestr = """
@@ -1714,7 +1714,7 @@ class StaticRuntimeTests(StaticTestBase):
 
             def f(n: int) -> List:
                 acc = []
-                l = tuple([i for i in range(n)])
+                l = tuple((i for i in range(n)))
                 for i in l:
                     acc.append(i + 1)
                 return acc
@@ -1739,9 +1739,9 @@ class StaticRuntimeTests(StaticTestBase):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3]
                 for i in l:
                     acc.append(i + 1)
                 else:
@@ -1751,15 +1751,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(4), [i + 1 for i in range(4)] + [999])
+            self.assertEqual(f(), [i + 1 for i in range(4)] + [999])
 
     def test_for_iter_sequence_break(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3, 4]
                 for i in l:
                     if i == 3:
                         break
@@ -1769,15 +1769,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(5), [1, 2, 3])
+            self.assertEqual(f(), [1, 2, 3])
 
     def test_for_iter_sequence_orelse_break(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3]
                 for i in l:
                     if i == 2:
                         break
@@ -1789,15 +1789,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(4), [1, 2])
+            self.assertEqual(f(), [1, 2])
 
     def test_for_iter_sequence_return(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3, 4, 5]
                 for i in l:
                     if i == 3:
                         return acc
@@ -1807,15 +1807,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(6), [1, 2, 3])
+            self.assertEqual(f(), [1, 2, 3])
 
     def test_nested_for_iter_sequence(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2]
                 for i in l:
                     for j in l:
                         acc.append(i + j)
@@ -1824,15 +1824,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(3), [0, 1, 2, 1, 2, 3, 2, 3, 4])
+            self.assertEqual(f(), [0, 1, 2, 1, 2, 3, 2, 3, 4])
 
     def test_nested_for_iter_sequence_break(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2]
                 for i in l:
                     for j in l:
                         if j == 2:
@@ -1843,15 +1843,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(3), [0, 1, 1, 2, 2, 3])
+            self.assertEqual(f(), [0, 1, 1, 2, 2, 3])
 
     def test_nested_for_iter_sequence_return(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2]
                 for i in l:
                     for j in l:
                         if j == 1:
@@ -1862,7 +1862,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(3), [0])
+            self.assertEqual(f(), [0])
 
     def test_for_iter_unchecked_get(self):
         """We don't need to check sequence bounds when we've just compared with the list size."""
