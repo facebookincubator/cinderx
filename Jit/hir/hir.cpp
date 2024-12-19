@@ -13,6 +13,13 @@
 #include <algorithm>
 #include <unordered_map>
 
+// These are used by kFuncPtrMap and kFuncNames below. I couldn't find a good
+// way to include generators_rt.h without introducing a build depencency cycle.
+extern "C" {
+PyObject* JitCoro_GetAwaitableIter(PyObject* o);
+PyObject* JitGen_yf(PyObject* o);
+}
+
 namespace jit::hir {
 
 const std::vector<void*> CallCFunc::kFuncPtrMap{

@@ -9,6 +9,7 @@
 #include "cpython/genobject.h"
 #endif
 
+#ifdef __cplusplus
 namespace jit {
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -56,6 +57,8 @@ struct JitGenObject : PyGenObject {
   GenDataFooter* genDataFooter() {
     return *genDataFooterPtr();
   }
+
+  PyObject* yieldFrom();
 };
 
 // Converts a JitGenObject into a regular PyGenObject. This assumes deopting
@@ -75,3 +78,19 @@ void init_jit_genobject_type();
 #endif // PY_VERSION_HEX >= 0x030C0000
 
 } // namespace jit
+#endif // __cplusplus
+
+#if PY_VERSION_HEX >= 0x030C0000
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+PyObject* JitCoro_GetAwaitableIter(PyObject* o);
+PyObject* JitGen_yf(PyGenObject* gen);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif // PY_VERSION_HEX >= 0x030C0000

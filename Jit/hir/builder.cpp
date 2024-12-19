@@ -3901,11 +3901,15 @@ void HIRBuilder::emitGetAwaitable(
   Register* iterable = stack.pop();
   Register* iter = temps_.AllocateStack();
 
-  // Most work is done by existing Cix_PyCoro_GetAwaitableIter() utility.
+  // Most work is done by existing JitPyCoro_GetAwaitableIter() utility.
   tc.emit<CallCFunc>(
       1,
       iter,
+#if PY_VERSION_HEX >= 0x030C0000
+      CallCFunc::Func::kJitCoro_GetAwaitableIter,
+#else
       CallCFunc::Func::kCix_PyCoro_GetAwaitableIter,
+#endif
       std::vector<Register*>{iterable});
 
   auto [error_aenter, error_aexit] = checkAsyncWithError(bc_instrs, idx);
@@ -3927,7 +3931,7 @@ void HIRBuilder::emitGetAwaitable(
   }
 
   // For coroutines only, runtime assert it isn't already awaiting by checking
-  // if it has a sub-iterator using Cix_PyGen_yf().
+  // if it has a sub-iterator using JitGen_yf().
   TranslationContext block_assert_not_awaited_coro{
       cfg.AllocateBlock(), tc.frame};
   TranslationContext block_done{cfg.AllocateBlock(), tc.frame};
@@ -3938,7 +3942,14 @@ void HIRBuilder::emitGetAwaitable(
       block_done.block);
   Register* yf = temps_.AllocateStack();
   block_assert_not_awaited_coro.emit<CallCFunc>(
-      1, yf, CallCFunc::Func::kCix_PyGen_yf, std::vector<Register*>{iter});
+      1,
+      yf,
+#if PY_VERSION_HEX >= 0x030C0000
+      CallCFunc::Func::kJitGen_yf,
+#else
+      CallCFunc::Func::kCix_PyGen_yf,
+#endif
+      std::vector<Register*>{iter});
   TranslationContext block_coro_already_awaited{cfg.AllocateBlock(), tc.frame};
   block_assert_not_awaited_coro.emit<CondBranch>(
       yf, block_coro_already_awaited.block, block_done.block);

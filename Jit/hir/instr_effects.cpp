@@ -490,12 +490,21 @@ bool hasArbitraryExecution(const Instr& inst) {
 
     case Opcode::kCallCFunc:
       switch (static_cast<const CallCFunc&>(inst).func()) {
+#if PY_VERSION_HEX >= 0x030C0000
+        case CallCFunc::Func::kJitCoro_GetAwaitableIter:
+          return true;
+        case CallCFunc::Func::kCix_PyAsyncGenValueWrapperNew:
+          return false;
+        case CallCFunc::Func::kJitGen_yf:
+          return false;
+#else
         case CallCFunc::Func::kCix_PyCoro_GetAwaitableIter:
           return true;
         case CallCFunc::Func::kCix_PyAsyncGenValueWrapperNew:
           return false;
         case CallCFunc::Func::kCix_PyGen_yf:
           return false;
+#endif
       }
       JIT_ABORT(
           "Bad CallCFunc function {}",

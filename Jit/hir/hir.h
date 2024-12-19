@@ -1148,11 +1148,18 @@ class INSTR_CLASS(
 // set of functions so we can (one day) safely (de)serialize HIR fully.
 class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
  public:
+#if PY_VERSION_HEX >= 0x030C0000
+#define CallCFunc_FUNCS(X)         \
+  X(Cix_PyAsyncGenValueWrapperNew) \
+  X(JitCoro_GetAwaitableIter)      \
+  X(JitGen_yf)
+#else
 // List of allowed functions
 #define CallCFunc_FUNCS(X)         \
   X(Cix_PyAsyncGenValueWrapperNew) \
   X(Cix_PyCoro_GetAwaitableIter)   \
   X(Cix_PyGen_yf)
+#endif
 
   enum class Func {
 #define ENUM_FUNC(name, ...) k##name,

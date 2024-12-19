@@ -5,6 +5,7 @@
 #if PY_VERSION_HEX >= 0x030C0000
 
 #include "pycore_frame.h"
+#include "pycore_genobject.h"
 #include "pycore_pyerrors.h" // _PyErr_ClearExcState()
 
 #include "cinderx/Common/log.h"
@@ -15,6 +16,17 @@
 #include <string_view>
 
 namespace jit {
+
+PyObject* JitGenObject::yieldFrom() {
+  GenDataFooter* gen_footer = genDataFooter();
+  const GenYieldPoint* yield_point = gen_footer->yieldPoint;
+  PyObject* yield_from = nullptr;
+  if (gi_frame_state < FRAME_COMPLETED && yield_point) {
+    yield_from = yieldFromValue(gen_footer, yield_point);
+    Py_XINCREF(yield_from);
+  }
+  return yield_from;
+}
 
 namespace {
 
@@ -276,13 +288,7 @@ PyObject* jitgen_getyieldfrom(PyObject* obj, void*) {
   if (jit_gen == nullptr) {
     return PyObject_GetAttrString(obj, "gi_yieldfrom");
   }
-  GenDataFooter* gen_footer = jit_gen->genDataFooter();
-  const GenYieldPoint* yield_point = gen_footer->yieldPoint;
-  PyObject* yield_from = nullptr;
-  if (jit_gen->gi_frame_state < FRAME_COMPLETED && yield_point) {
-    yield_from = yieldFromValue(gen_footer, yield_point);
-    Py_XINCREF(yield_from);
-  }
+  PyObject* yield_from = jit_gen->yieldFrom();
   if (yield_from == nullptr) {
     Py_RETURN_NONE;
   }
@@ -485,5 +491,70 @@ void init_jit_genobject_type() {
   copy_getset(PyGen_Type.tp_getset, JitGen_Type.tp_getset);
 }
 
+bool jitgen_is_coroutine(PyObject* o) {
+  if (Py_TYPE(o) == &JitGen_Type || PyGen_CheckExact(o)) {
+    PyCodeObject* code = PyGen_GetCode(reinterpret_cast<PyGenObject*>(o));
+    if (code->co_flags & CO_ITERABLE_COROUTINE) {
+      return true;
+    }
+  }
+  return false;
+}
+
 } // namespace jit
+
+// This is a slightly modified version of _PyCoro_GetAwaitableIter. It
+// could be a lot shorter and still correct if it just checked whether the input
+// is a JIT coro and deferred to the original implementation if not. However, if
+// we do this the error message produced when an __await__() function
+// produces a JIT coroutine is very slightly different from what
+// test_coroutines.CoroutineTest.test_await_12 expects. So we pull in the rest
+// and tweak the following check too just to make the test pass.
+PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
+  unaryfunc getter = NULL;
+  PyTypeObject* ot;
+
+  if (/* JitCoro_CheckExact(o) || */ PyCoro_CheckExact(o) ||
+      jit::jitgen_is_coroutine(o)) {
+    /* 'o' is a coroutine. */
+    return Py_NewRef(o);
+  }
+
+  ot = Py_TYPE(o);
+  if (ot->tp_as_async != NULL) {
+    getter = ot->tp_as_async->am_await;
+  }
+  if (getter != NULL) {
+    PyObject* res = (*getter)(o);
+    if (res != NULL) {
+      if (/* JitCoro_CheckExact(res) || */ PyCoro_CheckExact(res) ||
+          jit::jitgen_is_coroutine(res)) {
+        /* __await__ must return an *iterator*, not
+           a coroutine or another awaitable (see PEP 492) */
+        PyErr_SetString(PyExc_TypeError, "__await__() returned a coroutine");
+        Py_CLEAR(res);
+      } else if (!PyIter_Check(res)) {
+        PyErr_Format(
+            PyExc_TypeError,
+            "__await__() returned non-iterator "
+            "of type '%.100s'",
+            Py_TYPE(res)->tp_name);
+        Py_CLEAR(res);
+      }
+    }
+    return res;
+  }
+
+  PyErr_Format(
+      PyExc_TypeError,
+      "object %.100s can't be used in 'await' expression",
+      ot->tp_name);
+  return NULL;
+}
+
+PyObject* JitGen_yf(PyGenObject* gen) {
+  jit::JitGenObject* jit_gen = jit::JitGenObject::cast(gen);
+  return jit_gen == nullptr ? _PyGen_yf(gen) : jit_gen->yieldFrom();
+}
+
 #endif // PY_VERSION_HEX >= 0x030C0000
