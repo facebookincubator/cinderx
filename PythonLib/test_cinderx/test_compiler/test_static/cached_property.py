@@ -1,9 +1,10 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
+import sys
 import unittest
 
 from cinderx import async_cached_property, cached_property
-from unittest import skip
+from unittest import skipIf
 
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -334,6 +335,7 @@ class CachedPropertyTests(StaticTestBase):
             mod.f(D())
             self.assertEqual(d.hit_count, 1)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property(self):
         codestr = """
         from cinder import async_cached_property
@@ -362,6 +364,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(c.hit_count, 1)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_invoked(self):
         codestr = """
         from cinder import async_cached_property
@@ -390,6 +393,7 @@ class CachedPropertyTests(StaticTestBase):
             r = asyncio.run(mod.f())
             self.assertEqual(r.hit_count, 1)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_invoked_frozen(self):
         codestr = """
         from typing import final
@@ -420,6 +424,7 @@ class CachedPropertyTests(StaticTestBase):
             r = asyncio.run(mod.f())
             self.assertEqual(r.hit_count, 1)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_multiple_async_cached_properties(self):
         codestr = """
         from cinder import async_cached_property
@@ -479,6 +484,7 @@ class CachedPropertyTests(StaticTestBase):
         ):
             self.compile(codestr)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_intermediary_cleaned_up(self):
         codestr = """
         from cinder import async_cached_property
@@ -507,6 +513,7 @@ class CachedPropertyTests(StaticTestBase):
             ):
                 getattr(C, ASYNC_CACHED_PROPERTY_IMPL_PREFIX + "x")
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_override_property(self):
         codestr = """
         from cinder import async_cached_property
@@ -536,6 +543,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_property_override_async_cached_property(self):
         codestr = """
         from cinder import async_cached_property
@@ -565,6 +573,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_override_async_cached_property(self):
         codestr = """
         from cinder import async_cached_property
@@ -589,6 +598,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(mod.async_get_x(C())), 3)
             self.assertEqual(asyncio.run(mod.async_get_x(D())), 4)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_override_async_cached_property_non_static(self):
         codestr = """
         from cinder import async_cached_property
@@ -618,6 +628,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_override_async_cached_property_2(self):
         codestr = """
         from cinder import async_cached_property
@@ -732,6 +743,7 @@ class CachedPropertyTests(StaticTestBase):
                 self.assertEqual(c.x, 3)
                 self.assertEqual(c.ctr, 2)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_reset(self):
         nonstatic_codestr = """
         class A:
