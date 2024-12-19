@@ -609,6 +609,40 @@ int cinderx_type_watcher(PyTypeObject* type) {
   return 0;
 }
 
+#if PY_VERSION_HEX >= 0x030C0000
+bool enable_patching = 0;
+#endif
+
+static PyObject* cinderx_freeze_type(PyObject*, PyObject* o) {
+  if (!PyType_Check(o)) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "freeze_type requires a type, got %s",
+        Py_TYPE(o)->tp_name);
+    return nullptr;
+  }
+
+#if PY_VERSION_HEX < 0x030C0000
+  PyInterpreterState* interp = _PyInterpreterState_GET();
+  assert(interp != nullptr);
+  if (!interp->config.enable_patching) {
+    ((PyTypeObject*)o)->tp_flags |= Ci_Py_TPFLAGS_FROZEN;
+  }
+#else
+  if (!enable_patching) {
+    ((PyTypeObject*)o)->tp_flags |= Py_TPFLAGS_IMMUTABLETYPE;
+  }
+#endif
+  Py_INCREF(o);
+  return o;
+}
+
+PyDoc_STRVAR(
+    freeze_type_doc,
+    "freeze_type(t)\n\
+\n\
+Marks a type as being frozen and disallows any future mutations to it.");
+
 int cinder_init() {
   if (init_upstream_borrow() < 0) {
     return -1;
@@ -678,6 +712,11 @@ int cinder_init() {
 
 #if PY_VERSION_HEX < 0x030C0000
   Ci_cinderx_initialized = 1;
+#endif
+
+#if PY_VERSION_HEX >= 0x030C0000
+  char* patching = getenv("PYTHONENABLEPATCHING");
+  enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
 #endif
 
   // Create _static module
@@ -801,6 +840,7 @@ PyMethodDef _cinderx_methods[] = {
      METH_NOARGS,
      PyDoc_STR("")},
 #endif
+    {"freeze_type", cinderx_freeze_type, METH_O, freeze_type_doc},
     {"strict_module_patch",
      strict_module_patch,
      METH_VARARGS,

@@ -23,6 +23,7 @@ try:
         clear_classloader_caches,
         disable_parallel_gc,
         enable_parallel_gc,
+        freeze_type,
         get_parallel_gc_settings,
         init as cinderx_init,
         strict_module_patch,
