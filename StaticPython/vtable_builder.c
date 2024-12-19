@@ -518,6 +518,26 @@ static int _PyVTable_setslot(
   return res;
 }
 
+static PyObject* get_tp_subclasses(PyTypeObject* self, bool create) {
+  PyObject** subclasses_addr = (PyObject**)&self->tp_subclasses;
+
+#if PY_VERSION_HEX >= 0x030C0000
+  if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
+    PyInterpreterState* interp = _PyInterpreterState_GET();
+    static_builtin_state* state = Cix_PyStaticType_GetState(interp, self);
+    subclasses_addr = (PyObject**)&state->tp_subclasses;
+  }
+#endif
+
+  PyObject* subclasses = *subclasses_addr;
+  if (subclasses == NULL && create) {
+    // We need to watch subclasses to be able to init subclass
+    // vtables, so if it doesn't exist yet we'll create it.
+    subclasses = *subclasses_addr = PyDict_New();
+  }
+  return subclasses;
+}
+
 /**
     As the name suggests, this creates v-tables for all subclasses of the given
    type (recursively).
@@ -531,7 +551,7 @@ int _PyClassLoader_InitSubclassVtables(PyTypeObject* target_type) {
    * a member is accessed from the child type.  When we init the child
    * we can check if it's dict sharing with its parent. */
   PyObject* ref;
-  PyObject* subclasses = target_type->tp_subclasses;
+  PyObject* subclasses = get_tp_subclasses(target_type, false);
   if (subclasses != NULL) {
     Py_ssize_t i = 0;
     while (PyDict_Next(subclasses, &i, NULL, &ref)) {
@@ -564,7 +584,7 @@ static void _PyClassLoader_UpdateDerivedSlot(
     vectorcallfunc func) {
   /* Update any derived types which don't have slots */
   PyObject* ref;
-  PyObject* subclasses = type->tp_subclasses;
+  PyObject* subclasses = get_tp_subclasses(type, false);
   if (subclasses != NULL) {
     Py_ssize_t i = 0;
     while (PyDict_Next(subclasses, &i, NULL, &ref)) {
@@ -1387,26 +1407,6 @@ static PyObject* subclass_map;
 // a weakref to the type.
 static PyObject* dict_map;
 
-static PyObject* get_tp_subclasses(PyTypeObject* self) {
-  PyObject** subclasses_addr = (PyObject**)&self->tp_subclasses;
-
-#if PY_VERSION_HEX >= 0x030C0000
-  if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
-    PyInterpreterState* interp = _PyInterpreterState_GET();
-    static_builtin_state* state = Cix_PyStaticType_GetState(interp, self);
-    subclasses_addr = (PyObject**)&state->tp_subclasses;
-  }
-#endif
-
-  PyObject* subclasses = *subclasses_addr;
-  if (subclasses == NULL) {
-    // We need to watch subclasses to be able to init subclass
-    // vtables, so if it doesn't exist yet we'll create it.
-    subclasses = *subclasses_addr = PyDict_New();
-  }
-  return subclasses;
-}
-
 static int
 track_type_dict(PyObject* track_map, PyTypeObject* type, PyObject* dict) {
   if (_PyDict_Contains_KnownHash(track_map, dict, (Py_hash_t)dict)) {
@@ -1459,7 +1459,7 @@ static int track_subclasses(PyTypeObject* self) {
     }
   }
 
-  PyObject* subclasses = get_tp_subclasses(self);
+  PyObject* subclasses = get_tp_subclasses(self, true);
   if (subclasses == NULL) {
     return -1;
   }
