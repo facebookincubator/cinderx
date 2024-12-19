@@ -188,15 +188,10 @@ dummy_func(
                     goto error;
                 }
                 Py_SETREF(tup, PySequence_Tuple(tup));
-                if (tup == NULL) {
-                    goto error;
-                }
+                ERROR_IF(tup == NULL, error);
             }
             element = PyTuple_GetItem(tup, idx);
-            if (!element) {
-                Py_DECREF(tup);
-                goto error;
-            }
+            ERROR_IF(!element, error);
             Py_INCREF(element);
         }
 
