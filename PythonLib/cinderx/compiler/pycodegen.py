@@ -5673,7 +5673,7 @@ class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
         self.emit_super_attribute(node)
 
     def cx_super_call(self, node):
-        self.emit_super_call(node.func)
+        CodeGenerator312.visitCall(self, node)
 
 
 def get_default_generator():
