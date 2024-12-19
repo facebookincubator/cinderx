@@ -1823,6 +1823,10 @@ static int unsafe_long_compare(PyObject* v, PyObject* w, MergeState* ms) {
 
 #endif
 
+#if PY_VERSION_HEX < 0x030C0000
+#define PyUnstable_Long_IsCompact(x) (Py_ABS(Py_SIZE(key)) <= 1)
+#endif
+
 /* Float compare: compare any two floats. */
 static int unsafe_float_compare(PyObject* v, PyObject* w, MergeState* ms) {
   int res;
@@ -1986,7 +1990,7 @@ list_sort_impl(PyListObject* self, PyObject* keyfunc, int reverse) {
 
       if (keys_are_all_same_type) {
         if (key_type == &PyLong_Type && ints_are_bounded &&
-            Py_ABS(Py_SIZE(key)) > 1) {
+            !PyUnstable_Long_IsCompact((PyLongObject*)key)) {
           ints_are_bounded = 0;
         } else if (
             key_type == &PyUnicode_Type && strings_are_latin &&
