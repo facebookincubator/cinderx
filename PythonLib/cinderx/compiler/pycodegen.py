@@ -4681,9 +4681,9 @@ class CodeGenerator312(CodeGenerator):
                 self.emit(prefix + "_FROM_DICT_OR_GLOBALS", name)
             elif isinstance(self.scope, ClassScope):
                 if self.inlined_comp_depth:
-                    self.emit("LOAD_GLOBAL", name)
+                    self.emit(prefix + "_GLOBAL", name)
                 else:
-                    self.emit("LOAD_NAME", name)
+                    self.emit(prefix + "_NAME", name)
             elif not self.optimized:
                 self.emit(prefix + "_NAME", name)
             else:
