@@ -755,6 +755,7 @@ Ci_Py_TYPED_SIGNATURE(
     &Ci_Py_Sig_Object,
     NULL);
 
+#if PY_VERSION_HEX < 0x030C0000
 static Py_ssize_t
 static_property_missing_fset(PyObject* mod, PyObject* self, PyObject* val) {
   PyErr_SetString(PyExc_AttributeError, "can't set attribute");
@@ -767,6 +768,15 @@ Ci_Py_TYPED_SIGNATURE(
     &Ci_Py_Sig_Object,
     &Ci_Py_Sig_Object,
     NULL);
+#else
+static_property_missing_fset(
+    PyObject* mod,
+    PyObject* const* args,
+    Py_ssize_t nargs) {
+  PyErr_SetString(PyExc_AttributeError, "can't set attribute");
+  return -1;
+}
+#endif
 
 static Py_ssize_t static_property_missing_fdel(PyObject* mod, PyObject* self) {
   PyErr_SetString(PyExc_AttributeError, "can't del attribute");
@@ -1701,7 +1711,7 @@ static PyMethodDef static_methods[] = {
      ""},
     {"_property_missing_fset",
      (PyCFunction)&static_property_missing_fset,
-     METH_O,
+     METH_FASTCALL,
      ""},
     {"_property_missing_fdel",
      (PyCFunction)&static_property_missing_fdel,
