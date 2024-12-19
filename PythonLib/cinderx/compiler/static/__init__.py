@@ -859,6 +859,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
             self.emit("LOAD_CONST", None)
 
         self.emit(opcode, oparg)
+        self.nextBlock()
 
     def visitDictComp(self, node: DictComp) -> None:
         dict_type = self.get_type(node)
