@@ -270,6 +270,7 @@ dummy_func(
                 Py_ssize_t ival = unbox_primitive_int_and_decref(val);
                 SETLOCAL(index, box_primitive(type, ival));
             }
+
 #ifdef ADAPTIVE
             if (shadow.shadow != NULL) {
                 assert(type < 8);
@@ -370,7 +371,7 @@ dummy_func(
             Py_DECREF(self);
         }
       
-        inst(CAST, (val -- val)) {
+        inst(CAST, (val -- res)) {
             int optional;
             int exact;
             PyTypeObject* type = _PyClassLoader_ResolveType(
@@ -403,6 +404,7 @@ dummy_func(
                 }
             }
 #endif
+            res = val;
             Py_DECREF(type);
         }
 
@@ -558,8 +560,8 @@ dummy_func(
             Py_DECREF(collection);
         }
 
-        inst(PRIMITIVE_BOX, (top -- top)) {
-            top = sign_extend_primitive(top, oparg);
+        inst(PRIMITIVE_BOX, (top -- res)) {
+            res = sign_extend_primitive(top, oparg);
         }
 
         inst(PRIMITIVE_UNBOX, (top -- top)) {
@@ -593,7 +595,7 @@ dummy_func(
             DECREF_INPUTS();
         }
 
-        inst(CONVERT_PRIMITIVE, (val -- val)) {
+        inst(CONVERT_PRIMITIVE, (val -- res)) {
             Py_ssize_t from_type = oparg & 0xFF;
             Py_ssize_t to_type = oparg >> 4;
             Py_ssize_t extend_sign =
@@ -608,8 +610,8 @@ dummy_func(
                 ival |= (signex_masks[size]);
             }
 
-            val = PyLong_FromSize_t(ival);
-            ERROR_IF(val == NULL, error);
+            res = PyLong_FromSize_t(ival);
+            ERROR_IF(res == NULL, error);
             DECREF_INPUTS();
         }
 
