@@ -53,6 +53,7 @@ from .pyassem import (
     PyFlowGraph310,
     PyFlowGraph312,
     PyFlowGraphCinder310,
+    PyFlowGraphCinder312,
     SrcLocation,
 )
 from .symbols import (
@@ -5710,7 +5711,7 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
 
 
 class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
-    flow_graph = PyFlowGraphCinder310
+    flow_graph = PyFlowGraph312
 
     def set_qual_name(self, qualname: str) -> None:
         cast(PyFlowGraph312, self.graph).qualname = qualname

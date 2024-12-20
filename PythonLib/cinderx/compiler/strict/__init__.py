@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import ast
 import builtins
+import sys
 from ast import (
     AST,
     AsyncFunctionDef,
@@ -22,12 +23,12 @@ from types import CodeType
 from typing import Any, cast, final, Mapping
 
 from .. import consts, symbols
-from ..pyassem import PyFlowGraph, PyFlowGraphCinder310
+from ..pyassem import PyFlowGraph, PyFlowGraph312, PyFlowGraphCinder310
 from ..pycodegen import (  # noqa: F401
     CinderCodeGenBase,
     CinderCodeGenerator310,
+    CinderCodeGenerator312,
     CodeGenerator,
-    CodeGenerator310,
     find_futures,
     FOR_LOOP,
 )
@@ -631,6 +632,10 @@ class StrictCodeGenerator310(StrictCodeGenBase, CinderCodeGenerator310):
     flow_graph = PyFlowGraphCinder310
 
 
+class StrictCodeGenerator312(StrictCodeGenBase, CinderCodeGenerator312):
+    flow_graph = PyFlowGraph312
+
+
 def strict_compile(
     name: str,
     filename: str,
@@ -647,4 +652,7 @@ def strict_compile(
 _static_module_ported = False
 
 
-StrictCodeGenerator = StrictCodeGenerator310
+if sys.version_info >= (3, 12):
+    StrictCodeGenerator = StrictCodeGenerator312
+else:
+    StrictCodeGenerator = StrictCodeGenerator310

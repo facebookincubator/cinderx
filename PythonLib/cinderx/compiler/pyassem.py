@@ -2121,6 +2121,10 @@ class PyFlowGraph312(PyFlowGraph):
     _const_opcodes.add("KW_NAMES")
 
 
+class PyFlowGraphCinder312(PyFlowGraphCinderMixin, PyFlowGraph312):
+    pass
+
+
 class UninitializedVariableChecker:
     # Opcodes which may clear a variable
     clear_ops = (

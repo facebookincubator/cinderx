@@ -32,17 +32,28 @@ from typing import Any, Callable as typingCallable, cast, Generator, Type
 
 from .. import consts, opcode_static
 from ..opcodebase import Opcode
-from ..pyassem import Block, IndexedSet, PyFlowGraph, PyFlowGraphCinder310
+from ..pyassem import (
+    Block,
+    IndexedSet,
+    PyFlowGraph,
+    PyFlowGraph312,
+    PyFlowGraphCinder310,
+)
 from ..pycodegen import (
     CinderCodeGenerator310,
+    CinderCodeGenerator312,
     CodeGenerator,
-    CodeGenerator310,
     compile,
     CompNode,
     FuncOrLambda,
     PatternContext,
 )
-from ..strict import FIXED_MODULES, StrictCodeGenBase, StrictCodeGenerator310
+from ..strict import (
+    FIXED_MODULES,
+    StrictCodeGenBase,
+    StrictCodeGenerator310,
+    StrictCodeGenerator312,
+)
 from ..symbols import BaseSymbolVisitor, ModuleScope, Scope
 from .compiler import Compiler
 from .definite_assignment_checker import DefiniteAssignmentVisitor
@@ -116,6 +127,10 @@ class PyFlowGraphStatic310(PyFlowGraphCinder310):
     opcode: Opcode = opcode_static.opcode
 
 
+class PyFlowGraphStatic312(PyFlowGraph312):
+    opcode: Opcode = opcode_static.opcode
+
+
 class InitSubClassGenerator:
     def __init__(self, flow_graph: PyFlowGraph, qualname: str) -> None:
         self.flow_graph = flow_graph
@@ -132,8 +147,8 @@ class StaticCodeGenBase(StrictCodeGenBase):
     _default_cache: dict[type[ast.AST], typingCallable[..., None]] = {}
     pattern_context = StaticPatternContext
     # Defined in subclasses; this is an explicit receiver class for
-    # self.defaultCall() to dispatch to
-    default_call_recv: Type[CodeGenerator] = CodeGenerator
+    # self.defaultCall() and self.make_child_codegen to dispatch to
+    parent_impl: Type[CodeGenerator] = CodeGenerator
 
     def __init__(
         self,
@@ -280,6 +295,31 @@ class StaticCodeGenBase(StrictCodeGenBase):
         )
         return code_gen
 
+    def make_child_codegen(
+        self,
+        tree: FuncOrLambda | CompNode | ast.ClassDef,
+        graph: PyFlowGraph,
+    ) -> CodeGenerator:
+        if self._is_static_compiler_disabled(tree):
+            return self.parent_impl(
+                self,
+                tree,
+                self.symbols,
+                graph,
+                flags=self.flags,
+                optimization_lvl=self.optimization_lvl,
+            )
+        return self.__class__(
+            self,
+            tree,
+            self.symbols,
+            graph,
+            compiler=self.compiler,
+            modname=self.modname,
+            optimization_lvl=self.optimization_lvl,
+            enable_patching=self.enable_patching,
+        )
+
     def make_function_graph(
         self,
         func: FuncOrLambda | CompNode,
@@ -403,7 +443,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
             for unassigned in visitor.unassigned:
                 node_type = self.get_type(unassigned)
                 if isinstance(node_type, CInstance):
-                    assert type(gen) is Static310CodeGenerator
+                    assert isinstance(gen, StaticCodeGenBase)
                     node_type.emit_init(unassigned, gen)
 
         super().processBody(node, body, gen)
@@ -474,7 +514,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
             )
             gen.emit("STORE_NAME", "__init_subclass__")
 
-        assert isinstance(gen, Static310CodeGenerator)
+        assert isinstance(gen, StaticCodeGenBase)
         klass.emit_extra_members(node, gen)
 
         class_mems_with_overrides = [
@@ -1060,7 +1100,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         )
 
     def defaultCall(self, node: object, name: str, *args: object) -> None:
-        meth = getattr(self.default_call_recv, name)
+        meth = getattr(self.parent_impl, name)
         return meth(self, node, *args)
 
     def defaultVisit(self, node: AST, *args: object) -> None:
@@ -1178,32 +1218,15 @@ class StaticCodeGenBase(StrictCodeGenBase):
 
 class Static310CodeGenerator(StaticCodeGenBase, CinderCodeGenerator310):
     flow_graph = PyFlowGraphStatic310
-    default_call_recv = StrictCodeGenerator310
-
-    def make_child_codegen(
-        self,
-        tree: FuncOrLambda | CompNode | ast.ClassDef,
-        graph: PyFlowGraph,
-    ) -> CodeGenerator310:
-        if self._is_static_compiler_disabled(tree):
-            return StrictCodeGenerator310(
-                self,
-                tree,
-                self.symbols,
-                graph,
-                flags=self.flags,
-                optimization_lvl=self.optimization_lvl,
-            )
-        return Static310CodeGenerator(
-            self,
-            tree,
-            self.symbols,
-            graph,
-            compiler=self.compiler,
-            modname=self.modname,
-            optimization_lvl=self.optimization_lvl,
-            enable_patching=self.enable_patching,
-        )
+    parent_impl = StrictCodeGenerator310
 
 
-StaticCodeGenerator = Static310CodeGenerator
+class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
+    flow_graph = PyFlowGraphStatic312
+    parent_impl = StrictCodeGenerator312
+
+
+if sys.version_info >= (3, 12):
+    StaticCodeGenerator = Static312CodeGenerator
+else:
+    StaticCodeGenerator = Static310CodeGenerator
