@@ -394,12 +394,12 @@ class StrictLoaderTest(StrictTestBase):
         )
         with self.sbx.in_strict_module("a") as a1:
             self.assertEqual(a1.g(), 42)
-            self.assertInBytecode(a1.g, "CALL_FUNCTION", 0)
+            self.assertInBytecode(a1.g, self.CALL, 0)
         # ensure pycs exist and we can import from them
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "CALL_FUNCTION", 0)
+            self.assertInBytecode(a2.g, self.CALL, 0)
             self.assertEqual(a2.g(), 42)
         # modify dependency, but not module a
         self.sbx.write_file(
@@ -445,7 +445,7 @@ class StrictLoaderTest(StrictTestBase):
         b_path.unlink()
         # bytecode for 'a' should now have CALL_FUNCTION instead
         with self.sbx.in_strict_module("a") as a3:
-            self.assertInBytecode(a3.g, "CALL_FUNCTION", 0)
+            self.assertInBytecode(a3.g, self.CALL, 0)
             # will fail because module b is gone
             with self.assertRaises(ModuleNotFoundError):
                 a3.g()
@@ -807,7 +807,7 @@ class StrictLoaderTest(StrictTestBase):
             out = io.StringIO()
             dis.dis(mod, file=out)
             disassembly = out.getvalue()
-            self.assertIn("CALL_FUNCTION", disassembly)
+            self.assertIn(self.CALL, disassembly)
 
     def test_cross_module_static_typestub_ensure_types_untrusted(self) -> None:
         self.sbx.write_file(
@@ -851,7 +851,7 @@ class StrictLoaderTest(StrictTestBase):
             out = io.StringIO()
             dis.dis(mod, file=out)
             disassembly = out.getvalue()
-            self.assertIn("CALL_FUNCTION", disassembly)
+            self.assertIn(self.CALL, disassembly)
 
     def test_cross_module_2(self) -> None:
         self.sbx.write_file(

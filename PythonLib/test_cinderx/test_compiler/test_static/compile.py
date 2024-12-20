@@ -312,7 +312,7 @@ class StaticCompilationTests(StaticTestBase):
                 return bar(x)
         """
         f = self.find_code(self.compile(codestr), "f")
-        self.assertInBytecode(f, "CALL_FUNCTION", 1)
+        self.assertInBytecode(f, self.CALL, 1)
 
     def test_typing_overload_type(self) -> None:
         """Typing overloads are explicitly understood by the static compiler."""
@@ -2066,7 +2066,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         module = self.compile(codestr)
         # we don't yet support optimized dispatch to kw-only functions
-        self.assertInBytecode(module, "CALL_FUNCTION")
+        self.assertInBytecode(module, self.CALL)
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.a, "hunter2")
 
@@ -2442,7 +2442,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             g = mod.g
-            self.assertInBytecode(g, "CALL_FUNCTION", 3)
+            self.assertInBytecode(g, self.CALL, 3)
 
     def test_generic_varargs_method_unsupported(self):
         # definition is allowed, we just don't do an optimal invoke

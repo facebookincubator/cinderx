@@ -262,7 +262,7 @@ class VariadicArgTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.f
-            self.assertInBytecode(f, "CALL_FUNCTION")
+            self.assertInBytecode(f, self.CALL)
 
     def test_default_arg_non_const_kw_provided(self):
         codestr = """

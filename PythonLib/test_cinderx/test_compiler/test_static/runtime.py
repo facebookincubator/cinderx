@@ -2152,13 +2152,13 @@ class StaticRuntimeTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             fn = mod.fn
-            self.assertInBytecode(fn, "CALL_FUNCTION")
+            self.assertInBytecode(fn, self.CALL)
             self.assertNotInBytecode(fn, "INVOKE_FUNCTION")
             self.assertFalse(fn.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn(), None)
 
             fn2 = mod.fn2
-            self.assertNotInBytecode(fn2, "CALL_FUNCTION")
+            self.assertNotInBytecode(fn2, self.CALL)
             self.assertInBytecode(fn2, "INVOKE_FUNCTION")
             self.assertTrue(fn2.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn2(), None)
@@ -2184,7 +2184,7 @@ class StaticRuntimeTests(StaticTestBase):
             C = mod.C
 
             fn2 = C.fn2
-            self.assertNotInBytecode(fn2, "CALL_FUNCTION")
+            self.assertNotInBytecode(fn2, self.CALL)
             self.assertInBytecode(fn2, "INVOKE_FUNCTION")
             self.assertTrue(fn2.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn2(), None)
@@ -2210,7 +2210,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             C = mod.C
             fn = C.fn
-            self.assertInBytecode(fn, "CALL_FUNCTION")
+            self.assertInBytecode(fn, self.CALL)
             self.assertNotInBytecode(fn, "INVOKE_FUNCTION")
             self.assertFalse(fn.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn(), None)

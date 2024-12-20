@@ -3013,7 +3013,7 @@ class PrimitivesTests(StaticTestBase):
         with self.in_module(codestr, optimize=2) as mod:
             h = mod.h
             self.assertNotInBytecode(h, "INVOKE_FUNCTION")
-            self.assertNotInBytecode(h, "CALL_FUNCTION")
+            self.assertNotInBytecode(h, self.CALL)
             self.assertEqual(h(1, 2), True)
 
     def test_primitive_compare_immediate_no_branch_on_result(self):

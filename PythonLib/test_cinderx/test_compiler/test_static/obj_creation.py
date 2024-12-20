@@ -131,7 +131,7 @@ class StaticObjCreationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             # Unknown base class w/ no overrides should always be CALL_FUNCTION
-            self.assertInBytecode(f, "CALL_FUNCTION")
+            self.assertInBytecode(f, self.CALL)
 
     def test_init_wrong_type(self):
         codestr = """
@@ -580,5 +580,5 @@ class StaticObjCreationTests(StaticTestBase):
                     self.b = b
         """
         with self.in_module(codestr) as mod:
-            self.assertInBytecode(mod.B.f, "CALL_FUNCTION", 1)
+            self.assertInBytecode(mod.B.f, self.CALL, 1)
             self.assertNotInBytecode(mod.B.f, "TP_ALLOC")
