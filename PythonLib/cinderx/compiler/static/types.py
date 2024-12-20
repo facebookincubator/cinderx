@@ -145,7 +145,7 @@ from .effects import NarrowingEffect, NO_EFFECT, TypeState
 from .visitor import GenericVisitor
 
 if TYPE_CHECKING:
-    from . import PyFlowGraph310Static, StaticCodeGenBase
+    from . import PyFlowGraphStatic310, StaticCodeGenBase
     from .compiler import Compiler
     from .declaration_visitor import DeclarationVisitor
     from .module_table import ModuleTable
@@ -5847,7 +5847,7 @@ class Dataclass(Class):
         args: tuple[str, ...],
         check_args: tuple[object, ...],
         return_type_descr: TypeDescr,
-    ) -> PyFlowGraph310Static:
+    ) -> PyFlowGraphStatic310:
         scope = FunctionScope(func, code_gen.cur_mod, code_gen.scope.klass)
         scope.parent = code_gen.scope
 
@@ -5861,12 +5861,12 @@ class Dataclass(Class):
         )
         graph.setFlag(CI_CO_STATICALLY_COMPILED)
         graph.extra_consts.append((check_args, return_type_descr))
-        return cast("PyFlowGraph310Static", graph)
+        return cast("PyFlowGraphStatic310", graph)
 
     def emit_method(
         self,
         code_gen: StaticCodeGenBase,
-        graph: PyFlowGraph310Static,
+        graph: PyFlowGraphStatic310,
         oparg: int,
     ) -> None:
         code_gen.emit_make_function(

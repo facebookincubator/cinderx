@@ -107,7 +107,7 @@ def get_is_assigned_tracking_name(name: str) -> str:
 
 
 class StrictCodeGenBase(CinderCodeGenBase):
-    flow_graph = PyFlowGraphCinder310
+    flow_graph = PyFlowGraph
     class_list_name: str = "<classes>"
 
     def __init__(
@@ -628,7 +628,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
 
 
 class StrictCodeGenerator310(StrictCodeGenBase, CinderCodeGenerator310):
-    pass
+    flow_graph = PyFlowGraphCinder310
 
 
 def strict_compile(

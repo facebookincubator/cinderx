@@ -112,7 +112,7 @@ class StaticPatternContext(PatternContext):
         return pc
 
 
-class PyFlowGraph310Static(PyFlowGraphCinder310):
+class PyFlowGraphStatic310(PyFlowGraphCinder310):
     opcode: Opcode = opcode_static.opcode
 
 
@@ -128,7 +128,7 @@ class InitSubClassGenerator:
 
 
 class StaticCodeGenBase(StrictCodeGenBase):
-    flow_graph = PyFlowGraphCinder310
+    flow_graph = PyFlowGraph
     _default_cache: dict[type[ast.AST], typingCallable[..., None]] = {}
     pattern_context = StaticPatternContext
     # Defined in subclasses; this is an explicit receiver class for
@@ -1175,7 +1175,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
 
 
 class Static310CodeGenerator(StaticCodeGenBase, CinderCodeGenerator310):
-    flow_graph = PyFlowGraph310Static
+    flow_graph = PyFlowGraphStatic310
     default_call_recv = StrictCodeGenerator310
 
     def make_child_codegen(
