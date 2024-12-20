@@ -25,6 +25,17 @@ if sys.version_info >= (3, 12):
 
     cinderx_opcode.init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, hasarg)
 
+    if "dis" in sys.modules:
+        # Fix up dis module to use the CinderX opcodes
+        import dis
+
+        dis._all_opname = list(opname)
+        dis._all_opmap = dict(opmap)
+        dis._empty_slot = [
+            slot for slot, name in enumerate(dis._all_opname) if name.startswith("<")
+        ]
+
+
 opcode: Opcode = Opcode()
 for opname, opnum in opmap.items():
     if opnum in hasname:
