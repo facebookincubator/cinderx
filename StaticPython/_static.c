@@ -532,12 +532,17 @@ static PyObject* ctxmgrwrp_make_awaitable(
 
 PyTypeObject _PyContextDecoratorWrapper_Type;
 
+#if PY_VERSION_HEX < 0x030C0000
+#define IS_AWAITED(nargsf) (nargsf & Ci_Py_AWAITED_CALL_MARKER)
+#else
+#define IS_AWAITED(nargsf) false
+#endif
+
 static PyObject* ctxmgrwrp_vectorcall(
     PyFunctionObject* func,
     PyObject* const* args,
     Py_ssize_t nargsf,
     PyObject* kwargs) {
-#if PY_VERSION_HEX < 0x030C0000
   PyWeakReference* wr = (PyWeakReference*)func->func_weakreflist;
   while (wr != NULL && Py_TYPE(wr) != &_PyContextDecoratorWrapper_Type) {
     wr = wr->wr_next;
@@ -556,7 +561,7 @@ static PyObject* ctxmgrwrp_vectorcall(
    * of the coroutine.  Otherwise we're not a co-routine or we're eagerly
    * awaited in which case we'll call __enter__ now and capture __exit__
    * before any possible side effects to match the normal eval loop */
-  if (!self->is_coroutine || nargsf & Ci_Py_AWAITED_CALL_MARKER) {
+  if (!self->is_coroutine || IS_AWAITED(nargsf)) {
     exit = ctxmgrwrp_enter(self, &ctx_mgr);
     if (exit == NULL) {
       return NULL;
@@ -567,6 +572,7 @@ static PyObject* ctxmgrwrp_vectorcall(
   PyObject* res = _PyObject_Vectorcall(self->func, args, nargsf, kwargs);
   /* TODO(T128335015): Enable this when we have async/await support. */
   if (self->is_coroutine && res != NULL) {
+#if PY_VERSION_HEX < 0x030C0000
     /* If it's a co-routine either pass up the eagerly awaited value or
      * pass out a wrapping awaitable */
     int eager = Ci_PyWaitHandle_CheckExact(res);
@@ -589,6 +595,9 @@ static PyObject* ctxmgrwrp_vectorcall(
         return res;
       }
     }
+#else
+    int eager = 0;
+#endif
     return ctxmgrwrp_make_awaitable(self, ctx_mgr, exit, res, eager);
   }
 
@@ -605,10 +614,6 @@ static PyObject* ctxmgrwrp_vectorcall(
   Py_XDECREF(ctx_mgr);
   Py_DECREF(exit);
   return res;
-#else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  return NULL;
-#endif
 }
 
 static int ctxmgrwrp_traverse(

@@ -451,6 +451,7 @@ static PyObject* check_coro_return(
     return NULL;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   int eager = Ci_PyWaitHandle_CheckExact(coro);
   if (eager) {
     Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
@@ -465,6 +466,9 @@ static PyObject* check_coro_return(
       return NULL;
     }
   }
+#else
+  int eager = 0;
+#endif
 
   return _PyClassLoader_NewAwaitableWrapper(
       coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);

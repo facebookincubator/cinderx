@@ -198,6 +198,11 @@ __attribute__((__used__)) PyObject* _PyVTable_coroutine_property_vectorcall(
     coro = _PyObject_Vectorcall(descr, args, nargsf, NULL);
   }
 
+  if (coro == NULL) {
+    return NULL;
+  }
+
+#if PY_VERSION_HEX < 0x030C0000
   eager = Ci_PyWaitHandle_CheckExact(coro);
   if (eager) {
     Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
@@ -212,6 +217,9 @@ __attribute__((__used__)) PyObject* _PyVTable_coroutine_property_vectorcall(
       return NULL;
     }
   }
+#else
+  eager = 0;
+#endif
 done:
   return _PyClassLoader_NewAwaitableWrapper(
       coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);
@@ -282,7 +290,6 @@ __attribute__((__used__)) PyObject* _PyVTable_coroutine_classmethod_vectorcall(
 #if PY_VERSION_HEX < 0x030C0000
   Py_ssize_t awaited = nargsf & Ci_Py_AWAITED_CALL_MARKER;
 #else
-  UPGRADE_ASSERT(AWAITED_FLAG)
   Py_ssize_t awaited = 0;
 #endif
 
@@ -323,6 +330,7 @@ __attribute__((__used__)) PyObject* _PyVTable_coroutine_classmethod_vectorcall(
     return NULL;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   int eager = Ci_PyWaitHandle_CheckExact(coro);
   if (eager) {
     Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
@@ -337,6 +345,9 @@ __attribute__((__used__)) PyObject* _PyVTable_coroutine_classmethod_vectorcall(
       return NULL;
     }
   }
+#else
+  int eager = 0;
+#endif
 
   return _PyClassLoader_NewAwaitableWrapper(
       coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);

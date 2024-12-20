@@ -20,6 +20,10 @@ static void set_thunk_type_error(_Py_StaticThunk* thunk, const char* msg) {
   }
 }
 
+#if PY_VERSION_HEX >= 0x030C0000
+#define Ci_Py_AWAITED_CALL_MARKER 0
+#endif
+
 static PyObject* thunk_vectorcall(
     _Py_StaticThunk* thunk,
     PyObject* const* args,
@@ -74,7 +78,6 @@ static PyObject* thunk_vectorcall(
         thunk->thunk_cls, res, (_PyClassLoader_RetTypeInfo*)thunk);
   }
 
-#if PY_VERSION_HEX < 0x030C0000
   if (thunk->thunk_flags & Ci_FUNC_FLAGS_COROUTINE) {
     PyObject* coro = _PyObject_Vectorcall(
         func, args, nargsf & ~Ci_Py_AWAITED_CALL_MARKER, kwnames);
@@ -87,10 +90,6 @@ static PyObject* thunk_vectorcall(
       func, args, nargsf & ~Ci_Py_AWAITED_CALL_MARKER, kwnames);
   return _PyClassLoader_CheckReturnType(
       thunk->thunk_cls, res, (_PyClassLoader_RetTypeInfo*)thunk);
-#else
-  UPGRADE_ASSERT(AWAITED_FLAG)
-  return NULL;
-#endif
 }
 
 _Py_StaticThunk* _PyClassLoader_GetOrMakeThunk(

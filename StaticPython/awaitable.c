@@ -114,7 +114,13 @@ static void awaitable_setawaiter(
 }
 
 #if PY_VERSION_HEX < 0x030C0000
-static PyAsyncMethodsWithExtra awaitable_as_async = {
+
+#define Ci_AsyncMethodsWithExtra PyAsyncMethodsWithExtra
+#define Ci_TPFLAGS_HAVE_AM_EXTRA Py_TPFLAGS_HAVE_AM_EXTRA
+
+#endif
+
+static Ci_AsyncMethodsWithExtra awaitable_as_async = {
     .ame_async_methods =
         {
             (unaryfunc)awaitable_await,
@@ -124,7 +130,6 @@ static PyAsyncMethodsWithExtra awaitable_as_async = {
         },
     .ame_setawaiter = (setawaiterfunc)awaitable_setawaiter,
 };
-#endif
 
 static PyObject* awaitable_send(
     _PyClassLoader_Awaitable* self,
@@ -201,7 +206,6 @@ static PyObject* awaitable_close(
   return ret;
 }
 
-#if PY_VERSION_HEX < 0x030C0000
 static PyMethodDef awaitable_methods[] = {
     {"send", (PyCFunction)awaitable_send, METH_O, NULL},
     {"throw", (PyCFunction)awaitable_throw, METH_VARARGS, NULL},
@@ -221,7 +225,7 @@ static PyTypeObject _PyClassLoader_AwaitableType = {
     .tp_dealloc = (destructor)awaitable_dealloc,
     .tp_as_async = (PyAsyncMethods*)&awaitable_as_async,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
-        Py_TPFLAGS_HAVE_AM_EXTRA,
+        Ci_TPFLAGS_HAVE_AM_EXTRA,
     .tp_traverse = (traverseproc)awaitable_traverse,
     .tp_clear = (inquiry)awaitable_clear,
     .tp_iter = PyObject_SelfIter,
@@ -231,7 +235,6 @@ static PyTypeObject _PyClassLoader_AwaitableType = {
     .tp_free = PyObject_GC_Del,
     .tp_members = awaitable_memberlist,
 };
-#endif
 
 PyObject* _PyClassLoader_NewAwaitableWrapper(
     PyObject* coro,
@@ -239,7 +242,6 @@ PyObject* _PyClassLoader_NewAwaitableWrapper(
     PyObject* state,
     awaitable_cb cb,
     awaitable_presend onsend) {
-#if PY_VERSION_HEX < 0x030C0000
   if (PyType_Ready(&_PyClassLoader_AwaitableType) < 0) {
     return NULL;
   }
@@ -252,6 +254,7 @@ PyObject* _PyClassLoader_NewAwaitableWrapper(
   awaitable->onsend = onsend;
   awaitable->awaiter = NULL;
 
+#if PY_VERSION_HEX < 0x030C0000
   if (eager) {
     Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
     Py_INCREF(handle->wh_coro_or_result);
@@ -260,12 +263,9 @@ PyObject* _PyClassLoader_NewAwaitableWrapper(
     handle->wh_coro_or_result = (PyObject*)awaitable;
     return coro;
   }
+#endif
 
   awaitable->coro = coro;
   awaitable->iter = NULL;
   return (PyObject*)awaitable;
-#else
-  UPGRADE_ASSERT(INCOMPLETE_PY_AWAITER)
-  return NULL;
-#endif
 }
