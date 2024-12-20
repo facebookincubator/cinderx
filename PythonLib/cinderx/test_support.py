@@ -9,20 +9,12 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 
-try:
-    from cinderjit import force_compile, is_jit_compiled
-
-    CINDERJIT_ENABLED = True
-except ImportError:
-
-    def is_jit_compiled(f):
-        return False
-
-    def force_compile(f):
-        return False
-
-    CINDERJIT_ENABLED = False
-
+from cinderx.jit import (
+    force_compile,
+    # Note: This should use cinderx.jit.is_enabled().
+    INSTALLED as CINDERJIT_ENABLED,
+    is_jit_compiled,
+)
 
 try:
     import cinder
