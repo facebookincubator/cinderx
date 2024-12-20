@@ -1,7 +1,10 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
+# pyre-ignore[21]: _cinderx is not using cpp_python_extension() yet.
 from _cinderx import StaticTypeError  # noqa: F401
+
+# pyre-ignore[21]: _static is defined as part of _cinderx.
 from _static import (  # noqa: F401
     __build_cinder_class__,
     _clear_dlopen_cache,
