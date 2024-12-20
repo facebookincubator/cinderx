@@ -6,6 +6,7 @@ from __future__ import annotations
 import ast
 import os.path
 import symtable
+import sys
 import typing
 from ast import (
     alias,
@@ -25,6 +26,7 @@ from ast import (
     Try,
 )
 from collections import deque
+from contextlib import nullcontext
 from dataclasses import dataclass
 from symtable import Class, SymbolTable
 from typing import Callable, Dict, final, Generic, Mapping, MutableMapping, TypeVar
@@ -73,6 +75,17 @@ class StrictModuleError(Exception):
     lineno: int
     col: int
     metadata: str = ""
+
+
+def _is_scoped_generator_node(node: AST) -> bool:
+    return sys.version_info < (3, 12) or not isinstance(
+        node,
+        (
+            ast.ListComp,
+            ast.DictComp,
+            ast.SetComp,
+        ),
+    )
 
 
 @final
@@ -142,7 +155,9 @@ class SymbolMapBuilder(ast.NodeVisitor):
         # first iter is visited in the outer scope
         self.visit(comprehensions[0].iter)
         # everything else is in the inner scope
-        self._process_scope_node(node)
+        if _is_scoped_generator_node(node):
+            # In 3.12 list comprehensions are inlined
+            self._process_scope_node(node)
         # process first comprehension, without iter
         for child in comprehensions[0].ifs:
             self.visit(child)
@@ -289,7 +304,12 @@ class ScopeStack(Generic[TVar, TScopeData]):
 
     def with_node_scope(
         self, node: AST, vars: MutableMapping[str, TVar] | None = None
-    ) -> ScopeContextManager[TVar, TScopeData]:
+    ) -> ScopeContextManager[TVar, TScopeData] | nullcontext:
+        if not _is_scoped_generator_node(node):
+            assert isinstance(node, (ast.ListComp, ast.DictComp, ast.SetComp))
+            # In 3.12 list/dict/set comprehensions are inlined
+            return nullcontext()
+
         next_symtable = self.symbol_map[node]
         return ScopeContextManager(self, self.scope_factory(next_symtable, node, vars))
 
