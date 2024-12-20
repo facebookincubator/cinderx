@@ -500,7 +500,10 @@ static Ci_AsyncMethodsWithExtra jitcoro_as_async = {
 
 bool jitgen_is_coroutine(PyObject* o) {
   if (Py_TYPE(o) == &JitGen_Type || PyGen_CheckExact(o)) {
-    PyCodeObject* code = PyGen_GetCode(reinterpret_cast<PyGenObject*>(o));
+    // Do not use PyGen_GetCode() as this asserts on PyGen_Check().
+    PyCodeObject* code = reinterpret_cast<_PyInterpreterFrame*>(
+                             reinterpret_cast<PyGenObject*>(o)->gi_iframe)
+                             ->f_code;
     if (code->co_flags & CO_ITERABLE_COROUTINE) {
       return true;
     }
@@ -748,16 +751,6 @@ void init_jit_genobject_type() {
   auto coro_ame =
       reinterpret_cast<Ci_AsyncMethodsWithExtra*>(PyCoro_Type.tp_as_async);
   jitcoro_as_async.ame_setawaiter = coro_ame->ame_setawaiter;
-}
-
-bool jitgen_is_coroutine(PyObject* o) {
-  if (Py_TYPE(o) == &JitGen_Type || PyGen_CheckExact(o)) {
-    PyCodeObject* code = PyGen_GetCode(reinterpret_cast<PyGenObject*>(o));
-    if (code->co_flags & CO_ITERABLE_COROUTINE) {
-      return true;
-    }
-  }
-  return false;
 }
 
 } // namespace jit
