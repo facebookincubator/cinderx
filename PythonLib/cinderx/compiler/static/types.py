@@ -3388,14 +3388,9 @@ class FunctionContainer(Object[Class]):
         first_lineno: int,
         body: list[ast.stmt],
     ) -> CodeGenerator:
-        gen = code_gen.make_func_codegen(node, node.args, node.name, first_lineno)
-
-        code_gen.processBody(node, body, gen)
-
-        gen.finish_function()
+        gen = code_gen.generate_function_with_body(node, node.name, first_lineno, body)
 
         code_gen.build_function(node, gen)
-
         return gen
 
     def get_expected_return(self) -> Value:

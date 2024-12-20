@@ -2418,7 +2418,21 @@ class CodeGenerator(ASTVisitor):
         raise NotImplementedError()
 
     def generate_function(
-        self, node: FuncOrLambda, name: str, first_lineno: int
+        self,
+        node: FuncOrLambda,
+        name: str,
+        first_lineno: int,
+    ) -> CodeGenerator:
+        return self.generate_function_with_body(
+            node, name, first_lineno, self.skip_docstring(node.body)
+        )
+
+    def generate_function_with_body(
+        self,
+        node: FuncOrLambda,
+        name: str,
+        first_lineno: int,
+        body: list[ast.stmt],
     ) -> CodeGenerator:
         raise NotImplementedError()
 
@@ -2685,17 +2699,17 @@ class CodeGenerator310(CodeGenerator):
 
     # Class and function definitions --------------------------------------------------
 
-    def generate_function(
+    def generate_function_with_body(
         self,
         node: FuncOrLambda,
         name: str,
         first_lineno: int,
-    ) -> CodeGenerator310:
+        body: list[ast.stmt],
+    ) -> CodeGenerator:
         gen = cast(
             CodeGenerator310,
             self.make_func_codegen(node, node.args, name, first_lineno),
         )
-        body = self.skip_docstring(node.body)
 
         self.processBody(node, body, gen)
 
@@ -4192,17 +4206,13 @@ class CodeGenerator312(CodeGenerator):
         self.emit_call_intrinsic_1("INTRINSIC_STOPITERATION_ERROR")
         self.emit("RERAISE", 1)
 
-    def generate_function(
-        self,
-        node: FuncOrLambda,
-        name: str,
-        first_lineno: int,
-    ) -> CodeGenerator312:
+    def generate_function_with_body(
+        self, node: FuncOrLambda, name: str, first_lineno: int, body: list[ast.stmt]
+    ) -> CodeGenerator:
         gen = cast(
             CodeGenerator312,
             self.make_func_codegen(node, node.args, name, first_lineno),
         )
-        body = self.skip_docstring(node.body)
 
         start = gen.newBlock("start")
         gen.nextBlock(start)
