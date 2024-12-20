@@ -1149,6 +1149,8 @@ class StaticCodeGenBase(StrictCodeGenBase):
     def _calculate_idx(
         self, arg_name: str, non_cellvar_pos: int, cellvars: IndexedSet
     ) -> int:
+        if sys.version_info >= (3, 12):
+            return non_cellvar_pos
         try:
             offset = cellvars.index(arg_name)
         except ValueError:

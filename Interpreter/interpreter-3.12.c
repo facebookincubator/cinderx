@@ -657,8 +657,6 @@ _Ci_CheckArgs(PyThreadState* tstate, _PyInterpreterFrame* f, PyCodeObject* co) {
     local = PyTuple_GET_ITEM(checks, i);
     type_descr = PyTuple_GET_ITEM(checks, i + 1);
     long idx = PyLong_AsLong(local);
-    // TODO(T210732753): We need to change the compiler to emit positive numbers
-    // always
     assert(idx >= 0);
     PyObject* val = fastlocals[idx];
 
