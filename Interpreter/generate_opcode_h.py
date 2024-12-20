@@ -120,7 +120,7 @@ def main(opcode_py, cinderx_opcode_py, outfile='Include/opcode.h',
     with tokenize.open(cinderx_opcode_py) as fp:
         code = fp.read()
     exec(code, cinder_opcode)
-    cinder_opcode["init"](opname, opmap, hasname, hasjrel, hasjabs, hasconst, False)
+    cinder_opcode["init"](opname, opmap, hasname, hasjrel, hasjabs, hasconst, hasarg, False)
 
     ENABLE_SPECIALIZATION = opcode["ENABLE_SPECIALIZATION"]
     HAVE_ARGUMENT = opcode["HAVE_ARGUMENT"]

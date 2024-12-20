@@ -38,7 +38,7 @@ HEADER = """
 
 # Lib/opcode.py deletes these functions so we need to define them again here.
 # We also need to update opname when we call def_op().
-def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, interp_only):
+def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, hasarg, interp_only=False):
     def def_op(name, op):
         opmap[name] = op
         opname[op] = name
@@ -77,11 +77,15 @@ def assign_numbers() -> list[str]:
             out.append(f'    {f}("{name}", {i})')
             if flags & cx.CONST:
                 out.append(f"    hasconst.append({i})")
+            if flags & (cx.ARG | cx.CONST):
+                out.append(f"    hasarg.append({i})")
         else:
             out.append("    if not interp_only:")
             out.append(f'        {f}("{name}", {i})')
             if flags & cx.CONST:
                 out.append(f"        hasconst.append({i})")
+            if flags & (cx.ARG | cx.CONST):
+                out.append(f"        hasarg.append({i})")
 
     return out
 

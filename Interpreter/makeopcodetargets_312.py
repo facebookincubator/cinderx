@@ -9,6 +9,7 @@ cinderx_opcode.init(
     opcode.hasjrel,
     opcode.hasjabs,
     opcode.hasconst,
+    opcode.hasarg,
     interp_only=True,
 )
 
