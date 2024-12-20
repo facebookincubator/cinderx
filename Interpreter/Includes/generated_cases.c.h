@@ -5532,9 +5532,9 @@
             PyObject *res;
             #line 742 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             switch (oparg) {
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_ADD_INT, +)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_SUB_INT, -)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_MUL_INT, *)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_ADD_INT, +)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_SUB_INT, -)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_MUL_INT, *)
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_DIV_INT, /)
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_MOD_INT, %)
                 case PRIM_OP_POW_INT: {

@@ -740,9 +740,9 @@ dummy_func(
 
         inst(PRIMITIVE_BINARY_OP, (l, r -- res)) {
             switch (oparg) {
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_ADD_INT, +)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_SUB_INT, -)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_MUL_INT, *)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_ADD_INT, +)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_SUB_INT, -)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_MUL_INT, *)
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_DIV_INT, /)
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_MOD_INT, %)
                 case PRIM_OP_POW_INT: {
@@ -761,9 +761,9 @@ dummy_func(
 
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_LSHIFT_INT, <<)
                 INT_BIN_OPCODE_SIGNED(PRIM_OP_RSHIFT_INT, >>)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_XOR_INT, ^)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_OR_INT, |)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_AND_INT, &)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_XOR_INT, ^)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_OR_INT, |)
+                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_AND_INT, &)
                 INT_BIN_OPCODE_UNSIGNED(PRIM_OP_MOD_UN_INT, %)
                 INT_BIN_OPCODE_UNSIGNED(PRIM_OP_DIV_UN_INT, /)
                 INT_BIN_OPCODE_UNSIGNED(PRIM_OP_RSHIFT_UN_INT, >>)
