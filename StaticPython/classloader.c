@@ -264,6 +264,22 @@ static int classloader_init_slot(PyObject* path) {
   return 0;
 }
 
+static PyObject* get_original(PyObject* container, PyObject* containerkey) {
+  PyObject* original = NULL;
+  if (PyType_Check(container)) {
+    PyTypeObject* type = (PyTypeObject*)container;
+    if (type->tp_cache != NULL) {
+      PyObject* originals = ((_PyType_VTable*)type->tp_cache)->vt_original;
+      if (originals != NULL) {
+        original = PyDict_GetItem(originals, containerkey);
+      }
+    }
+  } else if (Ci_StrictModule_Check(container)) {
+    original = Ci_StrictModule_GetOriginal(container, containerkey);
+  }
+  return original;
+}
+
 /**
     Returns a slot index given a "path" (type descr tuple) to a method.
     e.g ("my_mod", "MyClass", "my_method")
@@ -294,17 +310,7 @@ PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container) {
   PyObject* original = NULL;
   if (container != NULL && *container != NULL) {
     assert(containerkey != NULL);
-    if (PyType_Check(*container)) {
-      PyTypeObject* type = (PyTypeObject*)*container;
-      if (type->tp_cache != NULL) {
-        PyObject* originals = ((_PyType_VTable*)type->tp_cache)->vt_original;
-        if (originals != NULL) {
-          original = PyDict_GetItem(originals, containerkey);
-        }
-      }
-    } else if (Ci_StrictModule_Check(*container)) {
-      original = Ci_StrictModule_GetOriginal(*container, containerkey);
-    }
+    original = get_original(*container, containerkey);
   }
   if (original == func) {
     original = NULL;
@@ -329,6 +335,20 @@ PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container) {
       Py_INCREF(res);
       Py_DECREF(func);
       func = res;
+    }
+  } else if (PyTuple_GET_SIZE(path) == 2) {
+    // Check if the value has been deleted from the type and if so
+    // provide a better error message.
+    PyObject* container_obj =
+        _PyClassLoader_ResolveContainer(PyTuple_GET_ITEM(path, 0));
+    PyObject* attr_name = PyTuple_GET_ITEM(path, 1);
+    original = get_original(container_obj, attr_name);
+    if (original != NULL) {
+      PyErr_Format(
+          CiExc_StaticTypeError,
+          "%s.%U has been deleted",
+          ((PyTypeObject*)container_obj)->tp_name,
+          attr_name);
     }
   }
 
