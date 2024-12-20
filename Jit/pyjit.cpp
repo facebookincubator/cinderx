@@ -883,15 +883,16 @@ void compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
   }
 }
 
-void multithread_compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
-  size_t batch_compile_workers = getConfig().batch_compile_workers;
-  JIT_CHECK(batch_compile_workers, "Zero workers for compile");
+void multithread_compile_units_preloaded(
+    std::vector<BorrowedRef<>>&& units,
+    size_t worker_count) {
+  JIT_CHECK(worker_count > 1, "Expecting >1 workers but got {}", worker_count);
 
   JIT_DLOG(
       "Running multithread_compile_units_preloaded for {} units with {} "
       "workers",
       units.size(),
-      batch_compile_workers);
+      worker_count);
 
   // Disable checks for using GIL protected data across threads.
   // Conceptually what we're doing here is saying we're taking our own
@@ -911,7 +912,7 @@ void multithread_compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
     // in case something else in the process has hooked thread creation to run
     // arbitrary code.
     ThreadedCompileSerialize guard;
-    for (size_t i = 0; i < batch_compile_workers; i++) {
+    for (size_t i = 0; i < worker_count; i++) {
       worker_threads.emplace_back(compile_worker_thread);
     }
   }
@@ -926,8 +927,16 @@ void multithread_compile_units_preloaded(std::vector<BorrowedRef<>>&& units) {
   compile_units_preloaded(std::move(retry_list));
 }
 
-bool compile_all() {
+// Compile all functions registered via a JIT list that haven't been executed
+// yet.
+bool compile_all(size_t workers = 0) {
   JIT_CHECK(jit_ctx, "JIT not initialized");
+
+  std::chrono::time_point start = std::chrono::steady_clock::now();
+
+  if (workers == 0) {
+    workers = std::max(getConfig().batch_compile_workers, 1ul);
+  }
 
   std::vector<BorrowedRef<>> compilation_units;
   // units that were deleted during preloading
@@ -975,13 +984,20 @@ bool compile_all() {
       compilation_units.size(),
       deleted_units.size());
 
-  if (getConfig().batch_compile_workers > 0) {
-    multithread_compile_units_preloaded(std::move(compilation_units));
+  if (workers > 1) {
+    multithread_compile_units_preloaded(std::move(compilation_units), workers);
   } else {
     compile_units_preloaded(std::move(compilation_units));
   }
 
   hir::preloaderManager().clear();
+
+  std::chrono::time_point end = std::chrono::steady_clock::now();
+  g_batch_compilation_time =
+      std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
+
+  jit_code_data.clear();
+
   return true;
 }
 
@@ -995,16 +1011,12 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   g_compile_workers_retries = 0;
   JIT_LOG("(Re)compiling {} units", jit_reg_units.size());
   jit_ctx->clearCache();
-  std::chrono::time_point time_start = std::chrono::steady_clock::now();
   if (!compile_all()) {
     return nullptr;
   }
-  std::chrono::time_point time_end = std::chrono::steady_clock::now();
   JIT_LOG(
       "Took {} ms, compiles attempted: {}, compiles retried: {}",
-      std::chrono::duration_cast<std::chrono::milliseconds>(
-          time_end - time_start)
-          .count(),
+      g_batch_compilation_time.count(),
       g_compile_workers_attempted,
       g_compile_workers_retries);
   Py_RETURN_NONE;
@@ -1038,17 +1050,8 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
 
   JIT_DLOG("Disabling the JIT");
 
-  if (do_compile_all) {
-    // Compile all of the pending functions/codes before shutting down
-    std::chrono::time_point start = std::chrono::steady_clock::now();
-    if (!compile_all()) {
-      return nullptr;
-    }
-    std::chrono::time_point end = std::chrono::steady_clock::now();
-    g_batch_compilation_time =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-    jit_code_data.clear();
+  if (do_compile_all && !compile_all()) {
+    return nullptr;
   }
 
   if (deopt_all) {
@@ -1106,6 +1109,42 @@ BorrowedRef<PyFunctionObject> get_func_arg(
       method_name,
       Py_TYPE(arg)->tp_name);
   return nullptr;
+}
+
+PyObject*
+precompile_all(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
+  if (!isJitUsable()) {
+    Py_RETURN_FALSE;
+  }
+
+  Py_ssize_t workers = 1;
+  const char* keywords[] = {"workers", nullptr};
+  if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "|n", const_cast<char**>(keywords), &workers)) {
+    return nullptr;
+  }
+  if (workers < 0) {
+    PyErr_Format(
+        PyExc_ValueError,
+        "Cannot call precompile_all with %ld workers",
+        workers);
+    return nullptr;
+  }
+  if (workers > 1000) {
+    PyErr_Format(
+        PyExc_ValueError,
+        "Trying to call precompile_all with %ld workers which seems like too "
+        "much",
+        workers);
+    return nullptr;
+  }
+
+  if (!compile_all(workers)) {
+    return nullptr;
+  }
+
+  JIT_DLOG("precompile_all completed in {}", g_batch_compilation_time);
+  Py_RETURN_TRUE;
 }
 
 PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
@@ -1876,6 +1915,13 @@ PyMethodDef jit_methods[] = {
      is_jit_compiled,
      METH_O,
      PyDoc_STR("Check if a function is jit compiled.")},
+    {"precompile_all",
+     reinterpret_cast<PyCFunction>(precompile_all),
+     METH_VARARGS | METH_KEYWORDS,
+     PyDoc_STR("If the JIT is enabled, compile all functions registered for "
+               "future compilation and return True, otherwise return False. "
+               "This is not meant for general use, it has the potential to "
+               "compile many unneeded functions. Use wisely.")},
     {"force_compile",
      force_compile,
      METH_O,
@@ -1967,7 +2013,7 @@ PyMethodDef jit_methods[] = {
      get_batch_compilation_time_ms,
      METH_NOARGS,
      PyDoc_STR("Return the number of milliseconds spent in batch compilation "
-               "when disabling the JIT.")},
+               "the last time precompile_all() was called.")},
     {"get_allocator_stats",
      get_allocator_stats,
      METH_NOARGS,
@@ -2392,7 +2438,6 @@ _PyJIT_Result _PyJIT_CompileFunction(PyFunctionObject* raw_func) {
   }
 
   BorrowedRef<PyFunctionObject> func{raw_func};
-
   if (!shouldCompile(func)) {
     return PYJIT_RESULT_NOT_ON_JITLIST;
   }

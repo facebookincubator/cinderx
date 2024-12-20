@@ -19,6 +19,7 @@ try:
         is_enabled,
         is_jit_compiled,
         jit_suppress,
+        precompile_all,
     )
 
     INSTALLED = True
@@ -46,6 +47,9 @@ except ImportError:
 
     def jit_suppress(func: FunctionType) -> FunctionType:
         return func
+
+    def precompile_all(workers: int = 0) -> bool:
+        return False
 
 
 @contextmanager

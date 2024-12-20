@@ -101,12 +101,8 @@ bool scheduleJitCompile(PyFunctionObject* func) {
     return true;
   }
 
-  if (jit::getConfig().auto_jit_threshold > 0) {
-    func->vectorcall = autoJITVectorcall;
-    return true;
-  }
-
-  func->vectorcall = jitVectorcall;
+  func->vectorcall = jit::getConfig().auto_jit_threshold > 0 ? autoJITVectorcall
+                                                             : jitVectorcall;
   if (!_PyJIT_RegisterFunction(func)) {
     func->vectorcall = getInterpretedVectorcall(func);
     return false;

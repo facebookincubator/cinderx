@@ -5,8 +5,9 @@
 import os
 import unittest
 
-from cinderx import test_support as cinder_support
+from test.support.script_helper import assert_python_ok
 
+from cinderx import test_support as cinder_support
 
 try:
     import cinderjit
@@ -92,6 +93,36 @@ class JitListTest(unittest.TestCase):
 
         if cinderjit.auto_jit_threshold() <= 1:
             self.assertTrue(cinderjit.is_jit_compiled(inner_func))
+
+    @cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
+    def test_precompile_all(self) -> None:
+        # Has to be run under a separate process because precompile_all will mess up the
+        # other JIT-related tests.
+        code = """if 1:
+            import cinderjit
+
+            def func():
+                return 24
+
+            assert not cinderjit.is_jit_compiled(func)
+
+            # This has to use multiple threads otherwise this will take many minutes to run.
+            # It'll be compiling all functions that were loaded and not-yet-run in JitAll
+            # mode.
+            assert cinderjit.precompile_all(workers=10)
+            assert cinderjit.is_jit_compiled(func)
+
+            print(func())
+        """
+        rc, out, err = assert_python_ok("-X", "jit", "-c", code)
+        self.assertEqual(out.strip(), b"24")
+
+    @cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
+    def test_precompile_all_bad_args(self) -> None:
+        with self.assertRaises(ValueError):
+            cinderjit.precompile_all(workers=-1)
+        with self.assertRaises(ValueError):
+            cinderjit.precompile_all(workers=200000)
 
 
 if __name__ == "__main__":
