@@ -1865,6 +1865,8 @@ class PyFlowGraph312(PyFlowGraph):
         "POP_JUMP_IF_NONE": "POP_JUMP_IF_NOT_NONE",
         "POP_JUMP_IF_FALSE": "POP_JUMP_IF_TRUE",
         "POP_JUMP_IF_TRUE": "POP_JUMP_IF_FALSE",
+        "POP_JUMP_IF_NONZERO": "POP_JUMP_IF_ZERO",
+        "POP_JUMP_IF_ZERO": "POP_JUMP_IF_NONZERO",
     }
 
     def normalize_jumps_in_block(
