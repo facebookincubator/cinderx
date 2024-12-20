@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
+import sys
 
 from .common import bad_ret_type, StaticTestBase
 from cinderx.compiler.errors import TypedSyntaxError
@@ -469,7 +470,11 @@ class PropertyTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             c = mod.C()
-            with self.assertRaisesRegex(AttributeError, "can't set attribute"):
+            if sys.version_info >= (3, 12):
+                err = "property 'prop' of 'C' object has no setter"
+            else:
+                err = "can't set attribute"
+            with self.assertRaisesRegex(AttributeError, err):
                 c.prop = 2
             with self.assertRaisesRegex(AttributeError, "can't set attribute"):
                 c.set(2)

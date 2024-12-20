@@ -1047,7 +1047,9 @@ static int classloader_get_original_static_def(
     if (*original == NULL || !used_in_vtable(*original)) {
       // T190615686: Include non-typed methods from generic methods in vtable
 #if PY_VERSION_HEX >= 0x030C0000
-      if (!(tp->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST))
+      if (!(tp->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST) &&
+          (*original != g_missing_fget && *original != g_missing_fset &&
+           *original != g_missing_fdel))
 #endif
       {
         Py_CLEAR(*original);
