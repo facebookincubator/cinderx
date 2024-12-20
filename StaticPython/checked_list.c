@@ -3375,6 +3375,8 @@ error:
   return -1;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
+
 static PyObject* chklist_pop(PyListObject* self, PyObject* index) {
   Py_ssize_t index_ssize = -1;
   if (PyLong_Check(index)) {
@@ -3386,11 +3388,29 @@ static PyObject* chklist_pop(PyListObject* self, PyObject* index) {
   return list_pop_impl(self, index_ssize);
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-
 Ci_Py_TYPED_SIGNATURE(chklist_extend, Ci_Py_SIG_ERROR, &Ci_Py_Sig_Object, NULL);
 
 #else
+
+static PyObject*
+chklist_pop(PyListObject* self, PyObject* const* args, Py_ssize_t nargs) {
+  if (!_PyArg_CheckPositional("pop", nargs, 0, 1)) {
+    return NULL;
+  }
+  Py_ssize_t index_ssize = -1;
+  if (nargs < 1) {
+    goto skip_optional;
+  }
+
+  if (PyLong_Check(args[1])) {
+    index_ssize = PyLong_AsLong(args[1]);
+    if (PyErr_Occurred()) {
+      return NULL;
+    }
+  }
+skip_optional:
+  return list_pop_impl(self, index_ssize);
+}
 
 static PyObject* chklist_extend_wrapper(
     PyListObject* self,
@@ -3474,7 +3494,7 @@ static PyMethodDef chklist_methods[] = {
      (PyCFunction)&chklist_extend_wrapper,
      METH_O,
      list_extend__doc__},
-    {"pop", (PyCFunction)&chklist_pop, METH_O, list_pop__doc__},
+    {"pop", (PyCFunction)&chklist_pop, METH_FASTCALL, list_pop__doc__},
 #endif
     LIST_REMOVE_METHODDEF LIST_INDEX_METHODDEF LIST_COUNT_METHODDEF
         LIST_REVERSE_METHODDEF LIST_SORT_METHODDEF{
