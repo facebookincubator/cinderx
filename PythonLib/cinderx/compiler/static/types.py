@@ -7420,12 +7420,56 @@ def parse_type(info: dict[str, object], type_env: TypeEnvironment) -> Class:
     return klass
 
 
+# T190615686 - Until we have typed methods in the runtime the compiler needs them
+# to enforce errors at compile time.
+ALT_SIGS: dict[object, object] = {
+    chkdict.__getitem__: {
+        "args": [{"type_param": 0}],
+        "return": {"optional": True, "type_param": 1},
+    },
+    chkdict.__setitem__: {
+        "args": [{"type_param": 0}, {"type_param": 1}],
+        "return": {"type": "NoneType"},
+    },
+    chkdict.get: {
+        "args": [
+            {"type_param": 0},
+            {"optional": True, "type_param": 1, "default": None},
+        ],
+        "return": {"optional": True, "type_param": 1},
+    },
+    chkdict.setdefault: {
+        "args": [
+            {"type_param": 0},
+            {"optional": True, "type_param": 1, "default": None},
+        ],
+        "return": {"optional": True, "type_param": 1},
+    },
+    chklist.__getitem__: {"args": [{"type": "object"}], "return": {"type": "object"}},
+    chklist.__setitem__: {
+        "args": [{"type": "object"}, {"type": "object"}],
+        "return": {"type": "NoneType"},
+    },
+    chklist.append: {"args": [{"type_param": 0}], "return": {"type": "NoneType"}},
+    chklist.copy: {"args": [], "return": {"type": "object"}},
+    chklist.extend: {"args": [{"type": "object"}], "return": {"type": "NoneType"}},
+    chklist.insert: {
+        "args": [{"type": "__static__.int64"}, {"type_param": 0}],
+        "return": {"type": "NoneType"},
+    },
+    chklist.pop: {
+        "args": [{"optional": True, "type": "object", "default": None}],
+        "return": {"type_param": 0},
+    },
+}
+
+
 def reflect_method_desc(
     obj: MethodDescriptorType | WrapperDescriptorType,
     klass: Class,
     type_env: TypeEnvironment,
 ) -> BuiltinMethodDescriptor:
-    sig = getattr(obj, "__typed_signature__", None)
+    sig = getattr(obj, "__typed_signature__", None) or ALT_SIGS.get(obj, None)
     if sig is not None:
         signature, return_type = parse_typed_signature(sig, klass, type_env)
 
