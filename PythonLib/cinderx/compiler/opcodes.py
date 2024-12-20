@@ -191,6 +191,20 @@ opcode.stack_effects.update(
 )
 
 if sys.version_info >= (3, 12):
+
+    def _load_mapping_arg_effect(oparg: int, _jmp: int = 0) -> int:
+        """The effect of this opcode depends on the number of items on the stack
+        when it is invoked. The number of items on the stack for LOAD_MAPPING_ARG
+        is based on the oparg. LOAD_MAPPING_ARG will push the resulting value and
+        will consume either a default value, the mapping, and the argument name when
+        oparg == 3 or just the mapping and argument name when there is no default
+        value for the argument."""
+        if oparg == 2:
+            return -1
+        elif oparg == 3:
+            return -2
+        raise ValueError("bad oparg")
+
     opcode.stack_effects.update(
         CALL=lambda oparg, jmp=0: -(oparg + 1),
         COPY_FREE_VARS=lambda oparg, jmp=0: 0,
@@ -246,6 +260,38 @@ if sys.version_info >= (3, 12):
         MATCH_KEYS=1,
         MATCH_CLASS=-2,
         EAGER_IMPORT_NAME=-1,
+        INVOKE_METHOD=lambda oparg, jmp: -oparg[1],
+        LOAD_FIELD=0,
+        STORE_FIELD=-2,
+        CAST=0,
+        LOAD_LOCAL=1,
+        STORE_LOCAL=-1,
+        PRIMITIVE_BOX=0,
+        POP_JUMP_IF_ZERO=-1,
+        POP_JUMP_IF_NONZERO=-1,
+        PRIMITIVE_UNBOX=0,
+        PRIMITIVE_BINARY_OP=lambda oparg, jmp: -1,
+        PRIMITIVE_UNARY_OP=lambda oparg, jmp: 0,
+        PRIMITIVE_COMPARE_OP=lambda oparg, jmp: -1,
+        LOAD_ITERABLE_ARG=1,
+        LOAD_MAPPING_ARG=_load_mapping_arg_effect,
+        INVOKE_FUNCTION=lambda oparg, jmp=0: (-oparg[1]) + 1,
+        INVOKE_NATIVE=lambda oparg, jmp=0: (-len(oparg[1])) + 2,
+        JUMP_IF_ZERO_OR_POP=lambda oparg, jmp=0: 0 if jmp else -1,
+        JUMP_IF_NONZERO_OR_POP=lambda oparg, jmp=0: 0 if jmp else -1,
+        FAST_LEN=0,
+        CONVERT_PRIMITIVE=0,
+        LOAD_CLASS=1,
+        BUILD_CHECKED_MAP=lambda oparg, jmp: 1 - 2 * oparg[1],
+        SEQUENCE_GET=-1,
+        SEQUENCE_SET=-3,
+        LIST_DEL=-2,
+        REFINE_TYPE=0,
+        PRIMITIVE_LOAD_CONST=1,
+        RETURN_PRIMITIVE=-1,
+        TP_ALLOC=1,
+        BUILD_CHECKED_LIST=lambda oparg, jmp: 1 - oparg[1],
+        LOAD_TYPE=0,
     )
 
     from opcode import (
