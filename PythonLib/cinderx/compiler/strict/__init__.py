@@ -120,6 +120,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         optimization_lvl: int = 0,
         builtins: dict[str, Any] = builtins.__dict__,
         future_flags: int | None = None,
+        name: str | None = None,
     ) -> None:
         super().__init__(
             parent,
@@ -129,6 +130,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
             flags=flags,
             optimization_lvl=optimization_lvl,
             future_flags=future_flags,
+            name=name,
         )
         self.has_class: bool = self.has_classDef(node)
         self.made_class_list = False
