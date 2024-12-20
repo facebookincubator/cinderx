@@ -453,13 +453,8 @@ class Compiler:
         if xxclassloader is not None:
             spam_obj = self.type_env.spam_obj
             assert spam_obj is not None
-            self.modules["xxclassloader"] = ModuleTable(
-                "xxclassloader",
-                "<xxclassloader>",
-                self,
-                {
-                    "spamobj": spam_obj.exact_type(),
-                    "XXGeneric": self.type_env.xx_generic.exact_type(),
+            if hasattr(xxclassloader, "foo"):
+                funcs = {
                     "foo": reflect_builtin_function(
                         xxclassloader.foo,
                         None,
@@ -475,6 +470,18 @@ class Compiler:
                         None,
                         self.type_env,
                     ),
+                }
+            else:
+                funcs = {}
+
+            self.modules["xxclassloader"] = ModuleTable(
+                "xxclassloader",
+                "<xxclassloader>",
+                self,
+                {
+                    "spamobj": spam_obj.exact_type(),
+                    "XXGeneric": self.type_env.xx_generic.exact_type(),
+                    **funcs,
                 },
             )
 

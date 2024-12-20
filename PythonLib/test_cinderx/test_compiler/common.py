@@ -12,7 +12,12 @@ from subprocess import run
 from types import CodeType
 from unittest import TestCase
 
-from cinderx.compiler.pycodegen import CinderCodeGenerator310, CodeGenerator, CodeGenerator312, make_compiler
+from cinderx.compiler.pycodegen import (
+    CinderCodeGenerator310,
+    CodeGenerator,
+    CodeGenerator312,
+    make_compiler,
+)
 
 
 _UNSPECIFIED = object()
@@ -25,7 +30,8 @@ DIS_EXC_RE = re.compile(r"(\d+) to (\d+) -> (\d+) \[(\d+)\]( lasti)?")
 def get_repo_root():
     dirname = path.dirname(__file__)
     completed_process = run(
-        ["git", "rev-parse", "--show-toplevel"], cwd=dirname, capture_output=True)
+        ["git", "rev-parse", "--show-toplevel"], cwd=dirname, capture_output=True
+    )
     if completed_process.returncode:
         print("Error occurred", file=sys.stderr)
         sys.exit(1)
@@ -72,11 +78,19 @@ class CompilerTest(TestCase):
                     msg = f"({opname},{argval!r}) occurs in bytecode:\n{disassembly}"
                     self.fail(msg)
 
+    def assertLoadMethodInBytecode(self, x, name: str) -> None:
+        if sys.version_info >= (3, 12):
+            # We may want to do better here and check the oparg flag in the future.
+            self.assertInBytecode(x, "LOAD_ATTR", name)
+        else:
+            self.assertInBytecode(x, "LOAD_METHOD", name)
+
     def assertBinOpInBytecode(self, x, binop: str) -> None:
         if sys.version_info >= (3, 12):
             binop = "NB_" + binop.removeprefix("BINARY_")
             # pyre-ignore[21]: Undefined attribute
             from opcode import _nb_ops
+
             # pyre-ignore[16]: Undefined attribute
             for i, (name, sign) in enumerate(_nb_ops):
                 if name == binop:

@@ -13,8 +13,9 @@ from unittest import skip, skipIf
 try:
     from cinder import _get_qualname
 except:
+
     def _get_qualname(code):
-        return code.__qualname__
+        return code.co_qualname
 
 
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
@@ -115,7 +116,7 @@ class StaticRuntimeTests(StaticTestBase):
         """
         with self.in_module(codestr, name="t1") as mod:
             C = mod.C
-            self.assertInBytecode(C.fn, "LOAD_METHOD", "__setattr__")
+            self.assertLoadMethodInBytecode(C.fn, "__setattr__")
 
             c = C()
             c.fn()
@@ -155,7 +156,7 @@ class StaticRuntimeTests(StaticTestBase):
         """
         with self.in_module(codestr, name="t3") as mod:
             fn = mod.fn
-            self.assertInBytecode(fn, "LOAD_METHOD", "__setattr__")
+            self.assertLoadMethodInBytecode(fn, "__setattr__")
             res = fn()
             self.assertEqual(res.hihello, "itsme")
 
@@ -725,7 +726,7 @@ class StaticRuntimeTests(StaticTestBase):
     def test_fast_len_str_unicode_chars(self):
         codestr = """
         def f():
-            l = "\U0001F923"  # ROFL emoji
+            l = "\U0001f923"  # ROFL emoji
             return len(l)
         """
         c = self.compile(codestr, modname="foo.py")

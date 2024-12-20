@@ -161,6 +161,7 @@ static PyObject* spamobj_getstr(spamobject* self) {
   return self->str;
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 Ci_Py_TYPED_SIGNATURE(spamobj_getstate, Ci_Py_SIG_TYPE_PARAM_OPT(0), NULL);
 Ci_Py_TYPED_SIGNATURE(spamobj_setstate, Ci_Py_SIG_VOID, &Ci_Py_Sig_T0, NULL);
 Ci_Py_TYPED_SIGNATURE(
@@ -212,8 +213,10 @@ Ci_Py_TYPED_SIGNATURE(
     NULL);
 
 Ci_Py_TYPED_SIGNATURE(spamobj_error, Ci_Py_SIG_ERROR, &Ci_Py_Sig_SSIZET, NULL);
+#endif
 
 static PyMethodDef spamobj_methods[] = {
+#if PY_VERSION_HEX < 0x030C0000
     {"error",
      (PyCFunction)&spamobj_error_def,
      Ci_METH_TYPED,
@@ -313,6 +316,7 @@ static PyMethodDef spamobj_methods[] = {
      (PyCFunction)&spamobj_twoargs_def,
      Ci_METH_TYPED,
      PyDoc_STR("twoargs(s)")},
+#endif
     {"__class_getitem__",
      (PyCFunction)_PyClassLoader_GtdGetItem,
      METH_VARARGS | METH_CLASS,
@@ -404,6 +408,8 @@ static struct PyModuleDef_Slot xxclassloader_slots[] = {
     {0, NULL},
 };
 
+#if PY_VERSION_HEX < 0x030C0000
+
 static int64_t xxclassloader_foo(PyObject* self) {
   return 42;
 }
@@ -425,6 +431,8 @@ static int64_t xxclassloader_neg(PyObject* self) {
 }
 
 Ci_Py_TYPED_SIGNATURE(xxclassloader_neg, Ci_Py_SIG_INT64, NULL);
+
+#endif
 
 static int no_op_visit(PyObject* obj, PyObject* Py_UNUSED(args)) {
   if (PyObject_IS_GC(obj) && PyObject_GC_IsTracked(obj)) {
@@ -493,9 +501,11 @@ unsafe_change_type(PyObject* self, PyObject** args, Py_ssize_t nargs) {
 }
 
 static PyMethodDef xxclassloader_methods[] = {
+#if PY_VERSION_HEX < 0x030C0000
     {"foo", (PyCFunction)&xxclassloader_foo_def, Ci_METH_TYPED, ""},
     {"bar", (PyCFunction)&xxclassloader_bar_def, Ci_METH_TYPED, ""},
     {"neg", (PyCFunction)&xxclassloader_neg_def, Ci_METH_TYPED, ""},
+#endif
     {"traverse_heap", traverse_heap, METH_NOARGS},
     {"unsafe_change_type",
      (PyCFunction)(void (*)(void))unsafe_change_type,
@@ -515,4 +525,16 @@ static struct PyModuleDef xxclassloadermodule = {
 
 PyMODINIT_FUNC PyInit_xxclassloader(void) {
   return PyModuleDef_Init(&xxclassloadermodule);
+}
+
+// These are used in native calling tests, ensure the compiler
+// doesn't hide or remove these symbols
+__attribute__((used)) __attribute__((visibility("default"))) int64_t
+native_add(int64_t a, int64_t b) {
+  return a + b;
+}
+
+__attribute__((used)) __attribute__((visibility("default"))) int64_t
+native_sub(int64_t a, uint8_t b) {
+  return a - b;
 }

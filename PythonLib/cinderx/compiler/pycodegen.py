@@ -4807,7 +4807,6 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(body)
         self.push_fblock(Entry(FINALLY_TRY, body, end, final_body))
-        assert node is not None
         if node is None:
             try_body()
         elif node.handlers:
