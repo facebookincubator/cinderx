@@ -22,7 +22,7 @@ from types import CodeType
 from typing import Any, cast, final, Mapping
 
 from .. import consts, symbols
-from ..pyassem import PyFlowGraph, PyFlowGraphCinder
+from ..pyassem import PyFlowGraph, PyFlowGraphCinder310
 from ..pycodegen import (  # noqa: F401
     CinderCodeGenBase,
     CinderCodeGenerator310,
@@ -107,7 +107,7 @@ def get_is_assigned_tracking_name(name: str) -> str:
 
 
 class StrictCodeGenBase(CinderCodeGenBase):
-    flow_graph = PyFlowGraphCinder
+    flow_graph = PyFlowGraphCinder310
     class_list_name: str = "<classes>"
 
     def __init__(

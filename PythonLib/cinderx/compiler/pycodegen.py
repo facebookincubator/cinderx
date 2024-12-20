@@ -52,7 +52,7 @@ from .pyassem import (
     PyFlowGraph,
     PyFlowGraph310,
     PyFlowGraph312,
-    PyFlowGraphCinder,
+    PyFlowGraphCinder310,
     SrcLocation,
 )
 from .symbols import (
@@ -5619,7 +5619,7 @@ class CinderCodeGenBase(CodeGenerator):
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
-    flow_graph = PyFlowGraphCinder
+    flow_graph = PyFlowGraphCinder310
     _SymbolVisitor = CinderSymbolVisitor
 
     def compile_comprehension(
@@ -5694,7 +5694,7 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
 
 
 class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
-    flow_graph = PyFlowGraphCinder
+    flow_graph = PyFlowGraphCinder310
 
     def cx_super_attribute(self, node):
         self.emit_super_attribute(node)

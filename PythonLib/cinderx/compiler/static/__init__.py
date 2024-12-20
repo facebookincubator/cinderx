@@ -32,7 +32,7 @@ from typing import Any, Callable as typingCallable, cast, Generator, Type
 
 from .. import consts, opcode_static
 from ..opcodebase import Opcode
-from ..pyassem import Block, IndexedSet, PyFlowGraph, PyFlowGraphCinder
+from ..pyassem import Block, IndexedSet, PyFlowGraph, PyFlowGraphCinder310
 from ..pycodegen import (
     CinderCodeGenerator310,
     CodeGenerator,
@@ -112,7 +112,7 @@ class StaticPatternContext(PatternContext):
         return pc
 
 
-class PyFlowGraph310Static(PyFlowGraphCinder):
+class PyFlowGraph310Static(PyFlowGraphCinder310):
     opcode: Opcode = opcode_static.opcode
 
 
@@ -128,7 +128,7 @@ class InitSubClassGenerator:
 
 
 class StaticCodeGenBase(StrictCodeGenBase):
-    flow_graph = PyFlowGraphCinder
+    flow_graph = PyFlowGraphCinder310
     _default_cache: dict[type[ast.AST], typingCallable[..., None]] = {}
     pattern_context = StaticPatternContext
     # Defined in subclasses; this is an explicit receiver class for

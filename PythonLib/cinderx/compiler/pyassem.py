@@ -1382,7 +1382,7 @@ class PyFlowGraph310(PyFlowGraph):
         )
 
 
-class PyFlowGraphCinder(PyFlowGraph310):
+class PyFlowGraphCinderMixin(PyFlowGraph):
     opcode = cinder_opcode
 
     def emit_super_call(self, name: str, is_zero: bool) -> None:
@@ -1391,7 +1391,12 @@ class PyFlowGraphCinder(PyFlowGraph310):
     def make_code(self, nlocals, code, consts, firstline: int, lnotab) -> CodeType:
         if self.scope is not None and self.scope.suppress_jit:
             self.setFlag(CO_SUPPRESS_JIT)
+        # pyre-ignore[16]: `PyFlowGraph` has no attribute `make_code`
         return super().make_code(nlocals, code, consts, firstline, lnotab)
+
+
+class PyFlowGraphCinder310(PyFlowGraphCinderMixin, PyFlowGraph310):
+    pass
 
 
 class PyFlowGraph312(PyFlowGraph):
