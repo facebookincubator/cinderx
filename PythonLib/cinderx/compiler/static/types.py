@@ -7778,9 +7778,7 @@ class SuperInstance(Object[SuperClass]):
 
     def emit_attr(self, node: ast.Attribute, code_gen: StaticCodeGenBase) -> None:
         if isinstance(node.ctx, ast.Load) and code_gen._is_super_call(node.value):
-            code_gen.emit("LOAD_GLOBAL", "super")
-            load_arg = code_gen._emit_args_for_super(node.value, node.attr)
-            code_gen.emit("LOAD_ATTR_SUPER", load_arg)
+            code_gen.emit_super_attribute(node)
             return
         super().emit_attr(node, code_gen)
 

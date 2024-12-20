@@ -45,6 +45,11 @@ def glob_test(target_dir, pattern, adder):
 
 
 class CompilerTest(TestCase):
+    if sys.version_info >= (3, 12):
+        SUPER_ATTR = "LOAD_SUPER_ATTR"
+    else:
+        SUPER_ATTR = "LOAD_ATTR_SUPER"
+
     def get_disassembly_as_string(self, co):
         s = StringIO()
         dis.dis(co, file=s)

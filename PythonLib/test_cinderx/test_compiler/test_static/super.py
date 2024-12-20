@@ -19,7 +19,7 @@ class SuperTests(StaticTestBase):
                         return super().x
             """
             with self.in_strict_module(codestr) as mod:
-                self.assertInBytecode(mod.B.foo, "LOAD_ATTR_SUPER")
+                self.assertInBytecode(mod.B.foo, self.SUPER_ATTR)
                 self.assertEqual(mod.B().foo(), 1)
 
     def test_method_in_parent_class(self):

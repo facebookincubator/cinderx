@@ -2388,6 +2388,9 @@ class CodeGenerator(ASTVisitor):
 
     # Methods defined in subclasses ----------------------------------------------
 
+    def emit_super_attribute(self, node: ast.Attribute) -> None:
+        raise NotImplementedError()
+
     def visitAttribute(self, node) -> None:
         raise NotImplementedError()
 
@@ -5676,10 +5679,13 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
 
         self.finish_comprehension(gen, node)
 
-    def cx_super_attribute(self, node):
+    def emit_super_attribute(self, node: ast.Attribute) -> None:
         self.emit("LOAD_GLOBAL", "super")
         load_arg = self._emit_args_for_super(node.value, node.attr)
         self.emit("LOAD_ATTR_SUPER", load_arg)
+
+    def cx_super_attribute(self, node):
+        self.emit_super_attribute(node)
 
     def cx_super_call(self, node):
         attr = node.func
