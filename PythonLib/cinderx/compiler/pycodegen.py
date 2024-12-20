@@ -5702,6 +5702,9 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
 class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
     flow_graph = PyFlowGraphCinder310
 
+    def set_qual_name(self, qualname: str) -> None:
+        cast(PyFlowGraph312, self.graph).qualname = qualname
+
     def cx_super_attribute(self, node):
         self.emit_super_attribute(node)
 
