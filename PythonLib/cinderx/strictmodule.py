@@ -4,11 +4,13 @@
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    # pyre-ignore[21]: _strictmodule is going away.
     from _strictmodule import (  # noqa: F401
         IStrictModuleLoader,
         StrictModuleLoaderFactory,
     )
 
+# pyre-ignore[21]: _strictmodule is going away.
 from _strictmodule import (  # noqa: F401
     NONSTRICT_MODULE_KIND,
     STATIC_MODULE_KIND,
