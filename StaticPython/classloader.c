@@ -4,6 +4,7 @@
 
 #include <Python.h>
 
+#include "internal/pycore_pystate.h" // @donotremove
 #include "structmember.h"
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -23,6 +24,7 @@
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/StaticPython/vtable_defs.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
 #include <dlfcn.h>
 
@@ -144,6 +146,14 @@ static int is_static_type(PyTypeObject* type) {
 
 static int clear_vtables_recurse(PyTypeObject* type) {
   PyObject* subclasses = type->tp_subclasses;
+#if PY_VERSION_HEX >= 0x030C0000
+  if (type->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
+    PyInterpreterState* interp = _PyInterpreterState_GET();
+    static_builtin_state* state = Cix_PyStaticType_GetState(interp, type);
+    subclasses = state->tp_subclasses;
+  }
+#endif
+
   PyObject* ref;
   if (type->tp_cache != NULL) {
     _PyType_VTable* old_vtable = (_PyType_VTable*)type->tp_cache;
