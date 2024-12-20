@@ -708,6 +708,7 @@ dummy_func(
                 case PRIM_OP_NOT_INT: {
                     res = PyLong_AsVoidPtr(val) ? Py_False : Py_True;
                     Py_INCREF(res);
+                    break;
                 }
                 default:
                     PyErr_SetString(PyExc_RuntimeError, "unknown op");
