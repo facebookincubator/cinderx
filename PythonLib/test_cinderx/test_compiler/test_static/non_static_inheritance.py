@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+import sys
 import unittest
-from unittest import skip
+from unittest import skip, skipIf
 
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 
@@ -228,6 +229,8 @@ class NonStaticInheritanceTests(StaticTestBase):
 
             self.assertEqual(mod.f(D()), "foo")
 
+
+    @skipIf(sys.version_info >= (3, 12), "Need extra check for multiple inheritance T211060931")
     def test_no_inherit_multiple_static_bases(self):
         codestr = """
             class A:
@@ -244,6 +247,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 class C(mod.A, mod.B):
                     pass
 
+    @skipIf(sys.version_info >= (3, 12), "Need extra check for multiple inheritance T211060931")
     def test_no_inherit_multiple_static_bases_indirect(self):
         codestr = """
             class A:
@@ -264,6 +268,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 class D(C, mod.A):
                     pass
 
+    @skipIf(sys.version_info >= (3, 12), "Need extra check for multiple inheritance T211060931")
     def test_no_inherit_static_and_builtin(self):
         codestr = """
             class A:

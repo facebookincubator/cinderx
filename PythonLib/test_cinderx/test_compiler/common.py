@@ -48,9 +48,13 @@ class CompilerTest(TestCase):
     if sys.version_info >= (3, 12):
         SUPER_ATTR = "LOAD_SUPER_ATTR"
         CALL = "CALL"
+        COMPARE_JUMP_NONZERO = "POP_JUMP_IF_NONZERO"
+        COMPARE_JUMP_ZERO = "POP_JUMP_IF_ZERO"
     else:
         SUPER_ATTR = "LOAD_ATTR_SUPER"
         CALL = "CALL_FUNCTION"
+        COMPARE_JUMP_NONZERO = "JUMP_IF_NONZERO_OR_POP"
+        COMPARE_JUMP_ZERO = "JUMP_IF_ZERO_OR_POP"
 
     def get_disassembly_as_string(self, co):
         s = StringIO()
@@ -107,6 +111,13 @@ class CompilerTest(TestCase):
                 self.fail(f"Couldn't find binary op {binop}")
         else:
             self.assertInBytecode(x, binop)
+
+    def assertKwCallInBytecode(self, x):
+        if sys.version_info >= (3, 12):
+            self.assertInBytecode(x, "KW_NAMES")
+            self.assertInBytecode(x, "CALL")
+        else:
+            self.assertInBytecode(x, "CALL_FUNCTION_KW")
 
     def clean_code(self, code: str) -> str:
         return inspect.cleandoc("\n" + code)

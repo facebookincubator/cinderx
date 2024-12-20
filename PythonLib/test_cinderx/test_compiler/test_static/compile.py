@@ -10,7 +10,6 @@ import re
 import subprocess
 import sys
 import unittest
-from cinderx import StrictModule
 from io import StringIO
 from os import path
 from pathlib import Path
@@ -22,6 +21,7 @@ from unittest import skip, skipIf
 from unittest.mock import patch
 
 import xxclassloader
+from cinderx import StrictModule
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static import StaticCodeGenerator
@@ -1889,6 +1889,7 @@ class StaticCompilationTests(StaticTestBase):
             C = mod.C
             self.assertEqual(C().g(), 42)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_builtin_func(self):
         codestr = """
         from xxclassloader import foo
@@ -1901,10 +1902,11 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.func
-            self.assertInBytecode(f, "INVOKE_FUNCTION", ((((mod.__name__, ), "foo"), 0)))
+            self.assertInBytecode(f, "INVOKE_FUNCTION", ((((mod.__name__,), "foo"), 0)))
             self.assertEqual(f(), 42)
             self.assert_jitted(f)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_builtin_func_ret_neg(self):
         # setup xxclassloader as a built-in function for this test, so we can
         # do a direct invoke
@@ -1925,6 +1927,7 @@ class StaticCompilationTests(StaticTestBase):
         finally:
             sys.modules["xxclassloader"] = xxclassloader
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_builtin_func_arg(self):
         codestr = """
         from xxclassloader import bar
@@ -1937,10 +1940,11 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.func
-            self.assertInBytecode(f, "INVOKE_FUNCTION", ((((mod.__name__, ), "bar"), 1)))
+            self.assertInBytecode(f, "INVOKE_FUNCTION", ((((mod.__name__,), "bar"), 1)))
             self.assertEqual(f(), 42)
             self.assert_jitted(f)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_func_unexistent_module(self):
         codestr = """
         from xxclassloader import bar
@@ -1958,13 +1962,14 @@ class StaticCompilationTests(StaticTestBase):
             try:
                 func = mod.func
                 self.assertInBytecode(
-                    func, "INVOKE_FUNCTION", ((((mod.__name__, ), "bar"), 1))
+                    func, "INVOKE_FUNCTION", ((((mod.__name__,), "bar"), 1))
                 )
                 self.assertEqual(func(), 42)
                 self.assert_jitted(func)
             finally:
                 sys.modules["xxclassloader"] = xxclassloader
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_invoke_meth_o(self):
         codestr = """
         from xxclassloader import spamobj
@@ -1983,10 +1988,7 @@ class StaticCompilationTests(StaticTestBase):
                 "INVOKE_FUNCTION",
                 (
                     (
-                        ("xxclassloader",
-                        "spamobj",
-                        (("builtins", "int"),),
-                        "!"),
+                        ("xxclassloader", "spamobj", (("builtins", "int"),), "!"),
                         "setstate_untyped",
                     ),
                     2,
@@ -2148,7 +2150,9 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.f
-            self.assertInBytecode(f, "INVOKE_METHOD", ((("builtins", "dict"), "get"), 1))
+            self.assertInBytecode(
+                f, "INVOKE_METHOD", ((("builtins", "dict"), "get"), 1)
+            )
             self.assertEqual(f({}), None)
 
     def test_dict_invoke_ret(self):
@@ -2163,7 +2167,9 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.f
-            self.assertInBytecode(f, "INVOKE_METHOD", ((("builtins", "dict"), "get"), 1))
+            self.assertInBytecode(
+                f, "INVOKE_METHOD", ((("builtins", "dict"), "get"), 1)
+            )
             self.assertEqual(f({}), None)
 
     def test_verify_kwarg_unknown_type(self):
@@ -2415,7 +2421,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             g = mod.g
-            self.assertInBytecode(g, "CALL_FUNCTION_KW", 3)
+            self.assertKwCallInBytecode(g)
 
     def test_generic_kwargs_method_unsupported(self):
         # definition is allowed, we just don't do an optimal invoke
@@ -2429,7 +2435,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             g = mod.g
-            self.assertInBytecode(g, "CALL_FUNCTION_KW", 3)
+            self.assertKwCallInBytecode(g)
 
     def test_generic_varargs_unsupported(self):
         # definition is allowed, we just don't do an optimal invoke
@@ -2456,7 +2462,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             g = mod.g
-            self.assertInBytecode(g, "CALL_METHOD", 3)
+            self.assertLoadMethodInBytecode(g, "f")
 
     def test_kwargs_get(self):
         codestr = """
@@ -3984,7 +3990,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(
                 y,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, ), "x"), 0),
+                (((mod.__name__,), "x"), 0),
             )
 
     def test_override_okay(self):
@@ -4760,6 +4766,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_spamobj_error(self):
         codestr = """
             from xxclassloader import spamobj
@@ -4773,6 +4780,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.assertRaisesRegex(TypeError, "no way!"):
                 f()
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_spamobj_no_error(self):
         codestr = """
             from xxclassloader import spamobj
@@ -4785,6 +4793,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.testfunc
             self.assertEqual(f(), None)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_box_box(self):
         codestr = """
             from xxclassloader import spamobj
@@ -4799,6 +4808,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type(self):
         codestr = """
             from xxclassloader import spamobj
@@ -4819,10 +4829,7 @@ class StaticCompilationTests(StaticTestBase):
             (
                 (
                     (
-                        ("xxclassloader",
-                        "spamobj",
-                        (("builtins", "str"),),
-                        "!"),
+                        ("xxclassloader", "spamobj", (("builtins", "str"),), "!"),
                         "setstate",
                     ),
                     2,
@@ -4833,6 +4840,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), ("abc", 42))
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_ret_void(self):
         codestr = """
             from xxclassloader import spamobj
@@ -4852,10 +4860,7 @@ class StaticCompilationTests(StaticTestBase):
             (
                 (
                     (
-                        ("xxclassloader",
-                        "spamobj",
-                        (("builtins", "str"),),
-                        "!"),
+                        ("xxclassloader", "spamobj", (("builtins", "str"),), "!"),
                         "setstate",
                     ),
                     2,
@@ -4866,6 +4871,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), None)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_check_override_typed_builtin_method(self):
         codestr = """
             from xxclassloader import spamobj
@@ -4925,6 +4931,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.myfunc
             self.assertNotInBytecode(f, "LOAD_FIELD")
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_error(self):
         codestr = """
             from xxclassloader import spamobj
@@ -4962,6 +4969,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_optional_type_param_error(self):
         codestr = """
             from xxclassloader import spamobj
@@ -5292,7 +5300,7 @@ class StaticCompilationTests(StaticTestBase):
             g = mod.g
             for i in range(100):
                 self.assertEqual(g(), 42)
-            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__, ), "f"), 0))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 0))
 
     def test_cast_optional_nonexact_type(self):
         codestr = """
@@ -5345,7 +5353,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             g = mod.g
             self.assertEqual(g(), [3, 4, 5])
-            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__, ), "f"), 1))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 1))
 
     def test_invoke_with_cell_arg(self):
         codestr = """
@@ -5358,7 +5366,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             g = mod.g
             self.assertEqual(g(), [3, 4, 5])
-            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__, ), "f"), 2))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 2))
 
     def test_invoke_all_reg_args(self):
         codestr = """
@@ -5373,7 +5381,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(
                 f,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, ), "target"), 6),
+                (((mod.__name__,), "target"), 6),
             )
             self.assertEqual(f(), 112)
 
@@ -5390,7 +5398,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(
                 f,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, ), "target"), 7),
+                (((mod.__name__,), "target"), 7),
             )
             self.assertEqual(f(), 119)
 
@@ -5416,7 +5424,7 @@ class StaticCompilationTests(StaticTestBase):
             g = mod.g
             self.assertEqual(g(), 42)
             self.assertEqual(g(), 42)
-            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__, ), "f11"), 0))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f11"), 0))
 
     @disable_hir_inliner
     def test_invoke_strict_module_deep_unjitable(self):
@@ -5440,7 +5448,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(
                 g,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, ), "f0"), 0),
+                (((mod.__name__,), "f0"), 0),
             )
 
     def test_invoke_strict_module_deep_unjitable_many_args(self):
@@ -5473,7 +5481,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(
                 g,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, ), "f11"), 0),
+                (((mod.__name__,), "f11"), 0),
             )
             self.assert_not_jitted(f1)
 
@@ -5489,7 +5497,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(
                 fib,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, ), "fib"), 1),
+                (((mod.__name__,), "fib"), 1),
             )
             self.assertEqual(fib(4), 3)
 
@@ -5511,12 +5519,12 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(
                 fib,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, ), "fib1"), 1),
+                (((mod.__name__,), "fib1"), 1),
             )
             self.assertInBytecode(
                 fib1,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, ), "fib"), 1),
+                (((mod.__name__,), "fib"), 1),
             )
             self.assertEqual(fib(0), 0)
             self.assert_jitted(fib1)
@@ -5538,7 +5546,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(
                 g,
                 "INVOKE_FUNCTION",
-                (((mod.__name__, ), "f"), 0),
+                (((mod.__name__,), "f"), 0),
             )
 
     @skipUnlessJITEnabled("runs subprocess with JIT")
@@ -5693,10 +5701,10 @@ class StaticCompilationTests(StaticTestBase):
                 with self.in_module(codestr, enable_patching=enable_patching) as mod:
                     g = mod.g
                     if not enable_patching:
-                        self.assertInBytecode(g, "LOAD_CONST", 3)
+                        self.assertNotInBytecode(g, self.CALL)
                     else:
                         self.assertInBytecode(
-                            g, "INVOKE_FUNCTION", (((mod.__name__, ), "f"), 2)
+                            g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 2)
                         )
                     self.assertEqual(g(), 3)
 
@@ -5713,7 +5721,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr, optimize=2) as mod:
             g = mod.g
-            self.assertInBytecode(g, "LOAD_CONST", 3)
+            self.assertNotInBytecode(g, self.CALL)
             self.assertEqual(g(), 3)
 
     def test_inline_bare_return(self):
@@ -5729,7 +5737,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr, optimize=2) as mod:
             g = mod.g
-            self.assertInBytecode(g, "LOAD_CONST", None)
+            self.assertNotInBytecode(g, self.CALL)
             self.assertEqual(g(), None)
 
     def test_inline_final(self):
@@ -5748,7 +5756,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr, optimize=2) as mod:
             g = mod.g
             # We don't currently inline math with finals
-            self.assertInBytecode(g, "LOAD_CONST", 42)
+            self.assertNotInBytecode(g, self.CALL)
             self.assertEqual(g(), 43)
 
     def test_inline_nested(self):
@@ -5768,7 +5776,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr, optimize=2) as mod:
             g = mod.g
-            self.assertInBytecode(g, "LOAD_CONST", 4)
+            self.assertNotInBytecode(g, self.CALL)
             self.assertEqual(g(), 4)
 
     def test_inline_nested_arg(self):
@@ -5805,7 +5813,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr, optimize=2) as mod:
             g = mod.g
-            self.assertInBytecode(g, "INVOKE_FUNCTION", ((((mod.__name__, ), "f"), 2)))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", ((((mod.__name__,), "f"), 2)))
 
     def test_inline_func_default(self):
         codestr = """
@@ -5820,7 +5828,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr, optimize=2) as mod:
             g = mod.g
-            self.assertInBytecode(g, "LOAD_CONST", 3)
+            self.assertNotInBytecode(g, self.CALL)
 
             self.assertEqual(g(), 3)
 

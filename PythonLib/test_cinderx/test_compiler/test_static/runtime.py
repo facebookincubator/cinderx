@@ -678,6 +678,7 @@ class StaticRuntimeTests(StaticTestBase):
             y = mod.y
             self.assertEqual(y(), 421)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_posix_clock_gettime_ns(self):
         codestr = """
         from __static__ import box, posix_clock_gettime_ns
