@@ -123,6 +123,13 @@ _PyClassLoader_CheckParamType(PyObject* self, PyObject* arg, int index) {
       PyObject_TypeCheck(arg, param->gtp_type);
 }
 
+int _PyClassLoader_CheckOneArg(
+    PyObject* self,
+    PyObject* arg,
+    char* name,
+    int pos,
+    const Ci_Py_SigElement* elem);
+
 static inline int
 _PyClassLoader_OverflowCheck(PyObject* arg, int type, size_t* value) {
   static uint64_t overflow_masks[] = {
@@ -285,6 +292,12 @@ void _PyClassLoader_ArgError(
     PyObject* func_name,
     int arg,
     int type_param,
+    const Ci_Py_SigElement* sig_elem,
+    PyObject* ctx);
+
+void _PyClassLoader_ArgErrorStr(
+    const char* func_name,
+    int arg,
     const Ci_Py_SigElement* sig_elem,
     PyObject* ctx);
 

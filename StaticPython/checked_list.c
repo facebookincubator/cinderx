@@ -3097,6 +3097,10 @@ Ci_Py_TYPED_SIGNATURE(chklist_append, Ci_Py_SIG_ERROR, &Ci_Py_Sig_T0, NULL);
 
 #else
 static PyObject* chklist_append_wrapper(PyListObject* self, PyObject* value) {
+  if (_PyClassLoader_CheckOneArg(
+          (PyObject*)self, value, "append", 0, &Ci_Py_Sig_T0) < 0) {
+    return NULL;
+  }
   if (chklist_append(self, value) < 0) {
     return NULL;
   }
@@ -3135,6 +3139,10 @@ static PyObject* list_insert_wrapper(
     index = ival;
   }
   object = args[1];
+  if (_PyClassLoader_CheckOneArg(
+          (PyObject*)self, object, "insert", 1, &Ci_Py_Sig_T0) < 0) {
+    return NULL;
+  }
   if (ins1(self, index, object) == 0) {
     Py_RETURN_NONE;
   }

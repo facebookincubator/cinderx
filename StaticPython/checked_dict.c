@@ -1888,10 +1888,18 @@ dict_get(CiChkDictObject* self, PyObject* const* args, Py_ssize_t nargs) {
     return NULL;
   }
   key = args[0];
+  if (_PyClassLoader_CheckOneArg(
+          (PyObject*)self, key, "get", 0, &Ci_Py_Sig_T0) < 0) {
+    return NULL;
+  }
   if (nargs < 2) {
     goto skip_optional;
   }
   default_value = args[1];
+  if (_PyClassLoader_CheckOneArg(
+          (PyObject*)self, default_value, "get", 1, &Ci_Py_Sig_T1) < 0) {
+    return NULL;
+  }
 skip_optional:
   return dict_get_impl(self, key, default_value);
 }
@@ -2005,10 +2013,18 @@ dict_setdefault_impl(PyObject* self, PyObject* const* args, Py_ssize_t nargs) {
     goto exit;
   }
   key = args[0];
+  if (_PyClassLoader_CheckOneArg(self, key, "setdefault", 0, &Ci_Py_Sig_T0) <
+      0) {
+    return NULL;
+  }
   if (nargs < 2) {
     goto skip_optional;
   }
   default_value = args[1];
+  if (_PyClassLoader_CheckOneArg(
+          self, default_value, "setdefault", 1, &Ci_Py_Sig_T1) < 0) {
+    return NULL;
+  }
 skip_optional:
   return_value = Ci_CheckedDict_SetDefault(self, key, default_value);
 

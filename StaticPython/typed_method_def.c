@@ -77,6 +77,58 @@ void _PyClassLoader_ArgError(
       expected);
 }
 
+void _PyClassLoader_ArgErrorStr(
+    const char* func_name,
+    int arg,
+    const Ci_Py_SigElement* sig_elem,
+    PyObject* ctx) {
+  const char* expected = "?";
+  int argtype = sig_elem->se_argtype;
+  if (argtype & Ci_Py_SIG_TYPE_PARAM) {
+    expected =
+        ((PyTypeObject*)GENINST_GET_PARAM(ctx, Ci_Py_SIG_TYPE_MASK(argtype)))
+            ->tp_name;
+
+  } else {
+    switch (Ci_Py_SIG_TYPE_MASK(argtype)) {
+      case Ci_Py_SIG_OBJECT:
+        PyErr_Format(
+            CiExc_StaticTypeError,
+            "%s() argument %d is missing",
+            func_name,
+            arg);
+        return;
+      case Ci_Py_SIG_STRING:
+        expected = "str";
+        break;
+      case Ci_Py_SIG_SSIZE_T:
+        expected = "int";
+        break;
+    }
+  }
+
+  PyErr_Format(
+      CiExc_StaticTypeError,
+      "%s() argument %d expected %s",
+      func_name,
+      arg,
+      expected);
+}
+
+int _PyClassLoader_CheckOneArg(
+    PyObject* self,
+    PyObject* arg,
+    char* name,
+    int pos,
+    const Ci_Py_SigElement* elem) {
+  if (!_PyClassLoader_CheckParamType(
+          self, arg, Ci_Py_SIG_TYPE_MASK(elem->se_argtype))) {
+    _PyClassLoader_ArgErrorStr(name, pos + 1, elem, self);
+    return -1;
+  }
+  return 0;
+}
+
 static int Ci_populate_type_info(PyObject* arg_info, int argtype) {
   DEFINE_STATIC_STRING(NoneType);
   DEFINE_STATIC_STRING(object);
