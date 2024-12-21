@@ -794,64 +794,6 @@ class StaticCodeGenBase(StrictCodeGenBase):
     def emitAugRHS(self, node: ast.AugAssign) -> None:
         self.get_type(node.target).emit_aug_rhs(node, self)
 
-    def visitCompare(self, node: Compare) -> None:
-        self.set_pos(node)
-        self.visit(node.left)
-        cleanup = self.newBlock("cleanup")
-        left = node.left
-        for op, code in zip(node.ops[:-1], node.comparators[:-1]):
-            optype = self.get_type(op)
-            ltype = self.get_type(left)
-            if ltype != optype:
-                optype.emit_convert(ltype, self)
-            self.emitChainedCompareStep(op, code, cleanup)
-            left = code
-        # now do the last comparison
-        if node.ops:
-            op = node.ops[-1]
-            optype = self.get_type(op)
-            ltype = self.get_type(left)
-            if ltype != optype:
-                optype.emit_convert(ltype, self)
-            code = node.comparators[-1]
-            self.visit(code)
-            rtype = self.get_type(code)
-            if rtype != optype:
-                optype.emit_convert(rtype, self)
-            optype.emit_compare(op, self)
-        if len(node.ops) > 1:
-            end = self.newBlock("end")
-            self.emit_jump_forward(end)
-            self.nextBlock(cleanup)
-            self.emit_rotate_stack(2)
-            self.emit("POP_TOP")
-            self.nextBlock(end)
-
-    def emitChainedCompareStep(
-        self, op: cmpop, value: AST, cleanup: Block, always_pop: bool = False
-    ) -> None:
-        optype = self.get_type(op)
-        self.visit(value)
-        rtype = self.get_type(value)
-        if rtype != optype:
-            optype.emit_convert(rtype, self)
-        self.emit_dup()
-        self.emit_rotate_stack(3)
-        optype.emit_compare(op, self)
-        method = optype.emit_jumpif_only if always_pop else optype.emit_jumpif_pop_only
-        method(cleanup, False, self)
-        self.nextBlock(label="compare_or_cleanup")
-
-    def visitBoolOp(self, node: BoolOp) -> None:
-        end = self.newBlock()
-        for child in node.values[:-1]:
-            self.get_type(child).emit_jumpif_pop(
-                child, end, type(node.op) is ast.Or, self
-            )
-            self.nextBlock()
-        self.visit(node.values[-1])
-        self.nextBlock(end)
-
     def visitBinOp(self, node: BinOp) -> None:
         self.get_type(node).emit_binop(node, self)
 
@@ -1220,10 +1162,147 @@ class Static310CodeGenerator(StaticCodeGenBase, CinderCodeGenerator310):
     flow_graph = PyFlowGraphStatic310
     parent_impl = StrictCodeGenerator310
 
+    def visitBoolOp(self, node: BoolOp) -> None:
+        end = self.newBlock()
+        for child in node.values[:-1]:
+            self.get_type(child).emit_jumpif_pop(
+                child, end, type(node.op) is ast.Or, self
+            )
+            self.nextBlock()
+        self.visit(node.values[-1])
+        self.nextBlock(end)
+
+    def visitCompare(self, node: Compare) -> None:
+        self.set_pos(node)
+        self.visit(node.left)
+        cleanup = self.newBlock("cleanup")
+        left = node.left
+        for op, code in zip(node.ops[:-1], node.comparators[:-1]):
+            optype = self.get_type(op)
+            ltype = self.get_type(left)
+            if ltype != optype:
+                optype.emit_convert(ltype, self)
+            self.emitChainedCompareStep(op, code, cleanup)
+            left = code
+        # now do the last comparison
+        if node.ops:
+            op = node.ops[-1]
+            optype = self.get_type(op)
+            ltype = self.get_type(left)
+            if ltype != optype:
+                optype.emit_convert(ltype, self)
+            code = node.comparators[-1]
+            self.visit(code)
+            rtype = self.get_type(code)
+            if rtype != optype:
+                optype.emit_convert(rtype, self)
+            optype.emit_compare(op, self)
+        if len(node.ops) > 1:
+            end = self.newBlock("end")
+            self.emit_jump_forward(end)
+            self.nextBlock(cleanup)
+            self.emit_rotate_stack(2)
+            self.emit("POP_TOP")
+            self.nextBlock(end)
+
+    def emitChainedCompareStep(
+        self, op: cmpop, value: AST, cleanup: Block, always_pop: bool = False
+    ) -> None:
+        optype = self.get_type(op)
+        self.visit(value)
+        rtype = self.get_type(value)
+        if rtype != optype:
+            optype.emit_convert(rtype, self)
+        self.emit_dup()
+        self.emit_rotate_stack(3)
+        optype.emit_compare(op, self)
+        method = optype.emit_jumpif_only if always_pop else optype.emit_jumpif_pop_only
+        method(cleanup, False, self)
+        self.nextBlock(label="compare_or_cleanup")
+
 
 class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
-    flow_graph = PyFlowGraphStatic312
+    flow_graph = PyFlowGraph312
     parent_impl = StrictCodeGenerator312
+
+    def visitBoolOp(self, node: ast.BoolOp) -> None:
+        is_if_true = type(node.op) is not ast.And
+        end = self.newBlock()
+        for value in node.values[:-1]:
+            self.visit(value)
+            self.emit("COPY", 1)
+            self.get_type(value).emit_jumpif_only(end, is_if_true, self)
+            self.nextBlock()
+            self.emit("POP_TOP")
+        self.visit(node.values[-1])
+        self.nextBlock(end)
+
+    def visitCompare(self, node: Compare) -> None:
+        self.set_pos(node)
+        self.visit(node.left)
+        if len(node.comparators) == 1:
+            self.visit(node.comparators[0])
+            op = node.ops[0]
+            optype = self.get_type(op)
+            rtype = self.get_type(node.comparators[0])
+            if rtype != optype:
+                optype.emit_convert(rtype, self)
+            optype.emit_compare(op, self)
+            return
+
+        cleanup = self.newBlock("cleanup")
+        left = node.left
+        for i in range(len(node.comparators) - 1):
+            self.set_pos(node)
+            op = node.ops[i]
+            optype = self.get_type(op)
+            ltype = self.get_type(left)
+            if ltype != optype:
+                optype.emit_convert(ltype, self)
+
+            self.emitChainedCompareStep(
+                node.ops[i], node.comparators[i], cleanup, False
+            )
+            left = node.comparators[i]
+            self.emit("COPY", 1)
+            optype = self.get_type(node.ops[i])
+            optype.emit_jumpif_only(cleanup, False, self)
+            self.nextBlock(label="compare_or_cleanup")
+            self.emit("POP_TOP")
+
+        self.visit(node.comparators[-1])
+        op = node.ops[-1]
+        optype = self.get_type(op)
+        ltype = self.get_type(left)
+        if ltype != optype:
+            optype.emit_convert(ltype, self)
+
+        rtype = self.get_type(node.comparators[-1])
+        rtype.emit_compare(op, self)
+        end = self.newBlock("end")
+        self.emit_jump_forward(end)
+
+        self.nextBlock(cleanup)
+        self.emit("SWAP", 2)
+        self.emit("POP_TOP")
+        self.nextBlock(end)
+
+    def emitChainedCompareStep(
+        self,
+        op: ast.cmpop,
+        value: ast.expr,
+        cleanup: Block,
+        always_pop: bool = False,
+    ) -> None:
+        optype = self.get_type(op)
+        self.visit(value)
+        rtype = self.get_type(value)
+        if rtype != optype:
+            optype.emit_convert(rtype, self)
+        self.emit("SWAP", 2)
+        self.emit("COPY", 2)
+        optype = self.get_type(op)
+        optype.emit_compare(op, self)
 
 
 if sys.version_info >= (3, 12):
