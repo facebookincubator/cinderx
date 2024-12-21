@@ -3548,9 +3548,15 @@ class PrimitivesTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             # target_size includes 2 words for GC header, 1 for weak_ref, and 1 for the
             # two bools which are 1 byte each.
-            target_size = self.base_size + self.ptr_size * 4
 
-            self.assertEqual(sys.getsizeof(mod.a), target_size)
+            if sys.version_info >= (3, 12):
+                # In 3.12 if we have a weakref we have a preheader, which
+                # is two words.
+                target_size = self.base_size + self.ptr_size * 5
+                self.assertEqual(sys.getsizeof(mod.a), target_size)
+            else:
+                target_size = self.base_size + self.ptr_size * 4
+                self.assertEqual(sys.getsizeof(mod.a), target_size)
 
             was_called = False
 
@@ -3579,7 +3585,13 @@ class PrimitivesTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             # target_size includes 2 words for GC header, 1 for __dict__, and 1 for the bools
-            target_size = self.base_size + self.ptr_size * 4
+            if sys.version_info >= (3, 12):
+                # In 3.12 if we have a weakref we have a preheader, which
+                # is two words.
+                target_size = self.base_size + self.ptr_size * 5
+                self.assertEqual(sys.getsizeof(mod.a), target_size)
+            else:
+                target_size = self.base_size + self.ptr_size * 4
 
             self.assertEqual(sys.getsizeof(mod.a), target_size)
 

@@ -1144,18 +1144,27 @@ static int type_new_descriptors(
   /* Round slotoffset up so any child class layouts start properly aligned. */
   slotoffset = _Py_SIZE_ROUND_UP(slotoffset, sizeof(PyObject*));
 
-  if (type->tp_dictoffset) {
-    if (type->tp_base->tp_itemsize == 0) {
-      type->tp_dictoffset = slotoffset;
+#if PY_VERSION_HEX >= 0x030C0000
+  if (!PyType_HasFeature(type, Py_TPFLAGS_PREHEADER))
+#endif
+  {
+    if (type->tp_dictoffset) {
+      if (type->tp_base->tp_itemsize == 0) {
+        type->tp_dictoffset = slotoffset;
+      }
+      slotoffset += sizeof(PyObject*);
+      needs_gc = 1;
     }
-    slotoffset += sizeof(PyObject*);
-    needs_gc = 1;
-  }
 
-  if (type->tp_weaklistoffset) {
-    type->tp_weaklistoffset = slotoffset;
-    slotoffset += sizeof(PyObject*);
+    if (type->tp_weaklistoffset) {
+      type->tp_weaklistoffset = slotoffset;
+      slotoffset += sizeof(PyObject*);
+      needs_gc = 1;
+    }
+#if PY_VERSION_HEX >= 0x030C0000
+  } else {
     needs_gc = 1;
+#endif
   }
 
   // We should have checked for leakage earlier...
