@@ -23,6 +23,7 @@
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
+#include "cinderx/Immortalize/immortalize.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/entry.h"
@@ -196,6 +197,26 @@ affect the current collection.");
 PyObject* cinder_disable_parallel_gc(PyObject*, PyObject*) {
   Cinder_DisableParallelGC();
   Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(
+    cinder_immortalize_heap_doc,
+    "immortalize_heap($module, /)\n"
+    "--\n"
+    "\n"
+    "Immortalize all instances accessible through the GC roots.");
+PyObject* cinder_immortalize_heap(PyObject* mod, PyObject* unused) {
+  return immortalize_heap(mod, unused);
+}
+
+PyDoc_STRVAR(
+    cinder_is_immortal_doc,
+    "is_immortal($module, obj, /)\n"
+    "--\n"
+    "\n"
+    "Return True if the object is immortal, else return False.");
+PyObject* cinder_is_immortal(PyObject* /* mod */, PyObject* obj) {
+  return is_immortal(obj);
 }
 
 PyDoc_STRVAR(
@@ -897,6 +918,11 @@ PyMethodDef _cinderx_methods[] = {
      METH_NOARGS,
      PyDoc_STR("Return the current stack as a list of tuples (qualname, "
                "lineno, PyFrame | None).")},
+    {"immortalize_heap",
+     cinder_immortalize_heap,
+     METH_NOARGS,
+     cinder_immortalize_heap_doc},
+    {"is_immortal", cinder_is_immortal, METH_O, cinder_is_immortal_doc},
     {nullptr, nullptr, 0, nullptr}};
 
 struct PyModuleDef _cinderx_module = {

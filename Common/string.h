@@ -4,11 +4,7 @@
 
 #include <Python.h>
 
-#if PY_VERSION_HEX >= 0x030C0000
-#define IMMORTALIZE(OBJ) Py_SET_REFCNT((OBJ), _Py_IMMORTAL_REFCNT)
-#elif defined(Py_IMMORTAL_INSTANCES)
-#define IMMORTALIZE(OBJ) Py_SET_IMMORTAL(OBJ)
-#endif
+#include "cinderx/Common/py-portability.h"
 
 // Create a function static variable for an interned Python string.
 // This string is explicitly immortalized.

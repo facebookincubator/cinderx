@@ -82,6 +82,20 @@ void Cix_format_exc_check_arg(
   format_exc_check_arg(tstate, exc, format_str, obj);
 }
 
+// Internal dependencies for gc_freeze_impl.
+// @Borrow CPP directives noinclude from Modules/gcmodule.c
+// @Borrow typedef GCState from Modules/gcmodule.c
+// @Borrow function gc_list_init from Modules/gcmodule.c
+// @Borrow function gc_list_is_empty from Modules/gcmodule.c
+// @Borrow function get_gc_state from Modules/gcmodule.c
+// @Borrow function gc_list_merge from Modules/gcmodule.c
+// End internal dependencies.
+
+// @Borrow function gc_freeze_impl from Modules/gcmodule.c
+PyObject* Cix_gc_freeze_impl(PyObject* mod) {
+  return gc_freeze_impl(mod);
+}
+
 int init_upstream_borrow(void) {
   // Nothing to do here; retained for consistency with 3.10
   return 0;
