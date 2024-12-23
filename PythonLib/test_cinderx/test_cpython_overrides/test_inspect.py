@@ -30,14 +30,26 @@ from test.support import MISSING_C_DOCSTRINGS, ALWAYS_EQ
 from test.support.import_helper import DirsOnSysPath
 from test.support.os_helper import TESTFN
 from test.support.script_helper import assert_python_ok, assert_python_failure
-from test import inspect_fodder as mod
-from test import inspect_fodder2 as mod2
-from test import support
-from test import inspect_stock_annotations
-from test import inspect_stringized_annotations
-from test import inspect_stringized_annotations_2
 
-from test.test_import import _ready_to_import
+try:
+    from test import inspect_fodder as mod
+    from test import inspect_fodder2 as mod2
+    from test import inspect_stock_annotations
+    from test import inspect_stringized_annotations
+    from test import inspect_stringized_annotations_2
+except ImportError:
+    from test.test_inspect import inspect_fodder as mod
+    from test.test_inspect import inspect_fodder2 as mod2
+    from test.test_inspect import inspect_stock_annotations
+    from test.test_inspect import inspect_stringized_annotations
+    from test.test_inspect import inspect_stringized_annotations_2
+
+from test import support
+
+try:
+    from test.test_import import _ready_to_import
+except ImportError:
+    from test.support.import_helper import ready_to_import as _ready_to_import
 
 
 # Functions tested in this suite:
