@@ -466,8 +466,10 @@ static PyGetSetDef jitcoro_getsetlist[] = {
     {"cr_frame", nullptr, nullptr, nullptr},
     {"cr_code", nullptr, nullptr, nullptr},
     {"cr_suspended", nullptr, nullptr, nullptr},
+#if PY_VERSION_HEX < 0x030C0000
     {"cr_ci_awaiter", nullptr, nullptr, nullptr},
     {"cr_awaiter", nullptr, nullptr, nullptr},
+#endif
     {} /* Sentinel */
 };
 
@@ -484,7 +486,9 @@ static PyMethodDef jitcoro_methods[] = {
     {"throw", _PyCFunction_CAST(jitgen_throw), METH_FASTCALL, nullptr},
     {"close", (PyCFunction)jitgen_close, METH_NOARGS, nullptr},
     {"__sizeof__", (PyCFunction)jitgen_sizeof, METH_NOARGS, nullptr},
+#if PY_VERSION_HEX < 0x030C0000
     {"__set_awaiter__", nullptr, METH_O, nullptr},
+#endif
     {} /* Sentinel */
 };
 
@@ -745,12 +749,12 @@ void init_jit_genobject_type() {
   copy_methods(PyGen_Type.tp_methods, JitGen_Type.tp_methods);
   copy_methods(PyCoro_Type.tp_methods, JitCoro_Type.tp_methods);
 
-  JIT_CHECK(
-      PyCoro_Type.tp_flags & Ci_TPFLAGS_HAVE_AM_EXTRA,
-      "No AM_EXTRA on coro type");
-  auto coro_ame =
-      reinterpret_cast<Ci_AsyncMethodsWithExtra*>(PyCoro_Type.tp_as_async);
-  jitcoro_as_async.ame_setawaiter = coro_ame->ame_setawaiter;
+  // JIT_CHECK(
+  //     PyCoro_Type.tp_flags & Ci_TPFLAGS_HAVE_AM_EXTRA,
+  //     "No AM_EXTRA on coro type");
+  // auto coro_ame =
+  //     reinterpret_cast<Ci_AsyncMethodsWithExtra*>(PyCoro_Type.tp_as_async);
+  // jitcoro_as_async.ame_setawaiter = coro_ame->ame_setawaiter;
 }
 
 } // namespace jit

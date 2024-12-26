@@ -1533,12 +1533,6 @@ JITRT_GenSendRes JITRT_GenSend(
     return {v, 1};
   }
   PyObject* retval;
-#if PY_VERSION_HEX >= 0x030C0000
-  if (frame->f_code->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)) {
-    Ci_PyAwaitable_SetAwaiter(
-        gen, reinterpret_cast<PyObject*>(_PyFrame_GetGenerator(frame)));
-  }
-#endif
   auto gen_status = PyIter_Send(gen, v, &retval);
 
   if (gen_status == PYGEN_RETURN) {

@@ -37,7 +37,9 @@ static PyObject* awaitable_get_iter(_PyClassLoader_Awaitable* self) {
     return NULL;
   }
   if (self->awaiter != NULL) {
+#if PY_VERSION_HEX < 0x030C0000
     Ci_PyAwaitable_SetAwaiter(iter, self->awaiter);
+#endif
   }
   if (PyCoro_CheckExact(iter)) {
     PyObject* yf = Cix_PyGen_yf((PyGenObject*)iter);
@@ -108,7 +110,9 @@ static void awaitable_setawaiter(
     _PyClassLoader_Awaitable* awaitable,
     PyObject* awaiter) {
   if (awaitable->iter != NULL) {
+#if PY_VERSION_HEX < 0x030C0000
     Ci_PyAwaitable_SetAwaiter(awaitable->iter, awaiter);
+#endif
   }
   awaitable->awaiter = awaiter;
 }
