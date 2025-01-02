@@ -368,6 +368,9 @@ static int _PyVTable_set_opt_slot(
     int optional, exact, func_flags;
     PyTypeObject* ret_type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
         value, &optional, &exact, &func_flags);
+    if (ret_type == NULL) {
+      return -1;
+    }
     int type_code = _PyClassLoader_GetTypeCode(ret_type);
 
     PyObject* state = PyTuple_New(type_code != TYPED_OBJECT ? 4 : 3);
