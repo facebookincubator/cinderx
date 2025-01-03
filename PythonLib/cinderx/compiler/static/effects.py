@@ -36,13 +36,13 @@ class NarrowingEffect:
     """captures type narrowing effects on variables"""
 
     def and_(self, other: NarrowingEffect) -> NarrowingEffect:
-        if other is NoEffect:
+        if other is NO_EFFECT:
             return self
 
         return AndEffect(self, other)
 
     def or_(self, other: NarrowingEffect) -> NarrowingEffect:
-        if other is NoEffect:
+        if other is NO_EFFECT:
             return self
 
         return OrEffect(self, other)
@@ -78,7 +78,7 @@ class AndEffect(NarrowingEffect):
         self.effects: Sequence[NarrowingEffect] = effects
 
     def and_(self, other: NarrowingEffect) -> NarrowingEffect:
-        if other is NoEffect:
+        if other is NO_EFFECT:
             return self
         elif isinstance(other, AndEffect):
             return AndEffect(*self.effects, *other.effects)
@@ -104,7 +104,7 @@ class OrEffect(NarrowingEffect):
         self.effects: Sequence[NarrowingEffect] = effects
 
     def and_(self, other: NarrowingEffect) -> NarrowingEffect:
-        if other is NoEffect:
+        if other is NO_EFFECT:
             return self
         elif isinstance(other, OrEffect):
             return OrEffect(*self.effects, *other.effects)
