@@ -70,6 +70,7 @@ Register* TempAllocator::AllocateNonStack() {
 // Opcodes that we know how to translate into HIR
 const std::unordered_set<int> kSupportedOpcodes = {
     BEFORE_ASYNC_WITH,
+    BEFORE_WITH,
     BINARY_ADD,
     BINARY_AND,
     BINARY_FLOOR_DIVIDE,
@@ -1295,8 +1296,9 @@ void HIRBuilder::translate(
           tc.emit<LoadConst>(var, TNullptr);
           break;
         }
-        case BEFORE_ASYNC_WITH: {
-          emitBeforeAsyncWith(tc);
+        case BEFORE_ASYNC_WITH:
+        case BEFORE_WITH: {
+          emitBeforeWith(tc, bc_instr);
           break;
         }
         case SETUP_ASYNC_WITH: {
@@ -3658,12 +3660,12 @@ Register* HIRBuilder::emitSetupWithCommon(
     TranslationContext& tc,
 #if PY_VERSION_HEX < 0x030C0000
     _Py_Identifier* enter_id,
-    _Py_Identifier* exit_id
+    _Py_Identifier* exit_id,
 #else
     PyObject* enter_id,
-    PyObject* exit_id
+    PyObject* exit_id,
 #endif
-) {
+    bool is_async) {
   // Load the enter and exit attributes from the manager, push exit, and return
   // the result of calling enter().
   auto& stack = tc.frame.stack;
@@ -3674,15 +3676,20 @@ Register* HIRBuilder::emitSetupWithCommon(
       enter,
       manager,
       enter_id,
-      "'%.200s' object does not support the asynchronous context manager "
-      "protocol",
+      is_async
+          ? "'%.200s' object does not support the asynchronous context manager "
+            "protocol"
+          : "'%.200s' object does not support the context manager protocol",
       tc.frame);
   tc.emit<LoadAttrSpecial>(
       exit,
       manager,
       exit_id,
-      "'%.200s' object does not support the asynchronous context manager "
-      "protocol (missed __aexit__ method)",
+      is_async
+          ? "'%.200s' object does not support the asynchronous context manager "
+            "protocol (missed __aexit__ method)"
+          : "'%.200s' object does not support the context manager protocol "
+            "(missed __exit__ method)",
       tc.frame);
   stack.push(exit);
 
@@ -3693,15 +3700,22 @@ Register* HIRBuilder::emitSetupWithCommon(
   return enter_result;
 }
 
-void HIRBuilder::emitBeforeAsyncWith(TranslationContext& tc) {
+void HIRBuilder::emitBeforeWith(
+    TranslationContext& tc,
+    [[maybe_unused]] const jit::BytecodeInstruction& bc_instr) {
 #if PY_VERSION_HEX < 0x030C0000
   _Py_IDENTIFIER(__aenter__);
   _Py_IDENTIFIER(__aexit__);
   tc.frame.stack.push(
-      emitSetupWithCommon(tc, &PyId___aenter__, &PyId___aexit__));
+      emitSetupWithCommon(tc, &PyId___aenter__, &PyId___aexit__, true));
 #else
-  tc.frame.stack.push(
-      emitSetupWithCommon(tc, &_Py_ID(__aenter__), &_Py_ID(__aexit__)));
+  if (bc_instr.opcode() == BEFORE_ASYNC_WITH) {
+    tc.frame.stack.push(
+        emitSetupWithCommon(tc, &_Py_ID(__aenter__), &_Py_ID(__aexit__), true));
+  } else {
+    tc.frame.stack.push(
+        emitSetupWithCommon(tc, &_Py_ID(__enter__), &_Py_ID(__exit__), false));
+  }
 #endif
 }
 
@@ -3721,10 +3735,10 @@ void HIRBuilder::emitSetupWith(
   _Py_IDENTIFIER(__enter__);
   _Py_IDENTIFIER(__exit__);
   Register* enter_result =
-      emitSetupWithCommon(tc, &PyId___enter__, &PyId___exit__);
+      emitSetupWithCommon(tc, &PyId___enter__, &PyId___exit__, false);
 #else
   Register* enter_result =
-      emitSetupWithCommon(tc, &_Py_ID(__aenter__), &_Py_ID(__aexit__));
+      emitSetupWithCommon(tc, &_Py_ID(__aenter__), &_Py_ID(__aexit__), true);
 #endif
   emitSetupFinally(tc, bc_instr);
   tc.frame.stack.push(enter_result);
