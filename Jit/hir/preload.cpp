@@ -535,7 +535,10 @@ void PreloaderManager::add(
     BorrowedRef<PyCodeObject> code,
     std::unique_ptr<Preloader> preloader) {
   auto [_, inserted] = preloaders_.emplace(code, std::move(preloader));
-  JIT_CHECK(inserted, "Can't create duplicate preloaders");
+  JIT_CHECK(
+      inserted,
+      "Trying to create a duplicate preloader for {}",
+      PyUnicode_AsUTF8(code->co_qualname));
 }
 
 Preloader* PreloaderManager::find(BorrowedRef<PyCodeObject> code) {

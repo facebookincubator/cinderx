@@ -812,6 +812,8 @@ hir::Preloader* preload(BorrowedRef<> unit) {
     return existing;
   }
 
+  // Make a new preloader. Note that this will run Python code so a lot of
+  // assumptions are broken after this.
   std::unique_ptr<hir::Preloader> preloader;
   if (func != nullptr) {
     preloader = hir::Preloader::makePreloader(func);
@@ -825,6 +827,12 @@ hir::Preloader* preload(BorrowedRef<> unit) {
     JIT_CHECK(
         PyErr_Occurred(), "Expect a Python exception when preloading fails");
     return nullptr;
+  }
+
+  // Have to check again for an existing preloader, because the preloader might
+  // have re-entered itself when running Python code.
+  if (hir::Preloader* existing = hir::preloaderManager().find(code)) {
+    return existing;
   }
 
   // Grab a copy of the raw pointer before it gets moved away.
