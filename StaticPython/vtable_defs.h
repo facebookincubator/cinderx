@@ -24,14 +24,12 @@ extern "C" {
                 /* static_entry: */                                                 \
                 /* we explicitly encode the jmp forward to static_entry_impl so */  \
                 /* that we always get the 2 byte version.  The 0xEB is the jump, */ \
-                /* the 14 is the length to jump, which is based upon the size of */ \
+                /* the 10 is the length to jump, which is based upon the size of */ \
                 /* jmp to the vectorcall entrypoint */                              \
+                "push %rbp\n"                                                       \
+                "mov %rsp, %rbp\n"                                                  \
                 ".byte 0xEB\n"                                                      \
-                ".byte 14\n"                                                        \
-                "nop\n"                                                             \
-                "nop\n"                                                             \
-                "nop\n"                                                             \
-                "nop\n"                                                             \
+                ".byte 10\n"                                                        \
                 "nop\n"                                                             \
                 "nop\n"                                                             \
                 "nop\n"                                                             \
@@ -42,8 +40,6 @@ extern "C" {
                 "jmp " #name "_vectorcall\n"                                        \
                                                                                     \
                 /* static_entry_impl: */                                            \
-                "push %rbp\n"                                                       \
-                "mov %rsp, %rbp\n"                                                  \
                 "push %rsp\n"                                                       \
                 /* We want to push the arguments passed natively onto the stack */  \
                 /* so that we can recover them in hydrate_args.  So we push them */ \
