@@ -10,6 +10,7 @@ import sys
 old_dlopen_flags: int = sys.getdlopenflags()
 sys.setdlopenflags(old_dlopen_flags | os.RTLD_GLOBAL)
 try:
+    # pyre-ignore[21]: _cinderx is not a real cpp_python_extension() yet.
     from _cinderx import (  # noqa: F401
         _compile_perf_trampoline_pre_fork,
         _get_entire_call_stack_as_qualnames_with_lineno,
@@ -36,6 +37,7 @@ try:
     )
 
     if sys.version_info < (3, 11):
+        # pyre-ignore[21]: _cinderx is not a real cpp_python_extension() yet.
         from _cinderx import clear_all_shadow_caches
     else:
 
@@ -53,6 +55,7 @@ finally:
 def strictify_static() -> None:
     """Turn _static into a StrictModule so we can do direct invokes against it."""
 
+    # pyre-ignore[21]: _static is magically created by _cinderx.
     import _static
 
     # if it has a __file__ attribute, libregrtest will try to write to it
