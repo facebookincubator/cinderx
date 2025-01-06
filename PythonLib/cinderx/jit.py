@@ -3,12 +3,17 @@
 # pyre-strict
 
 from contextlib import contextmanager
-from types import FunctionType
-from typing import Generator
+from typing import Any, Callable, Generator
 from warnings import catch_warnings, simplefilter, warn
 
 
 INSTALLED: bool = False
+
+# The JIT compiles arbitrary Python functions.  Ideally this type would exclude native
+# functions, but that doesn't seem possible yet.
+#
+# pyre-ignore[33]: Not going to add a new type variable for every use of FuncAny.
+FuncAny = Callable[..., Any]
 
 
 try:
@@ -36,16 +41,16 @@ except ImportError:
             "Cinder JIT is not installed, calling cinderx.jit.enable() is doing nothing"
         )
 
-    def force_compile(func: FunctionType) -> bool:
+    def force_compile(func: FuncAny) -> bool:
         return False
 
     def is_enabled() -> bool:
         return False
 
-    def is_jit_compiled(func: FunctionType) -> bool:
+    def is_jit_compiled(func: FuncAny) -> bool:
         return False
 
-    def jit_suppress(func: FunctionType) -> FunctionType:
+    def jit_suppress(func: FuncAny) -> FuncAny:
         return func
 
     def precompile_all(workers: int = 0) -> bool:
