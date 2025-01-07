@@ -4922,43 +4922,6 @@ exit_eval_frame:
   return _Py_CheckFunctionResult(tstate, NULL, retval, __func__);
 }
 
-static PyObject* _CiStaticEval_Vector(
-    PyThreadState* tstate,
-    PyFrameConstructor* con,
-    PyObject* locals,
-    PyObject* const* args,
-    size_t argcountf,
-    PyObject* kwnames,
-    int check_args);
-
-PyObject* _Py_HOT_FUNCTION Ci_PyFunction_CallStatic(
-    PyFunctionObject* func,
-    PyObject* const* args,
-    Py_ssize_t nargsf,
-    PyObject* kwnames) {
-  assert(PyFunction_Check(func));
-#ifdef Py_DEBUG
-  PyCodeObject* co = (PyCodeObject*)func->func_code;
-
-  Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-  assert(nargs == 0 || args != NULL);
-#endif
-  PyFrameConstructor* con = PyFunction_AS_FRAME_CONSTRUCTOR(func);
-  PyThreadState* tstate = _PyThreadState_GET();
-  assert(tstate != NULL);
-
-  /* We are bound to a specific function that is known at compile time, and
-   * all of the arguments are guaranteed to be provided */
-#ifdef Py_DEBUG
-  assert(co->co_argcount == nargs);
-  assert(co->co_flags & CI_CO_STATICALLY_COMPILED);
-  assert(co->co_flags & CO_OPTIMIZED);
-  assert(kwnames == NULL);
-#endif
-
-  return _CiStaticEval_Vector(tstate, con, NULL, args, nargsf, NULL, 0);
-}
-
 static int
 _Ci_CheckArgs(PyThreadState* tstate, PyFrameObject* f, PyCodeObject* co) {
   // In the future we can use co_extra to store the cached arg info
@@ -5144,13 +5107,42 @@ PyObject* Ci_StaticFunction_Vectorcall(
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
   Py_ssize_t awaited = Ci_Py_AWAITED_CALL(nargsf);
   assert(nargs >= 0);
-  PyThreadState* tstate = _PyThreadState_GET();
   assert(nargs == 0 || stack != NULL);
-  if (((PyCodeObject*)f->fc_code)->co_flags & CO_OPTIMIZED) {
-    return _CiStaticEval_Vector(
-        tstate, f, NULL, stack, nargs | awaited, kwnames, 1);
-  } else {
-    return _CiStaticEval_Vector(
-        tstate, f, f->fc_globals, stack, nargs | awaited, kwnames, 1);
-  }
+
+  PyCodeObject* code = (PyCodeObject*)f->fc_code;
+  PyObject* globals = (code->co_flags & CO_OPTIMIZED) ? NULL : f->fc_globals;
+
+  PyThreadState* tstate = _PyThreadState_GET();
+  return _CiStaticEval_Vector(
+      tstate, f, globals, stack, nargs | awaited, kwnames, 1);
+}
+
+PyObject* _Py_HOT_FUNCTION Ci_PyFunction_CallStatic(
+    PyFunctionObject* func,
+    PyObject* const* args,
+    size_t nargsf,
+    PyObject* kwnames) {
+  assert(PyFunction_Check(func));
+  Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
+  assert(nargs == 0 || args != NULL);
+
+  PyThreadState* tstate = _PyThreadState_GET();
+  assert(tstate != NULL);
+
+  /* We are bound to a specific function that is known at compile time, and
+   * all of the arguments are guaranteed to be provided */
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+  assert(co->co_argcount == nargs);
+  assert(co->co_flags & CI_CO_STATICALLY_COMPILED);
+  assert(co->co_flags & CO_OPTIMIZED);
+  assert(kwnames == NULL);
+
+  /* Silence unused variable warnings. */
+  (void)co;
+  (void)kwnames;
+  (void)nargs;
+
+  PyFrameConstructor* con = PyFunction_AS_FRAME_CONSTRUCTOR(func);
+
+  return _CiStaticEval_Vector(tstate, con, NULL, args, nargsf, NULL, 0);
 }

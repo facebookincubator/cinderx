@@ -20,15 +20,24 @@ PyObject* _Py_HOT_FUNCTION Ci_EvalFrame(
     int throwflag);
 #endif
 
+/*
+ * General vectorcall entry point to a function compiled by the Static Python
+ * compiler.  The function will be executed in the interpreter.
+ */
 PyObject* Ci_StaticFunction_Vectorcall(
     PyObject* func,
     PyObject* const* stack,
     size_t nargsf,
     PyObject* kwnames);
+
+/*
+ * Optimized form of Ci_StaticFunction_Vectorcall, where all arguments are
+ * guaranteed to have the correct type and do not use `kwnames`.
+ */
 PyObject* Ci_PyFunction_CallStatic(
     PyFunctionObject* func,
     PyObject* const* args,
-    Py_ssize_t nargsf,
+    size_t nargsf,
     PyObject* kwnames);
 
 /*
