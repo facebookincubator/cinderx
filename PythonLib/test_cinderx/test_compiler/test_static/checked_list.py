@@ -7,11 +7,6 @@ from cinderx.static import SEQ_CHECKED_LIST, SEQ_SUBSCR_UNCHECKED
 
 from .common import bad_ret_type, StaticTestBase, type_mismatch
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
-
 
 class CheckedListTests(StaticTestBase):
     def test_checked_list(self):

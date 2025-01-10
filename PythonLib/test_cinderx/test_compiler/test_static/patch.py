@@ -20,10 +20,6 @@ from test.support.import_helper import import_module
 
 from .common import StaticTestBase
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
 
 xxclassloader = import_module("xxclassloader")
 

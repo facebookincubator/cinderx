@@ -5,11 +5,6 @@ import sys
 from .common import bad_ret_type, StaticTestBase
 from cinderx.compiler.errors import TypedSyntaxError
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
-
 
 class PropertyTests(StaticTestBase):
     def test_property_getter(self):
@@ -563,7 +558,7 @@ class PropertyTests(StaticTestBase):
             bad_ret_type("int", "str"),
             "return self.x",
         )
-       
+
 
     def test_property_setter_typechecks(self):
         codestr = """
@@ -610,7 +605,7 @@ class PropertyTests(StaticTestBase):
             codestr,
             r"Function has declared return type 'str' but can implicitly return None",
             "def foo(self) -> str",
-        ) 
+        )
 
     def test_property_with_class_decorator(self):
         codestr = """

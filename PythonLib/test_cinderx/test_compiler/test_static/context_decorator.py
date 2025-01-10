@@ -10,11 +10,6 @@ from cinderx.test_support import get_await_stack
 
 from .common import StaticTestBase
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
-
 
 class ContextDecoratorTests(StaticTestBase):
     def test_simple(self):

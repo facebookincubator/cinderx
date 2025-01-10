@@ -19,12 +19,6 @@ from cinderx.static import SEQ_SUBSCR_UNCHECKED, TYPED_INT64
 from .common import StaticTestBase, type_mismatch
 
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
-
-
 class ArrayTests(StaticTestBase):
     def test_array_import(self):
         codestr = """
