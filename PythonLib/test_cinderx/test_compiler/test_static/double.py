@@ -8,6 +8,11 @@ from cinderx.compiler.errors import TypedSyntaxError
 
 from .common import StaticTestBase
 
+try:
+    import cinderjit
+except ImportError:
+    cinderjit = None
+
 
 class DoubleTests(StaticTestBase):
     def test_primitive_double_return_bad_call(self):

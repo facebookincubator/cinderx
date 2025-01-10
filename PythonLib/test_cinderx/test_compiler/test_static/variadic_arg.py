@@ -3,6 +3,11 @@ from cinderx.compiler.errors import TypedSyntaxError
 
 from .common import StaticTestBase
 
+try:
+    import cinderjit
+except ImportError:
+    cinderjit = None
+
 
 class VariadicArgTests(StaticTestBase):
     def test_load_iterable_arg(self):

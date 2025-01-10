@@ -8,6 +8,11 @@ from typing import Any
 
 from .common import StrictTestBase, StrictTestWithCheckerBase
 
+try:
+    import cinderjit
+except ImportError:
+    cinderjit = None
+
 
 class StrictCompilationTests(StrictTestBase):
     def test_strictmod_freeze_type(self):
