@@ -111,8 +111,4 @@ bool scheduleJitCompile(PyFunctionObject* func) {
   return true;
 }
 
-bool isJitEntryFunction(vectorcallfunc func) {
-  return func == autoJITVectorcall || func == jitVectorcall;
-}
-
 } // extern "C"
