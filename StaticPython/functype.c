@@ -310,6 +310,14 @@ PyObject* _PyClassLoader_ResolveReturnType(
   return (PyObject*)res;
 }
 
+PyTypeObject* _PyClassLoader_ResolveCodeReturnType(
+    PyCodeObject* code,
+    int* optional,
+    int* exact) {
+  return _PyClassLoader_ResolveType(
+      _PyClassLoader_GetCodeReturnTypeDescr(code), optional, exact);
+}
+
 PyObject* _PyClassLoader_GetReturnTypeDescr(PyFunctionObject* func) {
   return _PyClassLoader_GetCodeReturnTypeDescr((PyCodeObject*)func->func_code);
 }

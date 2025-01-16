@@ -50,8 +50,7 @@ static int _PyClassLoader_TypeCheckState_traverse(
     visitproc visit,
     void* arg) {
   rettype_check_traverse((_PyClassLoader_RetTypeInfo*)op, visit, arg);
-  visit(op->tcs_value, arg);
-  visit(op->tcs_rt.rt_base.mt_original, arg);
+  Py_VISIT(op->tcs_value);
   return 0;
 }
 
@@ -59,7 +58,6 @@ static int _PyClassLoader_TypeCheckState_clear(
     _PyClassLoader_TypeCheckState* op) {
   rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
   Py_CLEAR(op->tcs_value);
-  Py_CLEAR(op->tcs_rt.rt_base.mt_original);
   return 0;
 }
 
@@ -68,7 +66,7 @@ static void _PyClassLoader_TypeCheckState_dealloc(
   PyObject_GC_UnTrack((PyObject*)op);
   rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
   Py_XDECREF(op->tcs_value);
-  Py_XDECREF(op->tcs_rt.rt_base.mt_original);
+  _PyClassLoader_FreeThunkSignature(op->tcs_rt.rt_base.mt_sig);
   PyObject_GC_Del((PyObject*)op);
 }
 
@@ -236,9 +234,15 @@ static int _PyVTable_setslot_typecheck(
     Py_ssize_t slot,
     PyObject* value,
     PyObject* original) {
+  _PyClassLoader_ThunkSignature* sig =
+      _PyClassLoader_GetThunkSignature(original);
+
   _PyClassLoader_TypeCheckState* state =
       PyObject_GC_New(_PyClassLoader_TypeCheckState, &_PyType_TypeCheckState);
   if (state == NULL) {
+    if (sig->ta_allocated) {
+      PyMem_Free(sig);
+    }
     return -1;
   }
   state->tcs_value = value;
@@ -249,8 +253,7 @@ static int _PyVTable_setslot_typecheck(
   Py_INCREF(ret_type);
   state->tcs_rt.rt_optional = optional;
   state->tcs_rt.rt_exact = exact;
-  state->tcs_rt.rt_base.mt_original = original;
-  Py_INCREF(original);
+  state->tcs_rt.rt_base.mt_sig = sig;
 
   Py_XDECREF(vtable->vt_entries[slot].vte_state);
   vtable->vt_entries[slot].vte_state = (PyObject*)state;
@@ -1311,50 +1314,35 @@ static _PyClassLoader_StaticCallReturn _PyVTable_lazyinit_impl(
 
       _PyClassLoader_StaticCallReturn res;
       if (is_native) {
-        PyObject* callable = original;
-        Py_ssize_t arg_count = _PyClassLoader_GetExpectedArgCount(&callable);
-        if (arg_count < 0) {
+        _PyClassLoader_ThunkSignature* sig =
+            _PyClassLoader_GetThunkSignature(original);
+        if (sig == NULL) {
+          return StaticError;
+        }
+        Py_ssize_t arg_count = sig->ta_argcount;
+
+        PyObject* obj_res;
+        PyObject* call_args[arg_count];
+        PyObject* free_args[arg_count];
+
+        if (_PyClassLoader_HydrateArgsFromSig(
+                sig, arg_count, args, call_args, free_args) < 0) {
           return StaticError;
         }
 
-        PyObject* obj_res;
-        if (PyFunction_Check(callable)) {
-          PyCodeObject* code =
-              (PyCodeObject*)((PyFunctionObject*)callable)->func_code;
-          PyObject* call_args[arg_count];
-          PyObject* free_args[arg_count];
-
-          if (_PyClassLoader_HydrateArgs(
-                  code, arg_count, args, call_args, free_args) < 0) {
-            return StaticError;
-          }
-
-          obj_res =
-              _PyClassLoader_InvokeMethod(vtable, slot, call_args, arg_count);
-          _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
-          if (obj_res != NULL) {
-            int optional = 0, exact = 0, func_flags = 0, type_code;
-            PyTypeObject* type =
-                (PyTypeObject*)_PyClassLoader_ResolveReturnType(
-                    callable, &optional, &exact, &func_flags);
-            if (type != NULL &&
-                (type_code = _PyClassLoader_GetTypeCode(type)) !=
-                    TYPED_OBJECT) {
-              res.rax = (void*)_PyClassLoader_Unbox(obj_res, type_code);
-            } else {
-              res.rax = obj_res;
-            }
+        obj_res =
+            _PyClassLoader_InvokeMethod(vtable, slot, call_args, arg_count);
+        _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+        if (obj_res != NULL) {
+          if (sig->ta_rettype != TYPED_OBJECT) {
+            res.rax = (void*)_PyClassLoader_Unbox(obj_res, sig->ta_rettype);
           } else {
-            res.rax = NULL;
+            res.rax = obj_res;
           }
-          res.rdx = (void*)(uint64_t)(obj_res != NULL);
         } else {
-          assert(arg_count < 5);
-          res.rax = _PyClassLoader_InvokeMethod(
-              vtable, slot, (PyObject**)args, arg_count);
-          res.rdx = (void*)(uint64_t)(res.rax != NULL);
+          res.rax = NULL;
         }
-
+        res.rdx = (void*)(uint64_t)(obj_res != NULL);
       } else {
         res.rax =
             _PyClassLoader_InvokeMethod(vtable, slot, (PyObject**)args, nargsf);
