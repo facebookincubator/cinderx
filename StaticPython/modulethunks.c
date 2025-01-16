@@ -43,7 +43,7 @@ static PyObject* thunk_vectorcall(
 
     if (thunk->thunk_flags & Ci_FUNC_FLAGS_COROUTINE) {
       return _PyClassLoader_CallCoroutine(
-          (_PyClassLoader_TypeCheckState*)thunk, args, nargs);
+          (_PyClassLoader_TypeCheckThunk*)thunk, args, nargs);
     }
     PyObject* res = _PyObject_Vectorcall(func, args + 1, nargs - 1, kwnames);
     return _PyClassLoader_CheckReturnType(
