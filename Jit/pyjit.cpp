@@ -1276,6 +1276,25 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
   return nullptr;
 }
 
+PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
+  BorrowedRef<PyFunctionObject> func = get_func_arg("lazy_compile", arg);
+  if (func == nullptr) {
+    return nullptr;
+  }
+
+  if (!isJitUsable() || isJitCompiled(func)) {
+    Py_RETURN_FALSE;
+  }
+
+  func->vectorcall = jitVectorcall;
+  if (!_PyJIT_RegisterFunction(func)) {
+    func->vectorcall = getInterpretedVectorcall(func);
+    Py_RETURN_FALSE;
+  }
+
+  Py_RETURN_TRUE;
+}
+
 int aot_func_visitor(PyObject* obj, void* arg) {
   constexpr int kGcVisitContinue = 1;
 
@@ -2017,6 +2036,10 @@ PyMethodDef jit_methods[] = {
      force_compile,
      METH_O,
      PyDoc_STR("Force a function to be JIT compiled if it hasn't yet.")},
+    {"lazy_compile",
+     lazy_compile,
+     METH_O,
+     PyDoc_STR("Set a function to be JIT compiled the first time it is run.")},
     {"jit_frame_mode",
      jit_frame_mode,
      METH_NOARGS,

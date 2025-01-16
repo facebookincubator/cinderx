@@ -24,6 +24,7 @@ try:
         is_enabled,
         is_jit_compiled,
         jit_suppress,
+        lazy_compile,
         precompile_all,
     )
 
@@ -42,6 +43,9 @@ except ImportError:
         )
 
     def force_compile(func: FuncAny) -> bool:
+        return False
+
+    def lazy_compile(func: FuncAny) -> bool:
         return False
 
     def is_enabled() -> bool:

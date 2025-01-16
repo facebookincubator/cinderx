@@ -7,6 +7,7 @@ from cinderx.jit import (
     disable as disable_jit,
     enable as enable_jit,
     force_compile,
+    lazy_compile,
     is_enabled as is_jit_enabled,
     is_jit_compiled,
     jit_suppress,
@@ -136,6 +137,10 @@ class DisableEnableTests(unittest.TestCase):
 
         with pause_jit(deopt_all=True):
             self.assertFalse(is_jit_enabled())
+
+            self.assertFalse(is_jit_compiled(foo))
+            self.assertFalse(force_compile(foo))
+            self.assertFalse(lazy_compile(foo))
             self.assertFalse(is_jit_compiled(foo))
 
         self.assertTrue(is_jit_enabled())

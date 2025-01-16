@@ -43,7 +43,13 @@ except ImportError:
 
 try:
     import cinderjit
-    from cinderjit import _deopt_gen, is_jit_compiled, force_compile, jit_suppress
+    from cinderjit import (
+        _deopt_gen,
+        is_jit_compiled,
+        force_compile,
+        lazy_compile,
+        jit_suppress,
+    )
 except:
     cinderjit = None
 
@@ -54,6 +60,9 @@ except:
         return False
 
     def force_compile(func):
+        return False
+
+    def lazy_compile(func):
         return False
 
     def is_jit_compiled(func):
@@ -5698,6 +5707,18 @@ class HIROpcodeCountTests(unittest.TestCase):
 
 
 @unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+class LazyCompileTests(unittest.TestCase):
+    def test_basic(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        self.assertFalse(is_jit_compiled(foo))
+        self.assertTrue(lazy_compile(foo))
+        foo(1, 2)
+        self.assertTrue(is_jit_compiled(foo))
+
+
+@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
 class BadArgumentTests(unittest.TestCase):
     def test_is_compiled(self) -> None:
         with self.assertRaises(TypeError):
@@ -5714,6 +5735,14 @@ class BadArgumentTests(unittest.TestCase):
             force_compile(5)
         with self.assertRaises(TypeError):
             force_compile(is_jit_compiled)
+
+    def test_lazy_compile(self) -> None:
+        with self.assertRaises(TypeError):
+            lazy_compile(None)
+        with self.assertRaises(TypeError):
+            lazy_compile(5)
+        with self.assertRaises(TypeError):
+            lazy_compile(is_jit_compiled)
 
     def test_jit_suppress(self) -> None:
         with self.assertRaises(TypeError):
