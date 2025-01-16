@@ -26,7 +26,6 @@
 #include "cinderx/Immortalize/immortalize.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/compiled_function.h"
-#include "cinderx/Jit/entry.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/perf_jitdump.h"
@@ -351,7 +350,7 @@ PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
 // Schedule a function to be JIT-compiled.  If that fails, then also try
 // compiling a perf trampoline for the Python function.
 void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
-  bool scheduled = scheduleJitCompile(func);
+  bool scheduled = jit::scheduleJitCompile(func);
   if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
     perf_trampoline_worklist.emplace(func);
   }

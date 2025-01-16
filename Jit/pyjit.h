@@ -138,6 +138,20 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate);
 namespace jit {
 
 /*
+ * Overwrite the entry point of a function so that it tries to JIT-compile
+ * itself in the future.
+ *
+ * By default this will trigger the JIT the next time the function is called,
+ * unless AutoJIT is enabled, in that case the function will compile after it is
+ * called more times than the AutoJIT threshold.  Before that it will run
+ * through the interpreter.
+ *
+ * Return true if the function was successfully scheduled for compilation, or if
+ * it is already compiled.
+ */
+bool scheduleJitCompile(PyFunctionObject* func);
+
+/*
  * Preload a function, along with any functions that it calls that we might want
  * to compile afterwards as well.  This is to support inlining and faster
  * invokes for Static Python functions.
