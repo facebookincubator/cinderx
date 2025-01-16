@@ -84,6 +84,9 @@ struct Config {
   // the inliner, doesn't have any specific meaning, and can change as the
   // inliner's algorithm changes.
   size_t inliner_cost_limit{2000};
+  // Number of workers to use for batch compilation, like in precompile_all().
+  // If this number isn't configured then batch compilation will happen inline
+  // on the calling thread.
   size_t batch_compile_workers{0};
   // When a function is being compiled, this is the maximum number of dependent
   // functions called by it that can be compiled along with it.

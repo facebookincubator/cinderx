@@ -1039,7 +1039,9 @@ bool compile_all(size_t workers = 0) {
   };
 
   JIT_DLOG(
-      "Starting compile_all with {} registered units", jit_reg_units.size());
+      "Starting compile_all with {} workers for {} registered units",
+      workers,
+      jit_reg_units.size());
 
   // First we have to preload everything we are going to compile.
   while (jit_reg_units.size() > 0) {
@@ -1208,7 +1210,9 @@ precompile_all(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
     Py_RETURN_FALSE;
   }
 
-  Py_ssize_t workers = 1;
+  // Default value of 0 means to read the value from the jit::Config if it
+  // exists, otherwise do it all inline on the same thread.
+  Py_ssize_t workers = 0;
   const char* keywords[] = {"workers", nullptr};
   if (!PyArg_ParseTupleAndKeywords(
           args, kwargs, "|n", const_cast<char**>(keywords), &workers)) {
