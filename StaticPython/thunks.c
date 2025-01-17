@@ -15,34 +15,6 @@ thunk_call(_Py_StaticThunk* thunk, PyObject* args, PyObject* kwds) {
   return NULL;
 }
 
-static void _PyClassLoader_MethodThunk_dealloc(_PyClassLoader_MethodThunk* op) {
-  PyObject_GC_UnTrack((PyObject*)op);
-  Py_XDECREF(op->mt_original);
-  PyObject_GC_Del((PyObject*)op);
-}
-
-static int _PyClassLoader_MethodThunk_traverse(
-    _PyClassLoader_MethodThunk* op,
-    visitproc visit,
-    void* arg) {
-  visit(op->mt_original, arg);
-  return 0;
-}
-
-static int _PyClassLoader_MethodThunk_clear(_PyClassLoader_MethodThunk* op) {
-  Py_CLEAR(op->mt_original);
-  return 0;
-}
-
-PyTypeObject _PyType_MethodThunk = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable_method_thunk",
-    sizeof(_PyClassLoader_MethodThunk),
-    .tp_dealloc = (destructor)_PyClassLoader_MethodThunk_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE,
-    .tp_traverse = (traverseproc)_PyClassLoader_MethodThunk_traverse,
-    .tp_clear = (inquiry)_PyClassLoader_MethodThunk_clear,
-};
-
 static int cachedpropthunktraverse(
     _Py_CachedPropertyThunk* op,
     visitproc visit,
