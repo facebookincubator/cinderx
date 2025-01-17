@@ -107,7 +107,7 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignature(
     PyObject* original);
 
 PyObject* _PyVTable_coroutine_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf);
 
@@ -120,27 +120,27 @@ PyObject* _PyVTable_thunk_ret_primitive_not_jitted_dont_bolt(
     PyObject** args,
     size_t nargsf);
 PyObject* _PyVTable_classmethod_overridable_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf);
 PyObject* _PyVTable_coroutine_property_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf);
 PyObject* _PyVTable_nonfunc_property_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf);
 PyObject* _PyVTable_func_overridable_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf);
 PyObject* _PyVTable_nonfunc_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf);
 PyObject* _PyVTable_coroutine_classmethod_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf);
 PyObject* _PyVTable_staticmethod_dont_bolt(
@@ -148,7 +148,7 @@ PyObject* _PyVTable_staticmethod_dont_bolt(
     PyObject** args,
     size_t nargsf);
 PyObject* _PyVTable_staticmethod_overridable_dont_bolt(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf);
 PyObject* _PyVTable_classmethod_dont_bolt(
