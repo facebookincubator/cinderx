@@ -333,7 +333,7 @@ invoke_from_native(PyObject* original, PyObject* func, void** args) {
   return return_to_native(res, type);
 }
 
-PyObject* _PyVTable_coroutine_property_vectorcall(
+__attribute__((__used__)) PyObject* _PyVTable_coroutine_property_vectorcall(
     _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf) {
@@ -409,6 +409,30 @@ __attribute__((__used__)) PyObject* _PyVTable_classmethod_vectorcall(
     PyObject* const* args,
     Py_ssize_t nargsf);
 
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_coroutine_property_native(
+    _PyClassLoader_TypeCheckState* state,
+    void** args) {
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
+    return StaticError;
+  }
+  _PyClassLoader_StaticCallReturn res;
+  res.rax =
+      _PyVTable_coroutine_property_vectorcall(state, call_args, arg_count);
+  res.rdx = (void*)(uint64_t)(res.rax != NULL);
+  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+
+  return res;
+}
+
+VTABLE_THUNK(_PyVTable_coroutine_property, _PyClassLoader_TypeCheckState)
+
 static bool try_call_instance_coroutine(
     _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
@@ -433,7 +457,7 @@ static bool try_call_instance_coroutine(
   return true;
 }
 
-PyObject* _PyVTable_coroutine_classmethod_vectorcall(
+__attribute__((__used__)) PyObject* _PyVTable_coroutine_classmethod_vectorcall(
     _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf) {
@@ -505,7 +529,31 @@ PyObject* _PyVTable_coroutine_classmethod_vectorcall(
       coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);
 }
 
-PyObject* _PyVTable_coroutine_vectorcall(
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_coroutine_classmethod_native(
+    _PyClassLoader_TypeCheckState* state,
+    void** args,
+    Py_ssize_t nargsf) {
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
+    return StaticError;
+  }
+
+  _PyClassLoader_StaticCallReturn res = return_to_native_typecode(
+      _PyVTable_coroutine_classmethod_vectorcall(state, call_args, arg_count),
+      sig->ta_rettype);
+  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+  return res;
+}
+
+VTABLE_THUNK(_PyVTable_coroutine_classmethod, _PyClassLoader_TypeCheckState)
+
+__attribute__((__used__)) PyObject* _PyVTable_coroutine_vectorcall(
     _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf) {
@@ -517,7 +565,64 @@ PyObject* _PyVTable_coroutine_vectorcall(
   return _PyClassLoader_CallCoroutine(state, args, nargsf);
 }
 
-PyObject* _PyVTable_nonfunc_property_vectorcall(
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_coroutine_native(_PyClassLoader_TypeCheckState* state, void** args) {
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
+    return StaticError;
+  }
+  _PyClassLoader_StaticCallReturn res;
+  res.rax = _PyVTable_coroutine_vectorcall(state, call_args, arg_count);
+  res.rdx = (void*)(uint64_t)(res.rax != NULL);
+  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+  return res;
+}
+
+VTABLE_THUNK(_PyVTable_coroutine, _PyClassLoader_TypeCheckState)
+
+__attribute__((__used__)) PyObject* _PyVTable_coroutine_staticmethod_vectorcall(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject* const* args,
+    size_t nargsf) {
+  PyObject* res = NULL;
+  if (try_call_instance_coroutine(state, args, nargsf, &res)) {
+    return res;
+  }
+  // _PyClassLoader_CallCoroutine will apply the descriptor protocol,
+  // stripping the arg.
+  return _PyClassLoader_CallCoroutine(state, args, nargsf);
+}
+
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_coroutine_staticmethod_native(
+    _PyClassLoader_TypeCheckState* state,
+    void** args) {
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
+    return StaticError;
+  }
+  _PyClassLoader_StaticCallReturn res;
+
+  res.rax =
+      _PyVTable_coroutine_staticmethod_vectorcall(state, call_args, arg_count);
+  res.rdx = (void*)(uint64_t)(res.rax != NULL);
+  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+  return res;
+}
+
+VTABLE_THUNK(_PyVTable_coroutine_staticmethod, _PyClassLoader_TypeCheckState)
+
+__attribute__((__used__)) PyObject* _PyVTable_nonfunc_property_vectorcall(
     _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf) {
@@ -564,7 +669,33 @@ done:
       Py_TYPE(self), res, (_PyClassLoader_RetTypeInfo*)state);
 }
 
-PyObject* _PyVTable_nonfunc_vectorcall(
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_nonfunc_property_native(
+    _PyClassLoader_TypeCheckState* state,
+    void** args) {
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
+  if (arg_count < 0) {
+    return StaticError;
+  }
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+  // We can have a property-like object which doesn't have an original
+  // function, for example a typed descriptor with a value.  TODO: Can one of
+  // those be a primitive?
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
+    return StaticError;
+  }
+  PyObject* obj =
+      _PyVTable_nonfunc_property_vectorcall(state, call_args, arg_count);
+  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+  return return_to_native_typecode(obj, sig->ta_rettype);
+}
+
+VTABLE_THUNK(_PyVTable_nonfunc_property, _PyClassLoader_TypeCheckState)
+
+__attribute__((__used__)) PyObject* _PyVTable_nonfunc_vectorcall(
     _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf) {
@@ -611,6 +742,25 @@ done:
   return _PyClassLoader_CheckReturnType(
       Py_TYPE(self), res, (_PyClassLoader_RetTypeInfo*)state);
 }
+
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_nonfunc_native(_PyClassLoader_TypeCheckState* state, void** args) {
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
+
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
+    return StaticError;
+  }
+  PyObject* obj = _PyVTable_nonfunc_vectorcall(state, call_args, arg_count);
+  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+  return return_to_native_typecode(obj, sig->ta_rettype);
+}
+
+VTABLE_THUNK(_PyVTable_nonfunc, _PyClassLoader_TypeCheckState)
 
 __attribute__((__used__)) PyObject*
 _PyVTable_descr_vectorcall(PyObject* descr, PyObject** args, size_t nargsf) {
@@ -702,9 +852,9 @@ __attribute__((__used__)) void* _PyVTable_thunk_vectorcall_only_native(
 
 VTABLE_THUNK(_PyVTable_thunk_vectorcall_only, PyObject)
 
-PyObject* _PyVTable_func_overridable_vectorcall(
+__attribute__((__used__)) PyObject* _PyVTable_func_overridable_vectorcall(
     _PyClassLoader_TypeCheckState* state,
-    PyObject* const* args,
+    PyObject** args,
     size_t nargsf) {
   PyObject* self = args[0];
   PyObject** dictptr = _PyObject_GetDictPtr(self);
@@ -733,6 +883,28 @@ done:
   return _PyClassLoader_CheckReturnType(
       Py_TYPE(self), res, (_PyClassLoader_RetTypeInfo*)state);
 }
+
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_func_overridable_native(
+    _PyClassLoader_TypeCheckState* state,
+    void** args) {
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
+    return StaticError;
+  }
+
+  PyObject* obj =
+      _PyVTable_func_overridable_vectorcall(state, call_args, sig->ta_argcount);
+  _PyClassLoader_FreeHydratedArgs(free_args, sig->ta_argcount);
+  return return_to_native_typecode(obj, sig->ta_rettype);
+}
+
+VTABLE_THUNK(_PyVTable_func_overridable, _PyClassLoader_TypeCheckState)
 
 /**
     This vectorcall entrypoint pulls out the function, slot index and replaces
@@ -870,7 +1042,8 @@ _PyVTable_classmethod_native(PyObject* state, void** args) {
 
 VTABLE_THUNK(_PyVTable_classmethod, PyObject)
 
-PyObject* _PyVTable_classmethod_overridable_vectorcall(
+__attribute__((__used__)) PyObject*
+_PyVTable_classmethod_overridable_vectorcall(
     _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf) {
@@ -904,6 +1077,27 @@ PyObject* _PyVTable_classmethod_overridable_vectorcall(
 
   return _PyObject_Vectorcall(clsmethod, args, nargsf, NULL);
 }
+
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_classmethod_overridable_native(
+    _PyClassLoader_TypeCheckState* state,
+    void** args) {
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
+    return StaticError;
+  }
+  PyObject* obj =
+      _PyVTable_classmethod_overridable_vectorcall(state, call_args, arg_count);
+  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+  return return_to_native_typecode(obj, sig->ta_rettype);
+}
+
+VTABLE_THUNK(_PyVTable_classmethod_overridable, _PyClassLoader_TypeCheckState)
 
 __attribute__((__used__)) _PyClassLoader_StaticCallReturn
 _PyVTable_func_missing_native(PyObject* state, void** args) {
@@ -943,34 +1137,6 @@ __attribute__((__used__)) void* _PyVTable_func_missing_vectorcall(
 }
 
 VTABLE_THUNK(_PyVTable_func_missing, PyObject)
-
-__attribute__((__used__)) PyObject* _PyVTable_thunk_vectorcall(
-    _PyClassLoader_MethodThunk* thunk,
-    PyObject* const* args,
-    size_t nargsf) {
-  return thunk->mt_call((PyObject*)thunk, args, nargsf, NULL);
-}
-
-__attribute__((__used__)) _PyClassLoader_StaticCallReturn
-_PyVTable_thunk_native(_PyClassLoader_MethodThunk* thunk, void** args) {
-  assert(
-      PyObject_IsInstance((PyObject*)thunk, (PyObject*)&_PyType_MethodThunk));
-  _PyClassLoader_ThunkSignature* sig = thunk->mt_sig;
-  Py_ssize_t arg_count = sig->ta_argcount;
-  PyObject* call_args[arg_count];
-  PyObject* free_args[arg_count];
-
-  if (_PyClassLoader_HydrateArgsFromSig(
-          sig, arg_count, args, call_args, free_args) < 0) {
-    return StaticError;
-  }
-  PyObject* obj = thunk->mt_call((PyObject*)thunk, call_args, arg_count, NULL);
-  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
-
-  return return_to_native_typecode(obj, sig->ta_rettype);
-}
-
-VTABLE_THUNK(_PyVTable_thunk, _PyClassLoader_MethodThunk)
 
 static inline int is_static_entry(vectorcallfunc func) {
   return func == (vectorcallfunc)Ci_StaticFunction_Vectorcall;

@@ -24,9 +24,7 @@ PyTypeObject _PyType_MethodThunk = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable_method_thunk",
     sizeof(_PyClassLoader_MethodThunk),
     .tp_dealloc = (destructor)_PyClassLoader_MethodThunk_dealloc,
-    .tp_flags =
-        Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE | _Py_TPFLAGS_HAVE_VECTORCALL,
-    .tp_vectorcall_offset = offsetof(_PyClassLoader_MethodThunk, mt_call),
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_BASETYPE,
     .tp_call = (ternaryfunc)thunk_call,
     .tp_free = PyObject_Free,
 };

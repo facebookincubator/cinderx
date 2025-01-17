@@ -73,14 +73,11 @@ static void _PyClassLoader_TypeCheckState_dealloc(
 PyTypeObject _PyType_TypeCheckState = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable_state_obj",
     sizeof(_PyClassLoader_TypeCheckState),
-    .tp_base = &_PyType_MethodThunk,
     .tp_dealloc = (destructor)_PyClassLoader_TypeCheckState_dealloc,
     .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
         _Py_TPFLAGS_HAVE_VECTORCALL,
     .tp_traverse = (traverseproc)_PyClassLoader_TypeCheckState_traverse,
     .tp_clear = (inquiry)_PyClassLoader_TypeCheckState_clear,
-    .tp_vectorcall_offset = offsetof(_PyClassLoader_MethodThunk, mt_call),
-    .tp_free = PyObject_GC_Del,
 };
 
 static int is_static_type(PyTypeObject* type) {
@@ -260,8 +257,6 @@ static int _PyVTable_setslot_typecheck(
 
   Py_XDECREF(vtable->vt_entries[slot].vte_state);
   vtable->vt_entries[slot].vte_state = (PyObject*)state;
-  vtable->vt_entries[slot].vte_entry =
-      (vectorcallfunc)_PyVTable_thunk_dont_bolt;
   if (func_flags & Ci_FUNC_FLAGS_COROUTINE) {
     if (func_flags & Ci_FUNC_FLAGS_CLASSMETHOD) {
       PyObject* tuple = PyTuple_New(2);
@@ -273,25 +268,28 @@ static int _PyVTable_setslot_typecheck(
       PyTuple_SET_ITEM(tuple, 1, (PyObject*)decltype);
       Py_INCREF(decltype);
       state->tcs_value = tuple;
-      state->tcs_rt.rt_base.mt_call =
-          (vectorcallfunc)_PyVTable_coroutine_classmethod_vectorcall;
+      vtable->vt_entries[slot].vte_entry =
+          (vectorcallfunc)_PyVTable_coroutine_classmethod_dont_bolt;
     } else if (
         PyTuple_Check(name) &&
         _PyClassLoader_IsPropertyName((PyTupleObject*)name)) {
-      state->tcs_rt.rt_base.mt_call =
-          (vectorcallfunc)_PyVTable_coroutine_property_vectorcall;
+      vtable->vt_entries[slot].vte_entry =
+          (vectorcallfunc)_PyVTable_coroutine_property_dont_bolt;
+    } else if (func_flags & Ci_FUNC_FLAGS_STATICMETHOD) {
+      vtable->vt_entries[slot].vte_entry =
+          (vectorcallfunc)_PyVTable_coroutine_staticmethod_dont_bolt;
     } else {
-      state->tcs_rt.rt_base.mt_call =
-          (vectorcallfunc)_PyVTable_coroutine_vectorcall;
+      vtable->vt_entries[slot].vte_entry =
+          (vectorcallfunc)_PyVTable_coroutine_dont_bolt;
     }
   } else if (
       PyTuple_Check(name) &&
       _PyClassLoader_IsPropertyName((PyTupleObject*)name)) {
-    state->tcs_rt.rt_base.mt_call =
-        (vectorcallfunc)_PyVTable_nonfunc_property_vectorcall;
+    vtable->vt_entries[slot].vte_entry =
+        (vectorcallfunc)_PyVTable_nonfunc_property_dont_bolt;
   } else if (PyFunction_Check(value)) {
-    state->tcs_rt.rt_base.mt_call =
-        (vectorcallfunc)_PyVTable_func_overridable_vectorcall;
+    vtable->vt_entries[slot].vte_entry =
+        (vectorcallfunc)_PyVTable_func_overridable_dont_bolt;
   } else if (func_flags & Ci_FUNC_FLAGS_CLASSMETHOD) {
     PyObject* tuple = PyTuple_New(2);
     if (tuple == NULL) {
@@ -302,11 +300,11 @@ static int _PyVTable_setslot_typecheck(
     PyTuple_SET_ITEM(tuple, 1, (PyObject*)decltype);
     Py_INCREF(decltype);
     state->tcs_value = tuple;
-    state->tcs_rt.rt_base.mt_call =
-        (vectorcallfunc)_PyVTable_classmethod_overridable_vectorcall;
+    vtable->vt_entries[slot].vte_entry =
+        (vectorcallfunc)_PyVTable_classmethod_overridable_dont_bolt;
   } else {
-    state->tcs_rt.rt_base.mt_call =
-        (vectorcallfunc)_PyVTable_nonfunc_vectorcall;
+    vtable->vt_entries[slot].vte_entry =
+        (vectorcallfunc)_PyVTable_nonfunc_dont_bolt;
   }
   return 0;
 }
