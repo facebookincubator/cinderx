@@ -32,7 +32,7 @@ try:
 
 except ImportError:
 
-    def disable(compile_all: bool = True, deopt_all: bool = False) -> None:
+    def disable(compile_all: bool = False, deopt_all: bool = False) -> None:
         pass
 
     def enable() -> None:
@@ -74,7 +74,7 @@ def pause(deopt_all: bool = False) -> Generator[None, None, None]:
 
     prev_enabled = is_enabled()
     if prev_enabled:
-        disable(compile_all=False, deopt_all=deopt_all)
+        disable(deopt_all=deopt_all)
 
     try:
         yield

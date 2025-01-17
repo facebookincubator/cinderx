@@ -18,6 +18,7 @@ def main_func() -> str:
 
 
 print("disabling jit")
+cinderjit.precompile_all()
 cinderjit.disable()
 
 print("jit disabled")

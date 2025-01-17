@@ -1123,7 +1123,7 @@ PyObject* is_multithreaded_compile_test_enabled(PyObject*, PyObject*) {
 }
 
 PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
-  int do_compile_all = 1;
+  int do_compile_all = 0;
   int deopt_all = 0;
 
   const char* keywords[] = {"compile_all", "deopt_all", nullptr};

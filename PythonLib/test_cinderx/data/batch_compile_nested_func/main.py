@@ -8,6 +8,7 @@ except ImportError:
     cinderjit = None
 
 if cinderjit:
+    cinderjit.precompile_all()
     cinderjit.disable()
 
 inner = outer()
