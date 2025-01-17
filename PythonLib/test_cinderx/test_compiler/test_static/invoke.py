@@ -321,7 +321,7 @@ class InvokeTests(StaticTestBase):
                                 {derived}
                                 {caller}
                             """
-                            
+
                             self.mixed_override_test(
                                 codestr, nonstatic_subclass, base_class_names
                             )

@@ -15,33 +15,9 @@ extern PyTypeObject _PyType_StaticThunk;
 extern PyTypeObject _PyType_PropertyThunk;
 extern PyTypeObject _PyType_TypedDescriptorThunk;
 
-#define THUNK_SIG(arg_count)                                             \
-  {                                                                      \
-    .ta_argcount = arg_count, .ta_has_primitives = 0, .ta_allocated = 0, \
-    .ta_rettype = TYPED_OBJECT,                                          \
-  }
-
-typedef struct {
-  // Arg count shifted left by two, low bit indicates if we have typed
-  // information, 2nd bit indicates that the signature was allocated and
-  // needs to be freed.
-  Py_ssize_t ta_argcount : 62;
-  unsigned int ta_has_primitives : 1;
-  unsigned int ta_allocated : 1;
-  uint8_t ta_rettype;
-  uint8_t ta_argtype[0];
-} _PyClassLoader_ThunkSignature;
-
-static inline void _PyClassLoader_FreeThunkSignature(
-    _PyClassLoader_ThunkSignature* sig) {
-  if (sig != NULL && sig->ta_allocated) {
-    PyMem_Free(sig);
-  }
-}
-
 typedef struct {
   PyObject_HEAD
-  _PyClassLoader_ThunkSignature* mt_sig;
+  PyObject* mt_original;
 } _PyClassLoader_MethodThunk;
 
 /**
