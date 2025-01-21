@@ -5,6 +5,12 @@
 import os
 import sys
 
+from types import ModuleType
+from typing import Type, TypeVar
+
+
+_import_error: ImportError | None = None
+
 # We need to make the symbols from _cinderx available process wide as they
 # are used in other CinderX modules like _static, etc.
 old_dlopen_flags: int = sys.getdlopenflags()
@@ -44,10 +50,84 @@ try:
         def clear_all_shadow_caches() -> None:
             pass
 
-except ImportError:
-    if os.environ.get("CINDERX_ALLOW__CINDERX_FAILURE") is None:
-        raise
+except ImportError as e:
+    _import_error = e
+
+    T = TypeVar("T")
+
     cinderx_init = None
+
+    def _compile_perf_trampoline_pre_fork() -> None:
+        pass
+
+    def _get_entire_call_stack_as_qualnames_with_lineno() -> list[tuple[str, int]]:
+        return []
+
+    def _get_entire_call_stack_as_qualnames_with_lineno_and_frame() -> (
+        list[tuple[str, int, object]]
+    ):
+        return []
+
+    def _is_compile_perf_trampoline_pre_fork_enabled() -> bool:
+        return False
+
+    class async_cached_classproperty:
+        pass
+
+    class async_cached_property:
+        pass
+
+    class cached_classproperty:
+        pass
+
+    class cached_property:
+        pass
+
+    def clear_all_shadow_caches() -> None:
+        pass
+
+    def clear_caches() -> None:
+        pass
+
+    def clear_classloader_caches() -> None:
+        pass
+
+    def disable_parallel_gc() -> None:
+        pass
+
+    def enable_parallel_gc(min_generation: int = 2, num_threads: int = 0) -> None:
+        pass
+
+    def freeze_type(ty: Type[T]) -> Type[T]:
+        return ty
+
+    def get_parallel_gc_settings() -> dict[str, int]:
+        return {}
+
+    def immortalize_heap() -> None:
+        pass
+
+    def is_immortal(obj: object) -> bool:
+        raise RuntimeError(
+            "Can't answer whether an object is mortal or immortal from Python code"
+        )
+
+    def strict_module_patch(mod: object, name: str, value: object) -> None:
+        pass
+
+    def strict_module_patch_delete(mod: object, name: str) -> None:
+        pass
+
+    def strict_module_patch_enabled(mod: object) -> bool:
+        return False
+
+    class StrictModule(ModuleType):
+        def __init__(self, d: dict[str, object], b: bool) -> None:
+            pass
+
+    def watch_sys_modules() -> None:
+        pass
+
 finally:
     sys.setdlopenflags(old_dlopen_flags)
 
@@ -64,6 +144,9 @@ def strictify_static() -> None:
         sys.modules["_static"] = StrictModule(_static.__dict__, False)
 
 
+_is_init: bool = False
+
+
 def init() -> None:
     """Initialize CinderX."""
     if cinderx_init is None:
@@ -72,3 +155,21 @@ def init() -> None:
     cinderx_init()
 
     strictify_static()
+
+    global _is_init
+    _is_init = True
+
+
+def is_initialized() -> bool:
+    """
+    Check if the cinderx extension has been properly initialized.
+    """
+    return _is_init
+
+
+def get_import_error() -> ImportError | None:
+    """
+    Get the ImportError that occurred when _cinderx was imported, if there was
+    an error.
+    """
+    return _import_error
