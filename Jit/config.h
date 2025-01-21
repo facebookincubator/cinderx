@@ -7,10 +7,23 @@
 
 namespace jit {
 
-enum class InitState : uint8_t {
+// Lifetime diagram of the JIT compiler:
+//
+//   NotInitialized <---------+
+//        |                   |
+//        v                   |
+//     Running <---> Paused   |
+//        |            |      |
+//        v            |      |
+//    Finalizing <-----+      |
+//        |                   |
+//        |                   |
+//        +-------------------+
+enum class State : uint8_t {
   kNotInitialized,
-  kInitialized,
-  kFinalized,
+  kRunning,
+  kPaused,
+  kFinalizing,
 };
 
 enum class FrameMode : uint8_t {
@@ -49,10 +62,8 @@ struct GdbOptions {
 };
 
 struct Config {
-  // Initialization state of the JIT.
-  InitState init_state{InitState::kNotInitialized};
-  // Set when the JIT is initialized and enabled.
-  bool is_enabled{false};
+  // Current lifetime state of the JIT.
+  State state{State::kNotInitialized};
   // Ignore CLI arguments and environment variables, always initialize the JIT
   // without enabling it.  Intended for testing.
   bool force_init{false};
@@ -111,7 +122,14 @@ const Config& getConfig();
 // Get the JIT's current config object with the intent of modifying it.
 Config& getMutableConfig();
 
-// Check that the JIT is configured to be enabled and it is initialized.
+// Check that the JIT is initialized.  Though it might be paused and or
+// finalizing, it's not necessarily usable.
+bool isJitInitialized();
+
+// Check that the JIT is initialized and is currently usable.
 bool isJitUsable();
+
+// Check that the JIT is initialized but currently paused and unusable.
+bool isJitPaused();
 
 } // namespace jit

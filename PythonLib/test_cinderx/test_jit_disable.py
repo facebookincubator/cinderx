@@ -167,6 +167,21 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_enabled())
         self.assertTrue(is_jit_compiled(foo))
 
+    def test_pause_between_lazy_compile(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        self.assertFalse(is_jit_compiled(foo))
+        self.assertTrue(lazy_compile(foo))
+
+        with pause_jit():
+            foo(1, 2)
+            self.assertFalse(is_jit_compiled(foo))
+
+        self.assertTrue(is_jit_enabled())
+        self.assertFalse(is_jit_compiled(foo))
+        foo(3, 4)
+        self.assertTrue(is_jit_compiled(foo))
 
 if __name__ == "__main__":
     unittest.main()

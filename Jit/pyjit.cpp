@@ -195,8 +195,7 @@ uint64_t countCalls(PyCodeObject* code) {
 }
 
 _PyJIT_Result tryCompile(BorrowedRef<PyFunctionObject> func) {
-  _PyJIT_Result result =
-      jit::isJitUsable() ? _PyJIT_CompileFunction(func) : PYJIT_NOT_INITIALIZED;
+  _PyJIT_Result result = _PyJIT_CompileFunction(func);
   // Reset the function back to the interpreter if there was any non-retryable
   // failure.
   if (result != PYJIT_RESULT_OK && result != PYJIT_RESULT_RETRY) {
@@ -225,8 +224,13 @@ PyObject* autoJITVectorcall(
     return entry(func_obj, stack, nargsf, kwnames);
   }
 
-  if (tryCompile(func) == PYJIT_RESULT_PYTHON_EXCEPTION) {
+  _PyJIT_Result result = tryCompile(func);
+  if (result == PYJIT_RESULT_PYTHON_EXCEPTION) {
     return nullptr;
+  }
+  if (result == PYJIT_RESULT_RETRY) {
+    auto entry = getInterpretedVectorcall(func);
+    return entry(func_obj, stack, nargsf, kwnames);
   }
 
   JIT_DCHECK(
@@ -247,9 +251,16 @@ PyObject* jitVectorcall(
       "Called JIT wrapper with {} object instead of a function",
       Py_TYPE(func_obj)->tp_name);
   auto func = reinterpret_cast<PyFunctionObject*>(func_obj);
-  if (tryCompile(func) == PYJIT_RESULT_PYTHON_EXCEPTION) {
+
+  _PyJIT_Result result = tryCompile(func);
+  if (result == PYJIT_RESULT_PYTHON_EXCEPTION) {
     return nullptr;
   }
+  if (result == PYJIT_RESULT_RETRY) {
+    auto entry = getInterpretedVectorcall(func);
+    return entry(func_obj, stack, nargsf, kwnames);
+  }
+
   JIT_DCHECK(
       func->vectorcall != jitVectorcall,
       "Lazy JIT left function as lazy-JIT'able on {}",
@@ -1160,7 +1171,7 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
     JIT_DLOG("Deopted {} compiled functions", success);
   }
 
-  getMutableConfig().is_enabled = 0;
+  getMutableConfig().state = State::kPaused;
 
   Py_RETURN_NONE;
 }
@@ -1172,6 +1183,9 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
         "Trying to re-enable the JIT but it was never initialized");
     return nullptr;
   }
+  if (isJitUsable()) {
+    Py_RETURN_NONE;
+  }
 
   size_t count = 0;
   for (BorrowedRef<PyFunctionObject> func : jit_ctx->deoptedFuncs()) {
@@ -1179,7 +1193,7 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
     count++;
   }
 
-  getMutableConfig().is_enabled = 1;
+  getMutableConfig().state = State::kRunning;
 
   JIT_DLOG("Re-enabled the JIT and re-optimized {} functions", count);
 
@@ -2469,7 +2483,10 @@ void finalizeInternedStrings() {
 } // namespace
 
 int _PyJIT_Initialize() {
-  if (getConfig().init_state == InitState::kInitialized) {
+  JIT_CHECK(
+      getConfig().state != State::kFinalizing,
+      "Trying to re-initialize the JIT as it is finalizing");
+  if (isJitInitialized()) {
     return 0;
   }
 
@@ -2539,11 +2556,10 @@ int _PyJIT_Initialize() {
     return -1;
   }
 
-  getMutableConfig().init_state = InitState::kInitialized;
-  getMutableConfig().is_enabled = use_jit;
+  getMutableConfig().state = use_jit ? State::kRunning : State::kPaused;
   g_jit_list = jit_list.release();
 
-  JIT_DLOG("JIT is {}", getConfig().is_enabled ? "enabled" : "disabled");
+  JIT_DLOG("JIT is {}", isJitUsable() ? "enabled" : "disabled");
 
   total_time = std::chrono::milliseconds::zero();
 
@@ -2551,8 +2567,14 @@ int _PyJIT_Initialize() {
 }
 
 _PyJIT_Result _PyJIT_CompileFunction(PyFunctionObject* raw_func) {
-  if (jit_ctx == nullptr) {
+  if (!isJitInitialized()) {
     return PYJIT_NOT_INITIALIZED;
+  }
+  if (isJitPaused()) {
+    return PYJIT_RESULT_RETRY;
+  }
+  if (!isJitUsable()) {
+    return PYJIT_RESULT_UNKNOWN_ERROR;
   }
 
   BorrowedRef<PyFunctionObject> func{raw_func};
@@ -2660,9 +2682,13 @@ void _PyJIT_CodeDestroyed(PyCodeObject* code) {
 }
 
 int _PyJIT_Finalize() {
+  if (!isJitInitialized()) {
+    return 0;
+  }
+
   // Disable the JIT first so nothing we do in here ends up attempting to
   // invoke the JIT while we're finalizing our data structures.
-  getMutableConfig().is_enabled = 0;
+  getMutableConfig().state = State::kFinalizing;
 
   // Deopt all JIT generators, since JIT generators reference code and other
   // metadata that we will be freeing later in this function.
@@ -2682,23 +2708,20 @@ int _PyJIT_Finalize() {
   jit::Runtime::get()->clearDeoptStats();
   jit::Runtime::get()->releaseReferences();
 
-  if (getMutableConfig().init_state == InitState::kInitialized) {
-    delete g_jit_list;
-    g_jit_list = nullptr;
+  delete g_jit_list;
+  g_jit_list = nullptr;
 
-    // Clear some global maps that reference Python data.
-    jit_code_data.clear();
-    jit_reg_units.clear();
-    JIT_CHECK(
-        hir::preloaderManager().empty(),
-        "JIT cannot be finalized while batch compilation is active");
+  // Clear some global maps that reference Python data.
+  jit_code_data.clear();
+  jit_reg_units.clear();
+  JIT_CHECK(
+      hir::preloaderManager().empty(),
+      "JIT cannot be finalized while batch compilation is active");
 
-    getMutableConfig().init_state = InitState::kFinalized;
+  delete jit_ctx;
+  jit_ctx = nullptr;
 
-    JIT_CHECK(jit_ctx != nullptr, "jit_ctx not initialized");
-    delete jit_ctx;
-    jit_ctx = nullptr;
-
+  if (CodeAllocator::exists()) {
     CodeAllocator::freeGlobalCodeAllocator();
   }
 
@@ -2708,6 +2731,8 @@ int _PyJIT_Finalize() {
   Symbolizer::shutdown();
 
   g_aot_ctx.destroy();
+
+  getMutableConfig().state = State::kNotInitialized;
 
   return 0;
 }
@@ -2839,7 +2864,7 @@ PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate) {
 }
 
 PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
-  if (getConfig().init_state == InitState::kInitialized) {
+  if (isJitInitialized()) {
     return jit::materializeShadowCallStack(tstate);
   }
   return tstate->frame;
