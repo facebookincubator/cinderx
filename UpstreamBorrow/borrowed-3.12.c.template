@@ -96,6 +96,11 @@ PyObject* Cix_gc_freeze_impl(PyObject* mod) {
   return gc_freeze_impl(mod);
 }
 
+// @Borrow function builtin_next_impl from Python/bltinmodule.c
+PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
+    return builtin_next_impl(NULL /* unused_module */, it, def);
+}
+
 int init_upstream_borrow(void) {
   // Nothing to do here; retained for consistency with 3.10
   return 0;

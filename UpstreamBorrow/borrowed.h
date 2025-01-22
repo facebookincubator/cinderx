@@ -124,6 +124,10 @@ void Cix_format_exc_check_arg(
 PyObject* Cix_gc_freeze_impl(PyObject* module);
 #endif
 
+#if PY_VERSION_HEX >= 0x030C0000
+PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
+#endif
+
 int init_upstream_borrow(void);
 
 #ifdef __cplusplus

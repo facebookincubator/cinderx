@@ -125,7 +125,6 @@ funcptr Cix_method_enter_call(PyThreadState* tstate, PyObject* func);
 
 // Implementation in Python/bltinmodule.c
 PyObject* builtin_next(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
-PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
 
 /*
  * Dicts/Objects

@@ -41,7 +41,6 @@ STUB(
     PyObject*,
     PyObject* const*,
     Py_ssize_t)
-STUB(PyObject*, Ci_Builtin_Next_Core, T196761974, PyObject*, PyObject*)
 // We added this and it's hard to get out of the runtime as it checks equality
 // on a static function.
 STUB(
