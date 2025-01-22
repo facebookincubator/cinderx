@@ -25,7 +25,7 @@ class DisableEnableTests(unittest.TestCase):
 
     def test_is_enabled(self) -> None:
         self.assertTrue(is_jit_enabled())
-        disable_jit(compile_all=False)
+        disable_jit()
         self.assertFalse(is_jit_enabled())
         enable_jit()
         self.assertTrue(is_jit_enabled())
@@ -37,7 +37,7 @@ class DisableEnableTests(unittest.TestCase):
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
-        disable_jit(compile_all=False, deopt_all=True)
+        disable_jit(deopt_all=True)
         self.assertFalse(is_jit_compiled(foo))
 
         enable_jit()
@@ -50,7 +50,7 @@ class DisableEnableTests(unittest.TestCase):
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
-        disable_jit(compile_all=False, deopt_all=True)
+        disable_jit(deopt_all=True)
         self.assertFalse(is_jit_compiled(foo))
 
         jit_suppress(foo)
@@ -66,10 +66,10 @@ class DisableEnableTests(unittest.TestCase):
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
-        disable_jit(compile_all=False)
+        disable_jit()
         self.assertTrue(is_jit_compiled(foo))
 
-        disable_jit(compile_all=False, deopt_all=True)
+        disable_jit(deopt_all=True)
         self.assertFalse(is_jit_compiled(foo))
 
         enable_jit()
@@ -82,10 +82,10 @@ class DisableEnableTests(unittest.TestCase):
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
-        disable_jit(compile_all=False, deopt_all=True)
+        disable_jit(deopt_all=True)
         self.assertFalse(is_jit_compiled(foo))
 
-        disable_jit(compile_all=False, deopt_all=True)
+        disable_jit(deopt_all=True)
         self.assertFalse(is_jit_compiled(foo))
 
         enable_jit()
@@ -108,7 +108,7 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_compiled(foo))
 
     def test_compile_new_after_reenable(self) -> None:
-        disable_jit(compile_all=False, deopt_all=True)
+        disable_jit(deopt_all=True)
 
         def foo(a, b):
             return a + b

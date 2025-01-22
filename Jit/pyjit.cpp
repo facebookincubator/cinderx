@@ -1134,18 +1134,12 @@ PyObject* is_multithreaded_compile_test_enabled(PyObject*, PyObject*) {
 }
 
 PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
-  int do_compile_all = 0;
   int deopt_all = 0;
 
-  const char* keywords[] = {"compile_all", "deopt_all", nullptr};
+  const char* keywords[] = {"deopt_all", nullptr};
 
   if (!PyArg_ParseTupleAndKeywords(
-          args,
-          kwargs,
-          "|pp",
-          const_cast<char**>(keywords),
-          &do_compile_all,
-          &deopt_all)) {
+          args, kwargs, "|p", const_cast<char**>(keywords), &deopt_all)) {
     return nullptr;
   }
   if (jit_ctx == nullptr) {
@@ -1153,10 +1147,6 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
   }
 
   JIT_DLOG("Disabling the JIT");
-
-  if (do_compile_all && !compile_all()) {
-    return nullptr;
-  }
 
   if (deopt_all) {
     JIT_DLOG("Deopting {} compiled functions", jit_ctx->compiledFuncs().size());

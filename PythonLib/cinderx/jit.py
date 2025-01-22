@@ -32,7 +32,7 @@ try:
 
 except ImportError:
 
-    def disable(compile_all: bool = False, deopt_all: bool = False) -> None:
+    def disable(deopt_all: bool = False) -> None:
         pass
 
     def enable() -> None:
