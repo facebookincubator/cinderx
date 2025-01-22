@@ -8,6 +8,7 @@
 extern "C" {
 #endif
 
+extern PyTypeObject _PyType_MethodThunk;
 extern PyTypeObject _PyType_CachedPropertyThunk;
 extern PyTypeObject _PyType_AsyncCachedPropertyThunk;
 extern PyTypeObject _PyType_StaticThunk;
