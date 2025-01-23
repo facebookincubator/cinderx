@@ -2,14 +2,25 @@
 # pyre-strict
 """High-performance Python runtime extensions."""
 
+# ============================================================================
+# Note!
+#
+# At Meta, this module is currently loaded as part of Lib/site.py in an attempt
+# to get benefits from using it as soon as possible.  However
+# Lib/test/test_site.py will assert that site.py does not import too many
+# modules.  Be careful with adding import statements here.
+#
+# The plan is to move applications over to using an explicit initialization
+# step rather than Lib/site.py.  Once that is done we can add all the imports
+# we want here.
+# ============================================================================
+
 import os
 import sys
 
-from types import ModuleType
-from typing import Type, TypeVar
-
 
 _import_error: ImportError | None = None
+
 
 # We need to make the symbols from _cinderx available process wide as they
 # are used in other CinderX modules like _static, etc.
@@ -52,8 +63,6 @@ try:
 
 except ImportError as e:
     _import_error = e
-
-    T = TypeVar("T")
 
     cinderx_init = None
 
@@ -98,7 +107,7 @@ except ImportError as e:
     def enable_parallel_gc(min_generation: int = 2, num_threads: int = 0) -> None:
         pass
 
-    def freeze_type(ty: Type[T]) -> Type[T]:
+    def freeze_type(ty: object) -> object:
         return ty
 
     def get_parallel_gc_settings() -> dict[str, int]:
@@ -121,7 +130,7 @@ except ImportError as e:
     def strict_module_patch_enabled(mod: object) -> bool:
         return False
 
-    class StrictModule(ModuleType):
+    class StrictModule:
         def __init__(self, d: dict[str, object], b: bool) -> None:
             pass
 
@@ -141,6 +150,8 @@ def strictify_static() -> None:
     # if it has a __file__ attribute, libregrtest will try to write to it
     if hasattr(_static, "__file__"):
         del _static.__file__
+        # pyre-ignore[6]: Can't type this as ModuleType because this file can't import
+        # `types`, see the big comment at the top.
         sys.modules["_static"] = StrictModule(_static.__dict__, False)
 
 
