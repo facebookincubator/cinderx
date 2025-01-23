@@ -7,6 +7,7 @@
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/StaticPython/awaitable.h"
+#include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
 #include "cinderx/StaticPython/thunks.h"
@@ -24,53 +25,185 @@
 
 #define _PyClassMethod_Check(op) (Py_TYPE(op) == &PyClassMethod_Type)
 
-Py_ssize_t _PyClassLoader_GetExpectedArgCount(PyObject** callable) {
-  Py_ssize_t arg_count;
-  PyObject* original = *callable;
-  if (!PyFunction_Check(original)) {
-    if (_PyClassMethod_Check(original)) {
-      *callable = Ci_PyClassMethod_GetFunc(original);
-      if (!PyFunction_Check(*callable)) {
-        PyErr_SetString(PyExc_RuntimeError, "Not a function in a class method");
-        return -1;
-      }
-      arg_count = ((PyCodeObject*)((PyFunctionObject*)*callable)->func_code)
-                      ->co_argcount;
-    } else if (Py_TYPE(original) == &PyStaticMethod_Type) {
-      *callable = Ci_PyStaticMethod_GetFunc(original);
-      if (!PyFunction_Check(*callable)) {
-        PyErr_SetString(PyExc_RuntimeError, "Not a function in a class method");
-        return -1;
-      }
-      // static method doesn't take self, but it's passed as an argument in an
-      // INVOKE_METHOD.
-      arg_count = ((PyCodeObject*)((PyFunctionObject*)*callable)->func_code)
-                      ->co_argcount +
-          1;
-    } else if (Py_TYPE(original) == &_PyType_CachedPropertyThunk) {
-      arg_count = 1;
-      *callable =
-          ((PyCachedPropertyDescrObject*)((_Py_CachedPropertyThunk*)original)
-               ->propthunk_target)
-              ->func;
-    } else if (Py_TYPE(original) == &_PyType_TypedDescriptorThunk) {
-      // TODO: Test setter case?
-      if (((_Py_TypedDescriptorThunk*)original)->type == THUNK_SETTER) {
-        arg_count = 2;
-      } else {
-        arg_count = 1;
-      }
-      *callable =
-          ((_Py_TypedDescriptorThunk*)original)->typed_descriptor_thunk_target;
-    } else {
-      PyErr_Format(PyExc_RuntimeError, "Not a function: %R", original);
-      return -1;
-    }
-  } else {
-    arg_count =
-        ((PyCodeObject*)((PyFunctionObject*)*callable)->func_code)->co_argcount;
+// For simple signatures which are the most common that take and return Python
+// objects we have a number of built-in fixed values that can be re-used w/o
+// allocation.
+static _PyClassLoader_ThunkSignature simple_sigs[] = {
+    THUNK_SIG(0),
+    THUNK_SIG(1),
+    THUNK_SIG(2),
+    THUNK_SIG(3),
+    THUNK_SIG(4),
+    THUNK_SIG(5),
+    THUNK_SIG(6),
+    THUNK_SIG(7),
+    THUNK_SIG(8),
+    THUNK_SIG(9),
+    THUNK_SIG(10),
+};
+
+// Gets a thunk signature for a given code object. If the code object has all
+// primitive values and a limited number of args we can use the fixed simple
+// signatures. Otherwise we'll need to allocate a new signature object.
+// Can specify an extra argument for self which is used when we have a static
+// method where the argument is logically there for the invoke, but not in the
+// code object.
+_PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignatureFromCode(
+    PyCodeObject* code,
+    int extra_args) {
+  PyObject* checks = _PyClassLoader_GetCodeArgumentTypeDescrs(code);
+  if (checks == NULL) {
+    return NULL;
   }
-  return arg_count;
+  int optional, exact;
+  PyTypeObject* ret_type =
+      _PyClassLoader_ResolveCodeReturnType(code, &optional, &exact);
+  if (ret_type == NULL) {
+    return NULL;
+  }
+
+  // Scan the signature and see if it has any primitive arguments
+  Py_ssize_t arg_count = code->co_argcount;
+  Py_ssize_t check_count = _PyClassLoader_GetArgumentDescrLength(checks);
+  _PyClassLoader_ThunkSignature* sig = NULL;
+  for (Py_ssize_t i = 0; i < check_count; i++) {
+    PyObject* type_descr = _PyClassLoader_GetArgumentDescrType(checks, i);
+    int arg_type = _PyClassLoader_ResolvePrimitiveType(type_descr);
+    if (arg_type != TYPED_OBJECT) {
+      if (sig == NULL) {
+        // First primitive argument, allocate and initialize the signature
+        sig = (_PyClassLoader_ThunkSignature*)PyMem_Malloc(
+            sizeof(_PyClassLoader_ThunkSignature) +
+            sizeof(uint8_t) * (arg_count + extra_args));
+        if (sig == NULL) {
+          return NULL;
+        }
+        sig->ta_argcount = arg_count + extra_args;
+        sig->ta_has_primitives = 1;
+        sig->ta_allocated = 1;
+        sig->ta_rettype = _PyClassLoader_GetTypeCode(ret_type);
+        // Checks are sparse and are (arg_num, type_descr) and are in-order. So
+        // we initialize all positions to TYPED_OBJECT and will overwrite the
+        // primitive ones.
+        for (int j = 0; j < arg_count + extra_args; j++) {
+          sig->ta_argtype[j] = TYPED_OBJECT;
+        }
+      }
+      int arg_pos = _PyClassLoader_GetArgumentDescrPosition(checks, i);
+      sig->ta_argtype[arg_pos + extra_args] = arg_type;
+    }
+  }
+  if (sig != NULL) {
+    // We have primitive arguments and an initialized signature.
+    return sig;
+  }
+
+  // See if we have a fixed-size signature for a method w/ no primitives.
+  if ((arg_count + extra_args) <
+          sizeof(simple_sigs) / sizeof(_PyClassLoader_ThunkSignature) &&
+      _PyClassLoader_GetTypeCode(ret_type) == TYPED_OBJECT) {
+    return &simple_sigs[arg_count + extra_args];
+  }
+
+  // Long signature or primitive return, we need to allocate a signature object.
+  sig = (_PyClassLoader_ThunkSignature*)PyMem_Malloc(
+      sizeof(_PyClassLoader_ThunkSignature) + sizeof(uint8_t) * arg_count);
+  if (sig == NULL) {
+    return NULL;
+  }
+
+  sig->ta_argcount = arg_count + extra_args;
+  sig->ta_allocated = 1;
+  sig->ta_has_primitives = 0;
+  sig->ta_rettype = _PyClassLoader_GetTypeCode(ret_type);
+  for (int j = 0; j < arg_count + extra_args; j++) {
+    sig->ta_argtype[j] = TYPED_OBJECT;
+  }
+  return sig;
+}
+
+_PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignatureFromFunction(
+    PyObject* function,
+    int extra_args) {
+  return _PyClassLoader_GetThunkSignatureFromCode(
+      (PyCodeObject*)((PyFunctionObject*)function)->func_code, extra_args);
+}
+
+_PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignature(
+    PyObject* original) {
+  if (PyFunction_Check(original)) {
+    return _PyClassLoader_GetThunkSignatureFromFunction(original, 0);
+  } else if (_PyClassMethod_Check(original)) {
+    original = Ci_PyClassMethod_GetFunc(original);
+    if (!PyFunction_Check(original)) {
+      PyErr_SetString(PyExc_RuntimeError, "Not a function in a class method");
+      return NULL;
+    }
+    return _PyClassLoader_GetThunkSignatureFromFunction(original, 0);
+  } else if (Py_TYPE(original) == &PyStaticMethod_Type) {
+    original = Ci_PyStaticMethod_GetFunc(original);
+    if (!PyFunction_Check(original)) {
+      PyErr_SetString(PyExc_RuntimeError, "Not a function in a class method");
+      return NULL;
+    }
+    // static method doesn't take self, but it's passed as an argument in an
+    // INVOKE_METHOD.
+    return _PyClassLoader_GetThunkSignatureFromFunction(original, 1);
+  } else if (
+      Py_TYPE(original) == &_PyType_CachedPropertyThunk ||
+      Py_TYPE(original) == &_PyTypedDescriptorWithDefaultValue_Type ||
+      Py_TYPE(original) == &_PyType_AsyncCachedPropertyThunk ||
+      Py_TYPE(original) == &PyCachedPropertyWithDescr_Type ||
+      Py_TYPE(original) == &PyAsyncCachedPropertyWithDescr_Type ||
+      Py_TYPE(original) == &PyProperty_Type) {
+    return &simple_sigs[1];
+  } else if (Py_TYPE(original) == &_PyType_TypedDescriptorThunk) {
+    // TODO: Test setter case?
+    if (((_Py_TypedDescriptorThunk*)original)->type == THUNK_SETTER) {
+      return &simple_sigs[2];
+    } else {
+      return &simple_sigs[1];
+    }
+  } else if (Py_TYPE(original) == &PyMethodDescr_Type) {
+    PyMethodDescrObject* descr = (PyMethodDescrObject*)original;
+    if (descr->d_method->ml_flags == METH_NOARGS) {
+      return &simple_sigs[0];
+    } else if (descr->d_method->ml_flags == METH_O) {
+      return &simple_sigs[1];
+    }
+  } else if (Py_TYPE(original) == &PyCFunction_Type) {
+    PyCFunctionObject* func = (PyCFunctionObject*)original;
+    if (func->m_ml->ml_flags == Ci_METH_TYPED) {
+      Ci_PyTypedMethodDef* def = (Ci_PyTypedMethodDef*)func->m_ml->ml_meth;
+      const Ci_Py_SigElement* const* sig = def->tmd_sig;
+      Py_ssize_t argcnt = 0;
+      while (*sig != NULL) {
+        argcnt++;
+        sig++;
+      }
+      switch (argcnt) {
+        case 0:
+          return &simple_sigs[0];
+        case 1:
+          return &simple_sigs[1];
+        case 2:
+          return &simple_sigs[2];
+      }
+    } else if (func->m_ml->ml_flags == METH_NOARGS) {
+      return &simple_sigs[0];
+    } else if (func->m_ml->ml_flags == METH_O) {
+      return &simple_sigs[1];
+    } else {
+      // This is a hack, ultimately we shouldn't be using code for this and
+      // instead should be getting typed arg info in a function-independent
+      // way. Right now we only have one function which is METHOD_VARARGS
+      // and we know it takes 2.
+      assert(strcmp(func->m_ml->ml_name, "_property_missing_fset") == 0);
+      return &simple_sigs[2];
+    }
+  }
+
+  return NULL;
 }
 
 static _PyClassLoader_StaticCallReturn return_to_native(
@@ -82,6 +215,19 @@ static _PyClassLoader_StaticCallReturn return_to_native(
     ret.rax = (void*)_PyClassLoader_Unbox(val, type_code);
   } else {
     ret.rax = (void*)(uint64_t)val;
+  }
+  ret.rdx = (void*)(uint64_t)(val != NULL);
+  return ret;
+}
+
+static _PyClassLoader_StaticCallReturn return_to_native_typecode(
+    PyObject* val,
+    int type_code) {
+  _PyClassLoader_StaticCallReturn ret;
+  if (val != NULL && type_code != TYPED_OBJECT) {
+    ret.rax = (void*)_PyClassLoader_Unbox(val, type_code);
+  } else {
+    ret.rax = (void*)val;
   }
   ret.rdx = (void*)(uint64_t)(val != NULL);
   return ret;
@@ -116,6 +262,40 @@ int _PyClassLoader_HydrateArgs(
       }
       free_args[i] = call_args[i];
       cur_arg++;
+    } else {
+      free_args[i] = NULL;
+      call_args[i] = (PyObject*)original;
+    }
+  }
+  return 0;
+}
+
+int _PyClassLoader_HydrateArgsFromSig(
+    _PyClassLoader_ThunkSignature* sig,
+    Py_ssize_t arg_count,
+    void** args,
+    PyObject** call_args,
+    PyObject** free_args) {
+  PyObject** extra_args = (PyObject**)args[5];
+  for (Py_ssize_t i = 0; i < arg_count; i++) {
+    void* original;
+    if (i < 5) {
+      original = args[i]; // skip the v-table state
+    } else {
+      // The original args came in on the stack, so we have to skip the frame
+      // pointer, the return address and then add one more.
+      original = extra_args[i - 3];
+    }
+
+    if (sig->ta_has_primitives && sig->ta_argtype[i] != TYPED_OBJECT) {
+      call_args[i] = _PyClassLoader_Box((uint64_t)original, sig->ta_argtype[i]);
+      if (call_args[i] == NULL) {
+        for (Py_ssize_t free_arg = 0; free_arg < i; free_arg++) {
+          Py_CLEAR(free_args[free_arg]);
+        }
+        return -1;
+      }
+      free_args[i] = call_args[i];
     } else {
       free_args[i] = NULL;
       call_args[i] = (PyObject*)original;
@@ -234,16 +414,13 @@ __attribute__((__used__)) _PyClassLoader_StaticCallReturn
 _PyVTable_coroutine_property_native(
     _PyClassLoader_TypeCheckState* state,
     void** args) {
-  PyFunctionObject* original =
-      (PyFunctionObject*)state->tcs_rt.rt_base.mt_original;
-
-  PyCodeObject* code = (PyCodeObject*)original->func_code;
-  Py_ssize_t arg_count = code->co_argcount;
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
   PyObject* call_args[arg_count];
   PyObject* free_args[arg_count];
 
-  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
-      0) {
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
     return StaticError;
   }
   _PyClassLoader_StaticCallReturn res;
@@ -358,28 +535,19 @@ _PyVTable_coroutine_classmethod_native(
     _PyClassLoader_TypeCheckState* state,
     void** args,
     Py_ssize_t nargsf) {
-  PyObject* original = state->tcs_rt.rt_base.mt_original;
-  assert(Py_TYPE(original) == &PyClassMethod_Type);
-  PyFunctionObject* callable =
-      (PyFunctionObject*)Ci_PyClassMethod_GetFunc(original);
-
-  PyCodeObject* code = (PyCodeObject*)callable->func_code;
-  Py_ssize_t arg_count = code->co_argcount;
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
   PyObject* call_args[arg_count];
   PyObject* free_args[arg_count];
 
-  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
-      0) {
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
     return StaticError;
   }
 
-  int optional, exact, func_flags;
-  PyTypeObject* type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
-      (PyObject*)callable, &optional, &exact, &func_flags);
-
-  _PyClassLoader_StaticCallReturn res = return_to_native(
+  _PyClassLoader_StaticCallReturn res = return_to_native_typecode(
       _PyVTable_coroutine_classmethod_vectorcall(state, call_args, arg_count),
-      type);
+      sig->ta_rettype);
   _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
   return res;
 }
@@ -400,16 +568,13 @@ __attribute__((__used__)) PyObject* _PyVTable_coroutine_vectorcall(
 
 __attribute__((__used__)) _PyClassLoader_StaticCallReturn
 _PyVTable_coroutine_native(_PyClassLoader_TypeCheckState* state, void** args) {
-  PyFunctionObject* original =
-      (PyFunctionObject*)state->tcs_rt.rt_base.mt_original;
-
-  PyCodeObject* code = (PyCodeObject*)original->func_code;
-  Py_ssize_t arg_count = code->co_argcount;
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
   PyObject* call_args[arg_count];
   PyObject* free_args[arg_count];
 
-  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
-      0) {
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
     return StaticError;
   }
   _PyClassLoader_StaticCallReturn res;
@@ -429,8 +594,8 @@ __attribute__((__used__)) PyObject* _PyVTable_coroutine_staticmethod_vectorcall(
   if (try_call_instance_coroutine(state, args, nargsf, &res)) {
     return res;
   }
-  // _PyClassLoader_CallCoroutine will apply the descriptor protocol, stripping
-  // the arg.
+  // _PyClassLoader_CallCoroutine will apply the descriptor protocol,
+  // stripping the arg.
   return _PyClassLoader_CallCoroutine(state, args, nargsf);
 }
 
@@ -438,17 +603,13 @@ __attribute__((__used__)) _PyClassLoader_StaticCallReturn
 _PyVTable_coroutine_staticmethod_native(
     _PyClassLoader_TypeCheckState* state,
     void** args) {
-  PyFunctionObject* func = (PyFunctionObject*)Ci_PyStaticMethod_GetFunc(
-      state->tcs_rt.rt_base.mt_original);
-
-  PyCodeObject* code = (PyCodeObject*)func->func_code;
-  Py_ssize_t arg_count =
-      code->co_argcount + 1; // hydrate self and then we'll drop it
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
   PyObject* call_args[arg_count];
   PyObject* free_args[arg_count];
 
-  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
-      0) {
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
     return StaticError;
   }
   _PyClassLoader_StaticCallReturn res;
@@ -513,35 +674,24 @@ __attribute__((__used__)) _PyClassLoader_StaticCallReturn
 _PyVTable_nonfunc_property_native(
     _PyClassLoader_TypeCheckState* state,
     void** args) {
-  PyObject* original = state->tcs_rt.rt_base.mt_original;
-  Py_ssize_t arg_count = _PyClassLoader_GetExpectedArgCount(&original);
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
   if (arg_count < 0) {
     return StaticError;
   }
   PyObject* call_args[arg_count];
   PyObject* free_args[arg_count];
-  // We can have a property-like object which doesn't have an original function,
-  // for example a typed descriptor with a value.  TODO: Can one of those be a
-  // primitive?
-  if (PyFunction_Check(original)) {
-    PyCodeObject* code =
-        (PyCodeObject*)((PyFunctionObject*)original)->func_code;
-
-    if (_PyClassLoader_HydrateArgs(
-            code, arg_count, args, call_args, free_args) < 0) {
-      return StaticError;
-    }
-  } else {
-    for (Py_ssize_t i = 0; i < arg_count; i++) {
-      call_args[i] = (PyObject*)args[i];
-      free_args[i] = 0;
-    }
+  // We can have a property-like object which doesn't have an original
+  // function, for example a typed descriptor with a value.  TODO: Can one of
+  // those be a primitive?
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
+    return StaticError;
   }
   PyObject* obj =
       _PyVTable_nonfunc_property_vectorcall(state, call_args, arg_count);
   _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
-  return return_to_native(
-      obj, ((_PyClassLoader_RetTypeInfo*)state)->rt_expected);
+  return return_to_native_typecode(obj, sig->ta_rettype);
 }
 
 VTABLE_THUNK(_PyVTable_nonfunc_property, _PyClassLoader_TypeCheckState)
@@ -596,24 +746,19 @@ done:
 
 __attribute__((__used__)) _PyClassLoader_StaticCallReturn
 _PyVTable_nonfunc_native(_PyClassLoader_TypeCheckState* state, void** args) {
-  PyObject* original = state->tcs_rt.rt_base.mt_original;
-  Py_ssize_t arg_count = _PyClassLoader_GetExpectedArgCount(&original);
-  if (arg_count < 0) {
-    return StaticError;
-  }
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
 
-  PyCodeObject* code = (PyCodeObject*)((PyFunctionObject*)original)->func_code;
   PyObject* call_args[arg_count];
   PyObject* free_args[arg_count];
 
-  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
-      0) {
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
     return StaticError;
   }
   PyObject* obj = _PyVTable_nonfunc_vectorcall(state, call_args, arg_count);
   _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
-  return return_to_native(
-      obj, ((_PyClassLoader_RetTypeInfo*)state)->rt_expected);
+  return return_to_native_typecode(obj, sig->ta_rettype);
 }
 
 VTABLE_THUNK(_PyVTable_nonfunc, _PyClassLoader_TypeCheckState)
@@ -744,35 +889,28 @@ __attribute__((__used__)) _PyClassLoader_StaticCallReturn
 _PyVTable_func_overridable_native(
     _PyClassLoader_TypeCheckState* state,
     void** args) {
-  PyFunctionObject* func =
-      (PyFunctionObject*)((_PyClassLoader_MethodThunk*)state)->mt_original;
-  Py_ssize_t arg_count = ((PyCodeObject*)func->func_code)->co_argcount;
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
   PyObject* call_args[arg_count];
   PyObject* free_args[arg_count];
 
-  if (_PyClassLoader_HydrateArgs(
-          (PyCodeObject*)func->func_code,
-          arg_count,
-          args,
-          call_args,
-          free_args) < 0) {
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
     return StaticError;
   }
 
-  PyObject* obj = _PyVTable_func_overridable_vectorcall(
-      state, call_args, ((PyCodeObject*)func->func_code)->co_argcount);
-  _PyClassLoader_FreeHydratedArgs(
-      free_args, ((PyCodeObject*)func->func_code)->co_argcount);
-  return return_to_native(
-      obj, ((_PyClassLoader_RetTypeInfo*)state)->rt_expected);
+  PyObject* obj =
+      _PyVTable_func_overridable_vectorcall(state, call_args, sig->ta_argcount);
+  _PyClassLoader_FreeHydratedArgs(free_args, sig->ta_argcount);
+  return return_to_native_typecode(obj, sig->ta_rettype);
 }
 
 VTABLE_THUNK(_PyVTable_func_overridable, _PyClassLoader_TypeCheckState)
 
 /**
     This vectorcall entrypoint pulls out the function, slot index and replaces
-    its own entrypoint in the v-table with optimized static vectorcall. (It also
-    calls the underlying function and returns the value while doing so).
+    its own entrypoint in the v-table with optimized static vectorcall. (It
+    also calls the underlying function and returns the value while doing so).
 */
 __attribute__((__used__)) PyObject* _PyVTable_func_lazyinit_vectorcall(
     PyObject* state,
@@ -827,7 +965,6 @@ __attribute__((__used__)) PyObject* _PyVTable_staticmethod_vectorcall(
     PyObject** args,
     Py_ssize_t nargsf) {
   PyObject* func = Ci_PyStaticMethod_GetFunc(method);
-
   return _PyObject_Vectorcall(func, ((PyObject**)args) + 1, nargsf - 1, NULL);
 }
 
@@ -855,28 +992,6 @@ _PyVTable_staticmethod_native(PyObject* method, void** args) {
 }
 
 VTABLE_THUNK(_PyVTable_staticmethod, PyObject)
-
-__attribute__((__used__)) PyObject*
-_PyVTable_staticmethod_overridable_vectorcall(
-    PyObject* thunk,
-    PyObject** args,
-    Py_ssize_t nargsf) {
-  PyObject* method = ((_PyClassLoader_TypeCheckState*)thunk)->tcs_value;
-  PyObject* func = Ci_PyStaticMethod_GetFunc(method);
-
-  return _PyObject_Vectorcall(func, ((PyObject**)args) + 1, nargsf - 1, NULL);
-}
-
-__attribute__((__used__)) _PyClassLoader_StaticCallReturn
-_PyVTable_staticmethod_overridable_native(PyObject* thunk, void** args) {
-  PyObject* original = Ci_PyStaticMethod_GetFunc(
-      ((_PyClassLoader_MethodThunk*)thunk)->mt_original);
-  PyObject* method = ((_PyClassLoader_TypeCheckState*)thunk)->tcs_value;
-  PyObject* func = Ci_PyStaticMethod_GetFunc(method);
-  return invoke_from_native(original, func, args);
-}
-
-VTABLE_THUNK(_PyVTable_staticmethod_overridable, PyObject)
 
 __attribute__((__used__)) PyObject* _PyVTable_classmethod_vectorcall(
     PyObject* state,
@@ -968,24 +1083,19 @@ __attribute__((__used__)) _PyClassLoader_StaticCallReturn
 _PyVTable_classmethod_overridable_native(
     _PyClassLoader_TypeCheckState* state,
     void** args) {
-  PyObject* original = state->tcs_rt.rt_base.mt_original;
-  PyFunctionObject* func =
-      (PyFunctionObject*)Ci_PyClassMethod_GetFunc(original);
-
-  PyCodeObject* code = (PyCodeObject*)func->func_code;
-  Py_ssize_t arg_count = code->co_argcount;
+  _PyClassLoader_ThunkSignature* sig = state->tcs_rt.rt_base.mt_sig;
+  Py_ssize_t arg_count = sig->ta_argcount;
   PyObject* call_args[arg_count];
   PyObject* free_args[arg_count];
 
-  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
-      0) {
+  if (_PyClassLoader_HydrateArgsFromSig(
+          sig, arg_count, args, call_args, free_args) < 0) {
     return StaticError;
   }
   PyObject* obj =
       _PyVTable_classmethod_overridable_vectorcall(state, call_args, arg_count);
   _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
-  return return_to_native(
-      obj, ((_PyClassLoader_RetTypeInfo*)state)->rt_expected);
+  return return_to_native_typecode(obj, sig->ta_rettype);
 }
 
 VTABLE_THUNK(_PyVTable_classmethod_overridable, _PyClassLoader_TypeCheckState)

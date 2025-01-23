@@ -89,14 +89,22 @@ int _PyClassLoader_HydrateArgs(
     PyObject** call_args,
     PyObject** free_args);
 
+int _PyClassLoader_HydrateArgsFromSig(
+    _PyClassLoader_ThunkSignature* sig,
+    Py_ssize_t arg_count,
+    void** args,
+    PyObject** call_args,
+    PyObject** free_args);
+
 // Frees the arguments which were hydrated with _PyClassLoader_HydrateArgs
 void _PyClassLoader_FreeHydratedArgs(
     PyObject** free_args,
     Py_ssize_t arg_count);
 
-// Gets the number of arguments that this callable will be called with
-// when dispatched via a v-table entry.
-Py_ssize_t _PyClassLoader_GetExpectedArgCount(PyObject** callable);
+// Gets the underlying signature for a function, going through things like
+// class methods and static methods.
+_PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignature(
+    PyObject* original);
 
 PyObject* _PyVTable_coroutine_vectorcall(
     _PyClassLoader_TypeCheckState* state,
@@ -145,6 +153,10 @@ PyObject* _PyVTable_nonfunc_dont_bolt(
     size_t nargsf);
 PyObject* _PyVTable_staticmethod_dont_bolt(
     PyObject* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_staticmethod_overridable_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf);
 PyObject* _PyVTable_classmethod_dont_bolt(

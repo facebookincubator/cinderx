@@ -1009,6 +1009,20 @@ class InvokeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), 4)
 
+    def test_invoke_primitive_many_args(self):
+        codestr = """
+            from __static__ import int64, box
+            class C:
+                def f(self, a, b, c, d, e, idx: int64):
+                    return box(idx)
+
+            def x(c: C, o: int64):
+                return c.f(None, None, None, None, None, o)
+        """
+        with self.in_module(codestr) as mod:
+            c = mod.C()
+            self.assertEqual(mod.x(c, 42), 42)
+
     def test_invoke_method_takes_2_primitives(self):
         codestr = """
             from __static__ import cbool, box
