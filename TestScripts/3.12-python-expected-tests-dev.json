@@ -11,8 +11,7 @@
     "test_cinderx.test_coro_extensions",
     "test_cinderx.test_cpython_overrides.test_dis",
     "test_cinderx.test_cpython_overrides.test_trace",
-    "test_cinderx.test_shadowcode",
-    "test_cinderx.test_strictmodule"
+    "test_cinderx.test_shadowcode"
   ],
   "good": [
     "test.test__locale",

@@ -10,8 +10,6 @@ from cinderx.compiler.strict.flag_extractor import (
     Flags,
 )
 
-from cinderx.strictmodule import StrictAnalysisResult, StrictModuleLoader
-
 from .common import StrictTestBase
 from .sandbox import sandbox
 

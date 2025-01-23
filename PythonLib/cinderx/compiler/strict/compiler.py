@@ -11,30 +11,17 @@ import symtable
 import sys
 from contextlib import nullcontext
 from dataclasses import dataclass
-from symtable import SymbolTable as PythonSymbolTable, SymbolTableFactory
+from symtable import SymbolTable as PythonSymbolTable
 from types import CodeType
-from typing import Callable, ContextManager, final, Iterable, TYPE_CHECKING
-
-from cinderx.strictmodule import StrictAnalysisResult, StrictModuleLoader
+from typing import Callable, ContextManager, final, Iterable
 
 from ..errors import TypedSyntaxError
 from ..pycodegen import compile as python_compile
 from ..static import Compiler as StaticCompiler, ModuleTable, StaticCodeGenerator
 from . import strict_compile
-from .class_conflict_checker import check_class_conflict
 from .common import StrictModuleError
 from .flag_extractor import FlagExtractor, Flags
 from .rewriter import remove_annotations, rewrite
-
-if TYPE_CHECKING:
-    from cinderx.strictmodule import IStrictModuleLoader, StrictModuleLoaderFactory
-
-
-def getSymbolTable(mod: StrictAnalysisResult) -> PythonSymbolTable:
-    """
-    Construct a symtable object from analysis result
-    """
-    return SymbolTableFactory()(mod.symtable, mod.file_name)
 
 
 TIMING_LOGGER_TYPE = Callable[[str, str, str], ContextManager[None]]
@@ -78,7 +65,6 @@ class Compiler(StaticCompiler):
         log_time_func: Callable[[], TIMING_LOGGER_TYPE] | None = None,
         raise_on_error: bool = False,
         enable_patching: bool = False,
-        loader_factory: StrictModuleLoaderFactory = StrictModuleLoader,
         use_py_compiler: bool = False,
         allow_list_regex: Iterable[str] | None = None,
     ) -> None:
@@ -95,16 +81,6 @@ class Compiler(StaticCompiler):
         self.disable_analysis = bool(
             os.getenv("PYTHONSTRICTDISABLEANALYSIS")
             or sys._xoptions.get("strict-disable-analysis") is True
-        )
-        self.loader: IStrictModuleLoader = loader_factory(
-            self.import_path,
-            str(stub_root),
-            list(allow_list_prefix),
-            list(allow_list_exact),
-            True,  # _load_strictmod_builtin
-            list(self.allow_list_regex),
-            self.verbose,  # _verbose_logging
-            self.disable_analysis,  # _disable_analysis
         )
         self.raise_on_error = raise_on_error
         self.log_time_func = log_time_func
@@ -161,12 +137,7 @@ class Compiler(StaticCompiler):
         pyast = ast.parse(source)
         flags = FlagExtractor().get_flags(pyast)
 
-        valid_if_strict = True
-        if flags.is_strict:
-            mod = self.loader.check(name)
-            valid_if_strict = mod.is_valid and not mod.errors
-
-        if valid_if_strict and name not in self.modules:
+        if name not in self.modules:
             if flags.is_static:
                 # pyre-fixme[6]: For 1st argument expected `str` but got
                 #  `Union[bytes, str]`.
@@ -221,10 +192,6 @@ class Compiler(StaticCompiler):
         submodule_search_locations: list[str] | None = None,
         override_flags: Flags | None = None,
     ) -> tuple[CodeType | None, bool, bool]:
-        if override_flags and override_flags.is_strict:
-            self.logger.debug(f"Forcibly treating module {name} as strict")
-            self.loader.set_force_strict_by_name(name)
-
         pyast = ast.parse(source)
         # pyre-fixme[6]: For 1st argument expected `str` but got `Union[bytes, str]`.
         symbols = symtable.symtable(source, filename, "exec")
@@ -234,18 +201,12 @@ class Compiler(StaticCompiler):
             code = self._compile_basic(name, pyast, filename, optimize)
             return (code, False, False)
 
-        is_valid_strict = False
-        if flags.is_strict:
-            is_valid_strict = self._strict_analyze(
-                source, flags, symbols, filename, name, submodule_search_locations
-            )
-
         if flags.is_static:
             code = self._compile_static(pyast, symbols, filename, name, optimize)
-            return (code, is_valid_strict, True)
+            return (code, flags.is_strict, True)
         else:
             code = self._compile_strict(pyast, symbols, filename, name, optimize)
-            return (code, is_valid_strict, False)
+            return (code, flags.is_strict, False)
 
     def get_source(self, name: str, *, need_contents: bool = True) -> SourceInfo | None:
         source_info = self.sources.get(name, NOT_FOUND)
@@ -310,36 +271,6 @@ class Compiler(StaticCompiler):
             mtime=int(st.st_mtime),
             size=st.st_size,
         )
-
-    def _strict_analyze(
-        self,
-        source: str | bytes,
-        flags: Flags,
-        symbols: PythonSymbolTable,
-        filename: str,
-        name: str,
-        submodule_search_locations: list[str] | None = None,
-    ) -> bool:
-        mod = self.loader.check_source(
-            source, filename, name, submodule_search_locations or []
-        )
-
-        is_valid_strict = mod.is_valid and len(mod.errors) == 0
-
-        if mod.errors and self.raise_on_error:
-            error = mod.errors[0]
-            raise StrictModuleError(error[0], error[1], error[2], error[3])
-
-        # TODO: Figure out if we need to run this analysis. This should be done only for
-        # static analysis and not necessarily for strict modules. Keeping it for now since
-        # it is currently running with the strict compiler.
-        try:
-            check_class_conflict(mod.ast, filename, symbols)
-        except StrictModuleError:
-            if self.raise_on_error:
-                raise
-
-        return is_valid_strict
 
     def _compile_basic(
         self, name: str, root: ast.Module, filename: str, optimize: int

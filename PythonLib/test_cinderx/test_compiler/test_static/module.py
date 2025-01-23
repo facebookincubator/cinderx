@@ -4,7 +4,7 @@ from cinderx.compiler.static.module_table import ModuleTable, ModuleTableExcepti
 from cinderx.compiler.static.types import TypeEnvironment, Value
 from cinderx.compiler.strict.compiler import Compiler as StrictCompiler
 
-from .common import get_child, StaticTestBase, StaticTestsStrictModuleLoader
+from .common import get_child, StaticTestBase
 
 
 class ModuleTests(StaticTestBase):

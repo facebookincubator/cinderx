@@ -45,13 +45,6 @@ from cinderx.static import (
     TYPED_UINT64,
     TYPED_UINT8,
 )
-from cinderx.strictmodule import (
-    NONSTRICT_MODULE_KIND,
-    STATIC_MODULE_KIND,
-    StrictAnalysisResult,
-    STUB_KIND_MASK_NONE,
-    STUB_KIND_MASK_STRICT,
-)
 from test.support import maybe_get_event_loop_policy
 
 from ..common import CompilerTest
@@ -312,8 +305,7 @@ class StaticTestBase(CompilerTest):
             [],
             [],
             raise_on_error=True,
-            enable_patching=enable_patching,
-            loader_factory=StaticTestsStrictModuleLoader,
+            enable_patching=enable_patching
         )
 
     def compile_strict(
@@ -646,74 +638,3 @@ __slot_types__ = {slot_types!r}
         code_gen.visit(tree)
 
         return tree, compiler
-
-
-class StaticTestsStrictModuleLoader:
-    """Fake StrictModuleLoader for Static Python tests.
-
-    Allows running code through strict rewrite without actually doing a
-    full strict analysis on it.
-    """
-
-    def __init__(
-        self,
-        _import_paths: list[str],
-        _stub_import_path: str,
-        _allow_list: list[str],
-        _allow_list_exact: list[str],
-        _load_strictmod_builtin: bool = True,
-        _allow_list_regex: list[str] | None = None,
-        _verbose_logs: bool = False,
-        _disable_analysis: bool = False,
-        /,
-    ) -> None:
-        pass
-
-    def check_source(
-        self,
-        _source: str | bytes,
-        _file_name: str,
-        _mod_name: str,
-        _submodule_search_locations: list[str],
-        /,
-    ) -> StrictAnalysisResult:
-        return self._get_result(
-            _source,
-            _mod_name,
-            _file_name,
-            STATIC_MODULE_KIND,
-            STUB_KIND_MASK_NONE,
-        )
-
-    def check(self, _mod_name: str, /) -> StrictAnalysisResult:
-        return self._get_result(
-            "",
-            _mod_name,
-            f"{_mod_name}.py",
-            NONSTRICT_MODULE_KIND,
-            STUB_KIND_MASK_STRICT,
-        )
-
-    def _get_result(
-        self,
-        source: str | bytes,
-        modname: str,
-        filename: str,
-        mod_kind: int,
-        stub_kind: int,
-    ) -> StrictAnalysisResult:
-        tree = ast.parse(source)
-        symbols = symtable.symtable(source, filename, "exec")
-        result = StrictAnalysisResult(
-            modname,
-            filename,
-            mod_kind,
-            stub_kind,
-            tree,
-            symbols._table,
-            [],
-        )
-        return result
-
-    def set_force_strict_by_name(self, name: str):
-        pass
