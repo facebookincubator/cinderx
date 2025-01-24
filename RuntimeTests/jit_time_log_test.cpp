@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/jit_time_log.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <chrono>

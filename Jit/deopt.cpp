@@ -2,22 +2,42 @@
 
 #include "cinderx/Jit/deopt.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/bytecode_offsets.h"
-#include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/hir/analysis.h"
-#include "cinderx/Jit/jit_rt.h"
-#include "cinderx/Jit/runtime.h"
+#include "cinderx/Jit/hir/printer.h"
 
-#include <folly/tracing/StaticTracepoint.h>
+#include <usdt/usdt.h>
 
-#include <bit>
+#if PY_VERSION_HEX >= 0x030C0000
+#include "internal/pycore_frame.h"
+#endif
+
 #include <shared_mutex>
 
 using jit::codegen::PhyLocation;
 
 namespace jit {
+
+namespace {
+
+// Set of interned strings for deopt descriptions.
+std::unordered_set<std::string> s_descrs;
+std::shared_mutex s_descrs_mutex;
+
+// Intern a description string and return a reference to it.
+const std::string& internDescr(const std::string& descr) {
+  std::shared_lock reader_guard{s_descrs_mutex};
+  if (auto iter = s_descrs.find(descr); iter != s_descrs.end()) {
+    return *iter;
+  }
+  reader_guard.unlock();
+  std::unique_lock writer_guard{s_descrs_mutex};
+  return *s_descrs.emplace(descr).first;
+}
+
+} // namespace
 
 hir::ValueKind deoptValueKind(hir::Type type) {
   if (type <= jit::hir::TCBool) {
@@ -89,28 +109,40 @@ Ref<> MemoryView::readOwned(const LiveValue& value) const {
 }
 
 static void reifyLocalsplus(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const MemoryView& mem) {
+#if PY_VERSION_HEX < 0x030C0000
+  PyObject** localsplus = &frame->f_localsplus[0];
+#else
+  PyObject** localsplus = &frame->localsplus[0];
+#endif
   for (std::size_t i = 0; i < frame_meta.localsplus.size(); i++) {
-    auto value = meta.getLocalValue(i, frame_meta);
+    const LiveValue* value = meta.getLocalValue(i, frame_meta);
     if (value == nullptr) {
       // Value is dead
-      Py_CLEAR(frame->f_localsplus[i]);
-      continue;
+      Py_CLEAR(*localsplus);
+    } else {
+      PyObject* obj = mem.readOwned(*value).release();
+      Py_XSETREF(*localsplus, obj);
     }
-    PyObject* obj = mem.readOwned(*value).release();
-    Py_XSETREF(frame->f_localsplus[i], obj);
+    localsplus++;
   }
 }
 
 static void reifyStack(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const MemoryView& mem) {
+#if PY_VERSION_HEX < 0x030C0000
   frame->f_stackdepth = frame_meta.stack.size();
+  PyObject** stack_top = &frame->f_valuestack[frame->f_stackdepth - 1];
+#else
+  frame->stacktop = frame->f_code->co_nlocalsplus + frame_meta.stack.size();
+  PyObject** stack_top = &frame->localsplus[frame->stacktop - 1];
+#endif
   for (int i = frame_meta.stack.size() - 1; i >= 0; i--) {
     const auto& value = meta.getStackValue(i, frame_meta);
     Ref<> obj = mem.readOwned(value);
@@ -123,13 +155,14 @@ static void reifyStack(
       // which we need to replace with nullptr to match the interpreter
       // semantics.
       if (obj == Py_None) {
-        frame->f_valuestack[i] = nullptr;
+        *stack_top = nullptr;
       } else {
-        frame->f_valuestack[i] = obj.release();
+        *stack_top = obj.release();
       }
     } else {
-      frame->f_valuestack[i] = obj.release();
+      *stack_top = obj.release();
     }
+    stack_top--;
   }
 }
 
@@ -137,21 +170,19 @@ Ref<> profileDeopt(
     std::size_t deopt_idx,
     const DeoptMetadata& meta,
     const MemoryView& mem) {
-  BorrowedRef<PyCodeObject> code = meta.code();
-  BCOffset bc_off = meta.instr_offset();
+  BorrowedRef<PyCodeObject> code = meta.innermostFrame().code;
+  BCOffset bc_off = meta.innermostFrame().cause_instr_idx;
 
   // Bytecode offset will be negative if the interpreter wants to resume
   // executing at the start of the function.  Report a negative/invalid opcode
   // for that case.
   int opcode = -1;
   if (bc_off.value() >= 0) {
-    char* raw_code = PyBytes_AS_STRING(code->co_code);
-    BytecodeInstruction bc_instr{
-        reinterpret_cast<_Py_CODEUNIT*>(raw_code), bc_off};
+    BytecodeInstruction bc_instr{code, bc_off};
     opcode = bc_instr.opcode();
   }
 
-  FOLLY_SDT(
+  USDT(
       python,
       deopt,
       deoptReasonName(meta.reason),
@@ -160,10 +191,38 @@ Ref<> profileDeopt(
       opcode);
 
   const LiveValue* live_val = meta.getGuiltyValue();
-  Ref<> guilty_obj = live_val == nullptr ? nullptr : mem.readOwned(*live_val);
-  Runtime::get()->recordDeopt(deopt_idx, guilty_obj.get());
-  return guilty_obj;
+  return live_val == nullptr ? nullptr : mem.readOwned(*live_val);
 }
+
+// This function handles all computation of the index to resume at for a given
+// deopt.
+//
+// The first thing is it considers is whether the deopt is a guard failure or
+// due to an exception being raised as part of the execution. Guard failures
+// mean the JITed opcode has failed and needs to be re-run in the interpreter,
+// exceptions mean the opcode has succeeded but there has been an exceptional
+// condition so we want to resume the *next* opcode in the interpreter.
+//
+// The second thing it handles is forced deopt. If we're forcing a deopt due to
+// no actual guard failure or exception, then we want to resume at the
+// instruction we're currently stopped on.
+static BCIndex getDeoptResumeIndex(
+    const DeoptMetadata& meta,
+    const DeoptFrameMetadata& frame,
+    bool forced_deopt) {
+  // We only need to consider guards as the deopt cause in the inner-most
+  // inlined location. If we are reifying the conceptual frames for an inlined
+  // function's callers then these will be resumed by the interpreter in
+  // future and will never be a JIT guard failure.
+  bool is_innermost = &frame == &meta.innermostFrame();
+  if ((is_innermost && meta.reason == DeoptReason::kGuardFailure) ||
+      forced_deopt) {
+    return frame.cause_instr_idx;
+  }
+  return frame.nextInstrIdx();
+}
+
+#if PY_VERSION_HEX < 0x030C0000
 
 static void reifyBlockStack(
     PyFrameObject* frame,
@@ -181,32 +240,29 @@ static void reifyBlockStack(
 static void reifyFrameImpl(
     PyFrameObject* frame,
     const DeoptMetadata& meta,
-    bool for_gen_resume,
     const DeoptFrameMetadata& frame_meta,
+    bool forced_deopt,
     const uint64_t* regs) {
   frame->f_locals = nullptr;
   frame->f_trace = nullptr;
   frame->f_trace_opcodes = 0;
   frame->f_trace_lines = 1;
-  if (meta.reason == DeoptReason::kGuardFailure || for_gen_resume) {
-    frame->f_state = FRAME_EXECUTING;
-  } else {
-    frame->f_state = FRAME_UNWINDING;
+
+  // If we're forcing a deopt leave the frame state as-is.
+  if (!forced_deopt) {
+    frame->f_state = meta.reason == DeoptReason::kGuardFailure
+        ? FRAME_EXECUTING
+        : FRAME_UNWINDING;
   }
 
-  // Instruction pointer
-  if (frame_meta.next_instr_offset == 0) {
-    frame->f_lasti = -1;
-  } else {
-    frame->f_lasti = (BCIndex{frame_meta.next_instr_offset} - 1).value();
-  }
-  if (meta.reason == DeoptReason::kYieldFrom && for_gen_resume) {
-    // The DeoptMetadata for YieldFrom-like instructions defaults to the state
-    // for raising an exception. If we're going to resume execution, we need to
-    // pull the instruction pointer back by one, to repeat the YIELD_FROM
-    // bytecode.
-    frame->f_lasti--;
-  }
+  // Instruction pointer.
+  frame->f_lasti =
+      getDeoptResumeIndex(meta, frame_meta, forced_deopt).value() - 1;
+
+  // Saturate at -1 as some things specifically check for this to see if a
+  // frame is just created but not run yet.
+  frame->f_lasti = std::max(frame->f_lasti, -1);
+
   MemoryView mem{regs};
   reifyLocalsplus(frame, meta, frame_meta, mem);
   reifyStack(frame, meta, frame_meta, mem);
@@ -214,22 +270,44 @@ static void reifyFrameImpl(
   // Generator/frame linkage happens in `materializePyFrame` in frame.cpp
 }
 
+#else // PY_VERSION_HEX < 0x030C0000
+
+static void reifyFrameImpl(
+    _PyInterpreterFrame* frame,
+    const DeoptMetadata& meta,
+    const DeoptFrameMetadata& frame_meta,
+    bool forced_deopt,
+    const uint64_t* regs) {
+  // Note frame->prev_instr doesn't point to the previous instruction, it
+  // actually points to the memory location sizeof(Py_CODEUNIT) bytes before
+  // the next instruction to execute. This means it might point to inline-
+  // cache data or a negative location.
+  int idx = (getDeoptResumeIndex(meta, frame_meta, forced_deopt) - 1).value();
+  frame->prev_instr = _PyCode_CODE(frame->f_code) + idx;
+
+  MemoryView mem{regs};
+  reifyLocalsplus(frame, meta, frame_meta, mem);
+  reifyStack(frame, meta, frame_meta, mem);
+}
+
+#endif // PY_VERSION_HEX >= 0x030C0000
+
 void reifyFrame(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs) {
-  reifyFrameImpl(frame, meta, false, frame_meta, regs);
+  reifyFrameImpl(frame, meta, frame_meta, false /* forced_deopt */, regs);
 }
 
 void reifyGeneratorFrame(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const void* base) {
-  uint64_t regs[codegen::PhyLocation::NUM_GP_REGS]{};
-  regs[codegen::PhyLocation::RBP] = reinterpret_cast<uint64_t>(base);
-  reifyFrameImpl(frame, meta, true, frame_meta, regs);
+  uint64_t regs[codegen::NUM_GP_REGS]{};
+  regs[codegen::RBP.loc] = reinterpret_cast<uint64_t>(base);
+  reifyFrameImpl(frame, meta, frame_meta, true /* force_deopt */, regs);
 }
 
 void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem) {
@@ -249,8 +327,8 @@ void releaseRefs(const DeoptMetadata& meta, const MemoryView& mem) {
 }
 
 void releaseRefs(const DeoptMetadata& meta, const void* base) {
-  uint64_t regs[codegen::PhyLocation::NUM_GP_REGS]{};
-  regs[codegen::PhyLocation::RBP] = reinterpret_cast<uint64_t>(base);
+  uint64_t regs[codegen::NUM_GP_REGS]{};
+  regs[codegen::RBP.loc] = reinterpret_cast<uint64_t>(base);
   releaseRefs(meta, MemoryView{regs});
 }
 
@@ -298,9 +376,7 @@ static DeoptReason getDeoptReason(const jit::hir::DeoptBase& instr) {
   }
 }
 
-DeoptMetadata DeoptMetadata::fromInstr(
-    const jit::hir::DeoptBase& instr,
-    CodeRuntime* code_rt) {
+DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   auto get_source = [&](jit::hir::Register* reg) {
     reg = hir::modelReg(reg);
     auto instr = reg->instr();
@@ -340,14 +416,10 @@ DeoptMetadata DeoptMetadata::fromInstr(
 
   auto populate_localsplus =
       [get_reg_idx](DeoptFrameMetadata& meta, hir::FrameState* fs) {
-        std::size_t nlocals = fs->locals.size();
-        std::size_t ncells = fs->cells.size();
-        meta.localsplus.resize(nlocals + ncells, -1);
-        for (std::size_t i = 0; i < nlocals; i++) {
-          meta.localsplus[i] = get_reg_idx(fs->locals[i]);
-        }
-        for (std::size_t i = 0; i < ncells; i++) {
-          meta.localsplus[nlocals + i] = get_reg_idx(fs->cells[i]);
+        size_t nlocalsplus = fs->localsplus.size();
+        meta.localsplus.resize(nlocalsplus, -1);
+        for (size_t i = 0; i < nlocalsplus; ++i) {
+          meta.localsplus[i] = get_reg_idx(fs->localsplus[i]);
         }
       };
 
@@ -383,7 +455,7 @@ DeoptMetadata DeoptMetadata::fromInstr(
     populate_localsplus(meta.frame_meta.at(i), frame);
     populate_stack(meta.frame_meta.at(i), frame);
     meta.frame_meta.at(i).block_stack = frame->block_stack;
-    meta.frame_meta.at(i).next_instr_offset = frame->next_instr_offset;
+    meta.frame_meta.at(i).cause_instr_idx = frame->cur_instr_offs;
     meta.frame_meta.at(i).code = frame->code.get();
   }
 
@@ -406,21 +478,10 @@ DeoptMetadata DeoptMetadata::fromInstr(
     descr = instr.opname();
   }
 
-  {
-    // Set of interned strings for deopt descriptions.
-    static std::unordered_set<std::string> s_descrs;
-    static std::shared_mutex s_descrs_mutex;
+  // This is safe to do because `s_descrs` has process lifetime.
+  const std::string& interned = internDescr(descr);
+  meta.descr = interned.c_str();
 
-    std::shared_lock guard{s_descrs_mutex};
-    auto iter = s_descrs.find(descr);
-    if (iter != s_descrs.end()) {
-      meta.descr = iter->c_str();
-    } else {
-      guard.unlock();
-      std::unique_lock guard{s_descrs_mutex};
-      meta.descr = s_descrs.emplace(descr).first->c_str();
-    }
-  }
   return meta;
 }
 

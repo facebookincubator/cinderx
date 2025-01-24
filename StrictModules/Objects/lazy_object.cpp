@@ -1,8 +1,8 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
 #include "cinderx/StrictModules/Objects/lazy_object.h"
 
 #include "cinderx/StrictModules/Compiler/abstract_module_loader.h"
 
-#include <iostream>
 namespace strictmod::objects {
 
 StrictLazyObject::StrictLazyObject(

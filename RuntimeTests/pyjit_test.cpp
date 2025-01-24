@@ -3,7 +3,6 @@
 
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/runtime.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
@@ -21,7 +20,7 @@ class PyJITTest : public RuntimeTest {
   void SetUp() override {
     RuntimeTest::SetUp();
 
-    if (_PyJIT_IsEnabled()) {
+    if (isJitUsable()) {
       is_enabled = 1;
       _PyJIT_Finalize();
     }
@@ -51,6 +50,7 @@ class PyJITTest : public RuntimeTest {
 };
 
 TEST_F(RuntimeTest, ReadingFromCodeRuntimeReadsCode) {
+#if PY_VERSION_HEX < 0x030C0000
   const char* src = R"(
 def test(a, b):
   return a + b
@@ -65,9 +65,11 @@ def test(a, b):
       *reinterpret_cast<PyCodeObject**>(
           reinterpret_cast<byte*>(code_rt) + __strobe_CodeRuntime_py_code),
       code);
+#endif
 }
 
 TEST_F(RuntimeTest, ReadingFromRuntimeFrameStateReadsCode) {
+#if PY_VERSION_HEX < 0x030C0000
   const char* src = R"(
 def test(a, b):
   return a + b
@@ -80,4 +82,5 @@ def test(a, b):
       *reinterpret_cast<PyCodeObject**>(
           reinterpret_cast<byte*>(&rtfs) + __strobe_RuntimeFrameState_py_code),
       code);
+#endif
 }

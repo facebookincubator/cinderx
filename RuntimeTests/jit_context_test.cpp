@@ -2,11 +2,8 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
-
-#include "cinderx/Jit/jit_context.h"
-
+#include "cinderx/Jit/context.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 #include <memory>
 

@@ -1,9 +1,10 @@
+--- Test Suite Name ---
 GuardTypeRemovalTest
----
+--- Passes ---
 GuardTypeRemoval
----
+--- Test Name ---
 GuardTypeRemovalRemovesUnusedGuardType
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -12,7 +13,7 @@ fun test {
     v2 = GuardType<ListExact> v0
     v3 = BinaryOp<Subscript> v2 v1 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Locals<2> v0 v1
       }
     }
@@ -21,14 +22,14 @@ fun test {
     Return v5
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
     v3:Object = BinaryOp<Subscript> v0 v1 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Locals<2> v0 v1
       }
     }
@@ -36,9 +37,24 @@ fun test {
     Return v5
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v3:Object = BinaryOp<Subscript> v0 v1 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<2> v0 v1
+      }
+    }
+    v5:NoneType = LoadConst<NoneType>
+    Return v5
+  }
+}
+--- Test Name ---
 KeepsGuardTypeWhenRefineTypeIsntSufficientRefinement
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -52,7 +68,7 @@ fun test {
     Return v6
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -60,7 +76,7 @@ fun test {
     v2:Object = LoadArg<2>
     v3:Tuple = GuardType<Tuple> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v4:TupleExact = RefineType<BuiltinExact> v3
@@ -69,9 +85,26 @@ fun test {
     Return v6
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Object = LoadArg<2>
+    v3:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v4:TupleExact = RefineType<BuiltinExact> v3
+    v5:CInt64 = PrimitiveUnbox<CInt64> v1
+    v6:Object = LoadArrayItem v4 v5 v2
+    Return v6
+  }
+}
+--- Test Name ---
 FrameStateUsesDontKeepGuardsAlive
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -88,14 +121,14 @@ fun test {
     Return v4
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
     v3:ListExact = GuardType<ListExact> v1 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
         Stack<1> v0
       }
     }
@@ -105,9 +138,26 @@ fun test {
     Return v4
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v3:ListExact = GuardType<ListExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+        Stack<1> v0
+      }
+    }
+    v4:NoneType = LoadConst<NoneType>
+    v5:CInt32 = ListAppend v3 v4 {
+    }
+    Return v4
+  }
+}
+--- Test Name ---
 PrimitiveUnboxUsesInputType
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -120,13 +170,13 @@ fun test {
     Return v5
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:LongExact = GuardType<LongExact> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v2:CInt32 = PrimitiveUnbox<CInt32> v1
@@ -134,15 +184,35 @@ fun test {
     v4:CInt32 = IntBinaryOp<Add> v2 v3
     v5:LongExact = PrimitiveBox<CInt32> v4 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Return v5
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:LongExact = GuardType<LongExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:CInt32 = PrimitiveUnbox<CInt32> v1
+    v3:CInt32[123] = LoadConst<CInt32[123]>
+    v4:CInt32 = IntBinaryOp<Add> v2 v3
+    v5:LongExact = PrimitiveBox<CInt32> v4 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v5
+  }
+}
+--- Test Name ---
 RemovesGuardTypeWhenRefineTypeIsSufficientRefinement
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -156,7 +226,7 @@ fun test {
     Return v6
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -168,9 +238,21 @@ fun test {
     Return v6
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Object = LoadArg<2>
+    v4:TupleExact = RefineType<TupleExact> v0
+    v5:CInt64 = PrimitiveUnbox<CInt64> v1
+    v6:Object = LoadArrayItem v4 v5 v2
+    Return v6
+  }
+}
+--- Test Name ---
 KeepsGuardTypeThroughPassthroughDependency
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -185,7 +267,7 @@ fun test {
     Return v7
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -193,7 +275,7 @@ fun test {
     v2:Object = LoadArg<2>
     v3:Tuple = GuardType<Tuple> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v5:TupleExact = RefineType<BuiltinExact> v3
@@ -202,9 +284,26 @@ fun test {
     Return v7
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Object = LoadArg<2>
+    v3:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v5:TupleExact = RefineType<BuiltinExact> v3
+    v6:CInt64 = PrimitiveUnbox<CInt64> v1
+    v7:Object = LoadArrayItem v5 v6 v2
+    Return v7
+  }
+}
+--- Test Name ---
 RemovesGuardTypesFromPhisThatReferenceThemselves
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -225,13 +324,13 @@ fun test {
    Return v4
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v2:CInt32 = IsTruthy v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     CondBranch<2, 1> v2
@@ -251,9 +350,35 @@ fun test {
     Return v4
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v2:CInt32 = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<2, 1> v2
+  }
+
+  bb 1 (preds 0) {
+    v3:NoneType = LoadConst<NoneType>
+    Branch<2>
+  }
+
+  bb 2 (preds 0, 1, 2) {
+    v4:Object = Phi<0, 1, 2> v0 v3 v4
+    CondBranch<2, 3> v4
+  }
+
+  bb 3 (preds 2) {
+    Return v4
+  }
+}
+--- Test Name ---
 KeepGuardTypesFromPhisWhoseTypeRefinementIsNeeded
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -277,14 +402,14 @@ fun test {
     Return v7
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
     v2:Tuple = GuardType<Tuple> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     CondBranch<1, 2> v1
@@ -307,9 +432,39 @@ fun test {
     Return v7
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 2> v1
+  }
+
+  bb 1 (preds 0) {
+    v3:TupleExact = RefineType<BuiltinExact> v2
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v4:TupleExact = RefineType<TupleExact> v2
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:TupleExact = Phi<1, 2> v3 v4
+    v6:CInt64 = PrimitiveUnbox<CInt64> v1
+    v7:Object = LoadArrayItem v5 v6 v1
+    Return v7
+  }
+}
+--- Test Name ---
 RemoveGuardTypesFromUnusedPhis
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -331,7 +486,7 @@ fun test {
     Return v0
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -354,9 +509,32 @@ fun test {
     Return v0
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    CondBranch<1, 2> v1
+  }
+
+  bb 1 (preds 0) {
+    v3:BuiltinExact = RefineType<BuiltinExact> v0
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v4:TupleExact = RefineType<TupleExact> v0
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    v5:BuiltinExact = Phi<1, 2> v3 v4
+    Return v0
+  }
+}
+--- Test Name ---
 KeepsGuardTypeWhenGuardIsIsUsed
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -367,13 +545,13 @@ fun test {
     Return v4
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v3:Tuple = GuardType<Tuple> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v4:Bottom = GuardIs<0xdeadbeef> v3 {
@@ -382,4 +560,19 @@ fun test {
     Return v4
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v3:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v4:Bottom = GuardIs<0xdeadbeef> v3 {
+    }
+    UseType<Bottom> v4
+    Return v4
+  }
+}
+--- End ---

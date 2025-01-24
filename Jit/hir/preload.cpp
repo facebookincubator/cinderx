@@ -3,17 +3,27 @@
 #include "cinderx/Jit/hir/preload.h"
 
 #include <Python.h>
+
+#include "cinderx/Common/dict.h"
+#include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
-
 #include "cinderx/Jit/bytecode.h"
-#include "cinderx/Jit/codegen/gen_asm.h"
-#include "cinderx/Jit/hir/optimization.h"
+#include "cinderx/Jit/runtime.h"
+#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/StaticPython/vtable_builder.h"
 
 #include <utility>
 
 namespace jit::hir {
+
+namespace {
+
+PreloaderManager s_manager;
+
+} // namespace
 
 Type prim_type_to_type(int prim_type) {
   switch (prim_type) {
@@ -298,13 +308,12 @@ GlobalCache Preloader::getGlobalCache(BorrowedRef<> name_obj) const {
       "trying to get a globals cache with unwatchable builtins and/or globals");
   JIT_CHECK(PyUnicode_CheckExact(name_obj), "Name must be a str");
   BorrowedRef<PyUnicodeObject> name{name_obj};
-  return jit::Runtime::get()->globalCaches().findGlobalCache(
+  return _PyJIT_GetGlobalCacheManager()->findGlobalCache(
       builtins_, globals_, name);
 }
 
 bool Preloader::canCacheGlobals() const {
-  return _PyDict_HasOnlyUnicodeKeys(builtins_) &&
-      _PyDict_HasOnlyUnicodeKeys(globals_);
+  return hasOnlyUnicodeKeys(builtins_) && hasOnlyUnicodeKeys(globals_);
 }
 
 BorrowedRef<> Preloader::global(int name_idx) const {
@@ -344,90 +353,53 @@ BorrowedRef<> Preloader::constArg(BytecodeInstruction& bc_instr) const {
 }
 
 bool Preloader::preload() {
-  if (code_->co_flags & CO_STATICALLY_COMPILED) {
-    PyTypeOpt ret_type =
-        resolve_type_descr(_PyClassLoader_GetCodeReturnTypeDescr(code_));
-    if (std::get<0>(ret_type) == nullptr) {
-      JIT_LOG(
-          "unknown return type descr {} during preloading of {}",
-          repr(_PyClassLoader_GetCodeReturnTypeDescr(code_)),
-          fullname());
-      return false;
-    }
-    return_type_ = to_jit_type(ret_type);
-    BorrowedRef<PyTupleObject> checks = reinterpret_cast<PyTupleObject*>(
-        _PyClassLoader_GetCodeArgumentTypeDescrs(code_));
-    for (int i = 0; i < PyTuple_GET_SIZE(checks); i += 2) {
-      long local = PyLong_AsLong(PyTuple_GET_ITEM(checks, i));
-      if (local < 0) {
-        // A negative value for local indicates that it's a cell
-        JIT_CHECK(
-            code_->co_cell2arg != nullptr,
-            "no cell2arg but negative local {}",
-            local);
-        long arg = code_->co_cell2arg[-1 * (local + 1)];
-        JIT_CHECK(
-            arg != CO_CELL_NOT_AN_ARG, "cell not an arg for local {}", local);
-        local = arg;
-      }
-      PyTypeOpt pytype_opt =
-          resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));
-      if (std::get<0>(pytype_opt) == nullptr) {
-        JIT_LOG(
-            "unknown type descr {} during preloading of {}",
-            repr(PyTuple_GET_ITEM(checks, i + 1)),
-            fullname());
-        return false;
-      }
-      JIT_CHECK(
-          std::get<0>(pytype_opt) !=
-              reinterpret_cast<PyTypeObject*>(&PyObject_Type),
-          "shouldn't generate type checks for object");
-      Type type = to_jit_type(pytype_opt);
-      check_arg_types_.emplace(local, type);
-      check_arg_pytypes_.emplace(local, std::move(pytype_opt));
-      if (type <= TPrimitive) {
-        has_primitive_args_ = true;
-        if (local == 0) {
-          has_primitive_first_arg_ = true;
-        }
-      }
-    }
+  bool is_static = code_->co_flags & CI_CO_STATICALLY_COMPILED;
+  if (is_static && !preloadStatic()) {
+    return false;
   }
 
   jit::BytecodeInstructionBlock bc_instrs{code_};
   for (auto bc_instr : bc_instrs) {
     switch (bc_instr.opcode()) {
       case LOAD_GLOBAL: {
+        if (!canCacheGlobals()) {
+          break;
+        }
+        PyObject* names = code_->co_names;
+        Py_ssize_t names_len = PyTuple_Size(names);
+        int name_idx = loadGlobalIndex(bc_instr.oparg());
+        JIT_CHECK(
+            name_idx < names_len,
+            "Preloaded LOAD_GLOBAL with index {} for names tuple of length {}",
+            name_idx,
+            names_len);
+
+        BorrowedRef<> name = PyTuple_GET_ITEM(names, name_idx);
+        JIT_CHECK(name != nullptr, "name cannot be null");
+        // Make sure the cached value has been loaded and any side effects of
+        // loading it (e.g. lazy imports) have been exercised before we create
+        // the GlobalCache; otherwise GlobalCache initialization can
+        // self-destroy due to side effects of PyDict_GetItem and cause a
+        // use-after-free.
+        PyObject* global_value = PyDict_GetItem(globals_, name);
+        if (!global_value) {
+          // It's extremely unlikely that builtins dict could ever contain a
+          // lazy import that needs warming up, but since it is technically
+          // possible, we may as well go ahead and warm that up too if the key
+          // isn't in globals.
+          PyDict_GetItem(builtins_, name);
+        }
+        if (PyErr_Occurred()) {
+          return false;
+        }
+        // The above dict fetches may have had side effects that mean globals
+        // are no longer cacheable, so recheck that.
         if (canCacheGlobals()) {
-          int name_idx = bc_instr.oparg();
-          BorrowedRef<> name = PyTuple_GET_ITEM(code_->co_names, name_idx);
-          JIT_CHECK(name != nullptr, "name cannot be null");
-          // Make sure the cached value has been loaded and any side effects of
-          // loading it (e.g. lazy imports) have been exercised before we create
-          // the GlobalCache; otherwise GlobalCache initialization can
-          // self-destroy due to side effects of PyDict_GetItem and cause a
-          // use-after-free.
-          PyObject* global_value = PyDict_GetItem(globals_, name);
-          if (!global_value) {
-            // It's extremely unlikely that builtins dict could ever contain a
-            // lazy import that needs warming up, but since it is technically
-            // possible, we may as well go ahead and warm that up too if the key
-            // isn't in globals.
-            PyDict_GetItem(builtins_, name);
-          }
-          if (PyErr_Occurred()) {
-            return false;
-          }
-          // The above dict fetches may have had side effects that mean globals
-          // are no longer cacheable, so recheck that.
-          if (canCacheGlobals()) {
-            // We also initialize the GlobalCache here so we don't have to
-            // thread-serialize initializing it later (it calls PyDict_GetItem,
-            // which can cause data races in multithreaded compile.)
-            getGlobalCache(name);
-            global_names_.emplace(name_idx, name);
-          }
+          // We also initialize the GlobalCache here so we don't have to
+          // thread-serialize initializing it later (it calls PyDict_GetItem,
+          // which can cause data races in multithreaded compile.)
+          getGlobalCache(name);
+          global_names_.emplace(name_idx, name);
         }
         break;
       }
@@ -497,6 +469,119 @@ bool Preloader::preload() {
         _PyClassLoader_GetTypedArgsInfo(code_, true));
   }
   return true;
+}
+
+bool Preloader::preloadStatic() {
+  PyTypeOpt ret_type =
+      resolve_type_descr(_PyClassLoader_GetCodeReturnTypeDescr(code_));
+  if (std::get<0>(ret_type) == nullptr) {
+    JIT_LOG(
+        "unknown return type descr {} during preloading of {}",
+        repr(_PyClassLoader_GetCodeReturnTypeDescr(code_)),
+        fullname());
+    return false;
+  }
+  return_type_ = to_jit_type(ret_type);
+  BorrowedRef<PyTupleObject> checks = reinterpret_cast<PyTupleObject*>(
+      _PyClassLoader_GetCodeArgumentTypeDescrs(code_));
+  for (int i = 0; i < PyTuple_GET_SIZE(checks); i += 2) {
+    long local = PyLong_AsLong(PyTuple_GET_ITEM(checks, i));
+    if (local < 0) {
+#if PY_VERSION_HEX < 0x030C0000
+      // A negative value for local indicates that it's a cell
+      JIT_CHECK(
+          code_->co_cell2arg != nullptr,
+          "no cell2arg but negative local {}",
+          local);
+      long arg = code_->co_cell2arg[-1 * (local + 1)];
+      JIT_CHECK(
+          arg != CO_CELL_NOT_AN_ARG, "cell not an arg for local {}", local);
+      local = arg;
+#else
+      JIT_ABORT(
+          "In Static Python function {}, hit negative local {} at index {}",
+          fullname(),
+          local,
+          i);
+#endif
+    }
+    PyTypeOpt pytype_opt = resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));
+    if (std::get<0>(pytype_opt) == nullptr) {
+      JIT_LOG(
+          "unknown type descr {} during preloading of {}",
+          repr(PyTuple_GET_ITEM(checks, i + 1)),
+          fullname());
+      return false;
+    }
+    JIT_CHECK(
+        std::get<0>(pytype_opt) !=
+            reinterpret_cast<PyTypeObject*>(&PyObject_Type),
+        "shouldn't generate type checks for object");
+    Type type = to_jit_type(pytype_opt);
+    check_arg_types_.emplace(local, type);
+    check_arg_pytypes_.emplace(local, std::move(pytype_opt));
+    if (type <= TPrimitive) {
+      has_primitive_args_ = true;
+      if (local == 0) {
+        has_primitive_first_arg_ = true;
+      }
+    }
+  }
+
+  return true;
+}
+
+void PreloaderManager::add(
+    BorrowedRef<PyCodeObject> code,
+    std::unique_ptr<Preloader> preloader) {
+  auto [_, inserted] = preloaders_.emplace(code, std::move(preloader));
+  JIT_CHECK(
+      inserted,
+      "Trying to create a duplicate preloader for {}",
+      PyUnicode_AsUTF8(code->co_qualname));
+}
+
+Preloader* PreloaderManager::find(BorrowedRef<PyCodeObject> code) {
+  auto it = preloaders_.find(code);
+  return it != preloaders_.end() ? it->second.get() : nullptr;
+}
+
+Preloader* PreloaderManager::find(BorrowedRef<PyFunctionObject> func) {
+  BorrowedRef<PyCodeObject> code = func->func_code;
+  return find(code);
+}
+
+bool PreloaderManager::empty() const {
+  return preloaders_.empty();
+}
+
+void PreloaderManager::clear() {
+  preloaders_.clear();
+}
+
+void PreloaderManager::swap(PreloaderMap& replacement) {
+  // Should never be called from within the actual multi-threaded compile;
+  // it's not safe to mess with the global preloaders map in that context.
+  JIT_CHECK(
+      !getThreadedCompileContext().compileRunning(),
+      "cannot preload single func from within multi-threaded compile");
+  preloaders_.swap(replacement);
+}
+
+PreloaderManager& preloaderManager() {
+  return s_manager;
+}
+
+IsolatedPreloaders::IsolatedPreloaders() {
+  swap();
+}
+
+IsolatedPreloaders::~IsolatedPreloaders() {
+  swap();
+}
+
+void IsolatedPreloaders::swap() {
+  s_manager.swap(orig_preloaders_);
 }
 
 } // namespace jit::hir

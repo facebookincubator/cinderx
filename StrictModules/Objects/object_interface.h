@@ -1,8 +1,12 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #pragma once
 
+#include <Python.h>
+
+#include "internal/pycore_ast.h"
+
 #include "cinderx/StrictModules/caller_context.h"
-#include "pycore_ast.h"
 
 namespace strictmod::objects {
 class BaseStrictObject;

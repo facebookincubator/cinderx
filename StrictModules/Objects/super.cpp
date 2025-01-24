@@ -1,4 +1,3 @@
-
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include "cinderx/StrictModules/Objects/super.h"
 

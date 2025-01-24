@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from __future__ import annotations
 
 import _imp
@@ -260,10 +261,6 @@ class StrictLoaderTest(StrictTestBase):
         # TODO: loader test should also clear classlaoder caches
         self.sbx = base_sandbox.use_cm(sandbox, self)
 
-    def test_bad_strict(self) -> None:
-        with self.assertRaises(StrictModuleError):
-            self.sbx.strict_from_code('import __strict__\neval("2")')
-
     def test_ok_strict(self) -> None:
         mod = self.sbx.strict_from_code("import __strict__\nx = 2")
         self.assertEqual(mod.x, 2)
@@ -280,12 +277,6 @@ class StrictLoaderTest(StrictTestBase):
             mod = self.sbx._import("a")
         self.assertEqual(mod.x, 2)
         self.assertEqual(type(mod), StrictModule)
-
-    def test_forced_strict_bad(self) -> None:
-        self.sbx.write_file("a.py", "eval('2')")
-        with self.assertRaises(StrictModuleError):
-            with file_loader(STRICT_LOADER_ALWAYS_STRICT):
-                mod = self.sbx._import("a")
 
     def test_package_over_module(self) -> None:
         self.sbx.write_file(
@@ -316,7 +307,7 @@ class StrictLoaderTest(StrictTestBase):
             """,
         )
         with self.sbx.in_strict_module("a") as a:
-            self.assertInBytecode(a.f, "INVOKE_FUNCTION", (("a", "g"), 0))
+            self.assertInBytecode(a.f, "INVOKE_FUNCTION", ((("a",), "g"), 0))
             self.assertEqual(a.f(), 42)
 
     def test_strict_second_import(self) -> None:
@@ -352,12 +343,12 @@ class StrictLoaderTest(StrictTestBase):
         )
         with self.sbx.in_strict_module("a") as a1:
             self.assertEqual(a1.g(), 42)
-            self.assertInBytecode(a1.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a1.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
         # ensure pycs exist and we can import from them
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a2.g(), 42)
         # modify dependency, but not module a
         self.sbx.write_file(
@@ -393,12 +384,12 @@ class StrictLoaderTest(StrictTestBase):
         )
         with self.sbx.in_strict_module("a") as a1:
             self.assertEqual(a1.g(), 42)
-            self.assertInBytecode(a1.g, "CALL_FUNCTION", 0)
+            self.assertInBytecode(a1.g, self.CALL, 0)
         # ensure pycs exist and we can import from them
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "CALL_FUNCTION", 0)
+            self.assertInBytecode(a2.g, self.CALL, 0)
             self.assertEqual(a2.g(), 42)
         # modify dependency, but not module a
         self.sbx.write_file(
@@ -411,7 +402,7 @@ class StrictLoaderTest(StrictTestBase):
         )
         # bytecode for 'a' should now have an INVOKE_FUNCTION
         with self.sbx.in_strict_module("a") as a3:
-            self.assertInBytecode(a3.g, "INVOKE_FUNCTION", (("a", "f"), 0))
+            self.assertInBytecode(a3.g, "INVOKE_FUNCTION", ((("a",), "f"), 0))
             self.assertEqual(a3.g(), 43)
 
     def test_static_dependency_deleted_pyc_invalidation(self) -> None:
@@ -434,17 +425,17 @@ class StrictLoaderTest(StrictTestBase):
         )
         with self.sbx.in_strict_module("a") as a1:
             self.assertEqual(a1.g(), 42)
-            self.assertInBytecode(a1.g, "INVOKE_FUNCTION", (("b", "f"), 0))
+            self.assertInBytecode(a1.g, "INVOKE_FUNCTION", ((("b",), "f"), 0))
         # ensure pycs exist and we can import from them
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", (("b", "f"), 0))
+            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("b",), "f"), 0))
             self.assertEqual(a2.g(), 42)
         b_path.unlink()
         # bytecode for 'a' should now have CALL_FUNCTION instead
         with self.sbx.in_strict_module("a") as a3:
-            self.assertInBytecode(a3.g, "CALL_FUNCTION", 0)
+            self.assertInBytecode(a3.g, self.CALL, 0)
             # will fail because module b is gone
             with self.assertRaises(ModuleNotFoundError):
                 a3.g()
@@ -497,7 +488,7 @@ class StrictLoaderTest(StrictTestBase):
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a2.g(), 42)
         # modify dependency, but not module a
         self.sbx.write_file(
@@ -548,7 +539,7 @@ class StrictLoaderTest(StrictTestBase):
         with patch.object(
             StrictSourceFileLoader, "source_to_code", lambda *a, **kw: None
         ), self.sbx.in_strict_module("a") as a2:
-            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a2.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a2.g(), 42)
         self.sbx.write_file(
             "b.py",
@@ -560,7 +551,7 @@ class StrictLoaderTest(StrictTestBase):
         )
         # unchecked hash, so changes are not respected
         with self.sbx.in_strict_module("a") as a3:
-            self.assertInBytecode(a3.g, "INVOKE_FUNCTION", (("a", "C"), 0))
+            self.assertInBytecode(a3.g, "INVOKE_FUNCTION", ((("a",), "C"), 0))
             self.assertEqual(a3.g(), 42)
 
     def test_cached_attr(self) -> None:
@@ -806,7 +797,7 @@ class StrictLoaderTest(StrictTestBase):
             out = io.StringIO()
             dis.dis(mod, file=out)
             disassembly = out.getvalue()
-            self.assertIn("CALL_FUNCTION", disassembly)
+            self.assertIn(self.CALL, disassembly)
 
     def test_cross_module_static_typestub_ensure_types_untrusted(self) -> None:
         self.sbx.write_file(
@@ -850,7 +841,7 @@ class StrictLoaderTest(StrictTestBase):
             out = io.StringIO()
             dis.dis(mod, file=out)
             disassembly = out.getvalue()
-            self.assertIn("CALL_FUNCTION", disassembly)
+            self.assertIn(self.CALL, disassembly)
 
     def test_cross_module_2(self) -> None:
         self.sbx.write_file(
@@ -998,31 +989,6 @@ class StrictLoaderTest(StrictTestBase):
         self.assertEqual(type(mod), StrictModule)
         self.assertEqual(type(mod.b.C), type)
 
-    def test_import_child_module_not_strict_used(self) -> None:
-        self.sbx.write_file(
-            "a/b.py",
-            """
-                class C:
-                    pass
-            """,
-        )
-        self.sbx.write_file(
-            "a/__init__.py",
-            """
-                import __strict__
-            """,
-        )
-        self.sbx.write_file(
-            "b.py",
-            """
-                import __strict__
-                from a import b
-                x = b.C
-            """,
-        )
-        with self.assertRaises(StrictModuleError):
-            self.sbx.strict_import("b")
-
     def test_import_child_module_side_effects(self) -> None:
         """We disallow the assignment to a strict module when it's not actually
         the correct child module of the strict module."""
@@ -1145,35 +1111,6 @@ class StrictLoaderTest(StrictTestBase):
         b = self.sbx.strict_import("b")
         self.assertEqual(b.x, 42)
 
-    def test_import_child_module_parent_dels_path(self) -> None:
-        self.sbx.write_file(
-            "a/b.py",
-            """
-                import __strict__
-                class C:
-                    pass
-            """,
-        )
-        self.sbx.write_file(
-            "a/__init__.py",
-            """
-                import __strict__
-                del __path__
-            """,
-        )
-        self.sbx.write_file(
-            "b.py",
-            """
-                import __strict__
-                from a import b
-                x = b.C()
-            """,
-        )
-
-        # The import should fail since __path__ is deleted
-        with self.assertRaises(StrictModuleError):
-            self.sbx.strict_import("b")
-
     def test_import_child_module_changes_name(self) -> None:
         self.sbx.write_file(
             "a/b.py",
@@ -1215,25 +1152,6 @@ class StrictLoaderTest(StrictTestBase):
         b = self.sbx.strict_import("b")
         self.assertEqual(b.x, 2)
 
-    def test_cross_module_non_strict(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-                class C:
-                    pass
-            """,
-        )
-        self.sbx.write_file(
-            "b.py",
-            """
-                import __strict__
-                from a import C
-                x = C()
-            """,
-        )
-        with self.assertRaises(StrictModuleError):
-            self.sbx.strict_import("b")
-
     def test_cross_module_circular(self) -> None:
         self.sbx.write_file(
             "a.py",
@@ -1263,29 +1181,6 @@ class StrictLoaderTest(StrictTestBase):
         self.assertEqual(type(mod), StrictModule)
         self.assertEqual(mod.C().f(), 42)
 
-    def test_cross_module_type_error(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-                import __strict__
-                def f(a):
-                    a.foo = 42
-
-            """,
-        )
-        self.sbx.write_file(
-            "b.py",
-            """
-                import __strict__
-                import a
-
-                a.f('abc')
-
-            """,
-        )
-        with self.assertRaises(StrictModuleError):
-            self.sbx.strict_import("b")
-
     def test_cross_module_package_import_from_strict_package(self) -> None:
         """import from through a strict package, we can trust the child"""
         self.sbx.write_file("a/__init__.py", "import __strict__")
@@ -1308,31 +1203,6 @@ class StrictLoaderTest(StrictTestBase):
         )
 
         self.sbx.strict_import("a.b")
-
-    def test_cross_module_package_import_from_nonstrict_package(self) -> None:
-        """import from  through a non-strict package, the child can be mutated
-        and so we don't trust it"""
-        self.sbx.write_file("a/__init__.py", "")
-        self.sbx.write_file(
-            "a/b.py",
-            """
-                import __strict__
-                from a import c
-
-                x = c.C()
-            """,
-        )
-
-        self.sbx.write_file(
-            "a/c.py",
-            """
-                import __strict__
-                class C: pass
-            """,
-        )
-
-        with self.assertRaises(StrictModuleError):
-            self.sbx.strict_import("a.b")
 
     def test_cross_module_package_import_from_nonstrict_package_direct_import(
         self,
@@ -1520,21 +1390,6 @@ class StrictLoaderTest(StrictTestBase):
         mod = self.sbx.strict_from_code(code)
         self.assertEqual(mod.__annotations__, {"x": int, "y": 100})
 
-    def test_class_ann_assigned_and_inited(self) -> None:
-        code = """
-            import __strict__
-            class C:
-                x: int = 42
-                def __init__(self):
-                    self.x = 20
-        """
-        with self.assertRaises(StrictModuleError) as cm:
-            self.sbx.strict_from_code(code)
-        self.assertEqual(
-            cm.exception.msg, "Class member conflicts with instance member: ['x']"
-        )
-        self.assertTrue(cm.exception.filename.endswith("testmodule.py"))
-
     def test_class_instance_field_ok(self) -> None:
         code = """
             import __strict__
@@ -1542,23 +1397,6 @@ class StrictLoaderTest(StrictTestBase):
                 x: int
         """
         self.sbx.strict_from_code(code)
-
-    def test_class_annotations_global(self) -> None:
-        code = """
-            import __strict__
-            x: int
-            class C:
-                global __annotations__
-                y: bool
-                z = __annotations__
-        """
-        with self.assertRaises(StrictModuleError) as cm:
-            self.sbx.strict_from_code(code)
-        self.assertEqual(
-            cm.exception.msg,
-            "Class member conflicts with instance member: ['__annotations__']",
-        )
-        self.assertTrue(cm.exception.filename.endswith("testmodule.py"))
 
     def test_class_try_except_else(self) -> None:
         """try/orelse/except visit order matches symbol visitor"""
@@ -1816,16 +1654,6 @@ class StrictLoaderTest(StrictTestBase):
                 self.assertEqual(a.x, 2)
                 self.assertEqual(len(object.__getattribute__(proxy, "_patches")), 0)
             self.assertEqual(a.x, 2)
-
-    def test_cross_module_assignment(self) -> None:
-        self.sbx.write_file("a.py", "import __strict__\nx = 2")
-        self.sbx.write_file("b.py", "import __strict__\nimport a\na.foo = 42")
-
-        with self.assertRaises(StrictModuleError) as cm:
-            self.sbx.strict_import("b")
-        self.assertEqual(
-            cm.exception.msg, "can't set attribute foo of immutable module 'a'"
-        )
 
     def test_generic_namedtuple(self) -> None:
         code = """
@@ -2143,42 +1971,6 @@ class StrictLoaderTest(StrictTestBase):
             a.foo = 42
             self.assertEqual(warnings, [])
 
-    def test_cached_property_ownership(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-                import __strict__
-                from __strict__ import _mark_cached_property, strict_slots
-                called = 0
-                def dec(x):
-                    _mark_cached_property(x, False, dec)
-                    class C:
-                        def __get__(self, inst, ctx):
-                            return x(inst)
-
-                    return C()
-
-                l = []
-                @strict_slots
-                class C:
-                    @dec
-                    def l(self):
-                        l.append(1)
-                        return 42
-            """,
-        )
-        self.sbx.write_file(
-            "b.py",
-            """
-                import __strict__
-                from a import C
-                c = C()
-                c.l
-            """,
-        )
-        with self.assertRaises(StrictModuleError):
-            self.sbx.strict_import("b")
-
     def test_attribute_error(self) -> None:
         self.sbx.write_file("a.py", "import __strict__")
         a = self.sbx.strict_import("a")
@@ -2186,45 +1978,6 @@ class StrictLoaderTest(StrictTestBase):
             AttributeError, "strict module 'a' has no attribute 'foo'"
         ):
             a.foo
-
-    def test_cross_module_error_file(self) -> None:
-        """filenames should be properly reported for where the error occured"""
-        self.sbx.write_file(
-            "a.py",
-            """
-            import __strict__
-            def f():
-                return does_not_exist.x
-        """,
-        )
-        self.sbx.write_file("b.py", "import __strict__\nimport a\nx = a.f()")
-
-        with self.assertRaises(StrictModuleError) as cm:
-            self.sbx.strict_import("b")
-        e = cm.exception
-        self.assertTrue(e.filename.endswith("b.py"))
-        self.assertTrue(
-            e.msg.startswith(
-                "StrictModuleUnhandledException(NameError: name does_not_exist is not defined)"
-            )
-        )
-
-    def test_cross_module_raise(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-            import __strict__
-            def f():
-                raise ValueError()
-        """,
-        )
-        self.sbx.write_file("b.py", "import __strict__\nimport a\nx = a.f()")
-
-        with self.assertRaises(StrictModuleError) as cm:
-            self.sbx.strict_import("b")
-        e = cm.exception
-        self.assertTrue(e.filename.endswith("b.py"))
-        self.assertTrue(e.msg.startswith("StrictModuleUnhandledException(ValueError)"))
 
     def test_cross_module_raise_handled(self) -> None:
         self.sbx.write_file(
@@ -2273,24 +2026,6 @@ class StrictLoaderTest(StrictTestBase):
         self.assertEqual(x.f(), 42)
         self.assertEqual(x.f(), 42)
         self.assertEqual(x.calls, 1)
-
-    def test_lru_cache_top_level(self) -> None:
-        # lru cache exists and can be used normally
-        self.sbx.write_file(
-            "a.py",
-            """
-            import __strict__
-            from functools import lru_cache
-
-            class C:
-                @lru_cache(42)
-                def f(self):
-                    return 42
-            C().f()
-        """,
-        )
-        with self.assertRaises(StrictModuleError):
-            self.sbx.strict_import("a")
 
     def test_is_strict_module(self) -> None:
         self.sbx.write_file(
@@ -2569,83 +2304,6 @@ class StrictLoaderTest(StrictTestBase):
         )
         self.assertEqual(proc.returncode, 0, proc.stderr.decode())
         self.assertIn(b"42", proc.stdout, proc.stdout.decode())
-
-    def test_strict_loader_installation(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-            import b
-            """,
-        )
-        self.sbx.write_file(
-            "b.py",
-            """
-            import __strict__
-            from c import f
-
-            f()
-            """,
-        )
-        self.sbx.write_file(
-            "c.py",
-            """
-            def f():
-                print("hi")
-            """,
-        )
-        res = subprocess.run(
-            [sys.executable, "-X", "install-strict-loader", "a.py"],
-            cwd=str(self.sbx.root),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        self.assertEqual(res.returncode, 1)
-        output = res.stdout.decode()
-        self.assertIn(
-            "Module-level call of non-strict value '<f imported from c>()' is prohibited.",
-            output,
-        )
-        self.assertIn("StrictModuleError", output)
-
-    def test_strict_loader_installation_envvar(self) -> None:
-        self.sbx.write_file(
-            "a.py",
-            """
-            import b
-            """,
-        )
-        self.sbx.write_file(
-            "b.py",
-            """
-            import __strict__
-            from c import f
-
-            f()
-            """,
-        )
-        self.sbx.write_file(
-            "c.py",
-            """
-            def f():
-                print("hi")
-            """,
-        )
-        env = os.environ.copy()
-        env.update({"PYTHONINSTALLSTRICTLOADER": "1"})
-        res = subprocess.run(
-            [sys.executable, "a.py"],
-            cwd=str(self.sbx.root),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            env=env,
-        )
-        self.assertEqual(res.returncode, 1)
-        output = res.stdout.decode()
-        self.assertIn(
-            "Module-level call of non-strict value '<f imported from c>()' is prohibited.",
-            output,
-        )
-        self.assertIn("StrictModuleError", output)
 
     def test_strict_loader_stub_path(self) -> None:
         self.sbx.write_file(

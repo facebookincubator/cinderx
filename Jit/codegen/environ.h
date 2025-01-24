@@ -7,7 +7,6 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/inline_cache.h"
-#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/runtime.h"
 
 #include <asmjit/asmjit.h>
@@ -15,8 +14,6 @@
 namespace jit::codegen {
 
 struct Environ {
-  Environ(){};
-
   // Metadata for annotated disassembly.
   Annotations annotations;
 
@@ -107,6 +104,7 @@ struct Environ {
   jit::lir::Instruction* asm_tstate{nullptr};
   jit::lir::Instruction* asm_extra_args{nullptr};
   jit::lir::Instruction* asm_func{nullptr};
+  jit::lir::Instruction* asm_interpreter_frame{nullptr};
 
   // Maps HIR values to the HIR values they were copied from. Used for LIR
   // generation purposes.

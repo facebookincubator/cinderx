@@ -2,7 +2,12 @@
 
 #include "cinderx/Common/util.h"
 
+#include <Python.h>
+
+#include "cinderx/Common/code.h"
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 
 #include <zlib.h>
@@ -132,17 +137,17 @@ std::string funcFullname(PyFunctionObject* func) {
 
 PyObject* getVarnameTuple(PyCodeObject* code, int* idx) {
   if (*idx < code->co_nlocals) {
-    return code->co_varnames;
+    return PyCode_GetVarnames(code);
   }
 
   *idx -= code->co_nlocals;
-  auto ncellvars = PyTuple_GET_SIZE(code->co_cellvars);
+  auto ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   if (*idx < ncellvars) {
-    return code->co_cellvars;
+    return PyCode_GetCellvars(code);
   }
 
   *idx -= ncellvars;
-  return code->co_freevars;
+  return PyCode_GetFreevars(code);
 }
 
 PyObject* getVarname(PyCodeObject* code, int idx) {
@@ -165,9 +170,9 @@ Ref<> stringAsUnicode(std::string_view str) {
 }
 
 std::string typeFullname(PyTypeObject* type) {
-  PyObject* module_str = type->tp_dict
-      ? PyDict_GetItemString(type->tp_dict, "__module__")
-      : nullptr;
+  PyObject* dict = _PyType_GetDict(type);
+  PyObject* module_str =
+      dict ? PyDict_GetItemString(dict, "__module__") : nullptr;
   if (module_str != nullptr && PyUnicode_Check(module_str)) {
     return fmt::format("{}:{}", unicodeAsString(module_str), type->tp_name);
   }
@@ -187,12 +192,13 @@ BorrowedRef<> typeLookupSafe(
   for (size_t i = 0, n = PyTuple_GET_SIZE(mro); i < n; ++i) {
     BorrowedRef<PyTypeObject> base_ty{PyTuple_GET_ITEM(mro, i)};
     if (!PyType_HasFeature(base_ty, Py_TPFLAGS_READY) ||
-        _PyDict_HasUnsafeKeys(base_ty->tp_dict)) {
+        !hasOnlyUnicodeKeys(getBorrowedTypeDict(base_ty))) {
       // Abort the whole search if any base class dict is poorly-behaved
       // (before we find the name); it could contain the key we're looking for.
       return nullptr;
     }
-    if (BorrowedRef<> value{PyDict_GetItemWithError(base_ty->tp_dict, name)}) {
+    if (BorrowedRef<> value{
+            PyDict_GetItemWithError(getBorrowedTypeDict(base_ty), name)}) {
       return value;
     }
     JIT_CHECK(!PyErr_Occurred(), "Thread-unsafe exception during type lookup");
@@ -202,7 +208,7 @@ BorrowedRef<> typeLookupSafe(
 
 bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
   JIT_CHECK(
-      g_threaded_compile_context.canAccessSharedData(),
+      getThreadedCompileContext().canAccessSharedData(),
       "Accessing type object needs lock");
   if (PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG)) {
     return true;
@@ -212,7 +218,7 @@ bool ensureVersionTag(BorrowedRef<PyTypeObject> type) {
 
 uint32_t hashBytecode(BorrowedRef<PyCodeObject> code) {
   uint32_t crc = crc32(0, nullptr, 0);
-  BorrowedRef<> bc = code->co_code;
+  BorrowedRef<> bc = PyCode_GetCode(code);
   if (!PyBytes_Check(bc)) {
     return crc;
   }

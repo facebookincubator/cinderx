@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 a = 1
 b = "foo"
 c = (d, e)

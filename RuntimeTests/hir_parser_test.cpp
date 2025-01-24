@@ -3,9 +3,7 @@
 
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/printer.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 #include <memory>
 
@@ -37,10 +35,10 @@ TEST_F(HIRParserTest, ParsesHIR) {
               v2 = LoadConst<NoneType>
               Incref v2
               v1 = VectorCall<1> v2 v3
-              v1 = VectorCallKW<1> v2 v3
-              v1 = VectorCallStatic<1> v2 v3
-              v1 = CallExKw v2 v3 v4
-              v1 = CallEx v2 v3
+              v1 = VectorCall<1, kwnames> v2 v3
+              v1 = VectorCall<1, static> v2 v3
+              v1 = CallEx<kwargs> v2 v3 v4
+              v1 = CallEx v2 v3 v4
               v1 = ImportFrom<2> v3
               v1 = ImportName<2> v3 v4
               Decref v2
@@ -52,7 +50,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
               Return v1
             }
             bb 3 {
-              RaiseAwaitableError<53,52> v1
+              RaiseAwaitableError<__aenter__> v1
             }
          })";
 
@@ -82,7 +80,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   {
     auto& initial_yield = static_cast<InitialYield&>(*it);
     ASSERT_EQ(initial_yield.live_regs().size(), 0);
-    ASSERT_EQ(initial_yield.GetOutput()->name(), "v0");
+    ASSERT_EQ(initial_yield.output()->name(), "v0");
   }
   ++it;
   ASSERT_EQ(it->opcode(), Opcode::kCheckVar);
@@ -104,7 +102,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
     ASSERT_EQ(reg_states.size(), 1);
     ASSERT_EQ(reg_states.at(0).reg->name(), "v1");
     ASSERT_EQ(reg_states.at(0).ref_kind, RefKind::kOwned);
-    ASSERT_EQ(yield_value.GetOutput()->name(), "v0");
+    ASSERT_EQ(yield_value.output()->name(), "v0");
     ASSERT_EQ(yield_value.reg()->name(), "v2");
   }
   ++it;
@@ -118,7 +116,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
     ASSERT_EQ(reg_states.at(0).ref_kind, RefKind::kOwned);
     ASSERT_EQ(reg_states.at(1).reg->name(), "v3");
     ASSERT_EQ(reg_states.at(1).ref_kind, RefKind::kOwned);
-    ASSERT_EQ(yield_value.GetOutput()->name(), "v0");
+    ASSERT_EQ(yield_value.output()->name(), "v0");
     ASSERT_EQ(yield_value.reg()->name(), "v2");
   }
   ++it;
@@ -145,47 +143,51 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kVectorCall);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).flags(), CallFlags::None);
   ASSERT_EQ(static_cast<VectorCall&>(*it).numArgs(), 1);
-  ASSERT_EQ(static_cast<VectorCall&>(*it).GetOutput()->name(), "v1");
+  ASSERT_EQ(static_cast<VectorCall&>(*it).output()->name(), "v1");
   ASSERT_EQ(static_cast<VectorCall&>(*it).func()->name(), "v2");
   ASSERT_EQ(static_cast<VectorCall&>(*it).arg(0)->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
-  ASSERT_EQ(it->opcode(), Opcode::kVectorCallKW);
-  ASSERT_EQ(static_cast<VectorCallKW&>(*it).numArgs(), 1);
-  ASSERT_EQ(static_cast<VectorCallKW&>(*it).GetOutput()->name(), "v1");
-  ASSERT_EQ(static_cast<VectorCallKW&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<VectorCallKW&>(*it).arg(0)->name(), "v3");
+  ASSERT_EQ(it->opcode(), Opcode::kVectorCall);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).flags(), CallFlags::KwArgs);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).numArgs(), 1);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).output()->name(), "v1");
+  ASSERT_EQ(static_cast<VectorCall&>(*it).func()->name(), "v2");
+  ASSERT_EQ(static_cast<VectorCall&>(*it).arg(0)->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
-  ASSERT_EQ(it->opcode(), Opcode::kVectorCallStatic);
-  ASSERT_EQ(static_cast<VectorCallStatic&>(*it).numArgs(), 1);
-  ASSERT_EQ(static_cast<VectorCallStatic&>(*it).GetOutput()->name(), "v1");
-  ASSERT_EQ(static_cast<VectorCallStatic&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<VectorCallStatic&>(*it).arg(0)->name(), "v3");
-  ++it;
-  ASSERT_NE(it, end);
-  ASSERT_EQ(it->opcode(), Opcode::kCallExKw);
-  ASSERT_EQ(static_cast<CallExKw&>(*it).GetOutput()->name(), "v1");
-  ASSERT_EQ(static_cast<CallExKw&>(*it).func()->name(), "v2");
-  ASSERT_EQ(static_cast<CallExKw&>(*it).pargs()->name(), "v3");
-  ASSERT_EQ(static_cast<CallExKw&>(*it).kwargs()->name(), "v4");
+  ASSERT_EQ(it->opcode(), Opcode::kVectorCall);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).flags(), CallFlags::Static);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).numArgs(), 1);
+  ASSERT_EQ(static_cast<VectorCall&>(*it).output()->name(), "v1");
+  ASSERT_EQ(static_cast<VectorCall&>(*it).func()->name(), "v2");
+  ASSERT_EQ(static_cast<VectorCall&>(*it).arg(0)->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kCallEx);
-  ASSERT_EQ(static_cast<CallEx&>(*it).GetOutput()->name(), "v1");
+  ASSERT_EQ(static_cast<CallEx&>(*it).flags(), CallFlags::KwArgs);
+  ASSERT_EQ(static_cast<CallEx&>(*it).output()->name(), "v1");
+  ASSERT_EQ(static_cast<CallEx&>(*it).func()->name(), "v2");
+  ASSERT_EQ(static_cast<CallEx&>(*it).pargs()->name(), "v3");
+  ASSERT_EQ(static_cast<CallEx&>(*it).kwargs()->name(), "v4");
+  ++it;
+  ASSERT_NE(it, end);
+  ASSERT_EQ(it->opcode(), Opcode::kCallEx);
+  ASSERT_EQ(static_cast<CallEx&>(*it).output()->name(), "v1");
   ASSERT_EQ(static_cast<CallEx&>(*it).func()->name(), "v2");
   ASSERT_EQ(static_cast<CallEx&>(*it).pargs()->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kImportFrom);
-  ASSERT_EQ(static_cast<ImportFrom&>(*it).GetOutput()->name(), "v1");
+  ASSERT_EQ(static_cast<ImportFrom&>(*it).output()->name(), "v1");
   ASSERT_EQ(static_cast<ImportFrom&>(*it).name_idx(), 2);
   ASSERT_EQ(static_cast<ImportFrom&>(*it).module()->name(), "v3");
   ++it;
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kImportName);
-  ASSERT_EQ(static_cast<ImportName&>(*it).GetOutput()->name(), "v1");
+  ASSERT_EQ(static_cast<ImportName&>(*it).output()->name(), "v1");
   ASSERT_EQ(static_cast<ImportName&>(*it).name_idx(), 2);
   ASSERT_EQ(static_cast<ImportName&>(*it).GetFromList()->name(), "v3");
   ASSERT_EQ(static_cast<ImportName&>(*it).GetLevel()->name(), "v4");
@@ -209,7 +211,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kPhi);
   auto phi = static_cast<const Phi*>(&*it);
-  ASSERT_EQ(phi->GetOutput()->name(), "v3");
+  ASSERT_EQ(phi->output()->name(), "v3");
   ASSERT_EQ(phi->basic_blocks().size(), 2);
   ASSERT_EQ(phi->basic_blocks()[0]->id, 0);
   ASSERT_EQ(phi->basic_blocks()[1]->id, 1);
@@ -220,7 +222,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_NE(it, end);
   ASSERT_EQ(it->opcode(), Opcode::kPhi);
   phi = static_cast<const Phi*>(&*it);
-  ASSERT_EQ(phi->GetOutput()->name(), "v4");
+  ASSERT_EQ(phi->output()->name(), "v4");
   ASSERT_EQ(phi->basic_blocks().size(), 2);
   ASSERT_EQ(phi->basic_blocks()[0]->id, 0);
   ASSERT_EQ(phi->basic_blocks()[1]->id, 1);
@@ -241,8 +243,7 @@ TEST_F(HIRParserTest, ParsesHIR) {
   ASSERT_EQ(it->opcode(), Opcode::kRaiseAwaitableError);
   auto rae = static_cast<const RaiseAwaitableError*>(&*it);
   ASSERT_EQ(rae->GetOperand(0)->name(), "v1");
-  ASSERT_EQ(rae->with_opcode(), BEFORE_ASYNC_WITH);
-  ASSERT_EQ(rae->with_prev_opcode(), 53);
+  ASSERT_TRUE(rae->isAEnter());
   ++blocks_it;
 
   ASSERT_EQ(blocks_it, blocks_end);
@@ -252,7 +253,7 @@ TEST_F(HIRParserTest, ParsesFrameState) {
   const char* ir = R"(fun test {
   bb 0 {
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Stack<0>
       BlockStack {
       }
@@ -260,7 +261,7 @@ TEST_F(HIRParserTest, ParsesFrameState) {
     v0 = LoadGlobal<0>
     CheckExc v0
     Snapshot {
-      NextInstrOffset 2
+      CurInstrOffset 2
       Stack<1> v0
     }
     Branch<1>
@@ -268,7 +269,7 @@ TEST_F(HIRParserTest, ParsesFrameState) {
 
   bb 1 {
     Snapshot {
-      NextInstrOffset 2
+      CurInstrOffset 2
       Stack<1> v0
     }
     Return v0
@@ -327,7 +328,7 @@ fun test {
     v0 = LoadArg<0>
     v1 = InvokeStaticFunction<os._exists, 0, Long> {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Return v1
@@ -343,14 +344,14 @@ TEST_F(HIRParserTest, FormatValue) {
     v0 = LoadArg<0>
     v0 = CheckVar<"bar"> v0 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v0
       }
     }
     v1 = LoadConst<Nullptr>
     v2 = FormatValue<None> v1 v0 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v0
       }
     }

@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import TYPED_INT64
 
 import gc
@@ -214,7 +215,6 @@ class PrimitivesTests(StaticTestBase):
                 warn_vals=warn_vals,
                 err_vals=err_vals,
             ):
-
                 # Since object sizes are aligned to 8 bytes, figure out how
                 # many slots of each type we need to get to 8 bytes.
                 self.assertEqual(8 % size, 0)
@@ -869,7 +869,7 @@ class PrimitivesTests(StaticTestBase):
 
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            self.assertInBytecode(f, "JUMP_IF_NONZERO_OR_POP")
+            self.assertInBytecode(f, self.COMPARE_JUMP_NONZERO)
             self.assertIs(f(), False)
 
     def test_int_compare_and(self):
@@ -884,7 +884,7 @@ class PrimitivesTests(StaticTestBase):
 
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            self.assertInBytecode(f, "JUMP_IF_ZERO_OR_POP")
+            self.assertInBytecode(f, self.COMPARE_JUMP_ZERO)
             self.assertIs(f(), False)
 
     def test_disallow_prim_nonprim_union(self):
@@ -2588,7 +2588,7 @@ class PrimitivesTests(StaticTestBase):
                 return x(1,2,3,4,5,6,7,8)
         """
         with self.in_strict_module(codestr) as mod:
-            self.assertInBytecode(mod.y, "INVOKE_FUNCTION", ((mod.__name__, "x"), 8))
+            self.assertInBytecode(mod.y, "INVOKE_FUNCTION", (((mod.__name__,), "x"), 8))
             self.assertEqual(mod.y(), (1, 2, 3, 4, 5, 6, 7, 8))
             self.assertEqual(mod.x(1, 2, 3, 4, 5, 6, 7, 8), (1, 2, 3, 4, 5, 6, 7, 8))
 
@@ -2870,7 +2870,7 @@ class PrimitivesTests(StaticTestBase):
             self.assertInBytecode(
                 mod.fib,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "fib"), 1),
+                (((mod.__name__,), "fib"), 1),
             )
             self.assertEqual(mod.fib(2), 1)
             self.assert_jitted(mod.fib)
@@ -2975,7 +2975,6 @@ class PrimitivesTests(StaticTestBase):
             self.compile(codestr)
 
     def test_inline_primitive(self):
-
         codestr = """
             from __static__ import int64, cbool, inline
 
@@ -3012,7 +3011,7 @@ class PrimitivesTests(StaticTestBase):
         with self.in_module(codestr, optimize=2) as mod:
             h = mod.h
             self.assertNotInBytecode(h, "INVOKE_FUNCTION")
-            self.assertNotInBytecode(h, "CALL_FUNCTION")
+            self.assertNotInBytecode(h, self.CALL)
             self.assertEqual(h(1, 2), True)
 
     def test_primitive_compare_immediate_no_branch_on_result(self):
@@ -3365,6 +3364,7 @@ class PrimitivesTests(StaticTestBase):
             self.assertInBytecode(f, "PRIMITIVE_LOAD_CONST", (1, TYPED_INT64))
             self.assertEqual(f(3), 4)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_rand(self):
         codestr = """
         from __static__ import rand, RAND_MAX, box, int64
@@ -3377,6 +3377,7 @@ class PrimitivesTests(StaticTestBase):
             test = mod.test
             self.assertEqual(type(test()), int)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_rand_max_inlined(self):
         codestr = """
             from __static__ import rand, RAND_MAX, box, int64
@@ -3441,7 +3442,7 @@ class PrimitivesTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f, C = mod.f, mod.C
-            self.assertInBytecode(f, "LOAD_FIELD", (mod.__name__, "C", "x"))
+            self.assertInBytecode(f, "LOAD_FIELD", ((mod.__name__, "C"), "x"))
             self.assertInBytecode(f, "POP_JUMP_IF_ZERO")
             self.assertIs(C(True).x, True)
             self.assertIs(C(False).x, False)
@@ -3547,9 +3548,15 @@ class PrimitivesTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             # target_size includes 2 words for GC header, 1 for weak_ref, and 1 for the
             # two bools which are 1 byte each.
-            target_size = self.base_size + self.ptr_size * 4
 
-            self.assertEqual(sys.getsizeof(mod.a), target_size)
+            if sys.version_info >= (3, 12):
+                # In 3.12 if we have a weakref we have a preheader, which
+                # is two words.
+                target_size = self.base_size + self.ptr_size * 5
+                self.assertEqual(sys.getsizeof(mod.a), target_size)
+            else:
+                target_size = self.base_size + self.ptr_size * 4
+                self.assertEqual(sys.getsizeof(mod.a), target_size)
 
             was_called = False
 
@@ -3578,7 +3585,13 @@ class PrimitivesTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             # target_size includes 2 words for GC header, 1 for __dict__, and 1 for the bools
-            target_size = self.base_size + self.ptr_size * 4
+            if sys.version_info >= (3, 12):
+                # In 3.12 if we have a weakref we have a preheader, which
+                # is two words.
+                target_size = self.base_size + self.ptr_size * 5
+                self.assertEqual(sys.getsizeof(mod.a), target_size)
+            else:
+                target_size = self.base_size + self.ptr_size * 4
 
             self.assertEqual(sys.getsizeof(mod.a), target_size)
 
@@ -3674,6 +3687,7 @@ class PrimitivesTests(StaticTestBase):
                         else:
                             self.assertEqual(f(val), val)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_emits_convert_primitive_while_boxing(self):
         codestr = """
         import __static__
@@ -3696,3 +3710,31 @@ class PrimitivesTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             with self.assertRaises(OverflowError):
                 mod.f(128)
+
+    def test_primitive_subtype_int(self):
+        codestr = """
+        from __static__ import int64, box
+
+        def f(x: int64) -> int:
+            return box(x)
+        """
+        with self.in_module(codestr) as mod:
+
+            class X(int):
+                pass
+
+            self.assertEqual(mod.f(X(128)), 128)
+
+    def test_primitive_subtype_double(self):
+        codestr = """
+        from __static__ import double, box
+
+        def f(x: double) -> float:
+            return box(x)
+        """
+        with self.in_module(codestr) as mod:
+
+            class X(float):
+                pass
+
+            self.assertEqual(mod.f(X(128.0)), 128.0)

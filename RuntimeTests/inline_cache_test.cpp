@@ -1,16 +1,15 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include <gtest/gtest.h>
-
 #include <Python.h>
+
+#include <gtest/gtest.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
 #include "cinderx/Common/ref.h"
-#include "cinderx/StrictModules/Objects/objects.h"
-#include "unicodeobject.h"
-
 #include "cinderx/Jit/inline_cache.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <cstring>
 
@@ -57,7 +56,7 @@ regular_meth = RequestContext.regular_meth
   PyObject* class_meth = PyDict_GetItemString(locals, "class_meth");
   ASSERT_EQ(PyObject_RichCompareBool(res.func, class_meth, Py_EQ), 1)
       << "Expected method " << class_meth << " to be equal from cache lookup";
-  ASSERT_EQ(cache.value, res.func)
+  ASSERT_EQ(cache.value(), res.func)
       << "Expected method " << py_class_meth << " to be cached";
 
   for (auto& meth : {"static_meth", "regular_meth"}) {
@@ -69,7 +68,7 @@ regular_meth = RequestContext.regular_meth
     PyObject* py_meth = PyDict_GetItemString(locals, meth);
     ASSERT_EQ(PyObject_RichCompareBool(res.inst, py_meth, Py_EQ), 1)
         << "Expected method " << meth << " to be equal from cache lookup";
-    ASSERT_EQ(cache.value, res.inst)
+    ASSERT_EQ(cache.value(), res.inst)
         << "Expected method " << meth << " to be cached";
   }
 }

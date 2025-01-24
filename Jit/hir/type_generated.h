@@ -409,7 +409,7 @@ constexpr size_t kTypeHasTrivialMortality = 2;
   X(User,                          0x000ffe00000UL, kLifetimeTop,         \
     kTypeHasTrivialMortality)                                             \
   X(WaitHandle,                    0x00000000200UL, kLifetimeTop,         \
-    kTypeHasTrivialMortality | kTypeHasUniquePyType)                     
+    kTypeHasTrivialMortality | kTypeHasUniquePyType)
 
 constexpr size_t kNumTypeBits = 44;
 

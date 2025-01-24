@@ -3,20 +3,23 @@
 #include "cinderx/Jit/hir/optimization.h"
 
 #include <Python.h>
-#include "cinderx/Common/util.h"
-#include "code.h"
+
 #include "internal/pycore_interp.h"
 
-#include "cinderx/Jit/compiler.h"
+#include "cinderx/Common/code.h"
+#include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/memory_effects.h"
+#include "cinderx/Jit/hir/instr_effects.h"
+#include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/jit_rt.h"
-#include "cinderx/Jit/pyjit.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
 #include <fmt/format.h>
 
@@ -28,134 +31,17 @@
 
 namespace jit::hir {
 
-class AllPasses : public Pass {
- public:
-  AllPasses() : Pass("@AllPasses") {}
-
-  void Run(Function& irfunc) override {
-    Compiler::runPasses(irfunc, PassConfig::kAll);
-  }
-
-  static std::unique_ptr<AllPasses> Factory() {
-    return std::make_unique<AllPasses>();
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(AllPasses);
-};
-
-PassRegistry::PassRegistry() {
-  auto addPass = [&](const PassFactory& factory) {
-    factories_.emplace(factory()->name(), factory);
-  };
-  addPass(RefcountInsertion::Factory);
-  addPass(CopyPropagation::Factory);
-  addPass(CleanCFG::Factory);
-  addPass(DynamicComparisonElimination::Factory);
-  addPass(PhiElimination::Factory);
-  addPass(InlineFunctionCalls::Factory);
-  addPass(Simplify::Factory);
-  addPass(DeadCodeElimination::Factory);
-  addPass(GuardTypeRemoval::Factory);
-  addPass(BeginInlinedFunctionElimination::Factory);
-  addPass(BuiltinLoadMethodElimination::Factory);
-  // AllPasses is only used for testing.
-  addPass(AllPasses::Factory);
-}
-
-std::unique_ptr<Pass> PassRegistry::MakePass(const std::string& name) {
-  auto it = factories_.find(name);
-  if (it != factories_.end()) {
-    return it->second();
-  } else {
-    return nullptr;
-  }
-}
+#define LOG_INLINER(...) JIT_LOGIF(g_debug_inliner, __VA_ARGS__)
 
 Instr* DynamicComparisonElimination::ReplaceCompare(
     Compare* compare,
     IsTruthy* truthy) {
   return CompareBool::create(
-      truthy->GetOutput(),
+      truthy->output(),
       compare->op(),
       compare->GetOperand(0),
       compare->GetOperand(1),
       *get_frame_state(*truthy));
-}
-
-Instr* DynamicComparisonElimination::ReplaceVectorCall(
-    Function& irfunc,
-    CondBranch& cond_branch,
-    BasicBlock& block,
-    VectorCall* vectorcall,
-    IsTruthy* truthy) {
-  auto func = vectorcall->func();
-
-  if (!func->type().hasValueSpec(TObject)) {
-    return nullptr;
-  }
-
-  const Builtins& builtins = Runtime::get()->builtins();
-  auto funcobj = func->type().objectSpec();
-  if (Py_TYPE(funcobj) == &PyCFunction_Type &&
-      builtins.find(((PyCFunctionObject*)funcobj)->m_ml) == "isinstance" &&
-      vectorcall->numArgs() == 2 &&
-      vectorcall->GetOperand(2)->type() <= TType) {
-    auto obj_op = vectorcall->GetOperand(1);
-    auto type_op = vectorcall->GetOperand(2);
-    BCOffset bc_off = cond_branch.bytecodeOffset();
-
-    // We want to replace:
-    //  if isinstance(x, some_type):
-    // with:
-    //   if x.__class__ == some_type or PyObject_IsInstance(x, some_type):
-    // This inlines the common type check case, and eliminates
-    // the truthy case.
-
-    // We do this by updating the existing branch to be
-    // based off the fast path, and if that fails, then
-    // we insert a new basic block which handles the slow path
-    // and branches to the success or failure cases.
-
-    auto obj_type = irfunc.env.AllocateRegister();
-    auto fast_eq = irfunc.env.AllocateRegister();
-
-    auto load_type = LoadField::create(
-        obj_type, obj_op, "ob_type", offsetof(PyObject, ob_type), TType);
-
-    auto compare_type = PrimitiveCompare::create(
-        fast_eq, PrimitiveCompareOp::kEqual, obj_type, type_op);
-
-    load_type->copyBytecodeOffset(*vectorcall);
-    load_type->InsertBefore(*truthy);
-
-    compare_type->copyBytecodeOffset(*vectorcall);
-
-    // Slow path, call isinstance()
-    auto slow_path = block.cfg->AllocateBlock();
-    auto prev_false_bb = cond_branch.false_bb();
-    cond_branch.set_false_bb(slow_path);
-    cond_branch.SetOperand(0, fast_eq);
-
-    slow_path->appendWithOff<IsInstance>(
-        bc_off,
-        truthy->GetOutput(),
-        obj_op,
-        type_op,
-        *get_frame_state(*truthy));
-
-    slow_path->appendWithOff<CondBranch>(
-        bc_off, truthy->GetOutput(), cond_branch.true_bb(), prev_false_bb);
-
-    // we need to update the phis from the previous false case to now
-    // be coming from the slow path block.
-    prev_false_bb->fixupPhis(&block, slow_path);
-    // and the phis coming in on the success case now have an extra
-    // block from the slow path.
-    cond_branch.true_bb()->addPhiPredecessor(&block, slow_path);
-    return compare_type;
-  }
-  return nullptr;
 }
 
 void DynamicComparisonElimination::Run(Function& irfunc) {
@@ -203,7 +89,7 @@ void DynamicComparisonElimination::Run(Function& irfunc) {
         break;
       } else if (&*it != truthy) {
         if (it->IsSnapshot()) {
-          if (it->Uses(truthy_target->GetOutput())) {
+          if (it->Uses(truthy_target->output())) {
             snapshots.push_back(&*it);
           }
           continue;
@@ -227,14 +113,6 @@ void DynamicComparisonElimination::Run(Function& irfunc) {
       auto compare = static_cast<Compare*>(truthy_target);
 
       replacement = ReplaceCompare(compare, static_cast<IsTruthy*>(truthy));
-    } else if (truthy_target->IsVectorCall()) {
-      auto vectorcall = static_cast<VectorCall*>(truthy_target);
-      replacement = ReplaceVectorCall(
-          irfunc,
-          static_cast<CondBranch&>(instr),
-          block,
-          vectorcall,
-          static_cast<IsTruthy*>(truthy));
     }
 
     if (replacement != nullptr) {
@@ -307,10 +185,10 @@ void PhiElimination::Run(Function& func) {
           // initialized, and we can use a LoadConst<Bottom> to signify that.
           Register* model_value = chaseAssignOperand(value);
           Instr* new_instr;
-          if (model_value == instr.GetOutput()) {
-            new_instr = LoadConst::create(instr.GetOutput(), TBottom);
+          if (model_value == instr.output()) {
+            new_instr = LoadConst::create(instr.output(), TBottom);
           } else {
-            new_instr = Assign::create(instr.GetOutput(), value);
+            new_instr = Assign::create(instr.output(), value);
           }
           new_instr->copyBytecodeOffset(instr);
           assigns_or_loads.emplace_back(new_instr);
@@ -369,6 +247,84 @@ void DeadCodeElimination::Run(Function& func) {
   }
 }
 
+#if PY_VERSION_HEX >= 0x030C0000
+class BytecodeIndexToLine {
+ public:
+  explicit BytecodeIndexToLine(PyCodeObject* co) {
+    size_t num_indices = countIndices(co);
+    indexToLine_.reserve(num_indices);
+    PyCodeAddressRange range;
+    Cix_PyCode_InitAddressRange(co, &range);
+    int idx = 0;
+    while (Cix_PyLineTable_NextAddressRange(&range)) {
+      JIT_DCHECK(idx < num_indices, "idx overflowed code size");
+      JIT_DCHECK(
+          range.ar_start % sizeof(_Py_CODEUNIT) == 0,
+          "offsets should be a multiple of code-units");
+      JIT_DCHECK(
+          idx == range.ar_start / 2, "Index does not line up with range");
+      for (; idx < range.ar_end / 2; idx++) {
+        indexToLine_.emplace_back(range.ar_line);
+      }
+    }
+  }
+
+  int lineNoFor(BCIndex index) const {
+    if (index.value() < 0) {
+      return -1;
+    }
+    JIT_DCHECK(
+        index.value() < indexToLine_.size(),
+        "Index out of range {} < {}",
+        index.value(),
+        indexToLine_.size());
+    return indexToLine_[index.value()];
+  }
+
+ private:
+  std::vector<int> indexToLine_;
+};
+
+void InsertUpdatePrevInstr::Run(Function& func) {
+  // If we don't have a valid line table to optimize with, update after every
+  // bytecode.
+  bool update_every_bc = func.code->co_linetable == nullptr ||
+      PyObject_Length(func.code->co_linetable) == 0;
+
+  BytecodeIndexToLine bc_idx_to_line(func.code);
+
+  for (BasicBlock& block : func.cfg.blocks) {
+    // This is the previous line number of bytecode depending on
+    // update_every_bc. For line numbers, -1 is a "valid" line number result
+    // meaning "no line number" so we use INT_MAX as the default.
+    int prev_emitted_lno_or_bc = INT_MAX;
+    for (Instr& instr : block) {
+      if (!hasArbitraryExecution(instr)) {
+        continue;
+      }
+      auto add_update_prev_instr = [&](int line_no) {
+        Instr* update_instr = UpdatePrevInstr::create(line_no);
+        update_instr->copyBytecodeOffset(instr);
+        update_instr->InsertBefore(instr);
+      };
+      if (update_every_bc) {
+        int cur_bc_offs = instr.bytecodeOffset().value();
+        if (cur_bc_offs != prev_emitted_lno_or_bc) {
+          add_update_prev_instr(-1);
+          prev_emitted_lno_or_bc = cur_bc_offs;
+        }
+      } else {
+        int cur_line_no = bc_idx_to_line.lineNoFor(instr.bytecodeOffset());
+        if (cur_line_no != prev_emitted_lno_or_bc) {
+          add_update_prev_instr(cur_line_no);
+          prev_emitted_lno_or_bc = cur_line_no;
+        }
+      }
+    }
+  }
+}
+#endif
+
 using RegUses = std::unordered_map<Register*, std::unordered_set<Instr*>>;
 
 static bool
@@ -396,9 +352,9 @@ guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
     for (const Instr* instr : new_reg_uses->second) {
       for (std::size_t i = 0; i < instr->NumOperands(); i++) {
         if (instr->GetOperand(i) == new_reg) {
-          if ((instr->GetOutput() != nullptr) &&
+          if ((instr->output() != nullptr) &&
               (instr->IsPhi() || isPassthrough(*instr))) {
-            Register* passthrough_output = instr->GetOutput();
+            Register* passthrough_output = instr->output();
             Type passthrough_type = outputType(*instr, [&](std::size_t ind) {
               if (ind == i) {
                 return relaxed_type;
@@ -458,7 +414,7 @@ void GuardTypeRemoval::Run(Function& func) {
         continue;
       }
 
-      Register* guard_out = instr.GetOutput();
+      Register* guard_out = instr.output();
       Register* guard_in = instr.GetOperand(0);
       if (!guardNeeded(reg_uses, guard_out, guard_in->type())) {
         auto assign = Assign::create(guard_out, guard_in);
@@ -519,7 +475,7 @@ bool CleanCFG::RemoveUnreachableInstructions(CFG* cfg) {
     while (it != block->end()) {
       Instr& instr = *it;
       ++it;
-      if ((instr.GetOutput() == nullptr || !instr.GetOutput()->isA(TBottom)) &&
+      if ((instr.output() == nullptr || !instr.output()->isA(TBottom)) &&
           !instr.IsUnreachable()) {
         continue;
       }
@@ -550,8 +506,7 @@ bool CleanCFG::RemoveUnreachableInstructions(CFG* cfg) {
         // from removing it.
         Instr& guard_type = *std::prev(it);
         block->insert(
-            UseType::create(
-                guard_type.GetOutput(), guard_type.GetOutput()->type()),
+            UseType::create(guard_type.output(), guard_type.output()->type()),
             it);
       }
 
@@ -780,183 +735,172 @@ void CleanCFG::Run(Function& irfunc) {
 }
 
 struct AbstractCall {
-  AbstractCall(PyFunctionObject* func, size_t nargs, DeoptBase* instr)
-      : func(func), nargs(nargs), instr(instr) {}
-
-  AbstractCall(Register* target, size_t nargs, DeoptBase* instr)
-      : target(target),
-        func(reinterpret_cast<PyFunctionObject*>(target->type().objectSpec())),
-        nargs(nargs),
-        instr(instr) {}
+  AbstractCall(
+      BorrowedRef<PyFunctionObject> func,
+      size_t nargs,
+      DeoptBase* instr,
+      Register* target = nullptr)
+      : func{func}, nargs{nargs}, instr{instr}, target{target} {}
 
   Register* arg(std::size_t i) const {
-    if (instr->opcode() == Opcode::kInvokeStaticFunction) {
-      auto f = dynamic_cast<InvokeStaticFunction*>(instr);
+    if (instr->IsInvokeStaticFunction()) {
+      auto f = static_cast<InvokeStaticFunction*>(instr);
       return f->arg(i + 1);
     }
-    if (auto f = dynamic_cast<VectorCallBase*>(instr)) {
+    if (instr->IsVectorCall()) {
+      auto f = static_cast<VectorCall*>(instr);
       return f->arg(i);
     }
     JIT_ABORT("Unsupported call type {}", instr->opname());
   }
 
-  Register* target{nullptr};
-  BorrowedRef<PyFunctionObject> func{nullptr};
+  BorrowedRef<PyFunctionObject> func;
   size_t nargs{0};
   DeoptBase* instr{nullptr};
+  Register* target{nullptr};
 };
 
 static void dlogAndCollectFailureStats(
-    Function::InlineFailureStats& inline_failure_stats,
-    InlineFailureType failure_type,
-    const std::string& function) {
-  inline_failure_stats[failure_type].insert(function);
-  JIT_DLOG(
-      "Can't inline {} because {}",
-      function,
+    Function& caller,
+    AbstractCall* call_instr,
+    InlineFailureType failure_type) {
+  BorrowedRef<PyFunctionObject> func = call_instr->func;
+  std::string callee_name = funcFullname(func);
+  Function::InlineFailureStats& inline_failure_stats =
+      caller.inline_function_stats.failure_stats;
+  inline_failure_stats[failure_type].insert(callee_name);
+  LOG_INLINER(
+      "Can't inline {} into {} because {}",
+      callee_name,
+      caller.fullname,
       getInlineFailureMessage(failure_type));
 }
 
 static void dlogAndCollectFailureStats(
-    Function::InlineFailureStats& inline_failure_stats,
+    Function& caller,
+    AbstractCall* call_instr,
     InlineFailureType failure_type,
-    const std::string& function,
     const char* tp_name) {
-  inline_failure_stats[failure_type].insert(function);
-  JIT_DLOG(
-      "Can't inline {} because {} but a {:.200s}",
-      function,
+  BorrowedRef<PyFunctionObject> func = call_instr->func;
+  std::string callee_name = funcFullname(func);
+  Function::InlineFailureStats& inline_failure_stats =
+      caller.inline_function_stats.failure_stats;
+  inline_failure_stats[failure_type].insert(callee_name);
+  LOG_INLINER(
+      "Can't inline {} into {} because {} but a {:.200s}",
+      callee_name,
+      caller.fullname,
       getInlineFailureMessage(failure_type),
       tp_name);
+}
+
+// Assigns a cost to every function, to be used when determining whether it
+// makes sense to inline or not.
+static size_t codeCost(BorrowedRef<PyCodeObject> code) {
+  // Manually iterating through the code block to count real opcodes and not
+  // inline caches.  Not the best metric but it's something to start with.
+  size_t num_opcodes = 0;
+  for ([[maybe_unused]] auto& instr : BytecodeInstructionBlock{code}) {
+    num_opcodes++;
+  }
+  return num_opcodes;
 }
 
 // Most of these checks are only temporary and do not in perpetuity prohibit
 // inlining. They are here to simplify bringup of the inliner and can be
 // treated as TODOs.
-static bool canInline(
-    AbstractCall* call_instr,
-    BorrowedRef<PyFunctionObject> func,
-    const std::string& fullname,
-    Function::InlineFailureStats& inline_failure_stats) {
-  if (func->func_kwdefaults != nullptr) {
+static bool canInline(Function& caller, AbstractCall* call_instr) {
+  BorrowedRef<PyFunctionObject> func = call_instr->func;
+
+  BorrowedRef<> globals = func->func_globals;
+  if (!PyDict_Check(globals)) {
     dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasKwdefaults, fullname);
+        caller,
+        call_instr,
+        InlineFailureType::kGlobalsNotDict,
+        Py_TYPE(globals)->tp_name);
     return false;
   }
-  PyCodeObject* code = reinterpret_cast<PyCodeObject*>(func->func_code);
-  if (code->co_kwonlyargcount > 0) {
+
+  BorrowedRef<> builtins = func->func_builtins;
+  if (!PyDict_CheckExact(builtins)) {
     dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasKwOnlyArgs, fullname);
+        caller,
+        call_instr,
+        InlineFailureType::kBuiltinsNotDict,
+        Py_TYPE(builtins)->tp_name);
     return false;
+  }
+
+  auto fail = [&](InlineFailureType failure_type) {
+    dlogAndCollectFailureStats(caller, call_instr, failure_type);
+    return false;
+  };
+
+  if (func->func_kwdefaults != nullptr) {
+    return fail(InlineFailureType::kHasKwdefaults);
+  }
+
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  JIT_CHECK(PyCode_Check(code), "Expected PyCodeObject");
+
+  if (code->co_kwonlyargcount > 0) {
+    return fail(InlineFailureType::kHasKwOnlyArgs);
   }
   if (code->co_flags & CO_VARARGS) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasVarargs, fullname);
-
-    return false;
+    return fail(InlineFailureType::kHasVarargs);
   }
   if (code->co_flags & CO_VARKEYWORDS) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasVarkwargs, fullname);
-
-    return false;
+    return fail(InlineFailureType::kHasVarkwargs);
   }
   JIT_DCHECK(code->co_argcount >= 0, "argcount must be positive");
   if (call_instr->nargs != static_cast<size_t>(code->co_argcount)) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats,
-        InlineFailureType::kCalledWithMismatchedArgs,
-        fullname);
-
-    return false;
+    return fail(InlineFailureType::kCalledWithMismatchedArgs);
   }
   if (code->co_flags & kCoFlagsAnyGenerator) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kIsGenerator, fullname);
-
-    return false;
+    return fail(InlineFailureType::kIsGenerator);
   }
-  Py_ssize_t ncellvars = PyTuple_GET_SIZE(code->co_cellvars);
+  Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
   if (ncellvars > 0) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasCellvars, fullname);
-
-    return false;
+    return fail(InlineFailureType::kHasCellvars);
   }
-  Py_ssize_t nfreevars = PyTuple_GET_SIZE(code->co_freevars);
+  Py_ssize_t nfreevars = PyTuple_GET_SIZE(PyCode_GetFreevars(code));
   if (nfreevars > 0) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kHasFreevars, fullname);
-
-    return false;
+    return fail(InlineFailureType::kHasFreevars);
   }
   if (usesRuntimeFunc(code)) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kNeedsRuntimeAccess, fullname);
-    return false;
+    return fail(InlineFailureType::kNeedsRuntimeAccess);
   }
+
   return true;
 }
 
 // As canInline() for checks which require a preloader.
 static bool canInlineWithPreloader(
+    Function& caller,
     AbstractCall* call_instr,
-    const std::string& fullname,
-    const Preloader& preloader,
-    Function::InlineFailureStats& inline_failure_stats) {
-  auto has_primitive_args = [&]() {
-    for (int i = 0; i < preloader.numArgs(); i++) {
-      if (preloader.checkArgType(i) <= TPrimitive) {
-        return true;
-      }
-    }
-    return false;
-  };
-  if ((call_instr->instr->IsVectorCall() ||
-       call_instr->instr->IsVectorCallStatic()) &&
-      (preloader.code()->co_flags & CO_STATICALLY_COMPILED) &&
-      (preloader.returnType() <= TPrimitive || has_primitive_args())) {
+    const Preloader& preloader) {
+  if (call_instr->instr->IsVectorCall() &&
+      (preloader.code()->co_flags & CI_CO_STATICALLY_COMPILED) &&
+      (preloader.returnType() <= TPrimitive || preloader.hasPrimitiveArgs())) {
     // TODO(T122371281) remove this constraint
     dlogAndCollectFailureStats(
-        inline_failure_stats,
-        InlineFailureType::kIsVectorCallWithPrimitives,
-        fullname);
+        caller, call_instr, InlineFailureType::kIsVectorCallWithPrimitives);
     return false;
   }
+
   return true;
 }
 
-void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
-  BorrowedRef<PyFunctionObject> func = call_instr->func;
-  PyCodeObject* code = reinterpret_cast<PyCodeObject*>(func->func_code);
-  JIT_CHECK(PyCode_Check(code), "Expected PyCodeObject");
-  PyObject* globals = func->func_globals;
-  std::string fullname = funcFullname(func);
-  Function::InlineFailureStats& inline_failure_stats =
-      caller.inline_function_stats.failure_stats;
-  if (!PyDict_Check(globals)) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats,
-        InlineFailureType::kGlobalsNotDict,
-        fullname,
-        Py_TYPE(globals)->tp_name);
-    return;
-  }
-  if (!PyDict_CheckExact(func->func_builtins)) {
-    dlogAndCollectFailureStats(
-        inline_failure_stats,
-        InlineFailureType::kBuiltinsNotDict,
-        fullname,
-        Py_TYPE(func->func_builtins)->tp_name);
-    return;
-  }
-  if (!canInline(call_instr, func, fullname, inline_failure_stats)) {
-    JIT_DLOG("Cannot inline {} into {}", fullname, caller.fullname);
+static void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
+  if (!canInline(caller, call_instr)) {
     return;
   }
 
   auto caller_frame_state =
       std::make_unique<FrameState>(*call_instr->instr->frameState());
+
+  BorrowedRef<PyFunctionObject> callee = call_instr->func;
 
   // We are only able to inline functions that were already preloaded, since we
   // can't safely preload anything mid-compile (preloading can execute arbitrary
@@ -965,38 +909,43 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   // globals, or statically invoked. See `preloadFuncAndDeps` for what
   // dependencies we will preload. In batch-compile mode we can inline anything
   // that is part of the batch.
-  Preloader* preloader = lookupPreloader(func);
+  Preloader* preloader = preloaderManager().find(callee);
   if (!preloader) {
     dlogAndCollectFailureStats(
-        inline_failure_stats, InlineFailureType::kNeedsPreload, fullname);
+        caller, call_instr, InlineFailureType::kNeedsPreload);
     return;
   }
 
-  if (!canInlineWithPreloader(
-          call_instr, fullname, *preloader, inline_failure_stats)) {
-    JIT_DLOG(
-        "canInlineWithPreloader vetoes inline of {} into {}",
-        fullname,
-        caller.fullname);
+  if (!canInlineWithPreloader(caller, call_instr, *preloader)) {
     return;
   }
+
   HIRBuilder hir_builder(*preloader);
-  InlineResult result =
-      hir_builder.inlineHIR(&caller, caller_frame_state.get());
-  if (result.entry == nullptr) {
-    JIT_DLOG(
-        "Tried and failed to inline {} into {}", fullname, caller.fullname);
+  std::string callee_name = funcFullname(callee);
+
+  InlineResult result;
+  try {
+    result = hir_builder.inlineHIR(&caller, caller_frame_state.get());
+  } catch (const std::exception& exn) {
+    LOG_INLINER(
+        "Tried to inline {} into {}, but failed with {}",
+        callee_name,
+        caller.fullname,
+        exn.what());
     return;
   }
 
+  LOG_INLINER("Inlining function {} into {}", callee_name, caller.fullname);
+
+  BorrowedRef<PyCodeObject> callee_code{callee->func_code};
   BasicBlock* head = call_instr->instr->block();
   BasicBlock* tail = head->splitAfter(*call_instr->instr);
   auto begin_inlined_function = BeginInlinedFunction::create(
-      code,
-      func->func_builtins,
-      globals,
+      callee_code,
+      callee->func_builtins,
+      callee->func_globals,
       std::move(caller_frame_state),
-      fullname);
+      callee_name);
   auto callee_branch = Branch::create(result.entry);
   if (call_instr->target != nullptr) {
     // Not a static call. Check that __code__ has not been swapped out since
@@ -1013,8 +962,7 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
         offsetof(PyFunctionObject, func_code),
         TObject);
     Register* guarded_code = caller.env.AllocateRegister();
-    auto guard_code = GuardIs::create(
-        guarded_code, reinterpret_cast<PyObject*>(code), code_obj);
+    auto guard_code = GuardIs::create(guarded_code, callee_code, code_obj);
     call_instr->instr->ExpandInto(
         {load_code, guard_code, begin_inlined_function, callee_branch});
   } else {
@@ -1029,8 +977,8 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
 
     if (instr.IsLoadArg()) {
       auto load_arg = static_cast<LoadArg*>(&instr);
-      auto assign = Assign::create(
-          instr.GetOutput(), call_instr->arg(load_arg->arg_idx()));
+      auto assign =
+          Assign::create(instr.output(), call_instr->arg(load_arg->arg_idx()));
       instr.ReplaceWith(*assign);
       delete &instr;
     }
@@ -1041,8 +989,8 @@ void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   JIT_CHECK(
       return_instr->IsReturn(),
       "terminator from inlined function should be Return");
-  auto assign = Assign::create(
-      call_instr->instr->GetOutput(), return_instr->GetOperand(0));
+  auto assign =
+      Assign::create(call_instr->instr->output(), return_instr->GetOperand(0));
   auto return_branch = Branch::create(tail);
   return_instr->ExpandInto({assign, return_branch});
   delete return_instr;
@@ -1058,43 +1006,88 @@ void InlineFunctionCalls::Run(Function& irfunc) {
   }
   if (irfunc.code->co_flags & kCoFlagsAnyGenerator) {
     // TODO(T109706798): Support inlining into generators
-    JIT_DLOG(
+    LOG_INLINER(
         "Refusing to inline functions into {}: function is a generator",
         irfunc.fullname);
     return;
   }
+
+  // Scan through all function calls in `irfunc` and mark the ones that are
+  // suitable for inlining.
   std::vector<AbstractCall> to_inline;
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {
       // TODO(emacs): Support InvokeMethod
-      if (instr.IsVectorCall() || instr.IsVectorCallStatic()) {
-        auto call = static_cast<VectorCallBase*>(&instr);
+      if (instr.IsVectorCall()) {
+        auto call = static_cast<VectorCall*>(&instr);
         Register* target = call->func();
-        if (!target->type().hasValueSpec(TFunc)) {
-          JIT_DLOG(
-              "Cannot inline non-function type {} ({}) into {}",
-              target->type(),
+        const std::string& caller_name = irfunc.fullname;
+        if (!target->isA(TFunc)) {
+          LOG_INLINER(
+              "Can't inline non-function {}:{} into {}",
               *target,
-              irfunc.fullname);
+              target->type(),
+              caller_name);
           continue;
         }
-        to_inline.emplace_back(AbstractCall(target, call->numArgs(), call));
+        if (!target->type().hasValueSpec(TFunc)) {
+          LOG_INLINER(
+              "Can't inline unknown function {}:{} into {}",
+              *target,
+              target->type(),
+              caller_name);
+          continue;
+        }
+        if (call->flags() & CallFlags::KwArgs) {
+          LOG_INLINER(
+              "Can't inline {}:{} into {} because it has kwargs",
+              *target,
+              target->type(),
+              caller_name);
+          continue;
+        }
+
+        BorrowedRef<PyFunctionObject> callee{target->type().objectSpec()};
+        to_inline.emplace_back(
+            AbstractCall{callee, call->numArgs(), call, target});
       } else if (instr.IsInvokeStaticFunction()) {
         auto call = static_cast<InvokeStaticFunction*>(&instr);
         to_inline.emplace_back(
-            AbstractCall(call->func(), call->NumArgs() - 1, call));
+            AbstractCall{call->func(), call->NumArgs() - 1, call});
       }
     }
   }
+
   if (to_inline.empty()) {
     return;
   }
-  for (auto& instr : to_inline) {
-    inlineFunctionCall(irfunc, &instr);
+
+  size_t cost_limit = getConfig().inliner_cost_limit;
+  size_t cost = codeCost(irfunc.code);
+
+  // Inline as many calls as possible, starting from the top of the function and
+  // working down.
+  for (auto& call : to_inline) {
+    BorrowedRef<PyCodeObject> call_code{call.func->func_code};
+    size_t new_cost = cost + codeCost(call_code);
+    if (new_cost > cost_limit) {
+      LOG_INLINER(
+          "Inliner reached cost limit of {} when trying to inline {} into {}, "
+          "inlining stopping early",
+          new_cost,
+          funcFullname(call.func),
+          irfunc.fullname);
+      break;
+    }
+    cost = new_cost;
+
+    inlineFunctionCall(irfunc, &call);
+
     // We need to reflow types after every inline to propagate new type
     // information from the callee.
     reflowTypes(irfunc);
   }
+
   // The inliner will make some blocks unreachable and we need to remove them
   // to make the CFG valid again. While inlining might make some blocks
   // unreachable and therefore make less work (less to inline), we cannot
@@ -1202,13 +1195,13 @@ static bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
     // bytearray/bytes/str.maketrans. Not worth optimizing.
     return false;
   }
-  Register* method_reg = invoke.load_method->GetOutput();
+  Register* method_reg = invoke.load_method->output();
   auto load_const = LoadConst::create(
       method_reg, Type::fromObject(irfunc.env.addReference(method_obj.get())));
-  auto call_static = VectorCallStatic::create(
+  auto call_static = VectorCall::create(
       invoke.call_method->NumOperands(),
-      invoke.call_method->dst(),
-      invoke.call_method->isAwaited(),
+      invoke.call_method->output(),
+      invoke.call_method->flags() | CallFlags::Static,
       *invoke.call_method->frameState());
   call_static->SetOperand(0, method_reg);
   if (Py_TYPE(method_obj) == &PyClassMethodDescr_Type) {
@@ -1233,7 +1226,7 @@ static bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
   auto use_type = UseType::create(receiver, receiver_type.unspecialized());
   invoke.load_method->ExpandInto({use_type, load_const});
   invoke.get_instance->ReplaceWith(
-      *Assign::create(invoke.get_instance->dst(), receiver));
+      *Assign::create(invoke.get_instance->output(), receiver));
   invoke.call_method->ReplaceWith(*call_static);
   delete invoke.load_method;
   delete invoke.get_instance;
@@ -1257,7 +1250,7 @@ void BuiltinLoadMethodElimination::Run(Function& irfunc) {
           continue;
         }
 
-        if (isAnyLoadMethod(*func_instr) && !isLoadMethodBase(*func_instr)) {
+        if (!isLoadMethodBase(*func_instr)) {
           // {FillTypeMethodCache | LoadTypeMethodCacheEntryValue} and
           // CallMethod represent loading and invoking methods off a type (e.g.
           // dict.fromkeys(...)) which do not need to follow
@@ -1267,11 +1260,6 @@ void BuiltinLoadMethodElimination::Run(Function& irfunc) {
           continue;
         }
 
-        JIT_DCHECK(
-            isLoadMethodBase(*func_instr),
-            "Load{{,Module}}Method/CallMethod should be paired but got "
-            "{}/CallMethod",
-            func_instr->opname());
         auto lm = static_cast<LoadMethodBase*>(func_instr);
 
         JIT_DCHECK(

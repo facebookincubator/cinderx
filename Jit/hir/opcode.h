@@ -18,7 +18,7 @@ namespace jit::hir {
   V(BuildString)                       \
   V(CallCFunc)                         \
   V(CallEx)                            \
-  V(CallExKw)                          \
+  V(CallIntrinsic)                     \
   V(CallMethod)                        \
   V(CallStatic)                        \
   V(CallStaticRetVoid)                 \
@@ -45,6 +45,7 @@ namespace jit::hir {
   V(DictSubscr)                        \
   V(DictUpdate)                        \
   V(DoubleBinaryOp)                    \
+  V(EagerImportName)                   \
   V(EndInlinedFunction)                \
   V(FillTypeAttrCache)                 \
   V(FillTypeMethodCache)               \
@@ -102,12 +103,14 @@ namespace jit::hir {
   V(LoadMethodSuper)                   \
   V(LoadSplitDictItem)                 \
   V(LoadTupleItem)                     \
-  V(LoadTypeAttrCacheItem)             \
+  V(LoadTypeAttrCacheEntryType)        \
+  V(LoadTypeAttrCacheEntryValue)       \
   V(LoadTypeMethodCacheEntryType)      \
   V(LoadTypeMethodCacheEntryValue)     \
   V(LoadVarObjectSize)                 \
   V(LongCompare)                       \
   V(LongBinaryOp)                      \
+  V(LongInPlaceOp)                     \
   V(MakeCheckedDict)                   \
   V(MakeCheckedList)                   \
   V(MakeCell)                          \
@@ -127,6 +130,7 @@ namespace jit::hir {
   V(RefineType)                        \
   V(Return)                            \
   V(RunPeriodicTasks)                  \
+  V(Send)                              \
   V(SetCellItem)                       \
   V(SetCurrentAwaiter)                 \
   V(SetDictItem)                       \
@@ -148,10 +152,9 @@ namespace jit::hir {
   V(UnicodeSubscr)                     \
   V(UnpackExToTuple)                   \
   V(Unreachable)                       \
+  V(UpdatePrevInstr)                   \
   V(UseType)                           \
   V(VectorCall)                        \
-  V(VectorCallStatic)                  \
-  V(VectorCallKW)                      \
   V(WaitHandleLoadCoroOrResult)        \
   V(WaitHandleLoadWaiter)              \
   V(WaitHandleRelease)                 \

@@ -3,17 +3,21 @@
 #include "cinderx/Jit/frame.h"
 
 #include <Python.h>
+
+#if PY_VERSION_HEX < 0x030C0000
+
 #include "cinder/exports.h"
 #include "cinder/genobject_jit.h"
-#include "cinderx/Common/log.h"
-#include "cinderx/Common/util.h"
+#include "internal/pycore_object.h"
 #include "internal/pycore_pystate.h"
 #include "internal/pycore_shadow_frame.h"
-#include "pycore_object.h"
 
+#include "cinderx/Common/log.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/runtime.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <algorithm>
 #include <functional>
@@ -780,3 +784,20 @@ void Ci_WalkAsyncStack(
             CI_SWD_CONTINUE_STACK_WALK;
       });
 }
+
+#else // PY_VERSION_HEX < 0x030C0000
+
+#include "cinderx/Upgrade/upgrade_assert.h"
+
+namespace jit {
+
+RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
+}
+
+Ref<PyFrameObject> materializePyFrameForDeopt(PyThreadState* tstate) {
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
+}
+} // namespace jit
+
+#endif

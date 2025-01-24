@@ -6,18 +6,14 @@
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/perf_jitdump.h"
-#include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/pyjit.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
-
-#include <fmt/format.h>
+#include "i386-dis/dis-asm.h"
 
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <iostream>
 #include <memory>
 #include <ostream>
 #include <string>
@@ -32,9 +28,8 @@ using namespace std;
 using namespace jit::lir;
 
 class CmdLineTest : public RuntimeTest {
-  bool setUpJit() const {
-    return false;
-  }
+ public:
+  CmdLineTest() : RuntimeTest{RuntimeTest::Flags{}} {}
 };
 
 int try_flag_and_envvar_effect(
@@ -109,14 +104,8 @@ TEST_F(CmdLineTest, BasicFlags) {
       try_flag_and_envvar_effect(
           L"jit-debug",
           "PYTHONJITDEBUG",
-          []() {
-            g_debug = 0;
-            g_debug_verbose = 0;
-          },
-          []() {
-            ASSERT_EQ(g_debug, 1);
-            ASSERT_EQ(g_debug_verbose, 1);
-          }),
+          []() { g_debug = 0; },
+          []() { ASSERT_EQ(g_debug, 1); }),
       0);
 
   ASSERT_EQ(
@@ -125,6 +114,14 @@ TEST_F(CmdLineTest, BasicFlags) {
           "PYTHONJITDEBUGREFCOUNT",
           []() { g_debug_refcount = 0; },
           []() { ASSERT_EQ(g_debug_refcount, 1); }),
+      0);
+
+  ASSERT_EQ(
+      try_flag_and_envvar_effect(
+          L"jit-debug-inliner",
+          "PYTHONJITDEBUGINLINER",
+          []() { g_debug_inliner = 0; },
+          []() { ASSERT_EQ(g_debug_inliner, 1); }),
       0);
 
   ASSERT_EQ(
@@ -203,20 +200,12 @@ TEST_F(CmdLineTest, BasicFlags) {
           "PYTHONJITGDBSUPPORT",
           []() {
             g_debug = 0;
-            g_gdb_support = 0;
+            getMutableConfig().gdb.supported = false;
           },
           []() {
             ASSERT_EQ(g_debug, 1);
-            ASSERT_EQ(g_gdb_support, 1);
+            ASSERT_TRUE(getConfig().gdb.supported);
           }),
-      0);
-
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-gdb-stubs-support",
-          "PYTHONJITGDBSTUBSSUPPORT",
-          []() { g_gdb_stubs_support = 0; },
-          []() { ASSERT_EQ(g_gdb_stubs_support, 1); }),
       0);
 
   ASSERT_EQ(
@@ -225,13 +214,13 @@ TEST_F(CmdLineTest, BasicFlags) {
           "PYTHONJITGDBWRITEELF",
           []() {
             g_debug = 0;
-            g_gdb_support = 0;
-            g_gdb_write_elf_objects = 0;
+            getMutableConfig().gdb.supported = false;
+            getMutableConfig().gdb.write_elf_objects = false;
           },
           []() {
             ASSERT_EQ(g_debug, 1);
-            ASSERT_EQ(g_gdb_support, 1);
-            ASSERT_EQ(g_gdb_write_elf_objects, 1);
+            ASSERT_TRUE(getConfig().gdb.supported);
+            ASSERT_TRUE(getConfig().gdb.write_elf_objects);
           }),
       0);
 
@@ -299,9 +288,8 @@ TEST_F(CmdLineTest, JITEnable) {
           "PYTHONJIT",
           []() {},
           []() {
-            ASSERT_EQ(_PyJIT_IsEnabled(), 1);
-            ASSERT_EQ(
-                _PyJIT_IsDisassemblySyntaxIntel(), 0); // default to AT&T syntax
+            ASSERT_TRUE(isJitUsable());
+            ASSERT_EQ(is_intel_syntax(), 0); // default to AT&T syntax
           }),
       0);
 
@@ -310,20 +298,25 @@ TEST_F(CmdLineTest, JITEnable) {
           L"jit=0",
           "PYTHONJIT=0",
           []() {},
-          []() { ASSERT_EQ(_PyJIT_IsEnabled(), 0); }),
+          []() { ASSERT_FALSE(isJitUsable()); }),
       0);
 }
 
-// start of tests associated with flags the setting of which is dependant upon
+// start of tests associated with flags the setting of which is dependent upon
 // if jit is enabled
 TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
+  // Shadow frames don't exist past 3.10.
+  auto shadow_mode =
+      PY_VERSION_HEX >= 0x030B0000 ? FrameMode::kNormal : FrameMode::kShadow;
+
+  // Flag does nothing when JIT is disabled.
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-shadow-frame",
           "PYTHONJITSHADOWFRAME",
           []() {},
-          []() { ASSERT_NE(getConfig().frame_mode, FrameMode::kShadow); },
-          false),
+          []() { ASSERT_EQ(getConfig().frame_mode, FrameMode::kNormal); },
+          false /* enable_jit */),
       0);
 
   ASSERT_EQ(
@@ -331,8 +324,8 @@ TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
           L"jit-shadow-frame",
           "PYTHONJITSHADOWFRAME",
           []() {},
-          []() { ASSERT_EQ(getConfig().frame_mode, FrameMode::kShadow); },
-          true),
+          [=]() { ASSERT_EQ(getConfig().frame_mode, shadow_mode); },
+          true /* enable_jit */),
       0);
 
   // Explicitly disable it.
@@ -341,8 +334,8 @@ TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
           L"jit-shadow-frame=0",
           "PYTHONJITSHADOWFRAME=0",
           []() {},
-          []() { ASSERT_NE(getConfig().frame_mode, FrameMode::kShadow); },
-          true),
+          []() { ASSERT_EQ(getConfig().frame_mode, FrameMode::kNormal); },
+          true /* enable_jit */),
       0);
 }
 
@@ -386,7 +379,7 @@ TEST_F(CmdLineTest, JITEnabledFlags_MatchLineNumbers) {
       0);
 }
 
-// end of tests associated with flags the setting of which is dependant upon if
+// end of tests associated with flags the setting of which is dependent upon if
 // jit is enabled
 
 TEST_F(CmdLineTest, JITEnabledFlags_BatchCompileWorkers) {
@@ -406,16 +399,16 @@ TEST_F(CmdLineTest, ASMSyntax) {
       try_flag_and_envvar_effect(
           L"jit-asm-syntax=intel",
           "PYTHONJITASMSYNTAX=intel",
-          []() { _PyJIT_SetDisassemblySyntaxATT(); },
-          []() { ASSERT_EQ(_PyJIT_IsDisassemblySyntaxIntel(), 1); }),
+          []() { set_att_syntax(); },
+          []() { ASSERT_EQ(is_intel_syntax(), 1); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-asm-syntax=att",
           "PYTHONJITASMSYNTAX=att",
-          []() { _PyJIT_SetDisassemblySyntaxATT(); },
-          []() { ASSERT_EQ(_PyJIT_IsDisassemblySyntaxIntel(), 0); }),
+          []() { set_att_syntax(); },
+          []() { ASSERT_EQ(is_intel_syntax(), 0); }),
       0);
 }
 
@@ -428,7 +421,7 @@ const wchar_t* makeWideChar(const char* to_convert) {
 }
 
 TEST_F(CmdLineTest, JITList) {
-  string list_file = tmpnam(nullptr);
+  std::string list_file = tmpnam(nullptr);
   ofstream list_file_handle(list_file);
   list_file_handle.close();
   const wchar_t* xarg =
@@ -438,8 +431,8 @@ TEST_F(CmdLineTest, JITList) {
       try_flag_and_envvar_effect(
           xarg,
           const_cast<char*>(("PYTHONJITLISTFILE=" + list_file).c_str()),
-          []() { _PyJIT_SetDisassemblySyntaxATT(); },
-          []() { ASSERT_EQ(_PyJIT_IsEnabled(), 1); }),
+          []() { set_att_syntax(); },
+          []() { ASSERT_TRUE(isJitUsable()); }),
       0);
 
   delete[] xarg;
@@ -447,7 +440,7 @@ TEST_F(CmdLineTest, JITList) {
 }
 
 TEST_F(CmdLineTest, JITLogFile) {
-  string log_file = tmpnam(nullptr);
+  std::string log_file = tmpnam(nullptr);
   ofstream log_file_handle(log_file);
   log_file_handle.close();
   const wchar_t* xarg =
@@ -471,55 +464,9 @@ TEST_F(CmdLineTest, ExplicitJITDisable) {
           L"jit-disable",
           "PYTHONJITDISABLE",
           []() {},
-          []() { ASSERT_EQ(_PyJIT_IsEnabled(), 0); },
+          []() { ASSERT_FALSE(isJitUsable()); },
           true),
       0);
-}
-
-TEST_F(CmdLineTest, WriteProfile) {
-  string list_file = tmpnam(nullptr);
-
-  const wchar_t* xarg = makeWideChar(
-      const_cast<char*>(("jit-write-profile=" + list_file).c_str()));
-
-  // Just the profile output file isn't enough to enable profiling.
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          xarg,
-          const_cast<char*>(("PYTHONJITWRITEPROFILE=" + list_file).c_str()),
-          []() { _PyJIT_SetProfileNewInterpThreads(0); },
-          []() { ASSERT_EQ(_PyJIT_GetProfileNewInterpThreads(), 0); }),
-      0);
-
-  delete[] xarg;
-
-  filesystem::remove(list_file);
-}
-
-TEST_F(CmdLineTest, ProfileInterp) {
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-profile-interp",
-          "PYTHONJITPROFILEINTERP",
-          []() { _PyJIT_SetProfileNewInterpThreads(0); },
-          []() { ASSERT_EQ(_PyJIT_GetProfileNewInterpThreads(), 1); }),
-      0);
-}
-
-TEST_F(CmdLineTest, ReadProfile) {
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-read-profile=fname",
-          "PYTHONJITREADPROFILE=fname",
-          []() {},
-          []() {
-            ASSERT_TRUE(
-                testing::internal::GetCapturedStderr().find(
-                    "Loading profile data from fname") != std::string::npos);
-          },
-          false,
-          true),
-      -2);
 }
 
 TEST_F(CmdLineTest, DisplayHelpMessage) {

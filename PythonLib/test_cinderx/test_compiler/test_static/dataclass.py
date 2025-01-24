@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from dataclasses import (
     _DataclassParams,
     _FIELD,
@@ -10,7 +11,7 @@ from dataclasses import (
 )
 from typing import Mapping
 
-from cinderx.compiler.consts import CO_STATICALLY_COMPILED
+from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 
 from .common import StaticTestBase
@@ -1807,4 +1808,4 @@ class DataclassTests(StaticTestBase):
             y: str
         """
         with self.in_module(codestr) as mod:
-            self.assertTrue(mod.C.__init__.__code__.co_flags & CO_STATICALLY_COMPILED)
+            self.assertTrue(mod.C.__init__.__code__.co_flags & CI_CO_STATICALLY_COMPILED)

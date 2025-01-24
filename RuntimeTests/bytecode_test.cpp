@@ -1,13 +1,11 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
-#include <Python.h>
 #include "cinderx/Interpreter/opcode.h"
-
 #include "cinderx/Jit/bytecode.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 using BytecodeInstructionIteratorTest = RuntimeTest;
 
@@ -50,22 +48,24 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
   PyTuple_SET_ITEM(consts.get(), 0, Py_None);
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
-  auto code = Ref<PyCodeObject>::steal(PyCode_New(
-      0,
-      0,
-      0,
-      0,
-      0,
+  auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
+      /*argcount=*/0,
+      /*kwargcount=*/0,
+      /*nlocals=*/0,
+      /*stacksize=*/0,
+      /*flags=*/0,
       bytecode,
       consts,
-      empty_tuple,
-      empty_tuple,
-      empty_tuple,
-      empty_tuple,
+      /*names=*/empty_tuple,
+      /*varnames=*/empty_tuple,
+      /*freevars=*/empty_tuple,
+      /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      0,
-      empty_bytes));
+      /*qualname=*/funcname,
+      /*firstlineno=*/0,
+      /*linetable=*/empty_bytes,
+      /*exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   jit::BytecodeInstructionBlock bc_block{code};

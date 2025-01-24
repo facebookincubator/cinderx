@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import chkdict
 
 from unittest import skip, skipIf
@@ -31,10 +32,12 @@ class CheckedDictTests(StaticTestBase):
                 "INVOKE_FUNCTION",
                 (
                     (
-                        "__static__",
-                        "chkdict",
-                        (("builtins", "int"), ("builtins", "int")),
-                        "!",
+                        (
+                            "__static__",
+                            "chkdict",
+                            (("builtins", "int"), ("builtins", "int")),
+                            "!",
+                        ),
                         "keys",
                     ),
                     1,
@@ -60,10 +63,12 @@ class CheckedDictTests(StaticTestBase):
                 "INVOKE_FUNCTION",
                 (
                     (
-                        "__static__",
-                        "chkdict",
-                        (("builtins", "str"), ("builtins", "str", "?")),
-                        "!",
+                        (
+                            "__static__",
+                            "chkdict",
+                            (("builtins", "str"), ("builtins", "str", "?")),
+                            "!",
+                        ),
                         "get",
                     ),
                     3,
@@ -176,10 +181,12 @@ class CheckedDictTests(StaticTestBase):
                 "INVOKE_FUNCTION",
                 (
                     (
-                        "__static__",
-                        "chkdict",
-                        (("builtins", "int"), ("builtins", "str")),
-                        "!",
+                        (
+                            "__static__",
+                            "chkdict",
+                            (("builtins", "int"), ("builtins", "str")),
+                            "!",
+                        ),
                         "__setitem__",
                     ),
                     3,
@@ -204,10 +211,12 @@ class CheckedDictTests(StaticTestBase):
                 "INVOKE_FUNCTION",
                 (
                     (
-                        "__static__",
-                        "chkdict",
-                        (("builtins", "int"), ("builtins", "str")),
-                        "!",
+                        (
+                            "__static__",
+                            "chkdict",
+                            (("builtins", "int"), ("builtins", "str")),
+                            "!",
+                        ),
                         "__setitem__",
                     ),
                     3,

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import cinderjit
 import weakref
@@ -17,6 +18,7 @@ def main_func() -> str:
 
 
 print("disabling jit")
+cinderjit.precompile_all()
 cinderjit.disable()
 
 print("jit disabled")

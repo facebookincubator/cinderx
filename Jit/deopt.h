@@ -6,18 +6,16 @@
 
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/jit_rt.h"
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <fmt/ranges.h>
 
 #include <algorithm>
 #include <cstdint>
 #include <vector>
 
 namespace jit {
-
-class CodeRuntime;
 
 // Return the ValueKind to use for a value with the given Type.
 hir::ValueKind deoptValueKind(hir::Type type);
@@ -111,13 +109,10 @@ struct DeoptFrameMetadata {
   // this was generated.
   PyCodeObject* code{nullptr};
 
-  // The offset of the next bytecode instruction to execute.
-  BCOffset next_instr_offset{0};
+  BCIndex cause_instr_idx{0};
 
-  BCOffset instr_offset() const {
-    return std::max(
-        next_instr_offset - int{sizeof(_Py_CODEUNIT)},
-        BCOffset{-int{sizeof(_Py_CODEUNIT)}});
+  BCIndex nextInstrIdx() const {
+    return cause_instr_idx + 1 + inlineCacheSize(code, cause_instr_idx.value());
   }
 };
 
@@ -148,25 +143,22 @@ struct DeoptMetadata {
   // Why we are de-opting
   DeoptReason reason{DeoptReason::kUnhandledException};
 
-  BCOffset instr_offset() const {
-    /* This is tricky: For guard failures, the `next_instr_offset` points to the
-       instruction itself, but for exceptions, the next_instr_offset is the
-       subsequent instruction. We need to pull the instruction pointer back by 1
-       in the non-guard failure cases to point to the right instruction in the
-       deopt lineno calculation. */
-    auto const& frame = frame_meta[inline_depth()];
-    return reason == DeoptReason::kGuardFailure ? frame.next_instr_offset
-                                                : frame.instr_offset();
-  }
-
   BorrowedRef<PyCodeObject> code() const {
-    return frame_meta[inline_depth()].code;
+    return innermostFrame().code;
   }
 
   // If part of an inlined function, the depth into the call stack that this
   // code *would* be (1, 2, 3, ...). If not inlined, 0.
   size_t inline_depth() const {
     return frame_meta.size() - 1;
+  }
+
+  // When deopting from a stack of inlined functions, the innermost frame is
+  // where the deopting condition actually occurred. When reifying frames for
+  // the inlined callers, these will not be "deopting" but resuming execution
+  // in the interpreter in future.
+  const DeoptFrameMetadata& innermostFrame() const {
+    return frame_meta[inline_depth()];
   }
 
   const LiveValue& getStackValue(int i, const DeoptFrameMetadata& frame) const {
@@ -205,13 +197,14 @@ struct DeoptMetadata {
   }
 
   // Construct a `DeoptMetadata` instance from the information in `instr`.
-  //
-  // `optimizable_lms` contains the set of `LoadMethod` instructions for which
-  // we were able to generate optimized code.
-  static DeoptMetadata fromInstr(
-      const jit::hir::DeoptBase& instr,
-      CodeRuntime* code_rt);
+  static DeoptMetadata fromInstr(const jit::hir::DeoptBase& instr);
 };
+
+#if PY_VERSION_HEX < 0x030C0000
+using CiPyFrameObjType = PyFrameObject;
+#else
+using CiPyFrameObjType = _PyInterpreterFrame;
+#endif
 
 // Update `frame` so that execution can resume in the interpreter.
 //
@@ -231,7 +224,7 @@ struct DeoptMetadata {
 // May return a reference to an object that is relevant to the deopt event. The
 // meaning of this object depends on meta.reason.
 void reifyFrame(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const uint64_t* regs);
@@ -239,7 +232,7 @@ void reifyFrame(
 // Like reifyFrame(), but for a suspended generator. Takes a single base
 // pointer for spill data rather than a full set of registers.
 void reifyGeneratorFrame(
-    PyFrameObject* frame,
+    CiPyFrameObjType* frame,
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const void* base);
@@ -257,7 +250,7 @@ struct MemoryView {
     if (loc.is_register()) {
       return regs[loc.loc];
     } else {
-      uint64_t rbp = regs[jit::codegen::PhyLocation::RBP];
+      uint64_t rbp = regs[jit::codegen::RBP.loc];
       // loc.loc is relative offset from RBP (i.e. negative as stack grows down)
       return *(reinterpret_cast<uint64_t*>(rbp + loc.loc));
     }

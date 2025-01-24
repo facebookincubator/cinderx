@@ -4,10 +4,8 @@
 
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/lir/function.h"
-#include "cinderx/Jit/lir/printer.h"
 
 #include <algorithm>
-#include <iostream>
 
 namespace jit::lir {
 
@@ -32,10 +30,6 @@ BasicBlock* BasicBlock::insertBasicBlockBetween(BasicBlock* block) {
   return new_block;
 }
 
-void BasicBlock::print() const {
-  std::cerr << *this;
-}
-
 BasicBlock* BasicBlock::splitBefore(Instruction* instr) {
   JIT_CHECK(
       func_ != nullptr, "cannot split block that doesn't belong to a function");
@@ -43,7 +37,7 @@ BasicBlock* BasicBlock::splitBefore(Instruction* instr) {
       instr->opcode() != Instruction::kPhi, "cannot split block at a phi node");
 
   // find the instruction
-  InstrList::iterator it = instrs_.begin();
+  instr_iter_t it = instrs_.begin();
   while (it != instrs_.end()) {
     if (it->get() == instr) {
       break;
@@ -108,7 +102,7 @@ void BasicBlock::setSuccessor(size_t index, BasicBlock* bb) {
   bb->predecessors_.push_back(this);
 }
 
-BasicBlock::InstrList::iterator BasicBlock::iterator_to(Instruction* instr) {
+BasicBlock::instr_iter_t BasicBlock::iterator_to(Instruction* instr) {
   for (auto it = instrs_.begin(); it != instrs_.end(); ++it) {
     if (it->get() == instr) {
       return it;

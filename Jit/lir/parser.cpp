@@ -3,7 +3,6 @@
 #include "cinderx/Jit/lir/parser.h"
 
 #include "cinderx/Jit/codegen/code_section.h"
-#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/symbol_mapping.h"
 
@@ -34,7 +33,11 @@ Parser::Token Parser::getNextToken(const char* str) {
       {"BB %(\\d+)( - .*)?\n", kBasicBlockStart},
       {"\n", kNewLine},
       {"%(\\d+)", kVReg},
-      {"R[0-9A-Z]+", kPhyReg},
+      {"R[A-DS][IPX]", kPhyReg},
+      {"R[0-9]+[BWD]?", kPhyReg},
+      {"E[A-DS][IPX]", kPhyReg},
+      {"[A-DS][IPX]L?", kPhyReg},
+      {"XMM[0-9]+", kPhyReg},
       {"\\[RBP[ ]?-[ ]?(\\d+)\\]", kStack},
       {"\\[(0x[0-9a-fA-F]+)\\]", kAddress},
       {"(\\d+)(\\(0x[0-9a-fA-F]+\\))?", kImmediate},

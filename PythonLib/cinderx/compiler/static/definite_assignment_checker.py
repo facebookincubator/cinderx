@@ -1,5 +1,6 @@
 # @oncall strictmod
 
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
 from __future__ import annotations
@@ -8,32 +9,24 @@ import ast
 from ast import (
     AnnAssign,
     Assign,
-    AST,
     AsyncFunctionDef,
     AugAssign,
     ClassDef,
-    comprehension,
-    copy_location,
-    DictComp,
     For,
     FunctionDef,
-    GeneratorExp,
     If,
     Import,
     ImportFrom,
     Lambda,
-    ListComp,
-    Module,
     Name,
     NodeVisitor,
     Raise,
-    SetComp,
     stmt,
     Try,
     While,
     With,
 )
-from typing import Iterable, List, Optional, Set, Union
+from typing import Iterable
 
 from ..consts import SC_CELL, SC_LOCAL
 from ..symbols import Scope
@@ -59,8 +52,8 @@ class DefiniteAssignmentVisitor(NodeVisitor):
         kwarg = node.args.kwarg
         if kwarg:
             self.assigned.add(kwarg.arg)
-        for stmt in node.body:
-            self.visit(stmt)
+        for body_stmt in node.body:
+            self.visit(body_stmt)
 
     def set_assigned(self, name: str) -> None:
         if self.is_local(name):
@@ -244,7 +237,6 @@ class DefiniteAssignmentVisitor(NodeVisitor):
         self.assigned = entry
 
     def visit_If(self, node: If) -> None:
-        test = node.test
         self.visit(node.test)
         entry = set(self.assigned)
         self.walk_stmts(node.body)

@@ -1,8 +1,10 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
+import sys
 import unittest
 
-from cinder import async_cached_property, cached_property
-from unittest import skip
+from cinderx import async_cached_property, cached_property
+from unittest import skipIf
 
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -17,7 +19,7 @@ from .common import StaticTestBase
 class CachedPropertyTests(StaticTestBase):
     def test_cached_property(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             def __init__(self):
@@ -40,7 +42,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_cached_property_invoked(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             def __init__(self):
@@ -61,7 +63,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", ("x", "fget")), 0),
+                (((mod.__name__, "C"), ("x", "fget")), 0),
             )
             r = mod.f()
             self.assertEqual(r.hit_count, 1)
@@ -69,7 +71,7 @@ class CachedPropertyTests(StaticTestBase):
     def test_cached_property_invoked_frozen(self):
         codestr = """
         from typing import final
-        from cinder import cached_property
+        from cinderx import cached_property
 
         @final
         class C:
@@ -91,14 +93,14 @@ class CachedPropertyTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", ("x", "fget")), 0),
+                (((mod.__name__, "C"), ("x", "fget")), 0),
             )
             r = mod.f()
             self.assertEqual(r.hit_count, 1)
 
     def test_multiple_cached_properties(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             def __init__(self):
@@ -134,7 +136,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_cached_property_on_class(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         @cached_property
         class C:
@@ -147,7 +149,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_cached_property_intermediary_cleaned_up(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             def __init__(self):
@@ -169,7 +171,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_cached_property_skip_decorated_methods(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         def my_decorator(fn):
             return fn
@@ -203,7 +205,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_cached_property_override_property(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @property
@@ -223,7 +225,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_property_override_cached_property(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -243,7 +245,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_cached_property_override_cached_property(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -263,7 +265,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_cached_property_override_cached_property_non_static(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -284,7 +286,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_property_override_cached_property_non_static(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -305,7 +307,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_cached_property_override_cached_property_non_static_invoked(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -333,9 +335,10 @@ class CachedPropertyTests(StaticTestBase):
             mod.f(D())
             self.assertEqual(d.hit_count, 1)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             def __init__(self):
@@ -361,9 +364,10 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(c.hit_count, 1)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_invoked(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             def __init__(self):
@@ -384,15 +388,16 @@ class CachedPropertyTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", ("x", "fget")), 0),
+                (((mod.__name__, "C"), ("x", "fget")), 0),
             )
             r = asyncio.run(mod.f())
             self.assertEqual(r.hit_count, 1)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_invoked_frozen(self):
         codestr = """
         from typing import final
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         @final
         class C:
@@ -414,14 +419,15 @@ class CachedPropertyTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", ("x", "fget")), 0),
+                (((mod.__name__, "C"), ("x", "fget")), 0),
             )
             r = asyncio.run(mod.f())
             self.assertEqual(r.hit_count, 1)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_multiple_async_cached_properties(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             def __init__(self):
@@ -467,7 +473,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_async_cached_property_on_class(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         @async_cached_property
         class C:
@@ -478,9 +484,10 @@ class CachedPropertyTests(StaticTestBase):
         ):
             self.compile(codestr)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_intermediary_cleaned_up(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             def __init__(self):
@@ -506,9 +513,10 @@ class CachedPropertyTests(StaticTestBase):
             ):
                 getattr(C, ASYNC_CACHED_PROPERTY_IMPL_PREFIX + "x")
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_override_property(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @property
@@ -535,9 +543,10 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_property_override_async_cached_property(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -564,9 +573,10 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_override_async_cached_property(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -588,9 +598,10 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(mod.async_get_x(C())), 3)
             self.assertEqual(asyncio.run(mod.async_get_x(D())), 4)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_override_async_cached_property_non_static(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -617,9 +628,10 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_override_async_cached_property_2(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -648,7 +660,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_async_cached_property_on_class_raises_type_error(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         @async_cached_property
         class C:
@@ -658,7 +670,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_async_cached_property_setter_raises_type_error(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -675,7 +687,7 @@ class CachedPropertyTests(StaticTestBase):
 
     def test_cached_property_setter_raises_type_error(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -701,7 +713,7 @@ class CachedPropertyTests(StaticTestBase):
 
             codestr = f"""
             from {nonstatic_mod.__name__} import A
-            from cinder import cached_property
+            from cinderx import cached_property
 
             class C(A):
                 def __init__(self):
@@ -731,6 +743,7 @@ class CachedPropertyTests(StaticTestBase):
                 self.assertEqual(c.x, 3)
                 self.assertEqual(c.ctr, 2)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_reset(self):
         nonstatic_codestr = """
         class A:
@@ -742,7 +755,7 @@ class CachedPropertyTests(StaticTestBase):
 
             codestr = f"""
             from {nonstatic_mod.__name__} import A
-            from cinder import async_cached_property
+            from cinderx import async_cached_property
 
             class C(A):
                 def __init__(self):

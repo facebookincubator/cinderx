@@ -1,12 +1,13 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
-#include <Python.h>
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
-
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/compiler.h"
@@ -15,8 +16,11 @@
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
+#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
+#if PY_VERSION_HEX >= 0x030C0000
+#include "internal/pycore_frame.h"
+#endif
 
 #include <asmjit/asmjit.h>
 
@@ -29,6 +33,39 @@ using jit::kPointerSize;
 
 class ReifyFrameTest : public RuntimeTest {};
 
+static inline Ref<> runInInterpreterViaReify(
+    BorrowedRef<PyFunctionObject> func,
+    const DeoptMetadata& dm,
+    const DeoptFrameMetadata& dfm,
+    uint64_t regs[NUM_GP_REGS]) {
+#if PY_VERSION_HEX < 0x030C0000
+  PyThreadState* tstate = PyThreadState_Get();
+  PyCodeObject* code =
+      reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
+  auto frame = Ref<PyFrameObject>::steal(
+      PyFrame_New(tstate, code, PyFunction_GetGlobals(func), nullptr));
+
+  reifyFrame(frame, dm, dfm, regs);
+
+  return Ref<>::steal(PyEval_EvalFrame(frame));
+#else
+  PyThreadState* tstate = PyThreadState_Get();
+  BorrowedRef<PyCodeObject> code = PyFunction_GetCode(func);
+  _PyInterpreterFrame* interp_frame =
+      Cix_PyThreadState_PushFrame(tstate, code->co_framesize);
+  Py_INCREF(func);
+  _PyFrame_Initialize(interp_frame, func, nullptr, code, 0);
+  reifyFrame(interp_frame, dm, dfm, regs);
+  // If we're at the start of the function, push IP past RESUME instruction
+  if (interp_frame->prev_instr == _PyCode_CODE(code) - 1) {
+    interp_frame->prev_instr = _PyCode_CODE(code) + code->_co_firsttraceable;
+  }
+  // PyEval_EvalFrame seems to steal the frame.
+  PyFrameObject* frame_obj = _PyFrame_GetFrameObject(interp_frame);
+  return Ref<>::steal(PyEval_EvalFrame(frame_obj));
+#endif
+}
+
 TEST_F(ReifyFrameTest, ReifyAtEntry) {
   const char* src = R"(
 def test(a, b):
@@ -37,7 +74,7 @@ def test(a, b):
   Ref<PyFunctionObject> func(compileAndGet(src, "test"));
   ASSERT_NE(func, nullptr);
 
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
 
   auto a = Ref<>::steal(PyLong_FromLong(10));
   ASSERT_NE(a, nullptr);
@@ -57,23 +94,16 @@ def test(a, b):
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
 
-  PyCodeObject* code =
-      reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
-
   DeoptMetadata dm;
   dm.live_values = {a_val, b_val};
+  dm.reason = DeoptReason::kGuardFailure;
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
-  dfm.next_instr_offset = BCOffset{0};
+  dfm.cause_instr_idx = BCOffset{0};
   dm.frame_meta.push_back(dfm);
 
-  PyThreadState* tstate = PyThreadState_Get();
-  auto frame = Ref<PyFrameObject>::steal(
-      PyFrame_New(tstate, code, PyFunction_GetGlobals(func), nullptr));
+  Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
-  reifyFrame(frame, dm, dfm, regs);
-
-  auto result = Ref<>::steal(PyEval_EvalFrame(frame));
   ASSERT_NE(result, nullptr);
   ASSERT_TRUE(PyLong_CheckExact(result));
   ASSERT_EQ(PyLong_AsLong(result), 30);
@@ -87,7 +117,7 @@ def test(a, b):
   Ref<PyFunctionObject> func(compileAndGet(src, "test"));
   ASSERT_NE(func, nullptr);
 
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
 
   auto a = Ref<>::steal(PyLong_FromLong(10));
   ASSERT_NE(a, nullptr);
@@ -107,24 +137,21 @@ def test(a, b):
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
 
-  PyCodeObject* code =
-      reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
-
   DeoptMetadata dm;
   dm.live_values = {a_val, b_val};
+  dm.reason = DeoptReason::kGuardFailure;
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 1};
-  dfm.next_instr_offset = BCOffset{4};
+#if PY_VERSION_HEX >= 0x030C0000
+  dfm.cause_instr_idx = BCOffset{6};
+#else
+  dfm.cause_instr_idx = BCOffset{4};
+#endif
   dm.frame_meta.push_back(dfm);
 
-  PyThreadState* tstate = PyThreadState_Get();
-  auto frame = Ref<PyFrameObject>::steal(
-      PyFrame_New(tstate, code, PyFunction_GetGlobals(func), nullptr));
+  Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
-  reifyFrame(frame, dm, dfm, regs);
-
-  auto result = Ref<>::steal(PyEval_EvalFrame(frame));
   ASSERT_NE(result, nullptr);
   ASSERT_TRUE(PyLong_CheckExact(result));
   ASSERT_EQ(PyLong_AsLong(result), 30);
@@ -139,7 +166,7 @@ def test(a, b):
   ASSERT_NE(func, nullptr);
 
   uint64_t mem[2];
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
   regs[PhyLocation::RBP] = reinterpret_cast<uint64_t>(mem) + sizeof(mem);
 
   auto a = Ref<>::steal(PyLong_FromLong(10));
@@ -160,25 +187,21 @@ def test(a, b):
       LiveValue::Source::kUnknown};
   mem[1] = reinterpret_cast<uint64_t>(b.get());
 
-  PyCodeObject* code =
-      reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
-
   DeoptMetadata dm;
   dm.live_values = {a_val, b_val};
+  dm.reason = DeoptReason::kGuardFailure;
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 1};
-  dfm.next_instr_offset = BCOffset{4};
+#if PY_VERSION_HEX >= 0x030C0000
+  dfm.cause_instr_idx = BCOffset{6};
+#else
+  dfm.cause_instr_idx = BCOffset{4};
+#endif
   dm.frame_meta.push_back(dfm);
 
-  PyThreadState* tstate = PyThreadState_Get();
-  PyObject* globals = PyFunction_GetGlobals(func);
-  auto frame =
-      Ref<PyFrameObject>::steal(PyFrame_New(tstate, code, globals, nullptr));
+  Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
-  reifyFrame(frame, dm, dfm, regs);
-
-  auto result = Ref<>::steal(PyEval_EvalFrame(frame));
   ASSERT_NE(result, nullptr);
   ASSERT_TRUE(PyLong_CheckExact(result));
   ASSERT_EQ(PyLong_AsLong(result), 30);
@@ -196,7 +219,7 @@ def test(num):
   Ref<PyFunctionObject> func(compileAndGet(src, "test"));
   ASSERT_NE(func, nullptr);
 
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
   auto num = Ref<>::steal(PyLong_FromLong(3));
   ASSERT_NE(num, nullptr);
   regs[PhyLocation::RDI] = reinterpret_cast<uint64_t>(num.get());
@@ -224,25 +247,21 @@ def test(num):
       ValueKind::kObject,
       LiveValue::Source::kUnknown};
 
-  PyCodeObject* code =
-      reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
-
   DeoptMetadata dm;
   dm.live_values = {num_val, fact_val, tmp_val};
+  dm.reason = DeoptReason::kGuardFailure;
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 2};
-  dfm.next_instr_offset = BCOffset{8};
+#if PY_VERSION_HEX >= 0x030C0000
+  dfm.cause_instr_idx = BCOffset{10};
+#else
+  dfm.cause_instr_idx = BCOffset{8};
+#endif
   dm.frame_meta.push_back(dfm);
 
-  PyThreadState* tstate = PyThreadState_Get();
-  PyObject* globals = PyFunction_GetGlobals(func);
-  auto frame =
-      Ref<PyFrameObject>::steal(PyFrame_New(tstate, code, globals, nullptr));
+  Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
-  reifyFrame(frame, dm, dfm, regs);
-
-  auto result = Ref<>::steal(PyEval_EvalFrame(frame));
   ASSERT_NE(result, nullptr);
   ASSERT_TRUE(PyLong_CheckExact(result));
   ASSERT_EQ(PyLong_AsLong(result), 120);
@@ -250,6 +269,8 @@ def test(num):
 
 TEST_F(ReifyFrameTest, ReifyStaticCompareWithBool) {
   const char* src = R"(
+import cinderx
+cinderx.init()
 from __static__ import size_t, unbox
 def test(x, y):
     x1: size_t = unbox(x)
@@ -265,7 +286,7 @@ def test(x, y):
   }
   ASSERT_NE(func, nullptr);
 
-  uint64_t regs[PhyLocation::NUM_GP_REGS];
+  uint64_t regs[NUM_GP_REGS];
 
   for (int i = 0; i < 2; i++) {
     regs[PhyLocation::RDI] = i;
@@ -278,23 +299,21 @@ def test(x, y):
     PyCodeObject* code =
         reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
     const int jump_index = 18;
-    ASSERT_EQ(PyBytes_AS_STRING(code->co_code)[22], (char)POP_JUMP_IF_ZERO);
+    ASSERT_EQ(
+        PyBytes_AS_STRING(PyCode_GetCode(code))[22], (char)POP_JUMP_IF_ZERO);
 
     DeoptMetadata dm;
     dm.live_values = {a_val};
+    dm.reason = DeoptReason::kGuardFailure;
     DeoptFrameMetadata dfm;
     dfm.localsplus = {0};
     dfm.stack = {0};
-    dfm.next_instr_offset = BCOffset(jump_index);
+    dfm.cause_instr_idx = BCOffset(jump_index);
     dm.frame_meta.push_back(dfm);
 
-    PyThreadState* tstate = PyThreadState_Get();
-    auto frame = Ref<PyFrameObject>::steal(
-        PyFrame_New(tstate, code, PyFunction_GetGlobals(func), nullptr));
+    Ref<> result =
+        runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
-    reifyFrame(frame, dm, dfm, regs);
-
-    auto result = Ref<>::steal(PyEval_EvalFrame(frame));
     ASSERT_NE(result, nullptr);
     ASSERT_TRUE(PyBool_Check(result));
     ASSERT_EQ(result, i ? Py_True : Py_False);
@@ -311,7 +330,6 @@ class DeoptStressTest : public RuntimeTest {
     Ref<PyFunctionObject> funcobj(compileAndGet(src, "test"));
     ASSERT_NE(funcobj, nullptr);
     std::unique_ptr<Function> irfunc(buildHIR(funcobj));
-    ASSERT_NE(irfunc, nullptr);
     auto guards = insertDeopts(*irfunc);
     jit::Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
     auto delete_one_deopt = [&](const DeoptMetadata& deopt_meta) {

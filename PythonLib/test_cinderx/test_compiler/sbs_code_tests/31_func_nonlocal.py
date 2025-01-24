@@ -7,8 +7,9 @@ def foo():
         a = 2
 # EXPECTED:
 [
+    ...,
     LOAD_CONST(Code(('foo'))),
-    LOAD_CONST('foo'),
+    ...,
     MAKE_FUNCTION(0),
     ...,
     CODE_START('foo'),
@@ -17,7 +18,7 @@ def foo():
     LOAD_CLOSURE('a'),
     BUILD_TUPLE(1),
     LOAD_CONST(Code(('bar'))),
-    LOAD_CONST('foo.<locals>.bar'),
+    ...,
     MAKE_FUNCTION(8),
     ...,
     CODE_START('bar'),

@@ -1,16 +1,59 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #pragma once
 
 #include <Python.h>
-#include "cinder/ci_api.h"
+
+#include "cinderx/Common/extra-py-flags.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-CiAPI_FUNC(PyObject *) Ci_GetAIter(PyThreadState *tstate, PyObject *obj);
-CiAPI_FUNC(PyObject *) Ci_GetANext(PyThreadState *tstate, PyObject *aiter);
-CiAPI_FUNC(void) PyEntry_init(PyFunctionObject *func);
-CiAPI_FUNC(PyObject*) _Py_HOT_FUNCTION Ci_EvalFrame(PyThreadState *tstate, PyFrameObject *f, int throwflag);
+#if PY_VERSION_HEX < 0x030C0000
+PyObject* _Py_HOT_FUNCTION
+Ci_EvalFrame(PyThreadState* tstate, PyFrameObject* f, int throwflag);
+#else
+PyObject* _Py_HOT_FUNCTION Ci_EvalFrame(
+    PyThreadState* tstate,
+    struct _PyInterpreterFrame* f,
+    int throwflag);
+#endif
+
+/*
+ * General vectorcall entry point to a function compiled by the Static Python
+ * compiler.  The function will be executed in the interpreter.
+ */
+PyObject* Ci_StaticFunction_Vectorcall(
+    PyObject* func,
+    PyObject* const* stack,
+    size_t nargsf,
+    PyObject* kwnames);
+
+/*
+ * Optimized form of Ci_StaticFunction_Vectorcall, where all arguments are
+ * guaranteed to have the correct type and do not use `kwnames`.
+ */
+PyObject* Ci_PyFunction_CallStatic(
+    PyFunctionObject* func,
+    PyObject* const* args,
+    size_t nargsf,
+    PyObject* kwnames);
+
+/*
+ * Get the appropriate entry point that will execute a function object in the
+ * interpreter.
+ *
+ * This is a different function for Static Python functions versus "normal"
+ * Python functions.
+ */
+static inline vectorcallfunc getInterpretedVectorcall(
+    const PyFunctionObject* func) {
+  const PyCodeObject* code = (const PyCodeObject*)(func->func_code);
+  return (code->co_flags & CI_CO_STATICALLY_COMPILED)
+      ? Ci_StaticFunction_Vectorcall
+      : _PyFunction_Vectorcall;
+}
 
 #ifdef __cplusplus
 }

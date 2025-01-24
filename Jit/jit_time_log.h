@@ -3,18 +3,20 @@
 #pragma once
 
 #include <Python.h>
-#include "cinderx/Common/util.h"
 
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/containers.h"
 
 #include <chrono>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace jit {
 
-using time_point = std::chrono::steady_clock::time_point;
+using Clock = std::chrono::steady_clock;
+using time_point = Clock::time_point;
 
 #define COMPILE_TIMER(com_phase_timer, phase_name, block) \
   if (nullptr != com_phase_timer) {                       \
@@ -28,7 +30,7 @@ using time_point = std::chrono::steady_clock::time_point;
 // flag_value is expected to be the value associate with a the flag jit-time
 // and represents the function list for which compilation phase times are
 // expected to be captured for such that a breakdown may be presented
-// the individual functions are comma seperated and may contain wildcards
+// the individual functions are comma separated and may contain wildcards
 // wildcards will be glob processed (not treated as regex)
 // e.g. -X jit-time=*
 //      -X jit-time=__main__:*
@@ -40,9 +42,21 @@ void parseAndSetFuncList(const std::string& flag_value);
 // patterns defined via parseAndSetFuncList
 bool captureCompilationTimeFor(const std::string& function_name);
 
+// Simple class with start and finish time points.
+struct Timer {
+  explicit Timer() : start{Clock::now()} {}
+
+  std::chrono::nanoseconds finish() const {
+    auto end = Clock::now();
+    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start);
+  }
+
+  time_point start;
+};
+
 class SubPhaseTimer {
  public:
-  explicit SubPhaseTimer(const std::string& sub_phase_name)
+  explicit SubPhaseTimer(std::string_view sub_phase_name)
       : sub_phase_name{sub_phase_name} {}
 
   std::string sub_phase_name;
@@ -59,13 +73,13 @@ class CompilationPhaseTimer {
   CompilationPhaseTimer(
       const std::string& function_name_,
       const std::function<time_point()>& time_provider_)
-      : function_name_(function_name_), time_provider_(time_provider_){}
+      : function_name_(function_name_), time_provider_(time_provider_) {}
   CompilationPhaseTimer(const std::string& function_name_)
       : CompilationPhaseTimer(function_name_, []() {
           return std::chrono::steady_clock::now();
-        }){}
+        }) {}
 
-  void start(const std::string& phase_name);
+  void start(std::string_view phase_name);
 
   // when final start end pair is called with no nesting, then
   // dumpPhaseTimingsAndTidy is invoked and the output dumped to the JIT debug

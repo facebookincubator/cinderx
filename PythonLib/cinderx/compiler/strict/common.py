@@ -6,6 +6,7 @@ from __future__ import annotations
 import ast
 import os.path
 import symtable
+import sys
 import typing
 from ast import (
     alias,
@@ -25,32 +26,18 @@ from ast import (
     Try,
 )
 from collections import deque
+from contextlib import nullcontext
+from dataclasses import dataclass
 from symtable import Class, SymbolTable
-from typing import (
-    Callable,
-    Dict,
-    final,
-    Generic,
-    List,
-    Mapping,
-    MutableMapping,
-    Optional,
-    Type,
-    TypeVar,
-)
+from typing import Callable, Dict, final, Generic, Mapping, MutableMapping, TypeVar
 
-from .runtime import (
-    _mark_cached_property,
-    freeze_type,
-    loose_slots,
-    mutable,
-    strict_slots,
-)
+from .runtime import freeze_type, mutable
+
 
 # Increment this whenever we change the output of the strict modules
 # interpreter. It must stay below 32768 (15 bits), because we use the high bit
 # to encode strictness of the module.
-MAGIC_NUMBER = 51
+MAGIC_NUMBER = 52
 
 
 DEFAULT_STUB_PATH = os.path.dirname(__file__) + "/stubs"
@@ -81,15 +68,24 @@ TScopeData = TypeVar("TData", covariant=True)
 SymbolMap = Dict[AST, SymbolTable]
 
 
+@dataclass(frozen=True)
 class StrictModuleError(Exception):
-    def __init__(
-        self, msg: str, filename: str, lineno: int, col: int, metadata: str = ""
-    ) -> None:
-        self.msg = msg
-        self.filename = filename
-        self.lineno = lineno
-        self.col = col
-        self.metadata = metadata
+    msg: str
+    filename: str
+    lineno: int
+    col: int
+    metadata: str = ""
+
+
+def _is_scoped_generator_node(node: AST) -> bool:
+    return sys.version_info < (3, 12) or not isinstance(
+        node,
+        (
+            ast.ListComp,
+            ast.DictComp,
+            ast.SetComp,
+        ),
+    )
 
 
 @final
@@ -159,7 +155,9 @@ class SymbolMapBuilder(ast.NodeVisitor):
         # first iter is visited in the outer scope
         self.visit(comprehensions[0].iter)
         # everything else is in the inner scope
-        self._process_scope_node(node)
+        if _is_scoped_generator_node(node):
+            # In 3.12 list comprehensions are inlined
+            self._process_scope_node(node)
         # process first comprehension, without iter
         for child in comprehensions[0].ifs:
             self.visit(child)
@@ -306,7 +304,12 @@ class ScopeStack(Generic[TVar, TScopeData]):
 
     def with_node_scope(
         self, node: AST, vars: MutableMapping[str, TVar] | None = None
-    ) -> ScopeContextManager[TVar, TScopeData]:
+    ) -> ScopeContextManager[TVar, TScopeData] | nullcontext:
+        if not _is_scoped_generator_node(node):
+            assert isinstance(node, (ast.ListComp, ast.DictComp, ast.SetComp))
+            # In 3.12 list/dict/set comprehensions are inlined
+            return nullcontext()
+
         next_symtable = self.symbol_map[node]
         return ScopeContextManager(self, self.scope_factory(next_symtable, node, vars))
 

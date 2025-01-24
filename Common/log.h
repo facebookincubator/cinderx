@@ -3,11 +3,11 @@
 #pragma once
 
 #include <Python.h>
-#include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/threaded_compile.h"
 
+#include <fmt/chrono.h>
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 #include <fmt/printf.h>
@@ -28,8 +28,8 @@ auto format_to(
 }
 
 extern int g_debug;
+extern int g_debug_inliner;
 extern int g_debug_refcount;
-extern int g_debug_verbose;
 extern int g_dump_hir;
 extern int g_dump_hir_passes;
 extern std::string g_dump_hir_passes_json;
@@ -40,8 +40,10 @@ extern int g_dump_c_helper;
 extern int g_dump_asm;
 extern int g_symbolize_funcs;
 extern int g_dump_stats;
-extern int g_collect_inline_cache_stats;
 extern FILE* g_log_file;
+
+// Print the current Python exception to stderr, if it exists.
+void printPythonException();
 
 // Use PyObject_Repr() to get a string representation of a PyObject. Use with
 // caution - this can end up executing arbitrary Python code. Always succeeds
@@ -63,7 +65,7 @@ std::string repr(BorrowedRef<> obj);
     JIT_LOG(__VA_ARGS__);    \
   }
 
-#define JIT_DLOG(...) JIT_LOGIF(::jit::g_debug_verbose, __VA_ARGS__)
+#define JIT_DLOG(...) JIT_LOGIF(::jit::g_debug, __VA_ARGS__)
 
 #define JIT_CHECK(COND, ...)                      \
   {                                               \
@@ -84,19 +86,13 @@ std::string repr(BorrowedRef<> obj);
     JIT_ABORT_IMPL(__VA_ARGS__);                                     \
   }
 
-#define JIT_ABORT_IMPL(...)                              \
-  {                                                      \
-    fmt::print(stderr, __VA_ARGS__);                     \
-    fmt::print(stderr, "\n");                            \
-    std::fflush(stderr);                                 \
-    PyThreadState* tstate = _PyThreadState_GET();        \
-    if (tstate != NULL && tstate->curexc_type != NULL) { \
-      PyErr_Display(                                     \
-          tstate->curexc_type,                           \
-          tstate->curexc_value,                          \
-          tstate->curexc_traceback);                     \
-    }                                                    \
-    std::abort();                                        \
+#define JIT_ABORT_IMPL(...)          \
+  {                                  \
+    fmt::print(stderr, __VA_ARGS__); \
+    fmt::print(stderr, "\n");        \
+    std::fflush(stderr);             \
+    jit::printPythonException();     \
+    std::abort();                    \
   }
 
 #ifdef Py_DEBUG

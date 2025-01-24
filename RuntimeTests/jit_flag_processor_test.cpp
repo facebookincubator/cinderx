@@ -2,16 +2,14 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/jit_flag_processor.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
 #include <exception>
-#include <iostream>
 #include <list>
 
 // tests to ensure FlagProcessor is correctly processing command
-// line and enviroment variable parameters and producing a
+// line and environment variable parameters and producing a
 // pretty help message for JIT associated X parameters
 
 using JITFlagProcessorTest = RuntimeTest;
@@ -30,7 +28,7 @@ TEST_F(JITFlagProcessorTest, EmptyHelpMessage) {
 TEST_F(JITFlagProcessorTest, SimpleHelpMessage) {
   auto flag_processor = FlagProcessor();
   int dummy;
-  string a_string = "";
+  std::string a_string = "";
   size_t a_long;
   flag_processor.addOption(
       "a-flag", "ENVIROMENT_VARIABLE", dummy, "Help Message about the flag");
@@ -107,9 +105,9 @@ void try_flag_and_envvar_effect(
   PyObject* xoptions = PySys_GetXOptions();
 
   reset_vars();
-  int prev_g_debug_verbose = g_debug_verbose;
+  int prev_g_debug = g_debug;
   if (capture_stderr) {
-    g_debug_verbose = 1;
+    g_debug = 1;
     testing::internal::CaptureStderr();
   }
 
@@ -137,7 +135,7 @@ void try_flag_and_envvar_effect(
   conditions_to_check();
   reset_vars();
   if (capture_stderr) {
-    g_debug_verbose = prev_g_debug_verbose;
+    g_debug = prev_g_debug;
   }
 }
 
@@ -146,7 +144,7 @@ TEST_F(JITFlagProcessorTest, VarsSetOncmdLineAndEnvVar) {
   // works for strings, longs and boolean flags
   // via cmd line and env variables
   auto flag_processor = FlagProcessor();
-  string dummy = "";
+  std::string dummy = "";
   int vanilla_flag = 0;
   size_t long_flag;
 
@@ -183,13 +181,13 @@ TEST_F(JITFlagProcessorTest, VarsSetOncmdLineAndEnvVar) {
 TEST_F(JITFlagProcessorTest, Callback) {
   // some callbacks can be quite tricky
   auto flag_processor = FlagProcessor();
-  string one_variable = "";
+  std::string one_variable = "";
   int another_variable = 0;
 
   flag_processor.addOption(
       "test-string-flag",
       "STRINGENVVAR",
-      [&one_variable, &another_variable](string what) {
+      [&one_variable, &another_variable](std::string what) {
         one_variable = what;
         another_variable = 99;
       },
@@ -212,7 +210,7 @@ TEST_F(JITFlagProcessorTest, Callback) {
 TEST_F(JITFlagProcessorTest, DebugLoggingCorrect) {
   // correct logging formatted when flags matched?
   auto flag_processor = FlagProcessor();
-  string dummy = "";
+  std::string dummy = "";
 
   flag_processor.addOption(
       "test-string-flag", "STRINGENVVAR", dummy, "test flag description here");
@@ -233,9 +231,9 @@ TEST_F(JITFlagProcessorTest, DebugLoggingCorrect) {
 }
 
 TEST_F(JITFlagProcessorTest, DebugOverrideLoggingCorrect) {
-  // correct logging when default string to log is overriden
+  // correct logging when default string to log is overridden
   auto flag_processor = FlagProcessor();
-  string dummy = "";
+  std::string dummy = "";
 
   flag_processor
       .addOption(
@@ -260,7 +258,7 @@ TEST_F(JITFlagProcessorTest, DebugOverrideLoggingCorrect) {
 }
 
 TEST_F(JITFlagProcessorTest, FlagWithNoEnvVar) {
-  // some flags have no enviroment variable associated with them
+  // some flags have no environment variable associated with them
   auto flag_processor = FlagProcessor();
   int the_variable = 0;
 

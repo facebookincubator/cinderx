@@ -1,9 +1,10 @@
+--- Test Suite Name ---
 CleanCFGTest
----
+--- Passes ---
 CleanCFG
----
+--- Test Name ---
 MergesLinkedListTrampolineBlocks
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -21,7 +22,7 @@ fun test {
     Return v2
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:NoneType = LoadConst<NoneType>
@@ -30,9 +31,18 @@ fun test {
     Return v2
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:NoneType = LoadConst<NoneType>
+    v1:NoneType = LoadConst<NoneType>
+    v2:NoneType = LoadConst<NoneType>
+    Return v2
+  }
+}
+--- Test Name ---
 DoesNotMergeBranchToSelf
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -40,38 +50,79 @@ fun test {
     Branch<0>
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 (preds 0) {
     v0:NoneType = LoadConst<NoneType>
     Branch<0>
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 (preds 0) {
+    v0:NoneType = LoadConst<NoneType>
+    Branch<0>
+  }
+}
+--- Test Name ---
 ReplaceBottomWithUnreachable
----
+--- Input ---
 def test():
   if a():
     pass
   def a():
     pass
----
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     v7:Nullptr = LoadConst<Nullptr>
     Snapshot
     v8:Bottom = CheckVar<"a"> v7 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v7
       }
     }
     Unreachable
   }
 }
----
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v11:Func = LoadCurrentFunc
+    v12:Nullptr = LoadConst<Nullptr>
+    Snapshot
+    v13:CInt32 = LoadEvalBreaker
+    CondBranch<4, 3> v13
+  }
+
+  bb 4 (preds 0) {
+    Snapshot
+    v14:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v12
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot
+    v16:Nullptr = LoadConst<Nullptr>
+    v17:Bottom = CheckVar<"a"> v12 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v12
+        Stack<1> v16
+      }
+    }
+    Unreachable
+  }
+}
+--- Test Name ---
 ReplaceNonDeoptingBottomValueWithUnreachable
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -85,28 +136,47 @@ fun test {
     Return v5
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
     v2:Tuple = GuardType<Tuple> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v4:Tuple = GuardType<Tuple> v1 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     UseType<Tuple> v4
     Unreachable
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v4:Tuple = GuardType<Tuple> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    UseType<Tuple> v4
+    Unreachable
+  }
+}
+--- Test Name ---
 CleanUpPhisWithBottomInputs
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -134,21 +204,33 @@ fun test {
     Return v4
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v3:Bool = UnaryOp<Not> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Return v3
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v3:Bool = UnaryOp<Not> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v3
+  }
+}
+--- Test Name ---
 CleanupBlocksDominatedByBottomValue
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -166,15 +248,21 @@ fun test {
     Return v2
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     Unreachable
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    Unreachable
+  }
+}
+--- Test Name ---
 CleanUpCondBranchToAnUnreachableEdge
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -192,7 +280,7 @@ fun test {
     Return v2
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -200,9 +288,17 @@ fun test {
     Return v1
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:NoneType = LoadConst<NoneType>
+    Return v1
+  }
+}
+--- Test Name ---
 CleanUpCondBranchToTwoUnreachableEdges
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -221,22 +317,35 @@ fun test {
     Return v3
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Tuple = GuardType<Tuple> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     UseType<Tuple> v1
     Unreachable
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    UseType<Tuple> v1
+    Unreachable
+  }
+}
+--- Test Name ---
 CleanUpExistingUnreachable
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -258,22 +367,35 @@ fun test {
     Return v6
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Tuple = GuardType<Tuple> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v6:NoneType = LoadConst<NoneType>
     Return v6
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v6:NoneType = LoadConst<NoneType>
+    Return v6
+  }
+}
+--- Test Name ---
 CleanUpLoopWithUnreachable
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -308,32 +430,55 @@ fun test {
     Return v8
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Tuple = GuardType<Tuple> v0 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v2:NoneType = LoadConst<NoneType>
     v3:Object = BinaryOp<Add> v0 v2 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     v4:Object = BinaryOp<Add> v0 v3 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Unreachable
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Tuple = GuardType<Tuple> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v2:NoneType = LoadConst<NoneType>
+    v3:Object = BinaryOp<Add> v0 v2 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v4:Object = BinaryOp<Add> v0 v3 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Unreachable
+  }
+}
+--- Test Name ---
 CleanUpTruthyBranchOfCondBranchCheckType
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -361,7 +506,7 @@ fun test {
     CondBranch<1, 3> v5
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
@@ -372,7 +517,7 @@ fun test {
   bb 1 (preds 0, 4) {
     v1:Object = BinaryOp<Add> v6 v6 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     CondBranch<3, 4> v1
@@ -381,7 +526,7 @@ fun test {
   bb 4 (preds 1) {
     v5:Object = BinaryOp<Add> v1 v1 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     CondBranch<1, 3> v5
@@ -391,9 +536,39 @@ fun test {
     Return v1
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v6:Tuple = RefineType<Tuple> v0
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 4) {
+    v1:Object = BinaryOp<Add> v6 v6 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<3, 4> v1
+  }
+
+  bb 4 (preds 1) {
+    v5:Object = BinaryOp<Add> v1 v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    CondBranch<1, 3> v5
+  }
+
+  bb 3 (preds 1, 4) {
+    Return v1
+  }
+}
+--- Test Name ---
 CleanUpFalseBranchOfCondBranchCheckType
----
+--- Input ---
 # HIR
 fun test {
   bb 0 {
@@ -411,17 +586,30 @@ fun test {
     Return v2
   }
 }
----
+--- Expected 3.10 ---
 fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v3:{Array|BaseException|Bytes|Cell|Code|Dict|Float|Frame|Func|Gen|List|Long|NoneType|ObjectExact|ObjectUser|Set|Slice|Type|Unicode|WaitHandle} = RefineType<{Array|BaseException|Bytes|CBool|CDouble|CInt|CPtr|Cell|Code|Dict|Float|Frame|Func|Gen|List|Long|NoneType|Nullptr|ObjectExact|ObjectUser|Set|Slice|Type|Unicode|WaitHandle}> v0
     v1:Object = BinaryOp<Add> v3 v3 {
       FrameState {
-        NextInstrOffset 0
+        CurInstrOffset -2
       }
     }
     Return v1
   }
 }
----
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v3:{Array|BaseException|Bytes|Cell|Code|Dict|Float|Frame|Func|Gen|List|Long|NoneType|ObjectExact|ObjectUser|Set|Slice|Type|Unicode|WaitHandle} = RefineType<{Array|BaseException|Bytes|CBool|CDouble|CInt|CPtr|Cell|Code|Dict|Float|Frame|Func|Gen|List|Long|NoneType|Nullptr|ObjectExact|ObjectUser|Set|Slice|Type|Unicode|WaitHandle}> v0
+    v1:Object = BinaryOp<Add> v3 v3 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v1
+  }
+}
+--- End ---

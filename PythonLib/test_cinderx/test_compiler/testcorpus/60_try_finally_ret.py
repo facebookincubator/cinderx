@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 def f():
     try:
         a

@@ -4,9 +4,7 @@
 
 from __future__ import annotations
 
-import ast
-from ast import AST, Call, Constant, Name
-from typing import List, Optional, Tuple, TypeVar
+from ast import AST, Name
 
 
 def is_mutable(node: AST) -> bool:

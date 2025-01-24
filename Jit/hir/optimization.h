@@ -4,13 +4,13 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/type.h"
 
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 
 namespace jit::hir {
@@ -23,20 +23,18 @@ class Register;
 
 class Pass {
  public:
-  explicit Pass(const char* name) : name_(name) {}
-  virtual ~Pass() {}
+  explicit Pass(std::string_view name) : name_{name} {}
+  virtual ~Pass() = default;
 
   virtual void Run(Function& irfunc) = 0;
 
-  const char* name() const {
+  constexpr std::string_view name() const {
     return name_;
   }
 
  protected:
-  const char* name_;
+  std::string name_;
 };
-
-using PassFactory = std::function<std::unique_ptr<Pass>()>;
 
 // Inserts incref/decref instructions.
 class RefcountInsertion : public Pass {
@@ -117,6 +115,17 @@ class DeadCodeElimination : public Pass {
 
   static std::unique_ptr<DeadCodeElimination> Factory() {
     return std::make_unique<DeadCodeElimination>();
+  }
+};
+
+class InsertUpdatePrevInstr : public Pass {
+ public:
+  InsertUpdatePrevInstr() : Pass("InsertUpdatePrevInstr") {}
+
+  void Run(Function& irfunc) override;
+
+  static std::unique_ptr<InsertUpdatePrevInstr> Factory() {
+    return std::make_unique<InsertUpdatePrevInstr>();
   }
 };
 
@@ -201,11 +210,36 @@ class BuiltinLoadMethodElimination : public Pass {
   }
 };
 
+using PassFactory = std::function<std::unique_ptr<Pass>()>;
+
 class PassRegistry {
  public:
-  PassRegistry();
+  PassRegistry() {
+    addPass(RefcountInsertion::Factory);
+    addPass(CopyPropagation::Factory);
+    addPass(CleanCFG::Factory);
+    addPass(DynamicComparisonElimination::Factory);
+    addPass(PhiElimination::Factory);
+    addPass(InlineFunctionCalls::Factory);
+    addPass(Simplify::Factory);
+    addPass(DeadCodeElimination::Factory);
+    addPass(GuardTypeRemoval::Factory);
+    addPass(BeginInlinedFunctionElimination::Factory);
+    addPass(BuiltinLoadMethodElimination::Factory);
+    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+      addPass(InsertUpdatePrevInstr::Factory);
+    }
+  }
 
-  std::unique_ptr<Pass> MakePass(const std::string& name);
+  std::unique_ptr<Pass> makePass(const std::string& name) {
+    auto it = factories_.find(name);
+    return it != factories_.end() ? it->second() : nullptr;
+  }
+
+  void addPass(const PassFactory& factory) {
+    auto temp = factory();
+    factories_.emplace(temp->name(), factory);
+  }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(PassRegistry);

@@ -1,10 +1,18 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
-import cinder
+
 import re
+import sys
 from contextlib import contextmanager
 from textwrap import dedent
 from unittest import skip, skipIf
 from unittest.mock import MagicMock, Mock, patch
+
+try:
+    from cinderx import getknobs, setknobs
+except ImportError:
+    getknobs = setknobs = None
+
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 
@@ -22,9 +30,12 @@ xxclassloader = import_module("xxclassloader")
 
 @contextmanager
 def save_restore_knobs():
-    prev = cinder.getknobs()
-    yield
-    cinder.setknobs(prev)
+    if getknobs is not None and setknobs is not None:
+        prev = getknobs()
+        yield
+        setknobs(prev)
+    else:
+        yield
 
 
 class StaticPatchTests(StaticTestBase):
@@ -236,7 +247,7 @@ class StaticPatchTests(StaticTestBase):
                 TypeError,
                 re.escape(
                     "bad name provided for class loader, "
-                    + f"'f' doesn't exist in ('{mod.__name__}', 'f')"
+                    + f"<module '{mod.__name__}'> has no member 'f'"
                 ),
             ):
                 g()
@@ -492,7 +503,7 @@ class StaticPatchTests(StaticTestBase):
             g = mod.g
             for i in range(100):
                 self.assertEqual(g(), 42)
-            self.assertInBytecode(g, "INVOKE_FUNCTION", ((mod.__name__, "f"), 0))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 0))
             mod.patch("f", lambda: 100)
             self.assertEqual(g(), 100)
 
@@ -506,7 +517,7 @@ class StaticPatchTests(StaticTestBase):
         """
         with self.in_strict_module(codestr, enable_patching=True) as mod:
             g = mod.g
-            self.assertInBytecode(g, "INVOKE_FUNCTION", ((mod.__name__, "f"), 0))
+            self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 0))
             self.assertEqual(g(), 42)
             mod.patch("f", Mock(return_value=100))
             self.assertEqual(g(), 100)
@@ -746,7 +757,7 @@ class StaticPatchTests(StaticTestBase):
         """
         f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(
-            f, "INVOKE_METHOD", ((("builtins", "list", "reverse"), 0))
+            f, "INVOKE_METHOD", (((("builtins", "list"), "reverse"), 0))
         )
         with self.in_module(codestr) as mod:
             # Now cause vtables to be inited
@@ -777,7 +788,7 @@ class StaticPatchTests(StaticTestBase):
         """
         f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(
-            f, "INVOKE_METHOD", ((("builtins", "list", "reverse"), 0))
+            f, "INVOKE_METHOD", (((("builtins", "list"), "reverse"), 0))
         )
         with self.in_module(codestr) as mod:
             # Now cause vtables to be inited
@@ -809,7 +820,7 @@ class StaticPatchTests(StaticTestBase):
         """
         f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(
-            f, "INVOKE_METHOD", ((("<module>", "StaticType", "foo"), 0))
+            f, "INVOKE_METHOD", (((("<module>", "StaticType"), "foo"), 0))
         )
         with self.in_module(codestr) as mod:
             SubType = mod.SubType
@@ -856,7 +867,7 @@ class StaticPatchTests(StaticTestBase):
             code = self.compile(codestr)
             f = self.find_code(code, "f")
             self.assertInBytecode(
-                f, "INVOKE_METHOD", ((("<module>", "StaticType", "foo"), 0))
+                f, "INVOKE_METHOD", (((("<module>", "StaticType"), "foo"), 0))
             )
             with self.in_module(codestr) as mod:
                 SubType = mod.SubType
@@ -887,7 +898,7 @@ class StaticPatchTests(StaticTestBase):
                 return "foo"
         """
         f = self.find_code(self.compile(codestr), "f")
-        self.assertInBytecode(f, "INVOKE_METHOD", ((("<module>", "Base", "foo"), 0)))
+        self.assertInBytecode(f, "INVOKE_METHOD", (((("<module>", "Base"), "foo"), 0)))
         with self.in_module(codestr) as mod:
             Grand = mod.Grand
             grandfoo = mod.grandfoo
@@ -916,7 +927,7 @@ class StaticPatchTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             x, C = mod.x, mod.C
@@ -938,7 +949,7 @@ class StaticPatchTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (("foo", "C", "f"), 0))
+        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             x, C = mod.x, mod.C
@@ -1813,7 +1824,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_patch_cached_property_with_descr(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -1835,15 +1846,19 @@ class StaticPatchTests(StaticTestBase):
             def x(self) -> int:
                 return 3
 
+        def f(c: C) -> int:
+            return c.x
         """
         with self.in_strict_module(codestr, freeze=False) as mod:
-            with self.assertRaisesRegex(
-                TypeError, "Cannot assign a str, because C.x is expected to be a int"
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Overriding property C.x with str when expected to be a int."
             ):
                 setattr(mod.C, "x", "42")
 
-            # ensures that the value was not patched
-            self.assertEqual(mod.C().x, 3)
+            # value is patched, but users should get runtime error when accessing it.
+            self.assertEqual(mod.C().x, "42")
+            with self.assertRaises(TypeError):
+                mod.f(mod.C())
 
     def test_property_patch_with_good_type(self):
         codestr = """
@@ -1863,7 +1878,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_cached_property_patch_with_bad_type(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
         class C:
             @cached_property
@@ -1874,14 +1889,14 @@ class StaticPatchTests(StaticTestBase):
             return c.x
         """
         with self.in_strict_module(codestr, freeze=False) as mod:
-            with self.assertRaisesRegex(
-                TypeError, "Cannot assign a str, because C.x is expected to be a int"
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Overriding property C.x with str when expected to be a int."
             ):
                 setattr(mod.C, "x", "42")
 
     def test_cached_property_patch_with_good_type(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
 
 
         class C:
@@ -1900,7 +1915,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_cached_property_patch_with_none(self):
         codestr = """
-        from cinder import cached_property
+        from cinderx import cached_property
         from typing import Optional
 
         class C:
@@ -2017,7 +2032,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_async_cached_property_patch_with_bad_type(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -2029,8 +2044,8 @@ class StaticPatchTests(StaticTestBase):
         """
         with self.in_strict_module(codestr, freeze=False) as mod:
 
-            with self.assertRaisesRegex(
-                TypeError, "Cannot assign a str, because C.x is expected to be a int"
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Overriding property C.x with str when expected to be a int."
             ):
                 setattr(mod.C, "x", "42")
 
@@ -2045,7 +2060,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_async_cached_property_patch_with_bad_return_type(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -2083,7 +2098,7 @@ class StaticPatchTests(StaticTestBase):
 
     def test_async_cached_property_patch_with_good_return_type(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property
@@ -2114,9 +2129,10 @@ class StaticPatchTests(StaticTestBase):
 
             self.assertEqual(asyncio.run(awaiter(mod.C())), 131)
 
+    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_patch_with_good_return_type_already_invoked(self):
         codestr = """
-        from cinder import async_cached_property
+        from cinderx import async_cached_property
 
         class C:
             @async_cached_property

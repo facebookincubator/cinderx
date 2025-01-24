@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 arr[a:b]
 arr[a:b:c]
 arr[a:]

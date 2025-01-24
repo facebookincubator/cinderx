@@ -5,6 +5,7 @@ def f(name, args):
 [
     ...,
     CODE_START('f'),
+    ...,
     LOAD_CONST('foo.'),
     ...,
     LOAD_CONST('0'),

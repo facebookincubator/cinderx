@@ -4,9 +4,11 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/StaticPython/static_array.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
+#include <fmt/ranges.h>
 
 #include <algorithm>
 #include <cstring>
@@ -44,17 +46,22 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
         {TTuple, &PyTuple_Type},
         {TType, &PyType_Type},
         {TUnicode, &PyUnicode_Type},
+#if PY_VERSION_HEX < 0x030C0000
         {TWaitHandle, &Ci_PyWaitHandle_Type},
+#else
+        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
+#endif
         {TNoneType, &_PyNone_Type},
     };
 
     // After construction, verify that all appropriate types have an entry in
-    // this table.
-#define CHECK_TY(name, bits, lifetime, flags)                         \
-  JIT_CHECK(                                                          \
-      ((flags)&kTypeHasUniquePyType) == 0 || map.count(T##name) == 1, \
-      "Type {} missing entry in typeToPyType()",                      \
-      T##name);
+    // this table. Except for TWaitHandle, which hasn't been ported to 3.12 yet.
+#define CHECK_TY(name, bits, lifetime, flags)                                  \
+  JIT_CHECK(/* UPGRADE_NOTE(AWAITED_FLAG, T194027914) */                       \
+            T##name <= TWaitHandle || ((flags) & kTypeHasUniquePyType) == 0 || \
+                map.count(T##name) == 1,                                       \
+            "Type {} missing entry in typeToPyType()",                         \
+            T##name);
     HIR_TYPES(CHECK_TY)
 #undef CHECK_TY
 
@@ -363,9 +370,9 @@ Type Type::fromTypeImpl(PyTypeObject* type, bool exact) {
   PyObject* mro = type->tp_mro;
   for (ssize_t i = 0; i < PyTuple_GET_SIZE(mro); ++i) {
     auto ty = reinterpret_cast<PyTypeObject*>(PyTuple_GET_ITEM(mro, i));
-    auto it = type_map.find(ty);
-    if (it != type_map.end()) {
-      auto bits = it->second.bits_;
+    auto it_2 = type_map.find(ty);
+    if (it_2 != type_map.end()) {
+      auto bits = it_2->second.bits_;
       return Type{bits & kUser, kLifetimeTop, type, exact};
     }
   }

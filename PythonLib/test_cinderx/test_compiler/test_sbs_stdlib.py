@@ -1,5 +1,7 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import ast
 import dis
+import hashlib
 from io import StringIO
 from os import path
 from tokenize import detect_encoding
@@ -30,7 +32,13 @@ for i in range(N_SBS_TEST_CLASSES):
     class_name = f"SbsCompileTests{i}"
     new_class = type(class_name, (TestCase,), {})
     SbsCompileTests.append(new_class)
-    globals()[class_name] = new_class
+    del new_class
+
+
+class DummyTest(TestCase):
+    def test_nop(self) -> None:
+        """Make sure this test doesn't report as running no tests"""
+        pass
 
 
 # Add a test case for each standard library file to SbsCompileTests.  Individual
@@ -42,16 +50,25 @@ def add_test(modname, fname):
         if p in fname:
             return
 
-    modname = path.relpath(fname, REPO_ROOT)
+    modname = fname.replace(libpath, "")
 
     def test_stdlib(self):
         with open(fname, "rb") as inp:
-            encoding, _lines = detect_encoding(inp.readline)
+            try:
+                encoding, _lines = detect_encoding(inp.readline)
+            except SyntaxError:
+                return
             code = b"".join(_lines + inp.readlines()).decode(encoding)
-            node = ast.parse(code, modname, "exec")
+            try:
+                node = ast.parse(code, modname, "exec")
+            except SyntaxError:
+                return
             node.filename = modname
 
-            orig = compile(node, modname, "exec")
+            try:
+                orig = compile(node, modname, "exec")
+            except SyntaxError:
+                return
             origdump = StringIO()
             Disassembler().dump_code(orig, origdump)
 
@@ -70,9 +87,9 @@ def add_test(modname, fname):
                     f.write(newdump.getvalue())
                 raise
 
-    name = "test_stdlib_" + modname.replace("/", "_")[:-3]
+    name = "test_stdlib_" + modname.replace("/", "_").replace(".", "")[:-2]
     test_stdlib.__name__ = name
-    n = hash(name) % N_SBS_TEST_CLASSES
+    n = int(hashlib.md5(name.encode("ascii")).hexdigest(), 16) % N_SBS_TEST_CLASSES
     setattr(SbsCompileTests[n], test_stdlib.__name__, test_stdlib)
 
 

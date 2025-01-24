@@ -2,14 +2,23 @@
 
 #include "cinderx/Jit/hir/hir.h"
 
-#include "cinderx/Common/log.h"
+#include "internal/pycore_pystate.h"
 
+#include "cinderx/Common/log.h"
 #include "cinderx/Jit/threaded_compile.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <fmt/format.h>
 
 #include <algorithm>
 #include <unordered_map>
+
+// These are used by kFuncPtrMap and kFuncNames below. I couldn't find a good
+// way to include generators_rt.h without introducing a build depencency cycle.
+extern "C" {
+PyObject* JitCoro_GetAwaitableIter(PyObject* o);
+PyObject* JitGen_yf(PyObject* o);
+}
 
 namespace jit::hir {
 
@@ -170,9 +179,10 @@ bool Instr::isReplayable() const {
     case Opcode::kLoadGlobalCached:
     case Opcode::kLoadSplitDictItem:
     case Opcode::kLoadTupleItem:
-    case Opcode::kLoadTypeAttrCacheItem:
-    case Opcode::kLoadTypeMethodCacheEntryValue:
+    case Opcode::kLoadTypeAttrCacheEntryType:
+    case Opcode::kLoadTypeAttrCacheEntryValue:
     case Opcode::kLoadTypeMethodCacheEntryType:
+    case Opcode::kLoadTypeMethodCacheEntryValue:
     case Opcode::kLoadVarObjectSize:
     case Opcode::kLongCompare:
     case Opcode::kPrimitiveBox:
@@ -184,6 +194,7 @@ bool Instr::isReplayable() const {
     case Opcode::kRaiseStatic:
     case Opcode::kRefineType:
     case Opcode::kStealCellItem:
+    case Opcode::kUpdatePrevInstr:
     case Opcode::kUnicodeCompare:
     case Opcode::kUnicodeConcat:
     case Opcode::kUnicodeSubscr:
@@ -199,7 +210,7 @@ bool Instr::isReplayable() const {
     case Opcode::kBuildSlice:
     case Opcode::kCallCFunc:
     case Opcode::kCallEx:
-    case Opcode::kCallExKw:
+    case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
     case Opcode::kCallStaticRetVoid:
@@ -217,6 +228,7 @@ bool Instr::isReplayable() const {
     case Opcode::kDictMerge:
     case Opcode::kDictSubscr:
     case Opcode::kDictUpdate:
+    case Opcode::kEagerImportName:
     case Opcode::kEndInlinedFunction:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
@@ -248,6 +260,7 @@ bool Instr::isReplayable() const {
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadMethodSuper:
     case Opcode::kLongBinaryOp:
+    case Opcode::kLongInPlaceOp:
     case Opcode::kMakeCell:
     case Opcode::kMakeCheckedDict:
     case Opcode::kMakeCheckedList:
@@ -264,6 +277,7 @@ bool Instr::isReplayable() const {
     case Opcode::kRaiseAwaitableError:
     case Opcode::kReturn:
     case Opcode::kRunPeriodicTasks:
+    case Opcode::kSend:
     case Opcode::kSetCellItem:
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kSetDictItem:
@@ -282,8 +296,6 @@ bool Instr::isReplayable() const {
     case Opcode::kUnpackExToTuple:
     case Opcode::kUnreachable:
     case Opcode::kVectorCall:
-    case Opcode::kVectorCallStatic:
-    case Opcode::kVectorCallKW:
     case Opcode::kWaitHandleRelease:
     case Opcode::kYieldAndYieldFrom:
     case Opcode::kYieldFrom:
@@ -431,10 +443,10 @@ BasicBlock* BasicBlock::splitAfter(Instr& instr) {
   JIT_CHECK(cfg != nullptr, "cannot split unlinked block");
   auto tail = cfg->AllocateBlock();
   for (auto it = std::next(instrs_.iterator_to(instr)); it != instrs_.end();) {
-    auto& instr = *it;
+    auto& instr_2 = *it;
     ++it;
-    instr.unlink();
-    tail->Append(&instr);
+    instr_2.unlink();
+    tail->Append(&instr_2);
   }
 
   for (auto edge : tail->out_edges()) {
@@ -482,7 +494,7 @@ void BasicBlock::addPhiPredecessor(BasicBlock* old_pred, BasicBlock* new_pred) {
       args[block] = phi->GetOperand(i);
     }
 
-    phi->ReplaceWith(*Phi::create(phi->GetOutput(), args));
+    phi->ReplaceWith(*Phi::create(phi->output(), args));
     delete phi;
   }
 }
@@ -504,7 +516,7 @@ void BasicBlock::removePhiPredecessor(BasicBlock* old_pred) {
       }
       args[block] = phi->GetOperand(i);
     }
-    phi->ReplaceWith(*Phi::create(phi->GetOutput(), args));
+    phi->ReplaceWith(*Phi::create(phi->output(), args));
     delete phi;
   }
 }
@@ -883,12 +895,16 @@ const Environment::ReferenceSet& Environment::references() const {
 }
 
 bool usesRuntimeFunc(BorrowedRef<PyCodeObject> code) {
-  return PyTuple_GET_SIZE(code->co_freevars) > 0;
+#if PY_VERSION_HEX < 0x030C0000
+  return PyTuple_GET_SIZE(PyCode_GetFreevars(code)) > 0;
+#else
+  return true;
+#endif
 }
 
-void Function::setCode(BorrowedRef<PyCodeObject> code) {
-  this->code.reset(code);
-  uses_runtime_func = usesRuntimeFunc(code);
+void Function::setCode(BorrowedRef<PyCodeObject> code_2) {
+  this->code.reset(code_2);
+  uses_runtime_func = usesRuntimeFunc(code_2);
   frameMode = getConfig().frame_mode;
 }
 
@@ -914,13 +930,8 @@ int Function::numArgs() const {
 }
 
 Py_ssize_t Function::numVars() const {
-  if (code == nullptr) {
-    // code might be null if we parsed from textual ir
-    return 0;
-  }
-  Py_ssize_t num_cellvars = PyTuple_GET_SIZE(code->co_cellvars);
-  Py_ssize_t num_freevars = PyTuple_GET_SIZE(code->co_freevars);
-  return code->co_nlocals + num_cellvars + num_freevars;
+  // Code might be null if we parsed from textual HIR.
+  return code != nullptr ? numLocalsplus(code) : 0;
 }
 
 bool Function::canDeopt() const {

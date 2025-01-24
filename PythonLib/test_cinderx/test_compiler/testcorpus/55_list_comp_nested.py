@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 def fun(n):
     [(x, [x + y for y in z]) for x in n]
 

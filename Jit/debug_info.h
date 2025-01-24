@@ -3,11 +3,13 @@
 #pragma once
 
 #include <Python.h>
-#include "cinderx/Common/ref.h"
+
 #include "frameobject.h"
 
+#include "cinderx/Common/ref.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <asmjit/asmjit.h>
 
@@ -26,9 +28,17 @@ class Instr;
 
 // A location in a code object
 struct CodeObjLoc {
-  CodeObjLoc(BorrowedRef<PyFrameObject> py_frame)
-      : code{py_frame->f_code},
-        instr_offset{BCIndex{py_frame->f_lasti}.asOffset()} {}
+  explicit CodeObjLoc(BorrowedRef<PyFrameObject> frame)
+      : code{Ref<PyCodeObject>::steal(PyFrame_GetCode(frame))} {
+    instr_offset = BCIndex{
+#if PY_VERSION_HEX < 0x030B0000
+        frame->f_lasti
+#else
+        PyFrame_GetLasti(frame)
+#endif
+    };
+  }
+
   CodeObjLoc(BorrowedRef<PyCodeObject> code, BCOffset instr_offset)
       : code{code}, instr_offset{instr_offset} {}
 

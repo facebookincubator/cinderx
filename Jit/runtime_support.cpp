@@ -2,14 +2,17 @@
 
 #include "cinderx/Jit/runtime_support.h"
 
-#include <Python.h>
-#include "cinderx/Common/log.h"
-#include "internal/pycore_pyerrors.h"
+#include "cinderx/Common/py-portability.h"
 
 namespace jit {
 
 PyObject g_iterDoneSentinel = {
-    _PyObject_EXTRA_INIT kImmortalInitialCount,
+    _PyObject_EXTRA_INIT
+#if PY_VERSION_HEX >= 0x030C0000
+    {.ob_refcnt = _Py_IMMORTAL_REFCNT},
+#else
+        _Py_IMMORTAL_REFCNT,
+#endif
     nullptr};
 
 PyObject* invokeIterNext(PyObject* iterator) {

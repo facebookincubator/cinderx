@@ -4,22 +4,21 @@
 
 #include <Python.h>
 
-#include "cinderx/StaticPython/classloader.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-CiAPI_DATA(_PyGenericTypeDef) Ci_CheckedDict_Type;
-CiAPI_FUNC(PyObject *) Ci_CheckedDict_New(PyTypeObject *type);
-CiAPI_FUNC(PyObject *) Ci_CheckedDict_NewPresized(PyTypeObject *type, Py_ssize_t minused);
+extern PyTypeObject* Ci_CheckedDict_Type;
 
-CiAPI_FUNC(int) Ci_CheckedDict_Check(PyObject *x);
-CiAPI_FUNC(int) Ci_CheckedDict_TypeCheck(PyTypeObject *type);
+PyObject* Ci_CheckedDict_New(PyTypeObject* type);
+PyObject* Ci_CheckedDict_NewPresized(PyTypeObject* type, Py_ssize_t minused);
 
-CiAPI_FUNC(int) Ci_CheckedDict_SetItem(PyObject *op, PyObject *key, PyObject *value);
+int Ci_CheckedDict_Check(PyObject* x);
+int Ci_CheckedDict_TypeCheck(PyTypeObject* type);
 
-CiAPI_FUNC(int) Ci_DictOrChecked_SetItem(PyObject *op, PyObject *key, PyObject *value);
+int Ci_CheckedDict_SetItem(PyObject* op, PyObject* key, PyObject* value);
+
+int Ci_DictOrChecked_SetItem(PyObject* op, PyObject* key, PyObject* value);
 
 #ifdef __cplusplus
 }

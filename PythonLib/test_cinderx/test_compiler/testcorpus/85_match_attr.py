@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 x = 0
 class A:
     y = 1

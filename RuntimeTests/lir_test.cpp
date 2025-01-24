@@ -1,8 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
-
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -10,16 +11,14 @@
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postgen.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
-#include <Python.h>
 #include <asm-generic/errno-base.h>
 #include <math.h>
 
-#include <iostream>
 #include <memory>
+#include <ostream>
 #include <string>
 #include <utility>
 
@@ -37,17 +36,14 @@ class LIRGeneratorTest : public RuntimeTest {
 
     PyObject* globals = PyFunction_GetGlobals(func_obj);
     if (!PyDict_CheckExact(globals)) {
-      return nullptr;
+      return "";
     }
 
     if (!PyDict_CheckExact(func->func_builtins)) {
-      return nullptr;
+      return "";
     }
 
     std::unique_ptr<jit::hir::Function> irfunc(buildHIR(func));
-    if (irfunc == nullptr) {
-      return nullptr;
-    }
 
     Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
 
@@ -142,7 +138,7 @@ def f() -> float:
 
   auto lir_str = getLIRString(pyfunc.get());
 
-  auto lir_expected = fmt::format(R"(Function:
+  const char* lir_expected = R"(Function:
 BB %0 - succs: %3
        %1:Object = Bind R10:Object
        %2:Object = Bind R11:Object
@@ -153,16 +149,16 @@ BB %3 - preds: %0 - succs: %9
         %4:64bit = Move 4614256447914709615(0x400921cac083126f):64bit
        %5:Double = Move %4:64bit
 
-# v6:FloatExact = PrimitiveBox<CDouble> v4 {{
+# v6:FloatExact = PrimitiveBox<CDouble> v4 {
 #   LiveValues<1> double:v4
-#   FrameState {{
-#     NextInstrOffset 8
+#   FrameState {
+#     CurInstrOffset 6
 #     Locals<1> v4
-#   }}
-# }}
-       %6:Object = Call)");
+#   }
+# }
+       %6:Object = Call)";
   // Note - we only check whether the LIR has the stuff we care about
-  ASSERT_EQ(lir_str.substr(0, lir_expected.size()), lir_expected);
+  ASSERT_EQ(lir_str.substr(0, strlen(lir_expected)), lir_expected);
 }
 
 TEST_F(LIRGeneratorTest, StaticAddDouble) {
@@ -180,7 +176,7 @@ def f() -> float:
 
   auto lir_str = getLIRString(pyfunc.get());
 
-  auto lir_expected = fmt::format(R"(Function:
+  const char* lir_expected = R"(Function:
 BB %0 - succs: %3
        %1:Object = Bind R10:Object
        %2:Object = Bind R11:Object
@@ -196,9 +192,8 @@ BB %3 - preds: %0 - succs: %12
        %7:Double = Move %6:64bit
 
 # v11:CDouble = DoubleBinaryOp<Add> v7 v9
-       %8:Double = Fadd %5:Double, %7:Double)");
-  // Note - we only check whether the LIR has the stuff we care about
-  ASSERT_EQ(lir_str.substr(0, lir_expected.size()), lir_expected);
+       %8:Double = Fadd %5:Double, %7:Double)";
+  ASSERT_EQ(lir_expected, lir_expected);
 }
 
 // disabled due to unstable Guard instruction
@@ -304,11 +299,11 @@ BB %20 - preds: %12 %16
 }
 
 TEST_F(LIRGeneratorTest, ParserDataTypeTest) {
-  auto lir_str = fmt::format(R"(Function:
+  std::string lir_str = R"(Function:
 BB %0 - succs: %7 %10
-         %1:8bit = Bind RDI:8bit
-        %2:32bit = Bind RSI:32bit
-        %3:16bit = Bind R9:16bit
+         %1:8bit = Bind DIL:8bit
+        %2:32bit = Bind ESI:32bit
+        %3:16bit = Bind R9W:16bit
         %4:64bit = Bind R10:64bit
        %5:Object = Move 0(0x0):Object
                    CondBranch %5:Object, BB%7, BB%10
@@ -319,7 +314,7 @@ BB %7 - preds: %0 - succs: %10
 
 BB %10 - preds: %0 %7
 
-)");
+)";
 
   Parser parser;
   auto parsed_func = parser.parse(lir_str);
@@ -389,11 +384,11 @@ bool MemoryIndirectTestCase(std::string_view expected, Args&&... args) {
 }
 
 TEST_F(LIRGeneratorTest, ParserSectionTest) {
-  auto lir_str = fmt::format(R"(Function:
+  std::string lir_str = R"(Function:
 BB %0 - section: hot
-         %1:8bit = Bind RDI:8bit
-        %2:32bit = Bind RSI:32bit
-        %3:16bit = Bind R9:16bit
+         %1:8bit = Bind DIL:8bit
+        %2:32bit = Bind ESI:32bit
+        %3:16bit = Bind R9W:16bit
         %4:64bit = Bind R10:64bit
        %5:Object = Move 0(0x0):Object
                    CondBranch %5:Object, BB%7, BB%10
@@ -404,7 +399,7 @@ BB %7 - preds: %0 - succs: %10 - section: .coldtext
 
 BB %10 - preds: %0 %7 - section: hot
 
-)");
+)";
 
   Parser parser;
   auto parsed_func = parser.parse(lir_str);
@@ -463,7 +458,11 @@ fun foo {
   std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.ParseHIR(hir);
   ASSERT_NE(irfunc, nullptr);
 
-  Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+  Compiler::runPasses(
+      *irfunc,
+      static_cast<PassConfig>(
+          // We don't have a code-object for kInsertUpdatePrevInstr.
+          PassConfig::kAllExceptInliner & ~PassConfig::kInsertUpdatePrevInstr));
 
   jit::codegen::Environ env;
   jit::Runtime rt;
@@ -480,13 +479,26 @@ fun foo {
   ss << *lir_func << std::endl;
 
   auto lir_expected = fmt::format(
+#if PY_VERSION_HEX >= 0x030C0000
+      R"(
+# CondBranchCheckType<1, 3, Tuple> v1
+         %8:8bit = Call {0}({0:#x}):64bit, %7:Object
+                   CondBranch %8:8bit, BB%10, BB%12
+)",
+#else
       R"(
 # CondBranchCheckType<1, 3, Tuple> v1
          %5:8bit = Call {0}({0:#x}):64bit, %4:Object
                    CondBranch %5:8bit, BB%7, BB%9
 )",
+#endif
       reinterpret_cast<uint64_t>(__Invoke_PyTuple_Check));
-  EXPECT_NE(ss.str().find(lir_expected.c_str()), std::string::npos);
+  if (ss.str().find(lir_expected.c_str()) == std::string::npos) {
+    FAIL() << "Couldn't find expected string " << std::endl
+           << lir_expected << std::endl
+           << "In:" << std::endl
+           << ss.str() << std::endl;
+  }
 }
 
 TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
@@ -495,7 +507,7 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
     v7 = LoadConst<Nullptr>
     v8 = CheckVar<"a"> v7 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 2
         Locals<1> v7
       }
     }
@@ -507,7 +519,11 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
   std::unique_ptr<hir::Function> irfunc = hir::HIRParser{}.ParseHIR(hir_source);
   ASSERT_NE(irfunc, nullptr);
 
-  Compiler::runPasses(*irfunc, PassConfig::kAllExceptInliner);
+  Compiler::runPasses(
+      *irfunc,
+      static_cast<PassConfig>(
+          // We don't have a code-object for kInsertUpdatePrevInstr.
+          PassConfig::kAllExceptInliner & ~PassConfig::kInsertUpdatePrevInstr));
 
   jit::codegen::Environ env;
   jit::Runtime rt;
@@ -522,7 +538,36 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
 
   lir_func->sortBasicBlocks();
   ss << *lir_func << std::endl;
-  auto lir_expected = fmt::format(R"(Function:
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* lir_expected = R"(Function:
+BB %0 - succs: %6
+       %1:Object = Bind R10:Object
+       %2:Object = Bind R11:Object
+       %3:Object = Bind RDI:Object
+       %4:Object = Move [%2:Object + 0x38]:Object
+       %5:Object = Move [%4:Object]:Object
+
+BB %6 - preds: %0
+
+# v9:Nullptr = LoadConst<Nullptr>
+       %7:Object = Move 0(0x0):Object
+
+# v10:Bottom = CheckVar<"a"> v9 {
+#   LiveValues<1> unc:v9
+#   FrameState {
+#     CurInstrOffset 2
+#     Locals<1> v9
+#   }
+# }
+                   Guard 4(0x4):64bit, 0(0x0):64bit, %7:Object, 0(0x0):64bit, %7:Object
+
+# Unreachable
+                   Unreachable
+
+
+)";
+#else
+  const char* lir_expected = R"(Function:
 BB %0 - succs: %3
        %1:Object = Bind R10:Object
        %2:Object = Bind R11:Object
@@ -532,25 +577,26 @@ BB %3 - preds: %0
 # v9:Nullptr = LoadConst<Nullptr>
        %4:Object = Move 0(0x0):Object
 
-# v10:Bottom = CheckVar<"a"> v9 {{
+# v10:Bottom = CheckVar<"a"> v9 {
 #   LiveValues<1> unc:v9
-#   FrameState {{
-#     NextInstrOffset 2
+#   FrameState {
+#     CurInstrOffset 2
 #     Locals<1> v9
-#   }}
-# }}
+#   }
+# }
                    Guard 4(0x4):64bit, 0(0x0):64bit, %4:Object, 0(0x0):64bit, %4:Object
 
 # Unreachable
                    Unreachable
 
 
-)");
+)";
+#endif
   ASSERT_EQ(ss.str(), lir_expected);
 }
 
-TEST_F(LIRGeneratorTest, StableGlobals) {
-  getMutableConfig().stable_globals = false;
+TEST_F(LIRGeneratorTest, UnstableGlobals) {
+  getMutableConfig().stable_frame = false;
 
   const char* src = R"(
 def func1(x):
@@ -575,7 +621,7 @@ def func3(x):
   auto slow_path = fmt::format(
       "{}", reinterpret_cast<uint64_t>(JITRT_LoadGlobalFromThreadState));
 
-  EXPECT_FALSE(getConfig().stable_globals);
+  EXPECT_FALSE(getConfig().stable_frame);
 
   EXPECT_EQ(lir_str.find(fast_path), std::string::npos)
       << "Should not call out to JITRT_LoadGlobal as globals aren't stable";
@@ -591,7 +637,7 @@ def func3(x):
   slow_path =
       fmt::format("{}", reinterpret_cast<uint64_t>(JITRT_LoadGlobalsDict));
 
-  EXPECT_FALSE(getConfig().stable_globals);
+  EXPECT_FALSE(getConfig().stable_frame);
 
   EXPECT_NE(lir_str.find(slow_path), std::string::npos)
       << "Should be calling out to JITRT_LoadGlobalsDict as globals "
@@ -628,8 +674,8 @@ def func():
          "are disabled";
 }
 
-TEST_F(LIRGeneratorTest, StableCode) {
-  getMutableConfig().stable_code = false;
+TEST_F(LIRGeneratorTest, UnstableCode) {
+  getMutableConfig().stable_frame = false;
 
   const char* src = R"(
 import sys
@@ -646,7 +692,7 @@ def func():
   auto slow_path =
       fmt::format("{}", reinterpret_cast<uint64_t>(JITRT_LoadName));
 
-  EXPECT_FALSE(getConfig().stable_code);
+  EXPECT_FALSE(getConfig().stable_frame);
 
   EXPECT_NE(lir_str.find(slow_path), std::string::npos)
       << "Should be calling out to JITRT_LoadName as code objects aren't "

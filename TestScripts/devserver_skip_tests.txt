@@ -1,3 +1,7 @@
+#
+# Skips added for 3.10 start here.
+#
+
 # Behavior of import events is different after CinderX initialization.
 test.test_bdb.StateTestCase.test_skip
 
@@ -51,3 +55,34 @@ test_gdb
 test_socket
 test_unicodedata
 test_urllib2net
+
+
+#
+# Skips added for 3.12 start here.
+#
+
+# Can't access general Internet hosts from Meta servers.
+test.test_audit.AuditTest.test_http
+
+# These fail os.fork() because the process has multiple threads? This may be
+# related to T184566736 where Buck gives zombie processes to children.
+test.test_threading.ThreadTests.test_main_thread_after_fork
+test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works_with_forks
+test.test_multiprocessing_main_handling.ForkCmdLineTest.*
+test.test_multiprocessing_main_handling.ForkServerCmdLineTest.*
+test.test_concurrent_futures.test_shutdown.ProcessPoolForkProcessPoolShutdownTest.*
+test.test_multiprocessing.*.test_shared_memory_SharedMemoryManager_reuses_resource_tracker
+test_multiprocessing_fork
+test_multiprocessing_forkserver
+test_multiprocessing_spawn
+test.test_compileall.CommandLineTestsNoSourceEpoch.test_workers
+test.test_compileall.CommandLineTestsWithSourceEpoch.test_workers
+test.test_concurrent_futures.test_shutdown.ProcessPoolForkserverProcessPoolShutdownTest.test_interpreter_shutdown
+
+# This fails with a negative reference count even without CinderX being loaded.
+test.test_set.TestSet.test_c_api
+
+# This is skipped in CI because we don't have a TTY. Make sure it's also skipped
+# on devservers so the list of expected pass/fail tests is consistent on both
+# platforms.
+test_ioctl

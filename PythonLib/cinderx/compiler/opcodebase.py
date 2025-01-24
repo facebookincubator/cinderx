@@ -1,4 +1,7 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
+
+
 class Opcode:
     CMP_OP = (
         "<",
@@ -48,6 +51,7 @@ class Opcode:
             raise ValueError(
                 "stack_effect: opcode does not permit oparg but oparg was specified"
             )
+        # pyre-fixme[6]: For 1st argument expected `Optional[bool]` but got `int`.
         jump_int = {None: -1, True: 1, False: 0}.get(jump)
         if jump_int is None:
             raise ValueError("stack_effect: jump must be False, True or None")
@@ -66,6 +70,10 @@ class Opcode:
             return effect(oparg, jump)  # pyre-ignore[29]
 
     def def_op(self, name: str, op: int) -> None:
+        # Fill in any missing space in the opname list for
+        # opargs which are > 255.
+        while op >= len(self.opname):
+            self.opname.append("<{!r}>".format(op))
         self.opname[op] = name
         self.opmap[name] = op
         setattr(self, name, op)

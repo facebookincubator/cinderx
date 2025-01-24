@@ -25,6 +25,8 @@ extern int jit_perfmap;
 //                   directory.
 extern std::string perf_jitdump_dir;
 
+bool isPreforkCompilationEnabled();
+
 void registerFunction(
     const std::vector<std::pair<void*, std::size_t>>& code_sections,
     const std::string& name,

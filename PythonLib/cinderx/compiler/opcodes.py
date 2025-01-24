@@ -4,13 +4,40 @@
 
 import sys
 
-from opcode import opmap, hasname, hasjrel, hascompare, hasconst, haslocal, hasfree, hasjabs
+from opcode import (
+    hascompare,
+    hasconst,
+    hasfree,
+    hasjabs,
+    hasjrel,
+    haslocal,
+    hasname,
+    opmap,
+    opname,
+)
+
 from .opcodebase import Opcode
+
+if sys.version_info >= (3, 12):
+    from opcode import hasarg
+
+    from cinderx import opcode as cinderx_opcode
+
+    cinderx_opcode.init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, hasarg)
+
+    if "dis" in sys.modules:
+        # Fix up dis module to use the CinderX opcodes
+        import dis
+
+        dis._all_opname = list(opname)
+        dis._all_opmap = dict(opmap)
+        dis._empty_slot = [
+            slot for slot, name in enumerate(dis._all_opname) if name.startswith("<")
+        ]
+
 
 opcode: Opcode = Opcode()
 for opname, opnum in opmap.items():
-    if opnum > 255:
-        continue
     if opnum in hasname:
         opcode.name_op(opname, opnum)
     elif opnum in hasjrel:
@@ -40,6 +67,7 @@ FVS_HAVE_SPEC = 0x4
 
 opcode.stack_effects.update(
     NOP=0,
+    RESUME=0,
     POP_TOP=-1,
     ROT_TWO=0,
     ROT_THREE=0,
@@ -176,7 +204,116 @@ opcode.stack_effects.update(
 )
 
 if sys.version_info >= (3, 12):
+
+    def _load_mapping_arg_effect(oparg: int, _jmp: int = 0) -> int:
+        """The effect of this opcode depends on the number of items on the stack
+        when it is invoked. The number of items on the stack for LOAD_MAPPING_ARG
+        is based on the oparg. LOAD_MAPPING_ARG will push the resulting value and
+        will consume either a default value, the mapping, and the argument name when
+        oparg == 3 or just the mapping and argument name when there is no default
+        value for the argument."""
+        if oparg == 2:
+            return -1
+        elif oparg == 3:
+            return -2
+        raise ValueError("bad oparg")
+
     opcode.stack_effects.update(
-        CALL=lambda oparg, jmp=0: -oparg,
+        CALL=lambda oparg, jmp=0: -(oparg + 1),
+        COPY_FREE_VARS=lambda oparg, jmp=0: 0,
+        MAKE_CELL=lambda oparg, jmp=0: 0,
+        JUMP=0,
+        JUMP_BACKWARD=0,
         PUSH_NULL=1,
+        RETURN_CONST=0,
+        SWAP=0,
+        COPY=1,
+        CALL_INTRINSIC_1=0,
+        CALL_INTRINSIC_2=-1,
+        LOAD_FROM_DICT_OR_DEREF=0,
+        LOAD_LOCALS=1,
+        MAKE_FUNCTION=lambda oparg, jmp=0: -oparg.bit_count(),
+        LOAD_FROM_DICT_OR_GLOBALS=0,
+        LOAD_SUPER_ATTR=lambda oparg, jmp: (
+            2 if oparg[0] in ("LOAD_SUPER_METHOD", "LOAD_ZERO_SUPER_METHOD") else 1
+        )
+        - 3,
+        LOAD_ATTR=lambda oparg, jmp: (
+            1 if (isinstance(oparg, tuple) and oparg[1]) else 0
+        ),
+        BINARY_OP=-1,
+        RETURN_GENERATOR=0,
+        SEND=0,
+        JUMP_NO_INTERRUPT=0,
+        JUMP_BACKWARD_NO_INTERRUPT=0,
+        CLEANUP_THROW=-1,
+        END_SEND=-1,
+        END_FOR=-2,
+        FOR_ITER=lambda oparg, jmp=0: 1,
+        END_ASYNC_FOR=-2,
+        SETUP_FINALLY=lambda oparg, jmp=0: 1 if jmp else 0,
+        SETUP_CLEANUP=lambda oparg, jmp=0: 2 if jmp else 0,
+        SETUP_WITH=lambda oparg, jmp=0: 1 if jmp else 0,
+        PUSH_EXC_INFO=1,
+        POP_EXCEPT=-1,
+        LOAD_FAST_AND_CLEAR=1,
+        STORE_FAST_MAYBE_NULL=-1,
+        RERAISE=-1,
+        LOAD_FAST_CHECK=1,
+        LOAD_GLOBAL=lambda oparg, jmp=0: 2 if isinstance(oparg, tuple) else 1,
+        BEFORE_WITH=1,
+        CALL_FUNCTION_EX=lambda oparg, jmp=0: 1 - (4 if oparg & 0x01 else 3),
+        CHECK_EXC_MATCH=0,
+        CHECK_EG_MATCH=0,
+        POP_JUMP_IF_NONE=-1,
+        POP_JUMP_IF_NOT_NONE=-1,
+        BINARY_SLICE=-2,
+        STORE_SLICE=-4,
+        KW_NAMES=0,
+        MATCH_KEYS=1,
+        MATCH_CLASS=-2,
+        EAGER_IMPORT_NAME=-1,
+        INVOKE_METHOD=lambda oparg, jmp: -oparg[1],
+        LOAD_FIELD=0,
+        STORE_FIELD=-2,
+        CAST=0,
+        LOAD_LOCAL=1,
+        STORE_LOCAL=-1,
+        PRIMITIVE_BOX=0,
+        POP_JUMP_IF_ZERO=-1,
+        POP_JUMP_IF_NONZERO=-1,
+        PRIMITIVE_UNBOX=0,
+        PRIMITIVE_BINARY_OP=lambda oparg, jmp: -1,
+        PRIMITIVE_UNARY_OP=lambda oparg, jmp: 0,
+        PRIMITIVE_COMPARE_OP=lambda oparg, jmp: -1,
+        LOAD_ITERABLE_ARG=1,
+        LOAD_MAPPING_ARG=_load_mapping_arg_effect,
+        INVOKE_FUNCTION=lambda oparg, jmp=0: (-oparg[1]) + 1,
+        INVOKE_NATIVE=lambda oparg, jmp=0: (-len(oparg[1])) + 2,
+        JUMP_IF_ZERO_OR_POP=lambda oparg, jmp=0: 0 if jmp else -1,
+        JUMP_IF_NONZERO_OR_POP=lambda oparg, jmp=0: 0 if jmp else -1,
+        FAST_LEN=0,
+        CONVERT_PRIMITIVE=0,
+        LOAD_CLASS=1,
+        BUILD_CHECKED_MAP=lambda oparg, jmp: 1 - 2 * oparg[1],
+        SEQUENCE_GET=-1,
+        SEQUENCE_SET=-3,
+        LIST_DEL=-2,
+        REFINE_TYPE=0,
+        PRIMITIVE_LOAD_CONST=1,
+        RETURN_PRIMITIVE=-1,
+        TP_ALLOC=1,
+        BUILD_CHECKED_LIST=lambda oparg, jmp: 1 - oparg[1],
+        LOAD_TYPE=0,
     )
+
+    from opcode import (
+        _intrinsic_1_descs as INTRINSIC_1,
+        _intrinsic_2_descs as INTRINSIC_2,
+        _nb_ops as NB_OPS,
+    )
+
+else:
+    NB_OPS: list[tuple[str, str]] = []
+    INTRINSIC_1: list[str] = []
+    INTRINSIC_2: list[str] = []

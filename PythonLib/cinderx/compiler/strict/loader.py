@@ -12,7 +12,6 @@ try:  # ensure all imports in this module are eager, to avoid cycles
     import marshal
     import os
     import sys
-    from cinder import StrictModule, watch_sys_modules
 
     from enum import Enum
 
@@ -48,21 +47,13 @@ try:  # ensure all imports in this module are eager, to avoid cycles
         PyCompileError,
     )
     from types import CodeType, ModuleType
-    from typing import (
-        Callable,
-        cast,
-        Collection,
-        Dict,
-        final,
-        Iterable,
-        Mapping,
-        Optional,
-        Type,
-    )
+    from typing import Callable, cast, Collection, final, Iterable, Mapping
+
+    from _cinderx import StrictModule, watch_sys_modules
 
     from cinderx.static import install_sp_audit_hook
 
-    from ..consts import CO_STATICALLY_COMPILED
+    from ..consts import CI_CO_STATICALLY_COMPILED
     from .common import (
         DEFAULT_STUB_PATH,
         FIXED_MODULES,
@@ -70,7 +61,7 @@ try:  # ensure all imports in this module are eager, to avoid cycles
     )
     from .compiler import Compiler, Dependencies, SourceInfo, TIMING_LOGGER_TYPE
     from .flag_extractor import Flags
-except:
+except BaseException:
     raise
 
 
@@ -339,7 +330,8 @@ class StrictSourceFileLoader(SourceFileLoader):
         allow_list_exact: Iterable[str] | None = None,
         enable_patching: bool = False,
         log_source_load: Callable[[str, str | None, bool], None] | None = None,
-        init_cached_properties: None | (
+        init_cached_properties: None
+        | (
             Callable[
                 [Mapping[str, str | tuple[str, bool]]],
                 Callable[[type[object]], type[object]],
@@ -539,8 +531,6 @@ class StrictSourceFileLoader(SourceFileLoader):
     def should_force_strict(self) -> bool:
         return False
 
-    # pyre-ignore[40]: Non-static method `source_to_code` cannot override a static
-    #  method defined in `importlib.abc.InspectLoader`.
     # pyre-fixme[14]: `source_to_code` overrides method defined in `InspectLoader`
     #  inconsistently.
     def source_to_code(
@@ -625,7 +615,7 @@ class StrictSourceFileLoader(SourceFileLoader):
                 "<builtins>": builtins.__dict__,
                 "<init-cached-properties>": self.init_cached_properties,
             }
-            if code.co_flags & CO_STATICALLY_COMPILED:
+            if code.co_flags & CI_CO_STATICALLY_COMPILED:
                 init_static_python()
                 new_dict["<imported-from>"] = code.co_consts[-1]
 
@@ -639,6 +629,45 @@ class StrictSourceFileLoader(SourceFileLoader):
             exec(code, module.__dict__)
 
 
+class StrictSourceFileLoaderWithPatching(StrictSourceFileLoader):
+    def __init__(
+        self,
+        fullname: str,
+        path: str,
+        import_path: Iterable[str] | None = None,
+        stub_path: str | None = None,
+        allow_list_prefix: Iterable[str] | None = None,
+        allow_list_exact: Iterable[str] | None = None,
+        enable_patching: bool = True,
+        log_source_load: Callable[[str, str | None, bool], None] | None = None,
+        init_cached_properties: None
+        | (
+            Callable[
+                [Mapping[str, str | tuple[str, bool]]],
+                Callable[[type[object]], type[object]],
+            ]
+        ) = None,
+        log_time_func: Callable[[], TIMING_LOGGER_TYPE] | None = None,
+        use_py_compiler: bool = False,
+        # The regexes are parsed on the C++ side, so re.Pattern is not accepted.
+        allow_list_regex: Iterable[str] | None = None,
+    ) -> None:
+        super().__init__(
+            fullname,
+            path,
+            import_path,
+            stub_path,
+            allow_list_prefix,
+            allow_list_exact,
+            enable_patching,
+            log_source_load,
+            init_cached_properties,
+            log_time_func,
+            use_py_compiler,
+            allow_list_regex,
+        )
+
+
 def add_strict_tag(path: str, enable_patching: bool) -> str:
     base, __, ext = path.rpartition(".")
     enable_patching_marker = ".patch" if enable_patching else ""
@@ -646,13 +675,22 @@ def add_strict_tag(path: str, enable_patching: bool) -> str:
     return f"{base}.strict{enable_patching_marker}.{ext}"
 
 
-def _get_supported_file_loaders() -> list[tuple[type[Loader], list[str]]]:
+def _get_supported_file_loaders(
+    enable_patching: bool = False,
+) -> list[tuple[type[Loader], list[str]]]:
     """Returns a list of file-based module loaders.
 
     Each item is a tuple (loader, suffixes).
     """
     extensions = ExtensionFileLoader, EXTENSION_SUFFIXES
-    source = StrictSourceFileLoader, SOURCE_SUFFIXES
+    source = (
+        (
+            StrictSourceFileLoaderWithPatching
+            if enable_patching
+            else StrictSourceFileLoader
+        ),
+        SOURCE_SUFFIXES,
+    )
     bytecode = SourcelessFileLoader, BYTECODE_SUFFIXES
     return [extensions, source, bytecode]
 
@@ -763,9 +801,9 @@ def init_static_python() -> None:
     install_sp_audit_hook()
 
 
-def install() -> None:
+def install(enable_patching: bool = False) -> None:
     """Installs a loader which is capable of loading and validating strict modules"""
-    supported_loaders = _get_supported_file_loaders()
+    supported_loaders = _get_supported_file_loaders(enable_patching)
 
     for index, hook in enumerate(sys.path_hooks):
         if not isinstance(hook, type):

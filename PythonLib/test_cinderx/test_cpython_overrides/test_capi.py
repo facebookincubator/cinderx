@@ -1,13 +1,15 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import textwrap
 import unittest
 
 from test.support.script_helper import assert_python_failure
 
-from test.test_capi import decode_stderr
+
+def decode_stderr(err):
+    return err.decode("utf-8", "replace").replace("\r", "")
 
 
 class CinderX_CAPITest(unittest.TestCase):
-
     # The output in this test is different for CinderX as we now have the
     # _cinderx module loaded.
     def test_getitem_with_error(self):

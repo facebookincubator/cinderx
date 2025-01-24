@@ -1,0 +1,113 @@
+// -*- mode: c++ -*- vi: set ft=cpp:
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
+// This file is processed by UpstreamBorrow.py. To see the generated output:
+// buck build --out=- fbcode//cinderx/UpstreamBorrow:gen_borrowed.c
+
+// clang-format off
+
+#include "cinderx/UpstreamBorrow/borrowed.h"
+
+// @Borrow CPP directives from Objects/genobject.c
+
+#define _PyGen_yf Cix_PyGen_yf
+// @Borrow function _PyGen_yf from Objects/genobject.c
+
+// Internal dependencies for _PyCoro_GetAwaitableIter.
+// @Borrow function gen_is_coroutine from Objects/genobject.c
+// End internal dependencies for _PyCoro_GetAwaitableIter.
+
+#define _PyCoro_GetAwaitableIter Cix_PyCoro_GetAwaitableIter
+// @Borrow function _PyCoro_GetAwaitableIter from Objects/genobject.c
+
+// Internal dependencies for _PyAsyncGenValueWrapperNew.
+// @Borrow typedef _PyAsyncGenWrappedValue from Objects/genobject.c
+// @Borrow function get_async_gen_state from Objects/genobject.c
+// End internal dependencies for _PyAsyncGenValueWrapperNew.
+
+#define _PyAsyncGenValueWrapperNew Cix_PyAsyncGenValueWrapperNew
+// @Borrow function _PyAsyncGenValueWrapperNew from Objects/genobject.c
+
+
+// @Borrow CPP directives from Objects/dictobject.c
+
+// These are global singletons and some of the functions we're borrowing
+// check for them with pointer equality. Fortunately we are able to get
+// the values in init_upstream_borrow().
+static PyObject** empty_values = NULL;
+
+// Internal dependencies for things borrowed from dictobject.c.
+// Rename to avoid clashing with existing version when statically linking.
+#define _Py_dict_lookup __Py_dict_lookup
+// @Borrow function get_dict_state from Objects/dictobject.c
+// @Borrow function free_keys_object from Objects/dictobject.c
+// @Borrow function dictkeys_decref from Objects/dictobject.c
+// @Borrow function dictkeys_incref from Objects/dictobject.c
+// @Borrow function new_dict from Objects/dictobject.c
+// @Borrow function new_dict_with_shared_keys from Objects/dictobject.c
+// End internal dependencies.
+
+#define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
+// @Borrow function _PyObjectDict_SetItem from Objects/dictobject.c
+
+#define _PyDict_LoadGlobal Cix_PyDict_LoadGlobal
+// @Borrow function _PyDict_LoadGlobal from Objects/dictobject.c
+
+
+// @Borrow function set_attribute_error_context from Objects/object.c
+
+// Wrapper as set_attribute_error_context is declared "static inline".
+int
+Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
+  return set_attribute_error_context(v, name);
+}
+
+
+// These are global singletons used transitively by _Py_union_type_or.
+// We initialize them in init_upstream_borrow().
+PyTypeObject* Cix_PyUnion_Type = NULL;
+#define _PyUnion_Type (*Cix_PyUnion_Type)
+
+// Internal dependencies for _Py_union_type_or.
+// @Borrow CPP directives from Objects/unionobject.c
+// @Borrow typedef unionobject from Objects/unionobject.c
+// @Borrow function flatten_args from Objects/unionobject.c
+// @Borrow function dedup_and_flatten_args from Objects/unionobject.c
+// @Borrow function is_unionable from Objects/unionobject.c
+// Rename to avoid clashing with existing version when statically linking.
+#define make_union Cix_make_union
+// @Borrow function make_union from Objects/unionobject.c
+// End internal dependencies.
+#define _Py_union_type_or Cix_Py_union_type_or
+// @Borrow function _Py_union_type_or from Objects/unionobject.c
+
+
+// Internal dependencies for Cix_do_raise.
+#define _PyErr_SetRaisedException __PyErr_SetRaisedException
+// End internal dependencies.
+// @Borrow function do_raise from Python/ceval.c
+int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
+  return do_raise(tstate, exc, cause);
+}
+
+int init_upstream_borrow(void) {
+  PyObject* empty_dict = PyDict_New();
+  if (empty_dict == NULL) {
+    return -1;
+  }
+  empty_values = ((PyDictObject*)empty_dict)->ma_values;
+  Py_DECREF(empty_dict);
+
+  // Initialize the Cix_PyUnion_Type global reference.
+  PyObject* unionobj =
+      PyNumber_Or((PyObject*)&PyLong_Type, (PyObject*)&PyUnicode_Type);
+  if (unionobj != NULL) {
+    Cix_PyUnion_Type = Py_TYPE(unionobj);
+    Py_DECREF(unionobj);
+  }
+  if (Cix_PyUnion_Type == NULL) {
+    return -1;
+  }
+
+  return 0;
+}

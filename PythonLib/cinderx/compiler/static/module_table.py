@@ -18,19 +18,7 @@ from ast import (
 )
 from contextlib import nullcontext
 from enum import Enum
-from typing import (
-    cast,
-    ContextManager,
-    Dict,
-    List,
-    Optional,
-    overload,
-    Set,
-    Tuple,
-    Type,
-    TYPE_CHECKING,
-    Union,
-)
+from typing import cast, ContextManager, Optional, TYPE_CHECKING
 
 from ..errors import TypedSyntaxError
 from ..symbols import ModuleScope, Scope
@@ -339,7 +327,6 @@ class ModuleTable:
         self, name: str, requester: str | DepTrackingOptOut, force_decl: bool = False
     ) -> Value | None:
         if not isinstance(requester, DepTrackingOptOut):
-
             # Using imported_from here is just an optimization that lets us skip
             # one level of transitive-dependency-following later. If modA has
             # "from modB import B", we already record `modA.B -> modB.B`, so
@@ -464,9 +451,19 @@ class ModuleTable:
             if name not in self._children:
                 self._children[name] = self.compiler.type_env.DYNAMIC
         # We don't need these anymore...
-        self.decls.clear()
         self.implicit_decl_names.clear()
         self.finish_bind_done = True
+
+    def validate_overrides(self) -> None:
+        for _node, name, _value in self.decls:
+            if name is None:
+                continue
+
+            child = self._children.get(name, None)
+            if isinstance(child, Value):
+                child.validate_overrides(self, None)
+
+        self.decls.clear()
 
     def resolve_type(self, node: ast.AST, requester: str) -> Class | None:
         with self.ann_visitor.temporary_context_qualname(requester):
@@ -502,10 +499,6 @@ class ModuleTable:
         # annotations, does not include function-internal declarations)
         is_decl_dep: bool = False,
     ) -> Class | None:
-        assert self.first_pass_done, (
-            "Type annotations cannot be resolved until after initial pass, "
-            "so that all imports and types are available."
-        )
         with self.ann_visitor.temporary_context_qualname(requester, is_decl_dep):
             return self.ann_visitor.resolve_annotation(
                 node, is_declaration=is_declaration
@@ -515,7 +508,7 @@ class ModuleTable:
         self, name: str, requester: str
     ) -> tuple[Value | None, TypeDescr | None]:
         if val := self.get_child(name, requester):
-            return val, (self.name, name)
+            return val, ((self.name,), name)
         elif val := self.compiler.builtins.get_child_intrinsic(name):
             return val, None
         return None, None
@@ -530,8 +523,7 @@ class ModuleTable:
             and isinstance(node.ctx, ast.Load)
             and (
                 # Ensure the name is not shadowed in the local scope
-                isinstance(scope, ModuleScope)
-                or node.id not in scope.defs
+                isinstance(scope, ModuleScope) or node.id not in scope.defs
             )
         ):
             return final_val

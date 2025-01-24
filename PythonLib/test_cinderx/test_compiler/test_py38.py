@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import io
 from textwrap import dedent
 
@@ -25,7 +26,7 @@ class Python38Tests(CompilerTest):
     def test_sanity(self) -> None:
         """basic test that the compiler can generate a function"""
         code = self.compile("f()")
-        self.assertInBytecode(code, "CALL_FUNCTION")
+        self.assertInBytecode(code, self.CALL)
         self.assertEqual(code.co_posonlyargcount, 0)
 
     def test_walrus_if(self):

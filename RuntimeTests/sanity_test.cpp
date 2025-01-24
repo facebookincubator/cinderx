@@ -1,10 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include <gtest/gtest.h>
-
 #include <Python.h>
 
+#include <gtest/gtest.h>
+
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 class SanityTest : public RuntimeTest {};
 

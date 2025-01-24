@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from _typeshed import Incomplete
 
 path_separators: Incomplete
@@ -14,7 +15,7 @@ def cache_from_source(
     path,
     debug_override: Incomplete | None = ...,
     *,
-    optimization: Incomplete | None = ...
+    optimization: Incomplete | None = ...,
 ): ...
 def source_from_cache(path): ...
 def decode_source(source_bytes): ...
@@ -23,7 +24,7 @@ def spec_from_file_location(
     location: Incomplete | None = ...,
     *,
     loader: Incomplete | None = ...,
-    submodule_search_locations=...
+    submodule_search_locations=...,
 ): ...
 
 class WindowsRegistryFinder:

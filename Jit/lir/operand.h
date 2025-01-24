@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/lir/x86_64.h"
 
 #include <cstdint>
@@ -73,9 +72,9 @@ class OperandBase {
 
   virtual uint64_t getConstant() const = 0;
   virtual double getFPConstant() const = 0;
-  virtual int getPhyRegister() const = 0;
-  virtual int getStackSlot() const = 0;
-  virtual int getPhyRegOrStackSlot() const = 0;
+  virtual PhyLocation getPhyRegister() const = 0;
+  virtual PhyLocation getStackSlot() const = 0;
+  virtual PhyLocation getPhyRegOrStackSlot() const = 0;
   virtual void* getMemoryAddress() const = 0;
   virtual MemoryIndirect* getMemoryIndirect() const = 0;
   virtual BasicBlock* getBasicBlock() const = 0;
@@ -105,8 +104,11 @@ class OperandBase {
 
   virtual DataType dataType() const = 0;
   int sizeInBits() const {
-    auto s = dataType();
-    switch (s) {
+    return OperandBase::getSizeInBitsFromDataType(dataType());
+  }
+
+  static int getSizeInBitsFromDataType(DataType dt) {
+    switch (dt) {
       case k8bit:
         return 8;
       case k16bit:
@@ -154,7 +156,7 @@ class OperandBase {
   }
 
   bool isXmm() const {
-    return PhyLocation(getPhyRegister()).is_fp_register();
+    return getPhyRegister().is_fp_register();
   }
 
   bool isLastUse() const {
@@ -288,43 +290,43 @@ class Operand : public OperandBase {
     value_ = bit_cast<uint64_t>(n);
   }
 
-  int getPhyRegister() const override {
+  PhyLocation getPhyRegister() const override {
     JIT_CHECK(
         type_ == kReg,
         "Trying to treat operand [type={},val={:#x}] as a physical register",
         type_,
         rawValue());
-    return std::get<int>(value_);
+    return std::get<PhyLocation>(value_);
   }
 
-  void setPhyRegister(int reg) {
+  void setPhyRegister(PhyLocation reg) {
     type_ = kReg;
     value_ = reg;
   }
 
-  int getStackSlot() const override {
+  PhyLocation getStackSlot() const override {
     JIT_CHECK(
         type_ == kStack,
         "Trying to treat operand [type={},val={:#x}] as a stack slot",
         type_,
         rawValue());
-    return std::get<int>(value_);
+    return std::get<PhyLocation>(value_);
   }
 
-  void setStackSlot(int slot) {
+  void setStackSlot(PhyLocation slot) {
     type_ = kStack;
     value_ = slot;
   }
 
-  void setPhyRegOrStackSlot(int loc) {
-    if (loc < 0) {
+  void setPhyRegOrStackSlot(PhyLocation loc) {
+    if (loc.loc < 0) {
       setStackSlot(loc);
     } else {
       setPhyRegister(loc);
     }
   }
 
-  int getPhyRegOrStackSlot() const override {
+  PhyLocation getPhyRegOrStackSlot() const override {
     switch (type_) {
       case kReg:
         return getPhyRegister();
@@ -407,8 +409,12 @@ class Operand : public OperandBase {
   DataType dataType() const override {
     return data_type_;
   }
+
   void setDataType(DataType data_type) {
     data_type_ = data_type;
+    if (auto loc_ptr = std::get_if<PhyLocation>(&value_)) {
+      loc_ptr->bitSize = OperandBase::getSizeInBitsFromDataType(data_type);
+    }
   }
 
   Type type() const override {
@@ -430,8 +436,6 @@ class Operand : public OperandBase {
   uint64_t rawValue() const {
     if (const auto ptr = std::get_if<uint64_t>(&value_)) {
       return *ptr;
-    } else if (const auto ptr = std::get_if<int>(&value_)) {
-      return static_cast<uint64_t>(*ptr);
     } else if (const auto ptr = std::get_if<void*>(&value_)) {
       return reinterpret_cast<uint64_t>(*ptr);
     } else if (const auto ptr = std::get_if<BasicBlock*>(&value_)) {
@@ -450,10 +454,10 @@ class Operand : public OperandBase {
 
   std::variant<
       uint64_t,
-      int,
       void*,
       BasicBlock*,
-      std::unique_ptr<MemoryIndirect>>
+      std::unique_ptr<MemoryIndirect>,
+      PhyLocation>
       value_;
 };
 
@@ -491,13 +495,13 @@ class LinkedOperand : public OperandBase {
   double getFPConstant() const override {
     return def_opnd_->getFPConstant();
   }
-  int getPhyRegister() const override {
+  PhyLocation getPhyRegister() const override {
     return def_opnd_->getPhyRegister();
   }
-  int getStackSlot() const override {
+  PhyLocation getStackSlot() const override {
     return def_opnd_->getStackSlot();
   }
-  int getPhyRegOrStackSlot() const override {
+  PhyLocation getPhyRegOrStackSlot() const override {
     return def_opnd_->getPhyRegOrStackSlot();
   }
   void* getMemoryAddress() const override {
@@ -628,13 +632,13 @@ struct OperandArg<void, true> {
   static constexpr bool is_output = true;
 };
 
-// Creates a new struct type so that types like Stk and PhyReg are different from each other.
-// This is needed because we need std::is_same_v<Stk, PhyReg> = false.
-// If we used `using` then they would be aliases of each other.
-#define DECLARE_TYPE_ARG(__T, __V, __O)     \
-struct __T : public OperandArg<__V, __O> {  \
-  using OperandArg::OperandArg;             \
-};
+// Creates a new struct type so that types like Stk and PhyReg are different
+// from each other. This is needed because we need std::is_same_v<Stk, PhyReg> =
+// false. If we used `using` then they would be aliases of each other.
+#define DECLARE_TYPE_ARG(__T, __V, __O)      \
+  struct __T : public OperandArg<__V, __O> { \
+    using OperandArg::OperandArg;            \
+  };
 
 DECLARE_TYPE_ARG(PhyReg, PhyLocation, false)
 DECLARE_TYPE_ARG(Imm, uint64_t, false)
@@ -651,9 +655,9 @@ DECLARE_TYPE_ARG(OutFPImm, double, true)
 DECLARE_TYPE_ARG(OutMemImm, void*, true)
 DECLARE_TYPE_ARG(OutStk, PhyLocation, true)
 DECLARE_TYPE_ARG(OutLbl, BasicBlock*, true)
-DECLARE_TYPE_ARG(OutDbl, double, true);
-DECLARE_TYPE_ARG(OutInd, MemoryIndirect, true);
-DECLARE_TYPE_ARG(OutVReg, void, true);
+DECLARE_TYPE_ARG(OutDbl, double, true)
+DECLARE_TYPE_ARG(OutInd, MemoryIndirect, true)
+DECLARE_TYPE_ARG(OutVReg, void, true)
 
 } // namespace jit::lir
 

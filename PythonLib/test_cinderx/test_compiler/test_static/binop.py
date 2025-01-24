@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.static.types import (
     PRIM_OP_ADD_INT,
@@ -537,7 +538,7 @@ class BinopTests(StaticTestBase):
         """
         code = self.compile(codestr, modname="foo")
         f = self.find_code(code, "f")
-        self.assertInBytecode(f, "BINARY_ADD")
+        self.assertBinOpInBytecode(f, "BINARY_ADD")
 
     def test_mixed_add_reversed(self):
         codestr = """

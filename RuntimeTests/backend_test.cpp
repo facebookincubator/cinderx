@@ -1,9 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
-#include <Python.h>
 #include "cinderx/Common/ref.h"
-
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
@@ -15,7 +15,6 @@
 #include "cinderx/Jit/lir/postalloc.h"
 #include "cinderx/Jit/lir/postgen.h"
 #include "cinderx/Jit/lir/regalloc.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
@@ -94,8 +93,8 @@ class BackendTest : public RuntimeTest {
     std::vector<int> pushed_regs;
     pushed_regs.reserve(saved_regs.count());
     while (!saved_regs.Empty()) {
-      as.push(asmjit::x86::gpq(saved_regs.GetFirst()));
-      pushed_regs.push_back(saved_regs.GetFirst());
+      as.push(asmjit::x86::gpq(saved_regs.GetFirst().loc));
+      pushed_regs.push_back(saved_regs.GetFirst().loc);
       saved_regs.RemoveFirst();
     }
 
@@ -123,6 +122,8 @@ class BackendTest : public RuntimeTest {
     as.finalize();
     void* func = nullptr;
     CodeAllocator::get()->addCode(&func, &code);
+    EXPECT_TRUE(CodeAllocator::get()->contains(func))
+        << "Compiled function should exist within the CodeAllocator";
     gen.lir_func_.release();
     return func;
   }
@@ -262,6 +263,34 @@ def get_user_id(user):
   ASSERT_TRUE(PyLong_CheckExact(result)) << "Incorrect type returned";
   ASSERT_EQ(PyLong_AsLong(result), PyLong_AsLong(user_id))
       << "Incorrect user id returned";
+}
+
+TEST_F(BackendTest, CallCountTest) {
+  const char* src = R"(
+def foo(x: int) -> int:
+  return x + 1
+
+for i in range(30):
+  foo(i)
+)";
+
+  Ref<> foo = compileAndGet(src, "foo");
+  ASSERT_TRUE(PyFunction_Check(foo));
+
+  BorrowedRef<PyCodeObject> code =
+      reinterpret_cast<PyFunctionObject*>(foo.get())->func_code;
+
+#if PY_VERSION_HEX < 0x030C0000
+  uint64_t ncalls = code->co_mutable->ncalls;
+#else
+  auto extra = codeExtra(code);
+  ASSERT_NE(extra, nullptr) << "Failed to load code object extra data";
+  uint64_t ncalls = extra->calls;
+#endif
+
+  // TODO(T190615535): This is waiting on the 3.12 custom interpreter loop.
+  // Once we have that in place, we can start incrementing call counts in 3.12.
+  ASSERT_EQ(ncalls, 30);
 }
 
 // floating-point arithmetic test

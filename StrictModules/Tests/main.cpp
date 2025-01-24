@@ -11,8 +11,9 @@
 #include "tools/cxx/Resources.h"
 #endif
 
+#include <fmt/format.h>
+
 #include <filesystem>
-#include <iostream>
 
 static void remap_txt_path(std::string& path) {
 #ifdef BUCK_BUILD
@@ -81,10 +82,11 @@ int main(int argc, char* argv[]) {
   boost::filesystem::path python_install =
       build::getResourcePath("cinderx/StrictModules/Tests/python_install");
   {
+    std::string python_ver_str =
+        fmt::format("python{}.{}", PY_MAJOR_VERSION, PY_MINOR_VERSION);
     std::string python_install_str =
-        (python_install / "lib" / "python3.10").string() + ":" +
-        (python_install / "lib" / "python3.10" / "lib-dynload").string();
-    std::cout << "PYTHONPATH=" << python_install_str << std::endl;
+        (python_install / "lib" / python_ver_str).string() + ":" +
+        (python_install / "lib" / python_ver_str / "lib-dynload").string();
     setenv("PYTHONPATH", python_install_str.c_str(), 1);
   }
 #endif

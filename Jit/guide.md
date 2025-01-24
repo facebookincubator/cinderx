@@ -106,7 +106,7 @@ the body of `f()`.
 By default if the JIT is enabled, all functions are compiled. If a JIT list
 is provided, only functions on that list will be compiled. There is also an
 option to JIT compile all Static Python functions, even if not on the JIT
-list. In addition, the JIT can automatically compile hot functions based on 
+list. In addition, the JIT can automatically compile hot functions based on
 their observed call count at runtime. The threshold used to automatically
 compile hot functions is configurable.
 
@@ -116,8 +116,7 @@ configuration is initialized in the `initFlagProcessor()` function in
 the various options.
 
 When a function is first called, if it should be JIT compiled we attempt to
-compile it (see `PyEntry_LazyInit` and related functions in
-`Python/ceval.c`.)
+compile it (see `scheduleJitCompile` and related functions in `Jit/entry.cpp`.)
 
 When `cinderjit.disable()` is called (this disables future JIT compilation,
 it does not disable execution of JITted functions), any functions on the JIT
@@ -209,7 +208,7 @@ fun __main__:f {
     v8:Object = LoadArg<2; "c">
     v10:CInt32 = IsTruthy v8 {
       LiveValues<3> b:v6 b:v7 b:v8
-      NextInstrOffset 4
+      CurInstrOffset 2
       Locals<3> v6 v7 v8
     }
     CondBranch<1, 2> v10
@@ -218,7 +217,7 @@ fun __main__:f {
   bb 1 (preds 0) {
     v13:Object = BinaryOp<Add> v6 v7 {
       LiveValues<3> b:v6 b:v7 b:v8
-      NextInstrOffset 10
+      CurInstrOffset 8
       Locals<3> v6 v7 v8
     }
     Return v13
@@ -263,7 +262,7 @@ instructions as comments):
 ```
 # v13:Object = BinaryOp<Add> v6 v7 {
 #   LiveValues<3> b:v6 b:v7 b:v8
-#   NextInstrOffset 10
+#   CurInstrOffset 10
 #   Locals<3> v6 v7 v8
 # }
       RDI:Object = Move R12:Object
@@ -288,7 +287,7 @@ the above LIR looks like this (HIR instruction context is still preserved):
 ```
 v13:Object = BinaryOp<Add> v6 v7 {
   LiveValues<3> b:v6 b:v7 b:v8
-  NextInstrOffset 10
+  CurInstrOffset 8
   Locals<3> v6 v7 v8
 }
   0x7f30f7db326b:        mov    %r12,%rdi

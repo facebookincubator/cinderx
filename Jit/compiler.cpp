@@ -2,15 +2,11 @@
 
 #include "cinderx/Jit/compiler.h"
 
-#include <Python.h>
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/disassembler.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/optimization.h"
-#include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/jit_time_log.h"
@@ -21,38 +17,6 @@
 #include <fstream>
 
 namespace jit {
-
-void CompiledFunction::disassemble() const {
-  JIT_ABORT("disassemble() cannot be called in a release build.");
-}
-
-void CompiledFunction::printHIR() const {
-  JIT_ABORT("printHIR() cannot be called in a release build.");
-}
-
-void CompiledFunctionDebug::disassemble() const {
-  jit::disassemble(
-      reinterpret_cast<const char*>(vectorcallEntry()),
-      codeSize(),
-      reinterpret_cast<vma_t>(vectorcallEntry()));
-}
-
-void CompiledFunctionDebug::printHIR() const {
-  jit::hir::HIRPrinter printer;
-  printer.Print(*irfunc_.get());
-}
-
-struct PassTimer {
-  explicit PassTimer() : start(std::chrono::steady_clock::now()) {}
-
-  std::size_t finish() {
-    auto end = std::chrono::steady_clock::now();
-    return std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-        .count();
-  }
-
-  std::chrono::steady_clock::time_point start;
-};
 
 template <typename T>
 static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
@@ -65,9 +29,9 @@ static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
                     pass.name(),
                     func);
 
-                PassTimer timer;
+                Timer timer;
                 pass.Run(func);
-                std::size_t time_ns = timer.finish();
+                std::size_t time_ns = timer.finish().count();
                 callback(func, pass.name(), time_ns);
 
                 JIT_LOGIF(
@@ -93,7 +57,8 @@ static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
 }
 
 void Compiler::runPasses(jit::hir::Function& irfunc, PassConfig config) {
-  PostPassFunction callback = [](hir::Function&, const char*, std::size_t) {};
+  PostPassFunction callback =
+      [](hir::Function&, std::string_view, std::size_t) {};
   runPasses(irfunc, config, callback);
 }
 
@@ -134,8 +99,12 @@ void Compiler::runPasses(
   runPassIf(hir::DeadCodeElimination{}, PassConfig::kDeadCodeElim);
   runPassIf(hir::CleanCFG{}, PassConfig::kCleanCFG);
 
-  // RefcountInsertion must come last.
   runPass(jit::hir::RefcountInsertion{}, irfunc, callback);
+
+#if PY_VERSION_HEX >= 0x030C0000
+  runPassIf(
+      jit::hir::InsertUpdatePrevInstr{}, PassConfig::kInsertUpdatePrevInstr);
+#endif
 
   JIT_LOGIF(
       g_dump_final_hir, "Optimized HIR for {}:\n{}", irfunc.fullname, irfunc);
@@ -145,7 +114,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     BorrowedRef<PyFunctionObject> func) {
   JIT_CHECK(PyFunction_Check(func), "Expected PyFunctionObject");
   JIT_CHECK(
-      !g_threaded_compile_context.compileRunning(),
+      !getThreadedCompileContext().compileRunning(),
       "multi-thread compile must preload first");
   std::unique_ptr<hir::Preloader> preloader =
       hir::Preloader::makePreloader(func);
@@ -169,7 +138,8 @@ PassConfig createConfig() {
   set(hir_opts.dynamic_comparison_elim, PassConfig::kDynamicComparisonElim);
   set(hir_opts.guard_type_removal, PassConfig::kGuardTypeRemoval);
   // Inliner currently depends on code objects being stable.
-  set(hir_opts.inliner && getConfig().stable_code, PassConfig::kInliner);
+  set(hir_opts.inliner && getConfig().stable_frame, PassConfig::kInliner);
+  set(hir_opts.insert_update_prev_instr, PassConfig::kInsertUpdatePrevInstr);
   set(hir_opts.phi_elim, PassConfig::kPhiElim);
   set(hir_opts.simplify, PassConfig::kSimplify);
 
@@ -195,10 +165,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
         Py_TYPE(builtins)->tp_name);
     return nullptr;
   }
-  JIT_DLOG(
-      "Compiling {} @ {}",
-      fullname,
-      reinterpret_cast<void*>(preloader.code().get()));
+  JIT_DLOG("Compiling {}", fullname);
 
   std::unique_ptr<CompilationPhaseTimer> compilation_phase_timer{nullptr};
 
@@ -208,15 +175,11 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     compilation_phase_timer->start("Lowering into HIR");
   }
 
-  PassTimer hir_build_timer;
+  Timer timer;
   std::unique_ptr<jit::hir::Function> irfunc(jit::hir::buildHIR(preloader));
-  std::size_t hir_build_time_ns = hir_build_timer.finish();
+  std::chrono::nanoseconds hir_build_time = timer.finish();
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();
-  }
-  if (irfunc == nullptr) {
-    JIT_DLOG("Lowering to HIR failed {}", fullname);
-    return nullptr;
   }
 
   if (g_dump_hir) {
@@ -237,12 +200,13 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     hir::JSONPrinter hir_printer;
     passes.emplace_back(hir_printer.PrintSource(*irfunc));
     passes.emplace_back(hir_printer.PrintBytecode(*irfunc));
-    PostPassFunction dump =
-        [&hir_printer, &passes](
-            hir::Function& func, const char* pass_name, std::size_t time_ns) {
-          hir_printer.Print(passes, func, pass_name, time_ns);
-        };
-    dump(*irfunc, "Initial HIR", hir_build_time_ns);
+    PostPassFunction dump = [&hir_printer, &passes](
+                                hir::Function& func,
+                                std::string_view pass_name,
+                                std::size_t time_ns) {
+      hir_printer.Print(passes, func, pass_name, time_ns);
+    };
+    dump(*irfunc, "Initial HIR", hir_build_time.count());
     COMPILE_TIMER(
         irfunc->compilation_phase_timer,
         "HIR transformations",
@@ -276,7 +240,14 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     return nullptr;
   }
 
-  JIT_DLOG("Finished compiling {}", fullname);
+  auto compile_time =
+      std::chrono::duration_cast<std::chrono::microseconds>(timer.finish());
+
+  JIT_DLOG(
+      "Finished compiling {} in {}, code size: {} bytes",
+      fullname,
+      compile_time,
+      ngen->getCodeBuffer().size_bytes());
   if (nullptr != irfunc->compilation_phase_timer) {
     irfunc->compilation_phase_timer->end();
     irfunc->setCompilationPhaseTimer(nullptr);
@@ -302,17 +273,14 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       std::move(irfunc->inline_function_stats);
   std::span<const std::byte> code = ngen->getCodeBuffer();
   void* static_entry = ngen->getStaticEntry();
-  CodeRuntime* code_runtime = ngen->codeRuntime();
 
   if (g_debug) {
     irfunc->setCompilationPhaseTimer(nullptr);
     return std::make_unique<CompiledFunctionDebug>(
         std::move(irfunc),
-        std::move(ngen),
         code,
         entry,
         static_entry,
-        code_runtime,
         stack_size,
         spill_stack_size,
         std::move(inline_stats),
@@ -322,7 +290,6 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       code,
       entry,
       static_entry,
-      code_runtime,
       stack_size,
       spill_stack_size,
       std::move(inline_stats),

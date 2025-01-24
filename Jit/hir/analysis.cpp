@@ -2,13 +2,13 @@
 
 #include "cinderx/Jit/hir/analysis.h"
 
-#include "cinderx/StaticPython/checked_dict.h"
-#include "cinderx/StaticPython/checked_list.h"
-
 #include "cinderx/Jit/dataflow.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/memory_effects.h"
+#include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/printer.h"
+#include "cinderx/StaticPython/checked_dict.h"
+#include "cinderx/StaticPython/checked_list.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -59,7 +59,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kBuildString:
     case Opcode::kCallCFunc:
     case Opcode::kCallEx:
-    case Opcode::kCallExKw:
+    case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
     case Opcode::kCallStaticRetVoid:
@@ -71,6 +71,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kDictSubscr:
     case Opcode::kDictUpdate:
     case Opcode::kDoubleBinaryOp:
+    case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
     case Opcode::kFormatValue:
@@ -117,11 +118,13 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadSplitDictItem:
     case Opcode::kLoadTupleItem:
-    case Opcode::kLoadTypeAttrCacheItem:
+    case Opcode::kLoadTypeAttrCacheEntryType:
+    case Opcode::kLoadTypeAttrCacheEntryValue:
     case Opcode::kLoadTypeMethodCacheEntryType:
     case Opcode::kLoadTypeMethodCacheEntryValue:
     case Opcode::kLoadVarObjectSize:
     case Opcode::kLongBinaryOp:
+    case Opcode::kLongInPlaceOp:
     case Opcode::kLongCompare:
     case Opcode::kMakeCell:
     case Opcode::kMakeCheckedDict:
@@ -142,6 +145,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kPrimitiveUnaryOp:
     case Opcode::kPrimitiveUnbox:
     case Opcode::kRunPeriodicTasks:
+    case Opcode::kSend:
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kSetDictItem:
     case Opcode::kSetSetItem:
@@ -159,8 +163,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kUnicodeSubscr:
     case Opcode::kUnpackExToTuple:
     case Opcode::kVectorCall:
-    case Opcode::kVectorCallKW:
-    case Opcode::kVectorCallStatic:
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kWaitHandleLoadWaiter:
     case Opcode::kYieldAndYieldFrom:
@@ -192,6 +194,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kSetFunctionAttr:
     case Opcode::kSnapshot:
     case Opcode::kStoreField:
+    case Opcode::kUpdatePrevInstr:
     case Opcode::kUnreachable:
     case Opcode::kWaitHandleRelease:
     case Opcode::kXDecref:
@@ -495,7 +498,7 @@ static void analyzeInstrLiveness(
     const Instr& instr,
     OutputFunc define_output,
     UseFunc use) {
-  if (auto output = instr.GetOutput()) {
+  if (auto output = instr.output()) {
     define_output(output);
   }
 
@@ -609,7 +612,7 @@ AssignmentAnalysis::AssignmentAnalysis(const Function& irfunc, bool is_definite)
     : ForwardDataflowAnalysis(irfunc), args_(), is_definite_(is_definite) {
   for (const auto& instr : *irfunc_.cfg.entry_block) {
     if (instr.IsLoadArg()) {
-      args_.insert(instr.GetOutput());
+      args_.insert(instr.output());
     }
   }
 }
@@ -634,7 +637,7 @@ void AssignmentAnalysis::ComputeGenKill(
     RegisterSet& /* kill */) {
   gen = args_;
   for (const auto& instr : *block) {
-    auto output = instr.GetOutput();
+    auto output = instr.output();
     if (output != nullptr) {
       gen.insert(output);
     }
@@ -751,7 +754,7 @@ RegisterTypeHints::RegisterTypeHints(const Function& irfunc)
           dom_hint_[instr.GetOperand(i)][block.id] = &instr;
         }
       } else if (instr.IsPhi()) {
-        dom_hint_[instr.GetOutput()][block.id] = &instr;
+        dom_hint_[instr.output()][block.id] = &instr;
       }
     }
   }

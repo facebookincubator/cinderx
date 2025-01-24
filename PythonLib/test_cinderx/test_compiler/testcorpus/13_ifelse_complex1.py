@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 if py2:
     a
 else:

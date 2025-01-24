@@ -13,9 +13,6 @@ namespace jit::codegen {
 
 struct Environ;
 
-// Set RBP to "original RBP" value when called in the context of a generator.
-void RestoreOriginalGeneratorRBP(asmjit::x86::Emitter* as);
-
 // Emit a call and record the unit state at the program point following the
 // call.
 //

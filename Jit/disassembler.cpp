@@ -3,8 +3,7 @@
 #include "cinderx/Jit/disassembler.h"
 
 #include "cinderx/Common/log.h"
-
-#include "cinderx/Jit/runtime.h"
+#include "cinderx/Jit/symbolizer.h"
 
 #include <cstdarg>
 #include <cstddef>

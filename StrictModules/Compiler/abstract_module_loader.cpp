@@ -465,15 +465,15 @@ std::unique_ptr<ModuleInfo> ModuleLoader::findModule(
       if (readResult) {
         log("Found %s at %s", modName.c_str(), modPathCstr);
         AstAndSymbols& result = readResult.value();
-        std::string filename = nmPackagePath.string();
+        std::string filename_2 = nmPackagePath.string();
         bool allowlisted = isAllowListed(modName);
         return std::make_unique<ModuleInfo>(
             std::move(modName),
-            filename,
+            filename_2,
             result.ast,
             result.futureAnnotations,
             std::move(result.symbols),
-            StubKind::getStubKind(filename, allowlisted),
+            StubKind::getStubKind(filename_2, allowlisted),
             std::vector<std::string>{importPath});
       }
     }

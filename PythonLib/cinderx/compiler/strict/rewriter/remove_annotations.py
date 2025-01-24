@@ -19,9 +19,13 @@ def _copy_attrs(src: ast.AST, dest: ast.AST) -> None:
     """
     Copies line and column info from one node to another.
     """
+    # pyre-fixme[16]: `AST` has no attribute `lineno`.
     dest.lineno = src.lineno
+    # pyre-fixme[16]: `AST` has no attribute `end_lineno`.
     dest.end_lineno = src.end_lineno
+    # pyre-fixme[16]: `AST` has no attribute `col_offset`.
     dest.col_offset = src.col_offset
+    # pyre-fixme[16]: `AST` has no attribute `end_col_offset`.
     dest.end_col_offset = src.end_col_offset
 
 
@@ -69,6 +73,7 @@ class AnnotationRemover(ast.NodeTransformer):
         # an extra pass over the AST with ast.fix_missing_locations()
         value = node.value
         if value is None:
+            # pyre-fixme[20]: Argument `value` expected.
             value = ast.Ellipsis()
             value.kind = None
             _copy_attrs(node, value)

@@ -3,9 +3,8 @@
 #pragma once
 
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/containers.h"
-#include "cinderx/Jit/lir/printer.h"
+#include "cinderx/Jit/lir/function.h"
 
 namespace jit {
 
@@ -15,6 +14,11 @@ namespace lir {
 
 class LIRInliner {
  public:
+  // Given a function, try to inline all calls.
+  // Return true if one or more calls have been inlined (i.e. the function has
+  // been modified). Otherwise, return false.
+  static bool inlineCalls(lir::Function* function);
+
   explicit LIRInliner(lir::Instruction* instr) : call_instr_(instr) {}
 
   // Public function for inlining call_instr_.
@@ -25,11 +29,6 @@ class LIRInliner {
   // allocation instructions. These instructions should be very infrequent, but
   // we may want to add a check for this later.
   bool inlineCall();
-
-  // Given a function, try to inline all calls.
-  // Return true if one or more calls have been inlined (i.e. the function has
-  // been modified). Otherwise, return false.
-  static bool inlineCalls(lir::Function* function);
 
  private:
   // The call instruction that we want to inline.
@@ -81,7 +80,7 @@ class LIRInliner {
   void resolveLoadArg(
       UnorderedMap<lir::OperandBase*, lir::LinkedOperand*>& vreg_map,
       lir::BasicBlock* bb,
-      lir::BasicBlock::InstrList::iterator& instr_it);
+      instr_iter_t& instr_it);
 
   // For instr_it that aren't kLoadArg,
   // fix up linked arguments that refer to outputs of kLoadArg instructions.
@@ -93,6 +92,10 @@ class LIRInliner {
   // Expects return instructions to only appear as
   // the last statement in the predecessors of the epilogue blocks.
   void resolveReturnValue();
+
+  // Get the caller function's name.  Will return a sentinel value if this
+  // function was parsed straight from LIR and never had a name.
+  std::string_view callerName();
 
   FRIEND_TEST(LIRInlinerTest, ResolveArgumentsTest);
   FRIEND_TEST(LIRInlinerTest, ResolveReturnWithPhiTest);

@@ -209,14 +209,16 @@ void BitVector::SetBitWidth(size_t size) {
   bool new_short = IsShortVector();
 
   if (old_short && !new_short) {
-    size_t size = num_bits_ / PTR_WIDTH + (num_bits_ % PTR_WIDTH == 0 ? 0 : 1);
+    size_t size_2 =
+        num_bits_ / PTR_WIDTH + (num_bits_ % PTR_WIDTH == 0 ? 0 : 1);
 
     auto old_bits = bits_.bits;
-    bits_.bit_vec = new std::vector<uint64_t>(size);
+    bits_.bit_vec = new std::vector<uint64_t>(size_2);
     bits_.bit_vec->at(0) = old_bits;
   } else if (!old_short && !new_short) {
-    size_t size = num_bits_ / PTR_WIDTH + (num_bits_ % PTR_WIDTH == 0 ? 0 : 1);
-    bits_.bit_vec->resize(size);
+    size_t size_2 =
+        num_bits_ / PTR_WIDTH + (num_bits_ % PTR_WIDTH == 0 ? 0 : 1);
+    bits_.bit_vec->resize(size_2);
   } else if (!old_short && new_short) {
     auto low_bits = bits_.bit_vec->at(0);
     delete bits_.bit_vec;

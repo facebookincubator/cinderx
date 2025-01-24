@@ -1,6 +1,7 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from .common import StaticTestBase, type_mismatch
 
-import _testinternalcapi  # usort: skip
+import xxclassloader  # usort: skip
 
 
 class NativeDecoratorTests(StaticTestBase):
@@ -257,7 +258,7 @@ class NativeDecoratorTests(StaticTestBase):
         from __static__ import native, int64, box
         from typing import Final
 
-        LIB_NAME: Final[str] = "{_testinternalcapi.__file__}"
+        LIB_NAME: Final[str] = "{xxclassloader.__file__}"
 
         @native(LIB_NAME)
         def native_add(a: int64, b: int64) -> int64:
@@ -279,7 +280,7 @@ class NativeDecoratorTests(StaticTestBase):
         from __static__ import native, int64, uint8, box
         from typing import Final
 
-        LIB_NAME: Final[str] = "{_testinternalcapi.__file__}"
+        LIB_NAME: Final[str] = "{xxclassloader.__file__}"
 
         @native(LIB_NAME)
         def native_sub(a: int64, b: uint8) -> int64:

@@ -6,20 +6,9 @@ from __future__ import annotations
 
 import ast
 import operator
-import sys
-from ast import Bytes, cmpop, Constant, copy_location, Ellipsis, NameConstant, Num, Str
-from typing import (
-    Any,
-    Callable,
-    cast,
-    Dict,
-    Iterable,
-    Mapping,
-    Optional,
-    Tuple,
-    Type,
-    Union,
-)
+from ast import cmpop, Constant, copy_location
+from dataclasses import dataclass
+from typing import Any, Callable, Iterable, Mapping
 
 from .visitor import ASTRewriter
 
@@ -48,12 +37,12 @@ INVERSE_OPS: Mapping[type[cmpop], type[cmpop]] = {
 BIN_OPS: Mapping[type[ast.operator], Callable[[object, object], object]] = {
     ast.Add: operator.add,
     ast.Sub: operator.sub,
-    ast.Mult: lambda l, r: safe_multiply(l, r, PyLimits),
+    ast.Mult: lambda lhs, rhs: safe_multiply(lhs, rhs, PyLimits),
     ast.Div: operator.truediv,
     ast.FloorDiv: operator.floordiv,
-    ast.Mod: lambda l, r: safe_mod(l, r, PyLimits),
-    ast.Pow: lambda l, r: safe_power(l, r, PyLimits),
-    ast.LShift: lambda l, r: safe_lshift(l, r, PyLimits),
+    ast.Mod: lambda lhs, rhs: safe_mod(lhs, rhs, PyLimits),
+    ast.Pow: lambda lhs, rhs: safe_power(lhs, rhs, PyLimits),
+    ast.LShift: lambda lhs, rhs: safe_lshift(lhs, rhs, PyLimits),
     ast.RShift: operator.rshift,
     ast.BitOr: operator.or_,
     ast.BitXor: operator.xor,
@@ -238,6 +227,8 @@ class AstOptimizer(ASTRewriter):
             if res is not None:
                 return copy_location(res, node)
             if not any(isinstance(e, ast.Starred) for e in elts):
+                # pyre-fixme[6]: For 1st argument expected `List[expr]` but got
+                #  `Sequence[expr]`.
                 return copy_location(ast.Tuple(elts=elts, ctx=node.ctx), node)
             return self.update_node(node, elts=elts)
         elif isinstance(node, ast.Set):
@@ -289,3 +280,203 @@ class AstOptimizer(ASTRewriter):
 
     def visitNamedExpr(self, node: ast.NamedExpr) -> ast.NamedExpr:
         return self.generic_visit(node)
+
+
+F_LJUST: int = 1 << 0
+F_SIGN: int = 1 << 1
+F_BLANK: int = 1 << 2
+F_ALT: int = 1 << 3
+F_ZERO: int = 1 << 4
+
+FLAG_DICT: dict[str, int] = {
+    "-": F_LJUST,
+    "+": F_SIGN,
+    " ": F_BLANK,
+    "#": F_ALT,
+    "0": F_ZERO,
+}
+MAXDIGITS = 3
+
+
+class UnsupportedFormat(Exception):
+    pass
+
+
+@dataclass(frozen=True)
+class FormatInfo:
+    spec: str
+    flags: int = 0
+    width: int | None = None
+    prec: int | None = None
+
+    def as_formatted_value(self, arg: ast.expr) -> ast.FormattedValue | None:
+        if self.spec not in "sra":
+            return None
+
+        res = []
+        if not (self.flags & F_LJUST) and self.width:
+            res.append(">")
+        if self.width is not None:
+            res.append(str(self.width))
+        if self.prec is not None:
+            res.append(f".{self.prec}")
+
+        return copy_location(
+            ast.FormattedValue(
+                arg,
+                ord(self.spec),
+                copy_location(ast.Constant("".join(res)), arg) if res else None,
+            ),
+            arg,
+        )
+
+
+class FormatParser:
+    def __init__(self, val: str) -> None:
+        self.val = val
+        self.size: int = len(val)
+        self.pos = 0
+
+    def next_ch(self) -> str:
+        """Gets the next character in the format string, or raises an
+        exception if we've run out of characters"""
+        if self.pos >= self.size:
+            raise UnsupportedFormat()
+        self.pos += 1
+        return self.val[self.pos]
+
+    def parse_int(self) -> int:
+        """Parses an integer from the format string"""
+        res = 0
+        digits = 0
+        ch = self.val[self.pos]
+        while "0" <= ch <= "9":
+            res = res * 10 + ord(ch) - ord("0")
+            ch = self.next_ch()
+            digits += 1
+            if digits >= MAXDIGITS:
+                raise UnsupportedFormat()
+        return res
+
+    def parse_flags(self, ch: str) -> int:
+        """Parse any flags (-, +, " ", #, 0)"""
+        flags = 0
+        while True:
+            flag_val = FLAG_DICT.get(ch)
+            if flag_val is not None:
+                flags |= flag_val
+                ch = self.next_ch()
+            else:
+                break
+        return flags
+
+    def parse_str(self) -> str:
+        """Parses a string component of the format string up to a %"""
+        has_percents = False
+        start = self.pos
+        while self.pos < self.size:
+            ch = self.val[self.pos]
+            if ch != "%":
+                self.pos += 1
+            elif self.pos + 1 < self.size and self.val[self.pos + 1] == "%":
+                has_percents = True
+                self.pos += 2
+            else:
+                break
+
+        component = self.val[start : self.pos]
+        if has_percents:
+            component = component.replace("%%", "%")
+        return component
+
+    def enum_components(self) -> Iterable[str | FormatInfo]:
+        """Enumerates the components of the format string and returns a stream
+        of interleaved strings and FormatInfo objects"""
+        # Parse the string up to the format specifier
+        ch = None
+        while self.pos < self.size:
+            yield self.parse_str()
+
+            if self.pos == self.size:
+                return
+
+            assert self.val[self.pos] == "%"
+
+            flags = self.parse_flags(self.next_ch())
+
+            # Parse width
+            width = None
+            if "0" <= self.val[self.pos] <= "9":
+                width = self.parse_int()
+
+            prec = None
+            if self.val[self.pos] == ".":
+                self.next_ch()
+                prec = self.parse_int()
+
+            yield FormatInfo(self.val[self.pos], flags, width, prec)
+            self.pos += 1
+
+
+def enum_format_str_components(val: str) -> Iterable[str | FormatInfo]:
+    return FormatParser(val).enum_components()
+
+
+def set_no_locations(node: ast.expr) -> ast.expr:
+    node.lineno = -1
+    node.end_lineno = -1
+    node.col_offset = -1
+    node.end_col_offset = -1
+    return node
+
+
+class AstOptimizer312(AstOptimizer):
+    def visitBinOp(self, node: ast.BinOp) -> ast.expr:
+        res = super().visitBinOp(node)
+
+        if (
+            not isinstance(res, ast.BinOp)
+            or not isinstance(res.op, ast.Mod)
+            or not isinstance(res.left, ast.Constant)
+            or not isinstance(res.left.value, str)
+            or not isinstance(res.right, ast.Tuple)
+            or any(isinstance(e, ast.Starred) for e in res.right.elts)
+        ):
+            return res
+
+        return self.optimize_format(res)
+
+    def optimize_format(self, node: ast.BinOp) -> ast.expr:
+        left = node.left
+        right = node.right
+        assert isinstance(left, ast.Constant)
+        assert isinstance(right, ast.Tuple)
+        assert isinstance(left.value, str)
+
+        try:
+            seq = []
+            cnt = 0
+            for item in enum_format_str_components(left.value):
+                if isinstance(item, str):
+                    if item:
+                        seq.append(set_no_locations(ast.Constant(item)))
+                    continue
+
+                if cnt >= len(right.elts):
+                    # More format units than items.
+                    return node
+
+                formatted = item.as_formatted_value(right.elts[cnt])
+                if formatted is None:
+                    return node
+                seq.append(formatted)
+                cnt += 1
+
+            if cnt < len(right.elts):
+                # More items than format units.
+                return node
+
+            return copy_location(ast.JoinedStr(seq), node)
+
+        except UnsupportedFormat:
+            return node

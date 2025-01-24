@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from __future__ import annotations
 
 from __static__.native_utils import invoke_native

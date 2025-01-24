@@ -2,7 +2,27 @@
 
 #include "cinderx/Jit/global_cache.h"
 
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/watchers.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+
+extern "C" {
+
+PyObject**
+_PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key) {
+  try {
+    auto cache = jit::_PyJIT_GetGlobalCacheManager()->findGlobalCache(
+        builtins, globals, key);
+    return cache.valuePtr();
+  } catch (std::bad_alloc&) {
+    return nullptr;
+  }
+}
+
+PyObject** _PyJIT_GetDictCache(PyObject* dict, PyObject* key) {
+  return _PyJIT_GetGlobalCache(dict, dict, key);
+}
+}
 
 namespace jit {
 
@@ -180,7 +200,7 @@ void GlobalCacheManager::initCache(GlobalCache cache) {
   BorrowedRef<PyUnicodeObject> key = cache.key().name;
 
   JIT_DCHECK(
-      _PyDict_HasOnlyUnicodeKeys(globals),
+      hasOnlyUnicodeKeys(globals),
       "Should have already checked that globals dict was watchable");
 
   // We want to try and only watch builtins if this is really a builtin.  So we
@@ -203,7 +223,7 @@ void GlobalCacheManager::initCache(GlobalCache cache) {
 
   // The getitem on globals might have had side effects and made this dict
   // unwatchable, so it needs to be checked again.
-  if (_PyDict_HasOnlyUnicodeKeys(builtins)) {
+  if (hasOnlyUnicodeKeys(builtins)) {
     *cache.valuePtr() = PyDict_GetItem(builtins, key);
     if (globals != builtins) {
       watchDictKey(builtins, key, cache);
@@ -225,7 +245,7 @@ bool GlobalCacheManager::updateCache(
 
   if (dict == globals) {
     if (new_value == nullptr && globals != builtins) {
-      if (!_PyDict_HasOnlyUnicodeKeys(builtins)) {
+      if (!hasOnlyUnicodeKeys(builtins)) {
         // builtins is no longer watchable. Mark this cache for disabling.
         return true;
       }
@@ -243,7 +263,7 @@ bool GlobalCacheManager::updateCache(
     }
   } else {
     JIT_CHECK(dict == builtins, "Unexpected dict");
-    JIT_CHECK(_PyDict_HasOnlyUnicodeKeys(globals), "Bad globals dict");
+    JIT_CHECK(hasOnlyUnicodeKeys(globals), "Bad globals dict");
     // Check if this value is shadowed.
     PyObject* globals_value = PyDict_GetItem(globals, name);
     if (globals_value == nullptr) {
@@ -266,6 +286,12 @@ void GlobalCacheManager::disableCaches(const std::vector<GlobalCache>& caches) {
     disableCache(cache);
     unwatchDictKey(dict, name, cache);
   }
+}
+
+static GlobalCacheManager s_global_cache_manager;
+
+GlobalCacheManager* _PyJIT_GetGlobalCacheManager() {
+  return &s_global_cache_manager;
 }
 
 } // namespace jit

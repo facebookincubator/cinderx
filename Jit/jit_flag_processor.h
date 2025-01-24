@@ -23,7 +23,7 @@ struct Option {
   std::string debug_message;
   bool hidden_flag = false;
 
-  Option(){}
+  Option() {}
 
   std::string getFormatted_cmdline_flag();
   std::string getFormatted_environment_variable();
@@ -41,22 +41,22 @@ struct Option {
 
   // Normally, when the relevant flag is set a debug log message
   // will be generated. By setting the debug message here, this
-  // auto generated message will be overriden
-  Option& withDebugMessageOverride(const std::string debug_message) {
-    this->debug_message = debug_message;
+  // auto generated message will be overridden
+  Option& withDebugMessageOverride(const std::string debug_message_2) {
+    this->debug_message = debug_message_2;
     return *this;
   }
 
   // Allows the definition of a flag parameter name which will
   // apear on the expanded help message for the Option
-  Option& withFlagParamName(const std::string flag_param_name) {
-    this->flag_param_name = flag_param_name;
+  Option& withFlagParamName(const std::string flag_param_name_2) {
+    this->flag_param_name = flag_param_name_2;
     return *this;
   }
 
   // Set this to true to hide the flag from the help text
-  Option& isHiddenFlag(const bool hidden_flag) {
-    this->hidden_flag = hidden_flag;
+  Option& isHiddenFlag(const bool hidden_flag_2) {
+    this->hidden_flag = hidden_flag_2;
     return *this;
   }
 

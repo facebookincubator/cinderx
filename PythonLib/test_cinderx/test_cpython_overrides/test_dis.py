@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import unittest
 import dis
 import io
@@ -5,7 +6,10 @@ import os
 import re
 import contextlib
 
-from cinderx.opcode import shadowop
+try:
+    from cinderx.opcode import shadowop
+except ImportError:
+    shadowop = set()
 
 def compile_and_get(code_str, funcname):
     _tmp_globals = {}

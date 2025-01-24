@@ -21,6 +21,9 @@ class Function;
 // Basic block class for LIR
 class BasicBlock {
  public:
+  using InstrList = std::list<std::unique_ptr<Instruction>>;
+  using instr_iter_t = InstrList::iterator;
+
   explicit BasicBlock(Function* func);
 
   int id() const {
@@ -80,8 +83,6 @@ class BasicBlock {
     return predecessors_;
   }
 
-  using InstrList = std::list<std::unique_ptr<Instruction>>;
-
   // Allocate an instruction and its operands and append it to the
   // instruction list. For the details on how to allocate instruction
   // operands, please refer to Instruction::addOperands() function.
@@ -102,7 +103,7 @@ class BasicBlock {
   // instruction operands, please refer to Instruction::addOperands() function.
   template <typename... T>
   Instruction* allocateInstrBefore(
-      InstrList::iterator iter,
+      instr_iter_t iter,
       Instruction::Opcode opcode,
       T&&... args) {
     const hir::Instr* origin = nullptr;
@@ -124,7 +125,7 @@ class BasicBlock {
     instrs_.emplace_back(std::move(instr));
   }
 
-  std::unique_ptr<Instruction> removeInstr(InstrList::iterator iter) {
+  std::unique_ptr<Instruction> removeInstr(instr_iter_t iter) {
     auto instr = std::move(*iter);
     instrs_.erase(iter);
     return instr;
@@ -143,7 +144,7 @@ class BasicBlock {
   //
   // This function is O(getNumInstrs()) due to implementation details in
   // InstrList.
-  InstrList::iterator iterator_to(Instruction* instr);
+  instr_iter_t iterator_to(Instruction* instr);
 
   bool isEmpty() const {
     return instrs_.empty();
@@ -169,7 +170,7 @@ class BasicBlock {
     return instrs_.empty() ? nullptr : instrs_.rbegin()->get();
   }
 
-  InstrList::iterator getLastInstrIter() {
+  instr_iter_t getLastInstrIter() {
     return instrs_.empty() ? instrs_.end() : std::prev(instrs_.end());
   }
 
@@ -182,8 +183,6 @@ class BasicBlock {
       }
     }
   }
-
-  void print() const;
 
   // Split this block before instr.
   // Current basic block contains all instructions up to (but excluding) instr.
@@ -220,5 +219,7 @@ class BasicBlock {
 
   jit::codegen::CodeSection section_;
 };
+
+using instr_iter_t = BasicBlock::instr_iter_t;
 
 } // namespace jit::lir

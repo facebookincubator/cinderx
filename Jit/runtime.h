@@ -3,20 +3,23 @@
 #pragma once
 
 #include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/genobject_jit.h"
-#include "cinderx/Common/util.h"
+#endif
 
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/fixed_type_profiler.h"
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/inline_cache.h"
-#include "cinderx/Jit/jit_rt.h"
-#include "cinderx/Jit/profile_runtime.h"
 #include "cinderx/Jit/slab_arena.h"
 #include "cinderx/Jit/symbolizer.h"
 #include "cinderx/Jit/threaded_compile.h"
+#include "cinderx/Jit/type_deopt_patchers.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <optional>
 #include <string_view>
@@ -25,8 +28,6 @@
 #include <vector>
 
 namespace jit {
-
-class TypeDeoptPatcher;
 
 class GenYieldPoint {
  public:
@@ -210,6 +211,9 @@ class alignas(16) CodeRuntime {
 //
 // The base address of the complete heap allocated suspend data is:
 //   PyGenObject::gi_jit_data - GenDataFooter::spillWords
+//
+// TODO(T209500214): In 3.12 we should roll this data directly into memory
+// allocated for a generator rather than having it in a separate heap object.
 struct GenDataFooter {
   // Tools which examine/walk the stack expect the following two values to be
   // ahead of RBP.
@@ -223,8 +227,11 @@ struct GenDataFooter {
   // suspended.
   GenYieldPoint* yieldPoint;
 
+#if PY_VERSION_HEX < 0x030C0000
   // Current overall state of the JIT.
+  // In 3.12+ we use the new PyGenObject::gi_frame_state field instead.
   CiJITGenState state;
+#endif
 
   // Allocated space before this struct in 64-bit words.
   size_t spillWords;
@@ -239,9 +246,33 @@ struct GenDataFooter {
   CodeRuntime* code_rt{nullptr};
 };
 
+// Memory management functions for JIT generator data.
+// TODO(T209500214): Eliminate the need for these functions in 3.12+.
+jit::GenDataFooter* jitgen_data_allocate(size_t spill_words);
+#if PY_VERSION_HEX < 0x030C0000
+void jitgen_data_free(PyGenObject* gen);
+#else
+// Using GenDataFooter directly in 3.12+ avoids a cyclic dependency on the
+// generators-rt library.
+void jitgen_data_free(GenDataFooter* gen_data_footer);
+#endif
+
+#if PY_VERSION_HEX < 0x030C0000
+// In 3.12+ there is no gen->gi_jit_data and this functionality is part of
+// JitGenObject.
 inline GenDataFooter* genDataFooter(PyGenObject* gen) {
   return reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
 }
+
+// Pre 3.12 these fields needed to be at a fixed offset so they can be quickly
+// accessed from C code in genobject.c.
+static_assert(
+    offsetof(GenDataFooter, state) == Ci_GEN_JIT_DATA_OFFSET_STATE,
+    "Byte offset for state shifted");
+static_assert(
+    offsetof(GenDataFooter, yieldPoint) == Ci_GEN_JIT_DATA_OFFSET_YIELD_POINT,
+    "Byte offset for yieldPoint shifted");
+#endif
 
 inline PyObject* yieldFromValue(
     GenDataFooter* gen_footer,
@@ -252,15 +283,6 @@ inline PyObject* yieldFromValue(
               yield_point->yieldFromOffset()))
       : nullptr;
 }
-
-// These fields need to be at a fixed offset so they can be quickly accessed
-// from C code.
-static_assert(
-    offsetof(GenDataFooter, state) == Ci_GEN_JIT_DATA_OFFSET_STATE,
-    "Byte offset for state shifted");
-static_assert(
-    offsetof(GenDataFooter, yieldPoint) == Ci_GEN_JIT_DATA_OFFSET_YIELD_POINT,
-    "Byte offset for yieldPoint shifted");
 
 // The number of words for pre-allocated blocks in the generator suspend data
 // free-list. I chose this based on it covering 99% of the JIT generator
@@ -347,7 +369,7 @@ class Runtime {
 
   // Record that a deopt of the given index happened at runtime, with an
   // optional guilty value.
-  void recordDeopt(std::size_t idx, PyObject* guilty_value);
+  void recordDeopt(std::size_t idx, BorrowedRef<> guilty_value);
 
   // Get and/or clear runtime deopt stats.
   const DeoptStats& deoptStats() const;
@@ -418,9 +440,6 @@ class Runtime {
     return builtins_;
   }
 
-  ProfileRuntime& profileRuntime();
-  GlobalCacheManager& globalCaches();
-
   // Some profilers need to walk the code_rt->code->qualname chain for jitted
   // functions on the call stack. The JIT rarely touches this memory and, as a
   // result, the OS may page it out. Out of process profilers (i.e. those that
@@ -432,10 +451,6 @@ class Runtime {
   // Returns a PyListObject containing the qualnames of the units for which
   // memory was paged in.
   Ref<> pageInProfilerDependencies();
-
-  std::optional<std::string_view> symbolize(const void* func) {
-    return symbolizer_.symbolize(func);
-  }
 
   // When type is modified or an instance of type has __class__ assigned to,
   // call patcher->maybePatch(new_ty).
@@ -455,6 +470,8 @@ class Runtime {
       BorrowedRef<PyTypeObject> lookup_type,
       BorrowedRef<PyTypeObject> new_type);
 
+#if PY_VERSION_HEX < 0x030C0000
+  // In 3.12+ the equivalent of this is in generators_rt.cpp.
   template <typename F>
   REQUIRES_CALLABLE(F, int, PyObject*)
   int forEachOwnedRef(PyGenObject* gen, std::size_t deopt_idx, F func) {
@@ -475,6 +492,7 @@ class Runtime {
     }
     return 0;
   }
+#endif
 
  private:
   static Runtime* s_runtime_;
@@ -494,28 +512,19 @@ class Runtime {
   SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
   SlabArena<void*> pointer_caches_;
 
-  GlobalCacheManager global_caches_;
   FunctionEntryCacheMap function_entry_caches_;
 
   std::vector<DeoptMetadata> deopt_metadata_;
   DeoptStats deopt_stats_;
   GuardFailureCallback guard_failure_callback_;
 
-  // Note: Ideally this would be separate from JIT metadata.  It should be
-  // usable even when the JIT is fully reset.
-  ProfileRuntime profile_runtime_;
-
   // References to Python objects held by this Runtime
   std::unordered_set<Ref<PyObject>> references_;
   std::vector<std::unique_ptr<DeoptPatcher>> deopt_patchers_;
   Builtins builtins_;
-  Symbolizer symbolizer_;
 
   std::unordered_map<BorrowedRef<PyTypeObject>, std::vector<TypeDeoptPatcher*>>
       type_deopt_patchers_;
 };
-
-// Symbolize and demangle the given function.
-std::optional<std::string> symbolize(const void* func);
 
 } // namespace jit

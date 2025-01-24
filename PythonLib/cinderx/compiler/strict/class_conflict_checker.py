@@ -22,7 +22,7 @@ from ast import (
     Name,
 )
 from symtable import SymbolTable
-from typing import final, List, MutableMapping, Optional, Set
+from typing import final, MutableMapping
 
 from ..consts import CO_FUTURE_ANNOTATIONS
 from ..pycodegen import find_futures
@@ -226,7 +226,6 @@ class ClassConflictChecker(SymbolVisitor[object, TransformerScope]):
         self.generic_visit(node)
 
     def visit_AnnAssign(self, node: AnnAssign) -> None:
-
         self.scopes.scopes[-1].scope_data.visit_AnnAssign(node)
         value = node.value
         if value is not None:

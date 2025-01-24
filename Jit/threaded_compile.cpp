@@ -4,6 +4,14 @@
 
 namespace jit {
 
-ThreadedCompileContext g_threaded_compile_context;
+namespace {
+
+ThreadedCompileContext s_threaded_compile_context;
+
+} // namespace
+
+ThreadedCompileContext& getThreadedCompileContext() {
+  return s_threaded_compile_context;
+}
 
 } // namespace jit

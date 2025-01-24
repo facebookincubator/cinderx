@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 def foo():
     with a:
         if x:

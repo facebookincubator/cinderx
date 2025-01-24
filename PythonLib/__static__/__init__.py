@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
 from __future__ import annotations
 
@@ -6,17 +7,15 @@ import random
 import time
 from asyncio import iscoroutinefunction
 from types import UnionType as typesUnion
+
 # pyre-ignore[21]: No _GenericAlias, _tp_cache
 from typing import (
     _GenericAlias,
     _tp_cache,
     Dict,
     final,
-    Iterator,
-    List,
     Literal,
-    Optional,
-    Tuple,
+    Protocol,
     Type,
     TypeVar,
     Union,
@@ -24,7 +23,7 @@ from typing import (
 from weakref import WeakValueDictionary
 
 from .enum import Enum, IntEnum, StringEnum  # noqa: F401
-from .type_code import (
+from .type_code import (  # noqa: F401
     type_code,
     TYPED_BOOL,
     TYPED_CHAR,
@@ -32,8 +31,8 @@ from .type_code import (
     TYPED_INT16,
     TYPED_INT32,
     TYPED_INT64,
-    TYPED_INT_64BIT,
     TYPED_INT8,
+    TYPED_INT_64BIT,
     TYPED_OBJECT,
     TYPED_SINGLE,
     TYPED_UINT16,
@@ -42,8 +41,8 @@ from .type_code import (
     TYPED_UINT8,
 )
 
-chkdict = Dict[TypeVar("K"), TypeVar("V")]
-chklist = List[TypeVar("V")]
+chkdict = dict[TypeVar("K"), TypeVar("V")]
+chklist = list[TypeVar("V")]
 
 FAST_LEN_ARRAY = 0
 FAST_LEN_DICT = 0
@@ -71,7 +70,7 @@ PRIM_OP_LE_DBL = 0
 PRIM_OP_LE_INT = 0
 PRIM_OP_LE_UN_INT = 0
 PRIM_OP_LSHIFT_INT = 0
-PRIM_OP_LT_DBL =0
+PRIM_OP_LT_DBL = 0
 PRIM_OP_LT_INT = 0
 PRIM_OP_LT_UN_INT = 0
 PRIM_OP_MOD_DBL = 0
@@ -106,19 +105,10 @@ SEQ_TUPLE = 0
 
 try:  # noqa: C901
     from cinderx import static
-    from cinderx.static import (
+    from cinderx.static import (  # noqa: F401
         __build_cinder_class__,
         chkdict,
         chklist,
-        is_type_static,
-        make_recreate_cm,
-        posix_clock_gettime_ns,
-        rand,
-        RAND_MAX,
-        set_type_final,
-        set_type_static,
-        set_type_static_final,
-        staticarray,
         FAST_LEN_ARRAY,
         FAST_LEN_DICT,
         FAST_LEN_INEXACT,
@@ -126,6 +116,9 @@ try:  # noqa: C901
         FAST_LEN_SET,
         FAST_LEN_STR,
         FAST_LEN_TUPLE,
+        is_type_static,
+        make_recreate_cm,
+        posix_clock_gettime_ns,
         PRIM_OP_ADD_DBL,
         PRIM_OP_ADD_INT,
         PRIM_OP_AND_INT,
@@ -167,6 +160,8 @@ try:  # noqa: C901
         PRIM_OP_SUB_DBL,
         PRIM_OP_SUB_INT,
         PRIM_OP_XOR_INT,
+        rand,
+        RAND_MAX,
         SEQ_ARRAY_INT64,
         SEQ_CHECKED_LIST,
         SEQ_LIST,
@@ -177,11 +172,19 @@ try:  # noqa: C901
         SEQ_REPEAT_REVERSED,
         SEQ_SUBSCR_UNCHECKED,
         SEQ_TUPLE,
+        set_type_final,
+        set_type_static,
+        set_type_static_final,
+        staticarray,
+        StaticTypeError,
     )
 except ImportError:
     RAND_MAX = (1 << 31) - 1
     __build_cinder_class__ = __build_class__
     static = None
+
+    class StaticTypeError(TypeError):
+        pass
 
     def is_type_static(_t):
         return False
@@ -222,7 +225,6 @@ except ImportError:
 
         def __class_getitem__(cls, key) -> type[staticarray]:
             return staticarray
-
 
 
 try:
@@ -354,7 +356,7 @@ def _subs_tvars(
                         # pyre-ignore[6]: In call `issubclass`, ...
                         and not issubclass(subs[i], tvar.__constraints__)
                     ):
-                        raise TypeError(
+                        raise StaticTypeError(
                             f"Invalid type for {tvar.__name__}: {subs[i].__name__} when instantiating {tp.__name__}"
                         )
 
@@ -385,7 +387,9 @@ def make_generic_type(
 ) -> Type[object]:
     # pyre-ignore[16]: object has no attribute __parameters__
     if len(params) != len(gen_type.__parameters__):
-        raise TypeError(f"Incorrect number of type arguments for {gen_type.__name__}")
+        raise StaticTypeError(
+            f"Incorrect number of type arguments for {gen_type.__name__}"
+        )
 
     # Substitute params into __args__ replacing instances of __parameters__
     return _subs_tvars(
@@ -415,7 +419,9 @@ def _replace_types(
     # Remove the existing StaticGeneric base...
     bases = tuple(
         # pyre-ignore[16]: object has no attribute __orig_bases__
-        base for base in gen_type.__orig_bases__ if not isinstance(base, StaticGeneric)
+        base
+        for base in gen_type.__orig_bases__
+        if not isinstance(base, StaticGeneric)
     )
 
     new_dict["__args__"] = subs
@@ -539,7 +545,7 @@ def cast(typ, val):
 
     inst_type = type(val)
     if typ not in inst_type.__mro__:
-        raise TypeError(f"expected {typ.__name__}, got {type(val).__name__}")
+        raise StaticTypeError(f"expected {typ.__name__}, got {type(val).__name__}")
 
     return val
 
@@ -612,3 +618,14 @@ def native(so_path):
 
 
 Array = staticarray  # noqa: F811
+
+
+def mixin(cls):
+    return cls
+
+
+TClass = TypeVar("TClass", bound=Type[object])
+
+
+class ClassDecorator(Protocol):
+    def __call__(self, cls: TClass) -> TClass: ...

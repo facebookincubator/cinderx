@@ -1,10 +1,10 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
+
 from __future__ import annotations
 
 import inspect
-from typing import Iterable, Mapping, Sequence, SupportsIndex, Tuple, Type
-
-from .type_code import set_type_code, TYPED_INT64
+from typing import Iterable, Mapping, Sequence, SupportsIndex, Type
 
 
 def eq_method(self: Enum, other: Enum) -> bool:
@@ -31,7 +31,10 @@ class EnumMeta(type):
             return False
 
     def __new__(
-        cls, classname: str, parents: tuple[Type[object], ...], dct: Mapping[str, object]
+        metacls,
+        classname: str,
+        parents: tuple[Type[object], ...],
+        dct: Mapping[str, object],
     ) -> type[Enum]:
         attributes = {}
         members = {}
@@ -53,7 +56,7 @@ class EnumMeta(type):
             attributes["__eq__"] = eq_method
             attributes["__hash__"] = hash_method
 
-        klass = super().__new__(cls, classname, parents, attributes)
+        klass = super().__new__(metacls, classname, parents, attributes)
 
         for name, value in members.items():
             option = klass(name=name, value=value)
@@ -67,41 +70,41 @@ class EnumMeta(type):
             setattr(klass, name, option)
         return klass
 
-    def __len__(self) -> int:
+    def __len__(cls) -> int:
         # pyre-ignore[16]: __members__ is dynamically defined
-        return len(self.__members__)
+        return len(cls.__members__)
 
-    def __getitem__(self, attribute: str) -> Enum:
+    def __getitem__(cls, attribute: str) -> Enum:
         # pyre-ignore[16]: __members__ is dynamically defined
-        return self.__members__[attribute]
+        return cls.__members__[attribute]
 
-    def __iter__(self) -> Iterable[Enum]:
+    def __iter__(cls) -> Iterable[Enum]:
         # pyre-ignore[16]: __members__ is dynamically defined
-        return iter(self.__members__.values())
+        return iter(cls.__members__.values())
 
-    def __call__(self, *args: object, **kwargs: object) -> Enum:
+    def __call__(cls, *args: object, **kwargs: object) -> Enum:
         if len(args) == 1:
             attribute = args[0]
             # pyre-ignore[6]: expected str, got object
-            return self._get_by_value(attribute)
+            return cls._get_by_value(attribute)
 
         name = kwargs["name"]
         value = kwargs["value"]
         # pyre-ignore[20]: __new__ expects dct
         # pyre-ignore[9]:declared to have type Enum but is used as Type[Enum]
-        instance: Enum = self.__new__(self, value)
+        instance: Enum = cls.__new__(cls, value)
         instance.name = name
         instance.value = value
         return instance
 
-    def _get_by_value(self, value: str) -> Enum:
+    def _get_by_value(cls, value: str) -> Enum:
         # pyre-ignore[16]: __reversed_map__ is dynamically defined
-        res = self.__reversed_map__.get(value, SENTINEL)
+        res = cls.__reversed_map__.get(value, SENTINEL)
         if res is not SENTINEL:
             return res
 
         raise ValueError(
-            f"Enum type {self.__name__} has no attribute with value {value!r}"
+            f"Enum type {cls.__name__} has no attribute with value {value!r}"
         )
 
 
@@ -131,7 +134,7 @@ class StringEnumMeta(EnumMeta):
     """Like the regular EnumMeta, but parses string/binary inputs to __call__
     as text (to match text literals used in StringEnum)."""
 
-    def _get_by_value(self, value: str | bytes) -> StringEnum:
+    def _get_by_value(cls, value: str | bytes) -> StringEnum:
         # pyre-ignore[7]: Expected StringEnum, got Enum
         return super()._get_by_value(
             value.decode("utf-8") if isinstance(value, bytes) else value

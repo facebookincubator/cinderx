@@ -3,13 +3,13 @@
 #pragma once
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/codegen/code_section.h"
 
 #include <asmjit/asmjit.h>
 
 #include <atomic>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace jit {
@@ -24,7 +24,7 @@ namespace jit {
   by avoiding independent huge-page pools which are all a little under-utilized.
 
   We may one day need non-global code allocators if we want to do fancy things
-  like accomodate memory pools with different allocation characteristics, or
+  like accommodate memory pools with different allocation characteristics, or
   have multiple threads which might compile independently.
 */
 class CodeAllocator {
@@ -33,8 +33,13 @@ class CodeAllocator {
 
   // Get the global code allocator for this process.
   static CodeAllocator* get() {
-    JIT_CHECK(s_global_code_allocator_ != nullptr, "No global code allocator");
+    JIT_CHECK(exists(), "No global code allocator");
     return s_global_code_allocator_;
+  }
+
+  // Check if the global code allocator has been created.
+  static bool exists() {
+    return s_global_code_allocator_ != nullptr;
   }
 
   // To be called once by JIT initialization after enough configuration has been
@@ -47,19 +52,20 @@ class CodeAllocator {
     return used_bytes_;
   }
 
-  const asmjit::Environment& asmJitEnvironment() {
-    return runtime_->environment();
+  const asmjit::Environment& asmJitEnvironment() const {
+    return runtime_.environment();
   }
 
   virtual asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept {
     used_bytes_ += code->codeSize();
-    return runtime_->add(dst, code);
+    return runtime_.add(dst, code);
   }
 
- protected:
-  std::unique_ptr<asmjit::JitRuntime> runtime_{
-      std::make_unique<asmjit::JitRuntime>()};
+  // Check if a pointer is located within this allocator's memory.
+  virtual bool contains(const void* ptr) const;
 
+ protected:
+  asmjit::JitRuntime runtime_;
   std::atomic<size_t> used_bytes_{0};
 
  private:
@@ -72,6 +78,7 @@ class CodeAllocatorCinder : public CodeAllocator {
   virtual ~CodeAllocatorCinder();
 
   asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept override;
+  bool contains(const void* ptr) const override;
 
   size_t lostBytes() const {
     return lost_bytes_;
@@ -87,7 +94,7 @@ class CodeAllocatorCinder : public CodeAllocator {
 
  private:
   // List of chunks allocated for use in deallocation
-  std::vector<void*> allocations_;
+  std::vector<std::span<uint8_t>> allocations_;
 
   // Pointer to next free address in the current chunk
   uint8_t* current_alloc_{nullptr};
@@ -108,6 +115,7 @@ class MultipleSectionCodeAllocator : public CodeAllocator {
   virtual ~MultipleSectionCodeAllocator();
 
   asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept override;
+  bool contains(const void* ptr) const override;
 
  private:
   void createSlabs() noexcept;
@@ -124,4 +132,4 @@ void populateCodeSections(
     asmjit::CodeHolder& code,
     void* entry);
 
-}; // namespace jit
+} // namespace jit

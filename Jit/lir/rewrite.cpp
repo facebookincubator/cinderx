@@ -3,16 +3,10 @@
 #include "cinderx/Jit/lir/rewrite.h"
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Common/util.h"
-
-#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/operand.h"
 
 #include <set>
-#include <unordered_set>
-
-using namespace jit::codegen;
 
 namespace jit::lir {
 

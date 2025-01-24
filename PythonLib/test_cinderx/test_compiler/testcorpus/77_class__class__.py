@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 # From Python-3.4.3/Lib/test/test_super.py
 
 class Foo:

@@ -7,56 +7,17 @@ from __future__ import annotations
 import ast
 from ast import (
     alias,
-    AnnAssign,
-    arg,
-    Assign,
-    AST,
     AsyncFunctionDef,
-    Attribute,
     Call,
     ClassDef,
-    Constant,
-    copy_location,
-    Delete,
-    DictComp,
-    ExceptHandler,
-    expr,
-    For,
     FunctionDef,
-    GeneratorExp,
     Global,
-    If,
     Import,
     ImportFrom,
-    Lambda,
-    ListComp,
-    Module,
     Name,
-    NodeVisitor,
-    Raise,
-    SetComp,
-    stmt,
-    Str,
     Try,
 )
-from symtable import SymbolTable
-from types import CodeType, ModuleType
-from typing import (
-    Any,
-    cast,
-    Dict,
-    final,
-    Generic,
-    Iterable,
-    List,
-    Mapping,
-    MutableMapping,
-    Optional,
-    Sequence,
-    Set,
-    TypeVar,
-    Union,
-)
+from typing import Any, final
 
 from ..symbols import ModuleScope, Scope, SymbolVisitor
 from .common import imported_name

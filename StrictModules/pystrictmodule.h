@@ -2,6 +2,7 @@
 #pragma once
 
 #include <Python.h>
+
 #include "cinderx/StrictModules/strict_module_checker_interface.h"
 
 #ifndef Py_LIMITED_API
@@ -10,11 +11,13 @@ extern "C" {
 #endif
 
 typedef struct {
-  PyObject_HEAD StrictModuleChecker* checker;
+  PyObject_HEAD
+  StrictModuleChecker* checker;
 } StrictModuleLoaderObject;
 
 typedef struct {
-  PyObject_HEAD int valid_module;
+  PyObject_HEAD
+  int valid_module;
   PyObject* module_name;
   PyObject* file_name;
   int module_kind;
@@ -24,8 +27,8 @@ typedef struct {
   PyObject* errors;
 } StrictModuleAnalysisResult;
 
-CiAPI_DATA(PyTypeObject) Ci_StrictModuleLoader_Type;
-CiAPI_DATA(PyTypeObject) Ci_StrictModuleAnalysisResult_Type;
+extern PyTypeObject Ci_StrictModuleLoader_Type;
+extern PyTypeObject Ci_StrictModuleAnalysisResult_Type;
 
 // module kind
 #define Ci_NONSTRICT_MODULE_KIND 0

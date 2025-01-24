@@ -1,18 +1,11 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
+
 from __future__ import annotations
 
 from ast import AST
 from contextlib import contextmanager, nullcontext
-from typing import (
-    ContextManager,
-    Generator,
-    Generic,
-    Optional,
-    Sequence,
-    TYPE_CHECKING,
-    TypeVar,
-    Union,
-)
+from typing import ContextManager, Generator, Generic, Sequence, TYPE_CHECKING, TypeVar
 
 from ..visitor import ASTVisitor
 

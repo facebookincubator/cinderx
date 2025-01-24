@@ -3,13 +3,14 @@
 #pragma once
 
 #include <Python.h>
+
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/StaticPython/classloader.h"
-
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/type.h"
+#include "cinderx/StaticPython/typed-args-info.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <map>
 #include <unordered_map>
@@ -45,14 +46,20 @@ struct InvokeTarget {
   PyObject** indirect_ptr{nullptr};
   // vtable slot number (INVOKE_METHOD only)
   Py_ssize_t slot{-1};
-  // is a CO_STATICALLY_COMPILED Python function or METH_TYPED builtin
+  // is a CI_CO_STATICALLY_COMPILED Python function or METH_TYPED builtin
   bool is_statically_typed{false};
   // is PyFunctionObject
   bool is_function{false};
   // is PyMethodDescrObject or PyCFunction (has a PyMethodDef)
   bool is_builtin{false};
   // needs the function object available at runtime (e.g. for freevars)
-  bool uses_runtime_func{false};
+  bool uses_runtime_func{
+#if PY_VERSION_HEX < 0x030C0000
+      false
+#else
+      true
+#endif
+  };
   // underlying C function implementation for builtins
   void* builtin_c_func{nullptr};
   // expected nargs for builtin; if matched, can x64 invoke even if untyped
@@ -168,6 +175,10 @@ class Preloader {
         bool(code_->co_flags & CO_VARKEYWORDS);
   }
 
+  bool hasPrimitiveArgs() const {
+    return has_primitive_args_;
+  }
+
   std::unique_ptr<InvokeTarget> resolve_target_descr(
       BorrowedRef<> descr,
       int opcode);
@@ -177,6 +188,9 @@ class Preloader {
   GlobalCache getGlobalCache(BorrowedRef<> name) const;
   bool canCacheGlobals() const;
   bool preload();
+
+  // Preload information only relevant to Static Python functions.
+  bool preloadStatic();
 
   explicit Preloader(
       BorrowedRef<PyCodeObject> code,
@@ -188,7 +202,7 @@ class Preloader {
         globals_(Ref<>::create(globals)),
         fullname_(fullname) {
     JIT_CHECK(PyCode_Check(code_), "Expected PyCodeObject");
-  };
+  }
 
   Ref<PyCodeObject> code_;
   Ref<PyDictObject> builtins_;
@@ -211,6 +225,50 @@ class Preloader {
   bool has_primitive_first_arg_{false};
   // for primitive args only, null unless has_primitive_args_
   Ref<_PyTypedArgsInfo> prim_args_info_;
+};
+
+using PreloaderMap =
+    std::unordered_map<BorrowedRef<PyCodeObject>, std::unique_ptr<Preloader>>;
+
+// Manages a map of code objects to their associated preloaders.
+class PreloaderManager {
+ public:
+  // Add a new code object and preloader pair.  Duplicates are not allowed.
+  void add(
+      BorrowedRef<PyCodeObject> code,
+      std::unique_ptr<Preloader> preloader);
+
+  // Find the preloader for the given code object or function object.
+  Preloader* find(BorrowedRef<PyCodeObject> code);
+  Preloader* find(BorrowedRef<PyFunctionObject> func);
+
+  // Check if there are any preloaders registered.
+  bool empty() const;
+
+  // Clear out all preloaders.
+  void clear();
+
+  // Swap the inner map with the one passed as an argument.  Needed by
+  // IsolatedPreloaders.
+  void swap(PreloaderMap& replacement);
+
+ private:
+  PreloaderMap preloaders_;
+};
+
+// Get the global PreloaderManager object.
+PreloaderManager& preloaderManager();
+
+// RAII device for isolating preloaders state.
+class IsolatedPreloaders {
+ public:
+  IsolatedPreloaders();
+  ~IsolatedPreloaders();
+
+ private:
+  void swap();
+
+  PreloaderMap orig_preloaders_;
 };
 
 } // namespace jit::hir

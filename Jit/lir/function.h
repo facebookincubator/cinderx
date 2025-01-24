@@ -5,7 +5,6 @@
 #include "cinderx/Jit/lir/block.h"
 
 #include <deque>
-#include <iostream>
 #include <memory>
 #include <vector>
 
@@ -64,8 +63,6 @@ class Function {
   }
 
   void sortBasicBlocks();
-
-  void print() const;
 
  private:
   // The containers below hold all the basic blocks for the Function. The deque

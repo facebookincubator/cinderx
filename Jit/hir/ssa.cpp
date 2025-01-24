@@ -3,7 +3,6 @@
 #include "cinderx/Jit/hir/ssa.h"
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -180,7 +179,7 @@ void checkRegisters(CheckEnv& env) {
     }
   }
 
-  if (auto output = env.instr->GetOutput()) {
+  if (auto output = env.instr->output()) {
     if (output->instr() != env.instr) {
       fmt::print(
           env.err,
@@ -275,45 +274,26 @@ bool checkFunc(const Function& func, std::ostream& err) {
 }
 
 static const UnorderedMap<std::string, Type> kBuiltinFunctionTypes = {
-    {"dict.copy", TDictExact},
-    {"hasattr", TBool},
-    {"len", TLongExact},
-    {"list.copy", TListExact},
-    {"list.count", TLongExact},
-    {"list.index", TLongExact},
-    {"str.capitalize", TUnicodeExact},
-    {"str.center", TUnicodeExact},
-    {"str.count", TLongExact},
-    {"str.endswith", TBool},
-    {"str.find", TLongExact},
-    {"str.format", TUnicodeExact},
-    {"str.index", TLongExact},
-    {"str.isalnum", TBool},
-    {"str.isalpha", TBool},
-    {"str.isascii", TBool},
-    {"str.isdecimal", TBool},
-    {"str.isdigit", TBool},
-    {"str.isidentifier", TBool},
-    {"str.islower", TBool},
-    {"str.isnumeric", TBool},
-    {"str.isprintable", TBool},
-    {"str.isspace", TBool},
-    {"str.istitle", TBool},
-    {"str.isupper", TBool},
-    {"str.join", TUnicodeExact},
-    {"str.lower", TUnicodeExact},
-    {"str.lstrip", TUnicodeExact},
-    {"str.partition", TTupleExact},
-    {"str.replace", TUnicodeExact},
-    {"str.rfind", TLongExact},
-    {"str.rindex", TLongExact},
-    {"str.rpartition", TTupleExact},
-    {"str.rsplit", TListExact},
-    {"str.split", TListExact},
-    {"str.splitlines", TListExact},
-    {"str.upper", TUnicodeExact},
-    {"tuple.count", TLongExact},
-    {"tuple.index", TLongExact},
+    {"dict.copy", TDictExact},      {"hasattr", TBool},
+    {"isinstance", TBool},          {"len", TLongExact},
+    {"list.copy", TListExact},      {"list.count", TLongExact},
+    {"list.index", TLongExact},     {"str.capitalize", TUnicodeExact},
+    {"str.center", TUnicodeExact},  {"str.count", TLongExact},
+    {"str.endswith", TBool},        {"str.find", TLongExact},
+    {"str.format", TUnicodeExact},  {"str.index", TLongExact},
+    {"str.isalnum", TBool},         {"str.isalpha", TBool},
+    {"str.isascii", TBool},         {"str.isdecimal", TBool},
+    {"str.isdigit", TBool},         {"str.isidentifier", TBool},
+    {"str.islower", TBool},         {"str.isnumeric", TBool},
+    {"str.isprintable", TBool},     {"str.isspace", TBool},
+    {"str.istitle", TBool},         {"str.isupper", TBool},
+    {"str.join", TUnicodeExact},    {"str.lower", TUnicodeExact},
+    {"str.lstrip", TUnicodeExact},  {"str.partition", TTupleExact},
+    {"str.replace", TUnicodeExact}, {"str.rfind", TLongExact},
+    {"str.rindex", TLongExact},     {"str.rpartition", TTupleExact},
+    {"str.rsplit", TListExact},     {"str.split", TListExact},
+    {"str.splitlines", TListExact}, {"str.upper", TUnicodeExact},
+    {"tuple.count", TLongExact},    {"tuple.index", TLongExact},
 };
 
 Type returnType(PyMethodDef* meth) {
@@ -363,13 +343,8 @@ Type outputType(
   switch (instr.opcode()) {
     case Opcode::kCallEx:
       return returnType(static_cast<const CallEx&>(instr).func()->type());
-    case Opcode::kCallExKw:
-      return returnType(static_cast<const CallExKw&>(instr).func()->type());
     case Opcode::kVectorCall:
-    case Opcode::kVectorCallKW:
-    case Opcode::kVectorCallStatic:
-      return returnType(
-          static_cast<const VectorCallBase&>(instr).func()->type());
+      return returnType(static_cast<const VectorCall&>(instr).func()->type());
 
     case Opcode::kCompare: {
       CompareOp op = static_cast<const Compare&>(instr).op();
@@ -379,9 +354,71 @@ Type outputType(
       return TObject;
     }
 
+    case Opcode::kInPlaceOp: {
+      auto& op = static_cast<const InPlaceOp&>(instr);
+      if (op.left()->type() <= TLongExact && op.right()->type() <= TLongExact) {
+        switch (op.op()) {
+          case InPlaceOpKind::kAdd:
+          case InPlaceOpKind::kAnd:
+          case InPlaceOpKind::kFloorDivide:
+          case InPlaceOpKind::kLShift:
+          case InPlaceOpKind::kModulo:
+          case InPlaceOpKind::kMultiply:
+          case InPlaceOpKind::kOr:
+          case InPlaceOpKind::kRShift:
+          case InPlaceOpKind::kSubtract:
+          case InPlaceOpKind::kXor:
+            return TLongExact;
+          case InPlaceOpKind::kMatrixMultiply:
+            // Will be an error at runtime
+            return TObject;
+          case InPlaceOpKind::kPower:
+            // Will be floating-point for negative exponents.
+            return TLongExact | TFloatExact;
+          case InPlaceOpKind::kTrueDivide:
+            return TFloatExact;
+        }
+      }
+      return TObject;
+    }
+
+    case Opcode::kBinaryOp: {
+      auto& op = static_cast<const BinaryOp&>(instr);
+      if (op.left()->type() <= TLongExact && op.right()->type() <= TLongExact) {
+        switch (op.op()) {
+          case BinaryOpKind::kAdd:
+          case BinaryOpKind::kAnd:
+          case BinaryOpKind::kFloorDivide:
+          case BinaryOpKind::kFloorDivideUnsigned:
+          case BinaryOpKind::kLShift:
+          case BinaryOpKind::kModulo:
+          case BinaryOpKind::kModuloUnsigned:
+          case BinaryOpKind::kMultiply:
+          case BinaryOpKind::kOr:
+          case BinaryOpKind::kPowerUnsigned:
+          case BinaryOpKind::kRShift:
+          case BinaryOpKind::kRShiftUnsigned:
+          case BinaryOpKind::kSubtract:
+          case BinaryOpKind::kXor:
+            return TLongExact;
+          case BinaryOpKind::kPower:
+            // Will be floating-point for negative exponents.
+            return TLongExact | TFloatExact;
+          case BinaryOpKind::kTrueDivide:
+            return TFloatExact;
+          case BinaryOpKind::kSubscript:
+          case BinaryOpKind::kMatrixMultiply:
+            // Will be an error at runtime
+            return TObject;
+        }
+      }
+      return TObject;
+    }
+
+    case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kDictSubscr:
-    case Opcode::kBinaryOp:
+    case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
     case Opcode::kGetAIter:
@@ -389,7 +426,6 @@ Type outputType(
     case Opcode::kGetIter:
     case Opcode::kImportFrom:
     case Opcode::kImportName:
-    case Opcode::kInPlaceOp:
     case Opcode::kInvokeIterNext:
     case Opcode::kInvokeMethod:
     case Opcode::kLoadAttr:
@@ -403,6 +439,7 @@ Type outputType(
     case Opcode::kLoadMethodSuper:
     case Opcode::kLoadTupleItem:
     case Opcode::kMatchKeys:
+    case Opcode::kSend:
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kYieldAndYieldFrom:
     case Opcode::kYieldFrom:
@@ -526,6 +563,17 @@ Type outputType(
       }
       return TLongExact;
     }
+    case Opcode::kLongInPlaceOp: {
+      auto& inplaceop = static_cast<const LongInPlaceOp&>(instr);
+      if (inplaceop.op() == InPlaceOpKind::kTrueDivide) {
+        return TFloatExact;
+      }
+      if (inplaceop.op() == InPlaceOpKind::kPower) {
+        // Will be floating-point for negative exponents.
+        return TFloatExact | TLongExact;
+      }
+      return TLongExact;
+    }
     case Opcode::kLongCompare:
     case Opcode::kUnicodeCompare:
       return TBool;
@@ -539,8 +587,6 @@ Type outputType(
     // respectively. At some point we should get rid of this extra layer and
     // deal with the int return value directly.
     case Opcode::kListExtend:
-    case Opcode::kStoreAttr:
-    case Opcode::kStoreAttrCached:
       return TNoneType;
 
     case Opcode::kListAppend:
@@ -548,25 +594,20 @@ Type outputType(
     case Opcode::kSetSetItem:
     case Opcode::kSetUpdate:
     case Opcode::kSetDictItem:
-    case Opcode::kStoreSubscr:
       return TCInt32;
 
     case Opcode::kIsNegativeAndErrOccurred:
       return TCInt64;
 
-    // Some compute their output type from either their inputs or some other
-    // source.
+      // Some compute their output type from either their inputs or some other
+      // source.
 
-    // Executing LoadTypeAttrCacheItem<cache_id, 1> is only legal if
-    // appropriately guarded by LoadTypeAttrCacheItem<cache_id, 0>, and the
-    // former will always produce a non-null object.
-    //
-    // TODO(bsimmers): We should probably split this into two instructions
-    // rather than changing the output type based on the item index.
-    case Opcode::kLoadTypeAttrCacheItem: {
-      auto item = static_cast<const LoadTypeAttrCacheItem&>(instr).item_idx();
-      return item == 1 ? TObject : TOptObject;
-    }
+    case Opcode::kLoadTypeAttrCacheEntryType:
+      return TOptType;
+    case Opcode::kLoadTypeAttrCacheEntryValue:
+      // Only valid if guarded by a LoadTypeAttrCacheEntryType, which ensures
+      // that this will return a non-null object.
+      return TObject;
     case Opcode::kLoadTypeMethodCacheEntryType:
       return TOptType;
     case Opcode::kLoadTypeMethodCacheEntryValue:
@@ -710,8 +751,12 @@ Type outputType(
     case Opcode::kSetFunctionAttr:
     case Opcode::kSnapshot:
     case Opcode::kStoreArrayItem:
+    case Opcode::kStoreAttr:
+    case Opcode::kStoreAttrCached:
     case Opcode::kStoreField:
+    case Opcode::kStoreSubscr:
     case Opcode::kUnreachable:
+    case Opcode::kUpdatePrevInstr:
     case Opcode::kUseType:
     case Opcode::kWaitHandleRelease:
     case Opcode::kXDecref:
@@ -749,7 +794,7 @@ void reflowTypes(Environment* env, BasicBlock* start) {
               *start->cfg);
         }
 
-        auto dst = instr.GetOutput();
+        auto dst = instr.output();
         if (dst == nullptr) {
           continue;
         }
@@ -797,11 +842,11 @@ void SSAify::Run(BasicBlock* start, Environment* env) {
         return true;
       });
 
-      auto out_reg = instr.GetOutput();
+      auto out_reg = instr.output();
 
       if (out_reg != nullptr) {
         auto new_reg = env_->AllocateRegister();
-        instr.SetOutput(new_reg);
+        instr.setOutput(new_reg);
         ssablock->local_defs[out_reg] = new_reg;
       }
     }
@@ -828,7 +873,7 @@ void SSAify::Run(BasicBlock* start, Environment* env) {
     std::sort(phis.begin(), phis.end(), [](const Phi* a, const Phi* b) -> bool {
       // Sort using > instead of the typical < because we're effectively
       // reversing by looping push_front below.
-      return a->GetOutput()->id() > b->GetOutput()->id();
+      return a->output()->id() > b->output()->id();
     });
     for (auto& phi : phis) {
       block->push_front(phi);

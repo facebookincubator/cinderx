@@ -4,61 +4,9 @@
 
 from __future__ import annotations
 
-from __static__ import chkdict, chklist
-
-import ast
-import dataclasses
-
-import sys
-from ast import (
-    AnnAssign,
-    Assign,
-    AST,
-    AsyncFunctionDef,
-    Attribute,
-    Bytes,
-    Call,
-    ClassDef,
-    cmpop,
-    Constant,
-    copy_location,
-    expr,
-    FunctionDef,
-    NameConstant,
-    Num,
-    Return,
-    Starred,
-    Str,
-)
-from copy import copy
-from enum import Enum, IntEnum
-from functools import cached_property
-from types import (
-    BuiltinFunctionType,
-    GetSetDescriptorType,
-    MethodDescriptorType,
-    WrapperDescriptorType,
-)
-from typing import (
-    Callable as typingCallable,
-    cast,
-    ClassVar as typingClassVar,
-    Dict,
-    Generic,
-    Iterable,
-    List,
-    Mapping,
-    Optional,
-    Sequence,
-    Set,
-    Tuple,
-    Type,
-    TYPE_CHECKING,
-    TypeVar,
-    Union,
-)
-
 from __static__ import (  # noqa: F401
+    chkdict,
+    chklist,
     FAST_LEN_ARRAY,
     FAST_LEN_DICT,
     FAST_LEN_INEXACT,
@@ -131,7 +79,61 @@ from __static__ import (  # noqa: F401
     TYPED_UINT8,
 )
 
-from ..consts import CO_STATICALLY_COMPILED
+import ast
+import builtins
+import dataclasses
+
+import sys
+
+from ast import (
+    AnnAssign,
+    Assign,
+    AST,
+    AsyncFunctionDef,
+    Attribute,
+    Bytes,
+    Call,
+    ClassDef,
+    cmpop,
+    Constant,
+    copy_location,
+    expr,
+    FunctionDef,
+    NameConstant,
+    Num,
+    Return,
+    Starred,
+    Str,
+)
+from copy import copy
+from enum import Enum, IntEnum
+from functools import cached_property
+from types import (
+    BuiltinFunctionType,
+    GetSetDescriptorType,
+    MethodDescriptorType,
+    WrapperDescriptorType,
+)
+from typing import (
+    Callable as typingCallable,
+    cast,
+    ClassVar as typingClassVar,
+    Dict,
+    Generic,
+    Iterable,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    TYPE_CHECKING,
+    TypeVar,
+)
+
+from cinderx.static import StaticTypeError
+
+from ..consts import CI_CO_STATICALLY_COMPILED
 from ..errors import TypedSyntaxError
 from ..optimizer import AstOptimizer
 from ..pyassem import Block, FVC_REPR
@@ -143,7 +145,7 @@ from .effects import NarrowingEffect, NO_EFFECT, TypeState
 from .visitor import GenericVisitor
 
 if TYPE_CHECKING:
-    from . import PyFlowGraph310Static, Static310CodeGenerator
+    from . import PyFlowGraphStatic310, StaticCodeGenBase
     from .compiler import Compiler
     from .declaration_visitor import DeclarationVisitor
     from .module_table import ModuleTable
@@ -257,6 +259,13 @@ class TypeEnvironment:
         ]
         self.all_cint_types: Sequence[CIntType] = (
             self.signed_cint_types + self.unsigned_cint_types
+        )
+        self.class_decorator = ClassDecoratorClass(
+            TypeName("__static__", "ClassDecorator"), self
+        )
+        self.class_typevar = GenericParameter("TClass", -1, self, bound=self.type)
+        self.nested_function_class = Class(
+            TypeName("__static__", "<nested function>"), self
         )
         self.none = NoneType(self)
         self.optional = OptionalType(self)
@@ -433,6 +442,13 @@ class TypeEnvironment:
         self.generator_exit: Class = self._builtin_exception_class(
             GeneratorExit, base=self.base_exception
         )
+
+        # This exception is added as a builtin by implementations of Lazy Imports.
+        self.import_cycle_error: Class | None = None
+        # pyre-ignore[16]: Pyre assumes it knows the exact shape of the builtins module.
+        if import_cycle_error := getattr(builtins, "ImportCycleError", None):
+            self.import_cycle_error = self._builtin_exception_class(import_cycle_error)
+
         self.import_error: Class = self._builtin_exception_class(ImportError)
         self.indentation_error: Class = self._builtin_exception_class(
             IndentationError, base=self.syntax_error
@@ -514,6 +530,9 @@ class TypeEnvironment:
         )
         self.deprecation_warning: Class = self._builtin_exception_class(
             DeprecationWarning, base=self.warning
+        )
+        self.encoding_warning: Class = self._builtin_exception_class(
+            EncodingWarning, base=self.warning
         )
         self.future_warning: Class = self._builtin_exception_class(
             FutureWarning, base=self.warning
@@ -834,6 +853,9 @@ class Value:
     def finish_bind(self, module: ModuleTable, klass: Class | None) -> Value | None:
         return self
 
+    def validate_overrides(self, module: ModuleTable, klass: Class | None) -> None:
+        pass
+
     def make_generic_type(self, index: GenericTypeIndex) -> Class | None:
         pass
 
@@ -843,10 +865,10 @@ class Value:
         return visitor.type_env.DYNAMIC
 
     def as_oparg(self) -> int:
-        raise TypeError(f"{self.name} not valid here")
+        raise StaticTypeError(f"{self.name} not valid here")
 
     def can_override(self, override: Value, klass: Class, module: ModuleTable) -> bool:
-        return type(self) == type(override)
+        return type(self) is type(override)
 
     def resolve_attr(
         self, node: ast.Attribute, visitor: GenericVisitor[object]
@@ -925,10 +947,8 @@ class Value:
     ) -> Value | None:
         visitor.syntax_error(f"cannot index {self.name}", node)
 
-    def emit_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
-    ) -> None:
-        code_gen.set_lineno(node)
+    def emit_subscr(self, node: ast.Subscript, code_gen: StaticCodeGenBase) -> None:
+        code_gen.set_pos(node)
         code_gen.visit(node.value)
         code_gen.visit(node.slice)
         if isinstance(node.ctx, ast.Load):
@@ -939,41 +959,39 @@ class Value:
             return self.emit_delete_subscr(node, code_gen)
 
     def emit_load_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.emit("BINARY_SUBSCR")
 
     def emit_store_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.emit("STORE_SUBSCR")
 
     def emit_delete_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.emit("DELETE_SUBSCR")
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.defaultVisit(node)
 
     def emit_decorator_call(
-        self, class_def: ClassDef, code_gen: Static310CodeGenerator
+        self, class_def: ClassDef, code_gen: StaticCodeGenBase
     ) -> None:
-        code_gen.emit("CALL_FUNCTION", 1)
+        code_gen.emit_call_one_arg()
 
     def emit_delete_attr(
-        self, node: ast.Attribute, code_gen: Static310CodeGenerator
+        self, node: ast.Attribute, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.emit("DELETE_ATTR", code_gen.mangle(node.attr))
 
-    def emit_load_attr(
-        self, node: ast.Attribute, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_load_attr(self, node: ast.Attribute, code_gen: StaticCodeGenBase) -> None:
         member = self.klass.members.get(node.attr, self.klass.type_env.DYNAMIC)
         member.emit_load_attr_from(node, code_gen, self.klass)
 
     def emit_load_attr_from(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
         if klass is klass.type_env.dynamic:
             code_gen.perf_warning(
@@ -989,18 +1007,16 @@ class Value:
             )
         code_gen.emit("LOAD_ATTR", code_gen.mangle(node.attr))
 
-    def emit_store_attr(
-        self, node: ast.Attribute, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_store_attr(self, node: ast.Attribute, code_gen: StaticCodeGenBase) -> None:
         member = self.klass.members.get(node.attr, self.klass.type_env.DYNAMIC)
         member.emit_store_attr_to(node, code_gen, self.klass)
 
     def emit_store_attr_to(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
         if klass is klass.type_env.dynamic:
             code_gen.perf_warning(
-                f"Define the object's class in a Static Python "
+                "Define the object's class in a Static Python "
                 "module for more efficient attribute store",
                 node,
             )
@@ -1012,7 +1028,7 @@ class Value:
             )
         code_gen.emit("STORE_ATTR", code_gen.mangle(node.attr))
 
-    def emit_attr(self, node: ast.Attribute, code_gen: Static310CodeGenerator) -> None:
+    def emit_attr(self, node: ast.Attribute, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node.value)
         if isinstance(node.ctx, ast.Store):
             self.emit_store_attr(node, code_gen)
@@ -1048,7 +1064,7 @@ class Value:
         visitor.syntax_error(f"cannot reverse compare with {self.name}", node)
         return False
 
-    def emit_compare(self, op: cmpop, code_gen: Static310CodeGenerator) -> None:
+    def emit_compare(self, op: cmpop, code_gen: StaticCodeGenBase) -> None:
         code_gen.defaultEmitCompare(op)
 
     def bind_binop(
@@ -1068,20 +1084,18 @@ class Value:
     ) -> None:
         visitor.syntax_error(f"cannot reverse unary op with {self.name}", node)
 
-    def emit_binop(self, node: ast.BinOp, code_gen: Static310CodeGenerator) -> None:
+    def emit_binop(self, node: ast.BinOp, code_gen: StaticCodeGenBase) -> None:
         code_gen.defaultVisit(node)
 
-    def emit_continue(
-        self, node: ast.Continue, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_continue(self, node: ast.Continue, code_gen: StaticCodeGenBase) -> None:
         code_gen.defaultVisit(node)
 
-    def emit_forloop(self, node: ast.For, code_gen: Static310CodeGenerator) -> None:
+    def emit_forloop(self, node: ast.For, code_gen: StaticCodeGenBase) -> None:
         start = code_gen.newBlock("default_forloop_start")
         anchor = code_gen.newBlock("default_forloop_anchor")
         after = code_gen.newBlock("default_forloop_after")
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         code_gen.push_loop(FOR_LOOP, start, after)
         code_gen.visit(node.iter)
         code_gen.emit("GET_ITER")
@@ -1090,31 +1104,28 @@ class Value:
         code_gen.emit("FOR_ITER", anchor)
         code_gen.visit(node.target)
         code_gen.visit(node.body)
-        code_gen.emit("JUMP_ABSOLUTE", start)
+        code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
+        code_gen.emit_end_for()
         code_gen.pop_loop()
 
         if node.orelse:
             code_gen.visit(node.orelse)
         code_gen.nextBlock(after)
 
-    def emit_unaryop(self, node: ast.UnaryOp, code_gen: Static310CodeGenerator) -> None:
+    def emit_unaryop(self, node: ast.UnaryOp, code_gen: StaticCodeGenBase) -> None:
         code_gen.defaultVisit(node)
 
-    def emit_aug_rhs(
-        self, node: ast.AugAssign, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_aug_rhs(self, node: ast.AugAssign, code_gen: StaticCodeGenBase) -> None:
         code_gen.defaultCall(node, "emitAugRHS")
 
     def bind_constant(self, node: ast.Constant, visitor: TypeBinder) -> None:
         visitor.syntax_error(f"cannot constant with {self.name}", node)
 
-    def emit_constant(
-        self, node: ast.Constant, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_constant(self, node: ast.Constant, code_gen: StaticCodeGenBase) -> None:
         return code_gen.defaultVisit(node)
 
-    def emit_name(self, node: ast.Name, code_gen: Static310CodeGenerator) -> None:
+    def emit_name(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         if isinstance(node.ctx, ast.Load):
             return self.emit_load_name(node, code_gen)
         elif isinstance(node.ctx, ast.Store):
@@ -1122,52 +1133,50 @@ class Value:
         else:
             return self.emit_delete_name(node, code_gen)
 
-    def emit_load_name(self, node: ast.Name, code_gen: Static310CodeGenerator) -> None:
+    def emit_load_name(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         code_gen.loadName(node.id)
 
-    def emit_store_name(self, node: ast.Name, code_gen: Static310CodeGenerator) -> None:
+    def emit_store_name(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         code_gen.storeName(node.id)
 
-    def emit_delete_name(
-        self, node: ast.Name, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_delete_name(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         code_gen.delName(node.id)
 
     def emit_jumpif(
-        self, test: AST, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.visit(test)
         self.emit_jumpif_only(next, is_if_true, code_gen)
 
     def emit_jumpif_only(
-        self, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
 
     def emit_jumpif_pop(
-        self, test: AST, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.visit(test)
         self.emit_jumpif_pop_only(next, is_if_true, code_gen)
 
     def emit_jumpif_pop_only(
-        self, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.emit(
             "JUMP_IF_TRUE_OR_POP" if is_if_true else "JUMP_IF_FALSE_OR_POP", next
         )
 
-    def emit_box(self, node: expr, code_gen: Static310CodeGenerator) -> None:
+    def emit_box(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         raise RuntimeError(f"Unsupported box type: {code_gen.get_type(node)}")
 
-    def emit_unbox(self, node: expr, code_gen: Static310CodeGenerator) -> None:
+    def emit_unbox(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         raise RuntimeError("Unsupported unbox type")
 
     def get_fast_len_type(self) -> int | None:
         return None
 
     def emit_len(
-        self, node: ast.Call, code_gen: Static310CodeGenerator, boxed: bool
+        self, node: ast.Call, code_gen: StaticCodeGenBase, boxed: bool
     ) -> None:
         if not boxed:
             raise RuntimeError("Unsupported type for clen()")
@@ -1181,11 +1190,15 @@ class Value:
     def make_literal(self, literal_value: object, type_env: TypeEnvironment) -> Value:
         raise NotImplementedError(f"Type {self.name} does not support literals")
 
-    def emit_convert(self, from_type: Value, code_gen: Static310CodeGenerator) -> None:
+    def emit_convert(self, from_type: Value, code_gen: StaticCodeGenBase) -> None:
         pass
 
     def is_truthy_literal(self) -> bool:
         return False
+
+    @property
+    def is_nominal_type(self) -> bool:
+        return True
 
 
 def resolve_instance_attr(
@@ -1255,7 +1268,7 @@ class Object(Value, Generic[TClass]):
         return resolve_instance_attr(node, self, visitor)
 
     def emit_delete_attr(
-        self, node: ast.Attribute, code_gen: Static310CodeGenerator
+        self, node: ast.Attribute, code_gen: StaticCodeGenBase
     ) -> None:
         if self.klass.find_slot(node) and node.attr != "__dict__":
             code_gen.emit("DELETE_ATTR", node.attr)
@@ -1263,18 +1276,14 @@ class Object(Value, Generic[TClass]):
 
         super().emit_delete_attr(node, code_gen)
 
-    def emit_load_attr(
-        self, node: ast.Attribute, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_load_attr(self, node: ast.Attribute, code_gen: StaticCodeGenBase) -> None:
         if (member := self.klass.find_slot(node)) and node.attr != "__dict__":
             member.emit_load_from_slot(code_gen)
             return
 
         super().emit_load_attr(node, code_gen)
 
-    def emit_store_attr(
-        self, node: ast.Attribute, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_store_attr(self, node: ast.Attribute, code_gen: StaticCodeGenBase) -> None:
         if (member := self.klass.find_slot(node)) and node.attr != "__dict__":
             member.emit_store_to_slot(code_gen)
             return
@@ -1518,6 +1527,11 @@ class Class(Object["Class"]):
                 break
         return ret
 
+    @property
+    def is_nominal_type(self) -> bool:
+        # Does this type represent a known runtime type?
+        return True
+
     def make_type_dict(self) -> None:
         pytype = self.pytype
         if pytype is None:
@@ -1555,7 +1569,7 @@ class Class(Object["Class"]):
     @property
     def instance_name(self) -> str:
         # We need to break the loop for `builtins.type`, as `builtins.type`'s instance is a Class.
-        if type(self.instance) == Class:
+        if type(self.instance) is Class:
             return "type"
         return self.instance.name
 
@@ -1606,6 +1620,10 @@ class Class(Object["Class"]):
     @property
     def readable_name(self) -> str:
         return self.type_name.readable_name
+
+    @property
+    def is_protocol(self) -> bool:
+        return False
 
     @property
     def is_generic_parameter(self) -> bool:
@@ -1770,7 +1788,7 @@ class Class(Object["Class"]):
 
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         call_info = code_gen.get_node_data(node, ClassCallInfo)
 
         if call_info.dynamic_call:
@@ -1784,7 +1802,7 @@ class Class(Object["Class"]):
 
         init = call_info.init
         if init is not None:
-            code_gen.emit("DUP_TOP")
+            code_gen.emit_dup()
             init.emit(code_gen)
             code_gen.emit("POP_TOP")  # pop None
 
@@ -1901,29 +1919,37 @@ class Class(Object["Class"]):
     ) -> Value | None:
         node = self.inexact_type()._member_nodes.get(name, None)
         with module.error_context(node):
-            new_value = my_value.finish_bind(module, self)
-            if new_value is None:
-                return None
-            my_value = new_value
+            return my_value.finish_bind(module, self)
 
-            for base in self.mro[1:]:
-                value = base.members.get(name)
-                if value is not None:
-                    self.check_incompatible_override(my_value, value, module)
+    def validate_overrides(self, module: ModuleTable, klass: Class | None) -> None:
+        to_remove: set[str] = set()
+        for name, my_value in self.members.items():
+            node = self.inexact_type()._member_nodes.get(name, None)
+            with module.error_context(node):
+                my_value.validate_overrides(module, self)
 
-                if isinstance(value, Slot) and isinstance(my_value, Slot):
-                    # use the base class slot
-                    if value.is_final or not value.assigned_on_class:
-                        return None
+            node = self.inexact_type()._member_nodes.get(name, None)
+            with module.error_context(node):
+                for base in self.mro[1:]:
+                    base_value = base.members.get(name)
+                    if base_value is not None:
+                        self.check_incompatible_override(my_value, base_value, module)
 
-                    # For class values we are introducing a new slot which
-                    # can be accessed from the derived type.  We end up
-                    # creating a slot with a default value so the value can
-                    # be stored on the instance.
-                    my_value.override = value
-                    my_value.type_ref = value.type_ref
+                    if isinstance(base_value, Slot) and isinstance(my_value, Slot):
+                        # use the base class slot
+                        if base_value.is_final or not base_value.assigned_on_class:
+                            to_remove.add(name)
+                            break
 
-        return my_value
+                        # For class values we are introducing a new slot which
+                        # can be accessed from the derived type.  We end up
+                        # creating a slot with a default value so the value can
+                        # be stored on the instance.
+                        my_value.override = base_value
+                        my_value.type_ref = base_value.type_ref
+
+        for name in to_remove:
+            del self.members[name]
 
     def define_slot(
         self,
@@ -2044,15 +2070,18 @@ class Class(Object["Class"]):
     def unwrap(self) -> Class:
         return self
 
-    def emit_type_check(self, src: Class, code_gen: Static310CodeGenerator) -> None:
+    def emit_type_check(self, src: Class, code_gen: StaticCodeGenBase) -> None:
+        if not self.is_nominal_type:
+            # If this isn't a runtime type we have no dependencies on the type and
+            # also can't type check it.
+            return
+
         if src is self.type_env.dynamic:
             code_gen.emit("CAST", self.type_descr)
         else:
             assert self.can_assign_from(src)
 
-    def emit_extra_members(
-        self, node: ClassDef, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_extra_members(self, node: ClassDef, code_gen: StaticCodeGenBase) -> None:
         pass
 
 
@@ -2082,7 +2111,7 @@ class BuiltinObject(Class):
         )
         self.dynamic_builtinmethod_dispatch = True
 
-    def emit_type_check(self, src: Class, code_gen: Static310CodeGenerator) -> None:
+    def emit_type_check(self, src: Class, code_gen: StaticCodeGenBase) -> None:
         assert self.can_assign_from(src)
 
 
@@ -2123,6 +2152,10 @@ class GenericClass(Class):
         )
         self.gen_name = type_name
         self.type_def = type_def
+
+    @property
+    def is_nominal_type(self) -> bool:
+        return not self.contains_generic_parameters
 
     def bind_call(
         self, node: ast.Call, visitor: TypeBinder, type_ctx: Class | None
@@ -2294,12 +2327,14 @@ class GenericParameter(Class):
         index: int,
         type_env: TypeEnvironment,
         variance: Variance = Variance.INVARIANT,
+        bound: Class | None = None,
     ) -> None:
         super().__init__(
             TypeName("", name), type_env, [], None, None, {}, is_exact=True
         )
         self.index = index
         self.variance = variance
+        self.bound = bound
 
     @property
     def name(self) -> str:
@@ -2308,6 +2343,14 @@ class GenericParameter(Class):
     @property
     def is_generic_parameter(self) -> bool:
         return True
+
+    @property
+    def contains_generic_parameters(self) -> bool:
+        return True
+
+    @property
+    def is_nominal_type(self) -> bool:
+        return False
 
     def bind_generics(
         self,
@@ -2368,7 +2411,7 @@ class CType(Class):
             f"Primitive type {self.instance_name} cannot be subclassed: {name.readable_name}",
         )
 
-    def emit_type_check(self, src: Class, code_gen: Static310CodeGenerator) -> None:
+    def emit_type_check(self, src: Class, code_gen: StaticCodeGenBase) -> None:
         assert self.can_assign_from(src)
 
 
@@ -2385,6 +2428,11 @@ class DynamicClass(Class):
         )
 
     @property
+    def is_nominal_type(self) -> bool:
+        # Does this type represent a known runtime type?
+        return False
+
+    @property
     def readable_name(self) -> str:
         return "dynamic"
 
@@ -2397,7 +2445,7 @@ class DynamicClass(Class):
         # disallow assigning non read only to read only
         return not isinstance(src, CType)
 
-    def emit_type_check(self, src: Class, code_gen: Static310CodeGenerator) -> None:
+    def emit_type_check(self, src: Class, code_gen: StaticCodeGenBase) -> None:
         assert self.can_assign_from(src)
 
     @property
@@ -2410,7 +2458,9 @@ class DynamicClass(Class):
 
 
 class DynamicInstance(Object[DynamicClass]):
-    pass
+    @property
+    def is_nominal_type(self) -> bool:
+        return False
 
 
 class NoneType(Class):
@@ -2626,6 +2676,7 @@ class ArgMapping:
         self_arg: ast.expr | None,
         args_override: list[ast.expr] | None = None,
         descr_override: TypeDescr | None = None,
+        has_generic_params: bool = False,
     ) -> None:
         self.callable = callable
         self.call = call
@@ -2641,6 +2692,9 @@ class ArgMapping:
         self.spills: dict[int, SpillArg] = {}
         self.dynamic_call = False
         self.descr_override = descr_override
+        self.generic_param_types: dict[Class, Class] | None = (
+            {} if has_generic_params else None
+        )
 
     def bind_args(self, visitor: TypeBinder, skip_self: bool = False) -> None:
         # TODO: handle duplicate args and other weird stuff a-la
@@ -2721,6 +2775,17 @@ class ArgMapping:
                 self.call,
             )
 
+        self._finalize_generic_params()
+
+    def _finalize_generic_params(self) -> None:
+        generic_param_types = self.generic_param_types
+
+        if generic_param_types is not None:
+            for emitter in self.emitters:
+                concrete_type = generic_param_types.get(emitter.type)
+                if concrete_type is not None:
+                    emitter.type = concrete_type
+
     def _bind_default_value(self, param: Parameter, visitor: TypeBinder) -> None:
         if isinstance(param.default_val, expr):
             # We'll force these to normal calls in can_call_self, we'll add
@@ -2780,7 +2845,7 @@ class ArgMapping:
                     resolved_type = self.visit_arg(visitor, param, arg, "keyword")
                     self.emitters.append(SpilledKeywordArg(tmp_name, resolved_type))
                     break
-                elif self.kwargs[candidate_kw][0] == None:
+                elif self.kwargs[candidate_kw][0] is None:
                     variadic_idx = candidate_kw
             else:
                 if variadic_idx is not None:
@@ -2824,6 +2889,10 @@ class ArgMapping:
             if param.name
             else f"{arg_style} arg {param.index}"
         )
+
+        if resolved_type.contains_generic_parameters:
+            return self._visit_generic_arg(resolved_type, arg, desc)
+
         expected = resolved_type.instance
         visitor.visitExpectedType(
             arg,
@@ -2833,7 +2902,89 @@ class ArgMapping:
 
         return resolved_type
 
-    def needs_virtual_invoke(self, code_gen: Static310CodeGenerator) -> bool:
+    def _substitute_generic_params(
+        self, resolved_type: Class, arg_type: Class
+    ) -> Class | None:
+        if isinstance(resolved_type, GenericParameter):
+            # Simple case, just matching generic arg to parameter
+            bound = resolved_type.bound
+            if bound is not None and not bound.can_assign_from(arg_type):
+                return None
+
+            return arg_type
+
+        if isinstance(resolved_type, UnionType):
+            # Union is a special case, it's a generic type, but the number of
+            # arguments it has arbitrarily line up with our inputs.
+
+            subs_type: Class | None = None
+            for union_type in resolved_type.type_args:
+                add_type = self._substitute_generic_params(union_type, arg_type)
+                if add_type:
+                    if subs_type is None:
+                        subs_type = add_type
+                    else:
+                        subs_type = self.visitor.type_env.get_union(
+                            (subs_type, add_type)
+                        )
+            return subs_type
+
+        # we should have a generic class which contains the generic argument,
+        # we need to match the generic type arguments.
+        if not arg_type.is_generic_type:
+            return None
+
+        assert isinstance(arg_type, GenericClass)
+        assert isinstance(resolved_type, GenericClass)
+        if len(arg_type.type_args) != len(resolved_type.type_args):
+            return None
+
+        new_args = list(arg_type.type_args)
+        for i, (param_arg, call_arg) in enumerate(
+            zip(resolved_type.type_args, arg_type.type_args)
+        ):
+            if not param_arg.contains_generic_parameters:
+                continue
+
+            new_arg = self._substitute_generic_params(param_arg, call_arg)
+            if new_arg is None:
+                return None
+
+            new_args[i] = new_arg
+
+        return param_arg.make_generic_type(tuple(new_args))
+
+    def _visit_generic_arg(self, resolved_type: Class, arg: expr, desc: str) -> Class:
+        # Generic argument, we'll need to infer the types using all
+        # parameters.
+        self.visitor.visit(arg)
+        arg_type = self.visitor.get_type(arg).klass
+
+        inferred_arg_type = self._substitute_generic_params(resolved_type, arg_type)
+        if inferred_arg_type is None:
+            self.visitor.syntax_error(
+                resolve_assign_error_msg(
+                    resolved_type,
+                    arg_type,
+                    f"type mismatch: {{}} received for {desc}, expected {{}}",
+                ),
+                arg,
+            )
+            return arg_type
+
+        generic_param_types = self.generic_param_types
+        assert generic_param_types is not None
+
+        cur_type = generic_param_types.get(resolved_type)
+        if cur_type is None:
+            generic_param_types[resolved_type] = inferred_arg_type
+        else:
+            combined = self.visitor.type_env.get_union((cur_type, inferred_arg_type))
+            generic_param_types[resolved_type] = combined
+
+        return inferred_arg_type
+
+    def needs_virtual_invoke(self, code_gen: StaticCodeGenBase) -> bool:
         if self.callable.is_final:
             return False
         self_arg = self.self_arg
@@ -2901,12 +3052,12 @@ class ArgMapping:
 
         return True
 
-    def emit(self, code_gen: Static310CodeGenerator, extra_self: bool = False) -> None:
+    def emit(self, code_gen: StaticCodeGenBase, extra_self: bool = False) -> None:
         if self.dynamic_call:
             code_gen.defaultVisit(self.call)
             return
 
-        code_gen.set_lineno(self.call)
+        code_gen.set_pos(self.call)
 
         for emitter in self.emitters:
             emitter.emit(self.call, code_gen)
@@ -2929,6 +3080,15 @@ class ArgMapping:
             descr = self.descr_override or self.callable.type_descr
             code_gen.emit("INVOKE_FUNCTION", (descr, len(func_args)))
 
+    def infer_return_type(self, ret_type: Class) -> Value:
+        # There's still more to do here in the case where the return
+        # type is not directly expressed in the parameter types.
+        generic_param_types = self.generic_param_types
+        if generic_param_types is not None:
+            return generic_param_types.get(ret_type, ret_type).instance
+
+        return ret_type.instance
+
 
 class ClassMethodArgMapping(ArgMapping):
     def __init__(
@@ -2943,7 +3103,7 @@ class ClassMethodArgMapping(ArgMapping):
         super().__init__(callable, call, visitor, self_arg, args_override)
         self.is_instance_call = is_instance_call
 
-    def needs_virtual_invoke(self, code_gen: Static310CodeGenerator) -> bool:
+    def needs_virtual_invoke(self, code_gen: StaticCodeGenBase) -> bool:
         if self.callable.is_final:
             return False
 
@@ -2956,7 +3116,7 @@ class ClassMethodArgMapping(ArgMapping):
         instance = self_type.instance
         return not (instance.klass.is_exact or instance.klass.is_final)
 
-    def emit(self, code_gen: Static310CodeGenerator, extra_self: bool = False) -> None:
+    def emit(self, code_gen: StaticCodeGenBase, extra_self: bool = False) -> None:
         if self.dynamic_call:
             code_gen.defaultVisit(self.call)
             return
@@ -2968,7 +3128,7 @@ class ClassMethodArgMapping(ArgMapping):
         if self.is_instance_call and not self.needs_virtual_invoke(code_gen):
             code_gen.emit("LOAD_TYPE")
 
-        code_gen.set_lineno(self.call)
+        code_gen.set_pos(self.call)
 
         for emitter in self.emitters:
             emitter.emit(self.call, code_gen)
@@ -2998,12 +3158,12 @@ class ArgEmitter:
 
         self.type = type
 
-    def emit(self, node: Call, code_gen: Static310CodeGenerator) -> None:
+    def emit(self, node: Call, code_gen: StaticCodeGenBase) -> None:
         pass
 
 
 class PositionArg(ArgEmitter):
-    def emit(self, node: Call, code_gen: Static310CodeGenerator) -> None:
+    def emit(self, node: Call, code_gen: StaticCodeGenBase) -> None:
         arg_type = code_gen.get_type(self.argument)
         code_gen.visit(self.argument)
 
@@ -3015,22 +3175,21 @@ class PositionArg(ArgEmitter):
 
 class StarredArg(ArgEmitter):
     def __init__(self, argument: expr, params: list[Parameter]) -> None:
-
         self.argument = argument
         self.params = params
 
-    def emit(self, node: Call, code_gen: Static310CodeGenerator) -> None:
+    def emit(self, node: Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(self.argument)
         for idx, param in enumerate(self.params):
             code_gen.emit("LOAD_ITERABLE_ARG", idx)
 
             if (
                 param.type_ref.resolved() is not None
-                and param.type_ref.resolved() is not code_gen.compiler.type_env.DYNAMIC
+                and param.type_ref.resolved().is_nominal_type
             ):
-                code_gen.emit("ROT_TWO")
+                code_gen.emit_rotate_stack(2)
                 code_gen.emit("CAST", param.type_ref.resolved().type_descr)
-                code_gen.emit("ROT_TWO")
+                code_gen.emit_rotate_stack(2)
 
         # Remove the tuple from TOS
         code_gen.emit("POP_TOP")
@@ -3041,7 +3200,7 @@ class SpillArg(ArgEmitter):
         self.argument = argument
         self.temporary = temporary
 
-    def emit(self, node: Call, code_gen: Static310CodeGenerator) -> None:
+    def emit(self, node: Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(self.argument)
         code_gen.emit("STORE_FAST", self.temporary)
 
@@ -3054,7 +3213,7 @@ class SpilledKeywordArg(ArgEmitter):
         self.temporary = temporary
         self.type = type
 
-    def emit(self, node: Call, code_gen: Static310CodeGenerator) -> None:
+    def emit(self, node: Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.emit("LOAD_FAST", self.temporary)
         self.type.emit_type_check(code_gen.compiler.type_env.dynamic, code_gen)
 
@@ -3067,7 +3226,7 @@ class KeywordArg(ArgEmitter):
         self.argument = argument
         self.type = type
 
-    def emit(self, node: Call, code_gen: Static310CodeGenerator) -> None:
+    def emit(self, node: Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(self.argument)
         self.type.emit_type_check(code_gen.get_type(self.argument).klass, code_gen)
 
@@ -3078,7 +3237,7 @@ class KeywordMappingArg(ArgEmitter):
 
         self.variadic = variadic
 
-    def emit(self, node: Call, code_gen: Static310CodeGenerator) -> None:
+    def emit(self, node: Call, code_gen: StaticCodeGenBase) -> None:
         if self.param.has_default:
             code_gen.emit("LOAD_CONST", self.param.default_val)
         code_gen.emit("LOAD_FAST", self.variadic)
@@ -3097,7 +3256,7 @@ class DefaultArg(ArgEmitter):
     def __init__(self, expr: expr) -> None:
         self.expr = expr
 
-    def emit(self, node: Call, code_gen: Static310CodeGenerator) -> None:
+    def emit(self, node: Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(self.expr)
 
 
@@ -3105,7 +3264,7 @@ class UnreachableArg(ArgEmitter):
     def __init__(self) -> None:
         pass
 
-    def emit(self, node: Call, code_gen: Static310CodeGenerator) -> None:
+    def emit(self, node: Call, code_gen: StaticCodeGenBase) -> None:
         raise ValueError("this arg should never be emitted")
 
 
@@ -3138,8 +3297,9 @@ class FunctionContainer(Object[Class]):
         terminates = visitor.visit_check_terminal(self.get_function_body())
 
         typ = visitor.get_type(node)
-        if not terminates and not isinstance(
-            typ, (TransientDecoratedMethod, NativeDecoratedFunction)
+        if not terminates and (
+            not isinstance(typ, (TransientDecoratedMethod, NativeDecoratedFunction))
+            or isinstance(typ, TransientPropertyDecoratedMethod)
         ):
             expected = self.get_expected_return()
             if not expected.klass.can_assign_from(visitor.type_env.none):
@@ -3197,7 +3357,7 @@ class FunctionContainer(Object[Class]):
     def emit_function(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> str:
         raise NotImplementedError()
 
@@ -3205,7 +3365,7 @@ class FunctionContainer(Object[Class]):
         self,
         func: Function,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> str:
         if node.decorator_list:
             for decorator in node.decorator_list:
@@ -3217,26 +3377,20 @@ class FunctionContainer(Object[Class]):
         func.emit_function_body(node, code_gen, first_lineno, func.get_function_body())
 
         for _ in range(len(node.decorator_list)):
-            code_gen.emit("CALL_FUNCTION", 1)
+            code_gen.emit_call_one_arg()
 
         return node.name
 
     def emit_function_body(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
         first_lineno: int,
         body: list[ast.stmt],
     ) -> CodeGenerator:
-
-        gen = code_gen.make_func_codegen(node, node.args, node.name, first_lineno)
-
-        code_gen.processBody(node, body, gen)
-
-        gen.finishFunction()
+        gen = code_gen.generate_function_with_body(node, node.name, first_lineno, body)
 
         code_gen.build_function(node, gen)
-
         return gen
 
     def get_expected_return(self) -> Value:
@@ -3334,8 +3488,8 @@ class Callable(Object[TClass]):
     def type_descr(self) -> TypeDescr:
         cont = self.container_type
         if cont:
-            return cont.type_descr + (self.func_name,)
-        return (self.module_name, self.func_name)
+            return (cont.type_descr, self.func_name)
+        return ((self.module_name,), self.func_name)
 
     def set_container_type(self, klass: Class | None) -> None:
         self.container_type = klass.inexact_type() if klass is not None else klass
@@ -3421,14 +3575,14 @@ class Callable(Object[TClass]):
         if self.has_vararg != override.has_vararg:
             module.syntax_error(
                 f"{override.readable_name} overrides {self.readable_name} inconsistently. "
-                f"Functions differ by including *args",
+                "Functions differ by including *args",
                 override.node,
             )
 
         if self.has_kwarg != override.has_kwarg:
             module.syntax_error(
                 f"{override.readable_name} overrides {self.readable_name} inconsistently. "
-                f"Functions differ by including **kwargs",
+                "Functions differ by including **kwargs",
                 override.node,
             )
 
@@ -3447,9 +3601,12 @@ class Callable(Object[TClass]):
             self_expr,
             args_override,
             descr_override=descr_override,
+            has_generic_params=self.has_generic_params,
         )
         arg_mapping.bind_args(visitor)
-        return arg_mapping, self.return_type.resolved().instance
+        ret_type = arg_mapping.infer_return_type(self.return_type.resolved())
+
+        return arg_mapping, ret_type
 
     def bind_call(
         self, node: ast.Call, visitor: TypeBinder, type_ctx: Class | None
@@ -3477,7 +3634,7 @@ class Callable(Object[TClass]):
         return NO_EFFECT
 
     def _emit_kwarg_temps(
-        self, keywords: list[ast.keyword], code_gen: Static310CodeGenerator
+        self, keywords: list[ast.keyword], code_gen: StaticCodeGenBase
     ) -> dict[str, str]:
         temporaries = {}
         for each in keywords:
@@ -3508,11 +3665,15 @@ class Callable(Object[TClass]):
     def emit_call_self(
         self,
         node: ast.Call,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
         self_expr: ast.expr | None = None,
     ) -> None:
         arg_mapping: ArgMapping = code_gen.get_node_data(node, ArgMapping)
         arg_mapping.emit(code_gen)
+
+    @property
+    def has_generic_params(self) -> bool:
+        return False
 
 
 class AwaitableType(GenericClass):
@@ -3600,9 +3761,7 @@ class InlineRewriter(ASTRewriter):
         super().__init__()
         self.replacements = replacements
 
-    def visit(
-        self, node: TAst | Sequence[AST], *args: object
-    ) -> AST | Sequence[AST]:
+    def visit(self, node: TAst | Sequence[AST], *args: object) -> AST | Sequence[AST]:
         res = super().visit(node, *args)
         if res is node:
             if isinstance(node, AST):
@@ -3668,7 +3827,7 @@ class Function(Callable[Class], FunctionContainer):
     def emit_function(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> str:
         # For decorated functions we should either have a known decorator or
         # a UnknownDecoratedFunction.  The known decorators will handle emitting
@@ -3738,7 +3897,7 @@ class Function(Callable[Class], FunctionContainer):
 
         return res
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if self.inline and not code_gen.enable_patching:
             return self.emit_inline_call(node, code_gen)
 
@@ -3811,15 +3970,13 @@ class Function(Callable[Class], FunctionContainer):
 
         visitor.inline_depth -= 1
 
-    def emit_inline_call(
-        self, node: ast.Call, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_inline_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         assert isinstance(self.node.body[0], ast.Return)
         inlined_call = code_gen.get_node_data(node, Optional[InlinedCall])
         if inlined_call is None:
             return self.emit_call_self(node, code_gen)
 
-        for name, (arg, store) in inlined_call.spills.items():
+        for arg, store in inlined_call.spills.values():
             code_gen.visit(arg)
 
             code_gen.get_type(store).emit_name(store, code_gen)
@@ -3913,6 +4070,35 @@ class Function(Callable[Class], FunctionContainer):
         if kwarg:
             self.has_kwarg = True
 
+    def resolve_decorate_class(
+        self,
+        klass: Class,
+        decorator: expr,
+        visitor: DeclarationVisitor,
+    ) -> Class:
+        # Decorator is allowed if it takes and returns same value
+        if (
+            len(self.args) == 1
+            and isinstance(self.args[0].type_ref.resolved(), GenericParameter)
+            and (self.return_type.resolved() is self.args[0].type_ref.resolved())
+        ):
+            return klass
+
+        return super().resolve_decorate_class(klass, decorator, visitor)
+
+    @cached_property
+    def has_generic_params(self) -> bool:
+        args = self.args
+        if args is None:
+            return False
+
+        for param in args:
+            param_type = param.type_ref.resolved()
+            if param_type.contains_generic_parameters:
+                return True
+
+        return False
+
     def __repr__(self) -> str:
         return f"<{self.name} '{self.name}' instance, args={self.args}>"
 
@@ -3921,20 +4107,19 @@ class InitSubclassFunction(Function):
     def emit_function_body(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
         first_lineno: int,
         body: list[ast.stmt],
     ) -> CodeGenerator:
-
         gen = code_gen.make_func_codegen(node, node.args, node.name, first_lineno)
 
         gen.emit("LOAD_FAST", node.args.args[0].arg)
-        gen.emit("INVOKE_FUNCTION", (("_static", "init_subclass"), 1))
+        gen.emit("INVOKE_FUNCTION", ((("_static",), "init_subclass"), 1))
         gen.emit("POP_TOP")
 
         code_gen.processBody(node, body, gen)
 
-        gen.finishFunction()
+        gen.finish_function()
 
         code_gen.build_function(node, gen)
 
@@ -3964,7 +4149,7 @@ class UnknownDecoratedMethod(FunctionContainer):
     def emit_function(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> str:
         return self.emit_function_with_decorators(self.func, node, code_gen)
 
@@ -3976,6 +4161,10 @@ class UnknownDecoratedMethod(FunctionContainer):
                 self.func.module.compiler,
             )
         return ResolvedTypeRef(self.klass.type_env.dynamic)
+
+    @property
+    def is_nominal_type(self) -> bool:
+        return False
 
 
 class MethodType(Object[Class]):
@@ -4007,11 +4196,11 @@ class MethodType(Object[Class]):
         result = self.function.bind_call_self(node, visitor, type_ctx, self.target)
         return result
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if self.function.func_name in NON_VIRTUAL_METHODS:
             return super().emit_call(node, code_gen)
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
 
         self.function.emit_call_self(node, code_gen, self.target)
 
@@ -4044,7 +4233,7 @@ class StaticMethodInstanceBound(Object[Class]):
         visitor.set_node_data(node, ArgMapping, arg_mapping)
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if self.function.func_name in NON_VIRTUAL_METHODS:
             return super().emit_call(node, code_gen)
 
@@ -4071,7 +4260,7 @@ class DecoratedMethod(FunctionContainer):
     def emit_function(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> str:
         self.emit_function_body(
             node, code_gen, self.decorator.lineno, self.get_function_body()
@@ -4081,7 +4270,7 @@ class DecoratedMethod(FunctionContainer):
     def emit_function_body(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
         first_lineno: int,
         body: list[ast.stmt],
     ) -> CodeGenerator:
@@ -4089,7 +4278,7 @@ class DecoratedMethod(FunctionContainer):
         self.function.emit_function_body(
             node, code_gen, first_lineno, self.get_function_body()
         )
-        code_gen.emit("CALL_FUNCTION", 1)
+        code_gen.emit_call_one_arg()
         return code_gen
 
     def get_function_body(self) -> list[ast.stmt]:
@@ -4144,16 +4333,16 @@ class TransparentDecoratedMethod(DecoratedMethod):
     def can_override(self, override: Value, klass: Class, module: ModuleTable) -> bool:
         return self.function.can_override(override, klass, module)
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         return self.function.emit_call(node, code_gen)
 
     def emit_load_attr_from(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
         self.function.emit_load_attr_from(node, code_gen, klass)
 
     def emit_store_attr_to(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
         self.function.emit_store_attr_to(node, code_gen, klass)
 
@@ -4255,7 +4444,7 @@ class BoundClassMethod(Object[Class]):
         visitor.set_node_data(node, ArgMapping, arg_mapping)
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if self.function.func_name in NON_VIRTUAL_METHODS:
             return super().emit_call(node, code_gen)
 
@@ -4384,7 +4573,7 @@ class PropertyMethod(DecoratedMethod):
             return self.function.return_type.resolved().instance
 
     def emit_load_attr_from(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
         if self.function.is_final or klass.is_final or klass.is_exact:
             code_gen.emit("EXTENDED_ARG", 0)
@@ -4398,9 +4587,9 @@ class PropertyMethod(DecoratedMethod):
             code_gen.emit_invoke_method(self.getter_type_descr, 0)
 
     def emit_store_attr_to(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
-        code_gen.emit("ROT_TWO")
+        code_gen.emit_rotate_stack(2)
         if self.function.is_final or klass.is_final:
             code_gen.emit("EXTENDED_ARG", 0)
             code_gen.emit("INVOKE_FUNCTION", (self.setter_type_descr, 2))
@@ -4422,17 +4611,21 @@ class PropertyMethod(DecoratedMethod):
 
     @property
     def getter_type_descr(self) -> TypeDescr:
-        return self.container_descr + ((self.function.func_name, "fget"),)
+        return (self.container_descr, (self.function.func_name, "fget"))
 
     @property
     def setter_type_descr(self) -> TypeDescr:
-        return self.container_descr + ((self.function.func_name, "fset"),)
+        return (self.container_descr, (self.function.func_name, "fset"))
 
     def resolve_attr(
         self, node: ast.Attribute, visitor: GenericVisitor[object]
     ) -> Value | None:
         if node.attr == "setter":
             return PropertySetterDecorator(
+                TypeName("builtins", "property"), self.real_function.klass.type_env
+            )
+        elif node.attr == "deleter":
+            return PropertyDeleterDecorator(
                 TypeName("builtins", "property"), self.real_function.klass.type_env
             )
         return super().resolve_attr(node, visitor)
@@ -4452,21 +4645,21 @@ class CachedPropertyMethod(PropertyMethod):
         )
 
     def emit_load_attr_from(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
         code_gen.emit_invoke_method(self.getter_type_descr, 0)
 
     def emit_store_attr_to(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
-        code_gen.emit("ROT_TWO")
+        code_gen.emit_rotate_stack(2)
         code_gen.emit_invoke_method(self.setter_type_descr, 1)
         code_gen.emit("POP_TOP")
 
     def emit_function(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> str:
         self.function.emit_function_body(
             node, code_gen, self.decorator.lineno, self.get_function_body()
@@ -4477,9 +4670,9 @@ class CachedPropertyMethod(PropertyMethod):
     def resolve_attr(
         self, node: ast.Attribute, visitor: GenericVisitor[object]
     ) -> Value | None:
-        if node.attr == "setter":
+        if node.attr == "setter" or node.attr == "deleter":
             visitor.syntax_error(
-                f"cached_property {self.name} does not support setters",
+                f"cached_property {self.name} does not support {node.attr}s",
                 node,
             )
         return super().resolve_attr(node, visitor)
@@ -4499,21 +4692,21 @@ class AsyncCachedPropertyMethod(PropertyMethod):
         )
 
     def emit_load_attr_from(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
         code_gen.emit_invoke_method(self.getter_type_descr, 0)
 
     def emit_store_attr_to(
-        self, node: Attribute, code_gen: Static310CodeGenerator, klass: Class
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
-        code_gen.emit("ROT_TWO")
+        code_gen.emit_rotate_stack(2)
         code_gen.emit_invoke_method(self.setter_type_descr, 1)
         code_gen.emit("POP_TOP")
 
     def emit_function(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> str:
         self.function.emit_function_body(
             node, code_gen, self.decorator.lineno, self.get_function_body()
@@ -4524,9 +4717,9 @@ class AsyncCachedPropertyMethod(PropertyMethod):
     def resolve_attr(
         self, node: ast.Attribute, visitor: GenericVisitor[object]
     ) -> Value | None:
-        if node.attr == "setter":
+        if node.attr == "setter" or node.attr == "deleter":
             visitor.syntax_error(
-                f"async_cached_property {self.name} does not support setters",
+                f"async_cached_property {self.name} does not support {node.attr}s",
                 node,
             )
         return super().resolve_attr(node, visitor)
@@ -4656,7 +4849,7 @@ class NativeDecoratedFunction(Function):
     def emit_function(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> str:
         # This is only different from the parent method in that it allows
         # decorators to exist on the `node`.
@@ -4667,11 +4860,10 @@ class NativeDecoratedFunction(Function):
     def emit_function_body(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
         first_lineno: int,
         body: list[ast.stmt],
     ) -> CodeGenerator:
-
         gen = code_gen.make_func_codegen(node, node.args, node.name, first_lineno)
         callable_name = node.name
 
@@ -4683,12 +4875,12 @@ class NativeDecoratedFunction(Function):
             "LOAD_CONST",
             f"native callable '{callable_name}' can only be called from static modules",
         )
-        gen.emit("CALL_FUNCTION", 1)
+        gen.emit_call_one_arg()
         gen.emit("RAISE_VARARGS", 1)
         gen.emit("LOAD_CONST", None)
         gen.emit("RETURN_VALUE")
 
-        gen.finishFunction()
+        gen.finish_function()
 
         code_gen.build_function(node, gen)
         return gen
@@ -4744,7 +4936,7 @@ class NativeDecoratedFunction(Function):
 
         return super().bind_function_inner(node, visitor)
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         decorator = code_gen.get_type(self.node.decorator_list[0])
         assert isinstance(decorator, NativeDecorator)
 
@@ -4789,7 +4981,7 @@ class NativeDecorator(Callable[Class]):
         type_ctx: Class | None,
         self_expr: ast.expr | None = None,
     ) -> NarrowingEffect:
-        result = super().bind_call_self(node, visitor, type_ctx, self_expr)
+        super().bind_call_self(node, visitor, type_ctx, self_expr)
 
         lib_arg = self.args_by_name.get("lib")
         assert lib_arg is not None  # ensured by declaration visit
@@ -4800,7 +4992,7 @@ class NativeDecorator(Callable[Class]):
             lib_arg_final_node = visitor.get_final_literal(lib_arg_node)
             if lib_arg_final_node is None:
                 visitor.syntax_error(
-                    f"@native decorator 'lib' argument must be a `str`",
+                    "@native decorator 'lib' argument must be a `str`",
                     lib_arg_node,
                 )
             lib_arg_node = lib_arg_final_node
@@ -4859,7 +5051,7 @@ class NativeDecorator(Callable[Class]):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @native")
+        raise TypedSyntaxError("Cannot decorate a class with @native")
 
 
 class PropertyDecorator(Class):
@@ -4876,7 +5068,7 @@ class PropertyDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @property")
+        raise TypedSyntaxError("Cannot decorate a class with @property")
 
 
 class CachedPropertyDecorator(Class):
@@ -4893,7 +5085,7 @@ class CachedPropertyDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @cached_property")
+        raise TypedSyntaxError("Cannot decorate a class with @cached_property")
 
 
 class AsyncCachedPropertyDecorator(Class):
@@ -4910,7 +5102,7 @@ class AsyncCachedPropertyDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @async_cached_property")
+        raise TypedSyntaxError("Cannot decorate a class with @async_cached_property")
 
 
 class IdentityDecorator(Class):
@@ -4944,7 +5136,7 @@ class OverloadDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @overload")
+        raise TypedSyntaxError("Cannot decorate a class with @overload")
 
 
 # The transient name here is meant to imply that even though we understand the decorated method
@@ -4960,9 +5152,13 @@ class TransientDecoratedMethod(DecoratedMethod):
     def emit_function(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> str:
         return self.emit_function_with_decorators(self.real_function, node, code_gen)
+
+
+class TransientPropertyDecoratedMethod(TransientDecoratedMethod):
+    pass
 
 
 class PropertySetterDecorator(Class):
@@ -4971,7 +5167,7 @@ class PropertySetterDecorator(Class):
     ) -> Function | DecoratedMethod | None:
         if fn.klass is not self.type_env.function:
             return None
-        return TransientDecoratedMethod(fn, decorator)
+        return TransientPropertyDecoratedMethod(fn, decorator)
 
     def resolve_decorate_class(
         self,
@@ -4979,7 +5175,24 @@ class PropertySetterDecorator(Class):
         decorator: expr,
         visitor: DeclarationVisitor,
     ) -> Class:
-        raise TypedSyntaxError(f"Cannot decorate a class with @property.setter")
+        raise TypedSyntaxError("Cannot decorate a class with @property.setter")
+
+
+class PropertyDeleterDecorator(Class):
+    def resolve_decorate_function(
+        self, fn: Function | DecoratedMethod, decorator: expr
+    ) -> Function | DecoratedMethod | None:
+        if fn.klass is not self.type_env.function:
+            return None
+        return TransientPropertyDecoratedMethod(fn, decorator)
+
+    def resolve_decorate_class(
+        self,
+        klass: Class,
+        decorator: expr,
+        visitor: DeclarationVisitor,
+    ) -> Class:
+        raise TypedSyntaxError("Cannot decorate a class with @property.deleter")
 
 
 class DataclassDecorator(Callable[Class]):
@@ -5038,7 +5251,7 @@ class DataclassDecorator(Callable[Class]):
     def resolve_decorate_function(
         self, fn: Function | DecoratedMethod, decorator: expr
     ) -> Function | DecoratedMethod | None:
-        raise TypedSyntaxError(f"Cannot decorate a function or method with @dataclass")
+        raise TypedSyntaxError("Cannot decorate a function or method with @dataclass")
 
     def resolve_decorate_class(
         self,
@@ -5094,7 +5307,7 @@ class DataclassDecorator(Callable[Class]):
         return res
 
     def emit_decorator_call(
-        self, class_def: ClassDef, code_gen: Static310CodeGenerator
+        self, class_def: ClassDef, code_gen: StaticCodeGenBase
     ) -> None:
         # If we were able to resolve the class def,
         # then there's no need to emit any code for this decorator,
@@ -5239,7 +5452,7 @@ class DataclassField(Object[DataclassFieldType]):
     @property
     def type_descr(self) -> TypeDescr:
         assert self.base_class is not None
-        return (*self.base_class.type_descr, self.field_name)
+        return (self.base_class.type_descr, self.field_name)
 
     @property
     def unwrapped_type(self) -> tuple[Class, type[Class]]:
@@ -5281,7 +5494,7 @@ class DataclassField(Object[DataclassFieldType]):
         if self.kind is DataclassFieldKind.INITVAR and not self.init:
             raise TypedSyntaxError("InitVar fields must have init=True")
 
-    def emit_field(self, target: AST, code_gen: Static310CodeGenerator) -> None:
+    def emit_field(self, target: AST, code_gen: StaticCodeGenBase) -> None:
         default = self.default
         if default is not None:
             code_gen.visit(default)
@@ -5294,7 +5507,7 @@ class DataclassField(Object[DataclassFieldType]):
             code_gen.visit(target)
         # no default value, nothing to emit
 
-    def load_default(self, klass: Dataclass, code_gen: Static310CodeGenerator) -> None:
+    def load_default(self, klass: Dataclass, code_gen: StaticCodeGenBase) -> None:
         default = self.default_class
         assert default is not None
         if default.inexact_type() is klass.inexact_type():
@@ -5624,12 +5837,12 @@ class Dataclass(Class):
     def flow_graph(
         self,
         node: ClassDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
         func: str,
         args: tuple[str, ...],
         check_args: tuple[object, ...],
         return_type_descr: TypeDescr,
-    ) -> PyFlowGraph310Static:
+    ) -> PyFlowGraphStatic310:
         scope = FunctionScope(func, code_gen.cur_mod, code_gen.scope.klass)
         scope.parent = code_gen.scope
 
@@ -5641,25 +5854,25 @@ class Dataclass(Class):
             optimized=1,
             firstline=node.lineno,
         )
-        graph.setFlag(CO_STATICALLY_COMPILED)
+        graph.setFlag(CI_CO_STATICALLY_COMPILED)
         graph.extra_consts.append((check_args, return_type_descr))
-        return graph
+        return cast("PyFlowGraphStatic310", graph)
 
     def emit_method(
         self,
-        code_gen: Static310CodeGenerator,
-        graph: PyFlowGraph310Static,
+        code_gen: StaticCodeGenBase,
+        graph: PyFlowGraphStatic310,
         oparg: int,
     ) -> None:
-        code_gen.emit("LOAD_CONST", graph)
-        code_gen.emit("LOAD_CONST", f"{self.type_name.qualname}.{graph.name}")
-        code_gen.emit("MAKE_FUNCTION", oparg)
+        code_gen.emit_make_function(
+            graph, f"{self.type_name.qualname}.{graph.name}", oparg
+        )
         code_gen.emit("STORE_NAME", graph.name)
 
     def emit_dunder_comparison(
         self,
         node: ClassDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
         fields: list[DataclassField],
         method_name: str,
         op: str,
@@ -5674,6 +5887,7 @@ class Dataclass(Class):
         )
         false = graph.newBlock()
 
+        graph.emit_prologue()
         graph.emit("LOAD_FAST", "other")
         graph.emit("LOAD_TYPE")
         graph.emit("LOAD_FAST", "self")
@@ -5702,7 +5916,7 @@ class Dataclass(Class):
         self.emit_method(code_gen, graph, 0)
 
     def emit_dunder_delattr_or_setattr(
-        self, node: ClassDef, code_gen: Static310CodeGenerator, delete: bool
+        self, node: ClassDef, code_gen: StaticCodeGenBase, delete: bool
     ) -> None:
         if delete:
             method_name = "__delattr__"
@@ -5724,6 +5938,7 @@ class Dataclass(Class):
         error = graph.newBlock()
         super_call = graph.newBlock()
 
+        graph.emit_prologue()
         graph.emit("LOAD_FAST", "self")
         # TODO(T92470300): graph.emit("CAST", (self.exact_type().type_descr, False))
         graph.emit("LOAD_TYPE")
@@ -5739,25 +5954,25 @@ class Dataclass(Class):
 
         graph.nextBlock(error)
         graph.emit("LOAD_CLASS", self.type_descr)
-        graph.emit("LOAD_METHOD", "_FrozenInstanceError")
+        graph.emit_load_method("_FrozenInstanceError")
         graph.emit("LOAD_CONST", msg)
         graph.emit("LOAD_FAST", "name")
         graph.emit("FORMAT_VALUE", FVC_REPR)
         graph.emit("BUILD_STRING", 2)
-        graph.emit("CALL_METHOD", 1)
+        graph.emit_call_method(1)
         graph.emit("RAISE_VARARGS", 1)
 
         graph.nextBlock(super_call)
         graph.emit("LOAD_GLOBAL", "super")
         graph.emit("LOAD_CLASS", self.type_descr)
         graph.emit("LOAD_FAST", "self")
-        graph.emit("LOAD_METHOD_SUPER", (method_name, False))
+        graph.emit_super_call(method_name, False)
         graph.emit("LOAD_FAST", "name")
         if delete:
-            graph.emit("CALL_METHOD", 1)
+            graph.emit_call_method(1)
         else:
             graph.emit("LOAD_FAST", "value")
-            graph.emit("CALL_METHOD", 2)
+            graph.emit_call_method(2)
         graph.emit("POP_TOP")
         graph.emit("LOAD_CONST", None)
         graph.emit("RETURN_VALUE")
@@ -5767,7 +5982,7 @@ class Dataclass(Class):
     def emit_dunder_hash(
         self,
         node: ClassDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> None:
         graph = self.flow_graph(
             node,
@@ -5777,6 +5992,8 @@ class Dataclass(Class):
             (0, self.inexact_type().type_descr),
             self.type_env.int.type_descr,
         )
+
+        graph.emit_prologue()
         graph.emit("LOAD_GLOBAL", "hash")
 
         num_hash_fields = 0
@@ -5791,7 +6008,7 @@ class Dataclass(Class):
         else:
             graph.emit("LOAD_CONST", ())
 
-        graph.emit("CALL_FUNCTION", 1)
+        graph.emit_call_one_arg()
         graph.emit("RETURN_VALUE")
 
         self.emit_method(code_gen, graph, 0)
@@ -5799,7 +6016,7 @@ class Dataclass(Class):
     def emit_dunder_init(
         self,
         node: ClassDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> None:
         self_name = "__dataclass_self__" if "self" in self.fields else "self"
 
@@ -5818,6 +6035,7 @@ class Dataclass(Class):
             return_type_descr=self.type_env.none.type_descr,
         )
 
+        graph.emit_prologue()
         for name, field in self.true_fields.items():
             if field.default_factory is None:
                 if field.init:
@@ -5835,10 +6053,10 @@ class Dataclass(Class):
 
                 graph.nextBlock()
                 graph.emit("LOAD_CLASS", self.type_descr)
-                graph.emit("LOAD_METHOD", name)
-                graph.emit("CALL_METHOD", 0)
+                graph.emit_load_method(name)
+                graph.emit_call_method(0)
                 graph.emit("CAST", field.unwrapped_descr)
-                graph.emit("JUMP_FORWARD", store)
+                graph.emit_jump_forward(store)
 
                 graph.nextBlock(arg_passed)
                 graph.emit("LOAD_FAST", name)
@@ -5848,8 +6066,8 @@ class Dataclass(Class):
                 graph.emit("STORE_FIELD", field.type_descr)
             else:
                 graph.emit("LOAD_CLASS", self.type_descr)
-                graph.emit("LOAD_METHOD", name)
-                graph.emit("CALL_METHOD", 0)
+                graph.emit_load_method(name)
+                graph.emit_call_method(0)
                 graph.emit("CAST", field.unwrapped_descr)
                 graph.emit("LOAD_FAST", self_name)
                 graph.emit("STORE_FIELD", field.type_descr)
@@ -5861,17 +6079,17 @@ class Dataclass(Class):
                 if field.kind is DataclassFieldKind.INITVAR
             ]
             graph.emit("LOAD_FAST", self_name)
-            graph.emit("LOAD_METHOD", "__post_init__")
+            graph.emit_load_method("__post_init__")
             for name in initvar_names:
                 graph.emit("LOAD_FAST", name)
-            graph.emit("CALL_METHOD", len(initvar_names))
+            graph.emit_call_method(len(initvar_names))
             graph.emit("POP_TOP")
 
         graph.emit("LOAD_CONST", None)
         graph.emit("RETURN_VALUE")
 
         num_defaults = 0
-        for name, field in self.init_fields.items():
+        for field in self.init_fields.values():
             if field.default is not None:
                 num_defaults += 1
                 field.load_default(self, code_gen)
@@ -5888,7 +6106,7 @@ class Dataclass(Class):
     def emit_dunder_repr(
         self,
         node: ClassDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> None:
         graph = self.flow_graph(
             node,
@@ -5898,6 +6116,8 @@ class Dataclass(Class):
             (0, self.inexact_type().type_descr),
             self.type_env.str.type_descr,
         )
+
+        graph.emit_prologue()
         graph.emit("LOAD_FAST", "self")
         graph.emit("LOAD_TYPE")
         graph.emit("LOAD_ATTR", "__qualname__")
@@ -5920,21 +6140,19 @@ class Dataclass(Class):
 
         # Wrap the simple __repr__ function with reprlib.recursive_repr
         # to prevent infinite loops if any field contains a cycle
+        code_gen.emit_prepare_call()
         code_gen.emit("LOAD_CONST", 0)
         code_gen.emit("LOAD_CONST", ("recursive_repr",))
         code_gen.emit("IMPORT_NAME", "reprlib")
         code_gen.emit("IMPORT_FROM", "recursive_repr")
-        code_gen.emit("CALL_FUNCTION", 0)
-        code_gen.emit("LOAD_CONST", graph)
-        code_gen.emit("LOAD_CONST", f"{self.type_name.qualname}.{graph.name}")
-        code_gen.emit("MAKE_FUNCTION", 0)
-        code_gen.emit("CALL_FUNCTION", 1)
-        code_gen.emit("STORE_NAME", "__repr__")
+        code_gen.emit_rotate_stack(2)
         code_gen.emit("POP_TOP")
+        code_gen.emit_call(0)
+        code_gen.emit_make_function(graph, f"{self.type_name.qualname}.{graph.name}", 0)
+        code_gen.emit_call_one_arg()
+        code_gen.emit("STORE_NAME", "__repr__")
 
-    def emit_extra_members(
-        self, node: ClassDef, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_extra_members(self, node: ClassDef, code_gen: StaticCodeGenBase) -> None:
         # import objects needed from dataclasses and store them on the class
         from_names: list[str] = ["_DataclassParams", "_FIELD", "field"]
         as_names: list[str] = ["_DataclassParams", "_FIELD", "_field"]
@@ -5962,6 +6180,7 @@ class Dataclass(Class):
 
         # set __dataclass_fields__
         for name, field in self.fields.items():
+            code_gen.emit_prepare_call()
             code_gen.emit("LOAD_NAME", "_field")
             field_args = []
 
@@ -5997,27 +6216,26 @@ class Dataclass(Class):
             code_gen.emit("LOAD_CONST", field.kw_only)
             field_args.append("kw_only")
 
-            code_gen.emit("LOAD_CONST", tuple(field_args))
-            code_gen.emit("CALL_FUNCTION_KW", len(field_args))
+            code_gen.emit_call_kw(0, tuple(field_args))
 
-            code_gen.emit("DUP_TOP")
+            code_gen.emit_dup()
             code_gen.emit("LOAD_CONST", name)
-            code_gen.emit("ROT_TWO")
+            code_gen.emit_rotate_stack(2)
             code_gen.emit("STORE_ATTR", "name")
 
-            code_gen.emit("DUP_TOP")
+            code_gen.emit_dup()
             code_gen.emit("LOAD_CONST", field.type_annotation)
-            code_gen.emit("ROT_TWO")
+            code_gen.emit_rotate_stack(2)
             code_gen.emit("STORE_ATTR", "type")
 
-            code_gen.emit("DUP_TOP")
+            code_gen.emit_dup()
             if field.kind is DataclassFieldKind.FIELD:
                 code_gen.emit("LOAD_NAME", "_FIELD")
             elif field.kind is DataclassFieldKind.CLASSVAR:
                 code_gen.emit("LOAD_NAME", "_FIELD_CLASSVAR")
             else:
                 code_gen.emit("LOAD_NAME", "_FIELD_INITVAR")
-            code_gen.emit("ROT_TWO")
+            code_gen.emit_rotate_stack(2)
             code_gen.emit("STORE_ATTR", "_field_type")
 
         code_gen.emit("LOAD_CONST", tuple(self.fields))
@@ -6025,6 +6243,7 @@ class Dataclass(Class):
         code_gen.emit("STORE_NAME", "__dataclass_fields__")
 
         # set __dataclass_params__ with the arguments to @dataclass()
+        code_gen.emit_prepare_call()
         code_gen.emit("LOAD_NAME", "_DataclassParams")
         code_gen.emit("LOAD_CONST", self.init)
         code_gen.emit("LOAD_CONST", self.repr)
@@ -6032,7 +6251,14 @@ class Dataclass(Class):
         code_gen.emit("LOAD_CONST", self.order)
         code_gen.emit("LOAD_CONST", self.unsafe_hash)
         code_gen.emit("LOAD_CONST", self.frozen)
-        code_gen.emit("CALL_FUNCTION", 6)
+        if sys.version_info >= (3, 12):
+            code_gen.emit("LOAD_CONST", False)  # match_args
+            code_gen.emit("LOAD_CONST", False)  # kw_only
+            code_gen.emit("LOAD_CONST", None)  # slots
+            code_gen.emit("LOAD_CONST", False)  # weakref_slot
+            code_gen.emit_call(10)
+        else:
+            code_gen.emit_call(6)
         code_gen.emit("STORE_NAME", "__dataclass_params__")
 
         if self.generate_init:
@@ -6135,11 +6361,11 @@ class BuiltinFunction(Callable[Class]):
 
         return super().can_override(override, klass, module)
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if node.keywords:
             return super().emit_call(node, code_gen)
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         self.emit_call_self(node, code_gen)
 
     def make_generic(
@@ -6340,11 +6566,12 @@ class BuiltinMethod(Callable[Class]):
 
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
-        if node.keywords:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
+        has_starred = any(isinstance(arg, ast.Starred) for arg in node.args)
+        if node.keywords or has_starred:
             return super().emit_call(node, code_gen)
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
 
         if self.args is not None:
             self.desc.emit_call_self(node, code_gen, self.target)
@@ -6353,7 +6580,7 @@ class BuiltinMethod(Callable[Class]):
 
             code_gen.visit(self.target)
 
-            code_gen.set_lineno(node)
+            code_gen.set_pos(node)
             for arg in node.args:
                 code_gen.visit(arg)
 
@@ -6369,7 +6596,6 @@ class BuiltinMethod(Callable[Class]):
 
 def get_default_value(default: expr) -> object:
     if not isinstance(default, (Constant, Str, Num, Bytes, NameConstant, ast.Ellipsis)):
-
         default = AstOptimizer().visit(default)
 
     if isinstance(default, Str):
@@ -6426,23 +6652,26 @@ class Slot(Object[TClassInv]):
 
             return True
         elif isinstance(override, PropertyMethod):
-            ot = override.function.return_type
-            it = self.type_ref
-            if ot and it and ot.resolved(True) != (itr := it.resolved(True)):
-                raise TypedSyntaxError(
-                    f"Cannot change type of inherited attribute (inherited type '{itr.instance.name}')"
-                )
+            if self.is_typed_descriptor_with_default_value():
+                # Attributes declared on the class are overloadable properties.
+                ot = override.function.return_type
+                it = self.type_ref
+                if ot and it and ot.resolved(True) != (itr := it.resolved(True)):
+                    raise TypedSyntaxError(
+                        f"Cannot change type of inherited attribute (inherited type '{itr.instance.name}')"
+                    )
 
-            return True
+                return True
+
+            raise TypedSyntaxError("Cannot override attribute with property method")
 
         return super().can_override(override, klass, module)
 
-    def finish_bind(self, module: ModuleTable, klass: Class | None) -> Value:
+    def validate_overrides(self, module: ModuleTable, klass: Class | None) -> None:
         if self.is_final and not self.assignment:
             raise TypedSyntaxError(
                 f"Final attribute not initialized: {self.container_type.instance.name}:{self.slot_name}"
             )
-        return self
 
     def resolve_descr_get(
         self,
@@ -6499,30 +6728,28 @@ class Slot(Object[TClassInv]):
 
         return self.decl_type.type_descr
 
-    def emit_load_from_slot(self, code_gen: Static310CodeGenerator) -> None:
+    def emit_load_from_slot(self, code_gen: StaticCodeGenBase) -> None:
         if self.is_typed_descriptor_with_default_value():
             code_gen.emit_invoke_method(
-                self.container_type.type_descr + ((self.slot_name, "fget"),), 0
+                (self.container_type.type_descr, (self.slot_name, "fget")), 0
             )
             return
 
         type_descr = self.container_type.type_descr
-        type_descr += (self.slot_name,)
-        code_gen.emit("LOAD_FIELD", type_descr)
+        code_gen.emit("LOAD_FIELD", (type_descr, self.slot_name))
 
-    def emit_store_to_slot(self, code_gen: Static310CodeGenerator) -> None:
+    def emit_store_to_slot(self, code_gen: StaticCodeGenBase) -> None:
         if self.is_typed_descriptor_with_default_value():
-            code_gen.emit("ROT_TWO")
+            code_gen.emit_rotate_stack(2)
             code_gen.emit_invoke_method(
-                self.container_type.type_descr + ((self.slot_name, "fset"),), 1
+                (self.container_type.type_descr, (self.slot_name, "fset")), 1
             )
             # fset will return None, consume it
             code_gen.emit("POP_TOP")
             return
 
         type_descr = self.container_type.type_descr
-        type_descr += (self.slot_name,)
-        code_gen.emit("STORE_FIELD", type_descr)
+        code_gen.emit("STORE_FIELD", (type_descr, self.slot_name))
 
 
 class BoxFunction(Object[Class]):
@@ -6551,7 +6778,7 @@ class BoxFunction(Object[Class]):
             visitor.syntax_error(f"can't box non-primitive: {arg_type.name}", node)
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.get_type(node.args[0]).emit_box(node.args[0], code_gen)
 
 
@@ -6574,7 +6801,7 @@ class UnboxFunction(Object[Class]):
         visitor.set_type(node, type_ctx or visitor.type_env.int64.instance)
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.get_type(node).emit_unbox(node.args[0], code_gen)
 
 
@@ -6597,9 +6824,7 @@ class CRangeIterator(Object[Class]):
         assert isinstance(target, ast.Name)
         return target.id
 
-    def emit_continue(
-        self, node: ast.Continue, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_continue(self, node: ast.Continue, code_gen: StaticCodeGenBase) -> None:
         loop_node = code_gen.get_node_data(node, AST)
         assert isinstance(loop_node, ast.For)  # help pyre
         loop_idx = self._loop_var_name(loop_node)
@@ -6611,14 +6836,14 @@ class CRangeIterator(Object[Class]):
         self,
         loop_idx: str,
         descr: tuple[str, str, str],
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
     ) -> None:
         code_gen.emit("LOAD_LOCAL", (loop_idx, descr))
         code_gen.emit("PRIMITIVE_LOAD_CONST", (1, TYPED_INT64))
         code_gen.emit("PRIMITIVE_BINARY_OP", PRIM_OP_ADD_INT)
         code_gen.emit("STORE_LOCAL", (loop_idx, descr))
 
-    def emit_forloop(self, node: ast.For, code_gen: Static310CodeGenerator) -> None:
+    def emit_forloop(self, node: ast.For, code_gen: StaticCodeGenBase) -> None:
         start = code_gen.newBlock("crange_forloop_start")
         anchor = code_gen.newBlock("crange_forloop_anchor")
         after = code_gen.newBlock("crange_forloop_after")
@@ -6626,7 +6851,7 @@ class CRangeIterator(Object[Class]):
         loop_idx = self._loop_var_name(node)
         descr = ("__static__", "int64", "#")
 
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         code_gen.push_loop(FOR_LOOP, start, after)
 
         # Put the iteration limit and start value on the stack (a primitive)
@@ -6636,13 +6861,13 @@ class CRangeIterator(Object[Class]):
         code_gen.emit("STORE_LOCAL", (loop_idx, descr))
 
         code_gen.nextBlock(start)
-        code_gen.emit("DUP_TOP")
+        code_gen.emit_dup()
         code_gen.emit("LOAD_LOCAL", (loop_idx, descr))
         code_gen.emit("PRIMITIVE_COMPARE_OP", PRIM_OP_GT_INT)
         code_gen.emit("POP_JUMP_IF_ZERO", anchor)
         code_gen.visit(node.body)
         self._emit_incr(loop_idx, descr, code_gen)
-        code_gen.emit("JUMP_ABSOLUTE", start)
+        code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
         code_gen.emit("POP_TOP")  # Pop limit
         code_gen.pop_loop()
@@ -6688,7 +6913,7 @@ class CRangeFunction(Object[Class]):
         visitor.set_type(node, visitor.type_env.crange_iterator)
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         # This performs two stack pushes:
         #   PUSH(LIMIT)
         #   PUSH(START_VALUE)
@@ -6738,7 +6963,7 @@ class LenFunction(Object[Class]):
         visitor.set_type(node, output_type)
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.get_type(node.args[0]).emit_len(node, code_gen, boxed=self.boxed)
 
 
@@ -6766,7 +6991,7 @@ class SortedFunction(Object[Class]):
         visitor.set_type(node, self.klass.type_env.list.exact_type().instance)
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         super().emit_call(node, code_gen)
         code_gen.emit(
             "REFINE_TYPE",
@@ -6787,7 +7012,7 @@ class ExtremumFunction(Object[Class]):
     def name(self) -> str:
         return f"{self._extremum} function"
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if (
             # We only specialize for two args
             len(node.args) != 2
@@ -6811,15 +7036,15 @@ class ExtremumFunction(Object[Class]):
         else:
             op = ">="
 
-        code_gen.emit("DUP_TOP_TWO")
+        code_gen.emit_dup(2)
         code_gen.emit("COMPARE_OP", op)
         code_gen.emit("POP_JUMP_IF_FALSE", elseblock)
         # Remove `b` from stack, `a` was the minimum
         code_gen.emit("POP_TOP")
-        code_gen.emit("JUMP_FORWARD", endblock)
+        code_gen.emit_jump_forward(endblock)
         code_gen.nextBlock(elseblock)
         # Remove `a` from the stack, `b` was the minimum
-        code_gen.emit("ROT_TWO")
+        code_gen.emit_rotate_stack(2)
         code_gen.emit("POP_TOP")
         code_gen.nextBlock(endblock)
 
@@ -7033,7 +7258,7 @@ class NumClass(Class):
             is_final=self.is_final,
         )
 
-    def emit_type_check(self, src: Class, code_gen: Static310CodeGenerator) -> None:
+    def emit_type_check(self, src: Class, code_gen: StaticCodeGenBase) -> None:
         if self.literal_value is None or src is not self.type_env.dynamic:
             return super().emit_type_check(src, code_gen)
         common_literal_emit_type_check(self.literal_value, "COMPARE_OP", "==", code_gen)
@@ -7074,7 +7299,7 @@ class NumInstance(Object[NumClass]):
     def inexact(self) -> Value:
         return self
 
-    def emit_load_name(self, node: ast.Name, code_gen: Static310CodeGenerator) -> None:
+    def emit_load_name(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         if self.klass.is_final and self.klass.literal_value is not None:
             return code_gen.emit("LOAD_CONST", self.klass.literal_value)
         return super().emit_load_name(node, code_gen)
@@ -7175,6 +7400,7 @@ def parse_type(info: dict[str, object], type_env: TypeEnvironment) -> Class:
     optional = info.get("optional", False)
     type = info.get("type")
     if type:
+        # pyre-fixme[6]: For 1st argument expected `str` but got `object`.
         klass = type_env.name_to_type.get(type)
         if klass is None:
             raise NotImplementedError("unsupported type: " + str(type))
@@ -7189,12 +7415,56 @@ def parse_type(info: dict[str, object], type_env: TypeEnvironment) -> Class:
     return klass
 
 
+# T190615686 - Until we have typed methods in the runtime the compiler needs them
+# to enforce errors at compile time.
+ALT_SIGS: dict[object, object] = {
+    chkdict.__getitem__: {
+        "args": [{"type_param": 0}],
+        "return": {"optional": True, "type_param": 1},
+    },
+    chkdict.__setitem__: {
+        "args": [{"type_param": 0}, {"type_param": 1}],
+        "return": {"type": "NoneType"},
+    },
+    chkdict.get: {
+        "args": [
+            {"type_param": 0},
+            {"optional": True, "type_param": 1, "default": None},
+        ],
+        "return": {"optional": True, "type_param": 1},
+    },
+    chkdict.setdefault: {
+        "args": [
+            {"type_param": 0},
+            {"optional": True, "type_param": 1, "default": None},
+        ],
+        "return": {"optional": True, "type_param": 1},
+    },
+    chklist.__getitem__: {"args": [{"type": "object"}], "return": {"type": "object"}},
+    chklist.__setitem__: {
+        "args": [{"type": "object"}, {"type": "object"}],
+        "return": {"type": "NoneType"},
+    },
+    chklist.append: {"args": [{"type_param": 0}], "return": {"type": "NoneType"}},
+    chklist.copy: {"args": [], "return": {"type": "object"}},
+    chklist.extend: {"args": [{"type": "object"}], "return": {"type": "NoneType"}},
+    chklist.insert: {
+        "args": [{"type": "__static__.int64"}, {"type_param": 0}],
+        "return": {"type": "NoneType"},
+    },
+    chklist.pop: {
+        "args": [{"optional": True, "type": "object", "default": None}],
+        "return": {"type_param": 0},
+    },
+}
+
+
 def reflect_method_desc(
     obj: MethodDescriptorType | WrapperDescriptorType,
     klass: Class,
     type_env: TypeEnvironment,
 ) -> BuiltinMethodDescriptor:
-    sig = getattr(obj, "__typed_signature__", None)
+    sig = getattr(obj, "__typed_signature__", None) or ALT_SIGS.get(obj, None)
     if sig is not None:
         signature, return_type = parse_typed_signature(sig, klass, type_env)
 
@@ -7237,11 +7507,11 @@ def reflect_builtin_function(
 
 
 def common_sequence_emit_len(
-    node: ast.Call, code_gen: Static310CodeGenerator, oparg: int, boxed: bool
+    node: ast.Call, code_gen: StaticCodeGenBase, oparg: int, boxed: bool
 ) -> None:
     if len(node.args) != 1:
         raise code_gen.syntax_error(
-            f"Can only pass a single argument when checking sequence length", node
+            "Can only pass a single argument when checking sequence length", node
         )
     code_gen.visit(node.args[0])
     code_gen.emit("FAST_LEN", oparg)
@@ -7253,7 +7523,7 @@ def common_sequence_emit_jumpif(
     test: AST,
     next: Block,
     is_if_true: bool,
-    code_gen: Static310CodeGenerator,
+    code_gen: StaticCodeGenBase,
     oparg: int,
 ) -> None:
     code_gen.visit(test)
@@ -7262,26 +7532,26 @@ def common_sequence_emit_jumpif(
 
 
 def common_sequence_emit_forloop(
-    node: ast.For, code_gen: Static310CodeGenerator, seq_type: int
+    node: ast.For, code_gen: StaticCodeGenBase, seq_type: int
 ) -> None:
     if seq_type == SEQ_TUPLE:
         fast_len_oparg = FAST_LEN_TUPLE
     else:
         fast_len_oparg = FAST_LEN_LIST
     descr = ("__static__", "int64", "#")
-    start = code_gen.newBlock(f"seq_forloop_start")
-    anchor = code_gen.newBlock(f"seq_forloop_anchor")
-    after = code_gen.newBlock(f"seq_forloop_after")
+    start = code_gen.newBlock("seq_forloop_start")
+    anchor = code_gen.newBlock("seq_forloop_anchor")
+    after = code_gen.newBlock("seq_forloop_after")
     with code_gen.new_loopidx() as loop_idx:
-        code_gen.set_lineno(node)
+        code_gen.set_pos(node)
         code_gen.push_loop(FOR_LOOP, start, after)
         code_gen.visit(node.iter)
 
         code_gen.emit("PRIMITIVE_LOAD_CONST", (0, TYPED_INT64))
         code_gen.emit("STORE_LOCAL", (loop_idx, descr))
         code_gen.nextBlock(start)
-        code_gen.emit("DUP_TOP")  # used for SEQUENCE_GET
-        code_gen.emit("DUP_TOP")  # used for FAST_LEN
+        code_gen.emit_dup()  # used for SEQUENCE_GET
+        code_gen.emit_dup()  # used for FAST_LEN
         code_gen.emit("FAST_LEN", fast_len_oparg)
         code_gen.emit("LOAD_LOCAL", (loop_idx, descr))
         code_gen.emit("PRIMITIVE_COMPARE_OP", PRIM_OP_GT_INT)
@@ -7299,7 +7569,7 @@ def common_sequence_emit_forloop(
         code_gen.emit("STORE_LOCAL", (loop_idx, descr))
         code_gen.visit(node.target)
         code_gen.visit(node.body)
-        code_gen.emit("JUMP_ABSOLUTE", start)
+        code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
         code_gen.emit("POP_TOP")  # Pop loop index
         code_gen.emit("POP_TOP")  # Pop list
@@ -7314,21 +7584,21 @@ def common_literal_emit_type_check(
     literal_value: object,
     comp_opname: str,
     comp_opcode: object,
-    code_gen: Static310CodeGenerator,
+    code_gen: StaticCodeGenBase,
 ) -> None:
-    code_gen.emit("DUP_TOP")
+    code_gen.emit_dup()
     code_gen.emit("LOAD_CONST", literal_value)
     code_gen.emit(comp_opname, comp_opcode)
     end = code_gen.newBlock()
     code_gen.emit("POP_JUMP_IF_TRUE", end)
     code_gen.nextBlock()
     code_gen.emit("LOAD_GLOBAL", "TypeError")
-    code_gen.emit("ROT_TWO")
+    code_gen.emit_rotate_stack(2)
     code_gen.emit("LOAD_CONST", f"expected {literal_value}, got ")
-    code_gen.emit("ROT_TWO")
+    code_gen.emit_rotate_stack(2)
     code_gen.emit("FORMAT_VALUE")
     code_gen.emit("BUILD_STRING", 2)
-    code_gen.emit("CALL_FUNCTION", 1)
+    code_gen.emit_call_one_arg()
     code_gen.emit("RAISE_VARARGS", 1)
     code_gen.nextBlock(end)
 
@@ -7382,14 +7652,14 @@ class TupleInstance(Object[TupleClass]):
         return FAST_LEN_TUPLE | ((not self.klass.is_exact) << 4)
 
     def emit_len(
-        self, node: ast.Call, code_gen: Static310CodeGenerator, boxed: bool
+        self, node: ast.Call, code_gen: StaticCodeGenBase, boxed: bool
     ) -> None:
         return common_sequence_emit_len(
             node, code_gen, self.get_fast_len_type(), boxed=boxed
         )
 
     def emit_jumpif(
-        self, test: AST, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         return common_sequence_emit_jumpif(
             test, next, is_if_true, code_gen, self.get_fast_len_type()
@@ -7433,7 +7703,7 @@ class TupleExactInstance(TupleInstance):
             return True
         return super().bind_reverse_binop(node, visitor, type_ctx)
 
-    def emit_forloop(self, node: ast.For, code_gen: Static310CodeGenerator) -> None:
+    def emit_forloop(self, node: ast.For, code_gen: StaticCodeGenBase) -> None:
         if not isinstance(node.target, ast.Name):
             # We don't yet support `for a, b in my_tuple: ...`
             return super().emit_forloop(node, code_gen)
@@ -7501,11 +7771,9 @@ class SuperInstance(Object[SuperClass]):
         super().bind_attr(node, visitor, type_ctx)
         visitor.set_type(node, visitor.type_env.DYNAMIC)
 
-    def emit_attr(self, node: ast.Attribute, code_gen: Static310CodeGenerator) -> None:
+    def emit_attr(self, node: ast.Attribute, code_gen: StaticCodeGenBase) -> None:
         if isinstance(node.ctx, ast.Load) and code_gen._is_super_call(node.value):
-            code_gen.emit("LOAD_GLOBAL", "super")
-            load_arg = code_gen._emit_args_for_super(node.value, node.attr)
-            code_gen.emit("LOAD_ATTR_SUPER", load_arg)
+            code_gen.emit_super_attribute(node)
             return
         super().emit_attr(node, code_gen)
 
@@ -7554,7 +7822,7 @@ class SetInstance(Object[SetClass]):
         return FAST_LEN_SET | ((not self.klass.is_exact) << 4)
 
     def emit_len(
-        self, node: ast.Call, code_gen: Static310CodeGenerator, boxed: bool
+        self, node: ast.Call, code_gen: StaticCodeGenBase, boxed: bool
     ) -> None:
         if len(node.args) != 1:
             raise code_gen.syntax_error(
@@ -7566,7 +7834,7 @@ class SetInstance(Object[SetClass]):
             code_gen.emit("PRIMITIVE_BOX", TYPED_INT64)
 
     def emit_jumpif(
-        self, test: AST, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.visit(test)
         code_gen.emit("FAST_LEN", self.get_fast_len_type())
@@ -7594,7 +7862,7 @@ class ListAppendMethod(BuiltinMethodDescriptor):
 
 
 class ListAppendBuiltinMethod(BuiltinMethod):
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if len(node.args) == 1 and not node.keywords:
             code_gen.visit(self.target)
             code_gen.emit(
@@ -7661,14 +7929,14 @@ class ListInstance(Object[ListClass]):
         return SEQ_LIST_INEXACT
 
     def emit_len(
-        self, node: ast.Call, code_gen: Static310CodeGenerator, boxed: bool
+        self, node: ast.Call, code_gen: StaticCodeGenBase, boxed: bool
     ) -> None:
         return common_sequence_emit_len(
             node, code_gen, self.get_fast_len_type(), boxed=boxed
         )
 
     def emit_jumpif(
-        self, test: AST, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         return common_sequence_emit_jumpif(
             test, next, is_if_true, code_gen, self.get_fast_len_type()
@@ -7686,7 +7954,7 @@ class ListInstance(Object[ListClass]):
         visitor.set_type(node, visitor.type_env.DYNAMIC)
 
     def emit_load_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         index_type = code_gen.get_type(node.slice).klass
         env = self.klass.type_env
@@ -7697,7 +7965,7 @@ class ListInstance(Object[ListClass]):
         code_gen.emit("SEQUENCE_GET", self.get_subscr_type())
 
     def emit_store_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         index_type = code_gen.get_type(node.slice).klass
         env = self.klass.type_env
@@ -7708,7 +7976,7 @@ class ListInstance(Object[ListClass]):
         code_gen.emit("SEQUENCE_SET", self.get_subscr_type())
 
     def emit_delete_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         if (
             code_gen.get_type(node.slice).klass
@@ -7758,7 +8026,7 @@ class ListExactInstance(ListInstance):
             return True
         return super().bind_reverse_binop(node, visitor, type_ctx)
 
-    def emit_forloop(self, node: ast.For, code_gen: Static310CodeGenerator) -> None:
+    def emit_forloop(self, node: ast.For, code_gen: StaticCodeGenBase) -> None:
         if not isinstance(node.target, ast.Name):
             # We don't yet support `for a, b in my_list: ...`
             return super().emit_forloop(node, code_gen)
@@ -7798,14 +8066,14 @@ class StrInstance(Object[StrClass]):
         return FAST_LEN_STR | ((not self.klass.is_exact) << 4)
 
     def emit_len(
-        self, node: ast.Call, code_gen: Static310CodeGenerator, boxed: bool
+        self, node: ast.Call, code_gen: StaticCodeGenBase, boxed: bool
     ) -> None:
         return common_sequence_emit_len(
             node, code_gen, self.get_fast_len_type(), boxed=boxed
         )
 
     def emit_jumpif(
-        self, test: AST, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         return common_sequence_emit_jumpif(
             test, next, is_if_true, code_gen, self.get_fast_len_type()
@@ -7841,7 +8109,7 @@ class DictInstance(Object[DictClass]):
         return FAST_LEN_DICT | ((not self.klass.is_exact) << 4)
 
     def emit_len(
-        self, node: ast.Call, code_gen: Static310CodeGenerator, boxed: bool
+        self, node: ast.Call, code_gen: StaticCodeGenBase, boxed: bool
     ) -> None:
         if len(node.args) != 1:
             raise code_gen.syntax_error(
@@ -7853,7 +8121,7 @@ class DictInstance(Object[DictClass]):
             code_gen.emit("PRIMITIVE_BOX", TYPED_INT64)
 
     def emit_jumpif(
-        self, test: AST, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.visit(test)
         code_gen.emit("FAST_LEN", self.get_fast_len_type())
@@ -7930,7 +8198,7 @@ class BoolClass(Class):
 
         return super().bind_call(node, visitor, type_ctx)
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if len(node.args) == 1 and not node.keywords:
             arg = node.args[0]
             arg_type = code_gen.get_type(arg)
@@ -7940,7 +8208,7 @@ class BoolClass(Class):
 
         super().emit_call(node, code_gen)
 
-    def emit_type_check(self, src: Class, code_gen: Static310CodeGenerator) -> None:
+    def emit_type_check(self, src: Class, code_gen: StaticCodeGenBase) -> None:
         if self.literal_value is None or src is not self.type_env.dynamic:
             return super().emit_type_check(src, code_gen)
         common_literal_emit_type_check(self.literal_value, "IS_OP", 0, code_gen)
@@ -8355,7 +8623,7 @@ class OptionalType(UnionType):
         opt_type = self.type_name.opt_type
         if opt_type is None:
             params = ", ".join(t.name for t in self.type_args)
-            raise TypeError(f"OptionalType has invalid type parameters {params}")
+            raise StaticTypeError(f"OptionalType has invalid type parameters {params}")
         return opt_type
 
     def make_generic_type(
@@ -8382,7 +8650,7 @@ class ArrayInstance(Object["ArrayClass"]):
             # should never happen
             raise SyntaxError(f"Invalid Array type: {idx}")
         if idx.size != 3 or not idx.signed:
-            raise SyntaxError(f"Only int64 Arrays are currently supported")
+            raise SyntaxError("Only int64 Arrays are currently supported")
         return SEQ_ARRAY_INT64
 
     def get_iter_type(self, node: ast.expr, visitor: TypeBinder) -> Value:
@@ -8401,7 +8669,7 @@ class ArrayInstance(Object["ArrayClass"]):
         visitor.set_type(node, self.klass.index.instance)
 
     def _supported_index(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> bool:
         index_type = code_gen.get_type(node.slice)
         return self.klass.type_env.int.can_assign_from(index_type.klass) or isinstance(
@@ -8409,7 +8677,7 @@ class ArrayInstance(Object["ArrayClass"]):
         )
 
     def _maybe_unbox_index(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         index_type = code_gen.get_type(node.slice)
         if not isinstance(index_type, CIntInstance):
@@ -8419,7 +8687,7 @@ class ArrayInstance(Object["ArrayClass"]):
             code_gen.emit("PRIMITIVE_UNBOX", TYPED_INT64)
 
     def emit_load_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         if self._supported_index(node, code_gen):
             self._maybe_unbox_index(node, code_gen)
@@ -8432,7 +8700,7 @@ class ArrayInstance(Object["ArrayClass"]):
                 code_gen.emit("PRIMITIVE_UNBOX", TYPED_INT64)
 
     def emit_store_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         if self._supported_index(node, code_gen):
             self._maybe_unbox_index(node, code_gen)
@@ -8440,10 +8708,10 @@ class ArrayInstance(Object["ArrayClass"]):
         else:
             if code_gen.get_type(node.slice).klass != self.klass.type_env.slice:
                 # Falling back to STORE_SUBSCR here, so need to box the value first
-                code_gen.emit("ROT_THREE")
-                code_gen.emit("ROT_THREE")
+                code_gen.emit_rotate_stack(3)
+                code_gen.emit_rotate_stack(3)
                 code_gen.emit("PRIMITIVE_BOX", TYPED_INT64)
-                code_gen.emit("ROT_THREE")
+                code_gen.emit_rotate_stack(3)
             super().emit_store_subscr(node, code_gen)
 
     def __repr__(self) -> str:
@@ -8453,7 +8721,7 @@ class ArrayInstance(Object["ArrayClass"]):
         return FAST_LEN_ARRAY | ((not self.klass.is_exact) << 4)
 
     def emit_len(
-        self, node: ast.Call, code_gen: Static310CodeGenerator, boxed: bool
+        self, node: ast.Call, code_gen: StaticCodeGenBase, boxed: bool
     ) -> None:
         if len(node.args) != 1:
             raise code_gen.syntax_error(
@@ -8472,7 +8740,7 @@ class ArrayInstance(Object["ArrayClass"]):
             )
         visitor.visit(target)
 
-    def emit_forloop(self, node: ast.For, code_gen: Static310CodeGenerator) -> None:
+    def emit_forloop(self, node: ast.For, code_gen: StaticCodeGenBase) -> None:
         # guaranteed by type-binder
         assert isinstance(node.target, ast.Name)
         return common_sequence_emit_forloop(node, code_gen, self._seq_type())
@@ -8537,6 +8805,10 @@ class ArrayClass(GenericClass):
         cls = self.type_args[0]
         assert isinstance(cls, CType)
         return cls
+
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
+        super().emit_call(node, code_gen)
+        code_gen.emit("REFINE_TYPE", self.type_descr)
 
     def make_generic_type(
         self,
@@ -8630,22 +8902,22 @@ class CheckedDictInstance(Object[CheckedDict]):
         visitor.set_type(node, self.klass.gen_name.args[1].instance)
 
     def emit_load_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         dict_descr = self.klass.type_descr
-        getitem_descr = dict_descr + ("__getitem__",)
+        getitem_descr = (dict_descr, "__getitem__")
         code_gen.emit("EXTENDED_ARG", 0)
         code_gen.emit("INVOKE_FUNCTION", (getitem_descr, 2))
 
     def emit_store_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         # We have, from TOS: index, dict, value-to-store
         # We want, from TOS: value-to-store, index, dict
-        code_gen.emit("ROT_THREE")
-        code_gen.emit("ROT_THREE")
+        code_gen.emit_rotate_stack(3)
+        code_gen.emit_rotate_stack(3)
         dict_descr = self.klass.type_descr
-        setitem_descr = dict_descr + ("__setitem__",)
+        setitem_descr = (dict_descr, "__setitem__")
         code_gen.emit("EXTENDED_ARG", 0)
         code_gen.emit("INVOKE_FUNCTION", (setitem_descr, 3))
         code_gen.emit("POP_TOP")
@@ -8658,7 +8930,7 @@ class CheckedDictInstance(Object[CheckedDict]):
         return FAST_LEN_DICT
 
     def emit_len(
-        self, node: ast.Call, code_gen: Static310CodeGenerator, boxed: bool
+        self, node: ast.Call, code_gen: StaticCodeGenBase, boxed: bool
     ) -> None:
         if len(node.args) != 1:
             raise code_gen.syntax_error(
@@ -8670,7 +8942,7 @@ class CheckedDictInstance(Object[CheckedDict]):
             code_gen.emit("PRIMITIVE_BOX", TYPED_INT64)
 
     def emit_jumpif(
-        self, test: AST, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.visit(test)
         code_gen.emit("FAST_LEN", self.get_fast_len_type())
@@ -8757,7 +9029,7 @@ class CheckedListInstance(Object[CheckedList]):
         return self.elem_type
 
     def emit_load_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         # From slice
         if code_gen.get_type(node) == self:
@@ -8770,11 +9042,11 @@ class CheckedListInstance(Object[CheckedList]):
         if index_is_ctype:
             code_gen.emit("SEQUENCE_GET", SEQ_CHECKED_LIST)
         else:
-            update_descr = self.klass.type_descr + ("__getitem__",)
+            update_descr = (self.klass.type_descr, "__getitem__")
             code_gen.emit_invoke_method(update_descr, 1)
 
     def emit_store_subscr(
-        self, node: ast.Subscript, code_gen: Static310CodeGenerator
+        self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
         # From slice
         if code_gen.get_type(node) == self:
@@ -8789,10 +9061,10 @@ class CheckedListInstance(Object[CheckedList]):
 
         # We have, from TOS: index, list, value-to-store
         # We want, from TOS: value-to-store, index, list
-        code_gen.emit("ROT_THREE")
-        code_gen.emit("ROT_THREE")
+        code_gen.emit_rotate_stack(3)
+        code_gen.emit_rotate_stack(3)
 
-        setitem_descr = self.klass.type_descr + ("__setitem__",)
+        setitem_descr = (self.klass.type_descr, "__setitem__")
         code_gen.emit_invoke_method(setitem_descr, 2)
         code_gen.emit("POP_TOP")
 
@@ -8804,7 +9076,7 @@ class CheckedListInstance(Object[CheckedList]):
         return FAST_LEN_LIST
 
     def emit_len(
-        self, node: ast.Call, code_gen: Static310CodeGenerator, boxed: bool
+        self, node: ast.Call, code_gen: StaticCodeGenBase, boxed: bool
     ) -> None:
         if len(node.args) != 1:
             raise code_gen.syntax_error(
@@ -8816,13 +9088,13 @@ class CheckedListInstance(Object[CheckedList]):
             code_gen.emit("PRIMITIVE_BOX", TYPED_INT64)
 
     def emit_jumpif(
-        self, test: AST, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.visit(test)
         code_gen.emit("FAST_LEN", self.get_fast_len_type())
         code_gen.emit("POP_JUMP_IF_NONZERO" if is_if_true else "POP_JUMP_IF_ZERO", next)
 
-    def emit_forloop(self, node: ast.For, code_gen: Static310CodeGenerator) -> None:
+    def emit_forloop(self, node: ast.For, code_gen: StaticCodeGenBase) -> None:
         if not isinstance(node.target, ast.Name):
             # We don't yet support `for a, b in my_list: ...`
             return super().emit_forloop(node, code_gen)
@@ -8847,11 +9119,14 @@ class CastFunction(Object[Class]):
         if cast_type is None:
             visitor.syntax_error("cast to unknown type", node)
             cast_type = self.klass.type_env.dynamic
+        elif not cast_type.is_nominal_type:
+            visitor.syntax_error("cast to non-runtime type", node)
+            cast_type = self.klass.type_env.dynamic
 
         visitor.set_type(node, cast_type.instance)
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node.args[1])
         code_gen.emit("CAST", code_gen.get_type(node).klass.type_descr)
 
@@ -8898,8 +9173,8 @@ class CInstance(Value, Generic[TClass]):
     def get_op_id(self, op: AST) -> int:
         raise NotImplementedError("Must be implemented in the subclass")
 
-    def emit_binop(self, node: ast.BinOp, code_gen: Static310CodeGenerator) -> None:
-        code_gen.set_lineno(node)
+    def emit_binop(self, node: ast.BinOp, code_gen: StaticCodeGenBase) -> None:
+        code_gen.set_pos(node)
         # In the pow case, the return type isn't the common type.
         ltype = code_gen.get_type(node.left)
         common_type = code_gen.get_opt_node_data(node, BinOpCommonType)
@@ -8917,24 +9192,20 @@ class CInstance(Value, Generic[TClass]):
         op = common_type.get_op_id(node.op)
         code_gen.emit("PRIMITIVE_BINARY_OP", op)
 
-    def emit_load_name(self, node: ast.Name, code_gen: Static310CodeGenerator) -> None:
+    def emit_load_name(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         code_gen.emit("LOAD_LOCAL", (node.id, self.klass.type_descr))
 
-    def emit_store_name(self, node: ast.Name, code_gen: Static310CodeGenerator) -> None:
+    def emit_store_name(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         code_gen.emit("STORE_LOCAL", (node.id, self.klass.type_descr))
 
-    def emit_delete_name(
-        self, node: ast.Name, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_delete_name(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         raise TypedSyntaxError("deleting primitives not supported")
 
-    def emit_aug_rhs(
-        self, node: ast.AugAssign, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_aug_rhs(self, node: ast.AugAssign, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node.value)
         code_gen.emit("PRIMITIVE_BINARY_OP", self.get_op_id(node.op))
 
-    def emit_init(self, node: ast.Name, code_gen: Static310CodeGenerator) -> None:
+    def emit_init(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         raise NotImplementedError()
 
 
@@ -9094,7 +9365,7 @@ class CIntInstance(CInstance["CIntType"]):
         visitor.set_type(node, self.klass.type_env.cbool.instance)
         return True
 
-    def emit_compare(self, op: cmpop, code_gen: Static310CodeGenerator) -> None:
+    def emit_compare(self, op: cmpop, code_gen: StaticCodeGenBase) -> None:
         code_gen.emit("PRIMITIVE_COMPARE_OP", self.get_op_id(op))
 
     def get_int_range(self) -> tuple[int, int]:
@@ -9123,9 +9394,7 @@ class CIntInstance(CInstance["CIntType"]):
 
         visitor.set_type(node, node_type)
 
-    def emit_constant(
-        self, node: ast.Constant, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_constant(self, node: ast.Constant, code_gen: StaticCodeGenBase) -> None:
         assert (literal := self.klass.literal_value) is None or self.is_valid_int(
             literal
         )
@@ -9135,12 +9404,12 @@ class CIntInstance(CInstance["CIntType"]):
         code_gen.emit("PRIMITIVE_LOAD_CONST", (val, self.as_oparg()))
 
     def emit_jumpif_only(
-        self, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.emit("POP_JUMP_IF_NONZERO" if is_if_true else "POP_JUMP_IF_ZERO", next)
 
     def emit_jumpif_pop_only(
-        self, next: Block, is_if_true: bool, code_gen: Static310CodeGenerator
+        self, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
         code_gen.emit(
             "JUMP_IF_NONZERO_OR_POP" if is_if_true else "JUMP_IF_ZERO_OR_POP", next
@@ -9200,7 +9469,7 @@ class CIntInstance(CInstance["CIntType"]):
             visitor.set_type(node, type_ctx)
         return True
 
-    def emit_box(self, node: expr, code_gen: Static310CodeGenerator) -> None:
+    def emit_box(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node)
         type = code_gen.get_type(node)
         if isinstance(type, CIntInstance):
@@ -9208,7 +9477,7 @@ class CIntInstance(CInstance["CIntType"]):
         else:
             raise RuntimeError("unsupported box type: " + type.name)
 
-    def emit_unbox(self, node: expr, code_gen: Static310CodeGenerator) -> None:
+    def emit_unbox(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node)
         ty = code_gen.get_type(node)
         target_ty = (
@@ -9231,8 +9500,8 @@ class CIntInstance(CInstance["CIntType"]):
             assert isinstance(node.op, ast.Not)
             visitor.set_type(node, self.klass.type_env.cbool.instance)
 
-    def emit_unaryop(self, node: ast.UnaryOp, code_gen: Static310CodeGenerator) -> None:
-        code_gen.set_lineno(node)
+    def emit_unaryop(self, node: ast.UnaryOp, code_gen: StaticCodeGenBase) -> None:
+        code_gen.set_pos(node)
         code_gen.visit(node.operand)
         if isinstance(node.op, ast.USub):
             code_gen.emit("PRIMITIVE_UNARY_OP", PRIM_OP_NEG_INT)
@@ -9241,7 +9510,7 @@ class CIntInstance(CInstance["CIntType"]):
         elif isinstance(node.op, ast.Not):
             code_gen.emit("PRIMITIVE_UNARY_OP", PRIM_OP_NOT_INT)
 
-    def emit_convert(self, from_type: Value, code_gen: Static310CodeGenerator) -> None:
+    def emit_convert(self, from_type: Value, code_gen: StaticCodeGenBase) -> None:
         assert isinstance(from_type, CIntInstance)
         # Lower nibble is type-from, higher nibble is type-to.
         from_oparg = from_type.as_oparg()
@@ -9249,7 +9518,7 @@ class CIntInstance(CInstance["CIntType"]):
         if from_oparg != to_oparg:
             code_gen.emit("CONVERT_PRIMITIVE", (to_oparg << 4) | from_oparg)
 
-    def emit_init(self, node: ast.Name, code_gen: Static310CodeGenerator) -> None:
+    def emit_init(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         code_gen.emit("PRIMITIVE_LOAD_CONST", (0, self.as_oparg()))
         self.emit_store_name(node, code_gen)
 
@@ -9360,11 +9629,11 @@ class CIntType(CType):
 
         return False
 
-    def emit_type_check(self, src: Class, code_gen: Static310CodeGenerator) -> None:
+    def emit_type_check(self, src: Class, code_gen: StaticCodeGenBase) -> None:
         assert self.can_assign_from(src)
         self.instance.emit_convert(src.instance, code_gen)
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if len(node.args) != 1:
             raise code_gen.syntax_error(
                 f"{self.name} requires a single argument ({len(node.args)} given)", node
@@ -9410,8 +9679,8 @@ class CDoubleInstance(CInstance["CDoubleType"]):
         else:
             visitor.syntax_error("Cannot invert/not a double", node)
 
-    def emit_unaryop(self, node: ast.UnaryOp, code_gen: Static310CodeGenerator) -> None:
-        code_gen.set_lineno(node)
+    def emit_unaryop(self, node: ast.UnaryOp, code_gen: StaticCodeGenBase) -> None:
+        code_gen.set_pos(node)
         assert not isinstance(
             node.op, (ast.Invert, ast.Not)
         )  # should be prevent by the type checker
@@ -9433,7 +9702,7 @@ class CDoubleInstance(CInstance["CDoubleType"]):
         rtype = visitor.get_type(right)
         if rtype != self:
             if rtype == self.klass.type_env.float.exact_type().instance:
-                visitor.visitExpectedType(right, self, f"can't compare {{}} to {{}}")
+                visitor.visitExpectedType(right, self, "can't compare {} to {}")
             else:
                 visitor.syntax_error(f"can't compare {self.name} to {rtype.name}", node)
 
@@ -9453,7 +9722,7 @@ class CDoubleInstance(CInstance["CDoubleType"]):
         ltype = visitor.get_type(left)
         if ltype != self:
             if ltype == self.klass.type_env.float.exact_type().instance:
-                visitor.visitExpectedType(left, self, f"can't compare {{}} to {{}}")
+                visitor.visitExpectedType(left, self, "can't compare {} to {}")
             else:
                 visitor.syntax_error(f"can't compare {self.name} to {ltype.name}", node)
 
@@ -9463,7 +9732,7 @@ class CDoubleInstance(CInstance["CDoubleType"]):
 
         return False
 
-    def emit_compare(self, op: cmpop, code_gen: Static310CodeGenerator) -> None:
+    def emit_compare(self, op: cmpop, code_gen: StaticCodeGenBase) -> None:
         code_gen.emit("PRIMITIVE_COMPARE_OP", self.get_op_id(op))
 
     def bind_binop(
@@ -9486,12 +9755,10 @@ class CDoubleInstance(CInstance["CDoubleType"]):
     def bind_constant(self, node: ast.Constant, visitor: TypeBinder) -> None:
         visitor.set_type(node, self)
 
-    def emit_constant(
-        self, node: ast.Constant, code_gen: Static310CodeGenerator
-    ) -> None:
+    def emit_constant(self, node: ast.Constant, code_gen: StaticCodeGenBase) -> None:
         code_gen.emit("PRIMITIVE_LOAD_CONST", (float(node.value), self.as_oparg()))
 
-    def emit_box(self, node: expr, code_gen: Static310CodeGenerator) -> None:
+    def emit_box(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node)
         type = code_gen.get_type(node)
         if isinstance(type, CDoubleInstance):
@@ -9499,7 +9766,7 @@ class CDoubleInstance(CInstance["CDoubleType"]):
         else:
             raise RuntimeError("unsupported box type: " + type.name)
 
-    def emit_unbox(self, node: expr, code_gen: Static310CodeGenerator) -> None:
+    def emit_unbox(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node)
         node_ty = code_gen.get_type(node)
         if self.klass.type_env.float.can_assign_from(node_ty.klass):
@@ -9508,7 +9775,7 @@ class CDoubleInstance(CInstance["CDoubleType"]):
             code_gen.emit("CAST", self.klass.type_env.float.type_descr)
         code_gen.emit("PRIMITIVE_UNBOX", self.as_oparg())
 
-    def emit_init(self, node: ast.Name, code_gen: Static310CodeGenerator) -> None:
+    def emit_init(self, node: ast.Name, code_gen: StaticCodeGenBase) -> None:
         code_gen.emit("PRIMITIVE_LOAD_CONST", (float(0), self.as_oparg()))
         self.emit_store_name(node, code_gen)
 
@@ -9552,7 +9819,7 @@ class CDoubleType(CType):
 
         return NO_EFFECT
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         assert len(node.args) == 1
 
         arg = node.args[0]
@@ -9605,7 +9872,6 @@ class ProdAssertFunction(Object[Class]):
     def bind_call(
         self, node: ast.Call, visitor: TypeBinder, type_ctx: Class | None
     ) -> NarrowingEffect:
-
         if node.keywords:
             visitor.syntax_error(
                 "prod_assert() does not accept keyword arguments", node
@@ -9733,7 +9999,7 @@ class ContextDecoratorClass(Class):
                     exit_ret_type = exit_method.return_type.resolved()
                     if (
                         isinstance(exit_ret_type, BoolClass)
-                        and exit_ret_type.literal_value == False
+                        and exit_ret_type.literal_value is False
                     ):
                         return False
                 return True
@@ -9808,7 +10074,6 @@ class ContextDecoratedMethod(DecoratedMethod):
     def make_function_body(
         body: list[ast.stmt], fn: Function, decorator: expr
     ) -> list[ast.stmt]:
-
         node = fn.node
         klass = fn.container_type
         dec_name = ContextDecoratedMethod.get_temp_name(fn, decorator)
@@ -9829,6 +10094,7 @@ class ContextDecoratedMethod(DecoratedMethod):
         )
         call_recreate = ast.Call(load_recreate, [], [])
 
+        # pyre-fixme[6]: For 2nd argument expected `Optional[expr]` but got `List[_T]`.
         with_item = ast.copy_location(ast.withitem(call_recreate, []), body[0])
 
         with_statement = cast(ast.stmt, ast.With([with_item], body))
@@ -9881,7 +10147,7 @@ class ContextDecoratedMethod(DecoratedMethod):
     def emit_function_body(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef,
-        code_gen: Static310CodeGenerator,
+        code_gen: StaticCodeGenBase,
         first_lineno: int,
         body: list[ast.stmt],
     ) -> CodeGenerator:
@@ -9896,7 +10162,7 @@ class ContextDecoratedMethod(DecoratedMethod):
     ) -> NarrowingEffect:
         return self.function.bind_call(node, visitor, type_ctx)
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         return self.function.emit_call(node, code_gen)
 
     def resolve_descr_get(
@@ -9968,7 +10234,7 @@ class EnumType(Class):
     def bind_enum_value(self, name: str, typ: Value) -> None:
         self.values[name] = EnumInstance(self, name, typ)
 
-    def emit_call(self, node: ast.Call, code_gen: Static310CodeGenerator) -> None:
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
         if len(node.args) != 1:
             raise code_gen.syntax_error(
                 f"{self.name} requires a single argument, given {len(node.args)}", node
@@ -10159,3 +10425,83 @@ def access_path(node: ast.AST) -> list[str]:
         node = node.value
     path.append(node.id)
     return list(reversed(path))
+
+
+class NestedFunctionClass(Class):
+    # Each nested function is specific to its own definition so we only have
+    # a NestedFunctionClass w/ a default instance.
+    def __init__(
+        self, type_name: TypeName, type_env: TypeEnvironment, func: Function
+    ) -> None:
+        super().__init__(type_name, type_env, is_exact=True)
+        self.func = func
+
+    @property
+    def is_nominal_type(self) -> bool:
+        # Does this type represent a known runtime type?
+        return False
+
+
+class ClassDecoratorClass(Class):
+    def __init__(
+        self,
+        type_name: TypeName,
+        type_env: TypeEnvironment,
+        bases: list[Class] | None = None,
+        instance: Value | None = None,
+        klass: Class | None = None,
+        members: dict[str, Value] | None = None,
+        is_exact: bool = False,
+        pytype: type[object] | None = None,
+        is_final: bool = False,
+        has_init_subclass: bool = False,
+    ) -> None:
+        super().__init__(
+            type_name,
+            type_env,
+            bases,
+            ClassDecoratorInstance(self),
+            klass,
+            members,
+            is_exact,
+            pytype,
+            is_final,
+            has_init_subclass,
+        )
+
+    @property
+    def is_nominal_type(self) -> bool:
+        # Does this type represent a known runtime type?
+        return False
+
+    @property
+    def is_protocol(self) -> bool:
+        return True
+
+    def can_assign_from(self, src: Class) -> bool:
+        func = None
+        if isinstance(src, Function):
+            func = src
+        elif isinstance(src, NestedFunctionClass):
+            func = src.func
+
+        if isinstance(func, Function):
+            if len(func.args) == 1:
+                arg_type = func.args[0].type_ref.resolved()
+                if (
+                    isinstance(arg_type, GenericParameter)
+                    and func.return_type.resolved() is arg_type
+                ):
+                    return True
+
+        return super().can_assign_from(src)
+
+
+class ClassDecoratorInstance(Object[Class]):
+    def resolve_decorate_class(
+        self,
+        klass: Class,
+        decorator: expr,
+        visitor: DeclarationVisitor,
+    ) -> Class:
+        return klass

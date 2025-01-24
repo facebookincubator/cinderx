@@ -1,3 +1,5 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+
 from mod import outer
 
 try:
@@ -6,6 +8,7 @@ except ImportError:
     cinderjit = None
 
 if cinderjit:
+    cinderjit.precompile_all()
     cinderjit.disable()
 
 inner = outer()

@@ -2,9 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/dataflow.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 using namespace jit::optimizer;
 

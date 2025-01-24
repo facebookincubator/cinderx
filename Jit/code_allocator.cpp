@@ -35,13 +35,18 @@ uint8_t* allocPages(size_t size) {
   return static_cast<uint8_t*>(res);
 }
 
-bool setHugePages(void* ptr, size_t size) {
-  if (madvise(ptr, size, MADV_HUGEPAGE) == -1) {
-    auto end = static_cast<void*>(static_cast<uint8_t*>(ptr) + size);
-    JIT_LOG("Failed to madvise [{}, {}) with MADV_HUGEPAGE", ptr, end);
-    return false;
+bool setHugePages([[maybe_unused]] void* ptr, [[maybe_unused]] size_t size) {
+#ifdef MADV_HUGEPAGE
+  if (madvise(ptr, size, MADV_HUGEPAGE) == 0) {
+    return true;
   }
-  return true;
+
+  auto end = static_cast<void*>(static_cast<uint8_t*>(ptr) + size);
+  JIT_LOG(
+      "Failed to madvise [{}, {}) with MADV_HUGEPAGE, errno=", ptr, end, errno);
+#endif
+
+  return false;
 }
 
 } // namespace
@@ -68,9 +73,18 @@ void CodeAllocator::freeGlobalCodeAllocator() {
   s_global_code_allocator_ = nullptr;
 }
 
+bool CodeAllocator::contains(const void* ptr) const {
+  asmjit::JitAllocator::Span unused;
+  // asmjit docs don't say that query() is thread-safe, but peeking at the
+  // implementation shows that it is.
+  return runtime_.allocator()->query(unused, const_cast<void*>(ptr)) ==
+      asmjit::kErrorOk;
+}
+
 CodeAllocatorCinder::~CodeAllocatorCinder() {
-  for (void* alloc : allocations_) {
-    JIT_CHECK(munmap(alloc, kAllocSize) == 0, "Freeing code memory failed");
+  for (std::span<uint8_t> alloc : allocations_) {
+    JIT_CHECK(
+        munmap(alloc.data(), alloc.size()) == 0, "Freeing code memory failed");
   }
 }
 
@@ -96,7 +110,7 @@ asmjit::Error CodeAllocatorCinder::addCode(
       huge_allocs_++;
     }
     current_alloc_ = static_cast<uint8_t*>(res);
-    allocations_.emplace_back(res);
+    allocations_.emplace_back(res, alloc_size);
     current_alloc_free_ = alloc_size;
   }
 
@@ -129,6 +143,16 @@ asmjit::Error CodeAllocatorCinder::addCode(
   used_bytes_ += actual_code_size;
 
   return asmjit::kErrorOk;
+}
+
+bool CodeAllocatorCinder::contains(const void* ptr) const {
+  ThreadedCompileSerialize guard;
+  for (std::span<uint8_t> alloc : allocations_) {
+    if (alloc.data() <= ptr && ptr < alloc.data() + alloc.size()) {
+      return true;
+    }
+  }
+  return false;
 }
 
 MultipleSectionCodeAllocator::~MultipleSectionCodeAllocator() {
@@ -192,7 +216,7 @@ asmjit::Error MultipleSectionCodeAllocator::addCode(
     JIT_LOG(
         "Not enough memory to split code across sections, falling back to "
         "normal allocation.");
-    return runtime_->add(dst, code);
+    return runtime_.add(dst, code);
   }
   // Fix up the offsets for each code section before resolving links.
   // Both the `.text` and `.addrtab` sections are written to the hot section,
@@ -231,6 +255,10 @@ asmjit::Error MultipleSectionCodeAllocator::addCode(
 
   for (asmjit::Section* section : code->_sections) {
     size_t buffer_size = section->bufferSize();
+    // Might not have generated any cold code.
+    if (buffer_size == 0) {
+      continue;
+    }
     CodeSection code_section = codeSectionFromName(section->name());
     code_section_free_sizes_[code_section] -= buffer_size;
     std::memcpy(code_sections_[code_section], section->data(), buffer_size);
@@ -240,4 +268,16 @@ asmjit::Error MultipleSectionCodeAllocator::addCode(
   return asmjit::kErrorOk;
 }
 
-}; // namespace jit
+bool MultipleSectionCodeAllocator::contains(const void* ptr) const {
+  // Have to check both the hot/cold slab and the asmjit allocator.  The latter
+  // is already thread-safe.
+  {
+    ThreadedCompileSerialize guard;
+    if (code_alloc_ <= ptr && ptr < code_alloc_ + total_allocation_size_) {
+      return true;
+    }
+  }
+  return CodeAllocator::contains(ptr);
+}
+
+} // namespace jit

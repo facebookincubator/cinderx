@@ -3,14 +3,13 @@
 #pragma once
 
 #include <Python.h>
+
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/StaticPython/classloader.h"
-
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
-#include "cinderx/Jit/jit_rt.h"
+#include "cinderx/StaticPython/typed-args-info.h"
 
 #include <array>
 #include <memory>
@@ -21,8 +20,9 @@ namespace jit {
 
 // Mutator for an instance attribute that is stored in a split dictionary
 struct SplitMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttr(PyObject* obj, PyObject* name);
+  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+
   uint32_t dict_offset;
   uint32_t val_offset;
   PyDictKeysObject* keys; // Borrowed
@@ -30,31 +30,34 @@ struct SplitMutator {
 
 // Mutator for an instance attribute that is stored in a combined dictionary
 struct CombinedMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttr(PyObject* obj, PyObject* name);
+  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+
   Py_ssize_t dict_offset;
 };
 
 // Mutator for a data descriptor
 struct DataDescrMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* value);
   PyObject* getAttr(PyObject* obj);
+  int setAttr(PyObject* obj, PyObject* value);
+
   BorrowedRef<> descr;
 };
 
 // Mutator for a member descriptor
 struct MemberDescrMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* value);
   PyObject* getAttr(PyObject* obj);
+  int setAttr(PyObject* obj, PyObject* value);
+
   PyMemberDef* memberdef;
 };
 
 // Attribute corresponds to a non-data descriptor or a class variable
 struct DescrOrClassVarMutator {
-  PyObject* setAttr(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttr(PyObject* obj, PyObject* name);
+  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+
   BorrowedRef<> descr;
-  Py_ssize_t dictoffset;
 };
 
 // An instance of AttributeMutator is specialized to more efficiently perform a
@@ -87,8 +90,8 @@ class AttributeMutator {
   void
   set_split(PyTypeObject* type, Py_ssize_t val_offset, PyDictKeysObject* keys);
 
-  PyObject* setAttr(PyObject* obj, PyObject* name, PyObject* value);
   PyObject* getAttr(PyObject* obj, PyObject* name);
+  int setAttr(PyObject* obj, PyObject* name, PyObject* value);
 
  private:
   void set_type(PyTypeObject* type, Kind kind);
@@ -118,6 +121,8 @@ class AttributeCache {
 
   AttributeMutator* findEmptyEntry();
 
+  void fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> name);
+
   void
   fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> name, BorrowedRef<> descr);
 
@@ -141,15 +146,15 @@ class StoreAttrCache : public AttributeCache {
  public:
   StoreAttrCache() = default;
 
-  // Returns a borrowed reference to Py_None on success; nullptr otherwise.
-  static PyObject*
+  // Return 0 on success and a negative value on failure.
+  static int
   invoke(StoreAttrCache* cache, PyObject* obj, PyObject* name, PyObject* value);
 
  private:
   DISALLOW_COPY_AND_ASSIGN(StoreAttrCache);
 
-  PyObject* doInvoke(PyObject* obj, PyObject* name, PyObject* value);
-  PyObject* invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value);
+  int doInvoke(PyObject* obj, PyObject* name, PyObject* value);
+  int invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value);
 };
 
 // A cache for an individual LoadAttrCached instruction.
@@ -174,9 +179,6 @@ class LoadAttrCache : public AttributeCache {
 // A cache for LoadAttr instructions where we expect the receiver to be a type
 // object.
 //
-// The first entry in `items` is a type object. The second entry in `items` is
-// the cached value.  Both are borrowed references.
-//
 // The code for loading an attribute where the expected receiver is a type is
 // specialized into a fast path and a slow path. The first element is loaded
 // from the cache and compared against the receiver. If they are equal, the
@@ -190,14 +192,23 @@ class LoadTypeAttrCache {
 
   static PyObject*
   invoke(LoadTypeAttrCache* cache, PyObject* obj, PyObject* name);
-  PyObject* doInvoke(PyObject* obj, PyObject* name);
-  void typeChanged(PyTypeObject* type);
 
-  std::array<PyObject*, 2> items; // Borrowed
+  // Get the addresses of the type and value cache entries.
+  PyTypeObject** typeAddr();
+  PyObject** valueAddr();
+
+  void typeChanged(BorrowedRef<PyTypeObject> type);
 
  private:
-  void fill(PyTypeObject* type, PyObject* value);
+  PyObject* invokeSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
+
+  void fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> value);
   void reset();
+
+  // Cached type and value, stored as raw pointers so codegen can access them by
+  // address.
+  PyTypeObject* type_;
+  PyObject* value_;
 };
 
 #define FOREACH_CACHE_MISS_REASON(V) \
@@ -233,9 +244,9 @@ class LoadMethodCache {
 
   ~LoadMethodCache();
 
-  static JITRT_LoadMethodResult
+  static LoadMethodResult
   lookupHelper(LoadMethodCache* cache, BorrowedRef<> obj, BorrowedRef<> name);
-  JITRT_LoadMethodResult lookup(BorrowedRef<> obj, BorrowedRef<> name);
+  LoadMethodResult lookup(BorrowedRef<> obj, BorrowedRef<> name);
   void typeChanged(PyTypeObject* type);
 
   void initCacheStats(const char* filename, const char* method_name);
@@ -243,7 +254,7 @@ class LoadMethodCache {
   const CacheStats* cacheStats();
 
  private:
-  JITRT_LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
+  LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
   void fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> value);
 
   std::array<Entry, 4> entries_;
@@ -264,22 +275,23 @@ class LoadMethodCache {
 // potentially fills the cache.
 class LoadTypeMethodCache {
  public:
-  BorrowedRef<PyTypeObject> type;
-  BorrowedRef<> value;
-  bool is_unbound_meth;
-
   ~LoadTypeMethodCache();
-  static JITRT_LoadMethodResult lookupHelper(
-      LoadTypeMethodCache* cache,
-      BorrowedRef<PyTypeObject> obj,
-      BorrowedRef<> name);
-  static JITRT_LoadMethodResult getValueHelper(
-      LoadTypeMethodCache* cache,
-      BorrowedRef<> obj);
 
-  JITRT_LoadMethodResult lookup(
-      BorrowedRef<PyTypeObject> obj,
-      BorrowedRef<> name);
+  static LoadMethodResult
+  lookupHelper(LoadTypeMethodCache* cache, PyTypeObject* obj, PyObject* name);
+
+  static LoadMethodResult getValueHelper(
+      LoadTypeMethodCache* cache,
+      PyObject* obj);
+
+  LoadMethodResult lookup(BorrowedRef<PyTypeObject> obj, BorrowedRef<> name);
+
+  // Get the address of the cached type object.
+  PyTypeObject** typeAddr();
+
+  // Get the cached method value.
+  BorrowedRef<> value();
+
   void typeChanged(BorrowedRef<PyTypeObject> type);
 
   void initCacheStats(const char* filename, const char* method_name);
@@ -290,21 +302,26 @@ class LoadTypeMethodCache {
   void
   fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> value, bool is_bound_meth);
 
+  // Borrowed, but uses a raw pointer as typeAddr() will return the address of
+  // this field for codegen purposes.
+  PyTypeObject* type_;
+  BorrowedRef<> value_;
   std::unique_ptr<CacheStats> cache_stats_;
+  bool is_unbound_meth_;
 };
 
 class LoadModuleMethodCache {
  public:
-  static JITRT_LoadMethodResult lookupHelper(
+  static LoadMethodResult lookupHelper(
       LoadModuleMethodCache* cache,
       BorrowedRef<> obj,
       BorrowedRef<> name);
-  JITRT_LoadMethodResult lookup(BorrowedRef<> obj, BorrowedRef<> name);
+  LoadMethodResult lookup(BorrowedRef<> obj, BorrowedRef<> name);
   BorrowedRef<> moduleObj();
   BorrowedRef<> value();
 
  private:
-  JITRT_LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
+  LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
   void fill(BorrowedRef<> obj, BorrowedRef<> value, uint64_t version);
 
   // This corresponds to module __dict__'s version which allows us

@@ -1,14 +1,21 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include "cinderx/StrictModules/symbol_table.h"
 
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
+
 #include <cstring>
 #include <stdexcept>
+
 namespace strictmod {
 
 //-------------------------PySymtableDeleter---------------------------
 
 void PySymtableDeleter::operator()(PySymtable* p) {
+#if PY_VERSION_HEX < 0x030C0000
   _PySymtable_Free(p);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+#endif
 }
 
 //-------------------------Symtable---------------------------
@@ -89,7 +96,11 @@ int SymtableEntry::getFunctionCodeFlag() const {
       flags |= CO_VARKEYWORDS;
     }
     if (!entry_->ste_child_free) {
+#if PY_VERSION_HEX < 0x030C0000
       flags |= CO_NOFREE;
+#else
+      UPGRADE_ASSERT(MISSING_CO_NOFREE);
+#endif
     }
   }
   return flags;

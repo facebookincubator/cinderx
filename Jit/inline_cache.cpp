@@ -2,20 +2,26 @@
 
 #include "cinderx/Jit/inline_cache.h"
 
-#include "Objects/dict-common.h"
 #include <Python.h>
+
+#include "cinderx/Common/dict.h"
+#include "cinderx/Common/func.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
-#include "cinderx/StaticPython/strictmoduleobject.h"
-
-#include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <algorithm>
 #include <memory>
 
 // clang-format off
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
+#include "cinderx/Upgrade/upgrade_assert.h"  // @donotremove
+#include "cinderx/Upgrade/upgrade_stubs.h"  // @donotremove
 #include "internal/pycore_pystate.h"
 #include "internal/pycore_object.h"
 #include "structmember.h"
@@ -63,8 +69,10 @@ TypeWatcher<LoadTypeMethodCache> ltm_watcher;
 
 constexpr uintptr_t kKindMask = 0x07;
 
-// Sentinel PyObject that must never escape into user code.
-PyObject g_emptyTypeAttrCache = {_PyObject_EXTRA_INIT 1, nullptr};
+// Sentinel PyTypeObject that must never escape into user code.
+PyTypeObject s_empty_type_attr_cache = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "EmptyLoadTypeAttrCache",
+};
 
 inline PyDictObject* get_dict(PyObject* obj, Py_ssize_t dictoffset) {
   PyObject** dictptr = (PyObject**)((char*)obj + dictoffset);
@@ -86,14 +94,15 @@ inline PyDictObject* get_or_allocate_dict(
   return dict;
 }
 
-PyObject* __attribute__((noinline))
-raise_attribute_error(PyObject* obj, PyObject* name) {
+PyObject* __attribute__((noinline)) raise_attribute_error(
+    PyObject* obj,
+    PyObject* name) {
   PyErr_Format(
       PyExc_AttributeError,
       "'%.50s' object has no attribute '%U'",
       Py_TYPE(obj)->tp_name,
       name);
-  Ci_set_attribute_error_context(obj, name);
+  Cix_set_attribute_error_context(obj, name);
   return nullptr;
 }
 
@@ -118,7 +127,7 @@ void maybeCollectCacheStats(
     BorrowedRef<PyTypeObject> tp,
     BorrowedRef<> name,
     CacheMissReason reason) {
-  if (!g_collect_inline_cache_stats) {
+  if (!getConfig().collect_attr_cache_stats) {
     return;
   }
   std::string key =
@@ -128,22 +137,19 @@ void maybeCollectCacheStats(
 
 } // namespace
 
-PyObject*
-SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-  PyDictObject* dict = get_or_allocate_dict(obj, dict_offset);
+int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+  BorrowedRef<PyDictObject> dict = get_or_allocate_dict(obj, dict_offset);
   if (dict == nullptr) {
-    return nullptr;
+    return -1;
   }
-  PyObject* dictobj = reinterpret_cast<PyObject*>(dict);
-  PyObject* result = Py_None;
   if ((dict->ma_keys == keys) &&
       ((dict->ma_used == val_offset) ||
-       (dict->ma_values[val_offset] != nullptr))) {
-    PyObject* old_value = dict->ma_values[val_offset];
+       (DICT_VALUES(dict.get())[val_offset] != nullptr))) {
+    PyObject* old_value = DICT_VALUES(dict.get())[val_offset];
 
-    if (!_PyObject_GC_IS_TRACKED(dictobj)) {
+    if (!_PyObject_GC_IS_TRACKED(dict.getObj())) {
       if (_PyObject_GC_MAY_BE_TRACKED(value)) {
-        _PyObject_GC_TRACK(dictobj);
+        _PyObject_GC_TRACK(dict.getObj());
       }
     }
 
@@ -151,7 +157,7 @@ SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
         _PyDict_NotifyEvent(PyDict_EVENT_MODIFIED, dict, name, value);
 
     Py_INCREF(value);
-    dict->ma_values[val_offset] = value;
+    DICT_VALUES(dict.get())[val_offset] = value;
     dict->ma_version_tag = new_version;
 
     if (old_value == nullptr) {
@@ -159,14 +165,12 @@ SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
     } else {
       Py_DECREF(old_value);
     }
-  } else {
-    Py_INCREF(dictobj);
-    if (PyDict_SetItem(dictobj, name, value) < 0) {
-      result = nullptr;
-    }
-    Py_DECREF(dictobj);
+
+    return 0;
   }
-  return result;
+
+  auto strong_ref = Ref<>::create(dict);
+  return PyDict_SetItem(dict, name, value);
 }
 
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
@@ -176,7 +180,7 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   }
   PyObject* result = nullptr;
   if (dict->ma_keys == keys) {
-    result = dict->ma_values[val_offset];
+    result = DICT_VALUES(dict)[val_offset];
   } else {
     auto dictobj = reinterpret_cast<PyObject*>(dict);
     Py_INCREF(dictobj);
@@ -190,20 +194,13 @@ PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
   return result;
 }
 
-PyObject*
-CombinedMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-  PyDictObject* dict = get_or_allocate_dict(obj, dict_offset);
+int CombinedMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+  BorrowedRef<PyDictObject> dict = get_or_allocate_dict(obj, dict_offset);
   if (dict == nullptr) {
-    return nullptr;
+    return -1;
   }
-  PyObject* result = Py_None;
-  auto dictobj = reinterpret_cast<PyObject*>(dict);
-  Py_INCREF(dictobj);
-  if (PyDict_SetItem(dictobj, name, value) < 0) {
-    result = nullptr;
-  }
-  Py_DECREF(dictobj);
-  return result;
+  auto strong_ref = Ref<>::create(dict);
+  return PyDict_SetItem(dict, name, value);
 }
 
 PyObject* CombinedMutator::getAttr(PyObject* obj, PyObject* name) {
@@ -221,54 +218,53 @@ PyObject* CombinedMutator::getAttr(PyObject* obj, PyObject* name) {
   return result;
 }
 
-PyObject* DataDescrMutator::setAttr(PyObject* obj, PyObject* value) {
-  if (Py_TYPE(descr)->tp_descr_set(descr, obj, value)) {
-    return nullptr;
-  }
-  return Py_None;
+int DataDescrMutator::setAttr(PyObject* obj, PyObject* value) {
+  return Py_TYPE(descr)->tp_descr_set(descr, obj, value);
 }
 
 PyObject* DataDescrMutator::getAttr(PyObject* obj) {
   return Py_TYPE(descr)->tp_descr_get(descr, obj, (PyObject*)Py_TYPE(obj));
 }
 
-PyObject* MemberDescrMutator::setAttr(PyObject* obj, PyObject* value) {
-  if (PyMember_SetOne((char*)obj, memberdef, value)) {
-    return nullptr;
-  }
-  return Py_None;
+int MemberDescrMutator::setAttr(PyObject* obj, PyObject* value) {
+  return PyMember_SetOne((char*)obj, memberdef, value);
 }
 
 PyObject* MemberDescrMutator::getAttr(PyObject* obj) {
   return PyMember_GetOne((char*)obj, memberdef);
 }
 
-PyObject* DescrOrClassVarMutator::setAttr(
+int DescrOrClassVarMutator::setAttr(
     PyObject* obj,
     PyObject* name,
     PyObject* value) {
   descrsetfunc setter = Py_TYPE(descr)->tp_descr_set;
   if (setter != nullptr) {
     auto descr_guard = Ref<>::create(descr);
-    int st = setter(descr, obj, value);
-    return (st == -1) ? nullptr : Py_None;
+    return setter(descr, obj, value);
   }
-  PyObject** dictptr = Ci_PyObject_GetDictPtrAtOffset(obj, dictoffset);
+  PyObject** dictptr = _PyObject_GetDictPtr(obj);
   if (dictptr == nullptr) {
     PyErr_Format(
         PyExc_AttributeError,
         "'%.50s' object attribute '%U' is read-only",
         Py_TYPE(obj)->tp_name,
         name);
-    return nullptr;
+    return -1;
   }
   BorrowedRef<PyTypeObject> type(Py_TYPE(obj));
-  int st = _PyObjectDict_SetItem(type, dictptr, name, value);
+  int st = Cix_PyObjectDict_SetItem(type, dictptr, name, value);
   if (st < 0 && PyErr_ExceptionMatches(PyExc_KeyError)) {
     PyErr_SetObject(PyExc_AttributeError, name);
   }
-  _PyType_ClearNoShadowingInstances(type, descr);
-  return (st == -1) ? nullptr : Py_None;
+#if PY_VERSION_HEX < 0x030C0000
+  if (PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES)) {
+    _PyType_ClearNoShadowingInstances(type, descr);
+  }
+#else
+  UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
+#endif
+  return st;
 }
 
 PyObject* DescrOrClassVarMutator::getAttr(PyObject* obj, PyObject* name) {
@@ -283,14 +279,14 @@ PyObject* DescrOrClassVarMutator::getAttr(PyObject* obj, PyObject* name) {
   }
 
   Ref<> dict;
-  PyObject** dictptr = Ci_PyObject_GetDictPtrAtOffset(obj, dictoffset);
+  PyObject** dictptr = _PyObject_GetDictPtr(obj);
   if (dictptr != nullptr) {
     dict.reset(*dictptr);
   }
 
   // Check instance dict.
   if (dict != nullptr) {
-    auto res = Ref<>::create(_PyDict_GetItem_UnicodeExact(dict, name));
+    auto res = Ref<>::create(PyDict_GetItem(dict, name));
     if (res != nullptr) {
       return res.release();
     }
@@ -343,7 +339,6 @@ void AttributeMutator::set_descr_or_classvar(
     PyObject* descr) {
   set_type(type, Kind::kDescrOrClassVar);
   descr_or_cvar_.descr = descr;
-  descr_or_cvar_.dictoffset = type->tp_dictoffset;
 }
 
 void AttributeMutator::set_split(
@@ -362,7 +357,7 @@ void AttributeMutator::set_split(
   split_.keys = keys;
 }
 
-inline PyObject*
+inline int
 AttributeMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
   AttributeMutator::Kind kind = get_kind();
   switch (kind) {
@@ -443,6 +438,11 @@ AttributeMutator* AttributeCache::findEmptyEntry() {
   return it == entries().end() ? nullptr : &*it;
 }
 
+void AttributeCache::fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> name) {
+  BorrowedRef<> descr = _PyType_Lookup(type, name);
+  fill(type, name, descr);
+}
+
 void AttributeCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name,
@@ -501,7 +501,7 @@ void AttributeCache::fill(
   ac_watcher.watch(type, this);
 }
 
-PyObject* StoreAttrCache::invoke(
+int StoreAttrCache::invoke(
     StoreAttrCache* cache,
     PyObject* obj,
     PyObject* name,
@@ -509,9 +509,8 @@ PyObject* StoreAttrCache::invoke(
   return cache->doInvoke(obj, name, value);
 }
 
-PyObject*
-StoreAttrCache::doInvoke(PyObject* obj, PyObject* name, PyObject* value) {
-  PyTypeObject* tp = Py_TYPE(obj);
+int StoreAttrCache::doInvoke(PyObject* obj, PyObject* name, PyObject* value) {
+  BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
   for (auto& entry : entries()) {
     if (entry.type() == tp) {
       return entry.setAttr(obj, name, value);
@@ -520,54 +519,22 @@ StoreAttrCache::doInvoke(PyObject* obj, PyObject* name, PyObject* value) {
   return invokeSlowPath(obj, name, value);
 }
 
-// NB: The logic here needs to be kept in sync with
-// _PyObject_GenericSetAttrWithDict, with the proviso that this will never be
-// used to delete attributes.
-PyObject* __attribute__((noinline))
+int __attribute__((noinline))
 StoreAttrCache::invokeSlowPath(PyObject* obj, PyObject* name, PyObject* value) {
-  BorrowedRef<PyTypeObject> tp(Py_TYPE(obj));
-
-  if (tp->tp_dict == nullptr && PyType_Ready(tp) < 0) {
-    return nullptr;
-  } else if (tp->tp_setattro != PyObject_GenericSetAttr) {
-    int st = PyObject_SetAttr(obj, name, value);
-    return st == 0 ? Py_None : nullptr;
+  int result = PyObject_SetAttr(obj, name, value);
+  if (result < 0) {
+    JIT_DCHECK(
+        PyErr_Occurred(),
+        "PyObject_SetAttr failed so there should be a Python error");
+    return result;
   }
 
-  auto name_guard = Ref<>::create(name);
-  auto descr = Ref<>::create(_PyType_Lookup(tp, name));
-  if (descr != nullptr) {
-    descrsetfunc f = descr->ob_type->tp_descr_set;
-    if (f != nullptr) {
-      int res = f(descr, obj, value);
-      fill(tp, name, descr);
-      return (res == -1) ? nullptr : Py_None;
-    }
+  BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
+  if (type->tp_setattro == PyObject_GenericSetAttr) {
+    fill(type, name);
   }
 
-  PyObject** dictptr = _PyObject_GetDictPtr(obj);
-  if (dictptr == nullptr) {
-    if (descr == nullptr) {
-      raise_attribute_error(obj, name);
-    } else {
-      PyErr_Format(
-          PyExc_AttributeError,
-          "'%.50s' object attribute '%U' is read-only",
-          tp->tp_name,
-          name);
-    }
-    return nullptr;
-  }
-
-  int res = _PyObjectDict_SetItem(tp, dictptr, name, value);
-  if (descr != nullptr) {
-    _PyType_ClearNoShadowingInstances(tp, descr);
-  }
-  if (res != -1) {
-    fill(tp, name, descr);
-  }
-
-  return (res == -1) ? nullptr : Py_None;
+  return result;
 }
 
 PyObject*
@@ -585,57 +552,23 @@ PyObject* LoadAttrCache::doInvoke(PyObject* obj, PyObject* name) {
   return invokeSlowPath(obj, name);
 }
 
-// NB: The logic here needs to be kept in-sync with PyObject_GenericGetAttr
-PyObject* __attribute__((noinline))
-LoadAttrCache::invokeSlowPath(PyObject* obj, PyObject* name) {
-  BorrowedRef<PyTypeObject> tp(Py_TYPE(obj));
-  if (tp->tp_getattro != PyObject_GenericGetAttr) {
-    return PyObject_GetAttr(obj, name);
-  }
-  if (tp->tp_dict == nullptr) {
-    if (PyType_Ready(tp) < 0) {
-      return nullptr;
-    }
+PyObject* __attribute__((noinline)) LoadAttrCache::invokeSlowPath(
+    PyObject* obj,
+    PyObject* name) {
+  auto result = Ref<>::steal(PyObject_GetAttr(obj, name));
+  if (result == nullptr) {
+    JIT_DCHECK(
+        PyErr_Occurred(),
+        "PyObject_GetAttr failed so there should be a Python error");
+    return nullptr;
   }
 
-  auto name_guard = Ref<>::create(name);
-  auto descr = Ref<>::create(_PyType_Lookup(tp, name));
-  descrgetfunc f = nullptr;
-  if (descr != nullptr) {
-    f = descr->ob_type->tp_descr_get;
-    if (f != nullptr && PyDescr_IsData(descr)) {
-      fill(tp, name, descr);
-      return f(descr, obj, tp);
-    }
+  BorrowedRef<PyTypeObject> type{Py_TYPE(obj)};
+  if (type->tp_getattro == PyObject_GenericGetAttr) {
+    fill(type, name);
   }
 
-  Ref<> dict;
-  PyObject** dictptr = _PyObject_GetDictPtr(obj);
-  if (dictptr != nullptr) {
-    dict.reset(*dictptr);
-  }
-
-  if (dict != nullptr) {
-    auto res = Ref<>::create(PyDict_GetItem(dict, name));
-    if (res != nullptr) {
-      fill(tp, name, descr);
-      return res.release();
-    }
-  }
-
-  if (f != nullptr) {
-    fill(tp, name, descr);
-    return f(descr, obj, tp);
-  }
-
-  if (descr != nullptr) {
-    fill(tp, name, descr);
-    return descr.release();
-  }
-
-  raise_attribute_error(obj, name);
-
-  return nullptr;
+  return result.release();
 }
 
 LoadTypeAttrCache::LoadTypeAttrCache() {
@@ -643,92 +576,82 @@ LoadTypeAttrCache::LoadTypeAttrCache() {
 }
 
 LoadTypeAttrCache::~LoadTypeAttrCache() {
-  ltac_watcher.unwatch(items[0], this);
+  ltac_watcher.unwatch(type_, this);
 }
 
 PyObject* LoadTypeAttrCache::invoke(
     LoadTypeAttrCache* cache,
     PyObject* obj,
     PyObject* name) {
-  return cache->doInvoke(obj, name);
+  // The fast path is handled by direct memory access via valueAddr().
+  return cache->invokeSlowPath(obj, name);
 }
 
-// This needs to be kept in sync with PyType_Type.tp_getattro.
-PyObject* LoadTypeAttrCache::doInvoke(PyObject* obj, PyObject* name) {
-  PyTypeObject* metatype = Py_TYPE(obj);
+PyTypeObject** LoadTypeAttrCache::typeAddr() {
+  return &type_;
+}
+
+PyObject** LoadTypeAttrCache::valueAddr() {
+  return &value_;
+}
+
+// NB: This function needs to be kept in sync with PyType_Type.tp_getattro.
+PyObject* LoadTypeAttrCache::invokeSlowPath(
+    BorrowedRef<> obj,
+    BorrowedRef<> name) {
+  BorrowedRef<PyTypeObject> metatype{Py_TYPE(obj)};
   if (metatype->tp_getattro != PyType_Type.tp_getattro) {
     return PyObject_GetAttr(obj, name);
   }
 
-  PyTypeObject* type = reinterpret_cast<PyTypeObject*>(obj);
-  if (type->tp_dict == nullptr) {
-    if (PyType_Ready(type) < 0) {
-      return nullptr;
-    }
+  BorrowedRef<PyTypeObject> type{obj};
+  if (!_PyType_IsReady(type) && PyType_Ready(type) < 0) {
+    return nullptr;
   }
 
   descrgetfunc meta_get = nullptr;
-  PyObject* meta_attribute = _PyType_Lookup(metatype, name);
+  auto meta_attribute = Ref<>::create(_PyType_Lookup(metatype, name));
   if (meta_attribute != nullptr) {
-    Py_INCREF(meta_attribute);
     meta_get = Py_TYPE(meta_attribute)->tp_descr_get;
-
     if (meta_get != nullptr && PyDescr_IsData(meta_attribute)) {
-      /* Data descriptors implement tp_descr_set to intercept
-       * writes. Assume the attribute is not overridden in
-       * type's tp_dict (and bases): call the descriptor now.
-       */
-      PyObject* res = meta_get(
-          meta_attribute,
-          reinterpret_cast<PyObject*>(type),
-          reinterpret_cast<PyObject*>(metatype));
-      Py_DECREF(meta_attribute);
-      return res;
+      // Data descriptors implement tp_descr_set to intercept writes. Assume the
+      // attribute is not overridden in type's tp_dict (and bases): call the
+      // descriptor now.
+      return meta_get(meta_attribute, type, metatype);
     }
   }
 
-  /* No data descriptor found on metatype. Look in tp_dict of this
-   * type and its bases */
-  PyObject* attribute = _PyType_Lookup(type, name);
+  // No data descriptor found on metatype. Look in tp_dict of this type and its
+  // bases.
+  auto attribute = Ref<>::create(_PyType_Lookup(type, name));
   if (attribute != nullptr) {
-    /* Implement descriptor functionality, if any */
-    Py_INCREF(attribute);
+    // Implement descriptor functionality, if any.
     descrgetfunc local_get = Py_TYPE(attribute)->tp_descr_get;
 
-    Py_XDECREF(meta_attribute);
+    meta_attribute.reset();
 
     if (local_get != nullptr) {
-      /* nullptr 2nd argument indicates the descriptor was
-       * found on the target object itself (or a base)  */
-      PyObject* res =
-          local_get(attribute, nullptr, reinterpret_cast<PyObject*>(type));
-      Py_DECREF(attribute);
-      return res;
+      // nullptr 2nd argument indicates the descriptor was found on the target
+      // object itself (or a base).
+      return local_get(attribute, nullptr, type);
     }
 
     fill(type, attribute);
-
-    return attribute;
+    return attribute.release();
   }
 
-  /* No attribute found in local __dict__ (or bases): use the
-   * descriptor from the metatype, if any */
+  // No attribute found in local __dict__ (or bases): use the descriptor from
+  // the metatype, if any.
   if (meta_get != nullptr) {
-    PyObject* res;
-    res = meta_get(
-        meta_attribute,
-        reinterpret_cast<PyObject*>(type),
-        reinterpret_cast<PyObject*>(metatype));
-    Py_DECREF(meta_attribute);
-    return res;
+    return meta_get(meta_attribute, type, metatype);
   }
 
-  /* If an ordinary attribute was found on the metatype, return it now */
+  // If an ordinary attribute was found on the metatype, return it now.
   if (meta_attribute != nullptr) {
-    return meta_attribute;
+    return meta_attribute.release();
   }
 
-  /* Give up */
+  // Give up.
   PyErr_Format(
       PyExc_AttributeError,
       "type object '%.50s' has no attribute '%U'",
@@ -737,28 +660,33 @@ PyObject* LoadTypeAttrCache::doInvoke(PyObject* obj, PyObject* name) {
   return nullptr;
 }
 
-void LoadTypeAttrCache::typeChanged(PyTypeObject* /* type */) {
+void LoadTypeAttrCache::typeChanged(
+    [[maybe_unused]] BorrowedRef<PyTypeObject> arg) {
+  JIT_DCHECK(arg == type_, "Type watcher notified the wrong LoadTypeAttrCache");
   reset();
 }
 
-void LoadTypeAttrCache::fill(PyTypeObject* type, PyObject* value) {
+void LoadTypeAttrCache::fill(
+    BorrowedRef<PyTypeObject> type,
+    BorrowedRef<> value) {
   if (!PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
     // the top of `PyType_Modified` for more details.
     return;
   }
-  ltac_watcher.unwatch(items[0], this);
-  items[0] = reinterpret_cast<PyObject*>(type);
-  items[1] = value;
-  ltac_watcher.watch(type, this);
+
+  ltac_watcher.unwatch(type_, this);
+  type_ = type;
+  value_ = value;
+  ltac_watcher.watch(type_, this);
 }
 
 void LoadTypeAttrCache::reset() {
-  // We need to return a PyObject* even in the empty case so that subsequent
+  // We need to return a PyTypeObject* even in the empty case so that subsequent
   // refcounting operations work correctly.
-  items[0] = &g_emptyTypeAttrCache;
-  items[1] = nullptr;
+  type_ = &s_empty_type_attr_cache;
+  value_ = nullptr;
 }
 
 std::string_view kCacheMissReasons[] = {
@@ -781,14 +709,14 @@ LoadMethodCache::~LoadMethodCache() {
   }
 }
 
-JITRT_LoadMethodResult LoadMethodCache::lookupHelper(
+LoadMethodResult LoadMethodCache::lookupHelper(
     LoadMethodCache* cache,
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   return cache->lookup(obj, name);
 }
 
-JITRT_LoadMethodResult LoadMethodCache::lookup(
+LoadMethodResult LoadMethodCache::lookup(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
@@ -830,8 +758,9 @@ const CacheStats* LoadMethodCache::cacheStats() {
   return cache_stats_.get();
 }
 
-JITRT_LoadMethodResult __attribute__((noinline))
-LoadMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
+LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
+    BorrowedRef<> obj,
+    BorrowedRef<> name) {
   PyTypeObject* tp = Py_TYPE(obj);
   PyObject* descr;
   descrgetfunc f = nullptr;
@@ -848,7 +777,7 @@ LoadMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
       return {Py_None, res};
     }
     return {nullptr, nullptr};
-  } else if (tp->tp_dict == nullptr && PyType_Ready(tp) < 0) {
+  } else if (_PyType_GetDict(tp) == nullptr && PyType_Ready(tp) < 0) {
     return {nullptr, nullptr};
   }
 
@@ -927,10 +856,15 @@ void LoadMethodCache::fill(
     return;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
       (type->tp_dictoffset != 0)) {
     return;
   }
+#else
+  UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
+  return;
+#endif
 
   for (auto& entry : entries_) {
     if (entry.type == nullptr) {
@@ -943,34 +877,33 @@ void LoadMethodCache::fill(
 }
 
 LoadTypeMethodCache::~LoadTypeMethodCache() {
-  if (type != nullptr) {
-    ltm_watcher.unwatch(type, this);
+  if (type_ != nullptr) {
+    ltm_watcher.unwatch(type_, this);
   }
 }
 
-JITRT_LoadMethodResult LoadTypeMethodCache::lookupHelper(
+LoadMethodResult LoadTypeMethodCache::lookupHelper(
     LoadTypeMethodCache* cache,
-    BorrowedRef<PyTypeObject> obj,
-    BorrowedRef<> name) {
+    PyTypeObject* obj,
+    PyObject* name) {
   return cache->lookup(obj, name);
 }
 
-JITRT_LoadMethodResult LoadTypeMethodCache::getValueHelper(
+LoadMethodResult LoadTypeMethodCache::getValueHelper(
     LoadTypeMethodCache* cache,
-    BorrowedRef<> obj) {
-  PyObject* result = cache->value;
+    PyObject* obj) {
+  PyObject* result = cache->value_;
   Py_INCREF(result);
-  if (cache->is_unbound_meth) {
+  if (cache->is_unbound_meth_) {
     Py_INCREF(obj);
     return {result, obj};
-  } else {
-    Py_INCREF(Py_None);
-    return {Py_None, result};
   }
+  Py_INCREF(Py_None);
+  return {Py_None, result};
 }
 
 // This needs to be kept in sync with PyType_Type.tp_getattro.
-JITRT_LoadMethodResult LoadTypeMethodCache::lookup(
+LoadMethodResult LoadTypeMethodCache::lookup(
     BorrowedRef<PyTypeObject> obj,
     BorrowedRef<> name) {
   PyTypeObject* metatype = Py_TYPE(obj);
@@ -981,7 +914,7 @@ JITRT_LoadMethodResult LoadTypeMethodCache::lookup(
     Py_INCREF(Py_None);
     return {Py_None, res};
   }
-  if (obj->tp_dict == nullptr) {
+  if (_PyType_GetDict(obj) == nullptr) {
     if (PyType_Ready(obj) < 0) {
       return {nullptr, nullptr};
     }
@@ -1099,14 +1032,22 @@ JITRT_LoadMethodResult LoadTypeMethodCache::lookup(
   PyErr_Format(
       PyExc_AttributeError,
       "type object '%.50s' has no attribute '%U'",
-      type->tp_name,
+      obj->tp_name,
       name);
   return {nullptr, nullptr};
 }
 
+PyTypeObject** LoadTypeMethodCache::typeAddr() {
+  return &type_;
+}
+
+BorrowedRef<> LoadTypeMethodCache::value() {
+  return value_;
+}
+
 void LoadTypeMethodCache::typeChanged(BorrowedRef<PyTypeObject> /* type */) {
-  type.reset();
-  value.reset();
+  type_ = nullptr;
+  value_.reset();
 }
 
 void LoadTypeMethodCache::initCacheStats(
@@ -1136,25 +1077,31 @@ void LoadTypeMethodCache::fill(
     return;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
-      (type->tp_dictoffset != 0)) {
+      type->tp_dictoffset != 0) {
     return;
   }
-  ltm_watcher.unwatch(this->type, this);
-  this->type = type;
-  this->value = value;
-  this->is_unbound_meth = is_unbound_meth;
-  ltm_watcher.watch(type, this);
+#else
+  UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
+  return;
+#endif
+
+  ltm_watcher.unwatch(type_, this);
+  type_ = type;
+  value_ = value;
+  is_unbound_meth_ = is_unbound_meth;
+  ltm_watcher.watch(type_, this);
 }
 
-JITRT_LoadMethodResult LoadModuleMethodCache::lookupHelper(
+LoadMethodResult LoadModuleMethodCache::lookupHelper(
     LoadModuleMethodCache* cache,
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   return cache->lookup(obj, name);
 }
 
-JITRT_LoadMethodResult LoadModuleMethodCache::lookup(
+LoadMethodResult LoadModuleMethodCache::lookup(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   if (module_obj_ == obj && value_ != nullptr) {
@@ -1183,7 +1130,7 @@ BorrowedRef<> LoadModuleMethodCache::value() {
   return value_;
 }
 
-JITRT_LoadMethodResult __attribute__((noinline))
+LoadMethodResult __attribute__((noinline))
 LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
   BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
   uint64_t dict_version = 0;

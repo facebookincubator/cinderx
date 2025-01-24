@@ -3,13 +3,10 @@
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/compiler.h"
-#include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/printer.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 class DeoptPatcherTest : public RuntimeTest {
  public:
@@ -26,7 +23,6 @@ class DeoptPatcherTest : public RuntimeTest {
         code,
         reinterpret_cast<vectorcallfunc>(entry),
         ngen.getStaticEntry(),
-        ngen.codeRuntime(),
         stack_size,
         spill_stack_size,
         jit::hir::Function::InlineFunctionStats{},
@@ -41,12 +37,20 @@ class MyDeoptPatcher : public jit::DeoptPatcher {
  public:
   explicit MyDeoptPatcher(int id) : id_(id) {}
 
-  void init() override {
-    initialized_ = true;
+  void onLink() override {
+    linked_ = true;
   }
 
-  bool isInitialized() const {
-    return initialized_;
+  void onPatch() override {
+    patched_ = true;
+  }
+
+  bool isLinked() const {
+    return linked_;
+  }
+
+  bool isPatched() const {
+    return patched_;
   }
 
   int id() const {
@@ -55,7 +59,8 @@ class MyDeoptPatcher : public jit::DeoptPatcher {
 
  private:
   int id_{-1};
-  bool initialized_{false};
+  bool linked_{false};
+  bool patched_{false};
 };
 
 TEST_F(DeoptPatcherTest, Patch) {
@@ -69,11 +74,16 @@ def func():
   ASSERT_NE(pyfunc, nullptr);
 
   auto irfunc = buildHIR(pyfunc);
-  ASSERT_NE(irfunc, nullptr);
 
-  jit::hir::Instr* term = irfunc->cfg.entry_block->GetTerminator();
+  // Need to find the return instruction.  It should be the last instruction in
+  // the last block.
+  jit::hir::BasicBlock* entry = irfunc->cfg.entry_block;
+  std::vector<jit::hir::BasicBlock*> postorder =
+      irfunc->cfg.GetPostOrderTraversal(entry);
+  ASSERT_GT(postorder.size(), 0);
+  jit::hir::Instr* term = postorder[0]->GetTerminator();
   ASSERT_NE(term, nullptr);
-  ASSERT_TRUE(term->IsReturn());
+  ASSERT_TRUE(term->IsReturn()) << *term;
 
   // Insert a patchpoint immediately before the return
   jit::Runtime* jit_rt = jit::Runtime::get();
@@ -87,7 +97,8 @@ def func():
   jit::codegen::NativeGenerator ngen(irfunc.get());
   auto jitfunc = generateCode(ngen);
   ASSERT_NE(jitfunc, nullptr);
-  EXPECT_TRUE(patcher->isInitialized());
+  EXPECT_TRUE(patcher->isLinked());
+  EXPECT_FALSE(patcher->isPatched());
 
   // Make sure things work in the nominal case
   bool did_deopt = false;
@@ -97,6 +108,7 @@ def func():
   ASSERT_NE(res, nullptr);
   ASSERT_EQ(PyLong_AsLong(res), 314159);
   EXPECT_FALSE(did_deopt);
+  EXPECT_FALSE(patcher->isPatched());
 
   // Patch and verify that a deopt occurred
   patcher->patch();
@@ -105,4 +117,5 @@ def func():
   ASSERT_NE(res2, nullptr);
   ASSERT_EQ(PyLong_AsLong(res2), 314159);
   EXPECT_TRUE(did_deopt);
+  EXPECT_TRUE(patcher->isPatched());
 }

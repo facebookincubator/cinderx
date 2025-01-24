@@ -1,0 +1,107 @@
+// -*- mode: c++ -*- vi: set ft=cpp:
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
+// This file is processed by UpstreamBorrow.py. To see the generated output:
+// buck build -c cinderx.use_3_12=true --out=- fbcode//cinderx/UpstreamBorrow:gen_borrowed.c
+
+// clang-format off
+
+#include "cinderx/UpstreamBorrow/borrowed.h"
+
+// In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
+// the JIT we could get the value from the thread-state register. This would be
+// slightly more efficient, but quite a bit more work and async-generators are
+// rare. So we just wrap it up here.
+
+// TODO: Find out what exactly we need from the cpp directives here.
+// @Borrow CPP directives from Objects/genobject.c
+PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
+  return _PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
+}
+
+// @Borrow function compute_cr_origin from Objects/genobject.c
+PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_frame) {
+  return compute_cr_origin(origin_depth, current_frame);
+}
+
+// @Borrow function set_attribute_error_context from Objects/object.c
+
+// Wrapper as set_attribute_error_context is declared "static inline".
+int
+Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
+  return set_attribute_error_context(v, name);
+}
+
+// @Borrow var DE_INSTRUMENT from Python/instrumentation.c
+uint8_t
+Cix_DEINSTRUMENT(uint8_t op) {
+  return DE_INSTRUMENT[op];
+}
+
+// Internal dependencies for Cix_do_raise.
+#define _PyErr_SetRaisedException __PyErr_SetRaisedException
+// @Borrow function _PyErr_SetRaisedException from Python/errors.c
+// End internal dependencies.
+// @Borrow function do_raise from Python/ceval.c
+int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
+  return do_raise(tstate, exc, cause);
+}
+
+// Internal dependencies for match_class.
+// @Borrow function match_class_attr from Python/ceval.c
+// End internal dependencies.
+// @Borrow function match_class from Python/ceval.c
+PyObject* Cix_match_class(
+    PyThreadState* tstate,
+    PyObject* subject,
+    PyObject* type,
+    Py_ssize_t nargs,
+    PyObject* kwargs) {
+  return match_class(tstate, subject, type, nargs, kwargs);
+}
+
+// @Borrow function match_keys from Python/ceval.c
+PyObject* Cix_match_keys(PyThreadState* tstate, PyObject* map, PyObject* keys) {
+  return match_keys(tstate, map, keys);
+}
+
+// @Borrow function format_kwargs_error from Python/ceval.c
+void Cix_format_kwargs_error(
+    PyThreadState* tstate,
+    PyObject* func,
+    PyObject* kwargs) {
+  format_kwargs_error(tstate, func, kwargs);
+}
+
+// @Borrow function format_exc_check_arg from Python/ceval.c
+void Cix_format_exc_check_arg(
+    PyThreadState* tstate,
+    PyObject* exc,
+    const char* format_str,
+    PyObject* obj) {
+  format_exc_check_arg(tstate, exc, format_str, obj);
+}
+
+// Internal dependencies for gc_freeze_impl.
+// @Borrow CPP directives noinclude from Modules/gcmodule.c
+// @Borrow typedef GCState from Modules/gcmodule.c
+// @Borrow function gc_list_init from Modules/gcmodule.c
+// @Borrow function gc_list_is_empty from Modules/gcmodule.c
+// @Borrow function get_gc_state from Modules/gcmodule.c
+// @Borrow function gc_list_merge from Modules/gcmodule.c
+// End internal dependencies.
+
+// @Borrow function gc_freeze_impl from Modules/gcmodule.c
+PyObject* Cix_gc_freeze_impl(PyObject* mod) {
+  return gc_freeze_impl(mod);
+}
+
+// @Borrow function builtin_next_impl from Python/bltinmodule.c
+PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
+    return builtin_next_impl(NULL /* unused_module */, it, def);
+}
+
+int init_upstream_borrow(void) {
+  // Nothing to do here; retained for consistency with 3.10
+  return 0;
+}

@@ -4,16 +4,12 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-
-#include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/compiled_function.h"
+#include "cinderx/Jit/config.h"
 
 #include <fcntl.h>
 #include <stddef.h>
 #include <stdio.h>
-
-int g_gdb_support = 0;
-int g_gdb_write_elf_objects = 0;
-int g_gdb_stubs_support = 0;
 
 /* Begin GDB hook */
 
@@ -45,7 +41,7 @@ typedef struct {
  * Need to make sure it's not optimized away. */
 void __attribute__((noinline)) __jit_debug_register_code() {
   __asm("");
-};
+}
 
 /* We will add new code entries to the link list rooted here. If the JIT ever
  * becomes multithreaded this will need to be protected by a mutex. */
@@ -86,7 +82,7 @@ register_elf_ctx(ELFObjectContext* ctx, const char* type, void* ptr) {
 
   memcpy(elf_object_start, elfctx_get_object_ptr(ctx), elf_object_size);
 
-  if (g_gdb_write_elf_objects) {
+  if (jit::getConfig().gdb.write_elf_objects) {
     // Write the ELF object to /tmp
     struct jit_string_t* filename =
         ss_sprintf_alloc("/tmp/cinder_%s_%p_elf", type, ptr);
@@ -129,7 +125,7 @@ int register_raw_debug_symbol(
     void* code_addr,
     size_t code_size,
     size_t stack_size) {
-  if (!g_gdb_support) {
+  if (!jit::getConfig().gdb.supported) {
     return 1;
   }
 
@@ -168,7 +164,7 @@ int register_pycode_debug_symbol(
     PyCodeObject* codeobj,
     const char* fullname,
     jit::CompiledFunction* compiled_func) {
-  if (!g_gdb_support) {
+  if (!jit::getConfig().gdb.supported) {
     return 1;
   }
 
@@ -461,9 +457,9 @@ static void elfctx_append_uleb128(ELFObjectContext* ctx, uint32_t v) {
 #define DWRF_UV(x) (ctx->p = p, elfctx_append_uleb128(ctx, (x)), p = ctx->p)
 #define DWRF_SV(x) (ctx->p = p, elfctx_append_sleb128(ctx, (x)), p = ctx->p)
 #define DWRF_STR(str) (ctx->p = p, elfctx_append_string(ctx, (str)), p = ctx->p)
-#define DWRF_ALIGNNOP(s)           \
-  while ((uintptr_t)p & ((s)-1)) { \
-    *p++ = DWRF_CFA_nop;           \
+#define DWRF_ALIGNNOP(s)             \
+  while ((uintptr_t)p & ((s) - 1)) { \
+    *p++ = DWRF_CFA_nop;             \
   }
 #define DWRF_SECTION(name, stmt)                              \
   {                                                           \
@@ -646,7 +642,7 @@ elf_init_section(ELFObjectContext* ctx, int sect, ELFSectionInitFn init) {
 }
 
 #define ALIGN_SECTION(p, a) \
-  ((p) = (uint8_t*)(((uintptr_t)(p) + ((a)-1)) & ~(uintptr_t)((a)-1)))
+  ((p) = (uint8_t*)(((uintptr_t)(p) + ((a) - 1)) & ~(uintptr_t)((a) - 1)))
 
 /* Build in-memory ELF object. */
 static void elfctx_build_object(ELFObjectContext* ctx) {

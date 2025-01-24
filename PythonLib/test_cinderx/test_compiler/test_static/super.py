@@ -1,5 +1,4 @@
-from cinderx.compiler.pycodegen import CinderCodeGenerator
-
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from .common import StaticTestBase
 
 
@@ -9,7 +8,7 @@ class SuperTests(StaticTestBase):
             class A:
                 x = 1
         """
-        with self.in_module(nonstatic, code_gen=CinderCodeGenerator) as nonstatic_mod:
+        with self.in_module(nonstatic, code_gen=self.cinder_codegen) as nonstatic_mod:
             codestr = f"""
                 from {nonstatic_mod.__name__} import A
 
@@ -20,7 +19,7 @@ class SuperTests(StaticTestBase):
                         return super().x
             """
             with self.in_strict_module(codestr) as mod:
-                self.assertInBytecode(mod.B.foo, "LOAD_ATTR_SUPER")
+                self.assertInBytecode(mod.B.foo, self.SUPER_ATTR)
                 self.assertEqual(mod.B().foo(), 1)
 
     def test_method_in_parent_class(self):
@@ -38,7 +37,7 @@ class SuperTests(StaticTestBase):
         """
         with self.in_strict_module(codestr) as mod:
             self.assertInBytecode(
-                mod.B.g, "INVOKE_FUNCTION", ((mod.__name__, "A", "f"), 1)
+                mod.B.g, "INVOKE_FUNCTION", (((mod.__name__, "A"), "f"), 1)
             )
             self.assertEqual(mod.foo(), 4)
 
@@ -61,7 +60,7 @@ class SuperTests(StaticTestBase):
         """
         with self.in_strict_module(codestr) as mod:
             self.assertInBytecode(
-                mod.B.g, "INVOKE_FUNCTION", ((mod.__name__, "AA", "f"), 1)
+                mod.B.g, "INVOKE_FUNCTION", (((mod.__name__, "AA"), "f"), 1)
             )
             self.assertEqual(mod.foo(), 4)
 

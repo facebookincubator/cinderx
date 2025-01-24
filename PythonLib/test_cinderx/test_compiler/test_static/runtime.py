@@ -1,7 +1,7 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import chkdict, int64, is_type_static, make_generic_type, StaticGeneric
 
 import asyncio
-import cinder
 import itertools
 import sys
 import time
@@ -10,7 +10,15 @@ from copy import deepcopy
 from typing import Optional, TypeVar
 from unittest import skip, skipIf
 
-from cinderx.compiler.consts import CO_STATICALLY_COMPILED
+try:
+    from cinder import _get_qualname
+except:
+
+    def _get_qualname(code):
+        return code.co_qualname
+
+
+from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static import StaticCodeGenerator
 from cinderx.compiler.static.types import (
@@ -108,7 +116,7 @@ class StaticRuntimeTests(StaticTestBase):
         """
         with self.in_module(codestr, name="t1") as mod:
             C = mod.C
-            self.assertInBytecode(C.fn, "LOAD_METHOD", "__setattr__")
+            self.assertLoadMethodInBytecode(C.fn, "__setattr__")
 
             c = C()
             c.fn()
@@ -131,7 +139,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr, name="t2") as mod:
             fn = mod.fn
             self.assertInBytecode(
-                fn, "INVOKE_FUNCTION", (("t2", "E", "__setattr__"), 3)
+                fn, "INVOKE_FUNCTION", ((("t2", "E"), "__setattr__"), 3)
             )
             res = fn()
             self.assertEqual(res.hihello, "itsme")
@@ -148,7 +156,7 @@ class StaticRuntimeTests(StaticTestBase):
         """
         with self.in_module(codestr, name="t3") as mod:
             fn = mod.fn
-            self.assertInBytecode(fn, "LOAD_METHOD", "__setattr__")
+            self.assertLoadMethodInBytecode(fn, "__setattr__")
             res = fn()
             self.assertEqual(res.hihello, "itsme")
 
@@ -173,30 +181,35 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertIs(ref(), None)
             self.assertEqual(C.__slots__, ("__weakref__",))
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_def_no_create(self):
         from xxclassloader import spamobj
 
         with self.assertRaises(TypeError):
             spamobj()
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_def_bad_args(self):
         from xxclassloader import spamobj
 
         with self.assertRaises(TypeError):
             spamobj[str, int]
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_def_non_type(self):
         from xxclassloader import spamobj
 
         with self.assertRaises(TypeError):
             spamobj[42]
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_okay(self):
         from xxclassloader import spamobj
 
         o = spamobj[str]()
         o.setstate("abc")
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_optional_okay(self):
         from xxclassloader import spamobj
 
@@ -204,6 +217,7 @@ class StaticRuntimeTests(StaticTestBase):
         o.setstate("abc")
         o.setstate(None)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_non_optional_error(self):
         from xxclassloader import spamobj
 
@@ -211,6 +225,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setstate(None)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_bad_type(self):
         from xxclassloader import spamobj
 
@@ -218,16 +233,19 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setstate(42)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_name(self):
         from xxclassloader import spamobj
 
         self.assertEqual(spamobj[str].__name__, "spamobj[str]")
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_name_optional(self):
         from xxclassloader import spamobj
 
         self.assertEqual(spamobj[Optional[str]].__name__, "spamobj[Optional[str]]")
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_okay_func(self):
         from xxclassloader import spamobj
 
@@ -235,6 +253,7 @@ class StaticRuntimeTests(StaticTestBase):
         f = o.setstate
         f("abc")
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_optional_okay_func(self):
         from xxclassloader import spamobj
 
@@ -243,6 +262,7 @@ class StaticRuntimeTests(StaticTestBase):
         f("abc")
         f(None)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_non_optional_error_func(self):
         from xxclassloader import spamobj
 
@@ -251,6 +271,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             f(None)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_inst_bad_type_func(self):
         from xxclassloader import spamobj
 
@@ -259,6 +280,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             f(42)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_int_funcs(self):
         from xxclassloader import spamobj
 
@@ -268,6 +290,7 @@ class StaticRuntimeTests(StaticTestBase):
         self.assertEqual(o.getint16(), 42)
         self.assertEqual(o.getint32(), 42)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_uint_funcs(self):
         from xxclassloader import spamobj
 
@@ -278,6 +301,7 @@ class StaticRuntimeTests(StaticTestBase):
         self.assertEqual(o.getuint32(), 42)
         self.assertEqual(o.getuint64(), 42)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_int_funcs_overflow(self):
         from xxclassloader import spamobj
 
@@ -291,6 +315,7 @@ class StaticRuntimeTests(StaticTestBase):
                 x = 1 << ((8 << i) - 1)
                 f(x)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_uint_funcs_overflow(self):
         from xxclassloader import spamobj
 
@@ -304,6 +329,7 @@ class StaticRuntimeTests(StaticTestBase):
                 x = (1 << (8 << i)) + 1
                 f(x)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_int_func(self):
         from xxclassloader import spamobj
 
@@ -313,6 +339,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setint("abc")
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_str_func(self):
         from xxclassloader import spamobj
 
@@ -322,6 +349,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setstr(42)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_bad_arg_cnt(self):
         from xxclassloader import spamobj
 
@@ -331,6 +359,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             o.setstr("abc", "abc")
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_bad_arg_cnt(self):
         from xxclassloader import spamobj
 
@@ -425,7 +454,7 @@ class StaticRuntimeTests(StaticTestBase):
         """
         c = self.compile(codestr, modname="foo.py")
         test = self.find_code(c, "test")
-        self.assertInBytecode(test, "INVOKE_FUNCTION", (("foo.py", "x"), 2))
+        self.assertInBytecode(test, "INVOKE_FUNCTION", ((("foo.py",), "x"), 2))
         with self.in_module(codestr) as mod:
             test_callable = mod.test
             self.assertEqual(test_callable(), "hello" + my_int)
@@ -439,7 +468,7 @@ class StaticRuntimeTests(StaticTestBase):
                 return await f()
         """
         with self.in_strict_module(codestr) as mod:
-            self.assertInBytecode(mod.g, "INVOKE_FUNCTION", ((mod.__name__, "f"), 0))
+            self.assertInBytecode(mod.g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 0))
             self.assertNotInBytecode(mod.g, "CAST")
             self.assertEqual(asyncio.run(mod.g()), 1)
 
@@ -457,7 +486,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.g,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "f"), 0),
+                (((mod.__name__,), "f"), 0),
             )
             self.assertEqual(asyncio.run(mod.g()), 1)
             self.assert_not_jitted(mod.f)
@@ -474,7 +503,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.g,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "f"), 2),
+                (((mod.__name__,), "f"), 2),
             )
             self.assertEqual(asyncio.run(mod.g()), 3)
 
@@ -495,7 +524,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 g,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "f"), 2),
+                (((mod.__name__,), "f"), 2),
             )
             self.assertEqual(asyncio.run(g()), 3)
 
@@ -520,7 +549,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "g"), 0),
+                (((mod.__name__,), "g"), 0),
             )
             asyncio.run(mod.f())
 
@@ -539,7 +568,7 @@ class StaticRuntimeTests(StaticTestBase):
         """
         with self.in_strict_module(codestr) as mod:
             self.assertInBytecode(
-                mod.C.g, "INVOKE_METHOD", ((mod.__name__, "C", "f"), 0)
+                mod.C.g, "INVOKE_METHOD", (((mod.__name__, "C"), "f"), 0)
             )
             self.assertEqual(asyncio.run(mod.C().g()), 1)
 
@@ -556,7 +585,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.C.g,
                 "INVOKE_METHOD",
-                ((mod.__name__, "C", "f"), 2),
+                (((mod.__name__, "C"), "f"), 2),
             )
             self.assertEqual(asyncio.run(mod.C().g()), 3)
 
@@ -588,7 +617,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertInBytecode(
                 mod.f,
                 "INVOKE_FUNCTION",
-                ((mod.__name__, "C", "g"), 1),
+                (((mod.__name__, "C"), "g"), 1),
             )
             asyncio.run(mod.f())
 
@@ -649,6 +678,7 @@ class StaticRuntimeTests(StaticTestBase):
             y = mod.y
             self.assertEqual(y(), 421)
 
+    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_posix_clock_gettime_ns(self):
         codestr = """
         from __static__ import box, posix_clock_gettime_ns
@@ -697,7 +727,7 @@ class StaticRuntimeTests(StaticTestBase):
     def test_fast_len_str_unicode_chars(self):
         codestr = """
         def f():
-            l = "\U0001F923"  # ROFL emoji
+            l = "\U0001f923"  # ROFL emoji
             return len(l)
         """
         c = self.compile(codestr, modname="foo.py")
@@ -1668,9 +1698,9 @@ class StaticRuntimeTests(StaticTestBase):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3]
                 for i in l:
                     acc.append(i + 1)
                 return acc
@@ -1678,7 +1708,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(4), [i + 1 for i in range(4)])
+            self.assertEqual(f(), [i + 1 for i in range(4)])
 
     def test_for_iter_tuple(self):
         codestr = """
@@ -1686,7 +1716,7 @@ class StaticRuntimeTests(StaticTestBase):
 
             def f(n: int) -> List:
                 acc = []
-                l = tuple([i for i in range(n)])
+                l = tuple((i for i in range(n)))
                 for i in l:
                     acc.append(i + 1)
                 return acc
@@ -1711,9 +1741,9 @@ class StaticRuntimeTests(StaticTestBase):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3]
                 for i in l:
                     acc.append(i + 1)
                 else:
@@ -1723,15 +1753,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(4), [i + 1 for i in range(4)] + [999])
+            self.assertEqual(f(), [i + 1 for i in range(4)] + [999])
 
     def test_for_iter_sequence_break(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3, 4]
                 for i in l:
                     if i == 3:
                         break
@@ -1741,15 +1771,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(5), [1, 2, 3])
+            self.assertEqual(f(), [1, 2, 3])
 
     def test_for_iter_sequence_orelse_break(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3]
                 for i in l:
                     if i == 2:
                         break
@@ -1761,15 +1791,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(4), [1, 2])
+            self.assertEqual(f(), [1, 2])
 
     def test_for_iter_sequence_return(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2, 3, 4, 5]
                 for i in l:
                     if i == 3:
                         return acc
@@ -1779,15 +1809,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(6), [1, 2, 3])
+            self.assertEqual(f(), [1, 2, 3])
 
     def test_nested_for_iter_sequence(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2]
                 for i in l:
                     for j in l:
                         acc.append(i + j)
@@ -1796,15 +1826,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(3), [0, 1, 2, 1, 2, 3, 2, 3, 4])
+            self.assertEqual(f(), [0, 1, 2, 1, 2, 3, 2, 3, 4])
 
     def test_nested_for_iter_sequence_break(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2]
                 for i in l:
                     for j in l:
                         if j == 2:
@@ -1815,15 +1845,15 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(3), [0, 1, 1, 2, 2, 3])
+            self.assertEqual(f(), [0, 1, 1, 2, 2, 3])
 
     def test_nested_for_iter_sequence_return(self):
         codestr = """
             from typing import List
 
-            def f(n: int) -> List:
+            def f() -> List:
                 acc = []
-                l = [i for i in range(n)]
+                l = [0, 1, 2]
                 for i in l:
                     for j in l:
                         if j == 1:
@@ -1834,7 +1864,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertNotInBytecode(f, "FOR_ITER")
-            self.assertEqual(f(3), [0])
+            self.assertEqual(f(), [0])
 
     def test_for_iter_unchecked_get(self):
         """We don't need to check sequence bounds when we've just compared with the list size."""
@@ -2054,11 +2084,11 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             C = mod.C
-            self.assertEqual(cinder._get_qualname(f.__code__), "f")
+            self.assertEqual(_get_qualname(f.__code__), "f")
 
-            self.assertEqual(cinder._get_qualname(C.x.__code__), "C.x")
-            self.assertEqual(cinder._get_qualname(C.sm.__code__), "C.sm")
-            self.assertEqual(cinder._get_qualname(C.cm.__code__), "C.cm")
+            self.assertEqual(_get_qualname(C.x.__code__), "C.x")
+            self.assertEqual(_get_qualname(C.sm.__code__), "C.sm")
+            self.assertEqual(_get_qualname(C.cm.__code__), "C.cm")
 
     def test_refine_optional_name(self):
         codestr = """
@@ -2123,15 +2153,15 @@ class StaticRuntimeTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             fn = mod.fn
-            self.assertInBytecode(fn, "CALL_FUNCTION")
+            self.assertInBytecode(fn, self.CALL)
             self.assertNotInBytecode(fn, "INVOKE_FUNCTION")
-            self.assertFalse(fn.__code__.co_flags & CO_STATICALLY_COMPILED)
+            self.assertFalse(fn.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn(), None)
 
             fn2 = mod.fn2
-            self.assertNotInBytecode(fn2, "CALL_FUNCTION")
+            self.assertNotInBytecode(fn2, self.CALL)
             self.assertInBytecode(fn2, "INVOKE_FUNCTION")
-            self.assertTrue(fn2.__code__.co_flags & CO_STATICALLY_COMPILED)
+            self.assertTrue(fn2.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn2(), None)
 
     def test_donotcompile_method(self):
@@ -2155,9 +2185,9 @@ class StaticRuntimeTests(StaticTestBase):
             C = mod.C
 
             fn2 = C.fn2
-            self.assertNotInBytecode(fn2, "CALL_FUNCTION")
+            self.assertNotInBytecode(fn2, self.CALL)
             self.assertInBytecode(fn2, "INVOKE_FUNCTION")
-            self.assertTrue(fn2.__code__.co_flags & CO_STATICALLY_COMPILED)
+            self.assertTrue(fn2.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn2(), None)
 
     def test_donotcompile_class(self):
@@ -2181,9 +2211,9 @@ class StaticRuntimeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             C = mod.C
             fn = C.fn
-            self.assertInBytecode(fn, "CALL_FUNCTION")
+            self.assertInBytecode(fn, self.CALL)
             self.assertNotInBytecode(fn, "INVOKE_FUNCTION")
-            self.assertFalse(fn.__code__.co_flags & CO_STATICALLY_COMPILED)
+            self.assertFalse(fn.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn(), None)
 
     def test_donotcompile_lambda(self):
@@ -2210,13 +2240,13 @@ class StaticRuntimeTests(StaticTestBase):
             fn = C.fn
             lambda_code = self.find_code(fn.__code__)
             self.assertNotInBytecode(lambda_code, "INVOKE_FUNCTION")
-            self.assertFalse(lambda_code.co_flags & CO_STATICALLY_COMPILED)
+            self.assertFalse(lambda_code.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn(), None)
 
             fn2 = C.fn2
             lambda_code2 = self.find_code(fn2.__code__)
             self.assertInBytecode(lambda_code2, "INVOKE_FUNCTION")
-            self.assertTrue(lambda_code2.co_flags & CO_STATICALLY_COMPILED)
+            self.assertTrue(lambda_code2.co_flags & CI_CO_STATICALLY_COMPILED)
             self.assertEqual(fn2(), None)
 
     def test_class_static_tpflag(self):
@@ -2301,7 +2331,7 @@ class StaticRuntimeTests(StaticTestBase):
             prod_assert(x)
             return x
         """
-        self.type_error(codestr, "return type must be int, not str")
+        self.type_error(codestr, bad_ret_type("int", "str"))
 
     def test_prod_assert_raises(self):
         codestr = """
@@ -2450,6 +2480,6 @@ class StaticRuntimeTests(StaticTestBase):
             f = mod.f
             with self.assertRaisesRegex(
                 TypeError,
-                rf"bad name provided for class loader, 'B' doesn't exist in \('{mod.__name__}', 'A', 'B', '!'\)",
+                rf"bad name provided for class loader: 'B' doesn't exist in type '<class '.*.A'>'",
             ):
                 f()

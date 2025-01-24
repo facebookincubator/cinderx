@@ -4,7 +4,6 @@
 
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/lir/blocksorter.h"
-#include "cinderx/Jit/lir/printer.h"
 
 #include <stack>
 
@@ -222,10 +221,6 @@ BasicBlock* Function::allocateBasicBlockAfter(BasicBlock* block) {
   BasicBlock* new_block = &basic_block_store_.back();
   basic_blocks_.emplace(iter, new_block);
   return new_block;
-}
-
-void Function::print() const {
-  std::cerr << *this;
 }
 
 } // namespace jit::lir

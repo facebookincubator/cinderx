@@ -1,16 +1,18 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import chkdict, chklist, int64
 
 import inspect
+import sys
 import unittest
-from cinder import freeze_type
+from cinderx import freeze_type
 
-from inspect import CO_SUPPRESS_JIT
 from re import escape
-from unittest import skip
+from unittest import skip, skipIf
 
+from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.compiler.errors import TypedSyntaxError
 
-from .common import StaticTestBase
+from .common import StaticTestBase, bad_ret_type
 
 
 class StaticObjCreationTests(StaticTestBase):
@@ -130,7 +132,7 @@ class StaticObjCreationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             # Unknown base class w/ no overrides should always be CALL_FUNCTION
-            self.assertInBytecode(f, "CALL_FUNCTION")
+            self.assertInBytecode(f, self.CALL)
 
     def test_init_wrong_type(self):
         codestr = """
@@ -277,7 +279,7 @@ class StaticObjCreationTests(StaticTestBase):
                 return C(x)
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, "return type must be int, not str"
+            TypedSyntaxError, bad_ret_type("int", "str")
         ):
             self.compile(codestr)
 
@@ -335,7 +337,7 @@ class StaticObjCreationTests(StaticTestBase):
         """
         with self.assertRaisesRegex(
             TypedSyntaxError,
-            "return type must be object, not <module>.C",
+            bad_ret_type("object", "<module>.C"),
         ):
             self.compile(codestr)
 
@@ -347,7 +349,7 @@ class StaticObjCreationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertInBytecode(
-                f, "INVOKE_FUNCTION", ((("builtins", "bool", "!", "__new__"), 2))
+                f, "INVOKE_FUNCTION", (((("builtins", "bool", "!"), "__new__"), 2))
             )
             self.assertEqual(f(42), True)
             self.assertEqual(f(0), False)
@@ -416,10 +418,12 @@ class StaticObjCreationTests(StaticTestBase):
                 "INVOKE_FUNCTION",
                 (
                     (
-                        "__static__",
-                        "chkdict",
-                        (("builtins", "str"), ("builtins", "int")),
-                        "!",
+                        (
+                            "__static__",
+                            "chkdict",
+                            (("builtins", "str"), ("builtins", "int")),
+                            "!",
+                        ),
                         "__init__",
                     ),
                     2,
@@ -452,10 +456,12 @@ class StaticObjCreationTests(StaticTestBase):
                 (
                     (
                         (
-                            "__static__",
-                            "chkdict",
-                            (("builtins", "str"), ("builtins", "int")),
-                            "!",
+                            (
+                                "__static__",
+                                "chkdict",
+                                (("builtins", "str"), ("builtins", "int")),
+                                "!",
+                            ),
                             "__init__",
                         ),
                         2,
@@ -473,6 +479,7 @@ class StaticObjCreationTests(StaticTestBase):
             f = mod.C.__init__
             self.assertNotInBytecode(f, "INVOKE_METHOD")
 
+    @skipIf(sys.version_info >= (3, 12), "3.12 doesn't emit super call if aliased")
     def test_super_init_no_load_attr_super(self):
         codestr = """
             x = super
@@ -522,6 +529,7 @@ class StaticObjCreationTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_FUNCTION")
             self.assertTrue(isinstance(f(), C))
 
+    @skipIf(sys.version_info >= (3, 12), "3.12 doesn't emit super call if aliased")
     def test_super_redefined_uses_opt(self):
         codestr = """
             super = super
@@ -575,5 +583,5 @@ class StaticObjCreationTests(StaticTestBase):
                     self.b = b
         """
         with self.in_module(codestr) as mod:
-            self.assertInBytecode(mod.B.f, "CALL_FUNCTION", 1)
+            self.assertInBytecode(mod.B.f, self.CALL, 1)
             self.assertNotInBytecode(mod.B.f, "TP_ALLOC")

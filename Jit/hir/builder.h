@@ -3,19 +3,14 @@
 #pragma once
 
 #include <Python.h>
-#include "cinderx/Common/util.h"
 
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/preload.h"
-#include "cinderx/Jit/profile_runtime.h"
-#include "cinderx/Jit/stack.h"
 
-#include <deque>
-#include <functional>
 #include <memory>
-#include <set>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -94,21 +89,15 @@ std::unique_ptr<Function> buildHIR(const Preloader& preloader);
 // leading to a bunch of distinct exit blocks) into Branches to one Return
 // block (one exit block), which the caller can transform into an Assign to the
 // output register of the original call instruction.
-//
-// Call InlineResult::succeeded to determine if the inline was successful.
 struct InlineResult {
-  BasicBlock* entry;
-  BasicBlock* exit;
-
-  bool succeeded() const {
-    return entry != nullptr && exit != nullptr;
-  }
+  BasicBlock* entry{nullptr};
+  BasicBlock* exit{nullptr};
 };
 
 class HIRBuilder {
  public:
   HIRBuilder(const Preloader& preloader)
-      : code_(preloader.code()), preloader_(preloader){};
+      : code_(preloader.code()), preloader_(preloader) {}
 
   // Translate the bytecode for code_ into HIR, in the context of the preloaded
   // globals and classloader lookups from preloader_.
@@ -145,11 +134,8 @@ class HIRBuilder {
       Function& irfunc,
       const jit::BytecodeInstructionBlock& bc_instrs,
       const TranslationContext& tc);
-  void emitProfiledTypes(
-      TranslationContext& tc,
-      const ProfileRuntime& profile_runtime,
-      const CodeKey& codeKey,
-      const BytecodeInstruction& bc_instr);
+
+  void emitPushNull(TranslationContext& tc);
 
   void emitBinaryOp(
       TranslationContext& tc,
@@ -165,19 +151,15 @@ class HIRBuilder {
   void emitCallEx(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
-  void emitCallFunction(
+      CallFlags flags);
+  void emitCallInstrinsic(
       TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
-  void emitCallKWArgs(
+      const jit::BytecodeInstruction& bc_instr);
+  void emitResume(
+      CFG& cfg,
       TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
-  void emitCallMethod(
-      TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
+      const jit::BytecodeInstruction& bc_instr);
+  void emitKwNames(TranslationContext& tc, const BytecodeInstruction& bc_instr);
   void emitIsOp(TranslationContext& tc, int oparg);
   void emitContainsOp(TranslationContext& tc, int oparg);
   void emitCompareOp(TranslationContext& tc, int compare_op);
@@ -192,14 +174,15 @@ class HIRBuilder {
   void emitLoadAttr(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  void emitLoadMethod(
-      TranslationContext& tc,
-      Environment& env,
-      const jit::BytecodeInstruction& bc_instr);
+  void emitLoadMethod(TranslationContext& tc, int name_idx);
   void emitLoadMethodOrAttrSuper(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       bool load_method);
+  void emitCopy(TranslationContext& tc, int item_idx);
+  void emitCopyFreeVars(TranslationContext& tc, int nfreevars);
+  void emitSwap(TranslationContext& tc, int item_idx);
+  void emitMakeCell(TranslationContext& tc, int local_idx);
   void emitLoadDeref(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -249,12 +232,17 @@ class HIRBuilder {
   void emitPopJumpIf(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitPopJumpIfNone(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitStoreAttr(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitStoreFast(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitBinarySlice(TranslationContext& tc);
+  void emitStoreSlice(TranslationContext& tc);
   void emitStoreSubscr(TranslationContext& tc);
   void emitInPlaceOp(
       TranslationContext& tc,
@@ -269,7 +257,7 @@ class HIRBuilder {
   bool emitInvokeFunction(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited);
+      CallFlags flags);
   bool emitInvokeNative(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -361,8 +349,8 @@ class HIRBuilder {
   void emitGetAwaitable(
       CFG& cfg,
       TranslationContext& tc,
-      int prev_prev_op,
-      int prev_op);
+      const BytecodeInstructionBlock& bc_instrs,
+      BCIndex idx);
   void emitUnpackEx(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -381,9 +369,17 @@ class HIRBuilder {
   void emitGetANext(TranslationContext& tc);
   Register* emitSetupWithCommon(
       TranslationContext& tc,
+#if PY_VERSION_HEX < 0x030C0000
       _Py_Identifier* enter_id,
-      _Py_Identifier* exit_id);
-  void emitBeforeAsyncWith(TranslationContext& tc);
+      _Py_Identifier* exit_id,
+#else
+      PyObject* enter_id,
+      PyObject* exit_id,
+#endif
+      bool is_async);
+  void emitBeforeWith(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitSetupAsyncWith(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -429,6 +425,8 @@ class HIRBuilder {
       TranslationContext& tc,
       const BytecodeInstruction& bc_instr);
 
+  void emitSend(TranslationContext& tc, const BytecodeInstruction& bc_instr);
+
   BorrowedRef<> constArg(const jit::BytecodeInstruction& bc_instr);
 
   ExecutionBlock popBlock(CFG& cfg, TranslationContext& tc);
@@ -441,9 +439,8 @@ class HIRBuilder {
       const FrameState& frame);
   void addInitialYield(TranslationContext& tc);
   void addLoadArgs(TranslationContext& tc, int num_args);
-  void addInitializeCells(TranslationContext& tc, Register* cur_func);
-  void AllocateRegistersForLocals(Environment* env, FrameState& state);
-  void AllocateRegistersForCells(Environment* env, FrameState& state);
+  void addInitializeCells(TranslationContext& tc);
+  void allocateLocalsplus(Environment* env, FrameState& state);
   void moveOverwrittenStackRegisters(TranslationContext& tc, Register* dst);
   bool tryEmitDirectMethodCall(
       const InvokeTarget& target,
@@ -482,11 +479,22 @@ class HIRBuilder {
       Register* src,
       Type type);
 
+  // Check that a code object can be compiled into HIR.
+  void checkTranslate();
+
+  void advancePastYieldInstr(TranslationContext& tc);
+
   BorrowedRef<PyCodeObject> code_;
   BlockMap block_map_;
   const Preloader& preloader_;
 
   TempAllocator temps_{nullptr};
+
+  // Tracks the function for compilations that require it.
+  Register* func_{nullptr};
+
+  // Tracks the most recent constant read from a KW_NAMES opcode.
+  Register* kwnames_{nullptr};
 };
 
 } // namespace jit::hir

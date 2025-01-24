@@ -2,7 +2,6 @@
 #include "cinderx/StrictModules/Objects/function.h"
 
 #include "cinderx/StrictModules/Objects/callable_wrapper.h"
-#include "cinderx/StrictModules/Objects/object_interface.h"
 #include "cinderx/StrictModules/Objects/objects.h"
 
 namespace strictmod::objects {

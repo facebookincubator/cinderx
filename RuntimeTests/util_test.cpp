@@ -2,9 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/symbolizer.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 using UtilTest = RuntimeTest;

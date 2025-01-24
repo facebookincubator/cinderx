@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from .test__opcode import CinderX_OpcodeTests
 from .test_asyncgen import CinderX_AsyncGenAsyncioTest
 from .test_capi import CinderX_CAPITest

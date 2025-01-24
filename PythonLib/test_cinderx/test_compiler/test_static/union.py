@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import re
 import unittest
 from unittest import skip, skipIf

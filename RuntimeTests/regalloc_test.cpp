@@ -4,7 +4,6 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/parser.h"
-#include "cinderx/Jit/lir/printer.h"
 #include "cinderx/Jit/lir/regalloc.h"
 
 #include <fmt/ostream.h>
@@ -184,7 +183,7 @@ BB %14
         allocated,
         "{}->{}\n",
         opnd_id_map.at(interval->vreg),
-        interval->allocated_loc);
+        interval->allocated_loc.loc);
   }
 
   std::string allocated_expected = R"(1->0
@@ -252,7 +251,7 @@ BB %28
     if (!opnd_id_map.count(alloc->vreg)) {
       continue;
     }
-    loc_interval_map[alloc->allocated_loc].push_back(alloc.get());
+    loc_interval_map[alloc->allocated_loc.loc].push_back(alloc.get());
     vreg_location_map[alloc->vreg].push_back(alloc.get());
   }
 

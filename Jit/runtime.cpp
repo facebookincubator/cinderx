@@ -2,10 +2,13 @@
 
 #include "cinderx/Jit/runtime.h"
 
-#include "cinderx/Common/watchers.h"
 #include "internal/pycore_interp.h"
+#include "internal/pycore_pystate.h"
 
-#include "cinderx/Jit/type_deopt_patchers.h"
+#include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/watchers.h"
+#include "cinderx/StaticPython/classloader.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <sys/mman.h>
 
@@ -40,7 +43,8 @@ void Builtins::init() {
   // modules which can be mutated.  First find builtins, which we have
   // to do a search for because PyEval_GetBuiltins() returns the
   // module dict.
-  PyObject* mods = _PyInterpreterState_GET()->modules_by_index;
+  PyObject* mods =
+      CI_INTERP_IMPORT_FIELD(_PyInterpreterState_GET(), modules_by_index);
   PyModuleDef* builtins = nullptr;
   for (Py_ssize_t i = 0; i < PyList_GET_SIZE(mods); i++) {
     PyObject* cur = PyList_GET_ITEM(mods, i);
@@ -105,7 +109,7 @@ std::optional<PyMethodDef*> Builtins::find(const std::string& name) const {
 Runtime* Runtime::s_runtime_{nullptr};
 
 void Runtime::shutdown() {
-  s_runtime_->globalCaches().clear();
+  _PyJIT_GetGlobalCacheManager()->clear();
   delete s_runtime_;
   s_runtime_ = nullptr;
 }
@@ -117,14 +121,6 @@ void Runtime::mlockProfilerDependencies() {
     ::mlock(code->co_qualname, Py_SIZE(code->co_qualname));
   }
   code_runtimes_.mlock();
-}
-
-ProfileRuntime& Runtime::profileRuntime() {
-  return profile_runtime_;
-}
-
-GlobalCacheManager& Runtime::globalCaches() {
-  return global_caches_;
 }
 
 Ref<> Runtime::pageInProfilerDependencies() {
@@ -188,12 +184,12 @@ std::size_t Runtime::addDeoptMetadata(DeoptMetadata&& deopt_meta) {
 
 DeoptMetadata& Runtime::getDeoptMetadata(std::size_t id) {
   JIT_CHECK(
-      g_threaded_compile_context.canAccessSharedData(),
+      getThreadedCompileContext().canAccessSharedData(),
       "getDeoptMetadata() called in unsafe context");
   return deopt_metadata_[id];
 }
 
-void Runtime::recordDeopt(std::size_t idx, PyObject* guilty_value) {
+void Runtime::recordDeopt(std::size_t idx, BorrowedRef<> guilty_value) {
   DeoptStat& stat = deopt_stats_[idx];
   stat.count++;
   if (guilty_value != nullptr) {
@@ -272,18 +268,6 @@ void Runtime::releaseReferences() {
   type_deopt_patchers_.clear();
 }
 
-std::optional<std::string> symbolize(const void* func) {
-  if (!g_symbolize_funcs) {
-    return std::nullopt;
-  }
-  std::optional<std::string_view> mangled_name =
-      Runtime::get()->symbolize(func);
-  if (!mangled_name.has_value()) {
-    return std::nullopt;
-  }
-  return jit::demangle(std::string{*mangled_name});
-}
-
 void Runtime::watchType(
     BorrowedRef<PyTypeObject> type,
     TypeDeoptPatcher* patcher) {
@@ -316,6 +300,57 @@ void Runtime::notifyTypeModified(
   } else {
     it->second = std::move(remaining_patchers);
   }
+}
+
+// JIT generator data free-list globals
+const size_t kGenDataFreeListMaxSize = 1024;
+static size_t gen_data_free_list_size = 0;
+static void* gen_data_free_list_tail;
+
+jit::GenDataFooter* jitgen_data_allocate(size_t spill_words) {
+  spill_words = std::max(spill_words, jit::kMinGenSpillWords);
+  if (spill_words > jit::kMinGenSpillWords || !gen_data_free_list_size) {
+    auto data =
+        malloc(spill_words * sizeof(uint64_t) + sizeof(jit::GenDataFooter));
+    auto footer = reinterpret_cast<jit::GenDataFooter*>(
+        reinterpret_cast<uint64_t*>(data) + spill_words);
+    footer->spillWords = spill_words;
+    return footer;
+  }
+
+  // All free list entries are spill-word size 89, so we don't need to set
+  // footer->spillWords again, it should still be set to 89 from previous use.
+  JIT_DCHECK(spill_words == jit::kMinGenSpillWords, "invalid size");
+
+  gen_data_free_list_size--;
+  void* data = gen_data_free_list_tail;
+  gen_data_free_list_tail = *reinterpret_cast<void**>(gen_data_free_list_tail);
+  return reinterpret_cast<jit::GenDataFooter*>(
+      reinterpret_cast<uint64_t*>(data) + spill_words);
+}
+
+#if PY_VERSION_HEX < 0x030C0000
+void jitgen_data_free(PyGenObject* gen) {
+  auto gen_data_footer =
+      reinterpret_cast<jit::GenDataFooter*>(gen->gi_jit_data);
+  gen->gi_jit_data = nullptr;
+#else
+void jitgen_data_free(GenDataFooter* gen_data_footer) {
+#endif
+  auto gen_data = reinterpret_cast<uint64_t*>(gen_data_footer) -
+      gen_data_footer->spillWords;
+
+  if (gen_data_footer->spillWords != jit::kMinGenSpillWords ||
+      gen_data_free_list_size == kGenDataFreeListMaxSize) {
+    free(gen_data);
+    return;
+  }
+
+  if (gen_data_free_list_size) {
+    *reinterpret_cast<void**>(gen_data) = gen_data_free_list_tail;
+  }
+  gen_data_free_list_size++;
+  gen_data_free_list_tail = gen_data;
 }
 
 } // namespace jit

@@ -11,7 +11,7 @@ template <typename T>
 class RefBase {
  public:
   RefBase() = default;
-  RefBase(std::nullptr_t) {}
+  /* implicit */ RefBase(std::nullptr_t) {}
 
   operator T*() const {
     return ptr_;
@@ -19,7 +19,7 @@ class RefBase {
 
   template <typename X = T>
   operator std::enable_if_t<!std::is_same_v<X, PyObject>, PyObject*>() const {
-    return reinterpret_cast<PyObject*>(ptr_);
+    return getObj();
   }
 
   T* release() {
@@ -30,6 +30,10 @@ class RefBase {
 
   T* get() const {
     return ptr_;
+  }
+
+  PyObject* getObj() const {
+    return reinterpret_cast<PyObject*>(ptr_);
   }
 
   T* operator->() const {
@@ -117,7 +121,7 @@ struct std::hash<BorrowedRef<T>> {
  * Ref is destroyed.
  *
  * A Ref cannot be copied; it uniquely owns its reference. Ownership can be
- * transfered via a move, or a BorrowedRef can be constructed from a Ref.
+ * transferred via a move, or a BorrowedRef can be constructed from a Ref.
  *
  * One common use case is to use a Ref to create a new reference from a
  * borrowed reference that was returned from a call to the runtime, e.g.

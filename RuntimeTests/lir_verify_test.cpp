@@ -4,9 +4,7 @@
 
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/verify.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 using namespace jit;
 

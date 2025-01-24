@@ -2,9 +2,12 @@
 #include <Python.h>
 
 // Including this here is a hack until _strictmodule.c is migrated to CinderX
+#if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#endif
 #include "cinderx/StrictModules/pystrictmodule.h"
 #include "cinderx/StrictModules/strict_module_checker_interface.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #ifndef Py_LIMITED_API
 #ifdef __cplusplus

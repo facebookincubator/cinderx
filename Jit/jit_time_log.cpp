@@ -3,13 +3,11 @@
 #include "cinderx/Jit/jit_time_log.h"
 
 #include "cinderx/Common/log.h"
-
 #include "cinderx/Jit/containers.h"
 
 #include <fmt/core.h>
 #include <fmt/format.h>
 
-#include <iostream>
 #include <memory>
 #include <sstream>
 #include <unordered_map>
@@ -183,7 +181,7 @@ void CompilationPhaseTimer::dumpPhaseTimingsAndTidy() {
   root_ = nullptr;
 }
 
-void CompilationPhaseTimer::start(const std::string& phase_name) {
+void CompilationPhaseTimer::start(std::string_view phase_name) {
   JIT_CHECK(!phase_name.empty(), "Phase name cannot be empty");
   auto timer = std::make_unique<SubPhaseTimer>(phase_name);
   SubPhaseTimer* timerptr = timer.get();

@@ -3,7 +3,6 @@
 
 #include "cinderx/StrictModules/Objects/builtins.h"
 #include "cinderx/StrictModules/Objects/callable_wrapper.h"
-#include "cinderx/StrictModules/Objects/object_interface.h"
 #include "cinderx/StrictModules/Objects/objects.h"
 #include "cinderx/StrictModules/caller_context.h"
 #include "cinderx/StrictModules/caller_context_impl.h"

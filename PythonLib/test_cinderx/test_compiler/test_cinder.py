@@ -1,12 +1,15 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import dis
+import os
+
 from textwrap import dedent
 
 from cinderx.compiler.pycodegen import compile as py_compile
 
-from .. import test_dis
+from ..test_cpython_overrides import test_dis
 
 
-class DualCompilerDisTests(test_dis.DisTests):
+class DualCompilerDisTests(test_dis.CinderX_DisTests):
     compiler = staticmethod(compile)
 
     def compile(self, code_str):
@@ -303,6 +306,20 @@ class LoadSuperPyCompilerTests(LoadSuperTests):
 
 
 class ComprehensionInlinerTests(DualCompilerDisTests):
+    def __init__(self, *args):
+        super().__init__(*args)
+        self.prev_inline = None
+
+    def setUp(self):
+        self.prev_inline = os.environ.get("PYTHONINLINECOMPREHENSIONS")
+        os.environ["PYTHONINLINECOMPREHENSIONS"] = "1"
+
+    def tearDown(self):
+        if self.prev_inline is None:
+            del os.environ["PYTHONINLINECOMPREHENSIONS"]
+        else:
+            os.environ["PYTHONINLINECOMPREHENSIONS"] = self.prev_inline
+
     def test_sync_comp_top(self):
         # ensure module level comprehensions are not inlined
         src = """

@@ -1,4 +1,6 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
+
 from .opcodebase import Opcode
 from .opcodes import opcode as base_opcode
 

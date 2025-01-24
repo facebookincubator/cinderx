@@ -3,7 +3,6 @@
 import _testcapi
 import asyncio
 import builtins
-import cinder
 import dis
 import faulthandler
 import gc
@@ -29,7 +28,7 @@ from textwrap import dedent
 import _testcindercapi
 
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
-from test import cinder_support
+import cinderx.test_support as cinder_support
 
 try:
     with warnings.catch_warnings():
@@ -44,7 +43,13 @@ except ImportError:
 
 try:
     import cinderjit
-    from cinderjit import _deopt_gen, is_jit_compiled, jit_suppress
+    from cinderjit import (
+        _deopt_gen,
+        is_jit_compiled,
+        force_compile,
+        lazy_compile,
+        jit_suppress,
+    )
 except:
     cinderjit = None
 
@@ -52,6 +57,12 @@ except:
         return func
 
     def _deopt_gen(gen):
+        return False
+
+    def force_compile(func):
+        return False
+
+    def lazy_compile(func):
         return False
 
     def is_jit_compiled(func):
@@ -1409,7 +1420,7 @@ class StoreAttrCacheTests(unittest.TestCase):
         obj.quox = 42
 
         # obj1 is no longer split, but the assignment
-        # didn't go through _PyObjectDict_SetItem, so the type
+        # didn't go through Cix_PyObjectDict_SetItem, so the type
         # still has a valid CACHED_KEYS
         obj1 = Base()
         obj1.__dict__["other"] = 100
@@ -3089,15 +3100,15 @@ class EagerCoroutineDispatch(StaticTestBase):
         """
         with self.in_module(codestr, name="test_invoke_function") as mod:
             self.assertInBytecode(
-                mod.await_x, "INVOKE_FUNCTION", (("test_invoke_function", "x"), 0)
+                mod.await_x, "INVOKE_FUNCTION", ((("test_invoke_function",), "x"), 0)
             )
             self.assertInBytecode(
                 mod.await_await_x,
                 "INVOKE_FUNCTION",
-                (("test_invoke_function", "await_x"), 0),
+                ((("test_invoke_function",), "await_x"), 0),
             )
             self.assertInBytecode(
-                mod.call_x, "INVOKE_FUNCTION", (("test_invoke_function", "x"), 0)
+                mod.call_x, "INVOKE_FUNCTION", ((("test_invoke_function",), "x"), 0)
             )
             mod.x = _testcapi.TestAwaitedCall()
             self.assertIsInstance(mod.x, _testcapi.TestAwaitedCall)
@@ -3133,10 +3144,10 @@ class EagerCoroutineDispatch(StaticTestBase):
         """
         with self.in_module(codestr, name="test_invoke_method") as mod:
             self.assertInBytecode(
-                mod.await_x, "INVOKE_METHOD", (("test_invoke_method", "X", "x"), 0)
+                mod.await_x, "INVOKE_METHOD", ((("test_invoke_method", "X",), "x"), 0)
             )
             self.assertInBytecode(
-                mod.call_x, "INVOKE_METHOD", (("test_invoke_method", "X", "x"), 0)
+                mod.call_x, "INVOKE_METHOD", ((("test_invoke_method", "X",), "x"), 0)
             )
             awaited_capturer = mod.X.x = _testcapi.TestAwaitedCall()
             self.assertIsNone(awaited_capturer.last_awaited())
@@ -4262,10 +4273,7 @@ class RegressionTests(StaticTestBase):
 class CinderJitModuleTests(StaticTestBase):
     def test_bad_disable(self):
         with self.assertRaises(TypeError):
-            cinderjit.disable(1, 2)
-
-        with self.assertRaises(TypeError):
-            cinderjit.disable(None)
+            cinderjit.disable(1, 2, 3)
 
     def test_jit_suppress(self):
         @cinderjit.jit_suppress
@@ -5696,6 +5704,53 @@ class HIROpcodeCountTests(unittest.TestCase):
         self.assertEqual(ops.get("Return"), 1)
         self.assertEqual(ops.get("BinaryOp"), 1)
         self.assertGreaterEqual(ops.get("Decref"), 2)
+
+
+@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+class LazyCompileTests(unittest.TestCase):
+    def test_basic(self) -> None:
+        def foo(a, b):
+            return a + b
+
+        self.assertFalse(is_jit_compiled(foo))
+        self.assertTrue(lazy_compile(foo))
+        foo(1, 2)
+        self.assertTrue(is_jit_compiled(foo))
+
+
+@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+class BadArgumentTests(unittest.TestCase):
+    def test_is_compiled(self) -> None:
+        with self.assertRaises(TypeError):
+            is_jit_compiled(None)
+        with self.assertRaises(TypeError):
+            is_jit_compiled(5)
+        with self.assertRaises(TypeError):
+            is_jit_compiled(is_jit_compiled)
+
+    def test_force_compile(self) -> None:
+        with self.assertRaises(TypeError):
+            force_compile(None)
+        with self.assertRaises(TypeError):
+            force_compile(5)
+        with self.assertRaises(TypeError):
+            force_compile(is_jit_compiled)
+
+    def test_lazy_compile(self) -> None:
+        with self.assertRaises(TypeError):
+            lazy_compile(None)
+        with self.assertRaises(TypeError):
+            lazy_compile(5)
+        with self.assertRaises(TypeError):
+            lazy_compile(is_jit_compiled)
+
+    def test_jit_suppress(self) -> None:
+        with self.assertRaises(TypeError):
+            jit_suppress(None)
+        with self.assertRaises(TypeError):
+            jit_suppress(5)
+        with self.assertRaises(TypeError):
+            jit_suppress(is_jit_compiled)
 
 
 if __name__ == "__main__":

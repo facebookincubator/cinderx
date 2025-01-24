@@ -1,7 +1,9 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
-from unittest import skip, skipIf
+import sys
 
 from .common import bad_ret_type, StaticTestBase
+from cinderx.compiler.errors import TypedSyntaxError
 
 try:
     import cinderjit
@@ -29,6 +31,43 @@ class PropertyTests(StaticTestBase):
             C = mod.C
             self.assertEqual(f(C()), 42)
             self.assertInBytecode(f, "INVOKE_FUNCTION")
+
+    def test_property_deleter(self):
+        codestr = """
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> int:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+
+                @foo.setter
+                def foo(self, value: int) -> None:
+                    self.x = value
+
+                @foo.deleter
+                def foo(self) -> None:
+                    del self.x
+
+            def bar(c: C) -> None:
+                del c.foo
+
+        """
+        with self.in_module(codestr) as mod:
+            C = mod.C
+            c = C()
+            c.foo = 50
+            self.assertEqual(c.foo, 50)
+
+            del c.foo
+            self.assertEqual(c.foo, 42)
+
+            bar = mod.bar
+            self.assertInBytecode(bar, "DELETE_ATTR", "foo")
+
+
 
     def test_property_getter_known_exact(self):
         codestr = """
@@ -431,7 +470,11 @@ class PropertyTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             c = mod.C()
-            with self.assertRaisesRegex(AttributeError, "can't set attribute"):
+            if sys.version_info >= (3, 12):
+                err = "property 'prop' of 'C' object has no setter"
+            else:
+                err = "can't set attribute"
+            with self.assertRaisesRegex(AttributeError, err):
                 c.prop = 2
             with self.assertRaisesRegex(AttributeError, "can't set attribute"):
                 c.set(2)
@@ -446,3 +489,161 @@ class PropertyTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertInBytecode(mod.f, "LOAD_ATTR", "a")
+
+    def test_property_override_attribute_call_as_parent_class(self):
+        codestr = """
+            class C:
+                def __init__(self):
+                    self.foo = 42
+
+            class D(C):
+                @property
+                def foo(self) -> int:
+                    return 43
+
+            def bar(c: C) -> int:
+                return c.foo
+        """
+        with self.assertRaisesRegex(
+            TypedSyntaxError, "Cannot override attribute with property method"
+        ):
+            self.compile(codestr)
+
+    def test_property_override_attribute_call_as_child_class(self):
+        codestr = """
+            class C:
+                def __init__(self):
+                    self.foo = 42
+
+            class D(C):
+                @property
+                def foo(self) -> int:
+                    return 43
+
+            def bar(d: D) -> int:
+                return d.foo
+        """
+        with self.assertRaisesRegex(
+            TypedSyntaxError, "Cannot override attribute with property method"
+        ):
+            self.compile(codestr)
+
+    def test_property_override_different_types(self):
+        codestr = """
+            class C:
+                def __init__(self):
+                    self.foo = 42
+
+            class D(C):
+                @property
+                def foo(self) -> str:
+                    return "43"
+
+            def bar(d: D) -> str:
+                return d.foo
+        """
+        with self.assertRaisesRegex(
+            TypedSyntaxError, "Cannot override attribute with property method"
+        ):
+            self.compile(codestr)
+
+    def test_property_getter_typechecks(self):
+        codestr = """
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> str:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+        """
+        self.type_error(
+            codestr,
+            bad_ret_type("int", "str"),
+            "return self.x",
+        )
+       
+
+    def test_property_setter_typechecks(self):
+        codestr = """
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> int:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+
+                @foo.setter
+                def foo(self, value: int) -> int:
+                    self.x = value
+        """
+        self.type_error(
+            codestr,
+            r"Function has declared return type 'int' but can implicitly return None",
+            "def foo(self, value: int) -> int:"
+        )
+
+
+    def test_property_deleter_typechecks(self):
+        codestr = """
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> int:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+
+                @foo.setter
+                def foo(self, value: int) -> None:
+                    self.x = value
+
+                @foo.deleter
+                def foo(self) -> str:
+                    del self.x
+        """
+        self.type_error(
+            codestr,
+            r"Function has declared return type 'str' but can implicitly return None",
+            "def foo(self) -> str",
+        ) 
+
+    def test_property_with_class_decorator(self):
+        codestr = """
+            from typing import TypeVar
+
+            _T = TypeVar("_T")
+            def f(klass: _T) -> _T:
+                return klass
+
+            @f
+            class C:
+                x: int = 42
+
+                @property
+                def foo(self) -> int:
+                    if not hasattr(self, "x"):
+                        self.x = 42
+                    return self.x
+
+                @foo.setter
+                def foo(self, value: int) -> None:
+                    self.x = value
+
+                @foo.deleter
+                def foo(self) -> None:
+                    del self.x
+        """
+
+        with self.in_module(codestr) as mod:
+            C = mod.C
+            c = C()
+            c.foo = 50
+            self.assertEqual(c.foo, 50)
+
+            del c.foo
+            self.assertEqual(c.foo, 42)

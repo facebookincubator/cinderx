@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 import ast
 from textwrap import dedent
 from typing import final, Optional, Sequence
@@ -8,8 +9,6 @@ from cinderx.compiler.strict.flag_extractor import (
     FlagExtractor,
     Flags,
 )
-
-from cinderx.strictmodule import StrictAnalysisResult, StrictModuleLoader
 
 from .common import StrictTestBase
 from .sandbox import sandbox
@@ -57,28 +56,24 @@ class FlagExtractorTest(StrictTestBase):
         self.assertEqual(Flags(is_static=True, is_strict=True), flags)
 
     def test_import_in_class(self):
+        # Silently ignores the import
         code = """
         class A:
             import __strict__
             x = 1
         """
-        self.assertRaisesRegex(
-            BadFlagException,
-            "__strict__ must be a globally namespaced import",
-            lambda: self._get_flags(code),
-        )
+        flags = self._get_flags(code)
+        self.assertEqual(Flags(is_static=False, is_strict=False), flags)
 
     def test_import_in_function(self):
+        # Silently ignores the import
         code = """
         def foo():
             import __strict__
             x = 1
         """
-        self.assertRaisesRegex(
-            BadFlagException,
-            "__strict__ must be a globally namespaced import",
-            lambda: self._get_flags(code),
-        )
+        flags = self._get_flags(code)
+        self.assertEqual(Flags(is_static=False, is_strict=False), flags)
 
     def test_import_after_other_import(self):
         code = """

@@ -2,6 +2,7 @@
 # pyre-unsafe
 
 import ast
+import warnings
 from typing import Any, Callable, Dict, List, Optional, Type
 
 
@@ -79,22 +80,25 @@ def _format_compare(node: ast.Compare, level: int) -> str:
     )
 
 
-def _format_nameconstant(node: ast.NameConstant, level: int) -> str:
-    if node.value is None:
-        return "None"
-    elif node.value is True:
-        return "True"
-    elif node.value is False:
-        return "False"
-    return "<unknown constant>"
+# ast.NameConstant, Num, Str are deprecated but we'll probably want to keep
+# formatting them until they're actually removed.
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=DeprecationWarning)
 
+    def _format_nameconstant(node: ast.NameConstant, level: int) -> str:
+        if node.value is None:
+            return "None"
+        elif node.value is True:
+            return "True"
+        elif node.value is False:
+            return "False"
+        return "<unknown constant>"
 
-def _format_num(node: ast.Num, level: int) -> str:
-    return repr(node.n)
+    def _format_num(node: ast.Num, level: int) -> str:
+        return repr(node.n)
 
-
-def _format_str(node: ast.Str, level: int) -> str:
-    return repr(node.s)
+    def _format_str(node: ast.Str, level: int) -> str:
+        return repr(node.s)
 
 
 def _format_attribute(node: ast.Attribute, level: int) -> str:
@@ -165,6 +169,9 @@ BIN_OPS = {
 def _format_binaryop(node: ast.BinOp, level: int) -> str:
     tgt_level = PR_FACTOR
 
+    # pyre-fixme[6]: For 1st argument expected `Type[Union[Add, BitAnd, BitOr,
+    #  BitXor, Div, FloorDiv, LShift, MatMult, Mod, Mult, Pow, RShift, Sub]]` but got
+    #  `Type[operator]`.
     op, tgt_level = BIN_OPS[type(node.op)]
     rassoc = 0
     if isinstance(node.op, ast.Pow):
@@ -377,39 +384,42 @@ def _format_constant(node: ast.Constant, level: int):
     return repr(node.value)
 
 
-_FORMATTERS: Dict[Type, Callable[[Any, int], str]] = {
-    ast.BoolOp: _format_boolop,
-    ast.BinOp: _format_binaryop,
-    ast.UnaryOp: _format_unaryop,
-    ast.Lambda: _format_lambda,
-    ast.IfExp: _format_if_exp,
-    ast.Dict: _format_dict,
-    ast.Set: _format_set,
-    ast.GeneratorExp: _format_gen_exp,
-    ast.ListComp: _format_list_comp,
-    ast.SetComp: _format_set_comp,
-    ast.DictComp: _format_dict_comp,
-    ast.Yield: _format_yield,
-    ast.YieldFrom: _format_yield_from,
-    ast.Await: _format_await,
-    ast.Compare: _format_compare,
-    ast.Call: _format_call,
-    ast.Constant: _format_constant,
-    ast.Num: _format_num,
-    ast.Str: _format_str,
-    ast.JoinedStr: format_joinedstr,
-    ast.FormattedValue: None,
-    ast.Bytes: lambda node, level: repr(node.s),
-    ast.Ellipsis: lambda node, level: "...",
-    ast.NameConstant: _format_nameconstant,
-    ast.Attribute: _format_attribute,
-    ast.Subscript: _format_subscript,
-    ast.Starred: _format_starred,
-    ast.Name: _format_name,
-    ast.List: _format_list,
-    ast.Tuple: _format_tuple,
-    ast.Slice: _format_slice,
-}
+with warnings.catch_warnings():
+    warnings.simplefilter("ignore", category=DeprecationWarning)
+
+    _FORMATTERS: Dict[Type, Optional[Callable[[Any, int], str]]] = {
+        ast.Attribute: _format_attribute,
+        ast.Await: _format_await,
+        ast.BinOp: _format_binaryop,
+        ast.BoolOp: _format_boolop,
+        ast.Bytes: lambda node, level: repr(node.s),
+        ast.Call: _format_call,
+        ast.Compare: _format_compare,
+        ast.Constant: _format_constant,
+        ast.Dict: _format_dict,
+        ast.DictComp: _format_dict_comp,
+        ast.Ellipsis: lambda node, level: "...",
+        ast.FormattedValue: None,
+        ast.GeneratorExp: _format_gen_exp,
+        ast.IfExp: _format_if_exp,
+        ast.JoinedStr: format_joinedstr,
+        ast.Lambda: _format_lambda,
+        ast.List: _format_list,
+        ast.ListComp: _format_list_comp,
+        ast.Name: _format_name,
+        ast.NameConstant: _format_nameconstant,
+        ast.Num: _format_num,
+        ast.Set: _format_set,
+        ast.SetComp: _format_set_comp,
+        ast.Slice: _format_slice,
+        ast.Starred: _format_starred,
+        ast.Str: _format_str,
+        ast.Subscript: _format_subscript,
+        ast.Tuple: _format_tuple,
+        ast.UnaryOp: _format_unaryop,
+        ast.Yield: _format_yield,
+        ast.YieldFrom: _format_yield_from,
+    }
 
 
 def to_expr(node: Optional[ast.AST], level=PR_TEST) -> str:

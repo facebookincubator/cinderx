@@ -112,7 +112,7 @@ class LIRGenerator {
 
   bool TranslateSpecializedCall(
       BasicBlockBuilder& bbb,
-      const jit::hir::VectorCallBase& instr);
+      const hir::VectorCall& instr);
 
   TranslatedBlock TranslateOneBasicBlock(const hir::BasicBlock* bb);
 

@@ -3,19 +3,19 @@
 #pragma once
 
 #include <Python.h>
-#include "cinderx/StaticPython/classloader.h"
-#include "frameobject.h"
 
-#include <array>
+#if PY_VERSION_HEX >= 0x030C0000
+#include <utility>
+#endif
+
+#include "cinderx/Common/util.h"
+#include "cinderx/StaticPython/typed-args-info.h"
 
 namespace jit {
 class CodeRuntime;
-}
-
-struct JITRT_LoadMethodResult {
-  PyObject* func;
-  PyObject* inst;
-};
+struct GenDataFooter;
+struct JitGenObject;
+} // namespace jit
 
 // static->static call convention for primitive returns is to return error flag
 // in rdx (null means error occurred); for C helpers that need to implement this
@@ -30,6 +30,7 @@ typedef struct {
   double xmm1;
 } JITRT_StaticCallFPReturn;
 
+#if PY_VERSION_HEX < 0x030C0000
 /*
  * Allocate a new PyFrameObject and link it into the current thread's
  * call stack.
@@ -41,6 +42,29 @@ PyThreadState* JITRT_AllocateAndLinkFrame(
     PyCodeObject* code,
     PyObject* builtins,
     PyObject* globals);
+#else
+
+PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Debug(
+    PyFunctionObject* func,
+    PyCodeObject* jit_code_object);
+
+PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Release(
+    PyFunctionObject* func);
+
+std::pair<PyThreadState*, jit::GenDataFooter*>
+JITRT_AllocateAndLinkGenAndInterpreterFrame(
+    PyFunctionObject* func,
+    uint64_t spill_words,
+    jit::CodeRuntime* code_rt,
+    GenResumeFunc resume_entry,
+    uint64_t original_rbp);
+
+std::pair<jit::JitGenObject*, jit::GenDataFooter*>
+JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate);
+
+jit::GenDataFooter* JITRT_GetJITDataFromGen(PyGenObject* gen);
+
+#endif
 
 /*
  * Helper function to decref a frame.
@@ -79,10 +103,6 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
     size_t nargsf,
     int argcount);
 
-#define JITRT_CALL_REENTRY_OFFSET (-6)
-#define JITRT_GET_REENTRY(entry) \
-  ((vectorcallfunc)(((char*)entry) + JITRT_CALL_REENTRY_OFFSET))
-
 /* Helper function to report an error when the arguments aren't correct for
  * a static function call.  Dispatches to the eval loop to let the normal
  * argument checking prologue run and then report the error */
@@ -111,8 +131,8 @@ JITRT_StaticCallFPReturn JITRT_ReportStaticArgTypecheckErrorsWithDoubleReturn(
     PyObject* kwnames);
 
 /*
- * Mimics the behavior of _PyDict_LoadGlobal except that it raises an error when
- * the name does not exist.
+ * Mimics the behavior of Cix_PyDict_LoadGlobal except that it raises an error
+ * when the name does not exist.
  */
 PyObject*
 JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name);
@@ -130,38 +150,6 @@ PyObject* JITRT_LoadGlobalFromThreadState(
 PyObject* JITRT_LoadGlobalsDict(PyThreadState* tstate);
 
 /*
- * Perform a positional-only function call
- *
- * args[0] is expected to point to the callable and args[1] through args[nargs -
- * 1] are expected to point to the arguments to the call.
- */
-PyObject* JITRT_CallFunction(PyObject* func, PyObject** args, Py_ssize_t nargs);
-
-/*
- * As JITRT_CallFunction but eagerly starts coroutines.
- */
-PyObject*
-JITRT_CallFunctionAwaited(PyObject* func, PyObject** args, Py_ssize_t nargs);
-
-/*
- * Perform a combined positional and kwargs function call
- *
- * args[0] points to the callable and args[1] - args[nargs - 2] are all argument
- * values, and args[nargs - 1] is a tuple of strings mapping the last
- * len(args[nargs - 1]) args to named positions.
- */
-PyObject*
-JITRT_CallFunctionKWArgs(PyObject* func, PyObject** args, Py_ssize_t nargs);
-
-/*
- * As JITRT_CallFunctionKWArgs but eagerly starts coroutines.
- */
-PyObject* JITRT_CallFunctionKWArgsAwaited(
-    PyObject* func,
-    PyObject** args,
-    Py_ssize_t nargs);
-
-/*
  * Helper to perform a Python call with dynamically determined arguments.
  *
  * pargs will be a possibly empty tuple of positional arguments, kwargs will be
@@ -177,35 +165,30 @@ PyObject*
 JITRT_CallFunctionExAwaited(PyObject* func, PyObject* pargs, PyObject* kwargs);
 
 /*
- * Perform a positional-only function call.
+ * Perform a function or method call.
  *
- * This is designed to be used in tandem with JITRT_GetMethod to optimize
- * calls that look like instance method calls (e.g. `self.foo()`) to avoid the
- * creation of bound methods.
+ * If it's a method call, then `args[0]` will be the receiver of the method
+ * lookup (e.g. `self`). The rest of `args` will be the positional and keyword
+ * arguments to the call.
  *
- * args[0] is expected to point to the receiver of the method lookup (e.g.
- * `self` in the example above) args[1] through args[nargs - 1] are expected to
- * point to the arguments to the call.
+ * If it's a function call, then `callable` will be Py_None and the actual
+ * callable will be stored in `args[0]`.  The rest of `args` is then the same as
+ * the method case.
+ *
+ * Note: Technically for the function call case, `callable` should be NULL and
+ * not Py_None, but we use NULL return values in HIR to determine where to
+ * deopt.
  */
-PyObject* JITRT_CallMethod(
+PyObject* JITRT_Call(
     PyObject* callable,
-    PyObject** args,
-    Py_ssize_t nargs,
-    PyObject* kwnames);
-
-/*
- * As JITRT_CallMethod but eagerly starts coroutines.
- */
-PyObject* JITRT_CallMethodAwaited(
-    PyObject* callable,
-    PyObject** args,
-    Py_ssize_t nargs,
+    PyObject* const* args,
+    size_t nargsf,
     PyObject* kwnames);
 
 /*
  * Perform a method lookup on an object.
  */
-JITRT_LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
+LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
 
 /*
  * Perform an attribute lookup in a super class
@@ -213,9 +196,9 @@ JITRT_LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
  * This is used to avoid bound method creation for attribute lookups that
  * correspond to method calls (e.g. `self.foo()`).
  */
-JITRT_LoadMethodResult JITRT_GetMethodFromSuper(
+LoadMethodResult JITRT_GetMethodFromSuper(
     PyObject* global_super,
-    PyObject* type,
+    PyTypeObject* type,
     PyObject* self,
     PyObject* name,
     bool no_args_in_super_call);
@@ -225,7 +208,7 @@ JITRT_LoadMethodResult JITRT_GetMethodFromSuper(
  */
 PyObject* JITRT_GetAttrFromSuper(
     PyObject* super_globals,
-    PyObject* type,
+    PyTypeObject* type,
     PyObject* self,
     PyObject* name,
     bool no_args_in_super_call);
@@ -259,18 +242,6 @@ PyObject* JITRT_InvokeClassMethod(
     PyObject** args,
     Py_ssize_t nargs,
     PyObject* kwnames);
-
-/*
- * Invokes a function that was compiled statically.
- */
-PyObject*
-JITRT_InvokeFunction(PyObject* func, PyObject** args, Py_ssize_t nargs);
-
-/*
- * As JITRT_InvokeFunction but eagerly starts coroutines.
- */
-PyObject*
-JITRT_InvokeFunctionAwaited(PyObject* func, PyObject** args, Py_ssize_t nargs);
 
 /*
  * Loads an indirect function, optionally loading it from the descriptor
@@ -388,11 +359,6 @@ PyObject* JITRT_ImportName(
 void JITRT_DoRaise(PyThreadState* tstate, PyObject* exc, PyObject* cause);
 
 /*
- * Frees JIT-specific suspend data allocated in JITRT_MakeGenObject().
- */
-void JITRT_GenJitDataFree(PyGenObject* gen);
-
-/*
  * Formats a f-string value
  */
 PyObject* JITRT_FormatValue(
@@ -409,45 +375,33 @@ PyObject* JITRT_BuildString(
     size_t nargsf,
     void* /*unused*/);
 
-// Per-function entry point function to resume a JIT generator. Arguments are:
-//   - Generator instance to be resumed.
-//   - A value to send in or NULL to raise the current global error on resume.
-//   - A boolean indicating if we need to break out of the current yield-from.
-//   - The current thread-state instance.
-//  Returns result of computation which is a "yielded" value unless the state of
-//  the generator is _PyJITGenState_Completed, in which case it is a "return"
-//  value. If the return is NULL, an exception has been raised.
-typedef PyObject* (*GenResumeFunc)(
-    PyObject* gen,
-    PyObject* send_value,
-    uint64_t finish_yield_from,
-    PyThreadState* tstate);
-
+#if PY_VERSION_HEX < 0x030C0000
 /*
  * Create generator instance for use during InitialYield in a JIT generator.
  * There is a variant for each of the different types of generator: iterators,
  * coroutines, and async generators.
  */
 PyObject* JITRT_MakeGenObject(
-    GenResumeFunc resume_entry,
     PyThreadState* tstate,
+    GenResumeFunc resume_entry,
     size_t spill_words,
     jit::CodeRuntime* code_rt,
     PyCodeObject* code);
 
 PyObject* JITRT_MakeGenObjectAsyncGen(
-    GenResumeFunc resume_entry,
     PyThreadState* tstate,
+    GenResumeFunc resume_entry,
     size_t spill_words,
     jit::CodeRuntime* code_rt,
     PyCodeObject* code);
 
 PyObject* JITRT_MakeGenObjectCoro(
-    GenResumeFunc resume_entry,
     PyThreadState* tstate,
+    GenResumeFunc resume_entry,
     size_t spill_words,
     jit::CodeRuntime* code_rt,
     PyCodeObject* code);
+#endif
 
 // Set the awaiter of the given awaitable to be the coroutine at the top of
 // `ts`.
@@ -459,24 +413,36 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts);
 // The arguments 'gen', 'v', 'finish_yield_from' must match positions with JIT
 // resume entry function (GenResumeFunc) so registers with their values pass
 // straight through.
-struct JITRT_YieldFromRes {
+struct JITRT_GenSendRes {
   PyObject* retval;
   uint64_t done;
 };
-JITRT_YieldFromRes
-JITRT_YieldFrom(PyObject* gen, PyObject* v, uint64_t finish_yield_from);
+JITRT_GenSendRes JITRT_GenSend(
+    PyObject* gen,
+    PyObject* v,
+    uint64_t finish_yield_from
+#if PY_VERSION_HEX >= 0x030C0000
+    ,
+    _PyInterpreterFrame* frame
+#endif
+);
 
 // Used for the `YIELD_FROM` that appears in the bytecode of the header for
 // an `async for` loop.
 //
-// This is identical to JITRT_YieldFrom with the addition that it detects when
+// This is identical to JITRT_GenSend with the addition that it detects when
 // PyExc_StopAsyncIteration has been raised. In such cases the function clears
 // the error and returns a sentinel value indicating that iteration has
 // finished.
-JITRT_YieldFromRes JITRT_YieldFromHandleStopAsyncIteration(
+JITRT_GenSendRes JITRT_GenSendHandleStopAsyncIteration(
     PyObject* gen,
     PyObject* v,
-    uint64_t finish_yield_from);
+    uint64_t finish_yield_from
+#if PY_VERSION_HEX >= 0x030C0000
+    ,
+    _PyInterpreterFrame* frame
+#endif
+);
 
 /* Unpack a sequence as in unpack_iterable(), and save the
  * results in a tuple.
@@ -577,3 +543,20 @@ PyObject* JITRT_CopyDictWithoutKeys(PyObject* subject, PyObject* keys);
 /* Load a name from a Python thread's code object.
  */
 PyObject* JITRT_LoadName(PyThreadState* tstate, int name_idx);
+
+/* Reimplements the format_awaitable_error() function from the CPython
+ * interpreter loop. */
+void JITRT_FormatAwaitableError(
+    PyThreadState* tstate,
+    PyTypeObject* type,
+    bool is_aenter);
+
+void JITRT_IncRefTotal();
+void JITRT_DecRefTotal();
+
+#if PY_VERSION_HEX >= 0x030C0000
+PyObject* JITRT_LookupAttrSpecial(
+    PyObject* obj,
+    PyObject* attr,
+    const char* failure_fmt_str);
+#endif

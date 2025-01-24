@@ -8,8 +8,10 @@ using namespace jit::codegen;
 
 namespace jit::lir {
 
-Rewrite::RewriteResult PostGenerationRewrite::rewriteInlineHelper(
-    function_rewrite_arg_t func) {
+namespace {
+
+// Inline C helper functions.
+RewriteResult rewriteInlineHelper(function_rewrite_arg_t func) {
   if (g_disable_lir_inliner) {
     return kUnchanged;
   }
@@ -17,8 +19,10 @@ Rewrite::RewriteResult PostGenerationRewrite::rewriteInlineHelper(
   return LIRInliner::inlineCalls(func) ? kChanged : kUnchanged;
 }
 
-Rewrite::RewriteResult PostGenerationRewrite::rewriteBinaryOpConstantPosition(
-    instr_iter_t instr_iter) {
+// Fix constant input position. If a binary operation has a constant input,
+// always put it as the second operand (or move the 2nd to a register for div
+// instructions)
+RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   auto block = instr->basicblock();
 
@@ -85,8 +89,8 @@ Rewrite::RewriteResult PostGenerationRewrite::rewriteBinaryOpConstantPosition(
   return kChanged;
 }
 
-Rewrite::RewriteResult PostGenerationRewrite::rewriteBinaryOpLargeConstant(
-    instr_iter_t instr_iter) {
+// Rewrite binary instructions with > 32-bit constant.
+RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   // rewrite
   //     Vreg2 = BinOp Vreg1, Imm64
   // to
@@ -137,8 +141,8 @@ Rewrite::RewriteResult PostGenerationRewrite::rewriteBinaryOpLargeConstant(
   return kChanged;
 }
 
-Rewrite::RewriteResult PostGenerationRewrite::rewriteMoveToMemoryLargeConstant(
-    instr_iter_t instr_iter) {
+// Rewrite storing a large immediate to a memory location
+RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
   // rewrite
   //     [Vreg0 + offset] = Imm64
   // to
@@ -179,8 +183,8 @@ Rewrite::RewriteResult PostGenerationRewrite::rewriteMoveToMemoryLargeConstant(
   return kChanged;
 }
 
-Rewrite::RewriteResult PostGenerationRewrite::rewriteGuardLargeConstant(
-    instr_iter_t instr_iter) {
+// Rewrite Guard instructions with > 32-bit constant.
+RewriteResult rewriteGuardLargeConstant(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (!instr->isGuard()) {
     return kUnchanged;
@@ -208,9 +212,8 @@ Rewrite::RewriteResult PostGenerationRewrite::rewriteGuardLargeConstant(
   return kChanged;
 }
 
-Rewrite::RewriteResult PostGenerationRewrite::rewriteLoadArg(
-    instr_iter_t instr_iter,
-    Environ* env) {
+// Rewrite LoadArg to Bind and allocate a physical register for its input.
+RewriteResult rewriteLoadArg(instr_iter_t instr_iter, Environ* env) {
   auto instr = instr_iter->get();
   if (!instr->isLoadArg()) {
     return kUnchanged;
@@ -226,8 +229,7 @@ Rewrite::RewriteResult PostGenerationRewrite::rewriteLoadArg(
   return kChanged;
 }
 
-Rewrite::RewriteResult PostGenerationRewrite::rewriteBatchDecrefInstrs(
-    instr_iter_t instr_iter) {
+RewriteResult rewriteBatchDecrefInstrs(instr_iter_t instr_iter) {
   auto instr = instr_iter->get();
   if (!instr->isBatchDecref()) {
     return kUnchanged;
@@ -244,7 +246,7 @@ Rewrite::RewriteResult PostGenerationRewrite::rewriteBatchDecrefInstrs(
   return kChanged;
 }
 
-static void populateLoadSecondCallResultPhi(
+void populateLoadSecondCallResultPhi(
     OperandBase::DataType data_type,
     Instruction* phi1,
     Instruction* phi2,
@@ -258,7 +260,7 @@ static void populateLoadSecondCallResultPhi(
 //
 // seen_srcs is used to ensure only one Move is inserted for each root Call
 // instruction in the presence of loops or repeated Phi uses of the same vreg.
-static Instruction* getSecondCallResult(
+Instruction* getSecondCallResult(
     OperandBase::DataType data_type,
     Operand* src,
     Instruction* instr,
@@ -325,7 +327,7 @@ static Instruction* getSecondCallResult(
 // Given a Phi that joins the outputs of multiple Calls (or more Phis that
 // ultimately join the outputs of Calls), populate a second, parallel Phi to
 // join the second result of all original Calls.
-static void populateLoadSecondCallResultPhi(
+void populateLoadSecondCallResultPhi(
     OperandBase::DataType data_type,
     Instruction* phi1,
     Instruction* phi2,
@@ -339,8 +341,8 @@ static void populateLoadSecondCallResultPhi(
   }
 }
 
-Rewrite::RewriteResult PostGenerationRewrite::rewriteLoadSecondCallResult(
-    instr_iter_t instr_iter) {
+// Replace LoadSecondCallResult instructions with an appropriate Move.
+RewriteResult rewriteLoadSecondCallResult(instr_iter_t instr_iter) {
   // Replace "%x = LoadSecondCallResult %y" with "%x = Move RDX" immediately
   // after the call that defines %y. If necessary, trace through Phis,
   // inserting multiple Moves and a new Phi to reconcile them.
@@ -354,6 +356,21 @@ Rewrite::RewriteResult PostGenerationRewrite::rewriteLoadSecondCallResult(
   UnorderedMap<Operand*, Instruction*> seen_srcs;
   getSecondCallResult(instr->output()->dataType(), src, instr, seen_srcs);
   return kRemoved;
+}
+
+} // namespace
+
+void PostGenerationRewrite::registerRewrites() {
+  // rewriteInlineHelper should occur before other rewrites.
+  registerOneRewriteFunction(rewriteInlineHelper, 0);
+  registerOneRewriteFunction(rewriteBatchDecrefInstrs, 0);
+
+  registerOneRewriteFunction(rewriteBinaryOpConstantPosition, 1);
+  registerOneRewriteFunction(rewriteBinaryOpLargeConstant, 1);
+  registerOneRewriteFunction(rewriteGuardLargeConstant, 1);
+  registerOneRewriteFunction(rewriteLoadArg, 1);
+  registerOneRewriteFunction(rewriteMoveToMemoryLargeConstant, 1);
+  registerOneRewriteFunction(rewriteLoadSecondCallResult, 1);
 }
 
 } // namespace jit::lir

@@ -30,16 +30,6 @@ define RUN_CINDER_TEST_RUNNER
 	$(ASAN_TEST_ENV) $(TESTPYTHON) $(1) TestScripts/cinder_test_runner.py dispatcher $(JIT_TEST_RUNNER_ARGS) $(JIT_TEST_RR_ARGS) $(2) -- -w $(3)
 endef
 
-define RUN_TESTCINDERJIT_PROFILE
-	TEST_CINDERJIT_PROFILE_MAKE_PROFILE=1 $(ASAN_TEST_ENV) $(TESTPYTHON) \
-		-X jit-profile-interp -X jit-profile-interp-period=1 -X jit-write-profile="$(abs_builddir)/test_cinderjit_profile.types" \
-		$(1) -munittest -v test_cinderx.test_cinderjit_profile
-	TEST_CINDERJIT_PROFILE_TEST_PROFILE=1 $(ASAN_TEST_ENV) $(TESTPYTHON) \
-		-X jit-read-profile="$(abs_builddir)/test_cinderjit_profile.types" -X jit \
-		$(1) -munittest -v test_cinderx.test_cinderjit_profile
-	rm "$(abs_builddir)/test_cinderjit_profile.types"
-endef
-
 define RUN_TESTCINDERJIT
 	$(call RUN_CINDER_TEST_RUNNER, -X usepycompiler -X jit -X jit-enable-inline-cache-stats-collection $(1))
 	$(ASAN_TEST_ENV) $(TESTPYTHON) -X jit $(1) -X jit-multithreaded-compile-test -X jit-batch-compile-workers=10 -m test_cinderx.multithreaded_compile_test
@@ -48,11 +38,6 @@ endef
 define RUN_TESTCINDERJITAUTO
 	$(call RUN_CINDER_TEST_RUNNER, -X usepycompiler -X jit-auto=200 -X jit-enable-inline-cache-stats-collection $(1))
 endef
-
-define RUN_TESTCINDERJIT_AUTOPROFILE
-	$(call RUN_CINDER_TEST_RUNNER, -X usepycompiler -X jit-auto=200 -X jit-auto-profile=2 -X jit-enable-inline-cache-stats-collection $(1))
-endef
-
 
 testcinder:
 	$(call RUN_CINDER_TEST_RUNNER)
@@ -70,38 +55,17 @@ testcinder_jit_auto:
 	$(call RUN_TESTCINDERJITAUTO,)
 .PHONY: testcinder_jit_auto
 
-testcinder_jit_profile:
-	$(call RUN_TESTCINDERJIT_PROFILE,)
-.PHONY: testcinder_jit_profile
-
-testcinder_jit_auto_profile:
-	$(call RUN_TESTCINDERJIT_AUTOPROFILE,)
-.PHONY: testcinder_jit_auto_profile
-
 testcinder_jit_shadowframe:
 	$(call RUN_TESTCINDERJIT,-X jit-shadow-frame)
 .PHONY: testcinder_jit_shadowframe
-
-testcinder_jit_shadowframe_profile:
-	$(call RUN_TESTCINDERJIT_PROFILE,-X jit-shadow-frame)
-.PHONY: testcinder_jit_shadowframe_profile
 
 testcinder_jit_inliner:
 	$(call RUN_TESTCINDERJIT,-X jit-enable-hir-inliner)
 .PHONY: testcinder_jit_inliner
 
-testcinder_jit_inliner_profile:
-	$(call RUN_TESTCINDERJIT_PROFILE,-X jit-enable-hir-inliner)
-.PHONY: testcinder_jit_inliner_profile
-
 testcinder_jit_shadowframe_inliner:
 	$(call RUN_TESTCINDERJIT,-X jit-shadow-frame -X jit-enable-hir-inliner)
 .PHONY: testcinder_jit_shadowframe_inliner
-
-testcinder_jit_shadowframe_inliner_profile:
-	$(call RUN_TESTCINDERJIT_PROFILE,-X jit-shadow-frame -X jit-enable-hir-inliner)
-.PHONY: testcinder_jit_shadowframe_inliner_profile
-
 
 #
 # C++ Runtime/Strict Module rules
@@ -191,7 +155,6 @@ RUNTIME_TESTS_OBJS= \
 	${RUNTIME_TESTS_BUILD_DIR}/lir_test.o \
 	${RUNTIME_TESTS_BUILD_DIR}/live_type_map_test.o \
 	${RUNTIME_TESTS_BUILD_DIR}/main.o \
-	${RUNTIME_TESTS_BUILD_DIR}/profile_runtime_test.o \
 	${RUNTIME_TESTS_BUILD_DIR}/pyjit_test.o \
 	${RUNTIME_TESTS_BUILD_DIR}/ref_test.o \
 	${RUNTIME_TESTS_BUILD_DIR}/regalloc_test.o \

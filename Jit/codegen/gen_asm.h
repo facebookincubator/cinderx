@@ -3,15 +3,14 @@
 #pragma once
 
 #include <Python.h>
+
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
-
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/jit_rt.h"
-#include "cinderx/Jit/lir/printer.h"
+#include "cinderx/Jit/lir/function.h"
 
 #include <asmjit/asmjit.h>
 
@@ -24,43 +23,26 @@
 #include <unordered_set>
 #include <vector>
 
-namespace jit::codegen {
+// Use a special define to keep it clear why much code changes in 3.12+
+#if PY_VERSION_HEX < 0x030C0000
+#define SHADOW_FRAMES 1
+#endif
 
-// Generate the final stage trampoline that is responsible for finishing
-// execution in the interpreter and then returning the result to the caller.
-void* generateDeoptTrampoline(bool generator_mode);
-void* generateFailedDeferredCompileTrampoline();
+namespace jit::codegen {
 
 class NativeGenerator {
  public:
-  NativeGenerator(const hir::Function* func)
-      : func_(func),
-        deopt_trampoline_(generateDeoptTrampoline(false)),
-        deopt_trampoline_generators_(generateDeoptTrampoline(true)),
-        failed_deferred_compile_trampoline_(
-            generateFailedDeferredCompileTrampoline()),
-        frame_header_size_(calcFrameHeaderSize(func)),
-        max_inline_depth_(calcMaxInlineDepth(func)) {
-    env_.has_inlined_functions = max_inline_depth_ > 0;
-  }
+  explicit NativeGenerator(const hir::Function* func);
 
   NativeGenerator(
       const hir::Function* func,
       void* deopt_trampoline,
       void* deopt_trampoline_generators,
-      void* failed_deferred_compile_trampoline)
-      : func_(func),
-        deopt_trampoline_(deopt_trampoline),
-        deopt_trampoline_generators_(deopt_trampoline_generators),
-        failed_deferred_compile_trampoline_(failed_deferred_compile_trampoline),
-        frame_header_size_(calcFrameHeaderSize(func)),
-        max_inline_depth_(calcMaxInlineDepth(func)) {
-    env_.has_inlined_functions = max_inline_depth_ > 0;
-  }
+      void* failed_deferred_compile_trampoline);
 
-  void SetJSONOutput(nlohmann::json* json) {
-    JIT_CHECK(json != nullptr, "expected non-null stream");
-    this->json = json;
+  void SetJSONOutput(nlohmann::json* json_2) {
+    JIT_CHECK(json_2 != nullptr, "expected non-null stream");
+    this->json = json_2;
   }
 
   ~NativeGenerator() {
@@ -117,7 +99,9 @@ class NativeGenerator {
 
   size_t compiled_size_{0};
   int spill_stack_size_{-1};
-  int frame_header_size_;
+#if PY_VERSION_HEX < 0x030C0000
+  const int frame_header_size_;
+#endif
   int max_inline_depth_;
 
   bool hasStaticEntry() const;
@@ -131,12 +115,18 @@ class NativeGenerator {
   void initializeFrameHeader(
       asmjit::x86::Gp tstate_reg,
       asmjit::x86::Gp scratch_reg);
-  void setupFrameAndSaveCallerRegisters(asmjit::x86::Gp tstate_reg);
+  void setupFrameAndSaveCallerRegisters(
+#ifdef SHADOW_FRAMES
+      asmjit::x86::Gp tstate_reg
+#endif
+  );
   void generatePrologue(
       asmjit::Label correct_arg_count,
       asmjit::Label native_entry_point);
   void loadOrGenerateLinkFrame(
-      asmjit::x86::Gp tstate_reg,
+#if PY_VERSION_HEX >= 0x030C0000
+      asmjit::x86::Gp func_reg,
+#endif
       const std::vector<
           std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
           save_regs);
@@ -157,27 +147,29 @@ class NativeGenerator {
 
   void generateAssemblyBody(const asmjit::CodeHolder& code);
 
+  void generatePrimitiveArgsPrologue();
+  void generateArgcountCheckPrologue(asmjit::Label correct_arg_count);
+
+  // If the function returns a primitive, then in the generic (non-static) entry
+  // path it needs to box it up.  Do this by generating a small wrapper
+  // "function" here that calls the real function and boxes its result.
+  //
+  // Returns the generic entry cursor and the cursor to the boxed wrapper, if it
+  // was generated.
+  std::pair<asmjit::BaseNode*, asmjit::BaseNode*> generateBoxedReturnWrapper();
+
   std::unique_ptr<lir::Function> lir_func_;
   Environ env_;
   nlohmann::json* json{nullptr};
 };
 
+// Factory class for creating instances of NativeGenerator that reuse the same
+// trampolines.
 class NativeGeneratorFactory {
  public:
-  NativeGeneratorFactory() {
-    deopt_trampoline_ = generateDeoptTrampoline(false);
-    deopt_trampoline_generators_ = generateDeoptTrampoline(true);
-    failed_deferred_compile_trampoline_ =
-        generateFailedDeferredCompileTrampoline();
-  }
+  NativeGeneratorFactory();
 
-  std::unique_ptr<NativeGenerator> operator()(const hir::Function* func) const {
-    return std::make_unique<NativeGenerator>(
-        func,
-        deopt_trampoline_,
-        deopt_trampoline_generators_,
-        failed_deferred_compile_trampoline_);
-  }
+  std::unique_ptr<NativeGenerator> operator()(const hir::Function* func) const;
 
   DISALLOW_COPY_AND_ASSIGN(NativeGeneratorFactory);
 
@@ -186,9 +178,5 @@ class NativeGeneratorFactory {
   void* deopt_trampoline_generators_;
   void* failed_deferred_compile_trampoline_;
 };
-
-// Returns whether or not we can load/store reg from/to addr with a single
-// instruction.
-bool canLoadStoreAddr(asmjit::x86::Gp reg, int64_t addr);
 
 } // namespace jit::codegen

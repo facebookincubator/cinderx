@@ -1,9 +1,10 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.static.compiler import Compiler
 from cinderx.compiler.static.module_table import ModuleTable, ModuleTableException
 from cinderx.compiler.static.types import TypeEnvironment, Value
 from cinderx.compiler.strict.compiler import Compiler as StrictCompiler
 
-from .common import get_child, StaticTestBase, StaticTestsStrictModuleLoader
+from .common import get_child, StaticTestBase
 
 
 class ModuleTests(StaticTestBase):
@@ -162,7 +163,7 @@ class ModuleTests(StaticTestBase):
         """
         compiler = self.compiler(a=acode, b=bcode, c=ccode)
         f = self.find_code(compiler.compile_module("c"), "f")
-        self.assertInBytecode(f, "INVOKE_FUNCTION", (("a", "foo"), 1))
+        self.assertInBytecode(f, "INVOKE_FUNCTION", ((("a",), "foo"), 1))
 
     def test_module_special_name_access(self) -> None:
         acode = """
@@ -238,6 +239,72 @@ class ModuleTests(StaticTestBase):
         # we decl-visit `a` first, making this a cycle (if imports are eager)
         compiler = self.decl_visit(**{"a": acode, "b": bcode})
         compiler.compile_module("b")
+
+    def test_recursive_imports_subclassing_cross_dependency(self) -> None:
+        acode = """
+            from typing import TYPE_CHECKING, Optional
+            if TYPE_CHECKING:
+                from b import X
+
+            class C:
+                def __init__(self):
+                    self.foo: Optional[X] = None
+
+                @property
+                def prop(self) -> int:
+                    return 42
+        """
+        bcode = """
+            from a import C
+
+            class X(C):
+                @property
+                def prop(self) -> int:
+                    return 42
+        """
+        # we decl-visit `a` first, making this a cycle (if imports are eager)
+        compiler = self.decl_visit(**{"a": acode, "b": bcode})
+        compiler.compile_module("b")
+
+    def test_class_member_circular_reference(self) -> None:
+        """Resolving the type for an attribute on a class shouldn't trigger
+        the immediate import of a dependency so that a cycle should succeed"""
+        acode = """
+            from b import C
+
+            class X(C):
+                pass
+        """
+        bcode = """
+            if TYPE_CHECKING:
+                from a import X
+
+            class A:
+                x: X
+        """
+        compiler = self.decl_visit(**{"a": acode, "b": bcode})
+        compiler.compile_module("a")
+
+    def test_class_member_circular_reference_generic(self) -> None:
+        """Resolving the type for an attribute on a class shouldn't trigger
+        the immediate import of a dependency so that a cycle should succeed"""
+        acode = """
+            from b import C
+            from typing import Generic, TypeVar
+
+            T = TypeVar('T')
+            class X(Generic[T], C):
+                pass
+        """
+        bcode = """
+            if TYPE_CHECKING:
+                from a import X
+
+            class A:
+                x: X[int]
+        """
+        compiler = self.decl_visit(**{"a": acode, "b": bcode})
+        compiler.compile_module("a")
 
     def test_actual_cyclic_reference(self) -> None:
         acode = """

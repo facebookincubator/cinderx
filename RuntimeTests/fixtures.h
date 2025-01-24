@@ -1,13 +1,12 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #pragma once
 
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
-#include <Python.h>
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/StaticPython/strictmoduleobject.h"
-#include "internal/pycore_interp.h"
-
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -16,42 +15,70 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/pyjit.h"
-
 #include "cinderx/RuntimeTests/testutil.h"
+#include "cinderx/StaticPython/strictmoduleobject.h"
 
 #define JIT_TEST_MOD_NAME "jittestmodule"
 
+#define THROW(...)                                      \
+  {                                                     \
+    if (PyErr_Occurred()) {                             \
+      PyErr_Print();                                    \
+    }                                                   \
+    throw std::runtime_error{fmt::format(__VA_ARGS__)}; \
+  }
+
 class RuntimeTest : public ::testing::Test {
  public:
-  RuntimeTest(bool compile_static = false) : compile_static_(compile_static) {}
+  enum Flags {
+    kJit = 1 << 0,
+    // Use CinderX's bytecode compiler implemented in Python.
+    kCinderCompiler = 1 << 1,
+    // Use the Static Python bytecode compiler.
+    kStaticCompiler = 1 << 2,
+  };
 
-  virtual bool setUpJit() const {
-    return true;
+  static constexpr Flags kDefaultFlags{
+      static_cast<Flags>(kJit | kCinderCompiler)};
+
+  RuntimeTest(Flags flags = kDefaultFlags) : flags_{flags} {
+    // TODO(T190613453): Python compiler doesn't work with 3.12 yet.
+    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+      flags_ = static_cast<Flags>(flags_ & ~kCinderCompiler);
+    }
+
+    JIT_CHECK(
+        !isCinderCompiler() || !isStaticCompiler(),
+        "Cannot use both the static and the cinder compiler");
   }
 
   void SetUp() override {
-    ASSERT_FALSE(_PyJIT_IsEnabled())
+    ASSERT_FALSE(jit::isJitUsable())
         << "Haven't called Py_Initialize yet but the JIT says it's enabled";
 
-    bool jit = setUpJit();
+    bool jit = isJit();
     if (jit) {
       jit::getMutableConfig().force_init = true;
     }
 
     Py_Initialize();
     ASSERT_TRUE(Py_IsInitialized());
-    if (compile_static_) {
-      globals_ = MakeGlobalsStrict();
-    } else {
-      globals_ = MakeGlobals();
-    }
+
+    // This should use _PyJIT_Enabled(), but that doesn't actually get set to
+    // true in RuntimeTests, even when the JIT is running.  Generally the first
+    // failure we see is trying to use the code allocator and crashing.
+    ASSERT_TRUE(!jit || jit::CodeAllocator::exists())
+        << "Configured to use the JIT but it wasn't initialized";
+
+    globals_ = isStaticCompiler() ? MakeGlobalsStrict() : MakeGlobals();
     ASSERT_NE(globals_, nullptr);
+
     isolated_preloaders_.emplace();
   }
 
   void TearDown() override {
     isolated_preloaders_.reset();
-    if (setUpJit()) {
+    if (isJit()) {
       jit::getMutableConfig().force_init = false;
     }
 
@@ -59,37 +86,67 @@ class RuntimeTest : public ::testing::Test {
     int result = Py_FinalizeEx();
     ASSERT_EQ(result, 0) << "Failed finalizing the interpreter";
 
-    ASSERT_FALSE(_PyJIT_IsEnabled())
+    ASSERT_FALSE(jit::isJitUsable())
+        << "JIT should be disabled with Py_FinalizeEx";
+    ASSERT_FALSE(jit::CodeAllocator::exists())
         << "JIT should be disabled with Py_FinalizeEx";
   }
 
-  bool runCode(const char* src) {
-    return runCodeModuleExec(src, "cinderx.compiler", "exec_cinder");
+  void runCode(const char* src) {
+    if (isCinderCompiler()) {
+      runCinderCode(src);
+    } else if (isStaticCompiler()) {
+      runStaticCode(src);
+    } else {
+      runStockCode(src);
+    }
   }
 
-  bool runStaticCode(const char* src) {
-    return runCodeModuleExec(src, "cinderx.compiler.static", "exec_static");
+  void runCinderCode(const char* src) {
+    runCodeModuleExec(src, "cinderx.compiler", "exec_cinder");
   }
 
-  bool runCodeModuleExec(
+  void runStaticCode(const char* src) {
+    runCodeModuleExec(src, "cinderx.compiler.static", "exec_static");
+  }
+
+  // Compile code with the stock CPython bytecode compiler and then run it.
+  void runStockCode(const char* src) {
+    const char* filename = "fake_runtime_tests_filename.py";
+    // Code isn't limited to being a single expression or statement.
+    int start = Py_file_input;
+    auto code = Ref<>::steal(Py_CompileString(src, filename, start));
+    if (code == nullptr) {
+      THROW("Failed to compile code using the CPython compiler");
+    }
+    auto result = Ref<>::steal(PyEval_EvalCode(code, globals_, globals_));
+    if (result == nullptr) {
+      THROW("Failed to execute code that was compiled by the CPython compiler");
+    }
+  }
+
+  void runCodeModuleExec(
       const char* src,
       const char* compiler_module,
       const char* exec_fn) {
     auto compiler = Ref<>::steal(PyImport_ImportModule(compiler_module));
     if (compiler == nullptr) {
-      return false;
+      THROW("Failed to load compiler module '{}'", compiler_module);
     }
     auto exec_static = Ref<>::steal(PyObject_GetAttrString(compiler, exec_fn));
     if (exec_static == nullptr) {
-      return false;
+      THROW(
+          "Failed to load function '{}' from compiler module '{}'",
+          exec_fn,
+          compiler_module);
     }
     auto src_code = Ref<>::steal(PyUnicode_FromString(src));
     if (src_code == nullptr) {
-      return false;
+      THROW("Failed to convert code string into unicode object");
     }
     auto mod_name = Ref<>::steal(PyUnicode_FromString(JIT_TEST_MOD_NAME));
     if (mod_name == nullptr) {
-      return false;
+      THROW("Failed to create unicode object for '{}'", JIT_TEST_MOD_NAME);
     }
     auto res = Ref<>::steal(PyObject_CallFunctionObjArgs(
         exec_static,
@@ -98,31 +155,31 @@ class RuntimeTest : public ::testing::Test {
         globals_.get(),
         mod_name.get(),
         nullptr));
-    return res != nullptr;
+    if (res == nullptr) {
+      THROW("Failed running compiler '{}:{}'", compiler_module, exec_fn);
+    }
   }
 
-  // Run some code with profiling enabled, and save the resulting profile data.
-  void runAndProfileCode(const char* src);
-
   Ref<> compileAndGet(const char* src, const char* name) {
-    if (!runCode(src)) {
-      return Ref<>(nullptr);
-    }
+    runCode(src);
     return getGlobal(name);
   }
 
   Ref<> compileStaticAndGet(const char* src, const char* name) {
-    if (!runStaticCode(src)) {
-      if (PyErr_Occurred()) {
-        PyErr_Print();
-      }
-      return Ref<>(nullptr);
-    }
+    runStaticCode(src);
+    return getGlobal(name);
+  }
+
+  Ref<> compileStockAndGet(const char* src, const char* name) {
+    runStockCode(src);
     return getGlobal(name);
   }
 
   Ref<> getGlobal(const char* name) {
     PyObject* obj = PyDict_GetItemString(globals_, name);
+    if (obj == nullptr) {
+      THROW("Failed to load global '{}' after compilation", name);
+    }
     return Ref<>::create(obj);
   }
 
@@ -193,7 +250,7 @@ class RuntimeTest : public ::testing::Test {
   bool AddModuleWithBuiltins(BorrowedRef<> module, BorrowedRef<> globals) {
     // Look up the builtins module to mimic real code, rather than using its
     // dict.
-    auto modules = PyThreadState_Get()->interp->modules;
+    auto modules = CI_INTERP_IMPORT_FIELD(PyInterpreterState_Get(), modules);
     auto builtins = PyDict_GetItemString(modules, "builtins");
     if (PyDict_SetItemString(globals, "__builtins__", builtins) != 0 ||
         PyDict_SetItemString(modules, JIT_TEST_MOD_NAME, module) != 0) {
@@ -215,7 +272,6 @@ class RuntimeTest : public ::testing::Test {
     ASSERT_NE(func.get(), nullptr) << "failed creating function";
 
     irfunc = buildHIR(func);
-    ASSERT_NE(irfunc, nullptr) << "failed constructing HIR";
   }
 
   void CompileToHIRStatic(
@@ -226,38 +282,44 @@ class RuntimeTest : public ::testing::Test {
     ASSERT_NE(func.get(), nullptr) << "failed creating function";
 
     irfunc = buildHIR(func);
-    ASSERT_NE(irfunc, nullptr) << "failed constructing HIR";
   }
 
- protected:
-  bool compile_static_;
+  bool isStaticCompiler() const {
+    return flags_ & kStaticCompiler;
+  }
+
+  bool isCinderCompiler() const {
+    return flags_ & kCinderCompiler;
+  }
+
+  bool isJit() const {
+    return flags_ & kJit;
+  }
 
  private:
   Ref<> globals_;
-  std::optional<jit::IsolatedPreloaders> isolated_preloaders_;
+  std::optional<jit::hir::IsolatedPreloaders> isolated_preloaders_;
+  Flags flags_;
 };
+
+constexpr RuntimeTest::Flags operator|(
+    RuntimeTest::Flags a,
+    RuntimeTest::Flags b) {
+  return static_cast<RuntimeTest::Flags>(
+      static_cast<int>(a) | static_cast<int>(b));
+}
 
 class HIRTest : public RuntimeTest {
  public:
-  enum Flags {
-    kCompileStatic = 1 << 0,
-    kUseProfileData = 1 << 1,
-  };
-
   HIRTest(
+      Flags flags,
       bool src_is_hir,
       const std::string& src,
-      const std::string& expected_hir,
-      Flags flags)
-      : RuntimeTest(flags & kCompileStatic),
-        src_is_hir_(src_is_hir),
-        src_(src),
-        expected_hir_(expected_hir),
-        use_profile_data_(flags & kUseProfileData) {
-    JIT_CHECK(
-        !src_is_hir || !use_profile_data_,
-        "Profile data tests can't have HIR input");
-  }
+      const std::string& expected_hir)
+      : RuntimeTest{flags},
+        src_{src},
+        expected_hir_{expected_hir},
+        src_is_hir_{src_is_hir} {}
 
   void setPasses(std::vector<std::unique_ptr<jit::hir::Pass>> passes) {
     passes_ = std::move(passes);
@@ -267,20 +329,15 @@ class HIRTest : public RuntimeTest {
 
  private:
   std::vector<std::unique_ptr<jit::hir::Pass>> passes_;
-  bool src_is_hir_;
   std::string src_;
   std::string expected_hir_;
-  bool use_profile_data_;
+  bool src_is_hir_;
 };
-
-inline HIRTest::Flags operator|(HIRTest::Flags a, HIRTest::Flags b) {
-  return static_cast<HIRTest::Flags>(static_cast<int>(a) | static_cast<int>(b));
-}
 
 class HIRJSONTest : public RuntimeTest {
  public:
   HIRJSONTest(const std::string& src, const std::string& expected_json)
-      : RuntimeTest(), src_(src), expected_json_(expected_json) {}
+      : src_(src), expected_json_(expected_json) {}
 
   void TestBody() override;
 

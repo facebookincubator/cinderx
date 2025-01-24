@@ -67,7 +67,9 @@ bool LIRInliner::inlineCall() {
   resolveArguments();
 
   resolveReturnValue();
-  JIT_DLOG("inlined function");
+
+  JIT_DLOG("Inlined LIR function into {}", callerName());
+
   return true;
 }
 
@@ -261,7 +263,7 @@ bool LIRInliner::resolveArguments() {
 void LIRInliner::resolveLoadArg(
     UnorderedMap<OperandBase*, LinkedOperand*>& vreg_map,
     BasicBlock* bb,
-    BasicBlock::InstrList::iterator& instr_it) {
+    instr_iter_t& instr_it) {
   auto instr = instr_it->get();
   JIT_DCHECK(
       instr->getNumInputs() > 0 && instr->getInput(0)->isImm(),
@@ -355,6 +357,14 @@ void LIRInliner::resolveReturnValue() {
     }
     call_instr_->allocateLinkedInput(phi_instr);
   }
+}
+
+std::string_view LIRInliner::callerName() {
+  const hir::Instr* hir_call = call_instr_->origin();
+  if (hir_call == nullptr) {
+    return "<unnamed LIR function>";
+  }
+  return hir_call->block()->cfg->func->fullname;
 }
 
 } // namespace lir

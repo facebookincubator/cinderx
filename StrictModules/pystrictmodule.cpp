@@ -1,8 +1,9 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include "cinderx/StrictModules/pystrictmodule.h"
 
-#include "cinderx/StrictModules/pycore_dependencies.h"
 #include "structmember.h"
+
+#include "cinderx/StrictModules/pycore_dependencies.h"
 
 #include <vector>
 

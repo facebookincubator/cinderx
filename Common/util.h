@@ -49,8 +49,15 @@ constexpr bool kPyDebug =
     false;
 #endif
 
+constexpr bool kPyRefDebug =
+#ifdef Py_REF_DEBUG
+    true;
+#else
+    false;
+#endif
+
 constexpr bool kImmortalInstances =
-#ifdef Py_IMMORTAL_INSTANCES
+#if defined(Py_IMMORTAL_INSTANCES) || PY_VERSION_HEX >= 0x030C0000
     true;
 #else
     false;
@@ -65,6 +72,26 @@ struct jit_string_deleter {
 using auto_jit_string_t = std::unique_ptr<jit_string_t, jit_string_deleter>;
 
 const char* ss_get_string(const auto_jit_string_t& ss);
+
+// Loading a method means getting back a callable and possibly the object
+// instance to use as the first argument.
+struct LoadMethodResult {
+  PyObject* func;
+  PyObject* inst;
+};
+
+// Per-function entry point function to resume a JIT generator. Arguments are:
+//   - Generator instance to be resumed.
+//   - A value to send in or NULL to raise the current global error on resume.
+//   - A boolean indicating if we need to break out of the current yield-from.
+//   - The current thread-state instance.
+//  Returns result of computation which is a "yielded" value unless the state of
+//  the generator is _PyJITGenState_Completed, in which case it is a "return"
+//  value. If the return is NULL, an exception has been raised.
+using GenResumeFunc = PyObject* (*)(PyObject* gen,
+                                    PyObject* send_value,
+                                    uint64_t finish_yield_from,
+                                    PyThreadState* tstate);
 
 namespace jit {
 
@@ -325,5 +352,5 @@ inline constexpr D bit_cast(const S& src) {
 // this is for non-test builds. define FRIEND_TEST here so we don't
 // have to include the googletest header in our headers to be tested.
 #ifndef FRIEND_TEST
-#define FRIEND_TEST(test_case_name, test_name)
+#define FRIEND_TEST(test_case_name, test_name) friend class test_case_name
 #endif

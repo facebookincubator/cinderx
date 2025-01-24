@@ -1,18 +1,19 @@
+--- Test Suite Name ---
 InlinerEliminationTest
----
+--- Passes ---
 InlineFunctionCalls
 Simplify
 BeginInlinedFunctionElimination
----
+--- Test Name ---
 Simple
----
+--- Input ---
 def foo():
     # Chosen by fair dice roll. Guaranteed to be random.
     return 4
 
 def test():
     return foo()
----
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -29,9 +30,45 @@ fun jittestmodule:test {
     Return v7
   }
 }
----
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v6:Func = LoadCurrentFunc
+    Snapshot
+    v7:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v7
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v8:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v9:Nullptr = LoadConst<Nullptr>
+    v10:OptObject = LoadGlobalCached<0; "foo">
+    v11:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v10 {
+      Descr 'LOAD_GLOBAL: foo'
+    }
+    Snapshot
+    v13:Object = VectorCall<0> v11 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    Return v13
+  }
+}
+--- Test Name ---
 InlineMultipleFunctions
----
+--- Input ---
 def foo():
     return 3
 
@@ -40,7 +77,7 @@ def bar():
 
 def test():
     return foo() + bar()
----
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -73,15 +110,70 @@ fun jittestmodule:test {
     Return v25
   }
 }
----
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v10:Func = LoadCurrentFunc
+    Snapshot
+    v11:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v11
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v12:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v13:Nullptr = LoadConst<Nullptr>
+    v14:OptObject = LoadGlobalCached<0; "foo">
+    v15:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v14 {
+      Descr 'LOAD_GLOBAL: foo'
+    }
+    Snapshot
+    v22:Object = VectorCall<0> v15 {
+      FrameState {
+        CurInstrOffset 12
+      }
+    }
+    Snapshot
+    v17:Nullptr = LoadConst<Nullptr>
+    v18:OptObject = LoadGlobalCached<1; "bar">
+    v19:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v18 {
+      Descr 'LOAD_GLOBAL: bar'
+    }
+    Snapshot
+    v23:Object = VectorCall<0> v19 {
+      FrameState {
+        CurInstrOffset 30
+        Stack<1> v22
+      }
+    }
+    Snapshot
+    v21:Object = BinaryOp<Add> v22 v23 {
+      FrameState {
+        CurInstrOffset 38
+      }
+    }
+    Snapshot
+    Return v21
+  }
+}
+--- Test Name ---
 BeginEndWithMemoryEffectsNotRemoved
----
+--- Input ---
 def add(x, y):
   return x + y
 
 def test():
     return add(3, "x")
----
+--- Expected 3.10 ---
 fun jittestmodule:test {
   bb 0 {
     Snapshot
@@ -96,12 +188,12 @@ fun jittestmodule:test {
     v20:MortalCode["add"] = GuardIs<0xdeadbeef> v19 {
     }
     BeginInlinedFunction<jittestmodule:add> {
-      NextInstrOffset 8
+      CurInstrOffset 6
     }
     Snapshot
     v17:Object = BinaryOp<Add> v6 v7 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<2> v6 v7
       }
     }
@@ -111,4 +203,42 @@ fun jittestmodule:test {
     Return v17
   }
 }
----
+--- Expected 3.12 ---
+fun jittestmodule:test {
+  bb 0 {
+    v8:Func = LoadCurrentFunc
+    Snapshot
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v11:Nullptr = LoadConst<Nullptr>
+    v12:OptObject = LoadGlobalCached<0; "add">
+    v13:MortalFunc[function:0xdeadbeef] = GuardIs<0xdeadbeef> v12 {
+      Descr 'LOAD_GLOBAL: add'
+    }
+    Snapshot
+    v14:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v15:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
+    v17:Object = VectorCall<2> v13 v14 v15 {
+      FrameState {
+        CurInstrOffset 16
+      }
+    }
+    Snapshot
+    Return v17
+  }
+}
+--- End ---

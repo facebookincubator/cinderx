@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 while True:
     if x:
         try:

@@ -1,24 +1,37 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
 import dis
 import glob
 import inspect
+import re
 import sys
+from dataclasses import dataclass
 from io import StringIO
 from os import path
-from subprocess import PIPE, run
+from subprocess import run
 from types import CodeType
 from unittest import TestCase
 
-from cinderx.compiler.pycodegen import make_compiler
+from cinderx.compiler.pycodegen import (
+    CinderCodeGenerator310,
+    CodeGenerator,
+    CodeGenerator312,
+    make_compiler,
+)
 
 
 _UNSPECIFIED = object()
+
+# dis exception table output lines look like:
+#   4 to 24 -> 122 [0] lasti
+DIS_EXC_RE = re.compile(r"(\d+) to (\d+) -> (\d+) \[(\d+)\]( lasti)?")
 
 
 def get_repo_root():
     dirname = path.dirname(__file__)
     completed_process = run(
-        ["git", "rev-parse", "--show-toplevel"], cwd=dirname, capture_output=True)
+        ["git", "rev-parse", "--show-toplevel"], cwd=dirname, capture_output=True
+    )
     if completed_process.returncode:
         print("Error occurred", file=sys.stderr)
         sys.exit(1)
@@ -32,6 +45,17 @@ def glob_test(target_dir, pattern, adder):
 
 
 class CompilerTest(TestCase):
+    if sys.version_info >= (3, 12):
+        SUPER_ATTR = "LOAD_SUPER_ATTR"
+        CALL = "CALL"
+        COMPARE_JUMP_NONZERO = "POP_JUMP_IF_NONZERO"
+        COMPARE_JUMP_ZERO = "POP_JUMP_IF_ZERO"
+    else:
+        SUPER_ATTR = "LOAD_ATTR_SUPER"
+        CALL = "CALL_FUNCTION"
+        COMPARE_JUMP_NONZERO = "JUMP_IF_NONZERO_OR_POP"
+        COMPARE_JUMP_ZERO = "JUMP_IF_ZERO_OR_POP"
+
     def get_disassembly_as_string(self, co):
         s = StringIO()
         dis.dis(co, file=s)
@@ -65,8 +89,45 @@ class CompilerTest(TestCase):
                     msg = f"({opname},{argval!r}) occurs in bytecode:\n{disassembly}"
                     self.fail(msg)
 
+    def assertLoadMethodInBytecode(self, x, name: str) -> None:
+        if sys.version_info >= (3, 12):
+            # We may want to do better here and check the oparg flag in the future.
+            self.assertInBytecode(x, "LOAD_ATTR", name)
+        else:
+            self.assertInBytecode(x, "LOAD_METHOD", name)
+
+    def assertBinOpInBytecode(self, x, binop: str) -> None:
+        if sys.version_info >= (3, 12):
+            binop = "NB_" + binop.removeprefix("BINARY_")
+            # pyre-ignore[21]: Undefined attribute
+            from opcode import _nb_ops
+
+            # pyre-ignore[16]: Undefined attribute
+            for i, (name, sign) in enumerate(_nb_ops):
+                if name == binop:
+                    self.assertInBytecode(x, "BINARY_OP", i)
+                    break
+            else:
+                self.fail(f"Couldn't find binary op {binop}")
+        else:
+            self.assertInBytecode(x, binop)
+
+    def assertKwCallInBytecode(self, x):
+        if sys.version_info >= (3, 12):
+            self.assertInBytecode(x, "KW_NAMES")
+            self.assertInBytecode(x, "CALL")
+        else:
+            self.assertInBytecode(x, "CALL_FUNCTION_KW")
+
     def clean_code(self, code: str) -> str:
         return inspect.cleandoc("\n" + code)
+
+    @property
+    def cinder_codegen(self) -> type[CodeGenerator]:
+        if sys.version_info >= (3, 12):
+            return CodeGenerator312
+
+        return CinderCodeGenerator310
 
     def compile(
         self,
@@ -120,7 +181,7 @@ class CompilerTest(TestCase):
             generator=generator,
             ast_optimizer_enabled=ast_optimizer_enabled,
         )
-        gen.graph.finalize()
+        gen.graph.assemble_final_code()
         return gen.graph
 
     def dump_graph(self, graph):
@@ -164,3 +225,68 @@ class CompilerTest(TestCase):
             msg = "(%s,%r) not found in bytecode:\n%s"
             msg = msg % (opname, argval, disassembly)
         self.fail(msg)
+
+
+class _FakeCodeType:
+    def __init__(self, exc_table):
+        self.co_exceptiontable = exc_table
+
+
+@dataclass
+class ExceptionTableEntry:
+    # Copy dis._ExceptionTableEntry into our own class so the typechecker
+    # doesn't complain every time we use it.
+    start: int
+    end: int
+    target: int
+    depth: int
+    lasti: bool
+
+    @classmethod
+    def from_dis_entry(cls, e):
+        return cls(e.start, e.end, e.target, e.depth, e.lasti)
+
+
+class ParsedExceptionTable:
+    def __init__(self, entries: list[ExceptionTableEntry]):
+        self.entries = entries
+
+    @classmethod
+    def from_bytes(cls, exc_table: bytes):
+        code = _FakeCodeType(exc_table)
+        # pyre-ignore[16]: Undefined attribute dis._parse_exception_table
+        parsed_table = dis._parse_exception_table(code)
+        entries = [ExceptionTableEntry.from_dis_entry(e) for e in parsed_table]
+        return cls(entries)
+
+    @classmethod
+    def from_dis_output(cls, exc_table: str):
+        # Lets us paste dis output directly into test cases.
+        lines = [x.strip() for x in exc_table.strip().split("\n")]
+        entries = []
+        for line in lines:
+            if not (m := re.match(DIS_EXC_RE, line)):
+                raise ValueError(f"Invalid exception table entry: {line}")
+            args = [int(m.group(x)) for x in range(1, 5)] + [bool(m.group(5))]
+            # pyre-ignore[6]: for 5th positional argument, expected `bool` but got `int`.
+            e = ExceptionTableEntry(*args)
+            # NOTE: From the you-have-died-of-dis-entry-dept...
+            # When dis displays the exception table entry, it subtracts 2 from
+            # e.end (the stored exception table range has an end one opcode further
+            # than the actual range, that is, if we have the bytecode
+            #     OP1  <handler1>
+            #     OP2  <handler1>
+            #     OP3  <handler2>
+            # then internally handler1's e.end will be the offset of OP3, not
+            # of OP2, so dis tweaks the output to reflect the real range).
+            #
+            # It is not clear why this is not fixed in the exception table code
+            # itself, or why dis always subtracts 2 rather than instrsize(OP2),
+            # but we need to add it back here. (The other option would be to
+            # subtract 2 in ExceptionTableEntry.from_dis_entry(), so that our
+            # internal representation matched the dis printed representation.
+            # I'm not sure whether that would be more or less confusing in
+            # failed test output.)
+            e.end = e.end + 2
+            entries.append(e)
+        return cls(entries)

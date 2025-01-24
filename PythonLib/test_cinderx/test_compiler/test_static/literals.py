@@ -1,6 +1,7 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from unittest import skip
 
-from .common import StaticTestBase
+from .common import bad_ret_type, StaticTestBase
 
 
 class LiteralsTests(StaticTestBase):
@@ -11,9 +12,7 @@ class LiteralsTests(StaticTestBase):
             def f(x: bool) -> Literal[False]:
                 return x
         """
-        self.type_error(
-            codestr, r"return type must be bool, not Literal\[False\]", "return x"
-        )
+        self.type_error(codestr, bad_ret_type("bool", "Literal[False]"), "return x")
 
     def test_literal_bool_annotation_runtime_cast(self) -> None:
         codestr = """
@@ -75,7 +74,9 @@ class LiteralsTests(StaticTestBase):
                 return x
         """
         self.type_error(
-            codestr, r"return type must be int, not Literal\[1\]", "return x"
+            codestr,
+            bad_ret_type("int", "Literal[1]"),
+            "return x",
         )
 
     def test_literal_int_annotation_runtime_cast(self) -> None:

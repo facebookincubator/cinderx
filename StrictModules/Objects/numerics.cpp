@@ -1,10 +1,16 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include "cinderx/StrictModules/Objects/numerics.h"
 
+#include <Python.h>
+
+#include "internal/pycore_call.h"
+
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/StrictModules/Objects/callable.h"
 #include "cinderx/StrictModules/Objects/callable_wrapper.h"
 #include "cinderx/StrictModules/Objects/object_interface.h"
 #include "cinderx/StrictModules/Objects/objects.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <cmath>
 
@@ -1040,8 +1046,13 @@ std::shared_ptr<BaseStrictObject> StrictFloat::float__round__(
   // no C API for round, so we have to use the float method
   Ref<> selfObj = self->getPyObject();
   _Py_IDENTIFIER(__round__);
-  Ref<> round =
-      Ref<>::steal(_PyObject_LookupSpecial(selfObj.get(), &PyId___round__));
+  Ref<> round = Ref<>::steal(
+#if PY_VERSION_HEX < 0x030C0000
+      _PyObject_LookupSpecial
+#else
+      _PyObject_LookupSpecialId
+#endif
+      (selfObj.get(), &PyId___round__));
   if (round == nullptr) {
     if (PyErr_Occurred()) {
       PyErr_Clear();
@@ -1053,7 +1064,7 @@ std::shared_ptr<BaseStrictObject> StrictFloat::float__round__(
 
   Ref<> result;
   if (ndigit == nullptr || ndigit == NoneObject()) {
-    result.reset(_PyObject_CallNoArg(round.get()));
+    result.reset(_PyObject_CallNoArgs(round.get()));
   } else {
     auto ndigitNum = std::dynamic_pointer_cast<StrictInt>(ndigit);
     if (ndigitNum == nullptr) {

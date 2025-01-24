@@ -28,23 +28,33 @@ from ast import (
 )
 from contextlib import contextmanager
 from types import CodeType
-from typing import (
-    Any,
-    Callable as typingCallable,
-    cast,
-    Dict,
-    Generator,
-    List,
-    Optional,
-    Type,
-)
+from typing import Any, Callable as typingCallable, cast, Generator, Type
 
 from .. import consts, opcode_static
 from ..opcodebase import Opcode
-from ..pyassem import Block, IndexedSet, PyFlowGraph, PyFlowGraphCinder
-from ..pycodegen import CodeGenerator, compile, CompNode, FuncOrLambda, PatternContext
-from ..strict import FIXED_MODULES, StrictCodeGenerator
-from ..symbols import ClassScope, ModuleScope, Scope, SymbolVisitor
+from ..pyassem import (
+    Block,
+    IndexedSet,
+    PyFlowGraph,
+    PyFlowGraph312,
+    PyFlowGraphCinder310,
+)
+from ..pycodegen import (
+    CinderCodeGenerator310,
+    CinderCodeGenerator312,
+    CodeGenerator,
+    compile,
+    CompNode,
+    FuncOrLambda,
+    PatternContext,
+)
+from ..strict import (
+    FIXED_MODULES,
+    StrictCodeGenBase,
+    StrictCodeGenerator310,
+    StrictCodeGenerator312,
+)
+from ..symbols import BaseSymbolVisitor, ModuleScope, Scope
 from .compiler import Compiler
 from .definite_assignment_checker import DefiniteAssignmentVisitor
 from .effects import NarrowingEffect, TypeState
@@ -113,7 +123,11 @@ class StaticPatternContext(PatternContext):
         return pc
 
 
-class PyFlowGraph310Static(PyFlowGraphCinder):
+class PyFlowGraphStatic310(PyFlowGraphCinder310):
+    opcode: Opcode = opcode_static.opcode
+
+
+class PyFlowGraphStatic312(PyFlowGraph312):
     opcode: Opcode = opcode_static.opcode
 
 
@@ -128,16 +142,19 @@ class InitSubClassGenerator:
         return code
 
 
-class Static310CodeGenerator(StrictCodeGenerator):
-    flow_graph = PyFlowGraph310Static
+class StaticCodeGenBase(StrictCodeGenBase):
+    flow_graph = PyFlowGraph
     _default_cache: dict[type[ast.AST], typingCallable[..., None]] = {}
     pattern_context = StaticPatternContext
+    # Defined in subclasses; this is an explicit receiver class for
+    # self.defaultCall() and self.make_child_codegen to dispatch to
+    parent_impl: Type[CodeGenerator] = CodeGenerator
 
     def __init__(
         self,
         parent: CodeGenerator | None,
         node: AST,
-        symbols: SymbolVisitor,
+        symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         compiler: Compiler,
         modname: str,
@@ -194,26 +211,8 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         return False
 
-    def make_child_codegen(
-        self,
-        tree: FuncOrLambda | CompNode | ast.ClassDef,
-        graph: PyFlowGraph,
-        codegen_type: type[CodeGenerator] | None = None,
-    ) -> CodeGenerator:
-        if self._is_static_compiler_disabled(tree):
-            return super().make_child_codegen(
-                tree, graph, codegen_type=StrictCodeGenerator
-            )
-        return StaticCodeGenerator(
-            self,
-            tree,
-            self.symbols,
-            graph,
-            compiler=self.compiler,
-            modname=self.modname,
-            optimization_lvl=self.optimization_lvl,
-            enable_patching=self.enable_patching,
-        )
+    def _is_type_checked(self, t: Class) -> bool:
+        return t is not self.compiler.type_env.object and t.is_nominal_type
 
     def _get_arg_types(
         self,
@@ -229,10 +228,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         for i, arg in enumerate(args.posonlyargs):
             t = self.get_type(arg)
-            if (
-                t is not self.compiler.type_env.DYNAMIC
-                and t is not self.compiler.type_env.OBJECT
-            ):
+            if self._is_type_checked(t.klass):
                 arg_checks.append(self._calculate_idx(arg.arg, i, cellvars))
                 arg_checks.append(t.klass.type_descr)
 
@@ -244,10 +240,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
                 if is_comprehension
                 else self.get_type(arg)
             )
-            if (
-                t is not self.compiler.type_env.DYNAMIC
-                and t is not self.compiler.type_env.OBJECT
-            ):
+            if self._is_type_checked(t.klass):
                 arg_checks.append(
                     self._calculate_idx(arg.arg, i + len(args.posonlyargs), cellvars)
                 )
@@ -255,10 +248,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         for i, arg in enumerate(args.kwonlyargs):
             t = self.get_type(arg)
-            if (
-                t is not self.compiler.type_env.DYNAMIC
-                and t is not self.compiler.type_env.OBJECT
-            ):
+            if self._is_type_checked(t.klass):
                 arg_checks.append(
                     self._calculate_idx(
                         arg.arg,
@@ -296,7 +286,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         ast_optimizer_enabled: bool = True,
         enable_patching: bool = False,
         builtins: dict[str, Any] = builtins.__dict__,
-    ) -> Static310CodeGenerator:
+    ) -> StaticCodeGenBase:
         assert ast_optimizer_enabled
 
         compiler = Compiler(cls)
@@ -304,6 +294,31 @@ class Static310CodeGenerator(StrictCodeGenerator):
             module_name, filename, tree, optimize, enable_patching, builtins
         )
         return code_gen
+
+    def make_child_codegen(
+        self,
+        tree: FuncOrLambda | CompNode | ast.ClassDef,
+        graph: PyFlowGraph,
+    ) -> CodeGenerator:
+        if self._is_static_compiler_disabled(tree):
+            return self.parent_impl(
+                self,
+                tree,
+                self.symbols,
+                graph,
+                flags=self.flags,
+                optimization_lvl=self.optimization_lvl,
+            )
+        return self.__class__(
+            self,
+            tree,
+            self.symbols,
+            graph,
+            compiler=self.compiler,
+            modname=self.modname,
+            optimization_lvl=self.optimization_lvl,
+            enable_patching=self.enable_patching,
+        )
 
     def make_function_graph(
         self,
@@ -322,7 +337,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if self._is_static_compiler_disabled(func):
             return graph
 
-        graph.setFlag(consts.CO_STATICALLY_COMPILED)
+        graph.setFlag(consts.CI_CO_STATICALLY_COMPILED)
         arg_types = self._get_arg_types(func, func_args, graph)
         ret_type = self._get_return_type(func)
         graph.extra_consts.append((arg_types, ret_type.type_descr))
@@ -332,6 +347,8 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if isinstance(func, (FunctionDef, AsyncFunctionDef)):
             function = self.get_func_container(func)
             klass = function.return_type.resolved()
+            if not self._is_type_checked(klass):
+                return self.compiler.type_env.object
         else:
             klass = self.get_type(func).klass
         if isinstance(klass, AwaitableType):
@@ -352,14 +369,26 @@ class Static310CodeGenerator(StrictCodeGenerator):
             return
         return klass
 
-    def emit_build_class(self, node: ast.ClassDef, class_body: CodeGenerator) -> None:
+    def emit_build_class(
+        self,
+        node: ast.ClassDef,
+        class_body: CodeGenerator,
+        outer_scope: CodeGenerator | None = None,
+    ) -> None:
+        if (outer_scope is not None and outer_scope is not self) or getattr(
+            node, "type_params", None
+        ):
+            # TODO(T210915794): We don't support type params, we need to pass the
+            # .generic_base as part of the bases
+            raise NotImplementedError("Type params not supported in static Python yet")
+
         klass = self._resolve_class(node)
         if not isinstance(self.scope, ModuleScope) or klass is None:
             # If a class isn't top-level then it's not going to be using static
             # features (we could relax this in the future for classes nested in classes).
             return super().emit_build_class(node, class_body)
 
-        self._makeClosure(class_body, 0)
+        self.emit_closure(class_body, 0)
         self.emit("LOAD_CONST", node.name)
 
         if node.keywords:
@@ -371,10 +400,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         else:
             self.emit("LOAD_CONST", None)
 
-        if "__class__" in class_body.graph.cellvars:
-            self.emit("LOAD_CONST", True)
-        else:
-            self.emit("LOAD_CONST", False)
+        self.emit("LOAD_CONST", class_body.scope.needs_class_closure)
 
         assert klass is not None
         final_methods: list[str] = []
@@ -403,7 +429,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         self.emit(
             "INVOKE_FUNCTION",
-            (("_static", "__build_cinder_class__"), 7 + len(node.bases)),
+            ((("_static",), "__build_cinder_class__"), 7 + len(node.bases)),
         )
 
     def processBody(
@@ -417,7 +443,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             for unassigned in visitor.unassigned:
                 node_type = self.get_type(unassigned)
                 if isinstance(node_type, CInstance):
-                    assert type(gen) is Static310CodeGenerator
+                    assert isinstance(gen, StaticCodeGenBase)
                     node_type.emit_init(unassigned, gen)
 
         super().processBody(node, body, gen)
@@ -447,11 +473,12 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         if not klass.has_init_subclass:
             # we define a custom override of __init_subclass__
-            if "__class__" not in gen.scope.cells:
+            if not gen.scope.needs_class_closure:
                 # we need to call super(), which will need to have
                 # __class__ available if it's not already...
                 gen.graph.cellvars.get_index("__class__")
                 gen.scope.cells["__class__"] = 1
+                gen.scope.needs_class_closure = True
 
             init_graph = self.flow_graph(
                 "__init_subclass__",
@@ -465,33 +492,29 @@ class Static310CodeGenerator(StrictCodeGenerator):
                 docstring=None,
             )
             init_graph.freevars.get_index("__class__")
-
-            init_graph.nextBlock()
-
+            init_graph.emit_prologue()
             init_graph.emit("LOAD_GLOBAL", "super")
             init_graph.emit("LOAD_DEREF", "__class__")
             init_graph.emit("LOAD_FAST", "cls")
-            init_graph.emit("LOAD_METHOD_SUPER", ("__init_subclass__", True))
-            init_graph.emit("CALL_METHOD", 0)
+            init_graph.emit_super_call("__init_subclass__", True)
+            init_graph.emit_call_method(0)
             init_graph.emit("POP_TOP")
 
             init_graph.emit("LOAD_FAST", "cls")
-            init_graph.emit("INVOKE_FUNCTION", (("_static", "init_subclass"), 1))
+            init_graph.emit("INVOKE_FUNCTION", ((("_static",), "init_subclass"), 1))
             init_graph.emit("RETURN_VALUE")
 
             gen.emit("LOAD_CLOSURE", "__class__")
             gen.emit("BUILD_TUPLE", 1)
-            gen.emit(
-                "LOAD_CONST",
-                InitSubClassGenerator(
-                    init_graph, self.get_qual_prefix(gen) + ".__init_subclass__"
-                ),
+            init_gen = InitSubClassGenerator(
+                init_graph, self.get_qual_prefix(gen) + ".__init_subclass__"
             )
-            gen.emit("LOAD_CONST", self.get_qual_prefix(gen) + ".__init_subclass__")
-            gen.emit("MAKE_FUNCTION", 8)
+            gen.emit_make_function(
+                init_gen, self.get_qual_prefix(gen) + ".__init_subclass__", 8
+            )
             gen.emit("STORE_NAME", "__init_subclass__")
 
-        assert isinstance(gen, Static310CodeGenerator)
+        assert isinstance(gen, StaticCodeGenBase)
         klass.emit_extra_members(node, gen)
 
         class_mems_with_overrides = [
@@ -505,7 +528,6 @@ class Static310CodeGenerator(StrictCodeGenerator):
         class_mems = [
             name
             for name in class_mems_with_overrides
-            # pyre-ignore[16]: `Value` has no attribute `override`.
             if not isinstance(mem := klass.members[name], Slot) or not mem.override
         ]
 
@@ -584,7 +606,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             self.emit("LOAD_CONST", (chkname,))
             self.emit("IMPORT_NAME", "_static")
             self.emit("IMPORT_FROM", chkname)
-            self.emit("ROT_TWO")
+            self.emit_rotate_stack(2)
             self.emit("POP_TOP")
         else:
             super().emit_load_builtin(name)
@@ -617,27 +639,27 @@ class Static310CodeGenerator(StrictCodeGenerator):
         effect_nodes: dict[str, ast.AST] = {}
         effect.apply(type_state, effect_nodes)
         for key, value in type_state.local_types.items():
-            if value.klass is not self.compiler.type_env.DYNAMIC:
+            if value.klass.is_nominal_type:
                 self.visit(effect_nodes[key])
                 self.emit("CAST", value.klass.type_descr)
                 self.emit("POP_TOP")
         for base, refinement_dict in type_state.refined_fields.items():
             for attr, (value, _, _) in refinement_dict.items():
-                if value.klass is not self.compiler.type_env.DYNAMIC:
+                if value.klass.is_nominal_type:
                     key = f"{base}.{attr}"
                     self.visit(effect_nodes[key])
                     self.emit("CAST", value.klass.type_descr)
                     self.emit("POP_TOP")
 
     def visitAttribute(self, node: Attribute) -> None:
-        self.set_lineno(node)
+        self.set_pos(node)
         data = self.get_opt_node_data(node, UsedRefinementField)
         if data is not None and not data.is_source:
             self.emit("LOAD_FAST", data.name)
             return
 
         if isinstance(node.ctx, ast.Store) and data is not None and data.is_used:
-            self.emit("DUP_TOP")
+            self.emit_dup()
             self.emit("STORE_FAST", data.name)
 
         self.get_type(node.value).emit_attr(node, self)
@@ -648,7 +670,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             and data.is_source
             and data.is_used
         ):
-            self.emit("DUP_TOP")
+            self.emit_dup()
             self.emit("STORE_FAST", data.name)
 
     def visitAssignTarget(
@@ -673,19 +695,19 @@ class Static310CodeGenerator(StrictCodeGenerator):
             self.visit(elt)
 
     def visitAssign(self, node: Assign) -> None:
-        self.set_lineno(node)
+        self.set_pos(node)
         self.visit(node.value)
         dups = len(node.targets) - 1
         for i in range(len(node.targets)):
             elt = node.targets[i]
             if i < dups:
-                self.emit("DUP_TOP")
+                self.emit_dup()
             if isinstance(elt, ast.AST):
                 self.visitAssignTarget(elt, node, node.value)
         self.strictPostVisitAssign(node)
 
     def visitAnnAssign(self, node: ast.AnnAssign) -> None:
-        self.set_lineno(node)
+        self.set_pos(node)
         value = node.value
         if value:
             value_type = self.get_type(value)
@@ -703,7 +725,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if isinstance(target, ast.Name):
             # If we have a simple name in a module or class, store the annotation
             if node.simple and isinstance(self.tree, (ast.Module, ast.ClassDef)):
-                self.emitStoreAnnotation(target.id, node.annotation)
+                self.emit_store_annotation(target.id, node)
         elif isinstance(target, ast.Attribute):
             if not node.value:
                 self.checkAnnExpr(target.value)
@@ -743,10 +765,10 @@ class Static310CodeGenerator(StrictCodeGenerator):
         assert isinstance(target, ast.Attribute)
         self.visit(target.value)
         typ = self.get_type(target.value)
-        self.emit("DUP_TOP")
+        self.emit_dup()
         typ.emit_load_attr(target, self)
         self.emitAugRHS(node)
-        self.emit("ROT_TWO")
+        self.emit_rotate_stack(2)
         typ.emit_store_attr(target, self)
 
     def emitAugName(self, node: ast.AugAssign) -> None:
@@ -763,72 +785,14 @@ class Static310CodeGenerator(StrictCodeGenerator):
         self.visit(target.value)
         self.visit(target.slice)
         typ = self.get_type(target.value)
-        self.emit("DUP_TOP_TWO")
+        self.emit_dup(2)
         typ.emit_load_subscr(target, self)
         self.emitAugRHS(node)
-        self.emit("ROT_THREE")
+        self.emit_rotate_stack(3)
         typ.emit_store_subscr(target, self)
 
     def emitAugRHS(self, node: ast.AugAssign) -> None:
         self.get_type(node.target).emit_aug_rhs(node, self)
-
-    def visitCompare(self, node: Compare) -> None:
-        self.set_lineno(node)
-        self.visit(node.left)
-        cleanup = self.newBlock("cleanup")
-        left = node.left
-        for op, code in zip(node.ops[:-1], node.comparators[:-1]):
-            optype = self.get_type(op)
-            ltype = self.get_type(left)
-            if ltype != optype:
-                optype.emit_convert(ltype, self)
-            self.emitChainedCompareStep(op, code, cleanup)
-            left = code
-        # now do the last comparison
-        if node.ops:
-            op = node.ops[-1]
-            optype = self.get_type(op)
-            ltype = self.get_type(left)
-            if ltype != optype:
-                optype.emit_convert(ltype, self)
-            code = node.comparators[-1]
-            self.visit(code)
-            rtype = self.get_type(code)
-            if rtype != optype:
-                optype.emit_convert(rtype, self)
-            optype.emit_compare(op, self)
-        if len(node.ops) > 1:
-            end = self.newBlock("end")
-            self.emit("JUMP_FORWARD", end)
-            self.nextBlock(cleanup)
-            self.emit("ROT_TWO")
-            self.emit("POP_TOP")
-            self.nextBlock(end)
-
-    def emitChainedCompareStep(
-        self, op: cmpop, value: AST, cleanup: Block, always_pop: bool = False
-    ) -> None:
-        optype = self.get_type(op)
-        self.visit(value)
-        rtype = self.get_type(value)
-        if rtype != optype:
-            optype.emit_convert(rtype, self)
-        self.emit("DUP_TOP")
-        self.emit("ROT_THREE")
-        optype.emit_compare(op, self)
-        method = optype.emit_jumpif_only if always_pop else optype.emit_jumpif_pop_only
-        method(cleanup, False, self)
-        self.nextBlock(label="compare_or_cleanup")
-
-    def visitBoolOp(self, node: BoolOp) -> None:
-        end = self.newBlock()
-        for child in node.values[:-1]:
-            self.get_type(child).emit_jumpif_pop(
-                child, end, type(node.op) == ast.Or, self
-            )
-            self.nextBlock()
-        self.visit(node.values[-1])
-        self.nextBlock(end)
 
     def visitBinOp(self, node: BinOp) -> None:
         self.get_type(node).emit_binop(node, self)
@@ -857,7 +821,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if isinstance(self.tree, AsyncFunctionDef):
             assert isinstance(expected, AwaitableType)
             expected = expected.type_args[0]
-        self.set_lineno(node)
+        self.set_pos(node)
         value = node.value
         is_return_constant = isinstance(value, ast.Constant)
         opcode = "RETURN_VALUE"
@@ -877,6 +841,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             self.emit("LOAD_CONST", None)
 
         self.emit(opcode, oparg)
+        self.nextBlock()
 
     def visitDictComp(self, node: DictComp) -> None:
         dict_type = self.get_type(node)
@@ -926,7 +891,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             and klass.type_def is self.compiler.type_env.checked_dict
         ), dict_type
 
-        self.set_lineno(node)
+        self.set_pos(node)
         elements = 0
         is_unpacking = False
         built_final_dict = False
@@ -950,7 +915,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
                     # {**foo, ...}, we need to generate the empty dict
                     self.emit("BUILD_CHECKED_MAP", (dict_descr, 0))
                     built_final_dict = True
-                self.emit("DUP_TOP")
+                self.emit_dup()
                 self.visit(v)
 
                 self.emit_invoke_method(update_descr, 1)
@@ -960,7 +925,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         if elements or not built_final_dict:
             if built_final_dict:
-                self.emit("DUP_TOP")
+                self.emit_dup()
             self.compile_subgendict(
                 node, len(node.keys) - elements, len(node.keys), dict_descr
             )
@@ -1015,9 +980,9 @@ class Static310CodeGenerator(StrictCodeGenerator):
             and klass.type_def is self.compiler.type_env.checked_list
         ), list_type
 
-        self.set_lineno(node)
+        self.set_pos(node)
         list_descr = list_type.klass.type_descr
-        extend_descr = list_descr + ("extend",)
+        extend_descr = (list_descr, "extend")
         built_final_list = False
         elements = 0
 
@@ -1031,7 +996,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
                     # We need to generate the empty list to extend in the case of [*foo, ...].
                     self.emit("BUILD_CHECKED_LIST", (list_descr, 0))
                     built_final_list = True
-                self.emit("DUP_TOP")
+                self.emit_dup()
                 self.visit(elt.value)
                 self.emit_invoke_method(extend_descr, 1)
                 self.emit("POP_TOP")
@@ -1040,7 +1005,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
 
         if elements or not built_final_list:
             if built_final_list:
-                self.emit("DUP_TOP")
+                self.emit_dup()
             self.compile_sub_checked_list(
                 node, len(node.elts) - elements, len(node.elts), list_descr
             )
@@ -1077,7 +1042,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
         )
 
     def defaultCall(self, node: object, name: str, *args: object) -> None:
-        meth = getattr(super(Static310CodeGenerator, Static310CodeGenerator), name)
+        meth = getattr(self.parent_impl, name)
         return meth(self, node, *args)
 
     def defaultVisit(self, node: AST, *args: object) -> None:
@@ -1086,9 +1051,9 @@ class Static310CodeGenerator(StrictCodeGenerator):
         if meth is None:
             className = klass.__name__
             meth = getattr(
-                super(Static310CodeGenerator, Static310CodeGenerator),
+                super(StaticCodeGenBase, StaticCodeGenBase),
                 "visit" + className,
-                StaticCodeGenerator.generic_visit,
+                StaticCodeGenBase.generic_visit,
             )
             self._default_cache[klass] = meth
         return meth(self, node, *args)
@@ -1102,7 +1067,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             return True if kb == KnownBoolean.TRUE else False
 
     def visitIf(self, node: ast.If) -> None:
-        test_type = self.get_type(node.test)
+        self.get_type(node.test)
 
         test_const = self.get_bool_const(node.test)
 
@@ -1116,7 +1081,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             self.visitStatements(node.body)
 
         if node.orelse:
-            self.emit_noline("JUMP_FORWARD", end)
+            self.emit_jump_forward_noline(end)
             self.nextBlock(orelse)
             if test_const is not True:
                 self.visitStatements(node.orelse)
@@ -1153,7 +1118,7 @@ class Static310CodeGenerator(StrictCodeGenerator):
             self.get_type(test.test).emit_jumpif(test.test, orelse, False, self)
             # Jump directly to target if test is true and body is matches
             self.get_type(test.body).emit_jumpif(test.body, next, is_if_true, self)
-            self.emit_noline("JUMP_FORWARD", end)
+            self.emit_jump_forward_noline(end)
             # Jump directly to target if test is true and orelse matches
             self.nextBlock(orelse)
             self.get_type(test.orelse).emit_jumpif(test.orelse, next, is_if_true, self)
@@ -1166,6 +1131,8 @@ class Static310CodeGenerator(StrictCodeGenerator):
     def _calculate_idx(
         self, arg_name: str, non_cellvar_pos: int, cellvars: IndexedSet
     ) -> int:
+        if sys.version_info >= (3, 12):
+            return non_cellvar_pos
         try:
             offset = cellvars.index(arg_name)
         except ValueError:
@@ -1191,4 +1158,154 @@ class Static310CodeGenerator(StrictCodeGenerator):
             pc.type_dict[name] = self.get_type(loc).klass
 
 
-StaticCodeGenerator = Static310CodeGenerator
+class Static310CodeGenerator(StaticCodeGenBase, CinderCodeGenerator310):
+    flow_graph = PyFlowGraphStatic310
+    parent_impl = StrictCodeGenerator310
+
+    def visitBoolOp(self, node: BoolOp) -> None:
+        end = self.newBlock()
+        for child in node.values[:-1]:
+            self.get_type(child).emit_jumpif_pop(
+                child, end, type(node.op) is ast.Or, self
+            )
+            self.nextBlock()
+        self.visit(node.values[-1])
+        self.nextBlock(end)
+
+    def visitCompare(self, node: Compare) -> None:
+        self.set_pos(node)
+        self.visit(node.left)
+        cleanup = self.newBlock("cleanup")
+        left = node.left
+        for op, code in zip(node.ops[:-1], node.comparators[:-1]):
+            optype = self.get_type(op)
+            ltype = self.get_type(left)
+            if ltype != optype:
+                optype.emit_convert(ltype, self)
+            self.emitChainedCompareStep(op, code, cleanup)
+            left = code
+        # now do the last comparison
+        if node.ops:
+            op = node.ops[-1]
+            optype = self.get_type(op)
+            ltype = self.get_type(left)
+            if ltype != optype:
+                optype.emit_convert(ltype, self)
+            code = node.comparators[-1]
+            self.visit(code)
+            rtype = self.get_type(code)
+            if rtype != optype:
+                optype.emit_convert(rtype, self)
+            optype.emit_compare(op, self)
+        if len(node.ops) > 1:
+            end = self.newBlock("end")
+            self.emit_jump_forward(end)
+            self.nextBlock(cleanup)
+            self.emit_rotate_stack(2)
+            self.emit("POP_TOP")
+            self.nextBlock(end)
+
+    def emitChainedCompareStep(
+        self, op: cmpop, value: AST, cleanup: Block, always_pop: bool = False
+    ) -> None:
+        optype = self.get_type(op)
+        self.visit(value)
+        rtype = self.get_type(value)
+        if rtype != optype:
+            optype.emit_convert(rtype, self)
+        self.emit_dup()
+        self.emit_rotate_stack(3)
+        optype.emit_compare(op, self)
+        method = optype.emit_jumpif_only if always_pop else optype.emit_jumpif_pop_only
+        method(cleanup, False, self)
+        self.nextBlock(label="compare_or_cleanup")
+
+
+class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
+    flow_graph = PyFlowGraph312
+    parent_impl = StrictCodeGenerator312
+
+    def visitBoolOp(self, node: ast.BoolOp) -> None:
+        is_if_true = type(node.op) is not ast.And
+        end = self.newBlock()
+        for value in node.values[:-1]:
+            self.visit(value)
+            self.emit("COPY", 1)
+            self.get_type(value).emit_jumpif_only(end, is_if_true, self)
+            self.nextBlock()
+            self.emit("POP_TOP")
+        self.visit(node.values[-1])
+        self.nextBlock(end)
+
+    def visitCompare(self, node: Compare) -> None:
+        self.set_pos(node)
+        self.visit(node.left)
+        if len(node.comparators) == 1:
+            self.visit(node.comparators[0])
+            op = node.ops[0]
+            optype = self.get_type(op)
+            rtype = self.get_type(node.comparators[0])
+            if rtype != optype:
+                optype.emit_convert(rtype, self)
+            optype.emit_compare(op, self)
+            return
+
+        cleanup = self.newBlock("cleanup")
+        left = node.left
+        for i in range(len(node.comparators) - 1):
+            self.set_pos(node)
+            op = node.ops[i]
+            optype = self.get_type(op)
+            ltype = self.get_type(left)
+            if ltype != optype:
+                optype.emit_convert(ltype, self)
+
+            self.emitChainedCompareStep(
+                node.ops[i], node.comparators[i], cleanup, False
+            )
+            left = node.comparators[i]
+            self.emit("COPY", 1)
+            optype = self.get_type(node.ops[i])
+            optype.emit_jumpif_only(cleanup, False, self)
+            self.nextBlock(label="compare_or_cleanup")
+            self.emit("POP_TOP")
+
+        self.visit(node.comparators[-1])
+        op = node.ops[-1]
+        optype = self.get_type(op)
+        ltype = self.get_type(left)
+        if ltype != optype:
+            optype.emit_convert(ltype, self)
+
+        rtype = self.get_type(node.comparators[-1])
+        rtype.emit_compare(op, self)
+        end = self.newBlock("end")
+        self.emit_jump_forward(end)
+
+        self.nextBlock(cleanup)
+        self.emit("SWAP", 2)
+        self.emit("POP_TOP")
+        self.nextBlock(end)
+
+    def emitChainedCompareStep(
+        self,
+        op: ast.cmpop,
+        value: ast.expr,
+        cleanup: Block,
+        always_pop: bool = False,
+    ) -> None:
+        optype = self.get_type(op)
+        self.visit(value)
+        rtype = self.get_type(value)
+        if rtype != optype:
+            optype.emit_convert(rtype, self)
+        self.emit("SWAP", 2)
+        self.emit("COPY", 2)
+        optype = self.get_type(op)
+        optype.emit_compare(op, self)
+
+
+if sys.version_info >= (3, 12):
+    StaticCodeGenerator = Static312CodeGenerator
+else:
+    StaticCodeGenerator = Static310CodeGenerator

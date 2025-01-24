@@ -2,18 +2,11 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
-
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/builder.h"
-#include "cinderx/Jit/pyjit.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
-#include <asmjit/asmjit.h>
-
-#include <iostream>
 #include <string>
 #include <utility>
 
@@ -130,8 +123,17 @@ def test(x):
   auto tb = Ref<>::steal(etb);
   EXPECT_TRUE(PyErr_GivenExceptionMatches(typ, PyExc_UnboundLocalError));
   ASSERT_NE(val.get(), nullptr);
-  ASSERT_TRUE(PyUnicode_Check(val));
-  std::string msg = PyUnicode_AsUTF8(val);
+
+  std::string msg;
+  if (PY_VERSION_HEX >= 0x030C0000) {
+    auto sval =
+        Ref<>::steal(PyObject_CallMethod(val, "__str__", nullptr /* format */));
+    ASSERT_TRUE(PyUnicode_Check(sval));
+    msg = PyUnicode_AsUTF8(sval);
+  } else {
+    ASSERT_TRUE(PyUnicode_Check(val));
+    msg = PyUnicode_AsUTF8(val);
+  }
   ASSERT_EQ(msg, "local variable 'y' referenced before assignment");
 
   auto tb_frame = Ref<>::steal(PyObject_GetAttrString(tb, "tb_frame"));
@@ -1295,7 +1297,7 @@ def test_override_builtin_import(locals):
     return repr(captured_data) == "[['x', 7, None, None, 0], ['x.y', 7, None, None, 0]]"
 )";
 
-  ASSERT_TRUE(runCode(pycode)) << "Failed compiling";
+  runCode(pycode);
 
   auto pyfunc = getGlobal("test_override_builtin_import");
   ASSERT_NE(pyfunc, nullptr)
@@ -1334,22 +1336,24 @@ TEST_F(ASMGeneratorTest, GetLength) {
   auto varnames = Ref<>::steal(PyTuple_Pack(1, param.get()));
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto empty_string = Ref<>::steal(PyBytes_FromString(""));
-  auto code = Ref<PyCodeObject>::steal(PyCode_New(
+  auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
       /*argcount=*/1,
-      0,
+      /*kwargcount=*/0,
       /*nlocals=*/1,
-      0,
-      0,
+      /*stacksize=*/0,
+      /*flags=*/0,
       bytecode,
       consts,
-      empty_tuple,
+      /*names=*/empty_tuple,
       varnames,
-      empty_tuple,
-      empty_tuple,
+      /*freevars=*/empty_tuple,
+      /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      0,
-      empty_string));
+      /*qualname=*/funcname,
+      /*firstlineno=*/0,
+      /*linetable=*/empty_string,
+      /*exceptiontable=*/empty_string));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));

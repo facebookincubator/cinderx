@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from typing import ClassVar
 
 from cinderx.compiler.errors import TypedSyntaxError
@@ -140,7 +141,7 @@ class FinalTests(StaticTestBase):
                     a = 0
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, "Cannot assign to a Final variable"
+            SyntaxError, "no binding for nonlocal 'a' found"
         ):
             self.compile(codestr, modname="foo")
 
@@ -735,8 +736,8 @@ class FinalTests(StaticTestBase):
                 return 0
         """
         with self.in_module(codestr) as mod:
-            with self.assertRaisesRegex(
-                TypeError, r"'foo' overrides a final method in the static base class"
+            with self.assertWarnsRegex(
+                RuntimeWarning, "Overriding final method `foo` by adding override to type `D`, overridden method may be ignored."
             ):
 
                 class D(mod.C):
@@ -811,7 +812,7 @@ class FinalTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertInBytecode(
-                mod.foo, "INVOKE_FUNCTION", ((mod.__name__, "C", "foo"), 1)
+                mod.foo, "INVOKE_FUNCTION", (((mod.__name__, "C"), "foo"), 1)
             )
             self.assertEqual(mod.foo(mod.D()), 4)
 
@@ -838,7 +839,7 @@ class FinalTests(StaticTestBase):
                 CV: ClassVar[int] = 84
 
             self.assertInBytecode(
-                mod.foo, "INVOKE_FUNCTION", ((mod.__name__, "C", "foo"), 1)
+                mod.foo, "INVOKE_FUNCTION", (((mod.__name__, "C"), "foo"), 1)
             )
             self.assertEqual(mod.foo(mod.C()), 42)
             self.assertEqual(mod.foo(D()), 84)
@@ -865,7 +866,7 @@ class FinalTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertInBytecode(
-                mod.foo, "INVOKE_FUNCTION", ((mod.__name__, "C", "foo"), 1)
+                mod.foo, "INVOKE_FUNCTION", (((mod.__name__, "C"), "foo"), 1)
             )
             self.assertEqual(mod.foo(mod.C()), 42)
             self.assertEqual(mod.foo(mod.D()), 63)

@@ -1,16 +1,16 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 #include <Python.h>
-#include "cinderx/StaticPython/strictmoduleobject.h"
-#include "structmember.h"
-#include "type.h"
 
+#include "structmember.h"
+
+#include "cinderx/Common/property.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
-#include "cinderx/Jit/profile_runtime.h"
+#include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/runtime.h"
-#include "cinderx/Jit/type_deopt_patchers.h"
+#include "cinderx/StaticPython/strictmoduleobject.h"
 
 #include <fmt/ostream.h>
 
@@ -80,11 +80,14 @@ struct Env {
   // The object that corresponds to "type".
   Type type_object{TTop};
 
+  // Number of new basic blocks added by the simplifier.
+  size_t new_blocks{0};
+
   // Create and insert the specified instruction. If the instruction has an
   // output, a new Register* will be created and returned.
   template <typename T, typename... Args>
   Register* emit(Args&&... args) {
-    return emitInstr<T>(std::forward<Args>(args)...)->GetOutput();
+    return emitInstr<T>(std::forward<Args>(args)...)->output();
   }
 
   // Similar to emit(), but returns the instruction itself. Useful for
@@ -110,9 +113,9 @@ struct Env {
                  arity,
                  func.env.AllocateRegister(),
                  std::forward<Args>(args)...)
-          ->GetOutput();
+          ->output();
     } else {
-      return emitRawInstr<T>(arity, std::forward<Args>(args)...)->GetOutput();
+      return emitRawInstr<T>(arity, std::forward<Args>(args)...)->output();
     }
   }
 
@@ -126,11 +129,9 @@ struct Env {
     block->insert(instr, cursor);
 
     if constexpr (T::has_output) {
-      Register* output = instr->GetOutput();
+      Register* output = instr->output();
       switch (instr->opcode()) {
         case Opcode::kVectorCall:
-        case Opcode::kVectorCallKW:
-        case Opcode::kVectorCallStatic:
           // We don't know the exact output type until its operands are
           // populated.
           output->set_type(TObject);
@@ -152,6 +153,9 @@ struct Env {
   // - do_bb2 should do the same for the second successor.
   template <typename BranchFn, typename Bb1Fn, typename Bb2Fn>
   Register* emitCond(BranchFn do_branch, Bb1Fn do_bb1, Bb2Fn do_bb2) {
+    // bb1, bb2, and the new tail block that's split from the original.
+    new_blocks += 3;
+
     BasicBlock* bb1 = func.cfg.AllocateBlock();
     BasicBlock* bb2 = func.cfg.AllocateBlock();
     do_branch(bb1, bb2);
@@ -404,7 +408,7 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
       // Since we no longer use instr->GetOperand(0), we need to make sure that
       // we don't lose any associated type checks
       env.emit<UseType>(instr->GetOperand(0), ty);
-      Type output_type = instr->GetOutput()->type();
+      Type output_type = instr->output()->type();
       return env.emit<LoadConst>(Type::fromCInt(res, output_type));
     }
   }
@@ -484,14 +488,14 @@ Register* simplifyLoadVarObjectSize(Env& env, const LoadVarObjectSize* instr) {
   if (obj_reg->instr()->IsMakeTuple()) {
     env.emit<UseType>(obj_reg, type);
     size_t size = static_cast<const MakeTuple*>(obj_reg->instr())->nvalues();
-    Type output_type = instr->GetOutput()->type();
+    Type output_type = instr->output()->type();
     return env.emit<LoadConst>(Type::fromCInt(size, output_type));
   }
   if (type.hasValueSpec(TTupleExact) || type.hasValueSpec(TBytesExact)) {
     PyVarObject* obj = reinterpret_cast<PyVarObject*>(type.asObject());
     Py_ssize_t size = obj->ob_size;
     env.emit<UseType>(obj_reg, type);
-    Type output_type = instr->GetOutput()->type();
+    Type output_type = instr->output()->type();
     return env.emit<LoadConst>(Type::fromCInt(size, output_type));
   }
   return nullptr;
@@ -667,6 +671,37 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
   return nullptr;
 }
 
+Register* simplifyInPlaceOp(Env& env, const InPlaceOp* instr) {
+  Register* lhs = instr->left();
+  Register* rhs = instr->right();
+  if (lhs->isA(TLongExact) && rhs->isA(TLongExact)) {
+    // All binary ops on TLong's return mutable so can be freely simplified with
+    // no explicit check.
+    switch (instr->op()) {
+      case InPlaceOpKind::kAdd:
+      case InPlaceOpKind::kAnd:
+      case InPlaceOpKind::kFloorDivide:
+      case InPlaceOpKind::kLShift:
+      case InPlaceOpKind::kModulo:
+      case InPlaceOpKind::kMultiply:
+      case InPlaceOpKind::kOr:
+      case InPlaceOpKind::kRShift:
+      case InPlaceOpKind::kSubtract:
+      case InPlaceOpKind::kXor:
+      case InPlaceOpKind::kPower:
+      case InPlaceOpKind::kTrueDivide:
+        env.emit<UseType>(lhs, TLongExact);
+        env.emit<UseType>(rhs, TLongExact);
+        return env.emit<LongInPlaceOp>(
+            instr->op(), lhs, rhs, *instr->frameState());
+      case InPlaceOpKind::kMatrixMultiply:
+        // These will generate an error at runtime.
+        break;
+    }
+  }
+  return nullptr;
+}
+
 Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
   Type left_type = instr->left()->type();
   Type right_type = instr->right()->type();
@@ -749,7 +784,7 @@ Register* simplifyPrimitiveBoxBool(Env& env, const PrimitiveBoxBool* instr) {
 
 Register* simplifyUnbox(Env& env, const Instr* instr) {
   Register* input_value = instr->GetOperand(0);
-  Type output_type = instr->GetOutput()->type();
+  Type output_type = instr->output()->type();
   if (input_value->instr()->IsPrimitiveBox()) {
     // Simplify unbox(box(x)) -> x
     const auto box = static_cast<PrimitiveBox*>(input_value->instr());
@@ -810,9 +845,7 @@ Register* simplifyLoadAttrSplitDict(
     return nullptr;
   }
   BorrowedRef<PyHeapTypeObject> ht(type);
-  auto& profile_runtime = Runtime::get()->profileRuntime();
-  if (ht->ht_cached_keys == nullptr ||
-      !profile_runtime.hasPrimedDictKeys(type)) {
+  if (ht->ht_cached_keys == nullptr) {
     return nullptr;
   }
   PyDictKeysObject* keys = ht->ht_cached_keys;
@@ -913,7 +946,7 @@ Register* simplifyLoadAttrMemberDescr(Env& env, const DescrInfo& info) {
       auto check_field =
           env.emitInstr<CheckField>(field, info.attr_name, *info.frame_state);
       check_field->setGuiltyReg(info.receiver);
-      return check_field->GetOutput();
+      return check_field->output();
     }
 
     return env.emitCond(
@@ -944,13 +977,10 @@ Register* simplifyLoadAttrProperty(Env& env, const DescrInfo& info) {
   env.emit<UseType>(info.receiver, info.type);
   Register* getter_obj = env.emit<LoadConst>(Type::fromObject(getter));
   auto call = env.emitRawInstr<VectorCall>(
-      2,
-      env.func.env.AllocateRegister(),
-      /* is_awaited= */ false,
-      *info.frame_state);
+      2, env.func.env.AllocateRegister(), CallFlags::None, *info.frame_state);
   call->SetOperand(0, getter_obj);
   call->SetOperand(1, info.receiver);
-  return call->GetOutput();
+  return call->output();
 }
 
 Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
@@ -982,7 +1012,7 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
   call->SetOperand(0, descr_reg);
   call->SetOperand(1, info.receiver);
   call->SetOperand(2, type_reg);
-  return env.emit<CheckExc>(call->GetOutput(), *info.frame_state);
+  return env.emit<CheckExc>(call->output(), *info.frame_state);
 }
 
 // Attempt to handle LOAD_ATTR cases where the load is a common case for object
@@ -1038,7 +1068,7 @@ Register* simplifyLoadAttrTypeReceiver(Env& env, const LoadAttr* load_attr) {
 
   const int cache_id = env.func.env.allocateLoadTypeAttrCache();
   env.emit<UseType>(receiver, TType);
-  Register* guard = env.emit<LoadTypeAttrCacheItem>(cache_id, 0);
+  Register* guard = env.emit<LoadTypeAttrCacheEntryType>(cache_id);
   Register* type_matches =
       env.emit<PrimitiveCompare>(PrimitiveCompareOp::kEqual, guard, receiver);
   return env.emitCond(
@@ -1046,7 +1076,7 @@ Register* simplifyLoadAttrTypeReceiver(Env& env, const LoadAttr* load_attr) {
         env.emit<CondBranch>(type_matches, fast_path, slow_path);
       },
       [&] { // Fast path
-        return env.emit<LoadTypeAttrCacheItem>(cache_id, 1);
+        return env.emit<LoadTypeAttrCacheEntryValue>(cache_id);
       },
       [&] { // Slow path
         int name_idx = load_attr->name_idx();
@@ -1075,7 +1105,7 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
 // simplified into a LoadConst.
 Register* simplifyLoadField(Env& env, const LoadField* instr) {
   Register* loadee = instr->GetOperand(0);
-  Type load_output_type = instr->GetOutput()->type();
+  Type load_output_type = instr->output()->type();
   // Ensure that we are dealing with either a integer or a double.
   Type loadee_type = loadee->type();
   if (!loadee_type.hasObjectSpec()) {
@@ -1103,7 +1133,7 @@ Register* simplifyIsNegativeAndErrOccurred(
   // known result. Instead of deleting it, we replace it with load of false -
   // the idea is that if there are other downstream consumers of it, they will
   // still have access to the result. Otherwise, DCE will take care of this.
-  Type output_type = instr->GetOutput()->type();
+  Type output_type = instr->output()->type();
   return env.emit<LoadConst>(Type::fromCInt(0, output_type));
 }
 
@@ -1207,9 +1237,9 @@ static Register* resolveArgs(
   auto new_instr = env.emitRawInstr<VectorCall>(
       resolved_args.size() + 1,
       env.func.env.AllocateRegister(), // output register
-      /*is_awaited=*/false,
+      CallFlags::None,
       *instr->frameState());
-  Register* result = new_instr->GetOutput();
+  Register* result = new_instr->output();
 
   // populate the call arguments of the newly created VectorCall
   // the first arg is the function to call
@@ -1221,41 +1251,28 @@ static Register* resolveArgs(
   return result;
 }
 
-Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
-  Register* target = instr->GetOperand(0);
-  Type target_type = target->type();
-  if (target_type == env.type_object && instr->NumOperands() == 2) {
-    env.emit<UseType>(target, env.type_object);
-    return env.emit<LoadField>(
-        instr->GetOperand(1), "ob_type", offsetof(PyObject, ob_type), TType);
-  }
-  if (isBuiltin(target, "len") && instr->numArgs() == 1) {
-    env.emit<UseType>(target, target->type());
-    return env.emit<GetLength>(instr->arg(0), *instr->frameState());
-  }
-  if (target_type.hasValueSpec(TFunc)) {
-    BorrowedRef<PyFunctionObject> func{target_type.objectSpec()};
-    BorrowedRef<PyCodeObject> code{func->func_code};
-    if (code->co_kwonlyargcount > 0 || (code->co_flags & CO_VARARGS) ||
-        (code->co_flags & CO_VARKEYWORDS)) {
-      // TODO(T143644854): full argument resolution
-      return nullptr;
+Register* simplifyCallMethod(Env& env, const CallMethod* instr) {
+  // If this is statically known to be trying to call a function, update to
+  // using a VectorCall directly.
+  if (instr->func()->type() <= TNullptr) {
+    auto call = env.emitRawInstr<VectorCall>(
+        instr->NumOperands() - 1,
+        env.func.env.AllocateRegister(),
+        instr->flags(),
+        *instr->frameState());
+    for (size_t i = 1; i < instr->NumOperands(); ++i) {
+      call->SetOperand(i - 1, instr->GetOperand(i));
     }
+    return call->output();
+  }
 
-    JIT_CHECK(
-        code->co_argcount >= 0,
-        "argcount must be greater than or equal to zero");
-    if (instr->numArgs() != static_cast<size_t>(code->co_argcount)) {
-      return resolveArgs(env, instr, func);
-    }
-  }
   return nullptr;
 }
 
-// Translate VectorCallStatic to CallStatic whenever possible, saving stack
-// manipulation costs (pushing args to stack)
-static Register* trySpecializeCCall(Env& env, const VectorCallStatic* instr) {
-  if (instr->isAwaited()) {
+// Translate VectorCall to CallStatic whenever possible, saving stack
+// manipulation costs (pushing args to stack).
+static Register* trySpecializeCCall(Env& env, const VectorCall* instr) {
+  if (instr->flags() & CallFlags::Awaited) {
     // We can't pass the awaited flag outside of vectorcall.
     return nullptr;
   }
@@ -1276,7 +1293,7 @@ static Register* trySpecializeCCall(Env& env, const VectorCallStatic* instr) {
       Register* result = env.emitVariadic<CallStatic>(
           1,
           reinterpret_cast<void*>(def->ml_meth),
-          instr->GetOutput()->type() | TNullptr,
+          instr->output()->type() | TNullptr,
           /* self */ instr->arg(0));
       return env.emit<CheckExc>(result, *instr->frameState());
     }
@@ -1284,7 +1301,7 @@ static Register* trySpecializeCCall(Env& env, const VectorCallStatic* instr) {
       Register* result = env.emitVariadic<CallStatic>(
           2,
           reinterpret_cast<void*>(def->ml_meth),
-          instr->GetOutput()->type() | TNullptr,
+          instr->output()->type() | TNullptr,
           /* self */ instr->arg(0),
           /* arg */ instr->arg(1));
       return env.emit<CheckExc>(result, *instr->frameState());
@@ -1293,15 +1310,82 @@ static Register* trySpecializeCCall(Env& env, const VectorCallStatic* instr) {
   return nullptr;
 }
 
-Register* simplifyVectorCallStatic(Env& env, const VectorCallStatic* instr) {
+Register* simplifyVectorCallStatic(Env& env, const VectorCall* instr) {
+  if (!(instr->flags() & CallFlags::Static)) {
+    return nullptr;
+  }
   Register* func = instr->func();
   if (isBuiltin(func, "list.append") && instr->numArgs() == 2) {
     env.emit<UseType>(func, func->type());
     env.emit<ListAppend>(instr->arg(0), instr->arg(1), *instr->frameState());
     return env.emit<LoadConst>(TNoneType);
   }
-  if (Register* result = trySpecializeCCall(env, instr)) {
+
+  return trySpecializeCCall(env, instr);
+}
+
+Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
+  if (Register* result = simplifyVectorCallStatic(env, instr)) {
     return result;
+  }
+  if (instr->flags() & CallFlags::KwArgs) {
+    return nullptr;
+  }
+
+  Register* target = instr->GetOperand(0);
+  Type target_type = target->type();
+  if (target_type == env.type_object && instr->NumOperands() == 2) {
+    env.emit<UseType>(target, env.type_object);
+    return env.emit<LoadField>(
+        instr->GetOperand(1), "ob_type", offsetof(PyObject, ob_type), TType);
+  }
+  if (isBuiltin(target, "len") && instr->numArgs() == 1) {
+    env.emit<UseType>(target, target->type());
+    return env.emit<GetLength>(instr->arg(0), *instr->frameState());
+  }
+  if (isBuiltin(target, "isinstance") && instr->numArgs() == 2 &&
+      instr->GetOperand(2)->type() <= TType &&
+      !(instr->GetOperand(2)->type() <= TTuple)) {
+    auto obj_op = instr->GetOperand(1);
+    auto type_op = instr->GetOperand(2);
+
+    auto obj_type = env.emit<LoadField>(
+        obj_op, "ob_type", offsetof(PyObject, ob_type), TType);
+
+    auto compare_type = env.emit<PrimitiveCompare>(
+        PrimitiveCompareOp::kEqual, obj_type, type_op);
+
+    return env.emitCond(
+        [&](BasicBlock* fast_path, BasicBlock* slow_path) {
+          env.emit<CondBranch>(compare_type, fast_path, slow_path);
+        },
+        [&] { // Fast path
+          return env.emit<PrimitiveBoxBool>(compare_type);
+        },
+        [&] { // Slow path
+          auto isinstance_call =
+              env.emit<IsInstance>(obj_op, type_op, *instr->frameState());
+          auto true_output = env.emit<LoadConst>(Type::fromCInt(1, TCInt32));
+          auto compare_output = env.emit<PrimitiveCompare>(
+              PrimitiveCompareOp::kEqual, isinstance_call, true_output);
+          return env.emit<PrimitiveBoxBool>(compare_output);
+        });
+  }
+  if (target_type.hasValueSpec(TFunc)) {
+    BorrowedRef<PyFunctionObject> func{target_type.objectSpec()};
+    BorrowedRef<PyCodeObject> code{func->func_code};
+    if (code->co_kwonlyargcount > 0 || (code->co_flags & CO_VARARGS) ||
+        (code->co_flags & CO_VARKEYWORDS)) {
+      // TODO(T143644854): full argument resolution
+      return nullptr;
+    }
+
+    JIT_CHECK(
+        code->co_argcount >= 0,
+        "argcount must be greater than or equal to zero");
+    if (instr->numArgs() != static_cast<size_t>(code->co_argcount)) {
+      return resolveArgs(env, instr, func);
+    }
   }
   return nullptr;
 }
@@ -1358,6 +1442,8 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
     case Opcode::kBinaryOp:
       return simplifyBinaryOp(env, static_cast<const BinaryOp*>(instr));
+    case Opcode::kInPlaceOp:
+      return simplifyInPlaceOp(env, static_cast<const InPlaceOp*>(instr));
     case Opcode::kLongBinaryOp:
       return simplifyLongBinaryOp(env, static_cast<const LongBinaryOp*>(instr));
     case Opcode::kUnaryOp:
@@ -1380,11 +1466,12 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
     case Opcode::kStoreAttr:
       return simplifyStoreAttr(env, static_cast<const StoreAttr*>(instr));
 
+    case Opcode::kCallMethod:
+      return simplifyCallMethod(env, static_cast<const CallMethod*>(instr));
+
     case Opcode::kVectorCall:
       return simplifyVectorCall(env, static_cast<const VectorCall*>(instr));
-    case Opcode::kVectorCallStatic:
-      return simplifyVectorCallStatic(
-          env, static_cast<const VectorCallStatic*>(instr));
+
     default:
       return nullptr;
   }
@@ -1394,13 +1481,22 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
 void Simplify::Run(Function& irfunc) {
   Env env{irfunc};
-  bool changed;
-  do {
+
+  const SimplifierConfig& config = getConfig().simplifier;
+  size_t new_block_limit = config.new_block_limit;
+  size_t iteration_limit = config.iteration_limit;
+
+  // Iterate the simplifier until the CFG stops changing, or we hit limits on
+  // total number of iterations or the number of new blocks added.
+  bool changed = true;
+  for (size_t i = 0;
+       changed && i < iteration_limit && env.new_blocks < new_block_limit;
+       ++i) {
     changed = false;
     for (auto cfg_it = irfunc.cfg.blocks.begin();
-         cfg_it != irfunc.cfg.blocks.end();) {
+         cfg_it != irfunc.cfg.blocks.end();
+         ++cfg_it) {
       BasicBlock& block = *cfg_it;
-      ++cfg_it;
       env.block = &block;
 
       for (auto blk_it = block.begin(); blk_it != block.end();) {
@@ -1422,16 +1518,16 @@ void Simplify::Run(Function& irfunc) {
 
         changed = true;
         JIT_CHECK(
-            (new_output == nullptr) == (instr.GetOutput() == nullptr),
+            (new_output == nullptr) == (instr.output() == nullptr),
             "Simplify function should return a new output if and only if the "
             "existing instruction has an output");
         if (new_output != nullptr) {
           JIT_CHECK(
-              new_output->type() <= instr.GetOutput()->type(),
+              new_output->type() <= instr.output()->type(),
               "New output type {} isn't compatible with old output type {}",
               new_output->type(),
-              instr.GetOutput()->type());
-          env.emitRawInstr<Assign>(instr.GetOutput(), new_output);
+              instr.output()->type());
+          env.emitRawInstr<Assign>(instr.output(), new_output);
         }
 
         if (instr.IsCondBranch() || instr.IsCondBranchIterNotDone() ||
@@ -1469,6 +1565,12 @@ void Simplify::Run(Function& irfunc) {
           break;
         }
       }
+
+      // Check for going past the new block limit only upon leaving a block.  We
+      // might go past the limit, but not by too much.
+      if (env.new_blocks > new_block_limit) {
+        break;
+      }
     }
 
     if (changed) {
@@ -1477,7 +1579,7 @@ void Simplify::Run(Function& irfunc) {
       reflowTypes(irfunc);
       CleanCFG{}.Run(irfunc);
     }
-  } while (changed);
+  }
 }
 
 } // namespace jit::hir

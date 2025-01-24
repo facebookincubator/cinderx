@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from unittest import skip
 
 from .common import StaticTestBase
@@ -33,7 +34,7 @@ class DynamicReturnTests(StaticTestBase):
             self.assertNotInBytecode(mod.C.make, "CAST")
             # We can statically invoke make
             self.assertInBytecode(
-                mod.f, "INVOKE_FUNCTION", ((mod.__name__, "C", "make"), 0)
+                mod.f, "INVOKE_FUNCTION", (((mod.__name__, "C"), "make"), 0)
             )
             # But we can't statically invoke a method on the returned instance
             self.assertNotInBytecode(mod.f, "INVOKE_METHOD")
@@ -66,7 +67,7 @@ class DynamicReturnTests(StaticTestBase):
             self.assertNotInBytecode(mod.C.make, "CAST")
             # We can statically invoke make
             self.assertInBytecode(
-                mod.f, "INVOKE_FUNCTION", ((mod.__name__, "C", "make"), 0)
+                mod.f, "INVOKE_FUNCTION", (((mod.__name__, "C"), "make"), 0)
             )
             # But we can't statically invoke a method on the returned instance
             self.assertNotInBytecode(mod.f, "INVOKE_METHOD")

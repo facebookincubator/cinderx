@@ -1,15 +1,13 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include <gtest/gtest.h>
-
 #include <Python.h>
-#include "cinderx/Interpreter/opcode.h"
+
+#include <gtest/gtest.h>
 
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 using namespace jit::hir;
@@ -49,14 +47,15 @@ TEST_F(HIROperandTypeTest, VectorCallHasVariadicOperandTypes) {
   auto f = func.env.AllocateRegister();
   auto arg1 = func.env.AllocateRegister();
   auto arg2 = func.env.AllocateRegister();
-  std::unique_ptr<Instr> one_call(VectorCall::create(1, dst, false));
+  std::unique_ptr<Instr> one_call(VectorCall::create(1, dst, CallFlags::None));
   one_call->SetOperand(0, f);
   OperandType op_type = one_call->GetOperandType(0);
 
   EXPECT_EQ(op_type.type, TOptObject);
   EXPECT_EQ(op_type.kind, Constraint::kType);
 
-  std::unique_ptr<Instr> three_call(VectorCall::create(3, dst, false));
+  std::unique_ptr<Instr> three_call(
+      VectorCall::create(3, dst, CallFlags::None));
   three_call->SetOperand(0, f);
   three_call->SetOperand(1, arg1);
   three_call->SetOperand(2, arg2);
@@ -100,7 +99,7 @@ TEST_F(HIROperandTypeTest, LoadMethodSuperReturnsTypesForMultipleOperands) {
   EXPECT_EQ(op_type.type, TObject);
 
   op_type = instr->GetOperandType(1);
-  EXPECT_EQ(op_type.type, TObject);
+  EXPECT_EQ(op_type.type, TType);
   EXPECT_EQ(op_type.kind, Constraint::kType);
 
   op_type = instr->GetOperandType(2);

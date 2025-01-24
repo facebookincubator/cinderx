@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 from types import MemberDescriptorType
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -190,7 +191,7 @@ class StaticFieldTests(StaticTestBase):
             self.assertEqual(x.f(), 1)
             x = C(False)
             self.assertEqual(x.f(), 0)
-            self.assertInBytecode(C.f, "LOAD_FIELD", (mod.__name__, "C", "value"))
+            self.assertInBytecode(C.f, "LOAD_FIELD", ((mod.__name__, "C"), "value"))
 
     def test_aligned_subclass_field(self):
         codestr = """
@@ -209,7 +210,7 @@ class StaticFieldTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             Child = mod.Child
             self.assertInBytecode(
-                Child.__init__, "STORE_FIELD", (mod.__name__, "Child", "end")
+                Child.__init__, "STORE_FIELD", ((mod.__name__, "Child"), "end")
             )
             for i in range(SHADOWCODE_REPETITIONS):
                 c = Child()
@@ -333,7 +334,7 @@ class StaticFieldTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f, C = mod.f, mod.C
             self.assertEqual(f(C(3)), 3)
-            self.assertInBytecode(f, "LOAD_FIELD", ((mod.__name__, "C", "x")))
+            self.assertInBytecode(f, "LOAD_FIELD", (((mod.__name__, "C"), "x")))
 
     def test_annotated_instance_var(self):
         codestr = """

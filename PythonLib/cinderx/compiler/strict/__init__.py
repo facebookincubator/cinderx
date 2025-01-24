@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import ast
 import builtins
+import sys
 from ast import (
     AST,
     AsyncFunctionDef,
@@ -19,20 +20,19 @@ from ast import (
     stmt,
 )
 from types import CodeType
-from typing import Any, cast, Dict, final, List, Mapping, Optional
+from typing import Any, cast, final, Mapping
 
 from .. import consts, symbols
-from ..pyassem import PyFlowGraph, PyFlowGraphCinder
-from ..pycodegen import (
-    CinderCodeGenerator,
+from ..pyassem import PyFlowGraph, PyFlowGraph312, PyFlowGraphCinder310
+from ..pycodegen import (  # noqa: F401
+    CinderCodeGenBase,
+    CinderCodeGenerator310,
+    CinderCodeGenerator312,
     CodeGenerator,
-    Entry,
-    FINALLY_END,
-    FINALLY_TRY,
     find_futures,
     FOR_LOOP,
 )
-from ..symbols import FunctionScope, SymbolVisitor
+from ..symbols import BaseSymbolVisitor, FunctionScope
 from ..visitor import walk
 from .common import FIXED_MODULES, lineinfo
 from .feature_extractor import _IMPLICIT_GLOBALS, FeatureExtractor
@@ -61,9 +61,9 @@ class FindClassDef(NodeVisitor):
                 break
         else:
             self.has_class = True
-        for stmt in node.body:
+        for body_stmt in node.body:
             # also consider inner classes
-            self.visit(stmt)
+            self.visit(body_stmt)
 
     def visit_FunctionDef(self, node: FunctionDef) -> None:
         # do not go into func body
@@ -104,24 +104,24 @@ class TryBodyHook(ast.stmt):
 
 
 def get_is_assigned_tracking_name(name: str) -> str:
-
     return f"<assigned:{name}>"
 
 
-class StrictCodeGenerator(CinderCodeGenerator):
-    flow_graph = PyFlowGraphCinder
+class StrictCodeGenBase(CinderCodeGenBase):
+    flow_graph = PyFlowGraph
     class_list_name: str = "<classes>"
 
     def __init__(
         self,
         parent: CodeGenerator | None,
         node: AST,
-        symbols: SymbolVisitor,
+        symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         flags: int = 0,
         optimization_lvl: int = 0,
         builtins: dict[str, Any] = builtins.__dict__,
         future_flags: int | None = None,
+        name: str | None = None,
     ) -> None:
         super().__init__(
             parent,
@@ -131,6 +131,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
             flags=flags,
             optimization_lvl=optimization_lvl,
             future_flags=future_flags,
+            name=name,
         )
         self.has_class: bool = self.has_classDef(node)
         self.made_class_list = False
@@ -142,7 +143,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
         if not parent and isinstance(node, ast.Module) and len(node.body) > 0:
             self.first_body_node = node.body[0]
 
-        if parent and isinstance(parent, StrictCodeGenerator):
+        if parent and isinstance(parent, StrictCodeGenBase):
             self.feature_extractor: FeatureExtractor = parent.feature_extractor
         else:
             self.feature_extractor = FeatureExtractor(builtins, self.future_flags)
@@ -158,7 +159,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
         optimize: int,
         ast_optimizer_enabled: bool = True,
         builtins: dict[str, Any] = builtins.__dict__,
-    ) -> StrictCodeGenerator:
+    ) -> StrictCodeGenBase:
         future_flags = find_futures(flags, tree)
         if ast_optimizer_enabled:
             tree = cls.optimize_tree(
@@ -201,7 +202,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
         self.emit("LOAD_NAME", "<fixed-modules>")
         self.emit("LOAD_CONST", "__strict__")
         self.emit("BINARY_SUBSCR")
-        self.emit("DUP_TOP")
+        self.emit_dup()
         self.emit("STORE_GLOBAL", "<strict-modules>")
         self.emit("LOAD_CONST", "freeze_type")
         self.emit("BINARY_SUBSCR")
@@ -262,7 +263,6 @@ class StrictCodeGenerator(CinderCodeGenerator):
                     node.args.append(call_function(node.args[0], "locals"))
 
     def visitCall(self, node: Call) -> None:
-
         self.strictPreVisitCall(node)
 
         super().visitCall(node)
@@ -367,7 +367,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
 
             return f"<{desc} {handler.name} at {str(id(handler))}>"
 
-        for i, handler in enumerate(node.handlers):
+        for handler in node.handlers:
             handler_name = handler.name
             if handler_name is None or not self.feature_extractor.is_global(
                 handler_name, self.scope
@@ -421,7 +421,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
                     self.emit("POP_JUMP_IF_TRUE", after)
                     self.emit_load_builtin("NameError")
                     self.emit("LOAD_CONST", f"name '{name}' is not defined")
-                    self.emit("CALL_FUNCTION", 1)
+                    self.emit_call_one_arg()
                     self.emit("RAISE_VARARGS", 1)
                     self.nextBlock(after)
 
@@ -437,12 +437,14 @@ class StrictCodeGenerator(CinderCodeGenerator):
     def make_function(
         self, name: str, body: list[stmt], location_node: ast.AST | None = None
     ) -> None:
+        # pyre-fixme[20]: Argument `args` expected.
         func = lineinfo(ast.FunctionDef(), location_node)
         func.name = name
         func.decorator_list = []
         func.returns = None
         func.type_comment = ""
         func.body = body
+        # pyre-fixme[20]: Argument `args` expected.
         args = lineinfo(ast.arguments())
         func.args = args
 
@@ -490,7 +492,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
         Pops that class and append to `<classes>`
         Do not Leave `<classes>` on the stack
         """
-        self.emit("ROT_TWO")
+        self.emit_rotate_stack(2)
         self.emit("LIST_APPEND", 1)
         self.emit("POP_TOP")
 
@@ -522,13 +524,14 @@ class StrictCodeGenerator(CinderCodeGenerator):
         self.emit("FOR_ITER", anchor)
         self.emit("LOAD_GLOBAL", "<freeze-type>")
         # argument need to be top most
-        self.emit("ROT_TWO")
-        self.emit("CALL_FUNCTION", 1)
+        self.emit_rotate_stack(2)
+        self.emit_call_one_arg()
         # discard the result of call
         self.emit("POP_TOP")
 
-        self.emit("JUMP_ABSOLUTE", start)
+        self.emitJump(start)
         self.nextBlock(anchor)
+        self.emit_end_for()
         self.pop_loop()
         self.nextBlock(after)
 
@@ -544,7 +547,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
 
     def register_immutability(self, node: ClassDef, flag: bool) -> None:
         if self.has_class and flag:
-            self.emit("DUP_TOP")
+            self.emit_dup()
             self.emit_load_class_list()
             self.emit_append_class_list()
         super().register_immutability(node, flag)
@@ -554,7 +557,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
     ) -> None:
         if (
             isinstance(node, (FunctionDef, AsyncFunctionDef))
-            and isinstance(gen, StrictCodeGenerator)
+            and isinstance(gen, StrictCodeGenBase)
             and gen.has_class
         ):
             # initialize the <classes> list
@@ -564,7 +567,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
             # in the finally block
             gen.emit_try_finally(
                 None,
-                lambda: super(StrictCodeGenerator, self).processBody(node, body, gen),
+                lambda: super(StrictCodeGenBase, self).processBody(node, body, gen),
                 lambda: gen.emit_freeze_class_list(),
             )
         else:
@@ -573,7 +576,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
     def startModule(self) -> None:
         first_node = self.first_body_node
         if first_node:
-            self.set_lineno(first_node)
+            self.set_pos(first_node)
         self.emit_load_fixed_methods()
         self.emit_init_globals()
         if self.has_class and not self.made_class_list:
@@ -606,7 +609,7 @@ class StrictCodeGenerator(CinderCodeGenerator):
             value = mod.get(var_name)
             if value is not None:
                 # duplicate TOS (mod)
-                self.emit("DUP_TOP")
+                self.emit_dup()
                 # var name
                 self.emit("LOAD_CONST", var_name)
                 self.emit("BINARY_SUBSCR")
@@ -625,6 +628,14 @@ class StrictCodeGenerator(CinderCodeGenerator):
         super().visitImportFrom(node)
 
 
+class StrictCodeGenerator310(StrictCodeGenBase, CinderCodeGenerator310):
+    flow_graph = PyFlowGraphCinder310
+
+
+class StrictCodeGenerator312(StrictCodeGenBase, CinderCodeGenerator312):
+    flow_graph = PyFlowGraph312
+
+
 def strict_compile(
     name: str,
     filename: str,
@@ -639,3 +650,9 @@ def strict_compile(
 
 
 _static_module_ported = False
+
+
+if sys.version_info >= (3, 12):
+    StrictCodeGenerator = StrictCodeGenerator312
+else:
+    StrictCodeGenerator = StrictCodeGenerator310

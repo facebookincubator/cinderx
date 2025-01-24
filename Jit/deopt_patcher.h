@@ -4,11 +4,13 @@
 
 #include <asmjit/x86.h>
 
+#include <cstdint>
+
 namespace jit {
 
 // A DeoptPatcher is used by the runtime to invalidate compiled code when an
 // invariant that the compiled code relies on is invalidated. It is intended
-// to be used in conjuction with the DeoptPatchpoint HIR instruction.
+// to be used in conjunction with the DeoptPatchpoint HIR instruction.
 //
 // Most users will want to subclass DeoptPatcher and implement their own
 // `init()` method. This will typically arrange things so that `patch()` will
@@ -31,12 +33,10 @@ namespace jit {
 // can prove that none of the 5-bytes following it are the target of a jump).
 class DeoptPatcher {
  public:
-  virtual ~DeoptPatcher() {}
+  // Write the nop that will be overwritten at runtime when patch() is called.
+  static void emitPatchpoint(asmjit::x86::Builder& as);
 
-  // Overwrite the patchpoint with a deopt.
-  //
-  // The patcher must be linked before this can be called.
-  void patch();
+  virtual ~DeoptPatcher() = default;
 
   // Link the patcher to a specific location in generated code. This is
   // intended to be called by the JIT after code has been generated but before
@@ -50,12 +50,17 @@ class DeoptPatcher {
   // a signed 32 bit int.
   void link(uintptr_t patchpoint, uintptr_t deopt_exit);
 
-  // Write the nop that will be overwritten at runtime when patch() is called.
-  static void emitPatchpoint(asmjit::x86::Builder& as);
+  // Overwrite the patchpoint with a deopt.
+  //
+  // The patcher must be linked before this can be called.
+  void patch();
 
  protected:
-  // Perform any initialization needed (e.g. subscribing to changes).
-  virtual void init() = 0;
+  // Callback to execute after linking (e.g. subscribing to changes).
+  virtual void onLink() {}
+
+  // Callback to execute after patching (e.g. cleaning up the patcher).
+  virtual void onPatch() {}
 
  private:
   // Where in the code we should patch

@@ -4,10 +4,8 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/StaticPython/classloader.h"
-#include "pycore_tuple.h"
-
 #include "cinderx/Jit/hir/hir.h"
+#include "cinderx/StaticPython/classloader.h"
 
 #include <algorithm>
 #include <cctype>
@@ -166,16 +164,22 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     expect("<");
     branches_.emplace(instr, GetNextInteger());
     expect(">");
-  } else if (
-      opcode == "VectorCall" || opcode == "VectorCallStatic" ||
-      opcode == "VectorCallKW") {
+  } else if (opcode == "VectorCall") {
     expect("<");
     int num_args = GetNextInteger();
-    bool is_awaited = false;
-    if (peekNextToken() == ",") {
+    auto flags = CallFlags::None;
+    while (peekNextToken() != ">") {
       expect(",");
-      expect("awaited");
-      is_awaited = true;
+      std::string_view tok = GetNextToken();
+      if (tok == "awaited") {
+        flags |= CallFlags::Awaited;
+      } else if (tok == "kwnames") {
+        flags |= CallFlags::KwArgs;
+      } else if (tok == "static") {
+        flags |= CallFlags::Static;
+      } else {
+        JIT_ABORT("Unexpected VectorCall immediate '{}'", tok);
+      }
     }
     expect(">");
     auto func = ParseRegister();
@@ -185,16 +189,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
         args.end(),
         std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
 
-    if (opcode == "VectorCall") {
-      instruction = newInstr<VectorCall>(num_args + 1, dst, is_awaited);
-    } else if (opcode == "VectorCallStatic") {
-      instruction = newInstr<VectorCallStatic>(num_args + 1, dst, is_awaited);
-    } else if (opcode == "VectorCallKW") {
-      instruction = newInstr<VectorCallKW>(num_args + 1, dst, is_awaited);
-    } else {
-      JIT_ABORT("Unhandled opcode {}", opcode);
-    }
-
+    instruction = newInstr<VectorCall>(num_args + 1, dst, flags);
     instruction->SetOperand(0, func);
     for (int i = 0; i < num_args; i++) {
       instruction->SetOperand(i + 1, args[i]);
@@ -219,28 +214,26 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     Register* val = ParseRegister();
     instruction = newInstr<FormatValue>(dst, fmt_spec, val, conversion);
   } else if (opcode == "CallEx") {
-    bool is_awaited = false;
+    auto flags = CallFlags::None;
     if (peekNextToken() == "<") {
       expect("<");
-      expect("awaited");
+      while (peekNextToken() != ">") {
+        auto tok = GetNextToken();
+        if (tok == "awaited") {
+          flags |= CallFlags::Awaited;
+        } else if (tok == "kwargs") {
+          flags |= CallFlags::KwArgs;
+        }
+        if (peekNextToken() == ",") {
+          expect(",");
+        }
+      }
       expect(">");
-      is_awaited = true;
-    }
-    Register* func = ParseRegister();
-    Register* pargs = ParseRegister();
-    instruction = newInstr<CallEx>(dst, func, pargs, is_awaited);
-  } else if (opcode == "CallExKw") {
-    bool is_awaited = false;
-    if (peekNextToken() == "<") {
-      expect("<");
-      expect("awaited");
-      expect(">");
-      is_awaited = true;
     }
     Register* func = ParseRegister();
     Register* pargs = ParseRegister();
     Register* kwargs = ParseRegister();
-    instruction = newInstr<CallExKw>(dst, func, pargs, kwargs, is_awaited);
+    instruction = newInstr<CallEx>(dst, func, pargs, kwargs, flags);
   } else if (opcode == "ImportFrom") {
     expect("<");
     int name_idx = GetNextInteger();
@@ -254,6 +247,13 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     Register* fromlist = ParseRegister();
     Register* level = ParseRegister();
     instruction = newInstr<ImportName>(dst, name_idx, fromlist, level);
+  } else if (opcode == "EagerImportName") {
+    expect("<");
+    int name_idx = GetNextInteger();
+    expect(">");
+    Register* fromlist = ParseRegister();
+    Register* level = ParseRegister();
+    instruction = newInstr<EagerImportName>(dst, name_idx, fromlist, level);
   } else if (opcode == "MakeList") {
     expect("<");
     int nvalues = GetNextInteger();
@@ -315,11 +315,11 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
   } else if (opcode == "CallMethod") {
     expect("<");
     int num_args = GetNextInteger();
-    bool is_awaited = false;
+    auto flags = CallFlags::None;
     if (peekNextToken() == ",") {
       expect(",");
       expect("awaited");
-      is_awaited = true;
+      flags |= CallFlags::Awaited;
     }
     expect(">");
     std::vector<Register*> args(num_args);
@@ -327,7 +327,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
         args.begin(),
         args.end(),
         std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
-    instruction = newInstr<CallMethod>(args.size(), dst, is_awaited);
+    instruction = newInstr<CallMethod>(args.size(), dst, flags);
     for (std::size_t i = 0; i < args.size(); i++) {
       instruction->SetOperand(i, args[i]);
     }
@@ -401,14 +401,14 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     expect(">");
     auto receiver = ParseRegister();
     auto value = ParseRegister();
-    instruction = newInstr<StoreAttr>(dst, receiver, value, idx);
+    instruction = newInstr<StoreAttr>(receiver, value, idx);
   } else if (opcode == "StoreAttrCached") {
     expect("<");
     int idx = GetNextNameIdx();
     expect(">");
     auto receiver = ParseRegister();
     auto value = ParseRegister();
-    instruction = newInstr<StoreAttrCached>(dst, receiver, value, idx);
+    instruction = newInstr<StoreAttrCached>(receiver, value, idx);
   } else if (opcode == "GetLength") {
     auto container = ParseRegister();
     NEW_INSTR(GetLength, dst, container, FrameState{});
@@ -424,7 +424,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     auto receiver = ParseRegister();
     auto index = ParseRegister();
     auto value = ParseRegister();
-    NEW_INSTR(StoreSubscr, dst, receiver, index, value);
+    NEW_INSTR(StoreSubscr, receiver, index, value, FrameState{});
   } else if (opcode == "Assign") {
     auto src = ParseRegister();
     NEW_INSTR(Assign, dst, src);
@@ -442,6 +442,13 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     auto left = ParseRegister();
     auto right = ParseRegister();
     instruction = newInstr<LongBinaryOp>(dst, op, left, right);
+  } else if (opcode == "LongInPlaceOp") {
+    expect("<");
+    InPlaceOpKind op = ParseInPlaceOpName(GetNextToken());
+    expect(">");
+    auto left = ParseRegister();
+    auto right = ParseRegister();
+    instruction = newInstr<LongInPlaceOp>(dst, op, left, right);
   } else if (opcode == "IntBinaryOp") {
     expect("<");
     BinaryOpKind op = ParseBinaryOpName(GetNextToken());
@@ -531,12 +538,15 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     instruction = newInstr<UnaryOp>(dst, op, operand);
   } else if (opcode == "RaiseAwaitableError") {
     expect("<");
-    int prev_opcode = GetNextInteger();
-    expect(",");
-    int opcode = GetNextInteger();
+    std::string_view error = GetNextToken();
+    bool is_aenter = error == "__aenter__";
+    JIT_CHECK(
+        is_aenter || error == "__aexit__",
+        "Bad error string for RaiseAwaitableError: {}",
+        error);
     expect(">");
     auto type_reg = ParseRegister();
-    NEW_INSTR(RaiseAwaitableError, type_reg, prev_opcode, opcode, FrameState{});
+    NEW_INSTR(RaiseAwaitableError, type_reg, is_aenter, FrameState{});
   } else if (opcode == "Return") {
     Type type = TObject;
     if (peekNextToken() == "<") {
@@ -560,12 +570,16 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     expect(">");
     Register* value = ParseRegister();
     NEW_INSTR(GetSecondOutput, dst, ty, value);
-  } else if (opcode == "LoadTypeAttrCacheItem") {
+  } else if (opcode == "LoadTypeAttrCacheEntryType") {
     expect("<");
     int cache_id = GetNextInteger();
-    int item_idx = GetNextInteger();
     expect(">");
-    NEW_INSTR(LoadTypeAttrCacheItem, dst, cache_id, item_idx);
+    NEW_INSTR(LoadTypeAttrCacheEntryType, dst, cache_id);
+  } else if (opcode == "LoadTypeAttrCacheEntryValue") {
+    expect("<");
+    int cache_id = GetNextInteger();
+    expect(">");
+    NEW_INSTR(LoadTypeAttrCacheEntryValue, dst, cache_id);
   } else if (opcode == "FillTypeAttrCache") {
     expect("<");
     int cache_id = GetNextInteger();
@@ -698,9 +712,25 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
 
     auto names = Ref<PyListObject>::steal(PyUnicode_Split(mod_name, dot, -1));
     JIT_CHECK(names != nullptr, "unknown func");
-    auto type_descr =
-        Ref<>::steal(_PyTuple_FromArray(names->ob_item, Py_SIZE(names.get())));
-    JIT_CHECK(type_descr != nullptr, "unknown func");
+
+    auto container_descr =
+        Ref<PyTupleObject>::steal(PyTuple_New(Py_SIZE(names.get()) - 1));
+    JIT_CHECK(container_descr != nullptr, "failed to allocate container");
+    for (Py_ssize_t i = 0; i < Py_SIZE(names.get()) - 1; i++) {
+      PyObject* comp = PyList_GET_ITEM(names.get(), i);
+      PyTuple_SET_ITEM(container_descr.get(), i, comp);
+      Py_INCREF(comp);
+    }
+
+    auto type_descr = Ref<>::steal(PyTuple_New(2));
+    JIT_CHECK(type_descr != nullptr, "failed to allocate type_descr");
+
+    PyTuple_SET_ITEM(type_descr.get(), 0, container_descr.getObj());
+    Py_INCREF(container_descr.get());
+    PyObject* func_name = PyList_GET_ITEM(names, Py_SIZE(names.get()) - 1);
+    PyTuple_SET_ITEM(type_descr.get(), 1, func_name);
+    Py_INCREF(func_name);
+
     PyObject* container = nullptr;
     auto func = Ref<PyFunctionObject>::steal(
         _PyClassLoader_ResolveFunction(type_descr, &container));
@@ -716,6 +746,10 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     instruction = newInstr<InvokeStaticFunction>(argcount, dst, func, ty);
   } else if (opcode == "LoadCurrentFunc") {
     NEW_INSTR(LoadCurrentFunc, dst);
+  } else if (opcode == "LoadEvalBreaker") {
+    NEW_INSTR(LoadEvalBreaker, dst);
+  } else if (opcode == "RunPeriodicTasks") {
+    instruction = newInstr<RunPeriodicTasks>(dst);
   } else if (opcode == "ListAppend") {
     auto list = ParseRegister();
     auto value = ParseRegister();
@@ -760,12 +794,15 @@ FrameState HIRParser::parseFrameState() {
   expect("{");
   auto token = GetNextToken();
   while (token != "}") {
-    if (token == "NextInstrOffset") {
-      fs.next_instr_offset = BCOffset{GetNextInteger()};
+    if (token == "CurInstrOffset") {
+      fs.cur_instr_offs = BCOffset{GetNextInteger()};
     } else if (token == "Locals") {
-      fs.locals = parseRegisterVector();
+      fs.localsplus = parseRegisterVector();
+      fs.nlocals = fs.localsplus.size();
     } else if (token == "Cells") {
-      fs.cells = parseRegisterVector();
+      for (auto reg : parseRegisterVector()) {
+        fs.localsplus.push_back(reg);
+      }
     } else if (token == "Stack") {
       for (Register* r : parseRegisterVector()) {
         fs.stack.push(r);

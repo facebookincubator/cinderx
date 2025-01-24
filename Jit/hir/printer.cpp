@@ -3,10 +3,11 @@
 #include "cinderx/Jit/hir/printer.h"
 
 #include <Python.h>
-#include "cinderx/Common/util.h"
 
-#include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/runtime.h"
+#include "cinderx/Common/code.h"
+#include "cinderx/Common/util.h"
+#include "cinderx/Jit/symbolizer.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -273,6 +274,7 @@ static std::string format_immediates(const Instr& instr) {
     case Opcode::kPrimitiveBoxBool:
     case Opcode::kRaise:
     case Opcode::kRunPeriodicTasks:
+    case Opcode::kSend:
     case Opcode::kSetCurrentAwaiter:
     case Opcode::kSetCellItem:
     case Opcode::kSetDictItem:
@@ -313,11 +315,10 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kCallEx: {
       const auto& call = static_cast<const CallEx&>(instr);
-      return call.isAwaited() ? "awaited" : "";
-    }
-    case Opcode::kCallExKw: {
-      const auto& call = static_cast<const CallExKw&>(instr);
-      return call.isAwaited() ? "awaited" : "";
+      return fmt::format(
+          "{}{}",
+          (call.flags() & CallFlags::Awaited) ? ", awaited" : "",
+          (call.flags() & CallFlags::KwArgs) ? ", kwargs" : "");
     }
     case Opcode::kBinaryOp: {
       const auto& bin_op = static_cast<const BinaryOp&>(instr);
@@ -331,21 +332,29 @@ static std::string format_immediates(const Instr& instr) {
       const auto& branch = static_cast<const Branch&>(instr);
       return fmt::format("{}", branch.target()->id);
     }
-    case Opcode::kVectorCall:
-    case Opcode::kVectorCallStatic:
-    case Opcode::kVectorCallKW: {
-      const auto& call = static_cast<const VectorCallBase&>(instr);
+    case Opcode::kVectorCall: {
+      const auto& call = static_cast<const VectorCall&>(instr);
       return fmt::format(
-          "{}{}", call.numArgs(), call.isAwaited() ? ", awaited" : "");
+          "{}{}{}{}",
+          call.numArgs(),
+          (call.flags() & CallFlags::Awaited) ? ", awaited" : "",
+          (call.flags() & CallFlags::KwArgs) ? ", kwnames" : "",
+          (call.flags() & CallFlags::Static) ? ", static" : "");
     }
     case Opcode::kCallCFunc: {
       const auto& call = static_cast<const CallCFunc&>(instr);
       return call.funcName();
     }
+    case Opcode::kCallIntrinsic: {
+      const auto& call = static_cast<const CallIntrinsic&>(instr);
+      return fmt::format("{}", call.index());
+    }
     case Opcode::kCallMethod: {
       const auto& call = static_cast<const CallMethod&>(instr);
       return fmt::format(
-          "{}{}", call.NumOperands(), call.isAwaited() ? ", awaited" : "");
+          "{}{}",
+          call.NumOperands(),
+          (call.flags() & CallFlags::Awaited) ? ", awaited" : "");
     }
     case Opcode::kCallStatic: {
       const auto& call = static_cast<const CallStatic&>(instr);
@@ -443,6 +452,10 @@ static std::string format_immediates(const Instr& instr) {
       const auto& bin = static_cast<const LongBinaryOp&>(instr);
       return std::string{GetBinaryOpName(bin.op())};
     }
+    case Opcode::kLongInPlaceOp: {
+      const auto& inplace = static_cast<const LongInPlaceOp&>(instr);
+      return std::string{GetInPlaceOpName(inplace.op())};
+    }
     case Opcode::kCompareBool: {
       const auto& cmp = static_cast<const Compare&>(instr);
       return std::string{GetCompareOpName(cmp.op())};
@@ -481,8 +494,12 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kLoadAttrSpecial: {
       const auto& load = static_cast<const LoadAttrSpecial&>(instr);
+#if PY_VERSION_HEX < 0x030C0000
       _Py_Identifier* id = load.id();
       return fmt::format("\"{}\"", id->string);
+#else
+      return fmt::format("\"{}\"", repr(load.id()));
+#endif
     }
     case Opcode::kLoadMethod:
     case Opcode::kLoadMethodCached:
@@ -599,9 +616,13 @@ static std::string format_immediates(const Instr& instr) {
       const auto& build_slice = static_cast<const BuildSlice&>(instr);
       return fmt::format("{}", build_slice.NumOperands());
     }
-    case Opcode::kLoadTypeAttrCacheItem: {
-      const auto& i = static_cast<const LoadTypeAttrCacheItem&>(instr);
-      return fmt::format("{}, {}", i.cache_id(), i.item_idx());
+    case Opcode::kLoadTypeAttrCacheEntryType: {
+      const auto& i = static_cast<const LoadTypeAttrCacheEntryType&>(instr);
+      return fmt::format("{}", i.cache_id());
+    }
+    case Opcode::kLoadTypeAttrCacheEntryValue: {
+      const auto& i = static_cast<const LoadTypeAttrCacheEntryValue&>(instr);
+      return fmt::format("{}", i.cache_id());
     }
     case Opcode::kFillTypeAttrCache: {
       const auto& ftac = static_cast<const FillTypeAttrCache&>(instr);
@@ -660,7 +681,7 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kRaiseAwaitableError: {
       const auto& ra = static_cast<const RaiseAwaitableError&>(instr);
-      return fmt::format("{}, {}", ra.with_prev_opcode(), ra.with_opcode());
+      return ra.isAEnter() ? "__aenter__" : "__aexit__";
     }
     case Opcode::kRaiseStatic: {
       const auto& pyerr = static_cast<const RaiseStatic&>(instr);
@@ -679,6 +700,11 @@ static std::string format_immediates(const Instr& instr) {
     case Opcode::kImportName: {
       const auto& import_name = static_cast<const ImportName&>(instr);
       return format_name(import_name, import_name.name_idx());
+    }
+    case Opcode::kEagerImportName: {
+      const auto& eager_import_name =
+          static_cast<const EagerImportName&>(instr);
+      return format_name(eager_import_name, eager_import_name.name_idx());
     }
     case Opcode::kRefineType: {
       const auto& rt = static_cast<const RefineType&>(instr);
@@ -706,6 +732,11 @@ static std::string format_immediates(const Instr& instr) {
       const auto& dp = static_cast<const DeoptPatchpoint&>(instr);
       return fmt::format("{}", getStablePointer(dp.patcher()));
     }
+    case Opcode::kUpdatePrevInstr: {
+      const auto& upi = static_cast<const UpdatePrevInstr&>(instr);
+      return fmt::format(
+          "idx:{} line_no:{}", upi.bytecodeOffset().asIndex(), upi.lineNo());
+    }
   }
   JIT_ABORT("Invalid opcode {}", static_cast<int>(instr.opcode()));
 }
@@ -715,7 +746,7 @@ void HIRPrinter::Print(
     const Instr& instr,
     bool full_snapshots) {
   Indented(os);
-  if (Register* dst = instr.GetOutput()) {
+  if (Register* dst = instr.output()) {
     os << dst->name();
     if (dst->type() != TTop) {
       os << ":" << dst->type();
@@ -775,12 +806,13 @@ void HIRPrinter::Print(
 }
 
 void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
-  Indented(os) << "NextInstrOffset " << state.next_instr_offset << std::endl;
+  Indented(os) << "CurInstrOffset " << state.cur_instr_offs << std::endl;
 
-  auto nlocals = state.locals.size();
+  auto nlocals = state.nlocals;
   if (nlocals > 0) {
     Indented(os) << "Locals<" << nlocals << ">";
-    for (auto reg : state.locals) {
+    for (int i = 0; i < nlocals; ++i) {
+      auto reg = state.localsplus[i];
       if (reg == nullptr) {
         os << " <null>";
       } else {
@@ -790,10 +822,12 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
     os << std::endl;
   }
 
-  auto ncells = state.cells.size();
+  auto nlocalsplus = state.localsplus.size();
+  auto ncells = nlocalsplus - state.nlocals;
   if (ncells > 0) {
     Indented(os) << "Cells<" << ncells << ">";
-    for (auto reg : state.cells) {
+    for (int i = nlocals; i < nlocalsplus; ++i) {
+      auto reg = state.localsplus[i];
       if (reg == nullptr) {
         os << " <null>";
       } else {
@@ -831,10 +865,10 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
 
 static int lastLineNumber(PyCodeObject* code) {
   int last_line = -1;
-  for (Py_ssize_t off = 0;
-       off < (PyBytes_Size(code->co_code) / (Py_ssize_t)sizeof(_Py_CODEUNIT));
-       off += sizeof(_Py_CODEUNIT)) {
-    last_line = std::max(last_line, PyCode_Addr2Line(code, off));
+  BytecodeInstructionBlock bc_block{code};
+  for (const BytecodeInstruction& bc_instr : bc_block) {
+    BCOffset bc_off = bc_instr.offset();
+    last_line = std::max(last_line, PyCode_Addr2Line(code, bc_off.value()));
   }
   return last_line;
 }
@@ -929,7 +963,7 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
     case LOAD_FAST:
     case STORE_FAST:
     case DELETE_FAST: {
-      PyObject* name_obj = PyTuple_GetItem(code->co_varnames, oparg);
+      PyObject* name_obj = PyTuple_GetItem(PyCode_GetVarnames(code), oparg);
       JIT_DCHECK(name_obj != nullptr, "bad name");
       const char* name = PyUnicode_AsUTF8(name_obj);
       if (name == nullptr) {
@@ -942,11 +976,12 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
     case STORE_DEREF:
     case DELETE_DEREF: {
       PyObject* name_obj;
-      if (oparg < PyTuple_GET_SIZE(code->co_cellvars)) {
-        name_obj = PyTuple_GetItem(code->co_cellvars, oparg);
+      if (oparg < PyTuple_GET_SIZE(PyCode_GetCellvars(code))) {
+        name_obj = PyTuple_GetItem(PyCode_GetCellvars(code), oparg);
       } else {
         name_obj = PyTuple_GetItem(
-            code->co_freevars, oparg - PyTuple_GET_SIZE(code->co_cellvars));
+            PyCode_GetFreevars(code),
+            oparg - PyTuple_GET_SIZE(PyCode_GetCellvars(code)));
       }
       JIT_DCHECK(name_obj != nullptr, "bad name");
       const char* name = PyUnicode_AsUTF8(name_obj);
@@ -963,14 +998,17 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
     case LOAD_GLOBAL:
     case STORE_GLOBAL:
     case DELETE_GLOBAL: {
-      PyObject* name_obj = PyTuple_GetItem(code->co_names, oparg);
+      int name_idx = (opcode == LOAD_ATTR)
+          ? loadAttrIndex(oparg)
+          : (opcode == LOAD_GLOBAL ? loadGlobalIndex(oparg) : oparg);
+      PyObject* name_obj = PyTuple_GetItem(code->co_names, name_idx);
       JIT_DCHECK(name_obj != nullptr, "bad name");
       const char* name = PyUnicode_AsUTF8(name_obj);
       if (name == nullptr) {
         PyErr_Clear();
-        return fmt::format("{}: (error printing name)", oparg);
+        return fmt::format("{}: (error printing name)", name_idx);
       }
-      return fmt::format("{}: {}", oparg, name);
+      return fmt::format("{}: {}", name_idx, name);
     }
     default:
       return std::to_string(oparg);
@@ -989,8 +1027,9 @@ nlohmann::json JSONPrinter::PrintBytecode(const Function& func) {
   block["name"] = "bb0";
   nlohmann::json instrs_json = nlohmann::json::array();
   PyCodeObject* code = func.code;
-  _Py_CODEUNIT* instrs = (_Py_CODEUNIT*)PyBytes_AS_STRING(code->co_code);
-  Py_ssize_t num_instrs = PyBytes_Size(code->co_code) / sizeof(_Py_CODEUNIT);
+  _Py_CODEUNIT* instrs = (_Py_CODEUNIT*)PyBytes_AS_STRING(PyCode_GetCode(code));
+  Py_ssize_t num_instrs =
+      PyBytes_Size(PyCode_GetCode(code)) / sizeof(_Py_CODEUNIT);
   for (Py_ssize_t i = 0, off = 0; i < num_instrs;
        i++, off += sizeof(_Py_CODEUNIT)) {
     unsigned char opcode = _Py_OPCODE(instrs[i]);
@@ -1010,7 +1049,7 @@ nlohmann::json JSONPrinter::PrintBytecode(const Function& func) {
 nlohmann::json JSONPrinter::Print(const Instr& instr) {
   nlohmann::json result;
   result["line"] = instr.lineNumber();
-  Register* output = instr.GetOutput();
+  Register* output = instr.output();
   if (output != nullptr) {
     result["output"] = output->name();
     if (output->type() != TTop) {
@@ -1094,7 +1133,7 @@ nlohmann::json JSONPrinter::Print(const CFG& cfg) {
 void JSONPrinter::Print(
     nlohmann::json& passes,
     const Function& func,
-    const char* pass_name,
+    std::string_view pass_name,
     std::size_t time_ns) {
   nlohmann::json result;
   result["name"] = pass_name;

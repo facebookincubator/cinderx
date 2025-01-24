@@ -3,11 +3,8 @@
 #include "cinderx/Jit/lir/block_builder.h"
 
 #include "cinderx/Common/util.h"
-
-#include "cinderx/Jit/lir/generator.h"
+#include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"
-
-#include <dlfcn.h>
 
 #include <sstream>
 
@@ -29,8 +26,8 @@ std::size_t BasicBlockBuilder::makeDeoptMetadata() {
   JIT_CHECK(deopt_base != nullptr, "Current HIR instruction can't deopt");
 
   if (!cur_deopt_metadata_.has_value()) {
-    cur_deopt_metadata_ = env_->rt->addDeoptMetadata(
-        DeoptMetadata::fromInstr(*deopt_base, env_->code_rt));
+    cur_deopt_metadata_ =
+        env_->rt->addDeoptMetadata(DeoptMetadata::fromInstr(*deopt_base));
   }
   return cur_deopt_metadata_.value();
 }

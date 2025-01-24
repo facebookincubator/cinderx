@@ -1,27 +1,32 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
 from __future__ import annotations
 
 import dis
+import inspect
 import os
 import sys
-from ast import AsyncFunctionDef, ClassDef, FunctionDef
-from collections import deque
+from collections import defaultdict, deque
 from functools import partial
 from io import SEEK_END, TextIOBase
 from re import escape
 from typing import Generator, Iterable, Sequence
 
 from cinderx.compiler import pyassem
-from cinderx.compiler.pyassem import Instruction
+from cinderx.compiler.pyassem import Instruction, PyFlowGraph312
 from cinderx.compiler.pycodegen import CodeGenerator
 
-from .common import CompilerTest, glob_test
+from .common import CompilerTest, glob_test, ParsedExceptionTable
 
 
 def format_oparg(instr: Instruction) -> str:
     if instr.target is not None:
+        if instr.target.label:
+            return f"Block({instr.target.bid}, label={instr.target.label!r})"
         return f"Block({instr.target.bid})"
     elif isinstance(instr.oparg, CodeGenerator):
+        # pyre-fixme[16]: `AST` has no attribute `lineno`.
+        # pyre-fixme[16]: `AST` has no attribute `col_offset`.
         return f"Code(({instr.oparg.tree.lineno},{instr.oparg.tree.col_offset}))"
     elif isinstance(instr.oparg, (str, int, tuple, frozenset, type(None))):
         return repr(instr.oparg)
@@ -31,8 +36,10 @@ def format_oparg(instr: Instruction) -> str:
 
 DEFAULT_MARKER = "# This is the default script and should be updated to the minimal byte codes to be verified"
 SCRIPT_EXPECTED = "# EXPECTED:"
+SCRIPT_EXC_TABLE = "# EXCEPTION_TABLE:"
 SCRIPT_EXT = ".scr.py"
 SCRIPT_OPCODE_CODE = "CODE_START"
+BLOCK_START_CODE = "__BLOCK__"
 
 
 class _AnyType:
@@ -69,11 +76,88 @@ def graph_instrs(graph, name=None) -> Generator[Instruction, None, None]:
     if name:
         yield Instruction(SCRIPT_OPCODE_CODE, name)
     for block in graph.getBlocks():
+        yield Instruction(BLOCK_START_CODE, None, target=block)
         yield from block.getInstructions()
 
 
+class TestFile:
+    """Parsed test case file."""
+
+    _SECTION_HEADERS = {SCRIPT_EXPECTED: "expected", SCRIPT_EXC_TABLE: "exc_table"}
+
+    def __init__(self, fname: str) -> None:
+        self.fname: str = fname
+        self.code: str = ""
+        self.expected: str | None = None
+        self.exc_table: str | None = None
+        self._read_test_file()
+
+    def _read_test_file(self):
+        with open(self.fname) as f:
+            lines = f.readlines()
+
+        sections = defaultdict(list)
+        section = "code"
+        for line in lines:
+            line = line.rstrip()
+            if k := self._SECTION_HEADERS.get(line):
+                section = k
+            else:
+                sections[section].append(line)
+
+        self.code = "\n".join(sections["code"])
+        for section in self._SECTION_HEADERS.values():
+            if section in sections:
+                setattr(self, section, "\n".join(sections[section]))
+
+    def write_default_expected(self, instrs):
+        """Fill in the EXPECTED section of the file with a default script."""
+
+        with open(self.fname) as f:
+            text = f.read()
+            has_nl = text.endswith("\n")
+
+        with open(self.fname, "a") as f:
+            f.seek(0, SEEK_END)
+            if not has_nl:
+                f.write("\n")
+            self._gen_default_script(f, instrs)
+
+    def _gen_default_script(
+        self, scr: TextIOBase, instrs: Iterable[Instruction]
+    ) -> None:
+        # generate a default script which matches exactly...  This should
+        # be fixed up to a minimal match
+        scr.write(SCRIPT_EXPECTED + "\n")
+        scr.write(DEFAULT_MARKER + "\n")
+        scr.write("[\n")
+        queue: deque[Iterable[Instruction]] = deque([instrs])
+        first = True
+        while queue:
+            instrs = queue.popleft()
+            for instr in instrs:
+                if isinstance(instr.oparg, CodeGenerator):
+                    queue.append(
+                        graph_instrs(instr.oparg.graph, instr.oparg.graph.name)
+                    )
+                if instr.opname == BLOCK_START_CODE:
+                    target = instr.target
+                    assert target is not None
+                    if not first:
+                        scr.write("\n")
+                    scr.write(
+                        f"    # {instr.opname}('{target.label}: {target.bid}'),\n"
+                    )
+                else:
+                    scr.write(f"    {instr.opname}({format_oparg(instr)}),\n")
+                first = False
+        scr.write("]\n")
+
+
 class CodeTests(CompilerTest):
-    def check_instrs(self, instrs: Iterable[Instruction], script: Sequence[Matcher]) -> None:
+    def check_instrs(
+        self, instrs: Iterable[Instruction], script: Sequence[Matcher]
+    ) -> None:
         if not script:
             self.fail("Script file is empty")
 
@@ -83,14 +167,19 @@ class CodeTests(CompilerTest):
             instrs = tuple(queue.popleft())
             for i, instr in enumerate(instrs):
                 if isinstance(instr.oparg, CodeGenerator):
-                    queue.append(graph_instrs(instr.oparg.graph, instr.oparg.name))
+                    queue.append(
+                        graph_instrs(instr.oparg.graph, instr.oparg.graph.name)
+                    )
                 if cur_scr == len(script):
                     self.fail("Extra bytecodes not expected")
 
                 op = script[cur_scr]
                 inc, error = op.is_match(self, instrs, i, script, cur_scr)
                 if error:
-                    self.fail(error)
+                    # Ignore block starts, they're optional in the script.
+                    if instr.opname != BLOCK_START_CODE:
+                        self.fail(error)
+
                 cur_scr += inc
 
         # make sure we exhausted the script or ended on a ...
@@ -99,24 +188,25 @@ class CodeTests(CompilerTest):
 
         script[cur_scr].end(self, script, cur_scr)
 
-    def gen_default_script(self, scr: TextIOBase, instrs: Iterable[Instruction]) -> None:
-        # generate a default script which matches exactly...  This should
-        # be fixed up to a minimal match
-        scr.write(SCRIPT_EXPECTED + "\n")
-        scr.write(DEFAULT_MARKER + "\n")
-        scr.write("[\n")
-        queue: deque[Iterable[Instruction]] = deque([instrs])
-        while queue:
-            instrs = queue.popleft()
-            for instr in instrs:
-                if isinstance(instr.oparg, CodeGenerator):
-                    queue.append(graph_instrs(instr.oparg.graph, instr.oparg.name))
-                scr.write(f"    {instr.opname}({format_oparg(instr)}),\n")
-        scr.write("]\n")
-
-        self.fail(
-            "script file not present, script generated, fixup to be minimal repo and check it in"
-        )
+    def check_exc_table(self, graph: PyFlowGraph312, fn_name: str, table: str):
+        actual = None  # keep pyre happy
+        if fn_name == "":
+            actual = graph.exception_table
+        else:
+            # We have already converted function graphs to bytecode, so we need
+            # to check consts for code objects.
+            # TODO(T190611021): Handle methods and nested functions.
+            for _, obj in graph.consts:
+                if inspect.iscode(obj) and obj.co_name == fn_name:
+                    # pyre-ignore[16]: `types.CodeType` has no attribute `co_exceptiontable`
+                    actual = obj.co_exceptiontable
+                    break
+            else:
+                raise ValueError(f"function {fn_name} not found in code")
+        assert actual is not None
+        actual_exc = ParsedExceptionTable.from_bytes(actual)
+        expected_exc = ParsedExceptionTable.from_dis_output(table)
+        self.assertEqual(actual_exc.entries, expected_exc.entries)
 
     def test_self_empty_script(self) -> None:
         with self.assertRaises(AssertionError):
@@ -250,46 +340,46 @@ class CodeTests(CompilerTest):
 
 
 def add_test(modname: str, fname: str) -> None:
+    version = sys.version_info[:2]
     if "/cinder/" in fname and "cinder" not in sys.version:
         return
-    elif f"/3.10/" in fname and sys.version_info[:2] != (3, 10):
+    elif f"/3.10/" in fname and version != (3, 10):
         return
-    elif f"/3.12/" in fname and sys.version_info[:2] != (3, 12):
+    elif f"/3.12/" in fname and version != (3, 12):
         return
     if fname.endswith("/__init__.py"):
         return
 
     def test_code(self: CodeTests):
-        with open(fname) as f:
-            test = f.read()
+        test = TestFile(fname)
+        graph = self.to_graph(test.code)
 
-        parts = test.split(SCRIPT_EXPECTED, 1)
-        graph = self.to_graph(parts[0])
+        fixme = "fixup to be a minimal repro and check it in"
+        if test.expected is None:
+            test.write_default_expected(graph_instrs(graph))
+            self.fail(f"test script not present, script generated, {fixme}")
+        elif DEFAULT_MARKER in test.expected:
+            self.fail(f"generated default script marker present, {fixme}")
 
-        if len(parts) == 1:
-            with open(fname, "a") as f:
-                f.seek(0, SEEK_END)
-                if not parts[0].endswith("\n"):
-                    test += "\n"
+        # Parse expected bytecode
+        script = eval(test.expected, globals(), SCRIPT_CONTEXT)
+        transformed = [
+                SkipAny() if value == ... else value
+                for value in script
+        ]
+        self.check_instrs(graph_instrs(graph), transformed)
 
-                self.gen_default_script(f, graph_instrs(graph))
-                self.fail(
-                    "test script not present, script generated, fixup to be minimal repo and check it in"
-                )
-        elif parts[1].find(DEFAULT_MARKER) != -1:
-            self.fail(
-                "generated script present, fixup to be a minimal repo and check it in"
-            )
-
-        script = eval(parts[1], globals(), SCRIPT_CONTEXT)
-        for i, value in enumerate(script):
-            if value == ...:
-                script[i] = SkipAny()
-
-        self.check_instrs(graph_instrs(graph), script)
+        # Parse expected exception table
+        exc_table = test.exc_table
+        if exc_table is not None:
+            if version < (3, 11):
+                self.fail("No exception table in python 3.10")
+            exc = eval(exc_table)
+            for fn, table in exc.items():
+                self.check_exc_table(graph, fn, table)
 
     # pyre-ignore[16]: Callable has no attribute __name__
-    test_code.__name__ = "test_" + modname.replace("/", "_")[:-3]
+    test_code.__name__ = "test_" + modname.replace("/", "_").replace(".", "_")[:-3]
     setattr(CodeTests, test_code.__name__, test_code)
 
 
@@ -306,7 +396,7 @@ class Matcher:
         cur_instr: int,
         script: Sequence[Matcher],
         cur_scr: int,
-    ) -> tuple[int, str|None]:
+    ) -> tuple[int, str | None]:
         raise NotImplementedError()
 
     def end(self, test, script: Sequence[Matcher], cur_scr) -> None:
@@ -341,8 +431,9 @@ class Op(Matcher):
         cur_instr: int,
         script: Sequence[Matcher],
         cur_scr: int,
-    ) -> tuple[int, str|None]:
+    ) -> tuple[int, str | None]:
         instr = instrs[cur_instr]
+
         if is_instr_match(test, self.opname, self.oparg, instr):
             return 1, None
 
@@ -366,8 +457,9 @@ CODE_START = partial(Op, SCRIPT_OPCODE_CODE)
 class Block:
     """Matches an oparg with block target"""
 
-    def __init__(self, bid) -> None:
+    def __init__(self, bid: int, label: str | None = None) -> None:
         self.bid = bid
+        self.label = label
 
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, pyassem.Block):
@@ -376,6 +468,8 @@ class Block:
         return other.bid == self.bid
 
     def __repr__(self) -> str:
+        if self.label:
+            return f"Block({self.bid}, label={self.label})"
         return f"Block({self.bid})"
 
 
@@ -390,10 +484,10 @@ class Code:
             return False
 
         if isinstance(self.loc, str):
-            tree = other.tree
-            assert isinstance(tree, (AsyncFunctionDef, ClassDef, FunctionDef))
-            return self.loc == tree.name
+            return self.loc == other.name
         elif isinstance(self.loc, tuple):
+            # pyre-fixme[16]: `AST` has no attribute `lineno`.
+            # pyre-fixme[16]: `AST` has no attribute `col_offset`.
             return self.loc == (other.tree.lineno, other.tree.col_offset)
         elif isinstance(self.loc, int):
             return self.loc == other.tree.lineno
@@ -416,13 +510,14 @@ class SkipAny(Matcher):
         cur_instr: int,
         script: Sequence[Matcher],
         cur_scr: int,
-    ) -> tuple[int, str|None]:
+    ) -> tuple[int, str | None]:
         if cur_scr + 1 != len(script):
             next = script[cur_scr + 1]
             inc, error = next.is_match(test, instrs, cur_instr, script, cur_scr + 1)
             if not error:
                 # skip the ... and the match
                 return inc + 1, None
+            return inc, None
         return 0, None
 
     def end(self, test, script, cur_scr) -> None:
@@ -454,7 +549,7 @@ class SkipBut(SkipAny):
         cur_instr: int,
         script: Sequence[Matcher],
         cur_scr: int,
-    ) -> tuple[int, str|None]:
+    ) -> tuple[int, str | None]:
         instr = instrs[cur_instr]
         for arg in self.args:
             inc, err = arg.is_match(test, instrs, cur_instr, script, cur_scr)
@@ -470,7 +565,37 @@ class SkipBut(SkipAny):
         return f"SkipBut(*{self.args!r})"
 
 
+class BlockStart(Matcher):
+    def __init__(self, name: str) -> None:
+        self.name = name
+
+    def __repr__(self) -> str:
+        return f"BLOCK_START({self.name!r})"
+
+    def is_match(
+        self,
+        test: CodeTests,
+        instrs: Sequence[Instruction],
+        cur_instr: int,
+        script: Sequence[Matcher],
+        cur_scr: int,
+    ) -> tuple[int, str | None]:
+        instr = instrs[cur_instr]
+        if instr.opname == BLOCK_START_CODE:
+            label, _, bid = self.name.rpartition(": ")
+            target = instr.target
+            assert target is not None
+            if target.label == label and target.bid == int(bid):
+                return 1, None
+
+        return (
+            0,
+            f"mismatch, expected BLOCK_START({self.name!r}), got {instr.opname} {format_oparg(instr)}",
+        )
+
+
 SCRIPT_CONTEXT = {
     "ANY": partial(Op, Any),
+    BLOCK_START_CODE: BlockStart,
     **{opname: partial(Op, opname) for opname in dis.opmap},
 }

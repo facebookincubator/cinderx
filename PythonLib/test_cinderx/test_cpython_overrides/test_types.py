@@ -1,3 +1,4 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
 # Python test set -- part 6, built-in types
 
 from test.support import run_with_locale, cpython_only

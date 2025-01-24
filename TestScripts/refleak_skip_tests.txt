@@ -6,9 +6,7 @@ test_pyice
 test_site
 test_sys
 test_tools
-test_cinderx.test_compiler.test_strict.test_loader.*
 test_cinderx.test_compiler.test_strict.test_strict_codegen.StrictCheckedCompilationTests.*
-test_cinderx.test_compiler.test_strict.test_definite_assignment.*
 # TODO(T130986700) Fix refleaks in test_compiler
 test_cinderx.test_compiler.*
 

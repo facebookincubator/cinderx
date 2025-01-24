@@ -7,8 +7,9 @@ from __future__ import annotations
 import ast
 import builtins
 from ast import AST
+from collections import deque
 from types import CodeType
-from typing import Any, Dict, Optional, Tuple, Type, TYPE_CHECKING
+from typing import Any, cast, TYPE_CHECKING
 
 from .. import consts
 from ..errors import ErrorSink
@@ -48,7 +49,7 @@ else:
 
 
 if TYPE_CHECKING:
-    from . import Static310CodeGenerator
+    from . import Static310CodeGenerator, StaticCodeGenBase
 
 try:
     import xxclassloader
@@ -83,7 +84,7 @@ class StrictBuiltins(Object[Class]):
 class Compiler:
     def __init__(
         self,
-        code_generator: type[Static310CodeGenerator],
+        code_generator: type[StaticCodeGenBase],
         error_sink: ErrorSink | None = None,
     ) -> None:
         self.modules: dict[str, ModuleTable] = {}
@@ -95,6 +96,7 @@ class Compiler:
             TypeName("builtins", "int"),
             self.type_env,
             pytype=int,
+            # pyre-fixme[16]: Module `__static__` has no attribute `RAND_MAX`.
             literal_value=RAND_MAX,
             is_final=True,
         )
@@ -113,6 +115,7 @@ class Compiler:
             "ConnectionRefusedError": self.type_env.connection_refused_error,
             "ConnectionResetError": self.type_env.connection_reset_error,
             "DeprecationWarning": self.type_env.deprecation_warning,
+            "EncodingWarning": self.type_env.encoding_warning,
             "EOFError": self.type_env.eof_error,
             "Ellipsis": self.type_env.DYNAMIC,
             "EnvironmentError": self.type_env.environment_error,
@@ -153,6 +156,7 @@ class Compiler:
             "StopIteration": self.type_env.stop_iteration,
             "SyntaxError": self.type_env.syntax_error,
             "SyntaxWarning": self.type_env.syntax_warning,
+            "SystemError": self.type_env.system_error,
             "SystemExit": self.type_env.system_exit,
             "TabError": self.type_env.tab_error,
             "TimeoutError": self.type_env.timeout_error,
@@ -168,6 +172,7 @@ class Compiler:
             "Warning": self.type_env.warning,
             "ZeroDivisionError": self.type_env.zero_division_error,
             "__name__": self.type_env.str.instance,
+            "__file__": self.type_env.str.instance,
             "bool": self.type_env.bool.exact_type(),
             "bytes": self.type_env.bytes.exact_type(),
             "bytearray": self.type_env.DYNAMIC,
@@ -218,6 +223,7 @@ class Compiler:
             "all": reflect_builtin_function(all, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "any": reflect_builtin_function(any, None, self.type_env),
+            "anext": reflect_builtin_function(anext, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
             "ascii": reflect_builtin_function(ascii, None, self.type_env),
             # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
@@ -262,8 +268,24 @@ class Compiler:
             "vars": reflect_builtin_function(vars, None, self.type_env),
             # FIXME: This is IG-specific. Add a way to customize the set of builtins
             # while initializing the loader.
+            # List from https://www.internalfb.com/code/fbsource/[5f9467ab16be43bf56aa9d7f18580a14bff36de7]/fbcode/instagram-server/distillery/bootstrap/dev.py?lines=49
             "slog": self.type_env.DYNAMIC,
+            "slogo": self.type_env.DYNAMIC,
+            "slogb": self.type_env.DYNAMIC,
+            "slogg": self.type_env.DYNAMIC,
+            "slogv": self.type_env.DYNAMIC,
+            "slogp": self.type_env.DYNAMIC,
+            "slogy": self.type_env.DYNAMIC,
+            "slogr": self.type_env.DYNAMIC,
+            "slogdor": self.type_env.DYNAMIC,
+            "sloga": self.type_env.DYNAMIC,
+            "slogf": self.type_env.DYNAMIC,
+            "slogrq": self.type_env.DYNAMIC,
+            "slog0": self.type_env.DYNAMIC,
         }
+        if import_cycle_error := self.type_env.import_cycle_error:
+            builtins_children["ImportCycleError"] = import_cycle_error
+
         strict_builtins = StrictBuiltins(builtins_children, self.type_env)
         typing_children = {
             "Annotated": self.type_env.annotated,
@@ -400,6 +422,9 @@ class Compiler:
                 ),
                 "set_type_static": self.type_env.DYNAMIC,
                 "native": self.type_env.native_decorator,
+                "mixin": self.type_env.function.exact_type(),
+                "ClassDecorator": self.type_env.class_decorator.exact_type(),
+                "TClass": self.type_env.class_typevar.exact_type(),
             },
         )
 
@@ -408,7 +433,6 @@ class Compiler:
             "Lib/dataclasses.py",
             self,
             {
-                "dataclass": self.type_env.dataclass,
                 "Field": self.type_env.dataclass_field,
                 "InitVar": self.type_env.initvar,
                 "dataclass": self.type_env.dataclass,
@@ -416,7 +440,7 @@ class Compiler:
             },
         )
 
-        self.modules["cinder"] = ModuleTable(
+        self.modules["cinder"] = self.modules["cinderx"] = ModuleTable(
             "cinder",
             "<cinder>",
             self,
@@ -429,13 +453,8 @@ class Compiler:
         if xxclassloader is not None:
             spam_obj = self.type_env.spam_obj
             assert spam_obj is not None
-            self.modules["xxclassloader"] = ModuleTable(
-                "xxclassloader",
-                "<xxclassloader>",
-                self,
-                {
-                    "spamobj": spam_obj.exact_type(),
-                    "XXGeneric": self.type_env.xx_generic.exact_type(),
+            if hasattr(xxclassloader, "foo"):
+                funcs = {
                     "foo": reflect_builtin_function(
                         xxclassloader.foo,
                         None,
@@ -451,10 +470,23 @@ class Compiler:
                         None,
                         self.type_env,
                     ),
+                }
+            else:
+                funcs = {}
+
+            self.modules["xxclassloader"] = ModuleTable(
+                "xxclassloader",
+                "<xxclassloader>",
+                self,
+                {
+                    "spamobj": spam_obj.exact_type(),
+                    "XXGeneric": self.type_env.xx_generic.exact_type(),
+                    **funcs,
                 },
             )
 
         self.intrinsic_modules: set[str] = set(self.modules.keys())
+        self.decl_visitors: deque[DeclarationVisitor] = deque()
 
     def __getitem__(self, name: str) -> ModuleTable:
         return self.modules[name]
@@ -468,9 +500,25 @@ class Compiler:
         tree = AstOptimizer(optimize=optimize > 0).visit(tree)
         self.ast_cache[name] = tree
 
+        # Track if we're the first module being compiled, if we are then
+        # we want to finish up the validation of all of the modules that
+        # are imported and compiled for the first time because they were
+        # imported from this module, this is a little bit odd because we
+        # need to finish_bind first before we can validate the overrides
+        # and we may have circular references between modules.
+        validate_classes = not self.decl_visitors
         decl_visit = DeclarationVisitor(name, filename, self, optimize)
+        self.decl_visitors.append(decl_visit)
         decl_visit.visit(tree)
         decl_visit.finish_bind()
+
+        if validate_classes:
+            # Validate that the overrides for all of the modules we
+            # have compiled from this top-level module.
+            while self.decl_visitors:
+                decl_visit = self.decl_visitors.popleft()
+                decl_visit.module.validate_overrides()
+
         return tree
 
     def bind(
@@ -498,7 +546,9 @@ class Compiler:
             tree = cached_tree
         # Analyze variable scopes
         future_flags = find_futures(0, tree)
-        s = self.code_generator._SymbolVisitor(future_flags)
+        # TODO(TT209531178): This class still implicitly assumes 3.10
+        code_generator = cast("Static310CodeGenerator", self.code_generator)
+        s = code_generator._SymbolVisitor(future_flags)
         s.visit(tree)
 
         # Analyze the types of objects within local scopes
@@ -542,7 +592,7 @@ class Compiler:
 
         # Compile the code w/ the static compiler
         graph = self.code_generator.flow_graph(name, filename, s.scopes[tree])
-        graph.setFlag(consts.CO_STATICALLY_COMPILED)
+        graph.setFlag(consts.CI_CO_STATICALLY_COMPILED)
         graph.extra_consts.append(tuple(self.modules[name].imported_from.items()))
 
         future_flags = find_futures(0, tree)
@@ -561,7 +611,7 @@ class Compiler:
             future_flags=future_flags,
         )
         code_gen.visit(tree)
-        return code_gen
+        return cast("Static310CodeGenerator", code_gen)
 
     def import_module(self, name: str, optimize: int) -> ModuleTable | None:
         pass

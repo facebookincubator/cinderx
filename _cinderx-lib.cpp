@@ -1,48 +1,82 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include <Python.h>
-#include "cinder/exports.h"
-#include "cinder/hooks.h"
-
 #include "cinderx/_cinderx-lib.h"
+
+#include <Python.h>
+
+// clang-format off
+// This has to be high up here to avoid <atomic> vs <stdatomic.h> include
+// issues.
+#include "cinderx/Common/log.h"
+// clang-format on
+
+#if PY_VERSION_HEX < 0x030C0000
+#include "cinder/exports.h"
+#include "internal/pycore_shadow_frame.h"
+#endif
+
+#include "cinder/hooks.h"
+#include "internal/pycore_pystate.h"
+
 #include "cinderx/CachedProperties/cached_properties.h"
+#include "cinderx/Common/dict.h"
+#include "cinderx/Common/func.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
+#include "cinderx/Immortalize/immortalize.h"
 #include "cinderx/Interpreter/interpreter.h"
+#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/generators_rt.h"
+#include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/pyjit_result.h"
-#include "cinderx/Jit/pyjit_typeslots.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/ParallelGC/parallel_gc.h"
 #include "cinderx/Shadowcode/shadowcode.h"
+#include "cinderx/StaticPython/_static.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
+#include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/methodobject_vectorcall.h"
+#include "cinderx/StaticPython/objectkey.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
-#include "internal/pycore_shadow_frame.h"
+#include "cinderx/StaticPython/vtable_builder.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/UpstreamBorrow/borrowed.h"
+
 #include <dlfcn.h>
+
+namespace {
+
+// Function objects registered for pre-fork perf-trampoline compilation.
+std::unordered_set<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;
 
 /*
  * Misc. Python-facing utility functions.
  */
 
-static PyObject *clear_caches(PyObject *, PyObject *) {
-  jit::Runtime::get()->globalCaches().clear();
+PyObject* clear_caches(PyObject*, PyObject*) {
+  jit::_PyJIT_GetGlobalCacheManager()->clear();
   Py_RETURN_NONE;
 }
 
-static PyObject *clear_all_shadow_caches(PyObject *, PyObject *) {
+#if PY_VERSION_HEX < 0x030C0000
+PyObject* clear_all_shadow_caches(PyObject*, PyObject*) {
   _PyShadow_FreeAll();
   Py_RETURN_NONE;
 }
+#endif
 
-PyDoc_STRVAR(strict_module_patch_doc, "strict_module_patch(mod, name, value)\n\
+PyDoc_STRVAR(
+    strict_module_patch_doc,
+    "strict_module_patch(mod, name, value)\n\
 Patch a field in a strict module\n\
 Requires patching to be enabled");
-static PyObject *strict_module_patch(PyObject *, PyObject *args) {
-  PyObject *mod;
-  PyObject *name;
-  PyObject *value;
+PyObject* strict_module_patch(PyObject*, PyObject* args) {
+  PyObject* mod;
+  PyObject* name;
+  PyObject* value;
   if (!PyArg_ParseTuple(args, "OUO", &mod, &name, &value)) {
     return nullptr;
   }
@@ -52,13 +86,14 @@ static PyObject *strict_module_patch(PyObject *, PyObject *args) {
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(strict_module_patch_delete_doc,
-             "strict_module_patch_delete(mod, name)\n\
+PyDoc_STRVAR(
+    strict_module_patch_delete_doc,
+    "strict_module_patch_delete(mod, name)\n\
 Delete a field in a strict module\n\
 Requires patching to be enabled");
-static PyObject *strict_module_patch_delete(PyObject *, PyObject *args) {
-  PyObject *mod;
-  PyObject *name;
+PyObject* strict_module_patch_delete(PyObject*, PyObject* args) {
+  PyObject* mod;
+  PyObject* name;
   if (!PyArg_ParseTuple(args, "OU", &mod, &name)) {
     return nullptr;
   }
@@ -68,10 +103,11 @@ static PyObject *strict_module_patch_delete(PyObject *, PyObject *args) {
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(strict_module_patch_enabled_doc,
-             "strict_module_patch_enabled(mod)\n\
+PyDoc_STRVAR(
+    strict_module_patch_enabled_doc,
+    "strict_module_patch_enabled(mod)\n\
 Gets whether patching is enabled on the strict module");
-static PyObject *strict_module_patch_enabled(PyObject *, PyObject *mod) {
+PyObject* strict_module_patch_enabled(PyObject*, PyObject* mod) {
   if (!Ci_StrictModule_Check(mod)) {
     PyErr_SetString(PyExc_TypeError, "expected strict module object");
     return nullptr;
@@ -82,83 +118,20 @@ static PyObject *strict_module_patch_enabled(PyObject *, PyObject *mod) {
   Py_RETURN_FALSE;
 }
 
-static PyObject *clear_classloader_caches(PyObject *, PyObject *) {
+PyObject* clear_classloader_caches(PyObject*, PyObject*) {
   _PyClassLoader_ClearVtables();
   _PyClassLoader_ClearCache();
   _PyClassLoader_ClearGenericTypes();
   Py_RETURN_NONE;
 }
 
-static PyObject *set_profile_interp(PyObject *, PyObject *arg) {
-  int is_true = PyObject_IsTrue(arg);
-  if (is_true < 0) {
-    return nullptr;
-  }
-
-  PyThreadState *tstate = PyThreadState_Get();
-  int old_flag = tstate->profile_interp;
-  Ci_ThreadState_SetProfileInterp(tstate, is_true);
-
-  if (old_flag) {
-    Py_RETURN_TRUE;
-  }
-  Py_RETURN_FALSE;
-}
-
-static PyObject *set_profile_interp_all(PyObject *, PyObject *arg) {
-  int is_true = PyObject_IsTrue(arg);
-  if (is_true < 0) {
-    return nullptr;
-  }
-  _PyJIT_SetProfileNewInterpThreads(is_true);
-  Ci_ThreadState_SetProfileInterpAll(is_true);
-
-  Py_RETURN_NONE;
-}
-
-static PyObject *set_profile_interp_period(PyObject *, PyObject *arg) {
-  if (!PyLong_Check(arg)) {
-    PyErr_Format(PyExc_TypeError, "Expected int object, got %.200s",
-                 Py_TYPE(arg)->tp_name);
-    return nullptr;
-  }
-  long val = PyLong_AsLong(arg);
-  if (val == -1 && PyErr_Occurred()) {
-    return nullptr;
-  }
-
-  Ci_RuntimeState_SetProfileInterpPeriod(val);
-  Py_RETURN_NONE;
-}
-
-static PyObject *get_and_clear_type_profiles(PyObject *, PyObject *) {
-  PyObject *full_data = _PyJIT_GetAndClearTypeProfiles();
-  if (full_data == nullptr) {
-    return nullptr;
-  }
-  PyObject *profiles = PyDict_GetItemString(full_data, "profile");
-  Py_XINCREF(profiles);
-  Py_DECREF(full_data);
-  return profiles;
-}
-
-static PyObject *get_and_clear_type_profiles_with_metadata(PyObject *,
-                                                           PyObject *) {
-  return _PyJIT_GetAndClearTypeProfiles();
-}
-
-static PyObject *clear_type_profiles(PyObject *, PyObject *) {
-  _PyJIT_ClearTypeProfiles();
-  Py_RETURN_NONE;
-}
-
-static PyObject *watch_sys_modules(PyObject *, PyObject *) {
-  PyObject *sys = PyImport_ImportModule("sys");
+PyObject* watch_sys_modules(PyObject*, PyObject*) {
+  PyObject* sys = PyImport_ImportModule("sys");
   if (sys == nullptr) {
     Py_RETURN_NONE;
   }
 
-  PyObject *modules = PyObject_GetAttrString(sys, "modules");
+  PyObject* modules = PyObject_GetAttrString(sys, "modules");
   Py_DECREF(sys);
   if (modules == nullptr) {
     Py_RETURN_NONE;
@@ -168,8 +141,9 @@ static PyObject *watch_sys_modules(PyObject *, PyObject *) {
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(cinder_enable_parallel_gc_doc,
-             "enable_parallel_gc(min_generation=2, num_threads=0)\n\
+PyDoc_STRVAR(
+    cinder_enable_parallel_gc_doc,
+    "enable_parallel_gc(min_generation=2, num_threads=0)\n\
 \n\
 Enable parallel garbage collection for generations >= `min_generation`.\n\
 \n\
@@ -180,16 +154,18 @@ Calling this more than once has no effect. Call `cinder.disable_parallel_gc()`\n
 and then call this function to change the configuration.\n\
 \n\
 A ValueError is raised if the generation or number of threads is invalid.");
-static PyObject *cinder_enable_parallel_gc(PyObject *, PyObject *args,
-                                           PyObject *kwargs) {
-  static char *argnames[] = {const_cast<char *>("min_generation"),
-                             const_cast<char *>("num_threads"), nullptr};
+PyObject*
+cinder_enable_parallel_gc(PyObject*, PyObject* args, PyObject* kwargs) {
+  static char* argnames[] = {
+      const_cast<char*>("min_generation"),
+      const_cast<char*>("num_threads"),
+      nullptr};
 
   int min_gen = 2;
   int num_threads = 0;
 
-  if (!PyArg_ParseTupleAndKeywords(args, kwargs, "|ii", argnames, &min_gen,
-                                   &num_threads)) {
+  if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "|ii", argnames, &min_gen, &num_threads)) {
     return nullptr;
   }
 
@@ -209,19 +185,42 @@ static PyObject *cinder_enable_parallel_gc(PyObject *, PyObject *args,
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(cinder_disable_parallel_gc_doc, "disable_parallel_gc()\n\
+PyDoc_STRVAR(
+    cinder_disable_parallel_gc_doc,
+    "disable_parallel_gc()\n\
 \n\
 Disable parallel garbage collection.\n\
 \n\
 This only affects the next collection; calling this from a finalizer does not\n\
 affect the current collection.");
-static PyObject *cinder_disable_parallel_gc(PyObject *,
-                                            PyObject *) {
+PyObject* cinder_disable_parallel_gc(PyObject*, PyObject*) {
   Cinder_DisableParallelGC();
   Py_RETURN_NONE;
 }
 
-PyDoc_STRVAR(cinder_get_parallel_gc_settings_doc, "get_parallel_gc_settings()\n\
+PyDoc_STRVAR(
+    cinder_immortalize_heap_doc,
+    "immortalize_heap($module, /)\n"
+    "--\n"
+    "\n"
+    "Immortalize all instances accessible through the GC roots.");
+PyObject* cinder_immortalize_heap(PyObject* mod, PyObject* unused) {
+  return immortalize_heap(mod, unused);
+}
+
+PyDoc_STRVAR(
+    cinder_is_immortal_doc,
+    "is_immortal($module, obj, /)\n"
+    "--\n"
+    "\n"
+    "Return True if the object is immortal, else return False.");
+PyObject* cinder_is_immortal(PyObject* /* mod */, PyObject* obj) {
+  return is_immortal(obj);
+}
+
+PyDoc_STRVAR(
+    cinder_get_parallel_gc_settings_doc,
+    "get_parallel_gc_settings()\n\
 \n\
 Return the settings used by the parallel garbage collector or\n\
 None if the parallel collector is not enabled.\n\
@@ -231,45 +230,60 @@ collector is enabled:\n\
 \n\
     num_threads: Number of threads used.\n\
     min_generation: The minimum generation for which parallel gc is enabled.");
-static PyObject *cinder_get_parallel_gc_settings(PyObject *,
-                                                 PyObject *) {
+PyObject* cinder_get_parallel_gc_settings(PyObject*, PyObject*) {
   return Cinder_GetParallelGCSettings();
 }
 
-static PyObject*
-compile_perf_trampoline_pre_fork(PyObject *, PyObject *) {
-    _PyPerfTrampoline_CompilePerfTrampolinePreFork();
+PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
+  if (!jit::perf::isPreforkCompilationEnabled()) {
     Py_RETURN_NONE;
+  }
+
+  PyUnstable_PerfTrampoline_SetPersistAfterFork(1);
+
+  for (BorrowedRef<PyFunctionObject> func : perf_trampoline_worklist) {
+    BorrowedRef<PyCodeObject> code = func->func_code;
+    if (PyUnstable_PerfTrampoline_CompileCode(code) == -1) {
+      JIT_LOG(
+          "Failed to compile perf trampoline for function {}",
+          jit::funcFullname(func));
+    }
+  }
+  perf_trampoline_worklist.clear();
+
+  Py_RETURN_NONE;
 }
 
-static PyObject*
-is_compile_perf_trampoline_pre_fork_enabled(PyObject *, PyObject *) {
-    if(_PyPerfTrampoline_IsPreforkCompilationEnabled()) {
-        Py_RETURN_TRUE;
-    }
-    Py_RETURN_FALSE;
+PyObject* is_compile_perf_trampoline_pre_fork_enabled(PyObject*, PyObject*) {
+  if (jit::perf::isPreforkCompilationEnabled()) {
+    Py_RETURN_TRUE;
+  }
+  Py_RETURN_FALSE;
 }
 
 typedef struct {
-  PyObject *list;
+  PyObject* list;
   int hasError;
   int collectFrame;
 } StackWalkState;
 
-static CiStackWalkDirective frame_data_collector(void *data, PyObject *fqname,
-                                                 PyCodeObject *code, int lineno,
-                                                 PyObject *pyframe) {
-  PyObject *lineNoObj;
+CiStackWalkDirective frame_data_collector(
+    void* data,
+    PyObject* fqname,
+    PyCodeObject* code,
+    int lineno,
+    PyObject* pyframe) {
+  PyObject* lineNoObj;
   int failed;
 
-  StackWalkState *state = (StackWalkState *)data;
+  StackWalkState* state = (StackWalkState*)data;
   if (fqname == nullptr) {
-    fqname = ((PyCodeObject *)code)->co_qualname;
+    fqname = ((PyCodeObject*)code)->co_qualname;
     if (!fqname || !PyUnicode_Check(fqname)) {
-      fqname = ((PyCodeObject *)code)->co_name;
+      fqname = ((PyCodeObject*)code)->co_name;
     }
   }
-  PyObject *t = PyTuple_New(2 + state->collectFrame);
+  PyObject* t = PyTuple_New(2 + state->collectFrame);
   if (t == nullptr) {
     goto fail;
   }
@@ -285,7 +299,7 @@ static CiStackWalkDirective frame_data_collector(void *data, PyObject *fqname,
   PyTuple_SET_ITEM(t, 1, lineNoObj);
 
   if (state->collectFrame) {
-    PyObject *o = pyframe;
+    PyObject* o = pyframe;
     if (!o) {
       o = Py_None;
     }
@@ -302,8 +316,9 @@ fail:
   return CI_SWD_STOP_STACK_WALK;
 }
 
-static PyObject *collect_stack(int collectFrame) {
-  PyObject *stack = PyList_New(0);
+PyObject* collect_stack(int collectFrame) {
+#if PY_VERSION_HEX < 0x030C0000
+  PyObject* stack = PyList_New(0);
   if (stack == nullptr) {
     return nullptr;
   }
@@ -314,141 +329,224 @@ static PyObject *collect_stack(int collectFrame) {
     Py_CLEAR(stack);
   }
   return stack;
+#else
+  // As we don't have shadow frames and qualnames are upstream we can probably
+  // do this all using the normal C-API now.
+  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
+  return nullptr;
+#endif
 }
 
-static PyObject *
-get_entire_call_stack_as_qualnames_with_lineno(PyObject *,
-                                               PyObject *) {
+PyObject* get_entire_call_stack_as_qualnames_with_lineno(PyObject*, PyObject*) {
   return collect_stack(0);
 }
 
-static PyObject *get_entire_call_stack_as_qualnames_with_lineno_and_frame(
-    PyObject *, PyObject *) {
+PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
+    PyObject*,
+    PyObject*) {
   return collect_stack(1);
 }
 
+// Schedule a function to be JIT-compiled.  If that fails, then also try
+// compiling a perf trampoline for the Python function.
+void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
+  bool scheduled = jit::scheduleJitCompile(func);
+  if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
+    perf_trampoline_worklist.emplace(func);
+  }
+}
 
 /*
  * (De)initialization functions
  */
 
-static void init_already_existing_funcs() {
-  PyUnstable_GC_VisitObjects([](PyObject* obj, void*){
-    if (PyFunction_Check(obj)) {
-      PyEntry_init((PyFunctionObject*)obj);
-    }
-    return 1;
-  }, nullptr);
+// Visit a Python function on CinderX module initialization.
+int function_visitor(BorrowedRef<PyFunctionObject> func) {
+  // Ensure the code object can track how often it is called.
+  BorrowedRef<PyCodeObject> code = func->func_code;
+  JIT_CHECK(
+      !USE_CODE_EXTRA || initCodeExtra(code) != nullptr,
+      "Failed to initialize extra data for {}",
+      jit::funcFullname(func));
+
+  // Schedule the function to be compiled if desired.
+  scheduleCompile(func);
+
+  return 1;
 }
 
-static int override_tp_getset(PyTypeObject *type, PyGetSetDef *tp_getset) {
-  type->tp_getset = tp_getset;
-  PyGetSetDef *gsp = type->tp_getset;
-  PyObject *dict = type->tp_dict;
-  for (; gsp->name != nullptr; gsp++) {
-      PyObject *descr = PyDescr_NewGetSet(type, gsp);
-      if (descr == nullptr) {
-          return -1;
-      }
-
-      if (PyDict_SetDefault(dict, PyDescr_NAME(descr), descr) == nullptr) {
-          Py_DECREF(descr);
-          return -1;
-      }
-      Py_DECREF(descr);
+// Visit a Python object on CinderX module initialization.
+int object_visitor(PyObject* obj, [[maybe_unused]] void* arg) {
+  if (PyFunction_Check(obj)) {
+    return function_visitor(reinterpret_cast<PyFunctionObject*>(obj));
   }
+
+  return 1;
+}
+
+// Visit every Python object on CinderX module initialization.
+void init_existing_objects() {
+  initCodeExtraIndex();
+
+  PyUnstable_GC_VisitObjects(object_visitor, nullptr);
+}
+
+std::unique_ptr<PyGetSetDef[]> s_func_getset;
+std::unique_ptr<PyGetSetDef[]> s_class_method_getset;
+std::unique_ptr<PyGetSetDef[]> s_method_getset;
+
+// Count the number of elements in a PyGetSetDef array.
+size_t getsetLen(PyGetSetDef* getset) {
+  size_t len = 0;
+  for (PyGetSetDef* def = getset; def->name != nullptr; ++def) {
+    ++len;
+  }
+  return len;
+}
+
+// Override the getset array for a type with a new one that contains an extra
+// typed signature getter.
+void getsetOverride(
+    PyTypeObject* type,
+    std::unique_ptr<PyGetSetDef[]>& targetArray,
+    getter typeSigGetter) {
+  constexpr std::string_view kGetterName{"__typed_signature__"};
+
+  PyGetSetDef* original = type->tp_getset;
+  size_t len = getsetLen(original);
+
+  // Might be re-initializing CinderX, when that happens the typed signature
+  // getters are already installed.
+  if (original == targetArray.get()) {
+    PyGetSetDef* member = &original[len - 1];
+    JIT_CHECK(
+        member->name == kGetterName && member->get == typeSigGetter,
+        "PyTypeObject should already have typed signature getter");
+    return;
+  }
+
+  // Need two extra spots, one for the new getter and another that acts as a
+  // null terminator.
+  size_t newLen = len + 2;
+
+  // Allocate a new array, keeping the original argument array around because it
+  // still needs to be read from.
+  auto newArray = std::make_unique<PyGetSetDef[]>(newLen);
+  memset(newArray.get(), 0, newLen * sizeof(PyGetSetDef));
+  memcpy(newArray.get(), original, len * sizeof(PyGetSetDef));
+
+  // Tack on the signature getter.
+  PyGetSetDef* def = &newArray[len];
+  def->name = kGetterName.data();
+  def->get = typeSigGetter;
+
+  // Override the type's getset array and assign it to global scope.
+  targetArray = std::move(newArray);
+  type->tp_getset = targetArray.get();
+
+  // Assign a descr for the new getter.  Will abort on failure as there's no way
+  // to recover right now.
+  auto descr = Ref<>::steal(PyDescr_NewGetSet(type, def));
+  JIT_CHECK(
+      descr != nullptr, "Failed to create descr for typed signature getter");
+  BorrowedRef<> dict = _PyType_GetDict(type);
+  JIT_CHECK(
+      PyDict_SetDefault(dict, PyDescr_NAME(descr.get()), descr.get()) !=
+          nullptr,
+      "Failed to assign typed signature descr on type");
 
   PyType_Modified(type);
+}
+
+void init_already_existing_types() {
+  // Update getset functions for callable types to include typed signature
+  // getters.
+  //
+  // NB: This persists after cinderx is unloaded.  Ideally we would put the
+  // original arrays back.
+  getsetOverride(
+      &PyCFunction_Type,
+      s_func_getset,
+      reinterpret_cast<getter>(Ci_meth_get__typed_signature__));
+  getsetOverride(
+      &PyClassMethodDescr_Type,
+      s_class_method_getset,
+      reinterpret_cast<getter>(Ci_method_get_typed_signature));
+  getsetOverride(
+      &PyMethodDescr_Type,
+      s_method_getset,
+      reinterpret_cast<getter>(Ci_method_get_typed_signature));
+}
+
+#if PY_VERSION_HEX < 0x030C0000
+void shadowcode_code_sizeof(struct _PyShadowCode* shadow, Py_ssize_t* res) {
+  *res += sizeof(_PyShadowCode);
+  *res += sizeof(PyObject*) * shadow->l1_cache.size;
+  *res += sizeof(PyObject*) * shadow->cast_cache.size;
+  *res += sizeof(PyObject**) * shadow->globals_size;
+  *res +=
+      sizeof(_PyShadow_InstanceAttrEntry**) * shadow->polymorphic_caches_size;
+  *res += sizeof(_FieldCache) * shadow->field_cache_size;
+  *res += sizeof(_Py_CODEUNIT) * shadow->len;
+}
+#endif
+
+int get_current_code_flags(PyThreadState* tstate) {
+#if PY_VERSION_HEX < 0x030C0000
+  PyCodeObject* cur_code = nullptr;
+  Ci_WalkStack(
+      tstate,
+      [](void* ptr, PyCodeObject* code, int) {
+        PyCodeObject** topmost_code = (PyCodeObject**)ptr;
+        *topmost_code = code;
+        return CI_SWD_STOP_STACK_WALK;
+      },
+      &cur_code);
+  if (!cur_code) {
+    return -1;
+  }
+  return cur_code->co_flags;
+#else
+  return tstate->cframe->current_frame->f_code->co_flags;
+#endif
+}
+
+int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
+  switch (event) {
+    case PY_CODE_EVENT_CREATE:
+      initCodeExtra(co);
+      break;
+    case PY_CODE_EVENT_DESTROY:
+#if PY_VERSION_HEX < 0x030C0000
+      _PyShadow_ClearCache((PyObject*)co);
+#endif
+      _PyJIT_CodeDestroyed(co);
+      break;
+    default:
+      break;
+  }
+
   return 0;
 }
 
-static PyGetSetDef Ci_method_getset[] = {
-  {.name = "__doc__", .get = (getter)Cix_method_get_doc, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__qualname__", .get = (getter)Cix_descr_get_qualname, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__text_signature__", .get = (getter)Cix_method_get_text_signature, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__typed_signature__", .get = (getter)Ci_method_get_typed_signature, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {},
-};
-
-static PyGetSetDef Ci_meth_getset[] = {
-  {.name = "__doc__", .get = (getter)Cix_meth_get__doc__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__name__", .get = (getter)Cix_meth_get__name__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__qualname__", .get = (getter)Cix_meth_get__qualname__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__text_signature__", .get = (getter)Cix_meth_get__text_signature__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {.name = "__typed_signature__", .get = (getter)Ci_meth_get__typed_signature__, .set = nullptr, .doc = nullptr, .closure = nullptr},
-  {},
-};
-
-static int init_already_existing_types() {
-  PyUnstable_GC_VisitObjects([](PyObject* obj, void*) {
-    if (PyType_Check(obj) && PyType_HasFeature((PyTypeObject*)obj, Py_TPFLAGS_READY)) {
-      _PyJIT_TypeCreated((PyTypeObject*)obj);
-    }
-    return 1;
-  }, nullptr);
-
-  if (override_tp_getset(&PyMethodDescr_Type, Ci_method_getset) < 0) {
-    return -1;
-  }
-  if (override_tp_getset(&PyClassMethodDescr_Type, Ci_method_getset) < 0) {
-    return -1;
-  }
-  if (override_tp_getset(&PyCFunction_Type, Ci_meth_getset) < 0) {
-    return -1;
-  }
-
-  return 0;
-}
-
-static void shadowcode_code_sizeof(struct _PyShadowCode *shadow, Py_ssize_t *res) {
-    *res += sizeof(_PyShadowCode);
-    *res += sizeof(PyObject *) * shadow->l1_cache.size;
-    *res += sizeof(PyObject *) * shadow->cast_cache.size;
-    *res += sizeof(PyObject **) * shadow->globals_size;
-    *res += sizeof(_PyShadow_InstanceAttrEntry **) *
-            shadow->polymorphic_caches_size;
-    *res += sizeof(_FieldCache) * shadow->field_cache_size;
-    *res += sizeof(_Py_CODEUNIT) * shadow->len;
-}
-
-static int get_current_code_flags(PyThreadState* tstate) {
-    PyCodeObject *cur_code = nullptr;
-    Ci_WalkStack(tstate, [](void *ptr, PyCodeObject *code, int) {
-      PyCodeObject **topmost_code = (PyCodeObject **) ptr;
-      *topmost_code = code;
-      return CI_SWD_STOP_STACK_WALK;
-    }, &cur_code);
-    if (!cur_code) {
-        return -1;
-    }
-    return cur_code->co_flags;
-}
-
-static int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
-  if (event == PY_CODE_EVENT_DESTROY) {
-    _PyShadow_ClearCache((PyObject *)co);
-    _PyJIT_CodeDestroyed(co);
-  }
-  return 0;
-}
-
-static int cinderx_dict_watcher(
-  PyDict_WatchEvent event,
-  PyObject* dict_obj,
-  PyObject* key_obj,
-  PyObject* new_value
-) {
+int cinderx_dict_watcher(
+    PyDict_WatchEvent event,
+    PyObject* dict_obj,
+    PyObject* key_obj,
+    PyObject* new_value) {
   JIT_DCHECK(PyDict_Check(dict_obj), "Expecting dict from dict watcher");
   BorrowedRef<PyDictObject> dict{dict_obj};
 
-  jit::GlobalCacheManager& globalCaches = jit::Runtime::get()->globalCaches();
+  jit::GlobalCacheManager* globalCaches = jit::_PyJIT_GetGlobalCacheManager();
 
   switch (event) {
     case PyDict_EVENT_ADDED:
     case PyDict_EVENT_MODIFIED:
     case PyDict_EVENT_DELETED: {
+      _PyClassLoader_NotifyDictChange(dict, event, key_obj, new_value);
+
       if (key_obj == nullptr || !PyUnicode_CheckExact(key_obj)) {
-        globalCaches.notifyDictUnwatch(dict);
+        globalCaches->notifyDictUnwatch(dict);
         break;
       }
       // key is overwhemingly likely to be interned, since in normal code it
@@ -461,39 +559,40 @@ static int cinderx_dict_watcher(
         Py_DECREF(key_obj);
       }
       BorrowedRef<PyUnicodeObject> key{key_obj};
-      globalCaches.notifyDictUpdate(dict, key, new_value);
-      _PyClassLoader_NotifyDictChange(dict, key);
+      globalCaches->notifyDictUpdate(dict, key, new_value);
       break;
     }
     case PyDict_EVENT_CLEARED:
-      globalCaches.notifyDictClear(dict);
+      globalCaches->notifyDictClear(dict);
       break;
     case PyDict_EVENT_CLONED:
+      globalCaches->notifyDictUnwatch(dict);
+      break;
     case PyDict_EVENT_DEALLOCATED:
-      globalCaches.notifyDictUnwatch(dict);
+      _PyClassLoader_NotifyDictChange(dict, event, key_obj, new_value);
+      globalCaches->notifyDictUnwatch(dict);
       break;
   }
 
   return 0;
 }
 
-static int cinderx_func_watcher(
-  PyFunction_WatchEvent event,
-  PyFunctionObject* func,
-  PyObject* new_value
-) {
+int cinderx_func_watcher(
+    PyFunction_WatchEvent event,
+    PyFunctionObject* func,
+    PyObject* new_value) {
   switch (event) {
     case PyFunction_EVENT_CREATE:
-      PyEntry_init(func);
+      scheduleCompile(func);
       break;
     case PyFunction_EVENT_MODIFY_CODE:
       _PyJIT_FuncModified(func);
       // having deopted the func, we want to immediately consider recompiling.
       // func_set_code will assign this again later, but we do it early so
-      // PyEntry_init can consider the new code object now
+      // scheduleCompile() can consider the new code object now.
       Py_INCREF(new_value);
       Py_XSETREF(func->func_code, new_value);
-      PyEntry_init(func);
+      scheduleCompile(func);
       break;
     case PyFunction_EVENT_MODIFY_DEFAULTS:
       break;
@@ -501,15 +600,19 @@ static int cinderx_func_watcher(
       break;
     case PyFunction_EVENT_MODIFY_QUALNAME:
       // allow reconsideration of whether this function should be compiled
-      if (!_PyJIT_IsCompiled(func)) {
+      if (!isJitCompiled(func)) {
         // func_set_qualname will assign this again, but we need to assign it
-        // now so that PyEntry_init can consider the new qualname
+        // now so that CiSetJITEntryOnPyFunctionObject can consider the new
+        // qualname.
         Py_INCREF(new_value);
         Py_XSETREF(func->func_qualname, new_value);
-        PyEntry_init(func);
+        scheduleCompile(func);
       }
       break;
     case PyFunction_EVENT_DESTROY:
+      if (jit::perf::isPreforkCompilationEnabled()) {
+        perf_trampoline_worklist.erase(func);
+      }
       _PyJIT_FuncDestroyed(func);
       break;
   }
@@ -517,24 +620,56 @@ static int cinderx_func_watcher(
   return 0;
 }
 
-static int cinderx_type_watcher(PyTypeObject* type) {
+int cinderx_type_watcher(PyTypeObject* type) {
+#if PY_VERSION_HEX < 0x030C0000
   _PyShadow_TypeModified(type);
+#endif
   _PyJIT_TypeModified(type);
 
   return 0;
 }
 
-static int cinder_init() {
-  Ci_hook_type_created = _PyJIT_TypeCreated;
+#if PY_VERSION_HEX >= 0x030C0000
+bool enable_patching = 0;
+#endif
+
+static PyObject* cinderx_freeze_type(PyObject*, PyObject* o) {
+  if (!PyType_Check(o)) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "freeze_type requires a type, got %s",
+        Py_TYPE(o)->tp_name);
+    return nullptr;
+  }
+
+#if PY_VERSION_HEX < 0x030C0000
+  PyInterpreterState* interp = _PyInterpreterState_GET();
+  assert(interp != nullptr);
+  if (!interp->config.enable_patching) {
+    ((PyTypeObject*)o)->tp_flags |= Ci_Py_TPFLAGS_FROZEN;
+  }
+#else
+  if (!enable_patching) {
+    ((PyTypeObject*)o)->tp_flags |= Py_TPFLAGS_IMMUTABLETYPE;
+  }
+#endif
+  Py_INCREF(o);
+  return o;
+}
+
+PyDoc_STRVAR(
+    freeze_type_doc,
+    "freeze_type(t)\n\
+\n\
+Marks a type as being frozen and disallows any future mutations to it.");
+
+int cinder_init() {
+  if (init_upstream_borrow() < 0) {
+    return -1;
+  }
+#if PY_VERSION_HEX < 0x030C0000
   Ci_hook_type_destroyed = _PyJIT_TypeDestroyed;
   Ci_hook_type_name_modified = _PyJIT_TypeNameModified;
-  Ci_hook_type_dealloc = _PyClassLoader_TypeDealloc;
-  Ci_hook_type_traverse = _PyClassLoader_TypeTraverse;
-  Ci_hook_type_clear = _PyClassLoader_TypeClear;
-  Ci_hook_add_subclass = _PyClassLoader_AddSubclass;
-  Ci_hook_type_pre_setattr = _PyClassLoader_InitTypeForPatching;
-  Ci_hook_type_setattr = _PyClassLoader_UpdateSlot;
-  Ci_hook_JIT_GetProfileNewInterpThread = _PyJIT_GetProfileNewInterpThreads;
   Ci_hook_JIT_GetFrame = _PyJIT_GetFrame;
   Ci_hook_PyCMethod_New = Ci_PyCMethod_New_METH_TYPED;
   Ci_hook_PyDescr_NewMethod = Ci_PyDescr_NewMethod_METH_TYPED;
@@ -556,29 +691,24 @@ static int cinder_init() {
   Ci_hook_ShadowFrame_HasGen_JIT = Ci_ShadowFrame_HasGen_JIT;
   Ci_hook_ShadowFrame_GetModuleName_JIT = Ci_ShadowFrame_GetModuleName_JIT;
   Ci_hook_ShadowFrame_WalkAndPopulate = Ci_ShadowFrame_WalkAndPopulate;
+#else
+  Ci_hook_EvalFrame = Ci_EvalFrame;
+#endif
 
-  JIT_CHECK(__strobe_CodeRuntime_py_code == jit::CodeRuntime::kPyCodeOffset,
-            "Invalid PyCodeOffset for Strobelight");
-  JIT_CHECK(__strobe_RuntimeFrameState_py_code ==
-                jit::RuntimeFrameState::codeOffset(),
-            "Invalid codeOffset for Strobelight");
+#if PY_VERSION_HEX < 0x030C0000
+  JIT_CHECK(
+      __strobe_CodeRuntime_py_code == jit::CodeRuntime::kPyCodeOffset,
+      "Invalid PyCodeOffset for Strobelight");
+  JIT_CHECK(
+      __strobe_RuntimeFrameState_py_code ==
+          jit::RuntimeFrameState::codeOffset(),
+      "Invalid codeOffset for Strobelight");
+#endif
 
-  if (init_already_existing_types() < 0) {
-    return -1;
-  }
-
-  // Prevent the linker from omitting the object file containing the parallel
-  // GC implementation. This is the only reference from another translation
-  // unit to symbols defined in the file. Without it the linker will omit the
-  // object file when linking the libpython archive into the main python
-  // binary.
-  //
-  // TODO(T168696266): Remove this once we migrate to cinderx.
-  PyObject *res = Cinder_GetParallelGCSettings();
-  if (res == nullptr) {
-    return -1;
-  }
-  Py_DECREF(res);
+  init_already_existing_types();
+#if PY_VERSION_HEX >= 0x030C0000
+  jit::init_jit_genobject_type();
+#endif
 
   WatcherState watcher_state;
   watcher_state.code_watcher = cinderx_code_watcher;
@@ -598,11 +728,19 @@ static int cinder_init() {
     }
     return -1;
   }
-  init_already_existing_funcs();
+  init_existing_objects();
 
+#if PY_VERSION_HEX < 0x030C0000
   Ci_cinderx_initialized = 1;
+#endif
 
-  return 0;
+#if PY_VERSION_HEX >= 0x030C0000
+  char* patching = getenv("PYTHONENABLEPATCHING");
+  enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
+#endif
+
+  // Create _static module
+  return _Ci_CreateStaticModule();
 }
 
 // Attempts to shutdown CinderX. This is very much a best-effort with the
@@ -612,10 +750,17 @@ static int cinder_init() {
 // runtime. However, for now the only thing we truly support is loading
 // CinderX once ASAP on start-up, and then never unloading it until complete
 // process shutdown.
-static int cinder_fini() {
+int cinder_fini() {
   _PyClassLoader_ClearCache();
 
-  if (PyThreadState_Get()->shadow_frame) {
+  PyThreadState* tstate = PyThreadState_Get();
+  bool code_running =
+#if PY_VERSION_HEX < 0x030C0000
+      tstate->shadow_frame != nullptr;
+#else
+      tstate->cframe != &tstate->root_cframe;
+#endif
+  if (code_running) {
     // If any Python code is running we can't tell if JIT code is in use. Even
     // if every frame in the callstack is interpreter-owned, some of them could
     // be the result of deopt and JIT code may still be on the native stack.
@@ -628,16 +773,15 @@ static int cinder_fini() {
     return -1;
   }
 
+  finiCodeExtraIndex();
+
+#if PY_VERSION_HEX < 0x030C0000
   if (Ci_cinderx_initialized && Ci_hook__PyShadow_FreeAll()) {
     return -1;
   }
 
-  Ci_hook_type_created = nullptr;
   Ci_hook_type_destroyed = nullptr;
   Ci_hook_type_name_modified = nullptr;
-  Ci_hook_type_pre_setattr = nullptr;
-  Ci_hook_type_setattr = nullptr;
-  Ci_hook_JIT_GetProfileNewInterpThread = nullptr;
   Ci_hook_JIT_GetFrame = nullptr;
   Ci_hook_PyDescr_NewMethod = nullptr;
   Ci_hook_WalkStack = nullptr;
@@ -648,7 +792,6 @@ static int cinder_fini() {
   Ci_hook_PyJIT_GenYieldFromValue = nullptr;
   Ci_hook_PyJIT_GenMaterializeFrame = nullptr;
   Ci_hook__PyShadow_FreeAll = nullptr;
-  Ci_hook_add_subclass = nullptr;
   Ci_hook_MaybeStrictModule_Dict = nullptr;
   Ci_hook_ShadowFrame_GetCode_JIT = nullptr;
   Ci_hook_ShadowFrame_HasGen_JIT = nullptr;
@@ -656,15 +799,11 @@ static int cinder_fini() {
   Ci_hook_ShadowFrame_WalkAndPopulate = nullptr;
 
   /* These hooks are not safe to unset, since there may be SP generic types that
-   * outlive finalization of the cinder module, and if we don't have the hooks in
-   * place for their cleanup, we will have leaks. But these hooks also have no
-   * effect for any type other than an SP generic type, so they are generally
+   * outlive finalization of the cinder module, and if we don't have the hooks
+   * in place for their cleanup, we will have leaks. But these hooks also have
+   * no effect for any type other than an SP generic type, so they are generally
    * harmless to leave in place, even if the runtime is shutdown and
    * reinitialized. */
-
-  // Ci_hook_type_dealloc = nullptr;
-  // Ci_hook_type_traverse = nullptr;
-  // Ci_hook_type_clear = nullptr;
 
   Ci_hook_EvalFrame = nullptr;
   Ci_hook_PyJIT_GetFrame = nullptr;
@@ -673,90 +812,122 @@ static int cinder_fini() {
   Ci_hook_PyJIT_GetCurrentCodeFlags = nullptr;
 
   Ci_cinderx_initialized = 0;
+#else
+  Ci_hook_EvalFrame = nullptr;
+#endif
 
   return 0;
 }
 
-static bool g_was_initialized = false;
+bool g_was_initialized = false;
 
-static PyObject* init(PyObject * /*self*/, PyObject * /*obj*/) {
+PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
   if (g_was_initialized) {
     Py_RETURN_FALSE;
   }
   if (cinder_init()) {
-    PyErr_SetString(PyExc_RuntimeError, "Failed to initialize CinderX");
+    if (!PyErr_Occurred()) {
+      PyErr_SetString(PyExc_RuntimeError, "Failed to initialize CinderX");
+    }
     return nullptr;
   }
   g_was_initialized = true;
   Py_RETURN_TRUE;
 }
 
-static void module_free(void *) {
+void module_free(void*) {
   if (g_was_initialized) {
     g_was_initialized = false;
     JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
   }
 }
 
-static PyMethodDef _cinderx_methods[] = {
-    {"init", init, METH_NOARGS,
-     "This must be called early. Preferably before any user code is run."},
-    {"clear_caches", clear_caches, METH_NOARGS,
-     "Clears caches associated with the JIT.  This may have a negative effect "
-     "on performance of existing JIT compiled code."},
-    {"clear_all_shadow_caches", clear_all_shadow_caches, METH_NOARGS, ""},
-    {"strict_module_patch", strict_module_patch, METH_VARARGS,
+PyMethodDef _cinderx_methods[] = {
+    {"init",
+     init,
+     METH_NOARGS,
+     PyDoc_STR(
+         "This must be called early. Preferably before any user code is run.")},
+    {"clear_caches",
+     clear_caches,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Clears caches associated with the JIT.  This may have a "
+         "negative effect on performance of existing JIT compiled code.")},
+#if PY_VERSION_HEX < 0x030C0000
+    {"clear_all_shadow_caches",
+     clear_all_shadow_caches,
+     METH_NOARGS,
+     PyDoc_STR("")},
+#endif
+    {"freeze_type", cinderx_freeze_type, METH_O, freeze_type_doc},
+    {"strict_module_patch",
+     strict_module_patch,
+     METH_VARARGS,
      strict_module_patch_doc},
-    {"strict_module_patch_delete", strict_module_patch_delete, METH_VARARGS,
+    {"strict_module_patch_delete",
+     strict_module_patch_delete,
+     METH_VARARGS,
      strict_module_patch_delete_doc},
-    {"strict_module_patch_enabled", strict_module_patch_enabled, METH_O,
+    {"strict_module_patch_enabled",
+     strict_module_patch_enabled,
+     METH_O,
      strict_module_patch_enabled_doc},
-    {"clear_classloader_caches", clear_classloader_caches, METH_NOARGS,
-     "Clears classloader caches and vtables on all accessible types. "
-     "Will hurt perf; for test isolation where modules and types with "
-     "identical names are dynamically created and destroyed."},
-    {"set_profile_interp", set_profile_interp, METH_O,
-     "Enable or disable interpreter profiling for this thread. Returns whether "
-     "or not profiling was enabled before the call."},
-    {"set_profile_interp_all", set_profile_interp_all, METH_O,
-     "Enable or disable interpreter profiling for all threads, including "
-     "threads created after this function returns."},
-    {"set_profile_interp_period", set_profile_interp_period, METH_O,
-     "Set the period, in bytecode instructions, for interpreter profiling."},
-    {"get_and_clear_type_profiles", get_and_clear_type_profiles, METH_NOARGS,
-     "Get and clear accumulated interpreter type profiles."},
-    {"get_and_clear_type_profiles_with_metadata",
-     get_and_clear_type_profiles_with_metadata, METH_NOARGS,
-     "Get and clear accumulated interpreter type profiles, including "
-     "type-specific metadata."},
-    {"clear_type_profiles", clear_type_profiles, METH_NOARGS,
-     "Clear accumulated interpreter type profiles."},
-    {"watch_sys_modules", watch_sys_modules, METH_NOARGS,
-     "Watch the sys.modules dict to allow invalidating Static Python's "
-     "internal caches."},
-    {"enable_parallel_gc", (PyCFunction)cinder_enable_parallel_gc,
-     METH_VARARGS | METH_KEYWORDS, cinder_enable_parallel_gc_doc},
-    {"disable_parallel_gc", cinder_disable_parallel_gc, METH_NOARGS,
+    {"clear_classloader_caches",
+     clear_classloader_caches,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Clears classloader caches and vtables on all accessible types. "
+         "Will hurt perf; for test isolation where modules and types with "
+         "identical names are dynamically created and destroyed.")},
+    {"watch_sys_modules",
+     watch_sys_modules,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Watch the sys.modules dict to allow invalidating Static Python's "
+         "internal caches.")},
+    {"enable_parallel_gc",
+     (PyCFunction)cinder_enable_parallel_gc,
+     METH_VARARGS | METH_KEYWORDS,
+     cinder_enable_parallel_gc_doc},
+    {"disable_parallel_gc",
+     cinder_disable_parallel_gc,
+     METH_NOARGS,
      cinder_disable_parallel_gc_doc},
-    {"get_parallel_gc_settings", cinder_get_parallel_gc_settings, METH_NOARGS,
+    {"get_parallel_gc_settings",
+     cinder_get_parallel_gc_settings,
+     METH_NOARGS,
      cinder_get_parallel_gc_settings_doc},
-    {"_compile_perf_trampoline_pre_fork", compile_perf_trampoline_pre_fork,
-     METH_NOARGS, "Compile perf-trampoline entries before forking"},
+    {"_compile_perf_trampoline_pre_fork",
+     compile_perf_trampoline_pre_fork,
+     METH_NOARGS,
+     PyDoc_STR("Compile perf-trampoline entries before forking.")},
     {"_is_compile_perf_trampoline_pre_fork_enabled",
-     is_compile_perf_trampoline_pre_fork_enabled, METH_NOARGS,
-     "Return whether compile perf-trampoline entries before fork is enabled or "
-     "not"},
+     is_compile_perf_trampoline_pre_fork_enabled,
+     METH_NOARGS,
+     PyDoc_STR("Return whether compile perf-trampoline entries before fork is "
+               "enabled or not.")},
     {"_get_entire_call_stack_as_qualnames_with_lineno",
-     get_entire_call_stack_as_qualnames_with_lineno, METH_NOARGS,
-     "Return the current stack as a list of tuples (qualname, lineno)."},
+     get_entire_call_stack_as_qualnames_with_lineno,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Return the current stack as a list of tuples (qualname, lineno).")},
     {"_get_entire_call_stack_as_qualnames_with_lineno_and_frame",
-     get_entire_call_stack_as_qualnames_with_lineno_and_frame, METH_NOARGS,
-     "Return the current stack as a list of tuples (qualname, lineno, PyFrame "
-     "| None)."},
+     get_entire_call_stack_as_qualnames_with_lineno_and_frame,
+     METH_NOARGS,
+     PyDoc_STR("Return the current stack as a list of tuples (qualname, "
+               "lineno, PyFrame | None).")},
+    {"immortalize_heap",
+     cinder_immortalize_heap,
+     METH_NOARGS,
+     cinder_immortalize_heap_doc},
+    {"is_immortal", cinder_is_immortal, METH_O, cinder_is_immortal_doc},
     {nullptr, nullptr, 0, nullptr}};
 
-static struct PyModuleDef _cinderx_module = {
-    PyModuleDef_HEAD_INIT,  "_cinderx", "The internal CinderX extension module",
+struct PyModuleDef _cinderx_module = {
+    PyModuleDef_HEAD_INIT,
+    "_cinderx",
+    PyDoc_STR("The internal CinderX extension module."),
     /*m_size=*/-1, // Doesn't support sub-interpreters
     _cinderx_methods,
     /*m_slots=*/nullptr,
@@ -765,14 +936,26 @@ static struct PyModuleDef _cinderx_module = {
     /*m_free=*/module_free,
 };
 
+} // namespace
+
 PyObject* _cinderx_lib_init() {
-  if ((_PyInterpreterState_GET()->dlopenflags & RTLD_GLOBAL) == 0) {
-    PyErr_SetString(PyExc_ImportError, "Do not import _cinderx directly. Use cinderx instead.");
+  int dlopenflags =
+      CI_INTERP_IMPORT_FIELD(PyInterpreterState_Get(), dlopenflags);
+  if ((dlopenflags & RTLD_GLOBAL) == 0) {
+    PyErr_SetString(
+        PyExc_ImportError,
+        "Do not import _cinderx directly. Use cinderx instead.");
+    return nullptr;
+  }
+
+  CiExc_StaticTypeError =
+      PyErr_NewException("cinderx.StaticTypeError", PyExc_TypeError, nullptr);
+  if (CiExc_StaticTypeError == nullptr) {
     return nullptr;
   }
 
   // Deliberate single-phase initialization.
-  PyObject *m = PyModule_Create(&_cinderx_module);
+  PyObject* m = PyModule_Create(&_cinderx_module);
   if (m == nullptr) {
     return nullptr;
   }
@@ -795,8 +978,11 @@ PyObject* _cinderx_lib_init() {
   if (PyType_Ready(&PyAsyncCachedClassProperty_Type) < 0) {
     return nullptr;
   }
+  if (PyType_Ready(&_Ci_ObjectKeyType) < 0) {
+    return nullptr;
+  }
 
-  PyObject *cached_classproperty =
+  PyObject* cached_classproperty =
       PyType_FromSpec(&_PyCachedClassProperty_TypeSpec);
   if (cached_classproperty == nullptr) {
     return nullptr;
@@ -808,11 +994,12 @@ PyObject* _cinderx_lib_init() {
   }
   Py_DECREF(cached_classproperty);
 
-#define ADDITEM(NAME, OBJECT)                                                  \
-  if (PyObject_SetAttrString(m, NAME, (PyObject *)OBJECT) < 0) {               \
-    return nullptr;                                                               \
+#define ADDITEM(NAME, OBJECT)                                   \
+  if (PyObject_SetAttrString(m, NAME, (PyObject*)OBJECT) < 0) { \
+    return nullptr;                                             \
   }
 
+  ADDITEM("StaticTypeError", CiExc_StaticTypeError);
   ADDITEM("StrictModule", &Ci_StrictModule_Type);
   ADDITEM("cached_property", &PyCachedProperty_Type);
   ADDITEM("async_cached_property", &PyAsyncCachedProperty_Type);

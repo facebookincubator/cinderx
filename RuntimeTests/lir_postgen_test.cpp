@@ -6,7 +6,6 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/postgen.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 
 namespace jit::lir {
@@ -30,7 +29,7 @@ BB %0
   const char* expected_lir_str = R"(Function:
 BB %0
       %10:Object = Call 0(0x0):64bit
-       %11:16bit = Move RDX:16bit
+       %11:16bit = Move DX:16bit
                    Return %11:16bit
 
 )";
@@ -98,7 +97,7 @@ BB %0
 
 BB %1
       %11:Object = Call 0(0x0):64bit
-      %139:32bit = Move RDX:32bit
+      %139:32bit = Move EDX:32bit
                    CondBranch %11:Object, BB%3, BB%4
 
 BB %2
@@ -107,12 +106,12 @@ BB %2
 
 BB %20
      %120:Object = Call 0(0x0):64bit
-      %137:32bit = Move RDX:32bit
+      %137:32bit = Move EDX:32bit
                    Branch BB%22
 
 BB %21
      %121:Object = Call 0(0x0):64bit
-      %138:32bit = Move RDX:32bit
+      %138:32bit = Move EDX:32bit
                    Branch BB%22
 
 BB %22

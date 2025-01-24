@@ -3,11 +3,10 @@
 #pragma once
 
 #include <Python.h>
+
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/opcode.h"
-#include "code.h"
-
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/deopt_patcher.h"
@@ -16,8 +15,9 @@
 #include "cinderx/Jit/hir/register.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/intrusive_list.h"
-#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/jit_time_log.h"
+#include "cinderx/StaticPython/typed-args-info.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <algorithm>
 #include <array>
@@ -244,12 +244,12 @@ class Instr {
   }
 
   // If this instruction produces a value, return where it will be stored
-  Register* GetOutput() const {
+  Register* output() const {
     return output_;
   }
 
   // Set where the output from this instruction will be stored
-  void SetOutput(Register* dst) {
+  void setOutput(Register* dst) {
     if (output_ != nullptr) {
       output_->set_instr(nullptr);
     }
@@ -368,7 +368,7 @@ class Instr {
   explicit Instr(Opcode opcode) : opcode_(opcode) {}
   Instr(const Instr& other)
       : opcode_(other.opcode()),
-        output_{other.GetOutput()},
+        output_{other.output()},
         bytecode_offset_{other.bytecodeOffset()} {}
 
   void* operator new(std::size_t count, void* ptr) {
@@ -381,7 +381,7 @@ class Instr {
   static void* allocate(std::size_t fixed_size, std::size_t num_operands) {
     auto variable_size = num_operands * kPointerSize;
     char* ptr = static_cast<char*>(
-        malloc(variable_size + fixed_size + sizeof(std::size_t)));
+        calloc(variable_size + fixed_size + sizeof(std::size_t), 1));
     ptr += variable_size;
     *reinterpret_cast<size_t*>(ptr) = num_operands;
     ptr += sizeof(std::size_t);
@@ -723,11 +723,7 @@ class InstrT<T, opcode, HasOutput, Tys...> : public InstrT<T, opcode, Tys...> {
   template <typename... Args>
   InstrT(Register* dst, Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {
-    this->SetOutput(dst);
-  }
-
-  Register* dst() const {
-    return this->GetOutput();
+    this->setOutput(dst);
   }
 };
 
@@ -753,7 +749,7 @@ class InstrT<T, opcode, HasOutput, Tys...> : public InstrT<T, opcode, Tys...> {
    private:                                     \
     friend InstrT;                              \
     using InstrT::InstrT;                       \
-  };
+  }
 
 #define FOREACH_BINARY_OP_KIND(V) \
   V(Add)                          \
@@ -939,12 +935,11 @@ class INSTR_CLASS(BuildSlice, (TObject), HasOutput, Operands<>, DeoptBase) {
   }
 };
 
-// Builds a new Function object, with the given qualified name and codeobj
-// Takes a qualname as operand 0
-// Takes a codeobj as operand 1
+// Builds a new Function object, with the given code object and optionally a
+// qualified name.
 DEFINE_SIMPLE_INSTR(
     MakeFunction,
-    (TObject, TCode),
+    (TCode, TOptObject),
     HasOutput,
     Operands<2>,
     DeoptBase);
@@ -1043,12 +1038,38 @@ class INSTR_CLASS(SetFunctionAttr, (TObject, TFunc), Operands<2>) {
   FunctionAttr field_;
 };
 
-class VectorCallBase : public DeoptBase {
+enum class CallFlags : uint32_t {
+  None = 0,
+
+  KwArgs = 1 << 0,
+  Awaited = 1 << 1,
+  Static = 1 << 2,
+};
+
+constexpr uint32_t raw(CallFlags flags) {
+  return static_cast<uint32_t>(flags);
+}
+
+constexpr CallFlags operator|(const CallFlags& a, const CallFlags& b) {
+  return static_cast<CallFlags>(raw(a) | raw(b));
+}
+
+constexpr CallFlags& operator|=(CallFlags& a, const CallFlags& b) {
+  a = a | b;
+  return a;
+}
+
+// Common case is to test for flags so this returns a bool.
+constexpr bool operator&(const CallFlags& a, const CallFlags& b) {
+  return static_cast<bool>(raw(a) & raw(b));
+}
+
+class INSTR_CLASS(VectorCall, (TOptObject), HasOutput, Operands<>, DeoptBase) {
  public:
-  VectorCallBase(Opcode op, bool is_awaited)
-      : DeoptBase(op), is_awaited_(is_awaited) {}
-  VectorCallBase(Opcode op, bool is_awaited, const FrameState& frame)
-      : DeoptBase(op, frame), is_awaited_(is_awaited) {
+  VectorCall(Register* dst, CallFlags flags) : InstrT{dst}, flags_{flags} {}
+
+  VectorCall(Register* dst, CallFlags flags, const FrameState& frame)
+      : VectorCall{dst, flags} {
     setFrameState(frame);
   }
 
@@ -1065,93 +1086,42 @@ class VectorCallBase : public DeoptBase {
     return GetOperand(i + 1);
   }
 
-  Register* dst() const {
-    return this->GetOutput();
-  }
-
-  bool isAwaited() const {
-    return is_awaited_;
+  CallFlags flags() const {
+    return flags_;
   }
 
  private:
-  const bool is_awaited_;
+  CallFlags flags_;
 };
-
-DEFINE_SIMPLE_INSTR(
-    VectorCall,
-    (TOptObject),
-    HasOutput,
-    Operands<>,
-    VectorCallBase);
-DEFINE_SIMPLE_INSTR(
-    VectorCallStatic,
-    (TOptObject),
-    HasOutput,
-    Operands<>,
-    VectorCallBase);
-DEFINE_SIMPLE_INSTR(
-    VectorCallKW,
-    (TOptObject),
-    HasOutput,
-    Operands<>,
-    VectorCallBase);
 
 class INSTR_CLASS(
     CallEx,
-    (TObject, TObject),
-    HasOutput,
-    Operands<2>,
-    DeoptBase) {
- public:
-  CallEx(Register* dst, Register* func, Register* pargs, bool is_awaited)
-      : InstrT(dst, func, pargs), is_awaited_(is_awaited) {}
-  CallEx(
-      Register* dst,
-      Register* func,
-      Register* pargs,
-      bool is_awaited,
-      const FrameState& frame)
-      : InstrT(dst, func, pargs, frame), is_awaited_(is_awaited) {}
-
-  // The function to call
-  Register* func() const {
-    return GetOperand(0);
-  }
-
-  Register* pargs() const {
-    return GetOperand(1);
-  }
-
-  bool isAwaited() const {
-    return is_awaited_;
-  }
-
- private:
-  const bool is_awaited_;
-};
-
-class INSTR_CLASS(
-    CallExKw,
-    (TObject, TObject, TObject),
+    (TObject, TObject, TOptObject),
     HasOutput,
     Operands<3>,
     DeoptBase) {
  public:
-  CallExKw(
+  CallEx(
       Register* dst,
       Register* func,
       Register* pargs,
       Register* kwargs,
-      bool is_awaited)
-      : InstrT(dst, func, pargs, kwargs), is_awaited_(is_awaited) {}
-  CallExKw(
+      CallFlags flags)
+      : InstrT{dst, func, pargs, kwargs}, flags_{flags} {
+    JIT_CHECK(
+        !(flags_ & CallFlags::Static), "CallEx doesn't support Static Python");
+  }
+
+  CallEx(
       Register* dst,
       Register* func,
       Register* pargs,
       Register* kwargs,
-      bool is_awaited,
+      CallFlags flags,
       const FrameState& frame)
-      : InstrT(dst, func, pargs, kwargs, frame), is_awaited_(is_awaited) {}
+      : CallEx{dst, func, pargs, kwargs, flags} {
+    setFrameState(frame);
+  }
 
   // The function to call
   Register* func() const {
@@ -1166,23 +1136,30 @@ class INSTR_CLASS(
     return GetOperand(2);
   }
 
-  bool isAwaited() const {
-    return is_awaited_;
+  CallFlags flags() const {
+    return flags_;
   }
 
  private:
-  const bool is_awaited_;
+  CallFlags flags_;
 };
 
 // Call to one of the C functions defined by CallCFunc_FUNCS. We have a static
 // set of functions so we can (one day) safely (de)serialize HIR fully.
 class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
  public:
+#if PY_VERSION_HEX >= 0x030C0000
+#define CallCFunc_FUNCS(X)         \
+  X(Cix_PyAsyncGenValueWrapperNew) \
+  X(JitCoro_GetAwaitableIter)      \
+  X(JitGen_yf)
+#else
 // List of allowed functions
-#define CallCFunc_FUNCS(X)      \
-  X(_PyAsyncGenValueWrapperNew) \
-  X(_PyCoro_GetAwaitableIter)   \
-  X(_PyGen_yf)
+#define CallCFunc_FUNCS(X)         \
+  X(Cix_PyAsyncGenValueWrapperNew) \
+  X(Cix_PyCoro_GetAwaitableIter)   \
+  X(Cix_PyGen_yf)
+#endif
 
   enum class Func {
 #define ENUM_FUNC(name, ...) k##name,
@@ -1206,11 +1183,37 @@ class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
     return kFuncNames[static_cast<size_t>(func_)];
   }
 
+  Func func() const {
+    return func_;
+  }
+
  private:
   const Func func_;
 
   static const std::vector<void*> kFuncPtrMap;
   static const std::vector<const char*> kFuncNames;
+};
+
+class INSTR_CLASS(
+    CallIntrinsic,
+    (TOptObject | TCUInt64),
+    HasOutput,
+    Operands<>) {
+ public:
+  CallIntrinsic(Register* dst, size_t index, const std::vector<Register*>& args)
+      : InstrT(dst), index_(index) {
+    size_t i = 0;
+    for (Register* arg : args) {
+      SetOperand(i++, arg);
+    }
+  }
+
+  size_t index() const {
+    return index_;
+  }
+
+ private:
+  const size_t index_;
 };
 
 // Phi instruction
@@ -1229,7 +1232,7 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
 
   // A trivial phi merges its output with only one other value.
   Register* isTrivial() const {
-    Register* out = GetOutput();
+    Register* out = output();
     Register* val = nullptr;
     for (std::size_t i = 0; i < NumOperands(); i++) {
       Register* reg = GetOperand(i);
@@ -1262,8 +1265,16 @@ class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
 // operands are arguments to the call.
 class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
  public:
-  CallMethod(Register* dst, bool is_awaited, const FrameState& frame)
-      : InstrT(dst, frame), is_awaited_(is_awaited) {}
+  CallMethod(Register* dst, CallFlags flags) : InstrT{dst}, flags_{flags} {
+    JIT_CHECK(
+        !(flags_ & CallFlags::Static),
+        "CallMethod doesn't support Static Python");
+  }
+
+  CallMethod(Register* dst, CallFlags flags, const FrameState& frame)
+      : CallMethod{dst, flags} {
+    setFrameState(frame);
+  }
 
   // The function to call
   Register* func() const {
@@ -1283,12 +1294,12 @@ class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
     return GetOperand(i + 2);
   }
 
-  bool isAwaited() const {
-    return is_awaited_;
+  CallFlags flags() const {
+    return flags_;
   }
 
  private:
-  const bool is_awaited_;
+  CallFlags flags_;
 };
 
 class INSTR_CLASS(InvokeMethod, (TObject), HasOutput, Operands<>, DeoptBase) {
@@ -2059,7 +2070,7 @@ DEFINE_SIMPLE_INSTR(
     (TUnicodeExact, TUnicodeExact),
     HasOutput,
     Operands<2>,
-    DeoptBase)
+    DeoptBase);
 
 DEFINE_SIMPLE_INSTR(
     CopyDictWithoutKeys,
@@ -2073,14 +2084,14 @@ DEFINE_SIMPLE_INSTR(
     (TUnicodeExact, TCInt64),
     HasOutput,
     Operands<2>,
-    DeoptBase)
+    DeoptBase);
 
 DEFINE_SIMPLE_INSTR(
     UnicodeSubscr,
     (TUnicodeExact, TCInt64),
     HasOutput,
     Operands<2>,
-    DeoptBase)
+    DeoptBase);
 
 // NB: This needs to be in the order that the values appear in the
 // BinaryOpKind enum
@@ -2140,6 +2151,63 @@ class INSTR_CLASS(
 
  private:
   BinaryOpKind op_;
+};
+
+const std::array<binaryfunc, kNumInPlaceOpKinds> kLongInPlaceOpSlotMethods = {
+    // These don't use "nb_inplace" versions because those don't exist and we
+    // fallback to the non-inplace versions
+    PyLong_Type.tp_as_number->nb_add,
+    PyLong_Type.tp_as_number->nb_and,
+    PyLong_Type.tp_as_number->nb_floor_divide,
+    PyLong_Type.tp_as_number->nb_lshift,
+    nullptr, // unsupported: matrix multiply
+    PyLong_Type.tp_as_number->nb_remainder,
+    PyLong_Type.tp_as_number->nb_multiply,
+    PyLong_Type.tp_as_number->nb_or,
+    0, // power is ternary and handled specially
+    PyLong_Type.tp_as_number->nb_rshift,
+    PyLong_Type.tp_as_number->nb_subtract,
+    PyLong_Type.tp_as_number->nb_true_divide,
+    PyLong_Type.tp_as_number->nb_xor,
+};
+
+class INSTR_CLASS(
+    LongInPlaceOp,
+    (TLongExact, TLongExact),
+    HasOutput,
+    Operands<2>,
+    DeoptBase) {
+ public:
+  LongInPlaceOp(
+      Register* dst,
+      InPlaceOpKind op,
+      Register* left,
+      Register* right,
+      const FrameState& frame)
+      : InstrT(dst, left, right, frame), op_(op) {}
+
+  InPlaceOpKind op() const {
+    return op_;
+  }
+
+  binaryfunc slotMethod() const {
+    auto op_kind = static_cast<unsigned long>(op());
+    JIT_CHECK(op_kind < kLongInPlaceOpSlotMethods.size(), "unsupported binop");
+    binaryfunc helper = kLongInPlaceOpSlotMethods[op_kind];
+    JIT_DCHECK(helper != nullptr, "unsupported slot method");
+    return helper;
+  }
+
+  Register* left() const {
+    return GetOperand(0);
+  }
+
+  Register* right() const {
+    return GetOperand(1);
+  }
+
+ private:
+  InPlaceOpKind op_;
 };
 
 // Like Compare but has an Int32 output so it can be used to replace
@@ -2454,12 +2522,9 @@ DEFINE_SIMPLE_INSTR(
     DeoptBaseWithNameIdx);
 
 // Set the attribute of an object.
-//
-// Places NULL in dst if an error occurred or a non-NULL value otherwise
 DEFINE_SIMPLE_INSTR(
     StoreAttr,
     (TObject, TObject),
-    HasOutput,
     Operands<2>,
     DeoptBaseWithNameIdx);
 
@@ -2467,7 +2532,6 @@ DEFINE_SIMPLE_INSTR(
 DEFINE_SIMPLE_INSTR(
     StoreAttrCached,
     (TObject, TObject),
-    HasOutput,
     Operands<2>,
     DeoptBaseWithNameIdx);
 
@@ -2476,73 +2540,84 @@ DEFINE_SIMPLE_INSTR(DeleteAttr, (TObject), Operands<1>, DeoptBaseWithNameIdx);
 
 // Load an attribute from an object, skipping the instance dictionary but still
 // calling descriptors as appropriate (to create bound methods, for example).
+// Note the lifetime of failure_fmt_str needs to outlive the JIT function.
 class INSTR_CLASS(
     LoadAttrSpecial,
     (TObject),
     HasOutput,
     Operands<1>,
     DeoptBase) {
+#if PY_VERSION_HEX >= 0x030C0000
+  using IDType = PyObject;
+#else
+  using IDType = _Py_Identifier;
+#endif
  public:
   LoadAttrSpecial(
       Register* dst,
       Register* receiver,
-      _Py_Identifier* id,
+      IDType* id,
+      const char* failure_fmt_str,
       const FrameState& frame)
-      : InstrT(dst, receiver, frame), id_(id) {}
+      : InstrT(dst, receiver, frame),
+        id_(id),
+        failure_fmt_str_(failure_fmt_str) {}
 
-  _Py_Identifier* id() const {
+  IDType* id() const {
     return id_;
   }
 
+  const char* failureFmtStr() const {
+    return failure_fmt_str_;
+  }
+
  private:
-  _Py_Identifier* id_;
+  IDType* id_;
+  const char* failure_fmt_str_;
 };
 
 // Format and raise an error after failing to get an iterator for 'async with'.
 class INSTR_CLASS(RaiseAwaitableError, (TType), Operands<1>, DeoptBase) {
  public:
-  RaiseAwaitableError(
-      Register* type,
-      _Py_CODEUNIT with_prev_opcode,
-      _Py_CODEUNIT with_opcode,
-      const FrameState& frame)
-      : InstrT(type, frame),
-        with_prev_opcode_(with_prev_opcode),
-        with_opcode_(with_opcode) {}
+  RaiseAwaitableError(Register* type, bool is_aenter, const FrameState& frame)
+      : InstrT{type, frame}, is_aenter_{is_aenter} {}
 
-  _Py_CODEUNIT with_opcode() const {
-    return with_opcode_;
-  }
-
-  _Py_CODEUNIT with_prev_opcode() const {
-    return with_prev_opcode_;
+  bool isAEnter() const {
+    return is_aenter_;
   }
 
  private:
-  const _Py_CODEUNIT with_prev_opcode_;
-  const _Py_CODEUNIT with_opcode_;
+  bool is_aenter_;
 };
 
-// Load a guard (index 0) or value (index 1) from a cache specialized for
-// loading attributes from type receivers
-class INSTR_CLASS(LoadTypeAttrCacheItem, (), HasOutput, Operands<0>) {
+// Load a type object guard from a cache specialized for loading attributes from
+// type receivers.
+class INSTR_CLASS(LoadTypeAttrCacheEntryType, (), HasOutput, Operands<0>) {
  public:
-  LoadTypeAttrCacheItem(Register* dst, int cache_id, int item_idx)
-      : InstrT(dst), cache_id_(cache_id), item_idx_(item_idx) {
-    JIT_CHECK(item_idx < 2, "only two elements in the cache");
-  }
+  LoadTypeAttrCacheEntryType(Register* dst, int cache_id)
+      : InstrT{dst}, cache_id_{cache_id} {}
 
   int cache_id() const {
     return cache_id_;
   }
 
-  int item_idx() const {
-    return item_idx_;
+ private:
+  int cache_id_;
+};
+
+// Load a value from a cache specialized for loading attributes from type
+// receivers.
+class INSTR_CLASS(LoadTypeAttrCacheEntryValue, (), HasOutput, Operands<0>) {
+ public:
+  LoadTypeAttrCacheEntryValue(Register* dst, int cache_id)
+      : InstrT{dst}, cache_id_{cache_id} {}
+
+  int cache_id() const {
+    return cache_id_;
   }
 
  private:
   int cache_id_;
-  int item_idx_;
 };
 
 // Perform a full attribute lookup. Fill the cache if the receiver is a type
@@ -2662,13 +2737,13 @@ class LoadSuperBase : public DeoptBaseWithNameIdx {
 
 DEFINE_SIMPLE_INSTR(
     LoadMethodSuper,
-    (TObject, TObject, TObject),
+    (TObject, TType, TObject),
     HasOutput,
     Operands<3>,
     LoadSuperBase);
 DEFINE_SIMPLE_INSTR(
     LoadAttrSuper,
-    (TObject, TObject, TObject),
+    (TObject, TType, TObject),
     HasOutput,
     Operands<3>,
     LoadSuperBase);
@@ -3297,42 +3372,11 @@ DEFINE_SIMPLE_INSTR(LoadVarObjectSize, (TOptObject), HasOutput, Operands<1>);
 // Stores into an index
 //
 // Places NULL in dst if an error occurred or a non-NULL value otherwise
-class INSTR_CLASS(
+DEFINE_SIMPLE_INSTR(
     StoreSubscr,
     (TObject, TObject, TOptObject),
-    HasOutput,
     Operands<3>,
-    DeoptBase) {
- public:
-  using InstrT::InstrT;
-
-  // The index we're doing the subscript with
-  Register* index() const {
-    return GetOperand(1);
-  }
-
-  void set_index(Register* receiver) {
-    SetOperand(1, receiver);
-  }
-
-  // The container we're doing the subscript with
-  Register* container() const {
-    return GetOperand(0);
-  }
-
-  void set_container(Register* receiver) {
-    SetOperand(0, receiver);
-  }
-
-  // The value being stored
-  Register* value() const {
-    return GetOperand(2);
-  }
-
-  void set_value(Register* value) {
-    SetOperand(2, value);
-  }
-};
+    DeoptBase);
 
 class INSTR_CLASS(
     DictSubscr,
@@ -3562,6 +3606,30 @@ class INSTR_CLASS(
 };
 
 class INSTR_CLASS(
+    EagerImportName,
+    (TObject, TLong),
+    HasOutput,
+    Operands<2>,
+    DeoptBaseWithNameIdx) {
+ public:
+  EagerImportName(
+      Register* dst,
+      int name_idx,
+      Register* fromlist,
+      Register* level,
+      const FrameState& frame)
+      : InstrT(dst, fromlist, level, name_idx, frame) {}
+
+  Register* GetFromList() const {
+    return GetOperand(0);
+  }
+
+  Register* GetLevel() const {
+    return GetOperand(1);
+  }
+};
+
+class INSTR_CLASS(
     ImportName,
     (TObject, TLong),
     HasOutput,
@@ -3647,7 +3715,8 @@ DEFINE_SIMPLE_INSTR(YieldValue, (TObject), HasOutput, Operands<1>, DeoptBase);
 
 // InitialYield causes a generator function to suspend and return a new
 // 'PyGenObject' object holding its state. This should only appear in generator
-// functions and there should be exactly one instance before execution begins.
+// functions and in them should be exactly one instance, which in 3.10 is
+// before execution begins, and in 3.12 is generated by RETURN_GENERATOR.
 DEFINE_SIMPLE_INSTR(InitialYield, (), HasOutput, Operands<0>, DeoptBase);
 
 // Send the value in operand 0 to the subiterator in operand 1, forwarding
@@ -3759,6 +3828,25 @@ DEFINE_SIMPLE_INSTR(
     (TObject, TObject),
     HasOutput,
     Operands<2>,
+    DeoptBase);
+
+class INSTR_CLASS(UpdatePrevInstr, (), Operands<0>) {
+ public:
+  explicit UpdatePrevInstr(int line_no) : line_no_(line_no) {}
+
+  int lineNo() const {
+    return line_no_;
+  }
+
+ private:
+  int line_no_;
+};
+
+DEFINE_SIMPLE_INSTR(
+    Send,
+    (TObject, TObject),
+    Operands<2>,
+    HasOutput,
     DeoptBase);
 
 class CFG;
@@ -4093,7 +4181,7 @@ struct TypedArgument {
     ThreadedCompileSerialize guard;
     this->pytype = Ref<PyTypeObject>::create(pytype);
     thread_safe_flags = pytype->tp_flags & kThreadSafeFlagsMask;
-  };
+  }
 
   TypedArgument(const TypedArgument& other)
       : locals_idx(other.locals_idx),
@@ -4103,7 +4191,7 @@ struct TypedArgument {
         thread_safe_flags(other.thread_safe_flags) {
     ThreadedCompileSerialize guard;
     pytype = Ref<PyTypeObject>::create(other.pytype);
-  };
+  }
 
   TypedArgument& operator=(const TypedArgument& other) {
     locals_idx = other.locals_idx;
@@ -4114,7 +4202,7 @@ struct TypedArgument {
     ThreadedCompileSerialize guard;
     pytype = Ref<PyTypeObject>::create(other.pytype);
     return *this;
-  };
+  }
 
   ~TypedArgument() {
     ThreadedCompileSerialize guard;
@@ -4189,7 +4277,15 @@ class Function {
   std::string fullname;
 
   // Does this function need its PyFunctionObject* at runtime?
-  bool uses_runtime_func{false};
+  // (This is always the case in 3.12 as it is used to quickly access the
+  // _PyInterpreterFrame)
+  bool uses_runtime_func{
+#if PY_VERSION_HEX < 0x030C0000
+      false
+#else
+      true
+#endif
+  };
 
   // Does this function have primitive args?
   bool has_primitive_args{false};

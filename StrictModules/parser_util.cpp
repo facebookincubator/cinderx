@@ -2,6 +2,7 @@
 #include "cinderx/StrictModules/parser_util.h"
 
 #include "cinderx/StrictModules/pycore_dependencies.h"
+#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <fstream>
 
@@ -47,6 +48,7 @@ std::optional<AstAndSymbols> readFromFile(
     goto error;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   mod = _PyParser_ASTFromFile(
       fp,
       filename,
@@ -57,10 +59,19 @@ std::optional<AstAndSymbols> readFromFile(
       &localflags,
       nullptr,
       arena);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+  localflags;
+  mod = nullptr;
+#endif
 
   if (mod == nullptr)
     goto error;
+#if PY_VERSION_HEX < 0x030C0000
   pyFutures = _PyFuture_FromAST(mod, filename);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+#endif
   if (pyFutures == nullptr)
     goto error;
   futureAnnotations = pyFutures->ff_features & CO_FUTURE_ANNOTATIONS;
@@ -83,8 +94,12 @@ error:
   Py_XDECREF(filename);
   if (pyFutures != nullptr)
     PyObject_Free(pyFutures);
+#if PY_VERSION_HEX < 0x030C0000
   if (symbols != nullptr)
     _PySymtable_Free(symbols);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+#endif
 
   return {};
 }
@@ -105,11 +120,20 @@ std::optional<AstAndSymbols> readFromSource(
     goto error;
   }
 
+#if PY_VERSION_HEX < 0x030C0000
   mod = _PyParser_ASTFromString(source, filename, mode, &localflags, arena);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+  localflags;
+#endif
 
   if (mod == nullptr)
     goto error;
+#if PY_VERSION_HEX < 0x030C0000
   pyFutures = _PyFuture_FromAST(mod, filename);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+#endif
   if (pyFutures == nullptr)
     goto error;
   futureAnnotations = pyFutures->ff_features & CO_FUTURE_ANNOTATIONS;
@@ -125,8 +149,12 @@ error:
   // do not free `mod` since its allocated via arena
   if (pyFutures != nullptr)
     PyObject_Free(pyFutures);
+#if PY_VERSION_HEX < 0x030C0000
   if (symbols != nullptr)
     _PySymtable_Free(symbols);
+#else
+  UPGRADE_ASSERT(AST_UPDATES);
+#endif
   return {};
 }
 

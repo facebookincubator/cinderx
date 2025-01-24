@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# Portions copyright (c) Meta Platforms, Inc. and affiliates.
 #
 # Dissassemble code objects:
 # a) recursively (like dis.dis() in CPython behaves);
@@ -11,12 +12,11 @@
 # pyre-strict
 
 import dis as _dis
-import opcode
 import re
 import sys
 from pprint import pformat
 from types import CodeType
-from typing import Dict, Generator, Iterable, List, Optional, Pattern, TextIO, Tuple
+from typing import Dict, Generator, Iterable, Optional, Pattern, TextIO, Tuple
 
 
 def _make_stable(
@@ -37,8 +37,7 @@ def _make_stable(
 
 def _stable_repr(obj: object) -> str:
     if isinstance(obj, frozenset):
-        replacement = frozenset([i for i in sorted(obj, key=lambda x: repr(x))])
-        return repr(replacement)
+        obj = frozenset(sorted(obj, key=repr))
     return repr(obj)
 
 
@@ -52,7 +51,8 @@ def _disassemble_bytes(
     linestarts: Optional[Dict[int, int]] = None,
     *,
     file: Optional[TextIO] = None,
-    line_offset: int = 0
+    line_offset: int = 0,
+    localsplusnames: Optional[Tuple[str]] = None,
 ) -> None:
     # Omit the line number column entirely if we have no line number info
     show_lineno = linestarts is not None
@@ -70,12 +70,21 @@ def _disassemble_bytes(
         offset_width = len(str(maxoffset))
     else:
         offset_width = 4
-    for instr in _make_stable(
+    if sys.version_info >= (3, 12):
+        instr_bytes = _dis._get_instructions_bytes(
+            code,
+            lambda oparg: localsplusnames[oparg],
+            names,
+            constants,
+            linestarts,
+            line_offset=line_offset,
+        )
+    else:
         # pyre-fixme [16]: Module `dis` has no attribute `_get_instructions_bytes`
-        _dis._get_instructions_bytes(
+        instr_bytes = _dis._get_instructions_bytes(
             code, varnames, names, constants, cells, linestarts, line_offset=line_offset
         )
-    ):
+    for instr in _make_stable(instr_bytes):
         new_source_line = (
             show_lineno and instr.starts_line is not None and instr.offset > 0
         )
@@ -94,13 +103,18 @@ def disassemble(
     lasti: int = -1,
     *,
     file: Optional[TextIO] = None,
-    skip_line_nos: bool = False
+    skip_line_nos: bool = False,
 ) -> None:
     cell_names = co.co_cellvars + co.co_freevars
     if skip_line_nos:
         linestarts = None
     else:
         linestarts = dict(_dis.findlinestarts(co))
+    localsplusnames = (
+        co.co_varnames
+        if sys.version_info < (3, 12)
+        else (co.co_varnames + co.co_cellvars + co.co_freevars)
+    )
     _disassemble_bytes(
         co.co_code,
         lasti,
@@ -110,6 +124,7 @@ def disassemble(
         cell_names,
         linestarts,
         file=file,
+        localsplusnames=localsplusnames,
     )
 
 
@@ -145,24 +160,7 @@ class Disassembler:
         consts = tuple(
             [self.co_repr(x) if hasattr(x, "co_code") else x for x in co.co_consts]
         )
-        codeobj = CodeType(
-            co.co_argcount,
-            co.co_posonlyargcount,
-            co.co_kwonlyargcount,
-            co.co_nlocals,
-            co.co_stacksize,
-            co.co_flags,
-            co.co_code,
-            consts,
-            co.co_names,
-            co.co_varnames,
-            co.co_filename,
-            co.co_name,
-            co.co_firstlineno,
-            co.co_linetable,
-            co.co_freevars,
-            co.co_cellvars,
-        )
+        codeobj = co.replace(co_consts=consts)
         disassemble(codeobj, file=file, skip_line_nos=skip_line_nos)
 
     def dump_code(self, co: CodeType, file: Optional[TextIO] = None) -> None:
@@ -200,6 +198,10 @@ class Disassembler:
         print("co_cellvars:", co.co_cellvars, file=file)
         print("co_freevars:", co.co_freevars, file=file)
         print("co_lines:", pformat(list(co.co_lines())), file=file)
+        if sys.version_info >= (3, 12):
+            print("co_positions:", file=file)
+            for i, position in enumerate(co.co_positions()):
+                print(f"Offset {i*2}: {position}", file=file)
         print(file=file)
         for c in co.co_consts:
             if hasattr(c, "co_code"):
@@ -214,11 +216,11 @@ coding_re: Pattern[bytes] = re.compile(
 
 def open_with_coding(fname: str) -> TextIO:
     with open(fname, "rb") as f:
-        l = f.readline()
-        m = coding_re.match(l)
+        line = f.readline()
+        m = coding_re.match(line)
         if not m:
-            l = f.readline()
-            m = coding_re.match(l)
+            line = f.readline()
+            m = coding_re.match(line)
         encoding = "utf-8"
         if m:
             encoding = m.group(1).decode()

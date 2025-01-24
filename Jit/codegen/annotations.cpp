@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/codegen/annotations.h"
 
-#include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/disassembler.h"
 #include "cinderx/Jit/hir/printer.h"
 

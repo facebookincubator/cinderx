@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 class Foo:
 
     def __init__(self):

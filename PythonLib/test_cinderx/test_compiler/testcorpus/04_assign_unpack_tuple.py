@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 a, = x,
 a, b = x, y
 a, b, c = x, y, z

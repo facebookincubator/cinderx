@@ -10,7 +10,13 @@ import re
 import sys
 from dis import dis
 
-from . import pycodegen, static
+from .pycodegen import (
+    CinderCodeGenerator,
+    CodeGenerator312,
+    compile as pycodegen_compile,
+    make_header,
+)
+from .static import FIXED_MODULES, StaticCodeGenerator
 
 try:
     from cinder import StrictModule
@@ -76,16 +82,16 @@ if args.builtin:
     codeobj = compile(source, args.input, "exec")
 else:
     if sys.version_info >= (3, 12):
-        compiler = pycodegen.CodeGenerator312
+        compiler = CodeGenerator312
         if args.static:
-            print('Static code generation not supported in 3.12 yet')
+            print("Static code generation not supported in 3.12 yet")
             sys.exit(1)
     else:
-        compiler = pycodegen.CinderCodeGenerator
+        compiler = CinderCodeGenerator
         if args.static:
-            compiler = static.StaticCodeGenerator
+            compiler = StaticCodeGenerator
 
-    codeobj = pycodegen.compile(
+    codeobj = pycodegen_compile(
         source,
         args.input,
         "exec",
@@ -103,7 +109,7 @@ if args.c:
     else:
         name = args.input.rsplit(".", 1)[0] + ".pyc"
     with open(name, "wb") as f:
-        hdr = pycodegen.make_header(int(fileinfo.st_mtime), fileinfo.st_size)
+        hdr = make_header(int(fileinfo.st_mtime), fileinfo.st_size)
         f.write(importlib.util.MAGIC_NUMBER)
         f.write(hdr)
         marshal.dump(codeobj, f)
@@ -115,7 +121,7 @@ else:
         mod = type(sys)("__main__")
         d = mod.__dict__
     if args.static:
-        d["<fixed-modules>"] = static.FIXED_MODULES
+        d["<fixed-modules>"] = FIXED_MODULES
     d["<builtins>"] = builtins.__dict__
     sys.modules["__main__"] = mod
     # don't confuse the script with args meant for us

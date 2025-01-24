@@ -3,12 +3,14 @@
 #include "cinderx/Jit/codegen/autogen.h"
 
 #include "cinderx/Common/util.h"
-
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/deopt_patcher.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/generators_rt.h"
+#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <asmjit/x86/x86operand.h>
 
@@ -327,7 +329,7 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
   if (instr->output()->dataType() != OperandBase::k8bit) {
     as->movzx(
         AutoTranslator::getGp(instr->output()),
-        asmjit::x86::gpb(instr->output()->getPhyRegister()));
+        asmjit::x86::gpb(instr->output()->getPhyRegister().loc));
   }
 }
 
@@ -346,8 +348,8 @@ void emitStoreGenYieldPoint(
       yield->isYieldFromHandleStopAsyncIteration();
 
   auto calc_spill_offset = [&](size_t live_input_n) {
-    int mem_loc = yield->getInput(live_input_n)->getStackSlot();
-    return mem_loc / kPointerSize;
+    PhyLocation mem = yield->getInput(live_input_n)->getStackSlot();
+    return mem.loc / kPointerSize;
   };
 
   size_t input_n = yield->getNumInputs() - 1;
@@ -381,22 +383,22 @@ void emitLoadResumedYieldInputs(
     const Instruction* instr,
     PhyLocation sent_in_source_loc,
     x86::Gp tstate_reg) {
-  int tstate_loc = instr->getInput(0)->getStackSlot();
-  as->mov(x86::ptr(x86::rbp, tstate_loc), tstate_reg);
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->mov(x86::ptr(x86::rbp, tstate.loc), tstate_reg);
 
   const lir::Operand* target = instr->output();
 
   if (target->isStack()) {
     as->mov(
-        x86::ptr(x86::rbp, target->getStackSlot()),
-        x86::gpq(sent_in_source_loc));
+        x86::ptr(x86::rbp, target->getStackSlot().loc),
+        x86::gpq(sent_in_source_loc.loc));
     return;
   }
 
   if (target->isReg()) {
     PhyLocation target_loc = target->getPhyRegister();
     if (target_loc != sent_in_source_loc) {
-      as->mov(x86::gpq(target_loc), x86::gpq(sent_in_source_loc));
+      as->mov(x86::gpq(target_loc.loc), x86::gpq(sent_in_source_loc.loc));
     }
     return;
   }
@@ -408,17 +410,19 @@ void emitLoadResumedYieldInputs(
 }
 
 void translateYieldInitial(Environ* env, const Instruction* instr) {
+#if PY_VERSION_HEX < 0x030C0000
   asmjit::x86::Builder* as = env->as;
 
-  // Load tstate into RSI for call to JITRT_MakeGenObject*.
+  // Load tstate into RDI for call to JITRT_MakeGenObject*.
+
   // TODO(jbower) Avoid reloading tstate in from memory if it was already in a
   // register before spilling. Still needs to be in memory though so it can be
   // recovered after calling JITRT_MakeGenObject* which will trash it.
-  int tstate_loc = instr->getInput(0)->getStackSlot();
-  as->mov(x86::rsi, x86::ptr(x86::rbp, tstate_loc));
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
 
   // Make a generator object to be returned by the epilogue.
-  as->lea(x86::rdi, x86::ptr(env->gen_resume_entry_label));
+  as->lea(x86::rsi, x86::ptr(env->gen_resume_entry_label));
   JIT_CHECK(
       env->shadow_frames_and_spill_size % kPointerSize == 0,
       "Bad spill alignment");
@@ -472,22 +476,59 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   as->bind(resume_label);
 
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
-  emitLoadResumedYieldInputs(as, instr, PhyLocation::RSI, x86::rcx);
+  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 }
+
+#else
+  asmjit::x86::Builder* as = env->as;
+
+  // Load tstate into RDI for call to
+  // JITRT_UnlinkGenFrameAndReturnGenDataFooter.
+
+  // TODO(jbower) Avoid reloading tstate in from memory if it was already in a
+  // register before spilling. Still needs to be in memory though so it can be
+  // recovered after calling JITRT_MakeGenObject* which will trash it.
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
+
+  emitCall(
+      *env,
+      reinterpret_cast<uint64_t>(JITRT_UnlinkGenFrameAndReturnGenDataFooter),
+      instr);
+  // This will return pointers to a generator in RAX and JIT data in RDX.
+
+  // Arbitrary scratch register for use in emitStoreGenYieldPoint(). Any
+  // caller-saved register not used in this scope will do because we're on the
+  // exit path now.
+  auto scratch_r = x86::r9;
+  asmjit::Label resume_label = as->newLabel();
+  emitStoreGenYieldPoint(as, env, instr, resume_label, x86::rdx, scratch_r);
+
+  // Jump to epilogue
+  as->jmp(env->exit_for_yield_label);
+
+  // Resumed execution in this generator begins here
+  as->bind(resume_label);
+
+  // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
+  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
+}
+
+#endif
 
 void translateYieldValue(Environ* env, const Instruction* instr) {
   asmjit::x86::Builder* as = env->as;
 
   // Make sure tstate is in RDI for use in epilogue.
-  int tstate_loc = instr->getInput(0)->getStackSlot();
-  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate_loc));
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
+  as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
 
   // Value to send goes to RAX so it can be yielded (returned) by epilogue.
   if (instr->getInput(1)->isImm()) {
     as->mov(x86::rax, instr->getInput(1)->getConstant());
   } else {
-    int value_out_loc = instr->getInput(1)->getStackSlot();
-    as->mov(x86::rax, x86::ptr(x86::rbp, value_out_loc));
+    PhyLocation value_out = instr->getInput(1)->getStackSlot();
+    as->mov(x86::rax, x86::ptr(x86::rbp, value_out.loc));
   }
 
   // Arbitrary scratch register for use in emitStoreGenYieldPoint()
@@ -502,7 +543,7 @@ void translateYieldValue(Environ* env, const Instruction* instr) {
   as->bind(resume_label);
 
   // Sent in value is in RSI, and tstate is in RCX from resume entry-point args
-  emitLoadResumedYieldInputs(as, instr, PhyLocation::RSI, x86::rcx);
+  emitLoadResumedYieldInputs(as, instr, RSI, x86::rcx);
 }
 
 void translateYieldFrom(Environ* env, const Instruction* instr) {
@@ -510,24 +551,24 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
   bool skip_initial_send = instr->isYieldFromSkipInitialSend();
 
   // Make sure tstate is in RDI for use in epilogue and here.
-  int tstate_loc = instr->getInput(0)->getStackSlot();
+  PhyLocation tstate = instr->getInput(0)->getStackSlot();
   auto tstate_phys_reg = x86::rdi;
-  as->mov(tstate_phys_reg, x86::ptr(x86::rbp, tstate_loc));
+  as->mov(tstate_phys_reg, x86::ptr(x86::rbp, tstate.loc));
 
   // If we're skipping the initial send the send value is actually the first
   // value to yield and so needs to go into RAX to be returned. Otherwise,
   // put initial send value in RSI, the same location future send values will
   // be on resume.
-  int send_value_loc = instr->getInput(1)->getStackSlot();
-  const auto send_value_phys_reg =
-      skip_initial_send ? PhyLocation::RAX : PhyLocation::RSI;
-  as->mov(x86::gpq(send_value_phys_reg), x86::ptr(x86::rbp, send_value_loc));
+  PhyLocation send_value = instr->getInput(1)->getStackSlot();
+  const auto send_value_phys_reg = skip_initial_send ? RAX : RSI;
+  as->mov(
+      x86::gpq(send_value_phys_reg.loc), x86::ptr(x86::rbp, send_value.loc));
 
   asmjit::Label yield_label = as->newLabel();
   if (skip_initial_send) {
     as->jmp(yield_label);
   } else {
-    // Setup call to JITRT_YieldFrom
+    // Setup call to JITRT_GenSend
 
     // Put tstate and the current generator into RCX and RDI respectively, and
     // set finish_yield_from (RDX) to 0. This register setup matches that when
@@ -550,24 +591,24 @@ void translateYieldFrom(Environ* env, const Instruction* instr) {
   // point args.
 
   // Load sub-iterator into RDI
-  int iter_loc = instr->getInput(2)->getStackSlot();
-  as->mov(x86::rdi, x86::ptr(x86::rbp, iter_loc));
+  PhyLocation iter_slot = instr->getInput(2)->getStackSlot();
+  as->mov(x86::rdi, x86::ptr(x86::rbp, iter_slot.loc));
 
   uint64_t func = reinterpret_cast<uint64_t>(
       instr->isYieldFromHandleStopAsyncIteration()
-          ? JITRT_YieldFromHandleStopAsyncIteration
-          : JITRT_YieldFrom);
+          ? JITRT_GenSendHandleStopAsyncIteration
+          : JITRT_GenSend);
   emitCall(*env, func, instr);
   // Yielded or final result value now in RAX. If the result was nullptr then
   // done will be set so we'll correctly jump to the following CheckExc.
-  const auto yf_result_phys_reg = PhyLocation::RAX;
+  const auto yf_result_phys_reg = RAX;
   const auto done_r = x86::rdx;
 
   // Restore tstate from callee-saved register.
   as->mov(tstate_phys_reg, x86::rbx);
 
   // If not done, jump to epilogue which will yield/return the value from
-  // JITRT_YieldFrom in RAX.
+  // JITRT_GenSend in RAX.
   as->test(done_r, done_r);
   asmjit::Label done_label = as->newLabel();
   as->jnz(done_label);
@@ -660,15 +701,16 @@ struct RegOperand {
 
     int size = Size == -1 ? LIROperandSizeMapper<N>(instr) : Size;
 
+    PhyLocation reg = LIROperandMapper<N>(instr)->getPhyRegister();
     switch (size) {
       case 8:
-        return asmjit::x86::gpb(LIROperandMapper<N>(instr)->getPhyRegister());
+        return asmjit::x86::gpb(reg.loc);
       case 16:
-        return asmjit::x86::gpw(LIROperandMapper<N>(instr)->getPhyRegister());
+        return asmjit::x86::gpw(reg.loc);
       case 32:
-        return asmjit::x86::gpd(LIROperandMapper<N>(instr)->getPhyRegister());
+        return asmjit::x86::gpd(reg.loc);
       case 64:
-        return asmjit::x86::gpq(LIROperandMapper<N>(instr)->getPhyRegister());
+        return asmjit::x86::gpq(reg.loc);
     }
     JIT_ABORT("Incorrect operand size.");
   }
@@ -679,8 +721,7 @@ struct XmmOperand {
   using asmjit_type = const asmjit::x86::Xmm&;
   static asmjit::x86::Xmm GetAsmOperand(Environ*, const Instruction* instr) {
     return asmjit::x86::xmm(
-        LIROperandMapper<N>(instr)->getPhyRegister() -
-        PhyLocation::XMM_REG_BASE);
+        LIROperandMapper<N>(instr)->getPhyRegister().loc - XMM_REG_BASE);
   }
 };
 
@@ -705,11 +746,11 @@ asmjit::x86::Mem AsmIndirectOperandBuilder(const OperandBase* operand) {
 
   if (index == nullptr) {
     return asmjit::x86::ptr(
-        x86::gpq(base->getPhyRegister()), indirect->getOffset());
+        x86::gpq(base->getPhyRegister().loc), indirect->getOffset());
   } else {
     return asmjit::x86::ptr(
-        x86::gpq(base->getPhyRegister()),
-        x86::gpq(index->getPhyRegister()),
+        x86::gpq(base->getPhyRegister().loc),
+        x86::gpq(index->getPhyRegister().loc),
         indirect->getMultipiler(),
         indirect->getOffset());
   }
@@ -723,7 +764,7 @@ struct MemOperand {
     auto size = LIROperandSizeMapper<N>(instr) / 8;
     asmjit::x86::Mem memptr;
     if (operand->isStack()) {
-      memptr = asmjit::x86::ptr(asmjit::x86::rbp, operand->getStackSlot());
+      memptr = asmjit::x86::ptr(asmjit::x86::rbp, operand->getStackSlot().loc);
     } else if (operand->isMem()) {
       memptr = asmjit::x86::ptr(
           reinterpret_cast<uint64_t>(operand->getMemoryAddress()));
@@ -814,7 +855,8 @@ struct AddDebugEntryAction {
       &asmjit::x86::Builder::instr,            \
       OperandList<args>>
 
-#define CALL(func) CallAction<func>
+// Can't be named CALL as that conflicts with the opcode.
+#define CALL_C(func) CallAction<func>
 
 #define ADDDEBUGENTRY() AddDebugEntryAction
 
@@ -865,7 +907,7 @@ struct AddDebugEntryAction {
 // one of the types listed above and "*" represents one or more above types.
 // Please note that while "?" can appear anywhere in a pattern, "*" can only be
 // used at the end of a pattern.
-// The actions can be ASM and CALL, meaning generating an assembly instruction
+// The actions can be ASM and CALL_C, meaning generating an assembly instruction
 // and call a user-defined function, respectively. The first argument of ASM
 // action is the mnemonic of the instruction to be generated, and the following
 // arguments are the operands to the instruction. Currently, we have four types
@@ -916,11 +958,11 @@ BEGIN_RULES(Instruction::kMove)
 END_RULES
 
 BEGIN_RULES(Instruction::kGuard)
-  GEN(ANY, CALL(TranslateGuard));
+  GEN(ANY, CALL_C(TranslateGuard));
 END_RULES
 
 BEGIN_RULES(Instruction::kDeoptPatchpoint)
-  GEN(ANY, CALL(TranslateDeoptPatchpoint));
+  GEN(ANY, CALL_C(TranslateDeoptPatchpoint));
 END_RULES
 
 BEGIN_RULES(Instruction::kNegate)
@@ -1133,14 +1175,17 @@ BEGIN_RULES(Instruction::kBranchE)
   GEN("b", ASM(je, LBL(0)))
 END_RULES
 
+BEGIN_RULES(Instruction::kBranchNE)
+  GEN("b", ASM(jne, LBL(0)))
+END_RULES
 
 #define DEF_COMPARE_OP_RULES(name, fpcomp) \
 BEGIN_RULES(Instruction::name) \
-  GEN("Rrr", CALL(TranslateCompare)) \
-  GEN("Rri", CALL(TranslateCompare)) \
-  GEN("Rrm", CALL(TranslateCompare)) \
+  GEN("Rrr", CALL_C(TranslateCompare)) \
+  GEN("Rri", CALL_C(TranslateCompare)) \
+  GEN("Rrm", CALL_C(TranslateCompare)) \
   if (fpcomp) { \
-    GEN("Rxx", CALL(TranslateCompare)) \
+    GEN("Rxx", CALL_C(TranslateCompare)) \
   } \
 END_RULES
 
@@ -1172,23 +1217,33 @@ BEGIN_RULES(Instruction::kBitTest)
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldInitial)
-  GEN(ANY, CALL(translateYieldInitial))
+  GEN(ANY, CALL_C(translateYieldInitial))
 END_RULES
 
+#if PY_VERSION_HEX < 0x030C0000
 BEGIN_RULES(Instruction::kYieldFrom)
-  GEN(ANY, CALL(translateYieldFrom))
+  GEN(ANY, CALL_C(translateYieldFrom))
 END_RULES
+#else
+// In 3.12+ YieldFrom is a pseudo-op which is YieldValue plus enough
+// information to know which live value contains the target iterator. See
+// emitStoreGenYieldPoint() for where this is captured. The target iterator is
+// used for things like the result of reading gi_yieldfrom.
+BEGIN_RULES(Instruction::kYieldFrom)
+  GEN(ANY, CALL_C(translateYieldValue))
+END_RULES
+#endif
 
 BEGIN_RULES(Instruction::kYieldFromSkipInitialSend)
-  GEN(ANY, CALL(translateYieldFrom))
+  GEN(ANY, CALL_C(translateYieldFrom))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldFromHandleStopAsyncIteration)
-  GEN(ANY, CALL(translateYieldFrom))
+  GEN(ANY, CALL_C(translateYieldFrom))
 END_RULES
 
 BEGIN_RULES(Instruction::kYieldValue)
-  GEN(ANY, CALL(translateYieldValue))
+  GEN(ANY, CALL_C(translateYieldValue))
 END_RULES
 
 BEGIN_RULES(Instruction::kSelect)

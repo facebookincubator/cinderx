@@ -1,3 +1,4 @@
+# pyre-ignore-all-errors
 d = {
     0: {
         "en",

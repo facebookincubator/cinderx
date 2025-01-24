@@ -1,10 +1,10 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+#include <Python.h>
+
 #include <gtest/gtest.h>
 
-#include <Python.h>
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/opcode.h"
-
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -12,9 +12,12 @@
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
-
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
+
+#if PY_VERSION_HEX >= 0x030C0000
+#include "internal/pycore_intrinsics.h"
+#endif
 
 using namespace jit;
 using namespace jit::hir;
@@ -500,13 +503,20 @@ fun foo {
   EXPECT_EQ(HIRPrinter{}.ToString(*func), expected);
 }
 
+template <class T>
+Ref<> toByteString(T&& data) {
+  auto sp = std::span{data};
+  return Ref<>::steal(PyBytes_FromStringAndSize(
+      reinterpret_cast<const char*>(sp.data()), sp.size_bytes()));
+}
+
 class HIRBuildTest : public RuntimeTest {
  public:
+  template <class T>
   std::unique_ptr<Function> build_test(
-      const char* bc,
-      size_t bc_size,
+      T&& bc,
       const std::vector<PyObject*>& locals /* borrowed */) {
-    auto bytecode = Ref<>::steal(PyBytes_FromStringAndSize(bc, bc_size));
+    Ref<> bytecode = toByteString(std::span{std::forward<T>(bc)});
     assert(bytecode.get());
     const int nlocals = locals.size();
 
@@ -526,32 +536,31 @@ class HIRBuildTest : public RuntimeTest {
 
     auto empty_tuple = Ref<>::steal(PyTuple_New(0));
     auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
-    auto code = Ref<PyCodeObject>::steal(PyCode_New(
+    auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
         /*argcount=*/1,
-        0,
+        /*kwonlyargcount*/ 0,
         /*nlocals=*/nlocals,
-        0,
-        0,
+        /*stacksize=*/0,
+        /*flags=*/0,
         bytecode,
         consts,
-        empty_tuple,
+        /*names=*/empty_tuple,
         varnames,
-        empty_tuple,
-        empty_tuple,
+        /*freevars=*/empty_tuple,
+        /*cellvars=*/empty_tuple,
         filename,
         funcname,
-        0,
-        empty_bytes));
-    assert(code.get());
+        /*qualname=*/funcname,
+        /*firstlineno=*/0,
+        /*linetable=*/empty_bytes,
+        /*exceptiontable=*/empty_bytes));
+    assert(code != nullptr);
 
     auto func =
         Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
-    assert(func.get());
+    assert(func != nullptr);
 
-    std::unique_ptr<Function> irfunc(buildHIR(func));
-    assert(irfunc.get());
-
-    return irfunc;
+    return buildHIR(func);
   }
 };
 
@@ -559,32 +568,59 @@ TEST_F(HIRBuildTest, GetLength) {
   //  0 LOAD_FAST  0
   //  2 GET_LENGTH
   //  4 RETURN_VALUE
-  const char bc[] = {LOAD_FAST, 0, GET_LEN, 0, RETURN_VALUE, 0};
-  std::unique_ptr<Function> irfunc = build_test(bc, sizeof(bc), {Py_None});
-  ASSERT_NE(irfunc.get(), nullptr);
+  uint8_t bc[] = {LOAD_FAST, 0, GET_LEN, 0, RETURN_VALUE, 0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
+#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Locals<1> v0
     }
-    v0 = CheckVar<"param0"> v0 {
+    v2 = GetLength v0 {
       FrameState {
-        NextInstrOffset 2
-        Locals<1> v0
-      }
-    }
-    v1 = GetLength v0 {
-      FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v0
         Stack<1> v0
       }
     }
     Snapshot {
-      NextInstrOffset 4
+      CurInstrOffset 4
+      Locals<1> v0
+      Stack<2> v0 v2
+    }
+    v3 = Assign v2
+    v2 = Assign v0
+    Return v3
+  }
+}
+)";
+#else
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v0
+    }
+    v0 = CheckVar<"param0"> v0 {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v0
+      }
+    }
+    v1 = GetLength v0 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<1> v0
+        Stack<1> v0
+      }
+    }
+    Snapshot {
+      CurInstrOffset 4
       Locals<1> v0
       Stack<2> v0 v1
     }
@@ -594,53 +630,69 @@ TEST_F(HIRBuildTest, GetLength) {
   }
 }
 )";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, LoadAssertionError) {
   //  0 LOAD_ASSERTION_ERROR
   //  2 RETURN_VALUE
-  const char bc[] = {LOAD_ASSERTION_ERROR, 0, RETURN_VALUE, 0};
-  auto bytecode = Ref<>::steal(PyBytes_FromStringAndSize(bc, sizeof(bc)));
+  uint8_t bc[] = {LOAD_ASSERTION_ERROR, 0, RETURN_VALUE, 0};
+  Ref<> bytecode = toByteString(bc);
   ASSERT_NE(bytecode.get(), nullptr);
   auto filename = Ref<>::steal(PyUnicode_FromString("filename"));
   auto funcname = Ref<>::steal(PyUnicode_FromString("funcname"));
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
-  auto code = Ref<PyCodeObject>::steal(PyCode_New(
-      0,
-      0,
-      0,
-      0,
-      0,
+  auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
+      /*argcount=*/0,
+      /*kwonlyargcount=*/0,
+      /*nlocals=*/0,
+      /*stacksize=*/0,
+      /*flags=*/0,
       bytecode,
-      empty_tuple,
-      empty_tuple,
-      empty_tuple,
-      empty_tuple,
-      empty_tuple,
+      /*consts=*/empty_tuple,
+      /*names=*/empty_tuple,
+      /*varnames=*/empty_tuple,
+      /*freevars=*/empty_tuple,
+      /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      0,
-      empty_bytes));
+      /*qualname=*/funcname,
+      /*firstlineno=*/0,
+      /*linetable=*/empty_bytes,
+      /*exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
   ASSERT_NE(func.get(), nullptr);
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
-  ASSERT_NE(irfunc.get(), nullptr);
 
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+    }
+    v1 = LoadConst<ImmortalTypeExact[AssertionError:obj]>
+    Return v1
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
     }
     v0 = LoadConst<ImmortalTypeExact[AssertionError:obj]>
     Return v0
   }
 }
 )";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
@@ -652,23 +704,29 @@ TEST_F(HIRBuildTest, SetUpdate) {
   //  8 ROT_TWO
   //  10 POP_TOP
   //  12 RETURN_VALUE
-  const char bc[] = {
+  uint8_t bc[] = {
       LOAD_FAST,
       0,
       LOAD_FAST,
       1,
       LOAD_FAST,
       2,
-      static_cast<char>(SET_UPDATE),
+      SET_UPDATE,
       1,
+
+#if PY_VERSION_HEX < 0x030B0000
       ROT_TWO,
       0,
+#else
+      SWAP,
+      2,
+#endif
       POP_TOP,
       0,
       RETURN_VALUE,
       0,
   };
-  auto bytecode = Ref<>::steal(PyBytes_FromStringAndSize(bc, sizeof(bc)));
+  Ref<> bytecode = toByteString(bc);
   ASSERT_NE(bytecode.get(), nullptr);
   auto filename = Ref<>::steal(PyUnicode_FromString("filename"));
   auto funcname = Ref<>::steal(PyUnicode_FromString("funcname"));
@@ -679,68 +737,51 @@ TEST_F(HIRBuildTest, SetUpdate) {
   auto varnames =
       Ref<>::steal(PyTuple_Pack(3, param0.get(), param1.get(), param2.get()));
   auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
-  auto code = Ref<PyCodeObject>::steal(PyCode_New(
+  auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
       /*argcount=*/3,
-      0,
+      /*kwonlyargcount=*/0,
       /*nlocals=*/3,
-      0,
-      0,
+      /*stacksize=*/0,
+      /*flags=*/0,
       bytecode,
-      empty_tuple,
-      empty_tuple,
+      /*consts=*/empty_tuple,
+      /*names=*/empty_tuple,
       varnames,
-      empty_tuple,
-      empty_tuple,
+      /*freevars=*/empty_tuple,
+      /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      0,
-      empty_bytes));
+      /*qualname=*/funcname,
+      /*firstlineno=*/0,
+      /*linetable=*/empty_bytes,
+      /*exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
   ASSERT_NE(func.get(), nullptr);
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
-  ASSERT_NE(irfunc.get(), nullptr);
 
+#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
     v1 = LoadArg<1; "param1">
     v2 = LoadArg<2; "param2">
+    v3 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Locals<3> v0 v1 v2
     }
-    v0 = CheckVar<"param0"> v0 {
+    v4 = SetUpdate v1 v2 {
       FrameState {
-        NextInstrOffset 2
-        Locals<3> v0 v1 v2
-      }
-    }
-    v1 = CheckVar<"param1"> v1 {
-      FrameState {
-        NextInstrOffset 4
-        Locals<3> v0 v1 v2
-        Stack<1> v0
-      }
-    }
-    v2 = CheckVar<"param2"> v2 {
-      FrameState {
-        NextInstrOffset 6
-        Locals<3> v0 v1 v2
-        Stack<2> v0 v1
-      }
-    }
-    v3 = SetUpdate v1 v2 {
-      FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<3> v0 v1 v2
         Stack<2> v0 v1
       }
     }
     Snapshot {
-      NextInstrOffset 8
+      CurInstrOffset 8
       Locals<3> v0 v1 v2
       Stack<2> v0 v1
     }
@@ -748,6 +789,53 @@ TEST_F(HIRBuildTest, SetUpdate) {
   }
 }
 )";
+#else
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadArg<1; "param1">
+    v2 = LoadArg<2; "param2">
+    Snapshot {
+      CurInstrOffset 0
+      Locals<3> v0 v1 v2
+    }
+    v0 = CheckVar<"param0"> v0 {
+      FrameState {
+        CurInstrOffset 0
+        Locals<3> v0 v1 v2
+      }
+    }
+    v1 = CheckVar<"param1"> v1 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<3> v0 v1 v2
+        Stack<1> v0
+      }
+    }
+    v2 = CheckVar<"param2"> v2 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<3> v0 v1 v2
+        Stack<2> v0 v1
+      }
+    }
+    v3 = SetUpdate v1 v2 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<3> v0 v1 v2
+        Stack<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 8
+      Locals<3> v0 v1 v2
+      Stack<2> v0 v1
+    }
+    Return v1
+  }
+}
+)";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
@@ -760,7 +848,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   //  4 LOAD_CONST    0
   //  6 RETURN_VALUE
   //  8 JUMP_ABSOLUTE 4
-  const char bc[] = {
+  uint8_t bc[] = {
       LOAD_CONST,
       0,
       RETURN_VALUE,
@@ -769,9 +857,15 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
       0,
       RETURN_VALUE,
       0,
+#if PY_VERSION_HEX < 0x030C0000
       JUMP_ABSOLUTE,
-      4};
-  auto bytecode = Ref<>::steal(PyBytes_FromStringAndSize(bc, sizeof(bc)));
+      4,
+#else
+      JUMP_BACKWARD,
+      2,
+#endif
+  };
+  Ref<> bytecode = toByteString(bc);
   ASSERT_NE(bytecode.get(), nullptr);
   auto filename = Ref<>::steal(PyUnicode_FromString("filename"));
   auto funcname = Ref<>::steal(PyUnicode_FromString("funcname"));
@@ -780,22 +874,108 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
   PyTuple_SET_ITEM(consts.get(), 0, Py_None);
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
-  auto code = Ref<PyCodeObject>::steal(PyCode_New(
-      0,
-      0,
-      0,
-      0,
-      0,
+  auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
+      /*argcount=*/0,
+      /*kwonlyargcount=*/0,
+      /*nlocals=*/0,
+      /*stacksize=*/0,
+      /*flags=*/0,
       bytecode,
       consts,
-      empty_tuple,
-      empty_tuple,
-      empty_tuple,
-      empty_tuple,
+      /*names=*/empty_tuple,
+      /*varnames=*/empty_tuple,
+      /*freevars=*/empty_tuple,
+      /*cellvars=*/empty_tuple,
       filename,
       funcname,
+      /*qualname=*/funcname,
+      /*firstlineno=*/0,
+      /*linetable=*/empty_bytes,
+      /*exceptiontable=*/empty_bytes));
+  ASSERT_NE(code.get(), nullptr);
+
+  auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
+  ASSERT_NE(func.get(), nullptr);
+
+  std::unique_ptr<Function> irfunc(buildHIR(func));
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+    }
+    v1 = LoadConst<NoneType>
+    Return v1
+  }
+}
+)";
+#else
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    Snapshot {
+      CurInstrOffset 0
+    }
+    v0 = LoadConst<NoneType>
+    Return v0
+  }
+}
+)";
+#endif
+  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+}
+
+TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
+  //  0 LOAD_CONST    0
+  //  2 RETURN_VALUE
+  //
+  //  4 LOAD_CONST    0
+  //  6 RETURN_VALUE
+  //  8 JUMP_ABSOLUTE 4
+  uint8_t bc[] = {
+      LOAD_CONST,
       0,
-      empty_bytes));
+      RETURN_VALUE,
+      0,
+      LOAD_CONST,
+      0,
+      RETURN_VALUE,
+      0,
+#if PY_VERSION_HEX < 0x030C0000
+      JUMP_ABSOLUTE,
+      4,
+#else
+      JUMP_BACKWARD_NO_INTERRUPT,
+      2,
+#endif
+  };
+  Ref<> bytecode = toByteString(bc);
+  ASSERT_NE(bytecode.get(), nullptr);
+  auto filename = Ref<>::steal(PyUnicode_FromString("filename"));
+  auto funcname = Ref<>::steal(PyUnicode_FromString("funcname"));
+  auto consts = Ref<>::steal(PyTuple_New(1));
+  Py_INCREF(Py_None);
+  PyTuple_SET_ITEM(consts.get(), 0, Py_None);
+  auto empty_tuple = Ref<>::steal(PyTuple_New(0));
+  auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
+  auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
+      /*argcount=*/0,
+      /*kwonlyargcount=*/0,
+      /*nlocals=*/0,
+      /*stacksize=*/0,
+      /*flags=*/0,
+      bytecode,
+      consts,
+      /*names=*/empty_tuple,
+      /*varnames=*/empty_tuple,
+      /*freevars=*/empty_tuple,
+      /*cellvars=*/empty_tuple,
+      filename,
+      funcname,
+      /*qualname=*/funcname,
+      /*firstlineno=*/0,
+      /*linetable=*/empty_bytes,
+      /*exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
@@ -803,17 +983,30 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
 
   std::unique_ptr<Function> irfunc(buildHIR(func));
   ASSERT_NE(irfunc.get(), nullptr);
-
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+    }
+    v1 = LoadConst<NoneType>
+    Return v1
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
     }
     v0 = LoadConst<NoneType>
     Return v0
   }
 }
 )";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
@@ -864,8 +1057,8 @@ TEST_F(HIRCloneTest, CanCloneInstrs) {
       static_cast<LoadConst*>(new_load.get())->type() ==
       static_cast<LoadConst*>(load_const.get())->type());
   EXPECT_NE(load_const, new_load);
-  EXPECT_EQ(load_const->GetOutput()->instr(), load_const.get());
-  EXPECT_EQ(new_load->GetOutput()->instr(), load_const.get());
+  EXPECT_EQ(load_const->output()->instr(), load_const.get());
+  EXPECT_EQ(new_load->output()->instr(), load_const.get());
 }
 
 TEST_F(HIRCloneTest, CanCloneBranches) {
@@ -910,7 +1103,7 @@ TEST_F(HIRCloneTest, CanCloneBorrwedRefFields) {
 TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
   Environment env;
   auto v0 = env.AllocateRegister();
-  FrameState raise_fs{10};
+  FrameState raise_fs{BCOffset{10}};
   std::unique_ptr<Instr> raise_exc(Raise::create(1, raise_fs, v0));
   std::unique_ptr<Instr> new_raise_exc(raise_exc->clone());
   ASSERT_NE(raise_exc.get(), new_raise_exc.get());
@@ -921,7 +1114,7 @@ TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
   EXPECT_EQ(orig_raise->kind(), dup_raise->kind());
   EXPECT_EQ(orig_raise->GetOperand(0), dup_raise->GetOperand(0));
   FrameState* orig_raise_fs = orig_raise->frameState();
-  EXPECT_EQ(orig_raise_fs->next_instr_offset, 10);
+  EXPECT_EQ(orig_raise_fs->cur_instr_offs, 10);
   EXPECT_NE(orig_raise_fs, dup_raise->frameState());
 
   std::unique_ptr<Instr> raise_exc_cause(Raise::create(2, raise_fs, v0, v0));
@@ -940,19 +1133,19 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   const char* hir = R"(fun jittestmodule:test {
   bb 0 {
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Locals<1> v0
     }
     v1 = LoadConst<ImmortalLongExact[1]>
     v0 = Assign v1
     v2 = LoadGlobal<0; "foo"> {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Locals<1> v0
       }
     }
     Snapshot {
-      NextInstrOffset 6
+      CurInstrOffset 6
       Locals<1> v0
       Stack<1> v2
     }
@@ -971,7 +1164,7 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
     v2:Object = LoadGlobal<0> {
       LiveValues<1> unc:v1
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 6
         Locals<1> v1
       }
     }
@@ -990,7 +1183,7 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   LoadGlobal* orig = static_cast<LoadGlobal*>(&load_global);
   LoadGlobal* dup = static_cast<LoadGlobal*>(dup_load.get());
 
-  EXPECT_EQ(orig->GetOutput(), dup->GetOutput());
+  EXPECT_EQ(orig->output(), dup->output());
   EXPECT_EQ(orig->name_idx(), dup->name_idx());
 
   FrameState* orig_fs = orig->frameState();
@@ -1003,8 +1196,10 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   EXPECT_TRUE(orig->live_regs() == dup->live_regs());
 }
 
+// ROT_N was removed in 3.11.
+#if PY_VERSION_HEX < 0x030B0000
 TEST_F(HIRBuildTest, ROT_N) {
-  const char bc[] = {
+  uint8_t bc[] = {
       LOAD_FAST,
       0,
       LOAD_FAST,
@@ -1025,74 +1220,74 @@ TEST_F(HIRBuildTest, ROT_N) {
       0};
 
   std::unique_ptr<Function> irfunc =
-      build_test(bc, sizeof(bc), {Py_None, Py_None, Py_None, Py_None});
+      build_test(bc, {Py_None, Py_None, Py_None, Py_None});
 
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Locals<4> v0 v1 v2 v3
     }
     v0 = CheckVar<"param0"> v0 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<4> v0 v1 v2 v3
       }
     }
     v1 = CheckVar<"param1"> v1 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<4> v0 v1 v2 v3
         Stack<1> v0
       }
     }
     v2 = CheckVar<"param2"> v2 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<4> v0 v1 v2 v3
         Stack<2> v0 v1
       }
     }
     v3 = CheckVar<"param3"> v3 {
       FrameState {
-        NextInstrOffset 8
+        CurInstrOffset 6
         Locals<4> v0 v1 v2 v3
         Stack<3> v0 v1 v2
       }
     }
     v4 = BinaryOp<Or> v1 v2 {
       FrameState {
-        NextInstrOffset 12
+        CurInstrOffset 10
         Locals<4> v0 v1 v2 v3
         Stack<2> v0 v3
       }
     }
     Snapshot {
-      NextInstrOffset 12
+      CurInstrOffset 12
       Locals<4> v0 v1 v2 v3
       Stack<3> v0 v3 v4
     }
     v5 = BinaryOp<Or> v3 v4 {
       FrameState {
-        NextInstrOffset 14
+        CurInstrOffset 12
         Locals<4> v0 v1 v2 v3
         Stack<1> v0
       }
     }
     Snapshot {
-      NextInstrOffset 14
+      CurInstrOffset 14
       Locals<4> v0 v1 v2 v3
       Stack<2> v0 v5
     }
     v6 = BinaryOp<Or> v0 v5 {
       FrameState {
-        NextInstrOffset 16
+        CurInstrOffset 14
         Locals<4> v0 v1 v2 v3
       }
     }
     Snapshot {
-      NextInstrOffset 16
+      CurInstrOffset 16
       Locals<4> v0 v1 v2 v3
       Stack<1> v6
     }
@@ -1103,22 +1298,60 @@ TEST_F(HIRBuildTest, ROT_N) {
 
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
+#endif
 
 TEST_F(HIRBuildTest, MatchMapping) {
-  const char bc[] = {LOAD_FAST, 0, MATCH_MAPPING, 0, RETURN_VALUE, 0};
+  uint8_t bc[] = {LOAD_FAST, 0, MATCH_MAPPING, 0, RETURN_VALUE, 0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
-  std::unique_ptr<Function> irfunc = build_test(bc, sizeof(bc), {Py_None});
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v0
+    }
+    v2 = LoadField<ob_type@8, Type, borrowed> v0
+    v3 = LoadField<tp_flags@168, CUInt64, borrowed> v2
+    v4 = LoadConst<CUInt64[64]>
+    v5 = IntBinaryOp<And> v3 v4
+    CondBranch<1, 2> v5
+  }
 
+  bb 1 (preds 0) {
+    v6 = LoadConst<ImmortalBool[True]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v6 = LoadConst<ImmortalBool[False]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v0
+      Stack<2> v0 v6
+    }
+    v2 = Assign v0
+    Return v6
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Locals<1> v0
     }
     v0 = CheckVar<"param0"> v0 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v0
       }
     }
@@ -1141,7 +1374,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
 
   bb 3 (preds 1, 2) {
     Snapshot {
-      NextInstrOffset 4
+      CurInstrOffset 4
       Locals<1> v0
       Stack<2> v0 v5
     }
@@ -1150,24 +1383,62 @@ TEST_F(HIRBuildTest, MatchMapping) {
   }
 }
 )";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, MatchSequence) {
-  const char bc[] = {LOAD_FAST, 0, MATCH_SEQUENCE, 0, RETURN_VALUE, 0};
+  uint8_t bc[] = {LOAD_FAST, 0, MATCH_SEQUENCE, 0, RETURN_VALUE, 0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
-  std::unique_ptr<Function> irfunc = build_test(bc, sizeof(bc), {Py_None});
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v0
+    }
+    v2 = LoadField<ob_type@8, Type, borrowed> v0
+    v3 = LoadField<tp_flags@168, CUInt64, borrowed> v2
+    v4 = LoadConst<CUInt64[32]>
+    v5 = IntBinaryOp<And> v3 v4
+    CondBranch<1, 2> v5
+  }
 
+  bb 1 (preds 0) {
+    v6 = LoadConst<ImmortalBool[True]>
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v6 = LoadConst<ImmortalBool[False]>
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v0
+      Stack<2> v0 v6
+    }
+    v2 = Assign v0
+    Return v6
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Locals<1> v0
     }
     v0 = CheckVar<"param0"> v0 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v0
       }
     }
@@ -1190,7 +1461,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
 
   bb 3 (preds 1, 2) {
     Snapshot {
-      NextInstrOffset 4
+      CurInstrOffset 4
       Locals<1> v0
       Stack<2> v0 v5
     }
@@ -1199,39 +1470,82 @@ TEST_F(HIRBuildTest, MatchSequence) {
   }
 }
 )";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, MatchKeys) {
-  const char bc[] = {
-      LOAD_FAST, 0, LOAD_FAST, 1, MATCH_KEYS, 0, RETURN_VALUE, 0};
+  uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, MATCH_KEYS, 0, RETURN_VALUE, 0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
 
-  std::unique_ptr<Function> irfunc =
-      build_test(bc, sizeof(bc), {Py_None, Py_None});
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = MatchKeys v0 v1 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v1
+        Stack<2> v0 v1
+      }
+    }
+    v4 = LoadConst<NoneType>
+    v5 = PrimitiveCompare<Equal> v3 v4
+    CondBranch<1, 2> v5
+  }
 
+  bb 1 (preds 0) {
+    v3 = RefineType<NoneType> v3
+    Branch<3>
+  }
+
+  bb 2 (preds 0) {
+    v3 = RefineType<TupleExact> v3
+    Branch<3>
+  }
+
+  bb 3 (preds 1, 2) {
+    Snapshot {
+      CurInstrOffset 6
+      Locals<2> v0 v1
+      Stack<3> v0 v1 v3
+    }
+    v6 = Assign v3
+    v3 = Assign v0
+    v4 = Assign v1
+    Return v6
+  }
+}
+)";
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Locals<2> v0 v1
     }
     v0 = CheckVar<"param0"> v0 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<2> v0 v1
       }
     }
     v1 = CheckVar<"param1"> v1 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<2> v0 v1
         Stack<1> v0
       }
     }
     v2 = MatchKeys v0 v1 {
       FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<2> v0 v1
         Stack<2> v0 v1
       }
@@ -1255,7 +1569,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
 
   bb 3 (preds 1, 2) {
     Snapshot {
-      NextInstrOffset 6
+      CurInstrOffset 6
       Locals<2> v0 v1
       Stack<4> v0 v1 v2 v5
     }
@@ -1266,52 +1580,32 @@ TEST_F(HIRBuildTest, MatchKeys) {
   }
 }
 )";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, ListExtend) {
-  const char bc[] = {
-      LOAD_FAST,
-      0,
-      LOAD_FAST,
-      1,
-      static_cast<char>(LIST_EXTEND),
-      1,
-      RETURN_VALUE,
-      0};
+  uint8_t bc[] = {LOAD_FAST, 0, LOAD_FAST, 1, LIST_EXTEND, 1, RETURN_VALUE, 0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
 
-  std::unique_ptr<Function> irfunc =
-      build_test(bc, sizeof(bc), {Py_None, Py_None});
-
+#if PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
+    v2 = LoadCurrentFunc
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
       Locals<2> v0 v1
     }
-    v0 = CheckVar<"param0"> v0 {
+    v3 = ListExtend v0 v1 {
       FrameState {
-        NextInstrOffset 2
-        Locals<2> v0 v1
-      }
-    }
-    v1 = CheckVar<"param1"> v1 {
-      FrameState {
-        NextInstrOffset 4
-        Locals<2> v0 v1
-        Stack<1> v0
-      }
-    }
-    v2 = ListExtend v0 v1 {
-      FrameState {
-        NextInstrOffset 6
+        CurInstrOffset 4
         Locals<2> v0 v1
         Stack<1> v0
       }
     }
     Snapshot {
-      NextInstrOffset 6
+      CurInstrOffset 6
       Locals<2> v0 v1
       Stack<1> v0
     }
@@ -1319,35 +1613,103 @@ TEST_F(HIRBuildTest, ListExtend) {
   }
 }
 )";
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
-}
-
-TEST_F(HIRBuildTest, ListToTuple) {
-  const char bc[] = {LOAD_FAST, 0, LIST_TO_TUPLE, 0, RETURN_VALUE, 0};
-
-  std::unique_ptr<Function> irfunc = build_test(bc, sizeof(bc), {Py_None});
-
+#else
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">
     Snapshot {
-      NextInstrOffset 0
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v0 = CheckVar<"param0"> v0 {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    v1 = CheckVar<"param1"> v1 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+        Stack<1> v0
+      }
+    }
+    v2 = ListExtend v0 v1 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v1
+        Stack<1> v0
+      }
+    }
+    Snapshot {
+      CurInstrOffset 6
+      Locals<2> v0 v1
+      Stack<1> v0
+    }
+    Return v0
+  }
+}
+)";
+#endif
+  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+}
+
+TEST_F(HIRBuildTest, ListToTuple) {
+  uint8_t bc[] = {
+      LOAD_FAST,
+      0,
+#if PY_VERSION_HEX < 0x030C0000
+      LIST_TO_TUPLE,
+      0,
+#else
+      CALL_INTRINSIC_1,
+      INTRINSIC_LIST_TO_TUPLE,
+#endif
+      RETURN_VALUE,
+      0};
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
+
+#if PY_VERSION_HEX >= 0x030C0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v0
+    }
+    v2 = CallIntrinsic<6> v0
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v0
+      Stack<1> v2
+    }
+    Return v2
+  }
+}
+)";
+#else
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    Snapshot {
+      CurInstrOffset 0
       Locals<1> v0
     }
     v0 = CheckVar<"param0"> v0 {
       FrameState {
-        NextInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v0
       }
     }
     v1 = MakeTupleFromList v0 {
       FrameState {
-        NextInstrOffset 4
+        CurInstrOffset 2
         Locals<1> v0
       }
     }
     Snapshot {
-      NextInstrOffset 4
+      CurInstrOffset 4
       Locals<1> v0
       Stack<1> v1
     }
@@ -1355,5 +1717,39 @@ TEST_F(HIRBuildTest, ListToTuple) {
   }
 }
 )";
+#endif
   EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+}
+
+TEST_F(HIRBuildTest, LoadFastAndClear) {
+#if PY_VERSION_HEX >= 0x030C0000
+  uint8_t bc[] = {
+      LOAD_FAST_AND_CLEAR, 1, LOAD_FAST_CHECK, 0, POP_TOP, 0, RETURN_VALUE, 0};
+
+  std::unique_ptr<Function> irfunc = build_test(bc, {Py_None, Py_None});
+
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = Assign v1
+    v1 = LoadConst<Nullptr>
+    v0 = CheckVar<"param0"> v0 {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+        Stack<1> v3
+      }
+    }
+    Return v3
+  }
+}
+)";
+
+  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+#endif
 }

@@ -28,12 +28,12 @@ class SymtableEntry;
  */
 class Symtable {
  public:
-  Symtable(std::shared_ptr<PySymtable> symtable) : symtable_(symtable){}
+  Symtable(std::shared_ptr<PySymtable> symtable) : symtable_(symtable) {}
   Symtable(std::unique_ptr<PySymtable, PySymtableDeleter> symtable)
       : symtable_(std::move(symtable)) {}
 
-  Symtable(Symtable&& rhs) : symtable_(std::move(rhs.symtable_)){}
-  Symtable(const Symtable& rhs) : symtable_(rhs.symtable_){}
+  Symtable(Symtable&& rhs) : symtable_(std::move(rhs.symtable_)) {}
+  Symtable(const Symtable& rhs) : symtable_(rhs.symtable_) {}
 
   SymtableEntry entryFromAst(void* key) const;
 

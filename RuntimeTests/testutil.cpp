@@ -1,24 +1,29 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include "cinderx/RuntimeTests/testutil.h"
 
-#include <stdarg.h>
-#include <stdio.h>
-#include <string.h>
+#include <fmt/format.h>
 
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <string_view>
 
-static const std::string kDelim = "---";
+namespace {
 
-static std::ostream& err(const std::string& path) {
-  std::cerr << "ERROR [" << path << "]: ";
-  return std::cerr;
-}
+constexpr std::string_view kDelimPrefix = "---";
+constexpr std::string_view kDisabledPrefix = "@disabled";
 
-bool read_delim(std::ifstream& /* file */) {
-  return false;
+// Remove whitespace from the beginning and end of a string.
+void trimWhitespace(std::string_view& s) {
+  while (!s.empty() && std::isspace(s[0])) {
+    s.remove_prefix(1);
+  }
+  while (!s.empty() && std::isspace(s.back())) {
+    s.remove_suffix(1);
+  }
 }
 
 struct FileGuard {
@@ -29,184 +34,238 @@ struct FileGuard {
   std::ifstream& file;
 };
 
-struct Result {
-  bool is_error;
-  std::string error;
-
-  static Result Ok() {
-    Result result = {
-        .is_error = false,
-        .error = std::string(),
-    };
-    return result;
-  }
-
-  static Result Error(const char* fmt, ...) {
-    char buf[2048];
-    va_list args;
-    va_start(args, fmt);
-    vsnprintf(buf, 2048, fmt, args);
-    std::string s(buf);
-    Result result = {.is_error = true, .error = s};
-    return result;
-  }
-
-  static Result ErrorFromErrno(const char* prefix) {
-    std::ostringstream os;
-    if (prefix != nullptr) {
-      os << prefix << ": ";
-    }
-    os << strerror(errno);
-    Result result = {.is_error = true, .error = os.str()};
-    return result;
-  }
-};
-
 struct Reader {
-  explicit Reader(const std::string& p, std::ifstream& f)
-      : path(p), file(f), line_num(0) {}
+  explicit Reader(std::ifstream& file, const std::string& path)
+      : file{file}, path{path} {}
 
-  Result ReadLine(std::string& s) {
+  char peekChar() {
+    return file.peek();
+  }
+
+  std::string readLine() {
+    std::string s;
     if (!std::getline(file, s)) {
-      return Result::ErrorFromErrno("Failed reading line");
+      err("Failed reading file {} at line {}, {}",
+          path,
+          line_num + 1,
+          strerror(errno));
     }
     line_num++;
-    return Result::Ok();
+    return s;
   }
 
-  Result ReadDelim() {
-    std::string line;
-    auto result = ReadLine(line);
-    if (result.is_error) {
-      return result;
+  // Parse out the message inside of a delimiter line.
+  std::string_view parseDelim(std::string_view line) {
+    if (!line.starts_with(kDelimPrefix)) {
+      err("Expected delimiter in file {} at line {} does not start with {}",
+          path,
+          line_num,
+          kDelimPrefix);
     }
-    if (line != kDelim) {
-      return Result::Error("Expected delimiter at line %d", line_num);
+    if (!line.ends_with(kDelimPrefix)) {
+      err("Expected delimiter in file {} at line {} does not end with {}",
+          path,
+          line_num,
+          kDelimPrefix);
     }
-    return Result::Ok();
+    if (line.size() <= kDelimPrefix.size() * 2) {
+      err("Expected delimiter in file {} at line {} is too short: {}",
+          path,
+          line_num,
+          line);
+    }
+    line.remove_prefix(kDelimPrefix.size());
+    line.remove_suffix(kDelimPrefix.size());
+    trimWhitespace(line);
+
+    return line;
   }
 
-  Result ReadUntilDelim(std::string& s) {
+  // Match a line to a delimiter with a given message inside of it.
+  void matchDelim(std::string_view line, std::string_view expected) {
+    if (parseDelim(line) != expected) {
+      err("Expected delimiter in file {} at line {} to contain '{}', but it is "
+          "'{}'",
+          path,
+          line_num,
+          expected,
+          line);
+    }
+  }
+
+  void readDelim(std::string_view expected) {
+    matchDelim(readLine(), expected);
+  }
+
+  std::string readUntilDelim() {
     std::ostringstream os;
-    std::string line;
-    bool done = false;
-    Result result;
-    while (!done) {
-      auto result = ReadLine(line);
-      if (result.is_error) {
-        s = os.str();
-        return result;
-      }
-      if (line == kDelim) {
-        done = true;
-      } else {
-        os << line << std::endl;
-      }
+    while (!isExhausted() && peekChar() != kDelimPrefix[0]) {
+      os << readLine() << std::endl;
     }
-    s = os.str();
-    return Result::Ok();
+    return os.str();
   }
 
-  bool IsExhausted() const {
+  bool isExhausted() const {
     return file.eof();
   }
 
-  const std::string& path;
+  template <class... Args>
+  [[noreturn]] void err(fmt::format_string<Args...> fmt, Args&&... args) {
+    throw std::runtime_error{fmt::format(fmt, std::forward<Args>(args)...)};
+  }
+
   std::ifstream& file;
-  int line_num;
+  std::string path;
+  int line_num{0};
 };
 
-std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
-  std::ifstream file;
+// Initialize a test suite with a name and a list of passes to run.
+std::unique_ptr<HIRTestSuite> initTestSuite(Reader& reader) {
+  auto suite = std::make_unique<HIRTestSuite>();
 
+  reader.readDelim("Test Suite Name");
+  suite->name = reader.readLine();
+
+  reader.readDelim("Passes");
+
+  while (!reader.isExhausted() && reader.peekChar() != kDelimPrefix[0]) {
+    suite->pass_names.push_back(reader.readLine());
+  }
+
+  return suite;
+}
+
+enum class ScanStatus {
+  End,
+  Skip,
+  Ok,
+};
+
+// Scan through sections of "--- Expected $PY_VERSION ---" until the correct one
+// is found, or until the next section.
+ScanStatus scanUntilExpected(Reader& reader, std::string_view delim) {
+  const std::string expected_prefix = fmt::format("{} Expected", kDelimPrefix);
+
+  std::string line;
+  while (true) {
+    line = reader.readLine();
+    if (!line.starts_with(kDelimPrefix)) {
+      continue;
+    }
+    if (line == delim) {
+      return ScanStatus::Ok;
+    }
+    if (reader.parseDelim(line) == "End") {
+      return ScanStatus::End;
+    }
+    if (line == "--- Test Name ---") {
+      return ScanStatus::Skip;
+    }
+    if (line.starts_with(expected_prefix)) {
+      continue;
+    }
+    reader.err(
+        "Unrecognized '{}' in file {} at line {} when looking for expected HIR "
+        "output",
+        line,
+        reader.path,
+        reader.line_num);
+  }
+
+  // Unreachable, reader will find what it needs or it will error on EOF.
+  std::abort();
+}
+
+} // namespace
+
+std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
   std::filesystem::path path =
       std::filesystem::path(__FILE__).parent_path().parent_path().append(
           suite_path);
 
+  std::ifstream file;
   file.open(path);
   if (file.fail()) {
-    err(path) << "Failed opening test data file: " << strerror(errno)
-              << std::endl;
-    return nullptr;
+    throw std::runtime_error{
+        fmt::format("Failed opening test data file: {}", strerror(errno))};
   }
   FileGuard g(file);
+  Reader reader(file, path);
 
-  auto suite = std::make_unique<HIRTestSuite>();
-  Reader reader(path, file);
-  Result result = reader.ReadLine(suite->name);
-  if (result.is_error) {
-    err(path) << "Failed reading test suite name: " << result.error
-              << std::endl;
-    return nullptr;
-  }
-  result = reader.ReadDelim();
-  if (result.is_error) {
-    err(path) << "Failed reading test suite name: " << result.error
-              << std::endl;
-    return nullptr;
-  }
+  auto suite = initTestSuite(reader);
 
-  std::string pass_name;
-  result = reader.ReadLine(pass_name);
-  if (result.is_error) {
-    err(path) << "Failed reading pass name: " << result.error << std::endl;
-    return nullptr;
-  }
-  while (pass_name != kDelim) {
-    suite->pass_names.push_back(pass_name);
-    result = reader.ReadLine(pass_name);
-    if (result.is_error) {
-      err(path) << "Failed reading pass name: " << result.error << std::endl;
-      return nullptr;
-    }
-  }
+  const std::string expected_prefix = fmt::format("{} Expected", kDelimPrefix);
+  const std::string expected_delimiter = fmt::format(
+      "{} {}.{} {}",
+      expected_prefix,
+      PY_MAJOR_VERSION,
+      PY_MINOR_VERSION,
+      kDelimPrefix);
 
-  while (!reader.IsExhausted()) {
-    std::string name;
-    Result result = reader.ReadUntilDelim(name);
-    if (result.is_error) {
-      if (reader.IsExhausted() && name.empty()) {
-        break;
-      } else {
-        err(path) << "Incomplete test case at end of file" << std::endl;
-        return nullptr;
-      }
-    }
-    // Ignore newlines at the end of test names.
-    if (!name.empty() && name.back() == '\n') {
-      name.pop_back();
-    }
+  reader.readDelim("Test Name");
 
-    std::string src;
-    result = reader.ReadUntilDelim(src);
-    if (result.is_error) {
-      if (reader.IsExhausted()) {
-        err(path) << "Incomplete test case at end of file" << std::endl;
-      } else {
-        err(path) << "Failed reading test case " << result.error << std::endl;
-      }
-      return nullptr;
-    }
+  while (true) {
+    std::string name_buf = reader.readLine();
+    std::string_view name = name_buf;
+    trimWhitespace(name);
 
-    auto src_is_hir = false;
-    const char* hir_tag = "# HIR\n";
-    if (src.substr(0, strlen(hir_tag)) == hir_tag) {
+    reader.readDelim("Input");
+
+    std::string src_buf = reader.readUntilDelim();
+    std::string_view src = src_buf;
+
+    // Parse out the HIR tag if it exists.
+    bool src_is_hir = false;
+    constexpr std::string_view kHIRTag = "# HIR\n";
+    if (src.starts_with(kHIRTag)) {
       src_is_hir = true;
-      src = src.substr(strlen(hir_tag));
+      src.remove_prefix(kHIRTag.size());
     }
 
-    std::string hir;
-    result = reader.ReadUntilDelim(hir);
-    if (result.is_error) {
-      if (reader.IsExhausted()) {
-        err(path) << "Incomplete test case at end of file" << std::endl;
-      } else {
-        err(path) << "Failed reading test case " << result.error << std::endl;
-      }
-      return nullptr;
+    bool is_skip = false;
+
+    // Scan until the correct expected block.
+    switch (scanUntilExpected(reader, expected_delimiter)) {
+      case ScanStatus::End:
+        return suite;
+      case ScanStatus::Skip:
+        is_skip = true;
+        break;
+      case ScanStatus::Ok:
+        break;
     }
 
-    suite->test_cases.emplace_back(name, src_is_hir, src, hir);
+    std::string hir = !is_skip ? reader.readUntilDelim() : "";
+
+    HIRTestCase& test_case = suite->test_cases.emplace_back();
+    test_case.name = std::string{name};
+    test_case.src = src;
+    test_case.expected = std::string{hir};
+    test_case.src_is_hir = src_is_hir;
+    test_case.is_skip = is_skip;
+
+    if (is_skip) {
+      continue;
+    }
+
+    // Now have to scan past any other expected outputs afterwards until we hit
+    // the next test or the end.
+    switch (scanUntilExpected(reader, expected_delimiter)) {
+      case ScanStatus::End:
+        return suite;
+      case ScanStatus::Skip:
+        break;
+      case ScanStatus::Ok:
+        reader.err(
+            "Test '{}.{}' has two '{}' sections",
+            suite->name,
+            name,
+            expected_delimiter);
+    }
+
+    if (test_case.name.starts_with(kDisabledPrefix)) {
+      test_case.is_skip = true;
+    }
   }
 
   return suite;
