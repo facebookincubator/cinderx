@@ -838,12 +838,10 @@ dummy_func(
             DECREMENT_ADAPTIVE_COUNTER(cache->counter);
             #endif  /* ENABLE_SPECIALIZATION */
             assert(frame != &entry_frame);
-#if PY_VERSION_HEX < 0x030C0000
             if ((frame->owner == FRAME_OWNED_BY_GENERATOR) &&
                 (frame->f_code->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR))) {
                 Ci_PyAwaitable_SetAwaiter(receiver, (PyObject *) _PyFrame_GetGenerator(frame));
             }
-#endif
             if ((tstate->interp->eval_frame == NULL) &&
                 (Py_TYPE(receiver) == &PyGen_Type || Py_TYPE(receiver) == &PyCoro_Type) &&
                 ((PyGenObject *)receiver)->gi_frame_state < FRAME_EXECUTING)
@@ -890,9 +888,7 @@ dummy_func(
             STAT_INC(SEND, hit);
             if ((frame->owner == FRAME_OWNED_BY_GENERATOR) &&
                 (frame->f_code->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR))) {
-#if PY_VERSION_HEX < 0x030C0000
                 Ci_PyAwaitable_SetAwaiter(receiver, (PyObject *) _PyFrame_GetGenerator(frame));
-#endif
             }
             _PyInterpreterFrame *gen_frame = (_PyInterpreterFrame *)gen->gi_iframe;
             frame->return_offset = oparg;
