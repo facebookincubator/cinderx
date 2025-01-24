@@ -2206,6 +2206,21 @@ PyModuleDef jit_module = {
     nullptr, /* m_free */
 };
 
+// If functions in the cinderx module get compiled, they will somehow keep the
+// module alive forever and the module will never get finalized on shutdown.
+// This breaks many assumptions and has a high chance of use-after-frees or ASAN
+// errors on shutdown.
+//
+// This is a hack around that by preventing the JIT from compiling anything in
+// cinderx.
+bool isCinderModule(BorrowedRef<> module_name) {
+  if (module_name == nullptr || !PyUnicode_Check(module_name)) {
+    return false;
+  }
+  std::string_view name = PyUnicode_AsUTF8(module_name);
+  return name == "cinderx";
+}
+
 bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
   // No explicit list implies everything can and should be compiled.
   if (g_jit_list == nullptr) {
@@ -2220,6 +2235,10 @@ bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
 
 // Check whether a function should be compiled.
 bool shouldCompile(BorrowedRef<PyFunctionObject> func) {
+  if (isCinderModule(func->func_module)) {
+    return false;
+  }
+
   return shouldAlwaysCompile(func->func_code) ||
       g_jit_list->lookupFunc(func) == 1;
 }
@@ -2227,6 +2246,10 @@ bool shouldCompile(BorrowedRef<PyFunctionObject> func) {
 // Check whether a code object should be compiled. Intended for nested code
 // objects.
 bool shouldCompile(BorrowedRef<> module_name, BorrowedRef<PyCodeObject> code) {
+  if (isCinderModule(module_name)) {
+    return false;
+  }
+
   return (
       shouldAlwaysCompile(code) || (g_jit_list->lookupCode(code) == 1) ||
       (g_jit_list->lookupName(module_name, code->co_qualname) == 1));
