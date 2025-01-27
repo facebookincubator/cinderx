@@ -903,15 +903,75 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
   return 0;
 }
 
+static PyTypeObject* find_static_ancestor(PyTypeObject* pytype) {
+  /* Helper function for validate_multiple_inheritance. We only need to find
+   * the first static ancestor, since base classes will already have had
+   * validate_multiple_inheritance called on them, and therefore cannot inherit
+   * from more than one static type.
+   */
+  PyObject* mro = pytype->tp_mro;
+  for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(mro); i++) {
+    PyTypeObject* next = (PyTypeObject*)PyTuple_GET_ITEM(mro, i);
+    if (next->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) {
+      return next;
+    }
+    /* TODO(T211060931): We also want to check for builtin types here */
+  }
+  return NULL;
+}
+
+static int validate_multiple_inheritance(PyTypeObject* pytype) {
+  /* Check for inheritance from multiple static classes.
+   *
+   * For each base, we check to see if it is a static type, or if it inherits
+   * from one. If multiple bases inherit from a sttic type, they all need to
+   * inherit from the same type.
+   */
+
+  PyObject* bases = pytype->tp_bases;
+  PyTypeObject* static_ancestor = NULL;
+  PyTypeObject* new_static_ancestor = NULL;
+
+  for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(bases); i++) {
+    PyTypeObject* next = (PyTypeObject*)PyTuple_GET_ITEM(bases, i);
+    new_static_ancestor = find_static_ancestor(next);
+    if (new_static_ancestor != NULL) {
+      if (static_ancestor == NULL) {
+        static_ancestor = new_static_ancestor;
+      } else if (static_ancestor != new_static_ancestor) {
+        if (PyType_IsSubtype(new_static_ancestor, static_ancestor)) {
+          // Ignore the new type; it's already an ancestor of the current type
+        } else if (PyType_IsSubtype(static_ancestor, new_static_ancestor)) {
+          // We have a subtype of the current static type, switch to it
+          static_ancestor = new_static_ancestor;
+        } else {
+          PyErr_Format(
+              PyExc_TypeError,
+              "cinderx: multiple bases have instance lay-out conflict (%s and "
+              "%s)",
+              static_ancestor->tp_name,
+              new_static_ancestor->tp_name);
+          return -1;
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 static PyObject* init_subclass(PyObject* self, PyObject* type) {
   if (!PyType_Check(type)) {
     PyErr_SetString(PyExc_TypeError, "init_subclass expected type");
     return NULL;
   }
-  // Validate that no Static Python final methods are overridden.
   PyTypeObject* typ = (PyTypeObject*)type;
+  // Validate that no Static Python final methods are overridden.
   if (_PyClassLoader_IsFinalMethodOverridden(
           typ->tp_base, _PyType_GetDict(typ))) {
+    return NULL;
+  }
+  // Validate that we don't inherit from more than one static type.
+  if (validate_multiple_inheritance(typ) < 0) {
     return NULL;
   }
   if (create_overridden_slot_descriptors_with_default(typ) < 0) {

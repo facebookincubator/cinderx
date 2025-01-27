@@ -230,7 +230,6 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertEqual(mod.f(D()), "foo")
 
 
-    @skipIf(sys.version_info >= (3, 12), "Need extra check for multiple inheritance T211060931")
     def test_no_inherit_multiple_static_bases(self):
         codestr = """
             class A:
@@ -247,7 +246,6 @@ class NonStaticInheritanceTests(StaticTestBase):
                 class C(mod.A, mod.B):
                     pass
 
-    @skipIf(sys.version_info >= (3, 12), "Need extra check for multiple inheritance T211060931")
     def test_no_inherit_multiple_static_bases_indirect(self):
         codestr = """
             class A:
@@ -281,6 +279,23 @@ class NonStaticInheritanceTests(StaticTestBase):
 
                 class C(mod.A, str):
                     pass
+
+    def test_inherit_multiple_static_bases_with_subclass_relationship(self):
+        codestr = """
+            class A:
+                pass
+
+            class B(A):
+                pass
+        """
+        with self.in_module(codestr) as mod:
+
+            class C(mod.B):
+                pass
+
+            # Should not raise an exception
+            class D(C, mod.A):
+                pass
 
     def test_mutate_sub_sub_class(self):
         """patching non-static class through multiple levels
