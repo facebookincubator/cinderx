@@ -200,11 +200,15 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     hir::JSONPrinter hir_printer;
     passes.emplace_back(hir_printer.PrintSource(*irfunc));
     passes.emplace_back(hir_printer.PrintBytecode(*irfunc));
-    PostPassFunction dump = [&hir_printer, &passes](
-                                hir::Function& func,
+    PostPassFunction dump = [&](hir::Function& func,
                                 std::string_view pass_name,
                                 std::size_t time_ns) {
-      hir_printer.Print(passes, func, pass_name, time_ns);
+      nlohmann::json result;
+      result["name"] = pass_name;
+      result["type"] = "ssa";
+      result["time_ns"] = time_ns;
+      result["blocks"] = hir_printer.Print(func.cfg);
+      passes.push_back(result);
     };
     dump(*irfunc, "Initial HIR", hir_build_time.count());
     COMPILE_TIMER(

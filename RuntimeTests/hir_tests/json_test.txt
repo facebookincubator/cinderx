@@ -14,63 +14,49 @@ fun test {
 --- Expected 3.10 ---
 [
   {
-    "blocks": [
+    "instrs": [
       {
-        "instrs": [
-          {
-            "line": -1,
-            "opcode": "LoadArg<0>",
-            "operands": [],
-            "output": "v0",
-            "type": "Object"
-          }
-        ],
-        "name": "bb0",
-        "preds": [],
-        "succs": [],
-        "terminator": {
-          "line": -1,
-          "opcode": "Return",
-          "operands": [
-            "v0"
-          ]
-        }
+        "line": -1,
+        "opcode": "LoadArg<0>",
+        "operands": [],
+        "output": "v0",
+        "type": "Object"
       }
     ],
-    "name": "Test",
-    "time_ns": 0,
-    "type": "ssa"
+    "name": "bb0",
+    "preds": [],
+    "succs": [],
+    "terminator": {
+      "line": -1,
+      "opcode": "Return",
+      "operands": [
+        "v0"
+      ]
+    }
   }
 ]
 --- Expected 3.12 ---
 [
   {
-    "blocks": [
+    "instrs": [
       {
-        "instrs": [
-          {
-            "line": -1,
-            "opcode": "LoadArg<0>",
-            "operands": [],
-            "output": "v0",
-            "type": "Object"
-          }
-        ],
-        "name": "bb0",
-        "preds": [],
-        "succs": [],
-        "terminator": {
-          "line": -1,
-          "opcode": "Return",
-          "operands": [
-            "v0"
-          ]
-        }
+        "line": -1,
+        "opcode": "LoadArg<0>",
+        "operands": [],
+        "output": "v0",
+        "type": "Object"
       }
     ],
-    "name": "Test",
-    "time_ns": 0,
-    "type": "ssa"
+    "name": "bb0",
+    "preds": [],
+    "succs": [],
+    "terminator": {
+      "line": -1,
+      "opcode": "Return",
+      "operands": [
+        "v0"
+      ]
+    }
   }
 ]
 --- Test Name ---
@@ -90,93 +76,79 @@ fun test {
 --- Expected 3.10 ---
 [
   {
-    "blocks": [
+    "instrs": [
       {
-        "instrs": [
-          {
-            "line": -1,
-            "opcode": "LoadArg<0>",
-            "operands": [],
-            "output": "v0",
-            "type": "Object"
-          }
-        ],
-        "name": "bb0",
-        "preds": [],
-        "succs": [
-          "bb1"
-        ],
-        "terminator": {
-          "line": -1,
-          "opcode": "Branch<1>",
-          "operands": []
-        }
-      },
-      {
-        "instrs": [],
-        "name": "bb1",
-        "preds": [
-          "bb0"
-        ],
-        "succs": [],
-        "terminator": {
-          "line": -1,
-          "opcode": "Return",
-          "operands": [
-            "v0"
-          ]
-        }
+        "line": -1,
+        "opcode": "LoadArg<0>",
+        "operands": [],
+        "output": "v0",
+        "type": "Object"
       }
     ],
-    "name": "Test",
-    "time_ns": 0,
-    "type": "ssa"
+    "name": "bb0",
+    "preds": [],
+    "succs": [
+      "bb1"
+    ],
+    "terminator": {
+      "line": -1,
+      "opcode": "Branch<1>",
+      "operands": []
+    }
+  },
+  {
+    "instrs": [],
+    "name": "bb1",
+    "preds": [
+      "bb0"
+    ],
+    "succs": [],
+    "terminator": {
+      "line": -1,
+      "opcode": "Return",
+      "operands": [
+        "v0"
+      ]
+    }
   }
 ]
 --- Expected 3.12 ---
 [
   {
-    "blocks": [
+    "instrs": [
       {
-        "instrs": [
-          {
-            "line": -1,
-            "opcode": "LoadArg<0>",
-            "operands": [],
-            "output": "v0",
-            "type": "Object"
-          }
-        ],
-        "name": "bb0",
-        "preds": [],
-        "succs": [
-          "bb1"
-        ],
-        "terminator": {
-          "line": -1,
-          "opcode": "Branch<1>",
-          "operands": []
-        }
-      },
-      {
-        "instrs": [],
-        "name": "bb1",
-        "preds": [
-          "bb0"
-        ],
-        "succs": [],
-        "terminator": {
-          "line": -1,
-          "opcode": "Return",
-          "operands": [
-            "v0"
-          ]
-        }
+        "line": -1,
+        "opcode": "LoadArg<0>",
+        "operands": [],
+        "output": "v0",
+        "type": "Object"
       }
     ],
-    "name": "Test",
-    "time_ns": 0,
-    "type": "ssa"
+    "name": "bb0",
+    "preds": [],
+    "succs": [
+      "bb1"
+    ],
+    "terminator": {
+      "line": -1,
+      "opcode": "Branch<1>",
+      "operands": []
+    }
+  },
+  {
+    "instrs": [],
+    "name": "bb1",
+    "preds": [
+      "bb0"
+    ],
+    "succs": [],
+    "terminator": {
+      "line": -1,
+      "opcode": "Return",
+      "operands": [
+        "v0"
+      ]
+    }
   }
 ]
 --- End ---

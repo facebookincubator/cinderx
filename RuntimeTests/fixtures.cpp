@@ -86,7 +86,6 @@ void HIRJSONTest::TestBody() {
   }
 
   JSONPrinter printer;
-  nlohmann::json result;
-  printer.Print(result, *irfunc.get(), "Test", 0);
+  nlohmann::json result = printer.Print(irfunc->cfg);
   EXPECT_EQ(result, expected_json_obj);
 }

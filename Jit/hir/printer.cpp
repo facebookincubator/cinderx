@@ -1130,19 +1130,6 @@ nlohmann::json JSONPrinter::Print(const CFG& cfg) {
   return result;
 }
 
-void JSONPrinter::Print(
-    nlohmann::json& passes,
-    const Function& func,
-    std::string_view pass_name,
-    std::size_t time_ns) {
-  nlohmann::json result;
-  result["name"] = pass_name;
-  result["type"] = "ssa";
-  result["time_ns"] = time_ns;
-  result["blocks"] = Print(func.cfg);
-  passes.push_back(result);
-}
-
 void DebugPrint(const Function& func) {
   HIRPrinter(true).Print(std::cout, func);
 }
