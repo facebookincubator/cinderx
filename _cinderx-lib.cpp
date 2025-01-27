@@ -706,9 +706,6 @@ int cinder_init() {
 #endif
 
   init_already_existing_types();
-#if PY_VERSION_HEX >= 0x030C0000
-  jit::init_jit_genobject_type();
-#endif
 
   WatcherState watcher_state;
   watcher_state.code_watcher = cinderx_code_watcher;
