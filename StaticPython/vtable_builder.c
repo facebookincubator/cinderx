@@ -10,11 +10,12 @@
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
+#else
+#include "cinderx/Common/extra-py-flags.h"
 #endif
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/dict.h"
-#include "cinderx/Common/extra-py-flags.h" // @donotremove
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/property.h"
 #include "cinderx/Common/py-portability.h"
@@ -79,13 +80,6 @@ PyTypeObject _PyType_TypeCheckState = {
     .tp_traverse = (traverseproc)_PyClassLoader_TypeCheckState_traverse,
     .tp_clear = (inquiry)_PyClassLoader_TypeCheckState_clear,
 };
-
-static int is_static_type(PyTypeObject* type) {
-  return (type->tp_flags &
-          (Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED |
-           Ci_Py_TPFLAGS_GENERIC_TYPE_INST)) ||
-      !(type->tp_flags & Py_TPFLAGS_HEAPTYPE);
-}
 
 // Steals a reference to the `getter_tuple`, `setter_tuple`, and `deleter_tuple`
 // objects.

@@ -54,6 +54,8 @@ PyObject* _PyClassLoader_GetCache();
 
 int _PyClassLoader_ResolvePrimitiveType(PyObject* descr);
 
+int is_static_type(PyTypeObject* type);
+
 #ifdef __cplusplus
 }
 #endif

@@ -109,13 +109,6 @@ int _PyClassLoader_IsPatchedThunk(PyObject* obj) {
   return 0;
 }
 
-static int is_static_type(PyTypeObject* type) {
-  return (type->tp_flags &
-          (Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED |
-           Ci_Py_TPFLAGS_GENERIC_TYPE_INST)) ||
-      !(type->tp_flags & Py_TPFLAGS_HEAPTYPE);
-}
-
 static int clear_vtables_recurse(PyTypeObject* type) {
   PyObject* subclasses = type->tp_subclasses;
 #if PY_VERSION_HEX >= 0x030C0000

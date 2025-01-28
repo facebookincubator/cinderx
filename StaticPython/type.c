@@ -6,12 +6,18 @@
 
 #include "structmember.h"
 
+#if PY_VERSION_HEX < 0x030C0000
+#include "cinder/exports.h"
+#else
+#include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Upgrade/upgrade_stubs.h"
+#endif
+
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 static PyObject* classloader_cache;
@@ -497,4 +503,11 @@ int _PyClassLoader_ResolvePrimitiveType(PyObject* descr) {
   int res = _PyClassLoader_GetTypeCode(type);
   Py_DECREF(type);
   return res;
+}
+
+int is_static_type(PyTypeObject* type) {
+  return (type->tp_flags &
+          (Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED |
+           Ci_Py_TPFLAGS_GENERIC_TYPE_INST)) ||
+      !(type->tp_flags & Py_TPFLAGS_HEAPTYPE);
 }
