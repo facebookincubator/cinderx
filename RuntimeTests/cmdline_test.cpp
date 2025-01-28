@@ -41,7 +41,7 @@ int try_flag_and_envvar_effect(
     bool capture_stderr = false,
     bool capture_stdout = false) {
   // Shutdown the JIT so we can start it up again under different conditions.
-  _PyJIT_Finalize();
+  jit::finalize();
 
   reset_vars(); // reset variable state before and
   // between flag and cmd line param runs
@@ -64,13 +64,13 @@ int try_flag_and_envvar_effect(
     }
 
     const char* key = parseAndSetEnvVar(env_name);
-    init_status = _PyJIT_Initialize();
+    init_status = jit::initialize();
     conditions_to_check();
     unsetenv(key);
     if (strcmp(env_name, key)) {
       free((char*)key);
     }
-    _PyJIT_Finalize();
+    jit::finalize();
     reset_vars();
   }
 
@@ -82,7 +82,7 @@ int try_flag_and_envvar_effect(
   }
   // sneak in a command line argument
   PyObject* to_remove = addToXargsDict(flag);
-  init_status += _PyJIT_Initialize();
+  init_status += jit::initialize();
   conditions_to_check();
   PyDict_DelItem(PySys_GetXOptions(), to_remove);
   Py_DECREF(to_remove);
@@ -92,7 +92,7 @@ int try_flag_and_envvar_effect(
     Py_DECREF(jit_xarg_key);
   }
 
-  _PyJIT_Finalize();
+  jit::finalize();
   reset_vars();
 
   return init_status;

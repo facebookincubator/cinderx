@@ -22,7 +22,7 @@ class PyJITTest : public RuntimeTest {
 
     if (isJitUsable()) {
       is_enabled = 1;
-      _PyJIT_Finalize();
+      jit::finalize();
     }
 
     auto tmp_env = getenv(PYTHONJIT);
@@ -39,7 +39,7 @@ class PyJITTest : public RuntimeTest {
     }
 
     if (is_enabled) {
-      _PyJIT_Initialize();
+      jit::initialize();
     }
 
     RuntimeTest::TearDown();

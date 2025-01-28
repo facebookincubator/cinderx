@@ -7,9 +7,7 @@
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/pyjit_result.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+namespace jit {
 
 /*
  * This defines the global public API for the JIT that is consumed by the
@@ -24,77 +22,16 @@ extern "C" {
  *
  * This must be called before attempting to use the JIT.
  *
- * Returns 0 on success, -1 on error, or -2 if we just printed the jit args.
+ * Returns 0 on success, -1 on error, or -2 if we just printed the JIT args.
  */
-int _PyJIT_Initialize(void);
+int initialize();
 
 /*
  * Clean up any resources allocated by the JIT.
  *
- * This is intended to be called at interpreter shutdown in Py_Finalize.
- *
- * Returns 0 on success or -1 on error.
+ * This is intended to be called at interpreter shutdown in Py_Finalize().
  */
-int _PyJIT_Finalize(void);
-
-#if PY_VERSION_HEX < 0x030C0000
-/*
- * Send into/resume a suspended JIT generator and return the result.
- */
-PyObject* _PyJIT_GenSend(
-    PyGenObject* gen,
-    PyObject* arg,
-    int exc,
-    PyFrameObject* f,
-    PyThreadState* tstate,
-    int finish_yield_from);
-
-/*
- * Materialize the frame for gen. Returns a borrowed reference.
- */
-PyFrameObject* _PyJIT_GenMaterializeFrame(PyGenObject* gen);
-
-/*
- * Visit owned references in a JIT-backed generator object.
- */
-int _PyJIT_GenVisitRefs(PyGenObject* gen, visitproc visit, void* arg);
-
-/*
- * Release any JIT-related data in a PyGenObject.
- */
-void _PyJIT_GenDealloc(PyGenObject* gen);
-
-/*
- * Return current sub-iterator from JIT generator or NULL if there is none.
- */
-PyObject* _PyJIT_GenYieldFromValue(PyGenObject* gen);
-
-/*
- * Returns a borrowed reference to the globals for the top-most Python function
- * associated with tstate.
- */
-PyObject* _PyJIT_GetGlobals(PyThreadState* tstate);
-
-/*
- * Returns a borrowed reference to the builtins for the top-most Python function
- * associated with tstate.
- */
-PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate);
-
-/*
- * Returns a borrowed reference to the top-most frame of tstate.
- *
- * When shadow frame mode is active, calling this function will materialize
- * PyFrameObjects for any jitted functions on the call stack.
- */
-PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate);
-#endif
-
-#ifdef __cplusplus
-} // extern "C"
-#endif
-
-namespace jit {
+void finalize();
 
 /*
  * Overwrite the entry point of a function so that it tries to JIT-compile
@@ -158,3 +95,64 @@ void typeModified(BorrowedRef<PyTypeObject> type);
 void typeNameModified(BorrowedRef<PyTypeObject> type);
 
 } // namespace jit
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#if PY_VERSION_HEX < 0x030C0000
+/*
+ * Send into/resume a suspended JIT generator and return the result.
+ */
+PyObject* _PyJIT_GenSend(
+    PyGenObject* gen,
+    PyObject* arg,
+    int exc,
+    PyFrameObject* f,
+    PyThreadState* tstate,
+    int finish_yield_from);
+
+/*
+ * Materialize the frame for gen. Returns a borrowed reference.
+ */
+PyFrameObject* _PyJIT_GenMaterializeFrame(PyGenObject* gen);
+
+/*
+ * Visit owned references in a JIT-backed generator object.
+ */
+int _PyJIT_GenVisitRefs(PyGenObject* gen, visitproc visit, void* arg);
+
+/*
+ * Release any JIT-related data in a PyGenObject.
+ */
+void _PyJIT_GenDealloc(PyGenObject* gen);
+
+/*
+ * Return current sub-iterator from JIT generator or NULL if there is none.
+ */
+PyObject* _PyJIT_GenYieldFromValue(PyGenObject* gen);
+
+/*
+ * Returns a borrowed reference to the globals for the top-most Python function
+ * associated with tstate.
+ */
+PyObject* _PyJIT_GetGlobals(PyThreadState* tstate);
+
+/*
+ * Returns a borrowed reference to the builtins for the top-most Python function
+ * associated with tstate.
+ */
+PyObject* _PyJIT_GetBuiltins(PyThreadState* tstate);
+
+/*
+ * Returns a borrowed reference to the top-most frame of tstate.
+ *
+ * When shadow frame mode is active, calling this function will materialize
+ * PyFrameObjects for any jitted functions on the call stack.
+ */
+PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate);
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

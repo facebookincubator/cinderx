@@ -721,9 +721,9 @@ int cinder_init() {
     return -1;
   }
 
-  int jit_init_ret = _PyJIT_Initialize();
+  int jit_init_ret = jit::initialize();
   if (jit_init_ret) {
-    // Exit here rather than in _PyJIT_Initialize so the tests for printing
+    // Exit here rather than in jit::initialize() so the tests for printing
     // argument help works.
     if (jit_init_ret == -2) {
       exit(1);
@@ -771,9 +771,7 @@ int cinder_fini() {
     return -1;
   }
 
-  if (_PyJIT_Finalize()) {
-    return -1;
-  }
+  jit::finalize();
 
   finiCodeExtraIndex();
 

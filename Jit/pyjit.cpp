@@ -2495,150 +2495,6 @@ void finalizeInternedStrings() {
 
 } // namespace
 
-int _PyJIT_Initialize() {
-  JIT_CHECK(
-      getConfig().state != State::kFinalizing,
-      "Trying to re-initialize the JIT as it is finalizing");
-  if (isJitInitialized()) {
-    return 0;
-  }
-
-  if (initializeInternedStrings() == -1) {
-    return -1;
-  }
-
-  bool force_init = getConfig().force_init;
-  getMutableConfig() = Config{};
-  getMutableConfig().force_init = force_init;
-
-  initFlagProcessor();
-
-  if (jit_help) {
-    std::cout << xarg_flag_processor.jitXOptionHelpMessage() << std::endl;
-    // Return rather than exit here for arg printing test doesn't end early.
-    return -2;
-  }
-
-  std::unique_ptr<JITList> jit_list;
-  if (!jl_fn.empty()) {
-    if (getConfig().allow_jit_list_wildcards) {
-      jit_list = jit::WildcardJITList::create();
-    } else {
-      jit_list = jit::JITList::create();
-    }
-    if (jit_list == nullptr) {
-      JIT_LOG("Failed to allocate JIT list");
-      return -1;
-    }
-    if (!jit_list->parseFile(jl_fn.c_str())) {
-      JIT_LOG("Could not parse jit-list, disabling JIT.");
-      return 0;
-    }
-  }
-
-  if (use_jit || getConfig().force_init) {
-    JIT_DLOG("Initializing JIT");
-  } else {
-    return 0;
-  }
-
-#if PY_VERSION_HEX >= 0x030C0000
-  jit::init_jit_genobject_type();
-#endif
-
-  CodeAllocator::makeGlobalCodeAllocator();
-
-  jit_ctx = new Context();
-
-  PyObject* mod = PyModule_Create(&jit_module);
-  if (mod == nullptr) {
-    return -1;
-  }
-
-  jit_ctx->setCinderJitModule(Ref<PyObject>::steal(mod));
-
-  PyObject* modname = PyUnicode_InternFromString("cinderjit");
-  if (modname == nullptr) {
-    return -1;
-  }
-
-  PyObject* modules = PyImport_GetModuleDict();
-  int st = _PyImport_FixupExtensionObject(mod, modname, modname, modules);
-  Py_DECREF(modname);
-  if (st == -1) {
-    return -1;
-  }
-
-  if (install_jit_audit_hook() < 0 || register_fork_callback(mod) < 0) {
-    return -1;
-  }
-
-  getMutableConfig().state = use_jit ? State::kRunning : State::kPaused;
-  g_jit_list = jit_list.release();
-
-  JIT_DLOG("JIT is {}", isJitUsable() ? "enabled" : "disabled");
-
-  total_time = std::chrono::milliseconds::zero();
-
-  return 0;
-}
-
-int _PyJIT_Finalize() {
-  if (!isJitInitialized()) {
-    return 0;
-  }
-
-  // Disable the JIT first so nothing we do in here ends up attempting to
-  // invoke the JIT while we're finalizing our data structures.
-  getMutableConfig().state = State::kFinalizing;
-
-  // Deopt all JIT generators, since JIT generators reference code and other
-  // metadata that we will be freeing later in this function.
-  PyUnstable_GC_VisitObjects(deopt_gen_visitor, nullptr);
-
-  if (g_dump_stats) {
-    dump_jit_stats();
-  }
-
-  if (!g_write_compiled_functions_file.empty()) {
-    dump_jit_compiled_functions(g_write_compiled_functions_file);
-    g_write_compiled_functions_file.clear();
-  }
-
-  // Always release references from Runtime objects: C++ clients may have
-  // invoked the JIT directly without initializing a full jit::Context.
-  jit::Runtime::get()->clearDeoptStats();
-  jit::Runtime::get()->releaseReferences();
-
-  delete g_jit_list;
-  g_jit_list = nullptr;
-
-  // Clear some global maps that reference Python data.
-  jit_code_data.clear();
-  jit_reg_units.clear();
-  JIT_CHECK(
-      hir::preloaderManager().empty(),
-      "JIT cannot be finalized while batch compilation is active");
-
-  delete jit_ctx;
-  jit_ctx = nullptr;
-
-  if (CodeAllocator::exists()) {
-    CodeAllocator::freeGlobalCodeAllocator();
-  }
-
-  finalizeInternedStrings();
-
-  Runtime::shutdown();
-  Symbolizer::shutdown();
-
-  g_aot_ctx.destroy();
-
-  getMutableConfig().state = State::kNotInitialized;
-
-  return 0;
-}
-
 #if PY_VERSION_HEX < 0x030C0000
 PyObject* _PyJIT_GenSend(
     PyGenObject* gen,
@@ -2774,6 +2630,148 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
 #endif
 
 namespace jit {
+
+int initialize() {
+  JIT_CHECK(
+      getConfig().state != State::kFinalizing,
+      "Trying to re-initialize the JIT as it is finalizing");
+  if (isJitInitialized()) {
+    return 0;
+  }
+
+  if (initializeInternedStrings() == -1) {
+    return -1;
+  }
+
+  bool force_init = getConfig().force_init;
+  getMutableConfig() = Config{};
+  getMutableConfig().force_init = force_init;
+
+  initFlagProcessor();
+
+  if (jit_help) {
+    std::cout << xarg_flag_processor.jitXOptionHelpMessage() << std::endl;
+    // Return rather than exit here for arg printing test doesn't end early.
+    return -2;
+  }
+
+  std::unique_ptr<JITList> jit_list;
+  if (!jl_fn.empty()) {
+    if (getConfig().allow_jit_list_wildcards) {
+      jit_list = jit::WildcardJITList::create();
+    } else {
+      jit_list = jit::JITList::create();
+    }
+    if (jit_list == nullptr) {
+      JIT_LOG("Failed to allocate JIT list");
+      return -1;
+    }
+    if (!jit_list->parseFile(jl_fn.c_str())) {
+      JIT_LOG("Could not parse jit-list, disabling JIT.");
+      return 0;
+    }
+  }
+
+  if (use_jit || getConfig().force_init) {
+    JIT_DLOG("Initializing JIT");
+  } else {
+    return 0;
+  }
+
+#if PY_VERSION_HEX >= 0x030C0000
+  jit::init_jit_genobject_type();
+#endif
+
+  CodeAllocator::makeGlobalCodeAllocator();
+
+  jit_ctx = new Context();
+
+  PyObject* mod = PyModule_Create(&jit_module);
+  if (mod == nullptr) {
+    return -1;
+  }
+
+  jit_ctx->setCinderJitModule(Ref<PyObject>::steal(mod));
+
+  PyObject* modname = PyUnicode_InternFromString("cinderjit");
+  if (modname == nullptr) {
+    return -1;
+  }
+
+  PyObject* modules = PyImport_GetModuleDict();
+  int st = _PyImport_FixupExtensionObject(mod, modname, modname, modules);
+  Py_DECREF(modname);
+  if (st == -1) {
+    return -1;
+  }
+
+  if (install_jit_audit_hook() < 0 || register_fork_callback(mod) < 0) {
+    return -1;
+  }
+
+  getMutableConfig().state = use_jit ? State::kRunning : State::kPaused;
+  g_jit_list = jit_list.release();
+
+  JIT_DLOG("JIT is {}", isJitUsable() ? "enabled" : "disabled");
+
+  total_time = std::chrono::milliseconds::zero();
+
+  return 0;
+}
+
+void finalize() {
+  if (!isJitInitialized()) {
+    return;
+  }
+
+  // Disable the JIT first so nothing we do in here ends up attempting to
+  // invoke the JIT while we're finalizing our data structures.
+  getMutableConfig().state = State::kFinalizing;
+
+  // Deopt all JIT generators, since JIT generators reference code and other
+  // metadata that we will be freeing later in this function.
+  PyUnstable_GC_VisitObjects(deopt_gen_visitor, nullptr);
+
+  if (g_dump_stats) {
+    dump_jit_stats();
+  }
+
+  if (!g_write_compiled_functions_file.empty()) {
+    dump_jit_compiled_functions(g_write_compiled_functions_file);
+    g_write_compiled_functions_file.clear();
+  }
+
+  // Always release references from Runtime objects: C++ clients may have
+  // invoked the JIT directly without initializing a full jit::Context.
+  jit::Runtime::get()->clearDeoptStats();
+  jit::Runtime::get()->releaseReferences();
+
+  delete g_jit_list;
+  g_jit_list = nullptr;
+
+  // Clear some global maps that reference Python data.
+  jit_code_data.clear();
+  jit_reg_units.clear();
+  JIT_CHECK(
+      hir::preloaderManager().empty(),
+      "JIT cannot be finalized while batch compilation is active");
+
+  delete jit_ctx;
+  jit_ctx = nullptr;
+
+  if (CodeAllocator::exists()) {
+    CodeAllocator::freeGlobalCodeAllocator();
+  }
+
+  finalizeInternedStrings();
+
+  Runtime::shutdown();
+  Symbolizer::shutdown();
+
+  g_aot_ctx.destroy();
+
+  getMutableConfig().state = State::kNotInitialized;
+}
 
 bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   // Could be creating an inner function with an already-compiled code object.
