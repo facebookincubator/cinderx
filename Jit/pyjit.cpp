@@ -2648,56 +2648,6 @@ int _PyJIT_RegisterFunction(PyFunctionObject* func) {
   return result;
 }
 
-void _PyJIT_TypeModified(PyTypeObject* type) {
-  if (auto rt = Runtime::getUnchecked()) {
-    rt->notifyTypeModified(type, type);
-  }
-}
-
-void _PyJIT_TypeNameModified(PyTypeObject* type) {
-  // We assume that this is a very rare case, and simply give up on tracking
-  // the type if it happens.
-  if (auto rt = Runtime::getUnchecked()) {
-    rt->notifyTypeModified(type, type);
-  }
-}
-
-void _PyJIT_TypeDestroyed(PyTypeObject* type) {
-  if (auto rt = Runtime::getUnchecked()) {
-    rt->notifyTypeModified(type, nullptr);
-  }
-}
-
-void _PyJIT_FuncModified(PyFunctionObject* func) {
-  if (jit_ctx) {
-    jit_ctx->funcModified(func);
-  }
-}
-
-void _PyJIT_FuncDestroyed(PyFunctionObject* func) {
-  if (isJitUsable()) {
-    auto func_obj = reinterpret_cast<PyObject*>(func);
-    jit_reg_units.erase(func_obj);
-    if (handle_unit_deleted_during_preload != nullptr) {
-      handle_unit_deleted_during_preload(func_obj);
-    }
-  }
-  if (jit_ctx) {
-    jit_ctx->funcDestroyed(func);
-  }
-}
-
-void _PyJIT_CodeDestroyed(PyCodeObject* code) {
-  if (isJitUsable()) {
-    auto code_obj = reinterpret_cast<PyObject*>(code);
-    jit_reg_units.erase(code_obj);
-    jit_code_data.erase(code);
-    if (handle_unit_deleted_during_preload != nullptr) {
-      handle_unit_deleted_during_preload(code_obj);
-    }
-  }
-}
-
 int _PyJIT_Finalize() {
   if (!isJitInitialized()) {
     return 0;
@@ -2890,7 +2840,7 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
 
 namespace jit {
 
-bool scheduleJitCompile(PyFunctionObject* func) {
+bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
   // Could be creating an inner function with an already-compiled code object.
   if (isJitCompiled(func)) {
     return true;
@@ -2975,6 +2925,54 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
 
   std::reverse(result.begin(), result.end());
   return result;
+}
+
+void codeDestroyed(BorrowedRef<PyCodeObject> code) {
+  if (isJitUsable()) {
+    jit_reg_units.erase(code.getObj());
+    jit_code_data.erase(code);
+    if (handle_unit_deleted_during_preload != nullptr) {
+      handle_unit_deleted_during_preload(code.getObj());
+    }
+  }
+}
+
+void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
+  if (isJitUsable()) {
+    jit_reg_units.erase(func.getObj());
+    if (handle_unit_deleted_during_preload != nullptr) {
+      handle_unit_deleted_during_preload(func.getObj());
+    }
+  }
+  if (jit_ctx) {
+    jit_ctx->funcDestroyed(func);
+  }
+}
+
+void funcModified(BorrowedRef<PyFunctionObject> func) {
+  if (jit_ctx) {
+    jit_ctx->funcModified(func);
+  }
+}
+
+void typeDestroyed(BorrowedRef<PyTypeObject> type) {
+  if (auto rt = Runtime::getUnchecked()) {
+    rt->notifyTypeModified(type, nullptr);
+  }
+}
+
+void typeModified(BorrowedRef<PyTypeObject> type) {
+  if (auto rt = Runtime::getUnchecked()) {
+    rt->notifyTypeModified(type, type);
+  }
+}
+
+void typeNameModified(BorrowedRef<PyTypeObject> type) {
+  // We assume that this is a very rare case, and simply give up on tracking
+  // the type if it happens.
+  if (auto rt = Runtime::getUnchecked()) {
+    rt->notifyTypeModified(type, type);
+  }
 }
 
 } // namespace jit

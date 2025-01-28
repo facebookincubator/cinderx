@@ -520,7 +520,7 @@ int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
 #if PY_VERSION_HEX < 0x030C0000
       _PyShadow_ClearCache((PyObject*)co);
 #endif
-      _PyJIT_CodeDestroyed(co);
+      jit::codeDestroyed(co);
       break;
     default:
       break;
@@ -586,7 +586,7 @@ int cinderx_func_watcher(
       scheduleCompile(func);
       break;
     case PyFunction_EVENT_MODIFY_CODE:
-      _PyJIT_FuncModified(func);
+      jit::funcModified(func);
       // having deopted the func, we want to immediately consider recompiling.
       // func_set_code will assign this again later, but we do it early so
       // scheduleCompile() can consider the new code object now.
@@ -613,7 +613,7 @@ int cinderx_func_watcher(
       if (jit::perf::isPreforkCompilationEnabled()) {
         perf_trampoline_worklist.erase(func);
       }
-      _PyJIT_FuncDestroyed(func);
+      jit::funcDestroyed(func);
       break;
   }
 
@@ -624,7 +624,7 @@ int cinderx_type_watcher(PyTypeObject* type) {
 #if PY_VERSION_HEX < 0x030C0000
   _PyShadow_TypeModified(type);
 #endif
-  _PyJIT_TypeModified(type);
+  jit::typeModified(type);
 
   return 0;
 }
@@ -668,8 +668,13 @@ int cinder_init() {
     return -1;
   }
 #if PY_VERSION_HEX < 0x030C0000
-  Ci_hook_type_destroyed = _PyJIT_TypeDestroyed;
-  Ci_hook_type_name_modified = _PyJIT_TypeNameModified;
+  // The casts here are safe because BorrowedRef<T> has the same representation
+  // as T*.  It's a little ugly, but it goes away post-3.10.
+  Ci_hook_type_destroyed =
+      reinterpret_cast<Ci_TypeCallback>(jit::typeDestroyed);
+  Ci_hook_type_name_modified =
+      reinterpret_cast<Ci_TypeCallback>(jit::typeNameModified);
+
   Ci_hook_JIT_GetFrame = _PyJIT_GetFrame;
   Ci_hook_PyCMethod_New = Ci_PyCMethod_New_METH_TYPED;
   Ci_hook_PyDescr_NewMethod = Ci_PyDescr_NewMethod_METH_TYPED;

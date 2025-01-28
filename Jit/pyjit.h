@@ -4,13 +4,9 @@
 
 #include <Python.h>
 
+#include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/pyjit_result.h"
 
-#ifdef __cplusplus
-#include "cinderx/Jit/hir/preload.h"
-#endif
-
-#ifndef Py_LIMITED_API
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,24 +54,13 @@ _PyJIT_Result _PyJIT_CompileFunction(PyFunctionObject* func);
  * some future point.
  *
  * The JIT will not keep the function alive, instead it will be informed that
- * the function is being de-allocated via _PyJIT_FuncDestroyed() before the
- * function goes away.
+ * the function is being de-allocated via funcDestroyed() before the function
+ * goes away.
  *
  * Returns 1 if the function is registered with JIT or is already compiled, and
  * 0 otherwise.
  */
 int _PyJIT_RegisterFunction(PyFunctionObject* func);
-
-/*
- * Informs the JIT that a type, function, or code object is being created,
- * modified, or destroyed.
- */
-void _PyJIT_CodeDestroyed(PyCodeObject* code);
-void _PyJIT_FuncDestroyed(PyFunctionObject* func);
-void _PyJIT_FuncModified(PyFunctionObject* func);
-void _PyJIT_TypeDestroyed(PyTypeObject* type);
-void _PyJIT_TypeModified(PyTypeObject* type);
-void _PyJIT_TypeNameModified(PyTypeObject* type);
 
 #if PY_VERSION_HEX < 0x030C0000
 /*
@@ -134,7 +119,6 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate);
 } // extern "C"
 #endif
 
-#ifdef __cplusplus
 namespace jit {
 
 /*
@@ -149,7 +133,7 @@ namespace jit {
  * Return true if the function was successfully scheduled for compilation, or if
  * it is already compiled.
  */
-bool scheduleJitCompile(PyFunctionObject* func);
+bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func);
 
 /*
  * Preload a function, along with any functions that it calls that we might want
@@ -162,7 +146,15 @@ bool scheduleJitCompile(PyFunctionObject* func);
 std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
     BorrowedRef<PyFunctionObject> func);
 
-} // namespace jit
-#endif
+/*
+ * Inform the JIT that a code, function, or type object is being modified or
+ * destroyed.
+ */
+void codeDestroyed(BorrowedRef<PyCodeObject> code);
+void funcDestroyed(BorrowedRef<PyFunctionObject> func);
+void funcModified(BorrowedRef<PyFunctionObject> func);
+void typeDestroyed(BorrowedRef<PyTypeObject> type);
+void typeModified(BorrowedRef<PyTypeObject> type);
+void typeNameModified(BorrowedRef<PyTypeObject> type);
 
-#endif /* Py_LIMITED_API */
+} // namespace jit
