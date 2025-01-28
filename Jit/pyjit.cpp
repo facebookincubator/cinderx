@@ -195,7 +195,7 @@ uint64_t countCalls(PyCodeObject* code) {
 }
 
 _PyJIT_Result tryCompile(BorrowedRef<PyFunctionObject> func) {
-  _PyJIT_Result result = _PyJIT_CompileFunction(func);
+  _PyJIT_Result result = compileFunction(func);
   // Reset the function back to the interpreter if there was any non-retryable
   // failure.
   if (result != PYJIT_RESULT_OK && result != PYJIT_RESULT_RETRY) {
@@ -1256,7 +1256,7 @@ PyObject* force_compile(PyObject* /* self */, PyObject* arg) {
     Py_RETURN_FALSE;
   }
 
-  switch (_PyJIT_CompileFunction(func)) {
+  switch (compileFunction(func)) {
     case PYJIT_RESULT_OK:
       Py_RETURN_TRUE;
     case PYJIT_RESULT_CANNOT_SPECIALIZE:
@@ -1295,7 +1295,7 @@ PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
   }
 
   func->vectorcall = jitVectorcall;
-  if (!_PyJIT_RegisterFunction(func)) {
+  if (!registerFunction(func)) {
     func->vectorcall = getInterpretedVectorcall(func);
     Py_RETURN_FALSE;
   }
@@ -2583,71 +2583,6 @@ int _PyJIT_Initialize() {
   return 0;
 }
 
-_PyJIT_Result _PyJIT_CompileFunction(PyFunctionObject* raw_func) {
-  if (!isJitInitialized()) {
-    return PYJIT_NOT_INITIALIZED;
-  }
-  if (isJitPaused()) {
-    return PYJIT_RESULT_RETRY;
-  }
-  if (!isJitUsable()) {
-    return PYJIT_RESULT_UNKNOWN_ERROR;
-  }
-
-  BorrowedRef<PyFunctionObject> func{raw_func};
-  if (!shouldCompile(func)) {
-    return PYJIT_RESULT_NOT_ON_JITLIST;
-  }
-
-  CompilationTimer timer(func);
-  jit_reg_units.erase(func);
-  return compile_func(func);
-}
-
-int _PyJIT_RegisterFunction(PyFunctionObject* func) {
-  // Attempt to attach already-compiled code even if the JIT is disabled, as
-  // long as it hasn't been finalized.
-  if (jit_ctx != nullptr && jit_ctx->reoptFunc(func)) {
-    return 1;
-  }
-
-  if (!isJitUsable()) {
-    return 0;
-  }
-  auto max_code_size = getConfig().max_code_size;
-  if (max_code_size && CodeAllocator::get()->usedBytes() >= max_code_size) {
-    return 0;
-  }
-
-  JIT_CHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "Not intended for using during threaded compilation");
-  int result = 0;
-  if (shouldCompile(func)) {
-    jit_reg_units.emplace(reinterpret_cast<PyObject*>(func));
-    result = 1;
-  }
-
-  // If we have an active jit-list, scan this function's code object for any
-  // nested functions that might be on the jit-list, and register them as
-  // well.
-  if (g_jit_list != nullptr) {
-    PyObject* module = func->func_module;
-    PyObject* builtins = func->func_builtins;
-    PyObject* globals = func->func_globals;
-    for (auto code : findNestedCodes(
-             module,
-             reinterpret_cast<PyCodeObject*>(func->func_code)->co_consts)) {
-      jit_reg_units.emplace(reinterpret_cast<PyObject*>(code.get()));
-      jit_code_data.emplace(
-          std::piecewise_construct,
-          std::forward_as_tuple(code),
-          std::forward_as_tuple(module, builtins, globals));
-    }
-  }
-  return result;
-}
-
 int _PyJIT_Finalize() {
   if (!isJitInitialized()) {
     return 0;
@@ -2848,12 +2783,76 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
 
   func->vectorcall = jit::getConfig().auto_jit_threshold > 0 ? autoJITVectorcall
                                                              : jitVectorcall;
-  if (!_PyJIT_RegisterFunction(func)) {
+  if (!registerFunction(func)) {
     func->vectorcall = getInterpretedVectorcall(func);
     return false;
   }
 
   return true;
+}
+
+_PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func) {
+  if (!isJitInitialized()) {
+    return PYJIT_NOT_INITIALIZED;
+  }
+  if (isJitPaused()) {
+    return PYJIT_RESULT_RETRY;
+  }
+  if (!isJitUsable()) {
+    return PYJIT_RESULT_UNKNOWN_ERROR;
+  }
+
+  if (!shouldCompile(func)) {
+    return PYJIT_RESULT_NOT_ON_JITLIST;
+  }
+
+  CompilationTimer timer(func);
+  jit_reg_units.erase(func);
+  return compile_func(func);
+}
+
+int registerFunction(BorrowedRef<PyFunctionObject> func) {
+  // Attempt to attach already-compiled code even if the JIT is disabled, as
+  // long as it hasn't been finalized.
+  if (jit_ctx != nullptr && jit_ctx->reoptFunc(func)) {
+    return 1;
+  }
+
+  if (!isJitUsable()) {
+    return 0;
+  }
+  auto max_code_size = getConfig().max_code_size;
+  if (max_code_size && CodeAllocator::get()->usedBytes() >= max_code_size) {
+    return 0;
+  }
+
+  JIT_CHECK(
+      !getThreadedCompileContext().compileRunning(),
+      "Not intended for using during threaded compilation");
+  int result = 0;
+  if (shouldCompile(func)) {
+    jit_reg_units.emplace(func.getObj());
+    result = 1;
+  }
+
+  // If we have an active jit-list, scan this function's code object for any
+  // nested functions that might be on the jit-list, and register them as
+  // well.
+  if (g_jit_list != nullptr) {
+    PyObject* module = func->func_module;
+    PyObject* builtins = func->func_builtins;
+    PyObject* globals = func->func_globals;
+    BorrowedRef<PyCodeObject> top_code{func->func_code};
+    BorrowedRef<> top_consts{top_code->co_consts};
+    for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
+      jit_reg_units.emplace(code.getObj());
+      jit_code_data.emplace(
+          std::piecewise_construct,
+          std::forward_as_tuple(code),
+          std::forward_as_tuple(module, builtins, globals));
+    }
+  }
+  return result;
 }
 
 std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(

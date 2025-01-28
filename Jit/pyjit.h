@@ -37,31 +37,6 @@ int _PyJIT_Initialize(void);
  */
 int _PyJIT_Finalize(void);
 
-/*
- * JIT compile func and patch its entry point.
- *
- * On success, positional only calls to func will use the JIT compiled version.
- *
- * Returns PYJIT_RESULT_OK on success.
- */
-_PyJIT_Result _PyJIT_CompileFunction(PyFunctionObject* func);
-
-/*
- * Registers a function with the JIT to be compiled in the future.
- *
- * The JIT will still be informed by _PyJIT_CompileFunction before the function
- * executes for the first time.  The JIT can choose to compile the function at
- * some future point.
- *
- * The JIT will not keep the function alive, instead it will be informed that
- * the function is being de-allocated via funcDestroyed() before the function
- * goes away.
- *
- * Returns 1 if the function is registered with JIT or is already compiled, and
- * 0 otherwise.
- */
-int _PyJIT_RegisterFunction(PyFunctionObject* func);
-
 #if PY_VERSION_HEX < 0x030C0000
 /*
  * Send into/resume a suspended JIT generator and return the result.
@@ -134,6 +109,31 @@ namespace jit {
  * it is already compiled.
  */
 bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func);
+
+/*
+ * JIT compile func and patch its entry point.
+ *
+ * On success, positional only calls to func will use the JIT compiled version.
+ *
+ * Returns PYJIT_RESULT_OK on success.
+ */
+_PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func);
+
+/*
+ * Register a function with the JIT to be compiled in the future.
+ *
+ * The JIT will run compileFunction() before the function executes on its next
+ * call.  The JIT can still choose to **not** compile the function at that
+ * point.
+ *
+ * The JIT will not keep the function alive, instead it will be informed that
+ * the function is being de-allocated via funcDestroyed() before the function
+ * goes away.
+ *
+ * Returns 1 if the function is registered with JIT or is already compiled, and
+ * 0 otherwise.
+ */
+int registerFunction(BorrowedRef<PyFunctionObject> func);
 
 /*
  * Preload a function, along with any functions that it calls that we might want
