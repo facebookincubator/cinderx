@@ -266,8 +266,10 @@ class NonStaticInheritanceTests(StaticTestBase):
                 class D(C, mod.A):
                     pass
 
-    @skipIf(sys.version_info >= (3, 12), "Need extra check for multiple inheritance T211060931")
     def test_no_inherit_static_and_builtin(self):
+        # This happens because our code treats builtins as static for the
+        # purposes of the multiple inheritance check (see
+        # test_no_inherit_multiple_builtins as well)
         codestr = """
             class A:
                 pass
@@ -279,6 +281,17 @@ class NonStaticInheritanceTests(StaticTestBase):
 
                 class C(mod.A, str):
                     pass
+
+    def test_no_inherit_multiple_builtins(self):
+        # Documenting that the check for static base classes also includes
+        # non-heap-allocated classes, so two builtins will run into the same
+        # conflict as a static and a builtin type..
+        with self.assertRaisesRegex(
+            TypeError, r"multiple bases have instance lay-out conflict"
+        ):
+
+            class C(int, str):
+                pass
 
     def test_inherit_multiple_static_bases_with_subclass_relationship(self):
         codestr = """

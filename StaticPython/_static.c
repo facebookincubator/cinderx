@@ -20,6 +20,7 @@
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/StaticPython/type.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
@@ -906,16 +907,18 @@ static int create_overridden_slot_descriptors_with_default(PyTypeObject* type) {
 static PyTypeObject* find_static_ancestor(PyTypeObject* pytype) {
   /* Helper function for validate_multiple_inheritance. We only need to find
    * the first static ancestor, since base classes will already have had
-   * validate_multiple_inheritance called on them, and therefore cannot inherit
-   * from more than one static type.
+   * `validate_multiple_inheritance()` called on them, and therefore cannot
+   * inherit from more than one static type.
+   *
+   * Note that due to `is_static_type()` checking for non-heap-allocated
+   * classes, this also returns builtins like `int`.
    */
   PyObject* mro = pytype->tp_mro;
   for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(mro); i++) {
     PyTypeObject* next = (PyTypeObject*)PyTuple_GET_ITEM(mro, i);
-    if (next->tp_flags & Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) {
+    if (is_static_type(next)) {
       return next;
     }
-    /* TODO(T211060931): We also want to check for builtin types here */
   }
   return NULL;
 }
