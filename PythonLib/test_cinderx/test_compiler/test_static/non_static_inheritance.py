@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+from contextlib import contextmanager
 import sys
 import unittest
 from unittest import skip, skipIf
@@ -229,6 +230,12 @@ class NonStaticInheritanceTests(StaticTestBase):
 
             self.assertEqual(mod.f(D()), "foo")
 
+    @contextmanager
+    def assertBaseClassConflict(self):
+        with self.assertRaisesRegex(
+            TypeError, r"multiple bases have instance lay-out conflict"
+        ):
+            yield
 
     def test_no_inherit_multiple_static_bases(self):
         codestr = """
@@ -239,9 +246,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 pass
         """
         with self.in_module(codestr) as mod:
-            with self.assertRaisesRegex(
-                TypeError, r"multiple bases have instance lay-out conflict"
-            ):
+            with self.assertBaseClassConflict():
 
                 class C(mod.A, mod.B):
                     pass
@@ -259,9 +264,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             class C(mod.B):
                 pass
 
-            with self.assertRaisesRegex(
-                TypeError, r"multiple bases have instance lay-out conflict"
-            ):
+            with self.assertBaseClassConflict():
 
                 class D(C, mod.A):
                     pass
@@ -275,9 +278,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 pass
         """
         with self.in_module(codestr) as mod:
-            with self.assertRaisesRegex(
-                TypeError, r"multiple bases have instance lay-out conflict"
-            ):
+            with self.assertBaseClassConflict():
 
                 class C(mod.A, str):
                     pass
@@ -286,9 +287,7 @@ class NonStaticInheritanceTests(StaticTestBase):
         # Documenting that the check for static base classes also includes
         # non-heap-allocated classes, so two builtins will run into the same
         # conflict as a static and a builtin type..
-        with self.assertRaisesRegex(
-            TypeError, r"multiple bases have instance lay-out conflict"
-        ):
+        with self.assertBaseClassConflict():
 
             class C(int, str):
                 pass
