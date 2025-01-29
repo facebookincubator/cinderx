@@ -1194,6 +1194,55 @@ class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
   static const std::vector<const char*> kFuncNames;
 };
 
+// Call to a C function pointer, the return value indicates an error. If the
+// return type is PyObject then an error is indicated by returning NULL. If
+// the return type is a primitive then edx is zero if returning an integer or
+// xmm1 if returning a floating point value.
+class INSTR_CLASS(CallInd, (TTop), HasOutput, Operands<>, DeoptBase) {
+ public:
+  CallInd(Register* dst, const char* name, Type ret_type)
+      : InstrT(dst), name_(name), ret_type_(ret_type) {}
+
+  template <typename... Args>
+  CallInd(Register* dst, const char* name, Type ret_type, Args&&... args)
+      : InstrT(dst), name_(name), ret_type_(ret_type) {
+    std::array<Register*, sizeof...(Args)> operands{args...};
+    JIT_CHECK(
+        operands.size() == NumOperands(),
+        "Expected {} arguments, got {}",
+        NumOperands(),
+        operands.size());
+    size_t i = 0;
+    for (Register* operand : operands) {
+      SetOperand(i++, operand);
+    }
+  }
+
+  const char* name() const {
+    return name_;
+  }
+
+  Register* func() const {
+    return GetOperand(0);
+  }
+
+  Type ret_type() const {
+    return ret_type_;
+  }
+
+  int arg_count() const {
+    return NumOperands() - 1;
+  }
+
+  Register* arg(int arg) const {
+    return GetOperand(arg + 1);
+  }
+
+ private:
+  const char* name_;
+  Type ret_type_;
+};
+
 class INSTR_CLASS(
     CallIntrinsic,
     (TOptObject | TCUInt64),
@@ -1300,66 +1349,6 @@ class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
 
  private:
   CallFlags flags_;
-};
-
-class INSTR_CLASS(
-    InvokeMethodStatic,
-    (TTop),
-    HasOutput,
-    Operands<>,
-    DeoptBase) {
- public:
-  InvokeMethodStatic(
-      Register* dst,
-      std::size_t slot,
-      Type ret_type,
-      bool is_awaited,
-      bool is_classmethod)
-      : InstrT(dst),
-        slot_(slot),
-        ret_type_(ret_type),
-        is_awaited_(is_awaited),
-        is_classmethod_(is_classmethod) {}
-
-  // The function to call
-  Register* func() const {
-    return GetOperand(1);
-  }
-
-  // The register containing the receiver used to perform the method lookup
-  Register* self() const {
-    return GetOperand(0);
-  }
-
-  std::size_t NumArgs() const {
-    return NumOperands() - 2;
-  }
-
-  Register* arg(std::size_t i) const {
-    return GetOperand(i + 2);
-  }
-
-  int slot() const {
-    return slot_;
-  }
-
-  bool isAwaited() const {
-    return is_awaited_;
-  }
-
-  bool isClassmethod() const {
-    return is_classmethod_;
-  }
-
-  Type ret_type() const {
-    return ret_type_;
-  }
-
- private:
-  const std::size_t slot_;
-  const Type ret_type_;
-  const bool is_awaited_;
-  const bool is_classmethod_;
 };
 
 // A call to a function at a known address

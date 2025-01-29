@@ -1851,6 +1851,31 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr.kwargs());
         break;
       }
+      case Opcode::kCallInd: {
+        auto& hir_instr = static_cast<const CallInd&>(i);
+        Instruction* instr = bbb.appendInstr(
+            hir_instr.output(),
+            Instruction::kCall,
+            VReg{bbb.getDefInstr(hir_instr.func())});
+        for (std::size_t op = 0; op < hir_instr.arg_count(); op++) {
+          instr->addOperands(VReg{bbb.getDefInstr(hir_instr.arg(op))});
+        }
+        auto kind = InstrGuardKind::kNotZero;
+        Type ret_type = hir_instr.ret_type();
+        if (ret_type <= TCDouble) {
+          appendGuard(
+              bbb,
+              kind,
+              hir_instr,
+              PhyReg{codegen::XMM1, OperandBase::kDouble});
+        } else if (ret_type <= TPrimitive) {
+          appendGuard(
+              bbb, kind, hir_instr, PhyReg{codegen::EDX, OperandBase::k32bit});
+        } else {
+          appendGuard(bbb, kind, hir_instr, hir_instr.output());
+        }
+        break;
+      }
       case Opcode::kCallIntrinsic: {
 #if PY_VERSION_HEX >= 0x030C0000
         auto& hir_instr = static_cast<const CallIntrinsic&>(i);
@@ -1970,64 +1995,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               bbb, kind, *instr, PhyReg{codegen::EDX, OperandBase::k32bit});
         } else {
           appendGuard(bbb, kind, *instr, instr->output());
-        }
-        break;
-      }
-
-      case Opcode::kInvokeMethodStatic: {
-        auto& hir_instr = static_cast<const InvokeMethodStatic&>(i);
-        auto slot = hir_instr.slot();
-        Instruction* self_reg = bbb.getDefInstr(hir_instr.self());
-
-        Instruction* type;
-        if (!hir_instr.isClassmethod()) {
-          type = bbb.appendInstr(
-              OutVReg{},
-              Instruction::kMove,
-              Ind{self_reg, (int32_t)offsetof(PyObject, ob_type)});
-        } else {
-          type = self_reg;
-        }
-
-        Instruction* load_vtable = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kMove,
-            Ind{type, (int32_t)offsetof(PyTypeObject, tp_cache)});
-
-        Instruction* load_state = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kMove,
-            Ind{load_vtable,
-                (int32_t)(offsetof(_PyType_VTable, vt_entries) +
-                          slot * sizeof(_PyType_VTableEntry) +
-                          offsetof(_PyType_VTableEntry, vte_state))});
-        Instruction* load_entry = bbb.appendInstr(
-            OutVReg{},
-            Instruction::kMove,
-            Ind{load_vtable,
-                (int32_t)(offsetof(_PyType_VTable, vt_entries) +
-                          slot * sizeof(_PyType_VTableEntry) +
-                          offsetof(_PyType_VTableEntry, vte_entry))});
-
-        Instruction* instr = bbb.appendInstr(
-            hir_instr.output(), Instruction::kCall, load_entry, load_state);
-        for (hir::Register* arg : hir_instr.GetOperands()) {
-          instr->addOperands(VReg{bbb.getDefInstr(arg)});
-        }
-
-        auto kind = InstrGuardKind::kNotZero;
-        Type ret_type = hir_instr.ret_type();
-        if (ret_type <= TCDouble) {
-          appendGuard(
-              bbb,
-              kind,
-              hir_instr,
-              PhyReg{codegen::XMM1, OperandBase::kDouble});
-        } else if (ret_type <= TPrimitive) {
-          appendGuard(
-              bbb, kind, hir_instr, PhyReg{codegen::EDX, OperandBase::k32bit});
-        } else {
-          appendGuard(bbb, kind, hir_instr, hir_instr.output());
         }
         break;
       }
@@ -2934,6 +2901,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
     if (auto db = i.asDeoptBase()) {
       switch (db->opcode()) {
+        case Opcode::kCallInd:
         case Opcode::kCheckErrOccurred:
         case Opcode::kCheckExc:
         case Opcode::kCheckField:
@@ -2945,7 +2913,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         case Opcode::kGuard:
         case Opcode::kGuardIs:
         case Opcode::kGuardType:
-        case Opcode::kInvokeMethodStatic:
         case Opcode::kInvokeStaticFunction:
         case Opcode::kRaiseAwaitableError:
         case Opcode::kRaise:

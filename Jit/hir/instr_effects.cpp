@@ -102,6 +102,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     // arbitrary user code).
     case Opcode::kBinaryOp:
     case Opcode::kCallEx:
+    case Opcode::kCallInd:
     case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
@@ -126,7 +127,6 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kImportName:
     case Opcode::kInPlaceOp:
     case Opcode::kInvokeIterNext:
-    case Opcode::kInvokeMethodStatic:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:
     case Opcode::kIsTruthy:
@@ -137,8 +137,8 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kLoadGlobal:
     case Opcode::kLoadMethod:
     case Opcode::kLoadMethodCached:
-    case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadModuleMethodCached:
     case Opcode::kLongBinaryOp:
     case Opcode::kLongInPlaceOp:
     case Opcode::kMatchClass:
@@ -421,6 +421,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kBatchDecref:
     case Opcode::kBinaryOp:
     case Opcode::kCallEx:
+    case Opcode::kCallInd:
     case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
@@ -448,7 +449,6 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kInitialYield:
     case Opcode::kInPlaceOp:
     case Opcode::kInvokeIterNext:
-    case Opcode::kInvokeMethodStatic:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:
     case Opcode::kIsTruthy:

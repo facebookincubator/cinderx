@@ -59,6 +59,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kBuildString:
     case Opcode::kCallCFunc:
     case Opcode::kCallEx:
+    case Opcode::kCallInd:
     case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
@@ -89,7 +90,6 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kIntBinaryOp:
     case Opcode::kIntConvert:
     case Opcode::kInvokeIterNext:
-    case Opcode::kInvokeMethodStatic:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:
     case Opcode::kIsNegativeAndErrOccurred:
