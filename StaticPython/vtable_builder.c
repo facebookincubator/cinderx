@@ -115,19 +115,16 @@ PyObject* get_property_deleter_descr_tuple(PyObject* name) {
   return get_descr_tuple(name, g_fdel);
 }
 
+int used_in_vtable(PyObject* value);
+
 int used_in_vtable_worker(PyObject* value) {
   // we'll emit invokes to untyped builtin methods
   if (Py_TYPE(value) == &PyMethodDescr_Type) {
     return 1;
-  } else if (Py_TYPE(value) == &_PyType_CachedPropertyThunk) {
-    return used_in_vtable_worker(_Py_CachedPropertyThunk_GetFunc(value));
-  } else if (Py_TYPE(value) == &_PyType_AsyncCachedPropertyThunk) {
-    return used_in_vtable_worker(_Py_AsyncCachedPropertyThunk_GetFunc(value));
+  } else if (Py_TYPE(value) == &_PyType_PropertyThunk) {
+    return used_in_vtable(_PyClassLoader_PropertyThunk_GetProperty(value));
   }
   if (Py_TYPE(value) == &_PyTypedDescriptorWithDefaultValue_Type) {
-    return 1;
-  }
-  if (Py_TYPE(value) == &_PyType_TypedDescriptorThunk) {
     return 1;
   }
   return _PyClassLoader_IsStaticCallable(value);
@@ -377,8 +374,7 @@ static int _PyVTable_setslot(
       }
     }
 
-    if (Py_TYPE(value) == &_PyType_CachedPropertyThunk ||
-        Py_TYPE(value) == &_PyType_TypedDescriptorThunk) {
+    if (Py_TYPE(value) == &_PyType_PropertyThunk) {
       Py_XSETREF(vtable->vt_entries[slot].vte_state, value);
       vtable->vt_entries[slot].vte_entry =
           (vectorcallfunc)_PyVTable_descr_dont_bolt;
@@ -646,26 +642,15 @@ static PyObject* classloader_get_property_fget(
     }
     Py_XINCREF(func);
     return func;
-  } else if (Py_TYPE(property) == &PyCachedPropertyWithDescr_Type) {
-    _Py_CachedPropertyThunk* thunk = _Py_CachedPropertyThunk_New(property);
+  } else if (
+      Py_TYPE(property) == &PyCachedPropertyWithDescr_Type ||
+      Py_TYPE(property) == &PyAsyncCachedPropertyWithDescr_Type ||
+      Py_TYPE(property) == &_PyTypedDescriptorWithDefaultValue_Type) {
+    PyObject* thunk = _PyClassLoader_PropertyThunkGet_New(property);
     if (thunk == NULL) {
       return NULL;
     }
 
-    return classloader_cache_new_special(type, name, (PyObject*)thunk);
-  } else if (Py_TYPE(property) == &PyAsyncCachedPropertyWithDescr_Type) {
-    _Py_AsyncCachedPropertyThunk* thunk =
-        _Py_AsyncCachedPropertyThunk_New(property);
-    if (thunk == NULL) {
-      return NULL;
-    }
-
-    return classloader_cache_new_special(type, name, (PyObject*)thunk);
-  } else if (Py_TYPE(property) == &_PyTypedDescriptorWithDefaultValue_Type) {
-    PyObject* thunk = _PyClassLoader_TypedDescriptorThunkGet_New(property);
-    if (thunk == NULL) {
-      return NULL;
-    }
     return classloader_cache_new_special(type, name, thunk);
   } else {
     PyObject* thunk = _PyClassLoader_PropertyThunkGet_New(property);
@@ -693,12 +678,6 @@ static PyObject* classloader_get_property_fset(
     PyObject* func = classloader_get_property_missing_fset();
     Py_XINCREF(func);
     return func;
-  } else if (Py_TYPE(property) == &_PyTypedDescriptorWithDefaultValue_Type) {
-    PyObject* thunk = _PyClassLoader_TypedDescriptorThunkSet_New(property);
-    if (thunk == NULL) {
-      return NULL;
-    }
-    return classloader_cache_new_special(type, name, thunk);
   } else {
     PyObject* thunk = _PyClassLoader_PropertyThunkSet_New(property);
     if (thunk == NULL) {
@@ -725,12 +704,6 @@ static PyObject* classloader_get_property_fdel(
     PyObject* func = classloader_get_property_missing_fdel();
     Py_XINCREF(func);
     return func;
-  } else if (Py_TYPE(property) == &_PyTypedDescriptorWithDefaultValue_Type) {
-    PyObject* thunk = _PyClassLoader_TypedDescriptorThunkDel_New(property);
-    if (thunk == NULL) {
-      return NULL;
-    }
-    return classloader_cache_new_special(type, name, thunk);
   } else {
     PyObject* thunk = _PyClassLoader_PropertyThunkDel_New(property);
     if (thunk == NULL) {
