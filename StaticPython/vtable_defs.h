@@ -119,29 +119,37 @@ PyObject* _PyVTable_thunk_ret_primitive_not_jitted_dont_bolt(
     PyObject* state,
     PyObject** args,
     size_t nargsf);
-PyObject* _PyVTable_classmethod_overridable_vectorcall(
+PyObject* _PyVTable_coroutine_classmethod_dont_bolt(
     _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf);
-PyObject* _PyVTable_coroutine_property_vectorcall(
-    _PyClassLoader_TypeCheckState* state,
-    PyObject* const* args,
-    size_t nargsf);
-PyObject* _PyVTable_nonfunc_property_vectorcall(
+PyObject* _PyVTable_coroutine_property_dont_bolt(
     _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf);
-PyObject* _PyVTable_func_overridable_vectorcall(
-    _PyClassLoader_TypeCheckState* state,
-    PyObject* const* args,
-    size_t nargsf);
-PyObject* _PyVTable_nonfunc_vectorcall(
+PyObject* _PyVTable_coroutine_dont_bolt(
     _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf);
-PyObject* _PyVTable_coroutine_classmethod_vectorcall(
+PyObject* _PyVTable_coroutine_staticmethod_dont_bolt(
     _PyClassLoader_TypeCheckState* state,
-    PyObject* const* args,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_nonfunc_property_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_func_overridable_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_classmethod_overridable_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
+    size_t nargsf);
+PyObject* _PyVTable_nonfunc_dont_bolt(
+    _PyClassLoader_TypeCheckState* state,
+    PyObject** args,
     size_t nargsf);
 PyObject* _PyVTable_staticmethod_dont_bolt(
     PyObject* state,
@@ -165,12 +173,6 @@ PyObject* _PyVTable_func_missing_dont_bolt(
     PyObject* state,
     PyObject** args,
     size_t nargsf);
-
-PyObject* _PyVTable_thunk_dont_bolt(
-    _PyClassLoader_MethodThunk* state,
-    PyObject** args,
-    size_t nargsf);
-
 #ifdef __cplusplus
 }
 #endif
