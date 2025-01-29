@@ -139,8 +139,8 @@ PyObject* _PyVTable_coroutine_classmethod_vectorcall(
     _PyClassLoader_TypeCheckThunk* state,
     PyObject* const* args,
     size_t nargsf);
-PyObject* _PyVTable_staticmethod_vectorcall(
-    _PyClassLoader_StaticMethodThunk* method,
+PyObject* _PyVTable_staticmethod_dont_bolt(
+    PyObject* state,
     PyObject** args,
     size_t nargsf);
 PyObject* _PyVTable_staticmethod_overridable_dont_bolt(

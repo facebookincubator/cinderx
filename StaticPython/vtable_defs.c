@@ -720,13 +720,38 @@ PyObject* _PyVTable_func_lazyinit_vectorcall(
   return res;
 }
 
-PyObject* _PyVTable_staticmethod_vectorcall(
-    _PyClassLoader_StaticMethodThunk* thunk,
+__attribute__((__used__)) PyObject* _PyVTable_staticmethod_vectorcall(
+    PyObject* method,
     PyObject** args,
-    size_t nargsf) {
-  PyObject* func = (PyObject*)thunk->smt_func;
+    Py_ssize_t nargsf) {
+  PyObject* func = Ci_PyStaticMethod_GetFunc(method);
   return _PyObject_Vectorcall(func, ((PyObject**)args) + 1, nargsf - 1, NULL);
 }
+
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_staticmethod_native(PyObject* method, void** args) {
+  PyObject* func = Ci_PyStaticMethod_GetFunc(method);
+  PyCodeObject* code = (PyCodeObject*)((PyFunctionObject*)func)->func_code;
+  Py_ssize_t arg_count =
+      code->co_argcount + 1; // hydrate self and then we'll drop it
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+
+  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
+      0) {
+    return StaticError;
+  }
+
+  PyObject* res =
+      _PyVTable_staticmethod_vectorcall(method, call_args, arg_count);
+  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+  int optional, exact, func_flags;
+  PyTypeObject* type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
+      (PyObject*)func, &optional, &exact, &func_flags);
+  return return_to_native(res, type);
+}
+
+VTABLE_THUNK(_PyVTable_staticmethod, PyObject)
 
 __attribute__((__used__)) PyObject* _PyVTable_classmethod_vectorcall(
     PyObject* state,
