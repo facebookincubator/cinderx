@@ -210,8 +210,7 @@ static _PyClassLoader_StaticCallReturn return_to_native(
     PyObject* val,
     PyTypeObject* ret_type) {
   _PyClassLoader_StaticCallReturn ret;
-  int type_code =
-      ret_type != NULL ? _PyClassLoader_GetTypeCode(ret_type) : TYPED_OBJECT;
+  int type_code = _PyClassLoader_GetTypeCode(ret_type);
   if (val != NULL && type_code != TYPED_OBJECT) {
     ret.rax = (void*)_PyClassLoader_Unbox(val, type_code);
   } else {
@@ -741,29 +740,53 @@ done:
     its own entrypoint in the v-table with optimized static vectorcall. (It
     also calls the underlying function and returns the value while doing so).
 */
-PyObject* _PyVTable_func_lazyinit_vectorcall(
-    _PyClassLoader_LazyFuncJitThunk* state,
+__attribute__((__used__)) PyObject* _PyVTable_func_lazyinit_vectorcall(
+    PyObject* state,
     PyObject** args,
     Py_ssize_t nargsf) {
-  PyFunctionObject* func = (PyFunctionObject*)state->lf_func;
+  /* state is (vtable, index, function) */
+  _PyType_VTable* vtable = (_PyType_VTable*)PyTuple_GET_ITEM(state, 0);
+  long index = PyLong_AS_LONG(PyTuple_GET_ITEM(state, 1));
+  PyFunctionObject* func = (PyFunctionObject*)PyTuple_GET_ITEM(state, 2);
 
   PyObject* res =
       func->vectorcall((PyObject*)func, (PyObject**)args, nargsf, NULL);
 
-  _PyType_VTable* vtable = (_PyType_VTable*)state->lf_vtable;
-  long index = state->lf_slot;
-
   // Update to the compiled function once the JIT has kicked in.
-  if (vtable->vt_entries[index].vte_state == (PyObject*)state &&
-      isJitCompiled(func)) {
+  if (vtable->vt_entries[index].vte_state == state && isJitCompiled(func)) {
     vtable->vt_entries[index].vte_state = (PyObject*)func;
     vtable->vt_entries[index].vte_entry =
         _PyClassLoader_GetStaticFunctionEntry(func);
     Py_INCREF(func);
     Py_DECREF(state);
   }
+
   return res;
 }
+
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_func_lazyinit_native(PyObject* state, void** args) {
+  PyFunctionObject* func = (PyFunctionObject*)PyTuple_GET_ITEM(state, 2);
+  PyCodeObject* code = (PyCodeObject*)((PyFunctionObject*)func)->func_code;
+  Py_ssize_t arg_count = code->co_argcount;
+  PyObject* call_args[arg_count];
+  PyObject* free_args[arg_count];
+
+  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
+      0) {
+    return StaticError;
+  }
+
+  PyObject* res =
+      _PyVTable_func_lazyinit_vectorcall(state, call_args, arg_count);
+  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
+  int optional, exact, func_flags;
+  PyTypeObject* type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
+      (PyObject*)func, &optional, &exact, &func_flags);
+  return return_to_native(res, type);
+}
+
+VTABLE_THUNK(_PyVTable_func_lazyinit, PyObject)
 
 __attribute__((__used__)) PyObject* _PyVTable_staticmethod_vectorcall(
     PyObject* method,

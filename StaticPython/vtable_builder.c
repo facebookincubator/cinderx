@@ -311,25 +311,30 @@ static int _PyVTable_set_opt_slot(
     if (ret_type == NULL) {
       return -1;
     }
-    _PyClassLoader_ThunkSignature* sig =
-        _PyClassLoader_GetThunkSignature(value);
-    if (sig == NULL) {
-      return -1;
-    }
-    PyObject* state = _PyClassLoader_LazyFuncJitThunk_New(
-        (PyObject*)vtable,
-        slot,
-        func,
-        sig,
-        (vectorcallfunc)_PyVTable_func_lazyinit_vectorcall);
+    int type_code = _PyClassLoader_GetTypeCode(ret_type);
+
+    PyObject* state = PyTuple_New(type_code != TYPED_OBJECT ? 4 : 3);
     if (state == NULL) {
-      _PyClassLoader_FreeThunkSignature(sig);
       return -1;
     }
+    PyTuple_SET_ITEM(state, 0, (PyObject*)vtable);
+    Py_INCREF(vtable);
+    PyObject* new_index = PyLong_FromSize_t(slot);
+    if (new_index == NULL) {
+      Py_DECREF(state);
+      return -1;
+    }
+    PyTuple_SET_ITEM(state, 1, new_index);
+    PyTuple_SET_ITEM(state, 2, value);
+    if (type_code != TYPED_OBJECT) {
+      PyTuple_SET_ITEM(state, 3, (PyObject*)ret_type);
+      Py_INCREF(ret_type);
+    }
+    Py_INCREF(value);
     Py_XDECREF(vtable->vt_entries[slot].vte_state);
     vtable->vt_entries[slot].vte_state = state;
     vtable->vt_entries[slot].vte_entry =
-        (vectorcallfunc)_PyVTable_thunk_dont_bolt;
+        (vectorcallfunc)_PyVTable_func_lazyinit_dont_bolt;
   }
   return 0;
 }
