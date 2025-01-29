@@ -157,10 +157,10 @@ PyObject* _PyVTable_thunk_vectorcall_only_dont_bolt(
     size_t nargsf);
 PyObject*
 _PyVTable_descr_dont_bolt(PyObject* state, PyObject** args, size_t nargsf);
-PyObject* _PyVTable_func_missing_dont_bolt(
-    PyObject* state,
+PyObject* _PyVTable_func_missing_vectorcall(
+    _PyClassLoader_TypeCheckThunk* state,
     PyObject** args,
-    size_t nargsf);
+    Py_ssize_t nargsf);
 
 PyObject* _PyVTable_thunk_dont_bolt(
     _PyClassLoader_MethodThunk* state,
