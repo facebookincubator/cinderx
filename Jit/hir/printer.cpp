@@ -391,11 +391,6 @@ static std::string format_immediates(const Instr& instr) {
           call.NumOperands(),
           call.ret_type());
     }
-    case Opcode::kInvokeMethod: {
-      const auto& call = static_cast<const InvokeMethod&>(instr);
-      return fmt::format(
-          "{}{}", call.NumOperands(), call.isAwaited() ? ", awaited" : "");
-    }
     case Opcode::kInvokeMethodStatic: {
       const auto& call = static_cast<const InvokeMethodStatic&>(instr);
       return fmt::format(
