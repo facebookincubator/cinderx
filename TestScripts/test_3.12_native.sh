@@ -15,13 +15,13 @@ function run_tests() {
 
     echo "Checking if existing tests pass from $target"
 
-    buck test -c cinderx.use_3_12=true "$target" -- --test-ids "@$testids_file"
+    buck test "$target" -- --test-ids "@$testids_file"
 
     echo "Checking if any new tests pass from $target"
 
     EVENT_LOG=$(mktemp)
     PASSING_TESTS=$(mktemp)
-    buck test -c cinderx.use_3_12=true "$target" -- \
+    buck test "$target" -- \
         --exclude-test-ids "@$testids_file" --event-log-file="$EVENT_LOG" \
         --tags exclude-from-signalbox || true
 
@@ -44,5 +44,5 @@ function run_tests() {
 }
 
 run_tests \
-    fbcode//cinderx/RuntimeTests:RuntimeTests \
+    fbcode//cinderx/RuntimeTests:RuntimeTests_3.12 \
     "$PWD/3.12-runtime-testids-passing"

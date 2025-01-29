@@ -2,7 +2,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 // This file is processed by UpstreamBorrow.py. To see the generated output:
-// buck build -c cinderx.use_3_12=true --out=- fbcode//cinderx/UpstreamBorrow:gen_borrowed.c
+// buck build -m ovr_config//third-party/python/constraints:3.12 \
+//     --out=- fbcode//cinderx/UpstreamBorrow:gen_borrowed.c
 
 // clang-format off
 

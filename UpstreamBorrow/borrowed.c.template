@@ -91,6 +91,7 @@ int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
 }
 
 int init_upstream_borrow(void) {
+  // 3.10 ONLY!!!
   PyObject* empty_dict = PyDict_New();
   if (empty_dict == NULL) {
     return -1;

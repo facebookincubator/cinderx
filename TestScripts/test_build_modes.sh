@@ -16,14 +16,21 @@ function fail() {
 function run_buck2() {
     local mode=$1
     shift
-    buck2 run -c cinderx.use_3_12="$use_3_12" @fbcode//mode/"$mode" "$@"
+    buck2 run @fbcode//mode/"$mode" "$@"
 }
 
 function run_python_code() {
     local mode=$1
     local code=$2
     local expect_except=$3
-    if run_buck2 "$mode" fbcode//cinderx:python -- -c "$code" ; then
+
+    if [[ $use_3_12 == "true" ]]; then
+        target="fbcode//cinderx:python3.10"
+    else
+        target="fbcode//cinderx:python3.12"
+    fi
+
+    if run_buck2 "$mode" $target -- -c "$code" ; then
         if [[ "$expect_except" == "except" ]] ; then
             fail "Expected '$1' run of '$2' to fail"
         fi
@@ -38,9 +45,16 @@ function run_python_code() {
 function check_opt_flags() {
     local mode=$1
     local should_opt=$2
+
+    if [[ $use_3_12 == "true" ]]; then
+        dist_path="fbcode//cinderx:dist-path_3.12"
+    else
+        dist_path="fbcode//cinderx:dist-path_3.10"
+    fi
+
     # shellcheck disable=SC2046
     # shellcheck disable=SC2155
-    local libpython=$(echo $(run_buck2 "$mode" fbcode//cinderx:dist-path)/lib/libpython3.*.so)
+    local libpython=$(echo $(run_buck2 "$mode" "$dist_path")/lib/libpython3.*.so)
     if strings "$libpython" | grep -- " -O3 " >/dev/null ; then
         if [[ "$should_opt" == "yes" ]] ; then
             return

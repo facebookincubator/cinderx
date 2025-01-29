@@ -29,7 +29,7 @@ def run(cmd: list[str], **kwargs) -> str:
 
 
 def build(target: str) -> str:
-    cmd = ["buck", "build", "-c", "cinderx.use_3_12=true", target, "--show-full-output"]
+    cmd = ["buck", "build", target, "--show-full-output"]
     return run(cmd).strip().split(" ")[-1]
 
 
@@ -43,7 +43,7 @@ def get_python_symbols(output: str) -> list[str]:
 
 
 def get_cinderx_undef() -> set[str]:
-    sh_file = build("fbcode//cinderx:python")
+    sh_file = build("fbcode//cinderx:python3.12")
     d = os.path.dirname(os.path.dirname(sh_file))
     so_file = os.path.join(
         d,

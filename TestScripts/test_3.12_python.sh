@@ -11,7 +11,7 @@ function run_tests() {
     local expected_file="$2"
     local update_mode="$3"
 
-    buck run -c cinderx.use_3_12=true @fbcode//mode/"$mode" fbcode//cinderx:python-tests -- --json-summary-file="$TMP_FILE"
+    buck run @fbcode//mode/"$mode" fbcode//cinderx:python-tests3.12 -- --json-summary-file="$TMP_FILE";
 
     echo
 

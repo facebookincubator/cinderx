@@ -13,10 +13,16 @@ for d in * ; do
     buck2 build fbcode//cinderx/PythonBin:python_3.12
     buck2 build fbcode//cinderx/PythonBin:python_3.10
   else
-    buck2 build -c cinderx.use_3_12=true fbcode//cinderx/"$d"/...
+    buck_output=$(buck2 targets fbcode//cinderx/"$d"/...);
+    readarray -t targets <<< "$buck_output"
+    for target in "${targets[@]}"; do
+      if [[ "$target" == *"_3.12" ]]; then
+        buck2 build "$target";
+      fi
+    done
   fi
 done
 
 # Check for dynamic linking errors which may only occur when loading the module
-buck2 run -c cinderx.use_3_12=true fbcode//cinderx:python -- -c 'import cinderx'
-buck2 run @//mode/opt -c cinderx.use_3_12=true fbcode//cinderx:python -- -c 'import cinderx'
+buck2 run fbcode//cinderx:python3.12 -- -c 'import cinderx'
+buck2 run @//mode/opt fbcode//cinderx:python3.12 -- -c 'import cinderx'
