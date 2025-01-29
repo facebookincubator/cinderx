@@ -63,15 +63,7 @@ typedef struct {
 typedef struct {
   _PyClassLoader_RetTypeInfo tcs_rt;
   PyObject* tcs_value;
-} _PyClassLoader_TypeCheckThunk;
-
-PyObject* _PyClassLoader_TypeCheckThunk_New(
-    PyObject* value,
-    PyObject* name,
-    PyTypeObject* ret_type,
-    int optional,
-    int exact,
-    _PyClassLoader_ThunkSignature* sig);
+} _PyClassLoader_TypeCheckState;
 
 typedef struct {
   PyObject_HEAD
@@ -85,7 +77,7 @@ extern _Py_AsyncCachedPropertyThunk* _Py_AsyncCachedPropertyThunk_New(
 extern PyObject* _Py_AsyncCachedPropertyThunk_GetFunc(PyObject* thunk);
 
 typedef struct {
-  _PyClassLoader_TypeCheckThunk thunk_tcs;
+  _PyClassLoader_TypeCheckState thunk_tcs;
   /* the class that the thunk exists for (used for error reporting) */
   PyTypeObject* thunk_cls;
   /* Function type: coroutine, static method, class method */

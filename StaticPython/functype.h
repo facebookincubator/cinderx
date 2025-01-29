@@ -80,12 +80,12 @@ PyObject* _PyClassLoader_GetFunctionName(PyObject* name);
 PyObject* _PyClassLoader_MaybeUnwrapCallable(PyObject* func);
 
 PyObject* _PyClassLoader_CallCoroutine(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf);
 
 PyObject* _PyClassLoader_CallCoroutineOverridden(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* func,
     PyObject* const* args,
     size_t nargsf);

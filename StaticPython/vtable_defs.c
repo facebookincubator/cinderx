@@ -335,7 +335,7 @@ invoke_from_native(PyObject* original, PyObject* func, void** args) {
 }
 
 PyObject* _PyVTable_coroutine_property_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf) {
   PyObject* self = args[0];
@@ -411,7 +411,7 @@ __attribute__((__used__)) PyObject* _PyVTable_classmethod_vectorcall(
     Py_ssize_t nargsf);
 
 static bool try_call_instance_coroutine(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf,
     PyObject** res) {
@@ -435,7 +435,7 @@ static bool try_call_instance_coroutine(
 }
 
 PyObject* _PyVTable_coroutine_classmethod_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf) {
   PyObject* callable = PyTuple_GET_ITEM(state->tcs_value, 0);
@@ -507,7 +507,7 @@ PyObject* _PyVTable_coroutine_classmethod_vectorcall(
 }
 
 PyObject* _PyVTable_coroutine_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf) {
   PyObject* res;
@@ -519,7 +519,7 @@ PyObject* _PyVTable_coroutine_vectorcall(
 }
 
 PyObject* _PyVTable_nonfunc_property_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf) {
   PyObject* self = args[0];
@@ -566,7 +566,7 @@ done:
 }
 
 PyObject* _PyVTable_nonfunc_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf) {
   PyObject* self = args[0];
@@ -704,7 +704,7 @@ __attribute__((__used__)) void* _PyVTable_thunk_vectorcall_only_native(
 VTABLE_THUNK(_PyVTable_thunk_vectorcall_only, PyObject)
 
 PyObject* _PyVTable_func_overridable_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject* const* args,
     size_t nargsf) {
   PyObject* self = args[0];
@@ -872,7 +872,7 @@ _PyVTable_classmethod_native(PyObject* state, void** args) {
 VTABLE_THUNK(_PyVTable_classmethod, PyObject)
 
 PyObject* _PyVTable_classmethod_overridable_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+    _PyClassLoader_TypeCheckState* state,
     PyObject** args,
     size_t nargsf) {
   PyObject* clsmethod = PyTuple_GET_ITEM(state->tcs_value, 0);
