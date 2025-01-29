@@ -210,7 +210,6 @@ bool Instr::isReplayable() const {
     case Opcode::kBuildSlice:
     case Opcode::kCallCFunc:
     case Opcode::kCallEx:
-    case Opcode::kCallInd:
     case Opcode::kCallIntrinsic:
     case Opcode::kCallMethod:
     case Opcode::kCallStatic:
@@ -245,6 +244,7 @@ bool Instr::isReplayable() const {
     case Opcode::kInitialYield:
     case Opcode::kInvokeIterNext:
     case Opcode::kInvokeStaticFunction:
+    case Opcode::kInvokeMethodStatic:
     case Opcode::kIsInstance:
     case Opcode::kIsTruthy:
     case Opcode::kListAppend:

@@ -320,10 +320,6 @@ static std::string format_immediates(const Instr& instr) {
           (call.flags() & CallFlags::Awaited) ? ", awaited" : "",
           (call.flags() & CallFlags::KwArgs) ? ", kwargs" : "");
     }
-    case Opcode::kCallInd: {
-      const auto& call = static_cast<const CallInd&>(instr);
-      return fmt::format("{}", call.name());
-    }
     case Opcode::kBinaryOp: {
       const auto& bin_op = static_cast<const BinaryOp&>(instr);
       return std::string{GetBinaryOpName(bin_op.op())};
@@ -394,6 +390,11 @@ static std::string format_immediates(const Instr& instr) {
           PyUnicode_AsUTF8(call.func()->func_qualname),
           call.NumOperands(),
           call.ret_type());
+    }
+    case Opcode::kInvokeMethodStatic: {
+      const auto& call = static_cast<const InvokeMethodStatic&>(instr);
+      return fmt::format(
+          "{}{}", call.NumOperands(), call.isAwaited() ? ", awaited" : "");
     }
     case Opcode::kLoadField: {
       const auto& lf = static_cast<const LoadField&>(instr);

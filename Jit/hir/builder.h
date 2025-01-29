@@ -277,9 +277,9 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       bool is_awaited,
-      Register* func_obj,
-      std::vector<Register*>& arg_regs,
-      const InvokeTarget& target);
+      bool is_classmethod,
+      const InvokeTarget& target,
+      long nargs);
   bool emitInvokeMethod(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,

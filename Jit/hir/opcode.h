@@ -19,7 +19,6 @@ namespace jit::hir {
   V(CallCFunc)                         \
   V(CallEx)                            \
   V(CallIntrinsic)                     \
-  V(CallInd)                           \
   V(CallMethod)                        \
   V(CallStatic)                        \
   V(CallStaticRetVoid)                 \
@@ -75,6 +74,7 @@ namespace jit::hir {
   V(PrimitiveUnaryOp)                  \
   V(PrimitiveUnbox)                    \
   V(InvokeIterNext)                    \
+  V(InvokeMethodStatic)                \
   V(IsInstance)                        \
   V(InvokeStaticFunction)              \
   V(IsNegativeAndErrOccurred)          \
