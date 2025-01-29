@@ -3059,7 +3059,15 @@ class ArgMapping:
 
         code_gen.set_pos(self.call)
 
-        for emitter in self.emitters:
+        if self.needs_virtual_invoke(code_gen):
+            if not extra_self:
+                assert self.emitters
+                self.emitters[0].emit(self.call, code_gen)
+
+            code_gen.emit_load_static_method(self.callable.type_descr)
+
+        start = 1 if self.needs_virtual_invoke(code_gen) and not extra_self else 0
+        for emitter in self.emitters[start:]:
             emitter.emit(self.call, code_gen)
 
         func_args = self.callable.args
@@ -3128,6 +3136,11 @@ class ClassMethodArgMapping(ArgMapping):
         if self.is_instance_call and not self.needs_virtual_invoke(code_gen):
             code_gen.emit("LOAD_TYPE")
 
+        if self.needs_virtual_invoke(code_gen):
+            code_gen.emit_load_static_method(
+                self.callable.type_descr,
+                is_classmethod=not self.is_instance_call,
+            )
         code_gen.set_pos(self.call)
 
         for emitter in self.emitters:
@@ -4584,22 +4597,33 @@ class PropertyMethod(DecoratedMethod):
                 "method or class final for more efficient property load",
                 node,
             )
+            code_gen.emit_load_static_method(self.getter_type_descr)
             code_gen.emit_invoke_method(self.getter_type_descr, 0)
+
+    def emit_virtual_property_store(
+        self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
+    ) -> None:
+        code_gen.emit_load_static_method(self.setter_type_descr)
+        # Stack is now: [value, func, target]. Rotations give: [func, target, value].
+        code_gen.emit_rotate_stack(3)
+        code_gen.emit_rotate_stack(3)
+
+        code_gen.perf_warning(
+            f"Setter for property {node.attr} can be overridden. Make "
+            "method or class final for more efficient property store",
+            node,
+        )
+        code_gen.emit_invoke_method(self.setter_type_descr, 1)
 
     def emit_store_attr_to(
         self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
-        code_gen.emit_rotate_stack(2)
         if self.function.is_final or klass.is_final:
+            code_gen.emit_rotate_stack(2)
             code_gen.emit("EXTENDED_ARG", 0)
             code_gen.emit("INVOKE_FUNCTION", (self.setter_type_descr, 2))
         else:
-            code_gen.perf_warning(
-                f"Setter for property {node.attr} can be overridden. Make "
-                "method or class final for more efficient property store",
-                node,
-            )
-            code_gen.emit_invoke_method(self.setter_type_descr, 1)
+            self.emit_virtual_property_store(node, code_gen, klass)
         code_gen.emit("POP_TOP")
 
     @property
@@ -4647,13 +4671,13 @@ class CachedPropertyMethod(PropertyMethod):
     def emit_load_attr_from(
         self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
+        code_gen.emit_load_static_method(self.getter_type_descr)
         code_gen.emit_invoke_method(self.getter_type_descr, 0)
 
     def emit_store_attr_to(
         self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
-        code_gen.emit_rotate_stack(2)
-        code_gen.emit_invoke_method(self.setter_type_descr, 1)
+        self.emit_virtual_property_store(node, code_gen, klass)
         code_gen.emit("POP_TOP")
 
     def emit_function(
@@ -4694,13 +4718,13 @@ class AsyncCachedPropertyMethod(PropertyMethod):
     def emit_load_attr_from(
         self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
+        code_gen.emit_load_static_method(self.getter_type_descr)
         code_gen.emit_invoke_method(self.getter_type_descr, 0)
 
     def emit_store_attr_to(
         self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
-        code_gen.emit_rotate_stack(2)
-        code_gen.emit_invoke_method(self.setter_type_descr, 1)
+        self.emit_virtual_property_store(node, code_gen, klass)
         code_gen.emit("POP_TOP")
 
     def emit_function(
@@ -6579,12 +6603,14 @@ class BuiltinMethod(Callable[Class]):
             # Untyped method, we can still do an INVOKE_METHOD
 
             code_gen.visit(self.target)
+            klass = code_gen.get_type(self.target).klass
+            if not klass.is_exact and not klass.is_final:
+                code_gen.emit_load_static_method(self.type_descr)
 
             code_gen.set_pos(node)
             for arg in node.args:
                 code_gen.visit(arg)
 
-            klass = code_gen.get_type(self.target).klass
             if klass.is_exact or klass.is_final:
                 code_gen.emit("INVOKE_FUNCTION", (self.type_descr, len(node.args) + 1))
             else:
@@ -6730,6 +6756,9 @@ class Slot(Object[TClassInv]):
 
     def emit_load_from_slot(self, code_gen: StaticCodeGenBase) -> None:
         if self.is_typed_descriptor_with_default_value():
+            code_gen.emit_load_static_method(
+                (self.container_type.type_descr, (self.slot_name, "fget"))
+            )
             code_gen.emit_invoke_method(
                 (self.container_type.type_descr, (self.slot_name, "fget")), 0
             )
@@ -6740,10 +6769,11 @@ class Slot(Object[TClassInv]):
 
     def emit_store_to_slot(self, code_gen: StaticCodeGenBase) -> None:
         if self.is_typed_descriptor_with_default_value():
-            code_gen.emit_rotate_stack(2)
-            code_gen.emit_invoke_method(
-                (self.container_type.type_descr, (self.slot_name, "fset")), 1
-            )
+            descr = (self.container_type.type_descr, (self.slot_name, "fset"))
+            code_gen.emit_load_static_method(descr)
+            code_gen.emit_rotate_stack(3)
+            code_gen.emit_rotate_stack(3)
+            code_gen.emit_invoke_method(descr, 1)
             # fset will return None, consume it
             code_gen.emit("POP_TOP")
             return
@@ -9043,6 +9073,12 @@ class CheckedListInstance(Object[CheckedList]):
             code_gen.emit("SEQUENCE_GET", SEQ_CHECKED_LIST)
         else:
             update_descr = (self.klass.type_descr, "__getitem__")
+            # Coming in we have: index on top, then list
+            code_gen.emit_rotate_stack(2)  # list, index
+            code_gen.emit_load_static_method(update_descr)  # list, func, index
+            code_gen.emit_rotate_stack(3)  # func, index, list
+            code_gen.emit_rotate_stack(3)  # index, list, func
+
             code_gen.emit_invoke_method(update_descr, 1)
 
     def emit_store_subscr(
@@ -9058,13 +9094,12 @@ class CheckedListInstance(Object[CheckedList]):
             # TODO add CheckedList to SEQUENCE_SET so we can emit that instead
             # of having to box the index here
             code_gen.emit("PRIMITIVE_BOX", index_type.instance.as_oparg())
-
-        # We have, from TOS: index, list, value-to-store
-        # We want, from TOS: value-to-store, index, list
-        code_gen.emit_rotate_stack(3)
-        code_gen.emit_rotate_stack(3)
-
+        # We have, from TOS: value-to-store, index, list
         setitem_descr = (self.klass.type_descr, "__setitem__")
+        code_gen.emit_rotate_stack(3)  # list, value, index
+        code_gen.emit_load_static_method(setitem_descr)  # list, func, value, index
+        code_gen.emit_rotate_stack(4)  # index, list, func, value
+        code_gen.emit_rotate_stack(4)  # value, index, list, func
         code_gen.emit_invoke_method(setitem_descr, 2)
         code_gen.emit("POP_TOP")
 

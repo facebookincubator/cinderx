@@ -997,6 +997,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
                     self.emit("BUILD_CHECKED_LIST", (list_descr, 0))
                     built_final_list = True
                 self.emit_dup()
+                self.emit_load_static_method(extend_descr)
                 self.visit(elt.value)
                 self.emit_invoke_method(extend_descr, 1)
                 self.emit("POP_TOP")
@@ -1039,6 +1040,17 @@ class StaticCodeGenBase(StrictCodeGenBase):
         self.emit(
             "INVOKE_METHOD",
             (descr, arg_count, True) if is_classmethod else (descr, arg_count),
+        )
+
+    def emit_load_static_method(
+        self, descr: TypeDescr, is_classmethod: bool = False
+    ) -> None:
+        # Emit a zero EXTENDED_ARG before so that we can optimize and insert the
+        # arg count
+        self.emit("EXTENDED_ARG", 0)
+        self.emit(
+            "LOAD_METHOD_STATIC",
+            (descr, True) if is_classmethod else (descr,),
         )
 
     def defaultCall(self, node: object, name: str, *args: object) -> None:

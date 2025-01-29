@@ -165,6 +165,55 @@ int used_in_vtable(PyObject* value) {
   return 0;
 }
 
+int get_vtable_callable(
+    PyObject* value,
+    PyTypeObject* decltype,
+    bool needs_sig,
+    PyObject** callable) {
+  if (Py_TYPE(value) == &PyClassMethod_Type) {
+    _PyClassLoader_ThunkSignature* sig = NULL;
+    if (needs_sig) {
+      sig = _PyClassLoader_GetThunkSignature(value);
+      if (sig == NULL && PyErr_Occurred()) {
+        return -1;
+      }
+    }
+
+    PyObject* thunk = _PyClassLoader_ClassMethodThunk_New(
+        value, sig, decltype, (vectorcallfunc)_PyVTable_classmethod_vectorcall);
+    if (thunk == NULL) {
+      _PyClassLoader_FreeThunkSignature(sig);
+      return -1;
+    }
+    *callable = thunk;
+    return 0;
+  } else if (Py_TYPE(value) == &PyStaticMethod_Type) {
+    _PyClassLoader_ThunkSignature* sig = NULL;
+    if (needs_sig) {
+      sig = _PyClassLoader_GetThunkSignature(value);
+      if (sig == NULL && PyErr_Occurred()) {
+        return -1;
+      }
+    }
+
+    PyObject* thunk = _PyClassLoader_StaticMethodThunk_New(
+        Ci_PyStaticMethod_GetFunc(value),
+        sig,
+        (vectorcallfunc)_PyVTable_staticmethod_vectorcall);
+    if (thunk == NULL) {
+      _PyClassLoader_FreeThunkSignature(sig);
+      return -1;
+    }
+    *callable = thunk;
+    return 0;
+  } else if (PyFunction_Check(value)) {
+    *callable = value;
+    return 0;
+  }
+  *callable = NULL;
+  return 0;
+}
+
 static int _PyVTable_setslot_typecheck(
     PyTypeObject* decltype,
     PyObject* ret_type,
@@ -192,56 +241,63 @@ static int _PyVTable_setslot_typecheck(
 
   Py_XDECREF(vtable->vt_entries[slot].vte_state);
   vtable->vt_entries[slot].vte_state = (PyObject*)state;
-  vtable->vt_entries[slot].vte_entry =
-      (vectorcallfunc)_PyVTable_thunk_dont_bolt;
-  if (func_flags & Ci_FUNC_FLAGS_COROUTINE) {
-    if (Py_TYPE(value) == &PyClassMethod_Type) {
-      PyObject* thunk = _PyClassLoader_ClassMethodThunk_New(
-          value,
-          NULL,
-          decltype,
-          (vectorcallfunc)_PyVTable_classmethod_vectorcall);
-      if (thunk == NULL) {
-        Py_DECREF(state);
-        return -1;
-      }
-
-      state->tcs_value = thunk;
-      state->tcs_rt.rt_base.mt_call =
-          (vectorcallfunc)_PyVTable_coroutine_classmethod_vectorcall;
-    } else if (
-        PyTuple_Check(name) &&
-        _PyClassLoader_IsPropertyName((PyTupleObject*)name)) {
+  if (PyTuple_Check(name) &&
+      _PyClassLoader_IsPropertyName((PyTupleObject*)name)) {
+    // Properties don't really have an explicit load/store, but we emit
+    // a LOAD_METHOD/INVOKE_METHOD pair anyway. The LOAD_METHOD doesn't
+    // need to do anything but provide the thunk and there's no issues
+    // w/ side effects as the LOAD_METHOD occurs after the property set.
+    vtable->vt_entries[slot].vte_load = (loadmethodfunc)_PyVTable_load_generic;
+    if (func_flags & Ci_FUNC_FLAGS_COROUTINE) {
       state->tcs_rt.rt_base.mt_call =
           (vectorcallfunc)_PyVTable_coroutine_property_vectorcall;
     } else {
       state->tcs_rt.rt_base.mt_call =
-          (vectorcallfunc)_PyVTable_coroutine_vectorcall;
+          (vectorcallfunc)_PyVTable_nonfunc_property_vectorcall;
     }
-  } else if (
-      PyTuple_Check(name) &&
-      _PyClassLoader_IsPropertyName((PyTupleObject*)name)) {
-    state->tcs_rt.rt_base.mt_call =
-        (vectorcallfunc)_PyVTable_nonfunc_property_vectorcall;
-  } else if (PyFunction_Check(value)) {
-    state->tcs_rt.rt_base.mt_call =
-        (vectorcallfunc)_PyVTable_func_overridable_vectorcall;
-  } else if (Py_TYPE(value) == &PyClassMethod_Type) {
-    PyObject* thunk = _PyClassLoader_ClassMethodThunk_New(
-        value,
-        NULL,
-        decltype,
-        (vectorcallfunc)_PyVTable_classmethod_vectorcall);
-    if (thunk == NULL) {
-      Py_DECREF(state);
-      return -1;
-    }
-    state->tcs_value = thunk;
-    state->tcs_rt.rt_base.mt_call =
-        (vectorcallfunc)_PyVTable_classmethod_overridable_vectorcall;
+    return 0;
+  }
+
+  vtable->vt_entries[slot].vte_load =
+      (loadmethodfunc)_PyVTable_load_overridable;
+  state->tcs_rt.rt_base.mt_call =
+      (vectorcallfunc)_PyVTable_func_typecheck_vectorcall;
+
+  PyObject* callable;
+  if (get_vtable_callable(value, decltype, false, &callable) < 0) {
+    Py_DECREF(state);
+    return -1;
+  } else if (callable != NULL) {
+    state->tcs_value = callable;
   } else {
+    // We have a random descriptor that we don't know how it behaves,
+    // we'll load the value on the vte_load call, and then invoke it
+    // discarding self.
+    vtable->vt_entries[slot].vte_load =
+        (loadmethodfunc)_PyVTable_load_descr_typecheck;
+    if (func_flags & Ci_FUNC_FLAGS_COROUTINE) {
+      state->tcs_rt.rt_base.mt_call =
+          (vectorcallfunc)_PyVTable_coroutine_vectorcall_no_self;
+    } else {
+      state->tcs_rt.rt_base.mt_call =
+          (vectorcallfunc)_PyVTable_descr_typecheck_vectorcall;
+    }
+    return 0;
+  }
+
+  if (func_flags & Ci_FUNC_FLAGS_COROUTINE) {
+    // If the original function was a co-routine our type checking needs
+    // to expect a coroutine back, and needs to type check the final
+    // awaited values.
     state->tcs_rt.rt_base.mt_call =
-        (vectorcallfunc)_PyVTable_nonfunc_vectorcall;
+        (vectorcallfunc)_PyVTable_coroutine_vectorcall;
+  }
+
+  if (Py_TYPE(value) == &PyClassMethod_Type) {
+    // Class methods need special handling to only look in the instance
+    // if it's not the type.
+    vtable->vt_entries[slot].vte_load =
+        (loadmethodfunc)_PyVTable_classmethod_load_overridable;
   }
   return 0;
 }
@@ -269,8 +325,7 @@ static int _PyVTable_set_opt_slot(
   if (isJitCompiled(func)) {
     Py_XDECREF(vtable->vt_entries[slot].vte_state);
     vtable->vt_entries[slot].vte_state = value;
-    vtable->vt_entries[slot].vte_entry =
-        _PyClassLoader_GetStaticFunctionEntry(func);
+    vtable->vt_entries[slot].vte_load = _PyVTable_load_jitted_func;
     Py_INCREF(value);
 
     return 0;
@@ -305,8 +360,7 @@ static int _PyVTable_set_opt_slot(
   }
   Py_XDECREF(vtable->vt_entries[slot].vte_state);
   vtable->vt_entries[slot].vte_state = state;
-  vtable->vt_entries[slot].vte_entry =
-      (vectorcallfunc)_PyVTable_thunk_dont_bolt;
+  vtable->vt_entries[slot].vte_load = (loadmethodfunc)_PyVTable_load_generic;
   return 0;
 }
 
@@ -332,52 +386,22 @@ static int _PyVTable_setslot(
       // meaning we can omit return type checks at runtime.
       if (_PyClassLoader_IsStaticFunction(value)) {
         return _PyVTable_set_opt_slot(tp, name, vtable, slot, value);
-      } else if (
-          Py_TYPE(value) == &PyStaticMethod_Type &&
-          _PyClassLoader_IsStaticFunction(Ci_PyStaticMethod_GetFunc(value))) {
-        // Because static methods shed their first argument they're hard to
-        // deal with in LOAD_METHOD/CALL_METHOD as there's no way to indicate
-        // the self param should be dropped. So we use a thunk for them
-        // which will shed the first argument for us.
-        PyObject* thunk = _PyClassLoader_StaticMethodThunk_New(
-            Ci_PyStaticMethod_GetFunc(value),
-            _PyClassLoader_GetThunkSignature(value),
-            (vectorcallfunc)_PyVTable_staticmethod_vectorcall);
-        if (thunk == NULL) {
-          return -1;
-        }
-        Py_XSETREF(vtable->vt_entries[slot].vte_state, thunk);
-        vtable->vt_entries[slot].vte_entry =
-            (vectorcallfunc)&_PyVTable_thunk_dont_bolt;
-        return 0;
-      } else if (
-          Py_TYPE(value) == &PyClassMethod_Type &&
-          _PyClassLoader_IsStaticFunction(Ci_PyClassMethod_GetFunc(value))) {
-        PyObject* thunk = _PyClassLoader_ClassMethodThunk_New(
-            value,
-            _PyClassLoader_GetThunkSignature(original),
-            tp,
-            (vectorcallfunc)_PyVTable_classmethod_vectorcall);
-        if (thunk == NULL) {
-          return -1;
-        }
-        Py_XSETREF(vtable->vt_entries[slot].vte_state, thunk);
-        vtable->vt_entries[slot].vte_entry =
-            (vectorcallfunc)_PyVTable_thunk_dont_bolt;
-        return 0;
-      } else if (Py_TYPE(value) == &PyMethodDescr_Type) {
-        Py_XSETREF(vtable->vt_entries[slot].vte_state, value);
-        vtable->vt_entries[slot].vte_entry =
-            (vectorcallfunc)&_PyVTable_thunk_vectorcall_only_dont_bolt;
-        Py_INCREF(value);
+      }
+
+      PyObject* callable;
+      if (get_vtable_callable(value, tp, true, &callable) < 0) {
+        return -1;
+      } else if (callable != NULL) {
+        Py_XSETREF(vtable->vt_entries[slot].vte_state, callable);
+        vtable->vt_entries[slot].vte_load = _PyVTable_load_generic;
         return 0;
       }
     }
 
     if (Py_TYPE(value) == &_PyType_PropertyThunk) {
       Py_XSETREF(vtable->vt_entries[slot].vte_state, value);
-      vtable->vt_entries[slot].vte_entry =
-          (vectorcallfunc)_PyVTable_descr_dont_bolt;
+      assert(!_PyClassLoader_IsStaticCallable(value));
+      vtable->vt_entries[slot].vte_load = _PyVTable_load_descr;
       Py_INCREF(value);
       return 0;
     }
@@ -427,8 +451,7 @@ static int _PyVTable_setslot(
     ((_PyClassLoader_TypeCheckThunk*)thunk)->tcs_rt.rt_base.mt_call =
         (vectorcallfunc)_PyVTable_func_missing_vectorcall;
     Py_XSETREF(vtable->vt_entries[slot].vte_state, thunk);
-    vtable->vt_entries[slot].vte_entry =
-        (vectorcallfunc)_PyVTable_thunk_dont_bolt;
+    vtable->vt_entries[slot].vte_load = _PyVTable_load_generic;
     return 0;
   }
 
@@ -510,7 +533,7 @@ static void _PyClassLoader_UpdateDerivedSlot(
     PyObject* name,
     Py_ssize_t index,
     PyObject* state,
-    vectorcallfunc func) {
+    loadmethodfunc loadfunc) {
   /* Update any derived types which don't have slots */
   PyObject* ref;
   PyObject* subclasses = get_tp_subclasses(type, false);
@@ -534,10 +557,10 @@ static void _PyClassLoader_UpdateDerivedSlot(
       _PyType_VTable* subvtable = (_PyType_VTable*)subtype->tp_cache;
       Py_XDECREF(subvtable->vt_entries[index].vte_state);
       subvtable->vt_entries[index].vte_state = state;
+      subvtable->vt_entries[index].vte_load = loadfunc;
       Py_INCREF(state);
-      subvtable->vt_entries[index].vte_entry = func;
 
-      _PyClassLoader_UpdateDerivedSlot(subtype, name, index, state, func);
+      _PyClassLoader_UpdateDerivedSlot(subtype, name, index, state, loadfunc);
     }
   }
 }
@@ -1094,7 +1117,7 @@ int _PyClassLoader_UpdateSlot(
       name,
       index,
       vtable->vt_entries[index].vte_state,
-      vtable->vt_entries[index].vte_entry);
+      vtable->vt_entries[index].vte_load);
   return 0;
 }
 
@@ -1171,6 +1194,19 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
   return 0;
 }
 
+PyObject* _PyVTable_lazyinit_vectorcall(
+    _PyClassLoader_VTableInitThunk* thunk,
+    PyObject** args,
+    Py_ssize_t nargsf) {
+  PyErr_Format(
+      PyExc_RuntimeError,
+      "Function %R called through lazyinit vectorcall but should have been "
+      "initialized",
+      thunk->vti_name);
+  return NULL;
+}
+
+static const StaticMethodInfo LoadMethodError = {NULL, NULL};
 /**
     This is usually what we use as the initial entrypoint in v-tables. Then,
     when a method is called, this traverses the MRO, finds the correct callable,
@@ -1178,11 +1214,11 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
     callable). All following method invokes directly hit the actual callable,
     because the v-table has been updated.
 */
-static _PyClassLoader_StaticCallReturn _PyVTable_lazyinit_impl(
+static StaticMethodInfo _PyVTable_lazyinit_load(
     _PyClassLoader_VTableInitThunk* info,
-    void** args,
-    Py_ssize_t nargsf,
-    int is_native) {
+    PyObject* self) {
+  assert(PyObject_IsInstance(
+      (PyObject*)info, (PyObject*)&_PyClassLoader_VTableInitThunk_Type));
   PyTypeObject* type = info->vti_type;
   PyObject* name = info->vti_name;
   _PyType_VTable* vtable = (_PyType_VTable*)type->tp_cache;
@@ -1194,83 +1230,36 @@ static _PyClassLoader_StaticCallReturn _PyVTable_lazyinit_impl(
     PyObject* value = NULL;
     PyTypeObject* cur_type = (PyTypeObject*)PyTuple_GET_ITEM(mro, i);
     if (get_func_or_special_callable(cur_type, name, &value)) {
-      return StaticError;
+      return LoadMethodError;
     }
-    if (value != NULL) {
-      PyObject* original = NULL;
-      if (classloader_get_original_static_def(type, name, &original)) {
-        Py_DECREF(value);
-        return StaticError;
-      }
-      if (_PyVTable_setslot(type, name, slot, value, original)) {
-        Py_XDECREF(original);
-        Py_DECREF(value);
-        return StaticError;
-      }
+    if (value == NULL) {
+      continue;
+    }
+    PyObject* original = NULL;
+    if (classloader_get_original_static_def(type, name, &original)) {
+      Py_DECREF(value);
+      return LoadMethodError;
+    }
 
-      _PyClassLoader_StaticCallReturn res;
-      if (is_native) {
-        _PyClassLoader_ThunkSignature* sig =
-            _PyClassLoader_GetThunkSignature(original);
-        if (sig == NULL) {
-          return StaticError;
-        }
-        Py_ssize_t arg_count = sig->ta_argcount;
-
-        PyObject* obj_res;
-        PyObject* call_args[arg_count];
-        PyObject* free_args[arg_count];
-
-        if (_PyClassLoader_HydrateArgsFromSig(
-                sig, arg_count, args, call_args, free_args) < 0) {
-          _PyClassLoader_FreeThunkSignature(sig);
-          return StaticError;
-        }
-
-        obj_res =
-            _PyClassLoader_InvokeMethod(vtable, slot, call_args, arg_count);
-        _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
-        if (obj_res != NULL) {
-          if (sig->ta_rettype != TYPED_OBJECT) {
-            res.rax = (void*)_PyClassLoader_Unbox(obj_res, sig->ta_rettype);
-          } else {
-            res.rax = obj_res;
-          }
-        } else {
-          res.rax = NULL;
-        }
-        res.rdx = (void*)(uint64_t)(obj_res != NULL);
-        _PyClassLoader_FreeThunkSignature(sig);
-      } else {
-        res.rax =
-            _PyClassLoader_InvokeMethod(vtable, slot, (PyObject**)args, nargsf);
-        res.rdx = (void*)(uint64_t)(res.rax != NULL);
-      }
-
+    if (_PyVTable_setslot(type, name, slot, value, original)) {
       Py_XDECREF(original);
       Py_DECREF(value);
-      return res;
+      return LoadMethodError;
     }
+    // The load func should have been updated
+    assert(
+        vtable->vt_entries[slot].vte_load !=
+        (loadmethodfunc)_PyVTable_lazyinit_load);
+    assert(
+        PyVectorcall_Function(vtable->vt_entries[slot].vte_state) !=
+        (vectorcallfunc)_PyVTable_lazyinit_vectorcall);
+    return _PyClassLoader_LoadStaticMethod(vtable, slot, self);
   }
 
   PyErr_Format(
       CiExc_StaticTypeError, "'%s' has no attribute %U", type->tp_name, name);
-  return StaticError;
+  return LoadMethodError;
 }
-
-__attribute__((__used__)) PyObject* _PyVTable_lazyinit_vectorcall(
-    _PyClassLoader_VTableInitThunk* thunk,
-    PyObject** args,
-    Py_ssize_t nargsf) {
-  return (PyObject*)_PyVTable_lazyinit_impl(thunk, (void**)args, nargsf, 0).rax;
-}
-
-__attribute__((__used__)) _PyClassLoader_StaticCallReturn
-_PyVTable_lazyinit_native(_PyClassLoader_VTableInitThunk* thunk, void** args) {
-  return _PyVTable_lazyinit_impl(thunk, args, 0, 1);
-}
-
-VTABLE_THUNK(_PyVTable_lazyinit, PyObject)
 
 /**
     For every slot in the vtable slotmap, this sets the vectorcall entrypoint
@@ -1289,8 +1278,8 @@ int _PyClassLoader_ReinitVtable(PyTypeObject* type, _PyType_VTable* vtable) {
 
     Py_ssize_t index = PyLong_AsSsize_t(slot);
     vtable->vt_entries[index].vte_state = thunk;
-    vtable->vt_entries[index].vte_entry =
-        (vectorcallfunc)_PyVTable_lazyinit_dont_bolt;
+    vtable->vt_entries[index].vte_load =
+        (loadmethodfunc)_PyVTable_lazyinit_load;
   }
   return 0;
 }

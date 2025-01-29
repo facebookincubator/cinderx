@@ -1809,3 +1809,33 @@ class DataclassTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertTrue(mod.C.__init__.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
+
+    def test_dataclass_property(self) -> None:
+        codestr = """
+        from dataclasses import dataclass
+        from typing import Optional
+        
+        @dataclass(frozen=True)
+        class C:
+            name: str = ""
+            type: str = ""
+            req: bool = False
+            data_registry_default: Optional[int] = None
+            data_registry_key: Optional[str] = None
+            def getStrRepresentation(self) -> str:
+                return (
+                    self.name
+                    + self.type
+                    + str(self.req)
+                    + str(self.data_registry_default)
+                    + str(self.data_registry_key)
+                )
+
+        def x(c: C):
+            return c.getStrRepresentation()
+
+        """
+        with self.in_module(codestr) as mod:
+            a = mod.C('foo')
+            for i in range(256):
+                self.assertEqual(mod.x(a), 'fooFalseNoneNone')

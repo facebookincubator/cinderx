@@ -207,6 +207,8 @@ class ClassMethodTests(StaticTestBase):
             class C:
                 @classmethod
                 def foo(cls) -> int:
+                    if cls != C:
+                        raise Exception("no way")
                     return 3
 
                 @classmethod

@@ -30,80 +30,88 @@ fun jittestmodule:test {
     v2 = LoadField<ob_type@8, Type, borrowed> v0
     v3 = LoadField<tp_cache@352, Object, borrowed> v2
     v4 = LoadField<vte_state@80, Object, borrowed> v3
-    v6 = LoadField<vte_entry@88, CPtr, borrowed> v3
-    v5 = CallInd<vtable invoke> v6 v4 v0 {
+    v6 = LoadField<vte_load@88, CPtr, borrowed> v3
+    v4 = CallInd<vte_load> v6 v4 v0 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v0
       }
     }
-    CondBranchCheckType<4, 2, WaitHandle> v5
+    v5 = GetSecondOutput<CPtr> v4
+    Snapshot
+    v7 = CallInd<vtable invoke> v5 v4 v0 {
+      FrameState {
+        CurInstrOffset 10
+        Locals<1> v0
+      }
+    }
+    CondBranchCheckType<4, 2, WaitHandle> v7
   }
 
   bb 4 (preds 0) {
-    v8 = WaitHandleLoadCoroOrResult v5
-    v9 = WaitHandleLoadWaiter v5
-    WaitHandleRelease v5
-    CondBranch<5, 6> v9
+    v9 = WaitHandleLoadCoroOrResult v7
+    v10 = WaitHandleLoadWaiter v7
+    WaitHandleRelease v7
+    CondBranch<5, 6> v10
   }
 
   bb 5 (preds 4) {
-    SetCurrentAwaiter v8
-    v7 = YieldAndYieldFrom v9 v8 {
+    SetCurrentAwaiter v9
+    v8 = YieldAndYieldFrom v10 v9 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 10
         Locals<1> v0
-        Stack<1> v5
+        Stack<1> v7
       }
     }
     Branch<3>
   }
 
   bb 6 (preds 4) {
-    v7 = Assign v8
+    v8 = Assign v9
     Branch<3>
   }
 
   bb 2 (preds 0) {
-    v10 = CallCFunc<Cix_PyCoro_GetAwaitableIter> v5
-    v10 = CheckExc v10 {
+    v11 = CallCFunc<Cix_PyCoro_GetAwaitableIter> v7
+    v11 = CheckExc v11 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 10
         Locals<1> v0
       }
     }
-    CondBranchCheckType<7, 8, ObjectUser[coroutine:Exact]> v10
+    CondBranchCheckType<7, 8, ObjectUser[coroutine:Exact]> v11
   }
 
   bb 7 (preds 2) {
-    v11 = CallCFunc<Cix_PyGen_yf> v10
-    CondBranch<9, 8> v11
+    v12 = CallCFunc<Cix_PyGen_yf> v11
+    CondBranch<9, 8> v12
   }
 
   bb 9 (preds 7) {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 10
         Locals<1> v0
       }
     }
   }
 
   bb 8 (preds 2, 7) {
-    v12 = LoadConst<NoneType>
-    SetCurrentAwaiter v10
-    v7 = YieldFrom v12 v10 {
+    v13 = LoadConst<NoneType>
+    SetCurrentAwaiter v11
+    v8 = YieldFrom v13 v11 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 10
         Locals<1> v0
-        Stack<1> v10
+        Stack<1> v11
       }
     }
     Branch<3>
   }
 
   bb 3 (preds 5, 6, 8) {
-    v2 = Assign v7
+    v2 = Assign v8
     Branch<1>
   }
 
