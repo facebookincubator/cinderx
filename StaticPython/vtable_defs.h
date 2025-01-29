@@ -115,10 +115,6 @@ PyObject* _PyVTable_func_lazyinit_vectorcall(
     _PyClassLoader_LazyFuncJitThunk* state,
     PyObject** args,
     Py_ssize_t nargsf);
-PyObject* _PyVTable_thunk_ret_primitive_not_jitted_dont_bolt(
-    PyObject* state,
-    PyObject** args,
-    size_t nargsf);
 PyObject* _PyVTable_classmethod_overridable_vectorcall(
     _PyClassLoader_TypeCheckThunk* state,
     PyObject** args,
