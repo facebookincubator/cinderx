@@ -396,30 +396,28 @@ static int _PyVTable_setslot(
   }
 
   if (value == NULL) {
-    // The function has been deleted, put in a thunk to report an error.
-    _PyClassLoader_ThunkSignature* sig =
-        _PyClassLoader_GetThunkSignature(original);
-    if (sig == NULL && PyErr_Occurred()) {
+    PyObject* missing_state = PyTuple_New(4);
+    if (missing_state == NULL) {
       Py_DECREF(ret_type);
       return -1;
     }
-    PyObject* thunk = _PyClassLoader_TypeCheckThunk_New(
-        original,
-        _PyClassLoader_GetFunctionName(name),
-        (PyTypeObject*)ret_type,
-        optional,
-        exact,
-        sig);
-    if (thunk == NULL) {
-      _PyClassLoader_FreeThunkSignature(sig);
-      Py_DECREF(ret_type);
-      return -1;
-    }
-    ((_PyClassLoader_TypeCheckThunk*)thunk)->tcs_rt.rt_base.mt_call =
-        (vectorcallfunc)_PyVTable_func_missing_vectorcall;
-    Py_XSETREF(vtable->vt_entries[slot].vte_state, thunk);
+
+    PyObject* func_name = _PyClassLoader_GetFunctionName(name);
+    PyTuple_SET_ITEM(missing_state, 0, func_name);
+    PyTuple_SET_ITEM(missing_state, 1, (PyObject*)tp);
+    PyObject* optional_obj = optional ? Py_True : Py_False;
+    PyTuple_SET_ITEM(missing_state, 2, optional_obj);
+    PyTuple_SET_ITEM(missing_state, 3, original);
+    Py_INCREF(func_name);
+    Py_INCREF(tp);
+    Py_INCREF(optional_obj);
+    Py_INCREF(original);
+
+    Py_XDECREF(vtable->vt_entries[slot].vte_state);
+    vtable->vt_entries[slot].vte_state = missing_state;
     vtable->vt_entries[slot].vte_entry =
-        (vectorcallfunc)_PyVTable_thunk_dont_bolt;
+        (vectorcallfunc)_PyVTable_func_missing_dont_bolt;
+    Py_DECREF(ret_type);
     return 0;
   }
 

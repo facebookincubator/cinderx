@@ -838,12 +838,35 @@ PyObject* _PyVTable_classmethod_overridable_vectorcall(
   return _PyObject_Vectorcall(clsmethod, args, nargsf, NULL);
 }
 
-PyObject* _PyVTable_func_missing_vectorcall(
-    _PyClassLoader_TypeCheckThunk* state,
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_func_missing_native(PyObject* state, void** args) {
+  PyFunctionObject* original = (PyFunctionObject*)PyTuple_GET_ITEM(state, 3);
+  PyCodeObject* code = (PyCodeObject*)original->func_code;
+  PyObject* call_args[code->co_argcount];
+  PyObject* free_args[code->co_argcount];
+
+  if (_PyClassLoader_HydrateArgs(
+          code, code->co_argcount, args, call_args, free_args)) {
+    return StaticError;
+  }
+
+  PyObject* self = call_args[0];
+  PyObject* name = PyTuple_GET_ITEM(state, 0);
+  PyErr_Format(
+      PyExc_AttributeError,
+      "'%s' object has no attribute %R",
+      Py_TYPE(self)->tp_name,
+      name);
+  _PyClassLoader_FreeHydratedArgs(free_args, code->co_argcount);
+  return StaticError;
+}
+
+__attribute__((__used__)) void* _PyVTable_func_missing_vectorcall(
+    PyObject* state,
     PyObject** args,
     Py_ssize_t nargsf) {
   PyObject* self = args[0];
-  PyObject* name = state->tcs_rt.rt_name;
+  PyObject* name = PyTuple_GET_ITEM(state, 0);
   PyErr_Format(
       PyExc_AttributeError,
       "'%s' object has no attribute %R",
@@ -852,6 +875,8 @@ PyObject* _PyVTable_func_missing_vectorcall(
   return NULL;
 }
 
+VTABLE_THUNK(_PyVTable_func_missing, PyObject)
+
 __attribute__((__used__)) PyObject* _PyVTable_thunk_vectorcall(
     _PyClassLoader_MethodThunk* thunk,
     PyObject* const* args,
@@ -859,9 +884,8 @@ __attribute__((__used__)) PyObject* _PyVTable_thunk_vectorcall(
   return thunk->mt_call((PyObject*)thunk, args, nargsf, NULL);
 }
 
-_PyClassLoader_StaticCallReturn _PyVTable_thunk_native(
-    _PyClassLoader_MethodThunk* thunk,
-    void** args) {
+__attribute__((__used__)) _PyClassLoader_StaticCallReturn
+_PyVTable_thunk_native(_PyClassLoader_MethodThunk* thunk, void** args) {
   assert(
       PyObject_IsInstance((PyObject*)thunk, (PyObject*)&_PyType_MethodThunk));
   _PyClassLoader_ThunkSignature* sig = thunk->mt_sig;
