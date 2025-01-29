@@ -39,21 +39,6 @@ static inline void _PyClassLoader_FreeThunkSignature(
   }
 }
 
-// A thunk used for the initialization of a vtable-entry on
-// the first time it's actually invoked. We'll then resolve what it should
-// point to and replace the thunk w/ the appropriate function.
-typedef struct {
-  PyObject_HEAD
-  PyObject* vti_name;
-  PyTypeObject* vti_type;
-  vectorcallfunc vti_call;
-} _PyClassLoader_VTableInitThunk;
-
-PyObject* _PyClassLoader_VTableInitThunk_New(
-    PyObject* name,
-    PyTypeObject* type,
-    vectorcallfunc call);
-
 typedef struct {
   PyObject_HEAD
   _PyClassLoader_ThunkSignature* mt_sig;

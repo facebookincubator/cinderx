@@ -1220,12 +1220,12 @@ int _PyClassLoader_UpdateSlotMap(PyTypeObject* self, PyObject* slotmap) {
     because the v-table has been updated.
 */
 static _PyClassLoader_StaticCallReturn _PyVTable_lazyinit_impl(
-    _PyClassLoader_VTableInitThunk* info,
+    PyObject* info,
     void** args,
     Py_ssize_t nargsf,
     int is_native) {
-  PyTypeObject* type = info->vti_type;
-  PyObject* name = info->vti_name;
+  PyTypeObject* type = (PyTypeObject*)PyTuple_GET_ITEM(info, 1);
+  PyObject* name = PyTuple_GET_ITEM(info, 0);
   _PyType_VTable* vtable = (_PyType_VTable*)type->tp_cache;
   PyObject* mro = type->tp_mro;
   Py_ssize_t slot = PyLong_AsSsize_t(PyDict_GetItem(vtable->vt_slotmap, name));
@@ -1300,14 +1300,14 @@ static _PyClassLoader_StaticCallReturn _PyVTable_lazyinit_impl(
 }
 
 __attribute__((__used__)) PyObject* _PyVTable_lazyinit_vectorcall(
-    _PyClassLoader_VTableInitThunk* thunk,
+    PyObject* thunk,
     PyObject** args,
     Py_ssize_t nargsf) {
   return (PyObject*)_PyVTable_lazyinit_impl(thunk, (void**)args, nargsf, 0).rax;
 }
 
 __attribute__((__used__)) _PyClassLoader_StaticCallReturn
-_PyVTable_lazyinit_native(_PyClassLoader_VTableInitThunk* thunk, void** args) {
+_PyVTable_lazyinit_native(PyObject* thunk, void** args) {
   return _PyVTable_lazyinit_impl(thunk, args, 0, 1);
 }
 
@@ -1322,14 +1322,17 @@ int _PyClassLoader_ReinitVtable(PyTypeObject* type, _PyType_VTable* vtable) {
   PyObject* slotmap = vtable->vt_slotmap;
   Py_ssize_t i = 0;
   while (PyDict_Next(slotmap, &i, &name, &slot)) {
-    PyObject* thunk = _PyClassLoader_VTableInitThunk_New(
-        name, type, (vectorcallfunc)_PyVTable_lazyinit_vectorcall);
-    if (thunk == NULL) {
+    Py_ssize_t index = PyLong_AsSsize_t(slot);
+    PyObject* tuple = PyTuple_New(2);
+    if (tuple == NULL) {
       return -1;
     }
 
-    Py_ssize_t index = PyLong_AsSsize_t(slot);
-    vtable->vt_entries[index].vte_state = thunk;
+    PyTuple_SET_ITEM(tuple, 0, name);
+    Py_INCREF(name);
+    PyTuple_SET_ITEM(tuple, 1, (PyObject*)type);
+    Py_INCREF(type);
+    vtable->vt_entries[index].vte_state = tuple;
     vtable->vt_entries[index].vte_entry =
         (vectorcallfunc)_PyVTable_lazyinit_dont_bolt;
   }
