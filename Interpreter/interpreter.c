@@ -163,18 +163,6 @@ static PyObject* invoke_static_function(
       func, args, (awaited ? Ci_Py_AWAITED_CALL_MARKER : 0) | nargs, NULL);
 }
 
-int load_method_static_cached_oparg(Py_ssize_t slot, bool is_classmethod) {
-  return (slot << 1) | (is_classmethod ? 1 : 0);
-}
-
-bool load_method_static_cached_oparg_is_classmethod(int oparg) {
-  return (oparg & 1) != 0;
-}
-
-Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
-  return oparg >> 1;
-}
-
 // Disable UBSAN integer overflow checks etc. as these are not compatible with
 // some tests for Static Python which are asserting overflow behavior.
 __attribute__((no_sanitize("integer"))) PyObject* _Py_HOT_FUNCTION
@@ -3458,31 +3446,49 @@ main_loop:
   PUSH(res);                                                    \
   DISPATCH();
 
-      case TARGET(LOAD_METHOD_STATIC): {
+      case TARGET(INVOKE_METHOD): {
         PyObject* value = GETITEM(consts, oparg);
+        Py_ssize_t nargs = PyLong_AsLong(PyTuple_GET_ITEM(value, 1)) + 1;
         PyObject* target = PyTuple_GET_ITEM(value, 0);
-        bool is_classmethod = _PyClassLoader_IsClassMethodDescr(value);
+        int is_classmethod = PyTuple_GET_SIZE(value) == 3 &&
+            (PyTuple_GET_ITEM(value, 2) == Py_True);
 
         Py_ssize_t slot = _PyClassLoader_ResolveMethod(target);
         if (slot == -1) {
+          while (nargs--) {
+            Py_DECREF(POP());
+          }
           goto error;
         }
 
         assert(*(next_instr - 2) == EXTENDED_ARG);
-        if (shadow.shadow != NULL && slot < 0x80) {
-          /* We smuggle in the information about whether the invocation was a
-           * classmethod in the low bit of the oparg. This is necessary, as
-           * without, the runtime won't be able to get the correct vtable from
-           * self when the type is passed in.
-           */
-          _PyShadow_PatchByteCode(
-              &shadow,
-              next_instr,
-              LOAD_METHOD_STATIC_CACHED,
-              load_method_static_cached_oparg(slot, is_classmethod));
+        if (shadow.shadow != NULL && nargs < 0x80) {
+          PyMethodDescrObject* method;
+          if ((method = _PyClassLoader_ResolveMethodDef(target)) != NULL) {
+            int offset = _PyShadow_CacheCastType(&shadow, (PyObject*)method);
+            if (offset != -1) {
+              _PyShadow_PatchByteCode(
+                  &shadow,
+                  next_instr,
+                  INVOKE_FUNCTION_CACHED,
+                  (nargs << 8) | offset);
+            }
+          } else {
+            /* We smuggle in the information about whether the invocation was a
+             * classmethod in the low bit of the oparg. This is necessary, as
+             * without, the runtime won't be able to get the correct vtable from
+             * self when the type is passed in.
+             */
+            _PyShadow_PatchByteCode(
+                &shadow,
+                next_instr,
+                INVOKE_METHOD_CACHED,
+                (slot << 9) | (nargs << 1) | (is_classmethod ? 1 : 0));
+          }
         }
 
-        PyObject* self = POP();
+        PyObject** stack = stack_pointer - nargs;
+        PyObject* self = *stack;
 
         _PyType_VTable* vtable;
         if (is_classmethod) {
@@ -3492,59 +3498,15 @@ main_loop:
         }
 
         assert(!PyErr_Occurred());
-        StaticMethodInfo res =
-            _PyClassLoader_LoadStaticMethod(vtable, slot, self);
-        PUSH(res.lmr_func);
-        PUSH(self);
-        DISPATCH();
-      }
 
-      case TARGET(LOAD_METHOD_STATIC_CACHED): {
-        bool is_classmethod =
-            load_method_static_cached_oparg_is_classmethod(oparg);
-        PyObject* self = POP();
-
-        PyTypeObject* ty = is_classmethod ? (PyTypeObject*)self : Py_TYPE(self);
-        _PyType_VTable* vtable = (_PyType_VTable*)ty->tp_cache;
-
-        Py_ssize_t slot = load_method_static_cached_oparg_slot(oparg);
-
-        StaticMethodInfo res =
-            _PyClassLoader_LoadStaticMethod(vtable, slot, self);
-        assert(res.lmr_func != NULL);
-        assert(self != NULL);
-        PUSH(res.lmr_func);
-        PUSH(self);
-        DISPATCH();
-      }
-
-      case TARGET(INVOKE_METHOD): {
-        // This is identical to CALL_FUNCTION_EX in the interpreter except self
-        // isn't included in the oparg count.
-        PyObject* value = GETITEM(consts, oparg);
-        Py_ssize_t nargs = PyLong_AsLong(PyTuple_GET_ITEM(value, 1)) + 1;
-        PyObject **sp, *res;
-        sp = stack_pointer;
         int awaited = IS_AWAITED();
-        res = call_function(
-            tstate,
-            &trace_info,
-            &sp,
-            nargs,
-            NULL,
-            awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
-        stack_pointer = sp;
-        if (res == NULL) {
-          PUSH(NULL);
-          goto error;
-        }
-        if (awaited && Ci_PyWaitHandle_CheckExact(res)) {
-          DISPATCH_EAGER_CORO_RESULT(res, PUSH);
-        }
-        assert(!Ci_PyWaitHandle_CheckExact(res));
-        PUSH(res);
-        CHECK_EVAL_BREAKER();
-        DISPATCH();
+        PyObject* res = _PyClassLoader_InvokeMethod(
+            vtable,
+            slot,
+            stack,
+            nargs | (awaited ? Ci_Py_AWAITED_CALL_MARKER : 0));
+
+        _POST_INVOKE_CLEANUP_PUSH_DISPATCH(nargs, awaited, res);
       }
 
 #define FIELD_OFFSET(self, offset) (PyObject**)(((char*)self) + offset)

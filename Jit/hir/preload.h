@@ -44,7 +44,7 @@ struct InvokeTarget {
   bool container_is_immutable{false};
   // patching indirection, nullptr if container_is_immutable
   PyObject** indirect_ptr{nullptr};
-  // vtable slot number (LOAD_METHOD_STATIC only)
+  // vtable slot number (INVOKE_METHOD only)
   Py_ssize_t slot{-1};
   // is a CI_CO_STATICALLY_COMPILED Python function or METH_TYPED builtin
   bool is_statically_typed{false};

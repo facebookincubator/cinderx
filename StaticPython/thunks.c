@@ -471,6 +471,9 @@ PyObject* _PyClassLoader_StaticMethodThunk_New(
     PyObject* func,
     _PyClassLoader_ThunkSignature* sig,
     vectorcallfunc call) {
+  if (sig == NULL) {
+    return NULL;
+  }
   _PyClassLoader_StaticMethodThunk* thunk = PyObject_GC_New(
       _PyClassLoader_StaticMethodThunk, &_PyClassLoader_StaticMethodThunk_Type);
   if (thunk == NULL) {

@@ -9,21 +9,6 @@
 extern "C" {
 #endif
 
-typedef struct _PyClassLoader_StaticCallReturn {
-  void* rax;
-  void* rdx;
-} _PyClassLoader_StaticCallReturn;
-
-typedef _PyClassLoader_StaticCallReturn (
-    *nativeentrypoint)(PyObject* state, void** args);
-
-typedef struct StaticMethodInfo {
-  PyObject* lmr_func;
-  nativeentrypoint lmr_entry;
-} StaticMethodInfo;
-
-typedef StaticMethodInfo (*loadmethodfunc)(PyObject* state, PyObject* self);
-
 /**
     Represents a V-table entrypoint (see below for what a V-table is).
 */
@@ -31,7 +16,7 @@ typedef struct {
   /* TODO: Would we better off with dynamically allocated stubs which close
    * over the function? */
   PyObject* vte_state;
-  loadmethodfunc vte_load;
+  vectorcallfunc vte_entry;
 } _PyType_VTableEntry;
 
 typedef struct {
@@ -78,11 +63,6 @@ PyObject* _PyClassLoader_InvokeMethod(
     Py_ssize_t slot,
     PyObject** args,
     Py_ssize_t nargsf);
-
-StaticMethodInfo _PyClassLoader_LoadStaticMethod(
-    _PyType_VTable* vtable,
-    Py_ssize_t slot,
-    PyObject* self);
 
 #ifdef __cplusplus
 }

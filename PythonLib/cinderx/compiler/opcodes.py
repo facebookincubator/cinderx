@@ -194,7 +194,7 @@ opcode.stack_effects.update(
     FORMAT_VALUE=lambda oparg, jmp=0: -1 if (oparg & FVS_MASK) == FVS_HAVE_SPEC else 0,
     BUILD_CONST_KEY_MAP=lambda oparg, jmp=0: -oparg,
     BUILD_STRING=lambda oparg, jmp=0: 1 - oparg,
-    INVOKE_METHOD=lambda oparg, jmp: -(oparg[1] + 1),
+    INVOKE_METHOD=lambda oparg, jmp: -oparg - 1,
     LOAD_METHOD=1,
     CALL_METHOD=lambda oparg, jmp: -oparg - 1,
     LIST_EXTEND=-1,
@@ -273,6 +273,7 @@ if sys.version_info >= (3, 12):
         MATCH_KEYS=1,
         MATCH_CLASS=-2,
         EAGER_IMPORT_NAME=-1,
+        INVOKE_METHOD=lambda oparg, jmp: -oparg[1],
         LOAD_FIELD=0,
         STORE_FIELD=-2,
         CAST=0,
@@ -304,7 +305,6 @@ if sys.version_info >= (3, 12):
         TP_ALLOC=1,
         BUILD_CHECKED_LIST=lambda oparg, jmp: 1 - oparg[1],
         LOAD_TYPE=0,
-        LOAD_METHOD_STATIC=1,
     )
 
     from opcode import (

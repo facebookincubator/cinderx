@@ -12,7 +12,6 @@ from _opcode import stack_effect
 MISSING_STACK_EFFECT = {
     "LOAD_FIELD",
     "STORE_FIELD",
-    "LOAD_METHOD_STATIC",
     "INVOKE_METHOD",
     "BUILD_CHECKED_LIST",
     "CAST",

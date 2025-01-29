@@ -181,7 +181,6 @@ const std::unordered_set<int> kSupportedOpcodes = {
     LOAD_ITERABLE_ARG,
     LOAD_LOCAL,
     LOAD_METHOD,
-    LOAD_METHOD_STATIC,
     LOAD_METHOD_SUPER,
     LOAD_SUPER_ATTR,
     LOAD_TYPE,
@@ -875,10 +874,6 @@ void HIRBuilder::translate(
         }
         case LOAD_METHOD: {
           emitLoadMethod(tc, bc_instr.oparg());
-          break;
-        }
-        case LOAD_METHOD_STATIC: {
-          emitLoadMethodStatic(tc, bc_instr);
           break;
         }
         case LOAD_METHOD_SUPER: {
@@ -2251,14 +2246,18 @@ void HIRBuilder::emitInvokeMethodVectorCall(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
     bool is_awaited,
+    Register* func_obj,
     std::vector<Register*>& arg_regs,
     const InvokeTarget& target) {
   Register* out = temps_.AllocateStack();
 
   auto vectorCall = tc.emit<VectorCall>(
-      arg_regs.size(), out, is_awaited ? CallFlags::Awaited : CallFlags::None);
+      arg_regs.size() + 1,
+      out,
+      is_awaited ? CallFlags::Awaited : CallFlags::None);
+  vectorCall->SetOperand(0, func_obj);
   for (auto i = 0; i < arg_regs.size(); i++) {
-    vectorCall->SetOperand(i, arg_regs.at(i));
+    vectorCall->SetOperand(i + 1, arg_regs.at(i));
   }
   vectorCall->setFrameState(tc.frame);
 
@@ -2266,16 +2265,26 @@ void HIRBuilder::emitInvokeMethodVectorCall(
   tc.frame.stack.push(out);
 }
 
-void HIRBuilder::emitLoadMethodStatic(
+bool HIRBuilder::emitInvokeMethod(
     TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr) {
+    const jit::BytecodeInstruction& bc_instr,
+    bool is_awaited) {
   BorrowedRef<> arg = constArg(bc_instr);
   BorrowedRef<> descr = PyTuple_GET_ITEM(arg.get(), 0);
-  bool is_classmethod = _PyClassLoader_IsClassMethodDescr(arg.get());
+  long nargs = PyLong_AsLong(PyTuple_GET_ITEM(arg.get(), 1)) + 1;
+  bool is_classmethod = PyTuple_GET_SIZE(arg.get()) == 3 &&
+      (PyTuple_GET_ITEM(arg.get(), 2) == Py_True);
 
   const InvokeTarget& target = preloader_.invokeMethodTarget(descr);
 
-  Register* self = tc.frame.stack.pop();
+  if (target.is_builtin && tryEmitDirectMethodCall(target, tc, nargs)) {
+    return false;
+  }
+
+  std::vector<Register*> arg_regs =
+      setupStaticArgs(tc, target, nargs, target.is_statically_typed);
+
+  auto self = arg_regs[0];
   auto type = temps_.AllocateStack();
   if (!is_classmethod) {
     tc.emit<LoadField>(
@@ -2289,6 +2298,7 @@ void HIRBuilder::emitLoadMethodStatic(
 
   tc.emit<LoadField>(
       vtable, type, "tp_cache", offsetof(PyTypeObject, tp_cache), TObject);
+
   size_t entry_offset = offsetof(_PyType_VTable, vt_entries) +
       target.slot * sizeof(_PyType_VTableEntry);
 
@@ -2299,69 +2309,29 @@ void HIRBuilder::emitLoadMethodStatic(
       entry_offset + offsetof(_PyType_VTableEntry, vte_state),
       TObject);
 
-  // If this is natively callable then we'll want to get load_func for
-  // the dispatch later. Otherwise we'll just vectorcall to the function.
-  Register* entry_func = temps_.AllocateNonStack();
-  Register* vtable_load = temps_.AllocateNonStack();
-
-  tc.emit<LoadField>(
-      vtable_load,
-      vtable,
-      "vte_load",
-      entry_offset + offsetof(_PyType_VTableEntry, vte_load),
-      TCPtr);
-
-  auto call = tc.emit<CallInd>(
-      3, func_obj, "vte_load", TOptObject, vtable_load, func_obj, self);
-  call->setFrameState(tc.frame);
-
   if (target.is_statically_typed) {
-    // the entry func isn't used by the interpreter and can't be de-opted but
-    // we can have a LOAD_METHOD_STATIC that has another LOAD_METHOD_STATIC
-    // before we get to the invokes.
-    tc.emit<GetSecondOutput>(entry_func, TCPtr, func_obj);
+    Register* out = temps_.AllocateStack();
+    Register* entry = temps_.AllocateNonStack();
 
-    static_method_stack_.push(entry_func);
-  }
+    tc.emit<LoadField>(
+        entry,
+        vtable,
+        "vte_entry",
+        entry_offset + offsetof(_PyType_VTableEntry, vte_entry),
+        TCPtr);
 
-  tc.frame.stack.push(func_obj);
-  tc.frame.stack.push(self);
-}
-
-bool HIRBuilder::emitInvokeMethod(
-    TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    bool is_awaited) {
-  BorrowedRef<> arg = constArg(bc_instr);
-  BorrowedRef<> descr = PyTuple_GET_ITEM(arg.get(), 0);
-  long nargs = PyLong_AsLong(PyTuple_GET_ITEM(arg.get(), 1)) + 2; // thunk, self
-
-  const InvokeTarget& target = preloader_.invokeMethodTarget(descr);
-
-  if (target.is_builtin && tryEmitDirectMethodCall(target, tc, nargs - 1)) {
-    auto res = tc.frame.stack.pop();
-    tc.frame.stack.pop(); // pop the thunk
-    tc.frame.stack.push(res);
-    return false;
-  }
-
-  std::vector<Register*> arg_regs =
-      setupStaticArgs(tc, target, nargs, target.is_statically_typed);
-
-  if (target.is_statically_typed) {
-    Register* out = temps_.AllocateNonStack();
-    auto entry = static_method_stack_.pop();
     auto invoke =
-        tc.emit<CallInd>(nargs + 1, out, "vtable invoke", target.return_type);
+        tc.emit<CallInd>(nargs + 2, out, "vtable invoke", target.return_type);
     invoke->SetOperand(0, entry);
-    for (size_t i = 0; i < arg_regs.size(); i++) {
-      invoke->SetOperand(i + 1, arg_regs[i]);
+    invoke->SetOperand(1, func_obj);
+    for (long i = 0; i < nargs; i++) {
+      invoke->SetOperand(i + 2, arg_regs[i]);
     }
-
     invoke->setFrameState(tc.frame);
     tc.frame.stack.push(out);
   } else {
-    emitInvokeMethodVectorCall(tc, bc_instr, is_awaited, arg_regs, target);
+    emitInvokeMethodVectorCall(
+        tc, bc_instr, is_awaited, func_obj, arg_regs, target);
   }
 
   return true;

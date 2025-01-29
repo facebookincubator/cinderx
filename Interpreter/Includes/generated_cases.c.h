@@ -5735,32 +5735,49 @@
             DISPATCH();
         }
 
-        TARGET(LOAD_METHOD_STATIC) {
-            PyObject *self = stack_pointer[-1];
-            PyObject *func;
+        TARGET(INVOKE_METHOD) {
+            PyObject **args = (stack_pointer - ((invoke_function_args(frame->f_code->co_consts, oparg) + 1)));
+            PyObject *res;
             #line 899 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* value = GETITEM(frame->f_code->co_consts, oparg);
+            Py_ssize_t nargs = invoke_function_args(frame->f_code->co_consts, oparg) + 1;
             PyObject* target = PyTuple_GET_ITEM(value, 0);
-            int is_classmethod = _PyClassLoader_IsClassMethodDescr(value);
+            int is_classmethod = PyTuple_GET_SIZE(value) == 3 &&
+                (PyTuple_GET_ITEM(value, 2) == Py_True);
 
             Py_ssize_t slot = _PyClassLoader_ResolveMethod(target);
-            if (slot == -1) goto pop_1_error;
+            if (slot == -1) {
+                goto error;
+            }
 
-#if ADAPTIVE
+#ifdef ADAPTIVE
             assert(*(next_instr - 2) == EXTENDED_ARG);
-            if (shadow.shadow != NULL && slot < 0x80) {
-                /* We smuggle in the information about whether the invocation was a
-                * classmethod in the low bit of the oparg. This is necessary, as
-                * without, the runtime won't be able to get the correct vtable from
-                * self when the type is passed in.
-                */
-                _PyShadow_PatchByteCode(
-                    &shadow,
-                    next_instr,
-                    LOAD_METHOD_STATIC_CACHED,
-                    load_method_static_cached_oparg(slot, is_classmethod));
+            if (shadow.shadow != NULL && nargs < 0x80) {
+                PyMethodDescrObject* method;
+                if ((method = _PyClassLoader_ResolveMethodDef(target)) != NULL) {
+                    int offset = _PyShadow_CacheCastType(&shadow, (PyObject*)method);
+                    if (offset != -1) {
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        INVOKE_FUNCTION_CACHED,
+                        (nargs << 8) | offset);
+                    }
+                } else {
+                    /* We smuggle in the information about whether the invocation was a
+                    * classmethod in the low bit of the oparg. This is necessary, as
+                    * without, the runtime won't be able to get the correct vtable from
+                    * self when the type is passed in.
+                    */
+                    _PyShadow_PatchByteCode(
+                        &shadow,
+                        next_instr,
+                        INVOKE_METHOD_CACHED,
+                        (slot << 9) | (nargs << 1) | (is_classmethod ? 1 : 0));
+                }
             }
 #endif
+            PyObject* self = *args;
 
             _PyType_VTable* vtable;
             if (is_classmethod) {
@@ -5770,35 +5787,20 @@
             }
 
             assert(!PyErr_Occurred());
-            StaticMethodInfo res =
-                _PyClassLoader_LoadStaticMethod(vtable, slot, self);
 
-            func = res.lmr_func;
-            #line 5777 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-            STACK_GROW(1);
-            stack_pointer[-1] = self;
-            stack_pointer[-2] = func;
-            DISPATCH();
-        }
+            res = _PyClassLoader_InvokeMethod(
+                vtable,
+                slot,
+                args,
+                nargs);
 
-        TARGET(INVOKE_METHOD) {
-            PyObject **args = (stack_pointer - ((invoke_function_args(frame->f_code->co_consts, oparg) + 1)));
-            PyObject *target = stack_pointer[-(1 + (invoke_function_args(frame->f_code->co_consts, oparg) + 1))];
-            PyObject *res;
-            #line 937 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
-            Py_ssize_t nargs = invoke_function_args(frame->f_code->co_consts, oparg) + 1;
-
-            assert(!PyErr_Occurred());
-
-            res = PyObject_Vectorcall(target, args, nargs, NULL);
-
-            if (res == NULL) { STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg) + 1)); goto pop_1_error; }
-            #line 5796 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
-            Py_DECREF(target);
+            if (res == NULL) { STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg) + 1)); goto error; }
+            #line 5798 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = invoke_function_args(frame->f_code->co_consts, oparg) + 1; --_i >= 0;) {
                 Py_DECREF(args[_i]);
             }
             STACK_SHRINK((invoke_function_args(frame->f_code->co_consts, oparg) + 1));
+            STACK_GROW(1);
             stack_pointer[-1] = res;
             DISPATCH();
         }
@@ -5806,7 +5808,7 @@
         TARGET(INVOKE_NATIVE) {
             PyObject **args = (stack_pointer - ((invoke_native_args(frame->f_code->co_consts, oparg))));
             PyObject *res;
-            #line 948 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 959 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* value = GETITEM(frame->f_code->co_consts, oparg);
             assert(PyTuple_CheckExact(value));
             Py_ssize_t nargs = invoke_native_args(frame->f_code->co_consts, oparg);
@@ -5819,7 +5821,7 @@
             res = _PyClassloader_InvokeNativeFunction(
                 name, symbol, signature, args, nargs);
             if (res == NULL) { STACK_SHRINK((invoke_native_args(frame->f_code->co_consts, oparg))); goto error; }
-            #line 5822 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5824 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = invoke_native_args(frame->f_code->co_consts, oparg); --_i >= 0;) {
                 Py_DECREF(args[_i]);
             }
@@ -5832,7 +5834,7 @@
         TARGET(BUILD_CHECKED_LIST) {
             PyObject **list_items = (stack_pointer - ((build_checked_obj_size(frame->f_code->co_consts, oparg))));
             PyObject *list;
-            #line 964 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 975 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* list_info = GETITEM(frame->f_code->co_consts, oparg);
             PyObject* list_type = PyTuple_GET_ITEM(list_info, 0);
             Py_ssize_t list_size = PyLong_AsLong(PyTuple_GET_ITEM(list_info, 1));
@@ -5875,7 +5877,7 @@
             for (Py_ssize_t i = 0; i < list_size; i++) {
                 Ci_ListOrCheckedList_SET_ITEM(list, i, list_items[i]);
             }
-            #line 5878 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5880 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             STACK_SHRINK((build_checked_obj_size(frame->f_code->co_consts, oparg)));
             STACK_GROW(1);
             stack_pointer[-1] = list;
@@ -5885,7 +5887,7 @@
         TARGET(BUILD_CHECKED_MAP) {
             PyObject **map_items = (stack_pointer - ((build_checked_obj_size(frame->f_code->co_consts, oparg) * 2)));
             PyObject *map;
-            #line 1009 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
+            #line 1020 "../../../fbcode/cinderx/Interpreter/cinder-bytecodes.c"
             PyObject* map_info = GETITEM(frame->f_code->co_consts, oparg);
             PyObject* map_type = PyTuple_GET_ITEM(map_info, 0);
             Py_ssize_t map_size = PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));
@@ -5928,7 +5930,7 @@
 
             Ci_BUILD_DICT(map_size, Ci_CheckedDict_SetItem);
             if (map == NULL) { STACK_SHRINK((build_checked_obj_size(frame->f_code->co_consts, oparg) * 2)); goto error; }
-            #line 5931 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
+            #line 5933 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             for (int _i = build_checked_obj_size(frame->f_code->co_consts, oparg) * 2; --_i >= 0;) {
                 Py_DECREF(map_items[_i]);
             }

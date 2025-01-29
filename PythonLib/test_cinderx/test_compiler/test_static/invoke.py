@@ -18,74 +18,12 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "LOAD_METHOD_STATIC", ((("foo", "C"), "f"), ))
         self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
             c = mod.C()
             self.assertEqual(mod.x(c), 1)
             self.assertEqual(mod.x(c), 1)
-
-    def test_invoke_simple_overridable(self):
-        codestr = """
-            class C(Exception):
-                def f(self):
-                    return 1
-
-            def x(c: C):
-                return c.f()
-        """
-
-        code = self.compile(codestr, modname="foo")
-        x = self.find_code(code, "x")
-        self.assertInBytecode(x, "LOAD_METHOD_STATIC", ((("foo", "C"), "f"), ))
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
-
-        with self.in_module(codestr) as mod:
-            c = mod.C()
-            self.assertEqual(mod.x(c), 1)
-            self.assertEqual(mod.x(c), 1)
-
-    def test_invoke_classmethod_simple(self):
-        codestr = """
-            class C:
-                @classmethod
-                def f(cls):
-                    return 1
-
-            def x(c: C):
-                return c.f()
-        """
-
-        code = self.compile(codestr, modname="foo")
-        x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
-
-        with self.in_module(codestr) as mod:
-            c = mod.C()
-            self.assertEqual(mod.x(c), 1)
-            self.assertEqual(mod.x(c), 1)
-
-    def test_invoke_cached_property_simple(self):
-        codestr = """
-            from cinderx import cached_property
-            class C:
-                @cached_property
-                def f(self):
-                    return 42
-
-            def x(c: C):
-                return c.f
-        """
-
-        code = self.compile(codestr, modname="foo")
-        x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (((('foo', 'C'), ('f', 'fget')), 0)))
-
-        with self.in_strict_module(codestr) as mod:
-            c = mod.C()
-            self.assertEqual(mod.x(c), 42)
-            self.assertEqual(mod.x(c), 42)
 
     def test_invoke_simple_load_field(self):
         codestr = """
@@ -468,7 +406,6 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "LOAD_METHOD_STATIC", ((("foo", "C"), "f"), ))
         self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
@@ -698,51 +635,6 @@ class InvokeTests(StaticTestBase):
             c.f = new_f
             self.assertEqual(43, asyncio.run(mod.x(c)))
             self.assertEqual(43, asyncio.run(mod.x(c)))
-
-    def test_override_instance(self):
-        codestr = """
-            class C:
-                def f(self, a: int) -> object:
-                    return a
-
-            def x(c: C):
-                return c.f(42)
-        """
-
-        with self.in_module(codestr) as mod:
-            class D(mod.C):
-                def __init__(self):
-                    self.f = lambda x:43
-
-            d = D()
-            self.assertEqual(43, mod.x(d))
-            self.assertEqual(43, mod.x(d))
-
-    def test_override_instance_mutate_in_args(self):
-        codestr = """
-            class C:
-                def f(self, a: int) -> object:
-                    return a
-
-            def x(c: C, x):
-                return c.f(x())
-        """
-
-        with self.in_module(codestr) as mod:
-            class D(mod.C):
-                def __init__(self):
-                    def f(x):
-                        return 43
-                    self.f = f
-
-            d = D()
-            def mutate():
-                del d.f
-                return 42
-
-            self.assertEqual(43, mod.x(d, mutate))
-            d = D()
-            self.assertEqual(43, mod.x(d, mutate))
 
     def test_async_coroutine_call_with_cls(self):
         codestr = """

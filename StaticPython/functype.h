@@ -9,8 +9,6 @@
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
-#include <stdbool.h>
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -78,11 +76,6 @@ PyObject* _PyClassLoader_GetFunctionName(PyObject* name);
 #define Ci_FUNC_FLAGS_COROUTINE 0x01
 #define Ci_FUNC_FLAGS_CLASSMETHOD 0x02
 #define Ci_FUNC_FLAGS_STATICMETHOD 0x04
-
-static inline bool _PyClassLoader_IsClassMethodDescr(PyObject* descr) {
-  return PyTuple_GET_SIZE(descr) == 2 &&
-      (PyTuple_GET_ITEM(descr, 1) == Py_True);
-}
 
 PyObject* _PyClassLoader_MaybeUnwrapCallable(PyObject* func);
 

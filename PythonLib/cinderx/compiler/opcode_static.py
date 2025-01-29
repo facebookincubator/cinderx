@@ -64,8 +64,7 @@ def _load_mapping_arg_effect(oparg: int, _jmp: int = 0) -> int:
 
 
 opcode.stack_effects.update(
-    INVOKE_METHOD=lambda oparg, jmp: -(oparg[1] + 1),
-    LOAD_METHOD_STATIC=1,
+    INVOKE_METHOD=lambda oparg, jmp: -oparg[1],
     LOAD_FIELD=0,
     STORE_FIELD=-2,
     CAST=0,

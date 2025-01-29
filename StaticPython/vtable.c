@@ -78,11 +78,3 @@ PyObject* _PyClassLoader_InvokeMethod(
   PyObject* state = vtable->vt_entries[slot].vte_state;
   return PyObject_Vectorcall(state, args, nargsf, NULL);
 }
-
-StaticMethodInfo _PyClassLoader_LoadStaticMethod(
-    _PyType_VTable* vtable,
-    Py_ssize_t slot,
-    PyObject* self) {
-  loadmethodfunc func = vtable->vt_entries[slot].vte_load;
-  return func(vtable->vt_entries[slot].vte_state, self);
-}
