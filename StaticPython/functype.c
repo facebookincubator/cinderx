@@ -164,6 +164,16 @@ PyObject* _PyClassLoader_ResolveReturnType(
     if (_PyClassLoader_IsStaticFunction(fget)) {
       res = resolve_function_rettype(fget, optional, exact, func_flags);
     }
+  } else if (Py_TYPE(func) == &_PyType_CachedPropertyThunk) {
+    PyObject* target = _Py_CachedPropertyThunk_GetFunc(func);
+    if (_PyClassLoader_IsStaticFunction(target)) {
+      res = resolve_function_rettype(target, optional, exact, func_flags);
+    }
+  } else if (Py_TYPE(func) == &_PyType_AsyncCachedPropertyThunk) {
+    PyObject* target = _Py_AsyncCachedPropertyThunk_GetFunc(func);
+    if (_PyClassLoader_IsStaticFunction(target)) {
+      res = resolve_function_rettype(target, optional, exact, func_flags);
+    }
   } else if (Py_TYPE(func) == &PyCachedPropertyWithDescr_Type) {
     PyCachedPropertyDescrObject* property = (PyCachedPropertyDescrObject*)func;
     if (_PyClassLoader_IsStaticFunction(property->func)) {
@@ -177,8 +187,9 @@ PyObject* _PyClassLoader_ResolveReturnType(
       res =
           resolve_function_rettype(property->func, optional, exact, func_flags);
     }
-  } else if (Py_TYPE(func) == &_PyType_PropertyThunk) {
-    switch (_PyClassLoader_PropertyThunk_Kind(func)) {
+  } else if (Py_TYPE(func) == &_PyType_TypedDescriptorThunk) {
+    _Py_TypedDescriptorThunk* thunk = (_Py_TypedDescriptorThunk*)func;
+    switch (thunk->type) {
       case THUNK_SETTER:
       case THUNK_DELETER: {
         res = &_PyNone_Type;
@@ -186,9 +197,22 @@ PyObject* _PyClassLoader_ResolveReturnType(
         break;
       }
       case THUNK_GETTER: {
-        PyObject* getter = _PyClassLoader_PropertyThunk_GetProperty(func);
-        res = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
-            getter, optional, exact, func_flags);
+        _PyTypedDescriptorWithDefaultValue* td =
+            (_PyTypedDescriptorWithDefaultValue*)
+                thunk->typed_descriptor_thunk_target;
+        if (PyTuple_CheckExact(td->td_type)) {
+          res = _PyClassLoader_ResolveType(
+              td->td_type, &td->td_optional, &td->td_exact);
+          *optional = td->td_optional;
+          *exact = td->td_exact;
+        } else { // Already resolved.
+          assert(PyType_CheckExact(td->td_type));
+          res = (PyTypeObject*)td->td_type;
+          *optional = td->td_optional;
+        }
+        if (res == NULL) {
+          return NULL;
+        }
         break;
       }
     }

@@ -150,14 +150,16 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignature(
     // INVOKE_METHOD.
     return _PyClassLoader_GetThunkSignatureFromFunction(original, 1);
   } else if (
+      Py_TYPE(original) == &_PyType_CachedPropertyThunk ||
       Py_TYPE(original) == &_PyTypedDescriptorWithDefaultValue_Type ||
+      Py_TYPE(original) == &_PyType_AsyncCachedPropertyThunk ||
       Py_TYPE(original) == &PyCachedPropertyWithDescr_Type ||
       Py_TYPE(original) == &PyAsyncCachedPropertyWithDescr_Type ||
       Py_TYPE(original) == &PyProperty_Type) {
     return &simple_sigs[1];
-  } else if (Py_TYPE(original) == &_PyType_PropertyThunk) {
+  } else if (Py_TYPE(original) == &_PyType_TypedDescriptorThunk) {
     // TODO: Test setter case?
-    if (_PyClassLoader_PropertyThunk_Kind(original) == THUNK_SETTER) {
+    if (((_Py_TypedDescriptorThunk*)original)->type == THUNK_SETTER) {
       return &simple_sigs[2];
     } else {
       return &simple_sigs[1];
