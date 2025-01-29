@@ -335,10 +335,20 @@ static int _PyVTable_setslot(
       } else if (
           Py_TYPE(value) == &PyStaticMethod_Type &&
           _PyClassLoader_IsStaticFunction(Ci_PyStaticMethod_GetFunc(value))) {
-        Py_XSETREF(vtable->vt_entries[slot].vte_state, value);
+        // Because static methods shed their first argument they're hard to
+        // deal with in LOAD_METHOD/CALL_METHOD as there's no way to indicate
+        // the self param should be dropped. So we use a thunk for them
+        // which will shed the first argument for us.
+        PyObject* thunk = _PyClassLoader_StaticMethodThunk_New(
+            Ci_PyStaticMethod_GetFunc(value),
+            _PyClassLoader_GetThunkSignature(value),
+            (vectorcallfunc)_PyVTable_staticmethod_vectorcall);
+        if (thunk == NULL) {
+          return -1;
+        }
+        Py_XSETREF(vtable->vt_entries[slot].vte_state, thunk);
         vtable->vt_entries[slot].vte_entry =
-            (vectorcallfunc)&_PyVTable_staticmethod_dont_bolt;
-        Py_INCREF(value);
+            (vectorcallfunc)&_PyVTable_thunk_dont_bolt;
         return 0;
       } else if (
           Py_TYPE(value) == &PyClassMethod_Type &&
