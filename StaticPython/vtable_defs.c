@@ -406,11 +406,6 @@ done:
       coro, eager, (PyObject*)state, _PyClassLoader_CheckReturnCallback, NULL);
 }
 
-__attribute__((__used__)) PyObject* _PyVTable_classmethod_vectorcall(
-    PyObject* state,
-    PyObject* const* args,
-    Py_ssize_t nargsf);
-
 static bool try_call_instance_coroutine(
     _PyClassLoader_TypeCheckThunk* state,
     PyObject* const* args,
@@ -439,46 +434,21 @@ PyObject* _PyVTable_coroutine_classmethod_vectorcall(
     _PyClassLoader_TypeCheckThunk* state,
     PyObject* const* args,
     size_t nargsf) {
-  PyObject* callable = PyTuple_GET_ITEM(state->tcs_value, 0);
+  _PyClassLoader_ClassMethodThunk* inner_thunk =
+      (_PyClassLoader_ClassMethodThunk*)state->tcs_value;
+  assert(Py_TYPE(inner_thunk->cmt_classmethod) == &PyClassMethod_Type);
   PyObject* coro;
-#if PY_VERSION_HEX < 0x030C0000
-  Py_ssize_t awaited = nargsf & Ci_Py_AWAITED_CALL_MARKER;
-#else
-  Py_ssize_t awaited = 0;
-#endif
 
   PyObject* res = NULL;
-  PyTypeObject* decltype = (PyTypeObject*)PyTuple_GET_ITEM(state->tcs_value, 1);
+  PyTypeObject* decltype = inner_thunk->cmt_decl_type;
   if (PyObject_TypeCheck(args[0], decltype) &&
       try_call_instance_coroutine(state, args, nargsf, &res)) {
     return res;
   }
 
-  if (Py_TYPE(callable) == &PyClassMethod_Type) {
-    // We need to do some special set up for class methods when invoking.
-    coro = _PyVTable_classmethod_vectorcall(state->tcs_value, args, nargsf);
-  } else if (Py_TYPE(callable)->tp_descr_get != NULL) {
-    PyObject* self = args[0];
-    PyObject* get = Py_TYPE(callable)->tp_descr_get(
-        callable, self, (PyObject*)Py_TYPE(self));
-    if (get == NULL) {
-      return NULL;
-    }
-
-    Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-
-    coro = _PyObject_Vectorcall(get, args + 1, (nargs - 1), NULL);
-    Py_DECREF(get);
-  } else {
-    // In this case, we have a patched class method, and the self has been
-    // handled via descriptors already.
-    coro = _PyObject_Vectorcall(
-        callable,
-        args + 1,
-        (PyVectorcall_NARGS(nargsf) - 1) | PY_VECTORCALL_ARGUMENTS_OFFSET |
-            awaited,
-        NULL);
-  }
+  // We need to do some special set up for class methods when invoking.
+  coro =
+      inner_thunk->cmt_base.mt_call((PyObject*)inner_thunk, args, nargsf, NULL);
 
   if (coro == NULL) {
     return NULL;
@@ -490,7 +460,7 @@ PyObject* _PyVTable_coroutine_classmethod_vectorcall(
     Ci_PyWaitHandleObject* handle = (Ci_PyWaitHandleObject*)coro;
     if (handle->wh_waiter == NULL) {
       if (_PyClassLoader_CheckReturnType(
-              Py_TYPE(callable),
+              Py_TYPE(inner_thunk->cmt_classmethod),
               handle->wh_coro_or_result,
               (_PyClassLoader_RetTypeInfo*)state)) {
         return coro;
@@ -728,13 +698,15 @@ PyObject* _PyVTable_staticmethod_vectorcall(
   return _PyObject_Vectorcall(func, ((PyObject**)args) + 1, nargsf - 1, NULL);
 }
 
-__attribute__((__used__)) PyObject* _PyVTable_classmethod_vectorcall(
-    PyObject* state,
+PyObject* _PyVTable_classmethod_vectorcall(
+    _PyClassLoader_ClassMethodThunk* state,
     PyObject* const* args,
-    Py_ssize_t nargsf) {
-  PyObject* classmethod = PyTuple_GET_ITEM(state, 0);
-  PyTypeObject* decltype = (PyTypeObject*)PyTuple_GET_ITEM(state, 1);
+    size_t nargsf) {
+  PyObject* classmethod = state->cmt_classmethod;
+  assert(Py_TYPE(classmethod) == &PyClassMethod_Type);
   PyObject* func = Ci_PyClassMethod_GetFunc(classmethod);
+
+  PyTypeObject* decltype = state->cmt_decl_type;
   if (!PyObject_TypeCheck(args[0], decltype)) {
     return _PyObject_Vectorcall(func, args, nargsf, NULL);
   }
@@ -748,51 +720,20 @@ __attribute__((__used__)) PyObject* _PyVTable_classmethod_vectorcall(
   return _PyObject_Vectorcall(func, stack, nargsf, NULL);
 }
 
-__attribute__((__used__)) _PyClassLoader_StaticCallReturn
-_PyVTable_classmethod_native(PyObject* state, void** args) {
-  PyObject* classmethod = PyTuple_GET_ITEM(state, 0);
-  PyTypeObject* decltype = (PyTypeObject*)PyTuple_GET_ITEM(state, 1);
-  PyObject* func = Ci_PyClassMethod_GetFunc(classmethod);
-  PyCodeObject* code = (PyCodeObject*)((PyFunctionObject*)func)->func_code;
-  Py_ssize_t arg_count = code->co_argcount;
-  PyObject* call_args[arg_count];
-  PyObject* free_args[arg_count];
-
-  if (_PyClassLoader_HydrateArgs(code, arg_count, args, call_args, free_args) <
-      0) {
-    return StaticError;
-  }
-  if (PyObject_TypeCheck(call_args[0], decltype)) {
-    call_args[0] = (PyObject*)Py_TYPE(call_args[0]);
-  }
-
-  PyObject* res =
-      ((PyFunctionObject*)func)->vectorcall(func, call_args, arg_count, NULL);
-  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
-
-  int optional, exact, func_flags;
-  PyTypeObject* type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
-      func, &optional, &exact, &func_flags);
-  return return_to_native(res, type);
-}
-
-VTABLE_THUNK(_PyVTable_classmethod, PyObject)
-
 PyObject* _PyVTable_classmethod_overridable_vectorcall(
     _PyClassLoader_TypeCheckThunk* state,
     PyObject** args,
     size_t nargsf) {
-  PyObject* clsmethod = PyTuple_GET_ITEM(state->tcs_value, 0);
-  if (_PyClassMethod_Check(clsmethod)) {
-    return _PyVTable_classmethod_vectorcall(state->tcs_value, args, nargsf);
-  }
   // Invoked via an instance, we need to check its dict to see if the
   // classmethod was overridden.
   PyObject* self = args[0];
   PyObject** dictptr = _PyObject_GetDictPtr(self);
   PyObject* dict = dictptr != NULL ? *dictptr : NULL;
   PyObject* res;
-  if (dict != NULL) {
+  _PyClassLoader_ClassMethodThunk* inner_thunk =
+      (_PyClassLoader_ClassMethodThunk*)state->tcs_value;
+
+  if (dict != NULL && PyObject_TypeCheck(args[0], inner_thunk->cmt_decl_type)) {
     /* ideally types using INVOKE_METHOD are defined w/o out dictionaries,
      * which allows us to avoid this lookup.  If they're not then we'll
      * fallback to supporting looking in the dictionary */
@@ -810,7 +751,10 @@ PyObject* _PyVTable_classmethod_overridable_vectorcall(
     }
   }
 
-  return _PyObject_Vectorcall(clsmethod, args, nargsf, NULL);
+  return _PyClassLoader_CheckReturnType(
+      Py_TYPE(self),
+      inner_thunk->cmt_base.mt_call((PyObject*)inner_thunk, args, nargsf, NULL),
+      (_PyClassLoader_RetTypeInfo*)state);
 }
 
 PyObject* _PyVTable_func_missing_vectorcall(
