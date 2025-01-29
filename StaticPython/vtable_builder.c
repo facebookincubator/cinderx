@@ -198,18 +198,16 @@ static int _PyVTable_setslot_typecheck(
   vtable->vt_entries[slot].vte_entry =
       (vectorcallfunc)_PyVTable_thunk_dont_bolt;
   if (func_flags & Ci_FUNC_FLAGS_COROUTINE) {
-    if (Py_TYPE(value) == &PyClassMethod_Type) {
-      PyObject* thunk = _PyClassLoader_ClassMethodThunk_New(
-          value,
-          NULL,
-          decltype,
-          (vectorcallfunc)_PyVTable_classmethod_vectorcall);
-      if (thunk == NULL) {
+    if (func_flags & Ci_FUNC_FLAGS_CLASSMETHOD) {
+      PyObject* tuple = PyTuple_New(2);
+      if (tuple == NULL) {
         Py_DECREF(state);
         return -1;
       }
-
-      state->tcs_value = thunk;
+      PyTuple_SET_ITEM(tuple, 0, value);
+      PyTuple_SET_ITEM(tuple, 1, (PyObject*)decltype);
+      Py_INCREF(decltype);
+      state->tcs_value = tuple;
       state->tcs_rt.rt_base.mt_call =
           (vectorcallfunc)_PyVTable_coroutine_classmethod_vectorcall;
     } else if (
@@ -229,17 +227,16 @@ static int _PyVTable_setslot_typecheck(
   } else if (PyFunction_Check(value)) {
     state->tcs_rt.rt_base.mt_call =
         (vectorcallfunc)_PyVTable_func_overridable_vectorcall;
-  } else if (Py_TYPE(value) == &PyClassMethod_Type) {
-    PyObject* thunk = _PyClassLoader_ClassMethodThunk_New(
-        value,
-        NULL,
-        decltype,
-        (vectorcallfunc)_PyVTable_classmethod_vectorcall);
-    if (thunk == NULL) {
+  } else if (func_flags & Ci_FUNC_FLAGS_CLASSMETHOD) {
+    PyObject* tuple = PyTuple_New(2);
+    if (tuple == NULL) {
       Py_DECREF(state);
       return -1;
     }
-    state->tcs_value = thunk;
+    PyTuple_SET_ITEM(tuple, 0, value);
+    PyTuple_SET_ITEM(tuple, 1, (PyObject*)decltype);
+    Py_INCREF(decltype);
+    state->tcs_value = tuple;
     state->tcs_rt.rt_base.mt_call =
         (vectorcallfunc)_PyVTable_classmethod_overridable_vectorcall;
   } else {
@@ -356,17 +353,17 @@ static int _PyVTable_setslot(
       } else if (
           Py_TYPE(value) == &PyClassMethod_Type &&
           _PyClassLoader_IsStaticFunction(Ci_PyClassMethod_GetFunc(value))) {
-        PyObject* thunk = _PyClassLoader_ClassMethodThunk_New(
-            value,
-            _PyClassLoader_GetThunkSignature(original),
-            tp,
-            (vectorcallfunc)_PyVTable_classmethod_vectorcall);
-        if (thunk == NULL) {
+        PyObject* tuple = PyTuple_New(2);
+        if (tuple == NULL) {
           return -1;
         }
-        Py_XSETREF(vtable->vt_entries[slot].vte_state, thunk);
+        PyTuple_SET_ITEM(tuple, 0, value);
+        PyTuple_SET_ITEM(tuple, 1, (PyObject*)tp);
+        Py_INCREF(tp);
+        Py_XSETREF(vtable->vt_entries[slot].vte_state, tuple);
         vtable->vt_entries[slot].vte_entry =
-            (vectorcallfunc)_PyVTable_thunk_dont_bolt;
+            (vectorcallfunc)_PyVTable_classmethod_dont_bolt;
+        Py_INCREF(value);
         return 0;
       } else if (Py_TYPE(value) == &PyMethodDescr_Type) {
         Py_XSETREF(vtable->vt_entries[slot].vte_state, value);
