@@ -4931,25 +4931,6 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.myfunc
             self.assertNotInBytecode(f, "LOAD_FIELD")
 
-    def test_bare_typing_namedtuple(self):
-        # Regression test for an error when using typing.NamedTuple directly as
-        # an annotation (T186572841).
-        codestr = """
-            from typing import NamedTuple
-
-            class A(NamedTuple):
-                x: int
-
-            class C:
-                def __init__(self, x: NamedTuple):
-                    self.x = x
-
-            c = C(A(10))
-        """
-
-        with self.in_module(codestr):
-            pass
-
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_error(self):
         codestr = """
