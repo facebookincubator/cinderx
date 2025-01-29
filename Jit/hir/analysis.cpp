@@ -89,6 +89,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kIntBinaryOp:
     case Opcode::kIntConvert:
     case Opcode::kInvokeIterNext:
+    case Opcode::kInvokeMethod:
     case Opcode::kInvokeMethodStatic:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:

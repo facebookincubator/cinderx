@@ -126,6 +126,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kImportName:
     case Opcode::kInPlaceOp:
     case Opcode::kInvokeIterNext:
+    case Opcode::kInvokeMethod:
     case Opcode::kInvokeMethodStatic:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:
@@ -448,6 +449,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kInitialYield:
     case Opcode::kInPlaceOp:
     case Opcode::kInvokeIterNext:
+    case Opcode::kInvokeMethod:
     case Opcode::kInvokeMethodStatic:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:

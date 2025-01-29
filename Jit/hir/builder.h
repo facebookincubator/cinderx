@@ -273,13 +273,6 @@ class HIRBuilder {
   void emitForIter(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  void emitInvokeMethodVectorCall(
-      TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr,
-      bool is_awaited,
-      bool is_classmethod,
-      const InvokeTarget& target,
-      long nargs);
   bool emitInvokeMethod(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,

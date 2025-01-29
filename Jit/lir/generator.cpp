@@ -1974,6 +1974,33 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
 
+      case Opcode::kInvokeMethod: {
+        auto& hir_instr = static_cast<const InvokeMethod&>(i);
+#if PY_VERSION_HEX < 0x030C0000
+        size_t flags = hir_instr.isAwaited() ? Ci_Py_AWAITED_CALL_MARKER : 0;
+#else
+        UPGRADE_ASSERT(AWAITED_FLAG);
+        size_t flags = 0;
+#endif
+        auto func = hir_instr.isClassmethod()
+            ? reinterpret_cast<uint64_t>(JITRT_InvokeClassMethod)
+            : reinterpret_cast<uint64_t>(JITRT_InvokeMethod);
+        Instruction* instr = bbb.appendInstr(
+            hir_instr.output(),
+            Instruction::kVectorCall,
+            // TODO(T140174965): This should be MemImm.
+            Imm{func},
+            Imm{flags},
+            Imm{static_cast<uint64_t>(hir_instr.slot())});
+        for (hir::Register* arg : hir_instr.GetOperands()) {
+          instr->addOperands(VReg{bbb.getDefInstr(arg)});
+        }
+        // kwnames
+        // TODO(T140174965): This should be MemImm.
+        instr->addOperands(Imm{0});
+        break;
+      }
+
       case Opcode::kInvokeMethodStatic: {
         auto& hir_instr = static_cast<const InvokeMethodStatic&>(i);
         auto slot = hir_instr.slot();

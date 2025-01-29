@@ -2242,54 +2242,6 @@ bool HIRBuilder::emitInvokeNative(
   return false;
 }
 
-void HIRBuilder::emitInvokeMethodVectorCall(
-    TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    bool is_awaited,
-    bool is_classmethod,
-    const InvokeTarget& target,
-    long nargs) {
-  Register* out = temps_.AllocateStack();
-  std::vector<Register*> arg_regs =
-      setupStaticArgs(tc, target, nargs, target.is_statically_typed);
-
-  auto self = arg_regs[0];
-  auto type = temps_.AllocateStack();
-  if (!is_classmethod) {
-    tc.emit<LoadField>(
-        type, self, "ob_type", offsetof(PyObject, ob_type), TType);
-  } else {
-    type = self;
-  }
-
-  Register* vtable = temps_.AllocateNonStack();
-  Register* func_obj = temps_.AllocateNonStack();
-
-  tc.emit<LoadField>(
-      vtable, type, "tp_cache", offsetof(PyTypeObject, tp_cache), TObject);
-
-  size_t entry_offset = offsetof(_PyType_VTable, vt_entries) +
-      target.slot * sizeof(_PyType_VTableEntry);
-
-  tc.emit<LoadField>(
-      func_obj,
-      vtable,
-      "vte_state",
-      entry_offset + offsetof(_PyType_VTableEntry, vte_state),
-      TObject);
-
-  auto vectorCall = tc.emit<VectorCall>(
-      nargs + 1, out, is_awaited ? CallFlags::Awaited : CallFlags::None);
-  vectorCall->SetOperand(0, func_obj);
-  for (long i = 0; i < nargs; i++) {
-    vectorCall->SetOperand(i + 1, arg_regs.at(i));
-  }
-  vectorCall->setFrameState(tc.frame);
-
-  fixStaticReturn(tc, out, target.return_type);
-  tc.frame.stack.push(out);
-}
-
 bool HIRBuilder::emitInvokeMethod(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
@@ -2306,18 +2258,35 @@ bool HIRBuilder::emitInvokeMethod(
     return false;
   }
 
+  std::vector<Register*> arg_regs =
+      setupStaticArgs(tc, target, nargs, target.is_statically_typed);
+
+  Register* out = temps_.AllocateStack();
+  Instr* call;
   if (target.is_statically_typed) {
-    tc.emitVariadic<InvokeMethodStatic>(
-        temps_,
+    auto invoke = tc.emit<InvokeMethodStatic>(
         nargs,
+        out,
         target.slot,
         target.return_type,
         is_awaited,
         is_classmethod);
+    invoke->setFrameState(tc.frame);
+    call = invoke;
   } else {
-    emitInvokeMethodVectorCall(
-        tc, bc_instr, is_awaited, is_classmethod, target, nargs);
+    auto invoke = tc.emit<InvokeMethod>(
+        nargs, out, target.slot, is_awaited, is_classmethod);
+    invoke->setFrameState(tc.frame);
+    call = invoke;
   }
+  for (auto i = 0; i < nargs; i++) {
+    call->SetOperand(i, arg_regs.at(i));
+  }
+
+  if (!target.is_statically_typed) {
+    fixStaticReturn(tc, out, target.return_type);
+  }
+  tc.frame.stack.push(out);
 
   return true;
 }
