@@ -9,8 +9,7 @@
 
 #include <stddef.h>
 
-static PyObject*
-thunk_call(_Py_StaticThunk* thunk, PyObject* args, PyObject* kwds) {
+static PyObject* thunk_call(PyObject* thunk, PyObject* args, PyObject* kwds) {
   PyErr_SetString(PyExc_RuntimeError, "thunk_call shouldn't be invokable");
   return NULL;
 }
@@ -207,9 +206,6 @@ PyTypeObject _PyType_StaticThunk = {
     .tp_vectorcall_offset = offsetof(_Py_StaticThunk, thunk_vectorcall),
     .tp_call = (ternaryfunc)thunk_call,
 };
-
-static PyObject*
-thunk_call(_Py_StaticThunk* thunk, PyObject* args, PyObject* kwds);
 
 static int
 propthunktraverse(_Py_PropertyThunk* op, visitproc visit, void* arg) {
@@ -519,4 +515,83 @@ void _PyClassLoader_UpdateThunk(
   } else {
     thunk->thunk_funcref = funcref;
   }
+}
+
+static int rettype_check_clear(_PyClassLoader_RetTypeInfo* op) {
+  Py_CLEAR(op->rt_expected);
+  Py_CLEAR(op->rt_name);
+  return 0;
+}
+
+static int rettype_check_traverse(
+    _PyClassLoader_RetTypeInfo* op,
+    visitproc visit,
+    void* arg) {
+  Py_VISIT(op->rt_expected);
+  return 0;
+}
+
+static int _PyClassLoader_TypeCheckThunk_traverse(
+    _PyClassLoader_TypeCheckThunk* op,
+    visitproc visit,
+    void* arg) {
+  rettype_check_traverse((_PyClassLoader_RetTypeInfo*)op, visit, arg);
+  Py_VISIT(op->tcs_value);
+  return 0;
+}
+
+static int _PyClassLoader_TypeCheckThunk_clear(
+    _PyClassLoader_TypeCheckThunk* op) {
+  rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
+  Py_CLEAR(op->tcs_value);
+  return 0;
+}
+
+static void _PyClassLoader_TypeCheckThunk_dealloc(
+    _PyClassLoader_TypeCheckThunk* op) {
+  PyObject_GC_UnTrack((PyObject*)op);
+  rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
+  Py_XDECREF(op->tcs_value);
+  _PyClassLoader_FreeThunkSignature(op->tcs_rt.rt_base.mt_sig);
+  PyObject_GC_Del((PyObject*)op);
+}
+
+PyTypeObject _PyType_TypeCheckThunk = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable_state_obj",
+    sizeof(_PyClassLoader_TypeCheckThunk),
+    .tp_base = &_PyType_MethodThunk,
+    .tp_dealloc = (destructor)_PyClassLoader_TypeCheckThunk_dealloc,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
+        _Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_traverse = (traverseproc)_PyClassLoader_TypeCheckThunk_traverse,
+    .tp_clear = (inquiry)_PyClassLoader_TypeCheckThunk_clear,
+    .tp_vectorcall_offset = offsetof(_PyClassLoader_MethodThunk, mt_call),
+    .tp_call = thunk_call,
+    .tp_free = PyObject_GC_Del,
+};
+
+PyObject* _PyClassLoader_TypeCheckThunk_New(
+    PyObject* value,
+    PyObject* name,
+    PyTypeObject* ret_type,
+    int optional,
+    int exact,
+    _PyClassLoader_ThunkSignature* sig) {
+  _PyClassLoader_TypeCheckThunk* thunk =
+      PyObject_GC_New(_PyClassLoader_TypeCheckThunk, &_PyType_TypeCheckThunk);
+  if (thunk == NULL) {
+    return NULL;
+  }
+
+  thunk->tcs_value = value;
+  Py_INCREF(value);
+  thunk->tcs_rt.rt_name = name;
+  Py_INCREF(name);
+  thunk->tcs_rt.rt_expected = (PyTypeObject*)ret_type;
+  Py_INCREF(ret_type);
+  thunk->tcs_rt.rt_optional = optional;
+  thunk->tcs_rt.rt_exact = exact;
+  thunk->tcs_rt.rt_base.mt_sig = sig;
+  thunk->tcs_rt.rt_base.mt_call = NULL;
+  return (PyObject*)thunk;
 }

@@ -452,7 +452,7 @@ PyObject* _PyClassLoader_MaybeUnwrapCallable(PyObject* func) {
 }
 
 static PyObject* check_coro_return(
-    _PyClassLoader_TypeCheckState* state,
+    _PyClassLoader_TypeCheckThunk* state,
     PyObject* callable,
     PyObject* coro) {
   if (coro == NULL) {
@@ -483,7 +483,7 @@ static PyObject* check_coro_return(
 }
 
 PyObject* _PyClassLoader_CallCoroutineOverridden(
-    _PyClassLoader_TypeCheckState* state,
+    _PyClassLoader_TypeCheckThunk* state,
     PyObject* func,
     PyObject* const* args,
     size_t nargsf) {
@@ -493,7 +493,7 @@ PyObject* _PyClassLoader_CallCoroutineOverridden(
 }
 
 PyObject* _PyClassLoader_CallCoroutine(
-    _PyClassLoader_TypeCheckState* state,
+    _PyClassLoader_TypeCheckThunk* state,
     PyObject* const* args,
     size_t nargsf) {
   PyObject* coro;
