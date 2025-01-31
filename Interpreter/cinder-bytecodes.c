@@ -255,14 +255,16 @@ dummy_func(
             PyObject *dict = PEEK(oparg + 2);  // key, value are still on the stack
             assert(PyDict_CheckExact(dict) || Ci_CheckedDict_Check(dict));
             /* dict[key] = value */
-            ERROR_IF(Ci_DictOrChecked_SetItem(dict, key, value) != 0, error);
+            int set = Ci_DictOrChecked_SetItem(dict, key, value);
             DECREF_INPUTS();
+            ERROR_IF(set != 0, error);
             PREDICT(JUMP_BACKWARD);
         }
 
         override inst(LIST_APPEND, (list, unused[oparg-1], v -- list, unused[oparg-1])) {
-            ERROR_IF(Ci_ListOrCheckedList_Append((PyListObject*)list, v) < 0, error);
+            int append = Ci_ListOrCheckedList_Append((PyListObject*)list, v);
             Py_DECREF(v);
+            ERROR_IF(append < 0, error);
             PREDICT(JUMP_BACKWARD);
         }
 
@@ -297,7 +299,9 @@ dummy_func(
                 ERROR_IF(tup == NULL, error);
             }
             element = PyTuple_GetItem(tup, idx);
-            ERROR_IF(!element, error);
+            if (element == NULL) {
+                goto error;
+            }
             Py_INCREF(element);
         }
 
@@ -341,6 +345,7 @@ dummy_func(
             ERROR_IF(type == NULL, error);
 
             inst = type->tp_alloc(type, 0);
+            Py_DECREF(type);
             ERROR_IF(inst == NULL, error);
 
 #ifdef ADAPTIVE
@@ -352,7 +357,6 @@ dummy_func(
                 }
             }
 #endif
-            Py_DECREF(type);
         }
 
         inst(LOAD_LOCAL, (-- value))  {
@@ -644,8 +648,8 @@ dummy_func(
             }
 
             err = PyList_SetSlice(list, idx, idx + 1, NULL);
-            ERROR_IF(err != 0, error);
             DECREF_INPUTS();
+            ERROR_IF(err != 0, error);
         }
 
         inst(FAST_LEN, (collection -- length)) {
@@ -678,8 +682,8 @@ dummy_func(
                 // lists, tuples, arrays are all PyVarObject and use ob_size
                 length = PyLong_FromLong(Py_SIZE(collection));
             }
-            ERROR_IF(length == NULL, error);
             Py_DECREF(collection);
+            ERROR_IF(length == NULL, error);
         }
 
         inst(PRIMITIVE_BOX, (top -- res)) {
@@ -714,8 +718,8 @@ dummy_func(
                     PyErr_SetString(PyExc_RuntimeError, "unknown op");
                     goto error;
             }
-            ERROR_IF(res == NULL, error);
             DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
         }
 
         inst(CONVERT_PRIMITIVE, (val -- res)) {
@@ -734,8 +738,8 @@ dummy_func(
             }
 
             res = PyLong_FromSize_t(ival);
-            ERROR_IF(res == NULL, error);
             DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
         }
 
         inst(PRIMITIVE_BINARY_OP, (l, r -- res)) {
@@ -780,8 +784,8 @@ dummy_func(
                     PyErr_SetString(PyExc_RuntimeError, "unknown op");
                     goto error;
             }
-            ERROR_IF(res == NULL, error);
             DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
         }
 
         inst(PRIMITIVE_COMPARE_OP, (l, r -- res)) {
@@ -861,7 +865,9 @@ dummy_func(
             PyObject* target = PyTuple_GET_ITEM(value, 0);
             PyObject* container;
             PyObject* func = _PyClassLoader_ResolveFunction(target, &container);
-            ERROR_IF(func == NULL, error);
+            if (func == NULL) {
+                goto error;
+            }
 
             res = _PyObject_Vectorcall(func, args, nargs, NULL);
 #ifdef ADAPTIVE
@@ -891,8 +897,8 @@ dummy_func(
 #endif
             Py_DECREF(func);
             Py_DECREF(container);
-            ERROR_IF(res == NULL, error);
             DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
         }
 
         inst(INVOKE_METHOD, (args[invoke_function_args(frame->f_code->co_consts, oparg) + 1] -- res)) {
@@ -951,8 +957,8 @@ dummy_func(
                 args,
                 nargs);
 
-            ERROR_IF(res == NULL, error);
             DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
         }
 
         inst(INVOKE_NATIVE, (args[invoke_native_args(frame->f_code->co_consts, oparg)] -- res)) {
@@ -967,8 +973,8 @@ dummy_func(
 
             res = _PyClassloader_InvokeNativeFunction(
                 name, symbol, signature, args, nargs);
-            ERROR_IF(res == NULL, error);
             DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
         }
 
         inst(BUILD_CHECKED_LIST, (list_items[build_checked_obj_size(frame->f_code->co_consts, oparg)] -- list)) {
@@ -1007,9 +1013,11 @@ dummy_func(
 #endif
 
             list = Ci_CheckedList_New(type, list_size);
-            ERROR_IF(list == NULL, error);
-
             Py_DECREF(type);
+
+            if (list == NULL) {
+                goto error;
+            }
 
             for (Py_ssize_t i = 0; i < list_size; i++) {
                 Ci_ListOrCheckedList_SET_ITEM(list, i, list_items[i]);
@@ -1058,8 +1066,8 @@ dummy_func(
             Py_DECREF(type);
 
             Ci_BUILD_DICT(map_size, Ci_CheckedDict_SetItem);
-            ERROR_IF(map == NULL, error);
             DECREF_INPUTS();
+            ERROR_IF(map == NULL, error);
         }
       // END BYTECODES //
     }
