@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 import ast
 import dis
 import math

@@ -1,3 +1,4 @@
+# pyre-unsafe
 """Debugging output for various internal datatypes."""
 
 from __future__ import annotations

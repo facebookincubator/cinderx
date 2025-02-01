@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-unsafe
+
 # Generated via assign_opcode_numbers.py, do not edit.
 
 # This is an addition to python/3.12/Lib/opcode.py, and is intended to be run

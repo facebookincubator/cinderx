@@ -1,3 +1,4 @@
+# pyre-unsafe
 class Foo:
     def f(self_):
         global __x1
