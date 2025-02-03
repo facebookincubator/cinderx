@@ -66,6 +66,7 @@ from .symbols import (
     Scope,
     SymbolVisitor310,
     SymbolVisitor312,
+    TypeParams,
     TypeParamScope,
 )
 from .unparse import to_expr
@@ -115,6 +116,12 @@ _DEFAULT_MODNAME = sys.intern("<module>")
 
 FuncOrLambda = Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda]
 CompNode = Union[ast.SetComp, ast.DictComp, ast.ListComp]
+if sys.version_info >= (3, 12):
+    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
+    CodeGenTree = Union[FuncOrLambda, CompNode, ast.ClassDef, ast.TypeAlias, TypeParams]
+else:
+    CodeGenTree = Union[FuncOrLambda, CompNode, ast.ClassDef, TypeParams]
+
 
 # A soft limit for stack use, to avoid excessive
 # memory use for large constants, etc.
@@ -281,7 +288,7 @@ class CodeGenerator(ASTVisitor):
     def __init__(
         self,
         parent: CodeGenerator | None,
-        node: AST | tuple[AST, ...],
+        node: AST,
         symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         flags=0,
@@ -2185,7 +2192,7 @@ class CodeGenerator(ASTVisitor):
         self.push_fblock(copy)
         return loop
 
-    def get_node_name(self, node: AST | tuple[AST, ...]) -> str:
+    def get_node_name(self, node: AST) -> str:
         if isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)):
             return node.name
         elif isinstance(node, ast.SetComp):
@@ -2208,6 +2215,11 @@ class CodeGenerator(ASTVisitor):
         elif hasattr(ast, "TypeAlias") and isinstance(node, ast.TypeAlias):
             # pyre-ignore[16]: `_ast.AST` has no attribute `name`
             return node.name.id
+        # pyre-ignore[16]: Module `ast` has no attribute `TypeVar`.
+        elif hasattr(ast, "TypeVar") and isinstance(node, ast.TypeVar):
+            return node.name
+        elif isinstance(node, TypeParams):
+            return f"<params {[self.get_node_name(x) for x in node.params]}>"
 
         raise NotImplementedError("Unknown node type: " + type(node).__name__)
 
@@ -2409,8 +2421,8 @@ class CodeGenerator(ASTVisitor):
 
     def make_child_codegen(
         self,
-        # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
-        tree: FuncOrLambda | CompNode | ast.ClassDef | ast.TypeAlias,
+        # pyre-ignore[11]: Annotation `CodeGenTree` is not defined as a type.
+        tree: CodeGenTree,
         graph: PyFlowGraph,
     ) -> CodeGenerator:
         raise NotImplementedError()
@@ -2543,7 +2555,7 @@ class CodeGenerator310(CodeGenerator):
     def __init__(
         self,
         parent: CodeGenerator | None,
-        node: AST | tuple[AST, ...],
+        node: AST,
         symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         flags: int = 0,
@@ -2558,7 +2570,7 @@ class CodeGenerator310(CodeGenerator):
     def make_child_codegen(
         self,
         # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
-        tree: FuncOrLambda | CompNode | ast.ClassDef | ast.TypeAlias,
+        tree: CodeGenTree,
         graph: PyFlowGraph,
     ) -> CodeGenerator310:
         return type(self)(
@@ -3576,7 +3588,7 @@ class CodeGenerator312(CodeGenerator):
     def __init__(
         self,
         parent: CodeGenerator | None,
-        node: AST | tuple[AST, ...],
+        node: AST,
         symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
         flags: int = 0,
@@ -4172,7 +4184,7 @@ class CodeGenerator312(CodeGenerator):
 
     def make_child_codegen(
         self,
-        tree: FuncOrLambda | CompNode | ast.ClassDef | tuple[AST, ...],
+        tree: CodeGenTree,
         graph: PyFlowGraph,
         name: Optional[str] = None,
     ) -> CodeGenerator312:
@@ -4294,7 +4306,7 @@ class CodeGenerator312(CodeGenerator):
 
             if num_typeparam_args == 2:
                 self.emit("SWAP", 2)
-            gen_param_scope = self.symbols.scopes[tuple(type_params)]
+            gen_param_scope = self.symbols.scopes[TypeParams(node)]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name}>",
                 self.graph.filename,
@@ -4311,7 +4323,7 @@ class CodeGenerator312(CodeGenerator):
             graph.args = args
 
             outer_gen = self.make_child_codegen(
-                tuple(type_params), graph, name=graph.name
+                TypeParams(node), graph, name=graph.name
             )
             outer_gen.class_name = self.class_name
             outer_gen.optimized = 1
@@ -4545,7 +4557,7 @@ class CodeGenerator312(CodeGenerator):
         # pyre-ignore[16]: no attribute type_params
         if node.type_params:
             self.emit("PUSH_NULL")
-            gen_param_scope = self.symbols.scopes[tuple(node.type_params)]
+            gen_param_scope = self.symbols.scopes[TypeParams(node)]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name}>",
                 self.graph.filename,
@@ -4562,7 +4574,7 @@ class CodeGenerator312(CodeGenerator):
             graph.args = ()
 
             outer_gen = self.make_child_codegen(
-                tuple(node.type_params), graph, name=graph.name
+                TypeParams(node), graph, name=graph.name
             )
             outer_gen.class_name = node.name
             outer_gen.optimized = 1
@@ -4583,6 +4595,7 @@ class CodeGenerator312(CodeGenerator):
         self.set_pos(node)
         self.post_process_and_store_name(node)
 
+    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
     def make_type_alias_code_gen(self, node: ast.TypeAlias) -> CodeGenerator312:
         filename = self.graph.filename
         symbols = self.symbols
@@ -4606,7 +4619,7 @@ class CodeGenerator312(CodeGenerator):
         outer_gen: CodeGenerator312 = self
         if node.type_params:
             self.emit("PUSH_NULL")
-            generic_param_scope = self.symbols.scopes[tuple(node.type_params)]
+            generic_param_scope = self.symbols.scopes[TypeParams(node)]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name.id}>",
                 self.graph.filename,
@@ -4623,7 +4636,7 @@ class CodeGenerator312(CodeGenerator):
             graph.args = ()
 
             outer_gen = self.make_child_codegen(
-                tuple(node.type_params), graph, name=graph.name
+                TypeParams(node), graph, name=graph.name
             )
             outer_gen.class_name = self.class_name
             outer_gen.optimized = 1

@@ -606,24 +606,31 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         return function
 
     def _visitFunc(self, node: FunctionDef | AsyncFunctionDef) -> None:
+        if hasattr(node, "type_params"):
+            # pyre-ignore[16]: `AsyncFunctionDef` has no attribute `type_params`.
+            for t in node.type_params:
+                self.declare_local(t.name, self.type_env.DYNAMIC)
+
         func = self.get_func_container(node)
         func.bind_function(node, self)
         typ = self.get_type(node)
         # avoid declaring unknown-decorateds as locals in order to support
         # @overload and @property.setter
-        if not isinstance(typ, TransientDecoratedMethod):
-            if isinstance(self.scope, (FunctionDef, AsyncFunctionDef)):
-                # nested functions can't be invoked against; to ensure we
-                # don't, declare them as a special NestedFunctionClass
-                # which doesn't support invoking. If there were decorators
-                # we couldn't understand then we'll just declare it as dynamic.
-                if isinstance(func, Function):
-                    typ = NestedFunctionClass(
-                        TypeName(self.context_qualname, node.name), self.type_env, func
-                    ).instance
-                else:
-                    typ = self.type_env.DYNAMIC
-            self.declare_local(node.name, typ)
+        if isinstance(typ, TransientDecoratedMethod):
+            return
+
+        if isinstance(self.scope, (FunctionDef, AsyncFunctionDef)):
+            # nested functions can't be invoked against; to ensure we
+            # don't, declare them as a special NestedFunctionClass
+            # which doesn't support invoking. If there were decorators
+            # we couldn't understand then we'll just declare it as dynamic.
+            if isinstance(func, Function):
+                typ = NestedFunctionClass(
+                    TypeName(self.context_qualname, node.name), self.type_env, func
+                ).instance
+            else:
+                typ = self.type_env.DYNAMIC
+        self.declare_local(node.name, typ)
 
     def visitFunctionDef(self, node: FunctionDef) -> None:
         self._visitFunc(node)

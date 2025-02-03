@@ -35,6 +35,30 @@ DEF_PARAM = 2 << 1
 USE = 2 << 3
 
 
+class TypeParams(ast.AST, metaclass=ast._ABC):
+    """Artificial node to store a tuple of type params."""
+
+    _fields = ("params",)
+
+    def __init__(self, node: ast.AST):
+        assert hasattr(node, "type_params")
+        # pyre-ignore[16]: `ast.AST` has no attribute `type_params`
+        params = node.type_params
+        first = params[0]
+        last = params[-1]
+        self.params = tuple(params)
+        self.lineno = first.lineno
+        self.end_lineno = last.end_lineno
+        self.col_offset = first.col_offset
+        self.end_col_offset = last.end_col_offset
+
+    def __eq__(self, other):
+        return self.params == other.params
+
+    def __hash__(self):
+        return hash(self.params)
+
+
 class Scope:
     is_function_scope = False
 
@@ -379,7 +403,7 @@ class BaseSymbolVisitor(ASTVisitor):
     def __init__(self, future_flags: int):
         super().__init__()
         self.future_annotations = future_flags & CO_FUTURE_ANNOTATIONS
-        self.scopes: dict[ast.AST | tuple[ast.AST, ...], Scope] = {}
+        self.scopes: dict[ast.AST, Scope] = {}
         self.klass = None
         self.module = ModuleScope()
 
@@ -394,9 +418,7 @@ class BaseSymbolVisitor(ASTVisitor):
             scope.nested = 1
         parent.add_child(scope)
         scope.parent = parent
-        # type_params is a list, which is not hashable, so we key off the first element as
-        # there is always at least one.
-        self.scopes[tuple(node.type_params)] = scope
+        self.scopes[TypeParams(node)] = scope
         if isinstance(parent, ClassScope):
             scope.can_see_class_scope = True
             scope.add_use("__classdict__")

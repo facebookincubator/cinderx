@@ -28,7 +28,7 @@ from ast import (
 )
 from contextlib import contextmanager
 from types import CodeType
-from typing import Any, Callable as typingCallable, cast, Generator, Type
+from typing import Any, Callable as typingCallable, cast, Generator, Optional, Type
 
 from .. import consts, opcode_static
 from ..opcodebase import Opcode
@@ -43,6 +43,7 @@ from ..pycodegen import (
     CinderCodeGenerator310,
     CinderCodeGenerator312,
     CodeGenerator,
+    CodeGenTree,
     compile,
     CompNode,
     FuncOrLambda,
@@ -297,8 +298,9 @@ class StaticCodeGenBase(StrictCodeGenBase):
 
     def make_child_codegen(
         self,
-        tree: FuncOrLambda | CompNode | ast.ClassDef,
+        tree: CodeGenTree,
         graph: PyFlowGraph,
+        name: Optional[str] = None,
     ) -> CodeGenerator:
         if self._is_static_compiler_disabled(tree):
             return self.parent_impl(
