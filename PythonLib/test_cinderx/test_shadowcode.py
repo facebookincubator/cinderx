@@ -1,18 +1,20 @@
-# Copyright (c) Meta Platforms, Inc. and affiliates.
 #!/usr/bin/python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # facebook begin t39538061
+
+import sys
+import unittest
+if sys.version_info >= (3, 12):
+    raise unittest.SkipTest("shadow code unsupported in 3.12+")
+
 
 import builtins
 import cinder
 import gc
 import inspect
 import opcode
-import sys
-import unittest
 import weakref
 from cinder import cached_property, strict_module_patch, StrictModule
-from collections import UserDict
 from types import CodeType, FunctionType
 from unittest import skipIf
 
@@ -21,6 +23,7 @@ from test.support.script_helper import assert_python_ok, run_python_until_end
 
 # Sets the number of repetitions required in order to hit caching
 REPETITION = 100
+
 
 
 class ShadowError(Exception):

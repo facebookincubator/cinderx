@@ -9,8 +9,7 @@
     "test_cinderx.test_compiler.test_py37",
     "test_cinderx.test_compiler.test_strict",
     "test_cinderx.test_cpython_overrides.test_dis",
-    "test_cinderx.test_cpython_overrides.test_trace",
-    "test_cinderx.test_shadowcode"
+    "test_cinderx.test_cpython_overrides.test_trace"
   ],
   "good": [
     "test.test__locale",
@@ -502,7 +501,8 @@
     "test.test_wmi",
     "test_cinderx.test_coro_extensions",
     "test_cinderx.test_parallel_gc",
-    "test_cinderx.test_perf_profiler_precompile"
+    "test_cinderx.test_perf_profiler_precompile",
+    "test_cinderx.test_shadowcode"
   ],
   "resource_denied": [
     "test.test_curses",
