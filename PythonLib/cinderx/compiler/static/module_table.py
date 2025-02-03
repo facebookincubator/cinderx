@@ -141,14 +141,6 @@ class AnnotationVisitor(ReferenceVisitor):
             ):
                 return None
 
-            # Types like typing.NamedTuple or typing.Protocol should not be
-            # used as annotations; if they are, fall back to dynamic rather
-            # than raise an error (see T186572841 for context).
-            special_types = ("NamedTuple", "Protocol", "TypedDict")
-            if klass.type_name.module == "typing":
-                if klass.type_name.qualname in special_types:
-                    return self.type_env.dynamic
-
             return klass
 
     def visitSubscript(self, node: Subscript) -> Value | None:
