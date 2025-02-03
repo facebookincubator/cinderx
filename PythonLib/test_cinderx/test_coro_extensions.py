@@ -1,17 +1,19 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import contextlib
-import copy
-import inspect
-import pickle
 import sys
 import types
 import unittest
-import warnings
 
-from test import support
 from cinderx import test_support as cinder_support
-from test.support import import_helper, maybe_get_event_loop_policy, warnings_helper
-from test.support.script_helper import assert_python_ok
+from test.support import import_helper, maybe_get_event_loop_policy
+
+
+if sys.version_info >= (3, 12):
+    # in 3.12, awaiter tests are in GetAsyncStackTests in
+    # Lib/test/test_asyncio/test_tasks.py
+    # And eager execution is an entirely different implementation:
+    # https://docs.python.org/3.12/library/asyncio-task.html#eager-task-factory
+    raise unittest.SkipTest("not supported on 3.12+")
+
 
 if cinder_support.hasCinderX():
     import cinder
@@ -34,6 +36,7 @@ def run_async(coro):
 class CoroutineAwaiterTest(unittest.TestCase):
     def test_basic_await(self):
         async def coro():
+            nonlocal awaiter_obj
             self.assertIs(cinder._get_coro_awaiter(coro_obj), awaiter_obj)
             return "success"
 
