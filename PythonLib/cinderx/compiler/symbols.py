@@ -35,15 +35,23 @@ DEF_PARAM = 2 << 1
 USE = 2 << 3
 
 
+if sys.version_info >= (3, 12):
+    NodeWithTypeParams = (
+        ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.TypeAlias
+    )
+else:
+    NodeWithTypeParams = None
+
+
 class TypeParams(ast.AST, metaclass=ast._ABC):
     """Artificial node to store a tuple of type params."""
 
     _fields = ("params",)
 
-    def __init__(self, node: ast.AST):
-        assert hasattr(node, "type_params")
-        # pyre-ignore[16]: `ast.AST` has no attribute `type_params`
-        params = node.type_params
+    # pyre-ignore[11]: Annotation `NodeWithTypeParams` is not defined as a type.
+    def __init__(self, node: NodeWithTypeParams):
+        params = getattr(node, "type_params", None)
+        assert params, "TypeParams needs a node with a type_params field"
         first = params[0]
         last = params[-1]
         self.params = tuple(params)

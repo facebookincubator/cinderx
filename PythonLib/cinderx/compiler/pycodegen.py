@@ -118,7 +118,7 @@ FuncOrLambda = Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda]
 CompNode = Union[ast.SetComp, ast.DictComp, ast.ListComp]
 if sys.version_info >= (3, 12):
     # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
-    CodeGenTree = Union[FuncOrLambda, CompNode, ast.ClassDef, ast.TypeAlias, TypeParams]
+    CodeGenTree = Union[FuncOrLambda, CompNode, ast.ClassDef, TypeParams, ast.TypeAlias]
 else:
     CodeGenTree = Union[FuncOrLambda, CompNode, ast.ClassDef, TypeParams]
 
@@ -2421,7 +2421,6 @@ class CodeGenerator(ASTVisitor):
 
     def make_child_codegen(
         self,
-        # pyre-ignore[11]: Annotation `CodeGenTree` is not defined as a type.
         tree: CodeGenTree,
         graph: PyFlowGraph,
     ) -> CodeGenerator:
@@ -2569,7 +2568,6 @@ class CodeGenerator310(CodeGenerator):
 
     def make_child_codegen(
         self,
-        # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
         tree: CodeGenTree,
         graph: PyFlowGraph,
     ) -> CodeGenerator310:

@@ -300,7 +300,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         self,
         tree: CodeGenTree,
         graph: PyFlowGraph,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> CodeGenerator:
         if self._is_static_compiler_disabled(tree):
             return self.parent_impl(

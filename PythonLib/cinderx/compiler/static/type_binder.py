@@ -65,7 +65,7 @@ from typing import Generator, Optional, Sequence, TYPE_CHECKING
 
 from ..consts import SC_CELL, SC_FREE, SC_GLOBAL_EXPLICIT, SC_GLOBAL_IMPLICIT, SC_LOCAL
 from ..errors import CollectingErrorSink, TypedSyntaxError
-from ..symbols import SymbolVisitor
+from ..symbols import NodeWithTypeParams, SymbolVisitor
 from .declaration_visitor import GenericVisitor
 from .effects import NarrowingEffect, NO_EFFECT, TypeState
 from .module_table import ModuleFlag, ModuleTable
@@ -606,11 +606,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         return function
 
     def _visitFunc(self, node: FunctionDef | AsyncFunctionDef) -> None:
-        if hasattr(node, "type_params"):
-            # pyre-ignore[16]: `AsyncFunctionDef` has no attribute `type_params`.
-            for t in node.type_params:
-                self.declare_local(t.name, self.type_env.DYNAMIC)
-
+        self._visitTypeParams(node)
         func = self.get_func_container(node)
         func.bind_function(node, self)
         typ = self.get_type(node)
@@ -639,10 +635,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         self._visitFunc(node)
 
     def visitClassDef(self, node: ClassDef) -> None:
-        if hasattr(node, "type_params"):
-            # pyre-ignore[16]: `ClassDef` has no attribute `type_params`.
-            for t in node.type_params:
-                self.declare_local(t.name, self.type_env.DYNAMIC)
+        self._visitTypeParams(node)
 
         for decorator in node.decorator_list:
             self.visitExpectedType(
@@ -683,6 +676,19 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             self.scopes.pop()
 
         self.declare_local(node.name, res)
+
+    # pyre-ignore[11]: Annotation `NodeWithTypeParams` is not defined as a type
+    def _visitTypeParams(self, node: NodeWithTypeParams) -> None:
+        if hasattr(node, "type_params"):
+            for t in node.type_params:
+                self.declare_local(t.name, self.type_env.DYNAMIC)
+
+    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
+    def visitTypeAlias(self, node: ast.TypeAlias) -> None:
+        self._visitTypeParams(node)
+        self.visit(node.value)
+        value_type = self.get_type(node.value)
+        self.assign_name(node.name, node.name.id, value_type)
 
     def set_type(
         self,

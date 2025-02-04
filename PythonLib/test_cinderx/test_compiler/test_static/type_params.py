@@ -32,6 +32,24 @@ class TypeParameterTests(StaticTestBase):
             with self.in_module(codestr) as mod:
                 a = mod.A(10)
 
+    def test_type_alias(self):
+        codestr = """
+            type Collection[T] = list[T] | set[T]
+        """
+        with self.in_module(codestr) as mod:
+            a: mod.Collection[int] = [1, 2, 3]
+
+    def test_type_alias_as_annotation(self):
+        codestr = """
+            type Collection[T] = list[T] | set[T]
+
+            def f[T](x: Collection[T], y: T) -> bool:
+                return y in x
+        """
+        with self.in_module(codestr) as mod:
+            a: mod.Collection[int] = [1, 2, 3]
+            b = mod.f(a, 1)
+
 
 if __name__ == "__main__":
     unittest.main()
