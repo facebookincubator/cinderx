@@ -4322,8 +4322,8 @@ main_loop:
           err = _Ci_StaticArray_Set(sequence, idx, v);
 
           Py_DECREF(sequence);
+          Py_DECREF(v);
           if (err != 0) {
-            Py_DECREF(v);
             goto error;
           }
         } else {

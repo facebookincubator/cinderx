@@ -35,6 +35,7 @@
 #include "cinderx/ParallelGC/parallel_gc.h"
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/StaticPython/_static.h"
+#include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
 #include "cinderx/StaticPython/errors.h"
@@ -58,6 +59,7 @@ std::unordered_set<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;
 
 PyObject* clear_caches(PyObject*, PyObject*) {
   jit::_PyJIT_GetGlobalCacheManager()->clear();
+  _PyCheckedDict_ClearCaches();
   Py_RETURN_NONE;
 }
 

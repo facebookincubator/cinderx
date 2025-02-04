@@ -106,6 +106,7 @@ class StaticRuntimeTests(StaticTestBase):
             pass
 
         inst.a = D()
+        del C
 
     def test_builtin_object_setattr(self):
         codestr = """
@@ -374,6 +375,7 @@ class StaticRuntimeTests(StaticTestBase):
         with self.assertRaises(TypeError):
             # type is checked
             inst.a = 42
+        del C
 
     def test_typed_slots_optional_object(self):
         codestr = """

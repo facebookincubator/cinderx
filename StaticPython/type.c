@@ -326,6 +326,7 @@ PyObject* _PyClassLoader_ResolveContainer(PyObject* container_path) {
               "'%R'",
               type_arg,
               type);
+          Py_DECREF(type);
           return NULL;
         }
         Py_DECREF(type);

@@ -145,6 +145,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
       res = resolve_function_rettype(func, optional, exact, func_flags);
     } else {
       res = &PyBaseObject_Type;
+      Py_INCREF(res);
     }
   } else if (Py_TYPE(func) == &PyStaticMethod_Type) {
     PyObject* static_func = Ci_PyStaticMethod_GetFunc(func);
@@ -208,6 +209,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
         } else { // Already resolved.
           assert(PyType_CheckExact(td->td_type));
           res = (PyTypeObject*)td->td_type;
+          Py_INCREF(res);
           *optional = td->td_optional;
         }
         if (res == NULL) {
@@ -227,6 +229,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
     } else { // Already resolved.
       assert(PyType_CheckExact(td->td_type));
       res = (PyTypeObject*)td->td_type;
+      Py_INCREF(res);
       *optional = td->td_optional;
       *exact = td->td_exact;
     }
@@ -252,11 +255,13 @@ PyObject* _PyClassLoader_ResolveReturnType(
           // when we call them we produce a None.
           *exact = 0;
           res = (PyTypeObject*)&_PyNone_Type;
+          Py_INCREF(res);
           break;
         }
         case Ci_Py_SIG_STRING: {
           *exact = 0;
           res = &PyUnicode_Type;
+          Py_INCREF(res);
           break;
         }
         case Ci_Py_SIG_INT8: {
@@ -294,6 +299,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
         default: {
           *exact = 0;
           res = &PyBaseObject_Type;
+          Py_INCREF(res);
         }
       }
       Py_INCREF(res);

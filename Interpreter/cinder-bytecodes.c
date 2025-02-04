@@ -622,11 +622,9 @@ dummy_func(
                     }
                 }
             } else if (oparg == SEQ_ARRAY_INT64) {
-                Py_INCREF(v);   // _Ci_StaticArray_Set steals the reference
                 err = _Ci_StaticArray_Set(sequence, idx, v);
 
                 if (err != 0) {
-                    Py_DECREF(v);
                     goto error;
                 }
             } else {

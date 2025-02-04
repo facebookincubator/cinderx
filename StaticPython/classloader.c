@@ -306,6 +306,11 @@ PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container) {
     // provide a better error message.
     PyObject* container_obj =
         _PyClassLoader_ResolveContainer(PyTuple_GET_ITEM(path, 0));
+    if (container_obj == NULL) {
+      PyErr_Format(CiExc_StaticTypeError, "Unknown type or module: %R", path);
+      return NULL;
+    }
+
     PyObject* attr_name = PyTuple_GET_ITEM(path, 1);
     original = get_original(container_obj, attr_name);
     if (original != NULL) {
@@ -315,6 +320,7 @@ PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container) {
           ((PyTypeObject*)container_obj)->tp_name,
           attr_name);
     }
+    Py_DECREF(container_obj);
   }
 
   return func;

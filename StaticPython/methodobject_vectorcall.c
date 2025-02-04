@@ -62,6 +62,7 @@ PyObject* Ci_cfunction_vectorcall_typed_0(
         PyObject* funcstr = _PyObject_FunctionStr(func);                 \
         if (funcstr != NULL) {                                           \
           _PyClassLoader_ArgError(funcstr, i, i, def->tmd_sig[i], self); \
+          Py_DECREF(funcstr);                                            \
         }                                                                \
       }                                                                  \
       goto done;                                                         \

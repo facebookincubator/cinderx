@@ -61,6 +61,8 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignatureFromCode(
   if (ret_type == NULL) {
     return NULL;
   }
+  int ret_typecode = _PyClassLoader_GetTypeCode(ret_type);
+  Py_DECREF(ret_type);
 
   // Scan the signature and see if it has any primitive arguments
   Py_ssize_t arg_count = code->co_argcount;
@@ -81,7 +83,7 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignatureFromCode(
         sig->ta_argcount = arg_count + extra_args;
         sig->ta_has_primitives = 1;
         sig->ta_allocated = 1;
-        sig->ta_rettype = _PyClassLoader_GetTypeCode(ret_type);
+        sig->ta_rettype = ret_typecode;
         // Checks are sparse and are (arg_num, type_descr) and are in-order. So
         // we initialize all positions to TYPED_OBJECT and will overwrite the
         // primitive ones.
@@ -101,7 +103,7 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignatureFromCode(
   // See if we have a fixed-size signature for a method w/ no primitives.
   if ((arg_count + extra_args) <
           sizeof(simple_sigs) / sizeof(_PyClassLoader_ThunkSignature) &&
-      _PyClassLoader_GetTypeCode(ret_type) == TYPED_OBJECT) {
+      ret_typecode == TYPED_OBJECT) {
     return &simple_sigs[arg_count + extra_args];
   }
 
@@ -115,7 +117,7 @@ _PyClassLoader_ThunkSignature* _PyClassLoader_GetThunkSignatureFromCode(
   sig->ta_argcount = arg_count + extra_args;
   sig->ta_allocated = 1;
   sig->ta_has_primitives = 0;
-  sig->ta_rettype = _PyClassLoader_GetTypeCode(ret_type);
+  sig->ta_rettype = ret_typecode;
   for (int j = 0; j < arg_count + extra_args; j++) {
     sig->ta_argtype[j] = TYPED_OBJECT;
   }

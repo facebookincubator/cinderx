@@ -70,8 +70,14 @@ static PyObject* staticarray_to_list(PyObject* sa) {
 }
 
 static PyObject* staticarray_repr(PyObject* sa) {
-  return PyUnicode_FromFormat(
-      "staticarray[%d](%R)", Py_SIZE(sa), staticarray_to_list(sa));
+  PyObject* list = staticarray_to_list(sa);
+  if (list == NULL) {
+    return NULL;
+  }
+  PyObject* res =
+      PyUnicode_FromFormat("staticarray[%d](%R)", Py_SIZE(sa), list);
+  Py_DECREF(list);
+  return res;
 }
 
 static Py_ssize_t staticarray_length(PyStaticArrayObject* a) {

@@ -20,6 +20,8 @@ int Ci_CheckedDict_SetItem(PyObject* op, PyObject* key, PyObject* value);
 
 int Ci_DictOrChecked_SetItem(PyObject* op, PyObject* key, PyObject* value);
 
+void _PyCheckedDict_ClearCaches();
+
 #ifdef __cplusplus
 }
 #endif

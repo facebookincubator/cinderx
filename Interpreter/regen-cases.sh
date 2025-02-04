@@ -6,7 +6,7 @@
 srcdir='../../../third-party/python/3.12'
 
 PYTHONPATH=$srcdir/Tools/cases_generator \
-buck run fbcode//cinderx:python -- \
+buck run fbcode//cinderx:python3.10 -- \
     $srcdir/Tools/cases_generator/generate_cases.py \
         --emit-line-directives \
         -o Includes/generated_cases.c.h \

@@ -107,6 +107,7 @@ PyObject* Ci_method_vectorcall_typed_0(
         PyObject* funcstr = _PyObject_FunctionStr(func);                     \
         if (funcstr != NULL) {                                               \
           _PyClassLoader_ArgError(funcstr, i + 1, i, def->tmd_sig[i], self); \
+          Py_DECREF(funcstr);                                                \
         }                                                                    \
       }                                                                      \
       goto done;                                                             \
@@ -129,6 +130,7 @@ PyObject* Ci_method_vectorcall_typed_1(
           "%.200s() takes at most 1 argument, got %zd",
           funcstr,
           nargs - 1);
+      Py_DECREF(funcstr);
     }
     return NULL;
   }

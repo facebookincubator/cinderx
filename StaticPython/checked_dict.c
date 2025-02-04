@@ -352,6 +352,20 @@ static _Ci_dict_state* get_dict_state(void) {
   return NULL;
 }
 
+void _PyCheckedDict_ClearCaches() {
+  _Ci_dict_state* state = get_dict_state();
+  if (state != NULL) {
+    for (int i = 0; i < state->numfree; i++) {
+      PyObject_GC_Del((PyObject*)state->free_list[i]);
+    }
+    state->numfree = 0;
+    for (int i = 0; i < state->keys_numfree; i++) {
+      PyObject_Free(state->keys_free_list[i]);
+    }
+    state->keys_numfree = 0;
+  }
+}
+
 #define DK_SIZE(dk) ((dk)->dk_size)
 #if SIZEOF_VOID_P > 4
 #define DK_IXSIZE(dk)                  \

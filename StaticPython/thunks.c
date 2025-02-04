@@ -173,14 +173,16 @@ PyObject* _Py_AsyncCachedPropertyThunk_GetFunc(PyObject* thunk) {
 }
 
 static int thunktraverse(_Py_StaticThunk* op, visitproc visit, void* arg) {
-  // rettype_check_traverse((_PyClassLoader_RetTypeInfo*)op, visit, arg);
+  Py_VISIT(op->thunk_tcs.tcs_rt.rt_expected);
+  Py_VISIT(op->thunk_tcs.tcs_rt.rt_name);
   Py_VISIT(op->thunk_tcs.tcs_value);
   Py_VISIT((PyObject*)op->thunk_cls);
   return 0;
 }
 
 static int thunkclear(_Py_StaticThunk* op) {
-  // rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
+  Py_CLEAR(op->thunk_tcs.tcs_rt.rt_expected);
+  Py_CLEAR(op->thunk_tcs.tcs_rt.rt_name);
   Py_CLEAR(op->thunk_tcs.tcs_value);
   Py_CLEAR(op->thunk_cls);
   return 0;
@@ -188,7 +190,8 @@ static int thunkclear(_Py_StaticThunk* op) {
 
 static void thunkdealloc(_Py_StaticThunk* op) {
   PyObject_GC_UnTrack((PyObject*)op);
-  // rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
+  Py_XDECREF(op->thunk_tcs.tcs_rt.rt_expected);
+  Py_XDECREF(op->thunk_tcs.tcs_rt.rt_name);
   Py_XDECREF(op->thunk_tcs.tcs_value);
   Py_XDECREF(op->thunk_cls);
   PyObject_GC_Del((PyObject*)op);

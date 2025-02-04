@@ -338,8 +338,7 @@ static int _PyVTable_set_opt_slot(
       PyTuple_SET_ITEM(tuple, 0, value);
       Py_INCREF(value);
       PyTuple_SET_ITEM(tuple, 1, (PyObject*)ret_type);
-      Py_INCREF(ret_type);
-      vtable->vt_entries[slot].vte_state = tuple;
+      Py_XSETREF(vtable->vt_entries[slot].vte_state, tuple);
       vtable->vt_entries[slot].vte_entry =
           (vectorcallfunc)_PyVTable_thunk_ret_primitive_not_jitted_dont_bolt;
     } else {
@@ -348,6 +347,7 @@ static int _PyVTable_set_opt_slot(
       vtable->vt_entries[slot].vte_entry =
           _PyClassLoader_GetStaticFunctionEntry(func);
       Py_INCREF(value);
+      Py_DECREF(ret_type);
     }
   } else if (isJitCompiled(func)) {
     Py_XDECREF(vtable->vt_entries[slot].vte_state);
@@ -386,7 +386,8 @@ static int _PyVTable_set_opt_slot(
     PyTuple_SET_ITEM(state, 2, value);
     if (type_code != TYPED_OBJECT) {
       PyTuple_SET_ITEM(state, 3, (PyObject*)ret_type);
-      Py_INCREF(ret_type);
+    } else {
+      Py_DECREF(ret_type);
     }
     Py_INCREF(value);
     Py_XDECREF(vtable->vt_entries[slot].vte_state);
