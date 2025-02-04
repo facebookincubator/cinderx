@@ -164,7 +164,6 @@ def init() -> None:
         return
 
     cinderx_init()
-
     strictify_static()
 
     global _is_init

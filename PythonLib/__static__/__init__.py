@@ -20,7 +20,7 @@ from typing import (
     TypeVar,
     Union,
 )
-from weakref import WeakValueDictionary
+from weakref import ref, WeakValueDictionary
 
 from .enum import Enum, IntEnum, StringEnum  # noqa: F401
 from .type_code import (  # noqa: F401
@@ -458,26 +458,57 @@ def _runtime_impl(f):
     return f
 
 
+class _ref(ref):
+    def __init__(self, obj, callback):
+        super().__init__(obj, callback)
+        self._hash = hash(obj)
+
+    def __eq__(self, other):
+        if isinstance(other, _ref):
+            return self() == other()
+        return self() == other
+
+    def __hash__(self):
+        return self._hash
+
+
 class StaticGeneric:
     """Base type used to mark static-Generic classes.  Instantations of these
     classes share different generic types and the generic type arguments can
     be accessed via __args___"""
 
-    # pyre-ignore[16]: typing has no attribute _tp_cache
-    @_tp_cache
+    _cache = {}
+
+    #    @_tp_cache
     def __class_getitem__(
         cls, elem_type: tuple[TypeVar | type[object]]
     ) -> StaticGeneric | type[object]:
         if not isinstance(elem_type, tuple):
-            # we specifically recurse to hit the type cache
-            return cls[elem_type,]
+            # indexed w/ single type
+            elem_type = (elem_type,)
+
+        key = (cls,) + elem_type
+
+        if (cached := StaticGeneric._cache.get(key)) is not None:
+            res = cached()
+            if res is not None:
+                return res
 
         if cls is StaticGeneric:
             res = StaticGeneric()
             res.__parameters__ = elem_type
-            return res
+        else:
+            res = set_type_static_final(make_generic_type(cls, elem_type))
 
-        return set_type_static_final(make_generic_type(cls, elem_type))
+        def remove(weakref_obj):
+            # When any of the types goes away we'll remove the entry
+            if refs in StaticGeneric._cache:
+                del StaticGeneric._cache[refs]
+
+        refs = tuple(_ref(elem, remove) for elem in key)
+
+        StaticGeneric._cache[refs] = ref(res)
+        return res
 
     def __init_subclass__(cls) -> None:
         # pyre-ignore[16]: StaticGeneric has no attribute __orig__bases__

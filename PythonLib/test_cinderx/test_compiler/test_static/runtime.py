@@ -649,6 +649,14 @@ class StaticRuntimeTests(StaticTestBase):
         self.assertEqual(c_u_t_1.__name__, "C[int, int]")
         self.assertIs(c_u_t_1, c_u_t_2)
 
+    def test_generic_type_args_identity(self):
+        T = TypeVar("T")
+        U = TypeVar("U")
+
+        x = StaticGeneric[T, U]
+        y = StaticGeneric[T, U]
+        self.assertIs(x, y)
+
     def test_nested_generic(self):
         S = TypeVar("S")
         T = TypeVar("T")
