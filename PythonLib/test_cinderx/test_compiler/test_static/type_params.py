@@ -19,6 +19,19 @@ class TypeParameterTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
 
+    def test_class(self):
+        codestr = """
+            class A[T, U]:
+                def __init__(self, a: U):
+                    self.a = a
+
+                def f(self, x: T) -> U:
+                  return self.a
+        """
+        with self.assertRaisesRegex(NotImplementedError, "Type params"):
+            with self.in_module(codestr) as mod:
+                a = mod.A(10)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -639,6 +639,11 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         self._visitFunc(node)
 
     def visitClassDef(self, node: ClassDef) -> None:
+        if hasattr(node, "type_params"):
+            # pyre-ignore[16]: `ClassDef` has no attribute `type_params`.
+            for t in node.type_params:
+                self.declare_local(t.name, self.type_env.DYNAMIC)
+
         for decorator in node.decorator_list:
             self.visitExpectedType(
                 decorator, self.type_env.DYNAMIC, "decorator cannot be a primitive"
