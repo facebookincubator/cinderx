@@ -32,58 +32,6 @@
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
-static int rettype_check_traverse(
-    _PyClassLoader_RetTypeInfo* op,
-    visitproc visit,
-    void* arg) {
-  visit((PyObject*)op->rt_expected, arg);
-  return 0;
-}
-
-static int rettype_check_clear(_PyClassLoader_RetTypeInfo* op) {
-  Py_CLEAR(op->rt_expected);
-  Py_CLEAR(op->rt_name);
-  return 0;
-}
-
-static int _PyClassLoader_TypeCheckState_traverse(
-    _PyClassLoader_TypeCheckState* op,
-    visitproc visit,
-    void* arg) {
-  rettype_check_traverse((_PyClassLoader_RetTypeInfo*)op, visit, arg);
-  Py_VISIT(op->tcs_value);
-  return 0;
-}
-
-static int _PyClassLoader_TypeCheckState_clear(
-    _PyClassLoader_TypeCheckState* op) {
-  rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
-  Py_CLEAR(op->tcs_value);
-  return 0;
-}
-
-static void _PyClassLoader_TypeCheckState_dealloc(
-    _PyClassLoader_TypeCheckState* op) {
-  PyObject_GC_UnTrack((PyObject*)op);
-  rettype_check_clear((_PyClassLoader_RetTypeInfo*)op);
-  Py_XDECREF(op->tcs_value);
-  _PyClassLoader_FreeThunkSignature(op->tcs_rt.rt_base.mt_sig);
-  PyObject_GC_Del((PyObject*)op);
-}
-
-PyTypeObject _PyType_TypeCheckState = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable_state_obj",
-    sizeof(_PyClassLoader_TypeCheckState),
-    .tp_base = &_PyType_MethodThunk,
-    .tp_dealloc = (destructor)_PyClassLoader_TypeCheckState_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
-        _Py_TPFLAGS_HAVE_VECTORCALL,
-    .tp_traverse = (traverseproc)_PyClassLoader_TypeCheckState_traverse,
-    .tp_clear = (inquiry)_PyClassLoader_TypeCheckState_clear,
-    .tp_vectorcall_offset = offsetof(_PyClassLoader_MethodThunk, mt_call),
-    .tp_free = PyObject_GC_Del,
-};
-
 // Steals a reference to the `getter_tuple`, `setter_tuple`, and `deleter_tuple`
 // objects.
 int update_property_slot(
@@ -237,21 +185,13 @@ static int _PyVTable_setslot_typecheck(
     return -1;
   }
 
-  _PyClassLoader_TypeCheckState* state =
-      PyObject_GC_New(_PyClassLoader_TypeCheckState, &_PyType_TypeCheckState);
+  _PyClassLoader_TypeCheckThunk* state =
+      (_PyClassLoader_TypeCheckThunk*)_PyClassLoader_TypeCheckThunk_New(
+          value, name, (PyTypeObject*)ret_type, optional, exact, sig);
   if (state == NULL) {
     _PyClassLoader_FreeThunkSignature(sig);
     return -1;
   }
-  state->tcs_value = value;
-  Py_INCREF(value);
-  state->tcs_rt.rt_name = name;
-  Py_INCREF(name);
-  state->tcs_rt.rt_expected = (PyTypeObject*)ret_type;
-  Py_INCREF(ret_type);
-  state->tcs_rt.rt_optional = optional;
-  state->tcs_rt.rt_exact = exact;
-  state->tcs_rt.rt_base.mt_sig = sig;
 
   Py_XDECREF(vtable->vt_entries[slot].vte_state);
   vtable->vt_entries[slot].vte_state = (PyObject*)state;
