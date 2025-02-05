@@ -314,6 +314,7 @@ class MultiWorkerCinderRegrtest:
         huntrleaks: bool,
         num_workers: int,
         json_summary_file: str | None,
+        failfast: bool,
     ):
         self._cinder_regr_runner_logfile = logfile
         self._success_on_test_errors = success_on_test_errors
@@ -340,7 +341,7 @@ class MultiWorkerCinderRegrtest:
 
         self._runtests_config = libregrtest_runtests.RunTests(
             tests=tuple(tests),
-            fail_fast=False,
+            fail_fast=failfast,
             fail_env_changed=True,
             match_tests=[(p, False) for p in skip_patterns],
             match_tests_dict={},
@@ -782,6 +783,7 @@ def dispatcher_main(args):
                 args.huntrleaks,
                 num_workers,
                 args.json_summary_file,
+                args.failfast,
             )
             print(f"Spawning {num_workers} workers")
             test_runner.run()
@@ -893,6 +895,12 @@ def main():
         "--huntrleaks",
         action="store_true",
         help="Check for refleaks",
+    )
+    dispatcher_parser.add_argument(
+        "-f",
+        "--failfast",
+        action="store_true",
+        help="Stop after the first failure",
     )
     dispatcher_parser.add_argument("rest", nargs=argparse.REMAINDER)
     dispatcher_parser.set_defaults(func=dispatcher_main)
