@@ -14,6 +14,55 @@ static PyObject* thunk_call(PyObject* thunk, PyObject* args, PyObject* kwds) {
   return NULL;
 }
 
+static void vtableinitthunk_dealloc(_PyClassLoader_VTableInitThunk* op) {
+  PyObject_GC_UnTrack((PyObject*)op);
+  Py_XDECREF(op->vti_name);
+  Py_XDECREF(op->vti_type);
+  PyObject_GC_Del((PyObject*)op);
+}
+
+static int vtableinitthunk_traverse(
+    _PyClassLoader_VTableInitThunk* op,
+    visitproc visit,
+    void* arg) {
+  Py_VISIT(op->vti_type);
+  return 0;
+}
+
+static int vtableinitthunk_clear(_PyClassLoader_VTableInitThunk* op) {
+  Py_CLEAR(op->vti_name);
+  Py_CLEAR(op->vti_type);
+  return 0;
+}
+
+PyTypeObject _PyClassLoader_VTableInitThunk_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "vtable_init_thunk",
+    sizeof(_PyClassLoader_VTableInitThunk),
+    .tp_dealloc = (destructor)vtableinitthunk_dealloc,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
+        _Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_traverse = (traverseproc)vtableinitthunk_traverse,
+    .tp_clear = (inquiry)vtableinitthunk_clear,
+    .tp_vectorcall_offset = offsetof(_PyClassLoader_VTableInitThunk, vti_call),
+    .tp_call = (ternaryfunc)thunk_call,
+};
+
+PyObject* _PyClassLoader_VTableInitThunk_New(
+    PyObject* name,
+    PyTypeObject* type,
+    vectorcallfunc call) {
+  _PyClassLoader_VTableInitThunk* thunk = PyObject_GC_New(
+      _PyClassLoader_VTableInitThunk, &_PyClassLoader_VTableInitThunk_Type);
+  if (thunk == NULL) {
+    return NULL;
+  }
+  thunk->vti_name = Py_NewRef(name);
+  thunk->vti_type = (PyTypeObject*)Py_NewRef(type);
+  thunk->vti_call = call;
+  PyObject_GC_Track(thunk);
+  return (PyObject*)thunk;
+}
+
 static void _PyClassLoader_MethodThunk_dealloc(_PyClassLoader_MethodThunk* op) {
   _PyClassLoader_FreeThunkSignature(op->mt_sig);
   Py_TYPE(op)->tp_free((PyObject*)op);
