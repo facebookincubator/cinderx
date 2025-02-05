@@ -1,8 +1,10 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
+import sys
+
 from dataclasses import dataclass
-from unittest import TestCase
+from unittest import TestCase, skipIf
 from typing import cast
 
 from cinderx.compiler.pyassem import Block, ExceptionTable
@@ -18,6 +20,7 @@ class ExceptionHandlerInfo:
     startdepth: int = -1
 
 
+@skipIf(sys.version_info < (3,12), "no exception table support")
 class EncodingTests(TestCase):
     """Test the exception table packed encoding."""
 

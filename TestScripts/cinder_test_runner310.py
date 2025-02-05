@@ -42,6 +42,7 @@ from common import (
     ASANLogManipulator,
     CINDER_RUNNER_LOG_DIR,
     get_cinderx_dir,
+    get_cinderx_static_tests,
     log_err,
     MAX_WORKERS,
     MessagePipe,
@@ -63,6 +64,7 @@ from test.libregrtest.cmdline import Namespace
 from test.libregrtest.main import Regrtest
 from test.libregrtest.runtest import (
     ChildError,
+    findtestdir,
     findtests,
     NOTTESTS,
     Passed,
@@ -521,12 +523,30 @@ class MultiWorkerCinderRegrtest(Regrtest):
         self, test_filters: Tuple[List[str], Set[str]], test_cinderx_dir: Path
     ) -> None:
         stdtest, nottests = test_filters
+
         # Initial set of tests are the core Python/Cinder ones.
         tests = ["test." + t for t in findtests(None, stdtest, nottests)]
 
         # Add CinderX tests
         cinderx_tests = findtests(str(test_cinderx_dir), [], nottests)
-        tests.extend("test_cinderx." + t for t in cinderx_tests)
+        tests.extend(
+            "test_cinderx." + t for t in cinderx_tests if not t == "test_compiler"
+        )
+
+        # Spilt the compiler tests into their subtests so they run faster
+        compiler_tests = findtests(
+            str(test_cinderx_dir) + "/test_compiler", [], nottests
+        )
+        tests.extend(
+            "test_cinderx.test_compiler." + t
+            for t in compiler_tests
+            if t != "test_static"
+        )
+
+        # Also split the static Python tests, they don't start with "test_" so we
+        # need to manually discover them, and exclude
+        testdir = findtestdir(str(test_cinderx_dir) + "/test_compiler/test_static")
+        tests.extend(get_cinderx_static_tests(testdir))
 
         self.selected = tests
 

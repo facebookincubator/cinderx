@@ -54,6 +54,7 @@ from common import (
     ASANLogManipulator,
     CINDER_RUNNER_LOG_DIR,
     get_cinderx_dir,
+    get_cinderx_static_tests,
     log_err,
     MAX_WORKERS,
     MessagePipe,
@@ -83,6 +84,7 @@ WORKER_PATH = os.path.abspath(__file__)
 CINDERX_SPLIT_TEST_DIRS = {
     "test_cinderx.test_cpython_overrides",
     "test_cinderx.test_compiler",
+    "test_cinderx.test_compiler.test_static",
 }
 
 
@@ -582,6 +584,14 @@ class MultiWorkerCinderRegrtest:
             base_mod="test_cinderx",
         )
         tests.extend(cinderx_tests)
+
+        # findtests won't discover the static tests that don't start with test_, so manually
+        # add those (it would find just test_static if we didn't split on that, but we want
+        # to parallelize all of the static tests)
+        testdir = libregrtest_findtests.findtestdir(
+            get_test_cinderx_dir() / Path("test_compiler/test_static")
+        )
+        tests.extend(get_cinderx_static_tests(testdir))
 
         return tests
 

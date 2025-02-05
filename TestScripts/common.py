@@ -38,7 +38,8 @@ TESTS_TO_SERIALIZE = {
     "test_urllib2_localnet",
     "test_docxmlrpc",
     "test_filecmp",
-    "test_jitlist",
+    "test_cinderx.test_jitlist",
+    "test_cinderx.test_cinderjit",
 }
 
 # Use the fdb debugging tool to invoke rr
@@ -248,6 +249,17 @@ class ASANLogManipulator:
 
 def get_cinderx_dir() -> Path:
     return Path(__file__).parent.parent
+
+
+def get_cinderx_static_tests(testdir: str) -> list[str]:
+    tests = []
+    names = os.listdir(testdir)
+    for name in names:
+        mod, ext = os.path.splitext(name)
+        if ext not in (".py",) or mod in ("__init__", "__main__", "common"):
+            continue
+        tests.append("test_cinderx.test_compiler.test_static." + mod)
+    return tests
 
 
 def print_running_tests(tests: Dict[str, ActiveTest]) -> None:
