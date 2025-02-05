@@ -42,6 +42,7 @@ static inline void _PyClassLoader_FreeThunkSignature(
 typedef struct {
   PyObject_HEAD
   _PyClassLoader_ThunkSignature* mt_sig;
+  vectorcallfunc mt_call;
 } _PyClassLoader_MethodThunk;
 
 /**
