@@ -263,68 +263,43 @@ static int _PyVTable_set_opt_slot(
     Py_ssize_t slot,
     PyObject* value) {
   PyFunctionObject* func = (PyFunctionObject*)value;
-  vectorcallfunc entry = func->vectorcall;
-  if (entry == (vectorcallfunc)_PyFunction_Vectorcall) {
-    // non-JITed function, it could return a primitive in which case we need a
-    // stub to unbox the value.
-    int optional, exact, func_flags;
-    PyTypeObject* ret_type = (PyTypeObject*)_PyClassLoader_ResolveReturnType(
-        value, &optional, &exact, &func_flags);
-    int type_code = _PyClassLoader_GetTypeCode(ret_type);
-
-    if (type_code != TYPED_OBJECT) {
-      PyObject* tuple = PyTuple_New(2);
-      if (tuple == NULL) {
-        return -1;
-      }
-      PyTuple_SET_ITEM(tuple, 0, value);
-      Py_INCREF(value);
-      PyTuple_SET_ITEM(tuple, 1, (PyObject*)ret_type);
-      Py_XSETREF(vtable->vt_entries[slot].vte_state, tuple);
-      vtable->vt_entries[slot].vte_entry =
-          (vectorcallfunc)_PyVTable_thunk_ret_primitive_not_jitted_dont_bolt;
-    } else {
-      Py_XDECREF(vtable->vt_entries[slot].vte_state);
-      vtable->vt_entries[slot].vte_state = value;
-      vtable->vt_entries[slot].vte_entry =
-          _PyClassLoader_GetStaticFunctionEntry(func);
-      Py_INCREF(value);
-      Py_DECREF(ret_type);
-    }
-  } else if (isJitCompiled(func)) {
+  // Static functions will never be _PyFunction_Vectorcall, just
+  // Ci_StaticFunction_Vectorcall or the JITed entry point
+  assert(func->vectorcall != (vectorcallfunc)_PyFunction_Vectorcall);
+  if (isJitCompiled(func)) {
     Py_XDECREF(vtable->vt_entries[slot].vte_state);
     vtable->vt_entries[slot].vte_state = value;
     vtable->vt_entries[slot].vte_entry =
         _PyClassLoader_GetStaticFunctionEntry(func);
     Py_INCREF(value);
-  } else {
-    /* entry point isn't initialized yet, we want to run it until it changes,
-     * and then update our own entry point
-     *
-     * There's an implicit assumption here that the function has been rewritten
-     * to a JIT entry point, but we don't assert that here as that would require
-     * us to depend on the top-level JIT API.
-     */
-    _PyClassLoader_ThunkSignature* sig =
-        _PyClassLoader_GetThunkSignature(value);
-    if (sig == NULL) {
-      return -1;
-    }
-    PyObject* state = _PyClassLoader_LazyFuncJitThunk_New(
-        (PyObject*)vtable,
-        slot,
-        func,
-        sig,
-        (vectorcallfunc)_PyVTable_func_lazyinit_vectorcall);
-    if (state == NULL) {
-      _PyClassLoader_FreeThunkSignature(sig);
-      return -1;
-    }
-    Py_XDECREF(vtable->vt_entries[slot].vte_state);
-    vtable->vt_entries[slot].vte_state = state;
-    vtable->vt_entries[slot].vte_entry =
-        (vectorcallfunc)_PyVTable_thunk_dont_bolt;
+    return 0;
   }
+
+  /* entry point isn't initialized yet, we want to run it until it changes,
+   * and then update our own entry point
+   *
+   * There's an implicit assumption here that the function has been rewritten
+   * to a JIT entry point, but we don't assert that here as that would require
+   * us to depend on the top-level JIT API.
+   */
+  _PyClassLoader_ThunkSignature* sig = _PyClassLoader_GetThunkSignature(value);
+  if (sig == NULL) {
+    return -1;
+  }
+  PyObject* state = _PyClassLoader_LazyFuncJitThunk_New(
+      (PyObject*)vtable,
+      slot,
+      func,
+      sig,
+      (vectorcallfunc)_PyVTable_func_lazyinit_vectorcall);
+  if (state == NULL) {
+    _PyClassLoader_FreeThunkSignature(sig);
+    return -1;
+  }
+  Py_XDECREF(vtable->vt_entries[slot].vte_state);
+  vtable->vt_entries[slot].vte_state = state;
+  vtable->vt_entries[slot].vte_entry =
+      (vectorcallfunc)_PyVTable_thunk_dont_bolt;
   return 0;
 }
 

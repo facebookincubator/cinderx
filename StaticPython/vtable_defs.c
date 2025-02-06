@@ -645,51 +645,6 @@ vtable_static_function_native(PyObject* state, void** args) {
 
 VTABLE_THUNK(vtable_static_function, PyObject)
 
-__attribute__((__used__)) _PyClassLoader_StaticCallReturn
-_PyVTable_thunk_ret_primitive_not_jitted_native(PyObject* state, void** args) {
-  PyFunctionObject* func = (PyFunctionObject*)PyTuple_GET_ITEM(state, 0);
-  PyTypeObject* ret_type = (PyTypeObject*)PyTuple_GET_ITEM(state, 1);
-  Py_ssize_t arg_count = ((PyCodeObject*)func->func_code)->co_argcount;
-
-  _PyClassLoader_StaticCallReturn res;
-  PyObject* call_args[arg_count];
-  PyObject* free_args[arg_count];
-
-  if (_PyClassLoader_HydrateArgs(
-          (PyCodeObject*)func->func_code,
-          arg_count,
-          args,
-          call_args,
-          free_args)) {
-    res.rax = NULL;
-    res.rdx = NULL;
-    return res;
-  }
-
-  PyObject* obj = func->vectorcall((PyObject*)func, call_args, arg_count, NULL);
-  _PyClassLoader_FreeHydratedArgs(free_args, arg_count);
-  if (obj != NULL) {
-    res.rax =
-        (void*)_PyClassLoader_Unbox(obj, _PyClassLoader_GetTypeCode(ret_type));
-  } else {
-    res.rax = NULL;
-  }
-  res.rdx = (void*)(uint64_t)(obj != NULL);
-  return res;
-}
-
-__attribute__((__used__)) PyObject*
-_PyVTable_thunk_ret_primitive_not_jitted_vectorcall(
-    PyObject* state,
-    PyObject** args,
-    Py_ssize_t nargsf) {
-  PyFunctionObject* func = (PyFunctionObject*)PyTuple_GET_ITEM(state, 0);
-
-  return func->vectorcall((PyObject*)func, args, nargsf, NULL);
-}
-
-VTABLE_THUNK(_PyVTable_thunk_ret_primitive_not_jitted, PyObject)
-
 __attribute__((__used__)) void* _PyVTable_thunk_vectorcall_only_vectorcall(
     PyObject* state,
     PyObject** args,
