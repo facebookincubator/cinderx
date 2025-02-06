@@ -645,6 +645,7 @@ PyObject* _PyClassLoader_TypeCheckThunk_New(
   thunk->tcs_rt.rt_exact = exact;
   thunk->tcs_rt.rt_base.mt_sig = sig;
   thunk->tcs_rt.rt_base.mt_call = NULL;
+  PyObject_GC_Track(thunk);
   return (PyObject*)thunk;
 }
 
