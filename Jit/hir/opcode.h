@@ -74,7 +74,6 @@ namespace jit::hir {
   V(PrimitiveUnaryOp)                  \
   V(PrimitiveUnbox)                    \
   V(InvokeIterNext)                    \
-  V(InvokeMethod)                      \
   V(InvokeMethodStatic)                \
   V(IsInstance)                        \
   V(InvokeStaticFunction)              \

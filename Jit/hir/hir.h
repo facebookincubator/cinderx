@@ -1302,54 +1302,6 @@ class INSTR_CLASS(CallMethod, (TOptObject), HasOutput, Operands<>, DeoptBase) {
   CallFlags flags_;
 };
 
-class INSTR_CLASS(InvokeMethod, (TObject), HasOutput, Operands<>, DeoptBase) {
- public:
-  InvokeMethod(
-      Register* dst,
-      std::size_t slot,
-      bool is_awaited,
-      bool is_classmethod)
-      : InstrT(dst),
-        slot_(slot),
-        is_awaited_(is_awaited),
-        is_classmethod_(is_classmethod) {}
-
-  // The function to call
-  Register* func() const {
-    return GetOperand(1);
-  }
-
-  // The register containing the receiver used to perform the method lookup
-  Register* self() const {
-    return GetOperand(0);
-  }
-
-  std::size_t NumArgs() const {
-    return NumOperands() - 2;
-  }
-
-  Register* arg(std::size_t i) const {
-    return GetOperand(i + 2);
-  }
-
-  int slot() const {
-    return slot_;
-  }
-
-  bool isAwaited() const {
-    return is_awaited_;
-  }
-
-  bool isClassmethod() const {
-    return is_classmethod_;
-  }
-
- private:
-  const std::size_t slot_;
-  const bool is_awaited_;
-  const bool is_classmethod_;
-};
-
 class INSTR_CLASS(
     InvokeMethodStatic,
     (TTop),
