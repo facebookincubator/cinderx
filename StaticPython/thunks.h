@@ -99,6 +99,18 @@ PyObject* _PyClassLoader_StaticMethodThunk_New(
     _PyClassLoader_ThunkSignature* sig,
     vectorcallfunc call);
 
+typedef struct {
+  _PyClassLoader_MethodThunk cmt_base;
+  PyTypeObject* cmt_decl_type;
+  PyObject* cmt_classmethod;
+} _PyClassLoader_ClassMethodThunk;
+
+PyObject* _PyClassLoader_ClassMethodThunk_New(
+    PyObject* original,
+    _PyClassLoader_ThunkSignature* code,
+    PyTypeObject* decl_type,
+    vectorcallfunc call);
+
 // Thunk state used for a function which hasn't been initialized yet. These
 // functions will have an entry for auto-JITing either on the first call or
 // after they are warmed up. We need to update the v-table when the function is

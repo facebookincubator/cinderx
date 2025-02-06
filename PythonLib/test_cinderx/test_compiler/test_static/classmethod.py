@@ -3,6 +3,8 @@ import asyncio
 from unittest import skip, skipIf
 from unittest.mock import patch
 
+from cinderx.static import StaticTypeError
+
 from .common import StaticTestBase
 
 try:
@@ -81,7 +83,7 @@ class ClassMethodTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(d), 2)
 
-    def test_classmethod_override_from_non_static_instance_calls_override(self):
+    def test_classmethod_override_from_non_static_calls_override(self):
         codestr = """
             class C:
                  @classmethod
@@ -103,6 +105,51 @@ class ClassMethodTests(StaticTestBase):
             d = D()
             self.assertInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(d), 72)
+
+    def test_classmethod_override_from_non_static_instance(self):
+        codestr = """
+            class C:
+                 @classmethod
+                 def foo(cls, x: int) -> int:
+                     return x
+
+            def f(c: C) -> int:
+                return c.foo(42)
+        """
+        with self.in_module(codestr) as mod:
+            f = mod.f
+            C = mod.C
+
+            class D(C):
+                pass
+
+            d = D()
+            d.foo = lambda x: x + 30
+            self.assertInBytecode(f, "INVOKE_METHOD")
+            self.assertEqual(f(d), 72)
+
+    def test_classmethod_override_from_non_static_instance_type_error(self):
+        codestr = """
+            class C:
+                 @classmethod
+                 def foo(cls, x: int) -> int:
+                     return x
+
+            def f(c: C) -> int:
+                return c.foo(42)
+        """
+        with self.in_module(codestr) as mod:
+            f = mod.f
+            C = mod.C
+
+            class D(C):
+                pass
+
+            d = D()
+            d.foo = lambda x: 'abc'
+            self.assertInBytecode(f, "INVOKE_METHOD")
+            with self.assertRaises(StaticTypeError):
+                f(d)
 
     def test_classmethod_non_class_method_override(self):
         codestr = """
@@ -238,19 +285,18 @@ class ClassMethodTests(StaticTestBase):
 
     def test_patch(self):
         codestr = """
-            class C:
-                @classmethod
-                def caller(cls):
-                    if cls.is_testing():
-                        return True
-                    return False
+class C:
+    @classmethod
+    def caller(cls):
+        if cls.is_testing():
+            return True
+        return False
+    @classmethod
+    def is_testing(cls):
+        return True
 
-                @classmethod
-                def is_testing(cls):
-                    return True
-
-            class Child(C):
-                pass
+class Child(C):
+    pass
         """
 
         with self.in_module(codestr) as mod:
@@ -258,7 +304,7 @@ class ClassMethodTests(StaticTestBase):
                 c = mod.Child()
 
                 self.assertEqual(c.caller(), False)
-                self.assertEqual(p.call_args[0], (mod.Child,))
+                self.assertEqual(p.call_args[0], ())
 
     def test_classmethod_on_type(self):
         codestr = """
