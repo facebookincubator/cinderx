@@ -647,3 +647,60 @@ PyObject* _PyClassLoader_TypeCheckThunk_New(
   thunk->tcs_rt.rt_base.mt_call = NULL;
   return (PyObject*)thunk;
 }
+
+static int lazyfuncinit_thunk_traverse(
+    _PyClassLoader_LazyFuncJitThunk* op,
+    visitproc visit,
+    void* arg) {
+  Py_VISIT(op->lf_vtable);
+  Py_VISIT(op->lf_func);
+  return 0;
+}
+
+static int lazyfuncinit_thunk_clear(_PyClassLoader_LazyFuncJitThunk* op) {
+  Py_CLEAR(op->lf_vtable);
+  Py_CLEAR(op->lf_func);
+  return 0;
+}
+
+static void lazyfuncinit_thunk_dealloc(_PyClassLoader_LazyFuncJitThunk* op) {
+  Py_XDECREF(op->lf_vtable);
+  Py_XDECREF(op->lf_func);
+  _PyClassLoader_MethodThunk_dealloc((_PyClassLoader_MethodThunk*)op);
+}
+
+PyTypeObject _PyClassLoader_LazyFuncJitThunk_Type = {
+    PyVarObject_HEAD_INIT(&PyType_Type, 0) "lazyfuncinit_thunk",
+    sizeof(_PyClassLoader_LazyFuncJitThunk),
+    .tp_base = &_PyType_MethodThunk,
+    .tp_dealloc = (destructor)lazyfuncinit_thunk_dealloc,
+    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
+        _Py_TPFLAGS_HAVE_VECTORCALL,
+    .tp_traverse = (traverseproc)lazyfuncinit_thunk_traverse,
+    .tp_clear = (inquiry)lazyfuncinit_thunk_clear,
+    .tp_call = (ternaryfunc)thunk_call,
+    .tp_vectorcall_offset = offsetof(_PyClassLoader_MethodThunk, mt_call),
+    .tp_free = PyObject_GC_Del,
+};
+
+PyObject* _PyClassLoader_LazyFuncJitThunk_New(
+    PyObject* vtable,
+    Py_ssize_t slot,
+    PyFunctionObject* original,
+    _PyClassLoader_ThunkSignature* sig,
+    vectorcallfunc call) {
+  _PyClassLoader_LazyFuncJitThunk* thunk = PyObject_GC_New(
+      _PyClassLoader_LazyFuncJitThunk, &_PyClassLoader_LazyFuncJitThunk_Type);
+  if (thunk == NULL) {
+    return NULL;
+  }
+  Py_INCREF(vtable);
+  Py_INCREF(original);
+  thunk->lf_vtable = vtable;
+  thunk->lf_slot = slot;
+  thunk->lf_base.mt_sig = sig;
+  thunk->lf_func = original;
+  thunk->lf_base.mt_call = call;
+  PyObject_GC_Track(thunk);
+  return (PyObject*)thunk;
+}

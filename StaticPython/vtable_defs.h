@@ -111,10 +111,10 @@ PyObject* _PyVTable_coroutine_vectorcall(
     PyObject* const* args,
     size_t nargsf);
 
-PyObject* _PyVTable_func_lazyinit_dont_bolt(
-    PyObject* state,
+PyObject* _PyVTable_func_lazyinit_vectorcall(
+    _PyClassLoader_LazyFuncJitThunk* state,
     PyObject** args,
-    size_t nargsf);
+    Py_ssize_t nargsf);
 PyObject* _PyVTable_thunk_ret_primitive_not_jitted_dont_bolt(
     PyObject* state,
     PyObject** args,

@@ -14,6 +14,7 @@ extern PyTypeObject _PyType_AsyncCachedPropertyThunk;
 extern PyTypeObject _PyType_StaticThunk;
 extern PyTypeObject _PyType_PropertyThunk;
 extern PyTypeObject _PyType_TypedDescriptorThunk;
+extern PyTypeObject _PyClassLoader_VTableInitThunk_Type;
 
 #define THUNK_SIG(arg_count)                                             \
   {                                                                      \
@@ -87,6 +88,24 @@ PyObject* _PyClassLoader_TypeCheckThunk_New(
     int optional,
     int exact,
     _PyClassLoader_ThunkSignature* sig);
+
+// Thunk state used for a function which hasn't been initialized yet. These
+// functions will have an entry for auto-JITing either on the first call or
+// after they are warmed up. We need to update the v-table when the function is
+// JITed and replace it with the direct entry point.
+typedef struct {
+  _PyClassLoader_MethodThunk lf_base;
+  PyFunctionObject* lf_func;
+  PyObject* lf_vtable;
+  Py_ssize_t lf_slot;
+} _PyClassLoader_LazyFuncJitThunk;
+
+PyObject* _PyClassLoader_LazyFuncJitThunk_New(
+    PyObject* vtable,
+    Py_ssize_t slot,
+    PyFunctionObject* original,
+    _PyClassLoader_ThunkSignature* code,
+    vectorcallfunc call);
 
 typedef struct {
   PyObject_HEAD
