@@ -735,6 +735,10 @@ def worker_main(args):
     libregrtest_setup.setup_process()
     with open(args.runtest_config_json_file, "r") as f:
         worker_runtests_dict = json.load(f)
+    if (hunt_refleak := worker_runtests_dict.get("hunt_refleak")) is not None:
+        worker_runtests_dict["hunt_refleak"] = libregrtest_runtests.HuntRefleak(
+            **hunt_refleak
+        )
     os.unlink(args.runtest_config_json_file)
     worker_runtests = libregrtest_runtests.RunTests(**worker_runtests_dict)
     with MessagePipe(args.cmd_fd, args.result_fd) as pipe:

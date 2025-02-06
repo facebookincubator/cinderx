@@ -10,8 +10,12 @@ function run_tests() {
     local mode="$1"
     local expected_file="$2"
     local update_mode="$3"
+    local refleak_mode=$4
+    if [ "$refleak_mode" == "-refleak" ] ; then
+      local refleak_opt=--huntrleaks
+    fi
 
-    buck run @fbcode//mode/"$mode" fbcode//cinderx:python-tests3.12 -- --json-summary-file="$TMP_FILE";
+    buck run @fbcode//mode/"$mode" fbcode//cinderx:python-tests3.12 -- --json-summary-file="$TMP_FILE" "$refleak_opt";
 
     echo
 
@@ -44,11 +48,15 @@ function run_tests() {
 }
 
 UPDATE_MODE=0
+REFLEAK_MODE=
 BUILD_MODE=opt
 for v in "$@" ; do
   case "$v" in
     --update)
       UPDATE_MODE=1
+      ;;
+    --refleak)
+      REFLEAK_MODE=-refleak
       ;;
     *)
       BUILD_MODE=$v
@@ -56,4 +64,4 @@ for v in "$@" ; do
   esac
 done
 
-run_tests "$BUILD_MODE" "$PWD/3.12-python-expected-tests-$BUILD_MODE.json" "$UPDATE_MODE"
+run_tests "$BUILD_MODE" "$PWD/3.12-python-expected-tests-$BUILD_MODE$REFLEAK_MODE.json" "$UPDATE_MODE" "$REFLEAK_MODE"
