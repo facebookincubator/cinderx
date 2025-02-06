@@ -4,11 +4,11 @@ from __future__ import annotations
 import ast
 import builtins
 
-import cinder
+import cinderx
 import gc
 import inspect
 import sys
-from cinder import cached_property
+from cinderx import cached_property
 from contextlib import contextmanager
 from types import CodeType
 from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type
@@ -108,10 +108,10 @@ class StrictTestBase(CompilerTest):
 
     def setUp(self):
         # ensure clean classloader/vtable slate for all tests
-        cinder.clear_classloader_caches()
+        cinderx.clear_classloader_caches()
 
     def subTest(self, **kwargs):
-        cinder.clear_classloader_caches()
+        cinderx.clear_classloader_caches()
         return super().subTest(**kwargs)
 
 
