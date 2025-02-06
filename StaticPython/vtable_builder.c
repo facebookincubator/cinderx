@@ -1312,7 +1312,7 @@ _PyVTable_lazyinit_native(_PyClassLoader_VTableInitThunk* thunk, void** args) {
   return _PyVTable_lazyinit_impl(thunk, args, 0, 1);
 }
 
-VTABLE_THUNK(_PyVTable_lazyinit, PyObject)
+VTABLE_THUNK(_PyVTable_lazyinit, _PyClassLoader_VTableInitThunk)
 
 /**
     For every slot in the vtable slotmap, this sets the vectorcall entrypoint
