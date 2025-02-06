@@ -57,22 +57,6 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func);
 _PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func);
 
 /*
- * Register a function with the JIT to be compiled in the future.
- *
- * The JIT will run compileFunction() before the function executes on its next
- * call.  The JIT can still choose to **not** compile the function at that
- * point.
- *
- * The JIT will not keep the function alive, instead it will be informed that
- * the function is being de-allocated via funcDestroyed() before the function
- * goes away.
- *
- * Returns 1 if the function is registered with JIT or is already compiled, and
- * 0 otherwise.
- */
-int registerFunction(BorrowedRef<PyFunctionObject> func);
-
-/*
  * Preload a function, along with any functions that it calls that we might want
  * to compile afterwards as well.  This is to support inlining and faster
  * invokes for Static Python functions.

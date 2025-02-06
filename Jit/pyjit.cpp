@@ -194,6 +194,60 @@ uint64_t countCalls(PyCodeObject* code) {
 #endif
 }
 
+// If functions in the cinderx module get compiled, they will somehow keep the
+// module alive forever and the module will never get finalized on shutdown.
+// This breaks many assumptions and has a high chance of use-after-frees or ASAN
+// errors on shutdown.
+//
+// This is a hack around that by preventing the JIT from compiling anything in
+// cinderx.
+bool isCinderModule(BorrowedRef<> module_name) {
+  if (module_name == nullptr || !PyUnicode_Check(module_name)) {
+    return false;
+  }
+  std::string_view name = PyUnicode_AsUTF8(module_name);
+  return name == "cinderx";
+}
+
+bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
+  // No explicit list implies everything can and should be compiled.
+  if (g_jit_list == nullptr) {
+    return true;
+  }
+
+  // There's a config option for forcing all Static Python functions to be
+  // compiled.
+  bool is_static = code->co_flags & CI_CO_STATICALLY_COMPILED;
+  return is_static && getConfig().compile_all_static_functions;
+}
+
+// Check whether a function should be compiled.
+bool shouldCompile(BorrowedRef<PyFunctionObject> func) {
+  if (isCinderModule(func->func_module)) {
+    return false;
+  }
+
+  return shouldAlwaysCompile(func->func_code) ||
+      g_jit_list->lookupFunc(func) == 1;
+}
+
+// Check whether a code object should be compiled. Intended for nested code
+// objects.
+bool shouldCompile(BorrowedRef<> module_name, BorrowedRef<PyCodeObject> code) {
+  if (isCinderModule(module_name)) {
+    return false;
+  }
+
+  return (
+      shouldAlwaysCompile(code) || (g_jit_list->lookupCode(code) == 1) ||
+      (g_jit_list->lookupName(module_name, code->co_qualname) == 1));
+}
+
+// Check if a function has been preloaded.
+bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
+  return hir::preloaderManager().find(func) != nullptr;
+}
+
 _PyJIT_Result tryCompile(BorrowedRef<PyFunctionObject> func) {
   _PyJIT_Result result = compileFunction(func);
   // Reset the function back to the interpreter if there was any non-retryable
@@ -1103,6 +1157,92 @@ bool compile_all(size_t workers = 0) {
   jit_code_data.clear();
 
   return true;
+}
+
+// Recursively search the given co_consts tuple for any code objects that are
+// on the current jit-list, using the given module name to form a
+// fully-qualified function name.
+std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
+    BorrowedRef<> module,
+    BorrowedRef<> root_consts) {
+  std::queue<PyObject*> consts_tuples;
+  std::unordered_set<PyCodeObject*> visited;
+  std::vector<BorrowedRef<PyCodeObject>> result;
+
+  consts_tuples.push(root_consts);
+  while (!consts_tuples.empty()) {
+    PyObject* consts = consts_tuples.front();
+    consts_tuples.pop();
+
+    for (size_t i = 0, size = PyTuple_GET_SIZE(consts); i < size; ++i) {
+      BorrowedRef<PyCodeObject> code = PyTuple_GET_ITEM(consts, i);
+      if (!PyCode_Check(code) || !visited.insert(code).second ||
+          code->co_qualname == nullptr || !shouldCompile(module, code)) {
+        continue;
+      }
+
+      result.emplace_back(code);
+      consts_tuples.emplace(code->co_consts);
+    }
+  }
+
+  return result;
+}
+
+// Register a function with the JIT to be compiled in the future.
+//
+// The JIT will run compileFunction() before the function executes on its next
+// call.  The JIT can still choose to **not** compile the function at that
+// point.
+//
+// The JIT will not keep the function alive, instead it will be informed that
+// the function is being de-allocated via funcDestroyed() before the function
+// goes away.
+//
+// Return true if the function is registered with JIT or is already compiled,
+// and false otherwise.
+bool registerFunction(BorrowedRef<PyFunctionObject> func) {
+  // Attempt to attach already-compiled code even if the JIT is disabled, as
+  // long as it hasn't been finalized.
+  if (jit_ctx != nullptr && jit_ctx->reoptFunc(func)) {
+    return true;
+  }
+
+  if (!isJitUsable()) {
+    return false;
+  }
+  auto max_code_size = getConfig().max_code_size;
+  if (max_code_size && CodeAllocator::get()->usedBytes() >= max_code_size) {
+    return false;
+  }
+
+  JIT_CHECK(
+      !getThreadedCompileContext().compileRunning(),
+      "Not intended for using during threaded compilation");
+  bool result = 0;
+  if (shouldCompile(func)) {
+    jit_reg_units.emplace(func.getObj());
+    result = true;
+  }
+
+  // If we have an active jit-list, scan this function's code object for any
+  // nested functions that might be on the jit-list, and register them as well.
+  if (g_jit_list != nullptr) {
+    PyObject* module = func->func_module;
+    PyObject* builtins = func->func_builtins;
+    PyObject* globals = func->func_globals;
+    BorrowedRef<PyCodeObject> top_code{func->func_code};
+    BorrowedRef<> top_consts{top_code->co_consts};
+    for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
+      jit_reg_units.emplace(code.getObj());
+      jit_code_data.emplace(
+          std::piecewise_construct,
+          std::forward_as_tuple(code),
+          std::forward_as_tuple(module, builtins, globals));
+    }
+  }
+
+  return result;
 }
 
 PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
@@ -2206,60 +2346,6 @@ PyModuleDef jit_module = {
     nullptr, /* m_free */
 };
 
-// If functions in the cinderx module get compiled, they will somehow keep the
-// module alive forever and the module will never get finalized on shutdown.
-// This breaks many assumptions and has a high chance of use-after-frees or ASAN
-// errors on shutdown.
-//
-// This is a hack around that by preventing the JIT from compiling anything in
-// cinderx.
-bool isCinderModule(BorrowedRef<> module_name) {
-  if (module_name == nullptr || !PyUnicode_Check(module_name)) {
-    return false;
-  }
-  std::string_view name = PyUnicode_AsUTF8(module_name);
-  return name == "cinderx";
-}
-
-bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
-  // No explicit list implies everything can and should be compiled.
-  if (g_jit_list == nullptr) {
-    return true;
-  }
-
-  // There's a config option for forcing all Static Python functions to be
-  // compiled.
-  bool is_static = code->co_flags & CI_CO_STATICALLY_COMPILED;
-  return is_static && getConfig().compile_all_static_functions;
-}
-
-// Check whether a function should be compiled.
-bool shouldCompile(BorrowedRef<PyFunctionObject> func) {
-  if (isCinderModule(func->func_module)) {
-    return false;
-  }
-
-  return shouldAlwaysCompile(func->func_code) ||
-      g_jit_list->lookupFunc(func) == 1;
-}
-
-// Check whether a code object should be compiled. Intended for nested code
-// objects.
-bool shouldCompile(BorrowedRef<> module_name, BorrowedRef<PyCodeObject> code) {
-  if (isCinderModule(module_name)) {
-    return false;
-  }
-
-  return (
-      shouldAlwaysCompile(code) || (g_jit_list->lookupCode(code) == 1) ||
-      (g_jit_list->lookupName(module_name, code->co_qualname) == 1));
-}
-
-// Check if a function has been preloaded.
-bool isPreloaded(BorrowedRef<PyFunctionObject> func) {
-  return hir::preloaderManager().find(func) != nullptr;
-}
-
 // Preload a function and its dependencies, then compile them all.
 //
 // Failing to compile a dependent function is a soft failure, and is ignored.
@@ -2423,36 +2509,6 @@ int install_jit_audit_hook() {
     return -1;
   }
   return 0;
-}
-
-// Recursively search the given co_consts tuple for any code objects that are
-// on the current jit-list, using the given module name to form a
-// fully-qualified function name.
-std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
-    BorrowedRef<> module,
-    BorrowedRef<> root_consts) {
-  std::queue<PyObject*> consts_tuples;
-  std::unordered_set<PyCodeObject*> visited;
-  std::vector<BorrowedRef<PyCodeObject>> result;
-
-  consts_tuples.push(root_consts);
-  while (!consts_tuples.empty()) {
-    PyObject* consts = consts_tuples.front();
-    consts_tuples.pop();
-
-    for (size_t i = 0, size = PyTuple_GET_SIZE(consts); i < size; ++i) {
-      BorrowedRef<PyCodeObject> code = PyTuple_GET_ITEM(consts, i);
-      if (!PyCode_Check(code) || !visited.insert(code).second ||
-          code->co_qualname == nullptr || !shouldCompile(module, code)) {
-        continue;
-      }
-
-      result.emplace_back(code);
-      consts_tuples.emplace(code->co_consts);
-    }
-  }
-
-  return result;
 }
 
 void dump_jit_stats() {
@@ -2807,50 +2863,6 @@ _PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func) {
   CompilationTimer timer(func);
   jit_reg_units.erase(func);
   return compile_func(func);
-}
-
-int registerFunction(BorrowedRef<PyFunctionObject> func) {
-  // Attempt to attach already-compiled code even if the JIT is disabled, as
-  // long as it hasn't been finalized.
-  if (jit_ctx != nullptr && jit_ctx->reoptFunc(func)) {
-    return 1;
-  }
-
-  if (!isJitUsable()) {
-    return 0;
-  }
-  auto max_code_size = getConfig().max_code_size;
-  if (max_code_size && CodeAllocator::get()->usedBytes() >= max_code_size) {
-    return 0;
-  }
-
-  JIT_CHECK(
-      !getThreadedCompileContext().compileRunning(),
-      "Not intended for using during threaded compilation");
-  int result = 0;
-  if (shouldCompile(func)) {
-    jit_reg_units.emplace(func.getObj());
-    result = 1;
-  }
-
-  // If we have an active jit-list, scan this function's code object for any
-  // nested functions that might be on the jit-list, and register them as
-  // well.
-  if (g_jit_list != nullptr) {
-    PyObject* module = func->func_module;
-    PyObject* builtins = func->func_builtins;
-    PyObject* globals = func->func_globals;
-    BorrowedRef<PyCodeObject> top_code{func->func_code};
-    BorrowedRef<> top_consts{top_code->co_consts};
-    for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
-      jit_reg_units.emplace(code.getObj());
-      jit_code_data.emplace(
-          std::piecewise_construct,
-          std::forward_as_tuple(code),
-          std::forward_as_tuple(module, builtins, globals));
-    }
-  }
-  return result;
 }
 
 std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
