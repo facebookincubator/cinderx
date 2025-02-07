@@ -1605,6 +1605,10 @@ class Class(Object["Class"]):
     def declare_variables(self, node: Assign, module: ModuleTable) -> None:
         pass
 
+    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
+    def declare_type_alias(self, node: ast.TypeAlias) -> None:
+        pass
+
     def reflected_method_types(self, type_env: TypeEnvironment) -> dict[str, Class]:
         return {}
 
@@ -3885,6 +3889,10 @@ class Function(Callable[Class], FunctionContainer):
         pass
 
     def declare_variables(self, node: Assign, module: ModuleTable) -> None:
+        pass
+
+    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
+    def declare_type_alias(self, node: ast.TypeAlias) -> None:
         pass
 
     def bind_call(

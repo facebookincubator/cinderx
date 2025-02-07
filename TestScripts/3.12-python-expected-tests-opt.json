@@ -510,6 +510,7 @@
     "test_cinderx.test_compiler.test_static.super",
     "test_cinderx.test_compiler.test_static.sys_hexversion",
     "test_cinderx.test_compiler.test_static.top_level",
+    "test_cinderx.test_compiler.test_static.type_alias",
     "test_cinderx.test_compiler.test_static.type_params",
     "test_cinderx.test_compiler.test_static.typed_dict",
     "test_cinderx.test_compiler.test_static.union",
