@@ -1736,11 +1736,11 @@ void NativeGenerator::generateStaticEntryPoint(
     }
   }
 
-#if PY_VERSION_HEX < 0x030C0000
-  loadOrGenerateLinkFrame(save_regs);
-#else
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
+  loadOrGenerateLinkFrame(
+#if PY_VERSION_HEX >= 0x030C0000
+      x86::gpq(INITIAL_FUNC_REG.loc),
 #endif
+      save_regs);
 
   if (total_args + 1 > ARGUMENT_REGS.size()) {
     as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
