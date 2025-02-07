@@ -133,19 +133,15 @@ class AnnotationVisitor(ReferenceVisitor):
             # TODO until we support runtime checking of unions, we must for
             # safety resolve union annotations to dynamic (except for
             # optionals, which we can check at runtime)
-            if self.is_unsupported_union_type(klass):
+            if (
+                isinstance(klass, UnionType)
+                and klass is not self.type_env.union
+                and klass is not self.type_env.optional
+                and klass.opt_type is None
+            ):
                 return None
 
             return klass
-
-    def is_unsupported_union_type(self, klass: Value) -> bool:
-        """Returns True if klass is an unsupported union type."""
-        return (
-            isinstance(klass, UnionType)
-            and klass is not self.type_env.union
-            and klass is not self.type_env.optional
-            and klass.opt_type is None
-        )
 
     def visitSubscript(self, node: Subscript) -> Value | None:
         target = self.resolve_annotation(node.value, is_declaration=True)
@@ -271,7 +267,6 @@ class ModuleTable:
         self.flags: set[ModuleFlag] = set()
         self.decls: list[tuple[AST, str | None, Value | None]] = []
         self.implicit_decl_names: set[str] = set()
-        self.type_alias_names: set[str] = set()
         self.compile_non_static: set[AST] = set()
         # {local-name: {(mod, qualname)}} for decl-time deps
         self.decl_deps: dict[str, set[tuple[str, str]]] = {}
@@ -357,52 +352,6 @@ class ModuleTable:
         if node is None:
             return nullcontext()
         return self.compiler.error_sink.error_context(self.filename, node)
-
-    def maybe_set_type_alias(
-        self,
-        # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
-        node: ast.Assign | ast.TypeAlias,
-        name: str,
-        *,
-        require_type: bool = False,
-    ) -> None:
-        """
-        Check if we are assigning a Class or Union value to a variable at
-        module scope, and if so, store it as a type alias.
-        """
-        try:
-            value = self.resolve_type(node.value, name)
-        except SyntaxError:
-            # We should not crash here if we raise an error when analysing a
-            # top-level assignment.
-            # TODO: The SyntaxError is raised when we call ast.parse in
-            # AnnotationVisitor.visitConstant; we need to make that more
-            # robust.
-            value = None
-
-        if value and (
-            value.klass is self.compiler.type_env.type or isinstance(value, UnionType)
-        ):
-            if self.ann_visitor.is_unsupported_union_type(value):
-                # While union types are currently unsupported by the static
-                # compiler, they are syntactically valid and should therefore
-                # not raise an error even if require_type is set.
-                self.implicit_decl_names.add(name)
-            else:
-                # Treat this similarly to a class declaration
-                self.decls.append((node, name, value))
-                self._children[name] = value
-                self.type_alias_names.add(name)
-        else:
-            # Treat the type as dynamic if it is an assignment,
-            # raise an error if it is an explicit type alias.
-            if require_type:
-                raise TypedSyntaxError(f"RHS of type alias {name} is not a type")
-            self.implicit_decl_names.add(name)
-
-    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
-    def declare_type_alias(self, node: ast.TypeAlias) -> None:
-        self.maybe_set_type_alias(node, node.name.id, require_type=True)
 
     def declare_class(self, node: ClassDef, klass: Class) -> None:
         if self.first_pass_done:
@@ -507,7 +456,7 @@ class ModuleTable:
 
     def validate_overrides(self) -> None:
         for _node, name, _value in self.decls:
-            if name is None or name in self.type_alias_names:
+            if name is None:
                 continue
 
             child = self._children.get(name, None)
@@ -603,10 +552,6 @@ class ModuleTable:
 
     def declare_variables(self, node: ast.Assign, module: ModuleTable) -> None:
         targets = node.targets
-        if len(targets) == 1 and isinstance(targets[0], ast.Name):
-            # pyre-ignore[16]: `ast.expr` has no attribute `id`
-            return self.maybe_set_type_alias(node, targets[0].id)
-
         for target in targets:
             if isinstance(target, ast.Name):
                 self.implicit_decl_names.add(target.id)
