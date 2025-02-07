@@ -277,9 +277,11 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       bool is_awaited,
-      Register* func_obj,
       std::vector<Register*>& arg_regs,
       const InvokeTarget& target);
+  void emitLoadMethodStatic(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   bool emitInvokeMethod(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
@@ -502,6 +504,8 @@ class HIRBuilder {
 
   // Tracks the most recent constant read from a KW_NAMES opcode.
   Register* kwnames_{nullptr};
+
+  OperandStack static_method_stack_;
 };
 
 } // namespace jit::hir

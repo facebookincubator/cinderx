@@ -449,8 +449,10 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case INVOKE_FUNCTION:
             return (invoke_function_args(frame->f_code->co_consts, oparg));
+        case LOAD_METHOD_STATIC:
+            return 1;
         case INVOKE_METHOD:
-            return (invoke_function_args(frame->f_code->co_consts, oparg) + 1);
+            return (invoke_function_args(frame->f_code->co_consts, oparg) + 1) + 1;
         case INVOKE_NATIVE:
             return (invoke_native_args(frame->f_code->co_consts, oparg));
         case BUILD_CHECKED_LIST:
@@ -907,6 +909,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case INVOKE_FUNCTION:
             return 1;
+        case LOAD_METHOD_STATIC:
+            return 2;
         case INVOKE_METHOD:
             return 1;
         case INVOKE_NATIVE:
@@ -1150,6 +1154,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [LOAD_TYPE] = { true, INSTR_FMT_IX },
     [LOAD_CLASS] = { true, INSTR_FMT_IB },
     [INVOKE_FUNCTION] = { true, INSTR_FMT_IB },
+    [LOAD_METHOD_STATIC] = { true, INSTR_FMT_IB },
     [INVOKE_METHOD] = { true, INSTR_FMT_IB },
     [INVOKE_NATIVE] = { true, INSTR_FMT_IB },
     [BUILD_CHECKED_LIST] = { true, INSTR_FMT_IB },

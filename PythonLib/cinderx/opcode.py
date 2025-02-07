@@ -89,6 +89,8 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst):
     def_op("TP_ALLOC", 200)
     hasconst.append(200)
 
+    def_op("LOAD_METHOD_STATIC", 203)
+    hasconst.append(203)
     shadow_op("LOAD_METHOD_UNSHADOWED_METHOD", 205)
     shadow_op("LOAD_METHOD_TYPE_METHODLIKE", 206)
     shadow_op("BUILD_CHECKED_LIST_CACHED", 207)
@@ -109,6 +111,7 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst):
     shadow_op("LOAD_OBJ_FIELD", 222)
     shadow_op("STORE_OBJ_FIELD", 223)
 
+    shadow_op("LOAD_METHOD_STATIC_CACHED", 214)
     shadow_op("INVOKE_METHOD_CACHED", 224)
     shadow_op("BINARY_SUBSCR_TUPLE_CONST_INT", 225)
     shadow_op("BINARY_SUBSCR_DICT_STR", 226)

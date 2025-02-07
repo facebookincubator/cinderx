@@ -108,3 +108,6 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, hasarg, interp_only
     def_op("TP_ALLOC", 216)
     hasconst.append(216)
     hasarg.append(216)
+    def_op("LOAD_METHOD_STATIC", 217)
+    hasconst.append(217)
+    hasarg.append(217)

@@ -189,7 +189,7 @@ std::unique_ptr<InvokeTarget> Preloader::resolve_target_descr(
   }
   target->callable = std::move(callable);
 
-  if (opcode == INVOKE_METHOD) {
+  if (opcode == LOAD_METHOD_STATIC) {
     target->slot = _PyClassLoader_ResolveMethod(descr);
     JIT_CHECK(target->slot != -1, "method lookup failed: {}", repr(descr));
   } else { // the rest of this only used by INVOKE_FUNCTION currently
@@ -440,6 +440,7 @@ bool Preloader::preload() {
         fields_.emplace(descr, resolve_field_descr(descr));
         break;
       }
+      case LOAD_METHOD_STATIC:
       case INVOKE_FUNCTION:
       case INVOKE_METHOD: {
         BorrowedRef<> descr = PyTuple_GetItem(constArg(bc_instr), 0);
