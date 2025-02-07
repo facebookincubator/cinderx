@@ -28,7 +28,6 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
   static auto const map = [] {
     const std::unordered_map<Type, PyTypeObject*> map{
         {TObject, &PyBaseObject_Type},
-        {TArray, &PyStaticArray_Type},
         {TBool, &PyBool_Type},
         {TBytes, &PyBytes_Type},
         {TCell, &PyCell_Type},
@@ -55,12 +54,15 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
     };
 
     // After construction, verify that all appropriate types have an entry in
-    // this table. Except for TWaitHandle, which hasn't been ported to 3.12 yet.
-#define CHECK_TY(name, bits, lifetime, flags)                                  \
-  JIT_CHECK(/* UPGRADE_NOTE(AWAITED_FLAG, T194027914) */                       \
-            T##name <= TWaitHandle || ((flags) & kTypeHasUniquePyType) == 0 || \
-                map.count(T##name) == 1,                                       \
-            "Type {} missing entry in typeToPyType()",                         \
+    // this table. Except for TWaitHandle, which hasn't been ported to 3.12 yet
+    // and TArray which is a heap type so can't be included in this static
+    // table.
+#define CHECK_TY(name, bits, lifetime, flags)              \
+  JIT_CHECK(/* UPGRADE_NOTE(AWAITED_FLAG, T194027914) */   \
+            T##name <= TArray || T##name <= TWaitHandle || \
+                ((flags) & kTypeHasUniquePyType) == 0 ||   \
+                map.count(T##name) == 1,                   \
+            "Type {} missing entry in typeToPyType()",     \
             T##name);
     HIR_TYPES(CHECK_TY)
 #undef CHECK_TY
@@ -355,6 +357,11 @@ Type Type::fromTypeImpl(PyTypeObject* type, bool exact) {
     return exact ? it->second & TBuiltinExact : it->second;
   }
 
+  // Heap types that we're aware of, not statically known
+  if (PyType_IsSubtype(type, PyStaticArray_Type)) {
+    return TArray;
+  }
+
   {
     ThreadedCompileSerialize guard;
     if (type->tp_mro == nullptr && !(type->tp_flags & Py_TPFLAGS_READY)) {
@@ -419,6 +426,10 @@ PyTypeObject* Type::uniquePyType() const {
   auto it = type_map.find(dropMortality());
   if (it != type_map.end()) {
     return it->second;
+  }
+  // Heap types that we're aware of, not statically known
+  if (dropMortality() == TArray) {
+    return PyStaticArray_Type;
   }
   return nullptr;
 }

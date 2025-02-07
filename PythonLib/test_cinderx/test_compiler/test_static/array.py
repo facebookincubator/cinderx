@@ -150,14 +150,14 @@ class ArrayTests(StaticTestBase):
     def test_array_not_subclassable(self):
 
         with self.assertRaisesRegex(
-            TypeError, "type 'staticarray' is not an acceptable base type"
+            TypeError, "type '__static__.staticarray' is not an acceptable base type"
         ):
 
             class C(Array[int64]):
                 pass
 
         with self.assertRaisesRegex(
-            TypeError, "type 'staticarray' is not an acceptable base type"
+            TypeError, "type '__static__.staticarray' is not an acceptable base type"
         ):
 
             class C(Array):
@@ -314,7 +314,7 @@ class ArrayTests(StaticTestBase):
             def h(x: Array[int64]) -> int64:
                 return x[0]
         """
-        error_msg = re.escape("h expected 'staticarray' for argument x, got 'list'")
+        error_msg = re.escape("h expected '__static__.staticarray' for argument x, got 'list'")
         with self.in_module(codestr) as mod:
             with self.assertRaisesRegex(StaticTypeError, error_msg):
                 mod.h(["B"])
@@ -327,7 +327,7 @@ class ArrayTests(StaticTestBase):
             def h(x: Array[int64]) -> double:
                 return double(float(box(x[0])))
         """
-        error_msg = re.escape("h expected 'staticarray' for argument x, got 'list'")
+        error_msg = re.escape("h expected '__static__.staticarray' for argument x, got 'list'")
         with self.in_module(codestr) as mod:
             with self.assertRaisesRegex(StaticTypeError, error_msg):
                 mod.h(["B"])

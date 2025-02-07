@@ -15,7 +15,7 @@ extern "C" {
 #define Ci_Py_TPFLAGS_GENERIC_TYPE_DEF (1UL << 16)
 
 typedef struct {
-  PyTypeObject gtd_type; /* base type object */
+  PyHeapTypeObject gtd_type; /* base type object */
   newfunc gtd_new; /* real tp_new func for instances */
   Py_ssize_t gtd_size; /* number of generic type parameters */
 } _PyGenericTypeDef;
@@ -33,9 +33,10 @@ typedef struct {
 } _PyGenericTypeInst;
 
 PyObject* _PyClassLoader_GtdGetItem(_PyGenericTypeDef* type, PyObject* args);
+PyTypeObject* _PyClassLoader_MakeGenericHeapType(_PyGenericTypeDef* type);
 
-/* gets the generic type definition for an instance if it is an instance of a
- * generic type, or returns NULL if it is not */
+/* gets the generic type definition for an instance if it is an instance of
+ * a generic type, or returns NULL if it is not */
 static inline _PyGenericTypeDef* _PyClassLoader_GetGenericTypeDefFromType(
     PyTypeObject* gen_type) {
   if (!(gen_type->tp_flags & Ci_Py_TPFLAGS_GENERIC_TYPE_INST)) {

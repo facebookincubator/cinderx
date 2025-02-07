@@ -29,21 +29,39 @@ PyDoc_STRVAR(
     _static__doc__,
     "_static contains types related to static Python\n");
 
+typedef struct {
+  PyTypeObject* chk_dict;
+  PyTypeObject* chk_list;
+  PyTypeObject* static_array;
+} StaticModuleState;
+
 static int _static_exec(PyObject* m) {
-  if (PyType_Ready(Ci_CheckedDict_Type) < 0 ||
+  StaticModuleState* mod_state = (StaticModuleState*)PyModule_GetState(m);
+
+  if ((Ci_CheckedDict_Type = _PyClassLoader_MakeGenericHeapType(
+           &Ci_CheckedDict_GenericType)) == NULL ||
       PyModule_AddObjectRef(m, "chkdict", (PyObject*)Ci_CheckedDict_Type) < 0) {
     return -1;
   }
 
-  if (PyType_Ready(Ci_CheckedList_Type) < 0 ||
+  if ((Ci_CheckedList_Type = _PyClassLoader_MakeGenericHeapType(
+           &Ci_CheckedList_GenericType)) == NULL ||
       PyModule_AddObjectRef(m, "chklist", (PyObject*)Ci_CheckedList_Type) < 0) {
+    Py_CLEAR(Ci_CheckedDict_Type);
     return -1;
   }
 
-  if (PyType_Ready(&PyStaticArray_Type) < 0 ||
-      PyModule_AddObjectRef(m, "staticarray", (PyObject*)&PyStaticArray_Type)) {
+  if ((PyStaticArray_Type =
+           (PyTypeObject*)PyType_FromSpec(&PyStaticArray_Spec)) == NULL ||
+      PyModule_AddObjectRef(m, "staticarray", (PyObject*)PyStaticArray_Type)) {
+    Py_CLEAR(Ci_CheckedDict_Type);
+    Py_CLEAR(Ci_CheckedList_Type);
     return -1;
   }
+
+  mod_state->chk_dict = Ci_CheckedDict_Type;
+  mod_state->chk_list = Ci_CheckedList_Type;
+  mod_state->static_array = PyStaticArray_Type;
 
   PyObject* type_code;
 #define SET_TYPE_CODE(name)                             \
@@ -326,9 +344,10 @@ static PyObject* ctxmgrwrp_exit(
     }
 
     if (is_coroutine) {
-      /* The co-routine needs to yield None instead of raising the exception. We
-       * need to actually produce a co-routine which is going to return None to
-       * do that, so we have a helper function which does just that. */
+      /* The co-routine needs to yield None instead of raising the exception.
+       * We need to actually produce a co-routine which is going to return
+       * None to do that, so we have a helper function which does just that.
+       */
       if (_return_none == NULL &&
           ctxmgrwrp_import_value("__static__", "_return_none", &_return_none)) {
         return NULL;
@@ -950,7 +969,8 @@ static int validate_multiple_inheritance(PyTypeObject* pytype) {
         } else {
           PyErr_Format(
               PyExc_TypeError,
-              "cinderx: multiple bases have instance lay-out conflict (%s and "
+              "cinderx: multiple bases have instance lay-out conflict (%s "
+              "and "
               "%s)",
               static_ancestor->tp_name,
               new_static_ancestor->tp_name);
@@ -1332,11 +1352,11 @@ int init_static_type(PyObject* obj, int leaked_type) {
 }
 
 static int validate_base_types(PyTypeObject* pytype) {
-  /* Inheriting a non-static type which inherits a static type is not sound, and
-   * we can only catch it at runtime. The compiler can't see the static base
-   * through the nonstatic type (which is opaque to it) and thus a) can't verify
-   * validity of method and attribute overrides, and b) also can't check
-   * statically if this case has occurred. */
+  /* Inheriting a non-static type which inherits a static type is not sound,
+   * and we can only catch it at runtime. The compiler can't see the static
+   * base through the nonstatic type (which is opaque to it) and thus a) can't
+   * verify validity of method and attribute overrides, and b) also can't
+   * check statically if this case has occurred. */
   PyObject* mro = pytype->tp_mro;
   PyTypeObject* nonstatic_base = NULL;
 
@@ -1379,8 +1399,8 @@ static int init_cached_properties(
      correct, because the v-table should be created only _after_ `C.x` is
      assigned (and the impl deleted).
 
-      This function does the job, without going through the v-table creation and
-     does it in bulk for all of the cached properties.
+      This function does the job, without going through the v-table creation
+     and does it in bulk for all of the cached properties.
   */
   for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(cached_properties); i++) {
     PyObject* impl_name = PyTuple_GET_ITEM(cached_properties, i);
@@ -1825,16 +1845,40 @@ static PyMethodDef static_methods[] = {
      ""},
     {}};
 
+static int static_traverse(PyObject* mod, visitproc visit, void* arg) {
+  StaticModuleState* modstate = (StaticModuleState*)PyModule_GetState(mod);
+
+  Py_VISIT(modstate->chk_dict);
+  Py_VISIT(modstate->chk_list);
+  Py_VISIT(modstate->static_array);
+
+  return 0;
+}
+
+static int static_clear(PyObject* mod) {
+  StaticModuleState* modstate = (StaticModuleState*)PyModule_GetState(mod);
+  assert(
+      modstate->chk_dict == NULL || modstate->chk_dict == Ci_CheckedDict_Type);
+  Py_CLEAR(modstate->chk_dict);
+  Py_CLEAR(modstate->chk_list);
+  Py_CLEAR(modstate->static_array);
+  return 0;
+}
+
+static void static_free(PyObject* mod) {
+  static_clear(mod);
+}
+
 static struct PyModuleDef _staticmodule = {
     PyModuleDef_HEAD_INIT,
     "_static",
     _static__doc__,
-    0,
+    sizeof(StaticModuleState),
     static_methods,
     NULL,
-    NULL,
-    NULL,
-    NULL};
+    static_traverse,
+    static_clear,
+    (freefunc)static_free};
 
 int _Ci_CreateStaticModule(void) {
   PyObject* mod = PyModule_Create(&_staticmodule);
@@ -1856,5 +1900,6 @@ int _Ci_CreateStaticModule(void) {
     return -1;
   }
 
+  Py_DECREF(mod);
   return 0;
 }

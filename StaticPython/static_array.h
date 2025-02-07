@@ -14,8 +14,9 @@
 extern "C" {
 #endif
 
-extern PyTypeObject PyStaticArray_Type;
-#define PyStaticArray_CheckExact(op) Py_IS_TYPE(op, &PyStaticArray_Type)
+extern PyType_Spec PyStaticArray_Spec;
+extern PyTypeObject* PyStaticArray_Type;
+#define PyStaticArray_CheckExact(op) Py_IS_TYPE(op, PyStaticArray_Type)
 
 typedef struct {
   PyObject_VAR_HEAD

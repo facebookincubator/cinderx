@@ -4,6 +4,8 @@
 
 #include <Python.h>
 
+#include "cinderx/StaticPython/generic_type.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -12,6 +14,7 @@ PyObject* Ci_CheckedList_GetItem(PyObject* self, Py_ssize_t);
 PyObject* Ci_CheckedList_New(PyTypeObject* type, Py_ssize_t);
 int Ci_CheckedList_TypeCheck(PyTypeObject* type);
 extern PyTypeObject* Ci_CheckedList_Type;
+extern _PyGenericTypeDef Ci_CheckedList_GenericType;
 int Ci_ListOrCheckedList_Append(PyListObject* self, PyObject* v);
 
 int Ci_CheckedList_Check(PyObject* op);

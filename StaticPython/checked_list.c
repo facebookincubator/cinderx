@@ -3052,7 +3052,7 @@ static PyObject* list___reversed__(
 extern _PyGenericTypeDef Ci_CheckedList_GenericType;
 #define IS_CHECKED_LIST(x)                           \
   (_PyClassLoader_GetGenericTypeDef((PyObject*)x) == \
-   &Ci_CheckedList_GenericType)
+   (_PyGenericTypeDef*)Ci_CheckedList_Type)
 
 int Ci_CheckedList_Check(PyObject* op) {
   return IS_CHECKED_LIST(op);
@@ -3205,7 +3205,7 @@ PyObject* Ci_CheckedList_New(PyTypeObject* type, Py_ssize_t size) {
 
 int Ci_CheckedList_TypeCheck(PyTypeObject* type) {
   return _PyClassLoader_GetGenericTypeDefFromType(type) ==
-      &Ci_CheckedList_GenericType;
+      (_PyGenericTypeDef*)Ci_CheckedList_Type;
 }
 
 static PyObject*
@@ -3594,52 +3594,53 @@ static int chklist_init(PyListObject* self, PyObject* args, PyObject* kwds) {
 
 _PyGenericTypeDef Ci_CheckedList_GenericType = {
     .gtd_type =
-        {
-            PyVarObject_HEAD_INIT(&PyType_Type, 0) "chklist[T]",
-            sizeof(PyListObject),
-            0,
-            (destructor)chklist_dealloc, /* tp_dealloc */
-            0, /* tp_vectorcall_offset */
-            0, /* tp_getattr */
-            0, /* tp_setattr */
-            0, /* tp_as_async */
-            (reprfunc)list_repr, /* tp_repr */
-            0, /* tp_as_number */
-            &list_as_sequence, /* tp_as_sequence */
-            &chklist_as_mapping, /* tp_as_mapping */
-            PyObject_HashNotImplemented, /* tp_hash */
-            0, /* tp_call */
-            0, /* tp_str */
-            PyObject_GenericGetAttr, /* tp_getattro */
-            0, /* tp_setattro */
-            0, /* tp_as_buffer */
-            Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
-                Ci_Py_TPFLAGS_GENERIC_TYPE_DEF, /* tp_flags */
-            chklist___init____doc__, /* tp_doc */
-            (traverseproc)list_traverse, /* tp_traverse */
-            (inquiry)_list_clear, /* tp_clear */
-            list_richcompare, /* tp_richcompare */
-            0, /* tp_weaklistoffset */
-            list_iter, /* tp_iter */
-            0, /* tp_iternext */
-            chklist_methods, /* tp_methods */
-            0, /* tp_members */
-            0, /* tp_getset */
-            0, /* tp_base */
-            0, /* tp_dict */
-            0, /* tp_descr_get */
-            0, /* tp_descr_set */
-            0, /* tp_dictoffset */
-            (initproc)chklist_init, /* tp_init */
-            chklist_alloc, /* tp_alloc */
-            NULL, /* tp_new */
-            PyObject_GC_Del, /* tp_free */
-        },
+        {.ht_type =
+             {
+                 PyVarObject_HEAD_INIT(&PyType_Type, 0) "__static__.chklist[T]",
+                 sizeof(PyListObject),
+                 0,
+                 (destructor)chklist_dealloc, /* tp_dealloc */
+                 0, /* tp_vectorcall_offset */
+                 0, /* tp_getattr */
+                 0, /* tp_setattr */
+                 0, /* tp_as_async */
+                 (reprfunc)list_repr, /* tp_repr */
+                 0, /* tp_as_number */
+                 &list_as_sequence, /* tp_as_sequence */
+                 &chklist_as_mapping, /* tp_as_mapping */
+                 PyObject_HashNotImplemented, /* tp_hash */
+                 0, /* tp_call */
+                 0, /* tp_str */
+                 PyObject_GenericGetAttr, /* tp_getattro */
+                 0, /* tp_setattro */
+                 0, /* tp_as_buffer */
+                 Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+                     Ci_Py_TPFLAGS_GENERIC_TYPE_DEF, /* tp_flags */
+                 chklist___init____doc__, /* tp_doc */
+                 (traverseproc)list_traverse, /* tp_traverse */
+                 (inquiry)_list_clear, /* tp_clear */
+                 list_richcompare, /* tp_richcompare */
+                 0, /* tp_weaklistoffset */
+                 list_iter, /* tp_iter */
+                 0, /* tp_iternext */
+                 chklist_methods, /* tp_methods */
+                 0, /* tp_members */
+                 0, /* tp_getset */
+                 0, /* tp_base */
+                 0, /* tp_dict */
+                 0, /* tp_descr_get */
+                 0, /* tp_descr_set */
+                 0, /* tp_dictoffset */
+                 (initproc)chklist_init, /* tp_init */
+                 chklist_alloc, /* tp_alloc */
+                 NULL, /* tp_new */
+                 PyObject_GC_Del, /* tp_free */
+             }},
     .gtd_size = 1,
     .gtd_new = NULL,
 };
 
-PyTypeObject* Ci_CheckedList_Type = (PyTypeObject*)&Ci_CheckedList_GenericType;
+PyTypeObject* Ci_CheckedList_Type;
 
 int Ci_ListOrCheckedList_Append(PyListObject* self, PyObject* v) {
   Py_ssize_t n = Ci_ListOrCheckedList_GET_SIZE(self);

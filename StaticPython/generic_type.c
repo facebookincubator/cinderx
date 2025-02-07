@@ -81,8 +81,6 @@ done:
 }
 
 int gtd_validate_type(PyObject* type, PyObject** args, Py_ssize_t nargs) {
-  /* We have no support for heap types as generic type definitions yet */
-  assert(!(((PyTypeObject*)type)->tp_flags & Py_TPFLAGS_HEAPTYPE));
   /* We don't allow subclassing from generic classes yet */
   assert(!(((PyTypeObject*)type)->tp_flags & Py_TPFLAGS_BASETYPE));
   /* Can't create instances of generic types */
@@ -176,47 +174,53 @@ PyObject* gti_calc_name(PyObject* type, _PyGenericTypeInst* new_inst) {
   return PyUnicode_FromString(buf);
 }
 
-PyObject* gtd_new_inst(PyObject* type, PyObject** args, Py_ssize_t nargs) {
-  /* We have to allocate this in a very strange way, as we want the
-   * extra space for a _PyGenericTypeInst, along with the generic
-   * arguments.  But the type can't have a non-zero Py_SIZE (which would
-   * be for PyHeapTypeObject's PyMemberDef's).  So we calculate the
-   * size by hand.  This is currently fine as we don't support subclasses
-   * of generic types. */
-  Py_ssize_t extra_size =
-      sizeof(_PyGenericTypeInst) + sizeof(_PyGenericTypeParam) * nargs;
+int set_module_name(_PyGenericTypeDef* type, PyTypeObject* new_type) {
+  PyObject* mod;
+  const char* base_name = ((PyTypeObject*)type)->tp_name;
+  const char* s = strrchr(base_name, '.');
+  DEFINE_STATIC_STRING(__module__);
+  DEFINE_STATIC_STRING(builtins);
+
+  if (s != NULL) {
+    mod = PyUnicode_FromStringAndSize(base_name, (Py_ssize_t)(s - base_name));
+    if (mod != NULL) {
+      PyUnicode_InternInPlace(&mod);
+    }
+  } else {
+    mod = s_builtins;
+  }
+  if (mod == NULL) {
+    return -1;
+  }
+  int result = PyDict_SetItem(
+      _PyType_GetDict(((PyTypeObject*)new_type)), s___module__, mod);
+  Py_DECREF(mod);
+  return result;
+}
+
+PyTypeObject* gtd_make_heap_type(PyTypeObject* type, Py_ssize_t size) {
 #if PY_VERSION_HEX < 0x030C0000
-  Py_ssize_t basicsize = _Py_SIZE_ROUND_UP(extra_size, SIZEOF_VOID_P);
-  _PyGenericTypeInst* new_inst =
-      (_PyGenericTypeInst*)_PyObject_GC_Malloc(basicsize);
-  if (new_inst == NULL) {
+  Py_ssize_t basicsize = _Py_SIZE_ROUND_UP(size, SIZEOF_VOID_P);
+  PyTypeObject* new_type = (PyTypeObject*)_PyObject_GC_Calloc(basicsize);
+  if (new_type == NULL) {
     return NULL;
   }
 
-  PyObject_INIT_VAR(new_inst, &PyType_Type, 0);
-
-  memset(
-      ((char*)new_inst) + sizeof(PyVarObject),
-      0,
-      sizeof(PyHeapTypeObject) - sizeof(PyObject));
+  PyObject_INIT_VAR(new_type, &PyType_Type, 0);
 #else
-  _PyGenericTypeInst* new_inst =
-      (_PyGenericTypeInst*)PyUnstable_Object_GC_NewWithExtraData(
-          &PyType_Type, extra_size);
-  if (new_inst == NULL) {
+  PyTypeObject* new_type =
+      (PyTypeObject*)PyUnstable_Object_GC_NewWithExtraData(&PyType_Type, size);
+  if (new_type == NULL) {
     return NULL;
   }
 #endif
-  // Note this must be set to NULL in case we jump to "error:".
-  _PyType_GenericTypeRef* gtr = NULL;
 
   /* Copy the generic def into the instantiation */
-  PyTypeObject* old_type = (PyTypeObject*)type;
-  PyTypeObject* new_type = (PyTypeObject*)new_inst;
-#define COPY_DATA(name) new_type->name = old_type->name;
+#define COPY_DATA(name) new_type->name = type->name;
+  COPY_DATA(tp_name);
   COPY_DATA(tp_basicsize);
+  COPY_DATA(tp_dealloc);
   COPY_DATA(tp_itemsize);
-  new_type->tp_dealloc = geninst_dealloc;
   COPY_DATA(tp_vectorcall_offset);
   COPY_DATA(tp_getattr);
   COPY_DATA(tp_setattr);
@@ -250,28 +254,82 @@ PyObject* gtd_new_inst(PyObject* type, PyObject** args, Py_ssize_t nargs) {
   COPY_DATA(tp_alloc);
   COPY_DATA(tp_new);
   COPY_DATA(tp_free);
-  if (old_type->tp_doc != NULL) {
+  if (type->tp_doc != NULL) {
     // tp_doc is heap allocated, so we need to copy it.
-    size_t len = strlen(old_type->tp_doc) + 1;
+    size_t len = strlen(type->tp_doc) + 1;
     char* new_doc = PyObject_Malloc(len);
     if (new_doc == NULL) {
       goto error;
     }
-    memcpy(new_doc, old_type->tp_doc, len);
+    memcpy(new_doc, type->tp_doc, len);
     new_type->tp_doc = new_doc;
   }
   new_type->tp_new = ((_PyGenericTypeDef*)type)->gtd_new;
 #undef COPY_DATA
 
 #if PY_VERSION_HEX < 0x030C0000
-  new_inst->gti_type.ht_type.tp_flags |= Py_TPFLAGS_HEAPTYPE |
-      Ci_Py_TPFLAGS_FROZEN | Ci_Py_TPFLAGS_GENERIC_TYPE_INST;
+  new_type->tp_flags |= Py_TPFLAGS_HEAPTYPE | Ci_Py_TPFLAGS_FROZEN;
 #else
-  new_inst->gti_type.ht_type.tp_flags |= Py_TPFLAGS_HEAPTYPE |
-      Py_TPFLAGS_IMMUTABLETYPE | Ci_Py_TPFLAGS_GENERIC_TYPE_INST;
+  new_type->tp_flags |= Py_TPFLAGS_HEAPTYPE | Py_TPFLAGS_IMMUTABLETYPE;
 #endif
-  new_inst->gti_type.ht_type.tp_flags &=
-      ~(Py_TPFLAGS_READY | Ci_Py_TPFLAGS_GENERIC_TYPE_DEF);
+  new_type->tp_flags &= ~Py_TPFLAGS_READY;
+  PyObject_GC_Track(new_type);
+  return new_type;
+error:
+  Py_XDECREF(new_type);
+  return NULL;
+}
+
+PyTypeObject* _PyClassLoader_MakeGenericHeapType(_PyGenericTypeDef* type) {
+  if (strchr(type->gtd_type.ht_type.tp_name, '.') == NULL) {
+    PyErr_Format(
+        PyExc_ValueError,
+        "type needs to have module %s",
+        type->gtd_type.ht_type.tp_name);
+    return NULL;
+  }
+  _PyGenericTypeDef* new_type = (_PyGenericTypeDef*)gtd_make_heap_type(
+      (PyTypeObject*)&type->gtd_type, sizeof(_PyGenericTypeDef));
+  assert(new_type != type);
+  if (new_type == NULL || PyType_Ready((PyTypeObject*)new_type) < 0) {
+    Py_XDECREF(new_type);
+    return NULL;
+  }
+
+  _PyGenericTypeDef* gen_type = (_PyGenericTypeDef*)type;
+  new_type->gtd_new = gen_type->gtd_new;
+  new_type->gtd_size = gen_type->gtd_size;
+  /* can't create generic types */
+  new_type->gtd_type.ht_type.tp_new = NULL;
+  new_type->gtd_type.ht_name =
+      PyUnicode_FromString(strchr(type->gtd_type.ht_type.tp_name, '.') + 1);
+  new_type->gtd_type.ht_qualname =
+      PyUnicode_FromString(type->gtd_type.ht_type.tp_name);
+
+  if (set_module_name(type, (PyTypeObject*)new_type)) {
+    Py_DECREF(new_type);
+    return NULL;
+  }
+
+  return (PyTypeObject*)new_type;
+}
+
+PyObject* gtd_new_inst(PyObject* type, PyObject** args, Py_ssize_t nargs) {
+  /* We have to allocate this in a very strange way, as we want the
+   * extra space for a _PyGenericTypeInst, along with the generic
+   * arguments.  But the type can't have a non-zero Py_SIZE (which would
+   * be for PyHeapTypeObject's PyMemberDef's).  So we calculate the
+   * size by hand.  This is currently fine as we don't support subclasses
+   * of generic types. */
+  Py_ssize_t extra_size =
+      sizeof(_PyGenericTypeInst) + sizeof(_PyGenericTypeParam) * nargs;
+  _PyGenericTypeInst* new_inst =
+      (_PyGenericTypeInst*)gtd_make_heap_type((PyTypeObject*)type, extra_size);
+  PyTypeObject* new_type = (PyTypeObject*)new_inst;
+
+  new_inst->gti_type.ht_type.tp_dealloc = geninst_dealloc;
+  new_inst->gti_type.ht_type.tp_flags |= Ci_Py_TPFLAGS_GENERIC_TYPE_INST;
+  new_inst->gti_type.ht_type.tp_flags &= ~(Ci_Py_TPFLAGS_GENERIC_TYPE_DEF);
 
   new_inst->gti_gtd = (_PyGenericTypeDef*)type;
   Py_INCREF(type);
@@ -279,7 +337,7 @@ PyObject* gtd_new_inst(PyObject* type, PyObject** args, Py_ssize_t nargs) {
   new_inst->gti_size = nargs;
 
   // The lifetime of the generic type parameters is managed by the vtable
-  gtr =
+  _PyType_GenericTypeRef* gtr =
       PyMem_Malloc(sizeof(_PyType_GenericTypeRef) + sizeof(PyObject*) * nargs);
   if (gtr == NULL) {
     goto error;
@@ -326,8 +384,6 @@ PyObject* gtd_new_inst(PyObject* type, PyObject** args, Py_ssize_t nargs) {
   if (new_type->tp_base != NULL) {
     new_type->tp_new = new_type->tp_base->tp_new;
   }
-
-  PyObject_GC_Track((PyObject*)new_inst);
   return (PyObject*)new_inst;
 error:
   if (gtr != NULL) {
@@ -412,31 +468,10 @@ PyObject* _PyClassLoader_GtdGetItem(_PyGenericTypeDef* type, PyObject* args) {
   }
   if (res == NULL) {
     return NULL;
-  }
-  PyObject* mod;
-  const char* base_name = ((PyTypeObject*)type)->tp_name;
-  const char* s = strrchr(base_name, '.');
-  DEFINE_STATIC_STRING(__module__);
-  DEFINE_STATIC_STRING(builtins);
-
-  if (s != NULL) {
-    mod = PyUnicode_FromStringAndSize(base_name, (Py_ssize_t)(s - base_name));
-    if (mod != NULL)
-      PyUnicode_InternInPlace(&mod);
-  } else {
-    mod = s_builtins;
-  }
-  if (mod == NULL) {
+  } else if (set_module_name(type, (PyTypeObject*)res) < 0) {
     Py_DECREF(res);
     return NULL;
   }
-  if (PyDict_SetItem(
-          _PyType_GetDict(((PyTypeObject*)res)), s___module__, mod) == -1) {
-    Py_DECREF(mod);
-    Py_DECREF(res);
-    return NULL; // return NULL on errors
-  }
-  Py_DECREF(mod);
 
   return res;
 }

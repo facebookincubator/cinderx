@@ -133,8 +133,6 @@ struct _dictkeysobject {
  * Python code.  Statically Typed Python code will be able to call versions
  * of most functionality in a way that elides the type checks */
 
-extern _PyGenericTypeDef Ci_CheckedDict_GenericType;
-
 extern PyTypeObject Ci_CheckedDictKeys_Type;
 extern PyTypeObject Ci_CheckedDictValues_Type;
 extern PyTypeObject Ci_CheckedDictItems_Type;
@@ -2263,7 +2261,7 @@ PyDoc_STRVAR(
 
 #define IS_CHECKED_DICT(x)                           \
   (_PyClassLoader_GetGenericTypeDef((PyObject*)x) == \
-   &Ci_CheckedDict_GenericType)
+   (_PyGenericTypeDef*)Ci_CheckedDict_Type)
 
 static inline int Ci_Dict_CheckIncludingChecked(PyObject* x) {
   return IS_CHECKED_DICT(x);
@@ -2275,7 +2273,7 @@ int Ci_CheckedDict_Check(PyObject* x) {
 
 int Ci_CheckedDict_TypeCheck(PyTypeObject* type) {
   return _PyClassLoader_GetGenericTypeDefFromType(type) ==
-      &Ci_CheckedDict_GenericType;
+      (_PyGenericTypeDef*)Ci_CheckedDict_Type;
 }
 
 /* Consumes a reference to the keys object */
@@ -2891,50 +2889,53 @@ static PyObject* chkdict_richcompare(PyObject* v, PyObject* w, int op) {
 
 _PyGenericTypeDef Ci_CheckedDict_GenericType = {
     .gtd_type =
-        {
-            PyVarObject_HEAD_INIT(&PyType_Type, 0) "__static__.chkdict[K, V]",
-            sizeof(CiChkDictObject),
-            0,
-            (destructor)dict_dealloc, /* tp_dealloc */
-            0, /* tp_vectorcall_offset */
-            0, /* tp_getattr */
-            0, /* tp_setattr */
-            0, /* tp_as_async */
-            (reprfunc)dict_repr, /* tp_repr */
-            0, /* tp_as_number */
-            &dict_as_sequence, /* tp_as_sequence */
-            &chkdict_as_mapping, /* tp_as_mapping */
-            PyObject_HashNotImplemented, /* tp_hash */
-            0, /* tp_call */
-            0, /* tp_str */
-            PyObject_GenericGetAttr, /* tp_getattro */
-            0, /* tp_setattro */
-            0, /* tp_as_buffer */
-            Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
-                Ci_Py_TPFLAGS_GENERIC_TYPE_DEF, /* tp_flags */
-            dictionary_doc, /* tp_doc */
-            dict_traverse, /* tp_traverse */
-            dict_tp_clear, /* tp_clear */
-            chkdict_richcompare, /* tp_richcompare */
-            0, /* tp_weaklistoffset */
-            (getiterfunc)dict_iter, /* tp_iter */
-            0, /* tp_iternext */
-            chkmapp_methods, /* tp_methods */
-            0, /* tp_members */
-            0, /* tp_getset */
-            0, /* tp_base */
-            0, /* tp_dict */
-            0, /* tp_descr_get */
-            0, /* tp_descr_set */
-            0, /* tp_dictoffset */
-            chkdict_init, /* tp_init */
-            chkdict_alloc, /* tp_alloc */
-            NULL, /* tp_new */
-            PyObject_GC_Del, /* tp_free */
-        },
+        {.ht_type =
+             {
+                 PyVarObject_HEAD_INIT(
+                     &PyType_Type,
+                     0) "__static__.chkdict[K, V]",
+                 sizeof(CiChkDictObject),
+                 0,
+                 (destructor)dict_dealloc, /* tp_dealloc */
+                 0, /* tp_vectorcall_offset */
+                 0, /* tp_getattr */
+                 0, /* tp_setattr */
+                 0, /* tp_as_async */
+                 (reprfunc)dict_repr, /* tp_repr */
+                 0, /* tp_as_number */
+                 &dict_as_sequence, /* tp_as_sequence */
+                 &chkdict_as_mapping, /* tp_as_mapping */
+                 PyObject_HashNotImplemented, /* tp_hash */
+                 0, /* tp_call */
+                 0, /* tp_str */
+                 PyObject_GenericGetAttr, /* tp_getattro */
+                 0, /* tp_setattro */
+                 0, /* tp_as_buffer */
+                 Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+                     Ci_Py_TPFLAGS_GENERIC_TYPE_DEF, /* tp_flags */
+                 dictionary_doc, /* tp_doc */
+                 dict_traverse, /* tp_traverse */
+                 dict_tp_clear, /* tp_clear */
+                 chkdict_richcompare, /* tp_richcompare */
+                 0, /* tp_weaklistoffset */
+                 (getiterfunc)dict_iter, /* tp_iter */
+                 0, /* tp_iternext */
+                 chkmapp_methods, /* tp_methods */
+                 0, /* tp_members */
+                 0, /* tp_getset */
+                 0, /* tp_base */
+                 0, /* tp_dict */
+                 0, /* tp_descr_get */
+                 0, /* tp_descr_set */
+                 0, /* tp_dictoffset */
+                 chkdict_init, /* tp_init */
+                 chkdict_alloc, /* tp_alloc */
+                 NULL, /* tp_new */
+                 PyObject_GC_Del, /* tp_free */
+             }},
     .gtd_size = 2};
 
-PyTypeObject* Ci_CheckedDict_Type = (PyTypeObject*)&Ci_CheckedDict_GenericType;
+PyTypeObject* Ci_CheckedDict_Type;
 
 /* === Copied from dictobject.c === */
 

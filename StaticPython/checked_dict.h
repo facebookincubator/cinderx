@@ -4,11 +4,14 @@
 
 #include <Python.h>
 
+#include "cinderx/StaticPython/generic_type.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 extern PyTypeObject* Ci_CheckedDict_Type;
+extern _PyGenericTypeDef Ci_CheckedDict_GenericType;
 
 PyObject* Ci_CheckedDict_New(PyTypeObject* type);
 PyObject* Ci_CheckedDict_NewPresized(PyTypeObject* type, Py_ssize_t minused);

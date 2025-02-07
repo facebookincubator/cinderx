@@ -8,21 +8,25 @@
 
 #define ArrayItemType int64_t
 
+PyType_Spec PyStaticArray_Spec;
+
 static void staticarray_dealloc(PyStaticArrayObject* op) {
   PyObject_GC_UnTrack(op);
-  Py_TYPE(op)->tp_free((PyObject*)op);
+  PyTypeObject* type = Py_TYPE(op);
+  type->tp_free((PyObject*)op);
+  Py_DECREF(type);
 }
 
 static PyStaticArrayObject* staticarray_alloc(Py_ssize_t size) {
   PyStaticArrayObject* op =
-      PyObject_GC_NewVar(PyStaticArrayObject, &PyStaticArray_Type, size);
+      PyObject_GC_NewVar(PyStaticArrayObject, PyStaticArray_Type, size);
   return op;
 }
 
 static inline void staticarray_zeroinitialize(
     PyStaticArrayObject* sa,
     Py_ssize_t size) {
-  memset(sa->ob_item, 0, size * PyStaticArray_Type.tp_itemsize);
+  memset(sa->ob_item, 0, size * PyStaticArray_Spec.itemsize);
 }
 
 static PyObject* staticarray_vectorcall(
@@ -109,7 +113,7 @@ static PyObject* staticarray_concat(
   if (np == NULL) {
     return NULL;
   }
-  Py_ssize_t itemsize = PyStaticArray_Type.tp_itemsize;
+  Py_ssize_t itemsize = PyStaticArray_Spec.itemsize;
   if (Py_SIZE(first) > 0) {
     memcpy(np->ob_item, first->ob_item, Py_SIZE(first) * itemsize);
   }
@@ -140,7 +144,7 @@ static PyObject* staticarray_repeat(PyStaticArrayObject* array, Py_ssize_t n) {
 
   Py_ssize_t oldsize = Py_SIZE(array);
   Py_ssize_t newsize = oldsize * n;
-  Py_ssize_t itemsize = PyStaticArray_Type.tp_itemsize;
+  Py_ssize_t itemsize = PyStaticArray_Spec.itemsize;
 
   Py_ssize_t done = oldsize;
   memcpy(np->ob_item, array->ob_item, oldsize * itemsize);
@@ -161,7 +165,7 @@ static PyObject* staticarray_getitem(
     PyErr_SetString(PyExc_IndexError, "array index out of range");
     return NULL;
   }
-  assert(PyStaticArray_Type.tp_itemsize == sizeof(long));
+  assert(PyStaticArray_Spec.itemsize == sizeof(long));
   return PyLong_FromLong(array->ob_item[index]);
 }
 
@@ -174,7 +178,7 @@ static int staticarray_setitem(
     PyErr_SetString(PyExc_IndexError, "array index out of range");
     return -1;
   }
-  assert(PyStaticArray_Type.tp_itemsize == sizeof(long));
+  assert(PyStaticArray_Spec.itemsize == sizeof(long));
   ArrayItemType val = PyLong_AsLong(value);
   if (val == -1 && PyErr_Occurred()) {
     return -1;
@@ -208,14 +212,6 @@ PyObject* staticarray_new(PyTypeObject* type, PyObject* args, PyObject* kwds) {
   return (PyObject*)new;
 }
 
-static PySequenceMethods staticarray_as_sequence = {
-    .sq_length = (lenfunc)staticarray_length,
-    .sq_concat = (binaryfunc)staticarray_concat,
-    .sq_repeat = (ssizeargfunc)staticarray_repeat,
-    .sq_item = (ssizeargfunc)staticarray_getitem,
-    .sq_ass_item = (ssizeobjargproc)staticarray_setitem,
-};
-
 static PyMethodDef staticarray_methods[] = {
     {"__class_getitem__",
      (PyCFunction)staticarray___class_getitem__,
@@ -224,21 +220,29 @@ static PyMethodDef staticarray_methods[] = {
     {NULL, NULL} /* sentinel */
 };
 
-PyTypeObject PyStaticArray_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "staticarray",
-    .tp_alloc = PyType_GenericAlloc,
-    .tp_basicsize = sizeof(PyStaticArrayObject) - sizeof(PyObject*),
-    .tp_itemsize = sizeof(ArrayItemType),
-    .tp_dealloc = (destructor)staticarray_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
-    .tp_free = PyObject_GC_Del,
-    .tp_vectorcall = staticarray_vectorcall,
-    .tp_repr = staticarray_repr,
-    .tp_methods = staticarray_methods,
-    .tp_new = staticarray_new,
-    .tp_as_sequence = &staticarray_as_sequence,
-    .tp_traverse = staticarray_traverse,
+PyType_Slot staticarray_slots[] = {
+    {Py_tp_dealloc, staticarray_dealloc},
+    {Py_tp_free, PyObject_GC_Del},
+    {Py_tp_repr, staticarray_repr},
+    {Py_tp_methods, staticarray_methods},
+    {Py_tp_new, staticarray_new},
+    {Py_sq_length, staticarray_length},
+    {Py_sq_concat, staticarray_concat},
+    {Py_sq_repeat, staticarray_repeat},
+    {Py_sq_item, staticarray_getitem},
+    {Py_sq_ass_item, staticarray_setitem},
+    {Py_tp_traverse, staticarray_traverse},
+    {}};
+
+PyType_Spec PyStaticArray_Spec = {
+    .name = "__static__.staticarray",
+    .basicsize = sizeof(PyStaticArrayObject),
+    .itemsize = sizeof(ArrayItemType),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC,
+    .slots = staticarray_slots,
 };
+
+PyTypeObject* PyStaticArray_Type;
 
 /** StaticArray internal C-API **/
 

@@ -13,7 +13,7 @@ class StaticArrayTests(StaticTestBase):
             "staticarray must exist in the 'static' module",
         )
 
-        self.assertEqual(repr(static.staticarray), "<class 'staticarray'>")
+        self.assertEqual(repr(static.staticarray), "<class '__static__.staticarray'>")
 
     def test_initialization(self):
         my_array = static.staticarray(5)
