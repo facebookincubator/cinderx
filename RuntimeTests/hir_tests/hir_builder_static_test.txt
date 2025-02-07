@@ -27,53 +27,57 @@ fun jittestmodule:test {
         Locals<1> v0
       }
     }
-    v2 = InvokeMethodStatic<1, awaited> v0 {
+    v2 = LoadField<ob_type@8, Type, borrowed> v0
+    v3 = LoadField<tp_cache@352, Object, borrowed> v2
+    v4 = LoadField<vte_state@80, Object, borrowed> v3
+    v6 = LoadField<vte_entry@88, CPtr, borrowed> v3
+    v5 = CallInd<vtable invoke> v6 v4 v0 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v0
       }
     }
-    CondBranchCheckType<4, 2, WaitHandle> v2
+    CondBranchCheckType<4, 2, WaitHandle> v5
   }
 
   bb 4 (preds 0) {
-    v4 = WaitHandleLoadCoroOrResult v2
-    v5 = WaitHandleLoadWaiter v2
-    WaitHandleRelease v2
-    CondBranch<5, 6> v5
+    v8 = WaitHandleLoadCoroOrResult v5
+    v9 = WaitHandleLoadWaiter v5
+    WaitHandleRelease v5
+    CondBranch<5, 6> v9
   }
 
   bb 5 (preds 4) {
-    SetCurrentAwaiter v4
-    v3 = YieldAndYieldFrom v5 v4 {
+    SetCurrentAwaiter v8
+    v7 = YieldAndYieldFrom v9 v8 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v0
-        Stack<1> v2
+        Stack<1> v5
       }
     }
     Branch<3>
   }
 
   bb 6 (preds 4) {
-    v3 = Assign v4
+    v7 = Assign v8
     Branch<3>
   }
 
   bb 2 (preds 0) {
-    v6 = CallCFunc<Cix_PyCoro_GetAwaitableIter> v2
-    v6 = CheckExc v6 {
+    v10 = CallCFunc<Cix_PyCoro_GetAwaitableIter> v5
+    v10 = CheckExc v10 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v0
       }
     }
-    CondBranchCheckType<7, 8, ObjectUser[coroutine:Exact]> v6
+    CondBranchCheckType<7, 8, ObjectUser[coroutine:Exact]> v10
   }
 
   bb 7 (preds 2) {
-    v7 = CallCFunc<Cix_PyGen_yf> v6
-    CondBranch<9, 8> v7
+    v11 = CallCFunc<Cix_PyGen_yf> v10
+    CondBranch<9, 8> v11
   }
 
   bb 9 (preds 7) {
@@ -86,20 +90,20 @@ fun jittestmodule:test {
   }
 
   bb 8 (preds 2, 7) {
-    v8 = LoadConst<NoneType>
-    SetCurrentAwaiter v6
-    v3 = YieldFrom v8 v6 {
+    v12 = LoadConst<NoneType>
+    SetCurrentAwaiter v10
+    v7 = YieldFrom v12 v10 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v0
-        Stack<1> v6
+        Stack<1> v10
       }
     }
     Branch<3>
   }
 
   bb 3 (preds 5, 6, 8) {
-    v2 = Assign v3
+    v2 = Assign v7
     Branch<1>
   }
 

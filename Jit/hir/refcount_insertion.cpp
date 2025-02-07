@@ -933,6 +933,10 @@ void fillDeoptLiveRegs(const StateMap& live_regs, Instr& instr) {
     auto ref_kind = rstate.kind();
     for (int i = 0, n = rstate.numCopies(); i < n; ++i) {
       Register* reg = rstate.copy(i);
+      if (reg->type().couldBe(TCPtr)) {
+        // This value will never be de-opted
+        continue;
+      }
       deopt->emplaceLiveReg(reg, ref_kind, deoptValueKind(reg->type()));
       if (ref_kind == RefKind::kOwned) {
         // Treat anything other than the first copy as borrowed, to avoid

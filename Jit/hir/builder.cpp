@@ -2246,10 +2246,41 @@ void HIRBuilder::emitInvokeMethodVectorCall(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
     bool is_awaited,
-    bool is_classmethod,
-    const InvokeTarget& target,
-    long nargs) {
+    Register* func_obj,
+    std::vector<Register*>& arg_regs,
+    const InvokeTarget& target) {
   Register* out = temps_.AllocateStack();
+
+  auto vectorCall = tc.emit<VectorCall>(
+      arg_regs.size() + 1,
+      out,
+      is_awaited ? CallFlags::Awaited : CallFlags::None);
+  vectorCall->SetOperand(0, func_obj);
+  for (auto i = 0; i < arg_regs.size(); i++) {
+    vectorCall->SetOperand(i + 1, arg_regs.at(i));
+  }
+  vectorCall->setFrameState(tc.frame);
+
+  fixStaticReturn(tc, out, target.return_type);
+  tc.frame.stack.push(out);
+}
+
+bool HIRBuilder::emitInvokeMethod(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr,
+    bool is_awaited) {
+  BorrowedRef<> arg = constArg(bc_instr);
+  BorrowedRef<> descr = PyTuple_GET_ITEM(arg.get(), 0);
+  long nargs = PyLong_AsLong(PyTuple_GET_ITEM(arg.get(), 1)) + 1;
+  bool is_classmethod = PyTuple_GET_SIZE(arg.get()) == 3 &&
+      (PyTuple_GET_ITEM(arg.get(), 2) == Py_True);
+
+  const InvokeTarget& target = preloader_.invokeMethodTarget(descr);
+
+  if (target.is_builtin && tryEmitDirectMethodCall(target, tc, nargs)) {
+    return false;
+  }
+
   std::vector<Register*> arg_regs =
       setupStaticArgs(tc, target, nargs, target.is_statically_typed);
 
@@ -2278,45 +2309,29 @@ void HIRBuilder::emitInvokeMethodVectorCall(
       entry_offset + offsetof(_PyType_VTableEntry, vte_state),
       TObject);
 
-  auto vectorCall = tc.emit<VectorCall>(
-      nargs + 1, out, is_awaited ? CallFlags::Awaited : CallFlags::None);
-  vectorCall->SetOperand(0, func_obj);
-  for (long i = 0; i < nargs; i++) {
-    vectorCall->SetOperand(i + 1, arg_regs.at(i));
-  }
-  vectorCall->setFrameState(tc.frame);
-
-  fixStaticReturn(tc, out, target.return_type);
-  tc.frame.stack.push(out);
-}
-
-bool HIRBuilder::emitInvokeMethod(
-    TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr,
-    bool is_awaited) {
-  BorrowedRef<> arg = constArg(bc_instr);
-  BorrowedRef<> descr = PyTuple_GET_ITEM(arg.get(), 0);
-  long nargs = PyLong_AsLong(PyTuple_GET_ITEM(arg.get(), 1)) + 1;
-  bool is_classmethod = PyTuple_GET_SIZE(arg.get()) == 3 &&
-      (PyTuple_GET_ITEM(arg.get(), 2) == Py_True);
-
-  const InvokeTarget& target = preloader_.invokeMethodTarget(descr);
-
-  if (target.is_builtin && tryEmitDirectMethodCall(target, tc, nargs)) {
-    return false;
-  }
-
   if (target.is_statically_typed) {
-    tc.emitVariadic<InvokeMethodStatic>(
-        temps_,
-        nargs,
-        target.slot,
-        target.return_type,
-        is_awaited,
-        is_classmethod);
+    Register* out = temps_.AllocateStack();
+    Register* entry = temps_.AllocateNonStack();
+
+    tc.emit<LoadField>(
+        entry,
+        vtable,
+        "vte_entry",
+        entry_offset + offsetof(_PyType_VTableEntry, vte_entry),
+        TCPtr);
+
+    auto invoke =
+        tc.emit<CallInd>(nargs + 2, out, "vtable invoke", target.return_type);
+    invoke->SetOperand(0, entry);
+    invoke->SetOperand(1, func_obj);
+    for (long i = 0; i < nargs; i++) {
+      invoke->SetOperand(i + 2, arg_regs[i]);
+    }
+    invoke->setFrameState(tc.frame);
+    tc.frame.stack.push(out);
   } else {
     emitInvokeMethodVectorCall(
-        tc, bc_instr, is_awaited, is_classmethod, target, nargs);
+        tc, bc_instr, is_awaited, func_obj, arg_regs, target);
   }
 
   return true;

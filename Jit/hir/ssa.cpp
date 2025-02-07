@@ -434,8 +434,8 @@ Type outputType(
     case Opcode::kLoadGlobal:
     case Opcode::kLoadMethod:
     case Opcode::kLoadMethodCached:
-    case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadTupleItem:
     case Opcode::kMatchKeys:
     case Opcode::kSend:
@@ -478,8 +478,6 @@ Type outputType(
 
     case Opcode::kLoadVarObjectSize:
       return TCInt64;
-    case Opcode::kInvokeMethodStatic:
-      return static_cast<const InvokeMethodStatic&>(instr).ret_type();
     case Opcode::kInvokeStaticFunction:
       return static_cast<const InvokeStaticFunction&>(instr).ret_type();
     case Opcode::kLoadArrayItem:
@@ -492,6 +490,10 @@ Type outputType(
       return TCPtr;
     case Opcode::kCallStatic: {
       auto& call = static_cast<const CallStatic&>(instr);
+      return call.ret_type();
+    }
+    case Opcode::kCallInd: {
+      auto& call = static_cast<const CallInd&>(instr);
       return call.ret_type();
     }
     case Opcode::kIntConvert: {
