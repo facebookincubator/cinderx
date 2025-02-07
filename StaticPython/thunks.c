@@ -79,149 +79,6 @@ PyTypeObject _PyType_MethodThunk = {
     .tp_free = PyObject_Free,
 };
 
-static int cachedpropthunktraverse(
-    _Py_CachedPropertyThunk* op,
-    visitproc visit,
-    void* arg) {
-  visit(op->propthunk_target, arg);
-  return 0;
-}
-
-static int cachedpropthunkclear(_Py_CachedPropertyThunk* op) {
-  Py_CLEAR(op->propthunk_target);
-  return 0;
-}
-
-static void cachedpropthunkdealloc(_Py_CachedPropertyThunk* op) {
-  PyObject_GC_UnTrack((PyObject*)op);
-  Py_XDECREF(op->propthunk_target);
-  PyObject_GC_Del((PyObject*)op);
-}
-
-static PyObject* cachedpropthunk_get(
-    _Py_CachedPropertyThunk* thunk,
-    PyObject* const* args,
-    size_t nargsf,
-    PyObject* kwnames) {
-  size_t nargs = PyVectorcall_NARGS(nargsf);
-  if (nargs != 1) {
-    PyErr_SetString(
-        CiExc_StaticTypeError, "cached property get expected 1 argument");
-    return NULL;
-  }
-
-  descrgetfunc f = PyCachedPropertyWithDescr_Type.tp_descr_get;
-
-  PyObject* res =
-      f(thunk->propthunk_target, args[0], (PyObject*)Py_TYPE(args[0]));
-  return res;
-}
-
-PyTypeObject _PyType_CachedPropertyThunk = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "cachedproperty_thunk",
-    sizeof(_Py_CachedPropertyThunk),
-    .tp_dealloc = (destructor)cachedpropthunkdealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
-        _Py_TPFLAGS_HAVE_VECTORCALL,
-    .tp_traverse = (traverseproc)cachedpropthunktraverse,
-    .tp_clear = (inquiry)cachedpropthunkclear,
-    .tp_vectorcall_offset =
-        offsetof(_Py_CachedPropertyThunk, propthunk_vectorcall),
-    .tp_call = (ternaryfunc)thunk_call,
-};
-
-PyObject* _Py_CachedPropertyThunk_GetFunc(PyObject* thunk) {
-  assert(Py_TYPE(thunk) == &_PyType_CachedPropertyThunk);
-  _Py_CachedPropertyThunk* t = (_Py_CachedPropertyThunk*)thunk;
-  PyCachedPropertyDescrObject* descr =
-      (PyCachedPropertyDescrObject*)t->propthunk_target;
-  return descr->func;
-}
-
-_Py_CachedPropertyThunk* _Py_CachedPropertyThunk_New(PyObject* property) {
-  _Py_CachedPropertyThunk* thunk =
-      PyObject_GC_New(_Py_CachedPropertyThunk, &_PyType_CachedPropertyThunk);
-  if (thunk == NULL) {
-    return NULL;
-  }
-  thunk->propthunk_vectorcall = (vectorcallfunc)cachedpropthunk_get;
-  thunk->propthunk_target = property;
-  Py_INCREF(property);
-  return thunk;
-}
-
-static int async_cachedpropthunktraverse(
-    _Py_AsyncCachedPropertyThunk* op,
-    visitproc visit,
-    void* arg) {
-  visit(op->propthunk_target, arg);
-  return 0;
-}
-
-static int async_cachedpropthunkclear(_Py_AsyncCachedPropertyThunk* op) {
-  Py_CLEAR(op->propthunk_target);
-  return 0;
-}
-
-static void async_cachedpropthunkdealloc(_Py_AsyncCachedPropertyThunk* op) {
-  PyObject_GC_UnTrack((PyObject*)op);
-  Py_XDECREF(op->propthunk_target);
-  PyObject_GC_Del((PyObject*)op);
-}
-
-static PyObject* async_cachedpropthunk_get(
-    _Py_AsyncCachedPropertyThunk* thunk,
-    PyObject* const* args,
-    size_t nargsf,
-    PyObject* kwnames) {
-  size_t nargs = PyVectorcall_NARGS(nargsf);
-  if (nargs != 1) {
-    PyErr_SetString(
-        CiExc_StaticTypeError, "async cached property get expected 1 argument");
-    return NULL;
-  }
-
-  descrgetfunc f = PyAsyncCachedPropertyWithDescr_Type.tp_descr_get;
-
-  PyObject* res =
-      f(thunk->propthunk_target, args[0], (PyObject*)Py_TYPE(args[0]));
-  return res;
-}
-
-PyTypeObject _PyType_AsyncCachedPropertyThunk = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "async_cached_property_thunk",
-    sizeof(_Py_AsyncCachedPropertyThunk),
-    .tp_dealloc = (destructor)async_cachedpropthunkdealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
-        _Py_TPFLAGS_HAVE_VECTORCALL,
-    .tp_traverse = (traverseproc)async_cachedpropthunktraverse,
-    .tp_clear = (inquiry)async_cachedpropthunkclear,
-    .tp_vectorcall_offset =
-        offsetof(_Py_AsyncCachedPropertyThunk, propthunk_vectorcall),
-    .tp_call = (ternaryfunc)thunk_call,
-};
-
-_Py_AsyncCachedPropertyThunk* _Py_AsyncCachedPropertyThunk_New(
-    PyObject* property) {
-  _Py_AsyncCachedPropertyThunk* thunk = PyObject_GC_New(
-      _Py_AsyncCachedPropertyThunk, &_PyType_AsyncCachedPropertyThunk);
-  if (thunk == NULL) {
-    return NULL;
-  }
-  thunk->propthunk_vectorcall = (vectorcallfunc)async_cachedpropthunk_get;
-  thunk->propthunk_target = property;
-  Py_INCREF(property);
-  return thunk;
-}
-
-PyObject* _Py_AsyncCachedPropertyThunk_GetFunc(PyObject* thunk) {
-  assert(Py_TYPE(thunk) == &_PyType_AsyncCachedPropertyThunk);
-  _Py_AsyncCachedPropertyThunk* t = (_Py_AsyncCachedPropertyThunk*)thunk;
-  PyAsyncCachedPropertyDescrObject* descr =
-      (PyAsyncCachedPropertyDescrObject*)t->propthunk_target;
-  return descr->func;
-}
-
 static int thunktraverse(_Py_StaticThunk* op, visitproc visit, void* arg) {
   Py_VISIT(op->thunk_tcs.tcs_rt.rt_expected);
   Py_VISIT(op->thunk_tcs.tcs_rt.rt_name);
@@ -364,6 +221,12 @@ PyTypeObject _PyType_PropertyThunk = {
     .tp_call = (ternaryfunc)thunk_call,
 };
 
+PyObject* _PyClassLoader_PropertyThunk_GetProperty(PyObject* thunk) {
+  assert(Py_TYPE(thunk) == &_PyType_PropertyThunk);
+  _Py_PropertyThunk* t = (_Py_PropertyThunk*)thunk;
+  return t->propthunk_target;
+}
+
 PyObject* _PyClassLoader_PropertyThunkGet_New(PyObject* property) {
   _Py_PropertyThunk* thunk =
       PyObject_GC_New(_Py_PropertyThunk, &_PyType_PropertyThunk);
@@ -400,144 +263,15 @@ PyObject* _PyClassLoader_PropertyThunkDel_New(PyObject* property) {
   return (PyObject*)thunk;
 }
 
-static int typed_descriptor_thunk_traverse(
-    _Py_TypedDescriptorThunk* op,
-    visitproc visit,
-    void* arg) {
-  visit(op->typed_descriptor_thunk_target, arg);
-  return 0;
-}
-
-static int typed_descriptor_thunk_clear(_Py_TypedDescriptorThunk* op) {
-  Py_CLEAR(op->typed_descriptor_thunk_target);
-  return 0;
-}
-
-static void typed_descriptor_thunk_dealloc(_Py_TypedDescriptorThunk* op) {
-  PyObject_GC_UnTrack((PyObject*)op);
-  Py_XDECREF(op->typed_descriptor_thunk_target);
-  PyObject_GC_Del((PyObject*)op);
-}
-
-static PyObject* typed_descriptor_thunk_get(
-    _Py_TypedDescriptorThunk* thunk,
-    PyObject* const* args,
-    size_t nargsf,
-    PyObject* kwnames) {
-  size_t nargs = PyVectorcall_NARGS(nargsf);
-  if (nargs != 1) {
-    PyErr_SetString(
-        CiExc_StaticTypeError, "typed descriptor get expected 1 argument");
-    return NULL;
+PropertyThunkKind _PyClassLoader_PropertyThunk_Kind(PyObject* property) {
+  assert(Py_TYPE(property) == &_PyType_PropertyThunk);
+  _Py_PropertyThunk* thunk = (_Py_PropertyThunk*)property;
+  if (thunk->propthunk_vectorcall == (vectorcallfunc)propthunk_get) {
+    return THUNK_GETTER;
+  } else if (thunk->propthunk_vectorcall == (vectorcallfunc)propthunk_set) {
+    return THUNK_SETTER;
   }
-  descrgetfunc f = _PyTypedDescriptorWithDefaultValue_Type.tp_descr_get;
-  return f(
-      thunk->typed_descriptor_thunk_target,
-      args[0],
-      (PyObject*)Py_TYPE(args[0]));
-}
-
-static PyObject* typed_descriptor_thunk_set(
-    _Py_TypedDescriptorThunk* thunk,
-    PyObject* const* args,
-    size_t nargsf,
-    PyObject* kwnames) {
-  size_t nargs = PyVectorcall_NARGS(nargsf);
-  if (nargs != 2) {
-    PyErr_SetString(
-        CiExc_StaticTypeError, "typed descriptor set expected 2 arguments");
-    return NULL;
-  }
-
-  descrsetfunc f = _PyTypedDescriptorWithDefaultValue_Type.tp_descr_set;
-
-  int res = f(thunk->typed_descriptor_thunk_target, args[0], args[1]);
-  if (res != 0) {
-    return NULL;
-  }
-  Py_INCREF(Py_None);
-  return Py_None;
-}
-
-static PyObject* typed_descriptor_thunk_del(
-    _Py_TypedDescriptorThunk* thunk,
-    PyObject* const* args,
-    size_t nargsf,
-    PyObject* kwnames) {
-  size_t nargs = PyVectorcall_NARGS(nargsf);
-  if (nargs != 1) {
-    PyErr_Format(
-        CiExc_StaticTypeError,
-        "typed descriptor del expected 1 argument, got %zu instead",
-        nargs);
-    return NULL;
-  }
-
-  descrsetfunc f = _PyTypedDescriptorWithDefaultValue_Type.tp_descr_set;
-
-  int res = f(thunk->typed_descriptor_thunk_target, args[0], NULL);
-  if (res != 0) {
-    return NULL;
-  }
-  Py_INCREF(Py_None);
-  return Py_None;
-}
-
-PyTypeObject _PyType_TypedDescriptorThunk = {
-    PyVarObject_HEAD_INIT(
-        &PyType_Type,
-        0) "typed_descriptor_with_default_value_thunk",
-    sizeof(_Py_TypedDescriptorThunk),
-    .tp_dealloc = (destructor)typed_descriptor_thunk_dealloc,
-    .tp_flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_BASETYPE |
-        _Py_TPFLAGS_HAVE_VECTORCALL,
-    .tp_traverse = (traverseproc)typed_descriptor_thunk_traverse,
-    .tp_clear = (inquiry)typed_descriptor_thunk_clear,
-    .tp_vectorcall_offset =
-        offsetof(_Py_TypedDescriptorThunk, typed_descriptor_thunk_vectorcall),
-    .tp_call = (ternaryfunc)thunk_call,
-};
-
-PyObject* _PyClassLoader_TypedDescriptorThunkGet_New(PyObject* property) {
-  _Py_TypedDescriptorThunk* thunk =
-      PyObject_GC_New(_Py_TypedDescriptorThunk, &_PyType_TypedDescriptorThunk);
-  if (thunk == NULL) {
-    return NULL;
-  }
-  Py_INCREF(property);
-  thunk->typed_descriptor_thunk_target = property;
-  thunk->typed_descriptor_thunk_vectorcall =
-      (vectorcallfunc)typed_descriptor_thunk_get;
-  thunk->type = THUNK_GETTER;
-  return (PyObject*)thunk;
-}
-
-PyObject* _PyClassLoader_TypedDescriptorThunkSet_New(PyObject* property) {
-  _Py_TypedDescriptorThunk* thunk =
-      PyObject_GC_New(_Py_TypedDescriptorThunk, &_PyType_TypedDescriptorThunk);
-  if (thunk == NULL) {
-    return NULL;
-  }
-  Py_INCREF(property);
-  thunk->typed_descriptor_thunk_target = property;
-  thunk->typed_descriptor_thunk_vectorcall =
-      (vectorcallfunc)typed_descriptor_thunk_set;
-  thunk->type = THUNK_SETTER;
-  return (PyObject*)thunk;
-}
-
-PyObject* _PyClassLoader_TypedDescriptorThunkDel_New(PyObject* property) {
-  _Py_TypedDescriptorThunk* thunk =
-      PyObject_GC_New(_Py_TypedDescriptorThunk, &_PyType_TypedDescriptorThunk);
-  if (thunk == NULL) {
-    return NULL;
-  }
-  Py_INCREF(property);
-  thunk->typed_descriptor_thunk_target = property;
-  thunk->typed_descriptor_thunk_vectorcall =
-      (vectorcallfunc)typed_descriptor_thunk_del;
-  thunk->type = THUNK_DELETER;
-  return (PyObject*)thunk;
+  return THUNK_DELETER;
 }
 
 void _PyClassLoader_UpdateThunk(
