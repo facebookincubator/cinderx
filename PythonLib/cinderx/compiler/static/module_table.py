@@ -467,7 +467,16 @@ class ModuleTable:
 
     def resolve_type(self, node: ast.AST, requester: str) -> Class | None:
         with self.ann_visitor.temporary_context_qualname(requester):
-            typ = self.ann_visitor.visit(node)
+            try:
+                typ = self.ann_visitor.visit(node)
+            except SyntaxError:
+                # We resolve types via the AnnotationVisitor, which expects
+                # string literals to parse as well-formed python type
+                # expressions. In the more general case here (where we are
+                # resolving a node that is not necessarily an annotation in the
+                # source code) the visitor will try to parse arbitrary string
+                # literals as python code, and will raise a SyntaxError.
+                return None
         if isinstance(typ, Class):
             return typ
 
