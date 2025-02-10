@@ -140,7 +140,6 @@ std::unordered_map<BorrowedRef<PyCodeObject>, CodeData> jit_code_data;
 INTERNED_STRINGS(DECLARE_STR)
 #undef DECLARE_STR
 
-std::array<PyObject*, 256> s_opnames;
 std::array<PyObject*, hir::kNumOpcodes> s_hir_opnames;
 
 std::atomic<int> g_compile_workers_attempted;
@@ -2427,23 +2426,6 @@ int initializeInternedStrings() {
   INTERNED_STRINGS(INTERN_STR)
 #undef INTERN_STR
 
-#define MAKE_OPNAME(opname, opnum)                                             \
-  /*                                                                           \
-   * HAVE_ARGUMENT is not a real opcode, it shares its value with              \
-   * STORE_NAME. It's the demarcation line between opcodes that take arguments \
-   * and those that don't.  If we tried to intern the "HAVE_ARGUMENT" string   \
-   * here, it would be leaked because the "STORE_NAME" string would silently   \
-   * replace it.                                                               \
-   */                                                                          \
-  if (opname != HAVE_ARGUMENT) {                                               \
-    if ((s_opnames.at(opnum) = PyUnicode_InternFromString(#opname)) ==         \
-        nullptr) {                                                             \
-      return -1;                                                               \
-    }                                                                          \
-  }
-  PY_OPCODES(MAKE_OPNAME)
-#undef MAKE_OPNAME
-
 #define HIR_OP(opname)                                                 \
   if ((s_hir_opnames.at(static_cast<size_t>(hir::Opcode::k##opname)) = \
            PyUnicode_InternFromString(#opname)) == nullptr) {          \
@@ -2518,10 +2500,6 @@ void finalizeInternedStrings() {
 #define CLEAR_STR(s) Py_CLEAR(s_str_##s);
   INTERNED_STRINGS(CLEAR_STR)
 #undef CLEAR_STR
-
-  for (PyObject*& opname : s_opnames) {
-    Py_CLEAR(opname);
-  }
 
   for (PyObject*& opname : s_hir_opnames) {
     Py_CLEAR(opname);
