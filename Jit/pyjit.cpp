@@ -145,8 +145,6 @@ std::array<PyObject*, hir::kNumOpcodes> s_hir_opnames;
 std::atomic<int> g_compile_workers_attempted;
 std::atomic<int> g_compile_workers_retries;
 
-jit::FlagProcessor xarg_flag_processor;
-
 int use_jit = 0;
 int jit_help = 0;
 std::string jl_fn;
@@ -297,7 +295,7 @@ PyObject* jitVectorcall(
   return func->vectorcall(func_obj, stack, nargsf, kwnames);
 }
 
-void setJitLogFile(std::string log_filename) {
+void setJitLogFile(const std::string& log_filename) {
   // Redirect logging to a file if configured.
   const char* kPidMarker = "{pid}";
   std::string pid_filename = log_filename;
@@ -317,7 +315,7 @@ void setJitLogFile(std::string log_filename) {
   }
 }
 
-void setASMSyntax(std::string asm_syntax) {
+void setASMSyntax(const std::string& asm_syntax) {
   if (asm_syntax.compare("intel") == 0) {
     set_intel_syntax();
   } else if (asm_syntax.compare("att") == 0) {
@@ -374,262 +372,262 @@ size_t parse_sized_argument(const std::string& val) {
   return ret_value * scale;
 }
 
-void initFlagProcessor() {
+FlagProcessor initFlagProcessor() {
   use_jit = 0;
   jl_fn = "";
   jit_help = 0;
 
-  if (!xarg_flag_processor.hasOptions()) {
-    // flags are inspected in order of definition below
-    xarg_flag_processor.addOption(
-        "jit", "PYTHONJIT", use_jit, "Enable the JIT");
+  FlagProcessor flag_processor;
 
-    xarg_flag_processor.addOption(
-        "jit-auto",
-        "PYTHONJITAUTO",
-        [](unsigned int threshold) {
-          use_jit = 1;
-          getMutableConfig().auto_jit_threshold = threshold;
-        },
-        "Enable auto-JIT mode, which compiles functions after the given "
-        "threshold");
+  // flags are inspected in order of definition below
+  flag_processor.addOption("jit", "PYTHONJIT", use_jit, "Enable the JIT");
 
-    xarg_flag_processor.addOption(
-        "jit-debug", "PYTHONJITDEBUG", g_debug, "JIT debug and extra logging");
+  flag_processor.addOption(
+      "jit-auto",
+      "PYTHONJITAUTO",
+      [](unsigned int threshold) {
+        use_jit = 1;
+        getMutableConfig().auto_jit_threshold = threshold;
+      },
+      "Enable auto-JIT mode, which compiles functions after the given "
+      "threshold");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-log-file",
-            "PYTHONJITLOGFILE",
-            [](std::string log_filename) { setJitLogFile(log_filename); },
-            "write log entries to <filename> rather than stderr")
-        .withFlagParamName("filename");
+  flag_processor.addOption(
+      "jit-debug", "PYTHONJITDEBUG", g_debug, "JIT debug and extra logging");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-asm-syntax",
-            "PYTHONJITASMSYNTAX",
-            [](std::string asm_syntax) { setASMSyntax(asm_syntax); },
-            "set the assembly syntax used in log files")
-        .withFlagParamName("intel|att")
-        .withDebugMessageOverride("Sets the assembly syntax used in log files");
+  flag_processor
+      .addOption(
+          "jit-log-file",
+          "PYTHONJITLOGFILE",
+          [](std::string log_filename) { setJitLogFile(log_filename); },
+          "write log entries to <filename> rather than stderr")
+      .withFlagParamName("filename");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-debug-refcount",
-            "PYTHONJITDEBUGREFCOUNT",
-            g_debug_refcount,
-            "JIT refcount insertion debug mode")
-        .withDebugMessageOverride("Enabling");
+  flag_processor
+      .addOption(
+          "jit-asm-syntax",
+          "PYTHONJITASMSYNTAX",
+          [](std::string asm_syntax) { setASMSyntax(asm_syntax); },
+          "set the assembly syntax used in log files")
+      .withFlagParamName("intel|att")
+      .withDebugMessageOverride("Sets the assembly syntax used in log files");
 
-    xarg_flag_processor.addOption(
-        "jit-debug-inliner",
-        "PYTHONJITDEBUGINLINER",
-        g_debug_inliner,
-        "Enable debug logging for the JIT's HIR inliner");
+  flag_processor
+      .addOption(
+          "jit-debug-refcount",
+          "PYTHONJITDEBUGREFCOUNT",
+          g_debug_refcount,
+          "JIT refcount insertion debug mode")
+      .withDebugMessageOverride("Enabling");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-dump-hir",
-            "PYTHONJITDUMPHIR",
-            g_dump_hir,
-            "log the HIR representation of all functions after initial "
-            "lowering from bytecode")
-        .withDebugMessageOverride("Dump initial HIR of JITted functions");
+  flag_processor.addOption(
+      "jit-debug-inliner",
+      "PYTHONJITDEBUGINLINER",
+      g_debug_inliner,
+      "Enable debug logging for the JIT's HIR inliner");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-dump-hir-passes",
-            "PYTHONJITDUMPHIRPASSES",
-            g_dump_hir_passes,
-            "log the HIR after each optimization pass")
-        .withDebugMessageOverride(
-            "Dump HIR of JITted functions after each individual  optimization "
-            "pass");
+  flag_processor
+      .addOption(
+          "jit-dump-hir",
+          "PYTHONJITDUMPHIR",
+          g_dump_hir,
+          "log the HIR representation of all functions after initial "
+          "lowering from bytecode")
+      .withDebugMessageOverride("Dump initial HIR of JITted functions");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-dump-final-hir",
-            "PYTHONJITDUMPFINALHIR",
-            g_dump_final_hir,
-            "log the HIR after all optimizations")
-        .withDebugMessageOverride(
-            "Dump final HIR of JITted functions after all optimizations");
+  flag_processor
+      .addOption(
+          "jit-dump-hir-passes",
+          "PYTHONJITDUMPHIRPASSES",
+          g_dump_hir_passes,
+          "log the HIR after each optimization pass")
+      .withDebugMessageOverride(
+          "Dump HIR of JITted functions after each individual  optimization "
+          "pass");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-dump-lir",
-            "PYTHONJITDUMPLIR",
-            g_dump_lir,
-            "log the LIR representation of all functions after lowering from "
-            "HIR")
-        .withDebugMessageOverride("Dump initial LIR of JITted functions");
+  flag_processor
+      .addOption(
+          "jit-dump-final-hir",
+          "PYTHONJITDUMPFINALHIR",
+          g_dump_final_hir,
+          "log the HIR after all optimizations")
+      .withDebugMessageOverride(
+          "Dump final HIR of JITted functions after all optimizations");
 
-    xarg_flag_processor.addOption(
-        "jit-dump-lir-no-origin",
-        "PYTHONJITDUMPLIRNOORIGIN",
-        [](std::string) {
-          g_dump_lir = 1;
-          g_dump_lir_no_origin = 1;
-        },
-        "JIT dump-lir mode without origin data");
+  flag_processor
+      .addOption(
+          "jit-dump-lir",
+          "PYTHONJITDUMPLIR",
+          g_dump_lir,
+          "log the LIR representation of all functions after lowering from "
+          "HIR")
+      .withDebugMessageOverride("Dump initial LIR of JITted functions");
 
-    xarg_flag_processor.addOption(
-        "jit-dump-c-helper",
-        "PYTHONJITDUMPCHELPER",
-        g_dump_c_helper,
-        "dump all c invocations");
+  flag_processor.addOption(
+      "jit-dump-lir-no-origin",
+      "PYTHONJITDUMPLIRNOORIGIN",
+      [](std::string) {
+        g_dump_lir = 1;
+        g_dump_lir_no_origin = 1;
+      },
+      "JIT dump-lir mode without origin data");
 
-    xarg_flag_processor.addOption(
-        "jit-disas-funcs",
-        "PYTHONJITDISASFUNCS",
-        g_dump_asm,
-        "jit-disas-funcs/PYTHONJITDISASFUNCS are deprecated and will soon be "
-        "removed. Use jit-dump-asm and PYTHONJITDUMPASM instead");
+  flag_processor.addOption(
+      "jit-dump-c-helper",
+      "PYTHONJITDUMPCHELPER",
+      g_dump_c_helper,
+      "dump all c invocations");
 
-    xarg_flag_processor.addOption(
-        "jit-no-symbolize",
-        "PYTHONJITNOSYMBOLIZE",
-        [](const std::string&) { g_symbolize_funcs = 0; },
-        "disable symbolization of functions called by JIT code");
+  flag_processor.addOption(
+      "jit-disas-funcs",
+      "PYTHONJITDISASFUNCS",
+      g_dump_asm,
+      "jit-disas-funcs/PYTHONJITDISASFUNCS are deprecated and will soon be "
+      "removed. Use jit-dump-asm and PYTHONJITDUMPASM instead");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-dump-asm",
-            "PYTHONJITDUMPASM",
-            g_dump_asm,
-            "log the final compiled code, annotated with HIR instructions")
-        .withDebugMessageOverride("Dump asm of JITted functions");
+  flag_processor.addOption(
+      "jit-no-symbolize",
+      "PYTHONJITNOSYMBOLIZE",
+      [](const std::string&) { g_symbolize_funcs = 0; },
+      "disable symbolization of functions called by JIT code");
 
-    xarg_flag_processor.addOption(
-        "jit-enable-inline-cache-stats-collection",
-        "PYTHONJITCOLLECTINLINECACHESTATS",
-        [](int val) {
-          if (use_jit) {
-            getMutableConfig().collect_attr_cache_stats = !!val;
-          } else {
-            warnJITOff("jit-enable-inline-cache-stats-collection");
+  flag_processor
+      .addOption(
+          "jit-dump-asm",
+          "PYTHONJITDUMPASM",
+          g_dump_asm,
+          "log the final compiled code, annotated with HIR instructions")
+      .withDebugMessageOverride("Dump asm of JITted functions");
+
+  flag_processor.addOption(
+      "jit-enable-inline-cache-stats-collection",
+      "PYTHONJITCOLLECTINLINECACHESTATS",
+      [](int val) {
+        if (use_jit) {
+          getMutableConfig().collect_attr_cache_stats = !!val;
+        } else {
+          warnJITOff("jit-enable-inline-cache-stats-collection");
+        }
+      },
+      "Collect inline cache stats (supported stats are cache misses for load "
+      "method inline caches");
+
+  flag_processor.addOption(
+      "jit-gdb-support",
+      "PYTHONJITGDBSUPPORT",
+      [](std::string) {
+        g_debug = 1;
+        getMutableConfig().gdb.supported = true;
+      },
+      "GDB support and JIT debug mode");
+
+  flag_processor.addOption(
+      "jit-gdb-write-elf",
+      "PYTHONJITGDBWRITEELF",
+      [](std::string) {
+        g_debug = 1;
+        getMutableConfig().gdb.supported = true;
+        getMutableConfig().gdb.write_elf_objects = true;
+      },
+      "Debugging aid, GDB support with ELF output");
+
+  flag_processor.addOption(
+      "jit-dump-stats",
+      "PYTHONJITDUMPSTATS",
+      g_dump_stats,
+      "Dump JIT runtime stats at shutdown");
+
+  flag_processor.addOption(
+      "jit-disable-lir-inliner",
+      "PYTHONJITDISABLELIRINLINER",
+      g_disable_lir_inliner,
+      "disable JIT lir inlining");
+
+  flag_processor.addOption(
+      "jit-disable-huge-pages",
+      "PYTHONJITDISABLEHUGEPAGES",
+      [](std::string) { getMutableConfig().use_huge_pages = false; },
+      "disable huge page support");
+
+  flag_processor.addOption(
+      "jit-enable-jit-list-wildcards",
+      "PYTHONJITENABLEJITLISTWILDCARDS",
+      getMutableConfig().allow_jit_list_wildcards,
+      "allow wildcards in JIT list");
+
+  flag_processor.addOption(
+      "jit-all-static-functions",
+      "PYTHONJITALLSTATICFUNCTIONS",
+      getMutableConfig().compile_all_static_functions,
+      "JIT-compile all static functions");
+
+  flag_processor
+      .addOption(
+          "jit-list-file",
+          "PYTHONJITLISTFILE",
+          [](std::string listFile) {
+            jl_fn = listFile;
+            use_jit = 1;
+          },
+          "Load list of functions to compile from <filename>")
+      .withFlagParamName("filename");
+
+  flag_processor.addOption(
+      "jit-disable",
+      "PYTHONJITDISABLE",
+      [](int val) { use_jit = !val; },
+      "disable the JIT");
+
+  // these are only set if use_jit == 1
+  flag_processor.addOption(
+      "jit-shadow-frame",
+      "PYTHONJITSHADOWFRAME",
+      [](int val) {
+        if (use_jit) {
+          if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+            JIT_LOG(
+                "Warning: Cinder's shadow frames are not supported in Python "
+                "versions later than 3.10");
+            return;
           }
-        },
-        "Collect inline cache stats (supported stats are cache misses for load "
-        "method inline caches");
+          getMutableConfig().frame_mode =
+              val ? FrameMode::kShadow : FrameMode::kNormal;
+        } else {
+          warnJITOff("jit-shadow-frame");
+        }
+      },
+      "enable shadow frame mode");
 
-    xarg_flag_processor.addOption(
-        "jit-gdb-support",
-        "PYTHONJITGDBSUPPORT",
-        [](std::string) {
-          g_debug = 1;
-          getMutableConfig().gdb.supported = true;
-        },
-        "GDB support and JIT debug mode");
+  flag_processor.addOption(
+      "jit-stable-frame",
+      "PYTHONJITSTABLEFRAME",
+      [](int val) {
+        if (use_jit) {
+          getMutableConfig().stable_frame = !!val;
+        } else {
+          warnJITOff("jit-stable-frame");
+        }
+      },
+      "Assume that data found in the Python frame is unchanged across "
+      "function calls");
 
-    xarg_flag_processor.addOption(
-        "jit-gdb-write-elf",
-        "PYTHONJITGDBWRITEELF",
-        [](std::string) {
-          g_debug = 1;
-          getMutableConfig().gdb.supported = true;
-          getMutableConfig().gdb.write_elf_objects = true;
-        },
-        "Debugging aid, GDB support with ELF output");
+  flag_processor.addOption(
+      "jit-preload-dependent-limit",
+      "PYTHONJITPRELOADDEPENDENTLIMIT",
+      [](int val) {
+        if (use_jit) {
+          getMutableConfig().preload_dependent_limit = val;
+        } else {
+          warnJITOff("jit-preload-dependent-limit");
+        }
+      },
+      "When compiling a function, set the number of dependent functions that "
+      "can be compiled along with it.");
 
-    xarg_flag_processor.addOption(
-        "jit-dump-stats",
-        "PYTHONJITDUMPSTATS",
-        g_dump_stats,
-        "Dump JIT runtime stats at shutdown");
-
-    xarg_flag_processor.addOption(
-        "jit-disable-lir-inliner",
-        "PYTHONJITDISABLELIRINLINER",
-        g_disable_lir_inliner,
-        "disable JIT lir inlining");
-
-    xarg_flag_processor.addOption(
-        "jit-disable-huge-pages",
-        "PYTHONJITDISABLEHUGEPAGES",
-        [](std::string) { getMutableConfig().use_huge_pages = false; },
-        "disable huge page support");
-
-    xarg_flag_processor.addOption(
-        "jit-enable-jit-list-wildcards",
-        "PYTHONJITENABLEJITLISTWILDCARDS",
-        getMutableConfig().allow_jit_list_wildcards,
-        "allow wildcards in JIT list");
-
-    xarg_flag_processor.addOption(
-        "jit-all-static-functions",
-        "PYTHONJITALLSTATICFUNCTIONS",
-        getMutableConfig().compile_all_static_functions,
-        "JIT-compile all static functions");
-
-    xarg_flag_processor
-        .addOption(
-            "jit-list-file",
-            "PYTHONJITLISTFILE",
-            [](std::string listFile) {
-              jl_fn = listFile;
-              use_jit = 1;
-            },
-            "Load list of functions to compile from <filename>")
-        .withFlagParamName("filename");
-
-    xarg_flag_processor.addOption(
-        "jit-disable",
-        "PYTHONJITDISABLE",
-        [](int val) { use_jit = !val; },
-        "disable the JIT");
-
-    // these are only set if use_jit == 1
-    xarg_flag_processor.addOption(
-        "jit-shadow-frame",
-        "PYTHONJITSHADOWFRAME",
-        [](int val) {
-          if (use_jit) {
-            if constexpr (PY_VERSION_HEX >= 0x030B0000) {
-              JIT_LOG(
-                  "Warning: Cinder's shadow frames are not supported in Python "
-                  "versions later than 3.10");
-              return;
-            }
-            getMutableConfig().frame_mode =
-                val ? FrameMode::kShadow : FrameMode::kNormal;
-          } else {
-            warnJITOff("jit-shadow-frame");
-          }
-        },
-        "enable shadow frame mode");
-
-    xarg_flag_processor.addOption(
-        "jit-stable-frame",
-        "PYTHONJITSTABLEFRAME",
-        [](int val) {
-          if (use_jit) {
-            getMutableConfig().stable_frame = !!val;
-          } else {
-            warnJITOff("jit-stable-frame");
-          }
-        },
-        "Assume that data found in the Python frame is unchanged across "
-        "function calls");
-
-    xarg_flag_processor.addOption(
-        "jit-preload-dependent-limit",
-        "PYTHONJITPRELOADDEPENDENTLIMIT",
-        [](int val) {
-          if (use_jit) {
-            getMutableConfig().preload_dependent_limit = val;
-          } else {
-            warnJITOff("jit-preload-dependent-limit");
-          }
-        },
-        "When compiling a function, set the number of dependent functions that "
-        "can be compiled along with it.");
-
-    // HIR optimizations.
+  // HIR optimizations.
 
 #define HIR_OPTIMIZATION_OPTION(NAME, OPT, CLI, ENV) \
-  xarg_flag_processor.addOption(                     \
+  flag_processor.addOption(                          \
       (CLI),                                         \
       (ENV),                                         \
       [](int val) {                                  \
@@ -641,237 +639,236 @@ void initFlagProcessor() {
       },                                             \
       "Enable the HIR " NAME " optimization pass")
 
-    HIR_OPTIMIZATION_OPTION(
-        "BeginInlinedFunction elimination",
-        begin_inlined_function_elim,
-        "jit-begin-inlined-function-elim",
-        "PYTHONJITBEGININLINEDFUNCTIONELIM");
-    HIR_OPTIMIZATION_OPTION(
-        "builtin LoadMethod elimination",
-        builtin_load_method_elim,
-        "jit-builtin-load-method-elim",
-        "PYTHONJITBUILTINLOADMETHODELIM");
-    HIR_OPTIMIZATION_OPTION(
-        "CFG cleaning", clean_cfg, "jit-clean-cfg", "PYTHONJITCLEANCFG");
-    HIR_OPTIMIZATION_OPTION(
-        "dead code elimination",
-        dead_code_elim,
-        "jit-dead-code-elim",
-        "PYTHONJITDEADCODEELIM");
-    HIR_OPTIMIZATION_OPTION(
-        "dynamic comparison elimination",
-        dynamic_comparison_elim,
-        "jit-dynamic-comparison-elim",
-        "PYTHONJITDYNAMICCOMPARISIONELIM");
-    HIR_OPTIMIZATION_OPTION(
-        "guard type removal",
-        guard_type_removal,
-        "jit-guard-type-removal",
-        "PYTHONJITGUARDTYPEREMOVAL");
-    HIR_OPTIMIZATION_OPTION(
-        "inliner",
-        inliner,
-        "jit-enable-hir-inliner",
-        "PYTHONJITENABLEHIRINLINER");
-    HIR_OPTIMIZATION_OPTION(
-        "phi elimination", phi_elim, "jit-phi-elim", "PYTHONJITPHIELIM");
-    HIR_OPTIMIZATION_OPTION(
-        "simplify", simplify, "jit-simplify", "PYTHONJITSIMPLIFY");
+  HIR_OPTIMIZATION_OPTION(
+      "BeginInlinedFunction elimination",
+      begin_inlined_function_elim,
+      "jit-begin-inlined-function-elim",
+      "PYTHONJITBEGININLINEDFUNCTIONELIM");
+  HIR_OPTIMIZATION_OPTION(
+      "builtin LoadMethod elimination",
+      builtin_load_method_elim,
+      "jit-builtin-load-method-elim",
+      "PYTHONJITBUILTINLOADMETHODELIM");
+  HIR_OPTIMIZATION_OPTION(
+      "CFG cleaning", clean_cfg, "jit-clean-cfg", "PYTHONJITCLEANCFG");
+  HIR_OPTIMIZATION_OPTION(
+      "dead code elimination",
+      dead_code_elim,
+      "jit-dead-code-elim",
+      "PYTHONJITDEADCODEELIM");
+  HIR_OPTIMIZATION_OPTION(
+      "dynamic comparison elimination",
+      dynamic_comparison_elim,
+      "jit-dynamic-comparison-elim",
+      "PYTHONJITDYNAMICCOMPARISIONELIM");
+  HIR_OPTIMIZATION_OPTION(
+      "guard type removal",
+      guard_type_removal,
+      "jit-guard-type-removal",
+      "PYTHONJITGUARDTYPEREMOVAL");
+  HIR_OPTIMIZATION_OPTION(
+      "inliner",
+      inliner,
+      "jit-enable-hir-inliner",
+      "PYTHONJITENABLEHIRINLINER");
+  HIR_OPTIMIZATION_OPTION(
+      "phi elimination", phi_elim, "jit-phi-elim", "PYTHONJITPHIELIM");
+  HIR_OPTIMIZATION_OPTION(
+      "simplify", simplify, "jit-simplify", "PYTHONJITSIMPLIFY");
 
-    xarg_flag_processor.addOption(
-        "jit-simplify-iteration-limit",
-        "PYTHONJITSIMPLIFYITERATIONLIMIT",
-        getMutableConfig().simplifier.iteration_limit,
-        "Set the maximum number of times the simplifier can run over a "
-        "function");
-    xarg_flag_processor.addOption(
-        "jit-simplify-new-block-limit",
-        "PYTHONJITSIMPLIFYNEWBLOCKLIMIT",
-        getMutableConfig().simplifier.new_block_limit,
-        "Set the maximum number of blocks that can be added by the simplifier "
-        "to a function");
-    xarg_flag_processor.addOption(
-        "jit-hir-inliner-cost-limit",
-        "PYTHONJITHIRINLINERCOSTLIMIT",
-        getMutableConfig().inliner_cost_limit,
-        "Limit how much the inliner is able to inline. The number's definition "
-        "is only relevant to the inliner itself.");
+  flag_processor.addOption(
+      "jit-simplify-iteration-limit",
+      "PYTHONJITSIMPLIFYITERATIONLIMIT",
+      getMutableConfig().simplifier.iteration_limit,
+      "Set the maximum number of times the simplifier can run over a "
+      "function");
+  flag_processor.addOption(
+      "jit-simplify-new-block-limit",
+      "PYTHONJITSIMPLIFYNEWBLOCKLIMIT",
+      getMutableConfig().simplifier.new_block_limit,
+      "Set the maximum number of blocks that can be added by the simplifier "
+      "to a function");
+  flag_processor.addOption(
+      "jit-hir-inliner-cost-limit",
+      "PYTHONJITHIRINLINERCOSTLIMIT",
+      getMutableConfig().inliner_cost_limit,
+      "Limit how much the inliner is able to inline. The number's definition "
+      "is only relevant to the inliner itself.");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-batch-compile-workers",
-            "PYTHONJITBATCHCOMPILEWORKERS",
-            getMutableConfig().batch_compile_workers,
-            "set the number of batch compile workers to <COUNT>")
-        .withFlagParamName("COUNT");
+  flag_processor
+      .addOption(
+          "jit-batch-compile-workers",
+          "PYTHONJITBATCHCOMPILEWORKERS",
+          getMutableConfig().batch_compile_workers,
+          "set the number of batch compile workers to <COUNT>")
+      .withFlagParamName("COUNT");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-multithreaded-compile-test",
-            "PYTHONJITMULTITHREADEDCOMPILETEST",
-            [](int val) {
-              if (use_jit) {
-                getMutableConfig().multithreaded_compile_test = val;
-              } else {
-                warnJITOff("jit-multithreaded-compile-test ");
-              }
-            },
-            "JIT multithreaded compile test")
-        .isHiddenFlag(true);
+  flag_processor
+      .addOption(
+          "jit-multithreaded-compile-test",
+          "PYTHONJITMULTITHREADEDCOMPILETEST",
+          [](int val) {
+            if (use_jit) {
+              getMutableConfig().multithreaded_compile_test = val;
+            } else {
+              warnJITOff("jit-multithreaded-compile-test ");
+            }
+          },
+          "JIT multithreaded compile test")
+      .isHiddenFlag(true);
 
-    xarg_flag_processor.addOption(
-        "jit-list-match-line-numbers",
-        "PYTHONJITLISTMATCHLINENUMBERS",
-        [](int val) {
-          if (use_jit) {
-            jitlist_match_line_numbers(val);
-          } else {
-            warnJITOff("jit-list-match-line-numbers");
-          }
-        },
-        "JIT list match line numbers");
+  flag_processor.addOption(
+      "jit-list-match-line-numbers",
+      "PYTHONJITLISTMATCHLINENUMBERS",
+      [](int val) {
+        if (use_jit) {
+          jitlist_match_line_numbers(val);
+        } else {
+          warnJITOff("jit-list-match-line-numbers");
+        }
+      },
+      "JIT list match line numbers");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-time",
-            "",
-            [](std::string flag_value) { parseAndSetFuncList(flag_value); },
-            "Measure time taken in compilation phases and output summary to "
-            "stderr or approperiate logfile. Only functions in comma separated "
-            "<function_list> list will be included. Comma separated list may "
-            "include wildcards, * and ?. Wildcards are processed in glob "
-            "fashion and not as regex.")
-        .withFlagParamName("function_list")
-        .withDebugMessageOverride(
-            "Will capture time taken in compilation phases and output summary");
+  flag_processor
+      .addOption(
+          "jit-time",
+          "",
+          [](std::string flag_value) { parseAndSetFuncList(flag_value); },
+          "Measure time taken in compilation phases and output summary to "
+          "stderr or approperiate logfile. Only functions in comma separated "
+          "<function_list> list will be included. Comma separated list may "
+          "include wildcards, * and ?. Wildcards are processed in glob "
+          "fashion and not as regex.")
+      .withFlagParamName("function_list")
+      .withDebugMessageOverride(
+          "Will capture time taken in compilation phases and output summary");
 
-    xarg_flag_processor.addOption(
-        "jit-dump-hir-passes-json",
-        "PYTHONJITDUMPHIRPASSESJSON",
-        [](std::string json_output_dir) {
-          g_dump_hir_passes_json = json_output_dir;
-          int mkdir_result = ::mkdir(g_dump_hir_passes_json.c_str(), 0755);
-          JIT_CHECK(
-              mkdir_result == 0 || errno == EEXIST,
-              "could not make JSON directory");
-        },
-        "Dump IR passes as JSON to the directory specified by this flag's "
-        "value");
-    xarg_flag_processor.addOption(
-        "jit-multiple-code-sections",
-        "PYTHONJITMULTIPLECODESECTIONS",
-        [](int val) {
-          if (use_jit) {
-            getMutableConfig().multiple_code_sections = val;
-          } else {
-            warnJITOff("jit-multiple-code-sections");
-          }
-        },
-        "Enable emitting code into multiple code sections.");
+  flag_processor.addOption(
+      "jit-dump-hir-passes-json",
+      "PYTHONJITDUMPHIRPASSESJSON",
+      [](std::string json_output_dir) {
+        g_dump_hir_passes_json = json_output_dir;
+        int mkdir_result = ::mkdir(g_dump_hir_passes_json.c_str(), 0755);
+        JIT_CHECK(
+            mkdir_result == 0 || errno == EEXIST,
+            "could not make JSON directory");
+      },
+      "Dump IR passes as JSON to the directory specified by this flag's "
+      "value");
+  flag_processor.addOption(
+      "jit-multiple-code-sections",
+      "PYTHONJITMULTIPLECODESECTIONS",
+      [](int val) {
+        if (use_jit) {
+          getMutableConfig().multiple_code_sections = val;
+        } else {
+          warnJITOff("jit-multiple-code-sections");
+        }
+      },
+      "Enable emitting code into multiple code sections.");
 
-    xarg_flag_processor.addOption(
-        "jit-hot-code-section-size",
-        "PYTHONJITHOTCODESECTIONSIZE",
-        [](size_t val) {
-          if (use_jit) {
-            getMutableConfig().hot_code_section_size = val;
-          } else {
-            warnJITOff("jit-hot-code-section-size");
-          }
-        },
-        "Enable emitting code into multiple code sections.");
+  flag_processor.addOption(
+      "jit-hot-code-section-size",
+      "PYTHONJITHOTCODESECTIONSIZE",
+      [](size_t val) {
+        if (use_jit) {
+          getMutableConfig().hot_code_section_size = val;
+        } else {
+          warnJITOff("jit-hot-code-section-size");
+        }
+      },
+      "Enable emitting code into multiple code sections.");
 
-    xarg_flag_processor.addOption(
-        "jit-cold-code-section-size",
-        "PYTHONJITCOLDCODESECTIONSIZE",
-        [](size_t val) {
-          if (use_jit) {
-            getMutableConfig().cold_code_section_size = val;
-          } else {
-            warnJITOff("jit-cold-code-section-size");
-          }
-        },
-        "Enable emitting code into multiple code sections.");
+  flag_processor.addOption(
+      "jit-cold-code-section-size",
+      "PYTHONJITCOLDCODESECTIONSIZE",
+      [](size_t val) {
+        if (use_jit) {
+          getMutableConfig().cold_code_section_size = val;
+        } else {
+          warnJITOff("jit-cold-code-section-size");
+        }
+      },
+      "Enable emitting code into multiple code sections.");
 
-    xarg_flag_processor.addOption(
-        "jit-attr-caches",
-        "PYTHONJITATTRCACHES",
-        [](int val) {
-          if (use_jit) {
-            getMutableConfig().attr_caches = !!val;
-          } else {
-            warnJITOff("jit-attr-caches");
-          }
-        },
-        "Use inline caches for attribute access instructions");
+  flag_processor.addOption(
+      "jit-attr-caches",
+      "PYTHONJITATTRCACHES",
+      [](int val) {
+        if (use_jit) {
+          getMutableConfig().attr_caches = !!val;
+        } else {
+          warnJITOff("jit-attr-caches");
+        }
+      },
+      "Use inline caches for attribute access instructions");
 
-    xarg_flag_processor.addOption(
-        "jit-attr-cache-size",
-        "PYTHONJITATTRCACHESIZE",
-        [](uint32_t entries) {
-          JIT_CHECK(
-              entries > 0 && entries <= 16,
-              "Using {} entries for attribute access inline "
-              "caches is not within the appropriate range",
-              entries);
-          getMutableConfig().attr_cache_size = entries;
-        },
-        "Set the number of entries in the JIT's attribute access inline "
-        "caches");
+  flag_processor.addOption(
+      "jit-attr-cache-size",
+      "PYTHONJITATTRCACHESIZE",
+      [](uint32_t entries) {
+        JIT_CHECK(
+            entries > 0 && entries <= 16,
+            "Using {} entries for attribute access inline "
+            "caches is not within the appropriate range",
+            entries);
+        getMutableConfig().attr_cache_size = entries;
+      },
+      "Set the number of entries in the JIT's attribute access inline "
+      "caches");
 
-    xarg_flag_processor.addOption(
-        "jit-refine-static-python",
-        "PYTHONJITREFINESTATICPYTHON",
-        [](int val) {
-          if (use_jit) {
-            getMutableConfig().refine_static_python = !!val;
-          } else {
-            warnJITOff("jit-refine-static-python");
-          }
-        },
-        "Add RefineType instructions to coerce Static Python types to be "
-        "valid");
+  flag_processor.addOption(
+      "jit-refine-static-python",
+      "PYTHONJITREFINESTATICPYTHON",
+      [](int val) {
+        if (use_jit) {
+          getMutableConfig().refine_static_python = !!val;
+        } else {
+          warnJITOff("jit-refine-static-python");
+        }
+      },
+      "Add RefineType instructions to coerce Static Python types to be "
+      "valid");
 
-    xarg_flag_processor.addOption(
-        "jit-perfmap",
-        "JIT_PERFMAP",
-        perf::jit_perfmap,
-        "write out /tmp/perf-<pid>.map for JIT symbols");
+  flag_processor.addOption(
+      "jit-perfmap",
+      "JIT_PERFMAP",
+      perf::jit_perfmap,
+      "write out /tmp/perf-<pid>.map for JIT symbols");
 
-    xarg_flag_processor
-        .addOption(
-            "jit-perf-dumpdir",
-            "JIT_DUMPDIR",
-            perf::perf_jitdump_dir,
-            "absolute path to a <DIRECTORY> that exists. A perf jitdump file "
-            "will be written to this directory")
-        .withFlagParamName("DIRECTORY");
+  flag_processor
+      .addOption(
+          "jit-perf-dumpdir",
+          "JIT_DUMPDIR",
+          perf::perf_jitdump_dir,
+          "absolute path to a <DIRECTORY> that exists. A perf jitdump file "
+          "will be written to this directory")
+      .withFlagParamName("DIRECTORY");
 
-    xarg_flag_processor.addOption(
-        "jit-help", "", jit_help, "print all available JIT flags and exits");
+  flag_processor.addOption(
+      "jit-help", "", jit_help, "print all available JIT flags and exits");
 
-    xarg_flag_processor.addOption(
-        "perf-trampoline-prefork-compilation",
-        "PERFTRAMPOLINEPREFORKCOMPILATION",
-        getMutableConfig().compile_perf_trampoline_prefork,
-        "Compile perf trampoline pre-fork");
+  flag_processor.addOption(
+      "perf-trampoline-prefork-compilation",
+      "PERFTRAMPOLINEPREFORKCOMPILATION",
+      getMutableConfig().compile_perf_trampoline_prefork,
+      "Compile perf trampoline pre-fork");
 
-    xarg_flag_processor.addOption(
-        "jit-max-code-size",
-        "",
-        [](const std::string& val) {
-          if (use_jit) {
-            getMutableConfig().max_code_size = parse_sized_argument(val);
-          } else {
-            warnJITOff("jit-max-code-size");
-          }
-        },
-        "Set the maximum code size for JIT in bytes (no suffix). For kilobytes "
-        "use k or K as a suffix. "
-        "Megabytes is m or M and gigabytes is g or G. 0 implies no limit.");
-  }
+  flag_processor.addOption(
+      "jit-max-code-size",
+      "",
+      [](const std::string& val) {
+        if (use_jit) {
+          getMutableConfig().max_code_size = parse_sized_argument(val);
+        } else {
+          warnJITOff("jit-max-code-size");
+        }
+      },
+      "Set the maximum code size for JIT in bytes (no suffix). For kilobytes "
+      "use k or K as a suffix. "
+      "Megabytes is m or M and gigabytes is g or G. 0 implies no limit.");
 
-  xarg_flag_processor.setFlags(PySys_GetXOptions());
+  flag_processor.setFlags(PySys_GetXOptions());
 
   if (getConfig().auto_jit_threshold > 0 && jl_fn != "") {
     JIT_LOG(
@@ -879,6 +876,8 @@ void initFlagProcessor() {
         "on the jit-list will be compiled, and only after {} calls.",
         getConfig().auto_jit_threshold);
   }
+
+  return flag_processor;
 }
 
 // Convert a registered translation unit into a pair of a Python function and
@@ -2660,10 +2659,9 @@ int initialize() {
   getMutableConfig() = Config{};
   getMutableConfig().force_init = force_init;
 
-  initFlagProcessor();
-
+  FlagProcessor flag_processor = initFlagProcessor();
   if (jit_help) {
-    std::cout << xarg_flag_processor.jitXOptionHelpMessage() << std::endl;
+    std::cout << flag_processor.jitXOptionHelpMessage() << std::endl;
     // Return rather than exit here for arg printing test doesn't end early.
     return -2;
   }
