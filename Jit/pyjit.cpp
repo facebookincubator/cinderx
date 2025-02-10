@@ -116,10 +116,6 @@ UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
 // Every unit that is a code object has corresponding entry in jit_code_data.
 std::unordered_map<BorrowedRef<PyCodeObject>, CodeData> jit_code_data;
 
-// If non-empty, jit compiled functions' names will be written to this filename
-// at shutdown.
-std::string g_write_compiled_functions_file;
-
 // Frequently-used strings that we intern at JIT startup and hold references to.
 #define INTERNED_STRINGS(X) \
   X(bc_offset)              \
@@ -383,7 +379,7 @@ void initFlagProcessor() {
   use_jit = 0;
   jl_fn = "";
   jit_help = 0;
-  std::string write_compiled_functions_file = "";
+
   if (!xarg_flag_processor.hasOptions()) {
     // flags are inspected in order of definition below
     xarg_flag_processor.addOption(
@@ -505,14 +501,6 @@ void initFlagProcessor() {
             g_dump_asm,
             "log the final compiled code, annotated with HIR instructions")
         .withDebugMessageOverride("Dump asm of JITted functions");
-
-    xarg_flag_processor
-        .addOption(
-            "jit-dump-compiled-functions",
-            "PYTHONJITDUMPCOMPILEDFUNCTIONS",
-            g_write_compiled_functions_file,
-            "dump JIT compiled functions to <filename>")
-        .withFlagParamName("filename");
 
     xarg_flag_processor.addOption(
         "jit-enable-inline-cache-stats-collection",
@@ -2781,11 +2769,6 @@ void finalize() {
 
   if (g_dump_stats) {
     dump_jit_stats();
-  }
-
-  if (!g_write_compiled_functions_file.empty()) {
-    dump_jit_compiled_functions(g_write_compiled_functions_file);
-    g_write_compiled_functions_file.clear();
   }
 
   // Always release references from Runtime objects: C++ clients may have
