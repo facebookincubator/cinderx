@@ -34,6 +34,14 @@ void CompiledFunction::printHIR() const {
   printer.Print(*irfunc_);
 }
 
+std::chrono::nanoseconds CompiledFunction::compileTime() const {
+  return compile_time_;
+}
+
+void CompiledFunction::setCompileTime(std::chrono::nanoseconds time) {
+  compile_time_ = time;
+}
+
 void CompiledFunction::setHirFunc(std::unique_ptr<hir::Function>&& irfunc) {
   irfunc_ = std::move(irfunc);
 }

@@ -286,6 +286,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       spill_stack_size,
       std::move(inline_stats),
       hir_opcode_counts);
+  compiled_func->setCompileTime(compile_time);
   if (g_debug) {
     irfunc->setCompilationPhaseTimer(nullptr);
     compiled_func->setHirFunc(std::move(irfunc));

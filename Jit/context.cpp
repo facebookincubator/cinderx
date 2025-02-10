@@ -22,17 +22,17 @@ Context::~Context() {
   }
 }
 
-_PyJIT_Result Context::compilePreloader(
+Context::CompilationResult Context::compilePreloader(
     BorrowedRef<PyFunctionObject> func,
     const hir::Preloader& preloader) {
-  CompilationResult result = compilePreloader(preloader);
+  CompilationResult result = compilePreloaderImpl(preloader);
   if (result.compiled == nullptr) {
-    return result.result;
+    return result;
   }
   if (func != nullptr) {
     finalizeFunc(func, *result.compiled);
   }
-  return PYJIT_RESULT_OK;
+  return result;
 }
 
 bool Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
@@ -81,6 +81,11 @@ const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::deoptedFuncs() {
   return deopted_funcs_;
 }
 
+std::chrono::milliseconds Context::totalCompileTime() const {
+  return std::chrono::milliseconds{
+      total_compile_time_ms_.load(std::memory_order_relaxed)};
+}
+
 void Context::setCinderJitModule(Ref<> mod) {
   cinderjit_module_ = std::move(mod);
 }
@@ -101,7 +106,7 @@ void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   deopted_funcs_.erase(func);
 }
 
-Context::CompilationResult Context::compilePreloader(
+Context::CompilationResult Context::compilePreloaderImpl(
     const hir::Preloader& preloader) {
   BorrowedRef<PyCodeObject> code = preloader.code();
   if (code == nullptr) {
@@ -165,6 +170,9 @@ Context::CompilationResult Context::compilePreloader(
 
   register_pycode_debug_symbol(
       code, preloader.fullname().c_str(), compiled.get());
+
+  total_compile_time_ms_.fetch_add(
+      compiled->compileTime().count(), std::memory_order_relaxed);
 
   // Store the compiled code.
   auto pair = compiled_codes_.emplace(key, std::move(compiled));

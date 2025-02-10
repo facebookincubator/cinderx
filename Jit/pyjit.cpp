@@ -96,29 +96,6 @@ struct CodeData {
   Ref<PyDictObject> globals;
 };
 
-std::chrono::milliseconds total_time;
-std::unordered_map<PyFunctionObject*, std::chrono::milliseconds> function_times;
-
-struct CompilationTimer {
-  using Clock = std::chrono::steady_clock;
-
-  explicit CompilationTimer(BorrowedRef<PyFunctionObject> func)
-      : start{Clock::now()}, func{func} {}
-
-  ~CompilationTimer() {
-    auto end = Clock::now();
-    auto time_span =
-        std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
-
-    total_time += time_span;
-    jit::ThreadedCompileSerialize guard;
-    function_times.emplace(func, time_span);
-  }
-
-  std::chrono::steady_clock::time_point start;
-  BorrowedRef<PyFunctionObject> func;
-};
-
 // Amount of time taken to batch compile everything when disable_jit is called
 std::chrono::milliseconds g_batch_compilation_time;
 
@@ -1002,7 +979,7 @@ hir::Preloader* preload(BorrowedRef<> unit) {
 _PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
   auto [func, code] = splitUnit(unit);
   hir::Preloader* preloader = hir::preloaderManager().find(code);
-  return preloader ? g_jit_ctx->compilePreloader(func, *preloader)
+  return preloader ? g_jit_ctx->compilePreloader(func, *preloader).result
                    : PYJIT_RESULT_NO_PRELOADER;
 }
 
@@ -1655,15 +1632,25 @@ PyObject* get_compiled_functions(PyObject* /* self */, PyObject*) {
 }
 
 PyObject* get_compilation_time(PyObject* /* self */, PyObject*) {
-  return PyLong_FromLong(static_cast<long>(total_time.count()));
+  auto time = g_jit_ctx != nullptr ? g_jit_ctx->totalCompileTime()
+                                   : std::chrono::milliseconds::zero();
+  return PyLong_FromLong(time.count());
 }
 
-PyObject* get_function_compilation_time(PyObject* /* self */, PyObject* func) {
-  auto iter = function_times.find(reinterpret_cast<PyFunctionObject*>(func));
-  if (iter == function_times.end()) {
+PyObject* get_function_compilation_time(PyObject* /* self */, PyObject* arg) {
+  if (arg == nullptr || !PyFunction_Check(arg) || g_jit_ctx == nullptr) {
     Py_RETURN_NONE;
   }
-  return PyLong_FromLong(iter->second.count());
+
+  BorrowedRef<PyFunctionObject> func{arg};
+  CompiledFunction* compiled_func = g_jit_ctx->lookupFunc(func);
+  if (compiled_func == nullptr) {
+    Py_RETURN_NONE;
+  }
+
+  auto compile_time = std::chrono::duration_cast<std::chrono::milliseconds>(
+      compiled_func->compileTime());
+  return PyLong_FromLong(compile_time.count());
 }
 
 PyObject* get_inlined_functions_stats(PyObject* /* self */, PyObject* arg) {
@@ -2387,7 +2374,7 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
       continue;
     }
 
-    result = g_jit_ctx->compilePreloader(target, *preloader);
+    result = g_jit_ctx->compilePreloader(target, *preloader).result;
     JIT_CHECK(
         result != PYJIT_RESULT_PYTHON_EXCEPTION,
         "Raised a Python exception while JIT-compiling function {}, which is "
@@ -2776,8 +2763,6 @@ int initialize() {
 
   JIT_DLOG("JIT is {}", isJitUsable() ? "enabled" : "disabled");
 
-  total_time = std::chrono::milliseconds::zero();
-
   return 0;
 }
 
@@ -2864,7 +2849,6 @@ _PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func) {
     return PYJIT_RESULT_NOT_ON_JITLIST;
   }
 
-  CompilationTimer timer(func);
   jit_reg_units.erase(func);
   return compile_func(func);
 }

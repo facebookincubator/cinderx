@@ -5753,5 +5753,29 @@ class BadArgumentTests(unittest.TestCase):
             jit_suppress(is_jit_compiled)
 
 
+@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+class CompileTimeTests(unittest.TestCase):
+    """
+    Test the Cinder APIs that report time spent compiling.
+    """
+
+    def test_compile_time(self) -> None:
+        # Uses the Ackermann function in the hopes that the inliner will bloat the
+        # function and have it take a long time to compile.
+        def ackermann(m, n):
+            if m == 0:
+                return m + 1
+            if n == 0:
+                return ackermann(m - 1, 1)
+            return ackermann(m - 1, ackermann(m, n - 1))
+
+        self.assertIsNone(cinderjit.get_function_compilation_time(ackermann))
+
+        force_compile(ackermann)
+
+        self.assertGreater(cinderjit.get_compilation_time(), 0)
+        self.assertGreater(cinderjit.get_function_compilation_time(ackermann), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

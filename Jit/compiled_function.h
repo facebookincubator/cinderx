@@ -56,6 +56,7 @@ bool isJitCompiled(const PyFunctionObject* func);
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/hir/hir.h"
 
+#include <chrono>
 #include <cstddef>
 #include <span>
 #include <utility>
@@ -120,6 +121,9 @@ class CompiledFunction {
     return spill_stack_size_;
   }
 
+  std::chrono::nanoseconds compileTime() const;
+  void setCompileTime(std::chrono::nanoseconds time);
+
   void setHirFunc(std::unique_ptr<hir::Function>&& irfunc);
 
   const hir::Function::InlineFunctionStats& inlinedFunctionsStats() const {
@@ -138,6 +142,7 @@ class CompiledFunction {
   void* const static_entry_;
   const int stack_size_;
   const int spill_stack_size_;
+  std::chrono::nanoseconds compile_time_;
   hir::Function::InlineFunctionStats inline_function_stats_;
   hir::OpcodeCounts hir_opcode_counts_;
   std::unique_ptr<hir::Function> irfunc_;

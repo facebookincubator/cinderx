@@ -44,7 +44,10 @@ foo = "hello"
   Ref<PyFunctionObject> func(compileAndGet(py_src, "func"));
   std::unique_ptr<jit::hir::Preloader> preloader(
       jit::hir::Preloader::makePreloader(func));
-  ASSERT_EQ(jit_ctx_->compilePreloader(func, *preloader), PYJIT_RESULT_OK);
+
+  auto comp_result = jit_ctx_->compilePreloader(func, *preloader);
+  ASSERT_EQ(comp_result.result, PYJIT_RESULT_OK);
+  ASSERT_NE(comp_result.compiled, nullptr);
 
   auto empty_tuple = Ref<>::steal(PyTuple_New(0));
   auto result = Ref<>::steal(PyObject_Call(func, empty_tuple, nullptr));

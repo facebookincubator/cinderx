@@ -50,6 +50,11 @@ namespace jit {
  */
 class Context {
  public:
+  struct CompilationResult {
+    CompiledFunction* compiled;
+    _PyJIT_Result result;
+  };
+
   /*
    * Will deopt all compiled functions back to the interpreter.
    */
@@ -63,7 +68,7 @@ class Context {
    * Will return PYJIT_RESULT_OK if the function/code object was already
    * compiled.
    */
-  _PyJIT_Result compilePreloader(
+  CompilationResult compilePreloader(
       BorrowedRef<PyFunctionObject> func,
       const hir::Preloader& preloader);
 
@@ -110,6 +115,11 @@ class Context {
   const UnorderedSet<BorrowedRef<PyFunctionObject>>& deoptedFuncs();
 
   /*
+   * Get the total time spent compiling functions thus far.
+   */
+  std::chrono::milliseconds totalCompileTime() const;
+
+  /*
    * Set and hold a reference to the cinderjit Python module.
    */
   void setCinderJitModule(Ref<> mod);
@@ -129,12 +139,7 @@ class Context {
   void funcDestroyed(BorrowedRef<PyFunctionObject> func);
 
  private:
-  struct CompilationResult {
-    CompiledFunction* compiled;
-    _PyJIT_Result result;
-  };
-
-  CompilationResult compilePreloader(const hir::Preloader& preloader);
+  CompilationResult compilePreloaderImpl(const hir::Preloader& preloader);
 
   CompiledFunction* lookupCode(
       BorrowedRef<PyCodeObject> code,
@@ -181,6 +186,8 @@ class Context {
   std::vector<std::unique_ptr<CompiledFunction>> orphaned_compiled_codes_;
 
   Ref<> cinderjit_module_;
+
+  std::atomic_size_t total_compile_time_ms_;
 };
 
 /*
