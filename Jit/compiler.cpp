@@ -278,19 +278,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
   std::span<const std::byte> code = ngen->getCodeBuffer();
   void* static_entry = ngen->getStaticEntry();
 
-  if (g_debug) {
-    irfunc->setCompilationPhaseTimer(nullptr);
-    return std::make_unique<CompiledFunctionDebug>(
-        std::move(irfunc),
-        code,
-        entry,
-        static_entry,
-        stack_size,
-        spill_stack_size,
-        std::move(inline_stats),
-        hir_opcode_counts);
-  }
-  return std::make_unique<CompiledFunction>(
+  auto compiled_func = std::make_unique<CompiledFunction>(
       code,
       entry,
       static_entry,
@@ -298,6 +286,11 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       spill_stack_size,
       std::move(inline_stats),
       hir_opcode_counts);
+  if (g_debug) {
+    irfunc->setCompilationPhaseTimer(nullptr);
+    compiled_func->setHirFunc(std::move(irfunc));
+  }
+  return compiled_func;
 }
 
 } // namespace jit

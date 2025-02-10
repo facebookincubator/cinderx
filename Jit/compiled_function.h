@@ -120,6 +120,8 @@ class CompiledFunction {
     return spill_stack_size_;
   }
 
+  void setHirFunc(std::unique_ptr<hir::Function>&& irfunc);
+
   const hir::Function::InlineFunctionStats& inlinedFunctionsStats() const {
     return inline_function_stats_;
   }
@@ -138,22 +140,6 @@ class CompiledFunction {
   const int spill_stack_size_;
   hir::Function::InlineFunctionStats inline_function_stats_;
   hir::OpcodeCounts hir_opcode_counts_;
-};
-
-// Same as CompiledFunction but keeps the HIR function around for debugging.
-class CompiledFunctionDebug : public CompiledFunction {
- public:
-  template <typename... Args>
-  explicit CompiledFunctionDebug(
-      std::unique_ptr<hir::Function> irfunc,
-      Args&&... args)
-      : CompiledFunction{std::forward<Args>(args)...},
-        irfunc_{std::move(irfunc)} {}
-
-  void disassemble() const override;
-  void printHIR() const override;
-
- private:
   std::unique_ptr<hir::Function> irfunc_;
 };
 

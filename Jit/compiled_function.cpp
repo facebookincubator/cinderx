@@ -20,23 +20,22 @@ bool isJitCompiled(const PyFunctionObject* func) {
 namespace jit {
 
 void CompiledFunction::disassemble() const {
-  JIT_ABORT("disassemble() cannot be called in a release build.");
-}
-
-void CompiledFunction::printHIR() const {
-  JIT_ABORT("printHIR() cannot be called in a release build.");
-}
-
-void CompiledFunctionDebug::disassemble() const {
   jit::disassemble(
       reinterpret_cast<const char*>(vectorcallEntry()),
       codeSize(),
       reinterpret_cast<vma_t>(vectorcallEntry()));
 }
 
-void CompiledFunctionDebug::printHIR() const {
+void CompiledFunction::printHIR() const {
+  JIT_CHECK(
+      irfunc_ != nullptr,
+      "Can only call CompiledFunction::printHIR() from a debug build");
   jit::hir::HIRPrinter printer;
-  printer.Print(*irfunc_.get());
+  printer.Print(*irfunc_);
+}
+
+void CompiledFunction::setHirFunc(std::unique_ptr<hir::Function>&& irfunc) {
+  irfunc_ = std::move(irfunc);
 }
 
 } // namespace jit
