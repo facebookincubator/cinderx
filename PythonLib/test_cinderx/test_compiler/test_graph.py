@@ -1,13 +1,12 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import ast
-import dis
+import sys
 import unittest
-from dis import opmap, opname
-from unittest import TestCase
 
 from cinderx.compiler.pycodegen import CodeGenerator
 
 from .common import CompilerTest
+
+PRE_312: bool = sys.version_info < (3, 12)
 
 
 class Block:
@@ -16,14 +15,23 @@ class Block:
         self.next = next
 
 
+def make_linear_graph(graph: list[str]) -> Block:
+    head, *tail = graph
+    if tail:
+        return Block(head, make_linear_graph(tail))
+    else:
+        return Block(head)
+
+
+def format_graph(graph: Block) -> str:
+    if graph.next:
+        return f"Block({repr(graph.label)}, {format_graph(graph.next)})"
+    return f"Block({repr(graph.label)})"
+
+
 class GraphTests(CompilerTest):
     """Performs various unit tests on the flow control graph that gets produced
     to make sure that we're linking all of our basic blocks together properly."""
-
-    def format_graph(self, graph):
-        if graph.next:
-            return f"Block({repr(graph.label)}, {self.format_graph(graph.next)})"
-        return f"Block({repr(graph.label)})"
 
     def assert_graph_equal(self, graph, expected):
         first_block = graph.ordered_blocks[0]
@@ -31,7 +39,7 @@ class GraphTests(CompilerTest):
             self.assert_graph_equal_worker(first_block, expected)
         except AssertionError as e:
             raise AssertionError(
-                e.args[0] + "\nGraph was: " + self.format_graph(first_block)
+                e.args[0] + "\nGraph was: " + format_graph(first_block)
             ) from None
 
     def assert_graph_equal_worker(self, compiled, expected):
@@ -60,7 +68,7 @@ class GraphTests(CompilerTest):
         else:
             pass"""
         )
-        expected = Block("entry", Block("", Block("if_else", Block("if_end"))))
+        expected = make_linear_graph(["entry", "", "if_else", "if_end"])
         self.assert_graph_equal(graph, expected)
 
     def test_try_except(self):
@@ -72,25 +80,16 @@ class GraphTests(CompilerTest):
             pass"""
         )
 
-        expected = Block(
-            "entry",
-            Block(
-                "try_body",
-                Block(
-                    "try_handlers",
-                    Block(
-                        "try_cleanup_body0",
-                    ),
-                ),
-            ),
-        )
+        if PRE_312:
+            g = ["entry", "try_body", "try_handlers", "try_cleanup_body0"]
+        else:
+            g = ["entry", "try_body", "try_except", "try_cleanup_body_0", "try_cleanup"]
+        expected = make_linear_graph(g)
         self.assert_graph_equal(graph, expected)
 
     def test_chained_comparison(self):
         graph = self.to_graph("a < b < c")
-        expected = Block(
-            "entry", Block("compare_or_cleanup", Block("cleanup", Block("end")))
-        )
+        expected = make_linear_graph(["entry", "compare_or_cleanup", "cleanup", "end"])
         self.assert_graph_equal(graph, expected)
 
     def test_async_for(self):
@@ -102,10 +101,23 @@ class GraphTests(CompilerTest):
         )
         # graph the graph for f so we can check the async for
         graph = self.get_child_graph(graph, "f")
-        expected = Block(
-            "entry",
-            Block("async_for_try", Block("except", Block("end"))),
-        )
+        if PRE_312:
+            g = ["entry", "async_for_try", "except", "end"]
+        else:
+            g = [
+                "entry",
+                "start",
+                "async_for_try",
+                "send",
+                "post send",
+                "exit",
+                "fail",
+                "explicit_jump",
+                "except",
+                "end",
+                "handler",
+            ]
+        expected = make_linear_graph(g)
         self.assert_graph_equal(graph, expected)
 
 
