@@ -1,6 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import io
+import sys
 from textwrap import dedent
+from unittest import skipIf
 
 from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -15,6 +17,7 @@ def dump_code(code):
     return text
 
 
+@skipIf(sys.version_info[:2] != (3, 10), "3.10 tests")
 class Python310Tests(CompilerTest):
     maxDiff = None
 

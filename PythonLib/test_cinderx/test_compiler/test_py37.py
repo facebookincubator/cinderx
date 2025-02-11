@@ -1,6 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import __future__
 
+import sys
+from unittest import skipIf
+
 from cinderx.compiler.consts import CO_NOFREE
 from cinderx.compiler.pycodegen import CodeGenerator
 
@@ -11,6 +14,7 @@ LOAD_METHOD = "LOAD_METHOD"
 CALL_METHOD = "CALL_METHOD"
 
 
+@skipIf(sys.version_info[:2] != (3, 7), "3.7 tests")
 class Python37Tests(CompilerTest):
     def test_compile_method(self):
         code = self.compile("x.f()")
