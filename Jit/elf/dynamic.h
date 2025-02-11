@@ -41,7 +41,7 @@ class DynamicTable {
     std::swap(dyns_[len - 1], dyns_[len - 2]);
   }
 
-  constexpr std::span<const std::byte> bytes() const {
+  std::span<const std::byte> bytes() const {
     return std::as_bytes(std::span{dyns_});
   }
 

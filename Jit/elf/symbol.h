@@ -39,7 +39,7 @@ class SymbolTable {
 
   const Symbol& operator[](size_t idx) const;
 
-  constexpr std::span<const std::byte> bytes() const {
+  std::span<const std::byte> bytes() const {
     return std::as_bytes(std::span{syms_});
   }
 
