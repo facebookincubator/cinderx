@@ -5760,21 +5760,17 @@ class CompileTimeTests(unittest.TestCase):
     """
 
     def test_compile_time(self) -> None:
-        # Uses the Ackermann function in the hopes that the inliner will bloat the
-        # function and have it take a long time to compile.
-        def ackermann(m, n):
-            if m == 0:
-                return m + 1
-            if n == 0:
-                return ackermann(m - 1, 1)
-            return ackermann(m - 1, ackermann(m, n - 1))
+        # This function is known to have a lengthy compile time.
+        from sre_compile import _compile
 
-        self.assertIsNone(cinderjit.get_function_compilation_time(ackermann))
+        # It's probably already compiled as part of regular startup, but just in case
+        # let's make sure.
+        force_compile(_compile)
 
-        force_compile(ackermann)
-
+        # This will only work if the function takes more than 1ms to compile.  Use the
+        # output from PYTHONJITDEBUG=1 to see if that is the case.
         self.assertGreater(cinderjit.get_compilation_time(), 0)
-        self.assertGreater(cinderjit.get_function_compilation_time(ackermann), 0)
+        self.assertGreater(cinderjit.get_function_compilation_time(_compile), 0)
 
 
 @unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
