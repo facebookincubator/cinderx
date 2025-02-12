@@ -5777,5 +5777,17 @@ class CompileTimeTests(unittest.TestCase):
         self.assertGreater(cinderjit.get_function_compilation_time(ackermann), 0)
 
 
+@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+class LocalsBuiltinTests(unittest.TestCase):
+    def test_locals_not_compiled(self) -> None:
+        def foo():
+            locals()
+
+        self.assertFalse(is_jit_compiled(foo))
+        with self.assertRaises(RuntimeError):
+            force_compile(foo)
+        self.assertFalse(is_jit_compiled(foo))
+
+
 if __name__ == "__main__":
     unittest.main()

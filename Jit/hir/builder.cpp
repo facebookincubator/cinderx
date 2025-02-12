@@ -4407,11 +4407,16 @@ void HIRBuilder::checkTranslate() {
           "Cannot compile {} to HIR because it contains unsupported opcode {}",
           preloader_.fullname(),
           opcode)};
-    } else if (opcode == LOAD_GLOBAL && banned_name_ids.count(oparg)) {
-      throw std::runtime_error{fmt::format(
-          "Cannot compile {} to HIR because it uses banned global '{}'",
-          preloader_.fullname(),
-          name_at(oparg))};
+    } else if (opcode == LOAD_GLOBAL) {
+      if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+        oparg = oparg >> 1;
+      }
+      if (banned_name_ids.count(oparg)) {
+        throw std::runtime_error{fmt::format(
+            "Cannot compile {} to HIR because it uses banned global '{}'",
+            preloader_.fullname(),
+            name_at(oparg))};
+      }
     }
   }
 }
