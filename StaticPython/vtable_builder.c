@@ -206,7 +206,7 @@ int get_vtable_callable(
     }
     *callable = thunk;
     return 0;
-  } else if (PyFunction_Check(value)) {
+  } else if (PyFunction_Check(value) || Py_TYPE(value) == &PyMethodDescr_Type) {
     Py_INCREF(value);
     *callable = value;
     return 0;
