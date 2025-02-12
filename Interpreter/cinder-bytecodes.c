@@ -244,6 +244,28 @@ dummy_func(
             PREDICT(LOAD_CONST);
         }
 
+       override inst(SEND_GEN, (unused/1, receiver, v -- receiver, unused)) {
+            DEOPT_IF(tstate->interp->eval_frame, SEND);
+            PyGenObject *gen = (PyGenObject *)receiver;
+            DEOPT_IF(Py_TYPE(gen) != &PyGen_Type &&
+                     Py_TYPE(gen) != &PyCoro_Type, SEND);
+            DEOPT_IF(gen->gi_frame_state >= FRAME_EXECUTING, SEND);
+            STAT_INC(SEND, hit);
+            if ((frame->owner == FRAME_OWNED_BY_GENERATOR) &&
+                (frame->f_code->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR))) {
+                Ci_PyAwaitable_SetAwaiter(receiver, (PyObject *) _PyFrame_GetGenerator(frame));
+            }
+            _PyInterpreterFrame *gen_frame = (_PyInterpreterFrame *)gen->gi_iframe;
+            frame->return_offset = oparg;
+            STACK_SHRINK(1);
+            _PyFrame_StackPush(gen_frame, v);
+            gen->gi_frame_state = FRAME_EXECUTING;
+            gen->gi_exc_state.previous_item = tstate->exc_info;
+            tstate->exc_info = &gen->gi_exc_state;
+            JUMPBY(INLINE_CACHE_ENTRIES_SEND);
+            DISPATCH_INLINED(gen_frame);
+        }
+
         override inst(EXTENDED_ARG, ( -- )) {
             opcode = next_instr->op.code;
             oparg = oparg << 8 | next_instr->op.arg;
