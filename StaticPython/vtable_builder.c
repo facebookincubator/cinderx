@@ -19,6 +19,7 @@
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/property.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/string.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/StaticPython/descrs.h"
@@ -789,7 +790,6 @@ int populate_getter_and_setter(
   return result;
 }
 
-static PyObject* final_method_names_string;
 /* Static types have a slot containing all final methods in their inheritance
    chain. This function returns the contents of that slot by looking up the MRO,
    if it exists.
@@ -804,17 +804,10 @@ static PyObject* get_final_method_names(PyTypeObject* type) {
     PyObject* mro_type = PyTuple_GET_ITEM(mro, i);
     if (((PyTypeObject*)mro_type)->tp_flags &
         Ci_Py_TPFLAGS_IS_STATICALLY_DEFINED) {
-      if (final_method_names_string == NULL) {
-        PyObject* final = PyUnicode_FromString("__final_method_names__");
-        if (final == NULL) {
-          return NULL;
-        }
-        _Py_SetImmortal(final);
-        final_method_names_string = final;
-      }
+      DEFINE_STATIC_STRING(__final_method_names__);
       PyObject* final_method_names = _PyObject_GenericGetAttrWithDict(
           mro_type,
-          final_method_names_string,
+          s___final_method_names__,
           /*dict=*/NULL,
           /*suppress=*/1);
       return final_method_names;

@@ -6,14 +6,16 @@
 
 #include "cinderx/Common/py-portability.h"
 
-// Create a function static variable for an interned Python string.
-// This string is explicitly immortalized.
-#define DEFINE_NAMED_STATIC_STRING(NAME, STR)            \
-  static PyObject* NAME = NULL;                          \
-  if (NAME == NULL) {                                    \
-    PyObject* new_str = PyUnicode_InternFromString(STR); \
-    IMMORTALIZE(new_str);                                \
-    NAME = new_str;                                      \
+// Create a function static variable for Python string.
+// This string is explicitly immortalized, but not
+// interned because doing so will cause it to be released
+// by the runtime at shutdown.
+#define DEFINE_NAMED_STATIC_STRING(NAME, STR)      \
+  static PyObject* NAME = NULL;                    \
+  if (NAME == NULL) {                              \
+    PyObject* new_str = PyUnicode_FromString(STR); \
+    new_str->ob_refcnt = 0x3fffffff;               \
+    NAME = new_str;                                \
   }
 
 // Shorter variant of DEFINE_NAMED_STATIC_STRING.
