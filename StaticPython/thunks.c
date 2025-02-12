@@ -401,6 +401,7 @@ static int lazyfuncinit_thunk_clear(_PyClassLoader_LazyFuncJitThunk* op) {
 static void lazyfuncinit_thunk_dealloc(_PyClassLoader_LazyFuncJitThunk* op) {
   Py_XDECREF(op->lf_vtable);
   Py_XDECREF(op->lf_func);
+  PyObject_GC_UnTrack(op);
   _PyClassLoader_MethodThunk_dealloc((_PyClassLoader_MethodThunk*)op);
 }
 
@@ -455,6 +456,7 @@ static int staticmethodthunkclear(_PyClassLoader_StaticMethodThunk* op) {
 
 static void staticmethodthunkdealloc(_PyClassLoader_StaticMethodThunk* op) {
   Py_XDECREF(op->smt_func);
+  PyObject_GC_UnTrack(op);
   _PyClassLoader_MethodThunk_dealloc(&op->smt_base);
 }
 
@@ -508,6 +510,7 @@ static int classmethodthunkclear(_PyClassLoader_ClassMethodThunk* op) {
 static void classmethodthunkdealloc(_PyClassLoader_ClassMethodThunk* op) {
   Py_XDECREF(op->cmt_decl_type);
   Py_XDECREF(op->cmt_classmethod);
+  PyObject_GC_UnTrack(op);
   _PyClassLoader_MethodThunk_dealloc(&op->cmt_base);
 }
 
