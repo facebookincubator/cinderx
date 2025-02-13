@@ -2,6 +2,8 @@
 # pyre-strict
 """High-performance Python runtime extensions."""
 
+from __future__ import annotations
+
 # ============================================================================
 # Note!
 #
@@ -89,8 +91,110 @@ except ImportError as e:
     class cached_classproperty:
         pass
 
-    class cached_property:
-        pass
+    from typing import (
+        Callable,
+        final,
+        Generic,
+        Optional,
+        overload,
+        Type,
+        TYPE_CHECKING,
+        TypeVar,
+    )
+
+    _TClass = TypeVar("_TClass")
+    _TReturnType = TypeVar("_TReturnType")
+
+    if TYPE_CHECKING:
+        from abc import ABC
+
+        @final
+        class Descriptor(ABC, Generic[_TReturnType]):
+            __name__: str
+            __objclass__: Type[object]
+
+            def __get__(
+                self, inst: object, ctx: Optional[Type[object]] = None
+            ) -> _TReturnType: ...
+
+            def __set__(self, inst: object, value: _TReturnType) -> None:
+                pass
+
+            def __delete__(self, inst: object) -> None:
+                pass
+
+    class _BaseCachedProperty(Generic[_TClass, _TReturnType]):
+        fget: Callable[[_TClass], _TReturnType]
+        __name__: str
+
+        def __init__(
+            self,
+            f: Callable[[_TClass], _TReturnType],
+            slot: Optional[Descriptor[_TReturnType]] = None,
+        ) -> None:
+            self.fget: Callable[[_TClass], _TReturnType] = f
+            self.__name__ = f.__name__
+            self.__doc__: str | None = f.__doc__
+            self.slot = slot
+
+        @overload
+        def __get__(
+            self, obj: None, cls: Type[_TClass]
+        ) -> _BaseCachedProperty[_TClass, _TReturnType]: ...
+
+        @overload
+        def __get__(self, obj: _TClass, cls: Type[_TClass]) -> _TReturnType: ...
+
+        def __get__(
+            self, obj: Optional[_TClass], cls: Type[_TClass]
+        ) -> _BaseCachedProperty[_TClass, _TReturnType] | _TReturnType:
+            if obj is None:
+                return self
+            slot = self.slot
+            if slot is not None:
+                try:
+                    res = slot.__get__(obj, cls)
+                except AttributeError:
+                    res = self.fget(obj)
+                    slot.__set__(obj, res)
+                return res
+
+            result = self.fget(obj)
+            obj.__dict__[self.__name__] = result
+            return result
+
+    class cached_property(_BaseCachedProperty[_TClass, _TReturnType]):
+        def __init__(
+            self,
+            f: Callable[[_TClass], _TReturnType],
+            slot: Optional[Descriptor[_TReturnType]] = None,
+        ) -> None:
+            super().__init__(f, slot)
+            if slot is not None:
+                if (
+                    type(self) is not cached_property
+                    and type(self) is not cached_property_with_descr
+                ):
+                    raise TypeError(
+                        "slot can't be used with subtypes of cached_property"
+                    )
+                # pyre-ignore[4]: Missing attribute annotation for __class__
+                self.__class__ = cached_property_with_descr
+
+    class cached_property_with_descr(cached_property[_TClass, _TReturnType]):
+        def __set__(self, inst: object, value: _TReturnType) -> None:
+            slot = self.slot
+            if slot is not None:
+                slot.__set__(inst, value)
+            else:
+                setattr(inst, self.__name__, value)
+
+        def __delete__(self, inst: object) -> None:
+            slot = self.slot
+            if slot is not None:
+                slot.__delete__(inst)
+            else:
+                delattr(inst, self.__name__)
 
     def clear_all_shadow_caches() -> None:
         pass
