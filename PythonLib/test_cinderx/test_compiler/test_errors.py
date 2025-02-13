@@ -44,11 +44,11 @@ class ErrorTests(CompilerTest):
             )
 
     def test_yield_from_outside_func(self):
-        with self.assertRaisesRegex(SyntaxError, "'yield' outside function"):
+        with self.assertRaisesRegex(SyntaxError, "'yield from' outside function" if sys.version_info >= (3, 12, 8) else "'yield' outside function"):
             self.compile("yield from [1,2]")
 
     def test_yield_from_outside_func_class(self):
-        with self.assertRaisesRegex(SyntaxError, "'yield' outside function"):
+        with self.assertRaisesRegex(SyntaxError, "'yield from' outside function" if sys.version_info >= (3, 12, 8) else "'yield' outside function"):
             self.compile("class C: yield from [1,2]")
 
     def test_return_outside_func(self):

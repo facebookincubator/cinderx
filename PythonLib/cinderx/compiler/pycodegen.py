@@ -84,6 +84,8 @@ except ImportError:
         pass
 
 
+IS_3_12_8 = sys.version_info[:3] >= (3, 12, 8)
+
 callfunc_opcode_info = {
     # (Have *args, Have **args) : opcode
     (0, 0): "CALL_FUNCTION",
@@ -666,7 +668,10 @@ class CodeGenerator(ASTVisitor):
         end = self.newBlock("end")
 
         self.visit(node.iter)
-        self.emit("GET_AITER")
+        if IS_3_12_8:
+            self.graph.emit_with_loc("GET_AITER", 0, node.iter)
+        else:
+            self.emit("GET_AITER")
 
         self.nextBlock(start)
 
@@ -881,11 +886,7 @@ class CodeGenerator(ASTVisitor):
         self.emit_closure(gen, 0)
 
         # precomputation of outmost iterable
-        self.visit(node.generators[0].iter)
-        if node.generators[0].is_async:
-            self.emit("GET_AITER")
-        else:
-            self.emit("GET_ITER")
+        self.compile_comprehension_iter(node.generators[0])
         self.emit_call_one_arg()
 
         if gen.scope.coroutine and type(node) is not ast.GeneratorExp:
@@ -895,7 +896,12 @@ class CodeGenerator(ASTVisitor):
 
     def compile_comprehension_iter(self, gen: ast.comprehension) -> None:
         self.visit(gen.iter)
-        self.emit("GET_AITER" if gen.is_async else "GET_ITER")
+        if IS_3_12_8:
+            self.graph.emit_with_loc(
+                "GET_AITER" if gen.is_async else "GET_ITER", 0, gen.iter
+            )
+        else:
+            self.emit("GET_AITER" if gen.is_async else "GET_ITER")
 
     def compile_dictcomp_element(self, elt, val):
         self.visit(elt)
@@ -936,7 +942,7 @@ class CodeGenerator(ASTVisitor):
     ) -> None:
         raise NotImplementedError()
 
-    def emit_setup_with(self, target: Block, async_: bool) -> None:
+    def emit_setup_with(self, node: ast.withitem, target: Block, async_: bool) -> None:
         raise NotImplementedError()
 
     def emit_with_except_cleanup(self, cleanup: Block) -> None:
@@ -956,15 +962,17 @@ class CodeGenerator(ASTVisitor):
         cleanup = self.newBlock("cleanup")
         self.visit(item.context_expr)
         if kind == ASYNC_WITH:
+            if IS_3_12_8:
+                self.set_pos(item.context_expr)
             self.emit("BEFORE_ASYNC_WITH")
             self.emit_get_awaitable(AwaitableKind.AsyncEnter)
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
 
-        self.emit_setup_with(finally_, kind == ASYNC_WITH)
+        self.emit_setup_with(item, finally_, kind == ASYNC_WITH)
 
         self.nextBlock(block)
-        self.push_fblock(Entry(kind, block, finally_, node))
+        self.push_fblock(Entry(kind, block, finally_, node, item.context_expr))
         if item.optional_vars:
             self.visit(item.optional_vars)
         else:
@@ -979,7 +987,10 @@ class CodeGenerator(ASTVisitor):
         self.pop_fblock(kind)
         self.emit("POP_BLOCK")
 
-        self.set_pos(node)
+        if IS_3_12_8:
+            self.set_pos(item.context_expr)
+        else:
+            self.set_pos(node)
         self.emit_call_exit_with_nones()
 
         if kind == ASYNC_WITH:
@@ -1458,7 +1469,12 @@ class CodeGenerator(ASTVisitor):
             self.tree,
             (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.GeneratorExp),
         ):
-            raise self.syntax_error("'yield' outside function", node)
+            raise self.syntax_error(
+                "'yield from' outside function"
+                if IS_3_12_8
+                else "'yield' outside function",
+                node,
+            )
         elif self.scope.coroutine:
             raise self.syntax_error("'yield from' inside async function", node)
 
@@ -2532,11 +2548,14 @@ class Entry:
     exit: Block | None
     unwinding_datum: object
 
-    def __init__(self, kind, block, exit, unwinding_datum):
+    def __init__(
+        self, kind, block, exit, unwinding_datum, node: AST | None = None
+    ) -> None:
         self.kind = kind
         self.block = block
         self.exit = exit
         self.unwinding_datum = unwinding_datum
+        self.node = node
 
 
 class ResumeOparg(IntEnum):
@@ -3223,7 +3242,7 @@ class CodeGenerator310(CodeGenerator):
         if kind == WITH:
             self.set_no_pos()
 
-    def emit_setup_with(self, target: Block, async_: bool) -> None:
+    def emit_setup_with(self, node: ast.withitem, target: Block, async_: bool) -> None:
         self.emit("SETUP_ASYNC_WITH" if async_ else "SETUP_WITH", target)
 
     # Operators and augmented assignment --------------------------------------------------
@@ -3848,10 +3867,14 @@ class CodeGenerator312(CodeGenerator):
 
         self.push_loop(FOR_LOOP, start, end)
         self.visit(node.iter)
+        if IS_3_12_8:
+            self.set_pos(node.iter)
         self.emit("GET_ITER")
 
         self.nextBlock(start)
         self.emit("FOR_ITER", cleanup)
+        if IS_3_12_8:
+            self.graph.emit_with_loc("NOP", 0, node.target)
         self.nextBlock(body)
         self.visit(node.target)
         self.visitStatements(node.body)
@@ -4066,13 +4089,18 @@ class CodeGenerator312(CodeGenerator):
         else:
             self.set_pos(node)
 
-    def emit_setup_with(self, target: Block, async_: bool) -> None:
+    def emit_setup_with(self, node: ast.withitem, target: Block, async_: bool) -> None:
         if not async_:
+            if IS_3_12_8:
+                self.set_pos(node.context_expr)
             self.emit("BEFORE_WITH")
         self.emit("SETUP_WITH", target)
 
     def emit_end_for(self) -> None:
-        self.emit("END_FOR")
+        if IS_3_12_8:
+            self.emit_noline("END_FOR")
+        else:
+            self.emit("END_FOR")
 
     def emit_with_except_cleanup(self, cleanup: Block) -> None:
         self.emit("SETUP_CLEANUP", cleanup)
@@ -4241,7 +4269,10 @@ class CodeGenerator312(CodeGenerator):
             gen.wrap_in_stopiteration_handler()
             gen.pop_fblock(STOP_ITERATION)
         elif isinstance(node, ast.Lambda) and not scope.generator:
-            gen.set_pos(SrcLocation(node.lineno, node.lineno or 0, 0, 0))
+            if IS_3_12_8:
+                gen.set_pos(node.body)
+            else:
+                gen.set_pos(SrcLocation(node.lineno, node.lineno or 0, 0, 0))
             gen.emit("RETURN_VALUE")
         else:
             if isinstance(node, ast.Lambda):
@@ -5127,8 +5158,12 @@ class CodeGenerator312(CodeGenerator):
             self.emit("POP_EXCEPT")
 
         elif e.kind in (WITH, ASYNC_WITH):
-            assert isinstance(e.unwinding_datum, AST)
-            self.set_pos(e.unwinding_datum)
+            if IS_3_12_8:
+                assert e.node is not None
+                self.set_pos(e.node)
+            else:
+                assert isinstance(e.unwinding_datum, AST)
+                self.set_pos(e.unwinding_datum)
             self.emit("POP_BLOCK")
             if preserve_tos:
                 self.emit_rotate_stack(2)
@@ -5248,7 +5283,10 @@ class CodeGenerator312(CodeGenerator):
             else:
                 self.visit(gen.iter)
                 self.set_pos(comp)
-                self.emit("GET_AITER")
+                if IS_3_12_8:
+                    self.graph.emit_with_loc("GET_AITER", 0, gen.iter)
+                else:
+                    self.emit("GET_AITER")
 
         self.nextBlock(start)
         self.emit("SETUP_FINALLY", except_)
@@ -5336,7 +5374,11 @@ class CodeGenerator312(CodeGenerator):
         if start:
             depth += 1
             self.nextBlock(start)
-            self.emit("FOR_ITER", anchor)
+            if IS_3_12_8:
+                self.graph.set_pos(gen.iter)
+                self.graph.emit_with_loc("FOR_ITER", anchor, gen.iter)
+            else:
+                self.emit("FOR_ITER", anchor)
             self.nextBlock()
         self.visit(gen.target)
 
