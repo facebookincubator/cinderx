@@ -3,6 +3,7 @@
     "test.test_capi",
     "test_cinderx.test_cinderjit",
     "test_cinderx.test_compiler.test_cinder",
+    "test_cinderx.test_compiler.test_static.runtime",
     "test_cinderx.test_compiler.test_strict",
     "test_cinderx.test_cpython_overrides.test_dis",
     "test_cinderx.test_cpython_overrides.test_trace"
@@ -459,7 +460,6 @@
     "test_cinderx.test_compiler.test_static.protocol",
     "test_cinderx.test_compiler.test_static.refine_fields",
     "test_cinderx.test_compiler.test_static.return_cast_insertion",
-    "test_cinderx.test_compiler.test_static.runtime",
     "test_cinderx.test_compiler.test_static.sequence",
     "test_cinderx.test_compiler.test_static.slots_with_default",
     "test_cinderx.test_compiler.test_static.staticarray",
@@ -468,7 +468,6 @@
     "test_cinderx.test_compiler.test_static.super",
     "test_cinderx.test_compiler.test_static.sys_hexversion",
     "test_cinderx.test_compiler.test_static.top_level",
-    "test_cinderx.test_compiler.test_static.type_alias",
     "test_cinderx.test_compiler.test_static.type_params",
     "test_cinderx.test_compiler.test_static.typed_dict",
     "test_cinderx.test_compiler.test_static.union",
