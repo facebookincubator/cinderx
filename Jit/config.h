@@ -61,6 +61,11 @@ struct GdbOptions {
   bool write_elf_objects{false};
 };
 
+struct JitListOptions {
+  // Raise a Python error when a line fails to parse.
+  bool error_on_parse{false};
+};
+
 struct Config {
   // Current lifetime state of the JIT.
   State state{State::kNotInitialized};
@@ -113,6 +118,7 @@ struct Config {
   uint32_t attr_cache_size{1};
   uint32_t auto_jit_threshold{0};
   GdbOptions gdb;
+  JitListOptions jit_list;
   bool compile_perf_trampoline_prefork{false};
 };
 

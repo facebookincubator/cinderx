@@ -35,26 +35,21 @@ std::unique_ptr<JITList> JITList::create() {
       new JITList(std::move(qualnames), std::move(name_file_line_no)));
 }
 
-bool JITList::parseFile(const char* filename) {
-  JIT_LOG("Jit-list file: {}", filename);
-
+void JITList::parseFile(const char* filename) {
   std::ifstream fstream(filename);
   if (!fstream) {
-    JIT_LOG("Unable to open {}.", filename);
-    return false;
+    throw std::runtime_error{
+        fmt::format("Unable to open JIT list file {}", filename)};
   }
 
   int lineno = 1;
   for (std::string line; getline(fstream, line);) {
     if (!parseLine(line)) {
-      JIT_LOG(
-          "Error while parsing line {} in jit-list file {}", lineno, filename);
-      return false;
+      throw std::runtime_error{fmt::format(
+          "Error while parsing line {} in JIT list file {}", lineno, filename)};
     }
     lineno++;
   }
-
-  return true;
 }
 
 bool JITList::parseLine(std::string_view line) {

@@ -33,12 +33,12 @@ class JITList {
 
   // Parse a JIT list from a file.
   //
-  // Returns true on success or false on error.
-  bool parseFile(const char* filename);
+  // Raise an exception on error.
+  void parseFile(const char* filename);
 
   // Parse a single entry on the JIT list.
   //
-  // Returns true on success or false on error.
+  // Return true on success or false on error.
   bool parseLine(std::string_view line);
 
   // Check if function or code object is on the list.

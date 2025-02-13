@@ -3,7 +3,13 @@
 # This is in its own file as it modifies the global JIT-list.
 
 import os
+import subprocess
+import sys
+import tempfile
+import textwrap
 import unittest
+
+from pathlib import Path
 
 from test.support.script_helper import assert_python_ok
 
@@ -32,8 +38,8 @@ class _JitClass:
         pass
 
 
+@cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
 class JitListTest(unittest.TestCase):
-    @cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
     def test_comments(self) -> None:
         cinderjit.jit_list_append("")
         initial_jit_list = cinderjit.get_jit_list()
@@ -42,7 +48,6 @@ class JitListTest(unittest.TestCase):
         cinderjit.jit_list_append("# x@y:1")
         self.assertEqual(initial_jit_list, cinderjit.get_jit_list())
 
-    @cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
     def test_py_function(self) -> None:
         meth = _JitClass.jitMethod
         func = _jit_function_1
@@ -61,7 +66,6 @@ class JitListTest(unittest.TestCase):
         _no_jit_function()
         self.assertFalse(cinderjit.is_jit_compiled(_no_jit_function))
 
-    @cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
     def test_py_code(self) -> None:
         code_obj = _jit_function_2.__code__
         cinderjit.jit_list_append(
@@ -77,7 +81,6 @@ class JitListTest(unittest.TestCase):
         _no_jit_function()
         self.assertFalse(cinderjit.is_jit_compiled(_no_jit_function))
 
-    @cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
     def test_change_func_qualname(self) -> None:
         def inner_func():
             return 24
@@ -94,7 +97,6 @@ class JitListTest(unittest.TestCase):
         if cinderjit.auto_jit_threshold() <= 1:
             self.assertTrue(cinderjit.is_jit_compiled(inner_func))
 
-    @cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
     def test_precompile_all(self) -> None:
         # Has to be run under a separate process because precompile_all will mess up the
         # other JIT-related tests.
@@ -117,12 +119,125 @@ class JitListTest(unittest.TestCase):
         rc, out, err = assert_python_ok("-X", "jit", "-c", code)
         self.assertEqual(out.strip(), b"24")
 
-    @cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
     def test_precompile_all_bad_args(self) -> None:
         with self.assertRaises(ValueError):
             cinderjit.precompile_all(workers=-1)
         with self.assertRaises(ValueError):
             cinderjit.precompile_all(workers=200000)
+
+    def test_default_parse_error_behavior_startup(self) -> None:
+        code = 'print("Hello world!")'
+        jitlist = "OH NO"
+        with tempfile.TemporaryDirectory() as tmp:
+            dirpath = Path(tmp)
+            codepath = dirpath / "mod.py"
+            jitlistpath = dirpath / "jitlist.txt"
+            codepath.write_text(code)
+            jitlistpath.write_text(jitlist)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "jit",
+                    "-X",
+                    "jit-list-file=jitlist.txt",
+                    "mod.py",
+                ],
+                capture_output=True,
+                cwd=tmp,
+                encoding=sys.stdout.encoding,
+            )
+        self.assertEqual(proc.returncode, 0, proc)
+        self.assertIn("Continuing on with the JIT disabled", proc.stderr)
+
+    def test_default_parse_error_behavior_append(self) -> None:
+        code = textwrap.dedent(
+            """
+        import cinderjit
+        cinderjit.jit_list_append("OH NO")
+        """
+        )
+        jitlist = ""
+        with tempfile.TemporaryDirectory() as tmp:
+            dirpath = Path(tmp)
+            codepath = dirpath / "mod.py"
+            jitlistpath = dirpath / "jitlist.txt"
+            codepath.write_text(code)
+            jitlistpath.write_text(jitlist)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "jit",
+                    "-X",
+                    "jit-list-file=jitlist.txt",
+                    "mod.py",
+                ],
+                capture_output=True,
+                cwd=tmp,
+                encoding=sys.stdout.encoding,
+            )
+        self.assertEqual(proc.returncode, 0, proc)
+
+    def test_fail_on_parse_error_startup(self) -> None:
+        code = 'print("Hello world!")'
+        jitlist = "OH NO"
+        with tempfile.TemporaryDirectory() as tmp:
+            dirpath = Path(tmp)
+            codepath = dirpath / "mod.py"
+            jitlistpath = dirpath / "jitlist.txt"
+            codepath.write_text(code)
+            jitlistpath.write_text(jitlist)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "jit",
+                    "-X",
+                    "jit-list-file=jitlist.txt",
+                    "-X",
+                    "jit-list-fail-on-parse-error",
+                    "mod.py",
+                ],
+                capture_output=True,
+                cwd=tmp,
+                encoding=sys.stdout.encoding,
+            )
+        self.assertNotEqual(proc.returncode, 0, proc)
+        self.assertIn("Error while parsing line", proc.stderr)
+        self.assertIn("in JIT list file", proc.stderr)
+
+    def test_fail_on_parse_error_append(self) -> None:
+        code = textwrap.dedent(
+            """
+        import cinderjit
+        cinderjit.jit_list_append("OH NO")
+        """
+        )
+        jitlist = ""
+        with tempfile.TemporaryDirectory() as tmp:
+            dirpath = Path(tmp)
+            codepath = dirpath / "mod.py"
+            jitlistpath = dirpath / "jitlist.txt"
+            codepath.write_text(code)
+            jitlistpath.write_text(jitlist)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "jit",
+                    "-X",
+                    "jit-list-file=jitlist.txt",
+                    "-X",
+                    "jit-list-fail-on-parse-error",
+                    "mod.py",
+                ],
+                capture_output=True,
+                cwd=tmp,
+                encoding=sys.stdout.encoding,
+            )
+        self.assertNotEqual(proc.returncode, 0, proc)
+        self.assertIn("Failed to parse new JIT list line", proc.stderr)
 
 
 if __name__ == "__main__":

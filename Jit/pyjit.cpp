@@ -570,6 +570,12 @@ FlagProcessor initFlagProcessor() {
       .withFlagParamName("filename");
 
   flag_processor.addOption(
+      "jit-list-fail-on-parse-error",
+      "PYTHONJITLISTFAILONPARSEERROR",
+      getMutableConfig().jit_list.error_on_parse,
+      "Raise a Python exception when a JIT list fails to parse");
+
+  flag_processor.addOption(
       "jit-disable",
       "PYTHONJITDISABLE",
       [](int val) { use_jit = !val; },
@@ -1595,8 +1601,15 @@ PyObject* jit_list_append(PyObject* /* self */, PyObject* line) {
   if (line_str == nullptr) {
     return nullptr;
   }
-  g_jit_list->parseLine(
+  bool success = g_jit_list->parseLine(
       {line_str, static_cast<std::string::size_type>(line_len)});
+
+  if (!success && getConfig().jit_list.error_on_parse) {
+    PyErr_Format(
+        PyExc_RuntimeError, "Failed to parse new JIT list line %U", line);
+    return nullptr;
+  }
+
   Py_RETURN_NONE;
 }
 
@@ -2673,8 +2686,17 @@ int initialize() {
       JIT_LOG("Failed to allocate JIT list");
       return -1;
     }
-    if (!jit_list->parseFile(jl_fn.c_str())) {
-      JIT_LOG("Could not parse jit-list, disabling JIT.");
+
+    try {
+      jit_list->parseFile(jl_fn.c_str());
+    } catch (const std::exception& exn) {
+      if (getConfig().jit_list.error_on_parse) {
+        PyErr_SetString(PyExc_RuntimeError, exn.what());
+        return -1;
+      }
+
+      JIT_LOG("{}", exn.what());
+      JIT_LOG("Continuing on with the JIT disabled");
       return 0;
     }
   }
