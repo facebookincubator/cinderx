@@ -4,7 +4,6 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/func.h"
-#include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/descrs.h"
