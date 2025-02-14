@@ -710,4 +710,10 @@ __attribute__((naked)) PyObject* _PyVTable_native_entry(
       "leave\n"
       "ret\n");
 }
+#else
+PyObject* _PyVTable_native_entry(PyObject* state, void** args) {
+  PyErr_SetString(
+      PyExc_RuntimeError, "native entry points not available on non x-64");
+  return NULL;
+}
 #endif
