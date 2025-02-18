@@ -49,12 +49,9 @@ from ..pycodegen import (
     FuncOrLambda,
     PatternContext,
 )
-from ..strict import (
-    FIXED_MODULES,
-    StrictCodeGenBase,
-    StrictCodeGenerator310,
-    StrictCodeGenerator312,
-)
+from ..strict import StrictCodeGenerator310, StrictCodeGenerator312
+from ..strict.code_gen_base import StrictCodeGenBase
+from ..strict.common import FIXED_MODULES
 from ..symbols import BaseSymbolVisitor, ModuleScope, Scope
 from .compiler import Compiler
 from .definite_assignment_checker import DefiniteAssignmentVisitor

@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+from __static__ import posix_clock_gettime_ns, rand, RAND_MAX
+
 import ast
 import builtins
 from ast import AST
@@ -15,7 +17,6 @@ from .. import consts
 from ..errors import ErrorSink
 from ..optimizer import AstOptimizer
 from ..pycodegen import find_futures
-from ..strict import _static_module_ported
 from ..symbols import SymbolVisitor
 from .declaration_visitor import DeclarationVisitor
 from .module_table import IntrinsicModuleTable, ModuleTable
@@ -41,11 +42,6 @@ from .types import (
     UnboxFunction,
     Value,
 )
-
-if _static_module_ported:
-    from cinderx.static import posix_clock_gettime_ns, rand, RAND_MAX
-else:
-    from __static__ import posix_clock_gettime_ns, rand, RAND_MAX
 
 
 if TYPE_CHECKING:

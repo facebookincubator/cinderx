@@ -17,7 +17,9 @@ from typing import Callable, ContextManager, final, Iterable
 
 from ..errors import TypedSyntaxError
 from ..pycodegen import compile as python_compile
-from ..static import Compiler as StaticCompiler, ModuleTable, StaticCodeGenerator
+from ..static import StaticCodeGenerator
+from ..static.compiler import Compiler as StaticCompiler
+from ..static.module_table import ModuleTable
 from . import strict_compile
 from .common import StrictModuleError
 from .flag_extractor import FlagExtractor, Flags
