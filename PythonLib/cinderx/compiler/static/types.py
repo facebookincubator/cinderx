@@ -10453,6 +10453,8 @@ if spamobj is not None:
 
 def access_path(node: ast.AST) -> list[str]:
     path = []
+    if isinstance(node, ast.NamedExpr):
+        node = node.target
     while not isinstance(node, ast.Name):
         if not isinstance(node, ast.Attribute):
             return []

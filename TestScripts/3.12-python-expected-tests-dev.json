@@ -473,6 +473,7 @@
     "test_cinderx.test_compiler.test_static.match",
     "test_cinderx.test_compiler.test_static.mixin",
     "test_cinderx.test_compiler.test_static.module",
+    "test_cinderx.test_compiler.test_static.narrowing",
     "test_cinderx.test_compiler.test_static.native",
     "test_cinderx.test_compiler.test_static.non_static_inheritance",
     "test_cinderx.test_compiler.test_static.obj_creation",

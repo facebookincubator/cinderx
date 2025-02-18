@@ -1435,7 +1435,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         ):
             return None
 
-        assert isinstance(node, (ast.Name, ast.Attribute))
+        assert isinstance(node, (ast.Name, ast.NamedExpr, ast.Attribute))
         effect = IsInstanceEffect(
             node,
             type_,
@@ -2154,7 +2154,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             self.assign_value(optional_vars, self.type_env.DYNAMIC)
 
     def is_refinable(self, node: ast.AST) -> bool:
-        if isinstance(node, Name):
+        if isinstance(node, (Name, ast.NamedExpr)):
             return True
         elif isinstance(node, ast.Attribute) and isinstance(node.value, Name):
             typ = self.get_type(node.value)
