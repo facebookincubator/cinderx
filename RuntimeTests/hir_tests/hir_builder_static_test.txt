@@ -124,99 +124,118 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
-    v1 = InitialYield {
+    v1 = LoadCurrentFunc
+    Snapshot
+    v2 = InitialYield {
       FrameState {
-        CurInstrOffset 0
+        CurInstrOffset 2
         Locals<1> v0
       }
     }
     Snapshot
-    v0 = CheckVar<"c"> v0 {
+    v3 = LoadEvalBreaker
+    CondBranch<7, 6> v3
+  }
+
+  bb 7 (preds 0) {
+    Snapshot
+    v4 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 4
         Locals<1> v0
       }
     }
-    v2 = InvokeMethodStatic<1, awaited> v0 {
+    Branch<6>
+  }
+
+  bb 6 (preds 0, 7) {
+    Snapshot
+    v5 = LoadField<ob_type@8, Type, borrowed> v0
+    v6 = LoadField<tp_cache@352, Object, borrowed> v5
+    v7 = LoadField<vte_state@80, Object, borrowed> v6
+    v9 = LoadField<vte_load@88, CPtr, borrowed> v6
+    v7 = CallInd<vte_load> v9 v7 v0 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 10
         Locals<1> v0
       }
     }
-    CondBranchCheckType<4, 2, WaitHandle> v2
-  }
-
-  bb 4 (preds 0) {
-    v4 = WaitHandleLoadCoroOrResult v2
-    v5 = WaitHandleLoadWaiter v2
-    WaitHandleRelease v2
-    CondBranch<5, 6> v5
-  }
-
-  bb 5 (preds 4) {
-    SetCurrentAwaiter v4
-    v3 = YieldAndYieldFrom v5 v4 {
+    v8 = GetSecondOutput<CPtr> v7
+    Snapshot
+    v10 = CallInd<vtable invoke> v8 v7 v0 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 14
+        Locals<1> v0
+      }
+    }
+    Snapshot
+    v11 = CallCFunc<JitCoro_GetAwaitableIter> v10
+    v11 = CheckExc v11 {
+      FrameState {
+        CurInstrOffset 16
+        Locals<1> v0
+      }
+    }
+    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v11
+  }
+
+  bb 10 (preds 6) {
+    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v11
+  }
+
+  bb 8 (preds 6, 10) {
+    v12 = CallCFunc<JitGen_yf> v11
+    CondBranch<11, 9> v12
+  }
+
+  bb 11 (preds 8) {
+    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
+      FrameState {
+        CurInstrOffset 16
+        Locals<1> v0
+      }
+    }
+  }
+
+  bb 9 (preds 8, 10) {
+    Snapshot
+    v13 = LoadConst<NoneType>
+    v2 = Assign v11
+    v3 = Assign v13
+    Branch<1>
+  }
+
+  bb 1 (preds 2, 9) {
+    Snapshot
+    v14 = Send v2 v3 {
+      FrameState {
+        CurInstrOffset 20
         Locals<1> v0
         Stack<1> v2
       }
     }
-    Branch<3>
+    v15 = GetSecondOutput<CInt64> v14
+    v3 = Assign v14
+    CondBranch<3, 2> v15
   }
 
-  bb 6 (preds 4) {
-    v3 = Assign v4
-    Branch<3>
-  }
-
-  bb 2 (preds 0) {
-    v6 = CallCFunc<Cix_PyCoro_GetAwaitableIter> v2
-    v6 = CheckExc v6 {
-      FrameState {
-        CurInstrOffset 8
-        Locals<1> v0
-      }
-    }
-    CondBranchCheckType<7, 8, ObjectUser[coroutine:Exact]> v6
-  }
-
-  bb 7 (preds 2) {
-    v7 = CallCFunc<Cix_PyGen_yf> v6
-    CondBranch<9, 8> v7
-  }
-
-  bb 9 (preds 7) {
-    RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
-      FrameState {
-        CurInstrOffset 8
-        Locals<1> v0
-      }
-    }
-  }
-
-  bb 8 (preds 2, 7) {
-    v8 = LoadConst<NoneType>
-    SetCurrentAwaiter v6
-    v3 = YieldFrom v8 v6 {
-      FrameState {
-        CurInstrOffset 8
-        Locals<1> v0
-        Stack<1> v6
-      }
-    }
-    Branch<3>
-  }
-
-  bb 3 (preds 5, 6, 8) {
+  bb 3 (preds 1) {
     Snapshot
-    v2 = Assign v3
+    Return v3
+  }
+
+  bb 2 (preds 1) {
+    Snapshot
+    v16 = YieldFrom v3 v2 {
+      FrameState {
+        CurInstrOffset 26
+        Locals<1> v0
+        Stack<1> v2
+      }
+    }
+    Snapshot
+    v3 = Assign v16
     Branch<1>
-  }
-
-  bb 1 (preds 3) {
-    Snapshot
-    Return v2
   }
 }
 --- Test Name ---
@@ -256,15 +275,27 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
+    v1 = LoadCurrentFunc
     Snapshot
-    v0 = CheckVar<"c"> v0 {
+    v2 = LoadEvalBreaker
+    CondBranch<2, 1> v2
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v3 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v0
       }
     }
-    v1 = LoadField<x@16, OptObject, borrowed> v0
-    v1 = CheckField<"x"> v1 {
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v4 = LoadField<x@16, OptObject, borrowed> v0
+    v4 = CheckField<"x"> v4 {
       GuiltyReg v0
       FrameState {
         CurInstrOffset 4
@@ -272,7 +303,7 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    Return v1
+    Return v4
   }
 }
 --- Test Name ---
@@ -316,25 +347,31 @@ fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "c", User[C]>
     v1 = LoadArg<1; "x", Long>
+    v2 = LoadCurrentFunc
     Snapshot
-    v1 = CheckVar<"x"> v1 {
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v4 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
         Locals<2> v0 v1
       }
     }
-    v0 = CheckVar<"c"> v0 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<2> v0 v1
-        Stack<1> v1
-      }
-    }
-    v2 = LoadField<x@16, OptObject, owned> v0
-    StoreField<x@16> v0 v1 v2
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
     Snapshot
-    v3 = LoadConst<NoneType>
-    Return v3
+    v5 = LoadField<x@16, OptObject, owned> v0
+    StoreField<x@16> v0 v1 v5
+    Snapshot
+    v6 = LoadConst<NoneType>
+    v6 = RefineType<NoneType> v6
+    Return<NoneType> v6
   }
 }
 --- Test Name ---
@@ -373,29 +410,46 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v0 = LoadCurrentFunc
     Snapshot
-    v0 = MakeList<0> {
+    v1 = LoadEvalBreaker
+    CondBranch<2, 1> v1
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v2 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v3 = MakeList<0> {
       FrameState {
         CurInstrOffset 2
       }
     }
     Snapshot
-    v1 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v2 = ListExtend v0 v1 {
+    v4 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    v5 = ListExtend v3 v4 {
       FrameState {
         CurInstrOffset 6
-        Stack<1> v0
+        Stack<1> v3
       }
     }
     Snapshot
-    v3 = LoadField<ob_size@16, CInt64, borrowed> v0
+    v6 = LoadField<ob_size@16, CInt64, borrowed> v3
     Snapshot
-    v4 = PrimitiveBox<CInt64> v3 {
+    v7 = PrimitiveBox<CInt64> v6 {
       FrameState {
         CurInstrOffset 10
       }
     }
-    Return v4
+    Return v7
   }
 }
 --- Test Name ---
@@ -426,18 +480,35 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v0 = LoadCurrentFunc
     Snapshot
-    v0 = LoadConst<MortalUnicodeExact["hello"]>
-    v1 = LoadConst<ImmortalLongExact[123]>
-    v2 = LoadConst<MortalFunc[function:0xdeadbeef]>
-    v3 = InvokeStaticFunction<jittestmodule.x, 3, Unicode> v2 v0 v1 {
+    v1 = LoadEvalBreaker
+    CondBranch<2, 1> v1
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v2 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v3 = LoadConst<MortalUnicodeExact["hello"]>
+    v4 = LoadConst<ImmortalLongExact[123]>
+    v5 = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v6 = InvokeStaticFunction<jittestmodule.x, 3, Unicode> v5 v3 v4 {
       FrameState {
         CurInstrOffset 8
       }
     }
     Snapshot
-    v3 = RefineType<Unicode> v3
-    Return<Unicode> v3
+    v6 = RefineType<Unicode> v6
+    Return<Unicode> v6
   }
 }
 --- Test Name ---
@@ -511,62 +582,103 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v0 = InitialYield {
+    v0 = LoadCurrentFunc
+    Snapshot
+    v1 = InitialYield {
       FrameState {
-        CurInstrOffset 0
+        CurInstrOffset 2
       }
     }
     Snapshot
-    v1 = LoadConst<MortalUnicodeExact["hello"]>
-    v2 = LoadConst<ImmortalLongExact[123]>
-    v3 = LoadConst<MortalFunc[function:0xdeadbeef]>
-    v4 = InvokeStaticFunction<jittestmodule.x, 3, Object> v3 v1 v2 {
+    v2 = LoadEvalBreaker
+    CondBranch<7, 6> v2
+  }
+
+  bb 7 (preds 0) {
+    Snapshot
+    v3 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 4
       }
     }
+    Branch<6>
+  }
+
+  bb 6 (preds 0, 7) {
     Snapshot
-    v5 = CallCFunc<Cix_PyCoro_GetAwaitableIter> v4
-    v5 = CheckExc v5 {
+    v4 = LoadConst<MortalUnicodeExact["hello"]>
+    v5 = LoadConst<ImmortalLongExact[123]>
+    v6 = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v7 = InvokeStaticFunction<jittestmodule.x, 3, Object> v6 v4 v5 {
       FrameState {
         CurInstrOffset 12
       }
     }
-    CondBranchCheckType<2, 3, ObjectUser[coroutine:Exact]> v5
+    Snapshot
+    v8 = CallCFunc<JitCoro_GetAwaitableIter> v7
+    v8 = CheckExc v8 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v8
   }
 
-  bb 2 (preds 0) {
-    v6 = CallCFunc<Cix_PyGen_yf> v5
-    CondBranch<4, 3> v6
+  bb 10 (preds 6) {
+    CondBranchCheckType<8, 9, ObjectUser[coroutine:Exact]> v8
   }
 
-  bb 4 (preds 2) {
+  bb 8 (preds 6, 10) {
+    v9 = CallCFunc<JitGen_yf> v8
+    CondBranch<11, 9> v9
+  }
+
+  bb 11 (preds 8) {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 14
       }
     }
   }
 
-  bb 3 (preds 0, 2) {
+  bb 9 (preds 8, 10) {
     Snapshot
-    v7 = LoadConst<NoneType>
-    SetCurrentAwaiter v5
-    v8 = YieldFrom v7 v5 {
-      FrameState {
-        CurInstrOffset 16
-        Stack<1> v5
-      }
-    }
-    Snapshot
+    v10 = LoadConst<NoneType>
     v1 = Assign v8
+    v2 = Assign v10
     Branch<1>
   }
 
-  bb 1 (preds 3) {
+  bb 1 (preds 2, 9) {
     Snapshot
-    v1 = RefineType<Unicode> v1
-    Return<Unicode> v1
+    v11 = Send v1 v2 {
+      FrameState {
+        CurInstrOffset 18
+        Stack<1> v1
+      }
+    }
+    v12 = GetSecondOutput<CInt64> v11
+    v2 = Assign v11
+    CondBranch<3, 2> v12
+  }
+
+  bb 3 (preds 1) {
+    Snapshot
+    v2 = RefineType<Unicode> v2
+    Return<Unicode> v2
+  }
+
+  bb 2 (preds 1) {
+    Snapshot
+    v13 = YieldFrom v2 v1 {
+      FrameState {
+        CurInstrOffset 24
+        Stack<1> v1
+      }
+    }
+    Snapshot
+    v2 = Assign v13
+    Branch<1>
   }
 }
 --- Test Name ---
@@ -733,169 +845,164 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v1 = LoadCurrentFunc
     Snapshot
-    v1 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v0 = Assign v1
-    v2 = LoadConst<ImmortalLongExact[1]>
-    v3 = LoadConst<ImmortalLongExact[3]>
-    v0 = CheckVar<"p"> v0 {
-      FrameState {
-        CurInstrOffset 10
-        Locals<1> v0
-        Stack<2> v2 v3
-      }
-    }
-    CondBranchCheckType<1, 2, Tuple> v0
-  }
-
-  bb 1 (preds 0) {
-    Snapshot
-    v4 = Assign v0
-    Branch<3>
+    v2 = LoadEvalBreaker
+    CondBranch<2, 1> v2
   }
 
   bb 2 (preds 0) {
     Snapshot
-    v4 = GetTuple v0 {
+    v3 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 0
         Locals<1> v0
-        Stack<2> v2 v3
       }
     }
-    Branch<3>
+    Branch<1>
   }
 
-  bb 3 (preds 1, 2) {
+  bb 1 (preds 0, 2) {
     Snapshot
-    v5 = LoadConst<CInt64[0]>
-    v6 = PrimitiveBox<CInt64> v5 {
+    v4 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    v0 = Assign v4
+    v5 = LoadConst<ImmortalLongExact[1]>
+    v6 = LoadConst<ImmortalLongExact[3]>
+    CondBranchCheckType<3, 4, Tuple> v0
+  }
+
+  bb 3 (preds 1) {
+    Snapshot
+    v7 = Assign v0
+    Branch<5>
+  }
+
+  bb 4 (preds 1) {
+    Snapshot
+    v7 = GetTuple v0 {
       FrameState {
         CurInstrOffset 12
         Locals<1> v0
-        Stack<2> v2 v3
+        Stack<2> v5 v6
       }
     }
-    v7 = BinaryOp<Subscript> v4 v6 {
+    Branch<5>
+  }
+
+  bb 5 (preds 3, 4) {
+    Snapshot
+    v8 = LoadConst<CInt64[0]>
+    v9 = PrimitiveBox<CInt64> v8 {
       FrameState {
         CurInstrOffset 12
         Locals<1> v0
-        Stack<2> v2 v3
+        Stack<2> v5 v6
+      }
+    }
+    v10 = BinaryOp<Subscript> v7 v9 {
+      FrameState {
+        CurInstrOffset 12
+        Locals<1> v0
+        Stack<2> v5 v6
       }
     }
     Snapshot
-    v8 = Cast<str> v7 {
+    v11 = Cast<str> v10 {
       FrameState {
         CurInstrOffset 16
         Locals<1> v0
-        Stack<3> v2 v3 v4
+        Stack<3> v5 v6 v7
       }
     }
     Snapshot
-    CondBranchCheckType<4, 5, Tuple> v4
+    CondBranchCheckType<6, 7, Tuple> v7
   }
 
-  bb 4 (preds 3) {
+  bb 6 (preds 5) {
     Snapshot
-    v9 = Assign v4
-    Branch<6>
+    v12 = Assign v7
+    Branch<8>
   }
 
-  bb 5 (preds 3) {
+  bb 7 (preds 5) {
     Snapshot
-    v9 = GetTuple v4 {
+    v12 = GetTuple v7 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v0
-        Stack<3> v2 v3 v8
+        Stack<3> v5 v6 v11
       }
     }
-    Branch<6>
+    Branch<8>
   }
 
-  bb 6 (preds 4, 5) {
+  bb 8 (preds 6, 7) {
     Snapshot
-    v10 = LoadConst<CInt64[1]>
-    v11 = PrimitiveBox<CInt64> v10 {
+    v13 = LoadConst<CInt64[1]>
+    v14 = PrimitiveBox<CInt64> v13 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v0
-        Stack<3> v2 v3 v8
+        Stack<3> v5 v6 v11
       }
     }
-    v12 = BinaryOp<Subscript> v9 v11 {
+    v15 = BinaryOp<Subscript> v12 v14 {
       FrameState {
         CurInstrOffset 20
         Locals<1> v0
-        Stack<3> v2 v3 v8
+        Stack<3> v5 v6 v11
       }
     }
     Snapshot
-    v13 = Cast<object> v12 {
+    CondBranchCheckType<9, 10, Tuple> v12
+  }
+
+  bb 9 (preds 8) {
+    Snapshot
+    v16 = Assign v12
+    Branch<11>
+  }
+
+  bb 10 (preds 8) {
+    Snapshot
+    v16 = GetTuple v12 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 22
         Locals<1> v0
-        Stack<4> v2 v3 v8 v9
+        Stack<4> v5 v6 v11 v15
+      }
+    }
+    Branch<11>
+  }
+
+  bb 11 (preds 9, 10) {
+    Snapshot
+    v17 = LoadConst<CInt64[2]>
+    v18 = PrimitiveBox<CInt64> v17 {
+      FrameState {
+        CurInstrOffset 22
+        Locals<1> v0
+        Stack<4> v5 v6 v11 v15
+      }
+    }
+    v19 = BinaryOp<Subscript> v16 v18 {
+      FrameState {
+        CurInstrOffset 22
+        Locals<1> v0
+        Stack<4> v5 v6 v11 v15
       }
     }
     Snapshot
-    CondBranchCheckType<7, 8, Tuple> v9
-  }
-
-  bb 7 (preds 6) {
-    Snapshot
-    v14 = Assign v9
-    Branch<9>
-  }
-
-  bb 8 (preds 6) {
-    Snapshot
-    v14 = GetTuple v9 {
+    v20 = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v21 = InvokeStaticFunction<jittestmodule.x, 6, Long> v20 v5 v6 v11 v15 v19 {
       FrameState {
         CurInstrOffset 28
         Locals<1> v0
-        Stack<4> v2 v3 v8 v13
-      }
-    }
-    Branch<9>
-  }
-
-  bb 9 (preds 7, 8) {
-    Snapshot
-    v15 = LoadConst<CInt64[2]>
-    v16 = PrimitiveBox<CInt64> v15 {
-      FrameState {
-        CurInstrOffset 28
-        Locals<1> v0
-        Stack<4> v2 v3 v8 v13
-      }
-    }
-    v17 = BinaryOp<Subscript> v14 v16 {
-      FrameState {
-        CurInstrOffset 28
-        Locals<1> v0
-        Stack<4> v2 v3 v8 v13
       }
     }
     Snapshot
-    v18 = Cast<object> v17 {
-      FrameState {
-        CurInstrOffset 32
-        Locals<1> v0
-        Stack<5> v2 v3 v8 v13 v14
-      }
-    }
-    Snapshot
-    v19 = LoadConst<MortalFunc[function:0xdeadbeef]>
-    v20 = InvokeStaticFunction<jittestmodule.x, 6, Long> v19 v2 v3 v8 v13 v18 {
-      FrameState {
-        CurInstrOffset 40
-        Locals<1> v0
-      }
-    }
-    Snapshot
-    v20 = RefineType<Long> v20
-    Return<Long> v20
+    v21 = RefineType<Long> v21
+    Return<Long> v21
   }
 }
 --- Test Name ---
@@ -938,29 +1045,41 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "it">
+    v1 = LoadCurrentFunc
     Snapshot
-    v1 = LoadGlobalCached<0; "sorted">
-    v1 = GuardIs<0xdeadbeef> v1 {
+    v2 = LoadEvalBreaker
+    CondBranch<2, 1> v2
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v3 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v5 = LoadConst<Nullptr>
+    v4 = LoadGlobalCached<0; "sorted">
+    v4 = GuardIs<0xdeadbeef> v4 {
       Descr 'LOAD_GLOBAL: sorted'
     }
     Snapshot
-    v0 = CheckVar<"it"> v0 {
+    v6 = CallMethod<3> v5 v4 v0 {
       FrameState {
-        CurInstrOffset 4
-        Locals<1> v0
-        Stack<1> v1
-      }
-    }
-    v2 = VectorCall<1> v1 v0 {
-      FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 14
         Locals<1> v0
       }
     }
     Snapshot
-    v2 = RefineType<ListExact> v2
-    v2 = RefineType<List> v2
-    Return<List> v2
+    v6 = RefineType<ListExact> v6
+    v6 = RefineType<List> v6
+    Return<List> v6
   }
 }
 --- Test Name ---
@@ -1033,60 +1152,72 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v2 = LoadCurrentFunc
     Snapshot
-    v2 = TpAlloc<chklist[int]> {
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v5 = TpAlloc<chklist[int]> {
       FrameState {
         CurInstrOffset 2
         Locals<2> v0 v1
       }
     }
     Snapshot
-    v3 = MakeList<0> {
+    v6 = MakeList<0> {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
-        Stack<2> v2 v2
+        Stack<2> v5 v5
       }
     }
     Snapshot
-    v4 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
-    v5 = ListExtend v3 v4 {
+    v7 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
+    v8 = ListExtend v6 v7 {
       FrameState {
         CurInstrOffset 10
         Locals<2> v0 v1
-        Stack<3> v2 v2 v3
+        Stack<3> v5 v5 v6
       }
     }
     Snapshot
-    v6 = LoadConst<MortalObjectUser[wrapper_descriptor:0xdeadbeef]>
-    v7 = VectorCall<2, static> v6 v2 v3 {
+    v9 = LoadConst<MortalObjectUser[wrapper_descriptor:0xdeadbeef]>
+    v10 = VectorCall<2, static> v9 v5 v6 {
       FrameState {
         CurInstrOffset 14
         Locals<2> v0 v1
-        Stack<1> v2
+        Stack<1> v5
       }
     }
     Snapshot
-    v0 = Assign v2
-    v8 = LoadConst<CInt64[2]>
-    v1 = Assign v8
-    v0 = CheckVar<"l"> v0 {
-      FrameState {
-        CurInstrOffset 24
-        Locals<2> v0 v1
-      }
-    }
-    v9 = CheckSequenceBounds v0 v1 {
+    v0 = Assign v5
+    v11 = LoadConst<CInt64[2]>
+    v1 = Assign v11
+    v12 = CheckSequenceBounds v0 v1 {
       FrameState {
         CurInstrOffset 30
         Locals<2> v0 v1
       }
     }
-    v10 = LoadField<ob_item@24, CPtr, borrowed> v0
-    v11 = LoadArrayItem v10 v9 v0
+    v13 = LoadField<ob_item@24, CPtr, borrowed> v0
+    v14 = LoadArrayItem v13 v12 v0
     Snapshot
-    v11 = RefineType<Long> v11
-    Return<Long> v11
+    v14 = RefineType<Long> v14
+    Return<Long> v14
   }
 }
 --- Test Name ---
@@ -1171,71 +1302,85 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "a", Long>
-    v2 = MakeCell v0 {
+    v2 = LoadCurrentFunc
+    Snapshot
+    v3 = MakeCell v0 {
       FrameState {
         CurInstrOffset 0
         Locals<2> v0 v1
-        Cells<1> v2
       }
     }
+    v0 = Assign v3
     Snapshot
-    v4 = LoadConst<MortalUnicodeExact["return"]>
-    v5 = LoadGlobalCached<0; "int">
-    v5 = GuardIs<0xdeadbeef> v5 {
+    v4 = LoadEvalBreaker
+    CondBranch<2, 1> v4
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v5 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v6 = LoadConst<ImmortalUnicodeExact["return"]>
+    v7 = LoadGlobalCached<0; "int">
+    v7 = GuardIs<0xdeadbeef> v7 {
       Descr 'LOAD_GLOBAL: int'
     }
     Snapshot
-    v6 = MakeTuple<2> v4 v5 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<2> v3 v1
-        Cells<1> v2
-        Stack<2> v4 v5
-      }
-    }
-    Snapshot
-    v7 = MakeTuple<1> v2 {
-      FrameState {
-        CurInstrOffset 10
-        Locals<2> v3 v1
-        Cells<1> v2
-        Stack<2> v6 v2
-      }
-    }
-    Snapshot
-    v8 = LoadConst<MortalCode["inner"]>
-    v9 = LoadConst<MortalUnicodeExact["test.<locals>.inner"]>
-    v10 = MakeFunction v9 v8 {
+    v8 = MakeTuple<2> v6 v7 {
       FrameState {
         CurInstrOffset 16
-        Locals<2> v3 v1
-        Cells<1> v2
+        Locals<2> v0 v1
         Stack<2> v6 v7
       }
     }
-    SetFunctionAttr<func_closure> v7 v10
-    SetFunctionAttr<func_annotations> v6 v10
     Snapshot
-    v1 = Assign v10
-    v11 = LoadCellItem v2
-    v11 = CheckVar<"a"> v11 {
+    v9 = MakeTuple<1> v0 {
       FrameState {
         CurInstrOffset 20
-        Locals<2> v3 v1
-        Cells<1> v2
+        Locals<2> v0 v1
+        Stack<2> v8 v0
       }
     }
     Snapshot
-    v12 = Cast<int> v11 {
+    v10 = LoadConst<MortalCode["inner"]>
+    v12 = LoadConst<Nullptr>
+    v11 = MakeFunction v10 v12 {
       FrameState {
-        CurInstrOffset 22
-        Locals<2> v3 v1
-        Cells<1> v2
+        CurInstrOffset 24
+        Locals<2> v0 v1
+        Stack<2> v8 v9
+      }
+    }
+    SetFunctionAttr<func_closure> v9 v11
+    SetFunctionAttr<func_annotations> v8 v11
+    Snapshot
+    v1 = Assign v11
+    v13 = LoadCellItem v0
+    v13 = CheckVar<"a"> v13 {
+      FrameState {
+        CurInstrOffset 28
+        Locals<2> v0 v1
       }
     }
     Snapshot
-    v12 = RefineType<Long> v12
-    Return<Long> v12
+    v14 = Cast<int> v13 {
+      FrameState {
+        CurInstrOffset 30
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot
+    v14 = RefineType<Long> v14
+    Return<Long> v14
   }
 }
 --- Test Name ---
@@ -1286,15 +1431,27 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "self", User[A]>
+    v1 = LoadCurrentFunc
     Snapshot
-    v0 = CheckVar<"self"> v0 {
+    v2 = LoadEvalBreaker
+    CondBranch<2, 1> v2
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v3 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v0
       }
     }
-    v1 = LoadField<_field@16, OptObject, borrowed> v0
-    v1 = CheckField<"_field"> v1 {
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v4 = LoadField<_field@16, OptObject, borrowed> v0
+    v4 = CheckField<"_field"> v4 {
       GuiltyReg v0
       FrameState {
         CurInstrOffset 4
@@ -1302,18 +1459,19 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v1 = RefineType<List> v1
-    v2 = LoadConst<ImmortalLongExact[1]>
-    v3 = ListAppend v1 v2 {
+    v4 = RefineType<List> v4
+    v5 = LoadConst<ImmortalLongExact[1]>
+    v6 = ListAppend v4 v5 {
       FrameState {
         CurInstrOffset 10
         Locals<1> v0
-        Stack<1> v1
+        Stack<1> v4
       }
     }
     Snapshot
-    v4 = LoadConst<NoneType>
-    Return v4
+    v7 = LoadConst<NoneType>
+    v7 = RefineType<NoneType> v7
+    Return<NoneType> v7
   }
 }
 --- Test Name ---

@@ -26,11 +26,32 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v5:Func = LoadCurrentFunc
     Snapshot
-    v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    v6:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v6:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v6
+  }
+
+  bb 2 (preds 0) {
     Snapshot
-    Return v6
+    v7:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v9:Object = InvokeStaticFunction<jittestmodule.foo, 1, Object> v8 {
+      FrameState {
+        CurInstrOffset 4
+      }
+    }
+    Snapshot
+    Return v9
   }
 }
 --- Test Name ---
@@ -66,20 +87,46 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v8:Func = LoadCurrentFunc
     Snapshot
-    v5:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    v12:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
     Snapshot
-    v7:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    v16:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
     Snapshot
-    UseType<LongExact> v12
-    UseType<LongExact> v16
-    UseType<ImmortalLongExact[3]> v12
-    UseType<ImmortalLongExact[4]> v16
-    v19:ImmortalLongExact[7] = LoadConst<ImmortalLongExact[7]>
+    v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v12:Object = InvokeStaticFunction<jittestmodule.foo, 1, Object> v11 {
+      FrameState {
+        CurInstrOffset 4
+      }
+    }
     Snapshot
-    Return v19
+    v13:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v14:Object = InvokeStaticFunction<jittestmodule.bar, 1, Object> v13 {
+      FrameState {
+        CurInstrOffset 8
+        Stack<1> v12
+      }
+    }
+    Snapshot
+    v15:Object = BinaryOp<Add> v12 v14 {
+      FrameState {
+        CurInstrOffset 10
+      }
+    }
+    Snapshot
+    Return v15
   }
 }
 --- Test Name ---
@@ -116,24 +163,34 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v7:Func = LoadCurrentFunc
     Snapshot
-    v4:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
-    v5:MortalUnicodeExact["x"] = LoadConst<MortalUnicodeExact["x"]>
-    v6:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    BeginInlinedFunction<jittestmodule:add> {
-      CurInstrOffset 8
-    }
+    v8:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v8
+  }
+
+  bb 2 (preds 0) {
     Snapshot
-    v16:Object = BinaryOp<Add> v4 v5 {
+    v9:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 6
-        Locals<2> v4 v5
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v10:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
+    v11:ImmortalUnicodeExact["x"] = LoadConst<ImmortalUnicodeExact["x"]>
+    v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v13:Object = InvokeStaticFunction<jittestmodule.add, 3, Object> v12 v10 v11 {
+      FrameState {
+        CurInstrOffset 8
       }
     }
     Snapshot
-    EndInlinedFunction
-    Snapshot
-    Return v16
+    Return v13
   }
 }
 --- Test Name ---
@@ -176,24 +233,63 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
+    v9:Func = LoadCurrentFunc
     Snapshot
-    v5:ObjectUser[C:Exact] = TpAlloc<C> {
+    v10:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v10
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v11:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:ObjectUser[C:Exact] = TpAlloc<C> {
       FrameState {
         CurInstrOffset 2
       }
     }
     Snapshot
-    v6:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    v17:CInt8[4] = LoadConst<CInt8[4]>
-    v19:Nullptr = LoadConst<Nullptr>
-    UseType<CInt8> v17
-    StoreField<foo@16> v5 v17 v19
-    v21:NoneType = LoadConst<NoneType>
+    v13:Object = LoadFunctionIndirect<__init__> {
+      FrameState {
+        CurInstrOffset 8
+        Stack<2> v12 v12
+      }
+    }
+    v14:Object = VectorCall<1> v13 v12 {
+      FrameState {
+        CurInstrOffset 8
+        Stack<1> v12
+      }
+    }
     Snapshot
-    v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
-    v28:CInt8 = LoadField<foo@16, CInt8, borrowed> v5
+    v15:Object = LoadFunctionIndirect<getfoo> {
+      FrameState {
+        CurInstrOffset 14
+        Stack<1> v12
+      }
+    }
+    v16:Object = VectorCall<1> v15 v12 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
+    v17:Long = RefineType<Long> v16
+    v18:CInt8 = PrimitiveUnbox<CInt8> v17
+    v19:CInt64 = IsNegativeAndErrOccurred v18 {
+      FrameState {
+        CurInstrOffset 14
+      }
+    }
     Snapshot
-    Return<CInt8> v28
+    Return<CInt8> v18
   }
 }
 --- End ---

@@ -50,32 +50,44 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "i", Long>
+    v2 = LoadCurrentFunc
     Snapshot
-    v0 = CheckVar<"i"> v0 {
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot
+    v4 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
         Locals<2> v0 v1
       }
     }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
     v0 = RefineType<Long> v0
-    v2 = PrimitiveUnbox<CInt32> v0
-    v3 = IsNegativeAndErrOccurred v2 {
+    v5 = PrimitiveUnbox<CInt32> v0
+    v6 = IsNegativeAndErrOccurred v5 {
       FrameState {
         CurInstrOffset 6
         Locals<2> v0 v1
       }
     }
-    v1 = Assign v2
-    v4 = CallStatic<abs@0xdeadbeef, 1> v1
+    v1 = Assign v5
+    v7 = CallStatic<abs@0xdeadbeef, 1> v1
     Snapshot
-    v5 = PrimitiveBox<CInt32> v4 {
+    v8 = PrimitiveBox<CInt32> v7 {
       FrameState {
         CurInstrOffset 14
         Locals<2> v0 v1
       }
     }
-    v5 = RefineType<Long> v5
-    Return<Long> v5
+    v8 = RefineType<Long> v8
+    Return<Long> v8
   }
 }
 --- End ---

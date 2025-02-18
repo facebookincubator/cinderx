@@ -82,7 +82,7 @@ fun jittestmodule:test {
       }
     }
     UseType<MortalTupleExact[tuple:0xdeadbeef]> v21
-    v28:ImmortalUnicodeExact["aaa"] = LoadConst<ImmortalUnicodeExact["aaa"]>
+    v28:MortalUnicodeExact["aaa"] = LoadConst<MortalUnicodeExact["aaa"]>
     v24:CInt32 = SetDictItem v22 v28 v12 {
       FrameState {
         CurInstrOffset 8
@@ -91,7 +91,7 @@ fun jittestmodule:test {
       }
     }
     UseType<MortalTupleExact[tuple:0xdeadbeef]> v21
-    v29:ImmortalUnicodeExact["bbb"] = LoadConst<ImmortalUnicodeExact["bbb"]>
+    v29:MortalUnicodeExact["bbb"] = LoadConst<MortalUnicodeExact["bbb"]>
     v26:CInt32 = SetDictItem v22 v29 v13 {
       FrameState {
         CurInstrOffset 8
@@ -786,9 +786,9 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:ImmortalUnicodeExact["foobar"] = LoadConst<ImmortalUnicodeExact["foobar"]>
+    v14:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
     v16:ImmortalLongExact[3] = LoadConst<ImmortalLongExact[3]>
-    UseType<ImmortalUnicodeExact["foobar"]> v14
+    UseType<MortalUnicodeExact["foobar"]> v14
     UseType<ImmortalLongExact[3]> v16
     v19:ImmortalUnicodeExact["b"] = LoadConst<ImmortalUnicodeExact["b"]>
     Snapshot
@@ -839,9 +839,9 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:ImmortalUnicodeExact["foobar"] = LoadConst<ImmortalUnicodeExact["foobar"]>
+    v14:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
     v16:ImmortalLongExact[-2] = LoadConst<ImmortalLongExact[-2]>
-    UseType<ImmortalUnicodeExact["foobar"]> v14
+    UseType<MortalUnicodeExact["foobar"]> v14
     UseType<ImmortalLongExact[-2]> v16
     v19:ImmortalUnicodeExact["a"] = LoadConst<ImmortalUnicodeExact["a"]>
     Snapshot
@@ -895,7 +895,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:ImmortalUnicodeExact["foobar"] = LoadConst<ImmortalUnicodeExact["foobar"]>
+    v14:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
     v16:ImmortalLongExact[6] = LoadConst<ImmortalLongExact[6]>
     v18:Object = BinaryOp<Subscript> v14 v16 {
       FrameState {
@@ -954,7 +954,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:ImmortalUnicodeExact["foobar"] = LoadConst<ImmortalUnicodeExact["foobar"]>
+    v14:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
     v16:MortalLongExact[-7] = LoadConst<MortalLongExact[-7]>
     v18:Object = BinaryOp<Subscript> v14 v16 {
       FrameState {
@@ -1123,18 +1123,18 @@ fun jittestmodule:test {
 
   bb 1 (preds 7) {
     Snapshot
-    v26:ImmortalUnicodeExact["foobar"] = LoadConst<ImmortalUnicodeExact["foobar"]>
+    v26:MortalUnicodeExact["foobar"] = LoadConst<MortalUnicodeExact["foobar"]>
     Branch<3>
   }
 
   bb 2 (preds 7) {
     Snapshot
-    v28:ImmortalUnicodeExact["thudgrunt"] = LoadConst<ImmortalUnicodeExact["thudgrunt"]>
+    v28:MortalUnicodeExact["thudgrunt"] = LoadConst<MortalUnicodeExact["thudgrunt"]>
     Branch<3>
   }
 
   bb 3 (preds 1, 2) {
-    v30:ImmortalUnicodeExact = Phi<1, 2> v26 v28
+    v30:MortalUnicodeExact = Phi<1, 2> v26 v28
     Snapshot
     v34:OptObject = LoadGlobalCached<0; "os">
     v35:MortalObjectUser[module:0xdeadbeef] = GuardIs<0xdeadbeef> v34 {
@@ -1563,9 +1563,9 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v15:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
+    v15:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    UseType<ImmortalUnicodeExact["hello"]> v15
+    UseType<MortalUnicodeExact["hello"]> v15
     v24:CInt32[1] = LoadConst<CInt32[1]>
     Snapshot
     Return v17
@@ -3289,7 +3289,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
+    v14:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
     v16:MortalUnicodeExact[" world"] = LoadConst<MortalUnicodeExact[" world"]>
     v19:UnicodeExact = UnicodeConcat v14 v16 {
       FrameState {
@@ -3348,7 +3348,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:ImmortalUnicodeExact["hello"] = LoadConst<ImmortalUnicodeExact["hello"]>
+    v14:MortalUnicodeExact["hello"] = LoadConst<MortalUnicodeExact["hello"]>
     v16:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     v18:Object = BinaryOp<Add> v14 v16 {
       FrameState {

@@ -37,6 +37,7 @@
     "test.test_asyncio.test_sock_lowlevel",
     "test.test_asyncio.test_ssl",
     "test.test_asyncio.test_sslproto",
+    "test.test_asyncio.test_staggered",
     "test.test_asyncio.test_streams",
     "test.test_asyncio.test_subprocess",
     "test.test_asyncio.test_taskgroups",

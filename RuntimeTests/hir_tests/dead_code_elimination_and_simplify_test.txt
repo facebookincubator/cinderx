@@ -75,12 +75,29 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v4:Nullptr = LoadConst<Nullptr>
+    v8:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v5:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
+  }
+
+  bb 2 (preds 0) {
     Snapshot
-    v9:CDouble[1.23] = LoadConst<CDouble[1.23]>
-    Return<CDouble> v9
+    v10:CInt32 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v8
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot
+    v12:MortalFloatExact[1.23] = LoadConst<MortalFloatExact[1.23]>
+    Snapshot
+    v16:CDouble[1.23] = LoadConst<CDouble[1.23]>
+    Return<CDouble> v16
   }
 }
 --- End ---
