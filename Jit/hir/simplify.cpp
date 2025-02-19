@@ -445,8 +445,8 @@ Register* simplifyLoadTupleItem(Env& env, const LoadTupleItem* instr) {
     return nullptr;
   }
   env.emit<UseType>(src, src_ty);
-  return env.emit<LoadConst>(
-      Type::fromObject(PyTuple_GET_ITEM(src_ty.objectSpec(), instr->idx())));
+  BorrowedRef<> item = PyTuple_GET_ITEM(src_ty.objectSpec(), instr->idx());
+  return env.emit<LoadConst>(Type::fromObject(env.func.env.addReference(item)));
 }
 
 Register* simplifyLoadArrayItem(Env& env, const LoadArrayItem* instr) {
@@ -472,8 +472,9 @@ Register* simplifyLoadArrayItem(Env& env, const LoadArrayItem* instr) {
     if (idx_signed < PyTuple_GET_SIZE(src->type().objectSpec())) {
       env.emit<UseType>(src, src->type());
       env.emit<UseType>(instr->idx(), instr->idx()->type());
+      BorrowedRef<> item = PyTuple_GET_ITEM(src->type().objectSpec(), idx);
       return env.emit<LoadConst>(
-          Type::fromObject(PyTuple_GET_ITEM(src->type().objectSpec(), idx)));
+          Type::fromObject(env.func.env.addReference(item)));
     }
   }
   return nullptr;
@@ -570,7 +571,7 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
       if (!overflow) {
         PyObject* lhs_obj = lhs_type.objectSpec();
         if (index >= 0 && index < PyTuple_GET_SIZE(lhs_obj)) {
-          PyObject* item = PyTuple_GET_ITEM(lhs_obj, index);
+          BorrowedRef<> item = PyTuple_GET_ITEM(lhs_obj, index);
           env.emit<UseType>(lhs, lhs_type);
           env.emit<UseType>(rhs, rhs_type);
           return env.emit<LoadConst>(
