@@ -1063,6 +1063,15 @@ bool compile_all(size_t workers = 0) {
     workers = std::max(getConfig().batch_compile_workers, 1ul);
   }
 
+  if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+    if (workers > 1) {
+      JIT_LOG(
+          "Warning: Cinder's multi-threaded compilation is not supported in "
+          "Python versions later than 3.10");
+      workers = 1;
+    }
+  }
+
   std::vector<BorrowedRef<>> compilation_units;
   // units that were deleted during preloading
   std::unordered_set<PyObject*> deleted_units;

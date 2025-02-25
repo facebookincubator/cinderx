@@ -254,6 +254,10 @@ const std::unordered_set<std::string_view> kBannedNames{
     "eval",
     "exec",
     "locals",
+// TODO (T198117958)
+#if PY_VERSION_HEX > 0x030B0000
+    "super",
+#endif
 };
 
 void HIRBuilder::allocateLocalsplus(Environment* env, FrameState& state) {
