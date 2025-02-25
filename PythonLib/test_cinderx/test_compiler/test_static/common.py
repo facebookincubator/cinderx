@@ -45,6 +45,7 @@ from cinderx.static import (
     TYPED_UINT64,
     TYPED_UINT8,
 )
+# pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
 from test.support import maybe_get_event_loop_policy
 
 from ..common import CompilerTest
@@ -211,7 +212,7 @@ class TestErrors:
         self,
         kind: str,
         errors: list[TypedSyntaxError] | list[PerfWarning],
-        *matchers: list[ErrorMatcher],
+        *matchers: ErrorMatcher,
         loc_only: bool = False,
         use_end_offset: bool = True,
     ) -> None:
@@ -224,14 +225,15 @@ class TestErrors:
             if not loc_only:
                 self.case.assertIn(matcher.msg, str(exc))
             if (at := matcher.at) is not None:
-                end_offset = (
-                    exc.end_offset - 1
-                    if (use_end_offset and exc.end_offset is not None)
-                    else None
-                )
-                actual = self.code.split("\n")[exc.lineno - 1][
-                    exc.offset - 1 : end_offset
-                ]
+                lineno = exc.lineno
+                assert lineno, f"Exception expected to have a line number: {exc}"
+                offset = exc.offset
+                assert offset, f"Exception expected to have an offset: {exc}"
+                end_offset = None
+                temp = exc.end_offset
+                if temp is not None and use_end_offset:
+                    end_offset = temp - 1
+                actual = self.code.split("\n")[lineno - 1][offset - 1 : end_offset]
                 if (use_end_offset and actual != at) or (
                     not use_end_offset and not actual.startswith(at)
                 ):
@@ -241,7 +243,7 @@ class TestErrors:
 
     def check(
         self,
-        *matchers: list[ErrorMatcher],
+        *matchers: ErrorMatcher,
         loc_only: bool = False,
         use_end_offset: bool = True,
     ) -> None:
@@ -254,7 +256,7 @@ class TestErrors:
         )
 
     def check_warnings(
-        self, *matchers: list[ErrorMatcher], loc_only: bool = False
+        self, *matchers: ErrorMatcher, loc_only: bool = False
     ) -> None:
         self._check("warning", self.warnings, *matchers, loc_only=loc_only)
 
@@ -599,6 +601,7 @@ __slot_types__ = {slot_types!r}
     def bind_final_return(self, code: str) -> Value:
         mod, comp = self.bind_module(code)
         types = comp.modules["foo"].types
+        # pyre-ignore[16]: Expecting a statement here.
         node = mod.body[-1].body[-1].value
         return types[node]
 
@@ -607,7 +610,7 @@ __slot_types__ = {slot_types!r}
         code: str,
         optimize: bool = False,
         getter=lambda stmt: stmt,
-    ) -> tuple[ast.stmt, Compiler]:
+    ) -> tuple[Value, Compiler]:
         mod, comp = self.bind_module(code, optimize)
         types = comp.modules["foo"].types
         return types[getter(mod.body[-1])], comp
@@ -619,6 +622,7 @@ __slot_types__ = {slot_types!r}
     ) -> tuple[Value, Compiler]:
         mod, comp = self.bind_module(code, optimize)
         types = comp.modules["foo"].types
+        # pyre-ignore[16]: Expecting an expression here.
         return types[mod.body[-1].value], comp
 
     def bind_module(
