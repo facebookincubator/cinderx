@@ -11,6 +11,7 @@ import unittest
 
 from pathlib import Path
 
+# pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
 from test.support.script_helper import assert_python_ok
 
 from cinderx import test_support as cinder_support
@@ -21,25 +22,12 @@ except:
     cinderjit = None
 
 
-def _jit_function_1():
-    pass
-
-
-def _jit_function_2():
-    pass
-
-
-def _no_jit_function():
-    pass
-
-
-class _JitClass:
-    def jitMethod(self):
-        pass
-
-
 @cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
 class JitListTest(unittest.TestCase):
+    def setUp(self) -> None:
+        # Force the JIT list to exist.
+        cinderjit.jit_list_append("foobar:baz")
+
     def test_comments(self) -> None:
         cinderjit.jit_list_append("")
         initial_jit_list = cinderjit.get_jit_list()
@@ -48,38 +36,78 @@ class JitListTest(unittest.TestCase):
         cinderjit.jit_list_append("# x@y:1")
         self.assertEqual(initial_jit_list, cinderjit.get_jit_list())
 
-    def test_py_function(self) -> None:
-        meth = _JitClass.jitMethod
-        func = _jit_function_1
-        cinderjit.jit_list_append(f"{meth.__module__}:{meth.__qualname__}")
+    def test_py_func(self) -> None:
+        def func():
+            pass
+
+        def func_nojit():
+            pass
+
+        # Re-trigger lazy compilation, in case the JIT tried to compile the functions in
+        # between them being defined and them being added to the JIT list.
         cinderjit.jit_list_append(f"{func.__module__}:{func.__qualname__}")
+        cinderjit.lazy_compile(func)
+        cinderjit.lazy_compile(func_nojit)
         py_funcs = cinderjit.get_jit_list()[0]
-        self.assertIn(meth.__qualname__, py_funcs[__name__])
         self.assertIn(func.__qualname__, py_funcs[__name__])
-        self.assertNotIn(_no_jit_function.__qualname__, py_funcs[__name__])
-        meth(None)
-        if cinderjit.auto_jit_threshold() <= 1:
-            self.assertTrue(cinderjit.is_jit_compiled(meth))
+        self.assertNotIn(func_nojit.__qualname__, py_funcs[__name__])
+
         func()
         if cinderjit.auto_jit_threshold() <= 1:
             self.assertTrue(cinderjit.is_jit_compiled(func))
-        _no_jit_function()
-        self.assertFalse(cinderjit.is_jit_compiled(_no_jit_function))
+        func_nojit()
+        self.assertFalse(cinderjit.is_jit_compiled(func_nojit))
+
+    def test_py_meth(self) -> None:
+        class JitClass:
+            def meth(self):
+                pass
+
+            def meth_nojit(self):
+                pass
+
+        meth = JitClass.meth
+        meth_nojit = JitClass.meth_nojit
+
+        cinderjit.jit_list_append(f"{meth.__module__}:{meth.__qualname__}")
+        cinderjit.lazy_compile(meth)
+        cinderjit.lazy_compile(meth_nojit)
+        py_funcs = cinderjit.get_jit_list()[0]
+        self.assertIn(meth.__qualname__, py_funcs[__name__])
+        self.assertNotIn(meth_nojit.__qualname__, py_funcs[__name__])
+
+        meth(JitClass())
+        if cinderjit.auto_jit_threshold() <= 1:
+            self.assertTrue(cinderjit.is_jit_compiled(meth))
+        meth_nojit(JitClass())
+        self.assertFalse(cinderjit.is_jit_compiled(meth_nojit))
 
     def test_py_code(self) -> None:
-        code_obj = _jit_function_2.__code__
+        def code_func():
+            pass
+
+        def code_func_nojit():
+            pass
+
+        # pyre-ignore[16]: Pyre doesn't know about __code__.
+        code_obj = code_func.__code__
+
+        # Cheating a little here, because we don't have a code.co_qualname in 3.10.
+        code_name = code_func.__qualname__
         cinderjit.jit_list_append(
-            f"{code_obj.co_name}@{code_obj.co_filename}:{code_obj.co_firstlineno}"
+            f"{code_name}@{code_obj.co_filename}:{code_obj.co_firstlineno}"
         )
+        cinderjit.lazy_compile(code_func)
+        cinderjit.lazy_compile(code_func_nojit)
+
         py_code_objs = cinderjit.get_jit_list()[1]
         thisfile = os.path.basename(__file__)
-        self.assertIn(code_obj.co_firstlineno, py_code_objs[code_obj.co_name][thisfile])
-        self.assertNotIn(_no_jit_function.__code__.co_name, py_code_objs)
-        _jit_function_2()
+        self.assertIn(code_obj.co_firstlineno, py_code_objs[code_name][thisfile])
+        code_func()
         if cinderjit.auto_jit_threshold() <= 1:
-            self.assertTrue(cinderjit.is_jit_compiled(_jit_function_2))
-        _no_jit_function()
-        self.assertFalse(cinderjit.is_jit_compiled(_no_jit_function))
+            self.assertTrue(cinderjit.is_jit_compiled(code_func))
+        code_func_nojit()
+        self.assertFalse(cinderjit.is_jit_compiled(code_func_nojit))
 
     def test_change_func_qualname(self) -> None:
         def inner_func():
