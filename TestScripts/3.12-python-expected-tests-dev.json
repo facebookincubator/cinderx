@@ -521,6 +521,7 @@
     "test_cinderx.test_cpython_overrides.test_types",
     "test_cinderx.test_immortalize",
     "test_cinderx.test_jit_disable",
+    "test_cinderx.test_jit_generators",
     "test_cinderx.test_jitlist",
     "test_cinderx.test_perfmaps",
     "test_cinderx.test_type_cache"
