@@ -9,13 +9,41 @@ set -xe
 
 cd "$(dirname "$(readlink -f "$0")")"/
 
+function remove_ids_from_original_file {
+    local testids_file="$1"
+    local failing_ids_file="$2"
+
+    # remove all lines from testsids_file which exist in failing_ids_file
+    grep -v -f "$failing_ids_file" "$testids_file" > "${testids_file}.tmp" && mv "${testids_file}.tmp" "$testids_file"
+}
+
 function run_tests() {
     local target="$1"
     local testids_file="$2"
+    local should_update="$3"
 
     echo "Checking if existing tests pass from $target"
 
-    buck test "$target" -- --test-ids "@$testids_file"
+    EXISTING_EVENT_LOG=$(mktemp)
+    FAILING_TESTS=$(mktemp)
+    buck test "$target" -- --test-ids "@$testids_file" --event-log-file="$EXISTING_EVENT_LOG" || true;
+    jq 'select(.status != 1 and .test_name != null)
+        | [.test_name, .result_id]
+        | [(.[0] | split(" - ")[1]), (.[1] | split(".")[1])]
+        | select(.[0] != "main")' "$EXISTING_EVENT_LOG" > "$FAILING_TESTS"
+
+    if [ -s "$FAILING_TESTS" ] ; then
+        echo "The following tests are new failures:"
+        jq -r '.[0]' "$FAILING_TESTS";
+        if [ "$should_update" = 1 ]; then
+            FAIL_IDS=$(mktemp);
+            jq -r '.[1]' "$FAILING_TESTS" >> "$FAIL_IDS"
+            remove_ids_from_original_file "$testids_file" "$FAIL_IDS"
+        else
+            exit 1;
+        fi
+
+    fi
 
     echo "Checking if any new tests pass from $target"
 
@@ -43,6 +71,18 @@ function run_tests() {
     fi
 }
 
+UPDATE_MODE=0
+for v in "$@" ; do
+  case "$v" in
+    --update)
+      UPDATE_MODE=1
+      ;;
+    *)
+      ;;
+  esac
+done
+
+
 run_tests \
     fbcode//cinderx/RuntimeTests:RuntimeTests_3.12 \
-    "$PWD/3.12-runtime-testids-passing"
+    "$PWD/3.12-runtime-testids-passing" "$UPDATE_MODE"
