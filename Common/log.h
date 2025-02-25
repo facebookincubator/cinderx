@@ -51,14 +51,13 @@ void printPythonException();
 // "<failed to get UTF8 from Python string>"
 std::string repr(BorrowedRef<> obj);
 
-#define JIT_LOG(...)                                                           \
-  {                                                                            \
-    ::jit::ThreadedCompileSerialize guard;                                     \
-    fmt::print(                                                                \
-        ::jit::g_log_file, "{} JIT: {}:{} -- ", gettid(), __FILE__, __LINE__); \
-    fmt::print(::jit::g_log_file, __VA_ARGS__);                                \
-    fmt::print(::jit::g_log_file, "\n");                                       \
-    std::fflush(::jit::g_log_file);                                            \
+#define JIT_LOG(...)                                                     \
+  {                                                                      \
+    ::jit::ThreadedCompileSerialize guard;                               \
+    fmt::print(::jit::g_log_file, "JIT: {}:{} -- ", __FILE__, __LINE__); \
+    fmt::print(::jit::g_log_file, __VA_ARGS__);                          \
+    fmt::print(::jit::g_log_file, "\n");                                 \
+    std::fflush(::jit::g_log_file);                                      \
   }
 
 #define JIT_LOGIF(PRED, ...) \
@@ -68,25 +67,23 @@ std::string repr(BorrowedRef<> obj);
 
 #define JIT_DLOG(...) JIT_LOGIF(::jit::g_debug, __VA_ARGS__)
 
-#define JIT_CHECK(COND, ...)                         \
-  {                                                  \
-    if (!(COND)) {                                   \
-      fmt::print(                                    \
-          stderr,                                    \
-          "{} JIT: {}:{} -- Assertion failed: {}\n", \
-          gettid(),                                  \
-          __FILE__,                                  \
-          __LINE__,                                  \
-          #COND);                                    \
-      JIT_ABORT_IMPL(__VA_ARGS__);                   \
-    }                                                \
+#define JIT_CHECK(COND, ...)                      \
+  {                                               \
+    if (!(COND)) {                                \
+      fmt::print(                                 \
+          stderr,                                 \
+          "JIT: {}:{} -- Assertion failed: {}\n", \
+          __FILE__,                               \
+          __LINE__,                               \
+          #COND);                                 \
+      JIT_ABORT_IMPL(__VA_ARGS__);                \
+    }                                             \
   }
 
-#define JIT_ABORT(...)                                                     \
-  {                                                                        \
-    fmt::print(                                                            \
-        stderr, "{} JIT: {}:{} -- Abort\n", gettid(), __FILE__, __LINE__); \
-    JIT_ABORT_IMPL(__VA_ARGS__);                                           \
+#define JIT_ABORT(...)                                               \
+  {                                                                  \
+    fmt::print(stderr, "JIT: {}:{} -- Abort\n", __FILE__, __LINE__); \
+    JIT_ABORT_IMPL(__VA_ARGS__);                                     \
   }
 
 #define JIT_ABORT_IMPL(...)          \
