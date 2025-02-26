@@ -161,11 +161,6 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
 #else
   _PyInterpreterFrame* frame = tstate->cframe->current_frame;
   reifyFrame(frame, deopt_meta, deopt_meta.frame_meta.at(0), regs);
-  if (frame->f_code->co_flags & kCoFlagsAnyGenerator) {
-    JitGenObject* gen = JitGenObject::cast(_PyFrame_GetGenerator(frame));
-    JIT_CHECK(gen != nullptr, "Not a JIT generator");
-    deopt_jit_gen_object_only(gen);
-  }
   UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
 #endif
   // Clear our references now that we've transferred them to the frame
@@ -173,6 +168,13 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
   Ref<> deopt_obj = profileDeopt(deopt_idx, deopt_meta, mem);
   runtime->recordDeopt(deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);
+#if PY_VERSION_HEX >= 0x030C0000
+  if (frame->f_code->co_flags & kCoFlagsAnyGenerator) {
+    JitGenObject* gen = JitGenObject::cast(_PyFrame_GetGenerator(frame));
+    JIT_CHECK(gen != nullptr, "Not a JIT generator");
+    deopt_jit_gen_object_only(gen);
+  }
+#endif
   if (!PyErr_Occurred()) {
     auto reason = deopt_meta.reason;
     switch (reason) {
