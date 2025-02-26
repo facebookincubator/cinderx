@@ -266,6 +266,36 @@ dummy_func(
             DISPATCH_INLINED(gen_frame);
         }
 
+        override inst(WITH_EXCEPT_START, (exit_func, lasti, unused, val -- exit_func, lasti, unused, val, res)) {
+            /* At the top of the stack are 4 values:
+               - val: TOP = exc_info()
+               - unused: SECOND = previous exception
+               - lasti: THIRD = lasti of exception in exc_info()
+               - exit_func: FOURTH = the context.__exit__ bound method
+               We call FOURTH(type(TOP), TOP, GetTraceback(TOP)).
+               Then we push the __exit__ return value.
+            */
+            PyObject *exc, *tb;
+
+            assert(val && PyExceptionInstance_Check(val));
+            exc = PyExceptionInstance_Class(val);
+            PyObject *original_tb = tb = PyException_GetTraceback(val);
+            // Modified from stock CPython to not free the traceback until after the vectorcall.
+            // If the receiver of the traceback doesn't incref it, and the traceback is replaced
+            // on the exception, then there may no longer be any references keeping it alive.
+
+            if (tb == NULL) {
+                tb = Py_None;
+            }
+            assert(PyLong_Check(lasti));
+            (void)lasti; // Shut up compiler warning if asserts are off
+            PyObject *stack[4] = {NULL, exc, val, tb};
+            res = PyObject_Vectorcall(exit_func, stack + 1,
+                    3 | PY_VECTORCALL_ARGUMENTS_OFFSET, NULL);
+            Py_XDECREF(original_tb);
+            ERROR_IF(res == NULL, error);
+        }
+
         override inst(EXTENDED_ARG, ( -- )) {
             opcode = next_instr->op.code;
             oparg = oparg << 8 | next_instr->op.arg;

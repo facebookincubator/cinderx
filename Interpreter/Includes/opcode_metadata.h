@@ -297,8 +297,6 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 1;
         case BEFORE_WITH:
             return 1;
-        case WITH_EXCEPT_START:
-            return 4;
         case PUSH_EXC_INFO:
             return 1;
         case LOAD_ATTR_METHOD_WITH_VALUES:
@@ -391,6 +389,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 1;
         case SEND_GEN:
             return 2;
+        case WITH_EXCEPT_START:
+            return 4;
         case EXTENDED_ARG:
             return 0;
         case MAP_ADD:
@@ -757,8 +757,6 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 2;
         case BEFORE_WITH:
             return 2;
-        case WITH_EXCEPT_START:
-            return 5;
         case PUSH_EXC_INFO:
             return 2;
         case LOAD_ATTR_METHOD_WITH_VALUES:
@@ -851,6 +849,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case SEND_GEN:
             return 2;
+        case WITH_EXCEPT_START:
+            return 5;
         case EXTENDED_ARG:
             return 0;
         case MAP_ADD:
@@ -1078,7 +1078,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [FOR_ITER_GEN] = { true, INSTR_FMT_IBC },
     [BEFORE_ASYNC_WITH] = { true, INSTR_FMT_IX },
     [BEFORE_WITH] = { true, INSTR_FMT_IX },
-    [WITH_EXCEPT_START] = { true, INSTR_FMT_IX },
     [PUSH_EXC_INFO] = { true, INSTR_FMT_IX },
     [LOAD_ATTR_METHOD_WITH_VALUES] = { true, INSTR_FMT_IBC00000000 },
     [LOAD_ATTR_METHOD_NO_DICT] = { true, INSTR_FMT_IBC00000000 },
@@ -1125,6 +1124,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [GET_ANEXT] = { true, INSTR_FMT_IX },
     [GET_YIELD_FROM_ITER] = { true, INSTR_FMT_IX },
     [SEND_GEN] = { true, INSTR_FMT_IBC },
+    [WITH_EXCEPT_START] = { true, INSTR_FMT_IX },
     [EXTENDED_ARG] = { true, INSTR_FMT_IB },
     [MAP_ADD] = { true, INSTR_FMT_IB },
     [LIST_APPEND] = { true, INSTR_FMT_IB },
