@@ -1341,7 +1341,7 @@ void HIRBuilder::translate(
           break;
         }
         case DICT_UPDATE: {
-          emitDictUpdate(tc);
+          emitDictUpdate(tc, bc_instr);
           break;
         }
         case DICT_MERGE: {
@@ -4301,10 +4301,12 @@ void HIRBuilder::emitMatchKeys(CFG& cfg, TranslationContext& tc) {
   tc.block = done;
 }
 
-void HIRBuilder::emitDictUpdate(TranslationContext& tc) {
+void HIRBuilder::emitDictUpdate(
+    TranslationContext& tc,
+    const BytecodeInstruction& bc_instr) {
   auto& stack = tc.frame.stack;
   Register* update = stack.pop();
-  Register* dict = stack.top();
+  Register* dict = stack.top(bc_instr.oparg() - 1);
   Register* out = temps_.AllocateStack();
   tc.emit<DictUpdate>(out, dict, update, tc.frame);
 }

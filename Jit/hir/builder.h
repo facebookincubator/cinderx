@@ -429,7 +429,9 @@ class HIRBuilder {
       const jit::BytecodeInstruction& bc_instr);
   void emitMatchKeys(CFG& cfg, TranslationContext& tc);
 
-  void emitDictUpdate(TranslationContext& tc);
+  void emitDictUpdate(
+      TranslationContext& tc,
+      const BytecodeInstruction& bc_instr);
   void emitDictMerge(
       TranslationContext& tc,
       const BytecodeInstruction& bc_instr);
