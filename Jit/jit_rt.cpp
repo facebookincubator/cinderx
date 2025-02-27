@@ -428,8 +428,7 @@ static inline Py_ssize_t vectorcall_flags(size_t n) {
 #if PY_VERSION_HEX < 0x030C0000
   return n & (Ci_Py_VECTORCALL_ARGUMENT_MASK | PY_VECTORCALL_ARGUMENTS_OFFSET);
 #else
-  UPGRADE_ASSERT(MISSING_VECTORCALL_ARGUMENT_MASK);
-  return 0;
+  return n & PY_VECTORCALL_ARGUMENTS_OFFSET;
 #endif
 }
 

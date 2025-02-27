@@ -2625,8 +2625,7 @@ main_loop:
               &sp,
               oparg + 1,
               NULL,
-              (awaited ? Ci_Py_AWAITED_CALL_MARKER : 0) |
-                  Ci_Py_VECTORCALL_INVOKED_METHOD);
+              (awaited ? Ci_Py_AWAITED_CALL_MARKER : 0));
           stack_pointer = sp;
         }
         if (res == NULL) {
