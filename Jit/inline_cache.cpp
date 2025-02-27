@@ -70,9 +70,12 @@ TypeWatcher<LoadTypeMethodCache> ltm_watcher;
 constexpr uintptr_t kKindMask = 0x07;
 
 // Sentinel PyTypeObject that must never escape into user code.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-field-initializers"
 PyTypeObject s_empty_type_attr_cache = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0) "EmptyLoadTypeAttrCache",
 };
+#pragma clang diagnostic pop
 
 inline PyDictObject* get_dict(PyObject* obj, Py_ssize_t dictoffset) {
   PyObject** dictptr = (PyObject**)((char*)obj + dictoffset);
