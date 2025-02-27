@@ -254,10 +254,6 @@ const std::unordered_set<std::string_view> kBannedNames{
     "eval",
     "exec",
     "locals",
-// TODO (T198117958)
-#if PY_VERSION_HEX > 0x030B0000
-    "super",
-#endif
 };
 
 void HIRBuilder::allocateLocalsplus(Environment* env, FrameState& state) {
@@ -4396,7 +4392,7 @@ void HIRBuilder::checkTranslate() {
   PyObject* names = code_->co_names;
   std::unordered_set<Py_ssize_t> banned_name_ids;
   auto name_at = [&](Py_ssize_t i) {
-    return PyUnicode_AsUTF8(PyTuple_GET_ITEM(names, i));
+    return std::string_view(PyUnicode_AsUTF8(PyTuple_GET_ITEM(names, i)));
   };
   for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(names); i++) {
     if (kBannedNames.count(name_at(i))) {
@@ -4413,6 +4409,14 @@ void HIRBuilder::checkTranslate() {
           opcode)};
     } else if (opcode == LOAD_GLOBAL) {
       if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+        if ((oparg & 0x01) && name_at(oparg >> 1) == "super") {
+          // LOAD_GLOBAL NULL + super, super isn't being used with a
+          // LOAD_SUPER_ATTR.
+          throw std::runtime_error{fmt::format(
+              "Cannot compile {} to HIR because it uses super() without an "
+              "attribute or method after it",
+              preloader_.fullname())};
+        }
         oparg = oparg >> 1;
       }
       if (banned_name_ids.count(oparg)) {
