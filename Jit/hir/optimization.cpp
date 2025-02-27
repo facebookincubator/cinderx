@@ -257,7 +257,9 @@ class BytecodeIndexToLine {
     Cix_PyCode_InitAddressRange(co, &range);
     int idx = 0;
     while (Cix_PyLineTable_NextAddressRange(&range)) {
-      JIT_DCHECK(idx < num_indices, "idx overflowed code size");
+      if (idx >= num_indices) {
+        break;
+      }
       JIT_DCHECK(
           range.ar_start % sizeof(_Py_CODEUNIT) == 0,
           "offsets should be a multiple of code-units");
