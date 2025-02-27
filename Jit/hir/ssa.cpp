@@ -743,6 +743,7 @@ Type outputType(
     case Opcode::kGuard:
     case Opcode::kHintType:
     case Opcode::kIncref:
+    case Opcode::kInitFrameCellVars:
     case Opcode::kRaise:
     case Opcode::kRaiseAwaitableError:
     case Opcode::kRaiseStatic:

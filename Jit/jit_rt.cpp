@@ -666,6 +666,19 @@ PyThreadState* JITRT_AllocateAndLinkInterpreterFrame_Release(
   return allocate_and_link_interpreter_frame(func, co);
 }
 
+void JITRT_InitFrameCellVars(
+    PyFunctionObject* func,
+    int nvars,
+    PyThreadState* tstate) {
+  PyObject* closure = func->func_closure;
+  PyCodeObject* co = (PyCodeObject*)func->func_code;
+  int offset = co->co_nlocalsplus - nvars;
+  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
+  for (int i = 0; i < nvars; i++) {
+    frame->localsplus[offset + i] = Py_NewRef(PyTuple_GET_ITEM(closure, i));
+  }
+}
+
 std::pair<PyThreadState*, jit::GenDataFooter*>
 JITRT_AllocateAndLinkGenAndInterpreterFrame(
     PyFunctionObject* func,

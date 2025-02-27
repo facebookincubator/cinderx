@@ -2789,6 +2789,23 @@ DEFINE_SIMPLE_INSTR(
     (TObject, TOptObject, TOptObject),
     Operands<3>);
 
+class INSTR_CLASS(InitFrameCellVars, (TObject), Operands<1>) {
+ public:
+  using InstrT::InstrT;
+  InitFrameCellVars(Register* func, int cells) : InstrT(func), cells_(cells) {}
+
+  Register* func() const {
+    return GetOperand(0);
+  }
+
+  int num_cell_vars() const {
+    return cells_;
+  }
+
+ private:
+  int cells_;
+};
+
 // Load a constant value (given as a Type) into a register.
 class INSTR_CLASS(LoadConst, (), HasOutput, Operands<0>) {
  public:

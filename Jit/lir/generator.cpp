@@ -599,6 +599,19 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr->GetOperand(1));
         break;
       }
+      case Opcode::kInitFrameCellVars: {
+#if PY_VERSION_HEX >= 0x030C0000
+        auto& hir_instr = static_cast<const InitFrameCellVars&>(i);
+        bbb.appendInvokeInstruction(
+            JITRT_InitFrameCellVars,
+            bbb.getDefInstr(hir_instr.func()),
+            hir_instr.num_cell_vars(),
+            env_->asm_tstate);
+#else
+        JIT_CHECK(false, "kInitFrameCellVars is only 3.12 and later");
+#endif
+        break;
+      }
       case Opcode::kLoadConst: {
         auto instr = static_cast<const LoadConst*>(&i);
         Type ty = instr->type();

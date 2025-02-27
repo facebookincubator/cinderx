@@ -243,6 +243,7 @@ bool Instr::isReplayable() const {
     case Opcode::kInPlaceOp:
     case Opcode::kIncref:
     case Opcode::kInitialYield:
+    case Opcode::kInitFrameCellVars:
     case Opcode::kInvokeIterNext:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:

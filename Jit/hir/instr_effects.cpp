@@ -126,6 +126,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kImportFrom:
     case Opcode::kImportName:
     case Opcode::kInPlaceOp:
+    case Opcode::kInitFrameCellVars:
     case Opcode::kInvokeIterNext:
     case Opcode::kInvokeStaticFunction:
     case Opcode::kIsInstance:
@@ -357,6 +358,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kHintType:
     case Opcode::kIncref:
     case Opcode::kIndexUnbox:
+    case Opcode::kInitFrameCellVars:
     case Opcode::kIntBinaryOp:
     case Opcode::kIntConvert:
     case Opcode::kIsNegativeAndErrOccurred:

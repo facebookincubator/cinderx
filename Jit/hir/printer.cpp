@@ -395,6 +395,10 @@ static std::string format_immediates(const Instr& instr) {
           call.NumOperands(),
           call.ret_type());
     }
+    case Opcode::kInitFrameCellVars: {
+      const auto& init = static_cast<const InitFrameCellVars&>(instr);
+      return fmt::format("{}", init.num_cell_vars());
+    }
     case Opcode::kLoadField: {
       const auto& lf = static_cast<const LoadField&>(instr);
       std::size_t offset = lf.offset();

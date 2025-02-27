@@ -2594,6 +2594,9 @@ void HIRBuilder::emitCopyFreeVars(TranslationContext& tc, int nfreevars) {
     JIT_CHECK(dst != nullptr, "No register for free var {}", i);
     tc.emit<LoadTupleItem>(dst, func_closure, i);
   }
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    tc.emit<InitFrameCellVars>(func_, nfreevars);
+  }
 }
 
 void HIRBuilder::emitSwap(TranslationContext& tc, int item_idx) {

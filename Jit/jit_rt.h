@@ -59,6 +59,11 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
     GenResumeFunc resume_entry,
     uint64_t original_rbp);
 
+void JITRT_InitFrameCellVars(
+    PyFunctionObject* func,
+    int nvars,
+    PyThreadState* tstate);
+
 std::pair<jit::JitGenObject*, jit::GenDataFooter*>
 JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate);
 
