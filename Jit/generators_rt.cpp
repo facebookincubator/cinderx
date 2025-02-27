@@ -299,6 +299,10 @@ PyObject* jitgen_getyieldfrom(PyObject* obj, void*) {
   return yield_from;
 }
 
+PyObject* jitgen_getclass(PyObject* obj, void*) {
+  return Py_NewRef(&PyGen_Type);
+}
+
 void jitgen_finalize(PyObject* obj) {
   PyGenObject* gen = reinterpret_cast<PyGenObject*>(obj);
 
@@ -454,6 +458,7 @@ static PyGetSetDef jitgen_getsetlist[] = {
     {"gi_frame", nullptr, nullptr, nullptr},
     {"gi_suspended", nullptr, nullptr, nullptr},
     {"gi_code", nullptr, nullptr, nullptr},
+    {"__class__", jitgen_getclass, nullptr, nullptr},
     {} /* Sentinel */
 };
 
@@ -713,6 +718,11 @@ void init_jit_genobject_type() {
       if (target[i].doc == nullptr) {
         target[i].doc = src[i].doc;
       }
+    }
+    if (target[i].name != nullptr && strcmp(target[i].name, "__class__") == 0) {
+      // Allow extra class which overrides the type to be the CPython type
+      // for the purpose of isinstance checks.
+      i++;
     }
     JIT_CHECK(target[i].name == nullptr, "Extra name: {}", target[i].name);
   };
