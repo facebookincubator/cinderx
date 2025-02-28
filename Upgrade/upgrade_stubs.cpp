@@ -49,15 +49,6 @@ STUB(
     T196879402,
     PyDictKeysObject*,
     PyObject*)
-// Only used by Strict Modules (we added it)
-STUB(
-    int,
-    PyDict_NextKeepLazy,
-    T196879402,
-    PyObject*,
-    Py_ssize_t*,
-    PyObject**,
-    PyObject**)
 
 STUB(
     void,
