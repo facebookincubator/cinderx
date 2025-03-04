@@ -101,6 +101,7 @@ fun jittestmodule:A.f {
     Snapshot
     v3 = LoadField<func_closure@72, Tuple, borrowed> v2
     v1 = LoadTupleItem<0> v3
+    InitFrameCellVars<1> v2
     Snapshot
     v4 = LoadEvalBreaker
     CondBranch<2, 1> v4
@@ -216,6 +217,7 @@ fun jittestmodule:A.f {
     Snapshot
     v3 = LoadField<func_closure@72, Tuple, borrowed> v2
     v1 = LoadTupleItem<0> v3
+    InitFrameCellVars<1> v2
     Snapshot
     v4 = LoadEvalBreaker
     CondBranch<2, 1> v4
@@ -343,6 +345,7 @@ fun jittestmodule:A.f {
     Snapshot
     v3 = LoadField<func_closure@72, Tuple, borrowed> v2
     v1 = LoadTupleItem<0> v3
+    InitFrameCellVars<1> v2
     Snapshot
     v4 = LoadEvalBreaker
     CondBranch<2, 1> v4

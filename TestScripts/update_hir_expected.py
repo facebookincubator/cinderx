@@ -226,7 +226,14 @@ def update_text_test(  # noqa: C901
 
             # Find the right expected block for the given Python version.
             expected_version = f"--- Expected {py_version} ---"
+            skip = False
             while True:
+                line = peek_line()
+                if line.startswith("--- Test Name ---"):
+                    # This test is set to be skipped on this version
+                    skip = True
+                    break
+
                 line = next_line()
                 new_lines.append(line)
                 if not line.startswith("---"):
@@ -238,6 +245,12 @@ def update_text_test(  # noqa: C901
                         f"Test '{suite_name}.{test_case}' hit {line!r} before seeing expected HIR output for version {py_version!r}"
                     )
 
+            if skip:
+                if test_case in failed_tests:
+                    raise RuntimeError(
+                        f"Test {test_case} set to skip but have failed output, add --- Expected line and re-run"
+                    )
+                continue
             # Figure out what the expected HIR output is supposed to be.
             hir_lines = []
             while not peek_line().startswith("---"):
