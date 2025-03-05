@@ -24,11 +24,32 @@ import sys
 _import_error: ImportError | None = None
 
 
+def is_supported_runtime() -> bool:
+    """
+    Check that the current Python runtime will be able to load the _cinderx
+    native extension.
+    """
+
+    version = (sys.version_info.major, sys.version_info.minor)
+    if version == (3, 12):
+        return "+meta" in sys.version
+    if version == (3, 10):
+        return "+cinder" in sys.version
+    return False
+
+
 # We need to make the symbols from _cinderx available process wide as they
 # are used in other CinderX modules like _static, etc.
 old_dlopen_flags: int = sys.getdlopenflags()
 sys.setdlopenflags(old_dlopen_flags | os.RTLD_GLOBAL)
 try:
+    # Currently if we try to import _cinderx on runtimes without our internal patches
+    # the import will crash.  This is meant to go away in the future.
+    if not is_supported_runtime():
+        raise ImportError(
+            f"The _cinderx native extension is not supported for Python version '{sys.version}'"
+        )
+
     # pyre-ignore[21]: _cinderx is not a real cpp_python_extension() yet.
     from _cinderx import (  # noqa: F401
         _compile_perf_trampoline_pre_fork,
