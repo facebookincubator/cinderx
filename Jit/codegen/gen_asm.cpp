@@ -1059,6 +1059,19 @@ x86::Gp get_arg_location(int arg) {
 
 constexpr size_t kConstStackAlignmentRequirement = 16;
 
+bool NativeGenerator::linkFrameNeedsSpill() {
+  if (!isGen()) {
+    return true;
+  }
+
+  // On 3.12 we link the frame immediately so we need to preserve the
+  // arguments for generators as well.
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    return false;
+  }
+  return true;
+}
+
 void NativeGenerator::loadOrGenerateLinkFrame(
 #if PY_VERSION_HEX >= 0x030C0000
     asmjit::x86::Gp func_reg,
@@ -1670,7 +1683,7 @@ void NativeGenerator::generateStaticEntryPoint(
   const std::vector<TypedArgument>& checks = GetFunction()->typed_args;
   std::vector<std::pair<const x86::Reg&, const x86::Reg&>> save_regs;
 
-  if (!isGen()) {
+  if (linkFrameNeedsSpill()) {
     save_regs.emplace_back(x86::rdi, x86::rdi);
     for (size_t i = 0, check_index = 0, arg_index = 0, fp_index = 0;
          i < total_args;
@@ -1738,13 +1751,26 @@ void NativeGenerator::generateStaticEntryPoint(
     }
   }
 
+  bool need_extra_args_load = total_args + 1 > ARGUMENT_REGS.size();
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    if (need_extra_args_load && isGen()) {
+      // In 3.12 for generators we'll end up replacing rbp with a pointer
+      // into the generator object when we link the frame. We need to
+      // capture the incoming arguments first, which will mean we'll
+      // need to save and restore the register.
+      as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
+      save_regs.emplace_back(x86::r10, x86::r10);
+      need_extra_args_load = false;
+    }
+  }
+
   loadOrGenerateLinkFrame(
 #if PY_VERSION_HEX >= 0x030C0000
       x86::gpq(INITIAL_FUNC_REG.loc),
 #endif
       save_regs);
 
-  if (total_args + 1 > ARGUMENT_REGS.size()) {
+  if (need_extra_args_load) {
     as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
   }
   as_->jmp(native_entry_point);

@@ -123,6 +123,7 @@ class NativeGenerator {
   void generatePrologue(
       asmjit::Label correct_arg_count,
       asmjit::Label native_entry_point);
+  bool linkFrameNeedsSpill();
   void loadOrGenerateLinkFrame(
 #if PY_VERSION_HEX >= 0x030C0000
       asmjit::x86::Gp func_reg,
