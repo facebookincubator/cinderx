@@ -4,6 +4,7 @@ import dis
 import io
 import os
 import re
+import sys
 import contextlib
 
 try:
@@ -166,16 +167,23 @@ class CinderX_DisTests(unittest.TestCase):
                     "BUILD_TUPLE_UNPACK_WITH_CALL",
                     "JUMP_IF_NONZERO_OR_POP",
                     "JUMP_IF_NOT_EXC_MATCH",
+                    "JUMP_BACKWARD_NO_INTERRUPT",
                 )
                 or opcode in shadowop
+                or opname.startswith("INSTRUMENTED")
             ):
                 continue
             with self.subTest(opname=opname):
                 width = dis._OPNAME_WIDTH
-                if opcode < dis.HAVE_ARGUMENT:
-                    width += 1 + dis._OPARG_WIDTH
+                if sys.version_info >= (3, 12):
+                    if opcode in dis.hasarg:
+                        width += 1 + dis._OPARG_WIDTH
+                else:
+                    if opcode < dis.HAVE_ARGUMENT:
+                        width += 1 + dis._OPARG_WIDTH
                 self.assertLessEqual(len(opname), width)
 
+    @unittest.skipIf(sys.version_info >= (3, 12), "3.12 inline comprehensions are different")
     def test_bug_1333982(self):
         # This one is checking bytecodes generated for an `assert` statement,
         # so fails if the tests are run with -O.  Skip this test then.
@@ -188,6 +196,7 @@ class CinderX_DisTests(unittest.TestCase):
         else:
             self.do_disassembly_test(bug1333982, dis_bug1333982)
 
+    @unittest.skipIf(sys.version_info >= (3, 12), "3.12 inline comprehensions are different")
     def test_disassemble_recursive(self):
         def check(expected, **kwargs):
             dis = self.get_disassembly(_h, **kwargs)

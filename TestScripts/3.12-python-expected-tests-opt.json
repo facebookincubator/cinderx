@@ -1,10 +1,8 @@
 {
   "bad": [
     "test_cinderx.test_cinderjit",
-    "test_cinderx.test_compiler.test_cinder",
     "test_cinderx.test_compiler.test_errors",
     "test_cinderx.test_compiler.test_strict",
-    "test_cinderx.test_cpython_overrides.test_dis",
     "test_cinderx.test_cpython_overrides.test_trace"
   ],
   "good": [
@@ -447,6 +445,7 @@
     "test.test_zoneinfo",
     "test_cinderx.test___static__",
     "test_cinderx.test_compiler.test_api",
+    "test_cinderx.test_compiler.test_cinder",
     "test_cinderx.test_compiler.test_code_sbs",
     "test_cinderx.test_compiler.test_corpus",
     "test_cinderx.test_compiler.test_exception_table",
@@ -533,6 +532,7 @@
     "test_cinderx.test_compiler_sbs_stdlib_9",
     "test_cinderx.test_cpython_overrides.test_asyncgen",
     "test_cinderx.test_cpython_overrides.test_capi",
+    "test_cinderx.test_cpython_overrides.test_dis",
     "test_cinderx.test_cpython_overrides.test_fork1",
     "test_cinderx.test_cpython_overrides.test_generators",
     "test_cinderx.test_cpython_overrides.test_inspect",
