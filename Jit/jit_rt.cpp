@@ -212,7 +212,7 @@ PyObject* JITRT_CallWithKeywordArgs(
   const Py_ssize_t total_args = co->co_argcount + co->co_kwonlyargcount +
       ((co->co_flags & CO_VARKEYWORDS) ? 1 : 0) +
       ((co->co_flags & CO_VARARGS) ? 1 : 0);
-  PyObject* arg_space[total_args];
+  auto arg_space = std::make_unique<PyObject*[]>(total_args);
   Ref<PyObject> kwdict, varargs;
 
   if (JITRT_BindKeywordArgs(
@@ -220,7 +220,7 @@ PyObject* JITRT_CallWithKeywordArgs(
           args,
           nargsf,
           kwnames,
-          arg_space,
+          arg_space.get(),
           total_args,
           kwdict,
           varargs)) {
@@ -231,7 +231,7 @@ PyObject* JITRT_CallWithKeywordArgs(
     UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
     return JITRT_GET_REENTRY(func->vectorcall)(
-        (PyObject*)func, arg_space, new_nargsf, nullptr);
+        (PyObject*)func, arg_space.get(), new_nargsf, nullptr);
   }
 
   return _PyFunction_Vectorcall((PyObject*)func, args, nargsf, kwnames);
@@ -262,7 +262,7 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
   }
   Py_ssize_t defcount = PyTuple_GET_SIZE(defaults);
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-  PyObject* arg_space[argcount];
+  auto arg_space = std::make_unique<PyObject*[]>(argcount);
   Py_ssize_t defaulted_args = argcount - nargs;
 
   if (nargs + defcount < argcount || nargs > argcount) {
@@ -292,7 +292,7 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
   return reinterpret_cast<staticvectorcallfuncfp>(
       JITRT_GET_REENTRY(func->vectorcall))(
       (PyObject*)func,
-      arg_space,
+      arg_space.get(),
       new_nargsf,
       // We lie to C++ here, and smuggle in the number of defaulted args filled
       // in.
@@ -315,7 +315,7 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
   }
   Py_ssize_t defcount = PyTuple_GET_SIZE(defaults);
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-  PyObject* arg_space[argcount];
+  auto arg_space = std::make_unique<PyObject*[]>(argcount);
   Py_ssize_t defaulted_args = argcount - nargs;
 
   if (nargs + defcount < argcount || nargs > argcount) {
@@ -346,7 +346,7 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
   return reinterpret_cast<staticvectorcallfunc>(
       JITRT_GET_REENTRY(func->vectorcall))(
       (PyObject*)func,
-      arg_space,
+      arg_space.get(),
       new_nargsf,
       // We lie to C++ here, and smuggle in the number of defaulted args filled
       // in.
@@ -409,13 +409,13 @@ TRetType JITRT_CallStaticallyWithPrimitiveSignatureWorker(
     size_t nargsf,
     _PyTypedArgsInfo* arg_info) {
   Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-  void* arg_space[nargs];
-  if (JITRT_PackStaticArgs(args, arg_info, arg_space, nargs)) {
+  auto arg_space = std::make_unique<void*[]>(nargs);
+  if (JITRT_PackStaticArgs(args, arg_info, arg_space.get(), nargs)) {
     goto fail;
   }
 
   return reinterpret_cast<TVectorcall>(JITRT_GET_REENTRY(func->vectorcall))(
-      (PyObject*)func, (PyObject**)arg_space, nargsf, nullptr);
+      (PyObject*)func, (PyObject**)arg_space.get(), nargsf, nullptr);
 
 fail:
   PyObject* res =
@@ -455,7 +455,7 @@ TRetType JITRT_CallStaticallyWithPrimitiveSignatureTemplate(
     const Py_ssize_t total_args = co->co_argcount + co->co_kwonlyargcount +
         ((co->co_flags & CO_VARKEYWORDS) ? 1 : 0) +
         ((co->co_flags & CO_VARARGS) ? 1 : 0);
-    PyObject* arg_space[total_args];
+    auto arg_space = std::make_unique<PyObject*[]>(total_args);
     Ref<PyObject> kwdict, varargs;
 
     if (JITRT_BindKeywordArgs(
@@ -463,14 +463,17 @@ TRetType JITRT_CallStaticallyWithPrimitiveSignatureTemplate(
             args,
             nargsf,
             kwnames,
-            arg_space,
+            arg_space.get(),
             total_args,
             kwdict,
             varargs)) {
       return JITRT_CallStaticallyWithPrimitiveSignatureWorker<
           TRetType,
           TVectorcall>(
-          func, arg_space, total_args | vectorcall_flags(nargsf), arg_info);
+          func,
+          arg_space.get(),
+          total_args | vectorcall_flags(nargsf),
+          arg_info);
     }
 
     Ci_StaticFunction_Vectorcall((PyObject*)func, args, nargsf, kwnames);
@@ -1689,7 +1692,7 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
   // ...
 
   PyObject** dest_args;
-  PyObject* final_args[total_args];
+  auto final_args = std::make_unique<PyObject*[]>(total_args);
   if (total_args <= 5) {
     // no gap in args to worry about
     dest_args = args + 1;
@@ -1700,12 +1703,13 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
     for (int i = 5; i < total_args; i++) {
       final_args[i] = args[i + 3];
     }
-    dest_args = final_args;
+    dest_args = final_args.get();
   }
 
   _PyTypedArgsInfo* arg_info =
       jit::Runtime::get()->findFunctionPrimitiveArgInfo(func);
-  PyObject* allocated_args[arg_info == nullptr ? 0 : Py_SIZE(arg_info)];
+  auto allocated_args = std::make_unique<PyObject*[]>(
+      arg_info == nullptr ? 0 : Py_SIZE(arg_info));
   int allocated_count = 0;
 
   if (arg_info != nullptr) {
