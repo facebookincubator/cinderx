@@ -30,6 +30,9 @@ def is_supported_runtime() -> bool:
     native extension.
     """
 
+    if sys.platform != "linux":
+        return False
+
     version = (sys.version_info.major, sys.version_info.minor)
     if version == (3, 12):
         return "+meta" in sys.version
@@ -47,7 +50,7 @@ try:
     # the import will crash.  This is meant to go away in the future.
     if not is_supported_runtime():
         raise ImportError(
-            f"The _cinderx native extension is not supported for Python version '{sys.version}'"
+            f"The _cinderx native extension is not supported for Python version '{sys.version}' on platform '{sys.platform}'"
         )
 
     # pyre-ignore[21]: _cinderx is not a real cpp_python_extension() yet.
