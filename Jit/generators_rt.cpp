@@ -303,6 +303,10 @@ PyObject* jitgen_getclass(PyObject* obj, void*) {
   return Py_NewRef(&PyGen_Type);
 }
 
+PyObject* jitcoro_getclass(PyObject* obj, void*) {
+  return Py_NewRef(&PyCoro_Type);
+}
+
 void jitgen_finalize(PyObject* obj) {
   PyGenObject* gen = reinterpret_cast<PyGenObject*>(obj);
 
@@ -473,6 +477,7 @@ static PyGetSetDef jitcoro_getsetlist[] = {
     {"cr_suspended", nullptr, nullptr, nullptr},
     {"cr_ci_awaiter", nullptr, nullptr, nullptr},
     {"cr_awaiter", nullptr, nullptr, nullptr},
+    {"__class__", jitcoro_getclass, nullptr, nullptr},
     {} /* Sentinel */
 };
 
