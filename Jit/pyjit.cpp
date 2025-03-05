@@ -80,6 +80,22 @@ class DisableGilCheck {
   int old_check_enabled_;
 };
 
+// Extra information needed to compile a PyCodeObject.
+struct CodeData {
+  CodeData(PyObject* m, PyObject* b, PyObject* g) {
+    JIT_DCHECK(
+        !getThreadedCompileContext().compileRunning(),
+        "unexpected multithreading");
+    module = Ref<>::create(m);
+    builtins = Ref<>::create(b);
+    globals = Ref<>::create(g);
+  }
+
+  Ref<> module;
+  Ref<PyDictObject> builtins;
+  Ref<PyDictObject> globals;
+};
+
 // Amount of time taken to batch compile everything when disable_jit is called
 std::chrono::milliseconds g_batch_compilation_time;
 
@@ -94,11 +110,8 @@ std::unordered_set<BorrowedRef<>> jit_reg_units;
 using UnitDeletedCallback = std::function<void(PyObject*)>;
 UnitDeletedCallback handle_unit_deleted_during_preload = nullptr;
 
-// Every unit that is a code object has corresponding entry in
-// jit_code_outer_funcs which is the function where we found the nested code
-// object from.
-std::unordered_map<BorrowedRef<PyCodeObject>, BorrowedRef<PyFunctionObject>>
-    jit_code_outer_funcs;
+// Every unit that is a code object has corresponding entry in jit_code_data.
+std::unordered_map<BorrowedRef<PyCodeObject>, CodeData> jit_code_data;
 
 // Frequently-used strings that we intern at JIT startup and hold references to.
 #define INTERNED_STRINGS(X) \
@@ -897,12 +910,12 @@ std::string unitFullname(BorrowedRef<> unit) {
   if (func != nullptr) {
     return funcFullname(func);
   }
-  auto iter = jit_code_outer_funcs.find(code);
-  if (iter == jit_code_outer_funcs.end()) {
+  auto iter = jit_code_data.find(code);
+  if (iter == jit_code_data.end()) {
     return fmt::format(
         "<Unknown code object {}>", static_cast<void*>(code.get()));
   }
-  return codeFullname(iter->second->func_module, code);
+  return codeFullname(iter->second.module, code);
 }
 
 // Load the preloader for a given function or code object.  If it doesn't exist
@@ -922,20 +935,9 @@ hir::Preloader* preload(BorrowedRef<> unit) {
   if (func != nullptr) {
     preloader = hir::Preloader::makePreloader(func);
   } else {
-    auto it = jit_code_outer_funcs.find(code);
-    if (it == jit_code_outer_funcs.end()) {
-      PyErr_Format(
-          PyExc_RuntimeError,
-          "failed to find code object for preloading: %U",
-          code->co_qualname);
-      return nullptr;
-    }
-    BorrowedRef<PyFunctionObject>& outer_func = it->second;
+    const CodeData& data = map_get(jit_code_data, code);
     preloader = hir::Preloader::makePreloader(
-        code,
-        outer_func->func_builtins,
-        outer_func->func_globals,
-        codeFullname(outer_func->func_module, code));
+        code, data.builtins, data.globals, codeFullname(data.module, code));
   }
 
   if (preloader == nullptr) {
@@ -1130,7 +1132,7 @@ bool compile_all(size_t workers = 0) {
   g_batch_compilation_time =
       std::chrono::duration_cast<std::chrono::milliseconds>(end - start);
 
-  jit_code_outer_funcs.clear();
+  jit_code_data.clear();
 
   return true;
 }
@@ -1205,11 +1207,16 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   // nested functions that might be on the jit-list, and register them as well.
   if (g_jit_list != nullptr) {
     PyObject* module = func->func_module;
+    PyObject* builtins = func->func_builtins;
+    PyObject* globals = func->func_globals;
     BorrowedRef<PyCodeObject> top_code{func->func_code};
     BorrowedRef<> top_consts{top_code->co_consts};
     for (BorrowedRef<PyCodeObject> code : findNestedCodes(module, top_consts)) {
       jit_reg_units.emplace(code.getObj());
-      jit_code_outer_funcs.emplace(code, func);
+      jit_code_data.emplace(
+          std::piecewise_construct,
+          std::forward_as_tuple(code),
+          std::forward_as_tuple(module, builtins, globals));
     }
   }
 
@@ -2774,7 +2781,7 @@ void finalize() {
   g_jit_list = nullptr;
 
   // Clear some global maps that reference Python data.
-  jit_code_outer_funcs.clear();
+  jit_code_data.clear();
   jit_reg_units.clear();
   JIT_CHECK(
       hir::preloaderManager().empty(),
@@ -2906,7 +2913,7 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
 void codeDestroyed(BorrowedRef<PyCodeObject> code) {
   if (isJitUsable()) {
     jit_reg_units.erase(code.getObj());
-    jit_code_outer_funcs.erase(code.getObj());
+    jit_code_data.erase(code);
     if (handle_unit_deleted_during_preload != nullptr) {
       handle_unit_deleted_during_preload(code.getObj());
     }
@@ -2918,20 +2925,6 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
     jit_reg_units.erase(func.getObj());
     if (handle_unit_deleted_during_preload != nullptr) {
       handle_unit_deleted_during_preload(func.getObj());
-    }
-
-    // erase any child code objects we registered too
-    if (g_jit_list != nullptr) {
-      PyObject* module = func->func_module;
-      BorrowedRef<PyCodeObject> top_code{func->func_code};
-      BorrowedRef<> top_consts{top_code->co_consts};
-      for (BorrowedRef<PyCodeObject> code :
-           findNestedCodes(module, top_consts)) {
-        jit_code_outer_funcs.erase(code);
-        if (handle_unit_deleted_during_preload != nullptr) {
-          handle_unit_deleted_during_preload(code.getObj());
-        }
-      }
     }
   }
   if (jit_ctx) {
