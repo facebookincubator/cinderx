@@ -81,6 +81,10 @@ fun jittestmodule:A.f {
         Stack<2> v4 v5
       }
     }
+    CondBranchCheckType<2, 1, Type> v5
+  }
+
+  bb 2 (preds 0) {
     v5 = RefineType<Type> v5
     v6 = LoadAttrSuper<1; "f", true> v4 v5 v0 {
       FrameState {
@@ -91,6 +95,12 @@ fun jittestmodule:A.f {
     }
     Snapshot
     Return v6
+  }
+
+  bb 1 (preds 0) {
+    Snapshot
+    Deopt {
+    }
   }
 }
 --- Expected 3.12 ---
@@ -186,6 +196,10 @@ fun jittestmodule:A.f {
         Stack<2> v4 v5
       }
     }
+    CondBranchCheckType<2, 1, Type> v5
+  }
+
+  bb 2 (preds 0) {
     v5 = RefineType<Type> v5
     v6 = LoadAttrSuper<1; "f", true> v4 v5 v0 {
       FrameState {
@@ -207,6 +221,12 @@ fun jittestmodule:A.f {
     Snapshot
     v10 = LoadConst<NoneType>
     Return v10
+  }
+
+  bb 1 (preds 0) {
+    Snapshot
+    Deopt {
+    }
   }
 }
 --- Expected 3.12 ---
@@ -315,6 +335,10 @@ fun jittestmodule:A.f {
         Stack<2> v4 v5
       }
     }
+    CondBranchCheckType<2, 1, Type> v5
+  }
+
+  bb 2 (preds 0) {
     v5 = RefineType<Type> v5
     v6 = LoadMethodSuper<1; "f", true> v4 v5 v0 {
       FrameState {
@@ -335,6 +359,12 @@ fun jittestmodule:A.f {
     Snapshot
     v9 = LoadConst<NoneType>
     Return v9
+  }
+
+  bb 1 (preds 0) {
+    Snapshot
+    Deopt {
+    }
   }
 }
 --- Expected 3.12 ---

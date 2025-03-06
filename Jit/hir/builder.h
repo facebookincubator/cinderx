@@ -176,6 +176,7 @@ class HIRBuilder {
       const jit::BytecodeInstruction& bc_instr);
   void emitLoadMethod(TranslationContext& tc, int name_idx);
   void emitLoadMethodOrAttrSuper(
+      CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr,
       bool load_method);

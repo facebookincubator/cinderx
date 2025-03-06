@@ -882,7 +882,7 @@ void HIRBuilder::translate(
           break;
         }
         case LOAD_METHOD_SUPER: {
-          emitLoadMethodOrAttrSuper(tc, bc_instr, true);
+          emitLoadMethodOrAttrSuper(irfunc.cfg, tc, bc_instr, true);
           break;
         }
         case LOAD_ASSERTION_ERROR: {
@@ -891,7 +891,7 @@ void HIRBuilder::translate(
         }
         case LOAD_ATTR_SUPER:
         case LOAD_SUPER_ATTR: {
-          emitLoadMethodOrAttrSuper(tc, bc_instr, false);
+          emitLoadMethodOrAttrSuper(irfunc.cfg, tc, bc_instr, false);
           break;
         }
         case LOAD_CLOSURE: {
@@ -2510,9 +2510,11 @@ void HIRBuilder::emitLoadMethod(TranslationContext& tc, int name_idx) {
 }
 
 void HIRBuilder::emitLoadMethodOrAttrSuper(
+    CFG& cfg,
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr,
     bool load_method) {
+  TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
   Register* receiver = tc.frame.stack.pop();
   Register* type = tc.frame.stack.pop();
   Register* global_super = tc.frame.stack.pop();
@@ -2531,6 +2533,12 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
 
   // This is assumed to be a type object by the rest of the JIT.  Ideally it
   // would be typed by whatever pushes it onto the stack.
+  deopt_path.frame.cur_instr_offs = bc_instr.offset();
+  deopt_path.emitSnapshot();
+  deopt_path.emit<Deopt>();
+  BasicBlock* fast_path = cfg.AllocateBlock();
+  tc.emit<CondBranchCheckType>(type, TType, fast_path, deopt_path.block);
+  tc.block = fast_path;
   tc.emit<RefineType>(type, TType, type);
 
   if (!load_method) {
