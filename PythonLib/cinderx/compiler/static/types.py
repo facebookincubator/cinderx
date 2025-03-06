@@ -7050,6 +7050,8 @@ class ExtremumFunction(Object[Class]):
             or len(node.keywords) > 0
             # If we have any *args, we skip specialization
             or any(isinstance(a, ast.Starred) for a in node.args)
+            # TODO(T216868868): Code generation here needs to be redone for 3.12
+            or sys.version_info >= (3, 12)
         ):
             return super().emit_call(node, code_gen)
 

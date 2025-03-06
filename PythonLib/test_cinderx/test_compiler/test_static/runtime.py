@@ -1920,6 +1920,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertNotInBytecode(f, "FOR_ITER")
             self.assertInBytecode(f, "REFINE_TYPE", ("builtins", "list", "!"))
 
+    @skipIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
     def test_min(self):
         codestr = """
             def f(a: int, b: int) -> int:
@@ -1932,6 +1933,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertEqual(f(1, 3), 1)
             self.assertEqual(f(3, 1), 1)
 
+    @skipIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
     def test_min_stability(self):
         codestr = """
             def f(a: int, b: int) -> int:
@@ -1949,6 +1951,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertEqual(id(f(p, q)), id(p))
             self.assertEqual(id(f(q, p)), id(q))
 
+    @skipIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
     def test_max(self):
         codestr = """
             def f(a: int, b: int) -> int:
@@ -1961,6 +1964,7 @@ class StaticRuntimeTests(StaticTestBase):
             self.assertEqual(f(1, 3), 3)
             self.assertEqual(f(3, 1), 3)
 
+    @skipIf(sys.version_info >= (3, 12), "No min/max optimization T216868868")
     def test_max_stability(self):
         codestr = """
             def f(a: int, b: int) -> int:
@@ -2027,6 +2031,17 @@ class StaticRuntimeTests(StaticTestBase):
             f = mod.f
             self.assertNotInBytecode(f, "COMPARE_OP")
             self.assertNotInBytecode(f, "POP_JUMP_IF_FALSE")
+
+    def test_extremum_exc_table(self):
+        # Regression test for a crash involving the 3.12 exception table
+        codestr = """
+            def f(self, a: int, b: int):
+                with open('a', 'r'):
+                    b = min(a, b)
+                    return b
+        """
+        self.compiler(a=codestr).compile_module("a")
+
 
     def test_try_return_finally(self):
         codestr = """
