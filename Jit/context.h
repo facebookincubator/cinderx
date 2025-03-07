@@ -10,7 +10,6 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/elf/note.h"
 #include "cinderx/Jit/hir/preload.h"
-#include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/pyjit_result.h"
 
 #include <memory>
@@ -126,18 +125,6 @@ class Context {
   void setCinderJitModule(Ref<> mod);
 
   /*
-   * Access to the global JIT list.  Return nullptr if no JIT list was ever
-   * created.
-   */
-  JITList* jitList();
-  const JITList* jitList() const;
-
-  /*
-   * Make a new, empty JIT list.
-   */
-  void createJitList();
-
-  /*
    * Clear cache of compiled code such that subsequent compilations are always
    * full rather than just re-binding pre-compiled code. Only intended to be
    * used during multithreaded_compile_test.
@@ -169,9 +156,6 @@ class Context {
 
   /* Deopts a function but doesn't touch deopted_funcs_. */
   bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func);
-
-  /* List of functions to compile, specified via a file. */
-  std::unique_ptr<JITList> jit_list_;
 
   /* General purpose jit compiler */
   Compiler jit_compiler_;

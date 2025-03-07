@@ -4,7 +4,6 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <string>
 
 namespace jit {
 
@@ -67,11 +66,6 @@ struct JitListOptions {
   bool error_on_parse{false};
 };
 
-// Collection of configuration values for the JIT.
-//
-// Note: It's fine to store non-trivially destructible objects like std::string
-// in this.  It is *not fine* to store Python objects in this because it has
-// process lifetime and outlives the Python runtime.
 struct Config {
   // Current lifetime state of the JIT.
   State state{State::kNotInitialized};
@@ -126,8 +120,6 @@ struct Config {
   GdbOptions gdb;
   JitListOptions jit_list;
   bool compile_perf_trampoline_prefork{false};
-  // Name of the file that gets loaded as a JIT list.
-  std::string jitlist_filename;
 };
 
 // Get the JIT's current config object.
