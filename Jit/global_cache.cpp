@@ -5,18 +5,14 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/module_state.h"
 
 extern "C" {
 
 PyObject**
 _PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key) {
-  try {
-    auto cache = jit::_PyJIT_GetGlobalCacheManager()->findGlobalCache(
-        builtins, globals, key);
-    return cache.valuePtr();
-  } catch (std::bad_alloc&) {
-    return nullptr;
-  }
+  return cinderx::getModuleState()->cacheManager()->getGlobalCache(
+      builtins, globals, key);
 }
 
 PyObject** _PyJIT_GetDictCache(PyObject* dict, PyObject* key) {
@@ -34,6 +30,10 @@ void GlobalCache::clear() {
   *valuePtr() = nullptr;
 }
 
+GlobalCacheManager::~GlobalCacheManager() {
+  clear();
+}
+
 GlobalCache GlobalCacheManager::findGlobalCache(
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals,
@@ -49,6 +49,18 @@ GlobalCache GlobalCacheManager::findGlobalCache(
     initCache(cache);
   }
   return cache;
+}
+
+PyObject** GlobalCacheManager::getGlobalCache(
+    BorrowedRef<PyDictObject> builtins,
+    BorrowedRef<PyDictObject> globals,
+    BorrowedRef<PyUnicodeObject> key) {
+  try {
+    auto cache = findGlobalCache(builtins, globals, key);
+    return cache.valuePtr();
+  } catch (std::bad_alloc&) {
+    return nullptr;
+  }
 }
 
 void GlobalCacheManager::notifyDictUpdate(
@@ -286,12 +298,6 @@ void GlobalCacheManager::disableCaches(const std::vector<GlobalCache>& caches) {
     disableCache(cache);
     unwatchDictKey(dict, name, cache);
   }
-}
-
-static GlobalCacheManager s_global_cache_manager;
-
-GlobalCacheManager* _PyJIT_GetGlobalCacheManager() {
-  return &s_global_cache_manager;
 }
 
 } // namespace jit

@@ -9,6 +9,7 @@
 #include "cinderx/Common/watchers.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
+#include "cinderx/module_state.h"
 
 #include <sys/mman.h>
 
@@ -109,7 +110,10 @@ std::optional<PyMethodDef*> Builtins::find(const std::string& name) const {
 Runtime* Runtime::s_runtime_{nullptr};
 
 void Runtime::shutdown() {
-  _PyJIT_GetGlobalCacheManager()->clear();
+  auto state = cinderx::getModuleState();
+  if (state != nullptr) {
+    state->cacheManager()->clear();
+  }
   delete s_runtime_;
   s_runtime_ = nullptr;
 }

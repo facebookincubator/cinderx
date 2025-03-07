@@ -38,6 +38,7 @@
 #include "cinderx/StaticPython/vtable.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_state.h"
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -1760,10 +1761,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         env_->code_rt->addReference(builtins);
         PyObject* name =
             PyTuple_GET_ITEM(instr->code()->co_names, instr->name_idx());
-        auto cache = _PyJIT_GetGlobalCacheManager()->findGlobalCache(
+        auto cache = cinderx::getModuleState()->cacheManager()->getGlobalCache(
             builtins, globals, name);
-        bbb.appendInstr(
-            instr->output(), Instruction::kMove, MemImm{cache.valuePtr()});
+        bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{cache});
         break;
       }
       case Opcode::kLoadGlobal: {

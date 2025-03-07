@@ -4,6 +4,10 @@
 
 #include <Python.h>
 
+#include "cinderx/Jit/global_cache_iface.h"
+
+#include <memory>
+
 namespace cinderx {
 
 class ModuleState {
@@ -19,6 +23,17 @@ class ModuleState {
   // about deleting it, but we do need a way to cleanup any state it
   // holds onto.
   void shutdown();
+
+  jit::IGlobalCacheManager* cacheManager() const {
+    return cache_manager_.get();
+  }
+
+  void setCacheManager(jit::IGlobalCacheManager* cache_manager) {
+    cache_manager_ = std::unique_ptr<jit::IGlobalCacheManager>(cache_manager);
+  }
+
+ private:
+  std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
 };
 
 void setModuleState(ModuleState* state);

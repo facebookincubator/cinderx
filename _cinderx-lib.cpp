@@ -58,8 +58,9 @@ std::unordered_set<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;
  * Misc. Python-facing utility functions.
  */
 
-PyObject* clear_caches(PyObject*, PyObject*) {
-  jit::_PyJIT_GetGlobalCacheManager()->clear();
+PyObject* clear_caches(PyObject* mod, PyObject*) {
+  auto state = (cinderx::ModuleState*)PyModule_GetState(mod);
+  state->cacheManager()->clear();
   _PyCheckedDict_ClearCaches();
   Py_RETURN_NONE;
 }
@@ -540,7 +541,12 @@ int cinderx_dict_watcher(
   JIT_DCHECK(PyDict_Check(dict_obj), "Expecting dict from dict watcher");
   BorrowedRef<PyDictObject> dict{dict_obj};
 
-  jit::GlobalCacheManager* globalCaches = jit::_PyJIT_GetGlobalCacheManager();
+  auto state = cinderx::getModuleState();
+  if (state == nullptr) {
+    // Shutting down...
+    return 0;
+  }
+  jit::IGlobalCacheManager* globalCaches = state->cacheManager();
 
   switch (event) {
     case PyDict_EVENT_ADDED:
@@ -941,6 +947,12 @@ PyMethodDef _cinderx_methods[] = {
 
 static int _cinderx_exec(PyObject* m) {
   auto state = (cinderx::ModuleState*)PyModule_GetState(m);
+  auto cache_manager = new (std::nothrow) jit::GlobalCacheManager();
+  if (cache_manager == nullptr) {
+    return -1;
+  }
+
+  state->setCacheManager(cache_manager);
   cinderx::setModuleState(state);
 
   CiExc_StaticTypeError =

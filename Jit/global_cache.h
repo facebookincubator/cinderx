@@ -6,6 +6,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/slab_arena.h"
 #include "cinderx/Jit/threaded_compile.h"
 
@@ -80,37 +81,44 @@ class GlobalCache {
 };
 
 // Manages all memory and data structures for global cache values.
-class GlobalCacheManager {
+class GlobalCacheManager : public IGlobalCacheManager {
  public:
+  ~GlobalCacheManager() override;
+
   // Create or look up a cache for the global with the given name, in the
   // context of the given globals and builtins dicts.  The cache will fall back
   // to builtins if the value isn't defined in the globals dict.
-  GlobalCache findGlobalCache(
+  PyObject** getGlobalCache(
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
-      BorrowedRef<PyUnicodeObject> key);
+      BorrowedRef<PyUnicodeObject> key) override;
 
   // Called when the value at a key is modified (value will contain the new
   // value) or deleted (value will be nullptr).
   void notifyDictUpdate(
       BorrowedRef<PyDictObject> dict,
       BorrowedRef<PyUnicodeObject> key,
-      BorrowedRef<> value);
+      BorrowedRef<> value) override;
 
   // Called when a dict is cleared, rather than sending individual notifications
   // for every key. The dict is still in a watched state, and further callbacks
   // for it will be invoked as appropriate.
-  void notifyDictClear(BorrowedRef<PyDictObject> dict);
+  void notifyDictClear(BorrowedRef<PyDictObject> dict) override;
 
   // Called when a dict has changed in a way that is incompatible with watching,
   // or is about to be freed.  No more callbacks will be invoked for this dict.
-  void notifyDictUnwatch(BorrowedRef<PyDictObject> dict);
+  void notifyDictUnwatch(BorrowedRef<PyDictObject> dict) override;
 
   // Clear internal caches for global values.  This may cause a degradation of
   // performance and is intended for detecting memory leaks and general cleanup.
-  void clear();
+  void clear() override;
 
  private:
+  GlobalCache findGlobalCache(
+      BorrowedRef<PyDictObject> builtins,
+      BorrowedRef<PyDictObject> globals,
+      BorrowedRef<PyUnicodeObject> key);
+
   // Check if a given key of a dict is watched by the given cache.
   bool isWatchedDictKey(
       BorrowedRef<PyDictObject> dict,
@@ -164,8 +172,6 @@ class GlobalCacheManager {
       std::unordered_map<BorrowedRef<PyUnicodeObject>, std::set<GlobalCache>>>
       watch_map_;
 };
-
-GlobalCacheManager* _PyJIT_GetGlobalCacheManager();
 
 } // namespace jit
 

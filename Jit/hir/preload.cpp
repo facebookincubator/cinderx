@@ -14,6 +14,7 @@
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/vtable_builder.h"
+#include "cinderx/module_state.h"
 
 #include <utility>
 
@@ -302,13 +303,13 @@ Type Preloader::checkArgType(long local_idx) const {
   return map_get(check_arg_types_, local_idx, TObject);
 }
 
-GlobalCache Preloader::getGlobalCache(BorrowedRef<> name_obj) const {
+PyObject** Preloader::getGlobalCache(BorrowedRef<> name_obj) const {
   JIT_DCHECK(
       canCacheGlobals(),
       "trying to get a globals cache with unwatchable builtins and/or globals");
   JIT_CHECK(PyUnicode_CheckExact(name_obj), "Name must be a str");
   BorrowedRef<PyUnicodeObject> name{name_obj};
-  return _PyJIT_GetGlobalCacheManager()->findGlobalCache(
+  return cinderx::getModuleState()->cacheManager()->getGlobalCache(
       builtins_, globals_, name);
 }
 
@@ -319,8 +320,7 @@ bool Preloader::canCacheGlobals() const {
 BorrowedRef<> Preloader::global(int name_idx) const {
   BorrowedRef<> name = map_get(global_names_, name_idx, nullptr);
   if (name != nullptr && canCacheGlobals()) {
-    GlobalCache cache = getGlobalCache(name);
-    return *(cache.valuePtr());
+    return *getGlobalCache(name);
   }
   return nullptr;
 }
