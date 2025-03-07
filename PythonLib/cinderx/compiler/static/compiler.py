@@ -84,7 +84,7 @@ class Compiler:
         error_sink: ErrorSink | None = None,
     ) -> None:
         self.modules: dict[str, ModuleTable] = {}
-        self.ast_cache: dict[str, ast.Module] = {}
+        self.ast_cache: dict[str | bytes, ast.Module] = {}
         self.code_generator = code_generator
         self.error_sink: ErrorSink = error_sink or ErrorSink()
         self.type_env: TypeEnvironment = TypeEnvironment()
@@ -491,10 +491,10 @@ class Compiler:
         self.modules[name] = value
 
     def add_module(
-        self, name: str, filename: str, tree: AST, optimize: int
+        self, name: str, filename: str, tree: AST, source: str | bytes, optimize: int
     ) -> ast.Module:
         tree = AstOptimizer(optimize=optimize > 0).visit(tree)
-        self.ast_cache[name] = tree
+        self.ast_cache[source] = tree
 
         # Track if we're the first module being compiled, if we are then
         # we want to finish up the validation of all of the modules that
@@ -522,22 +522,24 @@ class Compiler:
         name: str,
         filename: str,
         tree: AST,
+        source: str | bytes,
         optimize: int,
         enable_patching: bool = False,
     ) -> None:
-        self._bind(name, filename, tree, optimize, enable_patching)
+        self._bind(name, filename, tree, source, optimize, enable_patching)
 
     def _bind(
         self,
         name: str,
         filename: str,
         tree: AST,
+        source: str | bytes,
         optimize: int,
         enable_patching: bool = False,
     ) -> tuple[ast.Module, SymbolVisitor]:
-        cached_tree = self.ast_cache.get(name)
+        cached_tree = self.ast_cache.get(source)
         if cached_tree is None:
-            tree = self.add_module(name, filename, tree, optimize)
+            tree = self.add_module(name, filename, tree, source, optimize)
         else:
             tree = cached_tree
         # Analyze variable scopes
@@ -564,12 +566,13 @@ class Compiler:
         name: str,
         filename: str,
         tree: AST,
+        source: str | bytes,
         optimize: int,
         enable_patching: bool = False,
         builtins: dict[str, Any] = builtins.__dict__,
     ) -> CodeType:
         code_gen = self.code_gen(
-            name, filename, tree, optimize, enable_patching, builtins
+            name, filename, tree, source, optimize, enable_patching, builtins
         )
         return code_gen.getCode()
 
@@ -578,11 +581,12 @@ class Compiler:
         name: str,
         filename: str,
         tree: AST,
+        source: str | bytes,
         optimize: int,
         enable_patching: bool = False,
         builtins: dict[str, Any] = builtins.__dict__,
     ) -> Static310CodeGenerator:
-        tree, s = self._bind(name, filename, tree, optimize, enable_patching)
+        tree, s = self._bind(name, filename, tree, source, optimize, enable_patching)
         if self.error_sink.has_errors:
             raise self.error_sink.errors[0]
 
@@ -607,6 +611,7 @@ class Compiler:
             future_flags=future_flags,
         )
         code_gen.visit(tree)
+        del self.ast_cache[source]
         return cast("Static310CodeGenerator", code_gen)
 
     def import_module(self, name: str, optimize: int) -> ModuleTable | None:

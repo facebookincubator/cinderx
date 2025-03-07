@@ -111,8 +111,8 @@ def init_xxclassloader():
     # something odd here and compiling a module name that is already present
     # in the compiler's symbol table, so compile will skip decl visit.
     tree = ast.parse(inspect.cleandoc(codestr))
-    tree = comp.add_module("xxclassloader", "", tree, optimize=0)
-    code = comp.compile("xxclassloader", "", tree, optimize=0)
+    tree = comp.add_module("xxclassloader", "", tree, codestr, optimize=0)
+    code = comp.compile("xxclassloader", "", tree, codestr, optimize=0)
     d = {"<builtins>": builtins.__dict__}
     add_fixed_module(d)
     exec(code, d, d)

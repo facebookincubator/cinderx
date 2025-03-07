@@ -124,14 +124,14 @@ class TestCompiler(Compiler):
         if name not in self.modules:
             tree = self._get_module_ast(name)
             if tree is not None:
-                self.add_module(name, self._get_filename(name), tree, optimize)
+                self.add_module(name, self._get_filename(name), tree, self.source_by_name.get(name) or name, optimize)
         return self.modules.get(name)
 
     def compile_module(self, name: str, optimize: int = 0) -> CodeType:
         tree = self._get_module_ast(name)
         if tree is None:
             raise ValueError(f"No source found for module '{name}'")
-        return self.compile(name, self._get_filename(name), tree, optimize=optimize)
+        return self.compile(name, self._get_filename(name), tree, self.source_by_name.get(name) or name, optimize=optimize)
 
     def _get_module_ast(self, name: str) -> ast.Module | None:
         source = self.source_by_name.get(name)
@@ -297,7 +297,7 @@ class StaticTestBase(CompilerTest):
         compiler = Compiler(StaticCodeGenerator)
         tree = ast.parse(self.clean_code(code))
         return compiler.compile(
-            modname, f"{modname}.py", tree, optimize, enable_patching=enable_patching
+            modname, f"{modname}.py", tree, code, optimize, enable_patching=enable_patching
         )
 
     def get_strict_compiler(self, enable_patching=False) -> StrictCompiler:
@@ -335,7 +335,7 @@ class StaticTestBase(CompilerTest):
         code = self.clean_code(code)
         tree = ast.parse(code)
         compiler = Compiler(StaticCodeGenerator, errors)
-        compiler.bind("<module>", "<module>.py", tree, optimize=0)
+        compiler.bind("<module>", "<module>.py", tree, code, optimize=0)
         return TestErrors(self, code, errors.errors, errors.warnings)
 
     def perf_lint(self, code: str) -> TestErrors:
@@ -343,7 +343,7 @@ class StaticTestBase(CompilerTest):
         code = self.clean_code(code)
         tree = ast.parse(code)
         compiler = Compiler(StaticCodeGenerator, errors)
-        tree, s = compiler._bind("<module>", "<module>.py", tree, optimize=0)
+        tree, s = compiler._bind("<module>", "<module>.py", tree, code, optimize=0)
         if not errors.errors:
             graph = StaticCodeGenerator.flow_graph(
                 "<module>", "<module>.py", s.scopes[tree]
@@ -633,7 +633,7 @@ __slot_types__ = {slot_types!r}
         tree = ast.parse(self.clean_code(code))
 
         compiler = Compiler(StaticCodeGenerator)
-        tree, s = compiler._bind("foo", "foo.py", tree, optimize=optimize)
+        tree, s = compiler._bind("foo", "foo.py", tree, code, optimize=optimize)
 
         # Make sure we can compile the code, just verifying all nodes are
         # visited.

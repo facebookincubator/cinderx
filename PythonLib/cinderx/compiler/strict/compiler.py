@@ -155,7 +155,7 @@ class Compiler(StaticCompiler):
                     log()(name, filename, "declaration_visit") if log else nullcontext()
                 )
                 with ctx:
-                    root = self.add_module(name, filename, root, optimize)
+                    root = self.add_module(name, filename, root, source, optimize)
             else:
                 self.not_static.add(name)
 
@@ -204,7 +204,9 @@ class Compiler(StaticCompiler):
             return (code, False, False)
 
         if flags.is_static:
-            code = self._compile_static(pyast, symbols, filename, name, optimize)
+            code = self._compile_static(
+                pyast, source, symbols, filename, name, optimize
+            )
             return (code, flags.is_strict, True)
         else:
             code = self._compile_strict(pyast, symbols, filename, name, optimize)
@@ -306,12 +308,13 @@ class Compiler(StaticCompiler):
     def _compile_static(
         self,
         root: ast.Module,
+        source: str | bytes,
         symbols: PythonSymbolTable,
         filename: str,
         name: str,
         optimize: int,
     ) -> CodeType | None:
-        root = self.ast_cache.get(name) or self._get_rewritten_ast(
+        root = self.ast_cache.get(source) or self._get_rewritten_ast(
             name, root, symbols, filename, optimize
         )
         try:
@@ -322,6 +325,7 @@ class Compiler(StaticCompiler):
                     name,
                     filename,
                     root,
+                    source,
                     optimize,
                     enable_patching=self.enable_patching,
                     builtins=self.original_builtins,
