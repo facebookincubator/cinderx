@@ -45,6 +45,7 @@
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_state.h"
 
 #include <dlfcn.h>
 
@@ -837,7 +838,19 @@ PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
   Py_RETURN_TRUE;
 }
 
+static int module_traverse(PyObject* mod, visitproc visit, void* arg) {
+  cinderx::ModuleState* state = (cinderx::ModuleState*)PyModule_GetState(mod);
+  return state->traverse(visit, arg);
+}
+
+static int module_clear(PyObject* mod) {
+  cinderx::ModuleState* state = (cinderx::ModuleState*)PyModule_GetState(mod);
+  return state->clear();
+}
+
 void module_free(void*) {
+  cinderx::getModuleState()->shutdown();
+  cinderx::setModuleState(nullptr);
   if (g_was_initialized) {
     g_was_initialized = false;
     JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
@@ -926,16 +939,83 @@ PyMethodDef _cinderx_methods[] = {
     {"is_immortal", cinder_is_immortal, METH_O, cinder_is_immortal_doc},
     {nullptr, nullptr, 0, nullptr}};
 
+static int _cinderx_exec(PyObject* m) {
+  auto state = (cinderx::ModuleState*)PyModule_GetState(m);
+  cinderx::setModuleState(state);
+
+  CiExc_StaticTypeError =
+      PyErr_NewException("cinderx.StaticTypeError", PyExc_TypeError, nullptr);
+  if (CiExc_StaticTypeError == nullptr) {
+    return -1;
+  }
+
+  if (PyType_Ready(&PyCachedProperty_Type) < 0) {
+    return -1;
+  }
+  if (PyType_Ready(&PyCachedPropertyWithDescr_Type) < 0) {
+    return -1;
+  }
+  if (PyType_Ready(&Ci_StrictModule_Type) < 0) {
+    return -1;
+  }
+  if (PyType_Ready(&PyAsyncCachedProperty_Type) < 0) {
+    return -1;
+  }
+  if (PyType_Ready(&PyAsyncCachedPropertyWithDescr_Type) < 0) {
+    return -1;
+  }
+  if (PyType_Ready(&PyAsyncCachedClassProperty_Type) < 0) {
+    return -1;
+  }
+  if (PyType_Ready(&_Ci_ObjectKeyType) < 0) {
+    return -1;
+  }
+
+  PyObject* cached_classproperty =
+      PyType_FromSpec(&_PyCachedClassProperty_TypeSpec);
+  if (cached_classproperty == nullptr) {
+    return -1;
+  }
+  if (PyObject_SetAttrString(m, "cached_classproperty", cached_classproperty) <
+      0) {
+    Py_DECREF(cached_classproperty);
+    return -1;
+  }
+  Py_DECREF(cached_classproperty);
+
+#define ADDITEM(NAME, OBJECT)                                   \
+  if (PyObject_SetAttrString(m, NAME, (PyObject*)OBJECT) < 0) { \
+    return -1;                                                  \
+  }
+
+  ADDITEM("StaticTypeError", CiExc_StaticTypeError);
+  ADDITEM("StrictModule", &Ci_StrictModule_Type);
+  ADDITEM("cached_property", &PyCachedProperty_Type);
+  ADDITEM("async_cached_property", &PyAsyncCachedProperty_Type);
+  ADDITEM("async_cached_classproperty", &PyAsyncCachedClassProperty_Type);
+
+#undef ADDITEM
+
+  return 0;
+}
+
+static PyModuleDef_Slot _cinderx_slots[] = {
+    {Py_mod_exec, reinterpret_cast<void*>(_cinderx_exec)},
+#if PY_VERSION_HEX >= 0x030C0000
+    {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
+#endif
+    {0, NULL}};
+
 struct PyModuleDef _cinderx_module = {
     PyModuleDef_HEAD_INIT,
     "_cinderx",
     PyDoc_STR("The internal CinderX extension module."),
-    /*m_size=*/-1, // Doesn't support sub-interpreters
+    sizeof(cinderx::ModuleState),
     _cinderx_methods,
-    /*m_slots=*/nullptr,
-    /*m_traverse=*/nullptr,
-    /*m_clear=*/nullptr,
-    /*m_free=*/module_free,
+    _cinderx_slots,
+    module_traverse,
+    module_clear,
+    module_free,
 };
 
 } // namespace
@@ -950,64 +1030,5 @@ PyObject* _cinderx_lib_init() {
     return nullptr;
   }
 
-  CiExc_StaticTypeError =
-      PyErr_NewException("cinderx.StaticTypeError", PyExc_TypeError, nullptr);
-  if (CiExc_StaticTypeError == nullptr) {
-    return nullptr;
-  }
-
-  // Deliberate single-phase initialization.
-  PyObject* m = PyModule_Create(&_cinderx_module);
-  if (m == nullptr) {
-    return nullptr;
-  }
-
-  if (PyType_Ready(&PyCachedProperty_Type) < 0) {
-    return nullptr;
-  }
-  if (PyType_Ready(&PyCachedPropertyWithDescr_Type) < 0) {
-    return nullptr;
-  }
-  if (PyType_Ready(&Ci_StrictModule_Type) < 0) {
-    return nullptr;
-  }
-  if (PyType_Ready(&PyAsyncCachedProperty_Type) < 0) {
-    return nullptr;
-  }
-  if (PyType_Ready(&PyAsyncCachedPropertyWithDescr_Type) < 0) {
-    return nullptr;
-  }
-  if (PyType_Ready(&PyAsyncCachedClassProperty_Type) < 0) {
-    return nullptr;
-  }
-  if (PyType_Ready(&_Ci_ObjectKeyType) < 0) {
-    return nullptr;
-  }
-
-  PyObject* cached_classproperty =
-      PyType_FromSpec(&_PyCachedClassProperty_TypeSpec);
-  if (cached_classproperty == nullptr) {
-    return nullptr;
-  }
-  if (PyObject_SetAttrString(m, "cached_classproperty", cached_classproperty) <
-      0) {
-    Py_DECREF(cached_classproperty);
-    return nullptr;
-  }
-  Py_DECREF(cached_classproperty);
-
-#define ADDITEM(NAME, OBJECT)                                   \
-  if (PyObject_SetAttrString(m, NAME, (PyObject*)OBJECT) < 0) { \
-    return nullptr;                                             \
-  }
-
-  ADDITEM("StaticTypeError", CiExc_StaticTypeError);
-  ADDITEM("StrictModule", &Ci_StrictModule_Type);
-  ADDITEM("cached_property", &PyCachedProperty_Type);
-  ADDITEM("async_cached_property", &PyAsyncCachedProperty_Type);
-  ADDITEM("async_cached_classproperty", &PyAsyncCachedClassProperty_Type);
-
-#undef ADDITEM
-
-  return m;
+  return PyModuleDef_Init(&_cinderx_module);
 }

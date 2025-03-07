@@ -161,9 +161,6 @@ CodeExtra* codeExtra(PyCodeObject* code) {
   if constexpr (!USE_CODE_EXTRA) {
     return nullptr;
   }
-  JIT_CHECK(
-      code_extra_index != -1,
-      "Cannot fetch code object extra data without registering the index");
 
   auto code_obj = reinterpret_cast<PyObject*>(code);
 
