@@ -5,6 +5,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 
@@ -88,6 +89,29 @@ std::chrono::milliseconds Context::totalCompileTime() const {
 
 void Context::setCinderJitModule(Ref<> mod) {
   cinderjit_module_ = std::move(mod);
+}
+
+JITList* Context::jitList() {
+  return jit_list_.get();
+}
+
+const JITList* Context::jitList() const {
+  return jit_list_.get();
+}
+
+void Context::createJitList() {
+  JIT_CHECK(jit_list_ == nullptr, "Can't create JIT list twice");
+
+  if (getConfig().allow_jit_list_wildcards) {
+    jit_list_ = jit::WildcardJITList::create();
+  } else {
+    jit_list_ = jit::JITList::create();
+  }
+
+  if (jit_list_ == nullptr) {
+    throw std::runtime_error{
+        "Python error occurred when allocating Cinder JIT list"};
+  }
 }
 
 void Context::clearCache() {

@@ -83,8 +83,8 @@ class DisableGilCheck {
 // Amount of time taken to batch compile everything when disable_jit is called
 std::chrono::milliseconds g_batch_compilation_time;
 
-Context* jit_ctx{nullptr};
-JITList* g_jit_list{nullptr};
+// Metadata for all compiled functions.
+Context* jit_ctx;
 
 // Function and code objects ("units") registered for compilation.
 std::unordered_set<BorrowedRef<>> jit_reg_units;
@@ -131,7 +131,6 @@ std::atomic<int> g_compile_workers_retries;
 
 int use_jit = 0;
 int jit_help = 0;
-std::string jl_fn;
 
 uint64_t countCalls(PyCodeObject* code) {
 #if PY_VERSION_HEX < 0x030C0000
@@ -168,7 +167,7 @@ bool isCinderModule(BorrowedRef<> module_name) {
 
 bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
   // No explicit list implies everything can and should be compiled.
-  if (g_jit_list == nullptr) {
+  if (jit_ctx->jitList() == nullptr) {
     return true;
   }
 
@@ -184,8 +183,9 @@ bool shouldCompile(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
+  const JITList* jit_list = jit_ctx->jitList();
   return shouldAlwaysCompile(func->func_code) ||
-      g_jit_list->lookupFunc(func) == 1;
+      jit_list->lookupFunc(func) == 1;
 }
 
 // Check whether a code object should be compiled. Intended for nested code
@@ -195,9 +195,10 @@ bool shouldCompile(BorrowedRef<> module_name, BorrowedRef<PyCodeObject> code) {
     return false;
   }
 
+  const JITList* jit_list = jit_ctx->jitList();
   return (
-      shouldAlwaysCompile(code) || (g_jit_list->lookupCode(code) == 1) ||
-      (g_jit_list->lookupName(module_name, code->co_qualname) == 1));
+      shouldAlwaysCompile(code) || jit_list->lookupCode(code) == 1 ||
+      jit_list->lookupName(module_name, code->co_qualname) == 1);
 }
 
 // Check if a function has been preloaded.
@@ -358,7 +359,6 @@ size_t parse_sized_argument(const std::string& val) {
 
 FlagProcessor initFlagProcessor() {
   use_jit = 0;
-  jl_fn = "";
   jit_help = 0;
 
   FlagProcessor flag_processor;
@@ -550,7 +550,7 @@ FlagProcessor initFlagProcessor() {
           "jit-list-file",
           "PYTHONJITLISTFILE",
           [](std::string listFile) {
-            jl_fn = listFile;
+            getMutableConfig().jitlist_filename = std::move(listFile);
             use_jit = 1;
           },
           "Load list of functions to compile from <filename>")
@@ -860,7 +860,8 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.setFlags(PySys_GetXOptions());
 
-  if (getConfig().auto_jit_threshold > 0 && jl_fn != "") {
+  if (getConfig().auto_jit_threshold > 0 &&
+      !getConfig().jitlist_filename.empty()) {
     JIT_LOG(
         "Warning: jit-auto and jit-list-file are both enabled; only functions "
         "on the jit-list will be compiled, and only after {} calls.",
@@ -1203,7 +1204,7 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
 
   // If we have an active jit-list, scan this function's code object for any
   // nested functions that might be on the jit-list, and register them as well.
-  if (g_jit_list != nullptr) {
+  if (jit_ctx->jitList() != nullptr) {
     PyObject* module = func->func_module;
     BorrowedRef<PyCodeObject> top_code{func->func_code};
     BorrowedRef<> top_consts{top_code->co_consts};
@@ -1588,22 +1589,25 @@ PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
 }
 
 PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
-  if (g_jit_list == nullptr) {
+  if (jit_ctx == nullptr || jit_ctx->jitList() == nullptr) {
     Py_RETURN_NONE;
   }
-  return g_jit_list->getList().release();
+  return jit_ctx->jitList()->getList().release();
 }
 
 PyObject* jit_list_append(PyObject* /* self */, PyObject* line) {
-  if (g_jit_list == nullptr) {
-    g_jit_list = JITList::create().release();
+  if (jit_ctx == nullptr) {
+    Py_RETURN_NONE;
   }
   Py_ssize_t line_len;
   const char* line_str = PyUnicode_AsUTF8AndSize(line, &line_len);
   if (line_str == nullptr) {
     return nullptr;
   }
-  bool success = g_jit_list->parseLine(
+  if (jit_ctx->jitList() == nullptr) {
+    jit_ctx->createJitList();
+  }
+  bool success = jit_ctx->jitList()->parseLine(
       {line_str, static_cast<std::string::size_type>(line_len)});
 
   if (!success && getConfig().jit_list.error_on_parse) {
@@ -2677,32 +2681,6 @@ int initialize() {
     return -2;
   }
 
-  std::unique_ptr<JITList> jit_list;
-  if (!jl_fn.empty()) {
-    if (getConfig().allow_jit_list_wildcards) {
-      jit_list = jit::WildcardJITList::create();
-    } else {
-      jit_list = jit::JITList::create();
-    }
-    if (jit_list == nullptr) {
-      JIT_LOG("Failed to allocate JIT list");
-      return -1;
-    }
-
-    try {
-      jit_list->parseFile(jl_fn.c_str());
-    } catch (const std::exception& exn) {
-      if (getConfig().jit_list.error_on_parse) {
-        PyErr_SetString(PyExc_RuntimeError, exn.what());
-        return -1;
-      }
-
-      JIT_LOG("{}", exn.what());
-      JIT_LOG("Continuing on with the JIT disabled");
-      return 0;
-    }
-  }
-
   if (use_jit || getConfig().force_init) {
     JIT_DLOG("Initializing JIT");
   } else {
@@ -2715,14 +2693,35 @@ int initialize() {
 
   CodeAllocator::makeGlobalCodeAllocator();
 
-  jit_ctx = new Context();
+  auto ctx = std::make_unique<Context>();
+
+  if (!getConfig().jitlist_filename.empty()) {
+    ctx->createJitList();
+    if (ctx->jitList() == nullptr) {
+      JIT_LOG("Failed to allocate JIT list");
+      return -1;
+    }
+
+    try {
+      ctx->jitList()->parseFile(getConfig().jitlist_filename.c_str());
+    } catch (const std::exception& exn) {
+      if (getConfig().jit_list.error_on_parse) {
+        PyErr_SetString(PyExc_RuntimeError, exn.what());
+        return -1;
+      }
+
+      JIT_LOG("{}", exn.what());
+      JIT_LOG("Continuing on with the JIT disabled");
+      return 0;
+    }
+  }
 
   PyObject* mod = PyModule_Create(&jit_module);
   if (mod == nullptr) {
     return -1;
   }
 
-  jit_ctx->setCinderJitModule(Ref<PyObject>::steal(mod));
+  ctx->setCinderJitModule(Ref<PyObject>::steal(mod));
 
   PyObject* modname = PyUnicode_InternFromString("cinderjit");
   if (modname == nullptr) {
@@ -2741,7 +2740,8 @@ int initialize() {
   }
 
   getMutableConfig().state = use_jit ? State::kRunning : State::kPaused;
-  g_jit_list = jit_list.release();
+
+  jit_ctx = ctx.release();
 
   JIT_DLOG("JIT is {}", isJitUsable() ? "enabled" : "disabled");
 
@@ -2769,9 +2769,6 @@ void finalize() {
   // invoked the JIT directly without initializing a full jit::Context.
   jit::Runtime::get()->clearDeoptStats();
   jit::Runtime::get()->releaseReferences();
-
-  delete g_jit_list;
-  g_jit_list = nullptr;
 
   // Clear some global maps that reference Python data.
   jit_code_outer_funcs.clear();
