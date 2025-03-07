@@ -3402,9 +3402,14 @@ chklist_pop(PyListObject* self, PyObject* const* args, Py_ssize_t nargs) {
     goto skip_optional;
   }
 
-  if (PyLong_Check(args[1])) {
-    index_ssize = PyLong_AsLong(args[1]);
-    if (PyErr_Occurred()) {
+  if (nargs == 1) {
+    if (PyLong_Check(args[0])) {
+      index_ssize = PyLong_AsLong(args[0]);
+      if (PyErr_Occurred()) {
+        return NULL;
+      }
+    } else if (args[0] != Py_None) {
+      PyErr_SetString(PyExc_TypeError, "pop: expected int or None");
       return NULL;
     }
   }
