@@ -11,8 +11,12 @@ import unittest
 
 from pathlib import Path
 
-# pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
-from test.support.script_helper import assert_python_ok
+import cinderx
+
+# Currently depending on cinderx for pulling in Lib/test.  Shouldn't be this way.
+if cinderx.is_initialized():
+    # pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
+    from test.support.script_helper import assert_python_ok
 
 from cinderx import test_support as cinder_support
 
