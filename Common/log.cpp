@@ -28,7 +28,7 @@ FILE* g_log_file = stderr;
 void printPythonException() {
 #if PY_VERSION_HEX < 0x030C0000
   PyThreadState* tstate = _PyThreadState_GET();
-  if (tstate != NULL && tstate->curexc_type != NULL) {
+  if (tstate != nullptr && tstate->curexc_type != nullptr) {
     PyErr_Display(
         tstate->curexc_type, tstate->curexc_value, tstate->curexc_traceback);
   }
