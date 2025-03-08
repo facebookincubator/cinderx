@@ -1014,7 +1014,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kEqual,
             OutVReg{OperandBase::k8bit},
             curexc,
-            MemImm{0});
+            MemImm{nullptr});
 
         bbb.appendBranch(
             Instruction::kCondBranch, is_no_err_set, done, set_err);

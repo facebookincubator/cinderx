@@ -2046,9 +2046,9 @@ const std::array<binaryfunc, kNumBinaryOpKinds> kLongBinaryOpSlotMethods = {
     PyLong_Type.tp_as_number->nb_remainder,
     PyLong_Type.tp_as_number->nb_multiply,
     PyLong_Type.tp_as_number->nb_or,
-    0, // power is ternary and handled specially
+    NULL, // power is ternary and handled specially
     PyLong_Type.tp_as_number->nb_rshift,
-    0, // unsupported: getitem
+    NULL, // unsupported: getitem
     PyLong_Type.tp_as_number->nb_subtract,
     PyLong_Type.tp_as_number->nb_true_divide,
     PyLong_Type.tp_as_number->nb_xor,
@@ -2105,7 +2105,7 @@ const std::array<binaryfunc, kNumInPlaceOpKinds> kLongInPlaceOpSlotMethods = {
     PyLong_Type.tp_as_number->nb_remainder,
     PyLong_Type.tp_as_number->nb_multiply,
     PyLong_Type.tp_as_number->nb_or,
-    0, // power is ternary and handled specially
+    NULL, // power is ternary and handled specially
     PyLong_Type.tp_as_number->nb_rshift,
     PyLong_Type.tp_as_number->nb_subtract,
     PyLong_Type.tp_as_number->nb_true_divide,
