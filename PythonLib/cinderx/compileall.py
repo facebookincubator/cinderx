@@ -658,25 +658,34 @@ def main():
                     ):
                         success = False
                 else:
-                    if not compile_dir(
-                        dest,
-                        maxlevels,
-                        args.ddir,
-                        args.force,
-                        args.rx,
-                        args.quiet,
-                        args.legacy,
-                        workers=args.workers,
-                        invalidation_mode=invalidation_mode,
-                        stripdir=args.stripdir,
-                        prependdir=args.prependdir,
-                        optimize=args.opt_levels,
-                        limit_sl_dest=args.limit_sl_dest,
-                        hardlink_dupes=args.hardlink_dupes,
-                        loader_override=loader_override,
-                        strict_compile=strict_compile,
-                    ):
-                        success = False
+                    appended = False
+                    try:
+                        if strict_compile and dest not in sys.path:
+                            sys.path.append(dest)
+                            appended = True
+
+                        if not compile_dir(
+                            dest,
+                            maxlevels,
+                            args.ddir,
+                            args.force,
+                            args.rx,
+                            args.quiet,
+                            args.legacy,
+                            workers=args.workers,
+                            invalidation_mode=invalidation_mode,
+                            stripdir=args.stripdir,
+                            prependdir=args.prependdir,
+                            optimize=args.opt_levels,
+                            limit_sl_dest=args.limit_sl_dest,
+                            hardlink_dupes=args.hardlink_dupes,
+                            loader_override=loader_override,
+                            strict_compile=strict_compile,
+                        ):
+                            success = False
+                    finally:
+                        if appended:
+                            sys.path.remove(dest)
             return success
         else:
             return compile_path(
