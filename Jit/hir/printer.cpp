@@ -918,10 +918,24 @@ nlohmann::json JSONPrinter::PrintSource(const Function& func) {
 // associate how instructions change over time
 // TODO(emacs): Make JSON utils so we stop copying so much stuff around
 
-#define MAKE_OPNAME(opname, opnum) {opnum, #opname},
-static std::unordered_map<unsigned, const char*> kOpnames{
-    PY_OPCODES(MAKE_OPNAME)};
-#undef MAKE_OPNAME
+constexpr std::string_view opname(unsigned opcode) {
+  // HAVE_ARGUMENT is a delimiter, it's not a real opcode.  It aliases
+  // STORE_NAME.
+  if (opcode == HAVE_ARGUMENT) {
+    static_assert(HAVE_ARGUMENT == STORE_NAME);
+    return "STORE_NAME";
+  }
+
+  // Can't use switch statement because the compiler will complain about
+  // duplicate values between HAVE_ARGUMENT/STORE_NAME.
+#define CASE(NAME, CODE)  \
+  if (opcode == (CODE)) { \
+    return #NAME;         \
+  }
+#undef CASE
+
+  return "<Unknown opcode>";
+}
 
 static std::string
 reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
@@ -1036,7 +1050,7 @@ nlohmann::json JSONPrinter::PrintBytecode(const Function& func) {
     instr["address"] = off;
     instr["line"] = PyCode_Addr2Line(code, off);
     instr["opcode"] =
-        fmt::format("{} {}", kOpnames[opcode], reprArg(code, opcode, oparg));
+        fmt::format("{} {}", opname(opcode), reprArg(code, opcode, oparg));
     instrs_json.emplace_back(instr);
   }
   block["instrs"] = instrs_json;
