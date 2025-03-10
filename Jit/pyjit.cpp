@@ -1898,25 +1898,6 @@ PyObject* jit_frame_mode(PyObject* /* self */, PyObject*) {
   return PyLong_FromLong(static_cast<int>(getConfig().frame_mode));
 }
 
-PyObject* get_supported_opcodes(PyObject* /* self */, PyObject*) {
-  auto set = Ref<>::steal(PySet_New(nullptr));
-  if (set == nullptr) {
-    return nullptr;
-  }
-
-  for (auto op : hir::kSupportedOpcodes) {
-    auto op_obj = Ref<>::steal(PyLong_FromLong(op));
-    if (op_obj == nullptr) {
-      return nullptr;
-    }
-    if (PySet_Add(set, op_obj) < 0) {
-      return nullptr;
-    }
-  }
-
-  return set.release();
-}
-
 PyObject* get_and_clear_inline_cache_stats(PyObject* /* self */, PyObject*) {
   auto stats = Ref<>::steal(PyDict_New());
   if (stats == nullptr) {
@@ -2193,10 +2174,6 @@ PyMethodDef jit_methods[] = {
      print_hir,
      METH_O,
      PyDoc_STR("Print the HIR for a jitted function to stdout.")},
-    {"get_supported_opcodes",
-     get_supported_opcodes,
-     METH_NOARGS,
-     PyDoc_STR("Return a set of all supported opcodes, as ints.")},
     {"get_compiled_functions",
      get_compiled_functions,
      METH_NOARGS,

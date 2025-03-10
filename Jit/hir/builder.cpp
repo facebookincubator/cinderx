@@ -44,6 +44,204 @@
 
 namespace jit::hir {
 
+namespace {
+
+// Check that an opcode is one we know how to translate into HIR.
+bool isSupportedOpcode(int opcode) {
+  switch (opcode) {
+    case BEFORE_ASYNC_WITH:
+    case BEFORE_WITH:
+    case BINARY_ADD:
+    case BINARY_AND:
+    case BINARY_FLOOR_DIVIDE:
+    case BINARY_LSHIFT:
+    case BINARY_MATRIX_MULTIPLY:
+    case BINARY_MODULO:
+    case BINARY_MULTIPLY:
+    case BINARY_OP:
+    case BINARY_OR:
+    case BINARY_POWER:
+    case BINARY_RSHIFT:
+    case BINARY_SLICE:
+    case BINARY_SUBSCR:
+    case BINARY_SUBTRACT:
+    case BINARY_TRUE_DIVIDE:
+    case BINARY_XOR:
+    case BUILD_CHECKED_LIST:
+    case BUILD_CHECKED_MAP:
+    case BUILD_CONST_KEY_MAP:
+    case BUILD_LIST:
+    case BUILD_MAP:
+    case BUILD_SET:
+    case BUILD_SLICE:
+    case BUILD_STRING:
+    case BUILD_TUPLE:
+    case CALL:
+    case CALL_FUNCTION:
+    case CALL_FUNCTION_EX:
+    case CALL_FUNCTION_KW:
+    case CALL_INTRINSIC_1:
+    case CALL_INTRINSIC_2:
+    case CALL_METHOD:
+    case CAST:
+    case CHECK_EG_MATCH:
+    case CHECK_EXC_MATCH:
+    case CLEANUP_THROW:
+    case COMPARE_OP:
+    case CONVERT_PRIMITIVE:
+    case CONTAINS_OP:
+    case COPY:
+    case COPY_DICT_WITHOUT_KEYS:
+    case COPY_FREE_VARS:
+    case DELETE_ATTR:
+    case DELETE_FAST:
+    case DELETE_SUBSCR:
+    case DICT_MERGE:
+    case DICT_UPDATE:
+    case DUP_TOP:
+    case DUP_TOP_TWO:
+    case EAGER_IMPORT_NAME:
+    case END_ASYNC_FOR:
+    case END_FOR:
+    case END_SEND:
+    case EXTENDED_ARG:
+    case FAST_LEN:
+    case FORMAT_VALUE:
+    case FOR_ITER:
+    case GEN_START:
+    case GET_AITER:
+    case GET_ANEXT:
+    case GET_AWAITABLE:
+    case GET_ITER:
+    case GET_LEN:
+    case GET_YIELD_FROM_ITER:
+    case IMPORT_FROM:
+    case IMPORT_NAME:
+    case INPLACE_ADD:
+    case INPLACE_AND:
+    case INPLACE_FLOOR_DIVIDE:
+    case INPLACE_LSHIFT:
+    case INPLACE_MATRIX_MULTIPLY:
+    case INPLACE_MODULO:
+    case INPLACE_MULTIPLY:
+    case INPLACE_OR:
+    case INPLACE_POWER:
+    case INPLACE_RSHIFT:
+    case INPLACE_SUBTRACT:
+    case INPLACE_TRUE_DIVIDE:
+    case INPLACE_XOR:
+    case INVOKE_FUNCTION:
+    case INVOKE_METHOD:
+    case INVOKE_NATIVE:
+    case IS_OP:
+    case JUMP_ABSOLUTE:
+    case JUMP_BACKWARD:
+    case JUMP_BACKWARD_NO_INTERRUPT:
+    case JUMP_FORWARD:
+    case JUMP_IF_FALSE_OR_POP:
+    case JUMP_IF_NONZERO_OR_POP:
+    case JUMP_IF_NOT_EXC_MATCH:
+    case JUMP_IF_TRUE_OR_POP:
+    case JUMP_IF_ZERO_OR_POP:
+    case KW_NAMES:
+    case LIST_APPEND:
+    case LIST_EXTEND:
+    case LIST_TO_TUPLE:
+    case LOAD_ASSERTION_ERROR:
+    case LOAD_ATTR:
+    case LOAD_ATTR_SUPER:
+    case LOAD_CLOSURE:
+    case LOAD_CONST:
+    case LOAD_DEREF:
+    case LOAD_FAST:
+    case LOAD_FAST_AND_CLEAR:
+    case LOAD_FAST_CHECK:
+    case LOAD_FIELD:
+    case LOAD_GLOBAL:
+    case LOAD_ITERABLE_ARG:
+    case LOAD_LOCAL:
+    case LOAD_METHOD:
+    case LOAD_METHOD_STATIC:
+    case LOAD_METHOD_SUPER:
+    case LOAD_SUPER_ATTR:
+    case LOAD_TYPE:
+    case MAKE_CELL:
+    case MAKE_FUNCTION:
+    case MAP_ADD:
+    case MATCH_CLASS:
+    case MATCH_KEYS:
+    case MATCH_MAPPING:
+    case MATCH_SEQUENCE:
+    case NOP:
+    case POP_BLOCK:
+    case POP_EXCEPT:
+    case POP_JUMP_IF_FALSE:
+    case POP_JUMP_IF_NONE:
+    case POP_JUMP_IF_NONZERO:
+    case POP_JUMP_IF_NOT_NONE:
+    case POP_JUMP_IF_TRUE:
+    case POP_JUMP_IF_ZERO:
+    case POP_TOP:
+    case PRIMITIVE_BINARY_OP:
+    case PRIMITIVE_BOX:
+    case PRIMITIVE_COMPARE_OP:
+    case PRIMITIVE_LOAD_CONST:
+    case PRIMITIVE_UNARY_OP:
+    case PRIMITIVE_UNBOX:
+    case PUSH_EXC_INFO:
+    case PUSH_NULL:
+    case RAISE_VARARGS:
+    case REFINE_TYPE:
+    case RERAISE:
+    case RESUME:
+    case RETURN_CONST:
+    case RETURN_GENERATOR:
+    case RETURN_PRIMITIVE:
+    case RETURN_VALUE:
+    case ROT_FOUR:
+    case ROT_N:
+    case ROT_THREE:
+    case ROT_TWO:
+    case SEND:
+    case SEQUENCE_GET:
+    case SEQUENCE_SET:
+    case SET_ADD:
+    case SET_UPDATE:
+    case SETUP_ASYNC_WITH:
+    case SETUP_FINALLY:
+    case SETUP_WITH:
+    case STORE_ATTR:
+    case STORE_DEREF:
+    case STORE_FAST:
+    case STORE_FIELD:
+    case STORE_LOCAL:
+    case STORE_SLICE:
+    case STORE_SUBSCR:
+    case SWAP:
+    case TP_ALLOC:
+    case UNARY_INVERT:
+    case UNARY_NEGATIVE:
+    case UNARY_NOT:
+    case UNARY_POSITIVE:
+    case UNPACK_EX:
+    case UNPACK_SEQUENCE:
+    case WITH_EXCEPT_START:
+    case YIELD_FROM:
+    case YIELD_VALUE:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+// Check that a symbol/name is one that the JIT has banned.
+bool isBannedName(std::string_view name) {
+  return name == "eval" || name == "exec" || name == "locals";
+}
+
+} // namespace
+
 // Allocate a temp register that may be used for the stack. It should not be a
 // register that will be treated specially in the FrameState (e.g. tracked as
 // containing a local or cell.)
@@ -66,195 +264,6 @@ Register* TempAllocator::GetOrAllocateStack(std::size_t idx) {
 Register* TempAllocator::AllocateNonStack() {
   return env_->AllocateRegister();
 }
-
-// Opcodes that we know how to translate into HIR
-const std::unordered_set<int> kSupportedOpcodes = {
-    BEFORE_ASYNC_WITH,
-    BEFORE_WITH,
-    BINARY_ADD,
-    BINARY_AND,
-    BINARY_FLOOR_DIVIDE,
-    BINARY_LSHIFT,
-    BINARY_MATRIX_MULTIPLY,
-    BINARY_MODULO,
-    BINARY_MULTIPLY,
-    BINARY_OP,
-    BINARY_OR,
-    BINARY_POWER,
-    BINARY_RSHIFT,
-    BINARY_SLICE,
-    BINARY_SUBSCR,
-    BINARY_SUBTRACT,
-    BINARY_TRUE_DIVIDE,
-    BINARY_XOR,
-    BUILD_CHECKED_LIST,
-    BUILD_CHECKED_MAP,
-    BUILD_CONST_KEY_MAP,
-    BUILD_LIST,
-    BUILD_MAP,
-    BUILD_SET,
-    BUILD_SLICE,
-    BUILD_STRING,
-    BUILD_TUPLE,
-    CALL,
-    CALL_FUNCTION,
-    CALL_FUNCTION_EX,
-    CALL_FUNCTION_KW,
-    CALL_INTRINSIC_1,
-    CALL_INTRINSIC_2,
-    CALL_METHOD,
-    CAST,
-    CHECK_EG_MATCH,
-    CHECK_EXC_MATCH,
-    CLEANUP_THROW,
-    COMPARE_OP,
-    CONVERT_PRIMITIVE,
-    CONTAINS_OP,
-    COPY,
-    COPY_DICT_WITHOUT_KEYS,
-    COPY_FREE_VARS,
-    DELETE_ATTR,
-    DELETE_FAST,
-    DELETE_SUBSCR,
-    DICT_MERGE,
-    DICT_UPDATE,
-    DUP_TOP,
-    DUP_TOP_TWO,
-    EAGER_IMPORT_NAME,
-    END_ASYNC_FOR,
-    END_FOR,
-    END_SEND,
-    EXTENDED_ARG,
-    FAST_LEN,
-    FORMAT_VALUE,
-    FOR_ITER,
-    GEN_START,
-    GET_AITER,
-    GET_ANEXT,
-    GET_AWAITABLE,
-    GET_ITER,
-    GET_LEN,
-    GET_YIELD_FROM_ITER,
-    IMPORT_FROM,
-    IMPORT_NAME,
-    INPLACE_ADD,
-    INPLACE_AND,
-    INPLACE_FLOOR_DIVIDE,
-    INPLACE_LSHIFT,
-    INPLACE_MATRIX_MULTIPLY,
-    INPLACE_MODULO,
-    INPLACE_MULTIPLY,
-    INPLACE_OR,
-    INPLACE_POWER,
-    INPLACE_RSHIFT,
-    INPLACE_SUBTRACT,
-    INPLACE_TRUE_DIVIDE,
-    INPLACE_XOR,
-    INVOKE_FUNCTION,
-    INVOKE_METHOD,
-    INVOKE_NATIVE,
-    IS_OP,
-    JUMP_ABSOLUTE,
-    JUMP_BACKWARD,
-    JUMP_BACKWARD_NO_INTERRUPT,
-    JUMP_FORWARD,
-    JUMP_IF_FALSE_OR_POP,
-    JUMP_IF_NONZERO_OR_POP,
-    JUMP_IF_NOT_EXC_MATCH,
-    JUMP_IF_TRUE_OR_POP,
-    JUMP_IF_ZERO_OR_POP,
-    KW_NAMES,
-    LIST_APPEND,
-    LIST_EXTEND,
-    LIST_TO_TUPLE,
-    LOAD_ASSERTION_ERROR,
-    LOAD_ATTR,
-    LOAD_ATTR_SUPER,
-    LOAD_CLOSURE,
-    LOAD_CONST,
-    LOAD_DEREF,
-    LOAD_FAST,
-    LOAD_FAST_AND_CLEAR,
-    LOAD_FAST_CHECK,
-    LOAD_FIELD,
-    LOAD_GLOBAL,
-    LOAD_ITERABLE_ARG,
-    LOAD_LOCAL,
-    LOAD_METHOD,
-    LOAD_METHOD_STATIC,
-    LOAD_METHOD_SUPER,
-    LOAD_SUPER_ATTR,
-    LOAD_TYPE,
-    MAKE_CELL,
-    MAKE_FUNCTION,
-    MAP_ADD,
-    MATCH_CLASS,
-    MATCH_KEYS,
-    MATCH_MAPPING,
-    MATCH_SEQUENCE,
-    NOP,
-    POP_BLOCK,
-    POP_EXCEPT,
-    POP_JUMP_IF_FALSE,
-    POP_JUMP_IF_NONE,
-    POP_JUMP_IF_NONZERO,
-    POP_JUMP_IF_NOT_NONE,
-    POP_JUMP_IF_TRUE,
-    POP_JUMP_IF_ZERO,
-    POP_TOP,
-    PRIMITIVE_BINARY_OP,
-    PRIMITIVE_BOX,
-    PRIMITIVE_COMPARE_OP,
-    PRIMITIVE_LOAD_CONST,
-    PRIMITIVE_UNARY_OP,
-    PRIMITIVE_UNBOX,
-    PUSH_EXC_INFO,
-    PUSH_NULL,
-    RAISE_VARARGS,
-    REFINE_TYPE,
-    RERAISE,
-    RESUME,
-    RETURN_CONST,
-    RETURN_GENERATOR,
-    RETURN_PRIMITIVE,
-    RETURN_VALUE,
-    ROT_FOUR,
-    ROT_N,
-    ROT_THREE,
-    ROT_TWO,
-    SEND,
-    SEQUENCE_GET,
-    SEQUENCE_SET,
-    SET_ADD,
-    SET_UPDATE,
-    SETUP_ASYNC_WITH,
-    SETUP_FINALLY,
-    SETUP_WITH,
-    STORE_ATTR,
-    STORE_DEREF,
-    STORE_FAST,
-    STORE_FIELD,
-    STORE_LOCAL,
-    STORE_SLICE,
-    STORE_SUBSCR,
-    SWAP,
-    TP_ALLOC,
-    UNARY_INVERT,
-    UNARY_NEGATIVE,
-    UNARY_NOT,
-    UNARY_POSITIVE,
-    UNPACK_EX,
-    UNPACK_SEQUENCE,
-    WITH_EXCEPT_START,
-    YIELD_FROM,
-    YIELD_VALUE,
-};
-
-const std::unordered_set<std::string_view> kBannedNames{
-    "eval",
-    "exec",
-    "locals",
-};
 
 void HIRBuilder::allocateLocalsplus(Environment* env, FrameState& state) {
   int nlocalsplus = numLocalsplus(code_);
@@ -4408,14 +4417,14 @@ void HIRBuilder::checkTranslate() {
     return std::string_view(PyUnicode_AsUTF8(PyTuple_GET_ITEM(names, i)));
   };
   for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(names); i++) {
-    if (kBannedNames.count(name_at(i))) {
+    if (isBannedName(name_at(i))) {
       banned_name_ids.insert(i);
     }
   }
   for (auto& bci : BytecodeInstructionBlock{code_}) {
     auto opcode = bci.opcode();
     int oparg = bci.oparg();
-    if (!kSupportedOpcodes.count(opcode)) {
+    if (!isSupportedOpcode(opcode)) {
       throw std::runtime_error{fmt::format(
           "Cannot compile {} to HIR because it contains unsupported opcode {}",
           preloader_.fullname(),

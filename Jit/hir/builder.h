@@ -22,8 +22,6 @@ class Environment;
 class Function;
 class Register;
 
-extern const std::unordered_set<int> kSupportedOpcodes;
-
 // Helper class for managing temporary variables
 class TempAllocator {
  public:
