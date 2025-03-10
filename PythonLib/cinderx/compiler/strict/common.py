@@ -68,7 +68,7 @@ TScopeData = TypeVar("TData", covariant=True)
 SymbolMap = Dict[AST, SymbolTable]
 
 
-@dataclass(frozen=True)
+@dataclass
 class StrictModuleError(Exception):
     msg: str
     filename: str
