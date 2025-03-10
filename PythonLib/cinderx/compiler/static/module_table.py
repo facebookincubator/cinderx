@@ -50,6 +50,17 @@ if TYPE_CHECKING:
     from .compiler import Compiler
 
 
+# When set to True, allow type alises of the form
+#   A = Foo
+# as well as the explicit 3.12+
+#   type A = Foo
+# When set to False, only the latter form will be supported.
+#
+# TODO(T214139735): This is a placeholder for a feature flag that will let
+# users opt in to implicit type aliases on a per-module basis.
+ENABLE_IMPLICIT_TYPE_ALIASES = False
+
+
 class ModuleFlag(Enum):
     CHECKED_DICTS = 1
     CHECKED_LISTS = 3
@@ -133,15 +144,19 @@ class AnnotationVisitor(ReferenceVisitor):
             # TODO until we support runtime checking of unions, we must for
             # safety resolve union annotations to dynamic (except for
             # optionals, which we can check at runtime)
-            if (
-                isinstance(klass, UnionType)
-                and klass is not self.type_env.union
-                and klass is not self.type_env.optional
-                and klass.opt_type is None
-            ):
+            if self.is_unsupported_union_type(klass):
                 return None
 
             return klass
+
+    def is_unsupported_union_type(self, klass: Value) -> bool:
+        """Returns True if klass is an unsupported union type."""
+        return (
+            isinstance(klass, UnionType)
+            and klass is not self.type_env.union
+            and klass is not self.type_env.optional
+            and klass.opt_type is None
+        )
 
     def visitSubscript(self, node: Subscript) -> Value | None:
         target = self.resolve_annotation(node.value, is_declaration=True)
@@ -267,6 +282,7 @@ class ModuleTable:
         self.flags: set[ModuleFlag] = set()
         self.decls: list[tuple[AST, str | None, Value | None]] = []
         self.implicit_decl_names: set[str] = set()
+        self.type_alias_names: set[str] = set()
         self.compile_non_static: set[AST] = set()
         # {local-name: {(mod, qualname)}} for decl-time deps
         self.decl_deps: dict[str, set[tuple[str, str]]] = {}
@@ -352,6 +368,36 @@ class ModuleTable:
         if node is None:
             return nullcontext()
         return self.compiler.error_sink.error_context(self.filename, node)
+
+    def maybe_set_type_alias(
+        self,
+        # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
+        node: ast.Assign | ast.TypeAlias,
+        name: str,
+        *,
+        require_type: bool = False,
+    ) -> None:
+        """
+        Check if we are assigning a Class or Union value to a variable at
+        module scope, and if so, store it as a type alias.
+        """
+        value = self.resolve_type(node.value, name)
+        if isinstance(value, Class):
+            # This is a type, treat it similarly to a class declaration
+            self.decls.append((node, name, value))
+            self._children[name] = value
+            self.type_alias_names.add(name)
+        else:
+            # Treat the type as dynamic if it is an assignment,
+            # raise an error if it is an explicit type alias.
+            if require_type:
+                rhs = ast.unparse(node.value)
+                raise TypedSyntaxError(f"RHS of type alias {name} is not a type: {rhs}")
+            self.implicit_decl_names.add(name)
+
+    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type
+    def declare_type_alias(self, node: ast.TypeAlias) -> None:
+        self.maybe_set_type_alias(node, node.name.id, require_type=True)
 
     def declare_class(self, node: ClassDef, klass: Class) -> None:
         if self.first_pass_done:
@@ -456,7 +502,7 @@ class ModuleTable:
 
     def validate_overrides(self) -> None:
         for _node, name, _value in self.decls:
-            if name is None:
+            if name is None or name in self.type_alias_names:
                 continue
 
             child = self._children.get(name, None)
@@ -561,6 +607,14 @@ class ModuleTable:
 
     def declare_variables(self, node: ast.Assign, module: ModuleTable) -> None:
         targets = node.targets
+        if (
+            ENABLE_IMPLICIT_TYPE_ALIASES
+            and len(targets) == 1
+            and isinstance(targets[0], ast.Name)
+        ):
+            # pyre-ignore[16]: `ast.expr` has no attribute `id`
+            return self.maybe_set_type_alias(node, targets[0].id)
+
         for target in targets:
             if isinstance(target, ast.Name):
                 self.implicit_decl_names.add(target.id)
