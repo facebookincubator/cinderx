@@ -146,6 +146,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         module_name: str,
         tree: ast.Module,
         filename: str,
+        source: str | bytes,
         flags: int,
         optimize: int,
         ast_optimizer_enabled: bool = True,

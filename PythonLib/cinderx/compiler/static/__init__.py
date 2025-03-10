@@ -279,6 +279,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         module_name: str,
         tree: AST,
         filename: str,
+        source: str | bytes,
         flags: int,
         optimize: int,
         ast_optimizer_enabled: bool = True,
@@ -289,7 +290,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
 
         compiler = Compiler(cls)
         code_gen = compiler.code_gen(
-            module_name, filename, tree, optimize, enable_patching, builtins
+            module_name, filename, tree, source, optimize, enable_patching, builtins
         )
         return code_gen
 

@@ -31,11 +31,12 @@ def strict_compile(
     name: str,
     filename: str,
     tree: ast.Module,
+    source: str | bytes,
     optimize: int = 0,
     builtins: dict[str, Any] = builtins.__dict__,
 ) -> CodeType:
     code_gen = StrictCodeGenerator.make_code_gen(
-        name, tree, filename, flags=0, optimize=optimize, builtins=builtins
+        name, tree, filename, source, flags=0, optimize=optimize, builtins=builtins
     )
     return code_gen.getCode()
 

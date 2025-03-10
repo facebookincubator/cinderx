@@ -209,7 +209,9 @@ class Compiler(StaticCompiler):
             )
             return (code, flags.is_strict, True)
         else:
-            code = self._compile_strict(pyast, symbols, filename, name, optimize)
+            code = self._compile_strict(
+                pyast, source, symbols, filename, name, optimize
+            )
             return (code, flags.is_strict, False)
 
     def get_source(self, name: str, *, need_contents: bool = True) -> SourceInfo | None:
@@ -290,6 +292,7 @@ class Compiler(StaticCompiler):
     def _compile_strict(
         self,
         root: ast.Module,
+        source: str | bytes,
         symbols: PythonSymbolTable,
         filename: str,
         name: str,
@@ -303,7 +306,9 @@ class Compiler(StaticCompiler):
             optimize=optimize,
             builtins=self.original_builtins,
         )
-        return strict_compile(name, filename, tree, optimize, self.original_builtins)
+        return strict_compile(
+            name, filename, tree, source, optimize, self.original_builtins
+        )
 
     def _compile_static(
         self,

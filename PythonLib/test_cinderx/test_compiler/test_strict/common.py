@@ -44,7 +44,7 @@ class StrictTestBase(CompilerTest):
 
         code = inspect.cleandoc("\n" + code)
         tree = ast.parse(code)
-        return strict_compile(modname, f"{modname}.py", tree, optimize, builtins)
+        return strict_compile(modname, f"{modname}.py", tree, code, optimize, builtins)
 
     _temp_mod_num = 0
 

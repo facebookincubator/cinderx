@@ -38,7 +38,7 @@ class RewriterTestCase(StrictTestWithCheckerBase):
             name,
             builtins=builtins,
         )
-        c = strict_compile(name, filename, root)
+        c = strict_compile(name, filename, root, code)
 
         def freeze_type(freeze: type[object]) -> None:
             pass
