@@ -1562,7 +1562,9 @@ class PyFlowGraph312(PyFlowGraph):
                 explicit_jump.bid = self.get_new_block_id()
                 self.current = explicit_jump
 
-                assert (next_block := block.next)
+                next_block = block.next
+                assert next_block is not None
+
                 self.emit_jump_forward_noline(next_block)
                 self.ordered_blocks.insert(
                     self.ordered_blocks.index(block) + 1, explicit_jump
