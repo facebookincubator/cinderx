@@ -619,6 +619,10 @@ class TypeEnvironment:
 
         self.native_decorator = NativeDecorator(self)
 
+        self.rand: RandFunction | None = (
+            RandFunction(self) if sys.version_info >= (3, 12) else None
+        )
+
         if spamobj is not None:
             T = GenericParameter("T", 0, self)
             U = GenericParameter("U", 1, self)
@@ -10555,3 +10559,29 @@ class ClassDecoratorInstance(Object[Class]):
         visitor: DeclarationVisitor,
     ) -> Class:
         return klass
+
+
+# This is a hack to support __static__.rand for now, since it's the most common
+# case. Eventually we'll get the typed method def support into upstream CPython
+# or CinderX and then we'll be able to have generic strongly typed methods.
+class RandFunction(BuiltinFunction):
+    def __init__(self, type_env: TypeEnvironment) -> None:
+        signature, return_type = parse_typed_signature(
+            {"args": [], "return": {"type": "__static__.int32"}}, None, type_env
+        )
+        super().__init__(
+            "rand",
+            "__static__",
+            None,
+            type_env,
+            signature,
+            ResolvedTypeRef(return_type),
+        )
+
+    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
+        if node.keywords:
+            return super().emit_call(node, code_gen)
+
+        code_gen.set_pos(node)
+        self.emit_call_self(node, code_gen)
+        code_gen.emit("PRIMITIVE_UNBOX", TYPED_INT32)

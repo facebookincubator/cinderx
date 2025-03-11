@@ -8,6 +8,7 @@ from __static__ import posix_clock_gettime_ns, rand, RAND_MAX
 
 import ast
 import builtins
+import sys
 from ast import AST
 from collections import deque
 from types import CodeType
@@ -410,11 +411,16 @@ class Compiler:
                     None,
                     self.type_env,
                 ),
-                "rand": reflect_builtin_function(
-                    # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
-                    rand,
-                    None,
-                    self.type_env,
+                "rand": cast(
+                    Value,
+                    self.type_env.rand
+                    if sys.version_info >= (3, 12)
+                    else reflect_builtin_function(
+                        # pyre-ignore[6]: Pyre can't know this callable is a BuiltinFunctionType
+                        rand,
+                        None,
+                        self.type_env,
+                    ),
                 ),
                 "set_type_static": self.type_env.DYNAMIC,
                 "native": self.type_env.native_decorator,
