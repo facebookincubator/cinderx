@@ -18,6 +18,8 @@ FuncAny = Callable[..., Any]
 
 try:
     from cinderjit import (
+        auto_jit_threshold,
+        count_interpreted_calls,
         disable,
         enable,
         force_compile,
@@ -31,6 +33,12 @@ try:
     INSTALLED = True
 
 except ImportError:
+
+    def auto_jit_threshold() -> int:
+        return 0
+
+    def count_interpreted_calls(func: FuncAny) -> int:
+        return 0
 
     def disable(deopt_all: bool = False) -> None:
         pass

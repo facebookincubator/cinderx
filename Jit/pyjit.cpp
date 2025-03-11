@@ -134,17 +134,8 @@ int jit_help = 0;
 std::string jl_fn;
 
 uint64_t countCalls(PyCodeObject* code) {
-#if PY_VERSION_HEX < 0x030C0000
-  // The interpreter will only increment up to the shadowcode threshold
-  // PYSHADOW_INIT_THRESHOLD. After that, it will stop incrementing. If someone
-  // sets -X jit-auto above the PYSHADOW_INIT_THRESHOLD, we still have to keep
-  // counting.
-  unsigned ncalls = code->co_mutable->ncalls;
-  if (ncalls > PYSHADOW_INIT_THRESHOLD) {
-    ncalls++;
-    code->co_mutable->ncalls = ncalls;
-  }
-  return ncalls;
+#if SHADOWCODE_SUPPORTED
+  return code->co_mutable->ncalls;
 #else
   auto extra = codeExtra(code);
   return extra != nullptr ? extra->calls : 0;
@@ -230,6 +221,16 @@ PyObject* autoJITVectorcall(
   auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
 
   // Interpret function as usual until it passes the call count threshold.
+
+  // The interpreter will only increment up to the shadowcode threshold
+  // PYSHADOW_INIT_THRESHOLD. After that, it will stop incrementing. If someone
+  // sets -X jit-auto above the PYSHADOW_INIT_THRESHOLD, we still have to keep
+  // counting.
+#if SHADOWCODE_SUPPORTED
+  if (code->co_mutable->ncalls > PYSHADOW_INIT_THRESHOLD) {
+    code->co_mutable->ncalls++;
+  }
+#endif
   if (countCalls(code) <= jit::getConfig().auto_jit_threshold) {
     auto entry = getInterpretedVectorcall(func);
     return entry(func_obj, stack, nargsf, kwnames);
@@ -1503,6 +1504,16 @@ PyObject* is_enabled(PyObject* /* self */, PyObject* /* args */) {
   return PyBool_FromLong(isJitUsable());
 }
 
+PyObject* count_interpreted_calls(PyObject* /* self */, PyObject* arg) {
+  BorrowedRef<PyFunctionObject> func =
+      get_func_arg("count_interpreted_calls", arg);
+  if (func == nullptr) {
+    return nullptr;
+  }
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  return PyLong_FromLong(static_cast<long>(countCalls(code)));
+}
+
 PyObject* is_jit_compiled(PyObject* /* self */, PyObject* arg) {
   BorrowedRef<PyFunctionObject> func = get_func_arg("is_jit_compiled", arg);
   return func != nullptr ? PyBool_FromLong(isJitCompiled(func)) : nullptr;
@@ -2138,6 +2149,11 @@ PyMethodDef jit_methods[] = {
      is_enabled,
      METH_NOARGS,
      PyDoc_STR("Check whether the JIT is enabled and usable")},
+    {"count_interpreted_calls",
+     count_interpreted_calls,
+     METH_O,
+     PyDoc_STR("Get the number of times a function has been executed in the "
+               "interpreter since cinderx has been initialized")},
     {"is_jit_compiled",
      is_jit_compiled,
      METH_O,
