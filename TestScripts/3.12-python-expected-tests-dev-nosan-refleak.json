@@ -498,6 +498,7 @@
     "test_cinderx.test_cpython_overrides.test_tracemalloc",
     "test_cinderx.test_cpython_overrides.test_types",
     "test_cinderx.test_immortalize",
+    "test_cinderx.test_jit_coroutines",
     "test_cinderx.test_jit_count_calls",
     "test_cinderx.test_jit_disable",
     "test_cinderx.test_jit_generators",
