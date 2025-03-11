@@ -231,7 +231,7 @@ PyObject* autoJITVectorcall(
     code->co_mutable->ncalls++;
   }
 #endif
-  if (countCalls(code) <= jit::getConfig().auto_jit_threshold) {
+  if (countCalls(code) < jit::getConfig().auto_jit_threshold) {
     auto entry = getInterpretedVectorcall(func);
     return entry(func_obj, stack, nargsf, kwnames);
   }
