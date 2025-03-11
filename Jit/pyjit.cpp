@@ -131,7 +131,6 @@ std::atomic<int> g_compile_workers_retries;
 
 int use_jit = 0;
 int jit_help = 0;
-std::string jl_fn;
 
 uint64_t countCalls(PyCodeObject* code) {
 #if SHADOWCODE_SUPPORTED
@@ -359,7 +358,6 @@ size_t parse_sized_argument(const std::string& val) {
 
 FlagProcessor initFlagProcessor() {
   use_jit = 0;
-  jl_fn = "";
   jit_help = 0;
 
   FlagProcessor flag_processor;
@@ -551,8 +549,8 @@ FlagProcessor initFlagProcessor() {
           "jit-list-file",
           "PYTHONJITLISTFILE",
           [](const std::string& listFile) {
-            jl_fn = listFile;
             use_jit = 1;
+            getMutableConfig().jitlist_filename = listFile;
           },
           "Load list of functions to compile from <filename>")
       .withFlagParamName("filename");
@@ -863,7 +861,8 @@ FlagProcessor initFlagProcessor() {
 
   flag_processor.setFlags(PySys_GetXOptions());
 
-  if (getConfig().auto_jit_threshold > 0 && jl_fn != "") {
+  if (getConfig().auto_jit_threshold > 0 &&
+      getConfig().jitlist_filename != "") {
     JIT_LOG(
         "Warning: jit-auto and jit-list-file are both enabled; only functions "
         "on the jit-list will be compiled, and only after {} calls.",
@@ -2673,7 +2672,7 @@ int initialize() {
   }
 
   std::unique_ptr<JITList> jit_list;
-  if (!jl_fn.empty()) {
+  if (!getConfig().jitlist_filename.empty()) {
     if (getConfig().allow_jit_list_wildcards) {
       jit_list = jit::WildcardJITList::create();
     } else {
@@ -2685,7 +2684,7 @@ int initialize() {
     }
 
     try {
-      jit_list->parseFile(jl_fn.c_str());
+      jit_list->parseFile(getConfig().jitlist_filename.c_str());
     } catch (const std::exception& exn) {
       if (getConfig().jit_list.error_on_parse) {
         PyErr_SetString(PyExc_RuntimeError, exn.what());
