@@ -8,8 +8,6 @@ if not (
     or importlib.util.find_spec("_cinderx") is None
 ):
     try:
-        # pyre-ignore[21]: The cinderx module is an optional dependency here, its
-        # existence is confirmed in the if statement above.
         import cinderx
 
         cinderx.init()
