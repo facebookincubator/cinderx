@@ -12,14 +12,11 @@
 #include <sstream>
 #include <string>
 
-using std::function;
-using std::vector;
-
 namespace jit {
 
-static const std::string indent1 = "         ";
-static const std::string indent2 = "             ";
-static size_t line_length = 80 - indent1.size();
+constexpr std::string_view indent1 = "         ";
+constexpr std::string_view indent2 = "             ";
+constexpr size_t line_length = 80 - indent1.size();
 
 bool FlagProcessor::hasOptions() {
   return options_.size() > 0;
@@ -28,13 +25,14 @@ bool FlagProcessor::hasOptions() {
 Option& FlagProcessor::addOption(
     const std::string cmdline_flag,
     const std::string environment_variable,
-    const function<void(int)> callback,
+    const std::function<void(int)> callback,
     const std::string flag_description) {
   assert(!cmdline_flag.empty());
   assert(!flag_description.empty());
 
-  function<void(std::string)> int_callback =
-      [callback, &cmdline_flag, &environment_variable](std::string flag_value) {
+  std::function<void(const std::string&)> int_callback =
+      [callback, &cmdline_flag, &environment_variable](
+          const std::string& flag_value) {
         try {
           // The callback only gets called for empty X-options, not empty
           // environment variables. This makes `-X foo` equivalent to `-X
@@ -56,7 +54,7 @@ Option& FlagProcessor::addOption(
 Option& FlagProcessor::addOption(
     const std::string cmdline_flag,
     const std::string environment_variable,
-    const function<void(std::string)> callback,
+    const std::function<void(const std::string&)> callback,
     const std::string flag_description) {
   assert(!cmdline_flag.empty());
   assert(!flag_description.empty());
@@ -75,8 +73,8 @@ Option& FlagProcessor::addOption(
     const std::string environment_variable,
     std::string& variable_to_bind_to,
     const std::string flag_description) {
-  function<void(std::string)> setter =
-      [&variable_to_bind_to](std::string flag_value) {
+  std::function<void(const std::string&)> setter =
+      [&variable_to_bind_to](const std::string& flag_value) {
         variable_to_bind_to = flag_value;
       };
   return addOption(
@@ -88,7 +86,7 @@ Option& FlagProcessor::addOption(
     const std::string environment_variable,
     bool& variable_to_bind_to,
     const std::string flag_description) {
-  function<void(int)> setter = [&variable_to_bind_to](int flag_value) {
+  std::function<void(int)> setter = [&variable_to_bind_to](int flag_value) {
     variable_to_bind_to = static_cast<bool>(flag_value);
   };
   return addOption(
@@ -100,7 +98,7 @@ Option& FlagProcessor::addOption(
     const std::string environment_variable,
     int& variable_to_bind_to,
     const std::string flag_description) {
-  function<void(int)> setter = [&variable_to_bind_to](int flag_value) {
+  std::function<void(int)> setter = [&variable_to_bind_to](int flag_value) {
     variable_to_bind_to = flag_value;
   };
   return addOption(
@@ -112,9 +110,9 @@ Option& FlagProcessor::addOption(
     const std::string environment_variable,
     size_t& variable_to_bind_to,
     const std::string flag_description) {
-  function<void(std::string)> setter =
+  std::function<void(const std::string&)> setter =
       [&variable_to_bind_to, &cmdline_flag, &environment_variable](
-          std::string flag_value) {
+          const std::string& flag_value) {
         try {
           // The callback only gets called for empty X-options, not empty
           // environment variables. This makes `-X foo` equivalent to `-X
@@ -193,8 +191,8 @@ void FlagProcessor::setFlags(PyObject* cmdline_args) {
 }
 
 // split long lines into many, but only cut on whitespace
-static std::string multi_line_split_(std::string src_string) {
-  vector<std::string> temp_result(1);
+static std::string multi_line_split_(const std::string& src_string) {
+  std::vector<std::string> temp_result(1);
 
   std::stringstream stm(src_string);
 
@@ -202,7 +200,7 @@ static std::string multi_line_split_(std::string src_string) {
   bool addIndent = false;
   while (stm >> word) {
     if (addIndent) {
-      temp_result.push_back(indent2);
+      temp_result.emplace_back(indent2);
     }
 
     if ((temp_result.back().size() + word.size()) <= line_length) {
@@ -248,12 +246,12 @@ std::string FlagProcessor::jitXOptionHelpMessage() {
           ? ""
           : fmt::format(
                 "; also {}", option->getFormatted_environment_variable());
-      ret += indent1 +
-          multi_line_split_(fmt::format(
-              "-X {}: {}{}\n",
-              option->getFormatted_cmdline_flag(),
-              option->flag_description,
-              fmt_env_var)) +
+      ret += indent1;
+      ret += multi_line_split_(fmt::format(
+                 "-X {}: {}{}\n",
+                 option->getFormatted_cmdline_flag(),
+                 option->flag_description,
+                 fmt_env_var)) +
           "\n";
     }
   }

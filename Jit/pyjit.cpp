@@ -384,7 +384,7 @@ FlagProcessor initFlagProcessor() {
       .addOption(
           "jit-log-file",
           "PYTHONJITLOGFILE",
-          [](std::string log_filename) { setJitLogFile(log_filename); },
+          [](const std::string& log_filename) { setJitLogFile(log_filename); },
           "write log entries to <filename> rather than stderr")
       .withFlagParamName("filename");
 
@@ -392,7 +392,7 @@ FlagProcessor initFlagProcessor() {
       .addOption(
           "jit-asm-syntax",
           "PYTHONJITASMSYNTAX",
-          [](std::string asm_syntax) { setASMSyntax(asm_syntax); },
+          [](const std::string& asm_syntax) { setASMSyntax(asm_syntax); },
           "set the assembly syntax used in log files")
       .withFlagParamName("intel|att")
       .withDebugMessageOverride("Sets the assembly syntax used in log files");
@@ -451,7 +451,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-dump-lir-no-origin",
       "PYTHONJITDUMPLIRNOORIGIN",
-      [](std::string) {
+      [](const std::string&) {
         g_dump_lir = 1;
         g_dump_lir_no_origin = 1;
       },
@@ -500,7 +500,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-gdb-support",
       "PYTHONJITGDBSUPPORT",
-      [](std::string) {
+      [](const std::string&) {
         g_debug = 1;
         getMutableConfig().gdb.supported = true;
       },
@@ -509,7 +509,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-gdb-write-elf",
       "PYTHONJITGDBWRITEELF",
-      [](std::string) {
+      [](const std::string&) {
         g_debug = 1;
         getMutableConfig().gdb.supported = true;
         getMutableConfig().gdb.write_elf_objects = true;
@@ -531,7 +531,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-disable-huge-pages",
       "PYTHONJITDISABLEHUGEPAGES",
-      [](std::string) { getMutableConfig().use_huge_pages = false; },
+      [](const std::string&) { getMutableConfig().use_huge_pages = false; },
       "disable huge page support");
 
   flag_processor.addOption(
@@ -550,7 +550,7 @@ FlagProcessor initFlagProcessor() {
       .addOption(
           "jit-list-file",
           "PYTHONJITLISTFILE",
-          [](std::string listFile) {
+          [](const std::string& listFile) {
             jl_fn = listFile;
             use_jit = 1;
           },
@@ -724,7 +724,9 @@ FlagProcessor initFlagProcessor() {
       .addOption(
           "jit-time",
           "",
-          [](std::string flag_value) { parseAndSetFuncList(flag_value); },
+          [](const std::string& flag_value) {
+            parseAndSetFuncList(flag_value);
+          },
           "Measure time taken in compilation phases and output summary to "
           "stderr or approperiate logfile. Only functions in comma separated "
           "<function_list> list will be included. Comma separated list may "
@@ -737,7 +739,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-dump-hir-passes-json",
       "PYTHONJITDUMPHIRPASSESJSON",
-      [](std::string json_output_dir) {
+      [](const std::string& json_output_dir) {
         g_dump_hir_passes_json = json_output_dir;
         int mkdir_result = ::mkdir(g_dump_hir_passes_json.c_str(), 0755);
         JIT_CHECK(

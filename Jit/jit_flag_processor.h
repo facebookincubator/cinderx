@@ -15,7 +15,7 @@ struct Option {
   // required
   std::string cmdline_flag;
   std::string environment_variable;
-  std::function<void(std::string)> callback_on_match;
+  std::function<void(const std::string&)> callback_on_match;
   std::string flag_description;
 
   // optional
@@ -31,7 +31,7 @@ struct Option {
   Option(
       const std::string cmdline_flag,
       const std::string environment_variable,
-      std::function<void(std::string)> callback_on_match,
+      std::function<void(const std::string&)> callback_on_match,
       const std::string flag_description) {
     this->cmdline_flag = cmdline_flag;
     this->environment_variable = environment_variable;
@@ -73,7 +73,7 @@ struct FlagProcessor {
   Option& addOption(
       const std::string cmdline_flag,
       const std::string environment_variable,
-      std::function<void(std::string)> callback_on_match,
+      std::function<void(const std::string&)> callback_on_match,
       const std::string flag_description);
   Option& addOption(
       const std::string cmdline_flag,
