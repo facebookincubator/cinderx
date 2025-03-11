@@ -162,6 +162,9 @@ except ImportError:
 
 CACHED_PROPERTY_IMPL_PREFIX = "_pystatic_cprop."
 ASYNC_CACHED_PROPERTY_IMPL_PREFIX = "_pystatic_async_cprop."
+EAGER_IMPORT_NAME: str = (
+    "EAGER_IMPORT_NAME" if sys.version_info >= (3, 12) else "IMPORT_NAME"
+)
 
 
 GenericTypeIndex = Tuple["Class", ...]
@@ -6175,7 +6178,7 @@ class Dataclass(Class):
         code_gen.emit_prepare_call()
         code_gen.emit("LOAD_CONST", 0)
         code_gen.emit("LOAD_CONST", ("recursive_repr",))
-        code_gen.emit("IMPORT_NAME", "reprlib")
+        code_gen.emit(EAGER_IMPORT_NAME, "reprlib")
         code_gen.emit("IMPORT_FROM", "recursive_repr")
         code_gen.emit_rotate_stack(2)
         code_gen.emit("POP_TOP")
@@ -6204,7 +6207,7 @@ class Dataclass(Class):
 
         code_gen.emit("LOAD_CONST", 0)
         code_gen.emit("LOAD_CONST", tuple(from_names))
-        code_gen.emit("IMPORT_NAME", "dataclasses")
+        code_gen.emit(EAGER_IMPORT_NAME, "dataclasses")
         for from_name, as_name in zip(from_names, as_names):
             code_gen.emit("IMPORT_FROM", from_name)
             code_gen.emit("STORE_NAME", as_name)
