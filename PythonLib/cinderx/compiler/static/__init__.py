@@ -71,6 +71,7 @@ from .types import (
     DataclassDecorator,
     DataclassField,
     DecoratedMethod,
+    EAGER_IMPORT_NAME,
     Function,
     FunctionContainer,
     GenericClass,
@@ -604,7 +605,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
             chkname = f"chk{name}"
             self.emit("LOAD_CONST", 0)
             self.emit("LOAD_CONST", (chkname,))
-            self.emit("IMPORT_NAME", "_static")
+            self.emit(EAGER_IMPORT_NAME, "_static")
             self.emit("IMPORT_FROM", chkname)
             self.emit_rotate_stack(2)
             self.emit("POP_TOP")
