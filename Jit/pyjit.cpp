@@ -2783,7 +2783,6 @@ void finalize() {
 
   finalizeInternedStrings();
 
-  Runtime::shutdown();
   Symbolizer::shutdown();
 
   g_aot_ctx.destroy();

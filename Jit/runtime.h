@@ -14,12 +14,14 @@
 #include "cinderx/Jit/fixed_type_profiler.h"
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/inline_cache.h"
+#include "cinderx/Jit/runtime_iface.h"
 #include "cinderx/Jit/slab_arena.h"
 #include "cinderx/Jit/symbolizer.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
 #include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+#include "cinderx/module_state.h"
 
 #include <optional>
 #include <string_view>
@@ -322,23 +324,20 @@ class Builtins {
 };
 
 // Runtime owns all metadata created by the JIT.
-class Runtime {
+class Runtime : public IRuntime {
  public:
   // Return the singleton Runtime, creating it first if necessary.
   static Runtime* get() {
-    if (s_runtime_ == nullptr) {
-      s_runtime_ = new Runtime();
-    }
-    return s_runtime_;
+    return static_cast<Runtime*>(cinderx::getModuleState()->runtime());
   }
 
   // Return the singleton Runtime, if it exists.
   static Runtime* getUnchecked() {
-    return s_runtime_;
+    if (auto moduleState = cinderx::getModuleState()) {
+      return static_cast<Runtime*>(moduleState->runtime());
+    }
+    return nullptr;
   }
-
-  // Destroy the singleton Runtime, performing any related cleanup as needed.
-  static void shutdown();
 
   template <typename... Args>
   CodeRuntime* allocateCodeRuntime(Args&&... args) {
@@ -495,8 +494,6 @@ class Runtime {
 #endif
 
  private:
-  static Runtime* s_runtime_;
-
   // Allocate all CodeRuntimes together so they can be mlocked() without
   // including any other data that happened to be on the same page.
   SlabArena<CodeRuntime> code_runtimes_;

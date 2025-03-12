@@ -107,17 +107,6 @@ std::optional<PyMethodDef*> Builtins::find(const std::string& name) const {
   return result->second;
 }
 
-Runtime* Runtime::s_runtime_{nullptr};
-
-void Runtime::shutdown() {
-  auto state = cinderx::getModuleState();
-  if (state != nullptr) {
-    state->cacheManager()->clear();
-  }
-  delete s_runtime_;
-  s_runtime_ = nullptr;
-}
-
 void Runtime::mlockProfilerDependencies() {
   for (auto& codert : code_runtimes_) {
     PyCodeObject* code = codert.frameState()->code().get();

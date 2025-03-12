@@ -5,6 +5,7 @@
 #include <Python.h>
 
 #include "cinderx/Jit/global_cache_iface.h"
+#include "cinderx/Jit/runtime_iface.h"
 
 #include <memory>
 
@@ -32,8 +33,17 @@ class ModuleState {
     cache_manager_ = std::unique_ptr<jit::IGlobalCacheManager>(cache_manager);
   }
 
+  jit::IRuntime* runtime() const {
+    return runtime_.get();
+  }
+
+  void setRuntime(jit::IRuntime* runtime) {
+    runtime_ = std::unique_ptr<jit::IRuntime>(runtime);
+  }
+
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
+  std::unique_ptr<jit::IRuntime> runtime_;
 };
 
 void setModuleState(ModuleState* state);

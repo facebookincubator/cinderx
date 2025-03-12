@@ -854,13 +854,15 @@ static int module_clear(PyObject* mod) {
   return state->clear();
 }
 
-void module_free(void*) {
-  cinderx::getModuleState()->shutdown();
-  cinderx::setModuleState(nullptr);
+void module_free(void* mod) {
   if (g_was_initialized) {
     g_was_initialized = false;
     JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
   }
+  cinderx::ModuleState* state =
+      (cinderx::ModuleState*)PyModule_GetState((PyObject*)mod);
+  state->shutdown();
+  cinderx::setModuleState(nullptr);
 }
 
 PyMethodDef _cinderx_methods[] = {
@@ -953,6 +955,14 @@ static int _cinderx_exec(PyObject* m) {
   }
 
   state->setCacheManager(cache_manager);
+
+  auto runtime = new (std::nothrow) jit::Runtime();
+  if (runtime == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+  state->setRuntime(runtime);
+
   cinderx::setModuleState(state);
 
   CiExc_StaticTypeError =

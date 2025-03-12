@@ -14,6 +14,7 @@ int ModuleState::clear() {
 
 void ModuleState::shutdown() {
   cache_manager_.reset();
+  runtime_.reset();
 }
 
 static ModuleState* s_cinderx_state;
