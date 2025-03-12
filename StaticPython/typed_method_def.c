@@ -121,8 +121,14 @@ int _PyClassLoader_CheckOneArg(
     char* name,
     int pos,
     const Ci_Py_SigElement* elem) {
-  if (!_PyClassLoader_CheckParamType(
-          self, arg, Ci_Py_SIG_TYPE_MASK(elem->se_argtype))) {
+  if (arg == Py_None && elem->se_argtype & Ci_Py_SIG_OPTIONAL) {
+    return 0;
+  }
+  _PyGenericTypeParam* param =
+      &((_PyGenericTypeInst*)Py_TYPE(self))
+           ->gti_inst[Ci_Py_SIG_TYPE_MASK(elem->se_argtype)];
+
+  if (!PyObject_TypeCheck(arg, param->gtp_type)) {
     _PyClassLoader_ArgErrorStr(name, pos + 1, elem, self);
     return -1;
   }

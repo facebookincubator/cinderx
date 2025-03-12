@@ -1909,7 +1909,7 @@ dict_get(CiChkDictObject* self, PyObject* const* args, Py_ssize_t nargs) {
   }
   default_value = args[1];
   if (_PyClassLoader_CheckOneArg(
-          (PyObject*)self, default_value, "get", 1, &Ci_Py_Sig_T1) < 0) {
+          (PyObject*)self, default_value, "get", 1, &Ci_Py_Sig_T1_Opt) < 0) {
     return NULL;
   }
 skip_optional:

@@ -77,6 +77,21 @@ class CheckedDictTests(StaticTestBase):
             self.assertEqual(f("abc"), "foo")
             self.assertEqual(f("bar"), None)
 
+    def test_generic_method_get_non_optional(self):
+        codestr = """
+            from __static__ import CheckedDict
+
+            from typing import Optional
+            MAP: CheckedDict[str, str] = CheckedDict[str, str]({'abc': 'foo'})
+            def f(x: str) -> Optional[str]:
+                return MAP.get(x)
+        """
+
+        with self.in_module(codestr) as mod:
+            f = mod.f
+            self.assertEqual(f("abc"), "foo")
+            self.assertEqual(f("bar"), None)
+
     def test_compile_nested_dict(self):
         codestr = """
             from __static__ import CheckedDict
