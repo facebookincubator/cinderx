@@ -18,15 +18,16 @@ import py_compile
 import struct
 import sys
 
-try:
-    from cinderx.compiler.pysourceloader import PySourceFileLoader
-    from cinderx.compiler.strict.loader import strict_compile as strict_compile_fn
-except ImportError:
-    PySourceFileLoader = None
-    strict_compile_fn = None
+import cinderx
+
+# pyre-ignore[16]: Module `cinderx` has no attribute `init`.
+cinderx.init()
 
 from functools import partial
 from pathlib import Path
+
+from cinderx.compiler.pysourceloader import PySourceFileLoader
+from cinderx.compiler.strict.loader import strict_compile as strict_compile_fn
 
 __all__ = ["compile_dir", "compile_file", "compile_path"]
 
@@ -631,8 +632,6 @@ def main():
     success = True
     loader_override = None
     if args.use_py_loader:
-        if PySourceFileLoader is None:
-            raise ImportError("CinderX compiler is required to use --python-loader")
         loader_override = PySourceFileLoader
         sys.setrecursionlimit(sys.getrecursionlimit() * 100)
     strict_compile = args.strict_compile
