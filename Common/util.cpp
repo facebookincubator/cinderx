@@ -156,8 +156,12 @@ PyObject* getVarnameTuple(PyCodeObject* code, int* idx) {
 }
 
 PyObject* getVarname(PyCodeObject* code, int idx) {
+#if PY_VERSION_HEX >= 0x030C0000
+  return PyTuple_GET_ITEM(code->co_localsplusnames, idx);
+#else
   PyObject* tuple = getVarnameTuple(code, &idx);
   return PyTuple_GET_ITEM(tuple, idx);
+#endif
 }
 
 std::string unicodeAsString(PyObject* str) {
