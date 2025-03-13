@@ -50,13 +50,14 @@ static inline PyObject* Ci_StrictModuleGetDictSetter(PyObject* mod) {
 }
 
 static PyObject* strictmodule_repr(Ci_StrictModuleObject* m) {
-#if PY_VERSION_HEX < 0x030C0000
   PyInterpreterState* interp = _PyInterpreterState_GET();
-
-  return PyObject_CallMethod(interp->importlib, "_module_repr", "O", m);
+  PyObject* importlib =
+#if PY_VERSION_HEX < 0x030C0000
+      interp->importlib;
 #else
-  return NULL;
+      interp->imports.importlib;
 #endif
+  return PyObject_CallMethod(importlib, "_module_repr", "O", m);
 }
 
 static int
