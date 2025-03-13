@@ -326,6 +326,9 @@ class Builtins {
 // Runtime owns all metadata created by the JIT.
 class Runtime : public IRuntime {
  public:
+  Runtime() {
+    zero_ = Ref<>::create(PyLong_FromLong(0));
+  }
   // Return the singleton Runtime, creating it first if necessary.
   static Runtime* get() {
     return static_cast<Runtime*>(cinderx::getModuleState()->runtime());
@@ -493,6 +496,10 @@ class Runtime : public IRuntime {
   }
 #endif
 
+  BorrowedRef<> zero() override {
+    return zero_.get();
+  }
+
  private:
   // Allocate all CodeRuntimes together so they can be mlocked() without
   // including any other data that happened to be on the same page.
@@ -522,6 +529,8 @@ class Runtime : public IRuntime {
 
   std::unordered_map<BorrowedRef<PyTypeObject>, std::vector<TypeDeoptPatcher*>>
       type_deopt_patchers_;
+
+  Ref<> zero_;
 };
 
 } // namespace jit

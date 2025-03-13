@@ -436,7 +436,7 @@ TEST(LIRTest, MemoryIndirectTests) {
 
 extern "C" uint64_t __Invoke_PyTuple_Check(PyObject* obj);
 
-TEST(LIRTest, CondBranchCheckTypeEmitsCallToSubclassCheck) {
+TEST_F(LIRGeneratorTest, CondBranchCheckTypeEmitsCallToSubclassCheck) {
   const char* hir = R"(
 fun foo {
   bb 0 {

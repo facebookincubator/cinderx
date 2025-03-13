@@ -11,6 +11,7 @@
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/module_state.h"
 
 #include <fmt/ostream.h>
 
@@ -427,10 +428,8 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
     Register* left = instr->GetOperand(0);
     env.emit<UseType>(left, ty);
     // Zero is canonical as a "small int" in CPython.
-    ThreadedCompileSerialize guard;
-    auto zero = Ref<>::steal(PyLong_FromLong(0));
-    Register* right = env.emit<LoadConst>(
-        Type::fromObject(env.func.env.addReference(std::move(zero))));
+    auto zero = cinderx::getModuleState()->runtime()->zero();
+    Register* right = env.emit<LoadConst>(Type::fromObject(zero));
     Register* result =
         env.emit<PrimitiveCompare>(PrimitiveCompareOp::kNotEqual, left, right);
     return env.emit<IntConvert>(result, TCInt32);
