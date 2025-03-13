@@ -10,6 +10,7 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/Jit/runtime.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/module_state.h"
 
@@ -602,6 +603,11 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
     }
     if (lhs_type <= TUnicodeExact && rhs_type <= TLongExact) { // Unicode subscr
       if (lhs_type.hasObjectSpec() && rhs_type.hasObjectSpec()) {
+        // This isn't safe in the multi-threaded compilation on 3.12 because
+        // we don't hold the GIL which is required for
+        // PyUnicode_InternInPlace.
+        RETURN_MULTITHREADED_COMPILE(nullptr);
+
         // Constant propagation
         Py_ssize_t idx = PyLong_AsSsize_t(rhs_type.objectSpec());
         if (idx == -1 && PyErr_Occurred()) {
@@ -703,6 +709,10 @@ Register* simplifyInPlaceOp(Env& env, const InPlaceOp* instr) {
 }
 
 Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
+  // This isn't safe in the multi-threaded compilation on 3.12 because
+  // we don't hold the GIL which is required for allocation.
+  RETURN_MULTITHREADED_COMPILE(nullptr);
+
   Type left_type = instr->left()->type();
   Type right_type = instr->right()->type();
   if (left_type.hasObjectSpec() && right_type.hasObjectSpec()) {
@@ -1020,6 +1030,10 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
 Register* simplifyLoadAttrInstanceReceiver(
     Env& env,
     const LoadAttr* load_attr) {
+  // This isn't safe in the multi-threaded compilation on 3.12 because we
+  // don't hold the GIL which is required for typeLookupSafe.
+  RETURN_MULTITHREADED_COMPILE(nullptr);
+
   Register* receiver = load_attr->GetOperand(0);
   Type type = receiver->type();
   BorrowedRef<PyTypeObject> py_type{type.runtimePyType()};

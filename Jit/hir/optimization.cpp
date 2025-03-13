@@ -18,6 +18,7 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/jit_rt.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
@@ -1152,6 +1153,10 @@ struct MethodInvoke {
 // Returns true if LoadMethod/CallMethod/GetSecondOutput were removed.
 // Returns false if they could not be removed.
 static bool tryEliminateLoadMethod(Function& irfunc, MethodInvoke& invoke) {
+  // This isn't safe in the multi-threaded compilation on 3.12 because we
+  // don't hold the GIL which is required for PyType_Lookup.
+  RETURN_MULTITHREADED_COMPILE(false);
+
   ThreadedCompileSerialize guard;
   PyCodeObject* code = invoke.load_method->frameState()->code;
   PyObject* names = code->co_names;

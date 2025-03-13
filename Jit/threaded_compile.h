@@ -12,6 +12,14 @@
 
 namespace jit {
 
+// Used to punt out of optimizations that require holding the GIL.
+#define RETURN_MULTITHREADED_COMPILE(RETVAL)            \
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {         \
+    if (getThreadedCompileContext().compileRunning()) { \
+      return RETVAL;                                    \
+    }                                                   \
+  }
+
 // Threaded-compile state for the whole process.
 class ThreadedCompileContext {
  public:
