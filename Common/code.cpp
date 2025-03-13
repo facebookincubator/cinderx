@@ -8,6 +8,8 @@
 
 #if PY_VERSION_HEX >= 0x030C0000
 
+#include "cpython/code.h"
+
 // Needed to tell pycore_opcode.h to define the _PyOpcode* arrays.
 #define NEED_OPCODE_TABLES
 
@@ -32,15 +34,25 @@ Py_ssize_t code_extra_index = -1;
 extern "C" {
 
 _Py_CODEUNIT* codeUnit(PyCodeObject* code) {
+#if PY_VERSION_HEX >= 0x030C0000
+  return _PyCode_CODE(code);
+#else
   PyObject* bytes_obj = PyCode_GetCode(code);
   JIT_DCHECK(
       PyBytes_CheckExact(bytes_obj),
       "Code object must have its instructions stored as a byte string");
   return (_Py_CODEUNIT*)PyBytes_AS_STRING(PyCode_GetCode(code));
+#endif
 }
 
 size_t countIndices(PyCodeObject* code) {
+#if PY_VERSION_HEX >= 0x030C0000
+  // PyCode_GetCode can allocate to create a copy of the de-opted code
+  // which we don't need just to determine the number of indices.
+  return _PyCode_NBYTES(code) / sizeof(_Py_CODEUNIT);
+#else
   return PyBytes_GET_SIZE(PyCode_GetCode(code)) / sizeof(_Py_CODEUNIT);
+#endif
 }
 
 int unspecialize(int opcode) {

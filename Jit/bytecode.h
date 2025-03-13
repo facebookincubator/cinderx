@@ -165,22 +165,18 @@ class BytecodeInstructionBlock {
       }
     }
 
-    _Py_CODEUNIT* currentInstr() const {
-      return codeUnit(code_) + idx_.value();
-    }
-
     int currentOpcode() const {
       JIT_DCHECK(
           !atEnd(),
           "Trying to access bytecode instruction past end of code object");
-      return _Py_OPCODE(*currentInstr());
+      return unspecialize(uninstrument(code_, idx_.value()));
     }
 
     int currentOparg() const {
       JIT_DCHECK(
           !atEnd(),
           "Trying to access bytecode instruction past end of code object");
-      return _Py_OPARG(*currentInstr());
+      return _Py_OPARG(codeUnit(code_)[idx_.value()]);
     }
 
     // Not stored as a Ref because that would make Iterator non-copyable.

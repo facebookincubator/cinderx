@@ -113,7 +113,13 @@ BCOffset BytecodeInstruction::nextInstrOffset() const {
 }
 
 _Py_CODEUNIT BytecodeInstruction::word() const {
+#if PY_VERSION_HEX >= 0x030C0000
+  int opcode = unspecialize(uninstrument(code_, index().value()));
+  int oparg = _Py_OPARG(codeUnit(code_)[index().value()]);
+  return _Py_MAKE_CODEUNIT(opcode, oparg);
+#else
   return codeUnit(code_)[index().value()];
+#endif
 }
 
 bool BytecodeInstruction::isAbsoluteControlFlow() const {
