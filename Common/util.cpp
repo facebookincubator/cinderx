@@ -4,11 +4,16 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030C0000
+#include "internal/pycore_typeobject.h" // @donotremove
+#endif
+
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <zlib.h>
 
@@ -179,6 +184,22 @@ std::string typeFullname(PyTypeObject* type) {
   return type->tp_name;
 }
 
+#if PY_VERSION_HEX >= 0x030C0000
+PyObject* getBorrowedTypeDictSafe(PyTypeObject* self) {
+  if (getThreadedCompileContext().compileRunning() &&
+      self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
+    PyInterpreterState* interp = getThreadedCompileContext().interpreter();
+    static_builtin_state* state = Cix_PyStaticType_GetState(interp, self);
+    return state->tp_dict;
+  }
+  return getBorrowedTypeDict(self);
+}
+#else
+PyObject* getBorrowedTypeDictSafe(PyTypeObject* self) {
+  return getBorrowedTypeDict(self);
+}
+#endif
+
 BorrowedRef<> typeLookupSafe(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name) {
@@ -191,17 +212,20 @@ BorrowedRef<> typeLookupSafe(
   BorrowedRef<PyTupleObject> mro{type->tp_mro};
   for (size_t i = 0, n = PyTuple_GET_SIZE(mro); i < n; ++i) {
     BorrowedRef<PyTypeObject> base_ty{PyTuple_GET_ITEM(mro, i)};
+    PyObject* dict = getBorrowedTypeDictSafe(base_ty);
     if (!PyType_HasFeature(base_ty, Py_TPFLAGS_READY) ||
-        !hasOnlyUnicodeKeys(getBorrowedTypeDict(base_ty))) {
+        !hasOnlyUnicodeKeys(dict)) {
       // Abort the whole search if any base class dict is poorly-behaved
       // (before we find the name); it could contain the key we're looking for.
       return nullptr;
     }
-    if (BorrowedRef<> value{
-            PyDict_GetItemWithError(getBorrowedTypeDict(base_ty), name)}) {
+    if (BorrowedRef<> value{PyDict_GetItemWithError(dict, name)}) {
       return value;
     }
-    JIT_CHECK(!PyErr_Occurred(), "Thread-unsafe exception during type lookup");
+    if constexpr (PY_VERSION_HEX < 0x030C0000) {
+      JIT_CHECK(
+          !PyErr_Occurred(), "Thread-unsafe exception during type lookup");
+    }
   }
   return nullptr;
 }

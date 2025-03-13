@@ -1030,10 +1030,6 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
 Register* simplifyLoadAttrInstanceReceiver(
     Env& env,
     const LoadAttr* load_attr) {
-  // This isn't safe in the multi-threaded compilation on 3.12 because we
-  // don't hold the GIL which is required for typeLookupSafe.
-  RETURN_MULTITHREADED_COMPILE(nullptr);
-
   Register* receiver = load_attr->GetOperand(0);
   Type type = receiver->type();
   BorrowedRef<PyTypeObject> py_type{type.runtimePyType()};
@@ -1049,6 +1045,7 @@ Register* simplifyLoadAttrInstanceReceiver(
       return nullptr;
     }
   }
+
   BorrowedRef<PyUnicodeObject> attr_name{load_attr->name()};
   if (!PyUnicode_CheckExact(attr_name)) {
     return nullptr;

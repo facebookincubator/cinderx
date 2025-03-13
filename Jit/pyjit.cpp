@@ -1046,6 +1046,9 @@ void multithread_compile_units_preloaded(
   }
 
   auto retry_list = getThreadedCompileContext().endCompile();
+
+  Runtime::get()->watchPendingTypes();
+
   JIT_DLOG(
       "multithread_compile_units_preloaded retrying {} units serially",
       retry_list.size());

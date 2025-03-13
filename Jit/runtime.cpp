@@ -265,8 +265,23 @@ void Runtime::watchType(
     BorrowedRef<PyTypeObject> type,
     TypeDeoptPatcher* patcher) {
   ThreadedCompileSerialize guard;
-  Ci_Watchers_WatchType(type);
   type_deopt_patchers_[type].emplace_back(patcher);
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    // In 3.12 we require the interpreter state in order to watch types
+    if (getThreadedCompileContext().compileRunning()) {
+      pending_watches_.emplace(type);
+      return;
+    }
+  }
+
+  Ci_Watchers_WatchType(type);
+}
+
+void Runtime::watchPendingTypes() {
+  for (auto& type : pending_watches_) {
+    Ci_Watchers_WatchType(type);
+  }
+  pending_watches_.clear();
 }
 
 void Runtime::notifyTypeModified(

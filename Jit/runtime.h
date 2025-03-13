@@ -500,6 +500,8 @@ class Runtime : public IRuntime {
     return zero_.get();
   }
 
+  void watchPendingTypes();
+
  private:
   // Allocate all CodeRuntimes together so they can be mlocked() without
   // including any other data that happened to be on the same page.
@@ -531,6 +533,7 @@ class Runtime : public IRuntime {
       type_deopt_patchers_;
 
   Ref<> zero_;
+  std::unordered_set<BorrowedRef<PyTypeObject>> pending_watches_;
 };
 
 } // namespace jit

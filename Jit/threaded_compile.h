@@ -32,6 +32,7 @@ class ThreadedCompileContext {
     assert(!compile_running_);
     work_list_ = std::move(work_list);
     compile_running_ = true;
+    interpreter_ = PyInterpreterState_Get();
   }
 
   // Stop the current iteration of the multi-threaded compile, and return the
@@ -72,6 +73,10 @@ class ThreadedCompileContext {
   // shouldn't return false erroneously.
   bool canAccessSharedData() const {
     return !compileRunning() || holder() == std::this_thread::get_id();
+  }
+
+  PyInterpreterState* interpreter() const {
+    return interpreter_;
   }
 
  private:
@@ -150,6 +155,9 @@ class ThreadedCompileContext {
 
   // List of translation units that have failed to compile.
   WorkList retry_list_;
+
+  // The interpreter state that kicked off the multi-threaded compile.
+  PyInterpreterState* interpreter_;
 };
 
 // Get a reference to the global ThreadedCompileContext.
