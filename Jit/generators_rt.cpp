@@ -13,6 +13,7 @@
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/runtime.h"
+#include "cinderx/module_state.h"
 
 #include <string_view>
 
@@ -80,7 +81,7 @@ void raise_already_running_exception(JitGenObject* jit_gen) {
   // If the executor is running we cannot deopt so have to replicate the
   // errors from CPython here.
   const char* msg = "generator already executing";
-  if (Py_TYPE(jit_gen) == &JitCoro_Type) {
+  if (Py_TYPE(jit_gen) == cinderx::getModuleState()->coroType()) {
     msg = "coroutine already executing";
   }
   PyErr_SetString(PyExc_ValueError, msg);
@@ -448,10 +449,6 @@ static PyMethodDef jitgen_methods[] = {
     {} /* Sentinel */
 };
 
-static PyAsyncMethods jitgen_as_async{
-    .am_send = (sendfunc)jitgen_am_send,
-};
-
 // Null fields are copied from the base generator type by
 // init_jit_genobject_type(). The order must match the one in genobject.c
 static PyGetSetDef jitgen_getsetlist[] = {
@@ -509,7 +506,8 @@ static Ci_AsyncMethodsWithExtra jitcoro_as_async = {
 };
 
 bool jitgen_is_coroutine(PyObject* o) {
-  if (Py_TYPE(o) == &JitGen_Type || PyGen_CheckExact(o)) {
+  if (Py_TYPE(o) == cinderx::getModuleState()->genType() ||
+      PyGen_CheckExact(o)) {
     // Do not use PyGen_GetCode() as this asserts on PyGen_Check().
     PyCodeObject* code = reinterpret_cast<_PyInterpreterFrame*>(
                              reinterpret_cast<PyGenObject*>(o)->gi_iframe)
@@ -523,124 +521,64 @@ bool jitgen_is_coroutine(PyObject* o) {
 
 } // namespace
 
-PyTypeObject JitGen_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "generator", /* tp_name */
+PyType_Slot gen_slots[] = {
+    {Py_tp_dealloc, reinterpret_cast<void*>(jitgen_dealloc)},
+    {Py_tp_traverse, reinterpret_cast<void*>(jitgen_traverse)},
+    {Py_tp_finalize, reinterpret_cast<void*>(jitgen_finalize)},
+    {Py_tp_iter, reinterpret_cast<void*>(PyObject_SelfIter)},
+    {Py_tp_iternext, reinterpret_cast<void*>(jitgen_iternext)},
+    {Py_tp_methods, jitgen_methods},
+    {Py_tp_getset, jitgen_getsetlist},
+    {Py_am_send, reinterpret_cast<void*>(jitgen_am_send)},
+    // gi_weakreflist
+    {0, nullptr},
+};
+
+PyType_Spec JitGen_Spec = {
+    .name = "cinderx.generator",
     // These structs are variable-sized so we use offsetof(). This is inherited
     // from genobject.c. We store our pointer to JIT data in an additional
     // variable slot at the end of the object.
-    offsetof(PyGenObject, gi_iframe) +
-        offsetof(_PyInterpreterFrame, localsplus) +
-        sizeof(GenDataFooter*), /* tp_basicsize */
-    sizeof(PyObject*), /* tp_itemsize */
-    /* methods */
-    (destructor)jitgen_dealloc, /* tp_dealloc */
-    0, /* tp_vectorcall_offset */
-    nullptr, /* tp_getattr */
-    nullptr, /* tp_setattr */
-    &jitgen_as_async, /* tp_as_async */
-    nullptr, /* tp_repr - filled in by init_jit_genobject_type() */
-    nullptr, /* tp_as_number */
-    nullptr, /* tp_as_sequence */
-    nullptr, /* tp_as_mapping */
-    nullptr, /* tp_hash */
-    nullptr, /* tp_call */
-    nullptr, /* tp_str */
-    PyObject_GenericGetAttr, /* tp_getattro */
-    nullptr, /* tp_setattro */
-    nullptr, /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /* tp_flags */
-    nullptr, /* tp_doc */
-    (traverseproc)jitgen_traverse, /* tp_traverse */
-    nullptr, /* tp_clear */
-    nullptr, /* tp_richcompare */
-    offsetof(PyGenObject, gi_weakreflist), /* tp_weaklistoffset */
-    PyObject_SelfIter, /* tp_iter */
-    (iternextfunc)jitgen_iternext, /* tp_iternext */
-    jitgen_methods, /* tp_methods */
-    nullptr, /* tp_members */
-    jitgen_getsetlist, /* tp_getset */
-    nullptr, /* tp_base */
-    nullptr, /* tp_dict */
-    nullptr, /* tp_descr_get */
-    nullptr, /* tp_descr_set */
-    0, /* tp_dictoffset */
-    nullptr, /* tp_init */
-    nullptr, /* tp_alloc */
-    nullptr, /* tp_new */
-    nullptr, /* tp_free */
-    nullptr, /* tp_is_gc */
-    nullptr, /* tp_bases */
-    nullptr, /* tp_mro */
-    nullptr, /* tp_cache */
-    nullptr, /* tp_subclasses */
-    nullptr, /* tp_weaklist */
-    nullptr, /* tp_del */
-    0, /* tp_version_tag */
-    jitgen_finalize, /* tp_finalize */
+    .basicsize = offsetof(PyGenObject, gi_iframe) +
+        offsetof(_PyInterpreterFrame, localsplus) + sizeof(GenDataFooter*),
+    .itemsize = sizeof(PyObject*),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = gen_slots,
 };
 
 static_assert(sizeof(PyGenObject) == sizeof(PyCoroObject));
-PyTypeObject JitCoro_Type = {
-    PyVarObject_HEAD_INIT(&PyType_Type, 0) "coroutine", /* tp_name */
+
+PyType_Slot coro_slots[] = {
+    {Py_tp_dealloc, reinterpret_cast<void*>(jitgen_dealloc)},
+    {Py_tp_traverse, reinterpret_cast<void*>(jitgen_traverse)},
+    {Py_tp_finalize, reinterpret_cast<void*>(jitgen_finalize)},
+    {Py_tp_iter, reinterpret_cast<void*>(PyObject_SelfIter)},
+    {Py_tp_methods, jitcoro_methods},
+    {Py_tp_members, jitcoro_memberlist},
+    {Py_tp_getset, jitcoro_getsetlist},
+    {Py_am_await, reinterpret_cast<void*>(jitcoro_await)},
+    {Py_am_send, reinterpret_cast<void*>(jitgen_am_send)},
+    {0, nullptr},
+};
+
+PyType_Spec JitCoro_Spec = {
+    .name = "cinderx.coroutine",
     // These structs are variable-sized so we use offsetof(). This is inherited
     // from genobject.c. We store our pointer to JIT data in an additional
     // variable slot at the end of the object.
-    offsetof(PyGenObject, gi_iframe) +
-        offsetof(_PyInterpreterFrame, localsplus) +
-        sizeof(GenDataFooter*), /* tp_basicsize */
-    sizeof(PyObject*), /* tp_itemsize */
-    /* methods */
-    (destructor)jitgen_dealloc, /* tp_dealloc */
-    0, /* tp_vectorcall_offset */
-    nullptr, /* tp_getattr */
-    nullptr, /* tp_setattr */
-    &jitcoro_as_async.ame_async_methods, /* tp_as_async */
-    nullptr, /* tp_repr - filled in by init_jit_genobject_type() */
-    nullptr, /* tp_as_number */
-    nullptr, /* tp_as_sequence */
-    nullptr, /* tp_as_mapping */
-    nullptr, /* tp_hash */
-    nullptr, /* tp_call */
-    nullptr, /* tp_str */
-    PyObject_GenericGetAttr, /* tp_getattro */
-    nullptr, /* tp_setattro */
-    nullptr, /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
-        Ci_TPFLAGS_HAVE_AM_EXTRA, /* tp_flags */
-    nullptr, /* tp_doc */
-    (traverseproc)jitgen_traverse, /* tp_traverse */
-    nullptr, /* tp_clear */
-    nullptr, /* tp_richcompare */
-    offsetof(PyGenObject, gi_weakreflist), /* tp_weaklistoffset */
-    nullptr, /* tp_iter */
-    nullptr, /* tp_iternext */
-    jitcoro_methods, /* tp_methods */
-    jitcoro_memberlist, /* tp_members */
-    jitcoro_getsetlist, /* tp_getset */
-    nullptr, /* tp_base */
-    nullptr, /* tp_dict */
-    nullptr, /* tp_descr_get */
-    nullptr, /* tp_descr_set */
-    0, /* tp_dictoffset */
-    nullptr, /* tp_init */
-    nullptr, /* tp_alloc */
-    nullptr, /* tp_new */
-    nullptr, /* tp_free */
-    nullptr, /* tp_is_gc */
-    nullptr, /* tp_bases */
-    nullptr, /* tp_mro */
-    nullptr, /* tp_cache */
-    nullptr, /* tp_subclasses */
-    nullptr, /* tp_weaklist */
-    nullptr, /* tp_del */
-    0, /* tp_version_tag */
-    jitgen_finalize, /* tp_finalize */
+    .basicsize = offsetof(PyGenObject, gi_iframe) +
+        offsetof(_PyInterpreterFrame, localsplus) + sizeof(GenDataFooter*),
+    .itemsize = sizeof(PyObject*),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+        Ci_TPFLAGS_HAVE_AM_EXTRA | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = coro_slots,
 };
 
 void deopt_jit_gen_object_only(JitGenObject* gen) {
   jitgen_data_free(gen->genDataFooter());
-  PyTypeObject* type =
-      Py_TYPE(gen) == &JitGen_Type ? &PyGen_Type : &PyCoro_Type;
+  PyTypeObject* type = Py_TYPE(gen) == cinderx::getModuleState()->genType()
+      ? &PyGen_Type
+      : &PyCoro_Type;
   Py_SET_TYPE(reinterpret_cast<PyObject*>(gen), type);
 }
 
@@ -685,8 +623,19 @@ bool deopt_jit_gen(PyObject* obj) {
 void init_jit_genobject_type() {
   using namespace std::literals;
   // Copy base type functions
-  JitGen_Type.tp_repr = PyGen_Type.tp_repr;
-  JitCoro_Type.tp_repr = PyCoro_Type.tp_repr;
+  BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->genType();
+  BorrowedRef<PyTypeObject> coro_type = cinderx::getModuleState()->coroType();
+
+  gen_type->tp_repr = PyGen_Type.tp_repr;
+  coro_type->tp_repr = PyCoro_Type.tp_repr;
+
+  // Fields that can't be set via PyType_Spec
+  gen_type->tp_dictoffset = 0;
+  gen_type->tp_weaklistoffset = offsetof(PyGenObject, gi_weakreflist);
+
+  coro_type->tp_dictoffset = 0;
+  coro_type->tp_weaklistoffset = offsetof(PyGenObject, gi_weakreflist);
+  coro_type->tp_as_async = &jitcoro_as_async.ame_async_methods;
 
   // Copy globally cached methods
   for (PyMethodDef* gen_methods = PyGen_Type.tp_methods;
@@ -731,8 +680,8 @@ void init_jit_genobject_type() {
     }
     JIT_CHECK(target[i].name == nullptr, "Extra name: {}", target[i].name);
   };
-  copy_getset(PyGen_Type.tp_getset, JitGen_Type.tp_getset);
-  copy_getset(PyCoro_Type.tp_getset, JitCoro_Type.tp_getset);
+  copy_getset(PyGen_Type.tp_getset, gen_type->tp_getset);
+  copy_getset(PyCoro_Type.tp_getset, coro_type->tp_getset);
 
   // Copy methods
   auto copy_methods = [](PyMethodDef* src, PyMethodDef* target) {
@@ -757,8 +706,8 @@ void init_jit_genobject_type() {
     JIT_CHECK(
         target[i].ml_name == nullptr, "Extra name: {}", target[i].ml_name);
   };
-  copy_methods(PyGen_Type.tp_methods, JitGen_Type.tp_methods);
-  copy_methods(PyCoro_Type.tp_methods, JitCoro_Type.tp_methods);
+  copy_methods(PyGen_Type.tp_methods, gen_type->tp_methods);
+  copy_methods(PyCoro_Type.tp_methods, coro_type->tp_methods);
 
   JIT_CHECK(
       PyCoro_Type.tp_flags & Ci_TPFLAGS_HAVE_AM_EXTRA,
@@ -771,11 +720,11 @@ void init_jit_genobject_type() {
 } // namespace jit
 
 int JitGen_CheckExact(PyObject* o) {
-  return Py_TYPE(o) == &jit::JitGen_Type;
+  return Py_TYPE(o) == cinderx::getModuleState()->genType();
 }
 
 int JitCoro_CheckExact(PyObject* o) {
-  return Py_TYPE(o) == &jit::JitCoro_Type;
+  return Py_TYPE(o) == cinderx::getModuleState()->coroType();
 }
 
 // This is a slightly modified version of _PyCoro_GetAwaitableIter. It

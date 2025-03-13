@@ -41,9 +41,26 @@ class ModuleState {
     runtime_ = std::unique_ptr<jit::IRuntime>(runtime);
   }
 
+  void setCoroType(BorrowedRef<PyTypeObject> coro_type) {
+    coro_type_ = Ref<PyTypeObject>::create(coro_type);
+  }
+
+  BorrowedRef<PyTypeObject> coroType() const {
+    return coro_type_;
+  }
+
+  void setGenType(BorrowedRef<PyTypeObject> gen_type) {
+    gen_type_ = Ref<PyTypeObject>::create(gen_type);
+  }
+
+  BorrowedRef<PyTypeObject> genType() const {
+    return gen_type_;
+  }
+
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::IRuntime> runtime_;
+  Ref<PyTypeObject> coro_type_, gen_type_;
 };
 
 void setModuleState(ModuleState* state);

@@ -703,10 +703,10 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   int slots = _PyFrame_NumSlotsForCodeObject(co) + 1;
   bool is_coro = !!(co->co_flags & CO_COROUTINE);
   jit::JitGenObject* gen = is_coro
-      ? jit::JitGenObject::cast(
-            PyObject_GC_NewVar(PyCoroObject, &jit::JitCoro_Type, slots))
-      : jit::JitGenObject::cast(
-            PyObject_GC_NewVar(PyGenObject, &jit::JitGen_Type, slots));
+      ? jit::JitGenObject::cast(PyObject_GC_NewVar(
+            PyCoroObject, cinderx::getModuleState()->coroType(), slots))
+      : jit::JitGenObject::cast(PyObject_GC_NewVar(
+            PyGenObject, cinderx::getModuleState()->genType(), slots));
   // See comment in allocate_and_link_interpreter_frame about failure.
   JIT_CHECK(gen != nullptr, "Failed to allocate JitGenObject");
 

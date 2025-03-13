@@ -10,6 +10,8 @@
 #endif
 
 #ifdef __cplusplus
+
+#include "cinderx/module_state.h" // @donotremove
 namespace jit {
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -22,13 +24,17 @@ int JitGen_CheckAny(PyObjectT*) {
 #else
 
 struct GenDataFooter;
-extern PyTypeObject JitGen_Type;
-extern PyTypeObject JitCoro_Type;
+extern PyType_Spec JitGen_Spec;
+extern PyType_Spec JitCoro_Spec;
 
 template <typename PyObjectT>
 int JitGen_CheckAny(PyObjectT* op) {
-  return Py_IS_TYPE(reinterpret_cast<PyObject*>(op), &JitGen_Type) ||
-      Py_IS_TYPE(reinterpret_cast<PyObject*>(op), &JitCoro_Type);
+  return Py_IS_TYPE(
+             reinterpret_cast<PyObject*>(op),
+             cinderx::getModuleState()->genType()) ||
+      Py_IS_TYPE(
+             reinterpret_cast<PyObject*>(op),
+             cinderx::getModuleState()->coroType());
 }
 
 struct JitGenObject : PyGenObject {
@@ -48,11 +54,12 @@ struct JitGenObject : PyGenObject {
     int python_frame_data_bytes =
         _PyFrame_NumSlotsForCodeObject(
             reinterpret_cast<_PyInterpreterFrame*>(gi_iframe)->f_code) *
-        jit::JitGen_Type.tp_itemsize;
+        cinderx::getModuleState()->genType()->tp_itemsize;
     // A *pointer* to JIT data comes after all the other data in the default
     // generator object.
     return reinterpret_cast<jit::GenDataFooter**>(
-        reinterpret_cast<uintptr_t>(this) + jit::JitGen_Type.tp_basicsize +
+        reinterpret_cast<uintptr_t>(this) +
+        cinderx::getModuleState()->genType()->tp_basicsize +
         python_frame_data_bytes);
   }
 

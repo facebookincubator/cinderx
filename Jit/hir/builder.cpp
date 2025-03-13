@@ -3576,7 +3576,7 @@ void HIRBuilder::emitGetYieldFromIter(CFG& cfg, TranslationContext& tc) {
   BasicBlock* check_coro_block = cfg.AllocateBlock();
   tc.emit<CondBranchCheckType>(
       iter_in,
-      Type::fromTypeExact(&JitCoro_Type),
+      Type::fromTypeExact(cinderx::getModuleState()->coroType()),
       is_coro_block,
       check_coro_block);
 
@@ -4059,7 +4059,7 @@ void HIRBuilder::emitGetAwaitable(
   BasicBlock* block_check_coro = cfg.AllocateBlock();
   tc.emit<CondBranchCheckType>(
       iter,
-      Type::fromTypeExact(&JitCoro_Type),
+      Type::fromTypeExact(cinderx::getModuleState()->coroType()),
       block_assert_not_awaited_coro,
       block_check_coro);
   tc.block = block_check_coro;

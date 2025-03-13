@@ -956,6 +956,28 @@ static int _cinderx_exec(PyObject* m) {
 
   state->setCacheManager(cache_manager);
 
+#if PY_VERSION_HEX >= 0x030C0000
+  PyTypeObject* gen_type = (PyTypeObject*)PyType_FromSpec(&jit::JitGen_Spec);
+  if (gen_type == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+  state->setGenType(gen_type);
+  Py_DECREF(gen_type);
+
+  PyTypeObject* coro_type = (PyTypeObject*)PyType_FromSpec(&jit::JitCoro_Spec);
+  if (coro_type == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+  state->setCoroType(coro_type);
+  Py_DECREF(coro_type);
+#else
+  state->setCoroType(&PyCoro_Type);
+  state->setGenType(&PyGen_Type);
+
+#endif
+
   auto runtime = new (std::nothrow) jit::Runtime();
   if (runtime == nullptr) {
     state->shutdown();
