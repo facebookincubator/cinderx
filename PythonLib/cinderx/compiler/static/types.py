@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# @lint-ignore-ide BLACK
+
 # pyre-strict
 
 from __future__ import annotations
