@@ -20,7 +20,7 @@ from cinderx.compiler.strict.compiler import Compiler
 from cinderx.compiler.strict.loader import StrictModule
 from cinderx.compiler.strict.runtime import set_freeze_enabled
 
-from test_cinderx.test_compiler.common import CompilerTest
+from ..common import CompilerTest
 
 
 class StrictTestBase(CompilerTest):

@@ -12,7 +12,7 @@ import sys
 import tempfile
 
 import textwrap
-from cinder import cinder_set_warn_handler, get_warn_handler, StrictModule
+
 from contextlib import contextmanager
 from importlib.machinery import SOURCE_SUFFIXES, SourceFileLoader
 from importlib.util import cache_from_source
@@ -58,6 +58,17 @@ from .sandbox import (
     restore_strict_modules,
     restore_sys_modules,
 )
+
+
+try:
+    from cinder import cinder_set_warn_handler, get_warn_handler
+except ImportError:
+    def cinder_set_warn_handler(func):
+        pass
+
+    def get_warn_handler():
+        return None
+
 
 if TYPE_CHECKING:
     # Code that dynamically passes around module objects is hard to type, since
