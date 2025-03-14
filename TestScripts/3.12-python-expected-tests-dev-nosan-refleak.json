@@ -501,6 +501,7 @@
     "test_cinderx.test_jit_coroutines",
     "test_cinderx.test_jit_count_calls",
     "test_cinderx.test_jit_disable",
+    "test_cinderx.test_jit_exception",
     "test_cinderx.test_jit_frame",
     "test_cinderx.test_jit_generators",
     "test_cinderx.test_jitlist",
