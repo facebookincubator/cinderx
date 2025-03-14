@@ -45,8 +45,6 @@ from cinderx.static import (
     TYPED_UINT64,
     TYPED_UINT8,
 )
-# pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
-from test.support import maybe_get_event_loop_policy
 
 from ..common import CompilerTest
 
@@ -579,9 +577,13 @@ __slot_types__ = {slot_types!r}
     def setUp(self):
         # ensure clean classloader/vtable slate for all tests
         cinderx.clear_classloader_caches()
-        # ensure our async tests don't change the event loop policy
-        policy = maybe_get_event_loop_policy()
-        self.addCleanup(lambda: asyncio.set_event_loop_policy(policy))
+
+        # Ensure our async tests don't change the event loop policy.  The default should
+        # currently be None, as this is the setUp() call which runs early in the test
+        # process.  We can't explicitly check though, as asyncio.get_event_loop_policy()
+        # will initialize a proper default policy object. This leads to the test
+        # framework complaining about environment changes.
+        self.addCleanup(lambda: asyncio.set_event_loop_policy(None))
 
     def subTest(self, **kwargs):
         cinderx.clear_classloader_caches()
