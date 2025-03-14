@@ -26,12 +26,19 @@ int immortalize_object(PyObject* obj, PyObject* /* args */) {
 
   if (PyCode_Check(obj)) {
     PyCodeObject* code = reinterpret_cast<PyCodeObject*>(obj);
+#if PY_VERSION_HEX < 0x030B0000
+    // In 3.11 these changed to have the bytes embedded in the code object and
+    // the names in a unified tuple
     IMMORTALIZE(PyCode_GetCode(code));
-    IMMORTALIZE(code->co_consts);
-    IMMORTALIZE(code->co_names);
     IMMORTALIZE(PyCode_GetVarnames(code));
     IMMORTALIZE(PyCode_GetFreevars(code));
     IMMORTALIZE(PyCode_GetCellvars(code));
+#else
+    IMMORTALIZE(code->co_localspluskinds);
+    IMMORTALIZE(code->co_localsplusnames);
+#endif
+    IMMORTALIZE(code->co_consts);
+    IMMORTALIZE(code->co_names);
     IMMORTALIZE(code->co_filename);
     IMMORTALIZE(code->co_name);
     IMMORTALIZE(code->co_linetable);
