@@ -641,7 +641,7 @@ fun jittestmodule:test {
         Locals<1> v21
       }
     }
-    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v27
+    CondBranchCheckType<8, 10, ObjectUser[cinderx.coroutine:Exact]> v27
   }
 
   bb 10 (preds 6) {
