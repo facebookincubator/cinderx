@@ -957,7 +957,9 @@ dummy_func(
             int is_classmethod = _PyClassLoader_IsClassMethodDescr(value);
 
             Py_ssize_t slot = _PyClassLoader_ResolveMethod(target);
-            ERROR_IF(slot == -1, error);
+            if (slot == -1) {
+                goto error;
+            }
 
 #if ADAPTIVE
             assert(*(next_instr - 2) == EXTENDED_ARG);
@@ -985,6 +987,9 @@ dummy_func(
             assert(!PyErr_Occurred());
             StaticMethodInfo res =
                 _PyClassLoader_LoadStaticMethod(vtable, slot, self);
+            if (res.lmr_func == NULL) {
+                goto error;
+            }
 
             func = res.lmr_func;
         }
