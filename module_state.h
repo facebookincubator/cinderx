@@ -6,6 +6,7 @@
 
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/runtime_iface.h"
+#include "cinderx/Jit/symbolizer_iface.h"
 
 #include <memory>
 
@@ -41,6 +42,14 @@ class ModuleState {
     runtime_ = std::unique_ptr<jit::IRuntime>(runtime);
   }
 
+  jit::ISymbolizer* symbolizer() const {
+    return symbolizer_.get();
+  }
+
+  void setSymbolizer(jit::ISymbolizer* symbolizer) {
+    symbolizer_ = std::unique_ptr<jit::ISymbolizer>(symbolizer);
+  }
+
   void setCoroType(BorrowedRef<PyTypeObject> coro_type) {
     coro_type_ = Ref<PyTypeObject>::create(coro_type);
   }
@@ -60,6 +69,7 @@ class ModuleState {
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::IRuntime> runtime_;
+  std::unique_ptr<jit::ISymbolizer> symbolizer_;
   Ref<PyTypeObject> coro_type_, gen_type_;
 };
 

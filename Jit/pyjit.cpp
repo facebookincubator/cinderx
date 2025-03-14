@@ -2777,8 +2777,6 @@ void finalize() {
 
   finalizeInternedStrings();
 
-  Symbolizer::shutdown();
-
   g_aot_ctx.destroy();
 
   getMutableConfig().state = State::kNotInitialized;

@@ -985,6 +985,13 @@ static int _cinderx_exec(PyObject* m) {
   }
   state->setRuntime(runtime);
 
+  auto symbolizer = new (std::nothrow) jit::Symbolizer();
+  if (symbolizer == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+  state->setSymbolizer(symbolizer);
+
   cinderx::setModuleState(state);
 
   CiExc_StaticTypeError =

@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/module_state.h"
 
 #include <cxxabi.h>
 #include <dlfcn.h>
@@ -12,26 +13,6 @@
 #include <cstdlib>
 
 namespace jit {
-
-namespace {
-
-Symbolizer* s_symbolizer = nullptr;
-
-} // namespace
-
-Symbolizer& Symbolizer::get() {
-  if (s_symbolizer == nullptr) {
-    s_symbolizer = new Symbolizer();
-  }
-  return *s_symbolizer;
-}
-
-void Symbolizer::shutdown() {
-  if (s_symbolizer != nullptr) {
-    delete s_symbolizer;
-    s_symbolizer = nullptr;
-  }
-}
 
 Symbolizer::Symbolizer(const char* exe_path) {
   try {
@@ -250,8 +231,13 @@ std::optional<std::string> symbolize(const void* func) {
   if (!g_symbolize_funcs) {
     return std::nullopt;
   }
+  auto module_state = cinderx::getModuleState();
+  if (module_state == nullptr || module_state->symbolizer() == nullptr) {
+    return std::nullopt;
+  }
+
   std::optional<std::string_view> mangled_name =
-      Symbolizer::get().symbolize(func);
+      module_state->symbolizer()->symbolize(func);
   if (!mangled_name.has_value()) {
     return std::nullopt;
   }

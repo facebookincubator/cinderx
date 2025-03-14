@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Jit/mmap_file.h"
+#include "cinderx/Jit/symbolizer_iface.h"
 
 #include <elf.h>
 #include <fcntl.h>
@@ -22,14 +23,8 @@
 
 namespace jit {
 
-class Symbolizer {
+class Symbolizer : public ISymbolizer {
  public:
-  // Load a process-level Symbolizer instance and return it.
-  static Symbolizer& get();
-
-  // Destroy the process-level Symbolizer instance, if it exists.
-  static void shutdown();
-
   Symbolizer(const char* exe_path = "/proc/self/exe");
 
   bool isInitialized() const {
@@ -40,16 +35,14 @@ class Symbolizer {
     deinit();
   }
 
-  // Return a string view whose lifetime is tied to the Symbolizer lifetime on
-  // success. On failure, return std::nullopt.
-  std::optional<std::string_view> symbolize(const void* func);
+  std::optional<std::string_view> symbolize(const void* func) override;
+
+ private:
+  void deinit();
 
   std::optional<std::string_view> cache(
       const void* func,
       std::optional<std::string> name);
-
- private:
-  void deinit();
 
   MmapFile file_;
   const ElfW(Shdr) * symtab_{nullptr};
