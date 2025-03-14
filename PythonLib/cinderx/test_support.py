@@ -2,6 +2,7 @@
 # pyre-unsafe
 
 import ctypes
+import importlib
 import multiprocessing
 import sys
 import tempfile
@@ -63,16 +64,20 @@ def verify_stack(testcase, stack, expected):
         )
 
 
+def _identity(obj: object) -> object:
+    return obj
+
+
 def skipUnderJIT(reason):
     if CINDERJIT_ENABLED:
         return unittest.skip(reason)
-    return unittest.case._id
+    return _identity
 
 
 def skipUnlessJITEnabled(reason):
     if not CINDERJIT_ENABLED:
         return unittest.skip(reason)
-    return unittest.case._id
+    return _identity
 
 
 def failUnlessJITCompiled(func):
@@ -106,6 +111,14 @@ def failUnlessJITCompiled(func):
         return wrapper
 
     return func
+
+
+def skip_unless_lazy_imports(
+    reason: str = "Depends on Lazy Imports being enabled",
+):
+    if not hasattr(importlib, "set_lazy_imports"):
+        return unittest.skip(reason)
+    return _identity
 
 
 def is_asan_build():
