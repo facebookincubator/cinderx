@@ -151,7 +151,9 @@ void CompilationPhaseTimer::dumpPhaseTimingsAndTidy() {
     if (subphase_to_group_total_time.contains(phase)) {
       phase_info += fmt::format(
           "{:>5.1f}",
-          (time_span / ((double)subphase_to_group_total_time[phase])) * 100);
+          (time_span /
+           (static_cast<double>(subphase_to_group_total_time[phase]))) *
+              100);
     } else {
       phase_info += "100.0";
     }
@@ -162,7 +164,8 @@ void CompilationPhaseTimer::dumpPhaseTimingsAndTidy() {
           "{}|",
           fmt::format("{:<{}} ", unattributed_time, unattributed_time_digitls));
       phase_info += fmt::format(
-          "{:>5.1f}", unattributed_time / ((double)time_span) * 100);
+          "{:>5.1f}",
+          unattributed_time / (static_cast<double>(time_span)) * 100);
     }
 
     phase_info += "\n";
