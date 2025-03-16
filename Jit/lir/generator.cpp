@@ -1096,7 +1096,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             break;
           }
           default:
-            JIT_ABORT("Not implemented unary op {}", (int)instr->op());
+            JIT_ABORT(
+                "Not implemented unary op {}", static_cast<int>(instr->op()));
             break;
         }
         break;
