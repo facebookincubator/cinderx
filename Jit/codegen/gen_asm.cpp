@@ -1689,7 +1689,7 @@ void NativeGenerator::generateStaticEntryPoint(
          i < total_args;
          i++) {
       if (check_index < checks.size() &&
-          checks[check_index].locals_idx == (int)i) {
+          checks[check_index].locals_idx == static_cast<int>(i)) {
         if (checks[check_index++].jit_type <= TCDouble &&
             fp_index < FP_ARGUMENT_REGS.size()) {
           switch (FP_ARGUMENT_REGS[fp_index++].loc) {
