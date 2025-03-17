@@ -103,7 +103,7 @@ class CompiledFunction {
   }
 
   PyObject* invoke(PyObject* func, PyObject** args, Py_ssize_t nargs) const {
-    return vectorcall_entry_(func, args, nargs, NULL);
+    return vectorcall_entry_(func, args, nargs, nullptr);
   }
 
   virtual void printHIR() const;
