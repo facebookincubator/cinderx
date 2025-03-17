@@ -23,7 +23,10 @@ from contextlib import contextmanager
 from pathlib import Path
 from textwrap import dedent
 
-import _testcindercapi
+AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
+
+if not AT_LEAST_312:
+    import _testcindercapi
 
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 import cinderx.test_support as cinder_support
@@ -920,7 +923,8 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
                     self.y: cbool = y
         """
         with self.in_module(codestr) as mod:
-            gc.immortalize_heap()
+            if hasattr(gc, "immortalize_heap"):
+                gc.immortalize_heap()
             if cinderjit:
                 cinderjit.force_compile(mod.Foo.__init__)
             foo = mod.Foo(True)
@@ -2527,6 +2531,7 @@ def builtins_getter():
     return _testcindercapi._pyeval_get_builtins()
 
 
+@unittest.skipIf(AT_LEAST_312, "T214641462: _testcindercapi is only in 3.10.cinder")
 class GetBuiltinsTests(unittest.TestCase):
     def test_get_builtins(self):
         new_builtins = {}
@@ -2553,6 +2558,7 @@ class GetGlobalsTests(unittest.TestCase):
         self.assertIs(func(), new_globals)
 
 
+@unittest.skipIf(AT_LEAST_312, "T214641462: _testcindercapi is only in 3.10.cinder")
 class MergeCompilerFlagTests(unittest.TestCase):
     def make_func(self, src, compile_flags=0):
         code = compile(src, "<string>", "exec", compile_flags)

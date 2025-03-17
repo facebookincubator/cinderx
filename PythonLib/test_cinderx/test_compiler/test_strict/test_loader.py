@@ -10,7 +10,7 @@ import pathlib
 import subprocess
 import sys
 import tempfile
-
+import unittest
 import textwrap
 
 from contextlib import contextmanager
@@ -59,15 +59,18 @@ from .sandbox import (
     restore_sys_modules,
 )
 
-
 try:
     from cinder import cinder_set_warn_handler, get_warn_handler
+
+    HAVE_WARN_HANDLERS: bool = True
 except ImportError:
     def cinder_set_warn_handler(func):
         pass
 
     def get_warn_handler():
         return None
+
+    HAVE_WARN_HANDLERS: bool = False
 
 
 if TYPE_CHECKING:
@@ -1812,6 +1815,7 @@ class StrictLoaderTest(StrictTestBase):
             C.foo = 42
             self.assertEqual(C.foo, 42)
 
+    @unittest.skipIf(HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported")
     def test_loose_slots(self) -> None:
         self.sbx.write_file(
             "a.py",
@@ -1868,6 +1872,7 @@ class StrictLoaderTest(StrictTestBase):
                 ],
             )
 
+    @unittest.skipIf(HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported")
     def test_loose_slots_with_unknown_bases(self) -> None:
         self.sbx.write_file(
             "b.py",
@@ -1966,6 +1971,7 @@ class StrictLoaderTest(StrictTestBase):
                 warnings,
             )
 
+    @unittest.skipIf(HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported")
     def test_class_explicit_dict_no_warning(self) -> None:
         self.sbx.write_file(
             "a.py",
