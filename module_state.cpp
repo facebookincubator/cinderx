@@ -9,6 +9,7 @@ int ModuleState::traverse(visitproc, void*) {
 }
 
 int ModuleState::clear() {
+  sys_clear_caches_.reset();
   return 0;
 }
 

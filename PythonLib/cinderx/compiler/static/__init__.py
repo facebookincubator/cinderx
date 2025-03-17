@@ -1291,6 +1291,8 @@ class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
             optype.emit_convert(ltype, self)
 
         rtype = self.get_type(node.comparators[-1])
+        if rtype != optype:
+            optype.emit_convert(rtype, self)
         rtype.emit_compare(op, self)
         end = self.newBlock("end")
         self.emit_jump_forward(end)
