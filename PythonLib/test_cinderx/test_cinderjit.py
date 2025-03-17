@@ -28,9 +28,11 @@ AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
 if not AT_LEAST_312:
     import _testcindercapi
 
-from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 import cinderx.test_support as cinder_support
+
+from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 from .common import failUnlessHasOpcodes, with_globals
+from cinderx.test_support import skip_unless_jit
 
 try:
     with warnings.catch_warnings():
@@ -77,8 +79,6 @@ class TestException(Exception):
 
 def firstlineno(func):
     return func.__code__.co_firstlineno
-
-
 
 
 @cinder_support.failUnlessJITCompiled
@@ -205,7 +205,7 @@ class InlinedFunctionTests(unittest.TestCase):
                     proc.stderr,
                 )
 
-    @cinder_support.skipUnlessJITEnabled("Runs a subprocess with the JIT enabled")
+    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_inliner_dump_json(self):
         root = Path(os.path.join(os.path.dirname(__file__), "data/inliner_dump_json"))
         dumpdir = root / "json-dump"
@@ -509,7 +509,7 @@ class CallExTests(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, err):
             self._doCall([], 1)
 
-    @cinder_support.skipUnlessJITEnabled("Exposes interpreter reference leak")
+    @skip_unless_jit("Exposes interpreter reference leak")
     def test_invalid_pos_type(self):
         err = r"_simpleFunc\(\) argument after \* must be an iterable, not int"
         with self.assertRaisesRegex(TypeError, err):
@@ -1667,7 +1667,7 @@ class RegressionTests(StaticTestBase):
                 self.assertTrue(cinderjit.is_jit_compiled(testfunc))
 
 
-@cinder_support.skipUnlessJITEnabled("Requires cinderjit module")
+@skip_unless_jit("Requires cinderjit module")
 class CinderJitModuleTests(StaticTestBase):
     def test_bad_disable(self):
         with self.assertRaises(TypeError):
@@ -2619,7 +2619,7 @@ def func():
 class PerfMapTests(unittest.TestCase):
     HELPER_FILE = os.path.join(os.path.dirname(__file__), "perf_fork_helper.py")
 
-    @cinder_support.skipUnlessJITEnabled("Runs a subprocess with the JIT enabled")
+    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_forked_pid_map(self):
         proc = subprocess.run(
             [sys.executable, "-X", "jit", "-X", "jit-perfmap", self.HELPER_FILE],
@@ -2650,7 +2650,7 @@ class PerfMapTests(unittest.TestCase):
 
 
 class BatchCompileTests(unittest.TestCase):
-    @cinder_support.skipUnlessJITEnabled("Runs a subprocess with the JIT enabled")
+    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_batch_compile_nested_func(self):
         root = Path(
             os.path.join(os.path.dirname(__file__), "data/batch_compile_nested_func")
@@ -2671,7 +2671,7 @@ class BatchCompileTests(unittest.TestCase):
 class PreloadTests(unittest.TestCase):
     SCRIPT_FILE = "cinder_preload_helper_main.py"
 
-    @cinder_support.skipUnlessJITEnabled("Runs a subprocess with the JIT enabled")
+    @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_func_destroyed_during_preload(self):
         proc = subprocess.run(
             [

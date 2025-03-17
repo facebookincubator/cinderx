@@ -40,7 +40,7 @@ from cinderx.compiler.static.types import (
     Value,
 )
 
-from cinderx.test_support import skipUnlessJITEnabled
+from cinderx.test_support import skip_unless_jit
 
 from .common import (
     add_fixed_module,
@@ -5549,7 +5549,7 @@ class StaticCompilationTests(StaticTestBase):
                 (((mod.__name__,), "f"), 0),
             )
 
-    @skipUnlessJITEnabled("runs subprocess with JIT")
+    @skip_unless_jit("runs subprocess with JIT")
     def test_invoke_recursive_compile_respects_jitlist(self):
         with TemporaryDirectory() as d:
             d = Path(d)

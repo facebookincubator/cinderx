@@ -12,6 +12,7 @@ from pathlib import Path
 
 import cinderx.jit
 from cinderx.jit import force_compile, is_jit_compiled, jit_suppress
+from cinderx.test_support import skip_unless_jit
 import cinderx.test_support as cinder_support
 
 POST_312 = sys.version_info >= (3, 12)
@@ -151,7 +152,7 @@ class GetFrameLineNumberTests(unittest.TestCase):
         self.assertEqual(stack[-1].lineno, firstlineno(StackGetter.__del__) + 2)
         self.assertEqual(stack[-2].lineno, firstlineno(double) + 4)
 
-    @cinder_support.skipUnlessJITEnabled("Compares lineno behavior between JIT and interpreter")
+    @skip_unless_jit("Compares lineno behavior between JIT and interpreter")
     def test_line_numbers_after_jit_disabled(self):
         def f():
             frame = sys._getframe(0)

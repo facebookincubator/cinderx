@@ -12,6 +12,8 @@ import cinderx
 cinderx.init()
 import cinderx.test_support as cinder_support
 
+from cinderx.test_support import skip_unless_jit
+
 # Allow this file to run without CinderX.
 if cinderx.is_initialized():
     from .test_compiler.test_static.common import StaticTestBase
@@ -122,7 +124,7 @@ class CoroutinesTest(unittest.TestCase):
             self._obj = None
             return i
 
-    @cinder_support.skipUnlessJITEnabled("Exercises JIT-specific bug")
+    @skip_unless_jit("Exercises JIT-specific bug")
     def test_jit_coro_awaits_interp_coro(self):
         @cinderjit.jit_suppress
         async def eager_suspend(suffix):

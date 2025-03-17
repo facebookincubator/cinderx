@@ -7,6 +7,7 @@ import multiprocessing
 import sys
 import tempfile
 import unittest
+
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -14,6 +15,7 @@ from cinderx.jit import (
     force_compile,
     # Note: This should use cinderx.jit.is_enabled().
     INSTALLED as CINDERJIT_ENABLED,
+    is_enabled as is_jit_enabled,
     is_jit_compiled,
 )
 
@@ -68,16 +70,12 @@ def _identity(obj: object) -> object:
     return obj
 
 
-def skipUnderJIT(reason):
-    if CINDERJIT_ENABLED:
-        return unittest.skip(reason)
-    return _identity
+def skip_if_jit(reason: str) -> object:
+    return unittest.skip(reason) if is_jit_enabled() else _identity
 
 
-def skipUnlessJITEnabled(reason):
-    if not CINDERJIT_ENABLED:
-        return unittest.skip(reason)
-    return _identity
+def skip_unless_jit(reason: str) -> object:
+    return unittest.skip(reason) if not is_jit_enabled() else _identity
 
 
 def failUnlessJITCompiled(func):

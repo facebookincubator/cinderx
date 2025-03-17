@@ -19,6 +19,7 @@ if cinderx.is_initialized():
     from test.support.script_helper import assert_python_ok
 
 from cinderx import test_support as cinder_support
+from cinderx.test_support import skip_unless_jit
 
 try:
     import cinderjit
@@ -26,7 +27,7 @@ except:
     cinderjit = None
 
 
-@cinder_support.skipUnlessJITEnabled("No JIT-list if no JIT")
+@skip_unless_jit("JIT list functionality requires the JIT")
 class JitListTest(unittest.TestCase):
     def setUp(self) -> None:
         # Force the JIT list to exist.
