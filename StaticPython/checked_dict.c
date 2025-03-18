@@ -354,11 +354,6 @@ void _PyCheckedDict_ClearCaches() {
   _Ci_dict_state* state = get_dict_state();
   if (state != NULL) {
     for (int i = 0; i < state->numfree; i++) {
-      // We've already decref'd the type so it could have gone
-      // away since we've freed the object. So set the type to
-      // dict which has the same GC characteristics (e.g. preheader)
-      // as us.
-      ((PyObject*)state->free_list[i])->ob_type = &PyDict_Type;
       PyObject_GC_Del((PyObject*)state->free_list[i]);
     }
     state->numfree = 0;
