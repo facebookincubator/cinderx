@@ -159,28 +159,38 @@ PyMODINIT_FUNC PyInit__cinderx() {
 }
 #endif
 
+void registerCinderX() {
+#ifdef BUCK_BUILD
+  try {
+    boost::filesystem::path python_install =
+        build::getResourcePath("cinderx/RuntimeTests/python_install");
+    std::string python_version =
+        fmt::format("python{}.{}", PY_MAJOR_VERSION, PY_MINOR_VERSION);
+    boost::filesystem::path lib_path = python_install / "lib" / python_version;
+    boost::filesystem::path lib_dynload_path = lib_path / "lib-dynload";
+    std::string python_install_str =
+        lib_path.string() + ":" + lib_dynload_path.string();
+    setenv("PYTHONPATH", python_install_str.c_str(), 1);
+  } catch (const std::exception&) {
+    std::cerr << "Error: Failed to access bundled Python installation in buck "
+                 "build, re-running usually fixes the issue"
+              << std::endl;
+    throw;
+  }
+
+  if (PyImport_AppendInittab("_cinderx", PyInit__cinderx) != 0) {
+    PyErr_Print();
+    throw std::runtime_error{"Could not add cinderx to inittab"};
+  }
+#endif
+}
+
 int main(int argc, char* argv[]) {
 #ifdef BAKED_IN_PYTHONPATH
   setenv("PYTHONPATH", _BAKED_IN_PYTHONPATH, 1);
 #endif
 
-#ifdef BUCK_BUILD
-  boost::filesystem::path python_install =
-      build::getResourcePath("cinderx/RuntimeTests/python_install");
-  {
-    std::string python_ver_str =
-        fmt::format("python{}.{}", PY_MAJOR_VERSION, PY_MINOR_VERSION);
-    std::string python_install_str =
-        (python_install / "lib" / python_ver_str).string() + ":" +
-        (python_install / "lib" / python_ver_str / "lib-dynload").string();
-    setenv("PYTHONPATH", python_install_str.c_str(), 1);
-  }
-  if (PyImport_AppendInittab("_cinderx", PyInit__cinderx) != 0) {
-    PyErr_Print();
-    std::cerr << "Error: could not add to inittab\n";
-    return 1;
-  }
-#endif
+  registerCinderX();
 
   ::testing::InitGoogleTest(&argc, argv);
 
