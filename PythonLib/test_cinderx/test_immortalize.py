@@ -1,38 +1,30 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# pyre-unsafe
 
-import gc
-import unittest
 import sys
+import unittest
 
-from test.support.script_helper import assert_python_ok
 import cinderx
+cinderx.init()
 
+from cinderx.test_support import run_in_subprocess
+
+
+@unittest.skipUnless(cinderx.is_initialized(), "Tests immortalization APIs in CinderX")
 class ImmortalizeTests(unittest.TestCase):
 
-    def test_not_immortal(self):
+    def test_default_not_immortal(self) -> None:
         obj = []
-        self.assertFalse(cinderx.is_immortal(obj))  # noqa: F821
+        self.assertFalse(cinderx.is_immortal(obj))
 
-    def test_is_immortal(self):
-        code = """if 1:
-            import cinderx
-            obj = []
-            cinderx.immortalize_heap()
-            print(cinderx.is_immortal(obj))
-            """
-        rc, out, err = assert_python_ok("-c", code)
-        self.assertEqual(out.strip(), b"True")
+    @run_in_subprocess
+    def test_is_immortal(self) -> None:
+        obj = []
+        cinderx.immortalize_heap()
+        self.assertTrue(cinderx.is_immortal(obj))
 
-    def test_post_immortalize(self):
-        code = """if 1:
-            import cinderx
-            cinderx.immortalize_heap()
-            obj = []
-            print(cinderx.is_immortal(obj))
-            """
-        rc, out, err = assert_python_ok("-c", code)
-        self.assertEqual(out.strip(), b"False")
-
-
-if __name__ == "__main__":
-    unittest.main()
+    @run_in_subprocess
+    def test_post_immortalize(self) -> None:
+        cinderx.immortalize_heap()
+        obj = []
+        self.assertFalse(cinderx.is_immortal(obj))
