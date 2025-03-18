@@ -2044,7 +2044,7 @@ dict_setdefault_impl(PyObject* self, PyObject* const* args, Py_ssize_t nargs) {
   }
 skip_optional:
   return_value = Ci_CheckedDict_SetDefault(self, key, default_value);
-
+  Py_XINCREF(return_value);
 exit:
   return return_value;
 }
