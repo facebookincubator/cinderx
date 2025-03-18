@@ -1042,6 +1042,7 @@ static int _cinderx_exec(PyObject* m) {
   ADDITEM("StaticTypeError", CiExc_StaticTypeError);
   ADDITEM("StrictModule", &Ci_StrictModule_Type);
   ADDITEM("cached_property", &PyCachedProperty_Type);
+  ADDITEM("cached_property_with_descr", &PyCachedPropertyWithDescr_Type);
   ADDITEM("async_cached_property", &PyAsyncCachedProperty_Type);
   ADDITEM("async_cached_classproperty", &PyAsyncCachedClassProperty_Type);
 

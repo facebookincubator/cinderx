@@ -63,6 +63,7 @@ try:
         async_cached_property,
         cached_classproperty,
         cached_property,
+        cached_property_with_descr,
         clear_caches,
         clear_classloader_caches,
         disable_parallel_gc,
