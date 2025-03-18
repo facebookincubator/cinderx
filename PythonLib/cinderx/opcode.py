@@ -1,29 +1,38 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
-shadowop = set()
-cinderxop = set()
+# This opcode generation script is used early in the runtime build, type objects like
+# 'set' are not subscriptable yet.
+shadowop: "set[int]" = set()
+cinderxop: "set[str]" = set()
 
 
-def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst):
-    def def_op(name, op):
+def init(
+    opname: "dict[int, str]",
+    opmap: "dict[str, int]",
+    hasname: "list[int]",
+    hasjrel: "list[int]",
+    hasjabs: "list[int]",
+    hasconst: "list[int]",
+) -> None:
+    def def_op(name: str, op: int) -> None:
         opname[op] = name
         opmap[name] = op
         cinderxop.add(name)
 
-    def name_op(name, op):
+    def name_op(name: str, op: int) -> None:
         def_op(name, op)
         hasname.append(op)
 
-    def jrel_op(name, op):
+    def jrel_op(name: str, op: int) -> None:
         def_op(name, op)
         hasjrel.append(op)
 
-    def jabs_op(name, op):
+    def jabs_op(name: str, op: int) -> None:
         def_op(name, op)
         hasjabs.append(op)
 
-    def shadow_op(name, op):
+    def shadow_op(name: str, op: int) -> None:
         def_op(name, op)
         shadowop.add(op)
 
