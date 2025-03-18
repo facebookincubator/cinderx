@@ -28,6 +28,7 @@ AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
 if not AT_LEAST_312:
     import _testcindercapi
 
+import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 from cinderx.test_support import run_in_subprocess, skip_unless_jit
@@ -179,7 +180,7 @@ class InlinedFunctionTests(unittest.TestCase):
         )
         for lazy_imports, jit in itertools.product(
             [True, False],
-            [True, False] if cinder_support.CINDERJIT_ENABLED else [False],
+            [True, False] if cinderx.jit.is_enabled() else [False],
         ):
             with self.subTest(lazy_imports=lazy_imports, jit=jit):
                 cmd = [sys.executable]
@@ -2707,7 +2708,7 @@ hello from b_func!
         # bugs showing up as failures in non-jit test runs
         for recursive, batch, lazyimports in itertools.product(
             [True, False],
-            [True, False] if cinder_support.CINDERJIT_ENABLED else [False],
+            [True, False] if cinderx.jit.is_enabled() else [False],
             [True, False],
         ):
             root = os.path.join(
@@ -2721,7 +2722,7 @@ hello from b_func!
                 "-X",
                 "install-strict-loader",
             ]
-            if cinder_support.CINDERJIT_ENABLED:
+            if cinderx.jit.is_enabled():
                 cmd += [
                     "-X",
                     f"jit-list-file={jitlist}",

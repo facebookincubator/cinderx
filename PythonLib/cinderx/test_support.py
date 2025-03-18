@@ -13,13 +13,7 @@ from pathlib import Path
 
 from typing import Callable, Sequence, TypeVar
 
-from cinderx.jit import (
-    force_compile,
-    # Note: This should use cinderx.jit.is_enabled().
-    INSTALLED as CINDERJIT_ENABLED,
-    is_enabled as is_jit_enabled,
-    is_jit_compiled,
-)
+import cinderx.jit
 
 try:
     import cinder
@@ -75,24 +69,24 @@ def _identity(obj: object) -> object:
 
 
 def skip_if_jit(reason: str) -> object:
-    return unittest.skip(reason) if is_jit_enabled() else _identity
+    return unittest.skip(reason) if cinderx.jit.is_enabled() else _identity
 
 
 def skip_unless_jit(reason: str) -> object:
-    return unittest.skip(reason) if not is_jit_enabled() else _identity
+    return unittest.skip(reason) if not cinderx.jit.is_enabled() else _identity
 
 
 def failUnlessJITCompiled(func):
     """
     Fail a test if the JIT is enabled but the test body wasn't JIT-compiled.
     """
-    if not CINDERJIT_ENABLED:
+    if not cinderx.jit.is_enabled():
         return func
 
     try:
         # force_compile raises a RuntimeError if compilation fails. If it does,
         # defer raising an exception to when the decorated function runs.
-        force_compile(func)
+        cinderx.jit.force_compile(func)
     except RuntimeError as re:
         if re.args == ("PYJIT_RESULT_NOT_ON_JITLIST",):
             # We generally only run tests with a jitlist under

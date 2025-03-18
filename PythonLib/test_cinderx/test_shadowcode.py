@@ -18,7 +18,7 @@ from cinder import cached_property, strict_module_patch, StrictModule
 from types import CodeType, FunctionType
 from unittest import skipIf
 
-from cinderx.test_support import CINDERJIT_ENABLED
+import cinderx.jit
 from test.support.script_helper import assert_python_ok, run_python_until_end
 
 # Sets the number of repetitions required in order to hit caching
@@ -818,9 +818,9 @@ def f(min, max, inst, path=False):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 42)
 
-        if not CINDERJIT_ENABLED:
-
+        if not cinderx.jit.is_enabled():
             self.assertNotEqual(len(weakref.getweakrefs(C)), 0)
+
         del a, C, metafin
 
         gc.collect()
@@ -831,7 +831,7 @@ def f(min, max, inst, path=False):
         self.assertEqual(f(a), 100)
         for _ in range(REPETITION):
             self.assertEqual(g(a), 200)
-        if not CINDERJIT_ENABLED:
+        if not cinderx.jit.is_enabled():
             self.assertNotEqual(len(weakref.getweakrefs(C)), 0)
 
     def test_type_resurrection_2(self):

@@ -6,6 +6,7 @@ import threading
 import unittest
 import weakref
 
+import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.jit import is_jit_compiled
 
@@ -285,7 +286,7 @@ class GeneratorsTest(unittest.TestCase):
         self.assertIn(weak_ref_x(), gc.get_objects())
         referrers = gc.get_referrers(weak_ref_x())
         self.assertEqual(len(referrers), 1)
-        if POST_312 or cinder_support.CINDERJIT_ENABLED:
+        if POST_312 or cinderx.jit.is_enabled():
             self.assertIs(referrers[0], g)
         else:
             self.assertIs(referrers[0], g.gi_frame)
