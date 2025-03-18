@@ -11,6 +11,8 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 
+from typing import Callable, Sequence, TypeVar
+
 from cinderx.jit import (
     force_compile,
     # Note: This should use cinderx.jit.is_enabled().
@@ -22,12 +24,12 @@ from cinderx.jit import (
 try:
     import cinder
 
-    def hasCinderX():
+    def hasCinderX() -> bool:
         return True
 
 except ImportError:
 
-    def hasCinderX():
+    def hasCinderX() -> bool:
         return False
 
 
@@ -54,7 +56,9 @@ def get_await_stack(coro):
     return stack
 
 
-def verify_stack(testcase, stack, expected):
+def verify_stack(
+    testcase: unittest.TestCase, stack: Sequence[str], expected: Sequence[str]
+) -> None:
     n = len(expected)
     frames = stack[-n:]
     testcase.assertEqual(len(frames), n, "Callstack had less frames than expected")
@@ -99,9 +103,9 @@ def failUnlessJITCompiled(func):
 
         # re is cleared at the end of the except block but we need the value
         # when wrapper() is eventually called.
-        exc = re
+        exc: RuntimeError = re
 
-        def wrapper(*args):
+        def wrapper(*args: object) -> None:
             raise RuntimeError(
                 f"JIT compilation of {func.__qualname__} failed with {exc}"
             )
@@ -113,13 +117,13 @@ def failUnlessJITCompiled(func):
 
 def skip_unless_lazy_imports(
     reason: str = "Depends on Lazy Imports being enabled",
-):
+) -> object:
     if not hasattr(importlib, "set_lazy_imports"):
         return unittest.skip(reason)
     return _identity
 
 
-def is_asan_build():
+def is_asan_build() -> bool:
     try:
         ctypes.pythonapi.__asan_init
         return True
@@ -146,14 +150,22 @@ def temp_sys_path():
             sys.modules = _orig_sys_modules
 
 
-def runInSubprocess(func):
-    queue = multiprocessing.Queue()
+TRet = TypeVar("TRet")
 
-    def wrapper(queue, *args):
+
+def run_in_subprocess(func: Callable[..., TRet]) -> Callable[..., TRet]:
+    """
+    Run a function in a subprocess.  This enables modifying process state in a
+    test without affecting other test functions.
+    """
+
+    queue: multiprocessing.Queue = multiprocessing.Queue()
+
+    def wrapper(queue: multiprocessing.Queue, *args: object) -> None:
         result = func(*args)
         queue.put(result, timeout=SUBPROCESS_TIMEOUT_SEC)
 
-    def wrapped(*args):
+    def wrapped(*args: object) -> TRet:
         p = multiprocessing.Process(target=wrapper, args=(queue, *args))
         p.start()
         value = queue.get(timeout=SUBPROCESS_TIMEOUT_SEC)

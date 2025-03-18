@@ -29,10 +29,9 @@ if not AT_LEAST_312:
     import _testcindercapi
 
 import cinderx.test_support as cinder_support
-
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
+from cinderx.test_support import run_in_subprocess, skip_unless_jit
 from .common import failUnlessHasOpcodes, with_globals
-from cinderx.test_support import skip_unless_jit
 
 try:
     with warnings.catch_warnings():
@@ -909,7 +908,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         with self.assertRaises(NameError):
             self.load_method_on_maybe_defined_value()
 
-    @cinder_support.runInSubprocess
+    @run_in_subprocess
     def test_condbranch_codegen(self):
         codestr = f"""
             from __static__ import cbool

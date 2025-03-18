@@ -12,7 +12,7 @@ from cinderx.jit import (
     is_jit_compiled,
 )
 import cinderx.test_support as cinder_support
-from cinderx.test_support import skip_unless_lazy_imports
+from cinderx.test_support import run_in_subprocess, skip_unless_lazy_imports
 from .common import failUnlessHasOpcodes, with_globals
 
 try:
@@ -133,7 +133,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
         self.assertEqual(self.get_global(), "hey")
         builtins.__dict__[42] = 42
 
-    @cinder_support.runInSubprocess
+    @run_in_subprocess
     def test_unwatch_builtins(self):
         try:
             self._test_unwatch_builtins()
@@ -142,7 +142,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
 
     @skip_unless_lazy_imports
     @failUnlessHasOpcodes("LOAD_GLOBAL")
-    @cinder_support.runInSubprocess
+    @run_in_subprocess
     def test_preload_side_effect_modifies_globals(self):
         with cinder_support.temp_sys_path() as tmp:
             (tmp / "tmp_a.py").write_text(
@@ -215,7 +215,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
 
     @skip_unless_lazy_imports
     @failUnlessHasOpcodes("LOAD_GLOBAL")
-    @cinder_support.runInSubprocess
+    @run_in_subprocess
     def test_preload_side_effect_makes_globals_unwatchable(self):
         with cinder_support.temp_sys_path() as tmp:
             (tmp / "tmp_a.py").write_text(
@@ -261,7 +261,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
 
     @skip_unless_lazy_imports
     @failUnlessHasOpcodes("LOAD_GLOBAL")
-    @cinder_support.runInSubprocess
+    @run_in_subprocess
     def test_preload_side_effect_makes_builtins_unwatchable(self):
         with cinder_support.temp_sys_path() as tmp:
             (tmp / "tmp_a.py").write_text(
@@ -300,7 +300,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
             self.assertTrue(not is_jit_enabled() or is_jit_compiled(tmp_a.get_a))
 
     @skip_unless_lazy_imports
-    @cinder_support.runInSubprocess
+    @run_in_subprocess
     def test_lazy_import_after_global_cached(self):
         with cinder_support.temp_sys_path() as tmp:
             (tmp / "tmp_a.py").write_text(
