@@ -1252,24 +1252,29 @@ class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
 
     def visitCompare(self, node: Compare) -> None:
         self.set_pos(node)
-        self.visit(node.left)
+        left = node.left
+        self.visit(left)
+        ltype = self.get_type(left)
+
         if len(node.comparators) == 1:
-            self.visit(node.comparators[0])
             op = node.ops[0]
             optype = self.get_type(op)
+            if ltype != optype:
+                optype.emit_convert(ltype, self)
+
+            self.visit(node.comparators[0])
             rtype = self.get_type(node.comparators[0])
             if rtype != optype:
                 optype.emit_convert(rtype, self)
+
             optype.emit_compare(op, self)
             return
 
         cleanup = self.newBlock("cleanup")
-        left = node.left
         for i in range(len(node.comparators) - 1):
             self.set_pos(node)
             op = node.ops[i]
             optype = self.get_type(op)
-            ltype = self.get_type(left)
             if ltype != optype:
                 optype.emit_convert(ltype, self)
 
@@ -1283,15 +1288,16 @@ class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
             self.nextBlock(label="compare_or_cleanup")
             self.emit("POP_TOP")
 
-        self.visit(node.comparators[-1])
         op = node.ops[-1]
         optype = self.get_type(op)
         ltype = self.get_type(left)
         if ltype != optype:
             optype.emit_convert(ltype, self)
 
+        self.visit(node.comparators[-1])
+
         rtype = self.get_type(node.comparators[-1])
-        rtype.emit_compare(op, self)
+        optype.emit_compare(op, self)
         end = self.newBlock("end")
         self.emit_jump_forward(end)
 
