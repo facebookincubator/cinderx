@@ -62,6 +62,18 @@ PyObject* clear_caches(PyObject* mod, PyObject*) {
   auto state = (cinderx::ModuleState*)PyModule_GetState(mod);
   state->cacheManager()->clear();
   _PyCheckedDict_ClearCaches();
+  // We replace sys._clear_type_cache with our own function which
+  // clears the caches, so we should call this too.
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    auto sys_clear = state->sysClearCaches();
+    if (sys_clear != nullptr) {
+      Ref<> res =
+          Ref<>::steal(PyObject_Vectorcall(sys_clear, nullptr, 0, nullptr));
+      if (res == nullptr) {
+        return nullptr;
+      }
+    }
+  }
   Py_RETURN_NONE;
 }
 
@@ -1047,6 +1059,20 @@ static int _cinderx_exec(PyObject* m) {
   ADDITEM("async_cached_classproperty", &PyAsyncCachedClassProperty_Type);
 
 #undef ADDITEM
+
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    // Get the existing cache clear function so we can forward to it.
+    BorrowedRef<> clear_type_cache = PySys_GetObject("_clear_type_cache");
+    state->setSysClearCaches(clear_type_cache);
+
+    // Replace sys._clear_type_cache with our clearing function
+    Ref<> clear_caches =
+        Ref<>::steal(PyObject_GetAttrString(m, "clear_caches"));
+    if (clear_caches == nullptr ||
+        PySys_SetObject("_clear_type_cache", clear_caches) < 0) {
+      return -1;
+    }
+  }
 
   return 0;
 }

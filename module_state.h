@@ -66,11 +66,23 @@ class ModuleState {
     return gen_type_;
   }
 
+  // Sets the value of sys._clear_type_caches when CinderX was initialized.
+  // We then replace it with a function which forwards to the original.
+  void setSysClearCaches(BorrowedRef<> clear_caches) {
+    sys_clear_caches_ = Ref<>::create(clear_caches);
+  }
+
+  // Gets the value of sys._clear_type_caches when CinderX was initialized.
+  BorrowedRef<> sysClearCaches() const {
+    return sys_clear_caches_;
+  }
+
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::IRuntime> runtime_;
   std::unique_ptr<jit::ISymbolizer> symbolizer_;
   Ref<PyTypeObject> coro_type_, gen_type_;
+  Ref<> sys_clear_caches_;
 };
 
 void setModuleState(ModuleState* state);
