@@ -8,8 +8,8 @@
 
 namespace jit::lir {
 
-// kCHelperMapping maps C helper function memory addresses to
-// their LIR string.
-extern const std::unordered_map<uint64_t, std::string> kCHelperMapping;
+// Map a C helper function to an LIR implementation serialized as a string.
+// Return nullptr if there's no such LIR implementation.
+const std::string* mapCHelperToLIR(uint64_t addr);
 
 } // namespace jit::lir

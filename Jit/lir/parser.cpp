@@ -428,10 +428,9 @@ void Parser::parseInput(const Token& token, const char* code) {
     }
     case kId: {
       std::string name(code, token.length);
-      uint64_t imm_addr = map_get_throw<ParserException>(
-          kSymbolMapping, name, "Symbol address for {}", name);
-      instr_->allocateImmediateInput(
-          reinterpret_cast<uint64_t>(imm_addr), OperandBase::kObject);
+      const uint64_t* addr = pyFunctionFromName(name);
+      expect(addr != nullptr, code, "Can't find such a function");
+      instr_->allocateImmediateInput(*addr, OperandBase::kObject);
       break;
     }
     case kStringLiteral: {

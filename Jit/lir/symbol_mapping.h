@@ -8,7 +8,8 @@
 
 namespace jit::lir {
 
-// maps symbols such as functions to addresses
-extern const std::unordered_map<std::string, uint64_t> kSymbolMapping;
+// Map the name of a CPython function (e.g. "PyLong_FromLong") to its address.
+// Return nullptr if such a function doesn't seem to exist.
+const uint64_t* pyFunctionFromName(std::string_view name);
 
 } // namespace jit::lir

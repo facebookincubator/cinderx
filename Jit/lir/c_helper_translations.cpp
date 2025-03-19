@@ -11,11 +11,12 @@
 
 namespace jit::lir {
 
-static const std::initializer_list<std::pair<const uint64_t, std::string>>
-    kCHelpersManual = {
-        {reinterpret_cast<uint64_t>(JITRT_Cast),
-         fmt::format(
-             R"(Function:
+const std::string* mapCHelperToLIR(uint64_t addr) {
+  static const std::initializer_list<std::pair<const uint64_t, std::string>>
+      manual = {
+          {reinterpret_cast<uint64_t>(JITRT_Cast),
+           fmt::format(
+               R"(Function:
 BB %0 - succs: %2 %1
        %5:Object = LoadArg 0(0x0):Object
        %6:Object = LoadArg 1(0x1):Object
@@ -39,16 +40,20 @@ BB %3 - preds: %1 - succs: %4
 
 BB %4 - preds: %2 %3
 )",
-             offsetof(PyObject, ob_type),
-             offsetof(PyTypeObject, tp_name))},
-};
+               offsetof(PyObject, ob_type),
+               offsetof(PyTypeObject, tp_name))},
+      };
 
-const std::unordered_map<uint64_t, std::string> kCHelperMapping = [] {
-  // Create map from the manual translations.
-  std::unordered_map<uint64_t, std::string> map(kCHelpersManual);
-  // Add the automatically generated translations.
-  map.insert(kCHelperMappingAuto.begin(), kCHelperMappingAuto.end());
-  return map;
-}();
+  static const std::unordered_map<uint64_t, std::string> mapping = [] {
+    // Create map from the manual translations.
+    std::unordered_map<uint64_t, std::string> map(manual);
+    // Add the automatically generated translations.
+    map.insert(kCHelperMappingAuto.begin(), kCHelperMappingAuto.end());
+    return map;
+  }();
+
+  auto it = mapping.find(addr);
+  return it != mapping.end() ? &it->second : nullptr;
+}
 
 } // namespace jit::lir

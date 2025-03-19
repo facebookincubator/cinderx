@@ -273,28 +273,35 @@ bool checkFunc(const Function& func, std::ostream& err) {
   return env.ok;
 }
 
-static const UnorderedMap<std::string, Type> kBuiltinFunctionTypes = {
-    {"dict.copy", TDictExact},      {"hasattr", TBool},
-    {"isinstance", TBool},          {"len", TLongExact},
-    {"list.copy", TListExact},      {"list.count", TLongExact},
-    {"list.index", TLongExact},     {"str.capitalize", TUnicodeExact},
-    {"str.center", TUnicodeExact},  {"str.count", TLongExact},
-    {"str.endswith", TBool},        {"str.find", TLongExact},
-    {"str.format", TUnicodeExact},  {"str.index", TLongExact},
-    {"str.isalnum", TBool},         {"str.isalpha", TBool},
-    {"str.isascii", TBool},         {"str.isdecimal", TBool},
-    {"str.isdigit", TBool},         {"str.isidentifier", TBool},
-    {"str.islower", TBool},         {"str.isnumeric", TBool},
-    {"str.isprintable", TBool},     {"str.isspace", TBool},
-    {"str.istitle", TBool},         {"str.isupper", TBool},
-    {"str.join", TUnicodeExact},    {"str.lower", TUnicodeExact},
-    {"str.lstrip", TUnicodeExact},  {"str.partition", TTupleExact},
-    {"str.replace", TUnicodeExact}, {"str.rfind", TLongExact},
-    {"str.rindex", TLongExact},     {"str.rpartition", TTupleExact},
-    {"str.rsplit", TListExact},     {"str.split", TListExact},
-    {"str.splitlines", TListExact}, {"str.upper", TUnicodeExact},
-    {"tuple.count", TLongExact},    {"tuple.index", TLongExact},
-};
+std::optional<Type> builtinFunctionReturnType(std::string_view name) {
+  static const UnorderedMap<std::string_view, Type> kRetTypes = {
+      {"dict.copy", TDictExact},      {"hasattr", TBool},
+      {"isinstance", TBool},          {"len", TLongExact},
+      {"list.copy", TListExact},      {"list.count", TLongExact},
+      {"list.index", TLongExact},     {"str.capitalize", TUnicodeExact},
+      {"str.center", TUnicodeExact},  {"str.count", TLongExact},
+      {"str.endswith", TBool},        {"str.find", TLongExact},
+      {"str.format", TUnicodeExact},  {"str.index", TLongExact},
+      {"str.isalnum", TBool},         {"str.isalpha", TBool},
+      {"str.isascii", TBool},         {"str.isdecimal", TBool},
+      {"str.isdigit", TBool},         {"str.isidentifier", TBool},
+      {"str.islower", TBool},         {"str.isnumeric", TBool},
+      {"str.isprintable", TBool},     {"str.isspace", TBool},
+      {"str.istitle", TBool},         {"str.isupper", TBool},
+      {"str.join", TUnicodeExact},    {"str.lower", TUnicodeExact},
+      {"str.lstrip", TUnicodeExact},  {"str.partition", TTupleExact},
+      {"str.replace", TUnicodeExact}, {"str.rfind", TLongExact},
+      {"str.rindex", TLongExact},     {"str.rpartition", TTupleExact},
+      {"str.rsplit", TListExact},     {"str.split", TListExact},
+      {"str.splitlines", TListExact}, {"str.upper", TUnicodeExact},
+      {"tuple.count", TLongExact},    {"tuple.index", TLongExact},
+  };
+  auto return_type = kRetTypes.find(name);
+  if (return_type != kRetTypes.end()) {
+    return return_type->second;
+  }
+  return std::nullopt;
+}
 
 Type returnType(PyMethodDef* meth) {
   // To make sure we have the right function, look up the PyMethodDef in the
@@ -305,11 +312,8 @@ Type returnType(PyMethodDef* meth) {
   if (!name.has_value()) {
     return TObject;
   }
-  auto return_type = kBuiltinFunctionTypes.find(name.value());
-  if (return_type == kBuiltinFunctionTypes.end()) {
-    return TObject;
-  }
-  return return_type->second;
+  auto return_type = builtinFunctionReturnType(name.value());
+  return return_type.has_value() ? *return_type : TObject;
 }
 
 Type returnType(Type callable) {
