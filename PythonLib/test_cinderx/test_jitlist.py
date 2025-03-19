@@ -130,9 +130,6 @@ class JitListTest(unittest.TestCase):
         if cinderjit.auto_jit_threshold() <= 1:
             self.assertTrue(cinderjit.is_jit_compiled(inner_func))
 
-    @unittest.skip(
-        "T214641462: Temporarily disabled because this suite uses subprocesses which do not have cinderx built into the runtime",
-    )
     def test_precompile_all(self) -> None:
         # Has to be run under a separate process because precompile_all will mess up the
         # other JIT-related tests.
@@ -161,9 +158,6 @@ class JitListTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             cinderjit.precompile_all(workers=200000)
 
-    @unittest.skip(
-        "T214641462: Temporarily disabled because this suite uses subprocesses which do not have cinderx built into the runtime",
-    )
     def test_default_parse_error_behavior_startup(self) -> None:
         code = 'print("Hello world!")'
         jitlist = "OH NO"
@@ -189,9 +183,6 @@ class JitListTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc)
         self.assertIn("Continuing on with the JIT disabled", proc.stderr)
 
-    @unittest.skip(
-        "T214641462: Temporarily disabled because this suite uses subprocesses which do not have cinderx built into the runtime",
-    )
     def test_default_parse_error_behavior_append(self) -> None:
         code = textwrap.dedent(
             """
@@ -221,9 +212,6 @@ class JitListTest(unittest.TestCase):
             )
         self.assertEqual(proc.returncode, 0, proc)
 
-    @unittest.skip(
-        "T214641462: Temporarily disabled because this suite uses subprocesses which do not have cinderx built into the runtime",
-    )
     def test_fail_on_parse_error_startup(self) -> None:
         code = 'print("Hello world!")'
         jitlist = "OH NO"
@@ -252,9 +240,6 @@ class JitListTest(unittest.TestCase):
         self.assertIn("Error while parsing line", proc.stderr)
         self.assertIn("in JIT list file", proc.stderr)
 
-    @unittest.skip(
-        "T214641462: Temporarily disabled because this suite uses subprocesses which do not have cinderx built into the runtime",
-    )
     def test_fail_on_parse_error_append(self) -> None:
         code = textwrap.dedent(
             """
