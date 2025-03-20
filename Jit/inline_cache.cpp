@@ -865,8 +865,10 @@ void LoadMethodCache::fill(
     return;
   }
 #else
-  UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
-  return;
+  if (type->tp_dictoffset != 0) {
+    UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
+    return;
+  }
 #endif
 
   for (auto& entry : entries_) {
@@ -1079,16 +1081,6 @@ void LoadTypeMethodCache::fill(
     // the top of `PyType_Modified` for more details.
     return;
   }
-
-#if PY_VERSION_HEX < 0x030C0000
-  if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
-      type->tp_dictoffset != 0) {
-    return;
-  }
-#else
-  UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
-  return;
-#endif
 
   ltm_watcher.unwatch(type_, this);
   type_ = type;
