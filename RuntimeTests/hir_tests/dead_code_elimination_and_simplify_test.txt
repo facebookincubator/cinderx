@@ -15,7 +15,7 @@ fun jittestmodule:test {
   bb 0 {
     v9:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v10:CInt32 = CallStatic<static_rand@0xdeadbeef, 0>
+    v10:CInt32 = CallStatic<Ci_static_rand@0xdeadbeef, 0>
     Snapshot
     v11:CInt64 = IntConvert<CInt64> v10
     v19:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
@@ -33,18 +33,18 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v15:Nullptr = LoadConst<Nullptr>
+    v12:Nullptr = LoadConst<Nullptr>
     Snapshot
-    v16:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v16
+    v13:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v13
   }
 
   bb 2 (preds 0) {
     Snapshot
-    v17:CInt32 = RunPeriodicTasks {
+    v14:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
-        Locals<1> v15
+        Locals<1> v12
       }
     }
     Branch<1>
@@ -52,32 +52,19 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v19:MortalObjectUser[builtin_function_or_method:rand:0xdeadbeef] = LoadConst<MortalObjectUser[builtin_function_or_method:rand:0xdeadbeef]>
-    v20:Object = VectorCall<0, static> v19 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<1> v15
-      }
-    }
+    v16:CInt32 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v21:CInt32 = PrimitiveUnbox<CInt32> v20
-    v22:CInt64 = IsNegativeAndErrOccurred v21 {
-      FrameState {
-        CurInstrOffset 6
-        Locals<1> v15
-      }
-    }
-    v23:CInt64 = IntConvert<CInt64> v21
-    v31:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
-    v28:CInt64 = IntBinaryOp<FloorDivide> v23 v31
+    v17:CInt64 = IntConvert<CInt64> v16
+    v25:CInt64[2147483647] = LoadConst<CInt64[2147483647]>
+    v22:CInt64 = IntBinaryOp<FloorDivide> v17 v25
     Snapshot
-    v30:LongExact = PrimitiveBox<CInt64> v28 {
+    v24:LongExact = PrimitiveBox<CInt64> v22 {
       FrameState {
-        CurInstrOffset 22
-        Locals<1> v28
+        CurInstrOffset 20
+        Locals<1> v22
       }
     }
-    Return v30
+    Return v24
   }
 }
 --- Test Name ---

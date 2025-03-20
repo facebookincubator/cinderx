@@ -57,6 +57,7 @@ from __static__ import (  # noqa: F401
     PRIM_OP_SUB_DBL,
     PRIM_OP_SUB_INT,
     PRIM_OP_XOR_INT,
+    rand,
     SEQ_ARRAY_INT64,
     SEQ_CHECKED_LIST,
     SEQ_LIST,
@@ -620,10 +621,6 @@ class TypeEnvironment:
         self.str.exact_type().patch_reflected_method_types(self)
 
         self.native_decorator = NativeDecorator(self)
-
-        self.rand: RandFunction | None = (
-            RandFunction(self) if sys.version_info >= (3, 12) else None
-        )
 
         if spamobj is not None:
             T = GenericParameter("T", 0, self)
@@ -7505,6 +7502,7 @@ ALT_SIGS: dict[object, object] = {
         "args": [{"optional": True, "type": "object", "default": None}],
         "return": {"type_param": 0},
     },
+    rand: {"args": [], "return": {"type": "__static__.int32"}},
 }
 
 
@@ -7536,7 +7534,7 @@ def reflect_builtin_function(
     klass: Class | None,
     type_env: TypeEnvironment,
 ) -> BuiltinFunction:
-    sig = getattr(obj, "__typed_signature__", None)
+    sig = getattr(obj, "__typed_signature__", None) or ALT_SIGS.get(obj, None)
     if sig is not None:
         signature, return_type = parse_typed_signature(sig, None, type_env)
         method = BuiltinFunction(
@@ -10561,29 +10559,3 @@ class ClassDecoratorInstance(Object[Class]):
         visitor: DeclarationVisitor,
     ) -> Class:
         return klass
-
-
-# This is a hack to support __static__.rand for now, since it's the most common
-# case. Eventually we'll get the typed method def support into upstream CPython
-# or CinderX and then we'll be able to have generic strongly typed methods.
-class RandFunction(BuiltinFunction):
-    def __init__(self, type_env: TypeEnvironment) -> None:
-        signature, return_type = parse_typed_signature(
-            {"args": [], "return": {"type": "__static__.int32"}}, None, type_env
-        )
-        super().__init__(
-            "rand",
-            "__static__",
-            None,
-            type_env,
-            signature,
-            ResolvedTypeRef(return_type),
-        )
-
-    def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
-        if node.keywords:
-            return super().emit_call(node, code_gen)
-
-        code_gen.set_pos(node)
-        self.emit_call_self(node, code_gen)
-        code_gen.emit("PRIMITIVE_UNBOX", TYPED_INT32)

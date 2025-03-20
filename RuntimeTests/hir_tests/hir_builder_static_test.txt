@@ -1486,7 +1486,7 @@ def test():
 fun jittestmodule:test {
   bb 0 {
     Snapshot
-    v2 = CallStatic<static_rand@0xdeadbeef, 0>
+    v2 = CallStatic<Ci_static_rand@0xdeadbeef, 0>
     Snapshot
     v3 = IntConvert<CInt64> v2
     v0 = Assign v3
@@ -1521,30 +1521,17 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v4 = LoadConst<MortalObjectUser[builtin_function_or_method:rand:0xdeadbeef]>
-    v5 = VectorCall<0, static> v4 {
-      FrameState {
-        CurInstrOffset 4
-        Locals<1> v0
-      }
-    }
+    v4 = CallStatic<rand@0xdeadbeef, 0>
     Snapshot
-    v6 = PrimitiveUnbox<CInt32> v5
-    v7 = IsNegativeAndErrOccurred v6 {
+    v5 = IntConvert<CInt64> v4
+    v0 = Assign v5
+    v6 = PrimitiveBox<CInt64> v0 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 12
         Locals<1> v0
       }
     }
-    v8 = IntConvert<CInt64> v6
-    v0 = Assign v8
-    v9 = PrimitiveBox<CInt64> v0 {
-      FrameState {
-        CurInstrOffset 14
-        Locals<1> v0
-      }
-    }
-    Return v9
+    Return v6
   }
 }
 --- End ---

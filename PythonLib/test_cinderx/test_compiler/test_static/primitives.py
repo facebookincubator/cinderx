@@ -3364,7 +3364,6 @@ class PrimitivesTests(StaticTestBase):
             self.assertInBytecode(f, "PRIMITIVE_LOAD_CONST", (1, TYPED_INT64))
             self.assertEqual(f(3), 4)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_rand(self):
         codestr = """
         from __static__ import rand, RAND_MAX, box, int64
@@ -3377,7 +3376,6 @@ class PrimitivesTests(StaticTestBase):
             test = mod.test
             self.assertEqual(type(test()), int)
 
-    @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_rand_max_inlined(self):
         codestr = """
             from __static__ import rand, RAND_MAX, box, int64

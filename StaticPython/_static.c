@@ -21,6 +21,7 @@
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/type.h"
+#include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
@@ -752,11 +753,7 @@ PyObject* make_context_decorator_wrapper(
 
 #if PY_VERSION_HEX < 0x030C0000
 
-static int64_t static_rand(PyObject* self) {
-  return rand();
-}
-
-Ci_Py_TYPED_SIGNATURE(static_rand, Ci_Py_SIG_INT32, NULL);
+Ci_Py_TYPED_SIGNATURE(Ci_static_rand, Ci_Py_SIG_INT32, NULL);
 
 static int64_t posix_clock_gettime_ns(PyObject* mod) {
   struct timespec result;
@@ -805,10 +802,6 @@ Ci_Py_TYPED_SIGNATURE(
     NULL);
 
 #else
-
-static PyObject* static_rand(PyObject* self) {
-  return PyLong_FromLong(rand());
-}
 
 static PyObject* posix_clock_gettime_ns(PyObject* mod) {
   struct timespec result;
@@ -1741,9 +1734,9 @@ static PyMethodDef static_methods[] = {
      METH_FASTCALL,
      ""},
 #if PY_VERSION_HEX < 0x030C0000
-    {"rand", (PyCFunction)&static_rand_def, Ci_METH_TYPED, ""},
+    {"rand", (PyCFunction)&Ci_static_rand_def, Ci_METH_TYPED, ""},
 #else
-    {"rand", (PyCFunction)&static_rand, METH_NOARGS, ""},
+    {"rand", (PyCFunction)&Ci_static_rand, METH_NOARGS, ""},
 #endif
     {"is_type_static", (PyCFunction)(void (*)(void))is_type_static, METH_O, ""},
     {"set_type_static",

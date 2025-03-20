@@ -276,3 +276,15 @@ PyObject* Ci_PyMethodDef_GetTypedSignature(PyMethodDef* method) {
 
   return res;
 }
+
+// Put definition of Ci_static_rand here so that it is accessible from the JIT
+// as well as from _static.c
+#if PY_VERSION_HEX < 0x030C0000
+int64_t Ci_static_rand(PyObject* self) {
+  return rand();
+}
+#else
+PyObject* Ci_static_rand(PyObject* self) {
+  return PyLong_FromLong(rand());
+}
+#endif
