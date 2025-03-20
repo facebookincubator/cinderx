@@ -298,9 +298,14 @@ def test(x, y):
 
     PyCodeObject* code =
         reinterpret_cast<PyCodeObject*>(PyFunction_GetCode(func));
+#if PY_VERSION_HEX <= 0x030C0000
     const int jump_index = 18;
+#else
+    const int jump_index = 20;
+#endif
     ASSERT_EQ(
-        PyBytes_AS_STRING(PyCode_GetCode(code))[22], (char)POP_JUMP_IF_ZERO);
+        PyBytes_AS_STRING(PyCode_GetCode(code))[jump_index + 4],
+        (char)POP_JUMP_IF_ZERO);
 
     DeoptMetadata dm;
     dm.live_values = {a_val};

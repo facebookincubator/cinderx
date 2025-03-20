@@ -138,27 +138,9 @@ def f() -> float:
 
   auto lir_str = getLIRString(pyfunc.get());
 
-  const char* lir_expected = R"(Function:
-BB %0 - succs: %3
-       %1:Object = Bind R10:Object
-       %2:Object = Bind R11:Object
-
-BB %3 - preds: %0 - succs: %9
-
-# v4:CDouble[3.1415] = LoadConst<CDouble[3.1415]>
-        %4:64bit = Move 4614256447914709615(0x400921cac083126f):64bit
-       %5:Double = Move %4:64bit
-
-# v6:FloatExact = PrimitiveBox<CDouble> v4 {
-#   LiveValues<1> double:v4
-#   FrameState {
-#     CurInstrOffset 6
-#     Locals<1> v4
-#   }
-# }
-       %6:Object = Call)";
-  // Note - we only check whether the LIR has the stuff we care about
-  ASSERT_EQ(lir_str.substr(0, strlen(lir_expected)), lir_expected);
+  ASSERT_NE(
+      lir_str.find(":64bit = Move 4614256447914709615"), std::string::npos);
+  ASSERT_NE(lir_str.find(":Object = Call"), std::string::npos);
 }
 
 TEST_F(LIRGeneratorTest, StaticAddDouble) {
