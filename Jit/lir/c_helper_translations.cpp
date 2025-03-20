@@ -3,20 +3,16 @@
 #include "cinderx/Jit/lir/c_helper_translations.h"
 
 #include "cinderx/Jit/jit_rt.h"
-#include "cinderx/Jit/lir/c_helper_translations_auto.h"
 
 #include <fmt/format.h>
-
-#include <initializer_list>
 
 namespace jit::lir {
 
 const std::string* mapCHelperToLIR(uint64_t addr) {
-  static const std::initializer_list<std::pair<const uint64_t, std::string>>
-      manual = {
-          {reinterpret_cast<uint64_t>(JITRT_Cast),
-           fmt::format(
-               R"(Function:
+  static const std::unordered_map<uint64_t, std::string> mapping = {
+      {reinterpret_cast<uint64_t>(JITRT_Cast),
+       fmt::format(
+           R"(Function:
 BB %0 - succs: %2 %1
        %5:Object = LoadArg 0(0x0):Object
        %6:Object = LoadArg 1(0x1):Object
@@ -40,17 +36,8 @@ BB %3 - preds: %1 - succs: %4
 
 BB %4 - preds: %2 %3
 )",
-               offsetof(PyObject, ob_type),
-               offsetof(PyTypeObject, tp_name))},
-      };
-
-  static const std::unordered_map<uint64_t, std::string> mapping = [] {
-    // Create map from the manual translations.
-    std::unordered_map<uint64_t, std::string> map(manual);
-    // Add the automatically generated translations.
-    map.insert(kCHelperMappingAuto.begin(), kCHelperMappingAuto.end());
-    return map;
-  }();
+           offsetof(PyObject, ob_type),
+           offsetof(PyTypeObject, tp_name))}};
 
   auto it = mapping.find(addr);
   return it != mapping.end() ? &it->second : nullptr;

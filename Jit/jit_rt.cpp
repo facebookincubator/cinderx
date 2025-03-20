@@ -1249,14 +1249,6 @@ double JITRT_PowerUnsigned64(uint64_t x, uint64_t y) {
   return pow(x, y);
 }
 
-uint64_t JITRT_GetI64_FromArray(char* arr, int64_t idx, ssize_t offset) {
-  return (uint64_t)((int64_t*)(arr + offset))[idx];
-}
-
-PyObject* JITRT_GetObj_FromArray(char* arr, int64_t idx, ssize_t offset) {
-  return ((PyObject**)(arr + offset))[idx];
-}
-
 void JITRT_SetI8_InArray(char* arr, uint64_t val, int64_t idx) {
   arr[idx] = (int8_t)val;
 }

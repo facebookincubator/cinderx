@@ -31,22 +31,6 @@ using namespace jit::lir;
 
 namespace jit::codegen {
 
-static std::string readCHelperTranslationLIR(const std::string& filename) {
-#ifdef BUCK_BUILD
-  boost::filesystem::path path =
-      build::getResourcePath("cinderx/RuntimeTests/c_helper_translations")
-#else
-  std::filesystem::path path =
-      std::filesystem::path(__FILE__).parent_path().parent_path() / "Jit" /
-      "lir" / "c_helper_translations"
-#endif
-      / filename;
-  std::ifstream file(path);
-  std::stringstream buffer;
-  buffer << file.rdbuf();
-  return buffer.str();
-}
-
 class BackendTest : public RuntimeTest {
  public:
   // compile a function without generating prologue and epilogue.
@@ -132,42 +116,6 @@ class BackendTest : public RuntimeTest {
     for (const auto& loc : ARGUMENT_REGS) {
       environ.arg_locations.push_back(loc);
     }
-  }
-
-  void CheckFromArray(Function* lir_func) {
-    auto func = (uint64_t(*)(char*, int64_t, ssize_t))SimpleCompile(lir_func);
-
-    int64_t a[6] = {-1, 0, 1, 128, -2147483646, 214748367};
-    ASSERT_EQ(
-        func((char*)a, 0, 0),
-        JITRT_GetI64_FromArray((char*)a, 0, /*offset=*/0));
-    ASSERT_EQ(
-        func((char*)a, 1, 0),
-        JITRT_GetI64_FromArray((char*)a, 1, /*offset=*/0));
-    ASSERT_EQ(
-        func((char*)a, 2, 0),
-        JITRT_GetI64_FromArray((char*)a, 2, /*offset=*/0));
-    ASSERT_EQ(
-        func((char*)a, 3, 0),
-        JITRT_GetI64_FromArray((char*)a, 3, /*offset=*/0));
-    ASSERT_EQ(
-        func((char*)a, 4, 0),
-        JITRT_GetI64_FromArray((char*)a, 4, /*offset=*/0));
-    ASSERT_EQ(
-        func((char*)a, 5, 0),
-        JITRT_GetI64_FromArray((char*)a, 5, /*offset=*/0));
-    ASSERT_EQ(
-        func((char*)a, 0, 16),
-        JITRT_GetI64_FromArray((char*)a, 0, /*offset=*/16));
-    ASSERT_EQ(
-        func((char*)a, 1, 24),
-        JITRT_GetI64_FromArray((char*)a, 1, /*offset=*/24));
-    ASSERT_EQ(
-        func((char*)a, 4, -24),
-        JITRT_GetI64_FromArray((char*)a, 4, /*offset=*/-24));
-    ASSERT_EQ(
-        func((char*)a, 5, -16),
-        JITRT_GetI64_FromArray((char*)a, 5, /*offset=*/-16));
   }
 
   void CheckCast(Function* lir_func) {
@@ -634,38 +582,6 @@ TEST_F(BackendTest, MoveSequenceOpt2Test) {
   ASSERT_EQ((*iter)->getInput(1)->type(), OperandBase::kStack);
 }
 
-TEST_F(BackendTest, GetI32FromArrayTest) {
-  auto lirfunc = std::make_unique<Function>();
-  auto bb = lirfunc->allocateBasicBlock();
-
-  auto start =
-      bb->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(0));
-  auto index = bb->allocateInstr(
-      Instruction::kLoadArg, nullptr, OutVReg(OperandBase::k64bit), Imm(1));
-  auto offset = bb->allocateInstr(
-      Instruction::kLoadArg, nullptr, OutVReg(OperandBase::k64bit), Imm(2));
-
-  auto base_address = bb->allocateInstr(
-      Instruction::kAdd,
-      nullptr,
-      OutVReg(OperandBase::k64bit),
-      VReg(start),
-      VReg(offset));
-
-  auto address = Ind(base_address, index, 8, 0);
-
-  auto ret = bb->allocateInstr(
-      Instruction::kMove, nullptr, OutVReg(OperandBase::k64bit), address);
-  bb->allocateInstr(Instruction::kReturn, nullptr, VReg(ret));
-
-  // need this because the register allocator assumes the basic blocks
-  // end with Return should have one and only one successor.
-  auto epilogue = lirfunc->allocateBasicBlock();
-  bb->addSuccessor(epilogue);
-
-  CheckFromArray(lirfunc.get());
-}
-
 TEST_F(BackendTest, CastTest) {
   // constants used to print out error
   static const char* errmsg = "expected '%s', got '%s'";
@@ -734,21 +650,6 @@ TEST_F(BackendTest, CastTest) {
   bb4->addSuccessor(epilogue);
 
   CheckCast(lirfunc.get());
-}
-
-TEST_F(BackendTest, ParserGetI32FromArrayTest) {
-  Parser parser;
-  auto parsed_func =
-      parser.parse(readCHelperTranslationLIR("JITRT_GetI64_FromArray.lir"));
-
-  CheckFromArray(parsed_func.get());
-}
-
-TEST_F(BackendTest, ParserCastTest) {
-  Parser parser;
-  auto parsed_func = parser.parse(readCHelperTranslationLIR("JITRT_Cast.lir"));
-
-  CheckCast(parsed_func.get());
 }
 
 TEST_F(BackendTest, ParserStringInputTest) {
@@ -835,127 +736,6 @@ TEST_F(BackendTest, SplitBasicBlockTest) {
 
   ASSERT_EQ(func(0), 16);
   ASSERT_EQ(func(1), 9);
-}
-
-TEST_F(BackendTest, CopyFromArrayTest) {
-  Parser parser;
-  auto parsed_func =
-      parser.parse(readCHelperTranslationLIR("JITRT_GetI64_FromArray.lir"));
-
-  auto caller = std::make_unique<Function>();
-  auto bb1 = caller->allocateBasicBlock();
-  auto bb2 = caller->allocateBasicBlock();
-  bb1->addSuccessor(bb2);
-  auto [begin_bb, end_bb] =
-      caller->copyFrom(parsed_func.get(), bb1, bb2, nullptr);
-  parsed_func.reset();
-
-  // Check that the caller is what we expected.
-  auto expected_caller = fmt::format(R"(Function:
-BB %0 - succs: %2
-
-BB %2 - preds: %0 - succs: %3
-       %4:Object = LoadArg 0(0x0):Object
-        %5:64bit = LoadArg 1(0x1):Object
-        %6:64bit = LoadArg 2(0x2):Object
-        %7:64bit = Add %4:Object, %6:64bit
-        %8:64bit = Move [%7:64bit + %5:64bit * 8]:Object
-                   Return %8:64bit
-
-BB %3 - preds: %2 - succs: %1
-
-BB %1 - preds: %3
-
-)");
-  std::stringstream ss;
-  caller->sortBasicBlocks();
-  ss << *caller;
-  ASSERT_EQ(expected_caller, ss.str());
-
-  // Remove bb1 and bb2,
-  // so that the function can execute correctly.
-  auto basicblocks = &caller->basicblocks();
-  auto start = basicblocks->at(begin_bb);
-  start->predecessors().clear();
-  auto end = basicblocks->at(end_bb - 1);
-  end->successors().clear();
-  basicblocks->erase(
-      std::remove(basicblocks->begin(), basicblocks->end(), bb1),
-      basicblocks->end());
-  basicblocks->erase(
-      std::remove(basicblocks->begin(), basicblocks->end(), bb2),
-      basicblocks->end());
-  CheckFromArray(caller.get());
-}
-
-TEST_F(BackendTest, CopyCastTest) {
-  Parser parser;
-  auto parsed_func = parser.parse(readCHelperTranslationLIR("JITRT_Cast.lir"));
-
-  auto caller = std::make_unique<Function>();
-  auto bb1 = caller->allocateBasicBlock();
-  auto bb2 = caller->allocateBasicBlock();
-  bb1->addSuccessor(bb2);
-  auto [begin_bb, end_bb] =
-      caller->copyFrom(parsed_func.get(), bb1, bb2, nullptr);
-  parsed_func.reset();
-
-  auto expected_caller = fmt::format(
-      R"(Function:
-BB %0 - succs: %2
-
-BB %2 - preds: %0 - succs: %4 %3
-       %7:Object = LoadArg 0(0x0):Object
-       %8:Object = LoadArg 1(0x1):Object
-       %9:Object = Move [%7:Object + 0x8]:Object
-      %10:Object = Equal %9:Object, %8:Object
-                   CondBranch %10:Object
-
-BB %3 - preds: %2 - succs: %4 %5
-      %12:Object = Call {0}({0:#x}):Object, %9:Object, %8:Object
-                   CondBranch %12:Object
-
-BB %5 - preds: %3 - succs: %6
-      %15:Object = Move [%9:Object + 0x18]:Object
-      %16:Object = Move [%8:Object + 0x18]:Object
-                   Call {1}({1:#x}):Object, {2}({2:#x}):Object, string_literal, %16:Object, %15:Object
-      %18:Object = Move 0(0x0):Object
-                   Return %18:Object
-
-BB %4 - preds: %2 %3 - succs: %6
-                   Return %7:Object
-
-BB %6 - preds: %4 %5 - succs: %1
-
-BB %1 - preds: %6
-
-)",
-      reinterpret_cast<uint64_t>(PyType_IsSubtype),
-      reinterpret_cast<uint64_t>(PyErr_Format),
-      reinterpret_cast<uint64_t>(PyExc_TypeError));
-  std::stringstream ss;
-  caller->sortBasicBlocks();
-  ss << *caller;
-  // Replace the string literal address
-  std::regex reg("\\d+\\(0x[0-9a-fA-F]+\\):Object, %16:Object, %15:Object");
-  std::string caller_str =
-      regex_replace(ss.str(), reg, "string_literal, %16:Object, %15:Object");
-  ASSERT_EQ(expected_caller, caller_str);
-
-  // Remove bb1 and bb2,
-  // so that the function can execute correctly.
-  auto basicblocks = &caller->basicblocks();
-  auto start = basicblocks->at(begin_bb);
-  start->predecessors().clear();
-  auto end = basicblocks->at(end_bb - 1);
-  end->successors().clear();
-  basicblocks->erase(
-      std::remove(basicblocks->begin(), basicblocks->end(), bb1),
-      basicblocks->end());
-  basicblocks->erase(
-      std::remove(basicblocks->begin(), basicblocks->end(), bb2),
-      basicblocks->end());
-  CheckCast(caller.get());
 }
 
 TEST_F(BackendTest, InlineJITRTCastTest) {

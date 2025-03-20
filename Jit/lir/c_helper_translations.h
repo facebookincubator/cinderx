@@ -4,7 +4,6 @@
 
 #include <cstdint>
 #include <string>
-#include <unordered_map>
 
 namespace jit::lir {
 
