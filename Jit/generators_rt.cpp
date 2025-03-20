@@ -115,7 +115,7 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
     tstate->exc_info = jit_gen->gi_exc_state.previous_item;
     jit_gen->gi_exc_state.previous_item = nullptr;
     tstate->cframe->current_frame = frame->previous;
-    frame->previous = NULL;
+    frame->previous = nullptr;
     if (jit_gen->gi_frame_state == FRAME_COMPLETED) {
       jit_gen->gi_frame_state = FRAME_CLEARED;
       _PyFrame_ClearExceptCode(frame);
@@ -144,7 +144,7 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
     // Try to deopt to easily reproduce CPython errors.
     if (!deopt_jit_gen(obj)) {
       raise_already_running_exception(gen);
-      *presult = NULL;
+      *presult = nullptr;
       return PYGEN_ERROR;
     }
     return Py_TYPE(obj)->tp_as_async->am_send(obj, arg, presult);
@@ -424,8 +424,8 @@ PyTypeObject _JitCoroWrapper_Type = {
 
 PyObject* jitcoro_await(PyCoroObject* coro) {
   JitCoroWrapper* cw = PyObject_GC_New(JitCoroWrapper, &_JitCoroWrapper_Type);
-  if (cw == NULL) {
-    return NULL;
+  if (cw == nullptr) {
+    return nullptr;
   }
   cw->cw_coroutine = Py_NewRef(coro);
   PyObject_GC_Track(cw);
@@ -735,7 +735,7 @@ int JitCoro_CheckExact(PyObject* o) {
 // test_coroutines.CoroutineTest.test_await_12 expects. So we pull in the rest
 // and tweak the following check too just to make the test pass.
 PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
-  unaryfunc getter = NULL;
+  unaryfunc getter = nullptr;
   PyTypeObject* ot;
 
   if (JitCoro_CheckExact(o) || PyCoro_CheckExact(o) ||
@@ -745,12 +745,12 @@ PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
   }
 
   ot = Py_TYPE(o);
-  if (ot->tp_as_async != NULL) {
+  if (ot->tp_as_async != nullptr) {
     getter = ot->tp_as_async->am_await;
   }
-  if (getter != NULL) {
+  if (getter != nullptr) {
     PyObject* res = (*getter)(o);
-    if (res != NULL) {
+    if (res != nullptr) {
       if (JitCoro_CheckExact(res) || PyCoro_CheckExact(res) ||
           jit::jitgen_is_coroutine(res)) {
         /* __await__ must return an *iterator*, not
@@ -773,7 +773,7 @@ PyObject* JitCoro_GetAwaitableIter(PyObject* o) {
       PyExc_TypeError,
       "object %.100s can't be used in 'await' expression",
       ot->tp_name);
-  return NULL;
+  return nullptr;
 }
 
 PyObject* JitGen_yf(PyGenObject* gen) {
