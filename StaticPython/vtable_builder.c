@@ -1422,20 +1422,23 @@ int _PyClassLoader_CheckSubclassChange(
       break;
     }
     case PyDict_EVENT_DEALLOCATED: {
-      if (subclass_map == NULL) {
-        break;
-      }
-
-      PyTypeObject* base = get_tracked_type(subclass_map, dict);
-      if (base != NULL) {
-        return _PyDict_DelItem_KnownHash(
+      if (subclass_map != NULL) {
+        PyObject* base = _PyDict_GetItem_KnownHash(
             subclass_map, (PyObject*)dict, (Py_hash_t)dict);
+
+        if (base != NULL) {
+          return _PyDict_DelItem_KnownHash(
+              subclass_map, (PyObject*)dict, (Py_hash_t)dict);
+        }
       }
 
-      PyTypeObject* type = get_tracked_type(dict_map, dict);
-      if (type != NULL) {
-        return _PyDict_DelItem_KnownHash(
+      if (dict_map != NULL) {
+        PyObject* type_ref = _PyDict_GetItem_KnownHash(
             dict_map, (PyObject*)dict, (Py_hash_t)dict);
+        if (type_ref != NULL) {
+          return _PyDict_DelItem_KnownHash(
+              dict_map, (PyObject*)dict, (Py_hash_t)dict);
+        }
       }
       break;
     }

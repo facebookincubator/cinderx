@@ -554,11 +554,8 @@ int cinderx_dict_watcher(
   BorrowedRef<PyDictObject> dict{dict_obj};
 
   auto state = cinderx::getModuleState();
-  if (state == nullptr) {
-    // Shutting down...
-    return 0;
-  }
-  jit::IGlobalCacheManager* globalCaches = state->cacheManager();
+  jit::IGlobalCacheManager* globalCaches =
+      state != nullptr ? state->cacheManager() : nullptr;
 
   switch (event) {
     case PyDict_EVENT_ADDED:
@@ -566,6 +563,9 @@ int cinderx_dict_watcher(
     case PyDict_EVENT_DELETED: {
       _PyClassLoader_NotifyDictChange(dict, event, key_obj, new_value);
 
+      if (globalCaches == nullptr) {
+        return 0;
+      }
       if (key_obj == nullptr || !PyUnicode_CheckExact(key_obj)) {
         globalCaches->notifyDictUnwatch(dict);
         break;
@@ -584,14 +584,20 @@ int cinderx_dict_watcher(
       break;
     }
     case PyDict_EVENT_CLEARED:
-      globalCaches->notifyDictClear(dict);
+      if (globalCaches != nullptr) {
+        globalCaches->notifyDictClear(dict);
+      }
       break;
     case PyDict_EVENT_CLONED:
-      globalCaches->notifyDictUnwatch(dict);
+      if (globalCaches != nullptr) {
+        globalCaches->notifyDictUnwatch(dict);
+      }
       break;
     case PyDict_EVENT_DEALLOCATED:
       _PyClassLoader_NotifyDictChange(dict, event, key_obj, new_value);
-      globalCaches->notifyDictUnwatch(dict);
+      if (globalCaches != nullptr) {
+        globalCaches->notifyDictUnwatch(dict);
+      }
       break;
   }
 
