@@ -17,8 +17,19 @@ from __future__ import annotations
 # we want here.
 # ============================================================================
 
-import os
 import sys
+
+try:
+    from os import RTLD_GLOBAL
+    from sys import getdlopenflags, setdlopenflags
+except ImportError:
+    RTLD_GLOBAL: int = 0
+
+    def getdlopenflags() -> int:
+        return 0
+
+    def setdlopenflags(flags: int) -> None:
+        pass
 
 
 _import_error: ImportError | None = None
@@ -43,8 +54,8 @@ def is_supported_runtime() -> bool:
 
 # We need to make the symbols from _cinderx available process wide as they
 # are used in other CinderX modules like _static, etc.
-old_dlopen_flags: int = sys.getdlopenflags()
-sys.setdlopenflags(old_dlopen_flags | os.RTLD_GLOBAL)
+old_dlopen_flags: int = getdlopenflags()
+setdlopenflags(old_dlopen_flags | RTLD_GLOBAL)
 try:
     # Currently if we try to import _cinderx on runtimes without our internal patches
     # the import will crash.  This is meant to go away in the future.
@@ -267,7 +278,7 @@ except ImportError as e:
         pass
 
 finally:
-    sys.setdlopenflags(old_dlopen_flags)
+    setdlopenflags(old_dlopen_flags)
 
 
 def strictify_static() -> None:
