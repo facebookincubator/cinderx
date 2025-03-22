@@ -66,7 +66,7 @@ bool Context::reoptFunc(BorrowedRef<PyFunctionObject> func) {
 
 bool Context::didCompile(BorrowedRef<PyFunctionObject> func) {
   ThreadedCompileSerialize guard;
-  return compiled_funcs_.count(func) != 0;
+  return compiled_funcs_.contains(func);
 }
 
 CompiledFunction* Context::lookupFunc(BorrowedRef<PyFunctionObject> func) {
