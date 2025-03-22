@@ -390,7 +390,7 @@ void DataflowAnalysis::Initialize() {
       for (auto cfg_edge : cfg_block.out_edges()) {
         auto succ_cfg_block = cfg_edge->to();
         JIT_CHECK(
-            df_blocks_.count(succ_cfg_block),
+            df_blocks_.contains(succ_cfg_block),
             "succ_cfg_block has to be in the hash table df_blocks_.");
         auto& succ_df_block = df_blocks_.at(succ_cfg_block);
         df_block.ConnectTo(succ_df_block);
