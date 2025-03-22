@@ -165,7 +165,7 @@ bool GlobalCacheManager::isWatchedDictKey(
   auto& dict_keys = dict_it->second;
   auto key_it = dict_keys.find(key);
   if (key_it != dict_keys.end()) {
-    return key_it->second.count(cache);
+    return key_it->second.contains(cache);
   }
   return false;
 }
