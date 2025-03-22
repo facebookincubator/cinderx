@@ -591,17 +591,17 @@ static void postorder_traverse(
     case Opcode::kCondBranchIterNotDone:
     case Opcode::kCondBranchCheckType: {
       auto cbr = static_cast<CondBranch*>(instr);
-      if (!visited->count(cbr->false_bb())) {
+      if (!visited->contains(cbr->false_bb())) {
         postorder_traverse(cbr->false_bb(), traversal, visited);
       }
-      if (!visited->count(cbr->true_bb())) {
+      if (!visited->contains(cbr->true_bb())) {
         postorder_traverse(cbr->true_bb(), traversal, visited);
       }
       break;
     }
     case Opcode::kBranch: {
       auto br = static_cast<Branch*>(instr);
-      if (!visited->count(br->target())) {
+      if (!visited->contains(br->target())) {
         postorder_traverse(br->target(), traversal, visited);
       }
       break;
@@ -841,7 +841,7 @@ Environment::~Environment() {
 
 Register* Environment::AllocateRegister() {
   auto id = next_register_id_++;
-  while (registers_.count(id)) {
+  while (registers_.contains(id)) {
     id = next_register_id_++;
   }
   auto res = registers_.emplace(id, std::make_unique<Register>(id));
