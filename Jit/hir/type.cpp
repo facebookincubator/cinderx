@@ -61,7 +61,7 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
   JIT_CHECK(/* UPGRADE_NOTE(AWAITED_FLAG, T194027914) */   \
             T##name <= TArray || T##name <= TWaitHandle || \
                 ((flags) & kTypeHasUniquePyType) == 0 ||   \
-                map.count(T##name) == 1,                   \
+                map.contains(T##name),                     \
             "Type {} missing entry in typeToPyType()",     \
             T##name);
     HIR_TYPES(CHECK_TY)
@@ -528,7 +528,7 @@ Type Type::operator|(Type other) const {
   } else {
     return no_spec;
   }
-  if (pyTypeToType().count(supertype) != 0) {
+  if (pyTypeToType().contains(supertype)) {
     // If the resolved supertype is a builtin type, the result doesn't need to
     // be specialized; the bits uniquely describe it already.
     return no_spec;
