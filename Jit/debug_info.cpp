@@ -69,7 +69,7 @@ ActivationMap buildActivationMap(const jit::hir::Function& func) {
     WorkItem item = std::move(workq.front());
     workq.pop_front();
 
-    if (processed.count(item.block)) {
+    if (processed.contains(item.block)) {
       continue;
     }
 
