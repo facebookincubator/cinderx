@@ -248,7 +248,7 @@ BB %28
   UnorderedMap<int, std::vector<LiveInterval*>> loc_interval_map;
   UnorderedMap<const Operand*, std::vector<LiveInterval*>> vreg_location_map;
   for (auto& alloc : lsallocator.allocated_) {
-    if (!opnd_id_map.count(alloc->vreg)) {
+    if (!opnd_id_map.contains(alloc->vreg)) {
       continue;
     }
     loc_interval_map[alloc->allocated_loc.loc].push_back(alloc.get());
