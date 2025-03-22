@@ -455,7 +455,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
 
     // record a loop end
     for (auto& succ : bb->successors()) {
-      if (visited_blocks.count(bb)) {
+      if (visited_blocks.contains(bb)) {
         continue;
       }
 
@@ -548,7 +548,7 @@ bool LinearScanAllocator::isPredefinedUsed(const Operand* operand) const {
   auto& block = func_->basicblocks()[0];
 
   for (auto& succ : block->successors()) {
-    if (map_get(regalloc_blocks_, succ).livein.count(operand)) {
+    if (map_get(regalloc_blocks_, succ).livein.contains(operand)) {
       return true;
     }
   }
