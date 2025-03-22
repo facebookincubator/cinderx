@@ -283,7 +283,7 @@ std::unique_ptr<jit::lir::Function> LIRGenerator::TranslateFunction() {
     for (int succ = 0, num_succs = hir_term->numEdges(); succ < num_succs;
          succ++) {
       auto hir_succ = hir_term->successor(succ);
-      if (bb_map.count(hir_succ)) {
+      if (bb_map.contains(hir_succ)) {
         continue;
       }
       translate_block(hir_succ);
