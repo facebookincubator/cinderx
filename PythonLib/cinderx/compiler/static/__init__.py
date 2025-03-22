@@ -746,10 +746,10 @@ class StaticCodeGenBase(StrictCodeGenBase):
         self.get_type(node).emit_constant(node, self)
 
     def visitDefault(self, node: expr) -> None:
-        if isinstance(self.get_type(node), CInstance):
-            self.get_type(node).emit_box(node, self)
-        else:
-            self.visit(node)
+        self.visit(node)
+        node_type = self.get_type(node)
+        if isinstance(node_type, CInstance):
+            node_type.emit_box(self)
 
     def get_final_literal(self, node: AST) -> ast.Constant | None:
         return self.cur_mod.get_final_literal(node, self.scope)

@@ -1172,8 +1172,8 @@ class Value:
             "JUMP_IF_TRUE_OR_POP" if is_if_true else "JUMP_IF_FALSE_OR_POP", next
         )
 
-    def emit_box(self, node: expr, code_gen: StaticCodeGenBase) -> None:
-        raise RuntimeError(f"Unsupported box type: {code_gen.get_type(node)}")
+    def emit_box(self, code_gen: StaticCodeGenBase) -> None:
+        raise RuntimeError(f"Unsupported box type: {self.name}")
 
     def emit_unbox(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         raise RuntimeError("Unsupported unbox type")
@@ -6823,7 +6823,9 @@ class BoxFunction(Object[Class]):
         return NO_EFFECT
 
     def emit_call(self, node: ast.Call, code_gen: StaticCodeGenBase) -> None:
-        code_gen.get_type(node.args[0]).emit_box(node.args[0], code_gen)
+        code_gen.visit(node.args[0])
+        node_type = code_gen.get_type(node.args[0])
+        node_type.emit_box(code_gen)
 
 
 class UnboxFunction(Object[Class]):
@@ -8250,7 +8252,11 @@ class BoolClass(Class):
             arg = node.args[0]
             arg_type = code_gen.get_type(arg)
             if isinstance(arg_type, CIntInstance) and arg_type.constant == TYPED_BOOL:
-                arg_type.emit_box(arg, code_gen)
+                code_gen.visit(arg)
+                # Get arg_type again in case the visit() above has changed it
+                # (we will raise an error if it is not still CIntInstance)
+                arg_type = code_gen.get_type(arg)
+                arg_type.emit_box(code_gen)
                 return
 
         super().emit_call(node, code_gen)
@@ -9521,13 +9527,8 @@ class CIntInstance(CInstance["CIntType"]):
             visitor.set_type(node, type_ctx)
         return True
 
-    def emit_box(self, node: expr, code_gen: StaticCodeGenBase) -> None:
-        code_gen.visit(node)
-        type = code_gen.get_type(node)
-        if isinstance(type, CIntInstance):
-            code_gen.emit("PRIMITIVE_BOX", self.as_oparg())
-        else:
-            raise RuntimeError("unsupported box type: " + type.name)
+    def emit_box(self, code_gen: StaticCodeGenBase) -> None:
+        code_gen.emit("PRIMITIVE_BOX", self.as_oparg())
 
     def emit_unbox(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node)
@@ -9810,13 +9811,8 @@ class CDoubleInstance(CInstance["CDoubleType"]):
     def emit_constant(self, node: ast.Constant, code_gen: StaticCodeGenBase) -> None:
         code_gen.emit("PRIMITIVE_LOAD_CONST", (float(node.value), self.as_oparg()))
 
-    def emit_box(self, node: expr, code_gen: StaticCodeGenBase) -> None:
-        code_gen.visit(node)
-        type = code_gen.get_type(node)
-        if isinstance(type, CDoubleInstance):
-            code_gen.emit("PRIMITIVE_BOX", self.as_oparg())
-        else:
-            raise RuntimeError("unsupported box type: " + type.name)
+    def emit_box(self, code_gen: StaticCodeGenBase) -> None:
+        code_gen.emit("PRIMITIVE_BOX", self.as_oparg())
 
     def emit_unbox(self, node: expr, code_gen: StaticCodeGenBase) -> None:
         code_gen.visit(node)
