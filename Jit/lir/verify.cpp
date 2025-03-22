@@ -36,7 +36,7 @@ bool verifyPostRegAllocInvariants(Function* func, std::ostream& err) {
         continue;
       }
       // Ensure that a jump to the successor exists.
-      if (!branched_blocks.count(succ)) {
+      if (!branched_blocks.contains(succ)) {
         fmt::print(
             err,
             "ERROR: Basic block {} does not contain a jump to non-immediate "
