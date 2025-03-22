@@ -21,7 +21,7 @@ BasicBlockSorter::BasicBlockSorter(
     const UnorderedSet<BasicBlock*>& blocks,
     BasicBlock* entry)
     : entry_(entry), basic_blocks_store_(), basic_blocks_(blocks) {
-  JIT_DCHECK(blocks.count(entry), "Entry basic block is not in blocks");
+  JIT_DCHECK(blocks.contains(entry), "Entry basic block is not in blocks");
 }
 
 std::vector<BasicBlock*> BasicBlockSorter::getSortedBlocks() {
@@ -76,7 +76,7 @@ void BasicBlockSorter::calculateSCC() {
 int BasicBlockSorter::dfsSearch(BasicBlock* block) {
   int block_index = map_get(scc_visited_, block, -1);
   if (block_index >= 0) {
-    if (scc_in_stack_.count(block)) {
+    if (scc_in_stack_.contains(block)) {
       return block_index;
     } else {
       return std::numeric_limits<int>::max();
