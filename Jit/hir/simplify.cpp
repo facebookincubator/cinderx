@@ -404,7 +404,7 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
         &PyUnicode_Type,
         &_PyNone_Type,
     };
-    if (kTrustedTypes.count(Py_TYPE(obj))) {
+    if (kTrustedTypes.contains(Py_TYPE(obj))) {
       int res = PyObject_IsTrue(obj);
       JIT_CHECK(res >= 0, "PyObject_IsTrue failed on trusted type");
       // Since we no longer use instr->GetOperand(0), we need to make sure that

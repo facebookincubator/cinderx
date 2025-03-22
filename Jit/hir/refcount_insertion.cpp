@@ -240,7 +240,7 @@ class StateMap {
 
   auto countModel(Register* model) const {
     JIT_DCHECK(model == modelReg(model), "countModel given non-model reg");
-    return map_.count(model);
+    return map_.contains(model);
   }
 
   RegState& getModel(Register* model) {
@@ -690,7 +690,7 @@ void useSimpleInState(Env& env, BasicBlock* block) {
     RegState& rstate = pair.second;
     for (int i = rstate.numCopies() - 1; i >= 0; --i) {
       Register* reg = rstate.copy(i);
-      if (!live_in.count(reg)) {
+      if (!live_in.contains(reg)) {
         dying_values.emplace_back(reg);
       }
     }
@@ -724,7 +724,7 @@ void initializeInState(
     auto& pred_rstate = pred_state.getModel(model);
     for (int i = 0, n = pred_rstate.numCopies(); i < n; ++i) {
       auto copy = pred_rstate.copy(i);
-      if (live_in.count(copy)) {
+      if (live_in.contains(copy)) {
         rstate.addCopy(copy);
       }
     }

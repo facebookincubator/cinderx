@@ -573,7 +573,7 @@ bool CleanCFG::RemoveUnreachableInstructions(CFG* cfg) {
             const std::unordered_set<const BasicBlock*>& dom_set =
                 dom.getBlocksDominatedBy(target);
             for (Instr* instr : instrs_using_reg) {
-              if (dom_set.count(instr->block())) {
+              if (dom_set.contains(instr->block())) {
                 instr->ReplaceUsesOf(operand, refined_value);
               }
             }
@@ -600,7 +600,7 @@ bool CleanCFG::RemoveUnreachableBlocks(CFG* cfg) {
   while (!stack.empty()) {
     BasicBlock* block = stack.back();
     stack.pop_back();
-    if (visited.count(block)) {
+    if (visited.contains(block)) {
       continue;
     }
     visited.insert(block);
@@ -609,7 +609,7 @@ bool CleanCFG::RemoveUnreachableBlocks(CFG* cfg) {
       BasicBlock* succ = term->successor(i);
       // This check isn't necessary for correctness but avoids unnecessary
       // pushes to the stack.
-      if (!visited.count(succ)) {
+      if (!visited.contains(succ)) {
         stack.emplace_back(succ);
       }
     }
@@ -619,7 +619,7 @@ bool CleanCFG::RemoveUnreachableBlocks(CFG* cfg) {
   for (auto it = cfg->blocks.begin(); it != cfg->blocks.end();) {
     BasicBlock* block = &*it;
     ++it;
-    if (!visited.count(block)) {
+    if (!visited.contains(block)) {
       if (Instr* old_term = block->GetTerminator()) {
         for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
           old_term->successor(i)->removePhiPredecessor(block);

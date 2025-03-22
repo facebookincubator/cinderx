@@ -695,7 +695,7 @@ void HIRBuilder::translate(
   while (!queue.empty()) {
     auto tc = std::move(queue.front());
     queue.pop_front();
-    if (processed.count(tc.block)) {
+    if (processed.contains(tc.block)) {
       continue;
     }
     processed.emplace(tc.block);
@@ -1477,9 +1477,9 @@ void BlockCanonicalizer::InsertCopies(
     TempAllocator& temps,
     Instr& terminator,
     std::vector<Register*>& alloced) {
-  if (done_.count(reg)) {
+  if (done_.contains(reg)) {
     return;
-  } else if (processing_.count(reg)) {
+  } else if (processing_.contains(reg)) {
     // We've detected a cycle. Move the register to a new home
     // in order to break the cycle.
     auto tmp = temps.AllocateStack();
@@ -4480,7 +4480,7 @@ void HIRBuilder::checkTranslate() {
         }
         oparg = oparg >> 1;
       }
-      if (banned_name_ids.count(oparg)) {
+      if (banned_name_ids.contains(oparg)) {
         throw std::runtime_error{fmt::format(
             "Cannot compile {} to HIR because it uses banned global '{}'",
             preloader_.fullname(),

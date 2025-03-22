@@ -77,7 +77,7 @@ bool checkCFG(const Function& func, std::ostream& err) {
   }
 
   for (auto& block : func.cfg.blocks) {
-    if (!reachable.count(&block)) {
+    if (!reachable.contains(&block)) {
       fmt::print(err, "ERROR: CFG contains unreachable bb {}\n", block.id);
       return false;
     }
@@ -85,7 +85,7 @@ bool checkCFG(const Function& func, std::ostream& err) {
     std::unordered_set<BasicBlock*> seen;
     for (auto edge : block.in_edges()) {
       auto pred = edge->from();
-      if (!reachable.count(pred)) {
+      if (!reachable.contains(pred)) {
         fmt::print(
             err,
             "ERROR: bb {} has unreachable predecessor bb {}\n",
@@ -93,7 +93,7 @@ bool checkCFG(const Function& func, std::ostream& err) {
             pred->id);
         return false;
       }
-      if (seen.count(pred)) {
+      if (seen.contains(pred)) {
         fmt::print(
             err,
             "ERROR: bb {} has > 1 edge from predecessor bb {}\n",
@@ -166,7 +166,7 @@ void checkRegisters(CheckEnv& env) {
   } else {
     for (size_t i = 0, n = env.instr->NumOperands(); i < n; ++i) {
       auto operand = env.instr->GetOperand(i);
-      if (!env.defined.count(operand)) {
+      if (!env.defined.contains(operand)) {
         fmt::print(
             env.err,
             "ERROR: Operand '{}' of instruction '{}' not defined at use in "
