@@ -883,6 +883,37 @@ void module_free(void* mod) {
   cinderx::setModuleState(nullptr);
 }
 
+// Called when the interpreter is shutting down, allows us to do some aggressive
+// cleanup. Currently this includes clearing out all strict modules which the
+// interpreter won't do because it only supports clearing normal module objects.
+static PyObject* clear_strict_modules(PyObject*, PyObject*) {
+  BorrowedRef<> modules = PyImport_GetModuleDict();
+  Ref<> clearing;
+  if (PyDict_CheckExact(modules)) {
+    Py_ssize_t pos = 0;
+    PyObject *key, *value;
+    while (PyDict_Next(modules, &pos, &key, &value)) {
+      if (Ci_StrictModule_Check(value)) {
+        if (clearing == nullptr) {
+          clearing = Ref<>::steal(PyList_New(0));
+        }
+        if (PyList_Append(clearing, value) < 0) {
+          break;
+        }
+      }
+    }
+  }
+
+  if (clearing != nullptr) {
+    for (Py_ssize_t i = 0; i < PyList_GET_SIZE(clearing.get()); i++) {
+      BorrowedRef<> mod = PyList_GET_ITEM(clearing.get(), i);
+      BorrowedRef<> dict = Ci_StrictModule_GetDict(mod);
+      PyDict_Clear(dict);
+    }
+  }
+  Py_RETURN_NONE;
+}
+
 PyMethodDef _cinderx_methods[] = {
     {"init",
      init,
@@ -939,6 +970,10 @@ PyMethodDef _cinderx_methods[] = {
      cinder_get_parallel_gc_settings,
      METH_NOARGS,
      cinder_get_parallel_gc_settings_doc},
+    {"_clear_strict_modules",
+     clear_strict_modules,
+     METH_NOARGS,
+     "Clears all strict modules for shutdown"},
     {"_compile_perf_trampoline_pre_fork",
      compile_perf_trampoline_pre_fork,
      METH_NOARGS,
@@ -1065,6 +1100,23 @@ static int _cinderx_exec(PyObject* m) {
   ADDITEM("async_cached_classproperty", &PyAsyncCachedClassProperty_Type);
 
 #undef ADDITEM
+
+  // We don't want a low level callback which is called pretty late after
+  // sys.modules has been cleared. Instead we want to be called before that
+  // happens so we can clear out strict modules first, so we register
+  // directly with the atexit library.
+  auto atexit = Ref<>::steal(PyImport_ImportModule("atexit"));
+  auto register_func = Ref<>::steal(PyObject_GetAttrString(atexit, "register"));
+  auto clear_strict_modules_func =
+      Ref<>::steal(PyObject_GetAttrString(m, "_clear_strict_modules"));
+  if (clear_strict_modules_func == nullptr) {
+    return -1;
+  }
+  auto res = Ref<>::steal(
+      PyObject_CallOneArg(register_func, clear_strict_modules_func));
+  if (res == nullptr) {
+    return -1;
+  }
 
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
     // Get the existing cache clear function so we can forward to it.
