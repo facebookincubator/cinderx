@@ -1,7 +1,6 @@
 {
   "bad": [
     "test_cinderx.test_cinderjit",
-    "test_cinderx.test_compiler.test_errors",
     "test_cinderx.test_cpython_overrides.test_trace"
   ],
   "good": [
@@ -447,6 +446,7 @@
     "test_cinderx.test_compiler.test_cinder",
     "test_cinderx.test_compiler.test_code_sbs",
     "test_cinderx.test_compiler.test_corpus",
+    "test_cinderx.test_compiler.test_errors",
     "test_cinderx.test_compiler.test_exception_table",
     "test_cinderx.test_compiler.test_flags",
     "test_cinderx.test_compiler.test_graph",
