@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sys
 
-from compileall import compile_dir, compile_file
+from cinderx.compileall import compile_dir, compile_file
 from typing import final
 
 from cinderx.compiler.strict.loader import strict_compile

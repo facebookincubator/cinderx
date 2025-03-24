@@ -233,15 +233,15 @@ fun jittestmodule:test {
 --- Expected 3.12 ---
 fun jittestmodule:test {
   bb 0 {
-    v9:Func = LoadCurrentFunc
+    v8:Func = LoadCurrentFunc
     Snapshot
-    v10:CInt32 = LoadEvalBreaker
-    CondBranch<2, 1> v10
+    v9:CInt32 = LoadEvalBreaker
+    CondBranch<2, 1> v9
   }
 
   bb 2 (preds 0) {
     Snapshot
-    v11:CInt32 = RunPeriodicTasks {
+    v10:CInt32 = RunPeriodicTasks {
       FrameState {
         CurInstrOffset 0
       }
@@ -251,45 +251,28 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v12:ObjectUser[C:Exact] = TpAlloc<C> {
+    v11:ObjectUser[C:Exact] = TpAlloc<C> {
       FrameState {
         CurInstrOffset 2
       }
     }
     Snapshot
-    v13:Object = LoadFunctionIndirect<__init__> {
+    v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v13:Object = InvokeStaticFunction<jittestmodule.C.__init__, 2, Object> v12 v11 {
       FrameState {
         CurInstrOffset 8
-        Stack<2> v12 v12
-      }
-    }
-    v14:Object = VectorCall<1> v13 v12 {
-      FrameState {
-        CurInstrOffset 8
-        Stack<1> v12
+        Stack<1> v11
       }
     }
     Snapshot
-    v15:Object = LoadFunctionIndirect<getfoo> {
-      FrameState {
-        CurInstrOffset 14
-        Stack<1> v12
-      }
-    }
-    v16:Object = VectorCall<1> v15 v12 {
-      FrameState {
-        CurInstrOffset 14
-      }
-    }
-    v17:Long = RefineType<Long> v16
-    v18:CInt8 = PrimitiveUnbox<CInt8> v17
-    v19:CInt64 = IsNegativeAndErrOccurred v18 {
+    v14:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
+    v15:CInt8 = InvokeStaticFunction<jittestmodule.C.getfoo, 2, CInt8> v14 v11 {
       FrameState {
         CurInstrOffset 14
       }
     }
     Snapshot
-    Return<CInt8> v18
+    Return<CInt8> v15
   }
 }
 --- End ---

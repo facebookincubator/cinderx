@@ -2,7 +2,6 @@
   "bad": [
     "test.test_capi",
     "test_cinderx.test_cinderjit",
-    "test_cinderx.test_compiler.test_strict",
     "test_cinderx.test_cpython_overrides.test_trace"
   ],
   "good": [
@@ -498,6 +497,7 @@
     "test_cinderx.test_compiler.test_static.unknown_names",
     "test_cinderx.test_compiler.test_static.variadic_arg",
     "test_cinderx.test_compiler.test_static.walrus_operator",
+    "test_cinderx.test_compiler.test_strict",
     "test_cinderx.test_compiler.test_symbols",
     "test_cinderx.test_compiler.test_unparse",
     "test_cinderx.test_compiler.test_visitor",

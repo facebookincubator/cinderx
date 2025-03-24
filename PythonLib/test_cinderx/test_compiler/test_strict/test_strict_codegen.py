@@ -63,10 +63,12 @@ class StrictCompilationTests(StrictTestBase):
             self.assertEqual(C.x, 1)
 
             code = f.__code__
-            self.assertInBytecode(
-                code,
-                "SETUP_FINALLY",
-            )
+            if sys.version_info < (3, 12):
+                # SETUP_FINALLY is a pseudo opcode in 3.12
+                self.assertInBytecode(
+                    code,
+                    "SETUP_FINALLY",
+                )
             self.assertInBytecode(
                 code,
                 "STORE_FAST",
