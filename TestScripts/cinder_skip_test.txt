@@ -54,3 +54,7 @@ test.test_capi.test_misc.Test_testcapi.test_atexit
 test.test_capi.test_misc.TestThreadState.test_gilstate_matches_current
 test.test_capi.test_misc.Test_testcapi.test_current_tstate_matches
 test.test_ast.test_ast.ModuleStateTests.test_subinterpreter
+
+
+# Expects only _testcapi module to be loaded in error message
+test.test_capi.test_misc.CAPITest.test_getitem_with_error

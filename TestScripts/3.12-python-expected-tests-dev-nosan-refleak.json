@@ -1,6 +1,5 @@
 {
   "bad": [
-    "test.test_capi",
     "test.test_sqlite3",
     "test_cinderx.test_cinderjit"
   ],
@@ -34,6 +33,7 @@
     "test.test_c_locale_coercion",
     "test.test_calendar",
     "test.test_call",
+    "test.test_capi",
     "test.test_cgi",
     "test.test_cgitb",
     "test.test_charmapcodec",
