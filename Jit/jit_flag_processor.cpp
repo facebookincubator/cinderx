@@ -23,16 +23,15 @@ bool FlagProcessor::hasOptions() {
 }
 
 Option& FlagProcessor::addOption(
-    const std::string cmdline_flag,
-    const std::string environment_variable,
-    const std::function<void(int)> callback,
-    const std::string flag_description) {
+    const std::string& cmdline_flag,
+    const std::string& environment_variable,
+    const std::function<void(int)>& callback,
+    const std::string& flag_description) {
   assert(!cmdline_flag.empty());
   assert(!flag_description.empty());
 
   std::function<void(const std::string&)> int_callback =
-      [callback, &cmdline_flag, &environment_variable](
-          const std::string& flag_value) {
+      [=](const std::string& flag_value) {
         try {
           // The callback only gets called for empty X-options, not empty
           // environment variables. This makes `-X foo` equivalent to `-X
@@ -52,10 +51,10 @@ Option& FlagProcessor::addOption(
 }
 
 Option& FlagProcessor::addOption(
-    const std::string cmdline_flag,
-    const std::string environment_variable,
-    const std::function<void(const std::string&)> callback,
-    const std::string flag_description) {
+    const std::string& cmdline_flag,
+    const std::string& environment_variable,
+    const std::function<void(const std::string&)>& callback,
+    const std::string& flag_description) {
   assert(!cmdline_flag.empty());
   assert(!flag_description.empty());
 
@@ -69,10 +68,10 @@ Option& FlagProcessor::addOption(
 }
 
 Option& FlagProcessor::addOption(
-    const std::string cmdline_flag,
-    const std::string environment_variable,
+    const std::string& cmdline_flag,
+    const std::string& environment_variable,
     std::string& variable_to_bind_to,
-    const std::string flag_description) {
+    const std::string& flag_description) {
   std::function<void(const std::string&)> setter =
       [&variable_to_bind_to](const std::string& flag_value) {
         variable_to_bind_to = flag_value;
@@ -82,10 +81,10 @@ Option& FlagProcessor::addOption(
 }
 
 Option& FlagProcessor::addOption(
-    const std::string cmdline_flag,
-    const std::string environment_variable,
+    const std::string& cmdline_flag,
+    const std::string& environment_variable,
     bool& variable_to_bind_to,
-    const std::string flag_description) {
+    const std::string& flag_description) {
   std::function<void(int)> setter = [&variable_to_bind_to](int flag_value) {
     variable_to_bind_to = static_cast<bool>(flag_value);
   };
@@ -94,10 +93,10 @@ Option& FlagProcessor::addOption(
 }
 
 Option& FlagProcessor::addOption(
-    const std::string cmdline_flag,
-    const std::string environment_variable,
+    const std::string& cmdline_flag,
+    const std::string& environment_variable,
     int& variable_to_bind_to,
-    const std::string flag_description) {
+    const std::string& flag_description) {
   std::function<void(int)> setter = [&variable_to_bind_to](int flag_value) {
     variable_to_bind_to = flag_value;
   };
@@ -106,13 +105,12 @@ Option& FlagProcessor::addOption(
 }
 
 Option& FlagProcessor::addOption(
-    const std::string cmdline_flag,
-    const std::string environment_variable,
+    const std::string& cmdline_flag,
+    const std::string& environment_variable,
     size_t& variable_to_bind_to,
-    const std::string flag_description) {
+    const std::string& flag_description) {
   std::function<void(const std::string&)> setter =
-      [&variable_to_bind_to, &cmdline_flag, &environment_variable](
-          const std::string& flag_value) {
+      [=, &variable_to_bind_to](const std::string& flag_value) {
         try {
           // The callback only gets called for empty X-options, not empty
           // environment variables. This makes `-X foo` equivalent to `-X
@@ -130,7 +128,7 @@ Option& FlagProcessor::addOption(
       cmdline_flag, environment_variable, setter, flag_description);
 }
 
-bool FlagProcessor::canHandle(const char* provided_option) {
+bool FlagProcessor::canHandle(std::string_view provided_option) {
   for (auto const& option : options_) {
     if (option->cmdline_flag == provided_option) {
       return true;
