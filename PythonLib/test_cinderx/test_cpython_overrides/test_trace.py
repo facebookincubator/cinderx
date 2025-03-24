@@ -43,7 +43,7 @@ def traced_caller_list_comprehension():
 
 
 class CinderX_TestLineCounts(unittest.TestCase):
-    _inline_comprehensions = os.getenv("PYTHONINLINECOMPREHENSIONS")
+    _inline_comprehensions = os.getenv("PYTHONINLINECOMPREHENSIONS") or sys.version_info >= (3, 12)
 
     """White-box testing of line-counting, via runfunc"""
     def setUp(self):

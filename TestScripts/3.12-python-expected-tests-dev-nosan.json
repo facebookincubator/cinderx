@@ -1,8 +1,7 @@
 {
   "bad": [
     "test.test_capi",
-    "test_cinderx.test_cinderjit",
-    "test_cinderx.test_cpython_overrides.test_trace"
+    "test_cinderx.test_cinderjit"
   ],
   "good": [
     "test.test___all__",
@@ -538,6 +537,7 @@
     "test_cinderx.test_cpython_overrides.test_generators",
     "test_cinderx.test_cpython_overrides.test_inspect",
     "test_cinderx.test_cpython_overrides.test_repl",
+    "test_cinderx.test_cpython_overrides.test_trace",
     "test_cinderx.test_cpython_overrides.test_tracemalloc",
     "test_cinderx.test_cpython_overrides.test_types",
     "test_cinderx.test_immortalize",
