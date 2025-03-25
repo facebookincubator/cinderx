@@ -9383,6 +9383,14 @@ class CIntInstance(CInstance["CIntType"]):
         visitor: TypeBinder,
         type_ctx: Class | None,
     ) -> bool:
+        if isinstance(op, (ast.In, ast.NotIn)):
+            # Just set the op type to dynamic and the return type to bool for
+            # now; when we have better support for generic containers we can
+            # check for a sequence of the right type.
+            visitor.set_type(op, visitor.type_env.DYNAMIC)
+            visitor.set_type(node, self.klass.type_env.bool.instance)
+            return True
+
         rtype = visitor.get_type(right)
         if rtype != self and not isinstance(rtype, CIntInstance):
             visitor.visit(right, self)

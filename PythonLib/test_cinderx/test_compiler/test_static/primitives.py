@@ -3736,3 +3736,52 @@ class PrimitivesTests(StaticTestBase):
                 pass
 
             self.assertEqual(mod.f(X(128.0)), 128.0)
+
+    def test_container_membership_boxing(self):
+        # Check that we box the lhs of an `in` test if it is a primitive.
+        codestr = """
+        from __static__ import int64
+
+        def f(x: int64, y: list[int64]) -> bool:
+            return x in y
+        """
+        with self.in_module(codestr) as mod:
+            self.assertInBytecode(mod.f, "PRIMITIVE_BOX")
+            self.assertTrue(mod.f(1, [1, 2, 3]))
+            self.assertFalse(mod.f(4, [1, 2, 3]))
+
+    def test_container_membership_no_error(self):
+        codestr = """
+        from __static__ import int64
+
+        # We return bool rather than cbool in all cases
+        def f(x: int64, y: list[int64]) -> bool:
+            return x in y
+
+        def g(x: int64, y: list[int64]) -> bool:
+            return x not in y
+
+        def h(x: int64, y: list[int]) -> bool:
+            return x in y
+
+        # We do not check the element type of y
+        def j(x: int64, y: list[str]) -> bool:
+            return x in y
+
+        def k(x: int64, y: list) -> bool:
+            return x in y
+
+        # Don't crash when compariing primitives to boxed types
+        def l(x: int64) -> bool:
+            return x in [{'a': 1}, {'b': 2}]
+
+        # We do not check that y is a container type
+        def m(x: int64, y: int) -> bool:
+            return x in y
+
+        # Handle the chained case
+        def n(x: int64, y: list, z: list) -> bool:
+            return x in y in z
+        """
+        with self.in_module(codestr):
+            pass

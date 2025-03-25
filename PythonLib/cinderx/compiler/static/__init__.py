@@ -71,6 +71,7 @@ from .types import (
     DataclassDecorator,
     DataclassField,
     DecoratedMethod,
+    DynamicInstance,
     EAGER_IMPORT_NAME,
     Function,
     FunctionContainer,
@@ -1170,6 +1171,21 @@ class StaticCodeGenBase(StrictCodeGenBase):
         if name is not None:
             pc.type_dict[name] = self.get_type(loc).klass
 
+    def emit_convert_compare_arg(self, op: AST, optype: Value, ltype: Value) -> None:
+        """Convert `ltype` to be compatible with `optype`."""
+        # Helper function for visitCompare; checks if ltype needs to be boxed.
+        optype.emit_convert(ltype, self)
+        if (
+            isinstance(ltype, CInstance)
+            and isinstance(optype, DynamicInstance)
+            and isinstance(op, ast.In)
+        ):
+            # We don't support static containers yet, so for something
+            # like `x: int64 in y: list` we set the optype to dynamic
+            # in static.types.CIntInstance.bind_compare, and we need to
+            # box `x` here before the COMPARE opcode is emitted.
+            ltype.emit_box(self)
+
 
 class Static310CodeGenerator(StaticCodeGenBase, CinderCodeGenerator310):
     flow_graph = PyFlowGraphStatic310
@@ -1203,7 +1219,7 @@ class Static310CodeGenerator(StaticCodeGenBase, CinderCodeGenerator310):
             optype = self.get_type(op)
             ltype = self.get_type(left)
             if ltype != optype:
-                optype.emit_convert(ltype, self)
+                self.emit_convert_compare_arg(op, optype, ltype)
             code = node.comparators[-1]
             self.visit(code)
             rtype = self.get_type(code)
@@ -1260,7 +1276,7 @@ class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
             op = node.ops[0]
             optype = self.get_type(op)
             if ltype != optype:
-                optype.emit_convert(ltype, self)
+                self.emit_convert_compare_arg(op, optype, ltype)
 
             self.visit(node.comparators[0])
             rtype = self.get_type(node.comparators[0])
@@ -1276,7 +1292,7 @@ class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
             op = node.ops[i]
             optype = self.get_type(op)
             if ltype != optype:
-                optype.emit_convert(ltype, self)
+                self.emit_convert_compare_arg(op, optype, ltype)
 
             self.emitChainedCompareStep(
                 node.ops[i], node.comparators[i], cleanup, False
