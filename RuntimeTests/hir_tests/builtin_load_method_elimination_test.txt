@@ -549,7 +549,7 @@ fun jittestmodule:test {
         CurInstrOffset 36
       }
     }
-    CondBranchCheckType<8, 10, ObjectUser[cinderx.coroutine:Exact]> v23
+    CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v23
   }
 
   bb 10 (preds 6) {

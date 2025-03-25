@@ -1025,6 +1025,18 @@ static int _cinderx_exec(PyObject* m) {
   }
   state->setCoroType(coro_type);
   Py_DECREF(coro_type);
+
+  // PyType_FromSpec wants us to provide a module name, but we really don't
+  // want one, we go a long way to make these look just like CPython's types.
+  gen_type->tp_name = "generator";
+  coro_type->tp_name = "coroutine";
+  Ref<> builtins = Ref<>::steal(PyUnicode_FromString("builtins"));
+  if (builtins == nullptr ||
+      PyDict_SetItemString(gen_type->tp_dict, "__module__", builtins) < 0 ||
+      PyDict_SetItemString(coro_type->tp_dict, "__module__", builtins) < 0) {
+    state->shutdown();
+    return -1;
+  }
 #else
   state->setCoroType(&PyCoro_Type);
   state->setGenType(&PyGen_Type);

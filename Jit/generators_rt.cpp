@@ -535,7 +535,7 @@ PyType_Slot gen_slots[] = {
 };
 
 PyType_Spec JitGen_Spec = {
-    .name = "cinderx.generator",
+    .name = "builtins.generator",
     // These structs are variable-sized so we use offsetof(). This is inherited
     // from genobject.c. We store our pointer to JIT data in an additional
     // variable slot at the end of the object.
@@ -552,7 +552,6 @@ PyType_Slot coro_slots[] = {
     {Py_tp_dealloc, reinterpret_cast<void*>(jitgen_dealloc)},
     {Py_tp_traverse, reinterpret_cast<void*>(jitgen_traverse)},
     {Py_tp_finalize, reinterpret_cast<void*>(jitgen_finalize)},
-    {Py_tp_iter, reinterpret_cast<void*>(PyObject_SelfIter)},
     {Py_tp_methods, jitcoro_methods},
     {Py_tp_members, jitcoro_memberlist},
     {Py_tp_getset, jitcoro_getsetlist},
@@ -562,7 +561,7 @@ PyType_Slot coro_slots[] = {
 };
 
 PyType_Spec JitCoro_Spec = {
-    .name = "cinderx.coroutine",
+    .name = "builtins.coroutine",
     // These structs are variable-sized so we use offsetof(). This is inherited
     // from genobject.c. We store our pointer to JIT data in an additional
     // variable slot at the end of the object.
