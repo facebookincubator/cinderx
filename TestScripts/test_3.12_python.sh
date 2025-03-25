@@ -11,11 +11,18 @@ function run_tests() {
     local expected_file="$2"
     local update_mode="$3"
     local refleak_mode=$4
+    local jit_all_mode=$5
+    local no_retry_mode=$6
+
+    options=("--json-summary-file=$TMP_FILE")
     if [ "$refleak_mode" == "-refleak" ] ; then
-      local refleak_opt=--huntrleaks
+      options+=(--huntrleaks)
+    fi
+    if [ "$no_retry_mode" == "1" ] ; then
+      options+=(--no-retry-on-test-errors)
     fi
 
-    buck run @fbcode//mode/"$mode" fbcode//cinderx:python-tests3.12 -- --json-summary-file="$TMP_FILE" "$refleak_opt";
+    buck run @fbcode//mode/"$mode" "fbcode//cinderx:python-tests3.12$jit_all_mode" -- "${options[@]}";
 
     echo
 
@@ -50,6 +57,8 @@ function run_tests() {
 UPDATE_MODE=0
 REFLEAK_MODE=
 BUILD_MODE=opt
+JIT_ALL_MODE=
+NO_RETRY_MODE=0
 for v in "$@" ; do
   case "$v" in
     --update)
@@ -58,10 +67,16 @@ for v in "$@" ; do
     --refleak)
       REFLEAK_MODE=-refleak
       ;;
+    --jit-all)
+      JIT_ALL_MODE=-jit-all
+      ;;
+    --no-retry)
+      NO_RETRY_MODE=1
+      ;;
     *)
       BUILD_MODE=$v
       ;;
   esac
 done
 
-run_tests "$BUILD_MODE" "$PWD/3.12-python-expected-tests-$BUILD_MODE$REFLEAK_MODE.json" "$UPDATE_MODE" "$REFLEAK_MODE"
+run_tests "$BUILD_MODE" "$PWD/3.12-python-expected-tests-$BUILD_MODE$JIT_ALL_MODE$REFLEAK_MODE.json" "$UPDATE_MODE" "$REFLEAK_MODE" "$JIT_ALL_MODE" "$NO_RETRY_MODE"
