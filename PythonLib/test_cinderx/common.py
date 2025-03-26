@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-unsafe
+
 import dis
 
 # Decorator to return a new version of the function with an alternate globals

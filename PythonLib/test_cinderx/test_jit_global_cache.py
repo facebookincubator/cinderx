@@ -2,6 +2,8 @@
 #
 # @pyre-unsafe
 
+# pyre-unsafe
+
 import builtins
 import unittest
 from textwrap import dedent

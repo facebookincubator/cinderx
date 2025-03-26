@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-unsafe
+
 # pyre-ignore[21]: Pyre doesn't know about _testcapi
 import _testcapi
 import asyncio

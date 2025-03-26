@@ -1,3 +1,4 @@
+# pyre-unsafe
 """Module/script to byte-compile all .py files to .pyc files.
 
 When called as a script with arguments, this compiles the directories
