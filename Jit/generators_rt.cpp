@@ -419,7 +419,7 @@ PyTypeObject _JitCoroWrapper_Type = {
     nullptr, /* tp_weaklist */
     nullptr, /* tp_del */
     0, /* tp_version_tag */
-    jitgen_finalize, /* tp_finalize */
+    nullptr, /* tp_finalize */
 };
 
 PyObject* jitcoro_await(PyCoroObject* coro) {
