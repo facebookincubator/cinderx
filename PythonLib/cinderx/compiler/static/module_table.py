@@ -147,6 +147,16 @@ class AnnotationVisitor(ReferenceVisitor):
             if self.is_unsupported_union_type(klass):
                 return None
 
+            # Types like typing.NamedTuple or typing.Protocol should not be
+            # used as annotations; if they are, fall back to dynamic rather
+            # than raise an error (see T186572841 for context).
+
+            # TODO(T186572841): Extend to Protocol as well
+            special_types = ("NamedTuple", "TypedDict")
+            if klass.type_name.module == "typing":
+                if klass.type_name.qualname in special_types:
+                    return self.type_env.dynamic
+
             return klass
 
     def is_unsupported_union_type(self, klass: Value) -> bool:
