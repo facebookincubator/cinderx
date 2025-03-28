@@ -3,74 +3,79 @@
 
 from __future__ import annotations
 
-import ast
-import importlib.util
-import itertools
-import marshal
-import os
-import sys
-from ast import AST, ClassDef
-from builtins import compile as builtin_compile
-from contextlib import contextmanager
-from enum import IntEnum
-from types import CodeType
-from typing import cast, Protocol, Type, Union
+try:
+    # Import our dependencies eagerly in case we are imported before the static
+    # source loader is installed.
+    import ast
+    import importlib.util
+    import itertools
+    import marshal
+    import os
+    import sys
+    from ast import AST, ClassDef
+    from builtins import compile as builtin_compile
+    from contextlib import contextmanager
+    from enum import IntEnum
+    from types import CodeType
+    from typing import cast, Protocol, Type, Union
 
-from .consts import (
-    CO_ASYNC_GENERATOR,
-    CO_COROUTINE,
-    CO_FUTURE_ANNOTATIONS,
-    CO_FUTURE_BARRY_AS_BDFL,
-    CO_GENERATOR,
-    CO_NESTED,
-    CO_VARARGS,
-    CO_VARKEYWORDS,
-    PyCF_COMPILE_MASK,
-    PyCF_MASK,
-    PyCF_MASK_OBSOLETE,
-    PyCF_ONLY_AST,
-    PyCF_SOURCE_IS_UTF8,
-    SC_CELL,
-    SC_FREE,
-    SC_GLOBAL_EXPLICIT,
-    SC_GLOBAL_IMPLICIT,
-    SC_LOCAL,
-)
-from .future import find_futures as future_find_futures
-from .misc import mangle
-from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
-from .optimizer import AstOptimizer, AstOptimizer312
-from .pyassem import (
-    Block,
-    FVC_ASCII,
-    FVC_NONE,
-    FVC_REPR,
-    FVC_STR,
-    FVS_HAVE_SPEC,
-    Instruction,
-    NO_LOCATION,
-    PyFlowGraph,
-    PyFlowGraph310,
-    PyFlowGraph312,
-    PyFlowGraphCinder310,
-    PyFlowGraphCinder312,
-    SrcLocation,
-)
-from .symbols import (
-    BaseSymbolVisitor,
-    CinderSymbolVisitor,
-    ClassScope,
-    FunctionScope,
-    GenExprScope,
-    ModuleScope,
-    Scope,
-    SymbolVisitor310,
-    SymbolVisitor312,
-    TypeParams,
-    TypeParamScope,
-)
-from .unparse import to_expr
-from .visitor import ASTVisitor, walk
+    from .consts import (
+        CO_ASYNC_GENERATOR,
+        CO_COROUTINE,
+        CO_FUTURE_ANNOTATIONS,
+        CO_FUTURE_BARRY_AS_BDFL,
+        CO_GENERATOR,
+        CO_NESTED,
+        CO_VARARGS,
+        CO_VARKEYWORDS,
+        PyCF_COMPILE_MASK,
+        PyCF_MASK,
+        PyCF_MASK_OBSOLETE,
+        PyCF_ONLY_AST,
+        PyCF_SOURCE_IS_UTF8,
+        SC_CELL,
+        SC_FREE,
+        SC_GLOBAL_EXPLICIT,
+        SC_GLOBAL_IMPLICIT,
+        SC_LOCAL,
+    )
+    from .future import find_futures as future_find_futures
+    from .misc import mangle
+    from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
+    from .optimizer import AstOptimizer, AstOptimizer312
+    from .pyassem import (
+        Block,
+        FVC_ASCII,
+        FVC_NONE,
+        FVC_REPR,
+        FVC_STR,
+        FVS_HAVE_SPEC,
+        Instruction,
+        NO_LOCATION,
+        PyFlowGraph,
+        PyFlowGraph310,
+        PyFlowGraph312,
+        PyFlowGraphCinder310,
+        PyFlowGraphCinder312,
+        SrcLocation,
+    )
+    from .symbols import (
+        BaseSymbolVisitor,
+        CinderSymbolVisitor,
+        ClassScope,
+        FunctionScope,
+        GenExprScope,
+        ModuleScope,
+        Scope,
+        SymbolVisitor310,
+        SymbolVisitor312,
+        TypeParams,
+        TypeParamScope,
+    )
+    from .unparse import to_expr
+    from .visitor import ASTVisitor, walk
+except Exception:
+    raise
 
 TYPE_CHECKING = False
 if TYPE_CHECKING:
