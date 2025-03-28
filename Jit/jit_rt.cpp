@@ -988,6 +988,42 @@ LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name) {
   return {method, obj};
 }
 
+static inline PyObject* super_lookup_method_or_attr(
+    PyObject* global_super,
+    PyTypeObject* type,
+    PyObject* self,
+    PyObject* name,
+    int call_no_args,
+    int* meth_found) {
+  if (global_super != (PyObject*)&PySuper_Type) {
+    Ref<> super_instance;
+    if (call_no_args) {
+      super_instance = Ref<>::steal(PyObject_CallNoArgs(global_super));
+    } else {
+      super_instance = Ref<>::steal(
+          PyObject_CallFunctionObjArgs(global_super, type, self, NULL));
+    }
+    if (super_instance == nullptr) {
+      return nullptr;
+    }
+    BorrowedRef<> result = PyObject_GetAttr(super_instance, name);
+    if (meth_found) {
+      *meth_found = 0;
+    }
+    return result;
+  }
+  // Check Py_TYPE(self) because in a class method super call
+  // self can be a type. https://github.com/python/cpython/pull/106977
+  if (Py_TYPE(self)->tp_getattro != PyObject_GenericGetAttr) {
+    meth_found = nullptr;
+  }
+#if PY_VERSION_HEX < 0x030C0000
+  return Ci_Super_Lookup(type, self, name, NULL, meth_found);
+#else
+  return _PySuper_Lookup(type, self, name, meth_found);
+#endif
+}
+
 LoadMethodResult JITRT_GetMethodFromSuper(
     PyObject* global_super,
     PyTypeObject* type,
@@ -995,19 +1031,8 @@ LoadMethodResult JITRT_GetMethodFromSuper(
     PyObject* name,
     bool no_args_in_super_call) {
   int meth_found = 0;
-  PyObject* result =
-#if PY_VERSION_HEX < 0x030C0000
-      Cix_SuperLookupMethodOrAttr(
-          PyThreadState_GET(),
-          global_super,
-          type,
-          self,
-          name,
-          no_args_in_super_call,
-          &meth_found);
-#else
-      _PySuper_Lookup(type, self, name, &meth_found);
-#endif
+  PyObject* result = super_lookup_method_or_attr(
+      global_super, type, self, name, no_args_in_super_call, &meth_found);
   if (result == nullptr) {
     return {nullptr, nullptr};
   }
@@ -1034,18 +1059,8 @@ PyObject* JITRT_GetAttrFromSuper(
     PyObject* self,
     PyObject* name,
     bool no_args_in_super_call) {
-#if PY_VERSION_HEX < 0x030C0000
-  return Cix_SuperLookupMethodOrAttr(
-      PyThreadState_GET(),
-      global_super,
-      type,
-      self,
-      name,
-      no_args_in_super_call,
-      nullptr);
-#else
-  return _PySuper_Lookup(type, self, name, nullptr /* meth_found */);
-#endif
+  return super_lookup_method_or_attr(
+      global_super, type, self, name, no_args_in_super_call, nullptr);
 }
 
 PyObject* JITRT_InvokeMethod(

@@ -151,7 +151,7 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadAttrSuper<1; "f", false> v6 v7 v0 {
+    v8 = LoadAttrSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v0
@@ -287,7 +287,7 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", false> v6 v7 v0 {
+    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v0
@@ -435,7 +435,7 @@ fun jittestmodule:A.f {
 
   bb 4 (preds 1) {
     v7 = RefineType<Type> v7
-    v8 = LoadMethodSuper<1; "f", false> v6 v7 v0 {
+    v8 = LoadMethodSuper<1; "f", true> v6 v7 v0 {
       FrameState {
         CurInstrOffset 18
         Locals<1> v0

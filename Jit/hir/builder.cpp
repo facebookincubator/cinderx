@@ -2572,7 +2572,7 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
   int oparg = bc_instr.oparg();
   int name_idx = oparg >> 2;
   load_method = oparg & 1;
-  bool no_args_in_super_call = oparg & 2;
+  bool no_args_in_super_call = !(oparg & 2);
 #else
   PyObject* oparg = PyTuple_GET_ITEM(code_->co_consts, bc_instr.oparg());
   int name_idx = PyLong_AsLong(PyTuple_GET_ITEM(oparg, 0));
