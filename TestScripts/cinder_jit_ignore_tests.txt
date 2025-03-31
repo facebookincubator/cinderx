@@ -38,6 +38,8 @@ test.test_traceback.TracebackFormatTests.test_recursive_traceback_cpython_intern
 test.test_threading.ThreadingExceptionTests.test_recursion_limit
 test.test_traceback.TracebackFormatTests.test_recursive_traceback_python
 test.test_traceback.TestTracebackException.test_long_context_chain
+test.test_call.TestRecursion.test_super_deep
+test.test_sys.SysModuleTest.test_setrecursionlimit_to_depth
 
 # TODO(T87023404): Eval breaker timing
 unittest.test.test_break.*.testInterruptCaught
