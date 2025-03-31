@@ -26,9 +26,22 @@ int Ci_anextawaitable_traverse(anextawaitableobject* obj, visitproc visit, void*
   return anextawaitable_traverse(obj, visit, arg);
 }
 
+// We want to use anextawaitable_getiter but make it aware of JITed co-routines.
+// This involves redefining _PyCoro_GetAwaitableIter to be JIT aware and then
+// updating PyCoro_CheckExact to also recognize JIT co-routines.
+static inline bool coro_inexact(PyObject* obj) {
+  return JitCoro_CheckExact(obj) || PyCoro_CheckExact(obj);
+}
+
 #define _PyCoro_GetAwaitableIter JitCoro_GetAwaitableIter
+#pragma push_macro("PyCoro_CheckExact")
+#undef PyCoro_CheckExact
+#define PyCoro_CheckExact(OBJ) coro_inexact(OBJ)
+
 // @Borrow function anextawaitable_getiter from Objects/iterobject.c
+
 #undef _PyCoro_GetAwaitableIter
+#pragma pop_macro("PyCoro_CheckExact")
 
 // @Borrow function anextawaitable_proxy from Objects/iterobject.c
 // @Borrow function anextawaitable_iternext from Objects/iterobject.c

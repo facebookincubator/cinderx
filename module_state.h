@@ -77,11 +77,19 @@ class ModuleState {
     return sys_clear_caches_;
   }
 
+  void setAnextAwaitableType(BorrowedRef<PyTypeObject> type) {
+    anext_awaitable_type_ = Ref<PyTypeObject>::create(type);
+  }
+
+  BorrowedRef<PyTypeObject> anextAwaitableType() const {
+    return anext_awaitable_type_;
+  }
+
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::IRuntime> runtime_;
   std::unique_ptr<jit::ISymbolizer> symbolizer_;
-  Ref<PyTypeObject> coro_type_, gen_type_;
+  Ref<PyTypeObject> coro_type_, gen_type_, anext_awaitable_type_;
   Ref<> sys_clear_caches_;
 };
 

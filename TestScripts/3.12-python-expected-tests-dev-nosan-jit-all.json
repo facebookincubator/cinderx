@@ -1,6 +1,5 @@
 {
   "bad": [
-    "test.test_asyncgen",
     "test.test_asyncio.test_tasks",
     "test.test_call",
     "test.test_capi",
@@ -32,6 +31,7 @@
     "test.test_argparse",
     "test.test_array",
     "test.test_ast",
+    "test.test_asyncgen",
     "test.test_asyncio.test_base_events",
     "test.test_asyncio.test_buffered_proto",
     "test.test_asyncio.test_context",

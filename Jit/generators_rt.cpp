@@ -11,6 +11,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/deopt.h"
+#include "cinderx/Jit/generators_borrowed.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/module_state.h"
@@ -700,6 +701,45 @@ void init_jit_genobject_type() {
   auto coro_ame =
       reinterpret_cast<Ci_AsyncMethodsWithExtra*>(PyCoro_Type.tp_as_async);
   jitcoro_as_async.ame_setawaiter = coro_ame->ame_setawaiter;
+}
+
+static PyMethodDef anextawaitable_methods[] = {
+    {"send", (PyCFunction)Ci_anextawaitable_send, METH_O, ""},
+    {"throw", (PyCFunction)Ci_anextawaitable_throw, METH_VARARGS, ""},
+    {"close", (PyCFunction)Ci_anextawaitable_close, METH_VARARGS, ""},
+    {NULL, NULL} /* Sentinel */
+};
+
+PyType_Slot anext_awaitable_slots[] = {
+    {Py_tp_dealloc, reinterpret_cast<void*>(Ci_anextawaitable_dealloc)},
+    {Py_tp_traverse, reinterpret_cast<void*>(Ci_anextawaitable_traverse)},
+    {Py_tp_methods, anextawaitable_methods},
+    {Py_tp_iternext, reinterpret_cast<void*>(Ci_anextawaitable_iternext)},
+    {Py_tp_iter, reinterpret_cast<void*>(PyObject_SelfIter)},
+    {Py_am_await, reinterpret_cast<void*>(PyObject_SelfIter)},
+    {0, nullptr},
+};
+
+PyType_Spec JitAnextAwaitable_Spec = {
+    .name = "builtins.anext_awaitable",
+    .basicsize = sizeof(anextawaitableobject),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_IMMUTABLETYPE,
+    .slots = anext_awaitable_slots,
+};
+
+PyObject* JitGen_AnextAwaitable_New(
+    cinderx::ModuleState* moduleState,
+    PyObject* awaitable,
+    PyObject* defaultValue) {
+  anextawaitableobject* anext =
+      PyObject_GC_New(anextawaitableobject, moduleState->anextAwaitableType());
+  if (anext == nullptr) {
+    return nullptr;
+  }
+  anext->wrapped = Py_NewRef(awaitable);
+  anext->default_value = Py_NewRef(defaultValue);
+  PyObject_GC_Track(anext);
+  return (PyObject*)anext;
 }
 
 } // namespace jit

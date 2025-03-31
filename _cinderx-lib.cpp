@@ -372,6 +372,50 @@ void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
   }
 }
 
+extern "C" PyObject* PyAnextAwaitable_New(PyObject*, PyObject*);
+// Replacement for builtins.anext which is aware of JIT generators
+#if PY_VERSION_HEX >= 0x030C0000
+static PyObject*
+builtin_anext(PyObject* module, PyObject* const* args, Py_ssize_t nargs) {
+  if (!_PyArg_CheckPositional("anext", nargs, 1, 2)) {
+    return nullptr;
+  }
+
+  cinderx::ModuleState* state =
+      (cinderx::ModuleState*)PyModule_GetState(module);
+
+  BorrowedRef<> aiterator;
+  BorrowedRef<> default_value = nullptr;
+
+  aiterator = args[0];
+  if (nargs == 2) {
+    default_value = args[1];
+  }
+
+  BorrowedRef<PyTypeObject> t;
+  BorrowedRef<> awaitable;
+
+  t = Py_TYPE(aiterator);
+  if (t->tp_as_async == nullptr || t->tp_as_async->am_anext == nullptr) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "'%.200s' object is not an async iterator",
+        t->tp_name);
+    return nullptr;
+  }
+
+  awaitable = (*t->tp_as_async->am_anext)(aiterator);
+  if (default_value == nullptr) {
+    return awaitable;
+  }
+
+  BorrowedRef<> new_awaitable =
+      jit::JitGen_AnextAwaitable_New(state, awaitable, default_value);
+  Py_DECREF(awaitable);
+  return new_awaitable;
+}
+#endif
+
 /*
  * (De)initialization functions
  */
@@ -998,6 +1042,16 @@ PyMethodDef _cinderx_methods[] = {
      METH_NOARGS,
      cinder_immortalize_heap_doc},
     {"is_immortal", cinder_is_immortal, METH_O, cinder_is_immortal_doc},
+#if PY_VERSION_HEX >= 0x030C0000
+    {"anext",
+     reinterpret_cast<PyCFunction>(builtin_anext),
+     METH_FASTCALL,
+     "async anext(aiterator[, default])\n\n"
+     "Return the next item from the async iterator.  If default is given and "
+     "the async\n"
+     "iterator is exhausted, it is returned instead of raising "
+     "StopAsyncIteration."},
+#endif
     {nullptr, nullptr, 0, nullptr}};
 
 static int _cinderx_exec(PyObject* m) {
@@ -1037,6 +1091,24 @@ static int _cinderx_exec(PyObject* m) {
     state->shutdown();
     return -1;
   }
+
+  PyTypeObject* anext_awaitable_type =
+      (PyTypeObject*)PyType_FromSpec(&jit::JitAnextAwaitable_Spec);
+  if (anext_awaitable_type == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+  state->setAnextAwaitableType(anext_awaitable_type);
+
+  auto anext_func = Ref<>::steal(PyObject_GetAttrString(m, "anext"));
+  Ref<> builtins_mod = Ref<>::steal(PyImport_ImportModule("builtins"));
+
+  if (builtins_mod == nullptr || anext_func == nullptr ||
+      PyObject_SetAttrString(builtins_mod, "anext", anext_func) < 0) {
+    state->shutdown();
+    return -1;
+  }
+
 #else
   state->setCoroType(&PyCoro_Type);
   state->setGenType(&PyGen_Type);
