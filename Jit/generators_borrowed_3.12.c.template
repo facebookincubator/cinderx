@@ -1,0 +1,56 @@
+// -*- mode: c++ -*- vi: set ft=cpp:
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
+// This file is processed by UpstreamBorrow.py. To see the generated output:
+// buck build -m ovr_config//third-party/python/constraints:3.12 \
+//     --out=- fbcode//cinderx/Jit:generators-borrowed_gen_borrowed.c
+
+// clang-format off
+
+#include <Python.h>
+#include "internal/pycore_object.h"
+
+#include "cinderx/Jit/generators_borrowed.h"
+#include "cinderx/Jit/generators_core.h"
+
+// @Borrow function anextawaitable_dealloc from Objects/iterobject.c
+void Ci_anextawaitable_dealloc(anextawaitableobject* obj) {
+  PyTypeObject *type = Py_TYPE(obj);
+  anextawaitable_dealloc(obj);
+  // Heap types increment their type, so we need to decrement it here:
+  Py_DECREF(type);
+}
+
+// @Borrow function anextawaitable_traverse from Objects/iterobject.c
+int Ci_anextawaitable_traverse(anextawaitableobject* obj, visitproc visit, void* arg) {
+  return anextawaitable_traverse(obj, visit, arg);
+}
+
+#define _PyCoro_GetAwaitableIter JitCoro_GetAwaitableIter
+// @Borrow function anextawaitable_getiter from Objects/iterobject.c
+#undef _PyCoro_GetAwaitableIter
+
+// @Borrow function anextawaitable_proxy from Objects/iterobject.c
+// @Borrow function anextawaitable_iternext from Objects/iterobject.c
+PyObject* Ci_anextawaitable_iternext(anextawaitableobject* obj) {
+  return anextawaitable_iternext(obj);
+}
+
+// @Borrow function anextawaitable_send from Objects/iterobject.c
+PyObject* Ci_anextawaitable_send(anextawaitableobject* obj, PyObject* arg) {
+  return anextawaitable_send(obj, arg);
+}
+
+// @Borrow function anextawaitable_throw from Objects/iterobject.c
+PyObject* Ci_anextawaitable_throw(
+    anextawaitableobject* obj,
+    PyObject* arg) {
+  return anextawaitable_throw(obj, arg);
+}
+
+// @Borrow function anextawaitable_close from Objects/iterobject.c
+PyObject* Ci_anextawaitable_close(
+    anextawaitableobject* obj,
+    PyObject* arg) {
+    return anextawaitable_close(obj, arg);
+}
