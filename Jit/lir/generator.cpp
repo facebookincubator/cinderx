@@ -1821,18 +1821,25 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           break;
         }
         size_t flags = 0;
+        uint64_t func = reinterpret_cast<uint64_t>(_PyObject_Vectorcall);
 #if PY_VERSION_HEX < 0x030C0000
         flags |= (hir_instr.flags() & CallFlags::Awaited)
             ? Ci_Py_AWAITED_CALL_MARKER
             : 0;
 #else
         UPGRADE_NOTE(AWAITED_FLAG, T194027914)
+        if (!(hir_instr.func()->type() <= TFunc)) {
+          // Calls to things which aren't simple Python functions will
+          // need to check the eval breaker. We do this in a helper instead
+          // of injecting it after every call.
+          func = reinterpret_cast<uint64_t>(JITRT_Vectorcall);
+        }
 #endif
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
             Instruction::kVectorCall,
             // TODO(T140174965): This should be MemImm.
-            Imm{reinterpret_cast<uint64_t>(_PyObject_Vectorcall)},
+            Imm{func},
             Imm{flags});
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});

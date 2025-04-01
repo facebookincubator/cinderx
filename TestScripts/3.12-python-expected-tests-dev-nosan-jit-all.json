@@ -364,6 +364,7 @@
     "test.test_textwrap",
     "test.test_thread",
     "test.test_threadedtempfile",
+    "test.test_threading",
     "test.test_threading_local",
     "test.test_threadsignals",
     "test.test_time",

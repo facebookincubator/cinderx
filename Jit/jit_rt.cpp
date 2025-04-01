@@ -23,6 +23,8 @@
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 // clang-format off
+#include "internal/pycore_call.h"
+#include "internal/pycore_ceval.h"
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_pystate.h"
 #include "internal/pycore_object.h"
@@ -854,6 +856,24 @@ PyObject* JITRT_LoadFunctionIndirect(PyObject** func, PyObject* descr) {
   return res;
 }
 
+#if defined(_MSC_VER) && SIZEOF_INT == 4
+#define _Py_atomic_load_relaxed_int32(ATOMIC_VAL) \
+  (assert(sizeof((ATOMIC_VAL)->_value) == 4),     \
+   *((volatile int*)&((ATOMIC_VAL)->_value)))
+#else
+#define _Py_atomic_load_relaxed_int32(ATOMIC_VAL) \
+  _Py_atomic_load_relaxed(ATOMIC_VAL)
+#endif
+
+#if PY_VERSION_HEX >= 0x030C0000
+static bool
+eval_breaker(PyThreadState* tstate, PyObject* res, PyObject* callable) {
+  return res != nullptr && !PyFunction_Check(callable) &&
+      _Py_atomic_load_relaxed_int32(&tstate->interp->ceval.eval_breaker) &&
+      _Py_HandlePending(tstate) != 0;
+}
+#endif
+
 template <bool is_awaited>
 static inline PyObject*
 call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
@@ -921,7 +941,18 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
 
-  return PyObject_Call(func, pargs, kwargs);
+  PyThreadState* tstate = _PyThreadState_GET();
+  PyObject* res = _PyObject_Call(tstate, func, pargs, kwargs);
+#if PY_VERSION_HEX >= 0x030C0000
+  // In 3.12 calls to non-Python functions will check for the eval breaker
+  // We handle that here rather than bloat every function call w/ an extra
+  // check.
+  if (eval_breaker(tstate, res, func)) {
+    Py_DECREF(res);
+    return NULL;
+  }
+#endif
+  return res;
 }
 
 PyObject*
@@ -955,7 +986,39 @@ PyObject* JITRT_Call(
     nargsf -= 1;
   }
 
-  return _PyObject_Vectorcall(callable, args, nargsf, kwnames);
+  PyThreadState* tstate = _PyThreadState_GET();
+  PyObject* res =
+      _PyObject_VectorcallTstate(tstate, callable, args, nargsf, kwnames);
+#if PY_VERSION_HEX >= 0x030C0000
+  // In 3.12 calls to non-Python functions will check for the eval breaker
+  // We handle that here rather than bloat every function call w/ an extra
+  // check.
+  if (eval_breaker(tstate, res, callable)) {
+    Py_DECREF(res);
+    return NULL;
+  }
+#endif
+  return res;
+}
+
+PyObject* JITRT_Vectorcall(
+    PyObject* callable,
+    PyObject* const* args,
+    size_t nargsf,
+    PyObject* kwnames) {
+  PyThreadState* tstate = _PyThreadState_GET();
+  PyObject* res =
+      _PyObject_VectorcallTstate(tstate, callable, args, nargsf, kwnames);
+#if PY_VERSION_HEX >= 0x030C0000
+  // In 3.12 calls to non-Python functions will check for the eval breaker
+  // We handle that here rather than bloat every function call w/ an extra
+  // check.
+  if (eval_breaker(tstate, res, callable)) {
+    Py_DECREF(res);
+    return NULL;
+  }
+#endif
+  return res;
 }
 
 void JITRT_Dealloc(PyObject* obj) {

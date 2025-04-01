@@ -191,6 +191,16 @@ PyObject* JITRT_Call(
     PyObject* kwnames);
 
 /*
+ * Performs a function call with a vectorcall. Will check and handle any
+ * eval breaker events after the call.
+ */
+PyObject* JITRT_Vectorcall(
+    PyObject* callable,
+    PyObject* const* args,
+    size_t nargsf,
+    PyObject* kwnames);
+
+/*
  * Perform a method lookup on an object.
  */
 LoadMethodResult JITRT_GetMethod(PyObject* obj, PyObject* name);
