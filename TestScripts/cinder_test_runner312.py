@@ -77,6 +77,22 @@ from test.libregrtest.cmdline import _parse_args as libregrtest_parse_args
 from test.libregrtest.main import main as libregrtest_main
 from test.support import os_helper
 
+try:
+    import _testcapi
+
+    original_get_code = _testcapi.gen_get_code
+
+    def gen_get_code(o: object) -> None:
+        if type(o) is not types.GeneratorType:
+            # Use normal attribute access for CinderX generators
+            return o.gi_code
+        return original_get_code(o)
+
+    _testcapi.gen_get_code = gen_get_code
+except ImportError as e:
+    pass
+
+
 WORKER_PATH = os.path.abspath(__file__)
 
 # Directories in test_cinderx to recurse into to find test modules, rather than
