@@ -975,7 +975,7 @@ reprArg(PyCodeObject* code, unsigned char opcode, unsigned char oparg) {
     case LOAD_FAST:
     case STORE_FAST:
     case DELETE_FAST: {
-      PyObject* name_obj = PyTuple_GetItem(PyCode_GetVarnames(code), oparg);
+      PyObject* name_obj = jit::getVarname(code, oparg);
       JIT_DCHECK(name_obj != nullptr, "bad name");
       const char* name = PyUnicode_AsUTF8(name_obj);
       if (name == nullptr) {
