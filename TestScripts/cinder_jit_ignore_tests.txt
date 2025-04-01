@@ -74,6 +74,7 @@ test.test_sys.SysModuleTest.test_current_exceptions
 # Tests specific refcounting details of the interpreter
 test.test_enumerate.TestReversed.test_bug1229429
 test.test_generators.FinalizationTest.test_refcycle
+test.test_gc.GCTests.test_frame
 
 # TODO(T128782227): Frames accessed from exception tracebacks are different
 # in shadow-frame mode.
