@@ -34,8 +34,13 @@ PyObject* JitGenObject::yieldFrom() {
 namespace {
 
 void jitgen_dealloc(PyObject* obj) {
+  PyTypeObject* type = Py_TYPE(obj);
   if (!deopt_jit_gen(obj)) {
     JIT_ABORT("Tried to dealloc a running JIT generator");
+  }
+  // CinderX generators are a heap type, so we need to decref their type.
+  if (PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE)) {
+    Py_DECREF(type);
   }
   return Py_TYPE(obj)->tp_dealloc(obj);
 }
