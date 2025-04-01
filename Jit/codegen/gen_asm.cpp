@@ -122,11 +122,21 @@ void raiseUnboundLocalError(BorrowedRef<> name) {
 
 void raiseUnboundFreevarError(BorrowedRef<> name) {
   // name is converted into a `char*` in format_exc_check_arg
-  Cix_format_exc_check_arg(
-      _PyThreadState_GET(),
-      PyExc_NameError,
-      "free variable '%.200s' referenced before assignment in enclosing scope",
-      name);
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    Cix_format_exc_check_arg(
+        _PyThreadState_GET(),
+        PyExc_NameError,
+        "cannot access free variable '%s' where it is not associated with a"
+        " value in enclosing scope",
+        name);
+  } else {
+    Cix_format_exc_check_arg(
+        _PyThreadState_GET(),
+        PyExc_NameError,
+        "free variable '%.200s' referenced before assignment in enclosing "
+        "scope",
+        name);
+  }
 }
 
 void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {

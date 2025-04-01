@@ -137,7 +137,7 @@ fun jittestmodule:A.f {
     }
     Snapshot
     v7 = LoadCellItem v1
-    v7 = CheckVar<"__class__"> v7 {
+    v7 = CheckFreevar<"__class__"> v7 {
       FrameState {
         CurInstrOffset 14
         Locals<1> v0
@@ -273,7 +273,7 @@ fun jittestmodule:A.f {
     }
     Snapshot
     v7 = LoadCellItem v1
-    v7 = CheckVar<"__class__"> v7 {
+    v7 = CheckFreevar<"__class__"> v7 {
       FrameState {
         CurInstrOffset 14
         Locals<1> v0
@@ -421,7 +421,7 @@ fun jittestmodule:A.f {
     }
     Snapshot
     v7 = LoadCellItem v1
-    v7 = CheckVar<"__class__"> v7 {
+    v7 = CheckFreevar<"__class__"> v7 {
       FrameState {
         CurInstrOffset 14
         Locals<1> v0

@@ -2682,7 +2682,15 @@ void HIRBuilder::emitLoadDeref(
   tc.emit<LoadCellItem>(dst, src);
 
   BorrowedRef<> name = getVarname(code_, idx);
+#if PY_VERSION_HEX < 0x030C0000
   tc.emit<CheckVar>(dst, dst, name, tc.frame);
+#else
+  if (idx < PyCode_GetFirstFree(code_)) {
+    tc.emit<CheckVar>(dst, dst, name, tc.frame);
+  } else {
+    tc.emit<CheckFreevar>(dst, dst, name, tc.frame);
+  }
+#endif
 
   tc.frame.stack.push(dst);
 }
