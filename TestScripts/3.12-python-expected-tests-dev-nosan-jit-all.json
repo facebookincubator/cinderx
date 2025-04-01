@@ -1,6 +1,5 @@
 {
   "bad": [
-    "test.test_support",
     "test.test_unpack",
     "test_cinderx.test_cinderjit",
     "test_cinderx.test_immortalize",
@@ -347,6 +346,7 @@
     "test.test_sunau",
     "test.test_sundry",
     "test.test_super",
+    "test.test_support",
     "test.test_symtable",
     "test.test_syntax",
     "test.test_sys",
