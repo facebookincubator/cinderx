@@ -2,7 +2,6 @@
   "bad": [
     "test.test_capi",
     "test.test_ctypes",
-    "test.test_frame",
     "test.test_importlib",
     "test.test_support",
     "test.test_sys",
@@ -175,6 +174,7 @@
     "test.test_fork1",
     "test.test_format",
     "test.test_fractions",
+    "test.test_frame",
     "test.test_frozen",
     "test.test_fstring",
     "test.test_ftplib",
