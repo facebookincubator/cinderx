@@ -1121,7 +1121,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                 )
                 key_type = self.widen(key_type, self.get_type(k))
                 self.visitExpectedType(
-                    v, self.type_env.DYNAMIC, "dict keys cannot be primitives"
+                    v, self.type_env.DYNAMIC, "dict values cannot be primitives"
                 )
                 value_type = self.widen(value_type, self.get_type(v))
             else:

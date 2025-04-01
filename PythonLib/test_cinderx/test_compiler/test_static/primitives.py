@@ -1670,7 +1670,7 @@ class PrimitivesTests(StaticTestBase):
                 x: int64 = 1
                 return {42: x}
         """
-        with self.assertRaisesRegex(TypedSyntaxError, "dict keys cannot be primitives"):
+        with self.assertRaisesRegex(TypedSyntaxError, "dict values cannot be primitives"):
             self.compile(code)
 
         code = """
