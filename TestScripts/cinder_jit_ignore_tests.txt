@@ -11,6 +11,7 @@ test_signal
 test_cprofile
 test_pdb
 test_profile
+test.test_monitoring.*
 test_sys_setprofile
 test_sys_settrace
 test_trace
@@ -94,6 +95,11 @@ test.test_doctest.test_pdb_set_trace
 test.test_doctest.test_pdb_set_trace_nested
 test.test_patma.TestTracing.*
 test.test_pstats.StatsTestCase.test_get_stats_profile
+test.test_peepholer.TestMarkingVariablesAsUnKnown.test_deleting_local_warns_and_assigns_none
+test.test_peepholer.TestMarkingVariablesAsUnKnown.test_setting_lineno_one_undefined
+test.test_peepholer.TestMarkingVariablesAsUnKnown.test_setting_lineno_two_undefined
+test.test_doctest.test_doctest.test_pdb_set_trace_nested
+test.test_doctest.test_doctest.test_pdb_set_trace
 
 # The JIT doesn't support pdb and this test runs it as part of a subprocess.
 test.test_zipimport_support.ZipSupportTests.test_pdb_issue4201
