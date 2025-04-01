@@ -1,7 +1,5 @@
 {
   "bad": [
-    "test.test_ctypes",
-    "test.test_importlib",
     "test.test_support",
     "test.test_tracemalloc",
     "test.test_unpack",
@@ -120,6 +118,7 @@
     "test.test_crashers",
     "test.test_crypt",
     "test.test_csv",
+    "test.test_ctypes",
     "test.test_dataclasses",
     "test.test_datetime",
     "test.test_dbm",
@@ -213,6 +212,7 @@
     "test.test_imaplib",
     "test.test_imghdr",
     "test.test_import",
+    "test.test_importlib",
     "test.test_index",
     "test.test_int",
     "test.test_int_literal",

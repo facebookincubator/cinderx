@@ -64,6 +64,15 @@ test.test_compileall.HardlinkDedupTestsWithSourceEpoch.test_hardlink
 test.test_compileall.HardlinkDedupTestsWithSourceEpoch.test_import
 test.test_compileall.HardlinkDedupTestsWithSourceEpoch.test_only_two_levels
 test.test_compileall.HardlinkDedupTestsWithSourceEpoch.test_recompilation
+test.test_ctypes.test_memfunctions.MemFunctionsTest.test_string_at
+test.test_ctypes.test_refcounts.RefcountTestCase.test_1
+# These differ in ref counting and a code object only has a single ref count when
+# it gets marshalled, this results in marshal not marking it as possibly being
+# included in a cycle and so the marshal bytes differ slightly
+test.test_importlib.test_abc.Frozen_SourceLoaderBytecodeTests.test_code_bad_magic
+test.test_importlib.test_abc.Source_SourceLoaderBytecodeTests.test_code_bad_magic
+test.test_importlib.test_abc.Frozen_SourceLoaderBytecodeTests.test_code_bad_timestamp
+test.test_importlib.test_abc.Source_SourceLoaderBytecodeTests.test_code_bad_timestamp
 
 # TODO(T128365005): Need up-to-date locals in frames returned by sys._getframe()
 test.test_traceback.TestStack.test_format_locals
