@@ -140,3 +140,6 @@ test.test_capi.test_misc.Test_Pep523API.test_inlined_binary_subscr
 
 # JIT generator objects are larger
 test.test_sys.SizeofTest.test_objecttypes
+
+# The JIT doesn't update line numbers for list construction which is considerd non-escaping
+test.test_tracemalloc.TestTracemallocEnabled.test_new_reference

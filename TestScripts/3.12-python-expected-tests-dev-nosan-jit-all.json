@@ -1,7 +1,6 @@
 {
   "bad": [
     "test.test_support",
-    "test.test_tracemalloc",
     "test.test_unpack",
     "test_cinderx.test_cinderjit",
     "test_cinderx.test_immortalize",
@@ -371,6 +370,7 @@
     "test.test_tomllib",
     "test.test_tools",
     "test.test_traceback",
+    "test.test_tracemalloc",
     "test.test_tty",
     "test.test_tuple",
     "test.test_type_aliases",
