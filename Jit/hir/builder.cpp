@@ -1360,7 +1360,9 @@ void HIRBuilder::translate(
         }
         case RETURN_GENERATOR: {
           auto out = temps_.AllocateStack();
-          advancePastYieldInstr(tc);
+          if constexpr (PY_VERSION_HEX < 0x030C0000) {
+            advancePastYieldInstr(tc);
+          }
           tc.emit<InitialYield>(out, tc.frame);
           tc.frame.stack.push(out);
           break;
@@ -4016,15 +4018,20 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
     in = out;
     out = temps_.AllocateStack();
   }
-  advancePastYieldInstr(tc);
-  BytecodeInstruction next_bc{code_, tc.frame.cur_instr_offs};
-  // This mirrors what _PyGen_yf() does. I assume the RESUME oparg exists
-  // primarily for this check - values 2 and 3 indicate a "yield from" and
-  // "await" respectively.
-  if (next_bc.opcode() == RESUME && next_bc.oparg() >= 2) {
-    tc.emit<YieldFrom>(out, in, stack.top(), tc.frame);
-  } else {
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    advancePastYieldInstr(tc);
     tc.emit<YieldValue>(out, in, tc.frame);
+  } else {
+    BytecodeInstruction next_bc{code_, tc.frame.nextInstrOffset()};
+
+    // This mirrors what _PyGen_yf() does. I assume the RESUME oparg exists
+    // primarily for this check - values 2 and 3 indicate a "yield from" and
+    // "await" respectively.
+    if (next_bc.opcode() == RESUME && next_bc.oparg() >= 2) {
+      tc.emit<YieldFrom>(out, in, stack.top(), tc.frame);
+    } else {
+      tc.emit<YieldValue>(out, in, tc.frame);
+    }
   }
   stack.push(out);
 }

@@ -512,7 +512,7 @@ fun jittestmodule:test {
     Snapshot
     v15:OptNoneType = InitialYield {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Snapshot
@@ -597,7 +597,7 @@ fun jittestmodule:test {
     Snapshot
     v35:Object = YieldFrom v32 v23 {
       FrameState {
-        CurInstrOffset 46
+        CurInstrOffset 44
         Stack<1> v23
       }
     }

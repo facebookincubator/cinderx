@@ -597,11 +597,11 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v16:Nullptr = LoadConst<Nullptr>
-    UpdatePrevInstr<idx:1 line_no:-1>
+    UpdatePrevInstr<idx:0 line_no:1>
     v17:OptNoneType = InitialYield {
       LiveValues<1> unc:v16
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v16
       }
     }
@@ -693,11 +693,11 @@ fun jittestmodule:test {
   }
 
   bb 2 (preds 1) {
-    UpdatePrevInstr<idx:25 line_no:3>
+    UpdatePrevInstr<idx:24 line_no:3>
     v42:Object = YieldFrom v39 v27 {
       LiveValues<3> unc:v21 o:v27 b:v39
       FrameState {
-        CurInstrOffset 50
+        CurInstrOffset 48
         Locals<1> v21
         Stack<1> v27
       }

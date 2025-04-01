@@ -1,6 +1,5 @@
 {
   "bad": [
-    "test.test_asyncio.test_tasks",
     "test.test_capi",
     "test.test_ctypes",
     "test.test_frame",
@@ -49,6 +48,7 @@
     "test.test_asyncio.test_streams",
     "test.test_asyncio.test_subprocess",
     "test.test_asyncio.test_taskgroups",
+    "test.test_asyncio.test_tasks",
     "test.test_asyncio.test_threads",
     "test.test_asyncio.test_timeouts",
     "test.test_asyncio.test_transports",

@@ -128,7 +128,7 @@ fun jittestmodule:test {
     Snapshot
     v2 = InitialYield {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
         Locals<1> v0
       }
     }
@@ -228,7 +228,7 @@ fun jittestmodule:test {
     Snapshot
     v16 = YieldFrom v3 v2 {
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 24
         Locals<1> v0
         Stack<1> v2
       }
@@ -586,7 +586,7 @@ fun jittestmodule:test {
     Snapshot
     v1 = InitialYield {
       FrameState {
-        CurInstrOffset 2
+        CurInstrOffset 0
       }
     }
     Snapshot
@@ -672,7 +672,7 @@ fun jittestmodule:test {
     Snapshot
     v13 = YieldFrom v2 v1 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 22
         Stack<1> v1
       }
     }
