@@ -32,6 +32,7 @@ import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 from cinderx.test_support import run_in_subprocess, skip_unless_jit
+
 from .common import failUnlessHasOpcodes, with_globals
 
 try:
@@ -49,10 +50,10 @@ try:
     import cinderjit
     from cinderjit import (
         _deopt_gen,
-        is_jit_compiled,
         force_compile,
-        lazy_compile,
+        is_jit_compiled,
         jit_suppress,
+        lazy_compile,
     )
 except:
     cinderjit = None
@@ -761,7 +762,10 @@ class ClosureTests(unittest.TestCase):
             self._cellvar_unbound()
 
         self.assertEqual(
-            str(ctx.exception), "local variable 'a' referenced before assignment"
+            str(ctx.exception),
+            "cannot access local variable 'a' where it is not associated with a value"
+            if AT_LEAST_312
+            else "local variable 'a' referenced before assignment",
         )
 
     def test_freevars(self):
@@ -894,7 +898,6 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         self.assertEqual(exc.exception.value, 1)
 
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("LOAD_METHOD")
     def load_method_on_maybe_defined_value(self):
         # This function exists to make sure that we don't crash the compiler
         # when attempting to optimize load methods that occur on maybe-defined
@@ -1089,14 +1092,12 @@ class UnwindStateTests(unittest.TestCase):
 
 class ImportTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("IMPORT_NAME")
     def test_import_name(self):
         import math
 
         self.assertEqual(int(math.pow(1, 2)), 1)
 
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("IMPORT_NAME")
     def _fail_to_import_name(self):
         import non_existent_module
 
@@ -1105,14 +1106,12 @@ class ImportTests(unittest.TestCase):
             self._fail_to_import_name()
 
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("IMPORT_NAME", "IMPORT_FROM")
     def test_import_from(self):
         from math import pow as math_pow
 
         self.assertEqual(int(math_pow(1, 2)), 1)
 
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("IMPORT_NAME", "IMPORT_FROM")
     def _fail_to_import_from(self):
         from math import non_existent_attr
 
@@ -1224,7 +1223,10 @@ class AsyncGeneratorsTest(unittest.TestCase):
             tb_prev = tb
             tb = tb.tb_next
         instrs = [x for x in dis.get_instructions(tb_prev.tb_frame.f_code)]
-        self.assertEqual(instrs[tb_prev.tb_lasti // 2].opname, "YIELD_FROM")
+        self.assertEqual(
+            instrs[tb_prev.tb_lasti // 2].opname,
+            "SEND" if AT_LEAST_312 else "YIELD_FROM",
+        )
 
     def test_for_exception(self):
         async def asyncgen():
@@ -1907,8 +1909,6 @@ class CinderJitModuleTests(StaticTestBase):
             )
 
 
-
-
 class DeleteAttrTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("DELETE_ATTR")
@@ -2236,7 +2236,7 @@ class SetupWithException(Exception):
 
 class SetupWithTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("SETUP_WITH", "WITH_EXCEPT_START")
+    @failUnlessHasOpcodes("WITH_EXCEPT_START")
     def with_returns_value(self, mgr):
         with mgr as x:
             return x
@@ -2261,7 +2261,7 @@ class SetupWithTests(unittest.TestCase):
         self.assertEqual(mgr.exit_args, (None, None, None))
 
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("SETUP_WITH", "WITH_EXCEPT_START")
+    @failUnlessHasOpcodes("WITH_EXCEPT_START")
     def with_raises(self, mgr):
         with mgr:
             raise SetupWithException("foo")
@@ -2293,7 +2293,6 @@ class SetupWithTests(unittest.TestCase):
 
 class ListToTupleTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("LIST_TO_TUPLE")
     def it_to_tup(self, it):
         return (*it,)
 
@@ -2371,7 +2370,7 @@ class CompareTests(unittest.TestCase):
 
 class MatchTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("MATCH_SEQUENCE", "ROT_N")
+    @failUnlessHasOpcodes("MATCH_SEQUENCE")
     def match_sequence(self, s: tuple) -> bool:
         match s:
             case (*b, 8, 9, 4, 5):
@@ -2439,7 +2438,6 @@ class MatchTests(unittest.TestCase):
 
 class CopyDictWithoutKeysTest(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("COPY_DICT_WITHOUT_KEYS")
     def match_rest(self, obj):
         match obj:
             case {**rest}:
@@ -2460,7 +2458,6 @@ class CopyDictWithoutKeysTest(unittest.TestCase):
         self.assertIsNot(result, obj)
 
     @cinder_support.failUnlessJITCompiled
-    @failUnlessHasOpcodes("COPY_DICT_WITHOUT_KEYS")
     def match_keys_and_rest(self, obj):
         match obj:
             case {"x": 1, **rest}:

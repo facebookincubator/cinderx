@@ -1,6 +1,5 @@
 {
   "bad": [
-    "test_cinderx.test_cinderjit"
   ],
   "good": [
     "test.test__locale",
@@ -421,6 +420,7 @@
     "test.test_zlib",
     "test.test_zoneinfo",
     "test_cinderx.test___static__",
+    "test_cinderx.test_cinderjit",
     "test_cinderx.test_compiler.test_api",
     "test_cinderx.test_compiler.test_cinder",
     "test_cinderx.test_compiler.test_code_sbs",

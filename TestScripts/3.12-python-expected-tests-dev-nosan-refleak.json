@@ -1,7 +1,6 @@
 {
   "bad": [
-    "test.test_sqlite3",
-    "test_cinderx.test_cinderjit"
+    "test.test_sqlite3"
   ],
   "good": [
     "test.test___all__",
@@ -398,6 +397,7 @@
     "test.test_zlib",
     "test.test_zoneinfo",
     "test_cinderx.test___static__",
+    "test_cinderx.test_cinderjit",
     "test_cinderx.test_compiler.test_api",
     "test_cinderx.test_compiler.test_cinder",
     "test_cinderx.test_compiler.test_code_sbs",
