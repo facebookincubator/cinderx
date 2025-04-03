@@ -292,7 +292,7 @@ void InsertUpdatePrevInstr::Run(Function& func) {
   // If we don't have a valid line table to optimize with, update after every
   // bytecode.
   bool update_every_bc = func.code->co_linetable == nullptr ||
-      PyObject_Length(func.code->co_linetable) == 0;
+      PyBytes_Size(func.code->co_linetable) == 0;
 
   BytecodeIndexToLine bc_idx_to_line(func.code);
 

@@ -204,7 +204,7 @@ class BytecodeInstructionBlock {
   BorrowedRef<PyCodeObject> code() const;
 
  private:
-  Ref<PyCodeObject> code_;
+  ThreadedRef<PyCodeObject> code_;
   BCIndex start_idx_;
   BCIndex end_idx_;
 };

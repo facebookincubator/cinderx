@@ -24,15 +24,10 @@ void CodeRuntime::releaseReferences() {
   references_.clear();
 }
 
-void CodeRuntime::addReference(Ref<>&& obj) {
-  JIT_CHECK(obj != nullptr, "Can't own a reference to nullptr");
-  references_.emplace(std::move(obj));
-}
-
 void CodeRuntime::addReference(BorrowedRef<> obj) {
   // Serialize as we modify the ref-count to obj which may be widely accessible.
   ThreadedCompileSerialize guard;
-  return addReference(Ref<>::create(obj));
+  references_.emplace(ThreadedRef<>::create(obj));
 }
 
 void Builtins::init() {
@@ -240,17 +235,10 @@ void Runtime::clearGuardFailureCallback() {
   guard_failure_callback_ = nullptr;
 }
 
-void Runtime::addReference(Ref<>&& obj) {
-  JIT_CHECK(obj != nullptr, "Can't own a reference to nullptr");
-  // Serialize as we modify the globally accessible references_ object.
-  ThreadedCompileSerialize guard;
-  references_.emplace(std::move(obj));
-}
-
 void Runtime::addReference(BorrowedRef<> obj) {
   // Serialize as we modify the ref-count to obj which may be widely accessible.
   ThreadedCompileSerialize guard;
-  return addReference(Ref<>::create(obj));
+  references_.emplace(ThreadedRef<>::create(obj));
 }
 
 void Runtime::releaseReferences() {

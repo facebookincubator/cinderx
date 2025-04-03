@@ -4061,7 +4061,7 @@ class CFG {
 class Environment {
  public:
   using RegisterMap = std::unordered_map<int, std::unique_ptr<Register>>;
-  using ReferenceSet = std::unordered_set<Ref<>>;
+  using ReferenceSet = std::unordered_set<ThreadedRef<>>;
 
   Environment() = default;
   ~Environment();
@@ -4072,12 +4072,6 @@ class Environment {
 
   // Only intended to be used in tests and parsing code.
   Register* addRegister(std::unique_ptr<Register> reg);
-
-  // Only intended to be used in tests and parsing code. Ensure that this
-  // Environment owns a reference to the given owned object, keeping it alive
-  // for use by the compiled code. Transfer ownership of the object to the
-  // Environment.
-  BorrowedRef<> addReference(Ref<>&& obj);
 
   // Only intended to be used in tests and parsing code. Ensure that this
   // Environment owns a reference to the given borrowed object, keeping it
@@ -4224,12 +4218,12 @@ class Function {
   Function();
   ~Function();
 
-  Ref<PyCodeObject> code;
-  Ref<PyDictObject> builtins;
-  Ref<PyDictObject> globals;
+  ThreadedRef<PyCodeObject> code;
+  ThreadedRef<PyDictObject> builtins;
+  ThreadedRef<PyDictObject> globals;
 
   // for primitive args only, null if there are none
-  Ref<_PyTypedArgsInfo> prim_args_info;
+  ThreadedRef<_PyTypedArgsInfo> prim_args_info;
 
   // Fully-qualified name of the function
   std::string fullname;

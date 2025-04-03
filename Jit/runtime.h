@@ -186,7 +186,7 @@ class alignas(16) CodeRuntime {
   RuntimeFrameState frame_state_;
   std::vector<std::unique_ptr<RuntimeFrameState>> inlined_frame_states_;
 
-  std::unordered_set<Ref<PyObject>> references_;
+  std::unordered_set<ThreadedRef<PyObject>> references_;
 
   // Metadata about yield points. Deque so we can have raw pointers to content.
   std::deque<GenYieldPoint> gen_yield_points_;
@@ -389,11 +389,6 @@ class Runtime : public IRuntime {
   void guardFailed(const DeoptMetadata& deopt_meta);
   void clearGuardFailureCallback();
 
-  // Ensure that this Runtime owns a reference to the given owned object,
-  // keeping it alive for use by the compiled code. Transfer ownership of the
-  // object to the CodeRuntime.
-  void addReference(Ref<>&& obj);
-
   // Ensure that this Runtime owns a reference to the given borrowed object,
   // keeping it alive for use by the compiled code. Make CodeRuntime a new
   // owner of the object.
@@ -525,7 +520,7 @@ class Runtime : public IRuntime {
   GuardFailureCallback guard_failure_callback_;
 
   // References to Python objects held by this Runtime
-  std::unordered_set<Ref<PyObject>> references_;
+  std::unordered_set<ThreadedRef<PyObject>> references_;
   std::vector<std::unique_ptr<DeoptPatcher>> deopt_patchers_;
   Builtins builtins_;
 

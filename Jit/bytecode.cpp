@@ -150,7 +150,7 @@ BytecodeInstructionBlock::BytecodeInstructionBlock(
     BorrowedRef<PyCodeObject> code,
     BCIndex start,
     BCIndex end)
-    : code_{Ref<PyCodeObject>::create(code)},
+    : code_{ThreadedRef<PyCodeObject>::create(code)},
       start_idx_{start},
       end_idx_{end} {}
 

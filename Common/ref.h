@@ -52,6 +52,9 @@ class RefBase {
   T* ptr_{nullptr};
 };
 
+void incref_total(PyInterpreterState* ts);
+void decref_total(PyInterpreterState* ts);
+
 /*
  * BorrowedRef owns a borrowed reference to a PyObject.
  *

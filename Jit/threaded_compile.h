@@ -6,6 +6,7 @@
 
 #include <atomic>
 #include <cassert>
+#include <functional>
 #include <mutex>
 #include <thread>
 #include <vector>
@@ -175,4 +176,162 @@ class ThreadedCompileSerialize {
   }
 };
 
+/*
+ * ThreadedRef is like Ref but it directly manipulates the
+ * reference count instead of using the macros. The macros
+ * have an issue on 3.12 and later where in debug builds
+ * they need a PyInterpreterState to update the ref count stats.
+ *
+ * When doing multi-threaded compile we cannot access this from
+ * the other threads because the main thread holds the GIL.
+ *
+ * This means these values will not have their ref counts
+ * tracked in the debug build during ref leak tests, so care
+ * must be used to use them safely.
+ *
+ * Unlike Ref a ThreadedRef cannot be stolen because it would
+ * result in an imbalance of the reference count stats.
+ */
+
+template <
+    typename T = PyObject,
+    typename = std::enable_if_t<!std::is_pointer_v<T>>>
+class ThreadedRef : public RefBase<T> {
+ public:
+  using RefBase<T>::RefBase;
+
+  ~ThreadedRef() {
+    decref(ptr_);
+    ptr_ = nullptr;
+  }
+
+  explicit ThreadedRef(ThreadedRef&& other) noexcept {
+    ptr_ = other.ptr_;
+    other.ptr_ = nullptr;
+  }
+
+  template <
+      typename X = T,
+      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  explicit ThreadedRef(ThreadedRef<>&& other) {
+    ptr_ = reinterpret_cast<T*>(other.release());
+  }
+
+  ThreadedRef& operator=(ThreadedRef&& other) noexcept {
+    if (this == &other) {
+      return *this;
+    }
+    decref(ptr_);
+    ptr_ = other.ptr_;
+    other.ptr_ = nullptr;
+    return *this;
+  }
+
+  template <
+      typename X = T,
+      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  ThreadedRef& operator=(ThreadedRef<>&& other) {
+    if (this->get() == reinterpret_cast<T*>(other.get())) {
+      return *this;
+    }
+    decref(ptr_);
+    ptr_ = reinterpret_cast<T*>(other.release());
+    return *this;
+  }
+
+  void reset(T* obj = nullptr) {
+    incref(obj);
+    decref(ptr_);
+    ptr_ = obj;
+  }
+
+  template <
+      typename X = T,
+      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  void reset(PyObject* obj) {
+    reset(reinterpret_cast<T*>(obj));
+  }
+
+  static ThreadedRef create(T* obj) {
+    return ThreadedRef(obj);
+  }
+
+  // Stealing from another ThreadedRef doesn't make sense; either move it or
+  // explicitly copy it.
+  template <typename V>
+  static ThreadedRef steal(const ThreadedRef<V>&) = delete;
+
+  template <
+      typename X = T,
+      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  static ThreadedRef create(PyObject* obj) {
+    return Ref(reinterpret_cast<T*>(obj));
+  }
+
+ private:
+  ThreadedRef(const ThreadedRef&) = delete;
+  ThreadedRef& operator=(const ThreadedRef&) = delete;
+
+  explicit ThreadedRef(T* obj) {
+    ptr_ = obj;
+    incref(ptr_);
+  }
+
+  template <
+      typename X = T,
+      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  static void incref(T* obj) {
+    incref(reinterpret_cast<PyObject*>(obj));
+  }
+
+  static void incref(PyObject* obj) {
+    if (obj != nullptr && !_Py_IsImmortal(obj)) {
+      incref_total(interpreter());
+      obj->ob_refcnt++;
+    }
+  }
+
+  template <
+      typename X = T,
+      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  static void decref(T* obj) {
+    decref(reinterpret_cast<PyObject*>(obj));
+  }
+
+  static void decref(PyObject* obj) {
+    if (obj != nullptr && !_Py_IsImmortal(obj)) {
+      decref_total(interpreter());
+      if (--obj->ob_refcnt == 0) {
+        _Py_Dealloc((PyObject*)obj);
+      }
+    }
+  }
+
+  static PyInterpreterState* interpreter() {
+    if (jit::getThreadedCompileContext().compileRunning()) {
+      return jit::getThreadedCompileContext().interpreter();
+    }
+    return PyInterpreterState_Get();
+  }
+
+  using RefBase<T>::ptr_;
+};
+
 } // namespace jit
+
+template <typename T>
+struct std::hash<jit::ThreadedRef<T>> {
+  size_t operator()(const jit::ThreadedRef<T>& ref) const {
+    std::hash<T*> hasher;
+    return hasher(ref.get());
+  }
+};
+
+template <typename T>
+struct TransparentThreadedRefHasher {
+  using is_transparent = void;
+
+  size_t operator()(const jit::ThreadedRef<T>& ref) const {
+    return std::hash<jit::ThreadedRef<T>>{}(ref);
+  }
+};

@@ -1229,9 +1229,9 @@ static Register* resolveArgs(
       size_t default_idx = i - num_non_defaults;
 
       ThreadedCompileSerialize guard;
-      auto def = Ref<>::create(PyTuple_GET_ITEM(defaults, default_idx));
+      auto def = PyTuple_GET_ITEM(defaults, default_idx);
       JIT_CHECK(def != nullptr, "expected non-null default");
-      auto type = Type::fromObject(env.func.env.addReference(std::move(def)));
+      auto type = Type::fromObject(env.func.env.addReference(def));
       resolved_args[i] = env.emit<LoadConst>(type);
     }
     JIT_CHECK(resolved_args.at(i) != nullptr, "expected non-null arg");
