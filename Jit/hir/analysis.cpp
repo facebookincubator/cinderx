@@ -114,6 +114,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kLoadMethod:
     case Opcode::kLoadMethodCached:
     case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadSplitDictItem:
     case Opcode::kLoadTupleItem:

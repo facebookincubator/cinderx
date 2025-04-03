@@ -211,10 +211,7 @@ class LoadMethodCacheTests(unittest.TestCase):
         self.assertEqual(self._index_long(), 6)
 
 
-@unittest.skipUnless(
-    cinderx.jit.is_enabled() and not AT_LEAST_312,
-    "T217675248: Test uses the JIT and 3.12 doesn't use LOAD_METHOD for modules",
-)
+@unittest.skipUnless(cinderx.jit.is_enabled(), "Test uses the JIT")
 class LoadModuleMethodCacheTests(unittest.TestCase):
     def test_load_method_from_module(self):
         with cinder_support.temp_sys_path() as tmp:
@@ -248,7 +245,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
             self.assertEqual(tmp_b.test(), 3)
             self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
             self.assertIn(
-                "LoadModuleMethodCached",
+                "LoadModuleAttrCached" if AT_LEAST_312 else "LoadModuleMethodCached",
                 cinderjit.get_function_hir_opcode_counts(tmp_b.test),
             )
 
@@ -283,7 +280,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
         cinderx.jit.force_compile(tmp_b.test)
         self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
         self.assertIn(
-            "LoadModuleMethodCached",
+            "LoadModuleAttrCached" if AT_LEAST_312 else "LoadModuleMethodCached",
             cinderjit.get_function_hir_opcode_counts(tmp_b.test),
         )
         # prime the cache

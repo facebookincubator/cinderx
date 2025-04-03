@@ -139,6 +139,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kLoadMethod:
     case Opcode::kLoadMethodCached:
     case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLongBinaryOp:
     case Opcode::kLongInPlaceOp:
@@ -462,6 +463,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kLoadMethod:
     case Opcode::kLoadMethodCached:
     case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLongBinaryOp:
     case Opcode::kLongInPlaceOp:

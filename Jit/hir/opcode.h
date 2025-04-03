@@ -100,6 +100,7 @@ namespace jit::hir {
   V(LoadGlobal)                        \
   V(LoadMethod)                        \
   V(LoadMethodCached)                  \
+  V(LoadModuleAttrCached)              \
   V(LoadModuleMethodCached)            \
   V(LoadMethodSuper)                   \
   V(LoadSplitDictItem)                 \

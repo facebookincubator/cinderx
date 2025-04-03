@@ -439,6 +439,7 @@ Type outputType(
     case Opcode::kLoadMethod:
     case Opcode::kLoadMethodCached:
     case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadTupleItem:
     case Opcode::kMatchKeys:

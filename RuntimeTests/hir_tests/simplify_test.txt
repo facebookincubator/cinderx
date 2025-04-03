@@ -985,7 +985,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: os'
     }
     Snapshot
-    v41:Object = LoadAttrCached<1; "argv"> v15 {
+    v41:Object = LoadModuleAttrCached<1; "argv"> v15 {
       FrameState {
         CurInstrOffset 2
         Locals<2> v13 v13
@@ -1021,7 +1021,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: os'
     }
     Snapshot
-    v42:Object = LoadAttrCached<1; "argv"> v27 {
+    v42:Object = LoadModuleAttrCached<1; "argv"> v27 {
       FrameState {
         CurInstrOffset 16
         Locals<2> v22 v13
@@ -1105,7 +1105,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: os'
     }
     Snapshot
-    v52:Object = LoadAttrCached<1; "argv"> v23 {
+    v52:Object = LoadModuleAttrCached<1; "argv"> v23 {
       FrameState {
         CurInstrOffset 12
         Locals<2> v17 v17
@@ -1141,7 +1141,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: os'
     }
     Snapshot
-    v47:Object = LoadAttrCached<1; "argv"> v35 {
+    v47:Object = LoadModuleAttrCached<1; "argv"> v35 {
       FrameState {
         CurInstrOffset 52
         Locals<2> v30 v17
@@ -1774,7 +1774,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: sys'
     }
     Snapshot
-    v5:Object = LoadAttrCached<1; "path"> v3 {
+    v5:Object = LoadModuleAttrCached<1; "path"> v3 {
       FrameState {
         CurInstrOffset 2
       }
@@ -1809,7 +1809,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: sys'
     }
     Snapshot
-    v11:Object = LoadAttrCached<1; "path"> v9 {
+    v11:Object = LoadModuleAttrCached<1; "path"> v9 {
       FrameState {
         CurInstrOffset 12
       }
@@ -5741,7 +5741,7 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: time'
     }
     Snapshot
-    v15:Object = LoadAttrCached<0; "time"> v12 {
+    v15:Object = LoadModuleAttrCached<0; "time"> v12 {
       FrameState {
         CurInstrOffset 12
         Stack<1> v10

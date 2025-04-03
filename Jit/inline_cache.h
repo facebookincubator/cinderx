@@ -310,6 +310,26 @@ class LoadTypeMethodCache {
   bool is_unbound_meth_;
 };
 
+// A cache for an individual LoadModuleAttrCached instruction.
+class LoadModuleAttrCache {
+ public:
+  static PyObject* lookupHelper(
+      LoadModuleAttrCache* cache,
+      BorrowedRef<> obj,
+      BorrowedRef<> name);
+  PyObject* lookup(BorrowedRef<> obj, BorrowedRef<> name);
+
+ private:
+  PyObject* lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
+  void fill(BorrowedRef<> obj, BorrowedRef<> value, uint64_t version);
+
+  // This corresponds to module __dict__'s version which allows us
+  // to correctly invalidate the cache whenever the dictionary changes.
+  uint64_t version_{0};
+  BorrowedRef<> module_;
+  BorrowedRef<> value_;
+};
+
 class LoadModuleMethodCache {
  public:
   static LoadMethodResult lookupHelper(

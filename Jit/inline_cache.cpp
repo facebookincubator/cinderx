@@ -125,6 +125,18 @@ uint64_t getModuleVersion(BorrowedRef<Ci_StrictModuleObject> mod) {
   return 0;
 }
 
+uint64_t getModuleVersion(BorrowedRef<> obj) {
+  if (PyModule_Check(obj)) {
+    BorrowedRef<PyModuleObject> mod{obj};
+    return getModuleVersion(mod);
+  } else if (Ci_StrictModule_Check(obj)) {
+    BorrowedRef<Ci_StrictModuleObject> mod{obj};
+    return getModuleVersion(mod);
+  } else {
+    return 0;
+  }
+}
+
 void maybeCollectCacheStats(
     std::unique_ptr<CacheStats>& stat,
     BorrowedRef<PyTypeObject> tp,
@@ -1089,6 +1101,76 @@ void LoadTypeMethodCache::fill(
   ltm_watcher.watch(type_, this);
 }
 
+PyObject* LoadModuleAttrCache::lookupHelper(
+    LoadModuleAttrCache* cache,
+    BorrowedRef<> obj,
+    BorrowedRef<> name) {
+  return cache->lookup(obj, name);
+}
+
+PyObject* LoadModuleAttrCache::lookup(
+    BorrowedRef<> object,
+    BorrowedRef<> name) {
+  // First, check if we can use the cached value. If we can, we will return a
+  // new reference to it.
+  if (module_ == object && value_ != nullptr &&
+      version_ == getModuleVersion(object)) {
+    return Py_NewRef(value_);
+  }
+
+  // Otherwise, we will fall back to the slow path.
+  return lookupSlowPath(object, name);
+}
+
+static std::pair<uint64_t, PyObject*> getModuleAttribute(
+    BorrowedRef<> obj,
+    BorrowedRef<> name) {
+  BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
+
+  if (PyModule_Check(obj) && tp->tp_getattro == PyModule_Type.tp_getattro) {
+    if (_PyType_Lookup(tp, name) == nullptr) {
+      BorrowedRef<PyModuleObject> mod{obj};
+      BorrowedRef<> dict = mod->md_dict;
+
+      if (dict) {
+        return {getModuleVersion(mod), PyDict_GetItemWithError(dict, name)};
+      }
+    }
+  } else if (
+      Ci_StrictModule_Check(obj) &&
+      tp->tp_getattro == Ci_StrictModule_Type.tp_getattro) {
+    if (_PyType_Lookup(tp, name) == nullptr) {
+      BorrowedRef<Ci_StrictModuleObject> mod{obj};
+      BorrowedRef<> dict = mod->globals;
+
+      if (dict && Ci_strictmodule_is_unassigned(dict, name) == 0) {
+        return {getModuleVersion(mod), PyDict_GetItemWithError(dict, name)};
+      }
+    }
+  }
+
+  return {0, nullptr};
+}
+
+PyObject* __attribute__((noinline)) LoadModuleAttrCache::lookupSlowPath(
+    BorrowedRef<> object,
+    BorrowedRef<> name) {
+  auto [version, value] = getModuleAttribute(object, name);
+
+  if (value != nullptr) {
+    version_ = version;
+    module_ = object;
+    value_ = value;
+
+    // PyDict_GetItemWithError returns a borrowed reference, so
+    // we need to increment it before returning.
+    return Py_NewRef(value);
+  }
+
+  auto generic = Ref<>::steal(PyObject_GetAttr(object, name));
+  return generic == nullptr ? nullptr : generic.release();
+}
+
 LoadMethodResult LoadModuleMethodCache::lookupHelper(
     LoadModuleMethodCache* cache,
     BorrowedRef<> obj,
@@ -1127,34 +1209,12 @@ BorrowedRef<> LoadModuleMethodCache::value() {
 
 LoadMethodResult __attribute__((noinline))
 LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
-  BorrowedRef<PyTypeObject> tp = Py_TYPE(obj);
-  uint64_t dict_version = 0;
-  BorrowedRef<> res = nullptr;
-  if (PyModule_Check(obj) && tp->tp_getattro == PyModule_Type.tp_getattro) {
-    if (_PyType_Lookup(tp, name) == nullptr) {
-      BorrowedRef<PyModuleObject> mod{obj};
-      BorrowedRef<> dict = mod->md_dict;
-      if (dict) {
-        dict_version = getModuleVersion(mod);
-        res = PyDict_GetItemWithError(dict, name);
-      }
-    }
-  } else if (
-      Ci_StrictModule_Check(obj) &&
-      tp->tp_getattro == Ci_StrictModule_Type.tp_getattro) {
-    if (_PyType_Lookup(tp, name) == nullptr) {
-      BorrowedRef<Ci_StrictModuleObject> mod{obj};
-      BorrowedRef<> dict = mod->globals;
-      if (dict && Ci_strictmodule_is_unassigned(dict, name) == 0) {
-        dict_version = getModuleVersion(mod);
-        res = PyDict_GetItemWithError(dict, name);
-      }
-    }
-  }
+  auto [version, res] = getModuleAttribute(obj, name);
+
   if (res != nullptr) {
     if (PyFunction_Check(res) || PyCFunction_Check(res) ||
         Py_TYPE(res) == &PyMethodDescr_Type) {
-      fill(obj, res, dict_version);
+      fill(obj, res, version);
     }
     Py_INCREF(Py_None);
     // PyDict_GetItemWithError returns a borrowed reference, so

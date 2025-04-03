@@ -1101,6 +1101,17 @@ Register* simplifyLoadAttr(Env& env, const LoadAttr* load_attr) {
     return reg;
   }
   if (getConfig().attr_caches) {
+    Register* receiver = load_attr->GetOperand(0);
+    Type ty = receiver->type();
+    BorrowedRef<PyTypeObject> type{ty.runtimePyType()};
+
+    if (type == &PyModule_Type || type == &Ci_StrictModule_Type) {
+      return env.emit<LoadModuleAttrCached>(
+          load_attr->GetOperand(0),
+          load_attr->name_idx(),
+          *load_attr->frameState());
+    }
+
     if (Register* reg = simplifyLoadAttrTypeReceiver(env, load_attr)) {
       return reg;
     }

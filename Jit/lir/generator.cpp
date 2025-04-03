@@ -1353,6 +1353,21 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             dst, LoadMethodCache::lookupHelper, cache, base, name);
         break;
       }
+      case Opcode::kLoadModuleAttrCached: {
+        JIT_DCHECK(
+            getConfig().attr_caches,
+            "Inline caches must be enabled to use LoadModuleAttrCached");
+        auto instr = static_cast<const LoadModuleAttrCached*>(&i);
+        Instruction* name = getNameFromIdx(bbb, instr);
+        auto cache = Runtime::get()->allocateLoadModuleAttrCache();
+        bbb.appendCallInstruction(
+            instr->output(),
+            LoadModuleAttrCache::lookupHelper,
+            cache,
+            instr->GetOperand(0),
+            name);
+        break;
+      }
       case Opcode::kLoadModuleMethodCached: {
         JIT_DCHECK(
             getConfig().attr_caches,

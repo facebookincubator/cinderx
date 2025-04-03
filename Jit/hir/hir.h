@@ -2629,6 +2629,14 @@ DEFINE_SIMPLE_INSTR(
     Operands<1>,
     LoadMethodBase);
 
+// Like LoadMethod, but specialized for loading an attribute from a module
+DEFINE_SIMPLE_INSTR(
+    LoadModuleAttrCached,
+    (TObject),
+    HasOutput,
+    Operands<1>,
+    DeoptBaseWithNameIdx);
+
 // Like LoadMethod, but specialized for loading a method from a module
 DEFINE_SIMPLE_INSTR(
     LoadModuleMethodCached,

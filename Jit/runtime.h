@@ -416,6 +416,10 @@ class Runtime : public IRuntime {
     return load_method_caches_.allocate();
   }
 
+  LoadModuleAttrCache* allocateLoadModuleAttrCache() {
+    return load_module_attr_caches_.allocate();
+  }
+
   LoadModuleMethodCache* allocateLoadModuleMethodCache() {
     return load_module_method_caches_.allocate();
   }
@@ -508,6 +512,7 @@ class Runtime : public IRuntime {
   SlabArena<LoadAttrCache, AttributeCacheSizeTrait> load_attr_caches_;
   SlabArena<LoadTypeAttrCache> load_type_attr_caches_;
   SlabArena<LoadMethodCache> load_method_caches_;
+  SlabArena<LoadModuleAttrCache> load_module_attr_caches_;
   SlabArena<LoadModuleMethodCache> load_module_method_caches_;
   SlabArena<LoadTypeMethodCache> load_type_method_caches_;
   SlabArena<StoreAttrCache, AttributeCacheSizeTrait> store_attr_caches_;
