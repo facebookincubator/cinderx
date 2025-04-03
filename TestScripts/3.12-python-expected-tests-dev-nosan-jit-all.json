@@ -1,6 +1,5 @@
 {
   "bad": [
-    "test.test_unpack",
     "test_cinderx.test_cinderjit",
     "test_cinderx.test_immortalize",
     "test_cinderx.test_jitlist"
@@ -389,6 +388,7 @@
     "test.test_unicode_identifiers",
     "test.test_unittest",
     "test.test_univnewlines",
+    "test.test_unpack",
     "test.test_unpack_ex",
     "test.test_unparse",
     "test.test_urllib",

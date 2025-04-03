@@ -217,7 +217,7 @@ static BCIndex getDeoptResumeIndex(
   bool is_innermost = &frame == &meta.innermostFrame();
   if ((is_innermost && meta.reason == DeoptReason::kGuardFailure) ||
       forced_deopt) {
-    return frame.cause_instr_idx;
+    return frame.guardDeoptInstrIdx();
   }
   return frame.nextInstrIdx();
 }
