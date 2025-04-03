@@ -158,604 +158,848 @@ HIRParser::ListOrTuple HIRParser::parseListOrTuple() {
 
 Instr*
 HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
-  Instr* instruction = nullptr;
-  if (opcode == "Branch") {
-    NEW_INSTR(Branch, nullptr);
-    expect("<");
-    branches_.emplace(instr, GetNextInteger());
-    expect(">");
-  } else if (opcode == "VectorCall") {
-    expect("<");
-    int num_args = GetNextInteger();
-    auto flags = CallFlags::None;
-    while (peekNextToken() != ">") {
-      expect(",");
-      std::string_view tok = GetNextToken();
-      if (tok == "awaited") {
-        flags |= CallFlags::Awaited;
-      } else if (tok == "kwnames") {
-        flags |= CallFlags::KwArgs;
-      } else if (tok == "static") {
-        flags |= CallFlags::Static;
-      } else {
-        JIT_ABORT("Unexpected VectorCall immediate '{}'", tok);
-      }
-    }
-    expect(">");
-    auto func = ParseRegister();
-    std::vector<Register*> args(num_args);
-    std::generate(
-        args.begin(),
-        args.end(),
-        std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
+  auto result = opcodeFromName(opcode);
+  JIT_CHECK(result != std::nullopt, "Unknown opcode: {}", opcode);
 
-    instruction = newInstr<VectorCall>(num_args + 1, dst, flags);
-    instruction->SetOperand(0, func);
-    for (int i = 0; i < num_args; i++) {
-      instruction->SetOperand(i + 1, args[i]);
-    }
-  } else if (opcode == "FormatValue") {
-    expect("<");
-    auto tok = GetNextToken();
-    auto conversion = [&] {
-      if (tok == "None") {
-        return FVC_NONE;
-      } else if (tok == "Str") {
-        return FVC_STR;
-      } else if (tok == "Repr") {
-        return FVC_REPR;
-      } else if (tok == "ASCII") {
-        return FVC_ASCII;
-      }
-      JIT_ABORT("Bad FormatValue conversion type: {}", tok);
-    }();
-    expect(">");
-    Register* fmt_spec = ParseRegister();
-    Register* val = ParseRegister();
-    instruction = newInstr<FormatValue>(dst, fmt_spec, val, conversion);
-  } else if (opcode == "CallEx") {
-    auto flags = CallFlags::None;
-    if (peekNextToken() == "<") {
+  Instr* instruction = nullptr;
+  switch (result.value()) {
+    case Opcode::kBranch: {
+      NEW_INSTR(Branch, nullptr);
       expect("<");
+      branches_.emplace(instr, GetNextInteger());
+      expect(">");
+      break;
+    }
+    case Opcode::kVectorCall: {
+      expect("<");
+      int num_args = GetNextInteger();
+      auto flags = CallFlags::None;
       while (peekNextToken() != ">") {
-        auto tok = GetNextToken();
+        expect(",");
+        std::string_view tok = GetNextToken();
         if (tok == "awaited") {
           flags |= CallFlags::Awaited;
-        } else if (tok == "kwargs") {
+        } else if (tok == "kwnames") {
           flags |= CallFlags::KwArgs;
-        }
-        if (peekNextToken() == ",") {
-          expect(",");
+        } else if (tok == "static") {
+          flags |= CallFlags::Static;
+        } else {
+          JIT_ABORT("Unexpected VectorCall immediate '{}'", tok);
         }
       }
       expect(">");
-    }
-    Register* func = ParseRegister();
-    Register* pargs = ParseRegister();
-    Register* kwargs = ParseRegister();
-    instruction = newInstr<CallEx>(dst, func, pargs, kwargs, flags);
-  } else if (opcode == "ImportFrom") {
-    expect("<");
-    int name_idx = GetNextInteger();
-    expect(">");
-    Register* module = ParseRegister();
-    instruction = newInstr<ImportFrom>(dst, module, name_idx);
-  } else if (opcode == "ImportName") {
-    expect("<");
-    int name_idx = GetNextInteger();
-    expect(">");
-    Register* fromlist = ParseRegister();
-    Register* level = ParseRegister();
-    instruction = newInstr<ImportName>(dst, name_idx, fromlist, level);
-  } else if (opcode == "EagerImportName") {
-    expect("<");
-    int name_idx = GetNextInteger();
-    expect(">");
-    Register* fromlist = ParseRegister();
-    Register* level = ParseRegister();
-    instruction = newInstr<EagerImportName>(dst, name_idx, fromlist, level);
-  } else if (opcode == "MakeList") {
-    expect("<");
-    int nvalues = GetNextInteger();
-    expect(">");
-    std::vector<Register*> args(nvalues);
-    std::generate(
-        args.begin(),
-        args.end(),
-        std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
-    instruction = newInstr<MakeList>(nvalues, dst, args);
-  } else if (opcode == "MakeTuple") {
-    expect("<");
-    int nvalues = GetNextInteger();
-    expect(">");
-    std::vector<Register*> args(nvalues);
-    std::generate(
-        args.begin(),
-        args.end(),
-        std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
-    instruction = newInstr<MakeTuple>(nvalues, dst, args);
-  } else if (opcode == "MakeSet") {
-    NEW_INSTR(MakeSet, dst);
-  } else if (opcode == "SetSetItem") {
-    auto receiver = ParseRegister();
-    auto item = ParseRegister();
-    NEW_INSTR(SetSetItem, dst, receiver, item);
-  } else if (opcode == "SetUpdate") {
-    auto receiver = ParseRegister();
-    auto item = ParseRegister();
-    NEW_INSTR(SetUpdate, dst, receiver, item);
-  } else if (opcode == "LoadArg") {
-    expect("<");
-    int idx = GetNextNameIdx();
-    Type ty = TObject;
-    if (peekNextToken() == ",") {
-      expect(",");
-      ty = parseType(GetNextToken());
-    }
-    expect(">");
-    NEW_INSTR(LoadArg, dst, idx, ty);
-  } else if (opcode == "LoadMethod") {
-    expect("<");
-    int idx = GetNextNameIdx();
-    expect(">");
-    auto receiver = ParseRegister();
-    instruction = newInstr<LoadMethod>(dst, receiver, idx);
-  } else if (opcode == "LoadMethodCached") {
-    expect("<");
-    int idx = GetNextNameIdx();
-    expect(">");
-    auto receiver = ParseRegister();
-    instruction = newInstr<LoadMethodCached>(dst, receiver, idx);
-  } else if (opcode == "LoadTupleItem") {
-    expect("<");
-    int idx = GetNextNameIdx();
-    expect(">");
-    auto receiver = ParseRegister();
-    NEW_INSTR(LoadTupleItem, dst, receiver, idx);
-  } else if (opcode == "CallMethod") {
-    expect("<");
-    int num_args = GetNextInteger();
-    auto flags = CallFlags::None;
-    if (peekNextToken() == ",") {
-      expect(",");
-      expect("awaited");
-      flags |= CallFlags::Awaited;
-    }
-    expect(">");
-    std::vector<Register*> args(num_args);
-    std::generate(
-        args.begin(),
-        args.end(),
-        std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
-    instruction = newInstr<CallMethod>(args.size(), dst, flags);
-    for (std::size_t i = 0; i < args.size(); i++) {
-      instruction->SetOperand(i, args[i]);
-    }
-  } else if (opcode == "CondBranch") {
-    expect("<");
-    auto true_bb = GetNextInteger();
-    expect(",");
-    auto false_bb = GetNextInteger();
-    expect(">");
-    auto var = ParseRegister();
-    NEW_INSTR(CondBranch, var, nullptr, nullptr);
-    cond_branches_.emplace(
-        std::piecewise_construct,
-        std::forward_as_tuple(instr),
-        std::forward_as_tuple(true_bb, false_bb));
-  } else if (opcode == "CondBranchCheckType") {
-    expect("<");
-    auto true_bb = GetNextInteger();
-    expect(",");
-    auto false_bb = GetNextInteger();
-    expect(",");
-    Type ty = parseType(GetNextToken());
-    expect(">");
-    auto var = ParseRegister();
-    NEW_INSTR(CondBranchCheckType, var, ty, nullptr, nullptr);
-    cond_branches_.emplace(
-        std::piecewise_construct,
-        std::forward_as_tuple(instr),
-        std::forward_as_tuple(true_bb, false_bb));
-  } else if (opcode == "Decref") {
-    auto var = ParseRegister();
-    NEW_INSTR(Decref, var);
-  } else if (opcode == "Incref") {
-    auto var = ParseRegister();
-    NEW_INSTR(Incref, var);
-  } else if (opcode == "LoadAttr") {
-    expect("<");
-    int idx = GetNextNameIdx();
-    expect(">");
-    auto receiver = ParseRegister();
-    instruction = newInstr<LoadAttr>(dst, receiver, idx);
-  } else if (opcode == "LoadAttrCached") {
-    expect("<");
-    int idx = GetNextNameIdx();
-    expect(">");
-    auto receiver = ParseRegister();
-    instruction = newInstr<LoadAttrCached>(dst, receiver, idx);
-  } else if (opcode == "LoadConst") {
-    expect("<");
-    Type ty = parseType(GetNextToken());
-    expect(">");
-    NEW_INSTR(LoadConst, dst, ty);
-  } else if (opcode == "LoadGlobal") {
-    expect("<");
-    int name_idx = GetNextNameIdx();
-    expect(">");
-    instruction = newInstr<LoadGlobal>(dst, name_idx);
-  } else if (opcode == "LoadGlobalCached") {
-    expect("<");
-    int name_idx = GetNextNameIdx();
-    expect(">");
-    instruction = LoadGlobalCached::create(
-        dst,
-        /*code=*/nullptr,
-        /*builtins=*/nullptr,
-        /*globals=*/nullptr,
-        name_idx);
-  } else if (opcode == "StoreAttr") {
-    expect("<");
-    int idx = GetNextNameIdx();
-    expect(">");
-    auto receiver = ParseRegister();
-    auto value = ParseRegister();
-    instruction = newInstr<StoreAttr>(receiver, value, idx);
-  } else if (opcode == "StoreAttrCached") {
-    expect("<");
-    int idx = GetNextNameIdx();
-    expect(">");
-    auto receiver = ParseRegister();
-    auto value = ParseRegister();
-    instruction = newInstr<StoreAttrCached>(receiver, value, idx);
-  } else if (opcode == "GetLength") {
-    auto container = ParseRegister();
-    NEW_INSTR(GetLength, dst, container, FrameState{});
-  } else if (opcode == "DeleteSubscr") {
-    auto container = ParseRegister();
-    auto sub = ParseRegister();
-    newInstr<DeleteSubscr>(container, sub);
-  } else if (opcode == "DictSubscr") {
-    auto dict = ParseRegister();
-    auto key = ParseRegister();
-    NEW_INSTR(DictSubscr, dst, dict, key, FrameState{});
-  } else if (opcode == "StoreSubscr") {
-    auto receiver = ParseRegister();
-    auto index = ParseRegister();
-    auto value = ParseRegister();
-    NEW_INSTR(StoreSubscr, receiver, index, value, FrameState{});
-  } else if (opcode == "Assign") {
-    auto src = ParseRegister();
-    NEW_INSTR(Assign, dst, src);
-  } else if (opcode == "BinaryOp") {
-    expect("<");
-    BinaryOpKind op = ParseBinaryOpName(GetNextToken());
-    expect(">");
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    instruction = newInstr<BinaryOp>(dst, op, left, right);
-  } else if (opcode == "LongBinaryOp") {
-    expect("<");
-    BinaryOpKind op = ParseBinaryOpName(GetNextToken());
-    expect(">");
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    instruction = newInstr<LongBinaryOp>(dst, op, left, right);
-  } else if (opcode == "LongInPlaceOp") {
-    expect("<");
-    InPlaceOpKind op = ParseInPlaceOpName(GetNextToken());
-    expect(">");
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    instruction = newInstr<LongInPlaceOp>(dst, op, left, right);
-  } else if (opcode == "IntBinaryOp") {
-    expect("<");
-    BinaryOpKind op = ParseBinaryOpName(GetNextToken());
-    expect(">");
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    NEW_INSTR(IntBinaryOp, dst, op, left, right);
-  } else if (opcode == "Compare") {
-    expect("<");
-    CompareOp op = ParseCompareOpName(GetNextToken());
-    expect(">");
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    instruction = newInstr<Compare>(dst, op, left, right);
-  } else if (opcode == "LongCompare") {
-    expect("<");
-    CompareOp op = ParseCompareOpName(GetNextToken());
-    expect(">");
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    NEW_INSTR(LongCompare, dst, op, left, right);
-  } else if (opcode == "UnicodeCompare") {
-    expect("<");
-    CompareOp op = ParseCompareOpName(GetNextToken());
-    expect(">");
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    NEW_INSTR(UnicodeCompare, dst, op, left, right);
-  } else if (opcode == "UnicodeConcat") {
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    NEW_INSTR(UnicodeConcat, dst, left, right, FrameState{});
-  } else if (opcode == "UnicodeRepeat") {
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    NEW_INSTR(UnicodeRepeat, dst, left, right, FrameState{});
-  } else if (opcode == "UnicodeSubscr") {
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    NEW_INSTR(UnicodeSubscr, dst, left, right, FrameState{});
-  } else if (opcode == "IntConvert") {
-    expect("<");
-    Type type = parseType(GetNextToken());
-    expect(">");
-    auto src = ParseRegister();
-    NEW_INSTR(IntConvert, dst, src, type);
-  } else if (opcode == "PrimitiveCompare") {
-    expect("<");
-    PrimitiveCompareOp op = ParsePrimitiveCompareOpName(GetNextToken());
-    expect(">");
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    NEW_INSTR(PrimitiveCompare, dst, op, left, right);
-  } else if (opcode == "PrimitiveUnaryOp") {
-    expect("<");
-    PrimitiveUnaryOpKind op = ParsePrimitiveUnaryOpName(GetNextToken());
-    expect(">");
-    auto operand = ParseRegister();
-    NEW_INSTR(PrimitiveUnaryOp, dst, op, operand);
-  } else if (opcode == "PrimitiveUnbox") {
-    expect("<");
-    Type type = parseType(GetNextToken());
-    expect(">");
-    auto operand = ParseRegister();
-    NEW_INSTR(PrimitiveUnbox, dst, operand, type);
-  } else if (opcode == "PrimitiveBoxBool") {
-    auto operand = ParseRegister();
-    NEW_INSTR(PrimitiveBoxBool, dst, operand);
-  } else if (opcode == "PrimitiveBox") {
-    expect("<");
-    Type type = parseType(GetNextToken());
-    expect(">");
-    auto operand = ParseRegister();
-    instruction = newInstr<PrimitiveBox>(dst, operand, type);
-  } else if (opcode == "InPlaceOp") {
-    expect("<");
-    InPlaceOpKind op = ParseInPlaceOpName(GetNextToken());
-    expect(">");
-    auto left = ParseRegister();
-    auto right = ParseRegister();
-    instruction = newInstr<InPlaceOp>(dst, op, left, right);
-  } else if (opcode == "UnaryOp") {
-    expect("<");
-    UnaryOpKind op = ParseUnaryOpName(GetNextToken());
-    expect(">");
-    auto operand = ParseRegister();
-    instruction = newInstr<UnaryOp>(dst, op, operand);
-  } else if (opcode == "RaiseAwaitableError") {
-    expect("<");
-    std::string_view error = GetNextToken();
-    bool is_aenter = error == "__aenter__";
-    JIT_CHECK(
-        is_aenter || error == "__aexit__",
-        "Bad error string for RaiseAwaitableError: {}",
-        error);
-    expect(">");
-    auto type_reg = ParseRegister();
-    NEW_INSTR(RaiseAwaitableError, type_reg, is_aenter, FrameState{});
-  } else if (opcode == "Return") {
-    Type type = TObject;
-    if (peekNextToken() == "<") {
-      GetNextToken();
-      type = parseType(GetNextToken());
-      expect(">");
-    }
-    auto var = ParseRegister();
-    NEW_INSTR(Return, var, type);
-  } else if (opcode == "YieldValue") {
-    Register* value = ParseRegister();
-    instruction = newInstr<YieldValue>(dst, value);
-  } else if (opcode == "InitialYield") {
-    instruction = newInstr<InitialYield>(dst);
-  } else if (opcode == "GetIter") {
-    auto iterable = ParseRegister();
-    instruction = newInstr<GetIter>(dst, iterable);
-  } else if (opcode == "GetSecondOutput") {
-    expect("<");
-    Type ty = parseType(GetNextToken());
-    expect(">");
-    Register* value = ParseRegister();
-    NEW_INSTR(GetSecondOutput, dst, ty, value);
-  } else if (opcode == "LoadTypeAttrCacheEntryType") {
-    expect("<");
-    int cache_id = GetNextInteger();
-    expect(">");
-    NEW_INSTR(LoadTypeAttrCacheEntryType, dst, cache_id);
-  } else if (opcode == "LoadTypeAttrCacheEntryValue") {
-    expect("<");
-    int cache_id = GetNextInteger();
-    expect(">");
-    NEW_INSTR(LoadTypeAttrCacheEntryValue, dst, cache_id);
-  } else if (opcode == "FillTypeAttrCache") {
-    expect("<");
-    int cache_id = GetNextInteger();
-    int name_idx = GetNextInteger();
-    expect(">");
-    auto receiver = ParseRegister();
-    instruction =
-        newInstr<FillTypeAttrCache>(dst, receiver, name_idx, cache_id);
-  } else if (opcode == "LoadArrayItem") {
-    auto ob_item = ParseRegister();
-    auto idx = ParseRegister();
-    auto array_unused = ParseRegister();
-    NEW_INSTR(LoadArrayItem, dst, ob_item, idx, array_unused, 0, TObject);
-  } else if (opcode == "Phi") {
-    expect("<");
-    PhiInfo info{dst};
-    while (true) {
-      info.inputs.emplace_back(PhiInput{GetNextInteger(), nullptr});
-      if (peekNextToken() == ">") {
-        GetNextToken();
-        break;
+      auto func = ParseRegister();
+      std::vector<Register*> args(num_args);
+      std::generate(
+          args.begin(),
+          args.end(),
+          std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
+
+      instruction = newInstr<VectorCall>(num_args + 1, dst, flags);
+      instruction->SetOperand(0, func);
+      for (int i = 0; i < num_args; i++) {
+        instruction->SetOperand(i + 1, args[i]);
       }
-      expect(",");
+      break;
     }
-    for (auto& input : info.inputs) {
-      input.value = ParseRegister();
-    }
-    phis_[bb_index].emplace_back(std::move(info));
-  } else if (opcode == "Guard") {
-    auto operand = ParseRegister();
-    instruction = newInstr<Guard>(operand);
-  } else if (opcode == "GuardType") {
-    expect("<");
-    Type ty = parseType(GetNextToken());
-    expect(">");
-    auto operand = ParseRegister();
-    instruction = newInstr<GuardType>(dst, ty, operand);
-  } else if (opcode == "GuardIs") {
-    expect("<");
-    // Since we print raw pointer values for GuardIs, we should parse values
-    // as pointers as well. However, since pointers to memory aren't stable,
-    // we cannot currently turn them into meaningful values, and since we can't
-    // execute parsed HIR code yet, we only support Py_None as the target object
-    // for now.
-    expect("Py_None");
-    expect(">");
-    auto operand = ParseRegister();
-    NEW_INSTR(GuardIs, dst, Py_None, operand);
-  } else if (opcode == "IsTruthy") {
-    auto src = ParseRegister();
-    instruction = newInstr<IsTruthy>(dst, src);
-  } else if (opcode == "UseType") {
-    expect("<");
-    Type ty = parseType(GetNextToken());
-    expect(">");
-    auto operand = ParseRegister();
-    NEW_INSTR(UseType, operand, ty);
-  } else if (opcode == "HintType") {
-    ProfiledTypes types;
-    expect("<");
-    int num_args = GetNextInteger();
-    expect(",");
-    while (true) {
-      std::vector<Type> single_profile;
+    case Opcode::kFormatValue: {
       expect("<");
+      auto tok = GetNextToken();
+      auto conversion = [&] {
+        if (tok == "None") {
+          return FVC_NONE;
+        } else if (tok == "Str") {
+          return FVC_STR;
+        } else if (tok == "Repr") {
+          return FVC_REPR;
+        } else if (tok == "ASCII") {
+          return FVC_ASCII;
+        }
+        JIT_ABORT("Bad FormatValue conversion type: {}", tok);
+      }();
+      expect(">");
+      Register* fmt_spec = ParseRegister();
+      Register* val = ParseRegister();
+      instruction = newInstr<FormatValue>(dst, fmt_spec, val, conversion);
+      break;
+    }
+    case Opcode::kCallEx: {
+      auto flags = CallFlags::None;
+      if (peekNextToken() == "<") {
+        expect("<");
+        while (peekNextToken() != ">") {
+          auto tok = GetNextToken();
+          if (tok == "awaited") {
+            flags |= CallFlags::Awaited;
+          } else if (tok == "kwargs") {
+            flags |= CallFlags::KwArgs;
+          }
+          if (peekNextToken() == ",") {
+            expect(",");
+          }
+        }
+        expect(">");
+      }
+      Register* func = ParseRegister();
+      Register* pargs = ParseRegister();
+      Register* kwargs = ParseRegister();
+      instruction = newInstr<CallEx>(dst, func, pargs, kwargs, flags);
+      break;
+    }
+    case Opcode::kImportFrom: {
+      expect("<");
+      int name_idx = GetNextInteger();
+      expect(">");
+      Register* module = ParseRegister();
+      instruction = newInstr<ImportFrom>(dst, module, name_idx);
+      break;
+    }
+    case Opcode::kImportName: {
+      expect("<");
+      int name_idx = GetNextInteger();
+      expect(">");
+      Register* fromlist = ParseRegister();
+      Register* level = ParseRegister();
+      instruction = newInstr<ImportName>(dst, name_idx, fromlist, level);
+      break;
+    }
+    case Opcode::kEagerImportName: {
+      expect("<");
+      int name_idx = GetNextInteger();
+      expect(">");
+      Register* fromlist = ParseRegister();
+      Register* level = ParseRegister();
+      instruction = newInstr<EagerImportName>(dst, name_idx, fromlist, level);
+      break;
+    }
+    case Opcode::kMakeList: {
+      expect("<");
+      int nvalues = GetNextInteger();
+      expect(">");
+      std::vector<Register*> args(nvalues);
+      std::generate(
+          args.begin(),
+          args.end(),
+          std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
+      instruction = newInstr<MakeList>(nvalues, dst, args);
+      break;
+    }
+    case Opcode::kMakeTuple: {
+      expect("<");
+      int nvalues = GetNextInteger();
+      expect(">");
+      std::vector<Register*> args(nvalues);
+      std::generate(
+          args.begin(),
+          args.end(),
+          std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
+      instruction = newInstr<MakeTuple>(nvalues, dst, args);
+      break;
+    }
+    case Opcode::kMakeSet: {
+      NEW_INSTR(MakeSet, dst);
+      break;
+    }
+    case Opcode::kSetSetItem: {
+      auto receiver = ParseRegister();
+      auto item = ParseRegister();
+      NEW_INSTR(SetSetItem, dst, receiver, item);
+      break;
+    }
+    case Opcode::kSetUpdate: {
+      auto receiver = ParseRegister();
+      auto item = ParseRegister();
+      NEW_INSTR(SetUpdate, dst, receiver, item);
+      break;
+    }
+    case Opcode::kLoadArg: {
+      expect("<");
+      int idx = GetNextNameIdx();
+      Type ty = TObject;
+      if (peekNextToken() == ",") {
+        expect(",");
+        ty = parseType(GetNextToken());
+      }
+      expect(">");
+      NEW_INSTR(LoadArg, dst, idx, ty);
+      break;
+    }
+    case Opcode::kLoadMethod: {
+      expect("<");
+      int idx = GetNextNameIdx();
+      expect(">");
+      auto receiver = ParseRegister();
+      instruction = newInstr<LoadMethod>(dst, receiver, idx);
+      break;
+    }
+    case Opcode::kLoadMethodCached: {
+      expect("<");
+      int idx = GetNextNameIdx();
+      expect(">");
+      auto receiver = ParseRegister();
+      instruction = newInstr<LoadMethodCached>(dst, receiver, idx);
+      break;
+    }
+    case Opcode::kLoadTupleItem: {
+      expect("<");
+      int idx = GetNextNameIdx();
+      expect(">");
+      auto receiver = ParseRegister();
+      NEW_INSTR(LoadTupleItem, dst, receiver, idx);
+      break;
+    }
+    case Opcode::kCallMethod: {
+      expect("<");
+      int num_args = GetNextInteger();
+      auto flags = CallFlags::None;
+      if (peekNextToken() == ",") {
+        expect(",");
+        expect("awaited");
+        flags |= CallFlags::Awaited;
+      }
+      expect(">");
+      std::vector<Register*> args(num_args);
+      std::generate(
+          args.begin(),
+          args.end(),
+          std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
+      instruction = newInstr<CallMethod>(args.size(), dst, flags);
+      for (std::size_t i = 0; i < args.size(); i++) {
+        instruction->SetOperand(i, args[i]);
+      }
+      break;
+    }
+    case Opcode::kCondBranch: {
+      expect("<");
+      auto true_bb = GetNextInteger();
+      expect(",");
+      auto false_bb = GetNextInteger();
+      expect(">");
+      auto var = ParseRegister();
+      NEW_INSTR(CondBranch, var, nullptr, nullptr);
+      cond_branches_.emplace(
+          std::piecewise_construct,
+          std::forward_as_tuple(instr),
+          std::forward_as_tuple(true_bb, false_bb));
+      break;
+    }
+    case Opcode::kCondBranchCheckType: {
+      expect("<");
+      auto true_bb = GetNextInteger();
+      expect(",");
+      auto false_bb = GetNextInteger();
+      expect(",");
+      Type ty = parseType(GetNextToken());
+      expect(">");
+      auto var = ParseRegister();
+      NEW_INSTR(CondBranchCheckType, var, ty, nullptr, nullptr);
+      cond_branches_.emplace(
+          std::piecewise_construct,
+          std::forward_as_tuple(instr),
+          std::forward_as_tuple(true_bb, false_bb));
+      break;
+    }
+    case Opcode::kDecref: {
+      auto var = ParseRegister();
+      NEW_INSTR(Decref, var);
+      break;
+    }
+    case Opcode::kIncref: {
+      auto var = ParseRegister();
+      NEW_INSTR(Incref, var);
+      break;
+    }
+    case Opcode::kLoadAttr: {
+      expect("<");
+      int idx = GetNextNameIdx();
+      expect(">");
+      auto receiver = ParseRegister();
+      instruction = newInstr<LoadAttr>(dst, receiver, idx);
+      break;
+    }
+    case Opcode::kLoadAttrCached: {
+      expect("<");
+      int idx = GetNextNameIdx();
+      expect(">");
+      auto receiver = ParseRegister();
+      instruction = newInstr<LoadAttrCached>(dst, receiver, idx);
+      break;
+    }
+    case Opcode::kLoadConst: {
+      expect("<");
+      Type ty = parseType(GetNextToken());
+      expect(">");
+      NEW_INSTR(LoadConst, dst, ty);
+      break;
+    }
+    case Opcode::kLoadGlobal: {
+      expect("<");
+      int name_idx = GetNextNameIdx();
+      expect(">");
+      instruction = newInstr<LoadGlobal>(dst, name_idx);
+      break;
+    }
+    case Opcode::kLoadGlobalCached: {
+      expect("<");
+      int name_idx = GetNextNameIdx();
+      expect(">");
+      instruction = LoadGlobalCached::create(
+          dst,
+          /*code=*/nullptr,
+          /*builtins=*/nullptr,
+          /*globals=*/nullptr,
+          name_idx);
+      break;
+    }
+    case Opcode::kStoreAttr: {
+      expect("<");
+      int idx = GetNextNameIdx();
+      expect(">");
+      auto receiver = ParseRegister();
+      auto value = ParseRegister();
+      instruction = newInstr<StoreAttr>(receiver, value, idx);
+      break;
+    }
+    case Opcode::kStoreAttrCached: {
+      expect("<");
+      int idx = GetNextNameIdx();
+      expect(">");
+      auto receiver = ParseRegister();
+      auto value = ParseRegister();
+      instruction = newInstr<StoreAttrCached>(receiver, value, idx);
+      break;
+    }
+    case Opcode::kGetLength: {
+      auto container = ParseRegister();
+      NEW_INSTR(GetLength, dst, container, FrameState{});
+      break;
+    }
+    case Opcode::kDeleteSubscr: {
+      auto container = ParseRegister();
+      auto sub = ParseRegister();
+      newInstr<DeleteSubscr>(container, sub);
+      break;
+    }
+    case Opcode::kDictSubscr: {
+      auto dict = ParseRegister();
+      auto key = ParseRegister();
+      NEW_INSTR(DictSubscr, dst, dict, key, FrameState{});
+      break;
+    }
+    case Opcode::kStoreSubscr: {
+      auto receiver = ParseRegister();
+      auto index = ParseRegister();
+      auto value = ParseRegister();
+      NEW_INSTR(StoreSubscr, receiver, index, value, FrameState{});
+      break;
+    }
+    case Opcode::kAssign: {
+      auto src = ParseRegister();
+      NEW_INSTR(Assign, dst, src);
+      break;
+    }
+    case Opcode::kBinaryOp: {
+      expect("<");
+      BinaryOpKind op = ParseBinaryOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      instruction = newInstr<BinaryOp>(dst, op, left, right);
+      break;
+    }
+    case Opcode::kLongBinaryOp: {
+      expect("<");
+      BinaryOpKind op = ParseBinaryOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      instruction = newInstr<LongBinaryOp>(dst, op, left, right);
+      break;
+    }
+    case Opcode::kLongInPlaceOp: {
+      expect("<");
+      InPlaceOpKind op = ParseInPlaceOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      instruction = newInstr<LongInPlaceOp>(dst, op, left, right);
+      break;
+    }
+    case Opcode::kIntBinaryOp: {
+      expect("<");
+      BinaryOpKind op = ParseBinaryOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      NEW_INSTR(IntBinaryOp, dst, op, left, right);
+      break;
+    }
+    case Opcode::kCompare: {
+      expect("<");
+      CompareOp op = ParseCompareOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      instruction = newInstr<Compare>(dst, op, left, right);
+      break;
+    }
+    case Opcode::kLongCompare: {
+      expect("<");
+      CompareOp op = ParseCompareOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      NEW_INSTR(LongCompare, dst, op, left, right);
+      break;
+    }
+    case Opcode::kUnicodeCompare: {
+      expect("<");
+      CompareOp op = ParseCompareOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      NEW_INSTR(UnicodeCompare, dst, op, left, right);
+      break;
+    }
+    case Opcode::kUnicodeConcat: {
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      NEW_INSTR(UnicodeConcat, dst, left, right, FrameState{});
+      break;
+    }
+    case Opcode::kUnicodeRepeat: {
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      NEW_INSTR(UnicodeRepeat, dst, left, right, FrameState{});
+      break;
+    }
+    case Opcode::kUnicodeSubscr: {
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      NEW_INSTR(UnicodeSubscr, dst, left, right, FrameState{});
+      break;
+    }
+    case Opcode::kIntConvert: {
+      expect("<");
+      Type type = parseType(GetNextToken());
+      expect(">");
+      auto src = ParseRegister();
+      NEW_INSTR(IntConvert, dst, src, type);
+      break;
+    }
+    case Opcode::kPrimitiveCompare: {
+      expect("<");
+      PrimitiveCompareOp op = ParsePrimitiveCompareOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      NEW_INSTR(PrimitiveCompare, dst, op, left, right);
+      break;
+    }
+    case Opcode::kPrimitiveUnaryOp: {
+      expect("<");
+      PrimitiveUnaryOpKind op = ParsePrimitiveUnaryOpName(GetNextToken());
+      expect(">");
+      auto operand = ParseRegister();
+      NEW_INSTR(PrimitiveUnaryOp, dst, op, operand);
+      break;
+    }
+    case Opcode::kPrimitiveUnbox: {
+      expect("<");
+      Type type = parseType(GetNextToken());
+      expect(">");
+      auto operand = ParseRegister();
+      NEW_INSTR(PrimitiveUnbox, dst, operand, type);
+      break;
+    }
+    case Opcode::kPrimitiveBoxBool: {
+      auto operand = ParseRegister();
+      NEW_INSTR(PrimitiveBoxBool, dst, operand);
+      break;
+    }
+    case Opcode::kPrimitiveBox: {
+      expect("<");
+      Type type = parseType(GetNextToken());
+      expect(">");
+      auto operand = ParseRegister();
+      instruction = newInstr<PrimitiveBox>(dst, operand, type);
+      break;
+    }
+    case Opcode::kInPlaceOp: {
+      expect("<");
+      InPlaceOpKind op = ParseInPlaceOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      instruction = newInstr<InPlaceOp>(dst, op, left, right);
+      break;
+    }
+    case Opcode::kUnaryOp: {
+      expect("<");
+      UnaryOpKind op = ParseUnaryOpName(GetNextToken());
+      expect(">");
+      auto operand = ParseRegister();
+      instruction = newInstr<UnaryOp>(dst, op, operand);
+      break;
+    }
+    case Opcode::kRaiseAwaitableError: {
+      expect("<");
+      std::string_view error = GetNextToken();
+      bool is_aenter = error == "__aenter__";
+      JIT_CHECK(
+          is_aenter || error == "__aexit__",
+          "Bad error string for RaiseAwaitableError: {}",
+          error);
+      expect(">");
+      auto type_reg = ParseRegister();
+      NEW_INSTR(RaiseAwaitableError, type_reg, is_aenter, FrameState{});
+      break;
+    }
+    case Opcode::kReturn: {
+      Type type = TObject;
+      if (peekNextToken() == "<") {
+        GetNextToken();
+        type = parseType(GetNextToken());
+        expect(">");
+      }
+      auto var = ParseRegister();
+      NEW_INSTR(Return, var, type);
+      break;
+    }
+    case Opcode::kYieldValue: {
+      Register* value = ParseRegister();
+      instruction = newInstr<YieldValue>(dst, value);
+      break;
+    }
+    case Opcode::kInitialYield: {
+      instruction = newInstr<InitialYield>(dst);
+      break;
+    }
+    case Opcode::kGetIter: {
+      auto iterable = ParseRegister();
+      instruction = newInstr<GetIter>(dst, iterable);
+      break;
+    }
+    case Opcode::kGetSecondOutput: {
+      expect("<");
+      Type ty = parseType(GetNextToken());
+      expect(">");
+      Register* value = ParseRegister();
+      NEW_INSTR(GetSecondOutput, dst, ty, value);
+      break;
+    }
+    case Opcode::kLoadTypeAttrCacheEntryType: {
+      expect("<");
+      int cache_id = GetNextInteger();
+      expect(">");
+      NEW_INSTR(LoadTypeAttrCacheEntryType, dst, cache_id);
+      break;
+    }
+    case Opcode::kLoadTypeAttrCacheEntryValue: {
+      expect("<");
+      int cache_id = GetNextInteger();
+      expect(">");
+      NEW_INSTR(LoadTypeAttrCacheEntryValue, dst, cache_id);
+      break;
+    }
+    case Opcode::kFillTypeAttrCache: {
+      expect("<");
+      int cache_id = GetNextInteger();
+      int name_idx = GetNextInteger();
+      expect(">");
+      auto receiver = ParseRegister();
+      instruction =
+          newInstr<FillTypeAttrCache>(dst, receiver, name_idx, cache_id);
+      break;
+    }
+    case Opcode::kLoadArrayItem: {
+      auto ob_item = ParseRegister();
+      auto idx = ParseRegister();
+      auto array_unused = ParseRegister();
+      NEW_INSTR(LoadArrayItem, dst, ob_item, idx, array_unused, 0, TObject);
+      break;
+    }
+    case Opcode::kPhi: {
+      expect("<");
+      PhiInfo info{dst};
       while (true) {
-        Type ty = parseType(GetNextToken());
-        single_profile.emplace_back(ty);
+        info.inputs.emplace_back(PhiInput{GetNextInteger(), nullptr});
         if (peekNextToken() == ">") {
           GetNextToken();
           break;
         }
         expect(",");
       }
-      types.emplace_back(single_profile);
-      if (peekNextToken() == ">") {
-        GetNextToken();
-        break;
+      for (auto& input : info.inputs) {
+        input.value = ParseRegister();
       }
+      phis_[bb_index].emplace_back(std::move(info));
+      break;
+    }
+    case Opcode::kGuard: {
+      auto operand = ParseRegister();
+      instruction = newInstr<Guard>(operand);
+      break;
+    }
+    case Opcode::kGuardType: {
+      expect("<");
+      Type ty = parseType(GetNextToken());
+      expect(">");
+      auto operand = ParseRegister();
+      instruction = newInstr<GuardType>(dst, ty, operand);
+      break;
+    }
+    case Opcode::kGuardIs: {
+      expect("<");
+      // Since we print raw pointer values for GuardIs, we should parse values
+      // as pointers as well. However, since pointers to memory aren't stable,
+      // we cannot currently turn them into meaningful values, and since we
+      // can't execute parsed HIR code yet, we only support Py_None as the
+      // target object for now.
+      expect("Py_None");
+      expect(">");
+      auto operand = ParseRegister();
+      NEW_INSTR(GuardIs, dst, Py_None, operand);
+      break;
+    }
+    case Opcode::kIsTruthy: {
+      auto src = ParseRegister();
+      instruction = newInstr<IsTruthy>(dst, src);
+      break;
+    }
+    case Opcode::kUseType: {
+      expect("<");
+      Type ty = parseType(GetNextToken());
+      expect(">");
+      auto operand = ParseRegister();
+      NEW_INSTR(UseType, operand, ty);
+      break;
+    }
+    case Opcode::kHintType: {
+      ProfiledTypes types;
+      expect("<");
+      int num_args = GetNextInteger();
       expect(",");
+      while (true) {
+        std::vector<Type> single_profile;
+        expect("<");
+        while (true) {
+          Type ty = parseType(GetNextToken());
+          single_profile.emplace_back(ty);
+          if (peekNextToken() == ">") {
+            GetNextToken();
+            break;
+          }
+          expect(",");
+        }
+        types.emplace_back(single_profile);
+        if (peekNextToken() == ">") {
+          GetNextToken();
+          break;
+        }
+        expect(",");
+      }
+      std::vector<Register*> args(num_args);
+      std::generate(
+          args.begin(),
+          args.end(),
+          std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
+      NEW_INSTR(HintType, num_args, types, args);
+      break;
     }
-    std::vector<Register*> args(num_args);
-    std::generate(
-        args.begin(),
-        args.end(),
-        std::bind(std::mem_fn(&HIRParser::ParseRegister), this));
-    NEW_INSTR(HintType, num_args, types, args);
-  } else if (opcode == "RefineType") {
-    expect("<");
-    Type ty = parseType(GetNextToken());
-    expect(">");
-    auto operand = ParseRegister();
-    NEW_INSTR(RefineType, dst, ty, operand);
-  } else if (opcode == "CheckExc") {
-    auto operand = ParseRegister();
-    instruction = newInstr<CheckExc>(dst, operand);
-  } else if (opcode == "CheckVar") {
-    expect("<");
-    BorrowedRef<> name = GetNextUnicode();
-    expect(">");
-    auto operand = ParseRegister();
-    instruction = newInstr<CheckVar>(dst, operand, name);
-  } else if (opcode == "CheckSequenceBounds") {
-    auto sequence = ParseRegister();
-    auto idx = ParseRegister();
-    NEW_INSTR(CheckSequenceBounds, dst, sequence, idx);
-  } else if (opcode == "Snapshot") {
-    auto snapshot = Snapshot::create();
-    if (peekNextToken() == "{") {
-      snapshot->setFrameState(parseFrameState());
+    case Opcode::kRefineType: {
+      expect("<");
+      Type ty = parseType(GetNextToken());
+      expect(">");
+      auto operand = ParseRegister();
+      NEW_INSTR(RefineType, dst, ty, operand);
+      break;
     }
-    instruction = snapshot;
-  } else if (opcode == "Deopt") {
-    instruction = newInstr<Deopt>();
-  } else if (opcode == "Unreachable") {
-    instruction = Unreachable::create();
-  } else if (opcode == "MakeDict") {
-    expect("<");
-    auto capacity = GetNextInteger();
-    expect(">");
-    instruction = newInstr<MakeDict>(dst, capacity);
-  } else if (opcode == "InvokeStaticFunction") {
-    expect("<");
-    auto name = GetNextToken();
-    auto mod_name =
-        Ref<>::steal(PyUnicode_FromStringAndSize(name.data(), name.size()));
-    JIT_CHECK(mod_name != nullptr, "failed to allocate mod name");
-    auto dot = Ref<>::steal(PyUnicode_FromString("."));
-    JIT_CHECK(dot != nullptr, "failed to allocate mod name");
-
-    auto names = Ref<PyListObject>::steal(PyUnicode_Split(mod_name, dot, -1));
-    JIT_CHECK(names != nullptr, "unknown func");
-
-    auto container_descr =
-        Ref<PyTupleObject>::steal(PyTuple_New(Py_SIZE(names.get()) - 1));
-    JIT_CHECK(container_descr != nullptr, "failed to allocate container");
-    for (Py_ssize_t i = 0; i < Py_SIZE(names.get()) - 1; i++) {
-      PyObject* comp = PyList_GET_ITEM(names.get(), i);
-      PyTuple_SET_ITEM(container_descr.get(), i, comp);
-      Py_INCREF(comp);
+    case Opcode::kCheckExc: {
+      auto operand = ParseRegister();
+      instruction = newInstr<CheckExc>(dst, operand);
+      break;
     }
+    case Opcode::kCheckVar: {
+      expect("<");
+      BorrowedRef<> name = GetNextUnicode();
+      expect(">");
+      auto operand = ParseRegister();
+      instruction = newInstr<CheckVar>(dst, operand, name);
+      break;
+    }
+    case Opcode::kCheckSequenceBounds: {
+      auto sequence = ParseRegister();
+      auto idx = ParseRegister();
+      NEW_INSTR(CheckSequenceBounds, dst, sequence, idx);
+      break;
+    }
+    case Opcode::kSnapshot: {
+      auto snapshot = Snapshot::create();
+      if (peekNextToken() == "{") {
+        snapshot->setFrameState(parseFrameState());
+      }
+      instruction = snapshot;
+      break;
+    }
+    case Opcode::kDeopt: {
+      instruction = newInstr<Deopt>();
+      break;
+    }
+    case Opcode::kUnreachable: {
+      instruction = Unreachable::create();
+      break;
+    }
+    case Opcode::kMakeDict: {
+      expect("<");
+      auto capacity = GetNextInteger();
+      expect(">");
+      instruction = newInstr<MakeDict>(dst, capacity);
+      break;
+    }
+    case Opcode::kInvokeStaticFunction: {
+      expect("<");
+      auto name = GetNextToken();
+      auto mod_name =
+          Ref<>::steal(PyUnicode_FromStringAndSize(name.data(), name.size()));
+      JIT_CHECK(mod_name != nullptr, "failed to allocate mod name");
+      auto dot = Ref<>::steal(PyUnicode_FromString("."));
+      JIT_CHECK(dot != nullptr, "failed to allocate mod name");
 
-    auto type_descr = Ref<>::steal(PyTuple_New(2));
-    JIT_CHECK(type_descr != nullptr, "failed to allocate type_descr");
+      auto names = Ref<PyListObject>::steal(PyUnicode_Split(mod_name, dot, -1));
+      JIT_CHECK(names != nullptr, "unknown func");
 
-    PyTuple_SET_ITEM(type_descr.get(), 0, container_descr.getObj());
-    Py_INCREF(container_descr.get());
-    PyObject* func_name = PyList_GET_ITEM(names, Py_SIZE(names.get()) - 1);
-    PyTuple_SET_ITEM(type_descr.get(), 1, func_name);
-    Py_INCREF(func_name);
+      auto container_descr =
+          Ref<PyTupleObject>::steal(PyTuple_New(Py_SIZE(names.get()) - 1));
+      JIT_CHECK(container_descr != nullptr, "failed to allocate container");
+      for (Py_ssize_t i = 0; i < Py_SIZE(names.get()) - 1; i++) {
+        PyObject* comp = PyList_GET_ITEM(names.get(), i);
+        PyTuple_SET_ITEM(container_descr.get(), i, comp);
+        Py_INCREF(comp);
+      }
 
-    PyObject* container = nullptr;
-    auto func = Ref<PyFunctionObject>::steal(
-        _PyClassLoader_ResolveFunction(type_descr, &container));
-    JIT_CHECK(func != nullptr, "unknown func");
-    Py_XDECREF(container);
+      auto type_descr = Ref<>::steal(PyTuple_New(2));
+      JIT_CHECK(type_descr != nullptr, "failed to allocate type_descr");
 
-    expect(",");
-    auto argcount = GetNextInteger();
-    expect(",");
-    Type ty = parseType(GetNextToken());
-    expect(">");
+      PyTuple_SET_ITEM(type_descr.get(), 0, container_descr.getObj());
+      Py_INCREF(container_descr.get());
+      PyObject* func_name = PyList_GET_ITEM(names, Py_SIZE(names.get()) - 1);
+      PyTuple_SET_ITEM(type_descr.get(), 1, func_name);
+      Py_INCREF(func_name);
 
-    instruction = newInstr<InvokeStaticFunction>(argcount, dst, func, ty);
-  } else if (opcode == "LoadCurrentFunc") {
-    NEW_INSTR(LoadCurrentFunc, dst);
-  } else if (opcode == "LoadEvalBreaker") {
-    NEW_INSTR(LoadEvalBreaker, dst);
-  } else if (opcode == "RunPeriodicTasks") {
-    instruction = newInstr<RunPeriodicTasks>(dst);
-  } else if (opcode == "ListAppend") {
-    auto list = ParseRegister();
-    auto value = ParseRegister();
-    NEW_INSTR(ListAppend, dst, list, value);
-  } else {
-    JIT_ABORT("Unknown opcode: {}", opcode);
+      PyObject* container = nullptr;
+      auto func = Ref<PyFunctionObject>::steal(
+          _PyClassLoader_ResolveFunction(type_descr, &container));
+      JIT_CHECK(func != nullptr, "unknown func");
+      Py_XDECREF(container);
+
+      expect(",");
+      auto argcount = GetNextInteger();
+      expect(",");
+      Type ty = parseType(GetNextToken());
+      expect(">");
+
+      instruction = newInstr<InvokeStaticFunction>(argcount, dst, func, ty);
+      break;
+    }
+    case Opcode::kLoadCurrentFunc: {
+      NEW_INSTR(LoadCurrentFunc, dst);
+      break;
+    }
+    case Opcode::kLoadEvalBreaker: {
+      NEW_INSTR(LoadEvalBreaker, dst);
+      break;
+    }
+    case Opcode::kRunPeriodicTasks: {
+      instruction = newInstr<RunPeriodicTasks>(dst);
+      break;
+    }
+    case Opcode::kListAppend: {
+      auto list = ParseRegister();
+      auto value = ParseRegister();
+      NEW_INSTR(ListAppend, dst, list, value);
+      break;
+    }
+    // The following are HIR opcodes the parser does not yet support. Please
+    // implement support for new opcodes rather than adding more entries here.
+    case Opcode::kBatchDecref:
+    case Opcode::kBeginInlinedFunction:
+    case Opcode::kBitCast:
+    case Opcode::kBuildSlice:
+    case Opcode::kBuildString:
+    case Opcode::kCallCFunc:
+    case Opcode::kCallIntrinsic:
+    case Opcode::kCallInd:
+    case Opcode::kCallStatic:
+    case Opcode::kCallStaticRetVoid:
+    case Opcode::kCast:
+    case Opcode::kCheckErrOccurred:
+    case Opcode::kCheckNeg:
+    case Opcode::kCheckFreevar:
+    case Opcode::kCheckField:
+    case Opcode::kCompareBool:
+    case Opcode::kCopyDictWithoutKeys:
+    case Opcode::kCondBranchIterNotDone:
+    case Opcode::kDeleteAttr:
+    case Opcode::kDeoptPatchpoint:
+    case Opcode::kDictMerge:
+    case Opcode::kDictUpdate:
+    case Opcode::kDoubleBinaryOp:
+    case Opcode::kEndInlinedFunction:
+    case Opcode::kFillTypeMethodCache:
+    case Opcode::kGetAIter:
+    case Opcode::kGetANext:
+    case Opcode::kGetTuple:
+    case Opcode::kInitFrameCellVars:
+    case Opcode::kIndexUnbox:
+    case Opcode::kInvokeIterNext:
+    case Opcode::kIsInstance:
+    case Opcode::kIsNegativeAndErrOccurred:
+    case Opcode::kListExtend:
+    case Opcode::kLoadFieldAddress:
+    case Opcode::kLoadAttrSpecial:
+    case Opcode::kLoadAttrSuper:
+    case Opcode::kLoadCellItem:
+    case Opcode::kLoadField:
+    case Opcode::kLoadFunctionIndirect:
+    case Opcode::kLoadModuleMethodCached:
+    case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadSplitDictItem:
+    case Opcode::kLoadTypeMethodCacheEntryType:
+    case Opcode::kLoadTypeMethodCacheEntryValue:
+    case Opcode::kLoadVarObjectSize:
+    case Opcode::kMakeCheckedDict:
+    case Opcode::kMakeCheckedList:
+    case Opcode::kMakeCell:
+    case Opcode::kMakeFunction:
+    case Opcode::kMakeTupleFromList:
+    case Opcode::kMatchClass:
+    case Opcode::kMatchKeys:
+    case Opcode::kMergeSetUnpack:
+    case Opcode::kRaise:
+    case Opcode::kRaiseStatic:
+    case Opcode::kSend:
+    case Opcode::kSetCellItem:
+    case Opcode::kSetCurrentAwaiter:
+    case Opcode::kSetDictItem:
+    case Opcode::kSetFunctionAttr:
+    case Opcode::kStealCellItem:
+    case Opcode::kStoreArrayItem:
+    case Opcode::kStoreField:
+    case Opcode::kTpAlloc:
+    case Opcode::kUnpackExToTuple:
+    case Opcode::kUpdatePrevInstr:
+    case Opcode::kWaitHandleLoadCoroOrResult:
+    case Opcode::kWaitHandleLoadWaiter:
+    case Opcode::kWaitHandleRelease:
+    case Opcode::kXDecref:
+    case Opcode::kXIncref:
+    case Opcode::kYieldAndYieldFrom:
+    case Opcode::kYieldFrom:
+    case Opcode::kYieldFromHandleStopAsyncIteration: {
+      JIT_ABORT("Unsupported opcode: {}", opcode);
+      break;
+    }
   }
 
   return instruction;

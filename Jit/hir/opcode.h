@@ -3,6 +3,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 #include <string_view>
 
 namespace jit::hir {
@@ -186,5 +187,7 @@ constexpr std::string_view opcodeName(Opcode op) {
       return "<unknown>";
   }
 }
+
+std::optional<Opcode> opcodeFromName(std::string_view name);
 
 } // namespace jit::hir
