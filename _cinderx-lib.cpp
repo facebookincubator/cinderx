@@ -45,6 +45,7 @@
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/async_lazy_value.h"
 #include "cinderx/module_state.h"
 
 #include <dlfcn.h>
@@ -1064,6 +1065,19 @@ static int _cinderx_exec(PyObject* m) {
   state->setCacheManager(cache_manager);
 
 #if PY_VERSION_HEX >= 0x030C0000
+
+  auto async_lazy_value = new (std::nothrow) cinderx::AsyncLazyValueState();
+  if (async_lazy_value == nullptr) {
+    state->shutdown();
+    return -1;
+  } else if (!async_lazy_value->init()) {
+    delete async_lazy_value;
+    state->shutdown();
+    return -1;
+  }
+
+  state->setAsyncLazyValueState(async_lazy_value);
+
   PyTypeObject* gen_type = (PyTypeObject*)PyType_FromSpec(&jit::JitGen_Spec);
   if (gen_type == nullptr) {
     state->shutdown();
@@ -1182,6 +1196,10 @@ static int _cinderx_exec(PyObject* m) {
   ADDITEM("cached_property_with_descr", &PyCachedPropertyWithDescr_Type);
   ADDITEM("async_cached_property", &PyAsyncCachedProperty_Type);
   ADDITEM("async_cached_classproperty", &PyAsyncCachedClassProperty_Type);
+#if PY_VERSION_HEX >= 0x030C0000
+  ADDITEM("AsyncLazyValue", async_lazy_value->asyncLazyValueType());
+  ADDITEM("AwaitableValue", async_lazy_value->awaitableValueType());
+#endif
 
 #undef ADDITEM
 

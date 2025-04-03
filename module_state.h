@@ -7,6 +7,7 @@
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/runtime_iface.h"
 #include "cinderx/Jit/symbolizer_iface.h"
+#include "cinderx/async_lazy_value_iface.h"
 
 #include <memory>
 
@@ -50,6 +51,14 @@ class ModuleState {
     symbolizer_ = std::unique_ptr<jit::ISymbolizer>(symbolizer);
   }
 
+  IAsyncLazyValueState* asyncLazyValueState() {
+    return async_lazy_value_.get();
+  }
+
+  void setAsyncLazyValueState(IAsyncLazyValueState* state) {
+    async_lazy_value_ = std::unique_ptr<IAsyncLazyValueState>(state);
+  }
+
   void setCoroType(BorrowedRef<PyTypeObject> coro_type) {
     coro_type_ = Ref<PyTypeObject>::create(coro_type);
   }
@@ -89,6 +98,7 @@ class ModuleState {
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::IRuntime> runtime_;
   std::unique_ptr<jit::ISymbolizer> symbolizer_;
+  std::unique_ptr<IAsyncLazyValueState> async_lazy_value_;
   Ref<PyTypeObject> coro_type_, gen_type_, anext_awaitable_type_;
   Ref<> sys_clear_caches_;
 };
