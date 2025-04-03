@@ -1728,6 +1728,31 @@ static PyObject* install_sp_audit_hook(PyObject* mod) {
   Py_RETURN_NONE;
 }
 
+// True if the given module is a static module.
+static PyObject* is_static_module(PyObject* Py_UNUSED(self), PyObject* module) {
+  if (Ci_StrictModule_Check(module)) {
+    // Now that we know this is a strict module, we need to check if it is also
+    // a static module by checking if it has __static__ in its dict.
+    PyObject* dict = Ci_StrictModule_GetDict(module);
+    return PyBool_FromLong(!!PyDict_GetItemString(dict, "__static__"));
+  } else {
+    Py_RETURN_FALSE;
+  }
+}
+
+// True if the given callable is a static callable.
+static PyObject* is_static_callable(PyObject* self, PyObject* callable) {
+  if (PyMethod_Check(callable)) {
+    return is_static_callable(self, PyMethod_GET_FUNCTION(callable));
+  } else if (PyFunction_Check(callable)) {
+    PyFunctionObject* func = (PyFunctionObject*)callable;
+    PyCodeObject* code = (PyCodeObject*)func->func_code;
+    return PyBool_FromLong(code->co_flags & CI_CO_STATICALLY_COMPILED);
+  } else {
+    Py_RETURN_FALSE;
+  }
+}
+
 static PyMethodDef static_methods[] = {
     {"set_type_code",
      (PyCFunction)(void (*)(void))set_type_code,
@@ -1826,6 +1851,14 @@ static PyMethodDef static_methods[] = {
      (PyCFunction)(void (*)(void))install_sp_audit_hook,
      METH_NOARGS,
      ""},
+    {"is_static_module",
+     is_static_module,
+     METH_O,
+     "True if the given module is a static module."},
+    {"is_static_callable",
+     is_static_callable,
+     METH_O,
+     "True if the given callable is a static callable."},
     {}};
 
 static int static_traverse(PyObject* mod, visitproc visit, void* arg) {

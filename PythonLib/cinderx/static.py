@@ -25,6 +25,8 @@ from _static import (  # noqa: F401
     FAST_LEN_TUPLE,
     init_subclass,
     install_sp_audit_hook,
+    is_static_callable,
+    is_static_module,
     is_type_static,
     lookup_native_symbol,
     make_context_decorator_wrapper,

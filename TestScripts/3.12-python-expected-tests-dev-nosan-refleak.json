@@ -456,6 +456,7 @@
     "test_cinderx.test_compiler.test_static.property",
     "test_cinderx.test_compiler.test_static.protocol",
     "test_cinderx.test_compiler.test_static.refine_fields",
+    "test_cinderx.test_compiler.test_static.reflection",
     "test_cinderx.test_compiler.test_static.return_cast_insertion",
     "test_cinderx.test_compiler.test_static.runtime",
     "test_cinderx.test_compiler.test_static.sequence",

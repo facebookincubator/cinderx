@@ -116,6 +116,8 @@ try:  # noqa: C901
         FAST_LEN_SET,
         FAST_LEN_STR,
         FAST_LEN_TUPLE,
+        is_static_callable,
+        is_static_module,
         is_type_static,
         make_recreate_cm,
         posix_clock_gettime_ns,
@@ -187,6 +189,12 @@ except ImportError:
         pass
 
     def is_type_static(_t):
+        return False
+
+    def is_static_module(_m):
+        return False
+
+    def is_static_callable(_c):
         return False
 
     def make_recreate_cm(_typ):

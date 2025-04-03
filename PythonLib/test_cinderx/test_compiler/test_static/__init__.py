@@ -41,6 +41,7 @@ from .primitives import PrimitivesTests
 from .property import PropertyTests
 from .protocol import ProtocolTests
 from .refine_fields import RefineFieldsTests
+from .reflection import ReflectionTests
 from .return_cast_insertion import ReturnCastInsertionTests
 from .runtime import StaticRuntimeTests
 from .sequence import SequenceTests
