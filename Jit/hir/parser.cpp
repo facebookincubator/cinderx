@@ -962,6 +962,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kLoadCellItem:
     case Opcode::kLoadField:
     case Opcode::kLoadFunctionIndirect:
+    case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadMethodSuper:
     case Opcode::kLoadSplitDictItem:
