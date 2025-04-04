@@ -111,17 +111,6 @@ struct DeoptFrameMetadata {
 
   BCIndex cause_instr_idx{0};
 
-  BCIndex guardDeoptInstrIdx() const {
-    BCIndex offset = cause_instr_idx;
-    if (code != nullptr) { // can be null in tests
-      while (offset > 0 &&
-             uninstrument(code, (offset - 1).value()) == EXTENDED_ARG) {
-        offset = offset - 1;
-      }
-    }
-    return offset;
-  }
-
   BCIndex nextInstrIdx() const {
     return cause_instr_idx + 1 + inlineCacheSize(code, cause_instr_idx.value());
   }
