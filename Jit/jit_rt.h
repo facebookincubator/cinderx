@@ -67,8 +67,6 @@ void JITRT_InitFrameCellVars(
 std::pair<jit::JitGenObject*, jit::GenDataFooter*>
 JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate);
 
-jit::GenDataFooter* JITRT_GetJITDataFromGen(PyGenObject* gen);
-
 #endif
 
 /*

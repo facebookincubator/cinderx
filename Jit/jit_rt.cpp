@@ -772,13 +772,6 @@ JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate) {
   return {gen, gen->genDataFooter()};
 }
 
-// TODO(T209501671): Get rid of this.
-jit::GenDataFooter* JITRT_GetJITDataFromGen(PyGenObject* gen) {
-  jit::JitGenObject* jit_gen = jit::JitGenObject::cast(gen);
-  JIT_CHECK(jit_gen, "gen is not a jit::JitGenObject");
-  return jit_gen->genDataFooter();
-}
-
 #endif
 
 void JITRT_DecrefFrame(PyFrameObject* frame) {

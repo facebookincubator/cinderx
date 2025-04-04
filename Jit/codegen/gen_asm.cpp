@@ -1635,18 +1635,16 @@ void NativeGenerator::generateResumeEntry() {
   // jit_data_r = gen->gi_jit_data
 #if PY_VERSION_HEX < 0x030C0000
   auto gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
-  as_->mov(jit_data_r, x86::ptr(x86::rdi, gi_jit_data_offset));
 #else
-  // TODO(T209501671): Bake offsets in so we don't need this call.
-  as_->mov(x86::rbx, x86::rsi);
-  as_->mov(x86::r12, x86::rdx);
-  as_->mov(x86::r13, x86::rcx);
-  as_->call(reinterpret_cast<uint64_t>(JITRT_GetJITDataFromGen));
-  as_->mov(x86::rsi, x86::rbx);
-  as_->mov(x86::rdx, x86::r12);
-  as_->mov(x86::rcx, x86::r13);
-  as_->mov(jit_data_r, x86::rax);
+  int python_frame_data_bytes =
+      _PyFrame_NumSlotsForCodeObject(GetFunction()->code) *
+      cinderx::getModuleState()->genType()->tp_itemsize;
+  Py_ssize_t gi_jit_data_offset =
+      cinderx::getModuleState()->genType()->tp_basicsize +
+      python_frame_data_bytes;
+
 #endif
+  as_->mov(jit_data_r, x86::ptr(x86::rdi, gi_jit_data_offset));
 
   // Store linked frame address
   size_t link_address_offset = offsetof(GenDataFooter, linkAddress);
