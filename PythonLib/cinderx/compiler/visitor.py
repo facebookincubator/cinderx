@@ -1,9 +1,8 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-unsafe
 
-import ast
-from ast import AST, copy_location
-from typing import Any, Sequence, TypeVar, Union
+from ast import AST, copy_location, iter_fields
+from typing import Sequence, TypeVar
 
 # XXX should probably rename ASTVisitor to ASTWalker
 # XXX can it be made even more generic?
@@ -25,9 +24,7 @@ class ASTVisitor:
         It accepts a list to the generic_visit function rather than just nodes
     """
 
-    VERBOSE = 0
-
-    def __init__(self):
+    def __init__(self) -> None:
         self.node = None
         self._cache = {}
 
@@ -35,29 +32,24 @@ class ASTVisitor:
         """Called if no explicit visitor function exists for a node."""
         if isinstance(node, list):
             for item in node:
-                if isinstance(item, ast.AST):
+                if isinstance(item, AST):
                     self.visit(item, *args)
             return
 
-        for _field, value in ast.iter_fields(node):
+        for _field, value in iter_fields(node):
             if isinstance(value, list):
                 for item in value:
-                    if isinstance(item, ast.AST):
+                    if isinstance(item, AST):
                         self.visit(item, *args)
-            elif isinstance(value, ast.AST):
+            elif isinstance(value, AST):
                 self.visit(value, *args)
 
     def walk_list(self, nodes: Sequence[AST], *args):
         for item in nodes:
-            if isinstance(item, ast.AST):
+            if isinstance(item, AST):
                 self.visit(item, *args)
 
-    def skip_visit(self):
-        return False
-
-    def visit(self, node: Union[AST, Sequence[AST]], *args):
-        if self.skip_visit():
-            return
+    def visit(self, node: AST | Sequence[AST], *args):
         if isinstance(node, list):
             return self.walk_list(node, *args)
         self.node = node
@@ -78,7 +70,7 @@ class ASTRewriter(ASTVisitor):
     are replaced."""
 
     @staticmethod
-    def update_node(node: TAst, **replacement: Any) -> TAst:
+    def update_node(node: TAst, **replacement: object) -> TAst:
         res = node
         for name, val in replacement.items():
             existing = getattr(res, name)
@@ -125,7 +117,7 @@ class ASTRewriter(ASTVisitor):
 
     def generic_visit(self, node: TAst, *args) -> TAst:
         ret_node = node
-        for field, old_value in ast.iter_fields(node):
+        for field, old_value in iter_fields(node):
             if self.skip_field(node, field):
                 continue
             if not isinstance(old_value, (AST, list)):
@@ -151,6 +143,8 @@ class ExampleASTVisitor(ASTVisitor):
     helpful to develop a visitor incrementally, and get feedback on what
     you still have to do.
     """
+
+    VERBOSE: int = 0
 
     examples = {}
 
@@ -178,6 +172,9 @@ class ExampleASTVisitor(ASTVisitor):
                 print()
             return self.default(node, *args)
 
+    def default(self, node, *args):
+        return node
+
 
 # XXX this is an API change
 
@@ -186,7 +183,7 @@ def walk(tree, visitor):
     return visitor.visit(tree)
 
 
-def dumpNode(node):
+def dumpNode(node: object) -> None:
     print(node.__class__)
     for attr in dir(node):
         if attr[0] != "_":
