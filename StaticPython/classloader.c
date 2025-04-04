@@ -314,11 +314,19 @@ PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container) {
     PyObject* attr_name = PyTuple_GET_ITEM(path, 1);
     original = get_original(container_obj, attr_name);
     if (original != NULL) {
-      PyErr_Format(
-          CiExc_StaticTypeError,
-          "%s.%U has been deleted",
-          ((PyTypeObject*)container_obj)->tp_name,
-          attr_name);
+      if (PyType_Check(container_obj)) {
+        PyErr_Format(
+            CiExc_StaticTypeError,
+            "%s.%U has been deleted",
+            ((PyTypeObject*)container_obj)->tp_name,
+            attr_name);
+      } else {
+        PyErr_Format(
+            CiExc_StaticTypeError,
+            "%R.%U has been deleted",
+            container_obj,
+            attr_name);
+      }
     }
     Py_DECREF(container_obj);
   }
