@@ -56,7 +56,7 @@ class GenericVisitor(ASTVisitor, Generic[TVisitRet]):
             self.context_qualname, source, force_decl=self.force_decl_deps
         )
 
-    def visit(self, node: AST | Sequence[AST], *args: object) -> TVisitRet:
+    def visit(self, node: AST, *args: object) -> TVisitRet:
         # if we have a sequence of nodes, don't catch TypedSyntaxError here;
         # walk_list will call us back with each individual node in turn and we
         # can catch errors and add node info then.

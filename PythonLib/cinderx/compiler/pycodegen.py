@@ -2402,7 +2402,7 @@ class CodeGenerator(ASTVisitor):
     def optimize_tree(cls, optimize: int, tree: AST, string_anns: bool):
         return AstOptimizer(optimize=optimize > 0, string_anns=string_anns).visit(tree)
 
-    def visit(self, node: Sequence[AST] | AST, *args):
+    def visit(self, node: AST, *args):
         # Note down the old line number for exprs
         old_loc = None
         if isinstance(node, ast.expr):

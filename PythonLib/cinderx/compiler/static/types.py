@@ -3784,14 +3784,10 @@ class InlineRewriter(ASTRewriter):
         super().__init__()
         self.replacements = replacements
 
-    def visit(self, node: TAst | Sequence[AST], *args: object) -> AST | Sequence[AST]:
+    def visit(self, node: TAst, *args: object) -> AST:
         res = super().visit(node, *args)
         if res is node:
-            if isinstance(node, AST):
-                return self.clone_node(node)
-
-            return list(node)
-
+            return self.clone_node(node)
         return res
 
     def visitName(self, node: ast.Name) -> AST:

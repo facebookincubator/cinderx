@@ -380,7 +380,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
                 res = self.get_type(node)
                 return res if isinstance(res, Class) else None
 
-    def visit(self, node: AST | Sequence[AST], *args: object) -> NarrowingEffect | None:
+    def visit(self, node: AST, *args: object) -> NarrowingEffect | None:
         """This override is only here to give Pyre the return type information."""
         ret = super().visit(node, *args)
         if (

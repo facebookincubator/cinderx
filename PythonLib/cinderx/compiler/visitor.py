@@ -41,7 +41,10 @@ class ASTVisitor:
             elif isinstance(value, AST):
                 self.visit(value, *args)
 
-    def visit(self, node: TAst | Sequence[TAst], *args: object):
+    def visit(self, node: TAst, *args: object):
+        if not isinstance(node, AST):
+            raise TypeError(f"Expected AST node, got {node!r}")
+
         self.node = node
         klass = node.__class__
         meth = self._cache.get(klass, None)
