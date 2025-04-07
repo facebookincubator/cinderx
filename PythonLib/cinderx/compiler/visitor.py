@@ -1,5 +1,5 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
 from ast import AST, copy_location, iter_fields
 from typing import Sequence, TypeVar
@@ -28,10 +28,10 @@ class ASTVisitor:
     """
 
     def __init__(self) -> None:
-        self.node = None
-        self._cache = {}
+        self.node: AST | None = None
+        self._cache: dict[object, object] = {}
 
-    def generic_visit(self, node: TAst, *args: object):
+    def generic_visit(self, node: TAst, *args: object) -> object:
         """Called if no explicit visitor function exists for a node."""
         for _field, value in iter_fields(node):
             if isinstance(value, list):
@@ -41,7 +41,7 @@ class ASTVisitor:
             elif isinstance(value, AST):
                 self.visit(value, *args)
 
-    def visit(self, node: TAst, *args: object):
+    def visit(self, node: TAst, *args: object) -> object:
         if not isinstance(node, AST):
             raise TypeError(f"Expected AST node, got {node!r}")
 
@@ -95,7 +95,7 @@ class ASTRewriter(ASTVisitor):
     def skip_field(self, node: TAst, field: str) -> bool:
         return False
 
-    def generic_visit(self, node: TAst, *args: object):
+    def generic_visit(self, node: TAst, *args: object) -> TAst:
         ret_node = node
         for field, old_value in iter_fields(node):
             if self.skip_field(node, field):
@@ -119,7 +119,7 @@ class ASTRewriter(ASTVisitor):
 
         return ret_node
 
-    def walk_list(self, values: Sequence[object], *args: object):
+    def walk_list(self, values: Sequence[object], *args: object) -> Sequence[object]:
         """
         Like visit_list(), but it also walks values returned by ast.iter_fields()
         so it has to handle non-AST node values.
@@ -152,9 +152,9 @@ class ExampleASTVisitor(ASTVisitor):
 
     VERBOSE: int = 0
 
-    examples = {}
+    examples: dict[object, object] = {}
 
-    def visit(self, node, *args):
+    def visit(self, node: TAst, *args: object) -> object:
         self.node = node
         meth = self._cache.get(node.__class__, None)
         className = node.__class__.__name__
@@ -178,14 +178,14 @@ class ExampleASTVisitor(ASTVisitor):
                 print()
             return self.default(node, *args)
 
-    def default(self, node, *args):
+    def default(self, node: TAst, *args: object) -> TAst:
         return node
 
 
 # XXX this is an API change
 
 
-def walk(tree, visitor):
+def walk(tree: AST, visitor: ASTVisitor) -> object:
     return visitor.visit(tree)
 
 

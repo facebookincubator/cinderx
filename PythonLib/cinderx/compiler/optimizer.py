@@ -195,6 +195,7 @@ class AstOptimizer(ASTRewriter):
         elts = self.walk_list(node.elts)
 
         if isinstance(node.ctx, ast.Load):
+            # pyre-ignore[6]: Can't type walk_list fully yet.
             res = self.makeConstTuple(elts)
             if res is not None:
                 return copy_location(res, node)
@@ -223,6 +224,7 @@ class AstOptimizer(ASTRewriter):
     def _visitIter(self, node: ast.expr) -> ast.expr:
         if isinstance(node, ast.List):
             elts = self.walk_list(node.elts)
+            # pyre-ignore[6]: Can't type walk_list fully yet.
             res = self.makeConstTuple(elts)
             if res is not None:
                 return copy_location(res, node)
@@ -233,6 +235,7 @@ class AstOptimizer(ASTRewriter):
             return self.update_node(node, elts=elts)
         elif isinstance(node, ast.Set):
             elts = self.walk_list(node.elts)
+            # pyre-ignore[6]: Can't type walk_list fully yet.
             res = self.makeConstTuple(elts)
             if res is not None:
                 return copy_location(Constant(frozenset(res.value)), node)
@@ -244,6 +247,7 @@ class AstOptimizer(ASTRewriter):
     def visitcomprehension(self, node: ast.comprehension) -> ast.comprehension:
         target = self.visit(node.target)
         iter = self.visit(node.iter)
+        assert isinstance(iter, ast.expr)
         ifs = self.walk_list(node.ifs)
         iter = self._visitIter(iter)
 
@@ -252,6 +256,7 @@ class AstOptimizer(ASTRewriter):
     def visitFor(self, node: ast.For) -> ast.For:
         target = self.visit(node.target)
         iter = self.visit(node.iter)
+        assert isinstance(iter, ast.expr)
         body = self.walk_list(node.body)
         orelse = self.walk_list(node.orelse)
 
@@ -265,6 +270,7 @@ class AstOptimizer(ASTRewriter):
         comparators = self.walk_list(node.comparators)
 
         if isinstance(node.ops[-1], (ast.In, ast.NotIn)):
+            # pyre-ignore[6]: Can't type walk_list fully yet.
             new_iter = self._visitIter(comparators[-1])
             if new_iter is not None and new_iter is not comparators[-1]:
                 comparators = list(comparators)

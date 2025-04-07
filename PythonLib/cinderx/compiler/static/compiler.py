@@ -494,7 +494,10 @@ class Compiler:
     def add_module(
         self, name: str, filename: str, tree: AST, source: str | bytes, optimize: int
     ) -> ast.Module:
-        tree = AstOptimizer(optimize=optimize > 0).visit(tree)
+        optimized = AstOptimizer(optimize=optimize > 0).visit(tree)
+        assert isinstance(optimized, ast.Module)
+        tree = optimized
+
         self.ast_cache[source] = tree
 
         # Track if we're the first module being compiled, if we are then

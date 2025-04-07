@@ -3786,6 +3786,7 @@ class InlineRewriter(ASTRewriter):
 
     def visit(self, node: TAst, *args: object) -> AST:
         res = super().visit(node, *args)
+        assert isinstance(res, AST)
         if res is node:
             return self.clone_node(node)
         return res
@@ -3986,6 +3987,7 @@ class Function(Callable[Class], FunctionContainer):
         else:
             new_node = copy_location(ast.Constant(None), return_stmt)
         new_node = AstOptimizer().visit(new_node)
+        assert isinstance(new_node, ast.expr)
 
         inlined_call = InlinedCall(new_node, arg_replacements, spills)
         visitor.visit(new_node)
