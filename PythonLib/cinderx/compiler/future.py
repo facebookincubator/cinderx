@@ -1,21 +1,11 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
 """Parser for future statements"""
 
 import ast
 
 from .visitor import ASTVisitor
-
-
-def is_future(stmt):
-    """Return true if statement is a well-formed future statement"""
-    if not isinstance(stmt, ast.ImportFrom):
-        return 0
-    if stmt.module == "__future__":
-        return 1
-    else:
-        return 0
 
 
 class FutureParser(ASTVisitor):
@@ -32,12 +22,13 @@ class FutureParser(ASTVisitor):
         "annotations",
     )
 
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__()
-        self.found = {}  # set
+        self.valid: set[ast.ImportFrom] = set()
+        self.found_features: set[str] = set()
         self.possible_docstring = True
 
-    def visitModule(self, node):
+    def visitModule(self, node: ast.Module) -> None:
         for s in node.body:
             if (
                 self.possible_docstring
@@ -51,41 +42,49 @@ class FutureParser(ASTVisitor):
             if not self.check_stmt(s):
                 break
 
-    def check_stmt(self, stmt):
-        if is_future(stmt):
+    def check_stmt(self, stmt: ast.stmt) -> bool:
+        if isinstance(stmt, ast.ImportFrom) and stmt.module == "__future__":
             for alias in stmt.names:
                 name = alias.name
                 if name in self.features:
-                    self.found[name] = 1
+                    self.found_features.add(name)
                 elif name == "braces":
                     raise SyntaxError("not a chance")
                 else:
                     raise SyntaxError("future feature %s is not defined" % name)
-            stmt.valid_future = 1
-            return 1
-        return 0
+            self.valid.add(stmt)
+            return True
+        return False
 
-    def get_features(self):
-        """Return list of features enabled by future statements"""
-        return self.found.keys()
+    def get_features(self) -> set[str]:
+        """Return set of features enabled by future statements"""
+        return self.found_features
+
+    def get_valid(self) -> set[ast.ImportFrom]:
+        """Return set of valid future statements"""
+        return self.valid
 
 
 class BadFutureParser(ASTVisitor):
     """Check for invalid future statements"""
 
-    def visitImportFrom(self, node):
-        if hasattr(node, "valid_future"):
-            return
+    def __init__(self, valid_parser: FutureParser) -> None:
+        super().__init__()
+        self.valid_parser = valid_parser
+
+    def visitImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module != "__future__":
+            return
+        if node in self.valid_parser.get_valid():
             return
         raise SyntaxError(
             "from __future__ imports must occur at the beginning of the file"
         )
 
 
-def find_futures(node):
+def find_futures(node: ast.AST) -> set[str]:
     p1 = FutureParser()
-    p2 = BadFutureParser()
+    p2 = BadFutureParser(p1)
     p1.visit(node)
     p2.visit(node)
     return p1.get_features()
