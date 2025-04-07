@@ -279,7 +279,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
                 self.emit_extra_assigns(item)
 
     def visitForBodyHook(self, node: ForBodyHook) -> None:
-        self.visit(node.body)
+        self.visit_list(node.body)
         self.emit_extra_assigns(node.target)
 
     def strictPreVisitFor(self, node: ast.For) -> None:
@@ -332,18 +332,18 @@ class StrictCodeGenBase(CinderCodeGenBase):
             self.nextBlock(after)
             self.emit("DELETE_NAME", tracker_name)
 
-        self.visit(node.finally_body)
+        self.visit_list(node.finally_body)
 
     def visitTryHandlerBodyHook(self, node: TryHandlerBodyHook) -> None:
         self.emit("LOAD_CONST", True)
         self.storeName(node.tracker_name)
-        self.visit(node.handler_body)
+        self.visit_list(node.handler_body)
 
     def visitTryBodyHook(self, node: TryBodyHook) -> None:
         for tracker_name in node.trackers:
             self.emit("LOAD_CONST", False)
             self.emit("STORE_NAME", tracker_name)
-        self.visit(node.body)
+        self.visit_list(node.body)
 
     @final
     def visitTry(self, node: ast.Try) -> None:

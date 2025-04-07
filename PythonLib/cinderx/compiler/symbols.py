@@ -475,7 +475,7 @@ class BaseSymbolVisitor(ASTVisitor):
 
     def visitFunctionDef(self, node, parent):
         if node.decorator_list:
-            self.visit(node.decorator_list, parent)
+            self.visit_list(node.decorator_list, parent)
         parent.add_def(node.name)
 
         type_params = getattr(node, "type_params", ())
@@ -496,7 +496,7 @@ class BaseSymbolVisitor(ASTVisitor):
         if node.returns:
             if not self.future_annotations:
                 self.visit(node.returns, parent)
-        self.visit(node.body, scope)
+        self.visit_list(node.body, scope)
 
         parent.add_child(scope)
 
@@ -643,7 +643,7 @@ class BaseSymbolVisitor(ASTVisitor):
 
     def visitClassDef(self, node: ast.ClassDef, parent):
         if node.decorator_list:
-            self.visit(node.decorator_list, parent)
+            self.visit_list(node.decorator_list, parent)
 
         parent.add_def(node.name)
 
@@ -680,7 +680,7 @@ class BaseSymbolVisitor(ASTVisitor):
         self.scopes[node] = scope
         prev = self.klass
         self.klass = node.name
-        self.visit(node.body, scope)
+        self.visit_list(node.body, scope)
         self.klass = prev
         parent.add_child(scope)
 
@@ -692,7 +692,7 @@ class BaseSymbolVisitor(ASTVisitor):
         alias_parent = parent
         if is_generic:
             alias_parent = self.enter_type_params(node, parent)
-            self.visit(node.type_params, alias_parent)
+            self.visit_list(node.type_params, alias_parent)
 
         scope = TypeAliasScope(node.name.id, self.module)
         scope.klass = self.klass
@@ -753,8 +753,8 @@ class BaseSymbolVisitor(ASTVisitor):
             scope.add_def(node.name)
 
     def visitMatchMapping(self, node, scope):
-        self.visit(node.keys, scope)
-        self.visit(node.patterns, scope)
+        self.visit_list(node.keys, scope)
+        self.visit_list(node.patterns, scope)
         if node.rest:
             scope.add_def(node.rest)
 
@@ -803,9 +803,9 @@ class BaseSymbolVisitor(ASTVisitor):
     def visitFor(self, node, scope):
         self.visit(node.target, scope)
         self.visit(node.iter, scope)
-        self.visit(node.body, scope)
+        self.visit_list(node.body, scope)
         if node.orelse:
-            self.visit(node.orelse, scope)
+            self.visit_list(node.orelse, scope)
 
     visitAsyncFor = visitFor
 
@@ -908,9 +908,9 @@ class BaseSymbolVisitor(ASTVisitor):
 
     def visitIf(self, node, scope):
         self.visit(node.test, scope)
-        self.visit(node.body, scope)
+        self.visit_list(node.body, scope)
         if node.orelse:
-            self.visit(node.orelse, scope)
+            self.visit_list(node.orelse, scope)
 
     # a yield statement signals a generator
 
@@ -925,22 +925,26 @@ class BaseSymbolVisitor(ASTVisitor):
             self.visit(node.value, scope)
 
     def visitTry(self, node, scope):
-        self.visit(node.body, scope)
+        self.visit_list(node.body, scope)
         # Handle exception capturing vars
         for handler in node.handlers:
             if handler.type:
                 self.visit(handler.type, scope)
             if handler.name:
                 scope.add_def(handler.name)
-            self.visit(handler.body, scope)
-        self.visit(node.orelse, scope)
-        self.visit(node.finalbody, scope)
+            self.visit_list(handler.body, scope)
+        self.visit_list(node.orelse, scope)
+        self.visit_list(node.finalbody, scope)
 
 
 class SymbolVisitor310(BaseSymbolVisitor):
-    def visitModule(self, node):
+    def visitModule(self, node: ast.Expression | ast.Interactive | ast.Module):
         scope = self.module = self.scopes[node] = self.module
-        self.visit(node.body, scope)
+        body = node.body
+        if isinstance(body, list):
+            self.visit_list(body, scope)
+        else:
+            self.visit(body, scope)
         self.analyze_block(scope, free=set(), global_vars=set())
 
     # node that define new scopes
@@ -1219,7 +1223,7 @@ class CinderSymbolVisitor(SymbolVisitor):
 
     def visitFunctionDef(self, node, parent):
         if node.decorator_list:
-            self.visit(node.decorator_list, parent)
+            self.visit_list(node.decorator_list, parent)
         parent.add_def(node.name)
         scope = self._FunctionScope(
             node.name, self.module, self.klass, lineno=node.lineno
@@ -1233,7 +1237,7 @@ class CinderSymbolVisitor(SymbolVisitor):
         if node.returns:
             if not self.future_annotations:
                 self.visit(node.returns, parent)
-        self.visit(node.body, scope)
+        self.visit_list(node.body, scope)
 
         parent.add_child(scope)
 
@@ -1241,9 +1245,13 @@ class CinderSymbolVisitor(SymbolVisitor):
 
 
 class SymbolVisitor312(BaseSymbolVisitor):
-    def visitModule(self, node):
+    def visitModule(self, node: ast.Expression | ast.Interactive | ast.Module):
         scope = self.module = self.scopes[node] = self.module
-        self.visit(node.body, scope)
+        body = node.body
+        if isinstance(body, list):
+            self.visit_list(body, scope)
+        else:
+            self.visit(body, scope)
         self.analyze_block(scope, free=set(), global_vars=set())
 
     def visitTryStar(self, node, scope):

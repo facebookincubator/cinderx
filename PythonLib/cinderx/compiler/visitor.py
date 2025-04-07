@@ -8,6 +8,9 @@ from typing import Sequence, TypeVar
 # XXX can it be made even more generic?
 
 
+TAst = TypeVar("TAst", bound=AST)
+
+
 class ASTVisitor:
     """Performs a depth-first walk of the AST
 
@@ -28,14 +31,8 @@ class ASTVisitor:
         self.node = None
         self._cache = {}
 
-    def generic_visit(self, node, *args):
+    def generic_visit(self, node: TAst, *args: object):
         """Called if no explicit visitor function exists for a node."""
-        if isinstance(node, list):
-            for item in node:
-                if isinstance(item, AST):
-                    self.visit(item, *args)
-            return
-
         for _field, value in iter_fields(node):
             if isinstance(value, list):
                 for item in value:
@@ -44,14 +41,7 @@ class ASTVisitor:
             elif isinstance(value, AST):
                 self.visit(value, *args)
 
-    def walk_list(self, nodes: Sequence[AST], *args):
-        for item in nodes:
-            if isinstance(item, AST):
-                self.visit(item, *args)
-
-    def visit(self, node: AST | Sequence[AST], *args):
-        if isinstance(node, list):
-            return self.walk_list(node, *args)
+    def visit(self, node: TAst | Sequence[TAst], *args: object):
         self.node = node
         klass = node.__class__
         meth = self._cache.get(klass, None)
@@ -61,8 +51,12 @@ class ASTVisitor:
             self._cache[klass] = meth
         return meth(node, *args)
 
+    def visit_list(self, nodes: Sequence[TAst], *args: object) -> None:
+        if not isinstance(nodes, list):
+            raise TypeError(f"Expected a list of AST nodes, got {nodes!r}")
 
-TAst = TypeVar("TAst", bound=AST)
+        for node in nodes:
+            self.visit(node, *args)
 
 
 class ASTRewriter(ASTVisitor):
@@ -95,45 +89,54 @@ class ASTRewriter(ASTVisitor):
         new = type(node)(*attrs)
         return copy_location(new, node)
 
-    def walk_list(self, nodes: Sequence[TAst], *args) -> Sequence[TAst]:
-        new_values = []
-        changed = False
-        for value in nodes:
-            if isinstance(value, AST):
-                new_value = self.visit(value)
-                changed |= new_value is not value
-                if new_value is None:
-                    continue
-                elif not isinstance(new_value, AST):
-                    new_values.extend(new_value)
-                    continue
-                value = new_value
-
-            new_values.append(value)
-        return new_values if changed else nodes
-
-    def skip_field(self, node: AST, field: str) -> bool:
+    def skip_field(self, node: TAst, field: str) -> bool:
         return False
 
-    def generic_visit(self, node: TAst, *args) -> TAst:
+    def generic_visit(self, node: TAst, *args: object):
         ret_node = node
         for field, old_value in iter_fields(node):
             if self.skip_field(node, field):
                 continue
-            if not isinstance(old_value, (AST, list)):
+
+            if isinstance(old_value, AST):
+                new_value = self.visit(old_value, *args)
+            elif isinstance(old_value, list):
+                new_value = self.walk_list(old_value, *args)
+            else:
                 continue
 
-            new_node = self.visit(old_value)
-            assert (  # noqa: IG01
-                new_node is not None
+            assert (
+                new_value is not None
             ), f"can't remove AST nodes that aren't part of a list {old_value!r}"
-            if new_node is not old_value:
+            if new_value is not old_value:
                 if ret_node is node:
                     ret_node = self.clone_node(node)
 
-                setattr(ret_node, field, new_node)
+                setattr(ret_node, field, new_value)
 
         return ret_node
+
+    def walk_list(self, values: Sequence[object], *args: object):
+        """
+        Like visit_list(), but it also walks values returned by ast.iter_fields()
+        so it has to handle non-AST node values.
+        """
+
+        new_values = []
+        changed = False
+
+        for value in values:
+            if not isinstance(value, AST):
+                new_values.append(value)
+                continue
+
+            new_value = self.visit(value, *args)
+            if new_value is not None:
+                new_values.append(new_value)
+                changed = True
+
+        # Reuse the existing list when possible.
+        return new_values if changed else values
 
 
 class ExampleASTVisitor(ASTVisitor):

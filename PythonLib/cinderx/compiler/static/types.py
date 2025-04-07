@@ -1109,14 +1109,14 @@ class Value:
         code_gen.nextBlock(start)
         code_gen.emit("FOR_ITER", anchor)
         code_gen.visit(node.target)
-        code_gen.visit(node.body)
+        code_gen.visit_list(node.body)
         code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
         code_gen.emit_end_for()
         code_gen.pop_loop()
 
         if node.orelse:
-            code_gen.visit(node.orelse)
+            code_gen.visit_list(node.orelse)
         code_gen.nextBlock(after)
 
     def emit_unaryop(self, node: ast.UnaryOp, code_gen: StaticCodeGenBase) -> None:
@@ -2019,7 +2019,7 @@ class Class(Object["Class"]):
         ):
             node = func.node
             if isinstance(node, FunctionDef):
-                InitVisitor(func.module, self, node).visit(node.body)
+                InitVisitor(func.module, self, node).visit_list(node.body)
 
     @property
     def mro(self) -> Sequence[Class]:
@@ -6911,7 +6911,7 @@ class CRangeIterator(Object[Class]):
         code_gen.emit("LOAD_LOCAL", (loop_idx, descr))
         code_gen.emit("PRIMITIVE_COMPARE_OP", PRIM_OP_GT_INT)
         code_gen.emit("POP_JUMP_IF_ZERO", anchor)
-        code_gen.visit(node.body)
+        code_gen.visit_list(node.body)
         self._emit_incr(loop_idx, descr, code_gen)
         code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
@@ -6919,7 +6919,7 @@ class CRangeIterator(Object[Class]):
         code_gen.pop_loop()
 
         if node.orelse:
-            code_gen.visit(node.orelse)
+            code_gen.visit_list(node.orelse)
         code_gen.nextBlock(after)
 
 
@@ -7617,7 +7617,7 @@ def common_sequence_emit_forloop(
         code_gen.emit("PRIMITIVE_BINARY_OP", PRIM_OP_ADD_INT)
         code_gen.emit("STORE_LOCAL", (loop_idx, descr))
         code_gen.visit(node.target)
-        code_gen.visit(node.body)
+        code_gen.visit_list(node.body)
         code_gen.emitJump(start)
         code_gen.nextBlock(anchor)
         code_gen.emit("POP_TOP")  # Pop loop index
@@ -7625,7 +7625,7 @@ def common_sequence_emit_forloop(
         code_gen.pop_loop()
 
         if node.orelse:
-            code_gen.visit(node.orelse)
+            code_gen.visit_list(node.orelse)
         code_gen.nextBlock(after)
 
 

@@ -608,7 +608,7 @@ class CodeGenerator(ASTVisitor):
         self.storeName(node.name)
 
     def walkClassBody(self, node: ClassDef, gen: CodeGenerator):
-        walk(self.skip_docstring(node.body), gen)
+        gen.visit_list(self.skip_docstring(node.body))
 
     # The rest are standard visitor methods
 
@@ -842,7 +842,7 @@ class CodeGenerator(ASTVisitor):
         raise NotImplementedError()
 
     def visitDelete(self, node):
-        self.visit(node.targets)
+        self.visit_list(node.targets)
 
     def conjure_arguments(self, args: list[ast.arg]) -> ast.arguments:
         return ast.arguments([], args, None, [], [], None, [])
@@ -1329,7 +1329,7 @@ class CodeGenerator(ASTVisitor):
         for arg in args:
             self.visit(arg)
         if len(kwargs) > 0:
-            self.visit(kwargs)
+            self.visit_list(kwargs)
             self.emit("LOAD_CONST", tuple(arg.arg for arg in kwargs))
             self.emit("CALL_FUNCTION_KW", argcnt + len(args) + len(kwargs))
         else:
@@ -1563,7 +1563,7 @@ class CodeGenerator(ASTVisitor):
                 node.elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=is_tuple
             )
         else:
-            return self.visit(node.elts)
+            return self.visit_list(node.elts)
 
     def visitStarred(self, node):
         if isinstance(node.ctx, ast.Store):
@@ -1736,7 +1736,7 @@ class CodeGenerator(ASTVisitor):
             if not is_last_non_default_case:
                 self.set_pos(case.pattern)
                 self.emit("POP_TOP")
-            self.visit(case.body)
+            self.visit_list(case.body)
             self.emit_match_jump_to_end(end)
             # If the pattern fails to match, we want the line number of the
             # cleanup to be associated with the failed pattern, not the last line
@@ -1756,7 +1756,7 @@ class CodeGenerator(ASTVisitor):
                 self.emit("NOP")
             if last_case.guard:
                 self.compileJumpIf(last_case.guard, end, False)
-            self.visit(last_case.body)
+            self.visit_list(last_case.body)
         self.nextBlock(end)
 
     def visitMatchValue(self, node: ast.MatchValue, pc: PatternContext) -> None:
@@ -2385,7 +2385,7 @@ class CodeGenerator(ASTVisitor):
                 optimize, tree, bool(future_flags & CO_FUTURE_ANNOTATIONS)
             )
         s = cls._SymbolVisitor(future_flags)
-        walk(tree, s)
+        s.visit(tree)
 
         graph = cls.flow_graph(
             module_name,
@@ -2419,8 +2419,7 @@ class CodeGenerator(ASTVisitor):
         return ret
 
     def visitStatements(self, nodes: Sequence[AST], *args) -> None:
-        for node in nodes:
-            self.visit(node, *args)
+        self.visit_list(nodes, *args)
 
     # Methods defined in subclasses ----------------------------------------------
 
@@ -3064,7 +3063,7 @@ class CodeGenerator310(CodeGenerator):
         for arg in args:
             self.visit(arg)
         if len(kwargs) > 0:
-            self.visit(kwargs)
+            self.visit_list(kwargs)
             self.emit("LOAD_CONST", tuple(arg.arg for arg in kwargs))
             self.emit("CALL_FUNCTION_KW", argcnt + len(args) + len(kwargs))
             return
@@ -3145,7 +3144,7 @@ class CodeGenerator310(CodeGenerator):
                 self.push_fblock(
                     Entry(HANDLER_CLEANUP, cleanup_body, cleanup_end, target)
                 )
-                self.visit(body)
+                self.visit_list(body)
                 self.pop_fblock(HANDLER_CLEANUP)
                 self.set_no_pos()
                 self.emit("POP_BLOCK")
@@ -3170,7 +3169,7 @@ class CodeGenerator310(CodeGenerator):
                 self.emit("POP_TOP")
                 self.nextBlock(cleanup_body)
                 self.push_fblock(Entry(HANDLER_CLEANUP, cleanup_body, None, None))
-                self.visit(body)
+                self.visit_list(body)
                 self.pop_fblock(HANDLER_CLEANUP)
                 self.set_no_pos()
                 self.emit("POP_EXCEPT")
@@ -4156,7 +4155,7 @@ class CodeGenerator312(CodeGenerator):
         for arg in args:
             self.visit(arg)
         if len(kwargs) > 0:
-            self.visit(kwargs)
+            self.visit_list(kwargs)
             self.emit("KW_NAMES", tuple(arg.arg for arg in kwargs))
 
         self.emit("CALL", argcnt + len(args) + len(kwargs))

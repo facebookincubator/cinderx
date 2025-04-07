@@ -299,25 +299,25 @@ class DeclarationVisitor(GenericVisitor[None]):
     def visitIf(self, node: If) -> None:
         test = node.test
         if isinstance(test, Name) and test.id == "TYPE_CHECKING":
-            self.visit(node.body)
+            self.visit_list(node.body)
         else:
             result = sys_hexversion_check(node)
             # We should check the version if provided
             if result is not None:
                 self.module.mark_known_boolean_test(test, value=bool(result))
                 if result:
-                    self.visit(node.body)
+                    self.visit_list(node.body)
                 else:
-                    self.visit(node.orelse)
+                    self.visit_list(node.orelse)
                 return
             else:
                 self.enter_nested_scope()
-                self.visit(node.body)
+                self.visit_list(node.body)
                 self.exit_scope()
 
         if node.orelse:
             self.enter_nested_scope()
-            self.visit(node.orelse)
+            self.visit_list(node.orelse)
             self.exit_scope()
 
     def visitWith(self, node: With) -> None:

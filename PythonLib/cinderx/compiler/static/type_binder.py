@@ -1997,7 +1997,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             # it, but it can only happen after the while condition evaluates to
             # False.
             effect.reverse(self.type_state)
-            self.visit(node.orelse)
+            self.visit_list(node.orelse)
 
             branch.merge()
 
@@ -2012,8 +2012,8 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         branch = self.scopes[-1].branch()
         with self.in_loop(node):
             self.iterate_to_fixed_point(node.body)
-            self.visit(node.body)
-        self.visit(node.orelse)
+            self.visit_list(node.body)
+        self.visit_list(node.orelse)
         branch.merge()
 
     def visitAsyncFor(self, node: AsyncFor) -> None:
@@ -2027,12 +2027,12 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
         branch = self.scopes[-1].branch()
         with self.in_loop(node):
             self.iterate_to_fixed_point(node.body)
-            self.visit(node.body)
-        self.visit(node.orelse)
+            self.visit_list(node.body)
+        self.visit_list(node.orelse)
         branch.merge()
 
     def visitWith(self, node: ast.With) -> None:
-        self.visit(node.items)
+        self.visit_list(node.items)
         may_suppress_exceptions = False
         for item in node.items:
             expr = item.context_expr
@@ -2057,7 +2057,7 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             self.set_terminal_kind(node, terminates)
 
     def visitAsyncWith(self, node: ast.With) -> None:
-        self.visit(node.items)
+        self.visit_list(node.items)
         for stmt in node.body:
             self.visit(stmt)
 
