@@ -98,6 +98,7 @@ class Preloader {
         func->func_code,
         func->func_builtins,
         func->func_globals,
+        func->func_annotations,
         funcFullname(func));
   }
 
@@ -105,9 +106,15 @@ class Preloader {
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
+      BorrowedRef<> func_annotations,
       const std::string& fullname) {
+    BorrowedRef<PyTupleObject> annotations;
+    if (func_annotations && PyTuple_CheckExact(func_annotations)) {
+      annotations = BorrowedRef<PyTupleObject>{func_annotations};
+    }
+
     auto preloader = std::unique_ptr<Preloader>(
-        new Preloader(code, builtins, globals, fullname));
+        new Preloader(code, builtins, globals, annotations, fullname));
     bool success = preloader->preload();
     JIT_DCHECK(
         success != static_cast<bool>(PyErr_Occurred()),
@@ -157,6 +164,10 @@ class Preloader {
     return builtins_;
   }
 
+  BorrowedRef<PyTupleObject> annotations() const {
+    return annotations_;
+  }
+
   const std::string& fullname() const {
     return fullname_;
   }
@@ -196,10 +207,12 @@ class Preloader {
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
+      BorrowedRef<PyTupleObject> annotations,
       const std::string& fullname)
       : code_(Ref<>::create(code)),
         builtins_(Ref<>::create(builtins)),
         globals_(Ref<>::create(globals)),
+        annotations_(Ref<>::create(annotations)),
         fullname_(fullname) {
     JIT_CHECK(PyCode_Check(code_), "Expected PyCodeObject");
   }
@@ -207,6 +220,7 @@ class Preloader {
   Ref<PyCodeObject> code_;
   Ref<PyDictObject> builtins_;
   Ref<PyDictObject> globals_;
+  Ref<PyTupleObject> annotations_;
   const std::string fullname_;
 
   // keyed by type descr tuple identity (they are interned in code objects)

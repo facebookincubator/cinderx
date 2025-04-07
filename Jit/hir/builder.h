@@ -437,6 +437,8 @@ class HIRBuilder {
 
   void emitSend(TranslationContext& tc, const BytecodeInstruction& bc_instr);
 
+  void emitTypeAnnotationGuards(TranslationContext& tc);
+
   BorrowedRef<> constArg(const jit::BytecodeInstruction& bc_instr);
 
   ExecutionBlock popBlock(CFG& cfg, TranslationContext& tc);

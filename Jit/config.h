@@ -92,7 +92,8 @@ struct Config {
   bool attr_caches{true};
   // Collect stats information about attribute caches.
   bool collect_attr_cache_stats{false};
-
+  // Use type annotations to create runtime checks.
+  bool emit_type_annotation_guards{false};
   // Add RefineType instructions for Static Python values before they get
   // typechecked.  Enabled by default as HIR doesn't pass through Static Python
   // types very well right now.  Disable to expose new typing opportunities in

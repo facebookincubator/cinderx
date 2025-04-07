@@ -241,6 +241,44 @@ bool isBannedName(std::string_view name) {
   return name == "eval" || name == "exec" || name == "locals";
 }
 
+// When building type annotation guards, we have to find the annotations by
+// specific names. For short lists, we can iterate directly through the tuple.
+// However, once it gets big enough, it becomes more efficient to build a
+// dictionary and loop through that instead.
+class AnnotationIndex {
+ public:
+  explicit AnnotationIndex(BorrowedRef<PyTupleObject> annotations)
+      : annotations_(annotations) {
+    size_ = PyTuple_GET_SIZE(annotations_);
+    if (size_ >= 16) {
+      dict_ = Ref<>::steal(PyDict_New());
+      for (Py_ssize_t index = 0; index < size_; index += 2) {
+        PyObject* key = PyTuple_GET_ITEM(annotations_, index);
+        PyObject* value = PyTuple_GET_ITEM(annotations_, index + 1);
+        PyDict_SetItem(dict_, key, value);
+      }
+    }
+  }
+
+  // Retrieve the annotation for the given name, or return nullptr.
+  PyObject* find(PyObject* name) {
+    if (dict_) {
+      return PyDict_GetItem(dict_, name);
+    }
+    for (Py_ssize_t index = 0; index < size_; index += 2) {
+      if (name == PyTuple_GET_ITEM(annotations_, index)) {
+        return PyTuple_GET_ITEM(annotations_, index + 1);
+      }
+    }
+    return nullptr;
+  }
+
+ private:
+  BorrowedRef<PyTupleObject> annotations_;
+  Ref<> dict_ = nullptr;
+  Py_ssize_t size_;
+};
+
 } // namespace
 
 // Allocate a temp register that may be used for the stack. It should not be a
@@ -541,6 +579,57 @@ std::unique_ptr<Function> HIRBuilder::buildHIR() {
   return irfunc;
 }
 
+// Loop through each of the arguments on the current translation context and
+// check and see if there is any annotation to guard against.
+void HIRBuilder::emitTypeAnnotationGuards(TranslationContext& tc) {
+  BorrowedRef<PyTupleObject> annotations = preloader_.annotations();
+
+  // Bail out if there are no annotations.
+  if (!annotations) {
+    return;
+  }
+
+  PyCodeObject* const code = tc.frame.code;
+  bool first = true;
+
+  AnnotationIndex index(annotations);
+  for (int arg_idx = 0; arg_idx < preloader_.numArgs(); arg_idx++) {
+    PyObject* annotation = index.find(getVarname(code, arg_idx));
+
+    // If there is no annotation or if the annotation is an unexpected type,
+    // then skip over this argument.
+    //
+    // Note that this also skips over more complex types like unions. It could
+    // be beneficial in the future to support runtime checks for these kinds of
+    // annotations.
+    if (!annotation || !PyType_Check(annotation)) {
+      continue;
+    }
+
+    // If we have an annotation that we are going to guard against, we need to
+    // emit a snapshot for the guard.
+    //
+    // It's likely that no bytecode instructions have been compiled yet, meaning
+    // the instruction offset has not yet been set. Setting it to zero here
+    // ensures that if we need to deopt that it starts executing the first
+    // instruction.
+    if (first) {
+      first = false;
+      tc.frame.cur_instr_offs = BCOffset(0);
+      tc.emitSnapshot();
+    }
+
+    // Now guard against the type of the argument.
+    auto arg = tc.frame.localsplus.at(arg_idx);
+    JIT_CHECK(arg != nullptr, "No register for argument {}", arg_idx);
+
+    Type type =
+        Type::fromTypeExact(reinterpret_cast<PyTypeObject*>(annotation));
+
+    tc.emit<GuardType>(arg, type, arg);
+  }
+}
+
 BasicBlock* HIRBuilder::buildHIRImpl(
     Function* irfunc,
     FrameState* frame_state) {
@@ -575,6 +664,7 @@ BasicBlock* HIRBuilder::buildHIRImpl(
   allocateLocalsplus(&irfunc->env, entry_tc.frame);
 
   addLoadArgs(entry_tc, preloader_.numArgs());
+
   // TODO(emacs): Check if the code object or preloader uses runtime func and
   // drop the frame_state == nullptr check. Inlined functions should load a
   // const instead of using LoadCurrentFunc.
@@ -582,6 +672,11 @@ BasicBlock* HIRBuilder::buildHIRImpl(
     func_ = temps_.AllocateNonStack();
     entry_tc.emit<LoadCurrentFunc>(func_);
   }
+
+  if (getMutableConfig().emit_type_annotation_guards) {
+    emitTypeAnnotationGuards(entry_tc);
+  }
+
   addInitializeCells(entry_tc);
 
   // In 3.12+ "Initial Yield" has an explicit bytecode instruction in

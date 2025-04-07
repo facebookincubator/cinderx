@@ -859,6 +859,19 @@ FlagProcessor initFlagProcessor() {
       "use k or K as a suffix. "
       "Megabytes is m or M and gigabytes is g or G. 0 implies no limit.");
 
+  flag_processor.addOption(
+      "jit-emit-type-annotation-guards",
+      "",
+      [](int val) {
+        if (use_jit) {
+          getMutableConfig().emit_type_annotation_guards = !!val;
+        } else {
+          warnJITOff("jit-emit-type-annotation-guards");
+        }
+      },
+      "Generate runtime checks that validate type annotations to specialize "
+      "generated code.");
+
   flag_processor.setFlags(PySys_GetXOptions());
 
   if (getConfig().auto_jit_threshold > 0 &&
@@ -937,6 +950,7 @@ hir::Preloader* preload(BorrowedRef<> unit) {
         code,
         outer_func->func_builtins,
         outer_func->func_globals,
+        outer_func->func_annotations,
         codeFullname(outer_func->func_module, code));
   }
 
@@ -2036,6 +2050,18 @@ PyObject* disable_hir_inliner(PyObject* /* self */, PyObject*) {
   Py_RETURN_NONE;
 }
 
+// Enable the emit_type_annotation_guards configuration option.
+PyObject* enable_emit_type_annotation_guards(PyObject* /* self */, PyObject*) {
+  getMutableConfig().emit_type_annotation_guards = true;
+  Py_RETURN_NONE;
+}
+
+// Disable the emit_type_annotation_guards configuration option.
+PyObject* disable_emit_type_annotation_guards(PyObject* /* self */, PyObject*) {
+  getMutableConfig().emit_type_annotation_guards = false;
+  Py_RETURN_NONE;
+}
+
 // If the given generator-like object is a suspended JIT generator, deopt it
 // and return 1. Otherwise, return 0.
 int deopt_gen_impl(PyGenObject* gen) {
@@ -2269,6 +2295,15 @@ PyMethodDef jit_methods[] = {
      disable_hir_inliner,
      METH_NOARGS,
      PyDoc_STR("Disable the HIR inliner.")},
+    {"enable_emit_type_annotation_guards",
+     enable_emit_type_annotation_guards,
+     METH_NOARGS,
+     PyDoc_STR("Enable the emit_type_annotation_guards configuration option.")},
+    {"disable_emit_type_annotation_guards",
+     disable_emit_type_annotation_guards,
+     METH_NOARGS,
+     PyDoc_STR(
+         "Disable the emit_type_annotation_guards configuration option.")},
     {"get_inlined_functions_stats",
      get_inlined_functions_stats,
      METH_O,
