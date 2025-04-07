@@ -233,6 +233,7 @@ bool Instr::isReplayable() const {
     case Opcode::kEndInlinedFunction:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
+    case Opcode::kFloatBinaryOp:
     case Opcode::kGetAIter:
     case Opcode::kGetANext:
     case Opcode::kGetIter:

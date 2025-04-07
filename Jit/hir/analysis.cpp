@@ -75,6 +75,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
     case Opcode::kFillTypeMethodCache:
+    case Opcode::kFloatBinaryOp:
     case Opcode::kFormatValue:
     case Opcode::kGetAIter:
     case Opcode::kGetANext:

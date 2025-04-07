@@ -25,6 +25,9 @@ class HIRParser {
   Type parseType(std::string_view str);
 
  private:
+  template <typename T>
+  Type parseNumberLiteral(std::string_view str, PyObject* (*parse)(T));
+
   enum class ListOrTuple {
     List,
     Tuple,
@@ -60,7 +63,7 @@ class HIRParser {
 
   int GetNextInteger() {
     auto token = GetNextToken();
-    auto n = parseInt<int>(token);
+    auto n = parseNumber<int>(token);
     JIT_CHECK(n.has_value(), "Cannot parse '{}' as an integer", token);
     return *n;
   }

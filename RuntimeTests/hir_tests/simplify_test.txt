@@ -2955,6 +2955,54 @@ fun test {
   }
 }
 --- Test Name ---
+BinaryOpWithLeftAndRightFloatExactTurnsIntoFloatBinaryOp
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v1 = LoadArg<0>
+    v2 = LoadArg<1>
+    v3 = RefineType<FloatExact> v1
+    v4 = RefineType<FloatExact> v2
+    v5 = BinaryOp<Add> v3 v4
+    Return v5
+  }
+}
+--- Expected 3.10 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:FloatExact = RefineType<FloatExact> v2
+    UseType<FloatExact> v3
+    UseType<FloatExact> v4
+    v6:FloatExact = FloatBinaryOp<Add> v3 v4 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v6
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:FloatExact = RefineType<FloatExact> v1
+    v4:FloatExact = RefineType<FloatExact> v2
+    UseType<FloatExact> v3
+    UseType<FloatExact> v4
+    v6:FloatExact = FloatBinaryOp<Add> v3 v4 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    Return v6
+  }
+}
+--- Test Name ---
 BinaryOpWithObjSpecLeftAndRightLongExactTurnsIntoLoadConst
 --- Input ---
 # HIR
@@ -2995,6 +3043,50 @@ fun test {
     UseType<ImmortalLongExact[2]> v3
     UseType<ImmortalLongExact[3]> v4
     v7:ImmortalLongExact[8] = LoadConst<ImmortalLongExact[8]>
+    Return v7
+  }
+}
+--- Test Name ---
+BinaryOpWithObjSpecLeftAndRightFloatExactTurnsIntoLoadConst
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v1 = LoadArg<0>
+    v2 = LoadArg<1>
+    v3 = RefineType<FloatExact[2.5]> v1
+    v4 = RefineType<FloatExact[3.0]> v2
+    v5 = BinaryOp<Power> v3 v4
+    Return v5
+  }
+}
+--- Expected 3.10 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:MortalFloatExact[2.5] = RefineType<MortalFloatExact[2.5]> v1
+    v4:MortalFloatExact[3] = RefineType<MortalFloatExact[3]> v2
+    UseType<FloatExact> v3
+    UseType<FloatExact> v4
+    UseType<MortalFloatExact[2.5]> v3
+    UseType<MortalFloatExact[3]> v4
+    v7:MortalFloatExact[15.625] = LoadConst<MortalFloatExact[15.625]>
+    Return v7
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v1:Object = LoadArg<0>
+    v2:Object = LoadArg<1>
+    v3:MortalFloatExact[2.5] = RefineType<MortalFloatExact[2.5]> v1
+    v4:MortalFloatExact[3] = RefineType<MortalFloatExact[3]> v2
+    UseType<FloatExact> v3
+    UseType<FloatExact> v4
+    UseType<MortalFloatExact[2.5]> v3
+    UseType<MortalFloatExact[3]> v4
+    v7:MortalFloatExact[15.625] = LoadConst<MortalFloatExact[15.625]>
     Return v7
   }
 }

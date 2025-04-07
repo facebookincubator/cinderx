@@ -43,7 +43,7 @@ void HIRParser::expect(std::string_view expected) {
 Register* HIRParser::allocateRegister(std::string_view name) {
   JIT_CHECK(
       name[0] == 'v', "invalid register name (must be v[0-9]+): {}", name);
-  auto opt_id = parseInt<int>(name.substr(1));
+  auto opt_id = parseNumber<int>(name.substr(1));
   JIT_CHECK(
       opt_id.has_value(), "Cannot parse register '{}' into an integer", name);
   auto id = *opt_id;
@@ -55,6 +55,31 @@ Register* HIRParser::allocateRegister(std::string_view name) {
 
   max_reg_id_ = std::max(max_reg_id_, id);
   return reg;
+}
+
+template <typename T>
+Type HIRParser::parseNumberLiteral(
+    std::string_view str,
+    PyObject* (*parse)(T)) {
+  JIT_CHECK(
+      Py_IsInitialized(),
+      "Python runtime must be initialized for the HIR parser to parse "
+      "PyObject*s (can't parse '{}')",
+      str);
+
+  JIT_CHECK(
+      env_ != nullptr,
+      "HIR Environment must be initialized for the HIR parser to allocate "
+      "PyObject*s (can't parse '{}')",
+      str);
+
+  auto value = parseNumber<T>(str);
+  if (!value.has_value()) {
+    return TBottom;
+  }
+
+  auto result = Ref<>::steal(parse(*value));
+  return Type::fromObject(env_->addReference(result));
 }
 
 Type HIRParser::parseType(std::string_view str) {
@@ -103,32 +128,20 @@ Type HIRParser::parseType(std::string_view str) {
   }
 
   if (base <= TLong) {
-    JIT_CHECK(
-        Py_IsInitialized(),
-        "Python runtime must be initialized for the HIR parser to parse "
-        "PyObject*s (can't parse '{}')",
-        str);
-    JIT_CHECK(
-        env_ != nullptr,
-        "HIR Environment must be initialized for the HIR parser to allocate "
-        "PyObject*s (can't parse '{}')",
-        str);
-    auto spec_value = parseInt<intptr_t>(spec_string);
-    if (!spec_value.has_value()) {
-      return TBottom;
-    }
+    return parseNumberLiteral<intptr_t>(spec_string, PyLong_FromLong);
+  }
 
-    auto result = Ref<>::steal(PyLong_FromLong(*spec_value));
-    return Type::fromObject(env_->addReference(std::move(result)));
+  if (base <= TFloat) {
+    return parseNumberLiteral<double>(spec_string, PyFloat_FromDouble);
   }
 
   std::optional<intptr_t> spec_value;
   if (base <= TCInt8 || base <= TCInt16 || base <= TCInt32 || base <= TCInt64) {
-    spec_value = parseInt<intptr_t>(spec_string);
+    spec_value = parseNumber<intptr_t>(spec_string);
   } else if (
       base <= TCUInt8 || base <= TCUInt16 || base <= TCUInt32 ||
       base <= TCUInt64) {
-    spec_value = parseInt<intptr_t>(spec_string);
+    spec_value = parseNumber<intptr_t>(spec_string);
   } else {
     return TBottom;
   }
@@ -532,6 +545,15 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       auto left = ParseRegister();
       auto right = ParseRegister();
       NEW_INSTR(IntBinaryOp, dst, op, left, right);
+      break;
+    }
+    case Opcode::kFloatBinaryOp: {
+      expect("<");
+      BinaryOpKind op = ParseBinaryOpName(GetNextToken());
+      expect(">");
+      auto left = ParseRegister();
+      auto right = ParseRegister();
+      instruction = newInstr<FloatBinaryOp>(dst, op, left, right);
       break;
     }
     case Opcode::kCompare: {

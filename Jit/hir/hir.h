@@ -2151,6 +2151,71 @@ class INSTR_CLASS(
   InPlaceOpKind op_;
 };
 
+const std::array<binaryfunc, kNumBinaryOpKinds> kFloatBinaryOpSlotMethods = {
+    /* kAdd                 */ PyFloat_Type.tp_as_number->nb_add,
+    /* kAnd                 */ nullptr,
+    /* kFloorDivide         */ PyFloat_Type.tp_as_number->nb_floor_divide,
+    /* kLShift              */ nullptr,
+    /* kMatrixMultiply      */ nullptr,
+    /* kModulo              */ PyFloat_Type.tp_as_number->nb_remainder,
+    /* kMultiply            */ PyFloat_Type.tp_as_number->nb_multiply,
+    /* kOr                  */ nullptr,
+    /* kPower               */ nullptr,
+    /* kRShift              */ nullptr,
+    /* kSubscript           */ nullptr,
+    /* kSubtract            */ PyFloat_Type.tp_as_number->nb_subtract,
+    /* kTrueDivide          */ PyFloat_Type.tp_as_number->nb_true_divide,
+    /* kXor                 */ nullptr,
+    /* kFloorDivideUnsigned */ nullptr,
+    /* kModuloUnsigned      */ nullptr,
+    /* kRShiftUnsigned      */ nullptr,
+    /* kPowerUnsigned       */ nullptr,
+};
+
+// Perform the operation indicated by op
+class INSTR_CLASS(
+    FloatBinaryOp,
+    (TFloatExact, TFloatExact),
+    HasOutput,
+    Operands<2>,
+    DeoptBase) {
+ public:
+  FloatBinaryOp(
+      Register* dst,
+      BinaryOpKind op,
+      Register* left,
+      Register* right,
+      const FrameState& frame)
+      : InstrT(dst, left, right, frame), op_(op) {}
+
+  BinaryOpKind op() const {
+    return op_;
+  }
+
+  binaryfunc slotMethod() const {
+    auto helper = FloatBinaryOp::slotMethod(op());
+    JIT_DCHECK(helper != std::nullopt, "unsupported slot method");
+    return helper.value();
+  }
+
+  Register* left() const {
+    return GetOperand(0);
+  }
+
+  Register* right() const {
+    return GetOperand(1);
+  }
+
+  static std::optional<binaryfunc> slotMethod(BinaryOpKind op) {
+    auto op_kind = static_cast<unsigned long>(op);
+    JIT_CHECK(op_kind < kFloatBinaryOpSlotMethods.size(), "unsupported binop");
+    return std::make_optional(kFloatBinaryOpSlotMethods[op_kind]);
+  }
+
+ private:
+  BinaryOpKind op_;
+};
+
 // Like Compare but has an Int32 output so it can be used to replace
 // a Compare + IsTruthy.
 class INSTR_CLASS(

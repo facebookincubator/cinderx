@@ -580,6 +580,8 @@ Type outputType(
       }
       return TLongExact;
     }
+    case Opcode::kFloatBinaryOp:
+      return TFloatExact;
     case Opcode::kLongCompare:
     case Opcode::kUnicodeCompare:
       return TBool;

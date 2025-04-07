@@ -554,6 +554,7 @@ Register* simplifyLoadMethod(Env& env, const LoadMethod* load_meth) {
 Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
   Register* lhs = instr->left();
   Register* rhs = instr->right();
+
   if (instr->op() == BinaryOpKind::kSubscript) {
     if (lhs->isA(TDictExact)) {
       return env.emit<DictSubscr>(lhs, rhs, *instr->frameState());
@@ -650,6 +651,7 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
       }
     }
   }
+
   if (lhs->isA(TLongExact) && rhs->isA(TLongExact)) {
     // All binary ops on TLong's return mutable so can be freely simplified with
     // no explicit check.
@@ -662,12 +664,22 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
     env.emit<UseType>(rhs, TLongExact);
     return env.emit<LongBinaryOp>(instr->op(), lhs, rhs, *instr->frameState());
   }
+
+  if (lhs->isA(TFloatExact) && rhs->isA(TFloatExact) &&
+      ((instr->op() == BinaryOpKind::kPower) ||
+       FloatBinaryOp::slotMethod(instr->op()))) {
+    env.emit<UseType>(lhs, TFloatExact);
+    env.emit<UseType>(rhs, TFloatExact);
+    return env.emit<FloatBinaryOp>(instr->op(), lhs, rhs, *instr->frameState());
+  }
+
   if ((lhs->isA(TUnicodeExact) && rhs->isA(TLongExact)) &&
       (instr->op() == BinaryOpKind::kMultiply)) {
     Register* unboxed_rhs = env.emit<IndexUnbox>(rhs, PyExc_OverflowError);
     env.emit<IsNegativeAndErrOccurred>(unboxed_rhs, *instr->frameState());
     return env.emit<UnicodeRepeat>(lhs, unboxed_rhs, *instr->frameState());
   }
+
   if ((lhs->isA(TUnicodeExact) && rhs->isA(TUnicodeExact)) &&
       (instr->op() == BinaryOpKind::kAdd)) {
     return env.emit<UnicodeConcat>(lhs, rhs, *instr->frameState());
@@ -736,6 +748,41 @@ Register* simplifyLongBinaryOp(Env& env, const LongBinaryOp* instr) {
         Type::fromObject(env.func.env.addReference(std::move(result))));
   }
   return nullptr;
+}
+
+Register* simplifyFloatBinaryOp(Env& env, const FloatBinaryOp* instr) {
+  // This isn't safe in the multi-threaded compilation on 3.12 because
+  // we don't hold the GIL which is required for allocation.
+  RETURN_MULTITHREADED_COMPILE(nullptr);
+
+  Type left_type = instr->left()->type();
+  Type right_type = instr->right()->type();
+
+  if (!left_type.hasObjectSpec() || !right_type.hasObjectSpec()) {
+    return nullptr;
+  }
+
+  ThreadedCompileSerialize guard;
+  Ref<> result;
+
+  if (instr->op() == BinaryOpKind::kPower) {
+    result = Ref<>::steal(PyFloat_Type.tp_as_number->nb_power(
+        left_type.objectSpec(), right_type.objectSpec(), Py_None));
+  } else {
+    binaryfunc helper = instr->slotMethod();
+    result = Ref<>::steal(
+        (*helper)(left_type.objectSpec(), right_type.objectSpec()));
+  }
+
+  if (result == nullptr) {
+    PyErr_Clear();
+    return nullptr;
+  }
+
+  env.emit<UseType>(instr->left(), left_type);
+  env.emit<UseType>(instr->right(), right_type);
+  return env.emit<LoadConst>(
+      Type::fromObject(env.func.env.addReference(result)));
 }
 
 Register* simplifyUnaryOp(Env& env, const UnaryOp* instr) {
@@ -1468,6 +1515,9 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
       return simplifyInPlaceOp(env, static_cast<const InPlaceOp*>(instr));
     case Opcode::kLongBinaryOp:
       return simplifyLongBinaryOp(env, static_cast<const LongBinaryOp*>(instr));
+    case Opcode::kFloatBinaryOp:
+      return simplifyFloatBinaryOp(
+          env, static_cast<const FloatBinaryOp*>(instr));
     case Opcode::kUnaryOp:
       return simplifyUnaryOp(env, static_cast<const UnaryOp*>(instr));
 

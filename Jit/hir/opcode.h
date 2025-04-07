@@ -51,6 +51,7 @@ namespace jit::hir {
   V(EndInlinedFunction)                \
   V(FillTypeAttrCache)                 \
   V(FillTypeMethodCache)               \
+  V(FloatBinaryOp)                     \
   V(FormatValue)                       \
   V(GetAIter)                          \
   V(GetANext)                          \

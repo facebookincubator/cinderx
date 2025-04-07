@@ -454,6 +454,10 @@ static std::string format_immediates(const Instr& instr) {
       const auto& inplace = static_cast<const LongInPlaceOp&>(instr);
       return std::string{GetInPlaceOpName(inplace.op())};
     }
+    case Opcode::kFloatBinaryOp: {
+      const auto& bin = static_cast<const FloatBinaryOp&>(instr);
+      return std::string{GetBinaryOpName(bin.op())};
+    }
     case Opcode::kCompareBool: {
       const auto& cmp = static_cast<const Compare&>(instr);
       return std::string{GetCompareOpName(cmp.op())};
