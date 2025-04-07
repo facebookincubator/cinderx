@@ -1,5 +1,5 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
 import ast
 import warnings
@@ -13,7 +13,7 @@ PR_AND = 3  # 'and'
 PR_NOT = 4  # 'not'
 PR_CMP = 5  # '<', '>', '==', '>=', '<=', '!=' 'in', 'not in', 'is', 'is not'
 PR_EXPR = 6
-PR_BOR = PR_EXPR  # '|'
+PR_BOR: int = PR_EXPR  # '|'
 PR_BXOR = 7  # '^'
 PR_BAND = 8  # '&'
 PR_SHIFT = 9  # '<<', '>>'
@@ -126,11 +126,10 @@ def _format_list(node: ast.List, level: int) -> str:
     return "[" + ", ".join(to_expr(elm) for elm in node.elts) + "]"
 
 
-def _format_kw(node: ast.keyword):
+def _format_kw(node: ast.keyword) -> str:
     if node.arg:
         return f"{node.arg}={to_expr(node.value)}"
     return f"**{to_expr(node.value)}"
-    pass
 
 
 def _format_call(node: ast.Call, level: int) -> str:
@@ -149,7 +148,7 @@ def _format_unaryop(node: ast.UnaryOp, level: int) -> str:
     )
 
 
-BIN_OPS = {
+BIN_OPS: dict[type[ast.AST], tuple[str, int]] = {
     ast.Add: (" + ", PR_ARITH),
     ast.Sub: (" - ", PR_ARITH),
     ast.Mult: (" * ", PR_TERM),
@@ -229,11 +228,11 @@ def parens(level: int, target_lvl: int, value: str) -> str:
     return value
 
 
-def _format_await(node: ast.Await, level: int):
+def _format_await(node: ast.Await, level: int) -> str:
     return parens(level, PR_AWAIT, "await " + to_expr(node.value, PR_ATOM))
 
 
-def _format_starred(node: ast.Starred, level: int):
+def _format_starred(node: ast.Starred, level: int) -> str:
     return "*" + to_expr(node.value, PR_EXPR)
 
 
@@ -327,7 +326,7 @@ def _format_gen_exp(node: ast.GeneratorExp, level: int) -> str:
     return "(" + to_expr(node.elt) + _format_comprehensions(node.generators) + ")"
 
 
-def format_fstring_elt(res: List[str], elt: ast.expr, is_format_spec: bool):
+def format_fstring_elt(res: List[str], elt: ast.expr, is_format_spec: bool) -> None:
     if isinstance(elt, ast.Str):
         res.append(elt.s)
     elif isinstance(elt, ast.Constant):
@@ -353,7 +352,9 @@ def format_fstring_elt(res: List[str], elt: ast.expr, is_format_spec: bool):
         res.append("}")
 
 
-def format_joinedstr(node: ast.JoinedStr, level: int, is_format_spec=False) -> str:
+def format_joinedstr(
+    node: ast.JoinedStr, level: int, is_format_spec: bool = False
+) -> str:
     res = []
     for elt in node.values:
         format_fstring_elt(res, elt, is_format_spec)
@@ -364,7 +365,7 @@ def format_joinedstr(node: ast.JoinedStr, level: int, is_format_spec=False) -> s
     return f"f{repr(joined)}"
 
 
-def _format_slice(node: ast.Slice, level: int):
+def _format_slice(node: ast.Slice, level: int) -> str:
     res = ""
     if node.lower is not None:
         res += to_expr(node.lower)
@@ -377,7 +378,7 @@ def _format_slice(node: ast.Slice, level: int):
     return res
 
 
-def _format_constant(node: ast.Constant, level: int):
+def _format_constant(node: ast.Constant, level: int) -> str:
     if node.value is Ellipsis:
         return "..."
 
@@ -387,7 +388,8 @@ def _format_constant(node: ast.Constant, level: int):
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", category=DeprecationWarning)
 
-    _FORMATTERS: Dict[Type, Optional[Callable[[Any, int], str]]] = {
+    # pyre-ignore[9]: Pyre tries to union all the keys and values into concrete types.
+    _FORMATTERS: dict[type[ast.AST], Callable[[ast.AST, int], str]] = {
         ast.Attribute: _format_attribute,
         ast.Await: _format_await,
         ast.BinOp: _format_binaryop,
@@ -422,7 +424,7 @@ with warnings.catch_warnings():
     }
 
 
-def to_expr(node: Optional[ast.AST], level=PR_TEST) -> str:
+def to_expr(node: Optional[ast.AST], level: int = PR_TEST) -> str:
     if node is None:
         return ""
     formatter = _FORMATTERS.get(type(node))
