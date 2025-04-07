@@ -26,7 +26,6 @@ from ..consts import CO_FUTURE_ANNOTATIONS
 from ..pyassem import PyFlowGraph
 from ..pycodegen import CinderCodeGenBase, CodeGenerator, find_futures, FOR_LOOP
 from ..symbols import BaseSymbolVisitor, FunctionScope
-from ..visitor import walk
 from .common import FIXED_MODULES, lineinfo
 from .feature_extractor import _IMPLICIT_GLOBALS, FeatureExtractor
 
@@ -158,7 +157,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
                 optimize, tree, bool(future_flags & CO_FUTURE_ANNOTATIONS)
             )
         s = cls._SymbolVisitor(future_flags)
-        walk(tree, s)
+        s.visit(tree)
 
         graph = cls.flow_graph(module_name, filename, s.scopes[tree])
         code_gen = cls(
@@ -172,7 +171,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
             future_flags=future_flags,
         )
         code_gen._qual_name = module_name
-        walk(tree, code_gen)
+        code_gen.visit(tree)
         return code_gen
 
     def is_functionScope(self) -> bool:

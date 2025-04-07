@@ -73,7 +73,7 @@ try:
         TypeParamScope,
     )
     from .unparse import to_expr
-    from .visitor import ASTVisitor, walk
+    from .visitor import ASTVisitor
 except Exception:
     raise
 
@@ -1235,15 +1235,6 @@ class CodeGenerator(ASTVisitor):
             print(node)
             assert 0
 
-    def _visitAssSequence(self, node, op="UNPACK_SEQUENCE"):
-        if findOp(node) != "OP_DELETE":
-            self.emit(op, len(node.nodes))
-        for child in node.nodes:
-            self.visit(child)
-
-    visitAssTuple = _visitAssSequence
-    visitAssList = _visitAssSequence
-
     # augmented assignment
 
     def visitAugAssign(self, node: ast.AugAssign) -> None:
@@ -2395,7 +2386,7 @@ class CodeGenerator(ASTVisitor):
         )
         code_gen = cls(None, tree, s, graph, flags, optimize, future_flags=future_flags)
         code_gen._qual_name = module_name
-        walk(tree, code_gen)
+        code_gen.visit(tree)
         return code_gen
 
     @classmethod
@@ -5801,28 +5792,6 @@ def get_docstring(
         and isinstance(b0v, ast.Str)
     ):
         return b0v.s
-
-
-def findOp(node):
-    """Find the op (DELETE, LOAD, STORE) in an AssTuple tree"""
-    v = OpFinder()
-    v.VERBOSE = 0
-    walk(node, v)
-    return v.op
-
-
-class OpFinder:
-    def __init__(self):
-        self.op = None
-
-    def visitAssName(self, node):
-        if self.op is None:
-            self.op = node.flags
-        elif self.op != node.flags:
-            raise ValueError("mixed ops in stmt")
-
-    visitAssAttr = visitAssName
-    visitSubscript = visitAssName
 
 
 CinderCodeGenerator = CinderCodeGenerator310

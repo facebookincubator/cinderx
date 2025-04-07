@@ -9,7 +9,6 @@ from ast import FunctionDef
 from sys import version_info
 from textwrap import dedent
 
-from cinderx.compiler import walk
 from cinderx.compiler.consts import SC_FREE, SC_GLOBAL_IMPLICIT
 from cinderx.compiler.symbols import ClassScope, FunctionScope, SymbolVisitor, TypeAliasScope, TypeParamScope, TypeVarBoundScope
 from unittest import skipIf
@@ -36,7 +35,7 @@ class SymbolVisitorTests(CompilerTest):
         for stmt in stmts:
             module = ast.parse(stmt)
             visitor = SymbolVisitor(0)
-            walk(module, visitor)
+            visitor.visit(module)
             self.assertIn("foo", visitor.scopes[module].defs)
 
     def test_comp_assignments(self) -> None:
@@ -49,7 +48,7 @@ class SymbolVisitorTests(CompilerTest):
         for stmt in stmts:
             module = ast.parse(stmt)
             visitor = SymbolVisitor(0)
-            walk(module, visitor)
+            visitor.visit(module)
             # pyre-ignore[16]: `_ast.stmt` has no attribute `value`.
             gen = module.body[0].value
             self.assertIn("foo", visitor.scopes[gen].defs)
@@ -61,7 +60,7 @@ class SymbolVisitorTests(CompilerTest):
                     pass"""
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(node, FunctionDef) and node.name == "f":
                 self.assertEqual(scope.check_name("foo"), SC_GLOBAL_IMPLICIT)
@@ -77,7 +76,7 @@ class SymbolVisitorTests(CompilerTest):
                     pass"""
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(node, FunctionDef) and node.name == "f":
                 self.assertEqual(scope.check_name("foo"), SC_GLOBAL_IMPLICIT)
@@ -90,7 +89,7 @@ class SymbolVisitorTests(CompilerTest):
         code = """def f[T](): pass"""
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertTrue("T" in scope.defs)
@@ -112,7 +111,7 @@ class SymbolVisitorTests(CompilerTest):
         code = """def f[T](T): return T"""
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertTrue("T" in scope.defs)
@@ -136,14 +135,14 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         with self.assertRaisesRegex(SyntaxError, "duplicated type parameter: 'T'"):
-            walk(module, visitor)
+            visitor.visit(module)
 
     @skipIf(PRE_312, "Python 3.12+ only")
     def test_func_type_param_bound(self) -> None:
         code = """def f[T: str](): pass"""
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertEqual(len(scope.children), 2)
@@ -172,7 +171,7 @@ class SymbolVisitorTests(CompilerTest):
         code = """def f[*T](): pass"""
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertEqual(len(scope.children), 1)
@@ -194,7 +193,7 @@ class SymbolVisitorTests(CompilerTest):
         code = """def f[**T](): pass"""
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertEqual(len(scope.children), 1)
@@ -216,7 +215,7 @@ class SymbolVisitorTests(CompilerTest):
         code = """class C[T]: pass"""
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "C":
                 self.assertEqual(len(scope.children), 1)
@@ -240,7 +239,7 @@ class SymbolVisitorTests(CompilerTest):
         """)
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertIn("_C__T", scope.defs)
@@ -256,7 +255,7 @@ class SymbolVisitorTests(CompilerTest):
         """)
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "C":
                 self.assertEqual(len(scope.children), 1)
@@ -284,7 +283,7 @@ class SymbolVisitorTests(CompilerTest):
         """)
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertEqual(len(scope.parent.children), 2)
@@ -306,7 +305,7 @@ class SymbolVisitorTests(CompilerTest):
         """)
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
                 print(scope.check_name("int"))
@@ -322,7 +321,7 @@ class SymbolVisitorTests(CompilerTest):
         """)
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
                 self.assertEqual(len(scope.parent.children), 1)
@@ -341,7 +340,7 @@ class SymbolVisitorTests(CompilerTest):
         """)
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
-        walk(module, visitor)
+        visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
                 self.assertEqual(len(scope.parent.children), 1)

@@ -7,10 +7,6 @@
 There are several functions defined at the top level that are imported
 from modules contained in the package.
 
-walk(ast, visitor, verbose=None)
-    Does a pre-order walk over the ast using the visitor instance.
-    See compiler.visitor for details.
-
 compile(source, filename, mode, flags=None, dont_inherit=None)
     Returns a code object.  A replacement for the builtin compile() function.
 
@@ -21,7 +17,6 @@ compileFile(filename)
 from typing import Any, Dict, Union
 
 from .pycodegen import CinderCodeGenerator, compile, compileFile
-from .visitor import walk
 
 
 # pyre-ignore[5]: Globally accessible variable `CodeType` has no type specified.
@@ -43,4 +38,4 @@ def exec_cinder(
     exec(code, locals, globals)
 
 
-__all__ = ("compile", "compileFile", "exec_cinder", "walk")
+__all__ = ("compile", "compileFile", "exec_cinder")

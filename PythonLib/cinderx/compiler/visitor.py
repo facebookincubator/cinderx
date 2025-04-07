@@ -185,10 +185,6 @@ class ExampleASTVisitor(ASTVisitor):
 # XXX this is an API change
 
 
-def walk(tree: AST, visitor: ASTVisitor) -> object:
-    return visitor.visit(tree)
-
-
 def dumpNode(node: object) -> None:
     print(node.__class__)
     for attr in dir(node):

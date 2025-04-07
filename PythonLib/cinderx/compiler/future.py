@@ -5,7 +5,7 @@
 
 import ast
 
-from .visitor import ASTVisitor, walk
+from .visitor import ASTVisitor
 
 
 def is_future(stmt):
@@ -86,6 +86,6 @@ class BadFutureParser(ASTVisitor):
 def find_futures(node):
     p1 = FutureParser()
     p2 = BadFutureParser()
-    walk(node, p1)
-    walk(node, p2)
+    p1.visit(node)
+    p2.visit(node)
     return p1.get_features()
