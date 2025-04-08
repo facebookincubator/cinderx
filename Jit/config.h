@@ -63,6 +63,8 @@ struct GdbOptions {
 };
 
 struct JitListOptions {
+  // Name of the file loaded in as a JIT list.
+  std::string filename;
   // Raise a Python error when a line fails to parse.
   bool error_on_parse{false};
 };
@@ -127,8 +129,6 @@ struct Config {
   GdbOptions gdb;
   JitListOptions jit_list;
   bool compile_perf_trampoline_prefork{false};
-  // Name of the file loaded in as a JIT list.
-  std::string jitlist_filename;
 };
 
 // Get the JIT's current config object.

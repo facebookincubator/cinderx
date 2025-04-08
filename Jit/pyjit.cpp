@@ -550,7 +550,7 @@ FlagProcessor initFlagProcessor() {
           "PYTHONJITLISTFILE",
           [](const std::string& listFile) {
             use_jit = 1;
-            getMutableConfig().jitlist_filename = listFile;
+            getMutableConfig().jit_list.filename = listFile;
           },
           "Load list of functions to compile from <filename>")
       .withFlagParamName("filename");
@@ -875,7 +875,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.setFlags(PySys_GetXOptions());
 
   if (getConfig().auto_jit_threshold > 0 &&
-      getConfig().jitlist_filename != "") {
+      getConfig().jit_list.filename != "") {
     JIT_LOG(
         "Warning: jit-auto and jit-list-file are both enabled; only functions "
         "on the jit-list will be compiled, and only after {} calls.",
@@ -2701,7 +2701,7 @@ int initialize() {
   }
 
   std::unique_ptr<JITList> jit_list;
-  if (!getConfig().jitlist_filename.empty()) {
+  if (!getConfig().jit_list.filename.empty()) {
     if (getConfig().allow_jit_list_wildcards) {
       jit_list = jit::WildcardJITList::create();
     } else {
@@ -2713,7 +2713,7 @@ int initialize() {
     }
 
     try {
-      jit_list->parseFile(getConfig().jitlist_filename.c_str());
+      jit_list->parseFile(getConfig().jit_list.filename.c_str());
     } catch (const std::exception& exn) {
       if (getConfig().jit_list.error_on_parse) {
         PyErr_SetString(PyExc_RuntimeError, exn.what());
