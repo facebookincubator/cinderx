@@ -11,11 +11,7 @@
 
 using namespace jit::codegen;
 
-namespace jit {
-
-int g_disable_lir_inliner = 0;
-
-namespace lir {
+namespace jit::lir {
 
 bool LIRInliner::inlineCalls(Function* func) {
   bool changed = false;
@@ -367,5 +363,4 @@ std::string_view LIRInliner::callerName() {
   return hir_call->block()->cfg->func->fullname;
 }
 
-} // namespace lir
-} // namespace jit
+} // namespace jit::lir

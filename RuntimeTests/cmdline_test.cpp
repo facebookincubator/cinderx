@@ -236,8 +236,8 @@ TEST_F(CmdLineTest, BasicFlags) {
       try_flag_and_envvar_effect(
           L"jit-disable-lir-inliner",
           "PYTHONJITDISABLELIRINLINER",
-          []() { g_disable_lir_inliner = 0; },
-          []() { ASSERT_EQ(g_disable_lir_inliner, 1); }),
+          []() { getMutableConfig().lir_opts.inliner = 0; },
+          []() { ASSERT_EQ(getConfig().lir_opts.inliner, 1); }),
       0);
 
   ASSERT_EQ(

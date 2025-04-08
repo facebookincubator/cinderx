@@ -47,6 +47,11 @@ struct HIROptimizations {
   bool simplify{true};
 };
 
+// List of LIR optimization passes to run.
+struct LIROptimizations {
+  bool inliner{true};
+};
+
 struct SimplifierConfig {
   // The maximum number of times the simplifier can process a function's CFG.
   size_t iteration_limit{100};
@@ -104,6 +109,7 @@ struct Config {
   // TODO(T195042385): Replace this with actual typing.
   bool refine_static_python{true};
   HIROptimizations hir_opts;
+  LIROptimizations lir_opts;
   SimplifierConfig simplifier;
   // Limit on how much the inliner can inline.  The number here is internal to
   // the inliner, doesn't have any specific meaning, and can change as the

@@ -6,11 +6,7 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/lir/function.h"
 
-namespace jit {
-
-extern int g_disable_lir_inliner;
-
-namespace lir {
+namespace jit::lir {
 
 class LIRInliner {
  public:
@@ -104,5 +100,4 @@ class LIRInliner {
   FRIEND_TEST(LIRInlinerTest, FindFunctionFailureTest);
 };
 
-} // namespace lir
-} // namespace jit
+} // namespace jit::lir

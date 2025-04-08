@@ -12,7 +12,7 @@ namespace {
 
 // Inline C helper functions.
 RewriteResult rewriteInlineHelper(function_rewrite_arg_t func) {
-  if (g_disable_lir_inliner) {
+  if (!getConfig().lir_opts.inliner) {
     return kUnchanged;
   }
 

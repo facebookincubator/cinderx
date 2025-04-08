@@ -521,12 +521,6 @@ FlagProcessor initFlagProcessor() {
       "Dump JIT runtime stats at shutdown");
 
   flag_processor.addOption(
-      "jit-disable-lir-inliner",
-      "PYTHONJITDISABLELIRINLINER",
-      g_disable_lir_inliner,
-      "disable JIT lir inlining");
-
-  flag_processor.addOption(
       "jit-disable-huge-pages",
       "PYTHONJITDISABLEHUGEPAGES",
       [](const std::string&) { getMutableConfig().use_huge_pages = false; },
@@ -683,6 +677,18 @@ FlagProcessor initFlagProcessor() {
       getMutableConfig().inliner_cost_limit,
       "Limit how much the inliner is able to inline. The number's definition "
       "is only relevant to the inliner itself.");
+
+  flag_processor.addOption(
+      "jit-lir-inliner",
+      "PYTHONJITLIRINLINER",
+      [](int val) {
+        if (use_jit) {
+          getMutableConfig().lir_opts.inliner = !!val;
+        } else {
+          warnJITOff("jit-lir-inliner");
+        }
+      },
+      "Enable the LIR inliner");
 
   flag_processor
       .addOption(
