@@ -388,6 +388,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   };
 
   DeoptMetadata meta;
+  meta.live_values.resize(instr.live_regs().size());
 
   std::unordered_map<jit::hir::Register*, int> reg_idx;
   int i = 0;
@@ -401,7 +402,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
         .value_kind = reg_state.value_kind,
         .source = get_source(reg),
     };
-    meta.live_values.emplace_back(std::move(lv));
+    meta.live_values[i] = std::move(lv);
     reg_idx[reg] = i;
     i++;
   }
@@ -418,7 +419,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   auto populate_localsplus =
       [get_reg_idx](DeoptFrameMetadata& meta, hir::FrameState* fs) {
         size_t nlocalsplus = fs->localsplus.size();
-        meta.localsplus.resize(nlocalsplus, -1);
+        meta.localsplus.resize(nlocalsplus);
         for (size_t i = 0; i < nlocalsplus; ++i) {
           meta.localsplus[i] = get_reg_idx(fs->localsplus[i]);
         }
@@ -427,6 +428,9 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   auto populate_stack = [get_reg_idx](
                             DeoptFrameMetadata& meta, hir::FrameState* fs) {
     std::unordered_set<jit::hir::Register*> lms_on_stack;
+    meta.stack.resize(fs->stack.size());
+    int stack_idx = 0;
+
     for (auto& reg : fs->stack) {
       if (isAnyLoadMethod(*reg->instr())) {
         // Our logic for reconstructing the Python stack assumes that if a
@@ -440,7 +444,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
             result.second,
             "load method results may only appear in one stack slot");
       }
-      meta.stack.emplace_back(get_reg_idx(reg));
+      meta.stack[stack_idx++] = get_reg_idx(reg);
     }
   };
 
@@ -450,6 +454,7 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
 
   int num_frames = fs->inlineDepth();
   meta.frame_meta.resize(num_frames + 1); // +1 for caller
+
   for (hir::FrameState* frame = fs; frame != nullptr; frame = frame->parent) {
     int i = num_frames--;
     // Translate locals and cells

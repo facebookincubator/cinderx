@@ -100,7 +100,7 @@ def test(a, b):
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.cause_instr_idx = BCOffset{0};
-  dm.frame_meta.push_back(dfm);
+  dm.frame_meta = {std::move(dfm)};
 
   Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
@@ -148,7 +148,7 @@ def test(a, b):
 #else
   dfm.cause_instr_idx = BCOffset{4};
 #endif
-  dm.frame_meta.push_back(dfm);
+  dm.frame_meta = {std::move(dfm)};
 
   Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
@@ -198,7 +198,7 @@ def test(a, b):
 #else
   dfm.cause_instr_idx = BCOffset{4};
 #endif
-  dm.frame_meta.push_back(dfm);
+  dm.frame_meta = {std::move(dfm)};
 
   Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
@@ -258,7 +258,7 @@ def test(num):
 #else
   dfm.cause_instr_idx = BCOffset{8};
 #endif
-  dm.frame_meta.push_back(dfm);
+  dm.frame_meta = {std::move(dfm)};
 
   Ref<> result = runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);
 
@@ -314,7 +314,7 @@ def test(x, y):
     dfm.localsplus = {0};
     dfm.stack = {0};
     dfm.cause_instr_idx = BCOffset(jump_index);
-    dm.frame_meta.push_back(dfm);
+    dm.frame_meta = {std::move(dfm)};
 
     Ref<> result =
         runInInterpreterViaReify(func, dm, dm.innermostFrame(), regs);

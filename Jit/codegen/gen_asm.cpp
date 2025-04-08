@@ -170,7 +170,7 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
   }
 #else
   _PyInterpreterFrame* frame = tstate->cframe->current_frame;
-  reifyFrame(frame, deopt_meta, deopt_meta.frame_meta.at(0), regs);
+  reifyFrame(frame, deopt_meta, deopt_meta.outermostFrame(), regs);
   UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
 #endif
   // Clear our references now that we've transferred them to the frame

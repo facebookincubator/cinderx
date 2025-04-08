@@ -13,7 +13,6 @@
 
 #include <algorithm>
 #include <cstdint>
-#include <vector>
 
 namespace jit {
 
@@ -98,10 +97,10 @@ struct DeoptFrameMetadata {
   // -1 to indicate that a variable is dead. This is somewhat oddly named in
   // order to maintain the correspondence with the `f_localsplus` field on
   // `PyFrameObject`.
-  std::vector<int> localsplus;
+  FrozenList<int> localsplus;
 
   // Index into live_values for each entry in the operand stack.
-  std::vector<int> stack;
+  FrozenList<int> stack;
 
   jit::hir::BlockStack block_stack;
 
@@ -124,10 +123,10 @@ struct DeoptMetadata {
   BorrowedRef<> eh_name;
 
   // All live values
-  std::vector<LiveValue> live_values;
+  FrozenList<LiveValue> live_values;
 
   // Stack of inlined frame metadata unwound from the deopting instruction.
-  std::vector<DeoptFrameMetadata> frame_meta;
+  FrozenList<DeoptFrameMetadata> frame_meta;
 
   // A human-readable description of why this deopt happened.
   const char* descr{nullptr};
@@ -159,6 +158,10 @@ struct DeoptMetadata {
   // in the interpreter in future.
   const DeoptFrameMetadata& innermostFrame() const {
     return frame_meta[inline_depth()];
+  }
+
+  const DeoptFrameMetadata& outermostFrame() const {
+    return frame_meta[0];
   }
 
   const LiveValue& getStackValue(int i, const DeoptFrameMetadata& frame) const {

@@ -2131,7 +2131,7 @@ int deopt_gen_impl(PyGenObject* gen) {
   _PyJIT_GenMaterializeFrame(gen);
   _PyShadowFrame_SetOwner(&gen->gi_shadow_frame, PYSF_INTERP);
   reifyGeneratorFrame(
-      gen->gi_frame, deopt_meta, deopt_meta.frame_meta[0], footer);
+      gen->gi_frame, deopt_meta, deopt_meta.outermostFrame(), footer);
   gen->gi_frame->f_state = FRAME_SUSPENDED;
   releaseRefs(deopt_meta, footer);
   jitgen_data_free(gen);
