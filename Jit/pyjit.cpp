@@ -1430,6 +1430,28 @@ PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
   Py_RETURN_TRUE;
 }
 
+// Uncompile a function by returning it to its non-jitted version.
+PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
+  BorrowedRef<PyFunctionObject> func = get_func_arg("force_uncompile", arg);
+  if (func == nullptr) {
+    return nullptr;
+  }
+
+  if (!isJitCompiled(func)) {
+    Py_RETURN_FALSE;
+  }
+
+  // Replace the function entrypoint with the interpreter entrypoint, so that it
+  // can properly be called again.
+  func->vectorcall = getInterpretedVectorcall(func);
+
+  // "Destroy" the function from the perspective of the JIT, effectively erasing
+  // all traces of it from the metadata.
+  funcDestroyed(func);
+
+  Py_RETURN_TRUE;
+}
+
 int aot_func_visitor(PyObject* obj, void* arg) {
   constexpr int kGcVisitContinue = 1;
 
@@ -1987,6 +2009,21 @@ PyObject* jit_suppress(PyObject* /* self */, PyObject* arg) {
   return arg;
 }
 
+// Unsuppress a function that was suppressed by jit_suppress. This will allow it
+// to be compiled in the future.
+PyObject* jit_unsuppress(PyObject* /* self */, PyObject* arg) {
+  BorrowedRef<PyFunctionObject> func = get_func_arg("jit_unsuppress", arg);
+  if (func == nullptr) {
+    return nullptr;
+  }
+
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  code->co_flags &= ~CI_CO_SUPPRESS_JIT;
+
+  Py_INCREF(arg);
+  return arg;
+}
+
 PyObject* get_allocator_stats(PyObject*, PyObject*) {
   auto base_allocator = CodeAllocator::get();
   if (base_allocator == nullptr) {
@@ -2196,6 +2233,10 @@ PyMethodDef jit_methods[] = {
      force_compile,
      METH_O,
      PyDoc_STR("Force a function to be JIT compiled if it hasn't yet.")},
+    {"force_uncompile",
+     force_uncompile,
+     METH_O,
+     PyDoc_STR("Uncompile a function that has been JIT compiled.")},
     {"lazy_compile",
      lazy_compile,
      METH_O,
@@ -2270,6 +2311,10 @@ PyMethodDef jit_methods[] = {
      jit_suppress,
      METH_O,
      PyDoc_STR("Decorator to prevent the JIT from running on a function.")},
+    {"jit_unsuppress",
+     jit_unsuppress,
+     METH_O,
+     PyDoc_STR("Decorator to allow the JIT to run on a function.")},
     {"multithreaded_compile_test",
      multithreaded_compile_test,
      METH_NOARGS,

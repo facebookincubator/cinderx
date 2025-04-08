@@ -23,9 +23,11 @@ try:
         disable,
         enable,
         force_compile,
+        force_uncompile,
         is_enabled,
         is_jit_compiled,
         jit_suppress,
+        jit_unsuppress,
         lazy_compile,
         precompile_all,
     )
@@ -53,6 +55,9 @@ except ImportError:
     def force_compile(func: FuncAny) -> bool:
         return False
 
+    def force_uncompile(func: FuncAny) -> bool:
+        return False
+
     def lazy_compile(func: FuncAny) -> bool:
         return False
 
@@ -63,6 +68,9 @@ except ImportError:
         return False
 
     def jit_suppress(func: FuncAny) -> FuncAny:
+        return func
+
+    def jit_unsuppress(func: FuncAny) -> FuncAny:
         return func
 
     def precompile_all(workers: int = 0) -> bool:

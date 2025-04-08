@@ -51,8 +51,10 @@ try:
     from cinderjit import (
         _deopt_gen,
         force_compile,
+        force_uncompile,
         is_jit_compiled,
         jit_suppress,
+        jit_unsuppress,
         lazy_compile,
     )
 except:
@@ -61,10 +63,16 @@ except:
     def jit_suppress(func):
         return func
 
+    def jit_unsuppress(func):
+        return func
+
     def _deopt_gen(gen):
         return False
 
     def force_compile(func):
+        return False
+
+    def force_uncompile(func):
         return False
 
     def lazy_compile(func):
@@ -2776,6 +2784,19 @@ class HIROpcodeCountTests(unittest.TestCase):
         self.assertEqual(ops.get("BinaryOp"), 1)
         self.assertGreaterEqual(ops.get("Decref"), 2)
 
+@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+class ForceUncompileTests(unittest.TestCase):
+    def test_basic(self) -> None:
+        def f(x: int) -> int:
+            return x + 1
+
+        self.assertFalse(is_jit_compiled(f))
+
+        self.assertTrue(force_compile(f))
+        self.assertTrue(is_jit_compiled(f))
+
+        self.assertTrue(force_uncompile(f))
+        self.assertFalse(is_jit_compiled(f))
 
 @unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
 class LazyCompileTests(unittest.TestCase):
@@ -2788,6 +2809,25 @@ class LazyCompileTests(unittest.TestCase):
         foo(1, 2)
         self.assertTrue(is_jit_compiled(foo))
 
+@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+class JITSuppressTests(unittest.TestCase):
+    def test_basic(self) -> None:
+        def f(x: int) -> int:
+            return x + 1
+
+        self.assertFalse(is_jit_compiled(f))
+
+        jit_suppress(f)
+        f(1)
+
+        with self.assertRaisesRegex(RuntimeError, "CANNOT_SPECIALIZE"):
+            force_compile(f)
+
+        self.assertFalse(is_jit_compiled(f))
+
+        jit_unsuppress(f)
+        force_compile(f)
+        self.assertTrue(is_jit_compiled(f))
 
 @unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
 class BadArgumentTests(unittest.TestCase):
@@ -2807,6 +2847,14 @@ class BadArgumentTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             force_compile(is_jit_compiled)
 
+    def test_force_uncompile(self) -> None:
+        with self.assertRaises(TypeError):
+            force_uncompile(None)
+        with self.assertRaises(TypeError):
+            force_uncompile(5)
+        with self.assertRaises(TypeError):
+            force_uncompile(is_jit_compiled)
+
     def test_lazy_compile(self) -> None:
         with self.assertRaises(TypeError):
             lazy_compile(None)
@@ -2823,6 +2871,13 @@ class BadArgumentTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             jit_suppress(is_jit_compiled)
 
+    def test_jit_unsuppress(self) -> None:
+        with self.assertRaises(TypeError):
+            jit_unsuppress(None)
+        with self.assertRaises(TypeError):
+            jit_unsuppress(5)
+        with self.assertRaises(TypeError):
+            jit_unsuppress(is_jit_compiled)
 
 @unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
 class CompileTimeTests(unittest.TestCase):
