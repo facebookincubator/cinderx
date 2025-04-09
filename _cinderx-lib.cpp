@@ -901,6 +901,10 @@ PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
     if (!PyErr_Occurred()) {
       PyErr_SetString(PyExc_RuntimeError, "Failed to initialize CinderX");
     }
+    // cinder_init can fail and leave things partially initialized. The main
+    // item we want to restore is the interpreter loop function, otherwise
+    // Ci_EvalFrame will still try to access CinderX data.
+    Ci_hook_EvalFrame = nullptr;
     return nullptr;
   }
   g_was_initialized = true;

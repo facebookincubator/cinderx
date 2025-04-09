@@ -2,8 +2,7 @@
   "bad": [
     "test.test_unpack",
     "test_cinderx.test_cinderjit",
-    "test_cinderx.test_immortalize",
-    "test_cinderx.test_jitlist"
+    "test_cinderx.test_immortalize"
   ],
   "good": [
     "test.test___all__",
@@ -535,6 +534,7 @@
     "test_cinderx.test_jit_generators",
     "test_cinderx.test_jit_global_cache",
     "test_cinderx.test_jit_type_annotations",
+    "test_cinderx.test_jitlist",
     "test_cinderx.test_perfmaps",
     "test_cinderx.test_type_cache"
   ],
@@ -578,6 +578,7 @@
     "test.test_zipfile64"
   ],
   "run_no_tests": [
+    "test.test_monitoring",
     "test_cinderx.test_compiler.test_sbs_external",
     "test_cinderx.test_cpython_overrides.test_coroutines"
   ]
