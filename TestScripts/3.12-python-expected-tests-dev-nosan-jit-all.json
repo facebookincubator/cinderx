@@ -1,8 +1,7 @@
 {
   "bad": [
     "test.test_unpack",
-    "test_cinderx.test_cinderjit",
-    "test_cinderx.test_immortalize"
+    "test_cinderx.test_cinderjit"
   ],
   "good": [
     "test.test___all__",
@@ -525,6 +524,7 @@
     "test_cinderx.test_cpython_overrides.test_repl",
     "test_cinderx.test_cpython_overrides.test_tracemalloc",
     "test_cinderx.test_cpython_overrides.test_types",
+    "test_cinderx.test_immortalize",
     "test_cinderx.test_jit_attr_cache",
     "test_cinderx.test_jit_coroutines",
     "test_cinderx.test_jit_count_calls",

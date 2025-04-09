@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/runtime_support.h"
 
-#include "cinderx/Common/py-portability.h"
+#include "cinderx/Immortalize/immortalize.h"
 
 namespace jit {
 

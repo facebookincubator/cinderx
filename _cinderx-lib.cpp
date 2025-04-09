@@ -221,8 +221,8 @@ PyDoc_STRVAR(
     "--\n"
     "\n"
     "Immortalize all instances accessible through the GC roots.");
-PyObject* cinder_immortalize_heap(PyObject* mod, PyObject* unused) {
-  return immortalize_heap(mod, unused);
+PyObject* cinder_immortalize_heap(PyObject* mod, PyObject* /* args */) {
+  return immortalize_heap(mod);
 }
 
 PyDoc_STRVAR(
@@ -232,7 +232,7 @@ PyDoc_STRVAR(
     "\n"
     "Return True if the object is immortal, else return False.");
 PyObject* cinder_is_immortal(PyObject* /* mod */, PyObject* obj) {
-  return is_immortal(obj);
+  return PyBool_FromLong(_Py_IsImmortal(obj));
 }
 
 PyDoc_STRVAR(
