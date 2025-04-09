@@ -75,26 +75,27 @@ class Scope:
         self.name: str = name
         self.module = module
         self.lineno: int = lineno
-        self.defs = {}
-        self.uses = {}
+        self.defs: dict[str, int] = {}
+        self.uses: dict[str, int] = {}
         # Defs and uses
         self.symbols: dict[str, int] = {}
-        self.globals = {}
-        self.explicit_globals = {}
-        self.nonlocals = {}
-        self.params = {}
-        self.frees = {}
-        self.cells = {}
+        self.globals: dict[str, int] = {}
+        self.explicit_globals: dict[str, int] = {}
+        self.nonlocals: dict[str, int] = {}
+        self.params: dict[str, int] = {}
+        self.frees: dict[str, int] = {}
+        self.cells: dict[str, int] = {}
         self.type_params: set[str] = set()
         self.children: list[Scope] = []
         # Names imported in this scope (the symbols, not the modules)
         self.imports: set[str] = set()
-        self.parent = None
+        self.parent: Scope | None = None
         self.coroutine: bool = False
-        self.comp_iter_target = self.comp_iter_expr = 0
+        self.comp_iter_target: int = 0
+        self.comp_iter_expr: int = 0
         # nested is true if the class could contain free variables,
         # i.e. if it is nested within another function.
-        self.nested = None
+        self.nested: bool = False
         # It's possible to define a scope (class, function) at the nested level,
         # but explicitly mark it as global. Bytecode-wise, this is handled
         # automagically, but we need to generate proper __qualname__ for these.
@@ -114,7 +115,7 @@ class Scope:
     def __repr__(self) -> str:
         return "<{}: {}>".format(self.__class__.__name__, self.name)
 
-    def mangle(self, name) -> str:
+    def mangle(self, name: str) -> str:
         if self.klass is None:
             return name
         return mangle(name, self.klass)
@@ -158,18 +159,11 @@ class Scope:
             raise SyntaxError("duplicated type parameter: {!r}".format(name))
         self.type_params.add(name)
 
-    def get_names(self):
-        d = {}
-        d.update(self.defs)
-        d.update(self.uses)
-        d.update(self.globals)
-        return d.keys()
-
     def add_child(self, child: Scope) -> None:
         self.children.append(child)
         child.parent = self
 
-    def get_children(self):
+    def get_children(self) -> list[Scope]:
         return self.children
 
     def DEBUG(self) -> None:
@@ -325,14 +319,6 @@ class Scope:
     def get_cell_vars(self) -> Iterable[str]:
         return sorted(self.cells.keys())
 
-    def findParentClass(self):
-        parent = self.parent
-        while not isinstance(parent, ClassScope):
-            if parent is None:
-                break
-            parent = parent.parent
-        return parent
-
 
 class ModuleScope(Scope):
     __super_init = Scope.__init__
@@ -353,7 +339,9 @@ class GenExprScope(FunctionScope):
 
     __counter = 1
 
-    def __init__(self, name, module, klass=None, lineno=0) -> None:
+    def __init__(
+        self, name: str, module: ModuleScope, klass: str | None = None, lineno: int = 0
+    ) -> None:
         self.__counter += 1
         super().__init__(name, module, klass, lineno)
         self.add_param(".0")
@@ -362,7 +350,9 @@ class GenExprScope(FunctionScope):
 class LambdaScope(FunctionScope):
     __counter = 1
 
-    def __init__(self, module, klass=None, lineno=0) -> None:
+    def __init__(
+        self, module: ModuleScope, klass: str | None = None, lineno: int = 0
+    ) -> None:
         self.__counter += 1
         super().__init__("<lambda>", module, klass, lineno=lineno)
 
@@ -370,7 +360,7 @@ class LambdaScope(FunctionScope):
 class ClassScope(Scope):
     __super_init = Scope.__init__
 
-    def __init__(self, name, module, lineno=0) -> None:
+    def __init__(self, name: str, module: ModuleScope, lineno: int = 0) -> None:
         self.__super_init(name, module, name, lineno=lineno)
         self.needs_class_closure = False
         self.needs_classdict = False
@@ -408,7 +398,7 @@ class BaseSymbolVisitor(ASTVisitor):
     _GenExprScope = GenExprScope
     _LambdaScope = LambdaScope
 
-    def __init__(self, future_flags: int):
+    def __init__(self, future_flags: int) -> None:
         super().__init__()
         self.future_annotations = future_flags & CO_FUTURE_ANNOTATIONS
         self.scopes: dict[ast.AST, Scope] = {}
@@ -420,10 +410,10 @@ class BaseSymbolVisitor(ASTVisitor):
         # pyre-ignore[11]: Pyre doesn't know TypeAlias
         node: ast.ClassDef | ast.FunctionDef | ast.TypeAlias | ast.AsyncFunctionDef,
         parent: Scope,
-    ):
+    ) -> TypeParamScope:
         scope = TypeParamScope(node.name, self.module, self.klass, lineno=node.lineno)
         if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
-            scope.nested = 1
+            scope.nested = True
         parent.add_child(scope)
         scope.parent = parent
         self.scopes[TypeParams(node)] = scope
@@ -498,7 +488,7 @@ class BaseSymbolVisitor(ASTVisitor):
         scope.coroutine = isinstance(node, ast.AsyncFunctionDef)
         scope.parent = parent
         if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
-            scope.nested = 1
+            scope.nested = True
         self.scopes[node] = scope
         self._do_args(scope, node.args)
         if returns := node.returns:
@@ -540,7 +530,7 @@ class BaseSymbolVisitor(ASTVisitor):
             or isinstance(parent, FUNCTION_LIKE_SCOPES)
             or isinstance(parent, GenExprScope)
         ):
-            scope.nested = 1
+            scope.nested = True
 
         parent.comp_iter_expr += 1
         self.visit(node.generators[0].iter, parent)
@@ -612,7 +602,7 @@ class BaseSymbolVisitor(ASTVisitor):
         # a nested comprehension or a lambda expression.
         scope.comp_iter_expr = parent.comp_iter_expr
         if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
-            scope.nested = 1
+            scope.nested = True
         self.scopes[node] = scope
         self._do_args(scope, node.args)
         self.visit(node.body, scope)
@@ -679,7 +669,7 @@ class BaseSymbolVisitor(ASTVisitor):
             scope.add_use(".type_params")
 
         if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
-            scope.nested = 1
+            scope.nested = True
         doc = ast.get_docstring(node, False)
         if doc is not None:
             scope.add_def("__doc__")
@@ -705,7 +695,7 @@ class BaseSymbolVisitor(ASTVisitor):
         scope = TypeAliasScope(node.name.id, self.module)
         scope.klass = self.klass
         if alias_parent.nested or isinstance(alias_parent, FUNCTION_LIKE_SCOPES):
-            scope.nested = 1
+            scope.nested = True
         scope.parent = alias_parent
         scope.can_see_class_scope = in_class
         if in_class:
@@ -1142,12 +1132,14 @@ SymbolVisitor = SymbolVisitor310
 
 
 class CinderFunctionScope(FunctionScope):
-    def __init__(self, name, module, klass=None, lineno=0) -> None:
+    def __init__(
+        self, name: str, module: ModuleScope, klass: str | None = None, lineno: int = 0
+    ) -> None:
         super().__init__(name=name, module=module, klass=klass, lineno=lineno)
         self._inlinable_comprehensions = []
         self._inline_comprehensions = os.getenv("PYTHONINLINECOMPREHENSIONS")
 
-    def add_comprehension(self, comp) -> None:
+    def add_comprehension(self, comp: ast.comprehension) -> None:
         if self._inline_comprehensions:
             self._inlinable_comprehensions.append(comp)
 
@@ -1189,7 +1181,7 @@ class CinderSymbolVisitor(SymbolVisitor):
             or isinstance(parent, FunctionScope)
             or isinstance(parent, GenExprScope)
         ):
-            scope.nested = 1
+            scope.nested = True
 
         parent.comp_iter_expr += 1
         self.visit(node.generators[0].iter, parent)
@@ -1222,7 +1214,7 @@ class CinderSymbolVisitor(SymbolVisitor):
         # a nested comprehension or a lambda expression.
         scope.comp_iter_expr = parent.comp_iter_expr
         if parent.nested or isinstance(parent, FunctionScope):
-            scope.nested = 1
+            scope.nested = True
         self.scopes[node] = scope
         self._do_args(scope, node.args)
         self.visit(node.body, scope)
@@ -1247,7 +1239,7 @@ class CinderSymbolVisitor(SymbolVisitor):
         scope.coroutine = isinstance(node, ast.AsyncFunctionDef)
         scope.parent = parent
         if parent.nested or isinstance(parent, FunctionScope):
-            scope.nested = 1
+            scope.nested = True
         self.scopes[node] = scope
         self._do_args(scope, node.args)
         if returns := node.returns:

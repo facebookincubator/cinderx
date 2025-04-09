@@ -286,10 +286,12 @@ class SymbolVisitorTests(CompilerTest):
         visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
-                self.assertEqual(len(scope.parent.children), 2)
+                parent = scope.parent
+                self.assertIsNotNone(parent)
+                self.assertEqual(len(parent.children), 2)
                 self.assertEqual(len(scope.children), 1)
                 self.assertIn("__classdict__", scope.uses)
-                self.assertIn("__classdict__", scope.parent.defs)
+                self.assertIn("__classdict__", parent.defs)
                 self.assertIn("Nested", scope.uses)
 
                 func = scope.children[0]
@@ -324,10 +326,12 @@ class SymbolVisitorTests(CompilerTest):
         visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
-                self.assertEqual(len(scope.parent.children), 1)
+                parent = scope.parent
+                self.assertIsNotNone(parent)
+                self.assertEqual(len(parent.children), 1)
                 self.assertEqual(len(scope.children), 0)
                 self.assertIn("__classdict__", scope.uses)
-                self.assertIn("__classdict__", scope.parent.defs)
+                self.assertIn("__classdict__", parent.defs)
                 break
         else:
             self.fail("scope not found")
@@ -343,10 +347,14 @@ class SymbolVisitorTests(CompilerTest):
         visitor.visit(module)
         for node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
-                self.assertEqual(len(scope.parent.children), 1)
+                parent = scope.parent
+                self.assertIsNotNone(parent)
+                parent_parent = parent.parent
+                self.assertIsNotNone(parent_parent)
+                self.assertEqual(len(parent.children), 1)
                 self.assertEqual(len(scope.children), 0)
                 self.assertIn("__classdict__", scope.uses)
-                self.assertIn("__classdict__", scope.parent.parent.defs)
+                self.assertIn("__classdict__", parent_parent.defs)
                 break
         else:
             self.fail("scope not found")
