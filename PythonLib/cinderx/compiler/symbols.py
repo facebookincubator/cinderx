@@ -71,10 +71,10 @@ class Scope:
     is_function_scope = False
 
     # XXX how much information do I need about each name?
-    def __init__(self, name, module, klass=None, lineno=0):
-        self.name = name
+    def __init__(self, name: str, module, klass: str | None = None, lineno: int = 0):
+        self.name: str = name
         self.module = module
-        self.lineno = lineno
+        self.lineno: int = lineno
         self.defs = {}
         self.uses = {}
         # Defs and uses
@@ -86,11 +86,11 @@ class Scope:
         self.frees = {}
         self.cells = {}
         self.type_params: set[str] = set()
-        self.children = []
+        self.children: list[Scope] = []
         # Names imported in this scope (the symbols, not the modules)
         self.imports: set[str] = set()
         self.parent = None
-        self.coroutine = False
+        self.coroutine: bool = False
         self.comp_iter_target = self.comp_iter_expr = 0
         # nested is true if the class could contain free variables,
         # i.e. if it is nested within another function.
@@ -98,23 +98,23 @@ class Scope:
         # It's possible to define a scope (class, function) at the nested level,
         # but explicitly mark it as global. Bytecode-wise, this is handled
         # automagically, but we need to generate proper __qualname__ for these.
-        self.global_scope = False
-        self.generator = False
-        self.klass = None
-        self.suppress_jit = False
-        self.can_see_class_scope = False
-        self.child_free = False
-        self.free = False
+        self.global_scope: bool = False
+        self.generator: bool = False
+        self.klass: str | None = None
+        self.suppress_jit: bool = False
+        self.can_see_class_scope: bool = False
+        self.child_free: bool = False
+        self.free: bool = False
         if klass is not None:
             for i in range(len(klass)):
                 if klass[i] != "_":
                     self.klass = klass[i:]
                     break
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return "<{}: {}>".format(self.__class__.__name__, self.name)
 
-    def mangle(self, name):
+    def mangle(self, name) -> str:
         if self.klass is None:
             return name
         return mangle(name, self.klass)
@@ -132,7 +132,7 @@ class Scope:
         self.uses[self.mangle(name)] = 1
         self.symbols[self.mangle(name)] = USE
 
-    def add_global(self, name):
+    def add_global(self, name: str) -> None:
         name = self.mangle(name)
         if name in self.uses or name in self.defs:
             pass  # XXX warn about global following def/use
@@ -152,7 +152,7 @@ class Scope:
         self.params[name] = 1
         self.symbols[name] = DEF_PARAM
 
-    def add_type_param(self, name: str):
+    def add_type_param(self, name: str) -> None:
         name = self.mangle(name)
         if name in self.type_params:
             raise SyntaxError("duplicated type parameter: {!r}".format(name))
@@ -165,14 +165,14 @@ class Scope:
         d.update(self.globals)
         return d.keys()
 
-    def add_child(self, child):
+    def add_child(self, child: Scope) -> None:
         self.children.append(child)
         child.parent = self
 
     def get_children(self):
         return self.children
 
-    def DEBUG(self):
+    def DEBUG(self) -> None:
         print(
             self.name,
             type(self),
@@ -337,7 +337,7 @@ class Scope:
 class ModuleScope(Scope):
     __super_init = Scope.__init__
 
-    def __init__(self):
+    def __init__(self) -> None:
         # Set lineno to 0 so it sorted guaranteedly before any other scope
         self.__super_init("global", self, lineno=0)
 
@@ -353,7 +353,7 @@ class GenExprScope(FunctionScope):
 
     __counter = 1
 
-    def __init__(self, name, module, klass=None, lineno=0):
+    def __init__(self, name, module, klass=None, lineno=0) -> None:
         self.__counter += 1
         super().__init__(name, module, klass, lineno)
         self.add_param(".0")
@@ -362,7 +362,7 @@ class GenExprScope(FunctionScope):
 class LambdaScope(FunctionScope):
     __counter = 1
 
-    def __init__(self, module, klass=None, lineno=0):
+    def __init__(self, module, klass=None, lineno=0) -> None:
         self.__counter += 1
         super().__init__("<lambda>", module, klass, lineno=lineno)
 
@@ -370,7 +370,7 @@ class LambdaScope(FunctionScope):
 class ClassScope(Scope):
     __super_init = Scope.__init__
 
-    def __init__(self, name, module, lineno=0):
+    def __init__(self, name, module, lineno=0) -> None:
         self.__super_init(name, module, name, lineno=lineno)
         self.needs_class_closure = False
         self.needs_classdict = False
@@ -446,7 +446,7 @@ class BaseSymbolVisitor(ASTVisitor):
         return scope
 
     # pyre-ignore[11]: Pyre doesn't know TypeVar
-    def visitTypeVar(self, node: ast.TypeVar, parent: Scope):
+    def visitTypeVar(self, node: ast.TypeVar, parent: Scope) -> None:
         parent.add_def(node.name)
         parent.add_type_param(node.name)
 
@@ -473,7 +473,15 @@ class BaseSymbolVisitor(ASTVisitor):
         parent.add_def(node.name)
         parent.add_type_param(node.name)
 
-    def visitFunctionDef(self, node, parent):
+    def visitFunctionDef(self, node: ast.FunctionDef, parent: Scope) -> None:
+        self._visit_func_impl(node, parent)
+
+    def visitAsyncFunctionDef(self, node: ast.AsyncFunctionDef, parent: Scope) -> None:
+        self._visit_func_impl(node, parent)
+
+    def _visit_func_impl(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, parent: Scope
+    ) -> None:
         if node.decorator_list:
             self.visit_list(node.decorator_list, parent)
         parent.add_def(node.name)
@@ -493,14 +501,12 @@ class BaseSymbolVisitor(ASTVisitor):
             scope.nested = 1
         self.scopes[node] = scope
         self._do_args(scope, node.args)
-        if node.returns:
+        if returns := node.returns:
             if not self.future_annotations:
-                self.visit(node.returns, parent)
+                self.visit(returns, parent)
         self.visit_list(node.body, scope)
 
         parent.add_child(scope)
-
-    visitAsyncFunctionDef = visitFunctionDef
 
     _scope_names = {
         ast.GeneratorExp: "<genexpr>",
@@ -509,11 +515,11 @@ class BaseSymbolVisitor(ASTVisitor):
         ast.SetComp: "<setcomp>",
     }
 
-    def visitAwait(self, node, scope):
+    def visitAwait(self, node: ast.Await, scope: Scope) -> None:
         scope.coroutine = True
         self.visit(node.value, scope)
 
-    def visitGeneratorExp(self, node, parent):
+    def visitGeneratorExp(self, node, parent: Scope) -> None:
         scope = self._GenExprScope(
             self._scope_names[type(node)],
             self.module,
@@ -565,7 +571,9 @@ class BaseSymbolVisitor(ASTVisitor):
     visitListComp = visitGeneratorExp
     visitDictComp = visitGeneratorExp
 
-    def visitcomprehension(self, node, scope, is_outmost):
+    def visitcomprehension(
+        self, node: ast.comprehension, scope: Scope, is_outmost: bool
+    ) -> None:
         if node.is_async:
             scope.coroutine = True
 
@@ -581,22 +589,22 @@ class BaseSymbolVisitor(ASTVisitor):
         for if_ in node.ifs:
             self.visit(if_, scope)
 
-    def visitGenExprInner(self, node, scope):
+    def visitGenExprInner(self, node, scope: Scope) -> None:
         for genfor in node.quals:
             self.visit(genfor, scope)
 
         self.visit(node.expr, scope)
 
-    def visitGenExprFor(self, node, scope):
+    def visitGenExprFor(self, node, scope: Scope) -> None:
         self.visit(node.assign, scope)
         self.visit(node.iter, scope)
         for if_ in node.ifs:
             self.visit(if_, scope)
 
-    def visitGenExprIf(self, node, scope):
+    def visitGenExprIf(self, node, scope: Scope) -> None:
         self.visit(node.test, scope)
 
-    def visitLambda(self, node, parent):
+    def visitLambda(self, node: ast.Lambda, parent: Scope) -> None:
         scope = self._LambdaScope(self.module, self.klass, lineno=node.lineno)
         scope.parent = parent
         # bpo-37757: For now, disallow *all* assignment expressions in the
@@ -610,7 +618,7 @@ class BaseSymbolVisitor(ASTVisitor):
         self.visit(node.body, scope)
         parent.add_child(scope)
 
-    def _do_args(self, scope, args):
+    def _do_args(self, scope: Scope, args: ast.arguments) -> None:
         for n in args.defaults:
             self.visit(n, scope.parent)
         for n in args.kw_defaults:
@@ -632,16 +640,16 @@ class BaseSymbolVisitor(ASTVisitor):
             scope.add_param(name)
             if arg.annotation and not self.future_annotations:
                 self.visit(arg.annotation, scope.parent)
-        if args.vararg:
-            scope.add_param(args.vararg.arg)
-            if args.vararg.annotation and not self.future_annotations:
-                self.visit(args.vararg.annotation, scope.parent)
-        if args.kwarg:
-            scope.add_param(args.kwarg.arg)
-            if args.kwarg.annotation and not self.future_annotations:
-                self.visit(args.kwarg.annotation, scope.parent)
+        if vararg := args.vararg:
+            scope.add_param(vararg.arg)
+            if (annotation := vararg.annotation) and not self.future_annotations:
+                self.visit(annotation, scope.parent)
+        if kwarg := args.kwarg:
+            scope.add_param(kwarg.arg)
+            if (annotation := kwarg.annotation) and not self.future_annotations:
+                self.visit(annotation, scope.parent)
 
-    def visitClassDef(self, node: ast.ClassDef, parent):
+    def visitClassDef(self, node: ast.ClassDef, parent: Scope) -> None:
         if node.decorator_list:
             self.visit_list(node.decorator_list, parent)
 
@@ -684,7 +692,7 @@ class BaseSymbolVisitor(ASTVisitor):
         self.klass = prev
         parent.add_child(scope)
 
-    def visitTypeAlias(self, node: ast.TypeAlias, parent):
+    def visitTypeAlias(self, node: ast.TypeAlias, parent: Scope) -> None:
         self.visit(node.name, parent)
 
         in_class = isinstance(parent, ClassScope)
@@ -709,7 +717,7 @@ class BaseSymbolVisitor(ASTVisitor):
         alias_parent.add_child(scope)
 
     # name can be a def or a use
-    def visitName(self, node, scope):
+    def visitName(self, node: ast.Name, scope: Scope) -> None:
         if isinstance(node.ctx, ast.Store):
             if scope.comp_iter_target:
                 # This name is an iteration variable in a comprehension,
@@ -742,23 +750,23 @@ class BaseSymbolVisitor(ASTVisitor):
 
     # operations that bind new names
 
-    def visitMatchAs(self, node, scope):
+    def visitMatchAs(self, node: ast.MatchAs, scope: Scope) -> None:
         if node.pattern:
             self.visit(node.pattern, scope)
         if node.name:
             scope.add_def(node.name)
 
-    def visitMatchStar(self, node, scope):
+    def visitMatchStar(self, node: ast.MatchStar, scope: Scope) -> None:
         if node.name:
             scope.add_def(node.name)
 
-    def visitMatchMapping(self, node, scope):
+    def visitMatchMapping(self, node: ast.MatchMapping, scope: Scope) -> None:
         self.visit_list(node.keys, scope)
         self.visit_list(node.patterns, scope)
         if node.rest:
             scope.add_def(node.rest)
 
-    def visitNamedExpr(self, node, scope):
+    def visitNamedExpr(self, node: ast.NamedExpr, scope: Scope) -> None:
         if scope.comp_iter_expr:
             # Assignment isn't allowed in a comprehension iterable expression
             raise SyntaxError(
@@ -800,7 +808,7 @@ class BaseSymbolVisitor(ASTVisitor):
         self.visit(node.value, scope)
         self.visit(node.target, scope)
 
-    def visitFor(self, node, scope):
+    def visitFor(self, node: ast.For | ast.AsyncFor, scope: Scope) -> None:
         self.visit(node.target, scope)
         self.visit(node.iter, scope)
         self.visit_list(node.body, scope)
@@ -809,7 +817,7 @@ class BaseSymbolVisitor(ASTVisitor):
 
     visitAsyncFor = visitFor
 
-    def visitImportFrom(self, node, scope):
+    def visitImportFrom(self, node: ast.ImportFrom, scope: Scope) -> None:
         for alias in node.names:
             if alias.name == "*":
                 continue
@@ -817,7 +825,7 @@ class BaseSymbolVisitor(ASTVisitor):
             scope.add_def(impname)
             scope.add_import(impname)
 
-    def visitImport(self, node, scope):
+    def visitImport(self, node: ast.Import, scope: Scope) -> None:
         for alias in node.names:
             name = alias.name
             i = name.find(".")
@@ -827,17 +835,17 @@ class BaseSymbolVisitor(ASTVisitor):
             scope.add_def(impname)
             scope.add_import(impname)
 
-    def visitGlobal(self, node, scope):
+    def visitGlobal(self, node: ast.Global, scope: Scope) -> None:
         for name in node.names:
             scope.add_global(name)
 
-    def visitNonlocal(self, node, scope):
+    def visitNonlocal(self, node: ast.Nonlocal, scope: Scope) -> None:
         # TODO: Check that var exists in outer scope
         for name in node.names:
             scope.frees[name] = 1
             scope.nonlocals[name] = 1
 
-    def visitAssign(self, node, scope):
+    def visitAssign(self, node: ast.Assign, scope: Scope) -> None:
         """Propagate assignment flag down to child nodes.
 
         The Assign node doesn't itself contains the variables being
@@ -854,7 +862,7 @@ class BaseSymbolVisitor(ASTVisitor):
             self.visit(n, scope)
         self.visit(node.value, scope)
 
-    def visitAnnAssign(self, node, scope):
+    def visitAnnAssign(self, node: ast.AnnAssign, scope: Scope) -> None:
         target = node.target
         if isinstance(target, ast.Name):
             if not isinstance(scope, ModuleScope) and (
@@ -873,20 +881,20 @@ class BaseSymbolVisitor(ASTVisitor):
         if node.value:
             self.visit(node.value, scope)
 
-    def visitAssName(self, node, scope):
+    def visitAssName(self, node, scope: Scope) -> None:
         scope.add_def(node.name)
 
-    def visitAssAttr(self, node, scope):
+    def visitAssAttr(self, node, scope: Scope) -> None:
         self.visit(node.expr, scope)
 
-    def visitSubscript(self, node, scope):
+    def visitSubscript(self, node: ast.Subscript, scope: Scope) -> None:
         self.visit(node.value, scope)
         self.visit(node.slice, scope)
 
-    def visitAttribute(self, node, scope):
+    def visitAttribute(self, node: ast.Attribute, scope: Scope) -> None:
         self.visit(node.value, scope)
 
-    def visitSlice(self, node, scope):
+    def visitSlice(self, node: ast.Slice, scope: Scope) -> None:
         if node.lower:
             self.visit(node.lower, scope)
         if node.upper:
@@ -894,7 +902,7 @@ class BaseSymbolVisitor(ASTVisitor):
         if node.step:
             self.visit(node.step, scope)
 
-    def visitAugAssign(self, node, scope):
+    def visitAugAssign(self, node: ast.AugAssign, scope: Scope) -> None:
         # If the LHS is a name, then this counts as assignment.
         # Otherwise, it's just use.
         self.visit(node.target, scope)
@@ -906,7 +914,7 @@ class BaseSymbolVisitor(ASTVisitor):
 
     _const_types = str, bytes, int, long, float
 
-    def visitIf(self, node, scope):
+    def visitIf(self, node: ast.If, scope: Scope) -> None:
         self.visit(node.test, scope)
         self.visit_list(node.body, scope)
         if node.orelse:
@@ -914,17 +922,17 @@ class BaseSymbolVisitor(ASTVisitor):
 
     # a yield statement signals a generator
 
-    def visitYield(self, node, scope):
+    def visitYield(self, node: ast.Yield, scope: Scope) -> None:
         scope.generator = True
         if node.value:
             self.visit(node.value, scope)
 
-    def visitYieldFrom(self, node, scope):
+    def visitYieldFrom(self, node: ast.YieldFrom, scope: Scope) -> None:
         scope.generator = True
         if node.value:
             self.visit(node.value, scope)
 
-    def visitTry(self, node, scope):
+    def visitTry(self, node: ast.Try, scope: Scope) -> None:
         self.visit_list(node.body, scope)
         # Handle exception capturing vars
         for handler in node.handlers:
@@ -938,7 +946,7 @@ class BaseSymbolVisitor(ASTVisitor):
 
 
 class SymbolVisitor310(BaseSymbolVisitor):
-    def visitModule(self, node: ast.Expression | ast.Interactive | ast.Module):
+    def visitModule(self, node: ast.Expression | ast.Interactive | ast.Module) -> None:
         scope = self.module = self.scopes[node] = self.module
         body = node.body
         if isinstance(body, list):
@@ -958,7 +966,7 @@ class SymbolVisitor310(BaseSymbolVisitor):
         global_vars: set[str],
         bound: set[str] | None = None,
         implicit_globals: set[str] | None = None,
-    ):
+    ) -> None:
         local: set[str] = set()
         implicit_globals_in_block: set[str] = set()
         inlinable_comprehensions = []
@@ -1083,7 +1091,7 @@ class SymbolVisitor310(BaseSymbolVisitor):
         global_vars: set[str],
         child_free: set[str],
         implicit_globals: set[str],
-    ):
+    ) -> None:
         temp_bound = set(bound)
         temp_free = set(free)
         temp_global = set(free)
@@ -1134,12 +1142,12 @@ SymbolVisitor = SymbolVisitor310
 
 
 class CinderFunctionScope(FunctionScope):
-    def __init__(self, name, module, klass=None, lineno=0):
+    def __init__(self, name, module, klass=None, lineno=0) -> None:
         super().__init__(name=name, module=module, klass=klass, lineno=lineno)
         self._inlinable_comprehensions = []
         self._inline_comprehensions = os.getenv("PYTHONINLINECOMPREHENSIONS")
 
-    def add_comprehension(self, comp):
+    def add_comprehension(self, comp) -> None:
         if self._inline_comprehensions:
             self._inlinable_comprehensions.append(comp)
 
@@ -1206,7 +1214,7 @@ class CinderSymbolVisitor(SymbolVisitor):
     visitListComp = visitGeneratorExp
     visitDictComp = visitGeneratorExp
 
-    def visitLambda(self, node, parent):
+    def visitLambda(self, node: ast.Lambda, parent: Scope) -> None:
         scope = self._LambdaScope(self.module, self.klass, lineno=node.lineno)
         scope.parent = parent
         # bpo-37757: For now, disallow *all* assignment expressions in the
@@ -1221,7 +1229,15 @@ class CinderSymbolVisitor(SymbolVisitor):
 
         parent.add_child(scope)
 
-    def visitFunctionDef(self, node, parent):
+    def visitFunctionDef(self, node: ast.FunctionDef, parent: Scope) -> None:
+        self._visit_func_impl(node, parent)
+
+    def visitAsyncFunctionDef(self, node: ast.AsyncFunctionDef, parent: Scope) -> None:
+        self._visit_func_impl(node, parent)
+
+    def _visit_func_impl(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, parent: Scope
+    ) -> None:
         if node.decorator_list:
             self.visit_list(node.decorator_list, parent)
         parent.add_def(node.name)
@@ -1234,18 +1250,16 @@ class CinderSymbolVisitor(SymbolVisitor):
             scope.nested = 1
         self.scopes[node] = scope
         self._do_args(scope, node.args)
-        if node.returns:
+        if returns := node.returns:
             if not self.future_annotations:
-                self.visit(node.returns, parent)
+                self.visit(returns, parent)
         self.visit_list(node.body, scope)
 
         parent.add_child(scope)
 
-    visitAsyncFunctionDef = visitFunctionDef
-
 
 class SymbolVisitor312(BaseSymbolVisitor):
-    def visitModule(self, node: ast.Expression | ast.Interactive | ast.Module):
+    def visitModule(self, node: ast.Expression | ast.Interactive | ast.Module) -> None:
         scope = self.module = self.scopes[node] = self.module
         body = node.body
         if isinstance(body, list):
@@ -1254,7 +1268,8 @@ class SymbolVisitor312(BaseSymbolVisitor):
             self.visit(body, scope)
         self.analyze_block(scope, free=set(), global_vars=set())
 
-    def visitTryStar(self, node, scope):
+    # pyre-ignore[11]: TryStar added in 3.11, pyre still running in 3.10 mode.
+    def visitTryStar(self, node: ast.TryStar, scope: Scope) -> None:
         return self.visitTry(node, scope)
 
     # node that define new scopes
@@ -1268,7 +1283,7 @@ class SymbolVisitor312(BaseSymbolVisitor):
         global_vars: set[str],
         bound: set[str] | None = None,
         class_entry: Scope | None = None,
-    ):
+    ) -> None:
         local: set[str] = set()
         # Allocate new global and bound variable dictionaries.  These
         # dictionaries hold the names visible in nested blocks.  For
@@ -1326,6 +1341,7 @@ class SymbolVisitor312(BaseSymbolVisitor):
             )
 
             if inline_comp:
+                assert isinstance(child, GenExprScope)
                 self.inline_comprehension(scope, child, child_free, inlined_cells)
 
             new_free |= child_free
@@ -1363,7 +1379,7 @@ class SymbolVisitor312(BaseSymbolVisitor):
         global_vars: set[str],
         child_free: set[str],
         class_entry: Scope | None = None,
-    ):
+    ) -> None:
         temp_bound = set(bound)
         temp_free = set(free)
         temp_global = set(free)
@@ -1443,7 +1459,3 @@ class SymbolVisitor312(BaseSymbolVisitor):
 
         if remove_dunder_class:
             del comp.frees["__class__"]
-
-
-def list_eq(l1, l2):
-    return sorted(l1) == sorted(l2)
