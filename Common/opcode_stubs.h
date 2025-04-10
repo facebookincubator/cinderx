@@ -18,6 +18,9 @@
 #define STUB_OPCODE_DEFS(X)            \
   X(BEFORE_WITH)                       \
   X(BINARY_OP)                         \
+  X(BINARY_OP_ADD_INT)                 \
+  X(BINARY_OP_MULTIPLY_INT)            \
+  X(BINARY_OP_SUBTRACT_INT)            \
   X(BINARY_SLICE)                      \
   X(CACHE)                             \
   X(CALL)                              \
@@ -26,6 +29,8 @@
   X(CHECK_EG_MATCH)                    \
   X(CHECK_EXC_MATCH)                   \
   X(CLEANUP_THROW)                     \
+  X(COMPARE_OP_INT)                    \
+  X(COMPARE_OP_STR)                    \
   X(COPY)                              \
   X(COPY_FREE_VARS)                    \
   X(EAGER_IMPORT_NAME)                 \

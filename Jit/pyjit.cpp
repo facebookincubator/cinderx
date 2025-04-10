@@ -878,6 +878,18 @@ FlagProcessor initFlagProcessor() {
       "Generate runtime checks that validate type annotations to specialize "
       "generated code.");
 
+  flag_processor.addOption(
+      "jit-specialized-opcodes",
+      "PYTHONJITSPECIALIZEDOPCODES",
+      [](int val) {
+        if (use_jit) {
+          getMutableConfig().specialized_opcodes = !!val;
+        } else {
+          warnJITOff("jit-specialized-opcodes");
+        }
+      },
+      "JIT specialized opcodes or to fall back to their generic counterparts.");
+
   flag_processor.setFlags(PySys_GetXOptions());
 
   if (getConfig().auto_jit_threshold > 0 &&
@@ -2105,6 +2117,16 @@ PyObject* disable_emit_type_annotation_guards(PyObject* /* self */, PyObject*) {
   Py_RETURN_NONE;
 }
 
+PyObject* enable_specialized_opcodes(PyObject* /* self */, PyObject*) {
+  getMutableConfig().specialized_opcodes = true;
+  Py_RETURN_NONE;
+}
+
+PyObject* disable_specialized_opcodes(PyObject* /* self */, PyObject*) {
+  getMutableConfig().specialized_opcodes = false;
+  Py_RETURN_NONE;
+}
+
 // If the given generator-like object is a suspended JIT generator, deopt it
 // and return 1. Otherwise, return 0.
 int deopt_gen_impl(PyGenObject* gen) {
@@ -2355,6 +2377,14 @@ PyMethodDef jit_methods[] = {
      METH_NOARGS,
      PyDoc_STR(
          "Disable the emit_type_annotation_guards configuration option.")},
+    {"enable_specialized_opcodes",
+     enable_specialized_opcodes,
+     METH_NOARGS,
+     PyDoc_STR("Enable compiling specialized opcodes.")},
+    {"disable_specialized_opcodes",
+     disable_specialized_opcodes,
+     METH_NOARGS,
+     PyDoc_STR("Disable compiling specialized opcodes.")},
     {"get_inlined_functions_stats",
      get_inlined_functions_stats,
      METH_O,

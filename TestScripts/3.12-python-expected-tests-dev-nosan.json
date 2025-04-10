@@ -551,6 +551,7 @@
     "test_cinderx.test_jit_frame",
     "test_cinderx.test_jit_generators",
     "test_cinderx.test_jit_global_cache",
+    "test_cinderx.test_jit_specialization",
     "test_cinderx.test_jit_type_annotations",
     "test_cinderx.test_jitlist",
     "test_cinderx.test_perfmaps",

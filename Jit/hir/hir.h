@@ -2037,21 +2037,24 @@ DEFINE_SIMPLE_INSTR(
 // NB: This needs to be in the order that the values appear in the
 // BinaryOpKind enum
 const std::array<binaryfunc, kNumBinaryOpKinds> kLongBinaryOpSlotMethods = {
-    PyLong_Type.tp_as_number->nb_add,
-    PyLong_Type.tp_as_number->nb_and,
-
-    PyLong_Type.tp_as_number->nb_floor_divide,
-    PyLong_Type.tp_as_number->nb_lshift,
-    nullptr, // unsupported: matrix multiply
-    PyLong_Type.tp_as_number->nb_remainder,
-    PyLong_Type.tp_as_number->nb_multiply,
-    PyLong_Type.tp_as_number->nb_or,
-    nullptr, // power is ternary and handled specially
-    PyLong_Type.tp_as_number->nb_rshift,
-    nullptr, // unsupported: getitem
-    PyLong_Type.tp_as_number->nb_subtract,
-    PyLong_Type.tp_as_number->nb_true_divide,
-    PyLong_Type.tp_as_number->nb_xor,
+    /* kAdd                 */ PyLong_Type.tp_as_number->nb_add,
+    /* kAnd                 */ PyLong_Type.tp_as_number->nb_and,
+    /* kFloorDivide         */ PyLong_Type.tp_as_number->nb_floor_divide,
+    /* kLShift              */ PyLong_Type.tp_as_number->nb_lshift,
+    /* kMatrixMultiply      */ nullptr, // unsupported: matrix multiply
+    /* kModulo              */ PyLong_Type.tp_as_number->nb_remainder,
+    /* kMultiply            */ PyLong_Type.tp_as_number->nb_multiply,
+    /* kOr                  */ PyLong_Type.tp_as_number->nb_or,
+    /* kPower               */ nullptr, // power is ternary, handled specially
+    /* kRShift              */ PyLong_Type.tp_as_number->nb_rshift,
+    /* kSubscript           */ nullptr, // unsupported: getitem
+    /* kSubtract            */ PyLong_Type.tp_as_number->nb_subtract,
+    /* kTrueDivide          */ PyLong_Type.tp_as_number->nb_true_divide,
+    /* kXor                 */ PyLong_Type.tp_as_number->nb_xor,
+    /* kFloorDivideUnsigned */ nullptr,
+    /* kModuloUnsigned      */ nullptr,
+    /* kRShiftUnsigned      */ nullptr,
+    /* kPowerUnsigned       */ nullptr,
 };
 
 // Perform the operation indicated by op

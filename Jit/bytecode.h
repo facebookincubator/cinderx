@@ -39,6 +39,7 @@ class BytecodeInstruction {
   // BytecodeInstructionBlock into a single BytecodeInstruction.  The multi-byte
   // oparg will be return in one go from oparg().
   int opcode() const;
+  int specializedOpcode() const;
   int oparg() const;
 
   // Check if this instruction is a branch, a return, or a general basic block
@@ -57,6 +58,9 @@ class BytecodeInstruction {
   BCOffset nextInstrOffset() const;
 
  private:
+  // Return the opcode of the bytecode instruction without instrumentation.
+  int uninstrumentedOpcode() const;
+
   // Get the instruction's full code unit (opcode + oparg).
   _Py_CODEUNIT word() const;
 

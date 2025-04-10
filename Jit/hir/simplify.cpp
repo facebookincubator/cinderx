@@ -317,6 +317,7 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
   Register* left = instr->GetOperand(0);
   Register* right = instr->GetOperand(1);
   CompareOp op = instr->op();
+
   if (left->isA(TNoneType) && right->isA(TNoneType)) {
     if (op == CompareOp::kEqual || op == CompareOp::kNotEqual) {
       env.emit<UseType>(left, TNoneType);
@@ -325,6 +326,7 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
           Type::fromObject(op == CompareOp::kEqual ? Py_True : Py_False));
     }
   }
+
   // Can compare booleans for equality with primitive operations.
   if (left->isA(TBool) && right->isA(TBool) &&
       (op == CompareOp::kEqual || op == CompareOp::kNotEqual)) {
@@ -335,18 +337,23 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
       return env.emit<PrimitiveBoxBool>(result);
     }
   }
-  // Emit LongCompare if both args are LongExact and the op is supported
-  // between two longs.
+
+  // Emit LongCompare if both args are LongExact and the op is supported between
+  // two longs.
   if (left->isA(TLongExact) && right->isA(TLongExact) &&
       !(op == CompareOp::kIn || op == CompareOp::kNotIn ||
         op == CompareOp::kExcMatch)) {
     return env.emit<LongCompare>(instr->op(), left, right);
   }
+
+  // Emit UnicodeCompare if both args are UnicodeExact and the op is supported
+  // between two strings.
   if (left->isA(TUnicodeExact) && right->isA(TUnicodeExact) &&
       !(op == CompareOp::kIn || op == CompareOp::kNotIn ||
         op == CompareOp::kExcMatch)) {
     return env.emit<UnicodeCompare>(instr->op(), left, right);
   }
+
   return nullptr;
 }
 
@@ -552,10 +559,11 @@ Register* simplifyLoadMethod(Env& env, const LoadMethod* load_meth) {
 }
 
 Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
+  BinaryOpKind op = instr->op();
   Register* lhs = instr->left();
   Register* rhs = instr->right();
 
-  if (instr->op() == BinaryOpKind::kSubscript) {
+  if (op == BinaryOpKind::kSubscript) {
     if (lhs->isA(TDictExact)) {
       return env.emit<DictSubscr>(lhs, rhs, *instr->frameState());
     }
@@ -655,14 +663,13 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
   if (lhs->isA(TLongExact) && rhs->isA(TLongExact)) {
     // All binary ops on TLong's return mutable so can be freely simplified with
     // no explicit check.
-    if (instr->op() == BinaryOpKind::kMatrixMultiply ||
-        instr->op() == BinaryOpKind::kSubscript) {
+    if (op == BinaryOpKind::kMatrixMultiply || op == BinaryOpKind::kSubscript) {
       // These will generate an error at runtime.
       return nullptr;
     }
     env.emit<UseType>(lhs, TLongExact);
     env.emit<UseType>(rhs, TLongExact);
-    return env.emit<LongBinaryOp>(instr->op(), lhs, rhs, *instr->frameState());
+    return env.emit<LongBinaryOp>(op, lhs, rhs, *instr->frameState());
   }
 
   if (lhs->isA(TFloatExact) && rhs->isA(TFloatExact) &&
@@ -674,14 +681,14 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
   }
 
   if ((lhs->isA(TUnicodeExact) && rhs->isA(TLongExact)) &&
-      (instr->op() == BinaryOpKind::kMultiply)) {
+      (op == BinaryOpKind::kMultiply)) {
     Register* unboxed_rhs = env.emit<IndexUnbox>(rhs, PyExc_OverflowError);
     env.emit<IsNegativeAndErrOccurred>(unboxed_rhs, *instr->frameState());
     return env.emit<UnicodeRepeat>(lhs, unboxed_rhs, *instr->frameState());
   }
 
   if ((lhs->isA(TUnicodeExact) && rhs->isA(TUnicodeExact)) &&
-      (instr->op() == BinaryOpKind::kAdd)) {
+      (op == BinaryOpKind::kAdd)) {
     return env.emit<UnicodeConcat>(lhs, rhs, *instr->frameState());
   }
 

@@ -27,6 +27,29 @@ int BytecodeInstruction::opcode() const {
   return _Py_OPCODE(word());
 }
 
+int BytecodeInstruction::uninstrumentedOpcode() const {
+  return uninstrument(code_, index().value());
+}
+
+int BytecodeInstruction::specializedOpcode() const {
+#if PY_VERSION_HEX >= 0x030C0000
+  int opcode = uninstrumentedOpcode();
+
+  switch (opcode) {
+    case BINARY_OP_ADD_INT:
+    case BINARY_OP_SUBTRACT_INT:
+    case BINARY_OP_MULTIPLY_INT:
+    case COMPARE_OP_INT:
+    case COMPARE_OP_STR:
+      return opcode;
+    default:
+      return unspecialize(opcode);
+  }
+#else
+  return opcode();
+#endif
+}
+
 int BytecodeInstruction::oparg() const {
   return oparg_;
 }
@@ -114,7 +137,7 @@ BCOffset BytecodeInstruction::nextInstrOffset() const {
 
 _Py_CODEUNIT BytecodeInstruction::word() const {
 #if PY_VERSION_HEX >= 0x030C0000
-  int opcode = unspecialize(uninstrument(code_, index().value()));
+  int opcode = unspecialize(uninstrumentedOpcode());
   int oparg = _Py_OPARG(codeUnit(code_)[index().value()]);
   return _Py_MAKE_CODEUNIT(opcode, oparg);
 #else

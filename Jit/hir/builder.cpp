@@ -959,7 +959,7 @@ void HIRBuilder::translate(
           break;
         }
         case COMPARE_OP: {
-          emitCompareOp(tc, bc_instr.oparg());
+          emitCompareOp(tc, bc_instr);
           break;
         }
         case COPY_DICT_WITHOUT_KEYS: {
@@ -2002,6 +2002,17 @@ void HIRBuilder::emitBinaryOp(
   int opcode = bc_instr.opcode();
   int oparg = bc_instr.oparg();
 
+  if (getConfig().specialized_opcodes) {
+    switch (bc_instr.specializedOpcode()) {
+      case BINARY_OP_ADD_INT:
+      case BINARY_OP_MULTIPLY_INT:
+      case BINARY_OP_SUBTRACT_INT:
+        tc.emit<GuardType>(left, TLongExact, left, tc.frame);
+        tc.emit<GuardType>(right, TLongExact, right, tc.frame);
+        break;
+    }
+  }
+
   BinaryOpKind op_kind;
   if (opcode == BINARY_OP) {
     auto opt_op_kind = getBinaryOpKindFromOparg(oparg);
@@ -2535,7 +2546,11 @@ void HIRBuilder::emitContainsOp(TranslationContext& tc, int oparg) {
   stack.push(result);
 }
 
-void HIRBuilder::emitCompareOp(TranslationContext& tc, int compare_op) {
+void HIRBuilder::emitCompareOp(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  int compare_op = bc_instr.oparg();
+
   if constexpr (PY_VERSION_HEX >= 0x030B0000) {
     compare_op >>= 4;
   }
@@ -2547,6 +2562,22 @@ void HIRBuilder::emitCompareOp(TranslationContext& tc, int compare_op) {
   Register* left = stack.pop();
   Register* result = temps_.AllocateStack();
   CompareOp op = static_cast<CompareOp>(compare_op);
+
+  if (getConfig().specialized_opcodes) {
+    switch (bc_instr.specializedOpcode()) {
+      case COMPARE_OP_INT:
+        tc.emit<GuardType>(left, TLongExact, left, tc.frame);
+        tc.emit<GuardType>(right, TLongExact, right, tc.frame);
+        break;
+      case COMPARE_OP_STR:
+        tc.emit<GuardType>(left, TUnicodeExact, left, tc.frame);
+        tc.emit<GuardType>(right, TUnicodeExact, right, tc.frame);
+        break;
+      default:
+        break;
+    }
+  }
+
   tc.emit<Compare>(result, op, left, right, tc.frame);
   stack.push(result);
 }

@@ -160,7 +160,9 @@ class HIRBuilder {
   void emitKwNames(TranslationContext& tc, const BytecodeInstruction& bc_instr);
   void emitIsOp(TranslationContext& tc, int oparg);
   void emitContainsOp(TranslationContext& tc, int oparg);
-  void emitCompareOp(TranslationContext& tc, int compare_op);
+  void emitCompareOp(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitCopyDictWithoutKeys(TranslationContext& tc);
   void emitGetLen(TranslationContext& tc);
   void emitJumpIf(

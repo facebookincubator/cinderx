@@ -101,6 +101,10 @@ struct Config {
   bool collect_attr_cache_stats{false};
   // Use type annotations to create runtime checks.
   bool emit_type_annotation_guards{false};
+  // Whether or not to JIT specialized opcodes or to fall back to their generic
+  // counterparts.
+  bool specialized_opcodes{false};
+
   // Add RefineType instructions for Static Python values before they get
   // typechecked.  Enabled by default as HIR doesn't pass through Static Python
   // types very well right now.  Disable to expose new typing opportunities in

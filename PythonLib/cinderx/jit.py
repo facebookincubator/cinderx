@@ -21,7 +21,9 @@ try:
         auto_jit_threshold,
         count_interpreted_calls,
         disable,
+        disable_specialized_opcodes,
         enable,
+        enable_specialized_opcodes,
         force_compile,
         force_uncompile,
         is_enabled,
@@ -75,6 +77,12 @@ except ImportError:
 
     def precompile_all(workers: int = 0) -> bool:
         return False
+
+    def enable_specialized_opcodes() -> None:
+        pass
+
+    def disable_specialized_opcodes() -> None:
+        pass
 
 
 @contextmanager
