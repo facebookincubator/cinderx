@@ -2212,7 +2212,9 @@ class INSTR_CLASS(
   static std::optional<binaryfunc> slotMethod(BinaryOpKind op) {
     auto op_kind = static_cast<unsigned long>(op);
     JIT_CHECK(op_kind < kFloatBinaryOpSlotMethods.size(), "unsupported binop");
-    return std::make_optional(kFloatBinaryOpSlotMethods[op_kind]);
+
+    binaryfunc func = kFloatBinaryOpSlotMethods[op_kind];
+    return func == nullptr ? std::nullopt : std::make_optional(func);
   }
 
  private:
