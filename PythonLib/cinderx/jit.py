@@ -3,7 +3,7 @@
 # pyre-strict
 
 from contextlib import contextmanager
-from typing import Any, Callable, Generator
+from typing import Any, AsyncGenerator, Callable, Coroutine, Generator, TypeVar
 from warnings import catch_warnings, simplefilter, warn
 
 
@@ -18,34 +18,81 @@ FuncAny = Callable[..., Any]
 
 try:
     from cinderjit import (
+        _deopt_gen,
         auto_jit_threshold,
+        clear_runtime_stats,
         count_interpreted_calls,
         disable,
+        disable_emit_type_annotation_guards,
+        disable_hir_inliner,
         disable_specialized_opcodes,
         enable,
+        enable_emit_type_annotation_guards,
+        enable_hir_inliner,
         enable_specialized_opcodes,
         force_compile,
         force_uncompile,
+        get_allocator_stats,
+        get_and_clear_inline_cache_stats,
+        get_and_clear_runtime_stats,
+        get_compilation_time,
+        get_compiled_functions,
+        get_compiled_size,
+        get_compiled_spill_stack_size,
+        get_compiled_stack_size,
+        get_function_compilation_time,
+        get_function_hir_opcode_counts,
+        get_inlined_functions_stats,
+        get_jit_list,
+        get_num_inlined_functions,
         is_enabled,
+        is_hir_inliner_enabled,
+        is_inline_cache_stats_collection_enabled,
         is_jit_compiled,
+        jit_list_append,
         jit_suppress,
         jit_unsuppress,
         lazy_compile,
+        mlock_profiler_dependencies,
+        multithreaded_compile_test,
+        page_in_profiler_dependencies,
         precompile_all,
     )
 
     INSTALLED = True
 
 except ImportError:
+    TDeoptGenYield = TypeVar("TDeoptGenYield")
+    TDeoptGenSend = TypeVar("TDeoptGenSend")
+    TDeoptGenReturn = TypeVar("TDeoptGenReturn")
+
+    def _deopt_gen(
+        gen: Generator[TDeoptGenYield, TDeoptGenSend, TDeoptGenReturn]
+        | AsyncGenerator[TDeoptGenYield, TDeoptGenSend]
+        | Coroutine[TDeoptGenYield, TDeoptGenSend, TDeoptGenReturn],
+    ) -> bool:
+        return False
 
     def auto_jit_threshold() -> int:
         return 0
+
+    def clear_runtime_stats() -> None:
+        return None
 
     def count_interpreted_calls(func: FuncAny) -> int:
         return 0
 
     def disable(deopt_all: bool = False) -> None:
-        pass
+        return None
+
+    def disable_emit_type_annotation_guards() -> None:
+        return None
+
+    def disable_hir_inliner() -> None:
+        return None
+
+    def disable_specialized_opcodes() -> None:
+        return None
 
     def enable() -> None:
         # Warn here because users might think this is function is how to enable the JIT
@@ -54,20 +101,74 @@ except ImportError:
             "Cinder JIT is not installed, calling cinderx.jit.enable() is doing nothing"
         )
 
+    def enable_emit_type_annotation_guards() -> None:
+        return None
+
+    def enable_hir_inliner() -> None:
+        return None
+
+    def enable_specialized_opcodes() -> None:
+        return None
+
     def force_compile(func: FuncAny) -> bool:
         return False
 
     def force_uncompile(func: FuncAny) -> bool:
         return False
 
-    def lazy_compile(func: FuncAny) -> bool:
-        return False
+    def get_allocator_stats() -> dict[str, int]:
+        return {}
+
+    def get_and_clear_inline_cache_stats() -> dict[str, object]:
+        return {}
+
+    def get_and_clear_runtime_stats() -> dict[str, object]:
+        return {}
+
+    def get_compilation_time() -> int:
+        return 0
+
+    def get_compiled_functions() -> list[FuncAny]:
+        return []
+
+    def get_compiled_size(func: FuncAny) -> int:
+        return 0
+
+    def get_compiled_spill_stack_size(func: FuncAny) -> int:
+        return 0
+
+    def get_compiled_stack_size(func: FuncAny) -> int:
+        return 0
+
+    def get_function_compilation_time(func: FuncAny) -> int:
+        return 0
+
+    def get_function_hir_opcode_counts(func: FuncAny) -> dict[str, int] | None:
+        return {}
+
+    def get_inlined_functions_stats() -> dict[str, object]:
+        return {}
+
+    def get_jit_list() -> tuple[dict[str, set[str]], dict[str, dict[str, set[int]]]]:
+        return ({}, {})
+
+    def get_num_inlined_functions(func: FuncAny) -> int:
+        return 0
 
     def is_enabled() -> bool:
         return False
 
+    def is_hir_inliner_enabled() -> bool:
+        return False
+
+    def is_inline_cache_stats_collection_enabled() -> bool:
+        return False
+
     def is_jit_compiled(func: FuncAny) -> bool:
         return False
+
+    def jit_list_append(func: str) -> None:
+        return None
 
     def jit_suppress(func: FuncAny) -> FuncAny:
         return func
@@ -75,14 +176,20 @@ except ImportError:
     def jit_unsuppress(func: FuncAny) -> FuncAny:
         return func
 
-    def precompile_all(workers: int = 0) -> bool:
+    def lazy_compile(func: FuncAny) -> bool:
         return False
 
-    def enable_specialized_opcodes() -> None:
-        pass
+    def mlock_profiler_dependencies() -> None:
+        return None
 
-    def disable_specialized_opcodes() -> None:
-        pass
+    def multithreaded_compile_test() -> None:
+        return None
+
+    def page_in_profiler_dependencies() -> list[str]:
+        return []
+
+    def precompile_all(workers: int = 0) -> bool:
+        return False
 
 
 @contextmanager

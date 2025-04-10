@@ -7,10 +7,7 @@ from cinderx.compiler.static.types import FAST_LEN_DICT, TypedSyntaxError
 
 from .common import StaticTestBase, type_mismatch
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
+import cinderx.jit
 
 
 class CheckedDictTests(StaticTestBase):
@@ -581,12 +578,11 @@ class CheckedDictTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             test = mod.testfunc
             self.assertInBytecode(test, "FAST_LEN", FAST_LEN_DICT)
-            if cinderjit is not None:
-                cinderjit.get_and_clear_runtime_stats()
-            self.assertEqual(test(), 1)
-            if cinderjit is not None:
-                stats = cinderjit.get_and_clear_runtime_stats().get("deopt")
-                self.assertFalse(stats)
+
+            cinderx.jit.get_and_clear_runtime_stats()
+
+            stats = cinderx.jit.get_and_clear_runtime_stats().get("deopt")
+            self.assertFalse(stats)
 
     def test_compile_checked_dict_clen(self):
         codestr = """
@@ -599,12 +595,12 @@ class CheckedDictTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             test = mod.testfunc
             self.assertInBytecode(test, "FAST_LEN", FAST_LEN_DICT)
-            if cinderjit is not None:
-                cinderjit.get_and_clear_runtime_stats()
+
+            cinderx.jit.get_and_clear_runtime_stats()
             self.assertEqual(test(), 1)
-            if cinderjit is not None:
-                stats = cinderjit.get_and_clear_runtime_stats().get("deopt")
-                self.assertFalse(stats)
+
+            stats = cinderx.jit.get_and_clear_runtime_stats().get("deopt")
+            self.assertFalse(stats)
 
     def test_compile_checked_dict_create_with_dictcomp(self):
         codestr = """

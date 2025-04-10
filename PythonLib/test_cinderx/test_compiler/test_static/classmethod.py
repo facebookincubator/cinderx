@@ -7,11 +7,6 @@ from cinderx.static import StaticTypeError
 
 from .common import StaticTestBase
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
-
 
 class ClassMethodTests(StaticTestBase):
     def test_classmethod_from_non_final_class_calls_invoke_function(self):

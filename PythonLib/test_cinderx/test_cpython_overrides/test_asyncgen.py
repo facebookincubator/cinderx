@@ -8,10 +8,7 @@ from test.support import gc_collect
 from test.support.import_helper import import_module
 
 asyncio = import_module("asyncio")
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
+import cinderx.jit
 
 _no_default = object()
 
@@ -30,7 +27,7 @@ class CinderX_AsyncGenAsyncioTest(unittest.TestCase):
         self.loop = None
         asyncio.set_event_loop_policy(None)
 
-    @unittest.skipIf(cinderjit is not None, "fails under Cinder JIT")
+    @unittest.skipIf(cinderx.jit.is_enabled(), "fails under Cinder JIT")
     def test_async_gen_asyncio_gc_aclose_09(self):
         DONE = 0
 

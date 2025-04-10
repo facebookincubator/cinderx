@@ -104,7 +104,7 @@ def run_static_tests():
 
 
 def main():
-    import cinderjit
+    import cinderx.jit
 
     # The Cinder JIT tests will generally introduce functions which exercise JIT
     # compilation corner-cases.
@@ -115,7 +115,7 @@ def main():
     # many functions are created dynamically from strings.
     modules_to_clear = run_static_tests()
 
-    cinderjit.multithreaded_compile_test()
+    cinderx.jit.multithreaded_compile_test()
 
     for modname in modules_to_clear:
         del sys.modules[modname]

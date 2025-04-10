@@ -29,6 +29,8 @@ if not AT_LEAST_312:
     import _testcindercapi
 
 import cinderx.jit
+from cinderx.jit import jit_suppress, jit_unsuppress, is_jit_compiled, force_compile, force_uncompile
+
 import cinderx.test_support as cinder_support
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 from cinderx.test_support import run_in_subprocess, skip_unless_jit
@@ -39,47 +41,8 @@ try:
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         from .test_compiler.test_static.common import StaticTestBase
-        from .test_compiler.test_strict.test_loader import base_sandbox, sandbox
-
-
 except ImportError:
     from test_compiler.test_static.common import StaticTestBase
-    from test_compiler.test_strict.test_loader import base_sandbox, sandbox
-
-try:
-    import cinderjit
-    from cinderjit import (
-        _deopt_gen,
-        force_compile,
-        force_uncompile,
-        is_jit_compiled,
-        jit_suppress,
-        jit_unsuppress,
-        lazy_compile,
-    )
-except:
-    cinderjit = None
-
-    def jit_suppress(func):
-        return func
-
-    def jit_unsuppress(func):
-        return func
-
-    def _deopt_gen(gen):
-        return False
-
-    def force_compile(func):
-        return False
-
-    def force_uncompile(func):
-        return False
-
-    def lazy_compile(func):
-        return False
-
-    def is_jit_compiled(func):
-        return False
 
 
 class TestException(Exception):
@@ -174,12 +137,12 @@ def func_that_change_defaults():
 class InlinedFunctionTests(unittest.TestCase):
     @jit_suppress
     @unittest.skipIf(
-        not cinderjit or not cinderjit.is_hir_inliner_enabled(),
+        not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
     def test_deopt_when_func_defaults_change(self):
         self.assertEqual(
-            cinderjit.get_num_inlined_functions(func_that_change_defaults), 2
+            cinderx.jit.get_num_inlined_functions(func_that_change_defaults), 2
         )
         self.assertEqual(func_that_change_defaults(), 9)
 
@@ -243,13 +206,13 @@ class InlinedFunctionTests(unittest.TestCase):
 class InlineCacheStatsTests(unittest.TestCase):
     @jit_suppress
     @unittest.skipIf(
-        not cinderjit or not cinderjit.is_inline_cache_stats_collection_enabled(),
+        not cinderx.jit.is_inline_cache_stats_collection_enabled(),
         "meaningless without inline cache stats collection enabled",
     )
     def test_load_method_cache_stats(self):
         # Clear inline cache stats of any collected data from importing
         # builtin modules
-        cinderjit.get_and_clear_inline_cache_stats()
+        cinderx.jit.get_and_clear_inline_cache_stats()
 
         import linecache
 
@@ -270,7 +233,7 @@ class InlineCacheStatsTests(unittest.TestCase):
             return a
 
         trigger_load_method_with_stats()
-        stats = cinderjit.get_and_clear_inline_cache_stats()
+        stats = cinderx.jit.get_and_clear_inline_cache_stats()
 
         load_method_stats = stats["load_method_stats"]
         relevant_load_method_stats = list(
@@ -298,14 +261,14 @@ class InlineCacheStatsTests(unittest.TestCase):
 class InlinedFunctionLineNumberTests(unittest.TestCase):
     @jit_suppress
     @unittest.skipIf(
-        not cinderjit or not cinderjit.is_hir_inliner_enabled(),
+        not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
     def test_line_numbers_with_sibling_inlined_functions(self):
         """Verify that line numbers are correct when function calls are inlined in the same
         expression"""
         # Calls to get_stack and get_stack2 should be inlined
-        self.assertEqual(cinderjit.get_num_inlined_functions(get_stack_siblings), 2)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(get_stack_siblings), 2)
         stacks = get_stack_siblings()
         # Call to get_stack
         self.assertEqual(stacks[0][-1].lineno, firstlineno(get_stack) + 3)
@@ -316,14 +279,14 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
 
     @jit_suppress
     @unittest.skipIf(
-        not cinderjit or not cinderjit.is_hir_inliner_enabled(),
+        not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
     def test_line_numbers_at_multiple_points_in_inlined_functions(self):
         """Verify that line numbers are are correct at different points in an inlined
         function"""
         # Call to get_stack_multi should be inlined
-        self.assertEqual(cinderjit.get_num_inlined_functions(call_get_stack_multi), 1)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(call_get_stack_multi), 1)
         stacks = call_get_stack_multi()
         self.assertEqual(stacks[0][-1].lineno, firstlineno(get_stack_multi) + 3)
         self.assertEqual(stacks[0][-2].lineno, firstlineno(call_get_stack_multi) + 3)
@@ -332,12 +295,12 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
 
     @jit_suppress
     @unittest.skipIf(
-        not cinderjit or not cinderjit.is_hir_inliner_enabled(),
+        not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
     def test_inline_function_stats(self):
-        self.assertEqual(cinderjit.get_num_inlined_functions(func), 2)
-        stats = cinderjit.get_inlined_functions_stats(func)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(func), 2)
+        stats = cinderx.jit.get_inlined_functions_stats(func)
         self.assertEqual(
             {
                 "num_inlined_functions": 2,
@@ -350,7 +313,7 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
 
     @jit_suppress
     @unittest.skipIf(
-        not cinderjit or not cinderjit.is_hir_inliner_enabled(),
+        not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
     def test_line_numbers_with_multiple_inlined_calls(self):
@@ -358,7 +321,7 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
         in different statements
         """
         # Call to get_stack should be inlined twice
-        self.assertEqual(cinderjit.get_num_inlined_functions(get_stack_twice), 2)
+        self.assertEqual(cinderx.jit.get_num_inlined_functions(get_stack_twice), 2)
         stacks = get_stack_twice()
         # First call to double
         self.assertEqual(stacks[0][-1].lineno, firstlineno(get_stack) + 3)
@@ -936,8 +899,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             if hasattr(gc, "immortalize_heap"):
                 gc.immortalize_heap()
-            if cinderjit:
-                cinderjit.force_compile(mod.Foo.__init__)
+            force_compile(mod.Foo.__init__)
             foo = mod.Foo(True)
 
     def test_restore_materialized_parent_pyframe_in_gen_throw(self):
@@ -1024,11 +986,11 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         with self.assertRaises(asyncio.CancelledError):
             asyncio.run(main())
 
-        if cinderjit and cinderjit.auto_jit_threshold() <= 1:
-            self.assertTrue(cinderjit.is_jit_compiled(a))
-            self.assertTrue(cinderjit.is_jit_compiled(b))
-            self.assertTrue(cinderjit.is_jit_compiled(c.__wrapped__))
-            self.assertTrue(cinderjit.is_jit_compiled(d))
+        if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
+            self.assertTrue(is_jit_compiled(a))
+            self.assertTrue(is_jit_compiled(b))
+            self.assertTrue(is_jit_compiled(c.__wrapped__))
+            self.assertTrue(is_jit_compiled(d))
 
 
 class DelObserver:
@@ -1575,18 +1537,18 @@ class RegressionTests(StaticTestBase):
             testfunc = mod.testfunc
             self.assertTrue(testfunc())
 
-            if cinderjit and cinderjit.auto_jit_threshold() <= 1:
-                self.assertTrue(cinderjit.is_jit_compiled(testfunc))
+            if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
+                self.assertTrue(is_jit_compiled(testfunc))
 
 
 @skip_unless_jit("Requires cinderjit module")
 class CinderJitModuleTests(StaticTestBase):
     def test_bad_disable(self):
         with self.assertRaises(TypeError):
-            cinderjit.disable(1, 2, 3)
+            cinderx.jit.disable(1, 2, 3)
 
     def test_jit_suppress(self):
-        @cinderjit.jit_suppress
+        @jit_suppress
         def x():
             pass
 
@@ -1594,9 +1556,9 @@ class CinderJitModuleTests(StaticTestBase):
 
     def test_jit_suppress_static(self):
         codestr = f"""
-            import cinderjit
+            import cinderx.jit
 
-            @cinderjit.jit_suppress
+            @cinderx.jit.jit_suppress
             def f():
                 return True
 
@@ -1609,20 +1571,20 @@ class CinderJitModuleTests(StaticTestBase):
             self.assertTrue(f())
             self.assertTrue(g())
 
-            self.assertFalse(cinderjit.is_jit_compiled(f))
+            self.assertFalse(is_jit_compiled(f))
 
-            if cinderjit.auto_jit_threshold() <= 1:
-                self.assertTrue(cinderjit.is_jit_compiled(g))
+            if cinderx.jit.auto_jit_threshold() <= 1:
+                self.assertTrue(is_jit_compiled(g))
 
     @unittest.skipIf(
-        not cinderjit or not cinderjit.is_hir_inliner_enabled(),
+        not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
     def test_num_inlined_functions(self):
         codestr = f"""
-            import cinderjit
+            import cinderx.jit
 
-            @cinderjit.jit_suppress
+            @cinderx.jit.jit_suppress
             def f():
                 return True
 
@@ -1634,17 +1596,17 @@ class CinderJitModuleTests(StaticTestBase):
             g = mod.g
             self.assertTrue(g())
 
-            self.assertFalse(cinderjit.is_jit_compiled(f))
+            self.assertFalse(is_jit_compiled(f))
 
-            if cinderjit.auto_jit_threshold() <= 1:
-                self.assertTrue(cinderjit.is_jit_compiled(g))
+            if cinderx.jit.auto_jit_threshold() <= 1:
+                self.assertTrue(is_jit_compiled(g))
 
-            self.assertEqual(cinderjit.get_num_inlined_functions(g), 1)
+            self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
 
     def test_max_code_size_slow(self):
         code = textwrap.dedent(
             """
-            import cinderjit
+            import cinderx.jit
             for i in range(2000):
                 exec(f'''
             def junk{i}(j):
@@ -1657,8 +1619,8 @@ class CinderJitModuleTests(StaticTestBase):
             x = 0
             for i in range(2000):
                 exec(f'x *= junk{i}(i)')
-            max_bytes = cinderjit.get_allocator_stats()["max_bytes"]
-            used_bytes = cinderjit.get_allocator_stats()["used_bytes"]
+            max_bytes = cinderx.jit.get_allocator_stats()["max_bytes"]
+            used_bytes = cinderx.jit.get_allocator_stats()["used_bytes"]
             print(f'max_size: {max_bytes}')
             print(f'used_size: {used_bytes}')
         """
@@ -1736,8 +1698,8 @@ class CinderJitModuleTests(StaticTestBase):
     def test_max_code_size_fast(self):
         code = textwrap.dedent(
             """
-            import cinderjit
-            max_bytes = cinderjit.get_allocator_stats()["max_bytes"]
+            import cinderx.jit
+            max_bytes = cinderx.jit.get_allocator_stats()["max_bytes"]
             print(f'max_size: {max_bytes}')
         """
         )
@@ -1850,15 +1812,15 @@ class DeleteAttrTests(unittest.TestCase):
 
 class OtherTests(unittest.TestCase):
     @unittest.skipIf(
-        not cinderjit,
+        not cinderx.jit.is_enabled(),
         "meaningless without JIT enabled",
     )
     def test_mlock_profiler_dependencies(self):
-        cinderjit.mlock_profiler_dependencies()
+        cinderx.jit.mlock_profiler_dependencies()
 
-    @unittest.skipIf(cinderjit is None, "not jitting")
+    @unittest.skipUnless(cinderx.jit.is_enabled(), "not jitting")
     def test_page_in_profiler_dependencies(self):
-        qualnames = cinderjit.page_in_profiler_dependencies()
+        qualnames = cinderx.jit.page_in_profiler_dependencies()
         self.assertTrue(len(qualnames) > 0)
 
 
@@ -2447,8 +2409,7 @@ class GetBuiltinsTests(unittest.TestCase):
             "__builtins__": new_builtins,
         }
         func = with_globals(new_globals)(builtins_getter)
-        if cinderjit is not None:
-            cinderjit.force_compile(func)
+        force_compile(func)
         self.assertIs(func(), new_builtins)
 
 
@@ -2460,8 +2421,7 @@ class GetGlobalsTests(unittest.TestCase):
     def test_get_globals(self):
         new_globals = dict(globals())
         func = with_globals(new_globals)(globals_getter)
-        if cinderjit is not None:
-            cinderjit.force_compile(func)
+        force_compile(func)
         self.assertIs(func(), new_globals)
 
 
@@ -2499,8 +2459,7 @@ def func(callee):
 
         callee = self.make_func(callee_src, CO_FUTURE_BARRY_AS_BDFL)
         self.assertEqual(callee.__code__.co_flags & flag, flag)
-        if cinderjit is not None:
-            cinderjit.force_compile(callee)
+        force_compile(callee)
         flags = caller(callee)
         self.assertEqual(flags & flag, flag)
 
@@ -2664,11 +2623,11 @@ class LoadMethodEliminationTests(unittest.TestCase):
     def test_multiple_call_method_same_load_method(self):
         self.assertEqual(self.lme_test_func(), "1")
         self.assertEqual(self.lme_test_func(True), "1 flag")
-        if cinderjit and cinderjit.auto_jit_threshold() <= 1:
+        if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
             self.assertTrue(is_jit_compiled(LoadMethodEliminationTests.lme_test_func))
 
 
-@unittest.skipIf(not cinderjit, "Tests functionality on cinderjit module")
+@unittest.skipUnless(cinderx.jit.is_enabled(), "Tests functionality on cinderjit module")
 class HIROpcodeCountTests(unittest.TestCase):
     def test_hir_opcode_count(self):
         def f1():
@@ -2677,16 +2636,16 @@ class HIROpcodeCountTests(unittest.TestCase):
         def func():
             return f1() + f1()
 
-        cinderjit.force_compile(func)
+        force_compile(func)
         self.assertEqual(func(), 10)
 
-        ops = cinderjit.get_function_hir_opcode_counts(func)
+        ops = cinderx.jit.get_function_hir_opcode_counts(func)
         self.assertIsInstance(ops, dict)
         self.assertEqual(ops.get("Return"), 1)
         self.assertEqual(ops.get("BinaryOp"), 1)
         self.assertGreaterEqual(ops.get("Decref"), 2)
 
-@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class ForceUncompileTests(unittest.TestCase):
     def test_basic(self) -> None:
         def f(x: int) -> int:
@@ -2700,18 +2659,18 @@ class ForceUncompileTests(unittest.TestCase):
         self.assertTrue(force_uncompile(f))
         self.assertFalse(is_jit_compiled(f))
 
-@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class LazyCompileTests(unittest.TestCase):
     def test_basic(self) -> None:
         def foo(a, b):
             return a + b
 
         self.assertFalse(is_jit_compiled(foo))
-        self.assertTrue(lazy_compile(foo))
+        self.assertTrue(cinderx.jit.lazy_compile(foo))
         foo(1, 2)
         self.assertTrue(is_jit_compiled(foo))
 
-@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class JITSuppressTests(unittest.TestCase):
     def test_basic(self) -> None:
         def f(x: int) -> int:
@@ -2731,7 +2690,7 @@ class JITSuppressTests(unittest.TestCase):
         force_compile(f)
         self.assertTrue(is_jit_compiled(f))
 
-@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class BadArgumentTests(unittest.TestCase):
     def test_is_compiled(self) -> None:
         with self.assertRaises(TypeError):
@@ -2759,11 +2718,11 @@ class BadArgumentTests(unittest.TestCase):
 
     def test_lazy_compile(self) -> None:
         with self.assertRaises(TypeError):
-            lazy_compile(None)
+            cinderx.jit.lazy_compile(None)
         with self.assertRaises(TypeError):
-            lazy_compile(5)
+            cinderx.jit.lazy_compile(5)
         with self.assertRaises(TypeError):
-            lazy_compile(is_jit_compiled)
+            cinderx.jit.lazy_compile(is_jit_compiled)
 
     def test_jit_suppress(self) -> None:
         with self.assertRaises(TypeError):
@@ -2781,7 +2740,7 @@ class BadArgumentTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             jit_unsuppress(is_jit_compiled)
 
-@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class CompileTimeTests(unittest.TestCase):
     """
     Test the Cinder APIs that report time spent compiling.
@@ -2797,11 +2756,11 @@ class CompileTimeTests(unittest.TestCase):
 
         # This will only work if the function takes more than 1ms to compile.  Use the
         # output from PYTHONJITDEBUG=1 to see if that is the case.
-        self.assertGreater(cinderjit.get_compilation_time(), 0)
-        self.assertGreater(cinderjit.get_function_compilation_time(_compile), 0)
+        self.assertGreater(cinderx.jit.get_compilation_time(), 0)
+        self.assertGreater(cinderx.jit.get_function_compilation_time(_compile), 0)
 
 
-@unittest.skipIf(not cinderjit, "Testing the cinderjit module itself")
+@unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class LocalsBuiltinTests(unittest.TestCase):
     def test_locals_not_compiled(self) -> None:
         def foo():

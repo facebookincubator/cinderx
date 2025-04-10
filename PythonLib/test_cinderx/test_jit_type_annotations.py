@@ -10,10 +10,6 @@ import cinderx
 cinderx.init()
 import cinderx.jit
 
-try:
-    import cinderjit
-except:
-    cinderjit = None
 
 @unittest.skipUnless(cinderx.jit.is_enabled(), "JIT required")
 class TypeAnnotationTests(unittest.TestCase):
@@ -28,25 +24,25 @@ class TypeAnnotationTests(unittest.TestCase):
             return isinstance(other, self.__class__) and self.value == other.value
 
     def setUp(self):
-        cinderjit.enable_emit_type_annotation_guards()
+        cinderx.jit.enable_emit_type_annotation_guards()
 
     def tearDown(self):
-        cinderjit.disable_emit_type_annotation_guards()
+        cinderx.jit.disable_emit_type_annotation_guards()
 
     def test_good_simple(self):
         def f(x: int) -> int:
             return x + 1
 
-        cinderjit.force_compile(f)
+        cinderx.jit.force_compile(f)
 
         self.assertEqual(f(42), 43)
-        self.assertIn("LongBinaryOp", cinderjit.get_function_hir_opcode_counts(f))
+        self.assertIn("LongBinaryOp", cinderx.jit.get_function_hir_opcode_counts(f))
 
     def test_good_long_list(self):
         def f(x1: int, x2: int, x3: int, x4: int, x5: int, x6: int, x7: int, x8: int) -> int:
             return x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8
 
-        cinderjit.force_compile(f)
+        cinderx.jit.force_compile(f)
 
         self.assertEqual(f(1, 2, 3, 4, 5, 6, 7, 8), 36)
 
@@ -57,7 +53,7 @@ class TypeAnnotationTests(unittest.TestCase):
 
             return g(1)
 
-        cinderjit.force_compile(f)
+        cinderx.jit.force_compile(f)
 
         self.assertEqual(f(42), 43)
 
@@ -68,7 +64,7 @@ class TypeAnnotationTests(unittest.TestCase):
 
             return next(g(1))
 
-        cinderjit.force_compile(f)
+        cinderx.jit.force_compile(f)
 
         self.assertEqual(f(42), 43)
 
@@ -76,6 +72,6 @@ class TypeAnnotationTests(unittest.TestCase):
         def f(x: int) -> int:
             return x + 1
 
-        cinderjit.force_compile(f)
+        cinderx.jit.force_compile(f)
 
         self.assertEqual(f(self.Box(42)), self.Box(43))

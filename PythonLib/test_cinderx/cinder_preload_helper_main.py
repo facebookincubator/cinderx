@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-import cinderjit
+import cinderx.jit
 import weakref
 
 import cinder_preload_helper_a
@@ -18,8 +18,8 @@ def main_func() -> str:
 
 
 print("disabling jit")
-cinderjit.precompile_all()
-cinderjit.disable()
+cinderx.jit.precompile_all()
+cinderx.jit.disable()
 
 print("jit disabled")
 

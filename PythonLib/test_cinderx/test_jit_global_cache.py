@@ -8,20 +8,10 @@ import builtins
 import unittest
 from textwrap import dedent
 
-from cinderx.jit import (
-    force_compile,
-    is_enabled as is_jit_enabled,
-    is_jit_compiled,
-)
+import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.test_support import run_in_subprocess, skip_unless_lazy_imports
 from .common import failUnlessHasOpcodes, with_globals
-
-try:
-    # pyre-ignore[21]: Pyre doesn't know about cinderjit.
-    import cinderjit
-except ImportError:
-    cinderjit = None
 
 
 class LoadGlobalCacheTests(unittest.TestCase):
@@ -175,14 +165,13 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 ),
                 encoding="utf8",
             )
-            if cinderjit:
-                cinderjit.clear_runtime_stats()
+            cinderx.jit.clear_runtime_stats()
 
             # pyre-ignore[21]: This file dynamically generated as part of this test.
             import tmp_a
 
             # Force the compilation if this is running with AutoJIT.
-            force_compile(tmp_a.get_a)
+            cinderx.jit.force_compile(tmp_a.get_a)
 
             # What happens on the first call is kinda undefined in principle
             # given lazy imports; somebody could previously have imported B
@@ -200,8 +189,8 @@ class LoadGlobalCacheTests(unittest.TestCase):
             # guard on the LoadGlobalCached will ensure we deopt and return the
             # right result.
             self.assertEqual(tmp_a.get_a(), 5)
-            if cinderjit:
-                self.assertTrue(is_jit_compiled(tmp_a.get_a))
+            if cinderx.jit.is_enabled():
+                self.assertTrue(cinderx.jit.is_jit_compiled(tmp_a.get_a))
                 # The real test here is what when the value of a global changes
                 # during compilation preload (as it does in this test because
                 # the preload bytescan of get_a() first hits A, loads the old
@@ -209,7 +198,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 # tmp_b, causing the value of A to change), we still have time
                 # to compile with the correct (new) value and avoid compiling
                 # code that will inevitably deopt, and so we should.
-                stats = cinderjit.get_and_clear_runtime_stats()
+                stats = cinderx.jit.get_and_clear_runtime_stats()
                 relevant_deopts = [
                     d for d in stats["deopt"] if d["normal"]["func_qualname"] == "get_a"
                 ]
@@ -250,16 +239,15 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 encoding="utf8",
             )
 
-            if cinderjit:
-                cinderjit.clear_runtime_stats()
+            cinderx.jit.clear_runtime_stats()
             import tmp_a
 
             # Force the compilation if this is running with AutoJIT.
-            force_compile(tmp_a.get_a)
+            cinderx.jit.force_compile(tmp_a.get_a)
 
             tmp_a.get_a()
             self.assertEqual(tmp_a.get_a(), 5)
-            self.assertTrue(not is_jit_enabled() or is_jit_compiled(tmp_a.get_a))
+            self.assertTrue(not cinderx.jit.is_jit_enabled() or cinderx.jit.is_jit_compiled(tmp_a.get_a))
 
     @skip_unless_lazy_imports
     @failUnlessHasOpcodes("LOAD_GLOBAL")
@@ -290,16 +278,15 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 ),
                 encoding="utf8",
             )
-            if cinderjit:
-                cinderjit.clear_runtime_stats()
+            cinderx.jit.clear_runtime_stats()
             import tmp_a
 
             # Force the compilation if this is running with AutoJIT.
-            force_compile(tmp_a.get_a)
+            cinderx.jit.force_compile(tmp_a.get_a)
 
             tmp_a.get_a()
             self.assertEqual(tmp_a.get_a(), 5)
-            self.assertTrue(not is_jit_enabled() or is_jit_compiled(tmp_a.get_a))
+            self.assertTrue(not cinderx.jit.is_jit_enabled() or cinderx.jit.is_jit_compiled(tmp_a.get_a))
 
     @skip_unless_lazy_imports
     @run_in_subprocess

@@ -24,12 +24,6 @@ else:
 
     StaticTestBase = CompilerTest
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
-
-
 POST_311 = sys.version_info >= (3, 11)
 
 
@@ -128,7 +122,7 @@ class CoroutinesTest(unittest.TestCase):
 
     @skip_unless_jit("Exercises JIT-specific bug")
     def test_jit_coro_awaits_interp_coro(self):
-        @cinderjit.jit_suppress
+        @cinderx.jit.jit_suppress
         async def eager_suspend(suffix):
             await self.FakeFuture("hello, " + suffix)
 
@@ -376,9 +370,9 @@ class EagerCoroutineDispatch(StaticTestBase):
                 coro.send(None)
             coro.close()
             self.assertFalse(mod.x.last_awaited())
-            if cinderjit and cinderjit.auto_jit_threshold() <= 1:
-                self.assertTrue(cinderjit.is_jit_compiled(mod.await_x))
-                self.assertTrue(cinderjit.is_jit_compiled(mod.call_x))
+            if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
+                self.assertTrue(cinderx.jit.is_jit_compiled(mod.await_x))
+                self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
 
     def test_invoke_method(self):
         codestr = f"""
@@ -436,9 +430,9 @@ class EagerCoroutineDispatch(StaticTestBase):
                 coro.send(None)
             coro.close()
             self.assertFalse(awaited_capturer.last_awaited())
-            if cinderjit and cinderjit.auto_jit_threshold() <= 1:
-                self.assertTrue(cinderjit.is_jit_compiled(mod.await_x))
-                self.assertTrue(cinderjit.is_jit_compiled(mod.call_x))
+            if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
+                self.assertTrue(cinderx.jit.is_jit_compiled(mod.await_x))
+                self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
 
         async def y():
             await DummyAwaitable()

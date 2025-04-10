@@ -2,18 +2,15 @@
 
 from mod import outer
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
+import cinderx.jit
 
-if cinderjit:
-    cinderjit.precompile_all()
-    cinderjit.disable()
+if cinderx.jit.is_enabled():
+    cinderx.jit.precompile_all()
+    cinderx.jit.disable()
 
 inner = outer()
 
-if cinderjit:
-    assert cinderjit.is_jit_compiled(inner)
+if cinderx.jit.is_enabled():
+    assert cinderx.jit.is_jit_compiled(inner)
 
 print(inner())

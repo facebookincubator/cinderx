@@ -15,10 +15,7 @@ try:
 except ImportError:
     _testcapi = None
 
-try:
-    import cinderjit
-except:
-    cinderjit = None
+import cinderx.jit
 
 EMPTY_STRING_SIZE = sys.getsizeof(b'')
 INVALID_NFRAME = (-1, 2**30)
@@ -100,7 +97,7 @@ class CinderX_TestTracemallocEnabled(unittest.TestCase):
         tracemalloc.stop()
 
     @unittest.skipIf(
-        cinderjit and cinderjit.is_inline_cache_stats_collection_enabled(),
+        cinderx.jit.is_inline_cache_stats_collection_enabled(),
         "#TODO(T150421262): Traced memory does not work well with JIT's inline cache stats collection.",
     )
     def test_get_traced_memory(self):

@@ -3,9 +3,9 @@
 from a import af
 
 try:
-    import cinderjit
+    import cinderx.jit
 
-    cinderjit.force_compile(af)
+    cinderx.jit.force_compile(af)
 except ImportError:
     pass
 

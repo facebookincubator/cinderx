@@ -1,13 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-try:
-    import cinderjit
-except:
-    cinderjit = None
+import cinderx.jit
 from staticmod import caller
 
 caller  # force import of caller
-if cinderjit is not None:
-    cinderjit.disable()
+cinderx.jit.disable()
 
 print(caller(1))

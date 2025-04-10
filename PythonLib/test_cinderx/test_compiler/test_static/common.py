@@ -50,10 +50,7 @@ from cinderx.static import (
 
 from ..common import CompilerTest
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
+import cinderx.jit
 
 TEST_OPT_OUT = DepTrackingOptOut("tests")
 
@@ -67,17 +64,14 @@ def bad_ret_type(from_type: str, to_type: str) -> str:
 
 
 def disable_hir_inliner(f):
-    if not cinderjit:
-        return f
-
     @wraps(f)
     def impl(*args, **kwargs):
-        enabled = cinderjit.is_hir_inliner_enabled()
+        enabled = cinderx.jit.is_hir_inliner_enabled()
         if enabled:
-            cinderjit.disable_hir_inliner()
+            cinderx.jit.disable_hir_inliner()
         result = f(*args, **kwargs)
         if enabled:
-            cinderjit.enable_hir_inliner()
+            cinderx.jit.enable_hir_inliner()
         return result
 
     return impl
@@ -559,22 +553,16 @@ __slot_types__ = {slot_types!r}
         )
 
     def assert_jitted(self, func):
-        if cinderjit is None:
+        if not cinderx.jit.is_enabled():
             return
 
-        self.assertTrue(cinderjit.is_jit_compiled(func), func.__name__)
+        self.assertTrue(cinderx.jit.is_jit_compiled(func), func.__name__)
 
     def assert_not_jitted(self, func):
-        if cinderjit is None:
+        if not cinderx.jit.is_enabled():
             return
 
-        self.assertFalse(cinderjit.is_jit_compiled(func))
-
-    def assert_not_jitted(self, func):
-        if cinderjit is None:
-            return
-
-        self.assertFalse(cinderjit.is_jit_compiled(func))
+        self.assertFalse(cinderx.jit.is_jit_compiled(func))
 
     def setUp(self):
         # ensure clean classloader/vtable slate for all tests

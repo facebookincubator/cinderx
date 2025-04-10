@@ -9,10 +9,7 @@ from cinderx.compiler.static.types import (
 
 from .common import StaticTestBase
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
+import cinderx.jit
 
 
 class BinopTests(StaticTestBase):
@@ -447,7 +444,7 @@ class BinopTests(StaticTestBase):
             (2.5, 2.5, "**", 9.882117688026186),
         ]
 
-        if cinderjit is not None:
+        if cinderx.jit.is_enabled():
             # test for division by zero
             tests.append((1.732, 0.0, "/", float("inf")))
 

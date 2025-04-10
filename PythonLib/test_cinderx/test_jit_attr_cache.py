@@ -19,12 +19,6 @@ from .common import failUnlessHasOpcodes
 if cinderx.is_initialized():
     from .test_compiler.test_strict.test_loader import base_sandbox, sandbox
 
-try:
-    import cinderjit
-except:
-    cinderjit = None
-
-
 AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
 
 
@@ -246,7 +240,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
             self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
             self.assertIn(
                 "LoadModuleAttrCached" if AT_LEAST_312 else "LoadModuleMethodCached",
-                cinderjit.get_function_hir_opcode_counts(tmp_b.test),
+                cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
             )
 
             # pyre-ignore[21]: Dynamically generated as part of this test.
@@ -281,7 +275,7 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
         self.assertTrue(cinderx.jit.is_jit_compiled(tmp_b.test))
         self.assertIn(
             "LoadModuleAttrCached" if AT_LEAST_312 else "LoadModuleMethodCached",
-            cinderjit.get_function_hir_opcode_counts(tmp_b.test),
+            cinderx.jit.get_function_hir_opcode_counts(tmp_b.test),
         )
         # prime the cache
         self.assertEqual(tmp_b.test(), 3)

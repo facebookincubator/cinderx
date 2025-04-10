@@ -10,16 +10,9 @@ import weakref
 
 import cinderx.jit
 import cinderx.test_support as cinder_support
-from cinderx.jit import is_jit_compiled
+from cinderx.jit import _deopt_gen, is_jit_compiled
 
 from .common import with_globals
-
-try:
-    # pyre-ignore[21]: Pyre doesn't know about cinderjit.
-    from cinderjit import _deopt_gen
-except ImportError:
-    def _deopt_gen(gen):
-        return False
 
 POST_312 = sys.version_info >= (3, 12)
 

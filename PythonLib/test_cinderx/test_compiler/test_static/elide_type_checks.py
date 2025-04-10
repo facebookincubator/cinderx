@@ -3,14 +3,11 @@ import unittest
 
 from .common import StaticTestBase
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
+import cinderx.jit
 
 
 class ElideTypeChecksTests(StaticTestBase):
-    @unittest.skipIf(cinderjit is None, "JIT disabled")
+    @unittest.skipIf(not cinderx.jit.is_enabled(), "JIT disabled")
     def test_invoke_function_skips_arg_type_checks(self) -> None:
         codestr = """
             from xxclassloader import unsafe_change_type
@@ -39,14 +36,14 @@ class ElideTypeChecksTests(StaticTestBase):
             ):
                 mod.g(mod.B())
 
-            cinderjit.force_compile(mod.f)
+            cinderx.jit.force_compile(mod.f)
 
             # Should not raise a TypeError because static invokes skip arg
             # checks in JITed code.  This results in an unsound call in this case,
             # but only because we are using an unsound C extension method.
             self.assertEqual(mod.f(), "B")
 
-    @unittest.skipIf(cinderjit is None, "JIT disabled")
+    @unittest.skipIf(not cinderx.jit.is_enabled(), "JIT disabled")
     def test_invoke_method_skips_arg_type_checks(self) -> None:
         codestr = """
             from xxclassloader import unsafe_change_type

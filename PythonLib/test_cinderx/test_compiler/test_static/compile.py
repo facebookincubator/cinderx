@@ -17,7 +17,7 @@ from tempfile import TemporaryDirectory
 from textwrap import dedent
 from types import ModuleType
 from typing import Callable, Optional, TypeVar
-from unittest import skip, skipIf
+from unittest import skip, skipIf, skipUnless
 from unittest.mock import patch
 
 import xxclassloader
@@ -51,10 +51,7 @@ from .common import (
     type_mismatch,
 )
 
-try:
-    import cinderjit
-except ImportError:
-    cinderjit = None
+import cinderx.jit
 
 RICHARDS_PATH = path.join(
     path.dirname(__file__),
@@ -346,7 +343,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    @skipIf(cinderjit is None, "not jitting")
+    @skipUnless(cinderx.jit.is_enabled(), "not jitting")
     def test_deep_attr_chain(self):
         """this shouldn't explode exponentially"""
         codestr = """
@@ -5620,7 +5617,7 @@ class StaticCompilationTests(StaticTestBase):
 
                     assert f1() == 5
 
-                    from cinderjit import is_jit_compiled
+                    from cinderx.jit import is_jit_compiled
                     assert is_jit_compiled(f1), "f1 is on jitlist but not jitted"
                     assert not is_jit_compiled(f2), "f2 is not on jitlist but was jitted"
                     assert is_jit_compiled(f3), "f3 is on jitlist but not jitted"
