@@ -44,6 +44,8 @@ int BytecodeInstruction::specializedOpcode() const {
     case BINARY_OP_SUBTRACT_FLOAT:
     case BINARY_OP_SUBTRACT_INT:
     case BINARY_SUBSCR_DICT:
+    case BINARY_SUBSCR_LIST_INT:
+    case BINARY_SUBSCR_TUPLE_INT:
     case COMPARE_OP_FLOAT:
     case COMPARE_OP_INT:
     case COMPARE_OP_STR:

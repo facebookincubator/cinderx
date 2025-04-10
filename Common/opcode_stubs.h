@@ -26,6 +26,8 @@
   X(BINARY_OP_SUBTRACT_FLOAT)          \
   X(BINARY_OP_ADD_UNICODE)             \
   X(BINARY_SLICE)                      \
+  X(BINARY_SUBSCR_LIST_INT)            \
+  X(BINARY_SUBSCR_TUPLE_INT)           \
   X(CACHE)                             \
   X(CALL)                              \
   X(CALL_INTRINSIC_1)                  \
