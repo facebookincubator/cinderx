@@ -81,6 +81,33 @@ class SpecializationTests(unittest.TestCase):
         self.assertIn("BINARY_OP_MULTIPLY_INT", opnames(f))
         self.assertEqual(f(5, 2), 10)
 
+    def test_binary_op_add_float(self) -> None:
+        def f(a: float, b: float) -> float:
+            return a + b
+
+        specialize(f, lambda: f(1.5, 2.5))
+        self.assertNotIn("BINARY_OP", opnames(f))
+        self.assertIn("BINARY_OP_ADD_FLOAT", opnames(f))
+        self.assertEqual(f(2.5, 3.5), 6.0)
+
+    def test_binary_op_subtract_float(self) -> None:
+        def f(a: float, b: float) -> float:
+            return a - b
+
+        specialize(f, lambda: f(2.5, 1.5))
+        self.assertNotIn("BINARY_OP", opnames(f))
+        self.assertIn("BINARY_OP_SUBTRACT_FLOAT", opnames(f))
+        self.assertEqual(f(5.5, 2.5), 3.0)
+
+    def test_binary_op_multiply_float(self) -> None:
+        def f(a: float, b: float) -> float:
+            return a * b
+
+        specialize(f, lambda: f(2.5, 3.5))
+        self.assertNotIn("BINARY_OP", opnames(f))
+        self.assertIn("BINARY_OP_MULTIPLY_FLOAT", opnames(f))
+        self.assertEqual(f(5.5, 2.5), 13.75)
+
     def test_compare_op_int(self) -> None:
         def f(a: int, b: int) -> bool:
             return a < b

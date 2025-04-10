@@ -2010,6 +2010,12 @@ void HIRBuilder::emitBinaryOp(
         tc.emit<GuardType>(left, TLongExact, left, tc.frame);
         tc.emit<GuardType>(right, TLongExact, right, tc.frame);
         break;
+      case BINARY_OP_ADD_FLOAT:
+      case BINARY_OP_MULTIPLY_FLOAT:
+      case BINARY_OP_SUBTRACT_FLOAT:
+        tc.emit<GuardType>(left, TFloatExact, left, tc.frame);
+        tc.emit<GuardType>(right, TFloatExact, right, tc.frame);
+        break;
     }
   }
 

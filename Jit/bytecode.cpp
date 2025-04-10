@@ -36,9 +36,12 @@ int BytecodeInstruction::specializedOpcode() const {
   int opcode = uninstrumentedOpcode();
 
   switch (opcode) {
+    case BINARY_OP_ADD_FLOAT:
     case BINARY_OP_ADD_INT:
-    case BINARY_OP_SUBTRACT_INT:
+    case BINARY_OP_MULTIPLY_FLOAT:
     case BINARY_OP_MULTIPLY_INT:
+    case BINARY_OP_SUBTRACT_FLOAT:
+    case BINARY_OP_SUBTRACT_INT:
     case COMPARE_OP_INT:
     case COMPARE_OP_STR:
       return opcode;
