@@ -38,6 +38,7 @@ int BytecodeInstruction::specializedOpcode() const {
   switch (opcode) {
     case BINARY_OP_ADD_FLOAT:
     case BINARY_OP_ADD_INT:
+    case BINARY_OP_ADD_UNICODE:
     case BINARY_OP_MULTIPLY_FLOAT:
     case BINARY_OP_MULTIPLY_INT:
     case BINARY_OP_SUBTRACT_FLOAT:

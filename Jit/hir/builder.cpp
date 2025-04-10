@@ -2016,6 +2016,10 @@ void HIRBuilder::emitBinaryOp(
         tc.emit<GuardType>(left, TFloatExact, left, tc.frame);
         tc.emit<GuardType>(right, TFloatExact, right, tc.frame);
         break;
+      case BINARY_OP_ADD_UNICODE:
+        tc.emit<GuardType>(left, TUnicodeExact, left, tc.frame);
+        tc.emit<GuardType>(right, TUnicodeExact, right, tc.frame);
+        break;
     }
   }
 

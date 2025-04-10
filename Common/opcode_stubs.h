@@ -24,6 +24,7 @@
   X(BINARY_OP_ADD_FLOAT)               \
   X(BINARY_OP_MULTIPLY_FLOAT)          \
   X(BINARY_OP_SUBTRACT_FLOAT)          \
+  X(BINARY_OP_ADD_UNICODE)             \
   X(BINARY_SLICE)                      \
   X(CACHE)                             \
   X(CALL)                              \
