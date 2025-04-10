@@ -900,6 +900,15 @@ FlagProcessor initFlagProcessor() {
         getConfig().auto_jit_threshold);
   }
 
+  // T198250666: Bit of a hack but this makes other things easier.  In 3.12 all
+  // functions need access to the runtime PyFunctionObject, which prevents
+  // inlining.  Our tests check `is_hir_inliner_enabled()` to see if the inliner
+  // is functional and make assumptions based on that.  However it really
+  // shouldn't be marked as enabled/functional for 3.12 yet.
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    getMutableConfig().hir_opts.inliner = false;
+  }
+
   return flag_processor;
 }
 
