@@ -1,5 +1,5 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
 """Module symbol-table generator"""
 
@@ -31,16 +31,15 @@ MANGLE_LEN = 256
 DEF_GLOBAL = 1
 DEF_LOCAL = 2
 DEF_COMP_ITER = 2
-DEF_PARAM = 2 << 1
-USE = 2 << 3
+DEF_PARAM: int = 2 << 1
+USE: int = 2 << 3
 
 
+NodeWithTypeParams: object = None
 if sys.version_info >= (3, 12):
     NodeWithTypeParams = (
         ast.FunctionDef | ast.AsyncFunctionDef | ast.ClassDef | ast.TypeAlias
     )
-else:
-    NodeWithTypeParams = None
 
 
 class TypeParams(ast.AST, metaclass=ast._ABC):
@@ -49,21 +48,22 @@ class TypeParams(ast.AST, metaclass=ast._ABC):
     _fields = ("params",)
 
     # pyre-ignore[11]: Annotation `NodeWithTypeParams` is not defined as a type.
-    def __init__(self, node: NodeWithTypeParams):
+    def __init__(self, node: NodeWithTypeParams) -> None:
         params = getattr(node, "type_params", None)
         assert params, "TypeParams needs a node with a type_params field"
         first = params[0]
         last = params[-1]
-        self.params = tuple(params)
-        self.lineno = first.lineno
-        self.end_lineno = last.end_lineno
-        self.col_offset = first.col_offset
-        self.end_col_offset = last.end_col_offset
+        # pyre-ignore[11]: ast.type_param added in 3.12, pyre still running in 3.10 mode.
+        self.params: tuple[ast.type_param] = tuple(params)
+        self.lineno: int = first.lineno
+        self.end_lineno: int = last.end_lineno
+        self.col_offset: int = first.col_offset
+        self.end_col_offset: int = last.end_col_offset
 
-    def __eq__(self, other):
-        return self.params == other.params
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, TypeParams) and self.params == other.params
 
-    def __hash__(self):
+    def __hash__(self) -> int:
         return hash(self.params)
 
 
@@ -71,9 +71,11 @@ class Scope:
     is_function_scope = False
 
     # XXX how much information do I need about each name?
-    def __init__(self, name: str, module, klass: str | None = None, lineno: int = 0):
+    def __init__(
+        self, name: str, module: Scope, klass: str | None = None, lineno: int = 0
+    ) -> None:
         self.name: str = name
-        self.module = module
+        self.module: Scope = module
         self.lineno: int = lineno
         self.defs: dict[str, int] = {}
         self.uses: dict[str, int] = {}
@@ -321,11 +323,9 @@ class Scope:
 
 
 class ModuleScope(Scope):
-    __super_init = Scope.__init__
-
     def __init__(self) -> None:
         # Set lineno to 0 so it sorted guaranteedly before any other scope
-        self.__super_init("global", self, lineno=0)
+        super().__init__("global", self, lineno=0)
 
 
 class FunctionScope(Scope):
@@ -358,10 +358,8 @@ class LambdaScope(FunctionScope):
 
 
 class ClassScope(Scope):
-    __super_init = Scope.__init__
-
     def __init__(self, name: str, module: ModuleScope, lineno: int = 0) -> None:
-        self.__super_init(name, module, name, lineno=lineno)
+        super().__init__(name, module, name, lineno=lineno)
         self.needs_class_closure = False
         self.needs_classdict = False
 
@@ -400,9 +398,9 @@ class BaseSymbolVisitor(ASTVisitor):
 
     def __init__(self, future_flags: int) -> None:
         super().__init__()
-        self.future_annotations = future_flags & CO_FUTURE_ANNOTATIONS
+        self.future_annotations: int = future_flags & CO_FUTURE_ANNOTATIONS
         self.scopes: dict[ast.AST, Scope] = {}
-        self.klass = None
+        self.klass: str | None = None
         self.module = ModuleScope()
 
     def enter_type_params(
@@ -509,7 +507,11 @@ class BaseSymbolVisitor(ASTVisitor):
         scope.coroutine = True
         self.visit(node.value, scope)
 
-    def visitGeneratorExp(self, node, parent: Scope) -> None:
+    def visit_gen_impl(
+        self,
+        node: ast.GeneratorExp | ast.ListComp | ast.DictComp | ast.SetComp,
+        parent: Scope,
+    ) -> None:
         scope = self._GenExprScope(
             self._scope_names[type(node)],
             self.module,
@@ -557,9 +559,18 @@ class BaseSymbolVisitor(ASTVisitor):
     # Whether to generate code for comprehensions inline or as nested scope
     # is configurable, but we compute nested scopes for them unconditionally
     # TODO: this may be not correct, check.
-    visitSetComp = visitGeneratorExp
-    visitListComp = visitGeneratorExp
-    visitDictComp = visitGeneratorExp
+
+    def visitGeneratorExp(self, node: ast.GeneratorExp, scope: Scope) -> None:
+        return self.visit_gen_impl(node, scope)
+
+    def visitSetComp(self, node: ast.SetComp, scope: Scope) -> None:
+        return self.visit_gen_impl(node, scope)
+
+    def visitListComp(self, node: ast.ListComp, scope: Scope) -> None:
+        return self.visit_gen_impl(node, scope)
+
+    def visitDictComp(self, node: ast.DictComp, scope: Scope) -> None:
+        return self.visit_gen_impl(node, scope)
 
     def visitcomprehension(
         self, node: ast.comprehension, scope: Scope, is_outmost: bool
@@ -783,14 +794,18 @@ class BaseSymbolVisitor(ASTVisitor):
         self.visit(node.value, scope)
         self.visit(node.target, scope)
 
-    def visitFor(self, node: ast.For | ast.AsyncFor, scope: Scope) -> None:
+    def visitFor(self, node: ast.For, scope: Scope) -> None:
+        self.visit_for_impl(node, scope)
+
+    def visitAsyncFor(self, node: ast.AsyncFor, scope: Scope) -> None:
+        self.visit_for_impl(node, scope)
+
+    def visit_for_impl(self, node: ast.For | ast.AsyncFor, scope: Scope) -> None:
         self.visit(node.target, scope)
         self.visit(node.iter, scope)
         self.visit_list(node.body, scope)
         if node.orelse:
             self.visit_list(node.orelse, scope)
-
-    visitAsyncFor = visitFor
 
     def visitImportFrom(self, node: ast.ImportFrom, scope: Scope) -> None:
         for alias in node.names:
@@ -915,7 +930,9 @@ class BaseSymbolVisitor(ASTVisitor):
 
 
 class SymbolVisitor310(BaseSymbolVisitor):
-    def visitModule(self, node: ast.Expression | ast.Interactive | ast.Module) -> None:
+    def visit_node_with_new_scope(
+        self, node: ast.Expression | ast.Interactive | ast.Module
+    ) -> None:
         scope = self.module = self.scopes[node] = self.module
         body = node.body
         if isinstance(body, list):
@@ -924,9 +941,14 @@ class SymbolVisitor310(BaseSymbolVisitor):
             self.visit(body, scope)
         self.analyze_block(scope, free=set(), global_vars=set())
 
-    # node that define new scopes
+    def visitModule(self, node: ast.Module) -> None:
+        self.visit_node_with_new_scope(node)
 
-    visitInteractive = visitExpression = visitModule
+    def visitInteractive(self, node: ast.Interactive) -> None:
+        self.visit_node_with_new_scope(node)
+
+    def visitExpression(self, node: ast.Expression) -> None:
+        self.visit_node_with_new_scope(node)
 
     def analyze_block(
         self,
@@ -1115,7 +1137,9 @@ class CinderFunctionScope(FunctionScope):
         self, name: str, module: ModuleScope, klass: str | None = None, lineno: int = 0
     ) -> None:
         super().__init__(name=name, module=module, klass=klass, lineno=lineno)
-        self._inline_comprehensions = os.getenv("PYTHONINLINECOMPREHENSIONS")
+        self._inline_comprehensions: bool = bool(
+            os.getenv("PYTHONINLINECOMPREHENSIONS")
+        )
 
 
 class CinderGenExprScope(GenExprScope, CinderFunctionScope):
@@ -1131,7 +1155,11 @@ class CinderSymbolVisitor(SymbolVisitor):
     _GenExprScope = CinderGenExprScope
     _LambdaScope = CinderLambdaScope
 
-    def visitGeneratorExp(self, node, parent):
+    def visit_gen_impl(
+        self,
+        node: ast.GeneratorExp | ast.ListComp | ast.DictComp | ast.SetComp,
+        parent: Scope,
+    ) -> None:
         scope = self._GenExprScope(
             self._scope_names[type(node)],
             self.module,
@@ -1172,10 +1200,6 @@ class CinderSymbolVisitor(SymbolVisitor):
         self.scopes[node] = scope
 
         parent.add_child(scope)
-
-    visitSetComp = visitGeneratorExp
-    visitListComp = visitGeneratorExp
-    visitDictComp = visitGeneratorExp
 
     def visitLambda(self, node: ast.Lambda, parent: Scope) -> None:
         scope = self._LambdaScope(self.module, self.klass, lineno=node.lineno)
@@ -1222,7 +1246,9 @@ class CinderSymbolVisitor(SymbolVisitor):
 
 
 class SymbolVisitor312(BaseSymbolVisitor):
-    def visitModule(self, node: ast.Expression | ast.Interactive | ast.Module) -> None:
+    def visit_node_with_new_scope(
+        self, node: ast.Expression | ast.Interactive | ast.Module
+    ) -> None:
         scope = self.module = self.scopes[node] = self.module
         body = node.body
         if isinstance(body, list):
@@ -1231,13 +1257,18 @@ class SymbolVisitor312(BaseSymbolVisitor):
             self.visit(body, scope)
         self.analyze_block(scope, free=set(), global_vars=set())
 
+    def visitModule(self, node: ast.Module) -> None:
+        self.visit_node_with_new_scope(node)
+
+    def visitInteractive(self, node: ast.Interactive) -> None:
+        self.visit_node_with_new_scope(node)
+
+    def visitExpression(self, node: ast.Expression) -> None:
+        self.visit_node_with_new_scope(node)
+
     # pyre-ignore[11]: TryStar added in 3.11, pyre still running in 3.10 mode.
     def visitTryStar(self, node: ast.TryStar, scope: Scope) -> None:
         return self.visitTry(node, scope)
-
-    # node that define new scopes
-
-    visitInteractive = visitExpression = visitModule
 
     def analyze_block(
         self,
