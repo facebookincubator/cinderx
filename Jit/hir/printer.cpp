@@ -438,6 +438,10 @@ static std::string format_immediates(const Instr& instr) {
       const auto& cmp = static_cast<const Compare&>(instr);
       return std::string{GetCompareOpName(cmp.op())};
     }
+    case Opcode::kFloatCompare: {
+      const auto& cmp = static_cast<const FloatCompare&>(instr);
+      return std::string{GetCompareOpName(cmp.op())};
+    }
     case Opcode::kLongCompare: {
       const auto& cmp = static_cast<const LongCompare&>(instr);
       return std::string{GetCompareOpName(cmp.op())};

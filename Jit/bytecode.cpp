@@ -42,6 +42,7 @@ int BytecodeInstruction::specializedOpcode() const {
     case BINARY_OP_MULTIPLY_INT:
     case BINARY_OP_SUBTRACT_FLOAT:
     case BINARY_OP_SUBTRACT_INT:
+    case COMPARE_OP_FLOAT:
     case COMPARE_OP_INT:
     case COMPARE_OP_STR:
       return opcode;

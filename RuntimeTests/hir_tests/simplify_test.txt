@@ -2031,6 +2031,102 @@ fun jittestmodule:test {
   }
 }
 --- Test Name ---
+CompareOfTwoFloatsTurnsToFloatCompare
+--- Input ---
+# HIR
+fun test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = GuardType<FloatExact> v0
+    v3 = GuardType<FloatExact> v1
+    v4 = Compare<Equal> v2 v3
+    v5 = IsTruthy v4 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v2 v3
+      }
+    }
+    CondBranch<2, 1> v5
+  }
+
+  bb 1 (preds 0) {
+    v6 = LoadConst<ImmortalBool[True]>
+    Return v6
+  }
+
+  bb 2 (preds 0) {
+    v7 = LoadConst<ImmortalBool[False]>
+    Return v7
+  }
+}
+--- Expected 3.10 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:FloatExact = GuardType<FloatExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:FloatExact = GuardType<FloatExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v8:Bool = FloatCompare<Equal> v2 v3
+    UseType<Bool> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v10:CBool = PrimitiveCompare<Equal> v8 v9
+    v11:CInt32 = IntConvert<CInt32> v10
+    CondBranch<2, 1> v10
+  }
+
+  bb 2 (preds 0) {
+    v7:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v7
+  }
+
+  bb 1 (preds 0) {
+    v6:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v6
+  }
+}
+--- Expected 3.12 ---
+fun test {
+  bb 0 {
+    v0:Object = LoadArg<0>
+    v1:Object = LoadArg<1>
+    v2:FloatExact = GuardType<FloatExact> v0 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v3:FloatExact = GuardType<FloatExact> v1 {
+      FrameState {
+        CurInstrOffset -2
+      }
+    }
+    v8:Bool = FloatCompare<Equal> v2 v3
+    UseType<Bool> v8
+    v9:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    v10:CBool = PrimitiveCompare<Equal> v8 v9
+    v11:CInt32 = IntConvert<CInt32> v10
+    CondBranch<2, 1> v10
+  }
+
+  bb 2 (preds 0) {
+    v7:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
+    Return v7
+  }
+
+  bb 1 (preds 0) {
+    v6:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
+    Return v6
+  }
+}
+--- Test Name ---
 CompareOfTwoLongsTurnsToLongCompare
 --- Input ---
 # HIR

@@ -1568,6 +1568,17 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             op);
         break;
       }
+      case Opcode::kFloatCompare: {
+        auto instr = static_cast<const FloatCompare*>(&i);
+
+        bbb.appendCallInstruction(
+            instr->output(),
+            PyFloat_Type.tp_richcompare,
+            instr->left(),
+            instr->right(),
+            static_cast<int>(instr->op()));
+        break;
+      }
       case Opcode::kLongCompare: {
         auto instr = static_cast<const LongCompare*>(&i);
 

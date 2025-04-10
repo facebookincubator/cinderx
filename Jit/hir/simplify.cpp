@@ -338,6 +338,14 @@ Register* simplifyCompare(Env& env, const Compare* instr) {
     }
   }
 
+  // Emit FloatCompare if both args are FloatExact and the op is supported
+  // between two longs.
+  if (left->isA(TFloatExact) && right->isA(TFloatExact) &&
+      !(op == CompareOp::kIn || op == CompareOp::kNotIn ||
+        op == CompareOp::kExcMatch)) {
+    return env.emit<FloatCompare>(instr->op(), left, right);
+  }
+
   // Emit LongCompare if both args are LongExact and the op is supported between
   // two longs.
   if (left->isA(TLongExact) && right->isA(TLongExact) &&

@@ -157,6 +157,7 @@ bool Instr::isReplayable() const {
     case Opcode::kCheckSequenceBounds:
     case Opcode::kCheckVar:
     case Opcode::kDoubleBinaryOp:
+    case Opcode::kFloatCompare:
     case Opcode::kFormatValue:
     case Opcode::kGetSecondOutput:
     case Opcode::kGuard:

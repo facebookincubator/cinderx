@@ -108,6 +108,15 @@ class SpecializationTests(unittest.TestCase):
         self.assertIn("BINARY_OP_MULTIPLY_FLOAT", opnames(f))
         self.assertEqual(f(5.5, 2.5), 13.75)
 
+    def test_compare_op_float(self) -> None:
+        def f(a: float, b: float) -> bool:
+            return a < b
+
+        specialize(f, lambda: f(1.5, 2.5))
+        self.assertNotIn("COMPARE_OP", opnames(f))
+        self.assertIn("COMPARE_OP_FLOAT", opnames(f))
+        self.assertEqual(f(2.5, 3.5), True)
+
     def test_compare_op_int(self) -> None:
         def f(a: int, b: int) -> bool:
             return a < b

@@ -32,6 +32,7 @@
   X(CHECK_EG_MATCH)                    \
   X(CHECK_EXC_MATCH)                   \
   X(CLEANUP_THROW)                     \
+  X(COMPARE_OP_FLOAT)                  \
   X(COMPARE_OP_INT)                    \
   X(COMPARE_OP_STR)                    \
   X(COPY)                              \

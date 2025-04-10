@@ -2571,6 +2571,10 @@ void HIRBuilder::emitCompareOp(
 
   if (getConfig().specialized_opcodes) {
     switch (bc_instr.specializedOpcode()) {
+      case COMPARE_OP_FLOAT:
+        tc.emit<GuardType>(left, TFloatExact, left, tc.frame);
+        tc.emit<GuardType>(right, TFloatExact, right, tc.frame);
+        break;
       case COMPARE_OP_INT:
         tc.emit<GuardType>(left, TLongExact, left, tc.frame);
         tc.emit<GuardType>(right, TLongExact, right, tc.frame);
