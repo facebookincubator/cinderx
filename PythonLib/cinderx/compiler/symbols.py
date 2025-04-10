@@ -579,21 +579,6 @@ class BaseSymbolVisitor(ASTVisitor):
         for if_ in node.ifs:
             self.visit(if_, scope)
 
-    def visitGenExprInner(self, node, scope: Scope) -> None:
-        for genfor in node.quals:
-            self.visit(genfor, scope)
-
-        self.visit(node.expr, scope)
-
-    def visitGenExprFor(self, node, scope: Scope) -> None:
-        self.visit(node.assign, scope)
-        self.visit(node.iter, scope)
-        for if_ in node.ifs:
-            self.visit(if_, scope)
-
-    def visitGenExprIf(self, node, scope: Scope) -> None:
-        self.visit(node.test, scope)
-
     def visitLambda(self, node: ast.Lambda, parent: Scope) -> None:
         scope = self._LambdaScope(self.module, self.klass, lineno=node.lineno)
         scope.parent = parent
@@ -871,12 +856,6 @@ class BaseSymbolVisitor(ASTVisitor):
         if node.value:
             self.visit(node.value, scope)
 
-    def visitAssName(self, node, scope: Scope) -> None:
-        scope.add_def(node.name)
-
-    def visitAssAttr(self, node, scope: Scope) -> None:
-        self.visit(node.expr, scope)
-
     def visitSubscript(self, node: ast.Subscript, scope: Scope) -> None:
         self.visit(node.value, scope)
         self.visit(node.slice, scope)
@@ -1136,12 +1115,7 @@ class CinderFunctionScope(FunctionScope):
         self, name: str, module: ModuleScope, klass: str | None = None, lineno: int = 0
     ) -> None:
         super().__init__(name=name, module=module, klass=klass, lineno=lineno)
-        self._inlinable_comprehensions = []
         self._inline_comprehensions = os.getenv("PYTHONINLINECOMPREHENSIONS")
-
-    def add_comprehension(self, comp: ast.comprehension) -> None:
-        if self._inline_comprehensions:
-            self._inlinable_comprehensions.append(comp)
 
 
 class CinderGenExprScope(GenExprScope, CinderFunctionScope):
@@ -1172,9 +1146,6 @@ class CinderSymbolVisitor(SymbolVisitor):
         scope.comp_iter_expr = parent.comp_iter_expr
         if isinstance(node, ast.GeneratorExp):
             scope.generator = True
-        elif isinstance(parent, FunctionScope):
-            # record itself as possibly inlinable comprehension in parent scope
-            parent.add_comprehension(scope)
 
         if (
             parent.nested
