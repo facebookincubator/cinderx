@@ -2020,6 +2020,9 @@ void HIRBuilder::emitBinaryOp(
         tc.emit<GuardType>(left, TUnicodeExact, left, tc.frame);
         tc.emit<GuardType>(right, TUnicodeExact, right, tc.frame);
         break;
+      case BINARY_SUBSCR_DICT:
+        tc.emit<GuardType>(left, TDictExact, left, tc.frame);
+        break;
     }
   }
 

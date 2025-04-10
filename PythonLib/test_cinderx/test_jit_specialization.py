@@ -86,6 +86,7 @@ class SpecializationTests(unittest.TestCase):
             return a + b
 
         specialize(f, lambda: f(1.5, 2.5))
+
         self.assertNotIn("BINARY_OP", opnames(f))
         self.assertIn("BINARY_OP_ADD_FLOAT", opnames(f))
         self.assertEqual(f(2.5, 3.5), 6.0)
@@ -95,6 +96,7 @@ class SpecializationTests(unittest.TestCase):
             return a - b
 
         specialize(f, lambda: f(2.5, 1.5))
+
         self.assertNotIn("BINARY_OP", opnames(f))
         self.assertIn("BINARY_OP_SUBTRACT_FLOAT", opnames(f))
         self.assertEqual(f(5.5, 2.5), 3.0)
@@ -104,6 +106,7 @@ class SpecializationTests(unittest.TestCase):
             return a * b
 
         specialize(f, lambda: f(2.5, 3.5))
+
         self.assertNotIn("BINARY_OP", opnames(f))
         self.assertIn("BINARY_OP_MULTIPLY_FLOAT", opnames(f))
         self.assertEqual(f(5.5, 2.5), 13.75)
@@ -113,15 +116,27 @@ class SpecializationTests(unittest.TestCase):
             return a + b
 
         specialize(f, lambda: f("a", "b"))
+
         self.assertNotIn("BINARY_OP", opnames(f))
         self.assertIn("BINARY_OP_ADD_UNICODE", opnames(f))
         self.assertEqual(f("c", "d"), "cd")
+
+    def test_binary_subscr_dict(self) -> None:
+        def f(a: dict, b: str) -> str:
+            return a[b]
+
+        specialize(f, lambda: f({"a": "b"}, "a"))
+
+        self.assertNotIn("BINARY_SUBSCR", opnames(f))
+        self.assertIn("BINARY_SUBSCR_DICT", opnames(f))
+        self.assertEqual(f({"c": "d"}, "c"), "d")
 
     def test_compare_op_float(self) -> None:
         def f(a: float, b: float) -> bool:
             return a < b
 
         specialize(f, lambda: f(1.5, 2.5))
+
         self.assertNotIn("COMPARE_OP", opnames(f))
         self.assertIn("COMPARE_OP_FLOAT", opnames(f))
         self.assertEqual(f(2.5, 3.5), True)
