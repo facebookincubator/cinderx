@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 
 import unittest
 import dis
@@ -10,11 +10,15 @@ import cinderx
 cinderx.init()
 
 import cinderx.jit
+from typing import Callable, TypeVar
 
 
-_all_opnames = dis.opname
+TCallableRet = TypeVar("TCallableRet")
+
+
+_all_opnames: list[str] = dis.opname
 if hasattr(dis, "_specialized_instructions"):
-    _specialized_indices = [index for index, name in enumerate(_all_opnames) if name.startswith("<")]
+    _specialized_indices: list[int] = [index for index, name in enumerate(_all_opnames) if name.startswith("<")]
 
     # pyre-ignore
     for index, name in zip(_specialized_indices, dis._specialized_instructions):
@@ -25,13 +29,14 @@ if hasattr(dis, "_specialized_instructions"):
 # relatively hacky way to ensure that the specializing interpreter has run,
 # because we compare this output against a specific instruction name to ensure
 # it no longer contains the original.
-def opnames(func):
-    return [_all_opnames[insn.opcode] for insn in dis.Bytecode(func, adaptive=True)]
+def opnames(func: Callable[..., TCallableRet]) -> list[str]:
+    bytecode = dis.Bytecode(func, adaptive=True) # pyre-ignore
+    return [_all_opnames[insn.opcode] for insn in bytecode]
 
 
 # Run the given function a certain number of times to ensure the specializing
 # interpreter kicks in. Then compile it with cinder.
-def specialize(func, callable):
+def specialize(func: Callable[..., TCallableRet], callable: Callable[[], TCallableRet]) -> None:
     cinderx.jit.force_uncompile(func)
     cinderx.jit.jit_suppress(func)
 
@@ -122,7 +127,7 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f("c", "d"), "cd")
 
     def test_binary_subscr_dict(self) -> None:
-        def f(a: dict, b: str) -> str:
+        def f(a: dict[str, str], b: str) -> str:
             return a[b]
 
         specialize(f, lambda: f({"a": "b"}, "a"))
