@@ -1,39 +1,11 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
-
-
-class Set:
-    def __init__(self):
-        self.elts = {}
-
-    def __len__(self):
-        return len(self.elts)
-
-    def __contains__(self, elt):
-        return elt in self.elts
-
-    def add(self, elt):
-        self.elts[elt] = elt
-
-    def elements(self):
-        return self.elts.keys()
-
-    def has_elt(self, elt):
-        return elt in self.elts
-
-    def remove(self, elt):
-        del self.elts[elt]
-
-    def copy(self):
-        c = Set()
-        c.elts.update(self.elts)
-        return c
+# pyre-strict
 
 
 MANGLE_LEN = 256  # magic constant from compile.c
 
 
-def mangle(name, klass):
+def mangle(name: str, klass: str | None) -> str:
     if klass is None:
         return name
     if not name.startswith("__"):
