@@ -1,3 +1,4 @@
+# pyre-unsafe
 def f():
     class X:
         T = int
