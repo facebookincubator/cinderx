@@ -1,10 +1,7 @@
 # pyre-strict
-import contextlib
 import json
 import os
 import re
-import subprocess
-from typing import Generator
 
 from clang.cindex import Config, Index, TranslationUnit, TranslationUnitLoadError
 
@@ -88,32 +85,30 @@ class ParsedFile:
             ) from e
 
 
-@contextlib.contextmanager
-def chdir(path: str) -> Generator[None, None, None]:
-    d = os.getcwd()
-    os.chdir(path)
-    try:
-        yield
-    finally:
-        os.chdir(d)
+def setup_libclang_dll() -> None:
+    root = os.environ["FB_PAR_RUNTIME_FILES"]
+    path = os.path.join(root, "runtime", "lib")
+    # The libclang.so file might be in one of two places
+    dll = None
+    for d in [path, root]:
+        try:
+            dll = next(x for x in os.listdir(d) if x.startswith("libclang.so."))
+            break
+        except StopIteration:
+            pass
+    assert dll, "Could not find libclang.so.*"
+    # LLVM prior to 17 (specifically 15) seems to have a bug which slightly
+    # breaks parsing of some files, so make sure we have llvm >= 17 here.
+    m = re.match(r"libclang.so.(\d+)", dll)
+    assert m, f"Could not parse llvm version from {dll}"
+    version = int(m.group(1))
+    assert version >= 17, f"Minimum supported libclang version is 17 (got {version})"
+    Config.set_library_file(dll)
 
 
 def make_compilation_db(compile_commands: str) -> CompilationDb:
     with open(compile_commands, "r") as f:
         compile_commands_db: CompilationDb = json.load(f)
-
-    llvm_driver_example = compile_commands_db[0]["arguments"][1]
-    m = re.match(
-        r"--cc=fbcode/third-party-buck/[^/]+/build/llvm-fb/(\d+)/",
-        llvm_driver_example,
-    )
-    if not m:
-        raise Exception(f"Could not find LLVM version in {llvm_driver_example}")
-    llvm_version = int(m.group(1))
-    # LLVM prior to 17 (specifically 15) seems to have a bug which slightly
-    # breaks parsing of some files.
-    llvm_version = max(llvm_version, 17)
-    Config.set_library_file(f"libclang.so.{llvm_version}")
     return compile_commands_db
 
 
@@ -121,6 +116,7 @@ class FileParser:
     def __init__(self, compile_commands: str) -> None:
         self.compilation_db: CompilationDb = make_compilation_db(compile_commands)
         self.parsed_files: dict[str, ParsedFile] = {}
+        setup_libclang_dll()
 
     def parse(self, source_file: str) -> ParsedFile:
         if self.parsed_files.get(source_file) is None:
