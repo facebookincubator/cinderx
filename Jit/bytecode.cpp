@@ -49,6 +49,9 @@ int BytecodeInstruction::specializedOpcode() const {
     case COMPARE_OP_FLOAT:
     case COMPARE_OP_INT:
     case COMPARE_OP_STR:
+    case UNPACK_SEQUENCE_LIST:
+    case UNPACK_SEQUENCE_TUPLE:
+    case UNPACK_SEQUENCE_TWO_TUPLE:
       return opcode;
     default:
       return unspecialize(opcode);

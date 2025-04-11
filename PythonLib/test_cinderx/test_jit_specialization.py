@@ -185,3 +185,36 @@ class SpecializationTests(unittest.TestCase):
         self.assertNotIn("COMPARE_OP", opnames(f))
         self.assertIn("COMPARE_OP_STR", opnames(f))
         self.assertEqual(f("b", "b"), True)
+
+    def test_unpack_sequence_list(self) -> None:
+        def f(l: list[str]) -> str:
+            (a, _b) = l
+            return a
+
+        specialize(f, lambda: f(["a", "b"]))
+
+        self.assertNotIn("UNPACK_SEQUENCE", opnames(f))
+        self.assertIn("UNPACK_SEQUENCE_LIST", opnames(f))
+        self.assertEqual(f(["c", "d"]), "c")
+
+    def test_unpack_sequence_tuple(self) -> None:
+        def f(l: tuple[str, str, str]) -> str:
+            (a, _b, _c) = l
+            return a
+
+        specialize(f, lambda: f(("a", "b", "c")))
+
+        self.assertNotIn("UNPACK_SEQUENCE", opnames(f))
+        self.assertIn("UNPACK_SEQUENCE_TUPLE", opnames(f))
+        self.assertEqual(f(("c", "d", "e")), "c")
+
+    def test_unpack_sequence_two_tuple(self) -> None:
+        def f(l: tuple[str, str]) -> str:
+            (a, _b) = l
+            return a
+
+        specialize(f, lambda: f(("a", "b")))
+
+        self.assertNotIn("UNPACK_SEQUENCE", opnames(f))
+        self.assertIn("UNPACK_SEQUENCE_TWO_TUPLE", opnames(f))
+        self.assertEqual(f(("c", "d")), "c")

@@ -80,7 +80,10 @@
   X(RETURN_GENERATOR)                  \
   X(SEND)                              \
   X(STORE_SLICE)                       \
-  X(SWAP)
+  X(SWAP)                              \
+  X(UNPACK_SEQUENCE_LIST)              \
+  X(UNPACK_SEQUENCE_TUPLE)             \
+  X(UNPACK_SEQUENCE_TWO_TUPLE)
 
 #define STUB_NB_DEFS(X) \
   X(ADD)                \

@@ -3842,6 +3842,20 @@ void HIRBuilder::emitUnpackSequence(
   auto& stack = tc.frame.stack;
   Register* seq = stack.top();
 
+  if (getConfig().specialized_opcodes) {
+    switch (bc_instr.specializedOpcode()) {
+      case UNPACK_SEQUENCE_LIST:
+        tc.emit<GuardType>(seq, TListExact, seq, tc.frame);
+        break;
+      case UNPACK_SEQUENCE_TUPLE:
+      case UNPACK_SEQUENCE_TWO_TUPLE:
+        tc.emit<GuardType>(seq, TTupleExact, seq, tc.frame);
+        break;
+      default:
+        break;
+    }
+  }
+
   TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
   deopt_path.frame.cur_instr_offs = bc_instr.offset();
   deopt_path.emitSnapshot();
@@ -3855,14 +3869,48 @@ void HIRBuilder::emitUnpackSequence(
   BasicBlock* tuple_fast_path = cfg.AllocateBlock();
   Register* list_mem = temps_.AllocateStack();
   stack.pop();
+
   // TODO: The manual type checks and branches should go away once we get
   // PGO support to be able to optimize to known types.
-  tc.emit<CondBranchCheckType>(
-      seq, TTupleExact, tuple_fast_path, list_check_path);
 
-  tc.block = list_check_path;
-  tc.emit<CondBranchCheckType>(
-      seq, TListExact, list_fast_path, deopt_path.block);
+  //---
+  // +-main------------------------------+         +-tuple_fast_path------+
+  // | CondBranchCheckType (TTupleExact) |-truthy->| LoadConst (ob_item)  |
+  // +-----------------------------------+         | LoadFieldAddress     |
+  //    |                                          | Branch               |--+
+  //  falsy                                        +----------------------+  |
+  //    |                                                                    |
+  //    v                                                                    |
+  // +-list_check_path------------------+         +-list_fast_path------+    |
+  // | CondBranchCheckType (TListExact) |-truthy->| LoadField (ob_item) |    |
+  // +----------------------------------+         | Branch              |----+
+  //   |                                          +---------------------+    |
+  //  falsy                                                                  |
+  //   |                                          +-fast_path---------+      |
+  //   |                                          | LoadVarObjectSize |<-----+
+  //   v                                          | LoadConst         |
+  // +-deopt_path-+                               | PrimitiveCompare  |
+  // | Deopt      |<----------falsy---------------| CondBranch        |------+
+  // +------------+                               +-------------------+      |
+  //                                                                         |
+  //                                              +-fast_path-----+          |
+  //                                              | LoadConst     |<-truthy--+
+  //                                              | LoadArrayItem |
+  //                                              +---------------+
+  //---
+
+  if (seq->isA(TTupleExact)) {
+    tc.emit<Branch>(tuple_fast_path);
+  } else if (seq->isA(TListExact)) {
+    tc.emit<Branch>(list_fast_path);
+  } else {
+    tc.emit<CondBranchCheckType>(
+        seq, TTupleExact, tuple_fast_path, list_check_path);
+
+    tc.block = list_check_path;
+    tc.emit<CondBranchCheckType>(
+        seq, TListExact, list_fast_path, deopt_path.block);
+  }
 
   tc.block = tuple_fast_path;
   Register* offset_reg = temps_.AllocateStack();
