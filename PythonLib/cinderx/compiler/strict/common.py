@@ -1,5 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ from .runtime import freeze_type, mutable
 MAGIC_NUMBER = 54
 
 
-DEFAULT_STUB_PATH = os.path.dirname(__file__) + "/stubs"
+DEFAULT_STUB_PATH: str = os.path.dirname(__file__) + "/stubs"
 
 
 def make_fixed_modules() -> Mapping[str, Mapping[str, object]]:
@@ -304,7 +304,7 @@ class ScopeStack(Generic[TVar, TScopeData]):
 
     def with_node_scope(
         self, node: AST, vars: MutableMapping[str, TVar] | None = None
-    ) -> ScopeContextManager[TVar, TScopeData] | nullcontext:
+    ) -> ScopeContextManager[TVar, TScopeData] | nullcontext[None]:
         if not _is_scoped_generator_node(node):
             assert isinstance(node, (ast.ListComp, ast.DictComp, ast.SetComp))
             # In 3.12 list/dict/set comprehensions are inlined

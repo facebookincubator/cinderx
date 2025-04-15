@@ -415,6 +415,7 @@ class SymbolVisitor(Generic[TVar, TScopeData], NodeVisitor):
     ) -> SymbolScope[TVar, TScopeData]:
         scope_node = scope_node or node
         with self.scopes.with_node_scope(scope_node) as next:
+            assert next
             assert isinstance(node, Lambda) or node.name == next.symbols.get_name()
 
             # visit body in function scope
@@ -440,6 +441,7 @@ class SymbolVisitor(Generic[TVar, TScopeData], NodeVisitor):
     ) -> SymbolScope[TVar, TScopeData]:
         scope_node = scope_node or node
         with self.scopes.with_node_scope(scope_node) as next:
+            assert next
             assert node.name == next.symbols.get_name()
             # visit body in class scope
             self.walk_many(node.body, update)
