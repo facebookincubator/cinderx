@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 
 # Opcodes defined by cinderx
 
@@ -22,7 +22,7 @@ ARG = 16
 IMPLEMENTED_IN_INTERPRETER = 32
 
 
-CINDER_OPS = {
+CINDER_OPS: dict[str, int] = {
     "INVOKE_METHOD": CONST | IMPLEMENTED_IN_INTERPRETER,
     "LOAD_FIELD": CONST | IMPLEMENTED_IN_INTERPRETER,
     "STORE_FIELD": CONST | IMPLEMENTED_IN_INTERPRETER,
