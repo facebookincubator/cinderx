@@ -1,4 +1,5 @@
-# pyre-unsafe
+# pyre-strict
+
 """Module/script to byte-compile all .py files to .pyc files.
 
 When called as a script with arguments, this compiles the directories
@@ -18,6 +19,7 @@ import os
 import py_compile
 import struct
 import sys
+from typing import Generator, Pattern, Type
 
 import cinderx
 
@@ -33,7 +35,7 @@ from cinderx.compiler.strict.loader import strict_compile as strict_compile_fn
 __all__ = ["compile_dir", "compile_file", "compile_path"]
 
 
-def _walk_dir(dir, maxlevels, quiet=0):
+def _walk_dir(dir: str, maxlevels: int, quiet: int = 0) -> Generator[str, None, None]:
     if quiet < 2 and isinstance(dir, os.PathLike):
         dir = os.fspath(dir)
     if not quiet:
@@ -62,24 +64,24 @@ def _walk_dir(dir, maxlevels, quiet=0):
 
 
 def compile_dir(
-    dir,
-    maxlevels=None,
-    ddir=None,
-    force=False,
-    rx=None,
-    quiet=0,
-    legacy=False,
-    optimize=-1,
-    workers=1,
-    invalidation_mode=None,
+    dir: str,
+    maxlevels: int | None = None,
+    ddir: str | None = None,
+    force: bool = False,
+    rx: Pattern | None = None,
+    quiet: int = 0,
+    legacy: bool = False,
+    optimize: int | list[int] = -1,
+    workers: int = 1,
+    invalidation_mode: py_compile.PycInvalidationMode | None = None,
     *,
-    stripdir=None,
-    prependdir=None,
-    limit_sl_dest=None,
-    hardlink_dupes=False,
-    loader_override=None,
-    strict_compile=False,
-):
+    stripdir: str | None = None,
+    prependdir: str | None = None,
+    limit_sl_dest: str | None = None,
+    hardlink_dupes: bool = False,
+    loader_override: Type[PySourceFileLoader] | None = None,
+    strict_compile: bool = False,
+) -> bool:
     """Byte-compile all modules in the given directory tree.
 
     Arguments (only dir is required):
@@ -106,7 +108,7 @@ def compile_dir(
     loader_override: loader type to use instead of default SourceFileLoader
     strict_compile: Whether to use the strict compiler instead of the default.
     """
-    ProcessPoolExecutor = None
+    poolexecutor = None
     if ddir is not None and (stripdir is not None or prependdir is not None):
         raise ValueError(
             (
@@ -130,14 +132,16 @@ def compile_dir(
             workers = 1
         else:
             from concurrent.futures import ProcessPoolExecutor
+
+            poolexecutor = ProcessPoolExecutor
     if maxlevels is None:
         maxlevels = sys.getrecursionlimit()
     files = _walk_dir(dir, quiet=quiet, maxlevels=maxlevels)
     success = True
-    if workers != 1 and ProcessPoolExecutor is not None:
+    if workers != 1 and poolexecutor is not None:
         # If workers == 0, let ProcessPoolExecutor choose
         workers = workers or None
-        with ProcessPoolExecutor(max_workers=workers) as executor:
+        with poolexecutor(max_workers=workers) as executor:
             results = executor.map(
                 partial(
                     compile_file,
@@ -181,22 +185,22 @@ def compile_dir(
 
 
 def compile_file(
-    fullname,
-    ddir=None,
-    force=False,
-    rx=None,
-    quiet=0,
-    legacy=False,
-    optimize=-1,
-    invalidation_mode=None,
+    fullname: str,
+    ddir: str | None = None,
+    force: bool = False,
+    rx: Pattern | None = None,
+    quiet: int = 0,
+    legacy: bool = False,
+    optimize: int | list[int] = -1,
+    invalidation_mode: py_compile.PycInvalidationMode | None = None,
     *,
-    stripdir=None,
-    prependdir=None,
-    limit_sl_dest=None,
-    hardlink_dupes=False,
-    loader_override=None,
-    strict_compile=False,
-):
+    stripdir: str | None = None,
+    prependdir: str | None = None,
+    limit_sl_dest: str | None = None,
+    hardlink_dupes: bool = False,
+    loader_override: Type[PySourceFileLoader] | None = None,
+    strict_compile: bool = False,
+) -> bool:
     """Byte-compile one file.
 
     Arguments (only fullname is required):
@@ -312,6 +316,7 @@ def compile_file(
                     pass
             if not quiet:
                 print("Compiling {!r}...".format(fullname))
+            ok = 0
             try:
                 for index, opt_level in enumerate(optimize):
                     cfile = opt_cfiles[opt_level]
@@ -369,16 +374,16 @@ def compile_file(
 
 
 def compile_path(
-    skip_curdir=1,
-    maxlevels=0,
-    force=False,
-    quiet=0,
-    legacy=False,
-    optimize=-1,
-    invalidation_mode=None,
-    loader_override=None,
-    strict_compile=False,
-):
+    skip_curdir: int = 1,
+    maxlevels: int = 0,
+    force: bool = False,
+    quiet: int = 0,
+    legacy: bool = False,
+    optimize: int | list[int] = -1,
+    invalidation_mode: py_compile.PycInvalidationMode | None = None,
+    loader_override: Type[PySourceFileLoader] | None = None,
+    strict_compile: bool = False,
+) -> bool:
     """Byte-compile all module on sys.path.
 
     Arguments (all optional):
@@ -413,7 +418,7 @@ def compile_path(
     return success
 
 
-def main():
+def main() -> bool:
     """Script main program."""
     import argparse
 
