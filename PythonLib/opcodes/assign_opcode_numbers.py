@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 
 # Assign opcode numbers for python 3.12
 
@@ -24,7 +24,7 @@ START_NUM = 184
 END_NUM = 236
 
 
-HEADER = """
+HEADER: str = """
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 # Generated via assign_opcode_numbers.py, do not edit.
@@ -90,13 +90,12 @@ def assign_numbers() -> list[str]:
     return out
 
 
-def main():
-    if len(sys.argv) == 2:
-        outfile = sys.argv[1]
-    else:
+def main() -> None:
+    if len(sys.argv) != 2:
         print("Usage:\n  fbpython assign_opcode_numbers.py <outfile>")
         sys.exit()
 
+    outfile = sys.argv[1]
     out = assign_numbers()
     with open(outfile, "w") as f:
         f.write(HEADER)
