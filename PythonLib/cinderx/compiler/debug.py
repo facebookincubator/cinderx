@@ -1,4 +1,4 @@
-# pyre-unsafe
+# pyre-strict
 """Debugging output for various internal datatypes."""
 
 from __future__ import annotations
@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING
 from .opcodes import opcode
 
 if TYPE_CHECKING:
-    from .pyassem import Block, PyFlowGraph
+    from .pyassem import Block, Instruction, PyFlowGraph
 
 
-def str_of_oparg(instr) -> str:
+def str_of_oparg(instr: Instruction) -> str:
     if instr.target is None:
         # This is not a block
         return str(instr.oparg)
@@ -23,17 +23,17 @@ def str_of_oparg(instr) -> str:
         return str(instr.target.bid)
 
 
-def str_of_instr(instr) -> str:
+def str_of_instr(instr: Instruction) -> str:
     oparg = str_of_oparg(instr)
     opname = instr.opname
     return f"{instr.lineno} {opname} {oparg}"
 
 
-def str_of_block_header(block) -> str:
+def str_of_block_header(block: Block) -> str:
     return repr(block)
 
 
-def str_of_stack_effect(instr) -> str:
+def str_of_stack_effect(instr: Instruction) -> str:
     d1 = opcode.stack_effect_raw(instr.opname, instr.oparg, False)
     d2 = opcode.stack_effect_raw(instr.opname, instr.oparg, True)
     if d1 != d2:
@@ -43,7 +43,9 @@ def str_of_stack_effect(instr) -> str:
     return delta
 
 
-def str_of_block_instr(instr, pc: int = 0, stack_effect: bool = False) -> str:
+def str_of_block_instr(
+    instr: Instruction, pc: int = 0, stack_effect: bool = False
+) -> str:
     delta = str_of_stack_effect(instr) if stack_effect else ""
     return f"{delta:>6} | {pc:3} {str_of_instr(instr)}"
 
