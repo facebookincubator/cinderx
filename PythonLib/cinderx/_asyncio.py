@@ -1,5 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
 from __future__ import annotations
 
