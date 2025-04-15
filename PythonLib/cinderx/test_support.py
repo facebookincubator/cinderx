@@ -1,5 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
 import ctypes
 import importlib
@@ -11,7 +11,7 @@ import unittest
 from contextlib import contextmanager
 from pathlib import Path
 
-from typing import Callable, Sequence, TypeVar
+from typing import Callable, Coroutine, Generator, Sequence, TypeVar
 
 import cinderx.jit
 
@@ -39,13 +39,22 @@ def get_cinderjit_xargs() -> list[str]:
     return args
 
 
-def get_await_stack(coro):
+TYield = TypeVar("TYield")
+TSend = TypeVar("TSend")
+TReturn = TypeVar("TReturn")
+
+
+def get_await_stack(
+    coro: Coroutine[TYield, TSend, TReturn],
+) -> list[Coroutine[TYield, TSend, TReturn]]:
     """Return the chain of coroutines reachable from coro via its awaiter"""
 
     stack = []
     awaiter = cinder._get_coro_awaiter(coro)
     while awaiter is not None:
         stack.append(awaiter)
+
+        # pyre-ignore[1001]
         awaiter = cinder._get_coro_awaiter(awaiter)
     return stack
 
@@ -57,10 +66,10 @@ def verify_stack(
     frames = stack[-n:]
     testcase.assertEqual(len(frames), n, "Callstack had less frames than expected")
 
-    for actual, expected in zip(frames, expected):
+    for actual, exp in zip(frames, expected):
         testcase.assertTrue(
-            actual.endswith(expected),
-            f"The actual frame {actual} doesn't refer to the expected function {expected}",
+            actual.endswith(exp),
+            f"The actual frame {actual} doesn't refer to the expected function {exp}",
         )
 
 
@@ -76,7 +85,10 @@ def skip_unless_jit(reason: str) -> object:
     return unittest.skip(reason) if not cinderx.jit.is_enabled() else _identity
 
 
-def failUnlessJITCompiled(func):
+TRet = TypeVar("TRet")
+
+
+def failUnlessJITCompiled(func: Callable[..., TRet]) -> Callable[..., TRet]:
     """
     Fail a test if the JIT is enabled but the test body wasn't JIT-compiled.
     """
@@ -99,7 +111,7 @@ def failUnlessJITCompiled(func):
         # when wrapper() is eventually called.
         exc: RuntimeError = re
 
-        def wrapper(*args: object) -> None:
+        def wrapper(*args: ...) -> None:
             raise RuntimeError(
                 f"JIT compilation of {func.__qualname__} failed with {exc}"
             )
@@ -131,7 +143,7 @@ SUBPROCESS_TIMEOUT_SEC = 100 if is_asan_build() else 5
 
 
 @contextmanager
-def temp_sys_path():
+def temp_sys_path() -> Generator[Path, None, None]:
     with tempfile.TemporaryDirectory() as tmpdir:
         _orig_sys_modules = sys.modules
         sys.modules = _orig_sys_modules.copy()
@@ -142,9 +154,6 @@ def temp_sys_path():
         finally:
             sys.path[:] = _orig_sys_path
             sys.modules = _orig_sys_modules
-
-
-TRet = TypeVar("TRet")
 
 
 def run_in_subprocess(func: Callable[..., TRet]) -> Callable[..., TRet]:
