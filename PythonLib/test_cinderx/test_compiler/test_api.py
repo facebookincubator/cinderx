@@ -9,6 +9,7 @@ import re
 import sys
 import unittest
 from unittest import skipIf
+from types import CodeType
 
 from cinderx.compiler import compile
 
@@ -70,10 +71,12 @@ class ApiTests(CompilerTest):
 
         src_code = "def f(): '''hi'''\n"
         code = compile(src_code, "foo", "single", optimize=1)
+        assert isinstance(code, CodeType)
         consts = {k: v for k, v in zip(code.co_names, code.co_consts)}
         self.assertIn("hi", consts["f"].co_consts)
 
         code = compile(src_code, "foo", "single", optimize=2)
+        assert isinstance(code, CodeType)
         consts = {k: v for k, v in zip(code.co_names, code.co_consts)}
         self.assertNotIn("hi", consts["f"].co_consts)
 

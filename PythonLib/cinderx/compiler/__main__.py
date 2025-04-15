@@ -9,6 +9,7 @@ import os
 import re
 import sys
 from dis import dis
+from types import CodeType
 from typing import Pattern, TextIO
 
 from .pycodegen import (
@@ -106,6 +107,7 @@ def main() -> None:
             modname=args.modname,
         )
 
+    assert isinstance(codeobj, CodeType)
     if args.dis:
         dis(codeobj)
 

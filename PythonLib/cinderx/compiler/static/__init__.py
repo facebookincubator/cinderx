@@ -52,7 +52,7 @@ from ..pycodegen import (
 from ..strict import StrictCodeGenerator310, StrictCodeGenerator312
 from ..strict.code_gen_base import StrictCodeGenBase
 from ..strict.common import FIXED_MODULES
-from ..symbols import BaseSymbolVisitor, ModuleScope, Scope
+from ..symbols import BaseSymbolVisitor, ClassScope, ModuleScope, Scope
 from .compiler import Compiler
 from .definite_assignment_checker import DefiniteAssignmentVisitor
 from .effects import NarrowingEffect, TypeState
@@ -105,6 +105,8 @@ def exec_static(
         globals["<fixed-modules>"] = FIXED_MODULES
     if "<builtins>" not in globals:
         globals["<builtins>"] = builtins.__dict__
+
+    assert isinstance(code, CodeType)
     exec(code, locals, globals)
 
 
@@ -281,7 +283,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         module_name: str,
         tree: AST,
         filename: str,
-        source: str | bytes,
+        source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
         flags: int,
         optimize: int,
         ast_optimizer_enabled: bool = True,
@@ -328,7 +330,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         func_args: ast.arguments,
         filename: str,
         scopes: dict[AST, Scope],
-        class_name: str,
+        class_name: str | None,
         name: str,
         first_lineno: int,
     ) -> PyFlowGraph:
@@ -402,7 +404,9 @@ class StaticCodeGenBase(StrictCodeGenBase):
         else:
             self.emit("LOAD_CONST", None)
 
-        self.emit("LOAD_CONST", class_body.scope.needs_class_closure)
+        class_scope = class_body.scope
+        assert isinstance(class_scope, ClassScope)
+        self.emit("LOAD_CONST", class_scope.needs_class_closure)
 
         assert klass is not None
         final_methods: list[str] = []
@@ -435,7 +439,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         )
 
     def processBody(
-        self, node: AST, body: list[ast.stmt] | AST, gen: CodeGenerator
+        self, node: FuncOrLambda, body: list[ast.stmt], gen: CodeGenerator
     ) -> None:
         if isinstance(node, (ast.FunctionDef | ast.AsyncFunctionDef)):
             # check for any unassigned primitive values and force them to be
@@ -474,13 +478,16 @@ class StaticCodeGenBase(StrictCodeGenBase):
             return
 
         if not klass.has_init_subclass:
+            gen_scope = gen.scope
+            assert isinstance(gen_scope, ClassScope)
+
             # we define a custom override of __init_subclass__
-            if not gen.scope.needs_class_closure:
+            if not gen_scope.needs_class_closure:
                 # we need to call super(), which will need to have
                 # __class__ available if it's not already...
                 gen.graph.cellvars.get_index("__class__")
-                gen.scope.cells["__class__"] = 1
-                gen.scope.needs_class_closure = True
+                gen_scope.cells["__class__"] = 1
+                gen_scope.needs_class_closure = True
 
             init_graph = self.flow_graph(
                 "__init_subclass__",

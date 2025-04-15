@@ -85,7 +85,9 @@ class Compiler:
         error_sink: ErrorSink | None = None,
     ) -> None:
         self.modules: dict[str, ModuleTable] = {}
-        self.ast_cache: dict[str | bytes, ast.Module] = {}
+        self.ast_cache: dict[
+            str | bytes | ast.Module | ast.Expression | ast.Interactive, ast.Module
+        ] = {}
         self.code_generator = code_generator
         self.error_sink: ErrorSink = error_sink or ErrorSink()
         self.type_env: TypeEnvironment = TypeEnvironment()
@@ -492,7 +494,12 @@ class Compiler:
         self.modules[name] = value
 
     def add_module(
-        self, name: str, filename: str, tree: AST, source: str | bytes, optimize: int
+        self,
+        name: str,
+        filename: str,
+        tree: AST,
+        source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
+        optimize: int,
     ) -> ast.Module:
         optimized = AstOptimizer(optimize=optimize > 0).visit(tree)
         assert isinstance(optimized, ast.Module)
@@ -537,7 +544,7 @@ class Compiler:
         name: str,
         filename: str,
         tree: AST,
-        source: str | bytes,
+        source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
         optimize: int,
         enable_patching: bool = False,
     ) -> tuple[ast.Module, SymbolVisitor]:
@@ -585,7 +592,7 @@ class Compiler:
         name: str,
         filename: str,
         tree: AST,
-        source: str | bytes,
+        source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
         optimize: int,
         enable_patching: bool = False,
         builtins: dict[str, Any] = builtins.__dict__,

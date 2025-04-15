@@ -14,17 +14,15 @@ compileFile(filename)
     Generates a .pyc file by compiling filename.
 """
 
-from typing import Any, Dict, Union
+import ast
+from types import CodeType
+from typing import Any, Dict
 
 from .pycodegen import CinderCodeGenerator, compile, compileFile
 
 
-# pyre-ignore[5]: Globally accessible variable `CodeType` has no type specified.
-CodeType = type(compile.__code__)
-
-
 def exec_cinder(
-    source: Union[object, str],
+    source: str | bytes | ast.Module | ast.Expression | ast.Interactive | CodeType,
     locals: Dict[str, Any],
     globals: Dict[str, Any],
     modname: str = "<module>",
@@ -35,6 +33,8 @@ def exec_cinder(
         code = compile(
             source, "<module>", "exec", compiler=CinderCodeGenerator, modname=modname
         )
+
+    assert isinstance(code, CodeType)
     exec(code, locals, globals)
 
 

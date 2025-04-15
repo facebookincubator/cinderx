@@ -8,6 +8,7 @@ from io import StringIO
 from os import path
 from tokenize import detect_encoding
 from unittest import TestCase
+from types import CodeType
 
 from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.pycodegen import compile as py_compile
@@ -40,6 +41,8 @@ def add_test(modname: str, fname: str) -> None:
             Disassembler().dump_code(orig, origdump)
 
             codeobj = py_compile(node, modname, "exec")
+            assert isinstance(codeobj, CodeType)
+
             newdump = StringIO()
             Disassembler().dump_code(codeobj, newdump)
 

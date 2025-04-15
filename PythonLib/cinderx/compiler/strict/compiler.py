@@ -282,12 +282,15 @@ class Compiler(StaticCompiler):
         self, name: str, root: ast.Module, filename: str, optimize: int
     ) -> CodeType:
         compile_method = python_compile if self.use_py_compiler else compile
-        return compile_method(
+        result = compile_method(
             root,
             filename,
             "exec",
             optimize=optimize,
         )
+
+        assert isinstance(result, CodeType)
+        return result
 
     def _compile_strict(
         self,

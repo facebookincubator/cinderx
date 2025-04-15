@@ -1,5 +1,5 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+# pyre-strict
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ try:
     from contextlib import contextmanager
     from enum import IntEnum
     from types import CodeType
-    from typing import cast, Protocol, Type, Union
+    from typing import Callable, cast, Protocol, Union
 
     from .consts import (
         CO_ASYNC_GENERATOR,
@@ -85,11 +85,11 @@ try:
     from cinder import _set_qualname as cx_set_qualname
 except ImportError:
 
-    def cx_set_qualname(code, qualname):
+    def cx_set_qualname(code: CodeType, qualname: str | None) -> None:
         pass
 
 
-IS_3_12_8 = sys.version_info[:3] >= (3, 12, 8)
+IS_3_12_8: bool = sys.version_info[:3] >= (3, 12, 8)
 
 callfunc_opcode_info = {
     # (Have *args, Have **args) : opcode
@@ -99,7 +99,7 @@ callfunc_opcode_info = {
     (1, 1): "CALL_FUNCTION_VAR_KW",
 }
 
-INT_MAX = (2**31) - 1
+INT_MAX: int = (2**31) - 1
 
 # enum fblocktype
 WHILE_LOOP = 1
@@ -116,15 +116,14 @@ EXCEPTION_GROUP_HANDLER = 11
 ASYNC_COMPREHENSION_GENERATOR = 12
 STOP_ITERATION = 13
 
-_ZERO = (0).to_bytes(4, "little")
+_ZERO: bytes = (0).to_bytes(4, "little")
 
-_DEFAULT_MODNAME = sys.intern("<module>")
+_DEFAULT_MODNAME: str = sys.intern("<module>")
 
 
 FuncOrLambda = Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda]
-CompNode = Union[ast.SetComp, ast.DictComp, ast.ListComp]
+CompNode = Union[ast.GeneratorExp, ast.SetComp, ast.DictComp, ast.ListComp]
 if sys.version_info >= (3, 12):
-    # pyre-ignore[11]: Annotation `ast.TypeAlias` is not defined as a type.
     CodeGenTree = Union[FuncOrLambda, CompNode, ast.ClassDef, TypeParams, ast.TypeAlias]
 else:
     CodeGenTree = Union[FuncOrLambda, CompNode, ast.ClassDef, TypeParams]
@@ -145,11 +144,16 @@ class AwaitableKind(IntEnum):
     AsyncExit = 2
 
 
-def make_header(mtime, size):
+def make_header(mtime: int, size: int) -> bytes:
     return _ZERO + mtime.to_bytes(4, "little") + size.to_bytes(4, "little")
 
 
-def compileFile(filename, display=0, compiler=None, modname=_DEFAULT_MODNAME):
+def compileFile(
+    filename: str,
+    display: int = 0,
+    compiler: type[CodeGenerator] | None = None,
+    modname: str = _DEFAULT_MODNAME,
+) -> None:
     # compile.c uses marshal to write a long directly, with
     # calling the interface that would also generate a 1-byte code
     # to indicate the type of the value.  simplest way to get the
@@ -159,6 +163,7 @@ def compileFile(filename, display=0, compiler=None, modname=_DEFAULT_MODNAME):
     with open(filename) as f:
         buf = f.read()
     code = compile(buf, filename, "exec", compiler=compiler, modname=modname)
+    assert isinstance(code, CodeType)
     with open(filename + "c", "wb") as f:
         hdr = make_header(int(fileinfo.st_mtime), fileinfo.st_size)
         f.write(importlib.util.MAGIC_NUMBER)
@@ -167,15 +172,15 @@ def compileFile(filename, display=0, compiler=None, modname=_DEFAULT_MODNAME):
 
 
 def compile(
-    source,
-    filename,
-    mode,
-    flags=0,
-    dont_inherit=None,
-    optimize=-1,
-    compiler=None,
-    modname=_DEFAULT_MODNAME,
-):
+    source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
+    filename: str,
+    mode: str,
+    flags: int = 0,
+    dont_inherit: bool | None = None,
+    optimize: int = -1,
+    compiler: type[CodeGenerator] | None = None,
+    modname: str = _DEFAULT_MODNAME,
+) -> CodeType | CodeGenerator | ast.Module | ast.Expression | ast.Interactive:
     """Replacement for builtin compile() function
 
     Does not yet support ast.PyCF_ALLOW_TOP_LEVEL_AWAIT flag.
@@ -186,23 +191,30 @@ def compile(
     result = make_compiler(source, filename, mode, flags, optimize, compiler, modname)
     if flags & PyCF_ONLY_AST:
         return result
+
+    assert isinstance(result, CodeGenerator)
     return result.getCode()
 
 
-def parse(source, filename, mode, flags):
+def parse(
+    source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
+    filename: str,
+    mode: str,
+    flags: int,
+) -> CodeType:
     return builtin_compile(source, filename, mode, flags | PyCF_ONLY_AST)
 
 
 def make_compiler(
-    source,
-    filename,
-    mode,
-    flags=0,
-    optimize=-1,
-    generator: CodeGenerator | None = None,
-    modname=_DEFAULT_MODNAME,
-    ast_optimizer_enabled=True,
-):
+    source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
+    filename: str,
+    mode: str,
+    flags: int = 0,
+    optimize: int = -1,
+    generator: type[CodeGenerator] | None = None,
+    modname: str = _DEFAULT_MODNAME,
+    ast_optimizer_enabled: bool = True,
+) -> CodeType | CodeGenerator | ast.Module | ast.Expression | ast.Interactive:
     if mode not in ("single", "exec", "eval"):
         raise ValueError("compile() mode must be 'exec', 'eval' or 'single'")
 
@@ -222,6 +234,7 @@ def make_compiler(
     if flags & PyCF_ONLY_AST:
         return tree
 
+    assert isinstance(tree, ast.AST)
     optimize = sys.flags.optimize if optimize == -1 else optimize
 
     return generator.make_code_gen(
@@ -235,18 +248,18 @@ def make_compiler(
     )
 
 
-def is_const(node):
+def is_const(node: ast.expr | None) -> bool:
     return isinstance(node, ast.Constant)
 
 
-def all_items_const(seq, begin, end):
+def all_items_const(seq: list[ast.expr | None], begin: int, end: int) -> bool:
     for item in seq[begin:end]:
         if not is_const(item):
             return False
     return True
 
 
-def find_futures(flags: int, node: ast.Module) -> int:
+def find_futures(flags: int, node: ast.AST) -> int:
     future_flags = flags & PyCF_MASK
     for feature in future_find_futures(node):
         if feature == "barry_as_FLUFL":
@@ -256,9 +269,9 @@ def find_futures(flags: int, node: ast.Module) -> int:
     return future_flags
 
 
-CONV_STR = ord("s")
-CONV_REPR = ord("r")
-CONV_ASCII = ord("a")
+CONV_STR: int = ord("s")
+CONV_REPR: int = ord("r")
+CONV_ASCII: int = ord("a")
 
 
 class PatternContext:
@@ -286,12 +299,14 @@ class CodeGenerator(ASTVisitor):
     """
 
     optimized = 0  # is namespace access optimized?
-    __initialized = None
-    class_name = None  # provide default for instance variable
+    class_name: str | None = None  # provide default for instance variable
     future_flags = 0
-    flow_graph: Type[PyFlowGraph] = PyFlowGraph310
+    flow_graph: type[PyFlowGraph] = PyFlowGraph310
     _SymbolVisitor: type[BaseSymbolVisitor] = BaseSymbolVisitor
     pattern_context: type[PatternContext] = PatternContext
+
+    # pyre-fixme[4] This appears to be unused.
+    __initialized = None
 
     def __init__(
         self,
@@ -299,34 +314,36 @@ class CodeGenerator(ASTVisitor):
         node: AST,
         symbols: BaseSymbolVisitor,
         graph: PyFlowGraph,
-        flags=0,
-        optimization_lvl=0,
-        future_flags=None,
+        flags: int = 0,
+        optimization_lvl: int = 0,
+        future_flags: int | None = None,
         name: Optional[str] = None,
-    ):
+    ) -> None:
         super().__init__()
         if parent is not None:
             assert future_flags is None, "Child codegen should inherit future flags"
             future_flags = parent.future_flags
         self.future_flags = future_flags or 0
         graph.setFlag(self.future_flags)
-        self.module_gen = self if parent is None else parent.module_gen
+        self.module_gen: CodeGenerator = self if parent is None else parent.module_gen
         self._tree = node
         self.symbols = symbols
         self.graph = graph
-        self.scopes = symbols.scopes
+        self.scopes: dict[ast.AST, Scope] = symbols.scopes
         self.setups: list[Entry] = []
-        self.last_lineno = None
         self._setupGraphDelegation()
         self.interactive = False
-        self.scope = self.scopes[node]
+        self.scope: Scope = self.scopes[node]
         self.flags = flags
         self.optimization_lvl = optimization_lvl
-        self.strip_docstrings = optimization_lvl == 2
+        self.strip_docstrings: bool = optimization_lvl == 2
         self.did_setup_annotations = False
-        self._qual_name = None
+        self._qual_name: str | None = None
         self.parent_code_gen = parent
-        self.name = self.get_node_name(node) if name is None else name
+        self.name: str = self.get_node_name(node) if name is None else name
+
+        # pyre-fixme[4] This appears to be unused.
+        self.last_lineno = None
 
     @property
     def tree(self) -> AST:
@@ -336,7 +353,7 @@ class CodeGenerator(ASTVisitor):
 
         return tree[0]
 
-    def _setupGraphDelegation(self):
+    def _setupGraphDelegation(self) -> None:
         self.emit = self.graph.emit
         self.emitWithBlock = self.graph.emitWithBlock
         self.emit_noline = self.graph.emit_noline
@@ -345,22 +362,22 @@ class CodeGenerator(ASTVisitor):
         self.emit_jump_forward = self.graph.emit_jump_forward
         self.emit_jump_forward_noline = self.graph.emit_jump_forward_noline
 
-    def getCode(self):
+    def getCode(self) -> CodeType:
         """Return a code object"""
         return self.graph.getCode()
 
-    def set_qual_name(self, qualname: str):
+    def set_qual_name(self, qualname: str) -> None:
         pass
 
     @contextmanager
-    def noEmit(self):
+    def noEmit(self) -> Generator[None, None, None]:
         self.graph.do_not_emit_bytecode += 1
         try:
             yield
         finally:
             self.graph.do_not_emit_bytecode -= 1
 
-    def mangle(self, name):
+    def mangle(self, name: str) -> str:
         if self.class_name is not None:
             return mangle(name, self.class_name)
         else:
@@ -369,21 +386,24 @@ class CodeGenerator(ASTVisitor):
     def check_name(self, name: str) -> int:
         return self.scope.check_name(name)
 
-    def get_module(self):
+    def get_module(self) -> None:
         raise RuntimeError("should be implemented by subclasses")
 
     # Next five methods handle name access
 
-    def storeName(self, name):
+    def _nameOp(self, prefix: str, name: str) -> None:
+        raise NotImplementedError()
+
+    def storeName(self, name: str) -> None:
         self._nameOp("STORE", name)
 
-    def loadName(self, name):
+    def loadName(self, name: str) -> None:
         self._nameOp("LOAD", name)
 
-    def delName(self, name):
+    def delName(self, name: str) -> None:
         self._nameOp("DELETE", name)
 
-    def _implicitNameOp(self, prefix, name):
+    def _implicitNameOp(self, prefix: str, name: str) -> None:
         """Emit name ops for names generated implicitly by for loops
 
         The interpreter generates names that start with a period or
@@ -395,10 +415,10 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emit(prefix + "_NAME", name)
 
-    def set_pos(self, node: AST | SrcLocation):
+    def set_pos(self, node: AST | SrcLocation) -> None:
         self.graph.set_pos(node)
 
-    def set_no_pos(self):
+    def set_no_pos(self) -> None:
         """Mark following instructions as synthetic (no source line number)."""
         self.graph.set_pos(NO_LOCATION)
 
@@ -411,25 +431,26 @@ class CodeGenerator(ASTVisitor):
         finally:
             self.graph.set_pos(old_loc)
 
-    def skip_docstring(self, body):
+    def skip_docstring(self, body: list[ast.stmt]) -> list[ast.stmt]:
         """Given list of statements, representing body of a function, class,
         or module, skip docstring, if any.
         """
-        if (
-            body
-            and isinstance(body, list)
-            and isinstance(body[0], ast.Expr)
-            and isinstance(body[0].value, ast.Constant)
-            and isinstance(body[0].value.value, str)
-        ):
-            return body[1:]
+        if body and isinstance(body, list):
+            expr = body[0]
+
+            if isinstance(expr, ast.Expr):
+                value = expr.value
+
+                if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                    return body[1:]
+
         return body
 
     # The first few visitor methods handle nodes that generator new
     # code objects.  They use class attributes to determine what
     # specialized code generators to use.
 
-    def visitInteractive(self, node):
+    def visitInteractive(self, node: ast.Interactive) -> None:
         self.interactive = True
         self.visitStatements(node.body)
         self.emit("LOAD_CONST", None)
@@ -468,23 +489,23 @@ class CodeGenerator(ASTVisitor):
         self.emit("LOAD_CONST", None)
         self.emit("RETURN_VALUE")
 
-    def visitExpression(self, node):
+    def visitExpression(self, node: ast.Expression) -> None:
         self.visit(node.body)
         self.emit("RETURN_VALUE")
 
-    def visitFunctionDef(self, node):
+    def visitFunctionDef(self, node: ast.FunctionDef) -> None:
         self.visitFunctionOrLambda(node)
 
-    def visitAsyncFunctionDef(self, node):
+    def visitAsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         self.visitFunctionOrLambda(node)
 
-    def visitLambda(self, node):
+    def visitLambda(self, node: ast.Lambda) -> None:
         self.visitFunctionOrLambda(node)
 
     def visitJoinedStr(self, node: ast.JoinedStr) -> None:
         raise NotImplementedError()
 
-    def visitFormattedValue(self, node):
+    def visitFormattedValue(self, node: ast.FormattedValue) -> None:
         self.visit(node.value)
 
         if node.conversion == CONV_STR:
@@ -502,7 +523,9 @@ class CodeGenerator(ASTVisitor):
             oparg |= FVS_HAVE_SPEC
         self.emit("FORMAT_VALUE", oparg)
 
-    def processBody(self, node, body, gen):
+    def processBody(
+        self, node: FuncOrLambda, body: list[ast.stmt], gen: CodeGenerator
+    ) -> None:
         if isinstance(body, list):
             for stmt in body:
                 gen.visit(stmt)
@@ -607,14 +630,14 @@ class CodeGenerator(ASTVisitor):
     def post_process_and_store_name(self, node: ClassDef) -> None:
         self.storeName(node.name)
 
-    def walkClassBody(self, node: ClassDef, gen: CodeGenerator):
+    def walkClassBody(self, node: ClassDef, gen: CodeGenerator) -> None:
         gen.visit_list(self.skip_docstring(node.body))
 
     # The rest are standard visitor methods
 
     # The next few implement control-flow statements
 
-    def visitIf(self, node):
+    def visitIf(self, node: ast.If) -> None:
         end = self.newBlock("if_end")
         orelse = None
         if node.orelse:
@@ -630,7 +653,7 @@ class CodeGenerator(ASTVisitor):
 
         self.nextBlock(end)
 
-    def visitWhile(self, node):
+    def visitWhile(self, node: ast.While) -> None:
         loop = self.newBlock("while_loop")
         body = self.newBlock("while_body")
         else_ = self.newBlock("while_else")
@@ -653,7 +676,7 @@ class CodeGenerator(ASTVisitor):
 
         self.nextBlock(after)
 
-    def push_fblock(self, entry):
+    def push_fblock(self, entry: Entry) -> None:
         self.setups.append(entry)
 
     def pop_fblock(self, kind: int | None = None) -> Entry:
@@ -662,13 +685,13 @@ class CodeGenerator(ASTVisitor):
         ), f"{self.setups[-1].kind} vs {kind} expected"
         return self.setups.pop()
 
-    def push_loop(self, kind, start, end):
+    def push_loop(self, kind: int, start: Block, end: Block) -> None:
         self.push_fblock(Entry(kind, start, end, None))
 
-    def pop_loop(self):
+    def pop_loop(self) -> None:
         self.pop_fblock()
 
-    def visitAsyncFor(self, node):
+    def visitAsyncFor(self, node: ast.AsyncFor) -> None:
         start = self.newBlock("async_for_try")
         except_ = self.newBlock("except")
         end = self.newBlock("end")
@@ -700,24 +723,35 @@ class CodeGenerator(ASTVisitor):
             self.visitStatements(node.orelse)
         self.nextBlock(end)
 
-    def visitBreak(self, node):
+    def visitBreak(self, node: ast.Break) -> None:
         self.emit("NOP")  # for line number
         loop = self.unwind_setup_entries(preserve_tos=False, stop_on_loop=True)
         if loop is None:
             raise self.syntax_error("'break' outside loop", node)
         self.unwind_setup_entry(loop, preserve_tos=False)
-        self.emitJump(loop.exit)
+
+        jumpblock = loop.exit
+        assert jumpblock is not None
+
+        self.emitJump(jumpblock)
         self.nextBlock()
 
-    def visitContinue(self, node):
+    def visitContinue(self, node: ast.Continue) -> None:
         self.emit("NOP")  # for line number
         loop = self.unwind_setup_entries(preserve_tos=False, stop_on_loop=True)
         if loop is None:
             raise self.syntax_error("'continue' not properly in loop", node)
-        self.emitJump(loop.block)
+
+        jumpblock = loop.block
+        assert jumpblock is not None
+
+        self.emitJump(jumpblock)
         self.nextBlock()
 
-    def syntax_error(self, msg, node):
+    # pyre-fixme[2] The node accepted here is called from a lot of places, but
+    # not every node type has lineno and col_offset defined on it. We need to
+    # narrow the type from ast.AST.
+    def syntax_error(self, msg: str, node) -> SyntaxError:
         import linecache
 
         source_line = linecache.getline(self.graph.filename, node.lineno)
@@ -751,7 +785,7 @@ class CodeGenerator(ASTVisitor):
         self.visit(node.right)
         self.emit_bin_op(type(node.op))
 
-    _cmp_opcode: dict[type, str] = {
+    _cmp_opcode: dict[type[ast.cmpop], str] = {
         ast.Eq: "==",
         ast.NotEq: "!=",
         ast.Lt: "<",
@@ -811,7 +845,7 @@ class CodeGenerator(ASTVisitor):
         self.emit_finish_jump_if(test, next, is_if_true)
         self.nextBlock()
 
-    def visitIfExp(self, node):
+    def visitIfExp(self, node: ast.IfExp) -> None:
         endblock = self.newBlock()
         elseblock = self.newBlock()
         self.compileJumpIf(node.test, elseblock, False)
@@ -841,7 +875,7 @@ class CodeGenerator(ASTVisitor):
     def visitCompare(self, node: ast.Compare) -> None:
         raise NotImplementedError()
 
-    def visitDelete(self, node):
+    def visitDelete(self, node: ast.Delete) -> None:
         self.visit_list(node.targets)
 
     def conjure_arguments(self, args: list[ast.arg]) -> ast.arguments:
@@ -850,31 +884,31 @@ class CodeGenerator(ASTVisitor):
     def emit_get_awaitable(self, kind: AwaitableKind) -> None:
         raise NotImplementedError()
 
-    def visitGeneratorExp(self, node):
+    def visitGeneratorExp(self, node: ast.GeneratorExp) -> None:
         self.compile_comprehension(node, sys.intern("<genexpr>"), node.elt, None, None)
 
-    def visitListComp(self, node):
+    def visitListComp(self, node: ast.ListComp) -> None:
         self.compile_comprehension(
             node, sys.intern("<listcomp>"), node.elt, None, "BUILD_LIST"
         )
 
-    def visitSetComp(self, node):
+    def visitSetComp(self, node: ast.SetComp) -> None:
         self.compile_comprehension(
             node, sys.intern("<setcomp>"), node.elt, None, "BUILD_SET"
         )
 
-    def visitDictComp(self, node):
+    def visitDictComp(self, node: ast.DictComp) -> None:
         self.compile_comprehension(
             node, sys.intern("<dictcomp>"), node.key, node.value, "BUILD_MAP"
         )
 
     # compile_comprehension helper functions
 
-    def make_comprehension_codegen(self, node, name: str) -> CodeGenerator:
+    def make_comprehension_codegen(self, node: CompNode, name: str) -> CodeGenerator:
         args = self.conjure_arguments([ast.arg(".0", None)])
         return self.make_func_codegen(node, args, name, node.lineno)
 
-    def check_async_comprehension(self, node) -> None:
+    def check_async_comprehension(self, node: CompNode) -> None:
         # TODO(T209725064): also add check for PyCF_ALLOW_TOP_LEVEL_AWAIT
         is_async_generator = self.symbols.scopes[node].coroutine
         is_async_function = self.scope.coroutine
@@ -888,7 +922,7 @@ class CodeGenerator(ASTVisitor):
                 "asynchronous comprehension outside of an asynchronous function", node
             )
 
-    def finish_comprehension(self, gen, node) -> None:
+    def finish_comprehension(self, gen: CodeGenerator, node: CompNode) -> None:
         self.emit_closure(gen, 0)
 
         # precomputation of outmost iterable
@@ -909,13 +943,13 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emit("GET_AITER" if gen.is_async else "GET_ITER")
 
-    def compile_dictcomp_element(self, elt, val):
+    def compile_dictcomp_element(self, elt: ast.expr, val: ast.expr) -> None:
         self.visit(elt)
         self.visit(val)
 
     # exception related
 
-    def visitRaise(self, node):
+    def visitRaise(self, node: ast.Raise) -> None:
         n = 0
         if node.exc:
             self.visit(node.exc)
@@ -926,7 +960,7 @@ class CodeGenerator(ASTVisitor):
         self.emit("RAISE_VARARGS", n)
         self.nextBlock()
 
-    def emit_except_local(self, handler: ast.ExceptHandler):
+    def emit_except_local(self, handler: ast.ExceptHandler) -> None:
         target = handler.name
         type_ = handler.type
         if target:
@@ -1021,17 +1055,20 @@ class CodeGenerator(ASTVisitor):
 
         self.nextBlock(exit_)
 
-    def visitWith(self, node):
+    def visitWith(self, node: ast.With) -> None:
         self.visitWith_(node, WITH, 0)
 
-    def visitAsyncWith(self, node, pos=0):
+    def visitAsyncWith(self, node: ast.AsyncWith, pos: int = 0) -> None:
         if not self.scope.coroutine:
             raise self.syntax_error("'async with' outside async function", node)
         self.visitWith_(node, ASYNC_WITH, 0)
 
     # misc
 
-    def visitExpr(self, node):
+    def emit_print(self) -> None:
+        raise NotImplementedError()
+
+    def visitExpr(self, node: ast.Expr) -> None:
         if self.interactive:
             self.visit(node.value)
             self.emit_print()
@@ -1042,20 +1079,22 @@ class CodeGenerator(ASTVisitor):
             self.set_no_pos()
             self.emit("POP_TOP")
 
-    def visitConstant(self, node: ast.Constant):
+    def visitConstant(self, node: ast.Constant) -> None:
         self.emit("LOAD_CONST", node.value)
 
-    def visitKeyword(self, node):
+    # pyre-fixme[2] It is not clear the type of this node because ast.keyword
+    # exists but does not have a name field on it.
+    def visitKeyword(self, node) -> None:
         self.emit("LOAD_CONST", node.name)
         self.visit(node.expr)
 
-    def visitGlobal(self, node):
+    def visitGlobal(self, node: ast.Global) -> None:
         pass
 
-    def visitNonlocal(self, node):
+    def visitNonlocal(self, node: ast.Nonlocal) -> None:
         pass
 
-    def visitName(self, node):
+    def visitName(self, node: ast.Name) -> None:
         if isinstance(node.ctx, ast.Store):
             self.storeName(node.id)
         elif isinstance(node.ctx, ast.Del):
@@ -1063,13 +1102,13 @@ class CodeGenerator(ASTVisitor):
         else:
             self.loadName(node.id)
 
-    def visitPass(self, node):
+    def visitPass(self, node: ast.Pass) -> None:
         self.emit("NOP")  # for line number
 
     def emit_import_name(self, name: str) -> None:
         raise NotImplementedError()
 
-    def visitImport(self, node):
+    def visitImport(self, node: ast.Import) -> None:
         level = 0
         for alias in node.names:
             name = alias.name
@@ -1083,7 +1122,7 @@ class CodeGenerator(ASTVisitor):
             else:
                 self.storeName(mod)
 
-    def visitImportFrom(self, node):
+    def visitImportFrom(self, node: ast.ImportFrom) -> None:
         level = node.level
         fromlist = tuple(alias.name for alias in node.names)
         self.emit("LOAD_CONST", level)
@@ -1093,6 +1132,7 @@ class CodeGenerator(ASTVisitor):
             name = alias.name
             asname = alias.asname
             if name == "*":
+                # pyre-fixme[16] This field does not appear to be used.
                 self.namespace = 0
                 self.emit_import_star()
                 # There can only be one name w/ from ... import *
@@ -1106,7 +1146,7 @@ class CodeGenerator(ASTVisitor):
     def emit_import_star(self) -> None:
         self.emit("IMPORT_STAR")
 
-    def emitImportAs(self, name: str, asname: str):
+    def emitImportAs(self, name: str, asname: str) -> None:
         elts = name.split(".")
         if len(elts) == 1:
             self.storeName(asname)
@@ -1123,7 +1163,7 @@ class CodeGenerator(ASTVisitor):
 
     # next five implement assignments
 
-    def visitAssign(self, node):
+    def visitAssign(self, node: ast.Assign) -> None:
         self.visit(node.value)
         dups = len(node.targets) - 1
         for i in range(len(node.targets)):
@@ -1137,7 +1177,7 @@ class CodeGenerator(ASTVisitor):
         self.visit(node)
         self.graph.emit_with_loc("POP_TOP", 0, node)
 
-    def checkAnnSlice(self, node):
+    def checkAnnSlice(self, node: ast.Slice) -> None:
         if node.lower:
             self.checkAnnExpr(node.lower)
         if node.upper:
@@ -1145,7 +1185,7 @@ class CodeGenerator(ASTVisitor):
         if node.step:
             self.checkAnnExpr(node.step)
 
-    def checkAnnSubscr(self, node):
+    def checkAnnSubscr(self, node: ast.expr) -> None:
         if isinstance(node, ast.Slice):
             self.checkAnnSlice(node)
         elif isinstance(node, ast.Tuple):
@@ -1155,7 +1195,7 @@ class CodeGenerator(ASTVisitor):
         else:
             self.checkAnnExpr(node)
 
-    def checkAnnotation(self, node):
+    def checkAnnotation(self, node: ast.AnnAssign) -> None:
         if isinstance(self.tree, (ast.Module, ast.ClassDef)):
             if self.future_flags & CO_FUTURE_ANNOTATIONS:
                 with self.noEmit():
@@ -1163,7 +1203,7 @@ class CodeGenerator(ASTVisitor):
             else:
                 self.checkAnnExpr(node.annotation)
 
-    def findAnn(self, stmts):
+    def findAnn(self, stmts: list[ast.stmt]) -> bool:
         for stmt in stmts:
             if isinstance(stmt, (ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
                 # Don't recurse into definitions looking for annotations
@@ -1214,7 +1254,9 @@ class CodeGenerator(ASTVisitor):
         if not node.simple:
             self.checkAnnotation(node)
 
-    def visitAssName(self, node):
+    # pyre-fixme[2] It is not clear what type this node is because ast.AssName
+    # does not exist.
+    def visitAssName(self, node) -> None:
         if node.flags == "OP_ASSIGN":
             self.storeName(node.name)
         elif node.flags == "OP_DELETE":
@@ -1224,7 +1266,9 @@ class CodeGenerator(ASTVisitor):
             print("oops", node.flags)
             assert 0
 
-    def visitAssAttr(self, node):
+    # pyre-fixme[2] It is not clear what type this node is because ast.AssAttr
+    # does not exist.
+    def visitAssAttr(self, node) -> None:
         self.visit(node.expr)
         if node.flags == "OP_ASSIGN":
             self.emit("STORE_ATTR", self.mangle(node.attrname))
@@ -1265,12 +1309,17 @@ class CodeGenerator(ASTVisitor):
     def emitAugRHS(self, node: ast.AugAssign) -> None:
         raise NotImplementedError()
 
-    def emitAugName(self, node):
+    def emitAugName(self, node: ast.AugAssign) -> None:
         target = node.target
-        self.loadName(target.id)
+
+        # pyre-fixme[16] This code assumes that the target of the AugAssign is a
+        # Name as opposed to ast.Attribute or ast.Subscript.
+        name = target.id
+
+        self.loadName(name)
         self.emitAugRHS(node)
         self.set_pos(target)
-        self.storeName(target.id)
+        self.storeName(name)
 
     def emitAugAttribute(self, node: ast.AugAssign) -> None:
         raise NotImplementedError()
@@ -1278,7 +1327,9 @@ class CodeGenerator(ASTVisitor):
     def emitAugSubscript(self, node: ast.AugAssign) -> None:
         raise NotImplementedError()
 
-    def visitExec(self, node):
+    # pyre-fixme[2] It is not clear which type this node is because ast.Exec
+    # does not exist.
+    def visitExec(self, node) -> None:
         self.visit(node.expr)
         if node.locals is None:
             self.emit("LOAD_CONST", None)
@@ -1290,7 +1341,9 @@ class CodeGenerator(ASTVisitor):
             self.visit(node.globals)
         self.emit("EXEC_STMT")
 
-    def compiler_subkwargs(self, kwargs, begin, end):
+    def compiler_subkwargs(
+        self, kwargs: list[ast.keyword], begin: int, end: int
+    ) -> None:
         nkwargs = end - begin
         big = (nkwargs * 2) > STACK_USE_GUIDELINE
         if nkwargs > 1 and not big:
@@ -1387,7 +1440,7 @@ class CodeGenerator(ASTVisitor):
         module_scope = self.module_gen.check_name("super")
         return module_scope != SC_GLOBAL_IMPLICIT and module_scope != SC_LOCAL
 
-    def _is_super_call(self, node):
+    def _is_super_call(self, node: ast.expr) -> bool:
         if (
             not isinstance(node, ast.Call)
             or not isinstance(node.func, ast.Name)
@@ -1410,7 +1463,7 @@ class CodeGenerator(ASTVisitor):
 
         return False
 
-    def _emit_args_for_super(self, super_call, attr):
+    def _emit_args_for_super(self, super_call: ast.Call, attr: str) -> tuple[str, bool]:
         if len(super_call.args) == 0:
             self.loadName("__class__")
             self.loadName(next(iter(self.scope.params)))
@@ -1422,18 +1475,21 @@ class CodeGenerator(ASTVisitor):
     def _can_optimize_call(self, node: ast.Call) -> bool:
         raise NotImplementedError()
 
-    def checkReturn(self, node):
+    def checkReturn(self, node: ast.Return) -> None:
         if not isinstance(self.tree, (ast.FunctionDef, ast.AsyncFunctionDef)):
             raise self.syntax_error("'return' outside function", node)
         elif self.scope.coroutine and self.scope.generator and node.value:
             raise self.syntax_error("'return' with value in async generator", node)
 
-    def visitReturn(self, node):
+    def visitReturn(self, node: ast.Return) -> None:
         self.checkReturn(node)
 
         preserve_tos = bool(node.value and not isinstance(node.value, ast.Constant))
         if preserve_tos:
-            self.visit(node.value)
+            value = node.value
+            assert value and not isinstance(value, ast.Constant)
+
+            self.visit(value)
         elif node.value:
             self.set_pos(node.value)
             self.emit("NOP")
@@ -1444,12 +1500,18 @@ class CodeGenerator(ASTVisitor):
         if not node.value:
             self.emit("LOAD_CONST", None)
         elif not preserve_tos:
-            self.emit("LOAD_CONST", node.value.value)
+            value = node.value
+            assert isinstance(value, ast.Constant)
+
+            self.emit("LOAD_CONST", value.value)
 
         self.emit("RETURN_VALUE")
         self.nextBlock()
 
-    def visitYield(self, node):
+    def emit_yield(self, scope: Scope) -> None:
+        raise NotImplementedError()
+
+    def visitYield(self, node: ast.Yield) -> None:
         if not isinstance(
             self.tree,
             (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.GeneratorExp),
@@ -1461,7 +1523,7 @@ class CodeGenerator(ASTVisitor):
             self.emit("LOAD_CONST", None)
         self.emit_yield(self.scope)
 
-    def visitYieldFrom(self, node):
+    def visitYieldFrom(self, node: ast.YieldFrom) -> None:
         if not isinstance(
             self.tree,
             (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.GeneratorExp),
@@ -1480,7 +1542,7 @@ class CodeGenerator(ASTVisitor):
         self.emit("LOAD_CONST", None)
         self.emit_yield_from()
 
-    def visitAwait(self, node):
+    def visitAwait(self, node: ast.Await) -> None:
         self.visit(node.value)
         self.emit_get_awaitable(AwaitableKind.Default)
         self.emit("LOAD_CONST", None)
@@ -1492,25 +1554,30 @@ class CodeGenerator(ASTVisitor):
 
     # unary ops
 
-    _unary_opcode: dict[type, str] = {
+    _unary_opcode: dict[type[ast.unaryop], str] = {
         ast.Invert: "UNARY_INVERT",
         ast.USub: "UNARY_NEGATIVE",
         ast.UAdd: "UNARY_POSITIVE",
         ast.Not: "UNARY_NOT",
     }
 
-    def visitUnaryOp(self, node):
+    def unaryOp(self, node: ast.UnaryOp, op: str) -> None:
+        raise NotImplementedError()
+
+    def visitUnaryOp(self, node: ast.UnaryOp) -> None:
         self.unaryOp(node, self._unary_opcode[type(node.op)])
 
-    def visitBackquote(self, node):
+    # pyre-fixme[2] It is not clear what this node type is, as ast.Backquote
+    # does not exist.
+    def visitBackquote(self, node) -> None:
         return self.unaryOp(node, "UNARY_CONVERT")
 
     # object constructors
 
-    def visitEllipsis(self, node):
+    def visitEllipsis(self, node: ast.Ellipsis) -> None:
         self.emit("LOAD_CONST", Ellipsis)
 
-    def _visitUnpack(self, node):
+    def _visitUnpack(self, node: ast.Tuple | ast.List | ast.Set) -> None:
         before = 0
         after = 0
         starred = None
@@ -1534,13 +1601,21 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emit("UNPACK_SEQUENCE", before)
 
-    def hasStarred(self, elts):
+    def hasStarred(self, elts: list[ast.expr]) -> bool:
         for elt in elts:
             if isinstance(elt, ast.Starred):
                 return True
         return False
 
-    def _visitSequence(self, node, build_op, add_op, extend_op, ctx, is_tuple=False):
+    def _visitSequence(
+        self,
+        node: ast.Tuple | ast.List | ast.Set,
+        build_op: str,
+        add_op: str,
+        extend_op: str,
+        ctx: ast.expr_context | ast.Load,
+        is_tuple: bool = False,
+    ) -> None:
         if isinstance(ctx, ast.Store):
             self._visitUnpack(node)
             for elt in node.elts:
@@ -1556,7 +1631,7 @@ class CodeGenerator(ASTVisitor):
         else:
             return self.visit_list(node.elts)
 
-    def visitStarred(self, node):
+    def visitStarred(self, node: ast.Starred) -> None:
         if isinstance(node.ctx, ast.Store):
             raise self.syntax_error(
                 "starred assignment target must be in a list or tuple", node
@@ -1564,18 +1639,18 @@ class CodeGenerator(ASTVisitor):
         else:
             raise self.syntax_error("can't use starred expression here", node)
 
-    def visitTuple(self, node):
+    def visitTuple(self, node: ast.Tuple) -> None:
         self._visitSequence(
             node, "BUILD_LIST", "LIST_APPEND", "LIST_EXTEND", node.ctx, is_tuple=True
         )
 
-    def visitList(self, node):
+    def visitList(self, node: ast.List) -> None:
         self._visitSequence(node, "BUILD_LIST", "LIST_APPEND", "LIST_EXTEND", node.ctx)
 
-    def visitSet(self, node):
+    def visitSet(self, node: ast.Set) -> None:
         self._visitSequence(node, "BUILD_SET", "SET_ADD", "SET_UPDATE", ast.Load())
 
-    def visitSlice(self, node):
+    def visitSlice(self, node: ast.Slice) -> None:
         num = 2
         if node.lower:
             self.visit(node.lower)
@@ -1590,7 +1665,7 @@ class CodeGenerator(ASTVisitor):
             num += 1
         self.emit("BUILD_SLICE", num)
 
-    def visitExtSlice(self, node):
+    def visitExtSlice(self, node: ast.ExtSlice) -> None:
         for d in node.dims:
             self.visit(d)
         self.emit("BUILD_TUPLE", len(node.dims))
@@ -1603,17 +1678,19 @@ class CodeGenerator(ASTVisitor):
         self.emit_dup()
         self.visit(node.target)
 
-    def _const_value(self, node):
+    def _const_value(
+        self, node: ast.expr | None
+    ) -> None | str | bytes | bool | int | float | complex | ast.Ellipsis:
         assert isinstance(node, ast.Constant)
         return node.value
 
-    def get_bool_const(self, node) -> bool | None:
+    def get_bool_const(self, node: ast.expr) -> bool | None:
         """Return True if node represent constantly true value, False if
         constantly false value, and None otherwise (non-constant)."""
         if isinstance(node, ast.Constant):
             return bool(node.value)
 
-    def compile_subdict(self, node, begin, end):
+    def compile_subdict(self, node: ast.Dict, begin: int, end: int) -> None:
         n = end - begin
         big = n * 2 > STACK_USE_GUIDELINE
         if n > 1 and not big and all_items_const(node.keys, begin, end):
@@ -1630,7 +1707,10 @@ class CodeGenerator(ASTVisitor):
             self.emit("BUILD_MAP", 0)
 
         for i in range(begin, end):
-            self.visit(node.keys[i])
+            key = node.keys[i]
+            assert key
+
+            self.visit(key)
             self.visit(node.values[i])
             if big:
                 self.emit("MAP_ADD", 1)
@@ -1638,7 +1718,7 @@ class CodeGenerator(ASTVisitor):
         if not big:
             self.emit("BUILD_MAP", n)
 
-    def visitDict(self, node):
+    def visitDict(self, node: ast.Dict) -> None:
         elements = 0
         is_unpacking = False
         have_dict = False
@@ -1686,7 +1766,7 @@ class CodeGenerator(ASTVisitor):
     def emit_match_jump_to_end(self, end: Block) -> None:
         raise NotImplementedError()
 
-    def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext):
+    def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext) -> None:
         raise NotImplementedError()
 
     def visitMatch(self, node: ast.Match) -> None:
@@ -2236,9 +2316,13 @@ class CodeGenerator(ASTVisitor):
 
         raise NotImplementedError("Unknown node type: " + type(node).__name__)
 
-    def finish_function(self):
-        if self.graph.current.returns:
+    def finish_function(self) -> None:
+        current = self.graph.current
+        assert current
+
+        if current.returns:
             return
+
         if not isinstance(self.tree, ast.Lambda):
             self.set_no_pos()
             self.emit("LOAD_CONST", None)
@@ -2291,8 +2375,8 @@ class CodeGenerator(ASTVisitor):
         func: FuncOrLambda | CompNode,
         func_args: ast.arguments,
         filename: str,
-        scopes,
-        class_name: str,
+        scopes: dict[ast.AST, Scope],
+        class_name: str | None,
         name: str,
         first_lineno: int,
     ) -> PyFlowGraph:
@@ -2363,13 +2447,13 @@ class CodeGenerator(ASTVisitor):
     def make_code_gen(
         cls,
         module_name: str,
-        tree: ast.Module,
+        tree: AST,
         filename: str,
-        source: str | bytes,
+        source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
         flags: int,
         optimize: int,
         ast_optimizer_enabled: bool = True,
-    ):
+    ) -> CodeGenerator:
         future_flags = find_futures(flags, tree)
         if ast_optimizer_enabled:
             tree = cls.optimize_tree(
@@ -2390,10 +2474,20 @@ class CodeGenerator(ASTVisitor):
         return code_gen
 
     @classmethod
-    def optimize_tree(cls, optimize: int, tree: AST, string_anns: bool):
-        return AstOptimizer(optimize=optimize > 0, string_anns=string_anns).visit(tree)
+    def optimize_tree(
+        cls,
+        optimize: int,
+        tree: AST,
+        string_anns: bool,
+    ) -> AST:
+        result = AstOptimizer(optimize=optimize > 0, string_anns=string_anns).visit(
+            tree
+        )
 
-    def visit(self, node: AST, *args):
+        assert isinstance(result, AST)
+        return result
+
+    def visit(self, node: AST, *args: object) -> object:
         # Note down the old line number for exprs
         old_loc = None
         if isinstance(node, ast.expr):
@@ -2409,7 +2503,7 @@ class CodeGenerator(ASTVisitor):
 
         return ret
 
-    def visitStatements(self, nodes: Sequence[AST], *args) -> None:
+    def visitStatements(self, nodes: Sequence[AST], *args: object) -> None:
         self.visit_list(nodes, *args)
 
     # Methods defined in subclasses ----------------------------------------------
@@ -2417,19 +2511,19 @@ class CodeGenerator(ASTVisitor):
     def emit_super_attribute(self, node: ast.Attribute) -> None:
         raise NotImplementedError()
 
-    def visitAttribute(self, node) -> None:
+    def visitAttribute(self, node: ast.Attribute) -> None:
         raise NotImplementedError()
 
     def visitCall(self, node: ast.Call) -> None:
         raise NotImplementedError()
 
-    def visitFor(self, node) -> None:
+    def visitFor(self, node: ast.For) -> None:
         raise NotImplementedError()
 
-    def visitClassDef(self, node) -> None:
+    def visitClassDef(self, node: ast.ClassDef) -> None:
         raise NotImplementedError()
 
-    def emitJump(self, target) -> None:
+    def emitJump(self, target: Block) -> None:
         raise NotImplementedError()
 
     def make_child_codegen(
@@ -2448,9 +2542,11 @@ class CodeGenerator(ASTVisitor):
         name: str,
         first_lineno: int,
     ) -> CodeGenerator:
-        return self.generate_function_with_body(
-            node, name, first_lineno, self.skip_docstring(node.body)
-        )
+        # pyre-fixme[6] This call to skip_docstring assumes that the body is a
+        # list of statements, but when a lambda is passed in here it is possible
+        # that it is only an expression.
+        body = self.skip_docstring(node.body)
+        return self.generate_function_with_body(node, name, first_lineno, body)
 
     def generate_function_with_body(
         self,
@@ -2501,10 +2597,15 @@ class CodeGenerator(ASTVisitor):
     def emit_call_kw(self, nargs: int, kwargs: tuple[str, ...]) -> None:
         raise NotImplementedError()
 
-    def emit_try_except(self, node) -> None:
+    def emit_try_except(self, node: ast.Try) -> None:
         raise NotImplementedError()
 
-    def emit_try_finally(self, node, try_body=None, final_body=None) -> None:
+    def emit_try_finally(
+        self,
+        node: ast.Try | None,
+        try_body: Callable[[], None] | None = None,
+        final_body: Callable[[], None] | None = None,
+    ) -> None:
         raise NotImplementedError()
 
     def emit_yield_from(self, await_: bool = False) -> None:
@@ -2517,7 +2618,13 @@ class CodeGenerator(ASTVisitor):
         raise NotImplementedError()
 
     def _visitSequenceLoad(
-        self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
+        self,
+        elts: list[ast.expr],
+        build_op: str,
+        add_op: str,
+        extend_op: str,
+        num_pushed: int = 0,
+        is_tuple: bool = False,
     ) -> None:
         raise NotImplementedError()
 
@@ -2530,7 +2637,7 @@ class CodeGenerator(ASTVisitor):
         name: str,
         elt: ast.expr,
         val: ast.expr | None,
-        opcode: str,
+        opcode: str | None,
         oparg: object = 0,
     ) -> None:
         raise NotImplementedError()
@@ -2541,12 +2648,17 @@ class CodeGenerator(ASTVisitor):
 
 class Entry:
     kind: int
-    block: Block
+    block: Block | None
     exit: Block | None
     unwinding_datum: object
 
     def __init__(
-        self, kind, block, exit, unwinding_datum, node: AST | None = None
+        self,
+        kind: int,
+        block: Block | None,
+        exit: Block | None,
+        unwinding_datum: object,
+        node: AST | None = None,
     ) -> None:
         self.kind = kind
         self.block = block
@@ -2563,9 +2675,9 @@ class ResumeOparg(IntEnum):
 
 
 class CodeGenerator310(CodeGenerator):
-    flow_graph: Type[PyFlowGraph] = PyFlowGraph310
+    flow_graph: type[PyFlowGraph] = PyFlowGraph310
     _SymbolVisitor = SymbolVisitor310
-    unqualified_asts = (ast.ClassDef,)
+    unqualified_asts: tuple[type[ast.AST]] = (ast.ClassDef,)
 
     def __init__(
         self,
@@ -2649,15 +2761,22 @@ class CodeGenerator310(CodeGenerator):
     def emit_import_name(self, name: str) -> None:
         self.emit("IMPORT_NAME", name)
 
-    def visitAttribute(self, node):
+    def visitAttribute(self, node: ast.Attribute) -> None:
         self.visit(node.value)
+
         if isinstance(node.ctx, ast.Store):
-            with self.temp_lineno(node.end_lineno):
+            end_lineno = node.end_lineno
+            assert end_lineno
+
+            with self.temp_lineno(end_lineno):
                 self.emit("STORE_ATTR", self.mangle(node.attr))
         elif isinstance(node.ctx, ast.Del):
             self.emit("DELETE_ATTR", self.mangle(node.attr))
         else:
-            with self.temp_lineno(node.end_lineno):
+            end_lineno = node.end_lineno
+            assert end_lineno
+
+            with self.temp_lineno(end_lineno):
                 self.emit("LOAD_ATTR", self.mangle(node.attr))
 
     # Stack manipulation --------------------------------------------------
@@ -2697,7 +2816,7 @@ class CodeGenerator310(CodeGenerator):
 
     # Loops --------------------------------------------------
 
-    def visitFor(self, node):
+    def visitFor(self, node: ast.For) -> None:
         start = self.newBlock("for_start")
         body = self.newBlock("for_body")
         cleanup = self.newBlock("for_cleanup")
@@ -2773,7 +2892,7 @@ class CodeGenerator310(CodeGenerator):
     def emit_function_decorators(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef
     ) -> None:
-        for dec in node.decorator_list:
+        for _dec in node.decorator_list:
             self.emit_call_one_arg()
 
     def visitClassDef(self, node: ast.ClassDef) -> None:
@@ -2803,7 +2922,11 @@ class CodeGenerator310(CodeGenerator):
         self.walkClassBody(node, gen)
 
         gen.set_no_pos()
-        if gen.scope.needs_class_closure:
+
+        scope = gen.scope
+        assert isinstance(scope, ClassScope)
+
+        if scope.needs_class_closure:
             gen.emit("LOAD_CLOSURE", "__class__")
             gen.emit_dup()
             gen.emit("STORE_NAME", "__classcell__")
@@ -2826,7 +2949,7 @@ class CodeGenerator310(CodeGenerator):
 
         self._call_helper(2, None, node.bases, node.keywords)
 
-    def get_qual_prefix(self, gen: CodeGenerator):
+    def get_qual_prefix(self, gen: CodeGenerator) -> str:
         prefix = ""
         if gen.scope.global_scope:
             return prefix
@@ -2864,7 +2987,7 @@ class CodeGenerator310(CodeGenerator):
         name: str,
         elt: ast.expr,
         val: ast.expr | None,
-        opcode: str,
+        opcode: str | None,
         oparg: object = 0,
     ) -> None:
         self.check_async_comprehension(node)
@@ -2891,7 +3014,7 @@ class CodeGenerator310(CodeGenerator):
         depth: int,
         elt: ast.expr,
         val: ast.expr | None,
-        type: type[ast.AST],
+        type: type[CompNode],
         outermost_gen_is_param: bool,
     ) -> None:
         if comp.generators[gen_index].is_async:
@@ -2910,7 +3033,7 @@ class CodeGenerator310(CodeGenerator):
         depth: int,
         elt: ast.expr,
         val: ast.expr | None,
-        type: type[ast.AST],
+        type: type[CompNode],
         outermost_gen_is_param: bool,
     ) -> None:
         start = self.newBlock("start")
@@ -2953,6 +3076,7 @@ class CodeGenerator310(CodeGenerator):
             self.visit(elt)
             self.emit("SET_ADD", depth + 1)
         elif type is ast.DictComp:
+            assert val is not None
             self.compile_dictcomp_element(elt, val)
             self.emit("MAP_ADD", depth + 1)
         else:
@@ -2971,7 +3095,7 @@ class CodeGenerator310(CodeGenerator):
         depth: int,
         elt: ast.expr,
         val: ast.expr | None,
-        type: type[ast.AST],
+        type: type[CompNode],
         outermost_gen_is_param: bool,
     ) -> None:
         start = self.newBlock("start")
@@ -3019,6 +3143,7 @@ class CodeGenerator310(CodeGenerator):
                 self.visit(elt)
                 self.emit("SET_ADD", depth + 1)
             elif type is ast.DictComp:
+                assert val is not None
                 self.compile_dictcomp_element(elt, val)
                 self.emit("MAP_ADD", depth + 1)
             else:
@@ -3049,7 +3174,13 @@ class CodeGenerator310(CodeGenerator):
         self.emit_dup()
         self.emit("CALL_FUNCTION", 3)
 
-    def _fastcall_helper(self, argcnt, node, args, kwargs) -> None:
+    def _fastcall_helper(
+        self,
+        argcnt: int,
+        node: ast.expr | None,
+        args: list[ast.expr],
+        kwargs: list[ast.keyword],
+    ) -> None:
         # No * or ** args, faster calling sequence.
         for arg in args:
             self.visit(arg)
@@ -3087,7 +3218,7 @@ class CodeGenerator310(CodeGenerator):
 
     # Exceptions and with --------------------------------------------------
 
-    def emit_try_except(self, node):
+    def emit_try_except(self, node: ast.Try) -> None:
         body = self.newBlock("try_body")
         except_ = self.newBlock("try_handlers")
         orElse = self.newBlock("try_else")
@@ -3174,7 +3305,12 @@ class CodeGenerator310(CodeGenerator):
         self.visitStatements(node.orelse)
         self.nextBlock(end)
 
-    def emit_try_finally(self, node, try_body=None, final_body=None):
+    def emit_try_finally(
+        self,
+        node: ast.Try | None,
+        try_body: Callable[[], None] | None = None,
+        final_body: Callable[[], None] | None = None,
+    ) -> None:
         """
         The overall idea is:
            SETUP_FINALLY end
@@ -3191,7 +3327,9 @@ class CodeGenerator310(CodeGenerator):
         exit_ = self.newBlock("try_finally_exit")
 
         if final_body is None:
+            assert node
             final_body = lambda: self.visitStatements(node.finalbody)
+
         # try block
         self.emit("SETUP_FINALLY", end)
 
@@ -3199,10 +3337,13 @@ class CodeGenerator310(CodeGenerator):
         self.push_fblock(Entry(FINALLY_TRY, body, end, final_body))
         if try_body is not None:
             try_body()
-        elif node.handlers:
-            self.emit_try_except(node)
         else:
-            self.visitStatements(node.body)
+            assert node
+            if node.handlers:
+                self.emit_try_except(node)
+            else:
+                self.visitStatements(node.body)
+
         self.emit_noline("POP_BLOCK")
         self.pop_fblock(FINALLY_TRY)
         final_body()
@@ -3265,11 +3406,11 @@ class CodeGenerator310(CodeGenerator):
         self.emit_rotate_stack(2)
         self.emit("STORE_ATTR", self.mangle(target.attr))
 
-    def unaryOp(self, node, op):
+    def unaryOp(self, node: ast.UnaryOp, op: str) -> None:
         self.visit(node.operand)
         self.emit(op)
 
-    _binary_opcode: dict[type, str] = {
+    _binary_opcode: dict[type[ast.operator], str] = {
         ast.Add: "BINARY_ADD",
         ast.Sub: "BINARY_SUBTRACT",
         ast.Mult: "BINARY_MULTIPLY",
@@ -3291,7 +3432,7 @@ class CodeGenerator310(CodeGenerator):
 
     # Misc --------------------------------------------------
 
-    def emitJump(self, target) -> None:
+    def emitJump(self, target: Block) -> None:
         self.emit("JUMP_ABSOLUTE", target)
 
     def emit_jump_forward(self, target: Block) -> None:
@@ -3310,10 +3451,18 @@ class CodeGenerator310(CodeGenerator):
         self.emit("YIELD_FROM")
 
     def _visitSequenceLoad(
-        self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
+        self,
+        elts: list[ast.expr],
+        build_op: str,
+        add_op: str,
+        extend_op: str,
+        num_pushed: int = 0,
+        is_tuple: bool = False,
     ) -> None:
         if len(elts) > 2 and all(isinstance(elt, ast.Constant) for elt in elts):
-            elts_tuple = tuple(elt.value for elt in elts)
+            elts_tuple = tuple(
+                elt.value for elt in elts if isinstance(elt, ast.Constant)
+            )
             if is_tuple:
                 self.emit("LOAD_CONST", elts_tuple)
             else:
@@ -3412,6 +3561,7 @@ class CodeGenerator310(CodeGenerator):
             self.emit("POP_EXCEPT")
             if datum is not None:
                 self.emit("LOAD_CONST", None)
+                assert isinstance(datum, str)
                 self.storeName(datum)
                 self.delName(datum)
 
@@ -3529,7 +3679,7 @@ class CodeGenerator310(CodeGenerator):
     def emit_match_jump_to_end(self, end: Block) -> None:
         self.emit_jump_forward(end)
 
-    def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext):
+    def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext) -> None:
         self._jump_to_fail_pop(pc, "JUMP_FORWARD")
 
     def emit_finish_match_class(self, node: ast.MatchClass, pc: PatternContext) -> None:
@@ -3594,10 +3744,13 @@ class CodeGenerator310(CodeGenerator):
 
 
 class CodeGenerator312(CodeGenerator):
-    flow_graph: Type[PyFlowGraph] = PyFlowGraph312
+    flow_graph: type[PyFlowGraph] = PyFlowGraph312
     _SymbolVisitor = SymbolVisitor312
-    # pyre-ignore[16]: No such attribute
-    unqualified_asts = (ast.ClassDef, getattr(ast, "TypeVar", None))
+    unqualified_asts: tuple[type[ast.AST]] = (
+        ast.ClassDef,
+        # pyre-ignore[16]: No such attribute
+        getattr(ast, "TypeVar", None),
+    )
 
     def __init__(
         self,
@@ -3635,10 +3788,18 @@ class CodeGenerator312(CodeGenerator):
             self.emit("EAGER_IMPORT_NAME", name)
 
     @classmethod
-    def optimize_tree(cls, optimize: int, tree: AST, string_anns: bool):
-        return AstOptimizer312(optimize=optimize > 0, string_anns=string_anns).visit(
+    def optimize_tree(
+        cls,
+        optimize: int,
+        tree: AST,
+        string_anns: bool,
+    ) -> AST:
+        result = AstOptimizer312(optimize=optimize > 0, string_anns=string_anns).visit(
             tree
         )
+
+        assert isinstance(result, AST)
+        return result
 
     def emit_resume(self, oparg: ResumeOparg) -> None:
         self.emit("RESUME", int(oparg))
@@ -3711,8 +3872,8 @@ class CodeGenerator312(CodeGenerator):
         call = attr.value
         assert isinstance(call, ast.Call)
         self.visit(call.func)
-        self.set_pos(attr.value)
-        load_arg, is_zero = self._emit_args_for_super(attr.value, attr.attr)
+        self.set_pos(call)
+        load_arg, is_zero = self._emit_args_for_super(call, attr.attr)
         op = "LOAD_ZERO_SUPER_METHOD" if is_zero else "LOAD_SUPER_METHOD"
         loc = self.compute_start_location_to_match_attr(attr, attr)
         self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), attr)
@@ -3856,7 +4017,7 @@ class CodeGenerator312(CodeGenerator):
         self.set_pos(test)
         self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
 
-    def visitFor(self, node):
+    def visitFor(self, node: ast.For) -> None:
         start = self.newBlock("for_start")
         body = self.newBlock("for_body")
         cleanup = self.newBlock("for_cleanup")
@@ -3962,10 +4123,10 @@ class CodeGenerator312(CodeGenerator):
 
         return -1
 
-    def emit_call_intrinsic_1(self, oparg: str):
+    def emit_call_intrinsic_1(self, oparg: str) -> None:
         self.emit("CALL_INTRINSIC_1", INTRINSIC_1.index(oparg))
 
-    def emit_call_intrinsic_2(self, oparg: str):
+    def emit_call_intrinsic_2(self, oparg: str) -> None:
         self.emit("CALL_INTRINSIC_2", INTRINSIC_2.index(oparg))
 
     def emit_import_star(self) -> None:
@@ -3978,7 +4139,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("YIELD_VALUE")
         self.emit_resume(ResumeOparg.Yield)
 
-    _binary_opargs: dict[type, int] = {
+    _binary_opargs: dict[type[ast.operator], int] = {
         ast.Add: find_op_idx("NB_ADD"),
         ast.Sub: find_op_idx("NB_SUBTRACT"),
         ast.Mult: find_op_idx("NB_MULTIPLY"),
@@ -4000,14 +4161,14 @@ class CodeGenerator312(CodeGenerator):
 
     # unary ops
 
-    def unaryOp(self, node, op):
+    def unaryOp(self, node: ast.UnaryOp, op: str) -> None:
         self.visit(node.operand)
         if op == "UNARY_POSITIVE":
             self.emit_call_intrinsic_1("INTRINSIC_UNARY_POSITIVE")
         else:
             self.emit(op)
 
-    _augmented_opargs = {
+    _augmented_opargs: dict[type[ast.AST], int] = {
         ast.Add: find_op_idx("NB_INPLACE_ADD"),
         ast.Sub: find_op_idx("NB_INPLACE_SUBTRACT"),
         ast.Mult: find_op_idx("NB_INPLACE_MULTIPLY"),
@@ -4050,7 +4211,7 @@ class CodeGenerator312(CodeGenerator):
         for i in range(count, 1, -1):
             self.emit("SWAP", i)
 
-    def emit_print(self):
+    def emit_print(self) -> None:
         self.emit_call_intrinsic_1("INTRINSIC_PRINT")
         self.set_no_pos()
         self.emit("POP_TOP")
@@ -4151,7 +4312,7 @@ class CodeGenerator312(CodeGenerator):
 
         self.emit("CALL", argcnt + len(args) + len(kwargs))
 
-    def emitJump(self, target) -> None:
+    def emitJump(self, target: Block) -> None:
         self.emit_jump_forward(target)
 
     def emit_jump_forward(self, target: Block) -> None:
@@ -4161,10 +4322,18 @@ class CodeGenerator312(CodeGenerator):
         self.emit_noline("JUMP", target)
 
     def _visitSequenceLoad(
-        self, elts, build_op, add_op, extend_op, num_pushed=0, is_tuple=False
+        self,
+        elts: list[ast.expr],
+        build_op: str,
+        add_op: str,
+        extend_op: str,
+        num_pushed: int = 0,
+        is_tuple: bool = False,
     ) -> None:
         if len(elts) > 2 and all(isinstance(elt, ast.Constant) for elt in elts):
-            elts_tuple = tuple(elt.value for elt in elts)
+            elts_tuple = tuple(
+                elt.value for elt in elts if isinstance(elt, ast.Constant)
+            )
             if is_tuple and not num_pushed:
                 self.emit("LOAD_CONST", elts_tuple)
             else:
@@ -4476,6 +4645,9 @@ class CodeGenerator312(CodeGenerator):
     ) -> CodeGenerator:
         gen = self.make_class_codegen(node, first_lineno)
 
+        scope = gen.scope
+        assert isinstance(scope, ClassScope)
+
         gen.emit("LOAD_NAME", "__name__")
         gen.storeName("__module__")
 
@@ -4487,7 +4659,7 @@ class CodeGenerator312(CodeGenerator):
             gen.loadName(".type_params")
             gen.emit("STORE_NAME", "__type_params__")
 
-        if gen.scope.needs_classdict:
+        if scope.needs_classdict:
             gen.emit("LOAD_LOCALS")
             gen.emit("STORE_DEREF", "__classdict__")
 
@@ -4495,11 +4667,11 @@ class CodeGenerator312(CodeGenerator):
 
         gen.set_no_pos()
 
-        if gen.scope.needs_classdict:
+        if scope.needs_classdict:
             gen.emit("LOAD_CLOSURE", "__classdict__")
             gen.emit("STORE_NAME", "__classdictcell__")
 
-        if gen.scope.needs_class_closure:
+        if scope.needs_class_closure:
             gen.emit("LOAD_CLOSURE", "__class__")
             gen.emit("COPY", 1)
             gen.emit("STORE_NAME", "__classcell__")
@@ -4798,14 +4970,15 @@ class CodeGenerator312(CodeGenerator):
         return base
 
     def emit_super_attribute(self, node: ast.Attribute) -> None:
-        assert isinstance(node.value, ast.Call)
-        self.graph.emit_with_loc("LOAD_GLOBAL", "super", node.value.func)
-        self.set_pos(node.value)
-        load_arg, is_zero = self._emit_args_for_super(node.value, node.attr)
+        call = node.value
+        assert isinstance(call, ast.Call)
+        self.graph.emit_with_loc("LOAD_GLOBAL", "super", call.func)
+        self.set_pos(call)
+        load_arg, is_zero = self._emit_args_for_super(call, node.attr)
         op = "LOAD_ZERO_SUPER_ATTR" if is_zero else "LOAD_SUPER_ATTR"
         self.graph.emit_with_loc("LOAD_SUPER_ATTR", (op, load_arg, is_zero), node)
 
-    def visitAttribute(self, node):
+    def visitAttribute(self, node: ast.Attribute) -> None:
         if (
             isinstance(node.ctx, ast.Load)
             and self._is_super_call(node.value)
@@ -4840,7 +5013,11 @@ class CodeGenerator312(CodeGenerator):
         self.emit_noline("RERAISE", 1)
 
     def emit_try_finally(
-        self, node, try_body=None, final_body=None, star: bool = False
+        self,
+        node: ast.Try | None,
+        try_body: Callable[[], None] | None = None,
+        final_body: Callable[[], None] | None = None,
+        star: bool = False,
     ) -> None:
         assert (
             try_body is not None and final_body is not None
@@ -4852,7 +5029,8 @@ class CodeGenerator312(CodeGenerator):
 
         if final_body is None:
 
-            def final_body():
+            def final_body() -> None:
+                assert node
                 return self.visitStatements(node.finalbody)
 
         # try block
@@ -4861,6 +5039,7 @@ class CodeGenerator312(CodeGenerator):
         self.nextBlock(body)
         self.push_fblock(Entry(FINALLY_TRY, body, end, final_body))
         if node is None:
+            assert try_body
             try_body()
         elif node.handlers:
             if star:
@@ -4979,7 +5158,6 @@ class CodeGenerator312(CodeGenerator):
         self.pop_except_and_reraise()
         self.nextBlock(end)
 
-    # pyre-ignore[11]: Annotation `ast.TryStar` is not defined as a type.
     def emit_try_star_except(self, node: ast.TryStar) -> None:
         body = self.newBlock("try*_body")
         except_ = self.newBlock("try*_except")
@@ -5113,7 +5291,7 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(end)
 
-    def pop_except_and_reraise(self):
+    def pop_except_and_reraise(self) -> None:
         self.emit("COPY", 3)
         self.emit("POP_EXCEPT")
         self.emit("RERAISE", 1)
@@ -5182,6 +5360,7 @@ class CodeGenerator312(CodeGenerator):
             self.emit("POP_EXCEPT")
             if datum is not None:
                 self.emit("LOAD_CONST", None)
+                assert isinstance(datum, str)
                 self.storeName(datum)
                 self.delName(datum)
 
@@ -5199,13 +5378,15 @@ class CodeGenerator312(CodeGenerator):
         name: str,
         elt: ast.expr,
         val: ast.expr | None,
-        opcode: str,
+        opcode: str | None,
         oparg: object = 0,
     ) -> None:
         self.check_async_comprehension(node)
 
         # fetch the scope that corresponds to comprehension
         scope = self.scopes[node]
+        assert isinstance(scope, GenExprScope)
+
         outermost = node.generators[0]
         inlined_state: InlinedComprehensionState | None = None
         if scope.inlined:
@@ -5537,7 +5718,7 @@ class CodeGenerator312(CodeGenerator):
     def emit_match_jump_to_end(self, end: Block) -> None:
         self.emit_jump_forward_noline(end)
 
-    def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext):
+    def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext) -> None:
         self._jump_to_fail_pop(pc, "JUMP")
 
     def emit_finish_match_class(self, node: ast.MatchClass, pc: PatternContext) -> None:
@@ -5588,7 +5769,7 @@ class CodeGenerator312(CodeGenerator):
         # sub-patterns against:
         self.emit("UNPACK_SEQUENCE", size)
         pc.on_top += size - 1
-        for i, pattern in enumerate(node.patterns):
+        for pattern in node.patterns:
             pc.on_top -= 1
             self._visit_subpattern(pattern, pc)
 
@@ -5654,12 +5835,12 @@ class CinderCodeGenBase(CodeGenerator):
     def set_qual_name(self, qualname: str) -> None:
         self._qual_name = qualname
 
-    def getCode(self):
+    def getCode(self) -> CodeType:
         code = super().getCode()
         cx_set_qualname(code, self._qual_name)
         return code
 
-    def visitAttribute(self, node) -> None:
+    def visitAttribute(self, node: ast.Attribute) -> None:
         if isinstance(node.ctx, ast.Load) and self._is_super_call(node.value):
             self.cx_super_attribute(node)
         else:
@@ -5675,10 +5856,10 @@ class CinderCodeGenBase(CodeGenerator):
 
     # subclasses should implement these
 
-    def cx_super_attribute(self, node) -> None:
+    def cx_super_attribute(self, node: ast.Attribute) -> None:
         raise NotImplementedError()
 
-    def cx_super_call(self, node) -> None:
+    def cx_super_call(self, node: ast.Call) -> None:
         raise NotImplementedError()
 
 
@@ -5692,13 +5873,15 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
         name: str,
         elt: ast.expr,
         val: ast.expr | None,
-        opcode: str,
+        opcode: str | None,
         oparg: object = 0,
     ) -> None:
         self.check_async_comprehension(node)
 
         # fetch the scope that corresponds to comprehension
         scope = self.scopes[node]
+        assert isinstance(scope, GenExprScope)
+
         if scope.inlined:
             # for inlined comprehension process with current generator
             gen = self
@@ -5720,12 +5903,13 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
             # - .0 parameter since it is used
             # - non-local names (typically named expressions), they are
             #   defined in enclosing scope and thus should not be deleted
+            parent = scope.parent
+            assert parent
+
             to_delete = [
                 v
                 for v in scope.defs
-                if v != ".0"
-                and v not in scope.nonlocals
-                and v not in scope.parent.cells
+                if v != ".0" and v not in scope.nonlocals and v not in parent.cells
             ]
             # sort names to have deterministic deletion order
             to_delete.sort()
@@ -5741,19 +5925,23 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
         self.finish_comprehension(gen, node)
 
     def emit_super_attribute(self, node: ast.Attribute) -> None:
+        call = node.value
+        assert isinstance(call, ast.Call)
         self.emit("LOAD_GLOBAL", "super")
-        load_arg = self._emit_args_for_super(node.value, node.attr)
+        load_arg = self._emit_args_for_super(call, node.attr)
         self.emit("LOAD_ATTR_SUPER", load_arg)
 
-    def cx_super_attribute(self, node):
+    def cx_super_attribute(self, node: ast.Attribute) -> None:
         self.emit_super_attribute(node)
 
-    def cx_super_call(self, node):
+    def cx_super_call(self, node: ast.Call) -> None:
         attr = node.func
         assert isinstance(attr, ast.Attribute)
         self.emit("LOAD_GLOBAL", "super")
 
-        load_arg = self._emit_args_for_super(attr.value, attr.attr)
+        call = attr.value
+        assert isinstance(call, ast.Call)
+        load_arg = self._emit_args_for_super(call, attr.attr)
         self.emit("LOAD_METHOD_SUPER", load_arg)
         for arg in node.args:
             self.visit(arg)
@@ -5766,14 +5954,14 @@ class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
     def set_qual_name(self, qualname: str) -> None:
         cast(PyFlowGraph312, self.graph).qualname = qualname
 
-    def cx_super_attribute(self, node):
+    def cx_super_attribute(self, node: ast.Attribute) -> None:
         self.emit_super_attribute(node)
 
-    def cx_super_call(self, node):
+    def cx_super_call(self, node: ast.Call) -> None:
         CodeGenerator312.visitCall(self, node)
 
 
-def get_default_generator():
+def get_default_generator() -> type[CodeGenerator]:
     cinder = "cinder" in sys.version
     if sys.version_info >= (3, 12):
         return CinderCodeGenerator312 if cinder else CodeGenerator312
@@ -5795,7 +5983,7 @@ def get_docstring(
 
 
 CinderCodeGenerator = CinderCodeGenerator310
-PythonCodeGenerator = get_default_generator()
+PythonCodeGenerator: type[CodeGenerator] = get_default_generator()
 
 
 class CodeHolder(Protocol):

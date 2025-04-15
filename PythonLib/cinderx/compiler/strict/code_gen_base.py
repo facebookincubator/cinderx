@@ -143,9 +143,9 @@ class StrictCodeGenBase(CinderCodeGenBase):
     def make_code_gen(
         cls,
         module_name: str,
-        tree: ast.Module,
+        tree: AST,
         filename: str,
-        source: str | bytes,
+        source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
         flags: int,
         optimize: int,
         ast_optimizer_enabled: bool = True,
@@ -300,7 +300,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
             self.emit_update_global_del_state(node.name, True)
 
     @final
-    def visitAsyncFunctionDef(self, node: ast.FunctionDef) -> None:
+    def visitAsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
         super().visitAsyncFunctionDef(node)
         if self.feature_extractor.is_global(node.name, self.scope):
             self.emit_update_global_del_state(node.name, True)
@@ -544,7 +544,10 @@ class StrictCodeGenBase(CinderCodeGenBase):
         super().register_immutability(node, flag)
 
     def processBody(
-        self, node: AST, body: list[ast.stmt] | AST, gen: CodeGenerator
+        self,
+        node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
+        body: list[ast.stmt],
+        gen: CodeGenerator,
     ) -> None:
         if (
             isinstance(node, (FunctionDef, AsyncFunctionDef))
