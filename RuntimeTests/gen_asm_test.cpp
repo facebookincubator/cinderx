@@ -134,7 +134,12 @@ def test(x):
     ASSERT_TRUE(PyUnicode_Check(val));
     msg = PyUnicode_AsUTF8(val);
   }
-  ASSERT_EQ(msg, "local variable 'y' referenced before assignment");
+
+  const std::string_view kExpected = PY_VERSION_HEX >= 0x030C0000
+      ? "cannot access local variable 'y' where it is not associated with a "
+        "value"
+      : "local variable 'y' referenced before assignment";
+  ASSERT_EQ(msg, kExpected);
 
   auto tb_frame = Ref<>::steal(PyObject_GetAttrString(tb, "tb_frame"));
   ASSERT_NE(tb_frame.get(), nullptr);

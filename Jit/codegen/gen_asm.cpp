@@ -113,30 +113,26 @@ void RestoreOriginalGeneratorRBP(x86::Emitter* as) {
 
 void raiseUnboundLocalError(BorrowedRef<> name) {
   // name is converted into a `char*` in format_exc_check_arg
+
+  const char* msg = PY_VERSION_HEX >= 0x030C0000
+      ? "cannot access local variable '%.200s' where it is not associated with "
+        "a value"
+      : "local variable '%.200s' referenced before assignment";
+
   Cix_format_exc_check_arg(
-      _PyThreadState_GET(),
-      PyExc_UnboundLocalError,
-      "local variable '%.200s' referenced before assignment",
-      name);
+      _PyThreadState_GET(), PyExc_UnboundLocalError, msg, name);
 }
 
 void raiseUnboundFreevarError(BorrowedRef<> name) {
   // name is converted into a `char*` in format_exc_check_arg
-  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-    Cix_format_exc_check_arg(
-        _PyThreadState_GET(),
-        PyExc_NameError,
-        "cannot access free variable '%s' where it is not associated with a"
-        " value in enclosing scope",
-        name);
-  } else {
-    Cix_format_exc_check_arg(
-        _PyThreadState_GET(),
-        PyExc_NameError,
-        "free variable '%.200s' referenced before assignment in enclosing "
-        "scope",
-        name);
-  }
+
+  const char* msg = PY_VERSION_HEX >= 0x030C0000
+      ? "cannot access free variable '%.200s' where it is not associated with a"
+        " value in enclosing scope"
+      : "free variable '%.200s' referenced before assignment in enclosing "
+        "scope";
+
+  Cix_format_exc_check_arg(_PyThreadState_GET(), PyExc_NameError, msg, name);
 }
 
 void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
