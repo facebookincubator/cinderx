@@ -24,6 +24,9 @@ from cinderx.test_support import skip_unless_jit
 import cinderx.jit
 
 
+ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
+
+
 @skip_unless_jit("JIT list functionality requires the JIT")
 class JitListTest(unittest.TestCase):
     def setUp(self) -> None:
@@ -175,7 +178,7 @@ class JitListTest(unittest.TestCase):
                 ],
                 capture_output=True,
                 cwd=tmp,
-                encoding=sys.stdout.encoding,
+                encoding=ENCODING,
             )
         self.assertEqual(proc.returncode, 0, proc)
         self.assertIn("Continuing on with the JIT disabled", proc.stderr)
@@ -205,7 +208,7 @@ class JitListTest(unittest.TestCase):
                 ],
                 capture_output=True,
                 cwd=tmp,
-                encoding=sys.stdout.encoding,
+                encoding=ENCODING,
             )
         self.assertEqual(proc.returncode, 0, proc)
 
@@ -231,7 +234,7 @@ class JitListTest(unittest.TestCase):
                 ],
                 capture_output=True,
                 cwd=tmp,
-                encoding=sys.stdout.encoding,
+                encoding=ENCODING,
             )
         self.assertNotEqual(proc.returncode, 0, proc)
         self.assertIn("Error while parsing line", proc.stderr)
@@ -264,7 +267,7 @@ class JitListTest(unittest.TestCase):
                 ],
                 capture_output=True,
                 cwd=tmp,
-                encoding=sys.stdout.encoding,
+                encoding=ENCODING,
             )
         self.assertNotEqual(proc.returncode, 0, proc)
         self.assertIn("Failed to parse new JIT list line", proc.stderr)

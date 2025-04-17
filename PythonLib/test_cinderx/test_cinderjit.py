@@ -45,6 +45,9 @@ except ImportError:
     from test_compiler.test_static.common import StaticTestBase
 
 
+ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
+
+
 class TestException(Exception):
     pass
 
@@ -1635,7 +1638,7 @@ class CinderJitModuleTests(StaticTestBase):
                 args.extend(params)
                 args.append("mod.py")
                 proc = subprocess.run(
-                    args, cwd=tmp, stdout=subprocess.PIPE, encoding=sys.stdout.encoding
+                    args, cwd=tmp, stdout=subprocess.PIPE, encoding=ENCODING
                 )
                 self.assertEqual(proc.returncode, 0, proc)
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
@@ -1710,7 +1713,7 @@ class CinderJitModuleTests(StaticTestBase):
 
             def run_proc():
                 proc = subprocess.run(
-                    args, cwd=tmp, stdout=subprocess.PIPE, encoding=sys.stdout.encoding
+                    args, cwd=tmp, stdout=subprocess.PIPE, encoding=ENCODING
                 )
                 self.assertEqual(proc.returncode, 0, proc)
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
@@ -1742,7 +1745,7 @@ class CinderJitModuleTests(StaticTestBase):
 
             def run_proc():
                 proc = subprocess.run(
-                    args, cwd=tmp, stderr=subprocess.PIPE, encoding=sys.stdout.encoding
+                    args, cwd=tmp, stderr=subprocess.PIPE, encoding=ENCODING
                 )
                 self.assertEqual(proc.returncode, -6, proc)
                 return proc.stderr
@@ -2490,7 +2493,7 @@ class PerfMapTests(unittest.TestCase):
         proc = subprocess.run(
             [sys.executable, "-X", "jit", "-X", "jit-perfmap", self.HELPER_FILE],
             stdout=subprocess.PIPE,
-            encoding=sys.stdout.encoding,
+            encoding=ENCODING,
         )
         self.assertEqual(proc.returncode, 0)
 
@@ -2554,7 +2557,7 @@ class PreloadTests(unittest.TestCase):
             ],
             cwd=os.path.dirname(__file__),
             stdout=subprocess.PIPE,
-            encoding=sys.stdout.encoding,
+            encoding=ENCODING,
         )
         self.assertEqual(proc.returncode, 0)
         expected_stdout = """resolving a_func
