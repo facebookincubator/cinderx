@@ -88,15 +88,7 @@ def main() -> None:
     if args.builtin:
         codeobj = compile(source, args.input, "exec")
     else:
-        if sys.version_info >= (3, 12):
-            compiler = CodeGenerator312
-            if args.static:
-                print("Static code generation not supported in 3.12 yet")
-                sys.exit(1)
-        else:
-            compiler = CinderCodeGenerator
-            if args.static:
-                compiler = StaticCodeGenerator
+        compiler = StaticCodeGenerator if args.static else CinderCodeGenerator
 
         codeobj = pycodegen_compile(
             source,

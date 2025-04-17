@@ -1529,9 +1529,11 @@ class CodeGenerator(ASTVisitor):
             (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda, ast.GeneratorExp),
         ):
             raise self.syntax_error(
-                "'yield from' outside function"
-                if IS_3_12_8
-                else "'yield' outside function",
+                (
+                    "'yield from' outside function"
+                    if IS_3_12_8
+                    else "'yield' outside function"
+                ),
                 node,
             )
         elif self.scope.coroutine:
@@ -5886,13 +5888,15 @@ class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
             # for inlined comprehension process with current generator
             gen = self
         else:
-            gen = cast(CinderCodeGenerator, self.make_comprehension_codegen(node, name))
+            gen = cast(
+                CinderCodeGenerator310, self.make_comprehension_codegen(node, name)
+            )
         gen.set_pos(node)
 
         if opcode:
             gen.emit(opcode, oparg)
 
-        assert isinstance(gen, CinderCodeGenerator)
+        assert isinstance(gen, CinderCodeGenerator310)
         gen.compile_comprehension_generator(
             node, 0, 0, elt, val, type(node), not scope.inlined
         )
@@ -5961,12 +5965,21 @@ class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
         CodeGenerator312.visitCall(self, node)
 
 
+def get_default_cinder_generator() -> type[CodeGenerator]:
+    return (
+        CinderCodeGenerator312
+        if sys.version_info >= (3, 12)
+        else CinderCodeGenerator310
+    )
+
+
+def get_default_cpython_generator() -> type[CodeGenerator]:
+    return CodeGenerator312 if sys.version_info >= (3, 12) else CodeGenerator310
+
+
 def get_default_generator() -> type[CodeGenerator]:
     cinder = "cinder" in sys.version
-    if sys.version_info >= (3, 12):
-        return CinderCodeGenerator312 if cinder else CodeGenerator312
-    else:
-        return CinderCodeGenerator310 if cinder else CodeGenerator310
+    return get_default_cinder_generator() if cinder else get_default_cpython_generator()
 
 
 def get_docstring(
@@ -5982,7 +5995,7 @@ def get_docstring(
         return b0v.s
 
 
-CinderCodeGenerator = CinderCodeGenerator310
+CinderCodeGenerator: type[CodeGenerator] = get_default_cinder_generator()
 PythonCodeGenerator: type[CodeGenerator] = get_default_generator()
 
 
