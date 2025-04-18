@@ -2,14 +2,11 @@
 
 # pyre-unsafe
 import ast
-import dis
 import math
 import sys
-import unittest
 
 from unittest import skipIf
 
-from cinderx.compiler.consts import CO_NEWLOCALS, CO_NOFREE, CO_OPTIMIZED
 from cinderx.compiler.optimizer import (
     AstOptimizer,
     enum_format_str_components,
@@ -17,7 +14,6 @@ from cinderx.compiler.optimizer import (
     FormatInfo,
     UnsupportedFormat,
 )
-from cinderx.compiler.pyassem import PyFlowGraph
 from cinderx.compiler.pycodegen import CodeGenerator
 from cinderx.compiler.unparse import to_expr
 

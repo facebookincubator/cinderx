@@ -10,6 +10,11 @@ PRE_312: bool = sys.version_info < (3, 12)
 
 
 class Block:
+    __slots__ = (
+        "label",
+        "next",
+    )
+
     def __init__(self, label, next=None):
         self.label = label
         self.next = next

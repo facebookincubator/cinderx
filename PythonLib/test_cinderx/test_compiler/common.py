@@ -99,11 +99,9 @@ class CompilerTest(TestCase):
     def assertBinOpInBytecode(self, x, binop: str) -> None:
         if sys.version_info >= (3, 12):
             binop = "NB_" + binop.removeprefix("BINARY_")
-            # pyre-ignore[21]: Undefined attribute
             from opcode import _nb_ops
 
-            # pyre-ignore[16]: Undefined attribute
-            for i, (name, sign) in enumerate(_nb_ops):
+            for i, (name, _sign) in enumerate(_nb_ops):
                 if name == binop:
                     self.assertInBytecode(x, "BINARY_OP", i)
                     break
@@ -194,7 +192,7 @@ class CompilerTest(TestCase):
             yield from block.getInstructions()
 
     def get_consts_with_names(self, code):
-        return {k: v for k, v in zip(code.co_names, code.co_consts)}
+        return dict(zip(code.co_names, code.co_consts))
 
     def assertNotInGraph(self, graph, opname, argval=_UNSPECIFIED):
         for block in graph.getBlocks():
@@ -228,6 +226,8 @@ class CompilerTest(TestCase):
 
 
 class _FakeCodeType:
+    __slots__ = ("co_exceptiontable",)
+
     def __init__(self, exc_table):
         self.co_exceptiontable = exc_table
 

@@ -17,7 +17,10 @@ class DualCompilerDisTests(test_dis.CinderX_DisTests):
     def compile(self, code_str):
         return self.compiler(dedent(code_str), "<string>", "exec")
 
-@unittest.skipIf(sys.version_info >= (3, 12), "3.12 has different load super w/ CPython tests")
+
+@unittest.skipIf(
+    sys.version_info >= (3, 12), "3.12 has different load super w/ CPython tests"
+)
 class LoadSuperTests(DualCompilerDisTests):
     def test_super_zero_args(self):
         src = """
@@ -307,7 +310,9 @@ class LoadSuperPyCompilerTests(LoadSuperTests):
     compiler = staticmethod(py_compile)
 
 
-@unittest.skipIf(sys.version_info >= (3, 12), "3.12 inline comprehensions are different")
+@unittest.skipIf(
+    sys.version_info >= (3, 12), "3.12 inline comprehensions are different"
+)
 class ComprehensionInlinerTests(DualCompilerDisTests):
     def __init__(self, *args):
         super().__init__(*args)
@@ -650,6 +655,9 @@ def f(self, name, data, files=(), dirs=()):
         self.do_disassembly_test(g["f"], expected)
 
 
-@unittest.skipIf(sys.version_info >= (3, 12), "3.12 has different inline comprehensions w/ CPython tests")
+@unittest.skipIf(
+    sys.version_info >= (3, 12),
+    "3.12 has different inline comprehensions w/ CPython tests",
+)
 class ComprehensionInlinerPyCompilerTests(ComprehensionInlinerTests):
     compiler = staticmethod(py_compile)

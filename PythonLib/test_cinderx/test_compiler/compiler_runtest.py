@@ -3,7 +3,6 @@
 # Helper script for testsuite - generally, run a file thru compiler and
 # disassemble using dis_stable.
 #
-import ast
 import re
 import sys
 
@@ -17,11 +16,11 @@ coding_re = re.compile(rb"^[ \t\f]*#.*?coding[:=][ \t]*([-_.a-zA-Z0-9]+)")
 
 def open_with_coding(fname):
     with open(fname, "rb") as f:
-        l = f.readline()
-        m = coding_re.match(l)
+        li = f.readline()
+        m = coding_re.match(li)
         if not m:
-            l = f.readline()
-            m = coding_re.match(l)
+            li = f.readline()
+            m = coding_re.match(li)
         encoding = "utf-8"
         if m:
             encoding = m.group(1).decode()

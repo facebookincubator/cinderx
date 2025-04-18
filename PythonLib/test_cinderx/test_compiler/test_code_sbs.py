@@ -45,7 +45,7 @@ BLOCK_START_CODE = "__BLOCK__"
 class _AnyType:
     """Singleton to indicate that we match any opcode or oparg."""
 
-    def __new__(self) -> _AnyType:
+    def __new__(cls) -> _AnyType:
         return Any
 
     def __repr__(self) -> str:
@@ -343,9 +343,9 @@ def add_test(modname: str, fname: str) -> None:
     version = sys.version_info[:2]
     if "/cinder/" in fname and "cinder" not in sys.version:
         return
-    elif f"/3.10/" in fname and version != (3, 10):
+    elif "/3.10/" in fname and version != (3, 10):
         return
-    elif f"/3.12/" in fname and version != (3, 12):
+    elif "/3.12/" in fname and version != (3, 12):
         return
     if fname.endswith("/__init__.py"):
         return
@@ -363,10 +363,7 @@ def add_test(modname: str, fname: str) -> None:
 
         # Parse expected bytecode
         script = eval(test.expected, globals(), SCRIPT_CONTEXT)
-        transformed = [
-                SkipAny() if value == ... else value
-                for value in script
-        ]
+        transformed = [SkipAny() if value == ... else value for value in script]
         self.check_instrs(graph_instrs(graph), transformed)
 
         # Parse expected exception table

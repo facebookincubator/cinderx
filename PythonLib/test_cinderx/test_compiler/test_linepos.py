@@ -4,7 +4,7 @@ from dis import get_instructions
 from textwrap import dedent
 from types import CodeType
 from typing import Sequence
-from unittest import skipIf, TestCase
+from unittest import skipIf
 
 from cinderx.compiler.pyassem import LinePositionTable, SrcLocation
 from cinderx.compiler.pycodegen import CodeGenerator312
@@ -155,7 +155,7 @@ class LinePositionTests(CompilerTest):
         not hasattr(test_scenarios.__code__, "co_positions"), "requires 312 or later"
     )
     def test_scenarios_312(self):
-        for code, positions, expected in self.test_cases:
+        for code, positions, _expected in self.test_cases:
             with self.subTest(code=code):
                 d = {}
                 exec(dedent(code).strip() + "\n", d, d)
@@ -206,7 +206,7 @@ class LinePositionTests(CompilerTest):
                 table = bytes(postab.getTable())
                 self.assertEqual(table, f.__code__.co_linetable)
 
-    def get_position(self, compiled: CodeType, opcode: str) -> tuple[...] | None: 
+    def get_position(self, compiled: CodeType, opcode: str) -> tuple[...] | None:
         position: tuple[...] | None = None
         for instr in get_instructions(compiled):
             if instr.opname == opcode:
@@ -262,15 +262,15 @@ class LinePositionTests(CompilerTest):
                     def f():
                         return x.foo()
                 """,
-                ("LOAD_ATTR", "CALL")
+                ("LOAD_ATTR", "CALL"),
             ),
             (
                 """
                     def f():
                         return x.foo(42)
                 """,
-                ("LOAD_ATTR", "CALL")
-            )
+                ("LOAD_ATTR", "CALL"),
+            ),
         ]
         for code, opcodes in test_cases:
             for opcode in self.opcode_variations(opcodes):
@@ -278,13 +278,19 @@ class LinePositionTests(CompilerTest):
                     test_code = dedent(code).strip() + "\n"
                     d = {}
                     exec(test_code, d, d)
-                    
+
                     c_compiled = d["f"]
-                    py_compiled = self.run_code(test_code, generator=CodeGenerator312)["f"]
+                    py_compiled = self.run_code(test_code, generator=CodeGenerator312)[
+                        "f"
+                    ]
 
                     c_positions = list(c_compiled.__code__.co_positions())
                     py_positions = list(py_compiled.__code__.co_positions())
                     c_position = self.get_position(c_compiled.__code__, opcode)
                     py_position = self.get_position(py_compiled.__code__, opcode)
 
-                    self.assertEqual(c_position, py_position, f"\nc : {c_positions}\npy: {py_positions}")
+                    self.assertEqual(
+                        c_position,
+                        py_position,
+                        f"\nc : {c_positions}\npy: {py_positions}",
+                    )

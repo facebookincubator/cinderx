@@ -2,13 +2,12 @@
 
 # pyre-strict
 import ast
-import dis
 import sys
 from io import StringIO
 from os import path
 from tokenize import detect_encoding
-from unittest import TestCase
 from types import CodeType
+from unittest import TestCase
 
 from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.pycodegen import compile as py_compile

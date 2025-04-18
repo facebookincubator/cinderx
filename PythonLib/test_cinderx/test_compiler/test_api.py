@@ -8,8 +8,8 @@ import inspect
 import re
 import sys
 import unittest
-from unittest import skipIf
 from types import CodeType
+from unittest import skipIf
 
 from cinderx.compiler import compile
 
@@ -36,8 +36,11 @@ class ApiTests(CompilerTest):
 
     def test_compile_with_future_annotations_stringifies_annotation(self) -> None:
         code = compile(
+            "a: List[int] = []",
+            "foo",
+            "exec",
             # pyre-fixme[16]: Module `__future__` has no attribute `CO_FUTURE_ANNOTATIONS`
-            "a: List[int] = []", "foo", "exec", __future__.CO_FUTURE_ANNOTATIONS
+            __future__.CO_FUTURE_ANNOTATIONS,
         )
         self.assertInBytecode(code, "LOAD_CONST", "List[int]")
         self.assertNotInBytecode(code, "LOAD_NAME", "List")
@@ -72,12 +75,12 @@ class ApiTests(CompilerTest):
         src_code = "def f(): '''hi'''\n"
         code = compile(src_code, "foo", "single", optimize=1)
         assert isinstance(code, CodeType)
-        consts = {k: v for k, v in zip(code.co_names, code.co_consts)}
+        consts = dict(zip(code.co_names, code.co_consts))
         self.assertIn("hi", consts["f"].co_consts)
 
         code = compile(src_code, "foo", "single", optimize=2)
         assert isinstance(code, CodeType)
-        consts = {k: v for k, v in zip(code.co_names, code.co_consts)}
+        consts = dict(zip(code.co_names, code.co_consts))
         self.assertNotIn("hi", consts["f"].co_consts)
 
 
@@ -98,7 +101,9 @@ class ApiTests310(CompilerTest):
         code = compile("a <> b", "foo", "exec", __future__.CO_FUTURE_BARRY_AS_BDFL)
         self.assertInBytecode(code, "COMPARE_OP", "!=")
 
-    def test_compile_with_annotation_in_except_handler_emits_store_annotation(self) -> None:
+    def test_compile_with_annotation_in_except_handler_emits_store_annotation(
+        self,
+    ) -> None:
         source = inspect.cleandoc(
             """
 try:
@@ -123,7 +128,6 @@ class ApiTests312(CompilerTest):
         code = compile("42", "foo", "single")
         self.assertInBytecode(code, "LOAD_CONST", 42)
         self.assertInBytecode(code, "CALL_INTRINSIC_1", 1)  # INTRINSIC_PRINT
-
 
 
 if __name__ == "__main__":

@@ -106,7 +106,7 @@ class Python37Tests(CompilerTest):
         """verifies that we emit an IMPORT_FROM to enable circular imports
         when compiling an absolute import to verify that they can support
         circular imports"""
-        code = self.compile(f"import x.y as b")
+        code = self.compile("import x.y as b")
         self.assertInBytecode(code, "IMPORT_FROM")
         self.assertNotInBytecode(code, "LOAD_ATTR")
 

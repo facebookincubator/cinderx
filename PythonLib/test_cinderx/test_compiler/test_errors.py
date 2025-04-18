@@ -1,16 +1,11 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import ast
-import dis
 import inspect
 import sys
 import unittest
-from dis import opmap, opname
-from re import escape
-from unittest import TestCase
-
-from .common import CompilerTest
 
 import cinderx.jit
+
+from .common import CompilerTest
 
 
 class ErrorTests(CompilerTest):
@@ -41,11 +36,21 @@ class ErrorTests(CompilerTest):
             )
 
     def test_yield_from_outside_func(self):
-        with self.assertRaisesRegex(SyntaxError, "'yield from' outside function" if sys.version_info >= (3, 12, 8) else "'yield' outside function"):
+        with self.assertRaisesRegex(
+            SyntaxError,
+            "'yield from' outside function"
+            if sys.version_info >= (3, 12, 8)
+            else "'yield' outside function",
+        ):
             self.compile("yield from [1,2]")
 
     def test_yield_from_outside_func_class(self):
-        with self.assertRaisesRegex(SyntaxError, "'yield from' outside function" if sys.version_info >= (3, 12, 8) else "'yield' outside function"):
+        with self.assertRaisesRegex(
+            SyntaxError,
+            "'yield from' outside function"
+            if sys.version_info >= (3, 12, 8)
+            else "'yield' outside function",
+        ):
             self.compile("class C: yield from [1,2]")
 
     def test_return_outside_func(self):
@@ -166,7 +171,9 @@ class ErrorTests(CompilerTest):
             self.compile(", ".join(("x",) * 256) + ", *x, = range(256)")
 
     @unittest.skipIf(cinderx.jit.is_enabled(), "JIT doesn't support recursion checks")
-    @unittest.skipUnless(sys.version_info < (3, 12), "Interpreter can elide recursion check")
+    @unittest.skipUnless(
+        sys.version_info < (3, 12), "Interpreter can elide recursion check"
+    )
     def test_recursion_error_when_expression_too_deep(self):
         fail_depth = sys.getrecursionlimit() * 3
 

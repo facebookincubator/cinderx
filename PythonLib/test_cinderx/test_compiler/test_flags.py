@@ -10,7 +10,6 @@ from cinderx.compiler.consts import (
     CO_ASYNC_GENERATOR,
     CO_COROUTINE,
     CO_GENERATOR,
-    CO_NESTED,
     CO_NEWLOCALS,
     CO_NOFREE,
     CO_OPTIMIZED,
@@ -43,7 +42,6 @@ def show_flags(x: int) -> str:
 
 
 class FlagTests(CompilerTest):
-
     def assertFlags(self, f, expected):
         try:
             code = f.__code__
@@ -97,7 +95,7 @@ class FlagTests(CompilerTest):
 
     def test_braces(self):
         with self.assertRaisesRegex(SyntaxError, "not a chance"):
-            f = self.run_code(
+            self.run_code(
                 """
             from __future__ import braces
             def f(): pass"""
@@ -118,7 +116,9 @@ class FlagTests(CompilerTest):
             await foo"""
         )["f"]
         if PRE_312:
-            self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS | CO_ASYNC_GENERATOR)
+            self.assertFlags(
+                f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS | CO_ASYNC_GENERATOR
+            )
         else:
             self.assertFlags(f, CO_OPTIMIZED | CO_NEWLOCALS | CO_ASYNC_GENERATOR)
 

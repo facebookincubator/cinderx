@@ -5,7 +5,6 @@ import subprocess
 import sys
 import tempfile
 from unittest import TestCase
-from unittest.mock import patch
 
 
 class PySourceLoaderTest(TestCase):

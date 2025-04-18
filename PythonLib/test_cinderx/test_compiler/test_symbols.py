@@ -6,16 +6,23 @@ import sys
 import unittest
 
 from ast import FunctionDef
-from sys import version_info
 from textwrap import dedent
+from unittest import skipIf
 
 from cinderx.compiler.consts import SC_FREE, SC_GLOBAL_IMPLICIT
-from cinderx.compiler.symbols import ClassScope, FunctionScope, SymbolVisitor, TypeAliasScope, TypeParamScope, TypeVarBoundScope
-from unittest import skipIf
+from cinderx.compiler.symbols import (
+    ClassScope,
+    FunctionScope,
+    SymbolVisitor,
+    TypeAliasScope,
+    TypeParamScope,
+    TypeVarBoundScope,
+)
 
 from .common import CompilerTest
 
 PRE_312: bool = sys.version_info < (3, 12)
+
 
 class SymbolVisitorTests(CompilerTest):
     def test_simple_assignments(self) -> None:
@@ -90,7 +97,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertTrue("T" in scope.defs)
                 self.assertTrue("T" in scope.type_params)
@@ -112,7 +119,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertTrue("T" in scope.defs)
                 self.assertTrue("T" in scope.type_params)
@@ -143,7 +150,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertEqual(len(scope.children), 2)
 
@@ -172,7 +179,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertEqual(len(scope.children), 1)
 
@@ -194,7 +201,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertEqual(len(scope.children), 1)
 
@@ -216,7 +223,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "C":
                 self.assertEqual(len(scope.children), 1)
                 self.assertEqual(scope.children[0].name, "C")
@@ -240,7 +247,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 self.assertIn("_C__T", scope.defs)
                 break
@@ -256,7 +263,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "C":
                 self.assertEqual(len(scope.children), 1)
 
@@ -284,7 +291,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeParamScope) and scope.name == "f":
                 parent = scope.parent
                 self.assertIsNotNone(parent)
@@ -308,7 +315,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
                 print(scope.check_name("int"))
                 break
@@ -324,7 +331,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
                 parent = scope.parent
                 self.assertIsNotNone(parent)
@@ -345,7 +352,7 @@ class SymbolVisitorTests(CompilerTest):
         module = ast.parse(code)
         visitor = SymbolVisitor(0)
         visitor.visit(module)
-        for node, scope in visitor.scopes.items():
+        for _node, scope in visitor.scopes.items():
             if isinstance(scope, TypeAliasScope) and scope.name == "T":
                 parent = scope.parent
                 self.assertIsNotNone(parent)
@@ -358,6 +365,7 @@ class SymbolVisitorTests(CompilerTest):
                 break
         else:
             self.fail("scope not found")
+
 
 if __name__ == "__main__":
     unittest.main()

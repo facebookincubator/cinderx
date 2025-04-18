@@ -11,7 +11,6 @@ matched against the file paths.) Then run this file using e.g.
 """
 
 import ast
-import dis
 import os
 import unittest
 from io import StringIO

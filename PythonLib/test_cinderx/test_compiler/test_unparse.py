@@ -1,5 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import ast
 from unittest import TestCase
 
 from cinderx.compiler.pycodegen import compile as py_compile
@@ -129,7 +128,6 @@ class UnparseTests(TestCase):
                 expected = example
             for position, template, fetcher in positions:
                 with self.subTest(example=example, position=position):
-
                     full = template.format(example=example)
                     code = py_compile(full, "foo.py", "exec")
                     py_globals = {}

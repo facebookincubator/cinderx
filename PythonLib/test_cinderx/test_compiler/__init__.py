@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# flake8: noqa
 import sys
 
 from .test_api import ApiTests
