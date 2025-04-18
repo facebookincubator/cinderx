@@ -1,6 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import inspect
-import types
 import unittest
 
 from test.support import gc_collect
@@ -16,8 +14,8 @@ _no_default = object()
 class AwaitException(Exception):
     pass
 
-class CinderX_AsyncGenAsyncioTest(unittest.TestCase):
 
+class CinderX_AsyncGenAsyncioTest(unittest.TestCase):
     def setUp(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(None)

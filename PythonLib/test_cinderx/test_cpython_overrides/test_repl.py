@@ -2,7 +2,7 @@
 import unittest
 from textwrap import dedent
 
-from test.support import cpython_only, SuppressCrashReport
+from test.support import SuppressCrashReport
 from test.support.script_helper import kill_python
 
 from test.test_repl import spawn_repl

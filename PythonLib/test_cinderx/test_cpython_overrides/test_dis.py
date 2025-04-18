@@ -1,16 +1,17 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import unittest
+import contextlib
 import dis
 import io
 import os
 import re
 import sys
-import contextlib
+import unittest
 
 try:
     from cinderx.opcode import shadowop
 except ImportError:
     shadowop = set()
+
 
 def compile_and_get(code_str, funcname):
     _tmp_globals = {}
@@ -41,11 +42,13 @@ dis_bug1333982 = """\
 %3d          16 BINARY_ADD
              18 CALL_FUNCTION            1
              20 RAISE_VARARGS            1
-""" % (bug1333982.__code__.co_firstlineno + 1,
-       __file__,
-       bug1333982.__code__.co_firstlineno + 1,
-       bug1333982.__code__.co_firstlineno + 2,
-       bug1333982.__code__.co_firstlineno + 1)
+""" % (
+    bug1333982.__code__.co_firstlineno + 1,
+    __file__,
+    bug1333982.__code__.co_firstlineno + 1,
+    bug1333982.__code__.co_firstlineno + 2,
+    bug1333982.__code__.co_firstlineno + 1,
+)
 
 dis_bug1333982_with_inline_comprehensions = """\
 %3d           0 LOAD_ASSERTION_ERROR
@@ -64,9 +67,11 @@ dis_bug1333982_with_inline_comprehensions = """\
 %3d          22 BINARY_ADD
              24 CALL_FUNCTION            1
              26 RAISE_VARARGS            1
-""" % (bug1333982.__code__.co_firstlineno + 1,
-       bug1333982.__code__.co_firstlineno + 2,
-       bug1333982.__code__.co_firstlineno + 1)
+""" % (
+    bug1333982.__code__.co_firstlineno + 1,
+    bug1333982.__code__.co_firstlineno + 2,
+    bug1333982.__code__.co_firstlineno + 1,
+)
 
 
 _h_str = """
@@ -88,10 +93,11 @@ dis_nested_0 = """\
 
 %3d          12 LOAD_FAST                1 (foo)
              14 RETURN_VALUE
-""" % (_h.__code__.co_firstlineno + 1,
-       __file__,
-       _h.__code__.co_firstlineno + 1,
-       _h.__code__.co_firstlineno + 4,
+""" % (
+    _h.__code__.co_firstlineno + 1,
+    __file__,
+    _h.__code__.co_firstlineno + 1,
+    _h.__code__.co_firstlineno + 4,
 )
 
 dis_nested_1 = """%s
@@ -105,12 +111,13 @@ Disassembly of <code object foo at 0x..., file "%s", line %d>:
              12 GET_ITER
              14 CALL_FUNCTION            1
              16 RETURN_VALUE
-""" % (dis_nested_0,
-       __file__,
-       _h.__code__.co_firstlineno + 1,
-       _h.__code__.co_firstlineno + 3,
-       __file__,
-       _h.__code__.co_firstlineno + 3,
+""" % (
+    dis_nested_0,
+    __file__,
+    _h.__code__.co_firstlineno + 1,
+    _h.__code__.co_firstlineno + 3,
+    __file__,
+    _h.__code__.co_firstlineno + 3,
 )
 
 dis_nested_1_with_inline_comprehensions = """%s
@@ -127,10 +134,11 @@ Disassembly of <code object foo at 0x..., file "%s", line %d>:
              18 JUMP_ABSOLUTE            3 (to 6)
         >>   20 DELETE_FAST              1 (z)
              22 RETURN_VALUE
-""" % (dis_nested_0,
-       __file__,
-       _h.__code__.co_firstlineno + 1,
-       _h.__code__.co_firstlineno + 3,
+""" % (
+    dis_nested_0,
+    __file__,
+    _h.__code__.co_firstlineno + 1,
+    _h.__code__.co_firstlineno + 3,
 )
 
 
@@ -150,7 +158,7 @@ class CinderX_DisTests(unittest.TestCase):
         return output.getvalue()
 
     def strip_addresses(self, text):
-        return re.sub(r'\b0x[0-9A-Fa-f]+\b', '0x...', text)
+        return re.sub(r"\b0x[0-9A-Fa-f]+\b", "0x...", text)
 
     def do_disassembly_test(self, func, expected):
         got = self.get_disassembly(func, depth=0)
@@ -183,20 +191,26 @@ class CinderX_DisTests(unittest.TestCase):
                         width += 1 + dis._OPARG_WIDTH
                 self.assertLessEqual(len(opname), width)
 
-    @unittest.skipIf(sys.version_info >= (3, 12), "3.12 inline comprehensions are different")
+    @unittest.skipIf(
+        sys.version_info >= (3, 12), "3.12 inline comprehensions are different"
+    )
     def test_bug_1333982(self):
         # This one is checking bytecodes generated for an `assert` statement,
         # so fails if the tests are run with -O.  Skip this test then.
         if not __debug__:
-            self.skipTest('need asserts, run without -O')
+            self.skipTest("need asserts, run without -O")
 
         # CinderX: Conditional skip for inline comprehensions
         if self._inline_comprehensions:
-            self.do_disassembly_test(bug1333982, dis_bug1333982_with_inline_comprehensions)
+            self.do_disassembly_test(
+                bug1333982, dis_bug1333982_with_inline_comprehensions
+            )
         else:
             self.do_disassembly_test(bug1333982, dis_bug1333982)
 
-    @unittest.skipIf(sys.version_info >= (3, 12), "3.12 inline comprehensions are different")
+    @unittest.skipIf(
+        sys.version_info >= (3, 12), "3.12 inline comprehensions are different"
+    )
     def test_disassemble_recursive(self):
         def check(expected, **kwargs):
             dis = self.get_disassembly(_h, **kwargs)
@@ -210,8 +224,8 @@ class CinderX_DisTests(unittest.TestCase):
         else:
             check(dis_nested_1, depth=1)
 
-class CinderX_DisWithFileTests(CinderX_DisTests):
 
+class CinderX_DisWithFileTests(CinderX_DisTests):
     # Run the tests again, using the file arg instead of print
     def get_disassembly(self, func, lasti=-1, wrapper=True, **kwargs):
         output = io.StringIO()

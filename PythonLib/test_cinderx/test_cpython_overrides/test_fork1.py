@@ -1,6 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-"""This test checks for correct fork() behavior.
-"""
+"""This test checks for correct fork() behavior."""
 
 import _imp as imp
 import os
@@ -26,6 +25,7 @@ class CinderX_ForkTest(ForkWait):
         fake_module_name = "fake test module"
         partial_module = "partial"
         complete_module = "complete"
+
         def importer():
             imp.acquire_lock()
 
@@ -35,6 +35,7 @@ class CinderX_ForkTest(ForkWait):
             time.sleep(0.01)  # Give the other thread time to try and acquire.
             sys.modules[fake_module_name] = complete_module
             imp.release_lock()
+
         t = threading.Thread(target=importer)
         t.start()
         import_started.wait()
@@ -65,8 +66,10 @@ class CinderX_ForkTest(ForkWait):
             except OSError:
                 pass
 
+
 def tearDownModule():
     support.reap_children()
+
 
 if __name__ == "__main__":
     unittest.main()

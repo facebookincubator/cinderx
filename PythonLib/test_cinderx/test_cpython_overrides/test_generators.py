@@ -1,13 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import copy
-import gc
-import inspect
-import pickle
-import sys
 import unittest
-import weakref
-
-from test import support
 
 try:
     import _testcapi
@@ -23,7 +15,9 @@ class CinderX_GeneratorTest(unittest.TestCase):
         # check generator names
         gen = func()
         self.assertEqual(gen.__name__, "func")
-        self.assertEqual(gen.__qualname__, "CinderX_GeneratorTest.test_name.<locals>.func")
+        self.assertEqual(
+            gen.__qualname__, "CinderX_GeneratorTest.test_name.<locals>.func"
+        )
 
         # modify generator names
         gen.__name__ = "name"
@@ -47,10 +41,13 @@ class CinderX_GeneratorTest(unittest.TestCase):
         # change.
         self.assertIn(gen.__name__, ["func_name", "func"])
         self.assertIn(
-            gen.__qualname__, ["func_qualname", "CinderX_GeneratorTest.test_name.<locals>.func"]
+            gen.__qualname__,
+            ["func_qualname", "CinderX_GeneratorTest.test_name.<locals>.func"],
         )
 
         # unnamed generator
         gen = (x for x in range(10))
         self.assertEqual(gen.__name__, "<genexpr>")
-        self.assertEqual(gen.__qualname__, "CinderX_GeneratorTest.test_name.<locals>.<genexpr>")
+        self.assertEqual(
+            gen.__qualname__, "CinderX_GeneratorTest.test_name.<locals>.<genexpr>"
+        )
