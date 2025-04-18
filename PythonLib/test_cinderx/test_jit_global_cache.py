@@ -11,6 +11,7 @@ from textwrap import dedent
 import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.test_support import run_in_subprocess, skip_unless_lazy_imports
+
 from .common import failUnlessHasOpcodes, with_globals
 
 
@@ -85,8 +86,8 @@ class LoadGlobalCacheTests(unittest.TestCase):
         self.assertRaises(NameError, self.get_global)
 
     class prefix_str(str):
-        def __new__(ty, prefix, value):
-            s = super().__new__(ty, value)
+        def __new__(cls, prefix, value):
+            s = super().__new__(cls, value)
             s.prefix = prefix
             return s
 
@@ -113,7 +114,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
 
     @with_globals(MyGlobals())
     def return_knock_knock(self):
-        return knock_knock
+        return knock_knock  # noqa: F821
 
     def test_dict_subclass_globals(self):
         self.assertEqual(self.return_knock_knock(), "who's there?")
@@ -247,7 +248,10 @@ class LoadGlobalCacheTests(unittest.TestCase):
 
             tmp_a.get_a()
             self.assertEqual(tmp_a.get_a(), 5)
-            self.assertTrue(not cinderx.jit.is_jit_enabled() or cinderx.jit.is_jit_compiled(tmp_a.get_a))
+            self.assertTrue(
+                not cinderx.jit.is_jit_enabled()
+                or cinderx.jit.is_jit_compiled(tmp_a.get_a)
+            )
 
     @skip_unless_lazy_imports
     @failUnlessHasOpcodes("LOAD_GLOBAL")
@@ -286,7 +290,10 @@ class LoadGlobalCacheTests(unittest.TestCase):
 
             tmp_a.get_a()
             self.assertEqual(tmp_a.get_a(), 5)
-            self.assertTrue(not cinderx.jit.is_jit_enabled() or cinderx.jit.is_jit_compiled(tmp_a.get_a))
+            self.assertTrue(
+                not cinderx.jit.is_jit_enabled()
+                or cinderx.jit.is_jit_compiled(tmp_a.get_a)
+            )
 
     @skip_unless_lazy_imports
     @run_in_subprocess

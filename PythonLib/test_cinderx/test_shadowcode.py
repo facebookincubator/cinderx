@@ -4,6 +4,7 @@
 
 import sys
 import unittest
+
 if sys.version_info >= (3, 12):
     raise unittest.SkipTest("shadow code unsupported in 3.12+")
 
@@ -23,7 +24,6 @@ from test.support.script_helper import assert_python_ok, run_python_until_end
 
 # Sets the number of repetitions required in order to hit caching
 REPETITION = 100
-
 
 
 class ShadowError(Exception):
@@ -115,7 +115,6 @@ class ShadowCodeTests(unittest.TestCase):
                 self.error = False
 
             def __get__(self, inst, ctx):
-
                 if self.error:
                     raise ShadowError()
                 return 42
@@ -166,7 +165,6 @@ class ShadowCodeTests(unittest.TestCase):
 
         class C:
             def __init__(self):
-
                 self.x = 1
 
             prop = 42
@@ -197,7 +195,6 @@ class ShadowCodeTests(unittest.TestCase):
 
         a = make_class()()
         for _ in range(REPETITION):
-
             self.assertEqual(f(a), 1)
         for _ in range(300):
             a = make_class()()
@@ -429,7 +426,6 @@ class ShadowCodeTests(unittest.TestCase):
             prop = desc
 
         def f(x):
-
             return x.prop
 
         for _i in range(REPETITION):
@@ -605,15 +601,14 @@ class ShadowCodeTests(unittest.TestCase):
                 def __get__(self, obj, obj_cls_type):
                     value = self._fget(obj_cls_type)
                     self.count += 1
-                    if self.count == i:
-
+                    if self.count == i:  # noqa: B023
                         setattr(obj_cls_type, self.__name__, value)
 
                     return value
 
             class C:
                 @lazy_classproperty
-                def f(cls):
+                def f(self):
                     return 42
 
             a = C()
@@ -685,10 +680,9 @@ def f(x):
         def f():
             return X
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(), 1)
         try:
-
             builtins.__dict__[42] = 42
         finally:
             del builtins.__dict__[42]
@@ -706,9 +700,7 @@ class C:
         if flag:
             self.foo = 42
 
-""" + "\n".join(
-            f"        self.x{i} = {i}" for i in range(COUNT)
-        )
+""" + "\n".join(f"        self.x{i} = {i}" for i in range(COUNT))
         d = {}
         exec(klass, globals(), d)
 
@@ -728,7 +720,7 @@ def f(min, max, inst, path=False):
         C = d["C"]
         a = C()
         f = d["f"]
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(260, 270, a), 2385)
             self.assertEqual(f(260, 270, a, True), 2385)
 
@@ -736,7 +728,7 @@ def f(min, max, inst, path=False):
         self.assertEqual(f(0, COUNT, a, True), TOTAL)
 
         a = C(True)
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(260, 262, a), 261)
         self.assertEqual(f(0, COUNT, a), TOTAL)
 
@@ -788,10 +780,9 @@ def f(min, max, inst, path=False):
             desc = mydesc()
 
         def f(x):
-
             return x.desc
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(42, f(myobj()))
 
         del mydesc.__get__
@@ -799,9 +790,9 @@ def f(min, max, inst, path=False):
 
     def test_type_resurrection(self):
         class metafin(type):
-            def __del__(self):
+            def __del__(cls):
                 nonlocal C
-                C = self
+                C = cls
 
         class C(metaclass=metafin):
             def __init__(self):
@@ -836,9 +827,9 @@ def f(min, max, inst, path=False):
 
     def test_type_resurrection_2(self):
         class metafin(type):
-            def __del__(self):
+            def __del__(cls):
                 nonlocal C
-                C = self
+                C = cls
 
         class C(metaclass=metafin):
             abc = 42
@@ -875,7 +866,7 @@ def f(min, max, inst, path=False):
 
                 @myprop
                 def abc(self):
-                    if mutating and "quox" in self.__dict__:
+                    if mutating and "quox" in self.__dict__:  # noqa: B023
                         # Force migration off of shared dict
                         del self.quox
                     return self.baz
@@ -892,7 +883,6 @@ def f(x):
 
             inst = myclass()
             for i in range(REPETITION):
-
                 if i == x:
                     mutating = True
                 self.assertEqual(f(inst), 200)
@@ -908,7 +898,7 @@ def f(x):
                     self.hash = hash(name)
 
                 def __eq__(self, other):
-                    if mutating:
+                    if mutating:  # noqa: B023
                         if hasattr(myobj, "foo"):
                             del myobj.foo
                         return False
@@ -1037,7 +1027,6 @@ def f(x):
     def test_store_attr_descr_type_change(self):
         class C:
             def __init__(self):
-
                 self.x = 42
 
             @property
@@ -1099,7 +1088,6 @@ def f(x):
             x.foo = 42
 
         for _ in range(REPETITION):
-
             with self.assertRaisesRegex(
                 AttributeError, "'object' object has no attribute 'foo'"
             ):
@@ -1110,7 +1098,6 @@ def f(x):
             x.__str__ = 42
 
         for _ in range(REPETITION):
-
             with self.assertRaisesRegex(
                 AttributeError, "'object' object attribute '__str__' is read-only"
             ):
@@ -1248,7 +1235,6 @@ def f(x):
 
     def test_load_method_no_dict_invalidate(self):
         class C:
-
             __slots__ = ()
 
             def f(self):
@@ -1315,7 +1301,6 @@ def f(x):
                 self.value = value
 
             def __call__(self, *args):
-
                 return self.value
 
         class C:
@@ -1333,7 +1318,6 @@ def f(x):
 
         C.f = callable(100)
         for _ in range(REPETITION):
-
             self.assertEqual(f(a), 100)
 
     def test_load_method_non_desc_invalidate_to_method(self):
@@ -1383,7 +1367,6 @@ def f(x):
         a = C()
 
         def f(x):
-
             return x.f()
 
         for _ in range(REPETITION):
@@ -1427,7 +1410,6 @@ def f(x):
             return x.f()
 
         for _ in range(REPETITION):
-
             self.assertEqual(f(a), 42)
         self.assertEqual(hit_count, REPETITION)
 
@@ -1455,7 +1437,6 @@ def f(x):
         a = C()
 
         def f(x):
-
             return x.f()
 
         for _ in range(REPETITION):
@@ -1474,7 +1455,6 @@ def f(x):
         a = C()
 
         def f(x):
-
             return x.f()
 
         for _ in range(REPETITION):
@@ -1485,7 +1465,6 @@ def f(x):
         x = 42
 
         def f(x):
-
             try:
                 return x.imag()
             except Exception as e:
@@ -1501,7 +1480,7 @@ def f(x):
             class C:
                 @property
                 def f(self):
-                    if mutating:
+                    if mutating:  # noqa: B023
                         C.f = lambda self: 42
                     return lambda: 100
 
@@ -1526,7 +1505,6 @@ def f(x):
 
         class C:
             def f(self):
-
                 outer.assertEqual(type(self).__name__, "C")
                 return "C"
 
@@ -1540,8 +1518,7 @@ def f(x):
 
         c = C()
         d = D()
-        for i in range(REPETITION):
-
+        for _ in range(REPETITION):
             self.assertEqual(f(c), "C")
             self.assertEqual(f(d), "D")
 
@@ -1557,10 +1534,8 @@ def f(x):
             return x.f()
 
         c = C()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(c), "C")
-
-        l = []
 
         for i in range(500):
 
@@ -1572,7 +1547,7 @@ def f(x):
 
             self.assertEqual(f(X()), i)
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(c), "C")
 
     def test_polymorphic_method_mutating(self):
@@ -1587,24 +1562,21 @@ def f(x):
 
         class D:
             def f(self):
-
                 outer.assertEqual(type(self).__name__, "D")
                 return "D"
 
         def f(x):
-
             return x.f()
 
         c = C()
         d = D()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             name = c.name
             self.assertEqual(f(c), name)
             C.name += 1
             self.assertEqual(f(d), "D")
 
     def test_polymorphic_method_no_dict(self):
-
         outer = self
 
         class C:
@@ -1622,12 +1594,11 @@ def f(x):
                 return "D"
 
         def f(x):
-
             return x.f()
 
         c = C()
         d = D()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(c), "C")
 
             self.assertEqual(f(d), "D")
@@ -1655,8 +1626,7 @@ def f(x):
 
         c = C()
         d = D()
-        for i in range(REPETITION):
-
+        for _ in range(REPETITION):
             name = c.name
             self.assertEqual(f(c), name)
             C.name += 1
@@ -1683,7 +1653,7 @@ def f(x):
         c = C()
         d = D()
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(c), "C")
             self.assertEqual(f(d), "D")
 
@@ -1691,7 +1661,6 @@ def f(x):
         outer = self
 
         class C:
-
             __slots__ = ()
 
             name = 42
@@ -1710,7 +1679,7 @@ def f(x):
 
         c = C()
         d = D()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             name = c.name
             self.assertEqual(f(c), name)
             C.name += 1
@@ -1718,7 +1687,6 @@ def f(x):
 
     def test_invoke_method_inst_only_split_dict(self):
         class C:
-
             pass
 
         a = C()
@@ -1727,7 +1695,7 @@ def f(x):
         def f(x):
             return x.f()
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(a), 42)
 
         del a.f
@@ -1747,15 +1715,13 @@ def f(x):
         b.f = lambda: 42
 
         def f(x):
-
             return x.f()
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(b), 42)
 
         del b.f
         with self.assertRaises(AttributeError):
-
             f(b)
 
     def test_instance_dir_mutates_with_custom_hash(self):
@@ -1767,7 +1733,7 @@ def f(x):
             return x.f()
 
         x = C()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(x), 42)
 
         class mystr(str):
@@ -1790,7 +1756,7 @@ def f(x):
             return x.f()
 
         x = C()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(x), 42)
 
         class mystr(str):
@@ -1816,7 +1782,7 @@ def f(x):
             return x.f()
 
         x = C()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(x), 42)
 
         class mystr(str):
@@ -1842,7 +1808,7 @@ def f(x):
             return x.f()
 
         x = C()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(x), 42)
 
         class mystr(str):
@@ -1868,7 +1834,7 @@ def f(x):
             return x.f()
 
         x = C()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f1(x), 42)
 
         class descr:
@@ -1876,7 +1842,7 @@ def f(x):
                 return lambda: 100
 
         C.f = descr()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f2(x), 100)
 
         self.assertEqual(f1(x), 100)
@@ -1951,7 +1917,7 @@ def f(x):
 
     def test_metatype_getattr(self):
         class MC(type):
-            def __getattribute__(self, name):
+            def __getattribute__(cls, name):
                 return 100
 
         class C(metaclass=MC):
@@ -1965,7 +1931,6 @@ def f(x):
 
     def test_metatype_add_getattr(self):
         class MC(type):
-
             pass
 
         class C(metaclass=MC):
@@ -1975,7 +1940,6 @@ def f(x):
             return inst.x
 
         for _ in range(REPETITION):
-
             self.assertEqual(f(C), 42)
 
         MC.__getattribute__ = lambda self, name: 100
@@ -1986,7 +1950,6 @@ def f(x):
             pass
 
         class C(metaclass=MC):
-
             x = 42
 
         wr = weakref.ref(C)
@@ -1995,7 +1958,6 @@ def f(x):
             return inst.x
 
         for _ in range(REPETITION):
-
             self.assertEqual(f(C), 42)
         import gc
 
@@ -2008,7 +1970,7 @@ def f(x):
             pass
 
         class MC2(type):
-            def __getattribute__(self, name):
+            def __getattribute__(cls, name):
                 return 100
 
         class C(metaclass=MC):
@@ -2026,7 +1988,6 @@ def f(x):
     def test_type_call_invalidate(self):
         class C:
             def f(self):
-
                 return 42
 
         a = C()
@@ -2052,34 +2013,30 @@ def f(x):
         class C:
             f = descr()
 
-        a = C()
+        a = C()  # noqa: F841
 
         def f(x):
             return x.f()
 
         for _ in range(REPETITION):
-
             self.assertEqual(f(C), 42)
 
     def test_type_call_non_descr(self):
-
-        test = self
+        test = self  # noqa: F841
 
         class descr:
             def __call__(self):
                 return 42
 
         class C:
-
             f = descr()
 
-        a = C()
+        C()
 
         def f(x):
             return x.f()
 
         for _ in range(REPETITION):
-
             self.assertEqual(f(C), 42)
 
     def test_load_slot(self):
@@ -2093,7 +2050,6 @@ def f(x):
             return x.value
 
         for i in range(REPETITION):
-
             x = C(i)
             self.assertEqual(f(x), i)
 
@@ -2124,7 +2080,6 @@ def f(x):
             return x.value
 
         for i in range(REPETITION):
-
             x = C()
             x.value = i
 
@@ -2158,7 +2113,6 @@ def f(x):
             self.assertEqual(x.value, i)
 
         class D:
-
             pass
 
         x = D()
@@ -2174,7 +2128,6 @@ def f(x):
 
             @cached_property
             def f(self):
-
                 self.calls += 1
                 return self.value
 
@@ -2189,7 +2142,7 @@ def f(x):
 
         # accessing existing value in eval loop...
         inst = C(42)
-        v = inst.f
+        v = inst.f  # noqa: F841
         for _ in range(REPETITION):
             self.assertEqual(f(inst), 42)
 
@@ -2243,7 +2196,7 @@ def f(x):
 
         # accessing existing value in eval loop...
         inst = C(42)
-        v = inst.f
+        v = inst.f  # noqa: F841
         for _ in range(REPETITION):
             self.assertEqual(f(inst), 42)
 
@@ -2388,7 +2341,7 @@ def f(x):
             self.assertEqual(f(mymod), 42)
 
         for _i in range(REPETITION):
-            mymod.mod_meth = lambda: _i
+            mymod.mod_meth = lambda: _i  # noqa: B023
             self.assertEqual(f(mymod), _i)
 
     def test_module_method_miss(self):
@@ -2474,7 +2427,7 @@ def f(x):
             except NotImplementedError:
                 return 42
 
-        for i in range(200):
+        for _ in range(200):
             runcount = 0
             self.assertEqual(f(C), 42)
             self.assertEqual(runcount, 1)
@@ -2495,13 +2448,12 @@ def f(x):
         m.__dict__[mystr("foo")] = 42
 
         def f(c):
-
             try:
                 return c.foo
             except AttributeError:
                 return 42
 
-        for i in range(200):
+        for _ in range(200):
             runcount = 0
             self.assertRaises(NotImplementedError, f, m)
             self.assertEqual(runcount, 1)
@@ -2525,7 +2477,7 @@ def f(x):
         def f(c):
             return c.foo
 
-        for i in range(200):
+        for _ in range(200):
             runcount = 0
             self.assertRaises(NotImplementedError, f, m)
             self.assertEqual(runcount, 1)
@@ -2546,7 +2498,6 @@ def f(x):
         d = list(range(5))
 
         def f(i):
-
             return d[i]
 
         for __ in range(REPETITION):
@@ -2554,7 +2505,6 @@ def f(x):
                 self.assertEqual(f(i), i)
 
     def test_tuple_subscr(self):
-
         t = (1, 2, 3, 4, 5)
         ans = (2, 3)
 
@@ -2598,7 +2548,6 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(key), value)
         for __ in range(REPETITION):
-
             self.assertRaises(KeyError, f, wrong_key)
 
     def test_dict_subscr_to_non_dict(self):
@@ -2612,21 +2561,19 @@ def f(x):
             return d[k]
 
         for __ in range(REPETITION):
-
             self.assertEqual(f(d, key), value)
         for __ in range(REPETITION):
             self.assertEqual(f(t, key), value2)
 
     def test_list_subscr_to_non_list(self):
-        l = [1, 2, 3, 4]
+        li = [1, 2, 3, 4]
         t = (5, 6, 7)
 
         def f(d, k):
             return d[k]
 
         for __ in range(REPETITION):
-
-            self.assertEqual(f(l, 0), 1)
+            self.assertEqual(f(li, 0), 1)
 
         for __ in range(REPETITION):
             self.assertEqual(f(t, 1), 6)
@@ -2638,12 +2585,10 @@ def f(x):
             return t[i]
 
         for __ in range(REPETITION):
-
             self.assertRaises(IndexError, f, 6)
 
     def test_tuple_subscr_to_non_tuple(self):
-
-        l = [1, 2, 3, 4]
+        li = [1, 2, 3, 4]
         t = (5, 6, 7)
 
         def f(d, k):
@@ -2652,7 +2597,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(t, 0), 5)
         for __ in range(REPETITION):
-            self.assertEqual(f(l, 1), 2)
+            self.assertEqual(f(li, 1), 2)
 
     def test_dict_str_key_to_nonstr_key(self):
         key = "mykey"
@@ -2664,11 +2609,9 @@ def f(x):
         d = {key: value, key2: value2}
 
         def f(k):
-
             return d[k]
 
         for __ in range(REPETITION):
-
             self.assertEqual(f(key), value)
         for __ in range(REPETITION):
             self.assertEqual(f(key2), value2)
@@ -2677,24 +2620,22 @@ def f(x):
         key = "mykey"
         value = 1
         d = {key: value}
-        l = [1, 2, 3]
+        li = [1, 2, 3]
 
         def f(c, k):
-
             return c[k]
 
         for __ in range(REPETITION):
             self.assertEqual(f(d, key), value)
 
         for __ in range(REPETITION):
-            self.assertEqual(f(l, 1), 2)
+            self.assertEqual(f(li, 1), 2)
 
     def test_tuple_int_const_key_two_tuples(self):
         t = (1, 2, 3)
         t2 = (3, 4, 5)
 
         def f(t):
-
             return t[0]
 
         for __ in range(REPETITION):
@@ -2703,7 +2644,6 @@ def f(x):
             self.assertEqual(f(t2), 3)
 
     def test_tuple_int_const_key_indexerror(self):
-
         t = (0, 1, 2, 3, 4, 5, 6)
         t2 = (0, 1, 2)
 
@@ -2719,7 +2659,6 @@ def f(x):
         t = (1, 2, 3)
 
         def g():
-
             # 2 ** 100 is out of range of Py_Ssize_t
             return t[1267650600228229401496703205376]
 
@@ -2740,12 +2679,10 @@ def f(x):
             self.assertEqual(f(t2), -5)
 
     def test_tuple_const_int_not_tuple(self):
-
         t = (1, 2, 3)
         d = {0: "x"}
 
         def f(t):
-
             return t[0]
 
         for __ in range(REPETITION):
@@ -2760,7 +2697,6 @@ def f(x):
 
         class D:
             def __init__(self):
-
                 self.value = 100
 
         def f(x):
@@ -2818,7 +2754,6 @@ def f(x):
         orig_filter = filter
         filter = 42
         try:
-
             # We only watch our __dict__
             def f():
                 return filter
@@ -2826,36 +2761,30 @@ def f(x):
             for _ in range(REPETITION):
                 self.assertEqual(f(), 42)
         finally:
-
             # now we should start watching builtins
             del filter
 
         self.assertIs(f(), orig_filter)
         try:
-
             builtins.filter = 43
             self.assertEqual(f(), 43)
         finally:
-
             builtins.filter = orig_filter
 
     def test_loadmethod_meta_getattr(self):
         class MC(type):
-            def __getattribute__(self, name):
+            def __getattribute__(cls, name):
                 return lambda x: x + 1
 
         class C(metaclass=MC):
             @staticmethod
             def f(x):
-
                 return x
 
         def f(i):
-
             return C.f(i)
 
         for i in range(REPETITION):
-
             self.assertEqual(f(i), i + 1)
 
     def test_loadmethod_setattr(self):
@@ -2867,7 +2796,6 @@ def f(x):
 
         a = C()
         for i in range(REPETITION):
-
             f(a, i)
             self.assertEqual(a.foo, i)
 
@@ -2893,18 +2821,17 @@ def f(x):
             return x.foo
 
         def f2(x):
-
             return x.foo
 
         # setup the first function with a cache for the module
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f1(mod), 42)
 
         # now modify the function, and setup the second version
         # with a new cache.  The old l2 cache entry will be replaced
         mod.foo = 100
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f2(mod), 100)
 
         del mod
@@ -2924,10 +2851,9 @@ def f(x):
         # in the dictionary
         class C(OSError):
             def __init__(self):
-
                 self.filename = "abc"
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             x = C()
             self.assertEqual(x.__dict__, {})
             self.assertEqual(x.filename, "abc")
@@ -2935,17 +2861,15 @@ def f(x):
     def test_readonly_field(self):
         # Shadow byte code shouldn't allow writing to readonly fields
         class C:
-
             pass
 
         def f(x):
             x.start = 1
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             f(C())
 
         with self.assertRaises(AttributeError):
-
             f(range(5))
 
     @skipIf(StrictModule is None, "no StrictModule")
@@ -2967,7 +2891,6 @@ def f(x):
 
     @skipIf(StrictModule is None, "no StrictModule")
     def test_strictmodule_descr_conflict(self):
-
         mod = type(sys)("foo")
         d = mod.__dict__
         m = StrictModule(d, False)
@@ -2976,7 +2899,7 @@ def f(x):
         def f(x):
             return x.__dir__
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(m), func)
 
         d["__dir__"] = 100
@@ -2992,7 +2915,7 @@ def f(x):
         def f(x):
             return x.__dir__
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             self.assertEqual(f(m), func)
         strict_module_patch(m, "__dir__", 100)
         self.assertEqual(f(m), 100)
@@ -3032,7 +2955,7 @@ def f(x):
             self.assertEqual(f(m), 42)
 
         for _i in range(REPETITION):
-            d["mod_meth"] = lambda: _i
+            d["mod_meth"] = lambda: _i  # noqa: B023
             self.assertEqual(f(m), _i)
 
     @skipIf(StrictModule is None, "no StrictModule")
@@ -3431,7 +3354,7 @@ def f(x):
                 self.foo = 42
 
         x = C()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             f(x, False)
 
         with self.assertRaises(AttributeError):
@@ -3455,7 +3378,7 @@ def f(x):
         # one with a new cache, and then re-use the cache entry on
         # a second call.
         a = C()
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             f(True, a)
             f(False, a)
 
@@ -3508,13 +3431,13 @@ def f(x):
 
         called = False
 
-        def called():
+        def called():  # noqa: F811
             nonlocal called
             called = True
 
         f = FunctionType(code, {"max": called})
 
-        for i in range(REPETITION):
+        for _ in range(REPETITION):
             called = False
             f()
             self.assertTrue(called)

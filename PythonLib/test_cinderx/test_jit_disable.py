@@ -5,14 +5,14 @@
 import unittest
 
 from cinderx.jit import (
-    INSTALLED,
     disable as disable_jit,
     enable as enable_jit,
     force_compile,
-    lazy_compile,
+    INSTALLED,
     is_enabled as is_jit_enabled,
     is_jit_compiled,
     jit_suppress,
+    lazy_compile,
     pause as pause_jit,
 )
 
@@ -184,6 +184,7 @@ class DisableEnableTests(unittest.TestCase):
         self.assertFalse(is_jit_compiled(foo))
         foo(3, 4)
         self.assertTrue(is_jit_compiled(foo))
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -30,7 +30,6 @@ class CountCallsTest(unittest.TestCase):
             # pyre-ignore[6]: Intentionally checking runtime behavior.
             count_interpreted_calls("huh")
         with self.assertRaises(TypeError):
-            # pyre-ignore[6]: Intentionally checking runtime behavior.
             count_interpreted_calls(count_interpreted_calls)
 
     @unittest.skipUnless(
@@ -59,7 +58,7 @@ class CountCallsTest(unittest.TestCase):
 
         # Loop many times to check that the shadowcode threshold (50) isn't affecting
         # call tracking.
-        for i in range(2000):
+        for _ in range(2000):
             # Will never count any calls as the function gets compiled immediately.
             self.assertEqual(count_interpreted_calls(func), 0)
             func()

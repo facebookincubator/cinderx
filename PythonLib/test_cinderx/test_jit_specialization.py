@@ -2,15 +2,17 @@
 
 # pyre-strict
 
-import unittest
 import dis
 import sys
+import unittest
 
 import cinderx
+
 cinderx.init()
 
-import cinderx.jit
 from typing import Callable, TypeVar
+
+import cinderx.jit
 
 
 TCallableRet = TypeVar("TCallableRet")
@@ -18,7 +20,9 @@ TCallableRet = TypeVar("TCallableRet")
 
 _all_opnames: list[str] = dis.opname
 if hasattr(dis, "_specialized_instructions"):
-    _specialized_indices: list[int] = [index for index, name in enumerate(_all_opnames) if name.startswith("<")]
+    _specialized_indices: list[int] = [
+        index for index, name in enumerate(_all_opnames) if name.startswith("<")
+    ]
 
     # pyre-ignore
     for index, name in zip(_specialized_indices, dis._specialized_instructions):
@@ -30,13 +34,15 @@ if hasattr(dis, "_specialized_instructions"):
 # because we compare this output against a specific instruction name to ensure
 # it no longer contains the original.
 def opnames(func: Callable[..., TCallableRet]) -> list[str]:
-    bytecode = dis.Bytecode(func, adaptive=True) # pyre-ignore
+    bytecode = dis.Bytecode(func, adaptive=True)  # pyre-ignore
     return [_all_opnames[insn.opcode] for insn in bytecode]
 
 
 # Run the given function a certain number of times to ensure the specializing
 # interpreter kicks in. Then compile it with cinder.
-def specialize(func: Callable[..., TCallableRet], callable: Callable[[], TCallableRet]) -> None:
+def specialize(
+    func: Callable[..., TCallableRet], callable: Callable[[], TCallableRet]
+) -> None:
     cinderx.jit.force_uncompile(func)
     cinderx.jit.jit_suppress(func)
 
@@ -187,8 +193,8 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f("b", "b"), True)
 
     def test_unpack_sequence_list(self) -> None:
-        def f(l: list[str]) -> str:
-            (a, _b) = l
+        def f(li: list[str]) -> str:
+            (a, _b) = li
             return a
 
         specialize(f, lambda: f(["a", "b"]))
@@ -198,8 +204,8 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f(["c", "d"]), "c")
 
     def test_unpack_sequence_tuple(self) -> None:
-        def f(l: tuple[str, str, str]) -> str:
-            (a, _b, _c) = l
+        def f(li: tuple[str, str, str]) -> str:
+            (a, _b, _c) = li
             return a
 
         specialize(f, lambda: f(("a", "b", "c")))
@@ -209,8 +215,8 @@ class SpecializationTests(unittest.TestCase):
         self.assertEqual(f(("c", "d", "e")), "c")
 
     def test_unpack_sequence_two_tuple(self) -> None:
-        def f(l: tuple[str, str]) -> str:
-            (a, _b) = l
+        def f(li: tuple[str, str]) -> str:
+            (a, _b) = li
             return a
 
         specialize(f, lambda: f(("a", "b")))

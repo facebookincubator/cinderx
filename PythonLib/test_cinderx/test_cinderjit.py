@@ -1,11 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import asyncio
-import dis
 import faulthandler
 import gc
 import itertools
-import multiprocessing
 import os
 import re
 import shutil
@@ -13,15 +11,12 @@ import subprocess
 import sys
 import tempfile
 import textwrap
-import threading
 import traceback
 import unittest
 import warnings
 import weakref
 
-from contextlib import contextmanager
 from pathlib import Path
-from textwrap import dedent
 
 AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
 
@@ -29,10 +24,16 @@ if not AT_LEAST_312:
     import _testcindercapi
 
 import cinderx.jit
-from cinderx.jit import jit_suppress, jit_unsuppress, is_jit_compiled, force_compile, force_uncompile
 
 import cinderx.test_support as cinder_support
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
+from cinderx.jit import (
+    force_compile,
+    force_uncompile,
+    is_jit_compiled,
+    jit_suppress,
+    jit_unsuppress,
+)
 from cinderx.test_support import run_in_subprocess, skip_unless_jit
 
 from .common import failUnlessHasOpcodes, with_globals
@@ -58,7 +59,7 @@ def firstlineno(func):
 
 @cinder_support.failUnlessJITCompiled
 def get_stack():
-    z = 1 + 1
+    z = 1 + 1  # noqa: F841
     stack = traceback.extract_stack()
     return stack
 
@@ -73,7 +74,7 @@ def get_stack_twice():
 
 @cinder_support.failUnlessJITCompiled
 def get_stack2():
-    z = 2 + 2
+    z = 2 + 2  # noqa: F841
     stack = traceback.extract_stack()
     return stack
 
@@ -87,14 +88,14 @@ def get_stack_siblings():
 def get_stack_multi():
     stacks = []
     stacks.append(traceback.extract_stack())
-    z = 1 + 1
+    z = 1 + 1  # noqa: F841
     stacks.append(traceback.extract_stack())
     return stacks
 
 
 @cinder_support.failUnlessJITCompiled
 def call_get_stack_multi():
-    x = 1 + 1
+    x = 1 + 1  # noqa: F841
     return get_stack_multi()
 
 
@@ -232,7 +233,10 @@ class InlineCacheStatsTests(unittest.TestCase):
             a = BinOps()
             a.instance_mul(100, 1)
             a.mul(100, 1)  # This should be a cache miss.
-            b = linecache.getline("abc", 123)  # This should be a cache miss.
+
+            # This should be a cache miss.
+            b = linecache.getline("abc", 123)  # noqa: F841
+
             return a
 
         trigger_load_method_with_stats()
@@ -456,7 +460,7 @@ class CallExTests(unittest.TestCase):
             return {"a": 1, "b": 2}[k]
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_dynamic_kw_dict(self):
+    def test_call_dynamic_kw_dict_dummy(self):
         r = _simpleFunc(**CallExTests._DummyMapping())
         self.assertEqual(r, (1, 2))
 
@@ -725,7 +729,7 @@ class ClosureTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _cellvar_unbound(self):
-        b = a
+        b = a  # noqa: F821, F841
         a = 1
 
         def g():
@@ -797,7 +801,7 @@ class ClosureTests(unittest.TestCase):
         @cinder_support.failUnlessJITCompiled
         @with_globals({"A_GLOBAL_CONSTANT": 0xDEADBEEF})
         def return_global():
-            return A_GLOBAL_CONSTANT
+            return A_GLOBAL_CONSTANT  # noqa: F821
 
         self.assertEqual(return_global(), 0xDEADBEEF)
 
@@ -829,7 +833,7 @@ class TempNameTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     def _tmp_name(self, a, b):
         tmp1 = "hello"
-        c = a + b
+        c = a + b  # noqa: F841
         return tmp1
 
     def test_tmp_name(self):
@@ -845,7 +849,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
     @cinder_support.failUnlessJITCompiled
     def _fstring(self, flag, it1, it2):
         for a in it1:
-            for b in it2:
+            for b in it2:  # noqa: B007
                 if flag:
                     return f"{a}"
 
@@ -878,7 +882,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         # values.
         try:
             pass
-        except:
+        except:  # noqa: B001
             x = 1
         return x.__index__()
 
@@ -888,7 +892,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
 
     @run_in_subprocess
     def test_condbranch_codegen(self):
-        codestr = f"""
+        codestr = """
             from __static__ import cbool
             from typing import Optional
 
@@ -903,7 +907,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             if hasattr(gc, "immortalize_heap"):
                 gc.immortalize_heap()
             force_compile(mod.Foo.__init__)
-            foo = mod.Foo(True)
+            mod.Foo(True)
 
     def test_restore_materialized_parent_pyframe_in_gen_throw(self):
         # This reproduces a bug that causes the top frame in the shadow stack
@@ -968,7 +972,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             main_fut.set_result(True)
             try:
                 await child_fut
-            except:
+            except:  # noqa: B001
                 # force the frame to be materialized
                 box[0].cr_frame
                 raise
@@ -1018,7 +1022,7 @@ class UnwindStateTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("RAISE_VARARGS")
     def _copied_locals(self, a):
-        b = c = a
+        b = c = a  # noqa: F841
         raise RuntimeError()
 
     def test_copied_locals_in_frame(self):
@@ -1032,7 +1036,7 @@ class UnwindStateTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _raise_with_del_observer_on_stack(self):
-        for x in (1 for i in [self.get_del_observer(1)]):
+        for x in (1 for i in [self.get_del_observer(1)]):  # noqa: B007
             raise RuntimeError()
 
     def test_decref_stack_objects(self):
@@ -1047,7 +1051,7 @@ class UnwindStateTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _raise_with_del_observer_on_stack_and_cell_arg(self):
-        for x in (self for i in [self.get_del_observer(1)]):
+        for x in (self for i in [self.get_del_observer(1)]):  # noqa: B007
             raise RuntimeError()
 
     def test_decref_stack_objs_with_cell_args(self):
@@ -1072,7 +1076,7 @@ class ImportTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _fail_to_import_name(self):
-        import non_existent_module
+        import non_existent_module  # noqa: F401
 
     def test_import_name_failure(self):
         with self.assertRaises(ModuleNotFoundError):
@@ -1086,7 +1090,7 @@ class ImportTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _fail_to_import_from(self):
-        from math import non_existent_attr
+        from math import non_existent_attr  # noqa: F401
 
     def test_import_from_failure(self):
         with self.assertRaises(ImportError):
@@ -1209,12 +1213,12 @@ class UnpackSequenceTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("UNPACK_EX")
     def _unpack_insufficient_values(self):
-        (a, b, *c) = [1]
+        (a, b, *c) = [1]  # noqa: F841
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("UNPACK_EX")
     def _unpack_insufficient_values_after(self):
-        (a, *b, c, d) = [1, 2]
+        (a, *b, c, d) = [1, 2]  # noqa: F841
 
     def test_unpack_ex(self):
         with self.assertRaises(TypeError):
@@ -1270,9 +1274,9 @@ class DeleteSubscrTests(unittest.TestCase):
         del container[key]
 
     def test_builtin_types(self):
-        l = [1, 2, 3]
-        self._delit(l, 1)
-        self.assertEqual(l, [1, 3])
+        li = [1, 2, 3]
+        self._delit(li, 1)
+        self.assertEqual(li, [1, 3])
 
         d = {"foo": 1, "bar": 2}
         self._delit(d, "foo")
@@ -1328,14 +1332,14 @@ class DeleteFastTests(unittest.TestCase):
     @failUnlessHasOpcodes("DELETE_FAST")
     def _del_arg_and_raise(self, a):
         del a
-        return a
+        return a  # noqa: F821
 
     @failUnlessHasOpcodes("DELETE_FAST")
     @cinder_support.failUnlessJITCompiled
     def _del_ex_no_raise(self):
         try:
             return min(1, 2)
-        except Exception as e:
+        except Exception as e:  # noqa: F841
             pass
 
     @failUnlessHasOpcodes("DELETE_FAST")
@@ -1343,9 +1347,9 @@ class DeleteFastTests(unittest.TestCase):
     def _del_ex_raise(self):
         try:
             raise Exception()
-        except Exception as e:
+        except Exception as e:  # noqa: F841
             pass
-        return e
+        return e  # noqa: F821
 
     def test_del_local(self):
         self.assertEqual(self._del(), None)
@@ -1525,7 +1529,7 @@ class RegressionTests(StaticTestBase):
     # Detects an issue in the backend where the Store instruction generated 32-
     # bit memory writes for 64-bit constants.
     def test_store_of_64bit_immediates(self):
-        codestr = f"""
+        codestr = """
             from __static__ import int64, box
             class Cint64:
                 def __init__(self):
@@ -1558,7 +1562,7 @@ class CinderJitModuleTests(StaticTestBase):
         self.assertEqual(x.__code__.co_flags & CO_SUPPRESS_JIT, CO_SUPPRESS_JIT)
 
     def test_jit_suppress_static(self):
-        codestr = f"""
+        codestr = """
             import cinderx.jit
 
             @cinderx.jit.jit_suppress
@@ -1584,7 +1588,7 @@ class CinderJitModuleTests(StaticTestBase):
         "meaningless without HIR inliner enabled",
     )
     def test_num_inlined_functions(self):
-        codestr = f"""
+        codestr = """
             import cinderx.jit
 
             @cinderx.jit.jit_suppress
@@ -1633,7 +1637,7 @@ class CinderJitModuleTests(StaticTestBase):
             codepath = dirpath / "mod.py"
             codepath.write_text(code)
 
-            def run_test(asserts_func, params=[]):
+            def run_test(asserts_func, params):
                 args = [sys.executable, "-X", "jit"]
                 args.extend(params)
                 args.append("mod.py")
@@ -2142,7 +2146,7 @@ class SetupWithTests(unittest.TestCase):
             raise SetupWithException("foo")
         return 100
 
-    def test_with_calls_enter_and_exit(self):
+    def test_with_calls_enter_and_exit_exc(self):
         class MyCtxMgr:
             def __init__(self, should_suppress_exc):
                 self.exit_args = None
@@ -2248,7 +2252,7 @@ class MatchTests(unittest.TestCase):
     @failUnlessHasOpcodes("MATCH_SEQUENCE")
     def match_sequence(self, s: tuple) -> bool:
         match s:
-            case (*b, 8, 9, 4, 5):
+            case (*b, 8, 9, 4, 5):  # noqa: F841
                 return True
             case _:
                 return False
@@ -2298,12 +2302,12 @@ class MatchTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes("MATCH_CLASS")
-    def match_class_exc():
+    def match_class_exc(self):
         x, y = 5, 5
-        point = Point(x, y)
+        point = self.Point(x, y)
         # will raise because Point.__match_args__ is not a tuple
         match point:
-            case Point(x, y):
+            case self.Point(x, y):
                 pass
 
     def test_match_class_exc(self):
@@ -2585,7 +2589,6 @@ hello from b_func!
                 "data/preload_error_recursive" if recursive else "data/preload_error",
             )
             jitlist = os.path.join(root, "jitlist.txt")
-            main = os.path.join(root, "main.py")
             cmd = [
                 sys.executable,
                 "-X",
@@ -2630,7 +2633,9 @@ class LoadMethodEliminationTests(unittest.TestCase):
             self.assertTrue(is_jit_compiled(LoadMethodEliminationTests.lme_test_func))
 
 
-@unittest.skipUnless(cinderx.jit.is_enabled(), "Tests functionality on cinderjit module")
+@unittest.skipUnless(
+    cinderx.jit.is_enabled(), "Tests functionality on cinderjit module"
+)
 class HIROpcodeCountTests(unittest.TestCase):
     def test_hir_opcode_count(self):
         def f1():
@@ -2648,6 +2653,7 @@ class HIROpcodeCountTests(unittest.TestCase):
         self.assertEqual(ops.get("BinaryOp"), 1)
         self.assertGreaterEqual(ops.get("Decref"), 2)
 
+
 @unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class ForceUncompileTests(unittest.TestCase):
     def test_basic(self) -> None:
@@ -2662,6 +2668,7 @@ class ForceUncompileTests(unittest.TestCase):
         self.assertTrue(force_uncompile(f))
         self.assertFalse(is_jit_compiled(f))
 
+
 @unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class LazyCompileTests(unittest.TestCase):
     def test_basic(self) -> None:
@@ -2672,6 +2679,7 @@ class LazyCompileTests(unittest.TestCase):
         self.assertTrue(cinderx.jit.lazy_compile(foo))
         foo(1, 2)
         self.assertTrue(is_jit_compiled(foo))
+
 
 @unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class JITSuppressTests(unittest.TestCase):
@@ -2692,6 +2700,7 @@ class JITSuppressTests(unittest.TestCase):
         jit_unsuppress(f)
         force_compile(f)
         self.assertTrue(is_jit_compiled(f))
+
 
 @unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class BadArgumentTests(unittest.TestCase):
@@ -2742,6 +2751,7 @@ class BadArgumentTests(unittest.TestCase):
             jit_unsuppress(5)
         with self.assertRaises(TypeError):
             jit_unsuppress(is_jit_compiled)
+
 
 @unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class CompileTimeTests(unittest.TestCase):

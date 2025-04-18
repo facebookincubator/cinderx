@@ -2,8 +2,8 @@
 
 import asyncio
 import inspect
-import sys
 import unittest
+
 try:
     from _cinderx import AsyncLazyValue
 except ImportError:
@@ -11,6 +11,7 @@ except ImportError:
 
 from functools import wraps
 from time import time
+
 import cinderx.test_support as cinder_support
 
 
@@ -232,7 +233,6 @@ class AsyncLazyValueCoroTest(unittest.TestCase):
         self.assertIs(await_stacks[1][2], gatherer_coro)
 
     def test_coro_target_is_bound_method(self):
-
         class X:
             def __init__(self):
                 self.a = 1
@@ -418,17 +418,18 @@ class AsyncLazyValueTest(unittest.TestCase):
         async def val(f):
             try:
                 await f
-            except:
+            except:  # noqa: B001
                 pass
             return 42
 
         f = asyncio.Future()
         alv = AsyncLazyValue(val, f)
 
-        l = asyncio.get_running_loop()
-        l.call_later(1, lambda: f.set_exception(NotImplementedError))
+        loop = asyncio.get_running_loop()
+        loop.call_later(1, lambda: f.set_exception(NotImplementedError))
         x = await l0(alv)
         self.assertEqual(x, 42)
+
 
 if __name__ == "__main__":
     unittest.main()

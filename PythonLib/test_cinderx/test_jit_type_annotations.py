@@ -2,9 +2,9 @@
 
 # pyre-unsafe
 
+import unittest
 from typing import Any, Generator
 
-import unittest
 import cinderx
 
 cinderx.init()
@@ -39,7 +39,9 @@ class TypeAnnotationTests(unittest.TestCase):
         self.assertIn("LongBinaryOp", cinderx.jit.get_function_hir_opcode_counts(f))
 
     def test_good_long_list(self):
-        def f(x1: int, x2: int, x3: int, x4: int, x5: int, x6: int, x7: int, x8: int) -> int:
+        def f(
+            x1: int, x2: int, x3: int, x4: int, x5: int, x6: int, x7: int, x8: int
+        ) -> int:
             return x1 + x2 + x3 + x4 + x5 + x6 + x7 + x8
 
         cinderx.jit.force_compile(f)

@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-import cinderx.jit
 import weakref
 
 import cinder_preload_helper_a
 import cinder_preload_helper_b
+import cinderx.jit
 
 print("resolving a_func")
 ref = weakref.ref(cinder_preload_helper_a.a_func)

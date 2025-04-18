@@ -173,18 +173,17 @@ class TestEagerExecution(unittest.TestCase):
     async def _raise_IndexError_eager(self, x=None):
         try:
             raise IndexError
-        except:
+        except:  # noqa B001
             pass
 
     async def _raise_IndexError_suspended(self, x=None):
         try:
             raise IndexError
-        except:
+        except:  # noqa B001
             await self._asyncio.sleep(0)
 
     def _check(self, expected_coro, actual_coro):
         def run(coro):
-
             try:
                 self._asyncio.run(coro)
                 self.fail("Exception expected")
@@ -193,42 +192,34 @@ class TestEagerExecution(unittest.TestCase):
 
         self.assertEqual(run(expected_coro), run(actual_coro))
 
-    def _do_test_exc_handler(self, f):
+    def _do_test_exc_handler(self, f):  # noqa: C901
         async def actual_1():
             try:
-
                 raise ValueError
-            except:
+            except:  # noqa B001
                 await f()
                 raise RuntimeError
 
         async def expected_1():
-
             try:
                 raise ValueError
-            except:
-
+            except:  # noqa B001
                 coro = f()
                 await coro
                 raise RuntimeError
 
         async def actual_2():
-
             try:
-
                 raise ValueError
-            except:
-
+            except:  # noqa B001
                 await f(x=1)
                 raise RuntimeError
 
         async def expected_2():
-
             try:
-
                 raise ValueError
 
-            except:
+            except:  # noqa B001
                 coro = f(x=1)
                 await coro
 
@@ -248,13 +239,11 @@ class TestEagerExecution(unittest.TestCase):
             raise RuntimeError
 
         async def actual_2():
-
             await f(x=1)
 
             raise RuntimeError
 
         async def expected_2():
-
             coro = f(x=1)
 
             await coro
@@ -265,7 +254,6 @@ class TestEagerExecution(unittest.TestCase):
         self._check(expected_2(), actual_2())
 
     def test_eager_await_no_error_eager(self):
-
         self._do_test_no_err(self._raise_IndexError_eager)
 
     def test_suspended_await_no_error_suspended(self):

@@ -1,6 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-import gc
 import unittest
 
 import test.test_gc

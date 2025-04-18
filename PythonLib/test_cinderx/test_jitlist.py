@@ -14,14 +14,16 @@ import unittest
 from pathlib import Path
 
 import cinderx
+
 cinderx.init()
+
+import cinderx.jit
+
+from cinderx.test_support import skip_unless_jit
 
 # Currently depending on cinderx for pulling in Lib/test.  Shouldn't be this way.
 # pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
 from test.support.script_helper import assert_python_ok
-
-from cinderx.test_support import skip_unless_jit
-import cinderx.jit
 
 
 ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()

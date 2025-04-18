@@ -6,6 +6,7 @@ import sys
 import unittest
 
 import cinderx.test_support as cinder_support
+
 from .common import failUnlessHasOpcodes
 
 
@@ -46,7 +47,7 @@ class ExceptionHandlingTests(unittest.TestCase):
     def try_except(self, func):
         try:
             func()
-        except:
+        except:  # noqa: B001
             return True
         return False
 
@@ -87,7 +88,7 @@ class ExceptionHandlingTests(unittest.TestCase):
     def reraise(self, func):
         try:
             func()
-        except:
+        except:  # noqa: B001
             raise
 
     def test_reraise(self):
@@ -124,11 +125,11 @@ class ExceptionHandlingTests(unittest.TestCase):
             try:
                 try:
                     f()
-                except:
+                except:  # noqa: B001
                     raise
-            except:
+            except:  # noqa: B001
                 raise
-        except:
+        except:  # noqa: B001
             return 100
 
     def test_nested_try_except(self):
@@ -143,7 +144,7 @@ class ExceptionHandlingTests(unittest.TestCase):
             yield f(0)
             yield f(1)
             yield f(2)
-        except:
+        except:  # noqa: B001
             yield 123
 
     def test_except_in_generator(self):
@@ -195,7 +196,7 @@ class ExceptionHandlingTests(unittest.TestCase):
         try:
             pass
         finally:
-            return v
+            return v  # noqa: B012
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes(EXN_OPCODE)
@@ -203,7 +204,7 @@ class ExceptionHandlingTests(unittest.TestCase):
         try:
             return v
         finally:
-            return 100
+            return 100  # noqa: B012
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes(EXN_OPCODE)
@@ -211,7 +212,7 @@ class ExceptionHandlingTests(unittest.TestCase):
         try:
             1 / 0
         finally:
-            return v
+            return v  # noqa: B012
 
     @cinder_support.failUnlessJITCompiled
     @failUnlessHasOpcodes(EXN_OPCODE)
@@ -222,7 +223,7 @@ class ExceptionHandlingTests(unittest.TestCase):
             try:
                 1 / 0
             finally:
-                return v
+                return v  # noqa: B012
 
     def test_return_in_finally(self):
         self.assertEqual(self.return_in_finally(100), 100)
@@ -240,7 +241,7 @@ class ExceptionHandlingTests(unittest.TestCase):
                     return count + count2
                 finally:
                     if x:
-                        break
+                        break  # noqa: B012
         return "end", count, count2
 
     @cinder_support.failUnlessJITCompiled
@@ -251,7 +252,7 @@ class ExceptionHandlingTests(unittest.TestCase):
                     return count + count2
                 finally:
                     if x:
-                        break
+                        break  # noqa: B012
         return "end", count, count2
 
     def test_break_in_finally_after_return(self):
@@ -269,7 +270,7 @@ class ExceptionHandlingTests(unittest.TestCase):
                 return count
             finally:
                 if x:
-                    continue
+                    continue  # noqa: B012
         return "end", count
 
     @cinder_support.failUnlessJITCompiled
@@ -279,7 +280,7 @@ class ExceptionHandlingTests(unittest.TestCase):
                 return count
             finally:
                 if x:
-                    continue
+                    continue  # noqa: B012
         return "end", count
 
     def test_continue_in_finally_after_return(self):

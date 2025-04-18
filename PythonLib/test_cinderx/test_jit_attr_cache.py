@@ -4,7 +4,6 @@
 
 import sys
 import unittest
-import warnings
 
 from textwrap import dedent
 
@@ -14,6 +13,7 @@ cinderx.init()
 
 import cinderx.jit
 import cinderx.test_support as cinder_support
+
 from .common import failUnlessHasOpcodes
 
 if cinderx.is_initialized():
@@ -176,7 +176,7 @@ class LoadMethodCacheTests(unittest.TestCase):
                 obj.meaning_of_life = nothing
             yield 42
 
-        for i in range(100):
+        for _ in range(100):
             list(f(obj, False))
         list(f(obj, True))
 
@@ -192,7 +192,7 @@ class LoadMethodCacheTests(unittest.TestCase):
                 obj.meaning_of_life = nothing
             yield 42
 
-        for i in range(100):
+        for _ in range(100):
             list(f(obj, False))
         list(f(obj, True))
 
@@ -252,7 +252,10 @@ class LoadModuleMethodCacheTests(unittest.TestCase):
             with self.assertRaises(AttributeError):
                 tmp_b.test()
 
-    @unittest.skipUnless(cinderx.is_initialized(), "Strict Module test code doesn't exist outside of CinderX")
+    @unittest.skipUnless(
+        cinderx.is_initialized(),
+        "Strict Module test code doesn't exist outside of CinderX",
+    )
     def test_load_method_from_strict_module(self):
         strict_sandbox = base_sandbox.use_cm(sandbox, self)
         code_str = """
@@ -290,7 +293,7 @@ def get_foo(obj):
 
 class LoadAttrCacheTests(unittest.TestCase):
     def test_dict_reassigned(self):
-        class Base:
+        class Base:  # noqa: B903
             def __init__(self, x):
                 self.foo = x
 
@@ -306,7 +309,7 @@ class LoadAttrCacheTests(unittest.TestCase):
         self.assertEqual(get_foo(obj2), 200)
 
     def test_dict_mutated(self):
-        class Base:
+        class Base:  # noqa: B903
             def __init__(self, foo):
                 self.foo = foo
 
@@ -335,7 +338,7 @@ class LoadAttrCacheTests(unittest.TestCase):
         self.assertEqual(get_foo(obj), 800)
 
     def test_dict_combined(self):
-        class Base:
+        class Base:  # noqa: B903
             def __init__(self, foo):
                 self.foo = foo
 
@@ -416,7 +419,10 @@ class LoadAttrCacheTests(unittest.TestCase):
         C.__dict__["foo"].__class__ = Descr
         self.assertEqual(get_attr(c), "get")
 
-    @unittest.skipIf(cinderx.jit.is_enabled() and AT_LEAST_312, "T214641462: Not clear why this is failing, but it is")
+    @unittest.skipIf(
+        cinderx.jit.is_enabled() and AT_LEAST_312,
+        "T214641462: Not clear why this is failing, but it is",
+    )
     def test_type_destroyed(self):
         class A:
             pass
@@ -477,7 +483,7 @@ class DataDescr:
 
 class StoreAttrCacheTests(unittest.TestCase):
     def test_data_descr_attached(self):
-        class Base:
+        class Base:  # noqa: B903
             def __init__(self, x):
                 self.foo = x
 
@@ -503,7 +509,7 @@ class StoreAttrCacheTests(unittest.TestCase):
         self.assertTrue(descr.invoked)
 
     def test_swap_split_dict_with_combined(self):
-        class Base:
+        class Base:  # noqa: B903
             def __init__(self, x):
                 self.foo = x
 
@@ -525,7 +531,7 @@ class StoreAttrCacheTests(unittest.TestCase):
         self.assertEqual(d["foo"], 400)
 
     def test_swap_combined_dict_with_split(self):
-        class Base:
+        class Base:  # noqa: B903
             def __init__(self, x):
                 self.foo = x
 

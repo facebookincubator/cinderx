@@ -37,10 +37,6 @@ class CoroutinesTest(unittest.TestCase):
         return 1
 
     @cinder_support.failUnlessJITCompiled
-    async def _f1(self):
-        return 1
-
-    @cinder_support.failUnlessJITCompiled
     async def _f2(self, await_target):
         return await await_target
 
@@ -69,7 +65,7 @@ class CoroutinesTest(unittest.TestCase):
         @asyncio.coroutine
         def _f3():
             yield 1
-            return 2
+            return 2  # noqa: B901
 
         c = _f3()
         self.assertEqual(c.send(None), 1)
@@ -328,7 +324,7 @@ class EagerCoroutineDispatch(StaticTestBase):
         self._assert_awaited_flag_seen(self._vector_call_kw_awaited)
 
     def test_invoke_function(self):
-        codestr = f"""
+        codestr = """
         async def x() -> None:
             pass
 
@@ -375,7 +371,7 @@ class EagerCoroutineDispatch(StaticTestBase):
                 self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
 
     def test_invoke_method(self):
-        codestr = f"""
+        codestr = """
         class X:
             async def x(self) -> None:
                 pass
@@ -433,9 +429,6 @@ class EagerCoroutineDispatch(StaticTestBase):
             if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
                 self.assertTrue(cinderx.jit.is_jit_compiled(mod.await_x))
                 self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
-
-        async def y():
-            await DummyAwaitable()
 
     def test_async_yielding(self):
         class DummyAwaitable:

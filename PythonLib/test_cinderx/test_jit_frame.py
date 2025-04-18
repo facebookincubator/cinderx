@@ -5,17 +5,13 @@
 import asyncio
 import gc
 import sys
-import tempfile
-import textwrap
 import traceback
 import unittest
 
-from pathlib import Path
-
 import cinderx.jit
+import cinderx.test_support as cinder_support
 from cinderx.jit import force_compile, is_jit_compiled, jit_suppress
 from cinderx.test_support import skip_unless_jit
-import cinderx.test_support as cinder_support
 
 POST_312 = sys.version_info >= (3, 12)
 
@@ -127,7 +123,6 @@ class GetFrameLineNumberTests(unittest.TestCase):
         gen1.send(None)
         with self.assertRaises(TestException):
             gen1.throw(TestException())
-        initial_lineno = 126
         self.assert_code_and_lineno(gen1_frame, f1, 2)
         self.assert_code_and_lineno(gen2_frame, f2, 2)
 
@@ -150,7 +145,6 @@ class GetFrameLineNumberTests(unittest.TestCase):
 
         res = double(5)
         self.assertEqual(res, 10)
-        line_base = firstlineno(double)
         self.assertEqual(stack[-1].lineno, firstlineno(StackGetter.__del__) + 2)
         self.assertEqual(stack[-2].lineno, firstlineno(double) + 4)
 
@@ -195,7 +189,7 @@ class GetFrameTests(unittest.TestCase):
 
     def assert_frames(self, frame, names):
         actual = []
-        for i in range(len(names)):
+        for _ in range(len(names)):
             actual.append(frame.f_code.co_name)
             frame = frame.f_back
 
@@ -233,7 +227,7 @@ class GetFrameTests(unittest.TestCase):
         f = sys._getframe()
         try:
             raise Exception("testing 123")
-        except:
+        except:  # noqa: B001
             return f
 
     def test_getframe_then_deopt(self):
@@ -247,7 +241,7 @@ class GetFrameTests(unittest.TestCase):
     def getframe_in_except(self):
         try:
             raise Exception("testing 123")
-        except:
+        except:  # noqa: B001
             return sys._getframe()
 
     def test_getframe_after_deopt(self):
@@ -273,10 +267,13 @@ class GetFrameTests(unittest.TestCase):
         ref = ["notaframe"]
         try:
             self.do_raise(self.FrameGetter(ref))
-        except:
+        except:  # noqa: B001
             return ref[0]
 
-    @unittest.skipIf(POST_312, "T194022335: This test can't decide whether to include `do_raise` or not in the stacktrace when run between ctr3.12-jit-all and `buck test`")
+    @unittest.skipIf(
+        POST_312,
+        "T194022335: This test can't decide whether to include `do_raise` or not in the stacktrace when run between ctr3.12-jit-all and `buck test`",
+    )
     def test_getframe_in_dtor_during_deopt(self):
         # Test that we can correctly walk the stack in the middle of deopting
         frame = self.f1(self.getframe_in_dtor_during_deopt)
@@ -294,10 +291,10 @@ class GetFrameTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     def getframe_in_dtor_after_deopt(self):
         ref = ["notaframe"]
-        frame_getter = self.FrameGetter(ref)
+        frame_getter = self.FrameGetter(ref)  # noqa: F841
         try:
             raise Exception("testing 123")
-        except:
+        except:  # noqa: B001
             return ref
 
     def test_getframe_in_dtor_after_deopt(self):

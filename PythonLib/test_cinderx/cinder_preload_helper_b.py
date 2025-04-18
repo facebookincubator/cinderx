@@ -8,7 +8,7 @@ import cinder_preload_helper_a
 # The particular bug we're exercising can be hidden by the freelist in
 # funcobject.c. Fill it up before freeing the critical function.
 funcs = []
-for i in range(400):
+for _ in range(400):
 
     def f():
         pass

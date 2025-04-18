@@ -4,6 +4,7 @@
 
 import dis
 
+
 # Decorator to return a new version of the function with an alternate globals
 # dict.
 def with_globals(gbls):

@@ -15,9 +15,6 @@
 
 import sys
 import unittest
-import warnings
-
-from cinder import StrictModule
 
 
 def run_static_tests():
@@ -66,7 +63,6 @@ def run_static_tests():
             pass
 
     class StaticRuntimeTests(CompileCaptureOverrides, test_static.StaticRuntimeTests):
-
         # skip tests that raise errors in JIT preload
         def test_bad_classloader_type(self):
             pass
@@ -108,7 +104,7 @@ def main():
 
     # The Cinder JIT tests will generally introduce functions which exercise JIT
     # compilation corner-cases.
-    import test_cinderx.test_cinderjit
+    import test_cinderx.test_cinderjit  # noqa: F401
 
     # The Cinder Static Python tests introduce functions which exercise features
     # of the JIT compiler for Static Python. These tests need to be executed as

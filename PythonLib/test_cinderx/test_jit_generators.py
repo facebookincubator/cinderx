@@ -33,7 +33,7 @@ class GeneratorsTest(unittest.TestCase):
     def _f2(self):
         yield 1
         yield 2
-        return 3
+        return 3  # noqa: B901
 
     def test_multi_yield_and_return(self):
         g = self._f2()
@@ -61,7 +61,7 @@ class GeneratorsTest(unittest.TestCase):
     def _f4(self, a):
         yield a
         yield a
-        return a
+        return a  # noqa: B901
 
     def test_one_arg(self):
         g = self._f4(10)
@@ -188,10 +188,10 @@ class GeneratorsTest(unittest.TestCase):
         self.assertEqual(exc.exception.value, 0xFFFF << 3)
 
     def test_for_loop_driven(self):
-        l = []
+        li = []
         for x in self._f2():
-            l.append(x)
-        self.assertEqual(l, [1, 2])
+            li.append(x)
+        self.assertEqual(li, [1, 2])
 
     @cinder_support.failUnlessJITCompiled
     def _f6(self):
@@ -243,7 +243,7 @@ class GeneratorsTest(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _f8(self, a):
-        x += yield a
+        x += yield a  # noqa: F821, F841
 
     def test_do_not_deopt_before_initial_yield(self):
         g = self._f8(1)
@@ -253,7 +253,7 @@ class GeneratorsTest(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
     def _f9(self, a):
         yield
-        return a
+        return a  # noqa: B901
 
     def test_incref_args(self):
         class X:
@@ -269,7 +269,7 @@ class GeneratorsTest(unittest.TestCase):
     def _f10(self, X):
         x = X()
         yield weakref.ref(x)
-        return x
+        return x  # noqa: B901
 
     def test_gc_traversal(self):
         class X:
@@ -333,7 +333,7 @@ class GeneratorsTest(unittest.TestCase):
             try:
                 yield 1
             except ValueError:
-                return 2
+                return 2  # noqa: B901
             return 3
 
         g = self._f12(f())
@@ -366,7 +366,7 @@ class GeneratorsTest(unittest.TestCase):
                 yield 1
             except GeneratorExit:
                 saw_close = True
-                return 2
+                return 2  # noqa: B901
 
         g = self._f12(f())
         self.assertEqual(g.send(None), 1)
@@ -418,15 +418,15 @@ class GeneratorsTest(unittest.TestCase):
         # testing what it intends to as long as the max spill size of this
         # function is greater than jit::kMinGenSpillWords. Ideally we'd assert
         # that in the test, but neither value is introspectable from Python.
-        return dict(
-            a=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),
-            b=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),
-            c=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),
-            d=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),
-            e=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),
-            f=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),
-            g=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),
-            h=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),
+        return dict(  # noqa: C408
+            a=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),  # noqa: C408
+            b=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),  # noqa: C408
+            c=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),  # noqa: C408
+            d=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),  # noqa: C408
+            e=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),  # noqa: C408
+            f=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),  # noqa: C408
+            g=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),  # noqa: C408
+            h=dict(a=1, b=2, c=3, d=4, e=5, f=6, g=7, h=8, i=9),  # noqa: C408
         )
 
     @cinder_support.failUnlessJITCompiled
@@ -440,8 +440,8 @@ class GeneratorsTest(unittest.TestCase):
 
         @with_globals(gbls)
         def gen():
-            yield A_GLOBAL
-            yield A_GLOBAL
+            yield A_GLOBAL  # noqa: F821
+            yield A_GLOBAL  # noqa: F821
 
         g = gen()
         self.assertIs(g.__next__(), val1)
@@ -455,7 +455,7 @@ class GeneratorsTest(unittest.TestCase):
         @cinder_support.failUnlessJITCompiled
         def gen(a, b):
             yield a
-            return a + b
+            return a + b  # noqa: B901
 
         g = gen(3, 8)
         self.assertEqual(_deopt_gen(g), is_jit_compiled(gen))
@@ -468,7 +468,7 @@ class GeneratorsTest(unittest.TestCase):
         @cinder_support.failUnlessJITCompiled
         def gen(a, b):
             yield a
-            return a * b
+            return a * b  # noqa: B901
 
         g = gen(5, 9)
         self.assertEqual(next(g), 5)
@@ -479,8 +479,8 @@ class GeneratorsTest(unittest.TestCase):
 
     def test_deopt_at_yield_from(self):
         @cinder_support.failUnlessJITCompiled
-        def gen(l):
-            yield from iter(l)
+        def gen(li):
+            yield from iter(li)
 
         g = gen([2, 4, 6])
         self.assertEqual(next(g), 2)
@@ -497,8 +497,8 @@ class GeneratorsTest(unittest.TestCase):
                 return iter(["one", "two"])
 
         class AsyncIter:
-            def __init__(self, l):
-                self._iter = iter(l)
+            def __init__(self, li):
+                self._iter = iter(li)
 
             async def __anext__(self):
                 try:
@@ -510,8 +510,8 @@ class GeneratorsTest(unittest.TestCase):
                 return item
 
         class AsyncList:
-            def __init__(self, l):
-                self._list = l
+            def __init__(self, li):
+                self._list = li
 
             def __aiter__(self):
                 return AsyncIter(self._list)
@@ -522,22 +522,22 @@ class GeneratorsTest(unittest.TestCase):
                 l2.append(i * 2)
             return l2
 
-        l = []
-        c = coro([7, 8], l)
+        li = []
+        c = coro([7, 8], li)
         it = iter(c.__await__())
         self.assertEqual(next(it), "one")
-        self.assertEqual(l, [])
+        self.assertEqual(li, [])
         self.assertEqual(_deopt_gen(c), is_jit_compiled(coro))
         self.assertEqual(next(it), "two")
-        self.assertEqual(l, [])
+        self.assertEqual(li, [])
         self.assertEqual(next(it), "one")
-        self.assertEqual(l, [14])
+        self.assertEqual(li, [14])
         self.assertEqual(next(it), "two")
-        self.assertEqual(l, [14])
+        self.assertEqual(li, [14])
         with self.assertRaises(StopIteration) as cm:
             next(it)
-        self.assertIs(cm.exception.value, l)
-        self.assertEqual(l, [14, 16])
+        self.assertIs(cm.exception.value, li)
+        self.assertEqual(li, [14, 16])
 
     # TODO(T125856469): Once we support eager execution of coroutines, add
     # tests that deopt while suspended at YieldAndYieldFrom.

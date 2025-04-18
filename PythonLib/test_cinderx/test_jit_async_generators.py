@@ -7,6 +7,7 @@ import sys
 import unittest
 
 import cinderx
+
 cinderx.init()
 
 import cinderx.test_support as cinder_support
@@ -15,7 +16,9 @@ import cinderx.test_support as cinder_support
 AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
 
 
-@unittest.skipIf(AT_LEAST_312, "T194022335: Async generators not supported in 3.12 JIT yet")
+@unittest.skipIf(
+    AT_LEAST_312, "T194022335: Async generators not supported in 3.12 JIT yet"
+)
 class AsyncGeneratorsTest(unittest.TestCase):
     def tearDown(self):
         # This is needed to avoid an "environment changed" error
@@ -74,7 +77,7 @@ class AsyncGeneratorsTest(unittest.TestCase):
         while tb.tb_next:
             tb_prev = tb
             tb = tb.tb_next
-        instrs = [x for x in dis.get_instructions(tb_prev.tb_frame.f_code)]
+        instrs = list(dis.get_instructions(tb_prev.tb_frame.f_code))
         self.assertEqual(
             instrs[tb_prev.tb_lasti // 2].opname,
             "YIELD_VALUE" if AT_LEAST_312 else "YIELD_FROM",
