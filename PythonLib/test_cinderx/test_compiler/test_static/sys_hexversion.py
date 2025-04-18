@@ -1,9 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import re
+
 import sys
 from itertools import product
-
-from cinderx.compiler.static.types import TypedSyntaxError
 
 from .common import StaticTestBase
 
@@ -50,7 +48,6 @@ class SysHexVersionTests(StaticTestBase):
             "is not": "is",
         }
         for op, is_on_left in product(op_to_err.keys(), (True, False)):
-
             if is_on_left:
                 condition_str = f"sys.hexversion {op} 50988528"
             else:
@@ -86,14 +83,12 @@ class SysHexVersionTests(StaticTestBase):
                             f"both A.a and A.b are defined in {mod.__dict__}",
                         )
 
-                    
-
     def test_sys_hexversion_dynamic_compare(self):
         somethingcodestr = """
         X: int = 1
         """
 
-        codestr = f"""
+        codestr = """
         import sys
         from something import X
 
@@ -107,7 +102,7 @@ class SysHexVersionTests(StaticTestBase):
                     pass
         """
 
-        with self.in_module(somethingcodestr, name = "something"):
+        with self.in_module(somethingcodestr, name="something"):
             with self.in_module(codestr) as mod:
                 self.assertIn("A", mod.__dict__)
                 self.assertTrue(
@@ -124,7 +119,7 @@ class SysHexVersionTests(StaticTestBase):
 
     # comparing with double is kinda meaningless
     def test_sys_hexversion_compare_double(self):
-        codestr = f"""
+        codestr = """
         import sys
 
         if sys.hexversion >= 3.12:

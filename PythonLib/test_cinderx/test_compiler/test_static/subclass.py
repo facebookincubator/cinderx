@@ -1,6 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import unittest
-from unittest import skip
 
 from cinderx.compiler.static.types import TypeEnvironment
 
@@ -149,7 +148,7 @@ class SubclassTests(StaticTestBase):
                         self.a: int8 = a
                         self.b: int8 = b
             """
-            with self.in_module(codestr) as derived:
+            with self.in_module(codestr):
                 pass
 
 

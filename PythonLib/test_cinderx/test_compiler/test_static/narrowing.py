@@ -2,6 +2,7 @@
 
 from .common import StaticTestBase
 
+
 class TestNarrowing(StaticTestBase):
     def test_assign(self):
         codestr = """

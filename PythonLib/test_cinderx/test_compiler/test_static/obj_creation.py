@@ -1,18 +1,17 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from __static__ import chkdict, chklist, int64
+from __static__ import chkdict, chklist
 
-import inspect
 import sys
-import unittest
-from cinderx import freeze_type
 
 from re import escape
-from unittest import skip, skipIf
+from unittest import skipIf
+
+from cinderx import freeze_type
 
 from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.compiler.errors import TypedSyntaxError
 
-from .common import StaticTestBase, bad_ret_type
+from .common import bad_ret_type, StaticTestBase
 
 
 class StaticObjCreationTests(StaticTestBase):
@@ -278,9 +277,7 @@ class StaticObjCreationTests(StaticTestBase):
             def f(x: int) -> str:
                 return C(x)
         """
-        with self.assertRaisesRegex(
-            TypedSyntaxError, bad_ret_type("int", "str")
-        ):
+        with self.assertRaisesRegex(TypedSyntaxError, bad_ret_type("int", "str")):
             self.compile(codestr)
 
     def test_class_init_kw(self):
@@ -355,7 +352,6 @@ class StaticObjCreationTests(StaticTestBase):
             self.assertEqual(f(0), False)
 
     def test_bool_accepts_union_types(self):
-
         codestr = """
             from typing import Optional
 
@@ -503,7 +499,7 @@ class StaticObjCreationTests(StaticTestBase):
             def f():
                 return D()
         """
-        code = self.compile(codestr)
+        self.compile(codestr)
         with self.in_module(codestr) as mod:
             f = mod.f
             D = mod.D
@@ -521,7 +517,7 @@ class StaticObjCreationTests(StaticTestBase):
             def f() -> C:
                 return C()
         """
-        code = self.compile(codestr)
+        self.compile(codestr)
         with self.in_module(codestr) as mod:
             f = mod.f
             C = mod.C

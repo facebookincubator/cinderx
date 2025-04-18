@@ -1,10 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import itertools
-from unittest import skip
 
 from cinderx.compiler.static.types import TypedSyntaxError
-
-from cinderx.static import PRIM_OP_EQ_INT, TYPED_INT64
 
 from .common import StaticTestBase
 

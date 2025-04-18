@@ -1,5 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from __static__ import chkdict
 
 import ast
 import asyncio
@@ -16,9 +15,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
 from types import ModuleType
-from typing import Callable, Optional, TypeVar
+from typing import Callable
 from unittest import skip, skipIf, skipUnless
 from unittest.mock import patch
+
+import cinderx.jit
 
 import xxclassloader
 from cinderx import StrictModule
@@ -27,12 +28,7 @@ from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static import StaticCodeGenerator
 from cinderx.compiler.static.compiler import Compiler
 from cinderx.compiler.static.types import (
-    FAST_LEN_DICT,
-    FAST_LEN_INEXACT,
     FAST_LEN_LIST,
-    FAST_LEN_SET,
-    FAST_LEN_STR,
-    FAST_LEN_TUPLE,
     Function,
     Object,
     TypedSyntaxError,
@@ -50,8 +46,6 @@ from .common import (
     StaticTestBase,
     type_mismatch,
 )
-
-import cinderx.jit
 
 RICHARDS_PATH = path.join(
     path.dirname(__file__),
@@ -353,6 +347,8 @@ class StaticCompilationTests(StaticTestBase):
         """
 
         class C:
+            __slots__ = ("x",)
+
             def __init__(self):
                 self.x = self
 
@@ -993,7 +989,7 @@ class StaticCompilationTests(StaticTestBase):
                 self.assertEqual(x(C()), 2)
 
                 class Callable:
-                    def __call__(self_, obj=None):
+                    def __call__(self_, obj=None):  # noqa: B902
                         self.assertEqual(obj, None)
                         return 42
 
@@ -1025,7 +1021,7 @@ class StaticCompilationTests(StaticTestBase):
                 self.assertEqual(x(C()), 2)
 
                 class Callable:
-                    def __call__(self_, obj=None):
+                    def __call__(self_, obj=None):  # noqa: B902
                         self.assertEqual(obj, None)
                         return 42
 
@@ -1743,7 +1739,7 @@ class StaticCompilationTests(StaticTestBase):
             if code_gen is StaticCodeGenerator:
                 self.assertInBytecode(f, "CAST", ("<module>", "C"))
             with self.in_module(codestr) as mod:
-                with self.assertRaises(TypeError):
+                with self.assertRaises(TypeError):  # noqa: B908
                     f = mod.f
                     f()
                     self.assert_jitted(f)
@@ -4159,7 +4155,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertEqual(self.get_arg_check_types(f), (1, ("builtins", "str")))
-            for i in range(100):
+            for _ in range(100):
                 self.assertEqual(f("abc", "abc"), 42)
             with self.assertRaisesRegex(
                 TypeError, ".*expected 'str' for argument y, got 'int'"
@@ -4174,7 +4170,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertEqual(self.get_arg_check_types(f), (0, ("builtins", "str")))
-            for i in range(100):
+            for _ in range(100):
                 self.assertEqual(f("abc"), 42)
             with self.assertRaisesRegex(
                 TypeError, ".*expected 'str' for argument x, got 'int'"
@@ -4267,7 +4263,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(C().f(), 42)
 
     def test_direct_super_init(self):
-        codestr = f"""
+        codestr = """
             class Obj:
                 pass
 
@@ -4286,7 +4282,7 @@ class StaticCompilationTests(StaticTestBase):
             self.compile(codestr)
 
     def test_class_unknown_attr(self):
-        codestr = f"""
+        codestr = """
             class C:
                 pass
 
@@ -4315,7 +4311,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(C().f(), 3)
 
     def test_descriptor_access(self):
-        codestr = f"""
+        codestr = """
             class Obj:
                 abc: int
 
@@ -5109,7 +5105,7 @@ class StaticCompilationTests(StaticTestBase):
                     return fut
 
             d = D()
-            for i in range(100):
+            for _ in range(100):
                 try:
                     d.g().send(None)
                 except StopIteration as e:
@@ -5324,7 +5320,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr, freeze=True) as mod:
             g = mod.g
-            for i in range(100):
+            for _ in range(100):
                 self.assertEqual(g(), 42)
 
     def test_invoke_strict_module(self):
@@ -5337,7 +5333,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_strict_module(codestr) as mod:
             g = mod.g
-            for i in range(100):
+            for _ in range(100):
                 self.assertEqual(g(), 42)
             self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 0))
 

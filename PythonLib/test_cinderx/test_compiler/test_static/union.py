@@ -1,7 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import re
 import unittest
-from unittest import skip, skipIf
 
 from cinderx.compiler.static import StaticCodeGenerator
 from cinderx.compiler.static.compiler import Compiler
@@ -55,7 +54,7 @@ class UnionCompilationTests(StaticTestBase):
             expects_object(d_or_e)
         """
         with self.in_module(codestr) as mod:
-            foo = mod.foo
+            mod.foo
 
     def test_optional_union_syntax(self):
         self.revealed_type(
@@ -467,12 +466,12 @@ class UnionCompilationTests(StaticTestBase):
 
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(1.0), 1.0)
-            for i in range(51):
+            for _ in range(51):
                 self.assertEqual(mod.f(1), 1.0)
                 self.assertEqual(mod.f(MyInt(1)), 1.0)
 
     def test_isinstance_refine_dynamic(self) -> None:
-        codestr = f"""
+        codestr = """
             from something import D
 
             class B:

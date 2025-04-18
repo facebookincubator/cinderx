@@ -140,9 +140,7 @@ class FinalTests(StaticTestBase):
                     nonlocal a
                     a = 0
         """
-        with self.assertRaisesRegex(
-            SyntaxError, "no binding for nonlocal 'a' found"
-        ):
+        with self.assertRaisesRegex(SyntaxError, "no binding for nonlocal 'a' found"):
             self.compile(codestr, modname="foo")
 
     def test_final_reassign_nonlocal_shadowed(self):
@@ -677,7 +675,7 @@ class FinalTests(StaticTestBase):
                 return self
         """
         with self.in_module(codestr) as mod:
-            with self.assertRaisesRegex(
+            with self.assertRaisesRegex(  # noqa: B908
                 TypeError, r"'foo' overrides a final method in the static base class"
             ):
 
@@ -710,7 +708,7 @@ class FinalTests(StaticTestBase):
                 TypeError, r"'foo' overrides a final method in the static base class"
             ):
 
-                class D(mod.C):
+                class D1(mod.C):
                     @staticmethod
                     def foo():
                         return self
@@ -719,7 +717,7 @@ class FinalTests(StaticTestBase):
                 TypeError, r"'bar' overrides a final method in the static base class"
             ):
 
-                class D(mod.C):
+                class D2(mod.C):
                     @staticmethod
                     def bar():
                         return self
@@ -736,8 +734,9 @@ class FinalTests(StaticTestBase):
                 return 0
         """
         with self.in_module(codestr) as mod:
-            with self.assertWarnsRegex(
-                RuntimeWarning, "Overriding final method `foo` by adding override to type `D`, overridden method may be ignored."
+            with self.assertWarnsRegex(  # noqa: B908
+                RuntimeWarning,
+                "Overriding final method `foo` by adding override to type `D`, overridden method may be ignored.",
             ):
 
                 class D(mod.C):

@@ -1,8 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import dis
-from unittest import skip
 
-from cinderx.compiler.static.types import TMP_VAR_PREFIX, TypedSyntaxError
+from cinderx.compiler.static.types import TMP_VAR_PREFIX
 
 from .common import StaticTestBase
 

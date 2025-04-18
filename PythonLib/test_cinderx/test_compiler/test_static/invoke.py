@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
+
 from cinderx import cached_property
 
 from .common import StaticTestBase
@@ -18,7 +19,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "LOAD_METHOD_STATIC", ((("foo", "C"), "f"), ))
+        self.assertInBytecode(x, "LOAD_METHOD_STATIC", ((("foo", "C"), "f"),))
         self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
@@ -41,6 +42,7 @@ class InvokeTests(StaticTestBase):
         """
 
         with self.in_module(codestr) as mod:
+
             class D(mod.C):
                 f = Desc()
 
@@ -60,7 +62,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "LOAD_METHOD_STATIC", ((("foo", "C"), "f"), ))
+        self.assertInBytecode(x, "LOAD_METHOD_STATIC", ((("foo", "C"), "f"),))
         self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
@@ -102,7 +104,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "INVOKE_METHOD", (((('foo', 'C'), ('f', 'fget')), 0)))
+        self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "C"), ("f", "fget")), 0)))
 
         with self.in_strict_module(codestr) as mod:
             c = mod.C()
@@ -343,13 +345,6 @@ class InvokeTests(StaticTestBase):
                     return 0
         """
 
-        base_async_prop = """
-            class B:
-                @property
-                def f(self) -> int:
-                    return 0
-        """
-
         base_cachedprop = """
             from cinderx import cached_property
             class B:
@@ -416,9 +411,7 @@ class InvokeTests(StaticTestBase):
         self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "B"), ("f", "fget")), 0)))
 
         with self.in_strict_module(test_case) as mod:
-            expected = 42
             if nonstatic_subclass:
-                expected = 100
                 for bc_name in base_class_names:
                     base_class = getattr(mod, bc_name)
                     if nonstatic_subclass == "td":
@@ -438,7 +431,6 @@ class InvokeTests(StaticTestBase):
                         class D2(base_class):
                             @property
                             def f(self):
-
                                 return 100
 
                     else:
@@ -490,7 +482,7 @@ class InvokeTests(StaticTestBase):
 
         code = self.compile(codestr, modname="foo")
         x = self.find_code(code, "x")
-        self.assertInBytecode(x, "LOAD_METHOD_STATIC", ((("foo", "C"), "f"), ))
+        self.assertInBytecode(x, "LOAD_METHOD_STATIC", ((("foo", "C"), "f"),))
         self.assertInBytecode(x, "INVOKE_METHOD", ((("foo", "C"), "f"), 0))
 
         with self.in_module(codestr) as mod:
@@ -715,8 +707,10 @@ class InvokeTests(StaticTestBase):
 
         with self.in_module(codestr) as mod:
             c = mod.C()
+
             async def new_f(a: int):
                 return a + 1
+
             c.f = new_f
             self.assertEqual(43, asyncio.run(mod.x(c)))
             self.assertEqual(43, asyncio.run(mod.x(c)))
@@ -732,9 +726,10 @@ class InvokeTests(StaticTestBase):
         """
 
         with self.in_module(codestr) as mod:
+
             class D(mod.C):
                 def __init__(self):
-                    self.f = lambda x:43
+                    self.f = lambda x: 43
 
             d = D()
             self.assertEqual(43, mod.x(d))
@@ -751,13 +746,16 @@ class InvokeTests(StaticTestBase):
         """
 
         with self.in_module(codestr) as mod:
+
             class D(mod.C):
                 def __init__(self):
                     def f(x):
                         return 43
+
                     self.f = f
 
             d = D()
+
             def mutate():
                 del d.f
                 return 42
@@ -824,8 +822,10 @@ class InvokeTests(StaticTestBase):
 
         with self.in_module(codestr) as mod:
             c = mod.C()
+
             async def new_f(a: int):
                 return a + 1
+
             c.f = new_f
             self.assertEqual(43, asyncio.run(mod.x(c)))
             self.assertEqual(43, asyncio.run(mod.x(c)))
@@ -846,8 +846,10 @@ class InvokeTests(StaticTestBase):
 
         with self.in_module(codestr) as mod:
             c = mod.C()
+
             async def new_f(a: int):
                 return a + 1
+
             c.f = new_f
             self.assertEqual(43, asyncio.run(mod.x(c)))
             self.assertEqual(43, asyncio.run(mod.x(c)))

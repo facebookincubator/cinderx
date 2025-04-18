@@ -1,5 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from .common import StaticTestBase, type_mismatch
+from .common import StaticTestBase
 
 import xxclassloader  # usort: skip
 

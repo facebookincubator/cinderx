@@ -36,7 +36,7 @@ class ImportTests(StaticTestBase):
             reveal_type(y)
         """
         with self.assertRaisesRegex(TypedSyntaxError, "dynamic"):
-            bcomp = self.compiler(a=acode, b=bcode).compile_module("b")
+            self.compiler(a=acode, b=bcode).compile_module("b")
 
     def test_unknown_value_from_nonstatic_module_is_dynamic(self):
         nonstatic_code = """

@@ -64,7 +64,7 @@ class StaticFieldTests(StaticTestBase):
             self.assertEqual(x.x, 42)
             with self.assertRaisesRegex(
                 TypeError, "expected 'int', got 'str' for attribute 'x'"
-            ) as e:
+            ):
                 x.x = "abc"
 
     def test_slotification_init_typed_redeclared(self):
@@ -166,14 +166,14 @@ class StaticFieldTests(StaticTestBase):
             return a.x
         """
         with self.in_module(codestr) as mod:
-            with self.assertRaises(AttributeError) as e:
+            with self.assertRaises(AttributeError) as e:  # noqa: B908
                 f, C = mod.f, mod.C
                 f(C())
 
         self.assertEqual(e.exception.args[0], "'C' object has no attribute 'x'")
 
     def test_conditional_init(self):
-        codestr = f"""
+        codestr = """
             from __static__ import box, int64
 
             class C:
@@ -212,7 +212,7 @@ class StaticFieldTests(StaticTestBase):
             self.assertInBytecode(
                 Child.__init__, "STORE_FIELD", ((mod.__name__, "Child"), "end")
             )
-            for i in range(SHADOWCODE_REPETITIONS):
+            for _ in range(SHADOWCODE_REPETITIONS):
                 c = Child()
                 self.assertEqual(c.end, "bloop")
 
@@ -243,7 +243,7 @@ class StaticFieldTests(StaticTestBase):
                 x: cbool
         """
         with self.assertRaisesRegex(RuntimeError, "type has leaked"):
-            with self.in_module(codestr) as mod:
+            with self.in_module(codestr):
                 pass
 
     def test_primitive_field_leaked_type_metaclass(self):
@@ -261,7 +261,7 @@ class StaticFieldTests(StaticTestBase):
                     self.foo = foo
                     self.bar = bar
         """
-        with self.in_module(codestr) as mod:
+        with self.in_module(codestr):
             pass
 
     def test_assign_implicit_primitive_field(self):
@@ -744,7 +744,7 @@ class StaticFieldTests(StaticTestBase):
     def test_nested_classvar_and_final(self):
         """Per PEP 591, class-level final assignments are always ClassVar."""
         self.type_error(
-            f"""
+            """
             from typing import ClassVar, Final
 
             class C:
@@ -826,7 +826,7 @@ class StaticFieldTests(StaticTestBase):
                     self.y: str = 'foo'
 
             """
-            with self.in_strict_module(codestr) as mod:
+            with self.in_strict_module(codestr):
                 pass
 
     def test_single_field_with_nonstatic_base(self):
@@ -845,5 +845,5 @@ class StaticFieldTests(StaticTestBase):
                     self.x: str = 'abc'
 
             """
-            with self.in_strict_module(codestr) as mod:
+            with self.in_strict_module(codestr):
                 pass

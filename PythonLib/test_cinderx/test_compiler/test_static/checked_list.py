@@ -1,8 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import CheckedList
 
-from unittest import skip, skipIf
-
 from cinderx.static import SEQ_CHECKED_LIST, SEQ_SUBSCR_UNCHECKED
 
 from .common import bad_ret_type, StaticTestBase, type_mismatch
@@ -194,7 +192,7 @@ class CheckedListTests(StaticTestBase):
         z = CheckedList[str]()
         z.extend(["a", "a"])
         with self.assertRaises(TypeError):
-            x < z
+            x < z  # noqa: B015
 
         # Compare CheckedLists to lists.
         self.assertEqual(x < [2, 2, 3], True)
@@ -257,8 +255,8 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            l = CheckedList[int]([1, 2, 3])
-            self.assertEqual(f(l), 2)
+            li = CheckedList[int]([1, 2, 3])
+            self.assertEqual(f(li), 2)
 
         codestr = """
             from __static__ import CheckedList
@@ -267,8 +265,8 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            l = CheckedList[int]([1, 2, 3])
-            self.assertEqual(f(l), [2])
+            li = CheckedList[int]([1, 2, 3])
+            self.assertEqual(f(li), [2])
 
     def test_checked_list_compile_setitem(self):
         codestr = """
@@ -278,9 +276,9 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.assign_to_index_1
-            l = CheckedList[int]([1, 1, 1])
-            self.assertEqual(f(l), None)
-            self.assertEqual(repr(l), "[1, 2, 1]")
+            li = CheckedList[int]([1, 1, 1])
+            self.assertEqual(f(li), None)
+            self.assertEqual(repr(li), "[1, 2, 1]")
 
     def test_checked_list_compile_setitem_bad_type(self):
         codestr = """
@@ -298,9 +296,9 @@ class CheckedListTests(StaticTestBase):
          """
         with self.in_module(codestr) as mod:
             f = mod.assign_to_slice
-            l = CheckedList[int]([1, 1, 1])
-            self.assertEqual(f(l), None)
-            self.assertEqual(repr(l), "[1, 2, 3]")
+            li = CheckedList[int]([1, 1, 1])
+            self.assertEqual(f(li), None)
+            self.assertEqual(repr(li), "[1, 2, 3]")
 
     def test_checked_list_compile_setitem_slice_list(self):
         codestr = """
@@ -310,9 +308,9 @@ class CheckedListTests(StaticTestBase):
          """
         with self.in_module(codestr) as mod:
             f = mod.assign_to_slice
-            l = CheckedList[int]([1, 1, 1])
-            self.assertEqual(f(l), None)
-            self.assertEqual(repr(l), "[1, 2, 3]")
+            li = CheckedList[int]([1, 1, 1])
+            self.assertEqual(f(li), None)
+            self.assertEqual(repr(li), "[1, 2, 3]")
 
     def test_checked_list_compile_setitem_slice_list_bad_index_type(self):
         codestr = """
@@ -332,10 +330,10 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            l = CheckedList[int]([])
-            self.assertEqual(f(l), 2)
-            l.append(1)
-            self.assertEqual(f(l), 1)
+            li = CheckedList[int]([])
+            self.assertEqual(f(li), 2)
+            li.append(1)
+            self.assertEqual(f(li), 1)
 
     def test_checked_list_compile_len(self):
         codestr = """
@@ -345,10 +343,10 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            l = CheckedList[int]([])
-            self.assertEqual(f(l), 0)
-            l.append(1)
-            self.assertEqual(f(l), 1)
+            li = CheckedList[int]([])
+            self.assertEqual(f(li), 0)
+            li.append(1)
+            self.assertEqual(f(li), 1)
 
     def test_checked_list_getitem_with_c_ints(self):
         codestr = """
@@ -375,10 +373,10 @@ class CheckedListTests(StaticTestBase):
 
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            l = f()
+            li = f()
             self.assertInBytecode(f, "BUILD_CHECKED_LIST")
-            self.assertEqual(repr(l), "[1, 2, 3, 4]")
-            self.assertEqual(type(l), CheckedList[int])
+            self.assertEqual(repr(li), "[1, 2, 3, 4]")
+            self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_literal_type_error(self):
         codestr = """
@@ -402,11 +400,11 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            l = f()
+            li = f()
             self.assert_jitted(f)
             self.assertInBytecode(f, "BUILD_CHECKED_LIST")
-            self.assertEqual(repr(l), "[1, 2, 3, 4]")
-            self.assertEqual(type(l), CheckedList[int])
+            self.assertEqual(repr(li), "[1, 2, 3, 4]")
+            self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_literal_unpack_with_elements(self):
         codestr = """
@@ -418,10 +416,10 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            l = f()
+            li = f()
             self.assertInBytecode(f, "BUILD_CHECKED_LIST")
-            self.assertEqual(repr(l), "[5, 1, 2, 3, 4]")
-            self.assertEqual(type(l), CheckedList[int])
+            self.assertEqual(repr(li), "[5, 1, 2, 3, 4]")
+            self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_literal_comprehension(self):
         codestr = """
@@ -432,9 +430,9 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            l = f()
-            self.assertEqual(repr(l), "[2, 3, 4, 5]")
-            self.assertEqual(type(l), CheckedList[int])
+            li = f()
+            self.assertEqual(repr(li), "[2, 3, 4, 5]")
+            self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_literal_comprehension_type_error(self):
         codestr = """
@@ -455,10 +453,10 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.testfunc
-            l = f()
+            li = f()
             self.assertInBytecode(f, "BUILD_CHECKED_LIST")
-            self.assertEqual(repr(l), "[1, 2, 3, 4]")
-            self.assertEqual(type(l), CheckedList[int])
+            self.assertEqual(repr(li), "[1, 2, 3, 4]")
+            self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_call_opt_in(self):
         codestr = """
@@ -469,9 +467,9 @@ class CheckedListTests(StaticTestBase):
                 return a
         """
         with self.in_module(codestr) as mod:
-            l = mod.testfunc()
-            self.assertEqual(repr(l), "[1, 2]")
-            self.assertEqual(type(l), CheckedList[int])
+            li = mod.testfunc()
+            self.assertEqual(repr(li), "[1, 2]")
+            self.assertEqual(type(li), CheckedList[int])
 
     def test_checked_list_getitem_error(self):
         codestr = """
@@ -537,6 +535,6 @@ class CheckedListTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertInBytecode(mod.f, "BUILD_CHECKED_LIST")
-            for i in range(50):
+            for _ in range(50):
                 mod.f()
             self.assertEqual(mod.f(), 6)

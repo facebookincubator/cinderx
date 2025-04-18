@@ -1,7 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import builtins
-from unittest import skip
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from cinderx import cached_property
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -189,7 +187,8 @@ class SlotsWithDefaultTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             with self.assertWarnsRegex(
-                RuntimeWarning, "Overriding property C.x with str when expected to be a int."
+                RuntimeWarning,
+                "Overriding property C.x with str when expected to be a int.",
             ):
                 mod.C.x = "A"
 
@@ -240,7 +239,7 @@ class SlotsWithDefaultTests(StaticTestBase):
             return (initial_x, c.x, c.__class__.x)
 
         """
-        m = self.compile(codestr)
+        self.compile(codestr)
         with self.in_module(codestr) as mod:
 
             class D(mod.C):
@@ -380,7 +379,6 @@ class SlotsWithDefaultTests(StaticTestBase):
         with self.in_module(codestr) as mod:
 
             class D(mod.C):
-
                 x: int
 
             self.assertEqual(mod.C().get_x(), 2)
@@ -401,7 +399,6 @@ class SlotsWithDefaultTests(StaticTestBase):
         with self.in_module(codestr) as mod:
 
             class D(mod.C):
-
                 __slots__ = "x"
 
             self.assertEqual(mod.C().get_x(), 2)
@@ -610,9 +607,9 @@ class SlotsWithDefaultTests(StaticTestBase):
         with self.in_module(codestr, enable_patching=True) as mod:
             with self.assertWarnsRegex(
                 RuntimeWarning,
-                "Overriding property C.x with MagicMock when expected to be a int."
-            ), patch(f"{mod.__name__}.C.x", return_value=1) as mock:
-                c = mod.C()
+                "Overriding property C.x with MagicMock when expected to be a int.",
+            ), patch(f"{mod.__name__}.C.x", return_value=1):
+                mod.C()
 
     def test_instance_patching_allowed(self) -> None:
         codestr = """

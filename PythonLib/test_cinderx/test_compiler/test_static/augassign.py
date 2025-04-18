@@ -1,5 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import sys
 
 from .common import StaticTestBase
 
@@ -12,9 +11,9 @@ class AugAssignTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f = mod.f
-            l = [1]
-            f(l)
-            self.assertEqual(l[0], 2)
+            li = [1]
+            f(li)
+            self.assertEqual(li[0], 2)
 
     def test_field(self):
         codestr = """

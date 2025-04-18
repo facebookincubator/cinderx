@@ -130,7 +130,7 @@ class DependencyTrackingTests(StaticTestBase):
 
     def test_nested_class(self) -> None:
         """A nested class records itself correctly in dependencies."""
-        acode = f"""
+        acode = """
             from b import B
 
             class Outer1:

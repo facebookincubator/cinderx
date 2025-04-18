@@ -1,12 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from __static__ import Array, StaticTypeError, int32, int64, int8
+from __static__ import Array, int64, StaticTypeError
 
-import itertools
 import re
 import unittest
-from copy import deepcopy
-from cinderx.test_support import is_asan_build
-from typing import Mapping
 
 from cinderx.compiler.static.types import (
     FAST_LEN_ARRAY,
@@ -15,8 +11,9 @@ from cinderx.compiler.static.types import (
 )
 
 from cinderx.static import SEQ_SUBSCR_UNCHECKED, TYPED_INT64
+from cinderx.test_support import is_asan_build
 
-from .common import StaticTestBase, type_mismatch
+from .common import StaticTestBase
 
 
 class ArrayTests(StaticTestBase):
@@ -142,19 +139,18 @@ class ArrayTests(StaticTestBase):
         )
 
     def test_array_not_subclassable(self):
-
         with self.assertRaisesRegex(
             TypeError, "type '__static__.staticarray' is not an acceptable base type"
         ):
 
-            class C(Array[int64]):
+            class C1(Array[int64]):
                 pass
 
         with self.assertRaisesRegex(
             TypeError, "type '__static__.staticarray' is not an acceptable base type"
         ):
 
-            class C(Array):
+            class C2(Array):
                 pass
 
     @unittest.skipIf(is_asan_build(), "T199794603 - Triggers ASAN error")
@@ -308,7 +304,9 @@ class ArrayTests(StaticTestBase):
             def h(x: Array[int64]) -> int64:
                 return x[0]
         """
-        error_msg = re.escape("h expected '__static__.staticarray' for argument x, got 'list'")
+        error_msg = re.escape(
+            "h expected '__static__.staticarray' for argument x, got 'list'"
+        )
         with self.in_module(codestr) as mod:
             with self.assertRaisesRegex(StaticTypeError, error_msg):
                 mod.h(["B"])
@@ -321,7 +319,9 @@ class ArrayTests(StaticTestBase):
             def h(x: Array[int64]) -> double:
                 return double(float(box(x[0])))
         """
-        error_msg = re.escape("h expected '__static__.staticarray' for argument x, got 'list'")
+        error_msg = re.escape(
+            "h expected '__static__.staticarray' for argument x, got 'list'"
+        )
         with self.in_module(codestr) as mod:
             with self.assertRaisesRegex(StaticTypeError, error_msg):
                 mod.h(["B"])

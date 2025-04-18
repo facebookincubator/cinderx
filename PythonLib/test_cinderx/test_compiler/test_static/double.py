@@ -2,7 +2,6 @@
 from __static__ import TYPED_DOUBLE
 
 import re
-from unittest import skip, skipIf
 
 from cinderx.compiler.errors import TypedSyntaxError
 
@@ -112,7 +111,7 @@ class DoubleTests(StaticTestBase):
             self.assertEqual(r, 4.4)
 
     def test_double_unbox(self):
-        codestr = f"""
+        codestr = """
         from __static__ import double, box, unbox
         def fn(x, y):
             a: double = unbox(x)
@@ -126,7 +125,7 @@ class DoubleTests(StaticTestBase):
         self.assertEqual(f(x, y), x + y)
 
     def test_double_unbox_using_double(self):
-        codestr = f"""
+        codestr = """
             from __static__ import double, box
 
             def f():
@@ -337,7 +336,6 @@ class DoubleTests(StaticTestBase):
             self.assertEqual(f(C()), 42.0)
 
     def test_uninit_while_else(self):
-
         codestr = """
             from __static__ import double, box
 
@@ -357,11 +355,9 @@ class DoubleTests(StaticTestBase):
 
             class C:
                 def __init__(self):
-
                     self.count = 3
 
                 def __bool__(self):
-
                     if self.count:
                         self.count -= 1
 
@@ -390,7 +386,7 @@ class DoubleTests(StaticTestBase):
                 self.assertEqual(f(False), res, f"{type} {op} {x} {res}")
 
     def test_double_unary_unsupported(self):
-        codestr = f"""
+        codestr = """
         from __static__ import double, box
         def testfunc(tst):
             x: double = 1.0
@@ -593,7 +589,7 @@ class DoubleTests(StaticTestBase):
                 self.assertEqual(f(False), res, f"{type} {x} {op} {y} {res}")
 
     def test_double_compare_with_literal(self):
-        codestr = f"""
+        codestr = """
         from __static__ import double
         def testfunc(x: float) -> bool:
             y = double(x)
@@ -607,7 +603,7 @@ class DoubleTests(StaticTestBase):
             self.assertFalse(f(1.1))
 
     def test_double_compare_with_integer_literal(self):
-        codestr = f"""
+        codestr = """
         from __static__ import double
         def testfunc(x: float) -> bool:
             y = double(x)

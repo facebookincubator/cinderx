@@ -1,7 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import TYPED_INT64
 
-import gc
 import itertools
 import re
 import string
@@ -9,14 +8,8 @@ import sys
 import warnings
 import weakref
 
-from array import array
-from types import FunctionType
+from unittest import skipIf
 
-from unittest import skip, skipIf
-
-import cinderx.static
-
-from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.static import StaticCodeGenerator
 from cinderx.compiler.static.types import (
     FAST_LEN_INEXACT,
@@ -30,9 +23,10 @@ from cinderx.compiler.static.types import (
     TypeEnvironment,
 )
 
-from cinderx.static import TYPED_INT16, TYPED_INT32, TYPED_INT64
+from cinderx.static import TYPED_INT16, TYPED_INT32
 
 from .common import bad_ret_type, PRIM_NAME_TO_TYPE, StaticTestBase, type_mismatch
+
 
 class PrimitivesTests(StaticTestBase):
     def test_primitive_context_ifexp(self) -> None:
@@ -248,7 +242,7 @@ class PrimitivesTests(StaticTestBase):
             )
 
     def test_sign_extend(self):
-        codestr = f"""
+        codestr = """
             from __static__ import int16, int64, box
             def testfunc():
                 x: int16 = -40
@@ -505,7 +499,7 @@ class PrimitivesTests(StaticTestBase):
 
     @skipIf(True, "this isn't implemented yet")
     def test_unwind(self):
-        codestr = f"""
+        codestr = """
             from __static__ import int32
             def raises():
                 raise IndexError()
@@ -807,7 +801,7 @@ class PrimitivesTests(StaticTestBase):
                 self.assertEqual(f(False), res, f"{type} {x} {op} {y} {res}")
 
     def test_int_compare_unboxed(self):
-        codestr = f"""
+        codestr = """
         from __static__ import ssize_t, unbox
         def testfunc(x, y):
             x1: ssize_t = unbox(x)
@@ -839,7 +833,7 @@ class PrimitivesTests(StaticTestBase):
         self.assert_jitted(f)
 
     def test_int_unbox_from_call(self):
-        codestr = f"""
+        codestr = """
         from __static__ import int64
         def foo() -> int:
             return 1234
@@ -1055,8 +1049,7 @@ class PrimitivesTests(StaticTestBase):
         self.assertInBytecode(f, "POP_JUMP_IF_NONZERO")
 
         with self.assertRaises(AssertionError):
-            f = self.run_code(codestr)["testfunc"]
-            self.assertEqual(f(), None)
+            self.assertEqual(self.run_code(codestr)["testfunc"](), None)
 
     def test_int_loop_reversed(self):
         codestr = """
@@ -1664,7 +1657,9 @@ class PrimitivesTests(StaticTestBase):
                 x: int64 = 1
                 return {42: x}
         """
-        with self.assertRaisesRegex(TypedSyntaxError, "dict values cannot be primitives"):
+        with self.assertRaisesRegex(
+            TypedSyntaxError, "dict values cannot be primitives"
+        ):
             self.compile(code)
 
         code = """
@@ -2425,9 +2420,9 @@ class PrimitivesTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             f = mod.f
             self.assertInBytecode(f, "SEQUENCE_SET", SEQ_LIST_INEXACT)
-            l = mylist([0])
-            f(l)
-            self.assertEqual(l[0], 43)
+            li = mylist([0])
+            f(li)
+            self.assertEqual(li[0], 43)
 
     def test_inexact_list_negative(self):
         codestr = """
@@ -2959,7 +2954,7 @@ class PrimitivesTests(StaticTestBase):
                         self.assertEqual(f(), 1)
 
     def test_assign_bool_to_primitive_int(self):
-        codestr = f"""
+        codestr = """
         from __static__ import int8
 
         def f() -> int:
@@ -3200,7 +3195,7 @@ class PrimitivesTests(StaticTestBase):
                     self.assertEqual(y(), expected)
 
     def test_primitive_out_of_range(self):
-        codestr = f"""
+        codestr = """
             from __static__ import int8, box
 
             def f() -> int:

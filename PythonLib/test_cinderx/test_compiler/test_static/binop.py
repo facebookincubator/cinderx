@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+import cinderx.jit
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.static.types import (
     PRIM_OP_ADD_INT,
@@ -8,8 +9,6 @@ from cinderx.compiler.static.types import (
 )
 
 from .common import StaticTestBase
-
-import cinderx.jit
 
 
 class BinopTests(StaticTestBase):
@@ -260,7 +259,7 @@ class BinopTests(StaticTestBase):
                         self.assertEqual(act, res)
 
     def test_int_binop_type_context(self):
-        codestr = f"""
+        codestr = """
             from __static__ import box, int8, int16
 
             def f(x: int8, y: int8) -> int:
@@ -471,7 +470,7 @@ class BinopTests(StaticTestBase):
         Fsub instruction alive long enough.
         """
 
-        codestr = f"""
+        codestr = """
         from __static__ import box, double
 
         def testfunc(f0: double, f1: double) -> double:
@@ -515,7 +514,7 @@ class BinopTests(StaticTestBase):
             self.assertEqual(f(1.0, 2.0), 4179.0)
 
     def test_double_binop_with_literal(self):
-        codestr = f"""
+        codestr = """
             from __static__ import double, unbox
 
             def f():
@@ -606,7 +605,7 @@ class BinopTests(StaticTestBase):
                 self.type_error(codestr, "'int64'", f"reveal_type({op})")
 
     def test_error_type_ctx_left_operand_mismatch(self):
-        codestr = f"""
+        codestr = """
             from __static__ import int64
 
             def f(k: int64):
@@ -615,4 +614,4 @@ class BinopTests(StaticTestBase):
                 l[:k + 1] = [0]
                 return l
         """
-        self.type_error(codestr, "int64 cannot be assigned to dynamic", f"k + 1")
+        self.type_error(codestr, "int64 cannot be assigned to dynamic", "k + 1")

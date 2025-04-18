@@ -2,8 +2,9 @@
 import asyncio
 import sys
 
-from .common import bad_ret_type, StaticTestBase
 from cinderx.compiler.errors import TypedSyntaxError
+
+from .common import bad_ret_type, StaticTestBase
 
 
 class PropertyTests(StaticTestBase):
@@ -61,8 +62,6 @@ class PropertyTests(StaticTestBase):
 
             bar = mod.bar
             self.assertInBytecode(bar, "DELETE_ATTR", "foo")
-
-
 
     def test_property_getter_known_exact(self):
         codestr = """
@@ -559,7 +558,6 @@ class PropertyTests(StaticTestBase):
             "return self.x",
         )
 
-
     def test_property_setter_typechecks(self):
         codestr = """
             class C:
@@ -578,9 +576,8 @@ class PropertyTests(StaticTestBase):
         self.type_error(
             codestr,
             r"Function has declared return type 'int' but can implicitly return None",
-            "def foo(self, value: int) -> int:"
+            "def foo(self, value: int) -> int:",
         )
-
 
     def test_property_deleter_typechecks(self):
         codestr = """

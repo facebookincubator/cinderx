@@ -1,8 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from contextlib import contextmanager
-import sys
 import unittest
-from unittest import skip, skipIf
+from contextlib import contextmanager
 
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 
@@ -516,7 +514,7 @@ class NonStaticInheritanceTests(StaticTestBase):
         """
         with self.in_module(
             nonstatic, name="nonstatic", code_gen=self.cinder_codegen
-        ) as nonstatic_mod, self.in_module(static) as mod:
+        ), self.in_module(static) as mod:
             self.assertEqual(mod.D.foo, 42)
 
     def test_nonstatic_call_base_init_other_super(self):
@@ -536,10 +534,9 @@ class NonStaticInheritanceTests(StaticTestBase):
         """
         with self.in_module(
             nonstatic, name="nonstatic", code_gen=self.cinder_codegen
-        ) as nonstatic_mod, self.in_module(static) as mod:
+        ), self.in_module(static) as mod:
             self.assertEqual(mod.D.foo, 42)
 
 
 if __name__ == "__main__":
-
     unittest.main()

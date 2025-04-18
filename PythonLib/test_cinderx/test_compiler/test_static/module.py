@@ -1,8 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.static.compiler import Compiler
-from cinderx.compiler.static.module_table import ModuleTable, ModuleTableException
-from cinderx.compiler.static.types import TypeEnvironment, Value
-from cinderx.compiler.strict.compiler import Compiler as StrictCompiler
+from cinderx.compiler.static.module_table import ModuleTableException
 
 from .common import get_child, StaticTestBase
 
@@ -320,4 +318,4 @@ class ModuleTests(StaticTestBase):
                 pass
         """
         with self.assertRaisesRegex(ModuleTableException, "due to cyclic reference"):
-            compiler = self.decl_visit(**{"a": acode, "b": bcode})
+            self.decl_visit(**{"a": acode, "b": bcode})

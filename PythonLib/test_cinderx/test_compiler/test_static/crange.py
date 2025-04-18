@@ -1,7 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.static.types import TypedSyntaxError
 
-from .common import StaticTestBase, type_mismatch
+from .common import StaticTestBase
 
 
 class CRangeTests(StaticTestBase):

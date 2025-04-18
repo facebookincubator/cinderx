@@ -1,6 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
-from unittest import skip, skipIf
 from unittest.mock import patch
 
 from cinderx.static import StaticTypeError
@@ -141,7 +140,7 @@ class ClassMethodTests(StaticTestBase):
                 pass
 
             d = D()
-            d.foo = lambda x: 'abc'
+            d.foo = lambda x: "abc"
             self.assertInBytecode(f, "INVOKE_METHOD")
             with self.assertRaises(StaticTypeError):
                 f(d)
@@ -452,7 +451,7 @@ class Child(C):
 
                     c = C()
                     if should_make_hot:
-                        for i in range(50):
+                        for _ in range(50):
                             f(c)
                     self.assertInBytecode(f, "INVOKE_METHOD")
                     self.assertEqual(f(c), 3)
@@ -460,7 +459,6 @@ class Child(C):
     def test_classmethod_async_invoke_method_cached(self):
         cases = [True, False]
         for should_make_hot in cases:
-
             with self.subTest(should_make_hot=should_make_hot):
                 codestr = """
                 class C:
@@ -479,9 +477,9 @@ class Child(C):
                     f = mod.f
 
                     async def make_hot():
-                        c = C()
-                        for i in range(50):
-                            await f(c)
+                        c = C()  # noqa: B023
+                        for _ in range(50):
+                            await f(c)  # noqa: B023
 
                     if should_make_hot:
                         asyncio.run(make_hot())

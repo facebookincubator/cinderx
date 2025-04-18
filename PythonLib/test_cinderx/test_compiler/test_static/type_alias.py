@@ -1,19 +1,18 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import sys
 import unittest
+
 from unittest import skipIf, skipUnless
 
-from re import escape
+from cinderx.compiler.static.module_table import ENABLE_IMPLICIT_TYPE_ALIASES
 
 from cinderx.compiler.static.types import TypedSyntaxError
-from cinderx.compiler.static.module_table import ENABLE_IMPLICIT_TYPE_ALIASES
 
 from .common import StaticTestBase
 
 
 @skipIf(sys.version_info < (3, 12), "New in 3.12")
 class TypeAliasTests(StaticTestBase):
-
     @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
     def test_assign(self):
         codestr = """

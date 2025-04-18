@@ -57,7 +57,7 @@ class DeclarationVisitorTests(StaticTestBase):
                 self.assertNotInBytecode(x, "INVOKE_METHOD", (("a", "C", "f"), 0))
 
     def test_cross_module_nested_in_class(self) -> None:
-        acode = f"""
+        acode = """
             class A:
                 class B:
                     def f(self):
@@ -248,12 +248,16 @@ class DeclarationVisitorTests(StaticTestBase):
             def import_module(self, name: str, optimize: int) -> ModuleTable:
                 if name == "b":
                     btree = ast.parse(dedent(bcode))
-                    self.btree = self.add_module("b", "b.py", btree, bcode, optimize=optimize)
+                    self.btree = self.add_module(
+                        "b", "b.py", btree, bcode, optimize=optimize
+                    )
                     testcase.assertFalse(self.btree is btree)
 
         compiler = CustomCompiler()
-        acomp = compiler.compile("a", "a.py", ast.parse(dedent(acode)), acode, optimize=1)
-        bcomp = compiler.compile("b", "b.py", compiler.btree, bcode, optimize=1)
+        acomp = compiler.compile(
+            "a", "a.py", ast.parse(dedent(acode)), acode, optimize=1
+        )
+        compiler.compile("b", "b.py", compiler.btree, bcode, optimize=1)
         x = self.find_code(self.find_code(acomp, "C"), "f")
         self.assertInBytecode(x, "INVOKE_METHOD", ((("b", "B"), "g"), 0))
 
@@ -275,12 +279,13 @@ class DeclarationVisitorTests(StaticTestBase):
                 super().__init__(CustomCodeGenerator)
 
             def import_module(self, name: str, optimize: int) -> ModuleTable:
-                if name == "b":
-                    btree = ast.parse(dedent(bcode))
+                pass
 
         compiler = CustomCompiler()
         with self.assertRaisesRegex(
             ModuleTableException,
             "Attempted to declare a class after the declaration visit",
         ):
-            compiler.compile("a", "a.py", ast.parse(dedent(codestr)), codestr, optimize=1)
+            compiler.compile(
+                "a", "a.py", ast.parse(dedent(codestr)), codestr, optimize=1
+            )

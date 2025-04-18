@@ -1,7 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+from __static__ import is_static_callable, is_static_module
+
 from .common import StaticTestBase
-from __static__ import is_static_module, is_static_callable
+
 
 class ReflectionTests(StaticTestBase):
     def test_is_static_module_plain(self) -> None:

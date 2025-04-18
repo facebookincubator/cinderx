@@ -18,7 +18,7 @@ class ReturnCastInsertionTests(StaticTestBase):
                     self.assertNotInBytecode(f_code, "CAST")
 
     def test_annotated_method_does_not_cast_lower(self) -> None:
-        codestr = f"""
+        codestr = """
             def f() -> str:
                 return 'abc'.lower()
         """
@@ -27,7 +27,7 @@ class ReturnCastInsertionTests(StaticTestBase):
         self.assertInBytecode(f_code, "REFINE_TYPE")
 
     def test_annotated_method_does_not_cast_upper(self) -> None:
-        codestr = f"""
+        codestr = """
             def f() -> str:
                 return 'abc'.upper()
         """
@@ -36,7 +36,7 @@ class ReturnCastInsertionTests(StaticTestBase):
         self.assertInBytecode(f_code, "REFINE_TYPE")
 
     def test_annotated_method_does_not_cast_isdigit(self) -> None:
-        codestr = f"""
+        codestr = """
             def f() -> bool:
                 return 'abc'.isdigit()
         """
@@ -45,7 +45,7 @@ class ReturnCastInsertionTests(StaticTestBase):
         self.assertInBytecode(f_code, "REFINE_TYPE")
 
     def test_annotated_method_does_not_cast_known_subclass(self) -> None:
-        codestr = f"""
+        codestr = """
             class C(str):
                 pass
 
@@ -57,7 +57,7 @@ class ReturnCastInsertionTests(StaticTestBase):
         self.assertInBytecode(f_code, "REFINE_TYPE")
 
     def test_annotated_method_casts_arbitrary_subclass(self) -> None:
-        codestr = f"""
+        codestr = """
             def f(x: str) -> bool:
                 return x.isdigit()
         """
@@ -66,7 +66,7 @@ class ReturnCastInsertionTests(StaticTestBase):
         self.assertNotInBytecode(f_code, "REFINE_TYPE")
 
     def test_annotated_method_does_not_cast_if_valid_on_subclasses(self) -> None:
-        codestr = f"""
+        codestr = """
             from __static__ import ContextDecorator
             class C(ContextDecorator):
                 pass

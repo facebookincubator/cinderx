@@ -6,17 +6,19 @@ from __future__ import annotations
 import ast
 import asyncio
 import builtins
-import cinderx
 import gc
 import os
 import re
-import symtable
 import sys
-from cinderx import StrictModule
 from contextlib import contextmanager
 from functools import wraps
 from types import CodeType, FunctionType
-from typing import Any, ContextManager, Dict, Generator, List, Mapping, Tuple, Type
+from typing import Any, ContextManager, Generator, Mapping
+
+import cinderx
+
+import cinderx.jit
+from cinderx import StrictModule
 
 from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.errors import (
@@ -50,8 +52,6 @@ from cinderx.static import (
 
 from ..common import CompilerTest
 
-import cinderx.jit
-
 TEST_OPT_OUT = DepTrackingOptOut("tests")
 
 
@@ -60,7 +60,9 @@ def type_mismatch(from_type: str, to_type: str) -> str:
 
 
 def bad_ret_type(from_type: str, to_type: str) -> str:
-    return re.escape(f"mismatched types: expected {to_type} because of return type, found {from_type} instead")
+    return re.escape(
+        f"mismatched types: expected {to_type} because of return type, found {from_type} instead"
+    )
 
 
 def disable_hir_inliner(f):
@@ -118,14 +120,26 @@ class TestCompiler(Compiler):
         if name not in self.modules:
             tree = self._get_module_ast(name)
             if tree is not None:
-                self.add_module(name, self._get_filename(name), tree, self.source_by_name.get(name) or name, optimize)
+                self.add_module(
+                    name,
+                    self._get_filename(name),
+                    tree,
+                    self.source_by_name.get(name) or name,
+                    optimize,
+                )
         return self.modules.get(name)
 
     def compile_module(self, name: str, optimize: int = 0) -> CodeType:
         tree = self._get_module_ast(name)
         if tree is None:
             raise ValueError(f"No source found for module '{name}'")
-        return self.compile(name, self._get_filename(name), tree, self.source_by_name.get(name) or name, optimize=optimize)
+        return self.compile(
+            name,
+            self._get_filename(name),
+            tree,
+            self.source_by_name.get(name) or name,
+            optimize=optimize,
+        )
 
     def _get_module_ast(self, name: str) -> ast.Module | None:
         source = self.source_by_name.get(name)
@@ -184,6 +198,11 @@ def add_fixed_module(d) -> None:
 
 
 class ErrorMatcher:
+    __slots__ = (
+        "msg",
+        "at",
+    )
+
     def __init__(self, msg: str, at: str | None = None) -> None:
         self.msg = msg
         self.at = at
@@ -195,7 +214,7 @@ class TestErrors:
         case: StaticTestBase,
         code: str,
         errors: list[TypedSyntaxError],
-        warnings: list[PerfWarning] = [],
+        warnings: list[PerfWarning],
     ) -> None:
         self.case = case
         self.code = code
@@ -249,9 +268,7 @@ class TestErrors:
             use_end_offset=use_end_offset,
         )
 
-    def check_warnings(
-        self, *matchers: ErrorMatcher, loc_only: bool = False
-    ) -> None:
+    def check_warnings(self, *matchers: ErrorMatcher, loc_only: bool = False) -> None:
         self._check("warning", self.warnings, *matchers, loc_only=loc_only)
 
     def match(self, msg: str, at: str | None = None) -> ErrorMatcher:
@@ -259,7 +276,9 @@ class TestErrors:
 
 
 class StaticTestBase(CompilerTest):
-    _inline_comprehensions = os.getenv("PYTHONINLINECOMPREHENSIONS") or sys.version_info >= (3, 12)
+    _inline_comprehensions = os.getenv(
+        "PYTHONINLINECOMPREHENSIONS"
+    ) or sys.version_info >= (3, 12)
 
     @classmethod
     def setUpClass(cls):
@@ -291,17 +310,17 @@ class StaticTestBase(CompilerTest):
         compiler = Compiler(StaticCodeGenerator)
         tree = ast.parse(self.clean_code(code))
         return compiler.compile(
-            modname, f"{modname}.py", tree, code, optimize, enable_patching=enable_patching
+            modname,
+            f"{modname}.py",
+            tree,
+            code,
+            optimize,
+            enable_patching=enable_patching,
         )
 
     def get_strict_compiler(self, enable_patching=False) -> StrictCompiler:
         return StrictCompiler(
-            [],
-            "",
-            [],
-            [],
-            raise_on_error=True,
-            enable_patching=enable_patching
+            [], "", [], [], raise_on_error=True, enable_patching=enable_patching
         )
 
     def compile_strict(
@@ -363,7 +382,7 @@ class StaticTestBase(CompilerTest):
         with self.assertRaisesRegex(TypedSyntaxError, pattern) as ctx:
             yield
         exc = ctx.exception
-        errors = TestErrors(self, self.clean_code(code), [ctx.exception])
+        errors = TestErrors(self, self.clean_code(code), [ctx.exception], [])
         if at is not None:
             errors.check(ErrorMatcher(pattern, at), loc_only=True, use_end_offset=False)
         if lineno is not None:
@@ -581,7 +600,7 @@ __slot_types__ = {slot_types!r}
 
     def make_async_func_hot(self, func):
         async def make_hot():
-            for i in range(50):
+            for _ in range(50):
                 await func()
 
         asyncio.run(make_hot())

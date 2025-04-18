@@ -1,5 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import asyncio
 
 from .common import StaticTestBase
 

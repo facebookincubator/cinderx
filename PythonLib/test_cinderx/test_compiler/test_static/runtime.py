@@ -1,18 +1,17 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from __static__ import chkdict, int64, is_type_static, make_generic_type, StaticGeneric
+from __static__ import chkdict, is_type_static, make_generic_type, StaticGeneric
 
 import asyncio
 import itertools
 import sys
 import time
 from collections import UserDict
-from copy import deepcopy
 from typing import Optional, TypeVar
-from unittest import skip, skipIf
+from unittest import skipIf
 
 try:
     from cinder import _get_qualname
-except:
+except:  # noqa: B001
 
     def _get_qualname(code):
         return code.co_qualname
@@ -20,7 +19,6 @@ except:
 
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
 from cinderx.compiler.pycodegen import PythonCodeGenerator
-from cinderx.compiler.static import StaticCodeGenerator
 from cinderx.compiler.static.types import (
     FAST_LEN_DICT,
     FAST_LEN_INEXACT,
@@ -29,16 +27,11 @@ from cinderx.compiler.static.types import (
     FAST_LEN_STR,
     FAST_LEN_TUPLE,
     SEQ_LIST,
-    SEQ_REPEAT_INEXACT_NUM,
-    SEQ_REPEAT_INEXACT_SEQ,
-    SEQ_REPEAT_PRIMITIVE_NUM,
-    SEQ_REPEAT_REVERSED,
     SEQ_SUBSCR_UNCHECKED,
-    SEQ_TUPLE,
     TypedSyntaxError,
 )
 
-from .common import add_fixed_module, bad_ret_type, StaticTestBase, type_mismatch
+from .common import bad_ret_type, StaticTestBase
 
 
 class StaticRuntimeTests(StaticTestBase):
@@ -305,11 +298,9 @@ class StaticRuntimeTests(StaticTestBase):
         o.setuint64(42)
         for i, f in enumerate([o.setint8, o.setint16, o.setint32, o.setint]):
             with self.assertRaises(OverflowError):
-                x = -(1 << ((8 << i) - 1)) - 1
-                f(x)
+                f(-(1 << ((8 << i) - 1)) - 1)
             with self.assertRaises(OverflowError):
-                x = 1 << ((8 << i) - 1)
-                f(x)
+                f(1 << ((8 << i) - 1))
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_uint_funcs_overflow(self):
@@ -322,8 +313,7 @@ class StaticRuntimeTests(StaticTestBase):
                 f(-1)
         for i, f in enumerate([o.setuint8, o.setuint16, o.setuint32, o.setuint64]):
             with self.assertRaises(OverflowError):
-                x = (1 << (8 << i)) + 1
-                f(x)
+                f((1 << (8 << i)) + 1)
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
     def test_generic_type_int_func(self):
@@ -346,7 +336,7 @@ class StaticRuntimeTests(StaticTestBase):
             o.setstr(42)
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_generic_type_bad_arg_cnt(self):
+    def test_generic_type_bad_arg_cnt_setstr(self):
         from xxclassloader import spamobj
 
         o = spamobj[str]()
@@ -589,7 +579,7 @@ class StaticRuntimeTests(StaticTestBase):
             # exercise shadowcode, INVOKE_METHOD_CACHED
             async def make_hot():
                 c = mod.C()
-                for i in range(50):
+                for _ in range(50):
                     await c.g()
 
             asyncio.run(make_hot())
@@ -2037,7 +2027,6 @@ class StaticRuntimeTests(StaticTestBase):
         """
         self.compiler(a=codestr).compile_module("a")
 
-
     def test_try_return_finally(self):
         codestr = """
         from typing import List
@@ -2050,9 +2039,9 @@ class StaticRuntimeTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             f1 = mod.f1
-            l = []
-            f1(l)
-            self.assertEqual(l, ["hi"])
+            li = []
+            f1(li)
+            self.assertEqual(li, ["hi"])
 
     def test_chkdict_del(self):
         codestr = """
@@ -2500,6 +2489,6 @@ class StaticRuntimeTests(StaticTestBase):
             f = mod.f
             with self.assertRaisesRegex(
                 TypeError,
-                rf"bad name provided for class loader: 'B' doesn't exist in type '<class '.*.A'>'",
+                r"bad name provided for class loader: 'B' doesn't exist in type '<class '.*.A'>'",
             ):
                 f()

@@ -26,9 +26,9 @@ class SequenceTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertNotInBytecode(mod.f, "SEQUENCE_GET")
             self.assertNotInBytecode(mod.f, "SEQUENCE_SET")
-            l = [1, 2]
-            self.assertEqual(mod.f(l), 1)
-            self.assertEqual(l, [1, 3])
+            li = [1, 2]
+            self.assertEqual(mod.f(li), 1)
+            self.assertEqual(li, [1, 3])
 
             class MyList(list):
                 def __getitem__(self, idx):

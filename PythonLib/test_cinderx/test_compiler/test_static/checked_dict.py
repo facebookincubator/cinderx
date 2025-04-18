@@ -1,13 +1,11 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from __static__ import chkdict
 
-from unittest import skip, skipIf
+import cinderx.jit
 
 from cinderx.compiler.static.types import FAST_LEN_DICT, TypedSyntaxError
 
 from .common import StaticTestBase, type_mismatch
-
-import cinderx.jit
 
 
 class CheckedDictTests(StaticTestBase):
@@ -292,7 +290,7 @@ class CheckedDictTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             test = mod.testfunc
             B = mod.B
-            for i in range(200):
+            for _ in range(200):
                 self.assertEqual(type(test()), chkdict[B, int])
 
     def test_compile_checked_dict_optional(self):
@@ -640,6 +638,6 @@ class CheckedDictTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             self.assertInBytecode(mod.f, "BUILD_CHECKED_MAP")
-            for i in range(50):
+            for _ in range(50):
                 self.assertEqual(mod.f(), "hello")
             self.assertEqual(mod.f(), "hello")

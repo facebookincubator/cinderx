@@ -140,22 +140,6 @@ class SuperTests(StaticTestBase):
             self.assertNotInBytecode(mod.B.g, "INVOKE_FUNCTION")
             self.assertEqual(mod.foo(), 4)
 
-    def test_unsupported_attr_in_parent_class(self):
-        codestr = """
-        class A:
-            f = 4
-
-        class B(A):
-            def g(self):
-                return super().f
-
-        def foo():
-            return B().g()
-        """
-        with self.in_strict_module(codestr) as mod:
-            self.assertNotInBytecode(mod.B.g, "INVOKE_FUNCTION")
-            self.assertEqual(mod.foo(), 4)
-
     def test_unsupported_attr_in_parents_parent_class(self):
         codestr = """
         class AA:

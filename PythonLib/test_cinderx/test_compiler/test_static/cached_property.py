@@ -1,10 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import asyncio
 import sys
-import unittest
+from unittest import skipIf
 
 from cinderx import async_cached_property, cached_property
-from unittest import skipIf
 
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.pycodegen import PythonCodeGenerator
@@ -192,14 +191,14 @@ class CachedPropertyTests(StaticTestBase):
             C = mod.C
             with self.assertRaisesRegex(
                 TypeError,
-                f"No '__dict__' attribute on 'C' instance to cache 'x' property.",
+                "No '__dict__' attribute on 'C' instance to cache 'x' property.",
             ):
                 C().x
 
             D = mod.D
             with self.assertRaisesRegex(
                 TypeError,
-                f"No '__dict__' attribute on 'D' instance to cache 'x' property.",
+                "No '__dict__' attribute on 'D' instance to cache 'x' property.",
             ):
                 D().x
 
@@ -710,7 +709,6 @@ class CachedPropertyTests(StaticTestBase):
         with self.in_module(
             nonstatic_codestr, code_gen=PythonCodeGenerator
         ) as nonstatic_mod:
-
             codestr = f"""
             from {nonstatic_mod.__name__} import A
             from cinderx import cached_property
@@ -752,7 +750,6 @@ class CachedPropertyTests(StaticTestBase):
         with self.in_module(
             nonstatic_codestr, code_gen=PythonCodeGenerator
         ) as nonstatic_mod:
-
             codestr = f"""
             from {nonstatic_mod.__name__} import A
             from cinderx import async_cached_property

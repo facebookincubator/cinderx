@@ -1,5 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-import asyncio
 
 import unittest
 
@@ -9,7 +8,6 @@ from .common import StaticTestBase
 
 
 class ClassDecoratorTests(StaticTestBase):
-
     def test_class_decl_simple(self):
         codestr = """
             from __static__ import ClassDecorator, TClass
@@ -17,7 +15,7 @@ class ClassDecoratorTests(StaticTestBase):
             def mydec(cls: TClass) -> TClass:
                 cls.my_tag = 42
                 return cls
-                
+
             @mydec
             class C:
                 def __init__(self) -> None:
@@ -40,7 +38,7 @@ class ClassDecoratorTests(StaticTestBase):
                     cls.foo = x
                     return cls
                 return mydec
-                
+
             @mydec('foo')
             class C:
                 def __init__(self) -> None:
@@ -62,7 +60,7 @@ class ClassDecoratorTests(StaticTestBase):
                 return cls
             def mydec() -> ClassDecorator:
                 return decfunc
-                
+
             @mydec()
             class C:
                 def __init__(self) -> None:
@@ -84,7 +82,7 @@ class ClassDecoratorTests(StaticTestBase):
 
             def mydec(cls: TClass) -> ClassDecorator:
                 return None
-                
+
             @mydec
             class C:
                 def __init__(self) -> None:
@@ -104,7 +102,7 @@ class ClassDecoratorTests(StaticTestBase):
                 def mydec(cls: TClass) -> TClass:
                     return None
                 return mydec
-                                
+
             @mydec
             class C:
                 def __init__(self) -> None:
@@ -122,7 +120,7 @@ class ClassDecoratorTests(StaticTestBase):
 
             def f(x: TClass|None = None) -> TClass|None:
                 return None
-            
+
             def mydec(reason: str) -> ClassDecorator:
                 def mydec(cls: TClass) -> TClass:
                     x = f(int)
@@ -130,7 +128,7 @@ class ClassDecoratorTests(StaticTestBase):
                         return x
                     return cls
                 return mydec
-                                
+
             @mydec('foo')
             class C:
                 def __init__(self) -> None:
@@ -151,14 +149,14 @@ class ClassDecoratorTests(StaticTestBase):
             def mydec() -> object:
                 def f(x: TClass|None = None) -> TClass|None:
                     return None
-                
+
                 def mydec(cls: TClass) -> TClass:
                     x = f(42)
                     if x is not None:
                         return x
                     return cls
                 return mydec
-                                
+
             @mydec()
             class C:
                 def __init__(self) -> None:
@@ -204,7 +202,7 @@ class ClassDecoratorTests(StaticTestBase):
                 def decfunc(cls: object) -> object:
                     return 42
                 return decfunc
-                                
+
             @mydec
             class C:
                 def __init__(self) -> None:
@@ -225,7 +223,7 @@ class ClassDecoratorTests(StaticTestBase):
                     cls.foo = x
                     return cls
                 return mydec
-                
+
             @mydec('foo')
             class C:
                 def __init__(self) -> None:
@@ -269,7 +267,7 @@ class ClassDecoratorTests(StaticTestBase):
                         return 42
                 else:
                     inner_func = func
-                
+
                 return inner_func()
 
             x = f(lambda: 100, True)
@@ -277,6 +275,7 @@ class ClassDecoratorTests(StaticTestBase):
 
         with self.in_module(codestr, name="mymod") as mod:
             self.assertEqual(mod.x, 100)
+
 
 if __name__ == "__main__":
     unittest.main()

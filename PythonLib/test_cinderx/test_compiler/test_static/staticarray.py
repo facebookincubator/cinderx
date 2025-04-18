@@ -1,5 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from itertools import permutations
 
 from cinderx import static
 

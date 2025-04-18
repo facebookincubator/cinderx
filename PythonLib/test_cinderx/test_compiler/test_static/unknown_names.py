@@ -1,9 +1,4 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-from __static__ import TYPED_DOUBLE
-
-import re
-
-from cinderx.compiler.errors import TypedSyntaxError
 
 from .common import StaticTestBase
 
@@ -130,7 +125,7 @@ class UnknownNameTests(StaticTestBase):
                 from a import x as y
                 return y
         """
-        bcomp = self.compiler(a=acode, b=bcode).compile_module("b")
+        self.compiler(a=acode, b=bcode).compile_module("b")
 
     def test_unknown_decorated_functions_declared(self) -> None:
         codestr = """
@@ -170,7 +165,7 @@ class UnknownNameTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_name_defined_only_in_else_unknown(self) -> None:
+    def test_name_defined_only_in_else_unknown_except(self) -> None:
         codestr = """
             def foo(self):
                 try:

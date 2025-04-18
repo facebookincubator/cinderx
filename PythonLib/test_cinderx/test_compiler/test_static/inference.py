@@ -1,6 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import re
-from unittest import skip
 
 from .common import StaticTestBase
 
@@ -14,7 +13,7 @@ class InferenceTests(StaticTestBase):
                 reveal_type(y)
         """
         self.type_error(
-            codestr, rf"reveal_type\(y\): 'Optional\[int\]'", at="reveal_type"
+            codestr, r"reveal_type\(y\): 'Optional\[int\]'", at="reveal_type"
         )
 
     def test_if_exp_same_type(self) -> None:
@@ -26,7 +25,7 @@ class InferenceTests(StaticTestBase):
                 reveal_type(x)
         """
         self.type_error(
-            codestr, rf"reveal_type\(x\): 'Exact\[<module>.C\]'", at="reveal_type"
+            codestr, r"reveal_type\(x\): 'Exact\[<module>.C\]'", at="reveal_type"
         )
 
     def test_type_widened_in_while_loop(self) -> None:

@@ -1,7 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.static.types import TypedSyntaxError
 
-from .common import StaticTestBase, bad_ret_type
+from .common import bad_ret_type, StaticTestBase
 
 
 class AnnotatedTests(StaticTestBase):
@@ -26,8 +26,7 @@ class AnnotatedTests(StaticTestBase):
             reveal_type(foo())
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError,
-            bad_ret_type("Literal[0]", "str")
+            TypedSyntaxError, bad_ret_type("Literal[0]", "str")
         ):
             self.compile(codestr)
 
@@ -41,19 +40,6 @@ class AnnotatedTests(StaticTestBase):
         with self.assertRaisesRegex(
             TypedSyntaxError,
             r"reveal_type\(foo\(\)\): 'Optional\[int\]'",
-        ):
-            self.compile(codestr)
-
-    def test_subscript_must_be_tuple(self) -> None:
-        codestr = """
-            from typing import Annotated, Optional
-            def foo() -> Optional[Annotated[int]]:
-                return 0
-            reveal_type(foo())
-        """
-        with self.assertRaisesRegex(
-            TypedSyntaxError,
-            r"Annotated types must be parametrized by at least one annotation",
         ):
             self.compile(codestr)
 
@@ -143,7 +129,9 @@ class AnnotatedTests(StaticTestBase):
             r"<module>.C received for positional arg 'c', expected Exact\[<module>.C\]",
         )
 
-    def test_exact_type_annotations_nonstatic_subclass_runtime_type_error(self) -> None:
+    def test_exact_type_annotations_nonstatic_subclass_runtime_type_error_final(
+        self,
+    ) -> None:
         codestr = """
             from typing import final
             from typing import Annotated

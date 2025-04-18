@@ -4,11 +4,12 @@ from __static__ import ContextDecorator
 import asyncio
 import inspect
 import sys
-from unittest import skip, skipIf
+from unittest import skipIf
 
 from cinderx.test_support import get_await_stack
 
 from .common import StaticTestBase
+
 
 class ContextDecoratorTests(StaticTestBase):
     def test_simple(self):
@@ -567,7 +568,7 @@ class ContextDecoratorTests(StaticTestBase):
             return 42
 
         x = f()
-        with self.assertRaises(StopIteration):
+        with self.assertRaises(StopIteration):  # noqa: B908
             x.send(None)
             self.assertTrue(exit_called)
 
@@ -605,7 +606,7 @@ class ContextDecoratorTests(StaticTestBase):
             return 42
 
         x = f()
-        with self.assertRaises(StopIteration) as se:
+        with self.assertRaises(StopIteration) as se:  # noqa: B908
             x.send(None)
             fut.set_result(None)
             x.send(None)
@@ -651,7 +652,7 @@ class ContextDecoratorTests(StaticTestBase):
             raise ValueError()
 
         x = f()
-        with self.assertRaises(ValueError):
+        with self.assertRaises(ValueError):  # noqa: B908
             x.send(None)
 
             fut.set_result(None)
@@ -669,7 +670,7 @@ class ContextDecoratorTests(StaticTestBase):
 
         # just checking to make sure this doesn't leak
         # in ref leak tests
-        x = f()
+        x = f()  # noqa: F841
 
     def test_nonstatic_override(self):
         class C(ContextDecorator):
@@ -841,21 +842,21 @@ class ContextDecoratorTests(StaticTestBase):
             await fut
 
         x = f()
-        with self.assertRaises(ValueError) as e:
+        with self.assertRaises(ValueError) as e:  # noqa: F841
             x.throw(ValueError())
 
         loop.close()
 
     def test_nonstatic_recreate(self):
         class C(ContextDecorator):
-            def _recreate_cm(self_):
+            def _recreate_cm(self):
                 return C()
 
-            def __enter__(self_):
+            def __enter__(self_):  # noqa: B902
                 self.assertNotEqual(a, self_)
                 return self_
 
-            def __exit__(self_, *args):
+            def __exit__(self_, *args):  # noqa: B902
                 return True
 
         a = C()
@@ -962,7 +963,7 @@ class ContextDecoratorTests(StaticTestBase):
         async def f():
             pass
 
-        x = f()
+        x = f()  # noqa: F841
         self.assertFalse(enter_called)
 
     def test_nonstatic_async_return_tuple_on_throw(self):

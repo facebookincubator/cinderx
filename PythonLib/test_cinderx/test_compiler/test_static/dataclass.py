@@ -1703,7 +1703,7 @@ class DataclassTests(StaticTestBase):
                     )
 
     def test_dataclass_override_must_be_consistent(self) -> None:
-        codestr = f"""
+        codestr = """
         from dataclasses import dataclass
 
         @dataclass
@@ -1726,7 +1726,7 @@ class DataclassTests(StaticTestBase):
         )
 
     def test_dataclass_does_not_allow_multiple_inheritance(self) -> None:
-        codestr = f"""
+        codestr = """
         from dataclasses import dataclass
 
         @dataclass
@@ -1749,7 +1749,7 @@ class DataclassTests(StaticTestBase):
         )
 
     def test_dataclass_can_call_init_on_subclass(self) -> None:
-        codestr = f"""
+        codestr = """
         from dataclasses import dataclass
 
         @dataclass
@@ -1766,7 +1766,7 @@ class DataclassTests(StaticTestBase):
             self.assertEqual(mod.d.x, 2)
 
     def test_dataclass_method_call(self) -> None:
-        codestr = f"""
+        codestr = """
         from dataclasses import dataclass
 
         @dataclass
@@ -1808,13 +1808,15 @@ class DataclassTests(StaticTestBase):
             y: str
         """
         with self.in_module(codestr) as mod:
-            self.assertTrue(mod.C.__init__.__code__.co_flags & CI_CO_STATICALLY_COMPILED)
+            self.assertTrue(
+                mod.C.__init__.__code__.co_flags & CI_CO_STATICALLY_COMPILED
+            )
 
     def test_dataclass_property(self) -> None:
         codestr = """
         from dataclasses import dataclass
         from typing import Optional
-        
+
         @dataclass(frozen=True)
         class C:
             name: str = ""
@@ -1836,6 +1838,6 @@ class DataclassTests(StaticTestBase):
 
         """
         with self.in_module(codestr) as mod:
-            a = mod.C('foo')
-            for i in range(256):
-                self.assertEqual(mod.x(a), 'fooFalseNoneNone')
+            a = mod.C("foo")
+            for _ in range(256):
+                self.assertEqual(mod.x(a), "fooFalseNoneNone")
