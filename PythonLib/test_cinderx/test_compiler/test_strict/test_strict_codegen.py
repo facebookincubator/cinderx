@@ -4,7 +4,6 @@ from __future__ import annotations
 import sys
 
 import unittest
-from typing import Any
 
 from .common import StrictTestBase, StrictTestWithCheckerBase
 
@@ -38,7 +37,7 @@ class StrictCompilationTests(StrictTestBase):
         class C:
             x = 1
         """
-        code = self.compile(codestr)
+        self.compile(codestr)
         with self.with_freeze_type_setting(False), self.in_module(codestr) as mod:
             C = mod.C
             self.assertEqual(C.x, 1)
@@ -131,7 +130,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
 
         called = False
 
-        def side_effect(x: List[object]) -> None:
+        def side_effect(x: list[object]) -> None:
             nonlocal called
             called = True
             self.assertEqual(x, [42])
@@ -152,7 +151,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
 
         called = False
 
-        def side_effect(x: List[object]) -> None:
+        def side_effect(x: list[object]) -> None:
             nonlocal called
             called = True
             self.assertEqual(x, [42])
@@ -318,8 +317,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
                 a = x
         """
         with self.assertRaisesRegex(NameError, "name 'x' is not defined"):
-            mod = self.compile_and_run(code)
-            mod.f()
+            self.compile_and_run(code).f()
 
     def test_closure(self) -> None:
         code = """

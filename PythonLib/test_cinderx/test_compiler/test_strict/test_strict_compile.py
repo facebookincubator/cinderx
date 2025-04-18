@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 import sys
+from typing import final
 
 from cinderx.compileall import compile_dir, compile_file
-from typing import final
 
 from cinderx.compiler.strict.loader import strict_compile
 
@@ -51,9 +51,9 @@ class StrictCompileTest(StrictTestBase):
 
         package_name = "my_package"
 
-        mod_path = self.sbx.write_file(package_name + "/foo.py", codestr)
-        mod_path = self.sbx.write_file(package_name + "/__init__.py", codestr)
-        mod_path = self.sbx.write_file(package_name + "/bar.py", codestr)
+        self.sbx.write_file(package_name + "/foo.py", codestr)
+        self.sbx.write_file(package_name + "/__init__.py", codestr)
+        self.sbx.write_file(package_name + "/bar.py", codestr)
 
         compile_dir(str(self.sbx.root / package_name), strict_compile=True, quiet=1)
 

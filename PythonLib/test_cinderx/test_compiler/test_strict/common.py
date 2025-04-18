@@ -3,16 +3,15 @@ from __future__ import annotations
 
 import ast
 import builtins
-
-import cinderx
 import gc
 import inspect
 import sys
-from cinderx import cached_property
 from contextlib import contextmanager
 from types import CodeType
-from typing import Any, Callable, Dict, Mapping, Optional, Tuple, Type
-from unittest import skip
+from typing import Any, Callable, Mapping
+
+import cinderx
+from cinderx import cached_property
 
 from cinderx.compiler.strict import strict_compile, StrictCodeGenerator
 from cinderx.compiler.strict.common import FIXED_MODULES
@@ -116,7 +115,7 @@ class StrictTestBase(CompilerTest):
 
 
 def init_cached_properties(
-    cached_props: Mapping[str, str | tuple[str, bool]]
+    cached_props: Mapping[str, str | tuple[str, bool]],
 ) -> Callable[[type[object]], type[object]]:
     """replace the slots in a class with a cached property which uses the slot
     storage"""

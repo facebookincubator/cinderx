@@ -3,12 +3,9 @@ from __future__ import annotations
 
 import ast
 import symtable
-import sys
-import unittest
 from textwrap import dedent
-from types import CoroutineType, FunctionType, ModuleType
-from typing import Any, Dict, final, List, Optional, Set, Type, TypeVar
-from weakref import ref
+from types import FunctionType
+from typing import Any, final
 
 from cinderx.compiler.strict import strict_compile
 from cinderx.compiler.strict.common import FIXED_MODULES

@@ -10,8 +10,8 @@ import pathlib
 import subprocess
 import sys
 import tempfile
-import unittest
 import textwrap
+import unittest
 
 from contextlib import contextmanager
 from importlib.machinery import SOURCE_SUFFIXES, SourceFileLoader
@@ -25,18 +25,12 @@ from typing import (
     final,
     Generator,
     List,
-    Optional,
     Sequence,
-    Tuple,
-    Type,
     TYPE_CHECKING,
     TypeVar,
 )
-from unittest import skip
 from unittest.mock import patch
 
-from cinderx.compiler.strict.common import FIXED_MODULES
-from cinderx.compiler.strict.compiler import StrictModuleError
 from cinderx.compiler.strict.loader import (
     _MAGIC_LEN,
     _MAGIC_NEITHER_STRICT_NOR_STATIC,
@@ -64,6 +58,7 @@ try:
 
     HAVE_WARN_HANDLERS: bool = True
 except ImportError:
+
     def cinder_set_warn_handler(func):
         pass
 
@@ -615,14 +610,14 @@ class StrictLoaderTest(StrictTestBase):
         )
         with self.sbx.begin_loader(STRICT_LOADER):
             self.sbx.write_file("dependency.py", "import __strict__\nabc = 42")
-            dependency = self.sbx.import_modules("dependency")
+            self.sbx.import_modules("dependency")
 
             __builtins__["abc"] = 42
-            mod1x = self.sbx.import_modules("strict")
+            self.sbx.import_modules("strict")
             del __builtins__["abc"]
             del sys.modules["strict"]
             # should successfully import with `abc` no longer defined
-            mod1 = self.sbx.import_modules("strict")
+            self.sbx.import_modules("strict")
 
     def test_magic_number(self) -> None:
         """Extra magic number is written to strict pycs, and validated."""
@@ -1432,9 +1427,7 @@ class StrictLoaderTest(StrictTestBase):
         calls: list[str] = []
         import __strict__  # this test relies on this being imported already
 
-        def log(
-            filename: str, bytecode_path: str | None, bytecode_found: bool
-        ) -> None:
+        def log(filename: str, bytecode_path: str | None, bytecode_found: bool) -> None:
             calls.append(filename)
             self.assertEqual(bytecode_found, False)
             assert bytecode_path is not None
@@ -1815,7 +1808,9 @@ class StrictLoaderTest(StrictTestBase):
             C.foo = 42
             self.assertEqual(C.foo, 42)
 
-    @unittest.skipIf(HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported")
+    @unittest.skipIf(
+        HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported"
+    )
     def test_loose_slots(self) -> None:
         self.sbx.write_file(
             "a.py",
@@ -1872,7 +1867,9 @@ class StrictLoaderTest(StrictTestBase):
                 ],
             )
 
-    @unittest.skipIf(HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported")
+    @unittest.skipIf(
+        HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported"
+    )
     def test_loose_slots_with_unknown_bases(self) -> None:
         self.sbx.write_file(
             "b.py",
@@ -1971,7 +1968,9 @@ class StrictLoaderTest(StrictTestBase):
                 warnings,
             )
 
-    @unittest.skipIf(HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported")
+    @unittest.skipIf(
+        HAVE_WARN_HANDLERS, "T214641462: Strict Modules warn handlers not supported"
+    )
     def test_class_explicit_dict_no_warning(self) -> None:
         self.sbx.write_file(
             "a.py",
@@ -2446,7 +2445,7 @@ class StrictLoaderTest(StrictTestBase):
                 "-X",
                 "install-strict-loader",
                 "-X",
-                f"strict-module-stubs-path=/nonexistent",
+                "strict-module-stubs-path=/nonexistent",
                 "a.py",
             ],
             cwd=str(self.sbx.root),
@@ -2543,7 +2542,7 @@ class StrictLoaderTest(StrictTestBase):
             import flag
 
             flag.val = False
-            import mod, other
+            import mod, other  # noqa: E401, F811
 
             c = mod.C()
 

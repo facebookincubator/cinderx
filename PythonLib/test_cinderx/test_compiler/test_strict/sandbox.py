@@ -7,7 +7,7 @@ from importlib.machinery import FileFinder
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
-from typing import Callable, ContextManager, Generator, Type, TypeVar
+from typing import Callable, ContextManager, Generator, TypeVar
 from unittest import TestCase
 
 from cinderx.compiler.strict.common import DEFAULT_STUB_PATH

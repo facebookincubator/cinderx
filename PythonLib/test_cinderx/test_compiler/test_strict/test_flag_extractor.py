@@ -1,9 +1,8 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 import ast
 from textwrap import dedent
-from typing import final, Optional, Sequence
+from typing import final
 
-from cinderx.compiler.strict.common import DEFAULT_STUB_PATH
 from cinderx.compiler.strict.flag_extractor import (
     BadFlagException,
     FlagExtractor,
@@ -11,7 +10,6 @@ from cinderx.compiler.strict.flag_extractor import (
 )
 
 from .common import StrictTestBase
-from .sandbox import sandbox
 
 
 @final
