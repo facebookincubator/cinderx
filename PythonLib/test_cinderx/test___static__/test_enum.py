@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# @lint-ignore-every PYTHONPICKLEISBAD
 from __future__ import annotations
 
 from __static__.enum import Enum

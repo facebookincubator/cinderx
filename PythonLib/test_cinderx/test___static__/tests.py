@@ -6,12 +6,12 @@ These are tests for the plain-Python fallback implementations in __static__;
 the static-Python uses are tested in test_compiler/test_static.py.
 
 """
+
 from __static__ import (
     allow_weakrefs,
     box,
     byte,
     cast,
-    cbool,
     cbool,
     char,
     CheckedDict,
