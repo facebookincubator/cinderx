@@ -104,6 +104,10 @@ class Type {
   // TBool.runtimePyType() == &PyBool_Type
   PyTypeObject* runtimePyType() const;
 
+  // Get the destructor for the result of runtimePyType(), if it returns a valid
+  // type.
+  std::optional<destructor> runtimePyTypeDestructor() const;
+
   // Return the PyObject* that this type represents, or nullptr if it
   // represents more than one object (or a non-object type). This is similar to
   // objectSpec() (but with support for NoneType) and is the inverse of

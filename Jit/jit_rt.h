@@ -226,9 +226,6 @@ PyObject* JITRT_GetAttrFromSuper(
     PyObject* name,
     bool no_args_in_super_call);
 
-// dealloc a PyObject object
-void JITRT_Dealloc(PyObject* obj);
-
 /*
  * Mimics the behavior of the UNARY_NOT opcode.
  *

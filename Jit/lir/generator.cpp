@@ -536,7 +536,17 @@ void LIRGenerator::MakeDecref(
     dealloc->setSection(codegen::CodeSection::kCold);
   }
 
-  bbb.appendInvokeInstruction(JITRT_Dealloc, obj);
+  auto destructor = obj->type().runtimePyTypeDestructor();
+  if (destructor.has_value()) {
+#ifdef Py_TRACE_REFS
+    bbb.appendInvokeInstruction(_Py_ForgetReference, obj);
+#endif
+
+    bbb.appendInvokeInstruction(destructor.value(), obj);
+  } else {
+    bbb.appendInvokeInstruction(_Py_Dealloc, obj);
+  }
+
   bbb.appendBlock(end_decref);
 }
 

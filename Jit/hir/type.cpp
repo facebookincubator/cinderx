@@ -441,6 +441,26 @@ PyTypeObject* Type::runtimePyType() const {
   return hasTypeSpec() ? typeSpec() : uniquePyType();
 }
 
+std::optional<destructor> Type::runtimePyTypeDestructor() const {
+  // If we do not have a runtime type that we can determine from this type, then
+  // we cannot reliably determine the destructor.
+  auto type = runtimePyType();
+  if (type == nullptr) {
+    return std::nullopt;
+  }
+
+  // If the type is the none type (which we can statically determine), then we
+  // should not return the destructor. It's technically harmless to call it in
+  // 3.11+, but in 3.10 it will crash.
+  if (type == Py_TYPE(Py_None)) {
+    return std::nullopt;
+  }
+
+  // Since we now have a destructor function that we can return, we can make it
+  // into an optional and return it.
+  return std::make_optional(type->tp_dealloc);
+}
+
 PyObject* Type::asObject() const {
   if (*this <= TNoneType) {
     return Py_None;

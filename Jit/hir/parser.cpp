@@ -417,6 +417,11 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       NEW_INSTR(Decref, var);
       break;
     }
+    case Opcode::kXDecref: {
+      auto var = ParseRegister();
+      NEW_INSTR(XDecref, var);
+      break;
+    }
     case Opcode::kIncref: {
       auto var = ParseRegister();
       NEW_INSTR(Incref, var);
@@ -1024,7 +1029,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kWaitHandleLoadCoroOrResult:
     case Opcode::kWaitHandleLoadWaiter:
     case Opcode::kWaitHandleRelease:
-    case Opcode::kXDecref:
     case Opcode::kXIncref:
     case Opcode::kYieldAndYieldFrom:
     case Opcode::kYieldFrom:

@@ -182,9 +182,16 @@ MemoryEffects memoryEffects(const Instr& inst) {
       return {false, AEmpty, {inst.NumOperands()}, AOther};
 
     case Opcode::kBatchDecref:
-    case Opcode::kDecref:
-    case Opcode::kXDecref:
       return {false, AEmpty, {1, 1}, AManagedHeapAny};
+
+    case Opcode::kDecref:
+    case Opcode::kXDecref: {
+      if (inst.GetOperand(0)->type().runtimePyTypeDestructor().has_value()) {
+        return {false, AEmpty, {inst.NumOperands()}, AOther};
+      } else {
+        return {false, AEmpty, {1, 1}, AManagedHeapAny};
+      }
+    }
 
     case Opcode::kMakeFunction:
       // MakeFunction can invoke the JIT which may at some point have effects

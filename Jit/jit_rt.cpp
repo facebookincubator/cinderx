@@ -1012,10 +1012,6 @@ PyObject* JITRT_Vectorcall(
   return res;
 }
 
-void JITRT_Dealloc(PyObject* obj) {
-  _Py_Dealloc(obj);
-}
-
 PyObject* JITRT_UnaryNot(PyObject* value) {
   int res = PyObject_IsTrue(value);
   if (res == 0) {
