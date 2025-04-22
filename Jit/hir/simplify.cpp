@@ -5,6 +5,7 @@
 #include "structmember.h"
 
 #include "cinderx/Common/property.h"
+#include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
@@ -183,6 +184,48 @@ struct Env {
         {bb2, bb2_reg},
     };
     return emit<Phi>(phi_srcs);
+  }
+
+  // Create and return a conditional value that could go through a slow path if
+  // it matches a certain condition. Expects two callables:
+  //
+  // - do_branch is given a BasicBlock* and it is expected that it will
+  //   conditionally branch to that block if it needs to. The true_bb will be
+  //   patched after the fast path is split. It should return the branch
+  //   instruction so that it can be patched.
+  // - do_slow_path should emit code for the slow path, returning the computed
+  //   value.
+  //
+  // It is expected that the slow path will jump back to the default path at the
+  // end of its block.
+  template <typename BranchFn, typename SlowPathFn>
+  Phi* emitCondSlowPath(
+      Register* output,
+      Register* previous_path_value,
+      BranchFn do_branch,
+      SlowPathFn do_slow_path) {
+    new_blocks += 2;
+
+    BasicBlock* previous_path = block;
+    BasicBlock* slow_path = func.cfg.AllocateBlock();
+
+    auto branch = do_branch(slow_path);
+    BasicBlock* fast_path = block->splitAfter(*branch);
+    branch->set_true_bb(fast_path);
+
+    block = slow_path;
+    cursor = slow_path->begin();
+    auto slow_path_value = do_slow_path();
+    emit<Branch>(fast_path);
+
+    block = fast_path;
+    cursor = fast_path->begin();
+    std::unordered_map<BasicBlock*, Register*> args{
+        {previous_path, previous_path_value},
+        {slow_path, slow_path_value},
+    };
+
+    return emitRawInstr<Phi>(output, args);
   }
 };
 
@@ -1408,6 +1451,92 @@ Register* simplifyVectorCallStatic(Env& env, const VectorCall* instr) {
   return trySpecializeCCall(env, instr);
 }
 
+// Special case here where we are testing `if isinstance`. In that case we do
+// not want to go through the boxing and then unboxing that we are about to do.
+// Instead, we want to directly provide the result of the unboxed comparison.
+std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
+    Env& env,
+    const VectorCall* instr) {
+  std::vector<Instr*> snapshots;
+
+  LivenessAnalysis::LastUses last_uses;
+  Register* output = nullptr;
+
+  enum state { kInitial, kCondBranch, kIsTruthy, kFailed };
+  auto state = kInitial;
+
+  auto block = instr->block();
+  for (auto current = block->rbegin();
+       current != block->rend() && state != kFailed;
+       ++current) {
+    switch (state) {
+      case kInitial: {
+        if (!current->IsCondBranch()) {
+          state = kFailed;
+          break;
+        }
+
+        LivenessAnalysis analysis{env.func};
+        analysis.Run();
+
+        last_uses = analysis.GetLastUses();
+        if (last_uses.at(&*current).size() != 1) {
+          // If the CondBranch instruction is not the last use of the
+          // IsTruthy output, then we cannot perform this optimization.
+          state = kFailed;
+          break;
+        }
+
+        state = kCondBranch;
+        output = current->GetOperand(0);
+        break;
+      }
+      case kCondBranch: {
+        if (current->IsIsTruthy() && output == current->output() &&
+            current->GetOperand(0) == instr->output()) {
+          if (last_uses.at(&*current).size() != 1) {
+            // If the IsTruthy instruction is not the last use of the VectorCall
+            // output, then we cannot perform this optimization.
+            state = kFailed;
+          } else {
+            state = kIsTruthy;
+          }
+          break;
+        }
+
+        if (current->IsSnapshot()) {
+          snapshots.push_back(&*current);
+          break;
+        }
+
+        state = kFailed;
+        break;
+      }
+      case kIsTruthy: {
+        if (&*current == instr) {
+          JIT_CHECK(output != nullptr, "output should have been set");
+          return std::make_optional(std::make_pair(output->instr(), snapshots));
+        }
+
+        if (current->IsSnapshot()) {
+          // Leave these snapshots in place.
+          break;
+        }
+
+        state = kFailed;
+        break;
+      }
+      case kFailed:
+        JIT_ABORT("Hit kFailed state but it should not be reachable");
+    }
+  }
+
+  // If we found anything else between the VectorCall, IsTruthy, and CondBranch
+  // besides the expected instructions and some snapshots, then we cannot
+  // perform this optimization.
+  return std::nullopt;
+}
+
 Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
   if (Register* result = simplifyVectorCallStatic(env, instr)) {
     return result;
@@ -1438,6 +1567,57 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
 
     auto compare_type = env.emit<PrimitiveCompare>(
         PrimitiveCompareOp::kEqual, obj_type, type_op);
+
+    // If this is a VectorCall to isinstance and it's being used as the
+    // predicate of an if statement, it will look like:
+    //
+    //     o1 = VectorCall
+    //     o2 = IsTruthy o1
+    //     CondBranch o2
+    //
+    // Below, this would then expand into boxing the bool on both sides of the
+    // conditional, then unboxing it again to do another comparison. Instead, we
+    // can circumvent that by directly using the result of the primitive
+    // compare.
+    auto data = isVectorCallIfIsInstance(env, instr);
+    if (data.has_value()) {
+      auto& [is_truthy, snapshots] = data.value();
+      auto result = is_truthy->output();
+
+      // We no longer need the IsTruthy instruction.
+      is_truthy->unlink();
+      delete is_truthy;
+
+      // We also no longer need the Snapshot instructions contained between the
+      // IsTruthy instruction and the CondBranch instruction.
+      for (auto snapshot : snapshots) {
+        snapshot->unlink();
+        delete snapshot;
+      }
+
+      env.emitCondSlowPath(
+          result,
+          compare_type,
+          [&](auto slow_path) {
+            return env.emitInstr<CondBranch>(compare_type, nullptr, slow_path);
+          },
+          [&] {
+            auto isinstance_call =
+                env.emit<IsInstance>(obj_op, type_op, *instr->frameState());
+            auto true_output = env.emit<LoadConst>(Type::fromCInt(1, TCInt32));
+            return env.emit<PrimitiveCompare>(
+                PrimitiveCompareOp::kEqual, isinstance_call, true_output);
+          });
+
+      // The output of the VectorCall instruction was previously a TBool, but we
+      // are replacing it with a TCBool since we are now doing a primitive
+      // compare instead. This works, but requires that we change the
+      // instruction's output type to match in order to pass the assertions that
+      // come after the call to simplifyInstr.
+      instr->output()->set_type(TCBool);
+
+      return result;
+    }
 
     return env.emitCond(
         [&](BasicBlock* fast_path, BasicBlock* slow_path) {

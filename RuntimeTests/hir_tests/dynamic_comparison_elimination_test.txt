@@ -163,44 +163,34 @@ fun jittestmodule:test {
     Snapshot
     v17:Type = LoadField<ob_type@8, Type, borrowed> v7
     v18:CBool = PrimitiveCompare<Equal> v17 v12
-    CondBranch<3, 4> v18
+    CondBranch<4, 3> v18
   }
 
   bb 3 (preds 0) {
-    v19:Bool = PrimitiveBoxBool v18
-    Branch<5>
-  }
-
-  bb 4 (preds 0) {
-    v20:CInt32 = IsInstance v7 v12 {
+    v19:CInt32 = IsInstance v7 v12 {
       FrameState {
         CurInstrOffset 6
         Locals<1> v7
       }
     }
-    v21:CInt32[1] = LoadConst<CInt32[1]>
-    v22:CBool = PrimitiveCompare<Equal> v20 v21
-    v23:Bool = PrimitiveBoxBool v22
-    Branch<5>
+    v20:CInt32[1] = LoadConst<CInt32[1]>
+    v21:CBool = PrimitiveCompare<Equal> v19 v20
+    Branch<4>
   }
 
-  bb 5 (preds 3, 4) {
-    v24:Bool = Phi<3, 4> v19 v23
+  bb 4 (preds 0, 3) {
+    v14:CBool = Phi<0, 3> v18 v21
     Snapshot
-    UseType<Bool> v24
-    v25:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v26:CBool = PrimitiveCompare<Equal> v24 v25
-    v27:CInt32 = IntConvert<CInt32> v26
-    CondBranch<1, 2> v26
+    CondBranch<1, 2> v14
   }
 
-  bb 1 (preds 5) {
+  bb 1 (preds 4) {
     Snapshot
     v15:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Return v15
   }
 
-  bb 2 (preds 5) {
+  bb 2 (preds 4) {
     Snapshot
     v16:NoneType = LoadConst<NoneType>
     Return v16
@@ -242,44 +232,34 @@ fun jittestmodule:test {
     Snapshot
     v28:Type = LoadField<ob_type@8, Type, borrowed> v11
     v29:CBool = PrimitiveCompare<Equal> v28 v20
-    CondBranch<5, 6> v29
+    CondBranch<6, 5> v29
   }
 
   bb 5 (preds 3) {
-    v30:Bool = PrimitiveBoxBool v29
-    Branch<7>
-  }
-
-  bb 6 (preds 3) {
-    v31:CInt32 = IsInstance v11 v20 {
+    v30:CInt32 = IsInstance v11 v20 {
       FrameState {
         CurInstrOffset 24
         Locals<1> v11
       }
     }
-    v32:CInt32[1] = LoadConst<CInt32[1]>
-    v33:CBool = PrimitiveCompare<Equal> v31 v32
-    v34:Bool = PrimitiveBoxBool v33
-    Branch<7>
+    v31:CInt32[1] = LoadConst<CInt32[1]>
+    v32:CBool = PrimitiveCompare<Equal> v30 v31
+    Branch<6>
   }
 
-  bb 7 (preds 5, 6) {
-    v35:Bool = Phi<5, 6> v30 v34
+  bb 6 (preds 3, 5) {
+    v22:CBool = Phi<3, 5> v29 v32
     Snapshot
-    UseType<Bool> v35
-    v36:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    v37:CBool = PrimitiveCompare<Equal> v35 v36
-    v38:CInt32 = IntConvert<CInt32> v37
-    CondBranch<1, 2> v37
+    CondBranch<1, 2> v22
   }
 
-  bb 1 (preds 7) {
+  bb 1 (preds 6) {
     Snapshot
     v23:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
     Return<ImmortalLongExact[1]> v23
   }
 
-  bb 2 (preds 7) {
+  bb 2 (preds 6) {
     Snapshot
     v25:NoneType = LoadConst<NoneType>
     Return<NoneType> v25
