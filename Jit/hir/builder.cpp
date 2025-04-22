@@ -2697,6 +2697,19 @@ void HIRBuilder::emitLoadAttr(
   }
 
   Register* receiver = tc.frame.stack.pop();
+
+  if (getConfig().specialized_opcodes) {
+    switch (bc_instr.specializedOpcode()) {
+      case LOAD_ATTR_MODULE: {
+        Type type = Type::fromTypeExact(&PyModule_Type);
+        tc.emit<GuardType>(receiver, type, receiver, tc.frame);
+        break;
+      }
+      default:
+        break;
+    }
+  }
+
   Register* result = temps_.AllocateStack();
   tc.emit<LoadAttr>(result, receiver, name_idx, tc.frame);
   tc.frame.stack.push(result);

@@ -10,6 +10,7 @@ import cinderx
 
 cinderx.init()
 
+from types import ModuleType
 from typing import Callable, TypeVar
 
 import cinderx.jit
@@ -191,6 +192,19 @@ class SpecializationTests(unittest.TestCase):
         self.assertNotIn("COMPARE_OP", opnames(f))
         self.assertIn("COMPARE_OP_STR", opnames(f))
         self.assertEqual(f("b", "b"), True)
+
+    def test_load_attr_module(self) -> None:
+        s: ModuleType = sys
+
+        def f() -> str:
+            nonlocal s
+            return s.argv[0]
+
+        specialize(f, lambda: f())
+
+        self.assertNotIn("LOAD_ATTR", opnames(f))
+        self.assertIn("LOAD_ATTR_MODULE", opnames(f))
+        self.assertEqual(f(), sys.argv[0])
 
     def test_unpack_sequence_list(self) -> None:
         def f(li: list[str]) -> str:

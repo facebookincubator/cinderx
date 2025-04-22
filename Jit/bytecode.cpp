@@ -49,6 +49,7 @@ int BytecodeInstruction::specializedOpcode() const {
     case COMPARE_OP_FLOAT:
     case COMPARE_OP_INT:
     case COMPARE_OP_STR:
+    case LOAD_ATTR_MODULE:
     case UNPACK_SEQUENCE_LIST:
     case UNPACK_SEQUENCE_TUPLE:
     case UNPACK_SEQUENCE_TWO_TUPLE:
