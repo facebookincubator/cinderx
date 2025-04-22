@@ -203,6 +203,9 @@ class Preloader {
   // Preload information only relevant to Static Python functions.
   bool preloadStatic();
 
+  // Check if a code object is for the top-level code in a module.
+  bool isModuleCodeObject() const;
+
   explicit Preloader(
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,

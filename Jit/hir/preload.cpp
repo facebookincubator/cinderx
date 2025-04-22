@@ -473,18 +473,37 @@ bool Preloader::preload() {
 }
 
 bool Preloader::preloadStatic() {
-  PyTypeOpt ret_type =
-      resolve_type_descr(_PyClassLoader_GetCodeReturnTypeDescr(code_));
+  BorrowedRef<> ret_type_descr = _PyClassLoader_GetCodeReturnTypeDescr(code_);
+  if (ret_type_descr == nullptr) {
+    // Special case where a module's code object is being preloaded.  It will
+    // not have argument or return type descrs (and they cannot be added as they
+    // interfere with the "<import-from>" list!).
+    if (isModuleCodeObject()) {
+      return true;
+    }
+
+    JIT_LOG(
+        "Statically typed function {} has no return type descr, co_consts "
+        "is {}",
+        fullname(),
+        repr(code_->co_consts));
+    return false;
+  }
+
+  PyTypeOpt ret_type = resolve_type_descr(ret_type_descr);
   if (std::get<0>(ret_type) == nullptr) {
     JIT_LOG(
         "unknown return type descr {} during preloading of {}",
-        repr(_PyClassLoader_GetCodeReturnTypeDescr(code_)),
+        repr(ret_type_descr),
         fullname());
     return false;
   }
+
   return_type_ = to_jit_type(ret_type);
+
   BorrowedRef<PyTupleObject> checks = reinterpret_cast<PyTupleObject*>(
       _PyClassLoader_GetCodeArgumentTypeDescrs(code_));
+
   for (int i = 0; i < PyTuple_GET_SIZE(checks); i += 2) {
     long local = PyLong_AsLong(PyTuple_GET_ITEM(checks, i));
     if (local < 0) {
@@ -500,10 +519,12 @@ bool Preloader::preloadStatic() {
       local = arg;
 #else
       JIT_ABORT(
-          "In Static Python function {}, hit negative local {} at index {}",
+          "In Static Python function {}, hit negative local {} at index {}, "
+          "arguments checks tuple is {}",
           fullname(),
           local,
-          i);
+          i,
+          repr(checks));
 #endif
     }
     PyTypeOpt pytype_opt = resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));
@@ -530,6 +551,11 @@ bool Preloader::preloadStatic() {
   }
 
   return true;
+}
+
+// Check if a code object is for the top-level code in a module.
+bool Preloader::isModuleCodeObject() const {
+  return fullname().ends_with("<module>") || fullname() == "__main__:__main__";
 }
 
 void PreloaderManager::add(
