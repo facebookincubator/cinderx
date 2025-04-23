@@ -17,13 +17,13 @@ from clang.cindex import CursorKind
 from .clang_parser import FileParser, ParsedFile
 
 BORROW_CPP_DIRECTIVES_PATTERN: re.Pattern[str] = re.compile(
-    r".*// @Borrow CPP directives from (\S+)(?: \[(.*?)\])?"
+    r".*// @Borrow CPP directives from (\S+)"
 )
 BORROW_CPP_DIRECTIVES_NOINCLUDE_PATTERN: re.Pattern[str] = re.compile(
-    r".*// @Borrow CPP directives noinclude from (\S+)(?: \[(.*?)\])?"
+    r".*// @Borrow CPP directives noinclude from (\S+)"
 )
 BORROW_DECL_PATTERN: re.Pattern[str] = re.compile(
-    r"// @Borrow (function|typedef|var) (\S+) from (\S+)(?: \[(.*?)\])?"
+    r"// @Borrow (function|typedef|var) (\S+) from (\S+)"
 )
 CPP_DIRECTIVE_PATTERN: re.Pattern[str] = re.compile(
     r"#\s*(define|undef|if|elif|else|endif|include)"
@@ -60,25 +60,16 @@ def extract_preprocessor_directives(
     return directives
 
 
-def parse_version_set(input_string: str | None) -> set[str]:
-    if input_string:
-        return {v.strip() for v in input_string.split(",")}
-    else:
-        return set()
-
-
 @dataclass
 class Decl:
     kind: CursorKind
     name: str
     source_file: str
-    version_set: set[str]
 
 
 @dataclass
 class CppDirective:
     source_file: str
-    version_set: set[str]
     includes: bool
 
 
@@ -90,7 +81,6 @@ def parse_borrow_info(input_string: str) -> Decl | None:
     kind_str = match.group(1)
     name = match.group(2)
     source_file = match.group(3)
-    version_set = parse_version_set(match.group(4))
 
     if kind_str == "function":
         # pyre-ignore[16]: `CursorKind` has no attribute `FUNCTION_DECL`.
@@ -107,7 +97,7 @@ def parse_borrow_info(input_string: str) -> Decl | None:
     else:
         raise Exception(f"Unknown kind: {kind_str}")
 
-    return Decl(kind, name, source_file, version_set)
+    return Decl(kind, name, source_file)
 
 
 class TemplateFileProcessor:
@@ -137,9 +127,6 @@ class TemplateFileProcessor:
         self.needed = defaultdict(lambda: defaultdict(set))
         self.decls = defaultdict(dict)
 
-    def _match_version(self, version_set: set[str]) -> bool:
-        return len(version_set) == 0 or self.version in version_set
-
     def _read_input_file(self) -> None:
         """Read the input file and parse borrow directives."""
 
@@ -150,22 +137,17 @@ class TemplateFileProcessor:
             line = line.rstrip()
 
             if match := parse_borrow_info(line):
-                if self._match_version(match.version_set):
-                    self.input_lines.append(match)
+                self.input_lines.append(match)
 
             elif match := BORROW_CPP_DIRECTIVES_PATTERN.match(line):
                 source_file = match.group(1)
-                version_set = parse_version_set(match.group(2))
-                if self._match_version(version_set):
-                    d = CppDirective(source_file, version_set, includes=True)
-                    self.input_lines.append(d)
+                d = CppDirective(source_file, includes=True)
+                self.input_lines.append(d)
 
             elif match := BORROW_CPP_DIRECTIVES_NOINCLUDE_PATTERN.match(line):
                 source_file = match.group(1)
-                version_set = parse_version_set(match.group(2))
-                if self._match_version(version_set):
-                    d = CppDirective(source_file, version_set, includes=False)
-                    self.input_lines.append(d)
+                d = CppDirective(source_file, includes=False)
+                self.input_lines.append(d)
 
             else:
                 self.input_lines.append(line)
@@ -208,14 +190,14 @@ class TemplateFileProcessor:
         out = []
         for line in self.input_lines:
             match line:
-                case Decl(kind, name, source_file, _):
+                case Decl(kind, name, source_file):
                     lines = self.decls[source_file][name]
                     if not lines:
                         raise RuntimeError(
                             f"Could not find {kind} for '{name}' in {source_file}"
                         )
                     out.extend(lines)
-                case CppDirective(source_file, _, includes):
+                case CppDirective(source_file, includes):
                     parsed_file = self.file_parser.parse(source_file)
                     lines = extract_preprocessor_directives(parsed_file, includes)
                     out.extend(lines)
