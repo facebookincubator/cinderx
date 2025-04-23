@@ -98,6 +98,7 @@ def print_borrows(
 def main(input_file: str, entry_point: str | None, py_version: str) -> None:
     compile_commands = resource_path("compilation-database")
     fp = FileParser(compile_commands)
+    fp.chdir_to_root()
 
     # If we have an entry point, the input is a filepath relative to the
     # cpython source directory.
