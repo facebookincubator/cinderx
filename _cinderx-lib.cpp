@@ -406,6 +406,9 @@ builtin_anext(PyObject* module, PyObject* const* args, Py_ssize_t nargs) {
   }
 
   awaitable = (*t->tp_as_async->am_anext)(aiterator);
+  if (awaitable == nullptr) {
+    return nullptr;
+  }
   if (default_value == nullptr) {
     return awaitable;
   }
