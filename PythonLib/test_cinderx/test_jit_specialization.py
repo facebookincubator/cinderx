@@ -206,6 +206,19 @@ class SpecializationTests(unittest.TestCase):
         self.assertIn("LOAD_ATTR_MODULE", opnames(f))
         self.assertEqual(f(), sys.argv[0])
 
+    def test_store_subscr_dict(self) -> None:
+        def f(a: dict[str, str], b: str, c: str) -> None:
+            a[b] = c
+
+        specialize(f, lambda: f({"a": "b"}, "a", "c"))
+
+        self.assertNotIn("STORE_SUBSCR", opnames(f))
+        self.assertIn("STORE_SUBSCR_DICT", opnames(f))
+
+        d = {"a": "b"}
+        f(d, "a", "c")
+        self.assertEqual(d, {"a": "c"})
+
     def test_unpack_sequence_list(self) -> None:
         def f(li: list[str]) -> str:
             (a, _b) = li

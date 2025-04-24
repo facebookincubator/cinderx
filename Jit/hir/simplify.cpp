@@ -1654,6 +1654,25 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
   return nullptr;
 }
 
+Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
+  if (instr->GetOperand(0)->isA(TDictExact)) {
+    auto output = env.func.env.AllocateRegister();
+    env.emitRawInstr<CallStatic>(
+        3,
+        output,
+        reinterpret_cast<void*>(PyDict_Type.tp_as_mapping->mp_ass_subscript),
+        TCInt,
+        instr->GetOperand(0),
+        instr->GetOperand(1),
+        instr->GetOperand(2));
+
+    env.emit<CheckNeg>(output, *instr->frameState());
+    return nullptr;
+  }
+
+  return nullptr;
+}
+
 Register* simplifyInstr(Env& env, const Instr* instr) {
   switch (instr->opcode()) {
     case Opcode::kCheckVar:
@@ -1738,6 +1757,9 @@ Register* simplifyInstr(Env& env, const Instr* instr) {
 
     case Opcode::kVectorCall:
       return simplifyVectorCall(env, static_cast<const VectorCall*>(instr));
+
+    case Opcode::kStoreSubscr:
+      return simplifyStoreSubscr(env, static_cast<const StoreSubscr*>(instr));
 
     default:
       return nullptr;

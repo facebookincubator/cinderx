@@ -80,6 +80,7 @@
   X(RETURN_GENERATOR)                  \
   X(SEND)                              \
   X(STORE_SLICE)                       \
+  X(STORE_SUBSCR_DICT)                 \
   X(SWAP)                              \
   X(UNPACK_SEQUENCE_LIST)              \
   X(UNPACK_SEQUENCE_TUPLE)             \

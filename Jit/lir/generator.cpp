@@ -2980,6 +2980,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         case Opcode::kCheckErrOccurred:
         case Opcode::kCheckExc:
         case Opcode::kCheckField:
+        case Opcode::kCheckNeg:
         case Opcode::kCheckVar:
         case Opcode::kDeleteAttr:
         case Opcode::kDeleteSubscr:

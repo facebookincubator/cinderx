@@ -65,6 +65,10 @@ hir::ValueKind deoptValueKind(hir::Type type) {
     return jit::hir::ValueKind::kDouble;
   }
 
+  if (type <= jit::hir::TCInt) {
+    return jit::hir::ValueKind::kSigned;
+  }
+
   JIT_CHECK(
       type <= jit::hir::TOptObject, "Unexpected type {} in deopt value", type);
   return jit::hir::ValueKind::kObject;

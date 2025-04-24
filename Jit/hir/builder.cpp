@@ -1226,7 +1226,7 @@ void HIRBuilder::translate(
           break;
         }
         case STORE_SUBSCR: {
-          emitStoreSubscr(tc);
+          emitStoreSubscr(tc, bc_instr);
           break;
         }
         case BUILD_SLICE: {
@@ -3751,11 +3751,19 @@ void HIRBuilder::emitStoreSlice(TranslationContext& tc) {
   tc.emit<StoreSubscr>(container, slice, values, tc.frame);
 }
 
-void HIRBuilder::emitStoreSubscr(TranslationContext& tc) {
+void HIRBuilder::emitStoreSubscr(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
   auto& stack = tc.frame.stack;
   Register* sub = stack.pop();
   Register* container = stack.pop();
   Register* value = stack.pop();
+
+  if (getConfig().specialized_opcodes &&
+      bc_instr.specializedOpcode() == STORE_SUBSCR_DICT) {
+    tc.emit<GuardType>(container, TDictExact, container, tc.frame);
+  }
+
   tc.emit<StoreSubscr>(container, sub, value, tc.frame);
 }
 
