@@ -67,8 +67,6 @@ try:
     # pyre-ignore[21]: _cinderx is not a real cpp_python_extension() yet.
     from _cinderx import (  # noqa: F401
         _compile_perf_trampoline_pre_fork,
-        _get_entire_call_stack_as_qualnames_with_lineno,
-        _get_entire_call_stack_as_qualnames_with_lineno_and_frame,
         _is_compile_perf_trampoline_pre_fork_enabled,
         async_cached_classproperty,
         async_cached_property,
@@ -92,12 +90,12 @@ try:
     )
 
     if sys.version_info < (3, 11):
-        # pyre-ignore[21]: _cinderx is not a real cpp_python_extension() yet.
-        from _cinderx import clear_all_shadow_caches
-    else:
-
-        def clear_all_shadow_caches() -> None:
-            pass
+        # In 3.12+ use the versions in the polyfill cinder library instead.
+        from _cinderx import (
+            _get_entire_call_stack_as_qualnames_with_lineno,
+            _get_entire_call_stack_as_qualnames_with_lineno_and_frame,
+            clear_all_shadow_caches,
+        )
 
 except ImportError as e:
     _import_error = e
@@ -232,8 +230,10 @@ except ImportError as e:
             else:
                 delattr(inst, self.__name__)
 
-    def clear_all_shadow_caches() -> None:
-        pass
+    if sys.version_info < (3, 11):
+
+        def clear_all_shadow_caches() -> None:
+            pass
 
     def clear_caches() -> None:
         pass

@@ -278,6 +278,9 @@ PyObject* is_compile_perf_trampoline_pre_fork_enabled(PyObject*, PyObject*) {
   Py_RETURN_FALSE;
 }
 
+// In 3.12+ we don't have a shadow-stack so there's no need for our own
+// stack-walking functions.
+#if PY_VERSION_HEX < 0x030C0000
 typedef struct {
   PyObject* list;
   int hasError;
@@ -334,7 +337,6 @@ fail:
 }
 
 PyObject* collect_stack(int collectFrame) {
-#if PY_VERSION_HEX < 0x030C0000
   PyObject* stack = PyList_New(0);
   if (stack == nullptr) {
     return nullptr;
@@ -346,12 +348,6 @@ PyObject* collect_stack(int collectFrame) {
     Py_CLEAR(stack);
   }
   return stack;
-#else
-  // As we don't have shadow frames and qualnames are upstream we can probably
-  // do this all using the normal C-API now.
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
-  return nullptr;
-#endif
 }
 
 PyObject* get_entire_call_stack_as_qualnames_with_lineno(PyObject*, PyObject*) {
@@ -363,6 +359,7 @@ PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
     PyObject*) {
   return collect_stack(1);
 }
+#endif
 
 // Schedule a function to be JIT-compiled.  If that fails, then also try
 // compiling a perf trampoline for the Python function.
@@ -1035,6 +1032,7 @@ PyMethodDef _cinderx_methods[] = {
      METH_NOARGS,
      PyDoc_STR("Return whether compile perf-trampoline entries before fork is "
                "enabled or not.")},
+#if PY_VERSION_HEX < 0x030C0000
     {"_get_entire_call_stack_as_qualnames_with_lineno",
      get_entire_call_stack_as_qualnames_with_lineno,
      METH_NOARGS,
@@ -1045,6 +1043,7 @@ PyMethodDef _cinderx_methods[] = {
      METH_NOARGS,
      PyDoc_STR("Return the current stack as a list of tuples (qualname, "
                "lineno, PyFrame | None).")},
+#endif
     {"immortalize_heap",
      cinder_immortalize_heap,
      METH_NOARGS,
