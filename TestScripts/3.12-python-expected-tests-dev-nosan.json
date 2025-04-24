@@ -12,6 +12,7 @@
     "test.test_array",
     "test.test_ast",
     "test.test_asyncgen",
+    "test.test_asyncio.test_awaiter_stack_trace",
     "test.test_asyncio.test_base_events",
     "test.test_asyncio.test_buffered_proto",
     "test.test_asyncio.test_context",
