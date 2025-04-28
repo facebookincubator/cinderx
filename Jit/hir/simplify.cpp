@@ -1661,7 +1661,7 @@ Register* simplifyStoreSubscr(Env& env, const StoreSubscr* instr) {
         3,
         output,
         reinterpret_cast<void*>(PyDict_Type.tp_as_mapping->mp_ass_subscript),
-        TCInt,
+        TCInt32,
         instr->GetOperand(0),
         instr->GetOperand(1),
         instr->GetOperand(2));
