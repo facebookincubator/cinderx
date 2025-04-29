@@ -317,13 +317,13 @@ PyObject* _PyClassLoader_ResolveFunction(PyObject* path, PyObject** container) {
       if (PyType_Check(container_obj)) {
         PyErr_Format(
             CiExc_StaticTypeError,
-            "%s.%U has been deleted",
+            "%s.%U has been deleted from class",
             ((PyTypeObject*)container_obj)->tp_name,
             attr_name);
       } else {
         PyErr_Format(
             CiExc_StaticTypeError,
-            "%R.%U has been deleted",
+            "%R.%U has been deleted from container",
             container_obj,
             attr_name);
       }

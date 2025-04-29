@@ -31,7 +31,7 @@ static PyObject* thunk_vectorcall(
     PyObject* kwnames) {
   PyObject* func = thunk->thunk_tcs.tcs_value;
   if (func == NULL) {
-    set_thunk_type_error(thunk, "%U has been deleted");
+    set_thunk_type_error(thunk, "%U has been deleted from module");
     return NULL;
   }
   if (thunk->thunk_flags & Ci_FUNC_FLAGS_CLASSMETHOD) {
