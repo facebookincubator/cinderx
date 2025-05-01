@@ -813,7 +813,10 @@ class ContextDecoratorTests(StaticTestBase):
         with self.assertRaises(StopIteration) as e:
             x.throw(Exception())
 
-        self.assertEqual(e.exception.args, ())
+        # TODO(T223033891): This works on 3.12.8 but breaks on 3.12.10; the
+        # latter has args `(None,)` instead.
+        if sys.version_info < (3, 12, 10):
+            self.assertEqual(e.exception.args, ())
         loop.close()
 
     def test_nonstatic_suppress_on_throw_no_send(self):
