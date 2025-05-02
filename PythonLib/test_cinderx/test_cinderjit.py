@@ -999,6 +999,16 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             self.assertTrue(is_jit_compiled(c.__wrapped__))
             self.assertTrue(is_jit_compiled(d))
 
+    def test_delete_fast_return(self) -> None:
+        def foo(hmm):
+            try:
+                return hmm
+            finally:
+                del hmm
+
+        force_compile(foo)
+        self.assertEqual(foo([5]), [5])
+
 
 class DelObserver:
     def __init__(self, id, cb):

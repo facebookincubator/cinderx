@@ -1403,6 +1403,7 @@ void HIRBuilder::translate(
         case DELETE_FAST: {
           int var_idx = bc_instr.oparg();
           Register* var = tc.frame.localsplus[var_idx];
+          moveOverwrittenStackRegisters(tc, var);
           tc.emit<LoadConst>(var, TNullptr);
           break;
         }
