@@ -796,11 +796,13 @@ void reflowTypes(Environment* env, BasicBlock* start) {
       for (auto& instr : *block) {
         if (instr.opcode() == Opcode::kReturn) {
           Type type = static_cast<const Return&>(instr).type();
+          hir::Register* value = instr.GetOperand(0);
           JIT_DCHECK(
-              instr.GetOperand(0)->type() <= type,
-              "bad return type {}, expected {} in {}",
-              instr.GetOperand(0)->type(),
+              value->type() <= type,
+              "Function expecting to return a {} but got {}:{}, CFG is:\n{}",
               type,
+              instr,
+              value->type(),
               *start->cfg);
         }
 
