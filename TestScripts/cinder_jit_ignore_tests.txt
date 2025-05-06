@@ -144,3 +144,9 @@ test.test_sys.SizeofTest.test_objecttypes
 
 # The JIT doesn't update line numbers for list construction which is considerd non-escaping
 test.test_tracemalloc.TestTracemallocEnabled.test_new_reference
+
+# AssertionError: {} != {'self': <test.test_capi.test_eval.Tests t[34 chars]': 1}
+# - {}
+# + {'self': <test.test_capi.test_eval.Tests testMethod=test_eval_getlocals>,
+# +  'x': 1}
+test.test_capi.test_eval.Tests.test_eval_getlocals

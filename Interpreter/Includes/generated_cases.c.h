@@ -2893,7 +2893,7 @@
 
             match = NULL;
             rest = NULL;
-            int res = exception_group_match(exc_value, match_type,
+            int res = exception_group_match(frame, exc_value, match_type,
                                             &match, &rest);
             #line 2898 "../../../fbcode/cinderx/Interpreter/Includes/generated_cases.c.h"
             Py_DECREF(exc_value);
