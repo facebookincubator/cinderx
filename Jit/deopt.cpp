@@ -219,7 +219,8 @@ static BCIndex getDeoptResumeIndex(
       forced_deopt) {
     return frame.cause_instr_idx;
   }
-  return frame.nextInstrIdx();
+  return BytecodeInstruction(frame.code, frame.cause_instr_idx)
+      .nextInstrOffset();
 }
 
 #if PY_VERSION_HEX < 0x030C0000

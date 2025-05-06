@@ -33,7 +33,7 @@ fun jittestmodule:test {
     v6 = LoadField<vte_load@88, CPtr, borrowed> v3
     v4 = CallInd<vte_load> v6 v4 v0 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 4
         Locals<1> v0
       }
     }
@@ -41,7 +41,7 @@ fun jittestmodule:test {
     Snapshot
     v7 = CallInd<vtable invoke> v5 v4 v0 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v0
       }
     }
@@ -59,7 +59,7 @@ fun jittestmodule:test {
     SetCurrentAwaiter v9
     v8 = YieldAndYieldFrom v10 v9 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v0
         Stack<1> v7
       }
@@ -76,7 +76,7 @@ fun jittestmodule:test {
     v11 = CallCFunc<Cix_PyCoro_GetAwaitableIter> v7
     v11 = CheckExc v11 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v0
       }
     }
@@ -91,7 +91,7 @@ fun jittestmodule:test {
   bb 9 (preds 7) {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v0
       }
     }
@@ -102,7 +102,7 @@ fun jittestmodule:test {
     SetCurrentAwaiter v11
     v8 = YieldFrom v13 v11 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v0
         Stack<1> v11
       }
@@ -156,7 +156,7 @@ fun jittestmodule:test {
     v9 = LoadField<vte_load@88, CPtr, borrowed> v6
     v7 = CallInd<vte_load> v9 v7 v0 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 8
         Locals<1> v0
       }
     }
@@ -164,7 +164,7 @@ fun jittestmodule:test {
     Snapshot
     v10 = CallInd<vtable invoke> v8 v7 v0 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 12
         Locals<1> v0
       }
     }
@@ -469,7 +469,7 @@ fun jittestmodule:test {
     v2 = LoadConst<MortalFunc[function:0xdeadbeef]>
     v3 = InvokeStaticFunction<jittestmodule.x, 3, Unicode> v2 v0 v1 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 4
       }
     }
     Snapshot
@@ -503,7 +503,7 @@ fun jittestmodule:test {
     v5 = LoadConst<MortalFunc[function:0xdeadbeef]>
     v6 = InvokeStaticFunction<jittestmodule.x, 3, Unicode> v5 v3 v4 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 6
       }
     }
     Snapshot
@@ -533,7 +533,7 @@ fun jittestmodule:test {
     v3 = LoadConst<MortalFunc[function:0xdeadbeef]>
     v4 = InvokeStaticFunction<jittestmodule.x, 3, Object> v3 v1 v2 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 6
       }
     }
     Snapshot
@@ -611,7 +611,7 @@ fun jittestmodule:test {
     v6 = LoadConst<MortalFunc[function:0xdeadbeef]>
     v7 = InvokeStaticFunction<jittestmodule.x, 3, Object> v6 v4 v5 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 10
       }
     }
     Snapshot
@@ -833,7 +833,7 @@ fun jittestmodule:test {
     v17 = LoadConst<MortalFunc[function:0xdeadbeef]>
     v18 = InvokeStaticFunction<jittestmodule.x, 6, Long> v17 v2 v3 v8 v12 v16 {
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 24
         Locals<1> v0
       }
     }
@@ -996,7 +996,7 @@ fun jittestmodule:test {
     v20 = LoadConst<MortalFunc[function:0xdeadbeef]>
     v21 = InvokeStaticFunction<jittestmodule.x, 6, Long> v20 v5 v6 v11 v15 v19 {
       FrameState {
-        CurInstrOffset 28
+        CurInstrOffset 26
         Locals<1> v0
       }
     }
@@ -1121,7 +1121,7 @@ fun jittestmodule:test {
     v6 = LoadConst<MortalObjectUser[wrapper_descriptor:0xdeadbeef]>
     v7 = VectorCall<2, static> v6 v2 v3 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 10
         Locals<2> v0 v1
         Stack<1> v2
       }
@@ -1138,7 +1138,7 @@ fun jittestmodule:test {
     }
     v9 = CheckSequenceBounds v0 v1 {
       FrameState {
-        CurInstrOffset 28
+        CurInstrOffset 26
         Locals<2> v0 v1
       }
     }
@@ -1198,7 +1198,7 @@ fun jittestmodule:test {
     v9 = LoadConst<MortalObjectUser[wrapper_descriptor:0xdeadbeef]>
     v10 = VectorCall<2, static> v9 v5 v6 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 12
         Locals<2> v0 v1
         Stack<1> v5
       }
@@ -1209,7 +1209,7 @@ fun jittestmodule:test {
     v1 = Assign v11
     v12 = CheckSequenceBounds v0 v1 {
       FrameState {
-        CurInstrOffset 30
+        CurInstrOffset 28
         Locals<2> v0 v1
       }
     }

@@ -4,31 +4,34 @@
 
 namespace jit {
 
-BytecodeInstruction::BytecodeInstruction(
-    BorrowedRef<PyCodeObject> code,
-    BCOffset offset)
-    : code_{code}, offset_{offset}, oparg_{_Py_OPARG(word())} {}
-
-BytecodeInstruction::BytecodeInstruction(
-    BorrowedRef<PyCodeObject> code,
-    BCOffset offset,
-    int oparg)
-    : code_{code}, offset_{offset}, oparg_{oparg} {}
-
-BCOffset BytecodeInstruction::offset() const {
-  return offset_;
-}
-
-BCIndex BytecodeInstruction::index() const {
-  return offset();
+BCOffset BytecodeInstruction::opcodeOffset() const {
+  calcOpcodeOffsetAndOparg();
+  return opcodeIndex_;
 }
 
 int BytecodeInstruction::opcode() const {
   return _Py_OPCODE(word());
 }
 
+void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
+  if (opcodeIndex_.value() != std::numeric_limits<int>::min()) {
+    return;
+  }
+  opcodeIndex_ = baseOffset_;
+  _Py_CODEUNIT* cu = codeUnit(code_) + opcodeIndex_.value();
+  while (_Py_OPCODE(*cu) == EXTENDED_ARG) {
+    JIT_DCHECK(
+        opcodeIndex_.value() < countIndices(code_),
+        "EXTENDED_ARG at end of bytecode");
+    extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
+    cu++;
+    opcodeIndex_++;
+  }
+  extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
+}
+
 int BytecodeInstruction::uninstrumentedOpcode() const {
-  return uninstrument(code_, index().value());
+  return uninstrument(code_, opcodeIndex().value());
 }
 
 int BytecodeInstruction::specializedOpcode() const {
@@ -64,7 +67,8 @@ int BytecodeInstruction::specializedOpcode() const {
 }
 
 int BytecodeInstruction::oparg() const {
-  return oparg_;
+  calcOpcodeOffsetAndOparg();
+  return extendedOparg_;
 }
 
 bool BytecodeInstruction::isBranch() const {
@@ -145,16 +149,17 @@ BCOffset BytecodeInstruction::getJumpTarget() const {
 }
 
 BCOffset BytecodeInstruction::nextInstrOffset() const {
-  return BCOffset{index() + inlineCacheSize(code_, index().value()) + 1};
+  return BCOffset{
+      opcodeIndex() + inlineCacheSize(code_, opcodeIndex().value()) + 1};
 }
 
 _Py_CODEUNIT BytecodeInstruction::word() const {
 #if PY_VERSION_HEX >= 0x030C0000
   int opcode = unspecialize(uninstrumentedOpcode());
-  int oparg = _Py_OPARG(codeUnit(code_)[index().value()]);
+  int oparg = _Py_OPARG(codeUnit(code_)[opcodeIndex().value()]);
   return _Py_MAKE_CODEUNIT(opcode, oparg);
 #else
-  return codeUnit(code_)[index().value()];
+  return codeUnit(code_)[opcodeIndex().value()];
 #endif
 }
 

@@ -362,7 +362,7 @@ class HIRBuilder {
       CFG& cfg,
       TranslationContext& tc,
       const BytecodeInstructionBlock& bc_instrs,
-      BCIndex idx);
+      BytecodeInstruction bc_instr);
   void emitUnpackEx(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);

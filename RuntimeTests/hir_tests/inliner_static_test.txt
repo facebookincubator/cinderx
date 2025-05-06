@@ -18,7 +18,7 @@ fun jittestmodule:test {
     Snapshot
     v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
+      CurInstrOffset 0
     }
     Snapshot
     v6:ImmortalLongExact[4] = LoadConst<ImmortalLongExact[4]>
@@ -51,7 +51,7 @@ fun jittestmodule:test {
     v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v9:Object = InvokeStaticFunction<jittestmodule.foo, 1, Object> v8 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 2
       }
     }
     Snapshot
@@ -75,7 +75,7 @@ fun jittestmodule:test {
     v5:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
     v6:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 6
+      CurInstrOffset 4
     }
     Snapshot
     UseType<LongExact> v4
@@ -116,7 +116,7 @@ fun jittestmodule:test {
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v13:Long = InvokeStaticFunction<jittestmodule.foo, 3, Long> v12 v10 v11 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 6
       }
     }
     Snapshot
@@ -140,7 +140,7 @@ fun jittestmodule:test {
     Snapshot
     v2:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 2
+      CurInstrOffset 0
     }
     Snapshot
     v6:CInt8[4] = LoadConst<CInt8[4]>
@@ -173,7 +173,7 @@ fun jittestmodule:test {
     v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v9:CInt8 = InvokeStaticFunction<jittestmodule.foo, 1, CInt8> v8 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 2
       }
     }
     Snapshot
@@ -197,7 +197,7 @@ fun jittestmodule:test {
     Snapshot
     v5:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:foo> {
-      CurInstrOffset 4
+      CurInstrOffset 2
       Locals<1> v3
     }
     Snapshot
@@ -268,7 +268,7 @@ fun jittestmodule:test {
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v12:Bool = InvokeStaticFunction<jittestmodule.foo, 2, Bool> v11 v6 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 4
         Locals<1> v6
       }
     }

@@ -11,6 +11,7 @@
 #include "cinderx/Jit/bytecode_offsets.h"
 
 #include <iterator>
+#include <limits>
 
 namespace jit {
 
@@ -20,18 +21,24 @@ namespace jit {
 // oparg() for more details.
 class BytecodeInstruction {
  public:
-  BytecodeInstruction(BorrowedRef<PyCodeObject> code, BCOffset offset);
+  BytecodeInstruction(BorrowedRef<PyCodeObject> code, BCOffset baseOffset)
+      : code_{code}, baseOffset_{baseOffset} {}
 
-  // Constructor where the oparg is being overwritten because of previous
-  // EXTENDED_ARG instructions.
-  BytecodeInstruction(
-      BorrowedRef<PyCodeObject> code,
-      BCOffset offset,
-      int oparg);
+  // Return the position of the first EXTENDED_ARG (if any) making up the full
+  // instruction.
+  BCOffset baseOffset() const {
+    return baseOffset_;
+  }
+  BCIndex baseIndex() const {
+    return baseOffset();
+  }
 
-  // Get the instruction's offset or index in the instruction stream.
-  BCOffset offset() const;
-  BCIndex index() const;
+  // Return the position of the opcode, skipping over any EXTENDED_ARGs if
+  // present.
+  BCOffset opcodeOffset() const;
+  BCIndex opcodeIndex() const {
+    return opcodeOffset();
+  }
 
   // Get the instruction's opcode or oparg.
   //
@@ -57,11 +64,22 @@ class BytecodeInstruction {
   // Will go past the end of the instruction stream for the last instruction.
   BCOffset nextInstrOffset() const;
 
+  BytecodeInstruction nextInstr() const {
+    return BytecodeInstruction{code_, nextInstrOffset()};
+  }
+
+  bool operator==(const BytecodeInstruction& other) const {
+    return code_ == other.code_ && baseOffset_ == other.baseOffset_;
+  }
+
  private:
+  void calcOpcodeOffsetAndOparg() const;
+
   // Return the opcode of the bytecode instruction without instrumentation.
   int uninstrumentedOpcode() const;
 
-  // Get the instruction's full code unit (opcode + oparg).
+  // Get the instruction's code unit (opcode + oparg). The oparg is NOT extended
+  // from any prior EXTENDED_ARGs.
   _Py_CODEUNIT word() const;
 
   // Check if this instruction is a control-flow instruction with an absolute
@@ -69,8 +87,9 @@ class BytecodeInstruction {
   bool isAbsoluteControlFlow() const;
 
   BorrowedRef<PyCodeObject> code_;
-  BCOffset offset_;
-  int oparg_;
+  BCOffset baseOffset_;
+  mutable BCIndex opcodeIndex_{std::numeric_limits<int>::min()};
+  mutable int extendedOparg_{0};
 };
 
 // A half open block of bytecode [start, end) viewed as a sequence of
@@ -96,18 +115,10 @@ class BytecodeInstructionBlock {
     using reference = const value_type&;
 
     Iterator(BorrowedRef<PyCodeObject> code, BCIndex idx, BCIndex end_idx)
-        : code_{std::move(code)},
-          idx_{idx},
-          end_idx_{end_idx},
-          bci_{code_, idx, 0} {
-      if (!atEnd()) {
-        bci_ = BytecodeInstruction{code_, idx};
-        consumeExtendedArgs();
-      }
-    }
+        : bci_{code, idx}, end_idx_{end_idx} {}
 
     bool atEnd() const {
-      return idx_ == end_idx_;
+      return bci_.opcodeIndex().value() >= end_idx_;
     }
 
     reference operator*() {
@@ -123,10 +134,7 @@ class BytecodeInstructionBlock {
     }
 
     Iterator& operator++() {
-      Py_ssize_t increment = 1 + inlineCacheSize(code_, idx_.value());
-      // TODO(T137312262): += breaks with how we use CRTP with BCOffsetBase.
-      idx_ = idx_ + increment;
-      consumeExtendedArgs();
+      bci_ = bci_.nextInstr();
       return *this;
     }
 
@@ -137,7 +145,7 @@ class BytecodeInstructionBlock {
     }
 
     bool operator==(const Iterator& other) const {
-      return code_ == other.code_ && idx_ == other.idx_;
+      return bci_ == other.bci_;
     }
 
     bool operator!=(const Iterator& other) const {
@@ -153,41 +161,12 @@ class BytecodeInstructionBlock {
       if constexpr (PY_VERSION_HEX >= 0x030B0000) {
         JIT_ABORT("remainingIndices() not supported in 3.11+");
       }
-      return end_idx_ - idx_ - 1;
+      return end_idx_ - bci_.opcodeIndex() - 1;
     }
 
    private:
-    void consumeExtendedArgs() {
-      int accum = 0;
-      while (!atEnd() && currentOpcode() == EXTENDED_ARG) {
-        accum = (accum << 8) | currentOparg();
-        idx_++;
-      }
-      if (!atEnd()) {
-        accum = (accum << 8) | currentOparg();
-        bci_ = BytecodeInstruction{code_, idx_, accum};
-      }
-    }
-
-    int currentOpcode() const {
-      JIT_DCHECK(
-          !atEnd(),
-          "Trying to access bytecode instruction past end of code object");
-      return unspecialize(uninstrument(code_, idx_.value()));
-    }
-
-    int currentOparg() const {
-      JIT_DCHECK(
-          !atEnd(),
-          "Trying to access bytecode instruction past end of code object");
-      return _Py_OPARG(codeUnit(code_)[idx_.value()]);
-    }
-
-    // Not stored as a Ref because that would make Iterator non-copyable.
-    BorrowedRef<PyCodeObject> code_;
-    BCIndex idx_;
-    BCIndex end_idx_;
     BytecodeInstruction bci_;
+    BCIndex end_idx_;
   };
 
   // Get iterators for the beginning and the end of the block.

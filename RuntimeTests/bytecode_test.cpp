@@ -15,9 +15,6 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
   //  4  LOAD_CONST    3
   //  6  EXTENDED_ARG  1
   //  8  LOAD_CONST    2
-  //  10 EXTENDED_ARG  1
-  //  12 EXTENDED_ARG  2
-  //  14 EXTENDED_ARG  3
   // clang (correctly) complains we can't narrow EXTENDED_ARG to `char`, so
   // we're forced to use unsigned char here and cast in the call to
   // PyBytes_FromStringAndSize.
@@ -31,13 +28,7 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
       EXTENDED_ARG,
       1,
       LOAD_CONST,
-      2,
-      EXTENDED_ARG,
-      1,
-      EXTENDED_ARG,
-      2,
-      EXTENDED_ARG,
-      3};
+      2};
   auto bytecode = Ref<>::steal(
       PyBytes_FromStringAndSize(reinterpret_cast<const char*>(bc), sizeof(bc)));
   ASSERT_NE(bytecode.get(), nullptr);

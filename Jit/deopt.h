@@ -109,10 +109,6 @@ struct DeoptFrameMetadata {
   PyCodeObject* code{nullptr};
 
   BCIndex cause_instr_idx{0};
-
-  BCIndex nextInstrIdx() const {
-    return cause_instr_idx + 1 + inlineCacheSize(code, cause_instr_idx.value());
-  }
 };
 
 // DeoptMetadata captures all the information necessary to reconstruct a

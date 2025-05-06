@@ -810,7 +810,7 @@ void HIRBuilder::translate(
     for (auto bc_it = bc_block.begin(); bc_it != bc_block.end(); ++bc_it) {
       BytecodeInstruction bc_instr = *bc_it;
 
-      tc.frame.cur_instr_offs = bc_instr.offset();
+      tc.frame.cur_instr_offs = bc_instr.baseOffset();
       Instr* prev_hir_instr = tc.block->GetTerminator();
       // Outputting too many snapshots is safe but noisy so try to cull.
       // Note in some cases we'll have a non-empty block without yet having
@@ -822,7 +822,7 @@ void HIRBuilder::translate(
           (
               // If we already have HIR instructions but haven't processed a
               // bytecode yet then conservatively emit a Snapshot.
-              (prev_bc_instr.offset() < 0 ||
+              (prev_bc_instr.baseOffset() < 0 ||
                // Only emit a Snapshot after bytecode instructions which might
                // change the frame state.
                should_snapshot(
@@ -1091,7 +1091,7 @@ void HIRBuilder::translate(
         case JUMP_BACKWARD: {
           BCOffset target_off = bc_instr.getJumpTarget();
           BasicBlock* target = getBlockAtOff(target_off);
-          if (target_off <= bc_instr.offset() ||
+          if (target_off <= bc_instr.baseOffset() ||
               bc_instr.opcode() != JUMP_ABSOLUTE) {
             loop_headers.emplace(target);
           }
@@ -1120,7 +1120,7 @@ void HIRBuilder::translate(
         case POP_JUMP_IF_TRUE: {
           BCOffset target_off = bc_instr.getJumpTarget();
           BasicBlock* target = getBlockAtOff(target_off);
-          if (target_off <= bc_instr.offset()) {
+          if (target_off <= bc_instr.baseOffset()) {
             loop_headers.emplace(target);
           }
           emitPopJumpIf(tc, bc_instr);
@@ -1130,7 +1130,7 @@ void HIRBuilder::translate(
         case POP_JUMP_IF_NOT_NONE: {
           BCOffset target_off = bc_instr.getJumpTarget();
           BasicBlock* target = getBlockAtOff(target_off);
-          if (target_off <= bc_instr.offset()) {
+          if (target_off <= bc_instr.baseOffset()) {
             loop_headers.emplace(target);
           }
           emitPopJumpIfNone(tc, bc_instr);
@@ -1363,7 +1363,7 @@ void HIRBuilder::translate(
           break;
         }
         case GET_AWAITABLE: {
-          emitGetAwaitable(irfunc.cfg, tc, bc_instrs, bc_instr.index());
+          emitGetAwaitable(irfunc.cfg, tc, bc_instrs, bc_instr);
           break;
         }
         case BUILD_STRING: {
@@ -1443,7 +1443,7 @@ void HIRBuilder::translate(
           // functions. This should be fine as long as we can't de-opt after the
           // function is started but before GEN_START. This check ensures this.
           JIT_DCHECK(
-              bc_instr.index() == 0, "GEN_START must be first instruction");
+              bc_instr.baseIndex() == 0, "GEN_START must be first instruction");
           break;
         }
         case DICT_UPDATE: {
@@ -1815,7 +1815,6 @@ void HIRBuilder::emitAnyCall(
     jit::BytecodeInstructionBlock::Iterator& bc_it,
     const jit::BytecodeInstructionBlock& bc_instrs) {
   BytecodeInstruction bc_instr = *bc_it;
-  BCIndex idx = bc_instr.index();
   bool is_awaited;
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
     is_awaited = false;
@@ -1826,9 +1825,7 @@ void HIRBuilder::emitAnyCall(
         // are inside this BytecodeInstructionBlock. This may not be the case if
         // the 'await' is shared as in 'await (x if y else z)'.
         bc_it.remainingIndices() >= 3 &&
-        // Note: This .at() doesn't skip EXTENDED_ARG, but GET_AWAITABLE is
-        // never preceded by EXTENDED_ARG, since it has no oparg.
-        bc_instrs.at(idx + 1).opcode() == GET_AWAITABLE;
+        bc_instr.nextInstr().opcode() == GET_AWAITABLE;
   }
   auto flags = is_awaited ? CallFlags::Awaited : CallFlags::None;
   bool call_used_is_awaited = true;
@@ -1909,7 +1906,7 @@ void HIRBuilder::emitAnyCall(
     JIT_CHECK(
         bc_it->opcode() == GET_AWAITABLE,
         "Awaited function call must be followed by GET_AWAITABLE");
-    emitGetAwaitable(cfg, tc, bc_instrs, bc_it->index());
+    emitGetAwaitable(cfg, tc, bc_instrs, *bc_it);
 
     ++bc_it;
     JIT_CHECK(
@@ -2750,7 +2747,7 @@ void HIRBuilder::emitLoadMethodOrAttrSuper(
 
   // This is assumed to be a type object by the rest of the JIT.  Ideally it
   // would be typed by whatever pushes it onto the stack.
-  deopt_path.frame.cur_instr_offs = bc_instr.offset();
+  deopt_path.frame.cur_instr_offs = bc_instr.baseOffset();
   deopt_path.emitSnapshot();
   deopt_path.emit<Deopt>();
   BasicBlock* fast_path = cfg.AllocateBlock();
@@ -3310,7 +3307,7 @@ void HIRBuilder::emitFastLen(
 
   if (inexact) {
     TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
-    deopt_path.frame.cur_instr_offs = bc_instr.offset();
+    deopt_path.frame.cur_instr_offs = bc_instr.baseOffset();
     deopt_path.emitSnapshot();
     deopt_path.emit<Deopt>();
     collection = tc.frame.stack.pop();
@@ -3879,7 +3876,7 @@ void HIRBuilder::emitUnpackSequence(
   }
 
   TranslationContext deopt_path{cfg.AllocateBlock(), tc.frame};
-  deopt_path.frame.cur_instr_offs = bc_instr.offset();
+  deopt_path.frame.cur_instr_offs = bc_instr.baseOffset();
   deopt_path.emitSnapshot();
   Deopt* deopt = deopt_path.emit<Deopt>();
   deopt->setGuiltyReg(seq);
@@ -4253,7 +4250,8 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
     advancePastYieldInstr(tc);
     tc.emit<YieldValue>(out, in, tc.frame);
   } else {
-    BytecodeInstruction next_bc{code_, tc.frame.nextInstrOffset()};
+    auto next_bc =
+        BytecodeInstruction{code_, tc.frame.cur_instr_offs}.nextInstr();
 
     // This mirrors what _PyGen_yf() does. I assume the RESUME oparg exists
     // primarily for this check - values 2 and 3 indicate a "yield from" and
@@ -4269,10 +4267,11 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
 
 static std::pair<bool, bool> checkAsyncWithError(
     const BytecodeInstructionBlock& bc_instrs,
-    BCIndex idx) {
+    BytecodeInstruction bc_instr) {
   bool error_aenter = false;
   bool error_aexit = false;
   if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    BCIndex idx = bc_instr.baseIndex();
     int prev_prev_op = idx > 1 ? bc_instrs.at(idx - 2).opcode() : 0;
     int prev_op = idx != 0 ? bc_instrs.at(idx - 1).opcode() : 0;
     if (prev_op == BEFORE_ASYNC_WITH) {
@@ -4283,7 +4282,6 @@ static std::pair<bool, bool> checkAsyncWithError(
       error_aexit = true;
     }
   } else {
-    BytecodeInstruction bc_instr = bc_instrs.at(idx);
     error_aenter = bc_instr.oparg() == 1;
     error_aexit = bc_instr.oparg() == 2;
   }
@@ -4294,7 +4292,7 @@ void HIRBuilder::emitGetAwaitable(
     CFG& cfg,
     TranslationContext& tc,
     const BytecodeInstructionBlock& bc_instrs,
-    BCIndex idx) {
+    BytecodeInstruction bc_instr) {
   OperandStack& stack = tc.frame.stack;
   Register* iterable = stack.pop();
   Register* iter = temps_.AllocateStack();
@@ -4310,7 +4308,7 @@ void HIRBuilder::emitGetAwaitable(
 #endif
       std::vector<Register*>{iterable});
 
-  auto [error_aenter, error_aexit] = checkAsyncWithError(bc_instrs, idx);
+  auto [error_aenter, error_aexit] = checkAsyncWithError(bc_instrs, bc_instr);
   if (error_aenter || error_aexit) {
     BasicBlock* error_block = cfg.AllocateBlock();
     BasicBlock* ok_block = cfg.AllocateBlock();

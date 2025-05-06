@@ -47,7 +47,7 @@ fun jittestmodule:test {
     v8:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v9:Object = InvokeStaticFunction<jittestmodule.foo, 1, Object> v8 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 2
       }
     }
     Snapshot
@@ -108,14 +108,14 @@ fun jittestmodule:test {
     v11:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v12:Object = InvokeStaticFunction<jittestmodule.foo, 1, Object> v11 {
       FrameState {
-        CurInstrOffset 4
+        CurInstrOffset 2
       }
     }
     Snapshot
     v13:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v14:Object = InvokeStaticFunction<jittestmodule.bar, 1, Object> v13 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 6
         Stack<1> v12
       }
     }
@@ -145,7 +145,7 @@ fun jittestmodule:test {
     v5:MortalUnicodeExact["x"] = LoadConst<MortalUnicodeExact["x"]>
     v6:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     BeginInlinedFunction<jittestmodule:add> {
-      CurInstrOffset 6
+      CurInstrOffset 4
     }
     Snapshot
     v16:Object = BinaryOp<Add> v4 v5 {
@@ -186,7 +186,7 @@ fun jittestmodule:test {
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v13:Object = InvokeStaticFunction<jittestmodule.add, 3, Object> v12 v10 v11 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 6
       }
     }
     Snapshot
@@ -260,7 +260,7 @@ fun jittestmodule:test {
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v13:Object = InvokeStaticFunction<jittestmodule.C.__init__, 2, Object> v12 v11 {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 6
         Stack<1> v11
       }
     }
@@ -268,7 +268,7 @@ fun jittestmodule:test {
     v14:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v15:CInt8 = InvokeStaticFunction<jittestmodule.C.getfoo, 2, CInt8> v14 v11 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 12
       }
     }
     Snapshot

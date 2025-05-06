@@ -874,7 +874,7 @@ static int lastLineNumber(PyCodeObject* code) {
   int last_line = -1;
   BytecodeInstructionBlock bc_block{code};
   for (const BytecodeInstruction& bc_instr : bc_block) {
-    BCOffset bc_off = bc_instr.offset();
+    BCOffset bc_off = bc_instr.opcodeIndex();
     last_line = std::max(last_line, PyCode_Addr2Line(code, bc_off.value()));
   }
   return last_line;

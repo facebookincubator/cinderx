@@ -83,11 +83,6 @@ struct FrameState {
     return cur_instr_offs;
   }
 
-  BCOffset nextInstrOffset() const {
-    BCIndex idx = cur_instr_offs;
-    return idx + 1 + inlineCacheSize(code, idx.value());
-  }
-
   bool visitUses(const std::function<bool(Register*&)>& func) {
     for (auto& reg : stack) {
       if (!func(reg)) {
