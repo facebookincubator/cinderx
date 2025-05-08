@@ -156,7 +156,7 @@ class MatchTests(StaticTestBase):
 
     # TODO: If we ever support checking for exhaustiveness of match statements, this test *should* fail.
     # So you can replace the Optional[str] with Exact[str]
-    def test_match_exhaustive_all_patterns(self) -> bool:
+    def test_match_exhaustive_all_patterns(self) -> None:
         codestr = """
             def f(i: bool) -> int:
                 s: str | None = None

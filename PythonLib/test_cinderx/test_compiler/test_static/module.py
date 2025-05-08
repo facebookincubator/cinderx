@@ -1,12 +1,13 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 from cinderx.compiler.static.compiler import Compiler
 from cinderx.compiler.static.module_table import ModuleTableException
+from cinderx.compiler.static.types import ModuleInstance
 
-from .common import get_child, StaticTestBase
+from .common import get_child, StaticTestBase, TestCompiler
 
 
 class ModuleTests(StaticTestBase):
-    def decl_visit(self, **modules: str) -> Compiler:
+    def decl_visit(self, **modules: str) -> TestCompiler:
         compiler = self.compiler(**modules)
         for name in modules.keys():
             compiler.import_module(name, optimize=0)
@@ -23,11 +24,11 @@ class ModuleTests(StaticTestBase):
         compiler = self.decl_visit(a=acode, b=bcode)
 
         self.assertIn("b", compiler.modules)
-        self.assertIsNotNone(get_child(compiler.modules["b"], "a"))
-        self.assertEqual(
-            get_child(compiler.modules["b"], "a").klass, compiler.type_env.module
-        )
-        self.assertEqual(get_child(compiler.modules["b"], "a").module_name, "a")
+        a = get_child(compiler.modules["b"], "a")
+        self.assertIsNotNone(a)
+        assert isinstance(a, ModuleInstance)
+        self.assertEqual(a.klass, compiler.type_env.module)
+        self.assertEqual(a.module_name, "a")
 
     def test_import_name_as(self) -> None:
         acode = """
@@ -41,6 +42,7 @@ class ModuleTests(StaticTestBase):
 
         foo = get_child(compiler.modules["b"], "foo")
         self.assertIsNotNone(foo)
+        assert isinstance(foo, ModuleInstance)
         self.assertEqual(foo.klass, compiler.type_env.module)
         self.assertEqual(foo.module_name, "a")
 
@@ -56,6 +58,7 @@ class ModuleTests(StaticTestBase):
 
         a = get_child(compiler.modules["c"], "a")
         self.assertIsNotNone(a)
+        assert isinstance(a, ModuleInstance)
         self.assertEqual(a.klass, compiler.type_env.module)
         self.assertEqual(a.module_name, "a")
 
@@ -71,6 +74,7 @@ class ModuleTests(StaticTestBase):
 
         m = get_child(compiler.modules["c"], "m")
         self.assertIsNotNone(m)
+        assert isinstance(m, ModuleInstance)
         self.assertEqual(m.klass, compiler.type_env.module)
         self.assertEqual(m.module_name, "a.b")
 
@@ -88,6 +92,8 @@ class ModuleTests(StaticTestBase):
         compiler = self.decl_visit(**{"a": acode, "a.b": abcode, "c": ccode})
 
         b = get_child(compiler.modules["c"], "b")
+        self.assertIsNotNone(b)
+        assert isinstance(b, ModuleInstance)
         self.assertEqual(b.klass, compiler.type_env.module)
         self.assertEqual(b.module_name, "a.b")
 
@@ -106,6 +112,7 @@ class ModuleTests(StaticTestBase):
 
         zoidberg = get_child(compiler.modules["c"], "zoidberg")
         self.assertIsNotNone(zoidberg)
+        assert isinstance(zoidberg, ModuleInstance)
         self.assertEqual(zoidberg.klass, compiler.type_env.module)
         self.assertEqual(zoidberg.module_name, "a.b")
 
@@ -142,6 +149,7 @@ class ModuleTests(StaticTestBase):
         compiler = self.decl_visit(**{"a": acode, "a.b": abcode, "c": ccode})
 
         b = get_child(compiler.modules["c"], "b")
+        self.assertIsNotNone(b)
         # Matching the runtime, the b name in a will be the int, taking precedence over
         # the module.
         self.assertEqual(b.klass, compiler.type_env.dynamic)

@@ -246,6 +246,7 @@ class SlotsWithDefaultTests(StaticTestBase):
                 x: int = 3
 
             self.assertEqual(mod.f(D()), (3, 2, 3))
+            # pyre-ignore[16]: Pyre can't see into `codestr`.
             self.assertEqual(D.foo, 42)
 
     def test_static_property_override(
@@ -341,6 +342,7 @@ class SlotsWithDefaultTests(StaticTestBase):
                 x: int = 1
 
             self.assertEqual(mod.C().get_x(), 2)
+            # pyre-ignore[16]: Pyre can't see into `codestr`.
             self.assertEqual(D().get_x(), 1)
 
     def test_override_property_with_slot_no_value(
@@ -382,6 +384,7 @@ class SlotsWithDefaultTests(StaticTestBase):
                 x: int
 
             self.assertEqual(mod.C().get_x(), 2)
+            # pyre-ignore[16]: Pyre can't see into `codestr`.
             self.assertEqual(D().get_x(), 2)
 
     def test_override_property_with_slot_non_static_slots(
@@ -403,6 +406,7 @@ class SlotsWithDefaultTests(StaticTestBase):
 
             self.assertEqual(mod.C().get_x(), 2)
             with self.assertRaises(AttributeError):
+                # pyre-ignore[16]: Intentionally testing AttributeError case at runtime.
                 D().get_x()
 
     def test_override_property_with_slot_bad_type(

@@ -244,6 +244,7 @@ class DeclarationVisitorTests(StaticTestBase):
         class CustomCompiler(Compiler):
             def __init__(self):
                 super().__init__(StaticCodeGenerator)
+                self.btree: ast.Module | None = None
 
             def import_module(self, name: str, optimize: int) -> ModuleTable:
                 if name == "b":
@@ -257,7 +258,9 @@ class DeclarationVisitorTests(StaticTestBase):
         acomp = compiler.compile(
             "a", "a.py", ast.parse(dedent(acode)), acode, optimize=1
         )
-        compiler.compile("b", "b.py", compiler.btree, bcode, optimize=1)
+        btree = compiler.btree
+        assert isinstance(btree, ast.Module)
+        compiler.compile("b", "b.py", btree, bcode, optimize=1)
         x = self.find_code(self.find_code(acomp, "C"), "f")
         self.assertInBytecode(x, "INVOKE_METHOD", ((("b", "B"), "g"), 0))
 

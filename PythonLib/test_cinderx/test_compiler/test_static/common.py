@@ -575,6 +575,10 @@ __slot_types__ = {slot_types!r}
         if not cinderx.jit.is_enabled():
             return
 
+        # Can't guarantee that functions will be called with arbitrary JitAuto settings.
+        if cinderx.jit.auto_jit_threshold() != 0:
+            return
+
         self.assertTrue(cinderx.jit.is_jit_compiled(func), func.__name__)
 
     def assert_not_jitted(self, func):

@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+# pyre-ignore[21]: Pyre doesn't know about dataclass internals.
 from dataclasses import (
     _DataclassParams,
     _FIELD,
@@ -448,7 +449,8 @@ class DataclassTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
 
             class D(mod.C):
-                pass
+                def __init__(self, *args) -> None:
+                    super().__init__(*args)
 
             c = mod.C(1, "foo")
             d = D(2, "bar")
@@ -688,7 +690,8 @@ class DataclassTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
 
             class D(mod.C):
-                pass
+                def __init__(self, *args) -> None:
+                    super().__init__(*args)
 
             d = D("foo")
             self.assertRaisesRegex(
@@ -699,8 +702,11 @@ class DataclassTests(StaticTestBase):
                 "bar",
             )
 
+            # pyre-ignore[16]: Intentionally testing behavior of assigning a dynamic
+            # attribute to a subclass of a frozen dataclass.
             d.y = "bar"
             self.assertEqual(d.y, "bar")
+
             del d.y
             self.assertFalse(hasattr(d, "y"))
 
@@ -726,8 +732,12 @@ class DataclassTests(StaticTestBase):
                 pass
 
             d = D()
+
+            # pyre-ignore[16]: Intentionally testing behavior of assigning a dynamic
+            # attribute to a subclass of a frozen dataclass.
             d.x = "foo"
             self.assertEqual(d.x, "foo")
+
             del d.x
             self.assertFalse(hasattr(d, "x"))
 
@@ -998,6 +1008,7 @@ class DataclassTests(StaticTestBase):
         """
         with self.in_strict_module(codestr) as mod:
             params = mod.C.__dataclass_params__
+            # pyre-ignore[16]: Pyre doesn't know about dataclass internals.
             self.assertIsInstance(params, _DataclassParams)
             self.assertTrue(params.init)
             self.assertTrue(params.repr)
@@ -1224,8 +1235,11 @@ class DataclassTests(StaticTestBase):
             self.assertEqual(len(fields), 3)
 
             for name, type, kind in (
+                # pyre-ignore[16]: Pyre doesn't know about dataclass internals.
                 ("x", "str", _FIELD),
+                # pyre-ignore[16]: Pyre doesn't know about dataclass internals.
                 ("y", "ClassVar[int]", _FIELD_CLASSVAR),
+                # pyre-ignore[16]: Pyre doesn't know about dataclass internals.
                 ("z", "InitVar[SomeField]", _FIELD_INITVAR),
             ):
                 with self.subTest(name=name, type=type, kind=kind):
