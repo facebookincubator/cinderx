@@ -179,6 +179,7 @@ try:  # noqa: C901
         set_type_static,
         set_type_static_final,
         staticarray,
+        StaticTypeError,
     )
 except ImportError:
     RAND_MAX = (1 << 31) - 1
@@ -230,6 +231,9 @@ except ImportError:
 
         def __class_getitem__(cls, key) -> type[staticarray]:
             return staticarray
+
+    class StaticTypeError(TypeError):
+        pass
 
 
 try:
