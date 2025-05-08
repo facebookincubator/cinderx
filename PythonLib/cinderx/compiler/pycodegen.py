@@ -17,7 +17,7 @@ try:
     from contextlib import contextmanager
     from enum import IntEnum
     from types import CodeType
-    from typing import Callable, cast, Protocol, Union
+    from typing import Callable, cast, Generator, Protocol, Sequence, Union
 
     from .consts import (
         CO_ASYNC_GENERATOR,
@@ -76,10 +76,6 @@ try:
     from .visitor import ASTVisitor
 except Exception:
     raise
-
-TYPE_CHECKING = False
-if TYPE_CHECKING:
-    from typing import Generator, List, Optional, Sequence
 
 try:
     from cinder import _set_qualname as cx_set_qualname
@@ -317,7 +313,7 @@ class CodeGenerator(ASTVisitor):
         flags: int = 0,
         optimization_lvl: int = 0,
         future_flags: int | None = None,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> None:
         super().__init__()
         if parent is not None:
@@ -2690,7 +2686,7 @@ class CodeGenerator310(CodeGenerator):
         flags: int = 0,
         optimization_lvl: int = 0,
         future_flags: int | None = None,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> None:
         super().__init__(
             parent, node, symbols, graph, flags, optimization_lvl, future_flags, name
@@ -3763,7 +3759,7 @@ class CodeGenerator312(CodeGenerator):
         flags: int = 0,
         optimization_lvl: int = 0,
         future_flags: int | None = None,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> None:
         super().__init__(
             parent, node, symbols, graph, flags, optimization_lvl, future_flags, name
@@ -4380,7 +4376,7 @@ class CodeGenerator312(CodeGenerator):
         self,
         tree: CodeGenTree,
         graph: PyFlowGraph,
-        name: Optional[str] = None,
+        name: str | None = None,
     ) -> CodeGenerator312:
         graph.set_pos(SrcLocation(graph.firstline, graph.firstline, 0, 0))
         return type(self)(
@@ -4560,7 +4556,7 @@ class CodeGenerator312(CodeGenerator):
     def compile_type_params(
         self,
         # pyre-ignore[11]: Annotation is not defined as a valid type
-        type_params: List[ast.TypeVar | ast.TypeVarTuple | ast.ParamSpec],
+        type_params: list[ast.TypeVar | ast.TypeVarTuple | ast.ParamSpec],
     ) -> None:
         for param in type_params:
             # pyre-ignore[16]: Undefined attribute [16]: Module `ast` has no attribute `TypeVar`.
