@@ -5,14 +5,14 @@
 #include <Python.h>
 
 #include "ceval.h"
+
 #if PY_VERSION_HEX >= 0x030C0000
-#include "pycore_intrinsics.h"
-#include "pycore_runtime.h"
+#include "internal/pycore_intrinsics.h"
+#include "internal/pycore_runtime.h"
 #endif
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/opcode.h"
-#include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/generators_rt.h"
@@ -21,18 +21,12 @@
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
-#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/typed_method_def.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
-
-#if PY_VERSION_HEX >= 0x030C0000
-#include "internal/pycore_intrinsics.h"
-#endif
 
 #include <algorithm>
 #include <deque>

@@ -6,7 +6,7 @@
 
 #if PY_VERSION_HEX >= 0x030C0000
 
-#include "pycore_frame.h"
+#include "internal/pycore_frame.h"
 
 namespace jit {
 bool jitgen_is_coroutine(PyObject* o) {

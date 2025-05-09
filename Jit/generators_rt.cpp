@@ -4,9 +4,9 @@
 
 #if PY_VERSION_HEX >= 0x030C0000
 
-#include "pycore_frame.h"
-#include "pycore_genobject.h"
-#include "pycore_pyerrors.h" // _PyErr_ClearExcState()
+#include "internal/pycore_frame.h"
+#include "internal/pycore_genobject.h"
+#include "internal/pycore_pyerrors.h" // _PyErr_ClearExcState()
 #include "structmember.h"
 
 #include "cinderx/Common/log.h"
