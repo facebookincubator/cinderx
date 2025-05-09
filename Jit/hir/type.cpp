@@ -50,7 +50,7 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
 #else
         UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
-        {TNoneType, &_PyNone_Type},
+        {TNoneType, Py_TYPE(Py_None)},
     };
 
     // After construction, verify that all appropriate types have an entry in

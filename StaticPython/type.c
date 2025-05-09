@@ -291,7 +291,7 @@ PyObject* _PyClassLoader_ResolveContainer(PyObject* container_path) {
       PyModule_GetDict(module) == tstate->interp->builtins) {
     /* special case builtins.None, it's used to represent NoneType */
     Py_DECREF(type);
-    type = (PyObject*)&_PyNone_Type;
+    type = (PyObject*)Py_TYPE(Py_None);
   }
 
   if (type != NULL) {

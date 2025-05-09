@@ -460,7 +460,7 @@ Register* simplifyIsTruthy(Env& env, const IsTruthy* instr) {
         &PySlice_Type,
         &PyTuple_Type,
         &PyUnicode_Type,
-        &_PyNone_Type,
+        Py_TYPE(Py_None),
     };
     if (kTrustedTypes.contains(Py_TYPE(obj))) {
       int res = PyObject_IsTrue(obj);

@@ -182,7 +182,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
     switch (_PyClassLoader_PropertyThunk_Kind(func)) {
       case THUNK_SETTER:
       case THUNK_DELETER: {
-        res = &_PyNone_Type;
+        res = Py_TYPE(Py_None);
         Py_INCREF(res);
         break;
       }
@@ -229,7 +229,7 @@ PyObject* _PyClassLoader_ResolveReturnType(
           // _PyClassLoader_ConvertRet and in JIT HIR builder) that
           // when we call them we produce a None.
           *exact = 0;
-          res = (PyTypeObject*)&_PyNone_Type;
+          res = Py_TYPE(Py_None);
           Py_INCREF(res);
           break;
         }

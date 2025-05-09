@@ -159,7 +159,7 @@ TEST_F(HIRTypeTest, UniquePyType) {
 
   // None is a singleton, so Type makes no distinction between None the value
   // and NoneType.
-  EXPECT_EQ(Type::fromObject(Py_None).uniquePyType(), &_PyNone_Type);
+  EXPECT_EQ(Type::fromObject(Py_None).uniquePyType(), Py_TYPE(Py_None));
 
   // Other specialized values don't have unique PyTypeObjects*.
   auto one = Ref<>::steal(PyLong_FromLong(1));
@@ -207,7 +207,7 @@ TEST_F(HIRTypeTest, RuntimePyType) {
 
   // None is a singleton, so Type makes no distinction between None the value
   // and NoneType.
-  EXPECT_EQ(Type::fromObject(Py_None).runtimePyType(), &_PyNone_Type);
+  EXPECT_EQ(Type::fromObject(Py_None).runtimePyType(), Py_TYPE(Py_None));
 
   // Other specialized values have their object's ob_type as runtime types.
   auto one = Ref<>::steal(PyLong_FromLong(1));
