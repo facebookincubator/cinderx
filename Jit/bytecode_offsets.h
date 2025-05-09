@@ -4,10 +4,15 @@
 
 #include <Python.h>
 
-#include "cinderx/Common/util.h"
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_code.h"
+#endif
+
+#include "cinderx/Common/log.h"
 
 #include <limits>
 #include <ostream>
+#include <type_traits>
 
 namespace jit {
 

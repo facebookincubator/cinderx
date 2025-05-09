@@ -4,6 +4,10 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_code.h"
+#endif
+
 #include <stdbool.h>
 #include <stddef.h>
 
