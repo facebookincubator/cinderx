@@ -56,9 +56,9 @@ bool JITList::parseLine(std::string_view line) {
   if (line.empty() || line.at(0) == '#') {
     return true;
   }
-  auto atpos = line.find("@");
+  auto atpos = line.find('@');
   if (atpos == std::string_view::npos) {
-    auto cln_pos = line.find(":");
+    auto cln_pos = line.find(':');
     if (cln_pos == std::string_view::npos) {
       return false;
     }
@@ -69,7 +69,7 @@ bool JITList::parseLine(std::string_view line) {
 
   std::string_view name = line.substr(0, atpos);
   std::string_view loc_str = line.substr(atpos + 1);
-  auto cln_pos = loc_str.find(":");
+  auto cln_pos = loc_str.find(':');
   if (cln_pos == std::string_view::npos) {
     return false;
   }
