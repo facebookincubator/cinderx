@@ -9,11 +9,11 @@
 #endif
 #include <Python.h>
 
-#include "frameobject.h"
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/autogen.h"
@@ -44,8 +44,6 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
-#include <list>
-#include <unordered_map>
 #include <vector>
 
 using namespace asmjit;
@@ -176,7 +174,8 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
   releaseRefs(deopt_meta, mem);
 #if PY_VERSION_HEX >= 0x030C0000
   if (frame->f_code->co_flags & kCoFlagsAnyGenerator) {
-    JitGenObject* gen = JitGenObject::cast(_PyFrame_GetGenerator(frame));
+    BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
+    JitGenObject* gen = JitGenObject::cast(base_gen.get());
     JIT_CHECK(gen != nullptr, "Not a JIT generator");
     deopt_jit_gen_object_only(gen);
   }

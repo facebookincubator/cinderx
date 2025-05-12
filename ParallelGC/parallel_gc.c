@@ -32,6 +32,7 @@
 #include "internal/pycore_pyerrors.h"
 #include "internal/pycore_pystate.h" // _PyThreadState_GET()
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/ParallelGC/condvar.h"
 #include "cinderx/ParallelGC/ws_deque.h"
 
@@ -1104,7 +1105,7 @@ static Py_ssize_t gc_collect_main(
   PyGC_Head unreachable; /* non-problematic unreachable trash */
   PyGC_Head finalizers; /* objects with, & reachable from, __del__ */
   PyGC_Head* gc;
-  _PyTime_t t1 = 0; /* initialize to prevent a compiler warning */
+  PyTime_t t1 = 0; /* initialize to prevent a compiler warning */
   GCState* gcstate = &tstate->interp->gc;
 
   // gc_collect_main() must not be called before _PyGC_Init
@@ -1220,7 +1221,7 @@ static Py_ssize_t gc_collect_main(
       debug_cycle("uncollectable", FROM_GC(gc));
   }
   if (gcstate->debug & DEBUG_STATS) {
-    double d = _PyTime_AsSecondsDouble(_PyTime_GetMonotonicClock() - t1);
+    double d = PyTime_AsSecondsDouble(_PyTime_GetMonotonicClock() - t1);
     PySys_WriteStderr(
         "gc: done, %zd unreachable, %zd uncollectable, %.4fs elapsed\n",
         n + m,

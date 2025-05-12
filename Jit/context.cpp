@@ -3,12 +3,10 @@
 #include "cinderx/Jit/context.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Interpreter/interpreter.h"
-#include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/jit_gdb_support.h"
-
-#include <unordered_set>
 
 namespace jit {
 
@@ -220,7 +218,7 @@ bool Context::deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
   // it fixes some shutdown crashes for now.
   if (func->func_module == nullptr && func->func_qualname == nullptr) {
     JIT_CHECK(
-        _Py_IsFinalizing(),
+        Py_IsFinalizing(),
         "Trying to deopt destroyed function at {} when runtime is not "
         "finalizing",
         reinterpret_cast<void*>(func.get()));

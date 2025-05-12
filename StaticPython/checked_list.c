@@ -2915,7 +2915,7 @@ static PyObject* list_sort(
       goto skip_optional_kwonly;
     }
   }
-  reverse = _PyLong_AsInt(args[1]);
+  reverse = PyLong_AsInt(args[1]);
   if (reverse == -1 && PyErr_Occurred()) {
     goto exit;
   }

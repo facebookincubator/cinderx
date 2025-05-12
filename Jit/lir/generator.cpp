@@ -18,6 +18,7 @@
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/iter_helpers.h"
 #include "cinderx/Jit/codegen/x86_64.h"
@@ -68,7 +69,7 @@ extern "C" PyObject* __Invoke_PyList_Extend(
     PyThreadState* tstate,
     PyListObject* list,
     PyObject* iterable) {
-  PyObject* none_val = _PyList_Extend(list, iterable);
+  PyObject* none_val = PyList_Extend(list, iterable);
   if (none_val == nullptr) {
     if (_PyErr_ExceptionMatches(tstate, PyExc_TypeError) &&
         Py_TYPE(iterable)->tp_iter == nullptr && !PySequence_Check(iterable)) {

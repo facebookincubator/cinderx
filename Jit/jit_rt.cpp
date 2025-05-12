@@ -766,9 +766,9 @@ JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate) {
   _PyInterpreterFrame* frame = tstate->cframe->current_frame;
   tstate->cframe->current_frame = frame->previous;
   frame->previous = nullptr;
-  jit::JitGenObject* gen =
-      jit::JitGenObject::cast(_PyFrame_GetGenerator(frame));
 
+  BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
+  jit::JitGenObject* gen = jit::JitGenObject::cast(base_gen.get());
   return {gen, gen->genDataFooter()};
 }
 
@@ -1420,7 +1420,7 @@ PyObject* JITRT_ImportName(
 
   /* Fast path for not overloaded __import__. */
   if (import_func == CI_INTERP_IMPORT_FIELD(tstate->interp, import_func)) {
-    int ilevel = _PyLong_AsInt(level);
+    int ilevel = PyLong_AsInt(level);
     if (ilevel == -1 && _PyErr_Occurred(tstate)) {
       return nullptr;
     }
@@ -1607,8 +1607,8 @@ JITRT_GenSendRes JITRT_GenSend(
   PyObject* retval;
 #if PY_VERSION_HEX >= 0x030C0000
   if (frame->f_code->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)) {
-    Ci_PyAwaitable_SetAwaiter(
-        gen, reinterpret_cast<PyObject*>(_PyFrame_GetGenerator(frame)));
+    BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
+    Ci_PyAwaitable_SetAwaiter(gen, base_gen);
   }
 #endif
   auto gen_status = PyIter_Send(gen, v, &retval);
