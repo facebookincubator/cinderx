@@ -1404,12 +1404,12 @@ PyObject* JITRT_ImportName(
     PyObject* fromlist,
     PyObject* level) {
   DEFINE_STATIC_STRING(__import__);
-  PyObject *import_func, *res;
-  PyObject* stack[5];
   PyObject* globals = PyEval_GetGlobals();
   PyObject* builtins = tstate->interp->builtins;
 
-  import_func = PyDict_GetItemWithError(builtins, s___import__);
+  auto import_func =
+      Ref<>::create(PyDict_GetItemWithError(builtins, s___import__));
+
   JIT_DCHECK(
       import_func || !PyErr_Occurred(),
       "_PyDict_GetItemIdWithError should only fail with invalid identifiers");
@@ -1424,7 +1424,7 @@ PyObject* JITRT_ImportName(
     if (ilevel == -1 && _PyErr_Occurred(tstate)) {
       return nullptr;
     }
-    res = PyImport_ImportModuleLevelObject(
+    return PyImport_ImportModuleLevelObject(
         name,
         globals,
         // Locals are not actually used by the builtin import.
@@ -1432,24 +1432,17 @@ PyObject* JITRT_ImportName(
         Py_None,
         fromlist,
         ilevel);
-    return res;
   }
 
-  Py_INCREF(import_func);
-
-  stack[0] = name;
-  stack[1] = globals;
   // In this implementation we always pass None for locals as it's easier than
-  // fully materializing them now. The CPython interpreter has strange
-  // (probably broken) behavior - it will only pass a dictionary of locals to
-  // __builtins__.__import__() if the  locals have been materialized already,
-  // for example by a call to locals(). Reliance on this behavior is unlikely.
-  stack[2] = Py_None;
-  stack[3] = fromlist;
-  stack[4] = level;
-  res = _PyObject_FastCall(import_func, stack, 5);
-  Py_DECREF(import_func);
-  return res;
+  // fully materializing them now. The CPython interpreter has strange (probably
+  // broken) behavior - it will only pass a dictionary of locals to
+  // __builtins__.__import__() if the locals have been materialized already, for
+  // example by a call to locals(). Reliance on this behavior is unlikely.
+  PyObject* locals = Py_None;
+
+  return PyObject_CallFunctionObjArgs(
+      import_func, name, globals, locals, fromlist, level, nullptr);
 }
 
 void JITRT_DoRaise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {

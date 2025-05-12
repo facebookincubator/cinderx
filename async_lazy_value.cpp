@@ -609,10 +609,10 @@ static PyObject* create_task(PyObject* coro, PyObject* loop) {
   PyObject* task;
   if (meth_found) {
     PyObject* stack[2] = {loop, coro};
-    task = _PyObject_FastCall(create_task, stack, 2);
+    task = PyObject_Vectorcall(create_task, stack, 2, nullptr);
   } else {
     PyObject* stack[1] = {coro};
-    task = _PyObject_FastCall(create_task, stack, 1);
+    task = PyObject_Vectorcall(create_task, stack, 1, nullptr);
   }
   Py_DECREF(create_task);
   if (task == nullptr) {

@@ -511,8 +511,7 @@ static PyObject* strictmodule_lookupattro_impl(
     DEFINE_STATIC_STRING(__getattr__);
     PyObject* getattr = PyDict_GetItemWithError(m->globals, s___getattr__);
     if (getattr) {
-      PyObject* stack[1] = {name};
-      PyObject* res = _PyObject_FastCall(getattr, stack, 1);
+      PyObject* res = PyObject_CallOneArg(getattr, name);
       if (res == NULL && suppress &&
           PyErr_ExceptionMatches(PyExc_AttributeError)) {
         PyErr_Clear();
