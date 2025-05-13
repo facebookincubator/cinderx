@@ -804,7 +804,7 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
   // This is needed particularly because it handles the work of copying
   // data to a PyFrameObject if one has escaped the function.
   Cix_PyFrame_ClearExceptCode(frame);
-  Py_DECREF(frame->f_code);
+  Py_DECREF(_PyFrame_GetCode(frame));
   Cix_PyThreadState_PopFrame(tstate, frame);
 #endif
 }
@@ -1599,7 +1599,7 @@ JITRT_GenSendRes JITRT_GenSend(
   }
   PyObject* retval;
 #if PY_VERSION_HEX >= 0x030C0000
-  if (frame->f_code->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)) {
+  if (_PyFrame_GetCode(frame)->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)) {
     BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
     Ci_PyAwaitable_SetAwaiter(gen, base_gen);
   }

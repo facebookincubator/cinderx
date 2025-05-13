@@ -173,7 +173,7 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
   runtime->recordDeopt(deopt_idx, deopt_obj);
   releaseRefs(deopt_meta, mem);
 #if PY_VERSION_HEX >= 0x030C0000
-  if (frame->f_code->co_flags & kCoFlagsAnyGenerator) {
+  if (_PyFrame_GetCode(frame)->co_flags & kCoFlagsAnyGenerator) {
     BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
     JitGenObject* gen = JitGenObject::cast(base_gen.get());
     JIT_CHECK(gen != nullptr, "Not a JIT generator");

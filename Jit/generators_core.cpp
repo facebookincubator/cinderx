@@ -8,20 +8,23 @@
 
 #include "internal/pycore_frame.h"
 
+#include "cinderx/Common/py-portability.h"
+
 namespace jit {
+
 bool jitgen_is_coroutine(PyObject* o) {
-  if (Py_TYPE(o) == cinderx::getModuleState()->genType() ||
-      PyGen_CheckExact(o)) {
-    // Do not use PyGen_GetCode() as this asserts on PyGen_Check().
-    PyCodeObject* code = reinterpret_cast<_PyInterpreterFrame*>(
-                             reinterpret_cast<PyGenObject*>(o)->gi_iframe)
-                             ->f_code;
-    if (code->co_flags & CO_ITERABLE_COROUTINE) {
-      return true;
-    }
+  if (Py_TYPE(o) != cinderx::getModuleState()->genType() &&
+      !PyGen_CheckExact(o)) {
+    return false;
   }
-  return false;
+
+  // Do not use PyGen_GetCode() as this asserts on PyGen_Check().
+  BorrowedRef<PyGenObject> base_gen{o};
+  auto gen_frame = reinterpret_cast<_PyInterpreterFrame*>(base_gen->gi_iframe);
+  BorrowedRef<PyCodeObject> code = _PyFrame_GetCode(gen_frame);
+  return code->co_flags & CO_ITERABLE_COROUTINE;
 }
+
 } // namespace jit
 
 extern "C" {

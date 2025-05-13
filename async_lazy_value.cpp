@@ -8,6 +8,7 @@
 #include "internal/pycore_modsupport.h"
 #endif
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/module_state.h"
 
@@ -1130,7 +1131,7 @@ static int gen_close_iter(PyObject* yf) {
 
   PyObject* meth;
   DEFINE_STATIC_STRING(close);
-  if (_PyObject_LookupAttr(yf, s_close, &meth) < 0) {
+  if (PyObject_GetOptionalAttr(yf, s_close, &meth) < 0) {
     PyErr_WriteUnraisable(yf);
   }
   if (meth) {
@@ -1148,7 +1149,7 @@ PyObject* coro_throw(PyObject* coro, PyObject* type) {
 
   PyObject* meth;
   DEFINE_STATIC_STRING(throw);
-  if (_PyObject_LookupAttr(coro, s_throw, &meth) < 0) {
+  if (PyObject_GetOptionalAttr(coro, s_throw, &meth) < 0) {
     PyErr_WriteUnraisable(coro);
   }
   if (meth) {

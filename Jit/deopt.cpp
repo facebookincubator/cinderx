@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/deopt.h"
 
-#include "cinderx/Common/code.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/hir/analysis.h"
@@ -140,7 +140,8 @@ static void reifyStack(
   frame->f_stackdepth = frame_meta.stack.size();
   PyObject** stack_top = &frame->f_valuestack[frame->f_stackdepth - 1];
 #else
-  frame->stacktop = frame->f_code->co_nlocalsplus + frame_meta.stack.size();
+  frame->stacktop =
+      _PyFrame_GetCode(frame)->co_nlocalsplus + frame_meta.stack.size();
   PyObject** stack_top = &frame->localsplus[frame->stacktop - 1];
 #endif
   for (int i = frame_meta.stack.size() - 1; i >= 0; i--) {
@@ -284,7 +285,7 @@ static void reifyFrameImpl(
   // the next instruction to execute. This means it might point to inline-
   // cache data or a negative location.
   int idx = (getDeoptResumeIndex(meta, frame_meta, forced_deopt) - 1).value();
-  frame->prev_instr = _PyCode_CODE(frame->f_code) + idx;
+  frame->prev_instr = _PyCode_CODE(_PyFrame_GetCode(frame)) + idx;
 
   MemoryView mem{regs};
   reifyLocalsplus(frame, meta, frame_meta, mem);
