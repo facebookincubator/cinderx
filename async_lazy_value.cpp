@@ -4,6 +4,10 @@
 
 #if PY_VERSION_HEX >= 0x030C0000
 
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_modsupport.h"
+#endif
+
 #include "cinderx/Common/string.h"
 #include "cinderx/module_state.h"
 

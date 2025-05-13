@@ -2,6 +2,10 @@
 
 #include "cinderx/StaticPython/static_array.h"
 
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_modsupport.h"
+#endif
+
 /**
  *   Lightweight implementation of Static Arrays.
  */

@@ -4,6 +4,10 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_modsupport.h"
+#endif
+
 #include "internal/pycore_bitutils.h" // _Py_bit_length
 #include "internal/pycore_gc.h" // _PyObject_GC_IS_TRACKED()
 #include "internal/pycore_interp.h" // PyDict_MAXFREELIST
