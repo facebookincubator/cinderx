@@ -14,10 +14,12 @@
  * Immortalizes a Python object but does not check if that makes sense to do so.
  * You probably want to use the `immortalize()` function instead.
  */
-#if PY_VERSION_HEX >= 0x030C0000
-#define IMMORTALIZE(OBJ) Py_SET_REFCNT((OBJ), _Py_IMMORTAL_REFCNT)
-#elif defined(Py_IMMORTAL_INSTANCES)
+#if defined(Py_IMMORTAL_INSTANCES)
 #define IMMORTALIZE(OBJ) Py_SET_IMMORTAL(OBJ)
+#elif PY_VERSION_HEX >= 0x030E0000
+#define IMMORTALIZE(OBJ) Py_SET_REFCNT((OBJ), _Py_IMMORTAL_INITIAL_REFCNT)
+#elif PY_VERSION_HEX >= 0x030C0000
+#define IMMORTALIZE(OBJ) Py_SET_REFCNT((OBJ), _Py_IMMORTAL_REFCNT)
 #endif
 
 /*
