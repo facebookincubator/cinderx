@@ -207,16 +207,14 @@ class LinePositionTests(CompilerTest):
                 self.assertEqual(table, f.__code__.co_linetable)
 
     def get_position(self, compiled: CodeType, opcode: str) -> tuple[...] | None:
-        position: tuple[...] | None = None
         for instr in get_instructions(compiled):
             if instr.opname == opcode:
                 # pyre-ignore[16]: No co_positions
-                position = list(compiled.co_positions())[instr.offset // 2]
-                break
+                return list(compiled.co_positions())[instr.offset // 2]
         else:
             self.fail(f"Could not find opcode {opcode} in bytecode")
 
-        return position
+        return None
 
     def opcode_variations(self, opcode: str | Sequence[str]) -> Sequence[str]:
         if isinstance(opcode, str):
