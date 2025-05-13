@@ -27,6 +27,7 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/inline_cache.h"
@@ -1906,9 +1907,18 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kCallCFunc: {
+        constexpr auto kFuncPtrMap = std::to_array({
+#define FUNC_PTR(name, ...) (void*)name,
+            CallCFunc_FUNCS(FUNC_PTR)
+#undef FUNC_PTR
+        });
+
         auto& hir_instr = static_cast<const CallCFunc&>(i);
+        auto func_ptr = kFuncPtrMap[static_cast<int>(hir_instr.func())];
         Instruction* instr = bbb.appendInstr(
-            hir_instr.output(), Instruction::kCall, Imm{hir_instr.funcAddr()});
+            hir_instr.output(),
+            Instruction::kCall,
+            Imm{reinterpret_cast<uint64_t>(func_ptr)});
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }

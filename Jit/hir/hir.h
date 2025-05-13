@@ -1175,13 +1175,7 @@ class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
     }
   }
 
-  uint64_t funcAddr() const {
-    return reinterpret_cast<uint64_t>(kFuncPtrMap[static_cast<size_t>(func_)]);
-  }
-
-  const char* funcName() const {
-    return kFuncNames[static_cast<size_t>(func_)];
-  }
+  std::string_view funcName() const;
 
   Func func() const {
     return func_;
@@ -1189,9 +1183,6 @@ class INSTR_CLASS(CallCFunc, (TOptObject | TCUInt64), HasOutput, Operands<>) {
 
  private:
   const Func func_;
-
-  static const std::vector<void*> kFuncPtrMap;
-  static const std::vector<const char*> kFuncNames;
 };
 
 // Call to a C function pointer, the return value indicates an error. If the

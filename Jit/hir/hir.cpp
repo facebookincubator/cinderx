@@ -2,37 +2,15 @@
 
 #include "cinderx/Jit/hir/hir.h"
 
-#include "internal/pycore_pystate.h"
-
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/threaded_compile.h"
-#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <fmt/format.h>
 
 #include <algorithm>
 #include <unordered_map>
 
-// These are used by kFuncPtrMap and kFuncNames below. I couldn't find a good
-// way to include generators_rt.h without introducing a build depencency cycle.
-extern "C" {
-PyObject* JitCoro_GetAwaitableIter(PyObject* o);
-PyObject* JitGen_yf(PyObject* o);
-}
-
 namespace jit::hir {
-
-const std::vector<void*> CallCFunc::kFuncPtrMap{
-#define FUNC_PTR(name, ...) (void*)name,
-    CallCFunc_FUNCS(FUNC_PTR)
-#undef FUNC_PTR
-};
-
-const std::vector<const char*> CallCFunc::kFuncNames{
-#define FUNC_NAME(name, ...) #name,
-    CallCFunc_FUNCS(FUNC_NAME)
-#undef FUNC_NAME
-};
 
 void DeoptBase::sortLiveRegs() {
   std::sort(
@@ -52,6 +30,18 @@ void DeoptBase::sortLiveRegs() {
         [](const RegState& a, const RegState& b) { return a.reg == b.reg; });
     JIT_DCHECK(it == live_regs_.end(), "Register {} is live twice", *it->reg);
   }
+}
+
+std::string_view CallCFunc::funcName() const {
+  switch (func_) {
+#define FUNC_NAME(V, ...) \
+  case Func::k##V:        \
+    return #V;
+    CallCFunc_FUNCS(FUNC_NAME)
+#undef FUNC_NAME
+        default : break;
+  }
+  return "<unknown CallCFunc>";
 }
 
 void Phi::setArgs(const std::unordered_map<BasicBlock*, Register*>& args) {
