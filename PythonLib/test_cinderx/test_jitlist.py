@@ -10,8 +10,9 @@ import sys
 import tempfile
 import textwrap
 import unittest
-
 from pathlib import Path
+
+from unittest import skipIf
 
 import cinderx
 
@@ -160,6 +161,10 @@ class JitListTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             cinderx.jit.precompile_all(workers=200000)
 
+    @skipIf(
+        sys.version_info >= (3, 12),
+        "TODO(T220664953): remove usage of `sys.executable` in CinderX tests",
+    )
     def test_default_parse_error_behavior_startup(self) -> None:
         code = 'print("Hello world!")'
         jitlist = "OH NO"
@@ -185,6 +190,10 @@ class JitListTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc)
         self.assertIn("Continuing on with the JIT disabled", proc.stderr)
 
+    @skipIf(
+        sys.version_info >= (3, 12),
+        "TODO(T220664953): remove usage of `sys.executable` in CinderX tests",
+    )
     def test_default_parse_error_behavior_append(self) -> None:
         code = textwrap.dedent(
             """
@@ -214,6 +223,10 @@ class JitListTest(unittest.TestCase):
             )
         self.assertEqual(proc.returncode, 0, proc)
 
+    @skipIf(
+        sys.version_info >= (3, 12),
+        "TODO(T220664953): remove usage of `sys.executable` in CinderX tests",
+    )
     def test_fail_on_parse_error_startup(self) -> None:
         code = 'print("Hello world!")'
         jitlist = "OH NO"
@@ -242,6 +255,10 @@ class JitListTest(unittest.TestCase):
         self.assertIn("Error while parsing line", proc.stderr)
         self.assertIn("in JIT list file", proc.stderr)
 
+    @skipIf(
+        sys.version_info >= (3, 12),
+        "TODO(T220664953): remove usage of `sys.executable` in CinderX tests",
+    )
     def test_fail_on_parse_error_append(self) -> None:
         code = textwrap.dedent(
             """
