@@ -10,9 +10,6 @@
 
 #include "cpython/code.h"
 
-// Needed to tell pycore_opcode.h to define the _PyOpcode* arrays.
-#define NEED_OPCODE_TABLES
-
 // Have to rename these arrays because they're externally linked in CPython, so
 // this will hit linker errors for duplicate definitions if they're pulled in
 // directly.
@@ -20,7 +17,19 @@
 #define _PyOpcode_Deopt Ci_Opcode_Deopt
 #define _PyOpcode_Jump Ci_Opcode_Jump
 
+#endif
+
+#if PY_VERSION_HEX >= 0x030C0000 && PY_VERSION_HEX < 0x030D0000
+
+// Needed to tell pycore_opcode.h to define the _PyOpcode* arrays.
+#define NEED_OPCODE_TABLES
 #include "internal/pycore_opcode.h"
+
+#elif PY_VERSION_HEX >= 0x030D0000
+
+// Needed to tell pycore_opcode_metadata.h to define the _PyOpcode* arrays.
+#define NEED_OPCODE_METADATA
+#include "internal/pycore_opcode_metadata.h"
 
 #endif
 
