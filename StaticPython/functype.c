@@ -25,9 +25,9 @@ int _PyClassLoader_IsPropertyName(PyTupleObject* name) {
   if (!PyUnicode_Check(property_method_name)) {
     return 0;
   }
-  return _PyUnicode_EqualToASCIIString(property_method_name, "fget") ||
-      _PyUnicode_EqualToASCIIString(property_method_name, "fset") ||
-      _PyUnicode_EqualToASCIIString(property_method_name, "fdel");
+  return PyUnicode_CompareWithASCIIString(property_method_name, "fget") == 0 ||
+      PyUnicode_CompareWithASCIIString(property_method_name, "fset") == 0 ||
+      PyUnicode_CompareWithASCIIString(property_method_name, "fdel") == 0;
 }
 
 PyObject* _PyClassLoader_GetFunctionName(PyObject* name) {

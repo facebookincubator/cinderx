@@ -737,11 +737,11 @@ static PyObject* classloader_get_property_method(
     PyObject* property,
     PyTupleObject* name) {
   PyObject* fname = PyTuple_GET_ITEM(name, 1);
-  if (_PyUnicode_EqualToASCIIString(fname, "fget")) {
+  if (PyUnicode_CompareWithASCIIString(fname, "fget") == 0) {
     return classloader_get_property_fget(type, (PyObject*)name, property);
-  } else if (_PyUnicode_EqualToASCIIString(fname, "fset")) {
+  } else if (PyUnicode_CompareWithASCIIString(fname, "fset") == 0) {
     return classloader_get_property_fset(type, (PyObject*)name, property);
-  } else if (_PyUnicode_EqualToASCIIString(fname, "fdel")) {
+  } else if (PyUnicode_CompareWithASCIIString(fname, "fdel") == 0) {
     return classloader_get_property_fdel(type, (PyObject*)name, property);
   }
 

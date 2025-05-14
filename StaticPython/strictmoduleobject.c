@@ -441,22 +441,22 @@ static PyObject* strictmodule_lookupattro_impl(
     attr = NULL;
   } else if (
       PyUnicode_GET_LENGTH(name) == 9 && PyUnicode_READ_CHAR(name, 0) == '_' &&
-      _PyUnicode_EqualToASCIIString(name, "__class__")) {
+      PyUnicode_CompareWithASCIIString(name, "__class__") == 0) {
     Py_INCREF(&Ci_StrictModule_Type);
     return (PyObject*)&Ci_StrictModule_Type;
   } else if (
       PyUnicode_GET_LENGTH(name) == 8 && PyUnicode_READ_CHAR(name, 0) == '_' &&
-      _PyUnicode_EqualToASCIIString(name, "__dict__")) {
+      PyUnicode_CompareWithASCIIString(name, "__dict__") == 0) {
     return strict_module_dict_get((PyObject*)m, NULL);
   } else if (
       PyUnicode_GET_LENGTH(name) == 8 && PyUnicode_READ_CHAR(name, 0) == '_' &&
-      _PyUnicode_EqualToASCIIString(name, "__name__")) {
+      PyUnicode_CompareWithASCIIString(name, "__name__") == 0) {
     /* This is a data descriptor, it always takes precedence over
      * an entry in __dict__ */
     return strict_module_name_get((PyObject*)m, NULL);
   } else if (
       PyUnicode_GET_LENGTH(name) == 17 && PyUnicode_READ_CHAR(name, 0) == '_' &&
-      _PyUnicode_EqualToASCIIString(name, "__patch_enabled__")) {
+      PyUnicode_CompareWithASCIIString(name, "__patch_enabled__") == 0) {
     return strict_module_patch_enabled((PyObject*)m, NULL);
   } else {
     /* Otherwise we have no other data descriptors, just look in the

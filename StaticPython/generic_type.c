@@ -54,7 +54,7 @@ static PyObject* get_optional_type(PyObject* type) {
         goto done;
       }
       if (!PyUnicode_CheckExact(name) ||
-          !_PyUnicode_EqualToASCIIString(name, "Union")) {
+          PyUnicode_CompareWithASCIIString(name, "Union") != 0) {
         goto done;
       }
     }
