@@ -2,7 +2,6 @@
 
 #include "cinderx/Jit/codegen/x86_64.h"
 
-#include <algorithm>
 #include <utility>
 
 namespace jit::codegen {

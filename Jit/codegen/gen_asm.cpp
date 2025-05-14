@@ -7,7 +7,6 @@
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
 #endif
-#include <Python.h>
 
 #include "internal/pycore_pystate.h"
 
