@@ -4,7 +4,6 @@
 #include <Python.h>
 // clang-format on
 
-#include "frameobject.h"
 #include "internal/pycore_call.h"
 #include "internal/pycore_pystate.h"
 #include "structmember.h"
@@ -12,7 +11,6 @@
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/extra-py-flags.h"
-#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"

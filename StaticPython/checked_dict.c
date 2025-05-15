@@ -23,8 +23,6 @@
 #include "internal/pycore_call.h" // _PyObject_CallNoArgs()
 #endif
 
-#include "cinderx/Common/py-portability.h"
-
 typedef struct _dictkeysobject ChkDictKeysObject;
 typedef struct _dictkeyentry ChkDictKeyEntry;
 

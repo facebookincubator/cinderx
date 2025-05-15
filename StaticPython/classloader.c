@@ -10,19 +10,14 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
-#include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/extra-py-flags.h" // @donotremove
 #include "cinderx/Common/func.h"
-#include "cinderx/Common/py-portability.h"
-#include "cinderx/Common/string.h"
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/StaticPython/descrs.h"
-#include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/modulethunks.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/vtable_builder.h"
-#include "cinderx/StaticPython/vtable_defs.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
