@@ -32,8 +32,16 @@ static inline int Ci_method_check_args(
     return -1;
   }
   PyObject* self = args[0];
-  if (!_PyObject_RealIsSubclass(
-          (PyObject*)Py_TYPE(self), (PyObject*)PyDescr_TYPE(func))) {
+  PyTypeObject* self_type = Py_TYPE(self);
+  PyTypeObject* func_descrtype = PyDescr_TYPE(func);
+
+  // Going straight through to PyType_IsSubtype() avoids __subclasscheck__,
+  // which would be called by PyObject_IsSubclass().  This is needed to pass for
+  // chkdict.
+  bool is_subclass = self_type == func_descrtype ||
+      PyType_IsSubtype(self_type, func_descrtype);
+
+  if (!is_subclass) {
     PyObject* funcstr = _PyObject_FunctionStr(func);
     if (funcstr != NULL) {
       PyErr_Format(
@@ -41,8 +49,8 @@ static inline int Ci_method_check_args(
           "descriptor '%U' for '%.100s' objects "
           "doesn't apply to a '%.100s' object",
           funcstr,
-          PyDescr_TYPE(func)->tp_name,
-          Py_TYPE(self)->tp_name);
+          func_descrtype->tp_name,
+          self_type->tp_name);
     }
     return -1;
   }
