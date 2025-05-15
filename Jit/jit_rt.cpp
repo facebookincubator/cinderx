@@ -743,8 +743,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
 
   _PyObject_GC_TRACK(gen);
 
-  _PyInterpreterFrame* frame =
-      reinterpret_cast<_PyInterpreterFrame*>(&gen->gi_iframe);
+  _PyInterpreterFrame* frame = generatorFrame(gen);
   init_and_link_interpreter_frame(func, co, tstate, frame);
   frame->owner = FRAME_OWNED_BY_GENERATOR;
 

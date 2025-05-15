@@ -40,3 +40,16 @@
 #define _PyGen_GetGeneratorFromFrame _PyFrame_GetGenerator
 
 #endif
+
+#if PY_VERSION_HEX >= 0x030C0000
+// Get the interpreter frame stored in a generator object.
+inline _PyInterpreterFrame* generatorFrame(PyGenObject* gen) {
+  return
+#if PY_VERSION_HEX >= 0x030E0000
+      &gen->gi_iframe
+#else
+      (_PyInterpreterFrame*)(gen->gi_iframe)
+#endif
+      ;
+}
+#endif

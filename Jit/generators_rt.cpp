@@ -95,8 +95,7 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
   PyObject* gen_obj = reinterpret_cast<PyObject*>(jit_gen);
   GenDataFooter* gen_footer = jit_gen->genDataFooter();
 
-  _PyInterpreterFrame* frame =
-      reinterpret_cast<_PyInterpreterFrame*>(jit_gen->gi_iframe);
+  _PyInterpreterFrame* frame = generatorFrame(jit_gen);
   // See comment about reusing the cframe in jit_rt.cpp,
   // allocate_and_link_interpreter_frame().
   frame->previous = tstate->cframe->current_frame;
@@ -169,8 +168,7 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
   JIT_DCHECK(tstate->exc_info == prev_exc_info, "Invalid exc_info");
   JIT_DCHECK(gen->gi_exc_state.previous_item == NULL, "Invalid exc_state");
   JIT_DCHECK(gen->gi_frame_state != FRAME_EXECUTING, "Invalid frame state");
-  _PyInterpreterFrame* frame =
-      reinterpret_cast<_PyInterpreterFrame*>(gen->gi_iframe);
+  _PyInterpreterFrame* frame = generatorFrame(gen);
   JIT_DCHECK(
       JitGen_CheckAny(obj) || frame->previous == NULL,
       "Previous frame still linked");
@@ -521,13 +519,21 @@ PyType_Slot gen_slots[] = {
     {0, nullptr},
 };
 
+constexpr size_t kGenObjectSize =
+#if PY_VERSION_HEX >= 0x030E0000
+    sizeof(PyGenObject)
+#else
+    // For 3.12 and 3.13 generator objects are variable-sized, so we use
+    // offsetof(). This is inherited from genobject.c.
+    offsetof(PyGenObject, gi_iframe) + offsetof(_PyInterpreterFrame, localsplus)
+#endif
+    ;
+
 PyType_Spec JitGen_Spec = {
     .name = "builtins.generator",
-    // These structs are variable-sized so we use offsetof(). This is inherited
-    // from genobject.c. We store our pointer to JIT data in an additional
+    // We store our pointer to JIT data in an additional
     // variable slot at the end of the object.
-    .basicsize = offsetof(PyGenObject, gi_iframe) +
-        offsetof(_PyInterpreterFrame, localsplus) + sizeof(GenDataFooter*),
+    .basicsize = kGenObjectSize + sizeof(GenDataFooter*),
     .itemsize = sizeof(PyObject*),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC | Py_TPFLAGS_IMMUTABLETYPE,
     .slots = gen_slots,
@@ -549,11 +555,9 @@ PyType_Slot coro_slots[] = {
 
 PyType_Spec JitCoro_Spec = {
     .name = "builtins.coroutine",
-    // These structs are variable-sized so we use offsetof(). This is inherited
-    // from genobject.c. We store our pointer to JIT data in an additional
-    // variable slot at the end of the object.
-    .basicsize = offsetof(PyGenObject, gi_iframe) +
-        offsetof(_PyInterpreterFrame, localsplus) + sizeof(GenDataFooter*),
+    // We store our pointer to JIT data in an additional variable slot at the
+    // end of the object.
+    .basicsize = kGenObjectSize + sizeof(GenDataFooter*),
     .itemsize = sizeof(PyObject*),
     .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
         Ci_TPFLAGS_HAVE_AM_EXTRA | Py_TPFLAGS_IMMUTABLETYPE,
@@ -592,7 +596,7 @@ bool deopt_jit_gen(PyObject* obj) {
     JIT_CHECK(
         deopt_meta.inline_depth() == 0,
         "inline functions not supported for generators");
-    auto frame = reinterpret_cast<_PyInterpreterFrame*>(jit_gen->gi_iframe);
+    auto frame = generatorFrame(jit_gen);
     reifyGeneratorFrame(
         frame, deopt_meta, deopt_meta.innermostFrame(), gen_footer);
     // Ownership of references has been transferred from JIT to interpreter.

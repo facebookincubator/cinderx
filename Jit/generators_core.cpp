@@ -20,7 +20,7 @@ bool jitgen_is_coroutine(PyObject* o) {
 
   // Do not use PyGen_GetCode() as this asserts on PyGen_Check().
   BorrowedRef<PyGenObject> base_gen{o};
-  auto gen_frame = reinterpret_cast<_PyInterpreterFrame*>(base_gen->gi_iframe);
+  auto gen_frame = generatorFrame(base_gen);
   BorrowedRef<PyCodeObject> code = _PyFrame_GetCode(gen_frame);
   return code->co_flags & CO_ITERABLE_COROUTINE;
 }

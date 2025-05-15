@@ -54,7 +54,7 @@ struct JitGenObject : PyGenObject {
     // use PyObject_VAR_HEAD like it probably should this would get simpler. If
     // we expanded the allocation to include the GenDataFooter it'd get simpler
     // still.
-    auto gen_frame = reinterpret_cast<_PyInterpreterFrame*>(gi_iframe);
+    auto gen_frame = generatorFrame(this);
     int python_frame_data_bytes =
         _PyFrame_NumSlotsForCodeObject(_PyFrame_GetCode(gen_frame)) *
         cinderx::getModuleState()->genType()->tp_itemsize;
