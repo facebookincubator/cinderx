@@ -94,6 +94,14 @@ class ModuleState {
     return anext_awaitable_type_;
   }
 
+  bool initialized() const {
+    return initialized_;
+  }
+
+  void setInitialized(bool init) {
+    initialized_ = init;
+  }
+
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::IRuntime> runtime_;
@@ -101,6 +109,7 @@ class ModuleState {
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value_;
   Ref<PyTypeObject> coro_type_, gen_type_, anext_awaitable_type_;
   Ref<> sys_clear_caches_;
+  bool initialized_{false};
 };
 
 void setModuleState(ModuleState* state);

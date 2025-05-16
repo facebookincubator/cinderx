@@ -904,12 +904,13 @@ int cinder_fini() {
   return 0;
 }
 
-bool g_was_initialized = false;
+PyObject* init(PyObject* mod, PyObject* /*obj*/) {
+  auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(mod));
 
-PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
-  if (g_was_initialized) {
+  if (state->initialized()) {
     Py_RETURN_FALSE;
   }
+
   if (cinder_init()) {
     if (!PyErr_Occurred()) {
       PyErr_SetString(PyExc_RuntimeError, "Failed to initialize CinderX");
@@ -920,7 +921,9 @@ PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
     finiFrameEvalFunc();
     return nullptr;
   }
-  g_was_initialized = true;
+
+  state->setInitialized(true);
+
   Py_RETURN_TRUE;
 }
 
@@ -934,13 +937,15 @@ static int module_clear(PyObject* mod) {
   return state->clear();
 }
 
-void module_free(void* mod) {
-  if (g_was_initialized) {
-    g_was_initialized = false;
+void module_free(void* raw_mod) {
+  auto mod = reinterpret_cast<PyObject*>(raw_mod);
+  auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(mod));
+
+  if (state->initialized()) {
+    state->setInitialized(false);
     JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
   }
-  cinderx::ModuleState* state =
-      (cinderx::ModuleState*)PyModule_GetState((PyObject*)mod);
+
   state->shutdown();
   cinderx::setModuleState(nullptr);
 }
