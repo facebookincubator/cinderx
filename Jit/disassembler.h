@@ -3,52 +3,41 @@
 #pragma once
 
 #include "cinderx/Common/util.h"
-#include "i386-dis/dis-asm.h"
 
-#include <string>
+#include <ostream>
+
+// Uses i386-dis internally but that's not exposed here.
+struct disassemble_info;
 
 namespace jit {
 
-struct disassemble_extra_info : disassemble_info {
-  int addr_len;
-};
-
 struct Disassembler {
-  Disassembler(const char* buf, long size);
-  Disassembler(const char* buf, long size, vma_t vma);
+  Disassembler(const char* buf, size_t size);
   ~Disassembler();
 
-  void setPrintAddr(bool print) {
-    print_addr_ = print;
-  }
-  void setPrintInstBytes(bool print) {
-    print_instr_bytes_ = print;
-  }
+  // Disassemble a single instruction.
+  void disassembleOne(std::ostream& os);
 
-  std::string codeAddress();
-  std::string disassembleOne(int* instr_length = nullptr);
-  std::string disassembleAll();
+  // Disassemble the entire buffer.
+  void disassembleAll(std::ostream& os);
+
+  // Format the current code address as a string.
+  void codeAddress(std::ostream& os);
+
+  // Get the address the disassembler is currently pointing at.
+  const char* cursor() const;
+
+  void setPrintAddr(bool print);
+  void setPrintInstBytes(bool print);
 
  private:
+  std::unique_ptr<disassemble_info> info_;
   const char* const buf_;
-  vma_t const vma_;
+  size_t start_{0};
+  size_t const size_;
   jit_string_t* const sfile_;
-  bool const auto_size_;
-  long const size_;
-  disassemble_extra_info info_;
-  long start_;
-  int const addr_len_;
-  bool print_addr_ = true;
-  bool print_instr_bytes_ = true;
+  bool print_addr_{true};
+  bool print_instr_bytes_{true};
 };
-
-// this function outputs disassembled code pointed by buf to stdout.
-// size specifies the length of the code to be disassembled in byte. when size
-// is -1, this function finds out the length automatically by looking for the
-// return instruction (RET). Therefore, in order to have the code disassembled
-// correctly, only one return instruction can exist in the code when size is -1.
-// vma indicates the starting virtual memory address of the function to be
-// disassembled.
-void disassemble(const char* buf, long size, vma_t vma);
 
 } // namespace jit

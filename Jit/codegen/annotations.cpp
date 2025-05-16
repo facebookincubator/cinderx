@@ -6,16 +6,15 @@
 #include "cinderx/Jit/hir/printer.h"
 
 #include <map>
+#include <sstream>
 #include <utility>
 
-namespace jit {
-namespace codegen {
+namespace jit::codegen {
 
 std::string Annotations::disassembleSection(
     void* entry,
     const asmjit::CodeHolder& code,
     CodeSection section) {
-  // i386-dis is not thread-safe
   JIT_CHECK(
       g_dump_asm, "Annotations are not recorded without -X jit-disas-funcs");
   auto text = code.sectionByName(codeSectionName(section));
@@ -44,7 +43,7 @@ std::string Annotations::disassembleSection(
   auto annot_it = annot_bounds.begin();
   const char* annot_end = nullptr;
 
-  std::string result;
+  std::stringstream result;
   Disassembler dis(section_start, size);
   dis.setPrintInstBytes(false);
   for (auto cursor = section_start, end = cursor + size; cursor < end;) {
@@ -80,24 +79,24 @@ std::string Annotations::disassembleSection(
         }
       }
       if (!annot_str.empty()) {
-        format_to(result, "\n{}\n", annot_str);
+        result << '\n' << annot_str << '\n';
       }
       prev_annot = new_annot;
     }
 
     // Print the raw instruction.
-    int length;
-    format_to(result, "  {}\n", dis.disassembleOne(&length));
-    cursor += length;
+    result << "  ";
+    dis.disassembleOne(result);
+    result << '\n';
+    cursor = dis.cursor();
   }
 
-  return result;
+  return result.str();
 }
 
 std::string Annotations::disassemble(
     void* entry,
     const asmjit::CodeHolder& code) {
-  ThreadedCompileSerialize guard;
   JIT_CHECK(code.hasBaseAddress(), "code not generated!");
   std::string result;
   forEachSection([&](CodeSection section) {
@@ -205,11 +204,14 @@ void Annotations::disassembleSectionJSON(
     if (hir_instr != nullptr) {
       instr["line"] = hir_instr->lineNumber();
     }
-    int length;
-    instr["address"] = dis.codeAddress();
-    instr["opcode"] = dis.disassembleOne(&length);
+    std::stringstream address;
+    dis.codeAddress(address);
+    instr["address"] = address.str();
+    std::stringstream opcode;
+    dis.disassembleOne(opcode);
+    instr["opcode"] = opcode.str();
     block["instrs"].emplace_back(instr);
-    cursor += length;
+    cursor = dis.cursor();
     prev_annot = new_annot;
   }
   // There might be a leftover block that we need to add.
@@ -222,8 +224,6 @@ void Annotations::disassembleJSON(
     nlohmann::json& json,
     void* entry,
     const asmjit::CodeHolder& code) {
-  // i386-dis is not thread-safe
-  ThreadedCompileSerialize guard;
   nlohmann::json blocks;
 
   forEachSection([&](CodeSection section) {
@@ -238,5 +238,4 @@ void Annotations::disassembleJSON(
   json["cols"].emplace_back(result);
 }
 
-} // namespace codegen
-} // namespace jit
+} // namespace jit::codegen

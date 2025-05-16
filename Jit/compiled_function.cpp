@@ -20,10 +20,9 @@ bool isJitCompiled(const PyFunctionObject* func) {
 namespace jit {
 
 void CompiledFunction::disassemble() const {
-  jit::disassemble(
-      reinterpret_cast<const char*>(vectorcallEntry()),
-      codeSize(),
-      reinterpret_cast<vma_t>(vectorcallEntry()));
+  auto start = reinterpret_cast<const char*>(vectorcallEntry());
+  Disassembler dis{start, codeSize()};
+  dis.disassembleAll(std::cout);
 }
 
 void CompiledFunction::printHIR() const {
