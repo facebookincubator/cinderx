@@ -447,8 +447,6 @@ int object_visitor(PyObject* obj, [[maybe_unused]] void* arg) {
 
 // Visit every Python object on CinderX module initialization.
 void init_existing_objects() {
-  initCodeExtraIndex();
-
   PyUnstable_GC_VisitObjects(object_visitor, nullptr);
 }
 
@@ -735,10 +733,8 @@ PyDoc_STRVAR(
 \n\
 Marks a type as being frozen and disallows any future mutations to it.");
 
-int cinder_init() {
-  if (init_upstream_borrow() < 0) {
-    return -1;
-  }
+// Install hooks into the 3.10.cinder runtime.  Does nothing for newer runtimes.
+void initCinderHooks() {
 #if PY_VERSION_HEX < 0x030C0000
   // The casts here are safe because BorrowedRef<T> has the same representation
   // as T*.  It's a little ugly, but it goes away post-3.10.
@@ -759,7 +755,6 @@ int cinder_init() {
   Ci_hook_PyJIT_GenMaterializeFrame = _PyJIT_GenMaterializeFrame;
   Ci_hook__PyShadow_FreeAll = _PyShadow_FreeAll;
   Ci_hook_MaybeStrictModule_Dict = Ci_MaybeStrictModule_Dict;
-  Ci_hook_EvalFrame = Ci_EvalFrame;
   Ci_hook_PyJIT_GetFrame = _PyJIT_GetFrame;
   Ci_hook_PyJIT_GetBuiltins = _PyJIT_GetBuiltins;
   Ci_hook_PyJIT_GetGlobals = _PyJIT_GetGlobals;
@@ -768,9 +763,28 @@ int cinder_init() {
   Ci_hook_ShadowFrame_HasGen_JIT = Ci_ShadowFrame_HasGen_JIT;
   Ci_hook_ShadowFrame_GetModuleName_JIT = Ci_ShadowFrame_GetModuleName_JIT;
   Ci_hook_ShadowFrame_WalkAndPopulate = Ci_ShadowFrame_WalkAndPopulate;
-#else
-  Ci_hook_EvalFrame = Ci_EvalFrame;
 #endif
+}
+
+void initFrameEvalFunc() {
+  Ci_hook_EvalFrame = Ci_EvalFrame;
+}
+
+void finiFrameEvalFunc() {
+  Ci_hook_EvalFrame = nullptr;
+}
+
+int cinder_init() {
+  if (init_upstream_borrow() < 0) {
+    return -1;
+  }
+
+  // Initialize the code object extra data index early, before we hook into the
+  // interpreter and try to use it.
+  initCodeExtraIndex();
+
+  initCinderHooks();
+  initFrameEvalFunc();
 
 #if PY_VERSION_HEX < 0x030C0000
   JIT_CHECK(
@@ -877,16 +891,15 @@ int cinder_fini() {
    * harmless to leave in place, even if the runtime is shutdown and
    * reinitialized. */
 
-  Ci_hook_EvalFrame = nullptr;
   Ci_hook_PyJIT_GetFrame = nullptr;
   Ci_hook_PyJIT_GetBuiltins = nullptr;
   Ci_hook_PyJIT_GetGlobals = nullptr;
   Ci_hook_PyJIT_GetCurrentCodeFlags = nullptr;
 
   Ci_cinderx_initialized = 0;
-#else
-  Ci_hook_EvalFrame = nullptr;
 #endif
+
+  finiFrameEvalFunc();
 
   return 0;
 }
@@ -904,7 +917,7 @@ PyObject* init(PyObject* /*self*/, PyObject* /*obj*/) {
     // cinder_init can fail and leave things partially initialized. The main
     // item we want to restore is the interpreter loop function, otherwise
     // Ci_EvalFrame will still try to access CinderX data.
-    Ci_hook_EvalFrame = nullptr;
+    finiFrameEvalFunc();
     return nullptr;
   }
   g_was_initialized = true;
