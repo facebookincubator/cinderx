@@ -68,10 +68,9 @@ constexpr size_t kRefcountOffset = offsetof(PyObject, ob_refcnt);
 
 extern "C" PyObject* __Invoke_PyList_Extend(
     PyThreadState* tstate,
-    PyListObject* list,
+    PyObject* list,
     PyObject* iterable) {
-  PyObject* none_val = PyList_Extend(list, iterable);
-  if (none_val == nullptr) {
+  if (PyList_Extend(list, iterable) < 0) {
     if (_PyErr_ExceptionMatches(tstate, PyExc_TypeError) &&
         Py_TYPE(iterable)->tp_iter == nullptr && !PySequence_Check(iterable)) {
       _PyErr_Clear(tstate);
@@ -83,7 +82,7 @@ extern "C" PyObject* __Invoke_PyList_Extend(
     }
   }
 
-  return none_val;
+  Py_RETURN_NONE;
 }
 
 void finishYield(

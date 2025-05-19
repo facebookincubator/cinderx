@@ -23,7 +23,6 @@
 #if PY_VERSION_HEX < 0x030D0000
 
 // Basic renames that went into 3.13.
-#define PyList_Extend _PyList_Extend
 #define PyLong_AsInt _PyLong_AsInt
 #define PyObject_GetOptionalAttr _PyObject_LookupAttr
 #define PyTime_AsSecondsDouble _PyTime_AsSecondsDouble
@@ -31,6 +30,15 @@
 #define Py_IsFinalizing _Py_IsFinalizing
 
 #define _PyFrame_GetCode(F) ((F)->f_code)
+
+inline int PyList_Extend(PyObject* list, PyObject* iterable) {
+  if (!PyList_Check(list)) {
+    PyErr_BadInternalCall();
+    return -1;
+  }
+  PyObject* result = _PyList_Extend((PyListObject*)list, iterable);
+  return result != NULL ? 0 : -1;
+}
 
 #endif
 
