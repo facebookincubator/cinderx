@@ -2,11 +2,14 @@
 
 #include "cinderx/Jit/lir/operand.h"
 
-#include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/x86_64.h"
 
 namespace jit::lir {
+
+size_t OperandBase::sizeInBits() const {
+  return bitSize(dataType());
+}
 
 void Operand::addUse(LinkedOperand* use) {
   use->def_opnd_ = this;

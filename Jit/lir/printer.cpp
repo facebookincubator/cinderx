@@ -130,7 +130,7 @@ void Printer::print(std::ostream& out, const OperandBase& operand) {
   }
 
   if (!operand.isLabel()) {
-    out << ":" << operand.getSizeName();
+    out << ":" << operand.dataType();
   }
 }
 
@@ -282,7 +282,7 @@ std::string JSONPrinter::print(const OperandBase& operand) {
   }
 
   if (!operand.isLabel()) {
-    ss << ":" << operand.getSizeName();
+    ss << ":" << operand.dataType();
   }
 
   return ss.str();

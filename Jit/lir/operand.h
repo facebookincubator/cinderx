@@ -3,12 +3,11 @@
 #pragma once
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Jit/lir/type.h"
 #include "cinderx/Jit/lir/x86_64.h"
 
 #include <cstdint>
 #include <memory>
-#include <ostream>
-#include <tuple>
 #include <variant>
 
 // This file defines operand classes in LIR.
@@ -36,39 +35,21 @@ class OperandBase {
       : parent_instr_(ob.parent_instr_), last_use_(ob.last_use_) {}
   virtual ~OperandBase() {}
 
-  /* operand types:
-   *   - None:   the operand is not used.
-   *   - Vreg:   the operand is in a virtual register (not yet
-   *             allocated to a physical location);
-   *   - Reg:    the operand is allocated to a physical register;
-   *   - Stack:  the operand is allocated to a memory stack slot;
-   *   - Mem:    the operand is allocated to a memory address;
-   *   - Ind:    the operand is a memory indirect reference
-   *   - Imm:    the operand is an immediate value;
-   *   - Lbl:    the operand refers to a basic block.
-   */
-#define FOREACH_OPERAND_TYPE(X) \
-  X(None)                       \
-  X(Vreg)                       \
-  X(Reg)                        \
-  X(Stack)                      \
-  X(Mem)                        \
-  X(Ind)                        \
-  X(Imm)                        \
-  X(Label)
+  using DataType = DataType;
+  using Type = OperandType;
 
-  enum Type {
-#define OPERAND_DECL_TYPE(v, ...) k##v,
-    FOREACH_OPERAND_TYPE(OPERAND_DECL_TYPE)
-#undef OPERAND_DECL_TYPE
-  };
-
-#define OPERAND_DECL_TYPE_TEST(v, ...) \
-  bool is##v() const {                 \
-    return type() == Type::k##v;       \
+#define OPERAND_TYPE_DEFINES(v, ...) \
+  using OperandType::k##v;           \
+                                     \
+  bool is##v() const {               \
+    return type() == Type::k##v;     \
   }
-  FOREACH_OPERAND_TYPE(OPERAND_DECL_TYPE_TEST)
+  FOREACH_OPERAND_TYPE(OPERAND_TYPE_DEFINES)
 #undef OPERAND_DECL_TYPE_TEST
+
+#define OPERAND_DATA_TYPE_DEFINES(V, ...) using DataType::k##V;
+  FOREACH_OPERAND_DATA_TYPE(OPERAND_DATA_TYPE_DEFINES)
+#undef OPERAND_DATA_TYPE_DEFINES
 
   virtual uint64_t getConstant() const = 0;
   virtual double getFPConstant() const = 0;
@@ -88,52 +69,9 @@ class OperandBase {
   virtual Operand* getDefine() = 0;
   virtual const Operand* getDefine() const = 0;
 
-#define FOREACH_OPERAND_DATA_TYPE(X) \
-  X(8bit)                            \
-  X(16bit)                           \
-  X(32bit)                           \
-  X(64bit)                           \
-  X(Double)                          \
-  X(Object)
-
-  enum DataType : unsigned char {
-#define DECL_DATA_TYPE_ENUM(s, ...) k##s,
-    FOREACH_OPERAND_DATA_TYPE(DECL_DATA_TYPE_ENUM)
-#undef DECL_DATA_TYPE_ENUM
-  };
-
   virtual DataType dataType() const = 0;
-  int sizeInBits() const {
-    return OperandBase::getSizeInBitsFromDataType(dataType());
-  }
 
-  static int getSizeInBitsFromDataType(DataType dt) {
-    switch (dt) {
-      case k8bit:
-        return 8;
-      case k16bit:
-        return 16;
-      case k32bit:
-        return 32;
-      case k64bit:
-      case kDouble:
-      case kObject:
-        return 64;
-      default:
-        Py_UNREACHABLE();
-    }
-  }
-
-  const char* getSizeName() const {
-    switch (dataType()) {
-#define DATA_TYPE_NAME_CASE(s, ...) \
-  case k##s:                        \
-    return #s;
-      FOREACH_OPERAND_DATA_TYPE(DATA_TYPE_NAME_CASE)
-#undef DATA_TYPE_NAME_CASE
-    }
-    Py_UNREACHABLE();
-  }
+  size_t sizeInBits() const;
 
   virtual Type type() const = 0;
   virtual bool isLinked() const = 0;
@@ -413,7 +351,7 @@ class Operand : public OperandBase {
   void setDataType(DataType data_type) {
     data_type_ = data_type;
     if (auto loc_ptr = std::get_if<PhyLocation>(&value_)) {
-      loc_ptr->bitSize = OperandBase::getSizeInBitsFromDataType(data_type);
+      loc_ptr->bitSize = bitSize(data_type);
     }
   }
 
