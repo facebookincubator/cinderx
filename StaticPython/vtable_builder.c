@@ -472,7 +472,7 @@ static PyObject* get_tp_subclasses(PyTypeObject* self, bool create) {
 #if PY_VERSION_HEX >= 0x030C0000
   if (self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
     PyInterpreterState* interp = _PyInterpreterState_GET();
-    static_builtin_state* state = Cix_PyStaticType_GetState(interp, self);
+    managed_static_type_state* state = Cix_PyStaticType_GetState(interp, self);
     subclasses_addr = (PyObject**)&state->tp_subclasses;
   }
 #endif

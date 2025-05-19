@@ -193,7 +193,7 @@ PyObject* getBorrowedTypeDictSafe(PyTypeObject* self) {
   if (getThreadedCompileContext().compileRunning() &&
       self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
     PyInterpreterState* interp = getThreadedCompileContext().interpreter();
-    static_builtin_state* state = Cix_PyStaticType_GetState(interp, self);
+    managed_static_type_state* state = Cix_PyStaticType_GetState(interp, self);
     return state->tp_dict;
   }
   return getBorrowedTypeDict(self);

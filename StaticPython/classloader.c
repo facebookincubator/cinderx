@@ -109,7 +109,7 @@ static int clear_vtables_recurse(PyTypeObject* type) {
 #if PY_VERSION_HEX >= 0x030C0000
   if (type->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN) {
     PyInterpreterState* interp = _PyInterpreterState_GET();
-    static_builtin_state* state = Cix_PyStaticType_GetState(interp, type);
+    managed_static_type_state* state = Cix_PyStaticType_GetState(interp, type);
     subclasses = state->tp_subclasses;
   }
 #endif

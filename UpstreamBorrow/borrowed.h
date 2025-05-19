@@ -72,7 +72,13 @@ int Cix_set_attribute_error_context(PyObject* v, PyObject* name);
 #define Cix_PyTuple_FromArray _PyTuple_FromArray
 
 #if PY_VERSION_HEX >= 0x030C0000
-static_builtin_state* Cix_PyStaticType_GetState(
+
+// managed_static_type_state was known as static_builtin_state only in 3.12.
+#if PY_VERSION_HEX < 0x030D0000
+typedef static_builtin_state managed_static_type_state;
+#endif
+
+managed_static_type_state* Cix_PyStaticType_GetState(
     PyInterpreterState*,
     PyTypeObject*);
 #endif
