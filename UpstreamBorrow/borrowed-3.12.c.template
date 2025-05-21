@@ -25,6 +25,15 @@ PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_f
   return compute_cr_origin(origin_depth, current_frame);
 }
 
+int Cix_PyObjectDict_SetItem(
+    PyTypeObject* tp,
+    [[maybe_unused]] PyObject* obj,
+    PyObject** dictptr,
+    PyObject* key,
+    PyObject* value) {
+  return _PyObjectDict_SetItem(tp, dictptr, key, value);
+}
+
 // @Borrow function set_attribute_error_context from Objects/object.c
 
 // Wrapper as set_attribute_error_context is declared "static inline".

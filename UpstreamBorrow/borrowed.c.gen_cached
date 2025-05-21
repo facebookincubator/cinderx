@@ -396,7 +396,9 @@ new_dict_with_shared_keys(PyDictKeysObject *keys)
 }
 // End internal dependencies.
 
-#define _PyObjectDict_SetItem Cix_PyObjectDict_SetItem
+// Renaming to avoid duplicate symbol errors.  Still use the Cix_ wrapper to
+// adjust the number of arguments.
+#define _PyObjectDict_SetItem Renamed_PyObjectDict_SetItem
 int
 _PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,
                       PyObject *key, PyObject *value)
@@ -480,6 +482,15 @@ _PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,
         }
     }
     return res;
+}
+
+int Cix_PyObjectDict_SetItem(
+    PyTypeObject* tp,
+    [[maybe_unused]] PyObject* obj,
+    PyObject** dictptr,
+    PyObject* key,
+    PyObject* value) {
+  return Renamed_PyObjectDict_SetItem(tp, dictptr, key, value);
 }
 
 #define _PyDict_LoadGlobal Cix_PyDict_LoadGlobal

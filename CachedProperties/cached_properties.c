@@ -295,7 +295,11 @@ cached_property_get(PyObject* self, PyObject* obj, PyObject* cls) {
     }
 
     if (Cix_PyObjectDict_SetItem(
-            Py_TYPE(obj), _PyObject_GetDictPtr(obj), cp->name_or_descr, res)) {
+            Py_TYPE(obj),
+            obj,
+            _PyObject_GetDictPtr(obj),
+            cp->name_or_descr,
+            res)) {
       Py_DECREF(res);
       return NULL;
     }
@@ -321,7 +325,7 @@ static int cached_property_set(PyObject* self, PyObject* obj, PyObject* value) {
   }
 
   return Cix_PyObjectDict_SetItem(
-      Py_TYPE(obj), dictptr, cp->name_or_descr, value);
+      Py_TYPE(obj), obj, dictptr, cp->name_or_descr, value);
 }
 
 static void cached_property_dealloc(PyCachedPropertyDescrObject* cp) {
@@ -390,8 +394,8 @@ static PyObject* cached_property_clear(
     return NULL;
   }
 
-  if (Cix_PyObjectDict_SetItem(Py_TYPE(obj), dictptr, cp->name_or_descr, NULL) <
-      0) {
+  if (Cix_PyObjectDict_SetItem(
+          Py_TYPE(obj), obj, dictptr, cp->name_or_descr, NULL) < 0) {
     if (PyErr_ExceptionMatches(PyExc_KeyError)) {
       PyErr_Clear();
       Py_RETURN_NONE;
@@ -755,7 +759,7 @@ async_cached_property_set(PyObject* self, PyObject* obj, PyObject* value) {
   }
 
   return Cix_PyObjectDict_SetItem(
-      Py_TYPE(obj), dictptr, cp->name_or_descr, value);
+      Py_TYPE(obj), obj, dictptr, cp->name_or_descr, value);
 }
 
 static PyGetSetDef async_cached_property_getsetlist[] = {

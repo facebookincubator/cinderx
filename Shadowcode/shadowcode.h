@@ -606,6 +606,7 @@ static PyObject* _Py_NO_INLINE _PyShadow_LoadAttrDictNoDescrMaybeError(
       if (res == NULL ||
           Cix_PyObjectDict_SetItem(
               Py_TYPE(owner),
+              owner,
               _PyObject_GetDictPtr(owner),
               cp->name_or_descr,
               res)) {

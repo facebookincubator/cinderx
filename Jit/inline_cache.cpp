@@ -268,7 +268,7 @@ int DescrOrClassVarMutator::setAttr(
     return -1;
   }
   BorrowedRef<PyTypeObject> type(Py_TYPE(obj));
-  int st = Cix_PyObjectDict_SetItem(type, dictptr, name, value);
+  int st = Cix_PyObjectDict_SetItem(type, obj, dictptr, name, value);
   if (st < 0 && PyErr_ExceptionMatches(PyExc_KeyError)) {
     PyErr_SetObject(PyExc_AttributeError, name);
   }

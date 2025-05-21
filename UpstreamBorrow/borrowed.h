@@ -5,6 +5,7 @@
 #include <Python.h>
 
 #if PY_VERSION_HEX >= 0x030C0000
+#include "internal/pycore_dict.h"
 #include "internal/pycore_frame.h"
 #include "internal/pycore_typeobject.h"
 #endif
@@ -20,7 +21,6 @@ extern "C" {
 #define Cix_PyStaticType_GetState _PyStaticType_GetState
 #define Cix_PyCode_InitAddressRange _PyCode_InitAddressRange
 #define Cix_PyLineTable_NextAddressRange _PyLineTable_NextAddressRange
-#define Cix_PyObjectDict_SetItem _PyObjectDict_SetItem
 #define Cix_PyDict_LoadGlobal _PyDict_LoadGlobal
 #define Cix_PyThreadState_PushFrame _PyThreadState_PushFrame
 #define Cix_PyThreadState_PopFrame _PyThreadState_PopFrame
@@ -52,11 +52,16 @@ PyObject* Cix_PyDict_LoadGlobal(
     PyDictObject* builtins,
     PyObject* key);
 
+#if PY_VERSION_HEX >= 0x030D0000
+#define Cix_PyObjectDict_SetItem _PyObjectDict_SetItem
+#else
 int Cix_PyObjectDict_SetItem(
     PyTypeObject* tp,
+    PyObject* obj,
     PyObject** dictptr,
     PyObject* key,
     PyObject* value);
+#endif
 
 void Cix_PyDict_SendEvent(
     int watcher_bits,
