@@ -22,12 +22,11 @@ import cinderx.jit
 
 from cinderx.test_support import skip_unless_jit
 
-# Currently depending on cinderx for pulling in Lib/test.  Shouldn't be this way.
-# pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
-from test.support.script_helper import assert_python_ok
-
 
 ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
+
+# Hack to allow subprocesses to find where cinderx is.
+MOD_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
 
 
 @skip_unless_jit("JIT list functionality requires the JIT")
@@ -152,8 +151,25 @@ class JitListTest(unittest.TestCase):
 
             print(func())
         """
-        rc, out, err = assert_python_ok("-X", "jit", "-c", code)
-        self.assertEqual(out.strip(), b"24")
+
+        with tempfile.TemporaryDirectory() as tmp:
+            dirpath = Path(tmp)
+            codepath = dirpath / "mod.py"
+            codepath.write_text(code)
+            proc = subprocess.run(
+                [
+                    sys.executable,
+                    "-X",
+                    "jit",
+                    "mod.py",
+                ],
+                capture_output=True,
+                cwd=tmp,
+                encoding=ENCODING,
+                env={"PYTHONPATH": MOD_PATH},
+            )
+        self.assertEqual(proc.returncode, 0, proc)
+        self.assertEqual(proc.stdout.strip(), "24")
 
     def test_precompile_all_bad_args(self) -> None:
         with self.assertRaises(ValueError):
@@ -161,10 +177,6 @@ class JitListTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             cinderx.jit.precompile_all(workers=200000)
 
-    @skipIf(
-        sys.version_info >= (3, 12),
-        "TODO(T220664953): remove usage of `sys.executable` in CinderX tests",
-    )
     def test_default_parse_error_behavior_startup(self) -> None:
         code = 'print("Hello world!")'
         jitlist = "OH NO"
@@ -186,14 +198,11 @@ class JitListTest(unittest.TestCase):
                 capture_output=True,
                 cwd=tmp,
                 encoding=ENCODING,
+                env={"PYTHONPATH": MOD_PATH},
             )
         self.assertEqual(proc.returncode, 0, proc)
         self.assertIn("Continuing on with the JIT disabled", proc.stderr)
 
-    @skipIf(
-        sys.version_info >= (3, 12),
-        "TODO(T220664953): remove usage of `sys.executable` in CinderX tests",
-    )
     def test_default_parse_error_behavior_append(self) -> None:
         code = textwrap.dedent(
             """
@@ -220,13 +229,10 @@ class JitListTest(unittest.TestCase):
                 capture_output=True,
                 cwd=tmp,
                 encoding=ENCODING,
+                env={"PYTHONPATH": MOD_PATH},
             )
         self.assertEqual(proc.returncode, 0, proc)
 
-    @skipIf(
-        sys.version_info >= (3, 12),
-        "TODO(T220664953): remove usage of `sys.executable` in CinderX tests",
-    )
     def test_fail_on_parse_error_startup(self) -> None:
         code = 'print("Hello world!")'
         jitlist = "OH NO"
@@ -250,15 +256,12 @@ class JitListTest(unittest.TestCase):
                 capture_output=True,
                 cwd=tmp,
                 encoding=ENCODING,
+                env={"PYTHONPATH": MOD_PATH},
             )
         self.assertNotEqual(proc.returncode, 0, proc)
         self.assertIn("Error while parsing line", proc.stderr)
         self.assertIn("in JIT list file", proc.stderr)
 
-    @skipIf(
-        sys.version_info >= (3, 12),
-        "TODO(T220664953): remove usage of `sys.executable` in CinderX tests",
-    )
     def test_fail_on_parse_error_append(self) -> None:
         code = textwrap.dedent(
             """
@@ -279,7 +282,7 @@ class JitListTest(unittest.TestCase):
                     "-X",
                     "jit",
                     "-X",
-                    "jit-list-file=jitlist.txt",
+                    f"jit-list-file={jitlistpath}",
                     "-X",
                     "jit-list-fail-on-parse-error",
                     "mod.py",
@@ -287,6 +290,7 @@ class JitListTest(unittest.TestCase):
                 capture_output=True,
                 cwd=tmp,
                 encoding=ENCODING,
+                env={"PYTHONPATH": MOD_PATH},
             )
         self.assertNotEqual(proc.returncode, 0, proc)
         self.assertIn("Failed to parse new JIT list line", proc.stderr)
