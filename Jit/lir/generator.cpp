@@ -80,6 +80,7 @@ extern "C" PyObject* __Invoke_PyList_Extend(
           "Value after * must be an iterable, not %.200s",
           Py_TYPE(iterable)->tp_name);
     }
+    return nullptr;
   }
 
   Py_RETURN_NONE;
