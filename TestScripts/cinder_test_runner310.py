@@ -904,6 +904,12 @@ if __name__ == "__main__":
         resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
     )
 
+    # Equivalent of 'ulimit -n <COUNT>'.  Needed because the
+    # Lib/test/subprocessdata/fd_status.py helper used by Lib/test/test_subprocess.py
+    # will iterate through all possible open FDs!
+    open_fd_limit = 0x1FFFF
+    resource.setrlimit(resource.RLIMIT_NOFILE, (open_fd_limit, open_fd_limit))
+
     if args.memory_limit != -1:
         resource.setrlimit(resource.RLIMIT_AS, (args.memory_limit, args.memory_limit))
 
