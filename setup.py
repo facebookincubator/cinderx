@@ -127,12 +127,9 @@ def make(cwd: str) -> None:
 
 
 def clone(project: str, version: str, cwd: str) -> str:
-    # Ideally would use a shallow clone here but no guarantee as to how deep
-    # `version` is into the history.
-    #
-    # Allow the clone to fail if the
+    # Allow the clone to fail if the directory already exists
     result = run(
-        ["git", "clone", project],
+        ["git", "clone", "--depth=1", project, "--branch", version],
         check=False,
         stderr=subprocess.PIPE,
         cwd=cwd,
@@ -144,7 +141,7 @@ def clone(project: str, version: str, cwd: str) -> str:
     project_name = project.split("/")[-1]
     project_dir = os.path.join(cwd, project_name)
 
-    if not exists:
+    if exists:
         run(["git", "switch", "--detach", version], cwd=project_dir)
 
     return project_dir
