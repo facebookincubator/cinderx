@@ -18,7 +18,6 @@
 #include <optional>
 #include <queue>
 #include <string_view>
-#include <unordered_map>
 #include <unordered_set>
 
 #define DISALLOW_COPY_AND_ASSIGN(klass) \
@@ -452,6 +451,20 @@ class FrozenList {
     }
   }
 };
+
+using FuncVisitor = void (*)(BorrowedRef<PyFunctionObject>);
+
+inline void walkFunctionObjects(FuncVisitor visitor) {
+  auto wrapper = [](PyObject* obj, void* arg) {
+    if (PyFunction_Check(obj)) {
+      BorrowedRef<PyFunctionObject> func{obj};
+      reinterpret_cast<FuncVisitor>(arg)(func);
+    }
+    return 1;
+  };
+
+  PyUnstable_GC_VisitObjects(wrapper, reinterpret_cast<void*>(visitor));
+}
 
 } // namespace jit
 

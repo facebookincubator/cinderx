@@ -1662,23 +1662,103 @@ PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
   return g_jit_list->getList().release();
 }
 
-PyObject* jit_list_append(PyObject* /* self */, PyObject* line) {
-  if (g_jit_list == nullptr) {
+// Create a new JIT list if one doesn't exist yet, returning true if a new list
+// was made.
+bool ensureJitList() {
+  if (g_jit_list != nullptr) {
+    return false;
+  }
+  if (getConfig().allow_jit_list_wildcards) {
+    g_jit_list = WildcardJITList::create().release();
+  } else {
     g_jit_list = JITList::create().release();
   }
+  return true;
+}
+
+void deleteJitList() {
+  delete g_jit_list;
+  g_jit_list = nullptr;
+}
+
+PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
+  if (!PyUnicode_Check(arg)) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "append_jit_list expected a file path string, received '%s' object",
+        Py_TYPE(arg)->tp_name);
+    return nullptr;
+  }
+
   Py_ssize_t line_len;
-  const char* line_str = PyUnicode_AsUTF8AndSize(line, &line_len);
+  const char* line_str = PyUnicode_AsUTF8AndSize(arg, &line_len);
   if (line_str == nullptr) {
     return nullptr;
   }
-  bool success = g_jit_list->parseLine(
-      {line_str, static_cast<std::string::size_type>(line_len)});
+  std::string_view line{
+      line_str, static_cast<std::string::size_type>(line_len)};
 
-  if (!success && getConfig().jit_list.error_on_parse) {
+  bool new_list = ensureJitList();
+
+  // Parse in the new line.  If that fails and a new list was created, delete
+  // it.
+  if (!g_jit_list->parseLine(line)) {
+    if (new_list) {
+      deleteJitList();
+    }
     PyErr_Format(
-        PyExc_RuntimeError, "Failed to parse new JIT list line %U", line);
+        PyExc_RuntimeError, "Failed to parse new JIT list line %U", arg);
     return nullptr;
   }
+
+  // Reset existing functions to have the JIT vectorcall entrypoint again if
+  // they're now on the JIT list.
+  walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
+    if (g_jit_list->lookupFunc(func)) {
+      scheduleJitCompile(func);
+    }
+  });
+
+  Py_RETURN_NONE;
+}
+
+PyObject* read_jit_list(PyObject* /* self */, PyObject* arg) {
+  if (!PyUnicode_Check(arg)) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "read_jit_list expected a file path string, received '%s' object",
+        Py_TYPE(arg)->tp_name);
+    return nullptr;
+  }
+
+  const char* path = PyUnicode_AsUTF8(arg);
+  if (path == nullptr) {
+    return nullptr;
+  }
+
+  // Create a new JIT list if one doesn't exist yet.
+  bool new_list = ensureJitList();
+
+  // Parse in the new file.  If that fails and a new list was created, delete
+  // it.
+  try {
+    g_jit_list->parseFile(path);
+  } catch (const std::exception& exn) {
+    if (new_list) {
+      deleteJitList();
+    }
+
+    PyErr_SetString(PyExc_RuntimeError, exn.what());
+    return nullptr;
+  }
+
+  // Reset existing functions to have the JIT vectorcall entrypoint again if
+  // they're now on the JIT list.
+  walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
+    if (g_jit_list->lookupFunc(func)) {
+      scheduleJitCompile(func);
+    }
+  });
 
   Py_RETURN_NONE;
 }
@@ -2280,10 +2360,14 @@ PyMethodDef jit_methods[] = {
      get_jit_list,
      METH_NOARGS,
      PyDoc_STR("Get the list of functions to JIT compile.")},
-    {"jit_list_append",
-     jit_list_append,
+    {"append_jit_list",
+     append_jit_list,
      METH_O,
      PyDoc_STR("Parse a JIT-list line and append it.")},
+    {"read_jit_list",
+     read_jit_list,
+     METH_O,
+     PyDoc_STR("Read a JIT list file and apply it.")},
     {"print_hir",
      print_hir,
      METH_O,
@@ -2882,8 +2966,7 @@ void finalize() {
   jit::Runtime::get()->clearDeoptStats();
   jit::Runtime::get()->releaseReferences();
 
-  delete g_jit_list;
-  g_jit_list = nullptr;
+  deleteJitList();
 
   // Clear some global maps that reference Python data.
   jit_code_outer_funcs.clear();

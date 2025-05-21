@@ -19,6 +19,7 @@ FuncAny = Callable[..., Any]
 try:
     from cinderjit import (
         _deopt_gen,
+        append_jit_list,
         auto_jit_threshold,
         clear_runtime_stats,
         count_interpreted_calls,
@@ -49,7 +50,6 @@ try:
         is_hir_inliner_enabled,
         is_inline_cache_stats_collection_enabled,
         is_jit_compiled,
-        jit_list_append,
         jit_suppress,
         jit_unsuppress,
         lazy_compile,
@@ -57,6 +57,7 @@ try:
         multithreaded_compile_test,
         page_in_profiler_dependencies,
         precompile_all,
+        read_jit_list,
     )
 
     INSTALLED = True
@@ -72,6 +73,9 @@ except ImportError:
         | Coroutine[TDeoptGenYield, TDeoptGenSend, TDeoptGenReturn],
     ) -> bool:
         return False
+
+    def append_jit_list(entry: str) -> None:
+        return None
 
     def auto_jit_threshold() -> int:
         return 0
@@ -167,9 +171,6 @@ except ImportError:
     def is_jit_compiled(func: FuncAny) -> bool:
         return False
 
-    def jit_list_append(func: str) -> None:
-        return None
-
     def jit_suppress(func: FuncAny) -> FuncAny:
         return func
 
@@ -190,6 +191,9 @@ except ImportError:
 
     def precompile_all(workers: int = 0) -> bool:
         return False
+
+    def read_jit_list(path: str) -> None:
+        return None
 
 
 @contextmanager

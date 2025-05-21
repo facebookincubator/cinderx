@@ -33,14 +33,14 @@ MOD_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
 class JitListTest(unittest.TestCase):
     def setUp(self) -> None:
         # Force the JIT list to exist.
-        cinderx.jit.jit_list_append("foobar:baz")
+        cinderx.jit.append_jit_list("foobar:baz")
 
     def test_comments(self) -> None:
-        cinderx.jit.jit_list_append("")
+        cinderx.jit.append_jit_list("")
         initial_jit_list = cinderx.jit.get_jit_list()
-        cinderx.jit.jit_list_append("# asdfasdfasd")
-        cinderx.jit.jit_list_append("# x:y.z")
-        cinderx.jit.jit_list_append("# x@y:1")
+        cinderx.jit.append_jit_list("# asdfasdfasd")
+        cinderx.jit.append_jit_list("# x:y.z")
+        cinderx.jit.append_jit_list("# x@y:1")
         self.assertEqual(initial_jit_list, cinderx.jit.get_jit_list())
 
     def test_py_func(self) -> None:
@@ -50,11 +50,8 @@ class JitListTest(unittest.TestCase):
         def func_nojit():
             pass
 
-        # Re-trigger lazy compilation, in case the JIT tried to compile the functions in
-        # between them being defined and them being added to the JIT list.
-        cinderx.jit.jit_list_append(f"{func.__module__}:{func.__qualname__}")
-        cinderx.jit.lazy_compile(func)
-        cinderx.jit.lazy_compile(func_nojit)
+        cinderx.jit.append_jit_list(f"{func.__module__}:{func.__qualname__}")
+
         py_funcs = cinderx.jit.get_jit_list()[0]
         self.assertIn(func.__qualname__, py_funcs[__name__])
         self.assertNotIn(func_nojit.__qualname__, py_funcs[__name__])
@@ -76,9 +73,8 @@ class JitListTest(unittest.TestCase):
         meth = JitClass.meth
         meth_nojit = JitClass.meth_nojit
 
-        cinderx.jit.jit_list_append(f"{meth.__module__}:{meth.__qualname__}")
-        cinderx.jit.lazy_compile(meth)
-        cinderx.jit.lazy_compile(meth_nojit)
+        cinderx.jit.append_jit_list(f"{meth.__module__}:{meth.__qualname__}")
+
         py_funcs = cinderx.jit.get_jit_list()[0]
         self.assertIn(meth.__qualname__, py_funcs[__name__])
         self.assertNotIn(meth_nojit.__qualname__, py_funcs[__name__])
@@ -101,11 +97,9 @@ class JitListTest(unittest.TestCase):
 
         # Cheating a little here, because we don't have a code.co_qualname in 3.10.
         code_name = code_func.__qualname__
-        cinderx.jit.jit_list_append(
+        cinderx.jit.append_jit_list(
             f"{code_name}@{code_obj.co_filename}:{code_obj.co_firstlineno}"
         )
-        cinderx.jit.lazy_compile(code_func)
-        cinderx.jit.lazy_compile(code_func_nojit)
 
         py_code_objs = cinderx.jit.get_jit_list()[1]
         thisfile = os.path.basename(__file__)
@@ -120,7 +114,7 @@ class JitListTest(unittest.TestCase):
         def inner_func():
             return 24
 
-        cinderx.jit.jit_list_append(
+        cinderx.jit.append_jit_list(
             f"{inner_func.__module__}:{inner_func.__qualname__}_foo"
         )
 
@@ -171,6 +165,40 @@ class JitListTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc)
         self.assertEqual(proc.stdout.strip(), "24")
 
+    def test_read_jit_list(self) -> None:
+        def func():
+            return 35
+
+        entry = f"{func.__module__}:{func.__qualname__}"
+
+        with tempfile.NamedTemporaryFile("w+") as jit_list_file:
+            jit_list_file.write(entry)
+            jit_list_file.flush()
+            cinderx.jit.read_jit_list(jit_list_file.name)
+
+        entries = cinderx.jit.get_jit_list()[0]
+        self.assertIn(func.__module__, entries)
+        self.assertIn(func.__qualname__, entries[func.__module__])
+
+        self.assertFalse(cinderx.jit.is_jit_compiled(func))
+        self.assertEqual(func(), 35)
+
+        if cinderx.jit.auto_jit_threshold() <= 1:
+            self.assertTrue(cinderx.jit.is_jit_compiled(func))
+
+    def test_append_jit_list_parse_error(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "Failed to parse new JIT list line"):
+            cinderx.jit.append_jit_list("OH NO")
+
+    def test_read_jit_list_parse_error(self) -> None:
+        with self.assertRaisesRegex(
+            RuntimeError, r"Error while parsing line \d+ in JIT list file"
+        ):
+            with tempfile.NamedTemporaryFile("w+") as jit_list_file:
+                jit_list_file.write("OH NO")
+                jit_list_file.flush()
+                cinderx.jit.read_jit_list(jit_list_file.name)
+
     def test_precompile_all_bad_args(self) -> None:
         with self.assertRaises(ValueError):
             cinderx.jit.precompile_all(workers=-1)
@@ -203,36 +231,6 @@ class JitListTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 0, proc)
         self.assertIn("Continuing on with the JIT disabled", proc.stderr)
 
-    def test_default_parse_error_behavior_append(self) -> None:
-        code = textwrap.dedent(
-            """
-        import cinderx.jit
-        cinderx.jit.jit_list_append("OH NO")
-        """
-        )
-        jitlist = ""
-        with tempfile.TemporaryDirectory() as tmp:
-            dirpath = Path(tmp)
-            codepath = dirpath / "mod.py"
-            jitlistpath = dirpath / "jitlist.txt"
-            codepath.write_text(code)
-            jitlistpath.write_text(jitlist)
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-X",
-                    "jit",
-                    "-X",
-                    "jit-list-file=jitlist.txt",
-                    "mod.py",
-                ],
-                capture_output=True,
-                cwd=tmp,
-                encoding=ENCODING,
-                env={"PYTHONPATH": MOD_PATH},
-            )
-        self.assertEqual(proc.returncode, 0, proc)
-
     def test_fail_on_parse_error_startup(self) -> None:
         code = 'print("Hello world!")'
         jitlist = "OH NO"
@@ -261,39 +259,6 @@ class JitListTest(unittest.TestCase):
         self.assertNotEqual(proc.returncode, 0, proc)
         self.assertIn("Error while parsing line", proc.stderr)
         self.assertIn("in JIT list file", proc.stderr)
-
-    def test_fail_on_parse_error_append(self) -> None:
-        code = textwrap.dedent(
-            """
-        import cinderx.jit
-        cinderx.jit.jit_list_append("OH NO")
-        """
-        )
-        jitlist = ""
-        with tempfile.TemporaryDirectory() as tmp:
-            dirpath = Path(tmp)
-            codepath = dirpath / "mod.py"
-            jitlistpath = dirpath / "jitlist.txt"
-            codepath.write_text(code)
-            jitlistpath.write_text(jitlist)
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-X",
-                    "jit",
-                    "-X",
-                    f"jit-list-file={jitlistpath}",
-                    "-X",
-                    "jit-list-fail-on-parse-error",
-                    "mod.py",
-                ],
-                capture_output=True,
-                cwd=tmp,
-                encoding=ENCODING,
-                env={"PYTHONPATH": MOD_PATH},
-            )
-        self.assertNotEqual(proc.returncode, 0, proc)
-        self.assertIn("Failed to parse new JIT list line", proc.stderr)
 
 
 if __name__ == "__main__":
