@@ -6,8 +6,6 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"
 
-#include <sstream>
-
 // XXX: this file needs to be revisited when we optimize HIR-to-LIR translation
 // in codegen.cpp/h. Currently, this file is almost an identical copy from
 // bbbuilder.cpp with some interfaces changes so that it works with the new
