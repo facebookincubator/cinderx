@@ -8,6 +8,10 @@
 #include "internal/pycore_pystate.h" // _PyInterpreterState_GET()
 #include "structmember.h"
 
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_modsupport.h"
+#endif
+
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove

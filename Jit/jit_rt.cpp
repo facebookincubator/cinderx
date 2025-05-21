@@ -35,7 +35,6 @@
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
 #else
-#include "internal/pycore_object.h"
 #include "internal/pycore_typeobject.h"
 #endif
 

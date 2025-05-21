@@ -6,6 +6,7 @@
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_modsupport.h"
+#include "internal/pycore_object.h"
 #endif
 
 #include "cinderx/Common/py-portability.h"

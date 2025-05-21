@@ -12,6 +12,10 @@
 #include "internal/pycore_intrinsics.h"
 #endif
 
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_setobject.h"
+#endif
+
 #include "internal/pycore_import.h"
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pyerrors.h"

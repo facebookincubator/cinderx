@@ -1,12 +1,14 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 
-// clang-format off
 #include <Python.h>
-// clang-format on
 
 #include "internal/pycore_call.h"
 #include "internal/pycore_pystate.h"
 #include "structmember.h"
+
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_modsupport.h"
+#endif
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/audit.h"

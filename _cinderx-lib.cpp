@@ -10,13 +10,20 @@
 #include "cinderx/Common/log.h"
 // clang-format on
 
+#include "internal/pycore_pystate.h"
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
 #endif
 
+#if PY_VERSION_HEX < 0x030D0000
 #include "cinder/hooks.h"
-#include "internal/pycore_pystate.h"
+#endif
+
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_modsupport.h"
+#endif
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/dict.h"
