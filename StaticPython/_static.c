@@ -1604,7 +1604,7 @@ static PyObject* _static___build_cinder_class__(
     }
     // Type by default has 2 references, the one which we'll return, and one
     // which is a circular reference between the type and its MRO
-    if (type->ob_refcnt != 2 + slot_count) {
+    if (Py_REFCNT(type) != 2 + slot_count) {
       leaked_type = 1;
     }
   }
