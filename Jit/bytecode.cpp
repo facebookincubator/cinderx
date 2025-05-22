@@ -18,6 +18,9 @@ void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
     return;
   }
   opcodeIndex_ = baseOffset_;
+  if (opcodeIndex_.value() >= countIndices(code_)) {
+    return;
+  }
   _Py_CODEUNIT* cu = codeUnit(code_) + opcodeIndex_.value();
   while (_Py_OPCODE(*cu) == EXTENDED_ARG) {
     JIT_DCHECK(
