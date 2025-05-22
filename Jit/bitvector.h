@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Common/log.h"
+#include "fmt/ostream.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -118,3 +119,6 @@ class BitVector {
 std::ostream& operator<<(std::ostream& os, const BitVector& bv);
 
 } // namespace jit::util
+
+template <>
+struct fmt::formatter<jit::util::BitVector> : fmt::ostream_formatter {};

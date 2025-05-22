@@ -7,9 +7,9 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"
 #include "cinderx/Jit/lir/operand.h"
+#include "fmt/ostream.h"
 
 #include <iosfwd>
-#include <unordered_map>
 
 namespace jit::lir {
 
@@ -71,3 +71,14 @@ inline std::ostream& operator<<(
 }
 
 } // namespace jit::lir
+
+template <>
+struct fmt::formatter<jit::lir::Function> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<jit::lir::BasicBlock> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<jit::lir::Instruction> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<jit::lir::OperandBase> : fmt::ostream_formatter {};
+template <>
+struct fmt::formatter<jit::lir::MemoryIndirect> : fmt::ostream_formatter {};

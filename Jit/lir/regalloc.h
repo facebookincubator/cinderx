@@ -4,13 +4,11 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/codegen/copy_graph.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/lir/printer.h"
 
-#include <list>
 #include <memory>
 #include <ostream>
 #include <queue>
@@ -338,3 +336,9 @@ std::ostream& operator<<(std::ostream& out, const LiveRange& rhs);
 std::ostream& operator<<(std::ostream& out, const LiveInterval& rhs);
 
 } // namespace jit::lir
+
+template <>
+struct fmt::formatter<jit::lir::LiveRange> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<jit::lir::LiveInterval> : fmt::ostream_formatter {};

@@ -2,6 +2,8 @@
 
 #include "cinderx/Jit/hir/type.h"
 
+#include "frameobject.h"
+
 #include "cinderx/Common/log.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/Upgrade/upgrade_assert.h" // @donotremove

@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Jit/hir/hir.h"
+#include "fmt/ostream.h"
 
 #include <nlohmann/json.hpp>
 
@@ -99,3 +100,24 @@ void DebugPrint(const BasicBlock& block);
 void DebugPrint(const Instr& instr);
 
 } // namespace jit::hir
+
+template <>
+struct fmt::formatter<jit::hir::Function> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<jit::hir::CFG> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<jit::hir::BasicBlock> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<jit::hir::Instr> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<jit::hir::DeoptBase> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<jit::hir::Phi> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<jit::hir::FrameState> : fmt::ostream_formatter {};

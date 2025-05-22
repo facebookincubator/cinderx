@@ -4,6 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
+#include "fmt/ostream.h"
 
 #include <fmt/format.h>
 
@@ -332,3 +333,6 @@ struct hash<jit::codegen::PhyLocation> {
 };
 
 } // namespace std
+
+template <>
+struct fmt::formatter<jit::codegen::PhyLocation> : fmt::ostream_formatter {};

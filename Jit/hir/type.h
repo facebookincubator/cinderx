@@ -4,11 +4,10 @@
 
 #include <Python.h>
 
-#include "frameobject.h"
-
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/hir/type_generated.h"
+#include "fmt/ostream.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -314,6 +313,9 @@ struct std::hash<jit::hir::Type> {
     return ty.hash();
   }
 };
+
+template <>
+struct fmt::formatter<jit::hir::Type> : fmt::ostream_formatter {};
 
 #define incl_JIT_HIR_TYPE_INL_H
 #include "cinderx/Jit/hir/type_inl.h"

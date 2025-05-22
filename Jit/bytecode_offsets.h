@@ -199,6 +199,14 @@ inline std::ostream& operator<<(std::ostream& os, jit::BCIndex index) {
   return os << index.value();
 }
 
+inline auto format_as(const jit::BCOffset& offset) {
+  return offset.value();
+}
+
+inline auto format_as(const jit::BCIndex& idx) {
+  return idx.value();
+}
+
 } // namespace jit
 
 template <>
