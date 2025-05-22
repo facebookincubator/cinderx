@@ -5,8 +5,6 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/lir/blocksorter.h"
 
-#include <stack>
-
 namespace jit::lir {
 
 // Helper for copyOperand.

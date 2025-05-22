@@ -19,7 +19,6 @@
 #include "internal/pycore_import.h"
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pyerrors.h"
-#include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
@@ -29,10 +28,8 @@
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
-#include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
-#include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/jit_rt.h"
@@ -41,7 +38,6 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
-#include "cinderx/StaticPython/vtable.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
