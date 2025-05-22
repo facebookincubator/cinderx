@@ -26,7 +26,6 @@
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/typed_method_def.h"
-#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <algorithm>
 #include <deque>
