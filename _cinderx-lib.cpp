@@ -8,6 +8,7 @@
 // This has to be high up here to avoid <atomic> vs <stdatomic.h> include
 // issues.
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/util.h"
 // clang-format on
 
 #include "internal/pycore_pystate.h"
