@@ -2671,7 +2671,7 @@ chkdict_update_common_fast(PyObject* self, PyObject* arg, PyObject* kwds) {
     } else {
       DEFINE_STATIC_STRING(keys);
       PyObject* func;
-      if (_PyObject_LookupAttr(arg, s_keys, &func) < 0) {
+      if (PyObject_GetOptionalAttr(arg, s_keys, &func) < 0) {
         result = -1;
       } else if (func != NULL) {
         Py_DECREF(func);
