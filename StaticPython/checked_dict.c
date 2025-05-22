@@ -14,7 +14,6 @@
 #include "internal/pycore_object.h" // _PyObject_GC_TRACK()
 #include "internal/pycore_pystate.h" // _Py_InterpreterState_GET
 
-#include "Objects/stringlib/eq.h" // unicode_eq()
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
@@ -837,6 +836,20 @@ top:
     i = (i * 5 + perturb + 1) & mask;
   }
   Py_UNREACHABLE();
+}
+
+static int _Py_HOT_FUNCTION unicode_eq(PyObject* a, PyObject* b) {
+  Py_ssize_t len = PyUnicode_GET_LENGTH(a);
+  if (len != PyUnicode_GET_LENGTH(b)) {
+    return 0;
+  }
+  int kind = PyUnicode_KIND(a);
+  if (kind != PyUnicode_KIND(b)) {
+    return 0;
+  }
+  const void* adata = PyUnicode_DATA(a);
+  const void* bdata = PyUnicode_DATA(b);
+  return memcmp(adata, bdata, len * kind) == 0;
 }
 
 /* Specialized version for string-only keys */
