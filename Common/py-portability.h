@@ -7,6 +7,10 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_genobject.h"
+#endif
+
 #if PY_VERSION_HEX < 0x030C0000
 #define CI_INTERP_IMPORT_FIELD(interp, field) interp->field
 #else
@@ -55,6 +59,41 @@ static inline int PyTime_MonotonicRaw(PyTime_t* result) {
 #endif
 
 #if PY_VERSION_HEX >= 0x030C0000
+
+// Fetch a _PyInterpreterFrame from a PyThreadState.
+inline _PyInterpreterFrame* interpFrameFromThreadState(PyThreadState* tstate) {
+#if PY_VERSION_HEX >= 0x030D0000
+  return tstate->current_frame;
+#else
+  return tstate->cframe->current_frame;
+#endif
+}
+
+// Initialize a _PyInterpreterFrame.
+inline void initInterpFrame(
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame,
+    PyFunctionObject* func,
+    PyObject* locals,
+    PyCodeObject* code,
+    int null_locals_from,
+    _PyInterpreterFrame* previous) {
+#if PY_VERSION_HEX >= 0x030E0000
+  _PyFrame_Initialize(
+      tstate,
+      frame,
+      PyStackRef_FromPyObjectNew(func),
+      locals,
+      code,
+      null_locals_from,
+      previous);
+#else
+  (void)tstate;
+  _PyFrame_Initialize(frame, func, locals, code, null_locals_from);
+  frame->previous = previous;
+#endif
+}
+
 // Get the interpreter frame stored in a generator object.
 inline _PyInterpreterFrame* generatorFrame(PyGenObject* gen) {
   return
@@ -65,4 +104,30 @@ inline _PyInterpreterFrame* generatorFrame(PyGenObject* gen) {
 #endif
       ;
 }
+
+// Get the current interpreter frame from a thread state.
+inline _PyInterpreterFrame* currentFrame(PyThreadState* tstate) {
+#if PY_VERSION_HEX >= 0x030D0000
+  return tstate->current_frame;
+#else
+  return tstate->cframe->current_frame;
+#endif
+}
+
+// Set the current interpreter frame in a thread state.
+inline void setCurrentFrame(PyThreadState* tstate, _PyInterpreterFrame* frame) {
+#if PY_VERSION_HEX >= 0x030D0000
+  tstate->current_frame = frame;
+#else
+  tstate->cframe->current_frame = frame;
+#endif
+}
+
+#endif // PY_VERSION_HEX >= 0x030C0000
+
+// Code object flag that will prevent JIT compilation.
+//
+// Originally defined in Meta Python headers, now defined here as well.
+#ifndef CI_CO_SUPPRESS_JIT
+#define CI_CO_SUPPRESS_JIT 0x40000000
 #endif

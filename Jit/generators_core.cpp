@@ -1,5 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+#include "cinderx/Jit/generators_core.h"
+
 #include <Python.h>
 
 #include "cinderx/module_state.h"

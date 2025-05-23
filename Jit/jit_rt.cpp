@@ -608,14 +608,16 @@ static void init_and_link_interpreter_frame(
     PyCodeObject* co,
     PyThreadState* tstate,
     _PyInterpreterFrame* frame) {
-  _PyFrame_Initialize(
+  initInterpFrame(
+      tstate,
       frame,
       func,
       /* locals= */ nullptr,
       co,
       // Zero all of localsplus. This allows _PyFrame_ClearExceptCode to
       // safely clear the locals.
-      0);
+      0,
+      /* previous= */ nullptr);
   // For some reason this is not bumped in _PyFrame_Initialize but it is
   // released in _PyFrame_ClearExceptCode.
   Py_INCREF(func);
@@ -624,8 +626,8 @@ static void init_and_link_interpreter_frame(
   // should always be one due to the existence of a the per-thread root
   // cframe. The cframe idea seems to have only transiently been needed
   // in 3.11 and is now a loose end removed in 3.13.
-  frame->previous = tstate->cframe->current_frame;
-  tstate->cframe->current_frame = frame;
+  frame->previous = currentFrame(tstate);
+  setCurrentFrame(tstate, frame);
 }
 
 static inline PyThreadState* allocate_and_link_interpreter_frame(
@@ -675,7 +677,7 @@ void JITRT_InitFrameCellVars(
   PyObject* closure = func->func_closure;
   PyCodeObject* co = (PyCodeObject*)func->func_code;
   int offset = co->co_nlocalsplus - nvars;
-  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
+  _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
   for (int i = 0; i < nvars; i++) {
     frame->localsplus[offset + i] = Py_NewRef(PyTuple_GET_ITEM(closure, i));
   }
@@ -726,8 +728,8 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
     if (origin_depth == 0) {
       gen->gi_origin_or_finalizer = nullptr;
     } else {
-      PyObject* cr_origin =
-          Cix_compute_cr_origin(origin_depth, tstate->cframe->current_frame);
+      _PyInterpreterFrame* current_frame = interpFrameFromThreadState(tstate);
+      PyObject* cr_origin = Cix_compute_cr_origin(origin_depth, current_frame);
       gen->gi_origin_or_finalizer = cr_origin;
       if (!cr_origin) {
         JIT_LOG(
@@ -761,8 +763,9 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
 
 std::pair<jit::JitGenObject*, jit::GenDataFooter*>
 JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate) {
-  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
-  tstate->cframe->current_frame = frame->previous;
+  _PyInterpreterFrame* frame = currentFrame(tstate);
+  setCurrentFrame(tstate, frame->previous);
+
   frame->previous = nullptr;
 
   BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
@@ -797,8 +800,9 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
    * The reference for this is _PyEvalFrameClearAndPop in ceval.c.
    */
 
-  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
-  tstate->cframe->current_frame = tstate->cframe->current_frame->previous;
+  _PyInterpreterFrame* frame = currentFrame(tstate);
+  setCurrentFrame(tstate, frame->previous);
+
   // This is needed particularly because it handles the work of copying
   // data to a PyFrameObject if one has escaped the function.
   Cix_PyFrame_ClearExceptCode(frame);

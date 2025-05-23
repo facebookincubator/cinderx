@@ -54,7 +54,9 @@ static inline Ref<> runInInterpreterViaReify(
   _PyInterpreterFrame* interp_frame =
       Cix_PyThreadState_PushFrame(tstate, code->co_framesize);
   Py_INCREF(func);
-  _PyFrame_Initialize(interp_frame, func, nullptr, code, 0);
+  PyObject* locals = nullptr;
+  _PyInterpreterFrame* previous = nullptr;
+  initInterpFrame(tstate, interp_frame, func, locals, code, 0, previous);
   reifyFrame(interp_frame, dm, dfm, regs);
   // If we're at the start of the function, push IP past RESUME instruction
   if (interp_frame->prev_instr == _PyCode_CODE(code) - 1) {

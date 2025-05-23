@@ -574,7 +574,7 @@ int get_current_code_flags(PyThreadState* tstate) {
   }
   return cur_code->co_flags;
 #else
-  return tstate->cframe->current_frame->f_code->co_flags;
+  return _PyFrame_GetCode(currentFrame(tstate))->co_flags;
 #endif
 }
 

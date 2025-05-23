@@ -3,12 +3,13 @@
 #include "cinderx/Jit/codegen/gen_asm.h"
 
 #include <Python.h>
+
+#include "internal/pycore_pystate.h"
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"
 #endif
-
-#include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
@@ -162,7 +163,7 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
     sf_iter = sf_iter->prev;
   }
 #else
-  _PyInterpreterFrame* frame = tstate->cframe->current_frame;
+  _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
   reifyFrame(frame, deopt_meta, deopt_meta.outermostFrame(), regs);
   UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
 #endif
@@ -298,10 +299,10 @@ PyObject* resumeInInterpreter(
   // expects tstate->cframe->current_frame points to the frame for the calling
   // function. We don't need to go back a tstate->cframe as we borrowed an
   // existing one when we linked our frame in.
-  JIT_CHECK(
-      tstate->cframe->current_frame == frame,
-      "unexpected frame at top of stack");
-  tstate->cframe->current_frame = frame->previous;
+
+  JIT_CHECK(currentFrame(tstate) == frame, "unexpected frame at top of stack");
+  setCurrentFrame(tstate, frame->previous);
+
   return _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
 }
 

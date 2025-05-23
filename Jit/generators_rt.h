@@ -6,14 +6,15 @@
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_frame.h"
 
-#include "cinderx/Common/py-portability.h"
 #include "cpython/genobject.h"
 
 #endif
 
 #ifdef __cplusplus
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/module_state.h" // @donotremove
+
 namespace jit {
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -54,15 +55,16 @@ struct JitGenObject : PyGenObject {
     // use PyObject_VAR_HEAD like it probably should this would get simpler. If
     // we expanded the allocation to include the GenDataFooter it'd get simpler
     // still.
-    auto gen_frame = generatorFrame(this);
-    int python_frame_data_bytes =
-        _PyFrame_NumSlotsForCodeObject(_PyFrame_GetCode(gen_frame)) *
-        cinderx::getModuleState()->genType()->tp_itemsize;
+    _PyInterpreterFrame* gen_frame = generatorFrame(this);
+    BorrowedRef<PyCodeObject> gen_code = _PyFrame_GetCode(gen_frame);
+    BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->genType();
+
+    size_t python_frame_data_bytes =
+        _PyFrame_NumSlotsForCodeObject(gen_code) * gen_type->tp_itemsize;
     // A *pointer* to JIT data comes after all the other data in the default
     // generator object.
     return reinterpret_cast<jit::GenDataFooter**>(
-        reinterpret_cast<uintptr_t>(this) +
-        cinderx::getModuleState()->genType()->tp_basicsize +
+        reinterpret_cast<uintptr_t>(this) + gen_type->tp_basicsize +
         python_frame_data_bytes);
   }
 

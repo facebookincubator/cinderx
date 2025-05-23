@@ -98,8 +98,9 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
   _PyInterpreterFrame* frame = generatorFrame(jit_gen);
   // See comment about reusing the cframe in jit_rt.cpp,
   // allocate_and_link_interpreter_frame().
-  frame->previous = tstate->cframe->current_frame;
-  tstate->cframe->current_frame = frame;
+
+  frame->previous = currentFrame(tstate);
+  setCurrentFrame(tstate, frame);
 
   // Enter generated code.
   JIT_DCHECK(
@@ -114,7 +115,9 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
   if (JitGen_CheckAny(gen_obj)) {
     tstate->exc_info = jit_gen->gi_exc_state.previous_item;
     jit_gen->gi_exc_state.previous_item = nullptr;
-    tstate->cframe->current_frame = frame->previous;
+
+    setCurrentFrame(tstate, frame->previous);
+
     frame->previous = nullptr;
     if (jit_gen->gi_frame_state == FRAME_COMPLETED) {
       jit_gen->gi_frame_state = FRAME_CLEARED;
