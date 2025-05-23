@@ -1614,7 +1614,10 @@ JITRT_GenSendRes JITRT_GenSend(
   if (gen_status == PYGEN_ERROR) {
     return {nullptr, 1};
   }
-  JIT_DCHECK(gen_status == PYGEN_NEXT, "Unexpected gen_status: {}", gen_status);
+  JIT_DCHECK(
+      gen_status == PYGEN_NEXT,
+      "Unexpected gen_status: {}",
+      fmt::underlying(gen_status));
   return {retval, 0};
 }
 
