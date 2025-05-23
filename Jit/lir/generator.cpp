@@ -217,7 +217,16 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
   }
 
 #if PY_VERSION_HEX >= 0x030C0000
+
   // Load the current interpreter frame pointer from tstate.
+
+#if PY_VERSION_HEX >= 0x030D0000
+  env_->asm_interpreter_frame = block->allocateInstr(
+      Instruction::kMove,
+      nullptr /* HIR instruction */,
+      OutVReg{},
+      Ind{env_->asm_tstate, offsetof(PyThreadState, current_frame)});
+#else
   Instruction* cframe = block->allocateInstr(
       Instruction::kMove,
       nullptr /* HIR instruction */,
@@ -228,6 +237,8 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
       nullptr /* HIR instruction */,
       OutVReg{},
       Ind{cframe, offsetof(_PyCFrame, current_frame)});
+#endif
+
 #endif
 
   return block;
@@ -2600,14 +2611,23 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // NB: This corresponds to an atomic load with
         // std::memory_order_relaxed. It's correct on x86-64 but probably isn't
         // on other architectures.
-        static_assert(
-            sizeof(reinterpret_cast<PyInterpreterState*>(0)
-                       ->ceval.eval_breaker._value) == 4,
-            "Eval breaker is not a 4 byte value");
         hir::Register* dest = i.output();
-        JIT_CHECK(dest->type() == TCInt32, "eval breaker output should be int");
-        // tstate->interp->ceval.eval_breaker
         Instruction* tstate = env_->asm_tstate;
+#if PY_VERSION_HEX >= 0x030D0000
+        // tstate->ceval.eval_breaker
+        static_assert(
+            sizeof(reinterpret_cast<PyThreadState*>(0)->eval_breaker) == 8,
+            "Eval breaker is not a 8 byte value");
+        bbb.appendInstr(
+            dest,
+            Instruction::kMove,
+            Ind{tstate, offsetof(PyThreadState, eval_breaker)});
+#else
+        // tstate->interp->ceval.eval_breaker
+        static_assert(
+            sizeof(reinterpret_cast<PyThreadState*>(0)
+                       ->interp->ceval.eval_breaker) == 4,
+            "Eval breaker is not a 4 byte value");
         Instruction* interp = bbb.appendInstr(
             Instruction::kMove,
             OutVReg{OperandBase::k64bit},
@@ -2616,6 +2636,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             dest,
             Instruction::kMove,
             Ind{interp, offsetof(PyInterpreterState, ceval.eval_breaker)});
+#endif
         break;
       }
       case Opcode::kRunPeriodicTasks: {

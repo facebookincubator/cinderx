@@ -845,22 +845,26 @@ PyObject* JITRT_LoadFunctionIndirect(PyObject** func, PyObject* descr) {
   return res;
 }
 
-#if defined(_MSC_VER) && SIZEOF_INT == 4
-#define _Py_atomic_load_relaxed_int32(ATOMIC_VAL) \
-  (assert(sizeof((ATOMIC_VAL)->_value) == 4),     \
-   *((volatile int*)&((ATOMIC_VAL)->_value)))
-#else
-#define _Py_atomic_load_relaxed_int32(ATOMIC_VAL) \
-  _Py_atomic_load_relaxed(ATOMIC_VAL)
-#endif
-
 #if PY_VERSION_HEX >= 0x030C0000
-static bool
-eval_breaker(PyThreadState* tstate, PyObject* res, PyObject* callable) {
-  return res != nullptr && !PyFunction_Check(callable) &&
-      _Py_atomic_load_relaxed_int32(&tstate->interp->ceval.eval_breaker) &&
-      _Py_HandlePending(tstate) != 0;
+
+static bool is_eval_breaker_set(PyThreadState* tstate) {
+  auto value =
+#if PY_VERSION_HEX >= 0x030D0000
+      reinterpret_cast<std::atomic_int64_t*>(&tstate->eval_breaker)
+#else
+      reinterpret_cast<std::atomic_int32_t*>(
+          &tstate->interp->ceval.eval_breaker)
+#endif
+      ;
+  return value->load(std::memory_order_relaxed);
 }
+
+static bool
+handle_eval_breaker(PyThreadState* tstate, PyObject* res, PyObject* callable) {
+  return res != nullptr && !PyFunction_Check(callable) &&
+      is_eval_breaker_set(tstate) && _Py_HandlePending(tstate) != 0;
+}
+
 #endif
 
 template <bool is_awaited>
@@ -936,7 +940,7 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   // In 3.12 calls to non-Python functions will check for the eval breaker
   // We handle that here rather than bloat every function call w/ an extra
   // check.
-  if (eval_breaker(tstate, res, func)) {
+  if (handle_eval_breaker(tstate, res, func)) {
     Py_DECREF(res);
     return NULL;
   }
@@ -982,7 +986,7 @@ PyObject* JITRT_Call(
   // In 3.12 calls to non-Python functions will check for the eval breaker
   // We handle that here rather than bloat every function call w/ an extra
   // check.
-  if (eval_breaker(tstate, res, callable)) {
+  if (handle_eval_breaker(tstate, res, callable)) {
     Py_DECREF(res);
     return NULL;
   }
@@ -1002,7 +1006,7 @@ PyObject* JITRT_Vectorcall(
   // In 3.12 calls to non-Python functions will check for the eval breaker
   // We handle that here rather than bloat every function call w/ an extra
   // check.
-  if (eval_breaker(tstate, res, callable)) {
+  if (handle_eval_breaker(tstate, res, callable)) {
     Py_DECREF(res);
     return NULL;
   }

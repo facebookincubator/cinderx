@@ -541,7 +541,7 @@ Type outputType(
     case Opcode::kLoadCurrentFunc:
       return TFunc;
     case Opcode::kLoadEvalBreaker:
-      return TCInt32;
+      return PY_VERSION_HEX >= 0x030D0000 ? TCInt64 : TCInt32;
     case Opcode::kMakeCell:
       return TMortalCell;
     case Opcode::kMakeDict:
