@@ -40,6 +40,11 @@ inline int PyList_Extend(PyObject* list, PyObject* iterable) {
   return result != NULL ? 0 : -1;
 }
 
+static inline int PyTime_MonotonicRaw(PyTime_t* result) {
+  *result = _PyTime_GetMonotonicClock();
+  return 0;
+}
+
 #endif
 
 #if PY_VERSION_HEX < 0x030E0000

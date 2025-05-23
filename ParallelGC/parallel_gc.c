@@ -1104,7 +1104,8 @@ static Py_ssize_t gc_collect_main(
   PyGC_Head unreachable; /* non-problematic unreachable trash */
   PyGC_Head finalizers; /* objects with, & reachable from, __del__ */
   PyGC_Head* gc;
-  PyTime_t t1 = 0; /* initialize to prevent a compiler warning */
+  PyTime_t t1 = 0;
+  int time_error = 0;
   GCState* gcstate = &tstate->interp->gc;
 
   // gc_collect_main() must not be called before _PyGC_Init
@@ -1123,7 +1124,10 @@ static Py_ssize_t gc_collect_main(
   if (gcstate->debug & DEBUG_STATS) {
     PySys_WriteStderr("gc: collecting generation %d...\n", generation);
     show_stats_each_generations(gcstate);
-    t1 = _PyTime_GetMonotonicClock();
+
+    if (PyTime_MonotonicRaw(&t1) < 0) {
+      time_error = 1;
+    }
   }
 
   /* update collection and allocation counters */
@@ -1220,7 +1224,11 @@ static Py_ssize_t gc_collect_main(
       debug_cycle("uncollectable", FROM_GC(gc));
   }
   if (gcstate->debug & DEBUG_STATS) {
-    double d = PyTime_AsSecondsDouble(_PyTime_GetMonotonicClock() - t1);
+    PyTime_t t2 = 0;
+    if (PyTime_MonotonicRaw(&t2) < 0) {
+      time_error = 1;
+    }
+    double d = time_error ? -1.0 : PyTime_AsSecondsDouble(t2 - t1);
     PySys_WriteStderr(
         "gc: done, %zd unreachable, %zd uncollectable, %.4fs elapsed\n",
         n + m,
