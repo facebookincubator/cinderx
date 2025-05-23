@@ -893,9 +893,8 @@ static void finalize_garbage(PyThreadState* tstate, PyGC_Head* collectable) {
     PyGC_Head* gc = GC_NEXT(collectable);
     PyObject* op = FROM_GC(gc);
     gc_list_move(gc, &seen);
-    if (!_PyGCHead_FINALIZED(gc) &&
-        (finalize = Py_TYPE(op)->tp_finalize) != NULL) {
-      _PyGCHead_SET_FINALIZED(gc);
+    if (!_PyGC_FINALIZED(op) && (finalize = Py_TYPE(op)->tp_finalize) != NULL) {
+      _PyGC_SET_FINALIZED(op);
       Py_INCREF(op);
       finalize(op);
       assert(!_PyErr_Occurred(tstate));
