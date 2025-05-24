@@ -47,6 +47,8 @@
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "i386-dis/dis-asm.h"
 
+#include <dlfcn.h>
+
 #include <atomic>
 #include <charconv>
 #include <chrono>

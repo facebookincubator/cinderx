@@ -8,6 +8,8 @@
 #include "cinderx/Jit/elf/reader.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 
+#include <dlfcn.h>
+
 namespace jit {
 
 AotContext g_aot_ctx;

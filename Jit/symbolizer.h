@@ -5,17 +5,12 @@
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/symbolizer_iface.h"
 
-#include <elf.h>
 #include <fcntl.h>
-#include <link.h> // for ElfW
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
 
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -45,8 +40,12 @@ class Symbolizer : public ISymbolizer {
       std::optional<std::string> name);
 
   MmapFile file_;
-  const ElfW(Shdr) * symtab_{nullptr};
-  const ElfW(Shdr) * strtab_{nullptr};
+
+  // Stored as void* to avoid pulling in ELF structures into this header.  These
+  // have type `const ElfW(Shdr)*`.
+  const void* symtab_{nullptr};
+  const void* strtab_{nullptr};
+
   // This cache is useful for performance and also critical for correctness.
   // Some of the symbols (for example, to shared objects) do not return owned
   // pointers. We must keep an object in this map for the string_view to point

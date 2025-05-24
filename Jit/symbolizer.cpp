@@ -9,67 +9,33 @@
 #include <cxxabi.h>
 #include <dlfcn.h>
 
+#ifdef ENABLE_SYMBOLIZER
+#include <elf.h>
+#include <link.h> // for ElfW
+#endif
+
 #include <cstdio>
 #include <cstdlib>
 
 namespace jit {
 
-Symbolizer::Symbolizer(const char* exe_path) {
-  try {
-    file_.open(exe_path);
-  } catch (const std::exception& exn) {
-    JIT_LOG("{}", exn.what());
-    return;
-  }
+namespace {
 
-  const std::byte* exe = file_.data().data();
-
-  auto elf = reinterpret_cast<const ElfW(Ehdr)*>(exe);
-  auto shdr = reinterpret_cast<const ElfW(Shdr)*>(exe + elf->e_shoff);
-  auto str =
-      reinterpret_cast<const char*>(exe + shdr[elf->e_shstrndx].sh_offset);
-  for (int i = 0; i < elf->e_shnum; i++) {
-    if (shdr[i].sh_size) {
-      if (std::strcmp(&str[shdr[i].sh_name], ".symtab") == 0) {
-        symtab_ = &shdr[i];
-      } else if (std::strcmp(&str[shdr[i].sh_name], ".strtab") == 0) {
-        strtab_ = &shdr[i];
-      }
-    }
-  }
-  if (symtab_ == nullptr) {
-    JIT_LOG("could not find symtab");
-    deinit();
-    return;
-  }
-  if (strtab_ == nullptr) {
-    JIT_LOG("could not find strtab");
-    deinit();
-    return;
-  }
-}
-
-std::optional<std::string_view> Symbolizer::cache(
-    const void* func,
-    std::optional<std::string> name) {
-  auto pair = cache_.emplace(func, std::move(name));
-  JIT_CHECK(pair.second, "{} already exists in cache", func);
-  return pair.first->second;
-}
-
-static bool hasELFMagic(const void* addr) {
-  auto elf_hdr = reinterpret_cast<const ElfW(Ehdr)*>(addr);
-  return (elf_hdr->e_ident[0] == ELFMAG0) && (elf_hdr->e_ident[1] == ELFMAG1) &&
-      (elf_hdr->e_ident[2] == ELFMAG2) && (elf_hdr->e_ident[3] == ELFMAG3);
-}
+#ifdef ENABLE_SYMBOLIZER
 
 struct SymbolResult {
   const void* func;
   std::optional<std::string> name;
 };
 
+bool hasELFMagic(const void* addr) {
+  auto elf_hdr = reinterpret_cast<const ElfW(Ehdr)*>(addr);
+  return (elf_hdr->e_ident[0] == ELFMAG0) && (elf_hdr->e_ident[1] == ELFMAG1) &&
+      (elf_hdr->e_ident[2] == ELFMAG2) && (elf_hdr->e_ident[3] == ELFMAG3);
+}
+
 // Return 0 to continue iteration and non-zero to stop.
-static int findSymbolIn(struct dl_phdr_info* info, size_t, void* data) {
+int findSymbolIn(struct dl_phdr_info* info, size_t, void* data) {
   // Continue until the first dynamic library is found. Looks like a bunch of
   // platforms put the main executable as the first entry, which has an empty
   // name. Skip it.
@@ -157,7 +123,57 @@ static int findSymbolIn(struct dl_phdr_info* info, size_t, void* data) {
   return 0;
 }
 
+#endif
+
+} // namespace
+
+Symbolizer::Symbolizer(const char* exe_path) {
+  try {
+    file_.open(exe_path);
+  } catch (const std::exception& exn) {
+    JIT_LOG("{}", exn.what());
+    return;
+  }
+
+#ifdef ENABLE_SYMBOLIZER
+  const std::byte* exe = file_.data().data();
+
+  auto elf = reinterpret_cast<const ElfW(Ehdr)*>(exe);
+  auto shdr = reinterpret_cast<const ElfW(Shdr)*>(exe + elf->e_shoff);
+  auto str =
+      reinterpret_cast<const char*>(exe + shdr[elf->e_shstrndx].sh_offset);
+  for (int i = 0; i < elf->e_shnum; i++) {
+    if (shdr[i].sh_size) {
+      if (std::strcmp(&str[shdr[i].sh_name], ".symtab") == 0) {
+        symtab_ = &shdr[i];
+      } else if (std::strcmp(&str[shdr[i].sh_name], ".strtab") == 0) {
+        strtab_ = &shdr[i];
+      }
+    }
+  }
+  if (symtab_ == nullptr) {
+    JIT_LOG("could not find symtab");
+    deinit();
+    return;
+  }
+  if (strtab_ == nullptr) {
+    JIT_LOG("could not find strtab");
+    deinit();
+    return;
+  }
+#endif
+}
+
+std::optional<std::string_view> Symbolizer::cache(
+    const void* func,
+    std::optional<std::string> name) {
+  auto pair = cache_.emplace(func, std::move(name));
+  JIT_CHECK(pair.second, "{} already exists in cache", func);
+  return pair.first->second;
+}
+
 std::optional<std::string_view> Symbolizer::symbolize(const void* func) {
+#ifdef ENABLE_SYMBOLIZER
   // Try the cache first. We might have looked it up before.
   auto cached = cache_.find(func);
   if (cached != cache_.end()) {
@@ -173,9 +189,13 @@ std::optional<std::string_view> Symbolizer::symbolize(const void* func) {
   }
   // Fall back to reading our own ELF header.
   const std::byte* exe = file_.data().data();
-  auto sym = reinterpret_cast<const ElfW(Sym)*>(exe + symtab_->sh_offset);
-  auto str = reinterpret_cast<const char*>(exe + strtab_->sh_offset);
-  for (size_t i = 0; i < symtab_->sh_size / sizeof(ElfW(Sym)); i++) {
+
+  auto symtab = reinterpret_cast<const ElfW(Shdr)*>(symtab_);
+  auto strtab = reinterpret_cast<const ElfW(Shdr)*>(strtab_);
+
+  auto sym = reinterpret_cast<const ElfW(Sym)*>(exe + symtab->sh_offset);
+  auto str = reinterpret_cast<const char*>(exe + strtab->sh_offset);
+  for (size_t i = 0; i < symtab->sh_size / sizeof(ElfW(Sym)); i++) {
     if (reinterpret_cast<void*>(sym[i].st_value) == func) {
       return cache(func, str + sym[i].st_name);
     }
@@ -191,6 +211,9 @@ std::optional<std::string_view> Symbolizer::symbolize(const void* func) {
   // means we'll miss out on addresses that are mapped to a symbol after our
   // first attempt at symbolizing them.
   return cache(func, result.name);
+#else
+  return std::nullopt;
+#endif
 }
 
 void Symbolizer::deinit() {
@@ -228,6 +251,7 @@ std::optional<std::string> demangle(const std::string& mangled_name) {
 }
 
 std::optional<std::string> symbolize(const void* func) {
+#ifdef ENABLE_SYMBOLIZER
   if (!g_symbolize_funcs) {
     return std::nullopt;
   }
@@ -242,6 +266,9 @@ std::optional<std::string> symbolize(const void* func) {
     return std::nullopt;
   }
   return demangle(std::string{*mangled_name});
+#else
+  return std::nullopt;
+#endif
 }
 
 } // namespace jit
