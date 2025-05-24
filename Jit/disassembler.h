@@ -35,6 +35,7 @@ struct Disassembler {
   const char* const buf_;
   size_t start_{0};
   size_t const size_;
+  size_t addr_len_{16};
   jit_string_t* const sfile_;
   bool print_addr_{true};
   bool print_instr_bytes_{true};

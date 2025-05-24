@@ -2,20 +2,29 @@
 
 #include "cinderx/Jit/disassembler.h"
 
+#ifdef ENABLE_DISASSEMBLER
+
 #include "cinderx/Jit/symbolizer.h"
 #include "i386-dis/dis-asm.h"
 
 #include <cstddef>
-#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <mutex>
 
+#else
+
+struct disassemble_info {};
+
+#endif
+
 namespace jit {
 
 namespace {
+
+#ifdef ENABLE_DISASSEMBLER
 
 std::mutex dis_mtx;
 
@@ -39,6 +48,7 @@ void print_symbol(vma_t addr, disassemble_info* info) {
     info->fprintf_func(info->stream, " (%s)", symbol->c_str());
   }
 }
+#endif
 
 } // namespace
 
@@ -47,6 +57,7 @@ Disassembler::Disassembler(const char* buf, size_t size)
       buf_(buf),
       size_{size},
       sfile_{ss_alloc()} {
+#ifdef ENABLE_DISASSEMBLER
   auto vma = reinterpret_cast<vma_t>(buf);
 
   memset(info_.get(), 0, sizeof(*info_));
@@ -62,6 +73,9 @@ Disassembler::Disassembler(const char* buf, size_t size)
   info_->buffer = (unsigned char*)buf;
   info_->buffer_length = size;
   info_->buffer_vma = vma;
+
+  addr_len_ = get_address_hex_length(info_->stop_vma);
+#endif
 }
 
 Disassembler::~Disassembler() {
@@ -69,11 +83,15 @@ Disassembler::~Disassembler() {
 }
 
 void Disassembler::codeAddress(std::ostream& os) {
-  size_t addr_len = get_address_hex_length(info_->stop_vma);
-  fmt::print(os, "{:#0{}x}", reinterpret_cast<vma_t>(cursor()), addr_len);
+  fmt::print(
+      os,
+      fmt::runtime("{:#0{}x}"),
+      reinterpret_cast<size_t>(cursor()),
+      addr_len_);
 }
 
 void Disassembler::disassembleOne(std::ostream& os) {
+#ifdef ENABLE_DISASSEMBLER
   if (print_addr_) {
     codeAddress(os);
     fmt::print(os, ":{:8}", "");
@@ -100,6 +118,9 @@ void Disassembler::disassembleOne(std::ostream& os) {
   ss_reset(sfile_);
 
   start_ += length;
+#else
+  throw std::runtime_error{"Disassembler implementation is disabled"};
+#endif
 }
 
 void Disassembler::disassembleAll(std::ostream& os) {
