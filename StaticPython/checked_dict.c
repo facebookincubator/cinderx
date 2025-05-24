@@ -4,8 +4,13 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_dict.h"
+#endif
+
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_modsupport.h"
+#include "internal/pycore_setobject.h"
 #endif
 
 #include "internal/pycore_bitutils.h" // _Py_bit_length

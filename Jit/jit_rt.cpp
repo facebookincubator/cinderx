@@ -31,6 +31,10 @@
 #include "internal/pycore_tuple.h"
 // clang-format on
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_unicodeobject.h"
+#endif
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "internal/pycore_shadow_frame.h"

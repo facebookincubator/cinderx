@@ -4,6 +4,10 @@
 
 #include "internal/pycore_runtime.h"
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_audit.h"
+#endif
+
 extern "C" {
 
 bool installAuditHook(Py_AuditHookFunction func, void* userData) {
