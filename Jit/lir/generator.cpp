@@ -2793,6 +2793,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kImportFrom: {
+#if ENABLE_LAZY_IMPORTS
         auto instr = static_cast<const ImportFrom*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
         bbb.appendCallInstruction(
@@ -2801,6 +2802,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             env_->asm_tstate,
             instr->module(),
             name);
+#elif PY_VERSION_HEX >= 0x030E0000
+        auto instr = static_cast<const ImportFrom*>(&i);
+        Instruction* name = getNameFromIdx(bbb, instr);
+        bbb.appendCallInstruction(
+            i.output(), _PyEval_ImportFrom, instr->module(), name);
+#else
+        JIT_ABORT(
+            "IMPORT_FROM is not supported, LIRGenerator has no access to "
+            "import_from() from stock CPython");
+#endif
         break;
       }
       case Opcode::kImportName: {
@@ -2816,21 +2827,33 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kEagerImportName: {
-#if PY_VERSION_HEX >= 0x030C0000
         auto instr = static_cast<const EagerImportName*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
+#if PY_VERSION_HEX >= 0x030E0000
+        bbb.appendCallInstruction(
+            i.output(),
+            _PyEval_ImportName,
+            env_->asm_tstate,
+            env_->asm_interpreter_frame,
+            name,
+            instr->GetFromList(),
+            instr->GetLevel());
+#elif PY_VERSION_HEX >= 0x030C0000 && ENABLE_LAZY_IMPORTS
         PyObject* globals = instr->frameState()->globals;
         PyObject* builtins = instr->frameState()->builtins;
+        PyObject* locals = Py_None; /* see JITRT_ImportName. */
         bbb.appendCallInstruction(
             i.output(),
             _PyImport_ImportName,
             env_->asm_tstate,
             builtins,
             globals,
-            Py_None, /* locals, see JITRT_ImportName. */
+            locals,
             name,
             instr->GetFromList(),
             instr->GetLevel());
+#else
+        bbb.appendCallInstruction(i.output(), PyImport_Import, name);
 #endif
         break;
       }

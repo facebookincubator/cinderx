@@ -109,7 +109,12 @@ bool isSupportedOpcode(int opcode) {
     case GET_ITER:
     case GET_LEN:
     case GET_YIELD_FROM_ITER:
+#if PY_VERSION_HEX >= 0x030E0000 || ENABLE_LAZY_IMPORTS
     case IMPORT_FROM:
+      // LIR generation for IMPORT_FROM depends on access to _PyEval_ImportFrom
+      // (added in 3.14) or the_PyImport_ImportFrom function that's only added
+      // by Lazy Imports.
+#endif
     case IMPORT_NAME:
     case INPLACE_ADD:
     case INPLACE_AND:

@@ -132,7 +132,11 @@ PyObject* builtin_next(PyObject* self, PyObject* const* args, Py_ssize_t nargs);
 int _PyDict_HasUnsafeKeys(PyObject* dict);
 Py_ssize_t _PyDictKeys_GetSplitIndex(PyDictKeysObject* keys, PyObject* key);
 
+#ifdef ENABLE_LAZY_IMPORTS
 #define PyDict_NextKeepLazy _PyDict_NextKeepLazy
+#else
+#define PyDict_NextKeepLazy PyDict_Next
+#endif
 
 /*
  * Custom Cinder stack walking

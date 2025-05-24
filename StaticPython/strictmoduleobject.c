@@ -16,11 +16,6 @@
 #include "cinderx/StaticPython/modulethunks.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
-// TODO(T204869926): Hack to support running without Lazy Imports.
-#ifndef PyLazyImport_CheckExact
-PyObject* PyExc_ImportCycleError;
-#endif
-
 int _PyClassLoader_IsImmutable(PyObject* container) {
   if (PyType_Check(container)) {
     PyTypeObject* type = (PyTypeObject*)container;
@@ -471,10 +466,15 @@ static PyObject* strictmodule_lookupattro_impl(
           Py_INCREF(attr);
           return attr;
         } else if (PyErr_Occurred()) {
-          if (suppress &&
-              (PyErr_ExceptionMatches(PyExc_AttributeError) ||
-               PyErr_ExceptionMatches(PyExc_ImportCycleError))) {
-            PyErr_Clear();
+          if (suppress) {
+            if (PyErr_ExceptionMatches(PyExc_AttributeError)) {
+              PyErr_Clear();
+            }
+#ifdef ENABLE_LAZY_IMPORTS
+            if (PyErr_ExceptionMatches(PyExc_ImportCycleError)) {
+              PyErr_Clear();
+            }
+#endif
           }
           return NULL;
         }

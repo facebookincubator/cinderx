@@ -7,6 +7,10 @@
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/module_state.h"
 
+#ifndef ENABLE_LAZY_IMPORTS
+#define PyLazyImport_CheckExact(OBJ) false
+#endif
+
 extern "C" {
 
 PyObject**
@@ -224,12 +228,14 @@ void GlobalCacheManager::initCache(GlobalCache cache) {
 
   // We don't need to immediately watch builtins if the value is found in
   // globals.
-  if (PyObject* globals_value = PyDict_GetItem(globals, key)) {
+  if ([[maybe_unused]] PyObject* globals_value = PyDict_GetItem(globals, key)) {
     // The dict getitem could have triggered a lazy import with side effects
     // that unwatched the dict.
+#ifdef ENABLE_LAZY_IMPORTS
     if (cache.valuePtr()) {
       *cache.valuePtr() = globals_value;
     }
+#endif
     return;
   }
 
