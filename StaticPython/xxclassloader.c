@@ -1,8 +1,11 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
+
 #include <Python.h>
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
+
 #include "internal/pycore_initconfig.h"
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pystate.h" // _PyInterpreterState_GET()
@@ -460,29 +463,16 @@ static int no_op_visit(PyObject* obj, PyObject* Py_UNUSED(args)) {
   return 0;
 }
 
-#define FROM_GC(g) ((PyObject*)(((PyGC_Head*)g) + 1))
-#define GEN_HEAD(state, n) (&(state)->generations[n].head)
-PyObject* visit_heap(PyObject* module) {
-  PyInterpreterState* interp = _PyInterpreterState_GET();
-  struct _gc_runtime_state* state = &interp->gc;
-
-  for (int i = 0; i < NUM_GENERATIONS; i++) {
-    PyGC_Head *gc, *list;
-
-    list = GEN_HEAD(state, i);
-    for (gc = _PyGCHead_NEXT(list); gc != list; gc = _PyGCHead_NEXT(gc)) {
-      no_op_visit(FROM_GC(gc), NULL);
-      Py_TYPE(FROM_GC(gc))
-          ->tp_traverse(FROM_GC(gc), (visitproc)no_op_visit, NULL);
-    }
-  }
-  Py_RETURN_NONE;
+int traverse_visitor(PyObject* obj, void* arg) {
+  no_op_visit(obj, arg);
+  Py_TYPE(obj)->tp_traverse(obj, (visitproc)no_op_visit, arg);
+  return 1;
 }
-#undef GEN_HEAD
-#undef FROM_GC
 
-static PyObject* traverse_heap(PyObject* self, PyObject* Py_UNUSED(args)) {
-  visit_heap(self);
+static PyObject* traverse_heap(
+    PyObject* Py_UNUSED(self),
+    PyObject* Py_UNUSED(args)) {
+  PyUnstable_GC_VisitObjects(traverse_visitor, NULL /* arg */);
   Py_RETURN_NONE;
 }
 
