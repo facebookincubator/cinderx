@@ -260,6 +260,7 @@ PyObject* cinder_get_parallel_gc_settings(PyObject*, PyObject*) {
 }
 
 PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
+#if ENABLE_PERF_TRAMPOLINE || PY_VERSION_HEX >= 0x030D0000
   if (!jit::perf::isPreforkCompilationEnabled()) {
     Py_RETURN_NONE;
   }
@@ -275,6 +276,7 @@ PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
     }
   }
   perf_trampoline_worklist.clear();
+#endif
 
   Py_RETURN_NONE;
 }
