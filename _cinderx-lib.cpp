@@ -676,6 +676,7 @@ int cinderx_func_watcher(
       break;
     case PyFunction_EVENT_MODIFY_KWDEFAULTS:
       break;
+#ifdef ENABLE_FUNC_EVENT_MODIFY_QUALNAME
     case PyFunction_EVENT_MODIFY_QUALNAME:
       // allow reconsideration of whether this function should be compiled
       if (!isJitCompiled(func)) {
@@ -687,6 +688,7 @@ int cinderx_func_watcher(
         scheduleCompile(func);
       }
       break;
+#endif
     case PyFunction_EVENT_DESTROY:
       if (jit::perf::isPreforkCompilationEnabled()) {
         perf_trampoline_worklist.erase(func);
