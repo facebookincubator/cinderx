@@ -49,7 +49,9 @@ int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
   // Traverse basic fields as-per the default gen_tranverse.
   Py_VISIT(jit_gen->gi_name);
   Py_VISIT(jit_gen->gi_qualname);
+#ifdef ENABLE_GENERATOR_AWAITER
   Py_VISIT(jit_gen->gi_ci_awaiter);
+#endif
   Py_VISIT(jit_gen->gi_exc_state.exc_value);
 
   // Traverse objects in JIT frame where possible.
@@ -201,7 +203,9 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
         "Async gen should not raise StopAsyncIteration");
   }
 
+#ifdef ENABLE_GENERATOR_AWAITER
   Py_CLEAR(gen->gi_ci_awaiter);
+#endif
 
   _PyErr_ClearExcState(&gen->gi_exc_state);
   JIT_DCHECK(gen->gi_frame_state == FRAME_CLEARED, "Frame not cleared");
@@ -474,7 +478,9 @@ static PyGetSetDef jitcoro_getsetlist[] = {
     {"cr_frame", nullptr, nullptr, nullptr},
     {"cr_code", nullptr, nullptr, nullptr},
     {"cr_suspended", nullptr, nullptr, nullptr},
+#ifdef ENABLE_GENERATOR_AWAITER
     {"cr_ci_awaiter", nullptr, nullptr, nullptr},
+#endif
     {"cr_awaiter", nullptr, nullptr, nullptr},
     {"__class__", jitcoro_getclass, nullptr, nullptr},
     {} /* Sentinel */
@@ -497,15 +503,32 @@ static PyMethodDef jitcoro_methods[] = {
     {} /* Sentinel */
 };
 
+#ifdef ENABLE_GENERATOR_AWAITER
+
 static Ci_AsyncMethodsWithExtra jitcoro_as_async = {
     .ame_async_methods =
         {
             .am_await = reinterpret_cast<unaryfunc>(jitcoro_await),
+            .am_aiter = NULL,
+            .am_anext = NULL,
             .am_send = (sendfunc)jitgen_am_send,
         },
     // Filled in by init_jit_genobject_type()
     .ame_setawaiter = nullptr,
 };
+
+#else
+
+#define Ci_TPFLAGS_HAVE_AM_EXTRA 0
+
+static PyAsyncMethods jitcoro_as_async = {
+    .am_await = reinterpret_cast<unaryfunc>(jitcoro_await),
+    .am_aiter = NULL,
+    .am_anext = NULL,
+    .am_send = (sendfunc)jitgen_am_send,
+};
+
+#endif
 
 } // namespace
 
@@ -631,7 +654,7 @@ void init_jit_genobject_type() {
 
   coro_type->tp_dictoffset = 0;
   coro_type->tp_weaklistoffset = offsetof(PyGenObject, gi_weakreflist);
-  coro_type->tp_as_async = &jitcoro_as_async.ame_async_methods;
+  coro_type->tp_as_async = reinterpret_cast<PyAsyncMethods*>(&jitcoro_as_async);
 
   // Copy globally cached methods
   for (PyMethodDef* gen_methods = PyGen_Type.tp_methods;
@@ -705,12 +728,14 @@ void init_jit_genobject_type() {
   copy_methods(PyGen_Type.tp_methods, gen_type->tp_methods);
   copy_methods(PyCoro_Type.tp_methods, coro_type->tp_methods);
 
+#ifdef ENABLE_GENERATOR_AWAITER
   JIT_CHECK(
       PyCoro_Type.tp_flags & Ci_TPFLAGS_HAVE_AM_EXTRA,
       "No AM_EXTRA on coro type");
   auto coro_ame =
       reinterpret_cast<Ci_AsyncMethodsWithExtra*>(PyCoro_Type.tp_as_async);
   jitcoro_as_async.ame_setawaiter = coro_ame->ame_setawaiter;
+#endif
 }
 
 static PyMethodDef anextawaitable_methods[] = {

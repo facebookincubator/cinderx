@@ -15,10 +15,18 @@
 
 extern "C" PyType_Spec _AsyncLazyValue_Spec;
 extern "C" PyType_Spec _AsyncLazyValueCompute_Spec;
-extern "C" Ci_AsyncMethodsWithExtra _async_lazy_value_compute_type_as_async;
 extern "C" PyType_Spec AwaitableValue_Spec;
 extern "C" PyType_Spec _MethodTable_RefSpec;
 extern "C" PyMethodDef _MethodTableRefCallback;
+
+#ifdef ENABLE_GENERATOR_AWAITER
+extern "C" Ci_AsyncMethodsWithExtra _async_lazy_value_compute_type_as_async;
+#else
+extern "C" PyAsyncMethods _async_lazy_value_compute_type_as_async;
+
+#define Ci_TPFLAGS_HAVE_AM_EXTRA 0
+#endif
+
 static cinderx::AsyncLazyValueState* get_state();
 static void populate_method_table(
     PyMethodTableRef* tableref,
@@ -907,11 +915,13 @@ static void AsyncLazyValueCompute_dealloc(AsyncLazyValueComputeObj* self) {
 
 static void forward_and_clear_pending_awaiter(AsyncLazyValueComputeObj* self) {
   assert(self->alvc_coroobj != nullptr);
+#if ENABLE_GENERATOR_AWAITER
   if (self->alvc_pending_awaiter == nullptr) {
     return;
   }
   Ci_PyAwaitable_SetAwaiter(self->alvc_coroobj, self->alvc_pending_awaiter);
   self->alvc_pending_awaiter = nullptr;
+#endif
 }
 
 /**
@@ -1014,11 +1024,13 @@ static PyObject* AsyncLazyValueCompute_handle_error(
 static void AsyncLazyValueCompute_set_awaiter(
     AsyncLazyValueComputeObj* self,
     PyObject* awaiter) {
+#if ENABLE_GENERATOR_AWAITER
   if (self->alvc_coroobj != nullptr) {
     Ci_PyAwaitable_SetAwaiter(self->alvc_coroobj, awaiter);
   } else {
     self->alvc_pending_awaiter = awaiter;
   }
+#endif
 }
 
 /**
@@ -1338,6 +1350,8 @@ static PyMethodDef AsyncLazyValueCompute_methods[] = {
     {nullptr, nullptr} /* Sentinel */
 };
 
+#ifdef ENABLE_GENERATOR_AWAITER
+
 Ci_AsyncMethodsWithExtra _async_lazy_value_compute_type_as_async = {
     .ame_async_methods =
         {
@@ -1348,6 +1362,17 @@ Ci_AsyncMethodsWithExtra _async_lazy_value_compute_type_as_async = {
         },
     .ame_setawaiter = (setawaiterfunc)AsyncLazyValueCompute_set_awaiter,
 };
+
+#else
+
+PyAsyncMethods _async_lazy_value_compute_type_as_async = {
+    .am_await = (unaryfunc)PyObject_SelfIter,
+    .am_aiter = nullptr,
+    .am_anext = nullptr,
+    .am_send = (sendfunc)AsyncLazyValueCompute_itersend,
+};
+
+#endif
 
 PyType_Slot _AsyncLazyValueCompute_slots[] = {
     {Py_tp_traverse, reinterpret_cast<void*>(AsyncLazyValueCompute_traverse)},

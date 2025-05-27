@@ -36,9 +36,13 @@ static PyObject* awaitable_get_iter(_PyClassLoader_Awaitable* self) {
   if (iter == NULL) {
     return NULL;
   }
+
+#ifdef ENABLE_GENERATOR_AWAITER
   if (self->awaiter != NULL) {
     Ci_PyAwaitable_SetAwaiter(iter, self->awaiter);
   }
+#endif
+
   if (PyCoro_CheckExact(iter)) {
     PyObject* yf = Cix_PyGen_yf((PyGenObject*)iter);
     if (yf != NULL) {
@@ -107,11 +111,16 @@ static PySendResult awaitable_itersend(
 static void awaitable_setawaiter(
     _PyClassLoader_Awaitable* awaitable,
     PyObject* awaiter) {
+#ifdef ENABLE_GENERATOR_AWAITER
   if (awaitable->iter != NULL) {
     Ci_PyAwaitable_SetAwaiter(awaitable->iter, awaiter);
   }
+#endif
+
   awaitable->awaiter = awaiter;
 }
+
+#ifdef ENABLE_GENERATOR_AWAITER
 
 #if PY_VERSION_HEX < 0x030C0000
 
@@ -123,13 +132,26 @@ static void awaitable_setawaiter(
 static Ci_AsyncMethodsWithExtra awaitable_as_async = {
     .ame_async_methods =
         {
-            (unaryfunc)awaitable_await,
-            NULL,
-            NULL,
-            (sendfunc)awaitable_itersend,
+            .am_await = (unaryfunc)awaitable_await,
+            .am_aiter = NULL,
+            .am_anext = NULL,
+            .am_send = (sendfunc)awaitable_itersend,
         },
     .ame_setawaiter = (setawaiterfunc)awaitable_setawaiter,
 };
+
+#else
+
+#define Ci_TPFLAGS_HAVE_AM_EXTRA 0
+
+static PyAsyncMethods awaitable_as_async = {
+    .am_await = (unaryfunc)awaitable_await,
+    .am_aiter = NULL,
+    .am_anext = NULL,
+    .am_send = (sendfunc)awaitable_itersend,
+};
+
+#endif
 
 static PyObject* awaitable_send(
     _PyClassLoader_Awaitable* self,

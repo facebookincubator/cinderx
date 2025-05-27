@@ -723,7 +723,11 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   gen->gi_name = Py_NewRef(func->func_name);
   JIT_DCHECK(func->func_qualname != nullptr, "func_qualname is null");
   gen->gi_qualname = Py_NewRef(func->func_qualname);
+
+#ifdef ENABLE_GENERATOR_AWAITER
   gen->gi_ci_awaiter = nullptr;
+#endif
+
   gen->gi_hooks_inited = 0;
   gen->gi_closed = 0;
   gen->gi_running_async = 0;
@@ -1608,12 +1612,14 @@ JITRT_GenSendRes JITRT_GenSend(
     return {v, 1};
   }
   PyObject* retval;
-#if PY_VERSION_HEX >= 0x030C0000
+
+#if PY_VERSION_HEX >= 0x030C0000 && defined(ENABLE_GENERATOR_AWAITER)
   if (_PyFrame_GetCode(frame)->co_flags & (CO_COROUTINE | CO_ASYNC_GENERATOR)) {
     BorrowedRef<PyGenObject> base_gen = _PyGen_GetGeneratorFromFrame(frame);
     Ci_PyAwaitable_SetAwaiter(gen, base_gen);
   }
 #endif
+
   auto gen_status = PyIter_Send(gen, v, &retval);
 
   if (gen_status == PYGEN_RETURN) {
