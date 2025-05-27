@@ -170,7 +170,14 @@ class Instruction:
         return None
 
     def copy(self) -> Instruction:
-        return Instruction(self.opname, self.oparg, self.ioparg, self.loc, self.target)
+        return Instruction(
+            self.opname,
+            self.oparg,
+            self.ioparg,
+            self.loc,
+            self.target,
+            self.exc_handler,
+        )
 
 
 class CompileScope:

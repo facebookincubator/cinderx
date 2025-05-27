@@ -202,6 +202,7 @@ class Disassembler:
             print("co_positions:", file=file)
             for i, position in enumerate(co.co_positions()):
                 print(f"Offset {i*2}: {position}", file=file)
+            print("co_exceptiontable:", co.co_exceptiontable, file=file)
         print(file=file)
         for c in co.co_consts:
             if hasattr(c, "co_code"):
