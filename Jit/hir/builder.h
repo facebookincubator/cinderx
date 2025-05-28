@@ -94,7 +94,7 @@ struct InlineResult {
 
 class HIRBuilder {
  public:
-  HIRBuilder(const Preloader& preloader)
+  explicit HIRBuilder(const Preloader& preloader)
       : code_(preloader.code()), preloader_(preloader) {}
 
   // Translate the bytecode for code_ into HIR, in the context of the preloaded

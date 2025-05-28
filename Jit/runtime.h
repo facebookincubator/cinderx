@@ -111,10 +111,7 @@ class alignas(16) RuntimeFrameState {
 // associated with a JIT-compiled function.
 class alignas(16) CodeRuntime {
  public:
-  explicit CodeRuntime(
-      PyCodeObject* code,
-      PyObject* builtins,
-      PyObject* globals)
+  CodeRuntime(PyCodeObject* code, PyObject* builtins, PyObject* globals)
       : frame_state_(code, builtins, globals) {
     // TODO(T88040922): Until we work out something smarter, force code,
     // globals, and builtins objects for compiled functions to live as long as
@@ -124,7 +121,7 @@ class alignas(16) CodeRuntime {
     addReference(globals);
   }
 
-  CodeRuntime(PyFunctionObject* func)
+  explicit CodeRuntime(PyFunctionObject* func)
       : CodeRuntime(
             reinterpret_cast<PyCodeObject*>(func->func_code),
             func->func_builtins,

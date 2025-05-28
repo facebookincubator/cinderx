@@ -112,12 +112,12 @@ class FileLock {
 
 class SharedFileLock : public FileLock {
  public:
-  SharedFileLock(std::FILE* file) : FileLock{file, false} {}
+  explicit SharedFileLock(std::FILE* file) : FileLock{file, false} {}
 };
 
 class ExclusiveFileLock : public FileLock {
  public:
-  ExclusiveFileLock(std::FILE* file) : FileLock{file, true} {}
+  explicit ExclusiveFileLock(std::FILE* file) : FileLock{file, true} {}
 };
 
 // This file writes out perf jitdump files, to be used by 'perf inject' and

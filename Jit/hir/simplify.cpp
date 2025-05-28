@@ -54,7 +54,7 @@ namespace jit::hir {
 namespace {
 
 struct Env {
-  Env(Function& f)
+  explicit Env(Function& f)
       : func{f},
         type_object(
             Type::fromObject(reinterpret_cast<PyObject*>(&PyType_Type))) {}

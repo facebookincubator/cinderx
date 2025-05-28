@@ -35,7 +35,7 @@ class BitVector {
     bits_.bits = val;
   }
 
-  BitVector(size_t size);
+  /* implicit */ BitVector(size_t size);
 
   BitVector(const BitVector& bv) : num_bits_(0) {
     *this = bv;

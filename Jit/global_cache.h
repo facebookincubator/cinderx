@@ -55,7 +55,7 @@ using GlobalCacheMap =
 // to that data.
 class GlobalCache {
  public:
-  GlobalCache(GlobalCacheMap::value_type* pair) : pair_(pair) {}
+  explicit GlobalCache(GlobalCacheMap::value_type* pair) : pair_(pair) {}
 
   const GlobalCacheKey& key() const {
     return pair_->first;

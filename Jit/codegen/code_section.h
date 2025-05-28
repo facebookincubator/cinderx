@@ -24,7 +24,7 @@ CodeSection codeSectionFromName(const char* name);
 
 class CodeHolderMetadata {
  public:
-  CodeHolderMetadata(CodeSection section) : section_(section) {}
+  explicit CodeHolderMetadata(CodeSection section) : section_(section) {}
 
   void setSection(CodeSection section) {
     section_ = section;

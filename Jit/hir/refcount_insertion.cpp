@@ -97,7 +97,7 @@ class BorrowSupport {
 // The state of a live value, including arbitrarily many copies of the original
 // Register (from instructions like Assign and CheckExc).
 struct RegState {
-  RegState(Register* model) : model_{model} {
+  explicit RegState(Register* model) : model_{model} {
     addCopy(model);
   }
 
@@ -384,7 +384,7 @@ namespace {
 
 // Global state used by the analysis.
 struct Env {
-  Env(Function& func) : func{func}, liveness{func} {
+  explicit Env(Function& func) : func{func}, liveness{func} {
     liveness.Run();
     last_uses = liveness.GetLastUses();
 
@@ -799,7 +799,7 @@ std::vector<PhiInput> collectPhiInputs(
 // Used to modify the support of values borrowed from the dead inputs, so we
 // only borrow references from live values.
 struct PhiSupport {
-  PhiSupport(size_t support_bits) {
+  explicit PhiSupport(size_t support_bits) {
     dead.init(support_bits);
   }
 

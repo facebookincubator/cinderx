@@ -104,8 +104,8 @@ enum class Constraint {
 };
 
 struct OperandType {
-  OperandType(Type ty) : kind{Constraint::kType}, type{ty} {}
-  OperandType(Constraint c) : kind{c}, type{TBottom} {}
+  /* implicit */ OperandType(Type ty) : kind{Constraint::kType}, type{ty} {}
+  /* implicit */ OperandType(Constraint c) : kind{c}, type{TBottom} {}
 
   Constraint kind;
   Type type;
@@ -655,7 +655,7 @@ class InstrT<T, opcode, Operands<arity>, Tys...>
       typename... Args,
       int a = arity,
       typename = std::enable_if_t<a <= 0>>
-  InstrT(Args&&... args)
+  explicit InstrT(Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {}
 
   // Constructor for unary `T`.
@@ -663,7 +663,7 @@ class InstrT<T, opcode, Operands<arity>, Tys...>
       typename... Args,
       int a = arity,
       typename = std::enable_if_t<a == 1>>
-  InstrT(Register* reg, Args&&... args)
+  explicit InstrT(Register* reg, Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {
     this->operandAt(0) = reg;
   }
@@ -720,7 +720,7 @@ class InstrT<T, opcode, HasOutput, Tys...> : public InstrT<T, opcode, Tys...> {
   static constexpr bool has_output = true;
 
   template <typename... Args>
-  InstrT(Register* dst, Args&&... args)
+  explicit InstrT(Register* dst, Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {
     this->setOutput(dst);
   }
@@ -968,7 +968,7 @@ DEFINE_SIMPLE_INSTR(GetTuple, (TObject), HasOutput, Operands<1>, DeoptBase);
 // An unconditional branch
 class INSTR_CLASS(Branch, (), Operands<0>) {
  public:
-  Branch(BasicBlock* target) : InstrT() {
+  explicit Branch(BasicBlock* target) : InstrT() {
     set_target(target);
   }
 
@@ -1270,7 +1270,7 @@ class INSTR_CLASS(
 // Phi instruction
 class INSTR_CLASS(Phi, (TTop), HasOutput, Operands<>) {
  public:
-  Phi(Register* dst) : InstrT(dst) {}
+  explicit Phi(Register* dst) : InstrT(dst) {}
 
   static Phi* create(
       Register* dst,
@@ -1398,7 +1398,7 @@ class INSTR_CLASS(CallStatic, (TTop), HasOutput, Operands<>) {
 // A call to a function at a known address
 class INSTR_CLASS(CallStaticRetVoid, (TTop), Operands<>) {
  public:
-  CallStaticRetVoid(void* addr) : InstrT(), addr_(addr) {}
+  explicit CallStaticRetVoid(void* addr) : InstrT(), addr_(addr) {}
 
   std::size_t NumArgs() const {
     return NumOperands();
@@ -1461,7 +1461,7 @@ class INSTR_CLASS(
 class CheckBase : public DeoptBase {
  protected:
   // Used only for tests.
-  CheckBase(Opcode op) : DeoptBase(op) {
+  explicit CheckBase(Opcode op) : DeoptBase(op) {
     auto new_frame = std::make_unique<FrameState>();
     setFrameState(std::move(new_frame));
   }
@@ -1839,7 +1839,7 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
 
 class INSTR_CLASS(EndInlinedFunction, (), Operands<0>), public InlineBase {
  public:
-  EndInlinedFunction(BeginInlinedFunction * begin)
+  explicit EndInlinedFunction(BeginInlinedFunction * begin)
       : InstrT(), begin_(begin), inline_depth_(begin->inlineDepth()) {}
 
   BeginInlinedFunction* matchingBegin() const {
@@ -3015,7 +3015,7 @@ class INSTR_CLASS(RefineType, (TTop), HasOutput, Operands<1>) {
 //  Return from the function
 class INSTR_CLASS(Return, (), Operands<1>) {
  public:
-  Return(Register* val) : InstrT(val), type_(TObject) {}
+  explicit Return(Register* val) : InstrT(val), type_(TObject) {}
   Return(Register* val, Type type) : InstrT(val), type_(type) {}
 
   Type type() const {
@@ -3506,7 +3506,7 @@ DEFINE_SIMPLE_INSTR(RunPeriodicTasks, (), HasOutput, Operands<0>, DeoptBase);
 
 class INSTR_CLASS(Snapshot, (), Operands<0>) {
  public:
-  Snapshot(const FrameState& frame_state) : InstrT() {
+  explicit Snapshot(const FrameState& frame_state) : InstrT() {
     setFrameState(frame_state);
   }
   Snapshot() : InstrT() {}
@@ -3562,7 +3562,8 @@ DEFINE_SIMPLE_INSTR(Deopt, (), Operands<0>, DeoptBase);
 // these.
 class INSTR_CLASS(DeoptPatchpoint, (), Operands<0>, DeoptBase) {
  public:
-  DeoptPatchpoint(DeoptPatcher* patcher) : InstrT(), patcher_(patcher) {}
+  explicit DeoptPatchpoint(DeoptPatcher* patcher)
+      : InstrT(), patcher_(patcher) {}
 
   DeoptPatcher* patcher() const {
     return patcher_;

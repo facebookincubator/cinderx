@@ -74,7 +74,7 @@ class CompilationPhaseTimer {
       const std::string& function_name_,
       const std::function<time_point()>& time_provider_)
       : function_name_(function_name_), time_provider_(time_provider_) {}
-  CompilationPhaseTimer(const std::string& function_name_)
+  explicit CompilationPhaseTimer(const std::string& function_name_)
       : CompilationPhaseTimer(function_name_, []() {
           return std::chrono::steady_clock::now();
         }) {}

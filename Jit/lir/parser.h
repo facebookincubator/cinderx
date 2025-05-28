@@ -15,7 +15,8 @@ std::unordered_set<std::string>& GetStringLiterals();
 
 class ParserException : public std::exception {
  public:
-  ParserException(const std::string& message) noexcept : message(message) {}
+  explicit ParserException(const std::string& message) noexcept
+      : message(message) {}
 
   const char* what() const noexcept override {
     return message.c_str();

@@ -9,7 +9,6 @@
 #include <cstddef>
 #include <cstdlib>
 #include <mutex>
-#include <type_traits>
 #include <utility>
 #include <vector>
 
@@ -27,7 +26,8 @@ class SlabArenaIterator {
  public:
   SlabArenaIterator() = default;
 
-  SlabArenaIterator(std::vector<Slab<T, kSlabSize>>* slabs) : slabs_{slabs} {
+  explicit SlabArenaIterator(std::vector<Slab<T, kSlabSize>>* slabs)
+      : slabs_{slabs} {
     if (slabs_ == nullptr) {
       return;
     }

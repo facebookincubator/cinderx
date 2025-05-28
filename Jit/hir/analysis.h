@@ -228,7 +228,7 @@ class AssignmentAnalysis : public ForwardDataflowAnalysis {
 // Cooper, Harvey, and Kennedy's "A Simple, Fast Dominance Algorithm".
 class DominatorAnalysis {
  public:
-  DominatorAnalysis(const Function& irfunc);
+  explicit DominatorAnalysis(const Function& irfunc);
 
   const BasicBlock* immediateDominator(const BasicBlock* block) {
     JIT_DCHECK(block != nullptr, "Block cannot be null");
@@ -259,7 +259,7 @@ class DominatorAnalysis {
 // valid earlier in the block.
 class RegisterTypeHints {
  public:
-  RegisterTypeHints(const Function& irfunc);
+  explicit RegisterTypeHints(const Function& irfunc);
 
   const Instr* dominatingTypeHint(Register* reg, const BasicBlock* block);
 

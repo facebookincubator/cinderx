@@ -72,7 +72,7 @@ struct Environ {
   std::vector<PhyLocation> arg_locations;
 
   struct IndirectInfo {
-    IndirectInfo(void** indirect_ptr) : indirect(indirect_ptr) {}
+    explicit IndirectInfo(void** indirect_ptr) : indirect(indirect_ptr) {}
 
     void** indirect;
     asmjit::Label trampoline{0};

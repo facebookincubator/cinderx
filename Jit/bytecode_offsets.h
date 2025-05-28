@@ -114,7 +114,7 @@ class BCOffset : public BCOffsetBase<BCOffset> {
  public:
   using BCOffsetBase::BCOffsetBase;
 
-  BCOffset(BCIndex idx);
+  /* implicit */ BCOffset(BCIndex idx);
 
   BCIndex asIndex() const;
 
@@ -143,7 +143,7 @@ class BCIndex : public BCOffsetBase<BCIndex> {
  public:
   using BCOffsetBase::BCOffsetBase;
 
-  BCIndex(BCOffset offset);
+  /* implicit */ BCIndex(BCOffset offset);
 
   BCOffset asOffset() const;
 

@@ -16,7 +16,7 @@ namespace jit {
 // the change to the type happens after PyType_Modified() is called).
 class TypeDeoptPatcher : public DeoptPatcher {
  public:
-  TypeDeoptPatcher(BorrowedRef<PyTypeObject> type);
+  explicit TypeDeoptPatcher(BorrowedRef<PyTypeObject> type);
 
   virtual bool maybePatch(BorrowedRef<PyTypeObject> new_ty);
 

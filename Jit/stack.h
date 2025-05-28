@@ -3,7 +3,6 @@
 #pragma once
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Common/util.h"
 
 #include <initializer_list>
 #include <vector>
@@ -14,7 +13,7 @@ template <class T>
 class Stack {
  public:
   Stack() = default;
-  Stack(std::initializer_list<T> l) : stack_(l) {}
+  explicit Stack(std::initializer_list<T> l) : stack_(l) {}
 
   T pop() {
     JIT_CHECK(!stack_.empty(), "Can't pop from empty stack");
