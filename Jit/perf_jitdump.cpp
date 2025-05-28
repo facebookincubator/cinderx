@@ -15,7 +15,6 @@
 #include "internal/pycore_ceval.h"
 // clang-format on
 
-#include <elf.h>
 #include <fcntl.h>
 #include <fmt/format.h>
 #include <sys/file.h>
@@ -41,6 +40,11 @@
 #ifdef PERF_USE_RDTSC
 #include <x86intrin.h>
 #endif
+
+// From elf.h, intentionally not included here to avoid having it as a
+// dependency.
+#define EM_X86_64 62
+#define EM_AARCH64 183
 
 namespace jit::perf {
 
