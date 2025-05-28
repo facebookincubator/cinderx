@@ -183,7 +183,9 @@ void GlobalCacheManager::watchDictKey(
   auto& watchers = watch_map_[dict][key];
   bool inserted = watchers.emplace(cache).second;
   JIT_CHECK(inserted, "cache was already watching key");
-  Ci_Watchers_WatchDict(dict);
+  JIT_CHECK(
+      Ci_Watchers_WatchDict(dict) == 0,
+      "Failed to watch globals or builtins dict");
 }
 
 void GlobalCacheManager::unwatchDictKey(
@@ -203,7 +205,9 @@ void GlobalCacheManager::unwatchDictKey(
     dict_keys.erase(key_it);
     if (dict_keys.empty()) {
       watch_map_.erase(dict_it);
-      Ci_Watchers_UnwatchDict(dict);
+      JIT_CHECK(
+          Ci_Watchers_UnwatchDict(dict) == 0,
+          "Failed to unwatch globals or builtins dictionary");
     }
   }
 }

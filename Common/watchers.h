@@ -26,14 +26,14 @@ typedef struct {
 /*
  * Watch or unwatch a dictionary.
  */
-void Ci_Watchers_WatchDict(PyObject* dict);
-void Ci_Watchers_UnwatchDict(PyObject* dict);
+int Ci_Watchers_WatchDict(PyObject* dict);
+int Ci_Watchers_UnwatchDict(PyObject* dict);
 
 /*
  * Watch or unwatch a type.
  */
-void Ci_Watchers_WatchType(PyTypeObject* type);
-void Ci_Watchers_UnwatchType(PyTypeObject* type);
+int Ci_Watchers_WatchType(PyTypeObject* type);
+int Ci_Watchers_UnwatchType(PyTypeObject* type);
 
 int Ci_Watchers_Init(const WatcherState* state);
 int Ci_Watchers_Fini(void);

@@ -1310,10 +1310,10 @@ track_type_dict(PyObject* track_map, PyTypeObject* type, PyObject* dict) {
     return -1;
   }
 
-  Ci_Watchers_WatchDict(dict);
+  int status = Ci_Watchers_WatchDict(dict);
   Py_DECREF(key);
   Py_DECREF(ref);
-  return 0;
+  return status;
 }
 
 PyTypeObject* get_tracked_type(PyObject* track_map, PyDictObject* dict) {

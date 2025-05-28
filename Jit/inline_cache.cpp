@@ -36,7 +36,10 @@ struct TypeWatcher {
   jit::UnorderedMap<BorrowedRef<PyTypeObject>, jit::UnorderedSet<T*>> caches;
 
   void watch(BorrowedRef<PyTypeObject> type, T* cache) {
-    Ci_Watchers_WatchType(type);
+    JIT_CHECK(
+        Ci_Watchers_WatchType(type) == 0,
+        "Failed to watch type {} for attribute cache",
+        type->tp_name);
     caches[type].emplace(cache);
   }
 

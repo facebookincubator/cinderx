@@ -262,12 +262,18 @@ void Runtime::watchType(
     }
   }
 
-  Ci_Watchers_WatchType(type);
+  JIT_CHECK(
+      Ci_Watchers_WatchType(type) == 0,
+      "Failed to watch type {}",
+      type->tp_name);
 }
 
 void Runtime::watchPendingTypes() {
   for (auto& type : pending_watches_) {
-    Ci_Watchers_WatchType(type);
+    JIT_CHECK(
+        Ci_Watchers_WatchType(type) == 0,
+        "Failed to watch pending type {}",
+        type->tp_name);
   }
   pending_watches_.clear();
 }

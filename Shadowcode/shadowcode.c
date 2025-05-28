@@ -444,7 +444,9 @@ PyCodeCacheRef* _PyShadow_NewCache(PyObject* from) {
   }
 
   if (PyType_Check(from)) {
-    Ci_Watchers_WatchType((PyTypeObject*)from);
+    if (Ci_Watchers_WatchType((PyTypeObject*)from) < 0) {
+      return NULL;
+    }
   }
 
   return (PyCodeCacheRef*)new;
