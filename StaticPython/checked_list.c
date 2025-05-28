@@ -3160,13 +3160,6 @@ exit:
 static PyObject* chklist_alloc(PyTypeObject* type, Py_ssize_t nitems) {
   struct _Py_list_state* state = get_list_state();
   PyListObject* op;
-#ifdef SHOW_ALLOC_COUNT
-  static int initialized = 0;
-  if (!initialized) {
-    Py_AtExit(show_alloc);
-    initialized = 1;
-  }
-#endif
 
   if (state->numfree) {
     state->numfree--;
@@ -3174,16 +3167,10 @@ static PyObject* chklist_alloc(PyTypeObject* type, Py_ssize_t nitems) {
     Py_SET_TYPE(op, type);
     _Py_NewReference((PyObject*)op);
     Py_INCREF(type);
-#ifdef SHOW_ALLOC_COUNT
-    count_reuse++;
-#endif
   } else {
     op = PyObject_GC_New(PyListObject, type);
     if (op == NULL)
       return NULL;
-#ifdef SHOW_ALLOC_COUNT
-    count_alloc++;
-#endif
   }
   op->ob_item = NULL;
   Py_SET_SIZE(op, 0);
