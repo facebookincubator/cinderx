@@ -45,7 +45,13 @@
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+
+#ifdef ENABLE_DISASSEMBLER
 #include "i386-dis/dis-asm.h"
+#else
+void set_att_syntax() {}
+void set_intel_syntax() {}
+#endif
 
 #include <dlfcn.h>
 
