@@ -8,12 +8,8 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/StaticPython/classloader.h"
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
-#include "cinderx/module_state.h"
 
 #include <sys/mman.h>
-
-#include <memory>
 
 namespace jit {
 

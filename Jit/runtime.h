@@ -3,28 +3,25 @@
 #pragma once
 
 #include <Python.h>
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/genobject_jit.h"
 #endif
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/fixed_type_profiler.h"
-#include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/runtime_iface.h"
 #include "cinderx/Jit/slab_arena.h"
-#include "cinderx/Jit/symbolizer.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/Jit/type_deopt_patchers.h"
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/module_state.h"
 
 #include <optional>
-#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

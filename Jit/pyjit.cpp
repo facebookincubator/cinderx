@@ -31,15 +31,12 @@
 #include "cinderx/Jit/elf/writer.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
-#include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/jit_flag_processor.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_list.h"
-#include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/jit_time_log.h"
-#include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/mmap_file.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/runtime.h"
@@ -58,7 +55,6 @@ void set_intel_syntax() {}
 #include <atomic>
 #include <charconv>
 #include <chrono>
-#include <climits>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>

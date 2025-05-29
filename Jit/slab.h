@@ -8,7 +8,6 @@
 
 #include <cstddef>
 #include <cstdlib>
-#include <type_traits>
 #include <utility>
 
 namespace jit {

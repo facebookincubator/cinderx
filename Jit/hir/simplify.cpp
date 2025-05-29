@@ -14,6 +14,7 @@
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/module_state.h"
 
 #include <fmt/ostream.h>
