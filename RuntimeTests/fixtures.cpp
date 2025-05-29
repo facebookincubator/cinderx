@@ -1,13 +1,18 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
+
+#include "cinderx/Jit/hir/builder.h"
+#include "cinderx/Jit/hir/parser.h"
+#include "cinderx/Jit/hir/printer.h"
+#include "cinderx/Jit/hir/ssa.h"
+#include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
-
-#include <sstream>
 
 std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
     BorrowedRef<PyFunctionObject> func) {

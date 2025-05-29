@@ -12,12 +12,13 @@
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/deopt.h"
-#include "cinderx/Jit/disassembler.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
+#include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
+
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_frame.h"
 #endif
