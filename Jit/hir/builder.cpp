@@ -15,7 +15,6 @@
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/containers.h"
-#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/preload.h"
@@ -26,6 +25,7 @@
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/typed_method_def.h"
+#include "cinderx/module_state.h"
 
 #include <algorithm>
 #include <deque>

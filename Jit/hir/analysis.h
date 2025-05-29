@@ -2,12 +2,13 @@
 
 #pragma once
 
-#include "cinderx/Common/util.h"
+#include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/dataflow.h"
-#include "cinderx/Jit/hir/alias_class.h"
 #include "cinderx/Jit/hir/hir.h"
 
 #include <iosfwd>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace jit::hir {
 

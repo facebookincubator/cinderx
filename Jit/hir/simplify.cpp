@@ -4,6 +4,7 @@
 
 #include "structmember.h"
 
+#include "cinderx/Common/log.h"
 #include "cinderx/Common/property.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/optimization.h"

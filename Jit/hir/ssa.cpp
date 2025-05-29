@@ -3,7 +3,6 @@
 #include "cinderx/Jit/hir/ssa.h"
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
@@ -14,7 +13,6 @@
 
 #include <ostream>
 #include <queue>
-#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>

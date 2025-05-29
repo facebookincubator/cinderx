@@ -6,7 +6,6 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/deopt_patcher.h"
@@ -18,7 +17,6 @@
 #include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/StaticPython/typed-args-info.h"
 
-#include <algorithm>
 #include <array>
 #include <functional>
 #include <memory>
