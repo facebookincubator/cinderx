@@ -819,16 +819,17 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             scope_type = self.get_type(self.scope)
             if isinstance(scope_type, Dataclass) and isinstance(target, Name):
                 value = scope_type.bind_field(target.id, value, self)
-        if value and not is_dynamic_final:
+        if value:
             self.visitExpectedType(value, declared_type)
-            if isinstance(target, Name):
-                # We could be narrowing the type after the assignment, so we update it here
-                # even though we assigned it above (but we never narrow primtives)
-                new_type = self.get_type(value)
-                local_type = self.maybe_set_local_type(target.id, new_type)
-                self.set_type(target, local_type)
+            if not is_dynamic_final:
+                if isinstance(target, Name):
+                    # We could be narrowing the type after the assignment, so we update it here
+                    # even though we assigned it above (but we never narrow primtives)
+                    new_type = self.get_type(value)
+                    local_type = self.maybe_set_local_type(target.id, new_type)
+                    self.set_type(target, local_type)
 
-            self._check_final_attribute_reassigned(target, node)
+                self._check_final_attribute_reassigned(target, node)
 
     def visitAugAssign(self, node: AugAssign) -> None:
         self.visit(node.target)

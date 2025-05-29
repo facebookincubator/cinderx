@@ -869,3 +869,20 @@ class FinalTests(StaticTestBase):
             )
             self.assertEqual(mod.foo(mod.C()), 42)
             self.assertEqual(mod.foo(mod.D()), 63)
+
+    def test_dynamic_final(self):
+        codestr = """
+        from typing import Final
+        from datetime import datetime # a type we don't know about
+
+        class C:
+            def __init__(self):
+                self.foo: Final[datetime]  = datetime.now()
+
+            def f(self):
+                return self.foo.year
+
+        """
+        with self.in_module(codestr) as mod:
+            self.assertNotInBytecode(mod.C.f, "INVOKE_FUNCTION")
+            self.assertNotInBytecode(mod.C.f, "INVOKE_METHOD")
