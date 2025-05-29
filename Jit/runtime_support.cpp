@@ -8,7 +8,9 @@ namespace jit {
 
 PyObject g_iterDoneSentinel = {
     _PyObject_EXTRA_INIT
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+    {.ob_refcnt = _PY_IMMORTAL_INITIAL_REFCNT},
+#elif PY_VERSION_HEX >= 0x030C0000
     {.ob_refcnt = _Py_IMMORTAL_REFCNT},
 #else
         _Py_IMMORTAL_REFCNT,
