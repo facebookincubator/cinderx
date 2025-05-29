@@ -611,7 +611,7 @@ flatten_args(PyObject* args)
             }
         } else {
             if (arg == Py_None) {
-                arg = (PyObject *)Py_TYPE(Py_None);
+                arg = (PyObject *)&_PyNone_Type;
             }
             Py_INCREF(arg);
             PyTuple_SET_ITEM(flattened_args, pos, arg);

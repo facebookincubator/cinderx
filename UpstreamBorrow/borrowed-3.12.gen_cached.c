@@ -670,30 +670,29 @@ PyObject* Cix_gc_freeze_impl(PyObject* mod) {
   return gc_freeze_impl(mod);
 }
 
-static PyObject *
-builtin_next_impl(PyObject *module, PyObject *iterator,
-                  PyObject *default_value)
-/*[clinic end generated code: output=a38a94eeb447fef9 input=180f9984f182020f]*/
+// Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
+
+PyObject* builtin_next_impl(PyObject *it, PyObject* def)
 {
     PyObject *res;
 
-    if (!PyIter_Check(iterator)) {
+    if (!PyIter_Check(it)) {
         PyErr_Format(PyExc_TypeError,
-            "'%.200s' object is not an iterator",
-            Py_TYPE(iterator)->tp_name);
+                "'%.200s' object is not an iterator",
+                Py_TYPE(it)->tp_name);
         return NULL;
     }
 
-    res = (*Py_TYPE(iterator)->tp_iternext)(iterator);
+    res = (*Py_TYPE(it)->tp_iternext)(it);
     if (res != NULL) {
         return res;
-    } else if (default_value != NULL) {
+    } else if (def != NULL) {
         if (PyErr_Occurred()) {
             if(!PyErr_ExceptionMatches(PyExc_StopIteration))
                 return NULL;
             PyErr_Clear();
         }
-        return Py_NewRef(default_value);
+        return Py_NewRef(def);
     } else if (PyErr_Occurred()) {
         return NULL;
     } else {
@@ -701,8 +700,9 @@ builtin_next_impl(PyObject *module, PyObject *iterator,
         return NULL;
     }
 }
+
 PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
-    return builtin_next_impl(NULL /* unused_module */, it, def);
+    return builtin_next_impl(it, def);
 }
 
 int init_upstream_borrow(void) {
