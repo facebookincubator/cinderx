@@ -45,7 +45,7 @@ class OperandBase {
     return type() == Type::k##v;     \
   }
   FOREACH_OPERAND_TYPE(OPERAND_TYPE_DEFINES)
-#undef OPERAND_DECL_TYPE_TEST
+#undef OPERAND_TYPE_DEFINES
 
 #define OPERAND_DATA_TYPE_DEFINES(V, ...) using DataType::k##V;
   FOREACH_OPERAND_DATA_TYPE(OPERAND_DATA_TYPE_DEFINES)
