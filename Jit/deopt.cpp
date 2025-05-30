@@ -10,7 +10,11 @@
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/printer.h"
 
+#ifdef ENABLE_USDT
 #include <usdt/usdt.h>
+#else
+#define USDT(...)
+#endif
 
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_frame.h"
