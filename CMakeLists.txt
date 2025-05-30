@@ -117,6 +117,7 @@ include_directories(
   ${PROJECT_SOURCE_DIR}/..
   ${GENERATED_HEADER_DIR}
   ${Python_INCLUDE_DIRS}
+  ${Python_INCLUDE_DIRS}/internal
   ${parallel-hashmap_SOURCE_DIR}
   ${usdt_SOURCE_DIR}/..
 )
@@ -184,6 +185,13 @@ target_link_libraries(jit PRIVATE asmjit::asmjit fmt::fmt nlohmann_json::nlohman
 file(GLOB_RECURSE PARALLEL_GC_SOURCES ${PROJECT_SOURCE_DIR}/ParallelGC/*.c)
 add_library(parallel-gc ${PARALLEL_GC_SOURCES})
 
+# UpstreamBorrow/
+if (${PY_VERSION} EQUAL 3.12)
+  set(BORROWED_C ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-3.12.gen_cached.c)
+endif()
+
+add_library(borrowed ${BORROWED_C})
+
 set(SOURCES
   # Manually listed out to not accidentally include stuff in .git.
   ${PROJECT_SOURCE_DIR}/_cinderx.cpp
@@ -205,7 +213,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
-  common immortalize interpreter jit parallel-gc static-python
+  borrowed common immortalize interpreter jit parallel-gc static-python
   asmjit::asmjit fmt::fmt)
 
 # macOS doesn't allow depending on other shared libraries by default.
