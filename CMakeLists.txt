@@ -129,9 +129,9 @@ target_link_libraries(common PRIVATE fmt::fmt)
 # Interpreter/
 set(INTERP_SOURCES ${PROJECT_SOURCE_DIR}/Interpreter/iter_helpers.c)
 
-
 if (${PY_VERSION} EQUAL 3.12)
   set(SOURCE_OPCODE_H ${PROJECT_SOURCE_DIR}/Interpreter/opcode_312.h)
+  set(SOURCE_CINDERX_OPCODE_TARGETS_H ${PROJECT_SOURCE_DIR}/Interpreter/cinderx_opcode_targets_312.h)
 
   # TODO: Unblocking this requires generating
   # cinderx/Interpreter/cinderx_opcode_targets.h, and adding #ifdef
@@ -140,11 +140,16 @@ if (${PY_VERSION} EQUAL 3.12)
   # set(INTERP_SOURCES ${INTERP_SOURCES} ${PROJECT_SOURCE_DIR}/Interpreter/interpreter-3.12.c)
 endif()
 
-# Generate cinderx/Interpreter/opcode.h
+# Generate cinderx/Interpreter/opcode.h and cinderx/Interpreter/cinderx_opcode_targets.h
 
 set(OPCODE_H ${GENERATED_HEADER_DIR}/cinderx/Interpreter/opcode.h)
-file(READ ${SOURCE_OPCODE_H} OPCODE_H_CONTENTS)
-file(WRITE ${OPCODE_H} "${OPCODE_H_CONTENTS}")
+set(CINDERX_OPCODE_TARGETS_H ${GENERATED_HEADER_DIR}/cinderx/Interpreter/cinderx_opcode_targets.h)
+
+file(READ ${SOURCE_OPCODE_H} FILE_CONTENTS)
+file(WRITE ${OPCODE_H} "${FILE_CONTENTS}")
+
+file(READ ${SOURCE_CINDERX_OPCODE_TARGETS_H} FILE_CONTENTS)
+file(WRITE ${CINDERX_OPCODE_TARGETS_H} "${FILE_CONTENTS}")
 
 add_library(interpreter ${INTERP_SOURCES})
 target_include_directories(
