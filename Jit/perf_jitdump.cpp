@@ -72,8 +72,8 @@ const size_t kJitdumpMmapSize = 1;
 std::string string_error(int errnum) {
   char buf[1024];
   // There's two forms of strerror_r(), one that returns a string and one that
-  // returns an int.  `man strerror_r` suggests the following to disambiguate:
-#if (_POSIX_C_SOURCE >= 200112L || _XOPEN_SOURCE >= 600) && !_GNU_SOURCE
+  // returns an int.
+#if __APPLE__
   strerror_r(errnum, buf, sizeof(buf));
   return std::string{buf};
 #else
