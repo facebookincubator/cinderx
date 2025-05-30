@@ -486,10 +486,11 @@ _PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,
 
 int Cix_PyObjectDict_SetItem(
     PyTypeObject* tp,
-    [[maybe_unused]] PyObject* obj,
+    PyObject* obj,
     PyObject** dictptr,
     PyObject* key,
     PyObject* value) {
+  (void)obj;
   return Renamed_PyObjectDict_SetItem(tp, dictptr, key, value);
 }
 

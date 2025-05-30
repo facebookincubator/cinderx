@@ -27,10 +27,11 @@ PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_f
 
 int Cix_PyObjectDict_SetItem(
     PyTypeObject* tp,
-    [[maybe_unused]] PyObject* obj,
+    PyObject* obj,
     PyObject** dictptr,
     PyObject* key,
     PyObject* value) {
+  (void)obj;
   return _PyObjectDict_SetItem(tp, dictptr, key, value);
 }
 
