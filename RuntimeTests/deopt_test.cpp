@@ -23,8 +23,6 @@
 #include "internal/pycore_frame.h"
 #endif
 
-#include <asmjit/asmjit.h>
-
 #include <algorithm>
 
 using namespace jit;

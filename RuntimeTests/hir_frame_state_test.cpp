@@ -3,12 +3,10 @@
 
 #include <gtest/gtest.h>
 
-#include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 using jit::BCOffset;
 using namespace jit::hir;
