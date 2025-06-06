@@ -4,7 +4,6 @@
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 #include <cstdlib>
 #include <memory>

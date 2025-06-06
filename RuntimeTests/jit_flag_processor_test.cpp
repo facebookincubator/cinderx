@@ -5,7 +5,6 @@
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
-#include <exception>
 #include <list>
 
 // tests to ensure FlagProcessor is correctly processing command

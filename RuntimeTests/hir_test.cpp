@@ -13,7 +13,6 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_intrinsics.h"

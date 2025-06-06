@@ -10,11 +10,8 @@
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/lir/generator.h"
 #include "cinderx/Jit/lir/parser.h"
-#include "cinderx/Jit/lir/postgen.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/RuntimeTests/testutil.h"
 
-#include <asm-generic/errno-base.h>
 #include <math.h>
 
 #include <memory>
