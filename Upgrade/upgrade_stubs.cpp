@@ -9,14 +9,6 @@
   }
 
 extern "C" {
-STUB(
-    Ci_PyGCImpl*,
-    Ci_PyGC_SetImpl,
-    T196759328,
-    struct _gc_runtime_state*,
-    Ci_PyGCImpl*)
-STUB(Ci_PyGCImpl*, Ci_PyGC_GetImpl, T196759328, struct _gc_runtime_state*)
-STUB(void, Ci_PyGC_ClearFreeLists, T196759328, PyInterpreterState*)
 STUB(int, Ci_GenIsCompleted, T194022335, PyGenObject*)
 STUB(int, Ci_GenIsExecuting, T194022335, PyGenObject*)
 STUB(int, Ci_JITGenIsExecuting, T194022335, PyGenObject*)
