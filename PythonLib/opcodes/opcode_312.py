@@ -1,7 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
-
 # Generated via assign_opcode_numbers.py, do not edit.
 
 # This is an addition to python/3.12/Lib/opcode.py, and is intended to be run
@@ -13,7 +11,19 @@
 
 # Lib/opcode.py deletes these functions so we need to define them again here.
 # We also need to update opname when we call def_op().
-def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, hasarg, interp_only=False):
+def init(
+    opname,
+    opmap,
+    hasname,
+    hasjrel,
+    hasjabs,
+    hasconst,
+    hasarg,
+    cache_format,
+    specializations,
+    inline_cache_entries,
+    interp_only=False,
+):
     def def_op(name, op):
         opmap[name] = op
         opname[op] = name

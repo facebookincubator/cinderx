@@ -55,6 +55,8 @@ static inline vectorcallfunc getInterpretedVectorcall(
       : _PyFunction_Vectorcall;
 }
 
+void Ci_InitOpcodes();
+
 #ifdef __cplusplus
 }
 #endif

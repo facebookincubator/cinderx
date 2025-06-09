@@ -136,10 +136,10 @@ lltrace_instruction(_PyInterpreterFrame *frame,
     dump_stack(frame, stack_pointer);
     int oparg = next_instr->op.arg;
     int opcode = next_instr->op.code;
-    const char *opname = _PyOpcode_OpName[opcode];
+    const char *opname = _CiOpcode_OpName[opcode];
     assert(opname != NULL);
     int offset = (int)(next_instr - _PyCode_CODE(frame->f_code));
-    if (HAS_ARG((int)_PyOpcode_Deopt[opcode])) {
+    if (HAS_ARG((int)_CiOpcode_Deopt[opcode])) {
         printf("%d: %s %d\n", offset * 2, opname, oparg);
     }
     else {
@@ -878,7 +878,7 @@ handle_eval_breaker:
         if (next_instr != here) {
             DISPATCH();
         }
-        if (_PyOpcode_Caches[original_opcode]) {
+        if (_CiOpcode_Caches[original_opcode]) {
             _PyBinaryOpCache *cache = (_PyBinaryOpCache *)(next_instr+1);
             /* Prevent the underlying instruction from specializing
              * and overwriting the instrumentation. */
@@ -892,7 +892,7 @@ handle_eval_breaker:
 #if USE_COMPUTED_GOTOS
         _unknown_opcode:
 #else
-        EXTRA_CASES  // From opcode.h, a 'case' for each unused opcode
+        Ci_EXTRA_CASES  // From opcode.h, a 'case' for each unused opcode
 #endif
             /* Tell C compilers not to hold the opcode variable in the loop.
                next_instr points the current instruction without TARGET(). */

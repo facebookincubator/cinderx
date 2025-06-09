@@ -839,6 +839,8 @@ int cinder_init() {
 #if PY_VERSION_HEX >= 0x030C0000
   char* patching = getenv("PYTHONENABLEPATCHING");
   enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
+
+  Ci_InitOpcodes();
 #endif
 
   // Create _static module

@@ -38,7 +38,19 @@ HEADER: str = """
 
 # Lib/opcode.py deletes these functions so we need to define them again here.
 # We also need to update opname when we call def_op().
-def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, hasarg, interp_only=False):
+def init(
+    opname,
+    opmap,
+    hasname,
+    hasjrel,
+    hasjabs,
+    hasconst,
+    hasarg,
+    cache_format,
+    specializations,
+    inline_cache_entries,
+    interp_only=False,
+):
     def def_op(name, op):
         opmap[name] = op
         opname[op] = name
@@ -58,34 +70,70 @@ def init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, hasarg, interp_only
 """.lstrip()
 
 
+def process_opcode(
+    name: str,
+    flags: int,
+    out: list[str],
+    opcode_idx: int,
+    cache_size: int = 0,
+    cache_format: dict[str, int] | None = None,
+    parent: str | None = None,
+) -> None:
+    if flags & cx.NAME:
+        f = "name_op"
+    elif flags & cx.JREL:
+        f = "jrel_op"
+    elif flags & cx.JABS:
+        f = "jabs_op"
+    else:
+        f = "def_op"
+    if flags & cx.IMPLEMENTED_IN_INTERPRETER:
+        out.append(f'    {f}("{name}", {opcode_idx})')
+        if flags & cx.CONST:
+            out.append(f"    hasconst.append({opcode_idx})")
+        if flags & (cx.ARG | cx.CONST):
+            out.append(f"    hasarg.append({opcode_idx})")
+        if cache_format is not None:
+            out.append(f'    cache_format["{name}"] = "{cache_format}"')
+        if parent:
+            out.append(
+                f'    if "{parent}" not in specializations: specializations["{parent}"] = []'
+            )
+            out.append(f'    specializations["{parent}"].append("{name}")')
+        if cache_size:
+            out.append(f"    inline_cache_entries[{opcode_idx}] = {cache_size}")
+
+    else:
+        out.append("    if not interp_only:")
+        out.append(f'        {f}("{name}", {opcode_idx})')
+        if flags & cx.CONST:
+            out.append(f"        hasconst.append({opcode_idx})")
+        if flags & (cx.ARG | cx.CONST):
+            out.append(f"        hasarg.append({opcode_idx})")
+
+
 def assign_numbers() -> list[str]:
     i = START_NUM
-    out = []
-    for name, flags in cx.CINDER_OPS.items():
-        if flags & cx.NAME:
-            f = "name_op"
-        elif flags & cx.JREL:
-            f = "jrel_op"
-        elif flags & cx.JABS:
-            f = "jabs_op"
-        else:
-            f = "def_op"
+    out: list[str] = []
+
+    def inc() -> None:
+        nonlocal i
         i += 1
         if i > END_NUM:
             raise ValueError("Not enough free space for cinderx opcodes!")
-        if flags & cx.IMPLEMENTED_IN_INTERPRETER:
-            out.append(f'    {f}("{name}", {i})')
-            if flags & cx.CONST:
-                out.append(f"    hasconst.append({i})")
-            if flags & (cx.ARG | cx.CONST):
-                out.append(f"    hasarg.append({i})")
+
+    for name, val in cx.CINDER_OPS.items():
+        inc()
+        if isinstance(val, cx.Family):
+            cache_size = sum(val.cache_format.values())
+            process_opcode(name, val.flags, out, i, cache_size, val.cache_format)
+            for specialization in val.specializations:
+                inc()
+                process_opcode(
+                    specialization, val.flags, out, i, cache_size, parent=name
+                )
         else:
-            out.append("    if not interp_only:")
-            out.append(f'        {f}("{name}", {i})')
-            if flags & cx.CONST:
-                out.append(f"        hasconst.append({i})")
-            if flags & (cx.ARG | cx.CONST):
-                out.append(f"        hasarg.append({i})")
+            process_opcode(name, val, out, i)
 
     return out
 

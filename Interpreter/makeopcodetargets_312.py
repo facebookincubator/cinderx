@@ -10,6 +10,9 @@ cinderx_opcode.init(
     opcode.hasjabs,
     opcode.hasconst,
     opcode.hasarg,
+    opcode._cache_format,
+    opcode._specializations,
+    opcode._inline_cache_entries,
     interp_only=True,
 )
 

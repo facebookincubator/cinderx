@@ -22,7 +22,16 @@ ARG = 16
 IMPLEMENTED_IN_INTERPRETER = 32
 
 
-CINDER_OPS: dict[str, int] = {
+class Family:
+    def __init__(
+        self, flags: int, cache_format: dict[str, int], *specializations: str
+    ) -> None:
+        self.flags = flags
+        self.cache_format = cache_format
+        self.specializations: tuple[str, ...] = specializations
+
+
+CINDER_OPS: dict[str, int | Family] = {
     "INVOKE_METHOD": CONST | IMPLEMENTED_IN_INTERPRETER,
     "LOAD_FIELD": CONST | IMPLEMENTED_IN_INTERPRETER,
     "STORE_FIELD": CONST | IMPLEMENTED_IN_INTERPRETER,

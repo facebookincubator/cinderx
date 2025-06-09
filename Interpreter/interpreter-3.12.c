@@ -3,13 +3,16 @@
 // clang-format off
 
 #define CINDERX_INTERPRETER
-#define NEED_OPCODE_TABLES
 
-#define _PyOpcode_Deopt _Ci_Opcode_Deopt
-#define _PyOpcode_Caches _Ci_Opcode_Caches
-#define _PyOpcode_Jump _Ci_Opcode_Jump
-
+#include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Common/code.h"
+
+#include "internal/pycore_opcode.h"
+
+// Must come after pycore_opcode, we want to get the exported ones.
+#define NEED_OPCODE_NAMES
+#define NEED_OPCODE_TABLES
+#include "cinderx/Interpreter/cinder_opcode.h"
 
 #include "cinderx/Interpreter/Includes/ceval.c"
 #include "cinderx/StaticPython/classloader.h"
@@ -269,6 +272,20 @@ static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
         Py_INCREF(res);                                                            \
         break;
 
+void Ci_InitOpcodes() {
+#ifdef ENABLE_ADAPTIVE_STATIC_PYTHON
+    // patch CPython's opcode data
+    for (int i = 0; i < sizeof(_CiOpcode_Caches) / sizeof(_CiOpcode_Caches[0]); i++) {
+        _PyOpcode_Caches[i] = _CiOpcode_Caches[i];
+    }
+    for (int i = 0; i < sizeof(_CiOpcode_Deopt) / sizeof(_CiOpcode_Deopt[0]); i++) {
+        _PyOpcode_Deopt[i] = _CiOpcode_Deopt[i];
+    }
+#endif
+}
+
+#define _PyOpcode_Caches _CiOpcode_Caches
+
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 {
@@ -499,7 +516,7 @@ handle_eval_breaker:
         if (next_instr != here) {
             DISPATCH();
         }
-        if (_PyOpcode_Caches[original_opcode]) {
+        if (_CiOpcode_Caches[original_opcode]) {
             _PyBinaryOpCache *cache = (_PyBinaryOpCache *)(next_instr+1);
             /* Prevent the underlying instruction from specializing
              * and overwriting the instrumentation. */
@@ -513,7 +530,7 @@ handle_eval_breaker:
 #if USE_COMPUTED_GOTOS
         _unknown_opcode:
 #else
-        EXTRA_CASES  // From opcode.h, a 'case' for each unused opcode
+        Ci_EXTRA_CASES  // From opcode.h, a 'case' for each unused opcode
 #endif
             /* Tell C compilers not to hold the opcode variable in the loop.
                next_instr points the current instruction without TARGET(). */

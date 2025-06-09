@@ -19,11 +19,23 @@ from opcode import (
 from .opcodebase import Opcode
 
 if sys.version_info >= (3, 12):
-    from opcode import hasarg
+    import opcode
+    from opcode import _cache_format, _inline_cache_entries, _specializations, hasarg
 
     from cinderx import opcode as cinderx_opcode
 
-    cinderx_opcode.init(opname, opmap, hasname, hasjrel, hasjabs, hasconst, hasarg)
+    cinderx_opcode.init(
+        opname,
+        opmap,
+        hasname,
+        hasjrel,
+        hasjabs,
+        hasconst,
+        hasarg,
+        _cache_format,
+        _specializations,
+        _inline_cache_entries,
+    )
 
     if "dis" in sys.modules:
         # Fix up dis module to use the CinderX opcodes
