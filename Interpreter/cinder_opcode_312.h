@@ -26,7 +26,7 @@ const uint32_t _CiOpcode_Jump[9] = {
     135020544U,
     4163U,
     0U,
-    786816U,
+    1573632U,
     0U,
     48U,
 };
@@ -50,6 +50,8 @@ const uint8_t _CiOpcode_Caches[256] = {
     [STORE_FIELD] = 2,
     [STORE_OBJ_FIELD] = 2,
     [STORE_PRIMITIVE_FIELD] = 2,
+    [CAST] = 2,
+    [CAST_CACHED] = 2,
     [STORE_LOCAL] = 1,
     [STORE_LOCAL_CACHED] = 1,
     [INVOKE_FUNCTION] = 4,
@@ -111,6 +113,7 @@ const uint8_t _CiOpcode_Deopt[256] = {
     [CALL_PY_EXACT_ARGS] = CALL,
     [CALL_PY_WITH_DEFAULTS] = CALL,
     [CAST] = CAST,
+    [CAST_CACHED] = CAST,
     [CHECK_EG_MATCH] = CHECK_EG_MATCH,
     [CHECK_EXC_MATCH] = CHECK_EXC_MATCH,
     [CLEANUP_THROW] = CLEANUP_THROW,
@@ -500,6 +503,7 @@ static const char* const _CiOpcode_OpName[267] = {
     [BUILD_CHECKED_LIST] = "BUILD_CHECKED_LIST",
     [LOAD_TYPE] = "LOAD_TYPE",
     [CAST] = "CAST",
+    [CAST_CACHED] = "CAST_CACHED",
     [LOAD_LOCAL] = "LOAD_LOCAL",
     [STORE_LOCAL] = "STORE_LOCAL",
     [STORE_LOCAL_CACHED] = "STORE_LOCAL_CACHED",
@@ -532,7 +536,6 @@ static const char* const _CiOpcode_OpName[267] = {
     [TP_ALLOC_CACHED] = "TP_ALLOC_CACHED",
     [LOAD_METHOD_STATIC] = "LOAD_METHOD_STATIC",
     [LOAD_METHOD_STATIC_CACHED] = "LOAD_METHOD_STATIC_CACHED",
-    [227] = "<227>",
     [228] = "<228>",
     [229] = "<229>",
     [230] = "<230>",
@@ -585,7 +588,6 @@ static const char* const _CiOpcode_OpName[267] = {
   case 181:            \
   case 182:            \
   case 184:            \
-  case 227:            \
   case 228:            \
   case 229:            \
   case 230:            \

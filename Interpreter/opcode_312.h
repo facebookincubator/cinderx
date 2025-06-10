@@ -132,38 +132,39 @@ extern "C" {
   X(BUILD_CHECKED_LIST, 192)                       \
   X(LOAD_TYPE, 193)                                \
   X(CAST, 194)                                     \
-  X(LOAD_LOCAL, 195)                               \
-  X(STORE_LOCAL, 196)                              \
-  X(STORE_LOCAL_CACHED, 197)                       \
-  X(PRIMITIVE_BOX, 198)                            \
-  X(POP_JUMP_IF_ZERO, 199)                         \
-  X(POP_JUMP_IF_NONZERO, 200)                      \
-  X(PRIMITIVE_UNBOX, 201)                          \
-  X(PRIMITIVE_BINARY_OP, 202)                      \
-  X(PRIMITIVE_UNARY_OP, 203)                       \
-  X(PRIMITIVE_COMPARE_OP, 204)                     \
-  X(LOAD_ITERABLE_ARG, 205)                        \
-  X(LOAD_MAPPING_ARG, 206)                         \
-  X(INVOKE_FUNCTION, 207)                          \
-  X(INVOKE_FUNCTION_CACHED, 208)                   \
-  X(INVOKE_INDIRECT_CACHED, 209)                   \
-  X(JUMP_IF_ZERO_OR_POP, 210)                      \
-  X(JUMP_IF_NONZERO_OR_POP, 211)                   \
-  X(FAST_LEN, 212)                                 \
-  X(CONVERT_PRIMITIVE, 213)                        \
-  X(INVOKE_NATIVE, 214)                            \
-  X(LOAD_CLASS, 215)                               \
-  X(BUILD_CHECKED_MAP, 216)                        \
-  X(SEQUENCE_GET, 217)                             \
-  X(SEQUENCE_SET, 218)                             \
-  X(LIST_DEL, 219)                                 \
-  X(REFINE_TYPE, 220)                              \
-  X(PRIMITIVE_LOAD_CONST, 221)                     \
-  X(RETURN_PRIMITIVE, 222)                         \
-  X(TP_ALLOC, 223)                                 \
-  X(TP_ALLOC_CACHED, 224)                          \
-  X(LOAD_METHOD_STATIC, 225)                       \
-  X(LOAD_METHOD_STATIC_CACHED, 226)                \
+  X(CAST_CACHED, 195)                              \
+  X(LOAD_LOCAL, 196)                               \
+  X(STORE_LOCAL, 197)                              \
+  X(STORE_LOCAL_CACHED, 198)                       \
+  X(PRIMITIVE_BOX, 199)                            \
+  X(POP_JUMP_IF_ZERO, 200)                         \
+  X(POP_JUMP_IF_NONZERO, 201)                      \
+  X(PRIMITIVE_UNBOX, 202)                          \
+  X(PRIMITIVE_BINARY_OP, 203)                      \
+  X(PRIMITIVE_UNARY_OP, 204)                       \
+  X(PRIMITIVE_COMPARE_OP, 205)                     \
+  X(LOAD_ITERABLE_ARG, 206)                        \
+  X(LOAD_MAPPING_ARG, 207)                         \
+  X(INVOKE_FUNCTION, 208)                          \
+  X(INVOKE_FUNCTION_CACHED, 209)                   \
+  X(INVOKE_INDIRECT_CACHED, 210)                   \
+  X(JUMP_IF_ZERO_OR_POP, 211)                      \
+  X(JUMP_IF_NONZERO_OR_POP, 212)                   \
+  X(FAST_LEN, 213)                                 \
+  X(CONVERT_PRIMITIVE, 214)                        \
+  X(INVOKE_NATIVE, 215)                            \
+  X(LOAD_CLASS, 216)                               \
+  X(BUILD_CHECKED_MAP, 217)                        \
+  X(SEQUENCE_GET, 218)                             \
+  X(SEQUENCE_SET, 219)                             \
+  X(LIST_DEL, 220)                                 \
+  X(REFINE_TYPE, 221)                              \
+  X(PRIMITIVE_LOAD_CONST, 222)                     \
+  X(RETURN_PRIMITIVE, 223)                         \
+  X(TP_ALLOC, 224)                                 \
+  X(TP_ALLOC_CACHED, 225)                          \
+  X(LOAD_METHOD_STATIC, 226)                       \
+  X(LOAD_METHOD_STATIC_CACHED, 227)                \
   X(MIN_INSTRUMENTED_OPCODE, 237)                  \
   X(INSTRUMENTED_LOAD_SUPER_ATTR, 237)             \
   X(INSTRUMENTED_POP_JUMP_IF_NONE, 238)            \
@@ -274,14 +275,15 @@ extern "C" {
    ((op) == LOAD_OBJ_FIELD) || ((op) == LOAD_PRIMITIVE_FIELD) ||            \
    ((op) == STORE_FIELD) || ((op) == STORE_OBJ_FIELD) ||                    \
    ((op) == STORE_PRIMITIVE_FIELD) || ((op) == BUILD_CHECKED_LIST) ||       \
-   ((op) == LOAD_TYPE) || ((op) == CAST) || ((op) == LOAD_LOCAL) ||         \
-   ((op) == STORE_LOCAL) || ((op) == STORE_LOCAL_CACHED) ||                 \
-   ((op) == INVOKE_FUNCTION) || ((op) == INVOKE_FUNCTION_CACHED) ||         \
-   ((op) == INVOKE_INDIRECT_CACHED) || ((op) == INVOKE_NATIVE) ||           \
-   ((op) == LOAD_CLASS) || ((op) == BUILD_CHECKED_MAP) ||                   \
-   ((op) == REFINE_TYPE) || ((op) == PRIMITIVE_LOAD_CONST) ||               \
-   ((op) == TP_ALLOC) || ((op) == TP_ALLOC_CACHED) ||                       \
-   ((op) == LOAD_METHOD_STATIC) || ((op) == LOAD_METHOD_STATIC_CACHED))
+   ((op) == LOAD_TYPE) || ((op) == CAST) || ((op) == CAST_CACHED) ||        \
+   ((op) == LOAD_LOCAL) || ((op) == STORE_LOCAL) ||                         \
+   ((op) == STORE_LOCAL_CACHED) || ((op) == INVOKE_FUNCTION) ||             \
+   ((op) == INVOKE_FUNCTION_CACHED) || ((op) == INVOKE_INDIRECT_CACHED) ||  \
+   ((op) == INVOKE_NATIVE) || ((op) == LOAD_CLASS) ||                       \
+   ((op) == BUILD_CHECKED_MAP) || ((op) == REFINE_TYPE) ||                  \
+   ((op) == PRIMITIVE_LOAD_CONST) || ((op) == TP_ALLOC) ||                  \
+   ((op) == TP_ALLOC_CACHED) || ((op) == LOAD_METHOD_STATIC) ||             \
+   ((op) == LOAD_METHOD_STATIC_CACHED))
 
 #define NB_ADD 0
 #define NB_AND 1

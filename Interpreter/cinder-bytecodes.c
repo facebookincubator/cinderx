@@ -618,7 +618,12 @@ dummy_func(
             Py_DECREF(self);
         }
 
-        inst(CAST, (val -- res)) {
+        family(tp_alloc, CAST_CACHE_SIZE) = {
+            CAST,
+            CAST_CACHED,
+        };
+
+        inst(CAST, (unused/2, val -- res)) {
             int optional;
             int exact;
             PyTypeObject* type = _PyClassLoader_ResolveType(
@@ -626,31 +631,31 @@ dummy_func(
             if (type == NULL) {
                 goto error;
             }
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+            int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
+            if (index >= 0 && index <= INT32_MAX >> 2) {
+                int32_t *cache = (int32_t*)next_instr;
+                *cache = (int32_t)(index << 2) | (exact << 1) | optional;
+                _Ci_specialize(next_instr, CAST_CACHED);
+            }
+#endif
             if (!_PyObject_TypeCheckOptional(val, type, optional, exact)) {
                 CAST_COERCE_OR_ERROR(val, type, exact);
             }
 
-#ifdef ADAPTIVE
-            if (shadow.shadow != NULL) {
-                int offset = _PyShadow_CacheCastType(&shadow, (PyObject*)type);
-                if (offset != -1) {
-                    if (optional) {
-                    if (exact) {
-                        _PyShadow_PatchByteCode(
-                            &shadow, next_instr, CAST_CACHED_OPTIONAL_EXACT, offset);
-                    } else {
-                        _PyShadow_PatchByteCode(
-                            &shadow, next_instr, CAST_CACHED_OPTIONAL, offset);
-                    }
-                    } else if (exact) {
-                    _PyShadow_PatchByteCode(
-                        &shadow, next_instr, CAST_CACHED_EXACT, offset);
-                    } else {
-                    _PyShadow_PatchByteCode(&shadow, next_instr, CAST_CACHED, offset);
-                    }
-                }
+            res = val;
+            Py_DECREF(type);
+        }
+
+        inst(CAST_CACHED, (cache/2, val -- res)) {
+            PyTypeObject* type = (PyTypeObject *)_PyClassLoader_GetCachedValue(cache >> 2);
+            DEOPT_IF(type == NULL, CAST);
+
+            int optional = cache & 0x01;
+            int exact = (cache >> 1) & 0x01;
+            if (!_PyObject_TypeCheckOptional(val, type, optional, exact)) {
+                CAST_COERCE_OR_ERROR(val, type, exact);
             }
-#endif
             res = val;
             Py_DECREF(type);
         }
