@@ -85,48 +85,64 @@ def init(
     def_op("INVOKE_FUNCTION", 202)
     hasconst.append(202)
     hasarg.append(202)
+    cache_format["INVOKE_FUNCTION"] = "{'cache': 4}"
+    inline_cache_entries[202] = 4
+    def_op("INVOKE_FUNCTION_CACHED", 203)
+    hasconst.append(203)
+    hasarg.append(203)
+    if "INVOKE_FUNCTION" not in specializations:
+        specializations["INVOKE_FUNCTION"] = []
+    specializations["INVOKE_FUNCTION"].append("INVOKE_FUNCTION_CACHED")
+    inline_cache_entries[203] = 4
+    def_op("INVOKE_INDIRECT_CACHED", 204)
+    hasconst.append(204)
+    hasarg.append(204)
+    if "INVOKE_FUNCTION" not in specializations:
+        specializations["INVOKE_FUNCTION"] = []
+    specializations["INVOKE_FUNCTION"].append("INVOKE_INDIRECT_CACHED")
+    inline_cache_entries[204] = 4
     if not interp_only:
-        jabs_op("JUMP_IF_ZERO_OR_POP", 203)
+        jabs_op("JUMP_IF_ZERO_OR_POP", 205)
     if not interp_only:
-        jabs_op("JUMP_IF_NONZERO_OR_POP", 204)
-    def_op("FAST_LEN", 205)
-    hasarg.append(205)
-    def_op("CONVERT_PRIMITIVE", 206)
-    hasarg.append(206)
-    def_op("INVOKE_NATIVE", 207)
-    hasconst.append(207)
+        jabs_op("JUMP_IF_NONZERO_OR_POP", 206)
+    def_op("FAST_LEN", 207)
     hasarg.append(207)
-    def_op("LOAD_CLASS", 208)
-    hasconst.append(208)
+    def_op("CONVERT_PRIMITIVE", 208)
     hasarg.append(208)
-    def_op("BUILD_CHECKED_MAP", 209)
+    def_op("INVOKE_NATIVE", 209)
     hasconst.append(209)
     hasarg.append(209)
-    def_op("SEQUENCE_GET", 210)
+    def_op("LOAD_CLASS", 210)
+    hasconst.append(210)
     hasarg.append(210)
-    def_op("SEQUENCE_SET", 211)
+    def_op("BUILD_CHECKED_MAP", 211)
+    hasconst.append(211)
     hasarg.append(211)
-    def_op("LIST_DEL", 212)
-    def_op("REFINE_TYPE", 213)
-    hasconst.append(213)
+    def_op("SEQUENCE_GET", 212)
+    hasarg.append(212)
+    def_op("SEQUENCE_SET", 213)
     hasarg.append(213)
-    def_op("PRIMITIVE_LOAD_CONST", 214)
-    hasconst.append(214)
-    hasarg.append(214)
-    def_op("RETURN_PRIMITIVE", 215)
+    def_op("LIST_DEL", 214)
+    def_op("REFINE_TYPE", 215)
+    hasconst.append(215)
     hasarg.append(215)
-    def_op("TP_ALLOC", 216)
+    def_op("PRIMITIVE_LOAD_CONST", 216)
     hasconst.append(216)
     hasarg.append(216)
-    cache_format["TP_ALLOC"] = "{'cache': 2}"
-    inline_cache_entries[216] = 2
-    def_op("TP_ALLOC_CACHED", 217)
-    hasconst.append(217)
+    def_op("RETURN_PRIMITIVE", 217)
     hasarg.append(217)
+    def_op("TP_ALLOC", 218)
+    hasconst.append(218)
+    hasarg.append(218)
+    cache_format["TP_ALLOC"] = "{'cache': 2}"
+    inline_cache_entries[218] = 2
+    def_op("TP_ALLOC_CACHED", 219)
+    hasconst.append(219)
+    hasarg.append(219)
     if "TP_ALLOC" not in specializations:
         specializations["TP_ALLOC"] = []
     specializations["TP_ALLOC"].append("TP_ALLOC_CACHED")
-    inline_cache_entries[217] = 2
-    def_op("LOAD_METHOD_STATIC", 218)
-    hasconst.append(218)
-    hasarg.append(218)
+    inline_cache_entries[219] = 2
+    def_op("LOAD_METHOD_STATIC", 220)
+    hasconst.append(220)
+    hasarg.append(220)

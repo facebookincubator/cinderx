@@ -10,6 +10,7 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h" // @donotremove
 #include "cinderx/Common/func.h"
 #include "cinderx/Jit/global_cache.h"
@@ -353,6 +354,9 @@ PyObject** _PyClassLoader_ResolveIndirectPtr(PyObject* path) {
   } else if (Ci_StrictModule_Check(container)) {
     use_thunk = 1;
   } else if (PyModule_Check(container)) {
+    if (!hasOnlyUnicodeKeys(PyModule_GetDict(container))) {
+      goto error;
+    }
     /* modules have no special translation on things we invoke, so
      * we just rely upon the normal JIT dict watchers */
     PyObject* dict = Ci_MaybeStrictModule_Dict(container);
@@ -917,6 +921,10 @@ int32_t _PyClassLoader_CacheValue(PyObject* value) {
   }
 
   Py_ssize_t iindex = PyList_GET_SIZE(value_cache) + type_index_offset;
+  if (iindex >= INT32_MAX) {
+    return -1;
+  }
+
   PyObject* pyindex = PyLong_FromLong(iindex);
   if (pyindex == NULL) {
     return -1;
@@ -933,7 +941,7 @@ int32_t _PyClassLoader_CacheValue(PyObject* value) {
     return -1;
   }
   Py_DECREF(pyindex);
-  return iindex;
+  return (int32_t)iindex;
 }
 
 PyObject* _PyClassLoader_GetCachedValue(int32_t type) {

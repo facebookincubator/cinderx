@@ -26,7 +26,7 @@ const uint32_t _CiOpcode_Jump[9] = {
     135020544U,
     4163U,
     0U,
-    6156U,
+    24588U,
     0U,
     48U,
 };
@@ -44,6 +44,9 @@ const uint8_t _CiOpcode_Caches[256] = {
     [SEND] = 1,
     [LOAD_SUPER_ATTR] = 1,
     [CALL] = 3,
+    [INVOKE_FUNCTION] = 4,
+    [INVOKE_FUNCTION_CACHED] = 4,
+    [INVOKE_INDIRECT_CACHED] = 4,
     [TP_ALLOC] = 2,
     [TP_ALLOC_CACHED] = 2,
 };
@@ -157,6 +160,8 @@ const uint8_t _CiOpcode_Deopt[256] = {
     [INSTRUMENTED_YIELD_VALUE] = INSTRUMENTED_YIELD_VALUE,
     [INTERPRETER_EXIT] = INTERPRETER_EXIT,
     [INVOKE_FUNCTION] = INVOKE_FUNCTION,
+    [INVOKE_FUNCTION_CACHED] = INVOKE_FUNCTION,
+    [INVOKE_INDIRECT_CACHED] = INVOKE_FUNCTION,
     [INVOKE_METHOD] = INVOKE_METHOD,
     [INVOKE_NATIVE] = INVOKE_NATIVE,
     [IS_OP] = IS_OP,
@@ -487,6 +492,8 @@ static const char* const _CiOpcode_OpName[267] = {
     [LOAD_ITERABLE_ARG] = "LOAD_ITERABLE_ARG",
     [LOAD_MAPPING_ARG] = "LOAD_MAPPING_ARG",
     [INVOKE_FUNCTION] = "INVOKE_FUNCTION",
+    [INVOKE_FUNCTION_CACHED] = "INVOKE_FUNCTION_CACHED",
+    [INVOKE_INDIRECT_CACHED] = "INVOKE_INDIRECT_CACHED",
     [JUMP_IF_ZERO_OR_POP] = "JUMP_IF_ZERO_OR_POP",
     [JUMP_IF_NONZERO_OR_POP] = "JUMP_IF_NONZERO_OR_POP",
     [FAST_LEN] = "FAST_LEN",
@@ -503,8 +510,6 @@ static const char* const _CiOpcode_OpName[267] = {
     [TP_ALLOC] = "TP_ALLOC",
     [TP_ALLOC_CACHED] = "TP_ALLOC_CACHED",
     [LOAD_METHOD_STATIC] = "LOAD_METHOD_STATIC",
-    [219] = "<219>",
-    [220] = "<220>",
     [221] = "<221>",
     [222] = "<222>",
     [223] = "<223>",
@@ -564,8 +569,6 @@ static const char* const _CiOpcode_OpName[267] = {
   case 181:            \
   case 182:            \
   case 184:            \
-  case 219:            \
-  case 220:            \
   case 221:            \
   case 222:            \
   case 223:            \

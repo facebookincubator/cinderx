@@ -271,6 +271,7 @@ static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
         Py_INCREF(res);                                                            \
         break;
 
+#define INVOKE_FUNCTION_CACHE_SIZE 4
 #define TP_ALLOC_CACHE_SIZE 2
 
 void Ci_InitOpcodes() {

@@ -402,27 +402,27 @@ dummy_func(
         inst(TP_ALLOC, (unused/2 -- inst)) {
             int optional;
             int exact;
-            PyTypeObject* type = _PyClassLoader_ResolveType(
+            PyTypeObject *type = _PyClassLoader_ResolveType(
                 GETITEM(frame->f_code->co_consts, oparg), &optional, &exact);
             assert(!optional);
             ERROR_IF(type == NULL, error);
 
             inst = type->tp_alloc(type, 0);
-            Py_DECREF(type);
-            ERROR_IF(inst == NULL, error);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
             int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
             if (index >= 0) {
-                int32_t *cache = (int32_t*)next_instr;
+                int32_t *cache = (int32_t *)next_instr;
                 *cache = index;
                 _Ci_specialize(next_instr, TP_ALLOC_CACHED);
             }
  #endif
+            Py_DECREF(type);
+            ERROR_IF(inst == NULL, error);
         }
 
         inst(TP_ALLOC_CACHED, (cache/2 -- inst)) {
-            PyTypeObject* type = (PyTypeObject *)_PyClassLoader_GetCachedValue(cache);
+            PyTypeObject *type = (PyTypeObject *)_PyClassLoader_GetCachedValue(cache);
             DEOPT_IF(type == NULL, TP_ALLOC);
 
             inst = type->tp_alloc(type, 0);
@@ -930,7 +930,12 @@ dummy_func(
             ERROR_IF(type == NULL, error);
         }
 
-        inst(INVOKE_FUNCTION, (args[invoke_function_args(frame->f_code->co_consts, oparg)] -- res)) {
+        family(tp_alloc, INVOKE_FUNCTION_CACHE_SIZE) = {
+            INVOKE_FUNCTION,
+            INVOKE_FUNCTION_CACHED,
+        };
+
+        inst(INVOKE_FUNCTION, (unused/4, args[invoke_function_args(frame->f_code->co_consts, oparg)] -- res)) {
             // We should move to encoding the number of args directly in the
             // opcode, right now pulling them out via invoke_function_args is a little
             // ugly.
@@ -944,33 +949,55 @@ dummy_func(
             }
 
             res = _PyObject_Vectorcall(func, args, nargs, NULL);
-#ifdef ADAPTIVE
-            if (shadow.shadow != NULL && nargs < 0x80) {
-                if (_PyClassLoader_IsImmutable(container)) {
-                    /* frozen type, we don't need to worry about indirecting */
-                    int offset = _PyShadow_CacheCastType(&shadow, func);
-                    if (offset != -1) {
-                    _PyShadow_PatchByteCode(
-                        &shadow,
-                        next_instr,
-                        INVOKE_FUNCTION_CACHED,
-                        (nargs << 8) | offset);
-                    }
-                } else {
-                    PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
-                    int offset = _PyShadow_CacheFunction(&shadow, funcptr);
-                    if (offset != -1) {
-                    _PyShadow_PatchByteCode(
-                        &shadow,
-                        next_instr,
-                        INVOKE_FUNCTION_INDIRECT_CACHED,
-                        (nargs << 8) | offset);
-                    }
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+            if (_PyClassLoader_IsImmutable(container)) {
+                /* frozen type, we don't need to worry about indirecting */
+                int32_t index = _PyClassLoader_CacheValue(func);
+                if (index >= 0) {
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = index;
+                    _Ci_specialize(next_instr, INVOKE_FUNCTION_CACHED);
                 }
+            } else {
+                PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
+                PyObject ***cache = (PyObject ***)next_instr;
+                *cache = funcptr;
+                _Ci_specialize(next_instr, INVOKE_INDIRECT_CACHED);
             }
 #endif
             Py_DECREF(func);
             Py_DECREF(container);
+            DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
+        }
+
+        inst(INVOKE_FUNCTION_CACHED,  (cache/4, args[invoke_function_args(frame->f_code->co_consts, oparg)] -- res)) {
+            // It's assumed a 64-bit value is a pointer, but we want 64-bits for the indirect
+            // version and just use an int for this cached version.
+            PyObject* func = _PyClassLoader_GetCachedValue((int32_t)(intptr_t)cache);
+            DEOPT_IF(func == NULL, INVOKE_FUNCTION);
+
+            int nargs = invoke_function_args(frame->f_code->co_consts, oparg);
+
+            res = _PyObject_Vectorcall(func, args, nargs, NULL);
+            Py_DECREF(func);
+
+            DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
+        }
+
+        inst(INVOKE_INDIRECT_CACHED, (cache/4, args[invoke_function_args(frame->f_code->co_consts, oparg)] -- res)) {
+            PyObject** funcref = (PyObject**)cache;
+            int nargs = invoke_function_args(frame->f_code->co_consts, oparg);
+
+            PyObject* func = *funcref;
+            /* For indirect calls we just use _PyObject_Vectorcall, which will
+            * handle non-vector call objects as well.  We expect in high-perf
+            * situations to either have frozen types or frozen strict modules */
+            DEOPT_IF(func == NULL, INVOKE_FUNCTION);
+
+            res = _PyObject_Vectorcall(func, args, nargs, NULL);
+
             DECREF_INPUTS();
             ERROR_IF(res == NULL, error);
         }

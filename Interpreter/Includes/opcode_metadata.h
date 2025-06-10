@@ -439,6 +439,10 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case INVOKE_FUNCTION:
             return (invoke_function_args(frame->f_code->co_consts, oparg));
+        case INVOKE_FUNCTION_CACHED:
+            return (invoke_function_args(frame->f_code->co_consts, oparg));
+        case INVOKE_INDIRECT_CACHED:
+            return (invoke_function_args(frame->f_code->co_consts, oparg));
         case LOAD_METHOD_STATIC:
             return 1;
         case INVOKE_METHOD:
@@ -901,6 +905,10 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case INVOKE_FUNCTION:
             return 1;
+        case INVOKE_FUNCTION_CACHED:
+            return 1;
+        case INVOKE_INDIRECT_CACHED:
+            return 1;
         case LOAD_METHOD_STATIC:
             return 2;
         case INVOKE_METHOD:
@@ -1153,7 +1161,9 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [RETURN_PRIMITIVE] = { true, INSTR_FMT_IB },
     [LOAD_TYPE] = { true, INSTR_FMT_IX },
     [LOAD_CLASS] = { true, INSTR_FMT_IB },
-    [INVOKE_FUNCTION] = { true, INSTR_FMT_IB },
+    [INVOKE_FUNCTION] = { true, INSTR_FMT_IBC000 },
+    [INVOKE_FUNCTION_CACHED] = { true, INSTR_FMT_IBC000 },
+    [INVOKE_INDIRECT_CACHED] = { true, INSTR_FMT_IBC000 },
     [LOAD_METHOD_STATIC] = { true, INSTR_FMT_IB },
     [INVOKE_METHOD] = { true, INSTR_FMT_IB },
     [INVOKE_NATIVE] = { true, INSTR_FMT_IB },

@@ -140,22 +140,24 @@ extern "C" {
   X(LOAD_ITERABLE_ARG, 200)                        \
   X(LOAD_MAPPING_ARG, 201)                         \
   X(INVOKE_FUNCTION, 202)                          \
-  X(JUMP_IF_ZERO_OR_POP, 203)                      \
-  X(JUMP_IF_NONZERO_OR_POP, 204)                   \
-  X(FAST_LEN, 205)                                 \
-  X(CONVERT_PRIMITIVE, 206)                        \
-  X(INVOKE_NATIVE, 207)                            \
-  X(LOAD_CLASS, 208)                               \
-  X(BUILD_CHECKED_MAP, 209)                        \
-  X(SEQUENCE_GET, 210)                             \
-  X(SEQUENCE_SET, 211)                             \
-  X(LIST_DEL, 212)                                 \
-  X(REFINE_TYPE, 213)                              \
-  X(PRIMITIVE_LOAD_CONST, 214)                     \
-  X(RETURN_PRIMITIVE, 215)                         \
-  X(TP_ALLOC, 216)                                 \
-  X(TP_ALLOC_CACHED, 217)                          \
-  X(LOAD_METHOD_STATIC, 218)                       \
+  X(INVOKE_FUNCTION_CACHED, 203)                   \
+  X(INVOKE_INDIRECT_CACHED, 204)                   \
+  X(JUMP_IF_ZERO_OR_POP, 205)                      \
+  X(JUMP_IF_NONZERO_OR_POP, 206)                   \
+  X(FAST_LEN, 207)                                 \
+  X(CONVERT_PRIMITIVE, 208)                        \
+  X(INVOKE_NATIVE, 209)                            \
+  X(LOAD_CLASS, 210)                               \
+  X(BUILD_CHECKED_MAP, 211)                        \
+  X(SEQUENCE_GET, 212)                             \
+  X(SEQUENCE_SET, 213)                             \
+  X(LIST_DEL, 214)                                 \
+  X(REFINE_TYPE, 215)                              \
+  X(PRIMITIVE_LOAD_CONST, 216)                     \
+  X(RETURN_PRIMITIVE, 217)                         \
+  X(TP_ALLOC, 218)                                 \
+  X(TP_ALLOC_CACHED, 219)                          \
+  X(LOAD_METHOD_STATIC, 220)                       \
   X(MIN_INSTRUMENTED_OPCODE, 237)                  \
   X(INSTRUMENTED_LOAD_SUPER_ATTR, 237)             \
   X(INSTRUMENTED_POP_JUMP_IF_NONE, 238)            \
@@ -266,6 +268,7 @@ extern "C" {
    ((op) == STORE_FIELD) || ((op) == BUILD_CHECKED_LIST) ||                 \
    ((op) == LOAD_TYPE) || ((op) == CAST) || ((op) == LOAD_LOCAL) ||         \
    ((op) == STORE_LOCAL) || ((op) == INVOKE_FUNCTION) ||                    \
+   ((op) == INVOKE_FUNCTION_CACHED) || ((op) == INVOKE_INDIRECT_CACHED) ||  \
    ((op) == INVOKE_NATIVE) || ((op) == LOAD_CLASS) ||                       \
    ((op) == BUILD_CHECKED_MAP) || ((op) == REFINE_TYPE) ||                  \
    ((op) == PRIMITIVE_LOAD_CONST) || ((op) == TP_ALLOC) ||                  \
