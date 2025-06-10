@@ -188,7 +188,6 @@ enum {
   X(STORE_ATTR_DICT)               \
   X(STORE_ATTR_SPLIT_DICT)         \
   X(STORE_ATTR_UNCACHABLE)         \
-  X(STORE_PRIMITIVE_FIELD)         \
   X(UNARY_POSITIVE)                \
   X(YIELD_FROM)
 #endif

@@ -564,7 +564,13 @@ dummy_func(
             ERROR_IF(value == NULL, error);
         }
 
-        inst(STORE_FIELD, (value, self --)) {
+        family(load_super_attr, INLINE_CACHE_ENTRIES_STORE_FIELD) = {
+            STORE_FIELD,
+            STORE_OBJ_FIELD,
+            STORE_PRIMITIVE_FIELD,
+        };
+
+        inst(STORE_FIELD, (unused/2, value, self --)) {
             PyObject* field = GETITEM(frame->f_code->co_consts, oparg);
             int field_type;
             Py_ssize_t offset =
@@ -578,28 +584,37 @@ dummy_func(
             if (field_type == TYPED_OBJECT) {
                 Py_XDECREF(*addr);
                 *addr = value;
-#ifdef ADAPTIVE
-                if (shadow.shadow != NULL) {
-                    assert(offset % sizeof(PyObject*) == 0);
-                    _PyShadow_PatchByteCode(
-                        &shadow,
-                        next_instr,
-                        STORE_OBJ_FIELD,
-                        offset / sizeof(PyObject*));
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (offset <= INT32_MAX) {
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = offset;
+                    _Ci_specialize(next_instr, STORE_OBJ_FIELD);
                 }
 #endif
             } else {
-#ifdef ADAPTIVE
-                if (shadow.shadow != NULL) {
-                    int pos = _PyShadow_CacheFieldType(&shadow, offset, field_type);
-                    if (pos != -1) {
-                    _PyShadow_PatchByteCode(
-                        &shadow, next_instr, STORE_PRIMITIVE_FIELD, pos);
-                    }
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (offset <= INT32_MAX >> 8) {
+                    assert(field_type < 0xff);
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = offset << 8 | field_type;
+                    _Ci_specialize(next_instr, STORE_PRIMITIVE_FIELD);
                 }
 #endif
                 store_field(field_type, (char*)addr, value);
             }
+            Py_DECREF(self);
+        }
+
+        inst(STORE_OBJ_FIELD, (offset/2, value, self --)) {
+            PyObject** addr = FIELD_OFFSET(self, offset);
+            Py_XDECREF(*addr);
+            *addr = value;
+            Py_DECREF(self);
+        }
+
+        inst(STORE_PRIMITIVE_FIELD, (field_type/2, value, self --)) {
+            PyObject** addr = FIELD_OFFSET(self, (field_type >> 8));
+            store_field(field_type & 0xff, (char*)addr, value);
             Py_DECREF(self);
         }
 

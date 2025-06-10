@@ -26,7 +26,7 @@ const uint32_t _CiOpcode_Jump[9] = {
     135020544U,
     4163U,
     0U,
-    196704U,
+    786816U,
     0U,
     48U,
 };
@@ -47,6 +47,9 @@ const uint8_t _CiOpcode_Caches[256] = {
     [LOAD_FIELD] = 2,
     [LOAD_OBJ_FIELD] = 2,
     [LOAD_PRIMITIVE_FIELD] = 2,
+    [STORE_FIELD] = 2,
+    [STORE_OBJ_FIELD] = 2,
+    [STORE_PRIMITIVE_FIELD] = 2,
     [STORE_LOCAL] = 1,
     [STORE_LOCAL_CACHED] = 1,
     [INVOKE_FUNCTION] = 4,
@@ -276,6 +279,8 @@ const uint8_t _CiOpcode_Deopt[256] = {
     [STORE_LOCAL] = STORE_LOCAL,
     [STORE_LOCAL_CACHED] = STORE_LOCAL,
     [STORE_NAME] = STORE_NAME,
+    [STORE_OBJ_FIELD] = STORE_FIELD,
+    [STORE_PRIMITIVE_FIELD] = STORE_FIELD,
     [STORE_SLICE] = STORE_SLICE,
     [STORE_SUBSCR] = STORE_SUBSCR,
     [STORE_SUBSCR_DICT] = STORE_SUBSCR,
@@ -490,6 +495,8 @@ static const char* const _CiOpcode_OpName[267] = {
     [LOAD_OBJ_FIELD] = "LOAD_OBJ_FIELD",
     [LOAD_PRIMITIVE_FIELD] = "LOAD_PRIMITIVE_FIELD",
     [STORE_FIELD] = "STORE_FIELD",
+    [STORE_OBJ_FIELD] = "STORE_OBJ_FIELD",
+    [STORE_PRIMITIVE_FIELD] = "STORE_PRIMITIVE_FIELD",
     [BUILD_CHECKED_LIST] = "BUILD_CHECKED_LIST",
     [LOAD_TYPE] = "LOAD_TYPE",
     [CAST] = "CAST",
@@ -525,8 +532,6 @@ static const char* const _CiOpcode_OpName[267] = {
     [TP_ALLOC_CACHED] = "TP_ALLOC_CACHED",
     [LOAD_METHOD_STATIC] = "LOAD_METHOD_STATIC",
     [LOAD_METHOD_STATIC_CACHED] = "LOAD_METHOD_STATIC_CACHED",
-    [225] = "<225>",
-    [226] = "<226>",
     [227] = "<227>",
     [228] = "<228>",
     [229] = "<229>",
@@ -580,8 +585,6 @@ static const char* const _CiOpcode_OpName[267] = {
   case 181:            \
   case 182:            \
   case 184:            \
-  case 225:            \
-  case 226:            \
   case 227:            \
   case 228:            \
   case 229:            \
