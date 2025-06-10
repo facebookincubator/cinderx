@@ -26,7 +26,7 @@ const uint32_t _CiOpcode_Jump[9] = {
     135020544U,
     4163U,
     0U,
-    1573632U,
+    3147264U,
     0U,
     48U,
 };
@@ -50,6 +50,8 @@ const uint8_t _CiOpcode_Caches[256] = {
     [STORE_FIELD] = 2,
     [STORE_OBJ_FIELD] = 2,
     [STORE_PRIMITIVE_FIELD] = 2,
+    [BUILD_CHECKED_LIST] = 2,
+    [BUILD_CHECKED_LIST_CACHED] = 2,
     [CAST] = 2,
     [CAST_CACHED] = 2,
     [STORE_LOCAL] = 1,
@@ -82,6 +84,7 @@ const uint8_t _CiOpcode_Deopt[256] = {
     [BINARY_SUBSCR_LIST_INT] = BINARY_SUBSCR,
     [BINARY_SUBSCR_TUPLE_INT] = BINARY_SUBSCR,
     [BUILD_CHECKED_LIST] = BUILD_CHECKED_LIST,
+    [BUILD_CHECKED_LIST_CACHED] = BUILD_CHECKED_LIST,
     [BUILD_CHECKED_MAP] = BUILD_CHECKED_MAP,
     [BUILD_CONST_KEY_MAP] = BUILD_CONST_KEY_MAP,
     [BUILD_LIST] = BUILD_LIST,
@@ -501,6 +504,7 @@ static const char* const _CiOpcode_OpName[267] = {
     [STORE_OBJ_FIELD] = "STORE_OBJ_FIELD",
     [STORE_PRIMITIVE_FIELD] = "STORE_PRIMITIVE_FIELD",
     [BUILD_CHECKED_LIST] = "BUILD_CHECKED_LIST",
+    [BUILD_CHECKED_LIST_CACHED] = "BUILD_CHECKED_LIST_CACHED",
     [LOAD_TYPE] = "LOAD_TYPE",
     [CAST] = "CAST",
     [CAST_CACHED] = "CAST_CACHED",
@@ -536,7 +540,6 @@ static const char* const _CiOpcode_OpName[267] = {
     [TP_ALLOC_CACHED] = "TP_ALLOC_CACHED",
     [LOAD_METHOD_STATIC] = "LOAD_METHOD_STATIC",
     [LOAD_METHOD_STATIC_CACHED] = "LOAD_METHOD_STATIC_CACHED",
-    [228] = "<228>",
     [229] = "<229>",
     [230] = "<230>",
     [231] = "<231>",
@@ -588,7 +591,6 @@ static const char* const _CiOpcode_OpName[267] = {
   case 181:            \
   case 182:            \
   case 184:            \
-  case 228:            \
   case 229:            \
   case 230:            \
   case 231:            \

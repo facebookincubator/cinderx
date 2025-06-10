@@ -277,6 +277,7 @@ static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
 #define INLINE_CACHE_ENTRIES_LOAD_FIELD 2
 #define INLINE_CACHE_ENTRIES_STORE_FIELD 2
 #define CAST_CACHE_SIZE 2
+#define INLINE_CACHE_ENTRIES_BUILD_CHECKED_LIST 2
 
 void Ci_InitOpcodes() {
 #ifdef ENABLE_ADAPTIVE_STATIC_PYTHON

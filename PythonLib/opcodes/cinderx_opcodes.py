@@ -49,7 +49,13 @@ CINDER_OPS: dict[str, int | Family] = {
         "STORE_OBJ_FIELD",
         "STORE_PRIMITIVE_FIELD",
     ),
-    "BUILD_CHECKED_LIST": CONST | IMPLEMENTED_IN_INTERPRETER,
+    "BUILD_CHECKED_LIST": Family(
+        CONST | IMPLEMENTED_IN_INTERPRETER,
+        {
+            "cache": 2,
+        },
+        "BUILD_CHECKED_LIST_CACHED",
+    ),
     "LOAD_TYPE": CONST | IMPLEMENTED_IN_INTERPRETER,
     "CAST": Family(
         CONST | IMPLEMENTED_IN_INTERPRETER,

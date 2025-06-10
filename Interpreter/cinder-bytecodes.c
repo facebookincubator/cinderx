@@ -1153,7 +1153,12 @@ dummy_func(
             ERROR_IF(res == NULL, error);
         }
 
-        inst(BUILD_CHECKED_LIST, (list_items[build_checked_obj_size(frame->f_code->co_consts, oparg)] -- list)) {
+        family(load_super_attr, INLINE_CACHE_ENTRIES_BUILD_CHECKED_LIST) = {
+            BUILD_CHECKED_LIST,
+            BUILD_CHECKED_LIST_CACHED,
+        };
+
+        inst(BUILD_CHECKED_LIST, (unused/2, list_items[build_checked_obj_size(frame->f_code->co_consts, oparg)] -- list)) {
             PyObject* list_info = GETITEM(frame->f_code->co_consts, oparg);
             PyObject* list_type = PyTuple_GET_ITEM(list_info, 0);
             Py_ssize_t list_size = PyLong_AsLong(PyTuple_GET_ITEM(list_info, 1));
@@ -1164,30 +1169,33 @@ dummy_func(
                 _PyClassLoader_ResolveType(list_type, &optional, &exact);
             assert(!optional);
 
-#ifdef ADAPTIVE
-            if (shadow.shadow != NULL) {
-                PyObject* cache = PyTuple_New(2);
-                if (cache == NULL) {
-                    goto error;
-                }
-                PyTuple_SET_ITEM(cache, 0, (PyObject*)type);
-                Py_INCREF(type);
-                PyObject* size = PyLong_FromLong(list_size);
-                if (size == NULL) {
-                    Py_DECREF(cache);
-                    goto error;
-                }
-                PyTuple_SET_ITEM(cache, 1, size);
-
-                int offset = _PyShadow_CacheCastType(&shadow, cache);
-                Py_DECREF(cache);
-                if (offset != -1) {
-                    _PyShadow_PatchByteCode(
-                        &shadow, next_instr, BUILD_CHECKED_LIST_CACHED, offset);
-                }
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+            int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
+            if (index >= 0) {
+                int32_t *cache = (int32_t*)next_instr;
+                *cache = index;
+                _Ci_specialize(next_instr, BUILD_CHECKED_LIST_CACHED);
             }
 #endif
 
+            list = Ci_CheckedList_New(type, list_size);
+            Py_DECREF(type);
+
+            if (list == NULL) {
+                goto error;
+            }
+
+            for (Py_ssize_t i = 0; i < list_size; i++) {
+                Ci_ListOrCheckedList_SET_ITEM(list, i, list_items[i]);
+            }
+        }
+
+        inst(BUILD_CHECKED_LIST_CACHED, (cache/2, list_items[build_checked_obj_size(frame->f_code->co_consts, oparg)] -- list)) {
+            PyTypeObject *type = (PyTypeObject *)_PyClassLoader_GetCachedValue(cache);
+            DEOPT_IF(type == NULL, BUILD_CHECKED_LIST);
+
+            PyObject* list_info = GETITEM(frame->f_code->co_consts, oparg);
+            Py_ssize_t list_size = PyLong_AsLong(PyTuple_GET_ITEM(list_info, 1));
             list = Ci_CheckedList_New(type, list_size);
             Py_DECREF(type);
 
