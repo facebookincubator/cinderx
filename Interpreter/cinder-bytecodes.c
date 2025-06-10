@@ -486,8 +486,14 @@ dummy_func(
               SETLOCAL(idx, box_primitive(type, value));
             }
         }
-    
-        inst(LOAD_FIELD, (self -- value)) {
+
+        family(load_super_attr, INLINE_CACHE_ENTRIES_LOAD_FIELD) = {
+            LOAD_FIELD,
+            LOAD_OBJ_FIELD,
+            LOAD_PRIMITIVE_FIELD,
+        };
+
+        inst(LOAD_FIELD, (unused/2, self -- value)) {
             PyObject* field = GETITEM(frame->f_code->co_consts, oparg);
             int field_type;
             Py_ssize_t offset =
@@ -498,14 +504,11 @@ dummy_func(
 
             if (field_type == TYPED_OBJECT) {
                 value = *FIELD_OFFSET(self, offset);
-#ifdef ADAPTIVE
-                if (shadow.shadow != NULL) {
-                    assert(offset % sizeof(PyObject*) == 0);
-                    _PyShadow_PatchByteCode(
-                        &shadow,
-                        next_instr,
-                        LOAD_OBJ_FIELD,
-                        offset / sizeof(PyObject*));
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (offset < INT32_MAX) {
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = offset;
+                    _Ci_specialize(next_instr, LOAD_OBJ_FIELD);
                 }
 #endif
 
@@ -521,13 +524,12 @@ dummy_func(
                 }
                 Py_INCREF(value);
             } else {
-#ifdef ADAPTIVE
-                if (shadow.shadow != NULL) {
-                    int pos = _PyShadow_CacheFieldType(&shadow, offset, field_type);
-                    if (pos != -1) {
-                    _PyShadow_PatchByteCode(
-                        &shadow, next_instr, LOAD_PRIMITIVE_FIELD, pos);
-                    }
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (offset <= INT32_MAX >> 8) {
+                    assert(field_type < 0xff);
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = offset << 8 | field_type;
+                    _Ci_specialize(next_instr, LOAD_PRIMITIVE_FIELD);
                 }
 #endif
 
@@ -537,6 +539,29 @@ dummy_func(
                 }
             }
             Py_DECREF(self);
+        }
+
+        inst(LOAD_OBJ_FIELD, (offset/2, self -- value)) {
+            PyObject** addr = FIELD_OFFSET(self, offset);
+            value = *addr;
+
+            if (value == NULL) {
+              PyErr_Format(
+                  PyExc_AttributeError,
+                  "'%.50s' object has no attribute",
+                  Py_TYPE(self)->tp_name);
+              goto error;
+            }
+            Py_INCREF(value);
+            DECREF_INPUTS();
+        }
+
+        inst(LOAD_PRIMITIVE_FIELD, (field_type/2, self -- value)) {
+            value =
+                load_field(field_type & 0xff, ((char*)TOP()) + (field_type >> 8));
+
+            DECREF_INPUTS();
+            ERROR_IF(value == NULL, error);
         }
 
         inst(STORE_FIELD, (value, self --)) {

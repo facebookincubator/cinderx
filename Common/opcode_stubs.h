@@ -178,7 +178,6 @@ enum {
   X(LOAD_METHOD_TYPE_METHODLIKE)   \
   X(LOAD_METHOD_UNCACHABLE)        \
   X(LOAD_METHOD_UNSHADOWED_METHOD) \
-  X(LOAD_PRIMITIVE_FIELD)          \
   X(MAKE_OPNAME)                   \
   X(ROT_FOUR)                      \
   X(ROT_N)                         \
