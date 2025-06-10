@@ -403,6 +403,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return 0;
         case STORE_LOCAL:
             return 1;
+        case STORE_LOCAL_CACHED:
+            return 1;
         case LOAD_FIELD:
             return 1;
         case STORE_FIELD:
@@ -871,6 +873,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case STORE_LOCAL:
             return 0;
+        case STORE_LOCAL_CACHED:
+            return 0;
         case LOAD_FIELD:
             return 1;
         case STORE_FIELD:
@@ -1147,7 +1151,8 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [TP_ALLOC] = { true, INSTR_FMT_IBC0 },
     [TP_ALLOC_CACHED] = { true, INSTR_FMT_IXC0 },
     [LOAD_LOCAL] = { true, INSTR_FMT_IB },
-    [STORE_LOCAL] = { true, INSTR_FMT_IB },
+    [STORE_LOCAL] = { true, INSTR_FMT_IBC },
+    [STORE_LOCAL_CACHED] = { true, INSTR_FMT_IXC },
     [LOAD_FIELD] = { true, INSTR_FMT_IB },
     [STORE_FIELD] = { true, INSTR_FMT_IB },
     [CAST] = { true, INSTR_FMT_IB },
