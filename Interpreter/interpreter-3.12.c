@@ -286,6 +286,13 @@ void Ci_InitOpcodes() {
 
 #define _PyOpcode_Caches _CiOpcode_Caches
 
+bool Ci_DelayAdaptiveCode = false;
+uint64_t Ci_AdaptiveThreshold = 80;
+
+bool is_adaptive_enabled(CodeExtra *extra) {
+    return !Ci_DelayAdaptiveCode || extra->calls > Ci_AdaptiveThreshold;
+}
+
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 {
@@ -348,6 +355,7 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
     }
 
     /* support for generator.throw() */
+    bool adaptive_enabled = false;
     if (throwflag) {
         if (_Py_EnterRecursivePy(tstate)) {
             goto exit_unwind;
@@ -374,18 +382,19 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
     stack_pointer = _PyFrame_GetStackPointer(frame);
 
 start_frame:
-    if (_Py_EnterRecursivePy(tstate)) {
-        goto exit_unwind;
-    }
-
     // Update call count.
     {
-      PyCodeObject* code = frame->f_code;
-      CodeExtra* extra = initCodeExtra(code);
-      if (extra == NULL) {
+        PyCodeObject* code = frame->f_code;
+        CodeExtra *extra = initCodeExtra(code);
+        if (extra == NULL) {
+          goto exit_unwind;
+        }
+        extra->calls += 1;
+        adaptive_enabled = is_adaptive_enabled(extra);
+    }
+
+    if (_Py_EnterRecursivePy(tstate)) {
         goto exit_unwind;
-      }
-      extra->calls += 1;
     }
 
 resume_frame:

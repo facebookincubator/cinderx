@@ -888,6 +888,11 @@ dummy_func(
             _PyEvalFrameClearAndPop(tstate, dying);
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
+
+            PyCodeObject* code = frame->f_code;
+            CodeExtra *extra = initCodeExtra(code);
+            assert(extra != NULL); // was allocated on entry
+            adaptive_enabled =  is_adaptive_enabled(extra);
             goto resume_frame;
         }
 
@@ -1113,6 +1118,174 @@ dummy_func(
             DECREF_INPUTS();
             ERROR_IF(map == NULL, error);
         }
-      // END BYTECODES //
+
+        // return opcodes are modified to support updating adaptive_enabled after returning
+        // from a Python -> Python call.
+        override inst(RETURN_VALUE, (retval --)) {
+            STACK_SHRINK(1);
+            assert(EMPTY());
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            _Py_LeaveRecursiveCallPy(tstate);
+            assert(frame != &entry_frame);
+            // GH-99729: We need to unlink the frame *before* clearing it:
+            _PyInterpreterFrame *dying = frame;
+            frame = cframe.current_frame = dying->previous;
+            _PyEvalFrameClearAndPop(tstate, dying);
+            frame->prev_instr += frame->return_offset;
+            _PyFrame_StackPush(frame, retval);
+
+            PyCodeObject* code = frame->f_code;
+            CodeExtra *extra = initCodeExtra(code);
+            assert(extra != NULL); // was allocated on entry
+            adaptive_enabled =  is_adaptive_enabled(extra);
+            goto resume_frame;
+        }
+
+        override inst(INSTRUMENTED_RETURN_VALUE, (retval --)) {
+            int err = _Py_call_instrumentation_arg(
+                    tstate, PY_MONITORING_EVENT_PY_RETURN,
+                    frame, next_instr-1, retval);
+            if (err) goto error;
+            STACK_SHRINK(1);
+            assert(EMPTY());
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            _Py_LeaveRecursiveCallPy(tstate);
+            assert(frame != &entry_frame);
+            // GH-99729: We need to unlink the frame *before* clearing it:
+            _PyInterpreterFrame *dying = frame;
+            frame = cframe.current_frame = dying->previous;
+            _PyEvalFrameClearAndPop(tstate, dying);
+            frame->prev_instr += frame->return_offset;
+            _PyFrame_StackPush(frame, retval);
+
+            PyCodeObject* code = frame->f_code;
+            CodeExtra *extra = initCodeExtra(code);
+            assert(extra != NULL); // was allocated on entry
+            adaptive_enabled =  is_adaptive_enabled(extra);
+            goto resume_frame;
+        }
+
+        override inst(RETURN_CONST, (--)) {
+            PyObject *retval = GETITEM(frame->f_code->co_consts, oparg);
+            Py_INCREF(retval);
+            assert(EMPTY());
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            _Py_LeaveRecursiveCallPy(tstate);
+            assert(frame != &entry_frame);
+            // GH-99729: We need to unlink the frame *before* clearing it:
+            _PyInterpreterFrame *dying = frame;
+            frame = cframe.current_frame = dying->previous;
+            _PyEvalFrameClearAndPop(tstate, dying);
+            frame->prev_instr += frame->return_offset;
+            _PyFrame_StackPush(frame, retval);
+
+            PyCodeObject* code = frame->f_code;
+            CodeExtra *extra = initCodeExtra(code);
+            assert(extra != NULL); // was allocated on entry
+            adaptive_enabled =  is_adaptive_enabled(extra);
+            goto resume_frame;
+        }
+
+        override inst(INSTRUMENTED_RETURN_CONST, (--)) {
+            PyObject *retval = GETITEM(frame->f_code->co_consts, oparg);
+            int err = _Py_call_instrumentation_arg(
+                    tstate, PY_MONITORING_EVENT_PY_RETURN,
+                    frame, next_instr-1, retval);
+            if (err) goto error;
+            Py_INCREF(retval);
+            assert(EMPTY());
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            _Py_LeaveRecursiveCallPy(tstate);
+            assert(frame != &entry_frame);
+            // GH-99729: We need to unlink the frame *before* clearing it:
+            _PyInterpreterFrame *dying = frame;
+            frame = cframe.current_frame = dying->previous;
+            _PyEvalFrameClearAndPop(tstate, dying);
+            frame->prev_instr += frame->return_offset;
+            _PyFrame_StackPush(frame, retval);
+
+            PyCodeObject* code = frame->f_code;
+            CodeExtra *extra = initCodeExtra(code);
+            assert(extra != NULL); // was allocated on entry
+            adaptive_enabled =  is_adaptive_enabled(extra);
+            goto resume_frame;
+        }
+
+        override inst(INSTRUMENTED_YIELD_VALUE, (retval -- unused)) {
+            assert(frame != &entry_frame);
+            PyGenObject *gen = _PyFrame_GetGenerator(frame);
+            gen->gi_frame_state = FRAME_SUSPENDED;
+            _PyFrame_SetStackPointer(frame, stack_pointer - 1);
+            int err = _Py_call_instrumentation_arg(
+                    tstate, PY_MONITORING_EVENT_PY_YIELD,
+                    frame, next_instr-1, retval);
+            if (err) goto error;
+            tstate->exc_info = gen->gi_exc_state.previous_item;
+            gen->gi_exc_state.previous_item = NULL;
+            _Py_LeaveRecursiveCallPy(tstate);
+            _PyInterpreterFrame *gen_frame = frame;
+            frame = cframe.current_frame = frame->previous;
+            gen_frame->previous = NULL;
+            _PyFrame_StackPush(frame, retval);
+
+            PyCodeObject* code = frame->f_code;
+            CodeExtra *extra = initCodeExtra(code);
+            assert(extra != NULL); // was allocated on entry
+            adaptive_enabled =  is_adaptive_enabled(extra);
+            goto resume_frame;
+        }
+
+        override inst(YIELD_VALUE, (retval -- unused)) {
+            // NOTE: It's important that YIELD_VALUE never raises an exception!
+            // The compiler treats any exception raised here as a failed close()
+            // or throw() call.
+            assert(frame != &entry_frame);
+            PyGenObject *gen = _PyFrame_GetGenerator(frame);
+            gen->gi_frame_state = FRAME_SUSPENDED;
+            _PyFrame_SetStackPointer(frame, stack_pointer - 1);
+            tstate->exc_info = gen->gi_exc_state.previous_item;
+            gen->gi_exc_state.previous_item = NULL;
+            _Py_LeaveRecursiveCallPy(tstate);
+            _PyInterpreterFrame *gen_frame = frame;
+            frame = cframe.current_frame = frame->previous;
+            gen_frame->previous = NULL;
+            _PyFrame_StackPush(frame, retval);
+
+            PyCodeObject* code = frame->f_code;
+            CodeExtra *extra = initCodeExtra(code);
+            assert(extra != NULL); // was allocated on entry
+            adaptive_enabled =  is_adaptive_enabled(extra);
+            goto resume_frame;
+        }
+
+        override inst(RETURN_GENERATOR, (--)) {
+            assert(PyFunction_Check(frame->f_funcobj));
+            PyFunctionObject *func = (PyFunctionObject *)frame->f_funcobj;
+            PyGenObject *gen = (PyGenObject *)_Py_MakeCoro(func);
+            if (gen == NULL) {
+                goto error;
+            }
+            assert(EMPTY());
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            _PyInterpreterFrame *gen_frame = (_PyInterpreterFrame *)gen->gi_iframe;
+            _PyFrame_Copy(frame, gen_frame);
+            assert(frame->frame_obj == NULL);
+            gen->gi_frame_state = FRAME_CREATED;
+            gen_frame->owner = FRAME_OWNED_BY_GENERATOR;
+            _Py_LeaveRecursiveCallPy(tstate);
+            assert(frame != &entry_frame);
+            _PyInterpreterFrame *prev = frame->previous;
+            _PyThreadState_PopFrame(tstate, frame);
+            frame = cframe.current_frame = prev;
+            _PyFrame_StackPush(frame, (PyObject *)gen);
+
+            PyCodeObject* code = frame->f_code;
+            CodeExtra *extra = initCodeExtra(code);
+            assert(extra != NULL); // was allocated on entry
+            adaptive_enabled =  is_adaptive_enabled(extra);
+            goto resume_frame;
+        }
+
+        // END BYTECODES //
     }
 }

@@ -293,16 +293,16 @@ GETITEM(PyObject *v, Py_ssize_t i) {
     (((COUNTER) >> ADAPTIVE_BACKOFF_BITS) == ((1 << MAX_BACKOFF_VALUE) - 1))
 
 #define DECREMENT_ADAPTIVE_COUNTER(COUNTER)           \
-    do {                                              \
+    if (adaptive_enabled) {                           \
         assert(!ADAPTIVE_COUNTER_IS_ZERO((COUNTER))); \
         (COUNTER) -= (1 << ADAPTIVE_BACKOFF_BITS);    \
-    } while (0);
+    }
 
 #define INCREMENT_ADAPTIVE_COUNTER(COUNTER)          \
-    do {                                             \
+    if (adaptive_enabled) {                          \
         assert(!ADAPTIVE_COUNTER_IS_MAX((COUNTER))); \
         (COUNTER) += (1 << ADAPTIVE_BACKOFF_BITS);   \
-    } while (0);
+    }
 
 #define NAME_ERROR_MSG "name '%.200s' is not defined"
 

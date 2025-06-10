@@ -290,6 +290,49 @@ PyObject* is_compile_perf_trampoline_pre_fork_enabled(PyObject*, PyObject*) {
   Py_RETURN_FALSE;
 }
 
+#if PY_VERSION_HEX >= 0x030C0000
+PyDoc_STRVAR(
+    cinder_delay_adaptive_doc,
+    "delay_adaptive($module, delay, /)\n"
+    "--\n"
+    "\n"
+    "Enables or disables delaying adaptive code until a function is hot.");
+PyObject* cinder_delay_adaptive(PyObject* mod, PyObject* delay) {
+  if (!PyBool_Check(delay)) {
+    PyErr_SetString(PyExc_TypeError, "expected bool");
+  }
+
+  Ci_DelayAdaptiveCode = delay == Py_True;
+  Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(
+    cinder_set_adaptive_delay_doc,
+    "set_adaptive_delay($module, delay, /)\n"
+    "--\n"
+    "\n"
+    "Sets the adaptive delay");
+PyObject* cinder_set_adaptive_delay(PyObject* mod, PyObject* delay) {
+  if (!PyLong_Check(delay)) {
+    PyErr_SetString(PyExc_TypeError, "expected long");
+  }
+
+  Ci_AdaptiveThreshold = PyLong_AsLong(delay);
+  Py_RETURN_NONE;
+}
+
+PyDoc_STRVAR(
+    cinder_get_adaptive_delay_doc,
+    "get_adaptive_delay($module, /)\n"
+    "--\n"
+    "\n"
+    "Gets the adaptive delay");
+PyObject* cinder_get_adaptive_delay(PyObject* mod, PyObject*) {
+  return PyLong_FromUnsignedLongLong(Ci_AdaptiveThreshold);
+}
+
+#endif
+
 // In 3.12+ we don't have a shadow-stack so there's no need for our own
 // stack-walking functions.
 #if PY_VERSION_HEX < 0x030C0000
@@ -1092,6 +1135,18 @@ PyMethodDef _cinderx_methods[] = {
      "the async\n"
      "iterator is exhausted, it is returned instead of raising "
      "StopAsyncIteration."},
+    {"delay_adaptive",
+     cinder_delay_adaptive,
+     METH_O,
+     cinder_delay_adaptive_doc},
+    {"set_adaptive_delay",
+     cinder_set_adaptive_delay,
+     METH_O,
+     cinder_set_adaptive_delay_doc},
+    {"get_adaptive_delay",
+     cinder_get_adaptive_delay,
+     METH_NOARGS,
+     cinder_get_adaptive_delay_doc},
 #endif
     {nullptr, nullptr, 0, nullptr}};
 

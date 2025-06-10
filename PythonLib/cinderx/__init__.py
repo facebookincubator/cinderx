@@ -97,6 +97,9 @@ try:
             clear_all_shadow_caches,
         )
 
+    if sys.version_info >= (3, 12):
+        from _cinderx import delay_adaptive, get_adaptive_delay, set_adaptive_delay
+
 except ImportError as e:
     _import_error = e
 

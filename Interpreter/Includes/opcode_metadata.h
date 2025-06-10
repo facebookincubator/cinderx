@@ -107,22 +107,10 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return oparg;
         case INTERPRETER_EXIT:
             return 1;
-        case RETURN_VALUE:
-            return 1;
-        case INSTRUMENTED_RETURN_VALUE:
-            return 1;
-        case RETURN_CONST:
-            return 0;
-        case INSTRUMENTED_RETURN_CONST:
-            return 0;
         case GET_AITER:
             return 1;
         case SEND:
             return 2;
-        case INSTRUMENTED_YIELD_VALUE:
-            return 1;
-        case YIELD_VALUE:
-            return 1;
         case POP_EXCEPT:
             return 1;
         case RERAISE:
@@ -353,8 +341,6 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return ((oparg & 1) ? 1 : 0) + 3;
         case MAKE_FUNCTION:
             return ((oparg & 0x01) ? 1 : 0) + ((oparg & 0x02) ? 1 : 0) + ((oparg & 0x04) ? 1 : 0) + ((oparg & 0x08) ? 1 : 0) + 1;
-        case RETURN_GENERATOR:
-            return 0;
         case BUILD_SLICE:
             return ((oparg == 3) ? 1 : 0) + 2;
         case FORMAT_VALUE:
@@ -461,6 +447,20 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return (build_checked_obj_size(frame->f_code->co_consts, oparg));
         case BUILD_CHECKED_MAP:
             return (build_checked_obj_size(frame->f_code->co_consts, oparg) * 2);
+        case RETURN_VALUE:
+            return 1;
+        case INSTRUMENTED_RETURN_VALUE:
+            return 1;
+        case RETURN_CONST:
+            return 0;
+        case INSTRUMENTED_RETURN_CONST:
+            return 0;
+        case INSTRUMENTED_YIELD_VALUE:
+            return 1;
+        case YIELD_VALUE:
+            return 1;
+        case RETURN_GENERATOR:
+            return 0;
         default:
             return -1;
     }
@@ -567,22 +567,10 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 0;
         case INTERPRETER_EXIT:
             return 0;
-        case RETURN_VALUE:
-            return 0;
-        case INSTRUMENTED_RETURN_VALUE:
-            return 0;
-        case RETURN_CONST:
-            return 0;
-        case INSTRUMENTED_RETURN_CONST:
-            return 0;
         case GET_AITER:
             return 1;
         case SEND:
             return 2;
-        case INSTRUMENTED_YIELD_VALUE:
-            return 1;
-        case YIELD_VALUE:
-            return 1;
         case POP_EXCEPT:
             return 0;
         case RERAISE:
@@ -813,8 +801,6 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case MAKE_FUNCTION:
             return 1;
-        case RETURN_GENERATOR:
-            return 0;
         case BUILD_SLICE:
             return 1;
         case FORMAT_VALUE:
@@ -921,6 +907,20 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case BUILD_CHECKED_MAP:
             return 1;
+        case RETURN_VALUE:
+            return 0;
+        case INSTRUMENTED_RETURN_VALUE:
+            return 0;
+        case RETURN_CONST:
+            return 0;
+        case INSTRUMENTED_RETURN_CONST:
+            return 0;
+        case INSTRUMENTED_YIELD_VALUE:
+            return 1;
+        case YIELD_VALUE:
+            return 1;
+        case RETURN_GENERATOR:
+            return 0;
         default:
             return -1;
     }
@@ -984,14 +984,8 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [CALL_INTRINSIC_2] = { true, INSTR_FMT_IB },
     [RAISE_VARARGS] = { true, INSTR_FMT_IB },
     [INTERPRETER_EXIT] = { true, INSTR_FMT_IX },
-    [RETURN_VALUE] = { true, INSTR_FMT_IX },
-    [INSTRUMENTED_RETURN_VALUE] = { true, INSTR_FMT_IX },
-    [RETURN_CONST] = { true, INSTR_FMT_IB },
-    [INSTRUMENTED_RETURN_CONST] = { true, INSTR_FMT_IB },
     [GET_AITER] = { true, INSTR_FMT_IX },
     [SEND] = { true, INSTR_FMT_IBC },
-    [INSTRUMENTED_YIELD_VALUE] = { true, INSTR_FMT_IX },
-    [YIELD_VALUE] = { true, INSTR_FMT_IX },
     [POP_EXCEPT] = { true, INSTR_FMT_IX },
     [RERAISE] = { true, INSTR_FMT_IB },
     [END_ASYNC_FOR] = { true, INSTR_FMT_IX },
@@ -1107,7 +1101,6 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [INSTRUMENTED_CALL_FUNCTION_EX] = { true, INSTR_FMT_IX },
     [CALL_FUNCTION_EX] = { true, INSTR_FMT_IB },
     [MAKE_FUNCTION] = { true, INSTR_FMT_IB },
-    [RETURN_GENERATOR] = { true, INSTR_FMT_IX },
     [BUILD_SLICE] = { true, INSTR_FMT_IB },
     [FORMAT_VALUE] = { true, INSTR_FMT_IB },
     [COPY] = { true, INSTR_FMT_IB },
@@ -1161,5 +1154,12 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [INVOKE_NATIVE] = { true, INSTR_FMT_IB },
     [BUILD_CHECKED_LIST] = { true, INSTR_FMT_IB },
     [BUILD_CHECKED_MAP] = { true, INSTR_FMT_IB },
+    [RETURN_VALUE] = { true, INSTR_FMT_IX },
+    [INSTRUMENTED_RETURN_VALUE] = { true, INSTR_FMT_IX },
+    [RETURN_CONST] = { true, INSTR_FMT_IB },
+    [INSTRUMENTED_RETURN_CONST] = { true, INSTR_FMT_IB },
+    [INSTRUMENTED_YIELD_VALUE] = { true, INSTR_FMT_IX },
+    [YIELD_VALUE] = { true, INSTR_FMT_IX },
+    [RETURN_GENERATOR] = { true, INSTR_FMT_IX },
 };
 #endif
