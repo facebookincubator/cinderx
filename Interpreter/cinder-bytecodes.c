@@ -1002,7 +1002,7 @@ dummy_func(
             ERROR_IF(res == NULL, error);
         }
 
-        inst(LOAD_METHOD_STATIC, (self -- func, self)) {
+        inst(LOAD_METHOD_STATIC, (unused/2, self -- func, self)) {
             PyObject* value = GETITEM(frame->f_code->co_consts, oparg);
             PyObject* target = PyTuple_GET_ITEM(value, 0);
             int is_classmethod = _PyClassLoader_IsClassMethodDescr(value);
@@ -1012,19 +1012,17 @@ dummy_func(
                 goto error;
             }
 
-#if ADAPTIVE
-            assert(*(next_instr - 2) == EXTENDED_ARG);
-            if (shadow.shadow != NULL && slot < 0x80) {
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+            // We encode class method as the low bit hence the >> 1.
+            if (slot < (INT32_MAX >> 1)) {
                 /* We smuggle in the information about whether the invocation was a
                 * classmethod in the low bit of the oparg. This is necessary, as
                 * without, the runtime won't be able to get the correct vtable from
                 * self when the type is passed in.
                 */
-                _PyShadow_PatchByteCode(
-                    &shadow,
-                    next_instr,
-                    LOAD_METHOD_STATIC_CACHED,
-                    load_method_static_cached_oparg(slot, is_classmethod));
+                int32_t *cache = (int32_t*)next_instr;
+                *cache = load_method_static_cached_oparg(slot, is_classmethod);
+                _Ci_specialize(next_instr, LOAD_METHOD_STATIC_CACHED);
             }
 #endif
 
@@ -1035,6 +1033,28 @@ dummy_func(
                 vtable = (_PyType_VTable*)self->ob_type->tp_cache;
             }
 
+            assert(!PyErr_Occurred());
+            StaticMethodInfo res =
+                _PyClassLoader_LoadStaticMethod(vtable, slot, self);
+            if (res.lmr_func == NULL) {
+                goto error;
+            }
+
+            func = res.lmr_func;
+        }
+
+        inst(LOAD_METHOD_STATIC_CACHED, (cache/2, self -- func, self)) {
+            bool is_classmethod =
+                load_method_static_cached_oparg_is_classmethod(cache);
+            Py_ssize_t slot = load_method_static_cached_oparg_slot(cache);
+   
+            _PyType_VTable* vtable;
+            if (is_classmethod) {
+                vtable = (_PyType_VTable*)(((PyTypeObject*)self)->tp_cache);
+            } else {
+                vtable = (_PyType_VTable*)self->ob_type->tp_cache;
+            }
+    
             assert(!PyErr_Occurred());
             StaticMethodInfo res =
                 _PyClassLoader_LoadStaticMethod(vtable, slot, self);

@@ -146,3 +146,12 @@ def init(
     def_op("LOAD_METHOD_STATIC", 220)
     hasconst.append(220)
     hasarg.append(220)
+    cache_format["LOAD_METHOD_STATIC"] = "{'cache': 2}"
+    inline_cache_entries[220] = 2
+    def_op("LOAD_METHOD_STATIC_CACHED", 221)
+    hasconst.append(221)
+    hasarg.append(221)
+    if "LOAD_METHOD_STATIC" not in specializations:
+        specializations["LOAD_METHOD_STATIC"] = []
+    specializations["LOAD_METHOD_STATIC"].append("LOAD_METHOD_STATIC_CACHED")
+    inline_cache_entries[221] = 2

@@ -49,6 +49,8 @@ const uint8_t _CiOpcode_Caches[256] = {
     [INVOKE_INDIRECT_CACHED] = 4,
     [TP_ALLOC] = 2,
     [TP_ALLOC_CACHED] = 2,
+    [LOAD_METHOD_STATIC] = 2,
+    [LOAD_METHOD_STATIC_CACHED] = 2,
 };
 
 const uint8_t _CiOpcode_Deopt[256] = {
@@ -208,6 +210,7 @@ const uint8_t _CiOpcode_Deopt[256] = {
     [LOAD_LOCALS] = LOAD_LOCALS,
     [LOAD_MAPPING_ARG] = LOAD_MAPPING_ARG,
     [LOAD_METHOD_STATIC] = LOAD_METHOD_STATIC,
+    [LOAD_METHOD_STATIC_CACHED] = LOAD_METHOD_STATIC,
     [LOAD_NAME] = LOAD_NAME,
     [LOAD_SUPER_ATTR] = LOAD_SUPER_ATTR,
     [LOAD_SUPER_ATTR_ATTR] = LOAD_SUPER_ATTR,
@@ -510,7 +513,7 @@ static const char* const _CiOpcode_OpName[267] = {
     [TP_ALLOC] = "TP_ALLOC",
     [TP_ALLOC_CACHED] = "TP_ALLOC_CACHED",
     [LOAD_METHOD_STATIC] = "LOAD_METHOD_STATIC",
-    [221] = "<221>",
+    [LOAD_METHOD_STATIC_CACHED] = "LOAD_METHOD_STATIC_CACHED",
     [222] = "<222>",
     [223] = "<223>",
     [224] = "<224>",
@@ -569,7 +572,6 @@ static const char* const _CiOpcode_OpName[267] = {
   case 181:            \
   case 182:            \
   case 184:            \
-  case 221:            \
   case 222:            \
   case 223:            \
   case 224:            \

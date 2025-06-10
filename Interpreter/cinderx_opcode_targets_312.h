@@ -220,7 +220,7 @@ static void* opcode_targets[256] = {
     &&TARGET_TP_ALLOC,
     &&TARGET_TP_ALLOC_CACHED,
     &&TARGET_LOAD_METHOD_STATIC,
-    &&_unknown_opcode,
+    &&TARGET_LOAD_METHOD_STATIC_CACHED,
     &&_unknown_opcode,
     &&_unknown_opcode,
     &&_unknown_opcode,

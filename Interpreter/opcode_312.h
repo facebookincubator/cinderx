@@ -158,6 +158,7 @@ extern "C" {
   X(TP_ALLOC, 218)                                 \
   X(TP_ALLOC_CACHED, 219)                          \
   X(LOAD_METHOD_STATIC, 220)                       \
+  X(LOAD_METHOD_STATIC_CACHED, 221)                \
   X(MIN_INSTRUMENTED_OPCODE, 237)                  \
   X(INSTRUMENTED_LOAD_SUPER_ATTR, 237)             \
   X(INSTRUMENTED_POP_JUMP_IF_NONE, 238)            \
@@ -272,7 +273,8 @@ extern "C" {
    ((op) == INVOKE_NATIVE) || ((op) == LOAD_CLASS) ||                       \
    ((op) == BUILD_CHECKED_MAP) || ((op) == REFINE_TYPE) ||                  \
    ((op) == PRIMITIVE_LOAD_CONST) || ((op) == TP_ALLOC) ||                  \
-   ((op) == TP_ALLOC_CACHED) || ((op) == LOAD_METHOD_STATIC))
+   ((op) == TP_ALLOC_CACHED) || ((op) == LOAD_METHOD_STATIC) ||             \
+   ((op) == LOAD_METHOD_STATIC_CACHED))
 
 #define NB_ADD 0
 #define NB_AND 1

@@ -301,6 +301,18 @@ _Ci_specialize(_Py_CODEUNIT *next_instr, int opcode)
     (next_instr - 1)->op.code = opcode;
 }
 
+int load_method_static_cached_oparg(Py_ssize_t slot, bool is_classmethod) {
+    return (slot << 1) | (is_classmethod ? 1 : 0);
+}
+
+bool load_method_static_cached_oparg_is_classmethod(int oparg) {
+    return (oparg & 1) != 0;
+}
+
+Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
+    return oparg >> 1;
+}
+
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 {

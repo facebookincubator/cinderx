@@ -77,5 +77,7 @@ CINDER_OPS: dict[str, int | Family] = {
         },
         "TP_ALLOC_CACHED",
     ),
-    "LOAD_METHOD_STATIC": CONST | IMPLEMENTED_IN_INTERPRETER,
+    "LOAD_METHOD_STATIC": Family(
+        CONST | IMPLEMENTED_IN_INTERPRETER, {"cache": 2}, "LOAD_METHOD_STATIC_CACHED"
+    ),
 }
