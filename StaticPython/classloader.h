@@ -195,6 +195,14 @@ PyObject* _PyClassLoader_InvokeMethod(
     PyObject** args,
     Py_ssize_t nargsf);
 
+// Caches a value for the adaptive interpreter
+int32_t _PyClassLoader_CacheValue(PyObject* type);
+
+// Gets a cached value for the adaptive interpreter
+PyObject* _PyClassLoader_GetCachedValue(int32_t type);
+
+void _PyClassLoader_ClearValueCache();
+
 #endif
 
 #ifdef __cplusplus

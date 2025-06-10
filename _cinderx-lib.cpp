@@ -73,6 +73,7 @@ PyObject* clear_caches(PyObject* mod, PyObject*) {
   auto state = (cinderx::ModuleState*)PyModule_GetState(mod);
   state->cacheManager()->clear();
   _PyCheckedDict_ClearCaches();
+  _PyClassLoader_ClearValueCache();
   // We replace sys._clear_type_cache with our own function which
   // clears the caches, so we should call this too.
   if constexpr (PY_VERSION_HEX >= 0x030C0000) {
@@ -899,6 +900,7 @@ int cinder_init() {
 // process shutdown.
 int cinder_fini() {
   _PyClassLoader_ClearCache();
+  _PyClassLoader_ClearValueCache();
 
   PyThreadState* tstate = PyThreadState_Get();
   bool code_running =

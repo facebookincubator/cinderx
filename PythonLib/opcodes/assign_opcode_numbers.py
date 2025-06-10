@@ -96,9 +96,8 @@ def process_opcode(
         if cache_format is not None:
             out.append(f'    cache_format["{name}"] = "{cache_format}"')
         if parent:
-            out.append(
-                f'    if "{parent}" not in specializations: specializations["{parent}"] = []'
-            )
+            out.append(f'    if "{parent}" not in specializations:')
+            out.append(f'        specializations["{parent}"] = []')
             out.append(f'    specializations["{parent}"].append("{name}")')
         if cache_size:
             out.append(f"    inline_cache_entries[{opcode_idx}] = {cache_size}")

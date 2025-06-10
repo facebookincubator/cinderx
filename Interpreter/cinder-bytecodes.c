@@ -388,7 +388,18 @@ dummy_func(
         inst(REFINE_TYPE, (unused -- unused)) {
         }
 
-        inst(TP_ALLOC, (-- inst)) {
+        family(load_super_attr, INLINE_CACHE_ENTRIES_LOAD_SUPER_ATTR) = {
+            LOAD_SUPER_ATTR,
+            LOAD_SUPER_ATTR_ATTR,
+            LOAD_SUPER_ATTR_METHOD,
+        };
+
+        family(tp_alloc, TP_ALLOC_CACHE_SIZE) = {
+            TP_ALLOC,
+            TP_ALLOC_CACHED,
+        };
+
+        inst(TP_ALLOC, (unused/2 -- inst)) {
             int optional;
             int exact;
             PyTypeObject* type = _PyClassLoader_ResolveType(
@@ -400,15 +411,23 @@ dummy_func(
             Py_DECREF(type);
             ERROR_IF(inst == NULL, error);
 
-#ifdef ADAPTIVE
-            if (shadow.shadow != NULL) {
-                int offset = _PyShadow_CacheCastType(&shadow, (PyObject*)type);
-                if (offset != -1) {
-                    _PyShadow_PatchByteCode(
-                        &shadow, next_instr, TP_ALLOC_CACHED, offset);
-                }
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+            int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
+            if (index >= 0) {
+                int32_t *cache = (int32_t*)next_instr;
+                *cache = index;
+                _Ci_specialize(next_instr, TP_ALLOC_CACHED);
             }
-#endif
+ #endif
+        }
+
+        inst(TP_ALLOC_CACHED, (cache/2 -- inst)) {
+            PyTypeObject* type = (PyTypeObject *)_PyClassLoader_GetCachedValue(cache);
+            DEOPT_IF(type == NULL, TP_ALLOC);
+
+            inst = type->tp_alloc(type, 0);
+            Py_DECREF(type);
+            ERROR_IF(inst == NULL, error);
         }
 
         inst(LOAD_LOCAL, (-- value))  {

@@ -22,7 +22,6 @@
 
 #include "cinderx/Jit/generators_rt.h"
 
-
 /* _PyEval_EvalFrameDefault() is a *big* function,
  * so consume 3 units of C stack */
 #define PY_EVAL_C_STACK_UNITS 2
@@ -272,6 +271,8 @@ static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
         Py_INCREF(res);                                                            \
         break;
 
+#define TP_ALLOC_CACHE_SIZE 2
+
 void Ci_InitOpcodes() {
 #ifdef ENABLE_ADAPTIVE_STATIC_PYTHON
     // patch CPython's opcode data
@@ -291,6 +292,12 @@ uint64_t Ci_AdaptiveThreshold = 80;
 
 bool is_adaptive_enabled(CodeExtra *extra) {
     return !Ci_DelayAdaptiveCode || extra->calls > Ci_AdaptiveThreshold;
+}
+
+static void
+_Ci_specialize(_Py_CODEUNIT *next_instr, int opcode)
+{
+    (next_instr - 1)->op.code = opcode;
 }
 
 PyObject* _Py_HOT_FUNCTION

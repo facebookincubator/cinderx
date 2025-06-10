@@ -44,6 +44,8 @@ const uint8_t _CiOpcode_Caches[256] = {
     [SEND] = 1,
     [LOAD_SUPER_ATTR] = 1,
     [CALL] = 3,
+    [TP_ALLOC] = 2,
+    [TP_ALLOC_CACHED] = 2,
 };
 
 const uint8_t _CiOpcode_Deopt[256] = {
@@ -264,6 +266,7 @@ const uint8_t _CiOpcode_Deopt[256] = {
     [STORE_SUBSCR_LIST_INT] = STORE_SUBSCR,
     [SWAP] = SWAP,
     [TP_ALLOC] = TP_ALLOC,
+    [TP_ALLOC_CACHED] = TP_ALLOC,
     [UNARY_INVERT] = UNARY_INVERT,
     [UNARY_NEGATIVE] = UNARY_NEGATIVE,
     [UNARY_NOT] = UNARY_NOT,
@@ -498,8 +501,8 @@ static const char* const _CiOpcode_OpName[267] = {
     [PRIMITIVE_LOAD_CONST] = "PRIMITIVE_LOAD_CONST",
     [RETURN_PRIMITIVE] = "RETURN_PRIMITIVE",
     [TP_ALLOC] = "TP_ALLOC",
+    [TP_ALLOC_CACHED] = "TP_ALLOC_CACHED",
     [LOAD_METHOD_STATIC] = "LOAD_METHOD_STATIC",
-    [218] = "<218>",
     [219] = "<219>",
     [220] = "<220>",
     [221] = "<221>",
@@ -561,7 +564,6 @@ static const char* const _CiOpcode_OpName[267] = {
   case 181:            \
   case 182:            \
   case 184:            \
-  case 218:            \
   case 219:            \
   case 220:            \
   case 221:            \

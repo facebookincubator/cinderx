@@ -879,3 +879,67 @@ void* _PyClassloader_LookupSymbol(PyObject* lib_name, PyObject* symbol_name) {
   Py_DECREF(res);
   return addr;
 }
+
+// Python list used to cache values
+static PyObject* value_cache;
+// Dictionary of cached object -> index
+static PyObject* value_indices;
+// Current offset for type cache. When the type cache is cleared this
+// gets incremented by the current size so that we don't reuse previous
+// slots and any existing caches will fail.
+static int32_t type_index_offset;
+
+void _PyClassLoader_ClearValueCache() {
+  if (value_cache == NULL) {
+    return;
+  }
+  type_index_offset += PyList_Size(value_cache);
+  Py_CLEAR(value_cache);
+  Py_CLEAR(value_indices);
+}
+
+int32_t _PyClassLoader_CacheValue(PyObject* value) {
+  if (value_cache == NULL) {
+    value_cache = PyList_New(0);
+    if (value_cache == NULL) {
+      return -1;
+    }
+  }
+  if (value_indices == NULL) {
+    value_indices = PyDict_New();
+    if (value_indices == NULL) {
+      return -1;
+    }
+  }
+  PyObject* index = PyDict_GetItem(value_indices, (PyObject*)value);
+  if (index != NULL) {
+    return PyLong_AsLong(index);
+  }
+
+  Py_ssize_t iindex = PyList_GET_SIZE(value_cache) + type_index_offset;
+  PyObject* pyindex = PyLong_FromLong(iindex);
+  if (pyindex == NULL) {
+    return -1;
+  }
+
+  if (PyList_Append(value_cache, value) < 0) {
+    Py_DECREF(pyindex);
+    return -1;
+  }
+
+  if (PyDict_SetItem(value_indices, value, pyindex) < 0) {
+    Py_SET_SIZE((PyVarObject*)value_cache, iindex - type_index_offset);
+    Py_DECREF(pyindex);
+    return -1;
+  }
+  Py_DECREF(pyindex);
+  return iindex;
+}
+
+PyObject* _PyClassLoader_GetCachedValue(int32_t type) {
+  if (value_cache == NULL || type < type_index_offset) {
+    return NULL;
+  }
+  type -= type_index_offset;
+  return Py_XNewRef(PyList_GetItem(value_cache, type));
+}

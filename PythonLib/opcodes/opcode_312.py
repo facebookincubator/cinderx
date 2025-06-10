@@ -118,6 +118,15 @@ def init(
     def_op("TP_ALLOC", 216)
     hasconst.append(216)
     hasarg.append(216)
-    def_op("LOAD_METHOD_STATIC", 217)
+    cache_format["TP_ALLOC"] = "{'cache': 2}"
+    inline_cache_entries[216] = 2
+    def_op("TP_ALLOC_CACHED", 217)
     hasconst.append(217)
     hasarg.append(217)
+    if "TP_ALLOC" not in specializations:
+        specializations["TP_ALLOC"] = []
+    specializations["TP_ALLOC"].append("TP_ALLOC_CACHED")
+    inline_cache_entries[217] = 2
+    def_op("LOAD_METHOD_STATIC", 218)
+    hasconst.append(218)
+    hasarg.append(218)
