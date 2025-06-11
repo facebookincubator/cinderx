@@ -22,6 +22,8 @@ namespace jit {
 struct SplitMutator {
   PyObject* getAttr(PyObject* obj, PyObject* name);
   int setAttr(PyObject* obj, PyObject* name, PyObject* value);
+  bool canInsertToSplitDict(BorrowedRef<PyDictObject> dict, BorrowedRef<> name);
+  bool ensureValueOffset(BorrowedRef<> name);
 
   uint32_t dict_offset;
   uint32_t val_offset;

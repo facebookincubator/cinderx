@@ -155,16 +155,90 @@ void maybeCollectCacheStats(
 
 } // namespace
 
+PyDictKeysObject* getSplitKeys(BorrowedRef<PyTypeObject> type) {
+  assert(PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE));
+  PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(type.get());
+  return ht->ht_cached_keys;
+}
+
+bool SplitMutator::canInsertToSplitDict(
+    BorrowedRef<PyDictObject> dict,
+    BorrowedRef<> name) {
+  if (dict->ma_keys != keys) {
+    return false;
+  }
+#if PY_VERSION_HEX >= 0x030C0000
+  // In 3.12 we can insert in any order, we just need to update the insertion
+  // order
+  return (
+      val_offset != -1 || (val_offset = getDictKeysIndex(keys, name)) != -1);
+#else
+  return (
+      (dict->ma_used == val_offset) ||
+      (DICT_VALUES(dict.get())[val_offset] != nullptr));
+#endif
+}
+
+bool SplitMutator::ensureValueOffset(BorrowedRef<> name) {
+#if PY_VERSION_HEX >= 0x030C0000
+  if (val_offset == -1) {
+    val_offset = getDictKeysIndex(keys, name);
+    if (val_offset == -1) {
+      return false;
+    }
+  }
+#else
+  assert(val_offset != -1);
+#endif
+  return true;
+}
+
 int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
+#if PY_VERSION_HEX >= 0x030C0000
+  PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
+  if (_PyDictOrValues_IsValues(dorv)) {
+    // Values are stored in a values array not attached to a dictionary.
+    if (!ensureValueOffset(name)) {
+      return PyObject_SetAttr(obj, name, value);
+    }
+
+    PyDictValues* values = _PyDictOrValues_GetValues(dorv);
+    PyObject* old_value = values->values[val_offset];
+    values->values[val_offset] = value;
+    Py_INCREF(value);
+    if (old_value == NULL) {
+      _PyDictValues_AddToInsertionOrder(values, val_offset);
+    } else {
+      Py_DECREF(old_value);
+    }
+    return 0;
+  }
+
+  // Dictionary has been materialized but may still be using shared keys.
+  BorrowedRef<PyDictObject> dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
+  if (dict == nullptr) {
+    dict = (PyDictObject*)PyObject_GenericGetDict(obj, nullptr);
+    if (dict == nullptr) {
+      return -1;
+    }
+    Py_DECREF(dict);
+  }
+#else
   BorrowedRef<PyDictObject> dict = get_or_allocate_dict(obj, dict_offset);
+#endif
+
   if (dict == nullptr) {
     return -1;
   }
-  if ((dict->ma_keys == keys) &&
-      ((dict->ma_used == val_offset) ||
-       (DICT_VALUES(dict.get())[val_offset] != nullptr))) {
-    PyObject* old_value = DICT_VALUES(dict.get())[val_offset];
 
+  if (canInsertToSplitDict(dict, name)) {
+    PyObject* old_value = DICT_VALUES(dict.get())[val_offset];
+#if PY_VERSION_HEX >= 0x030C0000
+    if (old_value == nullptr) {
+      // Track insertion order on 3.12.
+      _PyDictValues_AddToInsertionOrder(dict->ma_values, val_offset);
+    }
+#endif
     if (!_PyObject_GC_IS_TRACKED(dict.getObj())) {
       if (_PyObject_GC_MAY_BE_TRACKED(value)) {
         _PyObject_GC_TRACK(dict.getObj());
@@ -192,12 +266,35 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 }
 
 PyObject* SplitMutator::getAttr(PyObject* obj, PyObject* name) {
+#if PY_VERSION_HEX >= 0x030C0000
+  PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
+  if (_PyDictOrValues_IsValues(dorv)) {
+    if (!ensureValueOffset(name)) {
+      return raise_attribute_error(obj, name);
+    }
+    // Values are stored in values w/o materialized dictionary
+    PyDictValues* values = _PyDictOrValues_GetValues(dorv);
+    PyObject* result = values->values[val_offset];
+    if (result == nullptr) {
+      return raise_attribute_error(obj, name);
+    }
+    Py_INCREF(result);
+    return result;
+  }
+
+  PyDictObject* dict = (PyDictObject*)_PyDictOrValues_GetDict(dorv);
+#else
   PyDictObject* dict = get_dict(obj, dict_offset);
+#endif
   if (dict == nullptr) {
     return raise_attribute_error(obj, name);
   }
   PyObject* result = nullptr;
   if (dict->ma_keys == keys) {
+    if (!ensureValueOffset(name)) {
+      return raise_attribute_error(obj, name);
+    }
+    // We are still sharing keys with the inline object.
     result = DICT_VALUES(dict)[val_offset];
   } else {
     auto dictobj = reinterpret_cast<PyObject*>(dict);
@@ -222,7 +319,8 @@ int CombinedMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
 }
 
 PyObject* CombinedMutator::getAttr(PyObject* obj, PyObject* name) {
-  auto dict = reinterpret_cast<PyObject*>(get_dict(obj, dict_offset));
+  BorrowedRef<PyDictObject> dict = get_dict(obj, dict_offset);
+
   if (dict == nullptr) {
     return raise_attribute_error(obj, name);
   }
@@ -459,6 +557,56 @@ void AttributeCache::fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> name) {
   fill(type, name, descr);
 }
 
+bool canCacheType(PyTypeObject* type) {
+#if PY_VERSION_HEX >= 0x030C0000
+  if (PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
+    // We can cache values for types which have managed dictionaries on 3.12 or
+    // later.
+    return true;
+  }
+#endif
+
+  // We only support the common case for objects - fixed-size instances
+  // (tp_dictoffset >= 0) of heap types (Py_TPFLAGS_HEAPTYPE).
+  return type->tp_dictoffset >= 0 &&
+      PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE);
+}
+
+bool canCacheAttribute(
+    BorrowedRef<PyTypeObject> type,
+    BorrowedRef<> name,
+    uint& keys_version) {
+#if PY_VERSION_HEX < 0x030C0000
+  if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
+      (type->tp_dictoffset != 0)) {
+    return false;
+  }
+#else
+  if (type->tp_dictoffset == 0) {
+    return true;
+  }
+
+  if (!PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE)) {
+    return false;
+  }
+
+  PyDictKeysObject* keys = getSplitKeys(type);
+  if (keys == nullptr) {
+    return false;
+  }
+
+  // If we don't have a valid keys version or the key exists in the shared
+  // keys then we can't cache the value as we need to check and see if it's
+  // been overridden.
+  if (dictGetKeysVersion(PyInterpreterState_Get(), keys) == 0 ||
+      getDictKeysIndex(keys, name) != -1) {
+    return false;
+  }
+  keys_version = keys->dk_version;
+#endif
+  return true;
+}
+
 void AttributeCache::fill(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<> name,
@@ -496,21 +644,22 @@ void AttributeCache::fill(
     return;
   }
 
-  if (type->tp_dictoffset < 0 ||
-      !PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE)) {
-    // We only support the common case for objects - fixed-size instances
-    // (tp_dictoffset >= 0) of heap types (Py_TPFLAGS_HEAPTYPE).
+  if (!canCacheType(type)) {
     return;
   }
 
   // Instance attribute with no shadowing. Specialize the lookup based on
   // whether or not the type is using split dictionaries.
-  PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(type.get());
-  PyDictKeysObject* keys = ht->ht_cached_keys;
+  PyDictKeysObject* keys = getSplitKeys(type);
+#if PY_VERSION_HEX >= 0x030C0000
+  if (PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
+    assert(keys != nullptr);
+    mut->set_split(type, getDictKeysIndex(keys, name), keys);
+#else
   Py_ssize_t val_offset;
-  if (keys != nullptr &&
-      (val_offset = _PyDictKeys_GetSplitIndex(keys, name)) != -1) {
+  if (keys != nullptr && (val_offset = getDictKeysIndex(keys, name)) != -1) {
     mut->set_split(type, val_offset, keys);
+#endif
   } else {
     mut->set_combined(type);
   }
@@ -890,42 +1039,6 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
       tp->tp_name,
       name);
   return {nullptr, nullptr};
-}
-
-bool canCacheAttribute(
-    BorrowedRef<PyTypeObject> type,
-    BorrowedRef<> name,
-    uint& keys_version) {
-#if PY_VERSION_HEX < 0x030C0000
-  if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
-      (type->tp_dictoffset != 0)) {
-    return false;
-  }
-#else
-  if (type->tp_dictoffset == 0) {
-    return true;
-  }
-
-  if (!PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE)) {
-    return false;
-  }
-
-  PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(type.get());
-  PyDictKeysObject* keys = ht->ht_cached_keys;
-  if (keys == nullptr) {
-    return false;
-  }
-
-  // If we don't have a valid keys version or the key exists in the shared
-  // keys then we can't cache the value as we need to check and see if it's
-  // been overridden.
-  if (dictGetKeysVersion(PyInterpreterState_Get(), keys) == 0 ||
-      getDictKeysIndex(keys, name) != -1) {
-    return false;
-  }
-  keys_version = keys->dk_version;
-#endif
-  return true;
 }
 
 void LoadMethodCache::fill(
