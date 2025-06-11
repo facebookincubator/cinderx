@@ -410,11 +410,13 @@ dummy_func(
             inst = type->tp_alloc(type, 0);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-            int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
-            if (index >= 0) {
-                int32_t *cache = (int32_t *)next_instr;
-                *cache = index;
-                _Ci_specialize(next_instr, TP_ALLOC_CACHED);
+            if (adaptive_enabled) {
+                int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
+                if (index >= 0) {
+                    int32_t *cache = (int32_t *)next_instr;
+                    *cache = index;
+                    _Ci_specialize(next_instr, TP_ALLOC_CACHED);
+                }
             }
  #endif
             Py_DECREF(type);
@@ -468,10 +470,12 @@ dummy_func(
             }
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-            if (index < INT8_MAX && type < INT8_MAX) {
-                int16_t *cache = (int16_t*)next_instr;
-                *cache = (index << 8) | type;
-                _Ci_specialize(next_instr, STORE_LOCAL_CACHED);
+            if (adaptive_enabled) {
+                if (index < INT8_MAX && type < INT8_MAX) {
+                    int16_t *cache = (int16_t*)next_instr;
+                    *cache = (index << 8) | type;
+                    _Ci_specialize(next_instr, STORE_LOCAL_CACHED);
+                }
             }
 #endif
         }
@@ -505,10 +509,12 @@ dummy_func(
             if (field_type == TYPED_OBJECT) {
                 value = *FIELD_OFFSET(self, offset);
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (offset < INT32_MAX) {
-                    int32_t *cache = (int32_t*)next_instr;
-                    *cache = offset;
-                    _Ci_specialize(next_instr, LOAD_OBJ_FIELD);
+                if (adaptive_enabled) {
+                    if (offset < INT32_MAX) {
+                        int32_t *cache = (int32_t*)next_instr;
+                        *cache = offset;
+                        _Ci_specialize(next_instr, LOAD_OBJ_FIELD);
+                    }
                 }
 #endif
 
@@ -525,11 +531,13 @@ dummy_func(
                 Py_INCREF(value);
             } else {
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (offset <= INT32_MAX >> 8) {
-                    assert(field_type < 0xff);
-                    int32_t *cache = (int32_t*)next_instr;
-                    *cache = offset << 8 | field_type;
-                    _Ci_specialize(next_instr, LOAD_PRIMITIVE_FIELD);
+                if (adaptive_enabled) {
+                    if (offset <= INT32_MAX >> 8) {
+                        assert(field_type < 0xff);
+                        int32_t *cache = (int32_t*)next_instr;
+                        *cache = offset << 8 | field_type;
+                        _Ci_specialize(next_instr, LOAD_PRIMITIVE_FIELD);
+                    }
                 }
 #endif
 
@@ -585,19 +593,23 @@ dummy_func(
                 Py_XDECREF(*addr);
                 *addr = value;
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (offset <= INT32_MAX) {
-                    int32_t *cache = (int32_t*)next_instr;
-                    *cache = offset;
-                    _Ci_specialize(next_instr, STORE_OBJ_FIELD);
+                if (adaptive_enabled) {
+                    if (offset <= INT32_MAX) {
+                        int32_t *cache = (int32_t*)next_instr;
+                        *cache = offset;
+                        _Ci_specialize(next_instr, STORE_OBJ_FIELD);
+                    }
                 }
 #endif
             } else {
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-                if (offset <= INT32_MAX >> 8) {
-                    assert(field_type < 0xff);
-                    int32_t *cache = (int32_t*)next_instr;
-                    *cache = offset << 8 | field_type;
-                    _Ci_specialize(next_instr, STORE_PRIMITIVE_FIELD);
+                if (adaptive_enabled) {
+                    if (offset <= INT32_MAX >> 8) {
+                        assert(field_type < 0xff);
+                        int32_t *cache = (int32_t*)next_instr;
+                        *cache = offset << 8 | field_type;
+                        _Ci_specialize(next_instr, STORE_PRIMITIVE_FIELD);
+                    }
                 }
 #endif
                 store_field(field_type, (char*)addr, value);
@@ -632,11 +644,13 @@ dummy_func(
                 goto error;
             }
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-            int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
-            if (index >= 0 && index <= INT32_MAX >> 2) {
-                int32_t *cache = (int32_t*)next_instr;
-                *cache = (int32_t)(index << 2) | (exact << 1) | optional;
-                _Ci_specialize(next_instr, CAST_CACHED);
+            if (adaptive_enabled) {
+                int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
+                if (index >= 0 && index <= INT32_MAX >> 2) {
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = (int32_t)(index << 2) | (exact << 1) | optional;
+                    _Ci_specialize(next_instr, CAST_CACHED);
+                }
             }
 #endif
             if (!_PyObject_TypeCheckOptional(val, type, optional, exact)) {
@@ -1011,19 +1025,21 @@ dummy_func(
 
             res = _PyObject_Vectorcall(func, args, nargs, NULL);
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-            if (_PyClassLoader_IsImmutable(container)) {
-                /* frozen type, we don't need to worry about indirecting */
-                int32_t index = _PyClassLoader_CacheValue(func);
-                if (index >= 0) {
-                    int32_t *cache = (int32_t*)next_instr;
-                    *cache = index;
-                    _Ci_specialize(next_instr, INVOKE_FUNCTION_CACHED);
+            if (adaptive_enabled) {
+                if (_PyClassLoader_IsImmutable(container)) {
+                    /* frozen type, we don't need to worry about indirecting */
+                    int32_t index = _PyClassLoader_CacheValue(func);
+                    if (index >= 0) {
+                        int32_t *cache = (int32_t*)next_instr;
+                        *cache = index;
+                        _Ci_specialize(next_instr, INVOKE_FUNCTION_CACHED);
+                    }
+                } else {
+                    PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
+                    PyObject ***cache = (PyObject ***)next_instr;
+                    *cache = funcptr;
+                    _Ci_specialize(next_instr, INVOKE_INDIRECT_CACHED);
                 }
-            } else {
-                PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
-                PyObject ***cache = (PyObject ***)next_instr;
-                *cache = funcptr;
-                _Ci_specialize(next_instr, INVOKE_INDIRECT_CACHED);
             }
 #endif
             Py_DECREF(func);
@@ -1074,16 +1090,18 @@ dummy_func(
             }
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-            // We encode class method as the low bit hence the >> 1.
-            if (slot < (INT32_MAX >> 1)) {
-                /* We smuggle in the information about whether the invocation was a
-                * classmethod in the low bit of the oparg. This is necessary, as
-                * without, the runtime won't be able to get the correct vtable from
-                * self when the type is passed in.
-                */
-                int32_t *cache = (int32_t*)next_instr;
-                *cache = load_method_static_cached_oparg(slot, is_classmethod);
-                _Ci_specialize(next_instr, LOAD_METHOD_STATIC_CACHED);
+            if (adaptive_enabled) {
+                // We encode class method as the low bit hence the >> 1.
+                if (slot < (INT32_MAX >> 1)) {
+                    /* We smuggle in the information about whether the invocation was a
+                    * classmethod in the low bit of the oparg. This is necessary, as
+                    * without, the runtime won't be able to get the correct vtable from
+                    * self when the type is passed in.
+                    */
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = load_method_static_cached_oparg(slot, is_classmethod);
+                    _Ci_specialize(next_instr, LOAD_METHOD_STATIC_CACHED);
+                }
             }
 #endif
 
@@ -1170,11 +1188,13 @@ dummy_func(
             assert(!optional);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-            int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
-            if (index >= 0) {
-                int32_t *cache = (int32_t*)next_instr;
-                *cache = index;
-                _Ci_specialize(next_instr, BUILD_CHECKED_LIST_CACHED);
+            if (adaptive_enabled) {
+                int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
+                if (index >= 0) {
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = index;
+                    _Ci_specialize(next_instr, BUILD_CHECKED_LIST_CACHED);
+                }
             }
 #endif
 
@@ -1225,11 +1245,13 @@ dummy_func(
             assert(!optional);
 
 #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
-            int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
-            if (index >= 0) {
-                int32_t *cache = (int32_t*)next_instr;
-                *cache = index;
-                _Ci_specialize(next_instr, BUILD_CHECKED_MAP_CACHED);
+            if (adaptive_enabled) {
+                int32_t index = _PyClassLoader_CacheValue((PyObject *)type);
+                if (index >= 0) {
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = index;
+                    _Ci_specialize(next_instr, BUILD_CHECKED_MAP_CACHED);
+                }
             }
 #endif
 
