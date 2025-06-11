@@ -614,12 +614,11 @@ static int async_cached_property_init_impl(
 
 static inline int import_async_lazy_value() {
   if (_AsyncLazyValue_Type == NULL) {
-#if PY_VERSION_HEX >= 0x030C0000
-    // 3.12 doesn't have a C implementation of AsyncLazyValue
-    PyObject* module = PyImport_ImportModule("cinderx._asyncio");
-#else
     PyObject* module = PyImport_ImportModule("_asyncio");
-#endif
+    if (module == NULL) {
+      PyErr_Clear();
+      module = PyImport_ImportModule("cinderx._asyncio");
+    }
     DEFINE_STATIC_STRING(AsyncLazyValue);
     if (module == NULL) {
       return -1;
