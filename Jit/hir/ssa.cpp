@@ -114,7 +114,7 @@ void checkPhi(CheckEnv& env) {
     preds.emplace(edge->from());
   }
   for (auto phi_block : phi.basic_blocks()) {
-    if (preds.count(phi_block) == 0) {
+    if (!preds.contains(phi_block)) {
       fmt::print(
           env.err,
           "ERROR: Instruction '{}' in bb {} references bb {}, which isn't a "

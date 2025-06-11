@@ -74,7 +74,7 @@ void DynamicComparisonElimination::Run(Function& irfunc) {
 
     auto& dying_regs = map_get(last_uses, truthy, kEmptyRegSet);
 
-    if (dying_regs.count(truthy->GetOperand(0)) == 0) {
+    if (!dying_regs.contains(truthy->GetOperand(0))) {
       // Compare output lives on, we can't re-write...
       continue;
     }
@@ -227,7 +227,7 @@ void DeadCodeElimination::Run(Function& func) {
     worklist.pop();
     if (live_set.insert(live_op).second) {
       live_op->visitUses([&](Register*& reg) {
-        if (live_set.count(reg->instr()) == 0) {
+        if (!live_set.contains(reg->instr())) {
           worklist.push(reg->instr());
         }
         return true;
@@ -238,7 +238,7 @@ void DeadCodeElimination::Run(Function& func) {
     for (auto it = block.begin(); it != block.end();) {
       auto& instr = *it;
       ++it;
-      if (live_set.count(&instr) == 0) {
+      if (!live_set.contains(&instr)) {
         instr.unlink();
         delete &instr;
       }
