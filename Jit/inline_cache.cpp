@@ -279,8 +279,6 @@ int DescrOrClassVarMutator::setAttr(
   if (PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES)) {
     _PyType_ClearNoShadowingInstances(type, descr);
   }
-#else
-  UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
 #endif
   return st;
 }
@@ -734,6 +732,30 @@ LoadMethodResult LoadMethodCache::lookupHelper(
   return cache->lookup(obj, name);
 }
 
+#if PY_VERSION_HEX >= 0x030C0000
+// Checks to see if the cached keys version allows a lookup w/o looking in
+// the dictionary. This could be either that we have a match of the keys version
+// or that we a non-heap type w/ no dictionary.
+bool isValidKeysVersion(uint keys_version, BorrowedRef<> obj) {
+  if (keys_version == 0) {
+    // 0 is an invalid keys version and a sentinel value that we'll never
+    // generate a a cache for a heap type with. We may have a non-heap type
+    // that is cached w/ a keys_version of 0 that has no dictionary in which
+    // case the cache is always valid.
+    return true;
+  }
+  PyObject** dictptr = _PyObject_GetDictPtr(obj);
+  assert(dictptr != nullptr);
+
+  PyDictObject* dict = reinterpret_cast<PyDictObject*>(*dictptr);
+  if (dict == nullptr) {
+    return true;
+  }
+
+  return dict->ma_keys->dk_version == keys_version;
+}
+#endif
+
 LoadMethodResult LoadMethodCache::lookup(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
@@ -741,6 +763,12 @@ LoadMethodResult LoadMethodCache::lookup(
 
   for (auto& entry : entries_) {
     if (entry.type == tp) {
+#if PY_VERSION_HEX >= 0x030C0000
+      if (!isValidKeysVersion(entry.keys_version, obj)) {
+        continue;
+      }
+#endif
+
       PyObject* result = entry.value;
       Py_INCREF(result);
       Py_INCREF(obj);
@@ -835,7 +863,7 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
   }
 
   if (is_method) {
-    fill(tp, descr);
+    fill(tp, descr, name);
     Py_INCREF(obj);
     return {descr, obj};
   }
@@ -864,9 +892,46 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
   return {nullptr, nullptr};
 }
 
+bool canCacheAttribute(
+    BorrowedRef<PyTypeObject> type,
+    BorrowedRef<> name,
+    uint& keys_version) {
+#if PY_VERSION_HEX < 0x030C0000
+  if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
+      (type->tp_dictoffset != 0)) {
+    return false;
+  }
+#else
+  if (type->tp_dictoffset == 0) {
+    return true;
+  }
+
+  if (!PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE)) {
+    return false;
+  }
+
+  PyHeapTypeObject* ht = reinterpret_cast<PyHeapTypeObject*>(type.get());
+  PyDictKeysObject* keys = ht->ht_cached_keys;
+  if (keys == nullptr) {
+    return false;
+  }
+
+  // If we don't have a valid keys version or the key exists in the shared
+  // keys then we can't cache the value as we need to check and see if it's
+  // been overridden.
+  if (dictGetKeysVersion(PyInterpreterState_Get(), keys) == 0 ||
+      getDictKeysIndex(keys, name) != -1) {
+    return false;
+  }
+  keys_version = keys->dk_version;
+#endif
+  return true;
+}
+
 void LoadMethodCache::fill(
     BorrowedRef<PyTypeObject> type,
-    BorrowedRef<> value) {
+    BorrowedRef<> value,
+    BorrowedRef<> name) {
   if (!PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG)) {
     // The type must have a valid version tag in order for us to be able to
     // invalidate the cache when the type is modified. See the comment at
@@ -874,23 +939,19 @@ void LoadMethodCache::fill(
     return;
   }
 
-#if PY_VERSION_HEX < 0x030C0000
-  if (!PyType_HasFeature(type, Py_TPFLAGS_NO_SHADOWING_INSTANCES) &&
-      (type->tp_dictoffset != 0)) {
-    return;
-  }
-#else
-  if (type->tp_dictoffset != 0) {
-    UPGRADE_NOTE(CHANGED_NO_SHADOWING_INSTANCES, T200294456)
-    return;
-  }
-#endif
-
   for (auto& entry : entries_) {
     if (entry.type == nullptr) {
+      uint keys_version = 0;
+      if (!canCacheAttribute(type, name, keys_version)) {
+        break;
+      }
+
       lm_watcher.watch(type, this);
       entry.type = type;
       entry.value = value;
+#if PY_VERSION_HEX >= 0x030C0000
+      entry.keys_version = keys_version;
+#endif
       return;
     }
   }

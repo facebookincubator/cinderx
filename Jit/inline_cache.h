@@ -240,6 +240,11 @@ class LoadMethodCache {
   struct Entry {
     BorrowedRef<PyTypeObject> type;
     BorrowedRef<> value;
+#if PY_VERSION_HEX >= 0x030C0000
+    uint keys_version;
+#endif
+
+    bool isValidKeysVersion(BorrowedRef<> obj);
   };
 
   ~LoadMethodCache();
@@ -255,7 +260,8 @@ class LoadMethodCache {
 
  private:
   LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
-  void fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> value);
+  void
+  fill(BorrowedRef<PyTypeObject> type, BorrowedRef<> value, BorrowedRef<> name);
 
   std::array<Entry, 4> entries_;
   std::unique_ptr<CacheStats> cache_stats_;

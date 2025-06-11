@@ -51,6 +51,40 @@ static inline bool hasOnlyUnicodeKeys(PyObject* dict) {
 #endif
 }
 
+static inline Py_ssize_t getDictKeysIndex(
+    PyDictKeysObject* keys,
+    PyObject* name) {
+#if PY_VERSION_HEX >= 0x030C0000
+  for (Py_ssize_t i = 0; i < keys->dk_nentries; i++) {
+    PyDictUnicodeEntry* ep = &DK_UNICODE_ENTRIES(keys)[i];
+    if (_PyUnicode_EQ(name, ep->me_key)) {
+      return i;
+    }
+  }
+  return -1;
+#else
+  return _PyDictKeys_GetSplitIndex(keys, name);
+#endif
+}
+
+// We can't borrow this from CPython because it exists but is not
+// exported, and therefore borrowing it duplicates the symbol.
+#if PY_VERSION_HEX >= 0x030C0000
+static inline uint32_t dictGetKeysVersion(
+    PyInterpreterState* interp,
+    PyDictKeysObject* dictkeys) {
+  if (dictkeys->dk_version != 0) {
+    return dictkeys->dk_version;
+  }
+  if (interp->dict_state.next_keys_version == 0) {
+    return 0;
+  }
+  uint32_t v = interp->dict_state.next_keys_version++;
+  dictkeys->dk_version = v;
+  return v;
+}
+#endif
+
 #ifdef __cplusplus
 } // extern "C"
 #endif
