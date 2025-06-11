@@ -118,6 +118,9 @@ def assign_numbers() -> list[str]:
     def inc() -> None:
         nonlocal i
         i += 1
+        if i == 229:
+            # skip 229 which is used as an invalid byte code in test_code.
+            i += 1
         if i > END_NUM:
             raise ValueError("Not enough free space for cinderx opcodes!")
 

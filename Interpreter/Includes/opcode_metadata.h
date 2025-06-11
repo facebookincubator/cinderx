@@ -469,6 +469,8 @@ _PyOpcode_num_popped(int opcode, int oparg, bool jump) {
             return (build_checked_obj_size(frame->f_code->co_consts, oparg));
         case BUILD_CHECKED_MAP:
             return (build_checked_obj_size(frame->f_code->co_consts, oparg) * 2);
+        case BUILD_CHECKED_MAP_CACHED:
+            return (build_checked_obj_size(frame->f_code->co_consts, oparg) * 2);
         case RETURN_VALUE:
             return 1;
         case INSTRUMENTED_RETURN_VALUE:
@@ -951,6 +953,8 @@ _PyOpcode_num_pushed(int opcode, int oparg, bool jump) {
             return 1;
         case BUILD_CHECKED_MAP:
             return 1;
+        case BUILD_CHECKED_MAP_CACHED:
+            return 1;
         case RETURN_VALUE:
             return 0;
         case INSTRUMENTED_RETURN_VALUE:
@@ -1208,7 +1212,8 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[256] = {
     [INVOKE_NATIVE] = { true, INSTR_FMT_IB },
     [BUILD_CHECKED_LIST] = { true, INSTR_FMT_IBC0 },
     [BUILD_CHECKED_LIST_CACHED] = { true, INSTR_FMT_IBC0 },
-    [BUILD_CHECKED_MAP] = { true, INSTR_FMT_IB },
+    [BUILD_CHECKED_MAP] = { true, INSTR_FMT_IBC0 },
+    [BUILD_CHECKED_MAP_CACHED] = { true, INSTR_FMT_IBC0 },
     [RETURN_VALUE] = { true, INSTR_FMT_IX },
     [INSTRUMENTED_RETURN_VALUE] = { true, INSTR_FMT_IX },
     [RETURN_CONST] = { true, INSTR_FMT_IB },

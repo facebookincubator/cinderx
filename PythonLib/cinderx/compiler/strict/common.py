@@ -37,7 +37,7 @@ from .runtime import freeze_type, mutable
 # Increment this whenever we change the output of the strict modules
 # interpreter. It must stay below 32768 (15 bits), because we use the high bit
 # to encode strictness of the module.
-MAGIC_NUMBER = 54
+MAGIC_NUMBER = 55
 
 
 DEFAULT_STUB_PATH: str = os.path.dirname(__file__) + "/stubs"

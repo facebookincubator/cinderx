@@ -156,16 +156,17 @@ extern "C" {
   X(INVOKE_NATIVE, 216)                            \
   X(LOAD_CLASS, 217)                               \
   X(BUILD_CHECKED_MAP, 218)                        \
-  X(SEQUENCE_GET, 219)                             \
-  X(SEQUENCE_SET, 220)                             \
-  X(LIST_DEL, 221)                                 \
-  X(REFINE_TYPE, 222)                              \
-  X(PRIMITIVE_LOAD_CONST, 223)                     \
-  X(RETURN_PRIMITIVE, 224)                         \
-  X(TP_ALLOC, 225)                                 \
-  X(TP_ALLOC_CACHED, 226)                          \
-  X(LOAD_METHOD_STATIC, 227)                       \
-  X(LOAD_METHOD_STATIC_CACHED, 228)                \
+  X(BUILD_CHECKED_MAP_CACHED, 219)                 \
+  X(SEQUENCE_GET, 220)                             \
+  X(SEQUENCE_SET, 221)                             \
+  X(LIST_DEL, 222)                                 \
+  X(REFINE_TYPE, 223)                              \
+  X(PRIMITIVE_LOAD_CONST, 224)                     \
+  X(RETURN_PRIMITIVE, 225)                         \
+  X(TP_ALLOC, 226)                                 \
+  X(TP_ALLOC_CACHED, 227)                          \
+  X(LOAD_METHOD_STATIC, 228)                       \
+  X(LOAD_METHOD_STATIC_CACHED, 230)                \
   X(MIN_INSTRUMENTED_OPCODE, 237)                  \
   X(INSTRUMENTED_LOAD_SUPER_ATTR, 237)             \
   X(INSTRUMENTED_POP_JUMP_IF_NONE, 238)            \
@@ -282,9 +283,10 @@ extern "C" {
    ((op) == INVOKE_FUNCTION) || ((op) == INVOKE_FUNCTION_CACHED) ||         \
    ((op) == INVOKE_INDIRECT_CACHED) || ((op) == INVOKE_NATIVE) ||           \
    ((op) == LOAD_CLASS) || ((op) == BUILD_CHECKED_MAP) ||                   \
-   ((op) == REFINE_TYPE) || ((op) == PRIMITIVE_LOAD_CONST) ||               \
-   ((op) == TP_ALLOC) || ((op) == TP_ALLOC_CACHED) ||                       \
-   ((op) == LOAD_METHOD_STATIC) || ((op) == LOAD_METHOD_STATIC_CACHED))
+   ((op) == BUILD_CHECKED_MAP_CACHED) || ((op) == REFINE_TYPE) ||           \
+   ((op) == PRIMITIVE_LOAD_CONST) || ((op) == TP_ALLOC) ||                  \
+   ((op) == TP_ALLOC_CACHED) || ((op) == LOAD_METHOD_STATIC) ||             \
+   ((op) == LOAD_METHOD_STATIC_CACHED))
 
 #define NB_ADD 0
 #define NB_AND 1

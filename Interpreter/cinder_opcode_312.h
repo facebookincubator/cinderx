@@ -59,6 +59,8 @@ const uint8_t _CiOpcode_Caches[256] = {
     [INVOKE_FUNCTION] = 4,
     [INVOKE_FUNCTION_CACHED] = 4,
     [INVOKE_INDIRECT_CACHED] = 4,
+    [BUILD_CHECKED_MAP] = 2,
+    [BUILD_CHECKED_MAP_CACHED] = 2,
     [TP_ALLOC] = 2,
     [TP_ALLOC_CACHED] = 2,
     [LOAD_METHOD_STATIC] = 2,
@@ -86,6 +88,7 @@ const uint8_t _CiOpcode_Deopt[256] = {
     [BUILD_CHECKED_LIST] = BUILD_CHECKED_LIST,
     [BUILD_CHECKED_LIST_CACHED] = BUILD_CHECKED_LIST,
     [BUILD_CHECKED_MAP] = BUILD_CHECKED_MAP,
+    [BUILD_CHECKED_MAP_CACHED] = BUILD_CHECKED_MAP,
     [BUILD_CONST_KEY_MAP] = BUILD_CONST_KEY_MAP,
     [BUILD_LIST] = BUILD_LIST,
     [BUILD_MAP] = BUILD_MAP,
@@ -530,6 +533,7 @@ static const char* const _CiOpcode_OpName[267] = {
     [INVOKE_NATIVE] = "INVOKE_NATIVE",
     [LOAD_CLASS] = "LOAD_CLASS",
     [BUILD_CHECKED_MAP] = "BUILD_CHECKED_MAP",
+    [BUILD_CHECKED_MAP_CACHED] = "BUILD_CHECKED_MAP_CACHED",
     [SEQUENCE_GET] = "SEQUENCE_GET",
     [SEQUENCE_SET] = "SEQUENCE_SET",
     [LIST_DEL] = "LIST_DEL",
@@ -539,9 +543,8 @@ static const char* const _CiOpcode_OpName[267] = {
     [TP_ALLOC] = "TP_ALLOC",
     [TP_ALLOC_CACHED] = "TP_ALLOC_CACHED",
     [LOAD_METHOD_STATIC] = "LOAD_METHOD_STATIC",
-    [LOAD_METHOD_STATIC_CACHED] = "LOAD_METHOD_STATIC_CACHED",
     [229] = "<229>",
-    [230] = "<230>",
+    [LOAD_METHOD_STATIC_CACHED] = "LOAD_METHOD_STATIC_CACHED",
     [231] = "<231>",
     [232] = "<232>",
     [233] = "<233>",
@@ -592,7 +595,6 @@ static const char* const _CiOpcode_OpName[267] = {
   case 182:            \
   case 184:            \
   case 229:            \
-  case 230:            \
   case 231:            \
   case 232:            \
   case 233:            \
