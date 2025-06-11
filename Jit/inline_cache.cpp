@@ -400,10 +400,18 @@ PyObject* DescrOrClassVarMutator::getAttr(PyObject* obj, PyObject* name) {
 
   // Check instance dict.
   if (dict != nullptr) {
-    auto res = Ref<>::create(PyDict_GetItem(dict, name));
-    if (res != nullptr) {
-      return res.release();
+#if PY_VERSION_HEX >= 0x030C0000
+    if (keys_version == 0 ||
+        reinterpret_cast<PyDictObject*>(dict.get())->ma_keys->dk_version !=
+            keys_version) {
+#endif
+      auto res = Ref<>::create(PyDict_GetItem(dict, name));
+      if (res != nullptr) {
+        return res.release();
+      }
+#if PY_VERSION_HEX >= 0x030C0000
     }
+#endif
   }
 
   if (getter != nullptr) {
@@ -450,9 +458,11 @@ void AttributeMutator::set_member_descr(PyTypeObject* type, PyObject* descr) {
 
 void AttributeMutator::set_descr_or_classvar(
     PyTypeObject* type,
-    PyObject* descr) {
+    PyObject* descr,
+    uint keys_version) {
   set_type(type, Kind::kDescrOrClassVar);
   descr_or_cvar_.descr = descr;
+  descr_or_cvar_.keys_version = keys_version;
 }
 
 void AttributeMutator::set_split(
@@ -638,7 +648,11 @@ void AttributeCache::fill(
       }
     } else {
       // Non-data descriptor or class var
-      mut->set_descr_or_classvar(type, descr);
+      uint keys_version = 0;
+#if PY_VERSION_HEX >= 0x030C0000
+      canCacheAttribute(type, name, keys_version);
+#endif
+      mut->set_descr_or_classvar(type, descr, keys_version);
     }
     ac_watcher.watch(type, this);
     return;
