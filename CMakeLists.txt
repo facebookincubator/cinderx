@@ -127,6 +127,18 @@ file(GLOB_RECURSE COMMON_SOURCES ${PROJECT_SOURCE_DIR}/Common/*.cpp)
 add_library(common ${COMMON_SOURCES})
 target_link_libraries(common PRIVATE fmt::fmt)
 
+# UpstreamBorrow/
+if (${PY_VERSION} EQUAL 3.12)
+  set(BORROWED_C ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-3.12.gen_cached.c)
+endif()
+
+add_library(borrowed ${BORROWED_C})
+
+# CachedProperties/
+file(GLOB_RECURSE CACHED_PROPERTY_SOURCES ${PROJECT_SOURCE_DIR}/CachedProperties/*.c)
+add_library(cached-properties ${CACHED_PROPERTY_SOURCES})
+target_link_libraries(cached-properties PRIVATE common borrowed)
+
 # Interpreter/
 set(INTERP_SOURCES ${PROJECT_SOURCE_DIR}/Interpreter/iter_helpers.c)
 
@@ -174,23 +186,16 @@ target_link_libraries(upgrade PRIVATE fmt::fmt)
 # StaticPython/
 file(GLOB_RECURSE STATIC_PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/StaticPython/*.c)
 add_library(static-python ${STATIC_PYTHON_SOURCES})
-target_link_libraries(static-python PRIVATE fmt::fmt)
+target_link_libraries(static-python PRIVATE fmt::fmt common borrowed)
 
 # Jit/
 file(GLOB_RECURSE JIT_SOURCES ${PROJECT_SOURCE_DIR}/Jit/*.cpp)
 add_library(jit ${JIT_SOURCES})
-target_link_libraries(jit PRIVATE asmjit::asmjit fmt::fmt nlohmann_json::nlohmann_json)
+target_link_libraries(jit PRIVATE asmjit::asmjit interpreter fmt::fmt nlohmann_json::nlohmann_json)
 
 # ParallelGC/
 file(GLOB_RECURSE PARALLEL_GC_SOURCES ${PROJECT_SOURCE_DIR}/ParallelGC/*.c)
 add_library(parallel-gc ${PARALLEL_GC_SOURCES})
-
-# UpstreamBorrow/
-if (${PY_VERSION} EQUAL 3.12)
-  set(BORROWED_C ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-3.12.gen_cached.c)
-endif()
-
-add_library(borrowed ${BORROWED_C})
 
 set(SOURCES
   # Manually listed out to not accidentally include stuff in .git.
@@ -213,7 +218,7 @@ target_include_directories(${PROJECT_NAME}
 target_link_libraries(
   ${PROJECT_NAME}
   PRIVATE
-  borrowed common immortalize interpreter jit parallel-gc static-python
+  borrowed cached-properties common immortalize interpreter jit parallel-gc static-python
   asmjit::asmjit fmt::fmt)
 
 # macOS doesn't allow depending on other shared libraries by default.
