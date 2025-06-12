@@ -17,11 +17,8 @@ if (NOT ("${CMAKE_C_COMPILER_ID}" MATCHES "Clang" AND "${CMAKE_CXX_COMPILER_ID}"
   message(FATAL_ERROR "This build requires using clang for C and C++ compilation, please switch to that")
 endif()
 
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  set(MACOS 1)
-else()
-  set(MACOS 0)
-endif()
+set(LINUX (${CMAKE_SYSTEM_NAME} MATCHES "Linux"))
+set(MACOS (${CMAKE_SYSTEM_NAME} MATCHES "Darwin"))
 
 if (${MACOS})
   message("=====================================================================")
@@ -33,10 +30,28 @@ if (${MACOS})
   execute_process(COMMAND "${CMAKE_COMMAND}" -E sleep 5)
 endif()
 
+##############################################################################
+# Figure out capabilities / supported features and set compiler flags
+# appropriately.
+
+if (NOT DEFINED ENABLE_SYMBOLIZER)
+  set(ENABLE_SYMBOLIZER ${LINUX})
+endif()
+if (NOT DEFINED ENABLE_USDT)
+  set(ENABLE_USDT ${LINUX})
+endif()
+
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SHARED_FLAGS "-DPy_BUILD_CORE -fPIC -Wall -Wextra -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-sign-compare -Wno-unused-function -Wno-unused-parameter")
+
+if (${ENABLE_SYMBOLIZER})
+  set(SHARED_FLAGS "-DENABLE_SYMBOLIZER ${SHARED_FLAGS}")
+endif()
+if (${ENABLE_USDT})
+  set(SHARED_FLAGS "-DENABLE_USDT ${SHARED_FLAGS}")
+endif()
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${SHARED_FLAGS}")
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SHARED_FLAGS}")
