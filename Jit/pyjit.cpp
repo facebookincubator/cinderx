@@ -51,6 +51,7 @@ void set_intel_syntax() {}
 #endif
 
 #include <dlfcn.h>
+#include <fmt/std.h>
 
 #include <atomic>
 #include <charconv>
