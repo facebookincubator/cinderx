@@ -64,7 +64,7 @@ fun jittestmodule:test {
     Snapshot
     v24:LongExact = PrimitiveBox<CInt64> v22 {
       FrameState {
-        CurInstrOffset 20
+        CurInstrOffset 30
         Locals<1> v22
       }
     }
@@ -637,7 +637,7 @@ fun jittestmodule:test {
     Snapshot
     v35:CInt32 = RunPeriodicTasks {
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 10
         Locals<3> v19 v33 v34
         Stack<1> v19
       }
@@ -658,7 +658,7 @@ fun jittestmodule:test {
     Snapshot
     v43:LongExact = PrimitiveBox<CInt64> v33 {
       FrameState {
-        CurInstrOffset 22
+        CurInstrOffset 24
         Locals<3> v19 v33 v34
         Stack<2> v19 v19
       }
@@ -667,14 +667,14 @@ fun jittestmodule:test {
     UseType<LongExact> v43
     v56:CInt64 = IsNegativeAndErrOccurred v33 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
         Locals<3> v19 v33 v34
         Stack<1> v19
       }
     }
     v57:CInt64 = CheckSequenceBounds v19 v33 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
         Locals<3> v19 v33 v34
         Stack<1> v19
       }
@@ -692,7 +692,7 @@ fun jittestmodule:test {
     Snapshot
     v59:Object = VectorCall<1> v51 v58 {
       FrameState {
-        CurInstrOffset 50
+        CurInstrOffset 54
         Locals<3> v19 v46 v58
         Stack<1> v19
       }

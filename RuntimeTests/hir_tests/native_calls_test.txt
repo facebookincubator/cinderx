@@ -82,7 +82,7 @@ fun jittestmodule:test {
     Snapshot
     v8 = PrimitiveBox<CInt32> v7 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 16
         Locals<2> v0 v1
       }
     }

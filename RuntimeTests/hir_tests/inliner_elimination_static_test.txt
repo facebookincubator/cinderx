@@ -115,14 +115,14 @@ fun jittestmodule:test {
     v13:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v14:Object = InvokeStaticFunction<jittestmodule.bar, 1, Object> v13 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 14
         Stack<1> v12
       }
     }
     Snapshot
     v15:Object = BinaryOp<Add> v12 v14 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 26
       }
     }
     Snapshot
@@ -260,7 +260,7 @@ fun jittestmodule:test {
     v12:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v13:Object = InvokeStaticFunction<jittestmodule.C.__init__, 2, Object> v12 v11 {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 10
         Stack<1> v11
       }
     }
@@ -268,7 +268,7 @@ fun jittestmodule:test {
     v14:MortalFunc[function:0xdeadbeef] = LoadConst<MortalFunc[function:0xdeadbeef]>
     v15:CInt8 = InvokeStaticFunction<jittestmodule.C.getfoo, 2, CInt8> v14 v11 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 24
       }
     }
     Snapshot

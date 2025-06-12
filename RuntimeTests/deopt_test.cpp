@@ -302,7 +302,7 @@ def test(x, y):
 #if PY_VERSION_HEX <= 0x030C0000
     const int jump_index = 18;
 #else
-    const int jump_index = 20;
+    const int jump_index = 32;
 #endif
     ASSERT_EQ(
         PyBytes_AS_STRING(PyCode_GetCode(code))[jump_index + 4],

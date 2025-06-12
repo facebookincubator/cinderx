@@ -164,7 +164,7 @@ fun jittestmodule:test {
     Snapshot
     v10 = CallInd<vtable invoke> v8 v7 v0 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 16
         Locals<1> v0
       }
     }
@@ -172,7 +172,7 @@ fun jittestmodule:test {
     v11 = CallCFunc<JitCoro_GetAwaitableIter> v10
     v11 = CheckExc v11 {
       FrameState {
-        CurInstrOffset 16
+        CurInstrOffset 20
         Locals<1> v0
       }
     }
@@ -191,7 +191,7 @@ fun jittestmodule:test {
   bb 11 (preds 8) {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
       FrameState {
-        CurInstrOffset 16
+        CurInstrOffset 20
         Locals<1> v0
       }
     }
@@ -209,7 +209,7 @@ fun jittestmodule:test {
     Snapshot
     v14 = Send v2 v3 {
       FrameState {
-        CurInstrOffset 20
+        CurInstrOffset 24
         Locals<1> v0
         Stack<1> v2
       }
@@ -228,7 +228,7 @@ fun jittestmodule:test {
     Snapshot
     v16 = YieldFrom v3 v2 {
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 28
         Locals<1> v0
         Stack<1> v2
       }
@@ -618,7 +618,7 @@ fun jittestmodule:test {
     v8 = CallCFunc<JitCoro_GetAwaitableIter> v7
     v8 = CheckExc v8 {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 22
       }
     }
     CondBranchCheckType<8, 10, ObjectUser[coroutine:Exact]> v8
@@ -636,7 +636,7 @@ fun jittestmodule:test {
   bb 11 (preds 8) {
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<0>>> {
       FrameState {
-        CurInstrOffset 14
+        CurInstrOffset 22
       }
     }
   }
@@ -653,7 +653,7 @@ fun jittestmodule:test {
     Snapshot
     v11 = Send v1 v2 {
       FrameState {
-        CurInstrOffset 18
+        CurInstrOffset 26
         Stack<1> v1
       }
     }
@@ -672,7 +672,7 @@ fun jittestmodule:test {
     Snapshot
     v13 = YieldFrom v2 v1 {
       FrameState {
-        CurInstrOffset 22
+        CurInstrOffset 30
         Stack<1> v1
       }
     }
@@ -928,7 +928,7 @@ fun jittestmodule:test {
     Snapshot
     v12 = GetTuple v7 {
       FrameState {
-        CurInstrOffset 20
+        CurInstrOffset 24
         Locals<1> v0
         Stack<3> v5 v6 v11
       }
@@ -941,14 +941,14 @@ fun jittestmodule:test {
     v13 = LoadConst<CInt64[1]>
     v14 = PrimitiveBox<CInt64> v13 {
       FrameState {
-        CurInstrOffset 20
+        CurInstrOffset 24
         Locals<1> v0
         Stack<3> v5 v6 v11
       }
     }
     v15 = BinaryOp<Subscript> v12 v14 {
       FrameState {
-        CurInstrOffset 20
+        CurInstrOffset 24
         Locals<1> v0
         Stack<3> v5 v6 v11
       }
@@ -967,7 +967,7 @@ fun jittestmodule:test {
     Snapshot
     v16 = GetTuple v12 {
       FrameState {
-        CurInstrOffset 22
+        CurInstrOffset 26
         Locals<1> v0
         Stack<4> v5 v6 v11 v15
       }
@@ -980,14 +980,14 @@ fun jittestmodule:test {
     v17 = LoadConst<CInt64[2]>
     v18 = PrimitiveBox<CInt64> v17 {
       FrameState {
-        CurInstrOffset 22
+        CurInstrOffset 26
         Locals<1> v0
         Stack<4> v5 v6 v11 v15
       }
     }
     v19 = BinaryOp<Subscript> v16 v18 {
       FrameState {
-        CurInstrOffset 22
+        CurInstrOffset 26
         Locals<1> v0
         Stack<4> v5 v6 v11 v15
       }
@@ -996,7 +996,7 @@ fun jittestmodule:test {
     v20 = LoadConst<MortalFunc[function:0xdeadbeef]>
     v21 = InvokeStaticFunction<jittestmodule.x, 6, Long> v20 v5 v6 v11 v15 v19 {
       FrameState {
-        CurInstrOffset 26
+        CurInstrOffset 30
         Locals<1> v0
       }
     }
@@ -1180,7 +1180,7 @@ fun jittestmodule:test {
     Snapshot
     v6 = MakeList<0> {
       FrameState {
-        CurInstrOffset 6
+        CurInstrOffset 10
         Locals<2> v0 v1
         Stack<2> v5 v5
       }
@@ -1189,7 +1189,7 @@ fun jittestmodule:test {
     v7 = LoadConst<MortalTupleExact[tuple:0xdeadbeef]>
     v8 = ListExtend v6 v7 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 14
         Locals<2> v0 v1
         Stack<3> v5 v5 v6
       }
@@ -1198,7 +1198,7 @@ fun jittestmodule:test {
     v9 = LoadConst<MortalObjectUser[wrapper_descriptor:0xdeadbeef]>
     v10 = VectorCall<2, static> v9 v5 v6 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 16
         Locals<2> v0 v1
         Stack<1> v5
       }
@@ -1209,7 +1209,7 @@ fun jittestmodule:test {
     v1 = Assign v11
     v12 = CheckSequenceBounds v0 v1 {
       FrameState {
-        CurInstrOffset 28
+        CurInstrOffset 42
         Locals<2> v0 v1
       }
     }
@@ -1463,7 +1463,7 @@ fun jittestmodule:test {
     v5 = LoadConst<ImmortalLongExact[1]>
     v6 = ListAppend v4 v5 {
       FrameState {
-        CurInstrOffset 10
+        CurInstrOffset 14
         Locals<1> v0
         Stack<1> v4
       }
@@ -1527,7 +1527,7 @@ fun jittestmodule:test {
     v0 = Assign v5
     v6 = PrimitiveBox<CInt64> v0 {
       FrameState {
-        CurInstrOffset 12
+        CurInstrOffset 22
         Locals<1> v0
       }
     }

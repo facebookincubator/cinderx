@@ -127,11 +127,11 @@ fun jittestmodule:test {
   }
 
   bb 7 (preds 6) {
-    UpdatePrevInstr<idx:4 line_no:2>
+    UpdatePrevInstr<idx:5 line_no:2>
     v35:CInt32 = RunPeriodicTasks {
       LiveValues<3> b:v19 s:v33 o:v34
       FrameState {
-        CurInstrOffset 8
+        CurInstrOffset 10
         Locals<3> v19 v33 v34
         Stack<1> v19
       }
@@ -149,7 +149,7 @@ fun jittestmodule:test {
     v56:CInt64 = IsNegativeAndErrOccurred v33 {
       LiveValues<3> b:v19 s:v33 o:v34
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
         Locals<3> v19 v33 v34
         Stack<1> v19
       }
@@ -157,7 +157,7 @@ fun jittestmodule:test {
     v57:CInt64 = CheckSequenceBounds v19 v33 {
       LiveValues<3> b:v19 s:v33 o:v34
       FrameState {
-        CurInstrOffset 24
+        CurInstrOffset 26
         Locals<3> v19 v33 v34
         Stack<1> v19
       }
@@ -170,18 +170,18 @@ fun jittestmodule:test {
       Descr 'LOAD_GLOBAL: print'
       LiveValues<6> b:v19 s:v33 o:v34 s:v46 b:v50 b:v58
       FrameState {
-        CurInstrOffset 34
+        CurInstrOffset 36
         Locals<3> v19 v33 v34
         Stack<3> v19 v58 v46
       }
     }
     Incref v58
-    UpdatePrevInstr<idx:25 line_no:3>
+    UpdatePrevInstr<idx:27 line_no:3>
     XDecref v34
     v59:Object = VectorCall<1> v51 v58 {
       LiveValues<4> b:v19 s:v46 b:v51 o:v58
       FrameState {
-        CurInstrOffset 50
+        CurInstrOffset 54
         Locals<3> v19 v46 v58
         Stack<1> v19
       }
@@ -191,7 +191,7 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    UpdatePrevInstr<idx:33 line_no:-1>
+    UpdatePrevInstr<idx:35 line_no:-1>
     XDecref v34
     v53:NoneType = LoadConst<NoneType>
     Incref v53
