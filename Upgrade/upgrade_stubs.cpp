@@ -9,14 +9,6 @@
   }
 
 extern "C" {
-STUB(int, Ci_GenIsCompleted, T194022335, PyGenObject*)
-STUB(int, Ci_GenIsExecuting, T194022335, PyGenObject*)
-STUB(int, Ci_JITGenIsExecuting, T194022335, PyGenObject*)
-STUB(PyObject*, CiCoro_New_NoFrame, T194022335, PyThreadState*, PyCodeObject*)
-STUB(PyObject*, CiAsyncGen_New_NoFrame, T194022335, PyCodeObject*)
-STUB(PyObject*, CiGen_New_NoFrame, T194022335, PyCodeObject*)
-STUB(int, Ci_PyWaitHandle_CheckExact, T194027914, PyObject*)
-STUB(void, Ci_PyWaitHandle_Release, T194027914, PyObject*)
 STUB(
     int,
     Cix_cfunction_check_kwargs,
