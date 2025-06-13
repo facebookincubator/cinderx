@@ -849,19 +849,7 @@ dummy_func(
         }
 
         inst(PRIMITIVE_UNARY_OP, (val -- res)) {
-            switch (oparg) {
-                INT_UNARY_OPCODE(PRIM_OP_NEG_INT, -)
-                INT_UNARY_OPCODE(PRIM_OP_INV_INT, ~)
-                DBL_UNARY_OPCODE(PRIM_OP_NEG_DBL, -)
-                case PRIM_OP_NOT_INT: {
-                    res = PyLong_AsVoidPtr(val) ? Py_False : Py_True;
-                    Py_INCREF(res);
-                    break;
-                }
-                default:
-                    PyErr_SetString(PyExc_RuntimeError, "unknown op");
-                    goto error;
-            }
+            res = primitive_unary_op(val, oparg);
             DECREF_INPUTS();
             ERROR_IF(res == NULL, error);
         }
@@ -887,77 +875,15 @@ dummy_func(
         }
 
         inst(PRIMITIVE_BINARY_OP, (l, r -- res)) {
-            switch (oparg) {
-                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_ADD_INT, +)
-                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_SUB_INT, -)
-                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_MUL_INT, *)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_DIV_INT, /)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_MOD_INT, %)
-                case PRIM_OP_POW_INT: {
-                    double power =
-                        pow((Py_ssize_t)PyLong_AsVoidPtr(l),
-                            (Py_ssize_t)PyLong_AsVoidPtr(r));
-                    res = PyFloat_FromDouble(power);
-                    break;
-                }
-                case PRIM_OP_POW_UN_INT: {
-                    double power =
-                        pow((size_t)PyLong_AsVoidPtr(l), (size_t)PyLong_AsVoidPtr(r));
-                    res = PyFloat_FromDouble(power);
-                    break;
-                }
-
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_LSHIFT_INT, <<)
-                INT_BIN_OPCODE_SIGNED(PRIM_OP_RSHIFT_INT, >>)
-                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_XOR_INT, ^)
-                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_OR_INT, |)
-                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_AND_INT, &)
-                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_MOD_UN_INT, %)
-                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_DIV_UN_INT, /)
-                INT_BIN_OPCODE_UNSIGNED(PRIM_OP_RSHIFT_UN_INT, >>)
-                DOUBLE_BIN_OPCODE(PRIM_OP_ADD_DBL, +)
-                DOUBLE_BIN_OPCODE(PRIM_OP_SUB_DBL, -)
-                DOUBLE_BIN_OPCODE(PRIM_OP_MUL_DBL, *)
-                DOUBLE_BIN_OPCODE(PRIM_OP_DIV_DBL, /)
-                case PRIM_OP_POW_DBL: {
-                    double power = pow(PyFloat_AsDouble(l), PyFloat_AsDouble(r));
-                    res = PyFloat_FromDouble(power);
-                    break;
-                }
-                default:
-                    PyErr_SetString(PyExc_RuntimeError, "unknown op");
-                    goto error;
-            }
+            res = primitive_binary_op(l, r, oparg);
             DECREF_INPUTS();
             ERROR_IF(res == NULL, error);
         }
 
         inst(PRIMITIVE_COMPARE_OP, (l, r -- res)) {
-            Py_ssize_t sleft, sright;
-            size_t left, right;
-            switch (oparg) {
-                INT_CMP_OPCODE_SIGNED(PRIM_OP_EQ_INT, ==)
-                INT_CMP_OPCODE_SIGNED(PRIM_OP_NE_INT, !=)
-                INT_CMP_OPCODE_SIGNED(PRIM_OP_LT_INT, <)
-                INT_CMP_OPCODE_SIGNED(PRIM_OP_GT_INT, >)
-                INT_CMP_OPCODE_SIGNED(PRIM_OP_LE_INT, <=)
-                INT_CMP_OPCODE_SIGNED(PRIM_OP_GE_INT, >=)
-                INT_CMP_OPCODE_UNSIGNED(PRIM_OP_LT_UN_INT, <)
-                INT_CMP_OPCODE_UNSIGNED(PRIM_OP_GT_UN_INT, >)
-                INT_CMP_OPCODE_UNSIGNED(PRIM_OP_LE_UN_INT, <=)
-                INT_CMP_OPCODE_UNSIGNED(PRIM_OP_GE_UN_INT, >=)
-                DBL_CMP_OPCODE(PRIM_OP_EQ_DBL, ==)
-                DBL_CMP_OPCODE(PRIM_OP_NE_DBL, !=)
-                DBL_CMP_OPCODE(PRIM_OP_LT_DBL, <)
-                DBL_CMP_OPCODE(PRIM_OP_GT_DBL, >)
-                DBL_CMP_OPCODE(PRIM_OP_LE_DBL, <=)
-                DBL_CMP_OPCODE(PRIM_OP_GE_DBL, >=)
-                default:
-                    PyErr_SetString(PyExc_RuntimeError, "unknown op");
-                    DECREF_INPUTS();
-                    goto error;
-            }
+            res = primitive_compare_op(l, r, oparg);
             DECREF_INPUTS();
+            ERROR_IF(res == NULL, error);
         }
 
         inst(PRIMITIVE_LOAD_CONST, ( -- res)) {
@@ -1261,7 +1187,10 @@ dummy_func(
                 goto error;
             }
 
-            Ci_BUILD_DICT(map_size, Ci_CheckedDict_SetItem);
+            if (ci_build_dict(map_items, map_size, map) < 0) {
+                Py_DECREF(map);
+                map = NULL;
+            }
             DECREF_INPUTS();
             ERROR_IF(map == NULL, error);
         }
@@ -1279,7 +1208,10 @@ dummy_func(
                 goto error;
             }
 
-            Ci_BUILD_DICT(map_size, Ci_CheckedDict_SetItem);
+            if (ci_build_dict(map_items, map_size, map) < 0) {
+                Py_DECREF(map);
+                map = NULL;
+            }
             DECREF_INPUTS();
             ERROR_IF(map == NULL, error);
         }

@@ -36,21 +36,21 @@ static uint64_t signex_masks[] = {
     0xFFFFFFFF00000000,
     0x0};
 
-static inline int8_t unbox_primitive_bool_and_decref(PyObject* x) {
+static int8_t unbox_primitive_bool_and_decref(PyObject* x) {
     assert(PyBool_Check(x));
     int8_t res = (x == Py_True) ? 1 : 0;
     Py_DECREF(x);
     return res;
 }
 
-static inline Py_ssize_t unbox_primitive_int_and_decref(PyObject* x) {
+static Py_ssize_t unbox_primitive_int_and_decref(PyObject* x) {
     assert(PyLong_Check(x));
     Py_ssize_t res = (Py_ssize_t)PyLong_AsVoidPtr(x);
     Py_DECREF(x);
     return res;
 }
 
-static inline PyObject* box_primitive(int type, Py_ssize_t value) {
+static PyObject* box_primitive(int type, Py_ssize_t value) {
   switch (type) {
     case TYPED_BOOL:
       return PyBool_FromLong((int8_t)value);
@@ -77,7 +77,7 @@ static inline PyObject* box_primitive(int type, Py_ssize_t value) {
   }
 }
 
-static inline PyObject* sign_extend_primitive(PyObject *obj, int type) {
+static PyObject* sign_extend_primitive(PyObject *obj, int type) {
     if ((type & (TYPED_INT_SIGNED)) && type != (TYPED_DOUBLE)) {
         /* We have a boxed value on the stack already, but we may have to
         * deal with sign extension */
@@ -91,7 +91,7 @@ static inline PyObject* sign_extend_primitive(PyObject *obj, int type) {
     return obj;
 }
 
-static inline PyObject* load_field(int field_type, void* addr) {
+static PyObject* load_field(int field_type, void* addr) {
     PyObject* value;
     switch (field_type) {
         case TYPED_BOOL:
@@ -131,7 +131,7 @@ static inline PyObject* load_field(int field_type, void* addr) {
     return value;
 }
 
-static inline void store_field(int field_type, void* addr, PyObject* value) {
+static void store_field(int field_type, void* addr, PyObject* value) {
     switch (field_type) {
         case TYPED_BOOL:
             *(int8_t*)addr = (int8_t)unbox_primitive_bool_and_decref(value);
@@ -207,19 +207,17 @@ static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
     return PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));
 }
 
-#define Ci_BUILD_DICT(map_size, set_item)         \
-    for (Py_ssize_t i = 0; i < map_size; i++) {   \
-        int err;                                  \
-        PyObject* key = map_items[2 * i];         \
-        PyObject* value = map_items[2 * i + 1];   \
-        err = set_item(map, key, value);          \
-        if (err != 0) {                           \
-            Py_DECREF(map);                       \
-            map = NULL;                           \
-            break;                                \
-        }                                         \
+static int ci_build_dict(PyObject **map_items, Py_ssize_t map_size, PyObject *map)
+{
+    for (Py_ssize_t i = 0; i < map_size; i++) {
+        PyObject* key = map_items[2 * i];
+        PyObject* value = map_items[2 * i + 1];
+        if (Ci_CheckedDict_SetItem(map, key, value) < 0) {
+            return -1;
+        }
     }
-
+    return 0;
+}
 
 #define INT_UNARY_OPCODE(opid, op)                                           \
     case opid:                                                               \
@@ -231,6 +229,26 @@ static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
       res = PyFloat_FromDouble(op(PyFloat_AS_DOUBLE(val))); \
       break;
 
+static PyObject *
+primitive_unary_op(PyObject *val, int oparg)
+{
+    PyObject *res;
+    switch (oparg) {
+        INT_UNARY_OPCODE(PRIM_OP_NEG_INT, -)
+        INT_UNARY_OPCODE(PRIM_OP_INV_INT, ~)
+        DBL_UNARY_OPCODE(PRIM_OP_NEG_DBL, -)
+        case PRIM_OP_NOT_INT: {
+            res = PyLong_AsVoidPtr(val) ? Py_False : Py_True;
+            Py_INCREF(res);
+            break;
+        }
+        default:
+            PyErr_SetString(PyExc_RuntimeError, "unknown op");
+            return NULL;
+    }
+    return res;
+}
+      
 #define INT_BIN_OPCODE_UNSIGNED(opid, op)                                 \
     case opid:                                                            \
         res = PyLong_FromVoidPtr((void*)(((size_t)PyLong_AsVoidPtr(l))op( \
@@ -247,6 +265,54 @@ static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
     case opid:                                                                      \
         res = (PyFloat_FromDouble((PyFloat_AS_DOUBLE(l))op(PyFloat_AS_DOUBLE(r)))); \
         break;
+
+static PyObject *
+primitive_binary_op(PyObject *l, PyObject *r, int oparg)
+{
+    PyObject *res;
+    switch (oparg) {
+        INT_BIN_OPCODE_UNSIGNED(PRIM_OP_ADD_INT, +)
+        INT_BIN_OPCODE_UNSIGNED(PRIM_OP_SUB_INT, -)
+        INT_BIN_OPCODE_UNSIGNED(PRIM_OP_MUL_INT, *)
+        INT_BIN_OPCODE_SIGNED(PRIM_OP_DIV_INT, /)
+        INT_BIN_OPCODE_SIGNED(PRIM_OP_MOD_INT, %)
+        case PRIM_OP_POW_INT: {
+            double power =
+                pow((Py_ssize_t)PyLong_AsVoidPtr(l),
+                    (Py_ssize_t)PyLong_AsVoidPtr(r));
+            res = PyFloat_FromDouble(power);
+            break;
+        }
+        case PRIM_OP_POW_UN_INT: {
+            double power =
+                pow((size_t)PyLong_AsVoidPtr(l), (size_t)PyLong_AsVoidPtr(r));
+            res = PyFloat_FromDouble(power);
+            break;
+        }
+
+        INT_BIN_OPCODE_SIGNED(PRIM_OP_LSHIFT_INT, <<)
+        INT_BIN_OPCODE_SIGNED(PRIM_OP_RSHIFT_INT, >>)
+        INT_BIN_OPCODE_UNSIGNED(PRIM_OP_XOR_INT, ^)
+        INT_BIN_OPCODE_UNSIGNED(PRIM_OP_OR_INT, |)
+        INT_BIN_OPCODE_UNSIGNED(PRIM_OP_AND_INT, &)
+        INT_BIN_OPCODE_UNSIGNED(PRIM_OP_MOD_UN_INT, %)
+        INT_BIN_OPCODE_UNSIGNED(PRIM_OP_DIV_UN_INT, /)
+        INT_BIN_OPCODE_UNSIGNED(PRIM_OP_RSHIFT_UN_INT, >>)
+        DOUBLE_BIN_OPCODE(PRIM_OP_ADD_DBL, +)
+        DOUBLE_BIN_OPCODE(PRIM_OP_SUB_DBL, -)
+        DOUBLE_BIN_OPCODE(PRIM_OP_MUL_DBL, *)
+        DOUBLE_BIN_OPCODE(PRIM_OP_DIV_DBL, /)
+        case PRIM_OP_POW_DBL: {
+            double power = pow(PyFloat_AsDouble(l), PyFloat_AsDouble(r));
+            res = PyFloat_FromDouble(power);
+            break;
+        }
+        default:
+            PyErr_SetString(PyExc_RuntimeError, "unknown op");
+            return NULL;
+    }
+    return res;
+}
 
 #define INT_CMP_OPCODE_UNSIGNED(opid, op)           \
     case opid:                                      \
@@ -270,6 +336,36 @@ static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
             ((PyFloat_AS_DOUBLE(l) op PyFloat_AS_DOUBLE(r)) ? Py_True : Py_False); \
         Py_INCREF(res);                                                            \
         break;
+
+static PyObject *
+primitive_compare_op(PyObject *l, PyObject *r, int oparg)
+{
+    PyObject *res;
+    Py_ssize_t sleft, sright;
+    size_t left, right;
+    switch (oparg) {
+        INT_CMP_OPCODE_SIGNED(PRIM_OP_EQ_INT, ==)
+        INT_CMP_OPCODE_SIGNED(PRIM_OP_NE_INT, !=)
+        INT_CMP_OPCODE_SIGNED(PRIM_OP_LT_INT, <)
+        INT_CMP_OPCODE_SIGNED(PRIM_OP_GT_INT, >)
+        INT_CMP_OPCODE_SIGNED(PRIM_OP_LE_INT, <=)
+        INT_CMP_OPCODE_SIGNED(PRIM_OP_GE_INT, >=)
+        INT_CMP_OPCODE_UNSIGNED(PRIM_OP_LT_UN_INT, <)
+        INT_CMP_OPCODE_UNSIGNED(PRIM_OP_GT_UN_INT, >)
+        INT_CMP_OPCODE_UNSIGNED(PRIM_OP_LE_UN_INT, <=)
+        INT_CMP_OPCODE_UNSIGNED(PRIM_OP_GE_UN_INT, >=)
+        DBL_CMP_OPCODE(PRIM_OP_EQ_DBL, ==)
+        DBL_CMP_OPCODE(PRIM_OP_NE_DBL, !=)
+        DBL_CMP_OPCODE(PRIM_OP_LT_DBL, <)
+        DBL_CMP_OPCODE(PRIM_OP_GT_DBL, >)
+        DBL_CMP_OPCODE(PRIM_OP_LE_DBL, <=)
+        DBL_CMP_OPCODE(PRIM_OP_GE_DBL, >=)
+        default:
+            PyErr_SetString(PyExc_RuntimeError, "unknown op");
+            return NULL;
+    }
+    return res;
+}
 
 #define INVOKE_FUNCTION_CACHE_SIZE 4
 #define TP_ALLOC_CACHE_SIZE 2
