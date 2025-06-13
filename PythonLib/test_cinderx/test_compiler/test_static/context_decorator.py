@@ -124,7 +124,6 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertEqual(c.f, 43)
             self.assertEqual(c.f, 43)
 
-    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property(self):
         codestr = """
             from __future__ import annotations

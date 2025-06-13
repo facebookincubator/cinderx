@@ -2123,7 +2123,6 @@ class StaticPatchTests(StaticTestBase):
 
             self.assertEqual(asyncio.run(awaiter(mod.C())), 131)
 
-    @skipIf(sys.version_info >= (3, 12), "No AsyncLazyValue T201015581")
     def test_async_cached_property_patch_with_good_return_type_already_invoked(self):
         codestr = """
         from cinderx import async_cached_property
