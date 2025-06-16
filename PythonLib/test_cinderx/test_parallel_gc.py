@@ -1,85 +1,103 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-unsafe
+
 import unittest
 
+import cinderx
+import cinderx.jit
+
+# pyre-ignore[21]: Pyre doesn't know about cpython/Lib/test.
 import test.test_gc
 
-try:
-    import cinder
-except ImportError:
-    # TODO(T168696028): Remove this once parallel gc functions are moved to the
-    # cinderx module
-    raise unittest.SkipTest("Tests CinderX features")
 
-
-def _restore_parallel_gc(settings):
-    cinder.disable_parallel_gc()
+def _restore_parallel_gc(settings: dict[str, int]) -> None:
+    cinderx.disable_parallel_gc()
     if settings is not None:
-        cinder.enable_parallel_gc(
+        cinderx.enable_parallel_gc(
             settings["min_generation"],
             settings["num_threads"],
         )
 
 
+@unittest.skipUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
 class ParallelGCAPITests(unittest.TestCase):
-    def setUp(self):
-        self.old_par_gc_settings = cinder.get_parallel_gc_settings()
-        cinder.disable_parallel_gc()
+    def setUp(self) -> None:
+        self.old_par_gc_settings = cinderx.get_parallel_gc_settings()
+        cinderx.disable_parallel_gc()
 
-    def tearDown(self):
+    def tearDown(self) -> None:
         _restore_parallel_gc(self.old_par_gc_settings)
 
-    def test_get_settings_when_disabled(self):
-        self.assertEqual(cinder.get_parallel_gc_settings(), None)
+    def test_get_settings_when_disabled(self) -> None:
+        self.assertEqual(cinderx.get_parallel_gc_settings(), None)
 
-    def test_get_settings_when_enabled(self):
-        cinder.enable_parallel_gc(2, 8)
-        settings = cinder.get_parallel_gc_settings()
+    def test_get_settings_when_enabled(self) -> None:
+        cinderx.enable_parallel_gc(2, 8)
+        settings = cinderx.get_parallel_gc_settings()
         expected = {
             "min_generation": 2,
             "num_threads": 8,
         }
         self.assertEqual(settings, expected)
 
-    def test_set_invalid_generation(self):
+    def test_set_invalid_generation(self) -> None:
         with self.assertRaisesRegex(ValueError, "invalid generation"):
-            cinder.enable_parallel_gc(4, 8)
+            cinderx.enable_parallel_gc(4, 8)
 
-    def test_set_invalid_num_threads(self):
+    def test_set_invalid_num_threads(self) -> None:
         with self.assertRaisesRegex(ValueError, "invalid num_threads"):
-            cinder.enable_parallel_gc(2, -1)
+            cinderx.enable_parallel_gc(2, -1)
 
 
 # Run all the GC tests with parallel GC enabled
 
 
+@unittest.skipUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
+# pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
 class ParallelGCTests(test.test_gc.GCTests):
-    pass
+    @unittest.skipIf(
+        cinderx.jit.is_enabled(), "Implementation detail of the interpreter"
+    )
+    def test_frame(self) -> None:
+        pass
 
-
-class ParallelGCCallbackTests(test.test_gc.GCCallbackTests):
-    @unittest.skip("Tests implementation details of serial collector")
-    def test_refcount_errors(self):
+    @unittest.skipIf(
+        cinderx.jit.is_enabled(), "Implementation detail of the interpreter"
+    )
+    def test_get_objects_arguments(self) -> None:
         pass
 
 
+@unittest.skipUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
+# pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
+class ParallelGCCallbackTests(test.test_gc.GCCallbackTests):
+    @unittest.skip("Tests implementation details of serial collector")
+    def test_refcount_errors(self) -> None:
+        pass
+
+
+@unittest.skipUnless(cinderx.has_parallel_gc(), "Testing the Parallel GC")
+# pyre-ignore[11]: Pyre doesn't know about cpython/Lib/test.
 class ParallelGCFinalizationTests(test.test_gc.PythonFinalizationTests):
     pass
 
 
-def setUpModule():
+OLD_PAR_GC_SETTINGS: dict[str, int] = {}
+
+
+def setUpModule() -> None:
     test.test_gc.setUpModule()
 
-    global old_par_gc_settings
-    old_par_gc_settings = cinder.get_parallel_gc_settings()
-    cinder.enable_parallel_gc(0, 8)
+    global OLD_PAR_GC_SETTINGS
+    OLD_PAR_GC_SETTINGS = cinderx.get_parallel_gc_settings()
+    cinderx.enable_parallel_gc(0, 8)
 
 
-def tearDownModule():
+def tearDownModule() -> None:
     test.test_gc.tearDownModule()
 
-    global old_par_gc_settings
-    _restore_parallel_gc(old_par_gc_settings)
+    _restore_parallel_gc(OLD_PAR_GC_SETTINGS)
 
 
 if __name__ == "__main__":

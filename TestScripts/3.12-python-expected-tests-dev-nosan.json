@@ -558,6 +558,7 @@
     "test_cinderx.test_jit_specialization",
     "test_cinderx.test_jit_type_annotations",
     "test_cinderx.test_jitlist",
+    "test_cinderx.test_parallel_gc",
     "test_cinderx.test_perfmaps",
     "test_cinderx.test_type_cache"
   ],
