@@ -10,15 +10,6 @@
 
 extern "C" {
 STUB(
-    int,
-    Cix_cfunction_check_kwargs,
-    T196762792,
-    PyThreadState*,
-    PyObject*,
-    PyObject*)
-STUB(funcptr, Cix_cfunction_enter_call, T196762792, PyThreadState*, PyObject*)
-STUB(funcptr, Cix_method_enter_call, T196762792, PyThreadState*, PyObject*)
-STUB(
     PyObject*,
     builtin_next,
     T196761974,

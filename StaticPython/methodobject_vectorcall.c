@@ -9,7 +9,8 @@
 #include "internal/pycore_pystate.h" // _PyThreadState_GET()
 
 #include "cinderx/StaticPython/classloader.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+
+#if PY_VERSION_HEX < 0x030C0000
 
 typedef void* (*call_self_0)(PyObject* self);
 typedef void* (*call_self_1)(PyObject* self, void*);
@@ -177,6 +178,12 @@ vectorcallfunc Ci_PyCMethod_New_METH_TYPED(PyMethodDef* method) {
   return vectorcall;
 }
 
+#endif
+
 PyObject* Ci_meth_get__typed_signature__(PyCFunctionObject* m, void* closure) {
+#if PY_VERSION_HEX < 0x030C0000
   return Ci_PyMethodDef_GetTypedSignature(m->m_ml);
+#else
+  Py_RETURN_NONE;
+#endif
 }

@@ -11,6 +11,8 @@
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
+#if PY_VERSION_HEX < 0x030C0000
+
 static inline int Ci_method_check_args(
     PyObject* func,
     PyObject* const* args,
@@ -236,8 +238,14 @@ vectorcallfunc Ci_PyDescr_NewMethod_METH_TYPED(PyMethodDef* method) {
   return vectorcall;
 }
 
+#endif
+
 PyObject* Ci_method_get_typed_signature(
     PyMethodDescrObject* descr,
     void* closure) {
+#if PY_VERSION_HEX < 0x030C0000
   return Ci_PyMethodDef_GetTypedSignature(descr->d_method);
+#else
+  Py_RETURN_NONE;
+#endif
 }
