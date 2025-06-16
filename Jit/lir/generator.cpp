@@ -2729,7 +2729,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
 #else
-        UPGRADE_ASSERT(SUPPORT_JIT_INLINING);
+        // TODO(T198250666): Support jit inlining
 #endif
         break;
       }
@@ -2780,10 +2780,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
-        break;
 #else
-        UPGRADE_ASSERT(SUPPORT_JIT_INLINING);
+        // TODO(T198250666): Support jit inlining
 #endif
+        break;
       }
       case Opcode::kIsTruthy: {
         bbb.appendCallInstruction(i.output(), PyObject_IsTrue, i.GetOperand(0));

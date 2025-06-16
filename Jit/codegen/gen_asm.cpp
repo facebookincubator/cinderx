@@ -165,7 +165,7 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
 #else
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
   reifyFrame(frame, deopt_meta, deopt_meta.outermostFrame(), regs);
-  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
+  // TODO(T198250666): Support jit inlining
 #endif
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
@@ -289,7 +289,7 @@ PyObject* resumeInInterpreter(
     _PyInterpreterFrame* frame,
     Runtime* runtime,
     std::size_t deopt_idx) {
-  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
+  // TODO(T198250666): Support jit inlining
   PyThreadState* tstate = PyThreadState_Get();
 
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
@@ -821,7 +821,7 @@ void* NativeGenerator::getVectorcallEntry() {
       frame_header_size_ + max_inline_depth_ * kJITShadowFrameSize);
 #else
       0);
-  UPGRADE_NOTE(SUPPORT_JIT_INLINING, T198250666)
+  // TODO(T198250666): Support jit inlining
 #endif
   COMPILE_TIMER(
       GetFunction()->compilation_phase_timer,
