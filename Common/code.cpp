@@ -3,7 +3,6 @@
 #include "cinderx/Common/code.h"
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Common/opcode_stubs.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
 #if PY_VERSION_HEX >= 0x030C0000
