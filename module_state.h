@@ -94,6 +94,14 @@ class ModuleState {
     return anext_awaitable_type_;
   }
 
+  void setBuiltinNext(BorrowedRef<> builtin_next) {
+    builtin_next_ = Ref<>::create(builtin_next);
+  }
+
+  BorrowedRef<> builtinNext() const {
+    return builtin_next_;
+  }
+
   bool initialized() const {
     return initialized_;
   }
@@ -108,7 +116,7 @@ class ModuleState {
   std::unique_ptr<jit::ISymbolizer> symbolizer_;
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value_;
   Ref<PyTypeObject> coro_type_, gen_type_, anext_awaitable_type_;
-  Ref<> sys_clear_caches_;
+  Ref<> sys_clear_caches_, builtin_next_;
   bool initialized_{false};
 };
 

@@ -4,12 +4,14 @@
 
 namespace cinderx {
 
-int ModuleState::traverse(visitproc, void*) {
+int ModuleState::traverse(visitproc visit, void* arg) {
+  Py_VISIT(builtin_next_);
   return 0;
 }
 
 int ModuleState::clear() {
   sys_clear_caches_.reset();
+  builtin_next_.reset();
   return 0;
 }
 

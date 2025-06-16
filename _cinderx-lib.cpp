@@ -1187,6 +1187,18 @@ static int _cinderx_exec(PyObject* m) {
 
   state->setCacheManager(cache_manager);
 
+  Ref<> builtins_mod = Ref<>::steal(PyImport_ImportModule("builtins"));
+  if (builtins_mod == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+  Ref<> next = Ref<>::steal(PyObject_GetAttrString(builtins_mod, "next"));
+  if (next == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+  state->setBuiltinNext(next);
+
 #if PY_VERSION_HEX >= 0x030C0000
 
   auto async_lazy_value = new (std::nothrow) cinderx::AsyncLazyValueState();
@@ -1238,9 +1250,7 @@ static int _cinderx_exec(PyObject* m) {
   state->setAnextAwaitableType(anext_awaitable_type);
 
   auto anext_func = Ref<>::steal(PyObject_GetAttrString(m, "anext"));
-  Ref<> builtins_mod = Ref<>::steal(PyImport_ImportModule("builtins"));
-
-  if (builtins_mod == nullptr || anext_func == nullptr ||
+  if (anext_func == nullptr ||
       PyObject_SetAttrString(builtins_mod, "anext", anext_func) < 0) {
     state->shutdown();
     return -1;

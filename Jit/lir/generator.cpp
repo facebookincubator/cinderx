@@ -396,7 +396,7 @@ bool LIRGenerator::TranslateSpecializedCall(
     return false;
   }
 
-  if (PyCFunction_GET_FUNCTION(callee) == (PyCFunction)&builtin_next) {
+  if (callee == cinderx::getModuleState()->builtinNext()) {
     if (hir_instr.numArgs() == 1) {
       bbb.appendCallInstruction(
           hir_instr.output(), Ci_Builtin_Next_Core, hir_instr.arg(0), nullptr);
