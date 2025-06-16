@@ -2,8 +2,6 @@
 
 #include "cinderx/Common/watchers.h"
 
-#include "cinderx/Common/log.h"
-
 static int code_watcher_id = -1;
 static int dict_watcher_id = -1;
 static int func_watcher_id = -1;
