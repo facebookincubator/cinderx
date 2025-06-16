@@ -14,7 +14,15 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/modulethunks.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+
+#ifdef ENABLE_LAZY_IMPORTS
+// This is exported with an underscore on meta Python 3.12, but not Cinder 3.10
+#if PY_VERSION_HEX >= 0x030C0000
+#define PyDict_NextKeepLazy _PyDict_NextKeepLazy
+#endif // PY_VERSION_HEX >= 0x030C0000
+#else
+#define PyDict_NextKeepLazy PyDict_Next
+#endif
 
 int _PyClassLoader_IsImmutable(PyObject* container) {
   if (PyType_Check(container)) {
