@@ -79,6 +79,7 @@ try:
         enable_parallel_gc,
         freeze_type,
         get_parallel_gc_settings,
+        has_parallel_gc,
         immortalize_heap,
         init as cinderx_init,
         is_immortal,
@@ -255,6 +256,9 @@ except ImportError as e:
 
     def get_parallel_gc_settings() -> dict[str, int]:
         return {}
+
+    def has_parallel_gc() -> bool:
+        return False
 
     def immortalize_heap() -> None:
         pass

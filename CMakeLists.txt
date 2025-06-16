@@ -34,6 +34,9 @@ endif()
 # Figure out capabilities / supported features and set compiler flags
 # appropriately.
 
+if (NOT DEFINED ENABLE_PARALLEL_GC)
+  set(ENABLE_PARALLEL_GC 0)
+endif()
 if (NOT DEFINED ENABLE_SYMBOLIZER)
   set(ENABLE_SYMBOLIZER ${LINUX})
 endif()
@@ -220,7 +223,12 @@ add_library(jit ${JIT_SOURCES})
 target_link_libraries(jit PRIVATE asmjit::asmjit interpreter fmt::fmt nlohmann_json::nlohmann_json)
 
 # ParallelGC/
-file(GLOB_RECURSE PARALLEL_GC_SOURCES ${PROJECT_SOURCE_DIR}/ParallelGC/*.c)
+if (${ENABLE_PARALLEL_GC})
+  file(GLOB_RECURSE PARALLEL_GC_SOURCES ${PROJECT_SOURCE_DIR}/ParallelGC/*.c)
+else()
+  set(PARALLEL_GC_SOURCES "${GENERATED_HEADER_DIR}/dummy.c")
+  file(WRITE ${PARALLEL_GC_SOURCES} "")
+endif()
 add_library(parallel-gc ${PARALLEL_GC_SOURCES})
 
 set(SOURCES
