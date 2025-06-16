@@ -90,7 +90,6 @@ void Ci_WalkStack(PyThreadState* tstate, CiWalkStackCallback cb, void* data);
 namespace jit {
 
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate);
-Ref<PyFrameObject> materializePyFrameForDeopt(PyThreadState* tstate);
 
 } // namespace jit
 

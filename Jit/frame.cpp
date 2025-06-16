@@ -787,17 +787,17 @@ void Ci_WalkAsyncStack(
 
 #else // PY_VERSION_HEX < 0x030C0000
 
-#include "cinderx/Upgrade/upgrade_assert.h"
+#include "internal/pycore_frame.h"
+
+#include "cinderx/Common/py-portability.h"
 
 namespace jit {
 
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
+  _PyInterpreterFrame* frame = currentFrame(tstate);
+  return RuntimeFrameState{frame->f_code, frame->f_builtins, frame->f_globals};
 }
 
-Ref<PyFrameObject> materializePyFrameForDeopt(PyThreadState* tstate) {
-  UPGRADE_ASSERT(FRAME_HANDLING_CHANGED);
-}
 } // namespace jit
 
 #endif

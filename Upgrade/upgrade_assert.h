@@ -17,8 +17,4 @@
 // be used sparingly as overuse will lead to hard to debug crashes.
 #define UPGRADE_NOTE(tag, task)
 
-enum {
-  FRAME_HANDLING_CHANGED,
-};
-
 #endif // PY_VERSION_HEX >= 0x030C0000
