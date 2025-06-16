@@ -230,8 +230,6 @@ PyObject* JITRT_CallWithKeywordArgs(
     size_t new_nargsf = total_args;
 #if PY_VERSION_HEX < 0x030C0000
     new_nargsf |= (nargsf & Ci_Py_AWAITED_CALL_MARKER);
-#else
-    UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
     return JITRT_GET_REENTRY(func->vectorcall)(
         (PyObject*)func, arg_space.get(), new_nargsf, nullptr);
@@ -290,8 +288,6 @@ JITRT_StaticCallFPReturn JITRT_CallWithIncorrectArgcountFPReturn(
   size_t new_nargsf = argcount;
 #if PY_VERSION_HEX < 0x030C0000
   new_nargsf |= (nargsf & Ci_Py_AWAITED_CALL_MARKER);
-#else
-  UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
 
   return reinterpret_cast<staticvectorcallfuncfp>(
@@ -342,8 +338,6 @@ JITRT_StaticCallReturn JITRT_CallWithIncorrectArgcount(
   size_t new_nargsf = argcount;
 #if PY_VERSION_HEX < 0x030C0000
   new_nargsf |= (nargsf & Ci_Py_AWAITED_CALL_MARKER);
-#else
-  UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
 
   return reinterpret_cast<staticvectorcallfunc>(
@@ -944,8 +938,6 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
     return Ci_PyVectorcall_Call_WithFlags(
         func, pargs, kwargs, is_awaited ? Ci_Py_AWAITED_CALL_MARKER : 0);
   }
-#else
-  UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
 
   PyThreadState* tstate = _PyThreadState_GET();

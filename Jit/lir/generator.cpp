@@ -1894,7 +1894,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             ? Ci_Py_AWAITED_CALL_MARKER
             : 0;
 #else
-        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
         if (!(hir_instr.func()->type() <= TFunc)) {
           // Calls to things which aren't simple Python functions will
           // need to check the eval breaker. We do this in a helper instead
@@ -1998,8 +1997,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         flags |= (hir_instr.flags() & CallFlags::Awaited)
             ? Ci_Py_AWAITED_CALL_MARKER
             : 0;
-#else
-        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
@@ -2934,8 +2931,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* base = bbb.getDefInstr(instr.reg());
         int32_t offset = offsetof(Ci_PyWaitHandleObject, wh_waiter);
         bbb.appendInstr(instr.output(), Instruction::kMove, Ind{base, offset});
-#else
-        UPGRADE_ASSERT(AWAITED_FLAG);
 #endif
         break;
       }

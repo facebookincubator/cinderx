@@ -49,8 +49,6 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
         {TUnicode, &PyUnicode_Type},
 #if PY_VERSION_HEX < 0x030C0000
         {TWaitHandle, &Ci_PyWaitHandle_Type},
-#else
-        UPGRADE_NOTE(AWAITED_FLAG, T194027914)
 #endif
         {TNoneType, Py_TYPE(Py_None)},
     };
@@ -59,13 +57,12 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
     // this table. Except for TWaitHandle, which hasn't been ported to 3.12 yet
     // and TArray which is a heap type so can't be included in this static
     // table.
-#define CHECK_TY(name, bits, lifetime, flags)              \
-  JIT_CHECK(/* UPGRADE_NOTE(AWAITED_FLAG, T194027914) */   \
-            T##name <= TArray || T##name <= TWaitHandle || \
-                ((flags) & kTypeHasUniquePyType) == 0 ||   \
-                map.contains(T##name),                     \
-            "Type {} missing entry in typeToPyType()",     \
-            T##name);
+#define CHECK_TY(name, bits, lifetime, flags)                             \
+  JIT_CHECK(                                                              \
+      T##name <= TArray || T##name <= TWaitHandle ||                      \
+          ((flags) & kTypeHasUniquePyType) == 0 || map.contains(T##name), \
+      "Type {} missing entry in typeToPyType()",                          \
+      T##name);
     HIR_TYPES(CHECK_TY)
 #undef CHECK_TY
 
