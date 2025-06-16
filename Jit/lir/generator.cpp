@@ -2935,13 +2935,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kWaitHandleLoadCoroOrResult: {
+#if PY_VERSION_HEX < 0x030C0000
         const auto& instr = static_cast<const WaitHandleLoadCoroOrResult&>(i);
         Instruction* base = bbb.getDefInstr(instr.reg());
         int32_t offset = offsetof(Ci_PyWaitHandleObject, wh_coro_or_result);
         bbb.appendInstr(instr.output(), Instruction::kMove, Ind{base, offset});
+#endif
         break;
       }
       case Opcode::kWaitHandleRelease: {
+#if PY_VERSION_HEX < 0x030C0000
         const auto& instr = static_cast<const WaitHandleRelease&>(i);
         bbb.appendInstr(
             OutInd{
@@ -2957,6 +2960,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
                     offsetof(Ci_PyWaitHandleObject, wh_waiter))},
             Instruction::kMove,
             0);
+#endif
         break;
       }
       case Opcode::kDeleteSubscr: {
