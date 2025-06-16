@@ -18,8 +18,6 @@
 #define UPGRADE_NOTE(tag, task)
 
 enum {
-  TSTATE_FROM_RUNTIME, // T194018580
-  // Missing tstate->frame. T194018580
   FRAME_HANDLING_CHANGED,
 };
 

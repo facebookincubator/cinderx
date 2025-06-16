@@ -923,10 +923,8 @@ void NativeGenerator::generateFunctionEntry() {
   as_->mov(x86::rbp, x86::rsp);
 }
 
+#if PY_VERSION_HEX < 0x030C0000
 void NativeGenerator::loadTState(x86::Gp dst_reg) {
-#if PY_VERSION_HEX >= 0x030C0000
-  UPGRADE_ASSERT(TSTATE_FROM_RUNTIME);
-#else
   uint64_t tstate =
       reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
   if (fitsInt32(tstate)) {
@@ -935,8 +933,8 @@ void NativeGenerator::loadTState(x86::Gp dst_reg) {
     as_->mov(dst_reg, tstate);
     as_->mov(dst_reg, x86::ptr(dst_reg));
   }
-#endif
 }
+#endif
 
 #ifdef SHADOW_FRAMES
 void NativeGenerator::linkOnStackShadowFrame(
@@ -1085,6 +1083,8 @@ void NativeGenerator::loadOrGenerateLinkFrame(
         std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
         save_regs) {
   x86::Gp tstate_reg = x86::gpq(INITIAL_TSTATE_REG.loc);
+
+#if PY_VERSION_HEX < 0x030C0000
   auto load_tstate_and_move = [&]() {
     loadTState(tstate_reg);
     for (const auto& pair : save_regs) {
@@ -1104,7 +1104,6 @@ void NativeGenerator::loadOrGenerateLinkFrame(
     }
   };
 
-#if PY_VERSION_HEX < 0x030C0000
   // Prior to 3.12 we did not link a frame on initial generator entry.
   if (isGen()) {
     load_tstate_and_move();
@@ -1114,7 +1113,11 @@ void NativeGenerator::loadOrGenerateLinkFrame(
 
   switch (GetFunction()->frameMode) {
     case FrameMode::kShadow:
+#if PY_VERSION_HEX >= 0x030B0000
+      JIT_ABORT("Shadow frames aren't supported on versions after 3.10.");
+#else
       load_tstate_and_move();
+#endif
       break;
     case FrameMode::kNormal: {
       size_t rsp_offset = 0;

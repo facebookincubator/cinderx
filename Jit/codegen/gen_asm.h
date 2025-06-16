@@ -141,7 +141,9 @@ class NativeGenerator {
       asmjit::Label native_entry_point,
       asmjit::Label static_jmp_location);
 
+#if PY_VERSION_HEX < 0x030C0000
   void loadTState(asmjit::x86::Gp dst_reg);
+#endif
 
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocation);
   friend class BackendTest;
