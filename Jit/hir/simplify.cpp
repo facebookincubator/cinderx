@@ -17,6 +17,10 @@
 #include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/module_state.h"
 
+// clang-format off
+#include "cinderx/Common/dict.h"
+// clang-format on
+
 #include <fmt/ostream.h>
 
 namespace jit::hir {
@@ -957,16 +961,22 @@ Register* simplifyLoadAttrSplitDict(
     const LoadAttr* load_attr,
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<PyUnicodeObject> name) {
+#if PY_VERSION_HEX >= 0x030C0000
+  if (!PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
+    return nullptr;
+  }
+#else
   if (!PyType_HasFeature(type, Py_TPFLAGS_HEAPTYPE) ||
       type->tp_dictoffset < 0) {
     return nullptr;
   }
+#endif
   BorrowedRef<PyHeapTypeObject> ht(type);
   if (ht->ht_cached_keys == nullptr) {
     return nullptr;
   }
   PyDictKeysObject* keys = ht->ht_cached_keys;
-  Py_ssize_t attr_idx = _PyDictKeys_GetSplitIndex(keys, name);
+  Py_ssize_t attr_idx = getDictKeysIndex(keys, name);
   if (attr_idx == -1) {
     return nullptr;
   }
@@ -979,8 +989,14 @@ Register* simplifyLoadAttrSplitDict(
   patchpoint->setDescr("SplitDictDeoptPatcher");
   env.emit<UseType>(receiver, receiver->type());
 
+#if PY_VERSION_HEX >= 0x030C0000
+  // PyDictOrValues is stored at -3 per _PyObject_DictOrValuesPointer
+  Register* obj_dict = env.emit<LoadField>(
+      receiver, "__dict__", -3 * sizeof(PyObject*), TOptDict);
+#else
   Register* obj_dict =
       env.emit<LoadField>(receiver, "__dict__", type->tp_dictoffset, TOptDict);
+#endif
   // We pass the attribute's name to this CheckField (not "__dict__") because
   // ultimately it means that the attribute we're trying to load is missing,
   // and the AttributeError to be raised should contain the attribute's name.
@@ -988,6 +1004,19 @@ Register* simplifyLoadAttrSplitDict(
       env.emit<CheckField>(obj_dict, name, *load_attr->frameState());
   static_cast<CheckField*>(checked_dict->instr())->setGuiltyReg(receiver);
 
+#if PY_VERSION_HEX >= 0x030C0000
+  Register* one = env.emit<LoadConst>(Type::fromCUInt(1, TCUInt64));
+  Register* dict_ptr = env.emit<BitCast>(checked_dict, TCUInt64);
+  Register* is_values =
+      env.emit<IntBinaryOp>(BinaryOpKind::kAnd, dict_ptr, one);
+  auto guard = env.emitInstr<Guard>(is_values);
+  guard->setGuiltyReg(receiver);
+  guard->setDescr("dict values check");
+  Register* values = env.emit<IntBinaryOp>(BinaryOpKind::kAdd, dict_ptr, one);
+  Register* values_obj = env.emit<BitCast>(values, TOptObject);
+  Register* attr = env.emit<LoadField>(
+      values_obj, "attr", attr_idx * sizeof(PyObject*), TOptObject);
+#else
   Register* dict_keys = env.emit<LoadField>(
       checked_dict, "ma_keys", offsetof(PyDictObject, ma_keys), TCPtr);
   Register* expected_keys = env.emit<LoadConst>(Type::fromCPtr(keys));
@@ -996,8 +1025,9 @@ Register* simplifyLoadAttrSplitDict(
   auto guard = env.emitInstr<Guard>(equal);
   guard->setGuiltyReg(receiver);
   guard->setDescr("ht_cached_keys comparison");
-
   Register* attr = env.emit<LoadSplitDictItem>(checked_dict, attr_idx);
+#endif
+
   Register* checked_attr =
       env.emit<CheckField>(attr, name, *load_attr->frameState());
   static_cast<CheckField*>(checked_attr->instr())->setGuiltyReg(receiver);
