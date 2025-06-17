@@ -212,7 +212,8 @@ add_library(static-python ${STATIC_PYTHON_SOURCES})
 target_link_libraries(static-python PRIVATE fmt::fmt common borrowed)
 
 # Jit/
-file(GLOB_RECURSE JIT_SOURCES ${PROJECT_SOURCE_DIR}/Jit/*.cpp)
+
+file(GLOB_RECURSE JIT_SOURCES ${PROJECT_SOURCE_DIR}/Jit/*.cpp ${PROJECT_SOURCE_DIR}/Jit/*.c)
 
 # Drop Jit/elf for macOS builds.
 if (${MACOS})
