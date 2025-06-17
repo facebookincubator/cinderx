@@ -9,7 +9,6 @@
 #include "internal/pycore_pystate.h" // _PyThreadState_GET()
 
 #include "cinderx/StaticPython/classloader.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #if PY_VERSION_HEX < 0x030C0000
 

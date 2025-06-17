@@ -5,7 +5,6 @@
 #include "structmember.h" // PyMemberDef
 
 #include "cinderx/Common/string.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
 /* fb t46346203 */
 

@@ -7,7 +7,6 @@
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/vtable.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 static void set_thunk_type_error(_Py_StaticThunk* thunk, const char* msg) {
   PyObject* name = thunk->thunk_tcs.tcs_rt.rt_name;

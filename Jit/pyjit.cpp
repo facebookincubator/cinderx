@@ -41,7 +41,6 @@
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Shadowcode/shadowcode.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #ifdef ENABLE_DISASSEMBLER
 #include "i386-dis/dis-asm.h"

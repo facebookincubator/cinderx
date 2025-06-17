@@ -14,7 +14,6 @@
 #include "cinderx/StaticPython/typed-args-info.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
-#include "cinderx/Upgrade/upgrade_stubs.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"

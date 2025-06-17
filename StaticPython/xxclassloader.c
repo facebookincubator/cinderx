@@ -17,7 +17,6 @@
 
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 PyDoc_STRVAR(
     xxclassloader__doc__,

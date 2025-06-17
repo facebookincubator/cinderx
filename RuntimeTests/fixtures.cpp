@@ -12,7 +12,6 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/Jit/runtime.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
     BorrowedRef<PyFunctionObject> func) {

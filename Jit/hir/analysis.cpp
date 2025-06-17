@@ -8,7 +8,6 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>

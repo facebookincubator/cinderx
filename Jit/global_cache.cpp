@@ -4,7 +4,6 @@
 
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/watchers.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/module_state.h"
 
 #ifndef ENABLE_LAZY_IMPORTS

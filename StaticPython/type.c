@@ -10,7 +10,6 @@
 #include "cinder/exports.h"
 #else
 #include "cinderx/Common/extra-py-flags.h"
-#include "cinderx/Upgrade/upgrade_stubs.h"
 #endif
 
 #include "cinderx/Common/py-portability.h"

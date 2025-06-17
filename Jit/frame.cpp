@@ -17,7 +17,8 @@
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/runtime.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
+
+#include <cinderx/Common/py-portability.h>
 
 #include <algorithm>
 #include <functional>

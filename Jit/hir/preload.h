@@ -9,7 +9,6 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/StaticPython/typed-args-info.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 #include <map>
 #include <unordered_map>

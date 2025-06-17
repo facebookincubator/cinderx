@@ -6,7 +6,6 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/StaticPython/static_array.h"
-#include "cinderx/Upgrade/upgrade_assert.h" // @donotremove
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>

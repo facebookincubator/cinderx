@@ -19,7 +19,6 @@
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/runtime_support.h"
 #include "cinderx/StaticPython/classloader.h"
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 // clang-format off

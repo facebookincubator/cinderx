@@ -10,7 +10,6 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
-#include "cinderx/Upgrade/upgrade_stubs.h" // @donotremove
 
 static PyObject* genericinst_cache;
 
