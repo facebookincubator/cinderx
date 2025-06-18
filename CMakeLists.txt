@@ -263,13 +263,6 @@ add_library(immortalize ${IMMORTALIZE_SOURCES})
 target_link_libraries(immortalize PRIVATE fmt::fmt)
 
 ########################################
-# Upgrade/
-
-file(GLOB_RECURSE UPGRADE_SOURCES ${PROJECT_SOURCE_DIR}/Upgrade/*.cpp)
-add_library(upgrade ${UPGRADE_SOURCES})
-target_link_libraries(upgrade PRIVATE fmt::fmt)
-
-########################################
 # StaticPython/
 
 file(GLOB_RECURSE STATIC_PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/StaticPython/*.c)
