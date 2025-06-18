@@ -4,3 +4,9 @@ requires = [
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "cinderx"
+description = "High-performance Python runtime extension"
+requires-python = "== 3.12.*"
+version = "0.1"
