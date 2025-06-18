@@ -179,6 +179,11 @@ set(USDT_DIR ${GENERATED_HEADER_DIR}/usdt)
 file(MAKE_DIRECTORY ${USDT_DIR})
 file(COPY ${usdt_SOURCE_DIR}/usdt.h DESTINATION ${USDT_DIR})
 
+########################################
+# zlib
+
+find_package(ZLIB)
+
 ##############################################################################
 # Build cinderx
 
@@ -195,7 +200,7 @@ include_directories(
 
 file(GLOB_RECURSE COMMON_SOURCES ${PROJECT_SOURCE_DIR}/Common/*.cpp)
 add_library(common ${COMMON_SOURCES})
-target_link_libraries(common PRIVATE fmt::fmt)
+target_link_libraries(common PRIVATE fmt::fmt ZLIB::ZLIB)
 
 ########################################
 # UpstreamBorrow/
