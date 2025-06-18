@@ -60,7 +60,7 @@ endif()
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(SHARED_FLAGS "-DPy_BUILD_CORE -fPIC -Wall -Wextra -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-sign-compare -Wno-unused-function -Wno-unused-parameter")
+set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -Wall -Wextra -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-sign-compare -Wno-unused-function -Wno-unused-parameter")
 
 if (${ENABLE_FUNC_EVENT_MODIFY_QUALNAME})
   set(SHARED_FLAGS "-DENABLE_FUNC_EVENT_MODIFY_QUALNAME ${SHARED_FLAGS}")
