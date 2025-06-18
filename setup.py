@@ -14,6 +14,7 @@ from typing import Callable
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
+from setuptools.command.build_py import build_py
 
 
 def find_files(path: str, pred: Callable[[str], bool]) -> list[str]:
@@ -35,13 +36,22 @@ def find_python_sources(path: str) -> list[str]:
     return find_files(path, lambda f: f.endswith(".py"))
 
 
+class BuildPy(build_py):
+    def run(self) -> None:
+        super().run()
+
+        # Copy opcodes/opcode_312.py to cinderx/opcode.py.
+        out_path = self.get_module_outfile(self.build_lib, ["cinderx"], "opcode")
+        self.copy_file("PythonLib/opcodes/opcode_312.py", out_path, preserve_mode=False)
+
+
 class CMakeExtension(Extension):
     def __init__(self, name: str) -> None:
         # Stop the base class from building any sources.
         super().__init__(name, sources=[])
 
 
-class CMakeBuildExt(build_ext):
+class BuildExt(build_ext):
     def run(self) -> None:
         # pyre-ignore[16]: No pyre types for build_ext.
         for extension in self.extensions:
@@ -115,7 +125,8 @@ def main() -> None:
         ext_modules=[CMakeExtension(".")],
         sources=sources,
         cmdclass={
-            "build_ext": CMakeBuildExt,
+            "build_py": BuildPy,
+            "build_ext": BuildExt,
         },
         packages=find_packages(where="PythonLib", exclude=["test_cinderx*"]),
         package_dir={"": "PythonLib"},
