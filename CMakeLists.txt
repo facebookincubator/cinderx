@@ -41,6 +41,9 @@ if (NOT DEFINED META_PYTHON)
   set(META_PYTHON 1)
 endif()
 
+if (NOT DEFINED ENABLE_ELF_READER)
+  set(ENABLE_ELF_READER ${LINUX})
+endif()
 if (NOT DEFINED ENABLE_FUNC_EVENT_MODIFY_QUALNAME)
   set(ENABLE_FUNC_EVENT_MODIFY_QUALNAME ${META_PYTHON} AND ${PY_VERSION} EQUAL 3.12)
 endif()
@@ -62,6 +65,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(SHARED_FLAGS "-DPy_BUILD_CORE -DPy_BUILD_CORE_MODULE -fPIC -Wall -Wextra -Wno-c99-designator -Wno-c++11-narrowing -Wno-cast-function-type-mismatch -Wno-deprecated-declarations -Wno-missing-field-initializers -Wno-null-pointer-subtraction -Wno-sign-compare -Wno-unused-function -Wno-unused-parameter")
 
+if (${ENABLE_ELF_READER})
+  set(SHARED_FLAGS "-DENABLE_ELF_READER ${SHARED_FLAGS}")
+endif()
 if (${ENABLE_FUNC_EVENT_MODIFY_QUALNAME})
   set(SHARED_FLAGS "-DENABLE_FUNC_EVENT_MODIFY_QUALNAME ${SHARED_FLAGS}")
 endif()
@@ -273,12 +279,6 @@ target_link_libraries(static-python PRIVATE fmt::fmt common borrowed)
 # Jit/
 
 file(GLOB_RECURSE JIT_SOURCES ${PROJECT_SOURCE_DIR}/Jit/*.cpp ${PROJECT_SOURCE_DIR}/Jit/*.c)
-
-# Drop Jit/elf for macOS builds.
-if (${MACOS})
-  list(FILTER JIT_SOURCES EXCLUDE REGEX ".*/elf/.*")
-endif()
-
 add_library(jit ${JIT_SOURCES})
 target_link_libraries(jit PRIVATE asmjit::asmjit interpreter fmt::fmt nlohmann_json::nlohmann_json)
 

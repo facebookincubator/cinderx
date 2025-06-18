@@ -2,8 +2,10 @@
 
 #include "cinderx/Jit/elf/reader.h"
 
+#ifdef ENABLE_ELF_READER
 #include <elf.h>
 #include <link.h>
+#endif
 
 #include <istream>
 #include <sstream>
@@ -83,6 +85,7 @@ Note readNote(std::istream& is) {
 std::span<const std::byte> findSection(
     std::span<const std::byte> elf,
     std::string_view name) {
+#ifdef ENABLE_ELF_READER
   auto elf_hdr = reinterpret_cast<const ElfW(Ehdr)*>(elf.data());
   auto elf_ptr = reinterpret_cast<const std::byte*>(elf.data());
   std::span<const ElfW(Shdr)> section_headers{
@@ -113,6 +116,9 @@ std::span<const std::byte> findSection(
   }
 
   return std::span<const std::byte>{};
+#else
+  throw std::runtime_error{"ELF reading is not supported"};
+#endif
 }
 
 NoteArray readNoteSection(std::istream& is, size_t size) {
