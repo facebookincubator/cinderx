@@ -114,8 +114,8 @@ if (${META_PYTHON})
 
   # Generate pyconfig.h by running the configure script.  Avoid doing so on each
   # run as it's slow.
-  if (NOT EXISTS "${Python_SOURCE_DIR}/pyconfig.h")
-    execute_process(COMMAND "./configure" WORKING_DIRECTORY "${Python_SOURCE_DIR}")
+  if (NOT EXISTS "${python_SOURCE_DIR}/pyconfig.h")
+    execute_process(COMMAND "./configure" WORKING_DIRECTORY "${python_SOURCE_DIR}")
   endif()
 
   # pyconfig.h gets saved to the top-level source directory, not to Include/.
