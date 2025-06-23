@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 
 from __future__ import annotations
 
@@ -11,10 +11,10 @@ import gc
 import os
 import re
 import sys
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 from functools import wraps
 from types import CodeType, FunctionType, ModuleType
-from typing import Any, Awaitable, Callable, ContextManager, Generator, Mapping
+from typing import Any, Awaitable, Callable, ContextManager, final, Generator, Mapping
 
 import cinderx
 
@@ -57,6 +57,16 @@ from ..common import CompilerTest
 TEST_OPT_OUT = DepTrackingOptOut("tests")
 
 
+# Code that dynamically passes around module objects is hard to type, since
+# modules can have any attribute of any type and Pyre doesn't know anything
+# about it. This fake type makes it less painful while also requiring fewer
+# warnings about using Any.
+@final
+class TModule(ModuleType):
+    # pyre-ignore[3]: Have fun trying to type this as non-Any.
+    def __getattr__(self, name: str) -> Any: ...
+
+
 def type_mismatch(from_type: str, to_type: str) -> str:
     return re.escape(f"type mismatch: {from_type} cannot be assigned to {to_type}")
 
@@ -67,9 +77,9 @@ def bad_ret_type(from_type: str, to_type: str) -> str:
     )
 
 
-def disable_hir_inliner(f: Callable[..., Any]) -> Callable[..., Any]:
+def disable_hir_inliner(f: Callable[..., object]) -> Callable[..., object]:
     @wraps(f)
-    def impl(*args: object, **kwargs: object) -> Any:
+    def impl(*args: object, **kwargs: object) -> object:
         enabled = cinderx.jit.is_hir_inliner_enabled()
         if enabled:
             cinderx.jit.disable_hir_inliner()
@@ -371,7 +381,7 @@ class StaticTestBase(CompilerTest):
             code_gen.visit(tree)
         return TestErrors(self, code, errors.errors, errors.warnings)
 
-    def get_arg_check_types(self, func: FunctionType | CodeType) -> tuple[Any, ...]:
+    def get_arg_check_types(self, func: FunctionType | CodeType) -> tuple[object, ...]:
         if isinstance(func, CodeType):
             return func.co_consts[-1][0]
         return func.__code__.co_consts[-1][0]
@@ -526,7 +536,7 @@ class StaticTestBase(CompilerTest):
         enable_patching: bool = False,
         freeze: bool = True,
         dump_bytecode: bool = False,
-    ) -> Generator[Any, None, None]:
+    ) -> Generator[TModule, None, None]:
         d = None
         if name is None:
             name = self._temp_mod_name()
@@ -544,6 +554,7 @@ class StaticTestBase(CompilerTest):
             if dump_bytecode:
                 dis(compiled)
             d, m = self._in_strict_module(name, compiled, enable_patching)
+            # pyre-ignore[7]: Treat this ModuleType as TModule.
             yield m
         finally:
             set_freeze_enabled(old_setting)
@@ -570,10 +581,12 @@ class StaticTestBase(CompilerTest):
         return r
 
     @property
-    def base_size(self):
+    def base_size(self) -> int:
         class C:
             __slots__ = ()
 
+        # pyre-ignore[16]: Pyre is confused and thinks we're accessing attribute `C`
+        # from `int`.
         return C().__sizeof__()
 
     @property
@@ -582,7 +595,7 @@ class StaticTestBase(CompilerTest):
 
     def build_static_type(
         self, slots: tuple[str], slot_types: dict[str, str] | None
-    ) -> type[Any]:
+    ) -> type[object]:
         c = compile(
             f"""
 __slots__ = {slots!r}
@@ -595,7 +608,7 @@ __slot_types__ = {slot_types!r}
             FunctionType(c, globals(), "C"), "C", None, False, (), False, ()
         )
 
-    def assert_jitted(self, func: Callable[..., Any]) -> None:
+    def assert_jitted(self, func: Callable[..., object]) -> None:
         if not cinderx.jit.is_enabled():
             return
 
@@ -605,7 +618,7 @@ __slot_types__ = {slot_types!r}
 
         self.assertTrue(cinderx.jit.is_jit_compiled(func), func.__name__)
 
-    def assert_not_jitted(self, func: Callable[..., Any]) -> None:
+    def assert_not_jitted(self, func: Callable[..., object]) -> None:
         if not cinderx.jit.is_enabled():
             return
 
@@ -622,11 +635,13 @@ __slot_types__ = {slot_types!r}
         # framework complaining about environment changes.
         self.addCleanup(lambda: asyncio.set_event_loop_policy(None))
 
-    def subTest(self, msg: str | None = None, **kwargs: object):
+    def subTest(
+        self, msg: str | None = None, **kwargs: object
+    ) -> AbstractContextManager[object, bool]:
         cinderx.clear_classloader_caches()
         return super().subTest(msg=msg, **kwargs)
 
-    def make_async_func_hot(self, func: Callable[[], Awaitable[Any]]) -> None:
+    def make_async_func_hot(self, func: Callable[[], Awaitable[object]]) -> None:
         async def make_hot() -> None:
             for _ in range(50):
                 await func()
