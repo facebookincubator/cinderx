@@ -1,17 +1,24 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
-# pyre-unsafe
+
+# pyre-strict
+
+from __future__ import annotations
+
 import dis
 import glob
 import inspect
 import re
 import sys
+
 from dataclasses import dataclass
 from io import StringIO
 from os import path
 from subprocess import run
-from types import CodeType
+from types import CodeType, FunctionType, MethodType
+from typing import Any, Callable, Generator
 from unittest import TestCase
 
+from cinderx.compiler.pyassem import Instruction, PyFlowGraph
 from cinderx.compiler.pycodegen import (
     CinderCodeGenerator310,
     CodeGenerator,
@@ -19,15 +26,18 @@ from cinderx.compiler.pycodegen import (
     make_compiler,
 )
 
+# Any value that can be passed into dis.dis() and dis.get_instructions().
+Disassembleable = Callable[..., Any] | CodeType | FunctionType | MethodType
+
 
 _UNSPECIFIED = object()
 
 # dis exception table output lines look like:
 #   4 to 24 -> 122 [0] lasti
-DIS_EXC_RE = re.compile(r"(\d+) to (\d+) -> (\d+) \[(\d+)\]( lasti)?")
+DIS_EXC_RE: re.Pattern[str] = re.compile(r"(\d+) to (\d+) -> (\d+) \[(\d+)\]( lasti)?")
 
 
-def get_repo_root():
+def get_repo_root() -> str:
     dirname = path.dirname(__file__)
     completed_process = run(
         ["git", "rev-parse", "--show-toplevel"], cwd=dirname, capture_output=True
@@ -38,7 +48,7 @@ def get_repo_root():
     return completed_process.stdout.strip().decode("utf8")
 
 
-def glob_test(target_dir, pattern, adder):
+def glob_test(target_dir: str, pattern: str, adder: Callable[[str, str], None]) -> None:
     for fname in glob.glob(path.join(target_dir, pattern), recursive=True):
         modname = path.relpath(fname, target_dir)
         adder(modname, fname)
@@ -56,12 +66,19 @@ class CompilerTest(TestCase):
         COMPARE_JUMP_NONZERO = "JUMP_IF_NONZERO_OR_POP"
         COMPARE_JUMP_ZERO = "JUMP_IF_ZERO_OR_POP"
 
-    def get_disassembly_as_string(self, co):
+    def get_disassembly_as_string(self, co: Disassembleable) -> str:
         s = StringIO()
         dis.dis(co, file=s)
         return s.getvalue()
 
-    def assertInBytecode(self, x, opname, argval=_UNSPECIFIED, *, index=_UNSPECIFIED):
+    def assertInBytecode(
+        self,
+        x: Disassembleable,
+        opname: str,
+        argval: object = _UNSPECIFIED,
+        *,
+        index: object = _UNSPECIFIED,
+    ) -> dis.Instruction | None:
         """Returns instr if op is found, otherwise throws AssertionError"""
         for i, instr in enumerate(dis.get_instructions(x)):
             if instr.opname == opname:
@@ -77,7 +94,9 @@ class CompilerTest(TestCase):
             msg = f"({opname},{argval}) not found in bytecode{loc_msg}:\n{disassembly}"
         self.fail(msg)
 
-    def assertNotInBytecode(self, x, opname, argval=_UNSPECIFIED):
+    def assertNotInBytecode(
+        self, x: Disassembleable, opname: str, argval: object = _UNSPECIFIED
+    ) -> None:
         """Throws AssertionError if op is found"""
         for instr in dis.get_instructions(x):
             if instr.opname == opname:
@@ -89,14 +108,14 @@ class CompilerTest(TestCase):
                     msg = f"({opname},{argval!r}) occurs in bytecode:\n{disassembly}"
                     self.fail(msg)
 
-    def assertLoadMethodInBytecode(self, x, name: str) -> None:
+    def assertLoadMethodInBytecode(self, x: Disassembleable, name: str) -> None:
         if sys.version_info >= (3, 12):
             # We may want to do better here and check the oparg flag in the future.
             self.assertInBytecode(x, "LOAD_ATTR", name)
         else:
             self.assertInBytecode(x, "LOAD_METHOD", name)
 
-    def assertBinOpInBytecode(self, x, binop: str) -> None:
+    def assertBinOpInBytecode(self, x: Disassembleable, binop: str) -> None:
         if sys.version_info >= (3, 12):
             binop = "NB_" + binop.removeprefix("BINARY_")
             from opcode import _nb_ops
@@ -110,7 +129,7 @@ class CompilerTest(TestCase):
         else:
             self.assertInBytecode(x, binop)
 
-    def assertKwCallInBytecode(self, x):
+    def assertKwCallInBytecode(self, x: Disassembleable) -> None:
         if sys.version_info >= (3, 12):
             self.assertInBytecode(x, "KW_NAMES")
             self.assertInBytecode(x, "CALL")
@@ -129,12 +148,12 @@ class CompilerTest(TestCase):
 
     def compile(
         self,
-        code,
-        generator=None,
-        modname="<module>",
-        optimize=0,
-        ast_optimizer_enabled=True,
-    ):
+        code: str,
+        generator: type[CodeGenerator] | None = None,
+        modname: str = "<module>",
+        optimize: int = 0,
+        ast_optimizer_enabled: bool = True,
+    ) -> CodeType:
         gen = make_compiler(
             self.clean_code(code),
             "",
@@ -144,19 +163,21 @@ class CompilerTest(TestCase):
             optimize=optimize,
             ast_optimizer_enabled=ast_optimizer_enabled,
         )
+        assert isinstance(gen, CodeGenerator)
         return gen.getCode()
 
-    def run_code(self, code, generator=None, modname="<module>"):
-        compiled = self.compile(
-            code,
-            generator,
-            modname,
-        )
+    def run_code(
+        self,
+        code: str,
+        generator: type[CodeGenerator] | None = None,
+        modname: str = "<module>",
+    ) -> dict[str, Any]:
+        compiled = self.compile(code, generator, modname)
         d = {}
         exec(compiled, d)
         return d
 
-    def find_code(self, code, name=None):
+    def find_code(self, code: CodeType, name: str | None = None) -> CodeType:
         consts = [
             const
             for const in code.co_consts
@@ -170,7 +191,12 @@ class CompilerTest(TestCase):
             )
         return consts[0]
 
-    def to_graph(self, code, generator=None, ast_optimizer_enabled=True):
+    def to_graph(
+        self,
+        code: str,
+        generator: type[CodeGenerator] | None = None,
+        ast_optimizer_enabled: bool = True,
+    ) -> PyFlowGraph:
         code = inspect.cleandoc("\n" + code)
         gen = make_compiler(
             code,
@@ -182,19 +208,21 @@ class CompilerTest(TestCase):
         gen.graph.assemble_final_code()
         return gen.graph
 
-    def dump_graph(self, graph):
+    def dump_graph(self, graph: PyFlowGraph) -> str:
         io = StringIO()
         graph.dump(io)
         return io.getvalue()
 
-    def graph_to_instrs(self, graph):
+    def graph_to_instrs(self, graph: PyFlowGraph) -> Generator[Instruction, None, None]:
         for block in graph.getBlocks():
             yield from block.getInstructions()
 
-    def get_consts_with_names(self, code):
+    def get_consts_with_names(self, code: CodeType) -> dict[str, Any]:
         return dict(zip(code.co_names, code.co_consts))
 
-    def assertNotInGraph(self, graph, opname, argval=_UNSPECIFIED):
+    def assertNotInGraph(
+        self, graph: PyFlowGraph, opname: str, argval: object = _UNSPECIFIED
+    ) -> None:
         for block in graph.getBlocks():
             for instr in block.getInstructions():
                 if instr.opname == opname:
@@ -209,7 +237,9 @@ class CompilerTest(TestCase):
                         msg = msg % (opname, argval, self.dump_graph(graph))
                         self.fail(msg)
 
-    def assertInGraph(self, graph, opname, argval=_UNSPECIFIED):
+    def assertInGraph(
+        self, graph: PyFlowGraph, opname: str, argval: object = _UNSPECIFIED
+    ) -> Instruction | None:
         """Returns instr if op is found, otherwise throws AssertionError"""
         for block in graph.getBlocks():
             for instr in block.getInstructions():
@@ -228,7 +258,7 @@ class CompilerTest(TestCase):
 class _FakeCodeType:
     __slots__ = ("co_exceptiontable",)
 
-    def __init__(self, exc_table):
+    def __init__(self, exc_table: bytes) -> None:
         self.co_exceptiontable = exc_table
 
 
@@ -243,16 +273,17 @@ class ExceptionTableEntry:
     lasti: bool
 
     @classmethod
-    def from_dis_entry(cls, e):
+    def from_dis_entry(cls, e: object) -> ExceptionTableEntry:
+        # pyre-ignore[16]: No visibility into result of dis._parse_exception_table().
         return cls(e.start, e.end, e.target, e.depth, e.lasti)
 
 
 class ParsedExceptionTable:
-    def __init__(self, entries: list[ExceptionTableEntry]):
+    def __init__(self, entries: list[ExceptionTableEntry]) -> None:
         self.entries = entries
 
     @classmethod
-    def from_bytes(cls, exc_table: bytes):
+    def from_bytes(cls, exc_table: bytes) -> ParsedExceptionTable:
         code = _FakeCodeType(exc_table)
         # pyre-ignore[16]: Undefined attribute dis._parse_exception_table
         parsed_table = dis._parse_exception_table(code)
@@ -260,7 +291,7 @@ class ParsedExceptionTable:
         return cls(entries)
 
     @classmethod
-    def from_dis_output(cls, exc_table: str):
+    def from_dis_output(cls, exc_table: str) -> ParsedExceptionTable:
         # Lets us paste dis output directly into test cases.
         lines = [x.strip() for x in exc_table.strip().split("\n")]
         entries = []

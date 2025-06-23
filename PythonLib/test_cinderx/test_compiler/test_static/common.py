@@ -296,7 +296,7 @@ class StaticTestBase(CompilerTest):
     def compile(
         self,
         code: str,
-        generator: type[CodeGenerator] = StaticCodeGenerator,
+        generator: type[CodeGenerator] | None = StaticCodeGenerator,
         modname: str = "<module>",
         optimize: int = 0,
         ast_optimizer_enabled: bool = True,
@@ -550,7 +550,7 @@ class StaticTestBase(CompilerTest):
             self._finalize_module(name, d)
 
     def _run_code(
-        self, code: str, generator: type[CodeGenerator], modname: str | None
+        self, code: str, generator: type[CodeGenerator] | None, modname: str | None
     ) -> tuple[str, dict[str, Any]]:
         if modname is None:
             modname = self._temp_mod_name()
@@ -563,7 +563,7 @@ class StaticTestBase(CompilerTest):
     def run_code(
         self,
         code: str,
-        generator: type[CodeGenerator] = StaticCodeGenerator,
+        generator: type[CodeGenerator] | None = StaticCodeGenerator,
         modname: str | None = None,
     ) -> dict[str, Any]:
         _, r = self._run_code(code, generator, modname)

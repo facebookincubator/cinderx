@@ -371,6 +371,7 @@ def add_test(modname: str, fname: str) -> None:
         if exc_table is not None:
             if version < (3, 11):
                 self.fail("No exception table in python 3.10")
+            assert isinstance(graph, PyFlowGraph312)
             exc = eval(exc_table)
             for fn, table in exc.items():
                 self.check_exc_table(graph, fn, table)
