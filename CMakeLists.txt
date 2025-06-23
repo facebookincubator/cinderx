@@ -127,7 +127,7 @@ else()
 
   # "python" vs "Python" naming issues between Meta Python and CPython, this was
   # the best workaround at the time.
-  set(PYTHON_INTERNAL_DIR "${Python_SOURCE_DIR}/Include/internal")
+  set(PYTHON_INTERNAL_DIR "${Python_INCLUDE_DIRS}/internal")
 endif()
 
 # Some of our files are partially generated from CPython source, and they
