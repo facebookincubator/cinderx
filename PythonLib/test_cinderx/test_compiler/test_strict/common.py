@@ -1,4 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
 from __future__ import annotations
 
 import ast
@@ -184,10 +185,10 @@ class StrictTestWithCheckerBase(StrictTestBase):
         self,
         compiled: CodeType,
         name: str,
-        enable_patching=False,
-        additional_dicts=None,
-    ):
-        d = {"__name__": name, "<fixed-modules>": FIXED_MODULES}
+        enable_patching: bool = False,
+        additional_dicts: dict[str, Any] | None = None,
+    ) -> tuple[dict[str, Any], StrictModule]:
+        d: dict[str, Any] = {"__name__": name, "<fixed-modules>": FIXED_MODULES}
         d.update(additional_dicts or {})
         m = StrictModule(d, enable_patching)
         d["<strict_module>"] = m

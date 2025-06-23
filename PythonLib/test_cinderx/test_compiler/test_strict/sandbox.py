@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import sys
+
 from contextlib import contextmanager
+from importlib.abc import Loader
 from importlib.machinery import FileFinder
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -37,7 +39,7 @@ _SandboxT = TypeVar("_SandboxT", bound=Sandbox)
 
 
 @contextmanager
-def file_loader(loader: object) -> Generator[None, None, None]:
+def file_loader(loader: tuple[type[Loader], list[str]]) -> Generator[None, None, None]:
     orig_hooks = sys.path_hooks[:]
     sys.path_hooks[:] = [FileFinder.path_hook(loader)]
     sys.path_importer_cache.clear()

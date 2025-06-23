@@ -14,6 +14,7 @@ import textwrap
 import unittest
 
 from contextlib import contextmanager
+from importlib.abc import Loader
 from importlib.machinery import SOURCE_SUFFIXES, SourceFileLoader
 from importlib.util import cache_from_source
 from os import path
@@ -54,6 +55,7 @@ from .sandbox import (
 )
 
 try:
+    # pyre-ignore[21]: cinder module not typed.
     from cinder import cinder_set_warn_handler, get_warn_handler
 
     HAVE_WARN_HANDLERS: bool = True
@@ -75,7 +77,7 @@ if TYPE_CHECKING:
     # warnings about using Any.
     @final
     class TModule(ModuleType):
-        def __getattr__(self, attr: str) -> int: ...
+        def __getattr__(self, name: str) -> int: ...
 
 
 NORMAL_LOADER: tuple[type[SourceFileLoader], list[str]] = (
@@ -84,7 +86,7 @@ NORMAL_LOADER: tuple[type[SourceFileLoader], list[str]] = (
 )
 
 
-STRICT_LOADER: tuple[Callable[[str, str], object], list[str]] = (
+STRICT_LOADER: tuple[Callable[[str, str], Loader], list[str]] = (
     lambda fullname, path: StrictSourceFileLoader(
         fullname,
         path,
@@ -94,7 +96,7 @@ STRICT_LOADER: tuple[Callable[[str, str], object], list[str]] = (
     SOURCE_SUFFIXES,
 )
 
-STRICT_LOADER_ENABLE_PATCHING: tuple[Callable[[str, str], object], list[str]] = (
+STRICT_LOADER_ENABLE_PATCHING: tuple[Callable[[str, str], Loader], list[str]] = (
     lambda fullname, path: StrictSourceFileLoader(
         fullname, path, sys.path, enable_patching=True
     ),
@@ -103,7 +105,7 @@ STRICT_LOADER_ENABLE_PATCHING: tuple[Callable[[str, str], object], list[str]] = 
 
 
 STRICT_LOADER_ENABLE_IMPORT_CALL_TRACKING: tuple[
-    Callable[[str, str], object], list[str]
+    Callable[[str, str], Loader], list[str]
 ] = (
     lambda fullname, path: StrictSourceFileLoader(
         fullname,
@@ -166,12 +168,24 @@ def with_warn_handler() -> Generator[Sequence[tuple[object, ...]], None, None]:
 TCallable = TypeVar("TCallable", bound=Callable)
 
 
+@contextmanager
+def callable_file_loader(
+    loader: tuple[Callable[[str, str], Loader], list[str]],
+) -> Generator[None, None, None]:
+    # pyre-ignore[6]: Callable[[str, str], Loader] acts just like type[Loader], but they
+    # are different types.
+    with file_loader(loader):
+        yield
+
+
 class Sandbox(base_sandbox.Sandbox):
     @contextmanager
     def begin_loader(
-        self, loader: tuple[Callable[[str, str], object], object]
+        self, loader: tuple[Callable[[str, str], Loader], list[str]]
     ) -> Generator[None, None, None]:
-        with file_loader(loader), restore_sys_modules(), restore_strict_modules():
+        with callable_file_loader(
+            loader
+        ), restore_sys_modules(), restore_strict_modules():
             yield
 
     def strict_import(self, *module_names: str) -> TModule | list[TModule]:
@@ -179,14 +193,14 @@ class Sandbox(base_sandbox.Sandbox):
 
         Leaves no trace on sys.modules; every import is independent.
         """
-        with file_loader(STRICT_LOADER):
+        with callable_file_loader(STRICT_LOADER):
             return self._import(*module_names)
 
     def strict_import_patching_enabled(
         self, *module_names: str
     ) -> TModule | list[TModule]:
         """Same as strict_import but with patching enabled."""
-        with file_loader(STRICT_LOADER_ENABLE_PATCHING):
+        with callable_file_loader(STRICT_LOADER_ENABLE_PATCHING):
             return self._import(*module_names)
 
     def normal_import(self, *module_names: str) -> TModule | list[TModule]:
@@ -194,7 +208,7 @@ class Sandbox(base_sandbox.Sandbox):
 
         Leaves no trace on sys.modules.
         """
-        with file_loader(NORMAL_LOADER):
+        with callable_file_loader(NORMAL_LOADER):
             return self._import(*module_names)
 
     def _import(self, *module_names: str) -> TModule | list[TModule]:
@@ -212,7 +226,7 @@ class Sandbox(base_sandbox.Sandbox):
 
     @contextmanager
     def isolated_strict_loader(self) -> Generator[None, None, None]:
-        with file_loader(
+        with callable_file_loader(
             STRICT_LOADER
         ), restore_sys_modules(), restore_strict_modules():
             yield
@@ -256,7 +270,7 @@ def sandbox() -> Generator[Sandbox, None, None]:
 @final
 class StrictLoaderInstallTest(StrictTestBase):
     def test_install(self) -> None:
-        with file_loader(NORMAL_LOADER):
+        with callable_file_loader(NORMAL_LOADER):
             orig_hooks_len = len(sys.path_hooks)
             install()
             self.assertEqual(len(sys.path_hooks), orig_hooks_len + 1)
@@ -282,7 +296,7 @@ class StrictLoaderTest(StrictTestBase):
 
     def test_forced_strict(self) -> None:
         self.sbx.write_file("a.py", "x = 2")
-        with file_loader(STRICT_LOADER_ALWAYS_STRICT):
+        with callable_file_loader(STRICT_LOADER_ALWAYS_STRICT):
             mod = self.sbx._import("a")
         self.assertEqual(mod.x, 2)
         self.assertEqual(type(mod), StrictModule)
@@ -1425,7 +1439,8 @@ class StrictLoaderTest(StrictTestBase):
 
     def test_source_callback(self) -> None:
         calls: list[str] = []
-        import __strict__  # this test relies on this being imported already
+        # pyre-ignore[21]: this test relies on this being imported already.
+        import __strict__
 
         def log(filename: str, bytecode_path: str | None, bytecode_found: bool) -> None:
             calls.append(filename)
@@ -2113,6 +2128,7 @@ class StrictLoaderTest(StrictTestBase):
         )
         with self.sbx.with_strict_patching():
             a = __import__("a")
+            assert isinstance(a, StrictModule)
             self.assertEqual(a.__final_constants__, ("a",))
 
             with StrictModuleTestingPatchProxy(a) as proxy, self.assertRaisesRegex(
@@ -2538,10 +2554,13 @@ class StrictLoaderTest(StrictTestBase):
         with self.sbx.isolated_strict_loader(), write_bytecode(False):
             # import bad version of 'mod' to populate class loader cache and then roll back import
             with self.assertRaisesRegex(ImportError, "this module fails to import"):
+                # pyre-ignore[21]: Intentionally meant to fail.
                 import mod
+            # pyre-ignore[21]: Loaded dynamically.
             import flag
 
             flag.val = False
+            # pyre-ignore[21]: Loaded dynamically.
             import mod, other  # noqa: E401, F811
 
             c = mod.C()
