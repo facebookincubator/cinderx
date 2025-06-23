@@ -8,10 +8,9 @@ import inspect
 import re
 import sys
 import unittest
-from types import CodeType
 from unittest import skipIf
 
-from cinderx.compiler import compile
+from cinderx.compiler import compile, compile_code
 
 from .common import CompilerTest
 
@@ -35,7 +34,7 @@ class ApiTests(CompilerTest):
             compile("42", "foo", "exec", 0x80000000000)
 
     def test_compile_with_future_annotations_stringifies_annotation(self) -> None:
-        code = compile(
+        code = compile_code(
             "a: List[int] = []",
             "foo",
             "exec",
@@ -48,7 +47,7 @@ class ApiTests(CompilerTest):
         self.assertNotInBytecode(code, "BINARY_SUBSCR")
 
     def test_compile_without_future_annotations_does_type_subscript(self) -> None:
-        code = compile("a: List[int] = []", "foo", "exec", 0)
+        code = compile_code("a: List[int] = []", "foo", "exec", 0)
         self.assertNotInBytecode(code, "LOAD_CONST", "List[int]")
         self.assertInBytecode(code, "LOAD_NAME", "List")
         self.assertInBytecode(code, "LOAD_NAME", "int")
@@ -56,13 +55,13 @@ class ApiTests(CompilerTest):
 
     def test_compile_unoptimized(self) -> None:
         src_code = "assert True"
-        code = compile(src_code, "foo", "single", optimize=0)
+        code = compile_code(src_code, "foo", "single", optimize=0)
         self.assertNotInBytecode(code, "LOAD_GLOBAL", "AssertionError")
         self.assertNotInBytecode(code, "RAISE_VARARGS")
 
     def test_compile_optimized(self) -> None:
         src_code = "assert True"
-        code = compile(src_code, "foo", "single", optimize=1)
+        code = compile_code(src_code, "foo", "single", optimize=1)
         self.assertNotInBytecode(code, "LOAD_GLOBAL", "AssertionError")
         self.assertNotInBytecode(code, "RAISE_VARARGS")
 
@@ -73,13 +72,11 @@ class ApiTests(CompilerTest):
         """
 
         src_code = "def f(): '''hi'''\n"
-        code = compile(src_code, "foo", "single", optimize=1)
-        assert isinstance(code, CodeType)
+        code = compile_code(src_code, "foo", "single", optimize=1)
         consts = dict(zip(code.co_names, code.co_consts))
         self.assertIn("hi", consts["f"].co_consts)
 
-        code = compile(src_code, "foo", "single", optimize=2)
-        assert isinstance(code, CodeType)
+        code = compile_code(src_code, "foo", "single", optimize=2)
         consts = dict(zip(code.co_names, code.co_consts))
         self.assertNotIn("hi", consts["f"].co_consts)
 
@@ -87,18 +84,18 @@ class ApiTests(CompilerTest):
 @skipIf(POST_312, "Python 3.10- only")
 class ApiTests310(CompilerTest):
     def test_compile_single(self) -> None:
-        code = compile("42", "foo", "single")
+        code = compile_code("42", "foo", "single")
         self.assertInBytecode(code, "LOAD_CONST", 42)
         self.assertInBytecode(code, "PRINT_EXPR")
 
     def test_compile_eval(self) -> None:
-        code = compile("42", "foo", "eval")
+        code = compile_code("42", "foo", "eval")
         self.assertInBytecode(code, "LOAD_CONST", 42)
         self.assertInBytecode(code, "RETURN_VALUE")
 
     def test_compile_with_barry_as_bdfl_emits_ne(self) -> None:
         # pyre-fixme[16]: Module `__future__` has no attribute `CO_FUTURE_BARRY_AS_BDFL`
-        code = compile("a <> b", "foo", "exec", __future__.CO_FUTURE_BARRY_AS_BDFL)
+        code = compile_code("a <> b", "foo", "exec", __future__.CO_FUTURE_BARRY_AS_BDFL)
         self.assertInBytecode(code, "COMPARE_OP", "!=")
 
     def test_compile_with_annotation_in_except_handler_emits_store_annotation(
@@ -113,7 +110,7 @@ except:
 """
         )
 
-        code = compile(
+        code = compile_code(
             source,
             "foo",
             "exec",
@@ -125,7 +122,7 @@ except:
 @skipIf(PRE_312, "Python 3.12+ only")
 class ApiTests312(CompilerTest):
     def test_compile_single(self) -> None:
-        code = compile("42", "foo", "single")
+        code = compile_code("42", "foo", "single")
         self.assertInBytecode(code, "LOAD_CONST", 42)
         self.assertInBytecode(code, "CALL_INTRINSIC_1", 1)  # INTRINSIC_PRINT
 

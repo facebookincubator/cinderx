@@ -16,7 +16,7 @@ from types import CodeType
 from typing import Callable, ContextManager, final, Iterable
 
 from ..errors import TypedSyntaxError
-from ..pycodegen import compile as python_compile
+from ..pycodegen import compile_code
 from ..static import StaticCodeGenerator
 from ..static.compiler import Compiler as StaticCompiler
 from ..static.module_table import ModuleTable
@@ -281,7 +281,7 @@ class Compiler(StaticCompiler):
     def _compile_basic(
         self, name: str, root: ast.Module, filename: str, optimize: int
     ) -> CodeType:
-        compile_method = python_compile if self.use_py_compiler else compile
+        compile_method = compile_code if self.use_py_compiler else compile
         result = compile_method(
             root,
             filename,

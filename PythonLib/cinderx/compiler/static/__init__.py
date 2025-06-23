@@ -44,7 +44,7 @@ from ..pycodegen import (
     CinderCodeGenerator312,
     CodeGenerator,
     CodeGenTree,
-    compile,
+    compile_code,
     CompNode,
     FuncOrLambda,
     PatternContext,
@@ -98,7 +98,7 @@ def exec_static(
     globals: dict[str, object],
     modname: str = "<module>",
 ) -> None:
-    code = compile(
+    code = compile_code(
         source, "<module>", "exec", compiler=StaticCodeGenerator, modname=modname
     )
     if "<fixed-modules>" not in globals:
@@ -106,7 +106,6 @@ def exec_static(
     if "<builtins>" not in globals:
         globals["<builtins>"] = builtins.__dict__
 
-    assert isinstance(code, CodeType)
     exec(code, locals, globals)
 
 

@@ -18,7 +18,7 @@ import ast
 from types import CodeType
 from typing import Any, Dict
 
-from .pycodegen import CinderCodeGenerator, compile, compileFile
+from .pycodegen import CinderCodeGenerator, compile, compile_code, compileFile
 
 
 def exec_cinder(
@@ -30,12 +30,11 @@ def exec_cinder(
     if isinstance(source, CodeType):
         code = source
     else:
-        code = compile(
+        code = compile_code(
             source, "<module>", "exec", compiler=CinderCodeGenerator, modname=modname
         )
 
-    assert isinstance(code, CodeType)
     exec(code, locals, globals)
 
 
-__all__ = ("compile", "compileFile", "exec_cinder")
+__all__ = ("compile", "compile_code", "compileFile", "exec_cinder")

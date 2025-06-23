@@ -10,7 +10,7 @@ from types import CodeType
 from unittest import TestCase
 
 from cinderx.compiler.dis_stable import Disassembler
-from cinderx.compiler.pycodegen import compile as py_compile
+from cinderx.compiler.pycodegen import compile_code
 
 from .common import glob_test
 
@@ -39,8 +39,7 @@ def add_test(modname: str, fname: str) -> None:
             origdump = StringIO()
             Disassembler().dump_code(orig, origdump)
 
-            codeobj = py_compile(node, modname, "exec")
-            assert isinstance(codeobj, CodeType)
+            codeobj = compile_code(node, modname, "exec")
 
             newdump = StringIO()
             Disassembler().dump_code(codeobj, newdump)

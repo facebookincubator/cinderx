@@ -158,8 +158,7 @@ def compileFile(
 
     with open(filename) as f:
         buf = f.read()
-    code = compile(buf, filename, "exec", compiler=compiler, modname=modname)
-    assert isinstance(code, CodeType)
+    code = compile_code(buf, filename, "exec", compiler=compiler, modname=modname)
     with open(filename + "c", "wb") as f:
         hdr = make_header(int(fileinfo.st_mtime), fileinfo.st_size)
         f.write(importlib.util.MAGIC_NUMBER)
@@ -184,12 +183,47 @@ def compile(
     if dont_inherit is not None:
         raise RuntimeError("not implemented yet")
 
-    result = make_compiler(source, filename, mode, flags, optimize, compiler, modname)
     if flags & PyCF_ONLY_AST:
-        return result
+        return parse(source, filename, mode, flags & PyCF_MASK)
 
+    result = make_compiler(source, filename, mode, flags, optimize, compiler, modname)
     assert isinstance(result, CodeGenerator)
     return result.getCode()
+
+
+def compile_code(
+    source: str | bytes | ast.Module | ast.Expression | ast.Interactive,
+    filename: str,
+    mode: str,
+    flags: int = 0,
+    dont_inherit: bool | None = None,
+    optimize: int = -1,
+    compiler: type[CodeGenerator] | None = None,
+    modname: str = _DEFAULT_MODNAME,
+) -> CodeType:
+    """Replacement for builtin compile() function
+
+    Does not support the PyCF_ONLY_AST flag, this always returns code objects.
+
+    Does not yet support ast.PyCF_ALLOW_TOP_LEVEL_AWAIT flag.
+    """
+    if flags & PyCF_ONLY_AST:
+        raise ValueError(
+            "compile_code() called with unsupported flag PyCF_ONLY_AST, use compile()"
+        )
+
+    result = compile(
+        source=source,
+        filename=filename,
+        mode=mode,
+        flags=flags,
+        dont_inherit=dont_inherit,
+        optimize=optimize,
+        compiler=compiler,
+        modname=modname,
+    )
+    assert isinstance(result, CodeType)
+    return result
 
 
 def parse(
@@ -210,9 +244,11 @@ def make_compiler(
     generator: type[CodeGenerator] | None = None,
     modname: str = _DEFAULT_MODNAME,
     ast_optimizer_enabled: bool = True,
-) -> CodeType | CodeGenerator | ast.Module | ast.Expression | ast.Interactive:
+) -> CodeGenerator:
     if mode not in ("single", "exec", "eval"):
         raise ValueError("compile() mode must be 'exec', 'eval' or 'single'")
+    if flags & PyCF_ONLY_AST:
+        raise ValueError("make_compiler() does not support PyCF_ONLY_AST, use parse()")
 
     if generator is None:
         generator = get_default_generator()
@@ -226,9 +262,6 @@ def make_compiler(
         tree = source
     else:
         tree = parse(source, filename, mode, flags & PyCF_MASK)
-
-    if flags & PyCF_ONLY_AST:
-        return tree
 
     assert isinstance(tree, ast.AST)
     optimize = sys.flags.optimize if optimize == -1 else optimize

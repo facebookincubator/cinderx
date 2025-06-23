@@ -12,12 +12,7 @@ from dis import dis
 from types import CodeType
 from typing import Pattern, TextIO
 
-from .pycodegen import (
-    CinderCodeGenerator,
-    CodeGenerator312,
-    compile as pycodegen_compile,
-    make_header,
-)
+from .pycodegen import CinderCodeGenerator, CodeGenerator312, compile_code, make_header
 from .static import FIXED_MODULES, StaticCodeGenerator
 
 try:
@@ -87,10 +82,11 @@ def main() -> None:
 
     if args.builtin:
         codeobj = compile(source, args.input, "exec")
+        assert isinstance(codeobj, CodeType)
     else:
         compiler = StaticCodeGenerator if args.static else CinderCodeGenerator
 
-        codeobj = pycodegen_compile(
+        codeobj = compile_code(
             source,
             args.input,
             "exec",
@@ -99,7 +95,6 @@ def main() -> None:
             modname=args.modname,
         )
 
-    assert isinstance(codeobj, CodeType)
     if args.dis:
         dis(codeobj)
 

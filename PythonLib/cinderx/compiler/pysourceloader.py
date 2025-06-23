@@ -18,7 +18,7 @@ from importlib.machinery import (
 
 from types import CodeType
 
-from .pycodegen import compile as python_compile
+from .pycodegen import compile_code
 
 
 # pyre-fixme[13]: path inherited but not initialized
@@ -37,7 +37,7 @@ class PySourceFileLoader(SourceFileLoader):
         """
         # pyre-ignore[16]
         return importlib._bootstrap._call_with_frames_removed(
-            python_compile, data, path, "exec", optimize=_optimize
+            compile_code, data, path, "exec", optimize=_optimize
         )
 
 
