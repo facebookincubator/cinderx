@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 # pyre-unsafe
+
 from __future__ import annotations
 
 import ast
@@ -12,8 +13,8 @@ import re
 import sys
 from contextlib import contextmanager
 from functools import wraps
-from types import CodeType, FunctionType
-from typing import Any, ContextManager, Generator, Mapping
+from types import CodeType, FunctionType, ModuleType
+from typing import Any, Awaitable, Callable, ContextManager, Generator, Mapping
 
 import cinderx
 
@@ -27,7 +28,8 @@ from cinderx.compiler.errors import (
     PerfWarning,
     TypedSyntaxError,
 )
-from cinderx.compiler.static import Static310CodeGenerator, StaticCodeGenerator
+from cinderx.compiler.pycodegen import CodeGenerator
+from cinderx.compiler.static import StaticCodeGenerator
 from cinderx.compiler.static.compiler import Compiler
 from cinderx.compiler.static.module_table import DepTrackingOptOut, ModuleTable
 from cinderx.compiler.static.types import Value
@@ -65,9 +67,9 @@ def bad_ret_type(from_type: str, to_type: str) -> str:
     )
 
 
-def disable_hir_inliner(f):
+def disable_hir_inliner(f: Callable[..., Any]) -> Callable[..., Any]:
     @wraps(f)
-    def impl(*args, **kwargs):
+    def impl(*args: object, **kwargs: object) -> Any:
         enabled = cinderx.jit.is_hir_inliner_enabled()
         if enabled:
             cinderx.jit.disable_hir_inliner()
@@ -79,7 +81,7 @@ def disable_hir_inliner(f):
     return impl
 
 
-PRIM_NAME_TO_TYPE = {
+PRIM_NAME_TO_TYPE: Mapping[str, int] = {
     "cbool": TYPED_BOOL,
     "int8": TYPED_INT8,
     "int16": TYPED_INT16,
@@ -92,7 +94,7 @@ PRIM_NAME_TO_TYPE = {
 }
 
 
-def dis(code):
+def dis(code: CodeType) -> None:
     Disassembler().dump_code(code, file=sys.stdout)
 
 
@@ -105,7 +107,7 @@ class TestCompiler(Compiler):
         self,
         source_by_name: Mapping[str, str],
         test_case: StaticTestBase,
-        code_generator: type[Static310CodeGenerator] = StaticCodeGenerator,
+        code_generator: type[StaticCodeGenerator] = StaticCodeGenerator,
         error_sink: ErrorSink | None = None,
         strict_modules: bool = False,
         enable_patching: bool = False,
@@ -147,7 +149,9 @@ class TestCompiler(Compiler):
             return ast.parse(source)
 
     @contextmanager
-    def in_module(self, modname: str, optimize: int = 0) -> Generator[Any, None, None]:
+    def in_module(
+        self, modname: str, optimize: int = 0
+    ) -> Generator[ModuleType, None, None]:
         for mod in self.gen_modules(optimize):
             if mod.__name__ == modname:
                 yield mod
@@ -155,7 +159,7 @@ class TestCompiler(Compiler):
         else:
             raise Exception(f"No module named '{modname}' found")
 
-    def gen_modules(self, optimize: int = 0) -> Generator[Any, None, None]:
+    def gen_modules(self, optimize: int = 0) -> Generator[ModuleType, None, None]:
         names = self.source_by_name.keys()
         compiled = [self.compile_module(name, optimize) for name in names]
         try:
@@ -168,7 +172,9 @@ class TestCompiler(Compiler):
             for name, d in zip(names, dicts):
                 self.test_case._finalize_module(name, d)
 
-    def _in_module(self, name: str, codeobj: CodeType):
+    def _in_module(
+        self, name: str, codeobj: CodeType
+    ) -> tuple[dict[str, object], ModuleType]:
         if self.strict_modules:
             return self.test_case._in_strict_module(
                 name, codeobj, enable_patching=self.enable_patching
@@ -193,7 +199,7 @@ class TestCompiler(Compiler):
         return name.split(".")[-1] + ".py"
 
 
-def add_fixed_module(d) -> None:
+def add_fixed_module(d: dict[str, Any]) -> None:
     d["<fixed-modules>"] = FIXED_MODULES
 
 
@@ -276,26 +282,26 @@ class TestErrors:
 
 
 class StaticTestBase(CompilerTest):
-    _inline_comprehensions = os.getenv(
-        "PYTHONINLINECOMPREHENSIONS"
+    _inline_comprehensions: bool = bool(
+        os.getenv("PYTHONINLINECOMPREHENSIONS")
     ) or sys.version_info >= (3, 12)
 
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         init_static_python()
 
-    def shortDescription(self):
+    def shortDescription(self) -> None:
         return None
 
     def compile(
         self,
-        code,
-        generator=StaticCodeGenerator,
-        modname="<module>",
-        optimize=0,
-        ast_optimizer_enabled=True,
-        enable_patching=False,
-    ):
+        code: str,
+        generator: type[CodeGenerator] = StaticCodeGenerator,
+        modname: str = "<module>",
+        optimize: int = 0,
+        ast_optimizer_enabled: bool = True,
+        enable_patching: bool = False,
+    ) -> CodeType:
         assert ast_optimizer_enabled
 
         if generator is not StaticCodeGenerator:
@@ -318,19 +324,19 @@ class StaticTestBase(CompilerTest):
             enable_patching=enable_patching,
         )
 
-    def get_strict_compiler(self, enable_patching=False) -> StrictCompiler:
+    def get_strict_compiler(self, enable_patching: bool = False) -> StrictCompiler:
         return StrictCompiler(
             [], "", [], [], raise_on_error=True, enable_patching=enable_patching
         )
 
     def compile_strict(
         self,
-        codestr,
-        modname="<module>",
-        optimize=0,
-        enable_patching=False,
-        override_flags=None,
-    ):
+        codestr: str,
+        modname: str = "<module>",
+        optimize: int = 0,
+        enable_patching: bool = False,
+        override_flags: Flags | None = None,
+    ) -> CodeType | None:
         compiler = self.get_strict_compiler(enable_patching=enable_patching)
 
         code, is_valid_strict, _is_static = compiler.load_compiled_module_from_source(
@@ -365,7 +371,7 @@ class StaticTestBase(CompilerTest):
             code_gen.visit(tree)
         return TestErrors(self, code, errors.errors, errors.warnings)
 
-    def get_arg_check_types(self, func: FunctionType | CodeType) -> tuple:
+    def get_arg_check_types(self, func: FunctionType | CodeType) -> tuple[Any, ...]:
         if isinstance(func, CodeType):
             return func.co_consts[-1][0]
         return func.__code__.co_consts[-1][0]
@@ -429,20 +435,25 @@ class StaticTestBase(CompilerTest):
 
     _temp_mod_num = 0
 
-    def _temp_mod_name(self):
+    def _temp_mod_name(self) -> str:
         StaticTestBase._temp_mod_num += 1
+        # pyre-ignore[16]: Expecting a certain number of frames.
         return sys._getframe().f_back.f_back.f_back.f_code.co_name + str(
             StaticTestBase._temp_mod_num
         )
 
-    def _finalize_module(self, name, mod_dict=None):
+    def _finalize_module(
+        self, name: str, mod_dict: dict[str, object] | None = None
+    ) -> None:
         if name in sys.modules:
             del sys.modules[name]
         if mod_dict is not None:
             mod_dict.clear()
         gc.collect()
 
-    def _in_module(self, name, code_obj):
+    def _in_module(
+        self, name: str, code_obj: CodeType
+    ) -> tuple[dict[str, object], ModuleType]:
         m = type(sys)(name)
         d = m.__dict__
         d["<builtins>"] = builtins.__dict__
@@ -453,7 +464,7 @@ class StaticTestBase(CompilerTest):
         return d, m
 
     @contextmanager
-    def with_freeze_type_setting(self, freeze: bool):
+    def with_freeze_type_setting(self, freeze: bool) -> Generator[None, None, None]:
         old_setting = set_freeze_enabled(freeze)
         try:
             yield
@@ -463,14 +474,14 @@ class StaticTestBase(CompilerTest):
     @contextmanager
     def in_module(
         self,
-        code,
-        name=None,
-        code_gen=StaticCodeGenerator,
-        optimize=0,
-        freeze=False,
-        enable_patching=False,
-        dump_bytecode=False,
-    ):
+        code: str,
+        name: str | None = None,
+        code_gen: type[CodeGenerator] = StaticCodeGenerator,
+        optimize: int = 0,
+        freeze: bool = False,
+        enable_patching: bool = False,
+        dump_bytecode: bool = False,
+    ) -> Generator[ModuleType, None, None]:
         d = None
         if name is None:
             name = self._temp_mod_name()
@@ -489,10 +500,10 @@ class StaticTestBase(CompilerTest):
 
     def _in_strict_module(
         self,
-        name,
-        code_obj,
-        enable_patching=False,
-    ):
+        name: str,
+        code_obj: CodeType,
+        enable_patching: bool = False,
+    ) -> tuple[dict[str, object], ModuleType]:
         d = {
             "__name__": name,
             "<builtins>": builtins.__dict__,
@@ -500,20 +511,22 @@ class StaticTestBase(CompilerTest):
         }
         add_fixed_module(d)
         m = StrictModule(d, enable_patching)
+        # pyre-ignore[6]: Expecting ModuleType but getting StrictModule.
         sys.modules[name] = m
         exec(code_obj, d)
+        # pyre-ignore[7]: Treating StrictModule as ModuleType, again.
         return d, m
 
     @contextmanager
     def in_strict_module(
         self,
-        code,
-        name=None,
-        optimize=0,
-        enable_patching=False,
-        freeze=True,
-        dump_bytecode=False,
-    ):
+        code: str,
+        name: str | None = None,
+        optimize: int = 0,
+        enable_patching: bool = False,
+        freeze: bool = True,
+        dump_bytecode: bool = False,
+    ) -> Generator[Any, None, None]:
         d = None
         if name is None:
             name = self._temp_mod_name()
@@ -526,6 +539,8 @@ class StaticTestBase(CompilerTest):
                 enable_patching=enable_patching,
                 override_flags=Flags(is_strict=True, is_static=True),
             )
+            if compiled is None:
+                raise RuntimeError("Failed to compile strict module")
             if dump_bytecode:
                 dis(compiled)
             d, m = self._in_strict_module(name, compiled, enable_patching)
@@ -534,7 +549,9 @@ class StaticTestBase(CompilerTest):
             set_freeze_enabled(old_setting)
             self._finalize_module(name, d)
 
-    def _run_code(self, code, generator, modname):
+    def _run_code(
+        self, code: str, generator: type[CodeGenerator], modname: str | None
+    ) -> tuple[str, dict[str, Any]]:
         if modname is None:
             modname = self._temp_mod_name()
         compiled = self.compile(code, generator, modname)
@@ -543,7 +560,12 @@ class StaticTestBase(CompilerTest):
         exec(compiled, d)
         return modname, d
 
-    def run_code(self, code, generator=StaticCodeGenerator, modname=None):
+    def run_code(
+        self,
+        code: str,
+        generator: type[CodeGenerator] = StaticCodeGenerator,
+        modname: str | None = None,
+    ) -> dict[str, Any]:
         _, r = self._run_code(code, generator, modname)
         return r
 
@@ -555,10 +577,12 @@ class StaticTestBase(CompilerTest):
         return C().__sizeof__()
 
     @property
-    def ptr_size(self):
+    def ptr_size(self) -> int:
         return 8 if sys.maxsize > 2**32 else 4
 
-    def build_static_type(self, slots, slot_types):
+    def build_static_type(
+        self, slots: tuple[str], slot_types: dict[str, str] | None
+    ) -> type[Any]:
         c = compile(
             f"""
 __slots__ = {slots!r}
@@ -571,7 +595,7 @@ __slot_types__ = {slot_types!r}
             FunctionType(c, globals(), "C"), "C", None, False, (), False, ()
         )
 
-    def assert_jitted(self, func):
+    def assert_jitted(self, func: Callable[..., Any]) -> None:
         if not cinderx.jit.is_enabled():
             return
 
@@ -581,13 +605,13 @@ __slot_types__ = {slot_types!r}
 
         self.assertTrue(cinderx.jit.is_jit_compiled(func), func.__name__)
 
-    def assert_not_jitted(self, func):
+    def assert_not_jitted(self, func: Callable[..., Any]) -> None:
         if not cinderx.jit.is_enabled():
             return
 
         self.assertFalse(cinderx.jit.is_jit_compiled(func))
 
-    def setUp(self):
+    def setUp(self) -> None:
         # ensure clean classloader/vtable slate for all tests
         cinderx.clear_classloader_caches()
 
@@ -598,12 +622,12 @@ __slot_types__ = {slot_types!r}
         # framework complaining about environment changes.
         self.addCleanup(lambda: asyncio.set_event_loop_policy(None))
 
-    def subTest(self, **kwargs):
+    def subTest(self, msg: str | None = None, **kwargs: object):
         cinderx.clear_classloader_caches()
-        return super().subTest(**kwargs)
+        return super().subTest(msg=msg, **kwargs)
 
-    def make_async_func_hot(self, func):
-        async def make_hot():
+    def make_async_func_hot(self, func: Callable[[], Awaitable[Any]]) -> None:
+        async def make_hot() -> None:
             for _ in range(50):
                 await func()
 
@@ -624,7 +648,7 @@ __slot_types__ = {slot_types!r}
         self,
         code: str,
         optimize: bool = False,
-        getter=lambda stmt: stmt,
+        getter: Callable[[ast.stmt], ast.AST] = lambda stmt: stmt,
     ) -> tuple[Value, Compiler]:
         mod, comp = self.bind_module(code, optimize)
         types = comp.modules["foo"].types
