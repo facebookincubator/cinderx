@@ -1,0 +1,45 @@
+name: CinderX
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout CinderX
+      uses: actions/checkout@v4
+      with:
+        path: cinderx
+
+    - name: Checkout Meta Python
+      uses: actions/checkout@v4
+      with:
+        repository: facebookincubator/cinder
+        path: python
+        ref: meta/3.12
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.12
+
+    - name: Set up uv
+      uses: astral-sh/setup-uv@v5
+
+    - name: Build Meta Python
+      working-directory: ./python
+      run: ./configure && make -j 8
+
+    - name: Build CinderX
+      working-directory: ./cinderx
+      run: uv build --wheel
+
+    - name: Unwrap CinderX Wheel
+      working-directory: ./cinderx/dist
+      run: unzip *.whl
+
+    - name: Import and Init CinderX
+      working-directory: ./cinderx/dist
+      run: |
+        PYTHONPATH=. ../../python/python -c 'import cinderx ; cinderx.init() ; assert cinderx.is_initialized()'
