@@ -1079,12 +1079,12 @@ TEST_F(HIRCloneTest, CanCloneBranches) {
   EXPECT_NE(orig_edge, dup_edge);
 
   EXPECT_EQ(orig_edge->from(), dup_edge->from());
-  EXPECT_EQ(from->out_edges().contains(orig_edge), 1);
-  EXPECT_EQ(from->out_edges().contains(dup_edge), 1);
+  EXPECT_TRUE(from->out_edges().contains(orig_edge));
+  EXPECT_TRUE(from->out_edges().contains(dup_edge));
 
   EXPECT_EQ(orig_edge->to(), dup_edge->to());
-  EXPECT_EQ(to->in_edges().contains(orig_edge), 1);
-  EXPECT_EQ(to->in_edges().contains(dup_edge), 1);
+  EXPECT_TRUE(to->in_edges().contains(orig_edge));
+  EXPECT_TRUE(to->in_edges().contains(dup_edge));
 }
 
 TEST_F(HIRCloneTest, CanCloneBorrwedRefFields) {

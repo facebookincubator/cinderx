@@ -494,50 +494,50 @@ fun dominators {
 
   std::unordered_set<const BasicBlock*> dommed = doms.getBlocksDominatedBy(bb7);
   EXPECT_EQ(dommed.size(), 1);
-  EXPECT_EQ(dommed.contains(bb7), 1);
+  EXPECT_TRUE(dommed.contains(bb7));
 
   dommed = doms.getBlocksDominatedBy(bb6);
   EXPECT_EQ(dommed.size(), 1);
-  EXPECT_EQ(dommed.contains(bb6), 1);
+  EXPECT_TRUE(dommed.contains(bb6));
 
   dommed = doms.getBlocksDominatedBy(bb5);
   EXPECT_EQ(dommed.size(), 2);
-  EXPECT_EQ(dommed.contains(bb5), 1);
-  EXPECT_EQ(dommed.contains(bb6), 1);
+  EXPECT_TRUE(dommed.contains(bb5));
+  EXPECT_TRUE(dommed.contains(bb6));
 
   dommed = doms.getBlocksDominatedBy(bb4);
   EXPECT_EQ(dommed.size(), 1);
-  EXPECT_EQ(dommed.contains(bb4), 1);
+  EXPECT_TRUE(dommed.contains(bb4));
 
   dommed = doms.getBlocksDominatedBy(bb3);
   EXPECT_EQ(dommed.size(), 1);
-  EXPECT_EQ(dommed.contains(bb3), 1);
+  EXPECT_TRUE(dommed.contains(bb3));
 
   dommed = doms.getBlocksDominatedBy(bb2);
   EXPECT_EQ(dommed.size(), 2);
-  EXPECT_EQ(dommed.contains(bb2), 1);
-  EXPECT_EQ(dommed.contains(bb3), 1);
+  EXPECT_TRUE(dommed.contains(bb2));
+  EXPECT_TRUE(dommed.contains(bb3));
 
   dommed = doms.getBlocksDominatedBy(bb1);
   EXPECT_EQ(dommed.size(), 7);
-  EXPECT_EQ(dommed.contains(bb1), 1);
-  EXPECT_EQ(dommed.contains(bb2), 1);
-  EXPECT_EQ(dommed.contains(bb3), 1);
-  EXPECT_EQ(dommed.contains(bb4), 1);
-  EXPECT_EQ(dommed.contains(bb5), 1);
-  EXPECT_EQ(dommed.contains(bb6), 1);
-  EXPECT_EQ(dommed.contains(bb7), 1);
+  EXPECT_TRUE(dommed.contains(bb1));
+  EXPECT_TRUE(dommed.contains(bb2));
+  EXPECT_TRUE(dommed.contains(bb3));
+  EXPECT_TRUE(dommed.contains(bb4));
+  EXPECT_TRUE(dommed.contains(bb5));
+  EXPECT_TRUE(dommed.contains(bb6));
+  EXPECT_TRUE(dommed.contains(bb7));
 
   dommed = doms.getBlocksDominatedBy(bb0);
   EXPECT_EQ(dommed.size(), 8);
-  EXPECT_EQ(dommed.contains(bb0), 1);
-  EXPECT_EQ(dommed.contains(bb1), 1);
-  EXPECT_EQ(dommed.contains(bb2), 1);
-  EXPECT_EQ(dommed.contains(bb3), 1);
-  EXPECT_EQ(dommed.contains(bb4), 1);
-  EXPECT_EQ(dommed.contains(bb5), 1);
-  EXPECT_EQ(dommed.contains(bb6), 1);
-  EXPECT_EQ(dommed.contains(bb7), 1);
+  EXPECT_TRUE(dommed.contains(bb0));
+  EXPECT_TRUE(dommed.contains(bb1));
+  EXPECT_TRUE(dommed.contains(bb2));
+  EXPECT_TRUE(dommed.contains(bb3));
+  EXPECT_TRUE(dommed.contains(bb4));
+  EXPECT_TRUE(dommed.contains(bb5));
+  EXPECT_TRUE(dommed.contains(bb6));
+  EXPECT_TRUE(dommed.contains(bb7));
 }
 
 class RegisterTypeHintsTest : public RuntimeTest {};
