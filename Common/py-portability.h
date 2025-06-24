@@ -7,6 +7,10 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_interpframe.h"
+#endif
+
 #if PY_VERSION_HEX >= 0x030E0000
 #include "internal/pycore_genobject.h"
 #endif

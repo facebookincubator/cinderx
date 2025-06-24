@@ -57,7 +57,7 @@ static inline Py_ssize_t getDictKeysIndex(
 #if PY_VERSION_HEX >= 0x030C0000
   for (Py_ssize_t i = 0; i < keys->dk_nentries; i++) {
     PyDictUnicodeEntry* ep = &DK_UNICODE_ENTRIES(keys)[i];
-    if (_PyUnicode_EQ(name, ep->me_key)) {
+    if (PyUnicode_Compare(name, ep->me_key) == 0) {
       return i;
     }
   }
