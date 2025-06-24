@@ -10,7 +10,7 @@ import gc
 import inspect
 import sys
 from contextlib import AbstractContextManager, contextmanager
-from types import CodeType
+from types import CodeType, ModuleType
 from typing import Any, Callable, Generator, Mapping
 
 import cinderx
