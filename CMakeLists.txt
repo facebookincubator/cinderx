@@ -219,6 +219,9 @@ target_link_libraries(common PRIVATE fmt::fmt ZLIB::ZLIB)
 
 if (${PY_VERSION} EQUAL 3.12)
   set(BORROWED_C ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-3.12.gen_cached.c)
+else()
+  set(BORROWED_C "${GENERATED_HEADER_DIR}/dummy-borrowed.c")
+  file(WRITE ${BORROWED_C} "")
 endif()
 
 add_library(borrowed ${BORROWED_C})
@@ -294,7 +297,7 @@ target_link_libraries(jit PRIVATE asmjit::asmjit interpreter fmt::fmt nlohmann_j
 if (${ENABLE_PARALLEL_GC})
   file(GLOB_RECURSE PARALLEL_GC_SOURCES ${PROJECT_SOURCE_DIR}/ParallelGC/*.c)
 else()
-  set(PARALLEL_GC_SOURCES "${GENERATED_HEADER_DIR}/dummy.c")
+  set(PARALLEL_GC_SOURCES "${GENERATED_HEADER_DIR}/dummy-parallel-gc.c")
   file(WRITE ${PARALLEL_GC_SOURCES} "")
 endif()
 add_library(parallel-gc ${PARALLEL_GC_SOURCES})
