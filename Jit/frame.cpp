@@ -789,6 +789,7 @@ void Ci_WalkAsyncStack(
 #else // PY_VERSION_HEX < 0x030C0000
 
 #include "internal/pycore_frame.h"
+#include "structmember.h"
 
 #include "cinderx/Common/py-portability.h"
 
@@ -798,6 +799,174 @@ RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
   _PyInterpreterFrame* frame = currentFrame(tstate);
   return RuntimeFrameState{frame->f_code, frame->f_builtins, frame->f_globals};
 }
+
+static PyMemberDef framereifier_members[] = {
+    {"__vectorcalloffset__",
+     T_PYSSIZET,
+     offsetof(JitFrameReifier, vectorcall),
+     READONLY},
+    {} /* Sentinel */
+};
+
+PyObject* jitFrameReifierVectorcall(
+    JitFrameReifier*,
+    PyObject* const* args,
+    size_t nargsf) {
+  if (PyVectorcall_NARGS(nargsf) != 1 || !PyLong_CheckExact(args[0])) {
+    PyErr_SetString(PyExc_RuntimeError, "expected 1 arg of interpreter frame");
+    return nullptr;
+  }
+
+  _PyInterpreterFrame* frame =
+      reinterpret_cast<_PyInterpreterFrame*>(PyLong_AsVoidPtr(args[0]));
+  fixupJitFrameForInterpreter(frame);
+  Py_RETURN_NONE;
+}
+
+PyObject* framereifier_tpcall(PyObject*, PyObject* args, PyObject*) {
+  if (PyTuple_GET_SIZE(args) != 1 ||
+      !PyLong_CheckExact(PyTuple_GET_ITEM(args, 0))) {
+    PyErr_SetString(PyExc_RuntimeError, "expected 1 arg of interpreter frame");
+    return nullptr;
+  }
+
+  _PyInterpreterFrame* frame = reinterpret_cast<_PyInterpreterFrame*>(
+      PyLong_FromVoidPtr(PyTuple_GET_ITEM(args, 0)));
+  fixupJitFrameForInterpreter(frame);
+  Py_RETURN_NONE;
+}
+
+static PyType_Slot framereifier_type_slots[] = {
+    {Py_tp_members, framereifier_members},
+    {Py_tp_call, (void*)&framereifier_tpcall},
+    {0, 0}};
+
+PyType_Spec JitFrameReifier_Spec = {
+    .name = "cinderx.JitFrameReifier",
+    // We store our pointer to JIT data in an additional variable slot at the
+    // end of the object.
+    .basicsize = sizeof(JitFrameReifier),
+    .flags = Py_TPFLAGS_DEFAULT | Py_TPFLAGS_IMMUTABLETYPE |
+        Py_TPFLAGS_HAVE_VECTORCALL,
+    .slots = framereifier_type_slots,
+};
+
+void fixupJitFrameForInterpreter([[maybe_unused]] _PyInterpreterFrame* frame) {
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  if (PyFunction_Check(frame->f_funcobj)) {
+    // already fixed up
+    return;
+  }
+
+  PyFunctionObject* func = jitFrameGetFunction(frame);
+  auto reifier = Ref<JitFrameReifier>::steal(frame->f_funcobj);
+  // transfer ownership from jitFrameGetFunction to f_funcobj
+  frame->f_funcobj = reinterpret_cast<PyObject*>(func);
+  frame->f_builtins = func->func_builtins;
+  frame->f_globals = func->func_globals;
+  frame->f_locals = nullptr;
+  frame->stacktop = frame->f_code->co_nlocalsplus;
+  frame->frame_obj = nullptr;
+  frame->return_offset = 0;
+  if (!(frame->f_code->co_flags & kCoFlagsAnyGenerator)) {
+    frame->owner = FRAME_OWNED_BY_THREAD;
+  }
+  int free_offset = frame->f_code->co_nlocalsplus - numFreevars(frame->f_code);
+  PyObject** localsplus = &frame->localsplus[0];
+  for (std::size_t i = 0; i < free_offset; i++) {
+    *localsplus = nullptr;
+    localsplus++;
+  }
+  JIT_DCHECK(Py_REFCNT(reifier) != 1, "no one should ever release the reifier");
+#endif
+}
+
+void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
+  /* It is the responsibility of the owning generator/coroutine
+   * to have cleared the enclosing generator, if any. */
+  JIT_DCHECK(
+      frame->owner != FRAME_OWNED_BY_GENERATOR ||
+          _PyFrame_GetGenerator(frame)->gi_frame_state == FRAME_CLEARED,
+      "bad frame state");
+  // GH-99729: Clearing this frame can expose the stack (via finalizers). It's
+  // crucial that this frame has been unlinked, and is no longer visible:
+  JIT_DCHECK(currentFrame(PyThreadState_Get()) != frame, "wrong current frame");
+
+  // If we've already been requested by the runtime to initialize this
+  // _PyInterpreterFrame then we just fall back to its implementation to
+  // handle the clearing.
+  if (PyFunction_Check(frame->f_funcobj)) {
+    _PyFrame_ClearExceptCode(frame);
+    return;
+  }
+
+  // Otherwise only clear things that we've initialized.
+  int free_offset = frame->f_code->co_nlocalsplus - numFreevars(frame->f_code);
+  for (int i = free_offset; i < frame->f_code->co_nlocalsplus; i++) {
+    Py_XDECREF(frame->localsplus[i]);
+  }
+  Py_DECREF(frame->f_funcobj);
+  Py_DECREF(jitFrameGetFunction(frame));
+}
+
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func) {
+  frame->localsplus
+      [frame->f_code->co_stacksize + frame->f_code->co_nlocalsplus] =
+      (PyObject*)func;
+}
+
+PyFunctionObject* jitFrameGetFunction(_PyInterpreterFrame* frame) {
+  return (PyFunctionObject*)frame
+      ->localsplus[frame->f_code->co_stacksize + frame->f_code->co_nlocalsplus];
+}
+
+// Initialize a _PyInterpreterFrame.
+void jitFrameInit(
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame,
+    PyFunctionObject* func,
+    PyCodeObject* code,
+    int null_locals_from,
+    _PyInterpreterFrame* previous,
+    bool generator) {
+#if PY_VERSION_HEX >= 0x030E0000
+  _PyFrame_Initialize(
+      tstate,
+      frame,
+      PyStackRef_FromPyObjectNew(func),
+      NULL,
+      code,
+      null_locals_from,
+      previous);
+#else
+  (void)tstate;
+
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  if (!generator) {
+    frame->f_code = (PyCodeObject*)Py_NewRef(code);
+    frame->f_funcobj = Py_NewRef(cinderx::getModuleState()->frameReifier());
+    frame->prev_instr = _PyCode_CODE(code) - 1;
+    jitFrameSetFunction(frame, func);
+  } else
+#endif
+  {
+    _PyFrame_Initialize(
+        frame, (PyFunctionObject*)func, nullptr, code, null_locals_from);
+  }
+  frame->previous = previous;
+
+#endif // PY_VERSION_HEX >= 0x030E0000
+}
+
+size_t jitFrameGetSize(PyCodeObject* code) {
+  int framesize = code->co_framesize;
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  framesize += 1;
+#endif
+  return static_cast<size_t>(framesize);
+}
+#endif
 
 } // namespace jit
 

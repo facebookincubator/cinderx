@@ -606,17 +606,19 @@ static void init_and_link_interpreter_frame(
     PyFunctionObject* func,
     PyCodeObject* co,
     PyThreadState* tstate,
-    _PyInterpreterFrame* frame) {
-  initInterpFrame(
+    _PyInterpreterFrame* frame,
+    bool generator) {
+  jit::jitFrameInit(
       tstate,
       frame,
       func,
-      /* locals= */ nullptr,
       co,
       // Zero all of localsplus. This allows _PyFrame_ClearExceptCode to
       // safely clear the locals.
       0,
-      /* previous= */ nullptr);
+      currentFrame(tstate),
+      generator);
+
   // For some reason this is not bumped in _PyFrame_Initialize but it is
   // released in _PyFrame_ClearExceptCode.
   Py_INCREF(func);
@@ -625,7 +627,6 @@ static void init_and_link_interpreter_frame(
   // should always be one due to the existence of a the per-thread root
   // cframe. The cframe idea seems to have only transiently been needed
   // in 3.11 and is now a loose end removed in 3.13.
-  frame->previous = currentFrame(tstate);
   setCurrentFrame(tstate, frame);
 }
 
@@ -645,10 +646,11 @@ static inline PyThreadState* allocate_and_link_interpreter_frame(
   // clean-up. Maybe we'll want to change this in future if it limits
   // us from getting something like a stack-trace on this kind of failure.
   _PyInterpreterFrame* frame =
-      Cix_PyThreadState_PushFrame(tstate, co->co_framesize);
+      Cix_PyThreadState_PushFrame(tstate, jit::jitFrameGetSize(co));
   JIT_CHECK(frame != nullptr, "Failed to allocate _PyInterpreterFrame");
 
-  init_and_link_interpreter_frame(func, co, tstate, frame);
+  init_and_link_interpreter_frame(
+      func, co, tstate, frame, false /* generator */);
 
   return tstate;
 }
@@ -748,7 +750,8 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   _PyObject_GC_TRACK(gen);
 
   _PyInterpreterFrame* frame = generatorFrame(gen);
-  init_and_link_interpreter_frame(func, co, tstate, frame);
+  init_and_link_interpreter_frame(
+      func, co, tstate, frame, true /* generator */);
   frame->owner = FRAME_OWNED_BY_GENERATOR;
 
   jit::GenDataFooter* footer = jit::jitgen_data_allocate(spill_words);
@@ -808,7 +811,7 @@ void JITRT_UnlinkFrame(PyThreadState* tstate) {
 
   // This is needed particularly because it handles the work of copying
   // data to a PyFrameObject if one has escaped the function.
-  Cix_PyFrame_ClearExceptCode(frame);
+  jit::jitFrameClearExceptCode(frame);
   Py_DECREF(_PyFrame_GetCode(frame));
   Cix_PyThreadState_PopFrame(tstate, frame);
 #endif

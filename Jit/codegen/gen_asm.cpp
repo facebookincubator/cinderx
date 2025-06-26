@@ -163,6 +163,7 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
   }
 #else
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
+  fixupJitFrameForInterpreter(frame);
   reifyFrame(frame, deopt_meta, deopt_meta.outermostFrame(), regs);
   // TODO(T198250666): Support jit inlining
 #endif

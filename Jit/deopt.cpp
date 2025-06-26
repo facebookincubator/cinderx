@@ -124,10 +124,26 @@ static void reifyLocalsplus(
 #else
   PyObject** localsplus = &frame->localsplus[0];
 #endif
-  for (std::size_t i = 0; i < frame_meta.localsplus.size(); i++) {
+
+  int free_offset = numLocalsplus(frame->f_code) - numFreevars(frame->f_code);
+  // Local variables are not initialized in the frame
+  for (std::size_t i = 0; i < free_offset && i < frame_meta.localsplus.size();
+       i++) {
     const LiveValue* value = meta.getLocalValue(i, frame_meta);
     if (value == nullptr) {
       // Value is dead
+      *localsplus = nullptr;
+    } else {
+      PyObject* obj = mem.readOwned(*value).release();
+      *localsplus = obj;
+    }
+    localsplus++;
+  }
+
+  // Free variables are initialized
+  for (std::size_t i = free_offset; i < frame_meta.localsplus.size(); i++) {
+    const LiveValue* value = meta.getLocalValue(i, frame_meta);
+    if (value == nullptr) {
       Py_CLEAR(*localsplus);
     } else {
       PyObject* obj = mem.readOwned(*value).release();
@@ -210,8 +226,8 @@ Ref<> profileDeopt(
 // exceptions mean the opcode has succeeded but there has been an exceptional
 // condition so we want to resume the *next* opcode in the interpreter.
 //
-// The second thing it handles is forced deopt. If we're forcing a deopt due to
-// no actual guard failure or exception, then we want to resume at the
+// The second thing it handles is forced deopt. If we're forcing a deopt due
+// to no actual guard failure or exception, then we want to resume at the
 // instruction we're currently stopped on.
 static BCIndex getDeoptResumeIndex(
     const DeoptMetadata& meta,

@@ -1228,6 +1228,21 @@ static int _cinderx_exec(PyObject* m) {
   state->setCoroType(coro_type);
   Py_DECREF(coro_type);
 
+  Ref<PyTypeObject> frame_reifier_type = Ref<PyTypeObject>::steal(
+      (PyTypeObject*)PyType_FromSpec(&jit::JitFrameReifier_Spec));
+  if (frame_reifier_type == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+  PyObject* reifier = _PyObject_New(frame_reifier_type);
+  if (reifier == nullptr) {
+    state->shutdown();
+    return -1;
+  }
+  ((jit::JitFrameReifier*)reifier)->vectorcall =
+      (vectorcallfunc)jit::jitFrameReifierVectorcall;
+  state->setFrameReifier(reifier);
+
   // PyType_FromSpec wants us to provide a module name, but we really don't
   // want one, we go a long way to make these look just like CPython's types.
   gen_type->tp_name = "generator";

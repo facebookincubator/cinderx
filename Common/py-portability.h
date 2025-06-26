@@ -73,31 +73,6 @@ inline _PyInterpreterFrame* interpFrameFromThreadState(PyThreadState* tstate) {
 #endif
 }
 
-// Initialize a _PyInterpreterFrame.
-inline void initInterpFrame(
-    PyThreadState* tstate,
-    _PyInterpreterFrame* frame,
-    PyFunctionObject* func,
-    PyObject* locals,
-    PyCodeObject* code,
-    int null_locals_from,
-    _PyInterpreterFrame* previous) {
-#if PY_VERSION_HEX >= 0x030E0000
-  _PyFrame_Initialize(
-      tstate,
-      frame,
-      PyStackRef_FromPyObjectNew(func),
-      locals,
-      code,
-      null_locals_from,
-      previous);
-#else
-  (void)tstate;
-  _PyFrame_Initialize(frame, func, locals, code, null_locals_from);
-  frame->previous = previous;
-#endif
-}
-
 // Get the interpreter frame stored in a generator object.
 inline _PyInterpreterFrame* generatorFrame(PyGenObject* gen) {
   return

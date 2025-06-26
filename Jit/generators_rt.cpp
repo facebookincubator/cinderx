@@ -11,6 +11,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/deopt.h"
+#include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_borrowed.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/runtime.h"
@@ -123,7 +124,7 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
     frame->previous = nullptr;
     if (jit_gen->gi_frame_state == FRAME_COMPLETED) {
       jit_gen->gi_frame_state = FRAME_CLEARED;
-      _PyFrame_ClearExceptCode(frame);
+      jitFrameClearExceptCode(frame);
     } else {
       jit_gen->gi_frame_state = FRAME_SUSPENDED;
     }

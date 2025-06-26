@@ -566,4 +566,5 @@ PyObject* JITRT_LookupAttrSpecial(
     PyObject* obj,
     PyObject* attr,
     const char* failure_fmt_str);
+
 #endif

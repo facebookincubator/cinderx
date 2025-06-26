@@ -12,6 +12,7 @@
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/deopt.h"
+#include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
@@ -51,11 +52,9 @@ static inline Ref<> runInInterpreterViaReify(
   PyThreadState* tstate = PyThreadState_Get();
   BorrowedRef<PyCodeObject> code = PyFunction_GetCode(func);
   _PyInterpreterFrame* interp_frame =
-      Cix_PyThreadState_PushFrame(tstate, code->co_framesize);
+      Cix_PyThreadState_PushFrame(tstate, jit::jitFrameGetSize(code));
   Py_INCREF(func);
-  PyObject* locals = nullptr;
-  _PyInterpreterFrame* previous = nullptr;
-  initInterpFrame(tstate, interp_frame, func, locals, code, 0, previous);
+  jit::jitFrameInit(tstate, interp_frame, func, code, 0, nullptr, false);
   reifyFrame(interp_frame, dm, dfm, regs);
   // If we're at the start of the function, push IP past RESUME instruction
   if (interp_frame->prev_instr == _PyCode_CODE(code) - 1) {

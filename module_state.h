@@ -81,6 +81,14 @@ class ModuleState {
     sys_clear_caches_ = Ref<>::create(clear_caches);
   }
 
+  void setFrameReifier(BorrowedRef<> frame_reifier) {
+    frame_reifier_ = Ref<>::create(frame_reifier);
+  }
+
+  BorrowedRef<> frameReifier() const {
+    return frame_reifier_;
+  }
+
   // Gets the value of sys._clear_type_caches when CinderX was initialized.
   BorrowedRef<> sysClearCaches() const {
     return sys_clear_caches_;
@@ -116,6 +124,7 @@ class ModuleState {
   std::unique_ptr<jit::ISymbolizer> symbolizer_;
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value_;
   Ref<PyTypeObject> coro_type_, gen_type_, anext_awaitable_type_;
+  Ref<> frame_reifier_;
   Ref<> sys_clear_caches_, builtin_next_;
   bool initialized_{false};
 };
