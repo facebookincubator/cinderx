@@ -36,6 +36,24 @@ void RegisterPreserver::preserve() {
   }
 }
 
+void RegisterPreserver::remap() {
+  for (const auto& pair : save_regs_) {
+    if (pair.first != pair.second) {
+      if (pair.first.isGpq()) {
+        JIT_DCHECK(pair.second.isGpq(), "can't mix and match register types");
+        as_->mov(
+            static_cast<const asmjit::x86::Gpq&>(pair.second),
+            static_cast<const asmjit::x86::Gpq&>(pair.first));
+      } else if (pair.first.isXmm()) {
+        JIT_DCHECK(pair.second.isXmm(), "can't mix and match register types");
+        as_->movsd(
+            static_cast<const asmjit::x86::Xmm&>(pair.second),
+            static_cast<const asmjit::x86::Xmm&>(pair.first));
+      }
+    }
+  }
+}
+
 void RegisterPreserver::restore() {
   if (align_stack_) {
     as_->add(asmjit::x86::rsp, 8);

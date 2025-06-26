@@ -142,7 +142,12 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
   }
 #else
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
-  fixupJitFrameForInterpreter(frame);
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  if (!(frame->f_code->co_flags & kCoFlagsAnyGenerator)) {
+    // The frame needs to be copied to a new interpreter frame
+    frame = convertInterpreterFrameFromStackToSlab(tstate, frame);
+  }
+#endif
   reifyFrame(frame, deopt_meta, deopt_meta.outermostFrame(), regs);
   // TODO(T198250666): Support jit inlining
 #endif
@@ -556,9 +561,6 @@ NativeGenerator::NativeGenerator(
       deopt_trampoline_generators_{deopt_trampoline_generators},
       failed_deferred_compile_trampoline_{failed_deferred_compile_trampoline},
       frame_asm_{func, env_},
-#if PY_VERSION_HEX < 0x030C0000
-      frame_header_size_{calcFrameHeaderSize(func)},
-#endif
       max_inline_depth_{calcMaxInlineDepth(func)} {
   env_.has_inlined_functions = max_inline_depth_ > 0;
 }
@@ -612,6 +614,15 @@ PhyLocation get_arg_location_phy_location(int arg) {
 
   JIT_ABORT("only six first registers should be used");
   return 0;
+}
+
+int NativeGenerator::maxInlineStackSize() {
+  // TODO(T198250666): Support jit inlining
+#if PY_VERSION_HEX < 0x030C0000
+  return max_inline_depth_ * kJITShadowFrameSize;
+#else
+  return 0;
+#endif
 }
 
 std::span<const std::byte> NativeGenerator::getCodeBuffer() const {
@@ -735,13 +746,8 @@ void* NativeGenerator::getVectorcallEntry() {
       eliminateDeadCode(lir_func.get()))
 
   LinearScanAllocator lsalloc(
-      lir_func.get(),
-#if PY_VERSION_HEX < 0x030C0000
-      frame_header_size_ + max_inline_depth_ * kJITShadowFrameSize);
-#else
-      0);
-  // TODO(T198250666): Support jit inlining
-#endif
+      lir_func.get(), frame_asm_.frameHeaderSize() + maxInlineStackSize());
+
   COMPILE_TIMER(
       GetFunction()->compilation_phase_timer,
       "Register Allocation",
@@ -1845,15 +1851,6 @@ void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
         "Check if called with correct argcount", arg_check_cursor);
   }
 }
-
-#if PY_VERSION_HEX < 0x030C0000
-int NativeGenerator::calcFrameHeaderSize(const hir::Function* func) {
-  if (func == nullptr || func->code->co_flags & kCoFlagsAnyGenerator) {
-    return 0;
-  }
-  return sizeof(FrameHeader);
-}
-#endif
 
 // calcMaxInlineDepth must work with nullptr HIR functions because it's valid
 // to call NativeGenerator with only LIR (e.g., from a test). In the case of an

@@ -102,13 +102,9 @@ class NativeGenerator {
 
   size_t compiled_size_{0};
   int spill_stack_size_{-1};
-#if PY_VERSION_HEX < 0x030C0000
-  const int frame_header_size_;
-#endif
   int max_inline_depth_;
 
   bool hasStaticEntry() const;
-  int calcFrameHeaderSize(const hir::Function* func);
   int calcMaxInlineDepth(const hir::Function* func);
   void generateCode(asmjit::CodeHolder& code);
   void generateFunctionEntry();
@@ -117,6 +113,7 @@ class NativeGenerator {
       asmjit::x86::Gp tstate_reg
 #endif
   );
+  int maxInlineStackSize();
   void generatePrologue(
       asmjit::Label correct_arg_count,
       asmjit::Label native_entry_point);

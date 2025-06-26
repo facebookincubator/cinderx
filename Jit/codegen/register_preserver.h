@@ -25,6 +25,9 @@ class RegisterPreserver {
   // Restore all registers from the stack in reverse order
   void restore();
 
+  // Remaps the registers as if they had been preserved and restored
+  void remap();
+
  private:
   asmjit::x86::Builder* as_;
   const std::vector<

@@ -83,12 +83,16 @@ void Ci_WalkStack(PyThreadState* tstate, CiWalkStackCallback cb, void* data);
 
 #else // PY_VERSION_HEX < 0x030C0000
 
+#include "internal/pycore_frame.h"
+
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/runtime.h"
 
 namespace jit {
 
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate);
+
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
 
 // A singleton reifier object that was set _PyInterpreterFrame's f_funcobj
 // to. The Python runtime will call this object when it needs a complete
@@ -110,15 +114,22 @@ PyObject* jitFrameReifierVectorcall(
 // interpreter needs to interact with it.
 void fixupJitFrameForInterpreter(_PyInterpreterFrame* frame);
 
-// Like _PyFrame_ClearExceptCode but will handle partially initialized
-// JIT frames and only clean up the necessary state.
-void jitFrameClearExceptCode(_PyInterpreterFrame* frame);
+// Turns a stack allocated interpreter frame into a slab allocated one.
+_PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame);
 
 // Gets the PyFunctionObject that is stashed away in a JIT frame. We
 // store the function as an extra local.
 PyFunctionObject* jitFrameGetFunction(_PyInterpreterFrame* frame);
 // Sets the PyFunctionObject to be stashed away in an interpreter frame.
 void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func);
+
+#endif
+
+// Like _PyFrame_ClearExceptCode but will handle partially initialized
+// JIT frames and only clean up the necessary state.
+void jitFrameClearExceptCode(_PyInterpreterFrame* frame);
 
 // Initializes a JIT interpreter frame. Equivalent to _PyFrame_Initialize if we
 // don't have ENABLE_LIGHTWEIGHT_FRAMES. If we do have ENABLE_LIGHTWEIGHT_FRAMES
@@ -136,6 +147,12 @@ void jitFrameInit(
 // Gets the frame size (in number of words) that's required for the JIT
 // to initialize a frame object.
 size_t jitFrameGetSize(PyCodeObject* code);
+
+// FrameHeader lives at the beginning of the stack frame for JIT-compiled
+// functions. In 3.12+ this will be followed by the _PyInterpreterFrame.
+struct FrameHeader {
+  PyObject* func;
+};
 
 } // namespace jit
 

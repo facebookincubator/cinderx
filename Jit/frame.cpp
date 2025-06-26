@@ -800,6 +800,8 @@ RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
   return RuntimeFrameState{frame->f_code, frame->f_builtins, frame->f_globals};
 }
 
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+
 static PyMemberDef framereifier_members[] = {
     {"__vectorcalloffset__",
      T_PYSSIZET,
@@ -852,7 +854,6 @@ PyType_Spec JitFrameReifier_Spec = {
 };
 
 void fixupJitFrameForInterpreter([[maybe_unused]] _PyInterpreterFrame* frame) {
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   if (PyFunction_Check(frame->f_funcobj)) {
     // already fixed up
     return;
@@ -877,49 +878,41 @@ void fixupJitFrameForInterpreter([[maybe_unused]] _PyInterpreterFrame* frame) {
     *localsplus = nullptr;
     localsplus++;
   }
+
   JIT_DCHECK(Py_REFCNT(reifier) != 1, "no one should ever release the reifier");
-#endif
 }
 
-void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
-  /* It is the responsibility of the owning generator/coroutine
-   * to have cleared the enclosing generator, if any. */
-  JIT_DCHECK(
-      frame->owner != FRAME_OWNED_BY_GENERATOR ||
-          _PyFrame_GetGenerator(frame)->gi_frame_state == FRAME_CLEARED,
-      "bad frame state");
-  // GH-99729: Clearing this frame can expose the stack (via finalizers). It's
-  // crucial that this frame has been unlinked, and is no longer visible:
-  JIT_DCHECK(currentFrame(PyThreadState_Get()) != frame, "wrong current frame");
-
-  // If we've already been requested by the runtime to initialize this
-  // _PyInterpreterFrame then we just fall back to its implementation to
-  // handle the clearing.
-  if (PyFunction_Check(frame->f_funcobj)) {
-    _PyFrame_ClearExceptCode(frame);
-    return;
+_PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
+    PyThreadState* tstate,
+    _PyInterpreterFrame* frame) {
+  PyCodeObject* code = frame->f_code;
+  _PyInterpreterFrame* new_frame =
+      _PyThreadState_PushFrame(tstate, code->co_framesize);
+  if (new_frame == nullptr) {
+    return nullptr;
   }
 
-  // Otherwise only clear things that we've initialized.
-  int free_offset = frame->f_code->co_nlocalsplus - numFreevars(frame->f_code);
-  for (int i = free_offset; i < frame->f_code->co_nlocalsplus; i++) {
-    Py_XDECREF(frame->localsplus[i]);
+  fixupJitFrameForInterpreter(frame);
+  memcpy(new_frame, frame, code->co_framesize * sizeof(PyObject*));
+
+  if (new_frame->frame_obj != nullptr) {
+    new_frame->frame_obj->f_frame = new_frame;
   }
-  Py_DECREF(frame->f_funcobj);
-  Py_DECREF(jitFrameGetFunction(frame));
+  setCurrentFrame(tstate, new_frame);
+  return new_frame;
 }
 
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
 void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func) {
-  frame->localsplus
-      [frame->f_code->co_stacksize + frame->f_code->co_nlocalsplus] =
-      (PyObject*)func;
+  assert(!(frame->f_code->co_flags & kCoFlagsAnyGenerator));
+  *(reinterpret_cast<PyFunctionObject**>(frame) - 1) = func;
 }
 
 PyFunctionObject* jitFrameGetFunction(_PyInterpreterFrame* frame) {
-  return (PyFunctionObject*)frame
-      ->localsplus[frame->f_code->co_stacksize + frame->f_code->co_nlocalsplus];
+  assert(!(frame->f_code->co_flags & kCoFlagsAnyGenerator));
+  return *(reinterpret_cast<PyFunctionObject**>(frame) - 1);
 }
+
+#endif
 
 // Initialize a _PyInterpreterFrame.
 void jitFrameInit(
@@ -960,13 +953,40 @@ void jitFrameInit(
 }
 
 size_t jitFrameGetSize(PyCodeObject* code) {
-  int framesize = code->co_framesize;
-#ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  framesize += 1;
-#endif
-  return static_cast<size_t>(framesize);
+  return code->co_framesize;
 }
+
+void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
+  /* It is the responsibility of the owning generator/coroutine
+   * to have cleared the enclosing generator, if any. */
+  JIT_DCHECK(
+      frame->owner != FRAME_OWNED_BY_GENERATOR ||
+          _PyFrame_GetGenerator(frame)->gi_frame_state == FRAME_CLEARED,
+      "bad frame state");
+  // GH-99729: Clearing this frame can expose the stack (via finalizers). It's
+  // crucial that this frame has been unlinked, and is no longer visible:
+  JIT_DCHECK(currentFrame(PyThreadState_Get()) != frame, "wrong current frame");
+
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  // If we've already been requested by the runtime to initialize this
+  // _PyInterpreterFrame then we just fall back to its implementation to
+  // handle the clearing.
+  if (PyFunction_Check(frame->f_funcobj)) {
+    _PyFrame_ClearExceptCode(frame);
+    return;
+  }
+
+  // Otherwise only clear things that we've initialized.
+  int free_offset = frame->f_code->co_nlocalsplus - numFreevars(frame->f_code);
+  for (int i = free_offset; i < frame->f_code->co_nlocalsplus; i++) {
+    Py_XDECREF(frame->localsplus[i]);
+  }
+  Py_DECREF(frame->f_funcobj);
+  Py_DECREF(jitFrameGetFunction(frame));
+#else
+  _PyFrame_ClearExceptCode(frame);
 #endif
+}
 
 } // namespace jit
 

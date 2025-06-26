@@ -3,6 +3,7 @@
 #pragma once
 
 #include "cinderx/Jit/codegen/environ.h"
+#include "cinderx/Jit/codegen/register_preserver.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/runtime.h"
 
@@ -37,6 +38,8 @@ class FrameAsm {
     as_ = as;
   }
 
+  int frameHeaderSize();
+
  private:
   const hir::Function* GetFunction() const {
     return func_;
@@ -50,10 +53,34 @@ class FrameAsm {
     return func_->code->co_flags & kCoFlagsAnyGenerator;
   }
 
-  void loadTState(asmjit::x86::Gp dst_reg);
+  void emitIncTotalRefCount(const asmjit::x86::Gp& scratch_reg);
+  void incRef(const asmjit::x86::Gp& reg, const asmjit::x86::Gp& scratch_reg);
+  bool storeConst(
+      const asmjit::x86::Gp& reg,
+      int32_t offset,
+      void* val,
+      const asmjit::x86::Gp& scratch);
+
+  void loadTState(const asmjit::x86::Gp& dst_reg, RegisterPreserver& preserver);
+  void linkNormalGeneratorFrame(
+      RegisterPreserver& preserver,
+      const asmjit::x86::Gp& func_reg,
+      const asmjit::x86::Gp& tstate_reg);
+  void linkLightWeightFunctionFrame(
+      RegisterPreserver& preserver,
+      const asmjit::x86::Gp& func_reg,
+      const asmjit::x86::Gp& tstate_reg);
+  void linkNormalFunctionFrame(
+      RegisterPreserver& preserver,
+      const asmjit::x86::Gp& func_reg,
+      const asmjit::x86::Gp& tstate_reg);
+  void linkNormalFrame(
+      RegisterPreserver& preserver,
+      const asmjit::x86::Gp& func_reg,
+      const asmjit::x86::Gp& tstate_reg);
   void linkOnStackShadowFrame(
-      asmjit::x86::Gp tstate_reg,
-      asmjit::x86::Gp scratch_reg);
+      const asmjit::x86::Gp& tstate_reg,
+      const asmjit::x86::Gp& scratch_reg);
 
   asmjit::x86::Builder* as_{};
   const hir::Function* func_;

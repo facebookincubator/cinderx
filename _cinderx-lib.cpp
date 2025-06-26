@@ -1228,6 +1228,7 @@ static int _cinderx_exec(PyObject* m) {
   state->setCoroType(coro_type);
   Py_DECREF(coro_type);
 
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   Ref<PyTypeObject> frame_reifier_type = Ref<PyTypeObject>::steal(
       (PyTypeObject*)PyType_FromSpec(&jit::JitFrameReifier_Spec));
   if (frame_reifier_type == nullptr) {
@@ -1239,9 +1240,14 @@ static int _cinderx_exec(PyObject* m) {
     state->shutdown();
     return -1;
   }
+
   ((jit::JitFrameReifier*)reifier)->vectorcall =
       (vectorcallfunc)jit::jitFrameReifierVectorcall;
   state->setFrameReifier(reifier);
+
+  // Mark as immortal so we don't have to refcount this.
+  immortalize(reifier);
+#endif
 
   // PyType_FromSpec wants us to provide a module name, but we really don't
   // want one, we go a long way to make these look just like CPython's types.
