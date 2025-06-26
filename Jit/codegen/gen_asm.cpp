@@ -19,6 +19,7 @@
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
+#include "cinderx/Jit/codegen/register_preserver.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/frame.h"
@@ -1060,8 +1061,6 @@ x86::Gp get_arg_location(int arg) {
   JIT_ABORT("should only be used with first six args");
 }
 
-constexpr size_t kConstStackAlignmentRequirement = 16;
-
 bool NativeGenerator::linkFrameNeedsSpill() {
   if (!isGen()) {
     return true;
@@ -1120,22 +1119,8 @@ void NativeGenerator::loadOrGenerateLinkFrame(
 #endif
       break;
     case FrameMode::kNormal: {
-      size_t rsp_offset = 0;
-      for (const auto& pair : save_regs) {
-        if (pair.first.isGpq()) {
-          as_->push((asmjit::x86::Gpq&)pair.first);
-        } else if (pair.first.isXmm()) {
-          as_->sub(x86::rsp, pair.first.size());
-          as_->movdqu(x86::dqword_ptr(x86::rsp), (asmjit::x86::Xmm&)pair.first);
-        } else {
-          JIT_ABORT("unsupported saved register type");
-        }
-        rsp_offset += pair.first.size();
-      }
-      bool align_stack = rsp_offset % kConstStackAlignmentRequirement;
-      if (align_stack) {
-        as_->push(x86::rax);
-      }
+      RegisterPreserver preserver(as_, save_regs);
+      preserver.preserve();
 
 #if PY_VERSION_HEX < 0x030C0000
       as_->mov(
@@ -1181,20 +1166,7 @@ void NativeGenerator::loadOrGenerateLinkFrame(
 #endif
       as_->mov(tstate_reg, x86::rax);
 
-      if (align_stack) {
-        as_->pop(x86::rax);
-      }
-      for (auto iter = save_regs.rbegin(); iter != save_regs.rend(); ++iter) {
-        if (iter->second.isGpq()) {
-          as_->pop((asmjit::x86::Gpq&)iter->second);
-        } else if (iter->second.isXmm()) {
-          as_->movdqu(
-              (asmjit::x86::Xmm&)iter->second, x86::dqword_ptr(x86::rsp));
-          as_->add(x86::rsp, 16);
-        } else {
-          JIT_ABORT("unsupported saved register type");
-        }
-      }
+      preserver.restore();
       break;
     }
   }

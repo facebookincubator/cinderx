@@ -8,6 +8,7 @@
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/codegen/environ.h"
+#include "cinderx/Jit/codegen/register_preserver.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/function.h"
