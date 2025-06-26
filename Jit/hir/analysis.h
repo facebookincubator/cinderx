@@ -150,7 +150,7 @@ class LivenessAnalysis : public BackwardDataflowAnalysis {
       const jit::optimizer::DataFlowBlock* block) final;
   jit::util::BitVector ComputeNewOut(
       const jit::optimizer::DataFlowBlock* block) final;
-  void setUninitialized(jit::optimizer::DataFlowBlock* block) override final;
+  void setUninitialized(jit::optimizer::DataFlowBlock* block) final;
 
   std::string name() final {
     return "LivenessAnalysis";
@@ -208,7 +208,7 @@ class AssignmentAnalysis : public ForwardDataflowAnalysis {
       const jit::optimizer::DataFlowBlock* block) final;
   jit::util::BitVector ComputeNewOut(
       const jit::optimizer::DataFlowBlock* block) final;
-  void setUninitialized(jit::optimizer::DataFlowBlock* block) override final;
+  void setUninitialized(jit::optimizer::DataFlowBlock* block) final;
 
   std::string name() final {
     return fmt::format(

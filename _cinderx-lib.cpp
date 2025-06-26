@@ -1374,7 +1374,7 @@ static PyModuleDef_Slot _cinderx_slots[] = {
 #if PY_VERSION_HEX >= 0x030C0000
     {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
 #endif
-    {0, NULL}};
+    {0, nullptr}};
 
 struct PyModuleDef _cinderx_module = {
     PyModuleDef_HEAD_INIT,

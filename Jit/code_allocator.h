@@ -75,7 +75,7 @@ class CodeAllocator {
 // A code allocator which tries to allocate all code on huge pages.
 class CodeAllocatorCinder : public CodeAllocator {
  public:
-  virtual ~CodeAllocatorCinder();
+  ~CodeAllocatorCinder() override;
 
   asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept override;
   bool contains(const void* ptr) const override;
@@ -112,7 +112,7 @@ class CodeAllocatorCinder : public CodeAllocator {
 
 class MultipleSectionCodeAllocator : public CodeAllocator {
  public:
-  virtual ~MultipleSectionCodeAllocator();
+  ~MultipleSectionCodeAllocator() override;
 
   asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept override;
   bool contains(const void* ptr) const override;

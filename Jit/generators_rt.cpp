@@ -171,11 +171,11 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
   PyObject* result = send_core(gen, arg, tstate).release();
 
   JIT_DCHECK(tstate->exc_info == prev_exc_info, "Invalid exc_info");
-  JIT_DCHECK(gen->gi_exc_state.previous_item == NULL, "Invalid exc_state");
+  JIT_DCHECK(gen->gi_exc_state.previous_item == nullptr, "Invalid exc_state");
   JIT_DCHECK(gen->gi_frame_state != FRAME_EXECUTING, "Invalid frame state");
   _PyInterpreterFrame* frame = generatorFrame(gen);
   JIT_DCHECK(
-      JitGen_CheckAny(obj) || frame->previous == NULL,
+      JitGen_CheckAny(obj) || frame->previous == nullptr,
       "Previous frame still linked");
 
   /* If the generator just returned (as opposed to yielding), signal
@@ -509,8 +509,8 @@ static Ci_AsyncMethodsWithExtra jitcoro_as_async = {
     .ame_async_methods =
         {
             .am_await = reinterpret_cast<unaryfunc>(jitcoro_await),
-            .am_aiter = NULL,
-            .am_anext = NULL,
+            .am_aiter = nullptr,
+            .am_anext = nullptr,
             .am_send = (sendfunc)jitgen_am_send,
         },
     // Filled in by init_jit_genobject_type()
@@ -742,7 +742,7 @@ static PyMethodDef anextawaitable_methods[] = {
     {"send", (PyCFunction)Ci_anextawaitable_send, METH_O, ""},
     {"throw", (PyCFunction)Ci_anextawaitable_throw, METH_VARARGS, ""},
     {"close", (PyCFunction)Ci_anextawaitable_close, METH_VARARGS, ""},
-    {NULL, NULL} /* Sentinel */
+    {nullptr, nullptr} /* Sentinel */
 };
 
 PyType_Slot anext_awaitable_slots[] = {

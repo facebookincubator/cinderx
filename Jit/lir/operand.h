@@ -195,7 +195,7 @@ class Operand : public OperandBase {
         type_(operand->type_),
         data_type_(operand->data_type_) {}
 
-  virtual ~Operand() {}
+  ~Operand() override {}
 
   Operand(Instruction* parent, DataType data_type, Type type, uint64_t data)
       : OperandBase(parent), type_(type), data_type_(data_type) {
@@ -405,7 +405,7 @@ class Operand : public OperandBase {
 class LinkedOperand : public OperandBase {
  public:
   LinkedOperand(Instruction* parent, Instruction* def);
-  virtual ~LinkedOperand() {}
+  ~LinkedOperand() override {}
 
   bool isLinked() const override {
     return true;

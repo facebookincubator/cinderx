@@ -26,7 +26,7 @@ class Symbolizer : public ISymbolizer {
     return file_.isOpen();
   }
 
-  ~Symbolizer() {
+  ~Symbolizer() override {
     deinit();
   }
 

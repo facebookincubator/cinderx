@@ -947,7 +947,7 @@ call_function_ex(PyObject* func, PyObject* pargs, PyObject* kwargs) {
   // check.
   if (handle_eval_breaker(tstate, res, func)) {
     Py_DECREF(res);
-    return NULL;
+    return nullptr;
   }
 #endif
   return res;
@@ -993,7 +993,7 @@ PyObject* JITRT_Call(
   // check.
   if (handle_eval_breaker(tstate, res, callable)) {
     Py_DECREF(res);
-    return NULL;
+    return nullptr;
   }
 #endif
   return res;
@@ -1013,7 +1013,7 @@ PyObject* JITRT_Vectorcall(
   // check.
   if (handle_eval_breaker(tstate, res, callable)) {
     Py_DECREF(res);
-    return NULL;
+    return nullptr;
   }
 #endif
   return res;

@@ -836,7 +836,7 @@ static PyObject* AsyncLazyValue_get_state(
   }
 
   PyErr_SetString(PyExc_RuntimeError, "unknown AsyncLazyValue state");
-  return NULL;
+  return nullptr;
 }
 
 static PyMethodDef AsyncLazyValue_methods[] = {
@@ -854,7 +854,7 @@ static PyGetSetDef AsyncLazyValue_getsetlist[] = {
      (getter)AsyncLazyValue_get_awaiting_tasks,
      nullptr,
      nullptr},
-    {"alv_state", (getter)AsyncLazyValue_get_state, NULL, NULL},
+    {"alv_state", (getter)AsyncLazyValue_get_state, nullptr, nullptr},
     {nullptr} /* Sentinel */
 };
 
@@ -1356,8 +1356,8 @@ Ci_AsyncMethodsWithExtra _async_lazy_value_compute_type_as_async = {
     .ame_async_methods =
         {
             (unaryfunc)PyObject_SelfIter, /* am_await */
-            0, /* am_aiter */
-            0, /* am_anext */
+            nullptr, /* am_aiter */
+            nullptr, /* am_anext */
             (sendfunc)AsyncLazyValueCompute_itersend, /* am_send */
         },
     .ame_setawaiter = (setawaiterfunc)AsyncLazyValueCompute_set_awaiter,

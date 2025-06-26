@@ -204,7 +204,7 @@ int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
     PyObject* old_value = values->values[val_offset];
     values->values[val_offset] = value;
     Py_INCREF(value);
-    if (old_value == NULL) {
+    if (old_value == nullptr) {
       _PyDictValues_AddToInsertionOrder(values, val_offset);
     } else {
       Py_DECREF(old_value);

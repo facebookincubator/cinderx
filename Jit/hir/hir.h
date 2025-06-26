@@ -1795,13 +1795,13 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
     return caller_state_.get();
   }
 
-  BorrowedRef<PyCodeObject> code() const {
+  BorrowedRef<PyCodeObject> code() const override {
     return code_.get();
   }
 
   // we have the bytecode offset from the caller, so we need to use the caller
   // code object to find the line number
-  int lineNumber() const {
+  int lineNumber() const override {
     PyCodeObject* code = caller_state_->code;
     return code == nullptr ? -1
                            : PyCode_Addr2Line(code, bytecodeOffset().value());
@@ -1819,7 +1819,7 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
     return globals_.get();
   }
 
-  int inlineDepth() const {
+  int inlineDepth() const override {
     return caller_state_->inlineDepth() + 1;
   }
 
@@ -1844,7 +1844,7 @@ class INSTR_CLASS(EndInlinedFunction, (), Operands<0>), public InlineBase {
     return begin_;
   }
 
-  int inlineDepth() const {
+  int inlineDepth() const override {
     return inline_depth_;
   }
 
@@ -2965,7 +2965,7 @@ class INSTR_CLASS(LoadGlobalCached, (), HasOutput, Operands<0>) {
         globals_(globals),
         name_idx_(name_idx) {}
 
-  virtual BorrowedRef<PyCodeObject> code() const {
+  BorrowedRef<PyCodeObject> code() const override {
     return code_;
   }
 
