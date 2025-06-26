@@ -613,17 +613,25 @@ static int async_cached_property_init_impl(
 
 static inline int import_async_lazy_value() {
   if (_AsyncLazyValue_Type == NULL) {
-#if PY_VERSION_HEX >= 0x030C0000
-    // 3.12 doesn't have a C implementation of AsyncLazyValue
-    PyObject* module = PyImport_ImportModule("cinderx._asyncio");
-#else
     PyObject* module = PyImport_ImportModule("_asyncio");
-#endif
-    DEFINE_STATIC_STRING(AsyncLazyValue);
     if (module == NULL) {
       return -1;
     }
+    DEFINE_STATIC_STRING(AsyncLazyValue);
     _AsyncLazyValue_Type = PyObject_GetAttr(module, s_AsyncLazyValue);
+#if PY_VERSION_HEX >= 0x030C0000
+    // _asyncio can be overridden with a version that has AsyncLazyValue,
+    // if it's not there fallback to CinderX's builtin version.
+    if (_AsyncLazyValue_Type == NULL) {
+      PyErr_Clear();
+      Py_DECREF(module);
+      module = PyImport_ImportModule("cinderx._asyncio");
+      if (module == NULL) {
+        return -1;
+      }
+      _AsyncLazyValue_Type = PyObject_GetAttr(module, s_AsyncLazyValue);
+    }
+#endif
     Py_DECREF(module);
     if (_AsyncLazyValue_Type == NULL) {
       return -1;
