@@ -8,6 +8,7 @@
 #include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/codegen/environ.h"
+#include "cinderx/Jit/codegen/frame_asm.h"
 #include "cinderx/Jit/codegen/register_preserver.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -97,6 +98,7 @@ class NativeGenerator {
   void* deopt_trampoline_{nullptr};
   void* deopt_trampoline_generators_{nullptr};
   void* const failed_deferred_compile_trampoline_;
+  FrameAsm frame_asm_;
 
   size_t compiled_size_{0};
   int spill_stack_size_{-1};
@@ -110,12 +112,6 @@ class NativeGenerator {
   int calcMaxInlineDepth(const hir::Function* func);
   void generateCode(asmjit::CodeHolder& code);
   void generateFunctionEntry();
-  void linkOnStackShadowFrame(
-      asmjit::x86::Gp tstate_reg,
-      asmjit::x86::Gp scratch_reg);
-  void initializeFrameHeader(
-      asmjit::x86::Gp tstate_reg,
-      asmjit::x86::Gp scratch_reg);
   void setupFrameAndSaveCallerRegisters(
 #ifdef SHADOW_FRAMES
       asmjit::x86::Gp tstate_reg
@@ -125,15 +121,7 @@ class NativeGenerator {
       asmjit::Label correct_arg_count,
       asmjit::Label native_entry_point);
   bool linkFrameNeedsSpill();
-  void loadOrGenerateLinkFrame(
-#if PY_VERSION_HEX >= 0x030C0000
-      asmjit::x86::Gp func_reg,
-#endif
-      const std::vector<
-          std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
-          save_regs);
   void generateEpilogue(asmjit::BaseNode* epilogue_cursor);
-  void generateEpilogueUnlinkFrame(asmjit::x86::Gp tstate_reg, bool is_gen);
   void generateDeoptExits(const asmjit::CodeHolder& code);
   void linkDeoptPatchers(const asmjit::CodeHolder& code);
   void generateResumeEntry();
@@ -141,10 +129,6 @@ class NativeGenerator {
   void generateStaticEntryPoint(
       asmjit::Label native_entry_point,
       asmjit::Label static_jmp_location);
-
-#if PY_VERSION_HEX < 0x030C0000
-  void loadTState(asmjit::x86::Gp dst_reg);
-#endif
 
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocation);
   friend class BackendTest;

@@ -56,28 +56,6 @@ namespace jit::codegen {
 
 namespace {
 
-#ifdef SHADOW_FRAMES
-
-namespace shadow_frame {
-// Shadow stack frames appear at the beginning of native frames for jitted
-// functions
-constexpr x86::Mem kFramePtr = x86::ptr(x86::rbp, -kJITShadowFrameSize);
-constexpr x86::Mem kInFramePrevPtr =
-    x86::ptr(x86::rbp, -kJITShadowFrameSize + SHADOW_FRAME_FIELD_OFF(prev));
-constexpr x86::Mem kInFrameDataPtr =
-    x86::ptr(x86::rbp, -kJITShadowFrameSize + SHADOW_FRAME_FIELD_OFF(data));
-constexpr x86::Mem kInFrameOrigDataPtr = x86::ptr(
-    x86::rbp,
-    -kJITShadowFrameSize + JIT_SHADOW_FRAME_FIELD_OFF(orig_data));
-
-constexpr x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
-  return x86::ptr(tstate_reg, offsetof(PyThreadState, shadow_frame));
-}
-
-} // namespace shadow_frame
-
-#endif // SHADOW_FRAMES
-
 #define ASM_CHECK_THROW(exp)                         \
   {                                                  \
     auto err = (exp);                                \
@@ -577,73 +555,12 @@ NativeGenerator::NativeGenerator(
       deopt_trampoline_{deopt_trampoline},
       deopt_trampoline_generators_{deopt_trampoline_generators},
       failed_deferred_compile_trampoline_{failed_deferred_compile_trampoline},
+      frame_asm_{func, env_},
 #if PY_VERSION_HEX < 0x030C0000
       frame_header_size_{calcFrameHeaderSize(func)},
 #endif
       max_inline_depth_{calcMaxInlineDepth(func)} {
   env_.has_inlined_functions = max_inline_depth_ > 0;
-}
-
-void NativeGenerator::generateEpilogueUnlinkFrame(
-    x86::Gp tstate_r,
-    bool is_generator) {
-#ifdef SHADOW_FRAMES
-  // It's safe to use caller saved registers in this function
-  auto scratch_reg = tstate_r == x86::rsi ? x86::rdx : x86::rsi;
-  x86::Mem shadow_stack_top_ptr = shadow_frame::getStackTopPtr(tstate_r);
-
-  // Check bit 0 of _PyShadowFrame::data to see if a frame needs
-  // unlinking. This bit will be set (pointer kind == PYSF_PYFRAME) if so.
-  // scratch_reg = tstate->shadow_frame
-  as_->mov(scratch_reg, shadow_stack_top_ptr);
-  static_assert(
-      PYSF_PYFRAME == 1 && _PyShadowFrame_NumPtrKindBits == 2,
-      "Unexpected constants");
-  bool might_have_heap_frame =
-      func_->canDeopt() || func_->frameMode == FrameMode::kNormal;
-  if (might_have_heap_frame) {
-    as_->bt(
-        x86::qword_ptr(scratch_reg, offsetof(_PyShadowFrame, data)),
-        _PyShadowFrame_PtrKindOff);
-  }
-
-  // Unlink shadow frame. The send implementation handles unlinking these for
-  // generators.
-  if (!is_generator) {
-    // tstate->shadow_frame = ((_PyShadowFrame*)scratch_reg)->prev
-    as_->mov(
-        scratch_reg,
-        x86::qword_ptr(scratch_reg, offsetof(_PyShadowFrame, prev)));
-    as_->mov(shadow_stack_top_ptr, scratch_reg);
-  }
-
-  // Unlink PyFrame if needed
-  asmjit::Label done = as_->newLabel();
-  if (might_have_heap_frame) {
-    as_->jnc(done);
-#endif
-
-    auto saved_rax_ptr = x86::ptr(x86::rbp, -8);
-
-    hir::Type ret_type = func_->return_type;
-    if (ret_type <= TCDouble) {
-      as_->movsd(saved_rax_ptr, x86::xmm0);
-    } else {
-      as_->mov(saved_rax_ptr, x86::rax);
-    }
-    if (tstate_r != x86::rdi) {
-      as_->mov(x86::rdi, tstate_r);
-    }
-    as_->call(reinterpret_cast<uint64_t>(JITRT_UnlinkFrame));
-    if (ret_type <= TCDouble) {
-      as_->movsd(x86::xmm0, saved_rax_ptr);
-    } else {
-      as_->mov(x86::rax, saved_rax_ptr);
-    }
-#ifdef SHADOW_FRAMES
-    as_->bind(done);
-  }
-#endif
 }
 
 // these functions call int returning functions and convert their output from
@@ -726,6 +643,7 @@ void* NativeGenerator::getVectorcallEntry() {
   }
 
   as_ = new x86::Builder(&code);
+  frame_asm_.setAssembler(as_);
 
   env_.as = as_;
   env_.hard_exit_label = as_->newLabel();
@@ -924,67 +842,6 @@ void NativeGenerator::generateFunctionEntry() {
   as_->mov(x86::rbp, x86::rsp);
 }
 
-#if PY_VERSION_HEX < 0x030C0000
-void NativeGenerator::loadTState(x86::Gp dst_reg) {
-  uint64_t tstate =
-      reinterpret_cast<uint64_t>(&_PyRuntime.gilstate.tstate_current);
-  if (fitsInt32(tstate)) {
-    as_->mov(dst_reg, x86::ptr(tstate));
-  } else {
-    as_->mov(dst_reg, tstate);
-    as_->mov(dst_reg, x86::ptr(dst_reg));
-  }
-}
-#endif
-
-#ifdef SHADOW_FRAMES
-void NativeGenerator::linkOnStackShadowFrame(
-    x86::Gp tstate_reg,
-    x86::Gp scratch_reg) {
-  const hir::Function* func = GetFunction();
-  FrameMode frame_mode = func->frameMode;
-  using namespace shadow_frame;
-  x86::Mem shadow_stack_top_ptr = getStackTopPtr(tstate_reg);
-  uintptr_t data =
-      _PyShadowFrame_MakeData(env_.code_rt, PYSF_CODE_RT, PYSF_JIT);
-  // Save old top of shadow stack
-  as_->mov(scratch_reg, shadow_stack_top_ptr);
-  as_->mov(kInFramePrevPtr, scratch_reg);
-  // Set data
-  if (frame_mode == FrameMode::kNormal) {
-    as_->mov(scratch_reg, x86::ptr(tstate_reg, offsetof(PyThreadState, frame)));
-    static_assert(
-        PYSF_PYFRAME == 1 && _PyShadowFrame_NumPtrKindBits == 2,
-        "Unexpected constant");
-    as_->bts(scratch_reg, 0);
-  } else {
-    as_->mov(scratch_reg, data);
-  }
-  as_->mov(kInFrameDataPtr, scratch_reg);
-  // Set orig_data
-  // This is only necessary when in normal-frame mode because the frame is
-  // already materialized on function entry. It is lazily filled when the frame
-  // is materialized in shadow-frame mode.
-  if (frame_mode == FrameMode::kNormal) {
-    as_->mov(scratch_reg, data);
-    as_->mov(shadow_frame::kInFrameOrigDataPtr, scratch_reg);
-  }
-  // Set our shadow frame as top of shadow stack
-  as_->lea(scratch_reg, kFramePtr);
-  as_->mov(shadow_stack_top_ptr, scratch_reg);
-}
-
-void NativeGenerator::initializeFrameHeader(
-    x86::Gp tstate_reg,
-    x86::Gp scratch_reg) {
-  // Generator shadow frames live in generator objects and only get linked in
-  // on the first resume.
-  if (!isGen()) {
-    linkOnStackShadowFrame(tstate_reg, scratch_reg);
-  }
-}
-#endif
-
 void NativeGenerator::setupFrameAndSaveCallerRegisters(
 #ifdef SHADOW_FRAMES
     x86::Gp tstate_reg
@@ -1032,10 +889,7 @@ void NativeGenerator::setupFrameAndSaveCallerRegisters(
   env_.last_callee_saved_reg_off = spill_stack + saved_regs_size;
 
 #ifdef SHADOW_FRAMES
-  x86::Gp scratch_reg = x86::rax;
-  as_->push(scratch_reg);
-  initializeFrameHeader(tstate_reg, scratch_reg);
-  as_->pop(scratch_reg);
+  frame_asm_.initializeFrameHeader(tstate_reg, x86::rax);
 #endif
 
   // Push used callee-saved registers.
@@ -1072,104 +926,6 @@ bool NativeGenerator::linkFrameNeedsSpill() {
     return false;
   }
   return true;
-}
-
-void NativeGenerator::loadOrGenerateLinkFrame(
-#if PY_VERSION_HEX >= 0x030C0000
-    asmjit::x86::Gp func_reg,
-#endif
-    const std::vector<
-        std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
-        save_regs) {
-  x86::Gp tstate_reg = x86::gpq(INITIAL_TSTATE_REG.loc);
-
-#if PY_VERSION_HEX < 0x030C0000
-  auto load_tstate_and_move = [&]() {
-    loadTState(tstate_reg);
-    for (const auto& pair : save_regs) {
-      if (pair.first != pair.second) {
-        if (pair.first.isGpq()) {
-          JIT_DCHECK(pair.second.isGpq(), "can't mix and match register types");
-          as_->mov(
-              static_cast<const asmjit::x86::Gpq&>(pair.second),
-              static_cast<const asmjit::x86::Gpq&>(pair.first));
-        } else if (pair.first.isXmm()) {
-          JIT_DCHECK(pair.second.isXmm(), "can't mix and match register types");
-          as_->movsd(
-              static_cast<const asmjit::x86::Xmm&>(pair.second),
-              static_cast<const asmjit::x86::Xmm&>(pair.first));
-        }
-      }
-    }
-  };
-
-  // Prior to 3.12 we did not link a frame on initial generator entry.
-  if (isGen()) {
-    load_tstate_and_move();
-    return;
-  }
-#endif
-
-  switch (GetFunction()->frameMode) {
-    case FrameMode::kShadow:
-#if PY_VERSION_HEX >= 0x030B0000
-      JIT_ABORT("Shadow frames aren't supported on versions after 3.10.");
-#else
-      load_tstate_and_move();
-#endif
-      break;
-    case FrameMode::kNormal: {
-      RegisterPreserver preserver(as_, save_regs);
-      preserver.preserve();
-
-#if PY_VERSION_HEX < 0x030C0000
-      as_->mov(
-          x86::rdi,
-          reinterpret_cast<intptr_t>(
-              codeRuntime()->frameState()->code().get()));
-      as_->mov(
-          x86::rsi,
-          reinterpret_cast<intptr_t>(
-              codeRuntime()->frameState()->builtins().get()));
-      as_->mov(
-          x86::rdx,
-          reinterpret_cast<intptr_t>(
-              codeRuntime()->frameState()->globals().get()));
-
-      as_->call(reinterpret_cast<uint64_t>(JITRT_AllocateAndLinkFrame));
-#else
-      JIT_DCHECK(func_reg == x86::rdi, "func_reg must be rdi");
-      if (isGen()) {
-        uint64_t full_words = env_.shadow_frames_and_spill_size / kPointerSize;
-        as_->mov(x86::rsi, full_words);
-        as_->mov(x86::rdx, reinterpret_cast<intptr_t>(codeRuntime()));
-        as_->lea(x86::rcx, x86::ptr(env_.gen_resume_entry_label));
-        as_->mov(x86::r8, x86::rbp);
-        as_->call(reinterpret_cast<uint64_t>(
-            JITRT_AllocateAndLinkGenAndInterpreterFrame));
-        // tstate is now in RAX and GenDataFooter* in RDX. Swap RBP over to the
-        // generator data so spilled data starts getting stored there. There
-        // shouldn't have been any other data stored in the spilled area so far
-        // so no need to copy things over.
-        as_->mov(x86::rbp, x86::rdx);
-      } else {
-        if (kPyDebug) {
-          as_->mov(
-              x86::rsi, reinterpret_cast<intptr_t>(GetFunction()->code.get()));
-          as_->call(reinterpret_cast<uint64_t>(
-              JITRT_AllocateAndLinkInterpreterFrame_Debug));
-        } else {
-          as_->call(reinterpret_cast<uint64_t>(
-              JITRT_AllocateAndLinkInterpreterFrame_Release));
-        }
-      }
-#endif
-      as_->mov(tstate_reg, x86::rax);
-
-      preserver.restore();
-      break;
-    }
-  }
 }
 
 void NativeGenerator::generatePrologue(
@@ -1219,11 +975,10 @@ void NativeGenerator::generatePrologue(
   if (GetFunction()->uses_runtime_func) {
     save_regs.emplace_back(x86::rdi, kFuncPtrReg);
   }
-  loadOrGenerateLinkFrame(
-#if PY_VERSION_HEX >= 0x030C0000
-      kFuncPtrReg,
-#endif
-      save_regs);
+
+  frame_asm_.generateLinkFrame(
+      kFuncPtrReg, x86::gpq(INITIAL_TSTATE_REG.loc), save_regs);
+
   env_.addAnnotation("Link frame", frame_cursor);
 
   asmjit::BaseNode* load_args_cursor = as_->cursor();
@@ -1423,14 +1178,14 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
   // object i.e. in generators_rt. For the initial yield unlinking happens as
   // part of the YieldInitial LIR instruction.
   if (!is_gen) {
-    generateEpilogueUnlinkFrame(x86::rdi, false);
+    frame_asm_.generateUnlinkFrame(x86::rdi, false);
   }
 #else
   // Ideally this would also be the same in 3.10 as well but I spent maybe half
   // a day trying to change things and gave up. Our implementation is really
   // wonky and a clear ownership model is made difficult by shadow frames. It's
   // probably subtly broken somewhere.
-  generateEpilogueUnlinkFrame(x86::rdi, is_gen);
+  frame_asm_.generateUnlinkFrame(x86::rdi, is_gen);
 #endif
 
   // If we return a primitive, set edx/xmm1 to 1 to indicate no error (in case
@@ -1742,10 +1497,9 @@ void NativeGenerator::generateStaticEntryPoint(
     }
   }
 
-  loadOrGenerateLinkFrame(
-#if PY_VERSION_HEX >= 0x030C0000
+  frame_asm_.generateLinkFrame(
       x86::gpq(INITIAL_FUNC_REG.loc),
-#endif
+      x86::gpq(INITIAL_TSTATE_REG.loc),
       save_regs);
 
   if (need_extra_args_load) {
