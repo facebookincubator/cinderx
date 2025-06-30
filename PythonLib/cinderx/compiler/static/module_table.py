@@ -5,17 +5,7 @@
 from __future__ import annotations
 
 import ast
-from ast import (
-    AST,
-    Attribute,
-    BinOp,
-    Call,
-    ClassDef,
-    Constant,
-    Expression,
-    Name,
-    Subscript,
-)
+from ast import AST, Attribute, BinOp, Call, ClassDef, Constant, Name, Subscript
 from contextlib import nullcontext
 from enum import Enum
 from typing import cast, ContextManager, Optional, TYPE_CHECKING
@@ -191,8 +181,7 @@ class AnnotationVisitor(ReferenceVisitor):
         if sval is None:
             return self.type_env.none
         elif isinstance(sval, str):
-            # pyre-fixme[22]: The cast is redundant.
-            n = cast(Expression, ast.parse(node.value, "", "eval")).body
+            n = ast.parse(node.value, "", "eval").body
             return self.visit(n)
 
 
