@@ -11,14 +11,12 @@
 #include "internal/pycore_shadow_frame.h"
 #endif
 
-#include "internal/pycore_interp.h"
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
-#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
@@ -34,7 +32,6 @@
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/jit_flag_processor.h"
-#include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/Jit/mmap_file.h"
