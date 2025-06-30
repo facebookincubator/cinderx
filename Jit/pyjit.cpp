@@ -16,6 +16,7 @@
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/import.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
@@ -2518,14 +2519,22 @@ PyMethodDef jit_methods[] = {
     {nullptr, nullptr, 0, nullptr},
 };
 
+int jit_exec(PyObject* m) {
+  return 0;
+}
+
+PyModuleDef_Slot jit_slots[] = {
+    {Py_mod_exec, reinterpret_cast<void*>(jit_exec)},
+    {}};
+
 PyModuleDef jit_module = {
     PyModuleDef_HEAD_INIT,
     "cinderjit", /* m_name */
     PyDoc_STR("Control the Cinder JIT compiler. Only available when the JIT "
               "has been enabled."),
-    -1, /* m_size */
+    0, /* m_size */
     jit_methods, /* m_methods */
-    nullptr, /* m_slots */
+    jit_slots, /* m_slots */
     nullptr, /* m_traverse */
     nullptr, /* m_clear */
     nullptr, /* m_free */
@@ -2914,24 +2923,12 @@ int initialize() {
 
   jit_ctx = new Context();
 
-  PyObject* mod = PyModule_Create(&jit_module);
+  PyObject* mod = _Ci_CreateBuiltinModule(&jit_module, "cinderjit");
   if (mod == nullptr) {
     return -1;
   }
 
-  jit_ctx->setCinderJitModule(Ref<PyObject>::steal(mod));
-
-  PyObject* modname = PyUnicode_InternFromString("cinderjit");
-  if (modname == nullptr) {
-    return -1;
-  }
-
-  PyObject* modules = PyImport_GetModuleDict();
-  int st = _PyImport_FixupExtensionObject(mod, modname, modname, modules);
-  Py_DECREF(modname);
-  if (st == -1) {
-    return -1;
-  }
+  jit_ctx->setCinderJitModule(Ref<>::steal(mod));
 
   if (install_jit_audit_hook() < 0 || register_fork_callback(mod) < 0) {
     return -1;

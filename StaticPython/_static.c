@@ -13,6 +13,7 @@
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/audit.h"
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/Common/import.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -1884,37 +1885,28 @@ static void static_free(PyObject* mod) {
   static_clear(mod);
 }
 
+static PyModuleDef_Slot _static_slots[] = {{Py_mod_exec, _static_exec}, {}};
+
 static struct PyModuleDef _staticmodule = {
     PyModuleDef_HEAD_INIT,
     "_static",
     _static__doc__,
     sizeof(StaticModuleState),
     static_methods,
-    NULL,
+    _static_slots,
     static_traverse,
     static_clear,
     (freefunc)static_free};
 
+PyObject* _static_init() {
+  return PyModuleDef_Init(&_staticmodule);
+}
+
 int _Ci_CreateStaticModule(void) {
-  PyObject* mod = PyModule_Create(&_staticmodule);
+  PyObject* mod = _Ci_CreateBuiltinModule(&_staticmodule, "_static");
   if (mod == NULL) {
     return -1;
   }
-
-  PyObject* modname = PyUnicode_InternFromString("_static");
-  if (modname == NULL) {
-    Py_DECREF(mod);
-    return -1;
-  }
-
-  PyObject* modules = PyImport_GetModuleDict();
-  int st = _PyImport_FixupExtensionObject(mod, modname, modname, modules);
-  Py_DECREF(modname);
-  if (st == -1 || _static_exec(mod) < 0) {
-    Py_DECREF(mod);
-    return -1;
-  }
-
   Py_DECREF(mod);
   return 0;
 }
