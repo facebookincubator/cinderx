@@ -10,7 +10,6 @@
 
 #include <memory>
 #include <sstream>
-#include <unordered_map>
 #include <vector>
 
 namespace jit {

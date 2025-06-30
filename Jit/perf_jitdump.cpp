@@ -15,7 +15,6 @@
 #include "internal/pycore_ceval.h"
 // clang-format on
 
-#include <fcntl.h>
 #include <fmt/format.h>
 #include <sys/file.h>
 #include <sys/mman.h>
@@ -25,9 +24,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <ctime>
 #include <regex>
-#include <sstream>
 #include <tuple>
 
 #ifdef __x86_64__
@@ -38,7 +35,6 @@
 #endif
 
 #ifdef PERF_USE_RDTSC
-#include <x86intrin.h>
 #endif
 
 // From elf.h, intentionally not included here to avoid having it as a
