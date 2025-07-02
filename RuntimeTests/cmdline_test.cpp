@@ -63,13 +63,10 @@ int try_flag_and_envvar_effect(
       testing::internal::CaptureStdout();
     }
 
-    const char* key = parseAndSetEnvVar(env_name);
+    std::string key = parseAndSetEnvVar(env_name);
     init_status = jit::initialize();
     conditions_to_check();
-    unsetenv(key);
-    if (strcmp(env_name, key)) {
-      free((char*)key);
-    }
+    unsetenv(key.c_str());
     jit::finalize();
     reset_vars();
   }

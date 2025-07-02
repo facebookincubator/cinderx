@@ -271,16 +271,13 @@ std::unique_ptr<HIRTestSuite> ReadHIRTestSuite(const std::string& suite_path) {
   return suite;
 }
 
-const char* parseAndSetEnvVar(const char* env_name) {
-  if (strchr(env_name, '=')) {
-    const char* key = strtok(strdup(env_name), "=");
-    const char* value = strtok(nullptr, "=");
-    setenv(key, value, 1);
-    return key;
-  } else {
-    setenv(env_name, "1", 1);
-    return env_name;
-  }
+std::string parseAndSetEnvVar(std::string_view env_name) {
+  auto delim_pos = env_name.find('=');
+  std::string key{env_name.substr(0, delim_pos)};
+  std::string value{
+      delim_pos == env_name.npos ? "1" : env_name.substr(delim_pos + 1)};
+  setenv(key.c_str(), value.c_str(), 1);
+  return key;
 }
 
 PyObject* addToXargsDict(const wchar_t* flag) {

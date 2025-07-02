@@ -112,14 +112,11 @@ void try_flag_and_envvar_effect(
 
   if (nullptr != env_name) {
     // try when set on cmd line as xarg
-    const char* key = parseAndSetEnvVar(env_name);
+    std::string key = parseAndSetEnvVar(env_name);
     flag_processor.setFlags(xoptions);
     conditions_to_check();
     reset_vars();
-    unsetenv(key);
-    if (strcmp(env_name, key)) {
-      free((char*)key);
-    }
+    unsetenv(key.c_str());
     if (capture_stderr) {
       testing::internal::CaptureStderr();
     }
