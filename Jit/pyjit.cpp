@@ -131,7 +131,6 @@ std::array<PyObject*, hir::kNumOpcodes> s_hir_opnames;
 std::atomic<int> g_compile_workers_attempted;
 std::atomic<int> g_compile_workers_retries;
 
-int use_jit = 0;
 int jit_help = 0;
 
 uint64_t countCalls(PyCodeObject* code) {
@@ -160,7 +159,7 @@ bool isCinderModule(BorrowedRef<> module_name) {
 
 bool shouldAlwaysCompile(BorrowedRef<PyCodeObject> code) {
   // No explicit list implies everything can and should be compiled.
-  if (g_jit_list == nullptr) {
+  if (getConfig().compile_all && g_jit_list == nullptr) {
     return true;
   }
 
@@ -176,8 +175,11 @@ bool shouldCompile(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
-  return shouldAlwaysCompile(func->func_code) ||
-      g_jit_list->lookupFunc(func) == 1;
+  if (shouldAlwaysCompile(func->func_code)) {
+    return true;
+  }
+
+  return g_jit_list != nullptr && g_jit_list->lookupFunc(func) == 1;
 }
 
 // Check whether a code object should be compiled. Intended for nested code
@@ -359,21 +361,32 @@ size_t parse_sized_argument(const std::string& val) {
 }
 
 FlagProcessor initFlagProcessor() {
-  use_jit = 0;
   jit_help = 0;
 
   FlagProcessor flag_processor;
 
-  // flags are inspected in order of definition below
-  flag_processor.addOption("jit", "PYTHONJIT", use_jit, "Enable the JIT");
+  // Flags are inspected in order of definition below.
+
+  flag_processor.addOption(
+      "jit",
+      "PYTHONJIT",
+      // TODO: This should not enable `compile_all`, use PYTHONJITALL instead.
+      // Instead the JIT should always be initialized, even if it is not
+      // configured to be used.
+      getMutableConfig().compile_all,
+      "Enable the JIT");
+
+  flag_processor.addOption(
+      "jit-all",
+      "PYTHONJITALL",
+      getMutableConfig().compile_all,
+      "Enable the JIT and set it to compile all functions as soon as they are "
+      "called");
 
   flag_processor.addOption(
       "jit-auto",
       "PYTHONJITAUTO",
-      [](unsigned int threshold) {
-        use_jit = 1;
-        getMutableConfig().auto_jit_threshold = threshold;
-      },
+      [](uint32_t val) { getMutableConfig().auto_jit_threshold = val; },
       "Enable auto-JIT mode, which compiles functions after the given "
       "threshold");
 
@@ -487,13 +500,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-enable-inline-cache-stats-collection",
       "PYTHONJITCOLLECTINLINECACHESTATS",
-      [](int val) {
-        if (use_jit) {
-          getMutableConfig().collect_attr_cache_stats = !!val;
-        } else {
-          warnJITOff("jit-enable-inline-cache-stats-collection");
-        }
-      },
+      getMutableConfig().collect_attr_cache_stats,
       "Collect inline cache stats (supported stats are cache misses for load "
       "method inline caches");
 
@@ -544,10 +551,7 @@ FlagProcessor initFlagProcessor() {
       .addOption(
           "jit-list-file",
           "PYTHONJITLISTFILE",
-          [](const std::string& listFile) {
-            use_jit = 1;
-            getMutableConfig().jit_list.filename = listFile;
-          },
+          getMutableConfig().jit_list.filename,
           "Load list of functions to compile from <filename>")
       .withFlagParamName("filename");
 
@@ -560,51 +564,39 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-disable",
       "PYTHONJITDISABLE",
-      [](int val) { use_jit = !val; },
+      [](int val) {
+        // Only update force_init if it wasn't already set.
+        if (val && !getConfig().force_init.has_value()) {
+          getMutableConfig().force_init = false;
+        }
+      },
       "disable the JIT");
 
-  // these are only set if use_jit == 1
   flag_processor.addOption(
       "jit-shadow-frame",
       "PYTHONJITSHADOWFRAME",
       [](int val) {
-        if (use_jit) {
-          // Cinder's shadow frames are not supported in Python versions later
-          // than 3.10.
-          if constexpr (PY_VERSION_HEX >= 0x030B0000) {
-            return;
-          }
-          getMutableConfig().frame_mode =
-              val ? FrameMode::kShadow : FrameMode::kNormal;
-        } else {
-          warnJITOff("jit-shadow-frame");
+        // Cinder's shadow frames are not supported in Python versions later
+        // than 3.10.
+        if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+          return;
         }
+        getMutableConfig().frame_mode =
+            val ? FrameMode::kShadow : FrameMode::kNormal;
       },
       "enable shadow frame mode");
 
   flag_processor.addOption(
       "jit-stable-frame",
       "PYTHONJITSTABLEFRAME",
-      [](int val) {
-        if (use_jit) {
-          getMutableConfig().stable_frame = !!val;
-        } else {
-          warnJITOff("jit-stable-frame");
-        }
-      },
+      getMutableConfig().stable_frame,
       "Assume that data found in the Python frame is unchanged across "
       "function calls");
 
   flag_processor.addOption(
       "jit-preload-dependent-limit",
       "PYTHONJITPRELOADDEPENDENTLIMIT",
-      [](int val) {
-        if (use_jit) {
-          getMutableConfig().preload_dependent_limit = val;
-        } else {
-          warnJITOff("jit-preload-dependent-limit");
-        }
-      },
+      getMutableConfig().preload_dependent_limit,
       "When compiling a function, set the number of dependent functions that "
       "can be compiled along with it.");
 
@@ -614,13 +606,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(                          \
       (CLI),                                         \
       (ENV),                                         \
-      [](int val) {                                  \
-        if (use_jit) {                               \
-          getMutableConfig().hir_opts.OPT = !!val;   \
-        } else {                                     \
-          warnJITOff(CLI);                           \
-        }                                            \
-      },                                             \
+      getMutableConfig().hir_opts.OPT,               \
       "Enable the HIR " NAME " optimization pass")
 
   HIR_OPTIMIZATION_OPTION(
@@ -682,13 +668,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-lir-inliner",
       "PYTHONJITLIRINLINER",
-      [](int val) {
-        if (use_jit) {
-          getMutableConfig().lir_opts.inliner = !!val;
-        } else {
-          warnJITOff("jit-lir-inliner");
-        }
-      },
+      getMutableConfig().lir_opts.inliner,
       "Enable the LIR inliner");
 
   flag_processor
@@ -703,26 +683,14 @@ FlagProcessor initFlagProcessor() {
       .addOption(
           "jit-multithreaded-compile-test",
           "PYTHONJITMULTITHREADEDCOMPILETEST",
-          [](int val) {
-            if (use_jit) {
-              getMutableConfig().multithreaded_compile_test = val;
-            } else {
-              warnJITOff("jit-multithreaded-compile-test ");
-            }
-          },
+          getMutableConfig().multithreaded_compile_test,
           "JIT multithreaded compile test")
       .isHiddenFlag(true);
 
   flag_processor.addOption(
       "jit-list-match-line-numbers",
       "PYTHONJITLISTMATCHLINENUMBERS",
-      [](int val) {
-        if (use_jit) {
-          jitlist_match_line_numbers(val);
-        } else {
-          warnJITOff("jit-list-match-line-numbers");
-        }
-      },
+      jitlist_match_line_numbers,
       "JIT list match line numbers");
 
   flag_processor
@@ -756,49 +724,25 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-multiple-code-sections",
       "PYTHONJITMULTIPLECODESECTIONS",
-      [](int val) {
-        if (use_jit) {
-          getMutableConfig().multiple_code_sections = val;
-        } else {
-          warnJITOff("jit-multiple-code-sections");
-        }
-      },
+      getMutableConfig().multiple_code_sections,
       "Enable emitting code into multiple code sections.");
 
   flag_processor.addOption(
       "jit-hot-code-section-size",
       "PYTHONJITHOTCODESECTIONSIZE",
-      [](size_t val) {
-        if (use_jit) {
-          getMutableConfig().hot_code_section_size = val;
-        } else {
-          warnJITOff("jit-hot-code-section-size");
-        }
-      },
+      getMutableConfig().hot_code_section_size,
       "Enable emitting code into multiple code sections.");
 
   flag_processor.addOption(
       "jit-cold-code-section-size",
       "PYTHONJITCOLDCODESECTIONSIZE",
-      [](size_t val) {
-        if (use_jit) {
-          getMutableConfig().cold_code_section_size = val;
-        } else {
-          warnJITOff("jit-cold-code-section-size");
-        }
-      },
+      getMutableConfig().cold_code_section_size,
       "Enable emitting code into multiple code sections.");
 
   flag_processor.addOption(
       "jit-attr-caches",
       "PYTHONJITATTRCACHES",
-      [](int val) {
-        if (use_jit) {
-          getMutableConfig().attr_caches = !!val;
-        } else {
-          warnJITOff("jit-attr-caches");
-        }
-      },
+      getMutableConfig().attr_caches,
       "Use inline caches for attribute access instructions");
 
   flag_processor.addOption(
@@ -818,13 +762,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-refine-static-python",
       "PYTHONJITREFINESTATICPYTHON",
-      [](int val) {
-        if (use_jit) {
-          getMutableConfig().refine_static_python = !!val;
-        } else {
-          warnJITOff("jit-refine-static-python");
-        }
-      },
+      getMutableConfig().refine_static_python,
       "Add RefineType instructions to coerce Static Python types to be "
       "valid");
 
@@ -856,11 +794,7 @@ FlagProcessor initFlagProcessor() {
       "jit-max-code-size",
       "",
       [](const std::string& val) {
-        if (use_jit) {
-          getMutableConfig().max_code_size = parse_sized_argument(val);
-        } else {
-          warnJITOff("jit-max-code-size");
-        }
+        getMutableConfig().max_code_size = parse_sized_argument(val);
       },
       "Set the maximum code size for JIT in bytes (no suffix). For kilobytes "
       "use k or K as a suffix. "
@@ -869,26 +803,14 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-emit-type-annotation-guards",
       "",
-      [](int val) {
-        if (use_jit) {
-          getMutableConfig().emit_type_annotation_guards = !!val;
-        } else {
-          warnJITOff("jit-emit-type-annotation-guards");
-        }
-      },
+      getMutableConfig().emit_type_annotation_guards,
       "Generate runtime checks that validate type annotations to specialize "
       "generated code.");
 
   flag_processor.addOption(
       "jit-specialized-opcodes",
       "PYTHONJITSPECIALIZEDOPCODES",
-      [](int val) {
-        if (use_jit) {
-          getMutableConfig().specialized_opcodes = !!val;
-        } else {
-          warnJITOff("jit-specialized-opcodes");
-        }
-      },
+      getMutableConfig().specialized_opcodes,
       "JIT specialized opcodes or to fall back to their generic counterparts.");
 
   flag_processor.setFlags(PySys_GetXOptions());
@@ -1576,6 +1498,10 @@ PyObject* count_interpreted_calls(PyObject* /* self */, PyObject* arg) {
 PyObject* is_jit_compiled(PyObject* /* self */, PyObject* arg) {
   BorrowedRef<PyFunctionObject> func = get_func_arg("is_jit_compiled", arg);
   return func != nullptr ? PyBool_FromLong(isJitCompiled(func)) : nullptr;
+}
+
+PyObject* is_compile_all(PyObject* /* self */, PyObject* /* arg */) {
+  return PyBool_FromLong(getConfig().compile_all);
 }
 
 PyObject* print_hir(PyObject* /* self */, PyObject* func) {
@@ -2334,6 +2260,11 @@ PyMethodDef jit_methods[] = {
      is_jit_compiled,
      METH_O,
      PyDoc_STR("Check if a function is jit compiled.")},
+    {"is_compile_all",
+     is_compile_all,
+     METH_NOARGS,
+     PyDoc_STR("Check if the compiler is configured to compile all functions "
+               "unconditionally.")},
     {"precompile_all",
      reinterpret_cast<PyCFunction>(precompile_all),
      METH_VARARGS | METH_KEYWORDS,
@@ -2872,15 +2803,24 @@ int initialize() {
     return -1;
   }
 
-  bool force_init = getConfig().force_init;
+  // Save the force_init field as it might have be set by test code before
+  // jit::initialize() is called.
+  auto force_init = getConfig().force_init;
   getMutableConfig() = Config{};
-  getMutableConfig().force_init = force_init;
+  if (force_init.has_value()) {
+    getMutableConfig().force_init = force_init;
+  }
 
   FlagProcessor flag_processor = initFlagProcessor();
   if (jit_help) {
     std::cout << flag_processor.jitXOptionHelpMessage() << std::endl;
     // Return rather than exit here for arg printing test doesn't end early.
     return -2;
+  }
+
+  // Handle force_init = false case only after parsing all flags.
+  if (getConfig().force_init == std::make_optional(false)) {
+    return 0;
   }
 
   std::unique_ptr<JITList> jit_list;
@@ -2909,8 +2849,12 @@ int initialize() {
     }
   }
 
-  if (use_jit || getConfig().force_init) {
-    JIT_DLOG("Initializing JIT");
+  auto const& config = getConfig();
+
+  bool use_jit = config.compile_all || config.jit_list.filename != "" ||
+      config.auto_jit_threshold > 0;
+  if (use_jit || config.force_init.value_or(false)) {
+    JIT_DLOG("Initializing the JIT");
   } else {
     return 0;
   }
@@ -3023,7 +2967,8 @@ _PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func) {
 }
 
 std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
-    BorrowedRef<PyFunctionObject> func) {
+    BorrowedRef<PyFunctionObject> func,
+    bool forcePreload) {
   // Add one for the original function itself.
   size_t limit = getConfig().preload_dependent_limit + 1;
 
@@ -3034,6 +2979,10 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
   std::unordered_set<PyObject*> deleted_units;
 
   worklist.push_back(func);
+
+  auto shouldPreload = [&](BorrowedRef<PyFunctionObject> f) {
+    return !isPreloaded(f) && (shouldCompile(f) || forcePreload);
+  };
 
   while (worklist.size() > 0 && result.size() < limit) {
     BorrowedRef<PyFunctionObject> f = worklist.front();
@@ -3060,7 +3009,7 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
         continue;
       }
       BorrowedRef<PyFunctionObject> target_func = target->func();
-      if (!isPreloaded(target_func) && shouldCompile(target_func)) {
+      if (shouldPreload(target_func)) {
         worklist.push_back(target_func);
       }
     }
@@ -3072,7 +3021,7 @@ std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
         continue;
       }
       BorrowedRef<PyFunctionObject> target_func = obj.get();
-      if (!isPreloaded(target_func) && shouldCompile(target_func)) {
+      if (shouldPreload(target_func)) {
         worklist.push_back(target_func);
       }
     }

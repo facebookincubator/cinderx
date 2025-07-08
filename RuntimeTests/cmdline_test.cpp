@@ -306,16 +306,6 @@ TEST_F(CmdLineTest, JITEnabledFlags_ShadowFrame) {
   auto shadow_mode =
       PY_VERSION_HEX >= 0x030B0000 ? FrameMode::kNormal : FrameMode::kShadow;
 
-  // Flag does nothing when JIT is disabled.
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-shadow-frame",
-          "PYTHONJITSHADOWFRAME",
-          []() {},
-          []() { ASSERT_EQ(getConfig().frame_mode, FrameMode::kNormal); },
-          false /* enable_jit */),
-      0);
-
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-shadow-frame",
@@ -342,30 +332,12 @@ TEST_F(CmdLineTest, JITEnabledFlags_MultithreadCompile) {
           L"jit-multithreaded-compile-test",
           "PYTHONJITMULTITHREADEDCOMPILETEST",
           []() {},
-          []() { ASSERT_FALSE(getConfig().multithreaded_compile_test); },
-          false),
-      0);
-
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-multithreaded-compile-test",
-          "PYTHONJITMULTITHREADEDCOMPILETEST",
-          []() {},
           []() { ASSERT_TRUE(getConfig().multithreaded_compile_test); },
           true),
       0);
 }
 
 TEST_F(CmdLineTest, JITEnabledFlags_MatchLineNumbers) {
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-list-match-line-numbers",
-          "PYTHONJITLISTMATCHLINENUMBERS",
-          []() { jitlist_match_line_numbers(false); },
-          []() { ASSERT_FALSE(get_jitlist_match_line_numbers()); },
-          false),
-      0);
-
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-list-match-line-numbers",

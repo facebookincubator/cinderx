@@ -15,7 +15,8 @@
 
 std::unique_ptr<jit::hir::Function> RuntimeTest::buildHIR(
     BorrowedRef<PyFunctionObject> func) {
-  auto funcs = jit::preloadFuncAndDeps(func);
+  // Force preloading dependent functions to test the inliner.
+  auto funcs = jit::preloadFuncAndDeps(func, true /* forcePreload */);
   JIT_CHECK(!funcs.empty(), "Failed to preload function");
   auto preloader = jit::hir::preloaderManager().find(funcs.back());
   JIT_CHECK(

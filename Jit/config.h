@@ -4,6 +4,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 
 namespace jit {
@@ -82,9 +83,9 @@ struct JitListOptions {
 struct Config {
   // Current lifetime state of the JIT.
   State state{State::kNotInitialized};
-  // Ignore CLI arguments and environment variables, always initialize the JIT
-  // without enabling it.  Intended for testing.
-  bool force_init{false};
+  // Ignore other CLI arguments and environment variables, force the JIT
+  // to be initialized or uninitialized.  Intended for testing.
+  std::optional<bool> force_init;
   FrameMode frame_mode{FrameMode::kNormal};
   bool allow_jit_list_wildcards{false};
   bool compile_all_static_functions{false};
@@ -139,6 +140,8 @@ struct Config {
   GdbOptions gdb;
   JitListOptions jit_list;
   bool compile_perf_trampoline_prefork{false};
+  // Compile all Python functions as soon as they are called.
+  bool compile_all{false};
 };
 
 // Get the JIT's current config object.

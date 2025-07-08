@@ -61,11 +61,15 @@ _PyJIT_Result compileFunction(BorrowedRef<PyFunctionObject> func);
  * to compile afterwards as well.  This is to support inlining and faster
  * invokes for Static Python functions.
  *
+ * Setting the `forcePreload` will bypass the "might want to compile" logic and
+ * force all the preloads to happen unconditionally.
+ *
  * Return a list of preloaders that were created.  There should be at least one
  * preloader in the list, if it's empty then there was a preloading failure.
  */
 std::vector<BorrowedRef<PyFunctionObject>> preloadFuncAndDeps(
-    BorrowedRef<PyFunctionObject> func);
+    BorrowedRef<PyFunctionObject> func,
+    bool forcePreload = false);
 
 /*
  * Inform the JIT that a code, function, or type object is being modified or

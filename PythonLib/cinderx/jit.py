@@ -46,6 +46,7 @@ try:
         get_inlined_functions_stats,
         get_jit_list,
         get_num_inlined_functions,
+        is_compile_all,
         is_enabled,
         is_hir_inliner_enabled,
         is_inline_cache_stats_collection_enabled,
@@ -158,6 +159,9 @@ except ImportError:
 
     def get_num_inlined_functions(func: FuncAny) -> int:
         return 0
+
+    def is_compile_all() -> bool:
+        return False
 
     def is_enabled() -> bool:
         return False
