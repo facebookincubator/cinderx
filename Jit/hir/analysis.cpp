@@ -4,7 +4,6 @@
 
 #include "cinderx/Jit/dataflow.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
