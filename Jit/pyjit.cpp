@@ -2792,6 +2792,11 @@ PyFrameObject* _PyJIT_GetFrame(PyThreadState* tstate) {
 namespace jit {
 
 int initialize() {
+#ifndef __x86_64__
+  JIT_DLOG("JIT is not supported on non-x64 platforms");
+  return 0;
+#endif
+
   JIT_CHECK(
       getConfig().state != State::kFinalizing,
       "Trying to re-initialize the JIT as it is finalizing");
