@@ -44,6 +44,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iterator>
+#include <stdexcept>
 #include <vector>
 
 using namespace asmjit;
@@ -292,11 +293,35 @@ PyObject* resumeInInterpreter(
 
 #endif
 
+void* finalizeCode(asmjit::x86::Builder& builder, std::string_view name) {
+  if (auto err = builder.finalize(); err != kErrorOk) {
+    throw std::runtime_error{fmt::format(
+        "Failed to finalize asmjit builder for {}, got error code {}",
+        name,
+        DebugUtils::errorAsString(err))};
+  }
+
+  void* result = nullptr;
+  if (auto err = CodeAllocator::get()->addCode(&result, builder.code());
+      err != kErrorOk) {
+    throw std::runtime_error{fmt::format(
+        "Failed to add generated code for {} to asmjit runtime, got error code "
+        "{}",
+        name,
+        DebugUtils::errorAsString(err))};
+  }
+
+  return result;
+}
+
 // Generate the final stage trampoline that is responsible for finishing
 // execution in the interpreter and then returning the result to the caller.
 void* generateDeoptTrampoline(bool generator_mode) {
+  auto name =
+      generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline";
+
   CodeHolder code;
-  code.init(CodeAllocator::get()->asmJitEnvironment());
+  ASM_CHECK(code.init(CodeAllocator::get()->asmJitEnvironment()), name);
   x86::Builder a(&code);
   Annotations annot;
 
@@ -465,11 +490,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   a.jmp(x86::rdi);
   annot.add("Jump to real epilogue", &a, annot_cursor);
 
-  auto name =
-      generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline";
-  void* result{nullptr};
-  ASM_CHECK(a.finalize(), name);
-  ASM_CHECK(CodeAllocator::get()->addCode(&result, &code), name);
+  void* result = finalizeCode(a, name);
   JIT_LOGIF(
       g_dump_asm,
       "Disassembly for {}\n{}",
@@ -515,9 +536,7 @@ void* generateFailedDeferredCompileTrampoline() {
   a.ret();
 
   const char* name = "failedDeferredCompileTrampoline";
-  ASM_CHECK(a.finalize(), name);
-  void* result{nullptr};
-  ASM_CHECK(CodeAllocator::get()->addCode(&result, &code), name);
+  void* result = finalizeCode(a, name);
 
   JIT_LOGIF(
       g_dump_asm,
@@ -1594,8 +1613,7 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
 
   generateDeoptExits(codeholder);
 
-  ASM_CHECK_THROW(as_->finalize());
-  ASM_CHECK_THROW(CodeAllocator::get()->addCode(&code_start_, &codeholder));
+  code_start_ = finalizeCode(*as_, GetFunction()->fullname);
 
   // ------------- code_start_
   // ^
