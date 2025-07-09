@@ -86,3 +86,6 @@ test.test_set.TestSet.test_c_api
 # on devservers so the list of expected pass/fail tests is consistent on both
 # platforms.
 test_ioctl
+
+# Test is very sensitive and fails on seemingly irrelevant changes.
+test.test_subprocess.POSIXProcessTestCase.test_pass_fds_redirected
