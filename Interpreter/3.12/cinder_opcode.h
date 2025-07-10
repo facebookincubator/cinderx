@@ -7,7 +7,7 @@ extern "C" {
 #endif
 
 #ifndef Py_BUILD_CORE
-#error "this header requires Py_BUILD_CORE define"
+#  error "this header requires Py_BUILD_CORE define"
 #endif
 
 #include "opcode.h"
@@ -308,10 +308,10 @@ const uint8_t _CiOpcode_Deopt[256] = {
     [WITH_EXCEPT_START] = WITH_EXCEPT_START,
     [YIELD_VALUE] = YIELD_VALUE,
 };
-#endif // NEED_OPCODE_TABLES
+#endif   // NEED_OPCODE_TABLES
 
 #ifdef NEED_OPCODE_NAMES
-static const char* const _CiOpcode_OpName[267] = {
+static const char *const _CiOpcode_OpName[267] = {
     [CACHE] = "CACHE",
     [POP_TOP] = "POP_TOP",
     [PUSH_NULL] = "PUSH_NULL",
@@ -350,16 +350,14 @@ static const char* const _CiOpcode_OpName[267] = {
     [PUSH_EXC_INFO] = "PUSH_EXC_INFO",
     [CHECK_EXC_MATCH] = "CHECK_EXC_MATCH",
     [CHECK_EG_MATCH] = "CHECK_EG_MATCH",
-    [CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS] =
-        "CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS",
+    [CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS] = "CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS",
     [CALL_NO_KW_BUILTIN_FAST] = "CALL_NO_KW_BUILTIN_FAST",
     [CALL_NO_KW_BUILTIN_O] = "CALL_NO_KW_BUILTIN_O",
     [CALL_NO_KW_ISINSTANCE] = "CALL_NO_KW_ISINSTANCE",
     [CALL_NO_KW_LEN] = "CALL_NO_KW_LEN",
     [CALL_NO_KW_LIST_APPEND] = "CALL_NO_KW_LIST_APPEND",
     [CALL_NO_KW_METHOD_DESCRIPTOR_FAST] = "CALL_NO_KW_METHOD_DESCRIPTOR_FAST",
-    [CALL_NO_KW_METHOD_DESCRIPTOR_NOARGS] =
-        "CALL_NO_KW_METHOD_DESCRIPTOR_NOARGS",
+    [CALL_NO_KW_METHOD_DESCRIPTOR_NOARGS] = "CALL_NO_KW_METHOD_DESCRIPTOR_NOARGS",
     [CALL_NO_KW_METHOD_DESCRIPTOR_O] = "CALL_NO_KW_METHOD_DESCRIPTOR_O",
     [CALL_NO_KW_STR_1] = "CALL_NO_KW_STR_1",
     [CALL_NO_KW_TUPLE_1] = "CALL_NO_KW_TUPLE_1",
@@ -585,25 +583,26 @@ static const char* const _CiOpcode_OpName[267] = {
 #endif
 
 #define Ci_EXTRA_CASES \
-  case 169:            \
-  case 170:            \
-  case 177:            \
-  case 178:            \
-  case 179:            \
-  case 180:            \
-  case 181:            \
-  case 182:            \
-  case 184:            \
-  case 229:            \
-  case 231:            \
-  case 232:            \
-  case 233:            \
-  case 234:            \
-  case 235:            \
-  case 236:            \
-  case 255:;
+    case 169: \
+    case 170: \
+    case 177: \
+    case 178: \
+    case 179: \
+    case 180: \
+    case 181: \
+    case 182: \
+    case 184: \
+    case 229: \
+    case 231: \
+    case 232: \
+    case 233: \
+    case 234: \
+    case 235: \
+    case 236: \
+    case 255: \
+        ;
 
 #ifdef __cplusplus
 }
 #endif
-#endif // !Ci_INTERNAL_OPCODE_H
+#endif  // !Ci_INTERNAL_OPCODE_H

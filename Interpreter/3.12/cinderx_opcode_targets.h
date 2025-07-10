@@ -1,4 +1,4 @@
-static void* opcode_targets[256] = {
+static void *opcode_targets[256] = {
     &&TARGET_CACHE,
     &&TARGET_POP_TOP,
     &&TARGET_PUSH_NULL,
@@ -254,4 +254,5 @@ static void* opcode_targets[256] = {
     &&TARGET_INSTRUMENTED_END_SEND,
     &&TARGET_INSTRUMENTED_INSTRUCTION,
     &&TARGET_INSTRUMENTED_LINE,
-    &&_unknown_opcode};
+    &&_unknown_opcode
+};
