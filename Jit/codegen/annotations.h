@@ -6,7 +6,6 @@
 #include "cinderx/Jit/lir/instruction.h"
 
 #include <asmjit/asmjit.h>
-#include <nlohmann/json.hpp>
 
 #include <string>
 #include <vector>
@@ -44,7 +43,7 @@ class Annotations {
   // description.
   template <typename T>
   void add(T&& item, asmjit::x86::Builder* as, asmjit::BaseNode* start_cursor) {
-    if (!g_dump_asm && g_dump_hir_passes_json.empty()) {
+    if (!g_dump_asm) {
       return;
     }
     auto end_cursor = as->cursor();
@@ -63,12 +62,6 @@ class Annotations {
   // Return an annotated disassembly of the given code.
   std::string disassemble(void* entry, const asmjit::CodeHolder& code);
 
-  // Disassemble JSON representation of the given code.
-  void disassembleJSON(
-      nlohmann::json& json,
-      void* entry,
-      const asmjit::CodeHolder& code);
-
  private:
   // Annotations mapping Label ranges to either an LIR instruction or a string
   // description.
@@ -82,12 +75,6 @@ class Annotations {
   }
 
   std::string disassembleSection(
-      void* entry,
-      const asmjit::CodeHolder& code,
-      CodeSection section);
-
-  void disassembleSectionJSON(
-      nlohmann::json& json,
       void* entry,
       const asmjit::CodeHolder& code,
       CodeSection section);

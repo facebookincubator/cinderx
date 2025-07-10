@@ -328,15 +328,3 @@ class HIRTest : public RuntimeTest {
   std::string expected_hir_;
   bool src_is_hir_;
 };
-
-class HIRJSONTest : public RuntimeTest {
- public:
-  HIRJSONTest(const std::string& src, const std::string& expected_json)
-      : src_(src), expected_json_(expected_json) {}
-
-  void TestBody() override;
-
- private:
-  std::string src_;
-  std::string expected_json_;
-};

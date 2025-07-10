@@ -181,31 +181,6 @@ class InlinedFunctionTests(unittest.TestCase):
                     proc.stderr,
                 )
 
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
-    def test_inliner_dump_json(self):
-        root = Path(os.path.join(os.path.dirname(__file__), "data/inliner_dump_json"))
-        dumpdir = root / "json-dump"
-        for inliner in [True, False]:
-            with self.subTest(inliner=inliner):
-                cmd = [
-                    sys.executable,
-                    "-X",
-                    f"jit-list-file={root / 'jitlist.txt'}",
-                    "-X",
-                    f"jit-dump-hir-passes-json={dumpdir}",
-                ]
-                if inliner:
-                    cmd.extend(
-                        [
-                            "-X",
-                            "jit-enable-hir-inliner",
-                        ]
-                    )
-                cmd.append(str(root / "main.py"))
-                proc = subprocess.run(cmd, cwd=root, capture_output=True)
-                shutil.rmtree(dumpdir)
-                self.assertEqual(proc.returncode, 0, proc.stderr)
-
 
 class InlineCacheStatsTests(unittest.TestCase):
     @jit_suppress

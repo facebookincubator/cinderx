@@ -11,8 +11,6 @@
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/jit_time_log.h"
 
-#include <nlohmann/json.hpp>
-
 #include <chrono>
 #include <fstream>
 
@@ -177,7 +175,6 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
 
   Timer timer;
   std::unique_ptr<jit::hir::Function> irfunc(jit::hir::buildHIR(preloader));
-  std::chrono::nanoseconds hir_build_time = timer.finish();
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();
   }
@@ -191,47 +188,16 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
   }
 
   PassConfig config = createConfig();
-  std::unique_ptr<nlohmann::json> json{nullptr};
-  if (!g_dump_hir_passes_json.empty()) {
-    // TODO(emacs): For inlined functions, grab the sources from all the
-    // different functions inlined.
-    json.reset(new nlohmann::json());
-    nlohmann::json passes;
-    hir::JSONPrinter hir_printer;
-    passes.emplace_back(hir_printer.PrintSource(*irfunc));
-    passes.emplace_back(hir_printer.PrintBytecode(*irfunc));
-    PostPassFunction dump = [&](hir::Function& func,
-                                std::string_view pass_name,
-                                std::size_t time_ns) {
-      nlohmann::json result;
-      result["name"] = pass_name;
-      result["type"] = "ssa";
-      result["time_ns"] = time_ns;
-      result["blocks"] = hir_printer.Print(func.cfg);
-      passes.push_back(result);
-    };
-    dump(*irfunc, "Initial HIR", hir_build_time.count());
-    COMPILE_TIMER(
-        irfunc->compilation_phase_timer,
-        "HIR transformations",
-        Compiler::runPasses(*irfunc, config, dump))
-    (*json)["fullname"] = fullname;
-    (*json)["cols"] = passes;
-  } else {
-    COMPILE_TIMER(
-        irfunc->compilation_phase_timer,
-        "HIR transformations",
-        Compiler::runPasses(*irfunc, config))
-  }
+  COMPILE_TIMER(
+      irfunc->compilation_phase_timer,
+      "HIR transformations",
+      Compiler::runPasses(*irfunc, config))
+
   hir::OpcodeCounts hir_opcode_counts = hir::count_opcodes(*irfunc);
 
   auto ngen = ngen_factory_(irfunc.get());
   if (ngen == nullptr) {
     return nullptr;
-  }
-
-  if (!g_dump_hir_passes_json.empty()) {
-    ngen->SetJSONOutput(json.get());
   }
 
   vectorcallfunc entry = nullptr;
@@ -259,18 +225,6 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
 
   int stack_size = ngen->GetCompiledFunctionStackSize();
   int spill_stack_size = ngen->GetCompiledFunctionSpillStackSize();
-
-  if (!g_dump_hir_passes_json.empty()) {
-    std::string filename =
-        fmt::format("{}/function_{}.json", g_dump_hir_passes_json, fullname);
-    JIT_DLOG("Dumping JSON for {} to {}", fullname, filename);
-    std::ofstream json_file;
-    json_file.open(
-        filename,
-        std::ios_base::out | std::ios_base::trunc | std::ios_base::binary);
-    json_file << json->dump() << std::endl;
-    json_file.close();
-  }
 
   // Grab some fields off of irfunc and ngen before moving them.
   hir::Function::InlineFunctionStats inline_stats =

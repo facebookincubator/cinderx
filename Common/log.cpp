@@ -15,7 +15,6 @@ int g_debug_inliner = 0;
 int g_debug_refcount = 0;
 int g_dump_hir = 0;
 int g_dump_hir_passes = 0;
-std::string g_dump_hir_passes_json;
 int g_dump_final_hir = 0;
 int g_dump_lir = 0;
 int g_dump_lir_no_origin = 0;

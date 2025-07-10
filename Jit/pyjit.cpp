@@ -710,18 +710,6 @@ FlagProcessor initFlagProcessor() {
           "Will capture time taken in compilation phases and output summary");
 
   flag_processor.addOption(
-      "jit-dump-hir-passes-json",
-      "PYTHONJITDUMPHIRPASSESJSON",
-      [](const std::string& json_output_dir) {
-        g_dump_hir_passes_json = json_output_dir;
-        int mkdir_result = ::mkdir(g_dump_hir_passes_json.c_str(), 0755);
-        JIT_CHECK(
-            mkdir_result == 0 || errno == EEXIST,
-            "could not make JSON directory");
-      },
-      "Dump IR passes as JSON to the directory specified by this flag's "
-      "value");
-  flag_processor.addOption(
       "jit-multiple-code-sections",
       "PYTHONJITMULTIPLECODESECTIONS",
       getMutableConfig().multiple_code_sections,

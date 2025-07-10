@@ -121,30 +121,6 @@ void register_test(
   }
 }
 
-void register_json_test(std::string path) {
-  remap_txt_path(path);
-  auto suite = ReadHIRTestSuite(path);
-  for (auto& test_case : suite->test_cases) {
-    ::testing::RegisterTest(
-        suite->name.c_str(),
-        test_case.name.c_str(),
-        nullptr,
-        nullptr,
-        __FILE__,
-        __LINE__,
-        [=]() -> ::testing::Test* {
-          if (test_case.is_skip) {
-            return new SkipFixture{};
-          }
-          auto test = new HIRJSONTest(
-              test_case.src,
-              // Actually JSON
-              test_case.expected);
-          return test;
-        });
-  }
-}
-
 #ifdef BAKED_IN_PYTHONPATH
 #define _QUOTE(x) #x
 #define QUOTE(x) _QUOTE(x)
@@ -220,7 +196,6 @@ int main(int argc, char* argv[]) {
   register_test(
       "dead_code_elimination_and_simplify_test.txt",
       RuntimeTest::kStaticCompiler);
-  register_json_test("json_test.txt");
   register_test("builtin_load_method_elimination_test.txt");
   register_test("all_passes_test.txt");
   register_test("all_passes_static_test.txt", RuntimeTest::kStaticCompiler);

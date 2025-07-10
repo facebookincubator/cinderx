@@ -37,11 +37,6 @@ class NativeGenerator {
       void* deopt_trampoline_generators,
       void* failed_deferred_compile_trampoline);
 
-  void SetJSONOutput(nlohmann::json* json_2) {
-    JIT_CHECK(json_2 != nullptr, "expected non-null stream");
-    this->json = json_2;
-  }
-
   ~NativeGenerator() {
     if (as_ != nullptr) {
       delete as_;
@@ -140,7 +135,6 @@ class NativeGenerator {
 
   std::unique_ptr<lir::Function> lir_func_;
   Environ env_;
-  nlohmann::json* json{nullptr};
 };
 
 // Factory class for creating instances of NativeGenerator that reuse the same
