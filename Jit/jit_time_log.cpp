@@ -63,7 +63,7 @@ bool isMatch(const std::string& word, const std::string& pattern) {
 }
 
 bool captureCompilationTimeFor(const std::string& function_name) {
-  for (std::string pattern : capture_compilation_times_for) {
+  for (const std::string& pattern : capture_compilation_times_for) {
     if (isMatch(function_name, pattern)) {
       return true;
     }

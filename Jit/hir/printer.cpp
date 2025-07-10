@@ -142,8 +142,7 @@ static const int kMaxASCII = 127;
 
 static std::string escape_non_ascii(const std::string& str) {
   std::string result;
-  for (size_t i = 0; i < str.size(); ++i) {
-    unsigned char c = str[i];
+  for (unsigned char c : str) {
     if (c > kMaxASCII) {
       result += '\\';
       result += std::to_string(c);

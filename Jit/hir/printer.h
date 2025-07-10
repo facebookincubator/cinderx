@@ -27,7 +27,7 @@ class HIRPrinter {
   // specify whether or not the full instruction should be printed.
   explicit HIRPrinter(
       bool full_snapshots = false,
-      const std::string line_prefix = "")
+      const std::string& line_prefix = "")
       : full_snapshots_(full_snapshots), line_prefix_(line_prefix) {}
 
   void Print(std::ostream& os, const Function& func);

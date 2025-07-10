@@ -25,8 +25,7 @@ class BitVector {
 
   template <typename T>
   BitVector(size_t nb, T val) {
-    static_assert(
-        std::is_integral<T>::value, "val must be of an integral type.");
+    static_assert(std::is_integral_v<T>, "val must be of an integral type.");
     JIT_CHECK(nb <= sizeof(void*) * 8, "Bit width is too large.")
     JIT_CHECK(
         nb == 64 || (val & ~((T{1} << nb) - 1)) == 0,
