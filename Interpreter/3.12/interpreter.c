@@ -14,7 +14,7 @@
 #define NEED_OPCODE_TABLES
 #include "cinderx/Interpreter/cinder_opcode.h"
 
-#include "cinderx/Interpreter/Includes/ceval.c"
+#include "cinderx/Interpreter/3.12/Includes/ceval.c"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -621,7 +621,7 @@ handle_eval_breaker:
 #endif
         {
 
-#include "cinderx/Interpreter/Includes/generated_cases.c.h"
+#include "cinderx/Interpreter/3.12/Includes/generated_cases.c.h"
 
     /* INSTRUMENTED_LINE has to be here, rather than in bytecodes.c,
      * because it needs to capture frame->prev_instr before it is updated,
