@@ -25,11 +25,6 @@
 #include <unordered_set>
 #include <vector>
 
-// Use a special define to keep it clear why much code changes in 3.12+
-#if PY_VERSION_HEX < 0x030C0000
-#define SHADOW_FRAMES 1
-#endif
-
 namespace jit::codegen {
 
 class NativeGenerator {
@@ -109,7 +104,7 @@ class NativeGenerator {
   void generateCode(asmjit::CodeHolder& code);
   void generateFunctionEntry();
   void setupFrameAndSaveCallerRegisters(
-#ifdef SHADOW_FRAMES
+#ifdef ENABLE_SHADOW_FRAMES
       asmjit::x86::Gp tstate_reg
 #endif
   );

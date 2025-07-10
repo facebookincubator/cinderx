@@ -21,14 +21,9 @@
 using namespace asmjit;
 using namespace jit::hir;
 
-// Use a special define to keep it clear why much code changes in 3.12+
-#if PY_VERSION_HEX < 0x030C0000
-#define SHADOW_FRAMES 1
-#endif
-
 namespace jit::codegen {
 
-#ifdef SHADOW_FRAMES
+#ifdef ENABLE_SHADOW_FRAMES
 
 namespace shadow_frame {
 // Shadow stack frames appear at the beginning of native frames for jitted
@@ -48,7 +43,7 @@ constexpr x86::Mem getStackTopPtr(x86::Gp tstate_reg) {
 
 } // namespace shadow_frame
 
-#endif // SHADOW_FRAMES
+#endif // ENABLE_SHADOW_FRAMES
 
 #if PY_VERSION_HEX >= 0x030C0000
 
@@ -382,7 +377,7 @@ void FrameAsm::generateLinkFrame(
 void FrameAsm::generateUnlinkFrame(
     const x86::Gp& tstate_r,
     [[maybe_unused]] bool is_generator) {
-#ifdef SHADOW_FRAMES
+#ifdef ENABLE_SHADOW_FRAMES
   // It's safe to use caller saved registers in this function
   auto scratch_reg = tstate_r == x86::rsi ? x86::rdx : x86::rsi;
   x86::Mem shadow_stack_top_ptr = shadow_frame::getStackTopPtr(tstate_r);
@@ -435,13 +430,13 @@ void FrameAsm::generateUnlinkFrame(
     } else {
       as_->mov(x86::rax, saved_rax_ptr);
     }
-#ifdef SHADOW_FRAMES
+#ifdef ENABLE_SHADOW_FRAMES
     as_->bind(done);
   }
 #endif
 }
 
-#ifdef SHADOW_FRAMES
+#ifdef ENABLE_SHADOW_FRAMES
 void FrameAsm::linkOnStackShadowFrame(
     const x86::Gp& tstate_reg,
     const x86::Gp& scratch_reg) {
@@ -494,7 +489,7 @@ int FrameAsm::frameHeaderSize() {
     return 0;
   }
 
-#if defined(SHADOW_FRAMES)
+#if defined(ENABLE_SHADOW_FRAMES)
   return sizeof(FrameHeader);
 #elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
   return sizeof(FrameHeader) + sizeof(PyObject*) * func_->code->co_framesize;

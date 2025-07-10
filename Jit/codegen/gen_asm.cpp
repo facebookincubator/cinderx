@@ -868,7 +868,7 @@ void NativeGenerator::generateFunctionEntry() {
 }
 
 void NativeGenerator::setupFrameAndSaveCallerRegisters(
-#ifdef SHADOW_FRAMES
+#ifdef ENABLE_SHADOW_FRAMES
     x86::Gp tstate_reg
 #endif
 ) {
@@ -913,7 +913,7 @@ void NativeGenerator::setupFrameAndSaveCallerRegisters(
   as_->sub(x86::rsp, spill_stack);
   env_.last_callee_saved_reg_off = spill_stack + saved_regs_size;
 
-#ifdef SHADOW_FRAMES
+#ifdef ENABLE_SHADOW_FRAMES
   frame_asm_.initializeFrameHeader(tstate_reg, x86::rax);
 #endif
 
@@ -1036,7 +1036,7 @@ void NativeGenerator::generatePrologue(
   as_->bind(native_entry_point);
 
   setupFrameAndSaveCallerRegisters(
-#ifdef SHADOW_FRAMES
+#ifdef ENABLE_SHADOW_FRAMES
       x86::r11
 #endif
   );
@@ -1372,7 +1372,7 @@ void NativeGenerator::generateResumeEntry() {
 
   generateFunctionEntry();
   setupFrameAndSaveCallerRegisters(
-#ifdef SHADOW_FRAMES
+#ifdef ENABLE_SHADOW_FRAMES
       x86::rcx
 #endif
   );
