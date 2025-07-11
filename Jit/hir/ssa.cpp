@@ -347,6 +347,8 @@ Type outputType(
       return returnType(static_cast<const CallEx&>(instr).func()->type());
     case Opcode::kVectorCall:
       return returnType(static_cast<const VectorCall&>(instr).func()->type());
+    case Opcode::kCallMethod:
+      return returnType(static_cast<const CallMethod&>(instr).func()->type());
 
     case Opcode::kCompare: {
       CompareOp op = static_cast<const Compare&>(instr).op();
@@ -418,7 +420,6 @@ Type outputType(
     }
 
     case Opcode::kCallIntrinsic:
-    case Opcode::kCallMethod:
     case Opcode::kDictSubscr:
     case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:
