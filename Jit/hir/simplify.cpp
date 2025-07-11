@@ -1511,7 +1511,9 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
         analysis.Run();
 
         last_uses = analysis.GetLastUses();
-        if (last_uses.at(&*current).size() != 1) {
+        auto lu_at_condbranch = last_uses.find(&*current);
+        if (lu_at_condbranch == last_uses.end() ||
+            lu_at_condbranch->second.size() != 1) {
           // If the CondBranch instruction is not the last use of the
           // IsTruthy output, then we cannot perform this optimization.
           state = kFailed;
@@ -1525,7 +1527,9 @@ std::optional<std::pair<Instr*, std::vector<Instr*>>> isVectorCallIfIsInstance(
       case kCondBranch: {
         if (current->IsIsTruthy() && output == current->output() &&
             current->GetOperand(0) == instr->output()) {
-          if (last_uses.at(&*current).size() != 1) {
+          auto lu_at_istruthy = last_uses.find(&*current);
+          if (lu_at_istruthy == last_uses.end() ||
+              lu_at_istruthy->second.size() != 1) {
             // If the IsTruthy instruction is not the last use of the VectorCall
             // output, then we cannot perform this optimization.
             state = kFailed;
