@@ -44,10 +44,7 @@ void HIRPrinter::Print(std::ostream& os, const Function& func) {
 }
 
 void HIRPrinter::Print(std::ostream& os, const CFG& cfg) {
-  return Print(os, cfg, cfg.entry_block);
-}
-
-void HIRPrinter::Print(std::ostream& os, const CFG& cfg, BasicBlock* start) {
+  auto start = cfg.entry_block;
   std::vector<BasicBlock*> blocks = cfg.GetRPOTraversal(start);
   auto last_block = blocks.back();
   for (auto block : blocks) {
@@ -78,7 +75,7 @@ void HIRPrinter::Print(std::ostream& os, const BasicBlock& block) {
   os << " {\n";
   Indent();
   for (auto& instr : block) {
-    Print(os, instr, full_snapshots_);
+    Print(os, instr);
     os << std::endl;
   }
   Dedent();
@@ -746,10 +743,7 @@ static std::string format_immediates(const Instr& instr) {
   JIT_ABORT("Invalid opcode {}", static_cast<int>(instr.opcode()));
 }
 
-void HIRPrinter::Print(
-    std::ostream& os,
-    const Instr& instr,
-    bool full_snapshots) {
+void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
   Indented(os);
   if (Register* dst = instr.output()) {
     os << dst->name();
@@ -773,7 +767,7 @@ void HIRPrinter::Print(
     }
   }
 
-  if (instr.IsSnapshot() && !full_snapshots) {
+  if (instr.IsSnapshot() && !full_snapshots_) {
     return;
   }
   auto fs = get_frame_state(instr);
@@ -868,20 +862,39 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
   }
 }
 
-void DebugPrint(const Function& func) {
-  HIRPrinter(true).Print(std::cout, func);
+HIRPrinter& HIRPrinter::setFullSnapshots(bool full) {
+  full_snapshots_ = full;
+  return *this;
 }
 
-void DebugPrint(const CFG& cfg) {
-  HIRPrinter(true).Print(std::cout, cfg);
+HIRPrinter& HIRPrinter::setLinePrefix(std::string_view prefix) {
+  line_prefix_ = std::string{prefix};
+  return *this;
 }
 
-void DebugPrint(const BasicBlock& block) {
-  HIRPrinter(true).Print(std::cout, block);
+std::ostream& operator<<(std::ostream& os, const Function& func) {
+  HIRPrinter{}.Print(os, func);
+  return os;
 }
 
-void DebugPrint(const Instr& instr) {
-  HIRPrinter(true).Print(std::cout, instr);
+std::ostream& operator<<(std::ostream& os, const CFG& cfg) {
+  HIRPrinter{}.Print(os, cfg);
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const BasicBlock& block) {
+  HIRPrinter{}.Print(os, block);
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const Instr& instr) {
+  HIRPrinter{}.Print(os, instr);
+  return os;
+}
+
+std::ostream& operator<<(std::ostream& os, const FrameState& state) {
+  HIRPrinter{}.Print(os, state);
+  return os;
 }
 
 } // namespace jit::hir

@@ -1262,7 +1262,7 @@ void RefcountInsertion::Run(Function& func) {
   TRACE(
       "Starting refcount insertion for '{}':\n{}",
       func.fullname,
-      HIRPrinter(true).ToString(func));
+      HIRPrinter{}.setFullSnapshots(true).ToString(func));
   Env env{func};
 
   auto rpo_blocks = func.cfg.GetRPOTraversal();

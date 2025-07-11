@@ -15,6 +15,8 @@ namespace jit::lir {
 
 class Printer {
  public:
+  Printer();
+
   void print(std::ostream& out, const Function& func);
   void print(std::ostream& out, const BasicBlock& block);
   void print(std::ostream& out, const Instruction& instr);
@@ -32,7 +34,7 @@ class Printer {
     return getFunction(*opnd.instr());
   }
 
-  hir::HIRPrinter hir_printer_{false, "# "};
+  hir::HIRPrinter hir_printer_;
 };
 
 inline std::ostream& operator<<(std::ostream& out, const Function& func) {

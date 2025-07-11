@@ -1,4 +1,5 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include <Python.h>
 
 #include <gtest/gtest.h>
@@ -20,6 +21,10 @@
 
 using namespace jit;
 using namespace jit::hir;
+
+HIRPrinter fullPrinter() {
+  return HIRPrinter{}.setFullSnapshots(true);
+}
 
 TEST(BasicBlockTest, CanAppendInstrs) {
   Environment env;
@@ -630,7 +635,7 @@ TEST_F(HIRBuildTest, GetLength) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, LoadAssertionError) {
@@ -692,7 +697,7 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, SetUpdate) {
@@ -835,7 +840,7 @@ TEST_F(HIRBuildTest, SetUpdate) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 class EdgeCaseTest : public RuntimeTest {};
@@ -921,7 +926,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
@@ -1006,7 +1011,7 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 class CppInlinerTest : public RuntimeTest {};
@@ -1171,7 +1176,7 @@ TEST_F(HIRCloneTest, CanCloneDeoptBase) {
   }
 }
 )";
-  ASSERT_EQ(HIRPrinter(true).ToString(*irfunc), expected);
+  ASSERT_EQ(fullPrinter().ToString(*irfunc), expected);
   BasicBlock* bb0 = irfunc->cfg.entry_block;
   Instr& load_global = *(++(bb0->rbegin()));
   ASSERT_TRUE(load_global.IsLoadGlobal());
@@ -1295,7 +1300,7 @@ TEST_F(HIRBuildTest, ROT_N) {
 }
 )";
 
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 #endif
 
@@ -1383,7 +1388,7 @@ TEST_F(HIRBuildTest, MatchMapping) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, MatchSequence) {
@@ -1470,7 +1475,7 @@ TEST_F(HIRBuildTest, MatchSequence) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, MatchKeys) {
@@ -1580,7 +1585,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, ListExtend) {
@@ -1650,7 +1655,7 @@ TEST_F(HIRBuildTest, ListExtend) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, ListToTuple) {
@@ -1717,7 +1722,7 @@ TEST_F(HIRBuildTest, ListToTuple) {
 }
 )";
 #endif
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
 TEST_F(HIRBuildTest, LoadFastAndClear) {
@@ -1749,6 +1754,6 @@ TEST_F(HIRBuildTest, LoadFastAndClear) {
 }
 )";
 
-  EXPECT_EQ(HIRPrinter(true).ToString(*(irfunc)), expected);
+  EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 #endif
 }

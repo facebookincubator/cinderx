@@ -13,6 +13,11 @@
 
 namespace jit::lir {
 
+Printer::Printer() {
+  hir_printer_.setFullSnapshots(true);
+  hir_printer_.setLinePrefix("# ");
+}
+
 void Printer::print(std::ostream& out, const Function& func) {
   out << "Function:" << std::endl;
   for (auto& block : func.basicblocks()) {

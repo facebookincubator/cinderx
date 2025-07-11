@@ -18,7 +18,7 @@ static void testFillGuards(const char* hir_source, const char* expected) {
   ASSERT_TRUE(checkFunc(*func, std::cout));
   reflowTypes(*func);
   RefcountInsertion().Run(*func);
-  ASSERT_EQ(HIRPrinter(true).ToString(*func), expected);
+  ASSERT_EQ(HIRPrinter{}.setFullSnapshots(true).ToString(*func), expected);
 }
 
 TEST_F(GuardTest, BindFrameStateFromBlock) {

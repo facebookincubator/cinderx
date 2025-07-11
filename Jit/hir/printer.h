@@ -8,6 +8,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 
 namespace jit::hir {
 
@@ -23,17 +24,15 @@ class HIRPrinter {
   // BasicBlock, CFG, or Function, will be printed only as the opcode name,
   // with no FrameState. When printing individual instructions, each caller can
   // specify whether or not the full instruction should be printed.
-  explicit HIRPrinter(
-      bool full_snapshots = false,
-      const std::string& line_prefix = "")
-      : full_snapshots_(full_snapshots), line_prefix_(line_prefix) {}
+  HIRPrinter() = default;
 
   void Print(std::ostream& os, const Function& func);
-  void Print(std::ostream& os, const CFG& cfg);
   void Print(std::ostream& os, const BasicBlock& block);
-  void Print(std::ostream& os, const Instr& instr, bool full_snapshots = true);
+  void Print(std::ostream& os, const Instr& instr);
+
+  void Print(std::ostream& os, const CFG& cfg);
+
   void Print(std::ostream& os, const FrameState& state);
-  void Print(std::ostream& os, const CFG& cfg, BasicBlock* start);
 
   template <class T>
   std::string ToString(const T& obj) {
@@ -47,45 +46,24 @@ class HIRPrinter {
     Print(std::cout, obj);
   }
 
+  HIRPrinter& setFullSnapshots(bool full);
+  HIRPrinter& setLinePrefix(std::string_view prefix);
+
  private:
   void Indent();
   void Dedent();
   std::ostream& Indented(std::ostream& os);
 
-  int indent_level_{0};
-  bool full_snapshots_;
   std::string line_prefix_;
+  int indent_level_{0};
+  bool full_snapshots_{false};
 };
 
-inline std::ostream& operator<<(std::ostream& os, const Function& func) {
-  HIRPrinter().Print(os, func);
-  return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, const CFG& cfg) {
-  HIRPrinter().Print(os, cfg);
-  return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, const BasicBlock& block) {
-  HIRPrinter().Print(os, block);
-  return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, const Instr& instr) {
-  HIRPrinter().Print(os, instr);
-  return os;
-}
-
-inline std::ostream& operator<<(std::ostream& os, const FrameState& state) {
-  HIRPrinter().Print(os, state);
-  return os;
-}
-
-void DebugPrint(const Function& func);
-void DebugPrint(const CFG& cfg);
-void DebugPrint(const BasicBlock& block);
-void DebugPrint(const Instr& instr);
+std::ostream& operator<<(std::ostream& os, const Function& func);
+std::ostream& operator<<(std::ostream& os, const CFG& cfg);
+std::ostream& operator<<(std::ostream& os, const BasicBlock& block);
+std::ostream& operator<<(std::ostream& os, const Instr& instr);
+std::ostream& operator<<(std::ostream& os, const FrameState& state);
 
 } // namespace jit::hir
 
