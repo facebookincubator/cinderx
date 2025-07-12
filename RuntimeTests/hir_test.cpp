@@ -554,10 +554,10 @@ class HIRBuildTest : public RuntimeTest {
         /*cellvars=*/empty_tuple,
         filename,
         funcname,
-        /*qualname=*/funcname,
+        /*_unused_qualname=*/funcname,
         /*firstlineno=*/0,
         /*linetable=*/empty_bytes,
-        /*exceptiontable=*/empty_bytes));
+        /*_unused_exceptiontable=*/empty_bytes));
     assert(code != nullptr);
 
     auto func =
@@ -662,10 +662,10 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/funcname,
+      /*_unused_qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_bytes,
-      /*exceptiontable=*/empty_bytes));
+      /*_unused_exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
@@ -755,10 +755,10 @@ TEST_F(HIRBuildTest, SetUpdate) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/funcname,
+      /*_unused_qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_bytes,
-      /*exceptiontable=*/empty_bytes));
+      /*_unused_exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
@@ -892,10 +892,10 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/funcname,
+      /*_unused_qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_bytes,
-      /*exceptiontable=*/empty_bytes));
+      /*_unused_exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
@@ -976,10 +976,10 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/funcname,
+      /*_unused_qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_bytes,
-      /*exceptiontable=*/empty_bytes));
+      /*_unused_exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));

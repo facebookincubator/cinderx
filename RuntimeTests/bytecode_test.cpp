@@ -41,7 +41,7 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
   auto empty_bytes = Ref<>::steal(PyBytes_FromString(""));
   auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
       /*argcount=*/0,
-      /*kwargcount=*/0,
+      /*kwonlyargcount=*/0,
       /*nlocals=*/0,
       /*stacksize=*/0,
       /*flags=*/0,
@@ -53,10 +53,10 @@ TEST_F(BytecodeInstructionIteratorTest, ConsumesExtendedArgs) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/funcname,
+      /*_unused_qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_bytes,
-      /*exceptiontable=*/empty_bytes));
+      /*_unused_exceptiontable=*/empty_bytes));
   ASSERT_NE(code.get(), nullptr);
 
   jit::BytecodeInstructionBlock bc_block{code};

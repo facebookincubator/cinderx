@@ -1343,7 +1343,7 @@ TEST_F(ASMGeneratorTest, GetLength) {
   auto empty_string = Ref<>::steal(PyBytes_FromString(""));
   auto code = Ref<PyCodeObject>::steal(PyUnstable_Code_New(
       /*argcount=*/1,
-      /*kwargcount=*/0,
+      /*kwonlyargcount=*/0,
       /*nlocals=*/1,
       /*stacksize=*/0,
       /*flags=*/0,
@@ -1355,10 +1355,10 @@ TEST_F(ASMGeneratorTest, GetLength) {
       /*cellvars=*/empty_tuple,
       filename,
       funcname,
-      /*qualname=*/funcname,
+      /*_unused_qualname=*/funcname,
       /*firstlineno=*/0,
       /*linetable=*/empty_string,
-      /*exceptiontable=*/empty_string));
+      /*_unused_exceptiontable=*/empty_string));
   ASSERT_NE(code.get(), nullptr);
 
   auto func = Ref<PyFunctionObject>::steal(PyFunction_New(code, MakeGlobals()));
