@@ -821,7 +821,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             break;
           default:
             JIT_ABORT("not implemented");
-            break;
         }
 
         if (helper != 0) {
@@ -883,7 +882,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           }
           default: {
             JIT_ABORT("Invalid operation for DoubleBinaryOp");
-            break;
           }
         }
 
@@ -926,7 +924,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             break;
           default:
             JIT_ABORT("Not implemented {}", static_cast<int>(instr->op()));
-            break;
         }
         bbb.appendInstr(instr->output(), op, instr->left(), instr->right());
         break;
@@ -1120,7 +1117,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           default:
             JIT_ABORT(
                 "Not implemented unary op {}", static_cast<int>(instr->op()));
-            break;
         }
         break;
       }
@@ -1169,7 +1165,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kAssign: {
         JIT_CHECK(false, "assign shouldn't be present");
-        break;
       }
       case Opcode::kBitCast: {
         // BitCasts are purely informative
