@@ -186,7 +186,6 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
         break;
       case DeoptReason::kUnhandledException:
         JIT_ABORT("unhandled exception without error set");
-        break;
       case DeoptReason::kRaise:
         // This code mirrors what happens in _PyEval_EvalFrameDefault although
         // I'm not sure how to test it. Not clear it can happen with JIT.
@@ -201,7 +200,6 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
         break;
       case DeoptReason::kRaiseStatic:
         JIT_ABORT("Lost exception when raising static exception");
-        break;
       case DeoptReason::kReraise:
         PyErr_SetString(PyExc_RuntimeError, "No active exception to reraise");
         break;
