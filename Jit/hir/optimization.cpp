@@ -661,7 +661,6 @@ static void simplifyRedundantCondBranches(CFG* cfg) {
       default:
         // Can't be sure that it's safe to replace the instruction with a branch
         JIT_ABORT("Unknown side effects of {} instruction", term->opname());
-        break;
     }
     to_simplify.emplace_back(&block);
   }

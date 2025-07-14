@@ -53,7 +53,6 @@ Type prim_type_to_type(int prim_type) {
       return TCInt32;
     default:
       JIT_ABORT("Non-primitive or unsupported Python type: {}", prim_type);
-      break;
   }
 }
 

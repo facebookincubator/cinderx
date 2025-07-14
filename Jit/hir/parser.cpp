@@ -1039,7 +1039,6 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kYieldFrom:
     case Opcode::kYieldFromHandleStopAsyncIteration: {
       JIT_ABORT("Unsupported opcode: {}", opcode);
-      break;
     }
   }
 
@@ -1302,7 +1301,6 @@ RegState HIRParser::GetNextRegState() {
       break;
     default:
       JIT_ABORT("Unknown ref kind: {}", token[0]);
-      break;
   }
 
   return rs;

@@ -478,7 +478,6 @@ static bool should_snapshot(
     case WITH_EXCEPT_START: {
       JIT_ABORT(
           "Should not be compiling except blocks (opcode {})\n", bci.opcode());
-      break;
     }
     // Take a snapshot after translating all other bytecode instructions. This
     // may generate unnecessary deoptimization metadata but will always be
@@ -1197,7 +1196,6 @@ void HIRBuilder::translate(
           // BytecodeInstruction::getJumpTarget() to always skip the END_FOR so
           // that block should never be processed.
           JIT_ABORT("We should never cross an END_FOR in the HIR builder");
-          break;
         }
         case SETUP_FINALLY: {
           emitSetupFinally(tc, bc_instr);
@@ -1482,7 +1480,6 @@ void HIRBuilder::translate(
               bc_instr.opcode());
         default: {
           JIT_ABORT("Unhandled opcode: {}", bc_instr.opcode());
-          break;
         }
       }
     }
@@ -2098,7 +2095,6 @@ static inline UnaryOpKind get_unary_op_kind(
     default:
       JIT_ABORT("Unhandled unary op {}", bc_instr.opcode());
       // NOTREACHED
-      break;
   }
 }
 
@@ -2651,7 +2647,6 @@ void HIRBuilder::emitJumpIf(
       // NOTREACHED
       JIT_ABORT(
           "Trying to translate non-jump-if bytecode: {}", bc_instr.opcode());
-      break;
     }
   }
 
@@ -3096,7 +3091,6 @@ static inline BinaryOpKind get_primitive_bin_op_kind(
     default: {
       JIT_ABORT("Unhandled binary op {}", bc_instr.oparg());
       // NOTREACHED
-      break;
     }
   }
 }
@@ -3130,7 +3124,6 @@ static inline bool is_double_binop(int oparg) {
     default: {
       JIT_ABORT("Invalid binary op {}", oparg);
       // NOTREACHED
-      break;
     }
   }
 }
@@ -3147,7 +3140,6 @@ static inline Type element_type_from_seq_type(int seq_type) {
     default:
       JIT_ABORT("Invalid sequence type: ({})", seq_type);
       // NOTREACHED
-      break;
   }
 }
 
@@ -3217,7 +3209,6 @@ void HIRBuilder::emitPrimitiveCompare(
       break;
     default:
       JIT_ABORT("unsupported comparison");
-      break;
   }
   tc.emit<PrimitiveCompare>(result, op, left, right);
   stack.push(result);
@@ -3255,7 +3246,6 @@ void HIRBuilder::emitPrimitiveUnaryOp(
     }
     default: {
       JIT_ABORT("unsupported unary op");
-      break;
     }
   }
   tc.frame.stack.push(result);
@@ -3655,7 +3645,6 @@ void HIRBuilder::emitPopJumpIf(
       // NOTREACHED
       JIT_ABORT(
           "Trying to translate non pop-jump bytecode: {}", bc_instr.opcode());
-      break;
     }
   }
 
@@ -4215,7 +4204,6 @@ void HIRBuilder::emitRaiseVarargs(
       break;
     default:
       JIT_ABORT("Unsupported RAISE_VARARGS op: {}", bc_instr.oparg());
-      break;
   }
 }
 

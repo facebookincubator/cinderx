@@ -609,7 +609,6 @@ static void postorder_traverse(
       /* NOTREACHED */
       JIT_ABORT(
           "Block {} has invalid terminator {}", block->id, instr->opname());
-      break;
     }
   }
 
