@@ -122,7 +122,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         break;
       default:
         JIT_ABORT("Output operand has to be of type register or memory");
-        break;
     }
   }
 
@@ -144,7 +143,6 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         break;
       default:
         JIT_ABORT("Illegal input type.");
-        break;
     }
   });
 
@@ -323,7 +321,6 @@ void TranslateCompare(Environ* env, const Instruction* instr) {
       break;
     default:
       JIT_ABORT("bad instruction for TranslateCompare");
-      break;
   }
   if (instr->output()->dataType() != OperandBase::k8bit) {
     as->movzx(
