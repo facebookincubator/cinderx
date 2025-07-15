@@ -79,6 +79,16 @@ std::string repr(BorrowedRef<> obj);
     }                                             \
   }
 
+#define JIT_CHECK_ONCE(COND, ...)   \
+  {                                 \
+    static bool checked = false;    \
+    if (!checked) {                 \
+      JIT_CHECK(COND, __VA_ARGS__); \
+    } else {                        \
+      checked = true;               \
+    }                               \
+  }
+
 #define JIT_ABORT(...)                                               \
   {                                                                  \
     fmt::print(stderr, "JIT: {}:{} -- Abort\n", __FILE__, __LINE__); \
@@ -97,6 +107,7 @@ std::string repr(BorrowedRef<> obj);
 #ifdef Py_DEBUG
 #define JIT_DABORT(...) JIT_ABORT(__VA_ARGS__)
 #define JIT_DCHECK(COND, ...) JIT_CHECK((COND), __VA_ARGS__)
+#define JIT_DCHECK_ONCE(COND, ...) JIT_CHECK_ONCE((COND), __VA_ARGS__)
 #else
 #define JIT_DABORT(...)     \
   if (0) {                  \
@@ -105,6 +116,10 @@ std::string repr(BorrowedRef<> obj);
 #define JIT_DCHECK(COND, ...)       \
   if (0) {                          \
     JIT_CHECK((COND), __VA_ARGS__); \
+  }
+#define JIT_DCHECK_ONCE(COND, ...)       \
+  if (0) {                               \
+    JIT_CHECK_ONCE((COND), __VA_ARGS__); \
   }
 #endif
 

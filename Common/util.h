@@ -128,6 +128,12 @@ constexpr T roundUp(T x, size_t n) {
   return roundDown(x + n - 1, n);
 }
 
+template <typename T1, typename T2>
+  requires std::is_integral_v<T1> && std::is_integral_v<T2>
+constexpr std::common_type_t<T1, T1> ceilDiv(T1 a, T2 b) {
+  return (a + b - 1) / b;
+}
+
 constexpr int kCoFlagsAnyGenerator =
     CO_ASYNC_GENERATOR | CO_COROUTINE | CO_GENERATOR | CO_ITERABLE_COROUTINE;
 
