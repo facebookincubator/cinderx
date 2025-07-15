@@ -592,7 +592,6 @@ PyType_Spec JitCoro_Spec = {
 };
 
 void deopt_jit_gen_object_only(JitGenObject* gen) {
-  jitgen_data_free(gen->genDataFooter());
   PyTypeObject* old_type = Py_TYPE(gen);
 
   PyTypeObject* type = Py_TYPE(gen) == cinderx::getModuleState()->genType()

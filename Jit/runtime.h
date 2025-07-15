@@ -242,23 +242,27 @@ struct GenDataFooter {
   CodeRuntime* code_rt{nullptr};
 };
 
+#if PY_VERSION_HEX < 0x030C0000
 // Memory management functions for JIT generator data.
-// TODO(T209500214): Eliminate the need for these functions in 3.12+.
-jit::GenDataFooter* jitgen_data_allocate(size_t spill_words);
-#if PY_VERSION_HEX < 0x030C0000
-void jitgen_data_free(PyGenObject* gen);
-#else
-// Using GenDataFooter directly in 3.12+ avoids a cyclic dependency on the
-// generators-rt library.
-void jitgen_data_free(GenDataFooter* gen_data_footer);
-#endif
-
-#if PY_VERSION_HEX < 0x030C0000
 // In 3.12+ there is no gen->gi_jit_data and this functionality is part of
 // JitGenObject.
+
+jit::GenDataFooter* jitgen_data_allocate(size_t spill_words);
+void jitgen_data_free(PyGenObject* gen);
+
 inline GenDataFooter* genDataFooter(PyGenObject* gen) {
   return reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
 }
+
+// The number of words for pre-allocated blocks in the generator suspend data
+// free-list. I chose this based on it covering 99% of the JIT generator
+// spill-sizes needed when running 'make testcinder_jit' at the time I collected
+// this data. For reference:
+//   99.9% coverage came at 256 spill size
+//   99.99% was at 1552
+//   max was 4999
+// There were about ~15k JIT generators in total during the run.
+constexpr size_t kMinGenSpillWords = 89;
 
 // Pre 3.12 these fields needed to be at a fixed offset so they can be quickly
 // accessed from C code in genobject.c.
@@ -279,16 +283,6 @@ inline PyObject* yieldFromValue(
               yield_point->yieldFromOffset()))
       : nullptr;
 }
-
-// The number of words for pre-allocated blocks in the generator suspend data
-// free-list. I chose this based on it covering 99% of the JIT generator
-// spill-sizes needed when running 'make testcinder_jit' at the time I collected
-// this data. For reference:
-//   99.9% coverage came at 256 spill size
-//   99.99% was at 1552
-//   max was 4999
-// There were about ~15k JIT generators in total during the run.
-constexpr size_t kMinGenSpillWords = 89;
 
 // Information about the runtime behavior of a single deopt point: how often
 // it's been hit, and the frequency of guilty types, if applicable.

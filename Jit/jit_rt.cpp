@@ -701,8 +701,12 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   PyThreadState* tstate = PyThreadState_GET();
   JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
 
-  // +1 to hold a pointer to JIT data (GenDataFooter)
-  int slots = _PyFrame_NumSlotsForCodeObject(co) + 1;
+  // A "slot" is the size of PyObject* and we assume this just means 64bits for
+  // purposes of sizing allocation to cover JIT data.
+  static_assert(sizeof(uint64_t) == sizeof(PyObject*));
+  // +1 for the pointer to JIT data (GenDataFooter)
+  size_t slots = _PyFrame_NumSlotsForCodeObject(co) + 1 + spill_words +
+      sizeof(jit::GenDataFooter);
   bool is_coro = !!(co->co_flags & CO_COROUTINE);
   jit::JitGenObject* gen = is_coro
       ? jit::JitGenObject::cast(PyObject_GC_NewVar(
@@ -754,15 +758,23 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
       func, co, tstate, frame, true /* generator */);
   frame->owner = FRAME_OWNED_BY_GENERATOR;
 
-  jit::GenDataFooter* footer = jit::jitgen_data_allocate(spill_words);
+  auto footer =
+      reinterpret_cast<jit::GenDataFooter*>( // NOLINT performance-no-int-to-ptr
+          reinterpret_cast<uintptr_t>(gen) + sizeof(uint64_t) * slots -
+          sizeof(jit::GenDataFooter));
   *gen->genDataFooterPtr() = footer;
   footer->resumeEntry = resume_func;
   footer->yieldPoint = nullptr;
   footer->gen = static_cast<PyGenObject*>(gen);
   footer->code_rt = code_rt;
   footer->originalRbp = original_rbp;
-  footer->linkAddress = *reinterpret_cast<uint64_t*>(original_rbp);
-  footer->returnAddress = *(reinterpret_cast<uint64_t*>(original_rbp) + 1);
+  footer->linkAddress =
+      *reinterpret_cast<uint64_t*>( // NOLINT performance-no-int-to-ptr
+          original_rbp);
+  footer->returnAddress =
+      *(reinterpret_cast<uint64_t*>( // NOLINT performance-no-int-to-ptr
+            original_rbp) +
+        1);
 
   return {tstate, footer};
 }
