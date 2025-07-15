@@ -4,8 +4,12 @@
 
 #include <Python.h>
 
+#include <concepts>
 #include <functional>
 #include <type_traits>
+
+template <typename T>
+concept IsPyObject = std::same_as<PyObject, T>;
 
 template <typename T>
 class RefBase {
@@ -18,7 +22,8 @@ class RefBase {
   }
 
   template <typename X = T>
-  operator std::enable_if_t<!std::is_same_v<X, PyObject>, PyObject*>() const {
+    requires(!IsPyObject<X>)
+  operator PyObject*() const {
     return getObj();
   }
 
@@ -63,9 +68,8 @@ void decref_total(PyInterpreterState* ts);
  * (as opposed to in a comment).
  *
  */
-template <
-    typename T = PyObject,
-    typename = std::enable_if_t<!std::is_pointer_v<T>>>
+template <typename T = PyObject>
+  requires(!std::is_pointer_v<T>)
 class BorrowedRef : public RefBase<T> {
  public:
   using RefBase<T>::RefBase;
@@ -78,16 +82,13 @@ class BorrowedRef : public RefBase<T> {
   //
   // PyObject doesn't have "subclasses" in the same way that C++ does, so we
   // can't do a std::is_base_of_v<PyObject, X> check here.
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   BorrowedRef(PyObject* ptr) : BorrowedRef(reinterpret_cast<X*>(ptr)) {}
 
   // Allow conversion from any BorrowedRef<V> to BorrowedRef<PyObject>.
-  template <
-      typename V,
-      typename X = T,
-      typename = std::enable_if_t<std::is_same_v<X, PyObject>>>
+  template <typename V, typename X = T>
+    requires IsPyObject<X>
   BorrowedRef(const BorrowedRef<V>& other)
       : BorrowedRef(reinterpret_cast<PyObject*>(other.get())) {}
 
@@ -162,9 +163,8 @@ struct std::hash<BorrowedRef<T>> {
  * `MyPyTuple_SetItem`.
  *
  */
-template <
-    typename T = PyObject,
-    typename = std::enable_if_t<!std::is_pointer_v<T>>>
+template <typename T = PyObject>
+  requires(!std::is_pointer_v<T>)
 class Ref : public RefBase<T> {
  public:
   using RefBase<T>::RefBase;
@@ -179,9 +179,8 @@ class Ref : public RefBase<T> {
     other.ptr_ = nullptr;
   }
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   Ref(Ref<>&& other) {
     ptr_ = reinterpret_cast<T*>(other.release());
   }
@@ -196,9 +195,8 @@ class Ref : public RefBase<T> {
     return *this;
   }
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   Ref& operator=(Ref<>&& other) {
     if (this->get() == reinterpret_cast<T*>(other.get())) {
       return *this;
@@ -214,9 +212,8 @@ class Ref : public RefBase<T> {
     ptr_ = obj;
   }
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   void reset(PyObject* obj) {
     reset(reinterpret_cast<T*>(obj));
   }
@@ -229,9 +226,8 @@ class Ref : public RefBase<T> {
     return Ref(obj, CreateTag{});
   }
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   static Ref steal(PyObject* obj) {
     return Ref(reinterpret_cast<T*>(obj), StealTag{});
   }
@@ -241,9 +237,8 @@ class Ref : public RefBase<T> {
   template <typename V>
   static Ref steal(const Ref<V>&) = delete;
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   static Ref create(PyObject* obj) {
     return Ref(reinterpret_cast<T*>(obj), CreateTag{});
   }
