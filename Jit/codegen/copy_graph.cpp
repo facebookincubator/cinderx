@@ -4,8 +4,6 @@
 
 namespace jit::codegen {
 
-constexpr int CopyGraph::kTempLoc;
-
 CopyGraph::Node::~Node() {
   if (child_node.isLinked()) {
     child_node.Unlink();
