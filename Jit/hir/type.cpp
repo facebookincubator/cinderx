@@ -398,7 +398,10 @@ Type Type::fromTypeExact(PyTypeObject* type) {
 Type Type::fromObject(PyObject* obj) {
   if (obj == Py_None) {
     // There's only one value of type NoneType, so we don't need the result to
-    // be specialized.
+    // be specialized and it's always immortal.
+    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+      return TImmortalNoneType;
+    }
     return TNoneType;
   }
 
