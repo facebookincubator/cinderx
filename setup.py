@@ -40,9 +40,11 @@ class BuildPy(build_py):
     def run(self) -> None:
         super().run()
 
-        # Copy opcodes/opcode_312.py to cinderx/opcode.py.
+        # Copy opcodes/3.12/opcode.py to cinderx/opcode.py.
         out_path = self.get_module_outfile(self.build_lib, ["cinderx"], "opcode")
-        self.copy_file("PythonLib/opcodes/opcode_312.py", out_path, preserve_mode=False)
+        self.copy_file(
+            "PythonLib/opcodes/3.12/opcode.py", out_path, preserve_mode=False
+        )
 
 
 class CMakeExtension(Extension):

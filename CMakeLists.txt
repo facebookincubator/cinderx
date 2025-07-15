@@ -239,12 +239,12 @@ target_link_libraries(cached-properties PRIVATE common borrowed)
 set(INTERP_SOURCES ${PROJECT_SOURCE_DIR}/Interpreter/iter_helpers.c)
 
 if (${PY_VERSION} EQUAL 3.12)
-  set(SOURCE_CINDERX_OPCODE_TARGETS_H ${PROJECT_SOURCE_DIR}/Interpreter/cinderx_opcode_targets_312.h)
-  set(SOURCE_CINDER_OPCODE_H ${PROJECT_SOURCE_DIR}/Interpreter/cinder_opcode_312.h)
-  set(SOURCE_OPCODE_H ${PROJECT_SOURCE_DIR}/Interpreter/opcode_312.h)
+  set(SOURCE_CINDERX_OPCODE_TARGETS_H ${PROJECT_SOURCE_DIR}/Interpreter/3.12/cinderx_opcode_targets.h)
+  set(SOURCE_CINDER_OPCODE_H ${PROJECT_SOURCE_DIR}/Interpreter/3.12/cinder_opcode.h)
+  set(SOURCE_OPCODE_H ${PROJECT_SOURCE_DIR}/Interpreter/3.12/opcode.h)
 
   if (${META_PYTHON})
-    set(INTERP_SOURCES ${INTERP_SOURCES} ${PROJECT_SOURCE_DIR}/Interpreter/interpreter-3.12.c)
+    set(INTERP_SOURCES ${INTERP_SOURCES} ${PROJECT_SOURCE_DIR}/Interpreter/3.12/interpreter.c)
   endif()
 endif()
 
