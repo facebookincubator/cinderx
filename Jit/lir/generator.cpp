@@ -2603,8 +2603,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // std::memory_order_relaxed. It's correct on x86-64 but probably isn't
         // on other architectures.
         hir::Register* dest = i.output();
-        Instruction* tstate = env_->asm_tstate;
 #if PY_VERSION_HEX >= 0x030D0000
+        Instruction* tstate = env_->asm_tstate;
         // tstate->ceval.eval_breaker
         static_assert(
             sizeof(reinterpret_cast<PyThreadState*>(0)->eval_breaker) == 8,
@@ -2613,7 +2613,20 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             dest,
             Instruction::kMove,
             Ind{tstate, offsetof(PyThreadState, eval_breaker)});
+#elif PY_VERSION_HEX >= 0x030C0000
+        // eval_breaker is in the runtime, which the code is generated against,
+        // load it directly.
+        static_assert(
+            sizeof(reinterpret_cast<PyThreadState*>(0)
+                       ->interp->ceval.eval_breaker) == 4,
+            "Eval breaker is not a 4 byte value");
+        bbb.appendInstr(
+            dest,
+            Instruction::kMove,
+            MemImm{reinterpret_cast<int*>(
+                &ThreadedCompileContext::interpreter()->ceval.eval_breaker)});
 #else
+        Instruction* tstate = env_->asm_tstate;
         // tstate->interp->ceval.eval_breaker
         static_assert(
             sizeof(reinterpret_cast<PyThreadState*>(0)

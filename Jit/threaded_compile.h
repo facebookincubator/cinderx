@@ -21,6 +21,10 @@ namespace jit {
     }                                                   \
   }
 
+class ThreadedCompileContext;
+// Get a reference to the global ThreadedCompileContext.
+ThreadedCompileContext& getThreadedCompileContext();
+
 // Threaded-compile state for the whole process.
 class ThreadedCompileContext {
  public:
@@ -76,8 +80,11 @@ class ThreadedCompileContext {
     return !compileRunning() || holder() == std::this_thread::get_id();
   }
 
-  PyInterpreterState* interpreter() const {
-    return interpreter_;
+  static PyInterpreterState* interpreter() {
+    if (getThreadedCompileContext().compileRunning()) {
+      return getThreadedCompileContext().interpreter_;
+    }
+    return PyInterpreterState_Get();
   }
 
  private:
@@ -160,9 +167,6 @@ class ThreadedCompileContext {
   // The interpreter state that kicked off the multi-threaded compile.
   PyInterpreterState* interpreter_;
 };
-
-// Get a reference to the global ThreadedCompileContext.
-ThreadedCompileContext& getThreadedCompileContext();
 
 // RAII device for acquiring the global threaded-compile lock.
 class ThreadedCompileSerialize {
@@ -286,7 +290,7 @@ class ThreadedRef : public RefBase<T> {
 
   static void incref(PyObject* obj) {
     if (obj != nullptr && !_Py_IsImmortal(obj)) {
-      incref_total(interpreter());
+      incref_total(ThreadedCompileContext::interpreter());
       obj->ob_refcnt++;
     }
   }
@@ -300,18 +304,11 @@ class ThreadedRef : public RefBase<T> {
 
   static void decref(PyObject* obj) {
     if (obj != nullptr && !_Py_IsImmortal(obj)) {
-      decref_total(interpreter());
+      decref_total(ThreadedCompileContext::interpreter());
       if (--obj->ob_refcnt == 0) {
         _Py_Dealloc((PyObject*)obj);
       }
     }
-  }
-
-  static PyInterpreterState* interpreter() {
-    if (jit::getThreadedCompileContext().compileRunning()) {
-      return jit::getThreadedCompileContext().interpreter();
-    }
-    return PyInterpreterState_Get();
   }
 
   using RefBase<T>::ptr_;
