@@ -9,6 +9,7 @@
 import os
 import os.path
 import shutil
+import sys
 
 from typing import Callable
 
@@ -82,6 +83,40 @@ class BuildExt(build_ext):
             f"-DCMAKE_C_COMPILER={cc}",
             f"-DCMAKE_CXX_COMPILER={cxx}",
         ]
+
+        options: dict[str, str] = {}
+
+        def set_option(var: str, default: object) -> None:
+            if type(default) == bool:
+                default = int(default)
+            if type(default) == int:
+                default = str(default)
+            if type(default) != str:
+                raise ValueError(f"Not sure what to do with default value {default}")
+
+            value = os.environ.get(var, default)
+            options[var] = value
+
+        # Python version is always the same as what's running setuptools.
+        py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        options["PY_VERSION"] = py_version
+
+        set_option("META_PYTHON", 1)
+        meta_python = bool(int(options["META_PYTHON"]))
+
+        linux = sys.platform == "linux"
+        meta_312 = meta_python and py_version == "3.12"
+
+        set_option("ENABLE_ELF_READER", linux)
+        set_option("ENABLE_FUNC_EVENT_MODIFY_QUALNAME", meta_312)
+        set_option("ENABLE_GENERATOR_AWAITER", meta_312)
+        set_option("ENABLE_LAZY_IMPORTS", meta_312)
+        set_option("ENABLE_PARALLEL_GC", meta_312)
+        set_option("ENABLE_SYMBOLIZER", linux)
+        set_option("ENABLE_USDT", linux)
+
+        for name, value in options.items():
+            cmake_args.append(f"-D{name}={value}")
 
         build_args = [
             "--config",
