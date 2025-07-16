@@ -5,6 +5,7 @@
     "test.test___all__",
     "test.test__locale",
     "test.test__osx_support",
+    "test.test__xxinterpchannels",
     "test.test_abc",
     "test.test_abstract_numbers",
     "test.test_aifc",
