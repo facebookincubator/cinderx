@@ -3,13 +3,7 @@
 #include <Python.h>
 
 #if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
 #endif
-
-#include "internal/pycore_initconfig.h"
-#include "internal/pycore_interp.h"
-#include "internal/pycore_pystate.h" // _PyInterpreterState_GET()
-#include "structmember.h"
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_modsupport.h"

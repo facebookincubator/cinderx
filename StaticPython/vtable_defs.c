@@ -7,11 +7,9 @@
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/StaticPython/awaitable.h"
 #include "cinderx/StaticPython/descrs.h"
-#include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/type.h"
-#include "cinderx/StaticPython/typed-args-info.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
 

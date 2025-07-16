@@ -6,7 +6,6 @@
 
 #include "internal/pycore_object.h" // @donotremove
 #include "internal/pycore_pystate.h"
-#include "structmember.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
@@ -18,7 +17,6 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/property.h"
-#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/compiled_function.h"

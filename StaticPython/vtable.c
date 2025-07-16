@@ -2,8 +2,6 @@
 
 #include "cinderx/StaticPython/vtable.h"
 
-#include "cinderx/Jit/compiled_function.h"
-
 static void vtabledealloc(_PyType_VTable* op) {
   PyObject_GC_UnTrack((PyObject*)op);
   Py_XDECREF(op->vt_slotmap);
