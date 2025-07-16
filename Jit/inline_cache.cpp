@@ -807,7 +807,18 @@ PyObject* LoadTypeAttrCache::invokeSlowPath(
 
     meta_attribute.reset();
 
-    if (local_get != nullptr) {
+    bool is_cachable = local_get == nullptr;
+    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+      if (PyFunction_Check(attribute)) {
+        // Loading a function from a type returns the type
+        is_cachable = true;
+      } else if (Py_TYPE(attribute) == &PyStaticMethod_Type) {
+        // static method returns the underlying object
+        attribute = Ref<>::create(Ci_PyStaticMethod_GetFunc(attribute));
+        is_cachable = true;
+      }
+    }
+    if (!is_cachable) {
       // nullptr 2nd argument indicates the descriptor was found on the target
       // object itself (or a base).
       return local_get(attribute, nullptr, type);
