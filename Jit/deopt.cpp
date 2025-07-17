@@ -125,7 +125,8 @@ static void reifyLocalsplus(
   PyObject** localsplus = &frame->localsplus[0];
 #endif
 
-  int free_offset = numLocalsplus(frame->f_code) - numFreevars(frame->f_code);
+  BorrowedRef<PyCodeObject> code = frameCode(frame);
+  int free_offset = numLocalsplus(code) - numFreevars(code);
   // Local variables are not initialized in the frame
   for (std::size_t i = 0; i < free_offset && i < frame_meta.localsplus.size();
        i++) {

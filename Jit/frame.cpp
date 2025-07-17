@@ -797,7 +797,8 @@ namespace jit {
 
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
   _PyInterpreterFrame* frame = currentFrame(tstate);
-  return RuntimeFrameState{frame->f_code, frame->f_builtins, frame->f_globals};
+  return RuntimeFrameState{
+      frameCode(frame), frame->f_builtins, frame->f_globals};
 }
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES

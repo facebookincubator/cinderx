@@ -6,6 +6,9 @@
 #pragma once
 
 #include <Python.h>
+#if PY_VERSION_HEX < 0x030C0000
+#include "frameobject.h"
+#endif
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_interpframe.h"
@@ -124,6 +127,20 @@ inline void setCurrentFrame(PyThreadState* tstate, _PyInterpreterFrame* frame) {
       buf)
 #else
 #define _CiArg_UnpackKeywords _PyArg_UnpackKeywords
+#endif
+
+#if PY_VERSION_HEX >= 0x030E0000
+inline PyCodeObject* frameCode(_PyInterpreterFrame* frame) {
+  return (PyCodeObject*)PyStackRef_AsPyObjectBorrow(frame->f_executable);
+}
+#elif PY_VERSION_HEX >= 0x30C0000
+inline PyCodeObject* frameCode(_PyInterpreterFrame* frame) {
+  return frame->f_code;
+}
+#else
+inline PyCodeObject* frameCode(PyFrameObject* frame) {
+  return frame->f_code;
+}
 #endif
 
 // Code object flag that will prevent JIT compilation.
