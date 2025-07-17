@@ -848,15 +848,35 @@ void initCinderHooks() {
 #endif
 }
 
-void initFrameEvalFunc() {
+int initFrameEvalFunc() {
 #ifdef ENABLE_INTERPRETER_LOOP
+#ifdef ENABLE_EVAL_HOOK
   Ci_hook_EvalFrame = Ci_EvalFrame;
+#else
+  auto interp = _PyInterpreterState_GET();
+  auto current_eval_frame = _PyInterpreterState_GetEvalFrameFunc(interp);
+  if (current_eval_frame != _PyEval_EvalFrameDefault) {
+    PyErr_SetString(
+        PyExc_RuntimeError,
+        "CinderX tried to set a frame evaluator function but something else "
+        "has done it first, this is not supported");
+    return -1;
+  }
+
+  _PyInterpreterState_SetEvalFrameFunc(interp, Ci_EvalFrame);
 #endif
+#endif
+
+  return 0;
 }
 
 void finiFrameEvalFunc() {
 #ifdef ENABLE_INTERPRETER_LOOP
+#ifdef ENABLE_EVAL_HOOK
   Ci_hook_EvalFrame = nullptr;
+#else
+  _PyInterpreterState_SetEvalFrameFunc(_PyInterpreterState_GET(), nullptr);
+#endif
 #endif
 }
 
@@ -870,7 +890,10 @@ int cinder_init() {
   initCodeExtraIndex();
 
   initCinderHooks();
-  initFrameEvalFunc();
+
+  if (initFrameEvalFunc() < 0) {
+    return -1;
+  }
 
 #if PY_VERSION_HEX < 0x030C0000
   JIT_CHECK(
@@ -902,6 +925,7 @@ int cinder_init() {
     }
     return -1;
   }
+
   init_existing_objects();
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -948,6 +972,8 @@ int cinder_fini() {
     return -1;
   }
 
+  finiFrameEvalFunc();
+
   jit::finalize();
 
   finiCodeExtraIndex();
@@ -989,8 +1015,6 @@ int cinder_fini() {
 
   Ci_cinderx_initialized = 0;
 #endif
-
-  finiFrameEvalFunc();
 
   return 0;
 }

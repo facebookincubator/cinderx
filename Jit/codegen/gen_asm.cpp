@@ -19,6 +19,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
+#include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
