@@ -1287,7 +1287,8 @@ static PyObject* dict_map;
 
 static int
 track_type_dict(PyObject* track_map, PyTypeObject* type, PyObject* dict) {
-  if (_PyDict_Contains_KnownHash(track_map, dict, (Py_hash_t)dict)) {
+  if (_PyDict_GetItem_KnownHash(track_map, dict, (Py_hash_t)dict) != NULL) {
+    PyErr_Clear();
     // Already tracked
     return 0;
   }
