@@ -992,6 +992,8 @@ typedef struct {
     _PyStackRef stack[1];
 } _PyEntryFrame;
 
+#ifndef CINDERX_INTERPRETER
+
 PyObject* _Py_HOT_FUNCTION DONT_SLP_VECTORIZE
 _PyEval_EvalFrameDefault(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 {
@@ -1222,6 +1224,8 @@ early_exit:
     tstate->current_frame = frame->previous;
     return NULL;
 }
+
+#endif // !CINDERX_INTERPRETER
 
 #ifdef DO_NOT_OPTIMIZE_INTERP_LOOP
 #  pragma optimize("", on)
@@ -1915,6 +1919,8 @@ error:
     return NULL;
 }
 
+#ifndef CINDERX_INTERPRETER
+
 PyObject *
 _PyEval_Vector(PyThreadState *tstate, PyFunctionObject *func,
                PyObject *locals,
@@ -2034,7 +2040,7 @@ fail:
     Py_DECREF(defaults);
     return res;
 }
-
+#endif // !CINDERX_INTERPRETER
 
 /* Logic for the raise statement (too complicated for inlining).
    This *consumes* a reference count to each of its arguments. */
@@ -2445,6 +2451,7 @@ monitor_throw(PyThreadState *tstate,
     do_monitor_exc(tstate, frame, instr, PY_MONITORING_EVENT_PY_THROW);
 }
 
+#ifndef CINDERX_INTERPRETER
 void
 PyThreadState_EnterTracing(PyThreadState *tstate)
 {
@@ -3537,6 +3544,7 @@ _PyEval_LoadName(PyThreadState *tstate, _PyInterpreterFrame *frame, PyObject *na
     }
     return value;
 }
+#endif // !CINDERX_INTERPRETER
 
 /* Check if a 'cls' provides the given special method. */
 static inline int
