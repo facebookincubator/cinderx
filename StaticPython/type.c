@@ -251,7 +251,11 @@ static PyObject* resolve_module(PyThreadState* tstate, PyObject* module_name) {
       PyErr_Fetch(&et, &ev, &tb);
       PyErr_Format(
           CiExc_StaticTypeError, "Could not load module %R", module_name);
+#if PY_VERSION_HEX >= 0x030C0000
+      _PyErr_ChainExceptions1(ev);
+#else
       _PyErr_ChainExceptions(et, ev, tb);
+#endif
       return NULL;
     }
     module = PyDict_GetItem(sys_modules, module_name);
