@@ -1,0 +1,34 @@
+#include <Python.h>
+
+#ifndef Ci_INTERNAL_OPCODE_H
+#define Ci_INTERNAL_OPCODE_H
+
+#include "cinderx/Interpreter/cinder_opcode_ids.h"
+
+#include "internal/pycore_opcode.h"
+
+#define _PyOpcode_Caches _CiOpcode_Caches
+#define _PyOpcode_Deopt _CiOpcode_Deopt
+#define _PyOpcode_OpName _CiOpcode_OpName
+#define _PyOpcode_Jump _CiOpcode_Jump
+
+
+#ifdef Py_INTERNAL_OPCODE_H
+#undef Py_INTERNAL_OPCODE_H
+#endif
+#ifdef Py_OPCODE_H
+#undef Py_OPCODE_H
+#endif
+
+
+#ifdef EXTRA_CASES
+#undef EXTRA_CASES
+#endif
+
+#include "cinderx/Interpreter/cinder_opcode_metadata.h"
+
+#undef _PyOpcode_Caches 
+#undef _PyOpcode_Deopt 
+#undef _PyOpcode_OpName 
+
+#endif
