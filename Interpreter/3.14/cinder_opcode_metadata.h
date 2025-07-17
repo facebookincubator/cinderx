@@ -14,6 +14,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>              // bool
+#include "opcode_ids.h"
 
 
 #define IS_PSEUDO_INSTR(OP)  ( \

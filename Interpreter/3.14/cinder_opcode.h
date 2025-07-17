@@ -11,6 +11,9 @@
 #define _PyOpcode_Deopt _CiOpcode_Deopt
 #define _PyOpcode_OpName _CiOpcode_OpName
 #define _PyOpcode_Jump _CiOpcode_Jump
+#define _PyOpcode_num_popped _CiOpcode_num_popped
+#define _PyOpcode_num_pushed _CiOpcode_num_pushed 
+#define _PyOpcode_opcode_metadata _CiOpcode_opcode_metadata
 
 
 #ifdef Py_INTERNAL_OPCODE_H
