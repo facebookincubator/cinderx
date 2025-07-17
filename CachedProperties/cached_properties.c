@@ -7,6 +7,11 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_modsupport.h"
+#endif
+
 /* fb t46346203 */
 
 typedef struct {

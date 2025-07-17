@@ -5,7 +5,9 @@
 #include <Python.h>
 
 #include "cinderx/Common/extra-py-flags.h"
-
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_function.h"
+#endif
 #ifdef __cplusplus
 extern "C" {
 #endif

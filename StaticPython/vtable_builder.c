@@ -13,6 +13,10 @@
 #include "cinderx/Common/extra-py-flags.h"
 #endif
 
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_function.h"
+#endif
+
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/func.h"

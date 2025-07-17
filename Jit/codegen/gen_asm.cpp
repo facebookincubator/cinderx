@@ -11,6 +11,10 @@
 #include "internal/pycore_shadow_frame.h"
 #endif
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_ceval.h"
+#endif
+
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"

@@ -4,6 +4,10 @@
 
 #include "cinderx/Immortalize/immortalize.h"
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "refcount.h"
+#endif
+
 namespace jit {
 
 PyObject g_iterDoneSentinel = {

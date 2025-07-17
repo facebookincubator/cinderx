@@ -1,6 +1,9 @@
 #include "cinderx/Common/ref.h"
 
 #include "internal/pycore_pystate.h"
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_interp.h"
+#endif
 
 void incref_total(PyInterpreterState* interp) {
 #ifdef Py_REF_DEBUG
