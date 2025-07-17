@@ -64,6 +64,28 @@ try:
             f"The _cinderx native extension is not supported for Python version '{sys.version}' on platform '{sys.platform}'"
         )
 
+    try:
+        # pyre-ignore[21]: _cinderx isn't known by Pyre
+        from _cinderx import (
+            disable_parallel_gc,
+            enable_parallel_gc,
+            get_parallel_gc_settings,
+            has_parallel_gc,
+        )
+    except ImportError:
+
+        def disable_parallel_gc() -> None:
+            pass
+
+        def enable_parallel_gc(min_generation: int = 2, num_threads: int = 0) -> None:
+            pass
+
+        def get_parallel_gc_settings() -> dict[str, int]:
+            return {}
+
+        def has_parallel_gc() -> bool:
+            return False
+
     # pyre-ignore[21]: _cinderx is not a real cpp_python_extension() yet.
     from _cinderx import (  # noqa: F401
         _compile_perf_trampoline_pre_fork,
@@ -75,11 +97,7 @@ try:
         cached_property_with_descr,
         clear_caches,
         clear_classloader_caches,
-        disable_parallel_gc,
-        enable_parallel_gc,
         freeze_type,
-        get_parallel_gc_settings,
-        has_parallel_gc,
         immortalize_heap,
         init as cinderx_init,
         is_immortal,
@@ -253,12 +271,6 @@ except ImportError as e:
 
     def freeze_type(ty: object) -> object:
         return ty
-
-    def get_parallel_gc_settings() -> dict[str, int]:
-        return {}
-
-    def has_parallel_gc() -> bool:
-        return False
 
     def immortalize_heap() -> None:
         pass
