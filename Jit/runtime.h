@@ -14,7 +14,6 @@
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/fixed_type_profiler.h"
-#include "cinderx/Jit/generators_mm.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/runtime_iface.h"
 #include "cinderx/Jit/slab_arena.h"
@@ -460,12 +459,6 @@ class Runtime : public IRuntime {
       BorrowedRef<PyTypeObject> lookup_type,
       BorrowedRef<PyTypeObject> new_type);
 
-#if PY_VERSION_HEX >= 0x030C0000
-  JitGenFreeList& jitGenObjFreeList() {
-    return jit_gen_free_list_;
-  }
-#endif
-
 #if PY_VERSION_HEX < 0x030C0000
   // In 3.12+ the equivalent of this is in generators_rt.cpp.
   template <typename F>
@@ -529,9 +522,6 @@ class Runtime : public IRuntime {
 
   Ref<> zero_;
   std::unordered_set<BorrowedRef<PyTypeObject>> pending_watches_;
-#if PY_VERSION_HEX >= 0x030C0000
-  JitGenFreeList jit_gen_free_list_;
-#endif
 };
 
 } // namespace jit
