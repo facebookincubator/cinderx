@@ -141,6 +141,9 @@ static Ci_AsyncMethodsWithExtra awaitable_as_async = {
 
 #else
 
+#ifdef Ci_TPFLAGS_HAVE_AM_EXTRA
+#undef Ci_TPFLAGS_HAVE_AM_EXTRA
+#endif
 #define Ci_TPFLAGS_HAVE_AM_EXTRA 0
 
 static PyAsyncMethods awaitable_as_async = {

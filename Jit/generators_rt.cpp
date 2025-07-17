@@ -520,6 +520,9 @@ static Ci_AsyncMethodsWithExtra jitcoro_as_async = {
 
 #else
 
+#ifdef Ci_TPFLAGS_HAVE_AM_EXTRA
+#undef Ci_TPFLAGS_HAVE_AM_EXTRA
+#endif
 #define Ci_TPFLAGS_HAVE_AM_EXTRA 0
 
 static PyAsyncMethods jitcoro_as_async = {

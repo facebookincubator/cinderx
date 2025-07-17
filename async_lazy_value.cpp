@@ -24,6 +24,9 @@ extern "C" Ci_AsyncMethodsWithExtra _async_lazy_value_compute_type_as_async;
 #else
 extern "C" PyAsyncMethods _async_lazy_value_compute_type_as_async;
 
+#ifdef Ci_TPFLAGS_HAVE_AM_EXTRA
+#undef Ci_TPFLAGS_HAVE_AM_EXTRA
+#endif
 #define Ci_TPFLAGS_HAVE_AM_EXTRA 0
 #endif
 

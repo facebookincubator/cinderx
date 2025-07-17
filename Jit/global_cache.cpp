@@ -7,6 +7,9 @@
 #include "cinderx/module_state.h"
 
 #ifndef ENABLE_LAZY_IMPORTS
+#ifdef PyLazyImport_CheckExact
+#undef PyLazyImport_CheckExact
+#endif
 #define PyLazyImport_CheckExact(OBJ) false
 #endif
 
