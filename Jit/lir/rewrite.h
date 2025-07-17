@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "cinderx/Common/concepts.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/lir/block.h"
 #include "cinderx/Jit/lir/printer.h"
@@ -115,13 +116,10 @@ class Rewrite {
   // Returns true if the original function has been changed by the rewrites,
   // indicating that all the rewrites have to be run again.
   // Returns false if nothing has been changed in the original function.
-  template <typename T, typename V>
-  std::enable_if_t<
-      std::is_same_v<T, function_rewrite_t> ||
-          std::is_same_v<T, basic_block_rewrite_t> ||
-          std::is_same_v<T, instruction_rewrite_t>,
-      bool>
-  runOneTypeRewrites(const std::vector<T>& rewrites, V&& arg) {
+  template <
+      AnyOf<function_rewrite_t, basic_block_rewrite_t, instruction_rewrite_t> T,
+      typename V>
+  bool runOneTypeRewrites(const std::vector<T>& rewrites, V&& arg) {
     bool changed = false;
     bool loop_changed = false;
 

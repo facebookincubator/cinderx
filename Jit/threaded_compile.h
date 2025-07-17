@@ -197,9 +197,8 @@ class ThreadedCompileSerialize {
  * result in an imbalance of the reference count stats.
  */
 
-template <
-    typename T = PyObject,
-    typename = std::enable_if_t<!std::is_pointer_v<T>>>
+template <typename T = PyObject>
+  requires(!std::is_pointer_v<T>)
 class ThreadedRef : public RefBase<T> {
  public:
   using RefBase<T>::RefBase;
@@ -214,9 +213,8 @@ class ThreadedRef : public RefBase<T> {
     other.ptr_ = nullptr;
   }
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   explicit ThreadedRef(ThreadedRef<>&& other) {
     ptr_ = reinterpret_cast<T*>(other.release());
   }
@@ -231,9 +229,8 @@ class ThreadedRef : public RefBase<T> {
     return *this;
   }
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   ThreadedRef& operator=(ThreadedRef<>&& other) {
     if (this->get() == reinterpret_cast<T*>(other.get())) {
       return *this;
@@ -249,9 +246,8 @@ class ThreadedRef : public RefBase<T> {
     ptr_ = obj;
   }
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   void reset(PyObject* obj) {
     reset(reinterpret_cast<T*>(obj));
   }
@@ -265,9 +261,8 @@ class ThreadedRef : public RefBase<T> {
   template <typename V>
   static ThreadedRef steal(const ThreadedRef<V>&) = delete;
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   static ThreadedRef create(PyObject* obj) {
     return Ref(reinterpret_cast<T*>(obj));
   }
@@ -281,9 +276,8 @@ class ThreadedRef : public RefBase<T> {
     incref(ptr_);
   }
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   static void incref(T* obj) {
     incref(reinterpret_cast<PyObject*>(obj));
   }
@@ -295,9 +289,8 @@ class ThreadedRef : public RefBase<T> {
     }
   }
 
-  template <
-      typename X = T,
-      typename = std::enable_if_t<!std::is_same_v<X, PyObject>>>
+  template <typename X = T>
+    requires(!IsPyObject<X>)
   static void decref(T* obj) {
     decref(reinterpret_cast<PyObject*>(obj));
   }
