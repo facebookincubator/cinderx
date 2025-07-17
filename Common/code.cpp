@@ -11,15 +11,9 @@
 
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000 && PY_VERSION_HEX < 0x030D0000
+#if PY_VERSION_HEX >= 0x030C0000
 
 #include "cinderx/Interpreter/cinder_opcode.h"
-
-#elif PY_VERSION_HEX >= 0x030D0000
-
-// Needed to tell pycore_opcode_metadata.h to define the _PyOpcode* arrays.
-#define NEED_OPCODE_METADATA
-#include "internal/pycore_opcode_metadata.h"
 
 #endif
 

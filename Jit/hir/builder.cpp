@@ -12,7 +12,7 @@
 #endif
 
 #include "cinderx/Common/ref.h"
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/hir.h"

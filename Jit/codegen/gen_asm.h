@@ -5,7 +5,7 @@
 #include <Python.h>
 
 #include "cinderx/Common/util.h"
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/codegen/frame_asm.h"

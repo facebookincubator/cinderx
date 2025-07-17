@@ -25,7 +25,7 @@
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/watchers.h"
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 

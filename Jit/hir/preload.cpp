@@ -7,7 +7,7 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"

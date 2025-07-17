@@ -5,7 +5,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"

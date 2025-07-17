@@ -4,10 +4,7 @@
 
 #define CINDERX_INTERPRETER
 
-#include "cinderx/Interpreter/opcode.h"
 #include "cinderx/Common/code.h"
-
-#include "internal/pycore_opcode.h"
 
 // Must come after pycore_opcode, we want to get the exported ones.
 #define NEED_OPCODE_NAMES
@@ -661,7 +658,7 @@ handle_eval_breaker:
 #if USE_COMPUTED_GOTOS
         _unknown_opcode:
 #else
-        Ci_EXTRA_CASES  // From opcode.h, a 'case' for each unused opcode
+        EXTRA_CASES  // From opcode.h, a 'case' for each unused opcode
 #endif
             /* Tell C compilers not to hold the opcode variable in the loop.
                next_instr points the current instruction without TARGET(). */

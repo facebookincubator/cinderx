@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/bytecode.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 

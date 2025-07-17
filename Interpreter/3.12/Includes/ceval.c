@@ -29,7 +29,7 @@
 #include "dictobject.h"
 #include "pycore_frame.h"
 #include "frameobject.h"          // _PyInterpreterFrame_GetLine
-#include "opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "pydtrace.h"
 #include "setobject.h"
 #include "structmember.h"         // struct PyMemberDef, T_OFFSET_EX
@@ -892,7 +892,7 @@ handle_eval_breaker:
 #if USE_COMPUTED_GOTOS
         _unknown_opcode:
 #else
-        Ci_EXTRA_CASES  // From opcode.h, a 'case' for each unused opcode
+        EXTRA_CASES  // From cinder_opcode.h, a 'case' for each unused opcode
 #endif
             /* Tell C compilers not to hold the opcode variable in the loop.
                next_instr points the current instruction without TARGET(). */

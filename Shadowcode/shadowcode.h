@@ -15,7 +15,7 @@
 #include "internal/pycore_object.h"
 
 #include "cinderx/CachedProperties/cached_properties.h"
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 

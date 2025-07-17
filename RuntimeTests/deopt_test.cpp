@@ -7,7 +7,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/compiler.h"
