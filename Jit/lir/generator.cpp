@@ -2810,7 +2810,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const ImportFrom*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
         bbb.appendCallInstruction(
-            i.output(), _PyEval_ImportFrom, instr->module(), name);
+            i.output(),
+            _PyEval_ImportFrom,
+            env_->asm_tstate,
+            instr->module(),
+            name);
 #else
         JIT_ABORT(
             "IMPORT_FROM is not supported, LIRGenerator has no access to "
