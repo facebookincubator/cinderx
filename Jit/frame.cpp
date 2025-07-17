@@ -961,7 +961,7 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
    * to have cleared the enclosing generator, if any. */
   JIT_DCHECK(
       frame->owner != FRAME_OWNED_BY_GENERATOR ||
-          _PyFrame_GetGenerator(frame)->gi_frame_state == FRAME_CLEARED,
+          _PyGen_GetGeneratorFromFrame(frame)->gi_frame_state == FRAME_CLEARED,
       "bad frame state");
   // GH-99729: Clearing this frame can expose the stack (via finalizers). It's
   // crucial that this frame has been unlinked, and is no longer visible:

@@ -4,6 +4,7 @@
 
 #include "structmember.h" // PyMemberDef
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 /* fb t46346203 */
@@ -818,7 +819,7 @@ async_cached_property_init(PyObject* self, PyObject* args, PyObject* kwargs) {
   PyObject* func;
   PyObject* name_or_descr = NULL;
 
-  fastargs = _PyArg_UnpackKeywords(
+  fastargs = _CiArg_UnpackKeywords(
       _PyTuple_CAST(args)->ob_item,
       nargs,
       kwargs,
@@ -879,7 +880,7 @@ static PyObject* async_cached_classproperty_new(
   Py_ssize_t nargs = PyTuple_GET_SIZE(args);
   PyObject* func;
 
-  fastargs = _PyArg_UnpackKeywords(
+  fastargs = _CiArg_UnpackKeywords(
       _PyTuple_CAST(args)->ob_item,
       nargs,
       kwargs,

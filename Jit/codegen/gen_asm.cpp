@@ -96,7 +96,7 @@ void raiseUnboundLocalError(BorrowedRef<> name) {
         "a value"
       : "local variable '%.200s' referenced before assignment";
 
-  Cix_format_exc_check_arg(
+  _PyEval_FormatExcCheckArg(
       _PyThreadState_GET(), PyExc_UnboundLocalError, msg, name);
 }
 
@@ -109,7 +109,7 @@ void raiseUnboundFreevarError(BorrowedRef<> name) {
       : "free variable '%.200s' referenced before assignment in enclosing "
         "scope";
 
-  Cix_format_exc_check_arg(_PyThreadState_GET(), PyExc_NameError, msg, name);
+  _PyEval_FormatExcCheckArg(_PyThreadState_GET(), PyExc_NameError, msg, name);
 }
 
 void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {

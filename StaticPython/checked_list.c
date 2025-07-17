@@ -2905,7 +2905,7 @@ static PyObject* list_sort(
   PyObject* keyfunc = Py_None;
   int reverse = 0;
 
-  args = _PyArg_UnpackKeywords(
+  args = _CiArg_UnpackKeywords(
       args, nargs, NULL, kwnames, &_parser, 0, 0, 0, argsbuf);
   if (!args) {
     goto exit;

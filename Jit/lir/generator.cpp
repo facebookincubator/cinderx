@@ -2193,7 +2193,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         const auto& instr = static_cast<const MatchClass&>(i);
         bbb.appendCallInstruction(
             instr.output(),
-            Cix_match_class,
+            _PyEval_MatchClass,
             env_->asm_tstate,
             instr.GetOperand(0),
             instr.GetOperand(1),
@@ -2205,7 +2205,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const MatchKeys*>(&i);
         bbb.appendCallInstruction(
             instr->output(),
-            Cix_match_keys,
+            _PyEval_MatchKeys,
             env_->asm_tstate,
             instr->GetOperand(0),
             instr->GetOperand(1));

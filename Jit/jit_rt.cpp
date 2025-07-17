@@ -838,7 +838,7 @@ JITRT_LoadGlobal(PyObject* globals, PyObject* builtins, PyObject* name) {
       (PyDictObject*)globals, (PyDictObject*)builtins, name);
   if ((result == nullptr) && !PyErr_Occurred()) {
     // name is converted to a `char*` by format_exc_check_arg
-    Cix_format_exc_check_arg(
+    _PyEval_FormatExcCheckArg(
         _PyThreadState_GET(),
         PyExc_NameError,
         "name '%.200s' is not defined",
@@ -2091,7 +2091,7 @@ int JITRT_DictMerge(
     PyObject* update,
     PyObject* func) {
   if (_PyDict_MergeEx(dict, update, 2) < 0) {
-    Cix_format_kwargs_error(tstate, func, update);
+    _PyEval_FormatKwargsError(tstate, func, update);
     return -1;
   }
   return 0;

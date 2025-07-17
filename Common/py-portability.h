@@ -36,6 +36,10 @@
 #define PyTime_AsSecondsDouble _PyTime_AsSecondsDouble
 #define PyTime_t _PyTime_t
 #define Py_IsFinalizing _Py_IsFinalizing
+#define _PyEval_MatchClass Cix_match_class
+#define _PyEval_MatchKeys Cix_match_keys
+#define _PyEval_FormatKwargsError Cix_format_kwargs_error
+#define _PyEval_FormatExcCheckArg Cix_format_exc_check_arg
 
 #define _PyFrame_GetCode(F) ((F)->f_code)
 
@@ -103,6 +107,24 @@ inline void setCurrentFrame(PyThreadState* tstate, _PyInterpreterFrame* frame) {
 }
 
 #endif // PY_VERSION_HEX >= 0x030C0000
+
+#if PY_VERSION_HEX >= 0x030E0000
+#define _CiArg_UnpackKeywords(                                        \
+    args, nargs, kwargs, kwnames, parser, minpos, maxpos, minkw, buf) \
+  _PyArg_UnpackKeywords(                                              \
+      args,                                                           \
+      nargs,                                                          \
+      kwargs,                                                         \
+      kwnames,                                                        \
+      parser,                                                         \
+      minpos,                                                         \
+      maxpos,                                                         \
+      minkw,                                                          \
+      0 /* varpos */,                                                 \
+      buf)
+#else
+#define _CiArg_UnpackKeywords _PyArg_UnpackKeywords
+#endif
 
 // Code object flag that will prevent JIT compilation.
 //
