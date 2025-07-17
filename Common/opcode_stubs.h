@@ -110,7 +110,7 @@ enum {
 #undef DEFINE_NB_INPLACE
 };
 
-#else
+#elif PY_VERSION_HEX < 0x030E0000
 
 #define STUB_OPCODE_DEFS(X)        \
   X(BINARY_ADD)                    \
@@ -190,6 +190,132 @@ enum {
   X(STORE_ATTR_UNCACHABLE)         \
   X(UNARY_POSITIVE)                \
   X(YIELD_FROM)
+
+#else
+
+#define STUB_OPCODE_DEFS(X)        \
+  X(BEFORE_ASYNC_WITH)             \
+  X(BEFORE_WITH)                   \
+  X(BINARY_ADD)                    \
+  X(BINARY_AND)                    \
+  X(BINARY_FLOOR_DIVIDE)           \
+  X(BINARY_LSHIFT)                 \
+  X(BINARY_MATRIX_MULTIPLY)        \
+  X(BINARY_MODULO)                 \
+  X(BINARY_MULTIPLY)               \
+  X(BINARY_OR)                     \
+  X(BINARY_POWER)                  \
+  X(BINARY_RSHIFT)                 \
+  X(BINARY_SUBSCR)                 \
+  X(BINARY_SUBSCR_DICT_STR)        \
+  X(BINARY_SUBSCR_LIST)            \
+  X(BINARY_SUBSCR_TUPLE)           \
+  X(BINARY_SUBSCR_TUPLE_CONST_INT) \
+  X(BINARY_SUBSCR_TUPLE_INT)       \
+  X(BINARY_SUBSCR_LIST_INT)        \
+  X(BINARY_SUBSCR_DICT)            \
+  X(BINARY_SUBTRACT)               \
+  X(BINARY_TRUE_DIVIDE)            \
+  X(BINARY_XOR)                    \
+  X(BUILD_CHECKED_LIST)            \
+  X(BUILD_CHECKED_MAP)             \
+  X(BUILD_CONST_KEY_MAP)           \
+  X(CALL_FUNCTION)                 \
+  X(CALL_FUNCTION_KW)              \
+  X(CALL_METHOD)                   \
+  X(CAST)                          \
+  X(CONVERT_PRIMITIVE)             \
+  X(COPY_DICT_WITHOUT_KEYS)        \
+  X(DUP_TOP)                       \
+  X(DUP_TOP_TWO)                   \
+  X(EAGER_IMPORT_NAME)             \
+  X(FAST_LEN)                      \
+  X(FORMAT_VALUE)                  \
+  X(GEN_START)                     \
+  X(INPLACE_ADD)                   \
+  X(INPLACE_AND)                   \
+  X(INPLACE_FLOOR_DIVIDE)          \
+  X(INPLACE_LSHIFT)                \
+  X(INPLACE_MATRIX_MULTIPLY)       \
+  X(INPLACE_MODULO)                \
+  X(INPLACE_MULTIPLY)              \
+  X(INPLACE_OR)                    \
+  X(INPLACE_POWER)                 \
+  X(INPLACE_RSHIFT)                \
+  X(INPLACE_SUBTRACT)              \
+  X(INPLACE_TRUE_DIVIDE)           \
+  X(INPLACE_XOR)                   \
+  X(INVOKE_FUNCTION)               \
+  X(INVOKE_METHOD)                 \
+  X(INVOKE_NATIVE)                 \
+  X(JUMP_ABSOLUTE)                 \
+  X(JUMP_IF_FALSE_OR_POP)          \
+  X(JUMP_IF_NOT_EXC_MATCH)         \
+  X(JUMP_IF_NONZERO_OR_POP)        \
+  X(JUMP_IF_TRUE_OR_POP)           \
+  X(JUMP_IF_ZERO_OR_POP)           \
+  X(KW_NAMES)                      \
+  X(LIST_TO_TUPLE)                 \
+  X(LOAD_ASSERTION_ERROR)          \
+  X(LOAD_TYPE)                     \
+  X(LOAD_ATTR_DICT_DESCR)          \
+  X(LOAD_ATTR_DICT_NO_DESCR)       \
+  X(LOAD_ATTR_NO_DICT_DESCR)       \
+  X(LOAD_ATTR_POLYMORPHIC)         \
+  X(LOAD_ATTR_SPLIT_DICT)          \
+  X(LOAD_ATTR_SPLIT_DICT_DESCR)    \
+  X(LOAD_ATTR_SUPER)               \
+  X(LOAD_ATTR_S_MODULE)            \
+  X(LOAD_ATTR_TYPE)                \
+  X(LOAD_ATTR_UNCACHABLE)          \
+  X(LOAD_CLASS)                    \
+  X(LOAD_FIELD)                    \
+  X(LOAD_LOCAL)                    \
+  X(LOAD_ITERABLE_ARG)             \
+  X(LOAD_METHOD)                   \
+  X(LOAD_METHOD_DICT_DESCR)        \
+  X(LOAD_METHOD_DICT_METHOD)       \
+  X(LOAD_METHOD_MODULE)            \
+  X(LOAD_METHOD_NO_DICT_DESCR)     \
+  X(LOAD_METHOD_NO_DICT_METHOD)    \
+  X(LOAD_METHOD_SPLIT_DICT_DESCR)  \
+  X(LOAD_METHOD_SPLIT_DICT_METHOD) \
+  X(LOAD_METHOD_STATIC)            \
+  X(LOAD_METHOD_SUPER)             \
+  X(LOAD_METHOD_S_MODULE)          \
+  X(LOAD_METHOD_TYPE)              \
+  X(LOAD_METHOD_TYPE_METHODLIKE)   \
+  X(LOAD_METHOD_UNCACHABLE)        \
+  X(LOAD_METHOD_UNSHADOWED_METHOD) \
+  X(MAKE_OPNAME)                   \
+  X(POP_JUMP_IF_NONZERO)           \
+  X(POP_JUMP_IF_ZERO)              \
+  X(PRIMITIVE_BINARY_OP)           \
+  X(PRIMITIVE_BOX)                 \
+  X(PRIMITIVE_COMPARE_OP)          \
+  X(PRIMITIVE_LOAD_CONST)          \
+  X(PRIMITIVE_UNARY_OP)            \
+  X(PRIMITIVE_UNBOX)               \
+  X(REFINE_TYPE)                   \
+  X(RETURN_CONST)                  \
+  X(ROT_FOUR)                      \
+  X(ROT_N)                         \
+  X(ROT_THREE)                     \
+  X(ROT_TWO)                       \
+  X(SEQUENCE_GET)                  \
+  X(SEQUENCE_SET)                  \
+  X(SETUP_ASYNC_WITH)              \
+  X(STORE_ATTR_DESCR)              \
+  X(STORE_ATTR_DICT)               \
+  X(STORE_ATTR_SPLIT_DICT)         \
+  X(STORE_ATTR_UNCACHABLE)         \
+  X(STORE_FIELD)                   \
+  X(STORE_LOCAL)                   \
+  X(TP_ALLOC)                      \
+  X(UNARY_POSITIVE)                \
+  X(RETURN_PRIMITIVE)              \
+  X(YIELD_FROM)
+
 #endif
 
 enum {

@@ -1,11 +1,11 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include <Python.h>
 
 #ifndef Ci_INTERNAL_OPCODE_H
 #define Ci_INTERNAL_OPCODE_H
 
 #include "cinderx/Interpreter/cinder_opcode_ids.h"
-
-#include "internal/pycore_opcode.h"
 
 #define _PyOpcode_Caches _CiOpcode_Caches
 #define _PyOpcode_Deopt _CiOpcode_Deopt
@@ -24,11 +24,14 @@
 #ifdef EXTRA_CASES
 #undef EXTRA_CASES
 #endif
-
 #include "cinderx/Interpreter/cinder_opcode_metadata.h"
 
-#undef _PyOpcode_Caches 
-#undef _PyOpcode_Deopt 
-#undef _PyOpcode_OpName 
+#undef _PyOpcode_Caches
+#undef _PyOpcode_Deopt
+#undef _PyOpcode_OpName
+#undef _PyOpcode_Jump
+#undef _PyOpcode_num_popped
+#undef _PyOpcode_num_pushed 
+#undef _PyOpcode_opcode_metadata
 
 #endif

@@ -4,7 +4,7 @@
 
 #define CINDERX_INTERPRETER
 
-#include "cinderx/Interpreter/opcode.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Common/code.h"
 
 #include "internal/pycore_opcode.h"
