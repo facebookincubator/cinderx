@@ -3,6 +3,7 @@
 #include "cinderx/Common/code.h"
 
 #include "cinderx/Common/log.h"
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
 #if PY_VERSION_HEX >= 0x030C0000
@@ -74,7 +75,7 @@ int uninstrument(PyCodeObject* code, int index) {
     return code->_co_monitoring->per_instruction_opcodes[index];
   }
   if (opcode == INSTRUMENTED_LINE) {
-    return code->_co_monitoring->lines[index].original_opcode;
+    return Cix_GetOriginalOpcode(code->_co_monitoring->lines, index);
   }
 #endif
 
