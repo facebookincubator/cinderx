@@ -5,93 +5,482 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 // This file is processed by UpstreamBorrow.py. To see the generated output:
-// buck build -m ovr_config//third-party/python/constraints:3.12 \
+// buck build -m ovr_config//third-party/python/constraints:3.14 \
 //     --out=- fbcode//cinderx/UpstreamBorrow:borrowed_gen_borrowed.c
 
 // clang-format off
 
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
-// In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
-// the JIT we could get the value from the thread-state register. This would be
-// slightly more efficient, but quite a bit more work and async-generators are
-// rare. So we just wrap it up here.
-
-// TODO: Find out what exactly we need from the cpp directives here.
-#define _PY_INTERPRETER
 #include "Python.h"
-#include "pycore_call.h"          // _PyObject_CallNoArgs()
 #include "pycore_ceval.h"         // _PyEval_EvalFrame()
-#include "pycore_frame.h"         // _PyInterpreterFrame
-#include "pycore_genobject.h"     // struct _Py_async_gen_state
-#include "pycore_object.h"        // _PyObject_GC_UNTRACK()
+#include "pycore_object.h"
 #include "pycore_pyerrors.h"      // _PyErr_ClearExcState()
 #include "pycore_pystate.h"       // _PyThreadState_GET()
+#include "pycore_shadow_frame.h"
+#include "frameobject.h"
 #include "structmember.h"         // PyMemberDef
-#include "opcode.h"               // SEND
-#include "frameobject.h"          // _PyInterpreterFrame_GetLine
-#include "pystats.h"
+#include "opcode.h"
+#include "cinder/genobject_jit.h"
+#include "cinder/exports.h"
+#include "cinder/hooks.h"
+#include "pycore_gc.h"            // _PyGC_UNSET_FINALIZED
+#define FREE_LIST_GEN 0
+#define FREE_LIST_CORO 1
+#define FREE_LIST_ASYNC_GEN 2
+#define FREE_LIST_MAX 3
+#define PyGen_MAXFREELIST 200
+#define CI_WITH_GEN_MARKED_AS_THROWING(gen, body) \
+    if (gen->gi_jit_data) { \
+        CiJITGenState state = Ci_GetJITGenState(gen); \
+        Ci_MarkJITGenThrowing(gen); \
+        body \
+        Ci_SetJITGenState(gen, state); \
+    } else { \
+        PyFrameState state = gen->gi_frame->f_state; \
+        gen->gi_frame->f_state = FRAME_EXECUTING; \
+        body \
+        gen->gi_frame->f_state = state; \
+    }
+#ifdef Py_DEBUG
+#endif
 #define _PyAsyncGenWrappedValue_CheckExact(o) \
                     Py_IS_TYPE(o, &_PyAsyncGenWrappedValue_Type)
-#if _PyAsyncGen_MAXFREELIST > 0
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
-#endif
-#if defined(Py_DEBUG) && _PyAsyncGen_MAXFREELIST > 0
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
+#define PyAsyncGenASend_CheckExact(o) \
+                    Py_IS_TYPE(o, &_PyAsyncGenASend_Type)
 #ifdef Py_DEBUG
 #endif
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
 #ifdef Py_DEBUG
 #endif
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
 #ifdef Py_DEBUG
 #endif
-#endif
-#if _PyAsyncGen_MAXFREELIST > 0
 #ifdef Py_DEBUG
 #endif
+#ifdef Py_DEBUG
 #endif
-PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
-  return _PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
-}
 
-static PyObject *
-compute_cr_origin(int origin_depth, _PyInterpreterFrame *current_frame)
+#define _PyGen_yf Cix_PyGen_yf
+PyObject *
+_PyGen_yf(PyGenObject *gen)
 {
-    _PyInterpreterFrame *frame = current_frame;
-    /* First count how many frames we have */
-    int frame_count = 0;
-    for (; frame && frame_count < origin_depth; ++frame_count) {
-        frame = _PyFrame_GetFirstComplete(frame->previous);
+    PyObject *yf = NULL;
+    PyFrameObject *f = gen->gi_frame;
+
+    if (Ci_cinderx_initialized && gen->gi_jit_data) {
+        return Ci_hook_PyJIT_GenYieldFromValue(gen);
     }
 
-    /* Now collect them */
-    PyObject *cr_origin = PyTuple_New(frame_count);
-    if (cr_origin == NULL) {
-        return NULL;
-    }
-    frame = current_frame;
-    for (int i = 0; i < frame_count; ++i) {
-        PyCodeObject *code = frame->f_code;
-        int line = PyUnstable_InterpreterFrame_GetLine(frame);
-        PyObject *frameinfo = Py_BuildValue("OiO", code->co_filename, line,
-                                            code->co_name);
-        if (!frameinfo) {
-            Py_DECREF(cr_origin);
+    if (f) {
+        PyObject *bytecode = f->f_code->co_code;
+        unsigned char *code = (unsigned char *)PyBytes_AS_STRING(bytecode);
+
+        if (f->f_lasti < 0) {
+            /* Return immediately if the frame didn't start yet. YIELD_FROM
+               always come after LOAD_CONST: a code object should not start
+               with YIELD_FROM */
+            assert(code[0] != YIELD_FROM);
             return NULL;
         }
-        PyTuple_SET_ITEM(cr_origin, i, frameinfo);
-        frame = _PyFrame_GetFirstComplete(frame->previous);
+
+        if (code[(f->f_lasti+1)*sizeof(_Py_CODEUNIT)] != YIELD_FROM)
+            return NULL;
+        assert(f->f_stackdepth > 0);
+        yf = f->f_valuestack[f->f_stackdepth-1];
+        Py_INCREF(yf);
     }
 
-    return cr_origin;
+    return yf;
 }
-PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_frame) {
-  return compute_cr_origin(origin_depth, current_frame);
+
+// Internal dependencies for _PyCoro_GetAwaitableIter.
+static int
+gen_is_coroutine(PyObject *o)
+{
+    if (PyGen_CheckExact(o)) {
+        PyCodeObject *code = (PyCodeObject *)((PyGenObject*)o)->gi_code;
+        if (code->co_flags & CO_ITERABLE_COROUTINE) {
+            return 1;
+        }
+    }
+    return 0;
+}
+// End internal dependencies for _PyCoro_GetAwaitableIter.
+
+#define _PyCoro_GetAwaitableIter Cix_PyCoro_GetAwaitableIter
+PyObject *
+_PyCoro_GetAwaitableIter(PyObject *o)
+{
+    unaryfunc getter = NULL;
+    PyTypeObject *ot;
+
+    if (PyCoro_CheckExact(o) || gen_is_coroutine(o)) {
+        /* 'o' is a coroutine. */
+        Py_INCREF(o);
+        return o;
+    }
+
+    ot = Py_TYPE(o);
+    if (ot->tp_as_async != NULL) {
+        getter = ot->tp_as_async->am_await;
+    }
+    if (getter != NULL) {
+        PyObject *res = (*getter)(o);
+        if (res != NULL) {
+            if (PyCoro_CheckExact(res) || gen_is_coroutine(res)) {
+                /* __await__ must return an *iterator*, not
+                   a coroutine or another awaitable (see PEP 492) */
+                PyErr_SetString(PyExc_TypeError,
+                                "__await__() returned a coroutine");
+                Py_CLEAR(res);
+            } else if (!PyIter_Check(res)) {
+                PyErr_Format(PyExc_TypeError,
+                             "__await__() returned non-iterator "
+                             "of type '%.100s'",
+                             Py_TYPE(res)->tp_name);
+                Py_CLEAR(res);
+            }
+        }
+        return res;
+    }
+
+    PyErr_Format(PyExc_TypeError,
+                 "object %.100s can't be used in 'await' expression",
+                 ot->tp_name);
+    return NULL;
+}
+
+// Internal dependencies for _PyAsyncGenValueWrapperNew.
+typedef struct _PyAsyncGenWrappedValue {
+    PyObject_HEAD
+    PyObject *agw_val;
+} _PyAsyncGenWrappedValue;
+static struct _Py_async_gen_state *
+get_async_gen_state(void)
+{
+    PyInterpreterState *interp = _PyInterpreterState_GET();
+    return &interp->async_gen;
+}
+// End internal dependencies for _PyAsyncGenValueWrapperNew.
+
+#define _PyAsyncGenValueWrapperNew Cix_PyAsyncGenValueWrapperNew
+PyObject *
+_PyAsyncGenValueWrapperNew(PyObject *val)
+{
+    _PyAsyncGenWrappedValue *o;
+    assert(val);
+
+    struct _Py_async_gen_state *state = get_async_gen_state();
+#ifdef Py_DEBUG
+    // _PyAsyncGenValueWrapperNew() must not be called after _PyAsyncGen_Fini()
+    assert(state->value_numfree != -1);
+#endif
+    if (state->value_numfree) {
+        state->value_numfree--;
+        o = state->value_freelist[state->value_numfree];
+        assert(_PyAsyncGenWrappedValue_CheckExact(o));
+        _Py_NewReference((PyObject*)o);
+    }
+    else {
+        o = PyObject_GC_New(_PyAsyncGenWrappedValue,
+                            &_PyAsyncGenWrappedValue_Type);
+        if (o == NULL) {
+            return NULL;
+        }
+    }
+    o->agw_val = val;
+    Py_INCREF(val);
+    _PyObject_GC_TRACK((PyObject*)o);
+    return (PyObject*)o;
+}
+
+
+#define PyDict_MINSIZE 8
+#include "Python.h"
+#include "pycore_bitutils.h" // _Py_bit_length
+#include "pycore_gc.h"       // _PyObject_GC_IS_TRACKED()
+#include "pycore_import.h"   // _PyImport_LoadLazyImport()
+#include "pycore_lazyimport.h" // PyLazyImportObject
+#include "pycore_object.h"   // _PyObject_GC_TRACK()
+#include "pycore_pyerrors.h" // _PyErr_Fetch()
+#include "pycore_pystate.h"  // _PyThreadState_GET()
+#include "dict-common.h"
+#include "stringlib/eq.h"    // unicode_eq()
+#include "cinder/exports.h"
+#define PERTURB_SHIFT 5
+#define DICT_HAS_DEFERRED(d) ( \
+    ((PyDictObject *)(d))->ma_keys->dk_lookup == lookdict_with_lazy_imports || \
+    ((PyDictObject *)(d))->ma_keys->dk_lookup == lookdict_with_lazy_imports_unicode)
+#include "clinic/dictobject.c.h"
+#ifdef Py_DEBUG
+#endif
+#define DK_SIZE(dk) ((dk)->dk_size)
+#if SIZEOF_VOID_P > 4
+#define DK_IXSIZE(dk)                          \
+    (DK_SIZE(dk) <= 0xff ?                     \
+        1 : DK_SIZE(dk) <= 0xffff ?            \
+            2 : DK_SIZE(dk) <= 0xffffffff ?    \
+                4 : sizeof(int64_t))
+#else
+#define DK_IXSIZE(dk)                          \
+    (DK_SIZE(dk) <= 0xff ?                     \
+        1 : DK_SIZE(dk) <= 0xffff ?            \
+            2 : sizeof(int32_t))
+#endif
+#define DK_ENTRIES(dk) \
+    ((PyDictKeyEntry*)(&((int8_t*)((dk)->dk_indices))[DK_SIZE(dk) * DK_IXSIZE(dk)]))
+#define DK_MASK(dk) (((dk)->dk_size)-1)
+#define IS_POWER_OF_2(x) (((x) & (x-1)) == 0)
+#ifdef Py_REF_DEBUG
+#endif
+#ifdef Py_REF_DEBUG
+#endif
+#if SIZEOF_VOID_P > 4
+#endif
+#if SIZEOF_VOID_P > 4
+#endif
+#define USABLE_FRACTION(n) (((n) << 1)/3)
+#if SIZEOF_LONG == SIZEOF_SIZE_T
+#elif defined(_MSC_VER)
+#else
+#endif
+#define GROWTH_RATE(d) ((d)->ma_used*3)
+#define ENSURE_ALLOWS_DELETIONS(d) \
+    if ((d)->ma_keys->dk_lookup == lookdict_unicode_nodummy) { \
+        (d)->ma_keys->dk_lookup = lookdict_unicode; \
+    }
+#define Py_EMPTY_KEYS &empty_keys_struct
+#ifdef DEBUG_PYDICT
+#  define ASSERT_CONSISTENT(op) assert(_PyDict_CheckConsistency((PyObject *)(op), 1))
+#else
+#  define ASSERT_CONSISTENT(op) assert(_PyDict_CheckConsistency((PyObject *)(op), 0))
+#endif
+#define CHECK(expr) \
+    do { if (!(expr)) { _PyObject_ASSERT_FAILED_MSG(op, Py_STRINGIFY(expr)); } } while (0)
+#undef CHECK
+#if SIZEOF_VOID_P > 4
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_REF_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#define new_values(size) PyMem_NEW(PyObject *, size)
+#define free_values(values) PyMem_Free(values)
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_REF_DEBUG
+#endif
+#define MAINTAIN_TRACKING(mp, key, value) \
+    do { \
+        if (!_PyObject_GC_IS_TRACKED(mp)) { \
+            if (_PyObject_GC_MAY_BE_TRACKED(key) || \
+                _PyObject_GC_MAY_BE_TRACKED(value)) { \
+                _PyObject_GC_TRACK(mp); \
+            } \
+        } \
+    } while(0)
+#ifdef Py_REF_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#define CACHED_KEYS(tp) (((PyHeapTypeObject*)tp)->ht_cached_keys)
+
+// These are global singletons and some of the functions we're borrowing
+// check for them with pointer equality. Fortunately we are able to get
+// the values in init_upstream_borrow().
+static PyObject** empty_values = NULL;
+
+// Internal dependencies for things borrowed from dictobject.c.
+// Rename to avoid clashing with existing version when statically linking.
+#define _Py_dict_lookup __Py_dict_lookup
+static struct _Py_dict_state *
+get_dict_state(void)
+{
+    PyInterpreterState *interp = _PyInterpreterState_GET();
+    return &interp->dict_state;
+}
+static void
+free_keys_object(PyDictKeysObject *keys)
+{
+    PyDictKeyEntry *entries = DK_ENTRIES(keys);
+    Py_ssize_t i, n;
+    for (i = 0, n = keys->dk_nentries; i < n; i++) {
+        Py_XDECREF(entries[i].me_key);
+        Py_XDECREF(entries[i].me_value);
+    }
+    struct _Py_dict_state *state = get_dict_state();
+#ifdef Py_DEBUG
+    // free_keys_object() must not be called after _PyDict_Fini()
+    assert(state->keys_numfree != -1);
+#endif
+    if (keys->dk_size == PyDict_MINSIZE && state->keys_numfree < PyDict_MAXFREELIST) {
+        state->keys_free_list[state->keys_numfree++] = keys;
+        return;
+    }
+    PyObject_Free(keys);
+}
+static inline void
+dictkeys_decref(PyDictKeysObject *dk)
+{
+    assert(dk->dk_refcnt > 0);
+#ifdef Py_REF_DEBUG
+    _Py_RefTotal--;
+#endif
+    if (--dk->dk_refcnt == 0) {
+        free_keys_object(dk);
+    }
+}
+static inline void
+dictkeys_incref(PyDictKeysObject *dk)
+{
+#ifdef Py_REF_DEBUG
+    _Py_RefTotal++;
+#endif
+    dk->dk_refcnt++;
+}
+static PyObject *
+new_dict(PyDictKeysObject *keys, PyObject **values)
+{
+    PyDictObject *mp;
+    assert(keys != NULL);
+    struct _Py_dict_state *state = get_dict_state();
+#ifdef Py_DEBUG
+    // new_dict() must not be called after _PyDict_Fini()
+    assert(state->numfree != -1);
+#endif
+    if (state->numfree) {
+        mp = state->free_list[--state->numfree];
+        assert (mp != NULL);
+        assert (Py_IS_TYPE(mp, &PyDict_Type));
+        _Py_NewReference((PyObject *)mp);
+    }
+    else {
+        mp = PyObject_GC_New(PyDictObject, &PyDict_Type);
+        if (mp == NULL) {
+            dictkeys_decref(keys);
+            if (values != empty_values) {
+                free_values(values);
+            }
+            return NULL;
+        }
+    }
+    mp->ma_keys = keys;
+    mp->ma_values = values;
+    mp->ma_used = 0;
+    mp->ma_version_tag = DICT_NEXT_VERSION();
+    ASSERT_CONSISTENT(mp);
+    return (PyObject *)mp;
+}
+static PyObject *
+new_dict_with_shared_keys(PyDictKeysObject *keys)
+{
+    PyObject **values;
+    Py_ssize_t i, size;
+
+    size = USABLE_FRACTION(DK_SIZE(keys));
+    values = new_values(size);
+    if (values == NULL) {
+        dictkeys_decref(keys);
+        return PyErr_NoMemory();
+    }
+    for (i = 0; i < size; i++) {
+        values[i] = NULL;
+    }
+    return new_dict(keys, values);
+}
+// End internal dependencies.
+
+// Renaming to avoid duplicate symbol errors.  Still use the Cix_ wrapper to
+// adjust the number of arguments.
+#define _PyObjectDict_SetItem Renamed_PyObjectDict_SetItem
+int
+_PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,
+                      PyObject *key, PyObject *value)
+{
+    PyObject *dict;
+    int res;
+    PyDictKeysObject *cached;
+
+    assert(dictptr != NULL);
+    if ((tp->tp_flags & Py_TPFLAGS_HEAPTYPE) && (cached = CACHED_KEYS(tp))) {
+        assert(dictptr != NULL);
+        dict = *dictptr;
+        if (dict == NULL) {
+            if (tp->tp_flags & Py_TPFLAGS_WARN_ON_SETATTR &&
+                _PyErr_RaiseCinderWarning(
+                    "WARN001: Dictionary created for flagged instance",
+                    (PyObject *)tp,
+                    key)) {
+                return -1;
+            }
+            dictkeys_incref(cached);
+            dict = new_dict_with_shared_keys(cached);
+            if (dict == NULL)
+                return -1;
+            *dictptr = dict;
+        }
+        if (value == NULL) {
+            res = PyDict_DelItem(dict, key);
+            // Since key sharing dict doesn't allow deletion, PyDict_DelItem()
+            // always converts dict to combined form.
+            if ((cached = CACHED_KEYS(tp)) != NULL) {
+                CACHED_KEYS(tp) = NULL;
+                PyType_Modified(tp);
+                dictkeys_decref(cached);
+            }
+        }
+        else {
+            int was_shared = (cached == ((PyDictObject *)dict)->ma_keys);
+            res = PyDict_SetItem(dict, key, value);
+            if (was_shared &&
+                    (cached = CACHED_KEYS(tp)) != NULL &&
+                    cached != ((PyDictObject *)dict)->ma_keys) {
+                /* PyDict_SetItem() may call dictresize and convert split table
+                 * into combined table.  In such case, convert it to split
+                 * table again and update type's shared key only when this is
+                 * the only dict sharing key with the type.
+                 *
+                 * This is to allow using shared key in class like this:
+                 *
+                 *     class C:
+                 *         def __init__(self):
+                 *             # one dict resize happens
+                 *             self.a, self.b, self.c = 1, 2, 3
+                 *             self.d, self.e, self.f = 4, 5, 6
+                 *     a = C()
+                 */
+                if (cached->dk_refcnt == 1) {
+                    CACHED_KEYS(tp) = _PyDict_MakeKeysShared(dict);
+                }
+                else {
+                    CACHED_KEYS(tp) = NULL;
+                }
+                PyType_Modified(tp);
+                dictkeys_decref(cached);
+                if (CACHED_KEYS(tp) == NULL && PyErr_Occurred())
+                    return -1;
+            }
+        }
+    } else {
+        dict = *dictptr;
+        if (dict == NULL) {
+            dict = PyDict_New();
+            if (dict == NULL)
+                return -1;
+            *dictptr = dict;
+        }
+        if (value == NULL) {
+            res = PyDict_DelItem(dict, key);
+        } else {
+            res = PyDict_SetItem(dict, key, value);
+        }
+    }
+    return res;
 }
 
 int Cix_PyObjectDict_SetItem(
@@ -101,33 +490,69 @@ int Cix_PyObjectDict_SetItem(
     PyObject* key,
     PyObject* value) {
   (void)obj;
-  return _PyObjectDict_SetItem(tp, dictptr, key, value);
+  return Renamed_PyObjectDict_SetItem(tp, dictptr, key, value);
 }
+
+#define _PyDict_LoadGlobal Cix_PyDict_LoadGlobal
+PyObject *
+_PyDict_LoadGlobal(PyDictObject *globals, PyDictObject *builtins, PyObject *key)
+{
+    Py_ssize_t ix;
+    Py_hash_t hash;
+    PyObject *value;
+
+    if (!PyUnicode_CheckExact(key) ||
+        (hash = ((PyASCIIObject *) key)->hash) == -1)
+    {
+        hash = PyObject_Hash(key);
+        if (hash == -1)
+            return NULL;
+    }
+
+    /* namespace 1: globals */
+    ix = globals->ma_keys->dk_lookup(globals, key, hash, &value, 1);
+    if (ix == DKIX_ERROR || ix == DKIX_VALUE_ERROR)
+        return NULL;
+    if (ix != DKIX_EMPTY && value != NULL)
+        return value;
+
+    /* namespace 2: builtins */
+    ix = builtins->ma_keys->dk_lookup(builtins, key, hash, &value, 1);
+    if (ix < 0)
+        return NULL;
+    return value;
+}
+
 
 static inline int
 set_attribute_error_context(PyObject* v, PyObject* name)
 {
     assert(PyErr_Occurred());
-    if (!PyErr_ExceptionMatches(PyExc_AttributeError)){
+    _Py_IDENTIFIER(name);
+    _Py_IDENTIFIER(obj);
+    if (!PyErr_ExceptionMatches(PyExc_AttributeError)) {
         return 0;
     }
     // Intercept AttributeError exceptions and augment them to offer suggestions later.
-    PyObject *exc = PyErr_GetRaisedException();
-    if (!PyErr_GivenExceptionMatches(exc, PyExc_AttributeError)) {
+    PyObject *type, *value, *traceback;
+    PyErr_Fetch(&type, &value, &traceback);
+    PyErr_NormalizeException(&type, &value, &traceback);
+    // Check if the normalized exception is indeed an AttributeError
+    if (!PyErr_GivenExceptionMatches(value, PyExc_AttributeError)) {
         goto restore;
     }
-    PyAttributeErrorObject* the_exc = (PyAttributeErrorObject*) exc;
+    PyAttributeErrorObject* the_exc = (PyAttributeErrorObject*) value;
     // Check if this exception was already augmented
     if (the_exc->name || the_exc->obj) {
         goto restore;
     }
     // Augment the exception with the name and object
-    if (PyObject_SetAttr(exc, &_Py_ID(name), name) ||
-        PyObject_SetAttr(exc, &_Py_ID(obj), v)) {
+    if (_PyObject_SetAttrId(value, &PyId_name, name) ||
+        _PyObject_SetAttrId(value, &PyId_obj, v)) {
         return 1;
     }
 restore:
-    PyErr_SetRaisedException(exc);
+    PyErr_Restore(type, value, traceback);
     return 0;
 }
 
@@ -137,38 +562,168 @@ Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
   return set_attribute_error_context(v, name);
 }
 
-static const uint8_t DE_INSTRUMENT[256] = {
-    [INSTRUMENTED_RESUME] = RESUME,
-    [INSTRUMENTED_RETURN_VALUE] = RETURN_VALUE,
-    [INSTRUMENTED_RETURN_CONST] = RETURN_CONST,
-    [INSTRUMENTED_CALL] = CALL,
-    [INSTRUMENTED_CALL_FUNCTION_EX] = CALL_FUNCTION_EX,
-    [INSTRUMENTED_YIELD_VALUE] = YIELD_VALUE,
-    [INSTRUMENTED_JUMP_FORWARD] = JUMP_FORWARD,
-    [INSTRUMENTED_JUMP_BACKWARD] = JUMP_BACKWARD,
-    [INSTRUMENTED_POP_JUMP_IF_FALSE] = POP_JUMP_IF_FALSE,
-    [INSTRUMENTED_POP_JUMP_IF_TRUE] = POP_JUMP_IF_TRUE,
-    [INSTRUMENTED_POP_JUMP_IF_NONE] = POP_JUMP_IF_NONE,
-    [INSTRUMENTED_POP_JUMP_IF_NOT_NONE] = POP_JUMP_IF_NOT_NONE,
-    [INSTRUMENTED_FOR_ITER] = FOR_ITER,
-    [INSTRUMENTED_END_FOR] = END_FOR,
-    [INSTRUMENTED_END_SEND] = END_SEND,
-    [INSTRUMENTED_LOAD_SUPER_ATTR] = LOAD_SUPER_ATTR,
-};
-uint8_t
-Cix_DEINSTRUMENT(uint8_t op) {
-  return DE_INSTRUMENT[op];
+
+// These are global singletons used transitively by _Py_union_type_or.
+// We initialize them in init_upstream_borrow().
+PyTypeObject* Cix_PyUnion_Type = NULL;
+#define _PyUnion_Type (*Cix_PyUnion_Type)
+
+// Internal dependencies for _Py_union_type_or.
+#include "Python.h"
+#include "pycore_object.h"  // _PyObject_GC_TRACK/UNTRACK
+#include "pycore_unionobject.h"
+#include "structmember.h"
+typedef struct {
+    PyObject_HEAD
+    PyObject *args;
+    PyObject *parameters;
+} unionobject;
+static PyObject*
+flatten_args(PyObject* args)
+{
+    Py_ssize_t arg_length = PyTuple_GET_SIZE(args);
+    Py_ssize_t total_args = 0;
+    // Get number of total args once it's flattened.
+    for (Py_ssize_t i = 0; i < arg_length; i++) {
+        PyObject *arg = PyTuple_GET_ITEM(args, i);
+        if (_PyUnion_Check(arg)) {
+            total_args += PyTuple_GET_SIZE(((unionobject*) arg)->args);
+        } else {
+            total_args++;
+        }
+    }
+    // Create new tuple of flattened args.
+    PyObject *flattened_args = PyTuple_New(total_args);
+    if (flattened_args == NULL) {
+        return NULL;
+    }
+    Py_ssize_t pos = 0;
+    for (Py_ssize_t i = 0; i < arg_length; i++) {
+        PyObject *arg = PyTuple_GET_ITEM(args, i);
+        if (_PyUnion_Check(arg)) {
+            PyObject* nested_args = ((unionobject*)arg)->args;
+            Py_ssize_t nested_arg_length = PyTuple_GET_SIZE(nested_args);
+            for (Py_ssize_t j = 0; j < nested_arg_length; j++) {
+                PyObject* nested_arg = PyTuple_GET_ITEM(nested_args, j);
+                Py_INCREF(nested_arg);
+                PyTuple_SET_ITEM(flattened_args, pos, nested_arg);
+                pos++;
+            }
+        } else {
+            if (arg == Py_None) {
+                arg = (PyObject *)&_PyNone_Type;
+            }
+            Py_INCREF(arg);
+            PyTuple_SET_ITEM(flattened_args, pos, arg);
+            pos++;
+        }
+    }
+    assert(pos == total_args);
+    return flattened_args;
 }
+static PyObject*
+dedup_and_flatten_args(PyObject* args)
+{
+    args = flatten_args(args);
+    if (args == NULL) {
+        return NULL;
+    }
+    Py_ssize_t arg_length = PyTuple_GET_SIZE(args);
+    PyObject *new_args = PyTuple_New(arg_length);
+    if (new_args == NULL) {
+        Py_DECREF(args);
+        return NULL;
+    }
+    // Add unique elements to an array.
+    Py_ssize_t added_items = 0;
+    for (Py_ssize_t i = 0; i < arg_length; i++) {
+        int is_duplicate = 0;
+        PyObject* i_element = PyTuple_GET_ITEM(args, i);
+        for (Py_ssize_t j = 0; j < added_items; j++) {
+            PyObject* j_element = PyTuple_GET_ITEM(new_args, j);
+            int is_ga = _PyGenericAlias_Check(i_element) &&
+                        _PyGenericAlias_Check(j_element);
+            // RichCompare to also deduplicate GenericAlias types (slower)
+            is_duplicate = is_ga ? PyObject_RichCompareBool(i_element, j_element, Py_EQ)
+                : i_element == j_element;
+            // Should only happen if RichCompare fails
+            if (is_duplicate < 0) {
+                Py_DECREF(args);
+                Py_DECREF(new_args);
+                return NULL;
+            }
+            if (is_duplicate)
+                break;
+        }
+        if (!is_duplicate) {
+            Py_INCREF(i_element);
+            PyTuple_SET_ITEM(new_args, added_items, i_element);
+            added_items++;
+        }
+    }
+    Py_DECREF(args);
+    _PyTuple_Resize(&new_args, added_items);
+    return new_args;
+}
+static int
+is_unionable(PyObject *obj)
+{
+    return (obj == Py_None ||
+        PyType_Check(obj) ||
+        _PyGenericAlias_Check(obj) ||
+        _PyUnion_Check(obj));
+}
+// Rename to avoid clashing with existing version when statically linking.
+#define make_union Cix_make_union
+PyObject *
+make_union(PyObject *args)
+{
+    assert(PyTuple_CheckExact(args));
+
+    args = dedup_and_flatten_args(args);
+    if (args == NULL) {
+        return NULL;
+    }
+    if (PyTuple_GET_SIZE(args) == 1) {
+        PyObject *result1 = PyTuple_GET_ITEM(args, 0);
+        Py_INCREF(result1);
+        Py_DECREF(args);
+        return result1;
+    }
+
+    unionobject *result = PyObject_GC_New(unionobject, &_PyUnion_Type);
+    if (result == NULL) {
+        Py_DECREF(args);
+        return NULL;
+    }
+
+    result->parameters = NULL;
+    result->args = args;
+    _PyObject_GC_TRACK(result);
+    return (PyObject*)result;
+}
+// End internal dependencies.
+#define _Py_union_type_or Cix_Py_union_type_or
+PyObject *
+_Py_union_type_or(PyObject* self, PyObject* other)
+{
+    if (!is_unionable(self) || !is_unionable(other)) {
+        Py_RETURN_NOTIMPLEMENTED;
+    }
+
+    PyObject *tuple = PyTuple_Pack(2, self, other);
+    if (tuple == NULL) {
+        return NULL;
+    }
+
+    PyObject *new_union = make_union(tuple);
+    Py_DECREF(tuple);
+    return new_union;
+}
+
 
 // Internal dependencies for Cix_do_raise.
 #define _PyErr_SetRaisedException __PyErr_SetRaisedException
-void
-_PyErr_SetRaisedException(PyThreadState *tstate, PyObject *exc)
-{
-    PyObject *old_exc = tstate->current_exception;
-    tstate->current_exception = exc;
-    Py_XDECREF(old_exc);
-}
 // End internal dependencies.
 static int
 do_raise(PyThreadState *tstate, PyObject *exc, PyObject *cause)
@@ -178,15 +733,19 @@ do_raise(PyThreadState *tstate, PyObject *exc, PyObject *cause)
     if (exc == NULL) {
         /* Reraise */
         _PyErr_StackItem *exc_info = _PyErr_GetTopmostException(tstate);
-        exc = exc_info->exc_value;
-        if (Py_IsNone(exc) || exc == NULL) {
+        PyObject *tb;
+        type = exc_info->exc_type;
+        value = exc_info->exc_value;
+        tb = exc_info->exc_traceback;
+        if (Py_IsNone(type) || type == NULL) {
             _PyErr_SetString(tstate, PyExc_RuntimeError,
                              "No active exception to reraise");
             return 0;
         }
-        Py_INCREF(exc);
-        assert(PyExceptionInstance_Check(exc));
-        _PyErr_SetRaisedException(tstate, exc);
+        Py_XINCREF(type);
+        Py_XINCREF(value);
+        Py_XINCREF(tb);
+        _PyErr_Restore(tstate, type, value, tb);
         return 1;
     }
 
@@ -197,7 +756,7 @@ do_raise(PyThreadState *tstate, PyObject *exc, PyObject *cause)
 
     if (PyExceptionClass_Check(exc)) {
         type = exc;
-        value = _PyObject_CallNoArgs(exc);
+        value = _PyObject_CallNoArg(exc);
         if (value == NULL)
             goto raise_error;
         if (!PyExceptionInstance_Check(value)) {
@@ -228,7 +787,7 @@ do_raise(PyThreadState *tstate, PyObject *exc, PyObject *cause)
     if (cause) {
         PyObject *fixed_cause;
         if (PyExceptionClass_Check(cause)) {
-            fixed_cause = _PyObject_CallNoArgs(cause);
+            fixed_cause = _PyObject_CallNoArg(cause);
             if (fixed_cause == NULL)
                 goto raise_error;
             Py_DECREF(cause);
@@ -265,447 +824,25 @@ int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
   return do_raise(tstate, exc, cause);
 }
 
-// Internal dependencies for match_class.
-static PyObject*
-match_class_attr(PyThreadState *tstate, PyObject *subject, PyObject *type,
-                 PyObject *name, PyObject *seen)
-{
-    assert(PyUnicode_CheckExact(name));
-    assert(PySet_CheckExact(seen));
-    if (PySet_Contains(seen, name) || PySet_Add(seen, name)) {
-        if (!_PyErr_Occurred(tstate)) {
-            // Seen it before!
-            _PyErr_Format(tstate, PyExc_TypeError,
-                          "%s() got multiple sub-patterns for attribute %R",
-                          ((PyTypeObject*)type)->tp_name, name);
-        }
-        return NULL;
-    }
-    PyObject *attr = PyObject_GetAttr(subject, name);
-    if (attr == NULL && _PyErr_ExceptionMatches(tstate, PyExc_AttributeError)) {
-        _PyErr_Clear(tstate);
-    }
-    return attr;
-}
-// End internal dependencies.
-static PyObject*
-match_class(PyThreadState *tstate, PyObject *subject, PyObject *type,
-            Py_ssize_t nargs, PyObject *kwargs)
-{
-    if (!PyType_Check(type)) {
-        const char *e = "called match pattern must be a class";
-        _PyErr_Format(tstate, PyExc_TypeError, e);
-        return NULL;
-    }
-    assert(PyTuple_CheckExact(kwargs));
-    // First, an isinstance check:
-    if (PyObject_IsInstance(subject, type) <= 0) {
-        return NULL;
-    }
-    // So far so good:
-    PyObject *seen = PySet_New(NULL);
-    if (seen == NULL) {
-        return NULL;
-    }
-    PyObject *attrs = PyList_New(0);
-    if (attrs == NULL) {
-        Py_DECREF(seen);
-        return NULL;
-    }
-    // NOTE: From this point on, goto fail on failure:
-    PyObject *match_args = NULL;
-    // First, the positional subpatterns:
-    if (nargs) {
-        int match_self = 0;
-        match_args = PyObject_GetAttrString(type, "__match_args__");
-        if (match_args) {
-            if (!PyTuple_CheckExact(match_args)) {
-                const char *e = "%s.__match_args__ must be a tuple (got %s)";
-                _PyErr_Format(tstate, PyExc_TypeError, e,
-                              ((PyTypeObject *)type)->tp_name,
-                              Py_TYPE(match_args)->tp_name);
-                goto fail;
-            }
-        }
-        else if (_PyErr_ExceptionMatches(tstate, PyExc_AttributeError)) {
-            _PyErr_Clear(tstate);
-            // _Py_TPFLAGS_MATCH_SELF is only acknowledged if the type does not
-            // define __match_args__. This is natural behavior for subclasses:
-            // it's as if __match_args__ is some "magic" value that is lost as
-            // soon as they redefine it.
-            match_args = PyTuple_New(0);
-            match_self = PyType_HasFeature((PyTypeObject*)type,
-                                            _Py_TPFLAGS_MATCH_SELF);
-        }
-        else {
-            goto fail;
-        }
-        assert(PyTuple_CheckExact(match_args));
-        Py_ssize_t allowed = match_self ? 1 : PyTuple_GET_SIZE(match_args);
-        if (allowed < nargs) {
-            const char *plural = (allowed == 1) ? "" : "s";
-            _PyErr_Format(tstate, PyExc_TypeError,
-                          "%s() accepts %d positional sub-pattern%s (%d given)",
-                          ((PyTypeObject*)type)->tp_name,
-                          allowed, plural, nargs);
-            goto fail;
-        }
-        if (match_self) {
-            // Easy. Copy the subject itself, and move on to kwargs.
-            if (PyList_Append(attrs, subject) < 0) {
-                goto fail;
-            }
-        }
-        else {
-            for (Py_ssize_t i = 0; i < nargs; i++) {
-                PyObject *name = PyTuple_GET_ITEM(match_args, i);
-                if (!PyUnicode_CheckExact(name)) {
-                    _PyErr_Format(tstate, PyExc_TypeError,
-                                  "__match_args__ elements must be strings "
-                                  "(got %s)", Py_TYPE(name)->tp_name);
-                    goto fail;
-                }
-                PyObject *attr = match_class_attr(tstate, subject, type, name,
-                                                  seen);
-                if (attr == NULL) {
-                    goto fail;
-                }
-                if (PyList_Append(attrs, attr) < 0) {
-                    Py_DECREF(attr);
-                    goto fail;
-                }
-                Py_DECREF(attr);
-            }
-        }
-        Py_CLEAR(match_args);
-    }
-    // Finally, the keyword subpatterns:
-    for (Py_ssize_t i = 0; i < PyTuple_GET_SIZE(kwargs); i++) {
-        PyObject *name = PyTuple_GET_ITEM(kwargs, i);
-        PyObject *attr = match_class_attr(tstate, subject, type, name, seen);
-        if (attr == NULL) {
-            goto fail;
-        }
-        if (PyList_Append(attrs, attr) < 0) {
-            Py_DECREF(attr);
-            goto fail;
-        }
-        Py_DECREF(attr);
-    }
-    Py_SETREF(attrs, PyList_AsTuple(attrs));
-    Py_DECREF(seen);
-    return attrs;
-fail:
-    // We really don't care whether an error was raised or not... that's our
-    // caller's problem. All we know is that the match failed.
-    Py_XDECREF(match_args);
-    Py_DECREF(seen);
-    Py_DECREF(attrs);
-    return NULL;
-}
-PyObject* Cix_match_class(
-    PyThreadState* tstate,
-    PyObject* subject,
-    PyObject* type,
-    Py_ssize_t nargs,
-    PyObject* kwargs) {
-  return match_class(tstate, subject, type, nargs, kwargs);
-}
-
-static PyObject*
-match_keys(PyThreadState *tstate, PyObject *map, PyObject *keys)
-{
-    assert(PyTuple_CheckExact(keys));
-    Py_ssize_t nkeys = PyTuple_GET_SIZE(keys);
-    if (!nkeys) {
-        // No keys means no items.
-        return PyTuple_New(0);
-    }
-    PyObject *seen = NULL;
-    PyObject *dummy = NULL;
-    PyObject *values = NULL;
-    PyObject *get = NULL;
-    // We use the two argument form of map.get(key, default) for two reasons:
-    // - Atomically check for a key and get its value without error handling.
-    // - Don't cause key creation or resizing in dict subclasses like
-    //   collections.defaultdict that define __missing__ (or similar).
-    int meth_found = _PyObject_GetMethod(map, &_Py_ID(get), &get);
-    if (get == NULL) {
-        goto fail;
-    }
-    seen = PySet_New(NULL);
-    if (seen == NULL) {
-        goto fail;
-    }
-    // dummy = object()
-    dummy = _PyObject_CallNoArgs((PyObject *)&PyBaseObject_Type);
-    if (dummy == NULL) {
-        goto fail;
-    }
-    values = PyTuple_New(nkeys);
-    if (values == NULL) {
-        goto fail;
-    }
-    for (Py_ssize_t i = 0; i < nkeys; i++) {
-        PyObject *key = PyTuple_GET_ITEM(keys, i);
-        if (PySet_Contains(seen, key) || PySet_Add(seen, key)) {
-            if (!_PyErr_Occurred(tstate)) {
-                // Seen it before!
-                _PyErr_Format(tstate, PyExc_ValueError,
-                              "mapping pattern checks duplicate key (%R)", key);
-            }
-            goto fail;
-        }
-        PyObject *args[] = { map, key, dummy };
-        PyObject *value = NULL;
-        if (meth_found) {
-            value = PyObject_Vectorcall(get, args, 3, NULL);
-        }
-        else {
-            value = PyObject_Vectorcall(get, &args[1], 2, NULL);
-        }
-        if (value == NULL) {
-            goto fail;
-        }
-        if (value == dummy) {
-            // key not in map!
-            Py_DECREF(value);
-            Py_DECREF(values);
-            // Return None:
-            values = Py_NewRef(Py_None);
-            goto done;
-        }
-        PyTuple_SET_ITEM(values, i, value);
-    }
-    // Success:
-done:
-    Py_DECREF(get);
-    Py_DECREF(seen);
-    Py_DECREF(dummy);
-    return values;
-fail:
-    Py_XDECREF(get);
-    Py_XDECREF(seen);
-    Py_XDECREF(dummy);
-    Py_XDECREF(values);
-    return NULL;
-}
-PyObject* Cix_match_keys(PyThreadState* tstate, PyObject* map, PyObject* keys) {
-  return match_keys(tstate, map, keys);
-}
-
-static void
-format_kwargs_error(PyThreadState *tstate, PyObject *func, PyObject *kwargs)
-{
-    /* _PyDict_MergeEx raises attribute
-     * error (percolated from an attempt
-     * to get 'keys' attribute) instead of
-     * a type error if its second argument
-     * is not a mapping.
-     */
-    if (_PyErr_ExceptionMatches(tstate, PyExc_AttributeError)) {
-        _PyErr_Clear(tstate);
-        PyObject *funcstr = _PyObject_FunctionStr(func);
-        if (funcstr != NULL) {
-            _PyErr_Format(
-                tstate, PyExc_TypeError,
-                "%U argument after ** must be a mapping, not %.200s",
-                funcstr, Py_TYPE(kwargs)->tp_name);
-            Py_DECREF(funcstr);
-        }
-    }
-    else if (_PyErr_ExceptionMatches(tstate, PyExc_KeyError)) {
-        PyObject *exc = _PyErr_GetRaisedException(tstate);
-        PyObject *args = ((PyBaseExceptionObject *)exc)->args;
-        if (exc && PyTuple_Check(args) && PyTuple_GET_SIZE(args) == 1) {
-            _PyErr_Clear(tstate);
-            PyObject *funcstr = _PyObject_FunctionStr(func);
-            if (funcstr != NULL) {
-                PyObject *key = PyTuple_GET_ITEM(args, 0);
-                _PyErr_Format(
-                    tstate, PyExc_TypeError,
-                    "%U got multiple values for keyword argument '%S'",
-                    funcstr, key);
-                Py_DECREF(funcstr);
-            }
-            Py_XDECREF(exc);
-        }
-        else {
-            _PyErr_SetRaisedException(tstate, exc);
-        }
-    }
-}
-void Cix_format_kwargs_error(
-    PyThreadState* tstate,
-    PyObject* func,
-    PyObject* kwargs) {
-  format_kwargs_error(tstate, func, kwargs);
-}
-
-static void
-format_exc_check_arg(PyThreadState *tstate, PyObject *exc,
-                     const char *format_str, PyObject *obj)
-{
-    const char *obj_str;
-
-    if (!obj)
-        return;
-
-    obj_str = PyUnicode_AsUTF8(obj);
-    if (!obj_str)
-        return;
-
-    _PyErr_Format(tstate, exc, format_str, obj_str);
-
-    if (exc == PyExc_NameError) {
-        // Include the name in the NameError exceptions to offer suggestions later.
-        PyObject *exc = PyErr_GetRaisedException();
-        if (PyErr_GivenExceptionMatches(exc, PyExc_NameError)) {
-            if (((PyNameErrorObject*)exc)->name == NULL) {
-                // We do not care if this fails because we are going to restore the
-                // NameError anyway.
-                (void)PyObject_SetAttr(exc, &_Py_ID(name), obj);
-            }
-        }
-        PyErr_SetRaisedException(exc);
-    }
-}
-void Cix_format_exc_check_arg(
-    PyThreadState* tstate,
-    PyObject* exc,
-    const char* format_str,
-    PyObject* obj) {
-  format_exc_check_arg(tstate, exc, format_str, obj);
-}
-
-// Internal dependencies for gc_freeze_impl.
-#ifdef Py_DEBUG
-#  define GC_DEBUG
-#endif
-#define GC_NEXT _PyGCHead_NEXT
-#define GC_PREV _PyGCHead_PREV
-#define PREV_MASK_COLLECTING   _PyGC_PREV_MASK_COLLECTING
-#define NEXT_MASK_UNREACHABLE  (1)
-#define AS_GC(o) ((PyGC_Head *)(((char *)(o))-sizeof(PyGC_Head)))
-#define FROM_GC(g) ((PyObject *)(((char *)(g))+sizeof(PyGC_Head)))
-#define DEBUG_STATS             (1<<0) /* print collection statistics */
-#define DEBUG_COLLECTABLE       (1<<1) /* print collectable objects */
-#define DEBUG_UNCOLLECTABLE     (1<<2) /* print uncollectable objects */
-#define DEBUG_SAVEALL           (1<<5) /* save all garbage in gc.garbage */
-#define DEBUG_LEAK              DEBUG_COLLECTABLE | \
-                DEBUG_UNCOLLECTABLE | \
-                DEBUG_SAVEALL
-#define GEN_HEAD(gcstate, n) (&(gcstate)->generations[n].head)
-#define INIT_HEAD(GEN) \
-    do { \
-        GEN.head._gc_next = (uintptr_t)&GEN.head; \
-        GEN.head._gc_prev = (uintptr_t)&GEN.head; \
-    } while (0)
-#undef INIT_HEAD
-#ifdef GC_DEBUG
-#else
-#define validate_list(x, y) do{}while(0)
-#endif
-#define ADD_INT(NAME) if (PyModule_AddIntConstant(module, #NAME, NAME) < 0) { return -1; }
-#undef ADD_INT
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-typedef struct _gc_runtime_state GCState;
-static inline void
-gc_list_init(PyGC_Head *list)
-{
-    // List header must not have flags.
-    // We can assign pointer by simple cast.
-    list->_gc_prev = (uintptr_t)list;
-    list->_gc_next = (uintptr_t)list;
-}
-static inline int
-gc_list_is_empty(PyGC_Head *list)
-{
-    return (list->_gc_next == (uintptr_t)list);
-}
-static GCState *
-get_gc_state(void)
-{
-    PyInterpreterState *interp = _PyInterpreterState_GET();
-    return &interp->gc;
-}
-static void
-gc_list_merge(PyGC_Head *from, PyGC_Head *to)
-{
-    assert(from != to);
-    if (!gc_list_is_empty(from)) {
-        PyGC_Head *to_tail = GC_PREV(to);
-        PyGC_Head *from_head = GC_NEXT(from);
-        PyGC_Head *from_tail = GC_PREV(from);
-        assert(from_head != from);
-        assert(from_tail != from);
-
-        _PyGCHead_SET_NEXT(to_tail, from_head);
-        _PyGCHead_SET_PREV(from_head, to_tail);
-
-        _PyGCHead_SET_NEXT(from_tail, to);
-        _PyGCHead_SET_PREV(to, from_tail);
-    }
-    gc_list_init(from);
-}
-// End internal dependencies.
-
-static PyObject *
-gc_freeze_impl(PyObject *module)
-/*[clinic end generated code: output=502159d9cdc4c139 input=b602b16ac5febbe5]*/
-{
-    GCState *gcstate = get_gc_state();
-    for (int i = 0; i < NUM_GENERATIONS; ++i) {
-        gc_list_merge(GEN_HEAD(gcstate, i), &gcstate->permanent_generation.head);
-        gcstate->generations[i].count = 0;
-    }
-    Py_RETURN_NONE;
-}
-PyObject* Cix_gc_freeze_impl(PyObject* mod) {
-  return gc_freeze_impl(mod);
-}
-
-// Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
-
-PyObject* builtin_next_impl(PyObject *it, PyObject* def)
-{
-    PyObject *res;
-
-    if (!PyIter_Check(it)) {
-        PyErr_Format(PyExc_TypeError,
-                "'%.200s' object is not an iterator",
-                Py_TYPE(it)->tp_name);
-        return NULL;
-    }
-
-    res = (*Py_TYPE(it)->tp_iternext)(it);
-    if (res != NULL) {
-        return res;
-    } else if (def != NULL) {
-        if (PyErr_Occurred()) {
-            if(!PyErr_ExceptionMatches(PyExc_StopIteration))
-                return NULL;
-            PyErr_Clear();
-        }
-        return Py_NewRef(def);
-    } else if (PyErr_Occurred()) {
-        return NULL;
-    } else {
-        PyErr_SetNone(PyExc_StopIteration);
-        return NULL;
-    }
-}
-
-PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
-    return builtin_next_impl(it, def);
-}
-
 int init_upstream_borrow(void) {
-  // Nothing to do here; retained for consistency with 3.10
+  // 3.10 ONLY!!!
+  PyObject* empty_dict = PyDict_New();
+  if (empty_dict == NULL) {
+    return -1;
+  }
+  empty_values = ((PyDictObject*)empty_dict)->ma_values;
+  Py_DECREF(empty_dict);
+
+  // Initialize the Cix_PyUnion_Type global reference.
+  PyObject* unionobj =
+      PyNumber_Or((PyObject*)&PyLong_Type, (PyObject*)&PyUnicode_Type);
+  if (unionobj != NULL) {
+    Cix_PyUnion_Type = Py_TYPE(unionobj);
+    Py_DECREF(unionobj);
+  }
+  if (Cix_PyUnion_Type == NULL) {
+    return -1;
+  }
+
   return 0;
 }

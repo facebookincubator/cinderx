@@ -2,7 +2,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
 // This file is processed by UpstreamBorrow.py. To see the generated output:
-// buck build -m ovr_config//third-party/python/constraints:3.12 \
+// buck build -m ovr_config//third-party/python/constraints:3.14 \
 //     --out=- fbcode//cinderx/UpstreamBorrow:borrowed_gen_borrowed.c
 
 // clang-format off
@@ -35,7 +35,7 @@ int Cix_PyObjectDict_SetItem(
   return _PyObjectDict_SetItem(tp, dictptr, key, value);
 }
 
-// @Borrow function set_attribute_error_context from Objects/object.c
+// @Borrow function _PyObject_SetAttributeErrorContext from Objects/object.c
 
 // Wrapper as set_attribute_error_context is declared "static inline".
 int
@@ -58,48 +58,13 @@ int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
   return do_raise(tstate, exc, cause);
 }
 
-// Internal dependencies for match_class.
-// @Borrow function match_class_attr from Python/ceval.c
-// End internal dependencies.
-// @Borrow function match_class from Python/ceval.c
-PyObject* Cix_match_class(
-    PyThreadState* tstate,
-    PyObject* subject,
-    PyObject* type,
-    Py_ssize_t nargs,
-    PyObject* kwargs) {
-  return match_class(tstate, subject, type, nargs, kwargs);
-}
-
-// @Borrow function match_keys from Python/ceval.c
-PyObject* Cix_match_keys(PyThreadState* tstate, PyObject* map, PyObject* keys) {
-  return match_keys(tstate, map, keys);
-}
-
-// @Borrow function format_kwargs_error from Python/ceval.c
-void Cix_format_kwargs_error(
-    PyThreadState* tstate,
-    PyObject* func,
-    PyObject* kwargs) {
-  format_kwargs_error(tstate, func, kwargs);
-}
-
-// @Borrow function format_exc_check_arg from Python/ceval.c
-void Cix_format_exc_check_arg(
-    PyThreadState* tstate,
-    PyObject* exc,
-    const char* format_str,
-    PyObject* obj) {
-  format_exc_check_arg(tstate, exc, format_str, obj);
-}
-
 // Internal dependencies for gc_freeze_impl.
 // @Borrow CPP directives noinclude from Modules/gcmodule.c
 // @Borrow typedef GCState from Modules/gcmodule.c
-// @Borrow function gc_list_init from Modules/gcmodule.c
-// @Borrow function gc_list_is_empty from Modules/gcmodule.c
+// @Borrow function gc_list_init from Python/gc.c
+// @Borrow function gc_list_is_empty from Python/gc.c
 // @Borrow function get_gc_state from Modules/gcmodule.c
-// @Borrow function gc_list_merge from Modules/gcmodule.c
+// @Borrow function gc_list_merge from Python/gc.c
 // End internal dependencies.
 
 // @Borrow function gc_freeze_impl from Modules/gcmodule.c
