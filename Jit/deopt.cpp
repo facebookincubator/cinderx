@@ -122,7 +122,7 @@ static void reifyLocalsplus(
 #if PY_VERSION_HEX < 0x030C0000
   PyObject** localsplus = &frame->f_localsplus[0];
 #else
-  PyObject** localsplus = &frame->localsplus[0];
+  Ci_STACK_TYPE* localsplus = &frame->localsplus[0];
 #endif
 
   BorrowedRef<PyCodeObject> code = frameCode(frame);
@@ -133,10 +133,10 @@ static void reifyLocalsplus(
     const LiveValue* value = meta.getLocalValue(i, frame_meta);
     if (value == nullptr) {
       // Value is dead
-      *localsplus = nullptr;
+      *localsplus = Ci_STACK_NULL;
     } else {
       PyObject* obj = mem.readOwned(*value).release();
-      *localsplus = obj;
+      *localsplus = Ci_STACK_STEAL(obj);
     }
     localsplus++;
   }
@@ -145,10 +145,10 @@ static void reifyLocalsplus(
   for (std::size_t i = free_offset; i < frame_meta.localsplus.size(); i++) {
     const LiveValue* value = meta.getLocalValue(i, frame_meta);
     if (value == nullptr) {
-      Py_CLEAR(*localsplus);
+      Ci_STACK_CLEAR(*localsplus);
     } else {
       PyObject* obj = mem.readOwned(*value).release();
-      Py_XSETREF(*localsplus, obj);
+      Ci_STACK_XSETREF(*localsplus, obj);
     }
     localsplus++;
   }
@@ -159,7 +159,12 @@ static void reifyStack(
     const DeoptMetadata& meta,
     const DeoptFrameMetadata& frame_meta,
     const MemoryView& mem) {
-#if PY_VERSION_HEX < 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  frame->stackpointer =
+      &frame->localsplus
+           [_PyFrame_GetCode(frame)->co_nlocalsplus + frame_meta.stack.size()];
+  _PyStackRef* stack_top = frame->stackpointer - 1;
+#elif PY_VERSION_HEX < 0x030C0000
   frame->f_stackdepth = frame_meta.stack.size();
   PyObject** stack_top = &frame->f_valuestack[frame->f_stackdepth - 1];
 #else
@@ -179,12 +184,12 @@ static void reifyStack(
       // which we need to replace with nullptr to match the interpreter
       // semantics.
       if (obj == Py_None) {
-        *stack_top = nullptr;
+        *stack_top = Ci_STACK_NULL;
       } else {
-        *stack_top = obj.release();
+        *stack_top = Ci_STACK_STEAL(obj.release());
       }
     } else {
-      *stack_top = obj.release();
+      *stack_top = Ci_STACK_STEAL(obj.release());
     }
     stack_top--;
   }

@@ -680,7 +680,8 @@ void JITRT_InitFrameCellVars(
   int offset = co->co_nlocalsplus - nvars;
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
   for (int i = 0; i < nvars; i++) {
-    frame->localsplus[offset + i] = Py_NewRef(PyTuple_GET_ITEM(closure, i));
+    frame->localsplus[offset + i] =
+        Ci_STACK_NEWREF(PyTuple_GET_ITEM(closure, i));
   }
 }
 
