@@ -4,18 +4,14 @@
 
 #include <Python.h>
 
-#if PY_VERSION_HEX >= 0x030E0000
-#include "internal/pycore_dict.h"
-#endif
-
 #if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_ceval.h"
 #include "internal/pycore_modsupport.h"
 #include "internal/pycore_setobject.h"
 #endif
 
 #include "internal/pycore_bitutils.h" // _Py_bit_length
 #include "internal/pycore_gc.h" // _PyObject_GC_IS_TRACKED()
-#include "internal/pycore_interp.h" // PyDict_MAXFREELIST
 #include "internal/pycore_object.h" // _PyObject_GC_TRACK()
 #include "internal/pycore_pystate.h" // _Py_InterpreterState_GET
 
@@ -338,11 +334,15 @@ static PyObject* dict_iter(CiChkDictObject* dict);
 
 static void free_keys_object(ChkDictKeysObject* keys);
 
+#ifndef CiDict_MAXFREELIST
+#define CiDict_MAXFREELIST 80
+#endif
+
 typedef struct _Ci_dict_state {
   /* Dictionary reuse scheme to save calls to malloc and free */
-  CiChkDictObject* free_list[PyDict_MAXFREELIST];
+  CiChkDictObject* free_list[CiDict_MAXFREELIST];
   int numfree;
-  PyDictKeysObject* keys_free_list[PyDict_MAXFREELIST];
+  PyDictKeysObject* keys_free_list[CiDict_MAXFREELIST];
   int keys_numfree;
 } _Ci_dict_state;
 
@@ -572,7 +572,6 @@ int Ci_CheckedDict_CheckConsistency(PyObject* op, int check_content) {
   CiChkDictObject* mp = (CiChkDictObject*)op;
 
   ChkDictKeysObject* keys = mp->ma_keys;
-  int split = _PyDict_HasSplitTable(mp);
   Py_ssize_t usable = USABLE_FRACTION(keys->dk_size);
 
   CHECK(0 <= mp->ma_used && mp->ma_used <= usable);
@@ -581,8 +580,8 @@ int Ci_CheckedDict_CheckConsistency(PyObject* op, int check_content) {
   CHECK(0 <= keys->dk_nentries && keys->dk_nentries <= usable);
   CHECK(keys->dk_usable + keys->dk_nentries <= usable);
 
-  if (!split) {
-    /* combined table */
+  /* combined table */
+  if (keys != Py_EMPTY_KEYS) {
     CHECK(keys->dk_refcnt == 1);
   }
 
@@ -608,20 +607,7 @@ int Ci_CheckedDict_CheckConsistency(PyObject* op, int check_content) {
           /* test_dict fails if PyObject_Hash() is called again */
           CHECK(entry->me_hash != -1);
         }
-        if (!split) {
-          CHECK(entry->me_value != NULL);
-        }
-      }
-
-      if (split) {
-        CHECK(entry->me_value == NULL);
-      }
-    }
-
-    if (split) {
-      /* split table */
-      for (i = 0; i < mp->ma_used; i++) {
-        CHECK(mp->ma_values[i] != NULL);
+        CHECK(entry->me_value != NULL);
       }
     }
   }
@@ -694,7 +680,7 @@ static void free_keys_object(ChkDictKeysObject* keys) {
   assert(state == NULL || state->keys_numfree != -1);
 #endif
   if (keys->dk_size == PyDict_MINSIZE && state != NULL &&
-      state->keys_numfree < PyDict_MAXFREELIST) {
+      state->keys_numfree < CiDict_MAXFREELIST) {
     state->keys_free_list[state->keys_numfree++] = keys;
     return;
   }
@@ -1051,14 +1037,6 @@ static int insertdict(
   /* When insertion order is different from shared key, we can't share
    * the key anymore.  Convert this instance to combine table.
    */
-  if (_PyDict_HasSplitTable(mp) &&
-      ((ix >= 0 && old_value == NULL && mp->ma_used != ix) ||
-       (ix == DKIX_EMPTY && mp->ma_used != mp->ma_keys->dk_nentries))) {
-    if (insertion_resize(mp) < 0)
-      goto Fail;
-    ix = DKIX_EMPTY;
-  }
-
   if (ix == DKIX_EMPTY) {
     /* Insert into new slot. */
     assert(old_value == NULL);
@@ -1090,17 +1068,8 @@ static int insertdict(
   }
 
   if (old_value != value) {
-    if (_PyDict_HasSplitTable(mp)) {
-      mp->ma_values[ix] = value;
-      if (old_value == NULL) {
-        /* pending state */
-        assert(ix == mp->ma_used);
-        mp->ma_used++;
-      }
-    } else {
-      assert(old_value != NULL);
-      DK_ENTRIES(mp->ma_keys)[ix].me_value = value;
-    }
+    assert(old_value != NULL);
+    DK_ENTRIES(mp->ma_keys)[ix].me_value = value;
   }
   Py_XDECREF(old_value); /* which **CAN** re-enter (see issue #22653) */
   ASSERT_CONSISTENT(mp);
@@ -1254,7 +1223,7 @@ static int dictresize(CiChkDictObject* mp, Py_ssize_t newsize) {
     assert(state == NULL || state->keys_numfree != -1);
 #endif
     if (oldkeys->dk_size == PyDict_MINSIZE && state != NULL &&
-        state->keys_numfree < PyDict_MAXFREELIST) {
+        state->keys_numfree < CiDict_MAXFREELIST) {
       state->keys_free_list[state->keys_numfree++] = oldkeys;
     } else {
       PyObject_Free(oldkeys);
@@ -1411,15 +1380,6 @@ static PyObject* Ci_CheckedDict_Pop_KnownHash(
     return NULL;
   }
 
-  // Split table doesn't allow deletion.  Combine it.
-  if (_PyDict_HasSplitTable(mp)) {
-    if (dictresize(mp, DK_SIZE(mp->ma_keys))) {
-      return NULL;
-    }
-    ix = mp->ma_keys->dk_lookup(mp, key, hash, &old_value, 1);
-    assert(ix >= 0);
-  }
-
   hashpos = lookdict_index(mp->ma_keys, hash, ix);
   assert(hashpos >= 0);
   assert(old_value != NULL);
@@ -1491,7 +1451,7 @@ static void dict_dealloc(CiChkDictObject* mp) {
   // new_dict() must not be called after _PyDict_Fini()
   assert(state == NULL || state->numfree != -1);
 #endif
-  if (state != NULL && state->numfree < PyDict_MAXFREELIST) {
+  if (state != NULL && state->numfree < CiDict_MAXFREELIST) {
     state->free_list[state->numfree++] = mp;
   } else {
     Py_TYPE(mp)->tp_free((PyObject*)mp);
@@ -1606,6 +1566,17 @@ static PyObject* dict_subscript(CiChkDictObject* mp, PyObject* key) {
   return value;
 }
 
+int _CiDict_Contains_KnownHash(PyObject* op, PyObject* key, Py_hash_t hash) {
+  CiChkDictObject* mp = (CiChkDictObject*)op;
+  PyObject* value;
+  Py_ssize_t ix;
+
+  ix = (mp->ma_keys->dk_lookup)(mp, key, hash, &value, 1);
+  if (ix == DKIX_ERROR)
+    return -1;
+  return (ix != DKIX_EMPTY && value != NULL);
+}
+
 static int dict_merge(PyObject* a, PyObject* b, int override) {
   CiChkDictObject *mp, *other;
   Py_ssize_t i, n;
@@ -1694,7 +1665,7 @@ static int dict_merge(PyObject* a, PyObject* b, int override) {
         if (override == 1)
           err = insertdict(mp, key, hash, value);
         else {
-          err = _PyDict_Contains_KnownHash(a, key, hash);
+          err = _CiDict_Contains_KnownHash(a, key, hash);
           if (err == 0) {
             err = insertdict(mp, key, hash, value);
           } else if (err > 0) {
@@ -1975,15 +1946,6 @@ Ci_CheckedDict_SetDefault(PyObject* d, PyObject* key, PyObject* defaultobj) {
   if (ix == DKIX_ERROR || ix == DKIX_VALUE_ERROR)
     return NULL;
 
-  if (_PyDict_HasSplitTable(mp) &&
-      ((ix >= 0 && value == NULL && mp->ma_used != ix) ||
-       (ix == DKIX_EMPTY && mp->ma_used != mp->ma_keys->dk_nentries))) {
-    if (insertion_resize(mp) < 0) {
-      return NULL;
-    }
-    ix = DKIX_EMPTY;
-  }
-
   if (ix == DKIX_EMPTY) {
     ChkDictKeyEntry *ep, *ep0;
     value = defaultobj;
@@ -2004,24 +1966,13 @@ Ci_CheckedDict_SetDefault(PyObject* d, PyObject* key, PyObject* defaultobj) {
     MAINTAIN_TRACKING(mp, key, value);
     ep->me_key = key;
     ep->me_hash = hash;
-    if (_PyDict_HasSplitTable(mp)) {
-      assert(mp->ma_values[mp->ma_keys->dk_nentries] == NULL);
-      mp->ma_values[mp->ma_keys->dk_nentries] = value;
-    } else {
-      ep->me_value = value;
-    }
+    ep->me_value = value;
     mp->ma_used++;
     mp->ma_keys->dk_usable--;
     mp->ma_keys->dk_nentries++;
     assert(mp->ma_keys->dk_usable >= 0);
   } else if (value == NULL) {
-    value = defaultobj;
-    assert(_PyDict_HasSplitTable(mp));
-    assert(ix == mp->ma_used);
-    Py_INCREF(value);
-    MAINTAIN_TRACKING(mp, key, value);
-    mp->ma_values[ix] = value;
-    mp->ma_used++;
+    assert(0);
   }
 
   ASSERT_CONSISTENT(mp);
@@ -2394,6 +2345,54 @@ static inline int chkdict_checkval(CiChkDictObject* d, PyObject* value) {
   return 0;
 }
 
+static int delitem_common(
+    CiChkDictObject* mp,
+    Py_hash_t hash,
+    Py_ssize_t ix,
+    PyObject* old_value) {
+  PyObject* old_key;
+  ChkDictKeyEntry* ep;
+
+  Py_ssize_t hashpos = lookdict_index(mp->ma_keys, hash, ix);
+  assert(hashpos >= 0);
+
+  mp->ma_used--;
+  ep = &DK_ENTRIES(mp->ma_keys)[ix];
+  dictkeys_set_index(mp->ma_keys, hashpos, DKIX_DUMMY);
+  ENSURE_ALLOWS_DELETIONS(mp);
+  old_key = ep->me_key;
+  ep->me_key = NULL;
+  ep->me_value = NULL;
+  Py_DECREF(old_key);
+  Py_DECREF(old_value);
+
+  ASSERT_CONSISTENT(mp);
+  return 0;
+}
+
+int _CiDict_DelItem_KnownHash(PyObject* op, PyObject* key, Py_hash_t hash) {
+  Py_ssize_t ix;
+  CiChkDictObject* mp;
+  PyObject* old_value;
+
+  if (!PyDict_Check(op)) {
+    PyErr_BadInternalCall();
+    return -1;
+  }
+  assert(key);
+  assert(hash != -1);
+  mp = (CiChkDictObject*)op;
+  ix = (mp->ma_keys->dk_lookup)(mp, key, hash, &old_value, 0);
+  if (ix == DKIX_ERROR)
+    return -1;
+  if (ix == DKIX_EMPTY || old_value == NULL) {
+    _PyErr_SetKeyError(key);
+    return -1;
+  }
+
+  return delitem_common(mp, hash, ix, old_value);
+}
+
 static int
 chkdict_ass_sub(CiChkDictObject* mp, PyObject* key, PyObject* value) {
   if (chkdict_checkkey(mp, key)) {
@@ -2413,7 +2412,7 @@ chkdict_ass_sub(CiChkDictObject* mp, PyObject* key, PyObject* value) {
   }
 
   if (value == NULL) {
-    return _PyDict_DelItem_KnownHash((PyObject*)mp, key, hash);
+    return _CiDict_DelItem_KnownHash((PyObject*)mp, key, hash);
   } else if (!chkdict_checkval(mp, value)) {
     if (mp->ma_keys == Py_EMPTY_KEYS) {
       return insert_to_emptydict(mp, key, hash, value);
@@ -2441,7 +2440,7 @@ chkdict_ass_sub_unchecked(CiChkDictObject* mp, PyObject* key, PyObject* value) {
   }
 
   if (key == NULL) {
-    return _PyDict_DelItem_KnownHash((PyObject*)mp, key, hash);
+    return _CiDict_DelItem_KnownHash((PyObject*)mp, key, hash);
   }
 
   if (mp->ma_keys == Py_EMPTY_KEYS) {
@@ -3855,7 +3854,7 @@ static PyObject* dictitems_xor(PyObject* self, PyObject* other) {
     }
 
     if (to_delete) {
-      if (_PyDict_DelItem_KnownHash(temp_dict, key, hash) < 0) {
+      if (_CiDict_DelItem_KnownHash(temp_dict, key, hash) < 0) {
         goto error;
       }
     } else {
