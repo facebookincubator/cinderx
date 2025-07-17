@@ -120,6 +120,16 @@ try:
         from _cinderx import delay_adaptive, get_adaptive_delay, set_adaptive_delay
 
 except ImportError as e:
+    if "undefined symbol:" in str(e):
+        # If we're on a dev build report this as an error, otherwise muddle along with alternative definitions
+        # on unsupported Python's.
+        from os.path import dirname, exists, join
+
+        if exists(join(dirname(__file__), ".dev_build")):
+            raise ImportError(
+                "The _cinderx native extension is not available due to a missing symbol. This is likely a bug you introduced.  "
+                "Please ensure that the cinderx kernel is being used."
+            ) from e
     _import_error = e
 
     cinderx_init = None
