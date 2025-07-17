@@ -33,9 +33,37 @@ static inline int Ci_List_CheckExactIncludingChecked(PyObject* op) {
  * Ci_CheckedListRevIter_Type, and use Ci_CheckedList_* macros in place of
  * PyList_*. */
 
-static struct _Py_list_state* get_list_state(void) {
+#define ChkList_MAXFREELIST 80
+
+typedef struct _Ci_list_state {
+  /* Dictionary reuse scheme to save calls to malloc and free */
+  PyListObject* free_list[ChkList_MAXFREELIST];
+  int numfree;
+} _Ci_list_state;
+
+_Ci_list_state _list_state;
+
+static _Ci_list_state* get_list_state(void) {
   PyInterpreterState* interp = _PyInterpreterState_GET();
-  return &interp->list;
+  if (PyInterpreterState_GetID(interp) == 0) {
+    return &_list_state;
+  }
+  return NULL;
+}
+
+void _PyCheckedList_ClearCaches() {
+  _Ci_list_state* state = get_list_state();
+  if (state != NULL) {
+    for (int i = 0; i < state->numfree; i++) {
+      // We've already decref'd the type so it could have gone
+      // away since we've freed the object. So set the type to
+      // list which has the same GC characteristics (e.g. preheader)
+      // as us.
+      ((PyObject*)state->free_list[i])->ob_type = &PyList_Type;
+      PyObject_GC_Del((PyObject*)state->free_list[i]);
+    }
+    state->numfree = 0;
+  }
 }
 
 /* Ensure ob_item has room for at least newsize elements, and set
@@ -194,12 +222,12 @@ static void list_dealloc(PyListObject* op) {
     }
     PyMem_Free(op->ob_item);
   }
-  struct _Py_list_state* state = get_list_state();
+  struct _Ci_list_state* state = get_list_state();
 #ifdef Py_DEBUG
   // list_dealloc() must not be called after _PyList_Fini()
   assert(state->numfree != -1);
 #endif
-  if (state->numfree < PyList_MAXFREELIST &&
+  if (state->numfree < ChkList_MAXFREELIST &&
       Ci_List_CheckIncludingChecked((PyObject*)op)) {
     state->free_list[state->numfree++] = op;
   } else {
@@ -3157,7 +3185,7 @@ exit:
 #endif
 
 static PyObject* chklist_alloc(PyTypeObject* type, Py_ssize_t nitems) {
-  struct _Py_list_state* state = get_list_state();
+  struct _Ci_list_state* state = get_list_state();
   PyListObject* op;
 
   if (state->numfree) {

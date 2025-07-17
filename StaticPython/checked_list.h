@@ -19,6 +19,8 @@ int Ci_ListOrCheckedList_Append(PyListObject* self, PyObject* v);
 
 int Ci_CheckedList_Check(PyObject* op);
 
+void _PyCheckedList_ClearCaches();
+
 #define Ci_CheckedList_CAST(op) \
   (assert(Ci_CheckedList_Check((PyObject*)op)), (PyListObject*)(op))
 

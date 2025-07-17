@@ -45,6 +45,7 @@
 #include "cinderx/Shadowcode/shadowcode.h"
 #include "cinderx/StaticPython/_static.h"
 #include "cinderx/StaticPython/checked_dict.h"
+#include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
 #include "cinderx/StaticPython/errors.h"
@@ -75,6 +76,7 @@ PyObject* clear_caches(PyObject* mod, PyObject*) {
   auto state = (cinderx::ModuleState*)PyModule_GetState(mod);
   state->cacheManager()->clear();
   _PyCheckedDict_ClearCaches();
+  _PyCheckedList_ClearCaches();
   _PyClassLoader_ClearValueCache();
   // We replace sys._clear_type_cache with our own function which
   // clears the caches, so we should call this too.
