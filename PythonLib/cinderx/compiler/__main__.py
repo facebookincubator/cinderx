@@ -14,6 +14,7 @@ from typing import Pattern, TextIO
 
 from .pycodegen import CinderCodeGenerator, CodeGenerator312, compile_code, make_header
 from .static import FIXED_MODULES, StaticCodeGenerator
+from .strict import StrictCodeGenerator
 
 try:
     from cinder import StrictModule
@@ -84,7 +85,16 @@ def main() -> None:
         codeobj = compile(source, args.input, "exec")
         assert isinstance(codeobj, CodeType)
     else:
-        compiler = StaticCodeGenerator if args.static else CinderCodeGenerator
+        if args.static and args.strict:
+            raise ValueError("Cannot specify both --static and --strict options.")
+
+        compiler = (
+            StaticCodeGenerator
+            if args.static
+            else StrictCodeGenerator
+            if args.strict
+            else CinderCodeGenerator
+        )
 
         codeobj = compile_code(
             source,
@@ -115,7 +125,7 @@ def main() -> None:
         else:
             mod = type(sys)("__main__")
             d = mod.__dict__
-        if args.static:
+        if args.static or args.strict:
             d["<fixed-modules>"] = FIXED_MODULES
         d["<builtins>"] = builtins.__dict__
         sys.modules["__main__"] = mod
