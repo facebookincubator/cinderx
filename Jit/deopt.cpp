@@ -313,7 +313,11 @@ static void reifyFrameImpl(
   // the next instruction to execute. This means it might point to inline-
   // cache data or a negative location.
   int idx = (getDeoptResumeIndex(meta, frame_meta, forced_deopt) - 1).value();
+#if PY_VERSION_HEX >= 0x030E0000
+  frame->instr_ptr = _PyCode_CODE(_PyFrame_GetCode(frame)) + idx + 1;
+#else
   frame->prev_instr = _PyCode_CODE(_PyFrame_GetCode(frame)) + idx;
+#endif
 
   MemoryView mem{regs};
   reifyLocalsplus(frame, meta, frame_meta, mem);

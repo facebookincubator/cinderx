@@ -3010,18 +3010,27 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kUpdatePrevInstr: {
+// We are directly referencing co_code_adaptive here rather than using
+// codeUnit() as we need to refer to the code the interpreter would
+// execute. codeUnit() returns a pointer to non-adapted bytecode.
 #if PY_VERSION_HEX >= 0x030C0000
-        // We are directly referencing co_code_adaptive here rather than using
-        // codeUnit() as we need to refer to the code the interpreter would
-        // execute. codeUnit() returns a pointer to non-adapted bytecode.
         _Py_CODEUNIT* prev_instr_ptr = i.bytecodeOffset().asIndex().value() +
             reinterpret_cast<_Py_CODEUNIT*>(i.code()->co_code_adaptive);
+#if PY_VERSION_HEX >= 0x030E0000
+        bbb.appendInstr(
+            OutInd{
+                env_->asm_interpreter_frame,
+                offsetof(_PyInterpreterFrame, instr_ptr)},
+            Instruction::kMove,
+            prev_instr_ptr + 1);
+#elif PY_VERSION_HEX >= 0x030C0000
         bbb.appendInstr(
             OutInd{
                 env_->asm_interpreter_frame,
                 offsetof(_PyInterpreterFrame, prev_instr)},
             Instruction::kMove,
             prev_instr_ptr);
+#endif
 #endif
         break;
       }
