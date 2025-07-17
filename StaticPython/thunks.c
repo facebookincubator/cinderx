@@ -2,8 +2,6 @@
 
 #include "cinderx/StaticPython/thunks.h"
 
-#include "cinderx/CachedProperties/cached_properties.h"
-#include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/functype.h"
 
