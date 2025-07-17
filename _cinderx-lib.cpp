@@ -849,11 +849,15 @@ void initCinderHooks() {
 }
 
 void initFrameEvalFunc() {
+#ifdef ENABLE_INTERPRETER_LOOP
   Ci_hook_EvalFrame = Ci_EvalFrame;
+#endif
 }
 
 void finiFrameEvalFunc() {
+#ifdef ENABLE_INTERPRETER_LOOP
   Ci_hook_EvalFrame = nullptr;
+#endif
 }
 
 int cinder_init() {

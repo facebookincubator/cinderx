@@ -14,7 +14,9 @@
 #define NEED_OPCODE_TABLES
 #include "cinderx/Interpreter/cinder_opcode.h"
 
+#ifdef ENABLE_INTERPRETER_LOOP
 #include "cinderx/Interpreter/3.12/Includes/ceval.c"
+#endif
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
