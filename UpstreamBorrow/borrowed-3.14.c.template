@@ -8,6 +8,7 @@
 // clang-format off
 
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "internal/pycore_intrinsics.h"
 
 // In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
 // the JIT we could get the value from the thread-state register. This would be
@@ -17,7 +18,7 @@
 // TODO: Find out what exactly we need from the cpp directives here.
 // @Borrow CPP directives from Objects/genobject.c
 PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
-  return _PyAsyncGenValueWrapperNew(PyThreadState_GET(), value);
+  return _PyIntrinsics_UnaryFunctions[INTRINSIC_ASYNC_GEN_WRAP].func(PyThreadState_GET(), value);
 }
 
 // @Borrow function compute_cr_origin from Objects/genobject.c
@@ -25,22 +26,30 @@ PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_f
   return compute_cr_origin(origin_depth, current_frame);
 }
 
-int Cix_PyObjectDict_SetItem(
-    PyTypeObject* tp,
-    PyObject* obj,
-    PyObject** dictptr,
-    PyObject* key,
-    PyObject* value) {
-  (void)obj;
-  return _PyObjectDict_SetItem(tp, dictptr, key, value);
+// @Borrow CPP directives noinclude from Objects/dictobject.c
+// @Borrow function values_size_from_count from Objects/dictobject.c
+// @Borrow function free_keys_object from Objects/dictobject.c
+// @Borrow function new_values from Objects/dictobject.c
+// @Borrow function dictkeys_incref from Objects/dictobject.c
+// @Borrow function dictkeys_decref from Objects/dictobject.c
+// @Borrow function free_values from Objects/dictobject.c
+// @Borrow function new_dict from Objects/dictobject.c
+// @Borrow function new_dict_with_shared_keys from Objects/dictobject.c
+// @Borrow function ensure_nonmanaged_dict from Objects/dictobject.c
+int
+Cix_PyObjectDict_SetItem(PyTypeObject *tp, PyObject *obj, PyObject **dictptr,
+                      PyObject *key, PyObject *value)
+{
+  return PyDict_SetItem(*dictptr, key, value);
 }
+
 
 // @Borrow function _PyObject_SetAttributeErrorContext from Objects/object.c
 
 // Wrapper as set_attribute_error_context is declared "static inline".
 int
 Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
-  return set_attribute_error_context(v, name);
+  return _PyObject_SetAttributeErrorContext(v, name);
 }
 
 // @Borrow var DE_INSTRUMENT from Python/instrumentation.c
@@ -49,10 +58,19 @@ Cix_DEINSTRUMENT(uint8_t op) {
   return DE_INSTRUMENT[op];
 }
 
+
+// @Borrow function get_original_opcode from Python/instrumentation.c
+uint8_t
+Cix_GetOriginalOpcode(_PyCoLineInstrumentationData *line_data, int index) {
+  return get_original_opcode(line_data, index);
+}
+
 // Internal dependencies for Cix_do_raise.
 #define _PyErr_SetRaisedException __PyErr_SetRaisedException
 // @Borrow function _PyErr_SetRaisedException from Python/errors.c
+// @Borrow function _PyErr_GetTopmostException from Python/errors.c
 // End internal dependencies.
+// @Borrow function _PyEval_Vector from Python/ceval.c
 // @Borrow function do_raise from Python/ceval.c
 int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
   return do_raise(tstate, exc, cause);
@@ -60,13 +78,18 @@ int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
 
 // Internal dependencies for gc_freeze_impl.
 // @Borrow CPP directives noinclude from Modules/gcmodule.c
+// @Borrow CPP directives noinclude from Python/gc.c
 // @Borrow typedef GCState from Modules/gcmodule.c
 // @Borrow function gc_list_init from Python/gc.c
 // @Borrow function gc_list_is_empty from Python/gc.c
 // @Borrow function get_gc_state from Modules/gcmodule.c
+// @Borrow function gc_old_space from Python/gc.c
 // @Borrow function gc_list_merge from Python/gc.c
+// @Borrow function gc_set_old_space from Python/gc.c
+// @Borrow function gc_list_set_space from Python/gc.c
 // End internal dependencies.
 
+// @Borrow function _PyGC_Freeze from Python/gc.c
 // @Borrow function gc_freeze_impl from Modules/gcmodule.c
 PyObject* Cix_gc_freeze_impl(PyObject* mod) {
   return gc_freeze_impl(mod);
@@ -111,3 +134,57 @@ int init_upstream_borrow(void) {
   // Nothing to do here; retained for consistency with 3.10
   return 0;
 }
+
+
+// @Borrow function _PyFunction_Vectorcall from Objects/call.c
+
+// @Borrow function managed_static_type_index_is_set from Objects/typeobject.c
+// @Borrow function managed_static_type_index_get from Objects/typeobject.c
+// @Borrow function managed_static_type_state_get from Objects/typeobject.c
+// @Borrow function _PyStaticType_GetState from Objects/typeobject.c
+
+
+// @Borrow function _PyFrame_New_NoTrack from Objects/frameobject.c
+// @Borrow function _PyFrame_MakeAndSetFrameObject from Python/frame.c
+// @Borrow function _PyFrame_ClearLocals from Python/frame.c
+// @Borrow function take_ownership from Python/frame.c
+// @Borrow function _PyFrame_ClearExceptCode from Python/frame.c
+
+
+// @Borrow function _PyObject_HasLen from Objects/abstract.c
+
+#define ASSERT_VALID_BOUNDS(bounds)
+// @Borrow function _PyLineTable_InitAddressRange from Objects/codeobject.c
+// @Borrow function _PyCode_InitAddressRange from Objects/codeobject.c
+// @Borrow function scan_varint from Objects/codeobject.c
+// @Borrow function scan_signed_varint from Objects/codeobject.c
+// @Borrow function get_line_delta from Objects/codeobject.c
+// @Borrow function is_no_line_marker from Objects/codeobject.c
+// @Borrow function next_code_delta from Objects/codeobject.c
+// @Borrow function at_end from Objects/codeobject.c
+// @Borrow function advance from Objects/codeobject.c
+// @Borrow function _PyLineTable_NextAddressRange from Objects/codeobject.c
+
+
+// @Borrow CPP directives noinclude from Python/pystate.c
+// @Borrow CPP directives noinclude from Objects/obmalloc.c
+// @Borrow function _PyObject_VirtualAlloc from Objects/obmalloc.c
+// @Borrow function allocate_chunk from Python/pystate.c
+// @Borrow function push_chunk from Python/pystate.c
+// @Borrow function _PyThreadState_PushFrame from Python/pystate.c
+
+
+PyObject *
+_PyObject_Call(PyThreadState *tstate, PyObject *callable,
+               PyObject *args, PyObject *kwargs)
+{
+  return PyObject_Call(callable, args, kwargs);
+}
+
+
+void _PyErr_SetObject(
+    PyThreadState *tstate,
+    PyObject *type,
+    PyObject *value) {
+    PyErr_SetObject(type, value);
+ }

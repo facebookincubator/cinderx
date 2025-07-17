@@ -172,3 +172,8 @@ inline PyCodeObject* frameCode(PyFrameObject* frame) {
   } while (0)
 #define Ci_STACK_NEWREF(VAL) _PyStackRef_FromPyObjectNew(VAL)
 #endif
+
+#if PY_VERSION_HEX >= 0x030E0000
+#define _PyObject_Call(tstate, callable, args, kwargs) \
+  PyObject_Call(callable, args, kwargs)
+#endif

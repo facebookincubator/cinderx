@@ -9,21 +9,23 @@
 
 #include <Python.h>
 #include "internal/pycore_object.h"
+#include "internal/pycore_genobject.h"
 
 #include "cinderx/Jit/generators_borrowed.h"
 #include "cinderx/Jit/generators_core.h"
 
+// @Borrow CPP directives noinclude from Objects/iterobject.c
 // @Borrow function anextawaitable_dealloc from Objects/iterobject.c
 void Ci_anextawaitable_dealloc(anextawaitableobject* obj) {
   PyTypeObject *type = Py_TYPE(obj);
-  anextawaitable_dealloc(obj);
+  anextawaitable_dealloc((PyObject*)obj);
   // Heap types increment their type, so we need to decrement it here:
   Py_DECREF(type);
 }
 
 // @Borrow function anextawaitable_traverse from Objects/iterobject.c
 int Ci_anextawaitable_traverse(anextawaitableobject* obj, visitproc visit, void* arg) {
-  return anextawaitable_traverse(obj, visit, arg);
+  return anextawaitable_traverse((PyObject*)obj, visit, arg);
 }
 
 // We want to use anextawaitable_getiter but make it aware of JITed co-routines.
@@ -46,24 +48,24 @@ static inline bool coro_inexact(PyObject* obj) {
 // @Borrow function anextawaitable_proxy from Objects/iterobject.c
 // @Borrow function anextawaitable_iternext from Objects/iterobject.c
 PyObject* Ci_anextawaitable_iternext(anextawaitableobject* obj) {
-  return anextawaitable_iternext(obj);
+  return anextawaitable_iternext((PyObject*)obj);
 }
 
 // @Borrow function anextawaitable_send from Objects/iterobject.c
 PyObject* Ci_anextawaitable_send(anextawaitableobject* obj, PyObject* arg) {
-  return anextawaitable_send(obj, arg);
+  return anextawaitable_send((PyObject*)obj, arg);
 }
 
 // @Borrow function anextawaitable_throw from Objects/iterobject.c
 PyObject* Ci_anextawaitable_throw(
     anextawaitableobject* obj,
     PyObject* arg) {
-  return anextawaitable_throw(obj, arg);
+  return anextawaitable_throw((PyObject*)obj, arg);
 }
 
 // @Borrow function anextawaitable_close from Objects/iterobject.c
 PyObject* Ci_anextawaitable_close(
     anextawaitableobject* obj,
     PyObject* arg) {
-    return anextawaitable_close(obj, arg);
+    return anextawaitable_close((PyObject*)obj, arg);
 }
