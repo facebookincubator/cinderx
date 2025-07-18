@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/deopt.h"
 
-#include "frameobject.h"
-
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
