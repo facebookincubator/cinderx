@@ -207,7 +207,8 @@ set(INTERP_SOURCES ${PROJECT_SOURCE_DIR}/Interpreter/iter_helpers.c)
 if (${PY_VERSION} EQUAL 3.12)
   set(SOURCE_CINDERX_OPCODE_TARGETS_H ${PROJECT_SOURCE_DIR}/Interpreter/3.12/cinderx_opcode_targets.h)
   set(SOURCE_CINDER_OPCODE_H ${PROJECT_SOURCE_DIR}/Interpreter/3.12/cinder_opcode.h)
-  set(SOURCE_OPCODE_H ${PROJECT_SOURCE_DIR}/Interpreter/3.12/opcode.h)
+  set(SOURCE_CINDER_OPCODE_IDS_H ${PROJECT_SOURCE_DIR}/Interpreter/3.12/cinder_opcode_ids.h)
+  set(SOURCE_CINDER_OPCODE_METADATA_H ${PROJECT_SOURCE_DIR}/Interpreter/3.12/cinder_opcode_metadata.h)
 
   if (${META_PYTHON})
     set(INTERP_SOURCES ${INTERP_SOURCES} ${PROJECT_SOURCE_DIR}/Interpreter/3.12/interpreter.c)
@@ -218,16 +219,20 @@ endif()
 
 set(CINDERX_OPCODE_TARGETS_H ${GENERATED_HEADER_DIR}/cinderx/Interpreter/cinderx_opcode_targets.h)
 set(CINDER_OPCODE_H ${GENERATED_HEADER_DIR}/cinderx/Interpreter/cinder_opcode.h)
-set(OPCODE_H ${GENERATED_HEADER_DIR}/cinderx/Interpreter/opcode.h)
+set(CINDER_OPCODE_IDS_H ${GENERATED_HEADER_DIR}/cinderx/Interpreter/cinder_opcode_ids.h)
+set(CINDER_OPCODE_METADATA_H ${GENERATED_HEADER_DIR}/cinderx/Interpreter/cinder_opcode_metadata.h)
 
 file(READ ${SOURCE_CINDERX_OPCODE_TARGETS_H} FILE_CONTENTS)
 file(WRITE ${CINDERX_OPCODE_TARGETS_H} "${FILE_CONTENTS}")
 
+file(READ ${SOURCE_CINDER_OPCODE_IDS_H} FILE_CONTENTS)
+file(WRITE ${CINDER_OPCODE_IDS_H} "${FILE_CONTENTS}")
+
+file(READ ${SOURCE_CINDER_OPCODE_METADATA_H} FILE_CONTENTS)
+file(WRITE ${CINDER_OPCODE_METADATA_H} "${FILE_CONTENTS}")
+
 file(READ ${SOURCE_CINDER_OPCODE_H} FILE_CONTENTS)
 file(WRITE ${CINDER_OPCODE_H} "${FILE_CONTENTS}")
-
-file(READ ${SOURCE_OPCODE_H} FILE_CONTENTS)
-file(WRITE ${OPCODE_H} "${FILE_CONTENTS}")
 
 add_library(interpreter ${INTERP_SOURCES})
 target_include_directories(
