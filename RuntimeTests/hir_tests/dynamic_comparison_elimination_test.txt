@@ -261,8 +261,8 @@ fun jittestmodule:test {
 
   bb 2 (preds 6) {
     Snapshot
-    v25:NoneType = LoadConst<NoneType>
-    Return<NoneType> v25
+    v25:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v25
   }
 }
 --- End ---

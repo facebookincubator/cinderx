@@ -909,7 +909,7 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
     Snapshot {
       CurInstrOffset 0
     }
-    v1 = LoadConst<NoneType>
+    v1 = LoadConst<ImmortalNoneType>
     Return v1
   }
 }
@@ -994,7 +994,7 @@ TEST_F(EdgeCaseTest, JumpBackwardNoInterrupt) {
     Snapshot {
       CurInstrOffset 0
     }
-    v1 = LoadConst<NoneType>
+    v1 = LoadConst<ImmortalNoneType>
     Return v1
   }
 }
@@ -1498,7 +1498,7 @@ TEST_F(HIRBuildTest, MatchKeys) {
         Stack<2> v0 v1
       }
     }
-    v4 = LoadConst<NoneType>
+    v4 = LoadConst<ImmortalNoneType>
     v5 = PrimitiveCompare<Equal> v3 v4
     CondBranch<1, 2> v5
   }

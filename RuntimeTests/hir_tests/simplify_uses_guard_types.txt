@@ -142,9 +142,9 @@ fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:Object = LoadArg<1>
-    v7:NoneType = GuardIs<0xdeadbeef> v0 {
+    v7:ImmortalNoneType = GuardIs<0xdeadbeef> v0 {
     }
-    UseType<NoneType> v7
+    UseType<ImmortalNoneType> v7
     v8:CInt32[0] = LoadConst<CInt32[0]>
     v4:NoneType = LoadConst<NoneType>
     Return v4

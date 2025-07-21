@@ -571,7 +571,7 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v27:NoneType = LoadConst<NoneType>
+    v27:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
   }
 

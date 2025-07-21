@@ -510,9 +510,8 @@ fun jittestmodule:test {
     }
     UpdatePrevInstr<idx:20 line_no:3>
     Decref v15
-    v21:NoneType = LoadConst<NoneType>
-    Incref v21
-    Return<NoneType> v21
+    v21:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v21
   }
 }
 --- Test Name ---
@@ -659,7 +658,7 @@ fun jittestmodule:test {
   }
 
   bb 9 (preds 8, 10) {
-    v33:NoneType = LoadConst<NoneType>
+    v33:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<1>
   }
 

@@ -177,9 +177,9 @@ fun jittestmodule:test {
     v9 = LoadFieldAddress v0 v10
     StoreArrayItem v9 v8 v4 v0
     Snapshot
-    v11 = LoadConst<NoneType>
-    v11 = RefineType<NoneType> v11
-    Return<NoneType> v11
+    v11 = LoadConst<ImmortalNoneType>
+    v11 = RefineType<ImmortalNoneType> v11
+    Return<ImmortalNoneType> v11
   }
 }
 --- End ---

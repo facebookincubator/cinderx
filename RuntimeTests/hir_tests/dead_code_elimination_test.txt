@@ -256,8 +256,8 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v21:NoneType = LoadConst<NoneType>
-    Return<NoneType> v21
+    v21:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v21
   }
 }
 --- Test Name ---

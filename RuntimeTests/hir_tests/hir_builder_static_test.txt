@@ -199,7 +199,7 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v13 = LoadConst<NoneType>
+    v13 = LoadConst<ImmortalNoneType>
     v2 = Assign v11
     v3 = Assign v13
     Branch<1>
@@ -369,9 +369,9 @@ fun jittestmodule:test {
     v5 = LoadField<x@16, OptObject, owned> v0
     StoreField<x@16> v0 v1 v5
     Snapshot
-    v6 = LoadConst<NoneType>
-    v6 = RefineType<NoneType> v6
-    Return<NoneType> v6
+    v6 = LoadConst<ImmortalNoneType>
+    v6 = RefineType<ImmortalNoneType> v6
+    Return<ImmortalNoneType> v6
   }
 }
 --- Test Name ---
@@ -643,7 +643,7 @@ fun jittestmodule:test {
 
   bb 9 (preds 8, 10) {
     Snapshot
-    v10 = LoadConst<NoneType>
+    v10 = LoadConst<ImmortalNoneType>
     v1 = Assign v8
     v2 = Assign v10
     Branch<1>
@@ -1469,9 +1469,9 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v7 = LoadConst<NoneType>
-    v7 = RefineType<NoneType> v7
-    Return<NoneType> v7
+    v7 = LoadConst<ImmortalNoneType>
+    v7 = RefineType<ImmortalNoneType> v7
+    Return<ImmortalNoneType> v7
   }
 }
 --- Test Name ---

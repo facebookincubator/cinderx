@@ -665,9 +665,8 @@ fun jittestmodule:test {
     XDecref v40
     Decref v57
     Decref v62
-    v59:NoneType = LoadConst<NoneType>
-    Incref v59
-    Return<NoneType> v59
+    v59:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v59
   }
 }
 --- Test Name ---
@@ -947,9 +946,8 @@ fun jittestmodule:test {
     }
     XDecref v52
     BatchDecref v69 v74 v75 v76
-    v71:NoneType = LoadConst<NoneType>
-    Incref v71
-    Return<NoneType> v71
+    v71:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v71
   }
 }
 --- Test Name ---
@@ -1198,9 +1196,8 @@ fun jittestmodule:test {
     Decref v32
     Decref v37
     XDecref v38
-    v55:NoneType = LoadConst<NoneType>
-    Incref v55
-    Return<NoneType> v55
+    v55:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v55
   }
 }
 --- Test Name ---
@@ -1253,9 +1250,8 @@ fun jittestmodule:test {
         Locals<2> v6 v7
       }
     }
-    v13:NoneType = LoadConst<NoneType>
-    Incref v13
-    Return<NoneType> v13
+    v13:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v13
   }
 }
 --- Test Name ---
@@ -1864,16 +1860,14 @@ fun jittestmodule:test {
     }
     Decref v39
     Decref v46
-    v41:NoneType = LoadConst<NoneType>
-    Incref v41
-    Return<NoneType> v41
+    v41:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v41
   }
 
   bb 6 (preds 4) {
     XDecref v34
-    v43:NoneType = LoadConst<NoneType>
-    Incref v43
-    Return<NoneType> v43
+    v43:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v43
   }
 }
 --- Test Name ---
@@ -2088,8 +2082,7 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 2) {
-    v49:NoneType = LoadConst<NoneType>
-    Incref v49
+    v49:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Branch<4>
   }
 
@@ -2101,11 +2094,11 @@ fun jittestmodule:test {
   bb 4 (preds 3, 8) {
     v52:Object = Phi<3, 8> v65 v22
     v54:{DictExact|NoneType} = Phi<3, 8> v49 v65
-    v55:NoneType = LoadConst<NoneType>
+    v55:ImmortalNoneType = LoadConst<ImmortalNoneType>
     v58:OptObject = LoadGlobalCached<1; "print">
     v59:MortalObjectUser[builtin_function_or_method:print:0xdeadbeef] = GuardIs<0xdeadbeef> v58 {
       Descr 'LOAD_GLOBAL: print'
-      LiveValues<6> b:v23 b:v39 o:v52 o:v54 b:v55 b:v58
+      LiveValues<6> b:v23 b:v39 o:v52 o:v54 unc:v55 b:v58
       FrameState {
         CurInstrOffset 64
         Locals<4> v39 v52 v23 v54
@@ -2114,7 +2107,7 @@ fun jittestmodule:test {
     Incref v39
     Decref v52
     v64:Object = VectorCall<1> v59 v39 {
-      LiveValues<5> b:v23 o:v39 o:v54 b:v55 b:v59
+      LiveValues<5> b:v23 o:v39 o:v54 unc:v55 b:v59
       FrameState {
         CurInstrOffset 80
         Locals<4> v39 v55 v23 v54
@@ -2123,9 +2116,8 @@ fun jittestmodule:test {
     Decref v39
     Decref v54
     Decref v64
-    v61:NoneType = LoadConst<NoneType>
-    Incref v61
-    Return<NoneType> v61
+    v61:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v61
   }
 }
 --- Test Name ---

@@ -47,9 +47,8 @@ fun jittestmodule:Test.__init__ {
     v13:CInt32[0] = LoadConst<CInt32[0]>
     v14:Nullptr = LoadConst<Nullptr>
     StoreField<x@16> v8 v13 v14
-    v16:NoneType = LoadConst<NoneType>
-    Incref v16
-    Return<NoneType> v16
+    v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v16
   }
 }
 --- Test Name ---
@@ -97,9 +96,8 @@ fun jittestmodule:Test.__init__ {
     v13:OptObject = LoadField<x@16, OptObject, owned> v7
     StoreField<x@16> v7 v12 v13
     XDecref v13
-    v14:NoneType = LoadConst<NoneType>
-    Incref v14
-    Return<NoneType> v14
+    v14:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v14
   }
 }
 --- End ---

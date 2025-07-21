@@ -209,9 +209,9 @@ def test(fs):
       CurInstrOffset 24
       Locals<2> v0 v1
     }
-    v8 = LoadConst<NoneType>
-    v8 = RefineType<NoneType> v8
-    Return<NoneType> v8
+    v8 = LoadConst<ImmortalNoneType>
+    v8 = RefineType<ImmortalNoneType> v8
+    Return<ImmortalNoneType> v8
   }
 }
 )";
@@ -942,9 +942,9 @@ def test(x, y):
       Stack<1> v5
     }
     v0 = Assign v5
-    v6 = LoadConst<NoneType>
-    v6 = RefineType<NoneType> v6
-    Return<NoneType> v6
+    v6 = LoadConst<ImmortalNoneType>
+    v6 = RefineType<ImmortalNoneType> v6
+    Return<ImmortalNoneType> v6
   }
 }
 )";
@@ -1224,9 +1224,9 @@ def test(x, y):
       CurInstrOffset 16
       Locals<2> v0 v1
     }
-    v5 = LoadConst<NoneType>
-    v5 = RefineType<NoneType> v5
-    Return<NoneType> v5
+    v5 = LoadConst<ImmortalNoneType>
+    v5 = RefineType<ImmortalNoneType> v5
+    Return<ImmortalNoneType> v5
   }
 }
 )";
@@ -1322,9 +1322,9 @@ def test(x, y):
       CurInstrOffset 12
       Locals<2> v0 v1
     }
-    v6 = LoadConst<NoneType>
-    v6 = RefineType<NoneType> v6
-    Return<NoneType> v6
+    v6 = LoadConst<ImmortalNoneType>
+    v6 = RefineType<ImmortalNoneType> v6
+    Return<ImmortalNoneType> v6
   }
 }
 )";

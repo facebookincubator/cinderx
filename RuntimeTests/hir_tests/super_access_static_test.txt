@@ -306,9 +306,9 @@ fun jittestmodule:A.f {
       }
     }
     Snapshot
-    v13 = LoadConst<NoneType>
-    v13 = RefineType<NoneType> v13
-    Return<NoneType> v13
+    v13 = LoadConst<ImmortalNoneType>
+    v13 = RefineType<ImmortalNoneType> v13
+    Return<ImmortalNoneType> v13
   }
 
   bb 3 (preds 1) {
@@ -452,9 +452,9 @@ fun jittestmodule:A.f {
       }
     }
     Snapshot
-    v11 = LoadConst<NoneType>
-    v11 = RefineType<NoneType> v11
-    Return<NoneType> v11
+    v11 = LoadConst<ImmortalNoneType>
+    v11 = RefineType<ImmortalNoneType> v11
+    Return<ImmortalNoneType> v11
   }
 
   bb 3 (preds 1) {

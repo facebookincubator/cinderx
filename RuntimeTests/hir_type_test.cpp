@@ -91,7 +91,11 @@ TEST_F(HIRTypeTest, BuiltinCouldBe) {
 }
 
 TEST_F(HIRTypeTest, FromBuiltinObjects) {
-  EXPECT_EQ(Type::fromObject(Py_None), TNoneType);
+  if constexpr (PY_VERSION_HEX < 0x030C0000) {
+    EXPECT_EQ(Type::fromObject(Py_None), TNoneType);
+  } else {
+    EXPECT_EQ(Type::fromObject(Py_None), TImmortalNoneType);
+  }
   EXPECT_TRUE(Type::fromObject(Py_True) < TBool);
   EXPECT_TRUE(Type::fromObject(Py_False) < TLong);
 

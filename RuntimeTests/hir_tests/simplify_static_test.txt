@@ -399,7 +399,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v8:NoneType = LoadConst<NoneType>
+    v8:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Snapshot
     Return v8
   }
@@ -703,8 +703,8 @@ fun jittestmodule:test {
 
   bb 3 (preds 1) {
     Snapshot
-    v53:NoneType = LoadConst<NoneType>
-    Return<NoneType> v53
+    v53:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v53
   }
 }
 --- Test Name ---

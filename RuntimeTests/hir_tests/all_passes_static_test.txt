@@ -193,9 +193,8 @@ fun jittestmodule:test {
   bb 3 (preds 1) {
     UpdatePrevInstr<idx:35 line_no:-1>
     XDecref v34
-    v53:NoneType = LoadConst<NoneType>
-    Incref v53
-    Return<NoneType> v53
+    v53:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v53
   }
 }
 --- End ---

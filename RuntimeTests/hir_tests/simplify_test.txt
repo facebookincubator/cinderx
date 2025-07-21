@@ -1285,9 +1285,9 @@ fun jittestmodule:test {
 
   bb 3 (preds 0, 4) {
     Snapshot
-    v16:NoneType = LoadConst<NoneType>
+    v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     v18:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
-    UseType<NoneType> v16
+    UseType<ImmortalNoneType> v16
     v25:CInt32[0] = LoadConst<CInt32[0]>
     Snapshot
     v23:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
@@ -1895,7 +1895,7 @@ fun test {
   bb 0 {
     v0:Object = LoadArg<0>
     v1:NoneType = LoadConst<NoneType>
-    v8:NoneType = GuardIs<0xdeadbeef> v0 {
+    v8:ImmortalNoneType = GuardIs<0xdeadbeef> v0 {
     }
     UseType<NoneType> v1
     UseType<NoneType> v8
@@ -1956,9 +1956,9 @@ fun jittestmodule:test {
   bb 3 (preds 0, 4) {
     Snapshot
     v14:ImmortalLongExact[2] = LoadConst<ImmortalLongExact[2]>
-    v16:NoneType = LoadConst<NoneType>
+    v16:ImmortalNoneType = LoadConst<ImmortalNoneType>
     UseType<ImmortalLongExact[2]> v14
-    UseType<NoneType> v16
+    UseType<ImmortalNoneType> v16
     v22:CBool[true] = LoadConst<CBool[true]>
     Snapshot
     v18:ImmortalBool[False] = LoadConst<ImmortalBool[False]>
@@ -4970,7 +4970,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:NoneType = LoadConst<NoneType>
+    v14:ImmortalNoneType = LoadConst<ImmortalNoneType>
     v15:CBool = PrimitiveCompare<NotEqual> v9 v14
     v16:Bool = PrimitiveBoxBool v15
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
@@ -5026,7 +5026,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:NoneType = LoadConst<NoneType>
+    v14:ImmortalNoneType = LoadConst<ImmortalNoneType>
     v15:CBool = PrimitiveCompare<NotEqual> v9 v14
     v16:Bool = PrimitiveBoxBool v15
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
@@ -5085,7 +5085,7 @@ fun jittestmodule:test {
 
   bb 1 (preds 0, 2) {
     Snapshot
-    v14:NoneType = LoadConst<NoneType>
+    v14:ImmortalNoneType = LoadConst<ImmortalNoneType>
     v15:CBool = PrimitiveCompare<NotEqual> v9 v14
     v16:Bool = PrimitiveBoxBool v15
     v17:ImmortalBool[True] = LoadConst<ImmortalBool[True]>
@@ -6626,8 +6626,8 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    v18:NoneType = LoadConst<NoneType>
-    Return<NoneType> v18
+    v18:ImmortalNoneType = LoadConst<ImmortalNoneType>
+    Return<ImmortalNoneType> v18
   }
 }
 --- Test Name ---
