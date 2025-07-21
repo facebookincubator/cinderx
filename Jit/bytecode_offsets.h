@@ -10,6 +10,7 @@
 
 #include "cinderx/Common/log.h"
 
+#include <concepts>
 #include <limits>
 #include <ostream>
 #include <type_traits>
@@ -124,7 +125,7 @@ class BCOffset : public BCOffsetBase<BCOffset> {
     return value() <=> other.value();
   }
 
-  template <class TInt, class = std::enable_if_t<std::is_integral_v<TInt>>>
+  template <std::integral TInt>
   constexpr std::strong_ordering operator<=>(const TInt& other) const {
     return value() <=> other;
   }
@@ -133,7 +134,7 @@ class BCOffset : public BCOffsetBase<BCOffset> {
     return value() == other.value();
   }
 
-  template <class TInt, class = std::enable_if_t<std::is_integral_v<TInt>>>
+  template <std::integral TInt>
   constexpr bool operator==(const TInt& other) const {
     return value() == other;
   }
@@ -153,7 +154,7 @@ class BCIndex : public BCOffsetBase<BCIndex> {
     return value() <=> other.value();
   }
 
-  template <class TInt, class = std::enable_if_t<std::is_integral_v<TInt>>>
+  template <std::integral TInt>
   constexpr std::strong_ordering operator<=>(const TInt& other) const {
     return value() <=> other;
   }
@@ -162,7 +163,7 @@ class BCIndex : public BCOffsetBase<BCIndex> {
     return value() == other.value();
   }
 
-  template <class TInt, class = std::enable_if_t<std::is_integral_v<TInt>>>
+  template <std::integral TInt>
   constexpr bool operator==(const TInt& other) const {
     return value() == other;
   }

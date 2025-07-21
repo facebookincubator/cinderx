@@ -631,7 +631,8 @@ class InstrT<T, opcode, Operands<arity>, Tys...>
   // Usage:
   //   auto instr = T::create(<args for T's constructor>);
   template <typename... Args, class T1 = T>
-  static std::enable_if_t<arity >= 0, T1>* create(Args&&... args) {
+    requires(arity >= 0)
+  static T1* create(Args&&... args) {
     auto ptr = Instr::allocate(sizeof(T1), arity);
     return new (ptr) T1(std::forward<Args>(args)...);
   }
@@ -641,42 +642,36 @@ class InstrT<T, opcode, Operands<arity>, Tys...>
   // Usage:
   //   auto instr = T::create(<num_operands>, <args for T's constructor>);
   template <typename... Args, class T1 = T>
-  static std::enable_if_t<arity == kVariadic, T1>* create(
-      std::size_t num_ops,
-      Args&&... args) {
+    requires(arity == kVariadic)
+  static T1* create(std::size_t num_ops, Args&&... args) {
     auto ptr = Instr::allocate(sizeof(T1), num_ops);
     return new (ptr) T1(std::forward<Args>(args)...);
   }
 
   // Forwarding constructor for variadic `T`.
-  template <
-      typename... Args,
-      int a = arity,
-      typename = std::enable_if_t<a <= 0>>
+  template <typename... Args, int a = arity>
+    requires(a <= 0)
   explicit InstrT(Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {}
 
   // Constructor for unary `T`.
-  template <
-      typename... Args,
-      int a = arity,
-      typename = std::enable_if_t<a == 1>>
+  template <typename... Args, int a = arity>
+    requires(a == 1)
   explicit InstrT(Register* reg, Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {
     this->operandAt(0) = reg;
   }
 
   // TODO(mpage) - Get rid of this?
-  template <int a = arity, typename T1 = std::enable_if_t<a == 1, Register>>
-  T1* reg() const {
+  template <int a = arity>
+    requires(a == 1)
+  Register* reg() const {
     return this->GetOperand(0);
   }
 
   // Constructor for binary `T`.
-  template <
-      typename... Args,
-      int a = arity,
-      typename = std::enable_if_t<a == 2>>
+  template <typename... Args, int a = arity>
+    requires(a == 2)
   InstrT(Register* lhs, Register* rhs, Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {
     this->operandAt(0) = lhs;
@@ -684,10 +679,8 @@ class InstrT<T, opcode, Operands<arity>, Tys...>
   }
 
   // Constructor for trinary `T`.
-  template <
-      typename... Args,
-      int x = arity,
-      typename = std::enable_if_t<x == 3>>
+  template <typename... Args, int x = arity>
+    requires(x == 3)
   InstrT(Register* a, Register* b, Register* c, Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {
     this->operandAt(0) = a;
@@ -696,10 +689,8 @@ class InstrT<T, opcode, Operands<arity>, Tys...>
   }
 
   // Constructor for 4 operand `T`.
-  template <
-      typename... Args,
-      int x = arity,
-      typename = std::enable_if_t<x == 4>>
+  template <typename... Args, int x = arity>
+    requires(x == 4)
   InstrT(Register* a, Register* b, Register* c, Register* d, Args&&... args)
       : InstrT<T, opcode, Tys...>(std::forward<Args>(args)...) {
     this->operandAt(0) = a;
