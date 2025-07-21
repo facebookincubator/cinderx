@@ -7,7 +7,6 @@
 #include "cinderx/Common/log.h"
 // clang-format on
 
-#include "cinderx/Common/dict.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/string.h"
