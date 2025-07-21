@@ -4,7 +4,6 @@
 
 #include <Python.h>
 
-#include "cinderx/Common/code.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/symbolizer.h"
 
