@@ -7,11 +7,11 @@
 
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
+#include "cinderx/module_state.h"
 
 #define JIT_TEST_MOD_NAME "jittestmodule"
 
@@ -59,11 +59,16 @@ class RuntimeTest : public ::testing::Test {
     Py_Initialize();
     ASSERT_TRUE(Py_IsInitialized());
 
+    jit::ICodeAllocator* code_allocator =
+        cinderx::getModuleState()->codeAllocator();
+
     // This should use _PyJIT_Enabled(), but that doesn't actually get set to
     // true in RuntimeTests, even when the JIT is running.  Generally the first
     // failure we see is trying to use the code allocator and crashing.
-    ASSERT_TRUE(!jit || jit::CodeAllocator::exists())
-        << "Configured to use the JIT but it wasn't initialized";
+    if (jit) {
+      ASSERT_NE(code_allocator, nullptr)
+          << "Configured to use the JIT but it wasn't initialized";
+    }
 
     globals_ = isStaticCompiler() ? MakeGlobalsStrict() : MakeGlobals();
     ASSERT_NE(globals_, nullptr);
@@ -83,8 +88,10 @@ class RuntimeTest : public ::testing::Test {
 
     ASSERT_FALSE(jit::isJitUsable())
         << "JIT should be disabled with Py_FinalizeEx";
-    ASSERT_FALSE(jit::CodeAllocator::exists())
-        << "JIT should be disabled with Py_FinalizeEx";
+
+    cinderx::ModuleState* mod_state = cinderx::getModuleState();
+    ASSERT_EQ(mod_state, nullptr)
+        << "Module state should be destroyed with Py_FinalizeEx";
   }
 
   void runCode(const char* src) {

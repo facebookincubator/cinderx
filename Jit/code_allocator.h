@@ -2,14 +2,14 @@
 
 #pragma once
 
-#include "cinderx/Common/log.h"
+#include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/codegen/code_section.h"
 
 #include <asmjit/asmjit.h>
 
 #include <atomic>
-#include <memory>
 #include <span>
+#include <unordered_map>
 #include <vector>
 
 namespace jit {
@@ -27,58 +27,28 @@ namespace jit {
   like accommodate memory pools with different allocation characteristics, or
   have multiple threads which might compile independently.
 */
-class CodeAllocator {
+class CodeAllocator : public ICodeAllocator {
  public:
-  virtual ~CodeAllocator();
-
-  // Get the global code allocator for this process.
-  static CodeAllocator* get() {
-    JIT_CHECK(exists(), "No global code allocator");
-    return s_global_code_allocator_;
-  }
-
-  // Check if the global code allocator has been created.
-  static bool exists() {
-    return s_global_code_allocator_ != nullptr;
-  }
+  ~CodeAllocator() override = default;
 
   // To be called once by JIT initialization after enough configuration has been
   // loaded to determine which global code allocator type to use.
-  static void makeGlobalCodeAllocator();
+  static ICodeAllocator* make();
 
-  static void freeGlobalCodeAllocator();
-
-  size_t usedBytes() const {
-    return used_bytes_;
-  }
-
-  const asmjit::Environment& asmJitEnvironment() const {
-    return runtime_.environment();
-  }
-
-  virtual asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept {
-    used_bytes_ += code->codeSize();
-    return runtime_.add(dst, code);
-  }
-
-  // Check if a pointer is located within this allocator's memory.
-  virtual bool contains(const void* ptr) const;
+  AllocateResult addCode(asmjit::CodeHolder* code) override;
+  bool contains(const void* ptr) const override;
+  size_t usedBytes() const override;
+  const asmjit::Environment& asmJitEnvironment() const override;
 
  protected:
   asmjit::JitRuntime runtime_;
   std::atomic<size_t> used_bytes_{0};
-
- private:
-  static CodeAllocator* s_global_code_allocator_;
 };
 
 // A code allocator which tries to allocate all code on huge pages.
 class CodeAllocatorCinder : public CodeAllocator {
  public:
   ~CodeAllocatorCinder() override;
-
-  asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept override;
-  bool contains(const void* ptr) const override;
 
   size_t lostBytes() const {
     return lost_bytes_;
@@ -91,6 +61,9 @@ class CodeAllocatorCinder : public CodeAllocator {
   size_t hugeAllocs() const {
     return huge_allocs_;
   }
+
+  AllocateResult addCode(asmjit::CodeHolder* code) override;
+  bool contains(const void* ptr) const override;
 
  private:
   // List of chunks allocated for use in deallocation
@@ -114,7 +87,7 @@ class MultipleSectionCodeAllocator : public CodeAllocator {
  public:
   ~MultipleSectionCodeAllocator() override;
 
-  asmjit::Error addCode(void** dst, asmjit::CodeHolder* code) noexcept override;
+  AllocateResult addCode(asmjit::CodeHolder* code) override;
   bool contains(const void* ptr) const override;
 
  private:

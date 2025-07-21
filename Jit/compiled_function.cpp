@@ -3,16 +3,22 @@
 #include "cinderx/Jit/compiled_function.h"
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/disassembler.h"
 #include "cinderx/Jit/hir/printer.h"
+#include "cinderx/module_state.h"
 
 extern "C" {
 
 bool isJitCompiled(const PyFunctionObject* func) {
-  return jit::CodeAllocator::exists() &&
-      jit::CodeAllocator::get()->contains(
-          reinterpret_cast<const void*>(func->vectorcall));
+  // Possible that this is called during finalization after the module state is
+  // destroyed.
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  if (mod_state == nullptr) {
+    return false;
+  }
+  jit::ICodeAllocator* code_allocator = mod_state->codeAllocator();
+  return code_allocator != nullptr &&
+      code_allocator->contains(reinterpret_cast<const void*>(func->vectorcall));
 }
 
 } // extern "C"

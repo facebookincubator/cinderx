@@ -39,6 +39,7 @@
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Shadowcode/shadowcode.h"
+#include "cinderx/module_state.h"
 
 #ifdef ENABLE_DISASSEMBLER
 #include "i386-dis/dis-asm.h"
@@ -1135,8 +1136,10 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   if (!isJitUsable()) {
     return false;
   }
+
   auto max_code_size = getConfig().max_code_size;
-  if (max_code_size && CodeAllocator::get()->usedBytes() >= max_code_size) {
+  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  if (max_code_size && code_allocator->usedBytes() >= max_code_size) {
     return false;
   }
 
@@ -2041,7 +2044,7 @@ PyObject* jit_unsuppress(PyObject* /* self */, PyObject* arg) {
 }
 
 PyObject* get_allocator_stats(PyObject*, PyObject*) {
-  auto base_allocator = CodeAllocator::get();
+  auto base_allocator = cinderx::getModuleState()->codeAllocator();
   if (base_allocator == nullptr) {
     Py_RETURN_NONE;
   }
@@ -2856,7 +2859,9 @@ int initialize() {
   jit::init_jit_genobject_type();
 #endif
 
-  CodeAllocator::makeGlobalCodeAllocator();
+  // Create code allocator after jit::Config has been filled out.
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  mod_state->setCodeAllocator(CodeAllocator::make());
 
   jit_ctx = new Context();
 
@@ -2913,9 +2918,8 @@ void finalize() {
   delete jit_ctx;
   jit_ctx = nullptr;
 
-  if (CodeAllocator::exists()) {
-    CodeAllocator::freeGlobalCodeAllocator();
-  }
+  cinderx::ModuleState* mod_state = cinderx::getModuleState();
+  mod_state->setCodeAllocator(nullptr);
 
   finalizeInternedStrings();
 

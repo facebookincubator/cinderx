@@ -20,7 +20,6 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/interpreter.h"
-#include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/codegen/autogen.h"
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
@@ -303,17 +302,16 @@ void* finalizeCode(asmjit::x86::Builder& builder, std::string_view name) {
         DebugUtils::errorAsString(err))};
   }
 
-  void* result = nullptr;
-  if (auto err = CodeAllocator::get()->addCode(&result, builder.code());
-      err != kErrorOk) {
+  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  AllocateResult result = code_allocator->addCode(builder.code());
+  if (result.error != kErrorOk) {
     throw std::runtime_error{fmt::format(
         "Failed to add generated code for {} to asmjit runtime, got error code "
         "{}",
         name,
-        DebugUtils::errorAsString(err))};
+        DebugUtils::errorAsString(result.error))};
   }
-
-  return result;
+  return result.addr;
 }
 
 // Generate the final stage trampoline that is responsible for finishing
@@ -323,7 +321,8 @@ void* generateDeoptTrampoline(bool generator_mode) {
       generator_mode ? "deopt_trampoline_generators" : "deopt_trampoline";
 
   CodeHolder code;
-  ASM_CHECK(code.init(CodeAllocator::get()->asmJitEnvironment()), name);
+  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  ASM_CHECK(code.init(code_allocator->asmJitEnvironment()), name);
   x86::Builder a(&code);
   Annotations annot;
 
@@ -511,7 +510,8 @@ void* generateDeoptTrampoline(bool generator_mode) {
 
 void* generateFailedDeferredCompileTrampoline() {
   CodeHolder code;
-  code.init(CodeAllocator::get()->asmJitEnvironment());
+  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  code.init(code_allocator->asmJitEnvironment());
   x86::Builder a(&code);
   Annotations annot;
 
@@ -660,7 +660,8 @@ void* NativeGenerator::getVectorcallEntry() {
   JIT_CHECK(as_ == nullptr, "x86::Builder should not have been initialized.");
 
   CodeHolder code;
-  code.init(CodeAllocator::get()->asmJitEnvironment());
+  ICodeAllocator* code_allocator = cinderx::getModuleState()->codeAllocator();
+  code.init(code_allocator->asmJitEnvironment());
   ThrowableErrorHandler eh;
   code.setErrorHandler(&eh);
 

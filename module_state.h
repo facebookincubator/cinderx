@@ -4,6 +4,7 @@
 
 #include <Python.h>
 
+#include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/runtime_iface.h"
 #include "cinderx/Jit/symbolizer_iface.h"
@@ -33,6 +34,14 @@ class ModuleState {
 
   void setCacheManager(jit::IGlobalCacheManager* cache_manager) {
     cache_manager_ = std::unique_ptr<jit::IGlobalCacheManager>(cache_manager);
+  }
+
+  jit::ICodeAllocator* codeAllocator() const {
+    return code_allocator_.get();
+  }
+
+  void setCodeAllocator(jit::ICodeAllocator* code_allocator) {
+    code_allocator_.reset(code_allocator);
   }
 
   jit::IRuntime* runtime() const {
@@ -122,6 +131,7 @@ class ModuleState {
 
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
+  std::unique_ptr<jit::ICodeAllocator> code_allocator_;
   std::unique_ptr<jit::IRuntime> runtime_;
   std::unique_ptr<jit::ISymbolizer> symbolizer_;
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value_;

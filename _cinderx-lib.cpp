@@ -1218,6 +1218,10 @@ static int _cinderx_exec(PyObject* m) {
 
   state->setCacheManager(cache_manager);
 
+  // Code allocator is initialized in jit::initialize(), because it needs to
+  // read -X options from the CLI and environment variables to figure out which
+  // implementation to use.
+
   Ref<> builtins_mod = Ref<>::steal(PyImport_ImportModule("builtins"));
   if (builtins_mod == nullptr) {
     state->shutdown();
