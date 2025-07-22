@@ -46,7 +46,7 @@
 #include "internal/pycore_shadow_frame.h"
 #endif
 
-#if PY_VERSION_HEX < 0x030D0000
+#if PY_VERSION_HEX < 0x030D0000 && defined(ENABLE_EVAL_HOOK)
 #include "cinder/hooks.h"
 #endif
 
