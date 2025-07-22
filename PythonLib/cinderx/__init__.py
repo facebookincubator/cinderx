@@ -45,6 +45,8 @@ def is_supported_runtime() -> bool:
         return False
 
     version = (sys.version_info.major, sys.version_info.minor)
+    if version == (3, 14):
+        return True
     if version == (3, 12):
         return "+meta" in sys.version
     if version == (3, 10):
