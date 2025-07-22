@@ -15,8 +15,6 @@ int _PyClassLoader_PrimitiveTypeToStructMemberType(int type);
 PyObject* _PyClassLoader_Box(uint64_t value, int primitive_type);
 uint64_t _PyClassLoader_Unbox(PyObject* value, int primitive_type);
 
-int _PyClassLoader_GetTypeCode(PyTypeObject* type);
-
 static inline int _PyObject_TypeCheckOptional(
     PyObject* val,
     PyTypeObject* type,
