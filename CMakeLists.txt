@@ -259,6 +259,11 @@ target_link_libraries(static-python PRIVATE fmt::fmt common borrowed)
 # Jit/
 
 file(GLOB_RECURSE JIT_SOURCES ${PROJECT_SOURCE_DIR}/Jit/*.cpp ${PROJECT_SOURCE_DIR}/Jit/*.c)
+list(FILTER JIT_SOURCES EXCLUDE REGEX ".*\.gen_cached\.c")
+if (${PY_VERSION} EQUAL 3.12 OR ${PY_VERSION} EQUAL 3.14)
+  list(APPEND JIT_SOURCES "${PROJECT_SOURCE_DIR}/Jit/generators_borrowed_${PY_VERSION}.gen_cached.c")
+endif()
+
 add_library(jit ${JIT_SOURCES})
 target_link_libraries(jit PRIVATE asmjit::asmjit interpreter fmt::fmt nlohmann_json::nlohmann_json)
 
