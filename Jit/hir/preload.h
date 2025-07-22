@@ -16,9 +16,6 @@
 
 namespace jit::hir {
 
-Type prim_type_to_type(int prim_type);
-
-using PyTypeOpt = std::tuple<Ref<PyTypeObject>, bool, bool>;
 using ArgToType = std::map<long, Type>;
 using GlobalNamesMap = std::unordered_map<int, BorrowedRef<>>;
 
@@ -125,7 +122,7 @@ class Preloader {
   Type type(BorrowedRef<> descr) const;
   int primitiveTypecode(BorrowedRef<> descr) const;
   BorrowedRef<PyTypeObject> pyType(BorrowedRef<> descr) const;
-  const PyTypeOpt& pyTypeOpt(BorrowedRef<> descr) const;
+  const OwnedType& preloadedType(BorrowedRef<> descr) const;
 
   const FieldInfo& fieldInfo(BorrowedRef<> descr) const;
 
@@ -225,14 +222,14 @@ class Preloader {
   const std::string fullname_;
 
   // keyed by type descr tuple identity (they are interned in code objects)
-  std::unordered_map<PyObject*, PyTypeOpt> types_;
+  std::unordered_map<PyObject*, OwnedType> types_;
   std::unordered_map<PyObject*, FieldInfo> fields_;
   InvokeTargetMap func_targets_;
   InvokeTargetMap meth_targets_;
   std::unordered_map<PyObject*, std::unique_ptr<NativeTarget>> native_targets_;
   // keyed by locals index
   std::unordered_map<long, Type> check_arg_types_;
-  std::map<long, PyTypeOpt> check_arg_pytypes_;
+  std::map<long, OwnedType> check_arg_pytypes_;
   // keyed by name index, names borrowed from code object
   GlobalNamesMap global_names_;
   Type return_type_{TObject};

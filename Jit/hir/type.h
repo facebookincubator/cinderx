@@ -295,6 +295,23 @@ class Type {
   };
 };
 
+// Strong reference to a Python type object that also has a concept of
+// nullability and exact-ness.
+//
+// Used in limited instances where a strong reference is needed, unlike
+// hir::Type which only holds a borrowed reference.
+struct OwnedType {
+  // Convert to an HIR type.
+  Type toHir() const;
+
+  Ref<PyTypeObject> type;
+  bool optional{false};
+  bool exact{false};
+};
+
+// Convert a Static Python primitive type code to an HIR type.
+Type prim_type_to_type(int prim_type);
+
 inline std::ostream& operator<<(std::ostream& os, const Type& ty) {
   return os << ty.toString();
 }

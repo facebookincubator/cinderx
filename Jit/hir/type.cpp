@@ -6,6 +6,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/StaticPython/static_array.h"
+#include "cinderx/StaticPython/type_code.h"
 
 #include <fmt/format.h>
 #include <fmt/ostream.h>
@@ -660,6 +661,52 @@ unsigned int Type::sizeInBytes() const {
     return 8;
   }
   JIT_ABORT("Unexpected type {}", *this);
+}
+
+Type OwnedType::toHir() const {
+  int prim_type = _PyClassLoader_GetTypeCode(type);
+  if (prim_type != TYPED_OBJECT) {
+    JIT_CHECK(!optional, "primitive types cannot be optional");
+    return prim_type_to_type(prim_type);
+  }
+
+  Type hir_type = exact ? Type::fromTypeExact(type) : Type::fromType(type);
+  if (optional) {
+    hir_type |= TNoneType;
+  }
+  return hir_type;
+}
+
+Type prim_type_to_type(int prim_type) {
+  switch (prim_type) {
+    case TYPED_BOOL:
+      return TCBool;
+    case TYPED_CHAR:
+    case TYPED_INT8:
+      return TCInt8;
+    case TYPED_INT16:
+      return TCInt16;
+    case TYPED_INT32:
+      return TCInt32;
+    case TYPED_INT64:
+      return TCInt64;
+    case TYPED_UINT8:
+      return TCUInt8;
+    case TYPED_UINT16:
+      return TCUInt16;
+    case TYPED_UINT32:
+      return TCUInt32;
+    case TYPED_UINT64:
+      return TCUInt64;
+    case TYPED_OBJECT:
+      return TOptObject;
+    case TYPED_DOUBLE:
+      return TCDouble;
+    case TYPED_ERROR:
+      return TCInt32;
+    default:
+      JIT_ABORT("Non-primitive or unsupported Python type: {}", prim_type);
+  }
 }
 
 } // namespace jit::hir

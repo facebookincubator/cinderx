@@ -20,62 +20,13 @@ namespace jit::hir {
 
 namespace {
 
-PreloaderManager s_manager;
-
-} // namespace
-
-Type prim_type_to_type(int prim_type) {
-  switch (prim_type) {
-    case TYPED_BOOL:
-      return TCBool;
-    case TYPED_CHAR:
-    case TYPED_INT8:
-      return TCInt8;
-    case TYPED_INT16:
-      return TCInt16;
-    case TYPED_INT32:
-      return TCInt32;
-    case TYPED_INT64:
-      return TCInt64;
-    case TYPED_UINT8:
-      return TCUInt8;
-    case TYPED_UINT16:
-      return TCUInt16;
-    case TYPED_UINT32:
-      return TCUInt32;
-    case TYPED_UINT64:
-      return TCUInt64;
-    case TYPED_OBJECT:
-      return TOptObject;
-    case TYPED_DOUBLE:
-      return TCDouble;
-    case TYPED_ERROR:
-      return TCInt32;
-    default:
-      JIT_ABORT("Non-primitive or unsupported Python type: {}", prim_type);
-  }
-}
-
-static Type to_jit_type(const PyTypeOpt& pytype_opt) {
-  auto& [pytype, opt, exact] = pytype_opt;
-  int prim_type = _PyClassLoader_GetTypeCode(pytype);
-  if (prim_type == TYPED_OBJECT) {
-    Type type = exact ? Type::fromTypeExact(pytype) : Type::fromType(pytype);
-    if (opt) {
-      type |= TNoneType;
-    }
-    return type;
-  }
-  JIT_CHECK(!opt, "primitive types cannot be optional");
-  return prim_type_to_type(prim_type);
-}
-
-static PyTypeOpt resolve_type_descr(BorrowedRef<> descr) {
+static OwnedType resolve_type_descr(BorrowedRef<> descr) {
   int optional, exact;
   auto type = Ref<PyTypeObject>::steal(
       _PyClassLoader_ResolveType(descr, &optional, &exact));
 
-  return {std::move(type), optional, exact};
+  return {
+      std::move(type), static_cast<bool>(optional), static_cast<bool>(exact)};
 }
 
 static FieldInfo resolve_field_descr(BorrowedRef<PyTupleObject> descr) {
@@ -134,6 +85,45 @@ static void fill_primitive_arg_types_builtin(
   }
 }
 
+static std::unique_ptr<NativeTarget> resolve_native_target(
+    BorrowedRef<> native_descr,
+    BorrowedRef<> signature) {
+  auto target = std::make_unique<NativeTarget>();
+  void* raw_ptr = _PyClassloader_LookupSymbol(
+      PyTuple_GET_ITEM(native_descr.get(), 0),
+      PyTuple_GET_ITEM(native_descr.get(), 1));
+
+  JIT_CHECK(
+      raw_ptr != nullptr, "invalid address for native function: {}", raw_ptr);
+
+  target->callable = raw_ptr;
+
+  Py_ssize_t siglen = PyTuple_GET_SIZE(signature.get());
+  auto return_type_code = _PyClassLoader_ResolvePrimitiveType(
+      PyTuple_GET_ITEM(signature.get(), siglen - 1));
+  target->return_type = prim_type_to_type(return_type_code);
+  JIT_DCHECK(
+      target->return_type <= TCInt,
+      "native function return type must be a primitive");
+
+  // Fill in the primitive arg type map in the target (index -> Type)
+  ArgToType& primitive_arg_types = target->primitive_arg_types;
+  for (Py_ssize_t i = 0; i < siglen - 1; i++) {
+    int arg_type_code = _PyClassLoader_ResolvePrimitiveType(
+        PyTuple_GET_ITEM(signature.get(), i));
+    Type typ = prim_type_to_type(arg_type_code);
+    JIT_DCHECK(typ <= TCInt, "native function arg type must be a primitive");
+
+    primitive_arg_types.emplace(i, typ);
+  }
+
+  return target;
+}
+
+PreloaderManager s_manager;
+
+} // namespace
+
 std::unique_ptr<InvokeTarget> Preloader::resolve_target_descr(
     BorrowedRef<> descr,
     int opcode) {
@@ -160,8 +150,11 @@ std::unique_ptr<InvokeTarget> Preloader::resolve_target_descr(
       // TODO properly handle coroutine returns awaitable type
       target->return_type = TObject;
     } else {
-      target->return_type =
-          to_jit_type({std::move(return_pytype), optional, exact});
+      OwnedType preloaded_type{
+          std::move(return_pytype),
+          static_cast<bool>(optional),
+          static_cast<bool>(exact)};
+      target->return_type = preloaded_type.toHir();
     }
   }
   target->is_statically_typed = _PyClassLoader_IsStaticCallable(callable);
@@ -222,48 +215,13 @@ std::unique_ptr<InvokeTarget> Preloader::resolve_target_descr(
   return target;
 }
 
-static std::unique_ptr<NativeTarget> resolve_native_target(
-    BorrowedRef<> native_descr,
-    BorrowedRef<> signature) {
-  auto target = std::make_unique<NativeTarget>();
-  void* raw_ptr = _PyClassloader_LookupSymbol(
-      PyTuple_GET_ITEM(native_descr.get(), 0),
-      PyTuple_GET_ITEM(native_descr.get(), 1));
-
-  JIT_CHECK(
-      raw_ptr != nullptr, "invalid address for native function: {}", raw_ptr);
-
-  target->callable = raw_ptr;
-
-  Py_ssize_t siglen = PyTuple_GET_SIZE(signature.get());
-  auto return_type_code = _PyClassLoader_ResolvePrimitiveType(
-      PyTuple_GET_ITEM(signature.get(), siglen - 1));
-  target->return_type = prim_type_to_type(return_type_code);
-  JIT_DCHECK(
-      target->return_type <= TCInt,
-      "native function return type must be a primitive");
-
-  // Fill in the primitive arg type map in the target (index -> Type)
-  ArgToType& primitive_arg_types = target->primitive_arg_types;
-  for (Py_ssize_t i = 0; i < siglen - 1; i++) {
-    int arg_type_code = _PyClassLoader_ResolvePrimitiveType(
-        PyTuple_GET_ITEM(signature.get(), i));
-    Type typ = prim_type_to_type(arg_type_code);
-    JIT_DCHECK(typ <= TCInt, "native function arg type must be a primitive");
-
-    primitive_arg_types.emplace(i, typ);
-  }
-
-  return target;
-}
-
 BorrowedRef<PyFunctionObject> InvokeTarget::func() const {
   JIT_CHECK(is_function, "not a PyFunctionObject");
   return reinterpret_cast<PyFunctionObject*>(callable.get());
 }
 
 Type Preloader::type(BorrowedRef<> descr) const {
-  return to_jit_type(pyTypeOpt(descr));
+  return preloadedType(descr).toHir();
 }
 
 int Preloader::primitiveTypecode(BorrowedRef<> descr) const {
@@ -271,12 +229,12 @@ int Preloader::primitiveTypecode(BorrowedRef<> descr) const {
 }
 
 BorrowedRef<PyTypeObject> Preloader::pyType(BorrowedRef<> descr) const {
-  auto& [pytype, opt, exact] = pyTypeOpt(descr);
-  JIT_CHECK(!opt, "unexpected optional type");
-  return pytype;
+  auto const& preloader_type = preloadedType(descr);
+  JIT_CHECK(!preloader_type.optional, "unexpected optional type");
+  return preloader_type.type;
 }
 
-const PyTypeOpt& Preloader::pyTypeOpt(BorrowedRef<> descr) const {
+const OwnedType& Preloader::preloadedType(BorrowedRef<> descr) const {
   return map_get(types_, descr);
 }
 
@@ -334,13 +292,13 @@ std::unique_ptr<Function> Preloader::makeFunction() const {
   irfunc->return_type = return_type_;
   irfunc->has_primitive_args = has_primitive_args_;
   irfunc->has_primitive_first_arg = has_primitive_first_arg_;
-  for (auto& [local, pytype_opt] : check_arg_pytypes_) {
+  for (auto& [local, preloaded_type] : check_arg_pytypes_) {
     irfunc->typed_args.emplace_back(
         local,
-        std::get<0>(pytype_opt),
-        std::get<1>(pytype_opt),
-        std::get<2>(pytype_opt),
-        to_jit_type(pytype_opt));
+        preloaded_type.type,
+        preloaded_type.optional,
+        preloaded_type.exact,
+        preloaded_type.toHir());
   }
   return irfunc;
 }
@@ -403,8 +361,8 @@ bool Preloader::preload() {
       case BUILD_CHECKED_LIST:
       case BUILD_CHECKED_MAP: {
         BorrowedRef<> descr = PyTuple_GetItem(constArg(bc_instr), 0);
-        PyTypeOpt collection_type = resolve_type_descr(descr);
-        if (std::get<0>(collection_type) == nullptr) {
+        OwnedType collection_type = resolve_type_descr(descr);
+        if (collection_type.type == nullptr) {
           JIT_LOG(
               "unknown collection type descr {} during preloading of {}",
               repr(descr),
@@ -419,8 +377,8 @@ bool Preloader::preload() {
       case REFINE_TYPE:
       case TP_ALLOC: {
         BorrowedRef<> descr = constArg(bc_instr);
-        PyTypeOpt alloc_type = resolve_type_descr(descr);
-        if (std::get<0>(alloc_type) == nullptr) {
+        OwnedType alloc_type = resolve_type_descr(descr);
+        if (alloc_type.type == nullptr) {
           JIT_LOG(
               "unknown {} type descr {} during preloading of {}",
               bc_instr.opcode(),
@@ -487,8 +445,8 @@ bool Preloader::preloadStatic() {
     return false;
   }
 
-  PyTypeOpt ret_type = resolve_type_descr(ret_type_descr);
-  if (std::get<0>(ret_type) == nullptr) {
+  OwnedType ret_type = resolve_type_descr(ret_type_descr);
+  if (ret_type.type == nullptr) {
     JIT_LOG(
         "unknown return type descr {} during preloading of {}",
         repr(ret_type_descr),
@@ -496,7 +454,7 @@ bool Preloader::preloadStatic() {
     return false;
   }
 
-  return_type_ = to_jit_type(ret_type);
+  return_type_ = ret_type.toHir();
 
   BorrowedRef<PyTupleObject> checks = reinterpret_cast<PyTupleObject*>(
       _PyClassLoader_GetCodeArgumentTypeDescrs(code_));
@@ -524,8 +482,9 @@ bool Preloader::preloadStatic() {
           repr(checks));
 #endif
     }
-    PyTypeOpt pytype_opt = resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));
-    if (std::get<0>(pytype_opt) == nullptr) {
+    OwnedType preloaded_type =
+        resolve_type_descr(PyTuple_GET_ITEM(checks, i + 1));
+    if (preloaded_type.type == nullptr) {
       JIT_LOG(
           "unknown type descr {} during preloading of {}",
           repr(PyTuple_GET_ITEM(checks, i + 1)),
@@ -533,12 +492,11 @@ bool Preloader::preloadStatic() {
       return false;
     }
     JIT_CHECK(
-        std::get<0>(pytype_opt) !=
-            reinterpret_cast<PyTypeObject*>(&PyObject_Type),
+        preloaded_type.type != reinterpret_cast<PyTypeObject*>(&PyObject_Type),
         "shouldn't generate type checks for object");
-    Type type = to_jit_type(pytype_opt);
+    Type type = preloaded_type.toHir();
     check_arg_types_.emplace(local, type);
-    check_arg_pytypes_.emplace(local, std::move(pytype_opt));
+    check_arg_pytypes_.emplace(local, std::move(preloaded_type));
     if (type <= TPrimitive) {
       has_primitive_args_ = true;
       if (local == 0) {

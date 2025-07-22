@@ -4143,10 +4143,16 @@ void HIRBuilder::emitStoreField(
 void HIRBuilder::emitCast(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
-  auto& [pytype, opt, exact] = preloader_.pyTypeOpt(constArg(bc_instr));
+  auto const& preloaded_type = preloader_.preloadedType(constArg(bc_instr));
   Register* value = tc.frame.stack.pop();
   Register* result = temps_.AllocateStack();
-  tc.emit<Cast>(result, value, pytype, opt, exact, tc.frame);
+  tc.emit<Cast>(
+      result,
+      value,
+      preloaded_type.type,
+      preloaded_type.optional,
+      preloaded_type.exact,
+      tc.frame);
   tc.frame.stack.push(result);
 }
 
