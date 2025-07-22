@@ -123,16 +123,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(fmt)
 
 ########################################
-# nlohmann-json
-
-FetchContent_Declare(
-  nlohmann_json
-  GIT_REPOSITORY https://github.com/nlohmann/json
-  GIT_TAG v3.12.0 # 2025-Apr-11
-)
-FetchContent_MakeAvailable(nlohmann_json)
-
-########################################
 # parallel-hashmap
 
 FetchContent_Declare(
@@ -265,7 +255,7 @@ if (${PY_VERSION} EQUAL 3.12 OR ${PY_VERSION} EQUAL 3.14)
 endif()
 
 add_library(jit ${JIT_SOURCES})
-target_link_libraries(jit PRIVATE asmjit::asmjit interpreter fmt::fmt nlohmann_json::nlohmann_json)
+target_link_libraries(jit PRIVATE asmjit::asmjit interpreter fmt::fmt)
 
 ########################################
 # ParallelGC/
