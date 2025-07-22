@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/vtable.h"

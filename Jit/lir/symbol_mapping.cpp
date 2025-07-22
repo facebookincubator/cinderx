@@ -2,7 +2,7 @@
 
 #include "cinderx/Jit/lir/symbol_mapping.h"
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 namespace jit::lir {
 

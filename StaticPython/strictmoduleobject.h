@@ -4,11 +4,7 @@
 #ifndef Ci_MODULEOBJECT_H
 #define Ci_MODULEOBJECT_H
 
-// Need to include Python.h before the pycore_moduleobject.h.
-//
-// clang-format off
-#include <Python.h>
-// clang-format on
+#include "cinderx/python.h"
 
 #include "internal/pycore_moduleobject.h"
 

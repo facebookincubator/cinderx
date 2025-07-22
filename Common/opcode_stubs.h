@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 // Define all bytecodes that appeared or were removed between 3.10 and 3.12.
 // Bytecodes that don't match the Python version being used for the current

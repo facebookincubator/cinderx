@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/pyjit.h"
 
-#include <Python.h>
-
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #include "cinder/genobject_jit.h"

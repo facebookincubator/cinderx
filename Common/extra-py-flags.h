@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 // Additional PyCodeObject flags (see Include/code.h)
 #define CI_CO_STATICALLY_COMPILED 0x4000000

@@ -1,7 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_frame.h"

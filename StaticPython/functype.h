@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/StaticPython/awaitable.h"

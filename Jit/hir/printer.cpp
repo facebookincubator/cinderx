@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/hir/printer.h"
 
-#include <Python.h>
-
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/symbolizer.h"
 

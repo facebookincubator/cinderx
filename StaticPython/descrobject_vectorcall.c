@@ -2,7 +2,6 @@
 
 #include "cinderx/StaticPython/descrobject_vectorcall.h"
 
-#include <Python.h>
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/hooks.h"
 #endif

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/StaticPython/functype.h"
 #include "cinderx/StaticPython/typed_method_def.h"

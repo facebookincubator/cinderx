@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include "cinderx/python.h"
+
 #ifdef __cplusplus
 
 #include "cinderx/Common/ref.h"

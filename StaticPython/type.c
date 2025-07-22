@@ -2,22 +2,17 @@
 
 #include "cinderx/StaticPython/type.h"
 
-#include <Python.h>
-
-#include "structmember.h"
-
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#else
 #include "cinderx/Common/extra-py-flags.h"
-#endif
-
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+
+#if PY_VERSION_HEX < 0x030C0000
+#include "cinder/exports.h"
+#endif
 
 static PyObject* classloader_cache;
 static PyObject* classloader_cache_module_to_keys;

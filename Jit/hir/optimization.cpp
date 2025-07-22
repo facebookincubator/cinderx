@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/hir/optimization.h"
 
-#include <Python.h>
-
 #include "internal/pycore_interp.h"
 
 #include "cinderx/Common/code.h"

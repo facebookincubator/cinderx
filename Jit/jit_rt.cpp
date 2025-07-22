@@ -2,11 +2,13 @@
 
 #include "cinderx/Jit/jit_rt.h"
 
-// clang-format off
-// Needs to be sequenced before `log.h` due to atomic vs stdatomic.h ordering.
-#include "cinderx/Common/log.h"
-// clang-format on
+#include "internal/pycore_call.h"
+#include "internal/pycore_ceval.h"
+#include "internal/pycore_object.h"
+#include "internal/pycore_pyerrors.h"
+#include "internal/pycore_pystate.h"
 
+#include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/string.h"
@@ -19,15 +21,6 @@
 #include "cinderx/Jit/runtime_support.h"
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
-
-// clang-format off
-#include "internal/pycore_call.h"
-#include "internal/pycore_ceval.h"
-#include "internal/pycore_pyerrors.h"
-#include "internal/pycore_pystate.h"
-#include "internal/pycore_object.h"
-#include "internal/pycore_tuple.h"
-// clang-format on
 
 #if PY_VERSION_HEX >= 0x030E0000
 #include "internal/pycore_unicodeobject.h"

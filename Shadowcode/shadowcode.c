@@ -15,10 +15,6 @@
 
 #if SHADOWCODE_SUPPORTED
 
-#include <Python.h>
-
-#include "structmember.h"
-
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/dict.h"

@@ -2,7 +2,7 @@
 #ifndef Ci_CLASSLOADER_H
 #define Ci_CLASSLOADER_H
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"

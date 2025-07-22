@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/bytecode.h"

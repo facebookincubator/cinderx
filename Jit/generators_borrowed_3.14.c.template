@@ -7,11 +7,11 @@
 
 // clang-format off
 
-#include <Python.h>
+#include "cinderx/Jit/generators_borrowed.h"
+
 #include "internal/pycore_object.h"
 #include "internal/pycore_genobject.h"
 
-#include "cinderx/Jit/generators_borrowed.h"
 #include "cinderx/Jit/generators_core.h"
 
 // @Borrow CPP directives noinclude from Objects/iterobject.c

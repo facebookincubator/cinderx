@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/Common/util.h"
 #include "cinderx/Interpreter/cinder_opcode.h"

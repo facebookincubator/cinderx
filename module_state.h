@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"

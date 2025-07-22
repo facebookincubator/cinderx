@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/frame.h"
 
-#include <Python.h>
-
 #if PY_VERSION_HEX < 0x030C0000
 
 #include "cinder/exports.h"
@@ -789,7 +787,6 @@ void Ci_WalkAsyncStack(
 #else // PY_VERSION_HEX < 0x030C0000
 
 #include "internal/pycore_frame.h"
-#include "structmember.h"
 
 #include "cinderx/Common/py-portability.h"
 

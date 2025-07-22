@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/hir/builder.h"
 
-#include <Python.h>
-
 #include "ceval.h"
 
 #if PY_VERSION_HEX >= 0x030C0000

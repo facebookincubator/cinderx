@@ -1,5 +1,4 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include <Python.h>
 
 #include <gtest/gtest.h>
 

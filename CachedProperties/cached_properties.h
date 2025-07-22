@@ -3,7 +3,7 @@
 #ifndef Py_CACHED_PROPERTIES_H
 #define Py_CACHED_PROPERTIES_H
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 /* fb t46346203 */
 typedef struct {

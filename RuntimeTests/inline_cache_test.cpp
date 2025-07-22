@@ -1,5 +1,4 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
-#include <Python.h>
 
 #include <gtest/gtest.h>
 #if PY_VERSION_HEX < 0x030C0000

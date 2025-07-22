@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/hir/preload.h"
 
-#include <Python.h>
-
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/util.h"

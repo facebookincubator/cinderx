@@ -5,10 +5,7 @@
 
 #pragma once
 
-#include <Python.h>
-#if PY_VERSION_HEX < 0x030C0000
-#include "frameobject.h"
-#endif
+#include "cinderx/python.h"
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_interpframe.h"

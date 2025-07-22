@@ -2,10 +2,6 @@
 
 #include "cinderx/StaticPython/awaitable.h"
 
-#include <Python.h>
-
-#include "structmember.h"
-
 #include "cinderx/Common/string.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 

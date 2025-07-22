@@ -1,9 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include <Python.h>
+#include "cinderx/python.h"
 
-#include "structmember.h"
-
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/property.h"
 #include "cinderx/Jit/hir/analysis.h"
@@ -15,10 +14,6 @@
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/module_state.h"
-
-// clang-format off
-#include "cinderx/Common/dict.h"
-// clang-format on
 
 #include <fmt/ostream.h>
 

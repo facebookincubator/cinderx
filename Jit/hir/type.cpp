@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/hir/type.h"
 
-#include "frameobject.h"
-
 #include "cinderx/Common/log.h"
 #include "cinderx/StaticPython/static_array.h"
 #include "cinderx/StaticPython/type_code.h"

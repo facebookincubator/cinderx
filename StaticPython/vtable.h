@@ -3,7 +3,7 @@
 #ifndef Ci_VTABLE_H
 #define Ci_VTABLE_H
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #ifdef __cplusplus
 extern "C" {

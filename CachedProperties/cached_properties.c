@@ -2,8 +2,6 @@
 
 #include "cinderx/CachedProperties/cached_properties.h"
 
-#include "structmember.h" // PyMemberDef
-
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"

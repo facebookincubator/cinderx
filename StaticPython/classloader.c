@@ -2,14 +2,8 @@
 
 #include "cinderx/StaticPython/classloader.h"
 
-#include <Python.h>
-
 #include "internal/pycore_pystate.h" // @donotremove
-#include "structmember.h"
 
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#endif
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h" // @donotremove
 #include "cinderx/Common/func.h"
@@ -20,6 +14,10 @@
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
+
+#if PY_VERSION_HEX < 0x030C0000
+#include "cinder/exports.h"
+#endif
 
 #include <dlfcn.h>
 

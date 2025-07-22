@@ -2,7 +2,7 @@
 #ifndef Ci_CHECKED_LIST_H
 #define Ci_CHECKED_LIST_H
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/StaticPython/generic_type.h"
 

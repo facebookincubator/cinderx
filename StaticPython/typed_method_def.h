@@ -1,7 +1,7 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/type_code.h"

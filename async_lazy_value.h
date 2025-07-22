@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/async_lazy_value_iface.h"

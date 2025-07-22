@@ -2,18 +2,14 @@
 
 #include "cinderx/Jit/perf_jitdump.h"
 
-#include <Python.h>
+#include "cinderx/python.h"
+
+#include "internal/pycore_ceval.h"
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/threaded_compile.h"
-
-// Conflicts with <atomic> in other headers.
-//
-// clang-format off
-#include "internal/pycore_ceval.h"
-// clang-format on
 
 #include <fmt/format.h>
 #include <sys/file.h>
@@ -24,7 +20,6 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
-#include <regex>
 #include <tuple>
 
 #ifdef __x86_64__

@@ -2,10 +2,11 @@
 
 #include "cinderx/Jit/inline_cache.h"
 
-#include <Python.h>
+#include "internal/pycore_object.h"
 
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/func.h"
+#include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
@@ -13,17 +14,12 @@
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
-#include <algorithm>
-#include <memory>
-
-// clang-format off
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
 #endif
-#include "internal/pycore_pystate.h"
-#include "internal/pycore_object.h"
-#include "structmember.h"
-// clang-format on
+
+#include <algorithm>
+#include <memory>
 
 namespace jit {
 
@@ -797,7 +793,7 @@ PyObject* LoadTypeAttrCache::invokeSlowPath(
   }
 
   BorrowedRef<PyTypeObject> type{obj};
-  if (!_PyType_IsReady(type) && PyType_Ready(type) < 0) {
+  if (PyType_Ready(type) < 0) {
     return nullptr;
   }
 

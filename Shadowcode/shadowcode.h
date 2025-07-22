@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 /* Shadowcode only works for Cinder 3.10. */
 #define SHADOWCODE_SUPPORTED \

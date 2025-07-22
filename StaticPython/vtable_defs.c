@@ -17,8 +17,6 @@
 #include "cinder/exports.h"
 #endif
 
-#include <Python.h>
-
 #define _PyClassMethod_Check(op) (Py_TYPE(op) == &PyClassMethod_Type)
 
 // For simple signatures which are the most common that take and return Python

@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/codegen/frame_asm.h"
 
-#include <Python.h>
-
 #if PY_VERSION_HEX >= 0x030E0000
 #include "internal/pycore_interp_structs.h"
 #endif

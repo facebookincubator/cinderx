@@ -2,34 +2,14 @@
 
 #include "cinderx/_cinderx-lib.h"
 
-#include <Python.h>
-
-// clang-format off
-// This has to be high up here to avoid <atomic> vs <stdatomic.h> include
-// issues.
-#include "cinderx/Common/log.h"
-#include "cinderx/Common/util.h"
-// clang-format on
-
 #include "internal/pycore_pystate.h"
-
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/exports.h"
-#include "internal/pycore_shadow_frame.h"
-#endif
-
-#if PY_VERSION_HEX < 0x030D0000
-#include "cinder/hooks.h"
-#endif
-
-#if PY_VERSION_HEX >= 0x030D0000
-#include "internal/pycore_modsupport.h"
-#endif
 
 #include "cinderx/CachedProperties/cached_properties.h"
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/func.h"
+#include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
 #include "cinderx/Immortalize/immortalize.h"
 #include "cinderx/Interpreter/interpreter.h"
@@ -59,6 +39,19 @@
 
 #ifdef ENABLE_PARALLEL_GC
 #include "cinderx/ParallelGC/parallel_gc.h"
+#endif
+
+#if PY_VERSION_HEX < 0x030C0000
+#include "cinder/exports.h"
+#include "internal/pycore_shadow_frame.h"
+#endif
+
+#if PY_VERSION_HEX < 0x030D0000
+#include "cinder/hooks.h"
+#endif
+
+#if PY_VERSION_HEX >= 0x030D0000
+#include "internal/pycore_modsupport.h"
 #endif
 
 #include <dlfcn.h>

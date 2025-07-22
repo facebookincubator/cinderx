@@ -2,8 +2,6 @@
 
 #include "cinderx/StaticPython/checked_dict.h"
 
-#include <Python.h>
-
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_ceval.h"
 #include "internal/pycore_modsupport.h"

@@ -1,15 +1,9 @@
 #include "cinderx/Immortalize/immortalize.h"
 
-// The below header hits ordering issues between stdatomic.h and the C++ atomic
-// header.
-
-// clang-format off
-#include "cinderx/Common/util.h"
-// clang-format on
-
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
 #define FROM_GC(g) ((PyObject*)(((PyGC_Head*)g) + 1))

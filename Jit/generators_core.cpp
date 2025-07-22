@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/generators_core.h"
 
-#include <Python.h>
-
 #include "cinderx/module_state.h"
 
 #if PY_VERSION_HEX >= 0x030C0000

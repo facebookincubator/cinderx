@@ -4,12 +4,9 @@
 
 #include "cinderx/StaticPython/strictmoduleobject.h"
 
-#include <Python.h>
-
 #include "internal/pycore_call.h" // _PyObject_CallNoArgs
 #include "internal/pycore_interp.h" // PyInterpreterState.importlib
 #include "internal/pycore_pystate.h" // _PyInterpreterState_GET()
-#include "structmember.h" // PyMemberDef
 
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/string.h"

@@ -1,19 +1,17 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include <Python.h>
+#include "cinderx/Jit/generators_rt.h"
 
 #if PY_VERSION_HEX >= 0x030C0000
 
 #include "internal/pycore_frame.h"
 #include "internal/pycore_genobject.h"
 #include "internal/pycore_pyerrors.h" // _PyErr_ClearExcState()
-#include "structmember.h"
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_borrowed.h"
-#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/module_state.h"
 

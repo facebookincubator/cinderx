@@ -2,9 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
-
-#include "frameobject.h"
+#include "cinderx/python.h"
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/bytecode_offsets.h"

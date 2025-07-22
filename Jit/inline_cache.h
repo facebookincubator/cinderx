@@ -2,9 +2,8 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
-#include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/config.h"

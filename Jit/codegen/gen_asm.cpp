@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/codegen/gen_asm.h"
 
-#include <Python.h>
-
 #include "internal/pycore_pystate.h"
 
 #if PY_VERSION_HEX < 0x030C0000

@@ -1,6 +1,6 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #ifndef Ci_INTERNAL_OPCODE_H
 #define Ci_INTERNAL_OPCODE_H

@@ -10,10 +10,10 @@
 
 // clang-format off
 
-#include <Python.h>
+#include "cinderx/Jit/generators_borrowed.h"
+
 #include "internal/pycore_object.h"
 
-#include "cinderx/Jit/generators_borrowed.h"
 #include "cinderx/Jit/generators_core.h"
 
 static void

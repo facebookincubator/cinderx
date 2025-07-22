@@ -1,10 +1,9 @@
 /* Copyright (c) Meta Platforms, Inc. and affiliates. */
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "internal/pycore_call.h"
 #include "internal/pycore_pystate.h"
-#include "structmember.h"
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_modsupport.h"

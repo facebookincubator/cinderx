@@ -2,8 +2,6 @@
 
 #include "cinderx/StaticPython/vtable_builder.h"
 
-#include <Python.h>
-
 #include "internal/pycore_object.h" // @donotremove
 #include "internal/pycore_pystate.h"
 

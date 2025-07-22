@@ -46,9 +46,12 @@ DisableFormat:   false
 ForEachMacros:   [ FOR_EACH, FOR_EACH_ENUMERATE, FOR_EACH_KV, FOR_EACH_R, FOR_EACH_RANGE, ]
 IncludeBlocks: Regroup
 IncludeCategories:
-  # Want to make sure that Python.h is included before any internal/ headers.
-  # Plus it is helpful to have it high up to make PY_VERSION_HEX available early.
+  # Want to make sure that Python.h and cinderx/python.h are included before
+  # any internal/ headers. We want it high up to make PY_VERSION_HEX
+  # available early.
   - Regex:     '^<Python.h>$'
+    Priority:  1
+  - Regex:     '^"cinderx/python.h"$'
     Priority:  1
 
   # Next come the other CPython headers.  This assumes that anything that looks

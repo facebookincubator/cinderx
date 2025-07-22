@@ -42,7 +42,7 @@
 #ifndef _CONDVAR_IMPL_H_
 #define _CONDVAR_IMPL_H_
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "internal/pycore_condvar.h"
 

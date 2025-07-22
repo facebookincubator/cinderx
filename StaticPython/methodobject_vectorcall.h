@@ -7,7 +7,7 @@
 extern "C" {
 #endif
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 vectorcallfunc Ci_PyCMethod_New_METH_TYPED(PyMethodDef* method);
 

@@ -2,7 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
+#include "cinderx/python.h"
 
 #include "cinderx/Jit/elf/dynamic.h"
 #include "cinderx/Jit/elf/hash.h"

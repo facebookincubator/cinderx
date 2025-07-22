@@ -2,9 +2,7 @@
 
 #pragma once
 
-#include <Python.h>
-
-#include "structmember.h"
+#include "cinderx/python.h"
 
 #include <assert.h>
 
