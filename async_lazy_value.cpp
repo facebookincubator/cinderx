@@ -1153,8 +1153,9 @@ static int gen_close_iter(PyObject* yf) {
   if (meth) {
     retval = PyObject_CallNoArgs(meth);
     Py_DECREF(meth);
-    if (retval == nullptr)
+    if (retval == nullptr) {
       return -1;
+    }
   }
   Py_XDECREF(retval);
   return 0;
@@ -1220,10 +1221,10 @@ static int _gen_restore_error(PyObject* typ, PyObject* val, PyObject* tb) {
   Py_XINCREF(val);
   Py_XINCREF(tb);
 
-  if (PyExceptionClass_Check(typ))
+  if (PyExceptionClass_Check(typ)) {
     PyErr_NormalizeException(&typ, &val, &tb);
 
-  else if (PyExceptionInstance_Check(typ)) {
+  } else if (PyExceptionInstance_Check(typ)) {
     /* Raising an instance.  The value should be a dummy. */
     if (val && val != Py_None) {
       PyErr_SetString(
@@ -1236,9 +1237,10 @@ static int _gen_restore_error(PyObject* typ, PyObject* val, PyObject* tb) {
       typ = PyExceptionInstance_Class(typ);
       Py_INCREF(typ);
 
-      if (tb == nullptr)
+      if (tb == nullptr) {
         /* Returns nullptr if there's no traceback */
         tb = PyException_GetTraceback(val);
+      }
     }
   } else {
     /* Not something you can raise.  throw() fails. */
