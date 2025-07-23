@@ -253,7 +253,8 @@ const NativeTarget& Preloader::invokeNativeTarget(BorrowedRef<> target) const {
 }
 
 Type Preloader::checkArgType(long local_idx) const {
-  return map_get(check_arg_types_, local_idx, TObject);
+  auto it = check_arg_types_.find(local_idx);
+  return it != check_arg_types_.end() ? it->second.toHir() : TObject;
 }
 
 PyObject** Preloader::getGlobalCache(BorrowedRef<> name_obj) const {
@@ -290,7 +291,7 @@ std::unique_ptr<Function> Preloader::makeFunction() const {
   irfunc->return_type = return_type_;
   irfunc->has_primitive_args = has_primitive_args_;
   irfunc->has_primitive_first_arg = has_primitive_first_arg_;
-  for (auto& [local, preloaded_type] : check_arg_pytypes_) {
+  for (auto& [local, preloaded_type] : check_arg_types_) {
     irfunc->typed_args.emplace_back(
         local,
         preloaded_type.type,
@@ -493,8 +494,7 @@ bool Preloader::preloadStatic() {
         preloaded_type.type != reinterpret_cast<PyTypeObject*>(&PyObject_Type),
         "shouldn't generate type checks for object");
     Type type = preloaded_type.toHir();
-    check_arg_types_.emplace(local, type);
-    check_arg_pytypes_.emplace(local, std::move(preloaded_type));
+    check_arg_types_.emplace(local, std::move(preloaded_type));
     if (type <= TPrimitive) {
       has_primitive_args_ = true;
       if (local == 0) {
