@@ -141,10 +141,12 @@ static PyObject* staticarray_repeat(PyStaticArrayObject* array, Py_ssize_t n) {
   }
   size = Py_SIZE(array) * n;
   np = (PyStaticArrayObject*)staticarray_alloc(size);
-  if (np == NULL)
+  if (np == NULL) {
     return NULL;
-  if (size == 0)
+  }
+  if (size == 0) {
     return (PyObject*)np;
+  }
 
   Py_ssize_t oldsize = Py_SIZE(array);
   Py_ssize_t newsize = oldsize * n;

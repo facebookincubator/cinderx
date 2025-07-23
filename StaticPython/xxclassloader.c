@@ -392,12 +392,14 @@ static int xxclassloader_exec(PyObject* m) {
      PyType_Ready() is called.  Note that PyType_Ready() automatically
      initializes the ob.ob_type field to &PyType_Type if it's NULL,
      so it's not necessary to fill in ob_type first. */
-  if (PyType_Ready((PyTypeObject*)&spamobj_type) < 0)
+  if (PyType_Ready((PyTypeObject*)&spamobj_type) < 0) {
     return -1;
+  }
 
   Py_INCREF(&spamobj_type);
-  if (PyModule_AddObject(m, "spamobj", (PyObject*)&spamobj_type) < 0)
+  if (PyModule_AddObject(m, "spamobj", (PyObject*)&spamobj_type) < 0) {
     return -1;
+  }
 
   return 0;
 }

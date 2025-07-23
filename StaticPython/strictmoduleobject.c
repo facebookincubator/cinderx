@@ -137,8 +137,9 @@ static void strictmodule_dealloc(Ci_StrictModuleObject* m) {
   Py_XDECREF(m->originals);
   Py_XDECREF(m->static_thunks);
   Py_XDECREF(m->imported_from);
-  if (m->weaklist != NULL)
+  if (m->weaklist != NULL) {
     PyObject_ClearWeakRefs((PyObject*)m);
+  }
   Py_TYPE(m)->tp_free((PyObject*)m);
 }
 

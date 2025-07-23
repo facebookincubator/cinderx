@@ -1003,8 +1003,9 @@ static PyObject* get_build_class() {
   } else {
     bc = PyObject_GetItem(bltins, s___build_class__);
     if (bc == NULL) {
-      if (PyErr_ExceptionMatches(PyExc_KeyError))
+      if (PyErr_ExceptionMatches(PyExc_KeyError)) {
         PyErr_SetString(PyExc_NameError, "__build_class__ not found");
+      }
       return NULL;
     }
   }
