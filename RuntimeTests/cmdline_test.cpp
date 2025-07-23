@@ -342,8 +342,8 @@ TEST_F(CmdLineTest, JITEnabledFlags_MatchLineNumbers) {
       try_flag_and_envvar_effect(
           L"jit-list-match-line-numbers",
           "PYTHONJITLISTMATCHLINENUMBERS",
-          []() { jitlist_match_line_numbers(false); },
-          []() { ASSERT_TRUE(get_jitlist_match_line_numbers()); },
+          []() { getMutableConfig().jit_list.match_line_numbers = false; },
+          []() { ASSERT_TRUE(getConfig().jit_list.match_line_numbers); },
           true),
       0);
 }

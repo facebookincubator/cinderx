@@ -689,7 +689,7 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-list-match-line-numbers",
       "PYTHONJITLISTMATCHLINENUMBERS",
-      jitlist_match_line_numbers,
+      getMutableConfig().jit_list.match_line_numbers,
       "JIT list match line numbers");
 
   flag_processor

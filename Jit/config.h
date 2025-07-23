@@ -73,6 +73,8 @@ struct JitListOptions {
   std::string filename;
   // Raise a Python error when a line fails to parse.
   bool error_on_parse{false};
+  // Use line numbers or not when checking if a function is on a JIT list.
+  bool match_line_numbers{false};
 };
 
 // Collection of configuration values for the JIT.

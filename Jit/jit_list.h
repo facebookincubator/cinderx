@@ -8,15 +8,9 @@
 #include "cinderx/Common/util.h"
 
 #include <memory>
-#include <string>
 #include <string_view>
 
 namespace jit {
-
-// Control global setting to use line numbers or not when checking if a function
-// is on a JIT list.
-void jitlist_match_line_numbers(bool v);
-bool get_jitlist_match_line_numbers();
 
 // The JIT list is a file that specifies which functions should be compiled.
 //

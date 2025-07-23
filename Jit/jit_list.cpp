@@ -2,20 +2,12 @@
 
 #include "cinderx/Jit/jit_list.h"
 
+#include "cinderx/Jit/config.h"
+
 #include <fstream>
 #include <string>
 
 namespace jit {
-
-static bool g_jitlist_match_line_numbers = false;
-
-void jitlist_match_line_numbers(bool v) {
-  g_jitlist_match_line_numbers = v;
-}
-
-bool get_jitlist_match_line_numbers() {
-  return g_jitlist_match_line_numbers;
-}
 
 std::unique_ptr<JITList> JITList::create() {
   JIT_DCHECK(
@@ -205,7 +197,7 @@ int JITList::lookupCode(BorrowedRef<PyCodeObject> code) const {
     return 0;
   }
 
-  if (!g_jitlist_match_line_numbers) {
+  if (!getConfig().jit_list.match_line_numbers) {
     return 1;
   }
 
