@@ -715,8 +715,9 @@ static int handle_weakrefs(PyGC_Head* unreachable, PyGC_Head* old) {
       _PyWeakref_ClearRef((PyWeakReference*)op);
     }
 
-    if (!PyType_SUPPORTS_WEAKREFS(Py_TYPE(op)))
+    if (!PyType_SUPPORTS_WEAKREFS(Py_TYPE(op))) {
       continue;
+    }
 
     /* It supports weakrefs.  Does it have any? */
     wrlist = (PyWeakReference**)_PyObject_GET_WEAKREFS_LISTPTR(op);
@@ -804,10 +805,11 @@ static int handle_weakrefs(PyGC_Head* unreachable, PyGC_Head* old) {
 
     /* copy-paste of weakrefobject.c's handle_callback() */
     temp = PyObject_CallOneArg(callback, (PyObject*)wr);
-    if (temp == NULL)
+    if (temp == NULL) {
       PyErr_WriteUnraisable(callback);
-    else
+    } else {
       Py_DECREF(temp);
+    }
 
     /* Give up the reference we created in the first pass.  When
      * op's refcount hits 0 (which it may or may not do right now),
@@ -1130,10 +1132,12 @@ static Py_ssize_t gc_collect_main(
   }
 
   /* update collection and allocation counters */
-  if (generation + 1 < NUM_GENERATIONS)
+  if (generation + 1 < NUM_GENERATIONS) {
     gcstate->generations[generation + 1].count += 1;
-  for (i = 0; i <= generation; i++)
+  }
+  for (i = 0; i <= generation; i++) {
     gcstate->generations[i].count = 0;
+  }
 
   /* merge younger generations with one we are currently collecting */
   for (i = 0; i < generation; i++) {
@@ -1142,10 +1146,11 @@ static Py_ssize_t gc_collect_main(
 
   /* handy references */
   young = GEN_HEAD(gcstate, generation);
-  if (generation < NUM_GENERATIONS - 1)
+  if (generation < NUM_GENERATIONS - 1) {
     old = GEN_HEAD(gcstate, generation + 1);
-  else
+  } else {
     old = young;
+  }
   validate_list(old, collecting_clear_unreachable_clear);
 
   Ci_ParGCState* par_gc = (Ci_ParGCState*)gc_impl;
@@ -1219,8 +1224,9 @@ static Py_ssize_t gc_collect_main(
    * debugging information. */
   for (gc = GC_NEXT(&finalizers); gc != &finalizers; gc = GC_NEXT(gc)) {
     n++;
-    if (gcstate->debug & DEBUG_UNCOLLECTABLE)
+    if (gcstate->debug & DEBUG_UNCOLLECTABLE) {
       debug_cycle("uncollectable", FROM_GC(gc));
+    }
   }
   if (gcstate->debug & DEBUG_STATS) {
     PyTime_t t2 = 0;
