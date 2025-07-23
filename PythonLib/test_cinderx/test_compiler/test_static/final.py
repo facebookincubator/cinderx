@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 from typing import ClassVar
 
 from cinderx.compiler.errors import TypedSyntaxError

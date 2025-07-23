@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 import __future__
 
 import sys

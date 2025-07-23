@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 import cinderx.jit
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.static.types import (

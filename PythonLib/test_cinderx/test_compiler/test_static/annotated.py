@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 from cinderx.compiler.static.types import TypedSyntaxError
 
 from .common import bad_ret_type, StaticTestBase

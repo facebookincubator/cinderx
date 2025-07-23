@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 from cinderx.compiler.static.compiler import Compiler
 from cinderx.compiler.static.module_table import ModuleTableException
 from cinderx.compiler.static.types import ModuleInstance

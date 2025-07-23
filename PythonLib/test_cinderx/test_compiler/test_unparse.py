@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 from unittest import TestCase
 
 from cinderx.compiler.pycodegen import compile as py_compile

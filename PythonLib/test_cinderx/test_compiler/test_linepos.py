@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-unsafe
+
 from dis import get_instructions
 from textwrap import dedent
 from types import CodeType

@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 from __static__ import chkdict, is_type_static, make_generic_type, StaticGeneric
 
 import asyncio

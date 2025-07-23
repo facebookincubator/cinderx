@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 from __static__ import CheckedList
 
 from cinderx.static import SEQ_CHECKED_LIST, SEQ_SUBSCR_UNCHECKED

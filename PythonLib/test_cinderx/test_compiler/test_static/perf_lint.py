@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 from cinderx.compiler.static.types import ParamStyle
 

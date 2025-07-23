@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 # pyre-ignore[21]: Pyre doesn't know about dataclass internals.
 from dataclasses import (
     _DataclassParams,

@@ -1,4 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
+
+# pyre-unsafe
 import unittest
 
 from cinderx.compiler.static.types import TypeEnvironment

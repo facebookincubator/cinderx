@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+# pyre-unsafe
+
 from __static__ import is_static_callable, is_static_module
 
 from .common import StaticTestBase
