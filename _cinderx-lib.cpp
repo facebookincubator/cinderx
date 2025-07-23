@@ -5,8 +5,6 @@
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/CachedProperties/cached_properties.h"
-#include "cinderx/Common/dict.h"
-#include "cinderx/Common/func.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
@@ -19,7 +17,6 @@
 #include "cinderx/Jit/global_cache.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
-#include "cinderx/Jit/pyjit_result.h"
 #include "cinderx/Jit/runtime.h"
 #include "cinderx/Jit/symbolizer.h"
 #include "cinderx/Shadowcode/shadowcode.h"
@@ -32,7 +29,6 @@
 #include "cinderx/StaticPython/methodobject_vectorcall.h"
 #include "cinderx/StaticPython/objectkey.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
-#include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/async_lazy_value.h"
 #include "cinderx/module_state.h"
@@ -57,9 +53,6 @@
 #include <dlfcn.h>
 
 namespace {
-
-// Function objects registered for pre-fork perf-trampoline compilation.
-std::unordered_set<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist;
 
 /*
  * Misc. Python-facing utility functions.
@@ -287,6 +280,9 @@ PyObject* compile_perf_trampoline_pre_fork(PyObject*, PyObject*) {
 
   PyUnstable_PerfTrampoline_SetPersistAfterFork(1);
 
+  auto& perf_trampoline_worklist =
+      cinderx::getModuleState()->perfTrampolineWorklist();
+
   for (BorrowedRef<PyFunctionObject> func : perf_trampoline_worklist) {
     BorrowedRef<PyCodeObject> code = func->func_code;
     if (PyUnstable_PerfTrampoline_CompileCode(code) == -1) {
@@ -439,6 +435,8 @@ PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
 void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
   bool scheduled = jit::scheduleJitCompile(func);
   if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
+    auto& perf_trampoline_worklist =
+        cinderx::getModuleState()->perfTrampolineWorklist();
     perf_trampoline_worklist.emplace(func);
   }
 }
@@ -756,6 +754,8 @@ int cinderx_func_watcher(
 #endif
     case PyFunction_EVENT_DESTROY:
       if (jit::perf::isPreforkCompilationEnabled()) {
+        auto& perf_trampoline_worklist =
+            cinderx::getModuleState()->perfTrampolineWorklist();
         perf_trampoline_worklist.erase(func);
       }
       jit::funcDestroyed(func);

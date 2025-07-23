@@ -5,6 +5,7 @@
 #include "cinderx/python.h"
 
 #include "cinderx/Jit/code_allocator_iface.h"
+#include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/runtime_iface.h"
 #include "cinderx/Jit/symbolizer_iface.h"
@@ -121,6 +122,10 @@ class ModuleState {
     return builtin_next_;
   }
 
+  jit::UnorderedSet<BorrowedRef<PyFunctionObject>>& perfTrampolineWorklist() {
+    return perf_trampoline_worklist_;
+  }
+
   bool initialized() const {
     return initialized_;
   }
@@ -140,6 +145,10 @@ class ModuleState {
   Ref<> frame_reifier_;
 #endif
   Ref<> sys_clear_caches_, builtin_next_;
+
+  // Function objects registered for pre-fork perf-trampoline compilation.
+  jit::UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist_;
+
   bool initialized_{false};
 };
 
