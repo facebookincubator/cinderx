@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # flake8: noqa
+
+# pyre-unsafe
 import sys
 
 from .test_flag_extractor import FlagExtractorTest
