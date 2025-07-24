@@ -185,7 +185,22 @@ class Preloader {
     return has_primitive_args_;
   }
 
+  std::unique_ptr<InvokeTarget> resolve_target_descr(
+      BorrowedRef<> descr,
+      int opcode);
+
  private:
+  BorrowedRef<> constArg(BytecodeInstruction& bc_instr) const;
+  PyObject** getGlobalCache(BorrowedRef<> name) const;
+  bool canCacheGlobals() const;
+  bool preload();
+
+  // Preload information only relevant to Static Python functions.
+  bool preloadStatic();
+
+  // Check if a code object is for the top-level code in a module.
+  bool isModuleCodeObject() const;
+
   explicit Preloader(
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
@@ -200,21 +215,6 @@ class Preloader {
     JIT_CHECK(PyCode_Check(code_), "Expected PyCodeObject");
   }
 
-  BorrowedRef<> constArg(BytecodeInstruction& bc_instr) const;
-  PyObject** getGlobalCache(BorrowedRef<> name) const;
-  bool canCacheGlobals() const;
-  bool preload();
-
-  // Preload information only relevant to Static Python functions.
-  bool preloadStatic();
-
-  // Check if a code object is for the top-level code in a module.
-  bool isModuleCodeObject() const;
-
-  std::unique_ptr<InvokeTarget> resolve_target_descr(
-      BorrowedRef<> descr,
-      int opcode);
-
   Ref<PyCodeObject> code_;
   Ref<PyDictObject> builtins_;
   Ref<PyDictObject> globals_;
@@ -227,11 +227,9 @@ class Preloader {
   InvokeTargetMap func_targets_;
   InvokeTargetMap meth_targets_;
   std::unordered_map<PyObject*, std::unique_ptr<NativeTarget>> native_targets_;
-
-  // Maps locals (by their index) to their type.  This type must be checked at
-  // the start of the function.
-  std::map<long, OwnedType> check_arg_types_;
-
+  // keyed by locals index
+  std::unordered_map<long, Type> check_arg_types_;
+  std::map<long, OwnedType> check_arg_pytypes_;
   // keyed by name index, names borrowed from code object
   GlobalNamesMap global_names_;
   Type return_type_{TObject};
