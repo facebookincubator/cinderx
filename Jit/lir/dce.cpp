@@ -86,7 +86,7 @@ void eliminateDeadCode(Function* function) {
       auto iterator_to_remove = instruction_iterator;
       ++instruction_iterator;
 
-      if (live_set.count(iterator_to_remove->get()) == 0) {
+      if (!live_set.contains(iterator_to_remove->get())) {
         block->removeInstr(iterator_to_remove);
       }
     }
