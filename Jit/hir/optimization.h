@@ -65,19 +65,6 @@ class DynamicComparisonElimination : public Pass {
   DISALLOW_COPY_AND_ASSIGN(DynamicComparisonElimination);
 };
 
-// Eliminate instructions whose outputs are not used in a return or by
-// other instructions with side-effects
-class DeadCodeElimination : public Pass {
- public:
-  DeadCodeElimination() : Pass("DeadCodeElimination") {}
-
-  void Run(Function& irfunc) override;
-
-  static std::unique_ptr<DeadCodeElimination> Factory() {
-    return std::make_unique<DeadCodeElimination>();
-  }
-};
-
 class InsertUpdatePrevInstr : public Pass {
  public:
   InsertUpdatePrevInstr() : Pass("InsertUpdatePrevInstr") {}
