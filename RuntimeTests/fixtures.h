@@ -8,7 +8,7 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/optimization.h"
+#include "cinderx/Jit/hir/pass.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/module_state.h"

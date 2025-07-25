@@ -78,4 +78,49 @@ bool removeTrampolineBlocks(CFG* cfg) {
   return trampolines.size() > 0;
 }
 
+bool removeUnreachableBlocks(CFG* cfg) {
+  std::unordered_set<BasicBlock*> visited;
+  std::vector<BasicBlock*> stack;
+  stack.emplace_back(cfg->entry_block);
+  while (!stack.empty()) {
+    BasicBlock* block = stack.back();
+    stack.pop_back();
+    if (visited.contains(block)) {
+      continue;
+    }
+    visited.insert(block);
+    auto term = block->GetTerminator();
+    for (std::size_t i = 0, n = term->numEdges(); i < n; ++i) {
+      BasicBlock* succ = term->successor(i);
+      // This check isn't necessary for correctness but avoids unnecessary
+      // pushes to the stack.
+      if (!visited.contains(succ)) {
+        stack.emplace_back(succ);
+      }
+    }
+  }
+
+  std::vector<BasicBlock*> unreachable;
+  for (auto it = cfg->blocks.begin(); it != cfg->blocks.end();) {
+    BasicBlock* block = &*it;
+    ++it;
+    if (!visited.contains(block)) {
+      if (Instr* old_term = block->GetTerminator()) {
+        for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
+          old_term->successor(i)->removePhiPredecessor(block);
+        }
+      }
+      cfg->RemoveBlock(block);
+      block->clear();
+      unreachable.emplace_back(block);
+    }
+  }
+
+  for (BasicBlock* block : unreachable) {
+    delete block;
+  }
+
+  return unreachable.size() > 0;
+}
+
 } // namespace jit::hir

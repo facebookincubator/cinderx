@@ -106,11 +106,6 @@ class CleanCFG : public Pass {
 
   void Run(Function& irfunc) override;
 
-  // Remove blocks that aren't reachable from the entry, whether or not they're
-  // empty. Avoid using this alone; use CleanCFG instead. Returns true if it
-  // changed the graph and false otherwise.
-  static bool RemoveUnreachableBlocks(CFG* cfg);
-
   // Remove instructions that aren't reachable from the entry. Avoid using this
   // alone; use CleanCFG instead. Returns true if it changed the graph and false
   // otherwise.

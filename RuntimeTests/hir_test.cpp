@@ -7,6 +7,7 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
+#include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
@@ -439,7 +440,7 @@ fun foo {
   std::unique_ptr<Function> func = HIRParser{}.ParseHIR(hir);
   ASSERT_NE(func, nullptr);
 
-  CleanCFG{}.RemoveUnreachableBlocks(&func->cfg);
+  removeUnreachableBlocks(&func->cfg);
 
   const char* expected = R"(fun foo {
   bb 0 {
@@ -483,7 +484,7 @@ fun foo {
   std::unique_ptr<Function> func = HIRParser{}.ParseHIR(hir);
   ASSERT_NE(func, nullptr);
 
-  CleanCFG{}.RemoveUnreachableBlocks(&func->cfg);
+  removeUnreachableBlocks(&func->cfg);
 
   const char* expected = R"(fun foo {
   bb 0 {

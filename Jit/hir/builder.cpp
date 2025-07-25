@@ -11,11 +11,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
-#include "cinderx/Jit/bytecode.h"
 #include "cinderx/Jit/containers.h"
-#include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/optimization.h"
-#include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/StaticPython/checked_dict.h"
@@ -567,10 +563,10 @@ std::unique_ptr<Function> HIRBuilder::buildHIR() {
 
   std::unique_ptr<Function> irfunc = preloader_.makeFunction();
   buildHIRImpl(irfunc.get(), /*frame_state=*/nullptr);
-  // Use removeTrampolineBlocks and RemoveUnreachableBlocks directly instead of
+  // Use removeTrampolineBlocks and removeUnreachableBlocks directly instead of
   // Run because the rest of CleanCFG requires SSA.
   removeTrampolineBlocks(&irfunc->cfg);
-  CleanCFG::RemoveUnreachableBlocks(&irfunc->cfg);
+  removeUnreachableBlocks(&irfunc->cfg);
   return irfunc;
 }
 

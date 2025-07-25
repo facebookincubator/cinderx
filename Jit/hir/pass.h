@@ -36,4 +36,9 @@ void simplifyRedundantCondBranches(CFG* cfg);
 // this alone; use CleanCFG instead.
 bool removeTrampolineBlocks(CFG* cfg);
 
+// Remove blocks that aren't reachable from the entry, whether or not they're
+// empty. Avoid using this alone; use CleanCFG instead. Returns true if it
+// changed the graph and false otherwise.
+bool removeUnreachableBlocks(CFG* cfg);
+
 } // namespace jit::hir

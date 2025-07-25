@@ -7,6 +7,7 @@
 #endif
 
 #include "cinderx/Jit/hir/builder.h"
+#include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
