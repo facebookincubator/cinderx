@@ -7,10 +7,10 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
+#include "cinderx/Jit/hir/refcount_insertion.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 

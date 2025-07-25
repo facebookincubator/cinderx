@@ -1,12 +1,13 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 
+#include "cinderx/Jit/hir/refcount_insertion.h"
+
 #include "cinderx/Common/log.h"
 #include "cinderx/Jit/bitvector.h"
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
 #include "cinderx/Jit/hir/instr_effects.h"
-#include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
 

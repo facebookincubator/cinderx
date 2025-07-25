@@ -8,21 +8,6 @@
 
 namespace jit::hir {
 
-// Inserts incref/decref instructions.
-class RefcountInsertion : public Pass {
- public:
-  RefcountInsertion() : Pass("RefcountInsertion") {}
-
-  void Run(Function& irfunc) override;
-
-  static std::unique_ptr<RefcountInsertion> Factory() {
-    return std::make_unique<RefcountInsertion>();
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(RefcountInsertion);
-};
-
 // Perform a mixed bag of strength-reduction optimizations: remove redundant
 // null checks, conversions, loads from compile-time constant containers, etc.
 //

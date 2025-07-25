@@ -11,6 +11,7 @@
 #include "cinderx/Jit/hir/dead_code_elimination.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
+#include "cinderx/Jit/hir/refcount_insertion.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
