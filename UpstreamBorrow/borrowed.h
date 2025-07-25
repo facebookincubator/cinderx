@@ -14,11 +14,14 @@
 extern "C" {
 #endif
 
+#if PY_VERSION_HEX >= 0x030C0000 && PY_VERSION_HEX < 0x030E0000
+#define Cix_PyStaticType_GetState _PyStaticType_GetState
+#endif
+
 #if PY_VERSION_HEX >= 0x030C0000
 #define Cix_PyGen_yf _PyGen_yf
 #define Cix_PyCoro_GetAwaitableIter _PyCoro_GetAwaitableIter
 #define Cix_Py_union_type_or _Py_union_type_or
-#define Cix_PyStaticType_GetState _PyStaticType_GetState
 #define Cix_PyCode_InitAddressRange _PyCode_InitAddressRange
 #define Cix_PyLineTable_NextAddressRange _PyLineTable_NextAddressRange
 #define Cix_PyDict_LoadGlobal _PyDict_LoadGlobal
@@ -26,6 +29,33 @@ extern "C" {
 #define Cix_PyThreadState_PopFrame _PyThreadState_PopFrame
 #define Cix_PyFrame_ClearExceptCode _PyFrame_ClearExceptCode
 #define Cix_PyTypeAlias_Type _PyTypeAlias_Type
+#endif
+#if PY_VERSION_HEX >= 0x030E0000
+#define _PyFrame_ClearExceptCode _CiFrame_ClearExceptCode
+#define _PyFunction_Vectorcall _CiFunction_Vectorcall
+#define _PyObject_HasLen _CiPyObject_HasLen
+#define _PyFrame_ClearLocals _CiFrame_ClearLocals
+#define _PyFrame_MakeAndSetFrameObject _CiFrame_MakeAndSetFrameObject
+#define _PyStaticType_GetState Cix_PyStaticType_GetState
+#define _PyFunction_Vectorcall _CiFunction_Vectorcall
+#define _PyCode_InitAddressRange _CiCode_InitAddressRange
+#define _PyLineTable_NextAddressRange _CiLineTable_NextAddressRange
+#define _PyObject_VirtualAlloc _CiVirtualAlloc
+#define _PyThreadState_PushFrame _CiThreadState_PushFrame
+#define _PyErr_GetTopmostException _CiErr_GetTopmostException
+#define _PyEval_Vector _CiEval_Vector
+
+_PyErr_StackItem* _PyErr_GetTopmostException(PyThreadState* tstate);
+int _PyObject_HasLen(PyObject* o);
+extern PyObject* _PyFunction_Vectorcall(
+    PyObject* func,
+    PyObject* const* stack,
+    size_t nargsf,
+    PyObject* kwnames);
+
+#define _PyErr_SetObject _CiErr_SetObject
+void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value);
+
 #endif
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -52,16 +82,12 @@ PyObject* Cix_PyDict_LoadGlobal(
     PyDictObject* builtins,
     PyObject* key);
 
-#if PY_VERSION_HEX >= 0x030D0000
-#define Cix_PyObjectDict_SetItem _PyObjectDict_SetItem
-#else
 int Cix_PyObjectDict_SetItem(
     PyTypeObject* tp,
     PyObject* obj,
     PyObject** dictptr,
     PyObject* key,
     PyObject* value);
-#endif
 
 void Cix_PyDict_SendEvent(
     int watcher_bits,
@@ -137,6 +163,7 @@ PyObject* Cix_gc_freeze_impl(PyObject* module);
 
 #if PY_VERSION_HEX >= 0x030C0000
 PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
+
 #endif
 
 int init_upstream_borrow(void);

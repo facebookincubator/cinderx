@@ -789,6 +789,7 @@ void Ci_WalkAsyncStack(
 #include "internal/pycore_frame.h"
 
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 namespace jit {
 

@@ -174,15 +174,3 @@ inline PyCodeObject* frameCode(PyFrameObject* frame) {
 #define _PyObject_Call(tstate, callable, args, kwargs) \
   PyObject_Call(callable, args, kwargs)
 #endif
-
-#if PY_VERSION_HEX >= 0x030E0000
-uint8_t Cix_GetOriginalOpcode(
-    _PyCoLineInstrumentationData* line_data,
-    int index);
-#elif PY_VERSION_HEX >= 0x030C0000
-static inline uint8_t Cix_GetOriginalOpcode(
-    _PyCoLineInstrumentationData* line_data,
-    int index) {
-  return line_data[index].original_opcode;
-}
-#endif

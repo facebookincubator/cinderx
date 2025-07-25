@@ -15,6 +15,7 @@
 #include "cinderx/Common/string.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 static inline int Ci_List_CheckIncludingChecked(PyObject* op) {
   return PyList_Check(op) || Ci_CheckedList_Check(op);

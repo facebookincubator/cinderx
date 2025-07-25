@@ -140,6 +140,20 @@ int numCellvars(PyCodeObject* code);
 int numFreevars(PyCodeObject* code);
 int numLocalsplus(PyCodeObject* code);
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_instruments.h"
+
+uint8_t Cix_GetOriginalOpcode(
+    _PyCoLineInstrumentationData* line_data,
+    int index);
+#elif PY_VERSION_HEX >= 0x030C0000
+static inline uint8_t Cix_GetOriginalOpcode(
+    _PyCoLineInstrumentationData* line_data,
+    int index) {
+  return line_data[index].original_opcode;
+}
+#endif
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -14,6 +14,8 @@
 #define _PyOpcode_num_popped _CiOpcode_num_popped
 #define _PyOpcode_num_pushed _CiOpcode_num_pushed 
 #define _PyOpcode_opcode_metadata _CiOpcode_opcode_metadata
+#define _PyOpcode_PseudoTargets _CiOpcode_PseudoTargets
+#define _PyOpcode_macro_expansion _CiOpcode_macro_expansion
 
 
 #ifdef Py_INTERNAL_OPCODE_H

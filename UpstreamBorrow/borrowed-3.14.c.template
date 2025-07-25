@@ -44,6 +44,7 @@ Cix_PyObjectDict_SetItem(PyTypeObject *tp, PyObject *obj, PyObject **dictptr,
 }
 
 
+#define _PyObject_SetAttributeErrorContext _CiPyObject_SetAttributeErrorContext
 // @Borrow function _PyObject_SetAttributeErrorContext from Objects/object.c
 
 // Wrapper as set_attribute_error_context is declared "static inline".
@@ -60,8 +61,9 @@ Cix_DEINSTRUMENT(uint8_t op) {
 
 
 // @Borrow function get_original_opcode from Python/instrumentation.c
-uint8_t
-Cix_GetOriginalOpcode(_PyCoLineInstrumentationData *line_data, int index) {
+uint8_t Cix_GetOriginalOpcode(
+    _PyCoLineInstrumentationData* line_data,
+    int index) {
   return get_original_opcode(line_data, index);
 }
 
@@ -89,6 +91,7 @@ int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
 // @Borrow function gc_list_set_space from Python/gc.c
 // End internal dependencies.
 
+#define _PyGC_Freeze _CiGC_Freeze
 // @Borrow function _PyGC_Freeze from Python/gc.c
 // @Borrow function gc_freeze_impl from Modules/gcmodule.c
 PyObject* Cix_gc_freeze_impl(PyObject* mod) {
@@ -143,7 +146,7 @@ int init_upstream_borrow(void) {
 // @Borrow function managed_static_type_state_get from Objects/typeobject.c
 // @Borrow function _PyStaticType_GetState from Objects/typeobject.c
 
-
+#define _PyFrame_New_NoTrack _CiFrame_New_NoTrack
 // @Borrow function _PyFrame_New_NoTrack from Objects/frameobject.c
 // @Borrow function _PyFrame_MakeAndSetFrameObject from Python/frame.c
 // @Borrow function _PyFrame_ClearLocals from Python/frame.c
@@ -154,6 +157,7 @@ int init_upstream_borrow(void) {
 // @Borrow function _PyObject_HasLen from Objects/abstract.c
 
 #define ASSERT_VALID_BOUNDS(bounds)
+#define _PyLineTable_InitAddressRange _CiLineTable_InitAddressRange
 // @Borrow function _PyLineTable_InitAddressRange from Objects/codeobject.c
 // @Borrow function _PyCode_InitAddressRange from Objects/codeobject.c
 // @Borrow function scan_varint from Objects/codeobject.c
@@ -173,18 +177,6 @@ int init_upstream_borrow(void) {
 // @Borrow function push_chunk from Python/pystate.c
 // @Borrow function _PyThreadState_PushFrame from Python/pystate.c
 
-
-PyObject *
-_PyObject_Call(PyThreadState *tstate, PyObject *callable,
-               PyObject *args, PyObject *kwargs)
-{
-  return PyObject_Call(callable, args, kwargs);
+void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
+  PyErr_SetObject(type, value);
 }
-
-
-void _PyErr_SetObject(
-    PyThreadState *tstate,
-    PyObject *type,
-    PyObject *value) {
-    PyErr_SetObject(type, value);
- }

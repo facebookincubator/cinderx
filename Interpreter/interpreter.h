@@ -5,6 +5,7 @@
 #include "cinderx/python.h"
 
 #include "cinderx/Common/extra-py-flags.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_function.h"
 #endif

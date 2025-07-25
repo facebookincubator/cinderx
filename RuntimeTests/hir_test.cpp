@@ -636,7 +636,9 @@ TEST_F(HIRBuildTest, GetLength) {
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
 
+#if PY_VERSION_HEX < 0x030E0000
 TEST_F(HIRBuildTest, LoadAssertionError) {
+  // No LOAD_ASSERTION_ERROR on 3.14 and later
   //  0 LOAD_ASSERTION_ERROR
   //  2 RETURN_VALUE
   uint8_t bc[] = {LOAD_ASSERTION_ERROR, 0, RETURN_VALUE, 0};
@@ -697,6 +699,7 @@ TEST_F(HIRBuildTest, LoadAssertionError) {
 #endif
   EXPECT_EQ(fullPrinter().ToString(*(irfunc)), expected);
 }
+#endif
 
 TEST_F(HIRBuildTest, SetUpdate) {
   //  0 LOAD_FAST    0

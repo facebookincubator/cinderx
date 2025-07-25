@@ -54,12 +54,20 @@ static inline Ref<> runInInterpreterViaReify(
       Cix_PyThreadState_PushFrame(tstate, jit::jitFrameGetSize(code));
   Py_INCREF(func);
   jit::jitFrameInit(tstate, interp_frame, func, code, 0, nullptr, false);
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
   jit::fixupJitFrameForInterpreter(interp_frame);
+#endif
   reifyFrame(interp_frame, dm, dfm, regs);
   // If we're at the start of the function, push IP past RESUME instruction
+#if PY_VERSION_HEX >= 0x030E0000
+  if (interp_frame->instr_ptr == _PyCode_CODE(code)) {
+    interp_frame->instr_ptr = _PyCode_CODE(code) + code->_co_firsttraceable;
+  }
+#else
   if (interp_frame->prev_instr == _PyCode_CODE(code) - 1) {
     interp_frame->prev_instr = _PyCode_CODE(code) + code->_co_firsttraceable;
   }
+#endif
   // PyEval_EvalFrame seems to steal the frame.
   PyFrameObject* frame_obj = _PyFrame_GetFrameObject(interp_frame);
   return Ref<>::steal(PyEval_EvalFrame(frame_obj));
