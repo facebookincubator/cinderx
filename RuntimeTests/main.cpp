@@ -27,7 +27,6 @@ using jit::Compiler;
 using jit::PassConfig;
 using jit::hir::Function;
 using jit::hir::Pass;
-using jit::hir::PassRegistry;
 
 class AllPasses : public Pass {
  public:
@@ -45,11 +44,43 @@ class AllPasses : public Pass {
   DISALLOW_COPY_AND_ASSIGN(AllPasses);
 };
 
-class TestPassRegistry : public PassRegistry {
+using PassFactory = std::function<std::unique_ptr<Pass>()>;
+
+class TestPassRegistry {
  public:
   TestPassRegistry() {
+    addPass(jit::hir::RefcountInsertion::Factory);
+    addPass(jit::hir::CopyPropagation::Factory);
+    addPass(jit::hir::CleanCFG::Factory);
+    addPass(jit::hir::DynamicComparisonElimination::Factory);
+    addPass(jit::hir::PhiElimination::Factory);
+    addPass(jit::hir::InlineFunctionCalls::Factory);
+    addPass(jit::hir::Simplify::Factory);
+    addPass(jit::hir::DeadCodeElimination::Factory);
+    addPass(jit::hir::GuardTypeRemoval::Factory);
+    addPass(jit::hir::BeginInlinedFunctionElimination::Factory);
+    addPass(jit::hir::BuiltinLoadMethodElimination::Factory);
+    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+      addPass(jit::hir::InsertUpdatePrevInstr::Factory);
+    }
+
     addPass(AllPasses::Factory);
   }
+
+  std::unique_ptr<Pass> makePass(const std::string& name) {
+    auto it = factories_.find(name);
+    return it != factories_.end() ? it->second() : nullptr;
+  }
+
+  void addPass(const PassFactory& factory) {
+    auto temp = factory();
+    factories_.emplace(temp->name(), factory);
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(TestPassRegistry);
+
+  std::unordered_map<std::string, PassFactory> factories_;
 };
 
 class SkipFixture : public ::testing::Test {

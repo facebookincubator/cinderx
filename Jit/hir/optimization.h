@@ -4,35 +4,9 @@
 
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/hir/hir.h"
-
-#include <functional>
-#include <memory>
-#include <string>
-#include <string_view>
-#include <unordered_map>
+#include "cinderx/Jit/hir/pass.h"
 
 namespace jit::hir {
-
-class BasicBlock;
-class Environment;
-class Function;
-class Instr;
-class Register;
-
-class Pass {
- public:
-  explicit Pass(std::string_view name) : name_{name} {}
-  virtual ~Pass() = default;
-
-  virtual void Run(Function& irfunc) = 0;
-
-  constexpr std::string_view name() const {
-    return name_;
-  }
-
- protected:
-  std::string name_;
-};
 
 // Inserts incref/decref instructions.
 class RefcountInsertion : public Pass {
@@ -206,43 +180,6 @@ class BuiltinLoadMethodElimination : public Pass {
   static std::unique_ptr<BuiltinLoadMethodElimination> Factory() {
     return std::make_unique<BuiltinLoadMethodElimination>();
   }
-};
-
-using PassFactory = std::function<std::unique_ptr<Pass>()>;
-
-class PassRegistry {
- public:
-  PassRegistry() {
-    addPass(RefcountInsertion::Factory);
-    addPass(CopyPropagation::Factory);
-    addPass(CleanCFG::Factory);
-    addPass(DynamicComparisonElimination::Factory);
-    addPass(PhiElimination::Factory);
-    addPass(InlineFunctionCalls::Factory);
-    addPass(Simplify::Factory);
-    addPass(DeadCodeElimination::Factory);
-    addPass(GuardTypeRemoval::Factory);
-    addPass(BeginInlinedFunctionElimination::Factory);
-    addPass(BuiltinLoadMethodElimination::Factory);
-    if constexpr (PY_VERSION_HEX >= 0x030C0000) {
-      addPass(InsertUpdatePrevInstr::Factory);
-    }
-  }
-
-  std::unique_ptr<Pass> makePass(const std::string& name) {
-    auto it = factories_.find(name);
-    return it != factories_.end() ? it->second() : nullptr;
-  }
-
-  void addPass(const PassFactory& factory) {
-    auto temp = factory();
-    factories_.emplace(temp->name(), factory);
-  }
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(PassRegistry);
-
-  std::unordered_map<std::string, PassFactory> factories_;
 };
 
 } // namespace jit::hir
