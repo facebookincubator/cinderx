@@ -9,6 +9,10 @@
 
 #include <Python.h>
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_mimalloc.h"
+#endif
+
 // 3.10 seems to be okay with the header ordering, but it has its own headers
 // hitting symbol collisions with atomic.
 #if defined(__cplusplus) && PY_VERSION_HEX >= 0x030C0000

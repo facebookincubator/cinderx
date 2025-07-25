@@ -222,7 +222,7 @@ class TemplateFileProcessor:
 @click.argument("source_file", type=click.Path())
 @click.argument("output_file", type=click.Path())
 @click.argument("compile_commands", type=click.Path())
-@click.argument("version", type=click.Choice(["3.10", "3.12"]))
+@click.argument("version")
 def main(
     source_file: str,
     output_file: str,
