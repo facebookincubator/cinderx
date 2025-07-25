@@ -6,6 +6,7 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/property.h"
 #include "cinderx/Jit/hir/analysis.h"
+#include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"

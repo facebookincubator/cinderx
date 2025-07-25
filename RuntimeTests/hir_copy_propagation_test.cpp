@@ -1,7 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #include <gtest/gtest.h>
 
-#include "cinderx/Jit/hir/optimization.h"
+#include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/parser.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"

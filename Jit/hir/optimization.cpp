@@ -10,6 +10,7 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
+#include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/preload.h"
@@ -131,34 +132,6 @@ void DynamicComparisonElimination::Run(Function& irfunc) {
   }
 
   reflowTypes(irfunc);
-}
-
-static Register* chaseAssignOperand(Register* value) {
-  while (value->instr()->IsAssign()) {
-    value = value->instr()->GetOperand(0);
-  }
-  return value;
-}
-
-void CopyPropagation::Run(Function& irfunc) {
-  std::vector<Instr*> assigns;
-  for (auto block : irfunc.cfg.GetRPOTraversal()) {
-    for (auto& instr : *block) {
-      instr.visitUses([](Register*& reg) {
-        reg = chaseAssignOperand(reg);
-        return true;
-      });
-
-      if (instr.IsAssign()) {
-        assigns.emplace_back(&instr);
-      }
-    }
-  }
-
-  for (auto instr : assigns) {
-    instr->unlink();
-    delete instr;
-  }
 }
 
 void PhiElimination::Run(Function& func) {

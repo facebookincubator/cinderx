@@ -65,18 +65,6 @@ class DynamicComparisonElimination : public Pass {
   DISALLOW_COPY_AND_ASSIGN(DynamicComparisonElimination);
 };
 
-// Eliminate Assign instructions by propagating copies.
-class CopyPropagation : public Pass {
- public:
-  CopyPropagation() : Pass("CopyPropagation") {}
-
-  void Run(Function& irfunc) override;
-
-  static std::unique_ptr<CopyPropagation> Factory() {
-    return std::make_unique<CopyPropagation>();
-  }
-};
-
 // Eliminate instructions whose outputs are not used in a return or by
 // other instructions with side-effects
 class DeadCodeElimination : public Pass {

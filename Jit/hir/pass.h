@@ -24,4 +24,8 @@ class Pass {
   std::string name_;
 };
 
+// Recursively chase a list of assignments and get the original register value.
+// If there are no assignments then just get the register back.
+Register* chaseAssignOperand(Register* value);
+
 } // namespace jit::hir

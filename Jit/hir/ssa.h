@@ -3,7 +3,7 @@
 #pragma once
 
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/optimization.h"
+#include "cinderx/Jit/hir/pass.h"
 
 #include <fmt/format.h>
 
