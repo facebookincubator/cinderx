@@ -7,8 +7,8 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
-#include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/parser.h"
+#include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/RuntimeTests/fixtures.h"
@@ -217,7 +217,7 @@ TEST(RemoveTrampolineBlocksTest, DoesntModifySingleBlockLoops) {
   cfg.entry_block = cfg.AllocateBlock();
   cfg.entry_block->append<Branch>(cfg.entry_block);
 
-  CleanCFG{}.RemoveTrampolineBlocks(&cfg);
+  removeTrampolineBlocks(&cfg);
 
   auto s = HIRPrinter().ToString(cfg);
   const char* expected = R"(bb 0 (preds 0) {
@@ -236,7 +236,7 @@ TEST(RemoveTrampolineBlocksTest, ReducesSimpleLoops) {
   cfg.entry_block->append<Branch>(t1);
   t1->append<Branch>(cfg.entry_block);
 
-  CleanCFG{}.RemoveTrampolineBlocks(&cfg);
+  removeTrampolineBlocks(&cfg);
 
   auto s = HIRPrinter().ToString(cfg);
   const char* expected = R"(bb 1 (preds 1) {
@@ -268,7 +268,7 @@ TEST(RemoveTrampolineBlocksTest, RemovesSimpleChain) {
   cfg.entry_block = cfg.AllocateBlock();
   cfg.entry_block->append<Branch>(t2);
 
-  CleanCFG{}.RemoveTrampolineBlocks(&cfg);
+  removeTrampolineBlocks(&cfg);
 
   auto s = HIRPrinter().ToString(cfg);
   auto expected = R"(bb 0 {
@@ -320,7 +320,7 @@ TEST(RemoveTrampolineBlocksTest, ReducesLoops) {
   cfg.entry_block = cfg.AllocateBlock();
   cfg.entry_block->append<CondBranch>(v0, exit_block, t1);
 
-  CleanCFG{}.RemoveTrampolineBlocks(&cfg);
+  removeTrampolineBlocks(&cfg);
 
   auto after = HIRPrinter().ToString(cfg);
   const char* expected = R"(bb 5 {
@@ -383,7 +383,7 @@ TEST(RemoveTrampolineBlocksTest, UpdatesAllPredecessors) {
   cfg.entry_block = cfg.AllocateBlock();
   cfg.entry_block->append<CondBranch>(v0, t4, t3);
 
-  CleanCFG{}.RemoveTrampolineBlocks(&cfg);
+  removeTrampolineBlocks(&cfg);
 
   auto after = HIRPrinter().ToString(cfg);
   const char* expected = R"(bb 5 {

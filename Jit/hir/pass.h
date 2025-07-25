@@ -28,4 +28,12 @@ class Pass {
 // If there are no assignments then just get the register back.
 Register* chaseAssignOperand(Register* value);
 
+// Replace cond branches where both sides go to the same block with a direct
+// branch.
+void simplifyRedundantCondBranches(CFG* cfg);
+
+// Remove any blocks that consist of a single jump to another block. Avoid using
+// this alone; use CleanCFG instead.
+bool removeTrampolineBlocks(CFG* cfg);
+
 } // namespace jit::hir

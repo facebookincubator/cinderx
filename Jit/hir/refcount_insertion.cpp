@@ -6,6 +6,7 @@
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/instr_effects.h"
 #include "cinderx/Jit/hir/optimization.h"
+#include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
 
 #include <fmt/ostream.h>
@@ -1321,9 +1322,9 @@ void RefcountInsertion::Run(Function& func) {
   }
 
   // Clean up any trampoline blocks that weren't necessary.
-  // TODO(emacs): Investigate running the whole CleanCFG pass here or between
-  // every pass.
-  CleanCFG::RemoveTrampolineBlocks(&func.cfg);
+  //
+  // Consider running the whole CleanCFG pass here or between every pass.
+  removeTrampolineBlocks(&func.cfg);
 
   // Optimize long decref runs
   optimizeLongDecrefRuns(func);

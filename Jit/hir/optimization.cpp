@@ -13,6 +13,7 @@
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/instr_effects.h"
+#include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/Jit/hir/ssa.h"
@@ -132,48 +133,6 @@ void DynamicComparisonElimination::Run(Function& irfunc) {
   }
 
   reflowTypes(irfunc);
-}
-
-void PhiElimination::Run(Function& func) {
-  for (bool changed = true; changed;) {
-    changed = false;
-
-    for (auto& block : func.cfg.blocks) {
-      std::vector<Instr*> assigns_or_loads;
-      for (auto it = block.begin(); it != block.end();) {
-        auto& instr = *it;
-        ++it;
-        if (!instr.IsPhi()) {
-          for (auto assign : assigns_or_loads) {
-            assign->InsertBefore(instr);
-          }
-          break;
-        }
-        if (auto value = static_cast<Phi&>(instr).isTrivial()) {
-          // If a trivial Phi references itself then it can never be
-          // initialized, and we can use a LoadConst<Bottom> to signify that.
-          Register* model_value = chaseAssignOperand(value);
-          Instr* new_instr;
-          if (model_value == instr.output()) {
-            new_instr = LoadConst::create(instr.output(), TBottom);
-          } else {
-            new_instr = Assign::create(instr.output(), value);
-          }
-          new_instr->copyBytecodeOffset(instr);
-          assigns_or_loads.emplace_back(new_instr);
-          instr.unlink();
-          delete &instr;
-          changed = true;
-        }
-      }
-    }
-
-    CopyPropagation{}.Run(func);
-  }
-
-  // TODO(emacs): Investigate running the whole CleanCFG pass here or between
-  // every pass.
-  CleanCFG::RemoveTrampolineBlocks(&func.cfg);
 }
 
 static bool isUseful(Instr& instr) {
@@ -604,76 +563,6 @@ bool CleanCFG::RemoveUnreachableBlocks(CFG* cfg) {
   }
 
   return unreachable.size() > 0;
-}
-
-// Replace cond branches where both sides of branch go to the same block with a
-// direct branch
-// TODO(emacs): Move to Simplify
-static void simplifyRedundantCondBranches(CFG* cfg) {
-  std::vector<BasicBlock*> to_simplify;
-  for (auto& block : cfg->blocks) {
-    if (block.empty()) {
-      continue;
-    }
-    auto term = block.GetTerminator();
-    std::size_t num_edges = term->numEdges();
-    if (num_edges < 2) {
-      continue;
-    }
-    JIT_CHECK(num_edges == 2, "only two edges are supported");
-    if (term->successor(0) != term->successor(1)) {
-      continue;
-    }
-    switch (term->opcode()) {
-      case Opcode::kCondBranch:
-      case Opcode::kCondBranchIterNotDone:
-      case Opcode::kCondBranchCheckType:
-        break;
-      default:
-        // Can't be sure that it's safe to replace the instruction with a branch
-        JIT_ABORT("Unknown side effects of {} instruction", term->opname());
-    }
-    to_simplify.emplace_back(&block);
-  }
-  for (auto& block : to_simplify) {
-    auto term = block->GetTerminator();
-    term->unlink();
-    auto branch = block->appendWithOff<Branch>(
-        term->bytecodeOffset(), term->successor(0));
-    branch->copyBytecodeOffset(*term);
-    delete term;
-  }
-}
-
-bool CleanCFG::RemoveTrampolineBlocks(CFG* cfg) {
-  std::vector<BasicBlock*> trampolines;
-  for (auto& block : cfg->blocks) {
-    if (!block.IsTrampoline()) {
-      continue;
-    }
-    BasicBlock* succ = block.successor(0);
-    // if this is the entry block and its successor has multiple
-    // predecessors, don't remove it; it's necessary to maintain isolated
-    // entries
-    if (&block == cfg->entry_block) {
-      if (succ->in_edges().size() > 1) {
-        continue;
-      } else {
-        cfg->entry_block = succ;
-      }
-    }
-    // Update all predecessors to jump directly to our successor
-    block.retargetPreds(succ);
-    // Finish splicing the trampoline out of the cfg
-    block.set_successor(0, nullptr);
-    trampolines.emplace_back(&block);
-  }
-  for (auto& block : trampolines) {
-    cfg->RemoveBlock(block);
-    delete block;
-  }
-  simplifyRedundantCondBranches(cfg);
-  return trampolines.size() > 0;
 }
 
 void CleanCFG::Run(Function& irfunc) {

@@ -100,18 +100,6 @@ class GuardTypeRemoval : public Pass {
   }
 };
 
-// Remove Phis that only have one unique input value (other than their output).
-class PhiElimination : public Pass {
- public:
-  PhiElimination() : Pass("PhiElimination") {}
-
-  void Run(Function& irfunc) override;
-
-  static std::unique_ptr<PhiElimination> Factory() {
-    return std::make_unique<PhiElimination>();
-  }
-};
-
 class CleanCFG : public Pass {
  public:
   CleanCFG() : Pass("CleanCFG") {}
@@ -127,10 +115,6 @@ class CleanCFG : public Pass {
   // alone; use CleanCFG instead. Returns true if it changed the graph and false
   // otherwise.
   static bool RemoveUnreachableInstructions(CFG* cfg);
-
-  // Remove any blocks that consist of a single jump to another block. Avoid
-  // using this alone; use CleanCFG instead.
-  static bool RemoveTrampolineBlocks(CFG* cfg);
 
   static std::unique_ptr<CleanCFG> Factory() {
     return std::make_unique<CleanCFG>();

@@ -5,8 +5,6 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/pass.h"
 
-#include <fmt/format.h>
-
 #include <iosfwd>
 #include <unordered_map>
 #include <unordered_set>

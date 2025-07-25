@@ -9,6 +9,7 @@
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/optimization.h"
+#include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 #include "cinderx/RuntimeTests/testutil.h"
 
