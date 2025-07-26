@@ -376,6 +376,34 @@ static PyMethodDef jitcoro_wrapper_methods[] = {
     {} /* Sentinel */
 };
 
+#ifdef ENABLE_GENERATOR_AWAITER
+
+static void jitocorowrapper_set_awaiter(
+    JitCoroWrapper* self,
+    PyObject* awaiter) {
+  Ci_PyAwaitable_SetAwaiter(self->cw_coroutine, awaiter);
+}
+
+static Ci_AsyncMethodsWithExtra jitcorowrapper_as_async = {
+    .ame_async_methods = {},
+    // Filled in by init_jit_genobject_type()
+    .ame_setawaiter =
+        reinterpret_cast<setawaiterfunc>(jitocorowrapper_set_awaiter),
+};
+
+static PyAsyncMethods* jitcorowrapper_async_methods =
+    &jitcorowrapper_as_async.ame_async_methods;
+
+#else
+
+#ifdef Ci_TPFLAGS_HAVE_AM_EXTRA
+#undef Ci_TPFLAGS_HAVE_AM_EXTRA
+#endif
+#define Ci_TPFLAGS_HAVE_AM_EXTRA 0
+
+static PyAsyncMethods* jitcorowrapper_async_methods = nullptr;
+
+#endif
 PyTypeObject _JitCoroWrapper_Type = {
     PyVarObject_HEAD_INIT(&PyType_Type, 0) "coroutine_wrapper",
     sizeof(JitCoroWrapper), /* tp_basicsize */
@@ -385,7 +413,7 @@ PyTypeObject _JitCoroWrapper_Type = {
     0, /* tp_vectorcall_offset */
     nullptr, /* tp_getattr */
     nullptr, /* tp_setattr */
-    nullptr, /* tp_as_async */
+    jitcorowrapper_async_methods, /* tp_as_async */
     nullptr, /* tp_repr */
     nullptr, /* tp_as_number */
     nullptr, /* tp_as_sequence */
@@ -396,7 +424,8 @@ PyTypeObject _JitCoroWrapper_Type = {
     PyObject_GenericGetAttr, /* tp_getattro */
     nullptr, /* tp_setattro */
     nullptr, /* tp_as_buffer */
-    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC, /* tp_flags */
+    Py_TPFLAGS_DEFAULT | Py_TPFLAGS_HAVE_GC |
+        Ci_TPFLAGS_HAVE_AM_EXTRA, /* tp_flags */
     "A wrapper object implementing __await__ for coroutines.",
     reinterpret_cast<traverseproc>(jitcoro_wrapper_traverse), /* tp_traverse */
     nullptr, /* tp_clear */
