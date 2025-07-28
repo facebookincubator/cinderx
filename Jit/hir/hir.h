@@ -488,7 +488,6 @@ class DeoptBase : public Instr {
   BorrowedRef<PyCodeObject> code() const override {
     FrameState* state = frameState();
     if (state == nullptr) {
-      // TODO(emacs): Why does GuardIs have a null FrameState after SSAify?
       return nullptr;
     }
     return state->code;
@@ -662,7 +661,6 @@ class InstrT<T, opcode, Operands<arity>, Tys...>
     this->operandAt(0) = reg;
   }
 
-  // TODO(mpage) - Get rid of this?
   template <int a = arity>
     requires(a == 1)
   Register* reg() const {

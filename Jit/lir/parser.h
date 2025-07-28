@@ -28,14 +28,13 @@ class ParserException : public std::exception {
 
 class Parser {
  public:
-  // Parse the code and generate a Function object.
-  // The first and the last basic block of the code must be an entry block
-  // and an exit block, respectively.
-  // TODO(tiansi): Add another mode where the entry block and exit block
-  // are not required in the code but generated automatically.
-  // The returned basic blocks are in the same order as they apppear in the
-  // code.
-  // Throws an exception if parsing error occurs.
+  // Parse the code and generate a Function object.  The first and the last
+  // basic block of the code must be an entry block and an exit block,
+  // respectively.  Throws an exception if parsing error occurs.
+  //
+  // Consider adding another mode where the entry block and exit block are not
+  // required in the code but generated automatically.  The returned basic
+  // blocks would be in the same order as they apppear in the code.
   std::unique_ptr<Function> parse(const std::string& code);
 
   const UnorderedMap<int, Instruction*> getOutputInstrMap() const {

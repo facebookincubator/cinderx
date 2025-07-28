@@ -329,9 +329,6 @@ BB %0
   ASSERT_EQ(lir_str, ss.str());
 }
 
-// TODO(tiansi): The parser does not recognize the new instructions.
-// I'm planning to fix and improve LIR printing/parsing with a
-// separate diff. Disabled this test for now.
 TEST_F(LIRGeneratorTest, ParserTest) {
   const char* pycode = R"(
 def func(x):

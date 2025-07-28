@@ -1319,8 +1319,8 @@ LinearScanAllocator::resolveEdgesGenCopies(
     // phi will be set if case 1.
     const Instruction* phi = nullptr;
     if (interval_starts_from_beginning) {
-      // TODO (tiansi): In future optimizations, we can consider a way of
-      // looking up a phi by vreg instead of linear scan.
+      // In future optimizations, we can consider a way of looking up a phi by
+      // vreg instead of linear scan.
       successor->foreachPhiInstr([&interval, &phi](const Instruction* instr) {
         if (instr->output()->getPhyRegOrStackSlot() ==
             interval->allocated_loc) {
@@ -1431,8 +1431,7 @@ void LinearScanAllocator::rewriteLIREmitCopies(
   }
 }
 
-// TODO (tiansi): in the (near) future, we need to move the code
-// related to basic block ordering to a separate pass.
+// In the future, we should move basic block ordering to a separate pass.
 void LinearScanAllocator::resolveEdgesInsertBasicBlocks(
     BasicBlock* basic_block,
     BasicBlock* next_basic_block,

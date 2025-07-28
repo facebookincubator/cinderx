@@ -228,9 +228,9 @@ PyObject* resumeInInterpreter(
   int inline_depth = deopt_meta.inline_depth();
   int err_occurred = (deopt_meta.reason != DeoptReason::kGuardFailure);
   while (inline_depth >= 0) {
-    // TODO(emacs): Investigate skipping resuming frames that do not have
-    // try/catch. Will require re-adding _PyShadowFrame_Pop back for
-    // non-generators and unlinking the frame manually.
+    // Consider skipping resuming frames that do not have try/catch. Will
+    // require re-adding _PyShadowFrame_Pop back for non-generators and
+    // unlinking the frame manually.
 
     // We need to maintain the invariant that there is at most one shadow frame
     // on the shadow stack for each frame on the Python stack. Unless we are a

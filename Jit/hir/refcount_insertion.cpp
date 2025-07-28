@@ -869,11 +869,10 @@ PhiSupport processPhis(
       if (input.rstate->isOwned()) {
         rstate.support().add(map_get(env.reg_to_bit, input.rstate->model()));
       } else if (input.rstate->isBorrowed()) {
-        // TODO(bsimmers): If this input gets promoted to owned because of a
-        // loop, the borrow support we add here will be redundant and could
-        // result in worse results. We should revisit this at some point, but
-        // it's never incorrect to add more borrow support and fixing this gets
-        // messy.
+        // If this input gets promoted to owned because of a loop, the borrow
+        // support we add here will be redundant and could result in worse
+        // results. We should revisit this at some point, but it's never
+        // incorrect to add more borrow support and fixing this gets messy.
         rstate.support().add(input.rstate->support());
       }
     }

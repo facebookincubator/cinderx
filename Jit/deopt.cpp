@@ -52,12 +52,12 @@ hir::ValueKind deoptValueKind(hir::Type type) {
     return jit::hir::ValueKind::kDouble;
   }
 
-  // TODO(bsimmers): The type predicates here are gross and indicate a deeper
-  // problem with how we're using Types earlier in the pipeline: we use
-  // `LoadNull` to zero-initialize locals with primitive types (currently done
-  // in SSAify). It works fine at runtime and a proper fix likely involves
-  // reworking HIR's support for constant values, so we paper over the issue
-  // here for the moment.
+  // The type predicates here are gross and indicate a deeper problem with how
+  // we're using Types earlier in the pipeline: we use `LoadNull` to
+  // zero-initialize locals with primitive types (currently done in SSAify). It
+  // works fine at runtime and a proper fix likely involves reworking HIR's
+  // support for constant values, so we paper over the issue here for the
+  // moment.
   if (type.couldBe(jit::hir::TCUnsigned | jit::hir::TCSigned)) {
     if (type <= (jit::hir::TCUnsigned | jit::hir::TNullptr)) {
       return jit::hir::ValueKind::kUnsigned;

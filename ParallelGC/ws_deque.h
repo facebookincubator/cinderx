@@ -8,7 +8,7 @@
 
 #if HAVE_STD_ATOMIC
 
-// TODO(mpage): Add necessary support to pycore_atomic.h so that we can drop the
+// Consider adding necessary support to pycore_atomic.h so that we can drop the
 // requirement on C11 atomics. This will require adding support for:
 //
 // - The `consume` memory ordering.
@@ -88,7 +88,8 @@ Ci_WSArray_Grow(Ci_WSArray* arr, size_t top, size_t bot) {
 
 static const size_t kCiParGCInitialArrSize = 1 << 12;
 
-// TODO(mpage): Determine this based on architecture
+// Ideally this would be determined based on architecture, but hardcoded for
+// now.
 #define CACHELINE_SIZE 64
 
 typedef struct {

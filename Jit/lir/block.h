@@ -214,7 +214,7 @@ class BasicBlock {
 
   friend class Parser;
 
-  // TODO(tiansi): consider using IntrusiveList as in HIR
+  // Consider using IntrusiveList as in HIR.
   InstrList instrs_;
 
   jit::codegen::CodeSection section_;

@@ -656,8 +656,8 @@ BasicBlock* HIRBuilder::buildHIRImpl(
 
   addLoadArgs(entry_tc, preloader_.numArgs());
 
-  // TODO(emacs): Check if the code object or preloader uses runtime func and
-  // drop the frame_state == nullptr check. Inlined functions should load a
+  // Consider checking if the code object or preloader uses runtime func and
+  // drop the frame_state == nullptr check.  Inlined functions should load a
   // const instead of using LoadCurrentFunc.
   if (frame_state == nullptr && irfunc->uses_runtime_func) {
     func_ = temps_.AllocateNonStack();

@@ -761,9 +761,8 @@ class PyFlowGraph(FlowGraph):
                     next = None
                     break
 
-            # TODO(dinoviehland): we could save the delta we came up with here and
-            # reapply it on subsequent walks rather than having to walk all of the
-            # instructions again.
+            # Consider saving the delta we came up with here and reapplying it on
+            # subsequent walks rather than having to walk all of the instructions again.
             if next:
                 self.push_block(worklist, next, depth)
 

@@ -60,8 +60,8 @@ bool registerTypeMatches(Type op_type, OperandType expected_type);
 // BackwardDataflowAnalysis and provide implementations of `ComputeGenKill`,
 // `ComputeNewIn`, and `ComputeNewOut` that implement the analysis.
 //
-// TODO(mpage) - This is potentially a good candidate for CRTP if the
-// performance overhead of the virtual functions becomes an issue.
+// This is potentially a good candidate for CRTP if the performance overhead of
+// the virtual functions becomes an issue.
 class DataflowAnalysis {
  public:
   explicit DataflowAnalysis(const Function& irfunc)
@@ -168,8 +168,8 @@ class LivenessAnalysis : public BackwardDataflowAnalysis {
 //
 // NB: This doesn't support DEL_FAST yet (and probably never will).
 //
-// TODO(mpage): We probably don't need to run this over temporaries. They should
-// always be assigned before being used.
+// We probably don't need to run this over temporaries. They should always be
+// assigned before being used.
 //
 // Each bit in the bit-vector represents whether or not the corresponding
 // register has been assigned. Local summaries for each block are computed as

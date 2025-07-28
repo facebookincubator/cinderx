@@ -109,9 +109,8 @@ struct Environ {
   // Maps HIR values to the HIR values they were copied from. Used for LIR
   // generation purposes.
   //
-  // TODO(tiansi, bsimmers): this is a temporary hack. Need to do the real copy
-  // propagation after LIR cleanup is done. Related to
-  // jit::lir::LIRGenerator::AnalyzeCopies().
+  // This is a hack. Need to do the real copy propagation after LIR cleanup is
+  // done. Related to jit::lir::LIRGenerator::AnalyzeCopies().
   UnorderedMap<const hir::Register*, hir::Register*> copy_propagation_map;
 
   UnorderedMap<jit::lir::BasicBlock*, asmjit::Label> block_label_map;

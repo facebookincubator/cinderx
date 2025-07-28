@@ -24,10 +24,11 @@
 #include <unordered_set>
 
 static bool is_shadow_frame_for_gen(_PyShadowFrame* shadow_frame) {
-  // TODO(bsimmers): This condition will need to change when we support eager
-  // coroutine execution in the JIT, since there is no PyGenObject* for the
-  // frame while executing eagerly (but isGen() will still return true).
-  // TASK(T110700318): Collapse into RTFS case
+  // This condition will need to change when we support eager coroutine
+  // execution in the JIT, since there is no PyGenObject* for the frame while
+  // executing eagerly (but isGen() will still return true).
+  //
+  // TASK(T110700318): Collapse into RTFS case.
   bool is_jit_gen = _PyShadowFrame_GetPtrKind(shadow_frame) == PYSF_CODE_RT &&
       static_cast<jit::CodeRuntime*>(_PyShadowFrame_GetPtr(shadow_frame))
           ->frameState()
@@ -247,7 +248,7 @@ PyFrameState getPyFrameStateForJITGen(PyGenObject* gen) {
 //   - not-nullptr  - Immediately before cursor
 //   - std::nullopt - Not inserted
 //
-// TODO(mpage): Use std::variant to represent the insertion position.
+// Consider using std::variant to represent the insertion position.
 BorrowedRef<PyFrameObject> materializePyFrame(
     PyThreadState* tstate,
     _PyShadowFrame* shadow_frame,

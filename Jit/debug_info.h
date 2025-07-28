@@ -145,7 +145,8 @@ class DebugInfo {
   std::vector<LocNode> inlined_calls_;
 
   // Index into the graph, keyed by address in the generated code
-  // TODO(mpage): Store this in a vector sorted by address.
+  //
+  // Consider storing in a vector sorted by address instead.
   jit::UnorderedMap<uintptr_t, LocNode> addr_locs_;
 };
 

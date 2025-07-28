@@ -12,10 +12,10 @@
 
 namespace jit::hir {
 
-// Helper class for pretty printing IR
+// Helper class for pretty printing IR.
 //
-// TODO(mpage): This works, but feels horribly kludgy. This should be possible
-// using a custom streambuf for indentation and via overloads for <<.
+// This works, but feels horribly kludgy. This should be possible using a custom
+// streambuf for indentation and via overloads for <<.
 class HIRPrinter {
  public:
   // Construct an HIRPrinter.

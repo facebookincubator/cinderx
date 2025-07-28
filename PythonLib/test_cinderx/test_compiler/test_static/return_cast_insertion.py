@@ -78,5 +78,3 @@ class ReturnCastInsertionTests(StaticTestBase):
         """
         f_code = self.find_code(self.compile(codestr), "f")
         self.assertNotInBytecode(f_code, "CAST")
-        # TODO(emacs): How do I get a REFINE_TYPE here?
-        # self.assertInBytecode(f_code, "REFINE_TYPE")

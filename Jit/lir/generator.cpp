@@ -253,14 +253,13 @@ void LIRGenerator::AnalyzeCopies() {
   // assign their output the same vreg as the input, effectively performing
   // copy propagation during lowering.
   //
-  // TODO(bsimmers): We should really be emitting copies during lowering and
-  // eliminating them after the fact, to keep this information localized to the
-  // lowering code.
+  // We should really be emitting copies during lowering and eliminating them
+  // after the fact, to keep this information localized to the lowering code.
 
   for (auto& block : func_->cfg.blocks) {
     for (auto& instr : block) {
-      // XXX(bsimmers) Cast doesn't have to be a special case once it deopts
-      // and always returns its input.
+      // Cast doesn't have to be a special case once it deopts and always
+      // returns its input.
       if (instr.output() != nullptr && !instr.IsCast() &&
           hir::isPassthrough(instr)) {
         env_->copy_propagation_map.emplace(instr.output(), instr.GetOperand(0));
@@ -408,10 +407,10 @@ bool LIRGenerator::TranslateSpecializedCall(
     }
   }
 
-  // TODO(bsimmers): This is where we can go bananas with specializing calls to
-  // things like tuple(), list(), etc, hardcoding or inlining calls to tp_new
-  // and tp_init as appropriate. For now, we simply support any native callable
-  // with a vectorcall.
+  // This is where we can go bananas with specializing calls to things like
+  // tuple(), list(), etc, hardcoding or inlining calls to tp_new and tp_init as
+  // appropriate. For now, we simply support any native callable with a
+  // vectorcall.
   switch (
       PyCFunction_GET_FLAGS(callee) &
       (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O | METH_KEYWORDS)) {
@@ -2671,11 +2670,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             "Inlined code stores references to code objects");
         // TASK(T109706798): Support calling from generators and inlining
         // generators.
-        // TODO(emacs): Link all shadow frame prev pointers in function
-        // prologue, since they need not happen with every call -- just the
-        // data pointers need to be reset with every call.
-        // TODO(emacs): If we manage to optimize leaf calls to a series of
-        // non-deopting instructions, remove BeginInlinedFunction and
+        //
+        // Consider linking all shadow frame prev pointers in function prologue,
+        // since they need not happen with every call -- just the data pointers
+        // need to be reset with every call.
+        //
+        // If we manage to optimize leaf calls to a series of non-deopting
+        // instructions, we could also remove BeginInlinedFunction and
         // EndInlinedFunction completely.
         if (kPyDebug) {
           bbb.appendInvokeInstruction(

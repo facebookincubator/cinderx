@@ -1592,8 +1592,7 @@ void JITRT_SetCurrentAwaiter(PyObject* awaitable, PyThreadState* ts) {
 
 #if PY_VERSION_HEX < 0x030C0000
   _PyShadowFrame* sf = ts->shadow_frame;
-  // TODO(bsimmers): This may need to change when we support eager evaluation of
-  // coroutines.
+  // This may need to change when we support eager evaluation of coroutines.
   auto awaiter = reinterpret_cast<PyObject*>(_PyShadowFrame_GetGen(sf));
 #else
   _PyInterpreterFrame* frame = interpFrameFromThreadState(ts);
@@ -1849,11 +1848,11 @@ JITRT_StaticCallReturn JITRT_FailedDeferredCompileShim(
   Py_DECREF(ret_type);
   if (ret_code != TYPED_OBJECT) {
     // we can always unbox to 64-bit, the JIT will just ignore the higher bits.
-    // (TODO) This means that overflow here will give weird results, but
-    // overflow in primitive ints in static python is undefined behavior right
-    // now anyway, until we implement overflow checking. It doesn't make sense
-    // to implement overflow checking just here in the "unjitable" code path,
-    // when overflow won't be checked if the code is JITted.
+    // This means that overflow here will give weird results, but overflow in
+    // primitive ints in static python is undefined behavior right now anyway,
+    // until we implement overflow checking. It doesn't make sense to implement
+    // overflow checking just here in the "unjitable" code path, when overflow
+    // won't be checked if the code is JITted.
     void* ival;
     if (ret_code == TYPED_BOOL) {
       ival = (void*)(res == Py_True);

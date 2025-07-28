@@ -104,9 +104,6 @@ class HIRBuilder {
   // refcount operations or types flowed through it. Later passes will transform
   // to SSA, flow types, optimize, and insert refcount operations using liveness
   // analysis.
-  //
-  // TODO(mpage): Consider using something like Either here to indicate reason
-  // for failure.
   std::unique_ptr<Function> buildHIR();
 
   // Given the preloader for the callee (passed into the constructor),

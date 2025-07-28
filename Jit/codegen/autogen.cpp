@@ -411,8 +411,8 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
 
   // Load tstate into RDI for call to JITRT_MakeGenObject*.
 
-  // TODO(jbower) Avoid reloading tstate in from memory if it was already in a
-  // register before spilling. Still needs to be in memory though so it can be
+  // Consider avoiding reloading the tstate in from memory if it was already in
+  // a register before spilling. Still needs to be in memory though so it can be
   // recovered after calling JITRT_MakeGenObject* which will trash it.
   PhyLocation tstate = instr->getInput(0)->getStackSlot();
   as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
@@ -481,8 +481,8 @@ void translateYieldInitial(Environ* env, const Instruction* instr) {
   // Load tstate into RDI for call to
   // JITRT_UnlinkGenFrameAndReturnGenDataFooter.
 
-  // TODO(jbower) Avoid reloading tstate in from memory if it was already in a
-  // register before spilling. Still needs to be in memory though so it can be
+  // Consider avoiding reloading the tstate in from memory if it was already in
+  // a register before spilling. Still needs to be in memory though so it can be
   // recovered after calling JITRT_MakeGenObject* which will trash it.
   PhyLocation tstate = instr->getInput(0)->getStackSlot();
   as->mov(x86::rdi, x86::ptr(x86::rbp, tstate.loc));
@@ -888,7 +888,6 @@ struct AddDebugEntryAction {
 // and maps it to a list of actions:
 //   GEN(<operand pattern>, action1, action2, ...)
 //
-// TODO(tiansi): define macros for the operand pattern to make it more readable.
 // The operand pattern is defined by a string, and each character in the string
 // correpsonds to an operand of the instruction. The character can be one
 // of the following:

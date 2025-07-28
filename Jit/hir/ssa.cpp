@@ -520,8 +520,6 @@ Type outputType(
     case Opcode::kPrimitiveCompare:
       return TCBool;
     case Opcode::kPrimitiveUnaryOp:
-      // TODO if we have a specialized input type we should really be
-      // constant-folding
       if (static_cast<const PrimitiveUnaryOp&>(instr).op() ==
           PrimitiveUnaryOpKind::kNotInt) {
         return TCBool;
@@ -592,10 +590,10 @@ Type outputType(
     case Opcode::kRunPeriodicTasks:
       return TCInt32;
 
-    // TODO(bsimmers): These wrap C functions that return 0 for success and -1
-    // for an error, which is converted into Py_None or nullptr,
-    // respectively. At some point we should get rid of this extra layer and
-    // deal with the int return value directly.
+    // These wrap C functions that return 0 for success and -1 for an error,
+    // which is converted into Py_None or nullptr, respectively. At some point
+    // we should get rid of this extra layer and deal with the int return value
+    // directly.
     case Opcode::kListExtend:
       return TNoneType;
 

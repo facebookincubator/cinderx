@@ -380,12 +380,12 @@ RewriteResult rewriteBitExtensionInstrs(instr_iter_t instr_iter) {
 
 // Add (conditional) branch instructions to the end of each basic blocks when
 // necessary.
-// TODO (tiansi): currently, condition to the conditional branches are always
-// comparing against 0, so they are translated directly into machine code,
-// and we don't need to take care of them here right now. But once we start
-// to support different conditions (as we already did in static compiler),
-// we need to also rewrite conditional branches into Jcc instructions.
-// I'll do this in one of the following a few diffs.
+//
+// Currently, conditional branches are always comparing against 0, so they are
+// translated directly into machine code, and we don't need to take care of them
+// here right now. But once we start to support different conditions (as we
+// already did in static compiler), we need to also rewrite conditional branches
+// into Jcc instructions.
 RewriteResult rewriteBranchInstrs(Function* function) {
   auto& blocks = function->basicblocks();
   bool changed = false;

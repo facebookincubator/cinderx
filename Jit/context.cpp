@@ -248,7 +248,7 @@ void AotContext::destroy() {
     return;
   }
 
-  // TODO(alexanderm): Unmap compiled functions and empty out private data
+  // TASK(T183003853): Unmap compiled functions and empty out private data
   // structures.
 
   dlclose(bundle_handle_);
@@ -269,7 +269,7 @@ void AotContext::registerFunc(const elf::Note& note) {
           ? fmt::format("+{:#x}", *note_data.static_entry_offset)
           : "");
 
-  // TODO(alexanderm): Use std::piecewise_construct for better efficiency.
+  // This could use std::piecewise_construct for better efficiency.
   auto [it, inserted] = funcs_.emplace(note.name, FuncState{});
   JIT_CHECK(inserted, "Duplicate ELF note for function '{}'", note.name);
   it->second.note = std::move(note_data);

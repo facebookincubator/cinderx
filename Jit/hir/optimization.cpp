@@ -581,8 +581,7 @@ static size_t codeCost(BorrowedRef<PyCodeObject> code) {
 }
 
 // Most of these checks are only temporary and do not in perpetuity prohibit
-// inlining. They are here to simplify bringup of the inliner and can be
-// treated as TODOs.
+// inlining.
 static bool canInline(Function& caller, AbstractCall* call_instr) {
   BorrowedRef<PyFunctionObject> func = call_instr->func;
 
@@ -738,7 +737,8 @@ static void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
     // the function was inlined.
     // VectorCall -> {LoadField, GuardIs, BeginInlinedFunction, Branch to
     // callee CFG}
-    // TODO(emacs): Emit a DeoptPatchpoint here to catch the case where someone
+    //
+    // Consider emitting a DeoptPatchpoint here to catch the case where someone
     // swaps out function.__code__.
     Register* code_obj = caller.env.AllocateRegister();
     auto load_code = LoadField::create(
@@ -803,7 +803,6 @@ void InlineFunctionCalls::Run(Function& irfunc) {
   std::vector<AbstractCall> to_inline;
   for (auto& block : irfunc.cfg.blocks) {
     for (auto& instr : block) {
-      // TODO(emacs): Support InvokeMethod
       if (instr.IsVectorCall()) {
         auto call = static_cast<VectorCall*>(&instr);
         Register* target = call->func();
@@ -886,7 +885,7 @@ void InlineFunctionCalls::Run(Function& irfunc) {
 static void tryEliminateBeginEnd(EndInlinedFunction* end) {
   BeginInlinedFunction* begin = end->matchingBegin();
   if (begin->block() != end->block()) {
-    // TODO(emacs): Support elimination across basic blocks
+    // Elimination across basic blocks not supported yet.
     return;
   }
   auto it = begin->block()->iterator_to(*begin);

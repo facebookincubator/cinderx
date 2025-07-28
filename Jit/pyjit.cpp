@@ -369,9 +369,9 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit",
       "PYTHONJIT",
-      // TODO: This should not enable `compile_all`, use PYTHONJITALL instead.
-      // Instead the JIT should always be initialized, even if it is not
-      // configured to be used.
+      // TASK(T217220166): This should not enable `compile_all`, use
+      // PYTHONJITALL instead.  Instead the JIT should always be initialized,
+      // even if it is not configured to be used.
       getMutableConfig().compile_all,
       "Enable the JIT");
 
@@ -1414,7 +1414,7 @@ PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
 
   const char* filename = PyUnicode_AsUTF8(arg);
 
-  // TODO(alexanderm): Verify these options are what we want.
+  // TASK(T193992967): Verify these options are what we want.
   auto handle = dlopen(filename, RTLD_NOW | RTLD_GLOBAL);
   if (handle == nullptr) {
     std::string msg = fmt::format(
@@ -1459,7 +1459,7 @@ PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
 
   // Now map compiled functions to existing PyFunctionObjects.
   //
-  // TODO(alexanderm): This is terrible and we should be going the other way,
+  // TASK(T193992967): This is terrible and we should be going the other way,
   // mapping read notes over to function objects.
   PyUnstable_GC_VisitObjects(aot_func_visitor, &g_aot_ctx);
 

@@ -9,8 +9,8 @@
 using namespace jit::hir;
 
 TEST(CopyPropagationTest, EliminatesCopies) {
-  // TODO(bsimmers): This can be converted to a .txt-based pass test when we
-  // lower directly to SSA.
+  // This could be converted to a .txt-based pass test when we lower directly to
+  // SSA.
 
   const char* hir_source = R"(
 fun test {
