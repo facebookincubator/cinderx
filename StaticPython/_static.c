@@ -590,7 +590,7 @@ static PyObject* ctxmgrwrp_vectorcall(
 
   /* Call the wrapped function */
   PyObject* res = _PyObject_Vectorcall(self->func, args, nargsf, kwargs);
-  /* TODO(T128335015): Enable this when we have async/await support. */
+  /* TASK(T128335015): Enable this when we have async/await support. */
   if (self->is_coroutine && res != NULL) {
 #if PY_VERSION_HEX < 0x030C0000
     /* If it's a co-routine either pass up the eagerly awaited value or

@@ -3644,7 +3644,7 @@ static PyMethodDef chklist_methods[] = {
      METH_O | METH_COEXIST,
      "x.__getitem__(y) <==> x[y]"},
 #endif
-    // TODO(T96351329): We should implement a custom reverse iterator for
+    // TASK(T96351329): We should implement a custom reverse iterator for
     // checked lists.
     LIST___REVERSED___METHODDEF LIST___SIZEOF___METHODDEF LIST_CLEAR_METHODDEF
 #if PY_VERSION_HEX < 0x030C0000

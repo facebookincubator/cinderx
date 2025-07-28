@@ -261,7 +261,7 @@ void initDynamics(Object& elf) {
   SectionHeader& dynstr = elf.getSectionHeader(SectionIdx::kDynstr);
   SectionHeader& hash = elf.getSectionHeader(SectionIdx::kHash);
 
-  // TODO(T183002717): kNeeded for _cinderx.so.
+  // TASK(T183002717): kNeeded for _cinderx.so.
   elf.dynamic.insert(DynTag::kNeeded, elf.libpython_name);
 
   elf.dynamic.insert(DynTag::kHash, hash.address);
@@ -415,7 +415,7 @@ void writeEntries(std::ostream& os, const std::vector<CodeEntry>& entries) {
     sym.size = entry.compiled_code.size();
     elf.dynsym.insert(std::move(sym));
 
-    // TODO(T176630885): Not writing the filename or lineno yet.
+    // TASK(T176630885): Not writing the filename or lineno yet.
 
     text_end_address += entry.compiled_code.size();
   }

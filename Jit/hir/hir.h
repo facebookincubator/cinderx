@@ -715,7 +715,7 @@ class InstrT<T, opcode, HasOutput, Tys...> : public InstrT<T, opcode, Tys...> {
   }
 };
 
-// TODO(T105350013): Add a compile-time op_types size check
+// TASK(T105350013): Add a compile-time op_types size check
 #define INSTR_CLASS(name, types, ...)                                          \
   name##                                                                       \
   _OperandTypes{public : OperandType GetOperandTypeImpl(std::size_t i) const { \

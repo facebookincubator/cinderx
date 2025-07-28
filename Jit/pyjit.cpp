@@ -1425,7 +1425,7 @@ PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
 
   g_aot_ctx.init(handle);
 
-  // TODO(T193608222): It would be great to do something other than mmapping the
+  // TASK(T193608222): It would be great to do something other than mmapping the
   // entire file into memory, especially since we just loaded it in via
   // dlopen().
   MmapFile file;

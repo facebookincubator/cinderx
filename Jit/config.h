@@ -41,7 +41,7 @@ struct HIROptimizations {
   bool dead_code_elim{true};
   bool dynamic_comparison_elim{true};
   bool guard_type_removal{true};
-  // TODO(T156009029): Inliner should be on by default.
+  // TASK(T156009029): Inliner should be on by default.
   bool inliner{false};
   bool insert_update_prev_instr{true};
   bool phi_elim{true};
@@ -113,7 +113,7 @@ struct Config {
   // types very well right now.  Disable to expose new typing opportunities in
   // HIR.
   //
-  // TODO(T195042385): Replace this with actual typing.
+  // TASK(T195042385): Replace this with actual typing.
   bool refine_static_python{true};
   HIROptimizations hir_opts;
   LIROptimizations lir_opts;

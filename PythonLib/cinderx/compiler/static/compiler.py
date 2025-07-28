@@ -555,7 +555,7 @@ class Compiler:
             tree = cached_tree
         # Analyze variable scopes
         future_flags = find_futures(0, tree)
-        # TODO(TT209531178): This class still implicitly assumes 3.10
+        # TASK(TT209531178): This class still implicitly assumes 3.10
         code_generator = cast("Static310CodeGenerator", self.code_generator)
         s = code_generator._SymbolVisitor(future_flags)
         s.visit(tree)

@@ -381,7 +381,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
         if (outer_scope is not None and outer_scope is not self) or getattr(
             node, "type_params", None
         ):
-            # TODO(T210915794): We don't support type params, we need to pass the
+            # TASK(T210915794): We don't support type params, we need to pass the
             # .generic_base as part of the bases
             raise NotImplementedError("Type params not supported in static Python yet")
 

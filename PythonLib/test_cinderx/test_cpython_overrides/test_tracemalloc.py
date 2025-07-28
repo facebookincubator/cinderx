@@ -93,7 +93,7 @@ class CinderX_TestTracemallocEnabled(unittest.TestCase):
 
     @unittest.skipIf(
         cinderx.jit.is_inline_cache_stats_collection_enabled(),
-        "#TODO(T150421262): Traced memory does not work well with JIT's inline cache stats collection.",
+        "#TASK(T150421262): Traced memory does not work well with JIT's inline cache stats collection.",
     )
     def test_get_traced_memory(self):
         # Python allocates some internals objects, so the test must tolerate

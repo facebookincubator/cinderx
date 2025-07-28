@@ -938,7 +938,7 @@ class CodeGenerator(ASTVisitor):
         return self.make_func_codegen(node, args, name, node.lineno)
 
     def check_async_comprehension(self, node: CompNode) -> None:
-        # TODO(T209725064): also add check for PyCF_ALLOW_TOP_LEVEL_AWAIT
+        # TASK(T209725064): also add check for PyCF_ALLOW_TOP_LEVEL_AWAIT
         is_async_generator = self.symbols.scopes[node].coroutine
         is_async_function = self.scope.coroutine
         if (
@@ -2742,7 +2742,7 @@ class CodeGenerator310(CodeGenerator):
     # Names and attribute access --------------------------------------------------
 
     def _nameOp(self, prefix: str, name: str) -> None:
-        # TODO(T130490253): The JIT suppression should happen in the jit, not the compiler.
+        # TASK(T130490253): The JIT suppression should happen in the jit, not the compiler.
         if (
             prefix == "LOAD"
             and name == "super"
@@ -4922,7 +4922,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit("MAKE_FUNCTION", flags)
 
     def _nameOp(self, prefix: str, name: str) -> None:
-        # TODO(T130490253): The JIT suppression should happen in the jit, not the compiler.
+        # TASK(T130490253): The JIT suppression should happen in the jit, not the compiler.
         if (
             prefix == "LOAD"
             and name == "super"

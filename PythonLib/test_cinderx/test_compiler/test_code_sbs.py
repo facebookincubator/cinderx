@@ -195,7 +195,7 @@ class CodeTests(CompilerTest):
         else:
             # We have already converted function graphs to bytecode, so we need
             # to check consts for code objects.
-            # TODO(T190611021): Handle methods and nested functions.
+            # TASK(T190611021): Handle methods and nested functions.
             for _, obj in graph.consts:
                 if inspect.iscode(obj) and obj.co_name == fn_name:
                     # pyre-ignore[16]: `types.CodeType` has no attribute `co_exceptiontable`

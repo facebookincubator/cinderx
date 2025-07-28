@@ -82,7 +82,7 @@ class LIRGenerator {
       instr->addOperands(MemImm{guard.target()});
     } else if (hir_instr.IsGuardType()) {
       const auto& guard = static_cast<const hir::GuardType&>(hir_instr);
-      // TODO(T101999851): Handle non-Exact types
+      // TASK(T101999851): Handle non-Exact types
       JIT_CHECK(
           guard.target().isExact(), "Only exact type guards are supported");
       PyTypeObject* guard_type = guard.target().uniquePyType();

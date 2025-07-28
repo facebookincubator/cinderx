@@ -3296,7 +3296,7 @@ void HIRBuilder::emitFastLen(
     BasicBlock* fast_path = cfg.AllocateBlock();
     tc.emit<CondBranchCheckType>(collection, type, fast_path, deopt_path.block);
     tc.block = fast_path;
-    // TODO(T105038867): Remove once we have RefineTypeInsertion
+    // TASK(T105038867): Remove once we have RefineTypeInsertion
     tc.emit<RefineType>(collection, type, collection);
   } else {
     collection = tc.frame.stack.pop();
@@ -4306,7 +4306,7 @@ void HIRBuilder::emitGetAwaitable(
     tc.emit<RaiseAwaitableError>(type, error_aenter, tc.frame);
 
     tc.block = ok_block;
-    // TODO(T105038867): Remove once we have RefineTypeInsertion
+    // TASK(T105038867): Remove once we have RefineTypeInsertion
     tc.emit<RefineType>(iter, TObject, iter);
   } else {
     tc.emit<CheckExc>(iter, iter, tc.frame);

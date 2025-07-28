@@ -60,7 +60,7 @@ class CinderX_OpcodeTests(unittest.TestCase):
         self.assertRaises(ValueError, stack_effect, dis.opmap["POP_TOP"], 0)
         # All defined opcodes
         for name, code in dis.opmap.items():
-            # TODO(T74641077) - Figure out how to deal with static python opcodes
+            # TASK(T74641077) - Figure out how to deal with static python opcodes
             if name in MISSING_STACK_EFFECT or code in opcode.shadowop:
                 continue
 
@@ -93,7 +93,7 @@ class CinderX_OpcodeTests(unittest.TestCase):
         # All defined opcodes
         has_jump = dis.hasjabs + dis.hasjrel
         for name, code in dis.opmap.items():
-            # TODO(T74641077) - Figure out how to deal with static python opcodes
+            # TASK(T74641077) - Figure out how to deal with static python opcodes
             if name in MISSING_STACK_EFFECT or code in opcode.shadowop:
                 continue
 

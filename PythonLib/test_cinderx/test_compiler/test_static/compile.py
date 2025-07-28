@@ -2072,7 +2072,7 @@ class StaticCompilationTests(StaticTestBase):
             a = x(b="hunter3")
         """
         module = self.compile(codestr)
-        # TODO(T87420170): Support invokes here.
+        # TASK(T87420170): Support invokes here.
         self.assertNotInBytecode(module, "INVOKE_FUNCTION")
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.a, "hunter3")

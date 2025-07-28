@@ -46,7 +46,7 @@ if TYPE_CHECKING:
 #   type A = Foo
 # When set to False, only the latter form will be supported.
 #
-# TODO(T214139735): This is a placeholder for a feature flag that will let
+# TASK(T214139735): This is a placeholder for a feature flag that will let
 # users opt in to implicit type aliases on a per-module basis.
 ENABLE_IMPLICIT_TYPE_ALIASES = False
 
@@ -141,7 +141,7 @@ class AnnotationVisitor(ReferenceVisitor):
             # used as annotations; if they are, fall back to dynamic rather
             # than raise an error (see T186572841 for context).
 
-            # TODO(T186572841): Extend to Protocol as well
+            # TASK(T186572841): Extend to Protocol as well
             special_types = ("NamedTuple", "TypedDict")
             if klass.type_name.module == "typing":
                 if klass.type_name.qualname in special_types:

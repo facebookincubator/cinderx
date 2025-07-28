@@ -110,7 +110,7 @@ class alignas(16) CodeRuntime {
  public:
   CodeRuntime(PyCodeObject* code, PyObject* builtins, PyObject* globals)
       : frame_state_(code, builtins, globals) {
-    // TODO(T88040922): Until we work out something smarter, force code,
+    // TASK(T88040922): Until we work out something smarter, force code,
     // globals, and builtins objects for compiled functions to live as long as
     // the JIT is initialized.
     addReference(BorrowedRef(code));
@@ -208,7 +208,7 @@ class alignas(16) CodeRuntime {
 // The base address of the complete heap allocated suspend data is:
 //   PyGenObject::gi_jit_data - GenDataFooter::spillWords
 //
-// TODO(T209500214): In 3.12 we should roll this data directly into memory
+// TASK(T209500214): In 3.12 we should roll this data directly into memory
 // allocated for a generator rather than having it in a separate heap object.
 struct GenDataFooter {
   // Tools which examine/walk the stack expect the following two values to be

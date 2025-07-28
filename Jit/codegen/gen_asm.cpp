@@ -151,7 +151,7 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
   }
 #endif
   reifyFrame(frame, deopt_meta, deopt_meta.outermostFrame(), regs);
-  // TODO(T198250666): Support jit inlining
+  // TASK(T198250666): Support jit inlining
 #endif
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
@@ -273,7 +273,7 @@ PyObject* resumeInInterpreter(
     _PyInterpreterFrame* frame,
     Runtime* runtime,
     std::size_t deopt_idx) {
-  // TODO(T198250666): Support jit inlining
+  // TASK(T198250666): Support jit inlining
   PyThreadState* tstate = PyThreadState_Get();
 
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
@@ -636,7 +636,7 @@ PhyLocation get_arg_location_phy_location(int arg) {
 }
 
 int NativeGenerator::maxInlineStackSize() {
-  // TODO(T198250666): Support jit inlining
+  // TASK(T198250666): Support jit inlining
 #if PY_VERSION_HEX < 0x030C0000
   return max_inline_depth_ * kJITShadowFrameSize;
 #else

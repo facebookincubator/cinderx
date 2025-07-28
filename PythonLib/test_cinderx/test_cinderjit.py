@@ -1925,7 +1925,7 @@ class SetUpdateTests(unittest.TestCase):
         self.assertEqual(self.doit(C()), {1, 2, 3})
 
 
-# TODO(T125845248): After D38227343 is landed and support for COMPARE_OP is in,
+# TASK(T125845248): After D38227343 is landed and support for COMPARE_OP is in,
 # remove UnpackSequenceTests entirely. It will then be covered by the other
 # UnpackSequenceTests above.
 class UnpackSequenceTestsWithoutCompare(unittest.TestCase):
@@ -1958,7 +1958,7 @@ class UnpackSequenceTestsWithoutCompare(unittest.TestCase):
             self.doit(C(()))
 
 
-# TODO(T125845248): After D38227343 is landed and support for COMPARE_OP is in,
+# TASK(T125845248): After D38227343 is landed and support for COMPARE_OP is in,
 # remove UnpackExTests entirely. It will then be covered by UnpackSequenceTests
 # above.
 class UnpackExTests(unittest.TestCase):

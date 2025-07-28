@@ -27,7 +27,7 @@ static bool is_shadow_frame_for_gen(_PyShadowFrame* shadow_frame) {
   // TODO(bsimmers): This condition will need to change when we support eager
   // coroutine execution in the JIT, since there is no PyGenObject* for the
   // frame while executing eagerly (but isGen() will still return true).
-  // TODO(T110700318): Collapse into RTFS case
+  // TASK(T110700318): Collapse into RTFS case
   bool is_jit_gen = _PyShadowFrame_GetPtrKind(shadow_frame) == PYSF_CODE_RT &&
       static_cast<jit::CodeRuntime*>(_PyShadowFrame_GetPtr(shadow_frame))
           ->frameState()
@@ -655,7 +655,7 @@ BorrowedRef<PyFrameObject> materializePyFrameForGen(
 
   _PyShadowFrame* shadow_frame = &gen->gi_shadow_frame;
   UnitState unit_state = getUnitState(shadow_frame);
-  // TODO(T116587512): Support inlined frames in generator objects
+  // TASK(T116587512): Support inlined frames in generator objects
   JIT_CHECK(
       unit_state.size() == 1, "unexpected inlined frames found for generator");
   std::optional<BorrowedRef<PyFrameObject>> cursor;

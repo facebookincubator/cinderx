@@ -258,7 +258,7 @@ guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
             }
           }
           OperandType expected_type = instr->GetOperandType(i);
-          // TODO(T106726658): We should be able to remove GuardTypes if we ever
+          // TASK(T106726658): We should be able to remove GuardTypes if we ever
           // add a matching constraint for non-Primitive types, and our
           // GuardType adds an unnecessary refinement. Since we cannot guard on
           // primitive types yet, this should never happen
@@ -669,7 +669,7 @@ static bool canInlineWithPreloader(
   if (call_instr->instr->IsVectorCall() &&
       (preloader.code()->co_flags & CI_CO_STATICALLY_COMPILED) &&
       (preloader.returnType() <= TPrimitive || preloader.hasPrimitiveArgs())) {
-    // TODO(T122371281) remove this constraint
+    // TASK(T122371281) remove this constraint
     dlogAndCollectFailureStats(
         caller, call_instr, InlineFailureType::kIsVectorCallWithPrimitives);
     return false;
@@ -791,7 +791,7 @@ void InlineFunctionCalls::Run(Function& irfunc) {
     return;
   }
   if (irfunc.code->co_flags & kCoFlagsAnyGenerator) {
-    // TODO(T109706798): Support inlining into generators
+    // TASK(T109706798): Support inlining into generators
     LOG_INLINER(
         "Refusing to inline functions into {}: function is a generator",
         irfunc.fullname);
@@ -1063,7 +1063,7 @@ void BuiltinLoadMethodElimination::Run(Function& irfunc) {
           // This pass currently only handles 1:1 LoadMethod/CallMethod
           // combinations. If there are multiple CallMethod for a given
           // LoadMethod, bail out.
-          // TODO(T138839090): support multiple CallMethod
+          // TASK(T138839090): support multiple CallMethod
           invokes.erase(result.first);
         }
       }

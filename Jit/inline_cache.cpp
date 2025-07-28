@@ -107,7 +107,7 @@ PyObject* __attribute__((noinline)) raise_attribute_error(
 }
 
 uint64_t getModuleVersion(BorrowedRef<PyModuleObject> mod) {
-#if PY_VERSION_HEX < 0x030E0000 // TODO(T229234686)
+#if PY_VERSION_HEX < 0x030E0000 // TASK(T229234686)
   if (mod->md_dict) {
     BorrowedRef<PyDictObject> md_dict = mod->md_dict;
     return md_dict->ma_version_tag;
@@ -117,7 +117,7 @@ uint64_t getModuleVersion(BorrowedRef<PyModuleObject> mod) {
 }
 
 uint64_t getModuleVersion(BorrowedRef<Ci_StrictModuleObject> mod) {
-#if PY_VERSION_HEX < 0x030E0000 // TODO(T229234686)
+#if PY_VERSION_HEX < 0x030E0000 // TASK(T229234686)
   if (mod->globals) {
     BorrowedRef<PyDictObject> globals = mod->globals;
     return globals->ma_version_tag;
@@ -192,7 +192,7 @@ bool SplitMutator::ensureValueOffset(BorrowedRef<> name) {
 }
 
 int SplitMutator::setAttr(PyObject* obj, PyObject* name, PyObject* value) {
-#if PY_VERSION_HEX < 0x030E0000 // TODO(T229234686)
+#if PY_VERSION_HEX < 0x030E0000 // TASK(T229234686)
 #if PY_VERSION_HEX >= 0x030C0000
   PyDictOrValues dorv = *_PyObject_DictOrValuesPointer(obj);
   if (_PyDictOrValues_IsValues(dorv)) {
@@ -670,7 +670,7 @@ void AttributeCache::fill(
 
   // Instance attribute with no shadowing. Specialize the lookup based on
   // whether or not the type is using split dictionaries.
-#if PY_VERSION_HEX < 0x030E0000 // TODO(T229234686)
+#if PY_VERSION_HEX < 0x030E0000 // TASK(T229234686)
   PyDictKeysObject* keys = getSplitKeys(type);
 #if PY_VERSION_HEX >= 0x030C0000
   if (PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {

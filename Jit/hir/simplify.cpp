@@ -643,7 +643,7 @@ Register* simplifyBinaryOp(Env& env, const BinaryOp* instr) {
       // Fallthrough
     }
     if (lhs->isA(TListExact) || lhs->isA(TTupleExact)) {
-      // TODO(T93509109): Replace TCInt64 with a less platform-specific
+      // TASK(T93509109): Replace TCInt64 with a less platform-specific
       // representation of the type, which should be analagous to Py_ssize_t.
       env.emit<UseType>(lhs, lhs->isA(TListExact) ? TListExact : TTupleExact);
       env.emit<UseType>(rhs, TLongExact);
@@ -1342,7 +1342,7 @@ static Register* resolveArgs(
   // number of positional args (including args with default values)
   size_t co_argcount = static_cast<size_t>(code->co_argcount);
   if (instr->numArgs() > co_argcount) {
-    // TODO(T143644311): support varargs and check if non-varargs here
+    // TASK(T143644311): support varargs and check if non-varargs here
     return nullptr;
   }
 
@@ -1354,7 +1354,7 @@ static Register* resolveArgs(
   // grab default positional arguments
   BorrowedRef<PyTupleObject> defaults{target->func_defaults};
 
-  // TODO(T143644350): support kwargs and kwdefaults
+  // TASK(T143644350): support kwargs and kwdefaults
   size_t num_defaults =
       defaults == nullptr ? 0 : static_cast<size_t>(PyTuple_GET_SIZE(defaults));
 
@@ -1362,7 +1362,7 @@ static Register* resolveArgs(
     // function was called with too few arguments
     return nullptr;
   }
-  // TODO(T143644377): support kwonly args
+  // TASK(T143644377): support kwonly args
   JIT_CHECK(code->co_kwonlyargcount == 0, " can't resolve kwonly args");
   for (size_t i = 0; i < co_argcount; i++) {
     if (i < num_positional) {
@@ -1671,7 +1671,7 @@ Register* simplifyVectorCall(Env& env, const VectorCall* instr) {
     BorrowedRef<PyCodeObject> code{func->func_code};
     if (code->co_kwonlyargcount > 0 || (code->co_flags & CO_VARARGS) ||
         (code->co_flags & CO_VARKEYWORDS)) {
-      // TODO(T143644854): full argument resolution
+      // TASK(T143644854): full argument resolution
       return nullptr;
     }
 

@@ -693,7 +693,7 @@ def worker_main(args):
         WorkReceiver(pipe).run(ns)
 
 
-# TODO(T184566736) Remove this work around for a bug in Buck2 which causes
+# TASK(T184566736) Remove this work around for a bug in Buck2 which causes
 # us to be the parent of fire-and-forget logging processes.
 def fix_env_always_changed_issue():
     # Build a list of our already existing child-processes.

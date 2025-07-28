@@ -153,7 +153,7 @@ class DeclarationVisitor(GenericVisitor[None]):
                 break
 
             if base is self.type_env.typed_dict:
-                # TODO(T121706684) Supporting typed dicts is tricky, similar
+                # TASK(T121706684) Supporting typed dicts is tricky, similar
                 # to protocols and named tuples
                 klass = self.type_env.dynamic
                 break

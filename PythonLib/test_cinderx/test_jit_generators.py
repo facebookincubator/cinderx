@@ -539,7 +539,7 @@ class GeneratorsTest(unittest.TestCase):
         self.assertIs(cm.exception.value, li)
         self.assertEqual(li, [14, 16])
 
-    # TODO(T125856469): Once we support eager execution of coroutines, add
+    # TASK(T125856469): Once we support eager execution of coroutines, add
     # tests that deopt while suspended at YieldAndYieldFrom.
 
 

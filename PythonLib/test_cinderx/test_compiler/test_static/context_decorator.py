@@ -814,7 +814,7 @@ class ContextDecoratorTests(StaticTestBase):
         with self.assertRaises(StopIteration) as e:
             x.throw(Exception())
 
-        # TODO(T223033891): This works on 3.12.8 but breaks on 3.12.10; the
+        # TASK(T223033891): This works on 3.12.8 but breaks on 3.12.10; the
         # latter has args `(None,)` instead.
         if sys.version_info < (3, 12, 10):
             self.assertEqual(e.exception.args, ())

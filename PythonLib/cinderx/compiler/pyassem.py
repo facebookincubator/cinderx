@@ -85,11 +85,11 @@ UNCONDITIONAL_JUMP_OPCODES = (
 )
 
 
-# TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
+# TASK(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
 RETURN_OPCODES = ("RETURN_VALUE", "RETURN_CONST", "RETURN_PRIMITIVE")
 
 
-# TODO(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
+# TASK(T128853358): The RETURN_PRIMITIVE logic should live in the Static flow graph.
 SCOPE_EXIT_OPCODES = (
     "RETURN_VALUE",
     "RETURN_CONST",
@@ -843,7 +843,7 @@ class PyFlowGraph(FlowGraph):
 
         self.stage = FLAT
 
-    # TODO(T128853358): pull out all converters for static opcodes into
+    # TASK(T128853358): pull out all converters for static opcodes into
     # StaticPyFlowGraph
 
     def _convert_LOAD_CONST(self, arg: object) -> int:
@@ -2044,7 +2044,7 @@ class PyFlowGraph312(PyFlowGraph):
         return exception_table.getTable()
 
     def convert_pseudo_ops(self) -> None:
-        # TODO(T190611021): The graph is actually in the FINAL stage, which
+        # TASK(T190611021): The graph is actually in the FINAL stage, which
         # seems wrong because we're still modifying the opcodes.
         # assert self.stage == ACTIVE, self.stage
 
@@ -2066,7 +2066,7 @@ class PyFlowGraph312(PyFlowGraph):
         self.finalize()
         assert self.stage == FINAL, self.stage
 
-        # TODO(T206903352): We need to pass the return value to make_code at
+        # TASK(T206903352): We need to pass the return value to make_code at
         # some point.
         self.prepare_localsplus()
         self.compute_stack_depth()

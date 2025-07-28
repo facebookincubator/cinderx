@@ -51,7 +51,7 @@ struct JitGenObject : PyGenObject {
   }
 
   GenDataFooter** genDataFooterPtr() {
-    // TODO(T209501671): This has way too much going on. If we made PyGenObject
+    // TASK(T209501671): This has way too much going on. If we made PyGenObject
     // use PyObject_VAR_HEAD like it probably should this would get simpler. If
     // we expanded the allocation to include the GenDataFooter it'd get simpler
     // still.

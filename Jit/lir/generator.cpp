@@ -155,7 +155,7 @@ emitSubclassCheck(BasicBlockBuilder& bbb, hir::Register* obj, Type type) {
   return bbb.appendInstr(
       Instruction::kCall,
       OutVReg{OperandBase::k8bit},
-      // TODO(T140174965): This should be MemImm.
+      // TASK(T140174965): This should be MemImm.
       Imm{fptr},
       obj);
 }
@@ -832,7 +832,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           bbb.appendInstr(
               instr->output(),
               Instruction::kCall,
-              // TODO(T140174965): This should be MemImm.
+              // TASK(T140174965): This should be MemImm.
               Imm{reinterpret_cast<uint64_t>(helper)},
               left,
               right);
@@ -975,7 +975,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendInstr(
             instr->output(),
             Instruction::kCall,
-            // TODO(T140174965): This should be MemImm.
+            // TASK(T140174965): This should be MemImm.
             Imm{func},
             src);
 
@@ -1211,7 +1211,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* call = bbb.appendInstr(
             Instruction::kCall,
             OutVReg{OperandBase::k32bit},
-            // TODO(T140174965): This should be MemImm.
+            // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(PyObject_SetAttr)},
             instr->GetOperand(0),
             name,
@@ -1896,14 +1896,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
             Instruction::kVectorCall,
-            // TODO(T140174965): This should be MemImm.
+            // TASK(T140174965): This should be MemImm.
             Imm{func},
             Imm{flags});
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
         if (!(hir_instr.flags() & CallFlags::KwArgs)) {
-          // TODO(T140174965): This should be MemImm.
+          // TASK(T140174965): This should be MemImm.
           instr->addOperands(Imm{0});
         }
         break;
@@ -1993,14 +1993,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
             Instruction::kVectorCall,
-            // TODO(T140174965): This should be MemImm.
+            // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(JITRT_Call)},
             Imm{flags});
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
         }
         if (!(hir_instr.flags() & CallFlags::KwArgs)) {
-          // TODO(T140174965): This should be MemImm.
+          // TASK(T140174965): This should be MemImm.
           instr->addOperands(Imm{0});
         }
         break;
@@ -2025,7 +2025,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* instr = bbb.appendInstr(
             hir_instr.output(),
             Instruction::kCall,
-            // TODO(T140174965): This should be MemImm.
+            // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(hir_instr.addr())});
         for (const auto& arg : args) {
           instr->addOperands(VReg{arg});
@@ -2036,7 +2036,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto& hir_instr = static_cast<const CallStaticRetVoid&>(i);
         Instruction* instr = bbb.appendInstr(
             Instruction::kCall,
-            // TODO(T140174965): This should be MemImm.
+            // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(hir_instr.addr())});
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});
@@ -2522,13 +2522,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           globals = bbb.appendInstr(
               OutVReg{},
               Instruction::kMove,
-              // TODO(T140174965): This should be MemImm.
+              // TASK(T140174965): This should be MemImm.
               Imm{reinterpret_cast<uint64_t>(obj.get()), OperandBase::kObject});
         } else {
           globals = bbb.appendInstr(
               OutVReg{},
               Instruction::kCall,
-              // TODO(T140174965): This should be MemImm.
+              // TASK(T140174965): This should be MemImm.
               Imm{reinterpret_cast<uint64_t>(JITRT_LoadGlobalsDict)},
               env_->asm_tstate);
         }
@@ -2669,7 +2669,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         JIT_DCHECK(
             getConfig().stable_frame,
             "Inlined code stores references to code objects");
-        // TODO(T109706798): Support calling from generators and inlining
+        // TASK(T109706798): Support calling from generators and inlining
         // generators.
         // TODO(emacs): Link all shadow frame prev pointers in function
         // prologue, since they need not happen with every call -- just the
@@ -2734,13 +2734,13 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
 #else
-        // TODO(T198250666): Support jit inlining
+        // TASK(T198250666): Support jit inlining
 #endif
         break;
       }
       case Opcode::kEndInlinedFunction: {
 #if PY_VERSION_HEX < 0x030C0000
-        // TODO(T109706798): Support calling from generators and inlining
+        // TASK(T109706798): Support calling from generators and inlining
         // generators.
         if (kPyDebug) {
           bbb.appendInvokeInstruction(
@@ -2777,7 +2777,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // PyFrames via PyEval_GetFrame or similar.
         auto done_block = bbb.allocateBlock();
         bbb.appendBranch(Instruction::kBranchNC, done_block);
-        // TODO(T109445584): Remove this unused block.
+        // TASK(T109445584): Remove this unused block.
         bbb.appendBlock(bbb.allocateBlock());
         bbb.appendInvokeInstruction(JITRT_UnlinkFrame, env_->asm_tstate);
         bbb.appendBlock(done_block);
@@ -2786,7 +2786,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
 #else
-        // TODO(T198250666): Support jit inlining
+        // TASK(T198250666): Support jit inlining
 #endif
         break;
       }
@@ -2892,9 +2892,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* lir = bbb.appendInstr(
             Instruction::kCall,
             reinterpret_cast<uint64_t>(PyErr_Format),
-            // TODO(T140174965): This should be MemImm.
+            // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(instr.excType())},
-            // TODO(T140174965): This should be MemImm.
+            // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(instr.fmt())});
         for (size_t i = 0; i < instr.NumOperands(); i++) {
           lir->addOperands(VReg{bbb.getDefInstr(instr.GetOperand(i))});
@@ -2977,7 +2977,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* call = bbb.appendInstr(
             Instruction::kCall,
             OutVReg{OperandBase::k32bit},
-            // TODO(T140174965): This should be MemImm.
+            // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(PyObject_DelItem)},
             instr.GetOperand(0),
             instr.GetOperand(1));
@@ -3131,7 +3131,7 @@ Instruction* LIRGenerator::getNameFromIdx(
   return bbb.appendInstr(
       OutVReg{},
       Instruction::kMove,
-      // TODO(T140174965): This should be MemImm.
+      // TASK(T140174965): This should be MemImm.
       Imm{reinterpret_cast<uint64_t>(name.get()), OperandBase::kObject});
 }
 
