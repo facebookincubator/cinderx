@@ -85,5 +85,7 @@ class FrameAsm {
   asmjit::x86::Builder* as_{};
   const hir::Function* func_;
   Environ& env_;
+
+  int frameHeaderSizeExcludingSpillSpace() const;
 };
 } // namespace jit::codegen

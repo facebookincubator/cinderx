@@ -192,12 +192,12 @@ void FrameAsm::linkLightWeightFunctionFrame(
     as_->push(scratch);
   }
 
-  int frame_header_size = frameHeaderSize();
+  int frame_header_size = frameHeaderSizeExcludingSpillSpace();
   PyObject* frame_helper = cinderx::getModuleState()->frameReifier();
   const auto ref_cnt = x86::eax;
 
 #define FRAME_OFFSET(NAME) \
-  -frame_header_size + offsetof(_PyInterpreterFrame, NAME) + sizeof(PyObject*)
+  -frame_header_size + offsetof(_PyInterpreterFrame, NAME) + sizeof(FrameHeader)
 
   // Initialize the fields minus previous.
   // Store func before the header
@@ -414,7 +414,7 @@ void FrameAsm::generateUnlinkFrame(
     as_->jnc(done);
 #endif
 
-    auto saved_rax_ptr = x86::ptr(x86::rbp, -8);
+    auto saved_rax_ptr = x86::ptr(x86::rbp, -frameHeaderSize());
 
     hir::Type ret_type = func_->return_type;
     if (ret_type <= TCDouble) {
@@ -485,7 +485,7 @@ void FrameAsm::initializeFrameHeader(
 }
 #endif
 
-int FrameAsm::frameHeaderSize() {
+int FrameAsm::frameHeaderSizeExcludingSpillSpace() const {
   if (func_->code->co_flags & kCoFlagsAnyGenerator) {
     return 0;
   }
@@ -496,6 +496,14 @@ int FrameAsm::frameHeaderSize() {
   return sizeof(FrameHeader) + sizeof(PyObject*) * func_->code->co_framesize;
 #else
   return 0;
+#endif
+}
+
+int FrameAsm::frameHeaderSize() {
+#if defined(ENABLE_SHADOW_FRAMES)
+  return sizeof(FrameHeader);
+#else
+  return frameHeaderSizeExcludingSpillSpace() + sizeof(void*);
 #endif
 }
 
