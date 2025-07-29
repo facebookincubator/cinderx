@@ -169,8 +169,9 @@ static int JITRT_BindKeywordArgs(
     PyObject* kwdefs = func->func_kwdefaults;
     for (Py_ssize_t i = co->co_argcount; i < total_args; i++) {
       PyObject* name;
-      if (arg_space[i] != nullptr)
+      if (arg_space[i] != nullptr) {
         continue;
+      }
       name = jit::getVarname(co, i);
       if (kwdefs != nullptr) {
         PyObject* def = PyDict_GetItemWithError(kwdefs, name);
@@ -1961,8 +1962,9 @@ int JITRT_UnicodeEquals(PyObject* s1, PyObject* s2, int equals) {
   }
 
   if (PyUnicode_CheckExact(s1) && PyUnicode_CheckExact(s2)) {
-    if (PyUnicode_READY(s1) < 0 || PyUnicode_READY(s2) < 0)
+    if (PyUnicode_READY(s1) < 0 || PyUnicode_READY(s2) < 0) {
       return -1;
+    }
 
     Py_ssize_t length = PyUnicode_GET_LENGTH(s1);
     if (length != PyUnicode_GET_LENGTH(s2)) {

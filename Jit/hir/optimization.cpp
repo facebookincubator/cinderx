@@ -640,8 +640,9 @@ static bool canInline(Function& caller, AbstractCall* call_instr) {
     _PyLocals_Kind k = _PyLocals_GetKind(code->co_localspluskinds, offset);
     if (k & CO_FAST_CELL) {
       return fail(InlineFailureType::kHasCellvars);
-    } else if (k & CO_FAST_FREE)
+    } else if (k & CO_FAST_FREE) {
       return fail(InlineFailureType::kHasFreevars);
+    }
   }
 #else
   Py_ssize_t ncellvars = PyTuple_GET_SIZE(PyCode_GetCellvars(code));
