@@ -1010,9 +1010,11 @@ def main():
 
     args = parser.parse_args()
 
-    # Equivalent of 'ulimit -s unlimited'.
+    # We need a large stack size for our debug builds
+    multiplier = 4 if is_asan_build() else 2
     resource.setrlimit(
-        resource.RLIMIT_STACK, (resource.RLIM_INFINITY, resource.RLIM_INFINITY)
+        resource.RLIMIT_STACK,
+        (resource.getrlimit(resource.RLIMIT_STACK)[0] * multiplier, -1),
     )
 
     # Equivalent of 'ulimit -n <COUNT>'.  Needed because the
