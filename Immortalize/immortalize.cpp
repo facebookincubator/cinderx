@@ -8,7 +8,7 @@
 
 #define FROM_GC(g) ((PyObject*)(((PyGC_Head*)g) + 1))
 #define GEN_HEAD(state, n) (&(state)->generations[n].head)
-typedef struct _gc_runtime_state GCState;
+using GCState = struct _gc_runtime_state;
 
 struct _gc_runtime_state* get_gc_state() {
   return &PyInterpreterState_Get()->gc;
