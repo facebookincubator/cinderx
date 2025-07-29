@@ -874,6 +874,13 @@ if __name__ == "__main__":
         action="append",
         help="The name of a test to run (e.g. `test_math`). Can be supplied multiple times.",
     )
+    dispatcher_parser.add_argument(
+        "-R",
+        "--huntrleaks",
+        action="store_const",
+        const=(5, 4, "reflog.txt"),
+        help="Check for refleaks",
+    )
     dispatcher_parser.add_argument("rest", nargs=argparse.REMAINDER)
     dispatcher_parser.set_defaults(func=dispatcher_main)
 

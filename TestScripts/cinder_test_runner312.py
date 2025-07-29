@@ -11,6 +11,7 @@
 
 import argparse
 import dataclasses
+import difflib
 import gc
 import json
 import multiprocessing
@@ -331,6 +332,7 @@ class MultiWorkerCinderRegrtest:
         num_workers: int,
         json_summary_file: str | None,
         failfast: bool,
+        expected_failures: list[str],
     ):
         self._cinder_regr_runner_logfile = logfile
         self._success_on_test_errors = success_on_test_errors
@@ -342,6 +344,14 @@ class MultiWorkerCinderRegrtest:
         self._huntrleaks = huntrleaks
         self._num_workers = num_workers
         self._json_summary_file = json_summary_file
+        expected_failure_list = []
+        if expected_failures:
+            for filename in expected_failures:
+                with open(filename) as f:
+                    expected_failure_list.extend(
+                        line.strip() for line in f if line.strip()
+                    )
+        self._expected_failures = expected_failure_list
 
         self._ntests_done = 0
         self._interrupted = False
@@ -534,6 +544,8 @@ class MultiWorkerCinderRegrtest:
 
         self._save_recording_metadata(replay_infos)
 
+        starting_bad, missing_failures = self.update_expected_failures()
+
         if (
             not self._interrupted
             and not self._no_retry_on_test_errors
@@ -557,6 +569,9 @@ class MultiWorkerCinderRegrtest:
                 1,
                 replay_infos,
             )
+
+            starting_bad, missing_failures = self.update_expected_failures()
+
             if self._results.bad:
                 print(
                     f"{libregrtest_utils.count(len(self._results.bad), "test")} failed again:"
@@ -565,6 +580,11 @@ class MultiWorkerCinderRegrtest:
 
             # False, False => quiet, print_slowest
             self._results.display_result(self._runtests_config.tests, False, False)
+
+        if missing_failures:
+            # we expected some tests to fail but they passed
+            self.write_new_failures(starting_bad)
+            sys.exit(6)
 
         if self._json_summary_file:
             print("Writing JSON summary to", self._json_summary_file)
@@ -582,8 +602,48 @@ class MultiWorkerCinderRegrtest:
 
         if not self._success_on_test_errors:
             # True, True => fail_env_changed, fail_rerun
-            sys.exit(self._results.get_exitcode(True, True))
+            if missing_failures:
+                self.write_new_failures(starting_bad)
+            sys.exit(self._results.get_exitcode(False, False))
         sys.exit(0)
+
+    def write_new_failures(self, failures: list[str]) -> None:
+        if not self._expected_failures:
+            return
+
+        fn = tempfile.mktemp(prefix="new_failures")
+        print(f"Test failures this run (written to {fn}): ")
+        print("\n".join(failures))
+        with open(fn, "w") as f:
+            f.write("\n".join(failures))
+
+        print("Change in failures:")
+        diff = difflib.unified_diff(
+            self._expected_failures,
+            failures,
+        )
+        for line in diff:
+            print(line)
+
+    def update_expected_failures(self) -> tuple[list[str], bool]:
+        starting_bad = list(self._results.bad)
+        starting_bad.sort()
+        missing_failures = False
+        for expected_failure in self._expected_failures:
+            if expected_failure not in self._results.bad:
+                print(
+                    f"Expected failure {expected_failure} did not fail",
+                    file=sys.stderr,
+                )
+                missing_failures = True
+            else:
+                # Failure was expected, move to the skipped list
+                self._results.bad.remove(expected_failure)
+                self._results.skipped.append(expected_failure)
+                if expected_failure in self._results.rerun:
+                    self._results.rerun.remove(expected_failure)
+
+        return starting_bad, missing_failures
 
     def _selectTests(self, exclude: Set[str]) -> List[str]:
         # Initial set of tests are the core Python ones.
@@ -804,6 +864,7 @@ def dispatcher_main(args):
                 num_workers,
                 args.json_summary_file,
                 args.failfast,
+                args.expected_failures,
             )
             print(f"Spawning {num_workers} workers")
             test_runner.run()
@@ -921,6 +982,11 @@ def main():
         "--failfast",
         action="store_true",
         help="Stop after the first failure",
+    )
+    dispatcher_parser.add_argument(
+        "--expected-failures",
+        action="append",
+        help="A file which specifies expected failures for this test run.",
     )
     dispatcher_parser.add_argument("rest", nargs=argparse.REMAINDER)
     dispatcher_parser.set_defaults(func=dispatcher_main)
