@@ -2066,8 +2066,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           lir = bbb.appendInstr(instr->output(), Instruction::kCall, move);
         }
 
-        for (size_t i = 0; i < nargs; i++) {
-          lir->addOperands(VReg{bbb.getDefInstr(instr->GetOperand(i))});
+        for (size_t argIdx = 0; argIdx < nargs; argIdx++) {
+          lir->addOperands(VReg{bbb.getDefInstr(instr->GetOperand(argIdx))});
         }
         // functions that return primitives will signal error via edx/xmm1
         auto kind = InstrGuardKind::kNotZero;
@@ -2158,11 +2158,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               Instruction::kMove,
               OutVReg{OperandBase::k64bit},
               Ind{call, offsetof(PyListObject, ob_item)});
-          for (size_t i = 0; i < instr->nvalues(); i++) {
+          for (size_t valueIdx = 0; valueIdx < instr->nvalues(); valueIdx++) {
             bbb.appendInstr(
-                OutInd{load, static_cast<int32_t>(i * kPointerSize)},
+                OutInd{load, static_cast<int32_t>(valueIdx * kPointerSize)},
                 Instruction::kMove,
-                instr->GetOperand(i));
+                instr->GetOperand(valueIdx));
           }
         }
         break;
@@ -2176,13 +2176,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // TODO(T174544781): need to check for 0 before initializing, currently
         // that check only happens after assigning these values.
         const size_t ob_item_offset = offsetof(PyTupleObject, ob_item);
-        for (size_t i = 0; i < instr->NumOperands(); i++) {
+        for (size_t operandIdx = 0; operandIdx < instr->NumOperands();
+             operandIdx++) {
           bbb.appendInstr(
               OutInd{
                   tuple,
-                  static_cast<int32_t>(ob_item_offset + i * kPointerSize)},
+                  static_cast<int32_t>(
+                      ob_item_offset + operandIdx * kPointerSize)},
               Instruction::kMove,
-              instr->GetOperand(i));
+              instr->GetOperand(operandIdx));
         }
         break;
       }
@@ -2318,11 +2320,11 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               Instruction::kMove,
               Ind{bbb.getDefInstr(instr->output()),
                   static_cast<int32_t>(offsetof(PyListObject, ob_item))});
-          for (size_t i = 0; i < instr->nvalues(); i++) {
+          for (size_t valueIdx = 0; valueIdx < instr->nvalues(); valueIdx++) {
             bbb.appendInstr(
-                OutInd{ob_item, static_cast<int32_t>(i * kPointerSize)},
+                OutInd{ob_item, static_cast<int32_t>(valueIdx * kPointerSize)},
                 Instruction::kMove,
-                instr->GetOperand(i));
+                instr->GetOperand(valueIdx));
           }
         }
         break;
@@ -2897,8 +2899,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Imm{reinterpret_cast<uint64_t>(instr.excType())},
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(instr.fmt())});
-        for (size_t i = 0; i < instr.NumOperands(); i++) {
-          lir->addOperands(VReg{bbb.getDefInstr(instr.GetOperand(i))});
+        for (size_t operandIdx = 0; operandIdx < instr.NumOperands();
+             operandIdx++) {
+          lir->addOperands(VReg{bbb.getDefInstr(instr.GetOperand(operandIdx))});
         }
 
         appendGuardAlwaysFail(bbb, instr);
@@ -2928,8 +2931,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             JITRT_BuildString,
             nullptr,
             nullptr);
-        for (size_t i = 0; i < instr.NumOperands(); i++) {
-          lir->addOperands(VReg{bbb.getDefInstr(instr.GetOperand(i))});
+        for (size_t operandIdx = 0; operandIdx < instr.NumOperands();
+             operandIdx++) {
+          lir->addOperands(VReg{bbb.getDefInstr(instr.GetOperand(operandIdx))});
         }
         lir->addOperands(Imm{0});
 
