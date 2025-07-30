@@ -365,6 +365,11 @@ class MultiWorkerCinderRegrtest:
         if tests is None:
             tests = self._selectTests(skip_modules)
 
+        extra_opts = {}
+        if sys.version_info >= (3, 14):
+            extra_opts["coverage"] = False
+            extra_opts["parallel_threads"] = num_workers
+
         self._runtests_config = libregrtest_runtests.RunTests(
             tests=tuple(tests),
             fail_fast=failfast,
@@ -394,6 +399,7 @@ class MultiWorkerCinderRegrtest:
             python_cmd=None,
             randomize=False,
             random_seed=1,
+            **extra_opts,
         )
 
     def _run_tests_with_n_workers(  # noqa: C901
