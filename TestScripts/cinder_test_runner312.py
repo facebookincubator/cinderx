@@ -581,11 +581,6 @@ class MultiWorkerCinderRegrtest:
             # False, False => quiet, print_slowest
             self._results.display_result(self._runtests_config.tests, False, False)
 
-        if missing_failures:
-            # we expected some tests to fail but they passed
-            self.write_new_failures(starting_bad)
-            sys.exit(6)
-
         if self._json_summary_file:
             print("Writing JSON summary to", self._json_summary_file)
             with open(self._json_summary_file, "w") as f:
@@ -600,16 +595,28 @@ class MultiWorkerCinderRegrtest:
                     f,
                 )
 
+        if missing_failures:
+            # we expected some tests to fail but they passed
+            self.write_new_failures(starting_bad, missing_failures)
+            sys.exit(6)
+
         if not self._success_on_test_errors:
             # True, True => fail_env_changed, fail_rerun
-            if missing_failures:
-                self.write_new_failures(starting_bad)
+            if self._results.bad:
+                self.write_new_failures(starting_bad, missing_failures)
             sys.exit(self._results.get_exitcode(False, False))
         sys.exit(0)
 
-    def write_new_failures(self, failures: list[str]) -> None:
+    def write_new_failures(
+        self, failures: list[str], missing_failures: list[str]
+    ) -> None:
         if not self._expected_failures:
             return
+
+        if missing_failures:
+            print("Some tests were expected to fail but passed:")
+            print("\n".join(missing_failures))
+            print()
 
         fn = tempfile.mktemp(prefix="new_failures")
         print(f"Test failures this run (written to {fn}): ")
@@ -625,17 +632,13 @@ class MultiWorkerCinderRegrtest:
         for line in diff:
             print(line)
 
-    def update_expected_failures(self) -> tuple[list[str], bool]:
+    def update_expected_failures(self) -> tuple[list[str], list[str]]:
         starting_bad = list(self._results.bad)
         starting_bad.sort()
-        missing_failures = False
+        missing_failures = []
         for expected_failure in self._expected_failures:
             if expected_failure not in self._results.bad:
-                print(
-                    f"Expected failure {expected_failure} did not fail",
-                    file=sys.stderr,
-                )
-                missing_failures = True
+                missing_failures.append(expected_failure)
             else:
                 # Failure was expected, move to the skipped list
                 self._results.bad.remove(expected_failure)
