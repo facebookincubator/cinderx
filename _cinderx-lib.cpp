@@ -594,18 +594,20 @@ void init_already_existing_types() {
   //
   // NB: This persists after cinderx is unloaded.  Ideally we would put the
   // original arrays back.
-  getsetOverride(
-      &PyCFunction_Type,
-      s_func_getset,
-      reinterpret_cast<getter>(Ci_meth_get__typed_signature__));
-  getsetOverride(
-      &PyClassMethodDescr_Type,
-      s_class_method_getset,
-      reinterpret_cast<getter>(Ci_method_get_typed_signature));
-  getsetOverride(
-      &PyMethodDescr_Type,
-      s_method_getset,
-      reinterpret_cast<getter>(Ci_method_get_typed_signature));
+  if constexpr (PY_VERSION_HEX < 0x030E0000) {
+    getsetOverride(
+        &PyCFunction_Type,
+        s_func_getset,
+        reinterpret_cast<getter>(Ci_meth_get__typed_signature__));
+    getsetOverride(
+        &PyClassMethodDescr_Type,
+        s_class_method_getset,
+        reinterpret_cast<getter>(Ci_method_get_typed_signature));
+    getsetOverride(
+        &PyMethodDescr_Type,
+        s_method_getset,
+        reinterpret_cast<getter>(Ci_method_get_typed_signature));
+  }
 }
 
 #if PY_VERSION_HEX < 0x030C0000

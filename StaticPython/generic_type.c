@@ -254,7 +254,11 @@ PyTypeObject* gtd_make_heap_type(PyTypeObject* type, Py_ssize_t size) {
   if (type->tp_doc != NULL) {
     // tp_doc is heap allocated, so we need to copy it.
     size_t len = strlen(type->tp_doc) + 1;
+#if PY_VERSION_HEX >= 0x030E0000
+    char* new_doc = PyMem_Malloc(len);
+#else
     char* new_doc = PyObject_Malloc(len);
+#endif
     if (new_doc == NULL) {
       goto error;
     }
