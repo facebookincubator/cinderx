@@ -7,6 +7,7 @@
 #endif
 
 #include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
 #include "cinderx/Jit/hir/optimization.h"

@@ -10,6 +10,7 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
+#include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/instr_effects.h"
@@ -215,8 +216,6 @@ void InsertUpdatePrevInstr::Run(Function& func) {
 }
 #endif
 
-using RegUses = std::unordered_map<Register*, std::unordered_set<Instr*>>;
-
 static bool
 guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
   auto it = uses.find(new_reg);
@@ -278,20 +277,6 @@ guardNeeded(const RegUses& uses, Register* new_reg, Type relaxed_type) {
   return false;
 }
 
-// Collect direct operand uses of all Registers in the given func, excluding
-// uses in FrameState or other metadata.
-static RegUses collectDirectRegUses(Function& func) {
-  RegUses uses;
-  for (auto& block : func.cfg.blocks) {
-    for (Instr& instr : block) {
-      for (size_t i = 0; i < instr.NumOperands(); ++i) {
-        uses[instr.GetOperand(i)].insert(&instr);
-      }
-    }
-  }
-  return uses;
-}
-
 void GuardTypeRemoval::Run(Function& func) {
   RegUses reg_uses = collectDirectRegUses(func);
   std::vector<std::unique_ptr<Instr>> removed_guards;
@@ -317,195 +302,6 @@ void GuardTypeRemoval::Run(Function& func) {
 
   CopyPropagation{}.Run(func);
   reflowTypes(func);
-}
-
-static bool absorbDstBlock(BasicBlock* block) {
-  if (block->GetTerminator()->opcode() != Opcode::kBranch) {
-    return false;
-  }
-  auto branch = dynamic_cast<Branch*>(block->GetTerminator());
-  BasicBlock* target = branch->target();
-  if (target == block) {
-    return false;
-  }
-  if (target->in_edges().size() != 1) {
-    return false;
-  }
-  if (target == block) {
-    return false;
-  }
-  branch->unlink();
-  while (!target->empty()) {
-    Instr* instr = target->pop_front();
-    JIT_CHECK(!instr->IsPhi(), "Expected no Phi but found {}", *instr);
-    block->Append(instr);
-  }
-  // The successors to target might have Phis that still refer to target.
-  // Retarget them to refer to block.
-  Instr* old_term = block->GetTerminator();
-  JIT_CHECK(old_term != nullptr, "block must have a terminator");
-  for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
-    old_term->successor(i)->fixupPhis(
-        /*old_pred=*/target, /*new_pred=*/block);
-  }
-  // Target block becomes unreachable and gets picked up by
-  // removeUnreachableBlocks.
-  delete branch;
-  return true;
-}
-
-bool CleanCFG::RemoveUnreachableInstructions(CFG* cfg) {
-  bool modified = false;
-  std::vector<BasicBlock*> blocks = cfg->GetPostOrderTraversal();
-  DominatorAnalysis dom(*cfg->func);
-  RegUses reg_uses = collectDirectRegUses(*cfg->func);
-
-  for (BasicBlock* block : blocks) {
-    auto it = block->begin();
-    while (it != block->end()) {
-      Instr& instr = *it;
-      ++it;
-      if ((instr.output() == nullptr || !instr.output()->isA(TBottom)) &&
-          !instr.IsUnreachable()) {
-        continue;
-      }
-      // 1) Any instruction dominated by a definition of a Bottom value is
-      // unreachable, so we delete any such instructions and replace them
-      // with a special marker instruction (Unreachable)
-      // 2) Any instruction post dominated by Unreachable must deopt if it can
-      // deopt, else it is unreachable itself.
-
-      modified = true;
-      // Find the last instruction between [block.begin, current instruction]
-      // that can deopt. Place the Unreachable marker right after that
-      // instruction. If we can't find any instruction that can deopt, the
-      // Unreachable marker is placed at the beginning of the block.
-      do {
-        auto prev_it = std::prev(it);
-        Instr& prev_instr = *prev_it;
-        if (prev_instr.asDeoptBase() != nullptr) {
-          break;
-        }
-        it = prev_it;
-      } while (it != block->begin());
-
-      if (it != block->begin() && std::prev(it)->IsGuardType()) {
-        // Everything after this GuardType is unreachable, but only as long as
-        // the GuardType fails at runtime. Indicate that the guard is required
-        // for correctness with a UseType. This prevents GuardTypeElimination
-        // from removing it.
-        Instr& guard_type = *std::prev(it);
-        block->insert(
-            UseType::create(guard_type.output(), guard_type.output()->type()),
-            it);
-      }
-
-      block->insert(Unreachable::create(), it);
-      // Clean up dangling phi references
-      if (Instr* old_term = block->GetTerminator()) {
-        for (std::size_t i = 0, n = old_term->numEdges(); i < n; ++i) {
-          old_term->successor(i)->removePhiPredecessor(block);
-        }
-      }
-      // Remove all instructions after the Unreachable
-      while (it != block->end()) {
-        Instr& instr = *it;
-        ++it;
-        instr.unlink();
-        delete &instr;
-      }
-    }
-    if (block->begin()->IsUnreachable()) {
-      std::vector<Instr*> interesting_branches;
-      // If one edge of a conditional branch leads to an Unreachable, it can be
-      // replaced with a Branch to the other target. If a Branch leads to an
-      // Unreachable, it is replaced with an Unreachable.
-      for (const Edge* edge : block->in_edges()) {
-        BasicBlock* predecessor = edge->from();
-        interesting_branches.emplace_back(predecessor->GetTerminator());
-      }
-      for (Instr* branch : interesting_branches) {
-        if (branch->IsBranch()) {
-          branch->ReplaceWith(*Unreachable::create());
-        } else if (auto cond_branch = dynamic_cast<CondBranchBase*>(branch)) {
-          BasicBlock* target;
-          if (cond_branch->false_bb() == block) {
-            target = cond_branch->true_bb();
-          } else {
-            JIT_CHECK(
-                cond_branch->true_bb() == block,
-                "true branch must be unreachable");
-            target = cond_branch->false_bb();
-          }
-
-          if (branch->IsCondBranchCheckType()) {
-            // Before replacing a CondBranchCheckType with a Branch to the
-            // reachable block, insert a RefineType to preserve the type
-            // information implied by following that path.
-            auto check_type_branch = static_cast<CondBranchCheckType*>(branch);
-            Register* refined_value = cfg->func->env.AllocateRegister();
-            Type check_type = check_type_branch->type();
-            if (target == cond_branch->false_bb()) {
-              check_type = TTop - check_type_branch->type();
-            }
-
-            Register* operand = check_type_branch->GetOperand(0);
-            RefineType::create(refined_value, check_type, operand)
-                ->InsertBefore(*cond_branch);
-            auto uses = reg_uses.find(operand);
-            if (uses == reg_uses.end()) {
-              break;
-            }
-            std::unordered_set<Instr*>& instrs_using_reg = uses->second;
-            const std::unordered_set<const BasicBlock*>& dom_set =
-                dom.getBlocksDominatedBy(target);
-            for (Instr* instr : instrs_using_reg) {
-              if (dom_set.contains(instr->block())) {
-                instr->ReplaceUsesOf(operand, refined_value);
-              }
-            }
-          }
-          cond_branch->ReplaceWith(*Branch::create(target));
-        } else {
-          JIT_ABORT("Unexpected branch instruction {}", *branch);
-        }
-        delete branch;
-      }
-    }
-  }
-  if (modified) {
-    removeUnreachableBlocks(cfg);
-    reflowTypes(*cfg->func);
-  }
-  return modified;
-}
-
-void CleanCFG::Run(Function& irfunc) {
-  bool changed = false;
-
-  do {
-    RemoveUnreachableInstructions(&irfunc.cfg);
-    // Remove any trivial Phis; absorbDstBlock cannot handle them.
-    PhiElimination{}.Run(irfunc);
-    std::vector<BasicBlock*> blocks = irfunc.cfg.GetRPOTraversal();
-    for (auto block : blocks) {
-      // Ignore transient empty blocks.
-      if (block->empty()) {
-        continue;
-      }
-      // Keep working on the current block until no further changes are made.
-      for (;; changed = true) {
-        if (absorbDstBlock(block)) {
-          continue;
-        }
-        break;
-      }
-    }
-  } while (removeUnreachableBlocks(&irfunc.cfg));
-
-  if (changed) {
-    reflowTypes(irfunc);
-  }
 }
 
 struct AbstractCall {

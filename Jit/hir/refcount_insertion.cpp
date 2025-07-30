@@ -1324,7 +1324,7 @@ void RefcountInsertion::Run(Function& func) {
 
   // Clean up any trampoline blocks that weren't necessary.
   //
-  // Consider running the whole CleanCFG pass here or between every pass.
+  // Consider having a separate run of CleanCFG between passes clean this up.
   removeTrampolineBlocks(&func.cfg);
 
   // Optimize long decref runs

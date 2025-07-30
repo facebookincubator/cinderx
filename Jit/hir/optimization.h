@@ -72,22 +72,6 @@ class GuardTypeRemoval : public Pass {
   }
 };
 
-class CleanCFG : public Pass {
- public:
-  CleanCFG() : Pass("CleanCFG") {}
-
-  void Run(Function& irfunc) override;
-
-  // Remove instructions that aren't reachable from the entry. Avoid using this
-  // alone; use CleanCFG instead. Returns true if it changed the graph and false
-  // otherwise.
-  static bool RemoveUnreachableInstructions(CFG* cfg);
-
-  static std::unique_ptr<CleanCFG> Factory() {
-    return std::make_unique<CleanCFG>();
-  }
-};
-
 class InlineFunctionCalls : public Pass {
  public:
   InlineFunctionCalls() : Pass("InlineFunctionCalls") {}

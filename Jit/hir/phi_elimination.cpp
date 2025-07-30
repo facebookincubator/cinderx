@@ -43,7 +43,7 @@ void PhiElimination::Run(Function& func) {
     CopyPropagation{}.Run(func);
   }
 
-  // Consider running the whole CleanCFG pass here or between every pass.
+  // Consider having a separate run of CleanCFG between passes clean this up.
   removeTrampolineBlocks(&func.cfg);
 }
 
