@@ -488,6 +488,7 @@ class Runtime : public IRuntime {
   }
 
   void watchPendingTypes();
+  void fixupFunctionEntryCachePostMultiThreadedCompile();
 
  private:
   // Allocate all CodeRuntimes together so they can be mlocked() without

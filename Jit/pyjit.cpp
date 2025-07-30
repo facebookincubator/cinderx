@@ -998,6 +998,7 @@ void multithread_compile_units_preloaded(
 
   auto retry_list = getThreadedCompileContext().endCompile();
 
+  Runtime::get()->fixupFunctionEntryCachePostMultiThreadedCompile();
   Runtime::get()->watchPendingTypes();
 
   JIT_DLOG(

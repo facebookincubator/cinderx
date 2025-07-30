@@ -137,13 +137,29 @@ void** Runtime::findFunctionEntryCache(PyFunctionObject* function) {
   addReference(reinterpret_cast<PyObject*>(function));
   if (result.second) {
     result.first->second.ptr = pointer_caches_.allocate();
-    if (_PyClassLoader_HasPrimitiveArgs((PyCodeObject*)function->func_code)) {
+    // _PyClassLoader_HasPrimitiveArgs doesn't work well in multi-threaded
+    // compile in 3.12+ due to access of a dictionary with non-key strings.
+    // We fix this up post-compile in the multi-threaded case.
+    if (!getThreadedCompileContext().compileRunning() &&
+        _PyClassLoader_HasPrimitiveArgs((PyCodeObject*)function->func_code)) {
       result.first->second.arg_info =
           Ref<_PyTypedArgsInfo>::steal(_PyClassLoader_GetTypedArgsInfo(
               (PyCodeObject*)function->func_code, 1));
     }
   }
   return result.first->second.ptr;
+}
+
+// See comments in findFunctionEntryCache.
+void Runtime::fixupFunctionEntryCachePostMultiThreadedCompile() {
+  for (auto& entry : function_entry_caches_) {
+    BorrowedRef<PyCodeObject> code{entry.first->func_code};
+    if (entry.second.arg_info.get() == nullptr &&
+        _PyClassLoader_HasPrimitiveArgs(code)) {
+      entry.second.arg_info = Ref<_PyTypedArgsInfo>::steal(
+          _PyClassLoader_GetTypedArgsInfo(code, 1));
+    }
+  }
 }
 
 bool Runtime::hasFunctionEntryCache(PyFunctionObject* function) const {
