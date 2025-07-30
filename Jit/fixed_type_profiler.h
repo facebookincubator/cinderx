@@ -6,7 +6,7 @@
 
 #include <array>
 
-typedef struct _typeobject PyTypeObject;
+using PyTypeObject = struct _typeobject;
 
 namespace jit {
 
