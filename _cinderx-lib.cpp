@@ -1184,11 +1184,13 @@ PyMethodDef _cinderx_methods[] = {
     {"anext",
      reinterpret_cast<PyCFunction>(builtin_anext),
      METH_FASTCALL,
-     "async anext(aiterator[, default])\n\n"
-     "Return the next item from the async iterator.  If default is given and "
-     "the async\n"
-     "iterator is exhausted, it is returned instead of raising "
-     "StopAsyncIteration."},
+     "anext($module, aiterator, default=<unrepresentable>, /)\n"
+     "--\n"
+     "\n"
+     "Return the next item from the async iterator.\n"
+     "\n"
+     "If default is given and the async iterator is exhausted,\n"
+     "it is returned instead of raising StopAsyncIteration."},
     {"delay_adaptive",
      cinder_delay_adaptive,
      METH_O,

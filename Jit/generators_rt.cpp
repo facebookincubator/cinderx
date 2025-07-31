@@ -771,7 +771,11 @@ void init_jit_genobject_type() {
 static PyMethodDef anextawaitable_methods[] = {
     {"send", (PyCFunction)Ci_anextawaitable_send, METH_O, ""},
     {"throw", (PyCFunction)Ci_anextawaitable_throw, METH_VARARGS, ""},
+#if PY_VERSION_HEX >= 0x030E0000
+    {"close", (PyCFunction)Ci_anextawaitable_close, METH_NOARGS, ""},
+#else
     {"close", (PyCFunction)Ci_anextawaitable_close, METH_VARARGS, ""},
+#endif
     {nullptr, nullptr} /* Sentinel */
 };
 

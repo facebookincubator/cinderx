@@ -1,5 +1,3 @@
-test.test_coroutines
-test.test_inspect.test_inspect
 test.test_threading
 test_cinderx.test___static__
 test_cinderx.test_cinderjit
