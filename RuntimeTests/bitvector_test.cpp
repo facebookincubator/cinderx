@@ -2,7 +2,6 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/bitvector.h"
-#include "cinderx/RuntimeTests/fixtures.h"
 
 #include <ostream>
 
