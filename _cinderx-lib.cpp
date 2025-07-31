@@ -652,7 +652,6 @@ int get_current_code_flags(PyThreadState* tstate) {
 int cinderx_code_watcher(PyCodeEvent event, PyCodeObject* co) {
   switch (event) {
     case PY_CODE_EVENT_CREATE:
-      initCodeExtra(co);
       break;
     case PY_CODE_EVENT_DESTROY:
 #if PY_VERSION_HEX < 0x030C0000
