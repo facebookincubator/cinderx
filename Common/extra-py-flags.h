@@ -9,7 +9,11 @@
 #include "cinderx/python.h"
 
 // Additional PyCodeObject flags (see Include/code.h)
+#if PY_VERSION_HEX >= 0x030E0000
+#define CI_CO_STATICALLY_COMPILED 0x40000000
+#else
 #define CI_CO_STATICALLY_COMPILED 0x4000000
+#endif
 
 #if PY_VERSION_HEX >= 0x030C0000
 
