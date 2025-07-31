@@ -31,6 +31,7 @@
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable_defs.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_state.h"
 
 // Steals a reference to the `getter_tuple`, `setter_tuple`, and `deleter_tuple`
 // objects.
@@ -322,7 +323,7 @@ static int _PyVTable_set_opt_slot(
   PyFunctionObject* func = (PyFunctionObject*)value;
   // Static functions will never be _PyFunction_Vectorcall, just
   // Ci_StaticFunction_Vectorcall or the JITed entry point
-  assert(func->vectorcall != (vectorcallfunc)_PyFunction_Vectorcall);
+  assert(func->vectorcall != Ci_PyFunction_Vectorcall);
   if (isJitCompiled(func)) {
     Py_XDECREF(vtable->vt_entries[slot].vte_state);
     vtable->vt_entries[slot].vte_state = value;

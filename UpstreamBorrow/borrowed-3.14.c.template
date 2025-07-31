@@ -139,8 +139,6 @@ int init_upstream_borrow(void) {
 }
 
 
-// @Borrow function _PyFunction_Vectorcall from Objects/call.c
-
 // @Borrow function managed_static_type_index_is_set from Objects/typeobject.c
 // @Borrow function managed_static_type_index_get from Objects/typeobject.c
 // @Borrow function managed_static_type_state_get from Objects/typeobject.c

@@ -6,6 +6,7 @@
 
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_state.h"
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_function.h"
 #endif
@@ -55,7 +56,7 @@ static inline vectorcallfunc getInterpretedVectorcall(
   const PyCodeObject* code = (const PyCodeObject*)(func->func_code);
   return (code->co_flags & CI_CO_STATICALLY_COMPILED)
       ? Ci_StaticFunction_Vectorcall
-      : _PyFunction_Vectorcall;
+      : Ci_PyFunction_Vectorcall;
 }
 
 void Ci_InitOpcodes();

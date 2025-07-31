@@ -4,6 +4,8 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/module_state.h"
+
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_dict.h"
 #include "internal/pycore_frame.h"
@@ -32,12 +34,10 @@ extern "C" {
 #endif
 #if PY_VERSION_HEX >= 0x030E0000
 #define _PyFrame_ClearExceptCode _CiFrame_ClearExceptCode
-#define _PyFunction_Vectorcall _CiFunction_Vectorcall
 #define _PyObject_HasLen _CiPyObject_HasLen
 #define _PyFrame_ClearLocals _CiFrame_ClearLocals
 #define _PyFrame_MakeAndSetFrameObject _CiFrame_MakeAndSetFrameObject
 #define _PyStaticType_GetState Cix_PyStaticType_GetState
-#define _PyFunction_Vectorcall _CiFunction_Vectorcall
 #define _PyCode_InitAddressRange _CiCode_InitAddressRange
 #define _PyLineTable_NextAddressRange _CiLineTable_NextAddressRange
 #define _PyObject_VirtualAlloc _CiVirtualAlloc
@@ -47,11 +47,6 @@ extern "C" {
 
 _PyErr_StackItem* _PyErr_GetTopmostException(PyThreadState* tstate);
 int _PyObject_HasLen(PyObject* o);
-extern PyObject* _PyFunction_Vectorcall(
-    PyObject* func,
-    PyObject* const* stack,
-    size_t nargsf,
-    PyObject* kwnames);
 
 #define _PyErr_SetObject _CiErr_SetObject
 void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value);

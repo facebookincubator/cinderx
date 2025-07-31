@@ -5,6 +5,9 @@
 #define CINDERX_INTERPRETER
 
 #include "cinderx/Interpreter/cinder_opcode.h"
+
+#include "cinderx/module_state.h"
+
 #include "cinderx/Common/code.h"
 
 //#include "internal/pycore_opcode.h"
@@ -436,6 +439,9 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
 #endif
 
 #ifdef ENABLE_INTERPRETER_LOOP
+
+#define _PyFunction_Vectorcall Ci_PyFunction_Vectorcall
+
 
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)

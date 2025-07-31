@@ -32,3 +32,7 @@ ModuleState* getModuleState() {
 }
 
 } // namespace cinderx
+
+extern "C" {
+vectorcallfunc Ci_PyFunction_Vectorcall;
+}

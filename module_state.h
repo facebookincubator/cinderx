@@ -4,6 +4,8 @@
 
 #include "cinderx/python.h"
 
+#ifdef __cplusplus
+
 #include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/global_cache_iface.h"
@@ -156,3 +158,15 @@ void setModuleState(ModuleState* state);
 ModuleState* getModuleState();
 
 } // namespace cinderx
+
+#endif
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+extern vectorcallfunc Ci_PyFunction_Vectorcall;
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
