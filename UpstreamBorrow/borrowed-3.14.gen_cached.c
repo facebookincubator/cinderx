@@ -11,225 +11,160 @@
 // clang-format off
 
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "internal/pycore_intrinsics.h"
 
+// In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
+// the JIT we could get the value from the thread-state register. This would be
+// slightly more efficient, but quite a bit more work and async-generators are
+// rare. So we just wrap it up here.
+
+// TODO: Find out what exactly we need from the cpp directives here.
+#define _PY_INTERPRETER
 #include "Python.h"
+#include "pycore_call.h"          // _PyObject_CallNoArgs()
 #include "pycore_ceval.h"         // _PyEval_EvalFrame()
-#include "pycore_object.h"
+#include "pycore_frame.h"         // _PyInterpreterFrame
+#include "pycore_freelist.h"      // _Py_FREELIST_FREE()
+#include "pycore_gc.h"            // _PyGC_CLEAR_FINALIZED()
+#include "pycore_genobject.h"     // _PyGen_SetStopIterationValue()
+#include "pycore_interpframe.h"   // _PyFrame_GetCode()
+#include "pycore_modsupport.h"    // _PyArg_CheckPositional()
+#include "pycore_object.h"        // _PyObject_GC_UNTRACK()
+#include "pycore_opcode_utils.h"  // RESUME_AFTER_YIELD_FROM
+#include "pycore_pyatomic_ft_wrappers.h" // FT_ATOMIC_LOAD_UINT8_RELAXED()
 #include "pycore_pyerrors.h"      // _PyErr_ClearExcState()
 #include "pycore_pystate.h"       // _PyThreadState_GET()
-#include "pycore_shadow_frame.h"
-#include "frameobject.h"
-#include "structmember.h"         // PyMemberDef
-#include "opcode.h"
-#include "cinder/genobject_jit.h"
-#include "cinder/exports.h"
-#include "cinder/hooks.h"
-#include "pycore_gc.h"            // _PyGC_UNSET_FINALIZED
-#define FREE_LIST_GEN 0
-#define FREE_LIST_CORO 1
-#define FREE_LIST_ASYNC_GEN 2
-#define FREE_LIST_MAX 3
-#define PyGen_MAXFREELIST 200
-#define CI_WITH_GEN_MARKED_AS_THROWING(gen, body) \
-    if (gen->gi_jit_data) { \
-        CiJITGenState state = Ci_GetJITGenState(gen); \
-        Ci_MarkJITGenThrowing(gen); \
-        body \
-        Ci_SetJITGenState(gen, state); \
-    } else { \
-        PyFrameState state = gen->gi_frame->f_state; \
-        gen->gi_frame->f_state = FRAME_EXECUTING; \
-        body \
-        gen->gi_frame->f_state = state; \
-    }
-#ifdef Py_DEBUG
-#endif
+#include "pycore_warnings.h"      // _PyErr_WarnUnawaitedCoroutine()
+#include "pycore_weakref.h"       // FT_CLEAR_WEAKREFS()
+#include "opcode_ids.h"           // RESUME, etc
+#define _PyGen_CAST(op) \
+    _Py_CAST(PyGenObject*, (op))
+#define _PyCoroObject_CAST(op) \
+    (assert(PyCoro_CheckExact(op)), \
+     _Py_CAST(PyCoroObject*, (op)))
+#define _PyAsyncGenObject_CAST(op) \
+    _Py_CAST(PyAsyncGenObject*, (op))
+#define _PyCoroWrapper_CAST(op) \
+    (assert(Py_IS_TYPE((op), &_PyCoroWrapper_Type)), \
+     _Py_CAST(PyCoroWrapper*, (op)))
+#define _PyAsyncGenASend_CAST(op) \
+    _Py_CAST(PyAsyncGenASend*, (op))
 #define _PyAsyncGenWrappedValue_CheckExact(o) \
                     Py_IS_TYPE(o, &_PyAsyncGenWrappedValue_Type)
-#define PyAsyncGenASend_CheckExact(o) \
-                    Py_IS_TYPE(o, &_PyAsyncGenASend_Type)
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
+#define _PyAsyncGenWrappedValue_CAST(op) \
+    (assert(_PyAsyncGenWrappedValue_CheckExact(op)), \
+     _Py_CAST(_PyAsyncGenWrappedValue*, (op)))
+#define _PyAsyncGenAThrow_CAST(op) \
+    (assert(Py_IS_TYPE((op), &_PyAsyncGenAThrow_Type)), \
+     _Py_CAST(PyAsyncGenAThrow*, (op)))
+PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
+  return _PyIntrinsics_UnaryFunctions[INTRINSIC_ASYNC_GEN_WRAP].func(PyThreadState_GET(), value);
+}
 
-#define _PyGen_yf Cix_PyGen_yf
-PyObject *
-_PyGen_yf(PyGenObject *gen)
+static PyObject *
+compute_cr_origin(int origin_depth, _PyInterpreterFrame *current_frame)
 {
-    PyObject *yf = NULL;
-    PyFrameObject *f = gen->gi_frame;
-
-    if (Ci_cinderx_initialized && gen->gi_jit_data) {
-        return Ci_hook_PyJIT_GenYieldFromValue(gen);
+    _PyInterpreterFrame *frame = current_frame;
+    /* First count how many frames we have */
+    int frame_count = 0;
+    for (; frame && frame_count < origin_depth; ++frame_count) {
+        frame = _PyFrame_GetFirstComplete(frame->previous);
     }
 
-    if (f) {
-        PyObject *bytecode = f->f_code->co_code;
-        unsigned char *code = (unsigned char *)PyBytes_AS_STRING(bytecode);
-
-        if (f->f_lasti < 0) {
-            /* Return immediately if the frame didn't start yet. YIELD_FROM
-               always come after LOAD_CONST: a code object should not start
-               with YIELD_FROM */
-            assert(code[0] != YIELD_FROM);
+    /* Now collect them */
+    PyObject *cr_origin = PyTuple_New(frame_count);
+    if (cr_origin == NULL) {
+        return NULL;
+    }
+    frame = current_frame;
+    for (int i = 0; i < frame_count; ++i) {
+        PyCodeObject *code = _PyFrame_GetCode(frame);
+        int line = PyUnstable_InterpreterFrame_GetLine(frame);
+        PyObject *frameinfo = Py_BuildValue("OiO", code->co_filename, line,
+                                            code->co_name);
+        if (!frameinfo) {
+            Py_DECREF(cr_origin);
             return NULL;
         }
-
-        if (code[(f->f_lasti+1)*sizeof(_Py_CODEUNIT)] != YIELD_FROM)
-            return NULL;
-        assert(f->f_stackdepth > 0);
-        yf = f->f_valuestack[f->f_stackdepth-1];
-        Py_INCREF(yf);
+        PyTuple_SET_ITEM(cr_origin, i, frameinfo);
+        frame = _PyFrame_GetFirstComplete(frame->previous);
     }
 
-    return yf;
+    return cr_origin;
+}
+PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_frame) {
+  return compute_cr_origin(origin_depth, current_frame);
 }
 
-// Internal dependencies for _PyCoro_GetAwaitableIter.
-static int
-gen_is_coroutine(PyObject *o)
-{
-    if (PyGen_CheckExact(o)) {
-        PyCodeObject *code = (PyCodeObject *)((PyGenObject*)o)->gi_code;
-        if (code->co_flags & CO_ITERABLE_COROUTINE) {
-            return 1;
-        }
-    }
-    return 0;
-}
-// End internal dependencies for _PyCoro_GetAwaitableIter.
-
-#define _PyCoro_GetAwaitableIter Cix_PyCoro_GetAwaitableIter
-PyObject *
-_PyCoro_GetAwaitableIter(PyObject *o)
-{
-    unaryfunc getter = NULL;
-    PyTypeObject *ot;
-
-    if (PyCoro_CheckExact(o) || gen_is_coroutine(o)) {
-        /* 'o' is a coroutine. */
-        Py_INCREF(o);
-        return o;
-    }
-
-    ot = Py_TYPE(o);
-    if (ot->tp_as_async != NULL) {
-        getter = ot->tp_as_async->am_await;
-    }
-    if (getter != NULL) {
-        PyObject *res = (*getter)(o);
-        if (res != NULL) {
-            if (PyCoro_CheckExact(res) || gen_is_coroutine(res)) {
-                /* __await__ must return an *iterator*, not
-                   a coroutine or another awaitable (see PEP 492) */
-                PyErr_SetString(PyExc_TypeError,
-                                "__await__() returned a coroutine");
-                Py_CLEAR(res);
-            } else if (!PyIter_Check(res)) {
-                PyErr_Format(PyExc_TypeError,
-                             "__await__() returned non-iterator "
-                             "of type '%.100s'",
-                             Py_TYPE(res)->tp_name);
-                Py_CLEAR(res);
-            }
-        }
-        return res;
-    }
-
-    PyErr_Format(PyExc_TypeError,
-                 "object %.100s can't be used in 'await' expression",
-                 ot->tp_name);
-    return NULL;
-}
-
-// Internal dependencies for _PyAsyncGenValueWrapperNew.
-typedef struct _PyAsyncGenWrappedValue {
-    PyObject_HEAD
-    PyObject *agw_val;
-} _PyAsyncGenWrappedValue;
-static struct _Py_async_gen_state *
-get_async_gen_state(void)
-{
-    PyInterpreterState *interp = _PyInterpreterState_GET();
-    return &interp->async_gen;
-}
-// End internal dependencies for _PyAsyncGenValueWrapperNew.
-
-#define _PyAsyncGenValueWrapperNew Cix_PyAsyncGenValueWrapperNew
-PyObject *
-_PyAsyncGenValueWrapperNew(PyObject *val)
-{
-    _PyAsyncGenWrappedValue *o;
-    assert(val);
-
-    struct _Py_async_gen_state *state = get_async_gen_state();
-#ifdef Py_DEBUG
-    // _PyAsyncGenValueWrapperNew() must not be called after _PyAsyncGen_Fini()
-    assert(state->value_numfree != -1);
-#endif
-    if (state->value_numfree) {
-        state->value_numfree--;
-        o = state->value_freelist[state->value_numfree];
-        assert(_PyAsyncGenWrappedValue_CheckExact(o));
-        _Py_NewReference((PyObject*)o);
-    }
-    else {
-        o = PyObject_GC_New(_PyAsyncGenWrappedValue,
-                            &_PyAsyncGenWrappedValue_Type);
-        if (o == NULL) {
-            return NULL;
-        }
-    }
-    o->agw_val = val;
-    Py_INCREF(val);
-    _PyObject_GC_TRACK((PyObject*)o);
-    return (PyObject*)o;
-}
-
-
+#define PyDict_LOG_MINSIZE 3
 #define PyDict_MINSIZE 8
-#include "Python.h"
-#include "pycore_bitutils.h" // _Py_bit_length
-#include "pycore_gc.h"       // _PyObject_GC_IS_TRACKED()
-#include "pycore_import.h"   // _PyImport_LoadLazyImport()
-#include "pycore_lazyimport.h" // PyLazyImportObject
-#include "pycore_object.h"   // _PyObject_GC_TRACK()
-#include "pycore_pyerrors.h" // _PyErr_Fetch()
-#include "pycore_pystate.h"  // _PyThreadState_GET()
-#include "dict-common.h"
-#include "stringlib/eq.h"    // unicode_eq()
-#include "cinder/exports.h"
+#ifdef Py_GIL_DISABLED
+#define ASSERT_DICT_LOCKED(op) ASSERT_DICT_LOCKED(_Py_CAST(PyObject*, op))
+#define ASSERT_WORLD_STOPPED_OR_DICT_LOCKED(op)                         \
+    if (!_PyInterpreterState_GET()->stoptheworld.world_stopped) {       \
+        ASSERT_DICT_LOCKED(op);                                         \
+    }
+#define ASSERT_WORLD_STOPPED_OR_OBJ_LOCKED(op)                         \
+    if (!_PyInterpreterState_GET()->stoptheworld.world_stopped) {      \
+        _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(op);                 \
+    }
+#define IS_DICT_SHARED(mp) _PyObject_GC_IS_SHARED(mp)
+#define SET_DICT_SHARED(mp) _PyObject_GC_SET_SHARED(mp)
+#define LOAD_INDEX(keys, size, idx) _Py_atomic_load_int##size##_relaxed(&((const int##size##_t*)keys->dk_indices)[idx]);
+#define STORE_INDEX(keys, size, idx, value) _Py_atomic_store_int##size##_relaxed(&((int##size##_t*)keys->dk_indices)[idx], (int##size##_t)value);
+#define ASSERT_OWNED_OR_SHARED(mp) \
+    assert(_Py_IsOwnedByCurrentThread((PyObject *)mp) || IS_DICT_SHARED(mp));
+#define LOCK_KEYS_IF_SPLIT(keys, kind) \
+        if (kind == DICT_KEYS_SPLIT) { \
+            LOCK_KEYS(keys);           \
+        }
+#define UNLOCK_KEYS_IF_SPLIT(keys, kind) \
+        if (kind == DICT_KEYS_SPLIT) {   \
+            UNLOCK_KEYS(keys);           \
+        }
+#define LOCK_KEYS(keys) PyMutex_LockFlags(&keys->dk_mutex, _Py_LOCK_DONT_DETACH)
+#define UNLOCK_KEYS(keys) PyMutex_Unlock(&keys->dk_mutex)
+#define ASSERT_KEYS_LOCKED(keys) assert(PyMutex_IsLocked(&keys->dk_mutex))
+#define LOAD_SHARED_KEY(key) _Py_atomic_load_ptr_acquire(&key)
+#define STORE_SHARED_KEY(key, value) _Py_atomic_store_ptr_release(&key, value)
+#define INCREF_KEYS(dk)  _Py_atomic_add_ssize(&dk->dk_refcnt, 1)
+#define DECREF_KEYS(dk)  _Py_atomic_add_ssize(&dk->dk_refcnt, -1)
+#define LOAD_KEYS_NENTRIES(keys) _Py_atomic_load_ssize_relaxed(&keys->dk_nentries)
+#define INCREF_KEYS_FT(dk) dictkeys_incref(dk)
+#define DECREF_KEYS_FT(dk, shared) dictkeys_decref(_PyInterpreterState_GET(), dk, shared)
+#else /* Py_GIL_DISABLED */
+#define ASSERT_DICT_LOCKED(op)
+#define ASSERT_WORLD_STOPPED_OR_DICT_LOCKED(op)
+#define ASSERT_WORLD_STOPPED_OR_OBJ_LOCKED(op)
+#define LOCK_KEYS(keys)
+#define UNLOCK_KEYS(keys)
+#define ASSERT_KEYS_LOCKED(keys)
+#define LOAD_SHARED_KEY(key) key
+#define STORE_SHARED_KEY(key, value) key = value
+#define INCREF_KEYS(dk)  dk->dk_refcnt++
+#define DECREF_KEYS(dk)  dk->dk_refcnt--
+#define LOAD_KEYS_NENTRIES(keys) keys->dk_nentries
+#define INCREF_KEYS_FT(dk)
+#define DECREF_KEYS_FT(dk, shared)
+#define LOCK_KEYS_IF_SPLIT(keys, kind)
+#define UNLOCK_KEYS_IF_SPLIT(keys, kind)
+#define IS_DICT_SHARED(mp) (false)
+#define SET_DICT_SHARED(mp)
+#define LOAD_INDEX(keys, size, idx) ((const int##size##_t*)(keys->dk_indices))[idx]
+#define STORE_INDEX(keys, size, idx, value) ((int##size##_t*)(keys->dk_indices))[idx] = (int##size##_t)value
+#endif
+#define STORE_KEY(ep, key) FT_ATOMIC_STORE_PTR_RELEASE((ep)->me_key, key)
+#define STORE_VALUE(ep, value) FT_ATOMIC_STORE_PTR_RELEASE((ep)->me_value, value)
+#define STORE_SPLIT_VALUE(mp, idx, value) FT_ATOMIC_STORE_PTR_RELEASE(mp->ma_values->values[idx], value)
+#define STORE_HASH(ep, hash) FT_ATOMIC_STORE_SSIZE_RELAXED((ep)->me_hash, hash)
+#define STORE_KEYS_USABLE(keys, usable) FT_ATOMIC_STORE_SSIZE_RELAXED(keys->dk_usable, usable)
+#define STORE_KEYS_NENTRIES(keys, nentries) FT_ATOMIC_STORE_SSIZE_RELAXED(keys->dk_nentries, nentries)
+#define STORE_USED(mp, used) FT_ATOMIC_STORE_SSIZE_RELAXED(mp->ma_used, used)
 #define PERTURB_SHIFT 5
-#define DICT_HAS_DEFERRED(d) ( \
-    ((PyDictObject *)(d))->ma_keys->dk_lookup == lookdict_with_lazy_imports || \
-    ((PyDictObject *)(d))->ma_keys->dk_lookup == lookdict_with_lazy_imports_unicode)
-#include "clinic/dictobject.c.h"
-#ifdef Py_DEBUG
+#ifndef NDEBUG
 #endif
-#define DK_SIZE(dk) ((dk)->dk_size)
-#if SIZEOF_VOID_P > 4
-#define DK_IXSIZE(dk)                          \
-    (DK_SIZE(dk) <= 0xff ?                     \
-        1 : DK_SIZE(dk) <= 0xffff ?            \
-            2 : DK_SIZE(dk) <= 0xffffffff ?    \
-                4 : sizeof(int64_t))
-#else
-#define DK_IXSIZE(dk)                          \
-    (DK_SIZE(dk) <= 0xff ?                     \
-        1 : DK_SIZE(dk) <= 0xffff ?            \
-            2 : sizeof(int32_t))
-#endif
-#define DK_ENTRIES(dk) \
-    ((PyDictKeyEntry*)(&((int8_t*)((dk)->dk_indices))[DK_SIZE(dk) * DK_IXSIZE(dk)]))
-#define DK_MASK(dk) (((dk)->dk_size)-1)
-#define IS_POWER_OF_2(x) (((x) & (x-1)) == 0)
+#define DK_MASK(dk) (DK_SIZE(dk)-1)
+#define _Py_DICT_IMMORTAL_INITIAL_REFCNT PY_SSIZE_T_MIN
 #ifdef Py_REF_DEBUG
 #endif
 #ifdef Py_REF_DEBUG
@@ -244,487 +179,448 @@ _PyAsyncGenValueWrapperNew(PyObject *val)
 #else
 #endif
 #define GROWTH_RATE(d) ((d)->ma_used*3)
-#define ENSURE_ALLOWS_DELETIONS(d) \
-    if ((d)->ma_keys->dk_lookup == lookdict_unicode_nodummy) { \
-        (d)->ma_keys->dk_lookup = lookdict_unicode; \
-    }
+#ifdef Py_GIL_DISABLED
+#endif
 #define Py_EMPTY_KEYS &empty_keys_struct
 #ifdef DEBUG_PYDICT
 #  define ASSERT_CONSISTENT(op) assert(_PyDict_CheckConsistency((PyObject *)(op), 1))
 #else
 #  define ASSERT_CONSISTENT(op) assert(_PyDict_CheckConsistency((PyObject *)(op), 0))
 #endif
+#ifdef DEBUG_PYDICT
+#endif
 #define CHECK(expr) \
     do { if (!(expr)) { _PyObject_ASSERT_FAILED_MSG(op, Py_STRINGIFY(expr)); } } while (0)
 #undef CHECK
 #if SIZEOF_VOID_P > 4
 #endif
-#ifdef Py_DEBUG
-#endif
 #ifdef Py_REF_DEBUG
 #endif
-#ifdef Py_DEBUG
+#ifdef Py_GIL_DISABLED
 #endif
-#define new_values(size) PyMem_NEW(PyObject *, size)
-#define free_values(values) PyMem_Free(values)
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_REF_DEBUG
-#endif
-#define MAINTAIN_TRACKING(mp, key, value) \
-    do { \
-        if (!_PyObject_GC_IS_TRACKED(mp)) { \
-            if (_PyObject_GC_MAY_BE_TRACKED(key) || \
-                _PyObject_GC_MAY_BE_TRACKED(value)) { \
-                _PyObject_GC_TRACK(mp); \
-            } \
-        } \
-    } while(0)
-#ifdef Py_REF_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
-#endif
-#ifdef Py_DEBUG
+#ifdef Py_GIL_DISABLED
 #endif
 #define CACHED_KEYS(tp) (((PyHeapTypeObject*)tp)->ht_cached_keys)
-
-// These are global singletons and some of the functions we're borrowing
-// check for them with pointer equality. Fortunately we are able to get
-// the values in init_upstream_borrow().
-static PyObject** empty_values = NULL;
-
-// Internal dependencies for things borrowed from dictobject.c.
-// Rename to avoid clashing with existing version when statically linking.
-#define _Py_dict_lookup __Py_dict_lookup
-static struct _Py_dict_state *
-get_dict_state(void)
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_REF_DEBUG
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else   // Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_REF_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else /* Py_GIL_DISABLED */
+#endif  /* Py_GIL_DISABLED */
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifndef Py_GIL_DISABLED
+#endif  /* Py_GIL_DISABLED */
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_STATS
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#if 0
+#define CHECK(val) assert(val); if (!(val)) { return 0; }
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifndef NDEBUG
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifndef NDEBUG
+#endif
+static size_t
+values_size_from_count(size_t count)
 {
-    PyInterpreterState *interp = _PyInterpreterState_GET();
-    return &interp->dict_state;
+    assert(count >= 1);
+    size_t suffix_size = _Py_SIZE_ROUND_UP(count, sizeof(PyObject *));
+    assert(suffix_size < 128);
+    assert(suffix_size % sizeof(PyObject *) == 0);
+    return (count + 1) * sizeof(PyObject *) + suffix_size;
 }
 static void
-free_keys_object(PyDictKeysObject *keys)
+free_keys_object(PyDictKeysObject *keys, bool use_qsbr)
 {
-    PyDictKeyEntry *entries = DK_ENTRIES(keys);
-    Py_ssize_t i, n;
-    for (i = 0, n = keys->dk_nentries; i < n; i++) {
-        Py_XDECREF(entries[i].me_key);
-        Py_XDECREF(entries[i].me_value);
-    }
-    struct _Py_dict_state *state = get_dict_state();
-#ifdef Py_DEBUG
-    // free_keys_object() must not be called after _PyDict_Fini()
-    assert(state->keys_numfree != -1);
-#endif
-    if (keys->dk_size == PyDict_MINSIZE && state->keys_numfree < PyDict_MAXFREELIST) {
-        state->keys_free_list[state->keys_numfree++] = keys;
+#ifdef Py_GIL_DISABLED
+    if (use_qsbr) {
+        _PyMem_FreeDelayed(keys, _PyDict_KeysSize(keys));
         return;
     }
-    PyObject_Free(keys);
-}
-static inline void
-dictkeys_decref(PyDictKeysObject *dk)
-{
-    assert(dk->dk_refcnt > 0);
-#ifdef Py_REF_DEBUG
-    _Py_RefTotal--;
 #endif
-    if (--dk->dk_refcnt == 0) {
-        free_keys_object(dk);
+    if (DK_LOG_SIZE(keys) == PyDict_LOG_MINSIZE && keys->dk_kind == DICT_KEYS_UNICODE) {
+        _Py_FREELIST_FREE(dictkeys, keys, PyMem_Free);
     }
+    else {
+        PyMem_Free(keys);
+    }
+}
+static inline PyDictValues*
+new_values(size_t size)
+{
+    size_t n = values_size_from_count(size);
+    PyDictValues *res = (PyDictValues *)PyMem_Malloc(n);
+    if (res == NULL) {
+        return NULL;
+    }
+    res->embedded = 0;
+    res->size = 0;
+    assert(size < 256);
+    res->capacity = (uint8_t)size;
+    return res;
 }
 static inline void
 dictkeys_incref(PyDictKeysObject *dk)
 {
+    if (FT_ATOMIC_LOAD_SSIZE_RELAXED(dk->dk_refcnt) < 0) {
+        assert(FT_ATOMIC_LOAD_SSIZE_RELAXED(dk->dk_refcnt) == _Py_DICT_IMMORTAL_INITIAL_REFCNT);
+        return;
+    }
 #ifdef Py_REF_DEBUG
-    _Py_RefTotal++;
+    _Py_IncRefTotal(_PyThreadState_GET());
 #endif
-    dk->dk_refcnt++;
+    INCREF_KEYS(dk);
 }
-static PyObject *
-new_dict(PyDictKeysObject *keys, PyObject **values)
+static inline void
+dictkeys_decref(PyInterpreterState *interp, PyDictKeysObject *dk, bool use_qsbr)
 {
-    PyDictObject *mp;
-    assert(keys != NULL);
-    struct _Py_dict_state *state = get_dict_state();
-#ifdef Py_DEBUG
-    // new_dict() must not be called after _PyDict_Fini()
-    assert(state->numfree != -1);
+    if (FT_ATOMIC_LOAD_SSIZE_RELAXED(dk->dk_refcnt) < 0) {
+        assert(FT_ATOMIC_LOAD_SSIZE_RELAXED(dk->dk_refcnt) == _Py_DICT_IMMORTAL_INITIAL_REFCNT);
+        return;
+    }
+    assert(FT_ATOMIC_LOAD_SSIZE(dk->dk_refcnt) > 0);
+#ifdef Py_REF_DEBUG
+    _Py_DecRefTotal(_PyThreadState_GET());
 #endif
-    if (state->numfree) {
-        mp = state->free_list[--state->numfree];
-        assert (mp != NULL);
-        assert (Py_IS_TYPE(mp, &PyDict_Type));
-        _Py_NewReference((PyObject *)mp);
-    }
-    else {
-        mp = PyObject_GC_New(PyDictObject, &PyDict_Type);
-        if (mp == NULL) {
-            dictkeys_decref(keys);
-            if (values != empty_values) {
-                free_values(values);
-            }
-            return NULL;
-        }
-    }
-    mp->ma_keys = keys;
-    mp->ma_values = values;
-    mp->ma_used = 0;
-    mp->ma_version_tag = DICT_NEXT_VERSION();
-    ASSERT_CONSISTENT(mp);
-    return (PyObject *)mp;
-}
-static PyObject *
-new_dict_with_shared_keys(PyDictKeysObject *keys)
-{
-    PyObject **values;
-    Py_ssize_t i, size;
-
-    size = USABLE_FRACTION(DK_SIZE(keys));
-    values = new_values(size);
-    if (values == NULL) {
-        dictkeys_decref(keys);
-        return PyErr_NoMemory();
-    }
-    for (i = 0; i < size; i++) {
-        values[i] = NULL;
-    }
-    return new_dict(keys, values);
-}
-// End internal dependencies.
-
-// Renaming to avoid duplicate symbol errors.  Still use the Cix_ wrapper to
-// adjust the number of arguments.
-#define _PyObjectDict_SetItem Renamed_PyObjectDict_SetItem
-int
-_PyObjectDict_SetItem(PyTypeObject *tp, PyObject **dictptr,
-                      PyObject *key, PyObject *value)
-{
-    PyObject *dict;
-    int res;
-    PyDictKeysObject *cached;
-
-    assert(dictptr != NULL);
-    if ((tp->tp_flags & Py_TPFLAGS_HEAPTYPE) && (cached = CACHED_KEYS(tp))) {
-        assert(dictptr != NULL);
-        dict = *dictptr;
-        if (dict == NULL) {
-            if (tp->tp_flags & Py_TPFLAGS_WARN_ON_SETATTR &&
-                _PyErr_RaiseCinderWarning(
-                    "WARN001: Dictionary created for flagged instance",
-                    (PyObject *)tp,
-                    key)) {
-                return -1;
-            }
-            dictkeys_incref(cached);
-            dict = new_dict_with_shared_keys(cached);
-            if (dict == NULL)
-                return -1;
-            *dictptr = dict;
-        }
-        if (value == NULL) {
-            res = PyDict_DelItem(dict, key);
-            // Since key sharing dict doesn't allow deletion, PyDict_DelItem()
-            // always converts dict to combined form.
-            if ((cached = CACHED_KEYS(tp)) != NULL) {
-                CACHED_KEYS(tp) = NULL;
-                PyType_Modified(tp);
-                dictkeys_decref(cached);
+    if (DECREF_KEYS(dk) == 1) {
+        if (DK_IS_UNICODE(dk)) {
+            PyDictUnicodeEntry *entries = DK_UNICODE_ENTRIES(dk);
+            Py_ssize_t i, n;
+            for (i = 0, n = dk->dk_nentries; i < n; i++) {
+                Py_XDECREF(entries[i].me_key);
+                Py_XDECREF(entries[i].me_value);
             }
         }
         else {
-            int was_shared = (cached == ((PyDictObject *)dict)->ma_keys);
-            res = PyDict_SetItem(dict, key, value);
-            if (was_shared &&
-                    (cached = CACHED_KEYS(tp)) != NULL &&
-                    cached != ((PyDictObject *)dict)->ma_keys) {
-                /* PyDict_SetItem() may call dictresize and convert split table
-                 * into combined table.  In such case, convert it to split
-                 * table again and update type's shared key only when this is
-                 * the only dict sharing key with the type.
-                 *
-                 * This is to allow using shared key in class like this:
-                 *
-                 *     class C:
-                 *         def __init__(self):
-                 *             # one dict resize happens
-                 *             self.a, self.b, self.c = 1, 2, 3
-                 *             self.d, self.e, self.f = 4, 5, 6
-                 *     a = C()
-                 */
-                if (cached->dk_refcnt == 1) {
-                    CACHED_KEYS(tp) = _PyDict_MakeKeysShared(dict);
-                }
-                else {
-                    CACHED_KEYS(tp) = NULL;
-                }
-                PyType_Modified(tp);
-                dictkeys_decref(cached);
-                if (CACHED_KEYS(tp) == NULL && PyErr_Occurred())
-                    return -1;
+            PyDictKeyEntry *entries = DK_ENTRIES(dk);
+            Py_ssize_t i, n;
+            for (i = 0, n = dk->dk_nentries; i < n; i++) {
+                Py_XDECREF(entries[i].me_key);
+                Py_XDECREF(entries[i].me_value);
             }
         }
-    } else {
-        dict = *dictptr;
-        if (dict == NULL) {
-            dict = PyDict_New();
-            if (dict == NULL)
-                return -1;
-            *dictptr = dict;
-        }
-        if (value == NULL) {
-            res = PyDict_DelItem(dict, key);
-        } else {
-            res = PyDict_SetItem(dict, key, value);
-        }
+        free_keys_object(dk, use_qsbr);
     }
-    return res;
 }
-
-int Cix_PyObjectDict_SetItem(
-    PyTypeObject* tp,
-    PyObject* obj,
-    PyObject** dictptr,
-    PyObject* key,
-    PyObject* value) {
-  (void)obj;
-  return Renamed_PyObjectDict_SetItem(tp, dictptr, key, value);
-}
-
-#define _PyDict_LoadGlobal Cix_PyDict_LoadGlobal
-PyObject *
-_PyDict_LoadGlobal(PyDictObject *globals, PyDictObject *builtins, PyObject *key)
+static inline void
+free_values(PyDictValues *values, bool use_qsbr)
 {
-    Py_ssize_t ix;
-    Py_hash_t hash;
-    PyObject *value;
-
-    if (!PyUnicode_CheckExact(key) ||
-        (hash = ((PyASCIIObject *) key)->hash) == -1)
-    {
-        hash = PyObject_Hash(key);
-        if (hash == -1)
-            return NULL;
+    assert(values->embedded == 0);
+#ifdef Py_GIL_DISABLED
+    if (use_qsbr) {
+        _PyMem_FreeDelayed(values, values_size_from_count(values->capacity));
+        return;
     }
+#endif
+    PyMem_Free(values);
+}
+static PyObject *
+new_dict(PyInterpreterState *interp,
+         PyDictKeysObject *keys, PyDictValues *values,
+         Py_ssize_t used, int free_values_on_failure)
+{
+    assert(keys != NULL);
+    PyDictObject *mp = _Py_FREELIST_POP(PyDictObject, dicts);
+    if (mp == NULL) {
+        mp = PyObject_GC_New(PyDictObject, &PyDict_Type);
+        if (mp == NULL) {
+            dictkeys_decref(interp, keys, false);
+            if (free_values_on_failure) {
+                free_values(values, false);
+            }
+            return NULL;
+        }
+    }
+    assert(Py_IS_TYPE(mp, &PyDict_Type));
+    mp->ma_keys = keys;
+    mp->ma_values = values;
+    mp->ma_used = used;
+    mp->_ma_watcher_tag = 0;
+    ASSERT_CONSISTENT(mp);
+    _PyObject_GC_TRACK(mp);
+    return (PyObject *)mp;
+}
+static PyObject *
+new_dict_with_shared_keys(PyInterpreterState *interp, PyDictKeysObject *keys)
+{
+    size_t size = shared_keys_usable_size(keys);
+    PyDictValues *values = new_values(size);
+    if (values == NULL) {
+        return PyErr_NoMemory();
+    }
+    dictkeys_incref(keys);
+    for (size_t i = 0; i < size; i++) {
+        values->values[i] = NULL;
+    }
+    return new_dict(interp, keys, values, 0, 1);
+}
+static inline PyObject *
+ensure_nonmanaged_dict(PyObject *obj, PyObject **dictptr)
+{
+    PyDictKeysObject *cached;
 
-    /* namespace 1: globals */
-    ix = globals->ma_keys->dk_lookup(globals, key, hash, &value, 1);
-    if (ix == DKIX_ERROR || ix == DKIX_VALUE_ERROR)
-        return NULL;
-    if (ix != DKIX_EMPTY && value != NULL)
-        return value;
-
-    /* namespace 2: builtins */
-    ix = builtins->ma_keys->dk_lookup(builtins, key, hash, &value, 1);
-    if (ix < 0)
-        return NULL;
-    return value;
+    PyObject *dict = FT_ATOMIC_LOAD_PTR_ACQUIRE(*dictptr);
+    if (dict == NULL) {
+#ifdef Py_GIL_DISABLED
+        Py_BEGIN_CRITICAL_SECTION(obj);
+        dict = *dictptr;
+        if (dict != NULL) {
+            goto done;
+        }
+#endif
+        PyTypeObject *tp = Py_TYPE(obj);
+        if (_PyType_HasFeature(tp, Py_TPFLAGS_HEAPTYPE) && (cached = CACHED_KEYS(tp))) {
+            PyInterpreterState *interp = _PyInterpreterState_GET();
+            assert(!_PyType_HasFeature(tp, Py_TPFLAGS_INLINE_VALUES));
+            dict = new_dict_with_shared_keys(interp, cached);
+        }
+        else {
+            dict = PyDict_New();
+        }
+        FT_ATOMIC_STORE_PTR_RELEASE(*dictptr, dict);
+#ifdef Py_GIL_DISABLED
+done:
+        Py_END_CRITICAL_SECTION();
+#endif
+    }
+    return dict;
+}
+int
+Cix_PyObjectDict_SetItem(PyTypeObject *tp, PyObject *obj, PyObject **dictptr,
+                      PyObject *key, PyObject *value)
+{
+  return PyDict_SetItem(*dictptr, key, value);
 }
 
 
-static inline int
-set_attribute_error_context(PyObject* v, PyObject* name)
+#define _PyObject_SetAttributeErrorContext _CiPyObject_SetAttributeErrorContext
+int
+_PyObject_SetAttributeErrorContext(PyObject* v, PyObject* name)
 {
     assert(PyErr_Occurred());
-    _Py_IDENTIFIER(name);
-    _Py_IDENTIFIER(obj);
-    if (!PyErr_ExceptionMatches(PyExc_AttributeError)) {
+    if (!PyErr_ExceptionMatches(PyExc_AttributeError)){
         return 0;
     }
     // Intercept AttributeError exceptions and augment them to offer suggestions later.
-    PyObject *type, *value, *traceback;
-    PyErr_Fetch(&type, &value, &traceback);
-    PyErr_NormalizeException(&type, &value, &traceback);
-    // Check if the normalized exception is indeed an AttributeError
-    if (!PyErr_GivenExceptionMatches(value, PyExc_AttributeError)) {
+    PyObject *exc = PyErr_GetRaisedException();
+    if (!PyErr_GivenExceptionMatches(exc, PyExc_AttributeError)) {
         goto restore;
     }
-    PyAttributeErrorObject* the_exc = (PyAttributeErrorObject*) value;
+    PyAttributeErrorObject* the_exc = (PyAttributeErrorObject*) exc;
     // Check if this exception was already augmented
     if (the_exc->name || the_exc->obj) {
         goto restore;
     }
     // Augment the exception with the name and object
-    if (_PyObject_SetAttrId(value, &PyId_name, name) ||
-        _PyObject_SetAttrId(value, &PyId_obj, v)) {
+    if (PyObject_SetAttr(exc, &_Py_ID(name), name) ||
+        PyObject_SetAttr(exc, &_Py_ID(obj), v)) {
         return 1;
     }
 restore:
-    PyErr_Restore(type, value, traceback);
+    PyErr_SetRaisedException(exc);
     return 0;
 }
 
 // Wrapper as set_attribute_error_context is declared "static inline".
 int
 Cix_set_attribute_error_context(PyObject *v, PyObject *name) {
-  return set_attribute_error_context(v, name);
+  return _PyObject_SetAttributeErrorContext(v, name);
+}
+
+static const uint8_t DE_INSTRUMENT[256] = {
+    [INSTRUMENTED_RESUME] = RESUME,
+    [INSTRUMENTED_RETURN_VALUE] = RETURN_VALUE,
+    [INSTRUMENTED_CALL] = CALL,
+    [INSTRUMENTED_CALL_KW] = CALL_KW,
+    [INSTRUMENTED_CALL_FUNCTION_EX] = CALL_FUNCTION_EX,
+    [INSTRUMENTED_YIELD_VALUE] = YIELD_VALUE,
+    [INSTRUMENTED_JUMP_FORWARD] = JUMP_FORWARD,
+    [INSTRUMENTED_JUMP_BACKWARD] = JUMP_BACKWARD,
+    [INSTRUMENTED_POP_JUMP_IF_FALSE] = POP_JUMP_IF_FALSE,
+    [INSTRUMENTED_POP_JUMP_IF_TRUE] = POP_JUMP_IF_TRUE,
+    [INSTRUMENTED_POP_JUMP_IF_NONE] = POP_JUMP_IF_NONE,
+    [INSTRUMENTED_POP_JUMP_IF_NOT_NONE] = POP_JUMP_IF_NOT_NONE,
+    [INSTRUMENTED_FOR_ITER] = FOR_ITER,
+    [INSTRUMENTED_POP_ITER] = POP_ITER,
+    [INSTRUMENTED_END_FOR] = END_FOR,
+    [INSTRUMENTED_END_SEND] = END_SEND,
+    [INSTRUMENTED_LOAD_SUPER_ATTR] = LOAD_SUPER_ATTR,
+    [INSTRUMENTED_NOT_TAKEN] = NOT_TAKEN,
+    [INSTRUMENTED_END_ASYNC_FOR] = END_ASYNC_FOR,
+};
+uint8_t
+Cix_DEINSTRUMENT(uint8_t op) {
+  return DE_INSTRUMENT[op];
 }
 
 
-// These are global singletons used transitively by _Py_union_type_or.
-// We initialize them in init_upstream_borrow().
-PyTypeObject* Cix_PyUnion_Type = NULL;
-#define _PyUnion_Type (*Cix_PyUnion_Type)
-
-// Internal dependencies for _Py_union_type_or.
-#include "Python.h"
-#include "pycore_object.h"  // _PyObject_GC_TRACK/UNTRACK
-#include "pycore_unionobject.h"
-#include "structmember.h"
-typedef struct {
-    PyObject_HEAD
-    PyObject *args;
-    PyObject *parameters;
-} unionobject;
-static PyObject*
-flatten_args(PyObject* args)
+static inline uint8_t
+get_original_opcode(_PyCoLineInstrumentationData *line_data, int index)
 {
-    Py_ssize_t arg_length = PyTuple_GET_SIZE(args);
-    Py_ssize_t total_args = 0;
-    // Get number of total args once it's flattened.
-    for (Py_ssize_t i = 0; i < arg_length; i++) {
-        PyObject *arg = PyTuple_GET_ITEM(args, i);
-        if (_PyUnion_Check(arg)) {
-            total_args += PyTuple_GET_SIZE(((unionobject*) arg)->args);
-        } else {
-            total_args++;
-        }
-    }
-    // Create new tuple of flattened args.
-    PyObject *flattened_args = PyTuple_New(total_args);
-    if (flattened_args == NULL) {
-        return NULL;
-    }
-    Py_ssize_t pos = 0;
-    for (Py_ssize_t i = 0; i < arg_length; i++) {
-        PyObject *arg = PyTuple_GET_ITEM(args, i);
-        if (_PyUnion_Check(arg)) {
-            PyObject* nested_args = ((unionobject*)arg)->args;
-            Py_ssize_t nested_arg_length = PyTuple_GET_SIZE(nested_args);
-            for (Py_ssize_t j = 0; j < nested_arg_length; j++) {
-                PyObject* nested_arg = PyTuple_GET_ITEM(nested_args, j);
-                Py_INCREF(nested_arg);
-                PyTuple_SET_ITEM(flattened_args, pos, nested_arg);
-                pos++;
-            }
-        } else {
-            if (arg == Py_None) {
-                arg = (PyObject *)&_PyNone_Type;
-            }
-            Py_INCREF(arg);
-            PyTuple_SET_ITEM(flattened_args, pos, arg);
-            pos++;
-        }
-    }
-    assert(pos == total_args);
-    return flattened_args;
+    return line_data->data[index*line_data->bytes_per_entry];
 }
-static PyObject*
-dedup_and_flatten_args(PyObject* args)
-{
-    args = flatten_args(args);
-    if (args == NULL) {
-        return NULL;
-    }
-    Py_ssize_t arg_length = PyTuple_GET_SIZE(args);
-    PyObject *new_args = PyTuple_New(arg_length);
-    if (new_args == NULL) {
-        Py_DECREF(args);
-        return NULL;
-    }
-    // Add unique elements to an array.
-    Py_ssize_t added_items = 0;
-    for (Py_ssize_t i = 0; i < arg_length; i++) {
-        int is_duplicate = 0;
-        PyObject* i_element = PyTuple_GET_ITEM(args, i);
-        for (Py_ssize_t j = 0; j < added_items; j++) {
-            PyObject* j_element = PyTuple_GET_ITEM(new_args, j);
-            int is_ga = _PyGenericAlias_Check(i_element) &&
-                        _PyGenericAlias_Check(j_element);
-            // RichCompare to also deduplicate GenericAlias types (slower)
-            is_duplicate = is_ga ? PyObject_RichCompareBool(i_element, j_element, Py_EQ)
-                : i_element == j_element;
-            // Should only happen if RichCompare fails
-            if (is_duplicate < 0) {
-                Py_DECREF(args);
-                Py_DECREF(new_args);
-                return NULL;
-            }
-            if (is_duplicate)
-                break;
-        }
-        if (!is_duplicate) {
-            Py_INCREF(i_element);
-            PyTuple_SET_ITEM(new_args, added_items, i_element);
-            added_items++;
-        }
-    }
-    Py_DECREF(args);
-    _PyTuple_Resize(&new_args, added_items);
-    return new_args;
+uint8_t Cix_GetOriginalOpcode(
+    _PyCoLineInstrumentationData* line_data,
+    int index) {
+  return get_original_opcode(line_data, index);
 }
-static int
-is_unionable(PyObject *obj)
-{
-    return (obj == Py_None ||
-        PyType_Check(obj) ||
-        _PyGenericAlias_Check(obj) ||
-        _PyUnion_Check(obj));
-}
-// Rename to avoid clashing with existing version when statically linking.
-#define make_union Cix_make_union
-PyObject *
-make_union(PyObject *args)
-{
-    assert(PyTuple_CheckExact(args));
-
-    args = dedup_and_flatten_args(args);
-    if (args == NULL) {
-        return NULL;
-    }
-    if (PyTuple_GET_SIZE(args) == 1) {
-        PyObject *result1 = PyTuple_GET_ITEM(args, 0);
-        Py_INCREF(result1);
-        Py_DECREF(args);
-        return result1;
-    }
-
-    unionobject *result = PyObject_GC_New(unionobject, &_PyUnion_Type);
-    if (result == NULL) {
-        Py_DECREF(args);
-        return NULL;
-    }
-
-    result->parameters = NULL;
-    result->args = args;
-    _PyObject_GC_TRACK(result);
-    return (PyObject*)result;
-}
-// End internal dependencies.
-#define _Py_union_type_or Cix_Py_union_type_or
-PyObject *
-_Py_union_type_or(PyObject* self, PyObject* other)
-{
-    if (!is_unionable(self) || !is_unionable(other)) {
-        Py_RETURN_NOTIMPLEMENTED;
-    }
-
-    PyObject *tuple = PyTuple_Pack(2, self, other);
-    if (tuple == NULL) {
-        return NULL;
-    }
-
-    PyObject *new_union = make_union(tuple);
-    Py_DECREF(tuple);
-    return new_union;
-}
-
 
 // Internal dependencies for Cix_do_raise.
 #define _PyErr_SetRaisedException __PyErr_SetRaisedException
+void
+_PyErr_SetRaisedException(PyThreadState *tstate, PyObject *exc)
+{
+    PyObject *old_exc = tstate->current_exception;
+    tstate->current_exception = exc;
+    Py_XDECREF(old_exc);
+}
+_PyErr_StackItem *
+_PyErr_GetTopmostException(PyThreadState *tstate)
+{
+    _PyErr_StackItem *exc_info = tstate->exc_info;
+    assert(exc_info);
+
+    while (exc_info->exc_value == NULL && exc_info->previous_item != NULL)
+    {
+        exc_info = exc_info->previous_item;
+    }
+    assert(!Py_IsNone(exc_info->exc_value));
+    return exc_info;
+}
 // End internal dependencies.
+PyObject *
+_PyEval_Vector(PyThreadState *tstate, PyFunctionObject *func,
+               PyObject *locals,
+               PyObject* const* args, size_t argcount,
+               PyObject *kwnames)
+{
+    size_t total_args = argcount;
+    if (kwnames) {
+        total_args += PyTuple_GET_SIZE(kwnames);
+    }
+    _PyStackRef stack_array[8];
+    _PyStackRef *arguments;
+    if (total_args <= 8) {
+        arguments = stack_array;
+    }
+    else {
+        arguments = PyMem_Malloc(sizeof(_PyStackRef) * total_args);
+        if (arguments == NULL) {
+            return PyErr_NoMemory();
+        }
+    }
+    /* _PyEvalFramePushAndInit consumes the references
+     * to func, locals and all its arguments */
+    Py_XINCREF(locals);
+    for (size_t i = 0; i < argcount; i++) {
+        arguments[i] = PyStackRef_FromPyObjectNew(args[i]);
+    }
+    if (kwnames) {
+        Py_ssize_t kwcount = PyTuple_GET_SIZE(kwnames);
+        for (Py_ssize_t i = 0; i < kwcount; i++) {
+            arguments[i+argcount] = PyStackRef_FromPyObjectNew(args[i+argcount]);
+        }
+    }
+    _PyInterpreterFrame *frame = _PyEvalFramePushAndInit(
+        tstate, PyStackRef_FromPyObjectNew(func), locals,
+        arguments, argcount, kwnames, NULL);
+    if (total_args > 8) {
+        PyMem_Free(arguments);
+    }
+    if (frame == NULL) {
+        return NULL;
+    }
+    EVAL_CALL_STAT_INC(EVAL_CALL_VECTOR);
+    return _PyEval_EvalFrame(tstate, frame, 0);
+}
 static int
 do_raise(PyThreadState *tstate, PyObject *exc, PyObject *cause)
 {
@@ -733,19 +629,15 @@ do_raise(PyThreadState *tstate, PyObject *exc, PyObject *cause)
     if (exc == NULL) {
         /* Reraise */
         _PyErr_StackItem *exc_info = _PyErr_GetTopmostException(tstate);
-        PyObject *tb;
-        type = exc_info->exc_type;
-        value = exc_info->exc_value;
-        tb = exc_info->exc_traceback;
-        if (Py_IsNone(type) || type == NULL) {
+        exc = exc_info->exc_value;
+        if (Py_IsNone(exc) || exc == NULL) {
             _PyErr_SetString(tstate, PyExc_RuntimeError,
                              "No active exception to reraise");
             return 0;
         }
-        Py_XINCREF(type);
-        Py_XINCREF(value);
-        Py_XINCREF(tb);
-        _PyErr_Restore(tstate, type, value, tb);
+        Py_INCREF(exc);
+        assert(PyExceptionInstance_Check(exc));
+        _PyErr_SetRaisedException(tstate, exc);
         return 1;
     }
 
@@ -756,7 +648,7 @@ do_raise(PyThreadState *tstate, PyObject *exc, PyObject *cause)
 
     if (PyExceptionClass_Check(exc)) {
         type = exc;
-        value = _PyObject_CallNoArg(exc);
+        value = _PyObject_CallNoArgs(exc);
         if (value == NULL)
             goto raise_error;
         if (!PyExceptionInstance_Check(value)) {
@@ -787,9 +679,16 @@ do_raise(PyThreadState *tstate, PyObject *exc, PyObject *cause)
     if (cause) {
         PyObject *fixed_cause;
         if (PyExceptionClass_Check(cause)) {
-            fixed_cause = _PyObject_CallNoArg(cause);
+            fixed_cause = _PyObject_CallNoArgs(cause);
             if (fixed_cause == NULL)
                 goto raise_error;
+            if (!PyExceptionInstance_Check(fixed_cause)) {
+                _PyErr_Format(tstate, PyExc_TypeError,
+                              "calling %R should have returned an instance of "
+                              "BaseException, not %R",
+                              cause, Py_TYPE(fixed_cause));
+                goto raise_error;
+            }
             Py_DECREF(cause);
         }
         else if (PyExceptionInstance_Check(cause)) {
@@ -824,25 +723,986 @@ int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
   return do_raise(tstate, exc, cause);
 }
 
+// Internal dependencies for gc_freeze_impl.
+#ifdef Py_GIL_DISABLED
+#endif
+#define ADD_INT(NAME) if (PyModule_AddIntConstant(module, #NAME, _PyGC_ ## NAME) < 0) { return -1; }
+#undef ADD_INT
+#ifndef Py_GIL_DISABLED
+#ifdef Py_DEBUG
+#  define GC_DEBUG
+#endif
+#define GC_NEXT _PyGCHead_NEXT
+#define GC_PREV _PyGCHead_PREV
+#define PREV_MASK_COLLECTING   _PyGC_PREV_MASK_COLLECTING
+#define NEXT_MASK_UNREACHABLE  2
+#define AS_GC(op) _Py_AS_GC(op)
+#define FROM_GC(gc) _Py_FROM_GC(gc)
+#define GENERATION_AUTO (-1)
+#define INIT_HEAD(GEN) \
+    do { \
+        GEN.head._gc_next = (uintptr_t)&GEN.head; \
+        GEN.head._gc_prev = (uintptr_t)&GEN.head; \
+    } while (0)
+#undef INIT_HEAD
+#ifdef GC_DEBUG
+#else
+#define validate_list(x, y) do{}while(0)
+#endif
+#ifdef GC_EXTRA_DEBUG
+#else
+#define validate_spaces(g) do{}while(0)
+#define validate_consistent_old_space(l) do{}while(0)
+#define gc_list_validate_space(l, s) do{}while(0)
+#endif
+#define SCAN_RATE_DIVISOR 10
+#ifdef Py_STATS
+#endif
+#ifndef NDEBUG
+#endif
+#ifdef Py_STATS
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#endif  // Py_GIL_DISABLED
+typedef struct _gc_runtime_state GCState;
+static inline void
+gc_list_init(PyGC_Head *list)
+{
+    // List header must not have flags.
+    // We can assign pointer by simple cast.
+    list->_gc_prev = (uintptr_t)list;
+    list->_gc_next = (uintptr_t)list;
+}
+static inline int
+gc_list_is_empty(PyGC_Head *list)
+{
+    return (list->_gc_next == (uintptr_t)list);
+}
+static GCState *
+get_gc_state(void)
+{
+    PyInterpreterState *interp = _PyInterpreterState_GET();
+    return &interp->gc;
+}
+static inline int
+gc_old_space(PyGC_Head *g)
+{
+    return g->_gc_next & _PyGC_NEXT_MASK_OLD_SPACE_1;
+}
+static void
+gc_list_merge(PyGC_Head *from, PyGC_Head *to)
+{
+    assert(from != to);
+    if (!gc_list_is_empty(from)) {
+        PyGC_Head *to_tail = GC_PREV(to);
+        PyGC_Head *from_head = GC_NEXT(from);
+        PyGC_Head *from_tail = GC_PREV(from);
+        assert(from_head != from);
+        assert(from_tail != from);
+        assert(gc_list_is_empty(to) ||
+            gc_old_space(to_tail) == gc_old_space(from_tail));
+
+        _PyGCHead_SET_NEXT(to_tail, from_head);
+        _PyGCHead_SET_PREV(from_head, to_tail);
+
+        _PyGCHead_SET_NEXT(from_tail, to);
+        _PyGCHead_SET_PREV(to, from_tail);
+    }
+    gc_list_init(from);
+}
+static inline void
+gc_set_old_space(PyGC_Head *g, int space)
+{
+    assert(space == 0 || space == _PyGC_NEXT_MASK_OLD_SPACE_1);
+    g->_gc_next &= ~_PyGC_NEXT_MASK_OLD_SPACE_1;
+    g->_gc_next |= space;
+}
+static inline Py_ssize_t
+gc_list_set_space(PyGC_Head *list, int space)
+{
+    Py_ssize_t size = 0;
+    PyGC_Head *gc;
+    for (gc = GC_NEXT(list); gc != list; gc = GC_NEXT(gc)) {
+        gc_set_old_space(gc, space);
+        size++;
+    }
+    return size;
+}
+// End internal dependencies.
+
+#define _PyGC_Freeze _CiGC_Freeze
+void
+_PyGC_Freeze(PyInterpreterState *interp)
+{
+    GCState *gcstate = &interp->gc;
+    /* The permanent_generation must be visited */
+    gc_list_set_space(&gcstate->young.head, gcstate->visited_space);
+    gc_list_merge(&gcstate->young.head, &gcstate->permanent_generation.head);
+    gcstate->young.count = 0;
+    PyGC_Head*old0 = &gcstate->old[0].head;
+    PyGC_Head*old1 = &gcstate->old[1].head;
+    if (gcstate->visited_space) {
+        gc_list_set_space(old0, 1);
+    }
+    else {
+        gc_list_set_space(old1, 0);
+    }
+    gc_list_merge(old0, &gcstate->permanent_generation.head);
+    gcstate->old[0].count = 0;
+    gc_list_merge(old1, &gcstate->permanent_generation.head);
+    gcstate->old[1].count = 0;
+    validate_spaces(gcstate);
+}
+static PyObject *
+gc_freeze_impl(PyObject *module)
+/*[clinic end generated code: output=502159d9cdc4c139 input=b602b16ac5febbe5]*/
+{
+    PyInterpreterState *interp = _PyInterpreterState_GET();
+    _PyGC_Freeze(interp);
+    Py_RETURN_NONE;
+}
+PyObject* Cix_gc_freeze_impl(PyObject* mod) {
+  return gc_freeze_impl(mod);
+}
+
+// Recreate builtin_next_impl (removed in https://github.com/python/cpython/pull/130371)
+
+PyObject* builtin_next_impl(PyObject *it, PyObject* def)
+{
+    PyObject *res;
+
+    if (!PyIter_Check(it)) {
+        PyErr_Format(PyExc_TypeError,
+                "'%.200s' object is not an iterator",
+                Py_TYPE(it)->tp_name);
+        return NULL;
+    }
+
+    res = (*Py_TYPE(it)->tp_iternext)(it);
+    if (res != NULL) {
+        return res;
+    } else if (def != NULL) {
+        if (PyErr_Occurred()) {
+            if(!PyErr_ExceptionMatches(PyExc_StopIteration))
+                return NULL;
+            PyErr_Clear();
+        }
+        return Py_NewRef(def);
+    } else if (PyErr_Occurred()) {
+        return NULL;
+    } else {
+        PyErr_SetNone(PyExc_StopIteration);
+        return NULL;
+    }
+}
+
+PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
+    return builtin_next_impl(it, def);
+}
+
 int init_upstream_borrow(void) {
-  // 3.10 ONLY!!!
-  PyObject* empty_dict = PyDict_New();
-  if (empty_dict == NULL) {
-    return -1;
-  }
-  empty_values = ((PyDictObject*)empty_dict)->ma_values;
-  Py_DECREF(empty_dict);
-
-  // Initialize the Cix_PyUnion_Type global reference.
-  PyObject* unionobj =
-      PyNumber_Or((PyObject*)&PyLong_Type, (PyObject*)&PyUnicode_Type);
-  if (unionobj != NULL) {
-    Cix_PyUnion_Type = Py_TYPE(unionobj);
-    Py_DECREF(unionobj);
-  }
-  if (Cix_PyUnion_Type == NULL) {
-    return -1;
-  }
-
+  // Nothing to do here; retained for consistency with 3.10
   return 0;
+}
+
+
+PyObject *
+_PyFunction_Vectorcall(PyObject *func, PyObject* const* stack,
+                       size_t nargsf, PyObject *kwnames)
+{
+    assert(PyFunction_Check(func));
+    PyFunctionObject *f = (PyFunctionObject *)func;
+    Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
+    assert(nargs >= 0);
+    PyThreadState *tstate = _PyThreadState_GET();
+    assert(nargs == 0 || stack != NULL);
+    EVAL_CALL_STAT_INC(EVAL_CALL_FUNCTION_VECTORCALL);
+    if (((PyCodeObject *)f->func_code)->co_flags & CO_OPTIMIZED) {
+        return _PyEval_Vector(tstate, f, NULL, stack, nargs, kwnames);
+    }
+    else {
+        return _PyEval_Vector(tstate, f, f->func_globals, stack, nargs, kwnames);
+    }
+}
+
+static inline int
+managed_static_type_index_is_set(PyTypeObject *self)
+{
+    return self->tp_subclasses != NULL;
+}
+static inline size_t
+managed_static_type_index_get(PyTypeObject *self)
+{
+    assert(managed_static_type_index_is_set(self));
+    /* We store a 1-based index so 0 can mean "not initialized". */
+    return (size_t)self->tp_subclasses - 1;
+}
+static managed_static_type_state *
+managed_static_type_state_get(PyInterpreterState *interp, PyTypeObject *self)
+{
+    // It's probably a builtin type.
+    size_t index = managed_static_type_index_get(self);
+    managed_static_type_state *state =
+            &(interp->types.builtins.initialized[index]);
+    if (state->type == self) {
+        return state;
+    }
+    if (index > _Py_MAX_MANAGED_STATIC_EXT_TYPES) {
+        return state;
+    }
+    return &(interp->types.for_extensions.initialized[index]);
+}
+managed_static_type_state *
+_PyStaticType_GetState(PyInterpreterState *interp, PyTypeObject *self)
+{
+    assert(self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN);
+    return managed_static_type_state_get(interp, self);
+}
+
+#define _PyFrame_New_NoTrack _CiFrame_New_NoTrack
+PyFrameObject*
+_PyFrame_New_NoTrack(PyCodeObject *code)
+{
+    CALL_STAT_INC(frame_objects_created);
+    int slots = code->co_nlocalsplus + code->co_stacksize;
+    PyFrameObject *f = PyObject_GC_NewVar(PyFrameObject, &PyFrame_Type, slots);
+    if (f == NULL) {
+        return NULL;
+    }
+    f->f_back = NULL;
+    f->f_trace = NULL;
+    f->f_trace_lines = 1;
+    f->f_trace_opcodes = 0;
+    f->f_lineno = 0;
+    f->f_extra_locals = NULL;
+    f->f_locals_cache = NULL;
+    f->f_overwritten_fast_locals = NULL;
+    return f;
+}
+PyFrameObject *
+_PyFrame_MakeAndSetFrameObject(_PyInterpreterFrame *frame)
+{
+    assert(frame->frame_obj == NULL);
+    PyObject *exc = PyErr_GetRaisedException();
+
+    PyFrameObject *f = _PyFrame_New_NoTrack(_PyFrame_GetCode(frame));
+    if (f == NULL) {
+        Py_XDECREF(exc);
+        return NULL;
+    }
+    PyErr_SetRaisedException(exc);
+
+    // GH-97002: There was a time when a frame object could be created when we
+    // are allocating the new frame object f above, so frame->frame_obj would
+    // be assigned already. That path does not exist anymore. We won't call any
+    // Python code in this function and garbage collection will not run.
+    // Notice that _PyFrame_New_NoTrack() can potentially raise a MemoryError,
+    // but it won't allocate a traceback until the frame unwinds, so we are safe
+    // here.
+    assert(frame->frame_obj == NULL);
+    assert(frame->owner != FRAME_OWNED_BY_FRAME_OBJECT);
+    f->f_frame = frame;
+    frame->frame_obj = f;
+    return f;
+}
+void
+_PyFrame_ClearLocals(_PyInterpreterFrame *frame)
+{
+    assert(frame->stackpointer != NULL);
+    _PyStackRef *sp = frame->stackpointer;
+    _PyStackRef *locals = frame->localsplus;
+    frame->stackpointer = locals;
+    while (sp > locals) {
+        sp--;
+        PyStackRef_XCLOSE(*sp);
+    }
+    Py_CLEAR(frame->f_locals);
+}
+static void
+take_ownership(PyFrameObject *f, _PyInterpreterFrame *frame)
+{
+    Py_BEGIN_CRITICAL_SECTION(f);
+    assert(frame->owner < FRAME_OWNED_BY_INTERPRETER);
+    assert(frame->owner != FRAME_OWNED_BY_FRAME_OBJECT);
+    _PyInterpreterFrame *new_frame = (_PyInterpreterFrame *)f->_f_frame_data;
+    _PyFrame_Copy(frame, new_frame);
+    // _PyFrame_Copy takes the reference to the executable,
+    // so we need to restore it.
+    frame->f_executable = PyStackRef_DUP(new_frame->f_executable);
+    f->f_frame = new_frame;
+    new_frame->owner = FRAME_OWNED_BY_FRAME_OBJECT;
+    if (_PyFrame_IsIncomplete(new_frame)) {
+        // This may be a newly-created generator or coroutine frame. Since it's
+        // dead anyways, just pretend that the first RESUME ran:
+        PyCodeObject *code = _PyFrame_GetCode(new_frame);
+        new_frame->instr_ptr =
+            _PyFrame_GetBytecode(new_frame) + code->_co_firsttraceable + 1;
+    }
+    assert(!_PyFrame_IsIncomplete(new_frame));
+    assert(f->f_back == NULL);
+    _PyInterpreterFrame *prev = _PyFrame_GetFirstComplete(frame->previous);
+    if (prev) {
+        assert(prev->owner < FRAME_OWNED_BY_INTERPRETER);
+        PyObject *exc = PyErr_GetRaisedException();
+        /* Link PyFrameObjects.f_back and remove link through _PyInterpreterFrame.previous */
+        PyFrameObject *back = _PyFrame_GetFrameObject(prev);
+        if (back == NULL) {
+            /* Memory error here. */
+            assert(PyErr_ExceptionMatches(PyExc_MemoryError));
+            /* Nothing we can do about it */
+            PyErr_Clear();
+        }
+        else {
+            f->f_back = (PyFrameObject *)Py_NewRef(back);
+        }
+        PyErr_SetRaisedException(exc);
+    }
+    if (!_PyObject_GC_IS_TRACKED((PyObject *)f)) {
+        _PyObject_GC_TRACK((PyObject *)f);
+    }
+    Py_END_CRITICAL_SECTION();
+}
+void
+_PyFrame_ClearExceptCode(_PyInterpreterFrame *frame)
+{
+    /* It is the responsibility of the owning generator/coroutine
+     * to have cleared the enclosing generator, if any. */
+    assert(frame->owner != FRAME_OWNED_BY_GENERATOR ||
+        _PyGen_GetGeneratorFromFrame(frame)->gi_frame_state == FRAME_CLEARED);
+    // GH-99729: Clearing this frame can expose the stack (via finalizers). It's
+    // crucial that this frame has been unlinked, and is no longer visible:
+    assert(_PyThreadState_GET()->current_frame != frame);
+    if (frame->frame_obj) {
+        PyFrameObject *f = frame->frame_obj;
+        frame->frame_obj = NULL;
+        if (!_PyObject_IsUniquelyReferenced((PyObject *)f)) {
+            take_ownership(f, frame);
+            Py_DECREF(f);
+            return;
+        }
+        Py_DECREF(f);
+    }
+    _PyFrame_ClearLocals(frame);
+    PyStackRef_CLEAR(frame->f_funcobj);
+}
+
+
+int
+_PyObject_HasLen(PyObject *o) {
+    return (Py_TYPE(o)->tp_as_sequence && Py_TYPE(o)->tp_as_sequence->sq_length) ||
+        (Py_TYPE(o)->tp_as_mapping && Py_TYPE(o)->tp_as_mapping->mp_length);
+}
+
+#define ASSERT_VALID_BOUNDS(bounds)
+#define _PyLineTable_InitAddressRange _CiLineTable_InitAddressRange
+void
+_PyLineTable_InitAddressRange(const char *linetable, Py_ssize_t length, int firstlineno, PyCodeAddressRange *range)
+{
+    range->opaque.lo_next = (const uint8_t *)linetable;
+    range->opaque.limit = range->opaque.lo_next + length;
+    range->ar_start = -1;
+    range->ar_end = 0;
+    range->opaque.computed_line = firstlineno;
+    range->ar_line = -1;
+}
+int
+_PyCode_InitAddressRange(PyCodeObject* co, PyCodeAddressRange *bounds)
+{
+    assert(co->co_linetable != NULL);
+    const char *linetable = PyBytes_AS_STRING(co->co_linetable);
+    Py_ssize_t length = PyBytes_GET_SIZE(co->co_linetable);
+    _PyLineTable_InitAddressRange(linetable, length, co->co_firstlineno, bounds);
+    return bounds->ar_line;
+}
+static int
+scan_varint(const uint8_t *ptr)
+{
+    unsigned int read = *ptr++;
+    unsigned int val = read & 63;
+    unsigned int shift = 0;
+    while (read & 64) {
+        read = *ptr++;
+        shift += 6;
+        val |= (read & 63) << shift;
+    }
+    return val;
+}
+static int
+scan_signed_varint(const uint8_t *ptr)
+{
+    unsigned int uval = scan_varint(ptr);
+    if (uval & 1) {
+        return -(int)(uval >> 1);
+    }
+    else {
+        return uval >> 1;
+    }
+}
+static int
+get_line_delta(const uint8_t *ptr)
+{
+    int code = ((*ptr) >> 3) & 15;
+    switch (code) {
+        case PY_CODE_LOCATION_INFO_NONE:
+            return 0;
+        case PY_CODE_LOCATION_INFO_NO_COLUMNS:
+        case PY_CODE_LOCATION_INFO_LONG:
+            return scan_signed_varint(ptr+1);
+        case PY_CODE_LOCATION_INFO_ONE_LINE0:
+            return 0;
+        case PY_CODE_LOCATION_INFO_ONE_LINE1:
+            return 1;
+        case PY_CODE_LOCATION_INFO_ONE_LINE2:
+            return 2;
+        default:
+            /* Same line */
+            return 0;
+    }
+}
+static int
+is_no_line_marker(uint8_t b)
+{
+    return (b >> 3) == 0x1f;
+}
+static int
+next_code_delta(PyCodeAddressRange *bounds)
+{
+    assert((*bounds->opaque.lo_next) & 128);
+    return (((*bounds->opaque.lo_next) & 7) + 1) * sizeof(_Py_CODEUNIT);
+}
+static inline int
+at_end(PyCodeAddressRange *bounds) {
+    return bounds->opaque.lo_next >= bounds->opaque.limit;
+}
+static void
+advance(PyCodeAddressRange *bounds)
+{
+    ASSERT_VALID_BOUNDS(bounds);
+    bounds->opaque.computed_line += get_line_delta(bounds->opaque.lo_next);
+    if (is_no_line_marker(*bounds->opaque.lo_next)) {
+        bounds->ar_line = -1;
+    }
+    else {
+        bounds->ar_line = bounds->opaque.computed_line;
+    }
+    bounds->ar_start = bounds->ar_end;
+    bounds->ar_end += next_code_delta(bounds);
+    do {
+        bounds->opaque.lo_next++;
+    } while (bounds->opaque.lo_next < bounds->opaque.limit &&
+        ((*bounds->opaque.lo_next) & 128) == 0);
+    ASSERT_VALID_BOUNDS(bounds);
+}
+int
+_PyLineTable_NextAddressRange(PyCodeAddressRange *range)
+{
+    if (at_end(range)) {
+        return 0;
+    }
+    advance(range);
+    assert(range->ar_end > range->ar_start);
+    return 1;
+}
+
+
+#ifdef HAVE_DLOPEN
+#  ifdef HAVE_DLFCN_H
+#  endif
+#  if !HAVE_DECL_RTLD_LAZY
+#    define RTLD_LAZY 1
+#  endif
+#endif
+#ifdef HAVE_THREAD_LOCAL
+#endif
+#ifdef HAVE_THREAD_LOCAL
+#else
+#endif
+#ifdef HAVE_THREAD_LOCAL
+#else
+#endif
+#ifdef HAVE_THREAD_LOCAL
+#else
+#endif
+#define tstate_verify_not_active(tstate) \
+    if (tstate == current_fast_get()) { \
+        _Py_FatalErrorFormat(__func__, "tstate %p is still current", tstate); \
+    }
+#ifdef HAVE_FORK
+#endif
+#define gilstate_tss_initialized(runtime) \
+    tstate_tss_initialized(&(runtime)->autoTSSkey)
+#define gilstate_tss_init(runtime) \
+    tstate_tss_init(&(runtime)->autoTSSkey)
+#define gilstate_tss_fini(runtime) \
+    tstate_tss_fini(&(runtime)->autoTSSkey)
+#define gilstate_tss_get(runtime) \
+    tstate_tss_get(&(runtime)->autoTSSkey)
+#define _gilstate_tss_set(runtime, tstate) \
+    tstate_tss_set(&(runtime)->autoTSSkey, tstate)
+#define _gilstate_tss_clear(runtime) \
+    tstate_tss_clear(&(runtime)->autoTSSkey)
+#define gilstate_tss_reinit(runtime) \
+    tstate_tss_reinit(&(runtime)->autoTSSkey)
+#ifndef NDEBUG
+#endif  // !NDEBUG
+#ifdef PY_HAVE_THREAD_NATIVE_ID
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifndef HAVE_PTHREAD_STUBS
+#endif
+#ifdef PY_HAVE_THREAD_NATIVE_ID
+#endif
+#define LOCKS_INIT(runtime) \
+    { \
+        &(runtime)->interpreters.mutex, \
+        &(runtime)->xi.data_lookup.registry.mutex, \
+        &(runtime)->unicode_state.ids.mutex, \
+        &(runtime)->imports.extensions.mutex, \
+        &(runtime)->ceval.pending_mainthread.mutex, \
+        &(runtime)->ceval.sys_trace_profile_mutex, \
+        &(runtime)->atexit.mutex, \
+        &(runtime)->audit_hooks.mutex, \
+        &(runtime)->allocators.mutex, \
+        &(runtime)->_main_interpreter.types.mutex, \
+        &(runtime)->_main_interpreter.code_state.mutex, \
+    }
+#if defined(__EMSCRIPTEN__) && defined(PY_CALL_TRAMPOLINE)
+#endif
+#ifdef Py_REF_DEBUG
+#endif
+#ifdef HAVE_FORK
+#ifdef Py_GIL_DISABLED
+#endif
+#endif
+#ifndef NDEBUG
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#if !defined(Py_GIL_DISABLED) && defined(Py_STACKREF_DEBUG)
+#  ifdef Py_STACKREF_CLOSE_DEBUG
+#  endif
+#endif
+#if !defined(Py_GIL_DISABLED) && defined(Py_STACKREF_DEBUG)
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef HAVE_FORK
+#endif
+#ifdef _Py_TIER2
+#endif
+#if !defined(Py_GIL_DISABLED) && defined(Py_STACKREF_DEBUG)
+#  ifdef Py_STACKREF_CLOSE_DEBUG
+#  endif
+#endif
+#ifdef Py_REF_DEBUG
+#endif
+#ifdef HAVE_FORK
+#endif
+#ifndef NDEBUG
+#endif
+#if LLONG_MAX > INT64_MAX
+#endif
+#ifndef NDEBUG
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#if defined(Py_REF_DEBUG) && defined(Py_GIL_DISABLED)
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#if defined(Py_DEBUG)
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#if defined(Py_DEBUG)
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#define _Py_FOR_EACH_STW_INTERP(stw, i)                                     \
+    for (PyInterpreterState *i = interp_for_stop_the_world((stw));          \
+            i != NULL; i = ((stw->is_global) ? i->next : NULL))
+#endif  // Py_GIL_DISABLED
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#if defined(Py_GIL_DISABLED) && !defined(Py_LIMITED_API)
+#ifdef HAVE_THREAD_LOCAL
+#else
+#endif
+#endif
+#ifndef NDEBUG
+#endif
+#ifdef _Py_TIER2
+#endif
+#define MINIMUM_OVERHEAD 1000
+#ifndef NDEBUG
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#if defined(Py_GIL_DISABLED) && !defined(WITH_MIMALLOC)
+#endif
+#undef  uint
+#define uint pymem_uint
+#ifdef WITH_MIMALLOC
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#define QSBR_PAGE_MEM_LIMIT 4096*20
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#endif // WITH_MIMALLOC
+#define MALLOC_ALLOC {NULL, _PyMem_RawMalloc, _PyMem_RawCalloc, _PyMem_RawRealloc, _PyMem_RawFree}
+#ifdef WITH_MIMALLOC
+#  define MIMALLOC_ALLOC {NULL, _PyMem_MiMalloc, _PyMem_MiCalloc, _PyMem_MiRealloc, _PyMem_MiFree}
+#  define MIMALLOC_OBJALLOC {NULL, _PyObject_MiMalloc, _PyObject_MiCalloc, _PyObject_MiRealloc, _PyObject_MiFree}
+#endif
+#if defined(WITH_PYMALLOC)
+#  define PYMALLOC_ALLOC {NULL, _PyObject_Malloc, _PyObject_Calloc, _PyObject_Realloc, _PyObject_Free}
+#endif  // WITH_PYMALLOC
+#if defined(Py_GIL_DISABLED)
+#  define PYRAW_ALLOC MALLOC_ALLOC
+#  define PYMEM_ALLOC MIMALLOC_ALLOC
+#  define PYOBJ_ALLOC MIMALLOC_OBJALLOC
+#elif defined(WITH_PYMALLOC)
+#  define PYRAW_ALLOC MALLOC_ALLOC
+#  define PYMEM_ALLOC PYMALLOC_ALLOC
+#  define PYOBJ_ALLOC PYMALLOC_ALLOC
+#else
+#  define PYRAW_ALLOC MALLOC_ALLOC
+#  define PYMEM_ALLOC MALLOC_ALLOC
+#  define PYOBJ_ALLOC MALLOC_ALLOC
+#endif
+#define PYDBGRAW_ALLOC \
+    {&_PyRuntime.allocators.debug.raw, _PyMem_DebugRawMalloc, _PyMem_DebugRawCalloc, _PyMem_DebugRawRealloc, _PyMem_DebugRawFree}
+#define PYDBGMEM_ALLOC \
+    {&_PyRuntime.allocators.debug.mem, _PyMem_DebugMalloc, _PyMem_DebugCalloc, _PyMem_DebugRealloc, _PyMem_DebugFree}
+#define PYDBGOBJ_ALLOC \
+    {&_PyRuntime.allocators.debug.obj, _PyMem_DebugMalloc, _PyMem_DebugCalloc, _PyMem_DebugRealloc, _PyMem_DebugFree}
+#ifdef Py_DEBUG
+#else
+#endif
+#ifdef Py_DEBUG
+#else
+#endif
+#ifdef Py_DEBUG
+#else
+#endif
+#ifdef Py_DEBUG
+#else
+#endif
+#ifdef WITH_PYMALLOC
+#  ifdef MS_WINDOWS
+#  elif defined(HAVE_MMAP)
+#    ifdef MAP_ANONYMOUS
+#      define ARENAS_USE_MMAP
+#    endif
+#  endif
+#endif
+#ifdef MS_WINDOWS
+#elif defined(ARENAS_USE_MMAP)
+#else
+#endif
+#if defined(ARENAS_USE_MMAP)
+#else
+#endif
+#ifdef MS_WINDOWS
+#elif defined(ARENAS_USE_MMAP)
+#else
+#endif
+#define ALLOCATORS_MUTEX (_PyRuntime.allocators.mutex)
+#define _PyMem_Raw (_PyRuntime.allocators.standard.raw)
+#define _PyMem (_PyRuntime.allocators.standard.mem)
+#define _PyObject (_PyRuntime.allocators.standard.obj)
+#define _PyMem_Debug (_PyRuntime.allocators.debug)
+#define _PyObject_Arena (_PyRuntime.allocators.obj_arena)
+#ifdef Py_DEBUG
+#else
+#endif
+#if defined(WITH_PYMALLOC) && !defined(Py_GIL_DISABLED)
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#ifndef Py_GIL_DISABLED
+#endif
+#ifdef WITH_PYMALLOC
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#ifdef WITH_PYMALLOC
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#ifdef WITH_PYMALLOC
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#ifdef WITH_PYMALLOC
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#ifdef WITH_PYMALLOC
+#ifdef WITH_MIMALLOC
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#endif  // WITH_MIMALLOC
+#endif  // WITH_PYMALLOC
+#define WORK_ITEMS_PER_CHUNK 254
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#define QSBR_DEFERRED_LIMIT 127
+#define QSBR_FREE_MEM_LIMIT 1024*1024
+#endif
+#ifndef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#if defined(__GNUC__) && (__GNUC__ > 2) && defined(__OPTIMIZE__)
+#  define UNLIKELY(value) __builtin_expect((value), 0)
+#  define LIKELY(value) __builtin_expect((value), 1)
+#else
+#  define UNLIKELY(value) (value)
+#  define LIKELY(value) (value)
+#endif
+#ifdef WITH_PYMALLOC
+#ifdef WITH_VALGRIND
+#endif
+#define usedpools (state->pools.used)
+#define allarenas (state->mgmt.arenas)
+#define maxarenas (state->mgmt.maxarenas)
+#define unused_arena_objects (state->mgmt.unused_arena_objects)
+#define usable_arenas (state->mgmt.usable_arenas)
+#define nfp2lasta (state->mgmt.nfp2lasta)
+#define narenas_currently_allocated (state->mgmt.narenas_currently_allocated)
+#define ntimes_arena_allocated (state->mgmt.ntimes_arena_allocated)
+#define narenas_highwater (state->mgmt.narenas_highwater)
+#define raw_allocated_blocks (state->mgmt.raw_allocated_blocks)
+#ifdef WITH_MIMALLOC
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#ifdef Py_DEBUG
+#else
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#if WITH_PYMALLOC_RADIX_TREE
+#define arena_map_root (state->usage.arena_map_root)
+#ifdef USE_INTERIOR_NODES
+#define arena_map_mid_count (state->usage.arena_map_mid_count)
+#define arena_map_bot_count (state->usage.arena_map_bot_count)
+#endif
+#ifdef USE_INTERIOR_NODES
+#else
+#endif
+#endif /* WITH_PYMALLOC_RADIX_TREE */
+#if SIZEOF_SIZE_T <= SIZEOF_INT
+#endif
+#if WITH_PYMALLOC_RADIX_TREE
+#endif
+#if WITH_PYMALLOC_RADIX_TREE
+#else
+#endif /* !WITH_PYMALLOC_RADIX_TREE */
+#ifdef WITH_MEMORY_LIMITS
+#endif
+#ifdef WITH_VALGRIND
+#endif
+#if WITH_PYMALLOC_RADIX_TREE
+#endif
+#ifdef WITH_VALGRIND
+#endif
+#ifdef WITH_VALGRIND
+#endif
+#else   /* ! WITH_PYMALLOC */
+#endif /* WITH_PYMALLOC */
+#ifdef PYMEM_DEBUG_SERIALNO
+#endif
+#define SST SIZEOF_SIZE_T
+#ifdef PYMEM_DEBUG_SERIALNO
+#  define PYMEM_DEBUG_EXTRA_BYTES 4 * SST
+#else
+#  define PYMEM_DEBUG_EXTRA_BYTES 3 * SST
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef PYMEM_DEBUG_SERIALNO
+#endif
+#ifdef PYMEM_DEBUG_SERIALNO
+#endif
+#define ERASED_SIZE 64
+#ifdef PYMEM_DEBUG_SERIALNO
+#endif
+#ifndef Py_GIL_DISABLED
+#endif
+#ifdef PYMEM_DEBUG_SERIALNO
+#endif
+#ifdef PYMEM_DEBUG_SERIALNO
+#endif
+#ifndef Py_GIL_DISABLED
+#endif
+#ifndef Py_GIL_DISABLED
+#else
+#endif
+#ifdef PYMEM_DEBUG_SERIALNO
+#endif
+#if WITH_PYMALLOC
+#else
+#endif
+#ifdef WITH_PYMALLOC
+#endif /* WITH_PYMALLOC */
+#ifdef WITH_PYMALLOC
+#endif /* WITH_PYMALLOC */
+#ifdef WITH_PYMALLOC
+#if WITH_PYMALLOC_RADIX_TREE
+#ifdef USE_INTERIOR_NODES
+#endif
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef PYMEM_DEBUG_SERIALNO
+#endif
+#if WITH_PYMALLOC_RADIX_TREE
+#ifdef USE_INTERIOR_NODES
+#endif
+#ifdef USE_INTERIOR_NODES
+#endif
+#endif
+#ifdef WITH_MIMALLOC
+#endif
+#endif /* #ifdef WITH_PYMALLOC */
+void *
+_PyObject_VirtualAlloc(size_t size)
+{
+    return _PyObject_Arena.alloc(_PyObject_Arena.ctx, size);
+}
+static _PyStackChunk*
+allocate_chunk(int size_in_bytes, _PyStackChunk* previous)
+{
+    assert(size_in_bytes % sizeof(PyObject **) == 0);
+    _PyStackChunk *res = _PyObject_VirtualAlloc(size_in_bytes);
+    if (res == NULL) {
+        return NULL;
+    }
+    res->previous = previous;
+    res->size = size_in_bytes;
+    res->top = 0;
+    return res;
+}
+static PyObject **
+push_chunk(PyThreadState *tstate, int size)
+{
+    int allocate_size = _PY_DATA_STACK_CHUNK_SIZE;
+    while (allocate_size < (int)sizeof(PyObject*)*(size + MINIMUM_OVERHEAD)) {
+        allocate_size *= 2;
+    }
+    _PyStackChunk *new = allocate_chunk(allocate_size, tstate->datastack_chunk);
+    if (new == NULL) {
+        return NULL;
+    }
+    if (tstate->datastack_chunk) {
+        tstate->datastack_chunk->top = tstate->datastack_top -
+                                       &tstate->datastack_chunk->data[0];
+    }
+    tstate->datastack_chunk = new;
+    tstate->datastack_limit = (PyObject **)(((char *)new) + allocate_size);
+    // When new is the "root" chunk (i.e. new->previous == NULL), we can keep
+    // _PyThreadState_PopFrame from freeing it later by "skipping" over the
+    // first element:
+    PyObject **res = &new->data[new->previous == NULL];
+    tstate->datastack_top = res + size;
+    return res;
+}
+_PyInterpreterFrame *
+_PyThreadState_PushFrame(PyThreadState *tstate, size_t size)
+{
+    assert(size < INT_MAX/sizeof(PyObject *));
+    if (_PyThreadState_HasStackSpace(tstate, (int)size)) {
+        _PyInterpreterFrame *res = (_PyInterpreterFrame *)tstate->datastack_top;
+        tstate->datastack_top += size;
+        return res;
+    }
+    return (_PyInterpreterFrame *)push_chunk(tstate, (int)size);
+}
+
+void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
+  PyErr_SetObject(type, value);
 }
