@@ -4,6 +4,7 @@
 
 #define CINDERX_INTERPRETER
 
+#include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 
 #include "cinderx/module_state.h"
@@ -20,10 +21,15 @@
 #include "internal/pycore_stackref.h"
 #include "internal/pycore_interpframe.h"
 
-#include "cinderx/UpstreamBorrow/borrowed.h"
-
 #ifdef ENABLE_INTERPRETER_LOOP
-#include "cinderx/Interpreter/3.12/Includes/ceval.c"
+
+#define _PyOpcode_Caches _CiOpcode_Caches
+#define _PyOpcode_Deopt _CiOpcode_Deopt
+#define _PyOpcode_OpName _CiOpcode_OpName
+#define _PyOpcode_opcode_metadata _CiOpcode_opcode_metadata
+
+#include "cinderx/Interpreter/3.14/Includes/ceval.c"
+
 #endif
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_dict.h"
@@ -31,6 +37,8 @@
 #include "cinderx/StaticPython/static_array.h"
 
 #include "cinderx/Jit/generators_rt.h"
+
+
 
 /* _PyEval_EvalFrameDefault() is a *big* function,
  * so consume 3 units of C stack */
@@ -403,8 +411,6 @@ void Ci_InitOpcodes() {
 #endif
 }
 
-#define _PyOpcode_Caches _CiOpcode_Caches
-
 bool Ci_DelayAdaptiveCode = false;
 uint64_t Ci_AdaptiveThreshold = 80;
 
@@ -439,8 +445,6 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
 #endif
 
 #ifdef ENABLE_INTERPRETER_LOOP
-
-#define _PyFunction_Vectorcall Ci_PyFunction_Vectorcall
 
 
 PyObject* _Py_HOT_FUNCTION

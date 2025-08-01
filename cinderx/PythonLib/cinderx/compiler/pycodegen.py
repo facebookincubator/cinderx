@@ -6019,9 +6019,10 @@ def get_docstring(
         and (b0 := node.body[0])
         and isinstance(b0, ast.Expr)
         and (b0v := b0.value)
-        and isinstance(b0v, ast.Str)
+        and isinstance(b0v, ast.Constant)
+        and isinstance(b0v.value, str)
     ):
-        return b0v.s
+        return b0v.value
 
 
 CinderCodeGenerator: type[CodeGenerator] = get_default_cinder_generator()

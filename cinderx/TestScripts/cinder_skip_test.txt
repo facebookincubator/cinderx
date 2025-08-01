@@ -71,3 +71,35 @@ test.test__xxinterpchannels.ChannelTests.*
 
 # Expects only _testcapi module to be loaded in error message
 test.test_capi.test_misc.CAPITest.test_getitem_with_error
+
+# This test unassigns a random type watcher ID which could be ours
+test.test_capi.test_watchers.TestTypeWatchers.test_clear_unassigned_watcher_id
+test.test_capi.test_watchers.TestTypeWatchers.test_unwatch_unassigned_watcher_id
+test.test_capi.test_watchers.TestTypeWatchers.test_watch_unassigned_watcher_id
+
+# This expects the watcher ID to be 1
+test.test_capi.test_watchers.TestTypeWatchers.test_error
+
+# subinterpreters not supported
+test.test__interpreters.*
+test.test__interpchannels.*
+test.test_crossinterp.*
+test.datetimetester.ExtensionModuleTests_Fast.test_concurrent_initialization_subinterpreter
+test.datetimetester.CapiTest_Fast.test_type_check_in_subinterp
+test.test_concurrent_futures.test_init.InterpreterPoolInitializerTest.*
+test.test_concurrent_futures.test_init.InterpreterPoolFailingInitializerTest.*
+test.test_concurrent_futures.test_as_completed.InterpreterPoolFailingInitializerTest.*
+test.test_concurrent_futures.test_as_completed.InterpreterPoolAsCompletedTest.*
+test.test_concurrent_futures.test_interpreter_pool.*
+test.test_capi.test_misc.InterpreterConfigTests.*
+test.test_capi.test_misc.InterpreterIDTests.*
+test.test_capi.test_getargs.ParseTupleAndKeywords_Test.test_gh_119213
+
+# Extra frame injected in the dumb terminal so we don't shutdown cleanly
+test.test_pyrepl.test_pyrepl.TestDumbTerminal.test_dumb_terminal_exits_cleanly
+
+# subinterpreters - our code extra makes these stateful
+test.test_code.CodeTest.test_stateless
+
+# These tests use ctypes and can get crashy at shutdown due to the freefunc being freed.
+test.test_code.CoExtra.*

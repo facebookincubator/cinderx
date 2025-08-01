@@ -13,6 +13,8 @@ execute_process(COMMAND "${CMAKE_COMMAND}" -E sleep 5)
 cmake_minimum_required(VERSION 3.12)
 project(_cinderx)
 
+set(PROJECT_SOURCE_DIR ${PROJECT_SOURCE_DIR}/cinderx)
+
 if (NOT ("${CMAKE_C_COMPILER_ID}" MATCHES "Clang" AND "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang"))
   message(FATAL_ERROR "This build requires using clang for C and C++ compilation, please switch to that")
 endif()
@@ -72,35 +74,11 @@ include(FetchContent)
 ########################################
 # python
 
-if (${META_PYTHON})
-  FetchContent_Declare(
-    python
-    GIT_REPOSITORY https://github.com/facebookincubator/cinder
-    GIT_TAG meta/3.12
-  )
-  FetchContent_MakeAvailable(python)
-
-  # Generate pyconfig.h by running the configure script.  Avoid doing so on each
-  # run as it's slow.
-  if (NOT EXISTS "${python_SOURCE_DIR}/pyconfig.h")
-    execute_process(COMMAND "./configure" WORKING_DIRECTORY "${python_SOURCE_DIR}")
-  endif()
-
-  # pyconfig.h gets saved to the top-level source directory, not to Include/.
-  set(Python_INCLUDE_DIRS "${python_SOURCE_DIR}/Include" "${python_SOURCE_DIR}")
-
-  set(PYTHON_INTERNAL_DIR "${python_SOURCE_DIR}/Include/internal")
-else()
-  find_package(Python ${PY_VERSION} EXACT REQUIRED COMPONENTS Development)
-
-  # "python" vs "Python" naming issues between Meta Python and CPython, this was
-  # the best workaround at the time.
-  set(PYTHON_INTERNAL_DIR "${Python_INCLUDE_DIRS}/internal")
-endif()
+find_package(Python ${PY_VERSION} EXACT REQUIRED COMPONENTS Development)
 
 # Some of our files are partially generated from CPython source, and they
 # expect to be able to include files relative to Include/internal.
-set(Python_INCLUDE_DIRS ${Python_INCLUDE_DIRS} "${PYTHON_INTERNAL_DIR}")
+set(Python_INCLUDE_DIRS ${Python_INCLUDE_DIRS} "${Python_INCLUDE_DIRS}/internal")
 
 ########################################
 # asmjit

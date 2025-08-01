@@ -2,6 +2,7 @@
 # pyre-strict
 
 import ast
+import sys
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Type
 
@@ -394,13 +395,11 @@ with warnings.catch_warnings():
         ast.Await: _format_await,
         ast.BinOp: _format_binaryop,
         ast.BoolOp: _format_boolop,
-        ast.Bytes: lambda node, level: repr(node.s),
         ast.Call: _format_call,
         ast.Compare: _format_compare,
         ast.Constant: _format_constant,
         ast.Dict: _format_dict,
         ast.DictComp: _format_dict_comp,
-        ast.Ellipsis: lambda node, level: "...",
         ast.FormattedValue: None,
         ast.GeneratorExp: _format_gen_exp,
         ast.IfExp: _format_if_exp,
@@ -409,18 +408,26 @@ with warnings.catch_warnings():
         ast.List: _format_list,
         ast.ListComp: _format_list_comp,
         ast.Name: _format_name,
-        ast.NameConstant: _format_nameconstant,
-        ast.Num: _format_num,
         ast.Set: _format_set,
         ast.SetComp: _format_set_comp,
         ast.Slice: _format_slice,
         ast.Starred: _format_starred,
-        ast.Str: _format_str,
         ast.Subscript: _format_subscript,
         ast.Tuple: _format_tuple,
         ast.UnaryOp: _format_unaryop,
         ast.Yield: _format_yield,
         ast.YieldFrom: _format_yield_from,
+        **(
+            {
+                ast.Bytes: lambda node, level: repr(node.s),
+                ast.Ellipsis: lambda node, level: "...",
+                ast.NameConstant: _format_nameconstant,
+                ast.Num: _format_num,
+                ast.Str: _format_str,
+            }
+            if sys.version_info < (3, 14)
+            else {}
+        ),
     }
 
 

@@ -94,7 +94,6 @@ from ast import (
     AST,
     AsyncFunctionDef,
     Attribute,
-    Bytes,
     Call,
     ClassDef,
     cmpop,
@@ -102,11 +101,8 @@ from ast import (
     copy_location,
     expr,
     FunctionDef,
-    NameConstant,
-    Num,
     Return,
     Starred,
-    Str,
 )
 from copy import copy
 from enum import Enum, IntEnum
@@ -6637,18 +6633,10 @@ class BuiltinMethod(Callable[Class]):
 
 
 def get_default_value(default: expr) -> object:
-    if not isinstance(default, (Constant, Str, Num, Bytes, NameConstant, ast.Ellipsis)):
+    if not isinstance(default, Constant):
         default = AstOptimizer().visit(default)
 
-    if isinstance(default, Str):
-        return default.s
-    elif isinstance(default, Num):
-        return default.n
-    elif isinstance(default, Bytes):
-        return default.s
-    elif isinstance(default, ast.Ellipsis):
-        return ...
-    elif isinstance(default, (ast.Constant, ast.NameConstant)):
+    if isinstance(default, ast.Constant):
         return default.value
     else:
         return default

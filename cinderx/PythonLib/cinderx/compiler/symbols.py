@@ -42,7 +42,7 @@ if sys.version_info >= (3, 12):
     )
 
 
-class TypeParams(ast.AST, metaclass=ast._ABC):
+class TypeParams(ast.AST):
     """Artificial node to store a tuple of type params."""
 
     _fields = ("params",)

@@ -9,6 +9,51 @@
 
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "internal/pycore_intrinsics.h"
+#include "internal/pycore_bitutils.h"
+#include "internal/pycore_unicodeobject.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
+#include "internal/pycore_function.h"
+#include "internal/pycore_descrobject.h"
+#include "internal/pycore_long.h"
+#include "internal/pycore_optimizer.h"     // _PyExecutorObject
+#include "opcode.h"
+
+#define _PyOpcode_Caches _CiOpcode_Caches
+#define _PyOpcode_Deopt _CiOpcode_Deopt
+#define _Py_type_getattro PyType_Type.tp_getattro
+#define _Py_slot_tp_getattr_hook NULL // TODO, fix me
+#define _Py_slot_tp_getattro NULL
+
+int unicode_eq(PyObject *str1, PyObject *str2)
+{
+    Py_ssize_t len = PyUnicode_GET_LENGTH(str1);
+    if (PyUnicode_GET_LENGTH(str2) != len) {
+        return 0;
+    }
+
+    int kind = PyUnicode_KIND(str1);
+    if (PyUnicode_KIND(str2) != kind) {
+        return 0;
+    }
+
+    const void *data1 = PyUnicode_DATA(str1);
+    const void *data2 = PyUnicode_DATA(str2);
+    return (memcmp(data1, data2, len * kind) == 0);
+}
+
+PyObject *
+_PyType_LookupRefAndVersion(PyTypeObject *type, PyObject *name, unsigned int *version) {
+  // This is a bit much to borrow as the dependency tree goes deep... but the version
+  // is the version at the start before the MRO
+  bool has_version = PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG);
+  if (!has_version && PyUnstable_Type_AssignVersionTag(type)) {
+    has_version = true;
+  }
+  unsigned int start_version = type->tp_version_tag;
+  PyObject *res = _PyType_LookupRef(type, name);
+  *version = has_version ? start_version : 0;
+  return res;
+}
 
 // In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
 // the JIT we could get the value from the thread-state register. This would be
@@ -25,6 +70,8 @@ PyObject* Cix_PyAsyncGenValueWrapperNew(PyObject* value) {
 PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_frame) {
   return compute_cr_origin(origin_depth, current_frame);
 }
+
+// @Borrow function _PyFunction_GetVersionForCurrentState from Objects/funcobject.c
 
 // @Borrow CPP directives noinclude from Objects/dictobject.c
 // @Borrow function values_size_from_count from Objects/dictobject.c
@@ -133,16 +180,41 @@ PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
     return builtin_next_impl(it, def);
 }
 
+PyObject *Cix_monitoring_disable, *Cix_monitoring_missing;
+
 int init_upstream_borrow(void) {
   // Nothing to do here; retained for consistency with 3.10
+  PyObject *sys = PyImport_ImportModule("sys");
+  if (sys == NULL) {
+    return -1;
+  }
+  PyObject *monitoring = PyObject_GetAttrString(sys, "monitoring");
+  Py_DECREF(sys);
+  if (monitoring == NULL) {
+    return -1;
+  }
+  Cix_monitoring_disable = PyObject_GetAttr(monitoring, PyUnicode_FromString("DISABLE"));
+  Cix_monitoring_missing = PyObject_GetAttr(monitoring, PyUnicode_FromString("MISSING"));
+  Py_DECREF(monitoring);
+  if (Cix_monitoring_disable == NULL || Cix_monitoring_missing == NULL) {
+    return -1;
+  }
   return 0;
 }
 
 
+// @Borrow CPP directives noinclude from Objects/typeobject.c
 // @Borrow function managed_static_type_index_is_set from Objects/typeobject.c
 // @Borrow function managed_static_type_index_get from Objects/typeobject.c
 // @Borrow function managed_static_type_state_get from Objects/typeobject.c
 // @Borrow function _PyStaticType_GetState from Objects/typeobject.c
+// @Borrow function _PyType_CacheInitForSpecialization from Objects/typeobject.c
+// @Borrow function _PyType_CacheGetItemForSpecialization from Objects/typeobject.c
+// @Borrow function lookup_tp_bases from Objects/typeobject.c
+// @Borrow function next_global_version_tag from Objects/typeobject.c
+// @Borrow function set_version_unlocked from Objects/typeobject.c
+// @Borrow function assign_version_tag from Objects/typeobject.c
+// @Borrow function _PyType_Validate from Objects/typeobject.c
 
 #define _PyFrame_New_NoTrack _CiFrame_New_NoTrack
 // @Borrow function _PyFrame_New_NoTrack from Objects/frameobject.c
@@ -178,3 +250,215 @@ int init_upstream_borrow(void) {
 void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
   PyErr_SetObject(type, value);
 }
+
+#define _PyErr_NoMemory(tstate) PyErr_NoMemory()
+
+// @Borrow function _PyStack_UnpackDict_FreeNoDecRef from Objects/call.c [3.14]
+// @Borrow function _PyStack_UnpackDict_Free from Objects/call.c [3.14]
+// @Borrow function _PyStack_UnpackDict from Objects/call.c [3.14]                                                                                                                                                                                         11:43:24 [55/29540]
+
+// @Borrow function _PyExc_CreateExceptionGroup from Objects/exceptions.c [3.14]
+
+
+// @Borrow function _PyBuildSlice_Consume2 from Objects/sliceobject.c [3.14]
+// @Borrow function _PyBuildSlice_ConsumeRefs from Objects/sliceobject.c [3.14]
+
+#define get_line_delta instrumentation_get_line_delta
+// @Borrow var MOST_SIGNIFICANT_BITS from Python/instrumentation.c [3.14]
+// @Borrow var INSTRUMENTED_OPCODES from Python/instrumentation.c [3.14]
+// @Borrow var EVENT_FOR_OPCODE from Python/instrumentation.c [3.14]
+// @Borrow CPP directives noinclude from Python/instrumentation.c
+// @Borrow function opcode_has_event from Python/instrumentation.c [3.14]
+// @Borrow function is_instrumented from Python/instrumentation.c [3.14]
+// @Borrow function monitors_equals from Python/instrumentation.c [3.14]
+// @Borrow function monitors_sub from Python/instrumentation.c [3.14]
+// @Borrow function monitors_and from Python/instrumentation.c [3.14]
+// @Borrow function local_union from Python/instrumentation.c [3.14]
+// @Borrow function monitors_are_empty from Python/instrumentation.c [3.14]
+// @Borrow function multiple_tools from Python/instrumentation.c [3.14]
+// @Borrow function compute_line_delta from Python/instrumentation.c [3.14]
+// @Borrow function compute_line from Python/instrumentation.c [3.14]
+// @Borrow function _PyInstruction_GetLength from Python/instrumentation.c [3.14]
+// @Borrow function get_original_opcode_ptr from Python/instrumentation.c [3.14]
+// @Borrow function set_original_opcode from Python/instrumentation.c [3.14]
+// @Borrow function get_line_delta from Python/instrumentation.c [3.14]
+// @Borrow function set_line_delta from Python/instrumentation.c [3.14]
+// @Borrow function _Py_GetBaseCodeUnit from Python/instrumentation.c [3.14]
+// @Borrow function de_instrument from Python/instrumentation.c [3.14]
+// @Borrow function de_instrument_line from Python/instrumentation.c [3.14]
+// @Borrow function de_instrument_per_instruction from Python/instrumentation.c [3.14]
+// @Borrow function instrument from Python/instrumentation.c [3.14]
+// @Borrow function instrument_line from Python/instrumentation.c [3.14]
+// @Borrow function instrument_per_instruction from Python/instrumentation.c [3.14]
+// @Borrow function remove_tools from Python/instrumentation.c [3.14]
+// @Borrow function tools_is_subset_for_event from Python/instrumentation.c [3.14]
+// @Borrow function remove_line_tools from Python/instrumentation.c [3.14]
+// @Borrow function add_tools from Python/instrumentation.c [3.14]
+// @Borrow function add_line_tools from Python/instrumentation.c [3.14]
+// @Borrow function add_per_instruction_tools from Python/instrumentation.c [3.14]
+// @Borrow function remove_per_instruction_tools from Python/instrumentation.c [3.14]
+// @Borrow function call_one_instrument from Python/instrumentation.c [3.14]
+// @Borrow function most_significant_bit from Python/instrumentation.c [3.14]
+// @Borrow function global_version from Python/instrumentation.c [3.14]
+// @Borrow function is_version_up_to_date from Python/instrumentation.c [3.14]
+// @Borrow function instrumentation_cross_checks from Python/instrumentation.c [3.14]
+// @Borrow function debug_check_sanity from Python/instrumentation.c [3.14]
+// @Borrow function get_tools_for_instruction from Python/instrumentation.c [3.14]
+// @Borrow var event_names from Python/instrumentation.c [3.14]
+// @Borrow function call_instrumentation_vector from Python/instrumentation.c [3.14]
+// @Borrow function _Py_call_instrumentation from Python/instrumentation.c [3.14]
+// @Borrow function _Py_call_instrumentation_arg from Python/instrumentation.c [3.14]
+// @Borrow function _Py_call_instrumentation_2args from Python/instrumentation.c [3.14]
+// @Borrow function _Py_call_instrumentation_jump from Python/instrumentation.c [3.14]
+// @Borrow function call_instrumentation_vector_protected from Python/instrumentation.c [3.14]
+// @Borrow function _Py_call_instrumentation_exc2 from Python/instrumentation.c [3.14]
+// @Borrow function _Py_Instrumentation_GetLine from Python/instrumentation.c [3.14]
+// @Borrow function _Py_call_instrumentation_line from Python/instrumentation.c [3.14]
+// @Borrow function _Py_call_instrumentation_instruction from Python/instrumentation.c [3.14]
+// @Borrow function initialize_tools from Python/instrumentation.c [3.14]
+// @Borrow function initialize_lines from Python/instrumentation.c [3.14]
+// @Borrow function initialize_line_tools from Python/instrumentation.c [3.14]
+// @Borrow function allocate_instrumentation_data from Python/instrumentation.c [3.14]
+// @Borrow function update_instrumentation_data from Python/instrumentation.c [3.14]
+
+// @Borrow function _PyNumber_PowerNoMod from Objects/abstract.c
+// @Borrow function _PyNumber_InPlacePowerNoMod from Objects/abstract.c
+
+// @Borrow function force_instrument_lock_held from Python/instrumentation.c [3.14]
+// @Borrow function instrument_lock_held from Python/instrumentation.c [3.14]
+// @Borrow function _Py_Instrument from Python/instrumentation.c [3.14]
+
+// @Borrow function ensure_shared_on_keys_version_assignment from Objects/dictobject.c [3.14]
+// @Borrow function get_next_dict_keys_version from Objects/dictobject.c [3.14]
+// @Borrow function _PyDictKeys_GetVersionForCurrentState from Objects/dictobject.c [3.14]
+// @Borrow function _PyDict_GetKeysVersionForCurrentState from Objects/dictobject.c [3.14]
+
+// @Borrow function unicode_get_hash from Objects/dictobject.c [3.14]
+
+// @Borrow function dictkeys_get_index from Objects/dictobject.c [3.14]
+// @Borrow function compare_unicode_unicode from Objects/dictobject.c [3.14]
+// @Borrow function compare_unicode_generic from Objects/dictobject.c [3.14]
+// @Borrow function compare_generic from Objects/dictobject.c [3.14]
+// @Borrow function do_lookup from Objects/dictobject.c [3.14]
+// @Borrow function dictkeys_generic_lookup from Objects/dictobject.c [3.14]
+// @Borrow function unicodekeys_lookup_generic from Objects/dictobject.c [3.14]
+// @Borrow function unicodekeys_lookup_unicode from Objects/dictobject.c [3.14]
+// @Borrow function dict_unhashable_type from Objects/dictobject.c [3.14]
+// @Borrow function check_keys_unicode from Objects/dictobject.c [3.14]
+// @Borrow function hash_unicode_key from Objects/dictobject.c [3.14]
+// @Borrow function unicodekeys_lookup_split from Objects/dictobject.c [3.14]
+// @Borrow function _PyDictKeys_StringLookup from Objects/dictobject.c [3.14]
+// @Borrow function _PyDictKeys_StringLookupAndVersion from Objects/dictobject.c [3.14]
+// @Borrow function _PyDictKeys_StringLookupSplit from Objects/dictobject.c [3.14]
+// @Borrow function _Py_dict_lookup from Objects/dictobject.c [3.14]
+// @Borrow function _PyDict_LookupIndex from Objects/dictobject.c [3.14]
+// @Borrow CPP directives noinclude from Python/specialize.c
+// @Borrow typedef DescriptorClassification from Python/specialize.c [3.14]
+// @Borrow function set_opcode from Python/specialize.c [3.14]
+// @Borrow function set_counter from Python/specialize.c [3.14]
+// @Borrow function specialize from Python/specialize.c [3.14]
+// @Borrow function load_counter from Python/specialize.c [3.14]
+// @Borrow function unspecialize from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_LoadSuperAttr from Python/specialize.c [3.14]
+// @Borrow function specialize_module_load_attr_lock_held from Python/specialize.c [3.14]
+// @Borrow function specialize_module_load_attr from Python/specialize.c [3.14]
+// @Borrow function classify_descriptor from Python/specialize.c [3.14]
+// @Borrow function descriptor_is_class from Python/specialize.c [3.14]
+// @Borrow function analyze_descriptor_load from Python/specialize.c [3.14]
+// @Borrow function specialize_class_load_attr from Python/specialize.c [3.14]
+// @Borrow function instance_has_key from Python/specialize.c [3.14]
+// @Borrow function specialize_attr_loadclassattr from Python/specialize.c [3.14]
+// @Borrow function function_kind from Python/specialize.c [3.14]
+// @Borrow function function_check_args from Python/specialize.c [3.14]
+// @Borrow function function_get_version from Python/specialize.c [3.14]
+// @Borrow function specialize_dict_access_inline from Python/specialize.c [3.14]
+// @Borrow function specialize_dict_access_hint from Python/specialize.c [3.14]
+// @Borrow function specialize_dict_access from Python/specialize.c [3.14]
+// @Borrow function do_specialize_instance_load_attr from Python/specialize.c [3.14]
+// @Borrow function specialize_instance_load_attr from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_LoadAttr from Python/specialize.c [3.14]
+// @Borrow function analyze_descriptor_store from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_StoreAttr from Python/specialize.c [3.14]
+// @Borrow function specialize_load_global_lock_held from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_LoadGlobal from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_StoreSubscr from Python/specialize.c [3.14]
+// @Borrow function specialize_c_call from Python/specialize.c [3.14]
+// @Borrow function specialize_py_call from Python/specialize.c [3.14]
+// @Borrow function get_init_for_simple_managed_python_class from Python/specialize.c [3.14]
+// @Borrow function specialize_class_call from Python/specialize.c [3.14]
+// @Borrow function specialize_method_descriptor from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_Call from Python/specialize.c [3.14]
+// @Borrow function specialize_py_call_kw from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_CallKw from Python/specialize.c [3.14]
+
+// @Borrow function is_compactlong from Python/specialize.c [3.14]
+// @Borrow function compactlongs_guard from Python/specialize.c [3.14]
+
+#define BITWISE_LONGS_ACTION(NAME, OP) \
+    static PyObject * \
+    (NAME)(PyObject *lhs, PyObject *rhs) \
+    { \
+        Py_ssize_t rhs_val = _PyLong_CompactValue((PyLongObject *)rhs); \
+        Py_ssize_t lhs_val = _PyLong_CompactValue((PyLongObject *)lhs); \
+        return PyLong_FromSsize_t(lhs_val OP rhs_val); \
+    }
+BITWISE_LONGS_ACTION(compactlongs_or, |)
+BITWISE_LONGS_ACTION(compactlongs_and, &)
+BITWISE_LONGS_ACTION(compactlongs_xor, ^)
+#undef BITWISE_LONGS_ACTION
+
+// @Borrow function float_compactlong_guard from Python/specialize.c [3.14]
+// @Borrow function nonzero_float_compactlong_guard from Python/specialize.c [3.14]
+
+#define FLOAT_LONG_ACTION(NAME, OP) \
+    static PyObject * \
+    (NAME)(PyObject *lhs, PyObject *rhs) \
+    { \
+        double lhs_val = PyFloat_AsDouble(lhs); \
+        Py_ssize_t rhs_val = _PyLong_CompactValue((PyLongObject *)rhs); \
+        return PyFloat_FromDouble(lhs_val OP rhs_val); \
+    }
+FLOAT_LONG_ACTION(float_compactlong_add, +)
+FLOAT_LONG_ACTION(float_compactlong_subtract, -)
+FLOAT_LONG_ACTION(float_compactlong_multiply, *)
+FLOAT_LONG_ACTION(float_compactlong_true_div, /)
+#undef FLOAT_LONG_ACTION
+
+// @Borrow function compactlong_float_guard from Python/specialize.c [3.14]
+// @Borrow function nonzero_compactlong_float_guard from Python/specialize.c [3.14]
+
+#define LONG_FLOAT_ACTION(NAME, OP) \
+    static PyObject * \
+    (NAME)(PyObject *lhs, PyObject *rhs) \
+    { \
+        double rhs_val = PyFloat_AsDouble(rhs); \
+        Py_ssize_t lhs_val = _PyLong_CompactValue((PyLongObject *)lhs); \
+        return PyFloat_FromDouble(lhs_val OP rhs_val); \
+    }
+LONG_FLOAT_ACTION(compactlong_float_add, +)
+LONG_FLOAT_ACTION(compactlong_float_subtract, -)
+LONG_FLOAT_ACTION(compactlong_float_multiply, *)
+LONG_FLOAT_ACTION(compactlong_float_true_div, /)
+#undef LONG_FLOAT_ACTION
+
+// @Borrow var binaryop_extend_descrs from Python/specialize.c [3.14]
+// @Borrow function binary_op_extended_specialization from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_BinaryOp from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_CompareOp from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_UnpackSequence from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_ForIter from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_Send from Python/specialize.c [3.14]
+// @Borrow function check_type_always_true from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_ToBool from Python/specialize.c [3.14]
+// @Borrow function _Py_Specialize_ContainsOp from Python/specialize.c [3.14]
+
+// @Borrow CPP directives noinclude from Python/suggestions.c
+// @Borrow function substitution_cost from Python/suggestions.c [3.14]
+// @Borrow function levenshtein_distance from Python/suggestions.c [3.14]
+// @Borrow function _Py_CalculateSuggestions from Python/suggestions.c [3.14]
+
+// @Borrow function tb_create_raw from Python/traceback.c [3.14]
+// @Borrow function _PyTraceBack_FromFrame from Python/traceback.c [3.14]
+
+// @Borrow function _PyFloat_ExactDealloc from Objects/floatobject.c [3.14]
+// @Borrow function _PyFloat_FromDouble_ConsumeInputs from Objects/floatobject.c [3.14]

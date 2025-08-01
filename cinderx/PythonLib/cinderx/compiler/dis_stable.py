@@ -23,16 +23,31 @@ def _make_stable(
     gen: Iterable[_dis.Instruction],
 ) -> Generator[_dis.Instruction, None, None]:
     for instr in gen:
-        yield _dis.Instruction(
-            instr.opname,
-            instr.opcode,
-            instr.arg,
-            instr.argval,
-            _stable_repr(instr.argval),
-            instr.offset,
-            instr.starts_line,
-            instr.is_jump_target,
-        )
+        if sys.version_info >= (3, 14):
+            yield _dis.Instruction.make(
+                instr.opname,
+                instr.arg,
+                instr.argval,
+                _stable_repr(instr.argval),
+                instr.offset,
+                instr.start_offset,
+                instr.starts_line,
+                instr.line_number,
+                instr.label,
+                instr.positions,
+                instr.cache_info,
+            )
+        else:
+            yield _dis.Instruction(
+                instr.opname,
+                instr.opcode,
+                instr.arg,
+                instr.argval,
+                _stable_repr(instr.argval),
+                instr.offset,
+                instr.starts_line,
+                instr.is_jump_target,
+            )
 
 
 def _stable_repr(obj: object) -> str:
@@ -42,6 +57,7 @@ def _stable_repr(obj: object) -> str:
 
 
 def _disassemble_bytes(
+    co: CodeType,
     code: bytes,
     lasti: int = -1,
     varnames: Optional[Tuple[str]] = None,
@@ -70,7 +86,23 @@ def _disassemble_bytes(
         offset_width = len(str(maxoffset))
     else:
         offset_width = 4
-    if sys.version_info >= (3, 12):
+    if sys.version_info >= (3, 14):
+        if co is not None:
+            exception_entries = _dis._parse_exception_table(co)
+            labels_map = _dis._make_labels_map(
+                code, exception_entries=exception_entries
+            )
+        else:
+            labels_map = None
+        instr_bytes = _dis._get_instructions_bytes(
+            code,
+            arg_resolver=_dis.ArgResolver(
+                constants, names, lambda oparg: localsplusnames[oparg], labels_map
+            ),
+            linestarts=linestarts,
+            line_offset=line_offset,
+        )
+    elif sys.version_info >= (3, 12):
         instr_bytes = _dis._get_instructions_bytes(
             code,
             lambda oparg: localsplusnames[oparg],
@@ -92,10 +124,15 @@ def _disassemble_bytes(
             print(file=file)
         is_current_instr = instr.offset == lasti
 
-        print(
-            instr._disassemble(lineno_width, is_current_instr, offset_width),
-            file=file,
-        )
+        if sys.version_info >= (3, 14):
+            _dis.Formatter(
+                file=file, lineno_width=lineno_width, offset_width=offset_width
+            ).print_instruction(instr, is_current_instr)
+        else:
+            print(
+                instr._disassemble(lineno_width, is_current_instr, offset_width),
+                file=file,
+            )
 
 
 def disassemble(
@@ -116,6 +153,7 @@ def disassemble(
         else (co.co_varnames + co.co_cellvars + co.co_freevars)
     )
     _disassemble_bytes(
+        co,
         co.co_code,
         lasti,
         co.co_varnames,

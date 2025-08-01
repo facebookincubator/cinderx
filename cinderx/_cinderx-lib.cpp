@@ -852,7 +852,7 @@ int initFrameEvalFunc() {
 #ifdef ENABLE_INTERPRETER_LOOP
 #ifdef ENABLE_EVAL_HOOK
   Ci_hook_EvalFrame = Ci_EvalFrame;
-#else
+#elif defined(ENABLE_PEP523_HOOK)
   auto interp = _PyInterpreterState_GET();
   auto current_eval_frame = _PyInterpreterState_GetEvalFrameFunc(interp);
   if (current_eval_frame != _PyEval_EvalFrameDefault) {
@@ -874,7 +874,7 @@ void finiFrameEvalFunc() {
 #ifdef ENABLE_INTERPRETER_LOOP
 #ifdef ENABLE_EVAL_HOOK
   Ci_hook_EvalFrame = nullptr;
-#else
+#elif defined(ENABLE_PEP523_HOOK)
   _PyInterpreterState_SetEvalFrameFunc(_PyInterpreterState_GET(), nullptr);
 #endif
 #endif

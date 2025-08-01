@@ -33,7 +33,8 @@ class FutureParser(ASTVisitor):
             if (
                 self.possible_docstring
                 and isinstance(s, ast.Expr)
-                and isinstance(s.value, ast.Str)
+                and isinstance(s.value, ast.Constant)
+                and isinstance(s.value.value, str)
             ):
                 self.possible_docstring = False
                 continue

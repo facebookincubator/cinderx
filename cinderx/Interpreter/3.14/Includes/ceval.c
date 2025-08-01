@@ -8,7 +8,7 @@
 #include "pycore_backoff.h"
 #include "pycore_call.h"          // _PyObject_CallNoArgs()
 #include "pycore_cell.h"          // PyCell_GetRef()
-#include "pycore_ceval.h"
+#include "pycore_ceval.h"         // SPECIAL___ENTER__
 #include "pycore_code.h"
 #include "pycore_dict.h"
 #include "pycore_emscripten_signal.h"  // _Py_CHECK_EMSCRIPTEN_SIGNALS
@@ -53,6 +53,9 @@
 #if !defined(Py_BUILD_CORE)
 #  error "ceval.c must be build with Py_BUILD_CORE define for best performance"
 #endif
+
+#define _PyFunction_Vectorcall Ci_PyFunction_Vectorcall
+
 
 #if !defined(Py_DEBUG) && !defined(Py_TRACE_REFS)
 // GH-89279: The MSVC compiler does not inline these static inline functions
@@ -306,6 +309,7 @@ _PyEvalFramePushAndInit_Ex(PyThreadState *tstate, _PyStackRef func,
 #include <errno.h>
 #endif
 
+#ifndef CINDERX_INTERPRETER
 int
 Py_GetRecursionLimit(void)
 {
@@ -333,13 +337,13 @@ _Py_ReachedRecursionLimitWithMargin(PyThreadState *tstate, int margin_count)
 {
     uintptr_t here_addr = _Py_get_machine_stack_pointer();
     _PyThreadStateImpl *_tstate = (_PyThreadStateImpl *)tstate;
-    if (here_addr > _tstate->c_stack_soft_limit + margin_count * PYOS_STACK_MARGIN_BYTES) {
+    if (here_addr > _tstate->c_stack_soft_limit + margin_count * _PyOS_STACK_MARGIN_BYTES) {
         return 0;
     }
     if (_tstate->c_stack_hard_limit == 0) {
         _Py_InitializeRecursionLimits(tstate);
     }
-    return here_addr <= _tstate->c_stack_soft_limit + margin_count * PYOS_STACK_MARGIN_BYTES;
+    return here_addr <= _tstate->c_stack_soft_limit + margin_count * _PyOS_STACK_MARGIN_BYTES;
 }
 
 void
@@ -435,8 +439,8 @@ _Py_InitializeRecursionLimits(PyThreadState *tstate)
     _tstate->c_stack_top = (uintptr_t)high;
     ULONG guarantee = 0;
     SetThreadStackGuarantee(&guarantee);
-    _tstate->c_stack_hard_limit = ((uintptr_t)low) + guarantee + PYOS_STACK_MARGIN_BYTES;
-    _tstate->c_stack_soft_limit = _tstate->c_stack_hard_limit + PYOS_STACK_MARGIN_BYTES;
+    _tstate->c_stack_hard_limit = ((uintptr_t)low) + guarantee + _PyOS_STACK_MARGIN_BYTES;
+    _tstate->c_stack_soft_limit = _tstate->c_stack_hard_limit + _PyOS_STACK_MARGIN_BYTES;
 #else
     uintptr_t here_addr = _Py_get_machine_stack_pointer();
 #  if defined(HAVE_PTHREAD_GETATTR_NP) && !defined(_AIX) && !defined(__NetBSD__)
@@ -456,9 +460,9 @@ _Py_InitializeRecursionLimits(PyThreadState *tstate)
         // Thread sanitizer crashes if we use a bit more than half the stack.
         _tstate->c_stack_soft_limit = base + (stack_size / 2);
 #else
-        _tstate->c_stack_soft_limit = base + PYOS_STACK_MARGIN_BYTES * 2;
+        _tstate->c_stack_soft_limit = base + _PyOS_STACK_MARGIN_BYTES * 2;
 #endif
-        _tstate->c_stack_hard_limit = base + PYOS_STACK_MARGIN_BYTES;
+        _tstate->c_stack_hard_limit = base + _PyOS_STACK_MARGIN_BYTES;
         assert(_tstate->c_stack_soft_limit < here_addr);
         assert(here_addr < _tstate->c_stack_top);
         return;
@@ -466,7 +470,7 @@ _Py_InitializeRecursionLimits(PyThreadState *tstate)
 #  endif
     _tstate->c_stack_top = _Py_SIZE_ROUND_UP(here_addr, 4096);
     _tstate->c_stack_soft_limit = _tstate->c_stack_top - Py_C_STACK_SIZE;
-    _tstate->c_stack_hard_limit = _tstate->c_stack_top - (Py_C_STACK_SIZE + PYOS_STACK_MARGIN_BYTES);
+    _tstate->c_stack_hard_limit = _tstate->c_stack_top - (Py_C_STACK_SIZE + _PyOS_STACK_MARGIN_BYTES);
 #endif
 }
 
@@ -819,10 +823,12 @@ fail:
     Py_DECREF(attrs);
     return NULL;
 }
+#endif
 
 
 static int do_raise(PyThreadState *tstate, PyObject *exc, PyObject *cause);
 
+#ifndef CINDERX_INTERPRETER
 PyObject *
 PyEval_EvalCode(PyObject *co, PyObject *globals, PyObject *locals)
 {
@@ -855,7 +861,6 @@ PyEval_EvalCode(PyObject *co, PyObject *globals, PyObject *locals)
     return res;
 }
 
-
 /* Interpreter main loop */
 
 PyObject *
@@ -873,6 +878,7 @@ PyEval_EvalFrameEx(PyFrameObject *f, int throwflag)
     return _PyEval_EvalFrame(tstate, f->f_frame, throwflag);
 }
 
+#endif
 #include "ceval_macros.h"
 
 int _Py_CheckRecursiveCallPy(
@@ -923,7 +929,7 @@ extern void _PyUOpPrint(const _PyUOpInstruction *uop);
 #  pragma warning(disable:4102)
 #endif
 
-
+#ifndef CINDERX_INTERPRETER
 PyObject **
 _PyObjectArray_FromStackRefArray(_PyStackRef *input, Py_ssize_t nargs, PyObject **scratch)
 {
@@ -952,7 +958,7 @@ _PyObjectArray_Free(PyObject **array, PyObject **scratch)
         PyMem_Free(array);
     }
 }
-
+#endif
 
 /* _PyEval_EvalFrameDefault is too large to optimize for speed with PGO on MSVC.
  */
@@ -968,7 +974,7 @@ _PyObjectArray_Free(PyObject **array, PyObject **scratch)
 #endif
 
 #if Py_TAIL_CALL_INTERP
-#include "opcode_targets.h"
+#include "cinderx/Interpreter/cinderx_opcode_targets.h"
 #include "generated_cases.c.h"
 #endif
 
@@ -2147,6 +2153,8 @@ raise_error:
    complicated for inlining).
 */
 
+#ifndef CINDERX_INTERPRETER
+
 int
 _PyEval_ExceptionGroupMatch(_PyInterpreterFrame *frame, PyObject* exc_value,
                             PyObject *match_type, PyObject **match, PyObject **rest)
@@ -2339,6 +2347,8 @@ Error:
     Py_XDECREF(it);
     return 0;
 }
+
+#endif
 
 static int
 do_monitor_exc(PyThreadState *tstate, _PyInterpreterFrame *frame,
@@ -3191,6 +3201,7 @@ done:
 #define CANNOT_EXCEPT_STAR_EG "catching ExceptionGroup with except* "\
                               "is not allowed. Use except instead."
 
+#ifndef CINDERX_INTERPRETER
 int
 _PyEval_CheckExceptTypeValid(PyThreadState *tstate, PyObject* right)
 {
@@ -3575,3 +3586,4 @@ _PyEval_SpecialMethodCanSuggest(PyObject *self, int oparg)
             Py_FatalError("unsupported special method");
     }
 }
+#endif

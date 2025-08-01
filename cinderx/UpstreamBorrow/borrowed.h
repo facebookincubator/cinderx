@@ -6,6 +6,95 @@
 
 #include "cinderx/module_state.h"
 
+#if PY_VERSION_HEX >= 0x030E0000
+// These symbols are not exported from CPython, but they are also not marked
+// static. When we statically link CinderX + the runtime (which happens at least
+// our RuntimeTests, and potentially with native python) we end up with
+// duplicate symbols. Therefore anything that falls into this category needs to
+// be renamed for it's definition in CinderX.
+// Some of these also get included before we include borrowed.h, in which case
+// we also need function prototypes for them.
+#define _PyFrame_ClearExceptCode _CiFrame_ClearExceptCode
+#define _PyObject_HasLen _CiPyObject_HasLen
+#define _PyFrame_ClearLocals _CiFrame_ClearLocals
+
+#define _PyStaticType_GetState Cix_PyStaticType_GetState
+#define _PyCode_InitAddressRange _CiCode_InitAddressRange
+#define _PyLineTable_NextAddressRange _CiLineTable_NextAddressRange
+#define _PyObject_VirtualAlloc _CiVirtualAlloc
+#define _PyThreadState_PushFrame _CiThreadState_PushFrame
+#define _PyErr_GetTopmostException _CiErr_GetTopmostException
+#define _PyEval_Vector _CiEval_Vector
+#define _PyType_CacheGetItemForSpecialization \
+  _CiType_CacheGetItemForSpecialization
+#define _PyType_CacheInitForSpecialization _CiType_CacheInitForSpecialization
+#define _PyType_LookupRefAndVersion _CiType_LookupRefAndVersion
+#define _PyBuildSlice_ConsumeRefs _CiBuildSlice_ConsumeRefs
+#define _PyFunction_GetVersionForCurrentState \
+  _CiFunction_GetVersionForCurrentState
+#define _PyExc_CreateExceptionGroup _CiExc_CreateExceptionGroup
+// PyObject* _PyExc_CreateExceptionGroup(const char* msg_str, PyObject* excs);
+
+#define _PyFloat_ExactDealloc _CiFloat_ExactDealloc
+#define _PyFloat_FromDouble_ConsumeInputs _CiFloat_FromDouble_ConsumeInputs
+#define _PyDict_GetKeysVersionForCurrentState \
+  _CiDict_GetKeysVersionForCurrentState
+#define _PyDict_LookupIndex _CiDict_LookupIndex
+#define _Py_dict_lookup _Ci_dict_lookup
+#define _PyDictKeys_StringLookupSplit _CiDictKeys_StringLookupSplit
+#define _PyDictKeys_GetVersionForCurrentState \
+  _CiDictKeys_GetVersionForCurrentState
+#define _PyDictKeys_StringLookupAndVersion _CiDictKeys_StringLookupAndVersion
+#define _PyDictKeys_StringLookup _CiDictKeys_StringLookup
+#define _PyStack_UnpackDict_FreeNoDecRef _CiStack_UnpackDict_FreeNoDecRef
+#define _PyStack_UnpackDict_Free _CiStack_UnpackDict_Free
+#define _PyStack_UnpackDict _CiStack_UnpackDict
+#define _PyNumber_InPlacePowerNoMod _CiNumber_InPlacePowerNoMod
+#define _PyNumber_PowerNoMod _CiNumber_PowerNoMod
+
+#define _PyErr_SetObject _CiErr_SetObject
+
+#define _PyInstrumentation_MISSING (*Cix_monitoring_missing)
+#define _PyInstrumentation_DISABLE (*Cix_monitoring_disable)
+
+#define _PyFrame_MakeAndSetFrameObject _CiFrame_MakeAndSetFrameObject
+#define _PyInstruction_GetLength _CiInstruction_GetLength
+#define _Py_GetBaseCodeUnit _Ci_GetBaseCodeUnit
+#define _Py_call_instrumentation _Ci_call_instrumentation
+#define _Py_call_instrumentation_arg _Ci_call_instrumentation_arg
+#define _Py_call_instrumentation_2args _Ci_call_instrumentation_2args
+#define _Py_call_instrumentation_jump _Ci_call_instrumentation_jump
+#define _Py_call_instrumentation_instruction \
+  _Ci_call_instrumentation_instruction
+#define _Py_Instrumentation_GetLine _Ci_Instrumentation_GetLine
+#define _Py_call_instrumentation_line _Ci_call_instrumentation_line
+#define _Py_call_instrumentation_exc2 _Ci_call_instrumentation_exc2
+
+#define _Py_Specialize_ContainsOp _Ci_Specialize_ContainsOp
+#define _Py_Specialize_ToBool _Ci_Specialize_ToBool
+#define _Py_Specialize_Send _Ci_Specialize_Send
+#define _Py_Specialize_ForIter _Ci_Specialize_ForIter
+#define _Py_Specialize_UnpackSequence _Ci_Specialize_UnpackSequence
+#define _Py_Specialize_CompareOp _Ci_Specialize_CompareOp
+#define _Py_Specialize_BinaryOp _Ci_Specialize_BinaryOp
+#define _Py_Specialize_CallKw _Ci_Specialize_CallKw
+#define _Py_Specialize_Call _Ci_Specialize_Call
+#define _Py_Specialize_StoreSubscr _Ci_Specialize_StoreSubscr
+#define _Py_Specialize_LoadGlobal _Ci_Specialize_LoadGlobal
+#define _Py_Specialize_StoreAttr _Ci_Specialize_StoreAttr
+#define _Py_Specialize_LoadAttr _Ci_Specialize_LoadAttr
+#define _Py_Specialize_LoadSuperAttr _Ci_Specialize_LoadSuperAttr
+#define _Py_Instrument _Ci_Instrument
+#define _Py_CheckRecursiveCallPy _Ci_CheckRecursiveCallPy
+#define _PyEval_MonitorRaise _CiEval_MonitorRaise
+#define _PyEval_FrameClearAndPop _CiEval_FrameClearAndPop
+#define _PyEvalFramePushAndInit _CiEvalFramePushAndInit
+#define _PyType_Validate _CiType_Validate
+
+#define _PyTraceBack_FromFrame _CiTraceBack_FromFrame
+#define _Py_CalculateSuggestions _Ci_CalculateSuggestions
+#endif
+
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_dict.h"
 #include "internal/pycore_frame.h"
@@ -20,6 +109,15 @@ extern "C" {
 #define Cix_PyStaticType_GetState _PyStaticType_GetState
 #endif
 
+#if PY_VERSION_HEX >= 0x030E0000
+// Function prototypes for the huge list of redefinitions above that
+// get imported before borrowed.h
+_PyErr_StackItem* _PyErr_GetTopmostException(PyThreadState* tstate);
+int _PyObject_HasLen(PyObject* o);
+
+extern PyObject *Cix_monitoring_disable, *Cix_monitoring_missing;
+#endif
+
 #if PY_VERSION_HEX >= 0x030C0000
 #define Cix_PyGen_yf _PyGen_yf
 #define Cix_PyCoro_GetAwaitableIter _PyCoro_GetAwaitableIter
@@ -31,26 +129,6 @@ extern "C" {
 #define Cix_PyThreadState_PopFrame _PyThreadState_PopFrame
 #define Cix_PyFrame_ClearExceptCode _PyFrame_ClearExceptCode
 #define Cix_PyTypeAlias_Type _PyTypeAlias_Type
-#endif
-#if PY_VERSION_HEX >= 0x030E0000
-#define _PyFrame_ClearExceptCode _CiFrame_ClearExceptCode
-#define _PyObject_HasLen _CiPyObject_HasLen
-#define _PyFrame_ClearLocals _CiFrame_ClearLocals
-#define _PyFrame_MakeAndSetFrameObject _CiFrame_MakeAndSetFrameObject
-#define _PyStaticType_GetState Cix_PyStaticType_GetState
-#define _PyCode_InitAddressRange _CiCode_InitAddressRange
-#define _PyLineTable_NextAddressRange _CiLineTable_NextAddressRange
-#define _PyObject_VirtualAlloc _CiVirtualAlloc
-#define _PyThreadState_PushFrame _CiThreadState_PushFrame
-#define _PyErr_GetTopmostException _CiErr_GetTopmostException
-#define _PyEval_Vector _CiEval_Vector
-
-_PyErr_StackItem* _PyErr_GetTopmostException(PyThreadState* tstate);
-int _PyObject_HasLen(PyObject* o);
-
-#define _PyErr_SetObject _CiErr_SetObject
-void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value);
-
 #endif
 
 #if PY_VERSION_HEX < 0x030C0000

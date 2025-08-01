@@ -12,6 +12,47 @@
 
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "internal/pycore_intrinsics.h"
+#include "internal/pycore_bitutils.h"
+#include "internal/pycore_unicodeobject.h"
+#include "cinderx/Interpreter/cinder_opcode.h"
+#include "internal/pycore_function.h"
+#include "internal/pycore_descrobject.h"
+#include "internal/pycore_long.h"
+#include "internal/pycore_optimizer.h"     // _PyExecutorObject
+#include "opcode.h"
+
+#define _PyOpcode_Caches _CiOpcode_Caches
+#define _PyOpcode_Deopt _CiOpcode_Deopt
+#define _Py_type_getattro PyType_Type.tp_getattro
+#define _Py_slot_tp_getattr_hook NULL // TODO, fix me
+#define _Py_slot_tp_getattro NULL
+
+int unicode_eq(PyObject *str1, PyObject *str2)
+{
+    Py_ssize_t len = PyUnicode_GET_LENGTH(str1);
+    if (PyUnicode_GET_LENGTH(str2) != len) {
+        return 0;
+    }
+
+    const void *data1 = PyUnicode_DATA(str1);
+    const void *data2 = PyUnicode_DATA(str2);
+}
+
+PyObject *
+_PyType_LookupRefAndVersion(PyTypeObject *type, PyObject *name, unsigned int *version) {
+  // This is a bit much to borrow as the dependency tree goes deep... but the version
+  // is the version at the start before the MRO
+  bool has_version = PyType_HasFeature(type, Py_TPFLAGS_VALID_VERSION_TAG);
+  if (!has_version && PyUnstable_Type_AssignVersionTag(type)) {
+    has_version = true;
+  }
+  unsigned int start_version = type->tp_version_tag;
+  PyObject *res = _PyType_LookupRef(type, name);
+  if (has_version) {
+    *version = start_version;
+  }
+  return res;
+}
 
 // In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
 // the JIT we could get the value from the thread-state register. This would be
@@ -94,6 +135,12 @@ compute_cr_origin(int origin_depth, _PyInterpreterFrame *current_frame)
 }
 PyObject* Cix_compute_cr_origin(int origin_depth, _PyInterpreterFrame* current_frame) {
   return compute_cr_origin(origin_depth, current_frame);
+}
+
+uint32_t
+_PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
+{
+    return func->func_version;
 }
 
 #define PyDict_LOG_MINSIZE 3
@@ -905,31 +952,256 @@ PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
     return builtin_next_impl(it, def);
 }
 
+PyObject *Cix_monitoring_disable, *Cix_monitoring_missing;
+
 int init_upstream_borrow(void) {
   // Nothing to do here; retained for consistency with 3.10
+  PyObject *sys = PyImport_ImportModule("sys");
+  if (sys == NULL) {
+    return -1;
+  }
+  PyObject *monitoring = PyObject_GetAttrString(sys, "monitoring");
+  Py_DECREF(sys);
+  if (monitoring == NULL) {
+    return -1;
+  }
+  Cix_monitoring_disable = PyObject_GetAttr(monitoring, PyUnicode_FromString("DISABLE"));
+  Cix_monitoring_missing = PyObject_GetAttr(monitoring, PyUnicode_FromString("MISSING"));
+  Py_DECREF(monitoring);
+  if (Cix_monitoring_disable == NULL || Cix_monitoring_missing == NULL) {
+    return -1;
+  }
   return 0;
 }
 
 
-PyObject *
-_PyFunction_Vectorcall(PyObject *func, PyObject* const* stack,
-                       size_t nargsf, PyObject *kwnames)
-{
-    assert(PyFunction_Check(func));
-    PyFunctionObject *f = (PyFunctionObject *)func;
-    Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-    assert(nargs >= 0);
-    PyThreadState *tstate = _PyThreadState_GET();
-    assert(nargs == 0 || stack != NULL);
-    EVAL_CALL_STAT_INC(EVAL_CALL_FUNCTION_VECTORCALL);
-    if (((PyCodeObject *)f->func_code)->co_flags & CO_OPTIMIZED) {
-        return _PyEval_Vector(tstate, f, NULL, stack, nargs, kwnames);
-    }
-    else {
-        return _PyEval_Vector(tstate, f, f->func_globals, stack, nargs, kwnames);
-    }
+#define MCACHE_MAX_ATTR_SIZE    100
+#define MCACHE_HASH(version, name_hash)                                 \
+        (((unsigned int)(version) ^ (unsigned int)(name_hash))          \
+         & ((1 << MCACHE_SIZE_EXP) - 1))
+#define MCACHE_HASH_METHOD(type, name)                                  \
+    MCACHE_HASH(FT_ATOMIC_LOAD_UINT32_RELAXED((type)->tp_version_tag),   \
+                ((Py_ssize_t)(name)) >> 3)
+#define MCACHE_CACHEABLE_NAME(name)                             \
+        PyUnicode_CheckExact(name) &&                           \
+        (PyUnicode_GET_LENGTH(name) <= MCACHE_MAX_ATTR_SIZE)
+#define NEXT_VERSION_TAG(interp) \
+    (interp)->types.next_version_tag
+#ifdef Py_GIL_DISABLED
+#define TYPE_LOCK &PyInterpreterState_Get()->types.mutex
+#define BEGIN_TYPE_LOCK() Py_BEGIN_CRITICAL_SECTION_MUTEX(TYPE_LOCK)
+#define END_TYPE_LOCK() Py_END_CRITICAL_SECTION()
+#define BEGIN_TYPE_DICT_LOCK(d) \
+    Py_BEGIN_CRITICAL_SECTION2_MUTEX(TYPE_LOCK, &_PyObject_CAST(d)->ob_mutex)
+#define END_TYPE_DICT_LOCK() Py_END_CRITICAL_SECTION2()
+#define ASSERT_TYPE_LOCK_HELD() \
+    _Py_CRITICAL_SECTION_ASSERT_MUTEX_LOCKED(TYPE_LOCK)
+#else
+#define BEGIN_TYPE_LOCK()
+#define END_TYPE_LOCK()
+#define BEGIN_TYPE_DICT_LOCK(d)
+#define END_TYPE_DICT_LOCK()
+#define ASSERT_TYPE_LOCK_HELD()
+#endif
+#define PyTypeObject_CAST(op)   ((PyTypeObject *)(op))
+#ifndef NDEBUG
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#define SIGNATURE_END_MARKER         ")\n--\n\n"
+#define SIGNATURE_END_MARKER_LENGTH  6
+#define CHECK(expr) \
+    do { if (!(expr)) { _PyObject_ASSERT_FAILED_MSG((PyObject *)type, Py_STRINGIFY(expr)); } } while (0)
+#undef CHECK
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifndef Py_GIL_DISABLED
+#else
+#endif
+#ifndef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#define MAX_VERSIONS_PER_CLASS 1000
+#if _Py_ATTR_CACHE_UNUSED < MAX_VERSIONS_PER_CLASS
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#if Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#if Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifndef NDEBUG
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#define COPYVAL(SLOT) \
+    if (type->SLOT == 0) { type->SLOT = base->SLOT; }
+#undef COPYVAL
+#undef SLOTDEFINED
+#undef COPYSLOT
+#undef COPYNUM
+#undef COPYSEQ
+#undef COPYMAP
+#undef COPYBUF
+#define SLOTDEFINED(SLOT) \
+    (base->SLOT != 0 && \
+     (basebase == NULL || base->SLOT != basebase->SLOT))
+#define COPYSLOT(SLOT) \
+    if (!type->SLOT && SLOTDEFINED(SLOT)) type->SLOT = base->SLOT
+#define COPYASYNC(SLOT) COPYSLOT(tp_as_async->SLOT)
+#define COPYNUM(SLOT) COPYSLOT(tp_as_number->SLOT)
+#define COPYSEQ(SLOT) COPYSLOT(tp_as_sequence->SLOT)
+#define COPYMAP(SLOT) COPYSLOT(tp_as_mapping->SLOT)
+#define COPYBUF(SLOT) COPYSLOT(tp_as_buffer->SLOT)
+#define COLLECTION_FLAGS (Py_TPFLAGS_SEQUENCE | Py_TPFLAGS_MAPPING)
+#ifdef Py_TRACE_REFS
+#endif
+#undef RICHCMP_WRAPPER
+#define RICHCMP_WRAPPER(NAME, OP) \
+static PyObject * \
+richcmp_##NAME(PyObject *self, PyObject *args, void *wrapped) \
+{ \
+    return wrap_richcmpfunc(self, args, wrapped, OP); \
 }
-
+#define SLOT0(FUNCNAME, DUNDER) \
+static PyObject * \
+FUNCNAME(PyObject *self) \
+{ \
+    PyObject* stack[1] = {self}; \
+    return vectorcall_method(&_Py_ID(DUNDER), stack, 1); \
+}
+#define SLOT1(FUNCNAME, DUNDER, ARG1TYPE) \
+static PyObject * \
+FUNCNAME(PyObject *self, ARG1TYPE arg1) \
+{ \
+    PyObject* stack[2] = {self, arg1}; \
+    return vectorcall_method(&_Py_ID(DUNDER), stack, 2); \
+}
+#define SLOT1BINFULL(FUNCNAME, TESTFUNC, SLOTNAME, DUNDER, RDUNDER) \
+static PyObject * \
+FUNCNAME(PyObject *self, PyObject *other) \
+{ \
+    PyObject* stack[2]; \
+    PyThreadState *tstate = _PyThreadState_GET(); \
+    int do_other = !Py_IS_TYPE(self, Py_TYPE(other)) && \
+        Py_TYPE(other)->tp_as_number != NULL && \
+        Py_TYPE(other)->tp_as_number->SLOTNAME == TESTFUNC; \
+    if (Py_TYPE(self)->tp_as_number != NULL && \
+        Py_TYPE(self)->tp_as_number->SLOTNAME == TESTFUNC) { \
+        PyObject *r; \
+        if (do_other && PyType_IsSubtype(Py_TYPE(other), Py_TYPE(self))) { \
+            int ok = method_is_overloaded(self, other, &_Py_ID(RDUNDER)); \
+            if (ok < 0) { \
+                return NULL; \
+            } \
+            if (ok) { \
+                stack[0] = other; \
+                stack[1] = self; \
+                r = vectorcall_maybe(tstate, &_Py_ID(RDUNDER), stack, 2); \
+                if (r != Py_NotImplemented) \
+                    return r; \
+                Py_DECREF(r); \
+                do_other = 0; \
+            } \
+        } \
+        stack[0] = self; \
+        stack[1] = other; \
+        r = vectorcall_maybe(tstate, &_Py_ID(DUNDER), stack, 2); \
+        if (r != Py_NotImplemented || \
+            Py_IS_TYPE(other, Py_TYPE(self))) \
+            return r; \
+        Py_DECREF(r); \
+    } \
+    if (do_other) { \
+        stack[0] = other; \
+        stack[1] = self; \
+        return vectorcall_maybe(tstate, &_Py_ID(RDUNDER), stack, 2); \
+    } \
+    Py_RETURN_NOTIMPLEMENTED; \
+}
+#define SLOT1BIN(FUNCNAME, SLOTNAME, DUNDER, RDUNDER) \
+    SLOT1BINFULL(FUNCNAME, FUNCNAME, SLOTNAME, DUNDER, RDUNDER)
+#define slot_mp_length slot_sq_length
+#define PyBufferWrapper_CAST(op)    ((PyBufferWrapper *)(op))
+#undef TPSLOT
+#undef FLSLOT
+#undef BUFSLOT
+#undef AMSLOT
+#undef ETSLOT
+#undef SQSLOT
+#undef MPSLOT
+#undef NBSLOT
+#undef UNSLOT
+#undef IBSLOT
+#undef BINSLOT
+#undef RBINSLOT
+#define TPSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC) \
+    {#NAME, offsetof(PyTypeObject, SLOT), (void *)(FUNCTION), WRAPPER, \
+     PyDoc_STR(DOC), .name_strobj = &_Py_ID(NAME)}
+#define FLSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC, FLAGS) \
+    {#NAME, offsetof(PyTypeObject, SLOT), (void *)(FUNCTION), WRAPPER, \
+     PyDoc_STR(DOC), FLAGS, .name_strobj = &_Py_ID(NAME) }
+#define ETSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC) \
+    {#NAME, offsetof(PyHeapTypeObject, SLOT), (void *)(FUNCTION), WRAPPER, \
+     PyDoc_STR(DOC), .name_strobj = &_Py_ID(NAME) }
+#define BUFSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC) \
+    ETSLOT(NAME, as_buffer.SLOT, FUNCTION, WRAPPER, DOC)
+#define AMSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC) \
+    ETSLOT(NAME, as_async.SLOT, FUNCTION, WRAPPER, DOC)
+#define SQSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC) \
+    ETSLOT(NAME, as_sequence.SLOT, FUNCTION, WRAPPER, DOC)
+#define MPSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC) \
+    ETSLOT(NAME, as_mapping.SLOT, FUNCTION, WRAPPER, DOC)
+#define NBSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC) \
+    ETSLOT(NAME, as_number.SLOT, FUNCTION, WRAPPER, DOC)
+#define UNSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC) \
+    ETSLOT(NAME, as_number.SLOT, FUNCTION, WRAPPER, \
+           #NAME "($self, /)\n--\n\n" DOC)
+#define IBSLOT(NAME, SLOT, FUNCTION, WRAPPER, DOC) \
+    ETSLOT(NAME, as_number.SLOT, FUNCTION, WRAPPER, \
+           #NAME "($self, value, /)\n--\n\nReturn self" DOC "value.")
+#define BINSLOT(NAME, SLOT, FUNCTION, DOC) \
+    ETSLOT(NAME, as_number.SLOT, FUNCTION, wrap_binaryfunc_l, \
+           #NAME "($self, value, /)\n--\n\nReturn self" DOC "value.")
+#define RBINSLOT(NAME, SLOT, FUNCTION, DOC) \
+    ETSLOT(NAME, as_number.SLOT, FUNCTION, wrap_binaryfunc_r, \
+           #NAME "($self, value, /)\n--\n\nReturn value" DOC "self.")
+#define BINSLOTNOTINFIX(NAME, SLOT, FUNCTION, DOC) \
+    ETSLOT(NAME, as_number.SLOT, FUNCTION, wrap_binaryfunc_l, \
+           #NAME "($self, value, /)\n--\n\n" DOC)
+#define RBINSLOTNOTINFIX(NAME, SLOT, FUNCTION, DOC) \
+    ETSLOT(NAME, as_number.SLOT, FUNCTION, wrap_binaryfunc_r, \
+           #NAME "($self, value, /)\n--\n\n" DOC)
+#define pname _Py_INTERP_CACHED_OBJECT(interp, type_slots_pname)
+#define ptrs _Py_INTERP_CACHED_OBJECT(interp, type_slots_ptrs)
+#undef pname
+#undef ptrs
+#define superobject_CAST(op)    ((superobject *)(op))
 static inline int
 managed_static_type_index_is_set(PyTypeObject *self)
 {
@@ -962,6 +1234,164 @@ _PyStaticType_GetState(PyInterpreterState *interp, PyTypeObject *self)
 {
     assert(self->tp_flags & _Py_TPFLAGS_STATIC_BUILTIN);
     return managed_static_type_state_get(interp, self);
+}
+int
+_PyType_CacheInitForSpecialization(PyHeapTypeObject *type, PyObject *init,
+                                   unsigned int tp_version)
+{
+    if (!init || !tp_version) {
+        return 0;
+    }
+    int can_cache;
+    BEGIN_TYPE_LOCK();
+    can_cache = ((PyTypeObject*)type)->tp_version_tag == tp_version;
+    #ifdef Py_GIL_DISABLED
+    can_cache = can_cache && _PyObject_HasDeferredRefcount(init);
+    #endif
+    if (can_cache) {
+        FT_ATOMIC_STORE_PTR_RELEASE(type->_spec_cache.init, init);
+    }
+    END_TYPE_LOCK();
+    return can_cache;
+}
+int
+_PyType_CacheGetItemForSpecialization(PyHeapTypeObject *ht, PyObject *descriptor, uint32_t tp_version)
+{
+    if (!descriptor || !tp_version) {
+        return 0;
+    }
+    int can_cache;
+    BEGIN_TYPE_LOCK();
+    can_cache = ((PyTypeObject*)ht)->tp_version_tag == tp_version;
+    // This pointer is invalidated by PyType_Modified (see the comment on
+    // struct _specialization_cache):
+    PyFunctionObject *func = (PyFunctionObject *)descriptor;
+    uint32_t version = _PyFunction_GetVersionForCurrentState(func);
+    can_cache = can_cache && _PyFunction_IsVersionValid(version);
+#ifdef Py_GIL_DISABLED
+    can_cache = can_cache && _PyObject_HasDeferredRefcount(descriptor);
+#endif
+    if (can_cache) {
+        FT_ATOMIC_STORE_PTR_RELEASE(ht->_spec_cache.getitem, descriptor);
+        FT_ATOMIC_STORE_UINT32_RELAXED(ht->_spec_cache.getitem_version, version);
+    }
+    END_TYPE_LOCK();
+    return can_cache;
+}
+static inline PyObject *
+lookup_tp_bases(PyTypeObject *self)
+{
+    return self->tp_bases;
+}
+static inline unsigned int
+next_global_version_tag(void)
+{
+    unsigned int old;
+    do {
+        old = _Py_atomic_load_uint_relaxed(&_PyRuntime.types.next_version_tag);
+        if (old >= _Py_MAX_GLOBAL_TYPE_VERSION_TAG) {
+            return 0;
+        }
+    } while (!_Py_atomic_compare_exchange_uint(&_PyRuntime.types.next_version_tag, &old, old + 1));
+    return old + 1;
+}
+static void
+set_version_unlocked(PyTypeObject *tp, unsigned int version)
+{
+    ASSERT_TYPE_LOCK_HELD();
+    assert(version == 0 || (tp->tp_versions_used != _Py_ATTR_CACHE_UNUSED));
+#ifndef Py_GIL_DISABLED
+    PyInterpreterState *interp = _PyInterpreterState_GET();
+    // lookup the old version and set to null
+    if (tp->tp_version_tag != 0) {
+        PyTypeObject **slot =
+            interp->types.type_version_cache
+            + (tp->tp_version_tag % TYPE_VERSION_CACHE_SIZE);
+        *slot = NULL;
+    }
+    if (version) {
+        tp->tp_versions_used++;
+    }
+#else
+    if (version) {
+        _Py_atomic_add_uint16(&tp->tp_versions_used, 1);
+    }
+#endif
+    FT_ATOMIC_STORE_UINT_RELAXED(tp->tp_version_tag, version);
+#ifndef Py_GIL_DISABLED
+    if (version != 0) {
+        PyTypeObject **slot =
+            interp->types.type_version_cache
+            + (version % TYPE_VERSION_CACHE_SIZE);
+        *slot = tp;
+    }
+#endif
+}
+static int
+assign_version_tag(PyInterpreterState *interp, PyTypeObject *type)
+{
+    ASSERT_TYPE_LOCK_HELD();
+
+    /* Ensure that the tp_version_tag is valid.
+     * To respect the invariant, this must first be done on all super classes.
+     * Return 0 if this cannot be done, 1 if tp_version_tag is set.
+    */
+    if (type->tp_version_tag != 0) {
+        return 1;
+    }
+    if (!_PyType_HasFeature(type, Py_TPFLAGS_READY)) {
+        return 0;
+    }
+    if (type->tp_versions_used >= MAX_VERSIONS_PER_CLASS) {
+        /* (this includes `tp_versions_used == _Py_ATTR_CACHE_UNUSED`) */
+        return 0;
+    }
+
+    PyObject *bases = lookup_tp_bases(type);
+    Py_ssize_t n = PyTuple_GET_SIZE(bases);
+    for (Py_ssize_t i = 0; i < n; i++) {
+        PyObject *b = PyTuple_GET_ITEM(bases, i);
+        if (!assign_version_tag(interp, _PyType_CAST(b))) {
+            return 0;
+        }
+    }
+    if (type->tp_flags & Py_TPFLAGS_IMMUTABLETYPE) {
+        /* static types */
+        unsigned int next_version_tag = next_global_version_tag();
+        if (next_version_tag == 0) {
+            /* We have run out of version numbers */
+            return 0;
+        }
+        set_version_unlocked(type, next_version_tag);
+        assert (type->tp_version_tag <= _Py_MAX_GLOBAL_TYPE_VERSION_TAG);
+    }
+    else {
+        /* heap types */
+        if (NEXT_VERSION_TAG(interp) == 0) {
+            /* We have run out of version numbers */
+            return 0;
+        }
+        set_version_unlocked(type, NEXT_VERSION_TAG(interp)++);
+        assert (type->tp_version_tag != 0);
+    }
+    return 1;
+}
+int
+_PyType_Validate(PyTypeObject *ty, _py_validate_type validate, unsigned int *tp_version)
+{
+    int err;
+    BEGIN_TYPE_LOCK();
+    err = validate(ty);
+    if (!err) {
+        if(assign_version_tag(_PyInterpreterState_GET(), ty)) {
+            *tp_version = ty->tp_version_tag;
+        }
+        else {
+            err = -1;
+        }
+    }
+    END_TYPE_LOCK();
+    return err;
 }
 
 #define _PyFrame_New_NoTrack _CiFrame_New_NoTrack
@@ -1705,4 +2135,4403 @@ _PyThreadState_PushFrame(PyThreadState *tstate, size_t size)
 
 void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
   PyErr_SetObject(type, value);
+}
+
+#define _PyErr_NoMemory(tstate) PyErr_NoMemory()
+
+void
+_PyStack_UnpackDict_FreeNoDecRef(PyObject *const *stack, PyObject *kwnames)
+{
+    PyMem_Free((PyObject **)stack - 1);
+    Py_DECREF(kwnames);
+}
+void
+_PyStack_UnpackDict_Free(PyObject *const *stack, Py_ssize_t nargs,
+                         PyObject *kwnames)
+{
+    Py_ssize_t n = PyTuple_GET_SIZE(kwnames) + nargs;
+    for (Py_ssize_t i = 0; i < n; i++) {
+        Py_DECREF(stack[i]);
+    }
+    _PyStack_UnpackDict_FreeNoDecRef(stack, kwnames);
+}
+PyObject *const *
+_PyStack_UnpackDict(PyThreadState *tstate,
+                    PyObject *const *args, Py_ssize_t nargs,
+                    PyObject *kwargs, PyObject **p_kwnames)
+{
+    assert(nargs >= 0);
+    assert(kwargs != NULL);
+    assert(PyDict_Check(kwargs));
+
+    Py_ssize_t nkwargs = PyDict_GET_SIZE(kwargs);
+    /* Check for overflow in the PyMem_Malloc() call below. The subtraction
+     * in this check cannot overflow: both maxnargs and nkwargs are
+     * non-negative signed integers, so their difference fits in the type. */
+    Py_ssize_t maxnargs = PY_SSIZE_T_MAX / sizeof(args[0]) - 1;
+    if (nargs > maxnargs - nkwargs) {
+        _PyErr_NoMemory(tstate);
+        return NULL;
+    }
+
+    /* Add 1 to support PY_VECTORCALL_ARGUMENTS_OFFSET */
+    PyObject **stack = PyMem_Malloc((1 + nargs + nkwargs) * sizeof(args[0]));
+    if (stack == NULL) {
+        _PyErr_NoMemory(tstate);
+        return NULL;
+    }
+
+    PyObject *kwnames = PyTuple_New(nkwargs);
+    if (kwnames == NULL) {
+        PyMem_Free(stack);
+        return NULL;
+    }
+
+    stack++;  /* For PY_VECTORCALL_ARGUMENTS_OFFSET */
+
+    /* Copy positional arguments */
+    for (Py_ssize_t i = 0; i < nargs; i++) {
+        stack[i] = Py_NewRef(args[i]);
+    }
+
+    PyObject **kwstack = stack + nargs;
+    /* This loop doesn't support lookup function mutating the dictionary
+       to change its size. It's a deliberate choice for speed, this function is
+       called in the performance critical hot code. */
+    Py_ssize_t pos = 0, i = 0;
+    PyObject *key, *value;
+    unsigned long keys_are_strings = Py_TPFLAGS_UNICODE_SUBCLASS;
+    while (PyDict_Next(kwargs, &pos, &key, &value)) {
+        keys_are_strings &= Py_TYPE(key)->tp_flags;
+        PyTuple_SET_ITEM(kwnames, i, Py_NewRef(key));
+        kwstack[i] = Py_NewRef(value);
+        i++;
+    }
+
+    /* keys_are_strings has the value Py_TPFLAGS_UNICODE_SUBCLASS if that
+     * flag is set for all keys. Otherwise, keys_are_strings equals 0.
+     * We do this check once at the end instead of inside the loop above
+     * because it simplifies the deallocation in the failing case.
+     * It happens to also make the loop above slightly more efficient. */
+    if (!keys_are_strings) {
+        _PyErr_SetString(tstate, PyExc_TypeError,
+                         "keywords must be strings");
+        _PyStack_UnpackDict_Free(stack, nargs, kwnames);
+        return NULL;
+    }
+
+    *p_kwnames = kwnames;
+    return stack;
+}
+
+PyObject *
+_PyExc_CreateExceptionGroup(const char *msg_str, PyObject *excs)
+{
+    PyObject *msg = PyUnicode_FromString(msg_str);
+    if (!msg) {
+        return NULL;
+    }
+    PyObject *args = PyTuple_Pack(2, msg, excs);
+    Py_DECREF(msg);
+    if (!args) {
+        return NULL;
+    }
+    PyObject *result = PyObject_CallObject(PyExc_BaseExceptionGroup, args);
+    Py_DECREF(args);
+    return result;
+}
+
+
+static PySliceObject *
+_PyBuildSlice_Consume2(PyObject *start, PyObject *stop, PyObject *step)
+{
+    assert(start != NULL && stop != NULL && step != NULL);
+    PySliceObject *obj = _Py_FREELIST_POP(PySliceObject, slices);
+    if (obj == NULL) {
+        obj = PyObject_GC_New(PySliceObject, &PySlice_Type);
+        if (obj == NULL) {
+            goto error;
+        }
+    }
+
+    obj->start = start;
+    obj->stop = stop;
+    obj->step = Py_NewRef(step);
+
+    _PyObject_GC_TRACK(obj);
+    return obj;
+error:
+    Py_DECREF(start);
+    Py_DECREF(stop);
+    return NULL;
+}
+PyObject *
+_PyBuildSlice_ConsumeRefs(PyObject *start, PyObject *stop)
+{
+    assert(start != NULL && stop != NULL);
+    return (PyObject *)_PyBuildSlice_Consume2(start, stop, Py_None);
+}
+
+#define get_line_delta instrumentation_get_line_delta
+static const int8_t MOST_SIGNIFICANT_BITS[16] = {
+    -1, 0, 1, 1,
+    2, 2, 2, 2,
+    3, 3, 3, 3,
+    3, 3, 3, 3,
+};
+static const uint8_t INSTRUMENTED_OPCODES[256] = {
+    [RETURN_VALUE] = INSTRUMENTED_RETURN_VALUE,
+    [INSTRUMENTED_RETURN_VALUE] = INSTRUMENTED_RETURN_VALUE,
+    [CALL] = INSTRUMENTED_CALL,
+    [INSTRUMENTED_CALL] = INSTRUMENTED_CALL,
+    [CALL_KW] = INSTRUMENTED_CALL_KW,
+    [INSTRUMENTED_CALL_KW] = INSTRUMENTED_CALL_KW,
+    [CALL_FUNCTION_EX] = INSTRUMENTED_CALL_FUNCTION_EX,
+    [INSTRUMENTED_CALL_FUNCTION_EX] = INSTRUMENTED_CALL_FUNCTION_EX,
+    [YIELD_VALUE] = INSTRUMENTED_YIELD_VALUE,
+    [INSTRUMENTED_YIELD_VALUE] = INSTRUMENTED_YIELD_VALUE,
+    [RESUME] = INSTRUMENTED_RESUME,
+    [INSTRUMENTED_RESUME] = INSTRUMENTED_RESUME,
+    [JUMP_FORWARD] = INSTRUMENTED_JUMP_FORWARD,
+    [INSTRUMENTED_JUMP_FORWARD] = INSTRUMENTED_JUMP_FORWARD,
+    [JUMP_BACKWARD] = INSTRUMENTED_JUMP_BACKWARD,
+    [INSTRUMENTED_JUMP_BACKWARD] = INSTRUMENTED_JUMP_BACKWARD,
+    [POP_JUMP_IF_FALSE] = INSTRUMENTED_POP_JUMP_IF_FALSE,
+    [INSTRUMENTED_POP_JUMP_IF_FALSE] = INSTRUMENTED_POP_JUMP_IF_FALSE,
+    [POP_JUMP_IF_TRUE] = INSTRUMENTED_POP_JUMP_IF_TRUE,
+    [INSTRUMENTED_POP_JUMP_IF_TRUE] = INSTRUMENTED_POP_JUMP_IF_TRUE,
+    [POP_JUMP_IF_NONE] = INSTRUMENTED_POP_JUMP_IF_NONE,
+    [INSTRUMENTED_POP_JUMP_IF_NONE] = INSTRUMENTED_POP_JUMP_IF_NONE,
+    [POP_JUMP_IF_NOT_NONE] = INSTRUMENTED_POP_JUMP_IF_NOT_NONE,
+    [INSTRUMENTED_POP_JUMP_IF_NOT_NONE] = INSTRUMENTED_POP_JUMP_IF_NOT_NONE,
+    [END_FOR] = INSTRUMENTED_END_FOR,
+    [INSTRUMENTED_END_FOR] = INSTRUMENTED_END_FOR,
+    [END_SEND] = INSTRUMENTED_END_SEND,
+    [INSTRUMENTED_END_SEND] = INSTRUMENTED_END_SEND,
+    [FOR_ITER] = INSTRUMENTED_FOR_ITER,
+    [INSTRUMENTED_FOR_ITER] = INSTRUMENTED_FOR_ITER,
+    [POP_ITER] = INSTRUMENTED_POP_ITER,
+    [INSTRUMENTED_POP_ITER] = INSTRUMENTED_POP_ITER,
+    [LOAD_SUPER_ATTR] = INSTRUMENTED_LOAD_SUPER_ATTR,
+    [INSTRUMENTED_LOAD_SUPER_ATTR] = INSTRUMENTED_LOAD_SUPER_ATTR,
+    [NOT_TAKEN] = INSTRUMENTED_NOT_TAKEN,
+    [INSTRUMENTED_NOT_TAKEN] = INSTRUMENTED_NOT_TAKEN,
+    [END_ASYNC_FOR] = INSTRUMENTED_END_ASYNC_FOR,
+    [INSTRUMENTED_END_ASYNC_FOR] = INSTRUMENTED_END_ASYNC_FOR,
+
+    [INSTRUMENTED_LINE] = INSTRUMENTED_LINE,
+    [INSTRUMENTED_INSTRUCTION] = INSTRUMENTED_INSTRUCTION,
+};
+static const int8_t EVENT_FOR_OPCODE[256] = {
+    [RETURN_VALUE] = PY_MONITORING_EVENT_PY_RETURN,
+    [INSTRUMENTED_RETURN_VALUE] = PY_MONITORING_EVENT_PY_RETURN,
+    [CALL] = PY_MONITORING_EVENT_CALL,
+    [INSTRUMENTED_CALL] = PY_MONITORING_EVENT_CALL,
+    [CALL_KW] = PY_MONITORING_EVENT_CALL,
+    [INSTRUMENTED_CALL_KW] = PY_MONITORING_EVENT_CALL,
+    [CALL_FUNCTION_EX] = PY_MONITORING_EVENT_CALL,
+    [INSTRUMENTED_CALL_FUNCTION_EX] = PY_MONITORING_EVENT_CALL,
+    [LOAD_SUPER_ATTR] = PY_MONITORING_EVENT_CALL,
+    [INSTRUMENTED_LOAD_SUPER_ATTR] = PY_MONITORING_EVENT_CALL,
+    [RESUME] = -1,
+    [YIELD_VALUE] = PY_MONITORING_EVENT_PY_YIELD,
+    [INSTRUMENTED_YIELD_VALUE] = PY_MONITORING_EVENT_PY_YIELD,
+    [JUMP_FORWARD] = PY_MONITORING_EVENT_JUMP,
+    [JUMP_BACKWARD] = PY_MONITORING_EVENT_JUMP,
+    [POP_JUMP_IF_FALSE] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [POP_JUMP_IF_TRUE] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [POP_JUMP_IF_NONE] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [POP_JUMP_IF_NOT_NONE] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [INSTRUMENTED_JUMP_FORWARD] = PY_MONITORING_EVENT_JUMP,
+    [INSTRUMENTED_JUMP_BACKWARD] = PY_MONITORING_EVENT_JUMP,
+    [INSTRUMENTED_POP_JUMP_IF_FALSE] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [INSTRUMENTED_POP_JUMP_IF_TRUE] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [INSTRUMENTED_POP_JUMP_IF_NONE] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [INSTRUMENTED_POP_JUMP_IF_NOT_NONE] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [FOR_ITER] = PY_MONITORING_EVENT_BRANCH_LEFT,
+    [INSTRUMENTED_FOR_ITER] = PY_MONITORING_EVENT_BRANCH_LEFT,
+    [POP_ITER] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [INSTRUMENTED_POP_ITER] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+    [END_FOR] = PY_MONITORING_EVENT_STOP_ITERATION,
+    [INSTRUMENTED_END_FOR] = PY_MONITORING_EVENT_STOP_ITERATION,
+    [END_SEND] = PY_MONITORING_EVENT_STOP_ITERATION,
+    [INSTRUMENTED_END_SEND] = PY_MONITORING_EVENT_STOP_ITERATION,
+    [NOT_TAKEN] = PY_MONITORING_EVENT_BRANCH_LEFT,
+    [INSTRUMENTED_NOT_TAKEN] = PY_MONITORING_EVENT_BRANCH_LEFT,
+    [END_ASYNC_FOR] = PY_MONITORING_EVENT_BRANCH_RIGHT,
+};
+#if defined(Py_DEBUG) && defined(Py_GIL_DISABLED)
+#define ASSERT_WORLD_STOPPED_OR_LOCKED(obj)                         \
+    if (!_PyInterpreterState_GET()->stoptheworld.world_stopped) {   \
+        _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(obj);             \
+    }
+#define ASSERT_WORLD_STOPPED() assert(_PyInterpreterState_GET()->stoptheworld.world_stopped);
+#else
+#define ASSERT_WORLD_STOPPED_OR_LOCKED(obj)
+#define ASSERT_WORLD_STOPPED()
+#endif
+#ifdef Py_GIL_DISABLED
+#define LOCK_CODE(code)                                             \
+    assert(!_PyInterpreterState_GET()->stoptheworld.world_stopped); \
+    Py_BEGIN_CRITICAL_SECTION(code)
+#define UNLOCK_CODE()   Py_END_CRITICAL_SECTION()
+#define MODIFY_BYTECODE(code, func, ...)                       \
+    do {                                                       \
+        PyCodeObject *co = (code);                             \
+        for (Py_ssize_t i = 0; i < code->co_tlbc->size; i++) { \
+            char *bc = co->co_tlbc->entries[i];                \
+            if (bc == NULL) {                                  \
+                continue;                                      \
+            }                                                  \
+            (func)(code, (_Py_CODEUNIT *)bc, __VA_ARGS__);           \
+        }                                                      \
+    } while (0)
+#else
+#define LOCK_CODE(code)
+#define UNLOCK_CODE()
+#define MODIFY_BYTECODE(code, func, ...) \
+    (func)(code, _PyCode_CODE(code), __VA_ARGS__)
+#endif
+#ifndef NDEBUG
+#endif
+#ifndef NDEBUG
+#endif
+#define NO_LINE (-2)
+#ifdef INSTRUMENT_DEBUG
+#define CHECK(test) do { \
+    if (!(test)) { \
+        dump_instrumentation_data(code, i, stderr); \
+    } \
+    assert(test); \
+} while (0)
+#else
+#define CHECK(test) assert(test)
+#endif
+#ifndef NDEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifndef NDEBUG
+#endif
+#ifdef Py_DEBUG
+#endif
+#ifdef _Py_TIER2
+#endif
+#ifdef INSTRUMENT_DEBUG
+#endif
+#ifdef INSTRUMENT_DEBUG
+#endif
+#define C_RETURN_EVENTS \
+    ((1 << PY_MONITORING_EVENT_C_RETURN) | \
+     (1 << PY_MONITORING_EVENT_C_RAISE))
+#define C_CALL_EVENTS \
+    (C_RETURN_EVENTS | (1 << PY_MONITORING_EVENT_CALL))
+#define MONITORING_VERSION_INCREMENT (1 << _PY_EVAL_EVENTS_BITS)
+#ifdef _Py_TIER2
+#endif
+#define _PyLegacyBranchEventHandler_CAST(op)    ((_PyLegacyBranchEventHandler *)(op))
+#define branchesiterator_CAST(op)   ((branchesiterator *)(op))
+static inline bool
+opcode_has_event(int opcode)
+{
+    return (
+        opcode != INSTRUMENTED_LINE &&
+        INSTRUMENTED_OPCODES[opcode] > 0
+    );
+}
+static inline bool
+is_instrumented(int opcode)
+{
+    assert(opcode != 0);
+    assert(opcode != RESERVED);
+    return opcode != ENTER_EXECUTOR && opcode >= MIN_INSTRUMENTED_OPCODE;
+}
+static inline bool
+monitors_equals(_Py_LocalMonitors a, _Py_LocalMonitors b)
+{
+    for (int i = 0; i < _PY_MONITORING_LOCAL_EVENTS; i++) {
+        if (a.tools[i] != b.tools[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+static inline _Py_LocalMonitors
+monitors_sub(_Py_LocalMonitors a, _Py_LocalMonitors b)
+{
+    _Py_LocalMonitors res;
+    for (int i = 0; i < _PY_MONITORING_LOCAL_EVENTS; i++) {
+        res.tools[i] = a.tools[i] & ~b.tools[i];
+    }
+    return res;
+}
+static inline _Py_LocalMonitors
+monitors_and(_Py_LocalMonitors a, _Py_LocalMonitors b)
+{
+    _Py_LocalMonitors res;
+    for (int i = 0; i < _PY_MONITORING_LOCAL_EVENTS; i++) {
+        res.tools[i] = a.tools[i] & b.tools[i];
+    }
+    return res;
+}
+static inline _Py_LocalMonitors
+local_union(_Py_GlobalMonitors a, _Py_LocalMonitors b)
+{
+    _Py_LocalMonitors res;
+    for (int i = 0; i < _PY_MONITORING_LOCAL_EVENTS; i++) {
+        res.tools[i] = a.tools[i] | b.tools[i];
+    }
+    return res;
+}
+static inline bool
+monitors_are_empty(_Py_LocalMonitors m)
+{
+    for (int i = 0; i < _PY_MONITORING_LOCAL_EVENTS; i++) {
+        if (m.tools[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+static inline bool
+multiple_tools(_Py_LocalMonitors *m)
+{
+    for (int i = 0; i < _PY_MONITORING_LOCAL_EVENTS; i++) {
+        if (_Py_popcount32(m->tools[i]) > 1) {
+            return true;
+        }
+    }
+    return false;
+}
+static int
+compute_line_delta(PyCodeObject *code, int line)
+{
+    if (line < 0) {
+        assert(line == -1);
+        return NO_LINE;
+    }
+    int delta = line - code->co_firstlineno;
+    assert(delta > NO_LINE);
+    return delta;
+}
+static int
+compute_line(PyCodeObject *code, int line_delta)
+{
+    if (line_delta == NO_LINE) {
+        return -1;
+    }
+    assert(line_delta > NO_LINE);
+    return code->co_firstlineno + line_delta;
+}
+int
+_PyInstruction_GetLength(PyCodeObject *code, int offset)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+
+    _Py_CODEUNIT inst = _Py_GetBaseCodeUnit(code, offset);
+    return 1 + _PyOpcode_Caches[inst.op.code];
+}
+static inline uint8_t *
+get_original_opcode_ptr(_PyCoLineInstrumentationData *line_data, int index)
+{
+    return &line_data->data[index*line_data->bytes_per_entry];
+}
+static inline void
+set_original_opcode(_PyCoLineInstrumentationData *line_data, int index, uint8_t opcode)
+{
+    line_data->data[index*line_data->bytes_per_entry] = opcode;
+}
+static inline int
+get_line_delta(_PyCoLineInstrumentationData *line_data, int index)
+{
+    uint8_t *ptr = &line_data->data[index*line_data->bytes_per_entry+1];
+    assert(line_data->bytes_per_entry >= 2);
+    uint32_t value = *ptr;
+    for (int idx = 2; idx < line_data->bytes_per_entry; idx++) {
+        ptr++;
+        int shift = (idx-1)*8;
+        value |= ((uint32_t)(*ptr)) << shift;
+    }
+    assert(value < INT_MAX);
+    /* NO_LINE is stored as zero. */
+    return ((int)value) + NO_LINE;
+}
+static inline void
+set_line_delta(_PyCoLineInstrumentationData *line_data, int index, int line_delta)
+{
+    /* Store line_delta + 2 as we need -2 to represent no line number */
+    assert(line_delta >= NO_LINE);
+    uint32_t adjusted = line_delta - NO_LINE;
+    uint8_t *ptr = &line_data->data[index*line_data->bytes_per_entry+1];
+    assert(adjusted < (1ULL << ((line_data->bytes_per_entry-1)*8)));
+    assert(line_data->bytes_per_entry >= 2);
+    *ptr = adjusted & 0xff;
+    for (int idx = 2; idx < line_data->bytes_per_entry; idx++) {
+        ptr++;
+        adjusted >>= 8;
+        *ptr = adjusted & 0xff;
+    }
+}
+_Py_CODEUNIT
+_Py_GetBaseCodeUnit(PyCodeObject *code, int i)
+{
+    _Py_CODEUNIT *src_instr = _PyCode_CODE(code) + i;
+    _Py_CODEUNIT inst = {
+        .cache = FT_ATOMIC_LOAD_UINT16_RELAXED(*(uint16_t *)src_instr)};
+    int opcode = inst.op.code;
+    if (opcode < MIN_INSTRUMENTED_OPCODE) {
+        inst.op.code = _PyOpcode_Deopt[opcode];
+        assert(inst.op.code < MIN_SPECIALIZED_OPCODE);
+        return inst;
+    }
+    if (opcode == ENTER_EXECUTOR) {
+        _PyExecutorObject *exec = code->co_executors->executors[inst.op.arg];
+        opcode = _PyOpcode_Deopt[exec->vm_data.opcode];
+        inst.op.code = opcode;
+        inst.op.arg = exec->vm_data.oparg;
+        assert(inst.op.code < MIN_SPECIALIZED_OPCODE);
+        return inst;
+    }
+    if (opcode == INSTRUMENTED_LINE) {
+        opcode = get_original_opcode(code->_co_monitoring->lines, i);
+    }
+    if (opcode == INSTRUMENTED_INSTRUCTION) {
+        opcode = code->_co_monitoring->per_instruction_opcodes[i];
+    }
+    CHECK(opcode != INSTRUMENTED_INSTRUCTION);
+    CHECK(opcode != INSTRUMENTED_LINE);
+    int deinstrumented = DE_INSTRUMENT[opcode];
+    if (deinstrumented) {
+        inst.op.code = deinstrumented;
+    }
+    else {
+        inst.op.code = _PyOpcode_Deopt[opcode];
+    }
+    assert(inst.op.code < MIN_SPECIALIZED_OPCODE);
+    return inst;
+}
+static void
+de_instrument(PyCodeObject *code, _Py_CODEUNIT *bytecode, _PyCoMonitoringData *monitoring, int i,
+              int event)
+{
+    assert(event != PY_MONITORING_EVENT_INSTRUCTION);
+    assert(event != PY_MONITORING_EVENT_LINE);
+
+    _Py_CODEUNIT *instr = &bytecode[i];
+    uint8_t *opcode_ptr = &instr->op.code;
+    int opcode = *opcode_ptr;
+    assert(opcode != ENTER_EXECUTOR);
+    if (opcode == INSTRUMENTED_LINE) {
+        opcode_ptr = get_original_opcode_ptr(monitoring->lines, i);
+        opcode = *opcode_ptr;
+    }
+    if (opcode == INSTRUMENTED_INSTRUCTION) {
+        opcode_ptr = &monitoring->per_instruction_opcodes[i];
+        opcode = *opcode_ptr;
+    }
+    int deinstrumented = DE_INSTRUMENT[opcode];
+    if (deinstrumented == 0) {
+        return;
+    }
+    CHECK(_PyOpcode_Deopt[deinstrumented] == deinstrumented);
+    FT_ATOMIC_STORE_UINT8_RELAXED(*opcode_ptr, deinstrumented);
+    if (_PyOpcode_Caches[deinstrumented]) {
+        FT_ATOMIC_STORE_UINT16_RELAXED(instr[1].counter.value_and_backoff,
+                                       adaptive_counter_warmup().value_and_backoff);
+    }
+}
+static void
+de_instrument_line(PyCodeObject *code, _Py_CODEUNIT *bytecode, _PyCoMonitoringData *monitoring,
+                   int i)
+{
+    _Py_CODEUNIT *instr = &bytecode[i];
+    int opcode = instr->op.code;
+    if (opcode != INSTRUMENTED_LINE) {
+        return;
+    }
+    _PyCoLineInstrumentationData *lines = monitoring->lines;
+    int original_opcode = get_original_opcode(lines, i);
+    if (original_opcode == INSTRUMENTED_INSTRUCTION) {
+        set_original_opcode(lines, i, monitoring->per_instruction_opcodes[i]);
+    }
+    CHECK(original_opcode != 0);
+    CHECK(original_opcode == _PyOpcode_Deopt[original_opcode]);
+    FT_ATOMIC_STORE_UINT8(instr->op.code, original_opcode);
+    if (_PyOpcode_Caches[original_opcode]) {
+        FT_ATOMIC_STORE_UINT16_RELAXED(instr[1].counter.value_and_backoff,
+                                       adaptive_counter_warmup().value_and_backoff);
+    }
+    assert(instr->op.code != INSTRUMENTED_LINE);
+}
+static void
+de_instrument_per_instruction(PyCodeObject *code, _Py_CODEUNIT *bytecode,
+                              _PyCoMonitoringData *monitoring, int i)
+{
+    _Py_CODEUNIT *instr = &bytecode[i];
+    uint8_t *opcode_ptr = &instr->op.code;
+    int opcode = *opcode_ptr;
+    if (opcode == INSTRUMENTED_LINE) {
+        opcode_ptr = get_original_opcode_ptr(monitoring->lines, i);
+        opcode = *opcode_ptr;
+    }
+    if (opcode != INSTRUMENTED_INSTRUCTION) {
+        return;
+    }
+    int original_opcode = monitoring->per_instruction_opcodes[i];
+    CHECK(original_opcode != 0);
+    CHECK(original_opcode == _PyOpcode_Deopt[original_opcode]);
+    FT_ATOMIC_STORE_UINT8_RELAXED(*opcode_ptr, original_opcode);
+    if (_PyOpcode_Caches[original_opcode]) {
+        FT_ATOMIC_STORE_UINT16_RELAXED(instr[1].counter.value_and_backoff,
+                                       adaptive_counter_warmup().value_and_backoff);
+    }
+    assert(*opcode_ptr != INSTRUMENTED_INSTRUCTION);
+    assert(instr->op.code != INSTRUMENTED_INSTRUCTION);
+}
+static void
+instrument(PyCodeObject *code, _Py_CODEUNIT *bytecode, _PyCoMonitoringData *monitoring, int i)
+{
+    _Py_CODEUNIT *instr = &bytecode[i];
+    uint8_t *opcode_ptr = &instr->op.code;
+    int opcode =*opcode_ptr;
+    if (opcode == INSTRUMENTED_LINE) {
+        opcode_ptr = get_original_opcode_ptr(monitoring->lines, i);
+        opcode = *opcode_ptr;
+    }
+    if (opcode == INSTRUMENTED_INSTRUCTION) {
+        opcode_ptr = &monitoring->per_instruction_opcodes[i];
+        opcode = *opcode_ptr;
+        CHECK(opcode != INSTRUMENTED_INSTRUCTION && opcode != INSTRUMENTED_LINE);
+        CHECK(opcode == _PyOpcode_Deopt[opcode]);
+    }
+    CHECK(opcode != 0);
+    if (!is_instrumented(opcode)) {
+        int deopt = _PyOpcode_Deopt[opcode];
+        int instrumented = INSTRUMENTED_OPCODES[deopt];
+        assert(instrumented);
+        FT_ATOMIC_STORE_UINT8_RELAXED(*opcode_ptr, instrumented);
+        if (_PyOpcode_Caches[deopt]) {
+            FT_ATOMIC_STORE_UINT16_RELAXED(instr[1].counter.value_and_backoff,
+                                           adaptive_counter_warmup().value_and_backoff);
+        }
+    }
+}
+static void
+instrument_line(PyCodeObject *code, _Py_CODEUNIT *bytecode, _PyCoMonitoringData *monitoring, int i)
+{
+    uint8_t *opcode_ptr = &bytecode[i].op.code;
+    int opcode = *opcode_ptr;
+    if (opcode == INSTRUMENTED_LINE) {
+        return;
+    }
+    set_original_opcode(monitoring->lines, i, _PyOpcode_Deopt[opcode]);
+    CHECK(get_line_delta(monitoring->lines, i) > NO_LINE);
+    FT_ATOMIC_STORE_UINT8_RELAXED(*opcode_ptr, INSTRUMENTED_LINE);
+}
+static void
+instrument_per_instruction(PyCodeObject *code, _Py_CODEUNIT *bytecode,
+                           _PyCoMonitoringData *monitoring, int i)
+{
+    _Py_CODEUNIT *instr = &bytecode[i];
+    uint8_t *opcode_ptr = &instr->op.code;
+    int opcode = *opcode_ptr;
+    if (opcode == INSTRUMENTED_LINE) {
+        opcode_ptr = get_original_opcode_ptr(monitoring->lines, i);
+        opcode = *opcode_ptr;
+    }
+    if (opcode == INSTRUMENTED_INSTRUCTION) {
+        assert(monitoring->per_instruction_opcodes[i] > 0);
+        return;
+    }
+    CHECK(opcode != 0);
+    if (is_instrumented(opcode)) {
+        monitoring->per_instruction_opcodes[i] = opcode;
+    }
+    else {
+        assert(opcode != 0);
+        assert(_PyOpcode_Deopt[opcode] != 0);
+        assert(_PyOpcode_Deopt[opcode] != RESUME);
+        monitoring->per_instruction_opcodes[i] = _PyOpcode_Deopt[opcode];
+    }
+    assert(monitoring->per_instruction_opcodes[i] > 0);
+    FT_ATOMIC_STORE_UINT8_RELAXED(*opcode_ptr, INSTRUMENTED_INSTRUCTION);
+}
+static void
+remove_tools(PyCodeObject * code, int offset, int event, int tools)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+    assert(event != PY_MONITORING_EVENT_LINE);
+    assert(event != PY_MONITORING_EVENT_INSTRUCTION);
+    assert(PY_MONITORING_IS_INSTRUMENTED_EVENT(event));
+    assert(opcode_has_event(_Py_GetBaseCodeUnit(code, offset).op.code));
+    _PyCoMonitoringData *monitoring = code->_co_monitoring;
+    assert(monitoring);
+    bool should_de_instrument;
+    if (monitoring->tools) {
+        monitoring->tools[offset] &= ~tools;
+        should_de_instrument = (monitoring->tools[offset] == 0);
+    }
+    else {
+        /* Single tool */
+        uint8_t single_tool = monitoring->active_monitors.tools[event];
+        assert(_Py_popcount32(single_tool) <= 1);
+        should_de_instrument = ((single_tool & tools) == single_tool);
+    }
+    if (should_de_instrument) {
+        MODIFY_BYTECODE(code, de_instrument, monitoring, offset, event);
+    }
+}
+static bool
+tools_is_subset_for_event(PyCodeObject * code, int event, int tools)
+{
+    int global_tools = _PyInterpreterState_GET()->monitors.tools[event];
+    int local_tools = code->_co_monitoring->local_monitors.tools[event];
+    return tools == ((global_tools | local_tools) & tools);
+}
+static void
+remove_line_tools(PyCodeObject * code, int offset, int tools)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+
+    _PyCoMonitoringData *monitoring = code->_co_monitoring;
+    assert(monitoring);
+    bool should_de_instrument;
+    if (monitoring->line_tools)
+    {
+        uint8_t *toolsptr = &monitoring->line_tools[offset];
+        *toolsptr &= ~tools;
+        should_de_instrument = (*toolsptr == 0);
+    }
+    else {
+        /* Single tool */
+        uint8_t single_tool = monitoring->active_monitors.tools[PY_MONITORING_EVENT_LINE];
+        assert(_Py_popcount32(single_tool) <= 1);
+        should_de_instrument = ((single_tool & tools) == single_tool);
+    }
+    if (should_de_instrument) {
+        MODIFY_BYTECODE(code, de_instrument_line, monitoring, offset);
+    }
+}
+static void
+add_tools(PyCodeObject * code, int offset, int event, int tools)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+    assert(event != PY_MONITORING_EVENT_LINE);
+    assert(event != PY_MONITORING_EVENT_INSTRUCTION);
+    assert(PY_MONITORING_IS_INSTRUMENTED_EVENT(event));
+    assert(code->_co_monitoring);
+    if (code->_co_monitoring &&
+        code->_co_monitoring->tools
+    ) {
+        code->_co_monitoring->tools[offset] |= tools;
+    }
+    else {
+        /* Single tool */
+        assert(_Py_popcount32(tools) == 1);
+        assert(tools_is_subset_for_event(code, event, tools));
+    }
+    MODIFY_BYTECODE(code, instrument, code->_co_monitoring, offset);
+}
+static void
+add_line_tools(PyCodeObject * code, int offset, int tools)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+
+    assert(tools_is_subset_for_event(code, PY_MONITORING_EVENT_LINE, tools));
+    assert(code->_co_monitoring);
+    if (code->_co_monitoring->line_tools) {
+        code->_co_monitoring->line_tools[offset] |= tools;
+    }
+    else {
+        /* Single tool */
+        assert(_Py_popcount32(tools) == 1);
+    }
+    MODIFY_BYTECODE(code, instrument_line, code->_co_monitoring, offset);
+}
+static void
+add_per_instruction_tools(PyCodeObject * code, int offset, int tools)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+
+    assert(tools_is_subset_for_event(code, PY_MONITORING_EVENT_INSTRUCTION, tools));
+    assert(code->_co_monitoring);
+    if (code->_co_monitoring->per_instruction_tools) {
+        code->_co_monitoring->per_instruction_tools[offset] |= tools;
+    }
+    else {
+        /* Single tool */
+        assert(_Py_popcount32(tools) == 1);
+    }
+    MODIFY_BYTECODE(code, instrument_per_instruction, code->_co_monitoring, offset);
+}
+static void
+remove_per_instruction_tools(PyCodeObject * code, int offset, int tools)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+
+    _PyCoMonitoringData *monitoring = code->_co_monitoring;
+    assert(code->_co_monitoring);
+    bool should_de_instrument;
+    if (code->_co_monitoring->per_instruction_tools) {
+        uint8_t *toolsptr = &code->_co_monitoring->per_instruction_tools[offset];
+        *toolsptr &= ~tools;
+        should_de_instrument = (*toolsptr == 0);
+    }
+    else {
+        /* Single tool */
+        uint8_t single_tool = code->_co_monitoring->active_monitors.tools[PY_MONITORING_EVENT_INSTRUCTION];
+        assert(_Py_popcount32(single_tool) <= 1);
+        should_de_instrument = ((single_tool & tools) == single_tool);
+    }
+    if (should_de_instrument) {
+        MODIFY_BYTECODE(code, de_instrument_per_instruction, monitoring, offset);
+    }
+}
+static int
+call_one_instrument(
+    PyInterpreterState *interp, PyThreadState *tstate, PyObject **args,
+    size_t nargsf, int8_t tool, int event)
+{
+    assert(0 <= tool && tool < 8);
+    assert(tstate->tracing == 0);
+    PyObject *instrument = interp->monitoring_callables[tool][event];
+    if (instrument == NULL) {
+        return 0;
+    }
+    int old_what = tstate->what_event;
+    tstate->what_event = event;
+    tstate->tracing++;
+    PyObject *res = _PyObject_VectorcallTstate(tstate, instrument, args, nargsf, NULL);
+    tstate->tracing--;
+    tstate->what_event = old_what;
+    if (res == NULL) {
+        return -1;
+    }
+    Py_DECREF(res);
+    return (res == &_PyInstrumentation_DISABLE);
+}
+static inline int most_significant_bit(uint8_t bits) {
+    assert(bits != 0);
+    if (bits > 15) {
+        return MOST_SIGNIFICANT_BITS[bits>>4]+4;
+    }
+    return MOST_SIGNIFICANT_BITS[bits];
+}
+static uint32_t
+global_version(PyInterpreterState *interp)
+{
+    uint32_t version = (uint32_t)_Py_atomic_load_uintptr_relaxed(
+        &interp->ceval.instrumentation_version);
+#ifdef Py_DEBUG
+    PyThreadState *tstate = _PyThreadState_GET();
+    uint32_t thread_version =
+        (uint32_t)(_Py_atomic_load_uintptr_relaxed(&tstate->eval_breaker) &
+                   ~_PY_EVAL_EVENTS_MASK);
+    assert(thread_version == version);
+#endif
+    return version;
+}
+static bool
+is_version_up_to_date(PyCodeObject *code, PyInterpreterState *interp)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+    return global_version(interp) == code->_co_instrumentation_version;
+}
+static bool
+instrumentation_cross_checks(PyInterpreterState *interp, PyCodeObject *code)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+    _Py_LocalMonitors expected = local_union(
+        interp->monitors,
+        code->_co_monitoring->local_monitors);
+    return monitors_equals(code->_co_monitoring->active_monitors, expected);
+}
+static int
+debug_check_sanity(PyInterpreterState *interp, PyCodeObject *code)
+{
+    int res;
+    LOCK_CODE(code);
+    res = is_version_up_to_date(code, interp) &&
+          instrumentation_cross_checks(interp, code);
+    UNLOCK_CODE();
+    return res;
+}
+static inline uint8_t
+get_tools_for_instruction(PyCodeObject *code, PyInterpreterState *interp, int i, int event)
+{
+    uint8_t tools;
+    assert(event != PY_MONITORING_EVENT_LINE);
+    assert(event != PY_MONITORING_EVENT_INSTRUCTION);
+    if (event >= _PY_MONITORING_UNGROUPED_EVENTS) {
+        assert(event == PY_MONITORING_EVENT_C_RAISE ||
+                event == PY_MONITORING_EVENT_C_RETURN);
+        event = PY_MONITORING_EVENT_CALL;
+    }
+    if (PY_MONITORING_IS_INSTRUMENTED_EVENT(event)) {
+        CHECK(debug_check_sanity(interp, code));
+        if (code->_co_monitoring->tools) {
+            tools = code->_co_monitoring->tools[i];
+        }
+        else {
+            tools = code->_co_monitoring->active_monitors.tools[event];
+        }
+    }
+    else {
+        tools = interp->monitors.tools[event];
+    }
+    return tools;
+}
+static const char *const event_names [] = {
+    [PY_MONITORING_EVENT_PY_START] = "PY_START",
+    [PY_MONITORING_EVENT_PY_RESUME] = "PY_RESUME",
+    [PY_MONITORING_EVENT_PY_RETURN] = "PY_RETURN",
+    [PY_MONITORING_EVENT_PY_YIELD] = "PY_YIELD",
+    [PY_MONITORING_EVENT_CALL] = "CALL",
+    [PY_MONITORING_EVENT_LINE] = "LINE",
+    [PY_MONITORING_EVENT_INSTRUCTION] = "INSTRUCTION",
+    [PY_MONITORING_EVENT_JUMP] = "JUMP",
+    [PY_MONITORING_EVENT_BRANCH] = "BRANCH",
+    [PY_MONITORING_EVENT_BRANCH_LEFT] = "BRANCH_LEFT",
+    [PY_MONITORING_EVENT_BRANCH_RIGHT] = "BRANCH_RIGHT",
+    [PY_MONITORING_EVENT_C_RETURN] = "C_RETURN",
+    [PY_MONITORING_EVENT_PY_THROW] = "PY_THROW",
+    [PY_MONITORING_EVENT_RAISE] = "RAISE",
+    [PY_MONITORING_EVENT_RERAISE] = "RERAISE",
+    [PY_MONITORING_EVENT_EXCEPTION_HANDLED] = "EXCEPTION_HANDLED",
+    [PY_MONITORING_EVENT_C_RAISE] = "C_RAISE",
+    [PY_MONITORING_EVENT_PY_UNWIND] = "PY_UNWIND",
+    [PY_MONITORING_EVENT_STOP_ITERATION] = "STOP_ITERATION",
+};
+static int
+call_instrumentation_vector(
+    _Py_CODEUNIT *instr, PyThreadState *tstate, int event,
+    _PyInterpreterFrame *frame, _Py_CODEUNIT *arg2, Py_ssize_t nargs, PyObject *args[])
+{
+    if (tstate->tracing) {
+        return 0;
+    }
+    assert(!_PyErr_Occurred(tstate));
+    assert(args[0] == NULL);
+    PyCodeObject *code = _PyFrame_GetCode(frame);
+    assert(args[1] == NULL);
+    args[1] = (PyObject *)code;
+    int offset = (int)(instr - _PyFrame_GetBytecode(frame));
+    /* Offset visible to user should be the offset in bytes, as that is the
+     * convention for APIs involving code offsets. */
+    int bytes_arg2 = (int)(arg2 - _PyFrame_GetBytecode(frame)) * (int)sizeof(_Py_CODEUNIT);
+    PyObject *arg2_obj = PyLong_FromLong(bytes_arg2);
+    if (arg2_obj == NULL) {
+        return -1;
+    }
+    assert(args[2] == NULL);
+    args[2] = arg2_obj;
+    PyInterpreterState *interp = tstate->interp;
+    uint8_t tools = get_tools_for_instruction(code, interp, offset, event);
+    size_t nargsf = (size_t) nargs | PY_VECTORCALL_ARGUMENTS_OFFSET;
+    PyObject **callargs = &args[1];
+    int err = 0;
+    while (tools) {
+        int tool = most_significant_bit(tools);
+        assert(tool >= 0 && tool < 8);
+        assert(tools & (1 << tool));
+        tools ^= (1 << tool);
+        int res = call_one_instrument(interp, tstate, callargs, nargsf, tool, event);
+        if (res == 0) {
+            /* Nothing to do */
+        }
+        else if (res < 0) {
+            /* error */
+            err = -1;
+            break;
+        }
+        else {
+            /* DISABLE */
+            if (!PY_MONITORING_IS_INSTRUMENTED_EVENT(event)) {
+                PyErr_Format(PyExc_ValueError,
+                              "Cannot disable %s events. Callback removed.",
+                             event_names[event]);
+                /* Clear tool to prevent infinite loop */
+                Py_CLEAR(interp->monitoring_callables[tool][event]);
+                err = -1;
+                break;
+            }
+            else {
+                PyInterpreterState *interp = tstate->interp;
+                _PyEval_StopTheWorld(interp);
+                remove_tools(code, offset, event, 1 << tool);
+                _PyEval_StartTheWorld(interp);
+            }
+        }
+    }
+    Py_DECREF(arg2_obj);
+    return err;
+}
+Py_NO_INLINE int
+_Py_call_instrumentation(
+    PyThreadState *tstate, int event,
+    _PyInterpreterFrame *frame, _Py_CODEUNIT *instr)
+{
+    PyObject *args[3] = { NULL, NULL, NULL };
+    return call_instrumentation_vector(instr, tstate, event, frame, instr, 2, args);
+}
+Py_NO_INLINE int
+_Py_call_instrumentation_arg(
+    PyThreadState *tstate, int event,
+    _PyInterpreterFrame *frame, _Py_CODEUNIT *instr, PyObject *arg)
+{
+    PyObject *args[4] = { NULL, NULL, NULL, arg };
+    return call_instrumentation_vector(instr, tstate, event, frame, instr, 3, args);
+}
+Py_NO_INLINE int
+_Py_call_instrumentation_2args(
+    PyThreadState *tstate, int event,
+    _PyInterpreterFrame *frame, _Py_CODEUNIT *instr, PyObject *arg0, PyObject *arg1)
+{
+    PyObject *args[5] = { NULL, NULL, NULL, arg0, arg1 };
+    return call_instrumentation_vector(instr, tstate, event, frame, instr, 4, args);
+}
+Py_NO_INLINE _Py_CODEUNIT *
+_Py_call_instrumentation_jump(
+    _Py_CODEUNIT *instr, PyThreadState *tstate, int event,
+    _PyInterpreterFrame *frame, _Py_CODEUNIT *src, _Py_CODEUNIT *dest)
+{
+    assert(event == PY_MONITORING_EVENT_JUMP ||
+           event == PY_MONITORING_EVENT_BRANCH_RIGHT ||
+           event == PY_MONITORING_EVENT_BRANCH_LEFT);
+    int to = (int)(dest - _PyFrame_GetBytecode(frame));
+    PyObject *to_obj = PyLong_FromLong(to * (int)sizeof(_Py_CODEUNIT));
+    if (to_obj == NULL) {
+        return NULL;
+    }
+    PyObject *args[4] = { NULL, NULL, NULL, to_obj };
+    _Py_CODEUNIT *instr_ptr = frame->instr_ptr;
+    int err = call_instrumentation_vector(instr, tstate, event, frame, src, 3, args);
+    Py_DECREF(to_obj);
+    if (err) {
+        return NULL;
+    }
+    if (frame->instr_ptr != instr_ptr) {
+        /* The callback has caused a jump (by setting the line number) */
+        return frame->instr_ptr;
+    }
+    return dest;
+}
+static void
+call_instrumentation_vector_protected(
+    PyThreadState *tstate, int event,
+    _PyInterpreterFrame *frame, _Py_CODEUNIT *instr, Py_ssize_t nargs, PyObject *args[])
+{
+    assert(_PyErr_Occurred(tstate));
+    PyObject *exc = _PyErr_GetRaisedException(tstate);
+    int err = call_instrumentation_vector(instr, tstate, event, frame, instr, nargs, args);
+    if (err) {
+        Py_XDECREF(exc);
+    }
+    else {
+        _PyErr_SetRaisedException(tstate, exc);
+    }
+    assert(_PyErr_Occurred(tstate));
+}
+Py_NO_INLINE void
+_Py_call_instrumentation_exc2(
+    PyThreadState *tstate, int event,
+    _PyInterpreterFrame *frame, _Py_CODEUNIT *instr, PyObject *arg0, PyObject *arg1)
+{
+    assert(_PyErr_Occurred(tstate));
+    PyObject *args[5] = { NULL, NULL, NULL, arg0, arg1 };
+    call_instrumentation_vector_protected(tstate, event, frame, instr, 4, args);
+}
+int
+_Py_Instrumentation_GetLine(PyCodeObject *code, int index)
+{
+    _PyCoMonitoringData *monitoring = code->_co_monitoring;
+    assert(monitoring != NULL);
+    assert(monitoring->lines != NULL);
+    assert(index < Py_SIZE(code));
+    _PyCoLineInstrumentationData *line_data = monitoring->lines;
+    int line_delta = get_line_delta(line_data, index);
+    int line = compute_line(code, line_delta);
+    return line;
+}
+Py_NO_INLINE int
+_Py_call_instrumentation_line(PyThreadState *tstate, _PyInterpreterFrame* frame, _Py_CODEUNIT *instr, _Py_CODEUNIT *prev)
+{
+    PyCodeObject *code = _PyFrame_GetCode(frame);
+    assert(tstate->tracing == 0);
+    assert(debug_check_sanity(tstate->interp, code));
+    _Py_CODEUNIT *bytecode = _PyFrame_GetBytecode(frame);
+    int i = (int)(instr - bytecode);
+
+    _PyCoMonitoringData *monitoring = code->_co_monitoring;
+    _PyCoLineInstrumentationData *line_data = monitoring->lines;
+    PyInterpreterState *interp = tstate->interp;
+    int line = _Py_Instrumentation_GetLine(code, i);
+    assert(line >= 0);
+    assert(prev != NULL);
+    int prev_index = (int)(prev - bytecode);
+    int prev_line = _Py_Instrumentation_GetLine(code, prev_index);
+    if (prev_line == line) {
+        int prev_opcode = bytecode[prev_index].op.code;
+        /* RESUME and INSTRUMENTED_RESUME are needed for the operation of
+            * instrumentation, so must never be hidden by an INSTRUMENTED_LINE.
+            */
+        if (prev_opcode != RESUME && prev_opcode != INSTRUMENTED_RESUME) {
+            goto done;
+        }
+    }
+
+    uint8_t tools = code->_co_monitoring->line_tools != NULL ?
+        code->_co_monitoring->line_tools[i] :
+        (interp->monitors.tools[PY_MONITORING_EVENT_LINE] |
+         code->_co_monitoring->local_monitors.tools[PY_MONITORING_EVENT_LINE]
+        );
+    /* Special case sys.settrace to avoid boxing the line number,
+     * only to immediately unbox it. */
+    if (tools & (1 << PY_MONITORING_SYS_TRACE_ID)) {
+        if (tstate->c_tracefunc != NULL) {
+            PyFrameObject *frame_obj = _PyFrame_GetFrameObject(frame);
+            if (frame_obj == NULL) {
+                return -1;
+            }
+            if (frame_obj->f_trace_lines) {
+                /* Need to set tracing and what_event as if using
+                 * the instrumentation call. */
+                int old_what = tstate->what_event;
+                tstate->what_event = PY_MONITORING_EVENT_LINE;
+                tstate->tracing++;
+                /* Call c_tracefunc directly, having set the line number. */
+                Py_INCREF(frame_obj);
+                frame_obj->f_lineno = line;
+                int err = tstate->c_tracefunc(tstate->c_traceobj, frame_obj, PyTrace_LINE, Py_None);
+                frame_obj->f_lineno = 0;
+                tstate->tracing--;
+                tstate->what_event = old_what;
+                Py_DECREF(frame_obj);
+                if (err) {
+                    return -1;
+                }
+            }
+        }
+        tools &= (255 - (1 << PY_MONITORING_SYS_TRACE_ID));
+    }
+    if (tools == 0) {
+        goto done;
+    }
+    PyObject *line_obj = PyLong_FromLong(line);
+    if (line_obj == NULL) {
+        return -1;
+    }
+    PyObject *args[3] = { NULL, (PyObject *)code, line_obj };
+    do {
+        int tool = most_significant_bit(tools);
+        assert(tool >= 0 && tool < PY_MONITORING_SYS_PROFILE_ID);
+        assert(tools & (1 << tool));
+        tools &= ~(1 << tool);
+        int res = call_one_instrument(interp, tstate, &args[1],
+                                      2 | PY_VECTORCALL_ARGUMENTS_OFFSET,
+                                      tool, PY_MONITORING_EVENT_LINE);
+        if (res == 0) {
+            /* Nothing to do */
+        }
+        else if (res < 0) {
+            /* error */
+            Py_DECREF(line_obj);
+            return -1;
+        }
+        else {
+            /* DISABLE  */
+            PyInterpreterState *interp = tstate->interp;
+            _PyEval_StopTheWorld(interp);
+            remove_line_tools(code, i, 1 << tool);
+            _PyEval_StartTheWorld(interp);
+        }
+    } while (tools);
+    Py_DECREF(line_obj);
+    uint8_t original_opcode;
+done:
+    original_opcode = get_original_opcode(line_data, i);
+    assert(original_opcode != 0);
+    assert(original_opcode != INSTRUMENTED_LINE);
+    assert(_PyOpcode_Deopt[original_opcode] == original_opcode);
+    return original_opcode;
+}
+Py_NO_INLINE int
+_Py_call_instrumentation_instruction(PyThreadState *tstate, _PyInterpreterFrame* frame, _Py_CODEUNIT *instr)
+{
+    PyCodeObject *code = _PyFrame_GetCode(frame);
+    int offset = (int)(instr - _PyFrame_GetBytecode(frame));
+    _PyCoMonitoringData *instrumentation_data = code->_co_monitoring;
+    assert(instrumentation_data->per_instruction_opcodes);
+    int next_opcode = instrumentation_data->per_instruction_opcodes[offset];
+    if (tstate->tracing) {
+        return next_opcode;
+    }
+    assert(debug_check_sanity(tstate->interp, code));
+    PyInterpreterState *interp = tstate->interp;
+    uint8_t tools = instrumentation_data->per_instruction_tools != NULL ?
+        instrumentation_data->per_instruction_tools[offset] :
+        (interp->monitors.tools[PY_MONITORING_EVENT_INSTRUCTION] |
+         code->_co_monitoring->local_monitors.tools[PY_MONITORING_EVENT_INSTRUCTION]
+        );
+    int bytes_offset = offset * (int)sizeof(_Py_CODEUNIT);
+    PyObject *offset_obj = PyLong_FromLong(bytes_offset);
+    if (offset_obj == NULL) {
+        return -1;
+    }
+    PyObject *args[3] = { NULL, (PyObject *)code, offset_obj };
+    while (tools) {
+        int tool = most_significant_bit(tools);
+        assert(tool >= 0 && tool < 8);
+        assert(tools & (1 << tool));
+        tools &= ~(1 << tool);
+        int res = call_one_instrument(interp, tstate, &args[1],
+                                      2 | PY_VECTORCALL_ARGUMENTS_OFFSET,
+                                      tool, PY_MONITORING_EVENT_INSTRUCTION);
+        if (res == 0) {
+            /* Nothing to do */
+        }
+        else if (res < 0) {
+            /* error */
+            Py_DECREF(offset_obj);
+            return -1;
+        }
+        else {
+            /* DISABLE  */
+            PyInterpreterState *interp = tstate->interp;
+            _PyEval_StopTheWorld(interp);
+            remove_per_instruction_tools(code, offset, 1 << tool);
+            _PyEval_StartTheWorld(interp);
+        }
+    }
+    Py_DECREF(offset_obj);
+    assert(next_opcode != 0);
+    return next_opcode;
+}
+static void
+initialize_tools(PyCodeObject *code)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+    uint8_t* tools = code->_co_monitoring->tools;
+
+    assert(tools != NULL);
+    int code_len = (int)Py_SIZE(code);
+    for (int i = 0; i < code_len; i++) {
+        _Py_CODEUNIT *instr = &_PyCode_CODE(code)[i];
+        int opcode = instr->op.code;
+        assert(opcode != ENTER_EXECUTOR);
+        if (opcode == INSTRUMENTED_LINE) {
+            opcode = get_original_opcode(code->_co_monitoring->lines, i);
+        }
+        if (opcode == INSTRUMENTED_INSTRUCTION) {
+            opcode = code->_co_monitoring->per_instruction_opcodes[i];
+        }
+        bool instrumented = is_instrumented(opcode);
+        if (instrumented) {
+            opcode = DE_INSTRUMENT[opcode];
+            assert(opcode != 0);
+        }
+        opcode = _PyOpcode_Deopt[opcode];
+        if (opcode_has_event(opcode)) {
+            if (instrumented) {
+                int8_t event;
+                if (opcode == RESUME) {
+                    event = instr->op.arg != 0;
+                }
+                else {
+                    event = EVENT_FOR_OPCODE[opcode];
+                    assert(event > 0);
+                }
+                assert(event >= 0);
+                assert(PY_MONITORING_IS_INSTRUMENTED_EVENT(event));
+                tools[i] = code->_co_monitoring->active_monitors.tools[event];
+                CHECK(tools[i] != 0);
+            }
+            else {
+                tools[i] = 0;
+            }
+        }
+#ifdef Py_DEBUG
+        /* Initialize tools for invalid locations to all ones to try to catch errors */
+        else {
+            tools[i] = 0xff;
+        }
+        for (int j = 1; j <= _PyOpcode_Caches[opcode]; j++) {
+            tools[i+j] = 0xff;
+        }
+#endif
+        i += _PyOpcode_Caches[opcode];
+    }
+}
+static void
+initialize_lines(PyCodeObject *code, int bytes_per_entry)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+    _PyCoLineInstrumentationData *line_data = code->_co_monitoring->lines;
+
+    assert(line_data != NULL);
+    line_data->bytes_per_entry = bytes_per_entry;
+    int code_len = (int)Py_SIZE(code);
+    PyCodeAddressRange range;
+    _PyCode_InitAddressRange(code, &range);
+    int current_line = -1;
+    for (int i = 0; i < code_len; ) {
+        int opcode = _Py_GetBaseCodeUnit(code, i).op.code;
+        int line = _PyCode_CheckLineNumber(i*(int)sizeof(_Py_CODEUNIT), &range);
+        set_line_delta(line_data, i, compute_line_delta(code, line));
+        int length = _PyInstruction_GetLength(code, i);
+        if (i < code->_co_firsttraceable) {
+            set_original_opcode(line_data, i, 0);
+        }
+        else {
+            switch (opcode) {
+                case END_ASYNC_FOR:
+                case END_FOR:
+                case END_SEND:
+                case RESUME:
+            case POP_ITER:
+                    /* END_FOR cannot start a line, as it is skipped by FOR_ITER
+                    * END_SEND cannot start a line, as it is skipped by SEND
+                    * RESUME and POP_ITER must not be instrumented with INSTRUMENTED_LINE */
+                    set_original_opcode(line_data, i, 0);
+                    break;
+                default:
+                    /* Set original_opcode to the opcode iff the instruction
+                    * starts a line, and thus should be instrumented.
+                    * This saves having to perform this check every time the
+                    * we turn instrumentation on or off, and serves as a sanity
+                    * check when debugging.
+                    */
+                    if (line != current_line && line >= 0) {
+                        set_original_opcode(line_data, i, opcode);
+                        CHECK(get_line_delta(line_data, i) != NO_LINE);
+                    }
+                    else {
+                        set_original_opcode(line_data, i, 0);
+                    }
+                    current_line = line;
+            }
+        }
+        for (int j = 1; j < length; j++) {
+            set_original_opcode(line_data, i+j, 0);
+            set_line_delta(line_data, i+j, NO_LINE);
+        }
+        i += length;
+    }
+    for (int i = code->_co_firsttraceable; i < code_len; ) {
+        _Py_CODEUNIT inst =_Py_GetBaseCodeUnit(code, i);
+        int opcode = inst.op.code;
+        int oparg = 0;
+        while (opcode == EXTENDED_ARG) {
+            oparg = (oparg << 8) | inst.op.arg;
+            i++;
+            inst =_Py_GetBaseCodeUnit(code, i);
+            opcode = inst.op.code;
+        }
+        oparg = (oparg << 8) | inst.op.arg;
+        i += _PyInstruction_GetLength(code, i);
+        int target = -1;
+        switch (opcode) {
+            case POP_JUMP_IF_FALSE:
+            case POP_JUMP_IF_TRUE:
+            case POP_JUMP_IF_NONE:
+            case POP_JUMP_IF_NOT_NONE:
+            case JUMP_FORWARD:
+            {
+                target = i + oparg;
+                break;
+            }
+            case FOR_ITER:
+            case SEND:
+            {
+                /* Skip over END_FOR/END_SEND */
+                target = i + oparg + 1;
+                break;
+            }
+            case JUMP_BACKWARD:
+            case JUMP_BACKWARD_NO_INTERRUPT:
+            {
+                target = i - oparg;
+                break;
+            }
+            default:
+                continue;
+        }
+        assert(target >= 0);
+        if (get_line_delta(line_data, target) != NO_LINE) {
+            int opcode = _Py_GetBaseCodeUnit(code, target).op.code;
+            if (opcode != POP_ITER) {
+                set_original_opcode(line_data, target, opcode);
+            }
+        }
+    }
+    /* Scan exception table */
+    unsigned char *start = (unsigned char *)PyBytes_AS_STRING(code->co_exceptiontable);
+    unsigned char *end = start + PyBytes_GET_SIZE(code->co_exceptiontable);
+    unsigned char *scan = start;
+    while (scan < end) {
+        int start_offset, size, handler;
+        scan = parse_varint(scan, &start_offset);
+        assert(start_offset >= 0 && start_offset < code_len);
+        scan = parse_varint(scan, &size);
+        assert(size >= 0 && start_offset+size <= code_len);
+        scan = parse_varint(scan, &handler);
+        assert(handler >= 0 && handler < code_len);
+        int depth_and_lasti;
+        scan = parse_varint(scan, &depth_and_lasti);
+        int original_opcode = _Py_GetBaseCodeUnit(code, handler).op.code;
+        /* Skip if not the start of a line.
+         * END_ASYNC_FOR is a bit special as it marks the end of
+         * an `async for` loop, which should not generate its own
+         * line event. */
+        if (get_line_delta(line_data, handler) != NO_LINE && original_opcode != END_ASYNC_FOR) {
+            set_original_opcode(line_data, handler, original_opcode);
+        }
+    }
+}
+static void
+initialize_line_tools(PyCodeObject *code, _Py_LocalMonitors *all_events)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+    uint8_t *line_tools = code->_co_monitoring->line_tools;
+
+    assert(line_tools != NULL);
+    int code_len = (int)Py_SIZE(code);
+    for (int i = 0; i < code_len; i++) {
+        line_tools[i] = all_events->tools[PY_MONITORING_EVENT_LINE];
+    }
+}
+static int
+allocate_instrumentation_data(PyCodeObject *code)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+
+    if (code->_co_monitoring == NULL) {
+        code->_co_monitoring = PyMem_Malloc(sizeof(_PyCoMonitoringData));
+        if (code->_co_monitoring == NULL) {
+            PyErr_NoMemory();
+            return -1;
+        }
+        code->_co_monitoring->local_monitors = (_Py_LocalMonitors){ 0 };
+        code->_co_monitoring->active_monitors = (_Py_LocalMonitors){ 0 };
+        code->_co_monitoring->tools = NULL;
+        code->_co_monitoring->lines = NULL;
+        code->_co_monitoring->line_tools = NULL;
+        code->_co_monitoring->per_instruction_opcodes = NULL;
+        code->_co_monitoring->per_instruction_tools = NULL;
+    }
+    return 0;
+}
+static int
+update_instrumentation_data(PyCodeObject *code, PyInterpreterState *interp)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+
+    int code_len = (int)Py_SIZE(code);
+    if (allocate_instrumentation_data(code)) {
+        return -1;
+    }
+    // If the local monitors are out of date, clear them up
+    _Py_LocalMonitors *local_monitors = &code->_co_monitoring->local_monitors;
+    for (int i = 0; i < PY_MONITORING_TOOL_IDS; i++) {
+        if (code->_co_monitoring->tool_versions[i] != interp->monitoring_tool_versions[i]) {
+            for (int j = 0; j < _PY_MONITORING_LOCAL_EVENTS; j++) {
+                local_monitors->tools[j] &= ~(1 << i);
+            }
+        }
+    }
+
+    _Py_LocalMonitors all_events = local_union(
+        interp->monitors,
+        code->_co_monitoring->local_monitors);
+    bool multitools = multiple_tools(&all_events);
+    if (code->_co_monitoring->tools == NULL && multitools) {
+        code->_co_monitoring->tools = PyMem_Malloc(code_len);
+        if (code->_co_monitoring->tools == NULL) {
+            PyErr_NoMemory();
+            return -1;
+        }
+        initialize_tools(code);
+    }
+    if (all_events.tools[PY_MONITORING_EVENT_LINE]) {
+        if (code->_co_monitoring->lines == NULL) {
+            PyCodeAddressRange range;
+            _PyCode_InitAddressRange(code, &range);
+            int max_line = code->co_firstlineno + 1;
+            _PyCode_InitAddressRange(code, &range);
+            for (int i = code->_co_firsttraceable; i < code_len; ) {
+                int line = _PyCode_CheckLineNumber(i*(int)sizeof(_Py_CODEUNIT), &range);
+                if (line > max_line) {
+                    max_line = line;
+                }
+                int length = _PyInstruction_GetLength(code, i);
+                i += length;
+            }
+            int bytes_per_entry;
+            int max_delta = max_line - code->co_firstlineno;
+            /* We store delta+2 in the table, so 253 is max for one byte */
+            if (max_delta < 256+NO_LINE) {
+                bytes_per_entry = 2;
+            }
+            else if (max_delta < (1 << 16)+NO_LINE) {
+                bytes_per_entry = 3;
+            }
+            else if (max_delta < (1 << 24)+NO_LINE) {
+                bytes_per_entry = 4;
+            }
+            else {
+                bytes_per_entry = 5;
+            }
+            code->_co_monitoring->lines = PyMem_Malloc(1 + code_len * bytes_per_entry);
+            if (code->_co_monitoring->lines == NULL) {
+                PyErr_NoMemory();
+                return -1;
+            }
+            initialize_lines(code, bytes_per_entry);
+        }
+        if (multitools && code->_co_monitoring->line_tools == NULL) {
+            code->_co_monitoring->line_tools = PyMem_Malloc(code_len);
+            if (code->_co_monitoring->line_tools == NULL) {
+                PyErr_NoMemory();
+                return -1;
+            }
+            initialize_line_tools(code, &all_events);
+        }
+    }
+    if (all_events.tools[PY_MONITORING_EVENT_INSTRUCTION]) {
+        if (code->_co_monitoring->per_instruction_opcodes == NULL) {
+            code->_co_monitoring->per_instruction_opcodes = PyMem_Malloc(code_len * sizeof(_PyCoLineInstrumentationData));
+            if (code->_co_monitoring->per_instruction_opcodes == NULL) {
+                PyErr_NoMemory();
+                return -1;
+            }
+            // Initialize all of the instructions so if local events change while another thread is executing
+            // we know what the original opcode was.
+            for (int i = 0; i < code_len; i++) {
+                int opcode = _PyCode_CODE(code)[i].op.code;
+                code->_co_monitoring->per_instruction_opcodes[i] = _PyOpcode_Deopt[opcode];
+            }
+        }
+        if (multitools && code->_co_monitoring->per_instruction_tools == NULL) {
+            code->_co_monitoring->per_instruction_tools = PyMem_Malloc(code_len);
+            if (code->_co_monitoring->per_instruction_tools == NULL) {
+                PyErr_NoMemory();
+                return -1;
+            }
+            for (int i = 0; i < code_len; i++) {
+                code->_co_monitoring->per_instruction_tools[i] = 0;
+            }
+        }
+    }
+    return 0;
+}
+
+PyObject *
+_PyNumber_PowerNoMod(PyObject *lhs, PyObject *rhs)
+{
+    return PyNumber_Power(lhs, rhs, Py_None);
+}
+PyObject *
+_PyNumber_InPlacePowerNoMod(PyObject *lhs, PyObject *rhs)
+{
+    return PyNumber_InPlacePower(lhs, rhs, Py_None);
+}
+
+static int
+force_instrument_lock_held(PyCodeObject *code, PyInterpreterState *interp)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+
+#ifdef _Py_TIER2
+    if (code->co_executors != NULL) {
+        _PyCode_Clear_Executors(code);
+    }
+    _Py_Executors_InvalidateDependency(interp, code, 1);
+#endif
+    int code_len = (int)Py_SIZE(code);
+    /* Exit early to avoid creating instrumentation
+     * data for potential statically allocated code
+     * objects.
+     * See https://github.com/python/cpython/issues/108390 */
+    if (code->co_flags & CO_NO_MONITORING_EVENTS) {
+        return 0;
+    }
+    if (update_instrumentation_data(code, interp)) {
+        return -1;
+    }
+    _Py_LocalMonitors active_events = local_union(
+        interp->monitors,
+        code->_co_monitoring->local_monitors);
+    _Py_LocalMonitors new_events;
+    _Py_LocalMonitors removed_events;
+
+    bool restarted = interp->last_restart_version > code->_co_instrumentation_version;
+    if (restarted) {
+        removed_events = code->_co_monitoring->active_monitors;
+        new_events = active_events;
+    }
+    else {
+        removed_events = monitors_sub(code->_co_monitoring->active_monitors, active_events);
+        new_events = monitors_sub(active_events, code->_co_monitoring->active_monitors);
+        assert(monitors_are_empty(monitors_and(new_events, removed_events)));
+    }
+    code->_co_monitoring->active_monitors = active_events;
+    if (monitors_are_empty(new_events) && monitors_are_empty(removed_events)) {
+        goto done;
+    }
+    /* Insert instrumentation */
+    for (int i = code->_co_firsttraceable; i < code_len; i+= _PyInstruction_GetLength(code, i)) {
+        assert(_PyCode_CODE(code)[i].op.code != ENTER_EXECUTOR);
+        _Py_CODEUNIT instr = _Py_GetBaseCodeUnit(code, i);
+        CHECK(instr.op.code != 0);
+        int base_opcode = instr.op.code;
+        if (opcode_has_event(base_opcode)) {
+            int8_t event;
+            if (base_opcode == RESUME) {
+                event = instr.op.arg > 0;
+            }
+            else {
+                event = EVENT_FOR_OPCODE[base_opcode];
+                assert(event > 0);
+            }
+            uint8_t removed_tools = removed_events.tools[event];
+            if (removed_tools) {
+                remove_tools(code, i, event, removed_tools);
+            }
+            uint8_t new_tools = new_events.tools[event];
+            if (new_tools) {
+                add_tools(code, i, event, new_tools);
+            }
+        }
+    }
+
+    // GH-103845: We need to remove both the line and instruction instrumentation before
+    // adding new ones, otherwise we may remove the newly added instrumentation.
+    uint8_t removed_line_tools = removed_events.tools[PY_MONITORING_EVENT_LINE];
+    uint8_t removed_per_instruction_tools = removed_events.tools[PY_MONITORING_EVENT_INSTRUCTION];
+
+    if (removed_line_tools) {
+        _PyCoLineInstrumentationData *line_data = code->_co_monitoring->lines;
+        for (int i = code->_co_firsttraceable; i < code_len;) {
+            if (get_original_opcode(line_data, i)) {
+                remove_line_tools(code, i, removed_line_tools);
+            }
+            i += _PyInstruction_GetLength(code, i);
+        }
+    }
+    if (removed_per_instruction_tools) {
+        for (int i = code->_co_firsttraceable; i < code_len;) {
+            int opcode = _Py_GetBaseCodeUnit(code, i).op.code;
+            if (opcode == RESUME || opcode == END_FOR) {
+                i += _PyInstruction_GetLength(code, i);
+                continue;
+            }
+            remove_per_instruction_tools(code, i, removed_per_instruction_tools);
+            i += _PyInstruction_GetLength(code, i);
+        }
+    }
+#ifdef INSTRUMENT_DEBUG
+    sanity_check_instrumentation(code);
+#endif
+
+    uint8_t new_line_tools = new_events.tools[PY_MONITORING_EVENT_LINE];
+    uint8_t new_per_instruction_tools = new_events.tools[PY_MONITORING_EVENT_INSTRUCTION];
+
+    if (new_line_tools) {
+        _PyCoLineInstrumentationData *line_data = code->_co_monitoring->lines;
+        for (int i = code->_co_firsttraceable; i < code_len;) {
+            if (get_original_opcode(line_data, i)) {
+                add_line_tools(code, i, new_line_tools);
+            }
+            i += _PyInstruction_GetLength(code, i);
+        }
+    }
+    if (new_per_instruction_tools) {
+        for (int i = code->_co_firsttraceable; i < code_len;) {
+            int opcode = _Py_GetBaseCodeUnit(code, i).op.code;
+            if (opcode == RESUME || opcode == END_FOR) {
+                i += _PyInstruction_GetLength(code, i);
+                continue;
+            }
+            add_per_instruction_tools(code, i, new_per_instruction_tools);
+            i += _PyInstruction_GetLength(code, i);
+        }
+    }
+
+done:
+    FT_ATOMIC_STORE_UINTPTR_RELEASE(code->_co_instrumentation_version,
+                                    global_version(interp));
+
+#ifdef INSTRUMENT_DEBUG
+    sanity_check_instrumentation(code);
+#endif
+    return 0;
+}
+static int
+instrument_lock_held(PyCodeObject *code, PyInterpreterState *interp)
+{
+    ASSERT_WORLD_STOPPED_OR_LOCKED(code);
+
+    if (is_version_up_to_date(code, interp)) {
+        assert(
+            interp->ceval.instrumentation_version == 0 ||
+            instrumentation_cross_checks(interp, code)
+        );
+        return 0;
+    }
+
+    return force_instrument_lock_held(code, interp);
+}
+int
+_Py_Instrument(PyCodeObject *code, PyInterpreterState *interp)
+{
+    int res;
+    LOCK_CODE(code);
+    res = instrument_lock_held(code, interp);
+    UNLOCK_CODE();
+    return res;
+}
+
+static inline void
+ensure_shared_on_keys_version_assignment(PyDictObject *mp)
+{
+    ASSERT_DICT_LOCKED((PyObject *) mp);
+    #ifdef Py_GIL_DISABLED
+    if (!IS_DICT_SHARED(mp)) {
+        // This ensures that a concurrent resize operation will delay
+        // freeing the old keys or values using QSBR, which is necessary to
+        // safely allow concurrent reads without locking.
+        SET_DICT_SHARED(mp);
+    }
+    #endif
+}
+static inline uint32_t
+get_next_dict_keys_version(PyInterpreterState *interp)
+{
+#ifdef Py_GIL_DISABLED
+    uint32_t v;
+    do {
+        v = _Py_atomic_load_uint32_relaxed(
+            &interp->dict_state.next_keys_version);
+        if (v == 0) {
+            return 0;
+        }
+    } while (!_Py_atomic_compare_exchange_uint32(
+        &interp->dict_state.next_keys_version, &v, v + 1));
+#else
+    if (interp->dict_state.next_keys_version == 0) {
+        return 0;
+    }
+    uint32_t v = interp->dict_state.next_keys_version++;
+#endif
+    return v;
+}
+uint32_t
+_PyDictKeys_GetVersionForCurrentState(PyInterpreterState *interp,
+                                      PyDictKeysObject *dictkeys)
+{
+    uint32_t dk_version = FT_ATOMIC_LOAD_UINT32_RELAXED(dictkeys->dk_version);
+    if (dk_version != 0) {
+        return dk_version;
+    }
+    dk_version = get_next_dict_keys_version(interp);
+    FT_ATOMIC_STORE_UINT32_RELAXED(dictkeys->dk_version, dk_version);
+    return dk_version;
+}
+uint32_t
+_PyDict_GetKeysVersionForCurrentState(PyInterpreterState *interp,
+                                      PyDictObject *dict)
+{
+    ASSERT_DICT_LOCKED((PyObject *) dict);
+    uint32_t dk_version =
+        _PyDictKeys_GetVersionForCurrentState(interp, dict->ma_keys);
+    ensure_shared_on_keys_version_assignment(dict);
+    return dk_version;
+}
+
+static inline Py_hash_t
+unicode_get_hash(PyObject *o)
+{
+    assert(PyUnicode_CheckExact(o));
+    return FT_ATOMIC_LOAD_SSIZE_RELAXED(_PyASCIIObject_CAST(o)->hash);
+}
+
+static inline Py_ssize_t
+dictkeys_get_index(const PyDictKeysObject *keys, Py_ssize_t i)
+{
+    int log2size = DK_LOG_SIZE(keys);
+    Py_ssize_t ix;
+
+    if (log2size < 8) {
+        ix = LOAD_INDEX(keys, 8, i);
+    }
+    else if (log2size < 16) {
+        ix = LOAD_INDEX(keys, 16, i);
+    }
+#if SIZEOF_VOID_P > 4
+    else if (log2size >= 32) {
+        ix = LOAD_INDEX(keys, 64, i);
+    }
+#endif
+    else {
+        ix = LOAD_INDEX(keys, 32, i);
+    }
+    assert(ix >= DKIX_DUMMY);
+    return ix;
+}
+static inline int
+compare_unicode_unicode(PyDictObject *mp, PyDictKeysObject *dk,
+                        void *ep0, Py_ssize_t ix, PyObject *key, Py_hash_t hash)
+{
+    PyDictUnicodeEntry *ep = &((PyDictUnicodeEntry *)ep0)[ix];
+    PyObject *ep_key = FT_ATOMIC_LOAD_PTR_RELAXED(ep->me_key);
+    assert(ep_key != NULL);
+    assert(PyUnicode_CheckExact(ep_key));
+    if (ep_key == key ||
+            (unicode_get_hash(ep_key) == hash && unicode_eq(ep_key, key))) {
+        return 1;
+    }
+    return 0;
+}
+static inline int
+compare_unicode_generic(PyDictObject *mp, PyDictKeysObject *dk,
+                        void *ep0, Py_ssize_t ix, PyObject *key, Py_hash_t hash)
+{
+    PyDictUnicodeEntry *ep = &((PyDictUnicodeEntry *)ep0)[ix];
+    assert(ep->me_key != NULL);
+    assert(PyUnicode_CheckExact(ep->me_key));
+    assert(!PyUnicode_CheckExact(key));
+
+    if (unicode_get_hash(ep->me_key) == hash) {
+        PyObject *startkey = ep->me_key;
+        Py_INCREF(startkey);
+        int cmp = PyObject_RichCompareBool(startkey, key, Py_EQ);
+        Py_DECREF(startkey);
+        if (cmp < 0) {
+            return DKIX_ERROR;
+        }
+        if (dk == mp->ma_keys && ep->me_key == startkey) {
+            return cmp;
+        }
+        else {
+            /* The dict was mutated, restart */
+            return DKIX_KEY_CHANGED;
+        }
+    }
+    return 0;
+}
+static inline int
+compare_generic(PyDictObject *mp, PyDictKeysObject *dk,
+                void *ep0, Py_ssize_t ix, PyObject *key, Py_hash_t hash)
+{
+    PyDictKeyEntry *ep = &((PyDictKeyEntry *)ep0)[ix];
+    assert(ep->me_key != NULL);
+    if (ep->me_key == key) {
+        return 1;
+    }
+    if (ep->me_hash == hash) {
+        PyObject *startkey = ep->me_key;
+        Py_INCREF(startkey);
+        int cmp = PyObject_RichCompareBool(startkey, key, Py_EQ);
+        Py_DECREF(startkey);
+        if (cmp < 0) {
+            return DKIX_ERROR;
+        }
+        if (dk == mp->ma_keys && ep->me_key == startkey) {
+            return cmp;
+        }
+        else {
+            /* The dict was mutated, restart */
+            return DKIX_KEY_CHANGED;
+        }
+    }
+    return 0;
+}
+static inline Py_ALWAYS_INLINE Py_ssize_t
+do_lookup(PyDictObject *mp, PyDictKeysObject *dk, PyObject *key, Py_hash_t hash,
+          int (*check_lookup)(PyDictObject *, PyDictKeysObject *, void *, Py_ssize_t ix, PyObject *key, Py_hash_t))
+{
+    void *ep0 = _DK_ENTRIES(dk);
+    size_t mask = DK_MASK(dk);
+    size_t perturb = hash;
+    size_t i = (size_t)hash & mask;
+    Py_ssize_t ix;
+    for (;;) {
+        ix = dictkeys_get_index(dk, i);
+        if (ix >= 0) {
+            int cmp = check_lookup(mp, dk, ep0, ix, key, hash);
+            if (cmp < 0) {
+                return cmp;
+            } else if (cmp) {
+                return ix;
+            }
+        }
+        else if (ix == DKIX_EMPTY) {
+            return DKIX_EMPTY;
+        }
+        perturb >>= PERTURB_SHIFT;
+        i = mask & (i*5 + perturb + 1);
+
+        // Manual loop unrolling
+        ix = dictkeys_get_index(dk, i);
+        if (ix >= 0) {
+            int cmp = check_lookup(mp, dk, ep0, ix, key, hash);
+            if (cmp < 0) {
+                return cmp;
+            } else if (cmp) {
+                return ix;
+            }
+        }
+        else if (ix == DKIX_EMPTY) {
+            return DKIX_EMPTY;
+        }
+        perturb >>= PERTURB_SHIFT;
+        i = mask & (i*5 + perturb + 1);
+    }
+    Py_UNREACHABLE();
+}
+static Py_ssize_t
+dictkeys_generic_lookup(PyDictObject *mp, PyDictKeysObject* dk, PyObject *key, Py_hash_t hash)
+{
+    return do_lookup(mp, dk, key, hash, compare_generic);
+}
+static Py_ssize_t
+unicodekeys_lookup_generic(PyDictObject *mp, PyDictKeysObject* dk, PyObject *key, Py_hash_t hash)
+{
+    return do_lookup(mp, dk, key, hash, compare_unicode_generic);
+}
+static Py_ssize_t _Py_HOT_FUNCTION
+unicodekeys_lookup_unicode(PyDictKeysObject* dk, PyObject *key, Py_hash_t hash)
+{
+    return do_lookup(NULL, dk, key, hash, compare_unicode_unicode);
+}
+static void
+dict_unhashable_type(PyObject *key)
+{
+    PyObject *exc = PyErr_GetRaisedException();
+    assert(exc != NULL);
+    if (!Py_IS_TYPE(exc, (PyTypeObject*)PyExc_TypeError)) {
+        PyErr_SetRaisedException(exc);
+        return;
+    }
+
+    PyErr_Format(PyExc_TypeError,
+                 "cannot use '%T' as a dict key (%S)",
+                 key, exc);
+    Py_DECREF(exc);
+}
+static bool
+check_keys_unicode(PyDictKeysObject *dk, PyObject *key)
+{
+    return PyUnicode_CheckExact(key) && (dk->dk_kind != DICT_KEYS_GENERAL);
+}
+static Py_ssize_t
+hash_unicode_key(PyObject *key)
+{
+    assert(PyUnicode_CheckExact(key));
+    Py_hash_t hash = unicode_get_hash(key);
+    if (hash == -1) {
+        hash = PyUnicode_Type.tp_hash(key);
+        assert(hash != -1);
+    }
+    return hash;
+}
+static Py_ssize_t
+unicodekeys_lookup_split(PyDictKeysObject* dk, PyObject *key, Py_hash_t hash)
+{
+    Py_ssize_t ix;
+    assert(dk->dk_kind == DICT_KEYS_SPLIT);
+    assert(PyUnicode_CheckExact(key));
+
+#ifdef Py_GIL_DISABLED
+    // A split dictionaries keys can be mutated by other dictionaries
+    // but if we have a unicode key we can avoid locking the shared
+    // keys.
+    ix = unicodekeys_lookup_unicode_threadsafe(dk, key, hash);
+    if (ix == DKIX_KEY_CHANGED) {
+        LOCK_KEYS(dk);
+        ix = unicodekeys_lookup_unicode(dk, key, hash);
+        UNLOCK_KEYS(dk);
+    }
+#else
+    ix = unicodekeys_lookup_unicode(dk, key, hash);
+#endif
+    return ix;
+}
+Py_ssize_t
+_PyDictKeys_StringLookup(PyDictKeysObject* dk, PyObject *key)
+{
+    if (!check_keys_unicode(dk, key)) {
+        return DKIX_ERROR;
+    }
+    Py_hash_t hash = hash_unicode_key(key);
+    return unicodekeys_lookup_unicode(dk, key, hash);
+}
+Py_ssize_t
+_PyDictKeys_StringLookupAndVersion(PyDictKeysObject *dk, PyObject *key, uint32_t *version)
+{
+    if (!check_keys_unicode(dk, key)) {
+        return DKIX_ERROR;
+    }
+    Py_ssize_t ix;
+    Py_hash_t hash = hash_unicode_key(key);
+    LOCK_KEYS(dk);
+    ix = unicodekeys_lookup_unicode(dk, key, hash);
+    *version = _PyDictKeys_GetVersionForCurrentState(_PyInterpreterState_GET(), dk);
+    UNLOCK_KEYS(dk);
+    return ix;
+}
+Py_ssize_t
+_PyDictKeys_StringLookupSplit(PyDictKeysObject* dk, PyObject *key)
+{
+    assert(dk->dk_kind == DICT_KEYS_SPLIT);
+    assert(PyUnicode_CheckExact(key));
+    Py_hash_t hash = unicode_get_hash(key);
+    if (hash == -1) {
+        hash = PyUnicode_Type.tp_hash(key);
+        if (hash == -1) {
+            PyErr_Clear();
+            return DKIX_ERROR;
+        }
+    }
+    return unicodekeys_lookup_split(dk, key, hash);
+}
+Py_ssize_t
+_Py_dict_lookup(PyDictObject *mp, PyObject *key, Py_hash_t hash, PyObject **value_addr)
+{
+    PyDictKeysObject *dk;
+    DictKeysKind kind;
+    Py_ssize_t ix;
+
+    _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(mp);
+start:
+    dk = mp->ma_keys;
+    kind = dk->dk_kind;
+
+    if (kind != DICT_KEYS_GENERAL) {
+        if (PyUnicode_CheckExact(key)) {
+#ifdef Py_GIL_DISABLED
+            if (kind == DICT_KEYS_SPLIT) {
+                ix = unicodekeys_lookup_split(dk, key, hash);
+            }
+            else {
+                ix = unicodekeys_lookup_unicode(dk, key, hash);
+            }
+#else
+            ix = unicodekeys_lookup_unicode(dk, key, hash);
+#endif
+        }
+        else {
+            INCREF_KEYS_FT(dk);
+            LOCK_KEYS_IF_SPLIT(dk, kind);
+
+            ix = unicodekeys_lookup_generic(mp, dk, key, hash);
+
+            UNLOCK_KEYS_IF_SPLIT(dk, kind);
+            DECREF_KEYS_FT(dk, IS_DICT_SHARED(mp));
+            if (ix == DKIX_KEY_CHANGED) {
+                goto start;
+            }
+        }
+
+        if (ix >= 0) {
+            if (kind == DICT_KEYS_SPLIT) {
+                *value_addr = mp->ma_values->values[ix];
+            }
+            else {
+                *value_addr = DK_UNICODE_ENTRIES(dk)[ix].me_value;
+            }
+        }
+        else {
+            *value_addr = NULL;
+        }
+    }
+    else {
+        ix = dictkeys_generic_lookup(mp, dk, key, hash);
+        if (ix == DKIX_KEY_CHANGED) {
+            goto start;
+        }
+        if (ix >= 0) {
+            *value_addr = DK_ENTRIES(dk)[ix].me_value;
+        }
+        else {
+            *value_addr = NULL;
+        }
+    }
+
+    return ix;
+}
+Py_ssize_t
+_PyDict_LookupIndex(PyDictObject *mp, PyObject *key)
+{
+    // TODO: Thread safety
+    PyObject *value;
+    assert(PyDict_CheckExact((PyObject*)mp));
+    assert(PyUnicode_CheckExact(key));
+
+    Py_hash_t hash = _PyObject_HashFast(key);
+    if (hash == -1) {
+        dict_unhashable_type(key);
+        return -1;
+    }
+
+    return _Py_dict_lookup(mp, key, hash, &value);
+}
+#ifdef Py_STATS
+#if PYSTATS_MAX_UOP_ID < MAX_UOP_ID
+#endif
+#define ADD_STAT_TO_DICT(res, field) \
+    do { \
+        PyObject *val = PyLong_FromUnsignedLongLong(stats->field); \
+        if (val == NULL) { \
+            Py_DECREF(res); \
+            return NULL; \
+        } \
+        if (PyDict_SetItemString(res, #field, val) == -1) { \
+            Py_DECREF(res); \
+            Py_DECREF(val); \
+            return NULL; \
+        } \
+        Py_DECREF(val); \
+    } while(0);
+#undef ADD_STAT_TO_DICT
+#define PRINT_STAT(i, field) \
+    if (stats[i].field) { \
+        fprintf(out, "    opcode[%s]." #field " : %" PRIu64 "\n", _PyOpcode_OpName[i], stats[i].field); \
+    }
+#undef PRINT_STAT
+#ifdef _Py_TIER2
+#endif
+#ifdef _Py_TIER2
+#endif
+#define MEM_IS_ZERO(DATA) mem_is_zero((unsigned char*)DATA, sizeof(*(DATA)))
+#undef MEM_IS_ZERO
+# ifdef MS_WINDOWS
+# else
+# endif
+#define SPECIALIZATION_FAIL(opcode, kind) \
+do { \
+    if (_Py_stats) { \
+        int _kind = (kind); \
+        assert(_kind < SPECIALIZATION_FAILURE_KINDS); \
+        _Py_stats->opcode_stats[opcode].specialization.failure_kinds[_kind]++; \
+    } \
+} while (0)
+#endif  // Py_STATS
+#ifndef SPECIALIZATION_FAIL
+#  define SPECIALIZATION_FAIL(opcode, kind) ((void)0)
+#endif
+#define SIMPLE_FUNCTION 0
+#define SPEC_FAIL_OTHER 0
+#define SPEC_FAIL_NO_DICT 1
+#define SPEC_FAIL_OVERRIDDEN 2
+#define SPEC_FAIL_OUT_OF_VERSIONS 3
+#define SPEC_FAIL_OUT_OF_RANGE 4
+#define SPEC_FAIL_EXPECTED_ERROR 5
+#define SPEC_FAIL_WRONG_NUMBER_ARGUMENTS 6
+#define SPEC_FAIL_CODE_COMPLEX_PARAMETERS 7
+#define SPEC_FAIL_CODE_NOT_OPTIMIZED 8
+#define SPEC_FAIL_LOAD_GLOBAL_NON_DICT 17
+#define SPEC_FAIL_LOAD_GLOBAL_NON_STRING_OR_SPLIT 18
+#define SPEC_FAIL_SUPER_BAD_CLASS 9
+#define SPEC_FAIL_SUPER_SHADOWED 10
+#define SPEC_FAIL_ATTR_OVERRIDING_DESCRIPTOR 9
+#define SPEC_FAIL_ATTR_NON_OVERRIDING_DESCRIPTOR 10
+#define SPEC_FAIL_ATTR_NOT_DESCRIPTOR 11
+#define SPEC_FAIL_ATTR_METHOD 12
+#define SPEC_FAIL_ATTR_MUTABLE_CLASS 13
+#define SPEC_FAIL_ATTR_PROPERTY 14
+#define SPEC_FAIL_ATTR_NON_OBJECT_SLOT 15
+#define SPEC_FAIL_ATTR_READ_ONLY 16
+#define SPEC_FAIL_ATTR_AUDITED_SLOT 17
+#define SPEC_FAIL_ATTR_NOT_MANAGED_DICT 18
+#define SPEC_FAIL_ATTR_NON_STRING 19
+#define SPEC_FAIL_ATTR_MODULE_ATTR_NOT_FOUND 20
+#define SPEC_FAIL_ATTR_SHADOWED 21
+#define SPEC_FAIL_ATTR_BUILTIN_CLASS_METHOD 22
+#define SPEC_FAIL_ATTR_CLASS_METHOD_OBJ 23
+#define SPEC_FAIL_ATTR_OBJECT_SLOT 24
+#define SPEC_FAIL_ATTR_INSTANCE_ATTRIBUTE 26
+#define SPEC_FAIL_ATTR_METACLASS_ATTRIBUTE 27
+#define SPEC_FAIL_ATTR_PROPERTY_NOT_PY_FUNCTION 28
+#define SPEC_FAIL_ATTR_NOT_IN_KEYS 29
+#define SPEC_FAIL_ATTR_NOT_IN_DICT 30
+#define SPEC_FAIL_ATTR_CLASS_ATTR_SIMPLE 31
+#define SPEC_FAIL_ATTR_CLASS_ATTR_DESCRIPTOR 32
+#define SPEC_FAIL_ATTR_BUILTIN_CLASS_METHOD_OBJ 33
+#define SPEC_FAIL_ATTR_METACLASS_OVERRIDDEN 34
+#define SPEC_FAIL_ATTR_SPLIT_DICT 35
+#define SPEC_FAIL_ATTR_DESCR_NOT_DEFERRED 36
+#define SPEC_FAIL_SUBSCR_ARRAY_INT 9
+#define SPEC_FAIL_SUBSCR_ARRAY_SLICE 10
+#define SPEC_FAIL_SUBSCR_LIST_SLICE 11
+#define SPEC_FAIL_SUBSCR_BUFFER_INT 12
+#define SPEC_FAIL_SUBSCR_BUFFER_SLICE 13
+#define SPEC_FAIL_SUBSCR_BYTEARRAY_INT 18
+#define SPEC_FAIL_SUBSCR_BYTEARRAY_SLICE 19
+#define SPEC_FAIL_SUBSCR_PY_SIMPLE 20
+#define SPEC_FAIL_SUBSCR_PY_OTHER 21
+#define SPEC_FAIL_SUBSCR_DICT_SUBCLASS_NO_OVERRIDE 22
+#define SPEC_FAIL_SUBSCR_NOT_HEAP_TYPE 23
+#define SPEC_FAIL_BINARY_OP_ADD_DIFFERENT_TYPES          9
+#define SPEC_FAIL_BINARY_OP_ADD_OTHER                   10
+#define SPEC_FAIL_BINARY_OP_AND_DIFFERENT_TYPES         11
+#define SPEC_FAIL_BINARY_OP_AND_INT                     12
+#define SPEC_FAIL_BINARY_OP_AND_OTHER                   13
+#define SPEC_FAIL_BINARY_OP_FLOOR_DIVIDE                14
+#define SPEC_FAIL_BINARY_OP_LSHIFT                      15
+#define SPEC_FAIL_BINARY_OP_MATRIX_MULTIPLY             16
+#define SPEC_FAIL_BINARY_OP_MULTIPLY_DIFFERENT_TYPES    17
+#define SPEC_FAIL_BINARY_OP_MULTIPLY_OTHER              18
+#define SPEC_FAIL_BINARY_OP_OR                          19
+#define SPEC_FAIL_BINARY_OP_POWER                       20
+#define SPEC_FAIL_BINARY_OP_REMAINDER                   21
+#define SPEC_FAIL_BINARY_OP_RSHIFT                      22
+#define SPEC_FAIL_BINARY_OP_SUBTRACT_DIFFERENT_TYPES    23
+#define SPEC_FAIL_BINARY_OP_SUBTRACT_OTHER              24
+#define SPEC_FAIL_BINARY_OP_TRUE_DIVIDE_DIFFERENT_TYPES 25
+#define SPEC_FAIL_BINARY_OP_TRUE_DIVIDE_FLOAT           26
+#define SPEC_FAIL_BINARY_OP_TRUE_DIVIDE_OTHER           27
+#define SPEC_FAIL_BINARY_OP_XOR                         28
+#define SPEC_FAIL_BINARY_OP_OR_INT                      29
+#define SPEC_FAIL_BINARY_OP_OR_DIFFERENT_TYPES          30
+#define SPEC_FAIL_BINARY_OP_XOR_INT                     31
+#define SPEC_FAIL_BINARY_OP_XOR_DIFFERENT_TYPES         32
+#define SPEC_FAIL_BINARY_OP_SUBSCR                      33
+#define SPEC_FAIL_BINARY_OP_SUBSCR_LIST_SLICE           34
+#define SPEC_FAIL_BINARY_OP_SUBSCR_TUPLE_SLICE          35
+#define SPEC_FAIL_BINARY_OP_SUBSCR_STRING_SLICE         36
+#define SPEC_FAIL_BINARY_OP_SUBSCR_NOT_HEAP_TYPE        37
+#define SPEC_FAIL_BINARY_OP_SUBSCR_OTHER_SLICE          38
+#define SPEC_FAIL_BINARY_OP_SUBSCR_MAPPINGPROXY         39
+#define SPEC_FAIL_BINARY_OP_SUBSCR_RE_MATCH             40
+#define SPEC_FAIL_BINARY_OP_SUBSCR_ARRAY                41
+#define SPEC_FAIL_BINARY_OP_SUBSCR_DEQUE                42
+#define SPEC_FAIL_BINARY_OP_SUBSCR_ENUMDICT             43
+#define SPEC_FAIL_BINARY_OP_SUBSCR_STACKSUMMARY         44
+#define SPEC_FAIL_BINARY_OP_SUBSCR_DEFAULTDICT          45
+#define SPEC_FAIL_BINARY_OP_SUBSCR_COUNTER              46
+#define SPEC_FAIL_BINARY_OP_SUBSCR_ORDEREDDICT          47
+#define SPEC_FAIL_BINARY_OP_SUBSCR_BYTES                48
+#define SPEC_FAIL_BINARY_OP_SUBSCR_STRUCTTIME           49
+#define SPEC_FAIL_BINARY_OP_SUBSCR_RANGE                50
+#define SPEC_FAIL_CALL_INSTANCE_METHOD 11
+#define SPEC_FAIL_CALL_CMETHOD 12
+#define SPEC_FAIL_CALL_CFUNC_VARARGS 13
+#define SPEC_FAIL_CALL_CFUNC_VARARGS_KEYWORDS 14
+#define SPEC_FAIL_CALL_CFUNC_NOARGS 15
+#define SPEC_FAIL_CALL_CFUNC_METHOD_FASTCALL_KEYWORDS 16
+#define SPEC_FAIL_CALL_METH_DESCR_VARARGS 17
+#define SPEC_FAIL_CALL_METH_DESCR_VARARGS_KEYWORDS 18
+#define SPEC_FAIL_CALL_METH_DESCR_METHOD_FASTCALL_KEYWORDS 19
+#define SPEC_FAIL_CALL_BAD_CALL_FLAGS 20
+#define SPEC_FAIL_CALL_INIT_NOT_PYTHON 21
+#define SPEC_FAIL_CALL_PEP_523 22
+#define SPEC_FAIL_CALL_BOUND_METHOD 23
+#define SPEC_FAIL_CALL_CLASS_MUTABLE 26
+#define SPEC_FAIL_CALL_METHOD_WRAPPER 28
+#define SPEC_FAIL_CALL_OPERATOR_WRAPPER 29
+#define SPEC_FAIL_CALL_INIT_NOT_SIMPLE 30
+#define SPEC_FAIL_CALL_METACLASS 31
+#define SPEC_FAIL_CALL_INIT_NOT_INLINE_VALUES 32
+#define SPEC_FAIL_COMPARE_OP_DIFFERENT_TYPES 12
+#define SPEC_FAIL_COMPARE_OP_STRING 13
+#define SPEC_FAIL_COMPARE_OP_BIG_INT 14
+#define SPEC_FAIL_COMPARE_OP_BYTES 15
+#define SPEC_FAIL_COMPARE_OP_TUPLE 16
+#define SPEC_FAIL_COMPARE_OP_LIST 17
+#define SPEC_FAIL_COMPARE_OP_SET 18
+#define SPEC_FAIL_COMPARE_OP_BOOL 19
+#define SPEC_FAIL_COMPARE_OP_BASEOBJECT 20
+#define SPEC_FAIL_COMPARE_OP_FLOAT_LONG 21
+#define SPEC_FAIL_COMPARE_OP_LONG_FLOAT 22
+#define SPEC_FAIL_ITER_GENERATOR 10
+#define SPEC_FAIL_ITER_COROUTINE 11
+#define SPEC_FAIL_ITER_ASYNC_GENERATOR 12
+#define SPEC_FAIL_ITER_LIST 13
+#define SPEC_FAIL_ITER_TUPLE 14
+#define SPEC_FAIL_ITER_SET 15
+#define SPEC_FAIL_ITER_STRING 16
+#define SPEC_FAIL_ITER_BYTES 17
+#define SPEC_FAIL_ITER_RANGE 18
+#define SPEC_FAIL_ITER_ITERTOOLS 19
+#define SPEC_FAIL_ITER_DICT_KEYS 20
+#define SPEC_FAIL_ITER_DICT_ITEMS 21
+#define SPEC_FAIL_ITER_DICT_VALUES 22
+#define SPEC_FAIL_ITER_ENUMERATE 23
+#define SPEC_FAIL_ITER_MAP 24
+#define SPEC_FAIL_ITER_ZIP 25
+#define SPEC_FAIL_ITER_SEQ_ITER 26
+#define SPEC_FAIL_ITER_REVERSED_LIST 27
+#define SPEC_FAIL_ITER_CALLABLE 28
+#define SPEC_FAIL_ITER_ASCII_STRING 29
+#define SPEC_FAIL_ITER_ASYNC_GENERATOR_SEND 30
+#define SPEC_FAIL_ITER_SELF 31
+#define SPEC_FAIL_UNPACK_SEQUENCE_ITERATOR 9
+#define SPEC_FAIL_UNPACK_SEQUENCE_SEQUENCE 10
+#define SPEC_FAIL_TO_BOOL_BYTEARRAY    9
+#define SPEC_FAIL_TO_BOOL_BYTES       10
+#define SPEC_FAIL_TO_BOOL_DICT        11
+#define SPEC_FAIL_TO_BOOL_FLOAT       12
+#define SPEC_FAIL_TO_BOOL_MAPPING     13
+#define SPEC_FAIL_TO_BOOL_MEMORY_VIEW 14
+#define SPEC_FAIL_TO_BOOL_NUMBER      15
+#define SPEC_FAIL_TO_BOOL_SEQUENCE    16
+#define SPEC_FAIL_TO_BOOL_SET         17
+#define SPEC_FAIL_TO_BOOL_TUPLE       18
+#define SPEC_FAIL_CONTAINS_OP_STR        9
+#define SPEC_FAIL_CONTAINS_OP_TUPLE      10
+#define SPEC_FAIL_CONTAINS_OP_LIST       11
+#define SPEC_FAIL_CONTAINS_OP_USER_CLASS 12
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_STATS
+#endif   // Py_STATS
+#ifdef Py_STATS
+#endif
+#ifdef Py_STATS
+#endif
+#ifdef Py_STATS
+#endif
+#define BITWISE_LONGS_ACTION(NAME, OP) \
+    static PyObject * \
+    (NAME)(PyObject *lhs, PyObject *rhs) \
+    { \
+        Py_ssize_t rhs_val = _PyLong_CompactValue((PyLongObject *)rhs); \
+        Py_ssize_t lhs_val = _PyLong_CompactValue((PyLongObject *)lhs); \
+        return PyLong_FromSsize_t(lhs_val OP rhs_val); \
+    }
+#undef BITWISE_LONGS_ACTION
+#define FLOAT_LONG_ACTION(NAME, OP) \
+    static PyObject * \
+    (NAME)(PyObject *lhs, PyObject *rhs) \
+    { \
+        double lhs_val = PyFloat_AsDouble(lhs); \
+        Py_ssize_t rhs_val = _PyLong_CompactValue((PyLongObject *)rhs); \
+        return PyFloat_FromDouble(lhs_val OP rhs_val); \
+    }
+#undef FLOAT_LONG_ACTION
+#define LONG_FLOAT_ACTION(NAME, OP) \
+    static PyObject * \
+    (NAME)(PyObject *lhs, PyObject *rhs) \
+    { \
+        double rhs_val = PyFloat_AsDouble(rhs); \
+        Py_ssize_t lhs_val = _PyLong_CompactValue((PyLongObject *)lhs); \
+        return PyFloat_FromDouble(lhs_val OP rhs_val); \
+    }
+#undef LONG_FLOAT_ACTION
+#ifdef Py_STATS
+#endif   // Py_STATS
+#ifdef Py_STATS
+#endif   // Py_STATS
+#ifdef Py_STATS
+#endif   // Py_STATS
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_STATS
+#endif  // Py_STATS
+#ifdef Py_STATS
+#endif
+#ifdef Py_STATS
+#endif
+#define NO_LOC_4 (128 | (PY_CODE_LOCATION_INFO_NONE << 3) | 3)
+#ifdef Py_GIL_DISABLED
+#endif
+#ifdef Py_GIL_DISABLED
+#endif
+typedef enum {
+    OVERRIDING, /* Is an overriding descriptor, and will remain so. */
+    METHOD, /* Attribute has Py_TPFLAGS_METHOD_DESCRIPTOR set */
+    PROPERTY, /* Is a property */
+    OBJECT_SLOT, /* Is an object slot descriptor */
+    OTHER_SLOT, /* Is a slot descriptor of another type */
+    NON_OVERRIDING, /* Is another non-overriding descriptor, and is an instance of an immutable class*/
+    BUILTIN_CLASSMETHOD, /* Builtin methods with METH_CLASS */
+    PYTHON_CLASSMETHOD, /* Python classmethod(func) object */
+    NON_DESCRIPTOR, /* Is not a descriptor, and is an instance of an immutable class */
+    MUTABLE,   /* Instance of a mutable class; might, or might not, be a descriptor */
+    ABSENT, /* Attribute is not present on the class */
+    DUNDER_CLASS, /* __class__ attribute */
+    GETSET_OVERRIDDEN, /* __getattribute__ or __setattr__ has been overridden */
+    GETATTRIBUTE_IS_PYTHON_FUNCTION  /* Descriptor requires calling a Python __getattribute__ */
+} DescriptorClassification;
+static inline int
+set_opcode(_Py_CODEUNIT *instr, uint8_t opcode)
+{
+#ifdef Py_GIL_DISABLED
+    uint8_t old_op = _Py_atomic_load_uint8_relaxed(&instr->op.code);
+    if (old_op >= MIN_INSTRUMENTED_OPCODE) {
+        /* Lost race with instrumentation */
+        return 0;
+    }
+    if (!_Py_atomic_compare_exchange_uint8(&instr->op.code, &old_op, opcode)) {
+        /* Lost race with instrumentation */
+        assert(old_op >= MIN_INSTRUMENTED_OPCODE);
+        return 0;
+    }
+    return 1;
+#else
+    instr->op.code = opcode;
+    return 1;
+#endif
+}
+static inline void
+set_counter(_Py_BackoffCounter *counter, _Py_BackoffCounter value)
+{
+    FT_ATOMIC_STORE_UINT16_RELAXED(counter->value_and_backoff,
+                                   value.value_and_backoff);
+}
+static inline void
+specialize(_Py_CODEUNIT *instr, uint8_t specialized_opcode)
+{
+    assert(!PyErr_Occurred());
+    if (!set_opcode(instr, specialized_opcode)) {
+        STAT_INC(_PyOpcode_Deopt[specialized_opcode], failure);
+        SPECIALIZATION_FAIL(_PyOpcode_Deopt[specialized_opcode],
+                            SPEC_FAIL_OTHER);
+        return;
+    }
+    STAT_INC(_PyOpcode_Deopt[specialized_opcode], success);
+    set_counter((_Py_BackoffCounter *)instr + 1, adaptive_counter_cooldown());
+}
+static inline _Py_BackoffCounter
+load_counter(_Py_BackoffCounter *counter)
+{
+    _Py_BackoffCounter result = {
+        .value_and_backoff =
+            FT_ATOMIC_LOAD_UINT16_RELAXED(counter->value_and_backoff)};
+    return result;
+}
+static inline void
+unspecialize(_Py_CODEUNIT *instr)
+{
+    assert(!PyErr_Occurred());
+    uint8_t opcode = FT_ATOMIC_LOAD_UINT8_RELAXED(instr->op.code);
+    uint8_t generic_opcode = _PyOpcode_Deopt[opcode];
+    STAT_INC(generic_opcode, failure);
+    if (!set_opcode(instr, generic_opcode)) {
+        SPECIALIZATION_FAIL(generic_opcode, SPEC_FAIL_OTHER);
+        return;
+    }
+    _Py_BackoffCounter *counter = (_Py_BackoffCounter *)instr + 1;
+    _Py_BackoffCounter cur = load_counter(counter);
+    set_counter(counter, adaptive_counter_backoff(cur));
+}
+Py_NO_INLINE void
+_Py_Specialize_LoadSuperAttr(_PyStackRef global_super_st, _PyStackRef cls_st, _Py_CODEUNIT *instr, int load_method) {
+    PyObject *global_super = PyStackRef_AsPyObjectBorrow(global_super_st);
+    PyObject *cls = PyStackRef_AsPyObjectBorrow(cls_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[LOAD_SUPER_ATTR] == INLINE_CACHE_ENTRIES_LOAD_SUPER_ATTR);
+    if (global_super != (PyObject *)&PySuper_Type) {
+        SPECIALIZATION_FAIL(LOAD_SUPER_ATTR, SPEC_FAIL_SUPER_SHADOWED);
+        goto fail;
+    }
+    if (!PyType_Check(cls)) {
+        SPECIALIZATION_FAIL(LOAD_SUPER_ATTR, SPEC_FAIL_SUPER_BAD_CLASS);
+        goto fail;
+    }
+    uint8_t load_code = load_method ? LOAD_SUPER_ATTR_METHOD : LOAD_SUPER_ATTR_ATTR;
+    specialize(instr, load_code);
+    return;
+fail:
+    unspecialize(instr);
+}
+static int
+specialize_module_load_attr_lock_held(PyDictObject *dict, _Py_CODEUNIT *instr, PyObject *name)
+{
+    _PyAttrCache *cache = (_PyAttrCache *)(instr + 1);
+    if (dict->ma_keys->dk_kind != DICT_KEYS_UNICODE) {
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_NON_STRING);
+        return -1;
+    }
+    Py_ssize_t index = _PyDict_LookupIndex(dict, &_Py_ID(__getattr__));
+    assert(index != DKIX_ERROR);
+    if (index != DKIX_EMPTY) {
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_MODULE_ATTR_NOT_FOUND);
+        return -1;
+    }
+    index = _PyDict_LookupIndex(dict, name);
+    assert (index != DKIX_ERROR);
+    if (index != (uint16_t)index) {
+        SPECIALIZATION_FAIL(LOAD_ATTR,
+                            index == DKIX_EMPTY ?
+                            SPEC_FAIL_ATTR_MODULE_ATTR_NOT_FOUND :
+                            SPEC_FAIL_OUT_OF_RANGE);
+        return -1;
+    }
+    uint32_t keys_version = _PyDict_GetKeysVersionForCurrentState(
+            _PyInterpreterState_GET(), dict);
+    if (keys_version == 0) {
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_VERSIONS);
+        return -1;
+    }
+    write_u32(cache->version, keys_version);
+    cache->index = (uint16_t)index;
+    specialize(instr, LOAD_ATTR_MODULE);
+    return 0;
+}
+static int
+specialize_module_load_attr(
+    PyObject *owner, _Py_CODEUNIT *instr, PyObject *name)
+{
+    PyModuleObject *m = (PyModuleObject *)owner;
+    assert((Py_TYPE(owner)->tp_flags & Py_TPFLAGS_MANAGED_DICT) == 0);
+    PyDictObject *dict = (PyDictObject *)m->md_dict;
+    if (dict == NULL) {
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_NO_DICT);
+        return -1;
+    }
+    int result;
+    Py_BEGIN_CRITICAL_SECTION(dict);
+    result = specialize_module_load_attr_lock_held(dict, instr, name);
+    Py_END_CRITICAL_SECTION();
+    return result;
+}
+static DescriptorClassification
+classify_descriptor(PyObject *descriptor, bool has_getattr)
+{
+    if (descriptor == NULL) {
+        return ABSENT;
+    }
+    PyTypeObject *desc_cls = Py_TYPE(descriptor);
+    if (!(desc_cls->tp_flags & Py_TPFLAGS_IMMUTABLETYPE)) {
+        return MUTABLE;
+    }
+    if (desc_cls->tp_descr_set) {
+        if (desc_cls == &PyMemberDescr_Type) {
+            PyMemberDescrObject *member = (PyMemberDescrObject *)descriptor;
+            struct PyMemberDef *dmem = member->d_member;
+            if (dmem->type == Py_T_OBJECT_EX || dmem->type == _Py_T_OBJECT) {
+                return OBJECT_SLOT;
+            }
+            return OTHER_SLOT;
+        }
+        if (desc_cls == &PyProperty_Type) {
+            /* We can't detect at runtime whether an attribute exists
+               with property. So that means we may have to call
+               __getattr__. */
+            return has_getattr ? GETSET_OVERRIDDEN : PROPERTY;
+        }
+        return OVERRIDING;
+    }
+    if (desc_cls->tp_descr_get) {
+        if (desc_cls->tp_flags & Py_TPFLAGS_METHOD_DESCRIPTOR) {
+            return METHOD;
+        }
+        if (Py_IS_TYPE(descriptor, &PyClassMethodDescr_Type)) {
+            return BUILTIN_CLASSMETHOD;
+        }
+        if (Py_IS_TYPE(descriptor, &PyClassMethod_Type)) {
+            return PYTHON_CLASSMETHOD;
+        }
+        return NON_OVERRIDING;
+    }
+    return NON_DESCRIPTOR;
+}
+static bool
+descriptor_is_class(PyObject *descriptor, PyObject *name)
+{
+    return ((PyUnicode_CompareWithASCIIString(name, "__class__") == 0) &&
+            (descriptor == _PyType_Lookup(&PyBaseObject_Type, name)));
+}
+static DescriptorClassification
+analyze_descriptor_load(PyTypeObject *type, PyObject *name, PyObject **descr, unsigned int *tp_version) {
+    bool has_getattr = false;
+    bool have_ga_version = false;
+    unsigned int ga_version;
+    getattrofunc getattro_slot = type->tp_getattro;
+    if (getattro_slot == PyObject_GenericGetAttr) {
+        /* Normal attribute lookup; */
+        has_getattr = false;
+    }
+    else if (getattro_slot == _Py_slot_tp_getattr_hook ||
+        getattro_slot == _Py_slot_tp_getattro) {
+        /* One or both of __getattribute__ or __getattr__ may have been
+         overridden See typeobject.c for why these functions are special. */
+        PyObject *getattribute = _PyType_LookupRefAndVersion(type,
+                &_Py_ID(__getattribute__), &ga_version);
+        have_ga_version = true;
+        PyInterpreterState *interp = _PyInterpreterState_GET();
+        bool has_custom_getattribute = getattribute != NULL &&
+            getattribute != interp->callable_cache.object__getattribute__;
+        PyObject *getattr = _PyType_Lookup(type, &_Py_ID(__getattr__));
+        has_getattr = getattr != NULL;
+        if (has_custom_getattribute) {
+            if (getattro_slot == _Py_slot_tp_getattro &&
+                !has_getattr &&
+                Py_IS_TYPE(getattribute, &PyFunction_Type)) {
+                *descr = getattribute;
+                *tp_version = ga_version;
+                return GETATTRIBUTE_IS_PYTHON_FUNCTION;
+            }
+            /* Potentially both __getattr__ and __getattribute__ are set.
+               Too complicated */
+            Py_DECREF(getattribute);
+            *descr = NULL;
+            *tp_version = ga_version;
+            return GETSET_OVERRIDDEN;
+        }
+        /* Potentially has __getattr__ but no custom __getattribute__.
+           Fall through to usual descriptor analysis.
+           Usual attribute lookup should only be allowed at runtime
+           if we can guarantee that there is no way an exception can be
+           raised. This means some specializations, e.g. specializing
+           for property() isn't safe.
+        */
+        Py_XDECREF(getattribute);
+    }
+    else {
+        *descr = NULL;
+        *tp_version = FT_ATOMIC_LOAD_UINT_RELAXED(type->tp_version_tag);
+        return GETSET_OVERRIDDEN;
+    }
+    unsigned int descr_version;
+    PyObject *descriptor = _PyType_LookupRefAndVersion(type, name, &descr_version);
+    *descr = descriptor;
+    *tp_version = have_ga_version ? ga_version : descr_version;
+    if (descriptor_is_class(descriptor, name)) {
+        return DUNDER_CLASS;
+    }
+    return classify_descriptor(descriptor, has_getattr);
+}
+static int
+specialize_class_load_attr(PyObject *owner, _Py_CODEUNIT *instr,
+                             PyObject *name)
+{
+    assert(PyType_Check(owner));
+    PyTypeObject *cls = (PyTypeObject *)owner;
+    _PyLoadMethodCache *cache = (_PyLoadMethodCache *)(instr + 1);
+    if (Py_TYPE(cls)->tp_getattro != _Py_type_getattro) {
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_METACLASS_OVERRIDDEN);
+        return -1;
+    }
+    unsigned int meta_version = 0;
+    PyObject *metadescriptor = _PyType_LookupRefAndVersion(Py_TYPE(cls), name, &meta_version);
+    DescriptorClassification metakind = classify_descriptor(metadescriptor, false);
+    Py_XDECREF(metadescriptor);
+    switch (metakind) {
+        case METHOD:
+        case NON_DESCRIPTOR:
+        case NON_OVERRIDING:
+        case BUILTIN_CLASSMETHOD:
+        case PYTHON_CLASSMETHOD:
+        case ABSENT:
+            break;
+        default:
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_METACLASS_ATTRIBUTE);
+            return -1;
+    }
+    PyObject *descr = NULL;
+    DescriptorClassification kind = 0;
+    unsigned int tp_version = 0;
+    kind = analyze_descriptor_load(cls, name, &descr, &tp_version);
+    if (tp_version == 0) {
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_VERSIONS);
+        Py_XDECREF(descr);
+        return -1;
+    }
+    bool metaclass_check = false;
+    if ((Py_TYPE(cls)->tp_flags & Py_TPFLAGS_IMMUTABLETYPE) == 0) {
+        metaclass_check = true;
+        if (meta_version == 0) {
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_VERSIONS);
+            Py_XDECREF(descr);
+            return -1;
+        }
+    }
+    switch (kind) {
+        case METHOD:
+        case NON_DESCRIPTOR:
+            #ifdef Py_GIL_DISABLED
+            if (!_PyObject_HasDeferredRefcount(descr)) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_DESCR_NOT_DEFERRED);
+                Py_XDECREF(descr);
+                return -1;
+            }
+            #endif
+            write_u32(cache->type_version, tp_version);
+            write_ptr(cache->descr, descr);
+            if (metaclass_check) {
+                write_u32(cache->keys_version, meta_version);
+                specialize(instr, LOAD_ATTR_CLASS_WITH_METACLASS_CHECK);
+            }
+            else {
+                specialize(instr, LOAD_ATTR_CLASS);
+            }
+            Py_XDECREF(descr);
+            return 0;
+#ifdef Py_STATS
+        case ABSENT:
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_EXPECTED_ERROR);
+            Py_XDECREF(descr);
+            return -1;
+#endif
+        default:
+            SPECIALIZATION_FAIL(LOAD_ATTR, load_attr_fail_kind(kind));
+            Py_XDECREF(descr);
+            return -1;
+    }
+}
+static bool
+instance_has_key(PyObject *obj, PyObject *name, uint32_t *shared_keys_version)
+{
+    PyTypeObject *cls = Py_TYPE(obj);
+    if ((cls->tp_flags & Py_TPFLAGS_MANAGED_DICT) == 0) {
+        return false;
+    }
+    if (cls->tp_flags & Py_TPFLAGS_INLINE_VALUES) {
+        PyDictKeysObject *keys = ((PyHeapTypeObject *)cls)->ht_cached_keys;
+        Py_ssize_t index =
+            _PyDictKeys_StringLookupAndVersion(keys, name, shared_keys_version);
+        return index >= 0;
+    }
+    PyDictObject *dict = _PyObject_GetManagedDict(obj);
+    if (dict == NULL || !PyDict_CheckExact(dict)) {
+        return false;
+    }
+    bool result;
+    Py_BEGIN_CRITICAL_SECTION(dict);
+    if (dict->ma_values) {
+        result = false;
+    }
+    else {
+        result = (_PyDict_LookupIndex(dict, name) >= 0);
+    }
+    Py_END_CRITICAL_SECTION();
+    return result;
+}
+static int
+specialize_attr_loadclassattr(PyObject *owner, _Py_CODEUNIT *instr,
+                              PyObject *name, PyObject *descr,
+                              unsigned int tp_version,
+                              DescriptorClassification kind, bool is_method,
+                              uint32_t shared_keys_version)
+{
+    _PyLoadMethodCache *cache = (_PyLoadMethodCache *)(instr + 1);
+    PyTypeObject *owner_cls = Py_TYPE(owner);
+
+    assert(descr != NULL);
+    assert((is_method && kind == METHOD) || (!is_method && kind == NON_DESCRIPTOR));
+
+    #ifdef Py_GIL_DISABLED
+    if (!_PyObject_HasDeferredRefcount(descr)) {
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_DESCR_NOT_DEFERRED);
+        return 0;
+    }
+    #endif
+
+    unsigned long tp_flags = PyType_GetFlags(owner_cls);
+    if (tp_flags & Py_TPFLAGS_INLINE_VALUES) {
+        #ifndef Py_GIL_DISABLED
+        assert(_PyDictKeys_StringLookup(
+                   ((PyHeapTypeObject *)owner_cls)->ht_cached_keys, name) < 0);
+        #endif
+        if (shared_keys_version == 0) {
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_VERSIONS);
+            return 0;
+        }
+        write_u32(cache->keys_version, shared_keys_version);
+        specialize(instr, is_method ? LOAD_ATTR_METHOD_WITH_VALUES : LOAD_ATTR_NONDESCRIPTOR_WITH_VALUES);
+    }
+    else {
+        Py_ssize_t dictoffset;
+        if (tp_flags & Py_TPFLAGS_MANAGED_DICT) {
+            dictoffset = MANAGED_DICT_OFFSET;
+        }
+        else {
+            dictoffset = owner_cls->tp_dictoffset;
+            if (dictoffset < 0 || dictoffset > INT16_MAX + MANAGED_DICT_OFFSET) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_RANGE);
+                return 0;
+            }
+        }
+        if (dictoffset == 0) {
+            specialize(instr, is_method ? LOAD_ATTR_METHOD_NO_DICT : LOAD_ATTR_NONDESCRIPTOR_NO_DICT);
+        }
+        else if (is_method) {
+            PyObject **addr = (PyObject **)((char *)owner + dictoffset);
+            PyObject *dict = FT_ATOMIC_LOAD_PTR_ACQUIRE(*addr);
+            if (dict) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_NOT_MANAGED_DICT);
+                return 0;
+            }
+            /* Cache entries must be unsigned values, so we offset the
+             * dictoffset by MANAGED_DICT_OFFSET.
+             * We do the reverse offset in LOAD_ATTR_METHOD_LAZY_DICT */
+            dictoffset -= MANAGED_DICT_OFFSET;
+            assert(((uint16_t)dictoffset) == dictoffset);
+            cache->dict_offset = (uint16_t)dictoffset;
+            specialize(instr, LOAD_ATTR_METHOD_LAZY_DICT);
+        }
+        else {
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_CLASS_ATTR_SIMPLE);
+            return 0;
+        }
+    }
+    /* `descr` is borrowed. This is safe for methods (even inherited ones from
+    *  super classes!) as long as tp_version_tag is validated for two main reasons:
+    *
+    *  1. The class will always hold a reference to the method so it will
+    *  usually not be GC-ed. Should it be deleted in Python, e.g.
+    *  `del obj.meth`, tp_version_tag will be invalidated, because of reason 2.
+    *
+    *  2. The pre-existing type method cache (MCACHE) uses the same principles
+    *  of caching a borrowed descriptor. The MCACHE infrastructure does all the
+    *  heavy lifting for us. E.g. it invalidates tp_version_tag on any MRO
+    *  modification, on any type object change along said MRO, etc. (see
+    *  PyType_Modified usages in typeobject.c). The MCACHE has been
+    *  working since Python 2.6 and it's battle-tested.
+    */
+    write_u32(cache->type_version, tp_version);
+    write_ptr(cache->descr, descr);
+    return 1;
+}
+static int
+function_kind(PyCodeObject *code) {
+    int flags = code->co_flags;
+    if ((flags & (CO_VARKEYWORDS | CO_VARARGS)) || code->co_kwonlyargcount) {
+        return SPEC_FAIL_CODE_COMPLEX_PARAMETERS;
+    }
+    if ((flags & CO_OPTIMIZED) == 0) {
+        return SPEC_FAIL_CODE_NOT_OPTIMIZED;
+    }
+    return SIMPLE_FUNCTION;
+}
+static bool
+function_check_args(PyObject *o, int expected_argcount, int opcode)
+{
+    assert(Py_IS_TYPE(o, &PyFunction_Type));
+    PyFunctionObject *func = (PyFunctionObject *)o;
+    PyCodeObject *fcode = (PyCodeObject *)func->func_code;
+    int kind = function_kind(fcode);
+    if (kind != SIMPLE_FUNCTION) {
+        SPECIALIZATION_FAIL(opcode, kind);
+        return false;
+    }
+    if (fcode->co_argcount != expected_argcount) {
+        SPECIALIZATION_FAIL(opcode, SPEC_FAIL_WRONG_NUMBER_ARGUMENTS);
+        return false;
+    }
+    return true;
+}
+static uint32_t
+function_get_version(PyObject *o, int opcode)
+{
+    assert(Py_IS_TYPE(o, &PyFunction_Type));
+    PyFunctionObject *func = (PyFunctionObject *)o;
+    uint32_t version = _PyFunction_GetVersionForCurrentState(func);
+    if (!_PyFunction_IsVersionValid(version)) {
+        SPECIALIZATION_FAIL(opcode, SPEC_FAIL_OUT_OF_VERSIONS);
+        return 0;
+    }
+    return version;
+}
+static int
+specialize_dict_access_inline(
+    PyObject *owner, _Py_CODEUNIT *instr, PyTypeObject *type,
+    PyObject *name, unsigned int tp_version,
+    int base_op, int values_op)
+{
+    _PyAttrCache *cache = (_PyAttrCache *)(instr + 1);
+    PyDictKeysObject *keys = ((PyHeapTypeObject *)type)->ht_cached_keys;
+    assert(PyUnicode_CheckExact(name));
+    _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(owner);
+    Py_ssize_t index = _PyDictKeys_StringLookupSplit(keys, name);
+    assert (index != DKIX_ERROR);
+    if (index == DKIX_EMPTY) {
+        SPECIALIZATION_FAIL(base_op, SPEC_FAIL_ATTR_NOT_IN_KEYS);
+        return 0;
+    }
+    assert(index >= 0);
+    assert(_PyObject_InlineValues(owner)->valid);
+    char *value_addr = (char *)&_PyObject_InlineValues(owner)->values[index];
+    Py_ssize_t offset = value_addr - (char *)owner;
+    if (offset != (uint16_t)offset) {
+        SPECIALIZATION_FAIL(base_op, SPEC_FAIL_OUT_OF_RANGE);
+        return 0;
+    }
+    cache->index = (uint16_t)offset;
+    write_u32(cache->version, tp_version);
+    specialize(instr, values_op);
+    return 1;
+}
+static int
+specialize_dict_access_hint(
+    PyDictObject *dict, _Py_CODEUNIT *instr, PyTypeObject *type,
+    PyObject *name, unsigned int tp_version,
+    int base_op, int hint_op)
+{
+    _PyAttrCache *cache = (_PyAttrCache *)(instr + 1);
+
+    _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(dict);
+#ifdef Py_GIL_DISABLED
+    _PyDict_EnsureSharedOnRead(dict);
+#endif
+
+    // We found an instance with a __dict__.
+    if (_PyDict_HasSplitTable(dict)) {
+        SPECIALIZATION_FAIL(base_op, SPEC_FAIL_ATTR_SPLIT_DICT);
+        return 0;
+    }
+    Py_ssize_t index = _PyDict_LookupIndex(dict, name);
+    if (index != (uint16_t)index) {
+        SPECIALIZATION_FAIL(base_op,
+                            index == DKIX_EMPTY ?
+                            SPEC_FAIL_ATTR_NOT_IN_DICT :
+                            SPEC_FAIL_OUT_OF_RANGE);
+        return 0;
+    }
+    cache->index = (uint16_t)index;
+    write_u32(cache->version, tp_version);
+    specialize(instr, hint_op);
+    return 1;
+}
+static int
+specialize_dict_access(
+    PyObject *owner, _Py_CODEUNIT *instr, PyTypeObject *type,
+    DescriptorClassification kind, PyObject *name, unsigned int tp_version,
+    int base_op, int values_op, int hint_op)
+{
+    assert(kind == NON_OVERRIDING || kind == NON_DESCRIPTOR || kind == ABSENT ||
+        kind == BUILTIN_CLASSMETHOD || kind == PYTHON_CLASSMETHOD ||
+        kind == METHOD);
+    // No descriptor, or non overriding.
+    if ((type->tp_flags & Py_TPFLAGS_MANAGED_DICT) == 0) {
+        SPECIALIZATION_FAIL(base_op, SPEC_FAIL_ATTR_NOT_MANAGED_DICT);
+        return 0;
+    }
+    if (type->tp_flags & Py_TPFLAGS_INLINE_VALUES &&
+        FT_ATOMIC_LOAD_UINT8(_PyObject_InlineValues(owner)->valid) &&
+        !(base_op == STORE_ATTR && _PyObject_GetManagedDict(owner) != NULL))
+    {
+        int res;
+        Py_BEGIN_CRITICAL_SECTION(owner);
+        PyDictObject *dict = _PyObject_GetManagedDict(owner);
+        if (dict == NULL) {
+            // managed dict, not materialized, inline values valid
+            res = specialize_dict_access_inline(owner, instr, type, name,
+                                                tp_version, base_op, values_op);
+        }
+        else {
+            // lost race and dict was created, fail specialization
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_OTHER);
+            res = 0;
+        }
+        Py_END_CRITICAL_SECTION();
+        return res;
+    }
+    else {
+        PyDictObject *dict = _PyObject_GetManagedDict(owner);
+        if (dict == NULL || !PyDict_CheckExact(dict)) {
+            SPECIALIZATION_FAIL(base_op, SPEC_FAIL_NO_DICT);
+            return 0;
+        }
+        int res;
+        Py_BEGIN_CRITICAL_SECTION(dict);
+        // materialized managed dict
+        res = specialize_dict_access_hint(dict, instr, type, name,
+                                          tp_version, base_op, hint_op);
+        Py_END_CRITICAL_SECTION();
+        return res;
+    }
+}
+static int
+do_specialize_instance_load_attr(PyObject* owner, _Py_CODEUNIT* instr, PyObject* name,
+                                 bool shadow, uint32_t shared_keys_version,
+                                 DescriptorClassification kind, PyObject *descr, unsigned int tp_version)
+{
+    _PyAttrCache *cache = (_PyAttrCache *)(instr + 1);
+    PyTypeObject *type = Py_TYPE(owner);
+    if (tp_version == 0) {
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_VERSIONS);
+        return -1;
+    }
+    uint8_t oparg = FT_ATOMIC_LOAD_UINT8_RELAXED(instr->op.arg);
+    switch(kind) {
+        case OVERRIDING:
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_OVERRIDING_DESCRIPTOR);
+            return -1;
+        case METHOD:
+        {
+            if (shadow) {
+                goto try_instance;
+            }
+            if (oparg & 1) {
+                if (specialize_attr_loadclassattr(owner, instr, name, descr,
+                                                  tp_version, kind, true,
+                                                  shared_keys_version)) {
+                    return 0;
+                }
+                else {
+                    return -1;
+                }
+            }
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_METHOD);
+            return -1;
+        }
+        case PROPERTY:
+        {
+            _PyLoadMethodCache *lm_cache = (_PyLoadMethodCache *)(instr + 1);
+            assert(Py_TYPE(descr) == &PyProperty_Type);
+            PyObject *fget = ((_PyPropertyObject *)descr)->prop_get;
+            if (fget == NULL) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_EXPECTED_ERROR);
+                return -1;
+            }
+            if (!Py_IS_TYPE(fget, &PyFunction_Type)) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_PROPERTY_NOT_PY_FUNCTION);
+                return -1;
+            }
+            if (!function_check_args(fget, 1, LOAD_ATTR)) {
+                return -1;
+            }
+            if (oparg & 1) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_METHOD);
+                return -1;
+            }
+            /* Don't specialize if PEP 523 is active */
+            if (_PyInterpreterState_GET()->eval_frame) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OTHER);
+                return -1;
+            }
+            #ifdef Py_GIL_DISABLED
+            if (!_PyObject_HasDeferredRefcount(fget)) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_DESCR_NOT_DEFERRED);
+                return -1;
+            }
+            #endif
+            assert(tp_version != 0);
+            write_u32(lm_cache->type_version, tp_version);
+            /* borrowed */
+            write_ptr(lm_cache->descr, fget);
+            specialize(instr, LOAD_ATTR_PROPERTY);
+            return 0;
+        }
+        case OBJECT_SLOT:
+        {
+            PyMemberDescrObject *member = (PyMemberDescrObject *)descr;
+            struct PyMemberDef *dmem = member->d_member;
+            Py_ssize_t offset = dmem->offset;
+            if (!PyObject_TypeCheck(owner, member->d_common.d_type)) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_EXPECTED_ERROR);
+                return -1;
+            }
+            if (dmem->flags & Py_AUDIT_READ) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_AUDITED_SLOT);
+                return -1;
+            }
+            if (offset != (uint16_t)offset) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OUT_OF_RANGE);
+                return -1;
+            }
+            assert(dmem->type == Py_T_OBJECT_EX || dmem->type == _Py_T_OBJECT);
+            assert(offset > 0);
+            cache->index = (uint16_t)offset;
+            write_u32(cache->version, tp_version);
+            specialize(instr, LOAD_ATTR_SLOT);
+            return 0;
+        }
+        case DUNDER_CLASS:
+        {
+            Py_ssize_t offset = offsetof(PyObject, ob_type);
+            assert(offset == (uint16_t)offset);
+            cache->index = (uint16_t)offset;
+            write_u32(cache->version, tp_version);
+            specialize(instr, LOAD_ATTR_SLOT);
+            return 0;
+        }
+        case OTHER_SLOT:
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_NON_OBJECT_SLOT);
+            return -1;
+        case MUTABLE:
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_MUTABLE_CLASS);
+            return -1;
+        case GETSET_OVERRIDDEN:
+            SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OVERRIDDEN);
+            return -1;
+        case GETATTRIBUTE_IS_PYTHON_FUNCTION:
+        {
+            #ifndef Py_GIL_DISABLED
+            // In free-threaded builds it's possible for tp_getattro to change
+            // after the call to analyze_descriptor. That is fine: the version
+            // guard will fail.
+            assert(type->tp_getattro == _Py_slot_tp_getattro);
+            #endif
+            assert(Py_IS_TYPE(descr, &PyFunction_Type));
+            _PyLoadMethodCache *lm_cache = (_PyLoadMethodCache *)(instr + 1);
+            if (!function_check_args(descr, 2, LOAD_ATTR)) {
+                return -1;
+            }
+            if (oparg & 1) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_METHOD);
+                return -1;
+            }
+            uint32_t version = function_get_version(descr, LOAD_ATTR);
+            if (version == 0) {
+                return -1;
+            }
+            /* Don't specialize if PEP 523 is active */
+            if (_PyInterpreterState_GET()->eval_frame) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OTHER);
+                return -1;
+            }
+            #ifdef Py_GIL_DISABLED
+            if (!_PyObject_HasDeferredRefcount(descr)) {
+                SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_ATTR_DESCR_NOT_DEFERRED);
+                return -1;
+            }
+            #endif
+            write_u32(lm_cache->keys_version, version);
+            /* borrowed */
+            write_ptr(lm_cache->descr, descr);
+            write_u32(lm_cache->type_version, tp_version);
+            specialize(instr, LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN);
+            return 0;
+        }
+        case BUILTIN_CLASSMETHOD:
+        case PYTHON_CLASSMETHOD:
+        case NON_OVERRIDING:
+            if (shadow) {
+                goto try_instance;
+            }
+            return -1;
+        case NON_DESCRIPTOR:
+            if (shadow) {
+                goto try_instance;
+            }
+            if ((oparg & 1) == 0) {
+                if (specialize_attr_loadclassattr(owner, instr, name, descr,
+                                                  tp_version, kind, false,
+                                                  shared_keys_version)) {
+                    return 0;
+                }
+            }
+            return -1;
+        case ABSENT:
+            if (shadow) {
+                goto try_instance;
+            }
+            set_counter((_Py_BackoffCounter*)instr + 1, adaptive_counter_cooldown());
+            return 0;
+    }
+    Py_UNREACHABLE();
+try_instance:
+    if (specialize_dict_access(owner, instr, type, kind, name, tp_version,
+                               LOAD_ATTR, LOAD_ATTR_INSTANCE_VALUE, LOAD_ATTR_WITH_HINT))
+    {
+        return 0;
+    }
+    return -1;
+}
+static int
+specialize_instance_load_attr(PyObject* owner, _Py_CODEUNIT* instr, PyObject* name)
+{
+    // 0 is not a valid version
+    uint32_t shared_keys_version = 0;
+    bool shadow = instance_has_key(owner, name, &shared_keys_version);
+    PyObject *descr = NULL;
+    unsigned int tp_version = 0;
+    PyTypeObject *type = Py_TYPE(owner);
+    DescriptorClassification kind = analyze_descriptor_load(type, name, &descr, &tp_version);
+    int result = do_specialize_instance_load_attr(owner, instr, name, shadow, shared_keys_version, kind, descr, tp_version);
+    Py_XDECREF(descr);
+    return result;
+}
+Py_NO_INLINE void
+_Py_Specialize_LoadAttr(_PyStackRef owner_st, _Py_CODEUNIT *instr, PyObject *name)
+{
+    PyObject *owner = PyStackRef_AsPyObjectBorrow(owner_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[LOAD_ATTR] == INLINE_CACHE_ENTRIES_LOAD_ATTR);
+    PyTypeObject *type = Py_TYPE(owner);
+    bool fail;
+    if (!_PyType_IsReady(type)) {
+        // We *might* not really need this check, but we inherited it from
+        // PyObject_GenericGetAttr and friends... and this way we still do the
+        // right thing if someone forgets to call PyType_Ready(type):
+        SPECIALIZATION_FAIL(LOAD_ATTR, SPEC_FAIL_OTHER);
+        fail = true;
+    }
+    else if (Py_TYPE(owner)->tp_getattro == PyModule_Type.tp_getattro) {
+        fail = specialize_module_load_attr(owner, instr, name);
+    }
+    else if (PyType_Check(owner)) {
+        fail = specialize_class_load_attr(owner, instr, name);
+    }
+    else {
+        fail = specialize_instance_load_attr(owner, instr, name);
+    }
+
+    if (fail) {
+        unspecialize(instr);
+    }
+}
+static DescriptorClassification
+analyze_descriptor_store(PyTypeObject *type, PyObject *name, PyObject **descr, unsigned int *tp_version)
+{
+    if (type->tp_setattro != PyObject_GenericSetAttr) {
+        *descr = NULL;
+        return GETSET_OVERRIDDEN;
+    }
+    PyObject *descriptor = _PyType_LookupRefAndVersion(type, name, tp_version);
+    *descr = descriptor;
+    if (descriptor_is_class(descriptor, name)) {
+        return DUNDER_CLASS;
+    }
+    return classify_descriptor(descriptor, false);
+}
+Py_NO_INLINE void
+_Py_Specialize_StoreAttr(_PyStackRef owner_st, _Py_CODEUNIT *instr, PyObject *name)
+{
+    PyObject *owner = PyStackRef_AsPyObjectBorrow(owner_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[STORE_ATTR] == INLINE_CACHE_ENTRIES_STORE_ATTR);
+    PyObject *descr = NULL;
+    _PyAttrCache *cache = (_PyAttrCache *)(instr + 1);
+    PyTypeObject *type = Py_TYPE(owner);
+    if (!_PyType_IsReady(type)) {
+        // We *might* not really need this check, but we inherited it from
+        // PyObject_GenericSetAttr and friends... and this way we still do the
+        // right thing if someone forgets to call PyType_Ready(type):
+        SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_OTHER);
+        goto fail;
+    }
+    if (PyModule_CheckExact(owner)) {
+        SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_OVERRIDDEN);
+        goto fail;
+    }
+    unsigned int tp_version = 0;
+    DescriptorClassification kind = analyze_descriptor_store(type, name, &descr, &tp_version);
+    if (tp_version == 0) {
+        goto fail;
+    }
+    assert(descr != NULL || kind == ABSENT || kind == GETSET_OVERRIDDEN);
+    switch(kind) {
+        case OVERRIDING:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_OVERRIDING_DESCRIPTOR);
+            goto fail;
+        case METHOD:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_METHOD);
+            goto fail;
+        case PROPERTY:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_PROPERTY);
+            goto fail;
+        case OBJECT_SLOT:
+        {
+            PyMemberDescrObject *member = (PyMemberDescrObject *)descr;
+            struct PyMemberDef *dmem = member->d_member;
+            Py_ssize_t offset = dmem->offset;
+            if (!PyObject_TypeCheck(owner, member->d_common.d_type)) {
+                SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_EXPECTED_ERROR);
+                goto fail;
+            }
+            if (dmem->flags & Py_READONLY) {
+                SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_READ_ONLY);
+                goto fail;
+            }
+            if (offset != (uint16_t)offset) {
+                SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_OUT_OF_RANGE);
+                goto fail;
+            }
+            assert(dmem->type == Py_T_OBJECT_EX || dmem->type == _Py_T_OBJECT);
+            assert(offset > 0);
+            cache->index = (uint16_t)offset;
+            write_u32(cache->version, tp_version);
+            specialize(instr, STORE_ATTR_SLOT);
+            goto success;
+        }
+        case DUNDER_CLASS:
+        case OTHER_SLOT:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_NON_OBJECT_SLOT);
+            goto fail;
+        case MUTABLE:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_MUTABLE_CLASS);
+            goto fail;
+        case GETATTRIBUTE_IS_PYTHON_FUNCTION:
+        case GETSET_OVERRIDDEN:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_OVERRIDDEN);
+            goto fail;
+        case BUILTIN_CLASSMETHOD:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_BUILTIN_CLASS_METHOD_OBJ);
+            goto fail;
+        case PYTHON_CLASSMETHOD:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_CLASS_METHOD_OBJ);
+            goto fail;
+        case NON_OVERRIDING:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_CLASS_ATTR_DESCRIPTOR);
+            goto fail;
+        case NON_DESCRIPTOR:
+            SPECIALIZATION_FAIL(STORE_ATTR, SPEC_FAIL_ATTR_CLASS_ATTR_SIMPLE);
+            goto fail;
+        case ABSENT:
+            if (specialize_dict_access(owner, instr, type, kind, name, tp_version,
+                                       STORE_ATTR, STORE_ATTR_INSTANCE_VALUE,
+                                       STORE_ATTR_WITH_HINT)) {
+                goto success;
+            }
+    }
+fail:
+    Py_XDECREF(descr);
+    unspecialize(instr);
+    return;
+success:
+    Py_XDECREF(descr);
+    return;
+}
+static void
+specialize_load_global_lock_held(
+    PyObject *globals, PyObject *builtins,
+    _Py_CODEUNIT *instr, PyObject *name)
+{
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[LOAD_GLOBAL] == INLINE_CACHE_ENTRIES_LOAD_GLOBAL);
+    /* Use inline cache */
+    _PyLoadGlobalCache *cache = (_PyLoadGlobalCache *)(instr + 1);
+    assert(PyUnicode_CheckExact(name));
+    if (!PyDict_CheckExact(globals)) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_LOAD_GLOBAL_NON_DICT);
+        goto fail;
+    }
+    PyDictKeysObject * globals_keys = ((PyDictObject *)globals)->ma_keys;
+    if (!DK_IS_UNICODE(globals_keys)) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_LOAD_GLOBAL_NON_STRING_OR_SPLIT);
+        goto fail;
+    }
+    Py_ssize_t index = _PyDictKeys_StringLookup(globals_keys, name);
+    if (index == DKIX_ERROR) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_EXPECTED_ERROR);
+        goto fail;
+    }
+    PyInterpreterState *interp = _PyInterpreterState_GET();
+    if (index != DKIX_EMPTY) {
+        if (index != (uint16_t)index) {
+            SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_OUT_OF_RANGE);
+            goto fail;
+        }
+        uint32_t keys_version = _PyDict_GetKeysVersionForCurrentState(
+                interp, (PyDictObject*) globals);
+        if (keys_version == 0) {
+            SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_OUT_OF_VERSIONS);
+            goto fail;
+        }
+        if (keys_version != (uint16_t)keys_version) {
+            SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_OUT_OF_RANGE);
+            goto fail;
+        }
+        cache->index = (uint16_t)index;
+        cache->module_keys_version = (uint16_t)keys_version;
+        specialize(instr, LOAD_GLOBAL_MODULE);
+        return;
+    }
+    if (!PyDict_CheckExact(builtins)) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_LOAD_GLOBAL_NON_DICT);
+        goto fail;
+    }
+    PyDictKeysObject * builtin_keys = ((PyDictObject *)builtins)->ma_keys;
+    if (!DK_IS_UNICODE(builtin_keys)) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_LOAD_GLOBAL_NON_STRING_OR_SPLIT);
+        goto fail;
+    }
+    index = _PyDictKeys_StringLookup(builtin_keys, name);
+    if (index == DKIX_ERROR) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_EXPECTED_ERROR);
+        goto fail;
+    }
+    if (index != (uint16_t)index) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_OUT_OF_RANGE);
+        goto fail;
+    }
+    uint32_t globals_version = _PyDict_GetKeysVersionForCurrentState(
+            interp, (PyDictObject*) globals);
+    if (globals_version == 0) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_OUT_OF_VERSIONS);
+        goto fail;
+    }
+    if (globals_version != (uint16_t)globals_version) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_OUT_OF_RANGE);
+        goto fail;
+    }
+    uint32_t builtins_version = _PyDict_GetKeysVersionForCurrentState(
+            interp, (PyDictObject*) builtins);
+    if (builtins_version == 0) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_OUT_OF_VERSIONS);
+        goto fail;
+    }
+    if (builtins_version > UINT16_MAX) {
+        SPECIALIZATION_FAIL(LOAD_GLOBAL, SPEC_FAIL_OUT_OF_RANGE);
+        goto fail;
+    }
+    cache->index = (uint16_t)index;
+    cache->module_keys_version = (uint16_t)globals_version;
+    cache->builtin_keys_version = (uint16_t)builtins_version;
+    specialize(instr, LOAD_GLOBAL_BUILTIN);
+    return;
+fail:
+    unspecialize(instr);
+}
+Py_NO_INLINE void
+_Py_Specialize_LoadGlobal(
+    PyObject *globals, PyObject *builtins,
+    _Py_CODEUNIT *instr, PyObject *name)
+{
+    Py_BEGIN_CRITICAL_SECTION2(globals, builtins);
+    specialize_load_global_lock_held(globals, builtins, instr, name);
+    Py_END_CRITICAL_SECTION2();
+}
+Py_NO_INLINE void
+_Py_Specialize_StoreSubscr(_PyStackRef container_st, _PyStackRef sub_st, _Py_CODEUNIT *instr)
+{
+    PyObject *container = PyStackRef_AsPyObjectBorrow(container_st);
+    PyObject *sub = PyStackRef_AsPyObjectBorrow(sub_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    PyTypeObject *container_type = Py_TYPE(container);
+    if (container_type == &PyList_Type) {
+        if (PyLong_CheckExact(sub)) {
+            if (_PyLong_IsNonNegativeCompact((PyLongObject *)sub)
+                && ((PyLongObject *)sub)->long_value.ob_digit[0] < (size_t)PyList_GET_SIZE(container))
+            {
+                specialize(instr, STORE_SUBSCR_LIST_INT);
+                return;
+            }
+            else {
+                SPECIALIZATION_FAIL(STORE_SUBSCR, SPEC_FAIL_OUT_OF_RANGE);
+                unspecialize(instr);
+                return;
+            }
+        }
+        else if (PySlice_Check(sub)) {
+            SPECIALIZATION_FAIL(STORE_SUBSCR, SPEC_FAIL_SUBSCR_LIST_SLICE);
+            unspecialize(instr);
+            return;
+        }
+        else {
+            SPECIALIZATION_FAIL(STORE_SUBSCR, SPEC_FAIL_OTHER);
+            unspecialize(instr);
+            return;
+        }
+    }
+    if (container_type == &PyDict_Type) {
+        specialize(instr, STORE_SUBSCR_DICT);
+        return;
+    }
+    SPECIALIZATION_FAIL(STORE_SUBSCR, store_subscr_fail_kind(container, sub));
+    unspecialize(instr);
+}
+static int
+specialize_c_call(PyObject *callable, _Py_CODEUNIT *instr, int nargs)
+{
+    if (PyCFunction_GET_FUNCTION(callable) == NULL) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_OTHER);
+        return 1;
+    }
+    switch (PyCFunction_GET_FLAGS(callable) &
+        (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O |
+        METH_KEYWORDS | METH_METHOD)) {
+        case METH_O: {
+            if (nargs != 1) {
+                SPECIALIZATION_FAIL(CALL, SPEC_FAIL_WRONG_NUMBER_ARGUMENTS);
+                return 1;
+            }
+            /* len(o) */
+            PyInterpreterState *interp = _PyInterpreterState_GET();
+            if (callable == interp->callable_cache.len && instr->op.arg == 1) {
+                specialize(instr, CALL_LEN);
+                return 0;
+            }
+            specialize(instr, CALL_BUILTIN_O);
+            return 0;
+        }
+        case METH_FASTCALL: {
+            if (nargs == 2) {
+                /* isinstance(o1, o2) */
+                PyInterpreterState *interp = _PyInterpreterState_GET();
+                if (callable == interp->callable_cache.isinstance) {
+                    specialize(instr, CALL_ISINSTANCE);
+                    return 0;
+                }
+            }
+            specialize(instr, CALL_BUILTIN_FAST);
+            return 0;
+        }
+        case METH_FASTCALL | METH_KEYWORDS: {
+            specialize(instr, CALL_BUILTIN_FAST_WITH_KEYWORDS);
+            return 0;
+        }
+        default:
+            specialize(instr, CALL_NON_PY_GENERAL);
+            return 0;
+    }
+}
+static int
+specialize_py_call(PyFunctionObject *func, _Py_CODEUNIT *instr, int nargs,
+                   bool bound_method)
+{
+    _PyCallCache *cache = (_PyCallCache *)(instr + 1);
+    PyCodeObject *code = (PyCodeObject *)func->func_code;
+    int kind = function_kind(code);
+    /* Don't specialize if PEP 523 is active */
+    if (_PyInterpreterState_GET()->eval_frame) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_PEP_523);
+        return -1;
+    }
+    int argcount = -1;
+    if (kind == SPEC_FAIL_CODE_NOT_OPTIMIZED) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CODE_NOT_OPTIMIZED);
+        return -1;
+    }
+    if (kind == SIMPLE_FUNCTION) {
+        argcount = code->co_argcount;
+    }
+    int version = _PyFunction_GetVersionForCurrentState(func);
+    if (!_PyFunction_IsVersionValid(version)) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_OUT_OF_VERSIONS);
+        return -1;
+    }
+    write_u32(cache->func_version, version);
+    uint8_t opcode;
+    if (argcount == nargs + bound_method) {
+        opcode =
+            bound_method ? CALL_BOUND_METHOD_EXACT_ARGS : CALL_PY_EXACT_ARGS;
+    }
+    else {
+        opcode = bound_method ? CALL_BOUND_METHOD_GENERAL : CALL_PY_GENERAL;
+    }
+    specialize(instr, opcode);
+    return 0;
+}
+static PyObject *
+get_init_for_simple_managed_python_class(PyTypeObject *tp, unsigned int *tp_version)
+{
+    assert(tp->tp_new == PyBaseObject_Type.tp_new);
+    if (tp->tp_alloc != PyType_GenericAlloc) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_OVERRIDDEN);
+        return NULL;
+    }
+    unsigned long tp_flags = PyType_GetFlags(tp);
+    if (!(tp_flags & Py_TPFLAGS_HEAPTYPE)) {
+        /* Is this possible? */
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_EXPECTED_ERROR);
+        return NULL;
+    }
+    PyObject *init = _PyType_LookupRefAndVersion(tp, &_Py_ID(__init__), tp_version);
+    if (init == NULL || !PyFunction_Check(init)) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_INIT_NOT_PYTHON);
+        Py_XDECREF(init);
+        return NULL;
+    }
+    int kind = function_kind((PyCodeObject *)PyFunction_GET_CODE(init));
+    if (kind != SIMPLE_FUNCTION) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_INIT_NOT_SIMPLE);
+        Py_DECREF(init);
+        return NULL;
+    }
+    return init;
+}
+static int
+specialize_class_call(PyObject *callable, _Py_CODEUNIT *instr, int nargs)
+{
+    assert(PyType_Check(callable));
+    PyTypeObject *tp = _PyType_CAST(callable);
+    if (tp->tp_flags & Py_TPFLAGS_IMMUTABLETYPE) {
+        int oparg = instr->op.arg;
+        if (nargs == 1 && oparg == 1) {
+            if (tp == &PyUnicode_Type) {
+                specialize(instr, CALL_STR_1);
+                return 0;
+            }
+            else if (tp == &PyType_Type) {
+                specialize(instr, CALL_TYPE_1);
+                return 0;
+            }
+            else if (tp == &PyTuple_Type) {
+                specialize(instr, CALL_TUPLE_1);
+                return 0;
+            }
+        }
+        if (tp->tp_vectorcall != NULL) {
+            specialize(instr, CALL_BUILTIN_CLASS);
+            return 0;
+        }
+        goto generic;
+    }
+    if (Py_TYPE(tp) != &PyType_Type) {
+        goto generic;
+    }
+    if (tp->tp_new == PyBaseObject_Type.tp_new) {
+        unsigned int tp_version = 0;
+        PyObject *init = get_init_for_simple_managed_python_class(tp, &tp_version);
+        if (!tp_version) {
+            SPECIALIZATION_FAIL(CALL, SPEC_FAIL_OUT_OF_VERSIONS);
+            Py_XDECREF(init);
+            return -1;
+        }
+        if (init != NULL && _PyType_CacheInitForSpecialization(
+                                (PyHeapTypeObject *)tp, init, tp_version)) {
+            _PyCallCache *cache = (_PyCallCache *)(instr + 1);
+            write_u32(cache->func_version, tp_version);
+            specialize(instr, CALL_ALLOC_AND_ENTER_INIT);
+            Py_DECREF(init);
+            return 0;
+        }
+        Py_XDECREF(init);
+    }
+generic:
+    specialize(instr, CALL_NON_PY_GENERAL);
+    return 0;
+}
+static int
+specialize_method_descriptor(PyMethodDescrObject *descr, _Py_CODEUNIT *instr,
+                             int nargs)
+{
+    switch (descr->d_method->ml_flags &
+        (METH_VARARGS | METH_FASTCALL | METH_NOARGS | METH_O |
+        METH_KEYWORDS | METH_METHOD)) {
+        case METH_NOARGS: {
+            if (nargs != 1) {
+                SPECIALIZATION_FAIL(CALL, SPEC_FAIL_WRONG_NUMBER_ARGUMENTS);
+                return -1;
+            }
+            specialize(instr, CALL_METHOD_DESCRIPTOR_NOARGS);
+            return 0;
+        }
+        case METH_O: {
+            if (nargs != 2) {
+                SPECIALIZATION_FAIL(CALL, SPEC_FAIL_WRONG_NUMBER_ARGUMENTS);
+                return -1;
+            }
+            PyInterpreterState *interp = _PyInterpreterState_GET();
+            PyObject *list_append = interp->callable_cache.list_append;
+            _Py_CODEUNIT next = instr[INLINE_CACHE_ENTRIES_CALL + 1];
+            bool pop = (next.op.code == POP_TOP);
+            int oparg = instr->op.arg;
+            if ((PyObject *)descr == list_append && oparg == 1 && pop) {
+                specialize(instr, CALL_LIST_APPEND);
+                return 0;
+            }
+            specialize(instr, CALL_METHOD_DESCRIPTOR_O);
+            return 0;
+        }
+        case METH_FASTCALL: {
+            specialize(instr, CALL_METHOD_DESCRIPTOR_FAST);
+            return 0;
+        }
+        case METH_FASTCALL | METH_KEYWORDS: {
+            specialize(instr, CALL_METHOD_DESCRIPTOR_FAST_WITH_KEYWORDS);
+            return 0;
+        }
+    }
+    specialize(instr, CALL_NON_PY_GENERAL);
+    return 0;
+}
+Py_NO_INLINE void
+_Py_Specialize_Call(_PyStackRef callable_st, _Py_CODEUNIT *instr, int nargs)
+{
+    PyObject *callable = PyStackRef_AsPyObjectBorrow(callable_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[CALL] == INLINE_CACHE_ENTRIES_CALL);
+    assert(_Py_OPCODE(*instr) != INSTRUMENTED_CALL);
+    int fail;
+    if (PyCFunction_CheckExact(callable)) {
+        fail = specialize_c_call(callable, instr, nargs);
+    }
+    else if (PyFunction_Check(callable)) {
+        fail = specialize_py_call((PyFunctionObject *)callable, instr, nargs, false);
+    }
+    else if (PyType_Check(callable)) {
+        fail = specialize_class_call(callable, instr, nargs);
+    }
+    else if (Py_IS_TYPE(callable, &PyMethodDescr_Type)) {
+        fail = specialize_method_descriptor((PyMethodDescrObject *)callable, instr, nargs);
+    }
+    else if (PyMethod_Check(callable)) {
+        PyObject *func = ((PyMethodObject *)callable)->im_func;
+        if (PyFunction_Check(func)) {
+            fail = specialize_py_call((PyFunctionObject *)func, instr, nargs, true);
+        }
+        else {
+            SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_BOUND_METHOD);
+            fail = -1;
+        }
+    }
+    else {
+        specialize(instr, CALL_NON_PY_GENERAL);
+        fail = 0;
+    }
+    if (fail) {
+        unspecialize(instr);
+    }
+}
+static int
+specialize_py_call_kw(PyFunctionObject *func, _Py_CODEUNIT *instr, int nargs,
+                   bool bound_method)
+{
+    _PyCallCache *cache = (_PyCallCache *)(instr + 1);
+    PyCodeObject *code = (PyCodeObject *)func->func_code;
+    int kind = function_kind(code);
+    /* Don't specialize if PEP 523 is active */
+    if (_PyInterpreterState_GET()->eval_frame) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CALL_PEP_523);
+        return -1;
+    }
+    if (kind == SPEC_FAIL_CODE_NOT_OPTIMIZED) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_CODE_NOT_OPTIMIZED);
+        return -1;
+    }
+    int version = _PyFunction_GetVersionForCurrentState(func);
+    if (!_PyFunction_IsVersionValid(version)) {
+        SPECIALIZATION_FAIL(CALL, SPEC_FAIL_OUT_OF_VERSIONS);
+        return -1;
+    }
+    write_u32(cache->func_version, version);
+    specialize(instr, bound_method ? CALL_KW_BOUND_METHOD : CALL_KW_PY);
+    return 0;
+}
+Py_NO_INLINE void
+_Py_Specialize_CallKw(_PyStackRef callable_st, _Py_CODEUNIT *instr, int nargs)
+{
+    PyObject *callable = PyStackRef_AsPyObjectBorrow(callable_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[CALL_KW] == INLINE_CACHE_ENTRIES_CALL_KW);
+    assert(_Py_OPCODE(*instr) != INSTRUMENTED_CALL_KW);
+    int fail;
+    if (PyFunction_Check(callable)) {
+        fail = specialize_py_call_kw((PyFunctionObject *)callable, instr, nargs, false);
+    }
+    else if (PyMethod_Check(callable)) {
+        PyObject *func = ((PyMethodObject *)callable)->im_func;
+        if (PyFunction_Check(func)) {
+            fail = specialize_py_call_kw((PyFunctionObject *)func, instr, nargs, true);
+        }
+        else {
+            SPECIALIZATION_FAIL(CALL_KW, SPEC_FAIL_CALL_BOUND_METHOD);
+            fail = -1;
+        }
+    }
+    else {
+        specialize(instr, CALL_KW_NON_PY);
+        fail = 0;
+    }
+    if (fail) {
+        unspecialize(instr);
+    }
+}
+
+static inline int
+is_compactlong(PyObject *v)
+{
+    return PyLong_CheckExact(v) &&
+           _PyLong_IsCompact((PyLongObject *)v);
+}
+static int
+compactlongs_guard(PyObject *lhs, PyObject *rhs)
+{
+    return (is_compactlong(lhs) && is_compactlong(rhs));
+}
+
+#define BITWISE_LONGS_ACTION(NAME, OP) \
+    static PyObject * \
+    (NAME)(PyObject *lhs, PyObject *rhs) \
+    { \
+        Py_ssize_t rhs_val = _PyLong_CompactValue((PyLongObject *)rhs); \
+        Py_ssize_t lhs_val = _PyLong_CompactValue((PyLongObject *)lhs); \
+        return PyLong_FromSsize_t(lhs_val OP rhs_val); \
+    }
+BITWISE_LONGS_ACTION(compactlongs_or, |)
+BITWISE_LONGS_ACTION(compactlongs_and, &)
+BITWISE_LONGS_ACTION(compactlongs_xor, ^)
+#undef BITWISE_LONGS_ACTION
+
+static inline int
+float_compactlong_guard(PyObject *lhs, PyObject *rhs)
+{
+    return (
+        PyFloat_CheckExact(lhs) &&
+        !isnan(PyFloat_AsDouble(lhs)) &&
+        PyLong_CheckExact(rhs) &&
+        _PyLong_IsCompact((PyLongObject *)rhs)
+    );
+}
+static inline int
+nonzero_float_compactlong_guard(PyObject *lhs, PyObject *rhs)
+{
+    return (
+        float_compactlong_guard(lhs, rhs) && !PyLong_IsZero(rhs)
+    );
+}
+
+#define FLOAT_LONG_ACTION(NAME, OP) \
+    static PyObject * \
+    (NAME)(PyObject *lhs, PyObject *rhs) \
+    { \
+        double lhs_val = PyFloat_AsDouble(lhs); \
+        Py_ssize_t rhs_val = _PyLong_CompactValue((PyLongObject *)rhs); \
+        return PyFloat_FromDouble(lhs_val OP rhs_val); \
+    }
+FLOAT_LONG_ACTION(float_compactlong_add, +)
+FLOAT_LONG_ACTION(float_compactlong_subtract, -)
+FLOAT_LONG_ACTION(float_compactlong_multiply, *)
+FLOAT_LONG_ACTION(float_compactlong_true_div, /)
+#undef FLOAT_LONG_ACTION
+
+static inline int
+compactlong_float_guard(PyObject *lhs, PyObject *rhs)
+{
+    return (
+        PyLong_CheckExact(lhs) &&
+        _PyLong_IsCompact((PyLongObject *)lhs) &&
+        PyFloat_CheckExact(rhs) &&
+        !isnan(PyFloat_AsDouble(rhs))
+    );
+}
+static inline int
+nonzero_compactlong_float_guard(PyObject *lhs, PyObject *rhs)
+{
+    return (
+        compactlong_float_guard(lhs, rhs) && PyFloat_AsDouble(rhs) != 0.0
+    );
+}
+
+#define LONG_FLOAT_ACTION(NAME, OP) \
+    static PyObject * \
+    (NAME)(PyObject *lhs, PyObject *rhs) \
+    { \
+        double rhs_val = PyFloat_AsDouble(rhs); \
+        Py_ssize_t lhs_val = _PyLong_CompactValue((PyLongObject *)lhs); \
+        return PyFloat_FromDouble(lhs_val OP rhs_val); \
+    }
+LONG_FLOAT_ACTION(compactlong_float_add, +)
+LONG_FLOAT_ACTION(compactlong_float_subtract, -)
+LONG_FLOAT_ACTION(compactlong_float_multiply, *)
+LONG_FLOAT_ACTION(compactlong_float_true_div, /)
+#undef LONG_FLOAT_ACTION
+
+static _PyBinaryOpSpecializationDescr binaryop_extend_descrs[] = {
+    /* long-long arithmetic */
+    {NB_OR, compactlongs_guard, compactlongs_or},
+    {NB_AND, compactlongs_guard, compactlongs_and},
+    {NB_XOR, compactlongs_guard, compactlongs_xor},
+    {NB_INPLACE_OR, compactlongs_guard, compactlongs_or},
+    {NB_INPLACE_AND, compactlongs_guard, compactlongs_and},
+    {NB_INPLACE_XOR, compactlongs_guard, compactlongs_xor},
+
+    /* float-long arithemetic */
+    {NB_ADD, float_compactlong_guard, float_compactlong_add},
+    {NB_SUBTRACT, float_compactlong_guard, float_compactlong_subtract},
+    {NB_TRUE_DIVIDE, nonzero_float_compactlong_guard, float_compactlong_true_div},
+    {NB_MULTIPLY, float_compactlong_guard, float_compactlong_multiply},
+
+    /* float-float arithmetic */
+    {NB_ADD, compactlong_float_guard, compactlong_float_add},
+    {NB_SUBTRACT, compactlong_float_guard, compactlong_float_subtract},
+    {NB_TRUE_DIVIDE, nonzero_compactlong_float_guard, compactlong_float_true_div},
+    {NB_MULTIPLY, compactlong_float_guard, compactlong_float_multiply},
+};
+static int
+binary_op_extended_specialization(PyObject *lhs, PyObject *rhs, int oparg,
+                                  _PyBinaryOpSpecializationDescr **descr)
+{
+    size_t n = sizeof(binaryop_extend_descrs)/sizeof(_PyBinaryOpSpecializationDescr);
+    for (size_t i = 0; i < n; i++) {
+        _PyBinaryOpSpecializationDescr *d = &binaryop_extend_descrs[i];
+        if (d->oparg == oparg && d->guard(lhs, rhs)) {
+            *descr = d;
+            return 1;
+        }
+    }
+    return 0;
+}
+Py_NO_INLINE void
+_Py_Specialize_BinaryOp(_PyStackRef lhs_st, _PyStackRef rhs_st, _Py_CODEUNIT *instr,
+                        int oparg, _PyStackRef *locals)
+{
+    PyObject *lhs = PyStackRef_AsPyObjectBorrow(lhs_st);
+    PyObject *rhs = PyStackRef_AsPyObjectBorrow(rhs_st);
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[BINARY_OP] == INLINE_CACHE_ENTRIES_BINARY_OP);
+
+    _PyBinaryOpCache *cache = (_PyBinaryOpCache *)(instr + 1);
+    if (instr->op.code == BINARY_OP_EXTEND) {
+        write_ptr(cache->external_cache, NULL);
+    }
+
+    switch (oparg) {
+        case NB_ADD:
+        case NB_INPLACE_ADD:
+            if (!Py_IS_TYPE(lhs, Py_TYPE(rhs))) {
+                break;
+            }
+            if (PyUnicode_CheckExact(lhs)) {
+                _Py_CODEUNIT next = instr[INLINE_CACHE_ENTRIES_BINARY_OP + 1];
+                bool to_store = (next.op.code == STORE_FAST);
+                if (to_store && PyStackRef_AsPyObjectBorrow(locals[next.op.arg]) == lhs) {
+                    specialize(instr, BINARY_OP_INPLACE_ADD_UNICODE);
+                    return;
+                }
+                specialize(instr, BINARY_OP_ADD_UNICODE);
+                return;
+            }
+            if (PyLong_CheckExact(lhs)) {
+                specialize(instr, BINARY_OP_ADD_INT);
+                return;
+            }
+            if (PyFloat_CheckExact(lhs)) {
+                specialize(instr, BINARY_OP_ADD_FLOAT);
+                return;
+            }
+            break;
+        case NB_MULTIPLY:
+        case NB_INPLACE_MULTIPLY:
+            if (!Py_IS_TYPE(lhs, Py_TYPE(rhs))) {
+                break;
+            }
+            if (PyLong_CheckExact(lhs)) {
+                specialize(instr, BINARY_OP_MULTIPLY_INT);
+                return;
+            }
+            if (PyFloat_CheckExact(lhs)) {
+                specialize(instr, BINARY_OP_MULTIPLY_FLOAT);
+                return;
+            }
+            break;
+        case NB_SUBTRACT:
+        case NB_INPLACE_SUBTRACT:
+            if (!Py_IS_TYPE(lhs, Py_TYPE(rhs))) {
+                break;
+            }
+            if (PyLong_CheckExact(lhs)) {
+                specialize(instr, BINARY_OP_SUBTRACT_INT);
+                return;
+            }
+            if (PyFloat_CheckExact(lhs)) {
+                specialize(instr, BINARY_OP_SUBTRACT_FLOAT);
+                return;
+            }
+            break;
+        case NB_SUBSCR:
+            if (PyLong_CheckExact(rhs) && _PyLong_IsNonNegativeCompact((PyLongObject *)rhs)) {
+                if (PyList_CheckExact(lhs)) {
+                    specialize(instr, BINARY_OP_SUBSCR_LIST_INT);
+                    return;
+                }
+                if (PyTuple_CheckExact(lhs)) {
+                    specialize(instr, BINARY_OP_SUBSCR_TUPLE_INT);
+                    return;
+                }
+                if (PyUnicode_CheckExact(lhs)) {
+                    specialize(instr, BINARY_OP_SUBSCR_STR_INT);
+                    return;
+                }
+            }
+            if (PyDict_CheckExact(lhs)) {
+                specialize(instr, BINARY_OP_SUBSCR_DICT);
+                return;
+            }
+            if (PyList_CheckExact(lhs) && PySlice_Check(rhs)) {
+                specialize(instr, BINARY_OP_SUBSCR_LIST_SLICE);
+                return;
+            }
+            unsigned int tp_version;
+            PyTypeObject *container_type = Py_TYPE(lhs);
+            PyObject *descriptor = _PyType_LookupRefAndVersion(container_type, &_Py_ID(__getitem__), &tp_version);
+            if (descriptor && Py_TYPE(descriptor) == &PyFunction_Type &&
+                container_type->tp_flags & Py_TPFLAGS_HEAPTYPE)
+            {
+                PyFunctionObject *func = (PyFunctionObject *)descriptor;
+                PyCodeObject *fcode = (PyCodeObject *)func->func_code;
+                int kind = function_kind(fcode);
+                PyHeapTypeObject *ht = (PyHeapTypeObject *)container_type;
+                if (kind == SIMPLE_FUNCTION &&
+                    fcode->co_argcount == 2 &&
+                    !_PyInterpreterState_GET()->eval_frame && /* Don't specialize if PEP 523 is active */
+                    _PyType_CacheGetItemForSpecialization(ht, descriptor, (uint32_t)tp_version))
+                {
+                    specialize(instr, BINARY_OP_SUBSCR_GETITEM);
+                    Py_DECREF(descriptor);
+                    return;
+                }
+            }
+            Py_XDECREF(descriptor);
+            break;
+    }
+
+    _PyBinaryOpSpecializationDescr *descr;
+    if (binary_op_extended_specialization(lhs, rhs, oparg, &descr)) {
+        specialize(instr, BINARY_OP_EXTEND);
+        write_ptr(cache->external_cache, (void*)descr);
+        return;
+    }
+
+    SPECIALIZATION_FAIL(BINARY_OP, binary_op_fail_kind(oparg, lhs, rhs));
+    unspecialize(instr);
+    return;
+}
+Py_NO_INLINE void
+_Py_Specialize_CompareOp(_PyStackRef lhs_st, _PyStackRef rhs_st, _Py_CODEUNIT *instr,
+                         int oparg)
+{
+    PyObject *lhs = PyStackRef_AsPyObjectBorrow(lhs_st);
+    PyObject *rhs = PyStackRef_AsPyObjectBorrow(rhs_st);
+    uint8_t specialized_op;
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[COMPARE_OP] == INLINE_CACHE_ENTRIES_COMPARE_OP);
+    // All of these specializations compute boolean values, so they're all valid
+    // regardless of the fifth-lowest oparg bit.
+    if (Py_TYPE(lhs) != Py_TYPE(rhs)) {
+        SPECIALIZATION_FAIL(COMPARE_OP, compare_op_fail_kind(lhs, rhs));
+        goto failure;
+    }
+    if (PyFloat_CheckExact(lhs)) {
+        specialized_op = COMPARE_OP_FLOAT;
+        goto success;
+    }
+    if (PyLong_CheckExact(lhs)) {
+        if (_PyLong_IsCompact((PyLongObject *)lhs) && _PyLong_IsCompact((PyLongObject *)rhs)) {
+            specialized_op = COMPARE_OP_INT;
+            goto success;
+        }
+        else {
+            SPECIALIZATION_FAIL(COMPARE_OP, SPEC_FAIL_COMPARE_OP_BIG_INT);
+            goto failure;
+        }
+    }
+    if (PyUnicode_CheckExact(lhs)) {
+        int cmp = oparg >> 5;
+        if (cmp != Py_EQ && cmp != Py_NE) {
+            SPECIALIZATION_FAIL(COMPARE_OP, SPEC_FAIL_COMPARE_OP_STRING);
+            goto failure;
+        }
+        else {
+            specialized_op = COMPARE_OP_STR;
+            goto success;
+        }
+    }
+    SPECIALIZATION_FAIL(COMPARE_OP, compare_op_fail_kind(lhs, rhs));
+failure:
+    unspecialize(instr);
+    return;
+success:
+    specialize(instr, specialized_op);
+}
+Py_NO_INLINE void
+_Py_Specialize_UnpackSequence(_PyStackRef seq_st, _Py_CODEUNIT *instr, int oparg)
+{
+    PyObject *seq = PyStackRef_AsPyObjectBorrow(seq_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[UNPACK_SEQUENCE] ==
+           INLINE_CACHE_ENTRIES_UNPACK_SEQUENCE);
+    if (PyTuple_CheckExact(seq)) {
+        if (PyTuple_GET_SIZE(seq) != oparg) {
+            SPECIALIZATION_FAIL(UNPACK_SEQUENCE, SPEC_FAIL_EXPECTED_ERROR);
+            unspecialize(instr);
+            return;
+        }
+        if (PyTuple_GET_SIZE(seq) == 2) {
+            specialize(instr, UNPACK_SEQUENCE_TWO_TUPLE);
+            return;
+        }
+        specialize(instr, UNPACK_SEQUENCE_TUPLE);
+        return;
+    }
+    if (PyList_CheckExact(seq)) {
+        if (PyList_GET_SIZE(seq) != oparg) {
+            SPECIALIZATION_FAIL(UNPACK_SEQUENCE, SPEC_FAIL_EXPECTED_ERROR);
+            unspecialize(instr);
+            return;
+        }
+        specialize(instr, UNPACK_SEQUENCE_LIST);
+        return;
+    }
+    SPECIALIZATION_FAIL(UNPACK_SEQUENCE, unpack_sequence_fail_kind(seq));
+    unspecialize(instr);
+}
+Py_NO_INLINE void
+_Py_Specialize_ForIter(_PyStackRef iter, _Py_CODEUNIT *instr, int oparg)
+{
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[FOR_ITER] == INLINE_CACHE_ENTRIES_FOR_ITER);
+    PyObject *iter_o = PyStackRef_AsPyObjectBorrow(iter);
+    PyTypeObject *tp = Py_TYPE(iter_o);
+#ifdef Py_GIL_DISABLED
+    // Only specialize for uniquely referenced iterators, so that we know
+    // they're only referenced by this one thread. This is more limiting
+    // than we need (even `it = iter(mylist); for item in it:` won't get
+    // specialized) but we don't have a way to check whether we're the only
+    // _thread_ who has access to the object.
+    if (!_PyObject_IsUniquelyReferenced(iter_o))
+        goto failure;
+#endif
+    if (tp == &PyListIter_Type) {
+#ifdef Py_GIL_DISABLED
+        _PyListIterObject *it = (_PyListIterObject *)iter_o;
+        if (!_Py_IsOwnedByCurrentThread((PyObject *)it->it_seq) &&
+            !_PyObject_GC_IS_SHARED(it->it_seq)) {
+            // Maybe this should just set GC_IS_SHARED in a critical
+            // section, instead of leaving it to the first iteration?
+            goto failure;
+        }
+#endif
+        specialize(instr, FOR_ITER_LIST);
+        return;
+    }
+    else if (tp == &PyTupleIter_Type) {
+        specialize(instr, FOR_ITER_TUPLE);
+        return;
+    }
+    else if (tp == &PyRangeIter_Type) {
+        specialize(instr, FOR_ITER_RANGE);
+        return;
+    }
+    else if (tp == &PyGen_Type && oparg <= SHRT_MAX) {
+        // Generators are very much not thread-safe, so don't worry about
+        // the specialization not being thread-safe.
+        assert(instr[oparg + INLINE_CACHE_ENTRIES_FOR_ITER + 1].op.code == END_FOR  ||
+            instr[oparg + INLINE_CACHE_ENTRIES_FOR_ITER + 1].op.code == INSTRUMENTED_END_FOR
+        );
+        /* Don't specialize if PEP 523 is active */
+        if (_PyInterpreterState_GET()->eval_frame)
+            goto failure;
+        specialize(instr, FOR_ITER_GEN);
+        return;
+    }
+failure:
+    SPECIALIZATION_FAIL(FOR_ITER,
+                        _PySpecialization_ClassifyIterator(iter_o));
+    unspecialize(instr);
+}
+Py_NO_INLINE void
+_Py_Specialize_Send(_PyStackRef receiver_st, _Py_CODEUNIT *instr)
+{
+    PyObject *receiver = PyStackRef_AsPyObjectBorrow(receiver_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[SEND] == INLINE_CACHE_ENTRIES_SEND);
+    PyTypeObject *tp = Py_TYPE(receiver);
+    if (tp == &PyGen_Type || tp == &PyCoro_Type) {
+        /* Don't specialize if PEP 523 is active */
+        if (_PyInterpreterState_GET()->eval_frame) {
+            SPECIALIZATION_FAIL(SEND, SPEC_FAIL_OTHER);
+            goto failure;
+        }
+        specialize(instr, SEND_GEN);
+        return;
+    }
+    SPECIALIZATION_FAIL(SEND,
+                        _PySpecialization_ClassifyIterator(receiver));
+failure:
+    unspecialize(instr);
+}
+static int
+check_type_always_true(PyTypeObject *ty)
+{
+    PyNumberMethods *nb = ty->tp_as_number;
+    if (nb && nb->nb_bool) {
+        return SPEC_FAIL_TO_BOOL_NUMBER;
+    }
+    PyMappingMethods *mp = ty->tp_as_mapping;
+    if (mp && mp->mp_length) {
+        return SPEC_FAIL_TO_BOOL_MAPPING;
+    }
+    PySequenceMethods *sq = ty->tp_as_sequence;
+    if (sq && sq->sq_length) {
+      return SPEC_FAIL_TO_BOOL_SEQUENCE;
+    }
+    return 0;
+}
+Py_NO_INLINE void
+_Py_Specialize_ToBool(_PyStackRef value_o, _Py_CODEUNIT *instr)
+{
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[TO_BOOL] == INLINE_CACHE_ENTRIES_TO_BOOL);
+    _PyToBoolCache *cache = (_PyToBoolCache *)(instr + 1);
+    PyObject *value = PyStackRef_AsPyObjectBorrow(value_o);
+    uint8_t specialized_op;
+    if (PyBool_Check(value)) {
+        specialized_op = TO_BOOL_BOOL;
+        goto success;
+    }
+    if (PyLong_CheckExact(value)) {
+        specialized_op = TO_BOOL_INT;
+        goto success;
+    }
+    if (PyList_CheckExact(value)) {
+        specialized_op = TO_BOOL_LIST;
+        goto success;
+    }
+    if (Py_IsNone(value)) {
+        specialized_op = TO_BOOL_NONE;
+        goto success;
+    }
+    if (PyUnicode_CheckExact(value)) {
+        specialized_op = TO_BOOL_STR;
+        goto success;
+    }
+    if (PyType_HasFeature(Py_TYPE(value), Py_TPFLAGS_HEAPTYPE)) {
+        unsigned int version = 0;
+        int err = _PyType_Validate(Py_TYPE(value), check_type_always_true, &version);
+        if (err < 0) {
+            SPECIALIZATION_FAIL(TO_BOOL, SPEC_FAIL_OUT_OF_VERSIONS);
+            goto failure;
+        }
+        else if (err > 0) {
+            SPECIALIZATION_FAIL(TO_BOOL, err);
+            goto failure;
+        }
+
+        assert(err == 0);
+        assert(version);
+        write_u32(cache->version, version);
+        specialized_op = TO_BOOL_ALWAYS_TRUE;
+        goto success;
+    }
+
+    SPECIALIZATION_FAIL(TO_BOOL, to_bool_fail_kind(value));
+failure:
+    unspecialize(instr);
+    return;
+success:
+    specialize(instr, specialized_op);
+}
+Py_NO_INLINE void
+_Py_Specialize_ContainsOp(_PyStackRef value_st, _Py_CODEUNIT *instr)
+{
+    PyObject *value = PyStackRef_AsPyObjectBorrow(value_st);
+
+    assert(ENABLE_SPECIALIZATION_FT);
+    assert(_PyOpcode_Caches[CONTAINS_OP] == INLINE_CACHE_ENTRIES_COMPARE_OP);
+    if (PyDict_CheckExact(value)) {
+        specialize(instr, CONTAINS_OP_DICT);
+        return;
+    }
+    if (PySet_CheckExact(value) || PyFrozenSet_CheckExact(value)) {
+        specialize(instr, CONTAINS_OP_SET);
+        return;
+    }
+
+    SPECIALIZATION_FAIL(CONTAINS_OP, containsop_fail_kind(value));
+    unspecialize(instr);
+    return;
+}
+
+#define MAX_CANDIDATE_ITEMS 750
+#define MAX_STRING_SIZE 40
+#define MOVE_COST 2
+#define CASE_COST 1
+#define LEAST_FIVE_BITS(n) ((n) & 31)
+static inline int
+substitution_cost(char a, char b)
+{
+    if (LEAST_FIVE_BITS(a) != LEAST_FIVE_BITS(b)) {
+        // Not the same, not a case flip.
+        return MOVE_COST;
+    }
+    if (a == b) {
+        return 0;
+    }
+    if ('A' <= a && a <= 'Z') {
+        a += ('a' - 'A');
+    }
+    if ('A' <= b && b <= 'Z') {
+        b += ('a' - 'A');
+    }
+    if (a == b) {
+        return CASE_COST;
+    }
+    return MOVE_COST;
+}
+static Py_ssize_t
+levenshtein_distance(const char *a, size_t a_size,
+                     const char *b, size_t b_size,
+                     size_t max_cost, size_t *buffer)
+{
+    // Both strings are the same (by identity)
+    if (a == b) {
+        return 0;
+    }
+
+    // Trim away common affixes.
+    while (a_size && b_size && a[0] == b[0]) {
+        a++; a_size--;
+        b++; b_size--;
+    }
+    while (a_size && b_size && a[a_size-1] == b[b_size-1]) {
+        a_size--;
+        b_size--;
+    }
+    if (a_size == 0 || b_size == 0) {
+        return (a_size + b_size) * MOVE_COST;
+    }
+    if (a_size > MAX_STRING_SIZE || b_size > MAX_STRING_SIZE) {
+        return max_cost + 1;
+    }
+
+    // Prefer shorter buffer
+    if (b_size < a_size) {
+        const char *t = a; a = b; b = t;
+        size_t t_size = a_size; a_size = b_size; b_size = t_size;
+    }
+
+    // quick fail when a match is impossible.
+    if ((b_size - a_size) * MOVE_COST > max_cost) {
+        return max_cost + 1;
+    }
+
+    // Instead of producing the whole traditional len(a)-by-len(b)
+    // matrix, we can update just one row in place.
+    // Initialize the buffer row
+    size_t tmp = MOVE_COST;
+    for (size_t i = 0; i < a_size; i++) {
+        // cost from b[:0] to a[:i+1]
+        buffer[i] = tmp;
+        tmp += MOVE_COST;
+    }
+
+    size_t result = 0;
+    for (size_t b_index = 0; b_index < b_size; b_index++) {
+        char code = b[b_index];
+        // cost(b[:b_index], a[:0]) == b_index * MOVE_COST
+        size_t distance = result = b_index * MOVE_COST;
+        size_t minimum = SIZE_MAX;
+        for (size_t index = 0; index < a_size; index++) {
+
+            // cost(b[:b_index+1], a[:index+1]) = min(
+            //     // 1) substitute
+            //     cost(b[:b_index], a[:index])
+            //         + substitution_cost(b[b_index], a[index]),
+            //     // 2) delete from b
+            //     cost(b[:b_index], a[:index+1]) + MOVE_COST,
+            //     // 3) delete from a
+            //     cost(b[:b_index+1], a[index]) + MOVE_COST
+            // )
+
+            // 1) Previous distance in this row is cost(b[:b_index], a[:index])
+            size_t substitute = distance + substitution_cost(code, a[index]);
+            // 2) cost(b[:b_index], a[:index+1]) from previous row
+            distance = buffer[index];
+            // 3) existing result is cost(b[:b_index+1], a[index])
+
+            size_t insert_delete = Py_MIN(result, distance) + MOVE_COST;
+            result = Py_MIN(insert_delete, substitute);
+
+            // cost(b[:b_index+1], a[:index+1])
+            buffer[index] = result;
+            if (result < minimum) {
+                minimum = result;
+            }
+        }
+        if (minimum > max_cost) {
+            // Everything in this row is too big, so bail early.
+            return max_cost + 1;
+        }
+    }
+    return result;
+}
+PyObject *
+_Py_CalculateSuggestions(PyObject *dir,
+                      PyObject *name)
+{
+    assert(!PyErr_Occurred());
+    assert(PyList_CheckExact(dir));
+
+    Py_ssize_t dir_size = PyList_GET_SIZE(dir);
+    if (dir_size >= MAX_CANDIDATE_ITEMS) {
+        return NULL;
+    }
+
+    Py_ssize_t suggestion_distance = PY_SSIZE_T_MAX;
+    PyObject *suggestion = NULL;
+    Py_ssize_t name_size;
+    const char *name_str = PyUnicode_AsUTF8AndSize(name, &name_size);
+    if (name_str == NULL) {
+        return NULL;
+    }
+    size_t *buffer = PyMem_New(size_t, MAX_STRING_SIZE);
+    if (buffer == NULL) {
+        return PyErr_NoMemory();
+    }
+    for (Py_ssize_t i = 0; i < dir_size; ++i) {
+        PyObject *item = PyList_GET_ITEM(dir, i);
+        if (_PyUnicode_Equal(name, item)) {
+            continue;
+        }
+        Py_ssize_t item_size;
+        const char *item_str = PyUnicode_AsUTF8AndSize(item, &item_size);
+        if (item_str == NULL) {
+            PyMem_Free(buffer);
+            return NULL;
+        }
+        // No more than 1/3 of the involved characters should need changed.
+        Py_ssize_t max_distance = (name_size + item_size + 3) * MOVE_COST / 6;
+        // Don't take matches we've already beaten.
+        max_distance = Py_MIN(max_distance, suggestion_distance - 1);
+        Py_ssize_t current_distance =
+            levenshtein_distance(name_str, name_size, item_str,
+                                 item_size, max_distance, buffer);
+        if (current_distance > max_distance) {
+            continue;
+        }
+        if (!suggestion || current_distance < suggestion_distance) {
+            suggestion = item;
+            suggestion_distance = current_distance;
+        }
+    }
+    PyMem_Free(buffer);
+    return Py_XNewRef(suggestion);
+}
+
+static PyObject *
+tb_create_raw(PyTracebackObject *next, PyFrameObject *frame, int lasti,
+              int lineno)
+{
+    PyTracebackObject *tb;
+    if ((next != NULL && !PyTraceBack_Check(next)) ||
+                    frame == NULL || !PyFrame_Check(frame)) {
+        PyErr_BadInternalCall();
+        return NULL;
+    }
+    tb = PyObject_GC_New(PyTracebackObject, &PyTraceBack_Type);
+    if (tb != NULL) {
+        tb->tb_next = (PyTracebackObject*)Py_XNewRef(next);
+        tb->tb_frame = (PyFrameObject*)Py_XNewRef(frame);
+        tb->tb_lasti = lasti;
+        tb->tb_lineno = lineno;
+        PyObject_GC_Track(tb);
+    }
+    return (PyObject *)tb;
+}
+PyObject*
+_PyTraceBack_FromFrame(PyObject *tb_next, PyFrameObject *frame)
+{
+    assert(tb_next == NULL || PyTraceBack_Check(tb_next));
+    assert(frame != NULL);
+    int addr = _PyInterpreterFrame_LASTI(frame->f_frame) * sizeof(_Py_CODEUNIT);
+    return tb_create_raw((PyTracebackObject *)tb_next, frame, addr, -1);
+}
+
+void
+_PyFloat_ExactDealloc(PyObject *obj)
+{
+    assert(PyFloat_CheckExact(obj));
+    _Py_FREELIST_FREE(floats, obj, PyObject_Free);
+}
+_PyStackRef _PyFloat_FromDouble_ConsumeInputs(_PyStackRef left, _PyStackRef right, double value)
+{
+    PyStackRef_CLOSE_SPECIALIZED(left, _PyFloat_ExactDealloc);
+    PyStackRef_CLOSE_SPECIALIZED(right, _PyFloat_ExactDealloc);
+    return PyStackRef_FromPyObjectSteal(PyFloat_FromDouble(value));
 }

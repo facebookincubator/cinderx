@@ -5,6 +5,7 @@
 # LICENSE file in the root directory of this source tree.
 #
 # pyre-unsafe
+# @noautodeps
 
 import os
 import os.path
@@ -16,6 +17,10 @@ from typing import Callable
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
+
+CHECKOUT_ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+SOURCE_DIR = os.path.join(CHECKOUT_ROOT_DIR, "cinderx")
+PYTHON_LIB_DIR = os.path.join(SOURCE_DIR, "PythonLib")
 
 
 def find_files(path: str, pred: Callable[[str], bool]) -> list[str]:
@@ -38,14 +43,33 @@ def find_python_sources(path: str) -> list[str]:
 
 
 class BuildPy(build_py):
+    def initialize_options(self) -> None:
+        super().initialize_options()
+        # Don't use the setuptools default under "build/" as this clashes with
+        # "build/fbcode_builder/" (auto-added to the OSS view of CinderX).
+        self.build_lib = os.path.join(os.path.join(CHECKOUT_ROOT_DIR, "scratch"), "lib")
+
     def run(self) -> None:
+        # I have no idea what is supposed to set this up, but if it isn't set
+        # we'll get an AttributeError at runtime.
+        if not hasattr(self.distribution, "namespace_packages"):
+            self.distribution.namespace_packages = None
+
         super().run()
 
         # Copy opcodes/3.12/opcode.py to cinderx/opcode.py.
         out_path = self.get_module_outfile(self.build_lib, ["cinderx"], "opcode")
         self.copy_file(
-            "PythonLib/opcodes/3.12/opcode.py", out_path, preserve_mode=False
+            os.path.join(PYTHON_LIB_DIR, "opcodes/3.12/opcode.py"),
+            out_path,
+            preserve_mode=False,
         )
+
+        # For OSS builds always surface the CinderX import errors
+        dev_build_file = os.path.join(self.get_package_dir("cinderx"), ".dev_build")
+        print(f"Writing .dev_build file to {dev_build_file}")
+        with open(dev_build_file, "w") as f:
+            f.write("\n")
 
 
 class CMakeExtension(Extension):
@@ -55,6 +79,15 @@ class CMakeExtension(Extension):
 
 
 class BuildExt(build_ext):
+    def initialize_options(self) -> None:
+        super().initialize_options()
+        # Don't use the setuptools default under "build/" as this clashes with
+        # "build/fbcode_builder/" (auto-added to the OSS view of CinderX).
+        self.build_temp = os.path.join(
+            os.path.join(CHECKOUT_ROOT_DIR, "scratch"), "bin"
+        )
+        self.build_lib = os.path.join(os.path.join(CHECKOUT_ROOT_DIR, "scratch"), "lib")
+
     def run(self) -> None:
         # pyre-ignore[16]: No pyre types for build_ext.
         for extension in self.extensions:
@@ -62,8 +95,6 @@ class BuildExt(build_ext):
         super().run()
 
     def _run_cmake(self, extension: Extension) -> None:
-        cwd = os.path.abspath(os.getcwd())
-
         # pyre-ignore[16]: No pyre types for build_ext.
         build_dir = self.build_temp
         os.makedirs(build_dir, exist_ok=True)
@@ -101,12 +132,11 @@ class BuildExt(build_ext):
         py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
         options["PY_VERSION"] = py_version
 
-        set_option("META_PYTHON", 1)
-        meta_python = bool(int(options["META_PYTHON"]))
-
+        meta_python = "+meta" in sys.version
         linux = sys.platform == "linux"
         meta_312 = meta_python and py_version == "3.12"
 
+        set_option("META_PYTHON", meta_python)
         set_option("ENABLE_ELF_READER", linux)
         set_option("ENABLE_EVAL_HOOK", meta_312)
         set_option("ENABLE_FUNC_EVENT_MODIFY_QUALNAME", meta_312)
@@ -129,7 +159,7 @@ class BuildExt(build_ext):
         ]
 
         # pyre-ignore[16]: No pyre types for build_ext.
-        self.spawn(["cmake"] + cmake_args + ["-B", build_dir, cwd])
+        self.spawn(["cmake"] + cmake_args + ["-B", build_dir, CHECKOUT_ROOT_DIR])
         self.spawn(["cmake", "--build", build_dir] + build_args)
 
     def _find_binary(self, name: str) -> str:
@@ -140,13 +170,11 @@ class BuildExt(build_ext):
 
 
 def main() -> None:
-    project_dir = os.path.dirname(__file__)
-
     # Native sources.
-    native_sources = find_native_sources(project_dir)
+    native_sources = find_native_sources(SOURCE_DIR)
 
     # Python sources.
-    python_sources = find_python_sources(os.path.join(project_dir, "PythonLib"))
+    python_sources = find_python_sources(PYTHON_LIB_DIR)
     python_sources = [f for f in python_sources if "test_cinderx" not in f]
 
     sources = native_sources + python_sources
@@ -167,8 +195,9 @@ def main() -> None:
             "build_py": BuildPy,
             "build_ext": BuildExt,
         },
-        packages=find_packages(where="PythonLib", exclude=["test_cinderx*"]),
-        package_dir={"": "PythonLib"},
+        packages=find_packages(where=PYTHON_LIB_DIR, exclude=["test_cinderx*"]),
+        package_dir={"": PYTHON_LIB_DIR},
+        package_data={"cinderx": [".dev_build"]},
         python_requires="==3.12",
     )
 
