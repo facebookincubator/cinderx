@@ -22,6 +22,7 @@
 #include "cinderx/module_state.h"
 
 #include <optional>
+#include <type_traits>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -462,7 +463,7 @@ class Runtime : public IRuntime {
 #if PY_VERSION_HEX < 0x030C0000
   // In 3.12+ the equivalent of this is in generators_rt.cpp.
   template <typename F>
-  REQUIRES_CALLABLE(F, int, PyObject*)
+    requires std::is_invocable_r_v<int, F, PyObject*>
   int forEachOwnedRef(PyGenObject* gen, std::size_t deopt_idx, F func) {
     const DeoptMetadata& meta = getDeoptMetadata(deopt_idx);
     auto base = reinterpret_cast<char*>(genDataFooter(gen));

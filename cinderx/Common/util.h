@@ -276,15 +276,6 @@ struct FreeDeleter {
 template <typename T>
 using unique_c_ptr = std::unique_ptr<T, FreeDeleter>;
 
-#include <concepts>
-
-#define REQUIRES_CALLABLE(...) requires jit::Callable<__VA_ARGS__>
-// Similar to std::invocable<F, Args...>, but also constrains the return type.
-template <typename F, typename Ret, typename... Args>
-concept Callable = requires(F f, Args&&... args) {
-  { f(std::forward<Args>(args)...) } -> std::convertible_to<Ret>;
-};
-
 template <class T>
 class ScopeExit {
  public:
