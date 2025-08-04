@@ -443,8 +443,7 @@ static PyObject* strictmodule_lookupattro_impl(
   } else if (
       PyUnicode_GET_LENGTH(name) == 9 && PyUnicode_READ_CHAR(name, 0) == '_' &&
       PyUnicode_CompareWithASCIIString(name, "__class__") == 0) {
-    Py_INCREF(&Ci_StrictModule_Type);
-    return (PyObject*)&Ci_StrictModule_Type;
+    return Py_NewRef(&PyModule_Type);
   } else if (
       PyUnicode_GET_LENGTH(name) == 8 && PyUnicode_READ_CHAR(name, 0) == '_' &&
       PyUnicode_CompareWithASCIIString(name, "__dict__") == 0) {
