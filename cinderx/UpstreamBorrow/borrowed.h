@@ -239,6 +239,10 @@ PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
 
 #endif
 
+#ifdef ENABLE_PEP523_HOOK
+extern _PyFrameEvalFunction Ci_EvalFrameFunc;
+#endif
+
 int init_upstream_borrow(void);
 
 #ifdef __cplusplus
