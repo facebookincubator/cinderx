@@ -165,9 +165,10 @@ do { \
         DISPATCH_GOTO(); \
     }
 
+#define IS_PEP523_HOOKED(tstate) (tstate->interp->eval_frame != NULL && tstate->interp->eval_frame != Ci_EvalFrame)
+
 #define DISPATCH_INLINED(NEW_FRAME)                     \
     do {                                                \
-        assert(tstate->interp->eval_frame == NULL);     \
         _PyFrame_SetStackPointer(frame, stack_pointer); \
         assert((NEW_FRAME)->previous == frame);         \
         frame = tstate->current_frame = (NEW_FRAME);     \

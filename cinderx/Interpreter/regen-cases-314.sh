@@ -29,4 +29,3 @@ fbpython -- \
 
 gen='generated'
 sed -i "1i // @$gen" 3.14/Includes/generated_cases.c.h
-sed -i "1i // @$gen" 3.14/Includes/opcode_metadata.h

@@ -28,6 +28,9 @@
 #define _PyOpcode_OpName _CiOpcode_OpName
 #define _PyOpcode_opcode_metadata _CiOpcode_opcode_metadata
 
+PyObject* _Py_HOT_FUNCTION
+Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag);
+
 #include "cinderx/Interpreter/3.14/Includes/ceval.c"
 
 #endif
