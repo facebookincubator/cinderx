@@ -284,6 +284,11 @@ def manage_worker(
 def _computeSkipTests(huntrleaks, use_rr=False) -> Tuple[Set[str], Set[str]]:
     skip_list_files = ["devserver_skip_tests.txt", "cinder_skip_test.txt"]
 
+    version = "".join(str(v) for v in sys.version_info[:2])
+    versioned_file = f"cinder_skip_test_{version}.txt"
+    if os.path.exists(os.path.join(os.path.dirname(__file__), versioned_file)):
+        skip_list_files.append(versioned_file)
+
     if support.check_sanitizer(address=True):
         skip_list_files.append("asan_skip_tests.txt")
 
