@@ -353,6 +353,8 @@ class EagerCoroutineDispatch(StaticTestBase):
             mod.x = _testcapi.TestAwaitedCall()
             self.assertIsInstance(mod.x, _testcapi.TestAwaitedCall)
             self.assertIsNone(mod.x.last_awaited())
+            cinderx.jit.lazy_compile(mod.await_x)
+            cinderx.jit.lazy_compile(mod.call_x)
             coro = mod.await_await_x()
             with self.assertRaisesRegex(
                 TypeError, r".*can't be used in 'await' expression"
@@ -366,9 +368,9 @@ class EagerCoroutineDispatch(StaticTestBase):
                 coro.send(None)
             coro.close()
             self.assertFalse(mod.x.last_awaited())
-            if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
-                self.assertTrue(cinderx.jit.is_jit_compiled(mod.await_x))
-                self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
+
+            self.assertTrue(cinderx.jit.is_jit_compiled(mod.await_x))
+            self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
 
     def test_invoke_method(self):
         codestr = """
@@ -413,6 +415,8 @@ class EagerCoroutineDispatch(StaticTestBase):
             )
             awaited_capturer = mod.X.x = _testcapi.TestAwaitedCall()
             self.assertIsNone(awaited_capturer.last_awaited())
+            cinderx.jit.lazy_compile(mod.await_x)
+            cinderx.jit.lazy_compile(mod.call_x)
             coro = mod.await_x(mod.X())
             with self.assertRaisesRegex(
                 TypeError, r".*can't be used in 'await' expression"
@@ -426,9 +430,9 @@ class EagerCoroutineDispatch(StaticTestBase):
                 coro.send(None)
             coro.close()
             self.assertFalse(awaited_capturer.last_awaited())
-            if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
-                self.assertTrue(cinderx.jit.is_jit_compiled(mod.await_x))
-                self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
+
+            self.assertTrue(cinderx.jit.is_jit_compiled(mod.await_x))
+            self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
 
     def test_async_yielding(self):
         class DummyAwaitable:

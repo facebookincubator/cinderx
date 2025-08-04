@@ -282,7 +282,7 @@ TEST_F(CmdLineTest, JITEnable) {
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit",
-          "PYTHONJIT",
+          "PYTHONJITALL",
           []() {},
           []() {
             ASSERT_TRUE(isJitUsable());
@@ -293,9 +293,9 @@ TEST_F(CmdLineTest, JITEnable) {
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit=0",
-          "PYTHONJIT=0",
+          "PYTHONJITALL=0",
           []() {},
-          []() { ASSERT_FALSE(isJitUsable()); }),
+          []() { ASSERT_TRUE(isJitUsable()); }),
       0);
 }
 

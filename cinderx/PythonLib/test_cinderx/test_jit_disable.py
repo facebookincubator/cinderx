@@ -17,7 +17,7 @@ from cinderx.jit import (
 )
 
 
-@unittest.skipIf(not INSTALLED, "Tests functionality on the JIT")
+@unittest.skipUnless(is_jit_enabled(), "Tests functionality on the JIT")
 class DisableEnableTests(unittest.TestCase):
     """
     These tests are finicky as they will disable the JIT for the entire

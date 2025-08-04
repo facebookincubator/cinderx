@@ -34,6 +34,22 @@ int initialize();
 void finalize();
 
 /*
+ * Check if a function should be scheduled for compilation.
+ *
+ * This doesn't guarantee that the function can or will be compiled, it just
+ * checks if the JIT has been configured in such a way that compilation is
+ * possible.
+ */
+bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func);
+
+/*
+ * Variant of shouldScheduleCompile() for nested code objects.
+ */
+bool shouldScheduleCompile(
+    BorrowedRef<> module_name,
+    BorrowedRef<PyCodeObject> code);
+
+/*
  * Overwrite the entry point of a function so that it tries to JIT-compile
  * itself in the future.
  *
