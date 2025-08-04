@@ -24,8 +24,13 @@
 #define _PyOpcode_Caches _CiOpcode_Caches
 #define _PyOpcode_Deopt _CiOpcode_Deopt
 #define _Py_type_getattro PyType_Type.tp_getattro
-#define _Py_slot_tp_getattr_hook NULL // TODO, fix me
-#define _Py_slot_tp_getattro NULL
+
+getattrofunc Ci_tp_getattr_hook, Ci_tp_getattro;
+
+// _Py_slot_tp_getattr_hook is used when __getattr__ is defined
+#define _Py_slot_tp_getattr_hook Ci_tp_getattr_hook
+// _Py_slot_tp_getattro is used when __getattribute__ is defined
+#define _Py_slot_tp_getattro Ci_tp_getattro
 
 int unicode_eq(PyObject *str1, PyObject *str2)
 {
@@ -981,7 +986,67 @@ int init_upstream_borrow(void) {
   if (Cix_monitoring_disable == NULL || Cix_monitoring_missing == NULL) {
     return -1;
   }
-  return 0;
+
+  // Create a couple of classes to find the interpreters special functions for __getattr__
+  // and __getattribute__
+  const char *code_str =
+    "class GetAttr:\n"
+    "    def __getattr__(self, name): pass\n"
+    "class GetAttribute:\n"
+    "    def __getattribute__(self, name): pass\n";
+
+  PyObject *code = NULL, *globals = NULL, *inst = NULL;
+  int result = -1;
+  code = Py_CompileString(code_str, "cinderx_getattr_init.py", Py_file_input);
+  if (code == NULL) {
+    goto error;
+  }
+  globals = PyDict_New();
+  if (globals == NULL) {
+    goto error;
+  }
+
+  PyObject *eval_result = PyEval_EvalCode(code, globals, globals);
+  if (eval_result == NULL) {
+    goto error;
+  }
+  Py_DECREF(eval_result);
+
+  PyObject *getattr = PyDict_GetItemString(globals, "GetAttr");
+  PyObject *getattribute = PyDict_GetItemString(globals, "GetAttribute");
+  if (getattr == NULL ||
+      getattribute == NULL ||
+      Py_TYPE(getattr) != &PyType_Type ||
+      Py_TYPE(getattribute) != &PyType_Type) {
+    PyErr_SetString(PyExc_RuntimeError,
+                    "failed to initialize GetAttr and GetAttribute: classes not defined");
+    goto error;
+  }
+
+  // We need to make an instance and access an attribute to initialize _Py_slot_tp_getattro
+  inst = PyObject_CallNoArgs(getattribute);
+  if (inst == NULL) {
+    PyErr_SetString(PyExc_RuntimeError,
+                    "failed to initialize GetAttr and GetAttribute: creating instance failed");
+    goto error;
+  }
+
+  Py_XDECREF(PyObject_GetAttrString(inst, "foo"));
+
+  Ci_tp_getattr_hook = ((PyTypeObject*)getattr)->tp_getattro;
+  Ci_tp_getattro = ((PyTypeObject*)getattribute)->tp_getattro;
+  if (Ci_tp_getattr_hook == NULL || Ci_tp_getattro == NULL) {
+    PyErr_SetString(PyExc_RuntimeError,
+                    "failed to initialize GetAttr and GetAttribute: got NULL values");
+    goto error;
+  }
+  result = 0;
+
+error:
+  Py_XDECREF(code);
+  Py_XDECREF(globals);
+  Py_XDECREF(inst);
+  return result;
 }
 
 
