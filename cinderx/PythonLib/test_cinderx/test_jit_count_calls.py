@@ -4,23 +4,17 @@
 
 import unittest
 
-import cinderx
-
-cinderx.init()
-
 import cinderx.jit
 from cinderx.jit import count_interpreted_calls
 
 
 class CountCallsTest(unittest.TestCase):
-    @unittest.skipIf(cinderx.is_initialized(), "Testing the no-init case")
+    @unittest.skipIf(cinderx.jit.is_enabled(), "Testing the no-init case")
     def test_no_init(self) -> None:
         def func():
             return 13
 
         self.assertEqual(count_interpreted_calls(func), 0)
-        func()
-        func()
         func()
         self.assertEqual(count_interpreted_calls(func), 0)
 
@@ -55,7 +49,7 @@ class CountCallsTest(unittest.TestCase):
             func()
 
     @unittest.skipUnless(
-        cinderx.jit.is_enabled() and cinderx.jit.is_compile_all(),
+        cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() == 0,
         "Testing JitAll functionality",
     )
     def test_basic_all(self) -> None:
