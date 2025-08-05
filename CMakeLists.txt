@@ -148,7 +148,7 @@ include_directories(
 
 file(GLOB_RECURSE COMMON_SOURCES ${PROJECT_SOURCE_DIR}/Common/*.cpp)
 add_library(common ${COMMON_SOURCES})
-target_link_libraries(common PRIVATE fmt::fmt ZLIB::ZLIB)
+target_link_libraries(common PRIVATE asmjit::asmjit fmt::fmt ZLIB::ZLIB)
 
 ########################################
 # UpstreamBorrow/
@@ -216,14 +216,14 @@ target_include_directories(
 
 file(GLOB_RECURSE IMMORTALIZE_SOURCES ${PROJECT_SOURCE_DIR}/Immortalize/*.cpp)
 add_library(immortalize ${IMMORTALIZE_SOURCES})
-target_link_libraries(immortalize PRIVATE fmt::fmt)
+target_link_libraries(immortalize PRIVATE asmjit::asmjit fmt::fmt)
 
 ########################################
 # StaticPython/
 
 file(GLOB_RECURSE STATIC_PYTHON_SOURCES ${PROJECT_SOURCE_DIR}/StaticPython/*.c)
 add_library(static-python ${STATIC_PYTHON_SOURCES})
-target_link_libraries(static-python PRIVATE fmt::fmt common borrowed)
+target_link_libraries(static-python PRIVATE fmt::fmt asmjit::asmjit common borrowed)
 
 ########################################
 # Jit/
