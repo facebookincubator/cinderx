@@ -15,6 +15,7 @@ import sys
 from typing import Callable
 
 from setuptools import Extension, find_packages, setup
+from setuptools.command.build import build as build
 from setuptools.command.build_ext import build_ext
 from setuptools.command.build_py import build_py
 
@@ -42,13 +43,15 @@ def find_python_sources(path: str) -> list[str]:
     return find_files(path, lambda f: f.endswith(".py"))
 
 
-class BuildPy(build_py):
-    def initialize_options(self) -> None:
-        super().initialize_options()
-        # Don't use the setuptools default under "build/" as this clashes with
-        # "build/fbcode_builder/" (auto-added to the OSS view of CinderX).
-        self.build_lib = os.path.join(os.path.join(CHECKOUT_ROOT_DIR, "scratch"), "lib")
+class BuildCommand(build):
+    # Don't use the setuptools default under "build/" as this clashes with
+    # "build/fbcode_builder/" (auto-added to the OSS view of CinderX).
+    def initialize_options(self):
+        build.initialize_options(self)
+        self.build_base = os.path.join(CHECKOUT_ROOT_DIR, "scratch")
 
+
+class BuildPy(build_py):
     def run(self) -> None:
         # I have no idea what is supposed to set this up, but if it isn't set
         # we'll get an AttributeError at runtime.
@@ -79,15 +82,6 @@ class CMakeExtension(Extension):
 
 
 class BuildExt(build_ext):
-    def initialize_options(self) -> None:
-        super().initialize_options()
-        # Don't use the setuptools default under "build/" as this clashes with
-        # "build/fbcode_builder/" (auto-added to the OSS view of CinderX).
-        self.build_temp = os.path.join(
-            os.path.join(CHECKOUT_ROOT_DIR, "scratch"), "bin"
-        )
-        self.build_lib = os.path.join(os.path.join(CHECKOUT_ROOT_DIR, "scratch"), "lib")
-
     def run(self) -> None:
         # pyre-ignore[16]: No pyre types for build_ext.
         for extension in self.extensions:
@@ -192,6 +186,7 @@ def main() -> None:
         ext_modules=[CMakeExtension(".")],
         sources=sources,
         cmdclass={
+            "build": BuildCommand,
             "build_py": BuildPy,
             "build_ext": BuildExt,
         },
