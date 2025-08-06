@@ -2,6 +2,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Jit/codegen/copy_graph.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/lir/inliner.h"
@@ -43,6 +44,10 @@ int try_flag_and_envvar_effect(
   // Shutdown the JIT so we can start it up again under different conditions.
   jit::finalize();
 
+#if PY_VERSION_HEX >= 0x030C0000
+  jit::shutdown_jit_genobject_type();
+#endif
+
   reset_vars(); // reset variable state before and
   // between flag and cmd line param runs
 
@@ -68,6 +73,9 @@ int try_flag_and_envvar_effect(
     conditions_to_check();
     unsetenv(key.c_str());
     jit::finalize();
+#if PY_VERSION_HEX >= 0x030C0000
+    jit::shutdown_jit_genobject_type();
+#endif
     reset_vars();
   }
 

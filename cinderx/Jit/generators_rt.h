@@ -59,13 +59,12 @@ struct JitGenObject : PyGenObject {
     BorrowedRef<PyCodeObject> gen_code = _PyFrame_GetCode(gen_frame);
     BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->genType();
 
-    size_t python_frame_data_bytes =
-        _PyFrame_NumSlotsForCodeObject(gen_code) * gen_type->tp_itemsize;
+    size_t python_frame_slots = _PyFrame_NumSlotsForCodeObject(gen_code);
+    size_t size = _PyObject_VAR_SIZE(gen_type, python_frame_slots);
     // A *pointer* to JIT data comes after all the other data in the default
     // generator object.
     return reinterpret_cast<jit::GenDataFooter**>(
-        reinterpret_cast<uintptr_t>(this) + gen_type->tp_basicsize +
-        python_frame_data_bytes);
+        reinterpret_cast<uintptr_t>(this) + size);
   }
 
   GenDataFooter* genDataFooter() {
@@ -88,6 +87,7 @@ inline bool deopt_jit_gen(PyGenObject* gen) {
 }
 
 void init_jit_genobject_type();
+void shutdown_jit_genobject_type();
 
 PyObject* JitGen_AnextAwaitable_New(
     cinderx::ModuleState* moduleState,

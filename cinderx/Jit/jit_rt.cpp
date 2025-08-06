@@ -694,21 +694,8 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
 
   PyThreadState* tstate = PyThreadState_GET();
   JIT_DCHECK(tstate != nullptr, "thread state cannot be null");
-
-  // A "slot" is the size of PyObject* and we assume this just means 64bits for
-  // purposes of sizing allocation to cover JIT data.
-  static_assert(sizeof(uint64_t) == sizeof(PyObject*));
-  // +1 for the pointer to JIT data (GenDataFooter)
-  size_t slots = _PyFrame_NumSlotsForCodeObject(co) + 1 + spill_words +
-      sizeof(jit::GenDataFooter);
-  bool is_coro = !!(co->co_flags & CO_COROUTINE);
-  jit::JitGenObject* gen = is_coro
-      ? jit::JitGenObject::cast(PyObject_GC_NewVar(
-            PyCoroObject, cinderx::getModuleState()->coroType(), slots))
-      : jit::JitGenObject::cast(PyObject_GC_NewVar(
-            PyGenObject, cinderx::getModuleState()->genType(), slots));
-  // See comment in allocate_and_link_interpreter_frame about failure.
-  JIT_CHECK(gen != nullptr, "Failed to allocate JitGenObject");
+  auto [gen, gen_size] = cinderx::getModuleState()->jitGenFreeList()->allocate(
+      co, spill_words * sizeof(uint64_t) + sizeof(jit::GenDataFooter));
 
   gen->gi_frame_state = FRAME_CREATED;
   gen->gi_weakreflist = nullptr;
@@ -726,7 +713,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   gen->gi_hooks_inited = 0;
   gen->gi_closed = 0;
   gen->gi_running_async = 0;
-  if (is_coro) {
+  if (co->co_flags & CO_COROUTINE) {
     int origin_depth = tstate->coroutine_origin_tracking_depth;
     if (origin_depth == 0) {
       gen->gi_origin_or_finalizer = nullptr;
@@ -754,7 +741,7 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
 
   auto footer =
       reinterpret_cast<jit::GenDataFooter*>( // NOLINT performance-no-int-to-ptr
-          reinterpret_cast<uintptr_t>(gen) + sizeof(uint64_t) * slots -
+          reinterpret_cast<uintptr_t>(gen) + gen_size -
           sizeof(jit::GenDataFooter));
   *gen->genDataFooterPtr() = footer;
   footer->resumeEntry = resume_func;

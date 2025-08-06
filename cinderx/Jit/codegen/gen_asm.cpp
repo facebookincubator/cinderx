@@ -1376,13 +1376,10 @@ void NativeGenerator::generateResumeEntry() {
 #if PY_VERSION_HEX < 0x030C0000
   auto gi_jit_data_offset = offsetof(PyGenObject, gi_jit_data);
 #else
-  int python_frame_data_bytes =
-      _PyFrame_NumSlotsForCodeObject(GetFunction()->code) *
-      cinderx::getModuleState()->genType()->tp_itemsize;
-  Py_ssize_t gi_jit_data_offset =
-      cinderx::getModuleState()->genType()->tp_basicsize +
-      python_frame_data_bytes;
-
+  Py_ssize_t python_frame_slots =
+      _PyFrame_NumSlotsForCodeObject(GetFunction()->code);
+  Py_ssize_t gi_jit_data_offset = _PyObject_VAR_SIZE(
+      cinderx::getModuleState()->genType(), python_frame_slots);
 #endif
   as_->mov(jit_data_r, x86::ptr(x86::rdi, gi_jit_data_offset));
 

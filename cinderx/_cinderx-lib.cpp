@@ -1064,6 +1064,13 @@ void module_free(void* raw_mod) {
     JIT_CHECK(cinder_fini() == 0, "Failed to finalize CinderX");
   }
 
+#if PY_VERSION_HEX >= 0x030C0000
+  // This must be done at the point the module is free'd as the free-list uses
+  // data backed by the module state. The free-list will use the module refcount
+  // to keep the module alive while such uses are outstanding.
+  jit::shutdown_jit_genobject_type();
+#endif
+
   state->shutdown();
 }
 

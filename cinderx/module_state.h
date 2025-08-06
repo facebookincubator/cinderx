@@ -8,6 +8,7 @@
 
 #include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Jit/generators_mm_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/runtime_iface.h"
 #include "cinderx/Jit/symbolizer_iface.h"
@@ -147,12 +148,22 @@ class ModuleState {
     return cinderx_module_;
   }
 
+  jit::IJitGenFreeList* jitGenFreeList() const {
+    return jit_gen_free_list_.get();
+  }
+
+  void setJitGenFreeList(jit::IJitGenFreeList* jit_gen_free_list) {
+    jit_gen_free_list_ =
+        std::unique_ptr<jit::IJitGenFreeList>(jit_gen_free_list);
+  }
+
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::ICodeAllocator> code_allocator_;
   std::unique_ptr<jit::IRuntime> runtime_;
   std::unique_ptr<jit::ISymbolizer> symbolizer_;
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value_;
+  std::unique_ptr<jit::IJitGenFreeList> jit_gen_free_list_;
   Ref<PyTypeObject> coro_type_, gen_type_, anext_awaitable_type_;
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   Ref<> frame_reifier_;

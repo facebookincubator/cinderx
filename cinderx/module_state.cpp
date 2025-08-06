@@ -20,6 +20,7 @@ int ModuleState::clear() {
 static ModuleState* s_cinderx_state;
 
 void ModuleState::shutdown() {
+  jit_gen_free_list_.reset();
   cache_manager_.reset();
   runtime_.reset();
   symbolizer_.reset();

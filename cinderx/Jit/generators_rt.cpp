@@ -12,7 +12,10 @@
 #include "cinderx/Jit/deopt.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_borrowed.h"
+#include "cinderx/Jit/generators_mm.h"
+#include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/runtime.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_state.h"
 
 #include <string_view>
@@ -32,11 +35,57 @@ PyObject* JitGenObject::yieldFrom() {
 
 namespace {
 
-void jitgen_dealloc(PyObject* obj) {
-  if (!deopt_jit_gen(obj)) {
+const destructor original_gen_dealloc = PyGen_Type.tp_dealloc;
+const destructor original_coro_dealloc = PyCoro_Type.tp_dealloc;
+
+// This is mostly a copy of gen_dealloc from genobject.c but with a deopt at the
+// start, using our own memory manager for free at the end, some minor
+// tweaks for C++, and to use public APIs.
+void jitgen_dealloc(PyObject* self) {
+  if (!deopt_jit_gen(self)) {
     JIT_ABORT("Tried to dealloc a running JIT generator");
   }
-  return Py_TYPE(obj)->tp_dealloc(obj);
+
+  PyGenObject* gen = reinterpret_cast<PyGenObject*>(self);
+
+  PyObject_GC_UnTrack(gen);
+
+  if (gen->gi_weakreflist != nullptr) {
+    PyObject_ClearWeakRefs(self);
+  }
+
+  PyObject_GC_Track(self);
+
+  if (PyObject_CallFinalizerFromDealloc(self)) {
+    return; /* resurrected.  :( */
+  }
+
+  PyObject_GC_UnTrack(self);
+  if (PyAsyncGen_CheckExact(gen)) {
+    /* We have to handle this case for asynchronous generators
+       right here, because this code has to be between UNTRACK
+       and GC_Del. */
+    Py_CLEAR(reinterpret_cast<PyAsyncGenObject*>(gen)->ag_origin_or_finalizer);
+  }
+  if (gen->gi_frame_state < FRAME_CLEARED) {
+    _PyInterpreterFrame* frame = generatorFrame(gen);
+    gen->gi_frame_state = FRAME_CLEARED;
+    frame->previous = nullptr;
+    _PyFrame_ClearExceptCode(frame);
+  }
+  PyCodeObject* code = frameCode(generatorFrame(gen));
+  if (code->co_flags & CO_COROUTINE) {
+    Py_CLEAR(reinterpret_cast<PyCoroObject*>(gen)->cr_origin_or_finalizer);
+  }
+  Py_DECREF(code);
+  Py_CLEAR(gen->gi_name);
+  Py_CLEAR(gen->gi_qualname);
+  _PyErr_ClearExcState(&gen->gi_exc_state);
+#if PY_VERSION_HEX < 0x030E0000
+  Py_CLEAR(gen->gi_ci_awaiter);
+#endif
+
+  cinderx::getModuleState()->jitGenFreeList()->free(self);
 }
 
 int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
@@ -716,6 +765,10 @@ void init_jit_genobject_type() {
     int i;
     for (i = 0; src[i].name != nullptr; ++i) {
       JIT_CHECK(
+          target[i].name != nullptr,
+          "Missing getter/setter on JIT generator: {}",
+          src[i].name);
+      JIT_CHECK(
           std::string_view(target[i].name) == src[i].name,
           "Name mismatch: {} != {}",
           target[i].name,
@@ -745,6 +798,10 @@ void init_jit_genobject_type() {
     int i;
     for (i = 0; src[i].ml_name != nullptr; ++i) {
       JIT_CHECK(
+          target[i].ml_name != nullptr,
+          "Missing method on JIT generator: {}",
+          src[i].ml_name);
+      JIT_CHECK(
           std::string_view(target[i].ml_name) == src[i].ml_name,
           "Name mismatch: {} != {}",
           target[i].ml_name,
@@ -766,6 +823,16 @@ void init_jit_genobject_type() {
   copy_methods(PyGen_Type.tp_methods, gen_type->tp_methods);
   copy_methods(PyCoro_Type.tp_methods, coro_type->tp_methods);
 
+  cinderx::getModuleState()->setJitGenFreeList(new JitGenFreeList());
+
+  // Override dealloc so we can use a "free-list" for our objects.
+  JIT_CHECK(
+      PyGen_Type.tp_dealloc == original_gen_dealloc &&
+          PyCoro_Type.tp_dealloc == original_coro_dealloc,
+      "PyGen/Coro_Type already overridden");
+  PyGen_Type.tp_dealloc = reinterpret_cast<destructor>(jitgen_dealloc);
+  PyCoro_Type.tp_dealloc = reinterpret_cast<destructor>(jitgen_dealloc);
+
 #ifdef ENABLE_GENERATOR_AWAITER
   JIT_CHECK(
       PyCoro_Type.tp_flags & Ci_TPFLAGS_HAVE_AM_EXTRA,
@@ -774,6 +841,11 @@ void init_jit_genobject_type() {
       reinterpret_cast<Ci_AsyncMethodsWithExtra*>(PyCoro_Type.tp_as_async);
   jitcoro_as_async.ame_setawaiter = coro_ame->ame_setawaiter;
 #endif
+}
+
+void shutdown_jit_genobject_type() {
+  PyGen_Type.tp_dealloc = original_gen_dealloc;
+  PyCoro_Type.tp_dealloc = original_coro_dealloc;
 }
 
 static PyMethodDef anextawaitable_methods[] = {
