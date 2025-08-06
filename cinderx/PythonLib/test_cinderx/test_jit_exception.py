@@ -36,7 +36,7 @@ class ExceptionInConditional(unittest.TestCase):
             return 1
         return 2
 
-    def test_exception_thrown_in_conditional(self):
+    def test_exception_thrown_in_conditional(self) -> None:
         with self.assertRaisesRegex(Exception, "hello!"):
             self.doit(DummyContainer())
 
@@ -51,7 +51,7 @@ class ExceptionHandlingTests(unittest.TestCase):
             return True
         return False
 
-    def test_raise_and_catch(self):
+    def test_raise_and_catch(self) -> None:
         def f():
             raise Exception("hello")
 
@@ -72,7 +72,7 @@ class ExceptionHandlingTests(unittest.TestCase):
         except Err2:
             return 2
 
-    def test_multiple_except_blocks(self):
+    def test_multiple_except_blocks(self) -> None:
         def f():
             raise Err1("err1")
 
@@ -91,7 +91,7 @@ class ExceptionHandlingTests(unittest.TestCase):
         except:  # noqa: B001
             raise
 
-    def test_reraise(self):
+    def test_reraise(self) -> None:
         def f():
             raise Exception("hello")
 
@@ -111,7 +111,7 @@ class ExceptionHandlingTests(unittest.TestCase):
                 break
         return i
 
-    def test_try_except_in_loop(self):
+    def test_try_except_in_loop(self) -> None:
         def f(i):
             if i == 10:
                 raise Err1("hello")
@@ -132,7 +132,7 @@ class ExceptionHandlingTests(unittest.TestCase):
         except:  # noqa: B001
             return 100
 
-    def test_nested_try_except(self):
+    def test_nested_try_except(self) -> None:
         def f():
             raise Exception("hello")
 
@@ -147,7 +147,7 @@ class ExceptionHandlingTests(unittest.TestCase):
         except:  # noqa: B001
             yield 123
 
-    def test_except_in_generator(self):
+    def test_except_in_generator(self) -> None:
         def f(i):
             if i == 1:
                 raise Exception("hello")
@@ -168,7 +168,7 @@ class ExceptionHandlingTests(unittest.TestCase):
             result = 100
         return result
 
-    def test_try_finally(self):
+    def test_try_finally(self) -> None:
         self.assertEqual(self.try_finally(False), 100)
         with self.assertRaisesRegex(Exception, "testing 123"):
             self.try_finally(True)
@@ -186,7 +186,7 @@ class ExceptionHandlingTests(unittest.TestCase):
                 result = 100
         return result
 
-    def test_try_except_finally(self):
+    def test_try_except_finally(self) -> None:
         self.assertEqual(self.try_except_finally(False), 100)
         self.assertEqual(self.try_except_finally(True), 200)
 
@@ -225,7 +225,7 @@ class ExceptionHandlingTests(unittest.TestCase):
             finally:
                 return v  # noqa: B012
 
-    def test_return_in_finally(self):
+    def test_return_in_finally(self) -> None:
         self.assertEqual(self.return_in_finally(100), 100)
         self.assertEqual(self.return_in_finally2(200), 100)
         self.assertEqual(self.return_in_finally3(300), 300)
@@ -255,7 +255,7 @@ class ExceptionHandlingTests(unittest.TestCase):
                         break  # noqa: B012
         return "end", count, count2
 
-    def test_break_in_finally_after_return(self):
+    def test_break_in_finally_after_return(self) -> None:
         self.assertEqual(self.break_in_finally_after_return(False), 10)
         self.assertEqual(self.break_in_finally_after_return(True), ("end", 1, 10))
         self.assertEqual(self.break_in_finally_after_return2(False), 10)
@@ -283,7 +283,7 @@ class ExceptionHandlingTests(unittest.TestCase):
                     continue  # noqa: B012
         return "end", count
 
-    def test_continue_in_finally_after_return(self):
+    def test_continue_in_finally_after_return(self) -> None:
         self.assertEqual(self.continue_in_finally_after_return(False), 1)
         self.assertEqual(self.continue_in_finally_after_return(True), ("end", 100))
         self.assertEqual(self.continue_in_finally_after_return2(False), 0)
@@ -300,7 +300,7 @@ class ExceptionHandlingTests(unittest.TestCase):
             pass
         return 100
 
-    def test_return_in_loop_in_finally(self):
+    def test_return_in_loop_in_finally(self) -> None:
         self.assertEqual(self.return_in_loop_in_finally(True), True)
         self.assertEqual(self.return_in_loop_in_finally(False), 100)
 
@@ -316,7 +316,7 @@ class ExceptionHandlingTests(unittest.TestCase):
             pass
         return z
 
-    def test_conditional_return_in_finally(self):
+    def test_conditional_return_in_finally(self) -> None:
         self.assertEqual(self.conditional_return_in_finally(100, False, False), 100)
         self.assertEqual(self.conditional_return_in_finally(False, 200, False), 200)
         self.assertEqual(self.conditional_return_in_finally(False, False, 300), 300)
@@ -334,6 +334,6 @@ class ExceptionHandlingTests(unittest.TestCase):
                 z = y
         return z
 
-    def test_nested_finally(self):
+    def test_nested_finally(self) -> None:
         self.assertEqual(self.nested_finally(100), 100)
         self.assertEqual(self.nested_finally(False), 10)

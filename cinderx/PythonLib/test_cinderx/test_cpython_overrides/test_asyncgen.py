@@ -26,7 +26,7 @@ class CinderX_AsyncGenAsyncioTest(unittest.TestCase):
         asyncio.set_event_loop_policy(None)
 
     @unittest.skipIf(cinderx.jit.is_enabled(), "fails under Cinder JIT")
-    def test_async_gen_asyncio_gc_aclose_09(self):
+    def test_async_gen_asyncio_gc_aclose_09(self) -> None:
         DONE = 0
 
         async def gen():

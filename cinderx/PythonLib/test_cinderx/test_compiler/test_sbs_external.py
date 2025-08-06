@@ -38,7 +38,7 @@ def add_test(modname, fname):
         if p in fname:
             return
 
-    def test_external(self):
+    def test_external(self) -> None:
         with open(fname, "rb") as inp:
             encoding, _lines = detect_encoding(inp.readline)
             code = b"".join(_lines + inp.readlines()).decode(encoding)

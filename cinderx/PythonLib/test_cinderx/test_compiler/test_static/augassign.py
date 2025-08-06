@@ -17,7 +17,7 @@ class AugAssignTests(StaticTestBase):
             f(li)
             self.assertEqual(li[0], 2)
 
-    def test_field(self):
+    def test_field(self) -> None:
         codestr = """
         class C:
             def __init__(self):
@@ -31,7 +31,7 @@ class AugAssignTests(StaticTestBase):
         self.assertInBytecode(code, "LOAD_FIELD", (("foo", "C"), "x"))
         self.assertInBytecode(code, "STORE_FIELD", (("foo", "C"), "x"))
 
-    def test_primitive_int(self):
+    def test_primitive_int(self) -> None:
         codestr = """
         from __static__ import int8, box, unbox
 
@@ -45,7 +45,7 @@ class AugAssignTests(StaticTestBase):
             self.assertInBytecode(a, "PRIMITIVE_BINARY_OP", 0)
             self.assertEqual(a(3), 5)
 
-    def test_inexact(self):
+    def test_inexact(self) -> None:
         codestr = """
         def something():
             return 3
@@ -62,7 +62,7 @@ class AugAssignTests(StaticTestBase):
             self.assertBinOpInBytecode(t, "INPLACE_ADD")
             self.assertEqual(t(), 3)
 
-    def test_list(self):
+    def test_list(self) -> None:
         for prim_idx in [True, False]:
             with self.subTest(prim_idx=prim_idx):
                 codestr = f"""
@@ -77,7 +77,7 @@ class AugAssignTests(StaticTestBase):
                 with self.in_module(codestr) as mod:
                     self.assertEqual(mod.f(3), 4)
 
-    def test_checked_list(self):
+    def test_checked_list(self) -> None:
         for prim_idx in [True, False]:
             with self.subTest(prim_idx=prim_idx):
                 codestr = f"""
@@ -92,7 +92,7 @@ class AugAssignTests(StaticTestBase):
                 with self.in_module(codestr) as mod:
                     self.assertEqual(mod.f(3), 4)
 
-    def test_checked_dict(self):
+    def test_checked_dict(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 

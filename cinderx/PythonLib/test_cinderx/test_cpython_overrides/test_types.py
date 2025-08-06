@@ -14,7 +14,7 @@ T = typing.TypeVar("T")
 
 class CinderX_UnionTests(unittest.TestCase):
     @cpython_only
-    def test_or_type_operator_reference_cycle(self):
+    def test_or_type_operator_reference_cycle(self) -> None:
         if not hasattr(sys, "gettotalrefcount"):
             self.skipTest("Cannot get total reference count.")
         gc.collect()

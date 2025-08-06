@@ -19,7 +19,7 @@ support.get_attribute(os, "fork")
 
 
 class CinderX_ForkTest(ForkWait):
-    def test_threaded_import_lock_fork(self):
+    def test_threaded_import_lock_fork(self) -> None:
         """Check fork() in main thread works while a subthread is doing an import"""
         import_started = threading.Event()
         fake_module_name = "fake test module"

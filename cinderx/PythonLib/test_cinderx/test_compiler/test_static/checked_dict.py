@@ -11,7 +11,7 @@ from .common import StaticTestBase, type_mismatch
 
 
 class CheckedDictTests(StaticTestBase):
-    def test_invoke_chkdict_method(self):
+    def test_invoke_chkdict_method(self) -> None:
         codestr = """
         from __static__ import CheckedDict
         def dict_maker() -> CheckedDict[int, int]:
@@ -43,7 +43,7 @@ class CheckedDictTests(StaticTestBase):
             self.assertEqual(list(f()), [2])
             self.assert_jitted(f)
 
-    def test_generic_method_ret_type(self):
+    def test_generic_method_ret_type(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -74,7 +74,7 @@ class CheckedDictTests(StaticTestBase):
             self.assertEqual(f("abc"), "foo")
             self.assertEqual(f("bar"), None)
 
-    def test_generic_method_get_non_optional(self):
+    def test_generic_method_get_non_optional(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -89,7 +89,7 @@ class CheckedDictTests(StaticTestBase):
             self.assertEqual(f("abc"), "foo")
             self.assertEqual(f("bar"), None)
 
-    def test_compile_nested_dict(self):
+    def test_compile_nested_dict(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -106,7 +106,7 @@ class CheckedDictTests(StaticTestBase):
             B = mod.B
             self.assertEqual(type(test()), chkdict[int, chkdict[B, int]])
 
-    def test_compile_dict_setdefault(self):
+    def test_compile_dict_setdefault(self) -> None:
         codestr = """
             from __static__ import CheckedDict
             def testfunc():
@@ -119,7 +119,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_dict_get(self):
+    def test_compile_dict_get(self) -> None:
         codestr = """
             from __static__ import CheckedDict
             def testfunc():
@@ -147,7 +147,7 @@ class CheckedDictTests(StaticTestBase):
             B = mod.B
             self.assertEqual(type(test()), chkdict[B, int])
 
-    def test_chkdict_literal(self):
+    def test_chkdict_literal(self) -> None:
         codestr = """
             from __static__ import CheckedDict
             def testfunc():
@@ -158,7 +158,7 @@ class CheckedDictTests(StaticTestBase):
             f = mod.testfunc
             self.assertEqual(type(f()), chkdict[int, str])
 
-    def test_compile_dict_get_typed(self):
+    def test_compile_dict_get_typed(self) -> None:
         codestr = """
             from __static__ import CheckedDict
             def testfunc():
@@ -167,7 +167,7 @@ class CheckedDictTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_compile_dict_setdefault_typed(self):
+    def test_compile_dict_setdefault_typed(self) -> None:
         codestr = """
             from __static__ import CheckedDict
             def testfunc():
@@ -176,7 +176,7 @@ class CheckedDictTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_compile_dict_setitem(self):
+    def test_compile_dict_setitem(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -206,7 +206,7 @@ class CheckedDictTests(StaticTestBase):
             )
             self.assertEqual(x, {1: "abc", 2: "def"})
 
-    def test_compile_dict_setitem_subscr(self):
+    def test_compile_dict_setitem_subscr(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -236,7 +236,7 @@ class CheckedDictTests(StaticTestBase):
             )
             self.assertEqual(x, {1: "abc", 2: "def"})
 
-    def test_compile_generic_dict_getitem_bad_type(self):
+    def test_compile_generic_dict_getitem_bad_type(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -250,7 +250,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_generic_dict_setitem_bad_type(self):
+    def test_compile_generic_dict_setitem_bad_type(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -264,7 +264,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_generic_dict_setitem_bad_type_2(self):
+    def test_compile_generic_dict_setitem_bad_type_2(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -278,7 +278,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_checked_dict_shadowcode(self):
+    def test_compile_checked_dict_shadowcode(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -295,7 +295,7 @@ class CheckedDictTests(StaticTestBase):
             for _ in range(200):
                 self.assertEqual(type(test()), chkdict[B, int])
 
-    def test_compile_checked_dict_optional(self):
+    def test_compile_checked_dict_optional(self) -> None:
         codestr = """
             from __static__ import CheckedDict
             from typing import Optional
@@ -313,7 +313,7 @@ class CheckedDictTests(StaticTestBase):
             x["z"] = None
             self.assertEqual(type(x), chkdict[str, str | None])
 
-    def test_compile_checked_dict_bad_annotation(self):
+    def test_compile_checked_dict_bad_annotation(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -325,7 +325,7 @@ class CheckedDictTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(type(test()), chkdict[str, str])
 
-    def test_compile_checked_dict_ann_differs(self):
+    def test_compile_checked_dict_ann_differs(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -342,7 +342,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_checked_dict_ann_differs_2(self):
+    def test_compile_checked_dict_ann_differs_2(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -356,7 +356,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_checked_dict_opt_out_by_default(self):
+    def test_compile_checked_dict_opt_out_by_default(self) -> None:
         codestr = """
             class B: pass
             class D(B): pass
@@ -369,7 +369,7 @@ class CheckedDictTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(type(test()), dict)
 
-    def test_compile_checked_dict_opt_in(self):
+    def test_compile_checked_dict_opt_in(self) -> None:
         codestr = """
             from __static__.compiler_flags import checked_dicts
             class B: pass
@@ -384,7 +384,7 @@ class CheckedDictTests(StaticTestBase):
             B = mod.B
             self.assertEqual(type(test()), chkdict[B, int])
 
-    def test_compile_checked_dict_explicit_dict(self):
+    def test_compile_checked_dict_explicit_dict(self) -> None:
         codestr = """
             from __static__ import pydict
             class B: pass
@@ -398,7 +398,7 @@ class CheckedDictTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(type(test()), dict)
 
-    def test_compile_checked_dict_reversed(self):
+    def test_compile_checked_dict_reversed(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -414,7 +414,7 @@ class CheckedDictTests(StaticTestBase):
             B = mod.B
             self.assertEqual(type(test()), chkdict[B, int])
 
-    def test_compile_checked_dict_type_specified(self):
+    def test_compile_checked_dict_type_specified(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -430,7 +430,7 @@ class CheckedDictTests(StaticTestBase):
             B = mod.B
             self.assertEqual(type(test()), chkdict[B, int])
 
-    def test_compile_checked_dict_with_annotation_comprehension(self):
+    def test_compile_checked_dict_with_annotation_comprehension(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -442,7 +442,7 @@ class CheckedDictTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(type(test()), chkdict[int, object])
 
-    def test_compile_checked_dict_with_annotation(self):
+    def test_compile_checked_dict_with_annotation(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -458,7 +458,7 @@ class CheckedDictTests(StaticTestBase):
             test()
             self.assertEqual(type(test()), chkdict[B, int])
 
-    def test_compile_checked_dict_with_annotation_wrong_value_type(self):
+    def test_compile_checked_dict_with_annotation_wrong_value_type(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -477,7 +477,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_checked_dict_with_annotation_wrong_key_type(self):
+    def test_compile_checked_dict_with_annotation_wrong_key_type(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -496,7 +496,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_checked_dict_wrong_unknown_type(self):
+    def test_compile_checked_dict_wrong_unknown_type(self) -> None:
         codestr = """
             def f(x: int):
                 return x
@@ -511,7 +511,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_compile_checked_dict_explicit_dict_as_dict(self):
+    def test_compile_checked_dict_explicit_dict_as_dict(self) -> None:
         codestr = """
             from __static__ import pydict as dict
             class B: pass
@@ -525,7 +525,7 @@ class CheckedDictTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(type(test()), dict)
 
-    def test_compile_checked_dict_from_dict_call(self):
+    def test_compile_checked_dict_from_dict_call(self) -> None:
         codestr = """
             from __static__.compiler_flags import checked_dicts
 
@@ -540,7 +540,7 @@ class CheckedDictTests(StaticTestBase):
                 test = mod.testfunc
                 test()
 
-    def test_compile_checked_dict_from_dict_call_2(self):
+    def test_compile_checked_dict_from_dict_call_2(self) -> None:
         codestr = """
             from __static__.compiler_flags import checked_dicts
 
@@ -552,7 +552,7 @@ class CheckedDictTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(type(test()), chkdict[str, int])
 
-    def test_compile_checked_dict_from_dict_call_3(self):
+    def test_compile_checked_dict_from_dict_call_3(self) -> None:
         # we emit the chkdict import first before future annotations, but that
         # should be fine as we're the compiler.
         codestr = """
@@ -567,7 +567,7 @@ class CheckedDictTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(type(test()), chkdict[str, int])
 
-    def test_compile_checked_dict_len(self):
+    def test_compile_checked_dict_len(self) -> None:
         codestr = """
             from __static__ import CheckedDict
 
@@ -584,7 +584,7 @@ class CheckedDictTests(StaticTestBase):
             stats = cinderx.jit.get_and_clear_runtime_stats().get("deopt")
             self.assertFalse(stats)
 
-    def test_compile_checked_dict_clen(self):
+    def test_compile_checked_dict_clen(self) -> None:
         codestr = """
             from __static__ import CheckedDict, clen, int64
 
@@ -602,7 +602,7 @@ class CheckedDictTests(StaticTestBase):
             stats = cinderx.jit.get_and_clear_runtime_stats().get("deopt")
             self.assertFalse(stats)
 
-    def test_compile_checked_dict_create_with_dictcomp(self):
+    def test_compile_checked_dict_create_with_dictcomp(self) -> None:
         codestr = """
             from __static__ import CheckedDict, clen, int64
 
@@ -616,7 +616,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_chkdict_float_is_dynamic(self):
+    def test_chkdict_float_is_dynamic(self) -> None:
         codestr = """
         from __static__ import CheckedDict
 
@@ -630,7 +630,7 @@ class CheckedDictTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_build_checked_dict_cached(self):
+    def test_build_checked_dict_cached(self) -> None:
         codestr = """
         from __static__ import CheckedDict
 

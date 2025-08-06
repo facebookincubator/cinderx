@@ -8,7 +8,7 @@ from .common import StaticTestBase
 
 
 class StaticEnumTests(StaticTestBase):
-    def test_mixins_unsupported(self):
+    def test_mixins_unsupported(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -21,7 +21,7 @@ class StaticEnumTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_subclassing_unsupported(self):
+    def test_subclassing_unsupported(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -37,7 +37,7 @@ class StaticEnumTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_non_constant_allowed(self):
+    def test_non_constant_allowed(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -50,7 +50,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.Foo.FOO.value, 1)
 
-    def test_multiple_types_allowed(self):
+    def test_multiple_types_allowed(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -62,7 +62,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertEqual(mod.Foo.FOO.value, "FOO")
             self.assertEqual(mod.Foo.BAR.value, 23)
 
-    def test_delattr_disallowed(self):
+    def test_delattr_disallowed(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -78,7 +78,7 @@ class StaticEnumTests(StaticTestBase):
             "Static Enum values cannot be modified or deleted",
         )
 
-    def test_setattr_disallowed(self):
+    def test_setattr_disallowed(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -94,7 +94,7 @@ class StaticEnumTests(StaticTestBase):
             "Static Enum values cannot be modified or deleted",
         )
 
-    def test_compare_enum_to_values(self):
+    def test_compare_enum_to_values(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -108,7 +108,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), (False, False))
 
-    def test_compare_enum(self):
+    def test_compare_enum(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -127,7 +127,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), (True, True, False))
 
-    def test_compare_enum_nonstatic(self):
+    def test_compare_enum_nonstatic(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -141,7 +141,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertTrue(mod.Foo.FOO == mod.Foo.BAR)
             self.assertFalse(mod.Foo.FOO == mod.Foo.BAZ)
 
-    def test_compare_different_enums(self):
+    def test_compare_different_enums(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -157,7 +157,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), False)
 
-    def test_compare_different_enums_nonstatic(self):
+    def test_compare_different_enums_nonstatic(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -170,7 +170,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertFalse(mod.Foo.FOO == mod.Bar.FOO)
 
-    def test_enum_with_annotations(self):
+    def test_enum_with_annotations(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -182,7 +182,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertEqual(mod.C.FOO.value, 1)
             self.assertEqual(mod.C.BAR.value, "bar")
 
-    def test_enum_defined_in_terms_of_other_enum(self):
+    def test_enum_defined_in_terms_of_other_enum(self) -> None:
         codestr = """
         from __static__ import Enum
 
@@ -197,7 +197,7 @@ class StaticEnumTests(StaticTestBase):
         # Make sure we're binding to the enum type and not the value
         self.revealed_type(codestr, "Exact[<module>.C]")
 
-    def test_int_enum_mixins_unsupported(self):
+    def test_int_enum_mixins_unsupported(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -206,7 +206,7 @@ class StaticEnumTests(StaticTestBase):
         """
         self.type_error(codestr, "Static IntEnum types cannot support multiple bases")
 
-    def test_subclassing_int_enum_unsupported(self):
+    def test_subclassing_int_enum_unsupported(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -222,7 +222,7 @@ class StaticEnumTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_non_int_int_enum_unsupported(self):
+    def test_non_int_int_enum_unsupported(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -236,7 +236,7 @@ class StaticEnumTests(StaticTestBase):
             at='BAR = "BAR"',
         )
 
-    def test_delattr_int_enum_disallowed(self):
+    def test_delattr_int_enum_disallowed(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -251,7 +251,7 @@ class StaticEnumTests(StaticTestBase):
             "Static Enum values cannot be modified or deleted",
         )
 
-    def test_setattr_int_enum_disallowed(self):
+    def test_setattr_int_enum_disallowed(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -266,7 +266,7 @@ class StaticEnumTests(StaticTestBase):
             "Static Enum values cannot be modified or deleted",
         )
 
-    def test_non_constant_int_enum_allowed(self):
+    def test_non_constant_int_enum_allowed(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -279,7 +279,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.Foo.FOO, 1)
 
-    def test_compare_int_enum_to_int(self):
+    def test_compare_int_enum_to_int(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -292,7 +292,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), (True, False))
 
-    def test_compare_int_enum_to_int_enum(self):
+    def test_compare_int_enum_to_int_enum(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -306,7 +306,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), (True, False))
 
-    def test_compare_int_enum_to_int_nonstatic(self):
+    def test_compare_int_enum_to_int_nonstatic(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -317,7 +317,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertTrue(mod.Foo.FOO == 1)
             self.assertFalse(mod.Foo.FOO == 2)
 
-    def test_compare_int_enum_to_int_enum_nonstatic(self):
+    def test_compare_int_enum_to_int_enum_nonstatic(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -329,7 +329,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertTrue(mod.Foo.FOO == mod.Foo.FOO)
             self.assertFalse(mod.Foo.FOO == mod.Foo.BAR)
 
-    def test_compare_different_int_enums(self):
+    def test_compare_different_int_enums(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -348,7 +348,7 @@ class StaticEnumTests(StaticTestBase):
             # compare to be equal.
             self.assertEqual(mod.f(), (True, False))
 
-    def test_compare_different_int_enums_nonstatic(self):
+    def test_compare_different_int_enums_nonstatic(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -363,7 +363,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertTrue(mod.Foo.FOO == mod.Bar.FOO)
             self.assertFalse(mod.Foo.BAR == mod.Bar.FOO)
 
-    def test_int_enum_instances_are_ints(self):
+    def test_int_enum_instances_are_ints(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -381,7 +381,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertEqual(mod.bar(), "Foo.FOO is an int")
             self.assertEqual(mod.foo(mod.Foo.BAR), "Foo.BAR is an int")
 
-    def test_int_enum_with_annotations(self):
+    def test_int_enum_with_annotations(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -393,7 +393,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertEqual(mod.C.FOO, 1)
             self.assertEqual(mod.C.BAR, 2)
 
-    def test_int_enum_defined_in_terms_of_other_enum(self):
+    def test_int_enum_defined_in_terms_of_other_enum(self) -> None:
         codestr = """
         from __static__ import IntEnum
 
@@ -409,7 +409,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertEqual(mod.D.FOO, 1)
             self.assertEqual(mod.D.BAR, 2)
 
-    def test_string_enum_mixins_unsupported(self):
+    def test_string_enum_mixins_unsupported(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -420,7 +420,7 @@ class StaticEnumTests(StaticTestBase):
             codestr, "Static StringEnum types cannot support multiple bases"
         )
 
-    def test_subclassing_string_enums_unsupported(self):
+    def test_subclassing_string_enums_unsupported(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -436,7 +436,7 @@ class StaticEnumTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_non_str_string_enum_unsupported(self):
+    def test_non_str_string_enum_unsupported(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -450,7 +450,7 @@ class StaticEnumTests(StaticTestBase):
             at="BAR = 23",
         )
 
-    def test_delattr_string_enum_disallowed(self):
+    def test_delattr_string_enum_disallowed(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -465,7 +465,7 @@ class StaticEnumTests(StaticTestBase):
             "Static Enum values cannot be modified or deleted",
         )
 
-    def test_setattr_string_enum_disallowed(self):
+    def test_setattr_string_enum_disallowed(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -480,7 +480,7 @@ class StaticEnumTests(StaticTestBase):
             "Static Enum values cannot be modified or deleted",
         )
 
-    def test_non_constant_string_enum_allowed(self):
+    def test_non_constant_string_enum_allowed(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -493,7 +493,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.Foo.FOO, "foo")
 
-    def test_compare_string_enum_to_string(self):
+    def test_compare_string_enum_to_string(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -506,7 +506,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), (True, False))
 
-    def test_compare_string_enum_to_string_enum(self):
+    def test_compare_string_enum_to_string_enum(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -520,7 +520,7 @@ class StaticEnumTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), (True, False))
 
-    def test_compare_string_enum_to_string_nonstatic(self):
+    def test_compare_string_enum_to_string_nonstatic(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -531,7 +531,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertTrue(mod.Foo.FOO == "FOO")
             self.assertFalse(mod.Foo.FOO == "BAR")
 
-    def test_compare_string_enum_to_string_enum_nonstatic(self):
+    def test_compare_string_enum_to_string_enum_nonstatic(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -543,7 +543,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertTrue(mod.Foo.FOO == mod.Foo.FOO)
             self.assertFalse(mod.Foo.FOO == mod.Foo.BAR)
 
-    def test_compare_different_string_enums(self):
+    def test_compare_different_string_enums(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -562,7 +562,7 @@ class StaticEnumTests(StaticTestBase):
             # compare to be equal.
             self.assertEqual(mod.f(), (True, False))
 
-    def test_compare_different_string_enums_nonstatic(self):
+    def test_compare_different_string_enums_nonstatic(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -577,7 +577,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertTrue(mod.Foo.FOO == mod.Bar.FOO)
             self.assertFalse(mod.Foo.BAR == mod.Bar.FOO)
 
-    def test_string_enum_instances_are_strings(self):
+    def test_string_enum_instances_are_strings(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -595,7 +595,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertEqual(mod.bar(), "FOO is a string")
             self.assertEqual(mod.foo(mod.Foo.BAR), "BAR is a string")
 
-    def test_string_enum_with_annotations(self):
+    def test_string_enum_with_annotations(self) -> None:
         codestr = """
         from __static__ import StringEnum
 
@@ -607,7 +607,7 @@ class StaticEnumTests(StaticTestBase):
             self.assertEqual(mod.C.FOO, "FOO")
             self.assertEqual(mod.C.BAR, "BAR")
 
-    def test_string_enum_defined_in_terms_of_other_enum(self):
+    def test_string_enum_defined_in_terms_of_other_enum(self) -> None:
         codestr = """
         from __static__ import StringEnum
 

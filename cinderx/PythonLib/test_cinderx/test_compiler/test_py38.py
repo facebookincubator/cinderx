@@ -32,11 +32,11 @@ class Python38Tests(CompilerTest):
         self.assertInBytecode(code, self.CALL)
         self.assertEqual(code.co_posonlyargcount, 0)
 
-    def test_walrus_if(self):
+    def test_walrus_if(self) -> None:
         code = self.compile("if x:= y: pass")
         self.assertInBytecode(code, "STORE_NAME", "x")
 
-    def test_walrus_call(self):
+    def test_walrus_call(self) -> None:
         code = self.compile("f(x:= y)")
         self.assertInBytecode(code, "STORE_NAME", "x")
 
@@ -92,7 +92,7 @@ class Python38Tests(CompilerTest):
         """
         self._check(source)
 
-    def test_try_finally(self):
+    def test_try_finally(self) -> None:
         source = """
             def g():
                 for i in l:
@@ -153,7 +153,7 @@ class Python38Tests(CompilerTest):
         """
         self._check(source)
 
-    def test_try_except(self):
+    def test_try_except(self) -> None:
         source = """
             try:
                 f()
@@ -177,7 +177,7 @@ class Python38Tests(CompilerTest):
         """
         self._check(source)
 
-    def test_with(self):
+    def test_with(self) -> None:
         source = """
             with foo():
                 pass
@@ -196,7 +196,7 @@ class Python38Tests(CompilerTest):
         """
         self._check(source)
 
-    def test_async_with(self):
+    def test_async_with(self) -> None:
         source = """
             async def f():
                 async with foo():
@@ -218,7 +218,7 @@ class Python38Tests(CompilerTest):
         """
         self._check(source)
 
-    def test_constants(self):
+    def test_constants(self) -> None:
         source = """
             # formerly ast.Num
             i = 1
@@ -236,7 +236,7 @@ class Python38Tests(CompilerTest):
         """
         self._check(source)
 
-    def test_key_value_order(self):
+    def test_key_value_order(self) -> None:
         source = """
 order = []
 def f(place, val):
@@ -246,7 +246,7 @@ def f(place, val):
         """
         self._check(source)
 
-    def test_return(self):
+    def test_return(self) -> None:
         source = """
 def f():
     return 1
@@ -274,9 +274,9 @@ def f():
         """
         self._check(source)
 
-    def test_break_continue_in_finally(self):
+    def test_break_continue_in_finally(self) -> None:
         source = """
-            def test_break_in_finally_after_return(self):
+            def test_break_in_finally_after_return(self) -> None:
                 # See issue #37830
                 def g1(x):
                     for count in [0, 1]:
@@ -302,7 +302,7 @@ def f():
                                     break
                     return 'end', count, count2
 
-            def test_continue_in_finally_after_return(self):
+            def test_continue_in_finally_after_return(self) -> None:
                 # See issue #37830
                 def g1(x):
                     count = 0
@@ -326,9 +326,9 @@ def f():
         """
         self._check(source)
 
-    def test_continue_in_finally(self):
+    def test_continue_in_finally(self) -> None:
         source = """
-            def test_continue_in_finally(self):
+            def test_continue_in_finally(self) -> None:
                 count = 0
                 while count < 2:
                     count += 1
@@ -377,7 +377,7 @@ def f():
         """
         self._check(source)
 
-    def test_asyncgen(self):
+    def test_asyncgen(self) -> None:
         source = """
             async def f(it):
                 for i in it:
@@ -402,7 +402,7 @@ def f():
         """
         self._check(source)
 
-    def test_posonly_args(self):
+    def test_posonly_args(self) -> None:
         code = self.compile("def f(a, /, b): pass")
 
         f = self.find_code(code)
@@ -410,7 +410,7 @@ def f():
         self.assertEqual(f.co_argcount, 2)
         self.assertEqual(f.co_varnames, ("a", "b"))
 
-    def test_multiline_expr_line_nos(self):
+    def test_multiline_expr_line_nos(self) -> None:
         codestr = """
             import traceback
 
@@ -422,7 +422,7 @@ def f():
         """
         self._check(codestr)
 
-    def test_decorator_line_nos(self):
+    def test_decorator_line_nos(self) -> None:
         dec_func = """
             @a
             @b
@@ -450,7 +450,7 @@ def f():
         """
         self._check(dec_async_func)
 
-    def test_yield_outside_function_dead_code(self):
+    def test_yield_outside_function_dead_code(self) -> None:
         """Yield syntax errors are still reported in dead code: bpo-37500."""
         cases = [
             "if 0: yield",
@@ -469,7 +469,7 @@ def f():
                 with self.assertRaisesRegex(SyntaxError, "outside function"):
                     self.compile(case)
 
-    def test_return_outside_function_dead_code(self):
+    def test_return_outside_function_dead_code(self) -> None:
         """Return syntax errors are still reported in dead code: bpo-37500."""
         cases = [
             "if 0: return",
@@ -489,7 +489,7 @@ def f():
                 with self.assertRaisesRegex(SyntaxError, "outside function"):
                     self.compile(case)
 
-    def test_break_outside_loop_dead_code(self):
+    def test_break_outside_loop_dead_code(self) -> None:
         """Break syntax errors are still reported in dead code: bpo-37500."""
         cases = [
             "if 0: break",
@@ -503,7 +503,7 @@ def f():
                 with self.assertRaisesRegex(SyntaxError, "outside loop"):
                     self.compile(case)
 
-    def test_continue_outside_loop_dead_code(self):
+    def test_continue_outside_loop_dead_code(self) -> None:
         """Continue syntax errors are still reported in dead code: bpo-37500."""
         cases = [
             "if 0: continue",
@@ -517,14 +517,14 @@ def f():
                 with self.assertRaisesRegex(SyntaxError, "not properly in loop"):
                     self.compile(case)
 
-    def test_jump_offsets(self):
+    def test_jump_offsets(self) -> None:
         codestr = """
         def f(a):
             return g(i for i in x if i not in j)
         """
         self._check(codestr)
 
-    def test_jump_forward(self):
+    def test_jump_forward(self) -> None:
         codestr = """
         def f():
             if yes:
@@ -536,7 +536,7 @@ def f():
         """
         self._check(codestr)
 
-    def test_with_setup(self):
+    def test_with_setup(self) -> None:
         codestr = """
         def _read_output(commandstring):
             import contextlib
@@ -553,7 +553,7 @@ def f():
         """
         self._check(codestr)
 
-    def test_try_finally_return(self):
+    def test_try_finally_return(self) -> None:
         codestr = """
         def f():
             try:
@@ -563,7 +563,7 @@ def f():
         """
         self._check(codestr)
 
-    def test_break_in_false_loop(self):
+    def test_break_in_false_loop(self) -> None:
         codestr = """
         def break_in_while():
             while False:
@@ -571,35 +571,35 @@ def f():
         """
         self._check(codestr)
 
-    def test_true_loop_lineno(self):
+    def test_true_loop_lineno(self) -> None:
         codestr = """
             while True:
                 b
         """
         self._check(codestr)
 
-    def test_syntax_error_rebind_comp_iter_nonlocal(self):
+    def test_syntax_error_rebind_comp_iter_nonlocal(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError,
             "comprehension inner loop cannot rebind assignment expression target 'j'",
         ):
             self.compile("[i for i in range(5) if (j := 0) for j in range(5)]")
 
-    def test_syntax_error_rebind_comp_iter(self):
+    def test_syntax_error_rebind_comp_iter(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError,
             "assignment expression cannot rebind comprehension iteration variable 'x'",
         ):
             self.compile("[x:=42 for x in 'abc']")
 
-    def test_syntax_error_assignment_expr_in_comp_iterable(self):
+    def test_syntax_error_assignment_expr_in_comp_iterable(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError,
             "assignment expression cannot be used in a comprehension iterable expression",
         ):
             self.compile("[x for x in (x:='abc')]")
 
-    def test_syntax_error_assignment_expr_in_class_comp(self):
+    def test_syntax_error_assignment_expr_in_class_comp(self) -> None:
         code = """
         class C:
             [y:=42 for x in 'abc']
@@ -610,7 +610,7 @@ def f():
         ):
             self.compile(code)
 
-    def test_future_annotated_assign_validation(self):
+    def test_future_annotated_assign_validation(self) -> None:
         code = """
         from __future__ import annotations
         def f(x):
@@ -619,7 +619,7 @@ def f():
         """
         self._check(code)
 
-    def test_assert_with_opt_0(self):
+    def test_assert_with_opt_0(self) -> None:
         code = """
         def f(x):
             if x > 1:
@@ -632,7 +632,7 @@ def f():
         """
         self._check(code)
 
-    def test_assert_with_opt_1(self):
+    def test_assert_with_opt_1(self) -> None:
         code = """
         def f(x):
             if x > 1:
@@ -645,14 +645,14 @@ def f():
         """
         self._check(code, optimize=1)
 
-    def test_unary_op_jump_folding(self):
+    def test_unary_op_jump_folding(self) -> None:
         code = """
         def f(x):
             return (not f(x) and x > 3) or x < 4
         """
         self._check(code)
 
-    def test_dunder_class_cellvar_in_nested(self):
+    def test_dunder_class_cellvar_in_nested(self) -> None:
         """
         __class__ should not be cell since the functions are
         not defined in a class
@@ -667,7 +667,7 @@ def f():
         """
         self._check(code)
 
-    def test_class_dunder_class_as_local(self):
+    def test_class_dunder_class_as_local(self) -> None:
         code = """
         class C:
             def f(__class__):
@@ -675,7 +675,7 @@ def f():
         """
         self._check(code)
 
-    def test_class_dunder_class_declared(self):
+    def test_class_dunder_class_declared(self) -> None:
         code = """
         def f():
             class C:

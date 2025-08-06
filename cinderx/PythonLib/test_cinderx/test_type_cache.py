@@ -21,7 +21,7 @@ type_assign_version = import_helper.import_module("_testcapi").type_assign_versi
 @support.cpython_only
 @unittest.skipIf(_clear_type_cache is None, "requires sys._clear_type_cache")
 class TypeCacheTests(unittest.TestCase):
-    def test_tp_version_tag_unique(self):
+    def test_tp_version_tag_unique(self) -> None:
         """tp_version_tag should be unique assuming no overflow, even after
         clearing type cache.
         """
@@ -52,7 +52,7 @@ class TypeCacheTests(unittest.TestCase):
             msg=f"{all_version_tags} contains non-unique versions",
         )
 
-    def test_type_assign_version(self):
+    def test_type_assign_version(self) -> None:
         class C:
             x = 5
 

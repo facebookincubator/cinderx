@@ -6,7 +6,7 @@ from .common import StaticTestBase
 
 
 class TestNarrowing(StaticTestBase):
-    def test_assign(self):
+    def test_assign(self) -> None:
         codestr = """
         def f(x: int | None) -> int:
           if (y := x) is not None:

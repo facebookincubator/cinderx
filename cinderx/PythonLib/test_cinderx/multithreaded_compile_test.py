@@ -59,12 +59,12 @@ def run_static_tests():
             pass
 
         # skip tests that raise errors in JIT preload
-        def test_load_uninit_module(self):
+        def test_load_uninit_module(self) -> None:
             pass
 
     class StaticRuntimeTests(CompileCaptureOverrides, test_static.StaticRuntimeTests):
         # skip tests that raise errors in JIT preload
-        def test_bad_classloader_type(self):
+        def test_bad_classloader_type(self) -> None:
             pass
 
     suite = unittest.TestLoader().loadTestsFromTestCase(StaticCompilationTests)

@@ -5,7 +5,7 @@ from .common import StaticTestBase
 
 
 class FStringTests(StaticTestBase):
-    def test_format_spec(self):
+    def test_format_spec(self) -> None:
         codestr = """
             def f(x: float) -> str:
                 return f"{x:.2f}"

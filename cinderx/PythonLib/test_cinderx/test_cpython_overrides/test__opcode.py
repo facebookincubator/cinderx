@@ -49,7 +49,7 @@ MISSING_STACK_EFFECT = {
 
 
 class CinderX_OpcodeTests(unittest.TestCase):
-    def test_stack_effect(self):
+    def test_stack_effect(self) -> None:
         self.assertEqual(stack_effect(dis.opmap["POP_TOP"]), -1)
         self.assertEqual(stack_effect(dis.opmap["DUP_TOP_TWO"]), 2)
         self.assertEqual(stack_effect(dis.opmap["BUILD_SLICE"], 0), -1)
@@ -77,7 +77,7 @@ class CinderX_OpcodeTests(unittest.TestCase):
                 self.assertRaises(ValueError, stack_effect, code)
                 self.assertRaises(ValueError, stack_effect, code, 0)
 
-    def test_stack_effect_jump(self):
+    def test_stack_effect_jump(self) -> None:
         JUMP_IF_TRUE_OR_POP = dis.opmap["JUMP_IF_TRUE_OR_POP"]
         self.assertEqual(stack_effect(JUMP_IF_TRUE_OR_POP, 0), 0)
         self.assertEqual(stack_effect(JUMP_IF_TRUE_OR_POP, 0, jump=True), 0)

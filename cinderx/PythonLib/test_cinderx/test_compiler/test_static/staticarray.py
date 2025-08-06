@@ -8,7 +8,7 @@ from .common import StaticTestBase
 
 
 class StaticArrayTests(StaticTestBase):
-    def test_exists(self):
+    def test_exists(self) -> None:
         self.assertTrue(
             hasattr(static, "staticarray"),
             "staticarray must exist in the 'static' module",
@@ -16,12 +16,12 @@ class StaticArrayTests(StaticTestBase):
 
         self.assertEqual(repr(static.staticarray), "<class '__static__.staticarray'>")
 
-    def test_initialization(self):
+    def test_initialization(self) -> None:
         my_array = static.staticarray(5)
         # must be initialized to zeros
         self.assertEqual(repr(my_array), "staticarray[5]([0, 0, 0, 0, 0])")
 
-    def test_set(self):
+    def test_set(self) -> None:
         my_array = static.staticarray(3)
 
         my_array[1] = 4
@@ -47,7 +47,7 @@ class StaticArrayTests(StaticTestBase):
         ):
             my_array[0] = object()
 
-    def test_get(self):
+    def test_get(self) -> None:
         my_array = static.staticarray(3)
 
         my_array[0] = 10
@@ -65,14 +65,14 @@ class StaticArrayTests(StaticTestBase):
         with self.assertRaises(IndexError):
             my_array[-10]
 
-    def test_len(self):
+    def test_len(self) -> None:
         my_array = static.staticarray(3)
         self.assertEqual(len(my_array), 3)
 
         my_array = static.staticarray(0)
         self.assertEqual(len(my_array), 0)
 
-    def test_concat(self):
+    def test_concat(self) -> None:
         a = static.staticarray(3)
         a[0] = 0
         a[1] = 1
@@ -87,7 +87,7 @@ class StaticArrayTests(StaticTestBase):
         c = a + b
         self.assertEqual(list(c), list(range(7)))
 
-    def test_repeat(self):
+    def test_repeat(self) -> None:
         a = static.staticarray(3)
         a[0] = 0
         a[1] = 1

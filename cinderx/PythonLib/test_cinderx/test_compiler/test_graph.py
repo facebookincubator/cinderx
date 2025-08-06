@@ -67,7 +67,7 @@ class GraphTests(CompilerTest):
                     ):
                         return instr.oparg.graph
 
-    def test_if(self):
+    def test_if(self) -> None:
         graph = self.to_graph(
             """
         if foo:
@@ -78,7 +78,7 @@ class GraphTests(CompilerTest):
         expected = make_linear_graph(["entry", "", "if_else", "if_end"])
         self.assert_graph_equal(graph, expected)
 
-    def test_try_except(self):
+    def test_try_except(self) -> None:
         graph = self.to_graph(
             """
         try:
@@ -94,12 +94,12 @@ class GraphTests(CompilerTest):
         expected = make_linear_graph(g)
         self.assert_graph_equal(graph, expected)
 
-    def test_chained_comparison(self):
+    def test_chained_comparison(self) -> None:
         graph = self.to_graph("a < b < c")
         expected = make_linear_graph(["entry", "compare_or_cleanup", "cleanup", "end"])
         self.assert_graph_equal(graph, expected)
 
-    def test_async_for(self):
+    def test_async_for(self) -> None:
         graph = self.to_graph(
             """
         async def f():

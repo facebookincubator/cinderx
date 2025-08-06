@@ -22,7 +22,7 @@ class DualCompilerDisTests(test_dis.CinderX_DisTests):
     sys.version_info >= (3, 12), "3.12 has different load super w/ CPython tests"
 )
 class LoadSuperTests(DualCompilerDisTests):
-    def test_super_zero_args(self):
+    def test_super_zero_args(self) -> None:
         src = """
         class C:
             def f(self): super().f1()
@@ -42,7 +42,7 @@ class LoadSuperTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["C"].f, expected)
 
-    def test_super_zero_args_load_attr(self):
+    def test_super_zero_args_load_attr(self) -> None:
         src = """
         class C:
             def f(self): super().f1(a=1)
@@ -63,7 +63,7 @@ class LoadSuperTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["C"].f, expected)
 
-    def test_super_two_args(self):
+    def test_super_two_args(self) -> None:
         src = """
         class C:
             def f(self): super(C, self).f1()
@@ -82,7 +82,7 @@ class LoadSuperTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["C"].f, expected)
 
-    def test_super_zero_method_args(self):
+    def test_super_zero_method_args(self) -> None:
         src = """
         class C:
             def f(): super().f1()
@@ -100,7 +100,7 @@ class LoadSuperTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["C"].f, expected)
 
-    def test_super_two_args_attr(self):
+    def test_super_two_args_attr(self) -> None:
         src = """
         class C:
             def f(self): super(C, self).f1(a=1)
@@ -121,7 +121,7 @@ class LoadSuperTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["C"].f, expected)
 
-    def test_super_attr_load(self):
+    def test_super_attr_load(self) -> None:
         src = """
         class C:
             def f(self): return super().x
@@ -157,7 +157,7 @@ Free variables:
    0: __class__"""
         self.assertEqual(dedent(dis.code_info(g["C"].f)), expected_dis_info)
 
-    def test_super_attr_store(self):
+    def test_super_attr_store(self) -> None:
         src = """
         class C:
             def f(self): super().x = 1
@@ -194,7 +194,7 @@ Free variables:
    0: __class__"""
         self.assertEqual(dedent(dis.code_info(g["C"].f)), expected_dis_info)
 
-    def test_super_as_global_1(self):
+    def test_super_as_global_1(self) -> None:
         src = """
         super = 1
         class C:
@@ -238,7 +238,7 @@ Free variables:
    0: __class__"""
         self.assertEqual(dedent(dis.code_info(g["C"].f)), expected_dis_info)
 
-    def test_super_as_local_1(self):
+    def test_super_as_local_1(self) -> None:
         src = """
         class C:
             def f(self, super):
@@ -280,7 +280,7 @@ Free variables:
    0: __class__"""
         self.assertEqual(dedent(dis.code_info(g["C"].f)), expected_dis_info)
 
-    def test_super_as_local_2(self):
+    def test_super_as_local_2(self) -> None:
         src = """
         def f():
             super = lambda: 1
@@ -328,7 +328,7 @@ class ComprehensionInlinerTests(DualCompilerDisTests):
         else:
             os.environ["PYTHONINLINECOMPREHENSIONS"] = self.prev_inline
 
-    def test_sync_comp_top(self):
+    def test_sync_comp_top(self) -> None:
         # ensure module level comprehensions are not inlined
         src = """
         [x for x in lst]
@@ -347,7 +347,7 @@ class ComprehensionInlinerTests(DualCompilerDisTests):
         co = self.compile(src)
         self.do_disassembly_test(co, expected)
 
-    def test_inline_sync_comp_nested_diff_scopes_1(self):
+    def test_inline_sync_comp_nested_diff_scopes_1(self) -> None:
         src = """
         def f():
             [x for x in lst]
@@ -379,7 +379,7 @@ class ComprehensionInlinerTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["f"], expected)
 
-    def test_inline_sync_comp_nested_diff_scopes_2(self):
+    def test_inline_sync_comp_nested_diff_scopes_2(self) -> None:
         src = """
         def f():
             [lambda: x for x in lst]
@@ -411,7 +411,7 @@ class ComprehensionInlinerTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["f"], expected)
 
-    def test_do_not_inline_comp_with_cells(self):
+    def test_do_not_inline_comp_with_cells(self) -> None:
         src = """
         def f(lst):
             ret = [lambda: x for x in lst]
@@ -427,7 +427,7 @@ class ComprehensionInlinerTests(DualCompilerDisTests):
         # value here to be 3 instead of 4
         self.assertEqual(g["f"]([1, 2, 3])[0](), 3)
 
-    def test_inline_sync_comp_nested_uses_globals(self):
+    def test_inline_sync_comp_nested_uses_globals(self) -> None:
         # This is a case that we technically could safely inline, but it's hard
         # to distinguish from the "cell" cases in the previous two tests, so
         # given that all these cases are rare, we don't inline any of them.
@@ -451,7 +451,7 @@ class ComprehensionInlinerTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["f"], expected)
 
-    def test_inline_sync_comp_nested_comprehensions(self):
+    def test_inline_sync_comp_nested_comprehensions(self) -> None:
         src = """
         def f():
             [x for x in [y for y in lst]]
@@ -482,7 +482,7 @@ class ComprehensionInlinerTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["f"], expected)
 
-    def test_inline_sync_comp_named_expr_1(self):
+    def test_inline_sync_comp_named_expr_1(self) -> None:
         src = """
         def f():
             [x for x in lst if (z := 5)]
@@ -509,7 +509,7 @@ class ComprehensionInlinerTests(DualCompilerDisTests):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["f"], expected)
 
-    def test_inline_async_comp_free_var1(self):
+    def test_inline_async_comp_free_var1(self) -> None:
         src = """
 async def f(lst):
     p = b'.'
@@ -558,7 +558,7 @@ async def f(lst):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["f"], expected)
 
-    def test_comprehension_inlining_name_conflict_with_implicit_global(self):
+    def test_comprehension_inlining_name_conflict_with_implicit_global(self) -> None:
         src = """
 def f(lst):
     [x for x in lst]
@@ -588,7 +588,7 @@ def f(lst):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["f"], expected)
 
-    def test_use_param_1(self):
+    def test_use_param_1(self) -> None:
         src = """
 def f(self, name, data, files=(), dirs=()):
     [os.path.join(dir, filename) for dir in files for filename in dir]
@@ -622,7 +622,7 @@ def f(self, name, data, files=(), dirs=()):
         exec(self.compile(src), g)
         self.do_disassembly_test(g["f"], expected)
 
-    def test_inline_comp_global1(self):
+    def test_inline_comp_global1(self) -> None:
         src = """
             g = 1
             def f():

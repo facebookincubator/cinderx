@@ -52,7 +52,7 @@ def add_test(modname, fname):
 
     modname = fname.replace(libpath, "")
 
-    def test_stdlib(self):
+    def test_stdlib(self) -> None:
         with open(fname, "rb") as inp:
             try:
                 encoding, _lines = detect_encoding(inp.readline)

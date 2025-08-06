@@ -5,7 +5,7 @@ from .common import StaticTestBase
 
 
 class TypedDictTests(StaticTestBase):
-    def test_typeddict_is_dynamic(self):
+    def test_typeddict_is_dynamic(self) -> None:
         codestr = """
             from typing import TypedDict
             class Player(TypedDict):

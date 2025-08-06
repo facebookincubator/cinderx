@@ -8,7 +8,7 @@ except ImportError:
 
 
 class CinderX_GeneratorTest(unittest.TestCase):
-    def test_name(self):
+    def test_name(self) -> None:
         def func():
             yield 1
 

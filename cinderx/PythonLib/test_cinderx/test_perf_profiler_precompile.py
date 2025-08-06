@@ -42,7 +42,7 @@ class TestPerfTrampolinePreCompile(unittest.TestCase):
         for file in files_to_delete:
             file.unlink()
 
-    def test_trampoline_works(self):
+    def test_trampoline_works(self) -> None:
         code = """if 1:
                 import sys
                 import os
@@ -121,7 +121,7 @@ class TestPerfTrampolinePreCompile(unittest.TestCase):
             ):
                 self.assertIn(line, child_perf_file_contents)
 
-    def test_trampoline_works_with_gced_functions(self):
+    def test_trampoline_works_with_gced_functions(self) -> None:
         # This tests that functions which are GC'd before the fork get cleared from
         # the list of functions to compile a trampoline for.
 

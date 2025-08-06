@@ -33,7 +33,7 @@ def save_restore_knobs():
 
 
 class StaticPatchTests(StaticTestBase):
-    def test_patch_function(self):
+    def test_patch_function(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -48,7 +48,7 @@ class StaticPatchTests(StaticTestBase):
             with patch(f"{mod.__name__}.f", autospec=True, return_value=100):
                 self.assertEqual(g(), 100)
 
-    def test_patch_async_function(self):
+    def test_patch_async_function(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -72,7 +72,7 @@ class StaticPatchTests(StaticTestBase):
                 except StopIteration as e:
                     self.assertEqual(e.args[0], 100)
 
-    def test_patch_async_method_incorrect_type(self):
+    def test_patch_async_method_incorrect_type(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -94,7 +94,7 @@ class StaticPatchTests(StaticTestBase):
                 with self.assertRaises(TypeError):
                     c.g().send(None)
 
-    def test_patch_async_method_raising(self):
+    def test_patch_async_method_raising(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -120,7 +120,7 @@ class StaticPatchTests(StaticTestBase):
                 with self.assertRaises(IndexError):
                     c.g().send(None)
 
-    def test_patch_async_method_non_coroutine(self):
+    def test_patch_async_method_non_coroutine(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -151,7 +151,7 @@ class StaticPatchTests(StaticTestBase):
 
         loop.close()
 
-    def test_patch_parentclass_slot(self):
+    def test_patch_parentclass_slot(self) -> None:
         codestr = """
         class A:
             def f(self) -> int:
@@ -175,7 +175,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(a_f_invoker(), 7)
             self.assertEqual(b_f_invoker(), 7)
 
-    def test_self_patching_function(self):
+    def test_self_patching_function(self) -> None:
         codestr = """
             def x(d, d2=1): pass
             def removeit(d):
@@ -204,7 +204,7 @@ class StaticPatchTests(StaticTestBase):
             i = 0
             self.assertEqual(g(True), None)
 
-    def test_patch_function_unwatchable_dict(self):
+    def test_patch_function_unwatchable_dict(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -224,7 +224,7 @@ class StaticPatchTests(StaticTestBase):
                 mod.__dict__[42] = 1
                 self.assertEqual(g(), 100)
 
-    def test_patch_function_deleted_func(self):
+    def test_patch_function_deleted_func(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -246,7 +246,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 g()
 
-    def test_patch_static_function(self):
+    def test_patch_static_function(self) -> None:
         codestr = """
             class C:
                 @staticmethod
@@ -263,7 +263,7 @@ class StaticPatchTests(StaticTestBase):
             with patch(f"{mod.__name__}.C.f", autospec=True, return_value=100):
                 self.assertEqual(g(), 100)
 
-    def test_patch_staticmethod_with_staticmethod(self):
+    def test_patch_staticmethod_with_staticmethod(self) -> None:
         codestr = """
             class C:
                 @staticmethod
@@ -285,7 +285,7 @@ class StaticPatchTests(StaticTestBase):
             mod.C.f = new
             self.assertEqual(g(), 100)
 
-    def test_patch_static_function_non_autospec(self):
+    def test_patch_static_function_non_autospec(self) -> None:
         codestr = """
             class C:
                 @staticmethod
@@ -303,7 +303,7 @@ class StaticPatchTests(StaticTestBase):
                 self.assertEqual(g(), 100)
 
     @save_restore_knobs()
-    def test_patch_function_non_autospec(self):
+    def test_patch_function_non_autospec(self) -> None:
         codestr = """
             from typing import final
 
@@ -323,7 +323,7 @@ class StaticPatchTests(StaticTestBase):
                 self.assertEqual(len(p.call_args[0]), 0)
 
     @save_restore_knobs()
-    def test_patch_coro_non_autospec(self):
+    def test_patch_coro_non_autospec(self) -> None:
         codestr = """
             from typing import final
 
@@ -345,7 +345,7 @@ class StaticPatchTests(StaticTestBase):
                     self.assertEqual(e.args[0], 100)
                 self.assertEqual(len(p.call_args[0]), 0)
 
-    def test_patch_classmethod_non_autospec(self):
+    def test_patch_classmethod_non_autospec(self) -> None:
         codestr = """
             from typing import final, Type
 
@@ -375,7 +375,7 @@ class StaticPatchTests(StaticTestBase):
                 self.assertEqual(len(p.call_args[0]), 0)
 
     @save_restore_knobs()
-    def test_patch_function_module_non_autospec(self):
+    def test_patch_function_module_non_autospec(self) -> None:
         codestr = """
             from typing import final
 
@@ -398,7 +398,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(p.call_args[0][0], c)
 
     @save_restore_knobs()
-    def test_patch_function_descriptor(self):
+    def test_patch_function_descriptor(self) -> None:
         class Patch:
             def __init__(self):
                 self.call = None
@@ -433,7 +433,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(p.get_called, True)
             self.assertEqual(p.call, ((), {}))
 
-    def test_patch_primitive_ret_type(self):
+    def test_patch_primitive_ret_type(self) -> None:
         for type_name, value, patched in [
             ("cbool", True, False),
             ("cbool", False, True),
@@ -463,7 +463,7 @@ class StaticPatchTests(StaticTestBase):
                     with patch(f"{mod.__name__}.C.f", return_value=patched):
                         self.assertEqual(g(), patched)
 
-    def test_patch_primitive_ret_type_overflow(self):
+    def test_patch_primitive_ret_type_overflow(self) -> None:
         codestr = """
             from __static__ import int8, box
             class C:
@@ -485,7 +485,7 @@ class StaticPatchTests(StaticTestBase):
                 ):
                     g()
 
-    def test_invoke_strict_module_patching(self):
+    def test_invoke_strict_module_patching(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -501,7 +501,7 @@ class StaticPatchTests(StaticTestBase):
             mod.patch("f", lambda: 100)
             self.assertEqual(g(), 100)
 
-    def test_invoke_patch_non_vectorcall(self):
+    def test_invoke_patch_non_vectorcall(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -516,7 +516,7 @@ class StaticPatchTests(StaticTestBase):
             mod.patch("f", Mock(return_value=100))
             self.assertEqual(g(), 100)
 
-    def test_patch_method(self):
+    def test_patch_method(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -537,7 +537,7 @@ class StaticPatchTests(StaticTestBase):
             C.f = orig
             self.assertEqual(g(), None)
 
-    def test_patch_property_with_instance_and_override_dict(self):
+    def test_patch_property_with_instance_and_override_dict(self) -> None:
         codestr = """
             class C:
                 @property
@@ -559,7 +559,7 @@ class StaticPatchTests(StaticTestBase):
             a.f = 100
             self.assertEqual(a.get_f(), 100)
 
-    def test_patch_static_to_static(self):
+    def test_patch_static_to_static(self) -> None:
         codestr = """
             class C:
                 def f(self) -> str:
@@ -580,7 +580,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 self.assertEqual(C().get_lower_f(), "ABC")
 
-    def test_static_not_inherited_from_nonstatic(self):
+    def test_static_not_inherited_from_nonstatic(self) -> None:
         codestr = """
             class C:
                 def f(self) -> str:
@@ -607,7 +607,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 self.assertEqual(E().get_lower_f(), "ABC")
 
-    def test_patch_method_mock(self):
+    def test_patch_method_mock(self) -> None:
         codestr = """
             class C:
                 def f(self, a):
@@ -624,7 +624,7 @@ class StaticPatchTests(StaticTestBase):
                 C().g()
                 self.assertEqual(p.call_args_list[0][0], (42,))
 
-    def test_patch_async_method_mock(self):
+    def test_patch_async_method_mock(self) -> None:
         codestr = """
             class C:
                 async def f(self, a):
@@ -640,7 +640,7 @@ class StaticPatchTests(StaticTestBase):
                 asyncio.run(C().g())
                 self.assertEqual(p.call_args_list[0][0], (42,))
 
-    def test_patch_async_method_descr(self):
+    def test_patch_async_method_descr(self) -> None:
         codestr = """
             class C:
                 async def f(self, a):
@@ -663,7 +663,7 @@ class StaticPatchTests(StaticTestBase):
             C.f = Descr()
             self.assertEqual(asyncio.run(C().g()), 42)
 
-    def test_patch_async_static_method(self):
+    def test_patch_async_static_method(self) -> None:
         codestr = """
             from typing import final
 
@@ -683,7 +683,7 @@ class StaticPatchTests(StaticTestBase):
                 asyncio.run(C().g())
                 self.assertEqual(p.call_args_list[0][0], ())
 
-    def test_patch_method_ret_none_error(self):
+    def test_patch_method_ret_none_error(self) -> None:
         codestr = """
             class C:
                 def f(self) -> None:
@@ -702,7 +702,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 g()
 
-    def test_patch_method_ret_none(self):
+    def test_patch_method_ret_none(self) -> None:
         codestr = """
             class C:
                 def f(self) -> None:
@@ -717,7 +717,7 @@ class StaticPatchTests(StaticTestBase):
             C.f = lambda *args: None
             self.assertEqual(g(), None)
 
-    def test_patch_method_bad_ret(self):
+    def test_patch_method_bad_ret(self) -> None:
         codestr = """
             class C:
                 def f(self) -> int:
@@ -735,7 +735,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 g()
 
-    def test_vtable_shadow_builtin_subclass_after_init(self):
+    def test_vtable_shadow_builtin_subclass_after_init(self) -> None:
         """Shadowing methods on subclass of list after vtables are inited."""
 
         class MyList(list):
@@ -762,7 +762,7 @@ class StaticPatchTests(StaticTestBase):
 
             self.assertEqual(MyList().reverse(), 1)
 
-    def test_vtable_shadow_builtin_subclass_before_init(self):
+    def test_vtable_shadow_builtin_subclass_before_init(self) -> None:
         """Shadowing methods on subclass of list before vtables are inited."""
 
         # Create a subclass of list...
@@ -793,7 +793,7 @@ class StaticPatchTests(StaticTestBase):
 
         self.assertEqual(MyList().reverse(), None)
 
-    def test_vtable_shadow_static_subclass(self):
+    def test_vtable_shadow_static_subclass(self) -> None:
         """Shadowing methods of a static type before its inited should not bypass typechecks."""
         # Define a static type and shadow a subtype method before invoking.
         codestr = """
@@ -830,7 +830,7 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaisesRegex(TypeError, "expected int, got str"):
                 mod.f(SubType())
 
-    def test_vtable_shadow_static_subclass_nonstatic_patch(self):
+    def test_vtable_shadow_static_subclass_nonstatic_patch(self) -> None:
         """Shadowing methods of a static type before its inited should not bypass typechecks."""
         code1 = """
             def nonstaticfoo(self):
@@ -871,7 +871,7 @@ class StaticPatchTests(StaticTestBase):
                 with self.assertRaisesRegex(TypeError, "expected int, got str"):
                     mod.f(SubType())
 
-    def test_vtable_shadow_grandparent(self):
+    def test_vtable_shadow_grandparent(self) -> None:
         codestr = """
             class Base:
                 def foo(self) -> int:
@@ -905,7 +905,7 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaisesRegex(TypeError, "expected int, got str"):
                 f(Grand())
 
-    def test_invoke_type_modified(self):
+    def test_invoke_type_modified(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -927,7 +927,7 @@ class StaticPatchTests(StaticTestBase):
             C.f = lambda self: 42
             self.assertEqual(x(C()), 84)
 
-    def test_invoke_type_modified_pre_invoke(self):
+    def test_invoke_type_modified_pre_invoke(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -948,7 +948,7 @@ class StaticPatchTests(StaticTestBase):
             C.f = lambda self: 42
             self.assertEqual(x(C()), 84)
 
-    def test_override_modified_base_class(self):
+    def test_override_modified_base_class(self) -> None:
         codestr = """
         class B:
             def f(self):
@@ -969,7 +969,7 @@ class StaticPatchTests(StaticTestBase):
             d = D()
             self.assertEqual(f(d), 3)
 
-    def test_override_remove_base_method(self):
+    def test_override_remove_base_method(self) -> None:
         codestr = """
         from typing import Optional
         class B:
@@ -996,7 +996,7 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaises(AttributeError):
                 f(d)
 
-    def test_override_remove_overridden_base_method(self):
+    def test_override_remove_overridden_base_method(self) -> None:
         codestr = """
         from typing import Optional
         class B:
@@ -1026,7 +1026,7 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaises(AttributeError):
                 f(d)
 
-    def test_override_remove_derived_method(self):
+    def test_override_remove_derived_method(self) -> None:
         codestr = """
         from typing import Optional
         class B:
@@ -1053,7 +1053,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(f(b), b)
             self.assertEqual(f(d), d)
 
-    def test_override_remove_method(self):
+    def test_override_remove_method(self) -> None:
         codestr = """
         from typing import Optional
         class B:
@@ -1073,7 +1073,7 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaises(AttributeError):
                 f(b)
 
-    def test_override_remove_method_add_type_check(self):
+    def test_override_remove_method_add_type_check(self) -> None:
         codestr = """
         from typing import Optional
         class B:
@@ -1097,7 +1097,7 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 f(b)
 
-    def test_override_update_derived(self):
+    def test_override_update_derived(self) -> None:
         codestr = """
         from typing import Optional
         class B:
@@ -1124,7 +1124,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(f(b), None)
             self.assertEqual(f(d), None)
 
-    def test_override_update_derived_2(self):
+    def test_override_update_derived_2(self) -> None:
         codestr = """
         from typing import Optional
         class B:
@@ -1153,7 +1153,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(f(b), None)
             self.assertEqual(f(d), None)
 
-    def test_patch_final_bad_ret_heap_type(self):
+    def test_patch_final_bad_ret_heap_type(self) -> None:
         codestr = """
             from typing import final
 
@@ -1182,7 +1182,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 c.g()
 
-    def test_patch_final_bad_ret(self):
+    def test_patch_final_bad_ret(self) -> None:
         codestr = """
             from typing import final
 
@@ -1210,7 +1210,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 c.g()
 
-    def test_patch_final_bad_ret_del(self):
+    def test_patch_final_bad_ret_del(self) -> None:
         codestr = """
             from typing import final
 
@@ -1237,7 +1237,7 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaisesRegex(TypeError, "C.f has been deleted"):
                 c.g()
 
-    def test_patch_final_async_function(self):
+    def test_patch_final_async_function(self) -> None:
         codestr = """
             from typing import final
 
@@ -1264,7 +1264,7 @@ class StaticPatchTests(StaticTestBase):
                 except StopIteration as e:
                     self.assertEqual(e.args[0], 100)
 
-    def test_patch_final_classmethod(self):
+    def test_patch_final_classmethod(self) -> None:
         codestr = """
             from typing import final
 
@@ -1287,7 +1287,7 @@ class StaticPatchTests(StaticTestBase):
                 # Ensure that the invoke in g() also hits the patched function.
                 self.assertEqual(C.g(), 42)
 
-    def test_patch_final_async_classmethod(self):
+    def test_patch_final_async_classmethod(self) -> None:
         codestr = """
             from typing import final
 
@@ -1309,7 +1309,7 @@ class StaticPatchTests(StaticTestBase):
                 # Ensure that the invoke in g() also hits the patched function.
                 self.assertEqual(asyncio.run(C.g()), 44)
 
-    def test_patch_classmethod(self):
+    def test_patch_classmethod(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -1329,7 +1329,7 @@ class StaticPatchTests(StaticTestBase):
                 # Ensure that the invoke in g() also hits the patched function.
                 self.assertEqual(C.g(), 42)
 
-    def test_patch_async_classmethod(self):
+    def test_patch_async_classmethod(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -1348,7 +1348,7 @@ class StaticPatchTests(StaticTestBase):
                 # Ensure that the invoke in g() also hits the patched function.
                 self.assertEqual(asyncio.run(C.g()), 44)
 
-    def test_patch_final_async_method_incorrect_type(self):
+    def test_patch_final_async_method_incorrect_type(self) -> None:
         codestr = """
             from typing import final
 
@@ -1373,7 +1373,7 @@ class StaticPatchTests(StaticTestBase):
                 with self.assertRaises(TypeError):
                     c.g().send(None)
 
-    def test_patch_property_bad_ret(self):
+    def test_patch_property_bad_ret(self) -> None:
         codestr = """
             class C:
                 @property
@@ -1392,7 +1392,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 c.g()
 
-    def test_patch_property_bad_ret_final(self):
+    def test_patch_property_bad_ret_final(self) -> None:
         codestr = """
             from typing import final
             @final
@@ -1413,7 +1413,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 c.g()
 
-    def test_primitive_boxing_with_patching_leaves_original_values_intact(self):
+    def test_primitive_boxing_with_patching_leaves_original_values_intact(self) -> None:
         codestr = """
             from __static__ import int64
             def takes_int64(x: int64) -> None:
@@ -1429,7 +1429,7 @@ class StaticPatchTests(StaticTestBase):
             f = mod.foo
             self.assertEqual(f(True), 43)
 
-    def test_no_inline_with_patching(self):
+    def test_no_inline_with_patching(self) -> None:
         codestr = """
             from __static__ import int64, cbool, inline
 
@@ -1448,7 +1448,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertNotInBytecode(foo, "STORE_LOCAL")
             self.assertInBytecode(foo, "INVOKE_FUNCTION")
 
-    def test_patch_namespace_local(self):
+    def test_patch_namespace_local(self) -> None:
         acode = """
             def f() -> int:
                 return 1
@@ -1467,7 +1467,7 @@ class StaticPatchTests(StaticTestBase):
 
             self.assertEqual(bmod.g(), 20)
 
-    def test_patch_namespace_re_export(self):
+    def test_patch_namespace_re_export(self) -> None:
         acode = """
             def f() -> int:
                 return 1
@@ -1489,7 +1489,7 @@ class StaticPatchTests(StaticTestBase):
 
             self.assertEqual(cmod.g(), 20)
 
-    def test_patch_namespace_origin(self):
+    def test_patch_namespace_origin(self) -> None:
         acode = """
             def f() -> int:
                 return 1
@@ -1508,7 +1508,7 @@ class StaticPatchTests(StaticTestBase):
 
             self.assertEqual(bmod.g(), 20)
 
-    def test_patch_namespace_locally_reassigned(self):
+    def test_patch_namespace_locally_reassigned(self) -> None:
         acode = """
             def f() -> int:
                 return 1
@@ -1533,7 +1533,7 @@ class StaticPatchTests(StaticTestBase):
 
                     self.assertEqual(bmod.g(), 20)
 
-    def test_double_patch_final_property(self):
+    def test_double_patch_final_property(self) -> None:
         codestr = """
             from typing import final
 
@@ -1554,7 +1554,7 @@ class StaticPatchTests(StaticTestBase):
             mod.C.prop = property(lambda s: 3)
             self.assertEqual(c.f(), 3)
 
-    def test_double_patch_inherited_property(self):
+    def test_double_patch_inherited_property(self) -> None:
         codestr = """
             class B:
                 def f(self) -> int:
@@ -1575,7 +1575,7 @@ class StaticPatchTests(StaticTestBase):
             mod.C.prop = property(lambda s: 3)
             self.assertEqual(c.f(), 3)
 
-    def test_patch_property_custom_patch_before_use(self):
+    def test_patch_property_custom_patch_before_use(self) -> None:
         codestr = """
             class C:
                 @property
@@ -1594,7 +1594,7 @@ class StaticPatchTests(StaticTestBase):
             mod.C.prop = Desc()
             self.assertEqual(mod.f(mod.C()), 42)
 
-    def test_patch_property_custom_desc(self):
+    def test_patch_property_custom_desc(self) -> None:
         codestr = """
             class C:
                 @property
@@ -1614,7 +1614,7 @@ class StaticPatchTests(StaticTestBase):
             mod.C.prop = Desc()
             self.assertEqual(mod.f(mod.C()), 42)
 
-    def test_patch_property_custom_desc_set(self):
+    def test_patch_property_custom_desc_set(self) -> None:
         codestr = """
             class C:
                 def __init__(self):
@@ -1650,7 +1650,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(c.value, 42)
             self.assertTrue(called)
 
-    def test_patch_property_custom_desc_bad_ret(self):
+    def test_patch_property_custom_desc_bad_ret(self) -> None:
         codestr = """
             class C:
                 @property
@@ -1675,7 +1675,7 @@ class StaticPatchTests(StaticTestBase):
                 mod.C(),
             )
 
-    def test_patch_readonly_property_with_settable(self):
+    def test_patch_readonly_property_with_settable(self) -> None:
         codestr = """
             class C:
                 @property
@@ -1697,7 +1697,7 @@ class StaticPatchTests(StaticTestBase):
             c.f()
             self.assertEqual(calls, [3])
 
-    def test_patch_settable_property_with_readonly(self):
+    def test_patch_settable_property_with_readonly(self) -> None:
         codestr = """
             class C:
                 def __init__(self, prop: int) -> None:
@@ -1722,7 +1722,7 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaisesRegex(AttributeError, r"can't set attribute"):
                 c.f(3)
 
-    def test_patch_property_del(self):
+    def test_patch_property_del(self) -> None:
         codestr = """
             class C:
                 def __init__(self, prop: int) -> None:
@@ -1765,7 +1765,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 c.set(3)
 
-    def test_patch_method_del(self):
+    def test_patch_method_del(self) -> None:
         codestr = """
             class C:
                 def f(self) -> int:
@@ -1787,7 +1787,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 c.g()
 
-    def test_patch_property_del_on_base(self):
+    def test_patch_property_del_on_base(self) -> None:
         codestr = """
             class B:
                 def __init__(self, prop: int) -> None:
@@ -1814,7 +1814,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 c.get()
 
-    def test_patch_cached_property_with_descr(self):
+    def test_patch_cached_property_with_descr(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -1831,7 +1831,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(mod.C().x, 42)
             self.assertEqual(mod.f(mod.C()), 42)
 
-    def test_property_patch_with_bad_type(self):
+    def test_property_patch_with_bad_type(self) -> None:
         codestr = """
         class C:
             @property
@@ -1853,7 +1853,7 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f(mod.C())
 
-    def test_property_patch_with_good_type(self):
+    def test_property_patch_with_good_type(self) -> None:
         codestr = """
         class C:
             @property
@@ -1869,7 +1869,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(c.x, 42)
             self.assertEqual(mod.f(c), 42)
 
-    def test_cached_property_patch_with_bad_type(self):
+    def test_cached_property_patch_with_bad_type(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -1888,7 +1888,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 setattr(mod.C, "x", "42")  # noqa: B010
 
-    def test_cached_property_patch_with_good_type(self):
+    def test_cached_property_patch_with_good_type(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -1907,7 +1907,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(c.x, 42)
             self.assertEqual(mod.f(c), 42)
 
-    def test_cached_property_patch_with_none(self):
+    def test_cached_property_patch_with_none(self) -> None:
         codestr = """
         from cinderx import cached_property
         from typing import Optional
@@ -1926,7 +1926,7 @@ class StaticPatchTests(StaticTestBase):
             self.assertEqual(c.x, None)
             self.assertEqual(mod.f(c), None)
 
-    def test_invoke_after_patch_nonstatic_base(self):
+    def test_invoke_after_patch_nonstatic_base(self) -> None:
         nonstaticcodestr = """
         class B:
             pass
@@ -1959,7 +1959,7 @@ class StaticPatchTests(StaticTestBase):
                 # Next, invoke a method on the base-class (C) through the patched subclass (D)
                 self.assertEqual(d.p(), 3)
 
-    def test_patch_static_function_in_strict_module(self):
+    def test_patch_static_function_in_strict_module(self) -> None:
         codestr = """
             def f() -> int:
                 return 1
@@ -1978,7 +1978,7 @@ class StaticPatchTests(StaticTestBase):
                     mod.patch("f", lambda: 2)
                     self.assertEqual(mod.g(), 2)
 
-    def test_patch_static_function_in_strict_module_cross_module(self):
+    def test_patch_static_function_in_strict_module_cross_module(self) -> None:
         defmod_code = """
             def f() -> int:
                 return 1
@@ -2019,12 +2019,12 @@ class StaticPatchTests(StaticTestBase):
                         with self.assertRaises(TypeError):
                             usemod.g()
 
-    def test_patch_strict_module_previously_nonexistent_attr(self):
+    def test_patch_strict_module_previously_nonexistent_attr(self) -> None:
         with self.in_strict_module("", enable_patching=True) as mod:
             mod.patch("f", lambda: 1)
             self.assertEqual(mod.f(), 1)
 
-    def test_async_cached_property_patch_with_bad_type(self):
+    def test_async_cached_property_patch_with_bad_type(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -2052,7 +2052,7 @@ class StaticPatchTests(StaticTestBase):
             ):
                 asyncio.run(mod.f(mod.C()))
 
-    def test_async_cached_property_patch_with_bad_return_type(self):
+    def test_async_cached_property_patch_with_bad_return_type(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -2090,7 +2090,7 @@ class StaticPatchTests(StaticTestBase):
             # This works, because it goes through LOAD_ATTR, and non-static code isn't type-checked
             self.assertEqual(asyncio.run(awaiter(mod.C())), "zzz")
 
-    def test_async_cached_property_patch_with_good_return_type(self):
+    def test_async_cached_property_patch_with_good_return_type(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -2123,7 +2123,9 @@ class StaticPatchTests(StaticTestBase):
 
             self.assertEqual(asyncio.run(awaiter(mod.C())), 131)
 
-    def test_async_cached_property_patch_with_good_return_type_already_invoked(self):
+    def test_async_cached_property_patch_with_good_return_type_already_invoked(
+        self,
+    ) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -2158,7 +2160,7 @@ class StaticPatchTests(StaticTestBase):
 
             self.assertEqual(asyncio.run(awaiter(mod.C())), 131)
 
-    def test_thunk_traversal(self):
+    def test_thunk_traversal(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -2177,7 +2179,7 @@ class StaticPatchTests(StaticTestBase):
             # This triggers a traversal of the thunk using its tp_traverse
             xxclassloader.traverse_heap()
 
-    def test_patch_staticmethod(self):
+    def test_patch_staticmethod(self) -> None:
         codestr = """
             from typing import final
 
@@ -2201,7 +2203,7 @@ class StaticPatchTests(StaticTestBase):
             r = mod.g()
             self.assertEqual(r, 45)
 
-    def test_patch_classmethod_2(self):
+    def test_patch_classmethod_2(self) -> None:
         codestr = """
             from typing import final
 
@@ -2225,7 +2227,7 @@ class StaticPatchTests(StaticTestBase):
             r = mod.g()
             self.assertEqual(r, 45)
 
-    def test_patch_parent_class(self):
+    def test_patch_parent_class(self) -> None:
         static_codestr = """
             from abc import ABCMeta
             from typing import final
@@ -2260,7 +2262,7 @@ class StaticPatchTests(StaticTestBase):
             # isn't initialized.
             setattr(mod.C, "f", lambda x: 100)  # noqa: B010
 
-    def test_set_code_raises_runtime_error(self):
+    def test_set_code_raises_runtime_error(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -2275,7 +2277,7 @@ class StaticPatchTests(StaticTestBase):
                 str(ctx.exception), "Cannot modify __code__ of Static Python function"
             )
 
-    def test_patch_fn_with_primitive_args(self):
+    def test_patch_fn_with_primitive_args(self) -> None:
         codestr = """
         import __static__
         from __static__ import int64, cbool, box
@@ -2295,7 +2297,7 @@ class StaticPatchTests(StaticTestBase):
             mod.patch("fn", fn2)
             mod.call_fn()
 
-    def test_patch_fn_with_optional_ret(self):
+    def test_patch_fn_with_optional_ret(self) -> None:
         codestr = """
         import __static__
         from __static__ import int64, cbool, box
@@ -2322,7 +2324,7 @@ class StaticPatchTests(StaticTestBase):
             mod.patch("fn", fn2)
             self.assertTrue(mod.call_fn())
 
-    def test_patch_property_with_primitive_ret(self):
+    def test_patch_property_with_primitive_ret(self) -> None:
         codestr = """
         import __static__
         from __static__ import int64, cbool, box

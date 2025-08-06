@@ -53,7 +53,7 @@ class FlagTests(CompilerTest):
         if actual != expected:
             self.assertEqual(show_flags(actual), show_flags(expected))
 
-    def test_future_no_longer_relevant(self):
+    def test_future_no_longer_relevant(self) -> None:
         f = self.run_code(
             """
         from __future__ import print_function
@@ -64,7 +64,7 @@ class FlagTests(CompilerTest):
         else:
             self.assertFlags(f, CO_OPTIMIZED | CO_NEWLOCALS)
 
-    def test_future_gen_stop(self):
+    def test_future_gen_stop(self) -> None:
         f = self.run_code(
             """
         from __future__ import generator_stop
@@ -75,27 +75,26 @@ class FlagTests(CompilerTest):
         else:
             self.assertFlags(f, CO_OPTIMIZED | CO_NEWLOCALS)
 
-    def test_future_barry_as_bdfl(self):
+    def test_future_barry_as_bdfl(self) -> None:
         f = self.run_code(
             """
         from __future__ import barry_as_FLUFL
         def f(): pass"""
         )["f"]
+        # pyre-ignore[16]: Pyre doesn't recognize this flag.
+        barry_bdfl = __future__.CO_FUTURE_BARRY_AS_BDFL
         if PRE_312:
             self.assertEqual(
                 f.__code__.co_flags,
-                __future__.CO_FUTURE_BARRY_AS_BDFL
-                | CO_NOFREE
-                | CO_OPTIMIZED
-                | CO_NEWLOCALS,
+                barry_bdfl | CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS,
             )
         else:
             self.assertEqual(
                 f.__code__.co_flags,
-                __future__.CO_FUTURE_BARRY_AS_BDFL | CO_OPTIMIZED | CO_NEWLOCALS,
+                barry_bdfl | CO_OPTIMIZED | CO_NEWLOCALS,
             )
 
-    def test_braces(self):
+    def test_braces(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "not a chance"):
             self.run_code(
                 """
@@ -103,14 +102,14 @@ class FlagTests(CompilerTest):
             def f(): pass"""
             )
 
-    def test_gen_func(self):
+    def test_gen_func(self) -> None:
         f = self.run_code("def f(): yield")["f"]
         if PRE_312:
             self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS | CO_GENERATOR)
         else:
             self.assertFlags(f, CO_OPTIMIZED | CO_NEWLOCALS | CO_GENERATOR)
 
-    def test_async_gen_func(self):
+    def test_async_gen_func(self) -> None:
         f = self.run_code(
             """
         async def f():
@@ -124,7 +123,7 @@ class FlagTests(CompilerTest):
         else:
             self.assertFlags(f, CO_OPTIMIZED | CO_NEWLOCALS | CO_ASYNC_GENERATOR)
 
-    def test_gen_func_yield_from(self):
+    def test_gen_func_yield_from(self) -> None:
         f = self.run_code("def f(): yield from (1, 2, 3)")["f"]
         if PRE_312:
             self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS | CO_GENERATOR)
@@ -132,47 +131,47 @@ class FlagTests(CompilerTest):
             self.assertFlags(f, CO_OPTIMIZED | CO_NEWLOCALS | CO_GENERATOR)
 
     @skipIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
-    def test_gen_exp(self):
+    def test_gen_exp(self) -> None:
         f = self.compile("x = (x for x in (1, 2, 3))")
         self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS | CO_GENERATOR)
 
     @skipIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
-    def test_list_comp(self):
+    def test_list_comp(self) -> None:
         f = self.compile("x = [x for x in (1, 2, 3)]")
         self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS)
 
     @skipIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
-    def test_dict_comp(self):
+    def test_dict_comp(self) -> None:
         f = self.compile("x = {x:x for x in (1, 2, 3)}")
         self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS)
 
     @skipIf(POST_312, "Comprehensions no longer create code objects in 3.12+")
-    def test_set_comp(self):
+    def test_set_comp(self) -> None:
         f = self.compile("x = {x for x in (1, 2, 3)}")
         self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS)
 
-    def test_class(self):
+    def test_class(self) -> None:
         f = self.compile("class C: pass")
         if PRE_312:
             self.assertFlags(f, CO_NOFREE)
         else:
             self.assertFlags(f, 0)
 
-    def test_coroutine(self):
+    def test_coroutine(self) -> None:
         f = self.compile("async def f(): pass")
         if PRE_312:
             self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS | CO_COROUTINE)
         else:
             self.assertFlags(f, CO_OPTIMIZED | CO_NEWLOCALS | CO_COROUTINE)
 
-    def test_coroutine_await(self):
+    def test_coroutine_await(self) -> None:
         f = self.compile("async def f(): await foo")
         if PRE_312:
             self.assertFlags(f, CO_NOFREE | CO_OPTIMIZED | CO_NEWLOCALS | CO_COROUTINE)
         else:
             self.assertFlags(f, CO_OPTIMIZED | CO_NEWLOCALS | CO_COROUTINE)
 
-    def test_free_vars(self):
+    def test_free_vars(self) -> None:
         f = self.compile(
             """
         def g():

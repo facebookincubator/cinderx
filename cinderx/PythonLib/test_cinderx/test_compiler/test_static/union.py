@@ -58,7 +58,7 @@ class UnionCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             mod.foo
 
-    def test_optional_union_syntax(self):
+    def test_optional_union_syntax(self) -> None:
         self.revealed_type(
             """
             from typing import Optional, Union
@@ -79,7 +79,7 @@ class UnionCompilationTests(StaticTestBase):
             "int",
         )
 
-    def test_optional_union_syntax_error(self):
+    def test_optional_union_syntax_error(self) -> None:
         self.type_error(
             """
             from typing import Union
@@ -90,7 +90,7 @@ class UnionCompilationTests(StaticTestBase):
             bad_ret_type("Optional[int]", "int"),
         )
 
-    def test_union_can_assign_from(self):
+    def test_union_can_assign_from(self) -> None:
         compiler = Compiler(StaticCodeGenerator)
         u1 = compiler.type_env.get_generic_type(
             self.type_env.union,
@@ -106,7 +106,7 @@ class UnionCompilationTests(StaticTestBase):
         self.assertTrue(u2.can_assign_from(u2))
         self.assertTrue(u1.can_assign_from(self.type_env.int))
 
-    def test_union_simplify_to_single_type(self):
+    def test_union_simplify_to_single_type(self) -> None:
         self.revealed_type(
             """
             from typing import Union
@@ -117,7 +117,7 @@ class UnionCompilationTests(StaticTestBase):
             "int",
         )
 
-    def test_union_simplify_related(self):
+    def test_union_simplify_related(self) -> None:
         self.revealed_type(
             """
             from typing import Union
@@ -130,7 +130,7 @@ class UnionCompilationTests(StaticTestBase):
             "<module>.B",
         )
 
-    def test_union_flatten_nested(self):
+    def test_union_flatten_nested(self) -> None:
         self.revealed_type(
             """
             from typing import Union
@@ -142,7 +142,7 @@ class UnionCompilationTests(StaticTestBase):
             "Union[int, str, <module>.B]",
         )
 
-    def test_union_deep_simplify(self):
+    def test_union_deep_simplify(self) -> None:
         self.revealed_type(
             """
             from typing import Union
@@ -153,7 +153,7 @@ class UnionCompilationTests(StaticTestBase):
             "Optional[int]",
         )
 
-    def test_union_dynamic_element(self):
+    def test_union_dynamic_element(self) -> None:
         self.revealed_type(
             """
             from somewhere import unknown
@@ -164,7 +164,7 @@ class UnionCompilationTests(StaticTestBase):
             "dynamic",
         )
 
-    def test_union_or_syntax(self):
+    def test_union_or_syntax(self) -> None:
         self.type_error(
             """
             def f(x) -> int:
@@ -175,7 +175,7 @@ class UnionCompilationTests(StaticTestBase):
             bad_ret_type("Union[int, str]", "int"),
         )
 
-    def test_union_or_syntax_none(self):
+    def test_union_or_syntax_none(self) -> None:
         self.type_error(
             """
             def f(x) -> int:
@@ -186,7 +186,7 @@ class UnionCompilationTests(StaticTestBase):
             bad_ret_type("Optional[int]", "int"),
         )
 
-    def test_union_or_syntax_builtin_type(self):
+    def test_union_or_syntax_builtin_type(self) -> None:
         self.compile(
             """
             from typing import Iterator
@@ -197,7 +197,7 @@ class UnionCompilationTests(StaticTestBase):
             """,
         )
 
-    def test_optional_refine_boolop(self):
+    def test_optional_refine_boolop(self) -> None:
         self.compile(
             """
             from typing import Optional
@@ -219,7 +219,7 @@ class UnionCompilationTests(StaticTestBase):
             """,
         )
 
-    def test_optional_refine_boolop_fail(self):
+    def test_optional_refine_boolop_fail(self) -> None:
         self.type_error(
             """
             from typing import Optional
@@ -239,7 +239,7 @@ class UnionCompilationTests(StaticTestBase):
             bad_ret_type("Optional[int]", "int"),
         )
 
-    def test_union_or_syntax_none_first(self):
+    def test_union_or_syntax_none_first(self) -> None:
         self.type_error(
             """
             def f(x) -> int:
@@ -250,7 +250,7 @@ class UnionCompilationTests(StaticTestBase):
             bad_ret_type("Optional[int]", "int"),
         )
 
-    def test_union_or_syntax_annotation(self):
+    def test_union_or_syntax_annotation(self) -> None:
         self.type_error(
             """
             def f(y: int, z: str) -> int:
@@ -260,7 +260,7 @@ class UnionCompilationTests(StaticTestBase):
             bad_ret_type("Union[int, str]", "int"),
         )
 
-    def test_union_or_syntax_error(self):
+    def test_union_or_syntax_error(self) -> None:
         self.type_error(
             """
             def f():
@@ -269,7 +269,7 @@ class UnionCompilationTests(StaticTestBase):
             r"unsupported operand type(s) for |: Type\[int\] and str",
         )
 
-    def test_union_or_syntax_annotation_bad_type(self):
+    def test_union_or_syntax_annotation_bad_type(self) -> None:
         # TODO given that len is not unknown/dynamic, but is a known object
         # with type that is invalid in this position, this should really be an
         # error. But the current form of `resolve_annotations` doesn't let us
@@ -283,7 +283,7 @@ class UnionCompilationTests(StaticTestBase):
             "dynamic",
         )
 
-    def test_union_attr(self):
+    def test_union_attr(self) -> None:
         self.revealed_type(
             """
             class A:
@@ -299,7 +299,7 @@ class UnionCompilationTests(StaticTestBase):
             "Union[int, str]",
         )
 
-    def test_union_attr_error(self):
+    def test_union_attr_error(self) -> None:
         self.type_error(
             """
             class A:
@@ -317,7 +317,7 @@ class UnionCompilationTests(StaticTestBase):
     # __call__ support. Right now we have no way to construct a Union of
     # callables that return different types.
 
-    def test_union_call_error(self):
+    def test_union_call_error(self) -> None:
         self.type_error(
             """
             def f(x: int | None):
@@ -326,7 +326,7 @@ class UnionCompilationTests(StaticTestBase):
             re.escape("Optional[int]: 'NoneType' object is not callable"),
         )
 
-    def test_union_subscr(self):
+    def test_union_subscr(self) -> None:
         self.revealed_type(
             """
             from __static__ import CheckedDict
@@ -337,7 +337,7 @@ class UnionCompilationTests(StaticTestBase):
             "Union[int, str]",
         )
 
-    def test_union_unaryop(self):
+    def test_union_unaryop(self) -> None:
         self.revealed_type(
             """
             def f(x: int, y: complex):
@@ -346,7 +346,7 @@ class UnionCompilationTests(StaticTestBase):
             "Union[int, complex]",
         )
 
-    def test_union_isinstance_reverse_narrow(self):
+    def test_union_isinstance_reverse_narrow(self) -> None:
         self.revealed_type(
             """
             def f(x: int, y: str):
@@ -358,7 +358,7 @@ class UnionCompilationTests(StaticTestBase):
             "int",
         )
 
-    def test_union_isinstance_reverse_narrow_supertype(self):
+    def test_union_isinstance_reverse_narrow_supertype(self) -> None:
         self.revealed_type(
             """
             class A: pass
@@ -373,7 +373,7 @@ class UnionCompilationTests(StaticTestBase):
             "int",
         )
 
-    def test_union_isinstance_reverse_narrow_other_union(self):
+    def test_union_isinstance_reverse_narrow_other_union(self) -> None:
         self.revealed_type(
             """
             class A: pass
@@ -389,7 +389,7 @@ class UnionCompilationTests(StaticTestBase):
             "<module>.C",
         )
 
-    def test_union_not_isinstance_narrow(self):
+    def test_union_not_isinstance_narrow(self) -> None:
         self.revealed_type(
             """
             def f(x: int, y: str):
@@ -401,7 +401,7 @@ class UnionCompilationTests(StaticTestBase):
             "int",
         )
 
-    def test_union_no_arg_check(self):
+    def test_union_no_arg_check(self) -> None:
         codestr = """
            def f(x: int | str) -> int:
                return x
@@ -416,7 +416,7 @@ class UnionCompilationTests(StaticTestBase):
             with self.assertRaisesRegex(TypeError, "expected 'int', got 'list'"):
                 f([])
 
-    def test_union_compare(self):
+    def test_union_compare(self) -> None:
         codestr = """
             # float is actually int | float
             def f(x: float) -> bool:
@@ -428,7 +428,7 @@ class UnionCompilationTests(StaticTestBase):
             self.assertEqual(mod.f(-3), False)
             self.assertEqual(mod.f(-3.1), False)
 
-    def test_int_subclass_of_float(self):
+    def test_int_subclass_of_float(self) -> None:
         """PEP 484 specifies that ints should be treated as subclasses of floats,
         even though they differ in the runtime."""
         codestr = """
@@ -441,7 +441,7 @@ class UnionCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.x, 1)
 
-    def test_float_int_union_error_message(self):
+    def test_float_int_union_error_message(self) -> None:
         codestr = """
             class MyFloat(float):
                 pass
@@ -455,7 +455,7 @@ class UnionCompilationTests(StaticTestBase):
         """
         self.type_error(codestr, bad_ret_type("float", "int"))
 
-    def test_cast_int_to_float(self):
+    def test_cast_int_to_float(self) -> None:
         codestr = """
             from __static__ import double
 

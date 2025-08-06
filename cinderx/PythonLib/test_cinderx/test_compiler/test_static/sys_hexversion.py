@@ -9,7 +9,7 @@ from .common import StaticTestBase
 
 
 class SysHexVersionTests(StaticTestBase):
-    def test_sys_hexversion(self):
+    def test_sys_hexversion(self) -> None:
         current_version = sys.hexversion
 
         for version_check_should_pass, is_on_left in product(
@@ -43,7 +43,7 @@ class SysHexVersionTests(StaticTestBase):
                 with self.in_strict_module(codestr) as mod:
                     self.assertTrue(hasattr(mod.A, expected_attribute))
 
-    def test_sys_hexversion_unsupported_operator(self):
+    def test_sys_hexversion_unsupported_operator(self) -> None:
         op_to_err = {
             "in": "in",
             "is": "is",
@@ -85,7 +85,7 @@ class SysHexVersionTests(StaticTestBase):
                             f"both A.a and A.b are defined in {mod.__dict__}",
                         )
 
-    def test_sys_hexversion_dynamic_compare(self):
+    def test_sys_hexversion_dynamic_compare(self) -> None:
         somethingcodestr = """
         X: int = 1
         """
@@ -120,7 +120,7 @@ class SysHexVersionTests(StaticTestBase):
                 self.assertTrue(hasattr(a, "a"))
 
     # comparing with double is kinda meaningless
-    def test_sys_hexversion_compare_double(self):
+    def test_sys_hexversion_compare_double(self) -> None:
         codestr = """
         import sys
 

@@ -11,7 +11,7 @@ from .common import StrictTestBase, StrictTestWithCheckerBase
 
 
 class StrictCompilationTests(StrictTestBase):
-    def test_strictmod_freeze_type(self):
+    def test_strictmod_freeze_type(self) -> None:
         codestr = """
         class C:
             x = 1
@@ -34,7 +34,7 @@ class StrictCompilationTests(StrictTestBase):
                 C.x = 2
             self.assertEqual(C.x, 1)
 
-    def test_strictmod_freeze_set_false(self):
+    def test_strictmod_freeze_set_false(self) -> None:
         codestr = """
         class C:
             x = 1
@@ -46,7 +46,7 @@ class StrictCompilationTests(StrictTestBase):
             C.x = 2
             self.assertEqual(C.x, 2)
 
-    def test_strictmod_class_in_function(self):
+    def test_strictmod_class_in_function(self) -> None:
         codestr = """
         def f():
             class C:
@@ -71,7 +71,7 @@ class StrictCompilationTests(StrictTestBase):
                 "<classes>",
             )
 
-    def test_strictmod_freeze_class_in_function(self):
+    def test_strictmod_freeze_class_in_function(self) -> None:
         codestr = """
         def f():
             class C:
@@ -86,7 +86,7 @@ class StrictCompilationTests(StrictTestBase):
                 C.x = 2
             self.assertEqual(C.x, 1)
 
-    def test_strictmod_class_not_in_function(self):
+    def test_strictmod_class_not_in_function(self) -> None:
         codestr = """
         class C:
             pass
@@ -104,7 +104,7 @@ class StrictCompilationTests(StrictTestBase):
             "<classes>",
         )
 
-    def test_strictmod_fixed_modules_typing(self):
+    def test_strictmod_fixed_modules_typing(self) -> None:
         codestr = """
         from typing import final
 
@@ -667,7 +667,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
 
 
 class StrictCheckedCompilationTests(StrictTestWithCheckerBase):
-    def test_strictmod_freeze_type(self):
+    def test_strictmod_freeze_type(self) -> None:
         codestr = """
         import __strict__
         class C:
@@ -682,7 +682,7 @@ class StrictCheckedCompilationTests(StrictTestWithCheckerBase):
                 C.x = 2
             self.assertEqual(C.x, 1)
 
-    def test_strictmod_mutable(self):
+    def test_strictmod_mutable(self) -> None:
         codestr = """
         import __strict__
         from __strict__ import mutable
@@ -705,7 +705,7 @@ class StrictCheckedCompilationTests(StrictTestWithCheckerBase):
             C.x = 2
             self.assertEqual(C.x, 2)
 
-    def test_strictmod_mutable_noanalyze(self):
+    def test_strictmod_mutable_noanalyze(self) -> None:
         codestr = """
         import __strict__
         from __strict__ import mutable, allow_side_effects
@@ -720,7 +720,7 @@ class StrictCheckedCompilationTests(StrictTestWithCheckerBase):
             C.x = 2
             self.assertEqual(C.x, 2)
 
-    def test_strictmod_cached_property(self):
+    def test_strictmod_cached_property(self) -> None:
         codestr = """
         import __strict__
         from __strict__ import strict_slots, _mark_cached_property, mutable

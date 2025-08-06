@@ -7,7 +7,7 @@ from .common import StaticTestBase
 
 
 class VariadicArgTests(StaticTestBase):
-    def test_load_iterable_arg(self):
+    def test_load_iterable_arg(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float, e: float) -> int:
             return 7
@@ -25,7 +25,7 @@ class VariadicArgTests(StaticTestBase):
             y_callable = mod.y
             self.assertEqual(y_callable(), 7)
 
-    def test_load_iterable_arg_default_overridden(self):
+    def test_load_iterable_arg_default_overridden(self) -> None:
         codestr = """
             def x(a: int, b: int, c: str, d: float = 10.1, e: float = 20.1) -> bool:
                 return bool(
@@ -47,7 +47,7 @@ class VariadicArgTests(StaticTestBase):
             y_callable = mod.y
             self.assertTrue(y_callable())
 
-    def test_load_iterable_arg_multi_star(self):
+    def test_load_iterable_arg_multi_star(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float, e: float) -> int:
             return 7
@@ -64,7 +64,7 @@ class VariadicArgTests(StaticTestBase):
             y_callable = mod.y
             self.assertEqual(y_callable(), 7)
 
-    def test_load_iterable_arg_star_not_last(self):
+    def test_load_iterable_arg_star_not_last(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float, e: float) -> int:
             return 7
@@ -80,7 +80,7 @@ class VariadicArgTests(StaticTestBase):
             y_callable = mod.y
             self.assertEqual(y_callable(), 7)
 
-    def test_load_iterable_arg_failure(self):
+    def test_load_iterable_arg_failure(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float, e: float) -> int:
             return 7
@@ -99,7 +99,7 @@ class VariadicArgTests(StaticTestBase):
             with self.assertRaises(IndexError):
                 y_callable()
 
-    def test_load_iterable_arg_sequence(self):
+    def test_load_iterable_arg_sequence(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float, e: float) -> int:
             return 7
@@ -117,7 +117,7 @@ class VariadicArgTests(StaticTestBase):
             y_callable = mod.y
             self.assertEqual(y_callable(), 7)
 
-    def test_load_iterable_arg_sequence_1(self):
+    def test_load_iterable_arg_sequence_1(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float, e: float) -> int:
             return 7
@@ -139,7 +139,7 @@ class VariadicArgTests(StaticTestBase):
             y_callable = mod.y
             self.assertEqual(y_callable(), 7)
 
-    def test_load_iterable_arg_sequence_failure(self):
+    def test_load_iterable_arg_sequence_failure(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float, e: float) -> int:
             return 7
@@ -158,7 +158,7 @@ class VariadicArgTests(StaticTestBase):
             with self.assertRaises(IndexError):
                 y_callable()
 
-    def test_load_mapping_arg(self):
+    def test_load_mapping_arg(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float=-0.1, e: float=1.1, f: str="something") -> bool:
             return bool(f == "yo" and d == 1.0 and e == 1.1)
@@ -173,7 +173,7 @@ class VariadicArgTests(StaticTestBase):
             y_callable = mod.y
             self.assertTrue(y_callable())
 
-    def test_load_mapping_and_iterable_args_failure_1(self):
+    def test_load_mapping_and_iterable_args_failure_1(self) -> None:
         """
         Fails because we don't supply enough positional args
         """
@@ -190,7 +190,7 @@ class VariadicArgTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_load_mapping_arg_failure(self):
+    def test_load_mapping_arg_failure(self) -> None:
         """
         Fails because we supply an extra kwarg
         """
@@ -207,7 +207,7 @@ class VariadicArgTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_load_mapping_arg_custom_class(self):
+    def test_load_mapping_arg_custom_class(self) -> None:
         """
         Fails because we supply a custom class for the mapped args, instead of a dict
         """
@@ -233,7 +233,7 @@ class VariadicArgTests(StaticTestBase):
             ):
                 self.assertTrue(y_callable())
 
-    def test_load_mapping_arg_use_defaults(self):
+    def test_load_mapping_arg_use_defaults(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float=-0.1, e: float=1.1, f: str="something") -> bool:
             return bool(f == "yo" and d == -0.1 and e == 1.1)
@@ -248,7 +248,7 @@ class VariadicArgTests(StaticTestBase):
             y_callable = mod.y
             self.assertTrue(y_callable())
 
-    def test_default_arg_non_const(self):
+    def test_default_arg_non_const(self) -> None:
         codestr = """
         class C: pass
         def x(val=C()) -> C:
@@ -261,7 +261,7 @@ class VariadicArgTests(StaticTestBase):
             f = mod.f
             self.assertInBytecode(f, self.CALL)
 
-    def test_default_arg_non_const_kw_provided(self):
+    def test_default_arg_non_const_kw_provided(self) -> None:
         codestr = """
         class C: pass
         def x(val:object=C()):
@@ -275,7 +275,7 @@ class VariadicArgTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 42)
 
-    def test_load_mapping_arg_order(self):
+    def test_load_mapping_arg_order(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float=-0.1, e: float=1.1, f: str="something") -> bool:
             return bool(
@@ -311,7 +311,7 @@ class VariadicArgTests(StaticTestBase):
             self.assertTrue(y_callable())
             self.assertEqual(["s", "q", "r"], mod.stuff)
 
-    def test_load_mapping_arg_order_with_variadic_kw_args(self):
+    def test_load_mapping_arg_order_with_variadic_kw_args(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float=-0.1, e: float=1.1, f: str="something", g: str="look-here") -> bool:
             return bool(
@@ -349,7 +349,7 @@ class VariadicArgTests(StaticTestBase):
             self.assertTrue(y_callable())
             self.assertEqual(["s", "q", "r"], mod.stuff)
 
-    def test_load_mapping_arg_order_with_variadic_kw_args_one_positional(self):
+    def test_load_mapping_arg_order_with_variadic_kw_args_one_positional(self) -> None:
         codestr = """
         def x(a: int, b: int, c: str, d: float=-0.1, e: float=1.1, f: str="something", g: str="look-here") -> bool:
             return bool(

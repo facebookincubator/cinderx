@@ -13,7 +13,7 @@ class CinderX_TestInteractiveInterpreter(unittest.TestCase):
     # different error on CinderX shutdown. I think the main purpose of this
     # test is just to assert we don't end up in a loop so any kind of exit is
     # fine.
-    def test_no_memory(self):
+    def test_no_memory(self) -> None:
         # Issue #30696: Fix the interactive interpreter looping endlessly when
         # no memory. Check also that the fix does not break the interactive
         # loop when an exception is raised.

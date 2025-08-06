@@ -676,7 +676,7 @@ class SlotsWithDefaultTests(StaticTestBase):
                 self.assertEqual(c.dynamic_field, ST)
                 self.assertNotEqual(static_mod.C.dynamic_field, ST)
 
-    def test_slot_assigned_conditionally(self):
+    def test_slot_assigned_conditionally(self) -> None:
         codestr = """
         class Parent:
             x: bool = False

@@ -95,7 +95,7 @@ class CinderX_TestTracemallocEnabled(unittest.TestCase):
         cinderx.jit.is_inline_cache_stats_collection_enabled(),
         "#TASK(T150421262): Traced memory does not work well with JIT's inline cache stats collection.",
     )
-    def test_get_traced_memory(self):
+    def test_get_traced_memory(self) -> None:
         # Python allocates some internals objects, so the test must tolerate
         # a small difference between the expected size and the real usage
         max_error = 2048

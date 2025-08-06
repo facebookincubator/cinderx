@@ -5,7 +5,7 @@ import xxclassloader  # usort: skip
 
 
 class NativeDecoratorTests(StaticTestBase):
-    def test_native_no_lib(self):
+    def test_native_no_lib(self) -> None:
         codestr = """
         from __static__ import native, int64
 
@@ -17,7 +17,7 @@ class NativeDecoratorTests(StaticTestBase):
             codestr, "@native decorator must specify the library to be loaded"
         )
 
-    def test_native_kwarg(self):
+    def test_native_kwarg(self) -> None:
         codestr = """
         from __static__ import native, int64
 
@@ -27,7 +27,7 @@ class NativeDecoratorTests(StaticTestBase):
         """
         self.type_error(codestr, "@native decorator takes no keyword arguments")
 
-    def test_native_stararg(self):
+    def test_native_stararg(self) -> None:
         codestr = """
         from __static__ import native, int64
 
@@ -39,7 +39,7 @@ class NativeDecoratorTests(StaticTestBase):
         """
         self.type_error(codestr, "@native decorator takes no starred arguments")
 
-    def test_native_multiple_arg(self):
+    def test_native_multiple_arg(self) -> None:
         codestr = """
         from __static__ import native, int64
 
@@ -52,7 +52,7 @@ class NativeDecoratorTests(StaticTestBase):
             "@native decorator accepts a single parameter, the path to .so file",
         )
 
-    def test_native_no_arg(self):
+    def test_native_no_arg(self) -> None:
         codestr = """
         from __static__ import native, int64
 
@@ -65,7 +65,7 @@ class NativeDecoratorTests(StaticTestBase):
             "@native decorator accepts a single parameter, the path to .so file",
         )
 
-    def test_native_non_str_arg(self):
+    def test_native_non_str_arg(self) -> None:
         codestr = """
         from __static__ import native, int64
 
@@ -78,7 +78,7 @@ class NativeDecoratorTests(StaticTestBase):
             r"type mismatch: Literal\[1] received for positional arg 'lib', expected str",
         )
 
-    def test_native_decorate_class(self):
+    def test_native_decorate_class(self) -> None:
         codestr = """
         from __static__ import native
 
@@ -88,7 +88,7 @@ class NativeDecoratorTests(StaticTestBase):
         """
         self.type_error(codestr, "Cannot decorate a class with @native")
 
-    def test_native_decorate_async_fn(self):
+    def test_native_decorate_async_fn(self) -> None:
         codestr = """
         from __static__ import native
 
@@ -98,7 +98,7 @@ class NativeDecoratorTests(StaticTestBase):
         """
         self.type_error(codestr, "@native decorator cannot be used on async functions")
 
-    def test_native_decorate_method(self):
+    def test_native_decorate_method(self) -> None:
         codestr = """
         from __static__ import native
 
@@ -109,7 +109,7 @@ class NativeDecoratorTests(StaticTestBase):
         """
         self.type_error(codestr, "Cannot decorate a method with @native")
 
-    def test_native_some_function_body(self):
+    def test_native_some_function_body(self) -> None:
         codestr = """
         from __static__ import native, int64
 
@@ -123,7 +123,7 @@ class NativeDecoratorTests(StaticTestBase):
             "@native callables cannot contain a function body, only 'pass' is allowed",
         )
 
-    def test_native_valid_usage_in_nonstatic_module(self):
+    def test_native_valid_usage_in_nonstatic_module(self) -> None:
         codestr = """
         from __static__ import native, int64
 
@@ -139,7 +139,7 @@ class NativeDecoratorTests(StaticTestBase):
             ):
                 mod.something(1)
 
-    def test_native_usage_with_kwarg(self):
+    def test_native_usage_with_kwarg(self) -> None:
         binding_codestr = """
         from __static__ import native, int64, box, unbox
 
@@ -149,7 +149,7 @@ class NativeDecoratorTests(StaticTestBase):
         """
         self.type_error(binding_codestr, "@native callables cannot contain kwargs")
 
-    def test_native_usage_with_posonly_arg(self):
+    def test_native_usage_with_posonly_arg(self) -> None:
         binding_codestr = """
         from __static__ import native, int64, box, unbox
 
@@ -161,7 +161,7 @@ class NativeDecoratorTests(StaticTestBase):
             binding_codestr, "@native callables cannot contain pos-only args"
         )
 
-    def test_native_usage_with_kwonly_arg(self):
+    def test_native_usage_with_kwonly_arg(self) -> None:
         binding_codestr = """
         from __static__ import native, int64, box, unbox
 
@@ -173,7 +173,7 @@ class NativeDecoratorTests(StaticTestBase):
             binding_codestr, "@native callables cannot contain kw-only args"
         )
 
-    def test_native_call_with_pyobject(self):
+    def test_native_call_with_pyobject(self) -> None:
         binding_codestr = """
         from __static__ import native, int64, box, unbox
 
@@ -190,7 +190,7 @@ class NativeDecoratorTests(StaticTestBase):
             "type mismatch: int received for positional arg 'i', expected int64",
         )
 
-    def test_decorate_already_decorated_fn(self):
+    def test_decorate_already_decorated_fn(self) -> None:
         codestr = """
         from __static__ import native
         from typing import final
@@ -204,7 +204,7 @@ class NativeDecoratorTests(StaticTestBase):
             codestr, "@native decorator cannot be used with other decorators"
         )
 
-    def test_decorate_native_fn(self):
+    def test_decorate_native_fn(self) -> None:
         codestr = """
         from __static__ import native
         from typing import final
@@ -218,7 +218,7 @@ class NativeDecoratorTests(StaticTestBase):
             codestr, "@native decorator cannot be used with other decorators"
         )
 
-    def test_invoke_native_fn(self):
+    def test_invoke_native_fn(self) -> None:
         codestr = """
         from __static__ import native, int64, box
 
@@ -234,7 +234,7 @@ class NativeDecoratorTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.invoke_abs(-5), 5)
 
-    def test_invoke_native_fn_final_libname(self):
+    def test_invoke_native_fn_final_libname(self) -> None:
         codestr = """
         from __static__ import native, int64, box
         from typing import Final
@@ -253,7 +253,7 @@ class NativeDecoratorTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.invoke_abs(-5), 5)
 
-    def test_invoke_native_fn_multiple_args(self):
+    def test_invoke_native_fn_multiple_args(self) -> None:
         codestr = f"""
         from __static__ import native, int64, box
         from typing import Final
@@ -275,7 +275,7 @@ class NativeDecoratorTests(StaticTestBase):
             self.assertEqual(mod.invoke_add(-1, 5), 4)
             self.assertEqual(mod.invoke_add(-1, -5), -6)
 
-    def test_invoke_native_fn_heterogenous_args(self):
+    def test_invoke_native_fn_heterogenous_args(self) -> None:
         codestr = f"""
         from __static__ import native, int64, uint8, box
         from typing import Final

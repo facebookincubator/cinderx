@@ -9,7 +9,7 @@ from .common import StaticTestBase
 
 
 class InvokeTests(StaticTestBase):
-    def test_invoke_simple(self):
+    def test_invoke_simple(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -29,7 +29,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 1)
             self.assertEqual(mod.x(c), 1)
 
-    def test_invoke_custom_descr(self):
+    def test_invoke_custom_descr(self) -> None:
         class Desc:
             def __get__(self, inst, ctx):
                 return lambda: 42
@@ -52,7 +52,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_simple_overridable(self):
+    def test_invoke_simple_overridable(self) -> None:
         codestr = """
             class C(Exception):
                 def f(self):
@@ -72,7 +72,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 1)
             self.assertEqual(mod.x(c), 1)
 
-    def test_invoke_classmethod_simple(self):
+    def test_invoke_classmethod_simple(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -92,7 +92,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 1)
             self.assertEqual(mod.x(c), 1)
 
-    def test_invoke_cached_property_simple(self):
+    def test_invoke_cached_property_simple(self) -> None:
         codestr = """
             from cinderx import cached_property
             class C:
@@ -113,7 +113,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_simple_load_field(self):
+    def test_invoke_simple_load_field(self) -> None:
         codestr = """
             class C:
                 def __init__(self):
@@ -135,7 +135,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_super(self):
+    def test_invoke_super(self) -> None:
         """tests invoke against a function which has a free var which
         gets introduced due to the super() call"""
         codestr = """
@@ -161,7 +161,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_primitive(self):
+    def test_invoke_primitive(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -182,7 +182,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c, 42), 42)
             self.assertEqual(mod.x(c, 43), 43)
 
-    def test_invoke_cached_property_override_property(self):
+    def test_invoke_cached_property_override_property(self) -> None:
         codestr = """
             from cinderx import cached_property
             class B:
@@ -208,7 +208,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(d), 42)
             self.assertEqual(mod.x(d), 42)
 
-    def test_invoke_typed_descriptor_override_property(self):
+    def test_invoke_typed_descriptor_override_property(self) -> None:
         codestr = """
             from cinderx import cached_property
             class B:
@@ -232,7 +232,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(d), 42)
             self.assertEqual(mod.x(d), 42)
 
-    def test_native_property(self):
+    def test_native_property(self) -> None:
         codestr = """
             from __static__ import int64, box
             class B:
@@ -253,7 +253,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(d), 42)
             self.assertEqual(mod.x(d), 42)
 
-    def test_native_property_setter(self):
+    def test_native_property_setter(self) -> None:
         codestr = """
             from __static__ import int64, box
             class B:
@@ -282,7 +282,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(d), 42)
             self.assertEqual(mod.x(d), 42)
 
-    def test_invoke_cached_property_override_property_nonstatic(self):
+    def test_invoke_cached_property_override_property_nonstatic(self) -> None:
         codestr = """
             class B:
                 @property
@@ -447,7 +447,7 @@ class InvokeTests(StaticTestBase):
                 self.assertEqual(mod.x(d), 42)
                 self.assertEqual(mod.x(d), 42)
 
-    def test_invoke_primitive_property(self):
+    def test_invoke_primitive_property(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -470,7 +470,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_primitive_ret(self):
+    def test_invoke_primitive_ret(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -492,7 +492,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_primitive_ret_non_jittable(self):
+    def test_invoke_primitive_ret_non_jittable(self) -> None:
         codestr = """
             from __static__ import cbool, box
 
@@ -515,7 +515,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), False)
             self.assertEqual(mod.x(c), False)
 
-    def test_invoke_primitive_ret_raises(self):
+    def test_invoke_primitive_ret_raises(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -536,7 +536,7 @@ class InvokeTests(StaticTestBase):
             self.assertRaises(ValueError, mod.x, c)
             self.assertRaises(ValueError, mod.x, c)
 
-    def test_invoke_primitive_ret_non_jittable_raises(self):
+    def test_invoke_primitive_ret_non_jittable_raises(self) -> None:
         codestr = """
             from __static__ import cbool, box
 
@@ -559,7 +559,7 @@ class InvokeTests(StaticTestBase):
             self.assertRaises(ValueError, mod.x, c)
             self.assertRaises(ValueError, mod.x, c)
 
-    def test_invoke_primitive_ret_override(self):
+    def test_invoke_primitive_ret_override(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -585,7 +585,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(d), 23)
             self.assertEqual(mod.x(d), 23)
 
-    def test_invoke_primitive_ret_override_nonfunc(self):
+    def test_invoke_primitive_ret_override_nonfunc(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -614,7 +614,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(d), 23)
             self.assertEqual(mod.x(d), 23)
 
-    def test_invoke_primitive_ret_override_nonfunc_instance(self):
+    def test_invoke_primitive_ret_override_nonfunc_instance(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -651,7 +651,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(d), 100)
             self.assertEqual(mod.x(d), 100)
 
-    def test_invoke_primitive_ret_classmethod(self):
+    def test_invoke_primitive_ret_classmethod(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -673,7 +673,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_async_many_args_error(self):
+    def test_invoke_async_many_args_error(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -694,7 +694,7 @@ class InvokeTests(StaticTestBase):
             self.assertRaises(ValueError, asyncio.run, mod.x(c))
             self.assertRaises(ValueError, asyncio.run, mod.x(c))
 
-    def test_async_override(self):
+    def test_async_override(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -717,7 +717,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(43, asyncio.run(mod.x(c)))
             self.assertEqual(43, asyncio.run(mod.x(c)))
 
-    def test_override_instance(self):
+    def test_override_instance(self) -> None:
         codestr = """
             class C:
                 def f(self, a: int) -> object:
@@ -737,7 +737,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(43, mod.x(d))
             self.assertEqual(43, mod.x(d))
 
-    def test_override_instance_mutate_in_args(self):
+    def test_override_instance_mutate_in_args(self) -> None:
         codestr = """
             class C:
                 def f(self, a: int) -> object:
@@ -766,7 +766,7 @@ class InvokeTests(StaticTestBase):
             d = D()
             self.assertEqual(43, mod.x(d, mutate))
 
-    def test_async_coroutine_call_with_cls(self):
+    def test_async_coroutine_call_with_cls(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -789,7 +789,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(42, asyncio.run(mod.x(c)))
             self.assertEqual(42, asyncio.run(mod.x(c)))
 
-    def test_async_static_method(self):
+    def test_async_static_method(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -808,7 +808,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(42, asyncio.run(mod.x(c)))
             self.assertEqual(42, asyncio.run(mod.x(c)))
 
-    def test_async_static_method_override(self):
+    def test_async_static_method_override(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -832,7 +832,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(43, asyncio.run(mod.x(c)))
             self.assertEqual(43, asyncio.run(mod.x(c)))
 
-    def test_async_classmethod_override(self):
+    def test_async_classmethod_override(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -856,7 +856,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(43, asyncio.run(mod.x(c)))
             self.assertEqual(43, asyncio.run(mod.x(c)))
 
-    def test_async_static_method_override_noncallable(self):
+    def test_async_static_method_override_noncallable(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -878,7 +878,7 @@ class InvokeTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 asyncio.run(mod.x(c))
 
-    def test_invoke_primitive_ret_override_classmethod(self):
+    def test_invoke_primitive_ret_override_classmethod(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -907,7 +907,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 23)
             self.assertEqual(mod.x(c), 23)
 
-    def test_invoke_primitive_ret_staticmethod(self):
+    def test_invoke_primitive_ret_staticmethod(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -929,7 +929,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_primitive_ret_override_staticmethod(self):
+    def test_invoke_primitive_ret_override_staticmethod(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -958,7 +958,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 23)
             self.assertEqual(mod.x(c), 23)
 
-    def test_invoke_primitive_ret_override_staticmethod_instance(self):
+    def test_invoke_primitive_ret_override_staticmethod_instance(self) -> None:
         return
 
         codestr = """
@@ -987,7 +987,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 23)
             self.assertEqual(mod.x(c), 23)
 
-    def test_invoke_staticmethod_args(self):
+    def test_invoke_staticmethod_args(self) -> None:
         codestr = """
             class C:
                 @staticmethod
@@ -1007,7 +1007,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_classmethod_to_staticmethod_args(self):
+    def test_invoke_classmethod_to_staticmethod_args(self) -> None:
         codestr = """
             class C:
                 @staticmethod
@@ -1031,7 +1031,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42)
             self.assertEqual(mod.x(c), 42)
 
-    def test_invoke_primitive_ret_override_typeddescriptor(self):
+    def test_invoke_primitive_ret_override_typeddescriptor(self) -> None:
         codestr = """
             from __static__ import int64, box
 
@@ -1058,7 +1058,7 @@ class InvokeTests(StaticTestBase):
 
             self.assertEqual(mod.x(c), 23)
 
-    def test_invoke_primitive_ret_double_raise(self):
+    def test_invoke_primitive_ret_double_raise(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -1079,7 +1079,7 @@ class InvokeTests(StaticTestBase):
             self.assertRaises(ValueError, mod.x, c)
             self.assertRaises(ValueError, mod.x, c)
 
-    def test_invoke_primitive_ret_double(self):
+    def test_invoke_primitive_ret_double(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -1100,7 +1100,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42.0)
             self.assertEqual(mod.x(c), 42.0)
 
-    def test_invoke_primitive_ret_non_jittable_double(self):
+    def test_invoke_primitive_ret_non_jittable_double(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -1123,7 +1123,7 @@ class InvokeTests(StaticTestBase):
             self.assertEqual(mod.x(c), 42.0)
             self.assertEqual(mod.x(c), 42.0)
 
-    def test_invoke_method_takes_primitive(self):
+    def test_invoke_method_takes_primitive(self) -> None:
         codestr = """
             from __static__ import int64
 
@@ -1143,7 +1143,7 @@ class InvokeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), 4)
 
-    def test_invoke_primitive_many_args(self):
+    def test_invoke_primitive_many_args(self) -> None:
         codestr = """
             from __static__ import int64, box
             class C:
@@ -1157,7 +1157,7 @@ class InvokeTests(StaticTestBase):
             c = mod.C()
             self.assertEqual(mod.x(c, 42), 42)
 
-    def test_invoke_method_takes_2_primitives(self):
+    def test_invoke_method_takes_2_primitives(self) -> None:
         codestr = """
             from __static__ import cbool, box
 
@@ -1173,7 +1173,7 @@ class InvokeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), (True, False))
 
-    def test_cannot_use_keyword_for_posonly_arg(self):
+    def test_cannot_use_keyword_for_posonly_arg(self) -> None:
         codestr = """
             def f(x: int, /):
                 pass
@@ -1187,7 +1187,7 @@ class InvokeTests(StaticTestBase):
             at="f(x=1)",
         )
 
-    def test_invoke_super_final(self):
+    def test_invoke_super_final(self) -> None:
         """tests invoke against a function which has a free var which
         gets introduced due to the super() call"""
         codestr = """

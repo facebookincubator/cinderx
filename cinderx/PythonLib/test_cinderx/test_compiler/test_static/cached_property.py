@@ -18,7 +18,7 @@ from .common import StaticTestBase
 
 
 class CachedPropertyTests(StaticTestBase):
-    def test_cached_property(self):
+    def test_cached_property(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -41,7 +41,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(c.x, 3)
             self.assertEqual(c.hit_count, 1)
 
-    def test_cached_property_invoked(self):
+    def test_cached_property_invoked(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -69,7 +69,7 @@ class CachedPropertyTests(StaticTestBase):
             r = mod.f()
             self.assertEqual(r.hit_count, 1)
 
-    def test_cached_property_invoked_frozen(self):
+    def test_cached_property_invoked_frozen(self) -> None:
         codestr = """
         from typing import final
         from cinderx import cached_property
@@ -99,7 +99,7 @@ class CachedPropertyTests(StaticTestBase):
             r = mod.f()
             self.assertEqual(r.hit_count, 1)
 
-    def test_multiple_cached_properties(self):
+    def test_multiple_cached_properties(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -135,7 +135,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(c.y, 7)
             self.assertEqual(c.hit_count_y, 1)
 
-    def test_cached_property_on_class(self):
+    def test_cached_property_on_class(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -148,7 +148,7 @@ class CachedPropertyTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_cached_property_intermediary_cleaned_up(self):
+    def test_cached_property_intermediary_cleaned_up(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -170,7 +170,7 @@ class CachedPropertyTests(StaticTestBase):
             ):
                 getattr(C, CACHED_PROPERTY_IMPL_PREFIX + "x")
 
-    def test_cached_property_skip_decorated_methods(self):
+    def test_cached_property_skip_decorated_methods(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -204,7 +204,7 @@ class CachedPropertyTests(StaticTestBase):
             ):
                 D().x
 
-    def test_cached_property_override_property(self):
+    def test_cached_property_override_property(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -224,7 +224,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(C().x, 3)
             self.assertEqual(D().x, 4)
 
-    def test_property_override_cached_property(self):
+    def test_property_override_cached_property(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -244,7 +244,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(C().x, 3)
             self.assertEqual(D().x, 4)
 
-    def test_cached_property_override_cached_property(self):
+    def test_cached_property_override_cached_property(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -264,7 +264,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(C().x, 3)
             self.assertEqual(D().x, 4)
 
-    def test_cached_property_override_cached_property_non_static(self):
+    def test_cached_property_override_cached_property_non_static(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -285,7 +285,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(C().x, 3)
             self.assertEqual(D().x, 4)
 
-    def test_property_override_cached_property_non_static(self):
+    def test_property_override_cached_property_non_static(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -306,7 +306,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(C().x, 3)
             self.assertEqual(D().x, 4)
 
-    def test_cached_property_override_cached_property_non_static_invoked(self):
+    def test_cached_property_override_cached_property_non_static_invoked(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -336,7 +336,7 @@ class CachedPropertyTests(StaticTestBase):
             mod.f(D())
             self.assertEqual(d.hit_count, 1)
 
-    def test_async_cached_property(self):
+    def test_async_cached_property(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -364,7 +364,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(c.hit_count, 1)
 
-    def test_async_cached_property_invoked(self):
+    def test_async_cached_property_invoked(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -392,7 +392,7 @@ class CachedPropertyTests(StaticTestBase):
             r = asyncio.run(mod.f())
             self.assertEqual(r.hit_count, 1)
 
-    def test_async_cached_property_invoked_frozen(self):
+    def test_async_cached_property_invoked_frozen(self) -> None:
         codestr = """
         from typing import final
         from cinderx import async_cached_property
@@ -422,7 +422,7 @@ class CachedPropertyTests(StaticTestBase):
             r = asyncio.run(mod.f())
             self.assertEqual(r.hit_count, 1)
 
-    def test_multiple_async_cached_properties(self):
+    def test_multiple_async_cached_properties(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -468,7 +468,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_y()), 7)
             self.assertEqual(c.hit_count_y, 1)
 
-    def test_async_cached_property_on_class(self):
+    def test_async_cached_property_on_class(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -481,7 +481,7 @@ class CachedPropertyTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_async_cached_property_intermediary_cleaned_up(self):
+    def test_async_cached_property_intermediary_cleaned_up(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -509,7 +509,7 @@ class CachedPropertyTests(StaticTestBase):
             ):
                 getattr(C, ASYNC_CACHED_PROPERTY_IMPL_PREFIX + "x")
 
-    def test_async_cached_property_override_property(self):
+    def test_async_cached_property_override_property(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -538,7 +538,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
-    def test_property_override_async_cached_property(self):
+    def test_property_override_async_cached_property(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -567,7 +567,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
-    def test_async_cached_property_override_async_cached_property(self):
+    def test_async_cached_property_override_async_cached_property(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -591,7 +591,9 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(mod.async_get_x(C())), 3)
             self.assertEqual(asyncio.run(mod.async_get_x(D())), 4)
 
-    def test_async_cached_property_override_async_cached_property_non_static(self):
+    def test_async_cached_property_override_async_cached_property_non_static(
+        self,
+    ) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -620,7 +622,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
-    def test_async_cached_property_override_async_cached_property_2(self):
+    def test_async_cached_property_override_async_cached_property_2(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -649,7 +651,7 @@ class CachedPropertyTests(StaticTestBase):
             self.assertEqual(asyncio.run(await_c_x()), 3)
             self.assertEqual(asyncio.run(await_d_x()), 4)
 
-    def test_async_cached_property_on_class_raises_type_error(self):
+    def test_async_cached_property_on_class_raises_type_error(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -659,7 +661,7 @@ class CachedPropertyTests(StaticTestBase):
         """
         self.type_error(codestr, "Cannot decorate a class with @async_cached_property")
 
-    def test_async_cached_property_setter_raises_type_error(self):
+    def test_async_cached_property_setter_raises_type_error(self) -> None:
         codestr = """
         from cinderx import async_cached_property
 
@@ -676,7 +678,7 @@ class CachedPropertyTests(StaticTestBase):
             codestr, "async_cached_property <module>.C.fn does not support setters"
         )
 
-    def test_cached_property_setter_raises_type_error(self):
+    def test_cached_property_setter_raises_type_error(self) -> None:
         codestr = """
         from cinderx import cached_property
 
@@ -693,7 +695,7 @@ class CachedPropertyTests(StaticTestBase):
             codestr, "cached_property <module>.C.fn does not support setters"
         )
 
-    def test_cached_property_reset(self):
+    def test_cached_property_reset(self) -> None:
         nonstatic_codestr = """
         class A:
             pass
@@ -733,7 +735,7 @@ class CachedPropertyTests(StaticTestBase):
                 self.assertEqual(c.x, 3)
                 self.assertEqual(c.ctr, 2)
 
-    def test_async_cached_property_reset(self):
+    def test_async_cached_property_reset(self) -> None:
         nonstatic_codestr = """
         class A:
             pass

@@ -47,7 +47,7 @@ def skip_ret_code_check_for_leaking_test_in_asan_mode(*args, **env_vars):
 
 
 class ShadowCodeTests(unittest.TestCase):
-    def test_type_error(self):
+    def test_type_error(self) -> None:
         class Desc:
             def __init__(self):
                 self.error = False
@@ -71,7 +71,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _ in range(REPETITION):
             self.assertRaises(ShadowError, f, C)
 
-    def test_module_error(self):
+    def test_module_error(self) -> None:
         sys.prop = 42
 
         def f(x):
@@ -83,7 +83,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _ in range(REPETITION):
             self.assertRaises(AttributeError, f, sys)
 
-    def test_load_attr_no_dict_descr_error(self):
+    def test_load_attr_no_dict_descr_error(self) -> None:
         class Desc:
             def __init__(self):
                 self.error = False
@@ -109,7 +109,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _ in range(REPETITION):
             self.assertRaises(ShadowError, f, a)
 
-    def test_load_attr_dict_descr_error(self):
+    def test_load_attr_dict_descr_error(self) -> None:
         class Desc:
             def __init__(self):
                 self.error = False
@@ -140,7 +140,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _ in range(REPETITION):
             self.assertRaises(ShadowError, f, c)
 
-    def test_load_attr_dict_no_item(self):
+    def test_load_attr_dict_no_item(self) -> None:
         class C:
             pass
 
@@ -159,7 +159,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _ in range(REPETITION):
             self.assertRaises(AttributeError, f, b)
 
-    def test_split_dict_append(self):
+    def test_split_dict_append(self) -> None:
         """add a property to a split dictionary that aliases is a descriptor
         property after we've already cached the non-existance of the split property"""
 
@@ -182,7 +182,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 100)
 
-    def test_class_overflow(self):
+    def test_class_overflow(self) -> None:
         def make_class():
             class C:
                 def __init__(self):
@@ -200,7 +200,7 @@ class ShadowCodeTests(unittest.TestCase):
             a = make_class()()
             self.assertEqual(f(a), 1)
 
-    def test_dict(self):
+    def test_dict(self) -> None:
         class C:
             pass
 
@@ -221,7 +221,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _i in range(REPETITION):
             self.assertEqual(f(b), 42)
 
-    def test_split_dict_no_descr(self):
+    def test_split_dict_no_descr(self) -> None:
         class C:
             def __init__(self):
                 self.foo = 1
@@ -258,7 +258,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _i in range(REPETITION):
             self.assertEqual(f(b), 1)
 
-    def test_split_dict_descr(self):
+    def test_split_dict_descr(self) -> None:
         class C:
             foo = 100
 
@@ -290,7 +290,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _i in range(REPETITION):
             self.assertEqual(f(b), 100)
 
-    def test_dict_descr_set_no_get(self):
+    def test_dict_descr_set_no_get(self) -> None:
         class Descr:
             def __set__(self, obj, value):
                 pass
@@ -315,7 +315,7 @@ class ShadowCodeTests(unittest.TestCase):
             self.assertIs(f(c_no_x), C.x)
             self.assertEqual(f(c_x), 42)
 
-    def test_split_dict_descr_set_no_get(self):
+    def test_split_dict_descr_set_no_get(self) -> None:
         class Descr:
             def __set__(self, obj, value):
                 pass
@@ -334,7 +334,7 @@ class ShadowCodeTests(unittest.TestCase):
             self.assertIs(f(c_no_x), C.x)
             self.assertEqual(f(c_x), 42)
 
-    def test_split_dict_descr_set(self):
+    def test_split_dict_descr_set(self) -> None:
         callcount = 0
 
         class Descr:
@@ -353,7 +353,7 @@ class ShadowCodeTests(unittest.TestCase):
         for i in range(REPETITION):
             self.assertEqual(f(c), i + 1)
 
-    def test_combined_dict_descr_set(self):
+    def test_combined_dict_descr_set(self) -> None:
         callcount = 0
 
         class Descr:
@@ -378,7 +378,7 @@ class ShadowCodeTests(unittest.TestCase):
         for i in range(REPETITION):
             self.assertEqual(f(c), i + 1)
 
-    def test_module(self):
+    def test_module(self) -> None:
         version = sys.version
 
         def f():
@@ -393,7 +393,7 @@ class ShadowCodeTests(unittest.TestCase):
         finally:
             sys.version = version
 
-    def test_type_attr_metaattr(self):
+    def test_type_attr_metaattr(self) -> None:
         class MC(type):
             x = 100
 
@@ -406,7 +406,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _i in range(REPETITION):
             self.assertEqual(f(C), 42)
 
-    def test_type_attr_no_double_invoke(self):
+    def test_type_attr_no_double_invoke(self) -> None:
         """verify that a descriptor only gets invoked once when it raises"""
 
         class Desc:
@@ -435,7 +435,7 @@ class ShadowCodeTests(unittest.TestCase):
         self.assertRaises(ShadowError, f, C)
         self.assertEqual(desc.calls, REPETITION + 1)
 
-    def test_no_dict_descr_builtin(self):
+    def test_no_dict_descr_builtin(self) -> None:
         x = 42
 
         def f(x):
@@ -444,7 +444,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _i in range(REPETITION):
             self.assertEqual(f(x), 42)
 
-    def test_no_dict_descr_user(self):
+    def test_no_dict_descr_user(self) -> None:
         class C:
             __slots__ = ()
 
@@ -464,7 +464,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _i in range(REPETITION):
             self.assertEqual(f(x), 100)
 
-    def test_no_dict(self):
+    def test_no_dict(self) -> None:
         class C:
             __slots__ = ()
             abc = 42
@@ -480,7 +480,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _i in range(REPETITION):
             self.assertEqual(f(x), 100)
 
-    def test_dict_descr(self):
+    def test_dict_descr(self) -> None:
         """shadowing a class member should give the instance"""
 
         class C:
@@ -498,7 +498,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _i in range(REPETITION):
             f(a)
 
-    def test_dict_descr_2(self):
+    def test_dict_descr_2(self) -> None:
         """getting a descriptor should return a new instance"""
 
         class C:
@@ -516,7 +516,7 @@ class ShadowCodeTests(unittest.TestCase):
 
         self.assertEqual(len({id(item) for item in items}), REPETITION)
 
-    def test_dict_descr_3(self):
+    def test_dict_descr_3(self) -> None:
         class C:
             def __init__(self, order):
                 if order:
@@ -538,7 +538,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _ in range(100):
             f(a)
 
-    def test_type_attr(self):
+    def test_type_attr(self) -> None:
         class C:
             x = 1
 
@@ -551,7 +551,7 @@ class ShadowCodeTests(unittest.TestCase):
         for _ in range(REPETITION):
             f(C, 2)
 
-    def test_instance_attr(self):
+    def test_instance_attr(self) -> None:
         """LOAD_ATTR_DICT_DESCR -> LOAD_ATTR_NO_DICT
         We generate a cached opcode that handles a dict, then transition over to one
         that doesn't need a dict lookup"""
@@ -575,7 +575,7 @@ class ShadowCodeTests(unittest.TestCase):
             self.assertEqual(g(a), 100)
         f(a)
 
-    def test_megamorphic(self):
+    def test_megamorphic(self) -> None:
         class C:
             x = 0
 
@@ -587,7 +587,7 @@ class ShadowCodeTests(unittest.TestCase):
             self.assertEqual(f(a), i)
             C.x += 1
 
-    def test_modify_class(self):
+    def test_modify_class(self) -> None:
         for i in range(REPETITION):
 
             class lazy_classproperty:
@@ -624,7 +624,7 @@ def f(x):
             for _ in range(REPETITION * 2):
                 f(C)  # noqa
 
-    def test_extended_arg(self):
+    def test_extended_arg(self) -> None:
         """tests patching an opcode with EXTENDED_ARG and inserting a nop in
         place of the extended arg opcode"""
 
@@ -641,7 +641,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 32612)
 
-    def test_cache_global_reuse(self):
+    def test_cache_global_reuse(self) -> None:
         def f(a, b):
             return min(a, b) + min(a, b) + min(a, b)
 
@@ -665,7 +665,7 @@ def f(x):
         exec(code, globals if globals is not None else {}, locals)
         return locals["f"]
 
-    def test_global_cache_exhausted(self):
+    def test_global_cache_exhausted(self) -> None:
         globals = {}
         for i in range(300):
             globals["x" + hex(i)[2:]] = i
@@ -673,7 +673,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(), 44850)
 
-    def test_global_invalidate_builtins(self):
+    def test_global_invalidate_builtins(self) -> None:
         global X
         X = 1
 
@@ -687,7 +687,7 @@ def f(x):
         finally:
             del builtins.__dict__[42]
 
-    def test_reoptimize_no_caches(self):
+    def test_reoptimize_no_caches(self) -> None:
         """we limit caches to 256 per method.  If we take a EXTENDED_ARG cache, optimize it,
         and then don't have any other spaces for caches, we fail to replace the cache.  We
         should maintain the ref count on the previous cache correctly."""
@@ -732,7 +732,7 @@ def f(min, max, inst, path=False):
             self.assertEqual(f(260, 262, a), 261)
         self.assertEqual(f(0, COUNT, a), TOTAL)
 
-    def test_cache_exhausted(self):
+    def test_cache_exhausted(self) -> None:
         """tests running out of cache instances"""
 
         class C:
@@ -746,7 +746,7 @@ def f(min, max, inst, path=False):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 32640)
 
-    def test_l2_cache_hit_afer_exhaustion(self):
+    def test_l2_cache_hit_afer_exhaustion(self) -> None:
         """tests running out of cache instances, and then having another
         function grab those instances from the L2 cache"""
 
@@ -765,7 +765,7 @@ def f(min, max, inst, path=False):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 12210)
 
-    def test_modify_descriptor(self):
+    def test_modify_descriptor(self) -> None:
         """changing a descriptor into a plain old value shouldn't crash"""
 
         class mydesc:
@@ -788,7 +788,7 @@ def f(min, max, inst, path=False):
         del mydesc.__get__
         self.assertEqual(repr(f(myobj())), "mydesc")
 
-    def test_type_resurrection(self):
+    def test_type_resurrection(self) -> None:
         class metafin(type):
             def __del__(cls):
                 nonlocal C
@@ -825,7 +825,7 @@ def f(min, max, inst, path=False):
         if not cinderx.jit.is_enabled():
             self.assertNotEqual(len(weakref.getweakrefs(C)), 0)
 
-    def test_type_resurrection_2(self):
+    def test_type_resurrection_2(self) -> None:
         class metafin(type):
             def __del__(cls):
                 nonlocal C
@@ -848,7 +848,7 @@ def f(min, max, inst, path=False):
         C.abc = 100
         self.assertEqual(f(a), 100)
 
-    def test_descriptor_ends_split_dict(self):
+    def test_descriptor_ends_split_dict(self) -> None:
         for x in range(REPETITION):
             mutating = False
 
@@ -887,7 +887,7 @@ def f(x):
                     mutating = True
                 self.assertEqual(f(inst), 200)
 
-    def test_eq_side_effects(self):
+    def test_eq_side_effects(self) -> None:
         """dict key which overrides __eq__ and mutates the class during a get"""
         for x in range(REPETITION):
             mutating = False
@@ -936,7 +936,7 @@ def f(x):
 
                 self.assertEqual(res, 42)
 
-    def test_knob(self):
+    def test_knob(self) -> None:
         # Its on because we enabled it for the test
         try:
             knobs = cinder.getknobs()
@@ -952,7 +952,7 @@ def f(x):
             knobs = cinder.getknobs()
             self.assertEqual(knobs["shadowcode"], True)
 
-    def test_store_attr_dict(self):
+    def test_store_attr_dict(self) -> None:
         class C:
             def __init__(self, x):
                 if x is True:
@@ -985,7 +985,7 @@ def f(x):
         f(x)
         self.assertEqual(x.z, 100)
 
-    def test_store_attr_dict_type_change(self):
+    def test_store_attr_dict_type_change(self) -> None:
         class C:
             def __init__(self):
                 self.x = 42
@@ -1003,7 +1003,7 @@ def f(x):
         f(x)
         self.assertEqual(x.z, 100)
 
-    def test_store_attr_descr(self):
+    def test_store_attr_descr(self) -> None:
         class C:
             def __init__(self):
                 self.x = 42
@@ -1024,7 +1024,7 @@ def f(x):
             f(x)
             self.assertEqual(x.x, 100)
 
-    def test_store_attr_descr_type_change(self):
+    def test_store_attr_descr_type_change(self) -> None:
         class C:
             def __init__(self):
                 self.x = 42
@@ -1054,7 +1054,7 @@ def f(x):
         f(x)
         self.assertEqual(x.y, 100)
 
-    def test_store_attr_descr_error(self):
+    def test_store_attr_descr_error(self) -> None:
         should_raise = False
 
         class C:
@@ -1083,7 +1083,7 @@ def f(x):
         with self.assertRaisesRegex(ValueError, "no way"):
             f(C())
 
-    def test_no_attr(self):
+    def test_no_attr(self) -> None:
         def f(x):
             x.foo = 42
 
@@ -1093,7 +1093,7 @@ def f(x):
             ):
                 f(object())
 
-    def test_read_only_attr(self):
+    def test_read_only_attr(self) -> None:
         def f(x):
             x.__str__ = 42
 
@@ -1103,7 +1103,7 @@ def f(x):
             ):
                 f(object())
 
-    def test_split_dict_creation(self):
+    def test_split_dict_creation(self) -> None:
         class C:
             def __init__(self, init):
                 if init:
@@ -1125,7 +1125,7 @@ def f(x):
         f(x)
         self.assertEqual(x.a, 100)
 
-    def test_split_dict_not_split(self):
+    def test_split_dict_not_split(self) -> None:
         class C:
             def __init__(self, init):
                 if init:
@@ -1146,7 +1146,7 @@ def f(x):
         f(x)
         self.assertEqual(x.a, 100)
 
-    def test_split_replace_existing_attr(self):
+    def test_split_replace_existing_attr(self) -> None:
         class C:
             def __init__(self):
                 self.a = 1
@@ -1162,7 +1162,7 @@ def f(x):
             f(x)
             self.assertEqual(x.a, 100)
 
-    def test_split_dict_next_attr(self):
+    def test_split_dict_next_attr(self) -> None:
         class C:
             def __init__(self, init):
                 self.a = 1
@@ -1182,7 +1182,7 @@ def f(x):
         f(x)
         self.assertEqual(x.c, 100)
 
-    def test_split_dict_start_tracking(self):
+    def test_split_dict_start_tracking(self) -> None:
         dels = 0
 
         class C:
@@ -1206,7 +1206,7 @@ def f(x):
         gc.collect()
         self.assertEqual(dels, REPETITION)
 
-    def test_load_method_builtin(self):
+    def test_load_method_builtin(self) -> None:
         """INVOKE_METHOD on a builtin object w/o a dictionary"""
         x = "abc"
 
@@ -1216,7 +1216,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(x), "ABC")
 
-    def test_load_method_no_dict(self):
+    def test_load_method_no_dict(self) -> None:
         """INVOKE_METHOD on a user defined object w/o a dictionary"""
 
         class C:
@@ -1233,7 +1233,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 42)
 
-    def test_load_method_no_dict_invalidate(self):
+    def test_load_method_no_dict_invalidate(self) -> None:
         class C:
             __slots__ = ()
 
@@ -1252,7 +1252,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 100)
 
-    def test_load_method_no_dict_invalidate_to_prop(self):
+    def test_load_method_no_dict_invalidate_to_prop(self) -> None:
         """switch from a method to a descriptor"""
 
         class C:
@@ -1273,7 +1273,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 100)
 
-    def test_load_method_non_desc(self):
+    def test_load_method_non_desc(self) -> None:
         """INVOKE_METHOD on a user defined object which isn't a descriptor"""
 
         class callable:
@@ -1292,7 +1292,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 42)
 
-    def test_load_method_non_desc_invalidate(self):
+    def test_load_method_non_desc_invalidate(self) -> None:
         """INVOKE_METHOD on a user defined object which isn't a descriptor
         and then modify the type"""
 
@@ -1320,7 +1320,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 100)
 
-    def test_load_method_non_desc_invalidate_to_method(self):
+    def test_load_method_non_desc_invalidate_to_method(self) -> None:
         """INVOKE_METHOD on a user defined object which isn't a descriptor
 
         and then modify the type"""
@@ -1346,7 +1346,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 100)
 
-    def test_load_method_with_dict(self):
+    def test_load_method_with_dict(self) -> None:
         class C:
             def f(self):
                 return 42
@@ -1359,7 +1359,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 42)
 
-    def test_load_method_with_dict_set_value(self):
+    def test_load_method_with_dict_set_value(self) -> None:
         class C:
             def f(self):
                 return 42
@@ -1376,7 +1376,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 100)
 
-    def test_load_method_with_dict_value_set_initially(self):
+    def test_load_method_with_dict_value_set_initially(self) -> None:
         class C:
             def f(self):
                 return 42
@@ -1391,7 +1391,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 100)
 
-    def test_load_method_with_dict_desc_replace_value(self):
+    def test_load_method_with_dict_desc_replace_value(self) -> None:
         hit_count = 0
 
         class desc:
@@ -1419,7 +1419,7 @@ def f(x):
             self.assertEqual(f(a), 100)
         self.assertEqual(hit_count, REPETITION)
 
-    def test_load_method_with_dict_desc_initial_value(self):
+    def test_load_method_with_dict_desc_initial_value(self) -> None:
         hit_count = 0
 
         class desc:
@@ -1444,7 +1444,7 @@ def f(x):
 
         self.assertEqual(hit_count, 0)
 
-    def test_load_method_non_desc_with_dict(self):
+    def test_load_method_non_desc_with_dict(self) -> None:
         class callable:
             def __call__(self, *args):
                 return 42
@@ -1460,7 +1460,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(a), 42)
 
-    def test_load_method_descr_builtin(self):
+    def test_load_method_descr_builtin(self) -> None:
         """INVOKE_METHOD on a descriptor w/o a dictionary"""
         x = 42
 
@@ -1473,7 +1473,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(x), TypeError)
 
-    def test_descr_modifies_type(self):
+    def test_descr_modifies_type(self) -> None:
         for x in range(REPETITION):
             mutating = False
 
@@ -1500,7 +1500,7 @@ def f(x):
                 else:
                     self.assertEqual(f(a), 42)
 
-    def test_polymorphic_method(self):
+    def test_polymorphic_method(self) -> None:
         outer = self
 
         class C:
@@ -1522,7 +1522,7 @@ def f(x):
             self.assertEqual(f(c), "C")
             self.assertEqual(f(d), "D")
 
-    def test_polymorphic_exhaust_cache(self):
+    def test_polymorphic_exhaust_cache(self) -> None:
         outer = self
 
         class C:
@@ -1550,7 +1550,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(c), "C")
 
-    def test_polymorphic_method_mutating(self):
+    def test_polymorphic_method_mutating(self) -> None:
         outer = self
 
         class C:
@@ -1576,7 +1576,7 @@ def f(x):
             C.name += 1
             self.assertEqual(f(d), "D")
 
-    def test_polymorphic_method_no_dict(self):
+    def test_polymorphic_method_no_dict(self) -> None:
         outer = self
 
         class C:
@@ -1603,7 +1603,7 @@ def f(x):
 
             self.assertEqual(f(d), "D")
 
-    def test_polymorphic_method_mutating_no_dict(self):
+    def test_polymorphic_method_mutating_no_dict(self) -> None:
         outer = self
 
         class C:
@@ -1632,7 +1632,7 @@ def f(x):
             C.name += 1
             self.assertEqual(f(d), "D")
 
-    def test_polymorphic_method_mixed_dict(self):
+    def test_polymorphic_method_mixed_dict(self) -> None:
         outer = self
 
         class C:
@@ -1657,7 +1657,7 @@ def f(x):
             self.assertEqual(f(c), "C")
             self.assertEqual(f(d), "D")
 
-    def test_polymorphic_method_mutating_mixed_dict(self):
+    def test_polymorphic_method_mutating_mixed_dict(self) -> None:
         outer = self
 
         class C:
@@ -1685,7 +1685,7 @@ def f(x):
             C.name += 1
             self.assertEqual(f(d), "D")
 
-    def test_invoke_method_inst_only_split_dict(self):
+    def test_invoke_method_inst_only_split_dict(self) -> None:
         class C:
             pass
 
@@ -1702,7 +1702,7 @@ def f(x):
         with self.assertRaises(AttributeError):
             f(a)
 
-    def test_invoke_method_inst_only(self):
+    def test_invoke_method_inst_only(self) -> None:
         class C:
             pass
 
@@ -1724,7 +1724,7 @@ def f(x):
         with self.assertRaises(AttributeError):
             f(b)
 
-    def test_instance_dir_mutates_with_custom_hash(self):
+    def test_instance_dir_mutates_with_custom_hash(self) -> None:
         class C:
             def f(self):
                 return 42
@@ -1747,7 +1747,7 @@ def f(x):
         x.__dict__[mystr("f")] = lambda: 100
         self.assertEqual(f(x), 100)
 
-    def test_instance_dir_mutates_with_custom_hash_different_attr(self):
+    def test_instance_dir_mutates_with_custom_hash_different_attr(self) -> None:
         class C:
             def f(self):
                 return 42
@@ -1770,7 +1770,7 @@ def f(x):
         x.__dict__[mystr("g")] = lambda: 100
         self.assertEqual(f(x), 42)
 
-    def test_instance_dir_mutates_with_custom_hash_descr(self):
+    def test_instance_dir_mutates_with_custom_hash_descr(self) -> None:
         class descr:
             def __get__(self, inst, ctx):
                 return lambda: 42
@@ -1796,7 +1796,7 @@ def f(x):
         x.__dict__[mystr("f")] = lambda: 100
         self.assertEqual(f(x), 100)
 
-    def test_instance_dir_mutates_with_custom_hash_different_attr_descr(self):
+    def test_instance_dir_mutates_with_custom_hash_different_attr_descr(self) -> None:
         class descr:
             def __get__(self, inst, ctx):
                 return lambda: 42
@@ -1822,7 +1822,7 @@ def f(x):
         x.__dict__[mystr("g")] = lambda: 100
         self.assertEqual(f(x), 42)
 
-    def test_loadmethod_cachelines(self):
+    def test_loadmethod_cachelines(self) -> None:
         class C:
             def f(self):
                 return 42
@@ -1847,7 +1847,7 @@ def f(x):
 
         self.assertEqual(f1(x), 100)
 
-    def test_exhaust_invalidation(self):
+    def test_exhaust_invalidation(self) -> None:
         class C:
             pass
 
@@ -1867,7 +1867,7 @@ def f(x):
             self.assertEqual(f(x), i)
             self.assertEqual(g(x), i)
 
-    def test_type_call(self):
+    def test_type_call(self) -> None:
         class C:
             def f(self):
                 return 42
@@ -1880,7 +1880,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(C, a), 42)
 
-    def test_type_call_metatype(self):
+    def test_type_call_metatype(self) -> None:
         class MC(type):
             pass
 
@@ -1896,7 +1896,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(C, a), 42)
 
-    def test_type_call_metatype_add_getattr(self):
+    def test_type_call_metatype_add_getattr(self) -> None:
         class MC(type):
             pass
 
@@ -1915,7 +1915,7 @@ def f(x):
         MC.__getattribute__ = lambda self, name: lambda self: 100
         self.assertEqual(f(C, a), 100)
 
-    def test_metatype_getattr(self):
+    def test_metatype_getattr(self) -> None:
         class MC(type):
             def __getattribute__(cls, name):
                 return 100
@@ -1929,7 +1929,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(C), 100)
 
-    def test_metatype_add_getattr(self):
+    def test_metatype_add_getattr(self) -> None:
         class MC(type):
             pass
 
@@ -1945,7 +1945,7 @@ def f(x):
         MC.__getattribute__ = lambda self, name: 100
         self.assertEqual(f(C), 100)
 
-    def test_metatype_add_getattr_no_leak(self):
+    def test_metatype_add_getattr_no_leak(self) -> None:
         class MC(type):
             pass
 
@@ -1965,7 +1965,7 @@ def f(x):
         gc.collect()
         self.assertEqual(wr(), None)
 
-    def test_metatype_change(self):
+    def test_metatype_change(self) -> None:
         class MC(type):
             pass
 
@@ -1985,7 +1985,7 @@ def f(x):
         C.__class__ = MC2
         self.assertEqual(f(C), 100)
 
-    def test_type_call_invalidate(self):
+    def test_type_call_invalidate(self) -> None:
         class C:
             def f(self):
                 return 42
@@ -2001,7 +2001,7 @@ def f(x):
         C.f = lambda self: 100
         self.assertEqual(f(C, a), 100)
 
-    def test_type_call_descr(self):
+    def test_type_call_descr(self) -> None:
         test = self
 
         class descr:
@@ -2021,7 +2021,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(C), 42)
 
-    def test_type_call_non_descr(self):
+    def test_type_call_non_descr(self) -> None:
         test = self  # noqa: F841
 
         class descr:
@@ -2039,7 +2039,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(C), 42)
 
-    def test_load_slot(self):
+    def test_load_slot(self) -> None:
         class C:
             __slots__ = "value"
 
@@ -2053,7 +2053,7 @@ def f(x):
             x = C(i)
             self.assertEqual(f(x), i)
 
-    def test_load_slot_cache_miss(self):
+    def test_load_slot_cache_miss(self) -> None:
         class C:
             __slots__ = "value"
 
@@ -2072,7 +2072,7 @@ def f(x):
 
         self.assertEqual(f(D), 100)
 
-    def test_load_slot_unset(self):
+    def test_load_slot_unset(self) -> None:
         class C:
             __slots__ = "value"
 
@@ -2088,7 +2088,7 @@ def f(x):
         with self.assertRaises(AttributeError):
             f(C())
 
-    def test_store_slot(self):
+    def test_store_slot(self) -> None:
         class C:
             __slots__ = "value"
 
@@ -2100,7 +2100,7 @@ def f(x):
             f(x, i)
             self.assertEqual(x.value, i)
 
-    def test_store_slot_cache_miss(self):
+    def test_store_slot_cache_miss(self) -> None:
         class C:
             __slots__ = "value"
 
@@ -2120,7 +2120,7 @@ def f(x):
         self.assertEqual(x.value, 100)
 
     @skipIf(cached_property is None, "no cached_property")
-    def test_cached_property(self):
+    def test_cached_property(self) -> None:
         class C:
             def __init__(self, value=42):
                 self.value = value
@@ -2154,7 +2154,7 @@ def f(x):
         self.assertEqual(x.calls, 1)
 
     @skipIf(cached_property is None, "no cached_property")
-    def test_cached_property_raises(self):
+    def test_cached_property_raises(self) -> None:
         class C:
             def __init__(self, raises=False):
                 self.raises = raises
@@ -2177,7 +2177,7 @@ def f(x):
             f(inst)
 
     @skipIf(cached_property is None, "no cached_property")
-    def test_cached_property_slots(self):
+    def test_cached_property_slots(self) -> None:
         class C:
             __slots__ = ("f", "value", "calls")
 
@@ -2207,7 +2207,7 @@ def f(x):
         self.assertEqual(x.calls, 1)
 
     @skipIf(cached_property is None, "no cached_property")
-    def test_cached_property_slots_raises(self):
+    def test_cached_property_slots_raises(self) -> None:
         class C:
             __slots__ = ("raises", "f")
 
@@ -2232,7 +2232,7 @@ def f(x):
         with self.assertRaises(ShadowError):
             f(inst)
 
-    def test_module_attr(self):
+    def test_module_attr(self) -> None:
         mod = type(sys)("foo")
         mod.x = 42
 
@@ -2246,7 +2246,7 @@ def f(x):
         for _ in range(REPETITION):
             self.assertEqual(f(mod), 100)
 
-    def test_module_descr_conflict(self):
+    def test_module_descr_conflict(self) -> None:
         mod = type(sys)("foo")
         func = mod.__dir__
 
@@ -2259,7 +2259,7 @@ def f(x):
         mod.__dir__ = 100
         self.assertEqual(f(mod), 100)
 
-    def test_multi_cache(self):
+    def test_multi_cache(self) -> None:
         class C:
             x = 1
 
@@ -2282,7 +2282,7 @@ def f(x):
         self.assertEqual(f(d, True), 2)
         self.assertEqual(f(c, False), 3)
 
-    def test_multi_cache_module(self):
+    def test_multi_cache_module(self) -> None:
         m1 = type(sys)("m1")
         m1.x = 1
         m1.y = 2
@@ -2312,7 +2312,7 @@ def f(x):
         # 3rd cache entry shares an entry
         self.assertEqual(f(m1, 1), 5)
 
-    def test_module_method(self):
+    def test_module_method(self) -> None:
         mymod = type(sys)("foo")
 
         def mod_meth():
@@ -2326,7 +2326,7 @@ def f(x):
         for _i in range(REPETITION):
             self.assertEqual(f(mymod), 42)
 
-    def test_module_method_invalidate(self):
+    def test_module_method_invalidate(self) -> None:
         mymod = type(sys)("foo")
 
         def mod_meth():
@@ -2344,7 +2344,7 @@ def f(x):
             mymod.mod_meth = lambda: _i  # noqa: B023
             self.assertEqual(f(mymod), _i)
 
-    def test_module_method_miss(self):
+    def test_module_method_miss(self) -> None:
         mymod = type(sys)("foo")
 
         def mod_meth():
@@ -2364,7 +2364,7 @@ def f(x):
 
         self.assertEqual(f(C()), "abc")
 
-    def test_module_getattr(self):
+    def test_module_getattr(self) -> None:
         mymod = type(sys)("foo")
 
         def mod_getattr(name):
@@ -2385,7 +2385,7 @@ def f(x):
         del mymod.attr
         self.assertEqual(f(mymod), "abc")
 
-    def test_module_method_getattr(self):
+    def test_module_method_getattr(self) -> None:
         mymod = type(sys)("foo")
 
         def mod_meth():
@@ -2409,7 +2409,7 @@ def f(x):
         del mymod.mod_meth
         self.assertEqual(f(mymod), "abc")
 
-    def test_type_error_every_access(self):
+    def test_type_error_every_access(self) -> None:
         runcount = 0
 
         class Raises:
@@ -2432,7 +2432,7 @@ def f(x):
             self.assertEqual(f(C), 42)
             self.assertEqual(runcount, 1)
 
-    def test_module_error_every_access(self):
+    def test_module_error_every_access(self) -> None:
         m = type(sys)("test")
         runcount = 0
 
@@ -2458,7 +2458,7 @@ def f(x):
             self.assertRaises(NotImplementedError, f, m)
             self.assertEqual(runcount, 1)
 
-    def test_module_error_getattr(self):
+    def test_module_error_getattr(self) -> None:
         m = type(sys)("test")
         runcount = 0
 
@@ -2482,7 +2482,7 @@ def f(x):
             self.assertRaises(NotImplementedError, f, m)
             self.assertEqual(runcount, 1)
 
-    def test_dict_subscr(self):
+    def test_dict_subscr(self) -> None:
         # key not specialized in shadow code
         key = (1, 2)
         value = 1
@@ -2494,7 +2494,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(), value)
 
-    def test_list_subscr(self):
+    def test_list_subscr(self) -> None:
         d = list(range(5))
 
         def f(i):
@@ -2504,7 +2504,7 @@ def f(x):
             for i in range(5):
                 self.assertEqual(f(i), i)
 
-    def test_tuple_subscr(self):
+    def test_tuple_subscr(self) -> None:
         t = (1, 2, 3, 4, 5)
         ans = (2, 3)
 
@@ -2514,7 +2514,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(), ans)
 
-    def test_dict_str_key(self):
+    def test_dict_str_key(self) -> None:
         key = "mykey"
         value = 1
         d = {key: value}
@@ -2525,7 +2525,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(), value)
 
-    def test_tuple_int_const_key(self):
+    def test_tuple_int_const_key(self) -> None:
         t = (1, 2, 3)
 
         def f():
@@ -2534,7 +2534,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(), 1)
 
-    def test_dict_subscr_keyerror(self):
+    def test_dict_subscr_keyerror(self) -> None:
         # key not specialized in shadow code
         key = (1, 2)
 
@@ -2550,7 +2550,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertRaises(KeyError, f, wrong_key)
 
-    def test_dict_subscr_to_non_dict(self):
+    def test_dict_subscr_to_non_dict(self) -> None:
         key = 1
         value = 1
         d = {key: value}
@@ -2565,7 +2565,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(t, key), value2)
 
-    def test_list_subscr_to_non_list(self):
+    def test_list_subscr_to_non_list(self) -> None:
         li = [1, 2, 3, 4]
         t = (5, 6, 7)
 
@@ -2578,7 +2578,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(t, 1), 6)
 
-    def test_tuple_subscr_indexerror(self):
+    def test_tuple_subscr_indexerror(self) -> None:
         t = (1, 2, 3, 4, 5)
 
         def f(i):
@@ -2587,7 +2587,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertRaises(IndexError, f, 6)
 
-    def test_tuple_subscr_to_non_tuple(self):
+    def test_tuple_subscr_to_non_tuple(self) -> None:
         li = [1, 2, 3, 4]
         t = (5, 6, 7)
 
@@ -2599,7 +2599,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(li, 1), 2)
 
-    def test_dict_str_key_to_nonstr_key(self):
+    def test_dict_str_key_to_nonstr_key(self) -> None:
         key = "mykey"
 
         value = 1
@@ -2616,7 +2616,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(key2), value2)
 
-    def test_dict_str_key_to_non_dict(self):
+    def test_dict_str_key_to_non_dict(self) -> None:
         key = "mykey"
         value = 1
         d = {key: value}
@@ -2631,7 +2631,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(li, 1), 2)
 
-    def test_tuple_int_const_key_two_tuples(self):
+    def test_tuple_int_const_key_two_tuples(self) -> None:
         t = (1, 2, 3)
         t2 = (3, 4, 5)
 
@@ -2643,7 +2643,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(t2), 3)
 
-    def test_tuple_int_const_key_indexerror(self):
+    def test_tuple_int_const_key_indexerror(self) -> None:
         t = (0, 1, 2, 3, 4, 5, 6)
         t2 = (0, 1, 2)
 
@@ -2655,7 +2655,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertRaises(IndexError, g, t2)
 
-    def test_tuple_int_const_key_too_long(self):
+    def test_tuple_int_const_key_too_long(self) -> None:
         t = (1, 2, 3)
 
         def g():
@@ -2665,7 +2665,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertRaises(IndexError, g)
 
-    def test_tuple_int_const_negative_key(self):
+    def test_tuple_int_const_negative_key(self) -> None:
         t1 = (1, 2, 3)
 
         t2 = (-1, -2, -3, -4, -5)
@@ -2678,7 +2678,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(t2), -5)
 
-    def test_tuple_const_int_not_tuple(self):
+    def test_tuple_const_int_not_tuple(self) -> None:
         t = (1, 2, 3)
         d = {0: "x"}
 
@@ -2690,7 +2690,7 @@ def f(x):
         for __ in range(REPETITION):
             self.assertEqual(f(d), "x")
 
-    def test_polymorphic(self):
+    def test_polymorphic(self) -> None:
         class C:
             def __init__(self):
                 self.value = 42
@@ -2714,7 +2714,7 @@ def f(x):
 
         self.assertEqual(f(c), 42)
 
-    def test_polymorphic_type_mutation(self):
+    def test_polymorphic_type_mutation(self) -> None:
         class C:
             value = 42
 
@@ -2749,7 +2749,7 @@ def f(x):
 
         self.assertEqual(poly(c), 100)
 
-    def test_globals_remove_promote_to_builtin(self):
+    def test_globals_remove_promote_to_builtin(self) -> None:
         global filter
         orig_filter = filter
         filter = 42
@@ -2771,7 +2771,7 @@ def f(x):
         finally:
             builtins.filter = orig_filter
 
-    def test_loadmethod_meta_getattr(self):
+    def test_loadmethod_meta_getattr(self) -> None:
         class MC(type):
             def __getattribute__(cls, name):
                 return lambda x: x + 1
@@ -2787,7 +2787,7 @@ def f(x):
         for i in range(REPETITION):
             self.assertEqual(f(i), i + 1)
 
-    def test_loadmethod_setattr(self):
+    def test_loadmethod_setattr(self) -> None:
         class C:
             pass
 
@@ -2799,7 +2799,7 @@ def f(x):
             f(a, i)
             self.assertEqual(a.foo, i)
 
-    def test_loadattr_setattr(self):
+    def test_loadattr_setattr(self) -> None:
         class C:
             pass
 
@@ -2813,7 +2813,7 @@ def f(x):
 
             self.assertEqual(a.foo, i)
 
-    def test_module_invalidate(self):
+    def test_module_invalidate(self) -> None:
         mod = type(sys)("foo")
         mod.foo = 42
 
@@ -2844,7 +2844,7 @@ def f(x):
         mod.foo = 300
         self.assertEqual(f1(mod), 300)
 
-    def test_object_field(self):
+    def test_object_field(self) -> None:
         # OSError.filename is a T_OBJECT field, which defaults to None.
 
         # We should always store the value in the descriptor, never
@@ -2858,7 +2858,7 @@ def f(x):
             self.assertEqual(x.__dict__, {})
             self.assertEqual(x.filename, "abc")
 
-    def test_readonly_field(self):
+    def test_readonly_field(self) -> None:
         # Shadow byte code shouldn't allow writing to readonly fields
         class C:
             pass
@@ -2873,7 +2873,7 @@ def f(x):
             f(range(5))
 
     @skipIf(StrictModule is None, "no StrictModule")
-    def test_strictmodule(self):
+    def test_strictmodule(self) -> None:
         mod = type(sys)("foo")
         mod.x = 100
         # cheat here by keeping the underlying dict
@@ -2890,7 +2890,7 @@ def f(x):
             self.assertEqual(f(), 200)
 
     @skipIf(StrictModule is None, "no StrictModule")
-    def test_strictmodule_descr_conflict(self):
+    def test_strictmodule_descr_conflict(self) -> None:
         mod = type(sys)("foo")
         d = mod.__dict__
         m = StrictModule(d, False)
@@ -2906,7 +2906,7 @@ def f(x):
         self.assertEqual(f(m), 100)
 
     @skipIf(StrictModule is None, "no StrictModule")
-    def test_strictmodule_descr_conflict_with_patch(self):
+    def test_strictmodule_descr_conflict_with_patch(self) -> None:
         mod = type(sys)("foo")
         d = mod.__dict__
         m = StrictModule(d, True)
@@ -2921,7 +2921,7 @@ def f(x):
         self.assertEqual(f(m), 100)
 
     @skipIf(StrictModule is None, "no StrictModule")
-    def test_strictmodule_method(self):
+    def test_strictmodule_method(self) -> None:
         mod = type(sys)("foo")
 
         def mod_meth():
@@ -2938,7 +2938,7 @@ def f(x):
             self.assertEqual(f(m), 42)
 
     @skipIf(StrictModule is None, "no StrictModule")
-    def test_strcitmodule_method_invalidate(self):
+    def test_strcitmodule_method_invalidate(self) -> None:
         mod = type(sys)("foo")
 
         def mod_meth():
@@ -2959,7 +2959,7 @@ def f(x):
             self.assertEqual(f(m), _i)
 
     @skipIf(StrictModule is None, "no StrictModule")
-    def test_strictmodule_method_miss(self):
+    def test_strictmodule_method_miss(self) -> None:
         mod = type(sys)("foo")
 
         def mod_meth():
@@ -2981,7 +2981,7 @@ def f(x):
 
         self.assertEqual(f(C()), "abc")
 
-    def test_loadattr_descr_changed_to_data_descr(self):
+    def test_loadattr_descr_changed_to_data_descr(self) -> None:
         class NonDataDescr:
             def __init__(self):
                 self.invoked_count = 0
@@ -3022,7 +3022,7 @@ def f(x):
         self.assertEqual(get_foo(obj), "testing 123")
         self.assertEqual(descr.invoked_count, 2)
 
-    def test_reassign_split_dict(self):
+    def test_reassign_split_dict(self) -> None:
         class Foo:
             def __init__(self):
                 self.attr = 100
@@ -3046,7 +3046,7 @@ def f(x):
         obj.__dict__ = obj2.__dict__
         self.assertEqual(f(obj), 200)
 
-    def test_reassign_class_with_different_split_dict(self):
+    def test_reassign_class_with_different_split_dict(self) -> None:
         class Foo:
             def __init__(self):
                 self.attr = 100
@@ -3072,7 +3072,7 @@ def f(x):
         self.assertEqual(f(obj2), 200)
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_immortal_classmethod(self):
+    def test_load_immortal_classmethod(self) -> None:
         code = f"""if 1:
             class Foo:
                 @classmethod
@@ -3095,7 +3095,7 @@ def f(x):
         self.assertEqual(out.strip(), b"100")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_immortal_staticmethod(self):
+    def test_load_immortal_staticmethod(self) -> None:
         code = f"""if 1:
             class Foo:
                 @staticmethod
@@ -3118,7 +3118,7 @@ def f(x):
         self.assertEqual(out.strip(), b"100")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_immortal_wrapper_descr(self):
+    def test_load_immortal_wrapper_descr(self) -> None:
         code = f"""if 1:
             class Foo:
                 def __repr__(self):
@@ -3140,7 +3140,7 @@ def f(x):
         self.assertEqual(out.strip(), b"'hello'")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_immortal_function(self):
+    def test_load_immortal_function(self) -> None:
         code = f"""if 1:
             class Oracle:
                 def speak():
@@ -3162,7 +3162,7 @@ def f(x):
         self.assertEqual(out.strip(), b"42")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_immortal_method_descriptor(self):
+    def test_load_immortal_method_descriptor(self) -> None:
         code = f"""if 1:
             import gc
             gc.immortalize_heap()
@@ -3181,7 +3181,7 @@ def f(x):
         self.assertEqual(out.strip(), b"42")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_immortal_builtin_function(self):
+    def test_load_immortal_builtin_function(self) -> None:
         code = f"""if 1:
             class Foo:
                 pass
@@ -3202,7 +3202,7 @@ def f(x):
         self.assertEqual(out.strip(), b"True")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_unshadowed_immortal_method_split_dict(self):
+    def test_load_unshadowed_immortal_method_split_dict(self) -> None:
         code = f"""if 1:
             class Oracle:
                 def __init__(self):
@@ -3227,7 +3227,7 @@ def f(x):
         self.assertEqual(out.strip(), b"42")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_shadowed_immortal_method_split_dict(self):
+    def test_load_shadowed_immortal_method_split_dict(self) -> None:
         code = f"""if 1:
             class Oracle:
                 def __init__(self):
@@ -3256,7 +3256,7 @@ def f(x):
         self.assertEqual(out.strip(), b"42")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_unshadowed_immortal_method_combineddict(self):
+    def test_load_unshadowed_immortal_method_combineddict(self) -> None:
         code = f"""if 1:
             class Oracle:
                 def __init__(self):
@@ -3286,7 +3286,7 @@ def f(x):
         self.assertEqual(out.strip(), b"42")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_shadowed_immortal_method_combineddict(self):
+    def test_load_shadowed_immortal_method_combineddict(self) -> None:
         code = f"""if 1:
             class Oracle:
                 def __init__(self):
@@ -3320,7 +3320,7 @@ def f(x):
         self.assertEqual(out.strip(), b"42")
 
     @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
-    def test_load_unshadowed_immortal_method_no_dict(self):
+    def test_load_unshadowed_immortal_method_no_dict(self) -> None:
         code = f"""if 1:
             import gc
             gc.immortalize_heap()
@@ -3338,7 +3338,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"2")
 
-    def test_instance_to_type(self):
+    def test_instance_to_type(self) -> None:
         def f(obj, use_type):
             # we want one initialized cache for the instance
             # variable and one uninitialized cache that we'll
@@ -3360,7 +3360,7 @@ def f(x):
         with self.assertRaises(AttributeError):
             f(C, True)
 
-    def test_load_method_function_no_attr(self):
+    def test_load_method_function_no_attr(self) -> None:
         """Invalidating a cache and picking up a new cache from a type
         needs to check that the type has the descriptor"""
 
@@ -3394,7 +3394,7 @@ def f(x):
         except AttributeError:
             pass
 
-    def test_load_global_extended_arg_first_opcode(self):
+    def test_load_global_extended_arg_first_opcode(self) -> None:
         early_name_count = 300
         code_str = bytes(
             [

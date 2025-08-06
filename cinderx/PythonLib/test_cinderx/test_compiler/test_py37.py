@@ -16,7 +16,7 @@ CALL_METHOD = "CALL_METHOD"
 
 @skipIf(sys.version_info[:2] != (3, 7), "3.7 tests")
 class Python37Tests(CompilerTest):
-    def test_compile_method(self):
+    def test_compile_method(self) -> None:
         code = self.compile("x.f()")
         self.assertInBytecode(code, LOAD_METHOD)
         self.assertInBytecode(code, CALL_METHOD, 0)
@@ -25,33 +25,33 @@ class Python37Tests(CompilerTest):
         self.assertInBytecode(code, LOAD_METHOD)
         self.assertInBytecode(code, CALL_METHOD, 1)
 
-    def test_compile_method_varargs(self):
+    def test_compile_method_varargs(self) -> None:
         code = self.compile("x.f(*foo)")
         self.assertNotInBytecode(code, LOAD_METHOD)
 
-    def test_compile_method_kwarg(self):
+    def test_compile_method_kwarg(self) -> None:
         code = self.compile("x.f(kwarg=1)")
         self.assertNotInBytecode(code, LOAD_METHOD)
 
-    def test_compile_method_normal(self):
+    def test_compile_method_normal(self) -> None:
         code = self.compile("f()")
         self.assertNotInBytecode(code, LOAD_METHOD)
 
-    def test_future_gen_stop(self):
+    def test_future_gen_stop(self) -> None:
         code = self.compile("from __future__ import generator_stop")
         self.assertEqual(
             code.co_flags,
             CO_NOFREE,
         )
 
-    def test_future_annotations_flag(self):
+    def test_future_annotations_flag(self) -> None:
         code = self.compile("from __future__ import annotations")
         self.assertEqual(
             code.co_flags,
             CO_NOFREE | __future__.CO_FUTURE_ANNOTATIONS,
         )
 
-    def test_async_aiter(self):
+    def test_async_aiter(self) -> None:
         # Make sure GET_AITER isn't followed by LOAD_CONST None as Python 3.7 doesn't support async __aiter__
         outer_graph = self.to_graph(
             """
@@ -74,7 +74,7 @@ class Python37Tests(CompilerTest):
                         saw_aiter = True
                 break
 
-    def test_try_except_pop_except(self):
+    def test_try_except_pop_except(self) -> None:
         """POP_EXCEPT moved after POP_BLOCK in Python 3.10"""
         graph = self.to_graph(
             """
@@ -90,7 +90,7 @@ class Python37Tests(CompilerTest):
                 self.assertEqual(prev_instr.opname, "POP_BLOCK", prev_instr.opname)
             prev_instr = instr
 
-    def test_future_annotations(self):
+    def test_future_annotations(self) -> None:
         annotations = ["42"]
         for annotation in annotations:
             code = self.compile(
@@ -102,7 +102,7 @@ class Python37Tests(CompilerTest):
             CO_NOFREE | __future__.CO_FUTURE_ANNOTATIONS,
         )
 
-    def test_circular_import_as(self):
+    def test_circular_import_as(self) -> None:
         """verifies that we emit an IMPORT_FROM to enable circular imports
         when compiling an absolute import to verify that they can support
         circular imports"""
@@ -110,34 +110,34 @@ class Python37Tests(CompilerTest):
         self.assertInBytecode(code, "IMPORT_FROM")
         self.assertNotInBytecode(code, "LOAD_ATTR")
 
-    def test_compile_opt_unary_jump(self):
+    def test_compile_opt_unary_jump(self) -> None:
         graph = self.to_graph("if not abc: foo")
         self.assertNotInGraph(graph, "POP_JUMP_IF_FALSE")
 
-    def test_compile_opt_bool_or_jump(self):
+    def test_compile_opt_bool_or_jump(self) -> None:
         graph = self.to_graph("if abc or bar: foo")
         self.assertNotInGraph(graph, "JUMP_IF_TRUE_OR_POP")
 
-    def test_compile_opt_bool_and_jump(self):
+    def test_compile_opt_bool_and_jump(self) -> None:
         graph = self.to_graph("if abc and bar: foo")
         self.assertNotInGraph(graph, "JUMP_IF_FALSE_OR_POP")
 
-    def test_compile_opt_assert_or_bool(self):
+    def test_compile_opt_assert_or_bool(self) -> None:
         graph = self.to_graph("assert abc or bar")
         self.assertNotInGraph(graph, "JUMP_IF_TRUE_OR_POP")
 
-    def test_compile_opt_assert_and_bool(self):
+    def test_compile_opt_assert_and_bool(self) -> None:
         graph = self.to_graph("assert abc and bar")
         self.assertNotInGraph(graph, "JUMP_IF_FALSE_OR_POP")
 
-    def test_compile_opt_if_exp(self):
+    def test_compile_opt_if_exp(self) -> None:
         graph = self.to_graph("assert not a if c else b")
         self.assertNotInGraph(graph, "UNARY_NOT")
 
-    def test_compile_opt_cmp_op(self):
+    def test_compile_opt_cmp_op(self) -> None:
         graph = self.to_graph("assert not a > b")
         self.assertNotInGraph(graph, "UNARY_NOT")
 
-    def test_compile_opt_chained_cmp_op(self):
+    def test_compile_opt_chained_cmp_op(self) -> None:
         graph = self.to_graph("assert not a > b > c")
         self.assertNotInGraph(graph, "UNARY_NOT")

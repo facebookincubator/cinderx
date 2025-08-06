@@ -8,7 +8,7 @@ from unittest import TestCase
 
 
 class PySourceLoaderTest(TestCase):
-    def test_basic(self):
+    def test_basic(self) -> None:
         tf = [False, True]
         for lazy_imports, no_pycs, strict in itertools.product(tf, tf, tf):
             with self.subTest(

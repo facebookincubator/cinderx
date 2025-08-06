@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 import cinderx.jit
 from cinderx.compiler.errors import TypedSyntaxError
 from cinderx.compiler.static.types import (
@@ -14,7 +14,7 @@ from .common import StaticTestBase
 
 
 class BinopTests(StaticTestBase):
-    def test_pow_of_int64s_returns_double(self):
+    def test_pow_of_int64s_returns_double(self) -> None:
         codestr = """
         from __static__ import int64
         def foo():
@@ -27,7 +27,7 @@ class BinopTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_int_binop(self):
+    def test_int_binop(self) -> None:
         tests = [
             ("int8", 1, 2, "/", 0),
             ("int8", 4, 2, "/", 2),
@@ -160,7 +160,7 @@ class BinopTests(StaticTestBase):
                         f(False), (res, res), f"{type} {x} {op} {y} {res} {output_type}"
                     )
 
-    def test_primitive_arithmetic(self):
+    def test_primitive_arithmetic(self) -> None:
         cases = [
             ("int8", 127, "*", 1, 127),
             ("int8", -64, "*", 2, -128),
@@ -247,6 +247,8 @@ class BinopTests(StaticTestBase):
                         def f(a: {typ}) -> {typ}:
                             return a {op} {b}
                     """
+                else:
+                    raise RuntimeError(f"Unrecognized const {const!r}")
 
                 with self.subTest(typ=typ, a=a, op=op, b=b, res=res, const=const):
                     with self.in_module(codestr) as mod:
@@ -260,7 +262,7 @@ class BinopTests(StaticTestBase):
                             act = f(a)
                         self.assertEqual(act, res)
 
-    def test_int_binop_type_context(self):
+    def test_int_binop_type_context(self) -> None:
         codestr = """
             from __static__ import box, int8, int16
 
@@ -275,7 +277,7 @@ class BinopTests(StaticTestBase):
             )
             self.assertEqual(f(120, 120), 14400)
 
-    def test_mixed_binop(self):
+    def test_mixed_binop(self) -> None:
         with self.assertRaisesRegex(
             TypedSyntaxError, "cannot add int64 and Literal\\[1\\]"
         ):
@@ -304,7 +306,7 @@ class BinopTests(StaticTestBase):
             """
             )
 
-    def test_mixed_binop_okay(self):
+    def test_mixed_binop_okay(self) -> None:
         codestr = """
             from __static__ import ssize_t, box
 
@@ -317,7 +319,7 @@ class BinopTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 2)
 
-    def test_mixed_binop_okay_1(self):
+    def test_mixed_binop_okay_1(self) -> None:
         codestr = """
             from __static__ import ssize_t, box
 
@@ -330,7 +332,7 @@ class BinopTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 2)
 
-    def test_inferred_primitive_type(self):
+    def test_inferred_primitive_type(self) -> None:
         codestr = """
         from __static__ import ssize_t, box
 
@@ -343,7 +345,7 @@ class BinopTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 1)
 
-    def test_mixed_binop_sign(self):
+    def test_mixed_binop_sign(self) -> None:
         """mixed signed/unsigned ops should be promoted to signed"""
         codestr = """
             from __static__ import int8, uint8, box
@@ -434,7 +436,7 @@ class BinopTests(StaticTestBase):
         with self.assertRaisesRegex(TypedSyntaxError, "cannot pow uint8 and double"):
             self.compile(codestr)
 
-    def test_double_binop(self):
+    def test_double_binop(self) -> None:
         tests = [
             (1.732, 2.0, "+", 3.732),
             (1.732, 2.0, "-", -0.268),
@@ -464,7 +466,7 @@ class BinopTests(StaticTestBase):
                     f = mod.testfunc
                     self.assertEqual(f(False), res, f"{type} {x} {op} {y} {res}")
 
-    def test_double_sub_with_reg_pressure(self):
+    def test_double_sub_with_reg_pressure(self) -> None:
         """
         Test the behavior of double subtraction under register pressure:
         we had one bug where a rewrite rule inserted an invalid instruction,
@@ -515,7 +517,7 @@ class BinopTests(StaticTestBase):
             f = mod.testfunc
             self.assertEqual(f(1.0, 2.0), 4179.0)
 
-    def test_double_binop_with_literal(self):
+    def test_double_binop_with_literal(self) -> None:
         codestr = """
             from __static__ import double, unbox
 
@@ -526,7 +528,7 @@ class BinopTests(StaticTestBase):
         f = self.run_code(codestr)["f"]
         f()
 
-    def test_subclass_binop(self):
+    def test_subclass_binop(self) -> None:
         codestr = """
             class C: pass
             class D(C): pass
@@ -538,7 +540,7 @@ class BinopTests(StaticTestBase):
         f = self.find_code(code, "f")
         self.assertBinOpInBytecode(f, "BINARY_ADD")
 
-    def test_mixed_add_reversed(self):
+    def test_mixed_add_reversed(self) -> None:
         codestr = """
             from __static__ import int8, uint8, int64, box, int16
             def testfunc(tst=False):
@@ -557,7 +559,7 @@ class BinopTests(StaticTestBase):
             f = mod.testfunc
             self.assertEqual(f(), 44)
 
-    def test_mixed_tri_add(self):
+    def test_mixed_tri_add(self) -> None:
         codestr = """
             from __static__ import int8, uint8, int64, box
             def testfunc(tst=False):
@@ -577,7 +579,7 @@ class BinopTests(StaticTestBase):
             f = mod.testfunc
             self.assertEqual(f(), 47)
 
-    def test_mixed_tri_add_unsigned(self):
+    def test_mixed_tri_add_unsigned(self) -> None:
         """promote int/uint to int, can't add to uint64"""
 
         codestr = """
@@ -593,7 +595,7 @@ class BinopTests(StaticTestBase):
         with self.assertRaisesRegex(TypedSyntaxError, "cannot add int16 and uint64"):
             self.compile(codestr)
 
-    def test_literal_int_binop_inferred_type(self):
+    def test_literal_int_binop_inferred_type(self) -> None:
         """primitive literal doesn't wrongly carry through arithmetic"""
         for rev in [False, True]:
             with self.subTest(rev=rev):
@@ -606,7 +608,7 @@ class BinopTests(StaticTestBase):
                 """
                 self.type_error(codestr, "'int64'", f"reveal_type({op})")
 
-    def test_error_type_ctx_left_operand_mismatch(self):
+    def test_error_type_ctx_left_operand_mismatch(self) -> None:
         codestr = """
             from __static__ import int64
 

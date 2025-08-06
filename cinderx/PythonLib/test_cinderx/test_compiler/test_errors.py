@@ -11,25 +11,25 @@ from .common import CompilerTest
 
 
 class ErrorTests(CompilerTest):
-    def test_bare_starred(self):
+    def test_bare_starred(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "can't use starred expression here"):
             self.compile("*foo")
 
-    def test_bare_starred_assign(self):
+    def test_bare_starred_assign(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError, "starred assignment target must be in a list or tuple"
         ):
             self.compile("*foo = 42")
 
-    def test_yield_outside_func(self):
+    def test_yield_outside_func(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'yield' outside function"):
             self.compile("yield 42")
 
-    def test_yield_outside_func_class(self):
+    def test_yield_outside_func_class(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'yield' outside function"):
             self.compile("class C: yield 42")
 
-    def test_yield_from_async_func(self):
+    def test_yield_from_async_func(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'yield from' inside async function"):
             self.compile(
                 """
@@ -37,7 +37,7 @@ class ErrorTests(CompilerTest):
                     yield from [1,2]"""
             )
 
-    def test_yield_from_outside_func(self):
+    def test_yield_from_outside_func(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError,
             "'yield from' outside function"
@@ -46,7 +46,7 @@ class ErrorTests(CompilerTest):
         ):
             self.compile("yield from [1,2]")
 
-    def test_yield_from_outside_func_class(self):
+    def test_yield_from_outside_func_class(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError,
             "'yield from' outside function"
@@ -55,11 +55,11 @@ class ErrorTests(CompilerTest):
         ):
             self.compile("class C: yield from [1,2]")
 
-    def test_return_outside_func(self):
+    def test_return_outside_func(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'return' outside function"):
             self.compile("return")
 
-    def test_return_outside_func_class(self):
+    def test_return_outside_func_class(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'return' outside function"):
             self.compile(
                 """
@@ -67,7 +67,7 @@ class ErrorTests(CompilerTest):
                     return"""
             )
 
-    def test_async_with_outside_async_func(self):
+    def test_async_with_outside_async_func(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'async with' outside async function"):
             self.compile(
                 """
@@ -76,7 +76,7 @@ class ErrorTests(CompilerTest):
                         pass"""
             )
 
-    def test_async_with_outside_func(self):
+    def test_async_with_outside_func(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'async with' outside async function"):
             self.compile(
                 """
@@ -84,7 +84,7 @@ class ErrorTests(CompilerTest):
                     pass"""
             )
 
-    def test_return_with_value_async_gen(self):
+    def test_return_with_value_async_gen(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError, "'return' with value in async generator"
         ):
@@ -95,11 +95,11 @@ class ErrorTests(CompilerTest):
                     return 42"""
             )
 
-    def test_continue_outside_loop(self):
+    def test_continue_outside_loop(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'continue' not properly in loop"):
             self.compile("continue")
 
-    def test_continue_outside_loop_in_try(self):
+    def test_continue_outside_loop_in_try(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'continue' not properly in loop"):
             self.compile(
                 """
@@ -109,7 +109,7 @@ class ErrorTests(CompilerTest):
                     pass"""
             )
 
-    def test_continue_outside_loop_in_except(self):
+    def test_continue_outside_loop_in_except(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'continue' not properly in loop"):
             self.compile(
                 """
@@ -119,11 +119,11 @@ class ErrorTests(CompilerTest):
                     continue"""
             )
 
-    def test_break_outside_loop(self):
+    def test_break_outside_loop(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "'break' outside loop"):
             self.compile("break")
 
-    def test_bare_except_ordering(self):
+    def test_bare_except_ordering(self) -> None:
         with self.assertRaisesRegex(SyntaxError, "default 'except:' must be last"):
             self.compile(
                 """
@@ -135,7 +135,7 @@ class ErrorTests(CompilerTest):
                     pass"""
             )
 
-    def test_future_import_order(self):
+    def test_future_import_order(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError,
             "from __future__ imports must occur at the beginning of the file",
@@ -146,7 +146,7 @@ class ErrorTests(CompilerTest):
                 from __future__ import generator_stop"""
             )
 
-    def test_future_import_in_func(self):
+    def test_future_import_in_func(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError,
             "from __future__ imports must occur at the beginning of the file",
@@ -157,16 +157,16 @@ class ErrorTests(CompilerTest):
                     from __future__ import generator_stop"""
             )
 
-    def test_double_star_in_assignment(self):
+    def test_double_star_in_assignment(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError, "multiple starred expressions in assignment"
         ):
             self.compile("*x, *y = 1, 2")
 
-    def test_star_unpack_limit(self):
+    def test_star_unpack_limit(self) -> None:
         self.compile(", ".join(("x",) * 255) + ", *x, = range(255)")
 
-    def test_star_unpack_limit_exceeded(self):
+    def test_star_unpack_limit_exceeded(self) -> None:
         with self.assertRaisesRegex(
             SyntaxError, "too many expressions in star-unpacking assignment"
         ):
@@ -176,7 +176,7 @@ class ErrorTests(CompilerTest):
     @unittest.skipUnless(
         sys.version_info < (3, 12), "Interpreter can elide recursion check"
     )
-    def test_recursion_error_when_expression_too_deep(self):
+    def test_recursion_error_when_expression_too_deep(self) -> None:
         fail_depth = sys.getrecursionlimit() * 3
 
         def check_limit(prefix, repeated):

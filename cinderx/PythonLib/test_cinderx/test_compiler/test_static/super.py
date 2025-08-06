@@ -5,7 +5,7 @@ from .common import StaticTestBase
 
 
 class SuperTests(StaticTestBase):
-    def test_dynamic_base_class(self):
+    def test_dynamic_base_class(self) -> None:
         nonstatic = """
             class A:
                 x = 1
@@ -24,7 +24,7 @@ class SuperTests(StaticTestBase):
                 self.assertInBytecode(mod.B.foo, self.SUPER_ATTR)
                 self.assertEqual(mod.B().foo(), 1)
 
-    def test_method_in_parent_class(self):
+    def test_method_in_parent_class(self) -> None:
         codestr = """
         class A:
             def f(self):
@@ -43,7 +43,7 @@ class SuperTests(StaticTestBase):
             )
             self.assertEqual(mod.foo(), 4)
 
-    def test_method_in_parents_parent_class(self):
+    def test_method_in_parents_parent_class(self) -> None:
         codestr = """
         class AA:
             def f(self):
@@ -66,7 +66,7 @@ class SuperTests(StaticTestBase):
             )
             self.assertEqual(mod.foo(), 4)
 
-    def test_super_call_with_parameters(self):
+    def test_super_call_with_parameters(self) -> None:
         codestr = """
         class A:
             def f(self):
@@ -87,7 +87,7 @@ class SuperTests(StaticTestBase):
             self.assertNotInBytecode(mod.C.g, "INVOKE_FUNCTION")
             self.assertEqual(mod.foo(), 4)
 
-    def test_unsupported_property_in_parent_class(self):
+    def test_unsupported_property_in_parent_class(self) -> None:
         codestr = """
         class A:
             @property
@@ -105,7 +105,7 @@ class SuperTests(StaticTestBase):
             self.assertNotInBytecode(mod.B.g, "INVOKE_FUNCTION")
             self.assertEqual(mod.foo(), 4)
 
-    def test_unsupported_property_in_parents_parent_class(self):
+    def test_unsupported_property_in_parents_parent_class(self) -> None:
         codestr = """
         class AA:
             @property
@@ -126,7 +126,7 @@ class SuperTests(StaticTestBase):
             self.assertNotInBytecode(mod.B.g, "INVOKE_FUNCTION")
             self.assertEqual(mod.foo(), 4)
 
-    def test_unsupported_attr_in_parent_class(self):
+    def test_unsupported_attr_in_parent_class(self) -> None:
         codestr = """
         class A:
             f = 4
@@ -142,7 +142,7 @@ class SuperTests(StaticTestBase):
             self.assertNotInBytecode(mod.B.g, "INVOKE_FUNCTION")
             self.assertEqual(mod.foo(), 4)
 
-    def test_unsupported_attr_in_parents_parent_class(self):
+    def test_unsupported_attr_in_parents_parent_class(self) -> None:
         codestr = """
         class AA:
             f = 4
@@ -161,7 +161,7 @@ class SuperTests(StaticTestBase):
             self.assertNotInBytecode(mod.B.g, "INVOKE_FUNCTION")
             self.assertEqual(mod.foo(), 4)
 
-    def test_unsupported_class_nested_in_function(self):
+    def test_unsupported_class_nested_in_function(self) -> None:
         codestr = """
         def foo():
 
@@ -174,7 +174,7 @@ class SuperTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertNotInBytecode(mod.foo().g, "INVOKE_FUNCTION")
 
-    def test_unsupported_class_nested_in_class(self):
+    def test_unsupported_class_nested_in_class(self) -> None:
         codestr = """
         class A:
             class B:
@@ -184,7 +184,7 @@ class SuperTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertNotInBytecode(mod.A.B.g, "INVOKE_FUNCTION")
 
-    def test_unsupported_class_nested_in_funcdef(self):
+    def test_unsupported_class_nested_in_funcdef(self) -> None:
         codestr = """
         class A:
             def g(self):
@@ -195,7 +195,7 @@ class SuperTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertNotInBytecode(mod.A.g, "INVOKE_FUNCTION")
 
-    def test_unsupported_case_falls_back_to_dynamic(self):
+    def test_unsupported_case_falls_back_to_dynamic(self) -> None:
         codestr = """
         class A(Exception):
             pass

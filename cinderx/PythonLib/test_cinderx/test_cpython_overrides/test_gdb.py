@@ -259,7 +259,7 @@ class CinderX_DebuggerTests(unittest.TestCase):
 
 
 class CinderX_PrettyPrintTests(CinderX_DebuggerTests):
-    def test_frames(self):
+    def test_frames(self) -> None:
         gdb_output = self.get_stack_trace(
             """
 def foo(a, b, c):

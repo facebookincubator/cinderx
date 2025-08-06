@@ -144,13 +144,13 @@ class InlinedFunctionTests(unittest.TestCase):
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
-    def test_deopt_when_func_defaults_change(self):
+    def test_deopt_when_func_defaults_change(self) -> None:
         self.assertEqual(
             cinderx.jit.get_num_inlined_functions(func_that_change_defaults), 2
         )
         self.assertEqual(func_that_change_defaults(), 9)
 
-    def test_error_preloading_inlined(self):
+    def test_error_preloading_inlined(self) -> None:
         root = Path(
             os.path.join(os.path.dirname(__file__), "data/error_preloading_inlined")
         )
@@ -188,7 +188,7 @@ class InlineCacheStatsTests(unittest.TestCase):
         not cinderx.jit.is_inline_cache_stats_collection_enabled(),
         "meaningless without inline cache stats collection enabled",
     )
-    def test_load_method_cache_stats(self):
+    def test_load_method_cache_stats(self) -> None:
         # Clear inline cache stats of any collected data from importing
         # builtin modules
         cinderx.jit.get_and_clear_inline_cache_stats()
@@ -246,7 +246,7 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
-    def test_line_numbers_with_sibling_inlined_functions(self):
+    def test_line_numbers_with_sibling_inlined_functions(self) -> None:
         """Verify that line numbers are correct when function calls are inlined in the same
         expression"""
         # Calls to get_stack and get_stack2 should be inlined
@@ -264,7 +264,7 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
-    def test_line_numbers_at_multiple_points_in_inlined_functions(self):
+    def test_line_numbers_at_multiple_points_in_inlined_functions(self) -> None:
         """Verify that line numbers are are correct at different points in an inlined
         function"""
         # Call to get_stack_multi should be inlined
@@ -280,7 +280,7 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
-    def test_inline_function_stats(self):
+    def test_inline_function_stats(self) -> None:
         self.assertEqual(cinderx.jit.get_num_inlined_functions(func), 2)
         stats = cinderx.jit.get_inlined_functions_stats(func)
         self.assertEqual(
@@ -298,7 +298,7 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
-    def test_line_numbers_with_multiple_inlined_calls(self):
+    def test_line_numbers_with_multiple_inlined_calls(self) -> None:
         """Verify that line numbers are correct for inlined calls that appear
         in different statements
         """
@@ -326,7 +326,7 @@ class FaulthandlerTracebackTests(unittest.TestCase):
     def f3(self, fd):
         faulthandler.dump_traceback(fd)
 
-    def test_dumptraceback(self):
+    def test_dumptraceback(self) -> None:
         expected = [
             f'  File "{__file__}", line {firstlineno(self.f3) + 2} in f3',
             f'  File "{__file__}", line {firstlineno(self.f2) + 2} in f2',
@@ -353,12 +353,12 @@ class _CallableObj:
 
 class CallKWArgsTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def test_call_basic_function_pos_and_kw(self):
+    def test_call_basic_function_pos_and_kw(self) -> None:
         r = _simpleFunc(1, b=2)
         self.assertEqual(r, (1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_basic_function_kw_only(self):
+    def test_call_basic_function_kw_only(self) -> None:
         r = _simpleFunc(b=2, a=1)
         self.assertEqual(r, (1, 2))
 
@@ -370,12 +370,12 @@ class CallKWArgsTests(unittest.TestCase):
         return a, b
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_class_static_pos_and_kw(self):
+    def test_call_class_static_pos_and_kw(self) -> None:
         r = CallKWArgsTests._f1(1, b=2)
         self.assertEqual(r, (1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_class_static_kw_only(self):
+    def test_call_class_static_kw_only(self) -> None:
         r = CallKWArgsTests._f1(b=2, a=1)
         self.assertEqual(r, (1, 2))
 
@@ -383,47 +383,47 @@ class CallKWArgsTests(unittest.TestCase):
         return self, a, b
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_method_kw_and_pos(self):
+    def test_call_method_kw_and_pos(self) -> None:
         r = self._f2(1, b=2)
         self.assertEqual(r, (self, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_method_kw_only(self):
+    def test_call_method_kw_only(self) -> None:
         r = self._f2(b=2, a=1)
         self.assertEqual(r, (self, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_bound_method_kw_and_pos(self):
+    def test_call_bound_method_kw_and_pos(self) -> None:
         f = self._f2
         r = f(1, b=2)
         self.assertEqual(r, (self, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_bound_method_kw_only(self):
+    def test_call_bound_method_kw_only(self) -> None:
         f = self._f2
         r = f(b=2, a=1)
         self.assertEqual(r, (self, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_obj_kw_and_pos(self):
+    def test_call_obj_kw_and_pos(self) -> None:
         o = _CallableObj()
         r = o(1, b=2)
         self.assertEqual(r, (o, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_obj_kw_only(self):
+    def test_call_obj_kw_only(self) -> None:
         o = _CallableObj()
         r = o(b=2, a=1)
         self.assertEqual(r, (o, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_c_func(self):
+    def test_call_c_func(self) -> None:
         self.assertEqual(__import__("sys", globals=None), sys)
 
 
 class CallExTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def test_call_dynamic_kw_dict(self):
+    def test_call_dynamic_kw_dict(self) -> None:
         r = _simpleFunc(**{"b": 2, "a": 1})
         self.assertEqual(r, (1, 2))
 
@@ -435,22 +435,22 @@ class CallExTests(unittest.TestCase):
             return {"a": 1, "b": 2}[k]
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_dynamic_kw_dict_dummy(self):
+    def test_call_dynamic_kw_dict_dummy(self) -> None:
         r = _simpleFunc(**CallExTests._DummyMapping())
         self.assertEqual(r, (1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_dynamic_pos_tuple(self):
+    def test_call_dynamic_pos_tuple(self) -> None:
         r = _simpleFunc(*(1, 2))
         self.assertEqual(r, (1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_dynamic_pos_list(self):
+    def test_call_dynamic_pos_list(self) -> None:
         r = _simpleFunc(*[1, 2])
         self.assertEqual(r, (1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_dynamic_pos_and_kw(self):
+    def test_call_dynamic_pos_and_kw(self) -> None:
         r = _simpleFunc(*(1,), **{"b": 2})
         self.assertEqual(r, (1, 2))
 
@@ -458,13 +458,13 @@ class CallExTests(unittest.TestCase):
     def _doCall(self, args, kwargs):
         return _simpleFunc(*args, **kwargs)
 
-    def test_invalid_kw_type(self):
+    def test_invalid_kw_type(self) -> None:
         err = r"_simpleFunc\(\) argument after \*\* must be a mapping, not int"
         with self.assertRaisesRegex(TypeError, err):
             self._doCall([], 1)
 
     @skip_unless_jit("Exposes interpreter reference leak")
-    def test_invalid_pos_type(self):
+    def test_invalid_pos_type(self) -> None:
         err = r"_simpleFunc\(\) argument after \* must be an iterable, not int"
         with self.assertRaisesRegex(TypeError, err):
             self._doCall(1, {})
@@ -474,12 +474,12 @@ class CallExTests(unittest.TestCase):
         return a, b
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_class_static_pos_and_kw(self):
+    def test_call_class_static_pos_and_kw(self) -> None:
         r = CallExTests._f1(*(1,), **{"b": 2})
         self.assertEqual(r, (1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_class_static_kw_only(self):
+    def test_call_class_static_kw_only(self) -> None:
         r = CallKWArgsTests._f1(**{"b": 2, "a": 1})
         self.assertEqual(r, (1, 2))
 
@@ -487,45 +487,45 @@ class CallExTests(unittest.TestCase):
         return self, a, b
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_method_kw_and_pos(self):
+    def test_call_method_kw_and_pos(self) -> None:
         r = self._f2(*(1,), **{"b": 2})
         self.assertEqual(r, (self, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_method_kw_only(self):
+    def test_call_method_kw_only(self) -> None:
         r = self._f2(**{"b": 2, "a": 1})
         self.assertEqual(r, (self, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_bound_method_kw_and_pos(self):
+    def test_call_bound_method_kw_and_pos(self) -> None:
         f = self._f2
         r = f(*(1,), **{"b": 2})
         self.assertEqual(r, (self, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_bound_method_kw_only(self):
+    def test_call_bound_method_kw_only(self) -> None:
         f = self._f2
         r = f(**{"b": 2, "a": 1})
         self.assertEqual(r, (self, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_obj_kw_and_pos(self):
+    def test_call_obj_kw_and_pos(self) -> None:
         o = _CallableObj()
         r = o(*(1,), **{"b": 2})
         self.assertEqual(r, (o, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_obj_kw_only(self):
+    def test_call_obj_kw_only(self) -> None:
         o = _CallableObj()
         r = o(**{"b": 2, "a": 1})
         self.assertEqual(r, (o, 1, 2))
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_c_func_pos_only(self):
+    def test_call_c_func_pos_only(self) -> None:
         self.assertEqual(len(*([2],)), 1)
 
     @cinder_support.failUnlessJITCompiled
-    def test_call_c_func_pos_and_kw(self):
+    def test_call_c_func_pos_and_kw(self) -> None:
         self.assertEqual(__import__(*("sys",), **{"globals": None}), sys)
 
 
@@ -551,7 +551,7 @@ class SetNonDataDescrAttrTests(unittest.TestCase):
 
         self.obj = Test()
 
-    def test_set_when_changed_to_data_descr(self):
+    def test_set_when_changed_to_data_descr(self) -> None:
         # uncached
         self.set_foo(self.obj, 100)
         self.assertEqual(self.obj.foo, 100)
@@ -599,7 +599,7 @@ class GetSetNonDataDescrAttrTests(unittest.TestCase):
 
         self.obj = Test()
 
-    def test_get(self):
+    def test_get(self) -> None:
         # uncached
         self.assertEqual(self.get_foo(self.obj), "testing 123")
         self.assertEqual(self.descr.invoked_count, 1)
@@ -615,7 +615,7 @@ class GetSetNonDataDescrAttrTests(unittest.TestCase):
         self.assertEqual(self.get_foo(obj2), "testing 123")
         self.assertEqual(self.descr.invoked_count, 2)
 
-    def test_get_when_changed_to_data_descr(self):
+    def test_get_when_changed_to_data_descr(self) -> None:
         # uncached
         self.assertEqual(self.get_foo(self.obj), "testing 123")
         self.assertEqual(self.descr.invoked_count, 1)
@@ -635,7 +635,7 @@ class GetSetNonDataDescrAttrTests(unittest.TestCase):
         self.assertEqual(self.get_foo(self.obj), "testing 123")
         self.assertEqual(self.descr.invoked_count, 2)
 
-    def test_get_when_changed_to_classvar(self):
+    def test_get_when_changed_to_classvar(self) -> None:
         # Don't set anything in the instance dict when the descriptor is
         # invoked. This ensures we don't early exit and bottom out into the
         # descriptor case.
@@ -663,7 +663,7 @@ class GetSetNonDataDescrAttrTests(unittest.TestCase):
 
 class ClosureTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def test_cellvar(self):
+    def test_cellvar(self) -> None:
         a = 1
 
         def foo():
@@ -672,7 +672,7 @@ class ClosureTests(unittest.TestCase):
         self.assertEqual(foo(), 1)
 
     @cinder_support.failUnlessJITCompiled
-    def test_two_cellvars(self):
+    def test_two_cellvars(self) -> None:
         a = 1
         b = 2
 
@@ -682,14 +682,14 @@ class ClosureTests(unittest.TestCase):
         self.assertEqual(g(), 3)
 
     @cinder_support.failUnlessJITCompiled
-    def test_cellvar_argument(self):
+    def test_cellvar_argument(self) -> None:
         def foo():
             self.assertEqual(1, 1)
 
         foo()
 
     @cinder_support.failUnlessJITCompiled
-    def test_cellvar_argument_modified(self):
+    def test_cellvar_argument_modified(self) -> None:
         self_ = self
 
         def foo():
@@ -710,7 +710,7 @@ class ClosureTests(unittest.TestCase):
         def g():
             return a
 
-    def test_cellvar_unbound(self):
+    def test_cellvar_unbound(self) -> None:
         with self.assertRaises(UnboundLocalError) as ctx:
             self._cellvar_unbound()
 
@@ -721,7 +721,7 @@ class ClosureTests(unittest.TestCase):
             else "local variable 'a' referenced before assignment",
         )
 
-    def test_freevars(self):
+    def test_freevars(self) -> None:
         x = 1
 
         @cinder_support.failUnlessJITCompiled
@@ -732,7 +732,7 @@ class ClosureTests(unittest.TestCase):
 
         self.assertEqual(nested(), 2)
 
-    def test_freevars_multiple_closures(self):
+    def test_freevars_multiple_closures(self) -> None:
         def get_func(a):
             @cinder_support.failUnlessJITCompiled
             def f():
@@ -746,7 +746,7 @@ class ClosureTests(unittest.TestCase):
         self.assertEqual(f1(), 1)
         self.assertEqual(f2(), 2)
 
-    def test_nested_func(self):
+    def test_nested_func(self) -> None:
         @cinder_support.failUnlessJITCompiled
         def add(a, b):
             return a + b
@@ -762,7 +762,7 @@ class ClosureTests(unittest.TestCase):
 
         return add
 
-    def test_nested_func_with_closure(self):
+    def test_nested_func_with_closure(self) -> None:
         add_3 = self.make_adder(3)
         add_7 = self.make_adder(7)
 
@@ -772,7 +772,7 @@ class ClosureTests(unittest.TestCase):
         with self.assertRaises(TypeError):
             add_3("ok")
 
-    def test_nested_func_with_different_globals(self):
+    def test_nested_func_with_different_globals(self) -> None:
         @cinder_support.failUnlessJITCompiled
         @with_globals({"A_GLOBAL_CONSTANT": 0xDEADBEEF})
         def return_global():
@@ -788,7 +788,7 @@ class ClosureTests(unittest.TestCase):
         self.assertEqual(return_global(), 0xDEADBEEF)
         self.assertEqual(return_other_global(), 0xFACEB00C)
 
-    def test_nested_func_outlives_parent(self):
+    def test_nested_func_outlives_parent(self) -> None:
         @cinder_support.failUnlessJITCompiled
         def nested(x):
             @cinder_support.failUnlessJITCompiled
@@ -811,18 +811,18 @@ class TempNameTests(unittest.TestCase):
         c = a + b  # noqa: F841
         return tmp1
 
-    def test_tmp_name(self):
+    def test_tmp_name(self) -> None:
         self.assertEqual(self._tmp_name(1, 2), "hello")
 
     @cinder_support.failUnlessJITCompiled
-    def test_tmp_name2(self):
+    def test_tmp_name2(self) -> None:
         v0 = 5
         self.assertEqual(v0, 5)
 
 
 class JITCompileCrasherRegressionTests(StaticTestBase):
     @cinder_support.failUnlessJITCompiled
-    def test_isinstance_optimization(self):
+    def test_isinstance_optimization(self) -> None:
         return isinstance(None, int) and True
 
     @cinder_support.failUnlessJITCompiled
@@ -832,14 +832,14 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
                 if flag:
                     return f"{a}"
 
-    def test_fstring_no_fmt_spec_in_nested_loops_and_if(self):
+    def test_fstring_no_fmt_spec_in_nested_loops_and_if(self) -> None:
         self.assertEqual(self._fstring(True, [1], [1]), "1")
 
     @cinder_support.failUnlessJITCompiled
     async def _sharedAwait(self, x, y, z):
         return await (x() if y else z())
 
-    def test_shared_await(self):
+    def test_shared_await(self) -> None:
         async def zero():
             return 0
 
@@ -865,12 +865,12 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             x = 1
         return x.__index__()
 
-    def test_load_method_on_maybe_defined_value(self):
+    def test_load_method_on_maybe_defined_value(self) -> None:
         with self.assertRaises(NameError):
             self.load_method_on_maybe_defined_value()
 
     @run_in_subprocess
-    def test_condbranch_codegen(self):
+    def test_condbranch_codegen(self) -> None:
         codestr = """
             from __static__ import cbool
             from typing import Optional
@@ -888,7 +888,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             force_compile(mod.Foo.__init__)
             mod.Foo(True)
 
-    def test_restore_materialized_parent_pyframe_in_gen_throw(self):
+    def test_restore_materialized_parent_pyframe_in_gen_throw(self) -> None:
         # This reproduces a bug that causes the top frame in the shadow stack
         # to be out of sync with the top frame on the Python stack.
         #
@@ -1014,7 +1014,7 @@ class UnwindStateTests(unittest.TestCase):
         b = c = a  # noqa: F841
         raise RuntimeError()
 
-    def test_copied_locals_in_frame(self):
+    def test_copied_locals_in_frame(self) -> None:
         try:
             self._copied_locals("hello")
         except RuntimeError as re:
@@ -1028,7 +1028,7 @@ class UnwindStateTests(unittest.TestCase):
         for x in (1 for i in [self.get_del_observer(1)]):  # noqa: B007
             raise RuntimeError()
 
-    def test_decref_stack_objects(self):
+    def test_decref_stack_objects(self) -> None:
         """Items on stack should be decrefed on unwind."""
         try:
             self._raise_with_del_observer_on_stack()
@@ -1043,7 +1043,7 @@ class UnwindStateTests(unittest.TestCase):
         for x in (self for i in [self.get_del_observer(1)]):  # noqa: B007
             raise RuntimeError()
 
-    def test_decref_stack_objs_with_cell_args(self):
+    def test_decref_stack_objs_with_cell_args(self) -> None:
         # Regression test for a JIT bug in which the unused locals slot for a
         # local-which-is-a-cell would end up getting populated on unwind with
         # some unrelated stack object, preventing it from being decrefed.
@@ -1058,7 +1058,7 @@ class UnwindStateTests(unittest.TestCase):
 
 class ImportTests(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def test_import_name(self):
+    def test_import_name(self) -> None:
         import math
 
         self.assertEqual(int(math.pow(1, 2)), 1)
@@ -1067,12 +1067,12 @@ class ImportTests(unittest.TestCase):
     def _fail_to_import_name(self):
         import non_existent_module  # noqa: F401
 
-    def test_import_name_failure(self):
+    def test_import_name_failure(self) -> None:
         with self.assertRaises(ModuleNotFoundError):
             self._fail_to_import_name()
 
     @cinder_support.failUnlessJITCompiled
-    def test_import_from(self):
+    def test_import_from(self) -> None:
         from math import pow as math_pow
 
         self.assertEqual(int(math_pow(1, 2)), 1)
@@ -1081,7 +1081,7 @@ class ImportTests(unittest.TestCase):
     def _fail_to_import_from(self):
         from math import non_existent_attr  # noqa: F401
 
-    def test_import_from_failure(self):
+    def test_import_from_failure(self) -> None:
         with self.assertRaises(ImportError):
             self._fail_to_import_from()
 
@@ -1102,16 +1102,16 @@ class RaiseTests(unittest.TestCase):
     def _jitReraise(self):
         raise
 
-    def test_raise_type(self):
+    def test_raise_type(self) -> None:
         with self.assertRaises(ValueError):
             self._jitRaise(ValueError)
 
-    def test_raise_value(self):
+    def test_raise_value(self) -> None:
         with self.assertRaises(ValueError) as exc:
             self._jitRaise(ValueError(1))
         self.assertEqual(exc.exception.args, (1,))
 
-    def test_raise_with_cause(self):
+    def test_raise_with_cause(self) -> None:
         cause = ValueError(2)
         cause_tb_str = f"{cause.__traceback__}"
         with self.assertRaises(ValueError) as exc:
@@ -1119,7 +1119,7 @@ class RaiseTests(unittest.TestCase):
         self.assertIs(exc.exception.__cause__, cause)
         self.assertEqual(f"{exc.exception.__cause__.__traceback__}", cause_tb_str)
 
-    def test_reraise(self):
+    def test_reraise(self) -> None:
         original_raise = ValueError(1)
         with self.assertRaises(ValueError) as exc:
             try:
@@ -1128,7 +1128,7 @@ class RaiseTests(unittest.TestCase):
                 self._jitReraise()
         self.assertIs(exc.exception, original_raise)
 
-    def test_reraise_of_nothing(self):
+    def test_reraise_of_nothing(self) -> None:
         with self.assertRaises(RuntimeError) as exc:
             self._jitReraise()
         self.assertEqual(exc.exception.args, ("No active exception to reraise",))
@@ -1144,7 +1144,7 @@ class SpecializeCCallTests(unittest.TestCase):
         s = "abc"
         return s.removeprefix(1)
 
-    def test_c_call_error_raised(self):
+    def test_c_call_error_raised(self) -> None:
         with self.assertRaises(TypeError):
             self._c_func_that_sets_pyerr()
 
@@ -1174,18 +1174,18 @@ class UnpackSequenceTests(unittest.TestCase):
             return c
         return d
 
-    def test_unpack_tuple(self):
+    def test_unpack_tuple(self) -> None:
         self.assertEqual(self._unpack_arg(("eh", "bee", "see", "dee"), "b"), "bee")
         self.assertEqual(self._unpack_arg((3, 2, 1, 0), "c"), 1)
 
-    def test_unpack_tuple_wrong_size(self):
+    def test_unpack_tuple_wrong_size(self) -> None:
         with self.assertRaises(ValueError):
             self._unpack_arg((1, 2, 3, 4, 5), "a")
 
-    def test_unpack_list(self):
+    def test_unpack_list(self) -> None:
         self.assertEqual(self._unpack_arg(["one", "two", "three", "four"], "a"), "one")
 
-    def test_unpack_gen(self):
+    def test_unpack_gen(self) -> None:
         def gen():
             yield "first"
             yield "second"
@@ -1209,7 +1209,7 @@ class UnpackSequenceTests(unittest.TestCase):
     def _unpack_insufficient_values_after(self):
         (a, *b, c, d) = [1, 2]  # noqa: F841
 
-    def test_unpack_ex(self):
+    def test_unpack_ex(self) -> None:
         with self.assertRaises(TypeError):
             self._unpack_not_iterable()
         with self.assertRaises(ValueError):
@@ -1223,7 +1223,7 @@ class UnpackSequenceTests(unittest.TestCase):
         self.assertEqual(self._unpack_ex_arg(seq, "c"), [3, 4, 5])
         self.assertEqual(self._unpack_ex_arg(seq, "d"), 6)
 
-    def test_unpack_sequence_with_iterable(self):
+    def test_unpack_sequence_with_iterable(self) -> None:
         class C:
             def __init__(self, value):
                 self.value = value
@@ -1239,7 +1239,7 @@ class UnpackSequenceTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not enough values to unpack"):
             self._unpack_arg(C(()), "a")
 
-    def test_unpack_ex_with_iterable(self):
+    def test_unpack_ex_with_iterable(self) -> None:
         class C:
             def __init__(self, value):
                 self.value = value
@@ -1262,7 +1262,7 @@ class DeleteSubscrTests(unittest.TestCase):
     def _delit(self, container, key):
         del container[key]
 
-    def test_builtin_types(self):
+    def test_builtin_types(self) -> None:
         li = [1, 2, 3]
         self._delit(li, 1)
         self.assertEqual(li, [1, 3])
@@ -1271,7 +1271,7 @@ class DeleteSubscrTests(unittest.TestCase):
         self._delit(d, "foo")
         self.assertEqual(d, {"bar": 2})
 
-    def test_custom_type(self):
+    def test_custom_type(self) -> None:
         class CustomContainer:
             def __init__(self):
                 self.item = None
@@ -1283,12 +1283,12 @@ class DeleteSubscrTests(unittest.TestCase):
         self._delit(c, "foo")
         self.assertEqual(c.item, "foo")
 
-    def test_missing_key(self):
+    def test_missing_key(self) -> None:
         d = {"foo": 1}
         with self.assertRaises(KeyError):
             self._delit(d, "bar")
 
-    def test_custom_error(self):
+    def test_custom_error(self) -> None:
         class CustomContainer:
             def __delitem__(self, item):
                 raise Exception("testing 123")
@@ -1340,30 +1340,30 @@ class DeleteFastTests(unittest.TestCase):
             pass
         return e  # noqa: F821
 
-    def test_del_local(self):
+    def test_del_local(self) -> None:
         self.assertEqual(self._del(), None)
 
-    def test_del_arg(self):
+    def test_del_arg(self) -> None:
         self.assertEqual(self._del_arg(42), None)
 
-    def test_del_and_raise(self):
+    def test_del_and_raise(self) -> None:
         with self.assertRaises(NameError):
             self._del_and_raise()
 
-    def test_del_arg_and_raise(self):
+    def test_del_arg_and_raise(self) -> None:
         with self.assertRaises(NameError):
             self.assertEqual(self._del_arg_and_raise(42), None)
 
-    def test_del_ex_no_raise(self):
+    def test_del_ex_no_raise(self) -> None:
         self.assertEqual(self._del_ex_no_raise(), 1)
 
-    def test_del_ex_raise(self):
+    def test_del_ex_raise(self) -> None:
         with self.assertRaises(NameError):
             self.assertEqual(self._del_ex_raise(), 42)
 
 
 class DictSubscrTests(unittest.TestCase):
-    def test_int_custom_class(self):
+    def test_int_custom_class(self) -> None:
         class C:
             def __init__(self, value):
                 self.value = value
@@ -1380,7 +1380,7 @@ class DictSubscrTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             d[333]
 
-    def test_unicode_custom_class(self):
+    def test_unicode_custom_class(self) -> None:
         class C:
             def __init__(self, value):
                 self.value = value
@@ -1429,7 +1429,7 @@ class KeywordOnlyArgTests(unittest.TestCase):
             return kwargs
         return which
 
-    def test_kwonly_arg_passed_as_positional(self):
+    def test_kwonly_arg_passed_as_positional(self) -> None:
         msg = "takes 1 positional argument but 2 were given"
         with self.assertRaisesRegex(TypeError, msg):
             self.f1(100)
@@ -1437,7 +1437,7 @@ class KeywordOnlyArgTests(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, msg):
             self.f3(0, 1)
 
-    def test_kwonly_args_with_kwdefaults(self):
+    def test_kwonly_args_with_kwdefaults(self) -> None:
         self.assertEqual(self.f1(), 10)
         self.assertEqual(self.f1(val=20), 20)
         self.assertEqual(self.f2(0), 10)
@@ -1445,12 +1445,12 @@ class KeywordOnlyArgTests(unittest.TestCase):
         self.assertEqual(self.f2(1), 20)
         self.assertEqual(self.f2(1, z=30), 30)
 
-    def test_kwonly_args_without_kwdefaults(self):
+    def test_kwonly_args_without_kwdefaults(self) -> None:
         self.assertEqual(self.f3(0, y=10), 10)
         self.assertEqual(self.f3(1, y=10), 20)
         self.assertEqual(self.f3(1, y=10, z=30), 30)
 
-    def test_kwonly_args_and_varkwargs(self):
+    def test_kwonly_args_and_varkwargs(self) -> None:
         self.assertEqual(self.f4(0, y=10), 10)
         self.assertEqual(self.f4(1, y=10), 20)
         self.assertEqual(self.f4(1, y=10, z=30, a=40), 30)
@@ -1495,21 +1495,21 @@ class ClassB(ClassA):
 
 class SuperAccessTest(unittest.TestCase):
     @cinder_support.failUnlessJITCompiled
-    def test_super_method(self):
+    def test_super_method(self) -> None:
         self.assertEqual(ClassB().f(1), 43)
         self.assertEqual(ClassB().f_2arg(1), 43)
         self.assertEqual(ClassB.cls_f(99), 199)
         self.assertEqual(ClassB.cls_f_2arg(99), 199)
 
     @cinder_support.failUnlessJITCompiled
-    def test_super_method_kwarg(self):
+    def test_super_method_kwarg(self) -> None:
         self.assertEqual(ClassB().f(1), 43)
         self.assertEqual(ClassB().f_2arg(1), 43)
         self.assertEqual(ClassB.cls_f(1), 101)
         self.assertEqual(ClassB.cls_f_2arg(1), 101)
 
     @cinder_support.failUnlessJITCompiled
-    def test_super_attr(self):
+    def test_super_attr(self) -> None:
         self.assertEqual(ClassB().x, 42)
         self.assertEqual(ClassB().x_2arg, 42)
 
@@ -1517,7 +1517,7 @@ class SuperAccessTest(unittest.TestCase):
 class RegressionTests(StaticTestBase):
     # Detects an issue in the backend where the Store instruction generated 32-
     # bit memory writes for 64-bit constants.
-    def test_store_of_64bit_immediates(self):
+    def test_store_of_64bit_immediates(self) -> None:
         codestr = """
             from __static__ import int64, box
             class Cint64:
@@ -1539,18 +1539,18 @@ class RegressionTests(StaticTestBase):
 
 @skip_unless_jit("Requires cinderjit module")
 class CinderJitModuleTests(StaticTestBase):
-    def test_bad_disable(self):
+    def test_bad_disable(self) -> None:
         with self.assertRaises(TypeError):
             cinderx.jit.disable(1, 2, 3)
 
-    def test_jit_suppress(self):
+    def test_jit_suppress(self) -> None:
         @jit_suppress
         def x():
             pass
 
         self.assertEqual(x.__code__.co_flags & CO_SUPPRESS_JIT, CO_SUPPRESS_JIT)
 
-    def test_jit_suppress_static(self):
+    def test_jit_suppress_static(self) -> None:
         codestr = """
             import cinderx.jit
 
@@ -1576,7 +1576,7 @@ class CinderJitModuleTests(StaticTestBase):
         not cinderx.jit.is_hir_inliner_enabled(),
         "meaningless without HIR inliner enabled",
     )
-    def test_num_inlined_functions(self):
+    def test_num_inlined_functions(self) -> None:
         codestr = """
             import cinderx.jit
 
@@ -1599,7 +1599,7 @@ class CinderJitModuleTests(StaticTestBase):
 
             self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
 
-    def test_max_code_size_slow(self):
+    def test_max_code_size_slow(self) -> None:
         code = textwrap.dedent(
             """
             import cinderx.jit
@@ -1691,7 +1691,7 @@ class CinderJitModuleTests(StaticTestBase):
                 ],
             )
 
-    def test_max_code_size_fast(self):
+    def test_max_code_size_fast(self) -> None:
         code = textwrap.dedent(
             """
             import cinderx.jit
@@ -1783,7 +1783,7 @@ class DeleteAttrTests(unittest.TestCase):
     def del_foo(self, obj):
         del obj.foo
 
-    def test_delete_attr(self):
+    def test_delete_attr(self) -> None:
         class C:
             pass
 
@@ -1794,7 +1794,7 @@ class DeleteAttrTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             c.foo
 
-    def test_delete_attr_raises(self):
+    def test_delete_attr_raises(self) -> None:
         class C:
             @property
             def foo(self):
@@ -1811,11 +1811,11 @@ class OtherTests(unittest.TestCase):
         not cinderx.jit.is_enabled(),
         "meaningless without JIT enabled",
     )
-    def test_mlock_profiler_dependencies(self):
+    def test_mlock_profiler_dependencies(self) -> None:
         cinderx.jit.mlock_profiler_dependencies()
 
     @unittest.skipUnless(cinderx.jit.is_enabled(), "not jitting")
-    def test_page_in_profiler_dependencies(self):
+    def test_page_in_profiler_dependencies(self) -> None:
         qualnames = cinderx.jit.page_in_profiler_dependencies()
         self.assertTrue(len(qualnames) > 0)
 
@@ -1828,10 +1828,10 @@ class GetIterForIterTests(unittest.TestCase):
             pass
         return 42
 
-    def test_iterate_through_builtin(self):
+    def test_iterate_through_builtin(self) -> None:
         self.assertEqual(self.doit([1, 2, 3]), 42)
 
-    def test_custom_iterable(self):
+    def test_custom_iterable(self) -> None:
         class MyIterable:
             def __init__(self, limit):
                 self.idx = 0
@@ -1851,7 +1851,7 @@ class GetIterForIterTests(unittest.TestCase):
         self.assertEqual(self.doit(it), 42)
         self.assertEqual(it.idx, it.limit)
 
-    def test_iteration_raises_error(self):
+    def test_iteration_raises_error(self) -> None:
         class MyException(Exception):
             pass
 
@@ -1871,7 +1871,7 @@ class GetIterForIterTests(unittest.TestCase):
         with self.assertRaisesRegex(MyException, "raised error on idx 3"):
             self.doit(MyIterable())
 
-    def test_iterate_generator(self):
+    def test_iterate_generator(self) -> None:
         x = None
 
         def gen():
@@ -1896,19 +1896,19 @@ class SetUpdateTests(unittest.TestCase):
         self.assertIs(type(result), set)
         return result
 
-    def test_iterate_non_iterable_raises_type_error(self):
+    def test_iterate_non_iterable_raises_type_error(self) -> None:
         with self.assertRaisesRegex(TypeError, "'int' object is not iterable"):
             self.doit(42)
 
-    def test_iterate_set_builds_set(self):
+    def test_iterate_set_builds_set(self) -> None:
         self.assertEqual(self.doit({1, 2, 3}), {1, 2, 3})
 
-    def test_iterate_dict_builds_set(self):
+    def test_iterate_dict_builds_set(self) -> None:
         self.assertEqual(
             self.doit({"hello": "world", "goodbye": "world"}), {"hello", "goodbye"}
         )
 
-    def test_iterate_getitem_iterable_builds_set(self):
+    def test_iterate_getitem_iterable_builds_set(self) -> None:
         class C:
             def __getitem__(self, index):
                 if index < 4:
@@ -1917,7 +1917,7 @@ class SetUpdateTests(unittest.TestCase):
 
         self.assertEqual(self.doit(C()), {0, 1, 2, 3})
 
-    def test_iterate_iter_iterable_builds_set(self):
+    def test_iterate_iter_iterable_builds_set(self) -> None:
         class C:
             def __iter__(self):
                 return iter([1, 2, 3])
@@ -1935,17 +1935,17 @@ class UnpackSequenceTestsWithoutCompare(unittest.TestCase):
         x, y = iterable
         return x
 
-    def test_unpack_sequence_with_tuple(self):
+    def test_unpack_sequence_with_tuple(self) -> None:
         self.assertEqual(self.doit((1, 2)), 1)
         with self.assertRaisesRegex(ValueError, "not enough values to unpack"):
             self.doit(())
 
-    def test_unpack_sequence_with_list(self):
+    def test_unpack_sequence_with_list(self) -> None:
         self.assertEqual(self.doit([1, 2]), 1)
         with self.assertRaisesRegex(ValueError, "not enough values to unpack"):
             self.doit([])
 
-    def test_unpack_sequence_with_iterable(self):
+    def test_unpack_sequence_with_iterable(self) -> None:
         class C:
             def __init__(self, value):
                 self.value = value
@@ -1968,17 +1968,17 @@ class UnpackExTests(unittest.TestCase):
         x, *y = iterable
         return x
 
-    def test_unpack_ex_with_tuple(self):
+    def test_unpack_ex_with_tuple(self) -> None:
         self.assertEqual(self.doit((1, 2)), 1)
         with self.assertRaisesRegex(ValueError, "not enough values to unpack"):
             self.doit(())
 
-    def test_unpack_ex_with_list(self):
+    def test_unpack_ex_with_list(self) -> None:
         self.assertEqual(self.doit([1, 2]), 1)
         with self.assertRaisesRegex(ValueError, "not enough values to unpack"):
             self.doit([])
 
-    def test_unpack_ex_with_iterable(self):
+    def test_unpack_ex_with_iterable(self) -> None:
         class C:
             def __init__(self, value):
                 self.value = value
@@ -1997,17 +1997,17 @@ class StoreSubscrTests(unittest.TestCase):
     def doit(self, obj, key, value):
         obj[key] = value
 
-    def test_store_subscr_with_list_sets_item(self):
+    def test_store_subscr_with_list_sets_item(self) -> None:
         obj = [1, 2, 3]
         self.doit(obj, 1, "hello")
         self.assertEqual(obj, [1, "hello", 3])
 
-    def test_store_subscr_with_dict_sets_item(self):
+    def test_store_subscr_with_dict_sets_item(self) -> None:
         obj = {"hello": "cinder"}
         self.doit(obj, "hello", "world")
         self.assertEqual(obj, {"hello": "world"})
 
-    def test_store_subscr_calls_setitem(self):
+    def test_store_subscr_calls_setitem(self) -> None:
         class C:
             def __init__(self):
                 self.called = None
@@ -2019,7 +2019,7 @@ class StoreSubscrTests(unittest.TestCase):
         self.doit(obj, "hello", "world")
         self.assertEqual(obj.called, ("hello", "world"))
 
-    def test_store_subscr_deopts_on_exception(self):
+    def test_store_subscr_deopts_on_exception(self) -> None:
         class C:
             def __setitem__(self, key, value):
                 raise TestException("hello")
@@ -2040,14 +2040,14 @@ class FormatValueTests(unittest.TestCase):
     def doit_repr(self, obj):
         return f"hello{obj!r}world"
 
-    def test_format_value_calls_str(self):
+    def test_format_value_calls_str(self) -> None:
         class C:
             def __str__(self):
                 return "foo"
 
         self.assertEqual(self.doit(C()), "hellofooworld")
 
-    def test_format_value_calls_str_with_exception(self):
+    def test_format_value_calls_str_with_exception(self) -> None:
         class C:
             def __str__(self):
                 raise TestException("no")
@@ -2055,14 +2055,14 @@ class FormatValueTests(unittest.TestCase):
         with self.assertRaisesRegex(TestException, "no"):
             self.assertEqual(self.doit(C()))
 
-    def test_format_value_calls_repr(self):
+    def test_format_value_calls_repr(self) -> None:
         class C:
             def __repr__(self):
                 return "bar"
 
         self.assertEqual(self.doit_repr(C()), "hellobarworld")
 
-    def test_format_value_calls_repr_with_exception(self):
+    def test_format_value_calls_repr_with_exception(self) -> None:
         class C:
             def __repr__(self):
                 raise TestException("no")
@@ -2077,10 +2077,10 @@ class ListExtendTests(unittest.TestCase):
     def extend_list(self, it):
         return [1, *it]
 
-    def test_list_extend_with_list(self):
+    def test_list_extend_with_list(self) -> None:
         self.assertEqual(self.extend_list([2, 3, 4]), [1, 2, 3, 4])
 
-    def test_list_extend_with_iterable(self):
+    def test_list_extend_with_iterable(self) -> None:
         class A:
             def __init__(self, value):
                 self.value = value
@@ -2092,7 +2092,7 @@ class ListExtendTests(unittest.TestCase):
         self.assertEqual(type(extended_list), list)
         self.assertEqual(extended_list, [1, 2, 3])
 
-    def test_list_extend_with_non_iterable_raises_type_error(self):
+    def test_list_extend_with_non_iterable_raises_type_error(self) -> None:
         err_msg = r"Value after \* must be an iterable, not int"
         with self.assertRaisesRegex(TypeError, err_msg):
             self.extend_list(1)
@@ -2109,7 +2109,7 @@ class SetupWithTests(unittest.TestCase):
         with mgr as x:
             return x
 
-    def test_with_calls_enter_and_exit(self):
+    def test_with_calls_enter_and_exit(self) -> None:
         class MyCtxMgr:
             def __init__(self):
                 self.enter_called = False
@@ -2135,7 +2135,7 @@ class SetupWithTests(unittest.TestCase):
             raise SetupWithException("foo")
         return 100
 
-    def test_with_calls_enter_and_exit_exc(self):
+    def test_with_calls_enter_and_exit_exc(self) -> None:
         class MyCtxMgr:
             def __init__(self, should_suppress_exc):
                 self.exit_args = None
@@ -2164,7 +2164,7 @@ class ListToTupleTests(unittest.TestCase):
     def it_to_tup(self, it):
         return (*it,)
 
-    def test_list_to_tuple_returns_tuple(self):
+    def test_list_to_tuple_returns_tuple(self) -> None:
         new_tup = self.it_to_tup([1, 2, 3, 4])
         self.assertEqual(type(new_tup), tuple)
         self.assertEqual(new_tup, (1, 2, 3, 4))
@@ -2208,13 +2208,13 @@ class CompareTests(unittest.TestCase):
     def compare_is_not(self, left, right):
         return left is not right
 
-    def test_compare_op(self):
+    def test_compare_op(self) -> None:
         self.assertTrue(self.compare_op(3, 4))
         self.assertFalse(self.compare_op(3, 3))
         with self.assertRaisesRegex(TestException, "no lt"):
             self.compare_op(self.Incomparable(), 123)
 
-    def test_contains_op(self):
+    def test_contains_op(self) -> None:
         self.assertTrue(self.compare_in(3, [1, 2, 3]))
         self.assertFalse(self.compare_in(4, [1, 2, 3]))
         with self.assertRaisesRegex(TestException, "no iter"):
@@ -2228,7 +2228,7 @@ class CompareTests(unittest.TestCase):
         with self.assertRaisesRegex(TestException, "no getitem"):
             self.compare_not_in(123, self.NonIndexable())
 
-    def test_is_op(self):
+    def test_is_op(self) -> None:
         obj = object()
         self.assertTrue(self.compare_is(obj, obj))
         self.assertFalse(self.compare_is(obj, 1))
@@ -2246,7 +2246,7 @@ class MatchTests(unittest.TestCase):
             case _:
                 return False
 
-    def test_match_sequence(self):
+    def test_match_sequence(self) -> None:
         self.assertTrue(self.match_sequence((1, 2, 3, 7, 8, 9, 4, 5)))
         self.assertFalse(self.match_sequence((1, 2, 3, 4, 5, 6, 7, 8)))
 
@@ -2259,7 +2259,7 @@ class MatchTests(unittest.TestCase):
             case _:
                 return False
 
-    def test_match_keys(self):
+    def test_match_keys(self) -> None:
         self.assertTrue(self.match_keys({"id": 1}))
         self.assertFalse(self.match_keys({"id": 2}))
 
@@ -2278,7 +2278,7 @@ class MatchTests(unittest.TestCase):
             case _:
                 return False
 
-    def test_match_class(self):
+    def test_match_class(self) -> None:
         self.assertTrue(self.match_class(self.A(2)))
         self.assertFalse(self.match_class(self.A(3)))
 
@@ -2299,7 +2299,7 @@ class MatchTests(unittest.TestCase):
             case self.Point(x, y):
                 pass
 
-    def test_match_class_exc(self):
+    def test_match_class_exc(self) -> None:
         with self.assertRaises(TypeError):
             self.match_class_exc()
 
@@ -2311,14 +2311,14 @@ class CopyDictWithoutKeysTest(unittest.TestCase):
             case {**rest}:
                 return rest
 
-    def test_rest_with_empty_dict_returns_empty_dict(self):
+    def test_rest_with_empty_dict_returns_empty_dict(self) -> None:
         obj = {}
         result = self.match_rest(obj)
         self.assertIs(type(result), dict)
         self.assertEqual(result, {})
         self.assertIsNot(result, obj)
 
-    def test_rest_with_nonempty_dict_returns_dict_copy(self):
+    def test_rest_with_nonempty_dict_returns_dict_copy(self) -> None:
         obj = {"x": 1}
         result = self.match_rest(obj)
         self.assertIs(type(result), dict)
@@ -2331,17 +2331,17 @@ class CopyDictWithoutKeysTest(unittest.TestCase):
             case {"x": 1, **rest}:
                 return rest
 
-    def test_keys_and_rest_with_empty_dict_does_not_match(self):
+    def test_keys_and_rest_with_empty_dict_does_not_match(self) -> None:
         result = self.match_keys_and_rest({})
         self.assertIs(result, None)
 
-    def test_keys_and_rest_with_matching_dict_returns_rest(self):
+    def test_keys_and_rest_with_matching_dict_returns_rest(self) -> None:
         obj = {"x": 1, "y": 2}
         result = self.match_keys_and_rest(obj)
         self.assertIs(type(result), dict)
         self.assertEqual(result, {"y": 2})
 
-    def test_with_mappingproxy_returns_dict(self):
+    def test_with_mappingproxy_returns_dict(self) -> None:
         class C:
             x = 1
             y = 2
@@ -2352,7 +2352,7 @@ class CopyDictWithoutKeysTest(unittest.TestCase):
         self.assertIs(type(result), dict)
         self.assertEqual(result["y"], 2)
 
-    def test_with_abstract_mapping(self):
+    def test_with_abstract_mapping(self) -> None:
         import collections.abc
 
         class C(collections.abc.Mapping):
@@ -2374,7 +2374,7 @@ class CopyDictWithoutKeysTest(unittest.TestCase):
         self.assertIs(type(result), dict)
         self.assertEqual(result, {"y": 2})
 
-    def test_raising_exception_propagates(self):
+    def test_raising_exception_propagates(self) -> None:
         import collections.abc
 
         class C(collections.abc.Mapping):
@@ -2398,7 +2398,7 @@ def builtins_getter():
 
 @unittest.skipIf(AT_LEAST_312, "T214641462: _testcindercapi is only in 3.10.cinder")
 class GetBuiltinsTests(unittest.TestCase):
-    def test_get_builtins(self):
+    def test_get_builtins(self) -> None:
         new_builtins = {}
         new_globals = {
             "_testcindercapi": _testcindercapi,
@@ -2414,7 +2414,7 @@ def globals_getter():
 
 
 class GetGlobalsTests(unittest.TestCase):
-    def test_get_globals(self):
+    def test_get_globals(self) -> None:
         new_globals = dict(globals())
         func = with_globals(new_globals)(globals_getter)
         force_compile(func)
@@ -2459,7 +2459,7 @@ def func(callee):
         flags = caller(callee)
         self.assertEqual(flags & flag, flag)
 
-    def test_merge_compiler_flags(self):
+    def test_merge_compiler_flags(self) -> None:
         """Test that PyEval_MergeCompilerFlags retrieves the compiler flags of the
         calling function."""
         src = """
@@ -2468,7 +2468,7 @@ def func():
 """
         self.run_test(src)
 
-    def test_compile_inherits_compiler_flags(self):
+    def test_compile_inherits_compiler_flags(self) -> None:
         """Test that compile inherits the compiler flags of the calling function."""
         src = """
 def func():
@@ -2482,7 +2482,7 @@ class PerfMapTests(unittest.TestCase):
     HELPER_FILE = os.path.join(os.path.dirname(__file__), "perf_fork_helper.py")
 
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
-    def test_forked_pid_map(self):
+    def test_forked_pid_map(self) -> None:
         proc = subprocess.run(
             [sys.executable, "-X", "jit", "-X", "jit-perfmap", self.HELPER_FILE],
             stdout=subprocess.PIPE,
@@ -2513,7 +2513,7 @@ class PerfMapTests(unittest.TestCase):
 
 class BatchCompileTests(unittest.TestCase):
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
-    def test_batch_compile_nested_func(self):
+    def test_batch_compile_nested_func(self) -> None:
         root = Path(
             os.path.join(os.path.dirname(__file__), "data/batch_compile_nested_func")
         )
@@ -2534,7 +2534,7 @@ class PreloadTests(unittest.TestCase):
     SCRIPT_FILE = "cinder_preload_helper_main.py"
 
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
-    def test_func_destroyed_during_preload(self):
+    def test_func_destroyed_during_preload(self) -> None:
         proc = subprocess.run(
             [
                 sys.executable,
@@ -2564,7 +2564,7 @@ hello from b_func!
 """
         self.assertEqual(proc.stdout, expected_stdout)
 
-    def test_preload_error(self):
+    def test_preload_error(self) -> None:
         # don't include jit/no-jit in this matrix, decide it based on whether
         # overall test run is jit or no-jit; this avoids the confusion of jit
         # bugs showing up as failures in non-jit test runs
@@ -2615,7 +2615,7 @@ class LoadMethodEliminationTests(unittest.TestCase):
             "" if not flag else " flag",
         )
 
-    def test_multiple_call_method_same_load_method(self):
+    def test_multiple_call_method_same_load_method(self) -> None:
         self.assertEqual(self.lme_test_func(), "1")
         self.assertEqual(self.lme_test_func(True), "1 flag")
         if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
@@ -2626,7 +2626,7 @@ class LoadMethodEliminationTests(unittest.TestCase):
     cinderx.jit.is_enabled(), "Tests functionality on cinderjit module"
 )
 class HIROpcodeCountTests(unittest.TestCase):
-    def test_hir_opcode_count(self):
+    def test_hir_opcode_count(self) -> None:
         def f1():
             return 5
 

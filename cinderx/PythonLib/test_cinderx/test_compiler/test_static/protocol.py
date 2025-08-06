@@ -5,7 +5,7 @@ from .common import StaticTestBase
 
 
 class ProtocolTests(StaticTestBase):
-    def test_protocol_is_dynamic(self):
+    def test_protocol_is_dynamic(self) -> None:
         codestr = """
             from typing import Protocol
             class CallableProtocol(Protocol):

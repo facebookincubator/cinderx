@@ -51,7 +51,7 @@ class CinderX_TestSignatureBind(unittest.TestCase):
         return func(*ba.args, **ba.kwargs)
 
     @cpython_only
-    def test_signature_bind_implicit_arg(self):
+    def test_signature_bind_implicit_arg(self) -> None:
         # Issue #19611: getcallargs should work with set comprehensions
         # CinderX: Modified for comprehension inlining
         def make_gen():

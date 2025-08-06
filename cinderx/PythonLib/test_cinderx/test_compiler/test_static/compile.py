@@ -338,7 +338,7 @@ class StaticCompilationTests(StaticTestBase):
             self.compile(codestr)
 
     @skipUnless(cinderx.jit.is_enabled(), "not jitting")
-    def test_deep_attr_chain(self):
+    def test_deep_attr_chain(self) -> None:
         """this shouldn't explode exponentially"""
         codestr = """
         def f(x):
@@ -368,7 +368,7 @@ class StaticCompilationTests(StaticTestBase):
                 # Initially this would be 63 when we were double visiting
                 self.assertLess(call_count, 10)
 
-    def test_exact_invoke_function(self):
+    def test_exact_invoke_function(self) -> None:
         codestr = """
             def f() -> str:
                 return ", ".join(['1','2','3'])
@@ -381,7 +381,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             f()
 
-    def test_multiply_list_exact_by_int(self):
+    def test_multiply_list_exact_by_int(self) -> None:
         codestr = """
             def f() -> int:
                 l = [1, 2, 3] * 2
@@ -392,7 +392,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), 6)
 
-    def test_multiply_list_exact_by_int_reverse(self):
+    def test_multiply_list_exact_by_int_reverse(self) -> None:
         codestr = """
             def f() -> int:
                 l = 2 * [1, 2, 3]
@@ -403,7 +403,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), 6)
 
-    def test_compare_subclass(self):
+    def test_compare_subclass(self) -> None:
         codestr = """
         class C: pass
         class D(C): pass
@@ -413,7 +413,7 @@ class StaticCompilationTests(StaticTestBase):
         code = self.compile(codestr)
         self.assertInBytecode(code, "COMPARE_OP")
 
-    def test_assign_to_object(self):
+    def test_assign_to_object(self) -> None:
         codestr = """
         def f():
             x: object
@@ -720,7 +720,7 @@ class StaticCompilationTests(StaticTestBase):
             "<Literal[3]>",
         )
 
-    def test_type_attrs(self):
+    def test_type_attrs(self) -> None:
         attrs = self.type_env.type.__dict__.keys()
         obj_attrs = self.type_env.object.__dict__.keys()
         self.assertEqual(set(attrs), set(obj_attrs))
@@ -821,7 +821,7 @@ class StaticCompilationTests(StaticTestBase):
         x = self.find_code(acomp, "f")
         self.assertInBytecode(x, "CAST", ("builtins", "bool", "!"))
 
-    def test_strict_module_isinstance(self):
+    def test_strict_module_isinstance(self) -> None:
         code = """
             import __static__
             from typing import Optional
@@ -833,7 +833,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile_strict(code)
 
-    def test_strict_module_mutable(self):
+    def test_strict_module_mutable(self) -> None:
         code = """
             from __strict__ import mutable
 
@@ -870,7 +870,7 @@ class StaticCompilationTests(StaticTestBase):
         x = self.find_code(bcomp, "f")
         self.assertInBytecode(x, "INVOKE_METHOD", ((("a", "C"), "f"), 0))
 
-    def test_annotated_function(self):
+    def test_annotated_function(self) -> None:
         codestr = """
         class C:
             def f(self) -> int:
@@ -891,7 +891,7 @@ class StaticCompilationTests(StaticTestBase):
             c = C()
             self.assertEqual(x(c), 2)
 
-    def test_invoke_new_derived(self):
+    def test_invoke_new_derived(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -920,7 +920,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(a, 2)
             self.assertEqual(b, 4)
 
-    def test_invoke_base_inited(self):
+    def test_invoke_base_inited(self) -> None:
         """when the base class v-table is initialized before a derived
         class we still have a properly initialized v-table for the
         derived type"""
@@ -944,7 +944,7 @@ class StaticCompilationTests(StaticTestBase):
             d = mod.D()
             self.assertEqual(mod.g(d), 100)
 
-    def test_invoke_explicit_slots(self):
+    def test_invoke_explicit_slots(self) -> None:
         codestr = """
             class C:
                 __slots__ = ()
@@ -967,7 +967,7 @@ class StaticCompilationTests(StaticTestBase):
             a = mod.a
             self.assertEqual(a, 2)
 
-    def test_invoke_new_derived_nonfunc(self):
+    def test_invoke_new_derived_nonfunc(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -999,7 +999,7 @@ class StaticCompilationTests(StaticTestBase):
                 d = D()
                 self.assertEqual(x(d), 84)
 
-    def test_invoke_new_derived_nonfunc_slots(self):
+    def test_invoke_new_derived_nonfunc_slots(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -1032,7 +1032,7 @@ class StaticCompilationTests(StaticTestBase):
                 d = D()
                 self.assertEqual(x(d), 84)
 
-    def test_invoke_new_derived_nonfunc_descriptor(self):
+    def test_invoke_new_derived_nonfunc_descriptor(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -1066,7 +1066,7 @@ class StaticCompilationTests(StaticTestBase):
             d = D()
             self.assertEqual(x(d), 84)
 
-    def test_invoke_new_derived_nonfunc_data_descriptor(self):
+    def test_invoke_new_derived_nonfunc_data_descriptor(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -1103,7 +1103,7 @@ class StaticCompilationTests(StaticTestBase):
             d = D()
             self.assertEqual(x(d), 84)
 
-    def test_invoke_new_derived_nonfunc_descriptor_inst_override(self):
+    def test_invoke_new_derived_nonfunc_descriptor_inst_override(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -1139,7 +1139,7 @@ class StaticCompilationTests(StaticTestBase):
             d.__dict__["f"] = lambda: 100
             self.assertEqual(x(d), 200)
 
-    def test_invoke_new_derived_nonfunc_descriptor_modified(self):
+    def test_invoke_new_derived_nonfunc_descriptor_modified(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -1179,7 +1179,7 @@ class StaticCompilationTests(StaticTestBase):
                 del Descr.__get__
                 self.assertEqual(x(d), 46)
 
-    def test_invoke_dict_override(self):
+    def test_invoke_dict_override(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -1206,7 +1206,7 @@ class StaticCompilationTests(StaticTestBase):
             d = D()
             self.assertEqual(x(d), 84)
 
-    def test_invoke_type_modified(self):
+    def test_invoke_type_modified(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -1228,7 +1228,7 @@ class StaticCompilationTests(StaticTestBase):
             C.f = lambda self: 42
             self.assertEqual(x(C()), 84)
 
-    def test_annotated_function_derived(self):
+    def test_annotated_function_derived(self) -> None:
         codestr = """
             class C:
                 def f(self) -> int:
@@ -1259,7 +1259,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(x(mod.D()), 4)
             self.assertEqual(x(mod.E()), 2)
 
-    def test_unknown_annotation(self):
+    def test_unknown_annotation(self) -> None:
         codestr = """
             def foo():
                return 3
@@ -1275,7 +1275,7 @@ class StaticCompilationTests(StaticTestBase):
         f = self.run_code(codestr)["f"]
         self.assertEqual(f(C()), 42)
 
-    def test_class_method_invoke(self):
+    def test_class_method_invoke(self) -> None:
         codestr = """
             class B:
                 def __init__(self, value):
@@ -1301,7 +1301,7 @@ class StaticCompilationTests(StaticTestBase):
             d = D(42)
             self.assertEqual(d.f(), 42)
 
-    def test_untyped_attr(self):
+    def test_untyped_attr(self) -> None:
         codestr = """
         def foo(x):
             y = x.load
@@ -1313,7 +1313,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(mod.foo, "STORE_ATTR", "store")
             self.assertInBytecode(mod.foo, "DELETE_ATTR", "delete")
 
-    def test_incompat_override_method_ret_type(self):
+    def test_incompat_override_method_ret_type(self) -> None:
         codestr = """
             class A:
                 def m(self) -> str:
@@ -1330,7 +1330,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_incompat_override_method_num_args(self):
+    def test_incompat_override_method_num_args(self) -> None:
         codestr = """
             class A:
                 def m(self) -> int:
@@ -1346,7 +1346,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_incompat_override_method_arg_type(self):
+    def test_incompat_override_method_arg_type(self) -> None:
         codestr = """
             class A:
                 def m(self, x: str) -> int:
@@ -1363,7 +1363,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_incompat_override_method_arg_name(self):
+    def test_incompat_override_method_arg_name(self) -> None:
         codestr = """
             class A:
                 def m(self, x: str) -> int:
@@ -1380,7 +1380,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_incompat_override_method_starargs(self):
+    def test_incompat_override_method_starargs(self) -> None:
         codestr = """
             class A:
                 def m(self) -> int:
@@ -1397,7 +1397,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_incompat_override_method_num_kwonly_args(self):
+    def test_incompat_override_method_num_kwonly_args(self) -> None:
         codestr = """
             class A:
                 def m(self) -> int:
@@ -1413,7 +1413,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_incompat_override_method_kwonly_name(self):
+    def test_incompat_override_method_kwonly_name(self) -> None:
         codestr = """
             class A:
                 def m(self, *, y: int) -> int:
@@ -1429,7 +1429,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_compat_override_method_extra_kwarg(self):
+    def test_compat_override_method_extra_kwarg(self) -> None:
         codestr = """
             class A:
                 def m(self, **kwargs) -> int:
@@ -1449,7 +1449,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(mod.invoke(a), 42)
             self.assertEqual(mod.invoke(b), 0)
 
-    def test_compat_override_redeclared_kwarg(self):
+    def test_compat_override_redeclared_kwarg(self) -> None:
         codestr = """
             import __static__
 
@@ -1475,7 +1475,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(mod.invoke(a), 1)
             self.assertEqual(mod.invoke(b), 2)
 
-    def test_incompat_override_method_kwonly_mismatch(self):
+    def test_incompat_override_method_kwonly_mismatch(self) -> None:
         codestr = """
             class A:
                 def m(self, x: str) -> int:
@@ -1491,7 +1491,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_incompat_override_method_starkwargs(self):
+    def test_incompat_override_method_starkwargs(self) -> None:
         codestr = """
             class A:
                 def m(self) -> int:
@@ -1508,7 +1508,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_incompat_override_method_arg_type_okay(self):
+    def test_incompat_override_method_arg_type_okay(self) -> None:
         codestr = """
             class A:
                 def m(self, x: str) -> int:
@@ -1520,7 +1520,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_incompat_override_init_okay(self):
+    def test_incompat_override_init_okay(self) -> None:
         codestr = """
             class A:
                 def __init__(self) -> None:
@@ -1539,7 +1539,7 @@ class StaticCompilationTests(StaticTestBase):
             # as we allow users to override this inconsistently
             self.assertNotInBytecode(f, "INVOKE_METHOD")
 
-    def test_incompat_override(self):
+    def test_incompat_override(self) -> None:
         codestr = """
         class C:
             x: int
@@ -1550,7 +1550,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaises(TypedSyntaxError):
             self.compile(codestr, modname="foo")
 
-    def test_redefine_type(self):
+    def test_redefine_type(self) -> None:
         codestr = """
             class C: pass
             class D: pass
@@ -1562,7 +1562,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaises(TypedSyntaxError):
             self.compile(codestr, modname="foo")
 
-    def test_optional_error(self):
+    def test_optional_error(self) -> None:
         codestr = """
             from typing import Optional
             class C:
@@ -1582,7 +1582,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_optional_no_error(self):
+    def test_optional_no_error(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -1620,7 +1620,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_optional_assign(self):
+    def test_optional_assign(self) -> None:
         codestr = """
             from typing import Optional
             class C:
@@ -1632,7 +1632,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_nonoptional_load(self):
+    def test_nonoptional_load(self) -> None:
         codestr = """
             class C:
                 def __init__(self, y: int):
@@ -1645,7 +1645,7 @@ class StaticCompilationTests(StaticTestBase):
         f = self.find_code(code, "f")
         self.assertInBytecode(f, "LOAD_FIELD", (("foo", "C"), "y"))
 
-    def test_optional_assign_subclass(self):
+    def test_optional_assign_subclass(self) -> None:
         codestr = """
             from typing import Optional
             class B: pass
@@ -1656,7 +1656,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_optional_assign_subclass_opt(self):
+    def test_optional_assign_subclass_opt(self) -> None:
         codestr = """
             from typing import Optional
             class B: pass
@@ -1667,7 +1667,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_optional_assign_none(self):
+    def test_optional_assign_none(self) -> None:
         codestr = """
             from typing import Optional
             class B: pass
@@ -1677,7 +1677,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_error_mixed_math(self):
+    def test_error_mixed_math(self) -> None:
         with self.assertRaises(TypedSyntaxError):
             self.compile(
                 """
@@ -1688,7 +1688,7 @@ class StaticCompilationTests(StaticTestBase):
                 """
             )
 
-    def test_error_incompat_return(self):
+    def test_error_incompat_return(self) -> None:
         with self.assertRaises(TypedSyntaxError):
             self.compile(
                 """
@@ -1702,7 +1702,7 @@ class StaticCompilationTests(StaticTestBase):
                 """
             )
 
-    def test_cast(self):
+    def test_cast(self) -> None:
         for code_gen in (StaticCodeGenerator, PythonCodeGenerator):
             codestr = """
                 from __static__ import cast
@@ -1724,7 +1724,7 @@ class StaticCompilationTests(StaticTestBase):
                 self.assertTrue(isinstance(f(), C))
                 self.assert_jitted(f)
 
-    def test_cast_fail(self):
+    def test_cast_fail(self) -> None:
         for code_gen in (StaticCodeGenerator, PythonCodeGenerator):
             codestr = """
                 from __static__ import cast
@@ -1744,7 +1744,7 @@ class StaticCompilationTests(StaticTestBase):
                     f()
                     self.assert_jitted(f)
 
-    def test_cast_wrong_args(self):
+    def test_cast_wrong_args(self) -> None:
         codestr = """
             from __static__ import cast
             def f():
@@ -1753,7 +1753,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaises(TypedSyntaxError):
             self.compile(codestr)
 
-    def test_cast_unknown_type(self):
+    def test_cast_unknown_type(self) -> None:
         codestr = """
             from __static__ import cast
             def f():
@@ -1762,7 +1762,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaises(TypedSyntaxError):
             self.compile(codestr)
 
-    def test_cast_optional(self):
+    def test_cast_optional(self) -> None:
         for code_gen in (StaticCodeGenerator, PythonCodeGenerator):
             codestr = """
                 from __static__ import cast
@@ -1785,7 +1785,7 @@ class StaticCompilationTests(StaticTestBase):
                 self.assertEqual(f(None), None)
                 self.assert_jitted(f)
 
-    def test_code_flags(self):
+    def test_code_flags(self) -> None:
         codestr = """
         def func():
             print("hi")
@@ -1798,7 +1798,7 @@ class StaticCompilationTests(StaticTestBase):
             self.find_code(module, name="func").co_flags & CI_CO_STATICALLY_COMPILED
         )
 
-    def test_invoke_kws(self):
+    def test_invoke_kws(self) -> None:
         codestr = """
         class C:
             def f(self, a):
@@ -1813,7 +1813,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.func
             self.assertEqual(f(), 2)
 
-    def test_invoke_str_method(self):
+    def test_invoke_str_method(self) -> None:
         codestr = """
         def func():
             a = 'a b c'
@@ -1827,7 +1827,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(f(), ["a", "b", "c"])
 
-    def test_invoke_str_method_arg(self):
+    def test_invoke_str_method_arg(self) -> None:
         codestr = """
         def func():
             a = 'a b c'
@@ -1841,7 +1841,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(f(), ["", " b c"])
 
-    def test_invoke_str_method_kwarg(self):
+    def test_invoke_str_method_kwarg(self) -> None:
         codestr = """
         def func():
             a = 'a b c'
@@ -1854,7 +1854,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(), ["", " b c"])
 
-    def test_invoke_int_method(self):
+    def test_invoke_int_method(self) -> None:
         codestr = """
         def func():
             a = 42
@@ -1868,7 +1868,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(f(), 6)
 
-    def test_invoke_method_non_static_base(self):
+    def test_invoke_method_non_static_base(self) -> None:
         codestr = """
         class C(Exception):
             def f(self):
@@ -1883,7 +1883,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(C().g(), 42)
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_invoke_builtin_func(self):
+    def test_invoke_builtin_func(self) -> None:
         codestr = """
         from xxclassloader import foo
         from __static__ import int64, box
@@ -1900,7 +1900,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assert_jitted(f)
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_invoke_builtin_func_ret_neg(self):
+    def test_invoke_builtin_func_ret_neg(self) -> None:
         # setup xxclassloader as a built-in function for this test, so we can
         # do a direct invoke
         xxclassloader = sys.modules["xxclassloader"]
@@ -1921,7 +1921,7 @@ class StaticCompilationTests(StaticTestBase):
             sys.modules["xxclassloader"] = xxclassloader
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_invoke_builtin_func_arg(self):
+    def test_invoke_builtin_func_arg(self) -> None:
         codestr = """
         from xxclassloader import bar
         from __static__ import int64, box
@@ -1938,7 +1938,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assert_jitted(f)
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_invoke_func_unexistent_module(self):
+    def test_invoke_func_unexistent_module(self) -> None:
         codestr = """
         from xxclassloader import bar
         from __static__ import int64, box
@@ -1963,7 +1963,7 @@ class StaticCompilationTests(StaticTestBase):
                 sys.modules["xxclassloader"] = xxclassloader
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_invoke_meth_o(self):
+    def test_invoke_meth_o(self) -> None:
         codestr = """
         from xxclassloader import spamobj
 
@@ -1990,7 +1990,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(f(), 42)
             self.assert_jitted(f)
 
-    def test_multi_generic(self):
+    def test_multi_generic(self) -> None:
         codestr = """
         from xxclassloader import XXGeneric
 
@@ -2002,7 +2002,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.func
             self.assertEqual(f(), "42abc")
 
-    def test_verify_positional_args(self):
+    def test_verify_positional_args(self) -> None:
         codestr = """
             def x(a: int, b: str) -> None:
                 pass
@@ -2014,7 +2014,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_verify_too_many_args(self):
+    def test_verify_too_many_args(self) -> None:
         codestr = """
             def x():
                 return 42
@@ -2027,7 +2027,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_verify_positional_args_unordered(self):
+    def test_verify_positional_args_unordered(self) -> None:
         codestr = """
             def x(a: int, b: str) -> None:
                 return y(a, b)
@@ -2036,7 +2036,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_verify_kwargs(self):
+    def test_verify_kwargs(self) -> None:
         codestr = """
             def x(a: int=1, b: str="hunter2") -> None:
                 return
@@ -2044,7 +2044,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_verify_kwdefaults(self):
+    def test_verify_kwdefaults(self) -> None:
         codestr = """
             def x(*, b: str="hunter2"):
                 return b
@@ -2053,7 +2053,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.z, "lol")
 
-    def test_verify_kwdefaults_no_value(self):
+    def test_verify_kwdefaults_no_value(self) -> None:
         codestr = """
             def x(*, b: str="hunter2"):
                 return b
@@ -2065,7 +2065,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.a, "hunter2")
 
-    def test_verify_kwdefaults_with_value(self):
+    def test_verify_kwdefaults_with_value(self) -> None:
         codestr = """
             def x(*, b: str="hunter2"):
                 return b
@@ -2077,7 +2077,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.a, "hunter3")
 
-    def test_verify_lambda(self):
+    def test_verify_lambda(self) -> None:
         codestr = """
             x = lambda x: x
             a = x("hi")
@@ -2085,7 +2085,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.a, "hi")
 
-    def test_verify_lambda_keyword_only(self):
+    def test_verify_lambda_keyword_only(self) -> None:
         codestr = """
             x = lambda *, x: x
             a = x(x="hi")
@@ -2093,7 +2093,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.a, "hi")
 
-    def test_verify_lambda_vararg(self):
+    def test_verify_lambda_vararg(self) -> None:
         codestr = """
             x = lambda *x: x[1]
             a = x(1, "hi")
@@ -2101,7 +2101,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.a, "hi")
 
-    def test_verify_lambda_kwarg(self):
+    def test_verify_lambda_kwarg(self) -> None:
         codestr = """
             x = lambda **kwargs: kwargs["key"]
             a = x(key="hi")
@@ -2109,7 +2109,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.a, "hi")
 
-    def test_verify_arg_dynamic_type(self):
+    def test_verify_arg_dynamic_type(self) -> None:
         codestr = """
             def x(v:str):
                 return 'abc'
@@ -2122,7 +2122,7 @@ class StaticCompilationTests(StaticTestBase):
                 y(42)
             self.assertEqual(y("foo"), "abc")
 
-    def test_verify_arg_unknown_type(self):
+    def test_verify_arg_unknown_type(self) -> None:
         codestr = """
             from unknown import foo
             def x(x:foo):
@@ -2134,7 +2134,7 @@ class StaticCompilationTests(StaticTestBase):
         x = self.find_code(module)
         self.assertEqual(self.get_arg_check_types(x), ())
 
-    def test_dict_invoke(self):
+    def test_dict_invoke(self) -> None:
         codestr = """
             from __static__ import pydict
             def f(x):
@@ -2148,7 +2148,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(f({}), None)
 
-    def test_dict_invoke_ret(self):
+    def test_dict_invoke_ret(self) -> None:
         codestr = """
             from __static__ import pydict
             def g(): return None
@@ -2165,7 +2165,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(f({}), None)
 
-    def test_verify_kwarg_unknown_type(self):
+    def test_verify_kwarg_unknown_type(self) -> None:
         codestr = """
             from unknown import foo
             def x(x:foo):
@@ -2177,7 +2177,7 @@ class StaticCompilationTests(StaticTestBase):
         x = self.find_code(module)
         self.assertEqual(self.get_arg_check_types(x), ())
 
-    def test_verify_kwdefaults_too_many(self):
+    def test_verify_kwdefaults_too_many(self) -> None:
         codestr = """
             def x(*, b: str="hunter2") -> None:
                 return
@@ -2186,7 +2186,7 @@ class StaticCompilationTests(StaticTestBase):
         # We do not verify types for calls that we can't do direct invokes.
         self.compile(codestr)
 
-    def test_verify_kwdefaults_too_many_class(self):
+    def test_verify_kwdefaults_too_many_class(self) -> None:
         codestr = """
             class C:
                 def x(self, *, b: str="hunter2") -> None:
@@ -2196,7 +2196,7 @@ class StaticCompilationTests(StaticTestBase):
         # We do not verify types for calls that we can't do direct invokes.
         self.compile(codestr)
 
-    def test_verify_kwonly_failure(self):
+    def test_verify_kwonly_failure(self) -> None:
         codestr = """
             def x(*, a: int=1, b: str="hunter2") -> None:
                 return
@@ -2205,7 +2205,7 @@ class StaticCompilationTests(StaticTestBase):
         # We do not verify types for calls that we can't do direct invokes.
         self.compile(codestr)
 
-    def test_verify_kwonly_self_loaded_once(self):
+    def test_verify_kwonly_self_loaded_once(self) -> None:
         codestr = """
             class C:
                 def x(self, *, a: int=1) -> int:
@@ -2220,7 +2220,7 @@ class StaticCompilationTests(StaticTestBase):
             dis.dis(f, file=io)
             self.assertEqual(1, io.getvalue().count("TP_ALLOC"))
 
-    def test_call_function_unknown_ret_type(self):
+    def test_call_function_unknown_ret_type(self) -> None:
         codestr = """
             from __future__ import annotations
             from builtins import open
@@ -2235,7 +2235,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.testfunc
             self.assertEqual(f(), 42)
 
-    def test_verify_kwargs_failure(self):
+    def test_verify_kwargs_failure(self) -> None:
         codestr = """
             def x(a: int=1, b: str="hunter2") -> None:
                 return
@@ -2246,7 +2246,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_verify_mixed_args(self):
+    def test_verify_mixed_args(self) -> None:
         codestr = """
             def x(a: int=1, b: str="hunter2", c: int=14) -> None:
                 return
@@ -2254,7 +2254,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_kwarg_cast(self):
+    def test_kwarg_cast(self) -> None:
         codestr = """
             def x(a: int=1, b: str="hunter2", c: int=14) -> None:
                 return
@@ -2265,7 +2265,7 @@ class StaticCompilationTests(StaticTestBase):
         code = self.find_code(self.compile(codestr), "g")
         self.assertInBytecode(code, "CAST", ("builtins", "str"))
 
-    def test_kwarg_nocast(self):
+    def test_kwarg_nocast(self) -> None:
         codestr = """
             def x(a: int=1, b: str="hunter2", c: int=14) -> None:
                 return
@@ -2276,7 +2276,7 @@ class StaticCompilationTests(StaticTestBase):
         code = self.find_code(self.compile(codestr), "g")
         self.assertNotInBytecode(code, "CAST", ("builtins", "str"))
 
-    def test_verify_mixed_args_kw_failure(self):
+    def test_verify_mixed_args_kw_failure(self) -> None:
         codestr = """
             def x(a: int=1, b: str="hunter2", c: int=14) -> None:
                 return
@@ -2287,7 +2287,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_verify_mixed_args_positional_failure(self):
+    def test_verify_mixed_args_positional_failure(self) -> None:
         codestr = """
             def x(a: int=1, b: str="hunter2", c: int=14) -> None:
                 return
@@ -2300,7 +2300,7 @@ class StaticCompilationTests(StaticTestBase):
             self.compile(codestr)
 
     # Same tests as above, but for methods.
-    def test_verify_positional_args_method(self):
+    def test_verify_positional_args_method(self) -> None:
         codestr = """
             class C:
                 def x(self, a: int, b: str) -> None:
@@ -2309,7 +2309,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_verify_positional_args_failure_method(self):
+    def test_verify_positional_args_failure_method(self) -> None:
         codestr = """
             class C:
                 def x(self, a: int, b: str) -> None:
@@ -2322,7 +2322,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_verify_mixed_args_method(self):
+    def test_verify_mixed_args_method(self) -> None:
         codestr = """
             class C:
                 def x(self, a: int=1, b: str="hunter2", c: int=14) -> None:
@@ -2331,7 +2331,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_starargs_invoked_once(self):
+    def test_starargs_invoked_once(self) -> None:
         codestr = """
             X = 0
 
@@ -2351,7 +2351,7 @@ class StaticCompilationTests(StaticTestBase):
         compiled = self.compile(codestr)
         self.assertEqual(compiled.co_nlocals, 1)
 
-    def test_starargs_invoked_in_order(self):
+    def test_starargs_invoked_in_order(self) -> None:
         codestr = """
             X = 1
 
@@ -2378,7 +2378,7 @@ class StaticCompilationTests(StaticTestBase):
             x = mod.X
             self.assertEqual(x, 3)
 
-    def test_verify_mixed_args_kw_failure_method(self):
+    def test_verify_mixed_args_kw_failure_method(self) -> None:
         codestr = """
             class C:
                 def x(self, a: int=1, b: str="hunter2", c: int=14) -> None:
@@ -2390,7 +2390,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_verify_mixed_args_positional_failure_method(self):
+    def test_verify_mixed_args_positional_failure_method(self) -> None:
         codestr = """
             class C:
                 def x(self, a: int=1, b: str="hunter2", c: int=14) -> None:
@@ -2403,7 +2403,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_generic_kwargs_unsupported(self):
+    def test_generic_kwargs_unsupported(self) -> None:
         # definition is allowed, we just don't do an optimal invoke
         codestr = """
         def f(a: int, b: str, **my_stuff) -> None:
@@ -2416,7 +2416,7 @@ class StaticCompilationTests(StaticTestBase):
             g = mod.g
             self.assertKwCallInBytecode(g)
 
-    def test_generic_kwargs_method_unsupported(self):
+    def test_generic_kwargs_method_unsupported(self) -> None:
         # definition is allowed, we just don't do an optimal invoke
         codestr = """
         class C:
@@ -2430,7 +2430,7 @@ class StaticCompilationTests(StaticTestBase):
             g = mod.g
             self.assertKwCallInBytecode(g)
 
-    def test_generic_varargs_unsupported(self):
+    def test_generic_varargs_unsupported(self) -> None:
         # definition is allowed, we just don't do an optimal invoke
         codestr = """
         def f(a: int, b: str, *my_stuff) -> None:
@@ -2443,7 +2443,7 @@ class StaticCompilationTests(StaticTestBase):
             g = mod.g
             self.assertInBytecode(g, self.CALL, 3)
 
-    def test_generic_varargs_method_unsupported(self):
+    def test_generic_varargs_method_unsupported(self) -> None:
         # definition is allowed, we just don't do an optimal invoke
         codestr = """
         class C:
@@ -2457,7 +2457,7 @@ class StaticCompilationTests(StaticTestBase):
             g = mod.g
             self.assertLoadMethodInBytecode(g, "f")
 
-    def test_kwargs_get(self):
+    def test_kwargs_get(self) -> None:
         codestr = """
             def test(**foo):
                 print(foo.get('bar'))
@@ -2469,7 +2469,7 @@ class StaticCompilationTests(StaticTestBase):
                 test, "INVOKE_FUNCTION", ((("builtins", "dict"), "get"), 2)
             )
 
-    def test_varargs_count(self):
+    def test_varargs_count(self) -> None:
         codestr = """
             def test(*foo):
                 print(foo.count('bar'))
@@ -2481,7 +2481,7 @@ class StaticCompilationTests(StaticTestBase):
                 test, "INVOKE_FUNCTION", ((("builtins", "tuple"), "count"), 2)
             )
 
-    def test_varargs_call(self):
+    def test_varargs_call(self) -> None:
         codestr = """
             def g(*foo):
                 return foo
@@ -2494,7 +2494,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), (2,))
 
-    def test_kwargs_call(self):
+    def test_kwargs_call(self) -> None:
         codestr = """
             def g(**foo):
                 return foo
@@ -2507,7 +2507,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), {"x": 2})
 
-    def test_pydict_arg_annotation(self):
+    def test_pydict_arg_annotation(self) -> None:
         codestr = """
             from __static__ import PyDict
             def f(d: PyDict[str, int]) -> str:
@@ -2517,7 +2517,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f({3: "foo"}), "foo")
 
-    def test_unknown_type_unary(self):
+    def test_unknown_type_unary(self) -> None:
         codestr = """
             def x(y):
                 z = -y
@@ -2525,7 +2525,7 @@ class StaticCompilationTests(StaticTestBase):
         f = self.find_code(self.compile(codestr, modname="foo"))
         self.assertInBytecode(f, "UNARY_NEGATIVE")
 
-    def test_unknown_type_binary(self):
+    def test_unknown_type_binary(self) -> None:
         codestr = """
             def x(a, b):
                 z = a + b
@@ -2533,7 +2533,7 @@ class StaticCompilationTests(StaticTestBase):
         f = self.find_code(self.compile(codestr, modname="foo"))
         self.assertBinOpInBytecode(f, "BINARY_ADD")
 
-    def test_unknown_type_compare(self):
+    def test_unknown_type_compare(self) -> None:
         codestr = """
             def x(a, b):
                 z = a > b
@@ -2541,7 +2541,7 @@ class StaticCompilationTests(StaticTestBase):
         f = self.find_code(self.compile(codestr, modname="foo"))
         self.assertInBytecode(f, "COMPARE_OP")
 
-    def test_async_func_ret_type(self):
+    def test_async_func_ret_type(self) -> None:
         codestr = """
             async def x(a) -> int:
                 return a
@@ -2549,7 +2549,7 @@ class StaticCompilationTests(StaticTestBase):
         f = self.find_code(self.compile(codestr, modname="foo"))
         self.assertInBytecode(f, "CAST")
 
-    def test_async_func_arg_types(self):
+    def test_async_func_arg_types(self) -> None:
         codestr = """
             async def f(x: int):
                 pass
@@ -2557,7 +2557,7 @@ class StaticCompilationTests(StaticTestBase):
         f = self.find_code(self.compile(codestr))
         self.assertEqual(self.get_arg_check_types(f), (0, ("builtins", "int")))
 
-    def test_field_refcount(self):
+    def test_field_refcount(self) -> None:
         codestr = """
             class C:
                 def __init__(self):
@@ -2586,7 +2586,7 @@ class StaticCompilationTests(StaticTestBase):
             del c
             self.assertEqual(count, 0)
 
-    def test_typed_field_del(self):
+    def test_typed_field_del(self) -> None:
         codestr = """
             class D:
                 def __init__(self, counter):
@@ -2615,7 +2615,7 @@ class StaticCompilationTests(StaticTestBase):
             del a
             self.assertEqual(counter[0], 0)
 
-    def test_typed_field_deleted_attr(self):
+    def test_typed_field_deleted_attr(self) -> None:
         codestr = """
             class C:
                 def __init__(self, value: str):
@@ -2628,7 +2628,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.assertRaises(AttributeError):
                 a.x
 
-    def test_attr_generic_optional(self):
+    def test_attr_generic_optional(self) -> None:
         codestr = """
             from typing import Optional
             def f(x: Optional):
@@ -2640,7 +2640,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_assign_generic_optional(self):
+    def test_assign_generic_optional(self) -> None:
         codestr = """
             from typing import Optional
             def f():
@@ -2652,7 +2652,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_assign_generic_optional_2(self):
+    def test_assign_generic_optional_2(self) -> None:
         codestr = """
             from typing import Optional
             def f():
@@ -2662,7 +2662,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaises(TypedSyntaxError):
             self.compile(codestr, modname="foo")
 
-    def test_assign_from_generic_optional(self):
+    def test_assign_from_generic_optional(self) -> None:
         codestr = """
             from typing import Optional
             class C: pass
@@ -2676,7 +2676,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_list_of_dynamic(self):
+    def test_list_of_dynamic(self) -> None:
         codestr = """
             from threading import Thread
             from typing import List
@@ -2687,7 +2687,7 @@ class StaticCompilationTests(StaticTestBase):
         f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(f, "FAST_LEN")
 
-    def test_typed_swap(self):
+    def test_typed_swap(self) -> None:
         codestr = """
             def test(a):
                 x: int
@@ -2699,7 +2699,7 @@ class StaticCompilationTests(StaticTestBase):
         self.assertInBytecode(f, "CAST", ("builtins", "str"))
         self.assertNotInBytecode(f, "CAST", ("builtins", "int"))
 
-    def test_typed_swap_2(self):
+    def test_typed_swap_2(self) -> None:
         codestr = """
             def test(a):
                 x: int
@@ -2712,7 +2712,7 @@ class StaticCompilationTests(StaticTestBase):
         self.assertInBytecode(f, "CAST", ("builtins", "int"))
         self.assertNotInBytecode(f, "CAST", ("builtins", "str"))
 
-    def test_typed_swap_member(self):
+    def test_typed_swap_member(self) -> None:
         codestr = """
             class C:
                 def __init__(self):
@@ -2729,7 +2729,7 @@ class StaticCompilationTests(StaticTestBase):
         self.assertInBytecode(f, "CAST", ("builtins", "int"))
         self.assertNotInBytecode(f, "CAST", ("builtins", "str"))
 
-    def test_typed_swap_list(self):
+    def test_typed_swap_list(self) -> None:
         codestr = """
             def test(a):
                 x: int
@@ -2741,7 +2741,7 @@ class StaticCompilationTests(StaticTestBase):
         self.assertInBytecode(f, "CAST", ("builtins", "int"))
         self.assertNotInBytecode(f, "CAST", ("builtins", "str"))
 
-    def test_typed_swap_nested(self):
+    def test_typed_swap_nested(self) -> None:
         codestr = """
             def test(a):
                 x: int
@@ -2754,7 +2754,7 @@ class StaticCompilationTests(StaticTestBase):
         self.assertInBytecode(f, "CAST", ("builtins", "int"))
         self.assertNotInBytecode(f, "CAST", ("builtins", "str"))
 
-    def test_typed_swap_nested_2(self):
+    def test_typed_swap_nested_2(self) -> None:
         codestr = """
             def test(a):
                 x: int
@@ -2768,7 +2768,7 @@ class StaticCompilationTests(StaticTestBase):
         self.assertInBytecode(f, "CAST", ("builtins", "str"))
         self.assertNotInBytecode(f, "CAST", ("builtins", "int"))
 
-    def test_typed_swap_nested_3(self):
+    def test_typed_swap_nested_3(self) -> None:
         codestr = """
             def test(a):
                 x: int
@@ -2784,7 +2784,7 @@ class StaticCompilationTests(StaticTestBase):
         # ideal:
         self.assertInBytecode(f, "CAST", ("builtins", "int", "!"))
 
-    def test_if_optional(self):
+    def test_if_optional(self) -> None:
         codestr = """
             from typing import Optional
             class C:
@@ -2800,14 +2800,14 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_return_outside_func(self):
+    def test_return_outside_func(self) -> None:
         codestr = """
             return 42
         """
         with self.assertRaisesRegex(SyntaxError, "'return' outside function"):
             self.compile(codestr, modname="foo")
 
-    def test_double_decl(self):
+    def test_double_decl(self) -> None:
         codestr = """
             def f():
                 x: int
@@ -2838,7 +2838,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_if_else_optional(self):
+    def test_if_else_optional(self) -> None:
         codestr = """
             from typing import Optional
             class C:
@@ -2861,7 +2861,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr)
 
-    def test_if_else_optional_return(self):
+    def test_if_else_optional_return(self) -> None:
         codestr = """
             from typing import Optional
             class C:
@@ -2876,7 +2876,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_if_else_optional_return_two_branches(self):
+    def test_if_else_optional_return_two_branches(self) -> None:
         codestr = """
             from typing import Optional
             class C:
@@ -2894,7 +2894,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_if_else_optional_return_in_else(self):
+    def test_if_else_optional_return_in_else(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -2908,7 +2908,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_if_else_optional_return_in_else_assignment_in_if(self):
+    def test_if_else_optional_return_in_else_assignment_in_if(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -2922,7 +2922,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_if_else_optional_return_in_if_assignment_in_else(self):
+    def test_if_else_optional_return_in_if_assignment_in_else(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -2936,7 +2936,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_narrow_conditional(self):
+    def test_narrow_conditional(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -2960,7 +2960,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(test(True), "abc")
             self.assertEqual(test(False), None)
 
-    def test_no_narrow_to_dynamic(self):
+    def test_no_narrow_to_dynamic(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -2979,7 +2979,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(g(), 6)
 
-    def test_global_uses_decl_type(self):
+    def test_global_uses_decl_type(self) -> None:
         codestr = """
             # even though we can locally infer G must be None,
             # it's not Final so nested scopes can't assume it
@@ -2998,7 +2998,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.f(), 1)
 
-    def test_module_level_type_narrow(self):
+    def test_module_level_type_narrow(self) -> None:
         codestr = """
             def a() -> int | None:
                 return 1
@@ -3015,7 +3015,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaisesRegex(TypedSyntaxError, "dynamic"):
             self.compile(codestr)
 
-    def test_narrow_conditional_widened(self):
+    def test_narrow_conditional_widened(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3039,7 +3039,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(test(True), "abc")
             self.assertEqual(test(False), 42)
 
-    def test_widen_to_dynamic(self):
+    def test_widen_to_dynamic(self) -> None:
         self.assertReturns(
             """
             def f(x, flag):
@@ -3050,7 +3050,7 @@ class StaticCompilationTests(StaticTestBase):
             "dynamic",
         )
 
-    def test_assign_conditional_both_sides(self):
+    def test_assign_conditional_both_sides(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3075,7 +3075,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(True), "abc")
 
-    def test_assign_conditional_invoke_in_else(self):
+    def test_assign_conditional_invoke_in_else(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3099,7 +3099,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(True), None)
 
-    def test_assign_else_only(self):
+    def test_assign_else_only(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3118,7 +3118,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.type_error(codestr, "Name `x` is not defined.")
 
-    def test_assign_test_var(self):
+    def test_assign_test_var(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -3130,7 +3130,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_assign_while(self):
+    def test_assign_while(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3153,7 +3153,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(False), 42)
 
-    def test_assign_while_test_var(self):
+    def test_assign_while_test_var(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -3164,7 +3164,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_assign_while_returns(self):
+    def test_assign_while_returns(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -3175,7 +3175,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_assign_while_returns_but_assigns_first(self):
+    def test_assign_while_returns_but_assigns_first(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -3188,7 +3188,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_while_else_reverses_condition(self):
+    def test_while_else_reverses_condition(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -3201,7 +3201,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_continue_condition(self):
+    def test_continue_condition(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -3213,7 +3213,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_break_condition(self):
+    def test_break_condition(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -3226,7 +3226,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_assign_but_annotated(self):
+    def test_assign_but_annotated(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3247,7 +3247,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(False), "abc")
 
-    def test_assign_while_2(self):
+    def test_assign_while_2(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3270,7 +3270,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(False), "abc")
 
-    def test_assign_while_else(self):
+    def test_assign_while_else(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3295,7 +3295,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(False), "abc")
 
-    def test_assign_while_else_2(self):
+    def test_assign_while_else_2(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3320,7 +3320,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(False), 42)
 
-    def test_assign_try_except_no_initial(self):
+    def test_assign_try_except_no_initial(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3344,7 +3344,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), "abc")
 
-    def test_narrow_or(self):
+    def test_narrow_or(self) -> None:
         codestr = """
             def f(x: int | None) -> int:
                 if x is None or x > 1:
@@ -3353,14 +3353,14 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_type_of_or(self):
+    def test_type_of_or(self) -> None:
         codestr = """
             def f(x: int, y: str) -> int | str:
                 return x or y
         """
         self.compile(codestr)
 
-    def test_none_annotation(self):
+    def test_none_annotation(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -3373,7 +3373,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_and_in_return(self):
+    def test_and_in_return(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -3386,7 +3386,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_none_compare(self):
+    def test_none_compare(self) -> None:
         codestr = """
             def f(x: int | None):
                 if x > 1:
@@ -3399,7 +3399,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_none_compare_reverse(self):
+    def test_none_compare_reverse(self) -> None:
         codestr = """
             def f(x: int | None):
                 if 1 > x:
@@ -3412,7 +3412,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_global_int(self):
+    def test_global_int(self) -> None:
         codestr = """
             X: int =  60 * 60 * 24
         """
@@ -3421,7 +3421,7 @@ class StaticCompilationTests(StaticTestBase):
             X = mod.X
             self.assertEqual(X, 60 * 60 * 24)
 
-    def test_with_traceback(self):
+    def test_with_traceback(self) -> None:
         codestr = """
             def f():
                 x = Exception()
@@ -3437,7 +3437,7 @@ class StaticCompilationTests(StaticTestBase):
                 ((("builtins", "BaseException"), "with_traceback"), 2),
             )
 
-    def test_assign_num_to_object(self):
+    def test_assign_num_to_object(self) -> None:
         codestr = """
             def f():
                 x: object = 42
@@ -3447,7 +3447,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.f
             self.assertNotInBytecode(f, "CAST", ("builtins", "object"))
 
-    def test_assign_num_to_dynamic(self):
+    def test_assign_num_to_dynamic(self) -> None:
         codestr = """
             def foo():
                 return 3
@@ -3460,7 +3460,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.f
             self.assertNotInBytecode(f, "CAST", ("builtins", "object"))
 
-    def test_assign_dynamic_to_object(self):
+    def test_assign_dynamic_to_object(self) -> None:
         codestr = """
             def f(C):
                 x: object = C()
@@ -3470,7 +3470,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.f
             self.assertNotInBytecode(f, "CAST", ("builtins", "object"))
 
-    def test_assign_dynamic_to_dynamic(self):
+    def test_assign_dynamic_to_dynamic(self) -> None:
         codestr = """
             def unknown():
                 return 3
@@ -3483,7 +3483,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.f
             self.assertNotInBytecode(f, "CAST", ("builtins", "object"))
 
-    def test_assign_constant_to_object(self):
+    def test_assign_constant_to_object(self) -> None:
         codestr = """
             def f():
                 x: object = 42 + 1
@@ -3493,7 +3493,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.f
             self.assertNotInBytecode(f, "CAST", ("builtins", "object"))
 
-    def test_assign_try_except_typing(self):
+    def test_assign_try_except_typing(self) -> None:
         codestr = """
             def testfunc():
                 try:
@@ -3506,7 +3506,7 @@ class StaticCompilationTests(StaticTestBase):
         # We don't do anything special w/ Exception type yet, but it should compile
         self.compile(codestr, modname="foo")
 
-    def test_assign_try_except_typing_predeclared(self):
+    def test_assign_try_except_typing_predeclared(self) -> None:
         codestr = """
             def testfunc():
                 e: Exception
@@ -3519,7 +3519,7 @@ class StaticCompilationTests(StaticTestBase):
         # We don't do anything special w/ Exception type yet, but it should compile
         self.compile(codestr, modname="foo")
 
-    def test_assign_try_except_typing_narrowed(self):
+    def test_assign_try_except_typing_narrowed(self) -> None:
         codestr = """
             class E(Exception):
                 pass
@@ -3535,7 +3535,7 @@ class StaticCompilationTests(StaticTestBase):
         # We don't do anything special w/ Exception type yet, but it should compile
         self.compile(codestr, modname="foo")
 
-    def test_assign_try_except_typing_redeclared_after(self):
+    def test_assign_try_except_typing_redeclared_after(self) -> None:
         codestr = """
             def testfunc():
                 try:
@@ -3548,7 +3548,7 @@ class StaticCompilationTests(StaticTestBase):
         # We don't do anything special w/ Exception type yet, but it should compile
         self.compile(codestr, modname="foo")
 
-    def test_assign_try_except_redeclare(self):
+    def test_assign_try_except_redeclare(self) -> None:
         codestr = """
             def testfunc():
                 e: int
@@ -3561,7 +3561,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_assign_try_except_redeclare_unknown_type(self):
+    def test_assign_try_except_redeclare_unknown_type(self) -> None:
         codestr = """
             def testfunc(unknown_exception):
                 e: int
@@ -3574,7 +3574,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_assign_try_assign_in_except(self):
+    def test_assign_try_assign_in_except(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3599,7 +3599,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), "abc")
 
-    def test_assign_try_assign_in_second_except(self):
+    def test_assign_try_assign_in_second_except(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3626,7 +3626,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), "abc")
 
-    def test_assign_try_assign_in_except_with_var(self):
+    def test_assign_try_assign_in_except_with_var(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3651,7 +3651,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), "abc")
 
-    def test_try_except_finally(self):
+    def test_try_except_finally(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3678,7 +3678,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), 42)
 
-    def test_assign_try_assign_in_try(self):
+    def test_assign_try_assign_in_try(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3703,7 +3703,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), 42)
 
-    def test_assign_try_assign_in_finally(self):
+    def test_assign_try_assign_in_finally(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3728,7 +3728,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), 42)
 
-    def test_assign_try_assign_in_else(self):
+    def test_assign_try_assign_in_else(self) -> None:
         codestr = """
             class B:
                 def f(self):
@@ -3755,7 +3755,7 @@ class StaticCompilationTests(StaticTestBase):
             test = mod.testfunc
             self.assertEqual(test(), 42)
 
-    def test_if_optional_reassign(self):
+    def test_if_optional_reassign(self) -> None:
         codestr = """
         from typing import Optional
         class C: pass
@@ -3766,7 +3766,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_unknown_imported_annotation(self):
+    def test_unknown_imported_annotation(self) -> None:
         codestr = """
             from unknown_mod import foo
 
@@ -3776,7 +3776,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_if_optional_cond(self):
+    def test_if_optional_cond(self) -> None:
         codestr = """
             from typing import Optional
             class C:
@@ -3789,7 +3789,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_while_optional_cond(self):
+    def test_while_optional_cond(self) -> None:
         codestr = """
             from typing import Optional
             class C:
@@ -3805,7 +3805,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_if_optional_dependent_conditions(self):
+    def test_if_optional_dependent_conditions(self) -> None:
         codestr = """
             from typing import Optional
             class C:
@@ -3824,7 +3824,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr, modname="foo")
 
-    def test_none_attribute_error(self):
+    def test_none_attribute_error(self) -> None:
         codestr = """
             def f():
                 x = None
@@ -3836,7 +3836,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_none_call(self):
+    def test_none_call(self) -> None:
         codestr = """
             def f():
                 x = None
@@ -3848,7 +3848,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_none_subscript(self):
+    def test_none_subscript(self) -> None:
         codestr = """
             def f():
                 x = None
@@ -3860,7 +3860,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_none_unaryop(self):
+    def test_none_unaryop(self) -> None:
         codestr = """
             def f():
                 x = None
@@ -3872,7 +3872,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_assign_type_propagation(self):
+    def test_assign_type_propagation(self) -> None:
         codestr = """
             def test() -> int:
                 x = 5
@@ -3880,7 +3880,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_assign_subtype_handling(self):
+    def test_assign_subtype_handling(self) -> None:
         codestr = """
             class B: pass
             class D(B): pass
@@ -3892,7 +3892,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_assign_subtype_handling_fail(self):
+    def test_assign_subtype_handling_fail(self) -> None:
         codestr = """
             class B: pass
             class D(B): pass
@@ -3904,7 +3904,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaisesRegex(TypedSyntaxError, type_mismatch("foo.B", "foo.D")):
             self.compile(codestr, modname="foo")
 
-    def test_assign_chained(self):
+    def test_assign_chained(self) -> None:
         codestr = """
             def test() -> str:
                 x: str = "hi"
@@ -3913,7 +3913,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_assign_chained_failure_wrong_target_type(self):
+    def test_assign_chained_failure_wrong_target_type(self) -> None:
         codestr = """
             def test() -> str:
                 x: int = 1
@@ -3923,7 +3923,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaisesRegex(TypedSyntaxError, type_mismatch("str", "int")):
             self.compile(codestr, modname="foo")
 
-    def test_load_uninit_module(self):
+    def test_load_uninit_module(self) -> None:
         """verify we don't crash if we receive a module w/o a dictionary"""
         codestr = """
         from typing import Optional
@@ -3944,7 +3944,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.assertRaisesRegex(AttributeError, r"module has no attribute 'C'"):
                 C()
 
-    def test_module_subclass(self):
+    def test_module_subclass(self) -> None:
         codestr = """
         from typing import Optional
         class C:
@@ -3964,7 +3964,7 @@ class StaticCompilationTests(StaticTestBase):
             c = C()
             self.assertEqual(c.x, None)
 
-    def test_invoke_and_raise_shadow_frame_strictmod(self):
+    def test_invoke_and_raise_shadow_frame_strictmod(self) -> None:
         codestr = """
         from __static__.compiler_flags import shadow_frame
 
@@ -3986,7 +3986,7 @@ class StaticCompilationTests(StaticTestBase):
                 (((mod.__name__,), "x"), 0),
             )
 
-    def test_override_okay(self):
+    def test_override_okay(self) -> None:
         codestr = """
         class B:
             def f(self) -> "B":
@@ -4005,7 +4005,7 @@ class StaticCompilationTests(StaticTestBase):
 
             f(D())
 
-    def test_override_override_inherited(self):
+    def test_override_override_inherited(self) -> None:
         codestr = """
         from typing import Optional
         class B:
@@ -4032,7 +4032,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(f(b), b)
             self.assertEqual(f(d), None)
 
-    def test_override_bad_ret(self):
+    def test_override_bad_ret(self) -> None:
         codestr = """
         class B:
             def f(self) -> "B":
@@ -4054,7 +4054,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f(D())
 
-    def test_dynamic_base(self):
+    def test_dynamic_base(self) -> None:
         nonstatic_code = """
             class Foo:
                 pass
@@ -4089,7 +4089,7 @@ class StaticCompilationTests(StaticTestBase):
                 a.__dict__["f"] = lambda: 42
                 self.assertEqual(f(a), 42)
 
-    def test_method_prologue(self):
+    def test_method_prologue(self) -> None:
         codestr = """
         def f(x: str):
             return 42
@@ -4102,7 +4102,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f(42)
 
-    def test_method_prologue_2(self):
+    def test_method_prologue_2(self) -> None:
         codestr = """
         def f(x, y: str):
             return 42
@@ -4115,7 +4115,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f("abc", 42)
 
-    def test_method_prologue_3(self):
+    def test_method_prologue_3(self) -> None:
         codestr = """
         def f(x: int, y: str):
             return 42
@@ -4131,7 +4131,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f(42, 42)
 
-    def test_method_prologue_posonly(self):
+    def test_method_prologue_posonly(self) -> None:
         codestr = """
         def f(x: int, /, y: str):
             return 42
@@ -4147,7 +4147,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f(42, 42)
 
-    def test_method_prologue_shadowcode(self):
+    def test_method_prologue_shadowcode(self) -> None:
         codestr = """
         def f(x, y: str):
             return 42
@@ -4162,7 +4162,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f("abc", 42)
 
-    def test_method_prologue_shadowcode_2(self):
+    def test_method_prologue_shadowcode_2(self) -> None:
         codestr = """
         def f(x: str):
             return 42
@@ -4177,7 +4177,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f(42)
 
-    def test_method_prologue_no_annotation(self):
+    def test_method_prologue_no_annotation(self) -> None:
         codestr = """
         def f(x):
             return 42
@@ -4187,7 +4187,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(self.get_arg_check_types(f), ())
             self.assertEqual(f("abc"), 42)
 
-    def test_method_prologue_kwonly(self):
+    def test_method_prologue_kwonly(self) -> None:
         codestr = """
         def f(*, x: str):
             return 42
@@ -4200,7 +4200,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f(x=42)
 
-    def test_method_prologue_kwonly_2(self):
+    def test_method_prologue_kwonly_2(self) -> None:
         codestr = """
         def f(x, *, y: str):
             return 42
@@ -4213,7 +4213,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f(1, y=object())
 
-    def test_method_prologue_kwonly_3(self):
+    def test_method_prologue_kwonly_3(self) -> None:
         codestr = """
         def f(x, *, y: str, z=1):
             return 42
@@ -4226,7 +4226,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f(1, y=object())
 
-    def test_method_prologue_kwonly_4(self):
+    def test_method_prologue_kwonly_4(self) -> None:
         codestr = """
         def f(x, *, y: str, **rest):
             return 42
@@ -4239,7 +4239,7 @@ class StaticCompilationTests(StaticTestBase):
             ):
                 f(1, y=object(), z=2)
 
-    def test_method_prologue_kwonly_no_annotation(self):
+    def test_method_prologue_kwonly_no_annotation(self) -> None:
         codestr = """
         def f(*, x):
             return 42
@@ -4249,7 +4249,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(self.get_arg_check_types(f), ())
             f(x=42)
 
-    def test_package_no_parent(self):
+    def test_package_no_parent(self) -> None:
         codestr = """
             class C:
                 def f(self):
@@ -4262,7 +4262,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(C().f(), 42)
 
-    def test_direct_super_init(self):
+    def test_direct_super_init(self) -> None:
         codestr = """
             class Obj:
                 pass
@@ -4281,7 +4281,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_class_unknown_attr(self):
+    def test_class_unknown_attr(self) -> None:
         codestr = """
             class C:
                 pass
@@ -4293,7 +4293,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.f
             self.assertInBytecode(f, "LOAD_ATTR", "foo")
 
-    def test_class_unknown_decorator(self):
+    def test_class_unknown_decorator(self) -> None:
         codestr = """
             def dec(f):
                 return f
@@ -4310,7 +4310,7 @@ class StaticCompilationTests(StaticTestBase):
             C = mod.C
             self.assertEqual(C().f(), 3)
 
-    def test_descriptor_access(self):
+    def test_descriptor_access(self) -> None:
         codestr = """
             class Obj:
                 abc: int
@@ -4327,14 +4327,14 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(f, "LOAD_FIELD")
 
     @skipIf(not path.exists(RICHARDS_PATH), "richards not found")
-    def test_richards(self):
+    def test_richards(self) -> None:
         with open(RICHARDS_PATH) as f:
             codestr = f.read()
         with self.in_module(codestr) as mod:
             Richards = mod.Richards
             self.assertTrue(Richards().run(1))
 
-    def test_unknown_isinstance_bool_ret(self):
+    def test_unknown_isinstance_bool_ret(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4352,7 +4352,7 @@ class StaticCompilationTests(StaticTestBase):
             y = C("foo")
             self.assertTrue(x == y)
 
-    def test_unknown_issubclass_bool_ret(self):
+    def test_unknown_issubclass_bool_ret(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4370,7 +4370,7 @@ class StaticCompilationTests(StaticTestBase):
             y = C("foo")
             self.assertTrue(x == y)
 
-    def test_unknown_isinstance_narrows(self):
+    def test_unknown_isinstance_narrows(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4386,7 +4386,7 @@ class StaticCompilationTests(StaticTestBase):
             testfunc = mod.testfunc
             self.assertInBytecode(testfunc, "LOAD_FIELD", ((mod.__name__, "C"), "x"))
 
-    def test_unknown_isinstance_narrows_class_attr(self):
+    def test_unknown_isinstance_narrows_class_attr(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4407,7 +4407,7 @@ class StaticCompilationTests(StaticTestBase):
                 ((mod.__name__, "C"), "x"),
             )
 
-    def test_unknown_isinstance_narrows_class_attr_dynamic(self):
+    def test_unknown_isinstance_narrows_class_attr_dynamic(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4424,7 +4424,7 @@ class StaticCompilationTests(StaticTestBase):
             C = mod.C
             self.assertInBytecode(C.f, "LOAD_ATTR", "x")
 
-    def test_unknown_isinstance_narrows_else_correct(self):
+    def test_unknown_isinstance_narrows_else_correct(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4442,7 +4442,7 @@ class StaticCompilationTests(StaticTestBase):
             testfunc = mod.testfunc
             self.assertNotInBytecode(testfunc, "LOAD_FIELD", ((mod.__name__, "C"), "x"))
 
-    def test_narrow_while_break(self):
+    def test_narrow_while_break(self) -> None:
         codestr = """
             from typing import Optional
             def f(x: Optional[int]) -> int:
@@ -4456,7 +4456,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_narrow_while_if_break_else_return(self):
+    def test_narrow_while_if_break_else_return(self) -> None:
         codestr = """
             from typing import Optional
             def f(x: Optional[int], y: int) -> int:
@@ -4473,7 +4473,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_narrow_while_break_if(self):
+    def test_narrow_while_break_if(self) -> None:
         codestr = """
             from typing import Optional
             def f(x: Optional[int]) -> int:
@@ -4485,7 +4485,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_narrow_while_continue_if(self):
+    def test_narrow_while_continue_if(self) -> None:
         codestr = """
             from typing import Optional
             def f(x: Optional[int]) -> int:
@@ -4496,7 +4496,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_unknown_param_ann(self):
+    def test_unknown_param_ann(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4516,7 +4516,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertNotEqual(x, x)
 
-    def test_ret_type_cast(self):
+    def test_ret_type_cast(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4528,7 +4528,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(f("abc", "abc"), True)
             self.assertInBytecode(f, "CAST", ("builtins", "bool", "!"))
 
-    def test_bool_int(self):
+    def test_bool_int(self) -> None:
         codestr = """
             def f():
                 x: int = True
@@ -4536,7 +4536,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_bind_boolop_type(self):
+    def test_bind_boolop_type(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4559,7 +4559,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(c.x(), False)
             self.assertEqual(c.y(), True)
 
-    def test_bind_none_compare_op(self):
+    def test_bind_none_compare_op(self) -> None:
         codestr = """
             from typing import Any
 
@@ -4582,7 +4582,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertTrue(has_no_none([1, 2, 3]))
             self.assertNotInBytecode(has_no_none, "CAST")
 
-    def test_visit_if_else(self):
+    def test_visit_if_else(self) -> None:
         codestr = """
             x = 0
             if x:
@@ -4593,7 +4593,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(), 42)
 
-    def test_decorated_function_ignored_class(self):
+    def test_decorated_function_ignored_class(self) -> None:
         codestr = """
             class C:
                 @property
@@ -4609,7 +4609,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(C.y, "INVOKE_METHOD")
             self.assertEqual(C().y(), 42)
 
-    def test_decorated_function_ignored(self):
+    def test_decorated_function_ignored(self) -> None:
         codestr = """
             class C: pass
 
@@ -4630,7 +4630,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(g, "INVOKE_FUNCTION")
             self.assertEqual(type(g()), C)
 
-    def test_static_function_invoke(self):
+    def test_static_function_invoke(self) -> None:
         codestr = """
             class C:
                 @staticmethod
@@ -4645,7 +4645,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_FUNCTION", (((mod.__name__, "C"), "f"), 0))
             self.assertEqual(f(), 42)
 
-    def test_static_function_invoke_on_instance(self):
+    def test_static_function_invoke_on_instance(self) -> None:
         codestr = """
             class C:
                 @staticmethod
@@ -4664,7 +4664,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(f(), 42)
 
-    def test_static_function_override(self):
+    def test_static_function_override(self) -> None:
         codestr = """
             class A:
                 @staticmethod
@@ -4687,7 +4687,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(), 0)
 
-    def test_static_function_final_class(self):
+    def test_static_function_final_class(self) -> None:
         codestr = """
             from typing import final
 
@@ -4708,7 +4708,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(), 42)
 
-    def test_static_function_incompat_override(self):
+    def test_static_function_incompat_override(self) -> None:
         codestr = """
             class A:
                 @staticmethod
@@ -4727,7 +4727,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_static_function_incompat_override_arg(self):
+    def test_static_function_incompat_override_arg(self) -> None:
         codestr = """
             class A:
                 @staticmethod
@@ -4746,7 +4746,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_spamobj_no_params(self):
+    def test_spamobj_no_params(self) -> None:
         codestr = """
             from xxclassloader import spamobj
 
@@ -4760,7 +4760,7 @@ class StaticCompilationTests(StaticTestBase):
             self.compile(codestr, modname="foo")
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_spamobj_error(self):
+    def test_spamobj_error(self) -> None:
         codestr = """
             from xxclassloader import spamobj
 
@@ -4774,7 +4774,7 @@ class StaticCompilationTests(StaticTestBase):
                 f()
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_spamobj_no_error(self):
+    def test_spamobj_no_error(self) -> None:
         codestr = """
             from xxclassloader import spamobj
 
@@ -4787,7 +4787,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(f(), None)
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_generic_type_box_box(self):
+    def test_generic_type_box_box(self) -> None:
         codestr = """
             from xxclassloader import spamobj
 
@@ -4802,7 +4802,7 @@ class StaticCompilationTests(StaticTestBase):
             self.compile(codestr)
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_generic_type(self):
+    def test_generic_type(self) -> None:
         codestr = """
             from xxclassloader import spamobj
             from __static__ import box
@@ -4834,7 +4834,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(test(), ("abc", 42))
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_ret_void(self):
+    def test_ret_void(self) -> None:
         codestr = """
             from xxclassloader import spamobj
             from __static__ import box
@@ -4865,7 +4865,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(test(), None)
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_check_override_typed_builtin_method(self):
+    def test_check_override_typed_builtin_method(self) -> None:
         codestr = """
             from xxclassloader import spamobj
 
@@ -4879,7 +4879,7 @@ class StaticCompilationTests(StaticTestBase):
             r"Parameter  of type `int` is not a supertype of the overridden parameter `str`",
         )
 
-    def test_assign_module_global(self):
+    def test_assign_module_global(self) -> None:
         codestr = """
             x: int = 1
 
@@ -4890,7 +4890,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaisesRegex(TypedSyntaxError, type_mismatch("str", "int")):
             self.compile(codestr)
 
-    def test_inferred_module_global_assign_subclass(self):
+    def test_inferred_module_global_assign_subclass(self) -> None:
         codestr = """
             class MyList(list):
                 pass
@@ -4909,7 +4909,7 @@ class StaticCompilationTests(StaticTestBase):
             y = MyList()
             self.assertIs(f(y), y)
 
-    def test_named_tuple(self):
+    def test_named_tuple(self) -> None:
         codestr = """
             from typing import NamedTuple
 
@@ -4924,7 +4924,7 @@ class StaticCompilationTests(StaticTestBase):
             f = mod.myfunc
             self.assertNotInBytecode(f, "LOAD_FIELD")
 
-    def test_bare_typing_namedtuple(self):
+    def test_bare_typing_namedtuple(self) -> None:
         # Regression test for an error when using typing.NamedTuple directly as
         # an annotation (T186572841).
         codestr = """
@@ -4944,7 +4944,7 @@ class StaticCompilationTests(StaticTestBase):
             pass
 
     @skip("Check for Protocol temporarily reverted until CI issues are fixed")
-    def test_protocol(self):
+    def test_protocol(self) -> None:
         # Regression test for an error when inheriting from protocol
         codestr = """
             from typing import Protocol, Callable, final
@@ -4967,7 +4967,7 @@ class StaticCompilationTests(StaticTestBase):
             pass
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_generic_type_error(self):
+    def test_generic_type_error(self) -> None:
         codestr = """
             from xxclassloader import spamobj
 
@@ -4982,7 +4982,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_generic_optional_type_param(self):
+    def test_generic_optional_type_param(self) -> None:
         codestr = """
             from xxclassloader import spamobj
 
@@ -4993,7 +4993,7 @@ class StaticCompilationTests(StaticTestBase):
 
         self.compile(codestr)
 
-    def test_generic_optional_type_param_2(self):
+    def test_generic_optional_type_param_2(self) -> None:
         codestr = """
             from xxclassloader import spamobj
 
@@ -5005,7 +5005,7 @@ class StaticCompilationTests(StaticTestBase):
         self.compile(codestr)
 
     @skipIf(sys.version_info >= (3, 12), "No typed methods T190615686")
-    def test_generic_optional_type_param_error(self):
+    def test_generic_optional_type_param_error(self) -> None:
         codestr = """
             from xxclassloader import spamobj
 
@@ -5020,7 +5020,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_async_method_override(self):
+    def test_async_method_override(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -5045,7 +5045,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 asyncio.run(mod.f(d))
 
-    def test_async_method_override_narrowing(self):
+    def test_async_method_override_narrowing(self) -> None:
         codestr = """
             class Num(int):
                 pass
@@ -5067,7 +5067,7 @@ class StaticCompilationTests(StaticTestBase):
                 self.assertIsInstance(res, mod.Num)
                 self.assertEqual(res, 0)
 
-    def test_async_method_override_widening(self):
+    def test_async_method_override_widening(self) -> None:
         codestr = """
             from typing import Optional
 
@@ -5086,7 +5086,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_async_method_override_future_correct_type(self):
+    def test_async_method_override_future_correct_type(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -5112,7 +5112,7 @@ class StaticCompilationTests(StaticTestBase):
                     self.assertEqual(e.args[0], 100)
             loop.close()
 
-    def test_async_method_override_future_incorrect_type(self):
+    def test_async_method_override_future_incorrect_type(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -5135,7 +5135,7 @@ class StaticCompilationTests(StaticTestBase):
                 d.g().send(None)
             loop.close()
 
-    def test_async_method_immediate_await(self):
+    def test_async_method_immediate_await(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> bool:
@@ -5155,7 +5155,7 @@ class StaticCompilationTests(StaticTestBase):
             d = D()
             self.assertEqual(asyncio.run(mod.f(d)), 1)
 
-    def test_async_method_immediate_await_incorrect_type(self):
+    def test_async_method_immediate_await_incorrect_type(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> bool:
@@ -5176,7 +5176,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 asyncio.run(mod.f(d))
 
-    def test_async_method_incorrect_type(self):
+    def test_async_method_incorrect_type(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -5198,7 +5198,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 asyncio.run(mod.f(d))
 
-    def test_async_method_incorrect_type_suspended(self):
+    def test_async_method_incorrect_type_suspended(self) -> None:
         codestr = """
             import asyncio
 
@@ -5220,7 +5220,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 asyncio.run(mod.f(d))
 
-    def test_async_method_throw_exception(self):
+    def test_async_method_throw_exception(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -5240,7 +5240,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.assertRaises(IndexError):
                 coro.send(None)
 
-    def test_async_method_throw(self):
+    def test_async_method_throw(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -5264,7 +5264,7 @@ class StaticCompilationTests(StaticTestBase):
                 self.assertEqual(e.__cause__.args[0], 100)
             loop.close()
 
-    def test_async_method_throw_incorrect_type(self):
+    def test_async_method_throw_incorrect_type(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -5286,7 +5286,7 @@ class StaticCompilationTests(StaticTestBase):
                 coro.send(None)
             loop.close()
 
-    def test_async_method_close(self):
+    def test_async_method_close(self) -> None:
         codestr = """
             class C:
                 async def f(self) -> int:
@@ -5308,7 +5308,7 @@ class StaticCompilationTests(StaticTestBase):
             except StopIteration as e:
                 self.assertEqual(e.args, ())
 
-    def test_invoke_frozen_type(self):
+    def test_invoke_frozen_type(self) -> None:
         codestr = """
             class C:
                 @staticmethod
@@ -5323,7 +5323,7 @@ class StaticCompilationTests(StaticTestBase):
             for _ in range(100):
                 self.assertEqual(g(), 42)
 
-    def test_invoke_strict_module(self):
+    def test_invoke_strict_module(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -5337,7 +5337,7 @@ class StaticCompilationTests(StaticTestBase):
                 self.assertEqual(g(), 42)
             self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 0))
 
-    def test_cast_optional_nonexact_type(self):
+    def test_cast_optional_nonexact_type(self) -> None:
         codestr = """
             def f(x):
                 a: str | None = x
@@ -5349,7 +5349,7 @@ class StaticCompilationTests(StaticTestBase):
             for i in range(100):
                 self.assertEqual(f("AA" if i % 2 == 0 else None), 0)
 
-    def test_cast_exact_shadowcode(self):
+    def test_cast_exact_shadowcode(self) -> None:
         codestr = """
             from typing import Annotated
             def f(x) -> int:
@@ -5362,7 +5362,7 @@ class StaticCompilationTests(StaticTestBase):
             for i in range(100):
                 self.assertEqual(f(i), i)
 
-    def test_cast_optional_exact_shadowcode(self):
+    def test_cast_optional_exact_shadowcode(self) -> None:
         codestr = """
             from typing import Annotated
             def f(x) -> int | None:
@@ -5376,7 +5376,7 @@ class StaticCompilationTests(StaticTestBase):
                 x = i if i % 2 == 0 else None
                 self.assertEqual(f(x), x)
 
-    def test_invoke_with_cell(self):
+    def test_invoke_with_cell(self) -> None:
         codestr = """
             def f(l: list):
                 x = 2
@@ -5390,7 +5390,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(g(), [3, 4, 5])
             self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 1))
 
-    def test_invoke_with_cell_arg(self):
+    def test_invoke_with_cell_arg(self) -> None:
         codestr = """
             def f(l: list, x: int):
                 return [x + y for y in l]
@@ -5403,7 +5403,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertEqual(g(), [3, 4, 5])
             self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f"), 2))
 
-    def test_invoke_all_reg_args(self):
+    def test_invoke_all_reg_args(self) -> None:
         codestr = """
             def target(a, b, c, d, e, f):
                 return a * 2 + b * 3 + c * 4 + d * 5 + e * 6 + f * 7
@@ -5420,7 +5420,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(f(), 112)
 
-    def test_invoke_all_extra_args(self):
+    def test_invoke_all_extra_args(self) -> None:
         codestr = """
             def target(a, b, c, d, e, f, g):
                 return a * 2 + b * 3 + c * 4 + d * 5 + e * 6 + f * 7 + g
@@ -5437,7 +5437,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(f(), 119)
 
-    def test_invoke_strict_module_deep(self):
+    def test_invoke_strict_module_deep(self) -> None:
         codestr = """
             def f0(): return 42
             def f1(): return f0()
@@ -5462,7 +5462,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(g, "INVOKE_FUNCTION", (((mod.__name__,), "f11"), 0))
 
     @disable_hir_inliner
-    def test_invoke_strict_module_deep_unjitable(self):
+    def test_invoke_strict_module_deep_unjitable(self) -> None:
         codestr = "def f101(): return 42\n"
         codestr += "def f100(): locals() ; return f101()\n"
 
@@ -5486,7 +5486,7 @@ class StaticCompilationTests(StaticTestBase):
                 (((mod.__name__,), "f0"), 0),
             )
 
-    def test_invoke_strict_module_deep_unjitable_many_args(self):
+    def test_invoke_strict_module_deep_unjitable_many_args(self) -> None:
         codestr = """
             def f0(): return 42
             X = 42
@@ -5520,7 +5520,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assert_not_jitted(f1)
 
-    def test_invoke_strict_module_recursive(self):
+    def test_invoke_strict_module_recursive(self) -> None:
         codestr = """
             def fib(number):
                 if number <= 1:
@@ -5536,7 +5536,7 @@ class StaticCompilationTests(StaticTestBase):
             )
             self.assertEqual(fib(4), 3)
 
-    def test_invoke_strict_module_mutual_recursive(self):
+    def test_invoke_strict_module_mutual_recursive(self) -> None:
         codestr = """
             def fib1(number):
                 if number <= 1:
@@ -5565,7 +5565,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assert_jitted(fib1)
             self.assertEqual(fib(4), 3)
 
-    def test_invoke_strict_module_pre_invoked(self):
+    def test_invoke_strict_module_pre_invoked(self) -> None:
         codestr = """
             def f():
                 return 42
@@ -5585,7 +5585,7 @@ class StaticCompilationTests(StaticTestBase):
             )
 
     @skip_unless_jit("runs subprocess with JIT")
-    def test_invoke_recursive_compile_respects_jitlist(self):
+    def test_invoke_recursive_compile_respects_jitlist(self) -> None:
         with TemporaryDirectory() as d:
             d = Path(d)
             jitlist = d / "jitlist.txt"
@@ -5631,7 +5631,7 @@ class StaticCompilationTests(StaticTestBase):
             proc = subprocess.run(cmd, capture_output=True, cwd=str(d))
             self.assertEqual(proc.returncode, 0, proc.stderr)
 
-    def test_module_level_final_decl(self):
+    def test_module_level_final_decl(self) -> None:
         codestr = """
         from typing import Final
 
@@ -5642,7 +5642,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_frozenset_constant(self):
+    def test_frozenset_constant(self) -> None:
         codestr = """
         from __static__ import inline
 
@@ -5655,7 +5655,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_exact_float_type(self):
+    def test_exact_float_type(self) -> None:
         codestr = """
         def foo():
             f = float("1.0")
@@ -5667,35 +5667,35 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_default_type_error(self):
+    def test_default_type_error(self) -> None:
         codestr = """
         def foo(x: int = "") -> int:
             return x
         """
         self.type_error(codestr, r"type mismatch: str cannot be assigned to int")
 
-    def test_default_type_error_with_non_defaults(self):
+    def test_default_type_error_with_non_defaults(self) -> None:
         codestr = """
         def foo(non_default: int, x: int = "") -> int:
             return non_default + x
         """
         self.type_error(codestr, r"type mismatch: str cannot be assigned to int")
 
-    def test_default_type_error_with_positional_only_arguments(self):
+    def test_default_type_error_with_positional_only_arguments(self) -> None:
         codestr = """
         def foo(x: int = "", /) -> int:
             return x
         """
         self.type_error(codestr, r"type mismatch: str cannot be assigned to int")
 
-    def test_default_type_error_with_keywords(self):
+    def test_default_type_error_with_keywords(self) -> None:
         codestr = """
         def foo(x: int, *, y: int, z: int = "") -> int:
             return x + y + z
         """
         self.type_error(codestr, r"type mismatch: str cannot be assigned to int")
 
-    def test_slotification_decorated(self):
+    def test_slotification_decorated(self) -> None:
         codestr = """
             class _Inner():
                 pass
@@ -5716,7 +5716,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(f, "INVOKE_FUNCTION")
             self.assertNotInBytecode(f, "INVOKE_METHOD")
 
-    def test_inline_func(self):
+    def test_inline_func(self) -> None:
         codestr = """
             from __static__ import inline
 
@@ -5743,7 +5743,7 @@ class StaticCompilationTests(StaticTestBase):
                         )
                     self.assertEqual(g(), 3)
 
-    def test_inline_kwarg(self):
+    def test_inline_kwarg(self) -> None:
         codestr = """
             from __static__ import inline
 
@@ -5759,7 +5759,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(g, self.CALL)
             self.assertEqual(g(), 3)
 
-    def test_inline_bare_return(self):
+    def test_inline_bare_return(self) -> None:
         codestr = """
             from __static__ import inline
 
@@ -5775,7 +5775,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(g, self.CALL)
             self.assertEqual(g(), None)
 
-    def test_inline_final(self):
+    def test_inline_final(self) -> None:
         codestr = """
             from __static__ import inline
             from typing import Final
@@ -5794,7 +5794,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(g, self.CALL)
             self.assertEqual(g(), 43)
 
-    def test_inline_nested(self):
+    def test_inline_nested(self) -> None:
         codestr = """
             from __static__ import inline
 
@@ -5814,7 +5814,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(g, self.CALL)
             self.assertEqual(g(), 4)
 
-    def test_inline_nested_arg(self):
+    def test_inline_nested_arg(self) -> None:
         codestr = """
             from __static__ import inline
 
@@ -5835,7 +5835,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertBinOpInBytecode(g, "BINARY_ADD")
             self.assertEqual(g(1, 2), 4)
 
-    def test_inline_recursive(self):
+    def test_inline_recursive(self) -> None:
         codestr = """
             from __static__ import inline
 
@@ -5850,7 +5850,7 @@ class StaticCompilationTests(StaticTestBase):
             g = mod.g
             self.assertInBytecode(g, "INVOKE_FUNCTION", ((((mod.__name__,), "f"), 2)))
 
-    def test_inline_func_default(self):
+    def test_inline_func_default(self) -> None:
         codestr = """
             from __static__ import inline
 
@@ -5867,7 +5867,7 @@ class StaticCompilationTests(StaticTestBase):
 
             self.assertEqual(g(), 3)
 
-    def test_inline_arg_type(self):
+    def test_inline_arg_type(self) -> None:
         codestr = """
             from __static__ import box, inline, int64, int32
 
@@ -5883,7 +5883,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertInBytecode(g, "PRIMITIVE_BOX")
             self.assertEqual(g(3), 3)
 
-    def test_inline_arg_type_mismatch(self):
+    def test_inline_arg_type_mismatch(self) -> None:
         codestr = """
             from __static__ import inline
 
@@ -5899,7 +5899,7 @@ class StaticCompilationTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_inline_return_type_mismatch(self):
+    def test_inline_return_type_mismatch(self) -> None:
         codestr = """
             from __static__ import inline
 
@@ -5913,14 +5913,14 @@ class StaticCompilationTests(StaticTestBase):
         with self.assertRaisesRegex(TypedSyntaxError, bad_ret_type("int", "str")):
             self.compile(codestr)
 
-    def test_type_type_final(self):
+    def test_type_type_final(self) -> None:
         codestr = """
         class A(type):
             pass
         """
         self.compile(codestr)
 
-    def test_inlined_nodes_have_line_info(self):
+    def test_inlined_nodes_have_line_info(self) -> None:
         self.type_error(
             """
             from __static__ import int64, cbool, inline
@@ -5936,7 +5936,7 @@ class StaticCompilationTests(StaticTestBase):
             at="i ==",
         )
 
-    def test_compare_with_attr(self):
+    def test_compare_with_attr(self) -> None:
         codestr = """
         from __static__ import cbool
 
@@ -5952,7 +5952,7 @@ class StaticCompilationTests(StaticTestBase):
             c = C()
             self.assertEqual(c.f(), 2)
 
-    def test_chained_compare(self):
+    def test_chained_compare(self) -> None:
         for jumpif in [False, True]:
             with self.subTest(jumpif=jumpif):
                 if jumpif:
@@ -5975,7 +5975,7 @@ class StaticCompilationTests(StaticTestBase):
                     self.assertEqual(f(9), 1)
                     self.assertEqual(f(10), 0)
 
-    def test_compile_nested_class(self):
+    def test_compile_nested_class(self) -> None:
         codestr = """
             from typing import ClassVar
             class Outer:
@@ -5996,7 +5996,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         self.compile(codestr)
 
-    def test_except_inexact(self):
+    def test_except_inexact(self) -> None:
         codestr = """
         def f(unknown_exception):
             try:
@@ -6008,7 +6008,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(type(mod.f(SyntaxError)), SyntaxError)
 
-    def test_compile_nested_class_in_fn(self):
+    def test_compile_nested_class_in_fn(self) -> None:
         codestr = """
 
         def fn():
@@ -6023,7 +6023,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(f, "TP_ALLOC")
             self.assertEqual(f().c, 1)
 
-    def test_nested_comprehension_compiles(self):
+    def test_nested_comprehension_compiles(self) -> None:
         codestr = """
         def foo():
             return [[1, [2,3]]]
@@ -6034,7 +6034,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.bar(), [6])
 
-    def test_nested_dict_comprehension_compiles(self):
+    def test_nested_dict_comprehension_compiles(self) -> None:
         codestr = """
         def foo():
             return [[1, [2,3]]]
@@ -6045,7 +6045,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.bar(), {1: 5})
 
-    def test_dunder_name(self):
+    def test_dunder_name(self) -> None:
         codestr = """
         class MyClass:
             @property
@@ -6056,7 +6056,7 @@ class StaticCompilationTests(StaticTestBase):
             self.assertNotInBytecode(mod.MyClass.name.fget, "CAST")
             self.assertEqual(mod.MyClass().name, "MyClass")
 
-    def test_unbox_binop_lhs_literal(self):
+    def test_unbox_binop_lhs_literal(self) -> None:
         nonstatic_codestr = """
         def f():
             return 42
@@ -6076,7 +6076,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.in_module(codestr) as mod:
                 self.assertEqual(mod.g(), 43)
 
-    def test_unbox_binop_rhs_literal(self):
+    def test_unbox_binop_rhs_literal(self) -> None:
         nonstatic_codestr = """
         def f():
             return 42
@@ -6096,7 +6096,7 @@ class StaticCompilationTests(StaticTestBase):
             with self.in_module(codestr) as mod:
                 self.assertEqual(mod.g(), 41)
 
-    def test_jump_threading_optimization(self):
+    def test_jump_threading_optimization(self) -> None:
         codestr = """
         def f(a, b, c, d) -> bool:
            if (a or b) and (c or d):
@@ -6111,7 +6111,7 @@ class StaticCompilationTests(StaticTestBase):
                 d = bool(v & 0x1)
                 self.assertEqual(mod.f(a, b, c, d), (a | b) & (c | d))
 
-    def test_starred_method_args(self):
+    def test_starred_method_args(self) -> None:
         codestr = """
         def f(vars: list[int]) -> set[int]:
             return set().union(*([var] for var in vars))
@@ -6119,7 +6119,7 @@ class StaticCompilationTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f([1, 2, 3]), {1, 2, 3})
 
-    def test_positional_and_starred_method_args(self):
+    def test_positional_and_starred_method_args(self) -> None:
         codestr = """
         def f(vars: list[int]) -> set[int]:
             return set().union([1, 2], *([var] for var in vars))

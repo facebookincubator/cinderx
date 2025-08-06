@@ -40,7 +40,7 @@ class Python310Tests(CompilerTest):
         self.assertEqual(pymsg, cmsg)
         self.assertIn(pymsg, msg_contains)
 
-    def test_no_yield_in_stringified_annotation(self):
+    def test_no_yield_in_stringified_annotation(self) -> None:
         codestr = """
             from __future__ import annotations
 
@@ -52,7 +52,7 @@ class Python310Tests(CompilerTest):
             codestr, "'yield expression' can not be used within an annotation"
         )
 
-    def test_yield_ok_in_non_stringified_annotation(self):
+    def test_yield_ok_in_non_stringified_annotation(self) -> None:
         codestr = """
             def f():
                 x: (yield) = 1

@@ -8,7 +8,7 @@ from .common import StaticTestBase
 
 
 class ImportTests(StaticTestBase):
-    def test_unknown_import_with_fallback_is_not_allowed(self):
+    def test_unknown_import_with_fallback_is_not_allowed(self) -> None:
         codestr = """
         try:
             from unknown import foo
@@ -18,7 +18,7 @@ class ImportTests(StaticTestBase):
         """
         self.type_error(codestr, r"Cannot redefine local variable foo")
 
-    def test_function_definition_with_import_fallback_is_not_allowed(self):
+    def test_function_definition_with_import_fallback_is_not_allowed(self) -> None:
         codestr = """
         try:
             def foo() -> int:
@@ -28,7 +28,7 @@ class ImportTests(StaticTestBase):
         """
         self.type_error(codestr, r"Cannot redefine local variable foo")
 
-    def test_unknown_value_from_known_module_is_dynamic(self):
+    def test_unknown_value_from_known_module_is_dynamic(self) -> None:
         acode = """
         x: int = 1
         """
@@ -40,7 +40,7 @@ class ImportTests(StaticTestBase):
         with self.assertRaisesRegex(TypedSyntaxError, "dynamic"):
             self.compiler(a=acode, b=bcode).compile_module("b")
 
-    def test_unknown_value_from_nonstatic_module_is_dynamic(self):
+    def test_unknown_value_from_nonstatic_module_is_dynamic(self) -> None:
         nonstatic_code = """
         pass
         """
@@ -54,7 +54,7 @@ class ImportTests(StaticTestBase):
             """
             self.type_error(codestr, r"reveal_type\(x\): 'dynamic'")
 
-    def test_known_final_value_does_not_expose_final_across_modules(self):
+    def test_known_final_value_does_not_expose_final_across_modules(self) -> None:
         acode = """
         from typing import Final
         x: Final[bool] = True

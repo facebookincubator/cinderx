@@ -47,19 +47,19 @@ except ImportError:
 
 
 class StaticTests(unittest.TestCase):
-    def test_chkdict(self):
+    def test_chkdict(self) -> None:
         tgt = dict if static is None else static.chkdict
         self.assertIs(CheckedDict, tgt)
         self.assertIs(chkdict, tgt)
 
-    def test_pydict(self):
+    def test_pydict(self) -> None:
         self.assertIs(pydict, dict)
         self.assertIs(PyDict, Dict)
 
-    def test_clen(self):
+    def test_clen(self) -> None:
         self.assertIs(clen, len)
 
-    def test_int_types(self):
+    def test_int_types(self) -> None:
         for typ in [
             size_t,
             ssize_t,
@@ -79,7 +79,7 @@ class StaticTests(unittest.TestCase):
                 x = typ(1)
                 self.assertEqual(x, 1)
 
-    def test_float_types(self):
+    def test_float_types(self) -> None:
         for typ in [
             single,
             double,
@@ -88,28 +88,28 @@ class StaticTests(unittest.TestCase):
                 x = typ(1.0)
                 self.assertEqual(x, 1.0)
 
-    def test_box(self):
+    def test_box(self) -> None:
         self.assertEqual(box(1), 1)
 
-    def test_unbox(self):
+    def test_unbox(self) -> None:
         self.assertEqual(unbox(1), 1)
 
-    def test_allow_weakrefs(self):
+    def test_allow_weakrefs(self) -> None:
         class MyClass:
             pass
 
         self.assertIs(MyClass, allow_weakrefs(MyClass))
 
-    def test_dynamic_return(self):
+    def test_dynamic_return(self) -> None:
         def foo():
             pass
 
         self.assertIs(foo, dynamic_return(foo))
 
-    def test_cast(self):
+    def test_cast(self) -> None:
         self.assertIs(cast(int, 2), 2)
 
-    def test_cast_subtype(self):
+    def test_cast_subtype(self) -> None:
         class Base:
             pass
 
@@ -119,16 +119,16 @@ class StaticTests(unittest.TestCase):
         s = Sub()
         self.assertIs(cast(Base, s), s)
 
-    def test_cast_fail(self):
+    def test_cast_fail(self) -> None:
         with self.assertRaisesRegex(TypeError, "expected int, got str"):
             cast(int, "foo")
 
-    def test_cast_optional(self):
+    def test_cast_optional(self) -> None:
         self.assertIs(cast(Optional[int], None), None)
         self.assertIs(cast(int | None, None), None)
         self.assertIs(cast(None | int, None), None)
 
-    def test_cast_generic_type(self):
+    def test_cast_generic_type(self) -> None:
         T = TypeVar("T")
 
         class G(Generic[T]):
@@ -138,11 +138,11 @@ class StaticTests(unittest.TestCase):
 
         self.assertIs(cast(G[int], g), g)
 
-    def test_cast_type_too_complex(self):
+    def test_cast_type_too_complex(self) -> None:
         with self.assertRaisesRegex(ValueError, r"cast expects type or Optional\[T\]"):
             cast(Union[int, str], int)
 
-    def test_rand(self):
+    def test_rand(self) -> None:
         self.assertEqual(type(RAND_MAX), int)
         self.assertLessEqual(rand(), RAND_MAX)
         self.assertGreaterEqual(rand(), 0)

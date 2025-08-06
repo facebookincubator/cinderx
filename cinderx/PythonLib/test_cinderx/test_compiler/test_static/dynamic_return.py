@@ -6,7 +6,7 @@ from .common import StaticTestBase
 
 
 class DynamicReturnTests(StaticTestBase):
-    def test_dynamic_return(self):
+    def test_dynamic_return(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import allow_weakrefs, dynamic_return
@@ -43,7 +43,7 @@ class DynamicReturnTests(StaticTestBase):
             # We don't mess with __annotations__
             self.assertEqual(mod.C.make.__annotations__, {"return": "C"})
 
-    def test_dynamic_return_known_type(self):
+    def test_dynamic_return_known_type(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import allow_weakrefs, dynamic_return
@@ -76,7 +76,7 @@ class DynamicReturnTests(StaticTestBase):
             # We don't mess with __annotations__
             self.assertEqual(mod.C.make.__annotations__, {"return": "C"})
 
-    def test_dynamic_return_async_fn(self):
+    def test_dynamic_return_async_fn(self) -> None:
         codestr = """
         from __static__ import dynamic_return
 

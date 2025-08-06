@@ -22,7 +22,7 @@ class FlagExtractorTest(StrictTestBase):
         flags = FlagExtractor().get_flags(pyast)
         return flags
 
-    def test_strict_import(self):
+    def test_strict_import(self) -> None:
         code = """
         import __strict__
         x = 1
@@ -30,7 +30,7 @@ class FlagExtractorTest(StrictTestBase):
         flags = self._get_flags(code)
         self.assertEqual(Flags(is_strict=True), flags)
 
-    def test_static_import(self):
+    def test_static_import(self) -> None:
         code = """
         import __static__
         x = 1
@@ -38,7 +38,7 @@ class FlagExtractorTest(StrictTestBase):
         flags = self._get_flags(code)
         self.assertEqual(Flags(is_static=True), flags)
 
-    def test_both_static_and_strict_import(self):
+    def test_both_static_and_strict_import(self) -> None:
         code = """
         import __static__
         import __strict__
@@ -55,7 +55,7 @@ class FlagExtractorTest(StrictTestBase):
         flags = self._get_flags(code)
         self.assertEqual(Flags(is_static=True, is_strict=True), flags)
 
-    def test_import_in_class(self):
+    def test_import_in_class(self) -> None:
         # Silently ignores the import
         code = """
         class A:
@@ -65,7 +65,7 @@ class FlagExtractorTest(StrictTestBase):
         flags = self._get_flags(code)
         self.assertEqual(Flags(is_static=False, is_strict=False), flags)
 
-    def test_import_in_function(self):
+    def test_import_in_function(self) -> None:
         # Silently ignores the import
         code = """
         def foo():
@@ -75,7 +75,7 @@ class FlagExtractorTest(StrictTestBase):
         flags = self._get_flags(code)
         self.assertEqual(Flags(is_static=False, is_strict=False), flags)
 
-    def test_import_after_other_import(self):
+    def test_import_after_other_import(self) -> None:
         code = """
         import foo
         import __strict__
@@ -87,7 +87,7 @@ class FlagExtractorTest(StrictTestBase):
             lambda: self._get_flags(code),
         )
 
-    def test_import_after_docstring(self):
+    def test_import_after_docstring(self) -> None:
         code = """
         '''
         here is a docstring
@@ -97,7 +97,7 @@ class FlagExtractorTest(StrictTestBase):
         """
         self.assertEqual(Flags(is_strict=True), self._get_flags(code))
 
-    def test_import_after_two_docstrings(self):
+    def test_import_after_two_docstrings(self) -> None:
         code = """
         '''
         here is a docstring
@@ -114,7 +114,7 @@ class FlagExtractorTest(StrictTestBase):
             lambda: self._get_flags(code),
         )
 
-    def test_import_after_constant(self):
+    def test_import_after_constant(self) -> None:
         code = """
         42
         import __strict__
@@ -126,7 +126,7 @@ class FlagExtractorTest(StrictTestBase):
             lambda: self._get_flags(code),
         )
 
-    def test_import_after_docstring_and_constant(self):
+    def test_import_after_docstring_and_constant(self) -> None:
         code = """
         '''
         here is a docstring
@@ -141,7 +141,7 @@ class FlagExtractorTest(StrictTestBase):
             lambda: self._get_flags(code),
         )
 
-    def test_import_after_class(self):
+    def test_import_after_class(self) -> None:
         code = """
         class Foo:
             pass
@@ -154,7 +154,7 @@ class FlagExtractorTest(StrictTestBase):
             lambda: self._get_flags(code),
         )
 
-    def test_import_alias(self):
+    def test_import_alias(self) -> None:
         code = """
         import __strict__ as strict
         x = 1
@@ -165,7 +165,7 @@ class FlagExtractorTest(StrictTestBase):
             lambda: self._get_flags(code),
         )
 
-    def test_flag_after_future_import(self):
+    def test_flag_after_future_import(self) -> None:
         code = """
         from __future__ import annotations
         import __strict__

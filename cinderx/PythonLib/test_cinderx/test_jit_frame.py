@@ -45,7 +45,7 @@ class GetFrameLineNumberTests(unittest.TestCase):
         self.assertEqual(frame.f_code, func.__code__)
         self.assertEqual(frame.f_lineno, firstlineno(func) + line_offset)
 
-    def test_line_numbers(self):
+    def test_line_numbers(self) -> None:
         """Verify that line numbers are correct"""
 
         @cinder_support.failUnlessJITCompiled
@@ -54,7 +54,7 @@ class GetFrameLineNumberTests(unittest.TestCase):
 
         self.assert_code_and_lineno(g(), g, 2)
 
-    def test_line_numbers_for_running_generators(self):
+    def test_line_numbers_for_running_generators(self) -> None:
         """Verify that line numbers are correct for running generator functions"""
 
         @cinder_support.failUnlessJITCompiled
@@ -72,7 +72,7 @@ class GetFrameLineNumberTests(unittest.TestCase):
         self.assertEqual(next(gen), 3)
 
     @unittest.skipIf(POST_312, "T194022335: gi_frame has lineno=None")
-    def test_line_numbers_for_suspended_generators(self):
+    def test_line_numbers_for_suspended_generators(self) -> None:
         """Verify that line numbers are correct for suspended generator functions"""
 
         @cinder_support.failUnlessJITCompiled
@@ -91,7 +91,7 @@ class GetFrameLineNumberTests(unittest.TestCase):
         self.assertEqual(v, 2)
         self.assert_code_and_lineno(gen.gi_frame, g, 5)
 
-    def test_line_numbers_during_gen_throw(self):
+    def test_line_numbers_during_gen_throw(self) -> None:
         """Verify that line numbers are correct for suspended generator functions when
         an exception is thrown into them.
         """
@@ -126,9 +126,9 @@ class GetFrameLineNumberTests(unittest.TestCase):
         self.assert_code_and_lineno(gen1_frame, f1, 2)
         self.assert_code_and_lineno(gen2_frame, f2, 2)
 
-    def test_line_numbers_from_finalizers(self):
+    def test_line_numbers_from_finalizers(self) -> None:
         """Make sure we can get accurate line numbers from finalizers"""
-        stack = None
+        stack = []
 
         class StackGetter:
             def __del__(self):
@@ -199,7 +199,7 @@ class GetFrameTests(unittest.TestCase):
     def simple_getframe(self):
         return sys._getframe()
 
-    def test_simple_getframe(self):
+    def test_simple_getframe(self) -> None:
         stack = ["simple_getframe", "f3", "f2", "f1", "test_simple_getframe"]
         frame = self.f1(self.simple_getframe)
         self.assert_frames(frame, stack)
@@ -211,7 +211,7 @@ class GetFrameTests(unittest.TestCase):
         return f1, f2
 
     @cinder_support.failUnlessJITCompiled
-    def test_consecutive_getframe(self):
+    def test_consecutive_getframe(self) -> None:
         stack = ["consecutive_getframe", "f3", "f2", "f1", "test_consecutive_getframe"]
         frame1, frame2 = self.f1(self.consecutive_getframe)
         self.assert_frames(frame1, stack)
@@ -230,7 +230,7 @@ class GetFrameTests(unittest.TestCase):
         except:  # noqa: B001
             return f
 
-    def test_getframe_then_deopt(self):
+    def test_getframe_then_deopt(self) -> None:
         # Make sure we correctly unlink a materialized frame after its function
         # deopts into the interpreter
         stack = ["getframe_then_deopt", "f3", "f2", "f1", "test_getframe_then_deopt"]
@@ -244,7 +244,7 @@ class GetFrameTests(unittest.TestCase):
         except:  # noqa: B001
             return sys._getframe()
 
-    def test_getframe_after_deopt(self):
+    def test_getframe_after_deopt(self) -> None:
         stack = ["getframe_in_except", "f3", "f2", "f1", "test_getframe_after_deopt"]
         frame = self.f1(self.getframe_in_except)
         self.assert_frames(frame, stack)
@@ -274,7 +274,7 @@ class GetFrameTests(unittest.TestCase):
         POST_312,
         "T194022335: This test can't decide whether to include `do_raise` or not in the stacktrace when run between ctr3.12-jit-all and `buck test`",
     )
-    def test_getframe_in_dtor_during_deopt(self):
+    def test_getframe_in_dtor_during_deopt(self) -> None:
         # Test that we can correctly walk the stack in the middle of deopting
         frame = self.f1(self.getframe_in_dtor_during_deopt)
         stack = [
@@ -297,7 +297,7 @@ class GetFrameTests(unittest.TestCase):
         except:  # noqa: B001
             return ref
 
-    def test_getframe_in_dtor_after_deopt(self):
+    def test_getframe_in_dtor_after_deopt(self) -> None:
         # Test that we can correctly walk the stack in the interpreter after
         # deopting but before returning to the caller
         frame = self.f1(self.getframe_in_dtor_after_deopt)[0]
@@ -305,7 +305,7 @@ class GetFrameTests(unittest.TestCase):
         self.assert_frames(frame, stack)
 
     @jit_suppress
-    def test_frame_allocation_race(self):
+    def test_frame_allocation_race(self) -> None:
         # This test exercises a race condition that can occur in the
         # interpreted function prologue between when its frame is
         # allocated and when it's set as `tstate->frame`.
@@ -479,11 +479,11 @@ class GetGenFrameDuringThrowTest(unittest.TestCase):
         outer.send(None)
         return outer.throw(TestException())
 
-    def test_unhandled_exc(self):
+    def test_unhandled_exc(self) -> None:
         with self.assertRaises(TestException):
             self.run_test(self.outer_propagates_exc)
 
-    def test_handled_exc(self):
+    def test_handled_exc(self) -> None:
         with self.assertRaises(StopIteration) as cm:
             self.run_test(self.outer_handles_exc)
         self.assertEqual(cm.exception.value, 123)

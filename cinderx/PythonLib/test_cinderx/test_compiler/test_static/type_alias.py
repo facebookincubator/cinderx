@@ -16,7 +16,7 @@ from .common import StaticTestBase
 @skipIf(sys.version_info < (3, 12), "New in 3.12")
 class TypeAliasTests(StaticTestBase):
     @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
-    def test_assign(self):
+    def test_assign(self) -> None:
         codestr = """
             class B: pass
 
@@ -30,7 +30,7 @@ class TypeAliasTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("hello")
 
-    def test_alias(self):
+    def test_alias(self) -> None:
         codestr = """
             type A = int
 
@@ -43,7 +43,7 @@ class TypeAliasTests(StaticTestBase):
                 mod.f("hello")
 
     @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
-    def test_optional_assign(self):
+    def test_optional_assign(self) -> None:
         codestr = """
             A = int | None
 
@@ -56,7 +56,7 @@ class TypeAliasTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("hello")
 
-    def test_optional_alias(self):
+    def test_optional_alias(self) -> None:
         codestr = """
             type A = int | None
 
@@ -69,7 +69,7 @@ class TypeAliasTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("hello")
 
-    def test_transitive_alias(self):
+    def test_transitive_alias(self) -> None:
         codestr = """
             type A = int | None
             type B = A
@@ -84,7 +84,7 @@ class TypeAliasTests(StaticTestBase):
                 mod.f("hello")
 
     @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
-    def test_transitive_assign(self):
+    def test_transitive_assign(self) -> None:
         codestr = """
             A = int | None
             B = A
@@ -99,7 +99,7 @@ class TypeAliasTests(StaticTestBase):
                 mod.f("hello")
 
     @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
-    def test_transitive_alias_and_assign(self):
+    def test_transitive_alias_and_assign(self) -> None:
         codestr = """
             A = int | None
             type B = A
@@ -114,7 +114,7 @@ class TypeAliasTests(StaticTestBase):
                 mod.f("hello")
 
     @skipUnless(ENABLE_IMPLICIT_TYPE_ALIASES, "Implicit aliases disabled")
-    def test_transitive_alias_in_optional(self):
+    def test_transitive_alias_in_optional(self) -> None:
         codestr = """
             A = int
             type B = A | None
@@ -128,7 +128,7 @@ class TypeAliasTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("hello")
 
-    def test_alias_check_in_module(self):
+    def test_alias_check_in_module(self) -> None:
         codestr = """
             class B: pass
 
@@ -143,7 +143,7 @@ class TypeAliasTests(StaticTestBase):
             with self.in_module(codestr):
                 pass
 
-    def test_overload(self):
+    def test_overload(self) -> None:
         codestr = """
             type A = int
 
@@ -160,7 +160,7 @@ class TypeAliasTests(StaticTestBase):
         with self.in_module(codestr):
             pass
 
-    def test_type_alias_error(self):
+    def test_type_alias_error(self) -> None:
         codestr = """
             type A = 42
         """
@@ -168,7 +168,7 @@ class TypeAliasTests(StaticTestBase):
             with self.in_module(codestr):
                 pass
 
-    def test_assign_to_constructor(self):
+    def test_assign_to_constructor(self) -> None:
         # Regression test for a crash when calling resolve_type on the rhs of B
         codestr = """
             B = str("<unknown>")

@@ -11,7 +11,7 @@ SHADOWCODE_REPETITIONS = 100
 
 
 class StaticFieldTests(StaticTestBase):
-    def test_slotification(self):
+    def test_slotification(self) -> None:
         codestr = """
             class C:
                 x: "unknown_type"
@@ -20,7 +20,7 @@ class StaticFieldTests(StaticTestBase):
             C = mod.C
             self.assertEqual(type(C.x), MemberDescriptorType)
 
-    def test_slotification_init(self):
+    def test_slotification_init(self) -> None:
         codestr = """
             class C:
                 x: "unknown_type"
@@ -31,7 +31,7 @@ class StaticFieldTests(StaticTestBase):
             C = mod.C
             self.assertEqual(type(C.x), MemberDescriptorType)
 
-    def test_slotification_init_redeclared(self):
+    def test_slotification_init_redeclared(self) -> None:
         self.type_error(
             """
             class C:
@@ -43,7 +43,7 @@ class StaticFieldTests(StaticTestBase):
             at="self.x:",
         )
 
-    def test_slotification_typed(self):
+    def test_slotification_typed(self) -> None:
         codestr = """
             class C:
                 x: int
@@ -52,7 +52,7 @@ class StaticFieldTests(StaticTestBase):
             C = mod.C
             self.assertNotEqual(type(C.x), MemberDescriptorType)
 
-    def test_slotification_init_typed(self):
+    def test_slotification_init_typed(self) -> None:
         codestr = """
             class C:
                 x: int
@@ -69,7 +69,7 @@ class StaticFieldTests(StaticTestBase):
             ):
                 x.x = "abc"
 
-    def test_slotification_init_typed_redeclared(self):
+    def test_slotification_init_typed_redeclared(self) -> None:
         self.type_error(
             """
             class C:
@@ -81,7 +81,7 @@ class StaticFieldTests(StaticTestBase):
             at="self.x",
         )
 
-    def test_slotification_conflicting_types(self):
+    def test_slotification_conflicting_types(self) -> None:
         self.type_error(
             """
             class C:
@@ -93,7 +93,7 @@ class StaticFieldTests(StaticTestBase):
             at="self.x",
         )
 
-    def test_slotification_conflicting_types_imported(self):
+    def test_slotification_conflicting_types_imported(self) -> None:
         self.type_error(
             """
             from typing import Optional
@@ -107,7 +107,7 @@ class StaticFieldTests(StaticTestBase):
             at="self.x",
         )
 
-    def test_slotification_conflicting_members(self):
+    def test_slotification_conflicting_members(self) -> None:
         self.type_error(
             """
             class C:
@@ -118,7 +118,7 @@ class StaticFieldTests(StaticTestBase):
             at="x: object",
         )
 
-    def test_slotification_conflicting_function(self):
+    def test_slotification_conflicting_function(self) -> None:
         self.type_error(
             """
             class C:
@@ -129,7 +129,7 @@ class StaticFieldTests(StaticTestBase):
             at="def x(self):",
         )
 
-    def test_slot_inheritance(self):
+    def test_slot_inheritance(self) -> None:
         codestr = """
             class B:
                 def __init__(self):
@@ -147,7 +147,7 @@ class StaticFieldTests(StaticTestBase):
             inst = D()
             self.assertEqual(inst.f(), 100)
 
-    def test_del_slot(self):
+    def test_del_slot(self) -> None:
         codestr = """
         class C:
             x: object
@@ -159,7 +159,7 @@ class StaticFieldTests(StaticTestBase):
         code = self.find_code(code, name="f")
         self.assertInBytecode(code, "DELETE_ATTR", "x")
 
-    def test_uninit_slot(self):
+    def test_uninit_slot(self) -> None:
         codestr = """
         class C:
             x: object
@@ -174,7 +174,7 @@ class StaticFieldTests(StaticTestBase):
 
         self.assertEqual(e.exception.args[0], "'C' object has no attribute 'x'")
 
-    def test_conditional_init(self):
+    def test_conditional_init(self) -> None:
         codestr = """
             from __static__ import box, int64
 
@@ -195,7 +195,7 @@ class StaticFieldTests(StaticTestBase):
             self.assertEqual(x.f(), 0)
             self.assertInBytecode(C.f, "LOAD_FIELD", ((mod.__name__, "C"), "value"))
 
-    def test_aligned_subclass_field(self):
+    def test_aligned_subclass_field(self) -> None:
         codestr = """
             from __static__ import cbool
 
@@ -218,7 +218,7 @@ class StaticFieldTests(StaticTestBase):
                 c = Child()
                 self.assertEqual(c.end, "bloop")
 
-    def test_error_incompat_assign_local(self):
+    def test_error_incompat_assign_local(self) -> None:
         codestr = """
             class C:
                 def __init__(self):
@@ -232,7 +232,7 @@ class StaticFieldTests(StaticTestBase):
             with self.assertRaisesRegex(TypeError, "expected 'C', got 'NoneType'"):
                 C().f()
 
-    def test_primitive_field_leaked_type(self):
+    def test_primitive_field_leaked_type(self) -> None:
         codestr = """
             from __static__ import cbool
 
@@ -248,7 +248,7 @@ class StaticFieldTests(StaticTestBase):
             with self.in_module(codestr):
                 pass
 
-    def test_primitive_field_leaked_type_metaclass(self):
+    def test_primitive_field_leaked_type_metaclass(self) -> None:
         codestr = """
             from __future__ import annotations
 
@@ -266,7 +266,7 @@ class StaticFieldTests(StaticTestBase):
         with self.in_module(codestr):
             pass
 
-    def test_assign_implicit_primitive_field(self):
+    def test_assign_implicit_primitive_field(self) -> None:
         codestr = """
             from __static__ import cbool
 
@@ -284,7 +284,7 @@ class StaticFieldTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.C().x, True)
 
-    def test_error_incompat_field_non_dynamic(self):
+    def test_error_incompat_field_non_dynamic(self) -> None:
         self.type_error(
             """
             class C:
@@ -295,7 +295,7 @@ class StaticFieldTests(StaticTestBase):
             at="'abc'",
         )
 
-    def test_error_incompat_field(self):
+    def test_error_incompat_field(self) -> None:
         codestr = """
             class C:
                 def __init__(self):
@@ -310,7 +310,7 @@ class StaticFieldTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 C().f("abc")
 
-    def test_error_incompat_assign_dynamic(self):
+    def test_error_incompat_assign_dynamic(self) -> None:
         self.type_error(
             """
             class C:
@@ -322,7 +322,7 @@ class StaticFieldTests(StaticTestBase):
             at="self.x",
         )
 
-    def test_instance_var_annotated_on_class(self):
+    def test_instance_var_annotated_on_class(self) -> None:
         codestr = """
             class C:
                 x: int
@@ -338,7 +338,7 @@ class StaticFieldTests(StaticTestBase):
             self.assertEqual(f(C(3)), 3)
             self.assertInBytecode(f, "LOAD_FIELD", (((mod.__name__, "C"), "x")))
 
-    def test_annotated_instance_var(self):
+    def test_annotated_instance_var(self) -> None:
         codestr = """
             class C:
                 def __init__(self):
@@ -349,7 +349,7 @@ class StaticFieldTests(StaticTestBase):
         code = self.find_code(self.find_code(code), "__init__")
         self.assertInBytecode(code, "STORE_FIELD")
 
-    def test_load_store_attr_value(self):
+    def test_load_store_attr_value(self) -> None:
         codestr = """
             class C:
                 x: int
@@ -370,7 +370,7 @@ class StaticFieldTests(StaticTestBase):
             a = C(42)
             self.assertEqual(a.f(), 42)
 
-    def test_load_store_attr(self):
+    def test_load_store_attr(self) -> None:
         codestr = """
             class C:
                 x: "C"
@@ -389,7 +389,7 @@ class StaticFieldTests(StaticTestBase):
             a = C()
             self.assertEqual(a.f(), 42)
 
-    def test_load_store_attr_init(self):
+    def test_load_store_attr_init(self) -> None:
         codestr = """
             class C:
                 def __init__(self):
@@ -406,7 +406,7 @@ class StaticFieldTests(StaticTestBase):
             a = C()
             self.assertEqual(a.f(), 42)
 
-    def test_load_store_attr_init_no_ann(self):
+    def test_load_store_attr_init_no_ann(self) -> None:
         codestr = """
             class C:
                 def __init__(self):
@@ -423,7 +423,7 @@ class StaticFieldTests(StaticTestBase):
             a = C()
             self.assertEqual(a.f(), 42)
 
-    def test_class_ann_assign_with_value_conflict_init(self):
+    def test_class_ann_assign_with_value_conflict_init(self) -> None:
         self.type_error(
             """
             from typing import ClassVar
@@ -437,7 +437,7 @@ class StaticFieldTests(StaticTestBase):
             at="self.X =",
         )
 
-    def test_class_ann_assign_with_value_conflict(self):
+    def test_class_ann_assign_with_value_conflict(self) -> None:
         self.type_error(
             """
             from typing import ClassVar
@@ -450,7 +450,7 @@ class StaticFieldTests(StaticTestBase):
             at="X: int",
         )
 
-    def test_class_ann_assign_with_value_conflict_2(self):
+    def test_class_ann_assign_with_value_conflict_2(self) -> None:
         self.type_error(
             """
             from typing import ClassVar
@@ -463,7 +463,7 @@ class StaticFieldTests(StaticTestBase):
             at="X: ClassVar[int]",
         )
 
-    def test_annotated_classvar(self):
+    def test_annotated_classvar(self) -> None:
         codestr = """
             from typing import ClassVar
 
@@ -483,7 +483,7 @@ class StaticFieldTests(StaticTestBase):
             self.assertNotInBytecode(f, "CAST")
             self.assertNotInBytecode(g, "CAST")
 
-    def test_classvar_no_assign_from_instance(self):
+    def test_classvar_no_assign_from_instance(self) -> None:
         self.type_error(
             """
             from typing import ClassVar
@@ -498,7 +498,7 @@ class StaticFieldTests(StaticTestBase):
             at="c.x = 4",
         )
 
-    def test_bad_classvar_arg(self):
+    def test_bad_classvar_arg(self) -> None:
         self.type_error(
             """
             from typing import ClassVar
@@ -510,7 +510,7 @@ class StaticFieldTests(StaticTestBase):
             at="ClassVar[int]",
         )
 
-    def test_bad_classvar_local(self):
+    def test_bad_classvar_local(self) -> None:
         self.type_error(
             """
             from typing import ClassVar
@@ -522,7 +522,7 @@ class StaticFieldTests(StaticTestBase):
             at="x: ClassVar[int]",
         )
 
-    def test_bad_initvar_arg(self):
+    def test_bad_initvar_arg(self) -> None:
         self.type_error(
             """
             from dataclasses import InitVar
@@ -534,7 +534,7 @@ class StaticFieldTests(StaticTestBase):
             at="InitVar[int]",
         )
 
-    def test_bad_initvar_local(self):
+    def test_bad_initvar_local(self) -> None:
         self.type_error(
             """
             from dataclasses import InitVar
@@ -546,7 +546,7 @@ class StaticFieldTests(StaticTestBase):
             at="x: InitVar[int]",
         )
 
-    def test_final_attr(self):
+    def test_final_attr(self) -> None:
         codestr = """
         from typing import Final
 
@@ -559,7 +559,7 @@ class StaticFieldTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.C().x, 3)
 
-    def test_final_attr_decl_uninitialized(self):
+    def test_final_attr_decl_uninitialized(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -571,7 +571,7 @@ class StaticFieldTests(StaticTestBase):
             at="x: Final",
         )
 
-    def test_final_classvar_reinitialized(self):
+    def test_final_classvar_reinitialized(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -584,7 +584,7 @@ class StaticFieldTests(StaticTestBase):
             at="x = 4",
         )
 
-    def test_final_classvar_reinitialized_externally(self):
+    def test_final_classvar_reinitialized_externally(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -598,7 +598,7 @@ class StaticFieldTests(StaticTestBase):
             at="C.x = 4",
         )
 
-    def test_final_attr_reinitialized_externally_on_class(self):
+    def test_final_attr_reinitialized_externally_on_class(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -615,7 +615,7 @@ class StaticFieldTests(StaticTestBase):
             at="C.x = 4",
         )
 
-    def test_final_attr_reinitialized_externally_on_instance(self):
+    def test_final_attr_reinitialized_externally_on_instance(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -633,7 +633,7 @@ class StaticFieldTests(StaticTestBase):
             at="c.x = 4",
         )
 
-    def test_final_classvar_reinitialized_in_instance(self):
+    def test_final_classvar_reinitialized_in_instance(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -647,7 +647,7 @@ class StaticFieldTests(StaticTestBase):
             at="C().x = 4",
         )
 
-    def test_final_classvar_reinitialized_in_method(self):
+    def test_final_classvar_reinitialized_in_method(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -662,7 +662,7 @@ class StaticFieldTests(StaticTestBase):
             at="self.x = 4",
         )
 
-    def test_final_classvar_reinitialized_in_subclass_without_annotation(self):
+    def test_final_classvar_reinitialized_in_subclass_without_annotation(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -677,7 +677,7 @@ class StaticFieldTests(StaticTestBase):
             at="x = 4",
         )
 
-    def test_final_classvar_reinitialized_in_subclass_with_annotation(self):
+    def test_final_classvar_reinitialized_in_subclass_with_annotation(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -692,7 +692,7 @@ class StaticFieldTests(StaticTestBase):
             at="x: Final[int] = 4",
         )
 
-    def test_final_classvar_reinitialized_in_subclass_init(self):
+    def test_final_classvar_reinitialized_in_subclass_init(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -708,7 +708,9 @@ class StaticFieldTests(StaticTestBase):
             at="self.x = 4",
         )
 
-    def test_final_classvar_reinitialized_in_subclass_init_with_annotation(self):
+    def test_final_classvar_reinitialized_in_subclass_init_with_annotation(
+        self,
+    ) -> None:
         self.type_error(
             """
             from typing import Final
@@ -724,7 +726,7 @@ class StaticFieldTests(StaticTestBase):
             at="self.x: Final[int] = 4",
         )
 
-    def test_final_attr_reinitialized_in_subclass_init(self):
+    def test_final_attr_reinitialized_in_subclass_init(self) -> None:
         self.type_error(
             """
             from typing import Final
@@ -743,7 +745,7 @@ class StaticFieldTests(StaticTestBase):
             at="self.x = 4",
         )
 
-    def test_nested_classvar_and_final(self):
+    def test_nested_classvar_and_final(self) -> None:
         """Per PEP 591, class-level final assignments are always ClassVar."""
         self.type_error(
             """
@@ -756,7 +758,7 @@ class StaticFieldTests(StaticTestBase):
             at="ClassVar[int]",
         )
 
-    def test_incompatible_attr_override(self):
+    def test_incompatible_attr_override(self) -> None:
         self.type_error(
             """
             class A:
@@ -769,7 +771,7 @@ class StaticFieldTests(StaticTestBase):
             at="x: str",
         )
 
-    def test_mutable_attr_invariant(self):
+    def test_mutable_attr_invariant(self) -> None:
         self.type_error(
             """
             class A:
@@ -782,7 +784,7 @@ class StaticFieldTests(StaticTestBase):
             at="x: int",
         )
 
-    def test_explicit_dict(self):
+    def test_explicit_dict(self) -> None:
         codestr = """
             from typing import Any
             class A:
@@ -796,7 +798,7 @@ class StaticFieldTests(StaticTestBase):
             a.foo = 42
             self.assertEqual(mod.get_dict(a), {"foo": 42})
 
-    def test_explicit_weakref(self):
+    def test_explicit_weakref(self) -> None:
         codestr = """
             from typing import Any
             from weakref import ref
@@ -811,7 +813,7 @@ class StaticFieldTests(StaticTestBase):
             a = mod.A()
             self.assertEqual(mod.get_ref(a)(), a)
 
-    def test_multiple_fields_with_nonstatic_base(self):
+    def test_multiple_fields_with_nonstatic_base(self) -> None:
         non_static = """
         class SomeType:
             pass
@@ -831,7 +833,7 @@ class StaticFieldTests(StaticTestBase):
             with self.in_strict_module(codestr):
                 pass
 
-    def test_single_field_with_nonstatic_base(self):
+    def test_single_field_with_nonstatic_base(self) -> None:
         non_static = """
         class SomeType:
             pass

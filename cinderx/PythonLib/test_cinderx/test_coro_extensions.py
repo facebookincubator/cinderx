@@ -34,7 +34,7 @@ def run_async(coro):
 
 
 class CoroutineAwaiterTest(unittest.TestCase):
-    def test_basic_await(self):
+    def test_basic_await(self) -> None:
         async def coro():
             nonlocal awaiter_obj
             self.assertIs(cinder._get_coro_awaiter(coro_obj), awaiter_obj)
@@ -55,7 +55,7 @@ class CoroutineAwaiterTest(unittest.TestCase):
         def __await__(self):
             return iter(["future"])
 
-    def test_eager_await(self):
+    def test_eager_await(self) -> None:
         async def awaitee():
             nonlocal awaitee_frame
             awaitee_frame = sys._getframe()
@@ -122,7 +122,7 @@ class CoroutineAwaiterTest(unittest.TestCase):
         self.assertIsNone(cinder._get_coro_awaiter(awaitee_obj))
         self.assertIsNone(cinder._get_coro_awaiter(awaiter_obj))
 
-    def test_coro_outlives_awaiter(self):
+    def test_coro_outlives_awaiter(self) -> None:
         async def coro():
             await self.FakeFuture()
 
@@ -141,7 +141,7 @@ class CoroutineAwaiterTest(unittest.TestCase):
         del awaiter_obj
         self.assertIsNone(cinder._get_coro_awaiter(coro_obj))
 
-    def test_async_gen_doesnt_set(self):
+    def test_async_gen_doesnt_set(self) -> None:
         async def coro():
             await self.FakeFuture()
 
@@ -253,16 +253,16 @@ class TestEagerExecution(unittest.TestCase):
 
         self._check(expected_2(), actual_2())
 
-    def test_eager_await_no_error_eager(self):
+    def test_eager_await_no_error_eager(self) -> None:
         self._do_test_no_err(self._raise_IndexError_eager)
 
-    def test_suspended_await_no_error_suspended(self):
+    def test_suspended_await_no_error_suspended(self) -> None:
         self._do_test_no_err(self._raise_IndexError_suspended)
 
-    def test_suspended_await_in_catch_eager(self):
+    def test_suspended_await_in_catch_eager(self) -> None:
         self._do_test_exc_handler(self._raise_IndexError_eager)
 
-    def test_suspended_await_in_catch_suspended(self):
+    def test_suspended_await_in_catch_suspended(self) -> None:
         self._do_test_exc_handler(self._raise_IndexError_suspended)
 
 

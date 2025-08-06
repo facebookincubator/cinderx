@@ -2,7 +2,7 @@
 # From Python-3.4.3/Lib/test/test_super.py
 
 class Foo:
-    def test_various___class___pathologies(self):
+    def test_various___class___pathologies(self) -> None:
         # See issue #12370
 
         class X(): #A):

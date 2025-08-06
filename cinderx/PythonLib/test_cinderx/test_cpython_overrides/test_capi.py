@@ -12,7 +12,7 @@ def decode_stderr(err):
 class CinderX_CAPITest(unittest.TestCase):
     # The output in this test is different for CinderX as we now have the
     # _cinderx module loaded.
-    def test_getitem_with_error(self):
+    def test_getitem_with_error(self) -> None:
         # Test _Py_CheckSlotResult(). Raise an exception and then calls
         # PyObject_GetItem(): check that the assertion catches the bug.
         # PyObject_GetItem() must not be called with an exception set.

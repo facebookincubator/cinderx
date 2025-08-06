@@ -166,7 +166,7 @@ class CinderX_DisTests(unittest.TestCase):
             got = self.strip_addresses(got)
         self.assertEqual(got, expected)
 
-    def test_widths(self):
+    def test_widths(self) -> None:
         for opcode, opname in enumerate(dis.opname):
             if (
                 opname
@@ -194,7 +194,7 @@ class CinderX_DisTests(unittest.TestCase):
     @unittest.skipIf(
         sys.version_info >= (3, 12), "3.12 inline comprehensions are different"
     )
-    def test_bug_1333982(self):
+    def test_bug_1333982(self) -> None:
         # This one is checking bytecodes generated for an `assert` statement,
         # so fails if the tests are run with -O.  Skip this test then.
         if not __debug__:
@@ -211,7 +211,7 @@ class CinderX_DisTests(unittest.TestCase):
     @unittest.skipIf(
         sys.version_info >= (3, 12), "3.12 inline comprehensions are different"
     )
-    def test_disassemble_recursive(self):
+    def test_disassemble_recursive(self) -> None:
         def check(expected, **kwargs):
             dis = self.get_disassembly(_h, **kwargs)
             dis = self.strip_addresses(dis)

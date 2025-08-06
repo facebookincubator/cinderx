@@ -7,7 +7,7 @@ from .common import StaticTestBase
 
 
 class CRangeTests(StaticTestBase):
-    def test_crange_only_limit(self):
+    def test_crange_only_limit(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -21,7 +21,7 @@ class CRangeTests(StaticTestBase):
             self.assertNotInBytecode(mod.sum_until, "FOR_ITER")
             self.assertEqual(mod.sum_until(6), 15)
 
-    def test_crange_start_and_limit(self):
+    def test_crange_start_and_limit(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -35,7 +35,7 @@ class CRangeTests(StaticTestBase):
             self.assertNotInBytecode(mod.sum_between, "FOR_ITER")
             self.assertEqual(mod.sum_between(3, 6), 12)
 
-    def test_crange_incorrect_arg_count(self):
+    def test_crange_incorrect_arg_count(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -58,7 +58,7 @@ class CRangeTests(StaticTestBase):
         ):
             self.compile(other_codestr)
 
-    def test_crange_break_start_and_limit(self):
+    def test_crange_break_start_and_limit(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -73,7 +73,7 @@ class CRangeTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.sum_between(3, 6), 7)
 
-    def test_crange_break_only_limit(self):
+    def test_crange_break_only_limit(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -88,7 +88,7 @@ class CRangeTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.sum_until(6), 6)
 
-    def test_crange_orelse_iterator_exhausted(self):
+    def test_crange_orelse_iterator_exhausted(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -103,7 +103,7 @@ class CRangeTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.sum_until(6), 666)
 
-    def test_crange_orelse_iterator_not_exhausted(self):
+    def test_crange_orelse_iterator_not_exhausted(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -120,7 +120,7 @@ class CRangeTests(StaticTestBase):
         with self.in_strict_module(codestr) as mod:
             self.assertEqual(mod.sum_until(6), 6)
 
-    def test_crange_without_for_loop(self):
+    def test_crange_without_for_loop(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -135,7 +135,7 @@ class CRangeTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_crange_in_loop_body(self):
+    def test_crange_in_loop_body(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -149,7 +149,7 @@ class CRangeTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_crange_incompatible_arg_types(self):
+    def test_crange_incompatible_arg_types(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 
@@ -172,7 +172,7 @@ class CRangeTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_crange_continue(self):
+    def test_crange_continue(self) -> None:
         codestr = """
         from __static__ import crange, int64, box
 

@@ -11,7 +11,7 @@ from .common import StaticTestBase
 
 
 class DoubleTests(StaticTestBase):
-    def test_primitive_double_return_bad_call(self):
+    def test_primitive_double_return_bad_call(self) -> None:
         codestr = """
         from __static__ import double
 
@@ -28,7 +28,7 @@ class DoubleTests(StaticTestBase):
             ):
                 fn()  # bad call
 
-    def test_double_return(self):
+    def test_double_return(self) -> None:
         codestr = """
         from __static__ import double
 
@@ -40,7 +40,7 @@ class DoubleTests(StaticTestBase):
             r = fn()
             self.assertEqual(r, 3.14159)
 
-    def test_double_return_static_passthrough(self):
+    def test_double_return_static_passthrough(self) -> None:
         codestr = """
             from __static__ import double
 
@@ -54,7 +54,7 @@ class DoubleTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 42.0)
 
-    def test_double_return_raises(self):
+    def test_double_return_raises(self) -> None:
         codestr = """
             from __static__ import double
 
@@ -69,7 +69,7 @@ class DoubleTests(StaticTestBase):
             with self.assertRaises(ValueError):
                 f()
 
-    def test_double_return_static(self):
+    def test_double_return_static(self) -> None:
         codestr = """
         from __static__ import double, box
 
@@ -84,7 +84,7 @@ class DoubleTests(StaticTestBase):
             r = lol()
             self.assertEqual(r, 4.14159)
 
-    def test_double_return_2(self):
+    def test_double_return_2(self) -> None:
         codestr = """
         from __static__ import double
 
@@ -98,7 +98,7 @@ class DoubleTests(StaticTestBase):
             r = fn(1.2, 2.3)
             self.assertEqual(r, 3.5)
 
-    def test_double_return_with_default_args(self):
+    def test_double_return_with_default_args(self) -> None:
         codestr = """
         from __static__ import double
 
@@ -112,7 +112,7 @@ class DoubleTests(StaticTestBase):
             r = fn(1.2)
             self.assertEqual(r, 4.4)
 
-    def test_double_unbox(self):
+    def test_double_unbox(self) -> None:
         codestr = """
         from __static__ import double, box, unbox
         def fn(x, y):
@@ -126,7 +126,7 @@ class DoubleTests(StaticTestBase):
         y = 1.732
         self.assertEqual(f(x, y), x + y)
 
-    def test_double_unbox_using_double(self):
+    def test_double_unbox_using_double(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -138,7 +138,7 @@ class DoubleTests(StaticTestBase):
         f = self.run_code(codestr)["f"]
         self.assertEqual(f(), 2.2)
 
-    def test_uninit_try(self):
+    def test_uninit_try(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -155,7 +155,7 @@ class DoubleTests(StaticTestBase):
             self.assertInBytecode(f, "PRIMITIVE_LOAD_CONST", ((0.0, TYPED_DOUBLE)))
             self.assertEqual(f(), 42.0)
 
-    def test_uninit_except(self):
+    def test_uninit_except(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -172,7 +172,7 @@ class DoubleTests(StaticTestBase):
             self.assertInBytecode(f, "PRIMITIVE_LOAD_CONST", ((0.0, TYPED_DOUBLE)))
             self.assertEqual(f(), 0.0)
 
-    def test_uninit_except_else(self):
+    def test_uninit_except_else(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -191,7 +191,7 @@ class DoubleTests(StaticTestBase):
             self.assertInBytecode(f, "PRIMITIVE_LOAD_CONST", ((0.0, TYPED_DOUBLE)))
             self.assertEqual(f(), 42.0)
 
-    def test_uninit_finally(self):
+    def test_uninit_finally(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -208,7 +208,7 @@ class DoubleTests(StaticTestBase):
             self.assertNotInBytecode(f, "PRIMITIVE_LOAD_CONST", ((0.0, TYPED_DOUBLE)))
             self.assertEqual(f(), 42.0)
 
-    def test_uninit_with(self):
+    def test_uninit_with(self) -> None:
         codestr = """
             from __static__ import double, box
             from contextlib import nullcontext
@@ -224,7 +224,7 @@ class DoubleTests(StaticTestBase):
             self.assertInBytecode(f, "PRIMITIVE_LOAD_CONST", ((0.0, TYPED_DOUBLE)))
             self.assertEqual(f(), 42.0)
 
-    def test_uninit_for(self):
+    def test_uninit_for(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -240,7 +240,7 @@ class DoubleTests(StaticTestBase):
             self.assertEqual(f([1]), 42.0)
             self.assertEqual(f([]), 0.0)
 
-    def test_uninit_for_else(self):
+    def test_uninit_for_else(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -259,7 +259,7 @@ class DoubleTests(StaticTestBase):
             self.assertEqual(f([]), 42.0)
             self.assertEqual(f([1]), 0.0)
 
-    def test_uninit_if(self):
+    def test_uninit_if(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -275,7 +275,7 @@ class DoubleTests(StaticTestBase):
             self.assertEqual(f(True), 42.0)
             self.assertEqual(f(False), 0.0)
 
-    def test_uninit_if_else(self):
+    def test_uninit_if_else(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -293,7 +293,7 @@ class DoubleTests(StaticTestBase):
             self.assertEqual(f(False), 42.0)
             self.assertEqual(f(True), 0.0)
 
-    def test_uninit_if_else_both_assign(self):
+    def test_uninit_if_else_both_assign(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -311,7 +311,7 @@ class DoubleTests(StaticTestBase):
             self.assertEqual(f(True), 42.0)
             self.assertEqual(f(False), 100.0)
 
-    def test_uninit_while(self):
+    def test_uninit_while(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -337,7 +337,7 @@ class DoubleTests(StaticTestBase):
 
             self.assertEqual(f(C()), 42.0)
 
-    def test_uninit_while_else(self):
+    def test_uninit_while_else(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -367,7 +367,7 @@ class DoubleTests(StaticTestBase):
 
             self.assertEqual(f(C()), 0.0)
 
-    def test_double_unary(self):
+    def test_double_unary(self) -> None:
         tests = [
             ("-", 1.0, -1.0),
             ("+", 1.0, 1.0),
@@ -387,7 +387,7 @@ class DoubleTests(StaticTestBase):
                 f = self.run_code(codestr)["testfunc"]
                 self.assertEqual(f(False), res, f"{type} {op} {x} {res}")
 
-    def test_double_unary_unsupported(self):
+    def test_double_unary_unsupported(self) -> None:
         codestr = """
         from __static__ import double, box
         def testfunc(tst):
@@ -400,7 +400,7 @@ class DoubleTests(StaticTestBase):
         with self.assertRaisesRegex(TypedSyntaxError, "Cannot invert/not a double"):
             self.compile(codestr)
 
-    def test_uninit_augassign(self):
+    def test_uninit_augassign(self) -> None:
         codestr = """
             from __static__ import double
 
@@ -416,7 +416,7 @@ class DoubleTests(StaticTestBase):
             self.assertInBytecode(f, "PRIMITIVE_LOAD_CONST", ((0.0, TYPED_DOUBLE)))
             self.assertEqual(f(2.0), 4.0)
 
-    def test_float_field(self):
+    def test_float_field(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -443,7 +443,7 @@ class DoubleTests(StaticTestBase):
             self.assertEqual(val.x, 100.0)
             self.assertEqual(type(val.x), float)
 
-    def test_double_function(self):
+    def test_double_function(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -454,7 +454,7 @@ class DoubleTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(42.1), 42.1)
 
-    def test_primitive_float_arg_not_clobbered(self):
+    def test_primitive_float_arg_not_clobbered(self) -> None:
         codestr = """
             from __static__ import double
 
@@ -468,7 +468,7 @@ class DoubleTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 42.0)
 
-    def test_double_function_with_obj(self):
+    def test_double_function_with_obj(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -479,7 +479,7 @@ class DoubleTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(0.1, 42.1), 421.0)
 
-    def test_double_function_with_obj_reversed(self):
+    def test_double_function_with_obj_reversed(self) -> None:
         codestr = """
             from __static__ import double, box
 
@@ -490,7 +490,7 @@ class DoubleTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(42.1, 0.1), 421.0)
 
-    def test_all_arg_regs_used_plus_one(self):
+    def test_all_arg_regs_used_plus_one(self) -> None:
         codestr = """
             from __static__ import double
 
@@ -506,7 +506,7 @@ class DoubleTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 44.0)
 
-    def test_primitive_float_arg_not_clobbered_all(self):
+    def test_primitive_float_arg_not_clobbered_all(self) -> None:
         codestr = """
             from __static__ import double
 
@@ -520,7 +520,7 @@ class DoubleTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 28.0)
 
-    def test_primitive_float_arg_not_clobbered_all_offset(self):
+    def test_primitive_float_arg_not_clobbered_all_offset(self) -> None:
         codestr = """
             from __static__ import double
 
@@ -534,7 +534,7 @@ class DoubleTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 28.0)
 
-    def test_primitive_float_arg_not_clobbered_all_plus_one(self):
+    def test_primitive_float_arg_not_clobbered_all_plus_one(self) -> None:
         codestr = """
             from __static__ import double
 
@@ -563,7 +563,7 @@ class DoubleTests(StaticTestBase):
             self.assertNotInBytecode(f, "STORE_FAST")
             self.assertEqual(f(), 1.5)
 
-    def test_double_compare(self):
+    def test_double_compare(self) -> None:
         tests = [
             (1.0, 2.0, "==", False),
             (1.0, 2.0, "!=", True),
@@ -590,7 +590,7 @@ class DoubleTests(StaticTestBase):
                 f = self.run_code(codestr)["testfunc"]
                 self.assertEqual(f(False), res, f"{type} {x} {op} {y} {res}")
 
-    def test_double_compare_with_literal(self):
+    def test_double_compare_with_literal(self) -> None:
         codestr = """
         from __static__ import double
         def testfunc(x: float) -> bool:
@@ -604,7 +604,7 @@ class DoubleTests(StaticTestBase):
             self.assertTrue(f(4.1))
             self.assertFalse(f(1.1))
 
-    def test_double_compare_with_integer_literal(self):
+    def test_double_compare_with_integer_literal(self) -> None:
         codestr = """
         from __static__ import double
         def testfunc(x: float) -> bool:
@@ -618,7 +618,7 @@ class DoubleTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_double_mixed_compare(self):
+    def test_double_mixed_compare(self) -> None:
         codestr = """
         from __static__ import double, box, unbox
         def f(a):
@@ -631,7 +631,7 @@ class DoubleTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_double_mixed_compare_reverse(self):
+    def test_double_mixed_compare_reverse(self) -> None:
         codestr = """
         from __static__ import double, box, unbox
         def f(a):
@@ -644,7 +644,7 @@ class DoubleTests(StaticTestBase):
         ):
             self.compile(codestr)
 
-    def test_double_load_const(self):
+    def test_double_load_const(self) -> None:
         codestr = """
         from __static__ import double
 
@@ -657,7 +657,7 @@ class DoubleTests(StaticTestBase):
             t()
             self.assert_jitted(t)
 
-    def test_double_box(self):
+    def test_double_box(self) -> None:
         codestr = """
         from __static__ import double, box
 
@@ -672,7 +672,7 @@ class DoubleTests(StaticTestBase):
             self.assertEqual(t(), 3.14159)
             self.assert_jitted(t)
 
-    def test_unbox_double_from_dynamic(self):
+    def test_unbox_double_from_dynamic(self) -> None:
         codestr = """
             from __static__ import double
 
@@ -688,7 +688,7 @@ class DoubleTests(StaticTestBase):
             with self.assertRaises(TypeError):
                 mod.f("foo")
 
-    def test_unbox_double_from_int(self):
+    def test_unbox_double_from_int(self) -> None:
         codestr = """
             from __static__ import double
 

@@ -10,7 +10,7 @@ from .common import StaticTestBase
 
 
 class ClassDecoratorTests(StaticTestBase):
-    def test_class_decl_simple(self):
+    def test_class_decl_simple(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -31,7 +31,7 @@ class ClassDecoratorTests(StaticTestBase):
             C = mod.C
             self.assertEqual(C.my_tag, 42)
 
-    def test_class_decl_params(self):
+    def test_class_decl_params(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -54,7 +54,7 @@ class ClassDecoratorTests(StaticTestBase):
             C = mod.C
             self.assertEqual(C.foo, "foo")
 
-    def test_class_decl_not_nested(self):
+    def test_class_decl_not_nested(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -78,7 +78,7 @@ class ClassDecoratorTests(StaticTestBase):
             at="return decfunc",
         )
 
-    def test_class_decl_wrong_return_type(self):
+    def test_class_decl_wrong_return_type(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -96,7 +96,7 @@ class ClassDecoratorTests(StaticTestBase):
             at="return None",
         )
 
-    def test_class_decl_wrong_return_type_nested(self):
+    def test_class_decl_wrong_return_type_nested(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -116,7 +116,7 @@ class ClassDecoratorTests(StaticTestBase):
             at="return None",
         )
 
-    def test_class_decl_different_tclass(self):
+    def test_class_decl_different_tclass(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -144,7 +144,7 @@ class ClassDecoratorTests(StaticTestBase):
             at="return x",
         )
 
-    def test_class_decl_different_tclass_nested(self):
+    def test_class_decl_different_tclass_nested(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -171,7 +171,7 @@ class ClassDecoratorTests(StaticTestBase):
         x = self.find_code(self.find_code(code, "C"), "__init__")
         self.assertNotInBytecode(x, "STORE_FIELD")
 
-    def test_class_decl_different_tclass_recursive(self):
+    def test_class_decl_different_tclass_recursive(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -196,7 +196,7 @@ class ClassDecoratorTests(StaticTestBase):
             at="decfunc(int)",
         )
 
-    def test_class_decl_wrong_return_type_nested_bad_mutator_func(self):
+    def test_class_decl_wrong_return_type_nested_bad_mutator_func(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -216,7 +216,7 @@ class ClassDecoratorTests(StaticTestBase):
             at="return decfunc",
         )
 
-    def test_class_decl_multiple_params(self):
+    def test_class_decl_multiple_params(self) -> None:
         codestr = """
             from __static__ import ClassDecorator, TClass
 
@@ -238,7 +238,7 @@ class ClassDecoratorTests(StaticTestBase):
             at="int) -> TClass:",
         )
 
-    def test_tclass_bound(self):
+    def test_tclass_bound(self) -> None:
         codestr = """
             from __static__ import TClass
 
@@ -257,7 +257,7 @@ class ClassDecoratorTests(StaticTestBase):
             at="42)",
         )
 
-    def test_nested_function_not_typed(self):
+    def test_nested_function_not_typed(self) -> None:
         # We shouldn't type check the assignment from `func` to `inner_func`
         # within the function, it should be treated as dynamic.
         codestr = """

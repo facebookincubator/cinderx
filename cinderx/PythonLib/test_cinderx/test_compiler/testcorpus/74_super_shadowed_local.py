@@ -1,4 +1,4 @@
-def test_shadowed_local(self):
+def test_shadowed_local(self) -> None:
     class super:
         msg = "quite super"
 

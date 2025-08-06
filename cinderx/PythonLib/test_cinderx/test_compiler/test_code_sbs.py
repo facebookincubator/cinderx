@@ -350,7 +350,7 @@ def add_test(modname: str, fname: str) -> None:
     if fname.endswith("/__init__.py"):
         return
 
-    def test_code(self: CodeTests):
+    def test_code(self: CodeTests) -> None:
         test = TestFile(fname)
         graph = self.to_graph(test.code)
 
