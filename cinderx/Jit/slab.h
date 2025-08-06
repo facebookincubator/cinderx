@@ -96,16 +96,26 @@ class Slab {
     return ptr;
   }
 
-  void mlock() const {
+  void mlock() {
     if (::mlock(base_.get(), kSlabSize) < 0) {
       JIT_LOG("Failed to mlock slab at {}", base_.get());
+      return;
     }
+    mlocks_++;
   }
 
-  void munlock() const {
+  void munlock() {
+    // Not a fatal error because we allow ::mlock() and ::munlock() to fail and
+    // don't raise that information up further.
+    if (mlocks_ == 0) {
+      JIT_LOG("Trying to unlock slab more than it has been been locked");
+    }
+
     if (::munlock(base_.get(), kSlabSize) < 0) {
       JIT_LOG("Failed to munlock slab at {}", base_.get());
+      return;
     }
+    mlocks_--;
   }
 
   iterator begin() const {
@@ -120,6 +130,7 @@ class Slab {
   unique_c_ptr<char> base_;
   char* fill_{nullptr};
   size_t increment_{0};
+  size_t mlocks_{0};
 };
 
 } // namespace jit

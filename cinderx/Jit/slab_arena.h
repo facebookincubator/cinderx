@@ -143,23 +143,17 @@ class SlabArena {
   // Pin the contents to physical memory.
   void mlock() {
     std::lock_guard<std::mutex> guard{mutex_};
-
-    JIT_CHECK(!mlocked_, "Must be unlocked to lock");
     for (auto& slab : slabs_) {
       slab.mlock();
     }
-    mlocked_ = true;
   }
 
   // Unpin the contents from physical memory.
   void munlock() {
     std::lock_guard<std::mutex> guard{mutex_};
-
-    JIT_CHECK(mlocked_, "Must be locked to unlock");
     for (auto& slab : slabs_) {
       slab.munlock();
     }
-    mlocked_ = false;
   }
 
   iterator begin() {
