@@ -480,6 +480,9 @@ static PyMethodDef jitgen_methods[] = {
      reinterpret_cast<PyCFunction>(jitgen_sizeof),
      METH_NOARGS,
      nullptr},
+#if PY_VERSION_HEX >= 0x030E0000
+    {"__class_getitem__", nullptr, METH_O | METH_CLASS, nullptr},
+#endif
     {} /* Sentinel */
 };
 
@@ -508,8 +511,8 @@ static PyGetSetDef jitcoro_getsetlist[] = {
     {"cr_suspended", nullptr, nullptr, nullptr},
 #ifdef ENABLE_GENERATOR_AWAITER
     {"cr_ci_awaiter", nullptr, nullptr, nullptr},
-#endif
     {"cr_awaiter", nullptr, nullptr, nullptr},
+#endif
     {"__class__", jitcoro_getclass, nullptr, nullptr},
     {} /* Sentinel */
 };
@@ -527,7 +530,12 @@ static PyMethodDef jitcoro_methods[] = {
     {"throw", _PyCFunction_CAST(jitgen_throw), METH_FASTCALL, nullptr},
     {"close", (PyCFunction)jitgen_close, METH_NOARGS, nullptr},
     {"__sizeof__", (PyCFunction)jitgen_sizeof, METH_NOARGS, nullptr},
+#if PY_VERSION_HEX >= 0x030E0000
+    {"__class_getitem__", nullptr, METH_O | METH_CLASS, nullptr},
+#endif
+#ifdef ENABLE_GENERATOR_AWAITER
     {"__set_awaiter__", nullptr, METH_O, nullptr},
+#endif
     {} /* Sentinel */
 };
 
