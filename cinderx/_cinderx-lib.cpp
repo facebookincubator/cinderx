@@ -1065,7 +1065,6 @@ void module_free(void* raw_mod) {
   }
 
   state->shutdown();
-  cinderx::setModuleState(nullptr);
 }
 
 // Called when the interpreter is shutting down, allows us to do some aggressive
@@ -1337,7 +1336,7 @@ static int _cinderx_exec(PyObject* m) {
   }
   state->setSymbolizer(symbolizer);
 
-  cinderx::setModuleState(state);
+  cinderx::setModule(m);
 
   CiExc_StaticTypeError =
       PyErr_NewException("cinderx.StaticTypeError", PyExc_TypeError, nullptr);

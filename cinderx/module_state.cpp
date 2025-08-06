@@ -2,6 +2,8 @@
 
 #include "cinderx/module_state.h"
 
+#include "cinderx/Common/log.h"
+
 namespace cinderx {
 
 int ModuleState::traverse(visitproc visit, void* arg) {
@@ -15,16 +17,25 @@ int ModuleState::clear() {
   return 0;
 }
 
+static ModuleState* s_cinderx_state;
+
 void ModuleState::shutdown() {
   cache_manager_.reset();
   runtime_.reset();
   symbolizer_.reset();
+  JIT_DCHECK(
+      this == s_cinderx_state,
+      "Global module state pointer inconsistent with this module state {} != "
+      "{}",
+      reinterpret_cast<void*>(this),
+      reinterpret_cast<void*>(s_cinderx_state));
+  s_cinderx_state = nullptr;
 }
 
-static ModuleState* s_cinderx_state;
-
-void setModuleState(ModuleState* state) {
+void setModule(PyObject* m) {
+  auto state = reinterpret_cast<cinderx::ModuleState*>(PyModule_GetState(m));
   s_cinderx_state = state;
+  state->setModule(m);
 }
 
 ModuleState* getModuleState() {

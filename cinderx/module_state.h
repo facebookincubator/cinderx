@@ -136,6 +136,17 @@ class ModuleState {
     initialized_ = init;
   }
 
+  void setModule(BorrowedRef<> module) {
+    cinderx_module_ = module;
+  }
+
+  // Returns the PyModule instance for the CinderX module. This can be useful if
+  // we have live data backed by the module, in which case we can increase the
+  // refcount of the module to prevent it from being freed prematurely.
+  BorrowedRef<> module() const {
+    return cinderx_module_;
+  }
+
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::ICodeAllocator> code_allocator_;
@@ -152,9 +163,10 @@ class ModuleState {
   jit::UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist_;
 
   bool initialized_{false};
+  BorrowedRef<> cinderx_module_;
 };
 
-void setModuleState(ModuleState* state);
+void setModule(PyObject* module);
 ModuleState* getModuleState();
 
 } // namespace cinderx
