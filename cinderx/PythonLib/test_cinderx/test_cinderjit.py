@@ -1657,7 +1657,7 @@ class CinderJitModuleTests(StaticTestBase):
             run_test(zero_asserts, ["-X", "jit-max-code-size=0"])
             run_test(
                 zero_asserts,
-                ["-X", "jit-max-code-size=0", "-X", "jit-disable-huge-pages"],
+                ["-X", "jit-max-code-size=0", "-X", "jit-huge-pages=0"],
             )
             run_test(
                 zero_asserts,
@@ -1675,7 +1675,7 @@ class CinderJitModuleTests(StaticTestBase):
             run_test(onek_asserts, ["-X", "jit-max-code-size=1024"])
             run_test(
                 onek_asserts,
-                ["-X", "jit-max-code-size=1024", "-X", "jit-disable-huge-pages"],
+                ["-X", "jit-max-code-size=1024", "-X", "jit-huge-pages=0"],
             )
             run_test(
                 onek_asserts,

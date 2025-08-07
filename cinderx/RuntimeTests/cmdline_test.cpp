@@ -247,10 +247,18 @@ TEST_F(CmdLineTest, BasicFlags) {
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
-          L"jit-disable-huge-pages",
-          "PYTHONJITDISABLEHUGEPAGES",
+          L"jit-huge-pages=0",
+          "PYTHONJITHUGEPAGES=0",
           []() {},
           []() { ASSERT_FALSE(getConfig().use_huge_pages); }),
+      0);
+
+  ASSERT_EQ(
+      try_flag_and_envvar_effect(
+          L"jit-huge-pages=1",
+          "PYTHONJITHUGEPAGES=1",
+          []() {},
+          []() { ASSERT_TRUE(getConfig().use_huge_pages); }),
       0);
 
   ASSERT_EQ(

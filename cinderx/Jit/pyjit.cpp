@@ -529,10 +529,10 @@ FlagProcessor initFlagProcessor() {
       "Dump JIT runtime stats at shutdown");
 
   flag_processor.addOption(
-      "jit-disable-huge-pages",
-      "PYTHONJITDISABLEHUGEPAGES",
-      [](const std::string&) { getMutableConfig().use_huge_pages = false; },
-      "disable huge page support");
+      "jit-huge-pages",
+      "PYTHONJITHUGEPAGES",
+      getMutableConfig().use_huge_pages,
+      "Enable or disable huge pages for compiled functions");
 
   flag_processor.addOption(
       "jit-enable-jit-list-wildcards",
