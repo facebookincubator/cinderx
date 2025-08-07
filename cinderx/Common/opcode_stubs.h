@@ -4,11 +4,12 @@
 
 #include "cinderx/python.h"
 
-// Define all bytecodes that appeared or were removed between 3.10 and 3.12.
-// Bytecodes that don't match the Python version being used for the current
-// build will be intentionally defined to out-of-range values (i.e. >255) so as
-// to not be reachable by the interpreter, or any utilities that read or write
-// to code objects.
+// Define all bytecodes that appeared or were removed from <lowest version of
+// Python we support> and <highest version of Python we support>. Bytecodes that
+// don't match the Python version being used for the current build will be
+// intentionally defined to out-of-range values (i.e. >255) so as to not be
+// reachable by the interpreter, or any utilities that read or write to code
+// objects.
 //
 // Having them defined across all builds means there can be less Python version
 // checks in the compiler.
@@ -69,6 +70,7 @@
   X(LOAD_FROM_DICT_OR_DEREF)           \
   X(LOAD_FROM_DICT_OR_GLOBALS)         \
   X(LOAD_LOCALS)                       \
+  X(LOAD_SMALL_INT)                    \
   X(LOAD_SUPER_ATTR)                   \
   X(MAKE_CELL)                         \
   X(POP_JUMP_IF_NONE)                  \
@@ -178,6 +180,7 @@ enum {
   X(LOAD_METHOD_TYPE_METHODLIKE)   \
   X(LOAD_METHOD_UNCACHABLE)        \
   X(LOAD_METHOD_UNSHADOWED_METHOD) \
+  X(LOAD_SMALL_INT)                \
   X(MAKE_OPNAME)                   \
   X(ROT_FOUR)                      \
   X(ROT_N)                         \

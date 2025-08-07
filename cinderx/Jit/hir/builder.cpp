@@ -6,6 +6,7 @@
 
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_intrinsics.h"
+#include "internal/pycore_long.h"
 #include "internal/pycore_runtime.h"
 #endif
 
@@ -156,6 +157,7 @@ bool isSupportedOpcode(int opcode) {
     case LOAD_METHOD:
     case LOAD_METHOD_STATIC:
     case LOAD_METHOD_SUPER:
+    case LOAD_SMALL_INT:
     case LOAD_SUPER_ATTR:
     case LOAD_TYPE:
     case MAKE_CELL:
@@ -1024,6 +1026,10 @@ void HIRBuilder::translate(
         }
         case LOAD_LOCAL: {
           emitLoadLocal(tc, bc_instr);
+          break;
+        }
+        case LOAD_SMALL_INT: {
+          emitLoadSmallInt(tc, bc_instr);
           break;
         }
         case LOAD_TYPE: {
@@ -2920,6 +2926,23 @@ void HIRBuilder::emitLoadLocal(
 
   auto var = tc.frame.localsplus[index];
   tc.frame.stack.push(var);
+}
+
+void HIRBuilder::emitLoadSmallInt(
+    [[maybe_unused]] TranslationContext& tc,
+    [[maybe_unused]] const jit::BytecodeInstruction& bc_instr) {
+#if PY_VERSION_HEX >= 0x030E0000
+  Register* tmp = temps_.AllocateStack();
+  JIT_CHECK(
+      bc_instr.oparg() < _PY_NSMALLPOSINTS, "LOAD_SMALL_INT out of range");
+  tc.emit<LoadConst>(
+      tmp,
+      Type::fromObject(reinterpret_cast<PyObject*>(
+          &_PyLong_SMALL_INTS[_PY_NSMALLNEGINTS + bc_instr.oparg()])));
+  tc.frame.stack.push(tmp);
+#else
+  JIT_ABORT("LOAD_SMALL_INT not supported on this Python version");
+#endif
 }
 
 void HIRBuilder::emitStoreLocal(
