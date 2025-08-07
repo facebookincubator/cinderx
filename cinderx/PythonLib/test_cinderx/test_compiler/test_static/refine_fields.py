@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
+
 import dis
 
 from cinderx.compiler.static.types import TMP_VAR_PREFIX

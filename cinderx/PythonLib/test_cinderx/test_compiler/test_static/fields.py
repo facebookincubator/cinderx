@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
+
 from types import MemberDescriptorType
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator
