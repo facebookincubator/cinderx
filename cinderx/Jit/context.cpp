@@ -35,6 +35,11 @@ Context::CompilationResult Context::compilePreloader(
   return result;
 }
 
+void Context::uncompile(BorrowedRef<PyFunctionObject> func) {
+  deoptFuncImpl(func);
+  compiled_codes_.erase(CompilationKey{func});
+}
+
 bool Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
   if (deoptFuncImpl(func)) {
     deopted_funcs_.emplace(func);
@@ -104,6 +109,9 @@ void Context::funcModified(BorrowedRef<PyFunctionObject> func) {
 void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   compiled_funcs_.erase(func);
   deopted_funcs_.erase(func);
+
+  // This doesn't modify compiled_codes_, so if this is a nested function it can
+  // easily be reopted later.
 }
 
 Context::CompilationResult Context::compilePreloaderImpl(

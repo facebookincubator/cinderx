@@ -1382,6 +1382,9 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
   // "Destroy" the function from the perspective of the JIT, effectively erasing
   // all traces of it from the metadata.
   funcDestroyed(func);
+  if (jit_ctx != nullptr) {
+    jit_ctx->uncompile(func);
+  }
 
   Py_RETURN_TRUE;
 }

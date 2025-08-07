@@ -26,6 +26,11 @@ struct CompilationKey {
   PyObject* builtins;
   PyObject* globals;
 
+  explicit CompilationKey(BorrowedRef<PyFunctionObject> func)
+      : code{func->func_code},
+        builtins{func->func_builtins},
+        globals{func->func_globals} {}
+
   CompilationKey(PyObject* code, PyObject* builtins, PyObject* globals)
       : code(code), builtins(builtins), globals(globals) {}
 
@@ -71,6 +76,11 @@ class Context {
   CompilationResult compilePreloader(
       BorrowedRef<PyFunctionObject> func,
       const hir::Preloader& preloader);
+
+  /*
+   * Fully remove all effects of compilation from a function.
+   */
+  void uncompile(BorrowedRef<PyFunctionObject> func);
 
   /*
    * De-optimize a function by setting it to run through the interpreter if it

@@ -8,10 +8,12 @@ from cinderx.jit import (
     disable as disable_jit,
     enable as enable_jit,
     force_compile,
+    force_uncompile,
     INSTALLED,
     is_enabled as is_jit_enabled,
     is_jit_compiled,
     jit_suppress,
+    jit_unsuppress,
     lazy_compile,
     pause as pause_jit,
 )
@@ -45,6 +47,8 @@ class DisableEnableTests(unittest.TestCase):
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
 
+        force_uncompile(foo)
+
     def test_suppress_and_reopt(self) -> None:
         def foo(a, b):
             return a + b
@@ -60,6 +64,8 @@ class DisableEnableTests(unittest.TestCase):
 
         enable_jit()
         self.assertFalse(is_jit_compiled(foo))
+
+        jit_unsuppress(foo)
 
     def test_disable_then_deopt(self) -> None:
         def foo(a, b):
@@ -77,6 +83,8 @@ class DisableEnableTests(unittest.TestCase):
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
 
+        force_uncompile(foo)
+
     def test_already_disabled(self) -> None:
         def foo(a, b):
             return a + b
@@ -92,6 +100,8 @@ class DisableEnableTests(unittest.TestCase):
 
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
+
+        force_uncompile(foo)
 
     def test_already_enabled(self) -> None:
         def foo(a, b):
@@ -109,6 +119,8 @@ class DisableEnableTests(unittest.TestCase):
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
 
+        force_uncompile(foo)
+
     def test_compile_new_after_reenable(self) -> None:
         disable_jit(deopt_all=True)
 
@@ -122,6 +134,8 @@ class DisableEnableTests(unittest.TestCase):
 
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
+
+        force_uncompile(foo)
 
     def test_pause(self) -> None:
         def foo(a, b):
@@ -148,6 +162,8 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_enabled())
         self.assertTrue(is_jit_compiled(foo))
 
+        force_uncompile(foo)
+
     def test_pause_nested(self) -> None:
         def foo(a, b):
             return a + b
@@ -169,6 +185,8 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_enabled())
         self.assertTrue(is_jit_compiled(foo))
 
+        force_uncompile(foo)
+
     def test_pause_between_lazy_compile(self) -> None:
         def foo(a, b):
             return a + b
@@ -184,6 +202,8 @@ class DisableEnableTests(unittest.TestCase):
         self.assertFalse(is_jit_compiled(foo))
         foo(3, 4)
         self.assertTrue(is_jit_compiled(foo))
+
+        force_uncompile(foo)
 
 
 if __name__ == "__main__":
