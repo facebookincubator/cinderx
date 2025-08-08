@@ -14,10 +14,8 @@
 #include "cinderx/Jit/hir/copy_propagation.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/instr_effects.h"
-#include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/hir/printer.h"
-#include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 

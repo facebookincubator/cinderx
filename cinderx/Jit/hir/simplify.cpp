@@ -2,8 +2,6 @@
 
 #include "cinderx/Jit/hir/simplify.h"
 
-#include "cinderx/python.h"
-
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/property.h"
