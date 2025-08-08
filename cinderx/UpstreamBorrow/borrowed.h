@@ -4,8 +4,6 @@
 
 #include "cinderx/python.h"
 
-#include "cinderx/module_state.h"
-
 #if PY_VERSION_HEX >= 0x030E0000
 // These symbols are not exported from CPython, but they are also not marked
 // static. When we statically link CinderX + the runtime (which happens at least
