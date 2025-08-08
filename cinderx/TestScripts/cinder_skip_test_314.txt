@@ -1,3 +1,2 @@
-# TASK(T233029400): These don't pass because we use the PEP-523 evaluator
-
-test.test_perf_profiler.*
+# This variant starts w/ the perf trampoline enabled and CinderX can't install over it
+test.test_perf_profiler.TestPerfTrampoline.test_trampoline_works
