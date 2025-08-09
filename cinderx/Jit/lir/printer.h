@@ -24,16 +24,6 @@ class Printer {
   void print(std::ostream& out, const MemoryIndirect& memind);
 
  private:
-  const Function* getFunction(const BasicBlock& block) {
-    return block.function();
-  }
-  const Function* getFunction(const Instruction& instr) {
-    return getFunction(*instr.basicblock());
-  }
-  const Function* getFunction(const OperandBase& opnd) {
-    return getFunction(*opnd.instr());
-  }
-
   hir::HIRPrinter hir_printer_;
 };
 
