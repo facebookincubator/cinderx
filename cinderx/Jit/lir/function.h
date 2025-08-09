@@ -48,15 +48,7 @@ class Function {
     return basic_blocks_;
   }
 
-  BasicBlock* getEntryBlock() {
-    if (basic_blocks_.empty()) {
-      return nullptr;
-    }
-    return basic_blocks_.front();
-  }
-  const BasicBlock* getEntryBlock() const {
-    return const_cast<Function*>(this)->getEntryBlock();
-  }
+  BasicBlock* entryBlock() const;
 
   size_t getNumBasicBlocks() const {
     return basic_blocks_.size();

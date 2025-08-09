@@ -197,11 +197,6 @@ Function::CopyResult Function::copyFrom(
   return CopyResult{start, end};
 }
 
-void Function::sortBasicBlocks() {
-  BasicBlockSorter sorter(basic_blocks_);
-  basic_blocks_ = sorter.getSortedBlocks();
-}
-
 BasicBlock* Function::allocateBasicBlock() {
   basic_block_store_.emplace_back(this);
   BasicBlock* new_block = &basic_block_store_.back();
@@ -219,6 +214,18 @@ BasicBlock* Function::allocateBasicBlockAfter(BasicBlock* block) {
   BasicBlock* new_block = &basic_block_store_.back();
   basic_blocks_.emplace(iter, new_block);
   return new_block;
+}
+
+BasicBlock* Function::entryBlock() const {
+  if (basic_blocks_.empty()) {
+    return nullptr;
+  }
+  return basic_blocks_.front();
+}
+
+void Function::sortBasicBlocks() {
+  BasicBlockSorter sorter(basic_blocks_);
+  basic_blocks_ = sorter.getSortedBlocks();
 }
 
 } // namespace jit::lir

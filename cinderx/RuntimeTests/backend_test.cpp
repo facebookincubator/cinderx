@@ -739,8 +739,8 @@ TEST_F(BackendTest, SplitBasicBlockTest) {
 }
 
 TEST_F(BackendTest, InlineJITRTCastTest) {
-  auto caller = std::make_unique<Function>();
-  auto bb = caller->allocateBasicBlock();
+  Function caller;
+  auto bb = caller.allocateBasicBlock();
   auto r1 =
       bb->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(0));
   auto r2 =
@@ -753,9 +753,9 @@ TEST_F(BackendTest, InlineJITRTCastTest) {
       VReg(r1),
       VReg(r2));
   bb->allocateInstr(Instruction::kReturn, nullptr, VReg(call_instr));
-  auto epilogue = caller->allocateBasicBlock();
+  auto epilogue = caller.allocateBasicBlock();
   bb->addSuccessor(epilogue);
-  LIRInliner inliner(call_instr);
+  LIRInliner inliner{&caller, call_instr};
   inliner.inlineCall();
 
   // Check that caller LIR is as expected.
@@ -796,8 +796,8 @@ BB %5 - preds: %6
       reinterpret_cast<uint64_t>(PyErr_Format),
       reinterpret_cast<uint64_t>(PyExc_TypeError));
   std::stringstream ss;
-  caller->sortBasicBlocks();
-  ss << *caller;
+  caller.sortBasicBlocks();
+  ss << caller;
   // Replace the string literal address
   std::regex reg("\\d+\\(0x[0-9a-fA-F]+\\):Object, %21:Object, %20:Object");
   std::string caller_str =
@@ -805,7 +805,7 @@ BB %5 - preds: %6
   ASSERT_EQ(expected_caller, caller_str);
 
   // Test execution of caller
-  CheckCast(caller.get());
+  CheckCast(&caller);
 }
 
 TEST_F(BackendTest, PostgenJITRTCastTest) {

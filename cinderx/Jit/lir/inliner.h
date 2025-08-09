@@ -13,9 +13,9 @@ class LIRInliner {
   // Given a function, try to inline all calls.
   // Return true if one or more calls have been inlined (i.e. the function has
   // been modified). Otherwise, return false.
-  static bool inlineCalls(lir::Function* function);
+  static bool inlineCalls(Function* function);
 
-  explicit LIRInliner(lir::Instruction* instr) : call_instr_(instr) {}
+  LIRInliner(Function* caller, Instruction* instr);
 
   // Public function for inlining call_instr_.
   // Return true if inlining succeeds.
@@ -26,9 +26,16 @@ class LIRInliner {
   // we may want to add a check for this later.
   bool inlineCall();
 
+  // Find corresponding function body.  Return nullptr if function cannot be
+  // found.
+  lir::Function* findCalleeFunction();
+
  private:
+  // The function containing the call instruction.
+  Function* caller_{nullptr};
   // The call instruction that we want to inline.
   lir::Instruction* call_instr_;
+
   // After copying the callee into the caller,
   // callee_start is the index of the first callee block (i.e. the entry block)
   // and callee_end is the index of the last callee block (i.e. the exit block)
@@ -58,10 +65,6 @@ class LIRInliner {
   // Check that kLoadArg instructions occur at the beginning.
   // Check that kLoadArg instructions don't exceed the number of arguments.
   bool checkLoadArg(const lir::Function* callee);
-
-  // Find corresponding function body.
-  // Returns nullptr if function cannot be found.
-  lir::Function* findFunction();
 
   // Given the address of the function, try to find the corresponding LIR text
   // and parse it.
@@ -96,8 +99,6 @@ class LIRInliner {
   FRIEND_TEST(LIRInlinerTest, ResolveArgumentsTest);
   FRIEND_TEST(LIRInlinerTest, ResolveReturnWithPhiTest);
   FRIEND_TEST(LIRInlinerTest, ResolveReturnWithoutPhiTest);
-  FRIEND_TEST(LIRInlinerTest, FindFunctionSuccessTest);
-  FRIEND_TEST(LIRInlinerTest, FindFunctionFailureTest);
 };
 
 } // namespace jit::lir

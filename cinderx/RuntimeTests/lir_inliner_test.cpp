@@ -11,11 +11,12 @@ using namespace jit;
 using namespace jit::codegen;
 
 namespace jit::lir {
+
 class LIRInlinerTest : public RuntimeTest {};
 
 TEST_F(LIRInlinerTest, ResolveArgumentsTest) {
-  auto caller = std::make_unique<Function>();
-  auto caller_bb1 = caller->allocateBasicBlock();
+  Function caller;
+  auto caller_bb1 = caller.allocateBasicBlock();
   auto caller_r1 =
       caller_bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(2));
   auto caller_r2 =
@@ -31,7 +32,7 @@ TEST_F(LIRInlinerTest, ResolveArgumentsTest) {
       VReg(caller_r2));
 
   // Let's temporarily add the callee basic blocks after the caller's
-  auto bb1 = caller->allocateBasicBlock();
+  auto bb1 = caller.allocateBasicBlock();
   auto a =
       bb1->allocateInstr(Instruction::kLoadArg, nullptr, OutVReg(), Imm(0));
   auto b =
@@ -59,7 +60,7 @@ TEST_F(LIRInlinerTest, ResolveArgumentsTest) {
 
   bb1->allocateInstr(Instruction::kReturn, nullptr, VReg(h));
 
-  LIRInliner inliner(call_instr);
+  LIRInliner inliner{&caller, call_instr};
   inliner.callee_start_ = 1;
   inliner.callee_end_ = 2;
   // Set up arguments list
@@ -86,13 +87,13 @@ BB %4
                    Return %14:Object
 )");
   std::stringstream ss;
-  ss << *caller << std::endl;
+  ss << caller << std::endl;
   ASSERT_EQ(ss.str().substr(0, lir_expected.size()), lir_expected);
 }
 
 TEST_F(LIRInlinerTest, ResolveReturnWithPhiTest) {
-  auto caller = std::make_unique<Function>();
-  auto caller_bb1 = caller->allocateBasicBlock();
+  Function caller;
+  auto caller_bb1 = caller.allocateBasicBlock();
   auto call_instr = caller_bb1->allocateInstr(
       Instruction::kCall,
       nullptr,
@@ -103,9 +104,9 @@ TEST_F(LIRInlinerTest, ResolveReturnWithPhiTest) {
       Imm(3));
 
   // Temporarily add callee blocks into caller
-  auto bb1 = caller->allocateBasicBlock();
-  auto bb2 = caller->allocateBasicBlock();
-  auto epilogue = caller->allocateBasicBlock();
+  auto bb1 = caller.allocateBasicBlock();
+  auto bb2 = caller.allocateBasicBlock();
+  auto epilogue = caller.allocateBasicBlock();
   auto r1 = bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(1));
   bb1->allocateInstr(Instruction::kReturn, nullptr, VReg(r1));
   bb1->addSuccessor(epilogue);
@@ -113,7 +114,7 @@ TEST_F(LIRInlinerTest, ResolveReturnWithPhiTest) {
   bb2->allocateInstr(Instruction::kReturn, nullptr, VReg(r2));
   bb2->addSuccessor(epilogue);
 
-  LIRInliner inliner(call_instr);
+  LIRInliner inliner{&caller, call_instr};
   inliner.callee_start_ = 1;
   inliner.callee_end_ = 4;
   inliner.resolveReturnValue();
@@ -133,13 +134,13 @@ BB %4 - preds: %2 %3
 
 )");
   std::stringstream ss;
-  ss << *caller << std::endl;
+  ss << caller << std::endl;
   ASSERT_EQ(ss.str().substr(0, lir_expected.size()), lir_expected);
 }
 
 TEST_F(LIRInlinerTest, ResolveReturnWithoutPhiTest) {
-  auto caller = std::make_unique<Function>();
-  auto caller_bb1 = caller->allocateBasicBlock();
+  Function caller;
+  auto caller_bb1 = caller.allocateBasicBlock();
   auto call_instr = caller_bb1->allocateInstr(
       Instruction::kCall,
       nullptr,
@@ -148,15 +149,15 @@ TEST_F(LIRInlinerTest, ResolveReturnWithoutPhiTest) {
       Imm(1), // extra inputs that resolveReturnValue should remove
       Imm(2));
 
-  auto bb1 = caller->allocateBasicBlock();
-  auto bb2 = caller->allocateBasicBlock();
-  auto epilogue = caller->allocateBasicBlock();
+  auto bb1 = caller.allocateBasicBlock();
+  auto bb2 = caller.allocateBasicBlock();
+  auto epilogue = caller.allocateBasicBlock();
   bb1->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(1));
   bb1->addSuccessor(epilogue);
   bb2->allocateInstr(Instruction::kMove, nullptr, OutVReg(), Imm(2));
   bb2->addSuccessor(epilogue);
 
-  LIRInliner inliner(call_instr);
+  LIRInliner inliner{&caller, call_instr};
   inliner.callee_start_ = 1;
   inliner.callee_end_ = 4;
   inliner.resolveReturnValue();
@@ -176,38 +177,38 @@ BB %4 - preds: %2 %3
 
 )");
   std::stringstream ss;
-  ss << *caller << std::endl;
+  ss << caller << std::endl;
   ASSERT_EQ(ss.str(), lir_expected);
 }
 
-TEST_F(LIRInlinerTest, FindFunctionSuccessTest) {
-  auto caller = std::make_unique<Function>();
-  auto bb = caller->allocateBasicBlock();
+TEST_F(LIRInlinerTest, FindCalleeFunctionSuccessTest) {
+  Function caller;
+  auto bb = caller.allocateBasicBlock();
   auto call_instr = bb->allocateInstr(
       Instruction::kCall,
       nullptr,
       OutVReg(),
       Imm(reinterpret_cast<uint64_t>(JITRT_Cast)));
-  LIRInliner inliner(call_instr);
-  auto callee = inliner.findFunction();
+  LIRInliner inliner{&caller, call_instr};
+  auto callee = inliner.findCalleeFunction();
   ASSERT_TRUE(callee != nullptr);
   // The second time that the same function is called,
   // it should already have been parsed.
-  auto callee2 = inliner.findFunction();
+  auto callee2 = inliner.findCalleeFunction();
   ASSERT_EQ(callee, callee2);
 }
 
-TEST_F(LIRInlinerTest, FindFunctionFailureTest) {
-  auto caller = std::make_unique<Function>();
-  auto bb = caller->allocateBasicBlock();
+TEST_F(LIRInlinerTest, FindCalleeFunctionFailureTest) {
+  Function caller;
+  auto bb = caller.allocateBasicBlock();
   auto call_instr = bb->allocateInstr(
       Instruction::kCall,
       nullptr,
       OutVReg(),
       Imm(reinterpret_cast<uint64_t>(JITRT_BoxBool)));
   // JITRT_BoxBool is a function that we have not yet translated.
-  LIRInliner inliner(call_instr);
-  auto callee = inliner.findFunction();
+  LIRInliner inliner{&caller, call_instr};
+  auto callee = inliner.findCalleeFunction();
 
   ASSERT_EQ(callee, nullptr);
 }

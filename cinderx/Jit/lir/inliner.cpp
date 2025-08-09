@@ -22,7 +22,7 @@ bool LIRInliner::inlineCalls(Function* func) {
 
     for (auto& instr : bb->instructions()) {
       if (instr->isCall()) {
-        LIRInliner inliner(instr.get());
+        LIRInliner inliner(func, instr.get());
         if (inliner.inlineCall()) {
           changed = true;
           // This block has been split,
@@ -36,9 +36,12 @@ bool LIRInliner::inlineCalls(Function* func) {
   return changed;
 }
 
+LIRInliner::LIRInliner(Function* caller, Instruction* instr)
+    : caller_{caller}, call_instr_{instr} {}
+
 bool LIRInliner::inlineCall() {
   // Try to find function.
-  Function* callee = findFunction();
+  Function* callee = findCalleeFunction();
   if (callee == nullptr) {
     // If function is not found, we cannot inline.
     return false;
@@ -54,9 +57,8 @@ bool LIRInliner::inlineCall() {
   BasicBlock* block2 = block1->splitBefore(call_instr_);
 
   // Copy callee into caller.
-  Function* caller = call_instr_->basicblock()->function();
   Function::CopyResult callee_bounds =
-      caller->copyFrom(callee, block1, block2, call_instr_->origin());
+      caller_->copyFrom(callee, block1, block2, call_instr_->origin());
   callee_start_ = callee_bounds.begin_bb;
   callee_end_ = callee_bounds.end_bb;
 
@@ -87,7 +89,7 @@ bool LIRInliner::checkEntryExitReturn(const Function* callee) {
     JIT_DLOG("Callee has no basic block.");
     return false;
   }
-  const BasicBlock* entry_block = callee->getEntryBlock();
+  const BasicBlock* entry_block = callee->entryBlock();
   if (!entry_block->predecessors().empty()) {
     JIT_DLOG("Expect entry block to have no predecessors.");
     return false;
@@ -174,7 +176,7 @@ bool LIRInliner::checkLoadArg(const Function* callee) {
   return true;
 }
 
-lir::Function* LIRInliner::findFunction() {
+lir::Function* LIRInliner::findCalleeFunction() {
   // Get the address.
   if (call_instr_->getNumInputs() < 1) {
     return nullptr;
@@ -237,9 +239,9 @@ lir::Function* LIRInliner::parseFunction(uint64_t addr) {
 bool LIRInliner::resolveArguments() {
   // Remove load arg instructions and update virtual registers.
   UnorderedMap<OperandBase*, LinkedOperand*> vreg_map;
-  auto caller_blocks = &call_instr_->basicblock()->function()->basicblocks();
+  auto const& caller_blocks = caller_->basicblocks();
   for (int i = callee_start_; i < callee_end_; i++) {
-    auto bb = caller_blocks->at(i);
+    auto bb = caller_blocks.at(i);
     auto it = bb->instructions().begin();
     // Use while loop since instructions may be removed.
     while (it != bb->instructions().end()) {
@@ -320,8 +322,7 @@ void LIRInliner::resolveLinkedArgumentsUses(
 }
 
 void LIRInliner::resolveReturnValue() {
-  auto epilogue =
-      call_instr_->basicblock()->function()->basicblocks().at(callee_end_ - 1);
+  auto epilogue = caller_->basicblocks().at(callee_end_ - 1);
 
   // Create phi instruction.
   auto phi_instr =
