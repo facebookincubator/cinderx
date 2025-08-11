@@ -2,6 +2,13 @@
 
 #include "cinderx/Jit/frame.h"
 
+const char* codeName(PyCodeObject* code) {
+  if (code->co_qualname == nullptr) {
+    return "<null>";
+  }
+  return PyUnicode_AsUTF8(code->co_qualname);
+}
+
 #if PY_VERSION_HEX < 0x030C0000
 
 #include "cinder/exports.h"
@@ -47,13 +54,6 @@ static bool is_shadow_frame_for_gen(_PyShadowFrame* shadow_frame) {
 namespace jit {
 
 namespace {
-
-const char* codeName(PyCodeObject* code) {
-  if (code->co_qualname == nullptr) {
-    return "<null>";
-  }
-  return PyUnicode_AsUTF8(code->co_qualname);
-}
 
 Ref<> getModuleName(_PyShadowFrame* shadow_frame) {
   RuntimeFrameState rtfs = runtimeFrameStateFromShadowFrame(shadow_frame);
@@ -817,6 +817,166 @@ RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
 
+struct FrameAndLoc {
+  FrameAndLoc(_PyInterpreterFrame* sf, const CodeObjLoc& l)
+      : frame(sf), loc(l) {}
+  _PyInterpreterFrame* frame;
+  CodeObjLoc loc;
+};
+
+using UnitState = std::vector<FrameAndLoc>;
+
+CodeRuntime* getCodeRuntime(_PyInterpreterFrame* frame) {
+  JIT_DCHECK(
+      frame->owner != FRAME_OWNED_BY_GENERATOR,
+      "generators aren't supported yet");
+  BorrowedRef<PyFunctionObject> func;
+  if (hasRtfsFunction(frame)) {
+    auto rtfs = jitFrameGetRtfs(frame);
+    JIT_DCHECK(rtfs != nullptr, "RuntimeFrameState should have a function");
+    func = rtfs->func();
+  } else {
+    func = jitFrameGetFunction(frame);
+  }
+
+  return cinderx::getModuleState()->jitContext()->lookupCodeRuntime(func);
+}
+
+bool isJitFrame(_PyInterpreterFrame* frame) {
+  return frame->f_funcobj == cinderx::getModuleState()->frameReifier();
+}
+
+bool isGeneratorFrame(_PyInterpreterFrame* frame) {
+  return frame->owner == FRAME_OWNED_BY_GENERATOR;
+}
+
+bool isInlined(_PyInterpreterFrame* frame) {
+  if (isGeneratorFrame(frame)) {
+    // Generator frames are never inlined
+    return false;
+  }
+
+  // Inlined functions have a RTFS, non-inlined frames have a function
+  return hasRtfsFunction(frame);
+}
+
+// Return the base of the stack frame given its frame.
+uintptr_t getFrameBaseFromOnStackFrame(_PyInterpreterFrame* frame) {
+  // The frame is embedded in the frame header at the beginning of the
+  // stack frame.
+  return reinterpret_cast<uintptr_t>(frame) +
+      sizeof(PyObject*) * frame->f_code->co_framesize;
+}
+
+uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
+  JIT_CHECK(isJitFrame(frame), "frame not executed by the JIT");
+  uintptr_t frame_base;
+  if (isGeneratorFrame(frame)) {
+    JIT_ABORT("generator frames not supported yet");
+#if 0
+    PyGenObject* gen = _PyShadowFrame_GetGen(shadow_frame);
+    auto footer = reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
+    if (footer->yieldPoint == nullptr) {
+      // The generator is running.
+      frame_base = footer->originalRbp;
+    } else {
+      // The generator is suspended.
+      return footer->yieldPoint->resumeTarget();
+    }
+#endif
+  } else {
+    frame_base = getFrameBaseFromOnStackFrame(frame);
+  }
+  // Read the saved IP from the stack
+  uintptr_t ip;
+  auto saved_ip =
+      reinterpret_cast<uintptr_t*>(frame_base - frame_size - kPointerSize);
+  memcpy(&ip, saved_ip, kPointerSize);
+  return ip;
+}
+
+// Collect all the frames in the unit, with the frame for the
+// non-inlined function as the first element in the return vector.
+std::vector<_PyInterpreterFrame*> getUnitFrames(_PyInterpreterFrame* frame) {
+  std::vector<_PyInterpreterFrame*> frames;
+  while (frame != nullptr) {
+    if (frame->f_funcobj != cinderx::getModuleState()->frameReifier()) {
+      // We've reached an interpreter frame before finding the non-inlined
+      // frame.
+      JIT_ABORT("couldn't find non-inlined frame");
+    }
+    frames.emplace_back(frame);
+    if (!isInlined(frame)) {
+      std::reverse(frames.begin(), frames.end());
+      return frames;
+    }
+    frame = frame->previous;
+  }
+  // We've walked entire stack without finding the non-inlined frame.
+  JIT_ABORT("couldn't find non-inlined frame");
+}
+
+UnitState getUnitState(_PyInterpreterFrame* frame) {
+  std::vector<_PyInterpreterFrame*> unit_frames = getUnitFrames(frame);
+  auto logUnitFrames = [&unit_frames] {
+    JIT_LOG("Unit frames (increasing order of inline depth):");
+    for (_PyInterpreterFrame* sf : unit_frames) {
+      JIT_LOG("code={}", codeName(_PyFrame_GetCode(sf)));
+    }
+  };
+  // Look up bytecode offsets for the frames in the unit.
+  //
+  // This is accomplished by combining a few different things:
+  //
+  // 1. For each unit, the JIT maintains a mapping of addresses in the
+  //    generated code to code locations (code object, bytecode offset) for
+  //    each active Python frame at that point, including frames for inlined
+  //    functions.
+  // 2. Every unit has a fixed-size native stack frame whose size is known at
+  //    compile-time. This is recorded in the CodeRuntime for the unit.
+  // 3. We can recover the CodeRuntime for a unit from its interpreter frame.
+  // 4. We can recover the base of a unit's native stack frame from its
+  //    frames. Frames for non-generator units are stored in the unit's
+  //    native frame at a fixed offset from the base, while the frame base is
+  //    stored directly in the JIT data for the generator.
+  //
+  UnitState unit_state;
+  unit_state.reserve(unit_frames.size());
+  _PyInterpreterFrame* non_inlined_sf = unit_frames[0];
+  CodeRuntime* code_rt = getCodeRuntime(non_inlined_sf);
+  uintptr_t ip = getIP(non_inlined_sf, code_rt->frame_size());
+  std::optional<UnitCallStack> locs =
+      code_rt->debug_info()->getUnitCallStack(ip);
+  if (locs.has_value()) {
+    // We may have a different number of unit_frames than locs, this happens
+    // when we're updating the outer frame while we're in an inlined function,
+    // but our code objects should all line up.
+    for (std::size_t i = 0; i < unit_frames.size(); i++) {
+      JIT_DCHECK(
+          unit_frames[i]->f_code == locs->at(i).code,
+          "code mismatch {} vs {}",
+          codeName(unit_frames[i]->f_code),
+          codeName(locs->at(i).code));
+      unit_state.emplace_back(unit_frames[i], locs->at(i));
+    }
+  } else {
+    // We might not have debug info for a number of reasons (e.g. we've read
+    // the return address incorrectly or there's a bug with how we're
+    // generating the information). The consequences of getting this wrong
+    // (incorrect line numbers) don't warrant aborting in production, but it is
+    // worth investigating. Leave some breadcrumbs to help with debugging.
+    JIT_LOG("No debug info for addr {:x}", ip);
+    logUnitFrames();
+    JIT_DABORT("No debug info for addr {:x}", ip);
+    for (_PyInterpreterFrame* frame : unit_frames) {
+      unit_state.emplace_back(
+          frame, CodeObjLoc{_PyFrame_GetCode(frame), BCOffset{-1}});
+    }
+  }
+
+  return unit_state;
+}
+
 static PyMemberDef framereifier_members[] = {
     {"__vectorcalloffset__",
      T_PYSSIZET,
@@ -824,6 +984,24 @@ static PyMemberDef framereifier_members[] = {
      READONLY},
     {} /* Sentinel */
 };
+
+void updatePrevInstr(_PyInterpreterFrame* frame) {
+  auto unit_state = getUnitState(frame);
+  for (auto it = unit_state.rbegin(); it != unit_state.rend(); ++it) {
+    _PyInterpreterFrame* cur_frame = it->frame;
+    auto loc = it->loc.instr_offset;
+    _Py_CODEUNIT* new_loc =
+        _PyCode_CODE(_PyFrame_GetCode(cur_frame)) + loc.asIndex().value();
+    JIT_DCHECK(
+        new_loc >= (_Py_CODEUNIT*)(_PyCode_CODE(_PyFrame_GetCode(cur_frame))),
+        "code prev instr underflow");
+    JIT_DCHECK(
+        new_loc < (_Py_CODEUNIT*)(_PyCode_CODE(_PyFrame_GetCode(cur_frame)) +
+                                  Py_SIZE(cur_frame->f_code)),
+        "code prev instr overflow");
+    cur_frame->prev_instr = new_loc;
+  }
+}
 
 PyObject* jitFrameReifierVectorcall(
     JitFrameReifier*,
@@ -837,6 +1015,7 @@ PyObject* jitFrameReifierVectorcall(
   _PyInterpreterFrame* frame =
       reinterpret_cast<_PyInterpreterFrame*>(PyLong_AsVoidPtr(args[0]));
   jitFramePopulateFrame(frame);
+  updatePrevInstr(frame);
 
   BorrowedRef<PyFunctionObject> func = hasRtfsFunction(frame)
       ? jitFrameGetRtfs(frame)->func()
@@ -854,6 +1033,7 @@ PyObject* framereifier_tpcall(PyObject*, PyObject* args, PyObject*) {
   _PyInterpreterFrame* frame = reinterpret_cast<_PyInterpreterFrame*>(
       PyLong_FromVoidPtr(PyTuple_GET_ITEM(args, 0)));
   jitFramePopulateFrame(frame);
+  updatePrevInstr(frame);
 
   BorrowedRef<PyFunctionObject> func = hasRtfsFunction(frame)
       ? jitFrameGetRtfs(frame)->func()

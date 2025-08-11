@@ -200,6 +200,9 @@ void InsertUpdatePrevInstr::Run(Function& func) {
   std::unordered_map<BeginInlinedFunction*, BeginInlinedFunction*> parents;
 
   worklist.emplace(func.cfg.entry_block, nullptr);
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  bool inited_once = false;
+#endif
   while (!worklist.empty()) {
     auto cur = worklist.top();
     auto block = cur.block;
@@ -254,11 +257,35 @@ void InsertUpdatePrevInstr::Run(Function& func) {
         }
         parents[begin] = parent;
         parent = begin;
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+        inited_once = false;
+#endif
       } else if (instr.IsEndInlinedFunction()) {
         parent =
             parents[static_cast<EndInlinedFunction&>(instr).matchingBegin()];
       }
 
+#ifdef ENABLE_LIGHTWEIGHT_FRAMES
+      if (!(func.code.get()->co_flags & kCoFlagsAnyGenerator)) {
+        // The first LoadEvalBreaker is emitted for the RESUME instruction which
+        // indicates when we should update the line number from the instruction
+        // - 1 to the first instruction to indicate that the frame is now
+        // complete.
+        if (!inited_once && instr.IsLoadEvalBreaker()) {
+          auto& cur_bc_idx_to_line = code_bc_idx_map.at(
+              parent == nullptr ? func.code : parent->code());
+          int line_no = cur_bc_idx_to_line.lineNoFor(
+              BCIndex(func.code->_co_firsttraceable));
+          Instr* update_instr = UpdatePrevInstr::create(line_no, parent);
+          update_instr->setBytecodeOffset(
+              BCIndex(func.code->_co_firsttraceable));
+          update_instr->InsertBefore(instr);
+
+          inited_once = true;
+        }
+        continue;
+      }
+#endif
       if (hasArbitraryExecution(instr)) {
         update_one();
       }

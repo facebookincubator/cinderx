@@ -4,6 +4,7 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/codegen/gen_asm.h"
 #include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
@@ -17,8 +18,17 @@ using namespace jit::hir;
 
 class ASMGeneratorTest : public RuntimeTest {
  public:
-  std::unique_ptr<CompiledFunction> GenerateCode(PyObject* func) {
-    return Compiler().Compile(func);
+  CompiledFunction* GenerateCode(PyObject* func) {
+    auto func_obj = reinterpret_cast<PyFunctionObject*>(func);
+
+    CompilationKey key{
+        func_obj->func_code, func_obj->func_builtins, func_obj->func_globals};
+    auto jit_ctx = reinterpret_cast<jit::CompilerContext<Compiler>*>(
+        cinderx::getModuleState()->jitContext());
+    auto compiled = jit_ctx->compiler().Compile(func);
+    auto compiled_func = compiled.get();
+    jit_ctx->addCompiledFunction(key, std::move(compiled));
+    return compiled_func;
   }
 };
 
@@ -1308,7 +1318,7 @@ def test_override_builtin_import(locals):
   ASSERT_NE(pyfunc, nullptr)
       << "Failed getting global test_override_builtin_import";
   auto compiled_func = GenerateCode(pyfunc);
-  ASSERT_NE(compiled_func.get(), nullptr)
+  ASSERT_NE(compiled_func, nullptr)
       << "Failed compiling test_override_builtin_import";
 
   // Without locals() call

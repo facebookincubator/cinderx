@@ -1237,6 +1237,7 @@ void optimizeLongDecrefRuns(Function& irfunc) {
       }
 
       auto batch_decref = BatchDecref::create(num);
+      batch_decref->copyBytecodeOffset(*cur_iter);
       batch_decref->InsertBefore(*cur_iter);
 
       constexpr size_t kDecrefOperandIndex = 0;
