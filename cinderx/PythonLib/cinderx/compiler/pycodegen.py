@@ -1,6 +1,9 @@
 # Portions copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
+
+# @lint-ignore-ide BLACK
+
 from __future__ import annotations
 
 try:
