@@ -734,7 +734,10 @@ static std::string format_immediates(const Instr& instr) {
     case Opcode::kUpdatePrevInstr: {
       const auto& upi = static_cast<const UpdatePrevInstr&>(instr);
       return fmt::format(
-          "idx:{} line_no:{}", upi.bytecodeOffset().asIndex(), upi.lineNo());
+          "idx:{} line_no:{}: {}",
+          upi.bytecodeOffset().asIndex(),
+          upi.lineNo(),
+          upi.parent() != nullptr ? "has parent" : "no parent");
     }
   }
   JIT_ABORT("Invalid opcode {}", static_cast<int>(instr.opcode()));

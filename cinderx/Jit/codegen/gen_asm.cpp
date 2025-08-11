@@ -121,6 +121,36 @@ void raiseAttributeError(BorrowedRef<> receiver, BorrowedRef<> name) {
       name);
 }
 
+#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
+// Helper to recursively reify the lightweight frames. We need to reify the
+// outermost lightweight frame first and work inwards to have the frames
+// allocated correctly on the slab. We then need to update the inner functions
+// previous to point at any updated outer frames. So we recurse to the inner
+// most frame, convert it, return the new frame, and continue converting as
+// we unwind.
+_PyInterpreterFrame* reifyLightweightFrames(
+    PyThreadState* tstate,
+    const DeoptMetadata& deopt_meta,
+    size_t depth,
+    _PyInterpreterFrame* cur_frame) {
+  _PyInterpreterFrame* prev = nullptr;
+  if (depth > 0) {
+    prev = reifyLightweightFrames(
+        tstate, deopt_meta, depth - 1, cur_frame->previous);
+  }
+  if (!(_PyFrame_GetCode(cur_frame)->co_flags & kCoFlagsAnyGenerator)) {
+    cur_frame = convertInterpreterFrameFromStackToSlab(tstate, cur_frame);
+    if (cur_frame == nullptr) {
+      return nullptr;
+    }
+  }
+  if (prev) {
+    cur_frame->previous = prev;
+  }
+  return cur_frame;
+}
+#endif
+
 CiPyFrameObjType*
 prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
@@ -145,13 +175,24 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
 #else
   _PyInterpreterFrame* frame = interpFrameFromThreadState(tstate);
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  if (!(frame->f_code->co_flags & kCoFlagsAnyGenerator)) {
-    // The frame needs to be copied to a new interpreter frame
-    frame = convertInterpreterFrameFromStackToSlab(tstate, frame);
+  frame = reifyLightweightFrames(
+      tstate, deopt_meta, deopt_meta.inline_depth(), frame);
+  if (frame == nullptr) {
+    Py_FatalError("Cannot recover from OOM");
   }
+  setCurrentFrame(tstate, frame);
 #endif
-  reifyFrame(frame, deopt_meta, deopt_meta.outermostFrame(), regs);
-  // TASK(T198250666): Support jit inlining
+  _PyInterpreterFrame* frame_iter = frame;
+
+  // Iterate one past the inline depth because that is the caller frame.
+  for (int i = deopt_meta.inline_depth(); i >= 0; i--) {
+    // Transfer ownership of a light weight frame to the interpreter. The
+    // associated Python frame will be ignored during future attempts to
+    // materialize the stack.
+    reifyFrame(frame_iter, deopt_meta, deopt_meta.frame_meta.at(i), regs);
+    frame_iter = frame_iter->previous;
+  }
+
 #endif
   // Clear our references now that we've transferred them to the frame
   MemoryView mem{regs};
@@ -273,21 +314,48 @@ PyObject* resumeInInterpreter(
     _PyInterpreterFrame* frame,
     Runtime* runtime,
     std::size_t deopt_idx) {
-  // TASK(T198250666): Support jit inlining
   PyThreadState* tstate = PyThreadState_Get();
 
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
   int err_occurred = (deopt_meta.reason != DeoptReason::kGuardFailure);
 
-  // Delegate management of the frame to the interpreter loop. On entry, it
-  // expects tstate->cframe->current_frame points to the frame for the calling
-  // function. We don't need to go back a tstate->cframe as we borrowed an
-  // existing one when we linked our frame in.
+  PyObject* result = nullptr;
+  // Resume all of the inlined frames and the caller
+  int inline_depth = deopt_meta.inline_depth();
+  while (inline_depth >= 0) {
+    // TODO(emacs): Investigate skipping resuming frames that do not have
+    // try/catch. Will require re-adding _PyShadowFrame_Pop back for
+    // non-generators and unlinking the frame manually.
 
-  JIT_CHECK(currentFrame(tstate) == frame, "unexpected frame at top of stack");
-  setCurrentFrame(tstate, frame->previous);
+    // Resume one frame.
+    _PyInterpreterFrame* prev_frame = frame->previous;
+    // Delegate management of `tstate->frame` to the interpreter loop. On
+    // entry, it expects that tstate->frame points to the frame for the calling
+    // function.
+    JIT_CHECK(
+        currentFrame(tstate) == frame, "unexpected frame at top of stack");
+    setCurrentFrame(tstate, frame->previous);
+    result = _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
 
-  return _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
+    frame = prev_frame;
+
+    err_occurred = result == nullptr;
+    // Push the previous frame's result onto the value stack. We can't push
+    // after resuming because f_stacktop is nullptr during execution of a frame.
+    if (!err_occurred && inline_depth > 0) {
+      // The caller is at inline depth 0, so we only attempt to push the
+      // result onto the stack in the deeper (> 0) frames. Otherwise, we
+      // should just return the value from the native code in the way our
+      // native calling convention requires.
+#if PY_VERSION_HEX >= 0x030E0000
+      _PyFrame_StackPush(frame, Ci_STACK_STEAL(result));
+#else
+      frame->localsplus[frame->stacktop++] = result;
+#endif
+    }
+    inline_depth--;
+  }
+  return result;
 }
 
 #endif
@@ -580,8 +648,8 @@ NativeGenerator::NativeGenerator(
       deopt_trampoline_generators_{deopt_trampoline_generators},
       failed_deferred_compile_trampoline_{failed_deferred_compile_trampoline},
       frame_asm_{func, env_},
-      max_inline_depth_{calcMaxInlineDepth(func)} {
-  env_.has_inlined_functions = max_inline_depth_ > 0;
+      inline_stack_size_{calcInlineStackSize(func)} {
+  env_.has_inlined_functions = inline_stack_size_ > 0;
 }
 
 // these functions call int returning functions and convert their output from
@@ -633,15 +701,6 @@ PhyLocation get_arg_location_phy_location(int arg) {
 
   JIT_ABORT("only six first registers should be used");
   return 0;
-}
-
-int NativeGenerator::maxInlineStackSize() {
-  // TASK(T198250666): Support jit inlining
-#if PY_VERSION_HEX < 0x030C0000
-  return max_inline_depth_ * kJITShadowFrameSize;
-#else
-  return 0;
-#endif
 }
 
 std::span<const std::byte> NativeGenerator::getCodeBuffer() const {
@@ -761,7 +820,7 @@ void* NativeGenerator::getVectorcallEntry() {
       eliminateDeadCode(lir_func.get()))
 
   LinearScanAllocator lsalloc(
-      lir_func.get(), frame_asm_.frameHeaderSize() + maxInlineStackSize());
+      lir_func.get(), frame_asm_.frameHeaderSize() + inline_stack_size_);
 
   COMPILE_TIMER(
       GetFunction()->compilation_phase_timer,
@@ -1856,7 +1915,7 @@ void NativeGenerator::generateArgcountCheckPrologue(Label correct_arg_count) {
 // calcMaxInlineDepth must work with nullptr HIR functions because it's valid
 // to call NativeGenerator with only LIR (e.g., from a test). In the case of an
 // LIR-only function, there is no HIR inlining.
-int NativeGenerator::calcMaxInlineDepth(const hir::Function* func) {
+int NativeGenerator::calcInlineStackSize(const hir::Function* func) {
   if (func == nullptr) {
     return 0;
   }
@@ -1867,7 +1926,15 @@ int NativeGenerator::calcMaxInlineDepth(const hir::Function* func) {
         continue;
       }
       auto bif = dynamic_cast<const BeginInlinedFunction*>(&instr);
-      int depth = bif->inlineDepth();
+#if PY_VERSION_HEX >= 0x030C0000
+      int depth = frameHeaderSize(bif->code());
+      for (auto frame = bif->callerFrameState(); frame != nullptr;
+           frame = frame->parent) {
+        depth += frameHeaderSize(frame->code);
+      }
+#else
+      int depth = bif->inlineDepth() * kJITShadowFrameSize;
+#endif
       result = std::max(depth, result);
     }
   }

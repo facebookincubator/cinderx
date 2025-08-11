@@ -75,8 +75,9 @@ class alignas(16) RuntimeFrameState {
   RuntimeFrameState(
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<> builtins,
-      BorrowedRef<> globals)
-      : code_(code), builtins_(builtins), globals_(globals) {}
+      BorrowedRef<> globals,
+      BorrowedRef<PyFunctionObject> func = nullptr)
+      : code_(code), builtins_(builtins), globals_(globals), func_(func) {}
 
   bool isGen() const {
     return code()->co_flags & kCoFlagsAnyGenerator;
@@ -94,6 +95,10 @@ class alignas(16) RuntimeFrameState {
     return globals_;
   }
 
+  BorrowedRef<PyFunctionObject> func() const {
+    return func_;
+  }
+
   static constexpr int64_t codeOffset() {
     return offsetof(RuntimeFrameState, code_);
   }
@@ -103,20 +108,28 @@ class alignas(16) RuntimeFrameState {
   BorrowedRef<PyCodeObject> code_;
   BorrowedRef<> builtins_;
   BorrowedRef<> globals_;
+  BorrowedRef<PyFunctionObject> func_;
 };
 
 // Runtime data for a PyCodeObject object, containing caches and any other data
 // associated with a JIT-compiled function.
 class alignas(16) CodeRuntime {
  public:
-  CodeRuntime(PyCodeObject* code, PyObject* builtins, PyObject* globals)
-      : frame_state_(code, builtins, globals) {
+  CodeRuntime(
+      PyCodeObject* code,
+      PyObject* builtins,
+      PyObject* globals,
+      PyFunctionObject* func = nullptr)
+      : frame_state_(code, builtins, globals, func) {
     // TASK(T88040922): Until we work out something smarter, force code,
     // globals, and builtins objects for compiled functions to live as long as
     // the JIT is initialized.
     addReference(BorrowedRef(code));
     addReference(builtins);
     addReference(globals);
+    if (func != nullptr) {
+      addReference(&func->ob_base);
+    }
   }
 
   explicit CodeRuntime(PyFunctionObject* func)

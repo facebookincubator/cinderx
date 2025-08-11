@@ -92,10 +92,10 @@ class NativeGenerator {
 
   size_t compiled_size_{0};
   int spill_stack_size_{-1};
-  int max_inline_depth_;
+  int inline_stack_size_;
 
   bool hasStaticEntry() const;
-  int calcMaxInlineDepth(const hir::Function* func);
+  int calcInlineStackSize(const hir::Function* func);
   void generateCode(asmjit::CodeHolder& code);
   void generateFunctionEntry();
   void setupFrameAndSaveCallerRegisters(

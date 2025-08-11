@@ -193,7 +193,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
   }
 
   int frame_header_size = frameHeaderSizeExcludingSpillSpace();
-  PyObject* frame_helper = cinderx::getModuleState()->frameReifier();
+  PyObject* frame_reifier = cinderx::getModuleState()->frameReifier();
   const auto ref_cnt = x86::eax;
 
 #define FRAME_OFFSET(NAME) \
@@ -216,8 +216,8 @@ void FrameAsm::linkLightWeightFunctionFrame(
   }
 
   // Store f_funcobj as our helper frame object
-  storeConst(x86::rbp, FRAME_OFFSET(f_funcobj), frame_helper, scratch);
-  JIT_DCHECK(_Py_IsImmortal(frame_helper), "frame helper must be immortal");
+  storeConst(x86::rbp, FRAME_OFFSET(f_funcobj), frame_reifier, scratch);
+  JIT_DCHECK(_Py_IsImmortal(frame_reifier), "frame helper must be immortal");
 
   // Store prev_instr
   _Py_CODEUNIT* code = _PyCode_CODE(GetFunction()->code.get()) - 1;
@@ -414,7 +414,11 @@ void FrameAsm::generateUnlinkFrame(
     as_->jnc(done);
 #endif
 
-    auto saved_rax_ptr = x86::ptr(x86::rbp, -frameHeaderSize());
+#ifdef ENABLE_SHADOW_FRAMES
+    auto saved_rax_ptr = x86::ptr(x86::rbp, -8);
+#else
+  auto saved_rax_ptr = x86::ptr(x86::rbp, -frameHeaderSize());
+#endif
 
     hir::Type ret_type = func_->return_type;
     if (ret_type <= TCDouble) {
@@ -486,22 +490,12 @@ void FrameAsm::initializeFrameHeader(
 #endif
 
 int FrameAsm::frameHeaderSizeExcludingSpillSpace() const {
-  if (func_->code->co_flags & kCoFlagsAnyGenerator) {
-    return 0;
-  }
-
-#if defined(ENABLE_SHADOW_FRAMES)
-  return sizeof(FrameHeader);
-#elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  return sizeof(FrameHeader) + sizeof(PyObject*) * func_->code->co_framesize;
-#else
-  return 0;
-#endif
+  return jit::frameHeaderSize(func_->code);
 }
 
 int FrameAsm::frameHeaderSize() {
 #if defined(ENABLE_SHADOW_FRAMES)
-  return sizeof(FrameHeader);
+  return frameHeaderSizeExcludingSpillSpace();
 #else
   return frameHeaderSizeExcludingSpillSpace() + sizeof(void*);
 #endif

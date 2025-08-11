@@ -162,15 +162,26 @@ emitSubclassCheck(BasicBlockBuilder& bbb, hir::Register* obj, Type type) {
 
 #undef FOREACH_FAST_BUILTIN
 
+ssize_t frameOffsetBefore(const BeginInlinedFunction* instr) {
 #if PY_VERSION_HEX < 0x030C0000
-ssize_t shadowFrameOffsetBefore(const InlineBase* instr) {
   return -instr->inlineDepth() * ssize_t{kJITShadowFrameSize};
+#else
+  ssize_t depth = 0;
+  for (auto frame = instr->callerFrameState(); frame != nullptr;
+       frame = frame->parent) {
+    depth -= frameHeaderSize(frame->code);
+  }
+  return depth;
+#endif
 }
 
-ssize_t shadowFrameOffsetOf(const InlineBase* instr) {
-  return shadowFrameOffsetBefore(instr) - ssize_t{kJITShadowFrameSize};
-}
+ssize_t frameOffsetOf(const BeginInlinedFunction* instr) {
+#if PY_VERSION_HEX < 0x030C0000
+  return frameOffsetBefore(instr) - ssize_t{kJITShadowFrameSize};
+#else
+  return frameOffsetBefore(instr) - frameHeaderSize(instr->code());
 #endif
+}
 
 // Update the global ref count total after an Inc or Dec operation.
 void updateRefTotal(BasicBlockBuilder& bbb, Instruction::Opcode op) {
@@ -454,6 +465,45 @@ void LIRGenerator::emitExceptionCheck(
 
 void LIRGenerator::MakeIncref(
     BasicBlockBuilder& bbb,
+    lir::Instruction* instr,
+    bool xincref,
+    bool possible_immortal) {
+  auto end_incref = bbb.allocateBlock();
+  if (xincref) {
+    auto cont = bbb.allocateBlock();
+    bbb.appendBranch(Instruction::kCondBranch, instr, cont, end_incref);
+    bbb.appendBlock(cont);
+  }
+
+  // If this could be an immortal object then we need to load the refcount as a
+  // 32-bit integer to see if it overflows on increment, indicating that it's
+  // immortal.  For mortal objects the refcount is a regular 64-bit integer.
+  if (possible_immortal) {
+    auto mortal = bbb.allocateBlock();
+    Instruction* r1 = bbb.appendInstr(
+        OutVReg{OperandBase::k32bit},
+        Instruction::kMove,
+        Ind{instr, kRefcountOffset});
+    bbb.appendInstr(Instruction::kInc, r1);
+    bbb.appendBranch(Instruction::kBranchE, end_incref);
+    bbb.appendBlock(mortal);
+    bbb.appendInstr(OutInd{instr, kRefcountOffset}, Instruction::kMove, r1)
+        ->output()
+        ->setDataType(Operand::k32bit);
+  } else {
+    Instruction* r1 = bbb.appendInstr(
+        OutVReg{}, Instruction::kMove, Ind{instr, kRefcountOffset});
+    bbb.appendInstr(Instruction::kInc, r1);
+    bbb.appendInstr(OutInd{instr, kRefcountOffset}, Instruction::kMove, r1);
+  }
+
+  updateRefTotal(bbb, Instruction::kInc);
+
+  bbb.appendBlock(end_incref);
+}
+
+void LIRGenerator::MakeIncref(
+    BasicBlockBuilder& bbb,
     const hir::Instr& instr,
     bool xincref) {
   Register* obj = instr.GetOperand(0);
@@ -463,44 +513,58 @@ void LIRGenerator::MakeIncref(
     return;
   }
 
-  auto end_incref = bbb.allocateBlock();
-  if (xincref) {
+  MakeIncref(
+      bbb,
+      bbb.getDefInstr(obj),
+      xincref,
+      kImmortalInstances && obj->type().couldBe(TImmortalObject));
+}
+
+void LIRGenerator::MakeDecref(
+    BasicBlockBuilder& bbb,
+    lir::Instruction* instr,
+    std::optional<destructor> destructor,
+    bool xdecref,
+    bool possible_immortal) {
+  auto end_decref = bbb.allocateBlock();
+  if (xdecref) {
     auto cont = bbb.allocateBlock();
-    bbb.appendBranch(Instruction::kCondBranch, obj, cont, end_incref);
+    bbb.appendBranch(Instruction::kCondBranch, instr, cont, end_decref);
     bbb.appendBlock(cont);
   }
 
-  // If this could be an immortal object then we need to load the refcount as a
-  // 32-bit integer to see if it overflows on increment, indicating that it's
-  // immortal.  For mortal objects the refcount is a regular 64-bit integer.
-  if (kImmortalInstances && obj->type().couldBe(TImmortalObject)) {
+  Instruction* r1 = bbb.appendInstr(
+      OutVReg{}, Instruction::kMove, Ind{instr, kRefcountOffset});
+
+  if (possible_immortal) {
     auto mortal = bbb.allocateBlock();
-    Instruction* r1 = bbb.appendInstr(
-        OutVReg{OperandBase::k32bit},
-        Instruction::kMove,
-        Ind{bbb.getDefInstr(obj), kRefcountOffset});
-    bbb.appendInstr(Instruction::kInc, r1);
-    bbb.appendBranch(Instruction::kBranchE, end_incref);
+    bbb.appendInstr(Instruction::kTest32, r1, r1);
+    bbb.appendBranch(Instruction::kBranchS, end_decref);
     bbb.appendBlock(mortal);
-    bbb.appendInstr(
-           OutInd{bbb.getDefInstr(obj), kRefcountOffset},
-           Instruction::kMove,
-           r1)
-        ->output()
-        ->setDataType(Operand::k32bit);
-  } else {
-    Instruction* r1 = bbb.appendInstr(
-        OutVReg{},
-        Instruction::kMove,
-        Ind{bbb.getDefInstr(obj), kRefcountOffset});
-    bbb.appendInstr(Instruction::kInc, r1);
-    bbb.appendInstr(
-        OutInd{bbb.getDefInstr(obj), kRefcountOffset}, Instruction::kMove, r1);
   }
 
-  updateRefTotal(bbb, Instruction::kInc);
+  updateRefTotal(bbb, Instruction::kDec);
 
-  bbb.appendBlock(end_incref);
+  auto dealloc = bbb.allocateBlock();
+  bbb.appendInstr(Instruction::kDec, r1);
+  bbb.appendInstr(OutInd{instr, kRefcountOffset}, Instruction::kMove, r1);
+  bbb.appendBranch(Instruction::kBranchNZ, end_decref);
+  bbb.appendBlock(dealloc);
+  if (getConfig().multiple_code_sections) {
+    dealloc->setSection(codegen::CodeSection::kCold);
+  }
+
+  if (destructor.has_value()) {
+#ifdef Py_TRACE_REFS
+    bbb.appendInvokeInstruction(_Py_ForgetReference, obj);
+#endif
+
+    bbb.appendInvokeInstruction(destructor.value(), instr);
+  } else {
+    bbb.appendInvokeInstruction(_Py_Dealloc, instr);
+  }
+
+  bbb.appendBlock(end_decref);
 }
 
 void LIRGenerator::MakeDecref(
@@ -514,49 +578,12 @@ void LIRGenerator::MakeDecref(
     return;
   }
 
-  auto end_decref = bbb.allocateBlock();
-  if (xdecref) {
-    auto cont = bbb.allocateBlock();
-    bbb.appendBranch(Instruction::kCondBranch, obj, cont, end_decref);
-    bbb.appendBlock(cont);
-  }
-
-  Instruction* r1 = bbb.appendInstr(
-      OutVReg{},
-      Instruction::kMove,
-      Ind{bbb.getDefInstr(obj), kRefcountOffset});
-
-  if (kImmortalInstances && obj->type().couldBe(TImmortalObject)) {
-    auto mortal = bbb.allocateBlock();
-    bbb.appendInstr(Instruction::kTest32, r1, r1);
-    bbb.appendBranch(Instruction::kBranchS, end_decref);
-    bbb.appendBlock(mortal);
-  }
-
-  updateRefTotal(bbb, Instruction::kDec);
-
-  auto dealloc = bbb.allocateBlock();
-  bbb.appendInstr(Instruction::kDec, r1);
-  bbb.appendInstr(
-      OutInd{bbb.getDefInstr(obj), kRefcountOffset}, Instruction::kMove, r1);
-  bbb.appendBranch(Instruction::kBranchNZ, end_decref);
-  bbb.appendBlock(dealloc);
-  if (getConfig().multiple_code_sections) {
-    dealloc->setSection(codegen::CodeSection::kCold);
-  }
-
-  auto destructor = obj->type().runtimePyTypeDestructor();
-  if (destructor.has_value()) {
-#ifdef Py_TRACE_REFS
-    bbb.appendInvokeInstruction(_Py_ForgetReference, obj);
-#endif
-
-    bbb.appendInvokeInstruction(destructor.value(), obj);
-  } else {
-    bbb.appendInvokeInstruction(_Py_Dealloc, obj);
-  }
-
-  bbb.appendBlock(end_decref);
+  MakeDecref(
+      bbb,
+      bbb.getDefInstr(obj),
+      obj->type().runtimePyTypeDestructor(),
+      xdecref,
+      kImmortalInstances && obj->type().couldBe(TImmortalObject));
 }
 
 LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
@@ -2666,10 +2693,22 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         break;
       }
       case Opcode::kBeginInlinedFunction: {
-#if PY_VERSION_HEX < 0x030C0000
         JIT_DCHECK(
             getConfig().stable_frame,
             "Inlined code stores references to code objects");
+#if PY_VERSION_HEX < 0x030C0000 || defined(ENABLE_LIGHTWEIGHT_FRAMES)
+        auto instr = static_cast<const BeginInlinedFunction*>(&i);
+        // Set code object data
+        BorrowedRef<PyCodeObject> code = instr->code();
+        env_->code_rt->addReference(code.getObj());
+        PyObject* globals = instr->globals();
+        env_->code_rt->addReference(globals);
+        PyObject* builtins = instr->builtins();
+        env_->code_rt->addReference(builtins);
+        PyObject* func = instr->func();
+        env_->code_rt->addReference(func);
+        RuntimeFrameState* rtfs = env_->code_rt->allocateRuntimeFrameState(
+            code, builtins, globals, func);
         // TASK(T109706798): Support calling from generators and inlining
         // generators.
         //
@@ -2680,35 +2719,26 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // If we manage to optimize leaf calls to a series of non-deopting
         // instructions, we could also remove BeginInlinedFunction and
         // EndInlinedFunction completely.
+#endif
+#if PY_VERSION_HEX < 0x030C0000
         if (kPyDebug) {
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
-        auto instr = static_cast<const BeginInlinedFunction*>(&i);
         Instruction* caller_shadow_frame = bbb.appendInstr(
             OutVReg{},
             Instruction::kLea,
-            Stk{PhyLocation(
-                static_cast<int32_t>(shadowFrameOffsetBefore(instr)))});
+            Stk{PhyLocation(static_cast<int32_t>(frameOffsetBefore(instr)))});
         // There is already a shadow frame for the caller function.
         Instruction* callee_shadow_frame = bbb.appendInstr(
             OutVReg{},
             Instruction::kLea,
-            Stk{PhyLocation(static_cast<int32_t>(shadowFrameOffsetOf(instr)))});
+            Stk{PhyLocation(static_cast<int32_t>(frameOffsetOf(instr)))});
 
         bbb.appendInstr(
             OutInd{callee_shadow_frame, SHADOW_FRAME_FIELD_OFF(prev)},
             Instruction::kMove,
             caller_shadow_frame);
-        // Set code object data
-        BorrowedRef<PyCodeObject> code = instr->code();
-        env_->code_rt->addReference(code.getObj());
-        PyObject* globals = instr->globals();
-        env_->code_rt->addReference(globals);
-        PyObject* builtins = instr->builtins();
-        env_->code_rt->addReference(builtins);
-        RuntimeFrameState* rtfs =
-            env_->code_rt->allocateRuntimeFrameState(code, builtins, globals);
         uintptr_t data = _PyShadowFrame_MakeData(rtfs, PYSF_RTFS, PYSF_JIT);
         Instruction* data_reg =
             bbb.appendInstr(OutVReg{}, Instruction::kMove, data);
@@ -2736,8 +2766,92 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
+#elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
+        // Load the address of our _PyInterpreterFrame and the previous
+        // _PyInterpreterFrame we skip past the FrameHeader for this.
+        Instruction* caller_frame = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kLea,
+            Stk{PhyLocation(static_cast<int32_t>(
+                frameOffsetBefore(instr) + sizeof(FrameHeader)))});
+
+        // There is already an interpreter frame for the caller function.
+        Instruction* callee_frame = getInlinedFrame(bbb, instr);
+        // Store code
+        Instruction* code_reg =
+            bbb.appendInstr(OutVReg{}, Instruction::kMove, code.get());
+        bbb.appendInstr(
+            OutInd{callee_frame, offsetof(_PyInterpreterFrame, f_code)},
+            Instruction::kMove,
+            code_reg);
+
+        // Store frame helper as f_funcobj
+        PyObject* frame_reifier = cinderx::getModuleState()->frameReifier();
+        Instruction* frame_helper_reg =
+            bbb.appendInstr(OutVReg{}, Instruction::kMove, frame_reifier);
+        bbb.appendInstr(
+            OutInd{callee_frame, offsetof(_PyInterpreterFrame, f_funcobj)},
+            Instruction::kMove,
+            frame_helper_reg);
+
+        // Store RTFS in func_obj as a tag
+        Instruction* rtfs_reg = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kMove,
+            reinterpret_cast<uintptr_t>(rtfs) | 1);
+        bbb.appendInstr(
+            OutInd{
+                callee_frame,
+                (ssize_t)offsetof(FrameHeader, func) -
+                    (ssize_t)sizeof(FrameHeader)},
+            Instruction::kMove,
+            rtfs_reg);
+
+        bbb.appendInstr(
+            OutInd{callee_frame, offsetof(_PyInterpreterFrame, previous)},
+            Instruction::kMove,
+            caller_frame);
+
+        // Store prev_instr
+        _Py_CODEUNIT* code_prev = _PyCode_CODE(code.get()) - 1;
+        Instruction* codeunit_reg =
+            bbb.appendInstr(OutVReg{}, Instruction::kMove, code_prev);
+
+        bbb.appendInstr(
+            OutInd{callee_frame, offsetof(_PyInterpreterFrame, prev_instr)},
+            Instruction::kMove,
+            codeunit_reg);
+
+        bbb.appendInstr(
+            OutInd{
+                callee_frame,
+                offsetof(_PyInterpreterFrame, owner),
+                OperandBase::k8bit},
+            Instruction::kMove,
+            Imm{static_cast<uint8_t>(FRAME_OWNED_BY_THREAD),
+                OperandBase::k8bit});
+
+        if (!_Py_IsImmortal(code.get())) {
+          MakeIncref(bbb, code_reg, false);
+        }
+
+        // Set our frame as top of stack
+#if PY_VERSION_HEX >= 0x030D0000
+        bbb.appendInstr(
+            OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
+            Instruction::kMove,
+            callee_shadow_frame);
 #else
-        // TASK(T198250666): Support jit inlining
+        Instruction* cframe_reg = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kMove,
+            Ind{env_->asm_tstate, offsetof(PyThreadState, cframe)});
+        bbb.appendInstr(
+            OutInd{cframe_reg, offsetof(_PyCFrame, current_frame)},
+            Instruction::kMove,
+            callee_frame);
+#endif
+
 #endif
         break;
       }
@@ -2788,8 +2902,63 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
           bbb.appendInvokeInstruction(
               assertShadowCallStackConsistent, env_->asm_tstate);
         }
+#elif defined(ENABLE_LIGHTWEIGHT_FRAMES)
+        auto instr = static_cast<const EndInlinedFunction&>(i);
+
+        // Test to see if RTFS is still in place
+        Instruction* callee_frame = getInlinedFrame(bbb, instr.matchingBegin());
+        auto rtfs_reg = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kMove,
+            Ind{callee_frame,
+                (ssize_t)offsetof(FrameHeader, func) -
+                    (ssize_t)sizeof(FrameHeader)});
+        bbb.appendInstr(Instruction::kBitTest, rtfs_reg, Imm{0});
+        auto done_block = bbb.allocateBlock();
+        auto not_materialized_block = bbb.allocateBlock();
+        bbb.appendBranch(Instruction::kBranchC, not_materialized_block);
+        bbb.appendBlock(bbb.allocateBlock());
+
+        // The frame was materialized, let's use the unlink helper to clean
+        // things up.
+        bbb.appendInvokeInstruction(JITRT_UnlinkFrame, env_->asm_tstate);
+        bbb.appendBranch(Instruction::kBranch, done_block);
+
+        // The frame was not materialized, we just need to update thread state
+        // to point at the caller and maybe decref the code object.
+        bbb.switchBlock(not_materialized_block);
+        // The frame was never materialized, we just need to unlink the frame
+        // and potentiall decref the code object.
+        Instruction* caller_frame = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kLea,
+            Stk{PhyLocation(static_cast<int32_t>(
+                frameOffsetBefore(instr.matchingBegin()) +
+                sizeof(FrameHeader)))});
+#if PY_VERSION_HEX >= 0x030D0000
+        bbb.appendInstr(
+            OutInd{env_->asm_tstate, offsetof(PyThreadState, current_frame)},
+            Instruction::kMove,
+            caller_frame);
 #else
-        // TASK(T198250666): Support jit inlining
+        Instruction* cframe_reg = bbb.appendInstr(
+            OutVReg{},
+            Instruction::kMove,
+            Ind{env_->asm_tstate, offsetof(PyThreadState, cframe)});
+        bbb.appendInstr(
+            OutInd{cframe_reg, offsetof(_PyCFrame, current_frame)},
+            Instruction::kMove,
+            caller_frame);
+#endif
+        auto code = instr.matchingBegin()->code();
+        if (!_Py_IsImmortal(code.get())) {
+          Instruction* code_reg =
+              bbb.appendInstr(OutVReg{}, Instruction::kMove, code.get());
+          MakeDecref(
+              bbb, code_reg, std::optional<destructor>(PyCode_Type.tp_dealloc));
+        }
+
+        bbb.appendBlock(done_block);
 #endif
         break;
       }
@@ -2839,6 +3008,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         auto instr = static_cast<const EagerImportName*>(&i);
         Instruction* name = getNameFromIdx(bbb, instr);
 #if PY_VERSION_HEX >= 0x030E0000
+        // asm_interpreter_frame isn't right for inlined functions but we don't
+        // allow inlining of things which contain EagerImportName instructions.
         bbb.appendCallInstruction(
             i.output(),
             _PyEval_ImportName,
@@ -3019,6 +3190,22 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 #if PY_VERSION_HEX >= 0x030C0000
         _Py_CODEUNIT* prev_instr_ptr = i.bytecodeOffset().asIndex().value() +
             reinterpret_cast<_Py_CODEUNIT*>(i.code()->co_code_adaptive);
+        // We are directly referencing co_code_adaptive here rather than using
+        // codeUnit() as we need to refer to the code the interpreter would
+        // execute. codeUnit() returns a pointer to non-adapted bytecode.
+        auto prev_instr = static_cast<const UpdatePrevInstr&>(i);
+        Instruction* frame;
+        if (prev_instr.parent() != nullptr) {
+          prev_instr_ptr = i.bytecodeOffset().asIndex().value() +
+              reinterpret_cast<_Py_CODEUNIT*>(
+                               prev_instr.parent()->code()->co_code_adaptive);
+          frame = getInlinedFrame(bbb, prev_instr.parent());
+        } else {
+          prev_instr_ptr = i.bytecodeOffset().asIndex().value() +
+              reinterpret_cast<_Py_CODEUNIT*>(i.code()->co_code_adaptive);
+          frame = env_->asm_interpreter_frame;
+        }
+
 #if PY_VERSION_HEX >= 0x030E0000
         bbb.appendInstr(
             OutInd{
@@ -3027,18 +3214,20 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kMove,
             prev_instr_ptr + 1);
 #elif PY_VERSION_HEX >= 0x030C0000
+
         bbb.appendInstr(
-            OutInd{
-                env_->asm_interpreter_frame,
-                offsetof(_PyInterpreterFrame, prev_instr)},
+            OutInd{frame, offsetof(_PyInterpreterFrame, prev_instr)},
             Instruction::kMove,
             prev_instr_ptr);
+#else
 #endif
 #endif
         break;
       }
       case Opcode::kSend: {
         auto& hir_instr = static_cast<const Send&>(i);
+        // Note: asm_interpreter_frame isn't right for inlined functions, but we
+        // never inline generators so this is fine for now.
         bbb.appendInstr(
             hir_instr.output(),
             Instruction::kCall,
@@ -3138,6 +3327,28 @@ Instruction* LIRGenerator::getNameFromIdx(
       Instruction::kMove,
       // TASK(T140174965): This should be MemImm.
       Imm{reinterpret_cast<uint64_t>(name.get()), OperandBase::kObject});
+}
+
+Instruction* LIRGenerator::getInlinedFrame(
+    BasicBlockBuilder& bbb,
+    const BeginInlinedFunction* instr) {
+  auto it = env_->inline_frame_map.find(instr);
+  if (it == env_->inline_frame_map.end()) {
+    // In the odd case we've shuffled our basic blocks out of order and
+    // encounter an inlined frame first then grab the current frame
+    // offset.
+    it = env_->inline_frame_map
+             .emplace(
+                 instr,
+                 bbb.appendInstr(
+                     OutVReg{},
+                     Instruction::kLea,
+                     Stk{PhyLocation(
+                         static_cast<int32_t>(frameOffsetOf(instr)))}))
+             .first;
+  }
+
+  return it->second;
 }
 
 } // namespace jit::lir

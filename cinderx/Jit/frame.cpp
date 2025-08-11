@@ -716,6 +716,18 @@ RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
   return RuntimeFrameState{frame->f_code, frame->f_builtins, frame->f_globals};
 }
 
+int frameHeaderSize(BorrowedRef<PyCodeObject> code) {
+  if (code->co_flags & kCoFlagsAnyGenerator) {
+    return 0;
+  }
+
+#ifdef ENABLE_SHADOW_FRAMES
+  return sizeof(FrameHeader);
+#else
+  return 0;
+#endif
+}
+
 } // namespace jit
 
 PyCodeObject* Ci_ShadowFrame_GetCode_JIT(_PyShadowFrame* shadow_frame) {
@@ -859,7 +871,17 @@ void fixupJitFrameForInterpreter([[maybe_unused]] _PyInterpreterFrame* frame) {
     return;
   }
 
-  PyFunctionObject* func = jitFrameGetFunction(frame);
+  PyFunctionObject* func;
+  if (!hasRtfsFunction(frame)) {
+    func = jitFrameGetFunction(frame);
+  } else {
+    RuntimeFrameState* rtfs = jitFrameGetRtfs(frame);
+    func = rtfs->func();
+    JIT_DCHECK(func != nullptr, "should have a func for inlined functions");
+    Py_INCREF(func);
+    jitFrameSetFunction(frame, func);
+  }
+
   auto reifier = Ref<JitFrameReifier>::steal(frame->f_funcobj);
   // transfer ownership from jitFrameGetFunction to f_funcobj
   frame->f_funcobj = reinterpret_cast<PyObject*>(func);
@@ -898,18 +920,33 @@ _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
   if (new_frame->frame_obj != nullptr) {
     new_frame->frame_obj->f_frame = new_frame;
   }
-  setCurrentFrame(tstate, new_frame);
   return new_frame;
+}
+
+FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame) {
+  return reinterpret_cast<FrameHeader*>(frame) - 1;
 }
 
 void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func) {
   assert(!(frame->f_code->co_flags & kCoFlagsAnyGenerator));
-  *(reinterpret_cast<PyFunctionObject**>(frame) - 1) = func;
+  jitFrameGetHeader(frame)->func = func;
 }
 
 PyFunctionObject* jitFrameGetFunction(_PyInterpreterFrame* frame) {
   assert(!(frame->f_code->co_flags & kCoFlagsAnyGenerator));
-  return *(reinterpret_cast<PyFunctionObject**>(frame) - 1);
+  return jitFrameGetHeader(frame)->func;
+}
+
+RuntimeFrameState* jitFrameGetRtfs(_PyInterpreterFrame* frame) {
+  assert(hasRtfsFunction(frame));
+  assert(!(frame->f_code->co_flags & kCoFlagsAnyGenerator));
+  return reinterpret_cast<RuntimeFrameState*>(
+      jitFrameGetHeader(frame)->rtfs & ~0x01);
+}
+
+bool hasRtfsFunction(_PyInterpreterFrame* frame) {
+  PyFunctionObject* func = jitFrameGetFunction(frame);
+  return reinterpret_cast<uintptr_t>(func) & 0x01;
 }
 
 #endif
@@ -982,9 +1019,23 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
     Py_XDECREF(frame->localsplus[i]);
   }
   Py_DECREF(frame->f_funcobj);
-  Py_DECREF(jitFrameGetFunction(frame));
+  if (!hasRtfsFunction(frame)) {
+    Py_DECREF(jitFrameGetFunction(frame));
+  }
 #else
   _PyFrame_ClearExceptCode(frame);
+#endif
+}
+
+int frameHeaderSize(BorrowedRef<PyCodeObject> code) {
+  if (code->co_flags & kCoFlagsAnyGenerator) {
+    return 0;
+  }
+
+#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  return sizeof(FrameHeader) + sizeof(PyObject*) * code->co_framesize;
+#else
+  return 0;
 #endif
 }
 

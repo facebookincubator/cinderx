@@ -22,6 +22,7 @@
 #include <fmt/format.h>
 
 #include <memory>
+#include <stack>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -138,6 +139,7 @@ void DynamicComparisonElimination::Run(Function& irfunc) {
 class BytecodeIndexToLine {
  public:
   explicit BytecodeIndexToLine(PyCodeObject* co) {
+    code_ = co;
     size_t num_indices = countIndices(co);
     indexToLine_.reserve(num_indices);
     PyCodeAddressRange range;
@@ -164,50 +166,111 @@ class BytecodeIndexToLine {
     }
     JIT_DCHECK(
         index.value() < indexToLine_.size(),
-        "Index out of range {} < {}",
+        "Index out of range {} < {}, {}",
         index.value(),
-        indexToLine_.size());
+        indexToLine_.size(),
+        PyUnicode_AsUTF8(code_->co_qualname));
     return indexToLine_[index.value()];
   }
+
+  PyCodeObject* code_;
 
  private:
   std::vector<int> indexToLine_;
 };
 
+struct InlineStackState {
+  InlineStackState(BasicBlock* block, BeginInlinedFunction* parent) {
+    this->block = block;
+    this->parent = parent;
+  }
+  BasicBlock* block;
+  BeginInlinedFunction* parent;
+};
+
 void InsertUpdatePrevInstr::Run(Function& func) {
-  // If we don't have a valid line table to optimize with, update after every
-  // bytecode.
-  bool update_every_bc = func.code->co_linetable == nullptr ||
-      PyBytes_Size(func.code->co_linetable) == 0;
+  // We can have instructions w/ different code objects when we have
+  // inlined functions so we maintain multiple BytecodeIndexToLine based upon
+  // the code object
+  std::unordered_map<PyCodeObject*, BytecodeIndexToLine> code_bc_idx_map;
+  code_bc_idx_map.emplace(func.code, BytecodeIndexToLine(func.code));
 
-  BytecodeIndexToLine bc_idx_to_line(func.code);
+  std::stack<InlineStackState> worklist;
+  std::unordered_set<BasicBlock*> enqueued;
+  std::unordered_map<BeginInlinedFunction*, BeginInlinedFunction*> parents;
 
-  for (BasicBlock& block : func.cfg.blocks) {
-    // This is the previous line number of bytecode depending on
-    // update_every_bc. For line numbers, -1 is a "valid" line number result
-    // meaning "no line number" so we use INT_MAX as the default.
+  worklist.emplace(func.cfg.entry_block, nullptr);
+  while (!worklist.empty()) {
+    auto cur = worklist.top();
+    auto block = cur.block;
+    auto parent = cur.parent;
+    worklist.pop();
+
     int prev_emitted_lno_or_bc = INT_MAX;
-    for (Instr& instr : block) {
-      if (!hasArbitraryExecution(instr)) {
-        continue;
-      }
-      auto add_update_prev_instr = [&](int line_no) {
-        Instr* update_instr = UpdatePrevInstr::create(line_no);
-        update_instr->copyBytecodeOffset(instr);
-        update_instr->InsertBefore(instr);
+    for (Instr& instr : *block) {
+      auto update_one = [&]() {
+        auto add_update_prev_instr = [&](int line_no) {
+          Instr* update_instr = UpdatePrevInstr::create(line_no, parent);
+          update_instr->copyBytecodeOffset(instr);
+          update_instr->InsertBefore(instr);
+        };
+        // If we don't have a valid line table to optimize with, update after
+        // every bytecode.
+        bool update_every_bc = func.code->co_linetable == nullptr ||
+            PyBytes_Size(func.code->co_linetable) == 0;
+
+        if (update_every_bc) {
+          int cur_bc_offs = instr.bytecodeOffset().value();
+          if (cur_bc_offs != prev_emitted_lno_or_bc) {
+            add_update_prev_instr(-1);
+            prev_emitted_lno_or_bc = cur_bc_offs;
+          }
+        } else {
+          auto& cur_bc_idx_to_line = code_bc_idx_map.at(
+              parent == nullptr ? func.code : parent->code());
+          int cur_line_no =
+              cur_bc_idx_to_line.lineNoFor(instr.bytecodeOffset());
+          if (cur_line_no != prev_emitted_lno_or_bc) {
+            add_update_prev_instr(cur_line_no);
+            prev_emitted_lno_or_bc = cur_line_no;
+          }
+        }
       };
-      if (update_every_bc) {
-        int cur_bc_offs = instr.bytecodeOffset().value();
-        if (cur_bc_offs != prev_emitted_lno_or_bc) {
-          add_update_prev_instr(-1);
-          prev_emitted_lno_or_bc = cur_bc_offs;
+
+      // Inlined functions have a single entry point and a single exit, so we
+      // will encounter the exit by following the successor blocks from the
+      // entry.
+      if (instr.IsBeginInlinedFunction()) {
+        // We need to ensure we have emitted a line number update to the outer
+        // function before going to the inlined function, otherwise the runtime
+        // will see the outer function has having an incomplete frame and skip
+        // it in stack traces.
+        update_one();
+
+        auto begin = static_cast<BeginInlinedFunction*>(&instr);
+        auto code = begin->code();
+        if (code_bc_idx_map.find(code) == code_bc_idx_map.end()) {
+          code_bc_idx_map.emplace(code, BytecodeIndexToLine(code));
         }
-      } else {
-        int cur_line_no = bc_idx_to_line.lineNoFor(instr.bytecodeOffset());
-        if (cur_line_no != prev_emitted_lno_or_bc) {
-          add_update_prev_instr(cur_line_no);
-          prev_emitted_lno_or_bc = cur_line_no;
-        }
+        parents[begin] = parent;
+        parent = begin;
+      } else if (instr.IsEndInlinedFunction()) {
+        parent =
+            parents[static_cast<EndInlinedFunction&>(instr).matchingBegin()];
+      }
+
+      if (hasArbitraryExecution(instr)) {
+        update_one();
+      }
+    }
+
+    // Add the successors to be processed
+    auto term = block->GetTerminator();
+    for (std::size_t i = 0, n = term->numEdges(); i < n; ++i) {
+      BasicBlock* succ = term->successor(i);
+      if (!enqueued.contains(succ)) {
+        worklist.emplace(succ, parent);
+        enqueued.insert(succ);
       }
     }
   }
@@ -448,8 +511,16 @@ static bool canInline(Function& caller, AbstractCall* call_instr) {
     return fail(InlineFailureType::kHasFreevars);
   }
 #endif
-  if (usesRuntimeFunc(code)) {
-    return fail(InlineFailureType::kNeedsRuntimeAccess);
+
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    // This requires access to the frame so we can't inline it.
+    for (BasicBlock& block : caller.cfg.blocks) {
+      for (Instr& instr : block) {
+        if (instr.IsEagerImportName()) {
+          return fail(InlineFailureType::kHasEagerImportName);
+        }
+      }
+    }
   }
 
   return true;
@@ -521,11 +592,7 @@ static void inlineFunctionCall(Function& caller, AbstractCall* call_instr) {
   BasicBlock* head = call_instr->instr->block();
   BasicBlock* tail = head->splitAfter(*call_instr->instr);
   auto begin_inlined_function = BeginInlinedFunction::create(
-      callee_code,
-      callee->func_builtins,
-      callee->func_globals,
-      std::move(caller_frame_state),
-      callee_name);
+      callee, std::move(caller_frame_state), callee_name);
   auto callee_branch = Branch::create(result.entry);
   if (call_instr->target != nullptr) {
     // Not a static call. Check that __code__ has not been swapped out since
@@ -696,7 +763,13 @@ static void tryEliminateBeginEnd(EndInlinedFunction* end) {
     // Instructions that either deopt or otherwise materialize a PyFrameObject
     // need the shadow frames to exist. Everything that materializes a
     // PyFrameObject should also be marked as deopting.
-    if (it->asDeoptBase()) {
+
+    if (it->asDeoptBase()
+#if PY_VERSION_HEX >= 0x030C0000
+        // Updating the previous instruction needs the frame too.
+        || hasArbitraryExecution(*it)
+#endif
+    ) {
       return;
     }
   }

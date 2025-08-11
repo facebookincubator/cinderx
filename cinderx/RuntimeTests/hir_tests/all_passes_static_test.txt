@@ -103,7 +103,7 @@ fun jittestmodule:test {
   }
 
   bb 5 (preds 0) {
-    UpdatePrevInstr<idx:0 line_no:0>
+    UpdatePrevInstr<idx:0 line_no:0: no parent>
     v23:CInt32 = RunPeriodicTasks {
       LiveValues<2> b:v19 unc:v21
       FrameState {
@@ -127,7 +127,7 @@ fun jittestmodule:test {
   }
 
   bb 7 (preds 6) {
-    UpdatePrevInstr<idx:5 line_no:2>
+    UpdatePrevInstr<idx:5 line_no:2: no parent>
     v35:CInt32 = RunPeriodicTasks {
       LiveValues<3> b:v19 s:v33 o:v34
       FrameState {
@@ -176,7 +176,7 @@ fun jittestmodule:test {
       }
     }
     Incref v58
-    UpdatePrevInstr<idx:27 line_no:3>
+    UpdatePrevInstr<idx:27 line_no:3: no parent>
     XDecref v34
     v59:Object = VectorCall<1> v51 v58 {
       LiveValues<4> b:v19 s:v46 b:v51 o:v58
@@ -191,7 +191,7 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    UpdatePrevInstr<idx:35 line_no:-1>
+    UpdatePrevInstr<idx:35 line_no:-1: no parent>
     XDecref v34
     v53:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return<ImmortalNoneType> v53

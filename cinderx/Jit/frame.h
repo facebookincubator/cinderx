@@ -50,6 +50,8 @@ RuntimeFrameState runtimeFrameStateFromShadowFrame(
 // frames and shadow frames.
 RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate);
 
+int frameHeaderSize(BorrowedRef<PyCodeObject> code);
+
 } // namespace jit
 
 extern "C" {
@@ -144,14 +146,26 @@ void jitFrameInit(
     _PyInterpreterFrame* previous,
     bool generator);
 
+// Checks if the interpreter frame is an inline frame w/ runtime frame state
+bool hasRtfsFunction(_PyInterpreterFrame* frame);
+
+// Get the RuntimeFrameState from a _PyInterpreterFrame, hasRtfsFunction must be
+// true.
+RuntimeFrameState* jitFrameGetRtfs(_PyInterpreterFrame* frame);
+
 // Gets the frame size (in number of words) that's required for the JIT
 // to initialize a frame object.
 size_t jitFrameGetSize(PyCodeObject* code);
 
+int frameHeaderSize(BorrowedRef<PyCodeObject> code);
+
 // FrameHeader lives at the beginning of the stack frame for JIT-compiled
 // functions. In 3.12+ this will be followed by the _PyInterpreterFrame.
 struct FrameHeader {
-  PyObject* func;
+  union {
+    PyFunctionObject* func;
+    uintptr_t rtfs;
+  };
 };
 
 } // namespace jit

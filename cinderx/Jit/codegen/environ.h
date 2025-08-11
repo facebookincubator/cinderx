@@ -115,6 +115,9 @@ struct Environ {
 
   UnorderedMap<jit::lir::BasicBlock*, asmjit::Label> block_label_map;
 
+  UnorderedMap<const hir::BeginInlinedFunction*, lir::Instruction*>
+      inline_frame_map;
+
   FrameMode frame_mode;
   int initial_yield_spill_size_{-1};
 

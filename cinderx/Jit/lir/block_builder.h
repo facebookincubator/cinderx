@@ -161,6 +161,7 @@ class BasicBlockBuilder {
     auto instr = appendInstr(opcode, std::forward<Args>(args)...);
     instr->output()->setMemoryIndirect(
         dest.base, dest.index, dest.multiplier, dest.offset);
+    instr->output()->setDataType(dest.data_type);
     return instr;
   }
 

@@ -1756,27 +1756,17 @@ class InlineBase {
 class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
  public:
   BeginInlinedFunction(
-      BorrowedRef<PyCodeObject> code,
-      BorrowedRef<> builtins,
-      BorrowedRef<PyObject> globals,
+      BorrowedRef<PyFunctionObject> func,
       std::unique_ptr<FrameState> caller_state,
       const std::string& fullname)
-      : InstrT(),
-        code_(code),
-        builtins_(builtins),
-        globals_(globals),
-        fullname_(fullname) {
+      : InstrT(), func_(func), fullname_(fullname) {
     caller_state_ = std::move(caller_state);
   }
 
   // Note: The copy constructor creates a new FrameState - this means that
   // inlined FrameStates will not point to the copied FrameState as their parent
   BeginInlinedFunction(const BeginInlinedFunction& other)
-      : InstrT(),
-        code_(other.code()),
-        builtins_(other.builtins()),
-        globals_(other.globals()),
-        fullname_(other.fullname()) {
+      : InstrT(), func_(other.func()), fullname_(other.fullname()) {
     caller_state_ = std::make_unique<FrameState>(*other.callerFrameState());
   }
 
@@ -1784,8 +1774,12 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
     return caller_state_.get();
   }
 
+  BorrowedRef<PyFunctionObject> func() const {
+    return func_;
+  }
+
   BorrowedRef<PyCodeObject> code() const override {
-    return code_.get();
+    return func_->func_code;
   }
 
   // we have the bytecode offset from the caller, so we need to use the caller
@@ -1801,11 +1795,11 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
   }
 
   BorrowedRef<> builtins() const {
-    return builtins_.get();
+    return func_->func_builtins;
   }
 
   BorrowedRef<PyObject> globals() const {
-    return globals_.get();
+    return func_->func_globals;
   }
 
   int inlineDepth() const override {
@@ -1817,9 +1811,7 @@ class INSTR_CLASS(BeginInlinedFunction, (), Operands<0>), public InlineBase {
   // linked list of FrameStates as well as its parent FrameState. The parent is
   // originally owned by the Call instruction, but that gets destroyed.
   // Used for printing.
-  BorrowedRef<PyCodeObject> code_;
-  BorrowedRef<> builtins_;
-  BorrowedRef<PyObject> globals_;
+  BorrowedRef<PyFunctionObject> func_;
   std::unique_ptr<FrameState> caller_state_{nullptr};
   std::string fullname_;
 };
@@ -3884,14 +3876,22 @@ DEFINE_SIMPLE_INSTR(
 
 class INSTR_CLASS(UpdatePrevInstr, (), Operands<0>) {
  public:
-  explicit UpdatePrevInstr(int line_no) : line_no_(line_no) {}
+  explicit UpdatePrevInstr(int line_no, BeginInlinedFunction* parent)
+      : line_no_(line_no), parent_(parent) {}
 
   int lineNo() const {
     return line_no_;
   }
 
+  // The inlined function which this update belongs to or nullptr if not in an
+  // inlined function.
+  BeginInlinedFunction* parent() const {
+    return parent_;
+  }
+
  private:
   int line_no_;
+  BeginInlinedFunction* parent_;
 };
 
 DEFINE_SIMPLE_INSTR(
@@ -4291,7 +4291,8 @@ bool usesRuntimeFunc(BorrowedRef<PyCodeObject> code);
   V(IsVectorCallWithPrimitives,                                            \
     "it is a vectorcalled static function with pimitive args")             \
   V(GlobalsNotDict, "globals is not a dict")                               \
-  V(BuiltinsNotDict, "builtins is not a dict")
+  V(BuiltinsNotDict, "builtins is not a dict")                             \
+  V(HasEagerImportName, "has an eager import name instruction")
 
 enum class InlineFailureType {
 #define DECLARE_FAILURE_TYPE(failure, msg) k##failure,

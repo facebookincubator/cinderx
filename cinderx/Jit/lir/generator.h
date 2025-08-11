@@ -103,8 +103,19 @@ class LIRGenerator {
 
   void MakeIncref(
       BasicBlockBuilder& bbb,
+      lir::Instruction* instr,
+      bool xincref = false,
+      bool possible_immortal = true);
+  void MakeIncref(
+      BasicBlockBuilder& bbb,
       const jit::hir::Instr& instr,
       bool xincref);
+  void MakeDecref(
+      BasicBlockBuilder& bbb,
+      lir::Instruction* instr,
+      std::optional<destructor> destructor,
+      bool xdecref = false,
+      bool possible_immortal = true);
   void MakeDecref(
       BasicBlockBuilder& bbb,
       const jit::hir::Instr& instr,
@@ -129,6 +140,10 @@ class LIRGenerator {
   Instruction* getNameFromIdx(
       BasicBlockBuilder& bbb,
       const hir::DeoptBaseWithNameIdx* instr);
+
+  Instruction* getInlinedFrame(
+      BasicBlockBuilder& bbb,
+      const hir::BeginInlinedFunction* instr);
 
   Function* lir_func_{nullptr};
 };
