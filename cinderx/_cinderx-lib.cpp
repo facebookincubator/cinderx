@@ -1221,7 +1221,8 @@ PyMethodDef _cinderx_methods[] = {
     {nullptr, nullptr, 0, nullptr}};
 
 static int _cinderx_exec(PyObject* m) {
-  auto state = (cinderx::ModuleState*)PyModule_GetState(m);
+  void* state_mem = PyModule_GetState(m);
+  auto state = new (state_mem) cinderx::ModuleState();
   auto cache_manager = new (std::nothrow) jit::GlobalCacheManager();
   if (cache_manager == nullptr) {
     return -1;
@@ -1342,6 +1343,12 @@ static int _cinderx_exec(PyObject* m) {
     return -1;
   }
   state->setSymbolizer(symbolizer);
+
+  if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    if (!state->initBuiltinMembers()) {
+      return -1;
+    }
+  }
 
   cinderx::setModule(m);
 

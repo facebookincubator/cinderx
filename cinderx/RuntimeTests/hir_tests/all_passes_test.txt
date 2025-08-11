@@ -496,15 +496,26 @@ fun jittestmodule:test {
         Locals<1> v11
       }
     }
+    v23:Object = LoadMethodCached<0; "append"> v15 {
+      LiveValues<1> o:v15
+      FrameState {
+        CurInstrOffset 8
+        Locals<1> v15
+      }
+    }
+    v18:OptObject = GetSecondOutput<OptObject> v23
     v19:ImmortalLongExact[1] = LoadConst<ImmortalLongExact[1]>
-    v24:CInt32 = ListAppend v15 v19 {
-      LiveValues<2> o:v15 unc:v19
+    v20:Object = CallMethod<3> v23 v18 v19 {
+      LiveValues<4> o:v15 o:v18 unc:v19 o:v23
       FrameState {
         CurInstrOffset 30
         Locals<1> v15
       }
     }
     Decref v15
+    XDecref v18
+    Decref v20
+    Decref v23
     v21:ImmortalNoneType = LoadConst<ImmortalNoneType>
     Return<ImmortalNoneType> v21
   }

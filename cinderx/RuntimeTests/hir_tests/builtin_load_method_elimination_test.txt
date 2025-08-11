@@ -226,11 +226,15 @@ fun jittestmodule:test {
   bb 3 (preds 1, 2) {
     v28:ImmortalUnicodeExact = Phi<1, 2> v22 v24
     Snapshot
-    UseType<ImmortalUnicodeExact> v28
-    v32:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
-    v30:ImmortalUnicodeExact = Assign v28
+    v32:Object = LoadMethodCached<0; "join"> v28 {
+      FrameState {
+        CurInstrOffset 18
+        Locals<3> v12 v13 v28
+      }
+    }
+    v30:OptObject = GetSecondOutput<OptObject> v32
     Snapshot
-    v31:UnicodeExact = VectorCall<2, static> v32 v28 v12 {
+    v31:Object = CallMethod<3> v32 v30 v12 {
       FrameState {
         CurInstrOffset 40
         Locals<3> v12 v13 v28
@@ -402,11 +406,14 @@ fun jittestmodule:test {
       }
     }
     Snapshot
-    UseType<UnicodeExact> v16
-    v21:MortalObjectUser[method_descriptor:0xdeadbeef] = LoadConst<MortalObjectUser[method_descriptor:0xdeadbeef]>
-    v18:UnicodeExact = Assign v16
+    v21:Object = LoadMethodCached<1; "upper"> v16 {
+      FrameState {
+        CurInstrOffset 32
+      }
+    }
+    v18:OptObject = GetSecondOutput<OptObject> v21
     Snapshot
-    v19:UnicodeExact = VectorCall<1, static> v21 v16 {
+    v19:Object = CallMethod<2> v21 v18 {
       FrameState {
         CurInstrOffset 52
       }

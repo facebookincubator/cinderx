@@ -16,6 +16,7 @@
 #include "cinderx/async_lazy_value_iface.h"
 
 #include <memory>
+#include <unordered_map>
 
 namespace cinderx {
 
@@ -166,6 +167,14 @@ class ModuleState {
         std::unique_ptr<jit::IJitGenFreeList>(jit_gen_free_list);
   }
 
+  // Returns a dictionary of type->dict[name, members] for standard builtin
+  // types.
+  std::unordered_map<PyTypeObject*, Ref<>>& builtinMembers() {
+    return builtin_members_;
+  }
+
+  bool initBuiltinMembers();
+
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::ICodeAllocator> code_allocator_;
@@ -175,6 +184,7 @@ class ModuleState {
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value_;
   std::unique_ptr<jit::IJitGenFreeList> jit_gen_free_list_;
   Ref<PyTypeObject> coro_type_, gen_type_, anext_awaitable_type_;
+  std::unordered_map<PyTypeObject*, Ref<>> builtin_members_;
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   Ref<> frame_reifier_;
 #endif
