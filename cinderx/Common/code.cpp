@@ -26,6 +26,13 @@ Py_ssize_t code_extra_index = -1;
 
 extern "C" {
 
+const char* codeName(PyCodeObject* code) {
+  if (code->co_qualname == nullptr) {
+    return "<null>";
+  }
+  return PyUnicode_AsUTF8(code->co_qualname);
+}
+
 _Py_CODEUNIT* codeUnit(PyCodeObject* code) {
 #if PY_VERSION_HEX >= 0x030C0000
   return _PyCode_CODE(code);

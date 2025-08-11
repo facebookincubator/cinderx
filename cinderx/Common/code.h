@@ -81,6 +81,9 @@ static inline PyCodeObject* PyUnstable_Code_New(
 
 #endif
 
+// Gets the qualified name of the code object or "<null>" if it's not set.
+const char* codeName(PyCodeObject* code);
+
 // Get the internal _Py_CODEUNIT buffer from a code object.
 _Py_CODEUNIT* codeUnit(PyCodeObject* code);
 

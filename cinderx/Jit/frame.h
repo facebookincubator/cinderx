@@ -4,6 +4,8 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Jit/frame_header.h"
+
 #if PY_VERSION_HEX < 0x030C0000
 #include "internal/pycore_shadow_frame_struct.h"
 
@@ -11,12 +13,6 @@
 #include "cinderx/Jit/code_runtime.h"
 
 namespace jit {
-
-// FrameHeader lives at the beginning of the stack frame for JIT-compiled
-// functions. Note these will be garbage in generator objects.
-struct FrameHeader {
-  JITShadowFrame shadow_frame;
-};
 
 // Materialize all the Python frames for the shadow stack associated with
 // tstate.
@@ -134,6 +130,15 @@ BorrowedRef<PyFunctionObject> jitFrameGetFunction(_PyInterpreterFrame* frame);
 // Sets the PyFunctionObject to be stashed away in an interpreter frame.
 void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func);
 
+// Checks if the interpreter frame is an inline frame w/ runtime frame state
+bool hasRtfsFunction(_PyInterpreterFrame* frame);
+
+// Get the RuntimeFrameState from a _PyInterpreterFrame, hasRtfsFunction must be
+// true.
+RuntimeFrameState* jitFrameGetRtfs(_PyInterpreterFrame* frame);
+
+FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame);
+
 #endif
 
 // Like _PyFrame_ClearExceptCode but will handle partially initialized
@@ -153,33 +158,9 @@ void jitFrameInit(
     _PyInterpreterFrame* previous,
     bool generator);
 
-// Checks if the interpreter frame is an inline frame w/ runtime frame state
-bool hasRtfsFunction(_PyInterpreterFrame* frame);
-
-// Get the RuntimeFrameState from a _PyInterpreterFrame, hasRtfsFunction must be
-// true.
-RuntimeFrameState* jitFrameGetRtfs(_PyInterpreterFrame* frame);
-
 // Gets the frame size (in number of words) that's required for the JIT
 // to initialize a frame object.
 size_t jitFrameGetSize(PyCodeObject* code);
-
-int frameHeaderSize(BorrowedRef<PyCodeObject> code);
-
-#define JIT_FRAME_RTFS 0x01
-#define JIT_FRAME_INITIALIZED 0x02
-#define JIT_FRAME_MASK 0x03
-
-// FrameHeader lives at the beginning of the stack frame for JIT-compiled
-// functions. In 3.12+ this will be followed by the _PyInterpreterFrame.
-struct FrameHeader {
-  union {
-    PyFunctionObject* func;
-    uintptr_t rtfs;
-  };
-};
-
-FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame);
 
 } // namespace jit
 

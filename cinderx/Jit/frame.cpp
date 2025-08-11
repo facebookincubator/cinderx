@@ -2,13 +2,6 @@
 
 #include "cinderx/Jit/frame.h"
 
-const char* codeName(PyCodeObject* code) {
-  if (code->co_qualname == nullptr) {
-    return "<null>";
-  }
-  return PyUnicode_AsUTF8(code->co_qualname);
-}
-
 #if PY_VERSION_HEX < 0x030C0000
 
 #include "cinder/exports.h"
@@ -566,78 +559,12 @@ void walkAsyncShadowStack(PyThreadState* tstate, AsyncFrameHandler handler) {
   }
 }
 
-const char* shadowFrameKind(_PyShadowFrame* sf) {
-  switch (_PyShadowFrame_GetPtrKind(sf)) {
-    case PYSF_PYFRAME:
-      return "fra";
-    case PYSF_CODE_RT:
-      return "crt";
-    case PYSF_RTFS:
-      return "inl";
-    case PYSF_DUMMY:
-      return "<dummy>";
-  }
-  JIT_ABORT("Unknown shadow frame kind {}", _PyShadowFrame_GetPtrKind(sf));
-}
-
 } // namespace
 
 Ref<PyFrameObject> materializePyFrameForDeopt(PyThreadState* tstate) {
   UnitState unit_state = getUnitState(tstate->shadow_frame);
   materializePyFrames(tstate, unit_state, nullptr);
   return Ref<PyFrameObject>::steal(tstate->frame);
-}
-
-void assertShadowCallStackConsistent(PyThreadState* tstate) {
-  PyFrameObject* py_frame = tstate->frame;
-  _PyShadowFrame* shadow_frame = tstate->shadow_frame;
-
-  std::vector<_PyShadowFrame*> frames;
-  while (shadow_frame) {
-    frames.push_back(shadow_frame);
-    if (_PyShadowFrame_GetPtrKind(shadow_frame) == PYSF_PYFRAME) {
-      if (py_frame != _PyShadowFrame_GetPyFrame(shadow_frame)) {
-        std::fprintf(stderr, "topmost:\n");
-        for (size_t i = 0; i < frames.size(); i++) {
-          _PyShadowFrame* sf = frames.at(i);
-          Ref<> sf_name =
-              Ref<>::steal(_PyShadowFrame_GetFullyQualifiedName(sf));
-          const char* sf_name_str =
-              sf_name == nullptr ? "<null>" : PyUnicode_AsUTF8(sf_name);
-          if (sf_name_str == nullptr) {
-            sf_name_str = "<null>";
-          }
-          std::fprintf(
-              stderr,
-              "  %s prev=%p data=%p name=%s\n",
-              shadowFrameKind(sf),
-              reinterpret_cast<void*>(shadow_frame->prev),
-              reinterpret_cast<void*>(shadow_frame->data),
-              sf_name_str);
-        }
-      }
-      JIT_CHECK(
-          py_frame == _PyShadowFrame_GetPyFrame(shadow_frame),
-          "Inconsistent shadow and py frame ({} vs {})",
-          codeName(py_frame->f_code),
-          codeName(_PyShadowFrame_GetPyFrame(shadow_frame)->f_code));
-      py_frame = py_frame->f_back;
-    }
-    shadow_frame = shadow_frame->prev;
-  }
-
-  if (py_frame != nullptr) {
-    std::unordered_set<PyFrameObject*> seen;
-    JIT_LOG(
-        "Stack walk didn't consume entire python stack! Here's what's left:");
-    PyFrameObject* left = py_frame;
-    while (left && !seen.count(left)) {
-      JIT_LOG("{}", PyUnicode_AsUTF8(left->f_code->co_name));
-      seen.insert(left);
-      left = left->f_back;
-    }
-    JIT_ABORT("stack walk didn't consume entire python stack");
-  }
 }
 
 BorrowedRef<PyFrameObject> materializeShadowCallStack(PyThreadState* tstate) {
@@ -717,18 +644,6 @@ RuntimeFrameState runtimeFrameStateFromThreadState(PyThreadState* tstate) {
   PyFrameObject* frame = tstate->frame;
   JIT_CHECK(frame != nullptr, "Do not have a shadow frame or a Python frame");
   return RuntimeFrameState{frame->f_code, frame->f_builtins, frame->f_globals};
-}
-
-int frameHeaderSize(BorrowedRef<PyCodeObject> code) {
-  if (code->co_flags & kCoFlagsAnyGenerator) {
-    return 0;
-  }
-
-#ifdef ENABLE_SHADOW_FRAMES
-  return sizeof(FrameHeader);
-#else
-  return 0;
-#endif
 }
 
 } // namespace jit
@@ -1233,18 +1148,6 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
   }
 #else
   _PyFrame_ClearExceptCode(frame);
-#endif
-}
-
-int frameHeaderSize(BorrowedRef<PyCodeObject> code) {
-  if (code->co_flags & kCoFlagsAnyGenerator) {
-    return 0;
-  }
-
-#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
-  return sizeof(FrameHeader) + sizeof(PyObject*) * code->co_framesize;
-#else
-  return 0;
 #endif
 }
 
