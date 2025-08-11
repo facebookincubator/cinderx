@@ -52,28 +52,6 @@ class GuardTypeRemoval : public Pass {
   }
 };
 
-class InlineFunctionCalls : public Pass {
- public:
-  InlineFunctionCalls() : Pass("InlineFunctionCalls") {}
-
-  void Run(Function& irfunc) override;
-
-  static std::unique_ptr<InlineFunctionCalls> Factory() {
-    return std::make_unique<InlineFunctionCalls>();
-  }
-};
-
-class BeginInlinedFunctionElimination : public Pass {
- public:
-  BeginInlinedFunctionElimination() : Pass("BeginInlinedFunctionElimination") {}
-
-  void Run(Function& irfunc) override;
-
-  static std::unique_ptr<BeginInlinedFunctionElimination> Factory() {
-    return std::make_unique<BeginInlinedFunctionElimination>();
-  }
-};
-
 class BuiltinLoadMethodElimination : public Pass {
  public:
   BuiltinLoadMethodElimination() : Pass("BuiltinLoadMethodElimination") {}

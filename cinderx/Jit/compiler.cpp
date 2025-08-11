@@ -8,6 +8,7 @@
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
+#include "cinderx/Jit/hir/inliner.h"
 #include "cinderx/Jit/hir/optimization.h"
 #include "cinderx/Jit/hir/phi_elimination.h"
 #include "cinderx/Jit/hir/printer.h"
