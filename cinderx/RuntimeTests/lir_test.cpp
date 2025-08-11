@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/hir/hir.h"
@@ -48,7 +49,7 @@ class LIRGeneratorTest : public RuntimeTest {
 
     env.rt = &rt;
 
-    CodeRuntime runtime{func};
+    jit::CodeRuntime runtime{func};
     env.code_rt = &runtime;
 
     LIRGenerator lir_gen(irfunc.get(), &env);

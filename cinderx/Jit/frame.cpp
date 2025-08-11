@@ -10,9 +10,11 @@
 #include "internal/pycore_pystate.h"
 #include "internal/pycore_shadow_frame.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
+#include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/runtime.h"
 

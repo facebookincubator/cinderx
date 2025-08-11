@@ -8,7 +8,7 @@
 #include "internal/pycore_shadow_frame_struct.h"
 
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/runtime.h"
+#include "cinderx/Jit/code_runtime.h"
 
 namespace jit {
 
@@ -87,8 +87,10 @@ void Ci_WalkStack(PyThreadState* tstate, CiWalkStackCallback cb, void* data);
 
 #include "internal/pycore_frame.h"
 
+#include "cinderx/Common/code.h"
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/runtime.h"
+#include "cinderx/Jit/code_runtime.h"
+#include "cinderx/module_state.h"
 
 namespace jit {
 
