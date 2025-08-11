@@ -86,7 +86,14 @@ class DisableGilCheck {
 // Amount of time taken to batch compile everything when disable_jit is called
 std::chrono::milliseconds g_batch_compilation_time;
 
-CompilerContext<Compiler>* jit_ctx{nullptr};
+CompilerContext<Compiler>* jitCtx() {
+  auto state = cinderx::getModuleState();
+  if (state != nullptr) {
+    return static_cast<CompilerContext<Compiler>*>(state->jitContext());
+  }
+  return nullptr;
+}
+
 JITList* g_jit_list{nullptr};
 
 // Function and code objects ("units") registered for compilation.
@@ -834,14 +841,14 @@ void finalizeFunc(
     BorrowedRef<PyFunctionObject> func,
     const CompiledFunction& compiled) {
   ThreadedCompileSerialize guard;
-  if (!jit_ctx->addCompiledFunc(func)) {
+  if (!jitCtx()->addCompiledFunc(func)) {
     // Someone else compiled the function between when our caller checked and
     // called us.
     return;
   }
 
   // In case the function had previously been deopted.
-  jit_ctx->removeDeoptedFunc(func);
+  jitCtx()->removeDeoptedFunc(func);
 
   func->vectorcall = compiled.vectorcallEntry();
   Runtime* rt = Runtime::get();
@@ -864,9 +871,9 @@ void finalizeFunc(
  * happened.
  */
 bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
-  if (jit_ctx == nullptr) {
+  if (jitCtx() == nullptr) {
     return false;
-  } else if (jit_ctx->didCompile(func)) {
+  } else if (jitCtx()->didCompile(func)) {
     return true;
   }
 
@@ -877,9 +884,9 @@ bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
 
   // Might be a nested function that was never explicitly deopted, so ignore the
   // result of this.
-  jit_ctx->removeDeoptedFunc(func);
+  jitCtx()->removeDeoptedFunc(func);
 
-  if (CompiledFunction* compiled = jit_ctx->lookupFunc(func)) {
+  if (CompiledFunction* compiled = jitCtx()->lookupFunc(func)) {
     finalizeFunc(func, *compiled);
     return true;
   }
@@ -890,7 +897,7 @@ Context::CompilationResult compilePreloader(
     BorrowedRef<PyFunctionObject> func,
     const hir::Preloader& preloader) {
   jit::Context::CompilationResult result =
-      compilePreloaderImpl(jit_ctx, preloader);
+      compilePreloaderImpl(jitCtx(), preloader);
   if (result.compiled == nullptr) {
     return result;
   }
@@ -1088,7 +1095,7 @@ void multithread_compile_units_preloaded(
 // Compile all functions registered via a JIT list that haven't been executed
 // yet.
 bool compile_all(size_t workers = 0) {
-  JIT_CHECK(jit_ctx, "JIT not initialized");
+  JIT_CHECK(jitCtx(), "JIT not initialized");
 
   std::chrono::time_point start = std::chrono::steady_clock::now();
 
@@ -1253,7 +1260,7 @@ PyObject* multithreaded_compile_test(PyObject*, PyObject*) {
   g_compile_workers_attempted = 0;
   g_compile_workers_retries = 0;
   JIT_LOG("(Re)compiling {} units", jit_reg_units.size());
-  jit_ctx->clearCache();
+  jitCtx()->clearCache();
   if (!compile_all()) {
     return nullptr;
   }
@@ -1288,7 +1295,7 @@ bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
-  if (!jit_ctx->removeCompiledFunc(func)) {
+  if (!jitCtx()->removeCompiledFunc(func)) {
     return false;
   }
   func->vectorcall = getInterpretedVectorcall(func);
@@ -1297,7 +1304,7 @@ bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
 
 void uncompile(BorrowedRef<PyFunctionObject> func) {
   deoptFuncImpl(func);
-  jit_ctx->forgetCode(func);
+  jitCtx()->forgetCode(func);
 }
 
 /*
@@ -1307,8 +1314,8 @@ void uncompile(BorrowedRef<PyFunctionObject> func) {
  * Return true if the function was previously JIT-compiled, false otherwise.
  */
 bool deoptFunc(BorrowedRef<PyFunctionObject> func) {
-  if (jit_ctx && deoptFuncImpl(func)) {
-    jit_ctx->addDeoptedFunc(func);
+  if (jitCtx() && deoptFuncImpl(func)) {
+    jitCtx()->addDeoptedFunc(func);
     return true;
   }
   return false;
@@ -1323,16 +1330,17 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
           args, kwargs, "|p", const_cast<char**>(keywords), &deopt_all)) {
     return nullptr;
   }
-  if (jit_ctx == nullptr) {
+  if (jitCtx() == nullptr) {
     Py_RETURN_NONE;
   }
 
   JIT_DLOG("Disabling the JIT");
 
   if (deopt_all) {
-    JIT_DLOG("Deopting {} compiled functions", jit_ctx->compiledFuncs().size());
+    JIT_DLOG(
+        "Deopting {} compiled functions", jitCtx()->compiledFuncs().size());
     size_t success = 0;
-    for (BorrowedRef<PyFunctionObject> func : jit_ctx->compiledFuncs()) {
+    for (BorrowedRef<PyFunctionObject> func : jitCtx()->compiledFuncs()) {
       if (deoptFunc(func)) {
         success++;
       } else {
@@ -1348,7 +1356,7 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
 }
 
 PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
-  if (jit_ctx == nullptr) {
+  if (jitCtx() == nullptr) {
     PyErr_SetString(
         PyExc_RuntimeError,
         "Trying to re-enable the JIT but it was never initialized");
@@ -1359,7 +1367,7 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
   }
 
   size_t count = 0;
-  for (BorrowedRef<PyFunctionObject> func : jit_ctx->deoptedFuncs()) {
+  for (BorrowedRef<PyFunctionObject> func : jitCtx()->deoptedFuncs()) {
     reoptFunc(func);
     count++;
   }
@@ -1502,7 +1510,7 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
   // "Destroy" the function from the perspective of the JIT, effectively erasing
   // all traces of it from the metadata.
   funcDestroyed(func);
-  if (jit_ctx != nullptr) {
+  if (jitCtx() != nullptr) {
     uncompile(func);
   }
 
@@ -1527,7 +1535,7 @@ int aot_func_visitor(PyObject* obj, void* arg) {
 
 PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
   JIT_CHECK(
-      jit_ctx != nullptr,
+      jitCtx() != nullptr,
       "Loading an AOT bundle currently requires the JIT to be enabled");
 
   if (!PyUnicode_Check(arg)) {
@@ -1618,7 +1626,7 @@ PyObject* is_compile_all(PyObject* /* self */, PyObject* /* arg */) {
 }
 
 PyObject* print_hir(PyObject* /* self */, PyObject* func) {
-  if (jit_ctx == nullptr) {
+  if (jitCtx() == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "JIT is not initialized");
     return nullptr;
   }
@@ -1627,7 +1635,7 @@ PyObject* print_hir(PyObject* /* self */, PyObject* func) {
     return nullptr;
   }
 
-  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   if (compiled_func == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "function is not jit compiled");
     return nullptr;
@@ -1638,7 +1646,7 @@ PyObject* print_hir(PyObject* /* self */, PyObject* func) {
 }
 
 PyObject* disassemble(PyObject* /* self */, PyObject* func) {
-  if (jit_ctx == nullptr) {
+  if (jitCtx() == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "JIT is not initialized");
     return nullptr;
   }
@@ -1647,7 +1655,7 @@ PyObject* disassemble(PyObject* /* self */, PyObject* func) {
     return nullptr;
   }
 
-  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   if (compiled_func == nullptr) {
     PyErr_SetString(PyExc_RuntimeError, "function is not jit compiled");
     return nullptr;
@@ -1659,7 +1667,7 @@ PyObject* disassemble(PyObject* /* self */, PyObject* func) {
 
 PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
   JIT_CHECK(
-      jit_ctx != nullptr,
+      jitCtx() != nullptr,
       "JIT context not initialized despite cinderjit module having been "
       "loaded");
   if (!PyUnicode_Check(arg)) {
@@ -1671,9 +1679,9 @@ PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
   const char* filename = PyUnicode_AsUTF8AndSize(arg, &filename_size);
 
   std::vector<elf::CodeEntry> entries;
-  for (BorrowedRef<PyFunctionObject> func : jit_ctx->compiledFuncs()) {
+  for (BorrowedRef<PyFunctionObject> func : jitCtx()->compiledFuncs()) {
     BorrowedRef<PyCodeObject> code{func->func_code};
-    CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+    CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
 
     elf::CodeEntry entry;
     entry.code = code;
@@ -1809,7 +1817,7 @@ PyObject* get_compiled_functions(PyObject* /* self */, PyObject*) {
   if (funcs == nullptr) {
     return nullptr;
   }
-  for (BorrowedRef<PyFunctionObject> func : jit_ctx->compiledFuncs()) {
+  for (BorrowedRef<PyFunctionObject> func : jitCtx()->compiledFuncs()) {
     if (PyList_Append(funcs, func) < 0) {
       return nullptr;
     }
@@ -1818,18 +1826,18 @@ PyObject* get_compiled_functions(PyObject* /* self */, PyObject*) {
 }
 
 PyObject* get_compilation_time(PyObject* /* self */, PyObject*) {
-  auto time = jit_ctx != nullptr ? jit_ctx->totalCompileTime()
-                                 : std::chrono::milliseconds::zero();
+  auto time = jitCtx() != nullptr ? jitCtx()->totalCompileTime()
+                                  : std::chrono::milliseconds::zero();
   return PyLong_FromLong(time.count());
 }
 
 PyObject* get_function_compilation_time(PyObject* /* self */, PyObject* arg) {
-  if (arg == nullptr || !PyFunction_Check(arg) || jit_ctx == nullptr) {
+  if (arg == nullptr || !PyFunction_Check(arg) || jitCtx() == nullptr) {
     Py_RETURN_NONE;
   }
 
   BorrowedRef<PyFunctionObject> func{arg};
-  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   if (compiled_func == nullptr) {
     Py_RETURN_NONE;
   }
@@ -1840,11 +1848,11 @@ PyObject* get_function_compilation_time(PyObject* /* self */, PyObject* arg) {
 }
 
 PyObject* get_inlined_functions_stats(PyObject* /* self */, PyObject* arg) {
-  if (jit_ctx == nullptr || !PyFunction_Check(arg)) {
+  if (jitCtx() == nullptr || !PyFunction_Check(arg)) {
     Py_RETURN_NONE;
   }
   BorrowedRef<PyFunctionObject> func{arg};
-  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   if (compiled_func == nullptr) {
     Py_RETURN_NONE;
   }
@@ -1895,11 +1903,11 @@ PyObject* get_inlined_functions_stats(PyObject* /* self */, PyObject* arg) {
 }
 
 PyObject* get_num_inlined_functions(PyObject* /* self */, PyObject* arg) {
-  if (jit_ctx == nullptr || !PyFunction_Check(arg)) {
+  if (jitCtx() == nullptr || !PyFunction_Check(arg)) {
     return PyLong_FromLong(0);
   }
   BorrowedRef<PyFunctionObject> func{arg};
-  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   int size = compiled_func != nullptr
       ? compiled_func->inlinedFunctionsStats().num_inlined_functions
       : 0;
@@ -1907,11 +1915,11 @@ PyObject* get_num_inlined_functions(PyObject* /* self */, PyObject* arg) {
 }
 
 PyObject* get_function_hir_opcode_counts(PyObject* /* self */, PyObject* arg) {
-  if (jit_ctx == nullptr || !PyFunction_Check(arg)) {
+  if (jitCtx() == nullptr || !PyFunction_Check(arg)) {
     Py_RETURN_NONE;
   }
   BorrowedRef<PyFunctionObject> func{arg};
-  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   if (compiled_func == nullptr) {
     Py_RETURN_NONE;
   }
@@ -1941,7 +1949,7 @@ PyObject* get_function_hir_opcode_counts(PyObject* /* self */, PyObject* arg) {
 }
 
 PyObject* mlock_profiler_dependencies(PyObject* /* self */, PyObject*) {
-  if (jit_ctx == nullptr) {
+  if (jitCtx() == nullptr) {
     Py_RETURN_NONE;
   }
   Runtime::get()->mlockProfilerDependencies();
@@ -2057,28 +2065,28 @@ PyObject* clear_runtime_stats(PyObject* /* self */, PyObject*) {
 }
 
 PyObject* get_compiled_size(PyObject* /* self */, PyObject* func) {
-  if (jit_ctx == nullptr) {
+  if (jitCtx() == nullptr) {
     return PyLong_FromLong(0);
   }
-  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   int size = compiled_func != nullptr ? compiled_func->codeSize() : -1;
   return PyLong_FromLong(size);
 }
 
 PyObject* get_compiled_stack_size(PyObject* /* self */, PyObject* func) {
-  if (jit_ctx == nullptr) {
+  if (jitCtx() == nullptr) {
     return PyLong_FromLong(0);
   }
-  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   int size = compiled_func != nullptr ? compiled_func->stackSize() : -1;
   return PyLong_FromLong(size);
 }
 
 PyObject* get_compiled_spill_stack_size(PyObject* /* self */, PyObject* func) {
-  if (jit_ctx == nullptr) {
+  if (jitCtx() == nullptr) {
     return PyLong_FromLong(0);
   }
-  CompiledFunction* compiled_func = jit_ctx->lookupFunc(func);
+  CompiledFunction* compiled_func = jitCtx()->lookupFunc(func);
   int size = compiled_func != nullptr ? compiled_func->spillStackSize() : -1;
   return PyLong_FromLong(size);
 }
@@ -2751,7 +2759,7 @@ void dump_jit_compiled_functions(const std::string& filename) {
     JIT_LOG("Failed to open {} when dumping jit compiled functions", filename);
     return;
   }
-  for (BorrowedRef<PyFunctionObject> func : jit_ctx->compiledFuncs()) {
+  for (BorrowedRef<PyFunctionObject> func : jitCtx()->compiledFuncs()) {
     file << funcFullname(func) << std::endl;
   }
 }
@@ -2985,14 +2993,14 @@ int initialize() {
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
   mod_state->setCodeAllocator(CodeAllocator::make());
 
-  jit_ctx = new CompilerContext<Compiler>();
+  cinderx::getModuleState()->setJitContext(new CompilerContext<Compiler>());
 
   PyObject* mod = _Ci_CreateBuiltinModule(&jit_module, "cinderjit");
   if (mod == nullptr) {
     return -1;
   }
 
-  jit_ctx->setCinderJitModule(Ref<>::steal(mod));
+  jitCtx()->setCinderJitModule(Ref<>::steal(mod));
 
   if (install_jit_audit_hook() < 0 || register_fork_callback(mod) < 0) {
     return -1;
@@ -3037,11 +3045,10 @@ void finalize() {
       hir::preloaderManager().empty(),
       "JIT cannot be finalized while batch compilation is active");
 
-  for (auto func : jit_ctx->compiledFuncs()) {
+  for (auto func : jitCtx()->compiledFuncs()) {
     deoptFuncImpl(func);
   }
-  delete jit_ctx;
-  jit_ctx = nullptr;
+  cinderx::getModuleState()->setJitContext(nullptr);
 
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
   mod_state->setCodeAllocator(nullptr);
@@ -3196,8 +3203,8 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
       }
     }
   }
-  if (jit_ctx) {
-    jit_ctx->funcDestroyed(func);
+  if (jitCtx()) {
+    jitCtx()->funcDestroyed(func);
   }
 }
 

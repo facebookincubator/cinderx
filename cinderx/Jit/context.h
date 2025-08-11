@@ -8,6 +8,7 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Jit/context_iface.h"
 #include "cinderx/Jit/elf/note.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/pyjit_result.h"
@@ -53,7 +54,7 @@ namespace jit {
 /*
  * A jit::Context encapsulates all the state managed by an instance of the JIT.
  */
-class Context {
+class Context : public IJitContext {
  public:
   struct CompilationResult {
     CompiledFunction* compiled;

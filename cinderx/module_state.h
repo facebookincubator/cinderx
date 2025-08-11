@@ -8,6 +8,7 @@
 
 #include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/containers.h"
+#include "cinderx/Jit/context_iface.h"
 #include "cinderx/Jit/generators_mm_iface.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/runtime_iface.h"
@@ -54,6 +55,14 @@ class ModuleState {
 
   void setRuntime(jit::IRuntime* runtime) {
     runtime_ = std::unique_ptr<jit::IRuntime>(runtime);
+  }
+
+  jit::IJitContext* jitContext() const {
+    return jit_context_.get();
+  }
+
+  void setJitContext(jit::IJitContext* context) {
+    jit_context_ = std::unique_ptr<jit::IJitContext>(context);
   }
 
   jit::ISymbolizer* symbolizer() const {
@@ -162,6 +171,7 @@ class ModuleState {
   std::unique_ptr<jit::ICodeAllocator> code_allocator_;
   std::unique_ptr<jit::IRuntime> runtime_;
   std::unique_ptr<jit::ISymbolizer> symbolizer_;
+  std::unique_ptr<jit::IJitContext> jit_context_;
   std::unique_ptr<IAsyncLazyValueState> async_lazy_value_;
   std::unique_ptr<jit::IJitGenFreeList> jit_gen_free_list_;
   Ref<PyTypeObject> coro_type_, gen_type_, anext_awaitable_type_;

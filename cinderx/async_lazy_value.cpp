@@ -2,16 +2,20 @@
 
 #include "cinderx/async_lazy_value.h"
 
+// string.h and py-portability import pycore_ headers which bring in
+// atomics breaking things.
+// clang-format off
+#include "cinderx/module_state.h"
+#include "cinderx/Common/string.h"
+#include "cinderx/Common/py-portability.h"
+// clang-format on
+
 #if PY_VERSION_HEX >= 0x030C0000
 
 #if PY_VERSION_HEX >= 0x030D0000
 #include "internal/pycore_modsupport.h"
 #include "internal/pycore_object.h"
 #endif
-
-#include "cinderx/Common/py-portability.h"
-#include "cinderx/Common/string.h"
-#include "cinderx/module_state.h"
 
 extern "C" PyType_Spec _AsyncLazyValue_Spec;
 extern "C" PyType_Spec _AsyncLazyValueCompute_Spec;
