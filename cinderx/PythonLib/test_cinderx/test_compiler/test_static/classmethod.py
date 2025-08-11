@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
+
 import asyncio
 from unittest.mock import patch
 
@@ -10,7 +11,7 @@ from .common import StaticTestBase
 
 
 class ClassMethodTests(StaticTestBase):
-    def test_classmethod_from_non_final_class_calls_invoke_function(self):
+    def test_classmethod_from_non_final_class_calls_invoke_function(self) -> None:
         codestr = """
             class C:
                  @classmethod
@@ -25,7 +26,7 @@ class ClassMethodTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_FUNCTION", ((("mymod", "C"), "foo"), 1))
             self.assertEqual(f(), C)
 
-    def test_classmethod_from_final_class_calls_invoke_function(self):
+    def test_classmethod_from_final_class_calls_invoke_function(self) -> None:
         codestr = """
             from typing import final
             @final
@@ -42,7 +43,7 @@ class ClassMethodTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_FUNCTION")
             self.assertEqual(f(), C)
 
-    def test_classmethod_from_instance_calls_invoke_method(self):
+    def test_classmethod_from_instance_calls_invoke_method(self) -> None:
         codestr = """
             class C:
                  @classmethod
@@ -58,7 +59,7 @@ class ClassMethodTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(c), C)
 
-    def test_classmethod_override_from_instance_calls_override(self):
+    def test_classmethod_override_from_instance_calls_override(self) -> None:
         codestr = """
             class C:
                  @classmethod
@@ -79,7 +80,7 @@ class ClassMethodTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(d), 2)
 
-    def test_classmethod_override_from_non_static_calls_override(self):
+    def test_classmethod_override_from_non_static_calls_override(self) -> None:
         codestr = """
             class C:
                  @classmethod
@@ -102,7 +103,7 @@ class ClassMethodTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(d), 72)
 
-    def test_classmethod_override_from_non_static_instance(self):
+    def test_classmethod_override_from_non_static_instance(self) -> None:
         codestr = """
             class C:
                  @classmethod
@@ -120,11 +121,13 @@ class ClassMethodTests(StaticTestBase):
                 pass
 
             d = D()
+            # pyre-ignore[16]: Intentionally overwriting the `foo` method from the
+            # dynamically typed C class.
             d.foo = lambda x: x + 30
             self.assertInBytecode(f, "INVOKE_METHOD")
             self.assertEqual(f(d), 72)
 
-    def test_classmethod_override_from_non_static_instance_type_error(self):
+    def test_classmethod_override_from_non_static_instance_type_error(self) -> None:
         codestr = """
             class C:
                  @classmethod
@@ -142,12 +145,14 @@ class ClassMethodTests(StaticTestBase):
                 pass
 
             d = D()
+            # pyre-ignore[16]: Intentionally overwriting the `foo` method from the
+            # dynamically typed C class.
             d.foo = lambda x: "abc"
             self.assertInBytecode(f, "INVOKE_METHOD")
             with self.assertRaises(StaticTypeError):
                 f(d)
 
-    def test_classmethod_non_class_method_override(self):
+    def test_classmethod_non_class_method_override(self) -> None:
         codestr = """
             class C:
                  @classmethod
@@ -162,7 +167,7 @@ class ClassMethodTests(StaticTestBase):
         """
         self.type_error(codestr, "class cannot hide inherited member")
 
-    def test_classmethod_dynamic_call(self):
+    def test_classmethod_dynamic_call(self) -> None:
         codestr = """
             class C:
                 def __init__(self, x: int) -> None:
@@ -178,7 +183,7 @@ class ClassMethodTests(StaticTestBase):
             d = mod.d
             self.assertEqual(d, 1)
 
-    def test_final_classmethod_calls_another(self):
+    def test_final_classmethod_calls_another(self) -> None:
         codestr = """
             from typing import final
             @final
@@ -198,7 +203,7 @@ class ClassMethodTests(StaticTestBase):
             )
             self.assertEqual(C.bar(6), 9)
 
-    def test_classmethod_calls_another(self):
+    def test_classmethod_calls_another(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -217,7 +222,7 @@ class ClassMethodTests(StaticTestBase):
             self.assertInBytecode(C.bar, "INVOKE_METHOD")
             self.assertEqual(C.bar(6), 9)
 
-    def test_classmethod_calls_another_from_static_subclass(self):
+    def test_classmethod_calls_another_from_static_subclass(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -237,7 +242,7 @@ class ClassMethodTests(StaticTestBase):
             self.assertInBytecode(D.bar, "INVOKE_METHOD")
             self.assertEqual(D.bar(6), 48)
 
-    def test_classmethod_calls_another_from_nonstatic_subclass(self):
+    def test_classmethod_calls_another_from_nonstatic_subclass(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -256,10 +261,12 @@ class ClassMethodTests(StaticTestBase):
                 def foo(cls) -> int:
                     return 42
 
+            # pyre-ignore[16]: C is dynamically defined.
             self.assertInBytecode(D.bar, "INVOKE_METHOD")
+            # pyre-ignore[16]: C is dynamically defined.
             self.assertEqual(D.bar(6), 48)
 
-    def test_classmethod_dynamic_subclass(self):
+    def test_classmethod_dynamic_subclass(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -279,9 +286,10 @@ class ClassMethodTests(StaticTestBase):
                 pass
 
             d = D()
+            # pyre-ignore[16]: C is dynamically defined.
             asyncio.run(d.bar())
 
-    def test_patch(self):
+    def test_patch(self) -> None:
         codestr = """
 class C:
     @classmethod
@@ -304,7 +312,7 @@ class Child(C):
                 self.assertEqual(c.caller(), False)
                 self.assertEqual(p.call_args[0], ())
 
-    def test_classmethod_on_type(self):
+    def test_classmethod_on_type(self) -> None:
         codestr = """
             class C(type):
                 @classmethod
@@ -322,7 +330,7 @@ class Child(C):
             self.assertEqual(mod.f(mod.C("foo", (object,), {})), mod.C)
             self.assertEqual(mod.f1(mod.C), mod.C)
 
-    def test_classmethod_dynamic_subclass_override_async(self):
+    def test_classmethod_dynamic_subclass_override_async(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -343,9 +351,10 @@ class Child(C):
                     return 42
 
             d = D()
+            # pyre-ignore[16]: C is dynamically defined.
             asyncio.run(d.bar())
 
-    def test_classmethod_dynamic_subclass_override_nondesc_async(self):
+    def test_classmethod_dynamic_subclass_override_nondesc_async(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -362,16 +371,17 @@ class Child(C):
             C = mod.C
 
             class Callable:
-                async def __call__(self):
+                async def __call__(self) -> None:
                     return 42
 
             class D(C):
                 foo = Callable()
 
             d = D()
+            # pyre-ignore[16]: C is dynamically defined.
             asyncio.run(d.bar())
 
-    def test_classmethod_dynamic_subclass_override(self):
+    def test_classmethod_dynamic_subclass_override(self) -> None:
         codestr = """
             class C:
                 @classmethod
@@ -392,9 +402,10 @@ class Child(C):
                     return 42
 
             d = D()
+            # pyre-ignore[16]: C is dynamically defined.
             self.assertEqual(d.bar(), 42)
 
-    def test_classmethod_other_dec(self):
+    def test_classmethod_other_dec(self) -> None:
         codestr = """
             from typing import final
 
@@ -414,7 +425,7 @@ class Child(C):
             C = mod.C
             self.assertEqual(C().f(), 3)
 
-    def test_invoke_non_static_subtype_async_classmethod(self):
+    def test_invoke_non_static_subtype_async_classmethod(self) -> None:
         codestr = """
             class C:
                 x = 3
@@ -432,9 +443,10 @@ class Child(C):
                 pass
 
             d = D()
+            # pyre-ignore[16]: C is dynamically defined.
             self.assertEqual(asyncio.run(d.g()), 3)
 
-    def test_classmethod_invoke_method_cached(self):
+    def test_classmethod_invoke_method_cached(self) -> None:
         cases = [True, False]
         for should_make_hot in cases:
             with self.subTest(should_make_hot=should_make_hot):
@@ -458,7 +470,7 @@ class Child(C):
                     self.assertInBytecode(f, "INVOKE_METHOD")
                     self.assertEqual(f(c), 3)
 
-    def test_classmethod_async_invoke_method_cached(self):
+    def test_classmethod_async_invoke_method_cached(self) -> None:
         cases = [True, False]
         for should_make_hot in cases:
             with self.subTest(should_make_hot=should_make_hot):
@@ -478,7 +490,8 @@ class Child(C):
                     C = mod.C
                     f = mod.f
 
-                    async def make_hot():
+                    # pyre-ignore[53]: C and f are dynamically defined.
+                    async def make_hot() -> None:
                         c = C()  # noqa: B023
                         for _ in range(50):
                             await f(c)  # noqa: B023
@@ -488,7 +501,7 @@ class Child(C):
                     self.assertInBytecode(C.instance_method, "INVOKE_METHOD")
                     self.assertEqual(asyncio.run(f(C())), 3)
 
-    def test_invoke_starargs(self):
+    def test_invoke_starargs(self) -> None:
         codestr = """
 
             class C:
@@ -503,7 +516,7 @@ class Child(C):
             C = mod.C
             self.assertEqual(C().f(42), 3)
 
-    def test_invoke_starargs_starkwargs(self):
+    def test_invoke_starargs_starkwargs(self) -> None:
         codestr = """
 
             class C:

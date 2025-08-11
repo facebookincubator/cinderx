@@ -1,11 +1,13 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
+
 from __static__ import ContextDecorator
 
 import asyncio
 import inspect
 import sys
+from collections.abc import Coroutine
 from unittest import skipIf
 
 from cinderx.test_support import get_await_stack
@@ -13,8 +15,11 @@ from cinderx.test_support import get_await_stack
 from .common import StaticTestBase
 
 
+AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
+
+
 class ContextDecoratorTests(StaticTestBase):
-    def test_simple(self):
+    def test_simple(self) -> None:
         codestr = """
             from __static__ import ContextDecorator
             class MyDecorator(ContextDecorator):
@@ -44,7 +49,7 @@ class ContextDecoratorTests(StaticTestBase):
                 ((((mod.__name__, "C"), "f"), 0)),
             )
 
-    def test_simple_async(self):
+    def test_simple_async(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -75,7 +80,7 @@ class ContextDecoratorTests(StaticTestBase):
                 self.assertEqual(e.args[0], 42)
                 self.assertEqual(mod.calls, 1)
 
-    def test_property(self):
+    def test_property(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -97,7 +102,7 @@ class ContextDecoratorTests(StaticTestBase):
             )
             self.assertEqual(C().f, 42)
 
-    def test_cached_property(self):
+    def test_cached_property(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -126,7 +131,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertEqual(c.f, 43)
             self.assertEqual(c.f, 43)
 
-    def test_async_cached_property(self):
+    def test_async_cached_property(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -163,7 +168,7 @@ class ContextDecoratorTests(StaticTestBase):
             except StopIteration as e:
                 self.assertEqual(e.args[0], 43)
 
-    def test_static_method(self):
+    def test_static_method(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -187,7 +192,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertEqual(C().f(), 42)
             self.assertEqual(C.f(), 42)
 
-    def test_static_method_with_arg(self):
+    def test_static_method_with_arg(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -210,7 +215,7 @@ class ContextDecoratorTests(StaticTestBase):
                 (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 1)),
             )
 
-    def test_static_method_compat_with_arg(self):
+    def test_static_method_compat_with_arg(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -235,7 +240,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertEqual(C().f(C()), 42)
             self.assertEqual(C.f(C()), 42)
 
-    def test_class_method(self):
+    def test_class_method(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -270,7 +275,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertEqual(f(C()), 42)
             self.assertEqual(mod.calls, 2)
 
-    def test_top_level(self):
+    def test_top_level(self) -> None:
         codestr = """
             from __static__ import ContextDecorator
             class MyDecorator(ContextDecorator):
@@ -295,7 +300,7 @@ class ContextDecoratorTests(StaticTestBase):
             g = mod.g
             self.assertInBytecode(g, "INVOKE_FUNCTION", ((((mod.__name__,), "f"), 0)))
 
-    def test_recreate_cm(self):
+    def test_recreate_cm(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -317,7 +322,7 @@ class ContextDecoratorTests(StaticTestBase):
             )
             self.assertEqual(C().f(), 42)
 
-    def test_recreate_cm_final(self):
+    def test_recreate_cm_final(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -342,7 +347,7 @@ class ContextDecoratorTests(StaticTestBase):
             )
             self.assertEqual(C().f(), 42)
 
-    def test_stacked(self):
+    def test_stacked(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -399,7 +404,7 @@ class ContextDecoratorTests(StaticTestBase):
                 ],
             )
 
-    def test_simple_func(self):
+    def test_simple_func(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -432,7 +437,7 @@ class ContextDecoratorTests(StaticTestBase):
                 ((((mod.__name__, "C"), "f"), 0)),
             )
 
-    def test_simple_method(self):
+    def test_simple_method(self) -> None:
         codestr = """
             from __future__ import annotations
             from __static__ import ContextDecorator
@@ -502,61 +507,63 @@ class ContextDecoratorTests(StaticTestBase):
             (((("__static__", "ExcContextDecorator"), "_recreate_cm"), 0)),
         )
 
-    def test_nonstatic_base(self):
+    def test_nonstatic_base(self) -> None:
         class C(ContextDecorator):
             pass
 
         @C()
-        def f():
+        def f() -> int:
             return 42
 
         self.assertEqual(f(), 42)
 
-    def test_nonstatic_base_async(self):
+    def test_nonstatic_base_async(self) -> None:
         class C(ContextDecorator):
             pass
 
         @C()
-        async def f():
+        async def f() -> int:
             return 42
 
         x = f()
         with self.assertRaises(StopIteration):
             x.send(None)
 
-    def test_nonstatic_async_eager(self):
+    def test_nonstatic_async_eager(self) -> None:
         class C(ContextDecorator):
             pass
 
         @C()
-        async def f():
+        async def f() -> int:
             return 42
 
-        async def caller():
+        async def caller() -> int:
             return await f()
 
+        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         x = caller()
         with self.assertRaises(StopIteration) as si:
             x.send(None)
         self.assertEqual(si.exception.args[0], 42)
 
-    def test_nonstatic_async_eager_exit_raises(self):
+    def test_nonstatic_async_eager_exit_raises(self) -> None:
         class C(ContextDecorator):
             def __exit__(self, *args):
                 raise ValueError()
 
         @C()
-        async def f():
+        async def f() -> int:
             return 42
 
-        async def caller():
+        async def caller() -> int:
             return await f()
 
+        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         x = caller()
         with self.assertRaises(ValueError):
             x.send(None)
 
-    def test_nonstatic_base_async_exit(self):
+    def test_nonstatic_base_async_exit(self) -> None:
         exit_called = False
 
         class C(ContextDecorator):
@@ -565,7 +572,7 @@ class ContextDecoratorTests(StaticTestBase):
                 exit_called = True
 
         @C()
-        async def f():
+        async def f() -> int:
             return 42
 
         x = f()
@@ -573,7 +580,7 @@ class ContextDecoratorTests(StaticTestBase):
             x.send(None)
             self.assertTrue(exit_called)
 
-    def test_nonstatic_base_async_exit_raises(self):
+    def test_nonstatic_base_async_exit_raises(self) -> None:
         exit_called = False
 
         class C(ContextDecorator):
@@ -582,7 +589,7 @@ class ContextDecoratorTests(StaticTestBase):
                 exit_called = True
 
         @C()
-        async def f():
+        async def f() -> None:
             raise ValueError()
 
         x = f()
@@ -590,7 +597,7 @@ class ContextDecoratorTests(StaticTestBase):
             x.send(None)
         self.assertTrue(exit_called)
 
-    def test_nonstatic_async_steps(self):
+    def test_nonstatic_async_steps(self) -> None:
         exit_called = False
 
         class C(ContextDecorator):
@@ -599,10 +606,11 @@ class ContextDecoratorTests(StaticTestBase):
                 exit_called = True
 
         loop = asyncio.new_event_loop()
-        fut = asyncio.Future(loop=loop)
+        # pyre-ignore[1001]: Intentionally calling generator methods manually.
+        fut: asyncio.Future = asyncio.Future(loop=loop)
 
         @C()
-        async def f():
+        async def f() -> int:
             await fut
             return 42
 
@@ -616,7 +624,7 @@ class ContextDecoratorTests(StaticTestBase):
         self.assertTrue(exit_called)
         loop.close()
 
-    def test_nonstatic_raise_and_suppress_async(self):
+    def test_nonstatic_raise_and_suppress_async(self) -> None:
         class C(ContextDecorator):
             def _recreate_cm(self):
                 return self
@@ -628,15 +636,15 @@ class ContextDecoratorTests(StaticTestBase):
                 return True
 
         @C()
-        async def f():
+        async def f() -> None:
             raise Exception()
 
-        async def g():
+        async def g() -> None:
             return await f()
 
         self.assertEqual(asyncio.run(g()), None)
 
-    def test_nonstatic_async_steps_raises(self):
+    def test_nonstatic_async_steps_raises(self) -> None:
         exit_called = False
 
         class C(ContextDecorator):
@@ -645,13 +653,15 @@ class ContextDecoratorTests(StaticTestBase):
                 exit_called = True
 
         loop = asyncio.new_event_loop()
-        fut = asyncio.Future(loop=loop)
+        # pyre-ignore[1001]: Intentionally calling generator methods manually.
+        fut: asyncio.Future = asyncio.Future(loop=loop)
 
         @C()
-        async def f():
+        async def f() -> None:
             await fut
             raise ValueError()
 
+        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         x = f()
         with self.assertRaises(ValueError):  # noqa: B908
             x.send(None)
@@ -661,19 +671,20 @@ class ContextDecoratorTests(StaticTestBase):
         self.assertTrue(exit_called)
         loop.close()
 
-    def test_nonstatic_base_async_no_await(self):
+    def test_nonstatic_base_async_no_await(self) -> None:
         class C(ContextDecorator):
             pass
 
         @C()
-        async def f():
+        async def f() -> int:
             return 42
 
         # just checking to make sure this doesn't leak
         # in ref leak tests
+        # pyre-ignore[1001]: Intentionally checking that generator doesn't leak.
         x = f()  # noqa: F841
 
-    def test_nonstatic_override(self):
+    def test_nonstatic_override(self) -> None:
         class C(ContextDecorator):
             def _recreate_cm(self):
                 return self
@@ -685,12 +696,12 @@ class ContextDecoratorTests(StaticTestBase):
                 return None
 
         @C()
-        def f():
+        def f() -> int:
             return 42
 
         self.assertEqual(f(), 42)
 
-    def test_nonstatic_raise(self):
+    def test_nonstatic_raise(self) -> None:
         class C(ContextDecorator):
             def _recreate_cm(self):
                 return self
@@ -702,13 +713,13 @@ class ContextDecoratorTests(StaticTestBase):
                 return False
 
         @C()
-        def f():
+        def f() -> None:
             raise ValueError()
 
         with self.assertRaises(ValueError):
             f()
 
-    def test_nonstatic_raise_bad_true(self):
+    def test_nonstatic_raise_bad_true(self) -> None:
         class B:
             def __bool__(self):
                 raise ValueError()
@@ -724,13 +735,13 @@ class ContextDecoratorTests(StaticTestBase):
                 return B()
 
         @C()
-        def f():
+        def f() -> None:
             raise Exception()
 
         with self.assertRaises(ValueError):
             f()
 
-    def test_nonstatic_raise_on_exit_error(self):
+    def test_nonstatic_raise_on_exit_error(self) -> None:
         class B:
             def __bool__(self):
                 raise ValueError()
@@ -746,13 +757,13 @@ class ContextDecoratorTests(StaticTestBase):
                 raise ValueError()
 
         @C()
-        def f():
+        def f() -> None:
             raise Exception()
 
         with self.assertRaises(ValueError):
             f()
 
-    def test_nonstatic_raise_on_exit_success(self):
+    def test_nonstatic_raise_on_exit_success(self) -> None:
         class B:
             def __bool__(self):
                 raise ValueError()
@@ -768,13 +779,13 @@ class ContextDecoratorTests(StaticTestBase):
                 raise ValueError()
 
         @C()
-        def f():
+        def f() -> int:
             return 42
 
         with self.assertRaises(ValueError):
             f()
 
-    def test_nonstatic_raise_and_suppress(self):
+    def test_nonstatic_raise_and_suppress(self) -> None:
         class C(ContextDecorator):
             def _recreate_cm(self):
                 return self
@@ -786,12 +797,12 @@ class ContextDecoratorTests(StaticTestBase):
                 return True
 
         @C()
-        def f():
+        def f() -> None:
             raise Exception()
 
         self.assertEqual(f(), None)
 
-    def test_nonstatic_suppress_on_throw(self):
+    def test_nonstatic_suppress_on_throw(self) -> None:
         class C(ContextDecorator):
             def _recreate_cm(self):
                 return self
@@ -803,12 +814,14 @@ class ContextDecoratorTests(StaticTestBase):
                 return True
 
         loop = asyncio.new_event_loop()
-        fut = asyncio.Future(loop=loop)
+        # pyre-ignore[1001]: Intentionally calling generator methods manually.
+        fut: asyncio.Future = asyncio.Future(loop=loop)
 
         @C()
-        async def f():
+        async def f() -> None:
             await fut
 
+        # pyre-ignore[1001]: Intentionally calling generator methods manually.
         x = f()
         x.send(None)
         with self.assertRaises(StopIteration) as e:
@@ -820,7 +833,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.assertEqual(e.exception.args, ())
         loop.close()
 
-    def test_nonstatic_suppress_on_throw_no_send(self):
+    def test_nonstatic_suppress_on_throw_no_send(self) -> None:
         class C(ContextDecorator):
             def _recreate_cm(self):
                 return self
@@ -839,10 +852,11 @@ class ContextDecoratorTests(StaticTestBase):
                 return True
 
         loop = asyncio.new_event_loop()
-        fut = asyncio.Future(loop=loop)
+        # pyre-ignore[1001]: Intentionally calling generator methods manually.
+        fut: asyncio.Future = asyncio.Future(loop=loop)
 
         @C()
-        async def f():
+        async def f() -> None:
             await fut
 
         x = f()
@@ -851,7 +865,7 @@ class ContextDecoratorTests(StaticTestBase):
 
         loop.close()
 
-    def test_nonstatic_recreate(self):
+    def test_nonstatic_recreate(self) -> None:
         class C(ContextDecorator):
             def _recreate_cm(self):
                 return C()
@@ -866,12 +880,12 @@ class ContextDecoratorTests(StaticTestBase):
         a = C()
 
         @a
-        def f():
+        def f() -> None:
             raise Exception()
 
         self.assertEqual(f(), None)
 
-    def test_nonstatic_change_recreate_cm(self):
+    def test_nonstatic_change_recreate_cm(self) -> None:
         class C(ContextDecorator):
             def _recreate_cm(self):
                 return self
@@ -883,79 +897,80 @@ class ContextDecoratorTests(StaticTestBase):
                 return True
 
         @C()
-        def f():
+        def f() -> None:
             raise Exception()
 
         self.assertEqual(f(), None)
 
-        def raises(self):
+        def raises(self: C) -> None:
             raise ValueError()
 
         C._recreate_cm = raises
         self.assertRaises(ValueError, f)
 
-    def test_nonstatic_wraps(self):
+    def test_nonstatic_wraps(self) -> None:
         class C(ContextDecorator):
             pass
 
         @C()
-        def f():
+        def f() -> None:
             raise Exception()
 
         self.assertEqual(f.__name__, "f")
 
-    def test_nonstatic_custom_attr(self):
+    def test_nonstatic_custom_attr(self) -> None:
         class C(ContextDecorator):
             pass
 
         @C()
-        def f():
+        def f() -> None:
             raise Exception()
 
         f.foo = 42
         self.assertEqual(f.foo, 42)
 
-    def test_nonstatic_dict_copy(self):
+    def test_nonstatic_dict_copy(self) -> None:
         class C(ContextDecorator):
             pass
 
+        # pyre-ignore: Too hard to type decorator.
         def dec(f):
             f.bar = "abc"
             return f
 
         @C()
         @dec
-        def f():
+        def f() -> None:
             raise Exception()
 
         f.foo = 42
         self.assertEqual(f.foo, 42)
         self.assertEqual(f.bar, "abc")
 
-    def test_nonstatic_coroutine(self):
+    def test_nonstatic_coroutine(self) -> None:
         class C(ContextDecorator):
             pass
 
         @C()
-        async def f():
+        async def f() -> None:
             pass
 
         self.assertTrue(asyncio.iscoroutinefunction(f))
 
-    def test_nonstatic_signature(self):
+    def test_nonstatic_signature(self) -> None:
         class C(ContextDecorator):
             pass
 
         @C()
-        def f(x):
+        def f(x: object) -> None:
             pass
 
-        def other(x):
+        def other(x: object) -> None:
             pass
 
         self.assertEqual(inspect.signature(f), inspect.signature(other))
 
-    def test_nonstatic_async_enter_deferred(self):
+    def test_nonstatic_async_enter_deferred(self) -> None:
         enter_called = False
 
         class C(ContextDecorator):
@@ -964,22 +979,23 @@ class ContextDecoratorTests(StaticTestBase):
                 enter_called = True
 
         @C()
-        async def f():
+        async def f() -> None:
             pass
 
         x = f()  # noqa: F841
         self.assertFalse(enter_called)
 
-    def test_nonstatic_async_return_tuple_on_throw(self):
+    def test_nonstatic_async_return_tuple_on_throw(self) -> None:
         class C(ContextDecorator):
             pass
 
         loop = asyncio.new_event_loop()
         try:
-            fut = asyncio.Future(loop=loop)
+            # pyre-ignore[1001]: Intentionally calling generator methods manually.
+            fut: asyncio.Future = asyncio.Future(loop=loop)
 
             @C()
-            async def f():
+            async def f() -> tuple[int, int, int] | None:
                 try:
                     await fut
                 except ValueError:
@@ -994,21 +1010,22 @@ class ContextDecoratorTests(StaticTestBase):
         finally:
             loop.close()
 
-    @skipIf(sys.version_info >= (3, 12), "No working get_await_stack T201015581")
-    def test_stack_trace(self):
-        coro = None
-        await_stack = None
+    @skipIf(AT_LEAST_312, "No working get_await_stack T201015581")
+    def test_stack_trace(self) -> None:
+        coro: Coroutine | None = None
+        await_stack = []
 
         class C(ContextDecorator):
             pass
 
         @C()
-        async def f():
+        async def f() -> int:
             nonlocal await_stack
+            assert coro is not None
             await_stack = get_await_stack(coro)
             return 100
 
-        async def g():
+        async def g() -> int:
             nonlocal coro
             x = f()
             coro = x.__coro__
@@ -1018,22 +1035,23 @@ class ContextDecoratorTests(StaticTestBase):
         asyncio.run(g_coro)
         self.assertEqual(await_stack, [g_coro])
 
-    @skipIf(sys.version_info >= (3, 12), "No working get_await_stack T201015581")
-    def test_stack_trace_non_eager(self):
-        coro = None
-        await_stack = None
+    @skipIf(AT_LEAST_312, "No working get_await_stack T201015581")
+    def test_stack_trace_non_eager(self) -> None:
+        coro: Coroutine | None = None
+        await_stack = []
 
         class C(ContextDecorator):
             pass
 
         @C()
-        async def f():
+        async def f() -> int:
             nonlocal await_stack
             await asyncio.sleep(0.1)
+            assert coro is not None
             await_stack = get_await_stack(coro)
             return 100
 
-        async def g():
+        async def g() -> int:
             nonlocal coro
             x = f()
             coro = x.__coro__
@@ -1061,7 +1079,7 @@ class ContextDecoratorTests(StaticTestBase):
             self.clean_code(codestr), "mod.py", "mod", 1
         )
 
-    def test_may_suppress_makes_ret_type_optional(self):
+    def test_may_suppress_makes_ret_type_optional(self) -> None:
         codestr = """
             from __static__ import ExcContextDecorator
             class MyDecorator(ExcContextDecorator):
@@ -1077,7 +1095,7 @@ class ContextDecoratorTests(StaticTestBase):
         """
         self.revealed_type(codestr, "Optional[int]")
 
-    def test_default_does_not_make_ret_type_optional(self):
+    def test_default_does_not_make_ret_type_optional(self) -> None:
         codestr = """
             from __static__ import ContextDecorator
             class MyDecorator(ContextDecorator):
@@ -1093,7 +1111,7 @@ class ContextDecoratorTests(StaticTestBase):
         """
         self.revealed_type(codestr, "int")
 
-    def test_cannot_wrongly_override_exit_return_type(self):
+    def test_cannot_wrongly_override_exit_return_type(self) -> None:
         codestr = """
             from __static__ import ContextDecorator
 
@@ -1107,7 +1125,7 @@ class ContextDecoratorTests(StaticTestBase):
             "def __exit__",
         )
 
-    def test_can_override_exit_return_type(self):
+    def test_can_override_exit_return_type(self) -> None:
         codestr = """
             from __static__ import ExcContextDecorator
             from types import TracebackType
@@ -1131,7 +1149,7 @@ class ContextDecoratorTests(StaticTestBase):
         """
         self.revealed_type(codestr, "int")
 
-    def test_call_error_nonstatic(self):
+    def test_call_error_nonstatic(self) -> None:
         codestr = """
             from __static__ import ContextDecorator
             from types import TracebackType
@@ -1153,7 +1171,7 @@ class ContextDecoratorTests(StaticTestBase):
         with self.in_module(codestr) as mod:
 
             @mod.MyDecorator()
-            def f(inp):
+            def f(inp: object) -> None:
                 pass
 
             with self.assertRaisesRegex(TypeError, r"missing 1 required positional"):

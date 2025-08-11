@@ -1,7 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
+
 import unittest
+from collections.abc import Generator
 from contextlib import contextmanager
 
 from cinderx.compiler.consts import CI_CO_STATICALLY_COMPILED
@@ -10,7 +12,9 @@ from .common import StaticTestBase
 
 
 class NonStaticInheritanceTests(StaticTestBase):
-    def test_static_return_is_resolved_with_multiple_levels_of_inheritance(self):
+    def test_static_return_is_resolved_with_multiple_levels_of_inheritance(
+        self,
+    ) -> None:
         codestr = """
             class C:
                 def foobar(self, x: int) -> int:
@@ -29,10 +33,12 @@ class NonStaticInheritanceTests(StaticTestBase):
                 def foobar(self, x: int) -> int:
                     return x + 2
 
+            # pyre-ignore[16]: Superclass `C` is dynamically defined.
             self.assertEqual(D().f(), 2)
+            # pyre-ignore[16]: Superclass `C` is dynamically defined.
             self.assertEqual(E().f(), 3)
 
-    def test_multiple_inheritance_initialization(self):
+    def test_multiple_inheritance_initialization(self) -> None:
         """Primarily testing that when we have multiple inheritance that
         we safely initialize all of our v-tables.  Previously we could
         init B2 while initializing the bases for DM, and then we wouldn't
@@ -77,7 +83,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertEqual(f(D()), 30)
             self.assertEqual(f(DM()), 20)
 
-    def test_multiple_inheritance_initialization_invoke_only(self):
+    def test_multiple_inheritance_initialization_invoke_only(self) -> None:
         """Primarily testing that when we have multiple inheritance that
         we safely initialize all of our v-tables.  Previously we could
         init B2 while initializing the bases for DM, and then we wouldn't
@@ -120,7 +126,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertEqual(f(D()), 30)
             self.assertEqual(f(DM()), 20)
 
-    def test_inherit_abc(self):
+    def test_inherit_abc(self) -> None:
         codestr = """
             from abc import ABC
 
@@ -137,7 +143,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             a = C()
             self.assertEqual(a.g(), 42)
 
-    def test_static_decorator_non_static_class(self):
+    def test_static_decorator_non_static_class(self) -> None:
         codestr = """
             def mydec(f):
                 def wrapper(*args, **kwargs):
@@ -160,7 +166,7 @@ class NonStaticInheritanceTests(StaticTestBase):
 
             class D(B):
                 @mydec
-                def f(self):
+                def f(self) -> None:
                     pass
 
             self.assertEqual(D().f(), None)
@@ -169,7 +175,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertEqual(f(D()), None)
             self.assertEqual(D().f(), 42)
 
-    def test_nonstatic_multiple_inheritance_invoke(self):
+    def test_nonstatic_multiple_inheritance_invoke(self) -> None:
         """multiple inheritance from non-static classes should
         result in only static classes in the v-table"""
 
@@ -187,7 +193,7 @@ class NonStaticInheritanceTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(D("abc")), b"abc")
 
-    def test_nonstatic_multiple_inheritance_invoke_static_base(self):
+    def test_nonstatic_multiple_inheritance_invoke_static_base(self) -> None:
         codestr = """
         class B:
             def f(self):
@@ -208,7 +214,7 @@ class NonStaticInheritanceTests(StaticTestBase):
 
             self.assertEqual(mod.f(D()), "abc")
 
-    def test_nonstatic_multiple_inheritance_invoke_static_base_2(self):
+    def test_nonstatic_multiple_inheritance_invoke_static_base_2(self) -> None:
         codestr = """
         class B:
             def f(self):
@@ -231,13 +237,13 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertEqual(mod.f(D()), "foo")
 
     @contextmanager
-    def assertBaseClassConflict(self):
+    def assertBaseClassConflict(self) -> Generator[None, None, None]:
         with self.assertRaisesRegex(
             TypeError, r"multiple bases have instance lay-out conflict"
         ):
             yield
 
-    def test_no_inherit_multiple_static_bases(self):
+    def test_no_inherit_multiple_static_bases(self) -> None:
         codestr = """
             class A:
                 pass
@@ -251,7 +257,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 class C(mod.A, mod.B):
                     pass
 
-    def test_no_inherit_multiple_static_bases_indirect(self):
+    def test_no_inherit_multiple_static_bases_indirect(self) -> None:
         codestr = """
             class A:
                 pass
@@ -269,7 +275,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 class D(C, mod.A):
                     pass
 
-    def test_no_inherit_static_and_builtin(self):
+    def test_no_inherit_static_and_builtin(self) -> None:
         # This happens because our code treats builtins as static for the
         # purposes of the multiple inheritance check (see
         # test_no_inherit_multiple_builtins as well)
@@ -283,7 +289,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 class C(mod.A, str):
                     pass
 
-    def test_no_inherit_multiple_builtins(self):
+    def test_no_inherit_multiple_builtins(self) -> None:
         # Documenting that the check for static base classes also includes
         # non-heap-allocated classes, so two builtins will run into the same
         # conflict as a static and a builtin type..
@@ -292,7 +298,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             class C(int, str):
                 pass
 
-    def test_inherit_multiple_static_bases_with_subclass_relationship(self):
+    def test_inherit_multiple_static_bases_with_subclass_relationship(self) -> None:
         codestr = """
             class A:
                 pass
@@ -309,7 +315,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             class D(C, mod.A):
                 pass
 
-    def test_mutate_sub_sub_class(self):
+    def test_mutate_sub_sub_class(self) -> None:
         """patching non-static class through multiple levels
         of inheritance shouldn't crash"""
 
@@ -327,11 +333,11 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertEqual(mod.f(mod.B()), 42)
 
             class D1(mod.B):
-                def __init__(self):
+                def __init__(self) -> None:
                     pass
 
             class D2(D1):
-                def __init__(self):
+                def __init__(self) -> None:
                     pass
 
             D1.__init__ = lambda self: None
@@ -339,7 +345,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertEqual(mod.f(D1()), 42)
             self.assertEqual(mod.f(D2()), 42)
 
-    def test_invoke_class_method_dynamic_base(self):
+    def test_invoke_class_method_dynamic_base(self) -> None:
         bases = """
         class B1: pass
         """
@@ -364,7 +370,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             f = mod.f
             self.assertEqual(f(), 42)
 
-    def test_no_inherit_static_through_nonstatic(self):
+    def test_no_inherit_static_through_nonstatic(self) -> None:
         base = """
             class A:
                 pass
@@ -392,7 +398,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             ):
                 self.run_code(static)
 
-    def test_nonstatic_derived_method_in_static_class(self):
+    def test_nonstatic_derived_method_in_static_class(self) -> None:
         # Having the decorator live in a non-static module ensures that the generated function
         # doesn't have the CI_CO_STATICALLY_COMPILED flag.
         nonstatic = """
@@ -433,7 +439,7 @@ class NonStaticInheritanceTests(StaticTestBase):
                 mod.invoke_d_f, "INVOKE_FUNCTION", (((mod.__name__, "C"), "f"), 1)
             )
 
-    def test_nonstatic_override_init_subclass(self):
+    def test_nonstatic_override_init_subclass(self) -> None:
         nonstatic = """
             from static import B
 
@@ -467,7 +473,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertRaises(TypeError, d.set_x, 100)
             self.assertEqual(d.get_x(), 100)
 
-    def test_nonstatic_override_init_subclass_inst(self):
+    def test_nonstatic_override_init_subclass_inst(self) -> None:
         nonstatic = """
             from static import B
 
@@ -501,7 +507,7 @@ class NonStaticInheritanceTests(StaticTestBase):
             self.assertEqual(d.__dict__, {})
             self.assertEqual(mod.B.x, 42)
 
-    def test_nonstatic_call_base_init(self):
+    def test_nonstatic_call_base_init(self) -> None:
         nonstatic = """
             class B:
                 def __init_subclass__(cls):
@@ -519,7 +525,7 @@ class NonStaticInheritanceTests(StaticTestBase):
         ), self.in_module(static) as mod:
             self.assertEqual(mod.D.foo, 42)
 
-    def test_nonstatic_call_base_init_other_super(self):
+    def test_nonstatic_call_base_init_other_super(self) -> None:
         nonstatic = """
             class B:
                 def __init_subclass__(cls):

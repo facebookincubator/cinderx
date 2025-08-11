@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
+
 from __static__ import chkdict, chklist
 
 import sys
@@ -14,6 +15,9 @@ from cinderx.compiler.consts import CO_SUPPRESS_JIT
 from cinderx.compiler.errors import TypedSyntaxError
 
 from .common import bad_ret_type, StaticTestBase
+
+
+AT_LEAST_312: bool = sys.version_info[:2] >= (3, 12)
 
 
 class StaticObjCreationTests(StaticTestBase):
@@ -477,7 +481,7 @@ class StaticObjCreationTests(StaticTestBase):
             f = mod.C.__init__
             self.assertNotInBytecode(f, "INVOKE_METHOD")
 
-    @skipIf(sys.version_info >= (3, 12), "3.12 doesn't emit super call if aliased")
+    @skipIf(AT_LEAST_312, "3.12 doesn't emit super call if aliased")
     def test_super_init_no_load_attr_super(self) -> None:
         codestr = """
             x = super
@@ -527,7 +531,7 @@ class StaticObjCreationTests(StaticTestBase):
             self.assertInBytecode(f, "INVOKE_FUNCTION")
             self.assertTrue(isinstance(f(), C))
 
-    @skipIf(sys.version_info >= (3, 12), "3.12 doesn't emit super call if aliased")
+    @skipIf(AT_LEAST_312, "3.12 doesn't emit super call if aliased")
     def test_super_redefined_uses_opt(self) -> None:
         codestr = """
             super = super

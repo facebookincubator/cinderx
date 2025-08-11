@@ -1,6 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
+
 from typing import ClassVar
 
 from cinderx.compiler.errors import TypedSyntaxError
@@ -9,7 +10,7 @@ from .common import StaticTestBase
 
 
 class FinalTests(StaticTestBase):
-    def test_final_multiple_typeargs(self):
+    def test_final_multiple_typeargs(self) -> None:
         codestr = """
         from typing import Final
         from something import hello
@@ -22,7 +23,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_annotation_nesting(self):
+    def test_final_annotation_nesting(self) -> None:
         with self.assertRaisesRegex(
             TypedSyntaxError, "Final annotation is only valid in initial declaration"
         ):
@@ -46,7 +47,7 @@ class FinalTests(StaticTestBase):
                 modname="foo",
             )
 
-    def test_final(self):
+    def test_final(self) -> None:
         codestr = """
         from typing import Final
 
@@ -54,7 +55,7 @@ class FinalTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_final_generic(self):
+    def test_final_generic(self) -> None:
         codestr = """
         from typing import Final
 
@@ -62,7 +63,7 @@ class FinalTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_final_generic_types(self):
+    def test_final_generic_types(self) -> None:
         codestr = """
         from typing import Final
 
@@ -75,7 +76,7 @@ class FinalTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_final_uninitialized(self):
+    def test_final_uninitialized(self) -> None:
         codestr = """
         from typing import Final
 
@@ -86,7 +87,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_reassign(self):
+    def test_final_reassign(self) -> None:
         codestr = """
         from typing import Any, Final
 
@@ -98,7 +99,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_reassign_explicit_global(self):
+    def test_final_reassign_explicit_global(self) -> None:
         codestr = """
             from typing import Final
 
@@ -114,7 +115,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_reassign_explicit_global_shadowed(self):
+    def test_final_reassign_explicit_global_shadowed(self) -> None:
         codestr = """
             from typing import Final
 
@@ -131,7 +132,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_reassign_nonlocal(self):
+    def test_final_reassign_nonlocal(self) -> None:
         codestr = """
             from typing import Final
 
@@ -145,7 +146,7 @@ class FinalTests(StaticTestBase):
         with self.assertRaisesRegex(SyntaxError, "no binding for nonlocal 'a' found"):
             self.compile(codestr, modname="foo")
 
-    def test_final_reassign_nonlocal_shadowed(self):
+    def test_final_reassign_nonlocal_shadowed(self) -> None:
         codestr = """
             from typing import Final
 
@@ -161,7 +162,7 @@ class FinalTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_final_reassigned_in_tuple(self):
+    def test_final_reassigned_in_tuple(self) -> None:
         codestr = """
         from typing import Final
 
@@ -174,7 +175,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_reassigned_in_loop(self):
+    def test_final_reassigned_in_loop(self) -> None:
         codestr = """
         from typing import Final
 
@@ -188,7 +189,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_reassigned_in_except(self):
+    def test_final_reassigned_in_except(self) -> None:
         codestr = """
         from typing import Final
 
@@ -204,7 +205,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_reassigned_in_loop_target_tuple(self):
+    def test_final_reassigned_in_loop_target_tuple(self) -> None:
         codestr = """
         from typing import Final
 
@@ -218,7 +219,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_reassigned_in_ctxmgr(self):
+    def test_final_reassigned_in_ctxmgr(self) -> None:
         codestr = """
         from typing import Final
 
@@ -232,7 +233,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_generic_reassign(self):
+    def test_final_generic_reassign(self) -> None:
         codestr = """
         from typing import Final
 
@@ -244,7 +245,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_callable_protocol_retains_inferred_type(self):
+    def test_final_callable_protocol_retains_inferred_type(self) -> None:
         codestr = """
         from typing import Final, Protocol
 
@@ -264,7 +265,7 @@ class FinalTests(StaticTestBase):
             f = mod.bar
             self.assertInBytecode(f, "INVOKE_FUNCTION")
 
-    def test_final_in_args(self):
+    def test_final_in_args(self) -> None:
         codestr = """
         from typing import Final
 
@@ -277,7 +278,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_returns(self):
+    def test_final_returns(self) -> None:
         codestr = """
         from typing import Final
 
@@ -290,7 +291,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_decorator(self):
+    def test_final_decorator(self) -> None:
         codestr = """
         from typing import final
 
@@ -301,7 +302,7 @@ class FinalTests(StaticTestBase):
         """
         self.compile(codestr, modname="foo")
 
-    def test_final_decorator_override(self):
+    def test_final_decorator_override(self) -> None:
         codestr = """
         from typing import final
 
@@ -319,7 +320,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_decorator_override_with_assignment(self):
+    def test_final_decorator_override_with_assignment(self) -> None:
         codestr = """
         from typing import final
 
@@ -336,7 +337,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_decorator_override_transitivity(self):
+    def test_final_decorator_override_transitivity(self) -> None:
         codestr = """
         from typing import final
 
@@ -357,13 +358,13 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_decorator_class(self):
+    def test_final_decorator_class(self) -> None:
         codestr = """
         from typing import final
 
         @final
         class C:
-            def f(self):
+            def f(self) -> None:
                 pass
 
         def f():
@@ -373,7 +374,7 @@ class FinalTests(StaticTestBase):
         f = self.find_code(c, "f")
         self.assertInBytecode(f, "INVOKE_FUNCTION")
 
-    def test_final_decorator_class_inheritance(self):
+    def test_final_decorator_class_inheritance(self) -> None:
         codestr = """
         from typing import final
 
@@ -389,7 +390,7 @@ class FinalTests(StaticTestBase):
         ):
             self.compile(codestr, modname="foo")
 
-    def test_final_decorator_class_nonstatic_subclass(self):
+    def test_final_decorator_class_nonstatic_subclass(self) -> None:
         codestr = """
             from typing import final
 
@@ -405,7 +406,7 @@ class FinalTests(StaticTestBase):
                 class D(mod.C):
                     pass
 
-    def test_final_decorator_class_dynamic(self):
+    def test_final_decorator_class_dynamic(self) -> None:
         """We should never mark DYNAMIC_TYPE as final."""
         codestr = """
             from typing import final, Generic, NamedTuple
@@ -420,7 +421,7 @@ class FinalTests(StaticTestBase):
         # No TypedSyntaxError "cannot inherit from Final class 'dynamic'"
         self.compile(codestr)
 
-    def test_final_constant_folding_int(self):
+    def test_final_constant_folding_int(self) -> None:
         codestr = """
         from typing import Final
 
@@ -435,7 +436,7 @@ class FinalTests(StaticTestBase):
             self.assertNotInBytecode(plus_1337, "LOAD_GLOBAL")
             self.assertEqual(plus_1337(3), 1340)
 
-    def test_final_constant_folding_bool(self):
+    def test_final_constant_folding_bool(self) -> None:
         codestr = """
         from typing import Final
 
@@ -450,7 +451,7 @@ class FinalTests(StaticTestBase):
             self.assertNotInBytecode(f, "LOAD_GLOBAL")
             self.assertFalse(f())
 
-    def test_final_constant_folding_str(self):
+    def test_final_constant_folding_str(self) -> None:
         codestr = """
         from typing import Final
 
@@ -465,7 +466,7 @@ class FinalTests(StaticTestBase):
             self.assertNotInBytecode(f, "LOAD_GLOBAL")
             self.assertEqual(f(), "m")
 
-    def test_final_constant_folding_disabled_on_nonfinals(self):
+    def test_final_constant_folding_disabled_on_nonfinals(self) -> None:
         codestr = """
         from typing import Final
 
@@ -480,7 +481,7 @@ class FinalTests(StaticTestBase):
             self.assertInBytecode(f, "LOAD_GLOBAL", "X")
             self.assertEqual(f(), "m")
 
-    def test_final_constant_folding_disabled_on_nonconstant_finals(self):
+    def test_final_constant_folding_disabled_on_nonconstant_finals(self) -> None:
         codestr = """
         from typing import Final
 
@@ -498,7 +499,7 @@ class FinalTests(StaticTestBase):
             self.assertInBytecode(f, "LOAD_GLOBAL", "X")
             self.assertEqual(f(), "m")
 
-    def test_final_constant_folding_shadowing(self):
+    def test_final_constant_folding_shadowing(self) -> None:
         codestr = """
         from typing import Final
 
@@ -514,7 +515,7 @@ class FinalTests(StaticTestBase):
             self.assertNotInBytecode(f, "LOAD_GLOBAL", "omg")
             self.assertEqual(f(), "o")
 
-    def test_final_constant_folding_in_module_scope(self):
+    def test_final_constant_folding_in_module_scope(self) -> None:
         codestr = """
         from typing import Final
 
@@ -526,7 +527,7 @@ class FinalTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.y, 24)
 
-    def test_final_constant_in_module_scope(self):
+    def test_final_constant_in_module_scope(self) -> None:
         codestr = """
         from typing import Final
 
@@ -535,7 +536,7 @@ class FinalTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.__final_constants__, ("X",))
 
-    def test_final_nonconstant_in_module_scope(self):
+    def test_final_nonconstant_in_module_scope(self) -> None:
         codestr = """
         from typing import Final
 
@@ -547,7 +548,7 @@ class FinalTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.__final_constants__, ())
 
-    def test_final_method_in_class_slots(self):
+    def test_final_method_in_class_slots(self) -> None:
         codestr = """
         from typing import final
 
@@ -562,7 +563,7 @@ class FinalTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.C.__final_method_names__, ("foo",))
 
-    def test_final_method_in_class_slots_with_inheritance(self):
+    def test_final_method_in_class_slots_with_inheritance(self) -> None:
         codestr = """
         from typing import final
 
@@ -597,7 +598,7 @@ class FinalTests(StaticTestBase):
             self.assertEqual(mod.E.__final_method_names__, ("bar", "baz", "foo"))
             self.assertEqual(mod.F.__final_method_names__, ("bar", "foo"))
 
-    def test_final_method_in_class_nonstatic_subclass_slots(self):
+    def test_final_method_in_class_nonstatic_subclass_slots(self) -> None:
         codestr = """
         from typing import final
 
@@ -614,9 +615,10 @@ class FinalTests(StaticTestBase):
             class D(mod.C):
                 pass
 
+            # pyre-ignore[16]: Pyre doesn't know about __final_method_names__.
             self.assertEqual(D.__final_method_names__, ("foo",))
 
-    def test_final_method_nonstatic_override_throws_runtime_type_error(self):
+    def test_final_method_nonstatic_override_throws_runtime_type_error(self) -> None:
         codestr = """
         from typing import final
 
@@ -639,7 +641,7 @@ class FinalTests(StaticTestBase):
 
     def test_final_method_nonstatic_override_of_static_subclass_throws_runtime_type_error(
         self,
-    ):
+    ) -> None:
         codestr = """
         from typing import final
 
@@ -664,7 +666,7 @@ class FinalTests(StaticTestBase):
 
     def test_final_method_nonstatic_subclass_of_static_class_throws_runtime_type_error(
         self,
-    ):
+    ) -> None:
         codestr = """
         from typing import final
 
@@ -690,7 +692,7 @@ class FinalTests(StaticTestBase):
 
     def test_final_method_with_other_decorator_throws_type_error(
         self,
-    ):
+    ) -> None:
         codestr = """
         from typing import final
 
@@ -726,7 +728,7 @@ class FinalTests(StaticTestBase):
 
     def test_updating_slot_of_final_method_in_subclass_throws_type_error(
         self,
-    ):
+    ) -> None:
         codestr = """
         from typing import final
 
@@ -744,11 +746,13 @@ class FinalTests(StaticTestBase):
                 class D(mod.C):
                     pass
 
+                # pyre-ignore[16]: Intentionally trying to override final method `foo`
+                # to see the exception get thrown.
                 D.foo = lambda self: 0
 
     def test_updating_slot_of_final_method_in_base_class_succeeds(
         self,
-    ):
+    ) -> None:
         codestr = """
         from typing import final
 
@@ -767,7 +771,7 @@ class FinalTests(StaticTestBase):
 
     def test_final_method_in_non_final_class_emits_invoke_function(
         self,
-    ):
+    ) -> None:
         codestr = """
         from typing import final
 
@@ -784,7 +788,7 @@ class FinalTests(StaticTestBase):
         with self.in_module(codestr) as mod:
 
             class D(mod.C):
-                def __init__(self):
+                def __init__(self) -> None:
                     super().__init__(5)
 
             self.assertInBytecode(mod.foo, "INVOKE_FUNCTION")
@@ -793,7 +797,7 @@ class FinalTests(StaticTestBase):
 
     def test_final_method_in_subclass_of_non_final_class_emits_invoke_function(
         self,
-    ):
+    ) -> None:
         codestr = """
         from typing import final
 
@@ -819,7 +823,7 @@ class FinalTests(StaticTestBase):
 
     def test_final_classmethod_in_non_final_nonstatic_class_emits_invoke_function(
         self,
-    ):
+    ) -> None:
         codestr = """
         from typing import ClassVar, final
 
@@ -847,7 +851,7 @@ class FinalTests(StaticTestBase):
 
     def test_final_classmethod_in_non_final_static_class_emits_invoke_function(
         self,
-    ):
+    ) -> None:
         codestr = """
         from typing import ClassVar, final
 
@@ -872,7 +876,7 @@ class FinalTests(StaticTestBase):
             self.assertEqual(mod.foo(mod.C()), 42)
             self.assertEqual(mod.foo(mod.D()), 63)
 
-    def test_dynamic_final(self):
+    def test_dynamic_final(self) -> None:
         codestr = """
         from typing import Final
         from datetime import datetime # a type we don't know about

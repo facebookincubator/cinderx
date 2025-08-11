@@ -1,7 +1,10 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
+
 import asyncio
+
+from collections.abc import Sequence
 
 from cinderx import cached_property
 
@@ -310,7 +313,7 @@ class InvokeTests(StaticTestBase):
 
     def test_invoke_cached_property_override_typed_descriptor_nonstatic_class_value(
         self,
-    ):
+    ) -> None:
         codestr = """
             class B:
                 @property
@@ -339,7 +342,7 @@ class InvokeTests(StaticTestBase):
 
     def test_invoke_cached_mixed_overrides(
         self,
-    ):
+    ) -> None:
         base_prop = """
             class B:
                 @property
@@ -387,7 +390,7 @@ class InvokeTests(StaticTestBase):
 
         for base in [base_prop, base_cachedprop, base_td]:
             for derived in [derived_prop, derived_td, derived_cachedprop]:
-                for nonstatic_subclass in [False, "td", "cached_prop", "prop"]:
+                for nonstatic_subclass in [None, "td", "cached_prop", "prop"]:
                     for base_class_names in [
                         ("D", "B") if nonstatic_subclass else None
                     ]:
@@ -407,13 +410,19 @@ class InvokeTests(StaticTestBase):
                                 codestr, nonstatic_subclass, base_class_names
                             )
 
-    def mixed_override_test(self, test_case, nonstatic_subclass, base_class_names):
+    def mixed_override_test(
+        self,
+        test_case: str,
+        nonstatic_subclass: str | None,
+        base_class_names: Sequence[str] | None,
+    ) -> None:
         code = self.compile(test_case, modname="foo")
         x = self.find_code(code, "x")
         self.assertInBytecode(x, "INVOKE_METHOD", (((("foo", "B"), ("f", "fget")), 0)))
 
         with self.in_strict_module(test_case) as mod:
             if nonstatic_subclass:
+                assert base_class_names is not None
                 for bc_name in base_class_names:
                     base_class = getattr(mod, bc_name)
                     if nonstatic_subclass == "td":
@@ -710,7 +719,7 @@ class InvokeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             c = mod.C()
 
-            async def new_f(a: int):
+            async def new_f(a: int) -> int:
                 return a + 1
 
             c.f = new_f
@@ -758,7 +767,9 @@ class InvokeTests(StaticTestBase):
 
             d = D()
 
-            def mutate():
+            # pyre-ignore[53]: Can't type captured `d` because its superclass is
+            # dynamically compiled.
+            def mutate() -> int:
                 del d.f
                 return 42
 
@@ -825,7 +836,7 @@ class InvokeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             c = mod.C()
 
-            async def new_f(a: int):
+            async def new_f(a: int) -> int:
                 return a + 1
 
             c.f = new_f
@@ -849,7 +860,7 @@ class InvokeTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             c = mod.C()
 
-            async def new_f(a: int):
+            async def new_f(a: int) -> int:
                 return a + 1
 
             c.f = new_f
