@@ -52,7 +52,7 @@ static inline Ref<> runInInterpreterViaReify(
   _PyInterpreterFrame* interp_frame =
       Cix_PyThreadState_PushFrame(tstate, jit::jitFrameGetSize(code));
   Py_INCREF(func);
-  jit::jitFrameInit(tstate, interp_frame, func, code, 0, nullptr, false);
+  jit::jitFrameInit(tstate, interp_frame, func, code, 0, nullptr);
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
   jit::jitFramePopulateFrame(interp_frame);
   jit::jitFrameInitFunctionObject(interp_frame);

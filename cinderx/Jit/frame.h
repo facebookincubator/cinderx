@@ -139,6 +139,8 @@ RuntimeFrameState* jitFrameGetRtfs(_PyInterpreterFrame* frame);
 
 FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame);
 
+void jitFrameInitFunctionObject(_PyInterpreterFrame* frame);
+
 #endif
 
 // Like _PyFrame_ClearExceptCode but will handle partially initialized
@@ -155,8 +157,7 @@ void jitFrameInit(
     PyFunctionObject* func,
     PyCodeObject* code,
     int null_locals_from,
-    _PyInterpreterFrame* previous,
-    bool generator);
+    _PyInterpreterFrame* previous);
 
 // Gets the frame size (in number of words) that's required for the JIT
 // to initialize a frame object.

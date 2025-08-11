@@ -720,6 +720,7 @@ void Ci_WalkAsyncStack(
 #include "internal/pycore_frame.h"
 
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Jit/gen_data_footer.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 namespace jit {
@@ -742,9 +743,6 @@ struct FrameAndLoc {
 using UnitState = std::vector<FrameAndLoc>;
 
 CodeRuntime* getCodeRuntime(_PyInterpreterFrame* frame) {
-  JIT_DCHECK(
-      frame->owner != FRAME_OWNED_BY_GENERATOR,
-      "generators aren't supported yet");
   BorrowedRef<PyFunctionObject> func;
   if (hasRtfsFunction(frame)) {
     auto rtfs = jitFrameGetRtfs(frame);
@@ -787,10 +785,8 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
   JIT_CHECK(isJitFrame(frame), "frame not executed by the JIT");
   uintptr_t frame_base;
   if (isGeneratorFrame(frame)) {
-    JIT_ABORT("generator frames not supported yet");
-#if 0
-    PyGenObject* gen = _PyShadowFrame_GetGen(shadow_frame);
-    auto footer = reinterpret_cast<GenDataFooter*>(gen->gi_jit_data);
+    PyGenObject* gen = _PyFrame_GetGenerator(frame);
+    auto footer = jitGenDataFooter(gen);
     if (footer->yieldPoint == nullptr) {
       // The generator is running.
       frame_base = footer->originalRbp;
@@ -798,7 +794,6 @@ uintptr_t getIP(_PyInterpreterFrame* frame, int frame_size) {
       // The generator is suspended.
       return footer->yieldPoint->resumeTarget();
     }
-#endif
   } else {
     frame_base = getFrameBaseFromOnStackFrame(frame);
   }
@@ -1042,16 +1037,19 @@ _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
 }
 
 FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame) {
+  if (frame->f_code->co_flags & kCoFlagsAnyGenerator) {
+    PyGenObject* gen = _PyFrame_GetGenerator(frame);
+    auto footer = jitGenDataFooter(gen);
+    return (FrameHeader*)&footer->frame_header;
+  }
   return reinterpret_cast<FrameHeader*>(frame) - 1;
 }
 
 void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func) {
-  assert(!(frame->f_code->co_flags & kCoFlagsAnyGenerator));
   jitFrameGetHeader(frame)->func = func;
 }
 
 BorrowedRef<PyFunctionObject> jitFrameGetFunction(_PyInterpreterFrame* frame) {
-  assert(!(frame->f_code->co_flags & kCoFlagsAnyGenerator));
   return reinterpret_cast<PyFunctionObject*>(
       jitFrameGetHeader(frame)->rtfs & ~JIT_FRAME_MASK);
 }
@@ -1076,8 +1074,7 @@ void jitFrameInit(
     PyFunctionObject* func,
     PyCodeObject* code,
     int null_locals_from,
-    _PyInterpreterFrame* previous,
-    bool generator) {
+    _PyInterpreterFrame* previous) {
 #if PY_VERSION_HEX >= 0x030E0000
   _PyFrame_Initialize(
       tstate,
@@ -1091,17 +1088,14 @@ void jitFrameInit(
   (void)tstate;
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  if (!generator) {
-    frame->f_code = (PyCodeObject*)Py_NewRef(code);
-    frame->f_funcobj = Py_NewRef(cinderx::getModuleState()->frameReifier());
-    frame->prev_instr = _PyCode_CODE(code) - 1;
-    jitFrameSetFunction(frame, func);
-  } else
+  frame->f_code = (PyCodeObject*)Py_NewRef(code);
+  frame->f_funcobj = Py_NewRef(cinderx::getModuleState()->frameReifier());
+  frame->prev_instr = _PyCode_CODE(code) - 1;
+  jitFrameSetFunction(frame, func);
+#else
+  _PyFrame_Initialize(
+      frame, (PyFunctionObject*)func, nullptr, code, null_locals_from);
 #endif
-  {
-    _PyFrame_Initialize(
-        frame, (PyFunctionObject*)func, nullptr, code, null_locals_from);
-  }
   frame->previous = previous;
 
 #endif // PY_VERSION_HEX >= 0x030E0000
@@ -1123,11 +1117,6 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
   JIT_DCHECK(currentFrame(PyThreadState_Get()) != frame, "wrong current frame");
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  if (frame->owner == FRAME_OWNED_BY_GENERATOR) {
-    _PyFrame_ClearExceptCode(frame);
-    return;
-  }
-
   // If we've already been requested by the runtime to initialize this
   // _PyInterpreterFrame then we just fall back to its implementation to
   // handle the clearing.

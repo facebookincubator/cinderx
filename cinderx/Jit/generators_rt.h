@@ -13,6 +13,7 @@
 #ifdef __cplusplus
 
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/gen_data_footer.h"
 #include "cinderx/module_state.h" // @donotremove
 
@@ -52,7 +53,7 @@ struct JitGenObject : PyGenObject {
   }
 
   GenDataFooter** genDataFooterPtr() {
-    return jitGenDataFooterPtr(reinterpret_cast<PyGenObject*>(this));
+    return jitGenDataFooterPtr(this);
   }
 
   GenDataFooter* genDataFooter() {

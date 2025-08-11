@@ -266,29 +266,26 @@ void InsertUpdatePrevInstr::Run(Function& func) {
       }
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
-      if (!(func.code.get()->co_flags & kCoFlagsAnyGenerator)) {
-        // The first LoadEvalBreaker is emitted for the RESUME instruction which
-        // indicates when we should update the line number from the instruction
-        // - 1 to the first instruction to indicate that the frame is now
-        // complete.
-        if (!inited_once && instr.IsLoadEvalBreaker()) {
-          auto& cur_bc_idx_to_line = code_bc_idx_map.at(
-              parent == nullptr ? func.code : parent->code());
-          int line_no = cur_bc_idx_to_line.lineNoFor(
-              BCIndex(func.code->_co_firsttraceable));
-          Instr* update_instr = UpdatePrevInstr::create(line_no, parent);
-          update_instr->setBytecodeOffset(
-              BCIndex(func.code->_co_firsttraceable));
-          update_instr->InsertBefore(instr);
+      // The first LoadEvalBreaker is emitted for the RESUME instruction which
+      // indicates when we should update the line number from the instruction
+      // - 1 to the first instruction to indicate that the frame is now
+      // complete.
+      if (!inited_once && instr.IsLoadEvalBreaker()) {
+        auto& cur_bc_idx_to_line =
+            code_bc_idx_map.at(parent == nullptr ? func.code : parent->code());
+        int line_no = cur_bc_idx_to_line.lineNoFor(
+            BCIndex(func.code->_co_firsttraceable));
+        Instr* update_instr = UpdatePrevInstr::create(line_no, parent);
+        update_instr->setBytecodeOffset(BCIndex(func.code->_co_firsttraceable));
+        update_instr->InsertBefore(instr);
 
-          inited_once = true;
-        }
-        continue;
+        inited_once = true;
       }
-#endif
+#else
       if (hasArbitraryExecution(instr)) {
         update_one();
       }
+#endif
     }
 
     // Add the successors to be processed

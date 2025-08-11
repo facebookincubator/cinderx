@@ -10,6 +10,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/code_runtime.h"
+#include "cinderx/Jit/frame_header.h"
 
 namespace jit {
 
@@ -63,9 +64,16 @@ struct GenDataFooter {
 
   // JIT metadata for associated code object
   CodeRuntime* code_rt{nullptr};
+
+#if defined(ENABLE_LIGHTWEIGHT_FRAMES)
+  // Frame header used for tracking the current frame.
+  FrameHeader frame_header;
+#endif
 };
 
 #if PY_VERSION_HEX >= 0x030C0000
+GenDataFooter** jitGenDataFooterPtr(PyGenObject* gen, PyCodeObject* gen_code);
+
 GenDataFooter** jitGenDataFooterPtr(PyGenObject* gen);
 
 GenDataFooter* jitGenDataFooter(PyGenObject* gen);

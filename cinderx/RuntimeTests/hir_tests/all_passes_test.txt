@@ -583,7 +583,6 @@ fun jittestmodule:test {
 fun jittestmodule:test {
   bb 0 {
     v16:Nullptr = LoadConst<Nullptr>
-    UpdatePrevInstr<idx:0 line_no:1: no parent>
     v17:OptNoneType = InitialYield {
       LiveValues<1> unc:v16
       FrameState {
@@ -591,12 +590,12 @@ fun jittestmodule:test {
         Locals<1> v16
       }
     }
+    UpdatePrevInstr<idx:2 line_no:1: no parent>
     v18:CInt32 = LoadEvalBreaker
     CondBranch<7, 6> v18
   }
 
   bb 7 (preds 0) {
-    UpdatePrevInstr<idx:2 line_no:1: no parent>
     v19:CInt32 = RunPeriodicTasks {
       LiveValues<1> unc:v16
       FrameState {
@@ -609,7 +608,6 @@ fun jittestmodule:test {
 
   bb 6 (preds 0, 7) {
     v21:ImmortalUnicodeExact["abc"] = LoadConst<ImmortalUnicodeExact["abc"]>
-    UpdatePrevInstr<idx:16 line_no:3: no parent>
     v45:OptUnicodeExact = CallStatic<unicode_lower@0xdeadbeef, 1> v21
     v46:UnicodeExact = CheckExc v45 {
       LiveValues<2> unc:v21 o:v45
@@ -640,7 +638,6 @@ fun jittestmodule:test {
   }
 
   bb 11 (preds 8) {
-    UpdatePrevInstr<idx:20 line_no:3: no parent>
     Decref v27
     XDecref v29
     RaiseStatic<RuntimeError, "coroutine is being awaited already", <<1> unc:v21>> {
@@ -659,7 +656,6 @@ fun jittestmodule:test {
 
   bb 1 (preds 2, 9) {
     v37:Object = Phi<2, 9> v42 v33
-    UpdatePrevInstr<idx:22 line_no:3: no parent>
     v39:Object = Send v27 v37 {
       LiveValues<3> unc:v21 o:v27 b:v37
       FrameState {
@@ -673,13 +669,11 @@ fun jittestmodule:test {
   }
 
   bb 3 (preds 1) {
-    UpdatePrevInstr<idx:28 line_no:3: no parent>
     Decref v27
     Return v39
   }
 
   bb 2 (preds 1) {
-    UpdatePrevInstr<idx:24 line_no:3: no parent>
     v42:Object = YieldFrom v39 v27 {
       LiveValues<3> unc:v21 o:v27 b:v39
       FrameState {

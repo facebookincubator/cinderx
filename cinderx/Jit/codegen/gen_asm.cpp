@@ -144,6 +144,9 @@ _PyInterpreterFrame* reifyLightweightFrames(
     if (cur_frame == nullptr) {
       return nullptr;
     }
+  } else {
+    jitFramePopulateFrame(cur_frame);
+    jitFrameInitFunctionObject(cur_frame);
   }
   if (prev) {
     cur_frame->previous = prev;

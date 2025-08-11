@@ -11,6 +11,7 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/debug_info.h"
+#include "cinderx/Jit/frame_header.h"
 #include "cinderx/Jit/threaded_compile.h"
 
 #include <deque>
