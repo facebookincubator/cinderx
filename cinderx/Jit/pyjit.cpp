@@ -21,6 +21,7 @@
 #include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/code_allocator.h"
 #include "cinderx/Jit/compiled_function.h"
+#include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/context.h"
@@ -31,6 +32,7 @@
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/jit_flag_processor.h"
+#include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/jit_time_log.h"
 #include "cinderx/Jit/mmap_file.h"
@@ -84,7 +86,7 @@ class DisableGilCheck {
 // Amount of time taken to batch compile everything when disable_jit is called
 std::chrono::milliseconds g_batch_compilation_time;
 
-Context* jit_ctx{nullptr};
+CompilerContext<Compiler>* jit_ctx{nullptr};
 JITList* g_jit_list{nullptr};
 
 // Function and code objects ("units") registered for compilation.
@@ -828,6 +830,76 @@ FlagProcessor initFlagProcessor() {
   return flag_processor;
 }
 
+void finalizeFunc(
+    BorrowedRef<PyFunctionObject> func,
+    const CompiledFunction& compiled) {
+  ThreadedCompileSerialize guard;
+  if (!jit_ctx->addCompiledFunc(func)) {
+    // Someone else compiled the function between when our caller checked and
+    // called us.
+    return;
+  }
+
+  // In case the function had previously been deopted.
+  jit_ctx->removeDeoptedFunc(func);
+
+  func->vectorcall = compiled.vectorcallEntry();
+  Runtime* rt = Runtime::get();
+  if (rt->hasFunctionEntryCache(func)) {
+    void** indirect = rt->findFunctionEntryCache(func);
+    *indirect = compiled.staticEntry();
+  }
+  return;
+}
+
+/*
+ * Re-optimize a function by setting it to use JIT-compiled code if there's a
+ * matching compiled code object.
+ *
+ * Intended for functions that have been explicitly deopted and for nested
+ * functions.  Nested functions are created and destroyed multiple times but
+ * have the same underlying code object.
+ *
+ * Return true if the function was successfully reopted, false if nothing
+ * happened.
+ */
+bool reoptFunc(BorrowedRef<PyFunctionObject> func) {
+  if (jit_ctx == nullptr) {
+    return false;
+  } else if (jit_ctx->didCompile(func)) {
+    return true;
+  }
+
+  BorrowedRef<PyCodeObject> code{func->func_code};
+  if (code->co_flags & CI_CO_SUPPRESS_JIT) {
+    return false;
+  }
+
+  // Might be a nested function that was never explicitly deopted, so ignore the
+  // result of this.
+  jit_ctx->removeDeoptedFunc(func);
+
+  if (CompiledFunction* compiled = jit_ctx->lookupFunc(func)) {
+    finalizeFunc(func, *compiled);
+    return true;
+  }
+  return false;
+}
+
+Context::CompilationResult compilePreloader(
+    BorrowedRef<PyFunctionObject> func,
+    const hir::Preloader& preloader) {
+  jit::Context::CompilationResult result =
+      compilePreloaderImpl(jit_ctx, preloader);
+  if (result.compiled == nullptr) {
+    return result;
+  }
+  if (func != nullptr) {
+    finalizeFunc(func, *result.compiled);
+  }
+  return result;
+}
+
 // Convert a registered translation unit into a pair of a Python function and
 // its code object.  When the translation unit only refers to a code object
 // (e.g. it's a nested function), the function will be a nullptr.
@@ -925,7 +997,7 @@ hir::Preloader* preload(BorrowedRef<> unit) {
 _PyJIT_Result tryCompilePreloaded(BorrowedRef<> unit) {
   auto [func, code] = splitUnit(unit);
   hir::Preloader* preloader = hir::preloaderManager().find(code);
-  return preloader ? jit_ctx->compilePreloader(func, *preloader).result
+  return preloader ? compilePreloader(func, *preloader).result
                    : PYJIT_RESULT_NO_PRELOADER;
 }
 
@@ -1134,7 +1206,7 @@ std::vector<BorrowedRef<PyCodeObject>> findNestedCodes(
 bool registerFunction(BorrowedRef<PyFunctionObject> func) {
   // Attempt to attach already-compiled code even if the JIT is disabled, as
   // long as it hasn't been finalized.
-  if (jit_ctx != nullptr && jit_ctx->reoptFunc(func)) {
+  if (reoptFunc(func)) {
     return true;
   }
 
@@ -1200,6 +1272,48 @@ PyObject* is_multithreaded_compile_test_enabled(PyObject*, PyObject*) {
   Py_RETURN_FALSE;
 }
 
+bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
+  // There appear to be instances where the runtime is finalizing and goes to
+  // destroy the cinderjit module and deopt all compiled functions, only to find
+  // that some of the compiled functions have already been zeroed out and
+  // possibly deallocated.  In theory this should be covered by funcDestroyed()
+  // but somewhere that isn't being triggered.  This is not a good solution but
+  // it fixes some shutdown crashes for now.
+  if (func->func_module == nullptr && func->func_qualname == nullptr) {
+    JIT_CHECK(
+        Py_IsFinalizing(),
+        "Trying to deopt destroyed function at {} when runtime is not "
+        "finalizing",
+        reinterpret_cast<void*>(func.get()));
+    return false;
+  }
+
+  if (!jit_ctx->removeCompiledFunc(func)) {
+    return false;
+  }
+  func->vectorcall = getInterpretedVectorcall(func);
+  return true;
+}
+
+void uncompile(BorrowedRef<PyFunctionObject> func) {
+  deoptFuncImpl(func);
+  jit_ctx->forgetCode(func);
+}
+
+/*
+ * De-optimize a function by setting it to run through the interpreter if it
+ * had been previously JIT-compiled.
+ *
+ * Return true if the function was previously JIT-compiled, false otherwise.
+ */
+bool deoptFunc(BorrowedRef<PyFunctionObject> func) {
+  if (jit_ctx && deoptFuncImpl(func)) {
+    jit_ctx->addDeoptedFunc(func);
+    return true;
+  }
+  return false;
+}
+
 PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
   int deopt_all = 0;
 
@@ -1219,7 +1333,7 @@ PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
     JIT_DLOG("Deopting {} compiled functions", jit_ctx->compiledFuncs().size());
     size_t success = 0;
     for (BorrowedRef<PyFunctionObject> func : jit_ctx->compiledFuncs()) {
-      if (jit_ctx->deoptFunc(func)) {
+      if (deoptFunc(func)) {
         success++;
       } else {
         JIT_DLOG("Failed to deopt compiled function '{}'", funcFullname(func));
@@ -1246,7 +1360,7 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
 
   size_t count = 0;
   for (BorrowedRef<PyFunctionObject> func : jit_ctx->deoptedFuncs()) {
-    jit_ctx->reoptFunc(func);
+    reoptFunc(func);
     count++;
   }
 
@@ -1389,7 +1503,7 @@ PyObject* force_uncompile(PyObject* /* self */, PyObject* arg) {
   // all traces of it from the metadata.
   funcDestroyed(func);
   if (jit_ctx != nullptr) {
-    jit_ctx->uncompile(func);
+    uncompile(func);
   }
 
   Py_RETURN_TRUE;
@@ -2507,7 +2621,7 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
       continue;
     }
 
-    result = jit_ctx->compilePreloader(target, *preloader).result;
+    result = compilePreloader(target, *preloader).result;
     JIT_CHECK(
         result != PYJIT_RESULT_PYTHON_EXCEPTION,
         "Raised a Python exception while JIT-compiling function {}, which is "
@@ -2871,7 +2985,7 @@ int initialize() {
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
   mod_state->setCodeAllocator(CodeAllocator::make());
 
-  jit_ctx = new Context();
+  jit_ctx = new CompilerContext<Compiler>();
 
   PyObject* mod = _Ci_CreateBuiltinModule(&jit_module, "cinderjit");
   if (mod == nullptr) {
@@ -2923,6 +3037,9 @@ void finalize() {
       hir::preloaderManager().empty(),
       "JIT cannot be finalized while batch compilation is active");
 
+  for (auto func : jit_ctx->compiledFuncs()) {
+    deoptFuncImpl(func);
+  }
   delete jit_ctx;
   jit_ctx = nullptr;
 
@@ -3085,9 +3202,7 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
 }
 
 void funcModified(BorrowedRef<PyFunctionObject> func) {
-  if (jit_ctx) {
-    jit_ctx->funcModified(func);
-  }
+  deoptFunc(func);
 }
 
 void typeDestroyed(BorrowedRef<PyTypeObject> type) {
@@ -3108,6 +3223,80 @@ void typeNameModified(BorrowedRef<PyTypeObject> type) {
   if (auto rt = Runtime::getUnchecked()) {
     rt->notifyTypeModified(type, type);
   }
+}
+
+Context::CompilationResult compilePreloaderImpl(
+    jit::CompilerContext<Compiler>* jit_ctx,
+    const hir::Preloader& preloader) {
+  BorrowedRef<PyCodeObject> code = preloader.code();
+  if (code == nullptr) {
+    JIT_DLOG("Can't compile {} as it has no code object", preloader.fullname());
+    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
+  }
+
+  BorrowedRef<PyDictObject> builtins = preloader.builtins();
+  BorrowedRef<PyDictObject> globals = preloader.globals();
+
+  // Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future is
+  // "annotations" which doesn't impact bytecode execution.)
+  int required_flags = CO_OPTIMIZED | CO_NEWLOCALS;
+  if ((code->co_flags & required_flags) != required_flags) {
+    JIT_DLOG(
+        "Can't compile {} due to missing required code flags",
+        preloader.fullname());
+    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
+  }
+  if (code->co_flags & CI_CO_SUPPRESS_JIT) {
+    JIT_DLOG(
+        "Can't compile {} as it has had the JIT suppressed",
+        preloader.fullname());
+    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
+  }
+  constexpr int forbidden_flags =
+      PY_VERSION_HEX >= 0x030C0000 ? CO_ASYNC_GENERATOR : 0;
+  if (code->co_flags & forbidden_flags) {
+    JIT_DLOG(
+        "Cannot JIT compile {} as it has prohibited code flags: 0x{:x}",
+        preloader.fullname(),
+        code->co_flags & forbidden_flags);
+    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
+  }
+
+  CompilationKey key{code, builtins, globals};
+  {
+    // Attempt to atomically transition the code from "not compiled" to "in
+    // progress".
+    ThreadedCompileSerialize guard;
+    if (CompiledFunction* compiled =
+            jit_ctx->lookupCode(code, builtins, globals)) {
+      return {compiled, PYJIT_RESULT_OK};
+    }
+    if (!jit_ctx->addActiveCompile(key)) {
+      return {nullptr, PYJIT_RESULT_RETRY};
+    }
+  }
+
+  std::unique_ptr<CompiledFunction> compiled;
+  try {
+    compiled = jit_ctx->compiler().Compile(preloader);
+  } catch (const std::exception& exn) {
+    JIT_DLOG("{}", exn.what());
+  }
+
+  ThreadedCompileSerialize guard;
+  jit_ctx->removeActiveCompile(key);
+  if (compiled == nullptr) {
+    return {nullptr, PYJIT_RESULT_UNKNOWN_ERROR};
+  }
+
+  register_pycode_debug_symbol(
+      code, preloader.fullname().c_str(), compiled.get());
+
+  jit_ctx->addCompileTime(compiled->compileTime().count());
+
+  // Register and return the compiled code
+  return {
+      jit_ctx->addCompiledFunction(key, std::move(compiled)), PYJIT_RESULT_OK};
 }
 
 } // namespace jit

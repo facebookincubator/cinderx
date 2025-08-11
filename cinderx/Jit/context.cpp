@@ -4,9 +4,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
-#include "cinderx/Interpreter/interpreter.h"
 #include "cinderx/Jit/elf/reader.h"
-#include "cinderx/Jit/jit_gdb_support.h"
 
 #include <dlfcn.h>
 
@@ -14,59 +12,8 @@ namespace jit {
 
 AotContext g_aot_ctx;
 
-Context::~Context() {
-  for (auto it = compiled_funcs_.begin(); it != compiled_funcs_.end();) {
-    BorrowedRef<PyFunctionObject> func = *it;
-    ++it;
-    deoptFuncImpl(func);
-  }
-}
-
-Context::CompilationResult Context::compilePreloader(
-    BorrowedRef<PyFunctionObject> func,
-    const hir::Preloader& preloader) {
-  CompilationResult result = compilePreloaderImpl(preloader);
-  if (result.compiled == nullptr) {
-    return result;
-  }
-  if (func != nullptr) {
-    finalizeFunc(func, *result.compiled);
-  }
-  return result;
-}
-
-void Context::uncompile(BorrowedRef<PyFunctionObject> func) {
-  deoptFuncImpl(func);
+void Context::forgetCode(BorrowedRef<PyFunctionObject> func) {
   compiled_codes_.erase(CompilationKey{func});
-}
-
-bool Context::deoptFunc(BorrowedRef<PyFunctionObject> func) {
-  if (deoptFuncImpl(func)) {
-    deopted_funcs_.emplace(func);
-    return true;
-  }
-  return false;
-}
-
-bool Context::reoptFunc(BorrowedRef<PyFunctionObject> func) {
-  if (didCompile(func)) {
-    return true;
-  }
-
-  BorrowedRef<PyCodeObject> code{func->func_code};
-  if (code->co_flags & CI_CO_SUPPRESS_JIT) {
-    return false;
-  }
-
-  // Might be a nested function that was never explicitly deopted, so ignore the
-  // result of this.
-  deopted_funcs_.erase(func);
-
-  if (CompiledFunction* compiled = lookupFunc(func)) {
-    finalizeFunc(func, *compiled);
-    return true;
-  }
-  return false;
 }
 
 bool Context::didCompile(BorrowedRef<PyFunctionObject> func) {
@@ -86,6 +33,10 @@ const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::deoptedFuncs() {
   return deopted_funcs_;
 }
 
+void Context::addCompileTime(size_t ms) {
+  total_compile_time_ms_.fetch_add(ms, std::memory_order_relaxed);
+}
+
 std::chrono::milliseconds Context::totalCompileTime() const {
   return std::chrono::milliseconds{
       total_compile_time_ms_.load(std::memory_order_relaxed)};
@@ -102,90 +53,12 @@ void Context::clearCache() {
   compiled_codes_.clear();
 }
 
-void Context::funcModified(BorrowedRef<PyFunctionObject> func) {
-  deoptFunc(func);
-}
-
 void Context::funcDestroyed(BorrowedRef<PyFunctionObject> func) {
   compiled_funcs_.erase(func);
   deopted_funcs_.erase(func);
 
   // This doesn't modify compiled_codes_, so if this is a nested function it can
   // easily be reopted later.
-}
-
-Context::CompilationResult Context::compilePreloaderImpl(
-    const hir::Preloader& preloader) {
-  BorrowedRef<PyCodeObject> code = preloader.code();
-  if (code == nullptr) {
-    JIT_DLOG("Can't compile {} as it has no code object", preloader.fullname());
-    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
-  }
-
-  BorrowedRef<PyDictObject> builtins = preloader.builtins();
-  BorrowedRef<PyDictObject> globals = preloader.globals();
-
-  // Don't care flags: CO_NOFREE, CO_FUTURE_* (the only still-relevant future is
-  // "annotations" which doesn't impact bytecode execution.)
-  int required_flags = CO_OPTIMIZED | CO_NEWLOCALS;
-  if ((code->co_flags & required_flags) != required_flags) {
-    JIT_DLOG(
-        "Can't compile {} due to missing required code flags",
-        preloader.fullname());
-    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
-  }
-  if (code->co_flags & CI_CO_SUPPRESS_JIT) {
-    JIT_DLOG(
-        "Can't compile {} as it has had the JIT suppressed",
-        preloader.fullname());
-    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
-  }
-  constexpr int forbidden_flags =
-      PY_VERSION_HEX >= 0x030C0000 ? CO_ASYNC_GENERATOR : 0;
-  if (code->co_flags & forbidden_flags) {
-    JIT_DLOG(
-        "Cannot JIT compile {} as it has prohibited code flags: 0x{:x}",
-        preloader.fullname(),
-        code->co_flags & forbidden_flags);
-    return {nullptr, PYJIT_RESULT_CANNOT_SPECIALIZE};
-  }
-
-  CompilationKey key{code, builtins, globals};
-  {
-    // Attempt to atomically transition the code from "not compiled" to "in
-    // progress".
-    ThreadedCompileSerialize guard;
-    if (CompiledFunction* compiled = lookupCode(code, builtins, globals)) {
-      return {compiled, PYJIT_RESULT_OK};
-    }
-    if (!active_compiles_.insert(key).second) {
-      return {nullptr, PYJIT_RESULT_RETRY};
-    }
-  }
-
-  std::unique_ptr<CompiledFunction> compiled;
-  try {
-    compiled = jit_compiler_.Compile(preloader);
-  } catch (const std::exception& exn) {
-    JIT_DLOG("{}", exn.what());
-  }
-
-  ThreadedCompileSerialize guard;
-  active_compiles_.erase(key);
-  if (compiled == nullptr) {
-    return {nullptr, PYJIT_RESULT_UNKNOWN_ERROR};
-  }
-
-  register_pycode_debug_symbol(
-      code, preloader.fullname().c_str(), compiled.get());
-
-  total_compile_time_ms_.fetch_add(
-      compiled->compileTime().count(), std::memory_order_relaxed);
-
-  // Store the compiled code.
-  auto pair = compiled_codes_.emplace(key, std::move(compiled));
-  JIT_CHECK(pair.second, "CompilationKey already present");
-  return {pair.first->second.get(), PYJIT_RESULT_OK};
 }
 
 CompiledFunction* Context::lookupCode(
@@ -197,49 +70,36 @@ CompiledFunction* Context::lookupCode(
   return it == compiled_codes_.end() ? nullptr : it->second.get();
 }
 
-void Context::finalizeFunc(
-    BorrowedRef<PyFunctionObject> func,
-    const CompiledFunction& compiled) {
-  ThreadedCompileSerialize guard;
-  if (!compiled_funcs_.emplace(func).second) {
-    // Someone else compiled the function between when our caller checked and
-    // called us.
-    return;
-  }
-
-  // In case the function had previously been deopted.
-  deopted_funcs_.erase(func);
-
-  func->vectorcall = compiled.vectorcallEntry();
-  Runtime* rt = Runtime::get();
-  if (rt->hasFunctionEntryCache(func)) {
-    void** indirect = rt->findFunctionEntryCache(func);
-    *indirect = compiled.staticEntry();
-  }
-  return;
+void Context::addDeoptedFunc(BorrowedRef<PyFunctionObject> func) {
+  deopted_funcs_.emplace(func);
 }
 
-bool Context::deoptFuncImpl(BorrowedRef<PyFunctionObject> func) {
-  // There appear to be instances where the runtime is finalizing and goes to
-  // destroy the cinderjit module and deopt all compiled functions, only to find
-  // that some of the compiled functions have already been zeroed out and
-  // possibly deallocated.  In theory this should be covered by funcDestroyed()
-  // but somewhere that isn't being triggered.  This is not a good solution but
-  // it fixes some shutdown crashes for now.
-  if (func->func_module == nullptr && func->func_qualname == nullptr) {
-    JIT_CHECK(
-        Py_IsFinalizing(),
-        "Trying to deopt destroyed function at {} when runtime is not "
-        "finalizing",
-        reinterpret_cast<void*>(func.get()));
-    return false;
-  }
+void Context::removeDeoptedFunc(BorrowedRef<PyFunctionObject> func) {
+  deopted_funcs_.erase(func);
+}
 
-  if (compiled_funcs_.erase(func) == 0) {
-    return false;
-  }
-  func->vectorcall = getInterpretedVectorcall(func);
-  return true;
+bool Context::addCompiledFunc(BorrowedRef<PyFunctionObject> func) {
+  return compiled_funcs_.emplace(func).second;
+}
+
+bool Context::removeCompiledFunc(BorrowedRef<PyFunctionObject> func) {
+  return compiled_funcs_.erase(func) == 1;
+}
+
+bool Context::addActiveCompile(CompilationKey& key) {
+  return active_compiles_.insert(key).second;
+}
+
+void Context::removeActiveCompile(CompilationKey& key) {
+  active_compiles_.erase(key);
+}
+
+CompiledFunction* Context::addCompiledFunction(
+    CompilationKey& key,
+    std::unique_ptr<CompiledFunction> compiled) {
+  auto pair = compiled_codes_.emplace(key, std::move(compiled));
+  JIT_CHECK(pair.second, "CompilationKey already present");
+  return pair.first->second.get();
 }
 
 void AotContext::init(void* bundle_handle) {

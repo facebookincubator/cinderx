@@ -4,6 +4,8 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/context.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/pyjit_result.h"
 
@@ -81,6 +83,11 @@ void funcModified(BorrowedRef<PyFunctionObject> func);
 void typeDestroyed(BorrowedRef<PyTypeObject> type);
 void typeModified(BorrowedRef<PyTypeObject> type);
 void typeNameModified(BorrowedRef<PyTypeObject> type);
+
+// Exposed for unit tests
+Context::CompilationResult compilePreloaderImpl(
+    jit::CompilerContext<Compiler>* jit_ctx,
+    const hir::Preloader& preloader);
 
 } // namespace jit
 

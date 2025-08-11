@@ -6,7 +6,7 @@
 
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Jit/compiler.h"
+#include "cinderx/Jit/compiled_function.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/elf/note.h"
 #include "cinderx/Jit/hir/preload.h"
@@ -61,21 +61,17 @@ class Context {
   };
 
   /*
-   * Will deopt all compiled functions back to the interpreter.
+   * Adds a function to the list of deopted functions - this means the function
+   * was once compiled but has now been turned back into a normal Python
+   * function. If the JIT is re-enabled the function can be re-initialized to
+   * the JITed form.
    */
-  ~Context();
+  void addDeoptedFunc(BorrowedRef<PyFunctionObject> func);
 
   /*
-   * JIT compile function/code-object from a Preloader.
-   *
-   * Patches func entrypoint if a func is provided.
-   *
-   * Will return PYJIT_RESULT_OK if the function/code object was already
-   * compiled.
+   * Removes a function from the deopted functions set.
    */
-  CompilationResult compilePreloader(
-      BorrowedRef<PyFunctionObject> func,
-      const hir::Preloader& preloader);
+  void removeDeoptedFunc(BorrowedRef<PyFunctionObject> func);
 
   /*
    * Fully remove all effects of compilation from a function.
@@ -83,25 +79,38 @@ class Context {
   void uncompile(BorrowedRef<PyFunctionObject> func);
 
   /*
-   * De-optimize a function by setting it to run through the interpreter if it
-   * had been previously JIT-compiled.
-   *
-   * Return true if the function was previously JIT-compiled, false otherwise.
+   * Adds a record indicating that the specified function is currently being
+   * compiled. This is used to prevent multiple threads from compiling the same
+   * function at the same time.
    */
-  bool deoptFunc(BorrowedRef<PyFunctionObject> func);
+  bool addActiveCompile(CompilationKey& key);
 
   /*
-   * Re-optimize a function by setting it to use JIT-compiled code if there's a
-   * matching compiled code object.
-   *
-   * Intended for functions that have been explicitly deopted and for nested
-   * functions.  Nested functions are created and destroyed multiple times but
-   * have the same underlying code object.
-   *
-   * Return true if the function was successfully reopted, false if nothing
-   * happened.
+   * Indicates that the specified function is no longer being compiled.
    */
-  bool reoptFunc(BorrowedRef<PyFunctionObject> func);
+  void removeActiveCompile(CompilationKey& key);
+
+  /*
+   * Registers the CompiledFunction object for a given compilation key.
+   * The compiled code can then be shared amongst compatible functions.
+   */
+  CompiledFunction* addCompiledFunction(
+      CompilationKey& key,
+      std::unique_ptr<CompiledFunction> compiled);
+
+  /*
+   * Adds a compiled function to the Context. Returns false if the function was
+   * previously added.
+   */
+  bool addCompiledFunc(BorrowedRef<PyFunctionObject> func);
+
+  /*
+   * Removes a function from the set of functions that are known to be compiled.
+   * This happens if a function is deopted.
+   *
+   * Returns true if the function was removed.
+   */
+  bool removeCompiledFunc(BorrowedRef<PyFunctionObject> func);
 
   /*
    * Return whether or not this context compiled the supplied function.
@@ -109,9 +118,21 @@ class Context {
   bool didCompile(BorrowedRef<PyFunctionObject> func);
 
   /*
+   * Remove the specified code object from the known compiled codes.
+   */
+  void forgetCode(BorrowedRef<PyFunctionObject> func);
+  /*
    * Look up the compiled function object for a given Python function object.
    */
   CompiledFunction* lookupFunc(BorrowedRef<PyFunctionObject> func);
+
+  /*
+   * Gets the CompiledFunction for a given code/builtins/globals triplet.
+   */
+  CompiledFunction* lookupCode(
+      BorrowedRef<PyCodeObject> code,
+      BorrowedRef<PyDictObject> builtins,
+      BorrowedRef<PyDictObject> globals);
 
   /*
    * Get a range over all function objects that have been compiled.
@@ -130,6 +151,11 @@ class Context {
   std::chrono::milliseconds totalCompileTime() const;
 
   /*
+   * Adds time to the record of how much time has been spent compiling
+   * functions.
+   */
+  void addCompileTime(size_t ms);
+  /*
    * Set and hold a reference to the cinderjit Python module.
    */
   void setCinderJitModule(Ref<> mod);
@@ -142,19 +168,12 @@ class Context {
   void clearCache();
 
   /*
-   * Callbacks invoked by the runtime when a PyFunctionObject is modified or
-   * destroyed.
+   * Callbacks invoked by the runtime when a PyFunctionObject is destroyed.
    */
-  void funcModified(BorrowedRef<PyFunctionObject> func);
   void funcDestroyed(BorrowedRef<PyFunctionObject> func);
 
  private:
   CompilationResult compilePreloaderImpl(const hir::Preloader& preloader);
-
-  CompiledFunction* lookupCode(
-      BorrowedRef<PyCodeObject> code,
-      BorrowedRef<PyDictObject> builtins,
-      BorrowedRef<PyDictObject> globals);
 
   /*
    * Record per-function metadata for a newly compiled function and set the
@@ -166,9 +185,6 @@ class Context {
 
   /* Deopts a function but doesn't touch deopted_funcs_. */
   bool deoptFuncImpl(BorrowedRef<PyFunctionObject> func);
-
-  /* General purpose jit compiler */
-  Compiler jit_compiler_;
 
   /*
    * Map of all compiled code objects, keyed by their address and also their
@@ -198,6 +214,19 @@ class Context {
   Ref<> cinderjit_module_;
 
   std::atomic_size_t total_compile_time_ms_;
+};
+
+// A CompilerContext is like a Context but it also holds a compiler object
+// of the consumers choosing.
+template <typename T>
+class CompilerContext : public Context {
+ public:
+  T& compiler() {
+    return compiler_;
+  }
+
+ private:
+  T compiler_;
 };
 
 /*

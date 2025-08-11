@@ -2,7 +2,9 @@
 #include <gtest/gtest.h>
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/context.h"
+#include "cinderx/Jit/pyjit.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
 #include <memory>
@@ -11,7 +13,7 @@ class JITContextTest : public RuntimeTest {
  public:
   void SetUp() override {
     RuntimeTest::SetUp();
-    jit_ctx_ = std::make_unique<jit::Context>();
+    jit_ctx_ = std::make_unique<jit::CompilerContext<jit::Compiler>>();
     ASSERT_NE(jit_ctx_, nullptr) << "Failed creating jit context";
   }
 
@@ -20,7 +22,7 @@ class JITContextTest : public RuntimeTest {
     RuntimeTest::TearDown();
   }
 
-  std::unique_ptr<jit::Context> jit_ctx_;
+  std::unique_ptr<jit::CompilerContext<jit::Compiler>> jit_ctx_;
 };
 
 TEST_F(JITContextTest, UnwatchableBuiltins) {
@@ -45,7 +47,7 @@ foo = "hello"
   std::unique_ptr<jit::hir::Preloader> preloader(
       jit::hir::Preloader::makePreloader(func));
 
-  auto comp_result = jit_ctx_->compilePreloader(func, *preloader);
+  auto comp_result = jit::compilePreloaderImpl(jit_ctx_.get(), *preloader);
   ASSERT_EQ(comp_result.result, PYJIT_RESULT_OK);
   ASSERT_NE(comp_result.compiled, nullptr);
 
