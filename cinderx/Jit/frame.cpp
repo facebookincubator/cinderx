@@ -16,7 +16,8 @@
 #include "cinderx/Jit/bytecode_offsets.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/debug_info.h"
-#include "cinderx/Jit/runtime.h"
+#include "cinderx/Jit/gen_data_footer.h"
+#include "cinderx/UpstreamBorrow/borrowed.h"
 
 #include <cinderx/Common/py-portability.h>
 

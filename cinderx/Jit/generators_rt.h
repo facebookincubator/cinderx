@@ -13,6 +13,7 @@
 #ifdef __cplusplus
 
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Jit/gen_data_footer.h"
 #include "cinderx/module_state.h" // @donotremove
 
 namespace jit {
@@ -51,20 +52,7 @@ struct JitGenObject : PyGenObject {
   }
 
   GenDataFooter** genDataFooterPtr() {
-    // TASK(T209501671): This has way too much going on. If we made PyGenObject
-    // use PyObject_VAR_HEAD like it probably should this would get simpler. If
-    // we expanded the allocation to include the GenDataFooter it'd get simpler
-    // still.
-    _PyInterpreterFrame* gen_frame = generatorFrame(this);
-    BorrowedRef<PyCodeObject> gen_code = _PyFrame_GetCode(gen_frame);
-    BorrowedRef<PyTypeObject> gen_type = cinderx::getModuleState()->genType();
-
-    size_t python_frame_slots = _PyFrame_NumSlotsForCodeObject(gen_code);
-    size_t size = _PyObject_VAR_SIZE(gen_type, python_frame_slots);
-    // A *pointer* to JIT data comes after all the other data in the default
-    // generator object.
-    return reinterpret_cast<jit::GenDataFooter**>(
-        reinterpret_cast<uintptr_t>(this) + size);
+    return jitGenDataFooterPtr(reinterpret_cast<PyGenObject*>(this));
   }
 
   GenDataFooter* genDataFooter() {
