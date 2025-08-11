@@ -2798,7 +2798,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         Instruction* rtfs_reg = bbb.appendInstr(
             OutVReg{},
             Instruction::kMove,
-            reinterpret_cast<uintptr_t>(rtfs) | 1);
+            reinterpret_cast<uintptr_t>(rtfs) | JIT_FRAME_RTFS);
         bbb.appendInstr(
             OutInd{
                 callee_frame,

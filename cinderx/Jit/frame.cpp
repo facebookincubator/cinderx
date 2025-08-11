@@ -833,8 +833,12 @@ PyObject* jitFrameReifierVectorcall(
 
   _PyInterpreterFrame* frame =
       reinterpret_cast<_PyInterpreterFrame*>(PyLong_AsVoidPtr(args[0]));
-  fixupJitFrameForInterpreter(frame);
-  Py_RETURN_NONE;
+  jitFramePopulateFrame(frame);
+
+  BorrowedRef<PyFunctionObject> func = hasRtfsFunction(frame)
+      ? jitFrameGetRtfs(frame)->func()
+      : jitFrameGetFunction(frame);
+  return Py_NewRef(func);
 }
 
 PyObject* framereifier_tpcall(PyObject*, PyObject* args, PyObject*) {
@@ -846,8 +850,12 @@ PyObject* framereifier_tpcall(PyObject*, PyObject* args, PyObject*) {
 
   _PyInterpreterFrame* frame = reinterpret_cast<_PyInterpreterFrame*>(
       PyLong_FromVoidPtr(PyTuple_GET_ITEM(args, 0)));
-  fixupJitFrameForInterpreter(frame);
-  Py_RETURN_NONE;
+  jitFramePopulateFrame(frame);
+
+  BorrowedRef<PyFunctionObject> func = hasRtfsFunction(frame)
+      ? jitFrameGetRtfs(frame)->func()
+      : jitFrameGetFunction(frame);
+  return Py_NewRef(func);
 }
 
 static PyType_Slot framereifier_type_slots[] = {
@@ -865,8 +873,8 @@ PyType_Spec JitFrameReifier_Spec = {
     .slots = framereifier_type_slots,
 };
 
-void fixupJitFrameForInterpreter([[maybe_unused]] _PyInterpreterFrame* frame) {
-  if (PyFunction_Check(frame->f_funcobj)) {
+void jitFramePopulateFrame([[maybe_unused]] _PyInterpreterFrame* frame) {
+  if (jitFrameGetHeader(frame)->rtfs & JIT_FRAME_INITIALIZED) {
     // already fixed up
     return;
   }
@@ -879,12 +887,8 @@ void fixupJitFrameForInterpreter([[maybe_unused]] _PyInterpreterFrame* frame) {
     func = rtfs->func();
     JIT_DCHECK(func != nullptr, "should have a func for inlined functions");
     Py_INCREF(func);
-    jitFrameSetFunction(frame, func);
   }
 
-  auto reifier = Ref<JitFrameReifier>::steal(frame->f_funcobj);
-  // transfer ownership from jitFrameGetFunction to f_funcobj
-  frame->f_funcobj = reinterpret_cast<PyObject*>(func);
   frame->f_builtins = func->func_builtins;
   frame->f_globals = func->func_globals;
   frame->f_locals = nullptr;
@@ -901,7 +905,21 @@ void fixupJitFrameForInterpreter([[maybe_unused]] _PyInterpreterFrame* frame) {
     localsplus++;
   }
 
-  JIT_DCHECK(Py_REFCNT(reifier) != 1, "no one should ever release the reifier");
+  jitFrameGetHeader(frame)->rtfs |= JIT_FRAME_INITIALIZED;
+}
+
+void jitFrameInitFunctionObject(_PyInterpreterFrame* frame) {
+  // We no longer own the frame and need to provide a proper function for the
+  // interpreter.
+  if (!hasRtfsFunction(frame)) {
+    // ownership is transferred
+    frame->f_funcobj = &jitFrameGetFunction(frame)->ob_base;
+  } else {
+    RuntimeFrameState* rtfs = jitFrameGetRtfs(frame);
+    auto func = rtfs->func();
+    JIT_DCHECK(func != nullptr, "should have a func for inlined functions");
+    frame->f_funcobj = Py_NewRef(func);
+  }
 }
 
 _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
@@ -914,7 +932,9 @@ _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
     return nullptr;
   }
 
-  fixupJitFrameForInterpreter(frame);
+  jitFramePopulateFrame(frame);
+  jitFrameInitFunctionObject(frame);
+
   memcpy(new_frame, frame, code->co_framesize * sizeof(PyObject*));
 
   if (new_frame->frame_obj != nullptr) {
@@ -932,21 +952,21 @@ void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func) {
   jitFrameGetHeader(frame)->func = func;
 }
 
-PyFunctionObject* jitFrameGetFunction(_PyInterpreterFrame* frame) {
+BorrowedRef<PyFunctionObject> jitFrameGetFunction(_PyInterpreterFrame* frame) {
   assert(!(frame->f_code->co_flags & kCoFlagsAnyGenerator));
-  return jitFrameGetHeader(frame)->func;
+  return reinterpret_cast<PyFunctionObject*>(
+      jitFrameGetHeader(frame)->rtfs & ~JIT_FRAME_MASK);
 }
 
 RuntimeFrameState* jitFrameGetRtfs(_PyInterpreterFrame* frame) {
   assert(hasRtfsFunction(frame));
   assert(!(frame->f_code->co_flags & kCoFlagsAnyGenerator));
   return reinterpret_cast<RuntimeFrameState*>(
-      jitFrameGetHeader(frame)->rtfs & ~0x01);
+      jitFrameGetHeader(frame)->rtfs & ~JIT_FRAME_MASK);
 }
 
 bool hasRtfsFunction(_PyInterpreterFrame* frame) {
-  PyFunctionObject* func = jitFrameGetFunction(frame);
-  return reinterpret_cast<uintptr_t>(func) & 0x01;
+  return jitFrameGetHeader(frame)->rtfs & JIT_FRAME_RTFS;
 }
 
 #endif
@@ -1005,10 +1025,16 @@ void jitFrameClearExceptCode(_PyInterpreterFrame* frame) {
   JIT_DCHECK(currentFrame(PyThreadState_Get()) != frame, "wrong current frame");
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  if (frame->owner == FRAME_OWNED_BY_GENERATOR) {
+    _PyFrame_ClearExceptCode(frame);
+    return;
+  }
+
   // If we've already been requested by the runtime to initialize this
   // _PyInterpreterFrame then we just fall back to its implementation to
   // handle the clearing.
-  if (PyFunction_Check(frame->f_funcobj)) {
+  if (jitFrameGetHeader(frame)->rtfs & JIT_FRAME_INITIALIZED) {
+    jitFrameInitFunctionObject(frame);
     _PyFrame_ClearExceptCode(frame);
     return;
   }

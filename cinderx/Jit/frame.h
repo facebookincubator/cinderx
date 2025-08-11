@@ -112,9 +112,14 @@ PyObject* jitFrameReifierVectorcall(
     PyObject* const* args,
     size_t nargsf);
 
-// Fixes up the frame so that all of the fields are initialized when the
-// interpreter needs to interact with it.
-void fixupJitFrameForInterpreter(_PyInterpreterFrame* frame);
+// Initializes lazily populated data in the frame. This can include the locals,
+// builtins, globals, etc...
+void jitFramePopulateFrame(_PyInterpreterFrame* frame);
+
+// Initializes the frame so that it holds directly onto the function object
+// removing the reifier object. This is required before returning execution
+// to the interpreter.
+void jitFrameInitFunctionObject(_PyInterpreterFrame* frame);
 
 // Turns a stack allocated interpreter frame into a slab allocated one.
 _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
@@ -123,7 +128,7 @@ _PyInterpreterFrame* convertInterpreterFrameFromStackToSlab(
 
 // Gets the PyFunctionObject that is stashed away in a JIT frame. We
 // store the function as an extra local.
-PyFunctionObject* jitFrameGetFunction(_PyInterpreterFrame* frame);
+BorrowedRef<PyFunctionObject> jitFrameGetFunction(_PyInterpreterFrame* frame);
 // Sets the PyFunctionObject to be stashed away in an interpreter frame.
 void jitFrameSetFunction(_PyInterpreterFrame* frame, PyFunctionObject* func);
 
@@ -159,6 +164,10 @@ size_t jitFrameGetSize(PyCodeObject* code);
 
 int frameHeaderSize(BorrowedRef<PyCodeObject> code);
 
+#define JIT_FRAME_RTFS 0x01
+#define JIT_FRAME_INITIALIZED 0x02
+#define JIT_FRAME_MASK 0x03
+
 // FrameHeader lives at the beginning of the stack frame for JIT-compiled
 // functions. In 3.12+ this will be followed by the _PyInterpreterFrame.
 struct FrameHeader {
@@ -167,6 +176,8 @@ struct FrameHeader {
     uintptr_t rtfs;
   };
 };
+
+FrameHeader* jitFrameGetHeader(_PyInterpreterFrame* frame);
 
 } // namespace jit
 

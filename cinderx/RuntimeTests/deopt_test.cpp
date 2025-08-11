@@ -54,7 +54,8 @@ static inline Ref<> runInInterpreterViaReify(
   Py_INCREF(func);
   jit::jitFrameInit(tstate, interp_frame, func, code, 0, nullptr, false);
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
-  jit::fixupJitFrameForInterpreter(interp_frame);
+  jit::jitFramePopulateFrame(interp_frame);
+  jit::jitFrameInitFunctionObject(interp_frame);
 #endif
   reifyFrame(interp_frame, dm, dfm, regs);
   // If we're at the start of the function, push IP past RESUME instruction
