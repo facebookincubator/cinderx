@@ -25,6 +25,14 @@ CompiledFunction* Context::lookupFunc(BorrowedRef<PyFunctionObject> func) {
   return lookupCode(func->func_code, func->func_builtins, func->func_globals);
 }
 
+CodeRuntime* Context::lookupCodeRuntime(BorrowedRef<PyFunctionObject> func) {
+  CompiledFunction* compiled = lookupFunc(func);
+  if (compiled == nullptr) {
+    return nullptr;
+  }
+  return compiled->runtime();
+}
+
 const UnorderedSet<BorrowedRef<PyFunctionObject>>& Context::compiledFuncs() {
   return compiled_funcs_;
 }

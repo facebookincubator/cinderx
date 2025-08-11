@@ -136,6 +136,11 @@ class Context : public IJitContext {
       BorrowedRef<PyDictObject> globals);
 
   /*
+   * Looks up the CodeRuntime for a given function.
+   */
+  CodeRuntime* lookupCodeRuntime(BorrowedRef<PyFunctionObject> func);
+
+  /*
    * Get a range over all function objects that have been compiled.
    */
   const UnorderedSet<BorrowedRef<PyFunctionObject>>& compiledFuncs();

@@ -235,6 +235,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       std::move(irfunc->inline_function_stats);
   std::span<const std::byte> code = ngen->getCodeBuffer();
   void* static_entry = ngen->getStaticEntry();
+  auto code_runtime = ngen->codeRuntime();
 
   auto compiled_func = std::make_unique<CompiledFunction>(
       code,
@@ -243,7 +244,8 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       stack_size,
       spill_stack_size,
       std::move(inline_stats),
-      hir_opcode_counts);
+      hir_opcode_counts,
+      code_runtime);
   compiled_func->setCompileTime(compile_time);
   if (g_debug) {
     irfunc->setCompilationPhaseTimer(nullptr);

@@ -25,7 +25,8 @@ class DeoptPatcherTest : public RuntimeTest {
         stack_size,
         spill_stack_size,
         jit::hir::Function::InlineFunctionStats{},
-        jit::hir::OpcodeCounts{});
+        jit::hir::OpcodeCounts{},
+        nullptr);
   }
 
  protected:

@@ -54,6 +54,7 @@ bool isJitCompiled(const PyFunctionObject* func);
 #ifdef __cplusplus
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/hir/hir.h"
 
 #include <chrono>
@@ -77,14 +78,16 @@ class CompiledFunction {
       int stack_size,
       int spill_stack_size,
       hir::Function::InlineFunctionStats inline_function_stats,
-      const hir::OpcodeCounts& hir_opcode_counts)
+      const hir::OpcodeCounts& hir_opcode_counts,
+      CodeRuntime* runtime)
       : code_(code),
         vectorcall_entry_(vectorcall_entry),
         static_entry_(static_entry),
         stack_size_(stack_size),
         spill_stack_size_(spill_stack_size),
         inline_function_stats_(std::move(inline_function_stats)),
-        hir_opcode_counts_(hir_opcode_counts) {}
+        hir_opcode_counts_(hir_opcode_counts),
+        runtime_(runtime) {}
 
   virtual ~CompiledFunction() = default;
 
@@ -100,6 +103,10 @@ class CompiledFunction {
 
   void* staticEntry() const {
     return static_entry_;
+  }
+
+  CodeRuntime* runtime() const {
+    return runtime_;
   }
 
   PyObject* invoke(PyObject* func, PyObject** args, Py_ssize_t nargs) const {
@@ -146,6 +153,7 @@ class CompiledFunction {
   hir::Function::InlineFunctionStats inline_function_stats_;
   hir::OpcodeCounts hir_opcode_counts_;
   std::unique_ptr<hir::Function> irfunc_;
+  CodeRuntime* runtime_;
 };
 
 } // namespace jit
