@@ -12,6 +12,7 @@
 #include "cinderx/Common/log.h"
 
 #include <charconv>
+#include <concepts>
 #include <cstdarg>
 #include <cstddef>
 #include <memory>
@@ -260,8 +261,8 @@ class Worklist {
   std::unordered_set<T> set_;
 };
 
-template <typename T>
-std::enable_if_t<std::is_integral_v<T>, bool> fitsInt32(T val) {
+template <std::integral T>
+bool fitsInt32(T val) {
   int64_t v = val;
   return (
       v <= std::numeric_limits<int32_t>::max() &&
@@ -269,7 +270,8 @@ std::enable_if_t<std::is_integral_v<T>, bool> fitsInt32(T val) {
 }
 
 template <typename T>
-std::enable_if_t<std::is_pointer_v<T>, bool> fitsInt32(T val) {
+  requires std::is_pointer_v<T>
+bool fitsInt32(T val) {
   return fitsInt32(reinterpret_cast<intptr_t>(val));
 }
 
