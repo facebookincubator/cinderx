@@ -89,7 +89,7 @@ class CompiledFunction {
         hir_opcode_counts_(hir_opcode_counts),
         runtime_(runtime) {}
 
-  virtual ~CompiledFunction() = default;
+  ~CompiledFunction() = default;
 
   // Get the buffer containing the compiled machine code.  The start of this
   // buffer is not guaranteed to be a valid entry point.
@@ -113,8 +113,8 @@ class CompiledFunction {
     return vectorcall_entry_(func, args, nargs, nullptr);
   }
 
-  virtual void printHIR() const;
-  virtual void disassemble() const;
+  void printHIR() const;
+  void disassemble() const;
 
   size_t codeSize() const {
     return code_.size();
