@@ -59,13 +59,12 @@ class RuntimeTest : public ::testing::Test {
     Py_Initialize();
     ASSERT_TRUE(Py_IsInitialized());
 
-    jit::ICodeAllocator* code_allocator =
-        cinderx::getModuleState()->codeAllocator();
-
-    // This should use _PyJIT_Enabled(), but that doesn't actually get set to
-    // true in RuntimeTests, even when the JIT is running.  Generally the first
-    // failure we see is trying to use the code allocator and crashing.
+    // Generally the first failure we see when the JIT is incorrectly
+    // initialized is trying to use the code allocator and crashing, so check
+    // that here.
     if (jit) {
+      jit::ICodeAllocator* code_allocator =
+          cinderx::getModuleState()->codeAllocator();
       ASSERT_NE(code_allocator, nullptr)
           << "Configured to use the JIT but it wasn't initialized";
     }
@@ -78,14 +77,12 @@ class RuntimeTest : public ::testing::Test {
 
   void TearDown() override {
     isolated_preloaders_.reset();
-    if (isJit()) {
-      jit::getMutableConfig().force_init = false;
-    }
 
     globals_.reset();
     int result = Py_FinalizeEx();
     ASSERT_EQ(result, 0) << "Failed finalizing the interpreter";
 
+    ASSERT_EQ(jit::getConfig().state, jit::State::kNotInitialized);
     ASSERT_FALSE(jit::isJitUsable())
         << "JIT should be disabled with Py_FinalizeEx";
 

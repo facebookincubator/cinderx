@@ -430,16 +430,21 @@ PyObject* get_entire_call_stack_as_qualnames_with_lineno_and_frame(
 }
 #endif
 
-// Schedule a function to be JIT-compiled.  If that fails, then also try
-// compiling a perf trampoline for the Python function.
-void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
+void ensurePyFunctionVectorcall(BorrowedRef<PyFunctionObject> func) {
   if (!Ci_PyFunction_Vectorcall) {
     // capture the original vectorcall function on the first function
     // creation
     Ci_PyFunction_Vectorcall = func->vectorcall;
   }
+}
 
-  bool scheduled = jit::scheduleJitCompile(func);
+// Schedule a function to be JIT-compiled.  If that fails, then also try
+// compiling a perf trampoline for the Python function.
+void scheduleCompile(BorrowedRef<PyFunctionObject> func) {
+  ensurePyFunctionVectorcall(func);
+
+  bool scheduled =
+      jit::shouldScheduleCompile(func) && jit::scheduleJitCompile(func);
   if (!scheduled && jit::perf::isPreforkCompilationEnabled()) {
     auto& perf_trampoline_worklist =
         cinderx::getModuleState()->perfTrampolineWorklist();
@@ -731,6 +736,12 @@ int cinderx_func_watcher(
     PyObject* new_value) {
   switch (event) {
     case PyFunction_EVENT_CREATE:
+      // Using Ci_PyFunction_Vectorcall before calling scheduleCompile, so we
+      // need to ensure that the global variable is defined.
+      ensurePyFunctionVectorcall(func);
+      // Update the new function's vectorcall to have it run with Static Python
+      // if it needs to.
+      func->vectorcall = getInterpretedVectorcall(func);
       scheduleCompile(func);
       break;
     case PyFunction_EVENT_MODIFY_CODE:
