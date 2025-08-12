@@ -89,7 +89,7 @@ class CompiledFunction {
         hir_opcode_counts_(hir_opcode_counts),
         runtime_(runtime) {}
 
-  ~CompiledFunction() = default;
+  ~CompiledFunction();
 
   // Get the buffer containing the compiled machine code.  The start of this
   // buffer is not guaranteed to be a valid entry point.

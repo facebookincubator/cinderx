@@ -25,6 +25,12 @@ bool isJitCompiled(const PyFunctionObject* func) {
 
 namespace jit {
 
+CompiledFunction::~CompiledFunction() {
+  if (runtime_ != nullptr) {
+    runtime_->releaseReferences();
+  }
+}
+
 void CompiledFunction::disassemble() const {
   auto start = reinterpret_cast<const char*>(vectorcallEntry());
   Disassembler dis{start, codeSize()};

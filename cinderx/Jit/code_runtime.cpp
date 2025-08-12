@@ -8,6 +8,8 @@ const int64_t CodeRuntime::kPyCodeOffset =
     RuntimeFrameState::codeOffset() + CodeRuntime::frameStateOffset();
 
 void CodeRuntime::releaseReferences() {
+  // Serialize as we modify ref-counts which may be widely accessible.
+  ThreadedCompileSerialize guard;
   references_.clear();
 }
 
