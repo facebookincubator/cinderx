@@ -20,6 +20,7 @@
 #include <queue>
 #include <string_view>
 #include <unordered_set>
+#include <utility>
 
 #define DISALLOW_COPY_AND_ASSIGN(klass) \
   klass(const klass&) = delete;         \
@@ -263,10 +264,8 @@ class Worklist {
 
 template <std::integral T>
 bool fitsInt32(T val) {
-  int64_t v = val;
-  return (
-      v <= std::numeric_limits<int32_t>::max() &&
-      v >= std::numeric_limits<int32_t>::min());
+  return std::cmp_less_equal(val, std::numeric_limits<int32_t>::max()) &&
+      std::cmp_greater_equal(val, std::numeric_limits<int32_t>::min());
 }
 
 template <typename T>

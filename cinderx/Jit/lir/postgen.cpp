@@ -136,6 +136,19 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
 
   // remove the constant input
   instr->setNumInputs(instr->getNumInputs() - 1);
+
+  auto in0_type = instr->getInput(0)->dataType();
+  if (in0_type == OperandBase::k32bit || in0_type == OperandBase::k16bit ||
+      in0_type == OperandBase::k8bit) {
+    // If the first operand is a signed integer and less than 64 bits, move
+    // with sign-extension.
+    auto movsx = block->allocateInstrBefore(
+        instr_iter, Instruction::kMovSX, OutVReg(OperandBase::k64bit));
+
+    auto in0 = instr->removeInputOperand(0);
+    movsx->appendInputOperand(std::move(in0));
+    instr->allocateLinkedInput(movsx);
+  }
   instr->allocateLinkedInput(move);
 
   return kChanged;
