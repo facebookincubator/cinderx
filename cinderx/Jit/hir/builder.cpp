@@ -1726,6 +1726,10 @@ static std::optional<BinaryOpKind> getBinaryOpKindFromOparg(int oparg) {
       return BinaryOpKind::kTrueDivide;
     case NB_XOR:
       return BinaryOpKind::kXor;
+#if PY_VERSION_HEX >= 0x030E0000
+    case NB_SUBSCR:
+      return BinaryOpKind::kSubscript;
+#endif
     default:
       return std::nullopt;
   }

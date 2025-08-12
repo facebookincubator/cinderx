@@ -27,6 +27,14 @@ class Python314Bytecodes(unittest.TestCase):
         self.assertEqual(x(), 1)
         self._assertBytecodeContains(x, "LOAD_SMALL_INT")
 
+    def test_BINARY_OP_oparg_SUBSCR(self):
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            return [1, 2][0]
+
+        self.assertEqual(x(), 1)
+        self._assertBytecodeContains(x, "BINARY_OP")
+
 
 if __name__ == "__main__":
     unittest.main()
