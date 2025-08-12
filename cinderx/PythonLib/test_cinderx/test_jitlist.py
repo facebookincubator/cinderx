@@ -1,6 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-# pyre-unsafe
+# pyre-strict
 
 # This is in its own file as it modifies the global JIT-list.
 
@@ -43,10 +43,10 @@ class JitListTest(unittest.TestCase):
         self.assertEqual(initial_jit_list, cinderx.jit.get_jit_list())
 
     def test_py_func(self) -> None:
-        def func():
+        def func() -> None:
             pass
 
-        def func_nojit():
+        def func_nojit() -> None:
             pass
 
         cinderx.jit.append_jit_list(f"{func.__module__}:{func.__qualname__}")
@@ -63,10 +63,10 @@ class JitListTest(unittest.TestCase):
 
     def test_py_meth(self) -> None:
         class JitClass:
-            def meth(self):
+            def meth(self) -> None:
                 pass
 
-            def meth_nojit(self):
+            def meth_nojit(self) -> None:
                 pass
 
         meth = JitClass.meth
@@ -85,10 +85,10 @@ class JitListTest(unittest.TestCase):
         self.assertFalse(cinderx.jit.is_jit_compiled(meth_nojit))
 
     def test_py_code(self) -> None:
-        def code_func():
+        def code_func() -> None:
             pass
 
-        def code_func_nojit():
+        def code_func_nojit() -> None:
             pass
 
         # pyre-ignore[16]: Pyre doesn't know about __code__.
@@ -110,7 +110,7 @@ class JitListTest(unittest.TestCase):
         self.assertFalse(cinderx.jit.is_jit_compiled(code_func_nojit))
 
     def test_change_func_qualname(self) -> None:
-        def inner_func():
+        def inner_func() -> int:
             return 24
 
         cinderx.jit.append_jit_list(
@@ -167,7 +167,7 @@ class JitListTest(unittest.TestCase):
         self.assertEqual(proc.stdout.strip(), "24")
 
     def test_read_jit_list(self) -> None:
-        def func():
+        def func() -> int:
             return 35
 
         entry = f"{func.__module__}:{func.__qualname__}"
