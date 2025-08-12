@@ -41,17 +41,6 @@ class InsertUpdatePrevInstr : public Pass {
   }
 };
 
-class GuardTypeRemoval : public Pass {
- public:
-  GuardTypeRemoval() : Pass("GuardTypeRemoval") {}
-
-  void Run(Function& irfunc) override;
-
-  static std::unique_ptr<GuardTypeRemoval> Factory() {
-    return std::make_unique<GuardTypeRemoval>();
-  }
-};
-
 class BuiltinLoadMethodElimination : public Pass {
  public:
   BuiltinLoadMethodElimination() : Pass("BuiltinLoadMethodElimination") {}
