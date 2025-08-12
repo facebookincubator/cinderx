@@ -134,19 +134,6 @@ static void print_reg_states(
 
 static const int kMaxASCII = 127;
 
-static std::string escape_non_ascii(const std::string& str) {
-  std::string result;
-  for (unsigned char c : str) {
-    if (c > kMaxASCII) {
-      result += '\\';
-      result += std::to_string(c);
-    } else {
-      result += static_cast<char>(c);
-    }
-  }
-  return result;
-}
-
 static std::string escape_unicode(const char* data, Py_ssize_t size) {
   std::string ret = "\"";
   for (Py_ssize_t i = 0; i < size; ++i) {

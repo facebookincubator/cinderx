@@ -298,10 +298,6 @@ void setASMSyntax(const std::string& asm_syntax) {
   }
 }
 
-void warnJITOff(const char* flag) {
-  JIT_LOG("Warning: JIT disabled; {} has no effect", flag);
-}
-
 size_t parse_sized_argument(const std::string& val) {
   std::string parsed;
   // " 1024 k" should parse OK - so remove the space.
@@ -2723,17 +2719,6 @@ void dump_jit_stats() {
   }
 
   JIT_LOG("JIT runtime stats:\n{}", PyUnicode_AsUTF8(stats_str.get()));
-}
-
-void dump_jit_compiled_functions(const std::string& filename) {
-  std::ofstream file(filename);
-  if (!file) {
-    JIT_LOG("Failed to open {} when dumping jit compiled functions", filename);
-    return;
-  }
-  for (BorrowedRef<PyFunctionObject> func : jitCtx()->compiledFuncs()) {
-    file << funcFullname(func) << std::endl;
-  }
 }
 
 void finalizeInternedStrings() {
