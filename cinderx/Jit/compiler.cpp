@@ -6,6 +6,7 @@
 #include "cinderx/Jit/config.h"
 #include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/builder.h"
+#include "cinderx/Jit/hir/builtin_load_method_elimination.h"
 #include "cinderx/Jit/hir/clean_cfg.h"
 #include "cinderx/Jit/hir/dead_code_elimination.h"
 #include "cinderx/Jit/hir/guard_removal.h"
