@@ -23,6 +23,9 @@ class ICodeAllocator {
   // success, or nullptr and an error on failure.
   virtual AllocateResult addCode(asmjit::CodeHolder* code) = 0;
 
+  // Deallocate a compiled code object.
+  virtual asmjit::Error releaseCode(void* code) = 0;
+
   // Check if a pointer is located within this allocator's memory.
   virtual bool contains(const void* ptr) const = 0;
 

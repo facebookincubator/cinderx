@@ -29,6 +29,9 @@ CompiledFunction::~CompiledFunction() {
   if (runtime_ != nullptr) {
     runtime_->releaseReferences();
   }
+
+  auto code_allocator = cinderx::getModuleState()->codeAllocator();
+  code_allocator->releaseCode(const_cast<std::byte*>(code_.data()));
 }
 
 void CompiledFunction::disassemble() const {

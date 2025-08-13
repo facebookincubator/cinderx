@@ -36,6 +36,7 @@ class CodeAllocator : public ICodeAllocator {
   static ICodeAllocator* make();
 
   AllocateResult addCode(asmjit::CodeHolder* code) override;
+  asmjit::Error releaseCode(void* code) override;
   bool contains(const void* ptr) const override;
   size_t usedBytes() const override;
   const asmjit::Environment& asmJitEnvironment() const override;
@@ -63,6 +64,7 @@ class CodeAllocatorCinder : public CodeAllocator {
   }
 
   AllocateResult addCode(asmjit::CodeHolder* code) override;
+  asmjit::Error releaseCode(void* code) override;
   bool contains(const void* ptr) const override;
 
  private:
@@ -88,6 +90,7 @@ class MultipleSectionCodeAllocator : public CodeAllocator {
   ~MultipleSectionCodeAllocator() override;
 
   AllocateResult addCode(asmjit::CodeHolder* code) override;
+  asmjit::Error releaseCode(void* code) override;
   bool contains(const void* ptr) const override;
 
  private:

@@ -64,11 +64,9 @@ bool isJitCompiled(const PyFunctionObject* func);
 
 namespace jit {
 
-// CompiledFunction contains the native code that was compiled for a Python
-// function.
-//
-// It does not manage the memory behind the generated native code, that is done
-// by the CodeAllocator.
+// CompiledFunction contains a pointer to the native code that was compiled for
+// a Python function.  The memory behind the generated native code is in the
+// CodeAllocator.
 class CompiledFunction {
  public:
   CompiledFunction(

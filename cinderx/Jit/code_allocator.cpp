@@ -77,6 +77,22 @@ AllocateResult CodeAllocator::addCode(asmjit::CodeHolder* code) {
   return AllocateResult{addr, error};
 }
 
+asmjit::Error CodeAllocator::releaseCode(void* code) {
+  // Find the size of the allocated region.
+  asmjit::JitAllocator* inner = runtime_.allocator();
+  asmjit::JitAllocator::Span span;
+  if (auto error = inner->query(span, code); error != asmjit::kErrorOk) {
+    return error;
+  }
+
+  if (auto error = runtime_.release(code); error != asmjit::kErrorOk) {
+    return error;
+  }
+
+  used_bytes_.fetch_sub(span.size(), std::memory_order_relaxed);
+  return asmjit::kErrorOk;
+}
+
 bool CodeAllocator::contains(const void* ptr) const {
   asmjit::JitAllocator::Span unused;
   // asmjit docs don't say that query() is thread-safe, but peeking at the
@@ -151,6 +167,11 @@ AllocateResult CodeAllocatorCinder::addCode(asmjit::CodeHolder* code) {
   used_bytes_ += actual_code_size;
 
   return AllocateResult{addr, asmjit::kErrorOk};
+}
+
+asmjit::Error CodeAllocatorCinder::releaseCode([[maybe_unused]] void* code) {
+  // TODO(T233607793): Actually implement deallocating memory.
+  return asmjit::kErrorOk;
 }
 
 bool CodeAllocatorCinder::contains(const void* ptr) const {
@@ -274,6 +295,12 @@ AllocateResult MultipleSectionCodeAllocator::addCode(asmjit::CodeHolder* code) {
   }
 
   return AllocateResult{addr, asmjit::kErrorOk};
+}
+
+asmjit::Error MultipleSectionCodeAllocator::releaseCode(
+    [[maybe_unused]] void* code) {
+  // TODO(T233607793): Actually implement deallocating memory.
+  return asmjit::kErrorOk;
 }
 
 bool MultipleSectionCodeAllocator::contains(const void* ptr) const {
