@@ -47,8 +47,6 @@ class DisableEnableTests(unittest.TestCase):
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
 
-        force_uncompile(foo)
-
     def test_suppress_and_reopt(self) -> None:
         def foo(a, b):
             return a + b
@@ -65,6 +63,8 @@ class DisableEnableTests(unittest.TestCase):
         enable_jit()
         self.assertFalse(is_jit_compiled(foo))
 
+        # Code object persists across multiple runs of the test.  Need to reset the
+        # suppress flag to support this being run multiple times for refleak detection.
         jit_unsuppress(foo)
 
     def test_disable_then_deopt(self) -> None:
@@ -83,8 +83,6 @@ class DisableEnableTests(unittest.TestCase):
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
 
-        force_uncompile(foo)
-
     def test_already_disabled(self) -> None:
         def foo(a, b):
             return a + b
@@ -100,8 +98,6 @@ class DisableEnableTests(unittest.TestCase):
 
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
-
-        force_uncompile(foo)
 
     def test_already_enabled(self) -> None:
         def foo(a, b):
@@ -119,8 +115,6 @@ class DisableEnableTests(unittest.TestCase):
         enable_jit()
         self.assertTrue(is_jit_compiled(foo))
 
-        force_uncompile(foo)
-
     def test_compile_new_after_reenable(self) -> None:
         disable_jit(deopt_all=True)
 
@@ -135,6 +129,9 @@ class DisableEnableTests(unittest.TestCase):
         force_compile(foo)
         self.assertTrue(is_jit_compiled(foo))
 
+        # The compiled code for `foo` will stay compiled across test runs by default.
+        # We need to evict it to support multiple runs of the test for refleak
+        # detection.
         force_uncompile(foo)
 
     def test_pause(self) -> None:
@@ -162,8 +159,6 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_enabled())
         self.assertTrue(is_jit_compiled(foo))
 
-        force_uncompile(foo)
-
     def test_pause_nested(self) -> None:
         def foo(a, b):
             return a + b
@@ -185,8 +180,6 @@ class DisableEnableTests(unittest.TestCase):
         self.assertTrue(is_jit_enabled())
         self.assertTrue(is_jit_compiled(foo))
 
-        force_uncompile(foo)
-
     def test_pause_between_lazy_compile(self) -> None:
         def foo(a, b):
             return a + b
@@ -203,6 +196,9 @@ class DisableEnableTests(unittest.TestCase):
         foo(3, 4)
         self.assertTrue(is_jit_compiled(foo))
 
+        # The compiled code for `foo` will stay compiled across test runs by default.
+        # We need to evict it to support multiple runs of the test for refleak
+        # detection.
         force_uncompile(foo)
 
 
