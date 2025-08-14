@@ -2638,13 +2638,19 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
         funcFullname(target));
   }
 
+  // This is the common case, where the original function is compiled last.
+  // Return its compilation result.
   BorrowedRef<PyFunctionObject> last_func = targets.back();
-  JIT_CHECK(
-      last_func == func,
-      "Last compiled function expected to be {}, but got {}",
-      funcFullname(func),
-      funcFullname(last_func));
-  return result;
+  if (last_func == func) {
+    return result;
+  }
+
+  // Otherwise the original function was destroyed during preloading, which is
+  // rare but can happen with nested functions.  In that case, we're just going
+  // to pretend everything went okay.  It doesn't make sense to return the
+  // results of any of the other preloaded functions, as the caller never asked
+  // for them in the first place.
+  return PYJIT_RESULT_OK;
 }
 
 // Call posix.register_at_fork(None, None, cinderjit.after_fork_child), if it
