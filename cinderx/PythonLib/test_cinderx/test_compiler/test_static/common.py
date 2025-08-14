@@ -51,7 +51,6 @@ from cinderx.static import (
     TYPED_UINT64,
     TYPED_UINT8,
 )
-from cinderx.test_support import compiles_after_one_call
 
 from ..common import CompilerTest
 
@@ -614,7 +613,7 @@ __slot_types__ = {slot_types!r}
             return
 
         # Can't guarantee that functions will be called with arbitrary JitAuto settings.
-        if not compiles_after_one_call():
+        if cinderx.jit.auto_jit_threshold() != 0:
             return
 
         self.assertTrue(cinderx.jit.is_jit_compiled(func), func.__name__)

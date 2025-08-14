@@ -29,11 +29,12 @@ ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
 MOD_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
 
 
-@unittest.skipUnless(
-    cinderx.jit.auto_jit_threshold() > 0,
-    "Requires the JIT but is incompatible with JitAll mode",
-)
+@skip_unless_jit("JIT list functionality requires the JIT")
 class JitListTest(unittest.TestCase):
+    def setUp(self) -> None:
+        # Force the JIT list to exist.
+        cinderx.jit.append_jit_list("foobar:baz")
+
     def test_comments(self) -> None:
         cinderx.jit.append_jit_list("")
         initial_jit_list = cinderx.jit.get_jit_list()
@@ -119,28 +120,22 @@ class JitListTest(unittest.TestCase):
 
         self.assertEqual(inner_func(), 24)
         self.assertFalse(cinderx.jit.is_jit_compiled(inner_func))
-
         inner_func.__qualname__ += "_foo"
         self.assertEqual(inner_func(), 24)
+
         if cinderx.jit.auto_jit_threshold() <= 1:
             self.assertTrue(cinderx.jit.is_jit_compiled(inner_func))
 
     def test_precompile_all(self) -> None:
         # Has to be run under a separate process because precompile_all will mess up the
         # other JIT-related tests.
-        code = textwrap.dedent(
-            """
-            import cinderx
-            cinderx.init()
-
+        code = """if 1:
             import cinderx.jit
 
             def func():
                 return 24
 
             assert not cinderx.jit.is_jit_compiled(func)
-
-            cinderx.jit.lazy_compile(func)
 
             # This has to use multiple threads otherwise this will take many minutes to run.
             # It'll be compiling all functions that were loaded and not-yet-run in JitAll
@@ -150,15 +145,19 @@ class JitListTest(unittest.TestCase):
 
             print(func())
         """
-        )
 
         with tempfile.TemporaryDirectory() as tmp:
             dirpath = Path(tmp)
             codepath = dirpath / "mod.py"
             codepath.write_text(code)
             proc = subprocess.run(
-                [sys.executable, "-X", "jit", "mod.py"],
-                stdout=subprocess.PIPE,
+                [
+                    sys.executable,
+                    "-X",
+                    "jit",
+                    "mod.py",
+                ],
+                capture_output=True,
                 cwd=tmp,
                 encoding=ENCODING,
                 env={"PYTHONPATH": MOD_PATH},
@@ -219,6 +218,8 @@ class JitListTest(unittest.TestCase):
                 [
                     sys.executable,
                     "-X",
+                    "jit",
+                    "-X",
                     "jit-list-file=jitlist.txt",
                     "mod.py",
                 ],
@@ -228,9 +229,7 @@ class JitListTest(unittest.TestCase):
                 env={"PYTHONPATH": MOD_PATH},
             )
         self.assertEqual(proc.returncode, 0, proc)
-        self.assertIn(
-            "Error while parsing line 1 in JIT list file jitlist.txt", proc.stderr
-        )
+        self.assertIn("Continuing on with the JIT disabled", proc.stderr)
 
     def test_fail_on_parse_error_startup(self) -> None:
         code = 'print("Hello world!")'
@@ -244,6 +243,8 @@ class JitListTest(unittest.TestCase):
             proc = subprocess.run(
                 [
                     sys.executable,
+                    "-X",
+                    "jit",
                     "-X",
                     "jit-list-file=jitlist.txt",
                     "-X",

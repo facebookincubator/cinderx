@@ -23,9 +23,6 @@ AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
 if not AT_LEAST_312:
     import _testcindercapi
 
-import cinderx
-
-cinderx.init()
 import cinderx.jit
 
 import cinderx.test_support as cinder_support
@@ -37,11 +34,7 @@ from cinderx.jit import (
     jit_suppress,
     jit_unsuppress,
 )
-from cinderx.test_support import (
-    compiles_after_one_call,
-    run_in_subprocess,
-    skip_unless_jit,
-)
+from cinderx.test_support import run_in_subprocess, skip_unless_jit
 
 from .common import failUnlessHasOpcodes, with_globals
 
@@ -54,9 +47,6 @@ except ImportError:
 
 
 ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
-
-# Hack to allow subprocesses to find where cinderx is.
-MOD_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
 
 
 class TestException(Exception):
@@ -182,9 +172,7 @@ class InlinedFunctionTests(unittest.TestCase):
                 if lazy_imports:
                     cmd.append("-L")
                 cmd.append(str(root / "main.py"))
-                proc = subprocess.run(
-                    cmd, cwd=root, capture_output=True, env={"PYTHONPATH": MOD_PATH}
-                )
+                proc = subprocess.run(cmd, cwd=root, capture_output=True)
                 # We expect an exception, but not a crash!
                 self.assertEqual(proc.returncode, 1, proc.stderr)
                 self.assertEqual(
@@ -728,11 +716,9 @@ class ClosureTests(unittest.TestCase):
 
         self.assertEqual(
             str(ctx.exception),
-            (
-                "cannot access local variable 'a' where it is not associated with a value"
-                if AT_LEAST_312
-                else "local variable 'a' referenced before assignment"
-            ),
+            "cannot access local variable 'a' where it is not associated with a value"
+            if AT_LEAST_312
+            else "local variable 'a' referenced before assignment",
         )
 
     def test_freevars(self) -> None:
@@ -986,7 +972,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         with self.assertRaises(asyncio.CancelledError):
             asyncio.run(main())
 
-        if compiles_after_one_call():
+        if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
             self.assertTrue(is_jit_compiled(a))
             self.assertTrue(is_jit_compiled(b))
             self.assertTrue(is_jit_compiled(c.__wrapped__))
@@ -1547,7 +1533,7 @@ class RegressionTests(StaticTestBase):
             testfunc = mod.testfunc
             self.assertTrue(testfunc())
 
-            if compiles_after_one_call():
+            if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
                 self.assertTrue(is_jit_compiled(testfunc))
 
 
@@ -1583,7 +1569,7 @@ class CinderJitModuleTests(StaticTestBase):
 
             self.assertFalse(is_jit_compiled(f))
 
-            if compiles_after_one_call():
+            if cinderx.jit.auto_jit_threshold() <= 1:
                 self.assertTrue(is_jit_compiled(g))
 
     @unittest.skipIf(
@@ -1608,19 +1594,11 @@ class CinderJitModuleTests(StaticTestBase):
 
             self.assertFalse(is_jit_compiled(f))
 
-            if compiles_after_one_call():
+            if cinderx.jit.auto_jit_threshold() <= 1:
                 self.assertTrue(is_jit_compiled(g))
 
             self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
 
-    @unittest.skipIf(
-        (
-            cinderx.jit.auto_jit_threshold() == 0
-            or cinderx.jit.auto_jit_threshold() > 10000
-        )
-        and not cinderx.jit.is_compile_all(),
-        "Expecting the JIT to be compiling a bunch of code automatically",
-    )
     def test_max_code_size_slow(self) -> None:
         code = textwrap.dedent(
             """
@@ -1649,15 +1627,11 @@ class CinderJitModuleTests(StaticTestBase):
             codepath.write_text(code)
 
             def run_test(asserts_func, params):
-                args = [sys.executable, "-X", "jit-all"]
+                args = [sys.executable, "-X", "jit"]
                 args.extend(params)
                 args.append("mod.py")
                 proc = subprocess.run(
-                    args,
-                    cwd=tmp,
-                    stdout=subprocess.PIPE,
-                    encoding=ENCODING,
-                    env={"PYTHONPATH": MOD_PATH},
+                    args, cwd=tmp, stdout=subprocess.PIPE, encoding=ENCODING
                 )
                 self.assertEqual(proc.returncode, 0, proc)
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
@@ -1732,106 +1706,49 @@ class CinderJitModuleTests(StaticTestBase):
 
             def run_proc():
                 proc = subprocess.run(
-                    args,
-                    cwd=tmp,
-                    stdout=subprocess.PIPE,
-                    encoding=ENCODING,
-                    env={"PYTHONPATH": MOD_PATH},
+                    args, cwd=tmp, stdout=subprocess.PIPE, encoding=ENCODING
                 )
                 self.assertEqual(proc.returncode, 0, proc)
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
                 return actual_stdout[0]
 
-            args = [sys.executable, "-X", "jit-all", "mod.py"]
+            args = [sys.executable, "-X", "jit", "mod.py"]
             self.assertEqual(run_proc(), "max_size: 0")
             args = [
                 sys.executable,
                 "-X",
-                "jit-all",
+                "jit",
                 "-X",
                 "jit-max-code-size=1234567",
                 "mod.py",
             ]
             self.assertEqual(run_proc(), "max_size: 1234567")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1k",
-                "mod.py",
-            ]
+            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1k", "mod.py"]
             self.assertEqual(run_proc(), "max_size: 1024")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1K",
-                "mod.py",
-            ]
+            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1K", "mod.py"]
             self.assertEqual(run_proc(), "max_size: 1024")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1m",
-                "mod.py",
-            ]
+            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1m", "mod.py"]
             self.assertEqual(run_proc(), "max_size: 1048576")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1M",
-                "mod.py",
-            ]
+            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1M", "mod.py"]
             self.assertEqual(run_proc(), "max_size: 1048576")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1g",
-                "mod.py",
-            ]
+            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1g", "mod.py"]
             self.assertEqual(run_proc(), "max_size: 1073741824")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1G",
-                "mod.py",
-            ]
+            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1G", "mod.py"]
             self.assertEqual(run_proc(), "max_size: 1073741824")
 
             def run_proc():
                 proc = subprocess.run(
-                    args,
-                    cwd=tmp,
-                    stderr=subprocess.PIPE,
-                    encoding=ENCODING,
-                    env={"PYTHONPATH": MOD_PATH},
+                    args, cwd=tmp, stderr=subprocess.PIPE, encoding=ENCODING
                 )
                 self.assertEqual(proc.returncode, -6, proc)
                 return proc.stderr
 
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=-1",
-                "mod.py",
-            ]
+            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=-1", "mod.py"]
             self.assertIn("Invalid unsigned integer in input string: '-1'", run_proc())
             args = [
                 sys.executable,
                 "-X",
-                "jit-all",
+                "jit",
                 "-X",
                 "jit-max-code-size=1.1",
                 "mod.py",
@@ -1840,7 +1757,7 @@ class CinderJitModuleTests(StaticTestBase):
             args = [
                 sys.executable,
                 "-X",
-                "jit-all",
+                "jit",
                 "-X",
                 "jit-max-code-size=dogs",
                 "mod.py",
@@ -1849,7 +1766,7 @@ class CinderJitModuleTests(StaticTestBase):
             args = [
                 sys.executable,
                 "-X",
-                "jit-all",
+                "jit",
                 "-X",
                 "jit-max-code-size=1152921504606846976g",
                 "mod.py",
@@ -2567,10 +2484,9 @@ class PerfMapTests(unittest.TestCase):
     @skip_unless_jit("Runs a subprocess with the JIT enabled")
     def test_forked_pid_map(self) -> None:
         proc = subprocess.run(
-            [sys.executable, "-X", "jit-all", "-X", "jit-perfmap", self.HELPER_FILE],
+            [sys.executable, "-X", "jit", "-X", "jit-perfmap", self.HELPER_FILE],
             stdout=subprocess.PIPE,
             encoding=ENCODING,
-            env={"PYTHONPATH": MOD_PATH},
         )
         self.assertEqual(proc.returncode, 0)
 
@@ -2609,12 +2525,7 @@ class BatchCompileTests(unittest.TestCase):
             "jit-batch-compile-workers=2",
             str(root / "main.py"),
         ]
-        proc = subprocess.run(
-            cmd,
-            cwd=root,
-            capture_output=True,
-            env={"PYTHONPATH": MOD_PATH},
-        )
+        proc = subprocess.run(cmd, cwd=root, capture_output=True)
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(b"42\n", proc.stdout, proc.stdout)
 
@@ -2628,7 +2539,7 @@ class PreloadTests(unittest.TestCase):
             [
                 sys.executable,
                 "-X",
-                "jit-all",
+                "jit",
                 "-X",
                 "jit-batch-compile-workers=4",
                 # Enable lazy imports
@@ -2640,7 +2551,6 @@ class PreloadTests(unittest.TestCase):
             cwd=os.path.dirname(__file__),
             stdout=subprocess.PIPE,
             encoding=ENCODING,
-            env={"PYTHONPATH": MOD_PATH},
         )
         self.assertEqual(proc.returncode, 0)
         expected_stdout = """resolving a_func
@@ -2693,7 +2603,6 @@ hello from b_func!
                     cmd,
                     cwd=root,
                     capture_output=True,
-                    env={"PYTHONPATH": MOD_PATH},
                 )
                 self.assertEqual(proc.returncode, 1, proc.stderr)
                 self.assertIn(b"RuntimeError: boom\n", proc.stderr)
@@ -2709,7 +2618,7 @@ class LoadMethodEliminationTests(unittest.TestCase):
     def test_multiple_call_method_same_load_method(self) -> None:
         self.assertEqual(self.lme_test_func(), "1")
         self.assertEqual(self.lme_test_func(True), "1 flag")
-        if compiles_after_one_call():
+        if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
             self.assertTrue(is_jit_compiled(LoadMethodEliminationTests.lme_test_func))
 
 

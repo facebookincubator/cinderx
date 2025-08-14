@@ -14,7 +14,7 @@ import cinderx
 cinderx.init()
 import cinderx.test_support as cinder_support
 
-from cinderx.test_support import compiles_after_one_call, skip_unless_jit
+from cinderx.test_support import skip_unless_jit
 
 # Allow this file to run without CinderX.
 if cinderx.is_initialized():
@@ -353,8 +353,6 @@ class EagerCoroutineDispatch(StaticTestBase):
             mod.x = _testcapi.TestAwaitedCall()
             self.assertIsInstance(mod.x, _testcapi.TestAwaitedCall)
             self.assertIsNone(mod.x.last_awaited())
-            cinderx.jit.lazy_compile(mod.await_x)
-            cinderx.jit.lazy_compile(mod.call_x)
             coro = mod.await_await_x()
             with self.assertRaisesRegex(
                 TypeError, r".*can't be used in 'await' expression"
@@ -368,7 +366,7 @@ class EagerCoroutineDispatch(StaticTestBase):
                 coro.send(None)
             coro.close()
             self.assertFalse(mod.x.last_awaited())
-            if compiles_after_one_call():
+            if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
                 self.assertTrue(cinderx.jit.is_jit_compiled(mod.await_x))
                 self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
 
@@ -415,8 +413,6 @@ class EagerCoroutineDispatch(StaticTestBase):
             )
             awaited_capturer = mod.X.x = _testcapi.TestAwaitedCall()
             self.assertIsNone(awaited_capturer.last_awaited())
-            cinderx.jit.lazy_compile(mod.await_x)
-            cinderx.jit.lazy_compile(mod.call_x)
             coro = mod.await_x(mod.X())
             with self.assertRaisesRegex(
                 TypeError, r".*can't be used in 'await' expression"
@@ -430,8 +426,7 @@ class EagerCoroutineDispatch(StaticTestBase):
                 coro.send(None)
             coro.close()
             self.assertFalse(awaited_capturer.last_awaited())
-
-            if compiles_after_one_call():
+            if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
                 self.assertTrue(cinderx.jit.is_jit_compiled(mod.await_x))
                 self.assertTrue(cinderx.jit.is_jit_compiled(mod.call_x))
 

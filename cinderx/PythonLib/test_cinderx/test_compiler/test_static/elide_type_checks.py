@@ -3,13 +3,11 @@ import unittest
 
 import cinderx.jit
 
-from cinderx.test_support import skip_unless_jit
-
 from .common import StaticTestBase
 
 
 class ElideTypeChecksTests(StaticTestBase):
-    @skip_unless_jit("Testing Static Python + JIT behavior")
+    @unittest.skipIf(not cinderx.jit.is_enabled(), "JIT disabled")
     def test_invoke_function_skips_arg_type_checks(self) -> None:
         codestr = """
             from xxclassloader import unsafe_change_type
@@ -39,17 +37,13 @@ class ElideTypeChecksTests(StaticTestBase):
                 mod.g(mod.B())
 
             cinderx.jit.force_compile(mod.f)
-            cinderx.jit.force_compile(mod.g)
-
-            self.assertTrue(cinderx.jit.is_jit_compiled(mod.f))
-            self.assertTrue(cinderx.jit.is_jit_compiled(mod.g))
 
             # Should not raise a TypeError because static invokes skip arg
             # checks in JITed code.  This results in an unsound call in this case,
             # but only because we are using an unsound C extension method.
             self.assertEqual(mod.f(), "B")
 
-    @skip_unless_jit("Testing Static Python + JIT behavior")
+    @unittest.skipIf(not cinderx.jit.is_enabled(), "JIT disabled")
     def test_invoke_method_skips_arg_type_checks(self) -> None:
         codestr = """
             from xxclassloader import unsafe_change_type
@@ -81,11 +75,12 @@ class ElideTypeChecksTests(StaticTestBase):
             ):
                 mod.C().g(mod.B())
 
-            cinderx.jit.force_compile(mod.f)
-            cinderx.jit.force_compile(mod.C.g)
-
-            self.assertTrue(cinderx.jit.is_jit_compiled(mod.f))
-            self.assertTrue(cinderx.jit.is_jit_compiled(mod.C.g))
+            # force compilation on first call and populate the v-table
+            # with the JITed entrypoint
+            try:
+                mod.f(mod.C())
+            except TypeError:
+                pass
 
             # Should not raise a TypeError because static invokes skip arg
             # checks in JITed code.  This results in an unsound call in this case,
