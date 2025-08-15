@@ -73,16 +73,20 @@ def verify_stack(
         )
 
 
-def _identity(obj: object) -> object:
-    return obj
+def skip_if_jit(reason: str) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    return unittest.skipIf(cinderx.jit.is_enabled(), reason)
 
 
-def skip_if_jit(reason: str) -> object:
-    return unittest.skip(reason) if cinderx.jit.is_enabled() else _identity
+def skip_unless_jit(
+    reason: str,
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    return unittest.skipUnless(cinderx.jit.is_enabled(), reason)
 
 
-def skip_unless_jit(reason: str) -> object:
-    return unittest.skip(reason) if not cinderx.jit.is_enabled() else _identity
+def skip_unless_lazy_imports(
+    reason: str = "Depends on Lazy Imports being enabled",
+) -> Callable[[Callable[..., None]], Callable[..., None]]:
+    return unittest.skipUnless(hasattr(importlib, "set_lazy_imports"), reason)
 
 
 TRet = TypeVar("TRet")
@@ -119,14 +123,6 @@ def failUnlessJITCompiled(func: Callable[..., TRet]) -> Callable[..., TRet]:
         return wrapper
 
     return func
-
-
-def skip_unless_lazy_imports(
-    reason: str = "Depends on Lazy Imports being enabled",
-) -> object:
-    if not hasattr(importlib, "set_lazy_imports"):
-        return unittest.skip(reason)
-    return _identity
 
 
 def is_asan_build() -> bool:
