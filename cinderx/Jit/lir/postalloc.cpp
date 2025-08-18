@@ -270,23 +270,6 @@ RewriteResult rewriteCallInstrs(instr_iter_t instr_iter, Environ* env) {
   instr->setNumInputs(1); // leave function self operand only
   instr->setOpcode(Instruction::kCall);
 
-  // change
-  //   call immediate_addr
-  // to
-  //   mov rax, immediate_addr
-  //   call rax
-  // this is because asmjit would make call to immediate to
-  //   call [address]
-  // where *address == immediate_addr
-  if (instr->getInput(0)->isImm()) {
-    auto imm = instr->getInput(0)->getConstant();
-
-    block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutPhyReg(RAX), Imm(imm));
-    instr->setNumInputs(0);
-    instr->addOperands(PhyReg(RAX));
-  }
-
   auto next_iter = std::next(instr_iter);
 
   env->max_arg_buffer_size = std::max<int>(env->max_arg_buffer_size, rsp_sub);

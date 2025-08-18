@@ -532,10 +532,9 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
   [RBP - 24]:Object = Move RSI:Object
         RDI:Object = Move RAX:Object
         RDX:Object = Move RCX:Object
-                     Xor RAX:Object, RAX:Object
-                     Call RAX:Object
+                     Call Object
   */
-  ASSERT_EQ(bb->getNumInstrs(), 6);
+  ASSERT_EQ(bb->getNumInstrs(), 5);
   auto& instrs = bb->instructions();
 
   auto iter = instrs.begin();
@@ -544,7 +543,6 @@ TEST_F(BackendTest, MoveSequenceOptTest) {
   ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
   ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
   ASSERT_EQ((*(iter++))->opcode(), Instruction::kMove);
-  ASSERT_EQ((*(iter++))->opcode(), Instruction::kXor);
   ASSERT_EQ((*(iter++))->opcode(), Instruction::kCall);
 }
 
