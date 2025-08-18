@@ -3,7 +3,6 @@
 
 #include "cinderx/Jit/codegen/copy_graph.h"
 #include "cinderx/Jit/generators_rt.h"
-#include "cinderx/Jit/jit_gdb_support.h"
 #include "cinderx/Jit/jit_list.h"
 #include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/perf_jitdump.h"
