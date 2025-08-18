@@ -1842,11 +1842,23 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         ThreadedCompileSerialize guard;
         auto instr = static_cast<const LoadGlobalCached*>(&i);
         PyObject* globals = instr->globals();
+        JIT_CHECK(
+            PyDict_CheckExact(globals),
+            "Globals should be a dict, but is actually a {}",
+            Py_TYPE(globals)->tp_name);
         env_->code_rt->addReference(globals);
         PyObject* builtins = instr->builtins();
+        JIT_CHECK(
+            PyDict_CheckExact(builtins),
+            "Builtins should be a dict, but is actually a {}",
+            Py_TYPE(builtins)->tp_name);
         env_->code_rt->addReference(builtins);
         PyObject* name =
             PyTuple_GET_ITEM(instr->code()->co_names, instr->name_idx());
+        JIT_CHECK(
+            PyUnicode_CheckExact(name),
+            "Global name should be a string, but is actually a {}",
+            Py_TYPE(name)->tp_name);
         auto cache = cinderx::getModuleState()->cacheManager()->getGlobalCache(
             builtins, globals, name);
         bbb.appendInstr(instr->output(), Instruction::kMove, MemImm{cache});

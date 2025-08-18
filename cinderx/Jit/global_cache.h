@@ -7,16 +7,15 @@
 #ifdef __cplusplus
 
 #include "cinderx/Common/ref.h"
-#include "cinderx/Common/util.h"
 #include "cinderx/Jit/global_cache_iface.h"
 #include "cinderx/Jit/slab_arena.h"
-#include "cinderx/Jit/threaded_compile.h"
 
 #include <set>
 #include <unordered_map>
 
 namespace jit {
 
+// Identifies a cached global Python value.
 struct GlobalCacheKey {
   // builtins and globals are weak references; the invalidation code is
   // responsible for erasing any relevant keys when a dict is freed.
@@ -24,59 +23,43 @@ struct GlobalCacheKey {
   BorrowedRef<PyDictObject> globals;
   Ref<PyUnicodeObject> name;
 
-  GlobalCacheKey(PyObject* builtins, PyObject* globals, PyObject* name)
-      : builtins(builtins), globals(globals) {
-    ThreadedCompileSerialize guard;
-    this->name = Ref<>::create(name);
-  }
+  GlobalCacheKey(
+      BorrowedRef<PyDictObject> builtins,
+      BorrowedRef<PyDictObject> globals,
+      BorrowedRef<PyUnicodeObject> name);
 
-  ~GlobalCacheKey() {
-    ThreadedCompileSerialize guard;
-    name.reset();
-  }
+  ~GlobalCacheKey();
 
-  bool operator==(const GlobalCacheKey& other) const {
-    return builtins == other.builtins && globals == other.globals &&
-        name == other.name;
-  }
+  bool operator==(const GlobalCacheKey& other) const = default;
 };
 
 struct GlobalCacheKeyHash {
-  std::size_t operator()(const GlobalCacheKey& key) const {
-    std::hash<PyObject*> hasher;
-    return combineHash(
-        hasher(key.builtins), hasher(key.globals), hasher(key.name));
-  }
+  std::size_t operator()(const GlobalCacheKey& key) const;
 };
 
 using GlobalCacheMap =
     std::unordered_map<GlobalCacheKey, PyObject**, GlobalCacheKeyHash>;
 
-// Functions to initialize, update, and disable a global cache. The actual
-// cache lives in a GlobalCacheMap, so this is a thin wrapper around a pointer
-// to that data.
+// Wrapper class to initialize, update, and disable a global cache. The actual
+// cache lives in a GlobalCacheMap.
 class GlobalCache {
  public:
-  explicit GlobalCache(GlobalCacheMap::value_type* pair) : pair_(pair) {}
+  explicit GlobalCache(GlobalCacheMap::value_type* pair);
 
-  const GlobalCacheKey& key() const {
-    return pair_->first;
-  }
+  // Get the key for the cached global value.
+  const GlobalCacheKey& key() const;
 
-  PyObject** valuePtr() const {
-    return pair_->second;
-  }
+  // Get the address of the cached Python value.
+  PyObject** valuePtr() const;
 
   // Set the global cache pointer.
   void init(PyObject** cache) const;
 
-  // Clear the cache's value. Unsubscribing from any watched dicts is left to
+  // Clear the cache's value.  Unsubscribing from any watched dicts is left to
   // the caller since it can involve complicated dances with iterators.
   void clear();
 
-  bool operator<(const GlobalCache& other) const {
-    return pair_ < other.pair_;
-  }
+  bool operator<(const GlobalCache& other) const;
 
  private:
   GlobalCacheMap::value_type* pair_;

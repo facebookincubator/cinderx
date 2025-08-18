@@ -3,7 +3,9 @@
 #include "cinderx/Jit/global_cache.h"
 
 #include "cinderx/Common/dict.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Common/watchers.h"
+#include "cinderx/Jit/threaded_compile.h"
 #include "cinderx/module_state.h"
 
 #ifndef ENABLE_LAZY_IMPORTS
@@ -17,6 +19,19 @@ extern "C" {
 
 PyObject**
 _PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key) {
+  JIT_CHECK(
+      PyDict_CheckExact(builtins),
+      "Builtins should be a dict, but is actually a {}",
+      Py_TYPE(builtins)->tp_name);
+  JIT_CHECK(
+      PyDict_CheckExact(globals),
+      "Globals should be a dict, but is actually a {}",
+      Py_TYPE(globals)->tp_name);
+  JIT_CHECK(
+      PyUnicode_CheckExact(key),
+      "Dictionary key should be a string, but is actually a {}",
+      Py_TYPE(key)->tp_name);
+
   return cinderx::getModuleState()->cacheManager()->getGlobalCache(
       builtins, globals, key);
 }
@@ -24,9 +39,44 @@ _PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key) {
 PyObject** _PyJIT_GetDictCache(PyObject* dict, PyObject* key) {
   return _PyJIT_GetGlobalCache(dict, dict, key);
 }
-}
+
+} // extern "C"
 
 namespace jit {
+
+GlobalCacheKey::GlobalCacheKey(
+    BorrowedRef<PyDictObject> builtins,
+    BorrowedRef<PyDictObject> globals,
+    BorrowedRef<PyUnicodeObject> name)
+    : builtins{builtins}, globals{globals} {
+  ThreadedCompileSerialize guard;
+  JIT_CHECK(
+      PyUnicode_CHECK_INTERNED(name.get()),
+      "Global cache names must be interned; they'll be compared by pointer "
+      "value");
+  this->name = Ref<>::create(name);
+}
+
+GlobalCacheKey::~GlobalCacheKey() {
+  ThreadedCompileSerialize guard;
+  name.reset();
+}
+
+std::size_t GlobalCacheKeyHash::operator()(const GlobalCacheKey& key) const {
+  std::hash<PyObject*> hasher;
+  return combineHash(
+      hasher(key.builtins), hasher(key.globals), hasher(key.name));
+}
+
+GlobalCache::GlobalCache(GlobalCacheMap::value_type* pair) : pair_(pair) {}
+
+const GlobalCacheKey& GlobalCache::key() const {
+  return pair_->first;
+}
+
+PyObject** GlobalCache::valuePtr() const {
+  return pair_->second;
+}
 
 void GlobalCache::init(PyObject** cache) const {
   pair_->second = cache;
@@ -34,6 +84,10 @@ void GlobalCache::init(PyObject** cache) const {
 
 void GlobalCache::clear() {
   *valuePtr() = nullptr;
+}
+
+bool GlobalCache::operator<(const GlobalCache& other) const {
+  return pair_ < other.pair_;
 }
 
 GlobalCacheManager::~GlobalCacheManager() {
@@ -44,16 +98,17 @@ GlobalCache GlobalCacheManager::findGlobalCache(
     BorrowedRef<PyDictObject> builtins,
     BorrowedRef<PyDictObject> globals,
     BorrowedRef<PyUnicodeObject> key) {
-  JIT_CHECK(PyUnicode_CheckExact(key), "Key must be a str");
-  JIT_CHECK(PyUnicode_CHECK_INTERNED(key.get()), "Key must be interned");
   auto result = map_.emplace(
       std::piecewise_construct,
       std::forward_as_tuple(builtins, globals, key),
       std::forward_as_tuple());
   GlobalCache cache(&*result.first);
+
+  // This is a new global cache entry, so we have to initialize it.
   if (result.second) {
     initCache(cache);
   }
+
   return cache;
 }
 
@@ -73,8 +128,9 @@ void GlobalCacheManager::notifyDictUpdate(
     BorrowedRef<PyDictObject> dict,
     BorrowedRef<PyUnicodeObject> key,
     BorrowedRef<> value) {
-  JIT_CHECK(PyUnicode_CheckExact(key), "key must be a str");
-  JIT_CHECK(PyUnicode_CHECK_INTERNED(key.get()), "Key must be interned");
+  JIT_CHECK(
+      PyUnicode_CHECK_INTERNED(key.get()),
+      "Dict key must be interned as it'll be compared by pointer value");
 
   auto dict_it = watch_map_.find(dict);
   // Something else in Cinderx could be watching this dict. Return early if no
@@ -180,8 +236,6 @@ void GlobalCacheManager::watchDictKey(
     BorrowedRef<PyDictObject> dict,
     BorrowedRef<PyUnicodeObject> key,
     GlobalCache cache) {
-  JIT_CHECK(PyUnicode_CheckExact(key), "key must be a str");
-  JIT_CHECK(PyUnicode_CHECK_INTERNED(key.get()), "key must be interned");
   auto& watchers = watch_map_[dict][key];
   bool inserted = watchers.emplace(cache).second;
   JIT_CHECK(inserted, "cache was already watching key");
