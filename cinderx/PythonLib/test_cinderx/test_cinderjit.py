@@ -4,7 +4,6 @@ import asyncio
 import faulthandler
 import gc
 import itertools
-import os
 import shutil
 import subprocess
 import sys
@@ -33,7 +32,12 @@ from cinderx.jit import (
     jit_suppress,
     jit_unsuppress,
 )
-from cinderx.test_support import run_in_subprocess, skip_unless_jit
+from cinderx.test_support import (
+    CINDERX_PATH,
+    ENCODING,
+    run_in_subprocess,
+    skip_unless_jit,
+)
 
 from .common import failUnlessHasOpcodes, with_globals
 
@@ -43,9 +47,6 @@ try:
         from .test_compiler.test_static.common import StaticTestBase
 except ImportError:
     from test_compiler.test_static.common import StaticTestBase
-
-
-ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
 
 
 class TestException(Exception):
@@ -1599,7 +1600,11 @@ class CinderJitModuleTests(StaticTestBase):
                 args.extend(params)
                 args.append("mod.py")
                 proc = subprocess.run(
-                    args, cwd=tmp, stdout=subprocess.PIPE, encoding=ENCODING
+                    args,
+                    cwd=tmp,
+                    stdout=subprocess.PIPE,
+                    encoding=ENCODING,
+                    env={"PYTHONPATH": CINDERX_PATH},
                 )
                 self.assertEqual(proc.returncode, 0, proc)
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
@@ -1674,7 +1679,11 @@ class CinderJitModuleTests(StaticTestBase):
 
             def run_proc():
                 proc = subprocess.run(
-                    args, cwd=tmp, stdout=subprocess.PIPE, encoding=ENCODING
+                    args,
+                    cwd=tmp,
+                    stdout=subprocess.PIPE,
+                    encoding=ENCODING,
+                    env={"PYTHONPATH": CINDERX_PATH},
                 )
                 self.assertEqual(proc.returncode, 0, proc)
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
@@ -1706,7 +1715,11 @@ class CinderJitModuleTests(StaticTestBase):
 
             def run_proc():
                 proc = subprocess.run(
-                    args, cwd=tmp, stderr=subprocess.PIPE, encoding=ENCODING
+                    args,
+                    cwd=tmp,
+                    stderr=subprocess.PIPE,
+                    encoding=ENCODING,
+                    env={"PYTHONPATH": CINDERX_PATH},
                 )
                 self.assertEqual(proc.returncode, -6, proc)
                 return proc.stderr

@@ -4,6 +4,7 @@
 import ctypes
 import importlib
 import multiprocessing
+import os.path
 import sys
 import tempfile
 import unittest
@@ -13,6 +14,7 @@ from pathlib import Path
 
 from typing import Callable, Coroutine, Generator, Sequence, TypeVar
 
+import cinderx
 import cinderx.jit
 
 try:
@@ -25,6 +27,13 @@ except ImportError:
 
     def hasCinderX() -> bool:
         return False
+
+
+# String encoding to use for subprocesses.
+ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
+
+# Hack to allow subprocesses to find where the cinderx module is.
+CINDERX_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
 
 
 def get_cinderjit_xargs() -> list[str]:

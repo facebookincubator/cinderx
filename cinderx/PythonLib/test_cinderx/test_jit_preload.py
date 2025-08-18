@@ -14,13 +14,7 @@ cinderx.init()
 
 import cinderx.jit
 
-from cinderx.test_support import skip_unless_jit
-
-
-ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
-
-# Hack to allow subprocesses to find where cinderx is.
-MOD_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
+from cinderx.test_support import CINDERX_PATH, ENCODING, skip_unless_jit
 
 
 class PreloadTests(unittest.TestCase):
@@ -46,7 +40,7 @@ class PreloadTests(unittest.TestCase):
             cwd=os.path.dirname(__file__),
             stdout=subprocess.PIPE,
             encoding=ENCODING,
-            env={"PYTHONPATH": MOD_PATH},
+            env={"PYTHONPATH": CINDERX_PATH},
         )
         self.assertEqual(proc.returncode, 0)
         expected_stdout = """resolving a_func
@@ -99,7 +93,7 @@ hello from b_func!
                     cmd,
                     cwd=root,
                     capture_output=True,
-                    env={"PYTHONPATH": MOD_PATH},
+                    env={"PYTHONPATH": CINDERX_PATH},
                 )
                 self.assertEqual(proc.returncode, 1, proc.stderr)
                 self.assertIn(b"RuntimeError: boom\n", proc.stderr)
@@ -127,7 +121,7 @@ hello from b_func!
                     cmd.append("-L")
                 cmd.append(main)
                 proc = subprocess.run(
-                    cmd, cwd=root, capture_output=True, env={"PYTHONPATH": MOD_PATH}
+                    cmd, cwd=root, capture_output=True, env={"PYTHONPATH": CINDERX_PATH}
                 )
                 # We expect an exception, but not a crash!
                 self.assertEqual(proc.returncode, 1, proc.stderr)

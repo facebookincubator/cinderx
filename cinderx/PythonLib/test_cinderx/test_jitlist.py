@@ -20,13 +20,7 @@ cinderx.init()
 
 import cinderx.jit
 
-from cinderx.test_support import skip_unless_jit
-
-
-ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
-
-# Hack to allow subprocesses to find where cinderx is.
-MOD_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
+from cinderx.test_support import CINDERX_PATH, ENCODING, skip_unless_jit
 
 
 @skip_unless_jit("JIT list functionality requires the JIT")
@@ -142,7 +136,7 @@ class JitListTest(unittest.TestCase):
             cmd,
             cwd=root,
             capture_output=True,
-            env={"PYTHONPATH": MOD_PATH},
+            env={"PYTHONPATH": CINDERX_PATH},
         )
         self.assertEqual(proc.returncode, 0, proc.stderr)
         self.assertEqual(b"42\n", proc.stdout, proc.stdout)
@@ -181,7 +175,7 @@ class JitListTest(unittest.TestCase):
                 capture_output=True,
                 cwd=tmp,
                 encoding=ENCODING,
-                env={"PYTHONPATH": MOD_PATH},
+                env={"PYTHONPATH": CINDERX_PATH},
             )
         self.assertEqual(proc.returncode, 0, proc)
         self.assertEqual(proc.stdout.strip(), "24")
@@ -247,7 +241,7 @@ class JitListTest(unittest.TestCase):
                 capture_output=True,
                 cwd=tmp,
                 encoding=ENCODING,
-                env={"PYTHONPATH": MOD_PATH},
+                env={"PYTHONPATH": CINDERX_PATH},
             )
         self.assertEqual(proc.returncode, 0, proc)
         self.assertIn("Continuing on with the JIT disabled", proc.stderr)
@@ -275,7 +269,7 @@ class JitListTest(unittest.TestCase):
                 capture_output=True,
                 cwd=tmp,
                 encoding=ENCODING,
-                env={"PYTHONPATH": MOD_PATH},
+                env={"PYTHONPATH": CINDERX_PATH},
             )
         self.assertNotEqual(proc.returncode, 0, proc)
         self.assertIn("Error while parsing line", proc.stderr)

@@ -12,13 +12,7 @@ import cinderx
 
 cinderx.init()
 
-from cinderx.test_support import skip_unless_jit
-
-
-ENCODING: str = sys.stdout.encoding or sys.getdefaultencoding()
-
-# Hack to allow subprocesses to find where cinderx is.
-MOD_PATH: str = os.path.dirname(os.path.dirname(cinderx.__file__))
+from cinderx.test_support import CINDERX_PATH, ENCODING, skip_unless_jit
 
 
 class PerfMapTests(unittest.TestCase):
@@ -32,7 +26,7 @@ class PerfMapTests(unittest.TestCase):
             [sys.executable, "-X", "jit", "-X", "jit-perfmap", helper_file],
             stdout=subprocess.PIPE,
             encoding=ENCODING,
-            env={"PYTHONPATH": MOD_PATH},
+            env={"PYTHONPATH": CINDERX_PATH},
         )
         self.assertEqual(proc.returncode, 0)
 
