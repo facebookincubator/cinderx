@@ -2446,25 +2446,6 @@ def func():
         self.run_test(src)
 
 
-class BatchCompileTests(unittest.TestCase):
-    @skip_unless_jit("Runs a subprocess with the JIT enabled")
-    def test_batch_compile_nested_func(self) -> None:
-        root = Path(
-            os.path.join(os.path.dirname(__file__), "data/batch_compile_nested_func")
-        )
-        cmd = [
-            sys.executable,
-            "-X",
-            f"jit-list-file={root / 'jitlist.txt'}",
-            "-X",
-            "jit-batch-compile-workers=2",
-            str(root / "main.py"),
-        ]
-        proc = subprocess.run(cmd, cwd=root, capture_output=True)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        self.assertEqual(b"42\n", proc.stdout, proc.stdout)
-
-
 class LoadMethodEliminationTests(unittest.TestCase):
     def lme_test_func(self, flag=False):
         return "{}{}".format(

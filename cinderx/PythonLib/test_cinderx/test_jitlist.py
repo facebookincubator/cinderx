@@ -126,6 +126,27 @@ class JitListTest(unittest.TestCase):
         if cinderx.jit.auto_jit_threshold() <= 1:
             self.assertTrue(cinderx.jit.is_jit_compiled(inner_func))
 
+    def test_batch_compile_nested_func(self) -> None:
+        root = Path(
+            os.path.join(os.path.dirname(__file__), "data/batch_compile_nested_func")
+        )
+        cmd = [
+            sys.executable,
+            "-X",
+            f"jit-list-file={root / 'jitlist.txt'}",
+            "-X",
+            "jit-batch-compile-workers=2",
+            str(root / "main.py"),
+        ]
+        proc = subprocess.run(
+            cmd,
+            cwd=root,
+            capture_output=True,
+            env={"PYTHONPATH": MOD_PATH},
+        )
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertEqual(b"42\n", proc.stdout, proc.stdout)
+
     def test_precompile_all(self) -> None:
         # Has to be run under a separate process because precompile_all will mess up the
         # other JIT-related tests.
