@@ -39,9 +39,6 @@
 
 namespace jit::perf {
 
-const std::string kDefaultSymbolPrefix{"__CINDER_INFRA_JIT"};
-const std::string kFuncSymbolPrefix{"__CINDER_JIT"};
-const std::string kShadowFrameSymbolPrefix{"__CINDER_SHDW_FRAME_JIT"};
 int jit_perfmap = 0;
 std::string perf_jitdump_dir;
 
@@ -491,8 +488,8 @@ bool isPreforkCompilationEnabled() {
 
 void registerFunction(
     const std::vector<std::pair<void*, std::size_t>>& code_sections,
-    const std::string& name,
-    const std::string& prefix) {
+    std::string_view name,
+    std::string_view prefix) {
   ThreadedCompileSerialize guard;
 
   initFiles();
@@ -500,7 +497,7 @@ void registerFunction(
   for (auto& section_and_size : code_sections) {
     void* code = section_and_size.first;
     std::size_t size = section_and_size.second;
-    auto jit_entry = prefix + ":" + name;
+    auto jit_entry = fmt::format("{}:{}", prefix, name);
     PyUnstable_WritePerfMapEntry(
         static_cast<const void*>(code), size, jit_entry.c_str());
   }
@@ -511,7 +508,7 @@ void registerFunction(
 
     static uint64_t code_index = 0;
     for (auto& section_and_size : code_sections) {
-      auto const prefixed_name = prefix + ":" + name;
+      auto const prefixed_name = fmt::format("{}:{}", prefix, name);
 
       void* code = section_and_size.first;
       std::size_t size = section_and_size.second;

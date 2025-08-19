@@ -4,14 +4,14 @@
 
 #include <cstddef>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace jit::perf {
 
-extern const std::string kDefaultSymbolPrefix;
-extern const std::string kFuncSymbolPrefix;
-extern const std::string kNoFrameSymbolPrefix;
-extern const std::string kShadowFrameSymbolPrefix;
+constexpr std::string_view kDefaultSymbolPrefix{"__CINDER_INFRA_JIT"};
+constexpr std::string_view kFuncSymbolPrefix{"__CINDER_JIT"};
+constexpr std::string_view kShadowFrameSymbolPrefix{"__CINDER_SHDW_FRAME_JIT"};
 
 // Write out perf metadata for the given compiled function, depending on what's
 // enabled in the environment:
@@ -29,8 +29,8 @@ bool isPreforkCompilationEnabled();
 
 void registerFunction(
     const std::vector<std::pair<void*, std::size_t>>& code_sections,
-    const std::string& name,
-    const std::string& prefix = kDefaultSymbolPrefix);
+    std::string_view name,
+    std::string_view prefix = kDefaultSymbolPrefix);
 
 // After-fork callback for child processes. Performs any cleanup necessary for
 // per-process state, including handling of Linux perf pid maps.

@@ -1722,7 +1722,7 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   }
 
   const hir::Function* func = GetFunction();
-  std::string prefix = [&] {
+  std::string_view prefix = [&] {
     switch (func->frameMode) {
       case FrameMode::kNormal:
         return perf::kFuncSymbolPrefix;
