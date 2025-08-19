@@ -125,12 +125,17 @@ static PyMemberDef cached_classproperty_members[] = {
      T_OBJECT,
      offsetof(PyCachedClassPropertyDescrObject, func),
      READONLY},
+    {"value",
+     T_OBJECT_EX,
+     offsetof(PyCachedClassPropertyDescrObject, value),
+     0},
     {0}};
 
 static PyType_Slot PyCachedClassProperty_slots[] = {
     {Py_tp_dealloc, cached_classproperty_dealloc},
     {Py_tp_traverse, cached_classproperty_traverse},
     {Py_tp_descr_get, cached_classproperty_get},
+    // We don't expose a setter to instance.blah = thing still doesn't work
     {Py_tp_members, cached_classproperty_members},
     {Py_tp_getset, cached_classproperty_getsetlist},
     {Py_tp_new, cached_classproperty_new},

@@ -778,3 +778,55 @@ class CachedPropertyTests(StaticTestBase):
                 # Access after reset, should bump ctr
                 self.assertEqual(asyncio.run(await_x(c.x)), 3)
                 self.assertEqual(c.ctr, 2)
+
+
+class CachedClassPropertyTests(StaticTestBase):
+    def test_cached_classproperty(self) -> None:
+        codestr = """
+        from cinderx import cached_classproperty
+
+        class BoxedCounter:
+            def __init__(self, value = 0):
+                self.value = value
+
+        class C:
+            hit_count = BoxedCounter()
+
+            @cached_classproperty
+            def x(cls):
+                cls.hit_count.value += 1
+                return 3
+        """
+        with self.in_strict_module(codestr) as mod:
+            C = mod.C
+            self.assertEqual(C.x, 3)
+            self.assertEqual(C.hit_count.value, 1)
+
+            # This next access shouldn't bump the hit count
+            self.assertEqual(C.x, 3)
+            self.assertEqual(C.hit_count.value, 1)
+
+    def test_cached_classproperty_value_set(self) -> None:
+        codestr = """
+        from cinderx import cached_classproperty
+
+        class C:
+            @cached_classproperty
+            def x(self):
+                return 3
+            
+            @classmethod
+            def set_x(cls, value):
+                cls.__dict__['x'].value = value
+
+            def get_x_instance(self):
+                return self.x
+        """
+        with self.in_strict_module(codestr) as mod:
+            C = mod.C
+            c = C()
+            self.assertEqual(C.x, 3)
+            self.assertEqual(c.get_x_instance(), 3)
+            C.set_x(42)
+            self.assertEqual(C.x, 42)
+            self.assertEqual(c.get_x_instance(), 42)
