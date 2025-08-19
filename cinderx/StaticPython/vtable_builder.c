@@ -27,7 +27,6 @@
 #include "cinderx/StaticPython/objectkey.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/type.h"
-#include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable_defs.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/module_c_state.h"

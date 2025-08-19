@@ -7,7 +7,6 @@
 #include "cinderx/StaticPython/errors.h"
 #include "cinderx/StaticPython/generic_type.h"
 #include "cinderx/StaticPython/typed_method_def.h"
-#include "cinderx/StaticPython/vtable.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 #if PY_VERSION_HEX < 0x030C0000
