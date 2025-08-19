@@ -15,33 +15,6 @@
 #define PyLazyImport_CheckExact(OBJ) false
 #endif
 
-extern "C" {
-
-PyObject**
-_PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key) {
-  JIT_CHECK(
-      PyDict_CheckExact(builtins),
-      "Builtins should be a dict, but is actually a {}",
-      Py_TYPE(builtins)->tp_name);
-  JIT_CHECK(
-      PyDict_CheckExact(globals),
-      "Globals should be a dict, but is actually a {}",
-      Py_TYPE(globals)->tp_name);
-  JIT_CHECK(
-      PyUnicode_CheckExact(key),
-      "Dictionary key should be a string, but is actually a {}",
-      Py_TYPE(key)->tp_name);
-
-  return cinderx::getModuleState()->cacheManager()->getGlobalCache(
-      builtins, globals, key);
-}
-
-PyObject** _PyJIT_GetDictCache(PyObject* dict, PyObject* key) {
-  return _PyJIT_GetGlobalCache(dict, dict, key);
-}
-
-} // extern "C"
-
 namespace jit {
 
 GlobalCacheKey::GlobalCacheKey(

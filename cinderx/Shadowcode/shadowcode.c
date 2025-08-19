@@ -21,7 +21,6 @@
 #include "cinderx/Common/extra-py-flags.h"
 #include "cinderx/Common/func.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
-#include "cinderx/Jit/global_cache.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/module_c_state.h"
 
@@ -995,7 +994,7 @@ void _PyShadow_InitGlobal(
 
   assert("Shadowcode broken");
 
-  PyObject** cache = _PyJIT_GetGlobalCache(builtins, globals, name);
+  PyObject** cache = Ci_GetGlobalCache(builtins, globals, name);
   if (cache == NULL) {
     return;
   }

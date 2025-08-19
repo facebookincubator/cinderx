@@ -7,13 +7,13 @@
 #include "cinderx/Common/dict.h"
 #include "cinderx/Common/extra-py-flags.h" // @donotremove
 #include "cinderx/Common/func.h"
-#include "cinderx/Jit/global_cache.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/modulethunks.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/StaticPython/thunks.h"
 #include "cinderx/StaticPython/vtable_builder.h"
 #include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
+#include "cinderx/module_c_state.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
@@ -358,7 +358,7 @@ PyObject** _PyClassLoader_ResolveIndirectPtr(PyObject* path) {
      * we just rely upon the normal JIT dict watchers */
     PyObject* dict = Ci_MaybeStrictModule_Dict(container);
     if (dict != NULL) {
-      cache = _PyJIT_GetDictCache(dict, name);
+      cache = Ci_GetDictCache(dict, name);
     }
   }
   if (use_thunk) {

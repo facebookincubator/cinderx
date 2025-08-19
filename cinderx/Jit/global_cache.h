@@ -73,6 +73,12 @@ class GlobalCacheManager : public IGlobalCacheManager {
   // Create or look up a cache for the global with the given name, in the
   // context of the given globals and builtins dicts.  The cache will fall back
   // to builtins if the value isn't defined in the globals dict.
+  //
+  // The global that is pointed to will automatically be updated as builtins and
+  // globals change.  The value that is pointed to will be nullptr if the
+  // dictionaries can no longer be tracked or if the value is no longer defined,
+  // in which case the dictionaries need to be consulted.  This will return
+  // nullptr if the required tracking cannot be initialized.
   PyObject** getGlobalCache(
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
@@ -160,33 +166,4 @@ class GlobalCacheManager : public IGlobalCacheManager {
 
 } // namespace jit
 
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/*
- * Gets the global cache for the given builtins and globals dictionaries and
- * key.  The global that is pointed to will automatically be updated as
- * builtins and globals change.  The value that is pointed to will be NULL if
- * the dictionaries can no longer be tracked or if the value is no longer
- * defined, in which case the dictionaries need to be consulted.  This will
- * return NULL if the required tracking cannot be initialized.
- */
-PyObject**
-_PyJIT_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key);
-
-/*
- * Gets the cache for the given dictionary and key.  The value that is pointed
- * to will automatically be updated as the dictionary changes.  The value that
- * is pointed to will be NULL if the dictionaries can no longer be tracked or if
- * the value is no longer defined, in which case the dictionaries need to be
- * consulted.  This will return NULL if the required tracking cannot be
- * initialized.
- */
-PyObject** _PyJIT_GetDictCache(PyObject* dict, PyObject* key);
-
-#ifdef __cplusplus
-} // extern "C"
 #endif
