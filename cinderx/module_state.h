@@ -4,8 +4,7 @@
 
 #include "cinderx/python.h"
 
-#ifdef __cplusplus
-
+#include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/code_allocator_iface.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/context_iface.h"
@@ -175,6 +174,8 @@ class ModuleState {
 
   bool initBuiltinMembers();
 
+  WatcherState& watcherState();
+
  private:
   std::unique_ptr<jit::IGlobalCacheManager> cache_manager_;
   std::unique_ptr<jit::ICodeAllocator> code_allocator_;
@@ -190,6 +191,8 @@ class ModuleState {
 #endif
   Ref<> sys_clear_caches_, builtin_next_;
 
+  WatcherState watcher_state_;
+
   // Function objects registered for pre-fork perf-trampoline compilation.
   jit::UnorderedSet<BorrowedRef<PyFunctionObject>> perf_trampoline_worklist_;
 
@@ -201,15 +204,3 @@ void setModule(PyObject* module);
 ModuleState* getModuleState();
 
 } // namespace cinderx
-
-#endif
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-extern vectorcallfunc Ci_PyFunction_Vectorcall;
-
-#ifdef __cplusplus
-} // extern "C"
-#endif

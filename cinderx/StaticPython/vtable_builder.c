@@ -20,7 +20,6 @@
 #include "cinderx/Common/func.h"
 #include "cinderx/Common/property.h"
 #include "cinderx/Common/string.h"
-#include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/compiled_function.h"
 #include "cinderx/StaticPython/descrs.h"
 #include "cinderx/StaticPython/errors.h"
@@ -31,7 +30,7 @@
 #include "cinderx/StaticPython/typed_method_def.h"
 #include "cinderx/StaticPython/vtable_defs.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
-#include "cinderx/module_state.h"
+#include "cinderx/module_c_state.h"
 
 // Steals a reference to the `getter_tuple`, `setter_tuple`, and `deleter_tuple`
 // objects.

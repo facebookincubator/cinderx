@@ -2,8 +2,6 @@
 
 #include "cinderx/module_state.h"
 
-#include "internal/pycore_object.h"
-
 #include "cinderx/Common/log.h"
 
 namespace cinderx {
@@ -47,7 +45,7 @@ ModuleState* getModuleState() {
 
 bool ModuleState::initBuiltinMembers() {
 #if PY_VERSION_HEX >= 0x030C0000
-  constexpr PyTypeObject* types[] = {
+  PyTypeObject* types[] = {
       &PyBool_Type,
       &PyBytes_Type,
       &PyByteArray_Type,
@@ -58,7 +56,7 @@ bool ModuleState::initBuiltinMembers() {
       &PyFrozenSet_Type,
       &PyList_Type,
       &PyLong_Type,
-      &_PyNone_Type,
+      Py_TYPE(Py_None),
       &PyProperty_Type,
       &PySet_Type,
       &PyTuple_Type,
@@ -97,8 +95,8 @@ bool ModuleState::initBuiltinMembers() {
   return true;
 }
 
-} // namespace cinderx
-
-extern "C" {
-vectorcallfunc Ci_PyFunction_Vectorcall;
+WatcherState& ModuleState::watcherState() {
+  return watcher_state_;
 }
+
+} // namespace cinderx

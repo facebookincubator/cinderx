@@ -9,10 +9,10 @@
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
-#include "cinderx/Common/watchers.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/StaticPython/strictmoduleobject.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_state.h"
 
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/exports.h"
@@ -31,7 +31,7 @@ struct TypeWatcher {
 
   void watch(BorrowedRef<PyTypeObject> type, T* cache) {
     JIT_CHECK(
-        Ci_Watchers_WatchType(type) == 0,
+        cinderx::getModuleState()->watcherState().watchType(type) == 0,
         "Failed to watch type {} for attribute cache",
         type->tp_name);
     caches[type].emplace(cache);

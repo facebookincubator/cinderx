@@ -4,40 +4,52 @@
 
 #include "cinderx/python.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "cinderx/Common/ref.h"
 
-/*
- * Watcher callback types.
- */
-typedef int (*CodeWatcher)(PyCodeEvent, PyCodeObject*);
-typedef int (*DictWatcher)(PyDict_WatchEvent, PyObject*, PyObject*, PyObject*);
-typedef int (*FuncWatcher)(PyFunction_WatchEvent, PyFunctionObject*, PyObject*);
-typedef int (*TypeWatcher)(PyTypeObject*);
+namespace cinderx {
 
-typedef struct {
-  CodeWatcher code_watcher;
-  DictWatcher dict_watcher;
-  FuncWatcher func_watcher;
-  TypeWatcher type_watcher;
-} WatcherState;
+// Watcher callback types.
+using CodeWatcher = int (*)(PyCodeEvent, PyCodeObject*);
+using DictWatcher = int (*)(PyDict_WatchEvent, PyObject*, PyObject*, PyObject*);
+using FuncWatcher =
+    int (*)(PyFunction_WatchEvent, PyFunctionObject*, PyObject*);
+using TypeWatcher = int (*)(PyTypeObject*);
 
-/*
- * Watch or unwatch a dictionary.
- */
-int Ci_Watchers_WatchDict(PyObject* dict);
-int Ci_Watchers_UnwatchDict(PyObject* dict);
+class WatcherState {
+ public:
+  WatcherState();
+  ~WatcherState();
 
-/*
- * Watch or unwatch a type.
- */
-int Ci_Watchers_WatchType(PyTypeObject* type);
-int Ci_Watchers_UnwatchType(PyTypeObject* type);
+  // Register and enable all watchers.  Can fail with a Python error.
+  int init();
 
-int Ci_Watchers_Init(const WatcherState* state);
-int Ci_Watchers_Fini(void);
+  // Disable all watchers.  Can fail with a Python error.
+  int fini();
 
-#ifdef __cplusplus
-}
-#endif
+  // Set individual watchers.
+  void setCodeWatcher(CodeWatcher watcher);
+  void setDictWatcher(DictWatcher watcher);
+  void setFuncWatcher(FuncWatcher watcher);
+  void setTypeWatcher(TypeWatcher watcher);
+
+  // Watch or unwatch a dictionary.
+  int watchDict(BorrowedRef<PyDictObject> dict);
+  int unwatchDict(BorrowedRef<PyDictObject> dict);
+
+  // Watch or unwatch a type.
+  int watchType(BorrowedRef<PyTypeObject> type);
+  int unwatchType(BorrowedRef<PyTypeObject> type);
+
+ private:
+  CodeWatcher code_watcher_{nullptr};
+  DictWatcher dict_watcher_{nullptr};
+  FuncWatcher func_watcher_{nullptr};
+  TypeWatcher type_watcher_{nullptr};
+
+  int code_watcher_id_{-1};
+  int dict_watcher_id_{-1};
+  int func_watcher_id_{-1};
+  int type_watcher_id_{-1};
+};
+
+} // namespace cinderx

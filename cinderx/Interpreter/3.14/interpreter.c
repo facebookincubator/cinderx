@@ -7,7 +7,7 @@
 #include "cinderx/UpstreamBorrow/borrowed.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 
-#include "cinderx/module_state.h"
+#include "cinderx/module_c_state.h"
 
 #include "cinderx/Common/code.h"
 
@@ -273,7 +273,7 @@ primitive_unary_op(PyObject *val, int oparg)
     }
     return res;
 }
-      
+
 #define INT_BIN_OPCODE_UNSIGNED(opid, op)                                 \
     case opid:                                                            \
         res = PyLong_FromVoidPtr((void*)(((size_t)PyLong_AsVoidPtr(l))op( \

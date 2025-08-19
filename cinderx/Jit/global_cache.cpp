@@ -211,7 +211,7 @@ void GlobalCacheManager::clear() {
     // so we need to make sure each dictionary is still being watched
     if (dict_it != watch_map_.end()) {
       notifyDictUnwatch(dict);
-      Ci_Watchers_UnwatchDict(dict);
+      cinderx::getModuleState()->watcherState().unwatchDict(dict);
     }
   }
 }
@@ -240,7 +240,7 @@ void GlobalCacheManager::watchDictKey(
   bool inserted = watchers.emplace(cache).second;
   JIT_CHECK(inserted, "cache was already watching key");
   JIT_CHECK(
-      Ci_Watchers_WatchDict(dict) == 0,
+      cinderx::getModuleState()->watcherState().watchDict(dict) == 0,
       "Failed to watch globals or builtins dict");
 }
 
@@ -262,7 +262,7 @@ void GlobalCacheManager::unwatchDictKey(
     if (dict_keys.empty()) {
       watch_map_.erase(dict_it);
       JIT_CHECK(
-          Ci_Watchers_UnwatchDict(dict) == 0,
+          cinderx::getModuleState()->watcherState().unwatchDict(dict) == 0,
           "Failed to unwatch globals or builtins dictionary");
     }
   }

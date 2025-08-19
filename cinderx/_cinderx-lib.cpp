@@ -910,12 +910,8 @@ int cinder_init() {
 
   init_already_existing_types();
 
-  WatcherState watcher_state;
-  watcher_state.code_watcher = cinderx_code_watcher;
-  watcher_state.dict_watcher = cinderx_dict_watcher;
-  watcher_state.func_watcher = cinderx_func_watcher;
-  watcher_state.type_watcher = cinderx_type_watcher;
-  if (Ci_Watchers_Init(&watcher_state)) {
+  auto& watcher_state = cinderx::getModuleState()->watcherState();
+  if (watcher_state.init() < 0) {
     return -1;
   }
 
@@ -1349,6 +1345,12 @@ static int _cinderx_exec(PyObject* m) {
       return -1;
     }
   }
+
+  auto& watcher_state = state->watcherState();
+  watcher_state.setCodeWatcher(cinderx_code_watcher);
+  watcher_state.setDictWatcher(cinderx_dict_watcher);
+  watcher_state.setFuncWatcher(cinderx_func_watcher);
+  watcher_state.setTypeWatcher(cinderx_type_watcher);
 
   cinderx::setModule(m);
 

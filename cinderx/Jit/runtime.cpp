@@ -6,8 +6,8 @@
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/py-portability.h"
-#include "cinderx/Common/watchers.h"
 #include "cinderx/StaticPython/classloader.h"
+#include "cinderx/module_state.h"
 
 #include <sys/mman.h>
 
@@ -262,7 +262,7 @@ void Runtime::watchType(
   }
 
   JIT_CHECK(
-      Ci_Watchers_WatchType(type) == 0,
+      cinderx::getModuleState()->watcherState().watchType(type) == 0,
       "Failed to watch type {}",
       type->tp_name);
 }
@@ -270,7 +270,7 @@ void Runtime::watchType(
 void Runtime::watchPendingTypes() {
   for (auto& type : pending_watches_) {
     JIT_CHECK(
-        Ci_Watchers_WatchType(type) == 0,
+        cinderx::getModuleState()->watcherState().watchType(type) == 0,
         "Failed to watch pending type {}",
         type->tp_name);
   }
