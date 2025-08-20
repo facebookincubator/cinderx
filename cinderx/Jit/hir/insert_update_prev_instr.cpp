@@ -155,12 +155,13 @@ void InsertUpdatePrevInstr::Run([[maybe_unused]] Function& func) {
       // - 1 to the first instruction to indicate that the frame is now
       // complete.
       if (!inited_once && instr.IsLoadEvalBreaker()) {
-        auto& cur_bc_idx_to_line =
-            code_bc_idx_map.at(parent == nullptr ? func.code : parent->code());
+        auto target_code = parent == nullptr ? func.code : parent->code();
+        auto& cur_bc_idx_to_line = code_bc_idx_map.at(target_code);
         int line_no = cur_bc_idx_to_line.lineNoFor(
-            BCIndex(func.code->_co_firsttraceable));
+            BCIndex(target_code->_co_firsttraceable));
         Instr* update_instr = UpdatePrevInstr::create(line_no, parent);
-        update_instr->setBytecodeOffset(BCIndex(func.code->_co_firsttraceable));
+        update_instr->setBytecodeOffset(
+            BCIndex(target_code->_co_firsttraceable));
         update_instr->InsertBefore(instr);
 
         inited_once = true;
