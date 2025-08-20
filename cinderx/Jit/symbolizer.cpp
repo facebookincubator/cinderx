@@ -252,7 +252,7 @@ std::optional<std::string> demangle(const std::string& mangled_name) {
 
 std::optional<std::string> symbolize(const void* func) {
 #ifdef ENABLE_SYMBOLIZER
-  if (!g_symbolize_funcs) {
+  if (!getConfig().log.symbolize_funcs) {
     return std::nullopt;
   }
   auto module_state = cinderx::getModuleState();

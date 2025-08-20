@@ -5,6 +5,7 @@
 #include "cinderx/python.h"
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/config.h"
 #include "cinderx/Jit/threaded_compile.h"
 
 #include <fmt/chrono.h>
@@ -26,19 +27,6 @@ auto format_to(
       std::back_inserter(s), format, std::forward<Args>(args)...);
 }
 
-extern int g_debug;
-extern int g_debug_inliner;
-extern int g_debug_refcount;
-extern int g_dump_hir;
-extern int g_dump_hir_passes;
-extern int g_dump_final_hir;
-extern int g_dump_lir;
-extern int g_dump_lir_no_origin;
-extern int g_dump_asm;
-extern int g_symbolize_funcs;
-extern int g_dump_stats;
-extern FILE* g_log_file;
-
 // Print the current Python exception to stderr, if it exists.
 void printPythonException();
 
@@ -48,13 +36,14 @@ void printPythonException();
 // "<failed to get UTF8 from Python string>"
 std::string repr(BorrowedRef<> obj);
 
-#define JIT_LOG(...)                                                     \
-  {                                                                      \
-    ::jit::ThreadedCompileSerialize guard;                               \
-    fmt::print(::jit::g_log_file, "JIT: {}:{} -- ", __FILE__, __LINE__); \
-    fmt::print(::jit::g_log_file, __VA_ARGS__);                          \
-    fmt::print(::jit::g_log_file, "\n");                                 \
-    std::fflush(::jit::g_log_file);                                      \
+#define JIT_LOG(...)                                           \
+  {                                                            \
+    FILE* _output = jit::getConfig().log.output_file;          \
+    jit::ThreadedCompileSerialize guard;                       \
+    fmt::print(_output, "JIT: {}:{} -- ", __FILE__, __LINE__); \
+    fmt::print(_output, __VA_ARGS__);                          \
+    fmt::print(_output, "\n");                                 \
+    std::fflush(_output);                                      \
   }
 
 #define JIT_LOGIF(PRED, ...) \
@@ -62,7 +51,7 @@ std::string repr(BorrowedRef<> obj);
     JIT_LOG(__VA_ARGS__);    \
   }
 
-#define JIT_DLOG(...) JIT_LOGIF(::jit::g_debug, __VA_ARGS__)
+#define JIT_DLOG(...) JIT_LOGIF(jit::getConfig().log.debug, __VA_ARGS__)
 
 #define JIT_CHECK(COND, ...)                      \
   {                                               \

@@ -415,7 +415,7 @@ RegisterSet DataflowAnalysis::GetOut(const BasicBlock* cfg_block) {
 }
 
 void DataflowAnalysis::dump() {
-  if (!g_debug) {
+  if (!getConfig().log.debug) {
     return;
   }
 

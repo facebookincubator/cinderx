@@ -77,6 +77,40 @@ struct JitListOptions {
   bool match_line_numbers{false};
 };
 
+struct LogOptions {
+  // Log general debug messages from the JIT.
+  bool debug{false};
+  // Log debug messages in the inlining pass.
+  bool debug_inliner{false};
+  // Log debug messages in the refcount insertion pass.
+  bool debug_refcount{false};
+  // Log debug messages in the register allocation pass.
+  bool debug_regalloc{false};
+
+  // Log HIR, before any passes are run.
+  bool dump_hir_initial{false};
+  // Log HIR after every pass is run.
+  bool dump_hir_passes{false};
+  // Log HIR after all passes have been run.
+  bool dump_hir_final{false};
+
+  // Log LIR, across all stages.
+  bool dump_lir{false};
+  // Show the originating HIR instruction for LIR instruction blocks.
+  bool lir_origin{true};
+
+  // Log disassembly of compiled functions.
+  bool dump_asm{false};
+  // Symbolize functions in disassembled call instructions.
+  bool symbolize_funcs{true};
+
+  // Log general JIT stats.
+  bool dump_stats{false};
+
+  // The file where to write logs to.
+  FILE* output_file{stderr};
+};
+
 // Collection of configuration values for the JIT.
 //
 // Note: It's fine to store non-trivially destructible objects like std::string
@@ -141,6 +175,7 @@ struct Config {
   uint32_t auto_jit_threshold{0};
   GdbOptions gdb;
   JitListOptions jit_list;
+  LogOptions log;
   bool compile_perf_trampoline_prefork{false};
   // Compile all Python functions as soon as they are called.
   bool compile_all{false};

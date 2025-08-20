@@ -29,7 +29,7 @@ static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
   COMPILE_TIMER(func.compilation_phase_timer,
                 pass.name(),
                 JIT_LOGIF(
-                    g_dump_hir_passes,
+                    getConfig().log.dump_hir_passes,
                     "HIR for {} before pass {}:\n{}",
                     func.fullname,
                     pass.name(),
@@ -41,7 +41,7 @@ static void runPass(T&& pass, hir::Function& func, PostPassFunction callback) {
                 callback(func, pass.name(), time_ns);
 
                 JIT_LOGIF(
-                    g_dump_hir_passes,
+                    getConfig().log.dump_hir_passes,
                     "HIR for {} after pass {}:\n{}",
                     func.fullname,
                     pass.name(),
@@ -111,7 +111,10 @@ void Compiler::runPasses(
       jit::hir::InsertUpdatePrevInstr{}, PassConfig::kInsertUpdatePrevInstr);
 
   JIT_LOGIF(
-      g_dump_final_hir, "Optimized HIR for {}:\n{}", irfunc.fullname, irfunc);
+      getConfig().log.dump_hir_final,
+      "Optimized HIR for {}:\n{}",
+      irfunc.fullname,
+      irfunc);
 }
 
 std::unique_ptr<CompiledFunction> Compiler::Compile(
@@ -185,7 +188,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
     compilation_phase_timer->end();
   }
 
-  if (g_dump_hir) {
+  if (getConfig().log.dump_hir_initial) {
     JIT_LOG("Initial HIR for {}:\n{}", fullname, *irfunc);
   }
 
@@ -249,7 +252,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       hir_opcode_counts,
       code_runtime);
   compiled_func->setCompileTime(compile_time);
-  if (g_debug) {
+  if (getConfig().log.debug) {
     irfunc->setCompilationPhaseTimer(nullptr);
     compiled_func->setHirFunc(std::move(irfunc));
   }

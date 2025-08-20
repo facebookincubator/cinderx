@@ -11,7 +11,6 @@
 
 #include <memory>
 #include <ostream>
-#include <queue>
 #include <utility>
 
 namespace jit::lir {

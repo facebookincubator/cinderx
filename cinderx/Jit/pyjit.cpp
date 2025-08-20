@@ -307,7 +307,7 @@ void setJitLogFile(const std::string& log_filename) {
         pid_filename,
         strerror(errno));
   } else {
-    g_log_file = file;
+    getMutableConfig().log.output_file = file;
   }
 }
 
@@ -395,7 +395,10 @@ FlagProcessor initFlagProcessor() {
       "threshold");
 
   flag_processor.addOption(
-      "jit-debug", "PYTHONJITDEBUG", g_debug, "JIT debug and extra logging");
+      "jit-debug",
+      "PYTHONJITDEBUG",
+      getMutableConfig().log.debug,
+      "JIT debug and extra logging");
 
   flag_processor
       .addOption(
@@ -418,82 +421,80 @@ FlagProcessor initFlagProcessor() {
       .addOption(
           "jit-debug-refcount",
           "PYTHONJITDEBUGREFCOUNT",
-          g_debug_refcount,
+          getMutableConfig().log.debug_refcount,
           "JIT refcount insertion debug mode")
       .withDebugMessageOverride("Enabling");
 
   flag_processor.addOption(
+      "jit-debug-regalloc",
+      "PYTHONJITDEBUGREGALLOC",
+      getMutableConfig().log.debug_regalloc,
+      "Enable or disable debug logging for the register allocator");
+
+  flag_processor.addOption(
       "jit-debug-inliner",
       "PYTHONJITDEBUGINLINER",
-      g_debug_inliner,
-      "Enable debug logging for the JIT's HIR inliner");
+      getMutableConfig().log.debug_inliner,
+      "Enable or disable debug logging for the JIT's HIR inliner");
 
   flag_processor
       .addOption(
           "jit-dump-hir",
           "PYTHONJITDUMPHIR",
-          g_dump_hir,
-          "log the HIR representation of all functions after initial "
+          getMutableConfig().log.dump_hir_initial,
+          "Log the HIR representation of all functions after initial "
           "lowering from bytecode")
-      .withDebugMessageOverride("Dump initial HIR of JITted functions");
+      .withDebugMessageOverride("Dump initial HIR of JITed functions");
 
   flag_processor
       .addOption(
           "jit-dump-hir-passes",
           "PYTHONJITDUMPHIRPASSES",
-          g_dump_hir_passes,
-          "log the HIR after each optimization pass")
+          getMutableConfig().log.dump_hir_passes,
+          "Log the HIR after each optimization pass")
       .withDebugMessageOverride(
-          "Dump HIR of JITted functions after each individual  optimization "
+          "Dump HIR of JITed functions after each individual optimization "
           "pass");
 
   flag_processor
       .addOption(
           "jit-dump-final-hir",
           "PYTHONJITDUMPFINALHIR",
-          g_dump_final_hir,
-          "log the HIR after all optimizations")
+          getMutableConfig().log.dump_hir_final,
+          "Log the HIR after all optimizations")
       .withDebugMessageOverride(
-          "Dump final HIR of JITted functions after all optimizations");
+          "Dump final HIR of JITed functions after all optimizations");
 
   flag_processor
       .addOption(
           "jit-dump-lir",
           "PYTHONJITDUMPLIR",
-          g_dump_lir,
-          "log the LIR representation of all functions after lowering from "
-          "HIR")
-      .withDebugMessageOverride("Dump initial LIR of JITted functions");
+          getMutableConfig().log.dump_lir,
+          "Log the LIR representation of functions after lowering from HIR")
+      .withDebugMessageOverride("Dump initial LIR of JITed functions");
 
   flag_processor.addOption(
-      "jit-dump-lir-no-origin",
-      "PYTHONJITDUMPLIRNOORIGIN",
-      [](const std::string&) {
-        g_dump_lir = 1;
-        g_dump_lir_no_origin = 1;
+      "jit-dump-lir-origin",
+      "PYTHONJITDUMPLIRORIGIN",
+      [](bool value) {
+        getMutableConfig().log.dump_lir = true;
+        getMutableConfig().log.lir_origin = value;
       },
-      "JIT dump-lir mode without origin data");
+      "Enable or disable whether LIR is displayed with HIR origin data");
 
   flag_processor.addOption(
-      "jit-disas-funcs",
-      "PYTHONJITDISASFUNCS",
-      g_dump_asm,
-      "jit-disas-funcs/PYTHONJITDISASFUNCS are deprecated and will soon be "
-      "removed. Use jit-dump-asm and PYTHONJITDUMPASM instead");
-
-  flag_processor.addOption(
-      "jit-no-symbolize",
-      "PYTHONJITNOSYMBOLIZE",
-      [](const std::string&) { g_symbolize_funcs = 0; },
-      "disable symbolization of functions called by JIT code");
+      "jit-symbolize",
+      "PYTHONJITSYMBOLIZE",
+      getMutableConfig().log.symbolize_funcs,
+      "Enable or disable symbolization of functions called by JIT code");
 
   flag_processor
       .addOption(
           "jit-dump-asm",
           "PYTHONJITDUMPASM",
-          g_dump_asm,
+          getMutableConfig().log.dump_asm,
           "log the final compiled code, annotated with HIR instructions")
-      .withDebugMessageOverride("Dump asm of JITted functions");
+      .withDebugMessageOverride("Dump asm of JITed functions");
 
   flag_processor.addOption(
       "jit-enable-inline-cache-stats-collection",
@@ -505,26 +506,26 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-gdb-support",
       "PYTHONJITGDBSUPPORT",
-      [](const std::string&) {
-        g_debug = 1;
-        getMutableConfig().gdb.supported = true;
+      [](bool value) {
+        getMutableConfig().log.debug = value;
+        getMutableConfig().gdb.supported = value;
       },
-      "GDB support and JIT debug mode");
+      "Enable or disable GDB support and JIT debug mode");
 
   flag_processor.addOption(
       "jit-gdb-write-elf",
       "PYTHONJITGDBWRITEELF",
-      [](const std::string&) {
-        g_debug = 1;
-        getMutableConfig().gdb.supported = true;
-        getMutableConfig().gdb.write_elf_objects = true;
+      [](bool value) {
+        getMutableConfig().log.debug = value;
+        getMutableConfig().gdb.supported = value;
+        getMutableConfig().gdb.write_elf_objects = value;
       },
       "Debugging aid, GDB support with ELF output");
 
   flag_processor.addOption(
       "jit-dump-stats",
       "PYTHONJITDUMPSTATS",
-      g_dump_stats,
+      getMutableConfig().log.dump_stats,
       "Dump JIT runtime stats at shutdown");
 
   flag_processor.addOption(
@@ -3012,7 +3013,7 @@ void finalize() {
   // metadata that we will be freeing later in this function.
   PyUnstable_GC_VisitObjects(deopt_gen_visitor, nullptr);
 
-  if (g_dump_stats) {
+  if (getConfig().log.dump_stats) {
     dump_jit_stats();
   }
 

@@ -108,86 +108,78 @@ TEST_F(CmdLineTest, BasicFlags) {
       try_flag_and_envvar_effect(
           L"jit-debug",
           "PYTHONJITDEBUG",
-          []() { g_debug = 0; },
-          []() { ASSERT_EQ(g_debug, 1); }),
+          []() { getMutableConfig().log.debug = false; },
+          []() { ASSERT_TRUE(getConfig().log.debug); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-debug-refcount",
           "PYTHONJITDEBUGREFCOUNT",
-          []() { g_debug_refcount = 0; },
-          []() { ASSERT_EQ(g_debug_refcount, 1); }),
+          []() { getMutableConfig().log.debug_refcount = false; },
+          []() { ASSERT_TRUE(getConfig().log.debug_refcount); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-debug-inliner",
           "PYTHONJITDEBUGINLINER",
-          []() { g_debug_inliner = 0; },
-          []() { ASSERT_EQ(g_debug_inliner, 1); }),
+          []() { getMutableConfig().log.debug_inliner = false; },
+          []() { ASSERT_TRUE(getConfig().log.debug_inliner); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-dump-hir",
           "PYTHONJITDUMPHIR",
-          []() { g_dump_hir = 0; },
-          []() { ASSERT_EQ(g_dump_hir, 1); }),
+          []() { getMutableConfig().log.dump_hir_initial = false; },
+          []() { ASSERT_TRUE(getConfig().log.dump_hir_initial); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-dump-hir-passes",
           "PYTHONJITDUMPHIRPASSES",
-          []() { g_dump_hir_passes = 0; },
-          []() { ASSERT_EQ(g_dump_hir_passes, 1); }),
+          []() { getMutableConfig().log.dump_hir_passes = false; },
+          []() { ASSERT_TRUE(getConfig().log.dump_hir_passes); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-dump-final-hir",
           "PYTHONJITDUMPFINALHIR",
-          []() { g_dump_final_hir = 0; },
-          []() { ASSERT_EQ(g_dump_final_hir, 1); }),
+          []() { getMutableConfig().log.dump_hir_final = false; },
+          []() { ASSERT_TRUE(getConfig().log.dump_hir_final); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-dump-lir",
           "PYTHONJITDUMPLIR",
-          []() { g_dump_lir = 0; },
-          []() { ASSERT_EQ(g_dump_lir, 1); }),
+          []() { getMutableConfig().log.dump_lir = false; },
+          []() { ASSERT_TRUE(getConfig().log.dump_lir); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
-          L"jit-dump-lir-no-origin",
-          "PYTHONJITDUMPLIRNOORIGIN",
+          L"jit-dump-lir-origin",
+          "PYTHONJITDUMPLIRORIGIN",
           []() {
-            g_dump_lir = 0;
-            g_dump_lir_no_origin = 0;
+            getMutableConfig().log.dump_lir = false;
+            getMutableConfig().log.lir_origin = false;
           },
           []() {
-            ASSERT_EQ(g_dump_lir, 1);
-            ASSERT_EQ(g_dump_lir_no_origin, 1);
+            ASSERT_TRUE(getConfig().log.dump_lir);
+            ASSERT_TRUE(getConfig().log.lir_origin);
           }),
-      0);
-
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-disas-funcs",
-          "PYTHONJITDISASFUNCS",
-          []() { g_dump_asm = 0; },
-          []() { ASSERT_EQ(g_dump_asm, 1); }),
       0);
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
           L"jit-dump-asm",
           "PYTHONJITDUMPASM",
-          []() { g_dump_asm = 0; },
-          []() { ASSERT_EQ(g_dump_asm, 1); }),
+          []() { getMutableConfig().log.dump_asm = false; },
+          []() { ASSERT_TRUE(getConfig().log.dump_asm); }),
       0);
 
   ASSERT_EQ(
@@ -195,11 +187,11 @@ TEST_F(CmdLineTest, BasicFlags) {
           L"jit-gdb-support",
           "PYTHONJITGDBSUPPORT",
           []() {
-            g_debug = 0;
+            getMutableConfig().log.debug = false;
             getMutableConfig().gdb.supported = false;
           },
           []() {
-            ASSERT_EQ(g_debug, 1);
+            ASSERT_TRUE(getMutableConfig().log.debug);
             ASSERT_TRUE(getConfig().gdb.supported);
           }),
       0);
@@ -209,12 +201,12 @@ TEST_F(CmdLineTest, BasicFlags) {
           L"jit-gdb-write-elf",
           "PYTHONJITGDBWRITEELF",
           []() {
-            g_debug = 0;
+            getMutableConfig().log.debug = false;
             getMutableConfig().gdb.supported = false;
             getMutableConfig().gdb.write_elf_objects = false;
           },
           []() {
-            ASSERT_EQ(g_debug, 1);
+            ASSERT_TRUE(getConfig().log.debug);
             ASSERT_TRUE(getConfig().gdb.supported);
             ASSERT_TRUE(getConfig().gdb.write_elf_objects);
           }),
@@ -224,8 +216,8 @@ TEST_F(CmdLineTest, BasicFlags) {
       try_flag_and_envvar_effect(
           L"jit-dump-stats",
           "PYTHONJITDUMPSTATS",
-          []() { g_dump_stats = 0; },
-          []() { ASSERT_EQ(g_dump_stats, 1); }),
+          []() { getMutableConfig().log.dump_stats = false; },
+          []() { ASSERT_TRUE(getConfig().log.dump_stats); }),
       0);
 
   ASSERT_EQ(
@@ -426,8 +418,8 @@ TEST_F(CmdLineTest, JITLogFile) {
       try_flag_and_envvar_effect(
           xarg,
           const_cast<char*>(("PYTHONJITLOGFILE=" + log_file).c_str()),
-          []() { g_log_file = stderr; },
-          []() { ASSERT_NE(g_log_file, stderr); }),
+          []() { getMutableConfig().log.output_file = stderr; },
+          []() { ASSERT_NE(getConfig().log.output_file, stderr); }),
       0);
 
   delete[] xarg;

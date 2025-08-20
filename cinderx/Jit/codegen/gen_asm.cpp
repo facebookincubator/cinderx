@@ -563,7 +563,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
 
   void* result = finalizeCode(a, name);
   JIT_LOGIF(
-      g_dump_asm,
+      getConfig().log.dump_asm,
       "Disassembly for {}\n{}",
       name,
       annot.disassemble(result, code));
@@ -611,7 +611,7 @@ void* generateFailedDeferredCompileTrampoline() {
   void* result = finalizeCode(a, name);
 
   JIT_LOGIF(
-      g_dump_asm,
+      getConfig().log.dump_asm,
       "Disassembly for {}\n{}",
       name,
       annot.disassemble(result, code));
@@ -801,7 +801,7 @@ void* NativeGenerator::getVectorcallEntry() {
       lir_func = lirgen.TranslateFunction())
 
   JIT_LOGIF(
-      g_dump_lir,
+      getConfig().log.dump_lir,
       "LIR for {} after generation:\n{}",
       GetFunction()->fullname,
       *lir_func);
@@ -813,7 +813,7 @@ void* NativeGenerator::getVectorcallEntry() {
       post_gen.run())
 
   JIT_LOGIF(
-      g_dump_lir,
+      getConfig().log.dump_lir,
       "LIR for {} after postgen rewrites:\n{}",
       GetFunction()->fullname,
       *lir_func);
@@ -841,7 +841,7 @@ void* NativeGenerator::getVectorcallEntry() {
   }
 
   JIT_LOGIF(
-      g_dump_lir,
+      getConfig().log.dump_lir,
       "LIR for {} after register allocation:\n{}",
       GetFunction()->fullname,
       *lir_func);
@@ -853,7 +853,7 @@ void* NativeGenerator::getVectorcallEntry() {
       post_rewrite.run())
 
   JIT_LOGIF(
-      g_dump_lir,
+      getConfig().log.dump_lir,
       "LIR for {} after postalloc rewrites:\n{}",
       GetFunction()->fullname,
       *lir_func);
@@ -1707,7 +1707,7 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   compiled_size_ = codeholder.codeSize();
 
   JIT_LOGIF(
-      g_dump_asm,
+      getConfig().log.dump_asm,
       "Disassembly for {}\n{}",
       GetFunction()->fullname,
       env_.annotations.disassemble(code_start_, codeholder));

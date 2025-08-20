@@ -421,11 +421,11 @@ class DeoptStressTest : public RuntimeTest {
     std::cerr << HIRPrinter().ToString(irfunc) << std::endl;
     std::cerr << "Disassembly:" << std::endl;
     // Recompile so we get the annotated disassembly
-    auto old_disas_funcs = jit::g_dump_asm;
-    jit::g_dump_asm = 1;
+    bool old_dump_asm = true;
+    std::swap(jit::getMutableConfig().log.dump_asm, old_dump_asm);
     NativeGenerator gen(&irfunc);
     gen.getVectorcallEntry();
-    jit::g_dump_asm = old_disas_funcs;
+    jit::getMutableConfig().log.dump_asm = old_dump_asm;
     std::cerr << std::endl;
     std::cerr << "Python traceback: ";
     PyErr_Print();

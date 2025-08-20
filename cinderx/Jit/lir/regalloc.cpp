@@ -6,16 +6,12 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
-#include <queue>
-#include <stack>
 #include <type_traits>
 #include <utility>
 
 using namespace jit::codegen;
 
-static constexpr bool g_debug_regalloc = false;
-
-#define TRACE(...) JIT_LOGIF(g_debug_regalloc, __VA_ARGS__)
+#define TRACE(...) JIT_LOGIF(getConfig().log.debug_regalloc, __VA_ARGS__)
 
 namespace jit::lir {
 

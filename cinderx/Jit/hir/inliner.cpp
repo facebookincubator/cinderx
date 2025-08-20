@@ -13,7 +13,7 @@
 
 namespace jit::hir {
 
-#define LOG_INLINER(...) JIT_LOGIF(g_debug_inliner, __VA_ARGS__)
+#define LOG_INLINER(...) JIT_LOGIF(getConfig().log.debug_inliner, __VA_ARGS__)
 
 namespace {
 

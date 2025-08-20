@@ -43,7 +43,7 @@ class Annotations {
   // description.
   template <typename T>
   void add(T&& item, asmjit::x86::Builder* as, asmjit::BaseNode* start_cursor) {
-    if (!g_dump_asm) {
+    if (!getConfig().log.dump_asm) {
       return;
     }
     auto end_cursor = as->cursor();

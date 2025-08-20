@@ -51,7 +51,7 @@ void HIRTest::TestBody() {
     ASSERT_NO_FATAL_FAILURE(CompileToHIR(src_.c_str(), "test", irfunc));
   }
 
-  if (jit::g_dump_hir) {
+  if (jit::getConfig().log.dump_hir_initial) {
     JIT_LOG("Initial HIR for {}:\n{}", test_name, *irfunc);
   }
 

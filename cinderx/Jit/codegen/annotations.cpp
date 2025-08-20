@@ -16,7 +16,8 @@ std::string Annotations::disassembleSection(
     const asmjit::CodeHolder& code,
     CodeSection section) {
   JIT_CHECK(
-      g_dump_asm, "Annotations are not recorded without -X jit-disas-funcs");
+      getConfig().log.dump_asm,
+      "Annotations are not recorded without -X jit-dump-asm");
   auto text = code.sectionByName(codeSectionName(section));
   if (text == nullptr) {
     return "";

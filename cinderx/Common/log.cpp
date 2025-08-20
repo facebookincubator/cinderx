@@ -6,19 +6,6 @@
 
 namespace jit {
 
-int g_debug = 0;
-int g_debug_inliner = 0;
-int g_debug_refcount = 0;
-int g_dump_hir = 0;
-int g_dump_hir_passes = 0;
-int g_dump_final_hir = 0;
-int g_dump_lir = 0;
-int g_dump_lir_no_origin = 0;
-int g_dump_asm = 0;
-int g_symbolize_funcs = 1;
-int g_dump_stats = 0;
-FILE* g_log_file = stderr;
-
 void printPythonException() {
 #if PY_VERSION_HEX < 0x030C0000
   PyThreadState* tstate = PyThreadState_Get();
