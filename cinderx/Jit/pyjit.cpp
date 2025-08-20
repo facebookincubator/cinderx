@@ -475,12 +475,6 @@ FlagProcessor initFlagProcessor() {
       "JIT dump-lir mode without origin data");
 
   flag_processor.addOption(
-      "jit-dump-c-helper",
-      "PYTHONJITDUMPCHELPER",
-      g_dump_c_helper,
-      "dump all c invocations");
-
-  flag_processor.addOption(
       "jit-disas-funcs",
       "PYTHONJITDISASFUNCS",
       g_dump_asm,

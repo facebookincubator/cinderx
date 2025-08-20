@@ -14,7 +14,6 @@ int g_dump_hir_passes = 0;
 int g_dump_final_hir = 0;
 int g_dump_lir = 0;
 int g_dump_lir_no_origin = 0;
-int g_dump_c_helper = 0;
 int g_dump_asm = 0;
 int g_symbolize_funcs = 1;
 int g_dump_stats = 0;

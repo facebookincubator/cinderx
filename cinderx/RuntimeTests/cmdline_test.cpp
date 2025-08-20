@@ -176,14 +176,6 @@ TEST_F(CmdLineTest, BasicFlags) {
 
   ASSERT_EQ(
       try_flag_and_envvar_effect(
-          L"jit-dump-c-helper",
-          "PYTHONJITDUMPCHELPER",
-          []() { g_dump_c_helper = 0; },
-          []() { ASSERT_EQ(g_dump_c_helper, 1); }),
-      0);
-
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
           L"jit-disas-funcs",
           "PYTHONJITDISASFUNCS",
           []() { g_dump_asm = 0; },
