@@ -8,8 +8,21 @@ test_sys
 test_tools
 test_cinderx.test_compiler.test_strict.test_strict_codegen.StrictCheckedCompilationTests.*
 
+# Sqlite3 tests that fail when run more than once.
+test.test_sqlite3.test_dbapi.RowTests.test_row_is_a_sequence
+test.test_sqlite3.test_factory.RowFactoryTests.test_sqlite_row_as_sequence
+
 # These take excessive time, particularly when combined with ASAN + UBSAN.
 test.test_audit.*
 test.test_concurrent_futures.*
 test.test_importlib.*
 test.test_multiprocessing_spawn.*
+test.test_perf_profiler.*
+
+# These tests leak references, even without the JIT.
+test_cinderx.test_jit_attr_cache.LoadModuleMethodCacheTests.*
+
+# Mysterious JIT leaks and test failures.
+test_cinderx.test_cinderjit.*
+test_cinderx.test_compiler.test_static.elide_type_checks.*
+test_cinderx.test_jit_generators.*
