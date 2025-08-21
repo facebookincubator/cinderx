@@ -21,6 +21,7 @@
 #include "cinderx/Jit/jit_time_log.h"
 
 #include <chrono>
+#include <iostream>
 
 namespace jit {
 

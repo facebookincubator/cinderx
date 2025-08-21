@@ -5,7 +5,6 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "fmt/ostream.h"
 
-#include <iostream>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -39,11 +38,6 @@ class HIRPrinter {
     std::ostringstream os;
     Print(os, obj);
     return os.str();
-  }
-
-  template <class T>
-  void Print(const T& obj) {
-    Print(std::cout, obj);
   }
 
   HIRPrinter& setFullSnapshots(bool full);

@@ -45,6 +45,7 @@
 
 #include <algorithm>
 #include <cstdint>
+#include <iostream>
 #include <iterator>
 #include <stdexcept>
 #include <vector>

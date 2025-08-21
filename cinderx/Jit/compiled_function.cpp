@@ -7,6 +7,8 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/module_state.h"
 
+#include <iostream>
+
 extern "C" {
 
 bool isJitCompiled(const PyFunctionObject* func) {
@@ -45,7 +47,7 @@ void CompiledFunction::printHIR() const {
       irfunc_ != nullptr,
       "Can only call CompiledFunction::printHIR() from a debug build");
   jit::hir::HIRPrinter printer;
-  printer.Print(*irfunc_);
+  printer.Print(std::cout, *irfunc_);
 }
 
 std::chrono::nanoseconds CompiledFunction::compileTime() const {
