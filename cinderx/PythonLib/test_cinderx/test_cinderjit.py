@@ -21,6 +21,9 @@ AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
 if not AT_LEAST_312:
     import _testcindercapi
 
+import cinderx
+
+cinderx.init()
 import cinderx.jit
 
 import cinderx.test_support as cinder_support
@@ -34,6 +37,7 @@ from cinderx.jit import (
 )
 from cinderx.test_support import (
     CINDERX_PATH,
+    compiles_after_one_call,
     ENCODING,
     run_in_subprocess,
     skip_unless_jit,
@@ -685,9 +689,11 @@ class ClosureTests(unittest.TestCase):
 
         self.assertEqual(
             str(ctx.exception),
-            "cannot access local variable 'a' where it is not associated with a value"
-            if AT_LEAST_312
-            else "local variable 'a' referenced before assignment",
+            (
+                "cannot access local variable 'a' where it is not associated with a value"
+                if AT_LEAST_312
+                else "local variable 'a' referenced before assignment"
+            ),
         )
 
     def test_freevars(self) -> None:
@@ -941,7 +947,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         with self.assertRaises(asyncio.CancelledError):
             asyncio.run(main())
 
-        if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
+        if compiles_after_one_call():
             self.assertTrue(is_jit_compiled(a))
             self.assertTrue(is_jit_compiled(b))
             self.assertTrue(is_jit_compiled(c.__wrapped__))
@@ -1502,7 +1508,7 @@ class RegressionTests(StaticTestBase):
             testfunc = mod.testfunc
             self.assertTrue(testfunc())
 
-            if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
+            if compiles_after_one_call():
                 self.assertTrue(is_jit_compiled(testfunc))
 
 
@@ -1538,7 +1544,7 @@ class CinderJitModuleTests(StaticTestBase):
 
             self.assertFalse(is_jit_compiled(f))
 
-            if cinderx.jit.auto_jit_threshold() <= 1:
+            if compiles_after_one_call():
                 self.assertTrue(is_jit_compiled(g))
 
     @unittest.skipIf(
@@ -1563,11 +1569,19 @@ class CinderJitModuleTests(StaticTestBase):
 
             self.assertFalse(is_jit_compiled(f))
 
-            if cinderx.jit.auto_jit_threshold() <= 1:
+            if compiles_after_one_call():
                 self.assertTrue(is_jit_compiled(g))
 
             self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
 
+    @unittest.skipIf(
+        (
+            cinderx.jit.auto_jit_threshold() == 0
+            or cinderx.jit.auto_jit_threshold() > 10000
+        )
+        and not cinderx.jit.is_compile_all(),
+        "Expecting the JIT to be compiling a bunch of code automatically",
+    )
     def test_max_code_size_slow(self) -> None:
         code = textwrap.dedent(
             """
@@ -1596,7 +1610,7 @@ class CinderJitModuleTests(StaticTestBase):
             codepath.write_text(code)
 
             def run_test(asserts_func, params):
-                args = [sys.executable, "-X", "jit"]
+                args = [sys.executable, "-X", "jit-all"]
                 args.extend(params)
                 args.append("mod.py")
                 proc = subprocess.run(
@@ -1689,28 +1703,70 @@ class CinderJitModuleTests(StaticTestBase):
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
                 return actual_stdout[0]
 
-            args = [sys.executable, "-X", "jit", "mod.py"]
+            args = [sys.executable, "-X", "jit-all", "mod.py"]
             self.assertEqual(run_proc(), "max_size: 0")
             args = [
                 sys.executable,
                 "-X",
-                "jit",
+                "jit-all",
                 "-X",
                 "jit-max-code-size=1234567",
                 "mod.py",
             ]
             self.assertEqual(run_proc(), "max_size: 1234567")
-            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1k", "mod.py"]
+            args = [
+                sys.executable,
+                "-X",
+                "jit-all",
+                "-X",
+                "jit-max-code-size=1k",
+                "mod.py",
+            ]
             self.assertEqual(run_proc(), "max_size: 1024")
-            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1K", "mod.py"]
+            args = [
+                sys.executable,
+                "-X",
+                "jit-all",
+                "-X",
+                "jit-max-code-size=1K",
+                "mod.py",
+            ]
             self.assertEqual(run_proc(), "max_size: 1024")
-            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1m", "mod.py"]
+            args = [
+                sys.executable,
+                "-X",
+                "jit-all",
+                "-X",
+                "jit-max-code-size=1m",
+                "mod.py",
+            ]
             self.assertEqual(run_proc(), "max_size: 1048576")
-            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1M", "mod.py"]
+            args = [
+                sys.executable,
+                "-X",
+                "jit-all",
+                "-X",
+                "jit-max-code-size=1M",
+                "mod.py",
+            ]
             self.assertEqual(run_proc(), "max_size: 1048576")
-            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1g", "mod.py"]
+            args = [
+                sys.executable,
+                "-X",
+                "jit-all",
+                "-X",
+                "jit-max-code-size=1g",
+                "mod.py",
+            ]
             self.assertEqual(run_proc(), "max_size: 1073741824")
-            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=1G", "mod.py"]
+            args = [
+                sys.executable,
+                "-X",
+                "jit-all",
+                "-X",
+                "jit-max-code-size=1G",
+                "mod.py",
+            ]
             self.assertEqual(run_proc(), "max_size: 1073741824")
 
             def run_proc():
@@ -1724,12 +1780,19 @@ class CinderJitModuleTests(StaticTestBase):
                 self.assertEqual(proc.returncode, -6, proc)
                 return proc.stderr
 
-            args = [sys.executable, "-X", "jit", "-X", "jit-max-code-size=-1", "mod.py"]
+            args = [
+                sys.executable,
+                "-X",
+                "jit-all",
+                "-X",
+                "jit-max-code-size=-1",
+                "mod.py",
+            ]
             self.assertIn("Invalid unsigned integer in input string: '-1'", run_proc())
             args = [
                 sys.executable,
                 "-X",
-                "jit",
+                "jit-all",
                 "-X",
                 "jit-max-code-size=1.1",
                 "mod.py",
@@ -1738,7 +1801,7 @@ class CinderJitModuleTests(StaticTestBase):
             args = [
                 sys.executable,
                 "-X",
-                "jit",
+                "jit-all",
                 "-X",
                 "jit-max-code-size=dogs",
                 "mod.py",
@@ -1747,7 +1810,7 @@ class CinderJitModuleTests(StaticTestBase):
             args = [
                 sys.executable,
                 "-X",
-                "jit",
+                "jit-all",
                 "-X",
                 "jit-max-code-size=1152921504606846976g",
                 "mod.py",
@@ -2469,7 +2532,7 @@ class LoadMethodEliminationTests(unittest.TestCase):
     def test_multiple_call_method_same_load_method(self) -> None:
         self.assertEqual(self.lme_test_func(), "1")
         self.assertEqual(self.lme_test_func(True), "1 flag")
-        if cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() <= 1:
+        if compiles_after_one_call():
             self.assertTrue(is_jit_compiled(LoadMethodEliminationTests.lme_test_func))
 
 

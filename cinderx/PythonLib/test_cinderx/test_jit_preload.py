@@ -28,7 +28,7 @@ class PreloadTests(unittest.TestCase):
             [
                 sys.executable,
                 "-X",
-                "jit",
+                "jit-all",
                 "-X",
                 "jit-batch-compile-workers=4",
                 # Enable lazy imports
