@@ -2572,7 +2572,9 @@ void HIRBuilder::emitCompareOp(
     const jit::BytecodeInstruction& bc_instr) {
   int compare_op = bc_instr.oparg();
 
-  if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    compare_op >>= 5;
+  } else if constexpr (PY_VERSION_HEX >= 0x030B0000) {
     compare_op >>= 4;
   }
 

@@ -198,6 +198,19 @@ def x():
             pass
         self._assertBytecodeContains(x, "CALL_INTRINSIC_2")
 
+    def test_COMPARE_OP(self):
+        # This is just a very quick test to verify we're now basically using
+        # the correct comparison operations. The comparison operator value was
+        # off by 1 bit before we took into account the new coercion flag.
+
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            return 1 == 1
+
+        self.assertEqual(x(), True)
+        self._assertBytecodeContains(x, "COMPARE_OP")
+
 
 if __name__ == "__main__":
     unittest.main()
