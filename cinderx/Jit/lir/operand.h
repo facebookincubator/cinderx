@@ -10,13 +10,6 @@
 #include <memory>
 #include <variant>
 
-// This file defines operand classes in LIR.
-// OperandBase class is the base of the two types of operands:
-//   - Operand: a normal operand that has type, size, and value, which
-//     is used for instruction outputs and immediate input operand.
-//   - LinkedOperand: this type of operand can only be input of an
-//     instruction, which links to an output operand in a different
-//     instruction, representing a def-use relationship.
 namespace jit::lir {
 
 class BasicBlock;
@@ -26,23 +19,22 @@ class Operand;
 class LinkedOperand;
 class MemoryIndirect;
 
-// base class of operand
-// defines the interface that all the operands must have.
+// Defines the interface for all the operand kinds.
 class OperandBase {
  public:
-  explicit OperandBase(Instruction* parent) : parent_instr_(parent) {}
-  OperandBase(const OperandBase& ob)
-      : parent_instr_(ob.parent_instr_), last_use_(ob.last_use_) {}
-  virtual ~OperandBase() {}
-
   using DataType = DataType;
   using Type = OperandType;
 
-#define OPERAND_TYPE_DEFINES(v, ...) \
-  using OperandType::k##v;           \
+  explicit OperandBase(Instruction* parent);
+  virtual ~OperandBase() = default;
+
+  OperandBase(const OperandBase& ob);
+
+#define OPERAND_TYPE_DEFINES(V, ...) \
+  using OperandType::k##V;           \
                                      \
-  bool is##v() const {               \
-    return type() == Type::k##v;     \
+  bool is##V() const {               \
+    return type() == Type::k##V;     \
   }
   FOREACH_OPERAND_TYPE(OPERAND_TYPE_DEFINES)
 #undef OPERAND_TYPE_DEFINES
@@ -50,6 +42,22 @@ class OperandBase {
 #define OPERAND_DATA_TYPE_DEFINES(V, ...) using DataType::k##V;
   FOREACH_OPERAND_DATA_TYPE(OPERAND_DATA_TYPE_DEFINES)
 #undef OPERAND_DATA_TYPE_DEFINES
+
+  size_t sizeInBits() const;
+
+  // Get the instruction using this operand.
+  Instruction* instr();
+  const Instruction* instr() const;
+
+  // Set and unset the instruction using this operand.
+  void assignToInstr(Instruction* instr);
+  void releaseFromInstr();
+
+  bool isFp() const;
+  bool isXmm() const;
+
+  bool isLastUse() const;
+  void setLastUse();
 
   virtual uint64_t getConstant() const = 0;
   virtual double getFPConstant() const = 0;
@@ -64,113 +72,47 @@ class OperandBase {
   // memory address.
   virtual uint64_t getConstantOrAddress() const = 0;
 
-  // get the def operand of the current operand
-  // if the current operand is a def (of type Operand), return itself.
+  // Get the canonical operand that defines this operand.  For Operand, that is
+  // itself.  For LinkedOperand, it's the linked operand.
   virtual Operand* getDefine() = 0;
   virtual const Operand* getDefine() const = 0;
 
   virtual DataType dataType() const = 0;
-
-  size_t sizeInBits() const;
-
   virtual Type type() const = 0;
+
   virtual bool isLinked() const = 0;
-
-  Instruction* instr() {
-    return parent_instr_;
-  }
-  const Instruction* instr() const {
-    return parent_instr_;
-  }
-  void releaseFromInstr() {
-    parent_instr_ = nullptr;
-  }
-  void assignToInstr(Instruction* instr) {
-    parent_instr_ = instr;
-  }
-
-  bool isFp() const {
-    return dataType() == kDouble;
-  }
-
-  bool isXmm() const {
-    return getPhyRegister().is_fp_register();
-  }
-
-  bool isLastUse() const {
-    return last_use_;
-  }
-
-  void setLastUse() {
-    last_use_ = true;
-  }
 
  private:
   Instruction* parent_instr_;
   bool last_use_{false};
 };
 
-// memory reference: [base_reg + index_reg * (2^index_multiplier) + offset]
+// Memory reference: [base_reg + index_reg * (2^index_multiplier) + offset]
 class MemoryIndirect {
  public:
-  explicit MemoryIndirect(Instruction* parent) : parent_(parent) {}
+  explicit MemoryIndirect(Instruction* parent);
 
-  void setMemoryIndirect(PhyLocation base, int32_t offset = 0) {
-    setMemoryIndirect(base, PhyLocation::REG_INVALID, 0, offset);
-  }
+  void setMemoryIndirect(Instruction* base, int32_t offset);
+  void setMemoryIndirect(PhyLocation base, int32_t offset = 0);
 
   void setMemoryIndirect(
       PhyLocation base,
       PhyLocation index_reg,
-      uint8_t multipler) {
-    setMemoryIndirect(base, index_reg, multipler, 0);
-  }
-
-  void setMemoryIndirect(Instruction* base, int32_t offset) {
-    setMemoryIndirect(base, nullptr, 0, offset);
-  }
+      uint8_t multiplier);
 
   void setMemoryIndirect(
       std::variant<Instruction*, PhyLocation> base,
       std::variant<Instruction*, PhyLocation> index,
-      uint8_t multipler,
-      int32_t offset) {
-    setBaseIndex(base_reg_, base);
-    setBaseIndex(index_reg_, index);
-    multipler_ = multipler;
-    offset_ = offset;
-  }
+      uint8_t multiplier,
+      int32_t offset);
 
-  OperandBase* getBaseRegOperand() {
-    return base_reg_.get();
-  }
+  OperandBase* getBaseRegOperand() const;
+  OperandBase* getIndexRegOperand() const;
 
-  OperandBase* getIndexRegOperand() {
-    return index_reg_.get();
-  }
-
-  OperandBase* getBaseRegOperand() const {
-    return base_reg_.get();
-  }
-
-  OperandBase* getIndexRegOperand() const {
-    return index_reg_.get();
-  }
-
-  uint8_t getMultipiler() const {
-    return multipler_;
-  }
-  int32_t getOffset() const {
-    return offset_;
-  }
+  uint8_t getMultipiler() const;
+  int32_t getOffset() const;
 
  private:
-  Instruction* parent_{nullptr};
-  std::unique_ptr<OperandBase> base_reg_;
-  std::unique_ptr<OperandBase> index_reg_;
-  uint8_t multipler_{0};
-  int32_t offset_{0};
-
   void setBaseIndex(
       std::unique_ptr<OperandBase>& base_index_opnd,
       Instruction* base_index);
@@ -181,127 +123,47 @@ class MemoryIndirect {
   void setBaseIndex(
       std::unique_ptr<OperandBase>& base_index_opnd,
       std::variant<Instruction*, PhyLocation> base_index);
+
+  Instruction* parent_{nullptr};
+  std::unique_ptr<OperandBase> base_reg_;
+  std::unique_ptr<OperandBase> index_reg_;
+  uint8_t multiplier_{0};
+  int32_t offset_{0};
 };
 
-// operand class
+// An operand that is either an immediate value, or a value being defined by an
+// instruction.
 class Operand : public OperandBase {
  public:
-  explicit Operand(Instruction* parent) : OperandBase(parent) {}
+  explicit Operand(Instruction* parent);
+  ~Operand() override = default;
 
   // Only copies simple fields (type and data type) from operand.
   // The value_ field is not copied.
-  Operand(Instruction* parent, Operand* operand)
-      : OperandBase(parent),
-        type_(operand->type_),
-        data_type_(operand->data_type_) {}
+  Operand(Instruction* parent, Operand* operand);
 
-  ~Operand() override {}
+  Operand(Instruction* parent, DataType data_type, Type type, uint64_t data);
+  Operand(Instruction* parent, Type type, double data);
 
-  Operand(Instruction* parent, DataType data_type, Type type, uint64_t data)
-      : OperandBase(parent), type_(type), data_type_(data_type) {
-    value_ = data;
-  }
+  uint64_t getConstant() const override;
+  void setConstant(uint64_t n, DataType data_type = k64bit);
 
-  Operand(Instruction* parent, Type type, double data)
-      : OperandBase(parent), type_(type), data_type_(kDouble) {
-    value_ = bit_cast<uint64_t>(data);
-  }
+  double getFPConstant() const override;
+  void setFPConstant(double n);
 
-  uint64_t getConstant() const override {
-    return std::get<uint64_t>(value_);
-  }
+  PhyLocation getPhyRegister() const override;
+  void setPhyRegister(PhyLocation reg);
 
-  double getFPConstant() const override {
-    auto value = std::get<uint64_t>(value_);
-    return bit_cast<double>(value);
-  }
+  PhyLocation getStackSlot() const override;
+  void setStackSlot(PhyLocation slot);
 
-  void setConstant(uint64_t n, DataType data_type = k64bit) {
-    type_ = kImm;
-    value_ = n;
-    data_type_ = data_type;
-  }
+  PhyLocation getPhyRegOrStackSlot() const override;
+  void setPhyRegOrStackSlot(PhyLocation loc);
 
-  void setFPConstant(double n) {
-    type_ = kImm;
-    data_type_ = kDouble;
-    value_ = bit_cast<uint64_t>(n);
-  }
+  void* getMemoryAddress() const override;
+  void setMemoryAddress(void* addr);
 
-  PhyLocation getPhyRegister() const override {
-    JIT_CHECK(
-        type_ == kReg,
-        "Trying to treat operand [type={},val={:#x}] as a physical register",
-        type_,
-        rawValue());
-    return std::get<PhyLocation>(value_);
-  }
-
-  void setPhyRegister(PhyLocation reg) {
-    type_ = kReg;
-    value_ = reg;
-  }
-
-  PhyLocation getStackSlot() const override {
-    JIT_CHECK(
-        type_ == kStack,
-        "Trying to treat operand [type={},val={:#x}] as a stack slot",
-        type_,
-        rawValue());
-    return std::get<PhyLocation>(value_);
-  }
-
-  void setStackSlot(PhyLocation slot) {
-    type_ = kStack;
-    value_ = slot;
-  }
-
-  void setPhyRegOrStackSlot(PhyLocation loc) {
-    if (loc.loc < 0) {
-      setStackSlot(loc);
-    } else {
-      setPhyRegister(loc);
-    }
-  }
-
-  PhyLocation getPhyRegOrStackSlot() const override {
-    switch (type_) {
-      case kReg:
-        return getPhyRegister();
-      case kStack:
-        return getStackSlot();
-      default:
-        JIT_ABORT(
-            "Trying to treat operand [type={},val={:#x} as a physical register "
-            "or a stack slot",
-            type_,
-            rawValue());
-    }
-    return -1;
-  }
-
-  void* getMemoryAddress() const override {
-    JIT_CHECK(
-        type_ == kMem,
-        "Trying to treat operand [type={},val={:#x}] as a memory address",
-        type_,
-        rawValue());
-    return std::get<void*>(value_);
-  }
-
-  void setMemoryAddress(void* addr) {
-    type_ = kMem;
-    value_ = addr;
-  }
-
-  MemoryIndirect* getMemoryIndirect() const override {
-    JIT_CHECK(
-        type_ == kInd,
-        "Trying to treat operand [type={},val={:#x}] as a memory indirect",
-        type_,
-        rawValue());
-    return std::get<std::unique_ptr<MemoryIndirect>>(value_).get();
-  }
+  MemoryIndirect* getMemoryIndirect() const override;
 
   template <typename... Args>
   void setMemoryIndirect(Args&&... args) {
@@ -311,81 +173,28 @@ class Operand : public OperandBase {
     value_ = std::move(ind);
   }
 
-  void setVirtualRegister() {
-    type_ = kVreg;
-  }
+  BasicBlock* getBasicBlock() const override;
+  void setBasicBlock(BasicBlock* block);
 
-  BasicBlock* getBasicBlock() const override {
-    JIT_CHECK(
-        type_ == kLabel,
-        "Trying to treat operand [type={},val={:#x}] as a basic block address",
-        type_,
-        rawValue());
-    return std::get<BasicBlock*>(value_);
-  }
+  uint64_t getConstantOrAddress() const override;
 
-  uint64_t getConstantOrAddress() const override {
-    if (auto v = std::get_if<uint64_t>(&value_)) {
-      return *v;
-    }
-    return reinterpret_cast<uint64_t>(getMemoryAddress());
-  }
+  const Operand* getDefine() const override;
+  Operand* getDefine() override;
 
-  const Operand* getDefine() const override {
-    return this;
-  }
-  Operand* getDefine() override {
-    return this;
-  }
+  DataType dataType() const override;
+  void setDataType(DataType data_type);
 
-  void setBasicBlock(BasicBlock* block) {
-    type_ = kLabel;
-    data_type_ = kObject;
-    value_ = block;
-  }
+  Type type() const override;
+  void setNone();
+  void setVirtualRegister();
 
-  DataType dataType() const override {
-    return data_type_;
-  }
-
-  void setDataType(DataType data_type) {
-    data_type_ = data_type;
-    if (auto loc_ptr = std::get_if<PhyLocation>(&value_)) {
-      loc_ptr->bitSize = bitSize(data_type);
-    }
-  }
-
-  Type type() const override {
-    return type_;
-  }
-
-  void setNone() {
-    type_ = kNone;
-  }
-
-  bool isLinked() const override {
-    return false;
-  }
+  bool isLinked() const override;
 
   void addUse(LinkedOperand* use);
   void removeUse(LinkedOperand* use);
 
  private:
-  uint64_t rawValue() const {
-    if (const auto ptr = std::get_if<uint64_t>(&value_)) {
-      return *ptr;
-    } else if (const auto ptr = std::get_if<void*>(&value_)) {
-      return reinterpret_cast<uint64_t>(*ptr);
-    } else if (const auto ptr = std::get_if<BasicBlock*>(&value_)) {
-      return reinterpret_cast<uint64_t>(*ptr);
-    } else if (
-        const auto ptr =
-            std::get_if<std::unique_ptr<MemoryIndirect>>(&value_)) {
-      return reinterpret_cast<uint64_t>(ptr->get());
-    }
-
-    JIT_ABORT("Unknown operand value type, has index {}", value_.index());
-  }
+  uint64_t rawValue() const;
 
   Type type_{kNone};
   DataType data_type_{kObject};
@@ -399,73 +208,37 @@ class Operand : public OperandBase {
       value_;
 };
 
-// Linked operand
-// This type of operand is essentially a pointer to the instruction.
-// The operand takes the value of the output of the instruction.
+// An operand that points to the output value of an instruction.  Represents a
+// def-use relationship.
+//
+// Can only be the input of an instruction.
 class LinkedOperand : public OperandBase {
  public:
   LinkedOperand(Instruction* parent, Instruction* def);
-  ~LinkedOperand() override {}
+  ~LinkedOperand() override = default;
 
-  bool isLinked() const override {
-    return true;
-  }
+  Operand* getLinkedOperand();
+  const Operand* getLinkedOperand() const;
 
-  Operand* getLinkedOperand() {
-    return def_opnd_;
-  }
-  const Operand* getLinkedOperand() const {
-    return def_opnd_;
-  }
-
-  Instruction* getLinkedInstr() {
-    return def_opnd_->instr();
-  }
-  const Instruction* getLinkedInstr() const {
-    return def_opnd_->instr();
-  }
+  Instruction* getLinkedInstr();
+  const Instruction* getLinkedInstr() const;
 
   void setLinkedInstr(Instruction* def);
 
-  uint64_t getConstant() const override {
-    return def_opnd_->getConstant();
-  }
-  double getFPConstant() const override {
-    return def_opnd_->getFPConstant();
-  }
-  PhyLocation getPhyRegister() const override {
-    return def_opnd_->getPhyRegister();
-  }
-  PhyLocation getStackSlot() const override {
-    return def_opnd_->getStackSlot();
-  }
-  PhyLocation getPhyRegOrStackSlot() const override {
-    return def_opnd_->getPhyRegOrStackSlot();
-  }
-  void* getMemoryAddress() const override {
-    return def_opnd_->getMemoryAddress();
-  }
-  MemoryIndirect* getMemoryIndirect() const override {
-    return def_opnd_->getMemoryIndirect();
-  }
-  BasicBlock* getBasicBlock() const override {
-    return def_opnd_->getBasicBlock();
-  }
-  uint64_t getConstantOrAddress() const override {
-    return def_opnd_->getConstantOrAddress();
-  }
-  Operand* getDefine() override {
-    return def_opnd_;
-  }
-  const Operand* getDefine() const override {
-    return def_opnd_;
-  }
-  DataType dataType() const override {
-    return def_opnd_->dataType();
-  }
-  Type type() const override {
-    return def_opnd_->type();
-  }
+  uint64_t getConstant() const override;
+  double getFPConstant() const override;
+  PhyLocation getPhyRegister() const override;
+  PhyLocation getStackSlot() const override;
+  PhyLocation getPhyRegOrStackSlot() const override;
+  void* getMemoryAddress() const override;
+  MemoryIndirect* getMemoryIndirect() const override;
+  BasicBlock* getBasicBlock() const override;
+  uint64_t getConstantOrAddress() const override;
+  Operand* getDefine() override;
+  const Operand* getDefine() const override;
+  DataType dataType() const override;
+  Type type() const override;
+  bool isLinked() const override;
 
  private:
   friend class Operand;
