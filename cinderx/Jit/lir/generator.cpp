@@ -2005,12 +2005,37 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       case Opcode::kCallIntrinsic: {
 #if PY_VERSION_HEX >= 0x030C0000
         auto& hir_instr = static_cast<const CallIntrinsic&>(i);
-        const uint64_t* func_array = hir_instr.NumOperands() == 1
-            ? reinterpret_cast<const uint64_t*>(_PyIntrinsics_UnaryFunctions)
-            : reinterpret_cast<const uint64_t*>(_PyIntrinsics_BinaryFunctions);
-        uint64_t func = func_array[hir_instr.index()];
-        Instruction* instr =
-            bbb.appendInstr(hir_instr.output(), Instruction::kCall, Imm{func});
+        uint64_t func_addr;
+        switch (hir_instr.NumOperands()) {
+          case 1: {
+#if PY_VERSION_HEX >= 0x030E0000
+            const intrinsic_func1 func =
+                _PyIntrinsics_UnaryFunctions[hir_instr.index()].func;
+#else
+            const instrinsic_func1 func =
+                _PyIntrinsics_UnaryFunctions[hir_instr.index()];
+#endif
+            func_addr = reinterpret_cast<uint64_t>(func);
+            break;
+          }
+          case 2: {
+#if PY_VERSION_HEX >= 0x030E0000
+            const intrinsic_func2 func =
+                _PyIntrinsics_BinaryFunctions[hir_instr.index()].func;
+#else
+            const instrinsic_func2 func =
+                _PyIntrinsics_BinaryFunctions[hir_instr.index()];
+#endif
+            func_addr = reinterpret_cast<uint64_t>(func);
+            break;
+          }
+          default:
+            JIT_ABORT(
+                "CallIntrinsic only supported with 1 or 2 args, got {}",
+                hir_instr.NumOperands());
+        }
+        Instruction* instr = bbb.appendInstr(
+            hir_instr.output(), Instruction::kCall, Imm{func_addr});
         instr->addOperands(VReg{env_->asm_tstate});
         for (hir::Register* arg : hir_instr.GetOperands()) {
           instr->addOperands(VReg{bbb.getDefInstr(arg)});

@@ -5,6 +5,10 @@
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/symbolizer.h"
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "pycore_intrinsics.h"
+#endif
+
 #include <fmt/format.h>
 #include <fmt/ostream.h>
 
@@ -330,7 +334,18 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kCallIntrinsic: {
       const auto& call = static_cast<const CallIntrinsic&>(instr);
+#if PY_VERSION_HEX >= 0x030E0000
+      switch (call.NumOperands()) {
+        case 1:
+          return _PyIntrinsics_UnaryFunctions[call.index()].name;
+        case 2:
+          return _PyIntrinsics_BinaryFunctions[call.index()].name;
+        default:
+          JIT_ABORT("Invalid number of intrinsic args: {}", call.NumOperands());
+      }
+#else
       return fmt::format("{}", call.index());
+#endif
     }
     case Opcode::kCallMethod: {
       const auto& call = static_cast<const CallMethod&>(instr);

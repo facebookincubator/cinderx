@@ -146,6 +146,58 @@ class Python314Bytecodes(unittest.TestCase):
         self._assertBytecodeContains(f, "LOAD_GLOBAL")
         self._assertBytecodeContains(f, "CALL")
 
+    def test_CALL_INTRINSIC_1(self):
+        def y(*args):
+            return sum(args)
+
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x(*args):
+            return y(1, *args)
+
+        self.assertEqual(x(2), 3)
+
+        self._assertBytecodeContains(x, "CALL_INTRINSIC_1")
+
+    def test_CALL_INTRINSIC_2(self):
+        # This test actually only tests JIT compilation of CALL_INTRINSIC_2.
+        # The code below will deopt when the exception is raised so the
+        # CALL_INTRINSIC_2 will never be executed by the JIT.
+        #
+        # In theory we should be able execute CALL_INTRINSIC_2 in the JIT but I
+        # don't think it's possible for us to create a function which will do
+        # this with 3.14. CALL_INTRINSIC_2 is mostly used as part of evaluating
+        # generic type args and in handling exceptions, neither of which we do
+        # in the JIT.
+
+        # Wrap this in an exec() to avoid breaking tests for earlier versions
+        # of Python which don't support the new syntax.
+        locals = {}
+        exec(
+            """
+@cinder_support.failUnlessJITCompiled
+def x():
+    try:
+        raise ExceptionGroup(
+            "test", [ValueError("error1"), TypeError("error2")]
+        )
+    except* ValueError:
+        pass
+    except* TypeError:
+        pass
+
+        """,
+            globals(),
+            locals,
+        )
+        x = locals["x"]
+
+        try:
+            x()
+        except ExceptionGroup:
+            pass
+        self._assertBytecodeContains(x, "CALL_INTRINSIC_2")
+
 
 if __name__ == "__main__":
     unittest.main()
