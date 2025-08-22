@@ -141,6 +141,30 @@ def failUnlessJITCompiled(func: Callable[..., TRet]) -> Callable[..., TRet]:
     return func
 
 
+def fail_if_deopt(func: Callable[..., TRet]) -> Callable[..., TRet]:
+    """
+    Raise a RuntimeException if _any_ deopts occur during execution of the
+    wrapped function. Note deopts occuring in nested function calls will also
+    trigger this. Also, execution will run to completion - it won't stop at the
+    point a deopt occurs.
+    """
+
+    if not cinderx.jit.is_enabled():
+        return func
+
+    def wrapper(*args: ..., **kwargs: ...) -> TRet:
+        cinderx.jit.get_and_clear_runtime_stats()
+        r = func(*args, **kwargs)
+        # pyre-ignore[6]
+        if len(deopts := cinderx.jit.get_and_clear_runtime_stats()["deopt"]):
+            raise RuntimeError(f"Deopt occured {deopts}")
+        return r
+
+    wrapper.inner_function = func
+
+    return wrapper
+
+
 def is_asan_build() -> bool:
     try:
         ctypes.pythonapi.__asan_init
