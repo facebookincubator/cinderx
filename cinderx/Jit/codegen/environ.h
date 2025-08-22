@@ -6,7 +6,6 @@
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/debug_info.h"
-#include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/runtime.h"
 
 #include <asmjit/asmjit.h>
