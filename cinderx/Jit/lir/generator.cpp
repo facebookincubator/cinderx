@@ -704,7 +704,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kIntConvert: {
         auto instr = static_cast<const IntConvert*>(&i);
-        if (instr->type() <= TCUnsigned) {
+        if (instr->type() <= TCBool) {
+          bbb.appendInstr(instr->output(), Instruction::kMove, instr->src());
+        } else if (instr->type() <= TCUnsigned) {
           bbb.appendInstr(instr->output(), Instruction::kZext, instr->src());
         } else {
           JIT_CHECK(

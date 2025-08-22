@@ -2119,27 +2119,11 @@ void HIRBuilder::emitUnaryNot(TranslationContext& tc) {
   Register* operand = tc.frame.stack.pop();
   Register* is_false = temps_.AllocateNonStack();
   Register* const_false = temps_.AllocateNonStack();
+  Register* result = temps_.AllocateStack();
   tc.emit<LoadConst>(const_false, Type::fromObject(Py_False));
   tc.emit<PrimitiveCompare>(
       is_false, PrimitiveCompareOp::kEqual, const_false, operand);
-
-  BasicBlock* is_true_block = tc.block->cfg->AllocateBlock();
-  BasicBlock* is_false_block = tc.block->cfg->AllocateBlock();
-  BasicBlock* done_block = tc.block->cfg->AllocateBlock();
-
-  tc.emit<CondBranch>(is_false, is_false_block, is_true_block);
-
-  Register* result = temps_.AllocateStack();
-
-  tc.block = is_true_block;
-  tc.emit<LoadConst>(result, Type::fromObject(Py_False));
-  tc.emit<Branch>(done_block);
-
-  tc.block = is_false_block;
-  tc.emit<LoadConst>(result, Type::fromObject(Py_True));
-  tc.emit<Branch>(done_block);
-
-  tc.block = done_block;
+  tc.emit<PrimitiveBoxBool>(result, is_false);
   tc.frame.stack.push(result);
 }
 
@@ -2656,25 +2640,12 @@ void HIRBuilder::emitCompareOp(
 void HIRBuilder::emitToBool(TranslationContext& tc) {
   Register* operand = tc.frame.stack.pop();
   Register* truthy_result = temps_.AllocateStack();
+  Register* truthy_result_bool = temps_.AllocateNonStack();
   tc.emit<IsTruthy>(truthy_result, operand, tc.frame);
-
-  BasicBlock* true_block = tc.block->cfg->AllocateBlock();
-  BasicBlock* false_block = tc.block->cfg->AllocateBlock();
-  BasicBlock* done_block = tc.block->cfg->AllocateBlock();
-
-  tc.emit<CondBranch>(truthy_result, true_block, false_block);
+  tc.emit<IntConvert>(truthy_result_bool, truthy_result, TCBool);
 
   Register* coerced_result = temps_.AllocateStack();
-
-  tc.block = true_block;
-  tc.emit<LoadConst>(coerced_result, Type::fromObject(Py_True));
-  tc.emit<Branch>(done_block);
-
-  tc.block = false_block;
-  tc.emit<LoadConst>(coerced_result, Type::fromObject(Py_False));
-  tc.emit<Branch>(done_block);
-
-  tc.block = done_block;
+  tc.emit<PrimitiveBoxBool>(coerced_result, truthy_result_bool);
   tc.frame.stack.push(coerced_result);
 }
 
