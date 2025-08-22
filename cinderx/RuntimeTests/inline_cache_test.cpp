@@ -47,24 +47,24 @@ regular_meth = RequestContext.regular_meth
   auto py_class_meth = Ref<>::steal(PyUnicode_FromString("class_meth"));
   jit::LoadTypeMethodCache cache;
   auto res = cache.lookup(klass, py_class_meth);
-  ASSERT_EQ(res.inst, klass)
+  ASSERT_EQ(res.self_or_null, klass)
       << "Expected instance to be equal to class from cache look up";
   PyObject* class_meth = PyDict_GetItemString(locals, "class_meth");
-  ASSERT_EQ(PyObject_RichCompareBool(res.func, class_meth, Py_EQ), 1)
+  ASSERT_EQ(PyObject_RichCompareBool(res.callable, class_meth, Py_EQ), 1)
       << "Expected method " << class_meth << " to be equal from cache lookup";
-  ASSERT_EQ(cache.value(), res.func)
+  ASSERT_EQ(cache.value(), res.callable)
       << "Expected method " << py_class_meth << " to be cached";
 
   for (auto& meth : {"static_meth", "regular_meth"}) {
     auto name = Ref<>::steal(PyUnicode_FromString(meth));
     jit::LoadTypeMethodCache cache;
     auto res = cache.lookup(klass, name);
-    ASSERT_EQ(res.func, Py_None)
+    ASSERT_EQ(res.callable, Py_None)
         << "Expected first part of cache result to be Py_None";
     PyObject* py_meth = PyDict_GetItemString(locals, meth);
-    ASSERT_EQ(PyObject_RichCompareBool(res.inst, py_meth, Py_EQ), 1)
+    ASSERT_EQ(PyObject_RichCompareBool(res.self_or_null, py_meth, Py_EQ), 1)
         << "Expected method " << meth << " to be equal from cache lookup";
-    ASSERT_EQ(cache.value(), res.inst)
+    ASSERT_EQ(cache.value(), res.self_or_null)
         << "Expected method " << meth << " to be cached";
   }
 }
@@ -93,9 +93,9 @@ module_meth = functools._unwrap_partial
 
   jit::LoadModuleMethodCache cache;
   auto res = cache.lookup(functools_mod, name);
-  ASSERT_EQ(PyObject_RichCompareBool(res.inst, module_meth, Py_EQ), 1)
+  ASSERT_EQ(PyObject_RichCompareBool(res.self_or_null, module_meth, Py_EQ), 1)
       << "Expected method " << name << " to be cached";
-  ASSERT_EQ(Py_None, res.func)
+  ASSERT_EQ(Py_None, res.callable)
       << "Expected Py_None to be returned from cache lookup";
 
   ASSERT_EQ(PyObject_RichCompareBool(cache.value(), module_meth, Py_EQ), 1)

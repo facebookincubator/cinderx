@@ -74,11 +74,39 @@ using auto_jit_string_t = std::unique_ptr<jit_string_t, jit_string_deleter>;
 
 const char* ss_get_string(const auto_jit_string_t& ss);
 
-// Loading a method means getting back a callable and possibly the object
-// instance to use as the first argument.
+// Loading a method returns up to 2 items, for one of three possible outcomes:
+// * A callable plus an object instance (self).
+// * A bound method.
+// * Error.
+//
+// Prior to 3.14 in CPython, the first element returned indicated if we had a
+// bound method through being nullptr. However, we wanted to use nullptr to
+// trigger a deopt for the error case so instead the JIT used Py_None and
+// handled this in the runtime.
+//
+// After 3.14 things are simpler and we always have a callable as the first
+// element, so free to use nullptr on error to trigger a deopt.
 struct LoadMethodResult {
-  PyObject* func;
-  PyObject* inst;
+  LoadMethodResult(PyObject* none_or_callable, PyObject* inst_or_callable) {
+    if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+      if (none_or_callable == nullptr) {
+        JIT_CHECK(
+            inst_or_callable == nullptr, "Error, both args should be nullptr");
+        callable = self_or_null = nullptr;
+      } else if (none_or_callable == Py_None) {
+        callable = inst_or_callable;
+        self_or_null = nullptr;
+      } else {
+        callable = none_or_callable;
+        self_or_null = inst_or_callable;
+      }
+    } else {
+      callable = none_or_callable;
+      self_or_null = inst_or_callable;
+    }
+  }
+  PyObject* callable;
+  PyObject* self_or_null;
 };
 
 // Per-function entry point function to resume a JIT generator. Arguments are:

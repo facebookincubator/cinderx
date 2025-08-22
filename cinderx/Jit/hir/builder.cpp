@@ -2118,7 +2118,8 @@ void HIRBuilder::emitCallEx(
     CallFlags flags) {
   Register* dst = temps_.AllocateStack();
   OperandStack& stack = tc.frame.stack;
-  bool has_kwargs = bc_instr.oparg() & 0x1;
+  // In 3.14+ we always have kwargs on the stack but it may be null.
+  bool has_kwargs = (PY_VERSION_HEX >= 0x030E0000) || bc_instr.oparg() & 0x1;
   Register* kwargs = nullptr;
   if (has_kwargs) {
     kwargs = stack.pop();
@@ -2129,17 +2130,18 @@ void HIRBuilder::emitCallEx(
     kwargs = nullp;
   }
   Register* pargs = stack.pop();
-  Register* func = stack.pop();
-#if PY_VERSION_HEX >= 0x030D0000
-  JIT_ABORT("Unused stack slot in CALL_FUNCTION_EX needs reviewing");
-#endif
-#if PY_VERSION_HEX >= 0x030C0000
-  // This isn't obviously explained by code, docs, or comments but
-  // CALL_FUNCTION_EX in 3.12 has an "unused" value on the stack.
-  // I guess this had something to do with simplifying the bytecode
-  // compiler? This has already changed in upstream main.
-  stack.pop();
-#endif
+  Register* func;
+  // CALL_FUNCTION_EX has an unused value on the stack, starting with 3.12.
+  // In 3.14 this swapped location.
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    stack.pop();
+    func = stack.pop();
+  } else if constexpr (PY_VERSION_HEX >= 0x030C0000) {
+    func = stack.pop();
+    stack.pop();
+  } else {
+    func = stack.pop();
+  }
   tc.emit<CallEx>(dst, func, pargs, kwargs, flags, tc.frame);
   stack.push(dst);
 }
@@ -3431,7 +3433,7 @@ void HIRBuilder::emitLoadGlobal(
   int name_idx = loadGlobalIndex(bc_instr.oparg());
   Register* result = temps_.AllocateStack();
 
-  if constexpr (PY_VERSION_HEX >= 0x030B0000) {
+  if constexpr (PY_VERSION_HEX >= 0x030B0000 && PY_VERSION_HEX < 0x030E0000) {
     if (bc_instr.oparg() & 1) {
       emitPushNull(tc);
     }
@@ -3458,6 +3460,12 @@ void HIRBuilder::emitLoadGlobal(
   }
 
   tc.frame.stack.push(result);
+
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    if (bc_instr.oparg() & 1) {
+      emitPushNull(tc);
+    }
+  }
 }
 
 void HIRBuilder::emitMakeFunction(
@@ -4623,8 +4631,25 @@ void HIRBuilder::emitDictMerge(
     TranslationContext& tc,
     const BytecodeInstruction& bc_instr) {
   auto& stack = tc.frame.stack;
-  Register* dict = stack.top(bc_instr.oparg());
-  Register* func = stack.top(bc_instr.oparg() + 2);
+  Register *dict, *func;
+  if constexpr (PY_VERSION_HEX < 0x030E0000) {
+    dict = stack.top(bc_instr.oparg());
+    func = stack.top(bc_instr.oparg() + 2);
+  } else {
+    // According to bytecodes.c, at this point on the stack we have:
+    //  update (top of the stack)
+    //  [unused if oparg is 0]
+    //  dict
+    //  unused
+    //  unused
+    //  callable
+    // Looking at codegen.c for 3.14, oparg is only ever 1 so the optional
+    // "unused" slot is never present. So the 1 and 4 offsets skip to "dict" and
+    // "callable" respectively.
+    JIT_CHECK(bc_instr.oparg() == 1, "oparg must be 1");
+    dict = stack.top(1);
+    func = stack.top(4);
+  }
   Register* update = stack.pop();
   Register* out = temps_.AllocateStack();
   tc.emit<DictMerge>(out, dict, update, func, tc.frame);

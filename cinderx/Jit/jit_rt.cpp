@@ -967,16 +967,24 @@ PyObject* JITRT_Call(
       (nargsf & PY_VECTORCALL_ARGUMENTS_OFFSET),
       "JITRT_Call must always be called as a vectorcall");
 
-  // Trying to call a function rather than a method on an object.  Shift the
-  // arguments over by one.
-  //
-  // In theory this is supposed to expect nullptr on the stack, but our HIR
-  // implementation of LOAD_ATTR/LOAD_METHOD uses Py_None.  Check for nullptr
-  // just in case.
-  if (callable == nullptr || Py_IsNone(callable)) {
-    callable = args[0];
-    args += 1;
-    nargsf -= 1;
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    // Calling a bound method leaves us with an unused first arg.
+    if (args[0] == nullptr) {
+      args += 1;
+      nargsf -= 1;
+    }
+  } else {
+    // Trying to call a function rather than a method on an object.  Shift the
+    // arguments over by one.
+    //
+    // In theory this is supposed to expect nullptr on the stack, but our HIR
+    // implementation of LOAD_ATTR/LOAD_METHOD uses Py_None.  Check for nullptr
+    // just in case.
+    if (callable == nullptr || Py_IsNone(callable)) {
+      callable = args[0];
+      args += 1;
+      nargsf -= 1;
+    }
   }
 
   PyThreadState* tstate = _PyThreadState_GET();
