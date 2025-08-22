@@ -67,6 +67,7 @@
   X(KW_NAMES)                          \
   X(LOAD_FAST_AND_CLEAR)               \
   X(LOAD_FAST_CHECK)                   \
+  X(LOAD_FAST_BORROW)                  \
   X(LOAD_FROM_DICT_OR_DEREF)           \
   X(LOAD_FROM_DICT_OR_GLOBALS)         \
   X(LOAD_LOCALS)                       \
@@ -168,6 +169,7 @@ enum {
   X(LOAD_ATTR_S_MODULE)            \
   X(LOAD_ATTR_TYPE)                \
   X(LOAD_ATTR_UNCACHABLE)          \
+  X(LOAD_FAST_BORROW)              \
   X(LOAD_METHOD_DICT_DESCR)        \
   X(LOAD_METHOD_DICT_METHOD)       \
   X(LOAD_METHOD_MODULE)            \

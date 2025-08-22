@@ -149,6 +149,7 @@ bool isSupportedOpcode(int opcode) {
     case LOAD_DEREF:
     case LOAD_FAST:
     case LOAD_FAST_AND_CLEAR:
+    case LOAD_FAST_BORROW:
     case LOAD_FAST_CHECK:
     case LOAD_FIELD:
     case LOAD_GLOBAL:
@@ -1022,7 +1023,8 @@ void HIRBuilder::translate(
         }
         case LOAD_FAST:
         case LOAD_FAST_AND_CLEAR:
-        case LOAD_FAST_CHECK: {
+        case LOAD_FAST_CHECK:
+        case LOAD_FAST_BORROW: {
           emitLoadFast(tc, bc_instr);
           break;
         }

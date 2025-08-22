@@ -38,6 +38,16 @@ class Python314Bytecodes(unittest.TestCase):
         self.assertEqual(x(), 1)
         self._assertBytecodeContains(x, "LOAD_SMALL_INT")
 
+    def test_LOAD_FAST_BORROW(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            a = 1
+            return a
+
+        self.assertEqual(x(), 1)
+        self._assertBytecodeContains(x, "LOAD_FAST_BORROW")
+
     def test_BINARY_OP_oparg_SUBSCR(self):
         @cinder_support.fail_if_deopt
         @cinder_support.failUnlessJITCompiled
