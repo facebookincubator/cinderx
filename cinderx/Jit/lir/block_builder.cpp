@@ -6,15 +6,31 @@
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/instruction.h"
 
-// XXX: this file needs to be revisited when we optimize HIR-to-LIR translation
-// in codegen.cpp/h. Currently, this file is almost an identical copy from
-// bbbuilder.cpp with some interfaces changes so that it works with the new
-// LIR.
-
 namespace jit::lir {
+
+Operand::DataType hirTypeToDataType(hir::Type tp) {
+  if (tp <= hir::TCDouble) {
+    return Operand::DataType::kDouble;
+  } else if (tp <= (hir::TCInt8 | hir::TCUInt8 | hir::TCBool)) {
+    return Operand::DataType::k8bit;
+  } else if (tp <= (hir::TCInt16 | hir::TCUInt16)) {
+    return Operand::DataType::k16bit;
+  } else if (tp <= (hir::TCInt32 | hir::TCUInt32)) {
+    return Operand::DataType::k32bit;
+  } else if (tp <= (hir::TCInt64 | hir::TCUInt64)) {
+    return Operand::DataType::k64bit;
+  } else {
+    return Operand::DataType::kObject;
+  }
+}
 
 BasicBlockBuilder::BasicBlockBuilder(jit::codegen::Environ* env, Function* func)
     : env_(env), func_(func) {}
+
+void BasicBlockBuilder::setCurrentInstr(const hir::Instr* inst) {
+  cur_hir_instr_ = inst;
+  cur_deopt_metadata_ = std::nullopt;
+}
 
 std::size_t BasicBlockBuilder::makeDeoptMetadata() {
   JIT_CHECK(
@@ -44,6 +60,14 @@ void BasicBlockBuilder::appendBlock(BasicBlock* block) {
 void BasicBlockBuilder::switchBlock(BasicBlock* block) {
   bbs_.push_back(block);
   cur_bb_ = block;
+}
+
+Instruction* BasicBlockBuilder::appendBranch(
+    Instruction::Opcode opcode,
+    BasicBlock* true_bb) {
+  auto instr = appendInstr(opcode);
+  cur_bb_->addSuccessor(true_bb);
+  return instr;
 }
 
 Instruction* BasicBlockBuilder::createInstr(Instruction::Opcode opcode) {
@@ -87,6 +111,10 @@ void BasicBlockBuilder::createInstrOutput(
   auto output = instr->output();
   output->setVirtualRegister();
   output->setDataType(hirTypeToDataType(dst->type()));
+}
+
+std::vector<BasicBlock*> BasicBlockBuilder::Generate() {
+  return bbs_;
 }
 
 } // namespace jit::lir

@@ -2,7 +2,6 @@
 
 #pragma once
 
-#include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/lir/block.h"
@@ -14,108 +13,21 @@
 #include <cstdint>
 #include <optional>
 #include <string>
-#include <string_view>
 #include <tuple>
 #include <type_traits>
-#include <unordered_map>
 #include <utility>
 #include <vector>
 
-// XXX: this file needs to be revisited when we optimize HIR-to-LIR translation
-// in codegen.cpp/h. Currently, this file is almost an identical copy from
-// bbbuilder.h with some interfaces changes so that it works with the new
-// LIR.
-
-// This custom formatter is here because of how Generator and BasicBlockBuilder
-// stringify LIR before actually generating it.
-template <>
-struct fmt::formatter<jit::hir::Register*> {
-  template <typename ParseContext>
-  constexpr auto parse(ParseContext& ctx) {
-    return ctx.begin();
-  }
-
-  template <typename FormatContext>
-  auto format(jit::hir::Register* const& reg, FormatContext& ctx) {
-    if (reg->type().hasIntSpec()) {
-      return fmt::format_to(
-          ctx.out(),
-          "{}:{}",
-          reg->type().intSpec(),
-          reg->type().unspecialized());
-    } else if (reg->type().hasDoubleSpec()) {
-      return fmt::format_to(
-          ctx.out(),
-          "{}:{}",
-          reg->type().doubleSpec(),
-          reg->type().unspecialized());
-    } else if (reg->type() <= jit::hir::TPrimitive) {
-      return fmt::format_to(
-          ctx.out(), "{}:{}", reg->name(), reg->type().toString());
-    } else {
-      return fmt::format_to(ctx.out(), "{}", reg->name());
-    }
-  }
-};
-
-template <>
-struct fmt::formatter<PyObject*> : fmt::formatter<void*> {};
-
 namespace jit::lir {
 
-inline Operand::DataType hirTypeToDataType(hir::Type tp) {
-  if (tp <= hir::TCDouble) {
-    return Operand::DataType::kDouble;
-  } else if (tp <= (hir::TCInt8 | hir::TCUInt8 | hir::TCBool)) {
-    return Operand::DataType::k8bit;
-  } else if (tp <= (hir::TCInt16 | hir::TCUInt16)) {
-    return Operand::DataType::k16bit;
-  } else if (tp <= (hir::TCInt32 | hir::TCUInt32)) {
-    return Operand::DataType::k32bit;
-  } else if (tp <= (hir::TCInt64 | hir::TCUInt64)) {
-    return Operand::DataType::k64bit;
-  } else {
-    return Operand::DataType::kObject;
-  }
-}
-
-static inline std::pair<std::string, Operand::DataType> getIdAndType(
-    const std::string& name) {
-  static UnorderedMap<std::string_view, Operand::DataType> typeMap = {
-      {"CInt8", Operand::k8bit},
-      {"CUInt8", Operand::k8bit},
-      {"CBool", Operand::k8bit},
-      {"CInt16", Operand::k16bit},
-      {"CUInt16", Operand::k16bit},
-      {"CInt32", Operand::k32bit},
-      {"CUInt32", Operand::k32bit},
-      {"CInt64", Operand::k64bit},
-      {"CUInt64", Operand::k64bit},
-      {"CDouble", Operand::kDouble},
-  };
-  size_t colon;
-  Operand::DataType data_type = Operand::kObject;
-
-  if ((colon = name.find(':')) != std::string::npos) {
-    auto type = std::string_view(name).substr(colon + 1);
-    auto t = typeMap.find(type);
-    if (t != typeMap.end()) {
-      data_type = t->second;
-    }
-    return {name.substr(0, colon), data_type};
-  } else {
-    return {name, data_type};
-  }
-}
+// Convert an HIR type into an LIR type.
+Operand::DataType hirTypeToDataType(hir::Type tp);
 
 class BasicBlockBuilder {
  public:
   BasicBlockBuilder(jit::codegen::Environ* env, Function* func);
 
-  void setCurrentInstr(const hir::Instr* inst) {
-    cur_hir_instr_ = inst;
-    cur_deopt_metadata_ = std::nullopt;
-  }
+  void setCurrentInstr(const hir::Instr* inst);
 
   // Return the id of a DeoptMetadata for the current instruction, returning
   // the same id if called multiple times for the same instruction.
@@ -204,11 +116,7 @@ class BasicBlockBuilder {
   }
 
   // Allocate and append a new branching instruction which is checking a flag
-  Instruction* appendBranch(Instruction::Opcode opcode, BasicBlock* true_bb) {
-    auto instr = appendInstr(opcode);
-    cur_bb_->addSuccessor(true_bb);
-    return instr;
-  }
+  Instruction* appendBranch(Instruction::Opcode opcode, BasicBlock* true_bb);
 
   template <
       typename FuncReturnType,
@@ -261,6 +169,7 @@ class BasicBlockBuilder {
         func, std::forward<AppendArgs>(args)...);
   }
 
+  // Create a new LIR instruction for the current HIR instruction.
   Instruction* createInstr(Instruction::Opcode opcode);
 
   Instruction* getDefInstr(const hir::Register* reg);
@@ -268,9 +177,7 @@ class BasicBlockBuilder {
   void createInstrInput(Instruction* instr, hir::Register* reg);
   void createInstrOutput(Instruction* instr, hir::Register* dst);
 
-  std::vector<BasicBlock*> Generate() {
-    return bbs_;
-  }
+  std::vector<BasicBlock*> Generate();
 
  private:
   const hir::Instr* cur_hir_instr_{nullptr};
