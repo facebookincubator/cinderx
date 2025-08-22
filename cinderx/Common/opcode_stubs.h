@@ -86,6 +86,7 @@
   X(STORE_SLICE)                       \
   X(STORE_SUBSCR_DICT)                 \
   X(SWAP)                              \
+  X(TO_BOOL)                           \
   X(UNPACK_SEQUENCE_LIST)              \
   X(UNPACK_SEQUENCE_TUPLE)             \
   X(UNPACK_SEQUENCE_TWO_TUPLE)
@@ -195,6 +196,7 @@ enum {
   X(STORE_ATTR_DICT)               \
   X(STORE_ATTR_SPLIT_DICT)         \
   X(STORE_ATTR_UNCACHABLE)         \
+  X(TO_BOOL)                       \
   X(UNARY_POSITIVE)                \
   X(YIELD_FROM)
 

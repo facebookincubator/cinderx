@@ -215,6 +215,7 @@ bool isSupportedOpcode(int opcode) {
     case STORE_SLICE:
     case STORE_SUBSCR:
     case SWAP:
+    case TO_BOOL:
     case TP_ALLOC:
     case UNARY_INVERT:
     case UNARY_NEGATIVE:
@@ -876,6 +877,10 @@ void HIRBuilder::translate(
           break;
         }
         case UNARY_NOT:
+#if PY_VERSION_HEX >= 0x030E0000
+          emitUnaryNot(tc);
+          break;
+#endif
         case UNARY_NEGATIVE:
         case UNARY_POSITIVE:
         case UNARY_INVERT: {
@@ -956,6 +961,10 @@ void HIRBuilder::translate(
         }
         case COMPARE_OP: {
           emitCompareOp(tc, bc_instr);
+          break;
+        }
+        case TO_BOOL: {
+          emitToBool(tc);
           break;
         }
         case COPY_DICT_WITHOUT_KEYS: {
@@ -2106,6 +2115,34 @@ static inline UnaryOpKind get_unary_op_kind(
   }
 }
 
+void HIRBuilder::emitUnaryNot(TranslationContext& tc) {
+  Register* operand = tc.frame.stack.pop();
+  Register* is_false = temps_.AllocateNonStack();
+  Register* const_false = temps_.AllocateNonStack();
+  tc.emit<LoadConst>(const_false, Type::fromObject(Py_False));
+  tc.emit<PrimitiveCompare>(
+      is_false, PrimitiveCompareOp::kEqual, const_false, operand);
+
+  BasicBlock* is_true_block = tc.block->cfg->AllocateBlock();
+  BasicBlock* is_false_block = tc.block->cfg->AllocateBlock();
+  BasicBlock* done_block = tc.block->cfg->AllocateBlock();
+
+  tc.emit<CondBranch>(is_false, is_false_block, is_true_block);
+
+  Register* result = temps_.AllocateStack();
+
+  tc.block = is_true_block;
+  tc.emit<LoadConst>(result, Type::fromObject(Py_False));
+  tc.emit<Branch>(done_block);
+
+  tc.block = is_false_block;
+  tc.emit<LoadConst>(result, Type::fromObject(Py_True));
+  tc.emit<Branch>(done_block);
+
+  tc.block = done_block;
+  tc.frame.stack.push(result);
+}
+
 void HIRBuilder::emitUnaryOp(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
@@ -2611,6 +2648,34 @@ void HIRBuilder::emitCompareOp(
 
   tc.emit<Compare>(result, op, left, right, tc.frame);
   stack.push(result);
+  if (PY_VERSION_HEX >= 0x030E0000 && bc_instr.oparg() & 0x10) {
+    emitToBool(tc);
+  }
+}
+
+void HIRBuilder::emitToBool(TranslationContext& tc) {
+  Register* operand = tc.frame.stack.pop();
+  Register* truthy_result = temps_.AllocateStack();
+  tc.emit<IsTruthy>(truthy_result, operand, tc.frame);
+
+  BasicBlock* true_block = tc.block->cfg->AllocateBlock();
+  BasicBlock* false_block = tc.block->cfg->AllocateBlock();
+  BasicBlock* done_block = tc.block->cfg->AllocateBlock();
+
+  tc.emit<CondBranch>(truthy_result, true_block, false_block);
+
+  Register* coerced_result = temps_.AllocateStack();
+
+  tc.block = true_block;
+  tc.emit<LoadConst>(coerced_result, Type::fromObject(Py_True));
+  tc.emit<Branch>(done_block);
+
+  tc.block = false_block;
+  tc.emit<LoadConst>(coerced_result, Type::fromObject(Py_False));
+  tc.emit<Branch>(done_block);
+
+  tc.block = done_block;
+  tc.frame.stack.push(coerced_result);
 }
 
 void HIRBuilder::emitCopyDictWithoutKeys(TranslationContext& tc) {
@@ -3688,9 +3753,18 @@ void HIRBuilder::emitPopJumpIf(
 
   if (bc_instr.opcode() == POP_JUMP_IF_FALSE ||
       bc_instr.opcode() == POP_JUMP_IF_TRUE) {
-    Register* tval = temps_.AllocateNonStack();
-    tc.emit<IsTruthy>(tval, var, tc.frame);
-    tc.emit<CondBranch>(tval, true_block, false_block);
+    Register* is_true = temps_.AllocateNonStack();
+    // In 3.14+ coercion to exactly Py_True or Py_False is performed by earlier
+    // instructions. See GH-106008.
+    if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+      Register* const_true = temps_.AllocateNonStack();
+      tc.emit<LoadConst>(const_true, Type::fromObject(Py_True));
+      tc.emit<PrimitiveCompare>(
+          is_true, PrimitiveCompareOp::kEqual, var, const_true);
+    } else {
+      tc.emit<IsTruthy>(is_true, var, tc.frame);
+    }
+    tc.emit<CondBranch>(is_true, true_block, false_block);
   } else {
     tc.emit<CondBranch>(var, true_block, false_block);
   }

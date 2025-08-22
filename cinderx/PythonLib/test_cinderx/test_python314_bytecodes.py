@@ -13,21 +13,33 @@ def one():
 
 @unittest.skipUnless(sys.version_info >= (3, 14), "Python 3.14+ only")
 class Python314Bytecodes(unittest.TestCase):
-    def _assertBytecodeContains(self, func, expected_opcode):
+    def _assertBytecodeContains(self, func, expected_opcode, expected_oparg=None):
         try:
             inner_function = func.inner_function
         except AttributeError:
             pass
         else:
             func = inner_function
-        bytecode_instructions = list(dis.get_instructions(func))
-        opcodes = [instr.opname for instr in bytecode_instructions]
 
-        self.assertIn(
-            expected_opcode,
-            opcodes,
-            f"{expected_opcode} opcode should be present in {func.__name__} bytecode",
-        )
+        bytecode_instructions = dis.get_instructions(func)
+
+        if expected_oparg is None:
+            opcodes = [instr.opname for instr in bytecode_instructions]
+            self.assertIn(
+                expected_opcode,
+                opcodes,
+                f"{expected_opcode} opcode should be present in {func.__name__} bytecode",
+            )
+        else:
+            matching_instructions = [
+                instr
+                for instr in bytecode_instructions
+                if instr.opname == expected_opcode and instr.arg == expected_oparg
+            ]
+            self.assertTrue(
+                len(matching_instructions) > 0,
+                f"{expected_opcode} opcode with oparg {expected_oparg} should be present in {func.__name__} bytecode",
+            )
 
     def test_LOAD_SMALL_INT(self):
         @cinder_support.fail_if_deopt
@@ -220,6 +232,37 @@ def x():
 
         self.assertEqual(x(), True)
         self._assertBytecodeContains(x, "COMPARE_OP")
+
+    def test_COMPARE_OP_with_bool_coercion(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            if 1 == 2:
+                return 2
+            return 1
+
+        self.assertEqual(x(), 1)
+        self._assertBytecodeContains(x, "COMPARE_OP", 88)  # bit 5 set
+
+    def test_COMPARE_OP_without_bool_coercion(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            return 1 == 2
+
+        self.assertEqual(x(), False)
+        self._assertBytecodeContains(x, "COMPARE_OP", 72)  # bit 5 not set
+
+    def test_TO_BOOL_and_POP_JUMP_IF_FALSE(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x(a):
+            if a:
+                return 1
+
+        self.assertEqual(x(2), 1)
+        self._assertBytecodeContains(x, "TO_BOOL")
+        self._assertBytecodeContains(x, "POP_JUMP_IF_FALSE")
 
 
 if __name__ == "__main__":

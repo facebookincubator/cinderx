@@ -135,6 +135,7 @@ class HIRBuilder {
   void emitBinaryOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitUnaryNot(TranslationContext& tc);
   void emitUnaryOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -160,6 +161,7 @@ class HIRBuilder {
   void emitCompareOp(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitToBool(TranslationContext& tc);
   void emitCopyDictWithoutKeys(TranslationContext& tc);
   void emitGetLen(TranslationContext& tc);
   void emitJumpIf(
