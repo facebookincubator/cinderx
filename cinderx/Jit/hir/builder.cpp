@@ -168,6 +168,7 @@ bool isSupportedOpcode(int opcode) {
     case MATCH_MAPPING:
     case MATCH_SEQUENCE:
     case NOP:
+    case NOT_TAKEN:
     case POP_BLOCK:
     case POP_EXCEPT:
     case POP_JUMP_IF_FALSE:
@@ -831,7 +832,8 @@ void HIRBuilder::translate(
 
       // Translate instruction
       switch (bc_instr.opcode()) {
-        case NOP: {
+        case NOP:
+        case NOT_TAKEN: {
           break;
         }
         case PUSH_NULL: {
