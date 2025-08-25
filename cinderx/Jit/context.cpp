@@ -3,7 +3,6 @@
 #include "cinderx/Jit/context.h"
 
 #include "cinderx/Common/log.h"
-#include "cinderx/Common/py-portability.h"
 #include "cinderx/Jit/elf/reader.h"
 
 #include <dlfcn.h>
