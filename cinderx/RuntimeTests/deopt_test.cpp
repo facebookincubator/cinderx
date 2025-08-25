@@ -11,6 +11,7 @@
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/deopt.h"
+// NOLINTNEXTLINE(facebook-unused-include-check)
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/hir/builder.h"
 #include "cinderx/Jit/hir/hir.h"
