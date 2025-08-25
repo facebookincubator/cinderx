@@ -11,7 +11,7 @@ import cinderx.jit
 import test.test_gc
 
 
-def _restore_parallel_gc(settings: dict[str, int]) -> None:
+def _restore_parallel_gc(settings: dict[str, int] | None) -> None:
     cinderx.disable_parallel_gc()
     if settings is not None:
         cinderx.enable_parallel_gc(
@@ -83,7 +83,7 @@ class ParallelGCFinalizationTests(test.test_gc.PythonFinalizationTests):
     pass
 
 
-OLD_PAR_GC_SETTINGS: dict[str, int] = {}
+OLD_PAR_GC_SETTINGS: dict[str, int] | None = None
 
 
 def setUpModule() -> None:

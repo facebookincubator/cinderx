@@ -174,8 +174,6 @@ PyObject* has_parallel_gc(
 #endif
 }
 
-#ifdef ENABLE_PARALLEL_GC
-
 PyDoc_STRVAR(
     cinder_enable_parallel_gc_doc,
     "enable_parallel_gc(min_generation=2, num_threads=0)\n\
@@ -215,10 +213,16 @@ cinder_enable_parallel_gc(PyObject*, PyObject* args, PyObject* kwargs) {
     return nullptr;
   }
 
+#ifdef ENABLE_PARALLEL_GC
   if (Cinder_EnableParallelGC(min_gen, num_threads) < 0) {
     return nullptr;
   }
   Py_RETURN_NONE;
+#else
+  PyErr_SetString(
+      PyExc_RuntimeError, "Parallel GC is not supported in this build");
+  return nullptr;
+#endif
 }
 
 PyDoc_STRVAR(
@@ -230,7 +234,9 @@ Disable parallel garbage collection.\n\
 This only affects the next collection; calling this from a finalizer does not\n\
 affect the current collection.");
 PyObject* cinder_disable_parallel_gc(PyObject*, PyObject*) {
+#ifdef ENABLE_PARALLEL_GC
   Cinder_DisableParallelGC();
+#endif
   Py_RETURN_NONE;
 }
 
@@ -247,10 +253,12 @@ collector is enabled:\n\
     num_threads: Number of threads used.\n\
     min_generation: The minimum generation for which parallel gc is enabled.");
 PyObject* cinder_get_parallel_gc_settings(PyObject*, PyObject*) {
+#ifdef ENABLE_PARALLEL_GC
   return Cinder_GetParallelGCSettings();
+#else
+  Py_RETURN_NONE;
+#endif
 }
-
-#endif // ENABLE_PARALLEL_GC
 
 PyDoc_STRVAR(
     cinder_immortalize_heap_doc,
@@ -1157,7 +1165,6 @@ PyMethodDef _cinderx_methods[] = {
          "Watch the sys.modules dict to allow invalidating Static Python's "
          "internal caches.")},
     {"has_parallel_gc", has_parallel_gc, METH_NOARGS, has_parallel_gc_doc},
-#ifdef ENABLE_PARALLEL_GC
     {"enable_parallel_gc",
      (PyCFunction)cinder_enable_parallel_gc,
      METH_VARARGS | METH_KEYWORDS,
@@ -1170,7 +1177,6 @@ PyMethodDef _cinderx_methods[] = {
      cinder_get_parallel_gc_settings,
      METH_NOARGS,
      cinder_get_parallel_gc_settings_doc},
-#endif
     {"_clear_strict_modules",
      clear_strict_modules,
      METH_NOARGS,
