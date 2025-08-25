@@ -2,6 +2,7 @@
 
 #include "cinderx/Jit/runtime_support.h"
 
+// NOLINTNEXTLINE(facebook-unused-include-check)
 #include "cinderx/Immortalize/immortalize.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
