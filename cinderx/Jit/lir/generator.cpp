@@ -2952,10 +2952,14 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Ind{callee_frame,
                 (ssize_t)offsetof(FrameHeader, func) -
                     (ssize_t)sizeof(FrameHeader)});
-        bbb.appendInstr(Instruction::kBitTest, rtfs_reg, Imm{0});
+        JIT_DCHECK(
+            JIT_FRAME_INITIALIZED == 2,
+            "JIT_FRAME_INITIALIZED changed"); // this is the bit we're testing
+                                              // below
+        bbb.appendInstr(Instruction::kBitTest, rtfs_reg, Imm{1});
         auto done_block = bbb.allocateBlock();
         auto not_materialized_block = bbb.allocateBlock();
-        bbb.appendBranch(Instruction::kBranchC, not_materialized_block);
+        bbb.appendBranch(Instruction::kBranchNC, not_materialized_block);
         bbb.appendBlock(bbb.allocateBlock());
 
         // The frame was materialized, let's use the unlink helper to clean

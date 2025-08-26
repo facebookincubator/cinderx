@@ -440,6 +440,16 @@ class GetFrameTests(unittest.TestCase):
         finally:
             gc.set_threshold(*thresholds)
 
+    def test_get_frame(self):
+        def f():
+            return sys._getframe()
+
+        def g():
+            return f()
+
+        x = g()
+        self.assertEqual(x.f_lineno, f.__code__.co_firstlineno + 1)
+
 
 class GetGenFrameDuringThrowTest(unittest.TestCase):
     def setUp(self) -> None:
