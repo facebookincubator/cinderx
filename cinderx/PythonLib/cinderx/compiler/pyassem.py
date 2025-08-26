@@ -42,6 +42,7 @@ from .flow_graph_optimizer import (
     FlowGraphOptimizer,
     FlowGraphOptimizer310,
     FlowGraphOptimizer312,
+    FlowGraphOptimizer314,
 )
 from .opcode_cinder import opcode as cinder_opcode
 from .opcodebase import Opcode
@@ -2208,6 +2209,28 @@ class PyFlowGraph312(PyFlowGraph):
 
 class PyFlowGraphCinder312(PyFlowGraphCinderMixin, PyFlowGraph312):
     pass
+
+
+class PyFlowGraph314(PyFlowGraph312):
+    flow_graph_optimizer = FlowGraphOptimizer314
+
+    def instrsize(self, opname: str, oparg: int) -> int:
+        base_size = _inline_cache_entries.get(opname, 0)
+        if oparg <= 0xFF:
+            return 1 + base_size
+        elif oparg <= 0xFFFF:
+            return 2 + base_size
+        elif oparg <= 0xFFFFFF:
+            return 3 + base_size
+        else:
+            return 4 + base_size
+
+    def emit_inline_cache(
+        self, opcode: str, addCode: Callable[[int, int], None]
+    ) -> None:
+        base_size = _inline_cache_entries.get(opcode, 0)
+        for _i in range(base_size):
+            addCode(0, 0)
 
 
 class UninitializedVariableChecker:

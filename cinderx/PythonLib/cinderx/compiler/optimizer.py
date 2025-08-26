@@ -486,3 +486,7 @@ class AstOptimizer312(AstOptimizer):
 
         except UnsupportedFormat:
             return node
+
+
+class AstOptimizer314(AstOptimizer312):
+    pass

@@ -710,3 +710,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         "POP_JUMP_IF_NONE": FlowGraphOptimizer.opt_pop_jump_if,
         "POP_JUMP_IF_NOT_NONE": FlowGraphOptimizer.opt_pop_jump_if,
     }
+
+
+class FlowGraphOptimizer314(FlowGraphOptimizer312):
+    pass

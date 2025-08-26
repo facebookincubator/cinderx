@@ -7,7 +7,7 @@ from io import StringIO
 from os import path
 from tokenize import detect_encoding
 from types import CodeType
-from unittest import TestCase
+from unittest import main, TestCase
 
 from cinderx.compiler.dis_stable import Disassembler
 from cinderx.compiler.pycodegen import compile_code
@@ -55,3 +55,6 @@ def add_test(modname: str, fname: str) -> None:
 
 corpus_dir: str = path.join(path.dirname(__file__), "testcorpus")
 glob_test(corpus_dir, "**/*.py", add_test)
+
+if __name__ == "__main__":
+    main(0)

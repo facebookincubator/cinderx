@@ -1,5 +1,6 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
+from typing import Callable
 
 
 class Opcode:
@@ -39,6 +40,10 @@ class Opcode:
         self.opname: list[str] = ["<{!r}>".format(op) for op in range(256)]
         self.stack_effects: dict[str, object] = {}
 
+        # New for 3.14, we need to know popped vs pushed for the load borrow analysis.
+        self.popped: dict[str, int | Callable[[object], int]] = {}
+        self.pushed: dict[str, int | Callable[[object], int]] = {}
+
     def stack_effect(self, opcode: int, oparg, jump: int) -> int:  # pyre-ignore[2]
         oparg_int = 0
         if opcode >= self.HAVE_ARGUMENT:
@@ -68,6 +73,28 @@ class Opcode:
             return effect
         else:
             return effect(oparg, jump)  # pyre-ignore[29]
+
+    def get_num_popped(self, opname: str, oparg: object) -> int:
+        popped = self.popped.get(opname)
+        if popped is None:
+            raise ValueError(
+                f"Error, opcode {opname} was not found, please update opcode.stack_effects"
+            )
+        if isinstance(popped, int):
+            return popped
+        else:
+            return popped(oparg)
+
+    def get_num_pushed(self, opname: str, oparg: object) -> int:
+        pushed = self.pushed.get(opname)
+        if pushed is None:
+            raise ValueError(
+                f"Error, opcode {opname} was not found, please update opcode.stack_effects"
+            )
+        if isinstance(pushed, int):
+            return pushed
+        else:
+            return pushed(oparg)
 
     def def_op(self, name: str, op: int) -> None:
         # Fill in any missing space in the opname list for

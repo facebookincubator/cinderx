@@ -45,7 +45,7 @@ try:
     from .future import find_futures as future_find_futures
     from .misc import mangle
     from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
-    from .optimizer import AstOptimizer, AstOptimizer312
+    from .optimizer import AstOptimizer, AstOptimizer312, AstOptimizer314
     from .pyassem import (
         Block,
         FVC_ASCII,
@@ -58,6 +58,7 @@ try:
         PyFlowGraph,
         PyFlowGraph310,
         PyFlowGraph312,
+        PyFlowGraph314,
         PyFlowGraphCinder310,
         PyFlowGraphCinder312,
         SrcLocation,
@@ -72,6 +73,7 @@ try:
         Scope,
         SymbolVisitor310,
         SymbolVisitor312,
+        SymbolVisitor314,
         TypeParams,
         TypeParamScope,
     )
@@ -5897,6 +5899,25 @@ class CinderCodeGenBase(CodeGenerator):
         raise NotImplementedError()
 
 
+class CodeGenerator314(CodeGenerator312):
+    flow_graph = PyFlowGraph314
+    _SymbolVisitor = SymbolVisitor314
+
+    @classmethod
+    def optimize_tree(
+        cls,
+        optimize: int,
+        tree: AST,
+        string_anns: bool,
+    ) -> AST:
+        result = AstOptimizer314(optimize=optimize > 0, string_anns=string_anns).visit(
+            tree
+        )
+
+        assert isinstance(result, AST)
+        return result
+
+
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
     flow_graph = PyFlowGraphCinder310
     _SymbolVisitor = CinderSymbolVisitor
@@ -5997,16 +6018,26 @@ class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
         CodeGenerator312.visitCall(self, node)
 
 
+class CinderCodeGenerator314(CinderCodeGenBase, CodeGenerator314):
+    flow_graph = PyFlowGraph314
+
+
 def get_default_cinder_generator() -> type[CodeGenerator]:
-    return (
-        CinderCodeGenerator312
-        if sys.version_info >= (3, 12)
-        else CinderCodeGenerator310
-    )
+    if sys.version_info >= (3, 14):
+        return CinderCodeGenerator314
+    elif sys.version_info >= (3, 12):
+        return CinderCodeGenerator312
+
+    return CinderCodeGenerator310
 
 
 def get_default_cpython_generator() -> type[CodeGenerator]:
-    return CodeGenerator312 if sys.version_info >= (3, 12) else CodeGenerator310
+    if sys.version_info >= (3, 14):
+        return CodeGenerator314
+    elif sys.version_info >= (3, 12):
+        return CodeGenerator312
+
+    return CodeGenerator310
 
 
 def get_default_generator() -> type[CodeGenerator]:

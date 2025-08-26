@@ -1453,3 +1453,7 @@ class SymbolVisitor312(BaseSymbolVisitor):
 
         if remove_dunder_class:
             del comp.frees["__class__"]
+
+
+class SymbolVisitor314(SymbolVisitor312):
+    pass
