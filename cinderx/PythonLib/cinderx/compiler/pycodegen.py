@@ -818,6 +818,9 @@ class CodeGenerator(ASTVisitor):
     def visitBoolOp(self, node: ast.BoolOp) -> None:
         raise NotImplementedError()
 
+    def emit_binary_subscr(self) -> None:
+        raise NotImplementedError()
+
     def emit_bin_op(self, binop: type[ast.operator]) -> None:
         raise NotImplementedError()
 
@@ -1971,7 +1974,7 @@ class CodeGenerator(ASTVisitor):
                 self.emit("GET_LEN")
                 self.emit("LOAD_CONST", size - i)
                 self.emit_bin_op(ast.Sub)
-            self.emit("BINARY_SUBSCR")
+            self.emit_binary_subscr()
             self.set_pos(pattern)
             self._visit_subpattern(pattern, pc)
             self.set_pos(node)
@@ -3475,6 +3478,9 @@ class CodeGenerator310(CodeGenerator):
         ast.BitAnd: "BINARY_AND",
     }
 
+    def emit_binary_subscr(self) -> None:
+        self.emit("BINARY_SUBSCR")
+
     def emit_bin_op(self, binop: type[ast.operator]) -> None:
         op = self._binary_opcode[binop]
         self.emit(op)
@@ -3654,11 +3660,11 @@ class CodeGenerator310(CodeGenerator):
         self.visit(node.value)
         self.visit(node.slice)
         if isinstance(node.ctx, ast.Load):
-            self.emit("BINARY_SUBSCR")
+            self.emit_binary_subscr()
         elif isinstance(node.ctx, ast.Store):
             if aug_flag:
                 self.emit_dup(2)
-                self.emit("BINARY_SUBSCR")
+                self.emit_binary_subscr()
             else:
                 self.emit("STORE_SUBSCR")
         elif isinstance(node.ctx, ast.Del):
@@ -3748,7 +3754,7 @@ class CodeGenerator310(CodeGenerator):
                 continue
             self.emit_dup()
             self.emit("LOAD_CONST", i)
-            self.emit("BINARY_SUBSCR")
+            self.emit_binary_subscr()
             self._visit_subpattern(pattern, pc)
         # Success! Pop the tuple of attributes:
         pc.on_top -= 1
@@ -3773,7 +3779,7 @@ class CodeGenerator310(CodeGenerator):
                 continue
             self.emit_dup()
             self.emit("LOAD_CONST", i)
-            self.emit("BINARY_SUBSCR")
+            self.emit_binary_subscr()
             self._visit_subpattern(pattern, pc)
 
         # If we get this far, it's a match! We're done with the tuple of values,
@@ -4124,7 +4130,7 @@ class CodeGenerator312(CodeGenerator):
             self.visit(subs.slice)
             self.emit("COPY", 2)
             self.emit("COPY", 2)
-            self.emit("BINARY_SUBSCR")
+            self.emit_binary_subscr()
 
         self.emitAugRHS(node)
 
@@ -4156,7 +4162,7 @@ class CodeGenerator312(CodeGenerator):
         self.visit(node.slice)
 
         if isinstance(node.ctx, ast.Load):
-            self.emit("BINARY_SUBSCR")
+            self.emit_binary_subscr()
         elif isinstance(node.ctx, ast.Store):
             self.emit("STORE_SUBSCR")
         elif isinstance(node.ctx, ast.Del):
@@ -4203,6 +4209,9 @@ class CodeGenerator312(CodeGenerator):
         ast.BitXor: find_op_idx("NB_XOR"),
         ast.BitAnd: find_op_idx("NB_AND"),
     }
+
+    def emit_binary_subscr(self) -> None:
+        self.emit("BINARY_SUBSCR")
 
     def emit_bin_op(self, binop: type[ast.operator]) -> None:
         op = self._binary_opargs[binop]
@@ -5922,6 +5931,9 @@ class CodeGenerator314(CodeGenerator312):
 
         assert isinstance(result, AST)
         return result
+
+    def emit_binary_subscr(self) -> None:
+        self.emit("BINARY_OP", self.find_op_idx("NB_SUBSCR"))
 
     def emit_kwonlydefaults(self, node: FuncOrLambda) -> bool:
         default_count = 0
