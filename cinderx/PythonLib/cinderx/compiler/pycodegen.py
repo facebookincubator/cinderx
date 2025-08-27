@@ -694,6 +694,9 @@ class CodeGenerator(ASTVisitor):
 
         self.nextBlock(end)
 
+    def emit_cond_jump(self, jump: str, label: Block) -> None:
+        self.emit(jump, label)
+
     def visitWhile(self, node: ast.While) -> None:
         loop = self.newBlock("while_loop")
         body = self.newBlock("while_body")
@@ -803,7 +806,7 @@ class CodeGenerator(ASTVisitor):
 
     def compileJumpIfPop(self, test: ast.expr, label: Block, is_if_true: bool) -> None:
         self.visit(test)
-        self.emit(
+        self.emit_cond_jump(
             "JUMP_IF_TRUE_OR_POP" if is_if_true else "JUMP_IF_FALSE_OR_POP", label
         )
 
@@ -1885,7 +1888,7 @@ class CodeGenerator(ASTVisitor):
             )
         self.visit(value)
         self.emit("COMPARE_OP", "==")
-        self._jump_to_fail_pop(pc, "POP_JUMP_IF_FALSE")
+        self._jump_to_fail_pop(pc, "POP_JUMP_IF_FALSE", to_bool=True)
 
     def visitMatchSingleton(self, node: ast.MatchSingleton, pc: PatternContext) -> None:
         self.emit("LOAD_CONST", node.value)
@@ -2294,13 +2297,18 @@ class CodeGenerator(ASTVisitor):
         while len(pc.fail_pop) < size:
             pc.fail_pop.append(self.newBlock(f"match_fail_pop_{len(pc.fail_pop)}"))
 
-    def _jump_to_fail_pop(self, pc: PatternContext, op: str) -> None:
+    def _jump_to_fail_pop(
+        self, pc: PatternContext, op: str, to_bool: bool = False
+    ) -> None:
         """Use op to jump to the correct fail_pop block."""
         # Pop any items on the top of the stack, plus any objects we were going to
         # capture on success:
         pops = pc.on_top + len(pc.stores)
         self._ensure_fail_pop(pc, pops)
-        self.emit(op, pc.fail_pop[pops])
+        if to_bool:
+            self.emit_cond_jump(op, pc.fail_pop[pops])
+        else:
+            self.emit(op, pc.fail_pop[pops])
         self.nextBlock()
 
     def _emit_and_reset_fail_pop(self, pc: PatternContext) -> None:
@@ -3893,8 +3901,8 @@ class CodeGenerator312(CodeGenerator):
         for value in node.values[:-1]:
             self.visit(value)
             self.emit("COPY", 1)
-            self.emit(jumpi, end)
-            self.nextBlock()
+            self.emit_cond_jump(jumpi, end)
+            self.nextBlock(label="cond")
             self.emit("POP_TOP")
         self.visit(node.values[-1])
         self.nextBlock(end)
@@ -4021,7 +4029,7 @@ class CodeGenerator312(CodeGenerator):
                 node.ops[i], node.comparators[i], cleanup, False
             )
             self.emit("COPY", 1)
-            self.emit("POP_JUMP_IF_FALSE", cleanup)
+            self.emit_cond_jump("POP_JUMP_IF_FALSE", cleanup)
             self.nextBlock(label="compare_or_cleanup")
             self.emit("POP_TOP")
 
@@ -4043,11 +4051,13 @@ class CodeGenerator312(CodeGenerator):
         for op, comparator in zip(test.ops[:-1], test.comparators[:-1]):
             self.set_pos(test)
             self.emitChainedCompareStep(op, comparator, cleanup, always_pop=True)
-            self.emit("POP_JUMP_IF_FALSE", cleanup)
+            self.emit_cond_jump("POP_JUMP_IF_FALSE", cleanup)
             self.nextBlock(label="compare_or_cleanup")
         self.visit(test.comparators[-1])
         self.defaultEmitCompare(test.ops[-1])
-        self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
+        self.emit_cond_jump(
+            "POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next
+        )
         self.nextBlock()
         end = self.newBlock()
         self.emit_jump_forward_noline(end)
@@ -4082,7 +4092,9 @@ class CodeGenerator312(CodeGenerator):
     ) -> None:
         self.visit(test)
         self.set_pos(test)
-        self.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
+        self.emit_cond_jump(
+            "POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next
+        )
 
     def visitFor(self, node: ast.For) -> None:
         start = self.newBlock("for_start")
@@ -4338,7 +4350,7 @@ class CodeGenerator312(CodeGenerator):
     def emit_with_except_finish(self, cleanup: Block) -> None:
         assert cleanup is not None
         suppress = self.newBlock("suppress")
-        self.emit("POP_JUMP_IF_TRUE", suppress)
+        self.emit_cond_jump("POP_JUMP_IF_TRUE", suppress)
         self.nextBlock()
         self.emit("RERAISE", 2)
 
@@ -6182,6 +6194,34 @@ class CodeGenerator314(CodeGenerator312):
             self.set_no_pos()
             self.emit("LOAD_CONST", None)
         self.emit("RETURN_VALUE")
+
+    def emit_cond_jump(self, jump: str, label: Block) -> None:
+        self.emit("TO_BOOL")
+        self.emit(jump, label)
+
+    def visitBoolOp(self, node: ast.BoolOp) -> None:
+        if type(node.op) is ast.And:
+            jumpi = "JUMP_IF_FALSE"
+        else:
+            jumpi = "JUMP_IF_TRUE"
+        end = self.newBlock()
+        for value in node.values[:-1]:
+            self.visit(value)
+            self.emit(jumpi, end)
+            self.nextBlock(label="cond")
+            self.emit("POP_TOP")
+        self.visit(node.values[-1])
+        self.nextBlock(end)
+
+    def unaryOp(self, node: ast.UnaryOp, op: str) -> None:
+        self.visit(node.operand)
+        if op == "UNARY_POSITIVE":
+            self.emit_call_intrinsic_1("INTRINSIC_UNARY_POSITIVE")
+        elif op == "UNARY_NOT":
+            self.emit("TO_BOOL")
+            self.emit("UNARY_NOT")
+        else:
+            self.emit(op)
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):

@@ -2270,6 +2270,91 @@ class PyFlowGraph314(PyFlowGraph312):
         for _i in range(base_size):
             addCode(0, 0)
 
+    def convert_pseudo_conditional_jumps(self) -> None:
+        for block in self.getBlocksInOrder():
+            for i, inst in enumerate(block.insts):
+                if inst.opname == "JUMP_IF_FALSE" or inst.opname == "JUMP_IF_TRUE":
+                    inst.opname = (
+                        "POP_JUMP_IF_FALSE"
+                        if inst.opname == "JUMP_IF_FALSE"
+                        else "POP_JUMP_IF_TRUE"
+                    )
+                    block.insts[i:i] = [
+                        Instruction(
+                            "COPY", 1, 1, inst.loc, exc_handler=inst.exc_handler
+                        ),
+                        Instruction(
+                            "TO_BOOL", 0, 0, inst.loc, exc_handler=inst.exc_handler
+                        ),
+                    ]
+
+    def assemble_final_code(self) -> None:
+        """Finish assembling code object components from the final graph."""
+        # see compile.c :: optimize_and_assemble_code_unit()
+        self.finalize()
+        assert self.stage == FINAL, self.stage
+
+        self.convert_pseudo_conditional_jumps()
+        self.compute_stack_depth()
+
+        # TASK(T206903352): We need to pass the return value to make_code at
+        # some point.
+        self.prepare_localsplus()
+        self.convert_pseudo_ops()
+
+        self.resolve_unconditional_jumps()
+        self.flatten_graph()
+        assert self.stage == FLAT, self.stage
+        # see assemble.c :: _PyAssemble_MakeCodeObject()
+        self.bytecode = self.make_byte_code()
+        self.line_table = self.make_line_table()
+        self.exception_table = self.make_exception_table()
+
+    def normalize_jumps_in_block(
+        self, block: Block, seen_blocks: set[Block]
+    ) -> Block | None:
+        last = block.insts[-1]
+        if not last.is_jump(self.opcode) or last.opname in UNCONDITIONAL_JUMP_OPCODES:
+            return
+        target = last.target
+        assert target is not None
+        is_forward = target.bid not in seen_blocks
+        if is_forward:
+            block.insts.append(Instruction("NOT_TAKEN", 0, 0, last.loc))
+            return
+
+        # transform 'conditional jump T' to
+        # 'reversed_jump b_next' followed by 'jump_backwards T'
+        backwards_jump = self.newBlock("backwards_jump")
+        backwards_jump.bid = self.get_new_block_id()
+        self.current = backwards_jump
+        # cpython has `JUMP(target)` here, but it will always get inserted as
+        # the next block in the loop and then transformed to JUMP_BACKWARD by
+        # the above code, since is_forward(target) won't have changed.
+        self.fetch_current().emit(Instruction("NOT_TAKEN", 0, 0, last.loc))
+        self.emit_with_loc("JUMP_BACKWARD", target, last.loc)
+        last.opname = self._reversed_jumps[last.opname]
+        last.target = block.next
+        block.insert_next(backwards_jump)
+        return backwards_jump
+
+    def resolve_unconditional_jumps(self) -> None:
+        seen_blocks = set()
+
+        for b in self.getBlocksInOrder():
+            seen_blocks.add(b.bid)
+            for inst in b.getInstructions():
+                if inst.opname == "JUMP":
+                    assert inst.target is not None
+                    is_forward = inst.target.bid not in seen_blocks
+                    inst.opname = "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD"
+                elif inst.opname == "JUMP_NO_INTERRUPT":
+                    assert inst.target is not None
+                    is_forward = inst.target.bid not in seen_blocks
+                    inst.opname = (
+                        "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD_NO_INTERRUPT"
+                    )
+
 
 class UninitializedVariableChecker:
     # Opcodes which may clear a variable

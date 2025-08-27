@@ -762,7 +762,29 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
                 self, instr_index, instr, next_instr, target, block
             )
 
+    def opt_jump_if(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert target is not None
+        if target.opname in ("JUMP", instr.opname):
+            return instr_index + self.jump_thread(instr, target, instr.opname)
+        elif target.opname == (
+            "JUMP_IF_FALSE" if instr.opname == "JUMP_IF_TRUE" else "JUMP_IF_TRUE"
+        ):
+            # No need to check for loops here, a block's b_next
+            # cannot point to itself.
+            assert instr.target is not None
+            instr.target = instr.target.next
+            return instr_index - 1
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "LOAD_CONST": opt_load_const,
+        "JUMP_IF_FALSE": opt_jump_if,
+        "JUMP_IF_TRUE": opt_jump_if,
     }
