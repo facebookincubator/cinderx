@@ -6008,6 +6008,26 @@ class CodeGenerator314(CodeGenerator312):
         else:
             self.emit("LOAD_COMMON_CONSTANT", AssertionError)
 
+    def visitFormattedValue(self, node: ast.FormattedValue) -> None:
+        self.visit(node.value)
+
+        if node.conversion != -1:
+            if node.conversion == CONV_STR:
+                oparg = FVC_STR
+            elif node.conversion == CONV_REPR:
+                oparg = FVC_REPR
+            elif node.conversion == CONV_ASCII:
+                oparg = FVC_ASCII
+            else:
+                raise AssertionError("unknown format conversion:", node.conversion)
+            self.emit("CONVERT_VALUE", oparg)
+
+        if node.format_spec:
+            self.visit(node.format_spec)
+            self.emit("FORMAT_WITH_SPEC")
+        else:
+            self.emit("FORMAT_SIMPLE")
+
     def emit_kwonlydefaults(self, node: FuncOrLambda) -> bool:
         default_count = 0
         for kwonly, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
