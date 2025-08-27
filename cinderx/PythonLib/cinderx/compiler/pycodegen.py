@@ -2688,6 +2688,12 @@ class CodeGenerator(ASTVisitor):
     ) -> None:
         raise NotImplementedError()
 
+    def emit_load_assertion_error(self, loc: AST | SrcLocation | None = None) -> None:
+        if loc:
+            self.graph.emit_with_loc("LOAD_ASSERTION_ERROR", 0, loc)
+        else:
+            self.emit("LOAD_ASSERTION_ERROR")
+
     def visitAssert(self, node: ast.Assert) -> None:
         raise NotImplementedError()
 
@@ -2809,7 +2815,7 @@ class CodeGenerator310(CodeGenerator):
             end = self.newBlock()
             self.compileJumpIf(node.test, end, True)
 
-            self.emit("LOAD_ASSERTION_ERROR")
+            self.emit_load_assertion_error()
             if node.msg:
                 self.visit(node.msg)
                 self.emit_call_one_arg()
@@ -3867,7 +3873,7 @@ class CodeGenerator312(CodeGenerator):
             end = self.newBlock()
             self.compileJumpIf(node.test, end, True)
 
-            self.graph.emit_with_loc("LOAD_ASSERTION_ERROR", 0, node)
+            self.emit_load_assertion_error(node)
             if node.msg:
                 self.visit(node.msg)
                 self.set_pos(node)
@@ -5934,6 +5940,12 @@ class CodeGenerator314(CodeGenerator312):
 
     def emit_binary_subscr(self) -> None:
         self.emit("BINARY_OP", self.find_op_idx("NB_SUBSCR"))
+
+    def emit_load_assertion_error(self, loc: AST | SrcLocation | None = None) -> None:
+        if loc:
+            self.graph.emit_with_loc("LOAD_COMMON_CONSTANT", AssertionError, loc)
+        else:
+            self.emit("LOAD_COMMON_CONSTANT", AssertionError)
 
     def emit_kwonlydefaults(self, node: FuncOrLambda) -> bool:
         default_count = 0

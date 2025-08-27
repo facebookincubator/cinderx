@@ -2213,6 +2213,13 @@ class PyFlowGraphCinder312(PyFlowGraphCinderMixin, PyFlowGraph312):
 
 class PyFlowGraph314(PyFlowGraph312):
     flow_graph_optimizer = FlowGraphOptimizer314
+    _constant_idx = {
+        AssertionError: 0,
+    }
+    _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
+        **PyFlowGraph312._converters,
+        "LOAD_COMMON_CONSTANT": lambda self, val: PyFlowGraph314._constant_idx[val],
+    }
 
     def instrsize(self, opname: str, oparg: int) -> int:
         base_size = _inline_cache_entries.get(opname, 0)
