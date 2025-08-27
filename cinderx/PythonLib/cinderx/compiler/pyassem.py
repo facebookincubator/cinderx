@@ -2229,6 +2229,13 @@ class PyFlowGraph314(PyFlowGraph312):
     _constant_idx = {
         AssertionError: 0,
     }
+    _load_special_idx = {
+        "__enter__": 0,
+        "__exit__": 1,
+        "__aenter__": 2,
+        "__aexit__": 3,
+    }
+
     END_SEND_OFFSET = 5
 
     def get_stack_effects(self, opname: str, oparg: object, jump: bool) -> int:
@@ -2250,6 +2257,7 @@ class PyFlowGraph314(PyFlowGraph312):
     _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
         **PyFlowGraph312._converters,
         "LOAD_COMMON_CONSTANT": lambda self, val: PyFlowGraph314._constant_idx[val],
+        "LOAD_SPECIAL": lambda self, val: PyFlowGraph314._load_special_idx[val],
     }
 
     def instrsize(self, opname: str, oparg: int) -> int:

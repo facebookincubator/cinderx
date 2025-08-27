@@ -1038,6 +1038,9 @@ class CodeGenerator(ASTVisitor):
     def emit_with_except_finish(self, cleanup: Block) -> None:
         raise NotImplementedError()
 
+    def emit_before_async_with(self) -> None:
+        self.emit("BEFORE_ASYNC_WITH")
+
     def visitWith_(
         self, node: ast.With | ast.AsyncWith, kind: int, pos: int = 0
     ) -> None:
@@ -1051,7 +1054,7 @@ class CodeGenerator(ASTVisitor):
         if kind == ASYNC_WITH:
             if IS_3_12_8:
                 self.set_pos(item.context_expr)
-            self.emit("BEFORE_ASYNC_WITH")
+            self.emit_before_async_with()
             self.emit_get_awaitable(AwaitableKind.AsyncEnter)
             self.emit("LOAD_CONST", None)
             self.emit_yield_from(await_=True)
@@ -4329,11 +4332,14 @@ class CodeGenerator312(CodeGenerator):
         else:
             self.set_pos(node)
 
+    def emit_before_with(self) -> None:
+        self.emit("BEFORE_WITH")
+
     def emit_setup_with(self, node: ast.withitem, target: Block, async_: bool) -> None:
         if not async_:
             if IS_3_12_8:
                 self.set_pos(node.context_expr)
-            self.emit("BEFORE_WITH")
+            self.emit_before_with()
         self.emit("SETUP_WITH", target)
 
     def emit_end_for(self) -> None:
@@ -5371,6 +5377,9 @@ class CodeGenerator312(CodeGenerator):
         self.emit("POP_EXCEPT")
         self.emit("RERAISE", 1)
 
+    def emit_unwind_with_preserve_tos(self) -> None:
+        self.emit_rotate_stack(2)
+
     def unwind_setup_entry(self, e: Entry, preserve_tos: int) -> None:
         if e.kind in (
             WHILE_LOOP,
@@ -5416,7 +5425,7 @@ class CodeGenerator312(CodeGenerator):
                 self.set_pos(e.unwinding_datum)
             self.emit("POP_BLOCK")
             if preserve_tos:
-                self.emit_rotate_stack(2)
+                self.emit_unwind_with_preserve_tos()
             self.emit_call_exit_with_nones()
             if e.kind == ASYNC_WITH:
                 self.emit_get_awaitable(AwaitableKind.AsyncExit)
@@ -6154,6 +6163,26 @@ class CodeGenerator314(CodeGenerator312):
         else:
             self.emit("FORMAT_SIMPLE")
 
+    def emit_unwind_with_preserve_tos(self) -> None:
+        self.emit("SWAP", 3)
+        self.emit("SWAP", 2)
+
+    def emit_before_async_with(self) -> None:
+        self.emit("COPY", 1)
+        self.emit("LOAD_SPECIAL", "__aexit__")
+        self.emit("SWAP", 2)
+        self.emit("SWAP", 3)
+        self.emit("LOAD_SPECIAL", "__aenter__")
+        self.emit("CALL", 0)
+
+    def emit_before_with(self) -> None:
+        self.emit("COPY", 1)
+        self.emit("LOAD_SPECIAL", "__exit__")
+        self.emit("SWAP", 2)
+        self.emit("SWAP", 3)
+        self.emit("LOAD_SPECIAL", "__enter__")
+        self.emit("CALL", 0)
+
     def emit_kwonlydefaults(self, node: FuncOrLambda) -> bool:
         default_count = 0
         for kwonly, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
@@ -6222,6 +6251,37 @@ class CodeGenerator314(CodeGenerator312):
             self.emit("UNARY_NOT")
         else:
             self.emit(op)
+
+    def emit_call_exit_with_nones(self) -> None:
+        self.emit("LOAD_CONST", None)
+        self.emit("LOAD_CONST", None)
+        self.emit("LOAD_CONST", None)
+        self.emit("CALL", 3)
+
+    def emit_with_except_finish(self, cleanup: Block) -> None:
+        suppress = self.newBlock("suppress")
+        self.emit_cond_jump("POP_JUMP_IF_TRUE", suppress)
+        self.nextBlock()
+        self.emit("RERAISE", 2)
+
+        self.nextBlock(suppress)
+        self.emit("POP_TOP")
+        self.emit("POP_BLOCK")
+        self.emit("POP_EXCEPT")
+        self.emit("POP_TOP")
+        self.emit("POP_TOP")
+        self.emit("POP_TOP")
+
+        exit = self.newBlock("exit")
+        self.emit("JUMP_NO_INTERRUPT", exit)
+
+        self.nextBlock(cleanup)
+        self.set_no_pos()
+        self.emit("COPY", 3)
+        self.emit("POP_EXCEPT")
+        self.emit("RERAISE", 1)
+
+        self.nextBlock(exit)
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
