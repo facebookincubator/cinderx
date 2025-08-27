@@ -455,6 +455,49 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
 
             instr_index = instr_index + 1 if new_index is None else new_index
 
+    def try_opt_return_const(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> bool:
+        if next_instr and next_instr.opname == "RETURN_VALUE":
+            next_instr.opname = "RETURN_CONST"
+            next_instr.oparg = instr.oparg
+            next_instr.ioparg = instr.ioparg
+            block.insts[instr_index].set_to_nop()
+            return True
+
+        return False
+
+    def opt_load_const_is(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        jmp_op = (
+            block.insts[instr_index + 2] if instr_index + 2 < len(block.insts) else None
+        )
+        if (
+            jmp_op is not None
+            and jmp_op.opname in ("POP_JUMP_IF_FALSE", "POP_JUMP_IF_TRUE")
+            and instr.oparg is None
+        ):
+            nextarg = next_instr.oparg == 1
+            instr.set_to_nop()
+            next_instr.set_to_nop()
+            jmp_op.opname = (
+                "POP_JUMP_IF_NOT_NONE"
+                if nextarg ^ (jmp_op.opname == "POP_JUMP_IF_FALSE")
+                else "POP_JUMP_IF_NONE"
+            )
+            return instr_index + 2
+
     def opt_load_const(
         self: FlowGraphOptimizer,
         instr_index: int,
@@ -463,31 +506,11 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         target: Instruction | None,
         block: Block,
     ) -> int | None:
-        if next_instr and next_instr.opname == "RETURN_VALUE":
-            next_instr.opname = "RETURN_CONST"
-            next_instr.oparg = instr.oparg
-            next_instr.ioparg = instr.ioparg
-            block.insts[instr_index].set_to_nop()
-        elif next_instr is not None and next_instr.opname == "IS_OP":
-            jmp_op = (
-                block.insts[instr_index + 2]
-                if instr_index + 2 < len(block.insts)
-                else None
-            )
-            if (
-                jmp_op is not None
-                and jmp_op.opname in ("POP_JUMP_IF_FALSE", "POP_JUMP_IF_TRUE")
-                and instr.oparg is None
-            ):
-                nextarg = next_instr.oparg == 1
-                instr.set_to_nop()
-                next_instr.set_to_nop()
-                jmp_op.opname = (
-                    "POP_JUMP_IF_NOT_NONE"
-                    if nextarg ^ (jmp_op.opname == "POP_JUMP_IF_FALSE")
-                    else "POP_JUMP_IF_NONE"
-                )
-                return instr_index + 2
+        assert isinstance(self, FlowGraphOptimizer312)
+        if self.try_opt_return_const(instr_index, instr, next_instr, target, block):
+            return
+        if next_instr is not None and next_instr.opname == "IS_OP":
+            return self.opt_load_const_is(instr_index, instr, next_instr, target, block)
         else:
             # The rest of the optimizations are common to 3.10 and 3.12
             return super().opt_load_const(instr_index, instr, next_instr, target, block)
@@ -712,5 +735,34 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
     }
 
 
+def is_small_int(const: object) -> bool:
+    return type(const) is int and const >= 0 and const < 256
+
+
 class FlowGraphOptimizer314(FlowGraphOptimizer312):
-    pass
+    def opt_load_const(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert isinstance(self, FlowGraphOptimizer314)
+        if instr.opname == "LOAD_CONST" and is_small_int(instr.oparg):
+            assert isinstance(instr.oparg, int)
+            instr.ioparg = instr.oparg
+            instr.opname = "LOAD_SMALL_INT"
+
+        if next_instr is not None and next_instr.opname == "IS_OP":
+            return self.opt_load_const_is(instr_index, instr, next_instr, target, block)
+        else:
+            # The rest of the optimizations are common to 3.10 and 3.12
+            return FlowGraphOptimizer.opt_load_const(
+                self, instr_index, instr, next_instr, target, block
+            )
+
+    handlers: dict[str, Handler] = {
+        **FlowGraphOptimizer312.handlers,
+        "LOAD_CONST": opt_load_const,
+    }
