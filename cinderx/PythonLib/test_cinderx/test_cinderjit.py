@@ -798,8 +798,11 @@ class TempNameTests(unittest.TestCase):
 
 class JITCompileCrasherRegressionTests(StaticTestBase):
     @cinder_support.failUnlessJITCompiled
-    def test_isinstance_optimization(self) -> None:
+    def isinstance_optimization(self) -> bool:
         return isinstance(None, int) and True
+
+    def test_isinstance_optimization(self) -> None:
+        self.assertFalse(self.isinstance_optimization())
 
     @cinder_support.failUnlessJITCompiled
     def _fstring(self, flag, it1, it2):
