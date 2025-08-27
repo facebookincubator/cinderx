@@ -15,6 +15,7 @@ import warnings
 import weakref
 
 from pathlib import Path
+from typing import Callable
 
 AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
 
@@ -1609,8 +1610,10 @@ class CinderJitModuleTests(StaticTestBase):
             codepath = dirpath / "mod.py"
             codepath.write_text(code)
 
-            def run_test(asserts_func, params):
-                args = [sys.executable, "-X", "jit-all"]
+            def run_test(
+                asserts_func: Callable[[list[str]], None], params: list[str]
+            ) -> None:
+                args = [sys.executable]
                 args.extend(params)
                 args.append("mod.py")
                 proc = subprocess.run(
@@ -1624,14 +1627,14 @@ class CinderJitModuleTests(StaticTestBase):
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
                 asserts_func(actual_stdout)
 
-            def zero_asserts(actual_stdout):
+            def zero_asserts(actual_stdout: list[str]) -> None:
                 expected_stdout = "max_size: 0"
                 self.assertEqual(actual_stdout[0], expected_stdout)
                 self.assertIn("used_size", actual_stdout[1])
                 used_size = int(actual_stdout[1].split(" ")[1])
                 self.assertGreater(used_size, 0)
 
-            def onek_asserts(actual_stdout):
+            def onek_asserts(actual_stdout: list[str]) -> None:
                 expected_stdout = "max_size: 1024"
                 self.assertEqual(actual_stdout[0], expected_stdout)
                 self.assertIn("used_size", actual_stdout[1])
@@ -1641,14 +1644,25 @@ class CinderJitModuleTests(StaticTestBase):
                 # allocation is; we assume < 200K.
                 self.assertLess(used_size, 1024 * 200)
 
-            run_test(zero_asserts, ["-X", "jit-max-code-size=0"])
+            # Run the zero-assert tests with JitAuto=1000 to test "normal" behavior
+            # where we compile some code but don't have any limits to trip.
+            run_test(zero_asserts, ["-X", "jit-auto=1000", "-X", "jit-max-code-size=0"])
             run_test(
                 zero_asserts,
-                ["-X", "jit-max-code-size=0", "-X", "jit-huge-pages=0"],
+                [
+                    "-X",
+                    "jit-auto=1000",
+                    "-X",
+                    "jit-max-code-size=0",
+                    "-X",
+                    "jit-huge-pages=0",
+                ],
             )
             run_test(
                 zero_asserts,
                 [
+                    "-X",
+                    "jit-auto=1000",
                     "-X",
                     "jit-max-code-size=0",
                     "-X",
@@ -1659,14 +1673,26 @@ class CinderJitModuleTests(StaticTestBase):
                     "jit-cold-code-section-size=1048576",
                 ],
             )
-            run_test(onek_asserts, ["-X", "jit-max-code-size=1024"])
+
+            # Run the onek-assert tests with JitAll so that we quickly trip the limit
+            # and stop compiling.
+            run_test(onek_asserts, ["-X", "jit-all", "-X", "jit-max-code-size=1024"])
             run_test(
                 onek_asserts,
-                ["-X", "jit-max-code-size=1024", "-X", "jit-huge-pages=0"],
+                [
+                    "-X",
+                    "jit-all",
+                    "-X",
+                    "jit-max-code-size=1024",
+                    "-X",
+                    "jit-huge-pages=0",
+                ],
             )
             run_test(
                 onek_asserts,
                 [
+                    "-X",
+                    "jit-all",
                     "-X",
                     "jit-max-code-size=1024",
                     "-X",
@@ -1691,7 +1717,12 @@ class CinderJitModuleTests(StaticTestBase):
             codepath = dirpath / "mod.py"
             codepath.write_text(code)
 
-            def run_proc():
+            def run_proc(size: str | None = None) -> str:
+                args = [sys.executable, "-X", "jit"]
+                if size:
+                    args.extend(["-X", f"jit-max-code-size={size}"])
+                args.append("mod.py")
+
                 proc = subprocess.run(
                     args,
                     cwd=tmp,
@@ -1703,73 +1734,24 @@ class CinderJitModuleTests(StaticTestBase):
                 actual_stdout = [x.strip() for x in proc.stdout.split("\n")]
                 return actual_stdout[0]
 
-            args = [sys.executable, "-X", "jit-all", "mod.py"]
             self.assertEqual(run_proc(), "max_size: 0")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1234567",
-                "mod.py",
-            ]
-            self.assertEqual(run_proc(), "max_size: 1234567")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1k",
-                "mod.py",
-            ]
-            self.assertEqual(run_proc(), "max_size: 1024")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1K",
-                "mod.py",
-            ]
-            self.assertEqual(run_proc(), "max_size: 1024")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1m",
-                "mod.py",
-            ]
-            self.assertEqual(run_proc(), "max_size: 1048576")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1M",
-                "mod.py",
-            ]
-            self.assertEqual(run_proc(), "max_size: 1048576")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1g",
-                "mod.py",
-            ]
-            self.assertEqual(run_proc(), "max_size: 1073741824")
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1G",
-                "mod.py",
-            ]
-            self.assertEqual(run_proc(), "max_size: 1073741824")
+            self.assertEqual(run_proc("1234567"), "max_size: 1234567")
+            self.assertEqual(run_proc("1k"), "max_size: 1024")
+            self.assertEqual(run_proc("1K"), "max_size: 1024")
+            self.assertEqual(run_proc("1m"), "max_size: 1048576")
+            self.assertEqual(run_proc("1M"), "max_size: 1048576")
+            self.assertEqual(run_proc("1g"), "max_size: 1073741824")
+            self.assertEqual(run_proc("1G"), "max_size: 1073741824")
 
-            def run_proc():
+            def run_proc(size: str) -> str:
+                args = [
+                    sys.executable,
+                    "-X",
+                    "jit",
+                    "-X",
+                    f"jit-max-code-size={size}",
+                    "mod.py",
+                ]
                 proc = subprocess.run(
                     args,
                     cwd=tmp,
@@ -1780,44 +1762,16 @@ class CinderJitModuleTests(StaticTestBase):
                 self.assertEqual(proc.returncode, -6, proc)
                 return proc.stderr
 
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=-1",
-                "mod.py",
-            ]
-            self.assertIn("Invalid unsigned integer in input string: '-1'", run_proc())
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1.1",
-                "mod.py",
-            ]
-            self.assertIn("Invalid unsigned integer in input string: '1.1'", run_proc())
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=dogs",
-                "mod.py",
-            ]
-            self.assertIn("Invalid character in input string", run_proc())
-            args = [
-                sys.executable,
-                "-X",
-                "jit-all",
-                "-X",
-                "jit-max-code-size=1152921504606846976g",
-                "mod.py",
-            ]
+            self.assertIn(
+                "Invalid unsigned integer in input string: '-1'", run_proc("-1")
+            )
+            self.assertIn(
+                "Invalid unsigned integer in input string: '1.1'", run_proc("1.1")
+            )
+            self.assertIn("Invalid character in input string", run_proc("dogs"))
             self.assertIn(
                 "Unsigned Integer overflow in input string: '1152921504606846976g'",
-                run_proc(),
+                run_proc("1152921504606846976g"),
             )
 
 

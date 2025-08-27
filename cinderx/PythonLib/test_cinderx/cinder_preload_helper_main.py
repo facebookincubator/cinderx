@@ -18,7 +18,8 @@ def main_func() -> str:
 
 
 print("disabling jit")
-cinderx.jit.precompile_all()
+# Force main_func to be compiled, which will trigger preloading.
+cinderx.jit.force_compile(main_func)
 cinderx.jit.disable()
 
 print("jit disabled")

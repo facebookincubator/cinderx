@@ -5,6 +5,8 @@ import multiprocessing
 import os
 import sys
 
+import cinderx.jit
+
 
 def compute():
     n = 0
@@ -47,5 +49,20 @@ def main():
     os.waitpid(pid2, 0)
 
 
+@cinderx.jit.jit_suppress
+def schedule_compilation() -> None:
+    """
+    Set up functions to be compiled when they're first called.  Processes that don't
+    call them will leave them uncompiled.
+    """
+
+    cinderx.jit.lazy_compile(main)
+    cinderx.jit.lazy_compile(parent)
+    cinderx.jit.lazy_compile(child1)
+    cinderx.jit.lazy_compile(child2)
+    cinderx.jit.lazy_compile(compute)
+
+
 if __name__ == "__main__":
+    schedule_compilation()
     sys.exit(main())
