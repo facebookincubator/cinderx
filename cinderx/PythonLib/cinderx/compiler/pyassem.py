@@ -739,7 +739,9 @@ class PyFlowGraph(FlowGraph):
                 assert new_depth >= 0, instr
 
                 op = self.opcode.opmap[instr.opname]
-                if self.opcode.has_jump(op) or instr.opname in SETUP_OPCODES:
+                if (
+                    self.opcode.has_jump(op) or instr.opname in SETUP_OPCODES
+                ) and instr.opname != "END_ASYNC_FOR":
                     delta = self.opcode.stack_effect_raw(
                         instr.opname, instr.oparg, True
                     )
@@ -792,6 +794,16 @@ class PyFlowGraph(FlowGraph):
         else:
             return 4
 
+    def flatten_jump(self, inst: Instruction, pc: int) -> int:
+        target = inst.target
+        assert target is not None
+
+        offset = target.offset
+        if self.opcode.opmap[inst.opname] in self.opcode.hasjrel:
+            offset -= pc
+
+        return abs(offset)
+
     def flatten_graph(self) -> None:
         """Arrange the blocks in order and resolve jumps"""
         assert self.stage == FINAL, self.stage
@@ -825,16 +837,9 @@ class PyFlowGraph(FlowGraph):
                 pc += self.instrsize(inst.opname, inst.ioparg)
                 op = self.opcode.opmap[inst.opname]
                 if self.opcode.has_jump(op):
-                    oparg = inst.ioparg
-                    target = inst.target
+                    offset = self.flatten_jump(inst, pc)
 
-                    offset = target.offset
-                    if op in self.opcode.hasjrel:
-                        offset -= pc
-
-                    offset = abs(offset)
-
-                    if self.instrsize(inst.opname, oparg) != self.instrsize(
+                    if self.instrsize(inst.opname, inst.ioparg) != self.instrsize(
                         inst.opname, offset
                     ):
                         extended_arg_recompile = True
@@ -1214,7 +1219,7 @@ class PyFlowGraph(FlowGraph):
             if not block.insts:
                 continue
             last = block.insts[-1]
-            if last.is_jump(self.opcode):
+            if last.is_jump(self.opcode) and last.opname != "END_ASYNC_FOR":
                 target = last.target
                 while not target.insts and target.next:
                     target = target.next
@@ -1550,6 +1555,14 @@ class PyFlowGraph312(PyFlowGraph):
 
     def emit_jump_forward_noline(self, target: Block) -> None:
         self.emit_noline("JUMP", target)
+
+    def flatten_jump(self, inst: Instruction, pc: int) -> int:
+        target = inst.target
+        assert target is not None, inst.opname
+
+        offset = target.offset - pc
+
+        return abs(offset)
 
     def push_except_block(self, except_stack: list[Block], instr: Instruction) -> Block:
         target = instr.target
@@ -2216,6 +2229,24 @@ class PyFlowGraph314(PyFlowGraph312):
     _constant_idx = {
         AssertionError: 0,
     }
+    END_SEND_OFFSET = 5
+
+    def get_stack_effects(self, opname: str, oparg: object, jump: bool) -> int:
+        res = self.opcode.stack_effect_raw(opname, oparg, jump)
+        if opname in SETUP_OPCODES and not jump:
+            return 0
+
+        return res
+
+    def flatten_jump(self, inst: Instruction, pc: int) -> int:
+        res = super().flatten_jump(inst, pc)
+        if inst.opname == "END_ASYNC_FOR":
+            # sys.monitoring needs to be able to find the matching END_SEND
+            # but the target is the SEND, so we adjust it here.
+            res -= self.END_SEND_OFFSET
+
+        return res
+
     _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
         **PyFlowGraph312._converters,
         "LOAD_COMMON_CONSTANT": lambda self, val: PyFlowGraph314._constant_idx[val],

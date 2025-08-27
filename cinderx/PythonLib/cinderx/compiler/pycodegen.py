@@ -6008,6 +6008,120 @@ class CodeGenerator314(CodeGenerator312):
         else:
             self.emit("LOAD_COMMON_CONSTANT", AssertionError)
 
+    def visitAsyncFor(self, node: ast.AsyncFor) -> None:
+        start = self.newBlock("async_for_try")
+        except_ = self.newBlock("except")
+        end = self.newBlock("end")
+        send = self.newBlock("send")
+
+        self.visit(node.iter)
+        self.graph.emit_with_loc("GET_AITER", 0, node.iter)
+
+        self.nextBlock(start)
+
+        self.push_loop(FOR_LOOP, start, end)
+        self.emit("SETUP_FINALLY", except_)
+        self.emit("GET_ANEXT")
+        self.emit("LOAD_CONST", None)
+        self.nextBlock(send)
+        self.emit_yield_from(await_=True)
+        self.emit("POP_BLOCK")
+        self.emit("NOT_TAKEN")
+        self.visit(node.target)
+        self.visitStatements(node.body)
+        self.set_no_pos()
+        self.emitJump(start)
+        self.pop_fblock(FOR_LOOP)
+
+        self.nextBlock(except_)
+        self.set_pos(node.iter)
+        self.emit("END_ASYNC_FOR", send)
+        if node.orelse:
+            self.visitStatements(node.orelse)
+        self.nextBlock(end)
+
+    def _compile_async_comprehension(
+        self,
+        comp: CompNode,
+        gen_index: int,
+        depth: int,
+        elt: ast.expr,
+        val: ast.expr | None,
+        type: type[ast.AST],
+        iter_on_stack: bool,
+    ) -> None:
+        start = self.newBlock("start")
+        except_ = self.newBlock("except")
+        if_cleanup = self.newBlock("if_cleanup")
+        send = self.newBlock("send")
+
+        gen = comp.generators[gen_index]
+        if not iter_on_stack:
+            if gen_index == 0:
+                self.loadName(".0")
+            else:
+                self.visit(gen.iter)
+                self.set_pos(comp)
+                if IS_3_12_8:
+                    self.graph.emit_with_loc("GET_AITER", 0, gen.iter)
+                else:
+                    self.emit("GET_AITER")
+
+        self.nextBlock(start)
+        self.emit("SETUP_FINALLY", except_)
+        self.emit("GET_ANEXT")
+        self.emit("LOAD_CONST", None)
+        self.nextBlock(send)
+        self.emit_yield_from(await_=True)
+        self.emit("POP_BLOCK")
+        self.visit(gen.target)
+
+        for if_ in gen.ifs:
+            self.compileJumpIf(if_, if_cleanup, False)
+            self.newBlock()
+
+        depth += 1
+        gen_index += 1
+        elt_loc = elt
+        if gen_index < len(comp.generators):
+            self.compile_comprehension_generator(
+                comp, gen_index, depth, elt, val, type, False
+            )
+        elif type is ast.GeneratorExp:
+            self.visit(elt)
+            self.set_pos(elt)
+            self.emit_yield(self.scopes[comp])
+            self.emit("POP_TOP")
+        elif type is ast.ListComp:
+            self.visit(elt)
+            self.set_pos(elt)
+            self.emit("LIST_APPEND", depth + 1)
+        elif type is ast.SetComp:
+            self.visit(elt)
+            self.set_pos(elt)
+            self.emit("SET_ADD", depth + 1)
+        elif type is ast.DictComp:
+            assert val is not None
+            self.compile_dictcomp_element(elt, val)
+            elt_loc = SrcLocation(
+                elt.lineno,
+                val.end_lineno or 0,
+                elt.col_offset,
+                val.end_col_offset or 0,
+            )
+            self.set_pos(elt_loc)
+            self.emit("MAP_ADD", depth + 1)
+        else:
+            raise NotImplementedError("unknown comprehension type")
+
+        self.nextBlock(if_cleanup)
+        self.set_pos(elt_loc)
+        self.emitJump(start)
+
+        self.nextBlock(except_)
+        self.set_pos(comp)
+        self.emit("END_ASYNC_FOR", send)
+
     def visitFormattedValue(self, node: ast.FormattedValue) -> None:
         self.visit(node.value)
 
