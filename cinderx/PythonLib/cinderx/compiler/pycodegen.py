@@ -3950,10 +3950,7 @@ class CodeGenerator312(CodeGenerator):
     def visitCall(self, node: ast.Call) -> None:
         if not self._can_optimize_call(node):
             # We cannot optimize this call
-            self.graph.emit_with_loc("PUSH_NULL", 0, node.func)
-            self.visit(node.func)
-            self._call_helper(0, node, node.args, node.keywords)
-            return
+            return self.emit_noopt_call(node)
 
         attr = node.func
         assert isinstance(attr, ast.Attribute)
@@ -3969,6 +3966,15 @@ class CodeGenerator312(CodeGenerator):
         for arg in node.args:
             self.visit(arg)
 
+        self.finish_opt_call(node, attr)
+
+    def emit_noopt_call(self, node: ast.Call) -> None:
+        self.graph.emit_with_loc("PUSH_NULL", 0, node.func)
+        self.visit(node.func)
+        self._call_helper(0, node, node.args, node.keywords)
+
+    def finish_opt_call(self, node: ast.Call, attr: ast.Attribute) -> None:
+        loc = self.compute_start_location_to_match_attr(node.func, attr)
         if node.keywords:
             for arg in node.keywords:
                 self.visit(arg)
@@ -5937,6 +5943,58 @@ class CodeGenerator314(CodeGenerator312):
 
         assert isinstance(result, AST)
         return result
+
+    def _fastcall_helper(
+        self,
+        argcnt: int,
+        node: ast.expr | None,
+        args: list[ast.expr],
+        kwargs: list[ast.keyword],
+    ) -> None:
+        # No * or ** args, faster calling sequence.
+        for arg in args:
+            self.visit(arg)
+        if kwargs:
+            self.visit_list(kwargs)
+            self.emit("LOAD_CONST", tuple(x.arg for x in kwargs))
+            self.graph.emit("CALL_KW", argcnt + len(args) + len(kwargs))
+        else:
+            self.emit("CALL", argcnt + len(args) + len(kwargs))
+
+    def emit_noopt_call(self, node: ast.Call) -> None:
+        self.visit(node.func)
+        self.graph.emit_with_loc("PUSH_NULL", 0, node.func)
+        self._call_helper(0, node, node.args, node.keywords)
+
+    def finish_opt_call(self, node: ast.Call, attr: ast.Attribute) -> None:
+        loc = self.compute_start_location_to_match_attr(node, attr)
+        if node.keywords:
+            for kw in node.keywords:
+                self.visit(kw.value)
+            self.emit("LOAD_CONST", tuple(x.arg for x in node.keywords))
+            self.graph.emit_with_loc(
+                "CALL_KW", len(node.args) + len(node.keywords), loc
+            )
+        else:
+            self.graph.emit_with_loc("CALL", len(node.args), loc)
+
+    def compile_subdict(self, node: ast.Dict, begin: int, end: int) -> None:
+        n = end - begin
+        big = n * 2 > STACK_USE_GUIDELINE
+        if big:
+            self.emit("BUILD_MAP", 0)
+
+        for i in range(begin, end):
+            key = node.keys[i]
+            assert key
+
+            self.visit(key)
+            self.visit(node.values[i])
+            if big:
+                self.emit("MAP_ADD", 1)
+
+        if not big:
+            self.emit("BUILD_MAP", n)
 
     def emit_binary_subscr(self) -> None:
         self.emit("BINARY_OP", self.find_op_idx("NB_SUBSCR"))
