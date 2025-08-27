@@ -5999,6 +5999,9 @@ class CodeGenerator314(CodeGenerator312):
     def emit_binary_subscr(self) -> None:
         self.emit("BINARY_OP", self.find_op_idx("NB_SUBSCR"))
 
+    def emit_import_name(self, name: str) -> None:
+        self.emit("IMPORT_NAME", name)
+
     def emit_load_assertion_error(self, loc: AST | SrcLocation | None = None) -> None:
         if loc:
             self.graph.emit_with_loc("LOAD_COMMON_CONSTANT", AssertionError, loc)
