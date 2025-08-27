@@ -122,6 +122,13 @@ _ZERO: bytes = (0).to_bytes(4, "little")
 _DEFAULT_MODNAME: str = sys.intern("<module>")
 
 
+MAKE_FUNCTION_DEFAULTS: int = 0x01
+MAKE_FUNCTION_KWDEFAULTS: int = 0x02
+MAKE_FUNCTION_ANNOTATIONS: int = 0x04
+MAKE_FUNCTION_CLOSURE: int = 0x08
+MAKE_FUNCTION_ANNOTATE: int = 0x10
+
+
 FuncOrLambda = Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda]
 CompNode = Union[ast.GeneratorExp, ast.SetComp, ast.DictComp, ast.ListComp]
 if sys.version_info >= (3, 12):
@@ -2593,6 +2600,20 @@ class CodeGenerator(ASTVisitor):
     ) -> CodeGenerator:
         raise NotImplementedError()
 
+    def emit_kwonlydefaults(self, node: FuncOrLambda) -> bool:
+        kwdefaults = []
+        for kwonly, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+            if default is not None:
+                kwdefaults.append(self.mangle(kwonly.arg))
+                self.visitDefault(default)
+
+        if kwdefaults:
+            self.emit("LOAD_CONST", tuple(kwdefaults))
+            self.emit("BUILD_CONST_KEY_MAP", len(kwdefaults))
+            return True
+
+        return False
+
     def build_function(
         self, node: FuncOrLambda, gen: CodeGenerator, first_lineno: int | None = None
     ) -> None:
@@ -2609,7 +2630,7 @@ class CodeGenerator(ASTVisitor):
             for name in frees:
                 self.emit("LOAD_CLOSURE", name)
             self.emit("BUILD_TUPLE", len(frees))
-            flags |= 0x08
+            flags |= MAKE_FUNCTION_CLOSURE
 
         self.emit_make_function(gen, prefix + gen.name, flags)
 
@@ -2906,22 +2927,14 @@ class CodeGenerator310(CodeGenerator):
         if node.args.defaults:
             for default in node.args.defaults:
                 self.visitDefault(default)
-                flags |= 0x01
+                flags |= MAKE_FUNCTION_DEFAULTS
             self.emit("BUILD_TUPLE", len(node.args.defaults))
 
-        kwdefaults = []
-        for kwonly, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
-            if default is not None:
-                kwdefaults.append(self.mangle(kwonly.arg))
-                self.visitDefault(default)
-
-        if kwdefaults:
-            self.emit("LOAD_CONST", tuple(kwdefaults))
-            self.emit("BUILD_CONST_KEY_MAP", len(kwdefaults))
-            flags |= 0x02
+        if self.emit_kwonlydefaults(node):
+            flags |= MAKE_FUNCTION_KWDEFAULTS
 
         if self.build_annotations(node):
-            flags |= 0x04
+            flags |= MAKE_FUNCTION_ANNOTATIONS
 
         self.emit_closure(gen, flags)
 
@@ -4476,6 +4489,7 @@ class CodeGenerator312(CodeGenerator):
             else:
                 gen.set_pos(SrcLocation(node.lineno, node.lineno or 0, 0, 0))
             gen.emit("RETURN_VALUE")
+            gen.finish_function()
         else:
             if isinstance(node, ast.Lambda):
                 gen.set_pos(node.body)
@@ -4497,19 +4511,11 @@ class CodeGenerator312(CodeGenerator):
         if node.args.defaults:
             for default in node.args.defaults:
                 self.visitDefault(default)
-                flags |= 0x01
+                flags |= MAKE_FUNCTION_DEFAULTS
             self.emit("BUILD_TUPLE", len(node.args.defaults))
 
-        kwdefaults = []
-        for kwonly, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
-            if default is not None:
-                kwdefaults.append(self.mangle(kwonly.arg))
-                self.visitDefault(default)
-
-        if kwdefaults:
-            self.emit("LOAD_CONST", tuple(kwdefaults))
-            self.emit("BUILD_CONST_KEY_MAP", len(kwdefaults))
-            flags |= 0x02
+        if self.emit_kwonlydefaults(node):
+            flags |= MAKE_FUNCTION_KWDEFAULTS
 
         outer_gen: CodeGenerator312 = self
         args = []
@@ -4530,7 +4536,7 @@ class CodeGenerator312(CodeGenerator):
             if node.args.defaults:
                 args.append(".defaults")
                 num_typeparam_args += 1
-            if kwdefaults:
+            if flags & MAKE_FUNCTION_KWDEFAULTS:
                 args.append(".kwdefaults")
                 varnames.append(".kwdefaults")
                 num_typeparam_args += 1
@@ -4561,13 +4567,13 @@ class CodeGenerator312(CodeGenerator):
             outer_gen.compile_type_params(type_params)
 
             outer_gen.set_pos(node)
-            if node.args.defaults or kwdefaults:
+            if node.args.defaults or (flags & MAKE_FUNCTION_KWDEFAULTS):
                 outer_gen.emit("LOAD_FAST", 0)
-            if node.args.defaults and kwdefaults:
+            if node.args.defaults and (flags & MAKE_FUNCTION_KWDEFAULTS):
                 outer_gen.emit("LOAD_FAST", 1)
 
         if outer_gen.build_annotations(node):
-            flags |= 0x04
+            flags |= MAKE_FUNCTION_ANNOTATIONS
 
         outer_gen.set_pos(node)
         outer_gen.emit_closure(gen, flags)
@@ -5916,6 +5922,47 @@ class CodeGenerator314(CodeGenerator312):
 
         assert isinstance(result, AST)
         return result
+
+    def emit_kwonlydefaults(self, node: FuncOrLambda) -> bool:
+        default_count = 0
+        for kwonly, default in zip(node.args.kwonlyargs, node.args.kw_defaults):
+            if default is not None:
+                default_count += 1
+                self.emit("LOAD_CONST", self.mangle(kwonly.arg))
+                self.visitDefault(default)
+
+        if default_count:
+            self.emit("BUILD_MAP", default_count)
+            return True
+
+        return False
+
+    def emit_make_function(
+        self, gen: CodeHolder | CodeGenerator | PyFlowGraph, qualname: str, flags: int
+    ) -> None:
+        if isinstance(gen, CodeGenerator):
+            gen.set_qual_name(qualname)
+        self.emit("LOAD_CONST", gen)
+        self.emit("MAKE_FUNCTION")
+        if flags & MAKE_FUNCTION_CLOSURE:
+            self.emit("SET_FUNCTION_ATTRIBUTE", MAKE_FUNCTION_CLOSURE)
+        if flags & MAKE_FUNCTION_ANNOTATIONS:
+            self.emit("SET_FUNCTION_ATTRIBUTE", MAKE_FUNCTION_ANNOTATIONS)
+        if flags & MAKE_FUNCTION_ANNOTATE:
+            self.emit("SET_FUNCTION_ATTRIBUTE", MAKE_FUNCTION_ANNOTATE)
+        if flags & MAKE_FUNCTION_KWDEFAULTS:
+            self.emit("SET_FUNCTION_ATTRIBUTE", MAKE_FUNCTION_KWDEFAULTS)
+        if flags & MAKE_FUNCTION_DEFAULTS:
+            self.emit("SET_FUNCTION_ATTRIBUTE", MAKE_FUNCTION_DEFAULTS)
+
+    def finish_function(self) -> None:
+        current = self.graph.current
+        assert current
+
+        if not isinstance(self.tree, ast.Lambda) or not self.scope.generator:
+            self.set_no_pos()
+            self.emit("LOAD_CONST", None)
+        self.emit("RETURN_VALUE")
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
