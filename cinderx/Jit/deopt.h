@@ -76,7 +76,6 @@ struct LiveValue {
   X(YieldFrom)               \
   X(Raise)                   \
   X(RaiseStatic)             \
-  X(Reraise)                 \
   X(UnhandledException)      \
   X(UnhandledUnboundLocal)   \
   X(UnhandledUnboundFreevar) \

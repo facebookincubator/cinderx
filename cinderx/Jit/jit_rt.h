@@ -360,12 +360,6 @@ PyObject* JITRT_ImportName(
     PyObject* level);
 
 /*
- * Wrapper around _Py_DoRaise() which handles the case where we re-raise but no
- * active exception is set.
- */
-void JITRT_DoRaise(PyThreadState* tstate, PyObject* exc, PyObject* cause);
-
-/*
  * Formats a f-string value
  */
 PyObject* JITRT_FormatValue(

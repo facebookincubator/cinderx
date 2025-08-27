@@ -242,7 +242,9 @@ static BCIndex getDeoptResumeIndex(
   // function's callers then these will be resumed by the interpreter in
   // future and will never be a JIT guard failure.
   bool is_innermost = &frame == &meta.innermostFrame();
-  if ((is_innermost && meta.reason == DeoptReason::kGuardFailure) ||
+  if ((is_innermost &&
+       (meta.reason == DeoptReason::kGuardFailure ||
+        meta.reason == DeoptReason::kRaise)) ||
       forced_deopt) {
     return frame.cause_instr_idx;
   }
@@ -390,15 +392,7 @@ static DeoptReason getDeoptReason(const jit::hir::DeoptBase& instr) {
       return DeoptReason::kYieldFrom;
     }
     case jit::hir::Opcode::kRaise: {
-      auto& raise = static_cast<const hir::Raise&>(instr);
-      switch (raise.kind()) {
-        case hir::Raise::Kind::kReraise:
-          return DeoptReason::kReraise;
-        case hir::Raise::Kind::kRaiseWithExc:
-        case hir::Raise::Kind::kRaiseWithExcAndCause:
-          return DeoptReason::kRaise;
-      }
-      JIT_ABORT("invalid raise kind");
+      return DeoptReason::kRaise;
     }
     case jit::hir::Opcode::kRaiseStatic: {
       return DeoptReason::kRaiseStatic;

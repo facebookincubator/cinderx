@@ -1108,31 +1108,49 @@ TEST_F(HIRCloneTest, CanCloneBorrwedRefFields) {
 
 TEST_F(HIRCloneTest, CanCloneVariadicOpInstr) {
   Environment env;
+  auto out = env.AllocateRegister();
   auto v0 = env.AllocateRegister();
-  FrameState raise_fs{BCOffset{10}};
-  std::unique_ptr<Instr> raise_exc(Raise::create(1, raise_fs, v0));
-  std::unique_ptr<Instr> new_raise_exc(raise_exc->clone());
-  ASSERT_NE(raise_exc.get(), new_raise_exc.get());
-  ASSERT_TRUE(new_raise_exc->IsRaise());
 
-  Raise* orig_raise = static_cast<Raise*>(raise_exc.get());
-  Raise* dup_raise = static_cast<Raise*>(new_raise_exc.get());
-  EXPECT_EQ(orig_raise->kind(), dup_raise->kind());
-  EXPECT_EQ(orig_raise->GetOperand(0), dup_raise->GetOperand(0));
-  FrameState* orig_raise_fs = orig_raise->frameState();
-  EXPECT_EQ(orig_raise_fs->cur_instr_offs, 10);
-  EXPECT_NE(orig_raise_fs, dup_raise->frameState());
+  // Create a CallStatic with no arguments
+  std::unique_ptr<Instr> call_static_no_args(
+      CallStatic::create(0, out, nullptr, Type::fromObject(Py_None)));
+  std::unique_ptr<Instr> new_call_static_no_args(call_static_no_args->clone());
+  ASSERT_NE(call_static_no_args.get(), new_call_static_no_args.get());
+  ASSERT_TRUE(new_call_static_no_args->IsCallStatic());
 
-  std::unique_ptr<Instr> raise_exc_cause(Raise::create(2, raise_fs, v0, v0));
-  std::unique_ptr<Instr> new_raise_exc_cause(raise_exc_cause->clone());
-  ASSERT_NE(raise_exc_cause.get(), new_raise_exc_cause.get());
-  ASSERT_TRUE(new_raise_exc_cause->IsRaise());
+  CallStatic* orig_call = static_cast<CallStatic*>(call_static_no_args.get());
+  CallStatic* dup_call =
+      static_cast<CallStatic*>(new_call_static_no_args.get());
+  EXPECT_EQ(orig_call->addr(), dup_call->addr());
+  EXPECT_EQ(orig_call->ret_type(), dup_call->ret_type());
 
-  orig_raise = static_cast<Raise*>(raise_exc_cause.get());
-  dup_raise = static_cast<Raise*>(new_raise_exc_cause.get());
-  EXPECT_EQ(orig_raise->kind(), dup_raise->kind());
-  EXPECT_EQ(orig_raise->GetOperand(0), dup_raise->GetOperand(0));
-  EXPECT_EQ(orig_raise->GetOperand(1), dup_raise->GetOperand(1));
+  // Create a CallStatic with one argument
+  std::unique_ptr<Instr> call_static_one_arg(
+      CallStatic::create(1, out, nullptr, Type::fromObject(Py_None), v0));
+  std::unique_ptr<Instr> new_call_static_one_arg(call_static_one_arg->clone());
+  ASSERT_NE(call_static_one_arg.get(), new_call_static_one_arg.get());
+  ASSERT_TRUE(new_call_static_one_arg->IsCallStatic());
+
+  orig_call = static_cast<CallStatic*>(call_static_one_arg.get());
+  dup_call = static_cast<CallStatic*>(new_call_static_one_arg.get());
+  EXPECT_EQ(orig_call->addr(), dup_call->addr());
+  EXPECT_EQ(orig_call->ret_type(), dup_call->ret_type());
+  EXPECT_EQ(orig_call->GetOperand(0), dup_call->GetOperand(0));
+
+  // Create a CallStatic with two arguments
+  std::unique_ptr<Instr> call_static_two_args(
+      CallStatic::create(2, out, nullptr, Type::fromObject(Py_None), v0, v0));
+  std::unique_ptr<Instr> new_call_static_two_args(
+      call_static_two_args->clone());
+  ASSERT_NE(call_static_two_args.get(), new_call_static_two_args.get());
+  ASSERT_TRUE(new_call_static_two_args->IsCallStatic());
+
+  orig_call = static_cast<CallStatic*>(call_static_two_args.get());
+  dup_call = static_cast<CallStatic*>(new_call_static_two_args.get());
+  EXPECT_EQ(orig_call->addr(), dup_call->addr());
+  EXPECT_EQ(orig_call->ret_type(), dup_call->ret_type());
+  EXPECT_EQ(orig_call->GetOperand(0), dup_call->GetOperand(0));
+  EXPECT_EQ(orig_call->GetOperand(1), dup_call->GetOperand(1));
 }
 
 TEST_F(HIRCloneTest, CanCloneDeoptBase) {

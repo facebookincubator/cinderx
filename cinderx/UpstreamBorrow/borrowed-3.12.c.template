@@ -49,15 +49,6 @@ Cix_DEINSTRUMENT(uint8_t op) {
   return DE_INSTRUMENT[op];
 }
 
-// Internal dependencies for Cix_do_raise.
-#define _PyErr_SetRaisedException __PyErr_SetRaisedException
-// @Borrow function _PyErr_SetRaisedException from Python/errors.c
-// End internal dependencies.
-// @Borrow function do_raise from Python/ceval.c
-int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
-  return do_raise(tstate, exc, cause);
-}
-
 // Internal dependencies for match_class.
 // @Borrow function match_class_attr from Python/ceval.c
 // End internal dependencies.

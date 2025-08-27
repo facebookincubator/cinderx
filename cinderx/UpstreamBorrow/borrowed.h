@@ -114,6 +114,8 @@ _PyErr_StackItem* _PyErr_GetTopmostException(PyThreadState* tstate);
 int _PyObject_HasLen(PyObject* o);
 
 extern PyObject *Cix_monitoring_disable, *Cix_monitoring_missing;
+
+int _Ci_Instrument(PyCodeObject* co, PyInterpreterState* interp);
 #endif
 
 #if PY_VERSION_HEX >= 0x030C0000
@@ -203,8 +205,6 @@ uint8_t Cix_DEINSTRUMENT(uint8_t op);
 int Cix_PyCode_InitAddressRange(PyCodeObject* co, PyCodeAddressRange* bounds);
 int Cix_PyLineTable_NextAddressRange(PyCodeAddressRange* range);
 #endif
-
-int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause);
 
 // There's some kind of issue with the borrow script in 3.10.cinder where it
 // fails to copy these out correctly. However, it seems fine in 3.12.

@@ -3082,25 +3082,6 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
       }
       case Opcode::kRaise: {
         const auto& instr = static_cast<const Raise&>(i);
-        hir::Register* exc = nullptr;
-        hir::Register* cause = nullptr;
-
-        switch (instr.kind()) {
-          case Raise::Kind::kReraise:
-            break;
-          case Raise::Kind::kRaiseWithExcAndCause:
-            cause = instr.GetOperand(1);
-            [[fallthrough]];
-          case Raise::Kind::kRaiseWithExc:
-            exc = instr.GetOperand(0);
-            break;
-        }
-        bbb.appendCallInstruction(
-            OutVReg{OperandBase::k32bit},
-            Cix_do_raise,
-            env_->asm_tstate,
-            exc,
-            cause);
         appendGuardAlwaysFail(bbb, instr);
         break;
       }

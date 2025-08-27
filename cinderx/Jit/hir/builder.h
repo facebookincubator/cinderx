@@ -343,9 +343,7 @@ class HIRBuilder {
       CFG& cfg,
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  void emitRaiseVarargs(
-      TranslationContext& tc,
-      const jit::BytecodeInstruction& bc_instr);
+  void emitRaiseVarargs(TranslationContext& tc);
   void emitRefineType(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);

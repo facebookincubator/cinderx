@@ -1356,7 +1356,7 @@ void HIRBuilder::translate(
           break;
         }
         case RAISE_VARARGS: {
-          emitRaiseVarargs(tc, bc_instr);
+          emitRaiseVarargs(tc);
           break;
         }
         case YIELD_VALUE: {
@@ -4271,26 +4271,8 @@ void HIRBuilder::emitImportName(
   stack.push(res);
 }
 
-void HIRBuilder::emitRaiseVarargs(
-    TranslationContext& tc,
-    const jit::BytecodeInstruction& bc_instr) {
-  auto& stack = tc.frame.stack;
-  switch (bc_instr.oparg()) {
-    case 2: {
-      auto cause = stack.pop();
-      auto exc = stack.pop();
-      tc.emit<Raise>(2, tc.frame, exc, cause);
-      break;
-    }
-    case 1:
-      tc.emit<Raise>(1, tc.frame, stack.pop());
-      break;
-    case 0:
-      tc.emit<Raise>(0, tc.frame);
-      break;
-    default:
-      JIT_ABORT("Unsupported RAISE_VARARGS op: {}", bc_instr.oparg());
-  }
+void HIRBuilder::emitRaiseVarargs(TranslationContext& tc) {
+  tc.emit<Raise>(tc.frame);
 }
 
 void HIRBuilder::emitYieldFrom(TranslationContext& tc, Register* out) {

@@ -1455,34 +1455,6 @@ PyObject* JITRT_ImportName(
       import_func, name, globals, locals, fromlist, level, nullptr);
 }
 
-void JITRT_DoRaise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
-  // If we re-raise with no error set, deliberately do nothing and let
-  // prepareForDeopt() handle this. We can't let do_raise() handle this by
-  // raising a RuntimeError as this would mean prepareForDeopt() does not call
-  // PyTraceBack_Here().
-  if (exc == nullptr) {
-    _PyErr_StackItem* exc_info = _PyErr_GetTopmostException(tstate);
-    PyObject* type_or_value =
-#if PY_VERSION_HEX < 0x030C0000
-        exc_info->exc_type;
-#else
-        exc_info->exc_value;
-#endif
-    if (Py_IsNone(type_or_value) || type_or_value == nullptr) {
-      return;
-    }
-  }
-  // We deliberately discard the return value here. In the interpreter a return
-  // value of 1 indicates a _valid_ re-raise which skips:
-  // (1) Calling PyTraceBack_Here().
-  // (2) Raising a SystemError if no exception is set (no need, do_raise
-  //     already handles this).
-  // (3) Calling tstate->c_tracefunc.
-  // We don't support (3) and handle (1) + (2) between the check above and in
-  // prepareForDeopt().
-  Cix_do_raise(tstate, exc, cause);
-}
-
 #if PY_VERSION_HEX < 0x030C0000
 enum class MakeGenObjectMode {
   kAsyncGenerator,

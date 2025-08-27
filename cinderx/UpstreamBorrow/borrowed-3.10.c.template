@@ -94,15 +94,6 @@ PyTypeObject* Cix_PyUnion_Type = NULL;
 #define _Py_union_type_or Cix_Py_union_type_or
 // @Borrow function _Py_union_type_or from Objects/unionobject.c
 
-
-// Internal dependencies for Cix_do_raise.
-#define _PyErr_SetRaisedException __PyErr_SetRaisedException
-// End internal dependencies.
-// @Borrow function do_raise from Python/ceval.c
-int Cix_do_raise(PyThreadState* tstate, PyObject* exc, PyObject* cause) {
-  return do_raise(tstate, exc, cause);
-}
-
 int init_upstream_borrow(void) {
   // 3.10 ONLY!!!
   PyObject* empty_dict = PyDict_New();

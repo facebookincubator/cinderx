@@ -219,6 +219,7 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
         runtime->guardFailed(deopt_meta);
         break;
       }
+      case DeoptReason::kRaise:
       case DeoptReason::kYieldFrom: {
         break;
       }
@@ -233,23 +234,8 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
         break;
       case DeoptReason::kUnhandledException:
         JIT_ABORT("unhandled exception without error set");
-      case DeoptReason::kRaise:
-        // This code mirrors what happens in _PyEval_EvalFrameDefault although
-        // I'm not sure how to test it. Not clear it can happen with JIT.
-#ifdef NDEBUG
-        if (!PyErr_Occurred()) {
-          PyErr_SetString(
-              PyExc_SystemError, "error return without exception set");
-        }
-#else
-        JIT_CHECK(PyErr_Occurred(), "Error return without exception set");
-#endif
-        break;
       case DeoptReason::kRaiseStatic:
         JIT_ABORT("Lost exception when raising static exception");
-      case DeoptReason::kReraise:
-        PyErr_SetString(PyExc_RuntimeError, "No active exception to reraise");
-        break;
     }
   }
   return frame;
@@ -272,7 +258,9 @@ PyObject* resumeInInterpreter(
   // Resume all of the inlined frames and the caller
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
   int inline_depth = deopt_meta.inline_depth();
-  int err_occurred = (deopt_meta.reason != DeoptReason::kGuardFailure);
+  int err_occurred =
+      (deopt_meta.reason != DeoptReason::kGuardFailure &&
+       deopt_meta.reason != DeoptReason::kRaise);
   while (inline_depth >= 0) {
     // Consider skipping resuming frames that do not have try/catch. Will
     // require re-adding _PyShadowFrame_Pop back for non-generators and
@@ -322,7 +310,9 @@ PyObject* resumeInInterpreter(
   PyThreadState* tstate = PyThreadState_Get();
 
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
-  int err_occurred = (deopt_meta.reason != DeoptReason::kGuardFailure);
+  int err_occurred =
+      (deopt_meta.reason != DeoptReason::kGuardFailure &&
+       deopt_meta.reason != DeoptReason::kRaise);
 
   PyObject* result = nullptr;
   // Resume all of the inlined frames and the caller
@@ -340,6 +330,15 @@ PyObject* resumeInInterpreter(
     JIT_CHECK(
         currentFrame(tstate) == frame, "unexpected frame at top of stack");
     setCurrentFrame(tstate, frame->previous);
+    // The interpreter calls _Py_Instrument() on the initial RESUME opcode in a
+    // function, but we don't do this in the JIT. Calling it now is a bit
+    // dubious, because we are splitting execution of the same function between
+    // instrumented and not. However, if we don't do this and instrumentation
+    // is enabled we might hit assertions in the deopted execution because the
+    // code's instrumentation version doesn't match the interpreter's.
+    JIT_CHECK(
+        _Py_Instrument(frameCode(frame), tstate->interp) == 0,
+        "Failed to instrument code on deopt");
     result = _PyEval_EvalFrameDefault(tstate, frame, err_occurred);
 
     frame = prev_frame;

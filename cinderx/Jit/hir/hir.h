@@ -3697,39 +3697,7 @@ class INSTR_CLASS(
   }
 };
 
-// (Re)raises an exception with optional cause.
-class INSTR_CLASS(Raise, (TObject, TObject), Operands<>, DeoptBase) {
- public:
-  enum class Kind {
-    kReraise,
-    kRaiseWithExc,
-    kRaiseWithExcAndCause,
-  };
-
- private:
-  Raise(Kind kind, const FrameState& frame) : InstrT(frame), kind_(kind) {}
-
- public:
-  explicit Raise(const FrameState& frame) : Raise(Kind::kReraise, frame) {}
-
-  Raise(const FrameState& frame, Register* exc)
-      : Raise(Raise::Kind::kRaiseWithExc, frame) {
-    SetOperand(0, exc);
-  }
-
-  Raise(const FrameState& frame, Register* exc, Register* cause)
-      : Raise(Raise::Kind::kRaiseWithExcAndCause, frame) {
-    SetOperand(0, exc);
-    SetOperand(1, cause);
-  }
-
-  Kind kind() const {
-    return kind_;
-  }
-
- private:
-  const Kind kind_;
-};
+DEFINE_SIMPLE_INSTR(Raise, (), Operands<0>, DeoptBase);
 
 // Set an error by calling PyErr_Format() and then raising. This is typically
 // used when a runtime assertion implemented as part of a Python opcode is hit.
