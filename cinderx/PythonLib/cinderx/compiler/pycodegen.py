@@ -4434,6 +4434,19 @@ class CodeGenerator312(CodeGenerator):
                     self.emit_call_intrinsic_1("INTRINSIC_LIST_TO_TUPLE")
             return
 
+        return self._visitSequenceLoadNoOpt(
+            elts, build_op, add_op, extend_op, num_pushed, is_tuple
+        )
+
+    def _visitSequenceLoadNoOpt(
+        self,
+        elts: list[ast.expr],
+        build_op: str,
+        add_op: str,
+        extend_op: str,
+        num_pushed: int = 0,
+        is_tuple: bool = False,
+    ) -> None:
         big = (len(elts) + num_pushed) > STACK_USE_GUIDELINE
         starred_load = self.hasStarred(elts)
         if not starred_load and not big:
@@ -5992,7 +6005,11 @@ class CodeGenerator314(CodeGenerator312):
         if node.keywords:
             for kw in node.keywords:
                 self.visit(kw.value)
-            self.emit("LOAD_CONST", tuple(x.arg for x in node.keywords))
+            self.graph.emit_with_loc(
+                "LOAD_CONST",
+                tuple(x.arg for x in node.keywords),
+                self.compute_start_location_to_match_attr(node.func, attr),
+            )
             self.graph.emit_with_loc(
                 "CALL_KW", len(node.args) + len(node.keywords), loc
             )
@@ -6282,6 +6299,19 @@ class CodeGenerator314(CodeGenerator312):
         self.emit("RERAISE", 1)
 
         self.nextBlock(exit)
+
+    def _visitSequenceLoad(
+        self,
+        elts: list[ast.expr],
+        build_op: str,
+        add_op: str,
+        extend_op: str,
+        num_pushed: int = 0,
+        is_tuple: bool = False,
+    ) -> None:
+        return self._visitSequenceLoadNoOpt(
+            elts, build_op, add_op, extend_op, num_pushed, is_tuple
+        )
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):

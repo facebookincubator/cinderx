@@ -489,4 +489,7 @@ class AstOptimizer312(AstOptimizer):
 
 
 class AstOptimizer314(AstOptimizer312):
-    pass
+    def visitTuple(self, node: ast.Tuple) -> ast.expr:
+        elts = self.walk_list(node.elts)
+
+        return self.update_node(node, elts=elts)

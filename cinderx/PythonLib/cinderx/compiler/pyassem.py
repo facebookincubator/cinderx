@@ -163,6 +163,12 @@ class Instruction:
         self.oparg = self.ioparg = 0
         self.target = None
 
+    def set_to_nop_no_loc(self) -> None:
+        self.opname = "NOP"
+        self.oparg = self.ioparg = 0
+        self.target = None
+        self.loc = NO_LOCATION
+
     @property
     def stores_to(self) -> str | None:
         if self.opname == "STORE_FAST" or self.opname == "STORE_FAST_MAYBE_NULL":

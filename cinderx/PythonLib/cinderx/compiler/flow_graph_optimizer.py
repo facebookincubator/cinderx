@@ -39,6 +39,10 @@ PyCmp_IS = 8
 PyCmp_IS_NOT = 9
 PyCmp_EXC_MATCH = 10
 
+STACK_USE_GUIDELINE = 30
+MIN_CONST_SEQUENCE_SIZE = 3
+
+
 UNARY_OPS: dict[str, object] = {
     "UNARY_INVERT": lambda v: ~v,
     "UNARY_NEGATIVE": lambda v: -v,
@@ -402,6 +406,9 @@ class FlowGraphOptimizer310(FlowGraphOptimizer):
                 instr_index, instr, next_instr, target_instr, block
             )
             instr_index = instr_index + 1 if new_index is None else new_index
+
+
+LOAD_CONST_INSTRS = ("LOAD_CONST", "LOAD_SMALL_INT")
 
 
 class FlowGraphOptimizer312(FlowGraphOptimizer):
@@ -782,9 +789,109 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
             instr.target = instr.target.next
             return instr_index - 1
 
+    def get_const_loading_instrs(
+        self, block: Block, start: int, size: int
+    ) -> list[Instruction] | None:
+        """Return a list of instructions that load the first `size` constants
+        starting at `start`. Returns None if we don't have size constants."""
+        const_loading_instrs = []
+        if not size:
+            return const_loading_instrs
+        i = start
+        while i >= 0:
+            instr = block.insts[i]
+            if instr.opname in LOAD_CONST_INSTRS:
+                const_loading_instrs.append(instr)
+                if len(const_loading_instrs) == size:
+                    const_loading_instrs.reverse()
+                    return const_loading_instrs
+            elif instr.opname != "NOP":
+                return
+            i -= 1
+
+    def optimize_lists_and_sets(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert isinstance(self, FlowGraphOptimizer314)
+        contains_or_iter = next_instr is not None and (
+            next_instr.opname == "GET_ITER" or next_instr.opname == "CONTAINS_OP"
+        )
+        seq_size = instr.oparg
+        assert isinstance(seq_size, int)
+        if seq_size > STACK_USE_GUIDELINE or (
+            seq_size < MIN_CONST_SEQUENCE_SIZE and not contains_or_iter
+        ):
+            return
+
+        const_loading_instrs = self.get_const_loading_instrs(
+            block, instr_index - 1, seq_size
+        )
+        if const_loading_instrs is None:
+            # If we're doing contains/iterating over a sequence we
+            # know nothing will need to mutate it and a tuple is a
+            # suitable container.
+            if contains_or_iter and instr.opname == "BUILD_LIST":
+                instr.opname = "BUILD_TUPLE"
+            return
+
+        newconst = tuple(i.oparg for i in const_loading_instrs)
+        if instr.opname == "BUILD_SET":
+            newconst = frozenset(newconst)
+
+        index = self.graph.convertArg("LOAD_CONST", newconst)
+        for lc in const_loading_instrs:
+            lc.set_to_nop_no_loc()
+
+        if contains_or_iter:
+            instr.opname = "LOAD_CONST"
+            instr.ioparg = instr.oparg = index
+        else:
+            assert instr_index >= 2
+            assert instr.opname == "BUILD_LIST" or instr.opname == "BUILD_SET"
+
+            block.insts[instr_index - 2].loc = instr.loc
+            block.insts[instr_index - 2].opname = instr.opname
+            block.insts[instr_index - 2].oparg = block.insts[instr_index - 2].ioparg = 0
+
+            block.insts[instr_index - 1].opname = "LOAD_CONST"
+            block.insts[instr_index - 1].ioparg = block.insts[instr_index - 1].oparg = (
+                index
+            )
+
+            instr.opname = (
+                "LIST_EXTEND" if instr.opname == "BUILD_LIST" else "SET_UPDATE"
+            )
+            instr.oparg = instr.ioparg = 1
+
+    def fold_tuple_on_constants(
+        self, instr_index: int, instr: Instruction, block: Block
+    ) -> None:
+        load_const_instrs = []
+        for i in range(instr_index - instr.ioparg, instr_index):
+            maybe_load_const = block.insts[i]
+            if (
+                maybe_load_const.opname != "LOAD_CONST"
+                and maybe_load_const.opname != "LOAD_SMALL_INT"
+            ):
+                return
+            load_const_instrs.append(maybe_load_const)
+        newconst = tuple(lc.oparg for lc in load_const_instrs)
+        for lc in load_const_instrs:
+            lc.set_to_nop_no_loc()
+        instr.opname = "LOAD_CONST"
+        instr.oparg = newconst
+        instr.ioparg = self.graph.convertArg("LOAD_CONST", newconst)
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "LOAD_CONST": opt_load_const,
         "JUMP_IF_FALSE": opt_jump_if,
         "JUMP_IF_TRUE": opt_jump_if,
+        "BUILD_LIST": optimize_lists_and_sets,
+        "BUILD_SET": optimize_lists_and_sets,
     }
