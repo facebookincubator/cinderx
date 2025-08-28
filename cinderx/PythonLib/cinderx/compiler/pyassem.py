@@ -2285,6 +2285,14 @@ class PyFlowGraph314(PyFlowGraph312):
         ">=": COMPARISON_GREATER_THAN | COMPARISON_EQUALS,
     }
 
+    def initializeConsts(self) -> None:
+        # Docstring is first entry in co_consts for normal functions
+        # (Other types of code objects deal with docstrings in different
+        # manner, e.g. lambdas and comprehensions don't have docstrings,
+        # classes store them as __doc__ attribute.
+        if self.docstring is not None and not self.klass:
+            self.consts[self.get_const_key(self.docstring)] = 0
+
     def _convert_compare_op(self: PyFlowGraph, arg: object) -> int:
         # cmp goes in top three bits of the oparg, while the low four bits are used
         # by quickened versions of this opcode to store the comparison mask. The
