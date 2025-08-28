@@ -2381,6 +2381,25 @@ class PyFlowGraph314(PyFlowGraph312):
         self.line_table = self.make_line_table()
         self.exception_table = self.make_exception_table()
 
+    def convert_pseudo_ops(self) -> None:
+        # TASK(T190611021): The graph is actually in the FINAL stage, which
+        # seems wrong because we're still modifying the opcodes.
+        # assert self.stage == ACTIVE, self.stage
+
+        for block in self.ordered_blocks:
+            for instr in block.insts:
+                if instr.opname in SETUP_OPCODES or instr.opname == "POP_BLOCK":
+                    instr.set_to_nop()
+                elif instr.opname == "STORE_FAST_MAYBE_NULL":
+                    instr.opname = "STORE_FAST"
+                elif instr.opname == "LOAD_CLOSURE":
+                    instr.opname = "LOAD_FAST"
+
+        # Remove redundant NOPs added in the previous pass
+        optimizer = self.flow_graph_optimizer(self)
+        for block in self.ordered_blocks:
+            optimizer.clean_basic_block(block, -1)
+
     def normalize_jumps_in_block(
         self, block: Block, seen_blocks: set[Block]
     ) -> Block | None:
