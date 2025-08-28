@@ -75,6 +75,7 @@
   X(LOAD_SUPER_ATTR)                   \
   X(MAKE_CELL)                         \
   X(NOT_TAKEN)                         \
+  X(POP_ITER)                          \
   X(POP_JUMP_IF_NONE)                  \
   X(POP_JUMP_IF_NOT_NONE)              \
   X(PUSH_EXC_INFO)                     \
@@ -187,6 +188,7 @@ enum {
   X(LOAD_SMALL_INT)                \
   X(MAKE_OPNAME)                   \
   X(NOT_TAKEN)                     \
+  X(POP_ITER)                      \
   X(ROT_FOUR)                      \
   X(ROT_N)                         \
   X(ROT_THREE)                     \

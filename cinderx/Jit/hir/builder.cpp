@@ -172,6 +172,7 @@ bool isSupportedOpcode(int opcode) {
     case NOT_TAKEN:
     case POP_BLOCK:
     case POP_EXCEPT:
+    case POP_ITER:
     case POP_JUMP_IF_FALSE:
     case POP_JUMP_IF_NONE:
     case POP_JUMP_IF_NONZERO:
@@ -452,6 +453,7 @@ static bool should_snapshot(
     case LOAD_FAST_CHECK:
     case LOAD_LOCAL:
     case NOP:
+    case POP_ITER:
     case POP_TOP:
     case PRIMITIVE_BOX:
     case PRIMITIVE_LOAD_CONST:
@@ -1146,6 +1148,7 @@ void HIRBuilder::translate(
           emitPopJumpIfNone(tc, bc_instr);
           break;
         }
+        case POP_ITER:
         case POP_TOP: {
           tc.frame.stack.pop();
           break;
@@ -1516,9 +1519,15 @@ void HIRBuilder::translate(
       case FOR_ITER: {
         auto condbr = static_cast<CondBranchIterNotDone*>(last_instr);
         auto new_frame = tc.frame;
-        // Pop both the sentinel value signaling iteration is complete
-        // and the iterator itself.
-        new_frame.stack.discard(2);
+        if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+          // Just pop the sentinel value. The target POP_ITER will pop the
+          // iterator.
+          new_frame.stack.discard(1);
+        } else {
+          // Pop both the sentinel value signaling iteration is complete
+          // and the iterator itself.
+          new_frame.stack.discard(2);
+        }
         queue.emplace_back(condbr->true_bb(), tc.frame);
         queue.emplace_back(condbr->false_bb(), new_frame);
         break;

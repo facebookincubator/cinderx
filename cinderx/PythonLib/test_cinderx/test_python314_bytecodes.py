@@ -264,6 +264,16 @@ def x():
         self._assertBytecodeContains(x, "TO_BOOL")
         self._assertBytecodeContains(x, "POP_JUMP_IF_FALSE")
 
+    def test_POP_ITER(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            for y in range(2):
+                return y
+
+        self.assertEqual(x(), 0)
+        self._assertBytecodeContains(x, "POP_ITER")
+
 
 if __name__ == "__main__":
     unittest.main()
