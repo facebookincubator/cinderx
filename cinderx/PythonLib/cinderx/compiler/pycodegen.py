@@ -4149,7 +4149,8 @@ class CodeGenerator312(CodeGenerator):
         self.visit(subs.value)
 
         if is_simple_slice := (
-            isinstance(subs.slice, ast.Slice) and subs.slice.step is None
+            isinstance(subs.slice, ast.Slice)
+            and self.should_apply_two_element_slice_optimization(subs.slice)
         ):
             assert isinstance(subs.slice, ast.Slice)
             self.emit_slice_components(subs.slice)
@@ -4175,12 +4176,15 @@ class CodeGenerator312(CodeGenerator):
             self.emit("SWAP", 2)
             self.emit("STORE_SUBSCR")
 
+    def should_apply_two_element_slice_optimization(self, node: ast.Slice) -> bool:
+        return node.step is None
+
     def visitSubscript(self, node: ast.Subscript, aug_flag: bool = False) -> None:
         assert not aug_flag  # not used in the 3.12 compiler
         self.visit(node.value)
         if (
             isinstance(node.slice, ast.Slice)
-            and node.slice.step is None
+            and self.should_apply_two_element_slice_optimization(node.slice)
             and not isinstance(node.ctx, ast.Del)
         ):
             self.emit_slice_components(node.slice)
@@ -6316,6 +6320,30 @@ class CodeGenerator314(CodeGenerator312):
         return self._visitSequenceLoadNoOpt(
             elts, build_op, add_op, extend_op, num_pushed, is_tuple
         )
+
+    def is_constant_slice(self, node: ast.Slice) -> bool:
+        return (
+            (node.lower is None or isinstance(node.lower, ast.Constant))
+            and (node.upper is None or isinstance(node.upper, ast.Constant))
+            and (node.step is None or isinstance(node.step, ast.Constant))
+        )
+
+    def should_apply_two_element_slice_optimization(self, node: ast.Slice) -> bool:
+        return super().should_apply_two_element_slice_optimization(
+            node
+        ) and not self.is_constant_slice(node)
+
+    def visitSlice(self, node: ast.Slice) -> None:
+        if self.is_constant_slice(node):
+            s = slice(
+                node.lower.value if isinstance(node.lower, ast.Constant) else None,
+                node.upper.value if isinstance(node.upper, ast.Constant) else None,
+                node.step.value if isinstance(node.step, ast.Constant) else None,
+            )
+            self.emit("LOAD_CONST", s)
+            return
+
+        super().visitSlice(node)
 
     def emit_call_function_ex(self, nkwelts: int) -> None:
         if nkwelts == 0:
