@@ -2413,6 +2413,8 @@ class PyFlowGraph314(PyFlowGraph312):
                         "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD_NO_INTERRUPT"
                     )
 
+    _const_opcodes: set[str] = set(PyFlowGraph312._const_opcodes) | {"LOAD_SMALL_INT"}
+
 
 class UninitializedVariableChecker:
     # Opcodes which may clear a variable

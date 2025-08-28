@@ -963,6 +963,7 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "LOAD_CONST": opt_load_const,
+        "LOAD_SMALL_INT": opt_load_const,
         "JUMP_IF_FALSE": opt_jump_if,
         "JUMP_IF_TRUE": opt_jump_if,
         "BUILD_LIST": optimize_lists_and_sets,
