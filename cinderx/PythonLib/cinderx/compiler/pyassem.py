@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from ast import AST
+from collections import defaultdict
 from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
 from enum import IntEnum
@@ -725,11 +726,18 @@ class PyFlowGraph(FlowGraph):
             block.startdepth = depth
             worklist.append(block)
 
+    def get_stack_effects(self, opname: str, oparg: object, jump: bool) -> int:
+        return self.opcode.stack_effect_raw(opname, oparg, jump)
+
+    @property
+    def initial_stack_depth(self) -> int:
+        return 0 if self.gen_kind is None else 1
+
     def stackdepth_walk(self, block: Block) -> int:
         # see flowgraph.c :: _PyCfg_Stackdepth()
         maxdepth = 0
         worklist = []
-        self.push_block(worklist, block, 0 if self.gen_kind is None else 1)
+        self.push_block(worklist, block, self.initial_stack_depth)
         while worklist:
             block = worklist.pop()
             next = block.next
@@ -737,7 +745,7 @@ class PyFlowGraph(FlowGraph):
             assert depth >= 0
 
             for instr in block.getInstructions():
-                delta = self.opcode.stack_effect_raw(instr.opname, instr.oparg, False)
+                delta = self.get_stack_effects(instr.opname, instr.oparg, False)
                 new_depth = depth + delta
                 if new_depth > maxdepth:
                     maxdepth = new_depth
@@ -748,9 +756,7 @@ class PyFlowGraph(FlowGraph):
                 if (
                     self.opcode.has_jump(op) or instr.opname in SETUP_OPCODES
                 ) and instr.opname != "END_ASYNC_FOR":
-                    delta = self.opcode.stack_effect_raw(
-                        instr.opname, instr.oparg, True
-                    )
+                    delta = self.get_stack_effects(instr.opname, instr.oparg, True)
 
                     target_depth = depth + delta
                     if target_depth > maxdepth:
@@ -2287,6 +2293,10 @@ class PyFlowGraph314(PyFlowGraph312):
         ">=": COMPARISON_GREATER_THAN | COMPARISON_EQUALS,
     }
 
+    @property
+    def initial_stack_depth(self) -> int:
+        return 0
+
     def initializeConsts(self) -> None:
         # Docstring is first entry in co_consts for normal functions
         # (Other types of code objects deal with docstrings in different
@@ -2361,6 +2371,9 @@ class PyFlowGraph314(PyFlowGraph312):
         self.convert_pseudo_ops()
 
         self.resolve_unconditional_jumps()
+
+        self.optimize_load_fast()
+
         self.flatten_graph()
         assert self.stage == FLAT, self.stage
         # see assemble.c :: _PyAssemble_MakeCodeObject()
@@ -2413,7 +2426,260 @@ class PyFlowGraph314(PyFlowGraph312):
                         "JUMP_FORWARD" if is_forward else "JUMP_BACKWARD_NO_INTERRUPT"
                     )
 
+    # Helper functions for optimize_load_fast
+    def kill_local(
+        self, instr_flags: dict[int, int], refs: list[Ref], local: int
+    ) -> None:
+        """Mark references to a local as SUPPORT_KILLED."""
+        for r in refs:
+            if r.local == local:
+                assert r.instr >= 0
+                instr_flags[r.instr] |= SUPPORT_KILLED
+
+    def store_local(
+        self, instr_flags: dict[int, int], refs: list[Ref], local: int, r: Ref
+    ) -> None:
+        """Kill a local and mark a reference as STORED_AS_LOCAL."""
+        self.kill_local(instr_flags, refs, local)
+        if r.instr != DUMMY_INSTR:
+            instr_flags[r.instr] |= STORED_AS_LOCAL
+
+    def load_fast_push_block(
+        self, stack: list[Block], target: Block, start_depth: int, visited: set[Block]
+    ) -> None:
+        """Add a block to the worklist for processing."""
+        assert (
+            target.startdepth >= 0 and target.startdepth == start_depth
+        ), f"{target.startdepth} {start_depth}"
+        if target not in visited:
+            visited.add(target)
+            stack.append(target)
+
+    def optimize_load_fast(self) -> None:
+        """
+        Strength reduce LOAD_FAST{_LOAD_FAST} instructions into faster variants that
+        load borrowed references onto the operand stack.
+
+        This is only safe when we can prove that the reference in the frame outlives
+        the borrowed reference produced by the instruction.
+        """
+        stack = [self.entry]
+        visited: set[Block] = set()
+
+        self.entry.startdepth = 0
+        refs: list[Ref] = []
+        instr_flags = defaultdict(lambda: 0)  # Maps instruction index to flags
+        while stack:
+            block = stack.pop()
+            visited.add(block)
+
+            # Reset per-block state
+            instr_flags.clear()
+
+            # Reset the stack of refs. We don't track references on the stack
+            # across basic blocks, but the bytecode will expect their presence.
+            # Add dummy references as necessary.
+            refs.clear()
+            for _ in range(block.startdepth):
+                refs.append(Ref(DUMMY_INSTR, NOT_LOCAL))
+
+            for i, instr in enumerate(block.insts):
+                opcode = instr.opname
+                ioparg = instr.ioparg
+                oparg = instr.oparg
+
+                # Process instruction based on opcode
+                if opcode == "DELETE_FAST":
+                    self.kill_local(instr_flags, refs, ioparg)
+
+                elif opcode == "LOAD_FAST":
+                    refs.append(Ref(i, ioparg))
+
+                elif opcode == "LOAD_FAST_AND_CLEAR":
+                    self.kill_local(instr_flags, refs, ioparg)
+                    refs.append(Ref(i, ioparg))
+
+                elif opcode == "LOAD_FAST_LOAD_FAST":
+                    # Extract the two locals from the combined oparg
+                    local1 = ioparg >> 4
+                    local2 = ioparg & 0xF
+                    refs.append(Ref(i, local1))
+                    refs.append(Ref(i, local2))
+
+                elif opcode == "STORE_FAST":
+                    r = refs.pop()
+                    self.store_local(instr_flags, refs, ioparg, r)
+
+                elif opcode == "STORE_FAST_LOAD_FAST":
+                    # STORE_FAST
+                    r = refs.pop()
+                    local1 = ioparg >> 4
+                    local2 = ioparg & 15
+                    self.store_local(instr_flags, refs, local1, r)
+                    # LOAD_FAST
+                    refs.append(Ref(i, local2))
+
+                elif opcode == "STORE_FAST_STORE_FAST":
+                    # STORE_FAST
+                    r = refs.pop()
+                    local1 = ioparg >> 4
+                    self.store_local(instr_flags, refs, local1, r)
+                    # STORE_FAST
+                    r = refs.pop()
+                    local2 = ioparg & 15
+                    self.store_local(instr_flags, refs, local2, r)
+
+                # Handle stack manipulation opcodes
+                elif opcode == "COPY":
+                    assert ioparg > 0
+                    idx = len(refs) - ioparg
+                    r = refs[idx]
+                    refs.append(Ref(r.instr, r.local))
+
+                elif opcode == "SWAP":
+                    assert ioparg >= 2
+                    idx = len(refs) - ioparg
+                    refs[idx], refs[-1] = refs[-1], refs[idx]
+
+                # We treat opcodes that do not consume all of their inputs on
+                # a case by case basis, as we have no generic way of knowing
+                # how many inputs should be left on the stack.
+
+                # Opcodes that consume no inputs
+                elif opcode in (
+                    "FORMAT_SIMPLE",
+                    "GET_ANEXT",
+                    "GET_LEN",
+                    "GET_YIELD_FROM_ITER",
+                    "IMPORT_FROM",
+                    "MATCH_KEYS",
+                    "MATCH_MAPPING",
+                    "MATCH_SEQUENCE",
+                    "WITH_EXCEPT_START",
+                ):
+                    delta = self.opcode.stack_effect_raw(opcode, oparg, False)
+                    assert delta >= 0
+                    for i in range(delta):
+                        refs.append(Ref(i, NOT_LOCAL))
+
+                # Opcodes that consume some inputs and push no new values
+                elif opcode in (
+                    "DICT_MERGE",
+                    "DICT_UPDATE",
+                    "LIST_APPEND",
+                    "LIST_EXTEND",
+                    "MAP_ADD",
+                    "RERAISE",
+                    "SET_ADD",
+                    "SET_UPDATE",
+                ):
+                    num_popped = self.opcode.get_num_popped(opcode, oparg)
+                    num_pushed = self.opcode.get_num_pushed(opcode, oparg)
+                    net_popped = num_popped - num_pushed
+                    assert net_popped > 0
+                    for _ in range(net_popped):
+                        refs.pop()
+
+                elif opcode in ("END_SEND", "SET_FUNCTION_ATTRIBUTE"):
+                    assert self.opcode.stack_effect_raw(opcode, oparg, False) == -1
+                    tos = refs.pop()
+                    refs.pop()  # Pop the second item
+                    refs.append(Ref(tos.instr, tos.local))  # Push back the top item
+
+                # Handle opcodes that consume some inputs and push new values
+                elif opcode == "CHECK_EXC_MATCH":
+                    refs.pop()
+                    refs.append(Ref(i, NOT_LOCAL))
+
+                elif opcode == "FOR_ITER":
+                    if instr.target:
+                        self.load_fast_push_block(
+                            stack, instr.target, len(refs) + 1, visited
+                        )
+                    refs.append(Ref(i, NOT_LOCAL))
+
+                elif opcode in ("LOAD_ATTR", "LOAD_SUPER_ATTR"):
+                    self_ref = refs.pop()
+                    if opcode == "LOAD_SUPER_ATTR":
+                        refs.pop()  # Pop super type
+                        refs.pop()  # Pop super object
+                    refs.append(Ref(i, NOT_LOCAL))
+                    if isinstance(oparg, tuple) or (
+                        isinstance(oparg, int) and oparg & 1
+                    ):  # A method call; conservatively assume self is pushed back
+                        refs.append(Ref(self_ref.instr, self_ref.local))
+
+                elif opcode in ("LOAD_SPECIAL", "PUSH_EXC_INFO"):
+                    tos = refs.pop()
+                    refs.append(Ref(i, NOT_LOCAL))
+                    refs.append(Ref(tos.instr, tos.local))
+
+                elif opcode == "SEND":
+                    assert instr.target
+                    self.load_fast_push_block(stack, instr.target, len(refs), visited)
+                    refs.pop()
+                    refs.append(Ref(i, NOT_LOCAL))
+
+                # Opcodes that consume all of their inputs
+                else:
+                    num_popped = self.opcode.get_num_popped(opcode, oparg)
+                    num_pushed = self.opcode.get_num_pushed(opcode, oparg)
+
+                    if instr.target and self.opcode.has_jump(self.opcode.opmap[opcode]):
+                        self.load_fast_push_block(
+                            stack,
+                            instr.target,
+                            len(refs) - num_popped + num_pushed,
+                            visited,
+                        )
+
+                    if opcode not in SETUP_OPCODES:
+                        # Block push opcodes only affect the stack when jumping to the target
+                        for _ in range(num_popped):
+                            refs.pop()
+                        for _ in range(num_pushed):
+                            refs.append(Ref(i, NOT_LOCAL))
+
+            # Push fallthrough block
+            if block.has_fallthrough and block.next:
+                self.load_fast_push_block(stack, block.next, len(refs), visited)
+
+            # Mark instructions that produce values that are on the stack at the end of the basic block
+            for r in refs:
+                if r.instr != -1:
+                    instr_flags[r.instr] = instr_flags.get(r.instr, 0) | REF_UNCONSUMED
+
+            # Optimize instructions
+            for i, instr in enumerate(block.insts):
+                if i not in instr_flags:
+                    if instr.opname == "LOAD_FAST":
+                        instr.opname = "LOAD_FAST_BORROW"
+                    elif instr.opname == "LOAD_FAST_LOAD_FAST":
+                        instr.opname = "LOAD_FAST_BORROW_LOAD_FAST_BORROW"
+
     _const_opcodes: set[str] = set(PyFlowGraph312._const_opcodes) | {"LOAD_SMALL_INT"}
+
+
+# Constants for reference tracking flags
+SUPPORT_KILLED = (
+    1  # The loaded reference is still on the stack when the local is killed
+)
+STORED_AS_LOCAL = 2  # The loaded reference is stored into a local
+REF_UNCONSUMED = (
+    4  # The loaded reference is still on the stack at the end of the basic block
+)
+
+# Special values for reference tracking
+NOT_LOCAL = -1  # Reference does not refer to a local
+DUMMY_INSTR = -1  # Reference was not produced by an instruction
+
+
+@dataclass
+class Ref:
+    """Represents a reference on the stack."""
+
+    instr: int  # Index of instruction that produced the reference or DUMMY_INSTR
+    local: int  # The local to which the reference refers or NOT_LOCAL
 
 
 class UninitializedVariableChecker:
