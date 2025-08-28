@@ -1429,6 +1429,9 @@ class CodeGenerator(ASTVisitor):
         else:
             self.emit("CALL_FUNCTION", argcnt + len(args))
 
+    def emit_call_function_ex(self, nkwelts: int) -> None:
+        self.emit("CALL_FUNCTION_EX", int(nkwelts > 0))
+
     def _call_helper(
         self,
         argcnt: int,
@@ -1480,7 +1483,8 @@ class CodeGenerator(ASTVisitor):
                 self.compiler_subkwargs(kwargs, nkwelts - seen, nkwelts)
                 if have_dict:
                     self.emit("DICT_MERGE", 1)
-        self.emit("CALL_FUNCTION_EX", int(nkwelts > 0))
+
+        self.emit_call_function_ex(nkwelts)
 
     # Used in subclasses to specialise `super` calls.
 
@@ -6312,6 +6316,11 @@ class CodeGenerator314(CodeGenerator312):
         return self._visitSequenceLoadNoOpt(
             elts, build_op, add_op, extend_op, num_pushed, is_tuple
         )
+
+    def emit_call_function_ex(self, nkwelts: int) -> None:
+        if nkwelts == 0:
+            self.emit("PUSH_NULL")
+        self.emit("CALL_FUNCTION_EX")
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
