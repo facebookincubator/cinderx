@@ -1963,6 +1963,8 @@ class PyFlowGraph312(PyFlowGraph):
         "POP_JUMP_IF_TRUE": "POP_JUMP_IF_FALSE",
         "POP_JUMP_IF_NONZERO": "POP_JUMP_IF_ZERO",
         "POP_JUMP_IF_ZERO": "POP_JUMP_IF_NONZERO",
+        "JUMP_IF_TRUE": "JUMP_IF_FALSE",
+        "JUMP_IF_FALSE": "JUMP_IF_TRUE",
     }
 
     def normalize_jumps_in_block(
@@ -2370,7 +2372,7 @@ class PyFlowGraph314(PyFlowGraph312):
         self, block: Block, seen_blocks: set[Block]
     ) -> Block | None:
         last = block.insts[-1]
-        if not last.is_jump(self.opcode) or last.opname in UNCONDITIONAL_JUMP_OPCODES:
+        if last.opname not in self._reversed_jumps:
             return
         target = last.target
         assert target is not None

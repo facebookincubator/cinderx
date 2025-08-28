@@ -265,13 +265,19 @@ class FlowGraphOptimizer:
         const = instr.oparg
         if next_instr is None:
             return
+
         if next_instr.opname in (
             "POP_JUMP_IF_FALSE",
             "POP_JUMP_IF_TRUE",
+            "JUMP_IF_FALSE",
+            "JUMP_IF_TRUE",
         ):
             is_true = bool(const)
             self.set_to_nop(block.insts[instr_index])
-            jump_if_true = next_instr.opname == "POP_JUMP_IF_TRUE"
+            jump_if_true = (
+                next_instr.opname == "POP_JUMP_IF_TRUE"
+                or next_instr.opname == "JUMP_IF_TRUE"
+            )
             if is_true == jump_if_true:
                 next_instr.opname = self.JUMP_ABS
                 block.has_fallthrough = False
@@ -908,6 +914,38 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         if next_instr and next_instr.opname == "TO_BOOL":
             instr.ioparg |= 16
             next_instr.set_to_nop()
+
+    def opt_load_const_is(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        jmp_op = (
+            block.insts[instr_index + 2] if instr_index + 2 < len(block.insts) else None
+        )
+        if jmp_op is not None and jmp_op.opname == "TO_BOOL":
+            jmp_op.set_to_nop_no_loc()
+            if instr_index + 3 >= len(block.insts):
+                return
+            jmp_op = block.insts[instr_index + 3]
+
+        if (
+            jmp_op is not None
+            and jmp_op.opname in ("POP_JUMP_IF_FALSE", "POP_JUMP_IF_TRUE")
+            and instr.oparg is None
+        ):
+            nextarg = next_instr.oparg == 1
+            instr.set_to_nop()
+            next_instr.set_to_nop()
+            jmp_op.opname = (
+                "POP_JUMP_IF_NOT_NONE"
+                if nextarg ^ (jmp_op.opname == "POP_JUMP_IF_FALSE")
+                else "POP_JUMP_IF_NONE"
+            )
+            return instr_index + 2
 
     def optimize_load_global(
         self: FlowGraphOptimizer,
