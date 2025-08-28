@@ -761,7 +761,17 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
             instr.ioparg = instr.oparg
             instr.opname = "LOAD_SMALL_INT"
 
-        if next_instr is not None and next_instr.opname == "IS_OP":
+        if next_instr is None:
+            return
+
+        if next_instr.opname == "TO_BOOL":
+            val = bool(instr.oparg)
+            index = self.graph.convertArg("LOAD_CONST", val)
+            instr.set_to_nop_no_loc()
+            next_instr.opname = "LOAD_CONST"
+            next_instr.oparg = val
+            next_instr.ioparg = index
+        elif next_instr.opname == "IS_OP":
             return self.opt_load_const_is(instr_index, instr, next_instr, target, block)
         else:
             # The rest of the optimizations are common to 3.10 and 3.12
@@ -887,6 +897,18 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         instr.oparg = newconst
         instr.ioparg = self.graph.convertArg("LOAD_CONST", newconst)
 
+    def optimize_compare_op(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if next_instr and next_instr.opname == "TO_BOOL":
+            instr.ioparg |= 16
+            next_instr.set_to_nop()
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "LOAD_CONST": opt_load_const,
@@ -894,4 +916,5 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         "JUMP_IF_TRUE": opt_jump_if,
         "BUILD_LIST": optimize_lists_and_sets,
         "BUILD_SET": optimize_lists_and_sets,
+        "COMPARE_OP": optimize_compare_op,
     }
