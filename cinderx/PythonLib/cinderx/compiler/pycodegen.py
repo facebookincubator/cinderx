@@ -6350,6 +6350,32 @@ class CodeGenerator314(CodeGenerator312):
             self.emit("PUSH_NULL")
         self.emit("CALL_FUNCTION_EX")
 
+    def emit_end_for(self) -> None:
+        self.emit_noline("END_FOR")
+        self.emit_noline("POP_ITER")
+
+    def visitWhile(self, node: ast.While) -> None:
+        loop = self.newBlock("while_loop")
+        body = self.newBlock("while_body")
+        else_ = self.newBlock("while_else")
+        after = self.newBlock("while_after")
+
+        self.push_loop(WHILE_LOOP, loop, after)
+
+        self.nextBlock(loop)
+        self.compileJumpIf(node.test, else_, False)
+
+        self.nextBlock(body)
+        self.visitStatements(node.body)
+        self.emit_noline("JUMP", loop)
+
+        self.pop_loop()
+        self.nextBlock(else_)
+        if node.orelse:
+            self.visitStatements(node.orelse)
+
+        self.nextBlock(after)
+
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
     flow_graph = PyFlowGraphCinder310
