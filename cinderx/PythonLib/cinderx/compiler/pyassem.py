@@ -2260,10 +2260,44 @@ class PyFlowGraph314(PyFlowGraph312):
 
         return res
 
+    # The following bits are chosen so that the value of
+    # COMPARSION_BIT(left, right)
+    # masked by the values below will be non-zero if the
+    # comparison is true, and zero if it is false
+
+    # This is for values that are unordered, ie. NaN, not types that are unordered, e.g. sets
+    COMPARISON_UNORDERED = 1
+
+    COMPARISON_LESS_THAN = 2
+    COMPARISON_GREATER_THAN = 4
+    COMPARISON_EQUALS = 8
+
+    COMPARISON_NOT_EQUALS: int = (
+        COMPARISON_UNORDERED | COMPARISON_LESS_THAN | COMPARISON_GREATER_THAN
+    )
+
+    COMPARE_MASKS: dict[str, int] = {
+        "<": COMPARISON_LESS_THAN,
+        "<=": COMPARISON_LESS_THAN | COMPARISON_EQUALS,
+        "==": COMPARISON_EQUALS,
+        "!=": COMPARISON_NOT_EQUALS,
+        ">": COMPARISON_GREATER_THAN,
+        ">=": COMPARISON_GREATER_THAN | COMPARISON_EQUALS,
+    }
+
+    def _convert_compare_op(self: PyFlowGraph, arg: object) -> int:
+        # cmp goes in top three bits of the oparg, while the low four bits are used
+        # by quickened versions of this opcode to store the comparison mask. The
+        # fifth-lowest bit indicates whether the result should be converted to bool
+        # and is set later):
+        assert isinstance(arg, str)
+        return self.opcode.CMP_OP.index(arg) << 5 | PyFlowGraph314.COMPARE_MASKS[arg]
+
     _converters: dict[str, Callable[[PyFlowGraph, object], int]] = {
         **PyFlowGraph312._converters,
         "LOAD_COMMON_CONSTANT": lambda self, val: PyFlowGraph314._constant_idx[val],
         "LOAD_SPECIAL": lambda self, val: PyFlowGraph314._load_special_idx[val],
+        "COMPARE_OP": _convert_compare_op,
     }
 
     def instrsize(self, opname: str, oparg: int) -> int:
