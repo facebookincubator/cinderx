@@ -909,6 +909,19 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
             instr.ioparg |= 16
             next_instr.set_to_nop()
 
+    def optimize_load_global(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if next_instr is not None and next_instr.opname == "PUSH_NULL":
+            instr.oparg = (instr.oparg, 1)
+            instr.ioparg |= 1
+            next_instr.set_to_nop()
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "LOAD_CONST": opt_load_const,
@@ -917,4 +930,6 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         "BUILD_LIST": optimize_lists_and_sets,
         "BUILD_SET": optimize_lists_and_sets,
         "COMPARE_OP": optimize_compare_op,
+        "LOAD_GLOBAL": optimize_load_global,
     }
+    del handlers["PUSH_NULL"]
