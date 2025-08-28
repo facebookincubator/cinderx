@@ -20,7 +20,8 @@ from __future__ import annotations
 import sys
 
 try:
-    from os import RTLD_GLOBAL
+    import gc
+    from os import environ, RTLD_GLOBAL
     from sys import getdlopenflags, setdlopenflags
 except ImportError:
     RTLD_GLOBAL: int = 0
@@ -316,6 +317,36 @@ def strictify_static() -> None:
         sys.modules["_static"] = StrictModule(_static.__dict__, False)
 
 
+def maybe_enable_parallel_gc() -> None:
+    """Conditionally enable parallel GC based on environment variables."""
+    is_parallel_gc_enabled = environ.get("PARALLEL_GC_ENABLED", "0") == "1"
+    if not has_parallel_gc() or not is_parallel_gc_enabled:
+        return
+    thresholds = gc.get_threshold()
+    parallel_gc_threshold_gen0 = int(
+        environ.get("PARALLEL_GC_THRESHOLD_GEN0", thresholds[0])
+    )
+    parallel_gc_threshold_gen1 = int(
+        environ.get("PARALLEL_GC_THRESHOLD_GEN1", thresholds[1])
+    )
+    parallel_gc_threshold_gen2 = int(
+        environ.get("PARALLEL_GC_THRESHOLD_GEN2", thresholds[2])
+    )
+    gc.set_threshold(
+        parallel_gc_threshold_gen0,
+        parallel_gc_threshold_gen1,
+        parallel_gc_threshold_gen2,
+    )
+
+    parallel_gc_num_threads = int(environ.get("PARALLEL_GC_NUM_THREADS", "0"))
+    parallel_gc_min_generation = int(environ.get("PARALLEL_GC_MIN_GENERATION", "2"))
+
+    enable_parallel_gc(
+        min_generation=parallel_gc_min_generation,
+        num_threads=parallel_gc_num_threads,
+    )
+
+
 _is_init: bool = False
 
 
@@ -326,6 +357,7 @@ def init() -> None:
 
     cinderx_init()
     strictify_static()
+    maybe_enable_parallel_gc()
 
     global _is_init
     _is_init = True
