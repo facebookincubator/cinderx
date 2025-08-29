@@ -40,6 +40,7 @@ from .consts import (
 )
 from .debug import dump_graph
 from .flow_graph_optimizer import (
+    FlowGraphConstOptimizer314,
     FlowGraphOptimizer,
     FlowGraphOptimizer310,
     FlowGraphOptimizer312,
@@ -2862,8 +2863,12 @@ class PyFlowGraph314(PyFlowGraph312):
 
         self.inline_small_exit_blocks()
 
-        optimizer = self.flow_graph_optimizer(self)
         self.propagate_line_numbers()
+        const_optimizer = FlowGraphConstOptimizer314(self)
+        for block in self.ordered_blocks:
+            const_optimizer.optimize_basic_block(block)
+
+        optimizer = self.flow_graph_optimizer(self)
         for block in self.ordered_blocks:
             optimizer.optimize_basic_block(block)
 
