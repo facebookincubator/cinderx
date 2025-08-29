@@ -5185,6 +5185,9 @@ class CodeGenerator312(CodeGenerator):
 
         self.nextBlock(exit_)
 
+    def emit_jump_eh_end(self, target: Block) -> None:
+        self.emit_jump_forward(target)
+
     def emit_try_except(self, node: ast.Try) -> None:
         body = self.newBlock("try_body")
         except_ = self.newBlock("try_except")
@@ -5242,7 +5245,7 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("LOAD_CONST", None)
                 self.storeName(target)
                 self.delName(target)
-                self.emit_jump_forward(end)
+                self.emit_jump_eh_end(end)
 
                 # except:
                 self.nextBlock(cleanup_end)
@@ -5262,7 +5265,7 @@ class CodeGenerator312(CodeGenerator):
                 self.set_no_pos()
                 self.emit("POP_BLOCK")
                 self.emit("POP_EXCEPT")
-                self.emit_jump_forward(end)
+                self.emit_jump_eh_end(end)
 
             self.nextBlock(except_)
 
@@ -6083,6 +6086,9 @@ class CodeGenerator314(CodeGenerator312):
 
         if not big:
             self.emit("BUILD_MAP", n)
+
+    def emit_jump_eh_end(self, target: Block) -> None:
+        self.emit("JUMP_NO_INTERRUPT", target)
 
     def emit_binary_subscr(self) -> None:
         self.emit("BINARY_OP", self.find_op_idx("NB_SUBSCR"))
