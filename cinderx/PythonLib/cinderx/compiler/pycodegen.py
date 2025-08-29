@@ -28,6 +28,8 @@ try:
         CO_FUTURE_ANNOTATIONS,
         CO_FUTURE_BARRY_AS_BDFL,
         CO_GENERATOR,
+        CO_HAS_DOCSTRING,
+        CO_METHOD,
         CO_NESTED,
         CO_VARARGS,
         CO_VARKEYWORDS,
@@ -6012,6 +6014,19 @@ class CodeGenerator314(CodeGenerator312):
 
         assert isinstance(result, AST)
         return result
+
+    def get_graph_flags(
+        self, func: FuncOrLambda | CompNode, func_args: ast.arguments, scope: Scope
+    ) -> int:
+        flags = super().get_graph_flags(func, func_args, scope)
+
+        if scope.has_docstring:
+            flags |= CO_HAS_DOCSTRING
+
+        if scope.is_method:
+            flags |= CO_METHOD
+
+        return flags
 
     def _fastcall_helper(
         self,

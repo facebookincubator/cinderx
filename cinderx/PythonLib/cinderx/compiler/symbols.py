@@ -69,6 +69,7 @@ class TypeParams(ast.AST):
 
 class Scope:
     is_function_scope = False
+    has_docstring = False
 
     # XXX how much information do I need about each name?
     def __init__(
@@ -330,6 +331,7 @@ class ModuleScope(Scope):
 
 class FunctionScope(Scope):
     is_function_scope = True
+    is_method = False
     _inline_comprehensions = False
 
 
@@ -669,6 +671,7 @@ class BaseSymbolVisitor(ASTVisitor):
         doc = ast.get_docstring(node, False)
         if doc is not None:
             scope.add_def("__doc__")
+            scope.has_docstring = True
         scope.add_def("__module__")
         scope.add_def("__qualname__")
         self.scopes[node] = scope
@@ -942,6 +945,9 @@ class SymbolVisitor310(BaseSymbolVisitor):
         self.analyze_block(scope, free=set(), global_vars=set())
 
     def visitModule(self, node: ast.Module) -> None:
+        doc = ast.get_docstring(node)
+        if doc is not None:
+            self.module.has_docstring = True
         self.visit_node_with_new_scope(node)
 
     def visitInteractive(self, node: ast.Interactive) -> None:
