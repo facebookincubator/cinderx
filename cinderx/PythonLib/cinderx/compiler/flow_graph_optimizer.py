@@ -143,9 +143,13 @@ class FlowGraphOptimizer:
     ) -> int | None:
         assert target is not None
         if target.opname == "POP_JUMP_IF_FALSE":
-            return instr_index + self.jump_thread(instr, target, "POP_JUMP_IF_FALSE")
+            return instr_index + self.jump_thread(
+                block, instr, target, "POP_JUMP_IF_FALSE"
+            )
         elif target.opname in (self.JUMP_ABS, "JUMP_FORWARD", "JUMP_IF_FALSE_OR_POP"):
-            return instr_index + self.jump_thread(instr, target, "JUMP_IF_FALSE_OR_POP")
+            return instr_index + self.jump_thread(
+                block, instr, target, "JUMP_IF_FALSE_OR_POP"
+            )
         elif target.opname in ("JUMP_IF_TRUE_OR_POP", "POP_JUMP_IF_TRUE"):
             if instr.lineno == target.lineno:
                 target_block = instr.target
@@ -165,9 +169,13 @@ class FlowGraphOptimizer:
     ) -> int | None:
         assert target is not None
         if target.opname == "POP_JUMP_IF_TRUE":
-            return instr_index + self.jump_thread(instr, target, "POP_JUMP_IF_TRUE")
+            return instr_index + self.jump_thread(
+                block, instr, target, "POP_JUMP_IF_TRUE"
+            )
         elif target.opname in (self.JUMP_ABS, "JUMP_FORWARD", "JUMP_IF_TRUE_OR_POP"):
-            return instr_index + self.jump_thread(instr, target, "JUMP_IF_TRUE_OR_POP")
+            return instr_index + self.jump_thread(
+                block, instr, target, "JUMP_IF_TRUE_OR_POP"
+            )
         elif target.opname in ("JUMP_IF_FALSE_OR_POP", "POP_JUMP_IF_FALSE"):
             if instr.lineno == target.lineno:
                 target_block = instr.target
@@ -187,7 +195,7 @@ class FlowGraphOptimizer:
     ) -> int | None:
         assert target is not None
         if target.opname in (self.JUMP_ABS, "JUMP_FORWARD", "JUMP"):
-            return instr_index + self.jump_thread(instr, target, instr.opname)
+            return instr_index + self.jump_thread(block, instr, target, instr.opname)
 
     def opt_jump(
         self,
@@ -199,7 +207,7 @@ class FlowGraphOptimizer:
     ) -> int | None:
         assert target is not None
         if target.opname in (self.JUMP_ABS, "JUMP_FORWARD"):
-            return instr_index + self.jump_thread(instr, target, self.JUMP_ABS)
+            return instr_index + self.jump_thread(block, instr, target, self.JUMP_ABS)
 
     def opt_for_iter(
         self,
@@ -211,7 +219,7 @@ class FlowGraphOptimizer:
     ) -> int | None:
         assert target is not None
         if target.opname == "JUMP_FORWARD":
-            return instr_index + self.jump_thread(instr, target, "FOR_ITER")
+            return instr_index + self.jump_thread(block, instr, target, "FOR_ITER")
 
     def opt_rot_n(
         self,
@@ -376,7 +384,9 @@ class FlowGraphOptimizer310(FlowGraphOptimizer):
     def set_to_nop(self, instr: Instruction) -> None:
         instr.opname = "NOP"
 
-    def jump_thread(self, instr: Instruction, target: Instruction, opname: str) -> int:
+    def jump_thread(
+        self, block: Block, instr: Instruction, target: Instruction, opname: str
+    ) -> int:
         """Attempt to eliminate jumps to jumps by updating inst to jump to
         target->i_target using the provided opcode. Return 0 if successful, 1 if
         not; this makes it easier for our callers to revisit the same
@@ -725,7 +735,9 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
 
         return cnt - 1
 
-    def jump_thread(self, instr: Instruction, target: Instruction, opname: str) -> int:
+    def jump_thread(
+        self, block: Block, instr: Instruction, target: Instruction, opname: str
+    ) -> int:
         """Attempt to eliminate jumps to jumps by updating inst to jump to
         target->i_target using the provided opcode. Return 0 if successful, 1 if
         not; this makes it easier for our callers to revisit the same
@@ -767,7 +779,7 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
     ) -> int | None:
         assert target is not None
         if target.opname in ("JUMP", instr.opname):
-            return instr_index + self.jump_thread(instr, target, instr.opname)
+            return instr_index + self.jump_thread(block, instr, target, instr.opname)
         elif target.opname == (
             "JUMP_IF_FALSE" if instr.opname == "JUMP_IF_TRUE" else "JUMP_IF_TRUE"
         ):
@@ -910,9 +922,27 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
     ) -> int | None:
         assert target is not None
         if target.opname == "JUMP":
-            return instr_index + self.jump_thread(instr, target, "JUMP")
+            return instr_index + self.jump_thread(block, instr, target, "JUMP")
         elif target.opname == "JUMP_NO_INTERRUPT":
-            return instr_index + self.jump_thread(instr, target, "JUMP_NO_INTERRUPT")
+            return instr_index + self.jump_thread(
+                block, instr, target, "JUMP_NO_INTERRUPT"
+            )
+
+    def jump_thread(
+        self, block: Block, instr: Instruction, target: Instruction, opname: str
+    ) -> int:
+        """Attempt to eliminate jumps to jumps by updating inst to jump to
+        target->i_target using the provided opcode. Return 0 if successful, 1 if
+        not; this makes it easier for our callers to revisit the same
+        instruction again only if we changed it."""
+        assert instr.is_jump(self.graph.opcode)
+        assert target.is_jump(self.graph.opcode)
+        if instr.target != target.target:
+            instr.set_to_nop()
+            assert block.insts[-1] == instr
+            block.append_instr(opname, 0, target=target.target, loc=target.loc)
+
+        return 1
 
     def opt_store_fast(
         self: FlowGraphOptimizer,

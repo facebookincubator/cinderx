@@ -477,6 +477,17 @@ class Block:
                 contained.append(op.graph)
         return contained
 
+    def append_instr(
+        self,
+        opname: str,
+        oparg: object,
+        ioparg: int = 0,
+        loc: AST | SrcLocation = NO_LOCATION,
+        target: Block | None = None,
+        exc_handler: Block | None = None,
+    ) -> None:
+        self.insts.append(Instruction(opname, oparg, ioparg, loc, target, exc_handler))
+
     def copy(self) -> Block:
         # Cannot copy block if it has fallthrough, since a block can have only one
         # fallthrough predecessor
