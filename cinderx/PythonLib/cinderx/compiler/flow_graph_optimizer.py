@@ -964,6 +964,27 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         ):
             instr.set_to_nop()
 
+    def optimize_contains_is_op(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if next_instr is None:
+            return
+        if next_instr.opname == "TO_BOOL":
+            next_instr.opname = instr.opname
+            next_instr.oparg = instr.oparg
+            next_instr.ioparg = instr.ioparg
+            instr.set_to_nop()
+        elif next_instr.opname == "UNARY_NOT":
+            next_instr.opname = instr.opname
+            next_instr.oparg = instr.oparg
+            next_instr.ioparg = instr.ioparg ^ 1
+            instr.set_to_nop()
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "JUMP_IF_FALSE": opt_jump_if,
@@ -971,6 +992,8 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         "BUILD_LIST": optimize_lists_and_sets,
         "BUILD_SET": optimize_lists_and_sets,
         "COMPARE_OP": optimize_compare_op,
+        "CONTAINS_OP": optimize_contains_is_op,
+        "IS_OP": optimize_contains_is_op,
         "LOAD_GLOBAL": optimize_load_global,
         "JUMP_NO_INTERRUPT": opt_jump_no_interrupt,
         "STORE_FAST": opt_store_fast,
