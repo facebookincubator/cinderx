@@ -1854,6 +1854,14 @@ class PyFlowGraph312(PyFlowGraph):
 
         return fixed
 
+    def get_generator_prefix(self) -> list[Instruction]:
+        firstline = self.firstline or self.first_inst_lineno or 1
+        loc = SrcLocation(firstline, firstline, -1, -1)
+        return [
+            Instruction("RETURN_GENERATOR", 0, loc=loc),
+            Instruction("POP_TOP", 0),
+        ]
+
     def insert_prefix_instructions(self, fixed_map: list[int]) -> None:
         to_insert = []
 
@@ -1882,10 +1890,7 @@ class PyFlowGraph312(PyFlowGraph):
                 i += 1
 
         if self.gen_kind is not None:
-            firstline = self.firstline or self.first_inst_lineno or 1
-            loc = SrcLocation(firstline, firstline, -1, -1)
-            to_insert.append(Instruction("RETURN_GENERATOR", 0, loc=loc))
-            to_insert.append(Instruction("POP_TOP", 0))
+            to_insert.extend(self.get_generator_prefix())
 
         if to_insert:
             self.entry.insts[0:0] = to_insert
@@ -2675,6 +2680,14 @@ class PyFlowGraph314(PyFlowGraph312):
                         instr.opname = "LOAD_FAST_BORROW"
                     elif instr.opname == "LOAD_FAST_LOAD_FAST":
                         instr.opname = "LOAD_FAST_BORROW_LOAD_FAST_BORROW"
+
+    def get_generator_prefix(self) -> list[Instruction]:
+        firstline = self.firstline or self.first_inst_lineno or 1
+        loc = SrcLocation(firstline, firstline, -1, -1)
+        return [
+            Instruction("RETURN_GENERATOR", 0, loc=loc),
+            Instruction("POP_TOP", 0, loc=loc),
+        ]
 
     _const_opcodes: set[str] = set(PyFlowGraph312._const_opcodes) | {"LOAD_SMALL_INT"}
 
