@@ -41,6 +41,7 @@ try:
         SC_GLOBAL_EXPLICIT,
         SC_GLOBAL_IMPLICIT,
         SC_LOCAL,
+        SC_UNKNOWN,
     )
     from .future import find_futures as future_find_futures
     from .misc import mangle
@@ -4739,6 +4740,15 @@ class CodeGenerator312(CodeGenerator):
 
         self.walkClassBody(node, gen)
 
+    def emit_init_class_attrs(
+        self, gen: CodeGenerator, node: ast.ClassDef, first_lineno: int
+    ) -> None:
+        gen.emit("LOAD_NAME", "__name__")
+        gen.storeName("__module__")
+
+        gen.emit("LOAD_CONST", gen.get_qual_prefix(gen) + gen.name)
+        gen.storeName("__qualname__")
+
     def compile_class_body(
         self, node: ast.ClassDef, first_lineno: int
     ) -> CodeGenerator:
@@ -4747,11 +4757,7 @@ class CodeGenerator312(CodeGenerator):
         scope = gen.scope
         assert isinstance(scope, ClassScope)
 
-        gen.emit("LOAD_NAME", "__name__")
-        gen.storeName("__module__")
-
-        gen.emit("LOAD_CONST", gen.get_qual_prefix(gen) + gen.name)
-        gen.storeName("__qualname__")
+        self.emit_init_class_attrs(gen, node, first_lineno)
 
         # pyre-ignore[16]: no attribute type_params
         if node.type_params:
@@ -5034,6 +5040,8 @@ class CodeGenerator312(CodeGenerator):
                 self.emit("LOAD_FROM_DICT_OR_DEREF", name)
             else:
                 self.emit(prefix + "_DEREF", name)
+        elif scope == SC_UNKNOWN:
+            self.emit(prefix + "_NAME", name)
         else:
             raise RuntimeError(f"unsupported scope for var {name}: {scope}")
 
@@ -6382,6 +6390,18 @@ class CodeGenerator314(CodeGenerator312):
     def emit_load_build_class(self) -> None:
         self.emit("LOAD_BUILD_CLASS")
         self.emit("PUSH_NULL")
+
+    def emit_init_class_attrs(
+        self, gen: CodeGenerator, node: ast.ClassDef, first_lineno: int
+    ) -> None:
+        gen.emit("LOAD_NAME", "__name__")
+        gen.storeName("__module__")
+
+        gen.emit("LOAD_CONST", gen.get_qual_prefix(gen) + gen.name)
+        gen.storeName("__qualname__")
+
+        gen.emit("LOAD_CONST", first_lineno)
+        gen.storeName("__firstlineno__")
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
