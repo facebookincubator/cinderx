@@ -143,9 +143,6 @@ dummy_func(
     switch (opcode) {
 
 // BEGIN BYTECODES //
-        override pure inst(NOP, (--)) {
-        }
-
         override inst(LOAD_ATTR_GETATTRIBUTE_OVERRIDDEN, (unused/1, type_version/2, func_version/2, getattribute/4, owner -- unused)) {
             PyObject *owner_o = PyStackRef_AsPyObjectBorrow(owner);
 
