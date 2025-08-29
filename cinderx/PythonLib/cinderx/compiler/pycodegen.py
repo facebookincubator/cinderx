@@ -6102,6 +6102,11 @@ class CodeGenerator314(CodeGenerator312):
         else:
             self.emit("LOAD_COMMON_CONSTANT", AssertionError)
 
+    def emit_super_attribute(self, node: ast.Attribute) -> None:
+        super().emit_super_attribute(node)
+        loc = self.compute_start_location_to_match_attr(node, node)
+        self.graph.emit_with_loc("NOP", 0, loc)
+
     def visitAsyncFor(self, node: ast.AsyncFor) -> None:
         start = self.newBlock("async_for_try")
         except_ = self.newBlock("except")
