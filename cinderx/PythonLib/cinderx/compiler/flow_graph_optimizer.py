@@ -960,6 +960,20 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
             instr.ioparg |= 1
             next_instr.set_to_nop()
 
+    def opt_jump_no_interrupt(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert target is not None
+        if target.opname == "JUMP":
+            return instr_index + self.jump_thread(instr, target, "JUMP")
+        elif target.opname == "JUMP_NO_INTERRUPT":
+            return instr_index + self.jump_thread(instr, target, "JUMP_NO_INTERRUPT")
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "LOAD_CONST": opt_load_const,
@@ -970,5 +984,6 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         "BUILD_SET": optimize_lists_and_sets,
         "COMPARE_OP": optimize_compare_op,
         "LOAD_GLOBAL": optimize_load_global,
+        "JUMP_NO_INTERRUPT": opt_jump_no_interrupt,
     }
     del handlers["PUSH_NULL"]

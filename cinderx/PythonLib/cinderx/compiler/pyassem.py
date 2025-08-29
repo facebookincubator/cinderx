@@ -1648,6 +1648,9 @@ class PyFlowGraph312(PyFlowGraph):
 
         return except_handlers
 
+    def make_explicit_jump_block(self) -> Block:
+        return self.newBlock("explicit_jump")
+
     def push_cold_blocks_to_end(
         self, except_handlers: set[Block], optimizer: FlowGraphOptimizer
     ) -> None:
@@ -1657,7 +1660,7 @@ class PyFlowGraph312(PyFlowGraph):
         # an explicit jump instead of fallthrough
         for block in list(self.ordered_blocks):
             if block not in warm and block.has_fallthrough and block.next in warm:
-                explicit_jump = self.newBlock("explicit_jump")
+                explicit_jump = self.make_explicit_jump_block()
                 explicit_jump.bid = self.get_new_block_id()
                 self.current = explicit_jump
 
@@ -2688,6 +2691,14 @@ class PyFlowGraph314(PyFlowGraph312):
             Instruction("RETURN_GENERATOR", 0, loc=loc),
             Instruction("POP_TOP", 0, loc=loc),
         ]
+
+    def emit_jump_forward_noline(self, target: Block) -> None:
+        self.emit_noline("JUMP_NO_INTERRUPT", target)
+
+    def make_explicit_jump_block(self) -> Block:
+        res = super().make_explicit_jump_block()
+        res.num_predecessors = 1
+        return res
 
     _const_opcodes: set[str] = set(PyFlowGraph312._const_opcodes) | {"LOAD_SMALL_INT"}
 
