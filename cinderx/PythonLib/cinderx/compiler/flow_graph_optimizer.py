@@ -974,6 +974,26 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         elif target.opname == "JUMP_NO_INTERRUPT":
             return instr_index + self.jump_thread(instr, target, "JUMP_NO_INTERRUPT")
 
+    def opt_store_fast(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if not next_instr:
+            return
+        # Remove the store fast instruction if it is storing the same local as the
+        # next instruction
+        if (
+            next_instr.opname == "STORE_FAST"
+            and next_instr.ioparg == instr.ioparg
+            # pyre-ignore[16]: `Instruction` has no attribute `loc`.
+            and next_instr.loc.lineno == instr.loc.lineno
+        ):
+            instr.set_to_nop()
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "LOAD_CONST": opt_load_const,
@@ -985,5 +1005,6 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         "COMPARE_OP": optimize_compare_op,
         "LOAD_GLOBAL": optimize_load_global,
         "JUMP_NO_INTERRUPT": opt_jump_no_interrupt,
+        "STORE_FAST": opt_store_fast,
     }
     del handlers["PUSH_NULL"]
