@@ -4808,14 +4808,17 @@ class CodeGenerator312(CodeGenerator):
             ctx=ast.Load(),
         )
 
+    def emit_load_build_class(self) -> None:
+        self.emit("PUSH_NULL")
+        self.emit("LOAD_BUILD_CLASS")
+
     def emit_build_class(
         self,
         node: ast.ClassDef,
         class_body: CodeGenerator,
         outer_scope: CodeGenerator | None = None,
     ) -> None:
-        self.emit("PUSH_NULL")
-        self.emit("LOAD_BUILD_CLASS")
+        self.emit_load_build_class()
         self.emit_closure(class_body, 0)
         self.emit("LOAD_CONST", node.name)
 
@@ -6375,6 +6378,10 @@ class CodeGenerator314(CodeGenerator312):
 
     def emit_yield_value_for_yield_from(self) -> None:
         self.emit("YIELD_VALUE", 1)
+
+    def emit_load_build_class(self) -> None:
+        self.emit("LOAD_BUILD_CLASS")
+        self.emit("PUSH_NULL")
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
