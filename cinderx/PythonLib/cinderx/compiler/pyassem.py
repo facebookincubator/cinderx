@@ -1849,7 +1849,12 @@ class PyFlowGraph312(PyFlowGraph):
 
         self.remove_unused_consts()
         self.add_checks_for_loads_of_uninitialized_variables()
+        self.insert_superinstructions()
         self.push_cold_blocks_to_end(except_handlers, optimizer)
+
+    def insert_superinstructions(self) -> None:
+        # No super instructions on 3.12
+        pass
 
     def build_cell_fixed_offsets(self) -> list[int]:
         nlocals = len(self.varnames)
@@ -2769,6 +2774,46 @@ class PyFlowGraph314(PyFlowGraph312):
                 assert except_stack is not None
                 block.next.except_stack = except_stack
                 push_todo_block(block.next)
+
+    def make_super_instruction(
+        self, inst1: Instruction, inst2: Instruction, super_op: str
+    ) -> None:
+        # pyre-ignore[16]: lineno is maybe not defined on AST
+        line1 = inst1.loc.lineno
+        # pyre-ignore[16]: lineno is maybe not defined on AST
+        line2 = inst2.loc.lineno
+        # Skip if instructions are on different lines
+        if line1 >= 0 and line2 >= 0 and line1 != line2:
+            return
+
+        if inst1.ioparg >= 16 or inst2.ioparg >= 16:
+            return
+
+        inst1.opname = super_op
+        inst1.ioparg = (inst1.ioparg << 4) | inst2.ioparg
+        inst2.set_to_nop()
+
+    def insert_superinstructions(self) -> None:
+        for block in self.ordered_blocks:
+            for i, instr in enumerate(block.insts):
+                if i + 1 == len(block.insts):
+                    break
+
+                next_instr = block.insts[i + 1]
+                if instr.opname == "LOAD_FAST":
+                    if next_instr.opname == "LOAD_FAST":
+                        self.make_super_instruction(
+                            instr, next_instr, "LOAD_FAST_LOAD_FAST"
+                        )
+                elif instr.opname == "STORE_FAST":
+                    if next_instr.opname == "LOAD_FAST":
+                        self.make_super_instruction(
+                            instr, next_instr, "STORE_FAST_LOAD_FAST"
+                        )
+                    elif next_instr.opname == "STORE_FAST":
+                        self.make_super_instruction(
+                            instr, next_instr, "STORE_FAST_STORE_FAST"
+                        )
 
     _const_opcodes: set[str] = set(PyFlowGraph312._const_opcodes) | {"LOAD_SMALL_INT"}
 
