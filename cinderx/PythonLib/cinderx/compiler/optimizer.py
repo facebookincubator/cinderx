@@ -493,3 +493,7 @@ class AstOptimizer314(AstOptimizer312):
         elts = self.walk_list(node.elts)
 
         return self.update_node(node, elts=elts)
+
+    def _visitIter(self, node: ast.expr) -> ast.expr:
+        # This optimization has been removed in 3.14
+        return node
