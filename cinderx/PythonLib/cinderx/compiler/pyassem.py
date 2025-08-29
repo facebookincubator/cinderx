@@ -125,6 +125,7 @@ class SrcLocation:
 
 
 NO_LOCATION = SrcLocation(-1, -1, -1, -1)
+NEXT_LOCATION = SrcLocation(-2, -2, -2, -2)
 
 
 class Instruction:
@@ -1080,7 +1081,7 @@ class PyFlowGraph(FlowGraph):
                 continue
             prev_loc = NO_LOCATION
             for instr in block.insts:
-                if instr.lineno < 0:
+                if instr.lineno == NO_LOCATION.lineno:
                     instr.loc = prev_loc
                 else:
                     prev_loc = instr.loc
@@ -1090,7 +1091,7 @@ class PyFlowGraph(FlowGraph):
                 if next.num_predecessors == 1:
                     assert next.insts
                     next_instr = next.insts[0]
-                    if next_instr.lineno < 0:
+                    if next_instr.lineno == -1:
                         next_instr.loc = prev_loc
             last_instr = block.insts[-1]
             if (
@@ -1103,7 +1104,7 @@ class PyFlowGraph(FlowGraph):
                 if target.num_predecessors == 1:
                     assert target.insts
                     next_instr = target.insts[0]
-                    if next_instr.lineno < 0:
+                    if next_instr.lineno == NO_LOCATION.lineno:
                         next_instr.loc = prev_loc
 
     def guarantee_lineno_for_exits(self) -> None:
@@ -2061,6 +2062,16 @@ class PyFlowGraph312(PyFlowGraph):
 
         loc = NO_LOCATION
         size = 0
+        prev = None
+        for t in reversed(self.insts):
+            if t.loc is NEXT_LOCATION:
+                if t.is_jump(self.opcode) or t.opname in SCOPE_EXIT_OPCODES:
+                    t.loc = NO_LOCATION
+                else:
+                    assert prev is not None
+                    t.loc = prev.loc
+            prev = t
+
         for t in self.insts:
             if t.loc != loc:
                 lpostab.emit_location(loc, size)

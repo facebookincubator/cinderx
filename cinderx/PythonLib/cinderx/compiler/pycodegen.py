@@ -55,6 +55,7 @@ try:
         FVC_STR,
         FVS_HAVE_SPEC,
         Instruction,
+        NEXT_LOCATION,
         NO_LOCATION,
         PyFlowGraph,
         PyFlowGraph310,
@@ -1827,6 +1828,10 @@ class CodeGenerator(ASTVisitor):
     def emit_match_jump_to_fail_pop_unconditional(self, pc: PatternContext) -> None:
         raise NotImplementedError()
 
+    def emit_pop_subject(self, case: ast.match_case) -> None:
+        self.set_pos(case.pattern)
+        self.emit("POP_TOP")
+
     def visitMatch(self, node: ast.Match) -> None:
         """See compiler_match_inner in compile.c"""
         pc = self.pattern_context()
@@ -1863,8 +1868,7 @@ class CodeGenerator(ASTVisitor):
                 self.compileJumpIf(guard, pc.fail_pop[0], False)
             # Success! Pop the subject off, we're done with it:
             if not is_last_non_default_case:
-                self.set_pos(case.pattern)
-                self.emit("POP_TOP")
+                self.emit_pop_subject(case)
             self.visit_list(case.body)
             self.emit_match_jump_to_end(end)
             # If the pattern fails to match, we want the line number of the
@@ -6417,6 +6421,10 @@ class CodeGenerator314(CodeGenerator312):
 
         gen.emit("LOAD_CONST", first_lineno)
         gen.storeName("__firstlineno__")
+
+    def emit_pop_subject(self, case: ast.match_case) -> None:
+        # Use the next location to give better locations for branch events
+        self.graph.emit_with_loc("POP_TOP", 0, NEXT_LOCATION)
 
     def maybe_add_static_attribute_to_class(self, node: ast.Attribute) -> None:
         attr_value = node.value
