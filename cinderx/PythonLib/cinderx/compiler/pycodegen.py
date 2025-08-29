@@ -2799,7 +2799,6 @@ class CodeGenerator310(CodeGenerator):
 
         name = self.mangle(name)
         scope = self.check_name(name)
-
         if scope == SC_LOCAL:
             if not self.optimized:
                 self.emit(prefix + "_NAME", name)
@@ -5980,6 +5979,22 @@ class CodeGenerator314(CodeGenerator312):
     flow_graph = PyFlowGraph314
     _SymbolVisitor = SymbolVisitor314
 
+    def __init__(
+        self,
+        parent: CodeGenerator | None,
+        node: AST,
+        symbols: BaseSymbolVisitor,
+        graph: PyFlowGraph,
+        flags: int = 0,
+        optimization_lvl: int = 0,
+        future_flags: int | None = None,
+        name: str | None = None,
+    ) -> None:
+        super().__init__(
+            parent, node, symbols, graph, flags, optimization_lvl, future_flags, name
+        )
+        self.static_attributes: set[str] = set()
+
     @classmethod
     def optimize_tree(
         cls,
@@ -6402,6 +6417,46 @@ class CodeGenerator314(CodeGenerator312):
 
         gen.emit("LOAD_CONST", first_lineno)
         gen.storeName("__firstlineno__")
+
+    def maybe_add_static_attribute_to_class(self, node: ast.Attribute) -> None:
+        attr_value = node.value
+        if (
+            not isinstance(attr_value, ast.Name)
+            or not isinstance(node.ctx, ast.Store)
+            or attr_value.id != "self"
+        ):
+            return
+
+        cur = self
+        while cur is not None:
+            if isinstance(cur.scope, ClassScope):
+                assert isinstance(cur, CodeGenerator314)
+                cur.static_attributes.add(node.attr)
+                break
+            cur = cur.parent_code_gen
+
+    def visitAttribute(self, node: ast.Attribute) -> None:
+        self.maybe_add_static_attribute_to_class(node)
+        super().visitAttribute(node)
+
+    def compile_body(self, gen: CodeGenerator, node: ast.ClassDef) -> None:
+        if gen.findAnn(node.body):
+            gen.did_setup_annotations = True
+            gen.emit("SETUP_ANNOTATIONS")
+
+        doc = gen.get_docstring(node)
+        if doc is not None:
+            gen.set_pos(node.body[0])
+            gen.emit("LOAD_CONST", doc)
+            gen.storeName("__doc__")
+
+        self.walkClassBody(node, gen)
+
+        attrs = list(gen.static_attributes)
+        attrs.sort()
+        gen.set_no_pos()
+        gen.emit_noline("LOAD_CONST", tuple(attrs))
+        gen.storeName("__static_attributes__")
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
