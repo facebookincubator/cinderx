@@ -2031,7 +2031,6 @@ class PyFlowGraph312(PyFlowGraph):
         return backwards_jump
 
     def normalize_jumps(self) -> None:
-        assert self.stage == ORDERED, self.stage
         seen_blocks = set()
         new_blocks = {}
         for block in self.ordered_blocks:
@@ -2379,6 +2378,26 @@ class PyFlowGraph314(PyFlowGraph312):
                         ),
                     ]
 
+    def finalize(self) -> None:
+        """Perform final optimizations and normalization of flow graph."""
+        assert self.stage == ACTIVE, self.stage
+        self.stage = CLOSED
+
+        for block in self.ordered_blocks:
+            self.normalize_basic_block(block)
+
+        self.optimizeCFG()
+
+        self.stage = CONSTS_CLOSED
+        self.trim_unused_consts()
+        self.duplicate_exits_without_lineno()
+        self.propagate_line_numbers()
+        self.firstline = self.firstline or self.first_inst_lineno or 1
+        self.guarantee_lineno_for_exits()
+
+        self.stage = ORDERED
+        self.stage = FINAL
+
     def assemble_final_code(self) -> None:
         """Finish assembling code object components from the final graph."""
         # see compile.c :: optimize_and_assemble_code_unit()
@@ -2392,6 +2411,8 @@ class PyFlowGraph314(PyFlowGraph312):
         # some point.
         self.prepare_localsplus()
         self.convert_pseudo_ops()
+
+        self.normalize_jumps()
 
         self.resolve_unconditional_jumps()
 
@@ -2446,8 +2467,11 @@ class PyFlowGraph314(PyFlowGraph312):
         # the above code, since is_forward(target) won't have changed.
         self.fetch_current().emit(Instruction("NOT_TAKEN", 0, 0, last.loc))
         self.emit_with_loc("JUMP_BACKWARD", target, last.loc)
+        backwards_jump.startdepth = target.startdepth
+
         last.opname = self._reversed_jumps[last.opname]
         last.target = block.next
+
         block.insert_next(backwards_jump)
         return backwards_jump
 
@@ -2814,6 +2838,42 @@ class PyFlowGraph314(PyFlowGraph312):
                         self.make_super_instruction(
                             instr, next_instr, "STORE_FAST_STORE_FAST"
                         )
+
+    def optimizeCFG(self) -> None:
+        """Optimize a well-formed CFG."""
+        except_handlers = self.compute_except_handlers()
+
+        self.label_exception_targets()
+
+        assert self.stage == CLOSED, self.stage
+
+        self.eliminate_empty_basic_blocks()
+
+        self.inline_small_exit_blocks()
+
+        optimizer = self.flow_graph_optimizer(self)
+        self.propagate_line_numbers()
+        for block in self.ordered_blocks:
+            optimizer.optimize_basic_block(block)
+
+        self.remove_redundant_nops_and_pairs(optimizer)
+
+        for block in self.ordered_blocks:
+            # remove redundant nops
+            optimizer.clean_basic_block(block, -1)
+
+        self.remove_unreachable_basic_blocks()
+        self.eliminate_empty_basic_blocks()
+
+        self.remove_redundant_jumps(optimizer, False)
+
+        self.stage = OPTIMIZED
+
+        self.remove_unused_consts()
+        self.add_checks_for_loads_of_uninitialized_variables()
+        self.insert_superinstructions()
+        self.push_cold_blocks_to_end(except_handlers, optimizer)
+        self.propagate_line_numbers()
 
     _const_opcodes: set[str] = set(PyFlowGraph312._const_opcodes) | {"LOAD_SMALL_INT"}
 
