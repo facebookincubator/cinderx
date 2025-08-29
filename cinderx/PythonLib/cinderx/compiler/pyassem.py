@@ -1263,6 +1263,9 @@ class PyFlowGraph(FlowGraph):
 
     def remove_unreachable_basic_blocks(self) -> None:
         # mark all reachable blocks
+        for block in self.getBlocks():
+            block.num_predecessors = 0
+
         reachable_blocks = set()
         worklist = [self.entry]
         while worklist:
@@ -1800,7 +1803,10 @@ class PyFlowGraph312(PyFlowGraph):
         self, prev_instr: Instruction | None, instr: Instruction
     ) -> bool:
         if prev_instr is not None and instr.opname == "POP_TOP":
-            if prev_instr.opname == "LOAD_CONST":
+            if (
+                prev_instr.opname == "LOAD_CONST"
+                or prev_instr.opname == "LOAD_SMALL_INT"
+            ):
                 return True
             elif prev_instr.opname == "COPY" and prev_instr.oparg == 1:
                 return True
@@ -2338,6 +2344,25 @@ class PyFlowGraph314(PyFlowGraph312):
         ">=": COMPARISON_GREATER_THAN | COMPARISON_EQUALS,
     }
 
+    def propagate_line_numbers(self) -> None:
+        self.duplicate_exits_without_lineno()
+        super().propagate_line_numbers()
+
+    def has_eval_break(self, target: Block) -> bool:
+        for inst in target.insts:
+            if inst.opname in ["JUMP", "RESUME", "CALL", "JUMP_BACKWARD"]:
+                return True
+        return False
+
+    def is_exit_without_line_number(self, target: Block) -> bool:
+        if target.is_exit or self.has_eval_break(target):
+            for inst in target.insts:
+                if inst.lineno >= 0:
+                    return False
+            return True
+
+        return False
+
     @property
     def initial_stack_depth(self) -> int:
         return 0
@@ -2874,6 +2899,7 @@ class PyFlowGraph314(PyFlowGraph312):
 
         self.inline_small_exit_blocks()
 
+        self.remove_unreachable_basic_blocks()
         self.propagate_line_numbers()
         const_optimizer = FlowGraphConstOptimizer314(self)
         for block in self.ordered_blocks:
@@ -2882,7 +2908,6 @@ class PyFlowGraph314(PyFlowGraph312):
         optimizer = self.flow_graph_optimizer(self)
         for block in self.ordered_blocks:
             optimizer.optimize_basic_block(block)
-
         self.remove_redundant_nops_and_pairs(optimizer)
 
         for block in self.ordered_blocks:

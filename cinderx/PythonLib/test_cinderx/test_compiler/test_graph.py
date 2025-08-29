@@ -75,7 +75,11 @@ class GraphTests(CompilerTest):
         else:
             pass"""
         )
-        expected = make_linear_graph(["entry", "", "if_else", "if_end"])
+
+        if sys.version_info >= (3, 14):
+            expected = make_linear_graph(["entry", "", "if_end"])
+        else:
+            expected = make_linear_graph(["entry", "", "if_else", "if_end"])
         self.assert_graph_equal(graph, expected)
 
     def test_try_except(self) -> None:
