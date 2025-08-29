@@ -61,6 +61,7 @@ try:
         PyFlowGraph314,
         PyFlowGraphCinder310,
         PyFlowGraphCinder312,
+        ResumeOparg,
         SrcLocation,
     )
     from .symbols import (
@@ -2748,13 +2749,6 @@ class Entry:
         self.node = node
 
 
-class ResumeOparg(IntEnum):
-    ScopeEntry = 0
-    Yield = 1
-    YieldFrom = 2
-    Await = 3
-
-
 class CodeGenerator310(CodeGenerator):
     flow_graph: type[PyFlowGraph] = PyFlowGraph310
     _SymbolVisitor = SymbolVisitor310
@@ -4309,6 +4303,9 @@ class CodeGenerator312(CodeGenerator):
         self.set_no_pos()
         self.emit("POP_TOP")
 
+    def emit_yield_value_for_yield_from(self) -> None:
+        self.emit("YIELD_VALUE")
+
     def emit_yield_from(self, await_: bool = False) -> None:
         send = self.newBlock("send")
         fail = self.newBlock("fail")
@@ -4321,7 +4318,7 @@ class CodeGenerator312(CodeGenerator):
 
         # Setup try/except to handle StopIteration
         self.emit("SETUP_FINALLY", fail)
-        self.emit("YIELD_VALUE")
+        self.emit_yield_value_for_yield_from()
         self.emit_noline("POP_BLOCK")
         self.emit_resume(ResumeOparg.Await if await_ else ResumeOparg.YieldFrom)
         self.emit("JUMP_NO_INTERRUPT", send)
@@ -6375,6 +6372,9 @@ class CodeGenerator314(CodeGenerator312):
             self.visitStatements(node.orelse)
 
         self.nextBlock(after)
+
+    def emit_yield_value_for_yield_from(self) -> None:
+        self.emit("YIELD_VALUE", 1)
 
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):

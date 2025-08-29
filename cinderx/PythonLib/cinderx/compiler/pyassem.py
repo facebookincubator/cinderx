@@ -9,7 +9,7 @@ from ast import AST
 from collections import defaultdict
 from contextlib import contextmanager, redirect_stdout
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import IntEnum, IntFlag
 
 try:
     # pyre-ignore[21]: No _inline_cache_entries
@@ -52,6 +52,16 @@ from .symbols import ClassScope, Scope
 
 
 MAX_COPY_SIZE = 4
+
+
+class ResumeOparg(IntFlag):
+    ScopeEntry = 0
+    Yield = 1
+    YieldFrom = 2
+    Await = 3
+
+    LocationMask = 0x03
+    Depth1Mask = 0x04
 
 
 def sign(a: float) -> float:
@@ -2699,6 +2709,66 @@ class PyFlowGraph314(PyFlowGraph312):
         res = super().make_explicit_jump_block()
         res.num_predecessors = 1
         return res
+
+    def label_exception_targets(self) -> None:
+        def push_todo_block(block: Block) -> None:
+            todo_stack.append(block)
+            visited.add(block)
+
+        todo_stack: list[Block] = [self.entry]
+        visited: set[Block] = {self.entry}
+        except_stack = []
+        self.entry.except_stack = except_stack
+
+        while todo_stack:
+            block = todo_stack.pop()
+            assert block in visited
+            except_stack = block.except_stack
+            block.except_stack = []
+            handler = except_stack[-1] if except_stack else None
+            last_yield_except_depth = -1
+            for instr in block.insts:
+                if instr.opname in SETUP_OPCODES:
+                    target = instr.target
+                    assert target, instr
+                    if target not in visited:
+                        # Copy the current except stack into the target's except stack
+                        target.except_stack = list(except_stack)
+                        push_todo_block(target)
+                    handler = self.push_except_block(except_stack, instr)
+                elif instr.opname == "POP_BLOCK":
+                    except_stack.pop()
+                    handler = except_stack[-1] if except_stack else None
+                    instr.set_to_nop()
+                elif instr.is_jump(self.opcode) and instr.opname != "END_ASYNC_FOR":
+                    instr.exc_handler = handler
+                    if instr.target not in visited:
+                        target = instr.target
+                        assert target
+                        if block.has_fallthrough:
+                            # Copy the current except stack into the block's except stack
+                            target.except_stack = list(except_stack)
+                        else:
+                            # Move the current except stack to the block and start a new one
+                            target.except_stack = except_stack
+                            except_stack = []
+                        push_todo_block(target)
+                elif instr.opname == "YIELD_VALUE":
+                    last_yield_except_depth = len(except_stack)
+                    instr.exc_handler = handler
+                elif instr.opname == "RESUME":
+                    instr.exc_handler = handler
+                    if instr.oparg != ResumeOparg.ScopeEntry:
+                        if last_yield_except_depth == 1:
+                            instr.ioparg |= ResumeOparg.Depth1Mask
+                        last_yield_except_depth = -1
+                else:
+                    instr.exc_handler = handler
+
+            if block.has_fallthrough and block.next and block.next not in visited:
+                assert except_stack is not None
+                block.next.except_stack = except_stack
+                push_todo_block(block.next)
 
     _const_opcodes: set[str] = set(PyFlowGraph312._const_opcodes) | {"LOAD_SMALL_INT"}
 
