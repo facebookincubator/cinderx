@@ -489,6 +489,22 @@ class AstOptimizer312(AstOptimizer):
 
 
 class AstOptimizer314(AstOptimizer312):
+    def has_starred(self, e: ast.Tuple) -> bool:
+        return any(isinstance(e, ast.Starred) for e in e.elts)
+
+    def visitBinOp(self, node: ast.BinOp) -> ast.expr:
+        lhs = self.visit(node.left)
+        rhs = self.visit(node.right)
+        if (
+            isinstance(lhs, ast.Constant)
+            and isinstance(rhs, ast.Tuple)
+            and isinstance(lhs.value, str)
+            and not self.has_starred(rhs)
+        ):
+            return self.optimize_format(self.update_node(node, left=lhs, right=rhs))
+
+        return self.update_node(node, left=lhs, right=rhs)
+
     def visitTuple(self, node: ast.Tuple) -> ast.expr:
         elts = self.walk_list(node.elts)
 

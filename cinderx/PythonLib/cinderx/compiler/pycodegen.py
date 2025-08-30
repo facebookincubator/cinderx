@@ -47,7 +47,7 @@ try:
     )
     from .future import find_futures as future_find_futures
     from .misc import mangle
-    from .opcodes import INTRINSIC_1, INTRINSIC_2, NB_OPS
+    from .opcodes import find_op_idx, INTRINSIC_1, INTRINSIC_2
     from .optimizer import AstOptimizer, AstOptimizer312, AstOptimizer314
     from .pyassem import (
         Block,
@@ -4205,14 +4205,6 @@ class CodeGenerator312(CodeGenerator):
         else:
             assert 0
 
-    @staticmethod
-    def find_op_idx(opname: str) -> int:
-        for i, (name, _symbol) in enumerate(NB_OPS):
-            if name == opname:
-                return i
-
-        return -1
-
     def emit_call_intrinsic_1(self, oparg: str) -> None:
         self.emit("CALL_INTRINSIC_1", INTRINSIC_1.index(oparg))
 
@@ -6091,7 +6083,7 @@ class CodeGenerator314(CodeGenerator312):
         self.emit("JUMP_NO_INTERRUPT", target)
 
     def emit_binary_subscr(self) -> None:
-        self.emit("BINARY_OP", self.find_op_idx("NB_SUBSCR"))
+        self.emit("BINARY_OP", find_op_idx("NB_SUBSCR"))
 
     def emit_import_name(self, name: str) -> None:
         self.emit("IMPORT_NAME", name)

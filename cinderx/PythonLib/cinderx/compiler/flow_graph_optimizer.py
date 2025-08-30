@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from typing import cast
 
+from .opcodes import find_op_idx
 from .optimizer import safe_lshift, safe_mod, safe_multiply, safe_power
 
 TYPE_CHECKING = False
@@ -49,21 +50,20 @@ UNARY_OPS: dict[str, object] = {
     "UNARY_POSITIVE": lambda v: +v,
 }
 
-
-BINARY_OPS: dict[str, object] = {
-    "BINARY_POWER": safe_power,
-    "BINARY_MULTIPLY": safe_multiply,
-    "BINARY_TRUE_DIVIDE": lambda left, right: left / right,
-    "BINARY_FLOOR_DIVIDE": lambda left, right: left // right,
-    "BINARY_MODULO": safe_mod,
-    "BINARY_ADD": lambda left, right: left + right,
-    "BINARY_SUBTRACT": lambda left, right: left - right,
-    "BINARY_SUBSCR": lambda left, right: left[right],
-    "BINARY_LSHIFT": safe_lshift,
-    "BINARY_RSHIFT": lambda left, right: left >> right,
-    "BINARY_AND": lambda left, right: left & right,
-    "BINARY_XOR": lambda left, right: left ^ right,
-    "BINARY_OR": lambda left, right: left | right,
+BINARY_OPS: dict[int, Callable[[object, object], object]] = {
+    find_op_idx("NB_POWER"): safe_power,
+    find_op_idx("NB_MULTIPLY"): safe_multiply,
+    find_op_idx("NB_TRUE_DIVIDE"): lambda left, right: left / right,
+    find_op_idx("NB_FLOOR_DIVIDE"): lambda left, right: left // right,
+    find_op_idx("NB_MODULO"): safe_mod,
+    find_op_idx("NB_ADD"): lambda left, right: left + right,
+    find_op_idx("NB_SUBTRACT"): lambda left, right: left - right,
+    find_op_idx("NB_SUBSCR"): lambda left, right: left[right],
+    find_op_idx("NB_LSHIFT"): safe_lshift,
+    find_op_idx("NB_RSHIFT"): lambda left, right: left >> right,
+    find_op_idx("NB_AND"): lambda left, right: left & right,
+    find_op_idx("NB_XOR"): lambda left, right: left ^ right,
+    find_op_idx("NB_OR"): lambda left, right: left | right,
 }
 
 SWAPPABLE: set[str] = {"STORE_FAST", "STORE_FAST_MAYBE_NULL", "POP_TOP"}
@@ -985,6 +985,39 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
             next_instr.ioparg = instr.ioparg ^ 1
             instr.set_to_nop()
 
+    def optimize_binary_op(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        consts = self.get_const_loading_instrs(block, instr_index - 1, 2)
+        if consts is None:
+            return
+        lhs = consts[0].oparg
+        rhs = consts[1].oparg
+
+        op = BINARY_OPS.get(instr.ioparg)
+        if op is None:
+            return
+
+        try:
+            res = op(lhs, rhs)
+        except (ArithmeticError, TypeError):
+            return
+
+        consts[0].set_to_nop_no_loc()
+        consts[1].set_to_nop_no_loc()
+        if is_small_int(res):
+            instr.opname = "LOAD_SMALL_INT"
+            instr.ioparg = instr.oparg = res
+        else:
+            instr.opname = "LOAD_CONST"
+            instr.oparg = res
+            instr.ioparg = self.graph.convertArg("LOAD_CONST", res)
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "JUMP_IF_FALSE": opt_jump_if,
@@ -997,6 +1030,7 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         "LOAD_GLOBAL": optimize_load_global,
         "JUMP_NO_INTERRUPT": opt_jump_no_interrupt,
         "STORE_FAST": opt_store_fast,
+        "BINARY_OP": optimize_binary_op,
     }
     del handlers["PUSH_NULL"]
     del handlers["LOAD_CONST"]

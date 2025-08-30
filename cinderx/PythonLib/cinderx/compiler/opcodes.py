@@ -836,3 +836,11 @@ elif sys.version_info >= (3, 12):
         LOAD_TYPE=0,
         LOAD_METHOD_STATIC=1,
     )
+
+
+def find_op_idx(opname: str) -> int:
+    for i, (name, _symbol) in enumerate(NB_OPS):
+        if name == opname:
+            return i
+
+    return -1
