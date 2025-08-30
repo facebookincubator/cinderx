@@ -1037,9 +1037,8 @@ class PyFlowGraph(FlowGraph):
         code: bytearray = bytearray()
 
         def addCode(opcode: int, oparg: int) -> None:
-            # T190611021: Currently we still emit some of the pseudo ops, once we
-            # get zero-cost exceptions in this can go away.
-            code.append(opcode & 0xFF)
+            assert opcode < 256, opcode
+            code.append(opcode)
             code.append(oparg)
 
         for t in self.insts:
