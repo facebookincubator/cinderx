@@ -1317,21 +1317,22 @@ class PyFlowGraph(FlowGraph):
                 # pyre-fixme[16] instr.target can be None
                 instr.target = instr.target.next
 
-    def extend_block(self, block: Block) -> None:
+    def should_inline_block(self, block: Block) -> bool:
+        return block.is_exit and len(block.insts) <= MAX_COPY_SIZE
+
+    def extend_block(self, block: Block) -> bool:
         """If this block ends with an unconditional jump to an exit block,
         then remove the jump and extend this block with the target.
         """
         if len(block.insts) == 0:
-            return
+            return False
         last = block.insts[-1]
         if last.opname not in UNCONDITIONAL_JUMP_OPCODES:
-            return
+            return False
         target = last.target
         assert target is not None
-        if not target.is_exit:
-            return
-        if len(target.insts) > MAX_COPY_SIZE:
-            return
+        if not self.should_inline_block(target):
+            return False
         last = block.insts[-1]
         last.set_to_nop()
         for instr in target.insts:
@@ -1339,6 +1340,7 @@ class PyFlowGraph(FlowGraph):
         block.next = None
         block.is_exit = True
         block.has_fallthrough = False
+        return True
 
     def trim_unused_consts(self) -> None:
         """Remove trailing unused constants."""
@@ -2425,6 +2427,28 @@ class PyFlowGraph314(PyFlowGraph312):
                             "TO_BOOL", 0, 0, inst.loc, exc_handler=inst.exc_handler
                         ),
                     ]
+
+    def inline_small_exit_blocks(self) -> None:
+        changes = True
+        # every change removes a jump, ensuring convergence
+        while changes:
+            changes = False
+            for block in self.ordered_blocks:
+                if self.extend_block(block):
+                    changes = True
+
+    def should_inline_block(self, block: Block) -> bool:
+        if super().should_inline_block(block):
+            return True
+
+        if block.has_fallthrough:
+            return False
+
+        # We can only inline blocks with no line numbers.
+        for inst in block.insts:
+            if inst.loc.lineno >= 0:
+                return False
+        return True
 
     def finalize(self) -> None:
         """Perform final optimizations and normalization of flow graph."""
