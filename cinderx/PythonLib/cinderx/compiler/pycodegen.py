@@ -3941,7 +3941,6 @@ class CodeGenerator312(CodeGenerator):
             return False
 
         assert isinstance(node.func, ast.Attribute)
-
         return not self.is_import_originated(node.func.value)
 
     def emit_super_call(self, attr: ast.Attribute) -> None:
@@ -6130,6 +6129,69 @@ class CodeGenerator314(CodeGenerator312):
         if node.orelse:
             self.visitStatements(node.orelse)
         self.nextBlock(end)
+
+    def push_inlined_comprehension_state(
+        self, scope: Scope
+    ) -> InlinedComprehensionState:
+        end = self.newBlock("end")
+        cleanup = self.newBlock("cleanup")
+        temp_symbols: dict[str, int] | None = None
+        fast_hidden: set[str] = set()
+        pushed_locals: list[str] = []
+        self.inlined_comp_depth += 1
+
+        # iterate over names bound in the comprehension and ensure we isolate
+        # them from the outer scope as needed
+        for name in scope.symbols:
+            compsc = scope.check_name(name)
+            outsc = self.check_name(name)
+
+            # When a comprehension is inlined into the global scope CPython loses the
+            # DEF_IMPORTED flag. It'll see compsc != outsc and will replace it in the
+            # top-level symbols dict w/ the version from the list comp which doesn't have
+            # the flag set. We simulate this by checking if we're in the module scope and
+            # always putting a value in temp_symbols, we then disable the is_import_originated
+            # check for these names (this is really ugly, and CPython probably doesn't mean
+            # to lose the DEF_IMPORTED flag in these cases).
+            if (
+                isinstance(self.scope, ModuleScope) and outsc == SC_GLOBAL_IMPLICIT
+            ) or (
+                compsc != outsc
+                and compsc != SC_FREE
+                and not (compsc == SC_CELL and outsc == SC_FREE)
+            ):
+                if temp_symbols is None:
+                    temp_symbols = {}
+                temp_symbols[name] = compsc
+
+            if name in scope.params:
+                continue
+            if name in scope.defs and name not in scope.nonlocals:
+                # local names bound in comprehension must be isolated from
+                # outer scope; push existing value (which may be NULL if
+                # not defined) on stack
+                self.emit("LOAD_FAST_AND_CLEAR", name)
+                if compsc == SC_CELL:
+                    name_idx = (
+                        # Matching PyFlowGraph._convert_DEREF offset for free var index
+                        (self.graph.freevars.get_index(name) + len(self.graph.cellvars))
+                        if name in self.scope.frees
+                        else self.graph.cellvars.get_index(name)
+                    )
+                    self.emit("MAKE_CELL", name_idx)
+                pushed_locals.append(name)
+                self.fast_hidden.add(name)
+                fast_hidden.add(name)
+
+        if pushed_locals:
+            self.emit("SWAP", len(pushed_locals) + 1)
+            self.emit("SETUP_FINALLY", cleanup)
+
+        prev_temp_symbols = self.temp_symbols
+        self.temp_symbols = temp_symbols
+        return InlinedComprehensionState(
+            pushed_locals, fast_hidden, prev_temp_symbols, end, cleanup
+        )
 
     def _compile_async_comprehension(
         self,
