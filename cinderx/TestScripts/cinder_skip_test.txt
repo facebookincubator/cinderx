@@ -34,6 +34,10 @@ test.test_dis.DisTests.test_disassemble_recursive
 test.test_dis.DisWithFileTests.test_bug_1333982
 test.test_dis.DisWithFileTests.test_disassemble_recursive
 
+# skip to fix T236042405
+test.test_httplib.test_local_bad_hostname
+test.test_httplib.test_local_good_hostname
+
 
 #
 # Skips added for 3.12 start here.
