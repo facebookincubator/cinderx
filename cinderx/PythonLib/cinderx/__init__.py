@@ -352,14 +352,20 @@ _is_init: bool = False
 
 def init() -> None:
     """Initialize CinderX."""
+    global _is_init
+
+    # Failed to import _cinderx, nothing to initialize.
     if cinderx_init is None:
+        return
+
+    # Already initialized.
+    if _is_init:
         return
 
     cinderx_init()
     strictify_static()
     maybe_enable_parallel_gc()
 
-    global _is_init
     _is_init = True
 
 
@@ -376,3 +382,6 @@ def get_import_error() -> ImportError | None:
     an error.
     """
     return _import_error
+
+
+init()

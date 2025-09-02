@@ -33,8 +33,8 @@ test.test_sysconfig.TestSysConfig.test_srcdir
 test.test_sysconfig.TestSysConfig.test_triplet_in_ext_suffix
 
 # This expects the threading module to not have already been imported, but it
-# appears that cinderx.init() will import it for us before the Python main
-# function starts running.
+# appears that cinderx will import it for us before the Python main function
+# starts running.
 test.test_threading.ThreadTests.test_import_from_another_thread
 
 # The venv tests copy the buck2-built binary to a temp directory and then try
