@@ -151,13 +151,10 @@ class JitListTest(unittest.TestCase):
                 return 24
 
             assert not cinderx.jit.is_jit_compiled(func)
-
             cinderx.jit.lazy_compile(func)
+            assert not cinderx.jit.is_jit_compiled(func)
 
-            # This has to use multiple threads otherwise this will take many minutes to run.
-            # It'll be compiling all functions that were loaded and not-yet-run in JitAll
-            # mode.
-            assert cinderx.jit.precompile_all(workers=10)
+            assert cinderx.jit.precompile_all(workers=2)
             assert cinderx.jit.is_jit_compiled(func)
 
             print(func())
@@ -169,7 +166,7 @@ class JitListTest(unittest.TestCase):
             codepath = dirpath / "mod.py"
             codepath.write_text(code)
             proc = subprocess.run(
-                [sys.executable, "-X", "jit", "mod.py"],
+                [sys.executable, "mod.py"],
                 stdout=subprocess.PIPE,
                 cwd=tmp,
                 encoding=ENCODING,
@@ -217,32 +214,6 @@ class JitListTest(unittest.TestCase):
             cinderx.jit.precompile_all(workers=-1)
         with self.assertRaises(ValueError):
             cinderx.jit.precompile_all(workers=200000)
-
-    def test_default_parse_error_behavior_startup(self) -> None:
-        code = 'print("Hello world!")'
-        jitlist = "OH NO"
-        with tempfile.TemporaryDirectory() as tmp:
-            dirpath = Path(tmp)
-            codepath = dirpath / "mod.py"
-            jitlistpath = dirpath / "jitlist.txt"
-            codepath.write_text(code)
-            jitlistpath.write_text(jitlist)
-            proc = subprocess.run(
-                [
-                    sys.executable,
-                    "-X",
-                    "jit-list-file=jitlist.txt",
-                    "mod.py",
-                ],
-                capture_output=True,
-                cwd=tmp,
-                encoding=ENCODING,
-                env={"PYTHONPATH": CINDERX_PATH},
-            )
-        self.assertEqual(proc.returncode, 0, proc)
-        self.assertIn(
-            "Error while parsing line 1 in JIT list file jitlist.txt", proc.stderr
-        )
 
     def test_fail_on_parse_error_startup(self) -> None:
         code = 'print("Hello world!")'

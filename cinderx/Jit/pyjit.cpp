@@ -141,9 +141,6 @@ std::atomic<int> g_compile_workers_retries;
 
 int jit_help = 0;
 
-// Temporary boolean for when `-X jit` or `PYTHONJIT=1` are used.
-bool bare_jit = false;
-
 uint64_t countCalls(PyCodeObject* code) {
 #if SHADOWCODE_SUPPORTED
   return code->co_mutable->ncalls;
@@ -343,17 +340,10 @@ size_t parse_sized_argument(const std::string& val) {
 
 FlagProcessor initFlagProcessor() {
   jit_help = 0;
-  bare_jit = false;
 
   FlagProcessor flag_processor;
 
   // Flags are inspected in order of definition below.
-
-  flag_processor.addOption(
-      "jit",
-      "PYTHONJIT",
-      bare_jit,
-      "Initialize the JIT but don't automatically compile any functions");
 
   flag_processor.addOption(
       "jit-all",
@@ -1322,7 +1312,7 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
   if (jitCtx() == nullptr) {
     PyErr_SetString(
         PyExc_RuntimeError,
-        "Trying to re-enable the JIT but it was never initialized");
+        "Trying to re-enable the JIT but the JIT context is missing");
     return nullptr;
   }
   if (isJitUsable()) {
@@ -2231,10 +2221,9 @@ PyObject* disable_specialized_opcodes(PyObject* /* self */, PyObject*) {
 // and return 1. Otherwise, return 0.
 int deopt_gen_impl(PyGenObject* gen) {
 #if PY_VERSION_HEX >= 0x030C0000
-  if (deopt_jit_gen(gen)) {
-    return 1;
-  }
-  return 0;
+  // deopt_jit_gen optimistically succeeds when the generator isn't a JIT
+  // generator.
+  return JitGenObject::cast(gen) != nullptr && deopt_jit_gen(gen);
 #else
   GenDataFooter* footer = genDataFooter(gen);
   if (footer == nullptr || Ci_GenIsCompleted(gen)) {
@@ -2915,31 +2904,16 @@ int initialize() {
       jit_list = jit::JITList::create();
     }
     if (jit_list == nullptr) {
-      JIT_LOG("Failed to allocate JIT list");
+      PyErr_SetString(PyExc_RuntimeError, "Failed to allocate JIT list");
       return -1;
     }
 
     try {
       jit_list->parseFile(getConfig().jit_list.filename.c_str());
     } catch (const std::exception& exn) {
-      if (getConfig().jit_list.error_on_parse) {
-        PyErr_SetString(PyExc_RuntimeError, exn.what());
-        return -1;
-      }
-
-      JIT_LOG("{}", exn.what());
-      JIT_LOG("Continuing on with the JIT disabled");
-      return 0;
+      PyErr_SetString(PyExc_RuntimeError, exn.what());
+      return -1;
     }
-  }
-
-  auto const& config = getConfig();
-  bool use_jit = bare_jit || config.compile_all ||
-      config.jit_list.filename != "" || config.auto_jit_threshold > 0;
-  if (use_jit || config.force_init.value_or(false)) {
-    JIT_DLOG("Initializing the JIT");
-  } else {
-    return 0;
   }
 
 #if PY_VERSION_HEX >= 0x030C0000
@@ -2963,11 +2937,9 @@ int initialize() {
     return -1;
   }
 
-  getMutableConfig().state = use_jit ? State::kRunning : State::kPaused;
+  getMutableConfig().state = State::kRunning;
 
   g_jit_list = jit_list.release();
-
-  JIT_DLOG("JIT is {}", isJitUsable() ? "enabled" : "disabled");
 
   return 0;
 }

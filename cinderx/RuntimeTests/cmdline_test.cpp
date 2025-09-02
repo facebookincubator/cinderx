@@ -285,13 +285,9 @@ TEST_F(CmdLineTest, JITEnable) {
           []() {},
           []() {
             ASSERT_TRUE(isJitUsable());
+            ASSERT_TRUE(getConfig().compile_all);
             ASSERT_EQ(is_intel_syntax(), 0); // default to AT&T syntax
           }),
-      0);
-
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit", "PYTHONJIT=1", []() {}, []() { ASSERT_TRUE(isJitUsable()); }),
       0);
 
   ASSERT_EQ(
@@ -299,15 +295,11 @@ TEST_F(CmdLineTest, JITEnable) {
           L"jit-all=0",
           "PYTHONJITALL=0",
           []() {},
-          []() { ASSERT_FALSE(isJitUsable()); }),
-      0);
-
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit=0",
-          "PYTHONJIT=0",
-          []() {},
-          []() { ASSERT_FALSE(isJitUsable()); }),
+          []() {
+            // JIT still usable when JitAll is not enabled.
+            ASSERT_TRUE(isJitUsable());
+            ASSERT_FALSE(getConfig().compile_all);
+          }),
       0);
 }
 
