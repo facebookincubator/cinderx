@@ -16,7 +16,7 @@ CopyGraph::Node::~Node() {
 void CopyGraph::addEdge(int from, int to) {
   auto parent = getNode(from);
   auto child = getNode(to);
-  JIT_DCHECK(child->parent == nullptr, "child already has a parent");
+  JIT_CHECK(child->parent == nullptr, "child already has a parent");
   setParent(child, parent);
 }
 
