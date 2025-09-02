@@ -10,7 +10,6 @@ class CinderXOSSTest(unittest.TestCase):
     def test_import(self) -> None:
         import cinderx  # noqa: F401
 
-        cinderx.init()
         self.assertTrue(cinderx.is_initialized())
 
 

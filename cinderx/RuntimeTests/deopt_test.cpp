@@ -279,8 +279,8 @@ def test(num):
 TEST_F(ReifyFrameTest, ReifyStaticCompareWithBool) {
   const char* src = R"(
 import cinderx
-cinderx.init()
 from __static__ import size_t, unbox
+
 def test(x, y):
     x1: size_t = unbox(x)
     y1: size_t = unbox(y)

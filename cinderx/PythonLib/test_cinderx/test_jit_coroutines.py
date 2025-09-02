@@ -10,8 +10,6 @@ import sys
 import unittest
 
 import cinderx
-
-cinderx.init()
 import cinderx.test_support as cinder_support
 
 from cinderx.test_support import compiles_after_one_call, skip_unless_jit

@@ -15,9 +15,6 @@ from pathlib import Path
 from unittest import skipIf
 
 import cinderx
-
-cinderx.init()
-
 import cinderx.jit
 
 from cinderx.test_support import CINDERX_PATH, ENCODING, skip_unless_jit

@@ -8,9 +8,6 @@ import unittest
 from typing import Any, AsyncGenerator, Awaitable, Iterator, List
 
 import cinderx
-
-cinderx.init()
-
 import cinderx.test_support as cinder_support
 
 

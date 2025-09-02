@@ -5,14 +5,10 @@
 import dis
 import sys
 import unittest
-
-import cinderx
-
-cinderx.init()
-
 from types import ModuleType
 from typing import Callable, TypeVar
 
+import cinderx
 import cinderx.jit
 
 

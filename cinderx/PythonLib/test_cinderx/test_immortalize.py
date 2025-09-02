@@ -4,9 +4,6 @@
 import unittest
 
 import cinderx
-
-cinderx.init()
-
 from cinderx.test_support import run_in_subprocess
 
 

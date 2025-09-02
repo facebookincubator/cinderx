@@ -19,16 +19,11 @@ import os
 import py_compile
 import struct
 import sys
+from functools import partial
+from pathlib import Path
 from typing import Generator, Pattern, Type
 
 import cinderx
-
-# pyre-ignore[16]: Module `cinderx` has no attribute `init`.
-cinderx.init()
-
-from functools import partial
-from pathlib import Path
-
 from cinderx.compiler.pysourceloader import PySourceFileLoader
 from cinderx.compiler.strict.loader import strict_compile as strict_compile_fn
 

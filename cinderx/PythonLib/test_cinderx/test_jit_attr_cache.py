@@ -8,9 +8,6 @@ import unittest
 from textwrap import dedent
 
 import cinderx
-
-cinderx.init()
-
 import cinderx.jit
 import cinderx.test_support as cinder_support
 

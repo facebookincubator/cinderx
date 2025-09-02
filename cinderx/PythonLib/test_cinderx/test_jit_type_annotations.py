@@ -6,8 +6,6 @@ import unittest
 from typing import Any, Generator
 
 import cinderx
-
-cinderx.init()
 import cinderx.jit
 
 
