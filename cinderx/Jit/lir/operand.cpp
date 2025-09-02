@@ -320,6 +320,8 @@ uint64_t Operand::rawValue() const {
   } else if (
       const auto ptr = std::get_if<std::unique_ptr<MemoryIndirect>>(&value_)) {
     return reinterpret_cast<uint64_t>(ptr->get());
+  } else if (const auto ptr = std::get_if<PhyLocation>(&value_)) {
+    return static_cast<uint64_t>(ptr->loc);
   }
 
   JIT_ABORT("Unknown operand value type, has index {}", value_.index());

@@ -10,6 +10,7 @@
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/instruction.h"
+#include "cinderx/Jit/lir/printer.h"
 
 #include <asmjit/x86/x86operand.h>
 
@@ -142,7 +143,10 @@ void AutoTranslator::translateInstr(Environ* env, const Instruction* instr)
         pattern += "b";
         break;
       default:
-        JIT_ABORT("Illegal input type.");
+        JIT_ABORT(
+            "Illegal input type {} for instruction {}",
+            operand->type(),
+            *instr);
     }
   });
 
