@@ -1185,7 +1185,7 @@ static int type_new_descriptors(
     // their types and moving them around.
     PyMemberDef* mp = PyHeapType_GET_MEMBERS(et);
     const char* slot_name = PyUnicode_AsUTF8(name);
-    for (Py_ssize_t i = 0; i < nslot; i++, mp++) {
+    for (Py_ssize_t member_idx = 0; member_idx < nslot; member_idx++, mp++) {
       if (strcmp(slot_name, mp->name) == 0) {
         break;
       }
