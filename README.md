@@ -8,3 +8,12 @@ This extension is a work-in-progress aimed at extracting parts of Cinder as a pi
 
 ## License
 CinderX is MIT licensed, as found in the LICENSE file.
+
+## Terms of Use
+https://opensource.fb.com/legal/terms
+
+## Privacy Policy
+https://opensource.fb.com/legal/privacy
+
+##
+Copyright © 2025 Meta Platforms, Inc.
