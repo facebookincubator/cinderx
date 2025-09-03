@@ -1,3 +1,5 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include "cinderx/python.h"
 
 #ifndef Ci_INTERNAL_OPCODE_H
@@ -28,9 +30,9 @@
 // Import the renamed ones with CinderX opcodes
 #include "cinderx/Interpreter/cinder_opcode_metadata.h"
 
-#undef _PyOpcode_Caches 
-#undef _PyOpcode_Deopt 
-#undef _PyOpcode_OpName 
+#undef _PyOpcode_Caches
+#undef _PyOpcode_Deopt
+#undef _PyOpcode_OpName
 #undef _PyOpcode_Jump
 
 // Bring in the references to the original versions

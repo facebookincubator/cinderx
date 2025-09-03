@@ -1,3 +1,5 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include "cinderx/Immortalize/immortalize.h"
 
 #include "cinderx/Common/code.h"

@@ -1,3 +1,5 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+
 # pyre-strict
 
 """Module/script to byte-compile all .py files to .pyc files.

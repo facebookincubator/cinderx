@@ -1,3 +1,5 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 // Macros and other things needed by ceval.c, and bytecodes.c
 
 /* Computed GOTOs, or

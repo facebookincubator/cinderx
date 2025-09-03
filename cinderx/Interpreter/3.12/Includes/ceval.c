@@ -1,3 +1,5 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 /* Execute compiled code */
 
 #define _PY_INTERPRETER

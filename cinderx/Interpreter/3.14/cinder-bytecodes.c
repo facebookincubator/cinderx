@@ -1,3 +1,5 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 // This file contains instruction definitions.
 // It is read by generators stored in Tools/cases_generator/
 // to generate Python/generated_cases.c.h and others.

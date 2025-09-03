@@ -1,3 +1,5 @@
+// Copyright (c) Meta Platforms, Inc. and affiliates.
+
 static void *opcode_targets[256] = {
     &&TARGET_CACHE,
     &&TARGET_POP_TOP,

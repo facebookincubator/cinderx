@@ -1,3 +1,5 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+
 # pyre-strict
 """Debugging output for various internal datatypes."""
 

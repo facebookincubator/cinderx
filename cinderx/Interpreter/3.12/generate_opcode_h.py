@@ -1,3 +1,5 @@
+# Copyright (c) Meta Platforms, Inc. and affiliates.
+
 # This script generates the opcode.h header file.
 
 # Do not format this with black; it is forked from python/3.12, and we would
