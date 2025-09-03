@@ -16,7 +16,14 @@ CopyGraph::Node::~Node() {
 void CopyGraph::addEdge(int from, int to) {
   auto parent = getNode(from);
   auto child = getNode(to);
-  JIT_CHECK(child->parent == nullptr, "child already has a parent");
+  JIT_CHECK(
+      child->parent == nullptr,
+      "Trying to add CopyGraph edge {} -> {}, but there already exists {} -> "
+      "{}",
+      from,
+      to,
+      child->parent->loc,
+      to);
   setParent(child, parent);
 }
 
