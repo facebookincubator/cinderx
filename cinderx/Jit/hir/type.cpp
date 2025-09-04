@@ -26,7 +26,7 @@ namespace {
 // PyTypeObject*.
 const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
   static auto const map = [] {
-    const std::unordered_map<Type, PyTypeObject*> map{
+    const std::unordered_map<Type, PyTypeObject*> result_map{
         {TObject, &PyBaseObject_Type},
         {TBool, &PyBool_Type},
         {TBytes, &PyBytes_Type},
@@ -55,16 +55,17 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
     // this table. Except for TWaitHandle, which hasn't been ported to 3.12 yet
     // and TArray which is a heap type so can't be included in this static
     // table.
-#define CHECK_TY(name, bits, lifetime, flags)                             \
-  JIT_CHECK(                                                              \
-      T##name <= TArray || T##name <= TWaitHandle ||                      \
-          ((flags) & kTypeHasUniquePyType) == 0 || map.contains(T##name), \
-      "Type {} missing entry in typeToPyType()",                          \
+#define CHECK_TY(name, bits, lifetime, flags)        \
+  JIT_CHECK(                                         \
+      T##name <= TArray || T##name <= TWaitHandle || \
+          ((flags) & kTypeHasUniquePyType) == 0 ||   \
+          result_map.contains(T##name),              \
+      "Type {} missing entry in typeToPyType()",     \
       T##name);
     HIR_TYPES(CHECK_TY)
 #undef CHECK_TY
 
-    return map;
+    return result_map;
   }();
 
   return map;
@@ -74,17 +75,17 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyType() {
 // TListExact -> PyList_Type).
 const std::unordered_map<Type, PyTypeObject*>& typeToPyTypeWithExact() {
   static auto const map = [] {
-    auto map = typeToPyType();
+    auto result_map = typeToPyType();
     for (auto& pair : typeToPyType()) {
       if (pair.first == TObject) {
-        map.emplace(TObjectExact, &PyBaseObject_Type);
+        result_map.emplace(TObjectExact, &PyBaseObject_Type);
       } else if (pair.first == TLong) {
-        map.emplace(TLongExact, &PyLong_Type);
+        result_map.emplace(TLongExact, &PyLong_Type);
       } else {
-        map.emplace(pair.first & TBuiltinExact, pair.second);
+        result_map.emplace(pair.first & TBuiltinExact, pair.second);
       }
     }
-    return map;
+    return result_map;
   }();
 
   return map;
@@ -93,12 +94,12 @@ const std::unordered_map<Type, PyTypeObject*>& typeToPyTypeWithExact() {
 // The inverse of typeToPyType().
 const std::unordered_map<PyTypeObject*, Type>& pyTypeToType() {
   static auto const map = [] {
-    std::unordered_map<PyTypeObject*, Type> map;
+    std::unordered_map<PyTypeObject*, Type> result_map;
     for (auto& pair : typeToPyType()) {
-      bool inserted = map.emplace(pair.second, pair.first).second;
+      bool inserted = result_map.emplace(pair.second, pair.first).second;
       JIT_CHECK(inserted, "Duplicate key type: {}", pair.second->tp_name);
     }
-    return map;
+    return result_map;
   }();
 
   return map;
@@ -115,10 +116,10 @@ const std::unordered_map<PyTypeObject*, Type>& pyTypeToType() {
 // out all other types) and TLong (where we leave out TBool).
 const std::unordered_map<PyTypeObject*, Type>& pyTypeToTypeForExact() {
   static auto const map = [] {
-    auto map = pyTypeToType();
-    map.at(&PyBaseObject_Type) = TObjectExact | TObjectUser;
-    map.at(&PyLong_Type) = TLongExact | TLongUser;
-    return map;
+    auto result_map = pyTypeToType();
+    result_map.at(&PyBaseObject_Type) = TObjectExact | TObjectUser;
+    result_map.at(&PyLong_Type) = TLongExact | TLongUser;
+    return result_map;
   }();
 
   return map;
