@@ -1046,12 +1046,15 @@ class CodeGenerator(ASTVisitor):
     def emit_before_async_with(self) -> None:
         self.emit("BEFORE_ASYNC_WITH")
 
+    def make_with_block(self) -> Block | None:
+        return self.newBlock("with_block")
+
     def visitWith_(
         self, node: ast.With | ast.AsyncWith, kind: int, pos: int = 0
     ) -> None:
         item = node.items[pos]
 
-        block = self.newBlock("with_block")
+        block = self.make_with_block()
         finally_ = self.newBlock("with_finally")
         exit_ = self.newBlock("with_exit")
         cleanup = self.newBlock("cleanup")
@@ -1066,7 +1069,8 @@ class CodeGenerator(ASTVisitor):
 
         self.emit_setup_with(item, finally_, kind == ASYNC_WITH)
 
-        self.nextBlock(block)
+        if block is not None:
+            self.nextBlock(block)
         self.push_fblock(Entry(kind, block, finally_, node, item.context_expr))
         if item.optional_vars:
             self.visit(item.optional_vars)
@@ -6008,6 +6012,9 @@ class CodeGenerator314(CodeGenerator312):
 
         assert isinstance(result, AST)
         return result
+
+    def make_with_block(self) -> Block | None:
+        return None
 
     def get_graph_flags(
         self, func: FuncOrLambda | CompNode, func_args: ast.arguments, scope: Scope
