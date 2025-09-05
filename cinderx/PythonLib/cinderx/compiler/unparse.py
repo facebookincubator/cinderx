@@ -105,9 +105,7 @@ with warnings.catch_warnings():
 def _format_attribute(node: ast.Attribute, level: int) -> str:
     value = to_expr(node.value, PR_ATOM)
     const = node.value
-    if (isinstance(const, ast.Constant) and isinstance(const.value, int)) or type(
-        const
-    ) is ast.Num:
+    if isinstance(const, ast.Constant) and isinstance(const.value, int):
         value += " ."
     else:
         value += "."
