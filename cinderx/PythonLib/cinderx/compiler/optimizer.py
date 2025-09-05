@@ -492,6 +492,10 @@ class AstOptimizer314(AstOptimizer312):
     def has_starred(self, e: ast.Tuple) -> bool:
         return any(isinstance(e, ast.Starred) for e in e.elts)
 
+    def visitUnaryOp(self, node: ast.UnaryOp) -> ast.expr:
+        op = self.visit(node.operand)
+        return self.update_node(node, operand=op)
+
     def visitBinOp(self, node: ast.BinOp) -> ast.expr:
         lhs = self.visit(node.left)
         rhs = self.visit(node.right)

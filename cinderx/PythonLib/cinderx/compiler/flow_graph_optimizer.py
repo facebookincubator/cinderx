@@ -4,6 +4,8 @@
 
 from __future__ import annotations
 
+import operator
+
 from typing import cast
 
 from .opcodes import find_op_idx
@@ -985,6 +987,15 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
             next_instr.ioparg = instr.ioparg ^ 1
             instr.set_to_nop()
 
+    def make_load_const(self, instr: Instruction, const: object) -> None:
+        if is_small_int(const):
+            instr.opname = "LOAD_SMALL_INT"
+            instr.ioparg = instr.oparg = const
+        else:
+            instr.opname = "LOAD_CONST"
+            instr.oparg = const
+            instr.ioparg = self.graph.convertArg("LOAD_CONST", const)
+
     def optimize_binary_op(
         self: FlowGraphOptimizer,
         instr_index: int,
@@ -993,6 +1004,7 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         target: Instruction | None,
         block: Block,
     ) -> int | None:
+        assert isinstance(self, FlowGraphOptimizer314)
         consts = self.get_const_loading_instrs(block, instr_index - 1, 2)
         if consts is None:
             return
@@ -1010,13 +1022,72 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
 
         consts[0].set_to_nop_no_loc()
         consts[1].set_to_nop_no_loc()
-        if is_small_int(res):
-            instr.opname = "LOAD_SMALL_INT"
-            instr.ioparg = instr.oparg = res
-        else:
-            instr.opname = "LOAD_CONST"
-            instr.oparg = res
-            instr.ioparg = self.graph.convertArg("LOAD_CONST", res)
+        self.make_load_const(instr, res)
+
+    def optimize_one_unary(
+        self,
+        instr_index: int,
+        instr: Instruction,
+        block: Block,
+        op: Callable[[object], object],
+    ) -> object:
+        consts = self.get_const_loading_instrs(block, instr_index - 1, 1)
+        if consts is None:
+            return
+
+        try:
+            res = op(consts[0].oparg)
+        except (ArithmeticError, TypeError):
+            return
+
+        consts[0].set_to_nop_no_loc()
+        self.make_load_const(instr, res)
+
+    def optimize_unary_invert(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert isinstance(self, FlowGraphOptimizer314)
+        self.optimize_one_unary(instr_index, instr, block, operator.inv)
+
+    def optimize_unary_negative(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert isinstance(self, FlowGraphOptimizer314)
+        self.optimize_one_unary(instr_index, instr, block, operator.neg)
+
+    def optimize_unary_not(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert isinstance(self, FlowGraphOptimizer314)
+        self.optimize_one_unary(instr_index, instr, block, operator.not_)
+
+    def optimize_call_instrinsic_1(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        assert isinstance(self, FlowGraphOptimizer314)
+        if instr.oparg != "INTRINSIC_UNARY_POSITIVE":
+            return
+        self.optimize_one_unary(instr_index, instr, block, operator.pos)
 
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
@@ -1031,6 +1102,10 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         "JUMP_NO_INTERRUPT": opt_jump_no_interrupt,
         "STORE_FAST": opt_store_fast,
         "BINARY_OP": optimize_binary_op,
+        "UNARY_INVERT": optimize_unary_invert,
+        "UNARY_NEGATIVE": optimize_unary_negative,
+        "UNARY_NOT": optimize_unary_not,
+        "CALL_INSTRINSIC_1": optimize_call_instrinsic_1,
     }
     del handlers["PUSH_NULL"]
     del handlers["LOAD_CONST"]
