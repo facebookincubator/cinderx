@@ -873,15 +873,11 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
     def fold_tuple_on_constants(
         self, instr_index: int, instr: Instruction, block: Block
     ) -> None:
-        load_const_instrs = []
-        for i in range(instr_index - instr.ioparg, instr_index):
-            maybe_load_const = block.insts[i]
-            if (
-                maybe_load_const.opname != "LOAD_CONST"
-                and maybe_load_const.opname != "LOAD_SMALL_INT"
-            ):
-                return
-            load_const_instrs.append(maybe_load_const)
+        load_const_instrs = self.get_const_loading_instrs(
+            block, instr_index - 1, instr.ioparg
+        )
+        if load_const_instrs is None:
+            return
         newconst = tuple(lc.oparg for lc in load_const_instrs)
         for lc in load_const_instrs:
             lc.set_to_nop_no_loc()
