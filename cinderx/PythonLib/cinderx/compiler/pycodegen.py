@@ -6029,6 +6029,43 @@ class CodeGenerator314(CodeGenerator312):
 
         return flags
 
+    def get_docstring(
+        self, func: ast.Module | ast.ClassDef | FuncOrLambda | CompNode
+    ) -> str | None:
+        doc = super().get_docstring(func)
+        if doc is None:
+            return None
+
+        # Difference from inspect.cleandoc():
+        # Do not remove leading and trailing blank lines to keep lineno.
+
+        doc = doc.expandtabs()
+        # Find minimum indentation of any non-blank lines after first line
+
+        lines = doc.split("\n")
+        margin = 1 << 31
+        for line in lines[1:]:
+            for i, c in enumerate(line):
+                if c == "\n":
+                    # empty line
+                    break
+                elif c != " ":
+                    margin = min(margin, i)
+                    break
+
+        if margin == 1 << 31:
+            margin = 0
+        # remove leading white space of 1st line
+        lines[0] = lines[0].lstrip(" ")
+        if margin != 0:
+            for i, line in enumerate(lines):
+                if i != 0:
+                    # remove margin of subsequent lines
+                    lines[i] = line[margin:]
+        doc = "\n".join(lines)
+
+        return doc
+
     def _fastcall_helper(
         self,
         argcnt: int,
