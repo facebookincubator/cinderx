@@ -6083,6 +6083,21 @@ class CodeGenerator314(CodeGenerator312):
         else:
             self.emit("CALL", argcnt + len(args) + len(kwargs))
 
+    def compiler_subkwargs(
+        self, kwargs: list[ast.keyword], begin: int, end: int
+    ) -> None:
+        nkwargs = end - begin
+        big = (nkwargs * 2) > STACK_USE_GUIDELINE
+        if big:
+            self.emit_noline("BUILD_MAP", 0)
+        for i in range(begin, end):
+            self.emit("LOAD_CONST", kwargs[i].arg)
+            self.visit(kwargs[i].value)
+            if big:
+                self.emit_noline("MAP_ADD", 1)
+        if not big:
+            self.emit("BUILD_MAP", nkwargs)
+
     def emit_noopt_call(self, node: ast.Call) -> None:
         self.visit(node.func)
         self.graph.emit_with_loc("PUSH_NULL", 0, node.func)
