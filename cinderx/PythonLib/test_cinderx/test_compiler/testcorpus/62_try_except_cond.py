@@ -1,8 +1,10 @@
-# pyre-ignore-all-errors
-try:
-    pass
-except Exception as exc:
+def x():
+    # Try to decode the extra field.
     if x:
-        y = x
-    elif z:
-        y = z
+        try:
+            if foo:
+                pass
+        except Exception:
+            pass
+
+    extra = extra[ln+4:]

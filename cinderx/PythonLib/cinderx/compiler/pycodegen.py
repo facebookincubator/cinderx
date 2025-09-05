@@ -5198,7 +5198,7 @@ class CodeGenerator312(CodeGenerator):
         self.emit_noline("POP_BLOCK")
         self.visitStatements(node.orelse)
         self.set_no_pos()
-        self.emit_jump_forward(end)
+        self.emit_jump_eh_end(end)
 
         self.nextBlock(except_)
         self.emit("SETUP_CLEANUP", cleanup)
