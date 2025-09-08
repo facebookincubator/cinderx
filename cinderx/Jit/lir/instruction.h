@@ -2,12 +2,10 @@
 
 #pragma once
 
-#include "cinderx/Common/util.h"
 #include "cinderx/Jit/lir/operand.h"
 
 #include <memory>
-#include <unordered_map>
-#include <unordered_set>
+#include <string_view>
 #include <vector>
 
 namespace jit {
@@ -198,16 +196,6 @@ class Instruction {
 #undef INSTR_DECL_TYPE
   };
 
-  static constexpr const char* kOpcodeNames[] = {
-#define INSTR_DECL_TYPE(v, ...) #v,
-      FOREACH_INSTR_TYPE(INSTR_DECL_TYPE)
-#undef INSTR_DECL_TYPE
-  };
-
-#define COUNT_INSTR(...) +1
-  static constexpr size_t kNumOpcodes = FOREACH_INSTR_TYPE(COUNT_INSTR);
-#undef COUNT_INSTR
-
 #define DECL_OPCODE_TEST(v, ...) \
   bool is##v() const {           \
     return opcode() == k##v;     \
@@ -217,75 +205,58 @@ class Instruction {
 
   Instruction(BasicBlock* basic_block, Opcode opcode, const hir::Instr* origin);
 
-  // Only copies simple fields (opcode_, basic_block_, origin_) from instr.
-  // The output_ only has its simple fields copied.
-  // The inputs are not copied.
-  Instruction(BasicBlock* bb, Instruction* instr, const hir::Instr* origin);
+  // Copies another instruction's opcode and simple fields from its output.  The
+  // inputs are not copied.
+  Instruction(BasicBlock* block, Instruction* instr, const hir::Instr* origin);
 
-  int id() const {
-    return id_;
-  }
+  // Get the unique ID representing this instruction within its function.
+  int id() const;
 
-  Operand* output() {
-    return &output_;
-  }
-  const Operand* output() const {
-    return &output_;
-  }
+  // Change the instruction's ID.  This is only meant to be used by the LIR
+  // parser.  LIR strongly expects unique instruction IDs.
+  void setId(int id);
 
-  const hir::Instr* origin() const {
-    return origin_;
-  }
+  // Get the output of this function.
+  //
+  // All functions have an output object, even if they don't use it.
+  Operand* output();
+  const Operand* output() const;
 
-  size_t getNumInputs() const {
-    return inputs_.size();
-  }
+  // Get the HIR instruction that this LIR instruction was lowered from.
+  const hir::Instr* origin() const;
 
-  void setNumInputs(size_t n) {
-    inputs_.resize(n);
-  }
+  // Get the number of inputs passed into this instruction.
+  size_t getNumInputs() const;
 
-  size_t getNumOutputs() const {
-    return output_.type() == OperandBase::kNone ? 0 : 1;
-  }
+  // Change the number of inputs passed into this instruction.  Will add nullptr
+  // Operand objects if the number increases.
+  void setNumInputs(size_t n);
 
-  OperandBase* getInput(size_t i) {
-    return inputs_.at(i).get();
-  }
+  // Get the number of outputs set by this instruction.
+  size_t getNumOutputs() const;
 
-  const OperandBase* getInput(size_t i) const {
-    return inputs_.at(i).get();
-  }
+  // Get an input by index.
+  OperandBase* getInput(size_t i);
+  const OperandBase* getInput(size_t i) const;
 
   Operand* allocateImmediateInput(
       uint64_t n,
-      OperandBase::DataType data_type = OperandBase::k64bit);
+      DataType data_type = DataType::k64bit);
   Operand* allocateFPImmediateInput(double n);
   LinkedOperand* allocateLinkedInput(Instruction* def_instr);
-  Operand* allocatePhyRegisterInput(PhyLocation loc) {
-    return allocateOperand(&Operand::setPhyRegister, loc);
-  }
-  Operand* allocateStackInput(PhyLocation stack) {
-    return allocateOperand(&Operand::setStackSlot, stack);
-  }
-  Operand* allocatePhyRegOrStackInput(PhyLocation loc) {
-    return allocateOperand(&Operand::setPhyRegOrStackSlot, loc);
-  }
-  Operand* allocateAddressInput(void* address) {
-    return allocateOperand(&Operand::setMemoryAddress, address);
-  }
-  Operand* allocateLabelInput(BasicBlock* block) {
-    return allocateOperand(&Operand::setBasicBlock, block);
-  }
+  Operand* allocatePhyRegisterInput(PhyLocation loc);
+  Operand* allocateStackInput(PhyLocation stack);
+  Operand* allocatePhyRegOrStackInput(PhyLocation loc);
+  Operand* allocateAddressInput(void* address);
+  Operand* allocateLabelInput(BasicBlock* block);
 
   template <typename... Args>
   Operand* allocateMemoryIndirectInput(Args&&... args) {
     auto operand = std::make_unique<Operand>(this);
-    auto opnd = operand.get();
+    auto operand_ptr = operand.get();
     operand->setMemoryIndirect(std::forward<Args>(args)...);
     inputs_.push_back(std::move(operand));
-
-    return opnd;
+    return operand_ptr;
   }
 
   // add operands to the instruction. The arguments can be one
@@ -363,28 +334,17 @@ class Instruction {
     return this;
   }
 
-  void setbasicblock(BasicBlock* bb) {
-    basic_block_ = bb;
-  }
+  void setbasicblock(BasicBlock* bb);
 
-  BasicBlock* basicblock() {
-    return basic_block_;
-  }
-  const BasicBlock* basicblock() const {
-    return basic_block_;
-  }
+  BasicBlock* basicblock();
+  const BasicBlock* basicblock() const;
 
-  Opcode opcode() const {
-    return opcode_;
-  }
+  Opcode opcode() const;
+  void setOpcode(Opcode opcode);
 
-  std::string opname() const {
-    return kOpcodeNames[opcode_];
-  }
-
-  void setOpcode(Opcode opcode) {
-    opcode_ = opcode;
-  }
+  // Get the name of this instruction's opcode.  This is a null-terminated
+  // literal value.
+  std::string_view opname() const;
 
   template <typename Func>
   void foreachInputOperand(const Func& f) const {
@@ -403,61 +363,26 @@ class Instruction {
   }
 
   // replace the input operand at index with operand.
-  void replaceInputOperand(size_t index, std::unique_ptr<OperandBase> operand) {
-    inputs_[index] = std::move(operand);
-  }
+  void replaceInputOperand(size_t index, std::unique_ptr<OperandBase> operand);
 
-  std::unique_ptr<OperandBase> removeInputOperand(size_t index) {
-    auto opnd = std::move(inputs_.at(index));
-    inputs_.erase(inputs_.begin() + index);
-    return opnd;
-  }
+  std::unique_ptr<OperandBase> removeInputOperand(size_t index);
 
   // Release the input operand at index from the instruction without
   // deallocating it. The original index of inputs_ will be left with
   // a null std::unique_ptr, which is supposed be removed from inputs_
   // by an operation to follow.
-  std::unique_ptr<OperandBase> releaseInputOperand(size_t index) {
-    auto& operand = inputs_.at(index);
-    operand->releaseFromInstr();
-    return std::move(inputs_.at(index));
-  }
+  std::unique_ptr<OperandBase> releaseInputOperand(size_t index);
 
-  OperandBase* appendInputOperand(std::unique_ptr<OperandBase> operand) {
-    auto opnd = operand.get();
-    opnd->assignToInstr(this);
-    inputs_.push_back(std::move(operand));
-    return opnd;
-  }
-
-  OperandBase* prependInputOperand(std::unique_ptr<OperandBase> operand) {
-    auto opnd = operand.get();
-    opnd->assignToInstr(this);
-    inputs_.insert(inputs_.begin(), std::move(operand));
-    return opnd;
-  }
+  OperandBase* appendInputOperand(std::unique_ptr<OperandBase> operand);
+  OperandBase* prependInputOperand(std::unique_ptr<OperandBase> operand);
 
   // get the operand associated to a given predecessor in a phi instruction
   // returns nullptr if not found.
-  OperandBase* getOperandByPredecessor(const BasicBlock* pred) {
-    auto index = getOperandIndexByPredecessor(pred);
-    return index == -1 ? nullptr : inputs_.at(index).get();
-  }
+  OperandBase* getOperandByPredecessor(const BasicBlock* pred);
 
-  int getOperandIndexByPredecessor(const BasicBlock* pred) const {
-    JIT_DCHECK(opcode_ == kPhi, "The current instruction must be Phi.");
-    size_t num_inputs = getNumInputs();
-    for (size_t i = 0; i < num_inputs; i += 2) {
-      if (getInput(i)->getBasicBlock() == pred) {
-        return i + 1;
-      }
-    }
-    return -1;
-  }
+  int getOperandIndexByPredecessor(const BasicBlock* pred) const;
 
-  const OperandBase* getOperandByPredecessor(const BasicBlock* pred) const {
-    return const_cast<Instruction*>(this)->getOperandByPredecessor(pred);
-  }
+  const OperandBase* getOperandByPredecessor(const BasicBlock* pred) const;
 
   // Accessors for some of the instruction's attributes. See details in the
   // comment above FOREACH_INSTR_TYPE().
@@ -465,189 +390,43 @@ class Instruction {
   bool getInputPhyRegUse(size_t i) const;
   bool inputsLiveAcross() const;
 
-  bool isCompare() const {
-    switch (opcode_) {
-      case kEqual:
-      case kNotEqual:
-      case kGreaterThanSigned:
-      case kLessThanSigned:
-      case kGreaterThanEqualSigned:
-      case kLessThanEqualSigned:
-      case kGreaterThanUnsigned:
-      case kLessThanUnsigned:
-      case kGreaterThanEqualUnsigned:
-      case kLessThanEqualUnsigned:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  bool isBranchCC() const {
-    switch (opcode_) {
-      case kBranchC:
-      case kBranchNC:
-      case kBranchO:
-      case kBranchNO:
-      case kBranchS:
-      case kBranchNS:
-      case kBranchZ:
-      case kBranchNZ:
-      case kBranchA:
-      case kBranchB:
-      case kBranchBE:
-      case kBranchAE:
-      case kBranchL:
-      case kBranchG:
-      case kBranchLE:
-      case kBranchGE:
-      case kBranchE:
-      case kBranchNE:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  bool isAnyBranch() const {
-    return (opcode_ == kCondBranch) || isBranchCC();
-  }
-
-  bool isTerminator() const {
-    switch (opcode_) {
-      case kReturn:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-  bool isAnyYield() const {
-    switch (opcode_) {
-      case kYieldFrom:
-      case kYieldFromHandleStopAsyncIteration:
-      case kYieldFromSkipInitialSend:
-      case kYieldInitial:
-      case kYieldValue:
-        return true;
-      default:
-        return false;
-    }
-  }
-
-#define CASE_FLIP(op1, op2) \
-  case op1:                 \
-    return op2;             \
-  case op2:                 \
-    return op1;
+  bool isCompare() const;
+  bool isBranchCC() const;
+  bool isAnyBranch() const;
+  bool isTerminator() const;
+  bool isAnyYield() const;
 
   // negate the branch condition:
   // e.g. A >= B -> !(A < B)
-  static Opcode negateBranchCC(Opcode opcode) {
-    switch (opcode) {
-      CASE_FLIP(kBranchC, kBranchNC)
-      CASE_FLIP(kBranchO, kBranchNO)
-      CASE_FLIP(kBranchS, kBranchNS)
-      CASE_FLIP(kBranchZ, kBranchNZ)
-      CASE_FLIP(kBranchA, kBranchBE)
-      CASE_FLIP(kBranchB, kBranchAE)
-      CASE_FLIP(kBranchL, kBranchGE)
-      CASE_FLIP(kBranchG, kBranchLE)
-      CASE_FLIP(kBranchE, kBranchNE)
-      default:
-        JIT_ABORT("Not a conditional branch opcode: {}", kOpcodeNames[opcode]);
-    }
-  }
+  static Opcode negateBranchCC(Opcode opcode);
 
   // flipping the direction of comparison:
   // e.g. A >= B -> B <= A
-  static Opcode flipBranchCCDirection(Opcode opcode) {
-    switch (opcode) {
-      CASE_FLIP(kBranchA, kBranchB)
-      CASE_FLIP(kBranchAE, kBranchBE)
-      CASE_FLIP(kBranchL, kBranchG)
-      CASE_FLIP(kBranchLE, kBranchGE)
-      default:
-        JIT_ABORT(
-            "Unable to flip branch condition for opcode: {}",
-            kOpcodeNames[opcode]);
-    }
-  }
+  static Opcode flipBranchCCDirection(Opcode opcode);
 
-  static Opcode flipComparisonDirection(Opcode opcode) {
-    switch (opcode) {
-      CASE_FLIP(kGreaterThanEqualSigned, kLessThanEqualSigned)
-      CASE_FLIP(kGreaterThanEqualUnsigned, kLessThanEqualUnsigned)
-      CASE_FLIP(kGreaterThanSigned, kLessThanSigned)
-      CASE_FLIP(kGreaterThanUnsigned, kLessThanUnsigned)
-      case kEqual:
-        return kEqual;
-      case kNotEqual:
-        return kNotEqual;
-      default:
-        JIT_ABORT(
-            "Unable to flip comparison direction for opcode: {}",
-            kOpcodeNames[opcode]);
-    }
-  }
+  static Opcode flipComparisonDirection(Opcode opcode);
 
-#undef CASE_FLIP
-
-  static Opcode compareToBranchCC(Opcode opcode) {
-    switch (opcode) {
-      case kEqual:
-        return kBranchE;
-      case kNotEqual:
-        return kBranchNE;
-      case kGreaterThanUnsigned:
-        return kBranchA;
-      case kLessThanUnsigned:
-        return kBranchB;
-      case kGreaterThanEqualUnsigned:
-        return kBranchAE;
-      case kLessThanEqualUnsigned:
-        return kBranchBE;
-      case kGreaterThanSigned:
-        return kBranchG;
-      case kLessThanSigned:
-        return kBranchL;
-      case kGreaterThanEqualSigned:
-        return kBranchGE;
-      case kLessThanEqualSigned:
-        return kBranchLE;
-      default:
-        JIT_ABORT("Not a compare opcode.");
-    }
-  }
+  static Opcode compareToBranchCC(Opcode opcode);
 
  private:
-  int id_;
-  Opcode opcode_;
-  Operand output_;
-  std::vector<std::unique_ptr<OperandBase>> inputs_;
-
-  BasicBlock* basic_block_;
-
-  const hir::Instr* origin_;
-
   template <typename FType, typename... AType>
   Operand* allocateOperand(FType&& set_func, AType&&... arg) {
     auto operand = std::make_unique<Operand>(this);
-    auto opnd = operand.get();
-    (opnd->*set_func)(std::forward<AType>(arg)...);
+    auto operand_ptr = operand.get();
+    (operand_ptr->*set_func)(std::forward<AType>(arg)...);
     inputs_.push_back(std::move(operand));
-    return opnd;
+    return operand_ptr;
   }
 
-  // used in parser, expect unique id
-  void setId(int id) {
-    id_ = id;
-  }
-
-  friend class Parser;
+  int id_;
+  Opcode opcode_;
+  Operand output_;
+  BasicBlock* basic_block_;
+  const hir::Instr* origin_;
+  std::vector<std::unique_ptr<OperandBase>> inputs_;
 };
 
-// Instruction Guard specific
+// Kind of condition that a Guard instruction will execute.
 enum InstrGuardKind {
   kAlwaysFail,
   kHasType,
@@ -682,7 +461,7 @@ class InstrProperty {
 // clang-format off
 // This table contains definitions of all the instruction property field.
 BEGIN_INSTR_PROPERTY_FIELD
-  FIELD_NO_DEFAULT(std::string, name)
+  FIELD_NO_DEFAULT(std::string_view, name)
   FIELD_DEFAULT(bool, inputs_live_across, false)
   FIELD_DEFAULT(FlagEffects, flag_effects, FlagEffects::kNone)
   FIELD_DEFAULT(OperandSizeType, opnd_size_type, kDefault)
