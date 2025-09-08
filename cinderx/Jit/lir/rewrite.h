@@ -92,11 +92,6 @@ class Rewrite {
 
   void run();
 
- protected:
-  // find the most recent instruction affecting flags within the
-  // basic block. returns nullptr if not found.
-  static Instruction* findRecentFlagAffectingInstr(instr_iter_t instr_iter);
-
  private:
   template <typename T>
   std::pair<bool, const T*> getStageRewrites(

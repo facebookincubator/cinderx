@@ -67,25 +67,4 @@ void Rewrite::runOneStage(int stage) {
   } while (changed);
 }
 
-Instruction* Rewrite::findRecentFlagAffectingInstr(instr_iter_t instr_iter) {
-  Instruction* condbranch = instr_iter->get();
-  JIT_CHECK(
-      condbranch->isCondBranch(), "Input must be a CondBranch instruction.");
-
-  BasicBlock* block = condbranch->basicblock();
-  while (instr_iter != block->instructions().begin()) {
-    --instr_iter;
-    Instruction* instr = instr_iter->get();
-    switch (InstrProperty::getProperties(instr).flag_effects) {
-      case FlagEffects::kInvalidate:
-        return nullptr;
-      case FlagEffects::kSet:
-        return instr;
-      case FlagEffects::kNone:
-        continue;
-    }
-  }
-  return nullptr;
-}
-
 } // namespace jit::lir
