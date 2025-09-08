@@ -5,21 +5,23 @@
 #include "cinderx/Jit/lir/block.h"
 
 #include <deque>
-#include <memory>
 #include <vector>
 
 namespace jit::lir {
 
 class Function {
  public:
-  int allocateId() {
-    return next_id_++;
-  }
-
   struct CopyResult {
     int begin_bb;
     int end_bb;
   };
+
+  // Allocate a new ID for a basic block or an instruction.
+  int allocateId();
+
+  // Set the next ID to return from allocateId().  Only meant to be used by the
+  // LIR parser.
+  void setNextId(int id);
 
   // Deep copy function into dest_func.
   // Insert the blocks between prev_bb and next_bb.
@@ -34,25 +36,21 @@ class Function {
       BasicBlock* next_bb,
       const hir::Instr* origin);
 
+  // Create a new block and insert it as the last block in the CFG.
   BasicBlock* allocateBasicBlock();
 
+  // Create a new block and insert it in a given spot in the CFG.
   BasicBlock* allocateBasicBlockAfter(BasicBlock* block);
 
   // Returns the list of all the basic blocks.
   // The basic blocks will be in RPO as long as the CFG has not been
   // modified since the last call to SortRPO().
-  const std::vector<BasicBlock*>& basicblocks() const {
-    return basic_blocks_;
-  }
-  std::vector<BasicBlock*>& basicblocks() {
-    return basic_blocks_;
-  }
+  const std::vector<BasicBlock*>& basicblocks() const;
+  std::vector<BasicBlock*>& basicblocks();
 
   BasicBlock* entryBlock() const;
 
-  size_t getNumBasicBlocks() const {
-    return basic_blocks_.size();
-  }
+  size_t getNumBasicBlocks() const;
 
   void sortBasicBlocks();
 
@@ -80,13 +78,6 @@ class Function {
 
   // The next id to assign to a BasicBlock or Instruction.
   int next_id_{0};
-
-  // used in parser
-  void setNextId(int id) {
-    next_id_ = id;
-  }
-
-  friend class Parser;
 };
 
 } // namespace jit::lir

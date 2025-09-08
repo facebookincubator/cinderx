@@ -7,8 +7,10 @@
 
 namespace jit::lir {
 
+namespace {
+
 // Helper for copyOperand.
-static void copyIndirect(
+void copyIndirect(
     UnorderedMap<LinkedOperand*, int>& instr_refs,
     Operand* dest_op,
     MemoryIndirect* source_op) {
@@ -58,7 +60,7 @@ static void copyIndirect(
 
 // Helper for copyOperandBase.
 // Assume that type and data type are already be set.
-static void copyOperand(
+void copyOperand(
     UnorderedMap<int, BasicBlock*>& block_index_map,
     UnorderedMap<LinkedOperand*, int>& instr_refs,
     Operand* operand,
@@ -97,7 +99,7 @@ static void copyOperand(
 }
 
 // Helper for deepCopyBasicBlocks.
-static void copyInput(
+void copyInput(
     UnorderedMap<int, BasicBlock*>& block_index_map,
     UnorderedMap<LinkedOperand*, int>& instr_refs,
     OperandBase* input,
@@ -117,7 +119,7 @@ static void copyInput(
 }
 
 // Helper for deepCopyBasicBlocks.
-static void connectLinkedOperands(
+void connectLinkedOperands(
     UnorderedMap<int, Instruction*>& output_index_map_,
     UnorderedMap<LinkedOperand*, int>& instr_refs_) {
   for (auto& [operand, instr_index] : instr_refs_) {
@@ -129,7 +131,7 @@ static void connectLinkedOperands(
 // Helper used in copyFrom.
 // Expects blocks to be initialized into block_index_map_.
 // Copies the instructions and successors from src_blocks.
-static void deepCopyBasicBlocks(
+void deepCopyBasicBlocks(
     const std::vector<BasicBlock*>& src_blocks,
     UnorderedMap<int, BasicBlock*>& block_index_map_,
     const hir::Instr* origin) {
@@ -161,6 +163,16 @@ static void deepCopyBasicBlocks(
   }
 
   connectLinkedOperands(output_index_map, instr_refs);
+}
+
+} // namespace
+
+int Function::allocateId() {
+  return next_id_++;
+}
+
+void Function::setNextId(int id) {
+  next_id_ = id;
 }
 
 Function::CopyResult Function::copyFrom(
@@ -216,11 +228,23 @@ BasicBlock* Function::allocateBasicBlockAfter(BasicBlock* block) {
   return new_block;
 }
 
+const std::vector<BasicBlock*>& Function::basicblocks() const {
+  return basic_blocks_;
+}
+
+std::vector<BasicBlock*>& Function::basicblocks() {
+  return basic_blocks_;
+}
+
 BasicBlock* Function::entryBlock() const {
   if (basic_blocks_.empty()) {
     return nullptr;
   }
   return basic_blocks_.front();
+}
+
+size_t Function::getNumBasicBlocks() const {
+  return basic_blocks_.size();
 }
 
 void Function::sortBasicBlocks() {
