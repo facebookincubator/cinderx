@@ -5,7 +5,6 @@
 #include "cinderx/Jit/codegen/code_section.h"
 #include "cinderx/Jit/lir/instruction.h"
 
-#include <algorithm>
 #include <list>
 #include <memory>
 #include <vector>
@@ -26,62 +25,33 @@ class BasicBlock {
 
   explicit BasicBlock(Function* func);
 
-  int id() const {
-    return id_;
-  }
+  // Get the unique ID representing this block within its function.
+  int id() const;
 
-  Function* function() {
-    return func_;
-  }
-  const Function* function() const {
-    return func_;
-  }
+  // Change the block's ID.  This is only meant to be used by the LIR
+  // parser.  LIR strongly expects unique instruction IDs.
+  void setId(int id);
 
-  void addSuccessor(BasicBlock* bb) {
-    successors_.push_back(bb);
-    bb->predecessors_.push_back(this);
-  }
+  // Get the function that has this block as part of its CFG.
+  Function* function();
+  const Function* function() const;
+
+  void addSuccessor(BasicBlock* bb);
 
   // Set successor at index to bb.
   // Expects index to be within the current size of successors.
   void setSuccessor(size_t index, BasicBlock* bb);
 
-  // insert a basic block on the edge between the current basic
-  // block and another basic block specified by block.
-  BasicBlock* insertBasicBlockBetween(BasicBlock* block);
+  std::vector<BasicBlock*>& successors();
+  const std::vector<BasicBlock*>& successors() const;
 
-  std::vector<BasicBlock*>& successors() {
-    return successors_;
-  }
+  void swapSuccessors();
 
-  const std::vector<BasicBlock*>& successors() const {
-    return successors_;
-  }
+  BasicBlock* getTrueSuccessor() const;
+  BasicBlock* getFalseSuccessor() const;
 
-  void swapSuccessors() {
-    if (successors_.size() < 2) {
-      return;
-    }
-
-    JIT_DCHECK(successors_.size() == 2, "Should at most have two successors.");
-    std::swap(successors_[0], successors_[1]);
-  }
-
-  BasicBlock* getTrueSuccessor() const {
-    return successors_[0];
-  }
-
-  BasicBlock* getFalseSuccessor() const {
-    return successors_[1];
-  }
-
-  std::vector<BasicBlock*>& predecessors() {
-    return predecessors_;
-  }
-
-  const std::vector<BasicBlock*>& predecessors() const {
-    return predecessors_;
-  }
+  std::vector<BasicBlock*>& predecessors();
+  const std::vector<BasicBlock*>& predecessors() const;
 
   // Allocate an instruction and its operands and append it to the
   // instruction list. For the details on how to allocate instruction
@@ -121,58 +91,24 @@ class BasicBlock {
     return res;
   }
 
-  void appendInstr(std::unique_ptr<Instruction> instr) {
-    instrs_.emplace_back(std::move(instr));
-  }
+  void appendInstr(std::unique_ptr<Instruction> instr);
 
-  std::unique_ptr<Instruction> removeInstr(instr_iter_t iter) {
-    auto instr = std::move(*iter);
-    instrs_.erase(iter);
-    return instr;
-  }
+  std::unique_ptr<Instruction> removeInstr(instr_iter_t iter);
 
-  InstrList& instructions() {
-    return instrs_;
-  }
+  InstrList& instructions();
+  const InstrList& instructions() const;
 
-  const InstrList& instructions() const {
-    return instrs_;
-  }
+  bool isEmpty() const;
 
-  // Return an iterator to the given instruction. Behavior is undefined if the
-  // given Instruction is not in this block.
-  //
-  // This function is O(getNumInstrs()) due to implementation details in
-  // InstrList.
-  instr_iter_t iterator_to(Instruction* instr);
+  size_t getNumInstrs() const;
 
-  bool isEmpty() const {
-    return instrs_.empty();
-  }
+  Instruction* getFirstInstr();
+  const Instruction* getFirstInstr() const;
 
-  size_t getNumInstrs() const {
-    return instrs_.size();
-  }
+  Instruction* getLastInstr();
+  const Instruction* getLastInstr() const;
 
-  Instruction* getFirstInstr() {
-    return instrs_.empty() ? nullptr : instrs_.begin()->get();
-  }
-
-  const Instruction* getFirstInstr() const {
-    return instrs_.empty() ? nullptr : instrs_.begin()->get();
-  }
-
-  Instruction* getLastInstr() {
-    return instrs_.empty() ? nullptr : instrs_.rbegin()->get();
-  }
-
-  const Instruction* getLastInstr() const {
-    return instrs_.empty() ? nullptr : instrs_.rbegin()->get();
-  }
-
-  instr_iter_t getLastInstrIter() {
-    return instrs_.empty() ? instrs_.end() : std::prev(instrs_.end());
-  }
+  instr_iter_t getLastInstrIter();
 
   template <typename Func>
   void foreachPhiInstr(const Func& f) const {
@@ -184,6 +120,10 @@ class BasicBlock {
     }
   }
 
+  // insert a basic block on the edge between the current basic
+  // block and another basic block specified by block.
+  BasicBlock* insertBasicBlockBetween(BasicBlock* block);
+
   // Split this block before instr.
   // Current basic block contains all instructions up to (but excluding) instr.
   // Return a new block with all instructions (including and) after instr.
@@ -192,13 +132,15 @@ class BasicBlock {
   // Replace any references to old_pred in this block's Phis with new_pred.
   void fixupPhis(BasicBlock* old_pred, BasicBlock* new_pred);
 
-  jit::codegen::CodeSection section() const {
-    return section_;
-  }
+  codegen::CodeSection section() const;
+  void setSection(codegen::CodeSection section);
 
-  void setSection(jit::codegen::CodeSection section) {
-    section_ = section;
-  }
+  // Return an iterator to the given instruction. Behavior is undefined if the
+  // given Instruction is not in this block.
+  //
+  // This function is O(getNumInstrs()) due to implementation details in
+  // InstrList.
+  instr_iter_t iterator_to(Instruction* instr);
 
  private:
   int id_;
@@ -207,17 +149,10 @@ class BasicBlock {
   std::vector<BasicBlock*> successors_;
   std::vector<BasicBlock*> predecessors_;
 
-  // used in parser, expect unique id
-  void setId(int id) {
-    id_ = id;
-  }
-
-  friend class Parser;
-
   // Consider using IntrusiveList as in HIR.
   InstrList instrs_;
 
-  jit::codegen::CodeSection section_;
+  codegen::CodeSection section_{codegen::CodeSection::kHot};
 };
 
 using instr_iter_t = BasicBlock::instr_iter_t;
