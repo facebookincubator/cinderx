@@ -6019,6 +6019,7 @@ class CodeGenerator314(CodeGenerator312):
     def get_graph_flags(
         self, func: FuncOrLambda | CompNode, func_args: ast.arguments, scope: Scope
     ) -> int:
+        assert isinstance(scope, FunctionScope)
         flags = super().get_graph_flags(func, func_args, scope)
 
         if scope.has_docstring:
@@ -6587,6 +6588,7 @@ class CodeGenerator314(CodeGenerator312):
         super().visitAttribute(node)
 
     def compile_body(self, gen: CodeGenerator, node: ast.ClassDef) -> None:
+        assert isinstance(gen, CodeGenerator314)
         if gen.findAnn(node.body):
             gen.did_setup_annotations = True
             gen.emit("SETUP_ANNOTATIONS")

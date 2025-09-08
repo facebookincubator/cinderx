@@ -2445,6 +2445,7 @@ class PyFlowGraph314(PyFlowGraph312):
 
         # We can only inline blocks with no line numbers.
         for inst in block.insts:
+            # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
             if inst.loc.lineno >= 0:
                 return False
         return True

@@ -132,7 +132,14 @@ class FlowGraphOptimizer:
             prev_lineno = instr.lineno
         block.insts = new_instrs
 
-    def jump_thread(self, instr: Instruction, target: Instruction, opname: str) -> int:
+    def jump_thread(
+        self, block: Block, instr: Instruction, target: Instruction, opname: str
+    ) -> int:
+        raise NotImplementedError()
+
+    def get_const_loading_instrs(
+        self, block: Block, start: int, size: int
+    ) -> list[Instruction] | None:
         raise NotImplementedError()
 
     def opt_jump_if_false_or_pop(
@@ -985,6 +992,7 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
 
     def make_load_const(self, instr: Instruction, const: object) -> None:
         if is_small_int(const):
+            assert isinstance(const, int)
             instr.opname = "LOAD_SMALL_INT"
             instr.ioparg = instr.oparg = const
         else:
