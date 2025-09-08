@@ -94,7 +94,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
         if (operand_imm) {
           move->allocatePhyRegisterInput(RAX);
         } else {
-          move->appendInputOperand(instr->releaseInputOperand(i));
+          move->appendInput(instr->releaseInput(i));
         }
       } else {
         insertMoveToMemoryLocation(
@@ -107,7 +107,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
     if (arg_reg < ARGUMENT_REGS.size()) {
       auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
       move->output()->setPhyRegister(ARGUMENT_REGS[arg_reg++]);
-      move->appendInputOperand(instr->releaseInputOperand(i));
+      move->appendInput(instr->releaseInput(i));
     } else {
       insertMoveToMemoryLocation(
           block, instr_iter, PhyLocation::RSP, stack_arg_size, operand);
@@ -156,7 +156,7 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   // first argument - set rdi
   auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
   move->output()->setPhyRegister(PhyLocation::RDI);
-  move->appendInputOperand(instr->releaseInputOperand(2)); // self
+  move->appendInput(instr->releaseInput(2)); // self
 
   constexpr PhyLocation TMP_REG = RAX;
   for (size_t i = kFirstArg; i < kFirstArg + num_args; i++) {
@@ -167,7 +167,7 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   }
 
   // check if kwnames is provided
-  auto last_input = instr->releaseInputOperand(instr->getNumInputs() - 1);
+  auto last_input = instr->releaseInput(instr->getNumInputs() - 1);
   if (last_input->isImm()) {
     JIT_DCHECK(last_input->getConstant() == 0, "kwnames must be 0 or variable");
     block->allocateInstrBefore(
@@ -178,7 +178,7 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   } else {
     auto move_2 = block->allocateInstrBefore(
         instr_iter, Instruction::kMove, OutPhyReg(PhyLocation::RCX));
-    move_2->appendInputOperand(std::move(last_input));
+    move_2->appendInput(std::move(last_input));
 
     // Subtract the length of kwnames (always a tuple) from nargsf (rdx)
     size_t ob_size_offs = offsetof(PyVarObject, ob_size);
@@ -630,8 +630,8 @@ RewriteResult rewriteBinaryOpInstrs(instr_iter_t instr_iter) {
   if (out_reg == in1_reg) {
     instr->output()->setNone();
 
-    auto opnd0 = instr->removeInputOperand(0);
-    instr->appendInputOperand(std::move(opnd0));
+    auto opnd0 = instr->removeInput(0);
+    instr->appendInput(std::move(opnd0));
     return kChanged;
   }
 
@@ -761,14 +761,14 @@ RewriteResult rewriteDivide(instr_iter_t instr_iter) {
       dividend_lower->setDataType(OperandBase::k16bit);
     }
 
-    auto divisor_removed = instr->removeInputOperand(2);
-    auto div_lower_removed = instr->removeInputOperand(1);
-    move->appendInputOperand(std::move(div_lower_removed));
+    auto divisor_removed = instr->removeInput(2);
+    auto div_lower_removed = instr->removeInput(1);
+    move->appendInput(std::move(div_lower_removed));
 
-    instr->removeInputOperand(0); // Imm/rdx, no longer used
+    instr->removeInput(0); // Imm/rdx, no longer used
 
     instr->addOperands(PhyReg(AX, OperandBase::k16bit));
-    instr->appendInputOperand(std::move(divisor_removed));
+    instr->appendInput(std::move(divisor_removed));
     changed = true;
   } else {
     // dividend lower needs to be in rax, we reserved the register

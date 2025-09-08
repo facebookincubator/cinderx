@@ -278,7 +278,7 @@ void LIRInliner::resolveLoadArg(
     auto param_copy =
         std::make_unique<Operand>(instr, static_cast<Operand*>(param));
     param_copy->setConstant(param->getConstant());
-    instr->replaceInputOperand(0, std::move(param_copy));
+    instr->setInput(0, std::move(param_copy));
     ++instr_it;
   } else {
     JIT_DCHECK(
@@ -336,7 +336,7 @@ void LIRInliner::resolveReturnValue() {
       JIT_CHECK(
           lastInstr->getNumInputs() > 0,
           "Return instruction should have at least 1 input operand.");
-      phi_instr->appendInputOperand(lastInstr->releaseInputOperand(0));
+      phi_instr->appendInput(lastInstr->releaseInput(0));
       pred->removeInstr(pred->getLastInstrIter());
     }
   }
@@ -350,7 +350,7 @@ void LIRInliner::resolveReturnValue() {
     call_instr_->setOpcode(Instruction::kMove);
     // Remove all inputs.
     while (call_instr_->getNumInputs() > 0) {
-      call_instr_->removeInputOperand(0);
+      call_instr_->removeInput(call_instr_->getNumInputs() - 1);
     }
     call_instr_->allocateLinkedInput(phi_instr);
   }

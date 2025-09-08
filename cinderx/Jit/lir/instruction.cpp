@@ -151,38 +151,36 @@ std::string_view Instruction::opname() const {
   return kOpcodeNames[opcode_];
 }
 
-void Instruction::replaceInputOperand(
-    size_t index,
-    std::unique_ptr<OperandBase> operand) {
-  inputs_[index] = std::move(operand);
+void Instruction::setInput(size_t i, std::unique_ptr<OperandBase> input) {
+  inputs_.at(i) = std::move(input);
+  inputs_[i]->assignToInstr(this);
 }
 
-std::unique_ptr<OperandBase> Instruction::removeInputOperand(size_t index) {
-  auto opnd = std::move(inputs_.at(index));
+std::unique_ptr<OperandBase> Instruction::removeInput(size_t index) {
+  auto operand = releaseInput(index);
   inputs_.erase(inputs_.begin() + index);
-  return opnd;
+  return operand;
 }
 
-std::unique_ptr<OperandBase> Instruction::releaseInputOperand(size_t index) {
+std::unique_ptr<OperandBase> Instruction::releaseInput(size_t index) {
   auto& operand = inputs_.at(index);
   operand->releaseFromInstr();
   return std::move(inputs_.at(index));
 }
 
-OperandBase* Instruction::appendInputOperand(
-    std::unique_ptr<OperandBase> operand) {
-  auto opnd = operand.get();
-  opnd->assignToInstr(this);
-  inputs_.push_back(std::move(operand));
-  return opnd;
+OperandBase* Instruction::appendInput(std::unique_ptr<OperandBase> operand) {
+  auto operand_ptr = operand.get();
+  // Use setInput() to call assignToInstr().
+  inputs_.emplace_back();
+  setInput(getNumInputs() - 1, std::move(operand));
+  return operand_ptr;
 }
 
-OperandBase* Instruction::prependInputOperand(
-    std::unique_ptr<OperandBase> operand) {
-  auto opnd = operand.get();
-  opnd->assignToInstr(this);
-  inputs_.insert(inputs_.begin(), std::move(operand));
-  return opnd;
+OperandBase* Instruction::prependInput(std::unique_ptr<OperandBase> operand) {
+  auto operand_ptr = operand.get();
+  inputs_.insert(inputs_.begin(), nullptr);
+  setInput(0, std::move(operand));
+  return operand_ptr;
 }
 
 OperandBase* Instruction::getOperandByPredecessor(const BasicBlock* pred) {

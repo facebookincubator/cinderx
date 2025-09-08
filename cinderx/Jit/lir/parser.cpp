@@ -533,7 +533,7 @@ void Parser::fixOperands() {
 
     auto instr = map_get_throw<ParserException>(
         output_index_map_, instr_index, "Output id {}", instr_index);
-    instr->output()->addUse(operand);
+    operand->setLinkedInstr(instr);
   }
 }
 

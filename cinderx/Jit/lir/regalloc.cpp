@@ -6,7 +6,6 @@
 #include <iostream>
 #include <iterator>
 #include <limits>
-#include <type_traits>
 #include <utility>
 
 using namespace jit::codegen;
@@ -1090,7 +1089,7 @@ void LinearScanAllocator::rewriteInstrOneInput(
   }
 
   auto phyreg = map_get(mapping, input->getDefine())->allocated_loc;
-  auto new_input = std::make_unique<Operand>(instr);
+  auto new_input = std::make_unique<Operand>();
   new_input->setDataType(input->dataType());
   new_input->setPhyRegOrStackSlot(phyreg);
 
@@ -1099,7 +1098,7 @@ void LinearScanAllocator::rewriteInstrOneInput(
     new_input->setLastUse();
   }
 
-  instr->replaceInputOperand(i, std::move(new_input));
+  instr->setInput(i, std::move(new_input));
 }
 
 void LinearScanAllocator::rewriteInstrOneIndirectOperand(

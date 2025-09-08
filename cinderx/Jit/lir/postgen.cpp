@@ -28,22 +28,22 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
 
   if (instr->isDiv() || instr->isDivUn()) {
     auto divisor = instr->getInput(2);
-    if (divisor->isImm()) {
-      // div doesn't support an immediate as the divisor
-      auto constant = divisor->getConstant();
-      auto constant_size = divisor->dataType();
-
-      auto move = block->allocateInstrBefore(
-          instr_iter,
-          Instruction::kMove,
-          OutVReg(constant_size),
-          Imm(constant, constant_size));
-
-      instr->removeInputOperand(2);
-      instr->allocateLinkedInput(move);
-      return kChanged;
+    if (!divisor->isImm()) {
+      return kUnchanged;
     }
-    return kUnchanged;
+
+    // div doesn't support an immediate as the divisor.
+    auto constant = divisor->getConstant();
+    auto constant_size = divisor->dataType();
+
+    auto move = block->allocateInstrBefore(
+        instr_iter,
+        Instruction::kMove,
+        OutVReg{constant_size},
+        Imm{constant, constant_size});
+
+    instr->setInput(2, std::make_unique<LinkedOperand>(move));
+    return kChanged;
   }
 
   if (!instr->isAdd() && !instr->isSub() && !instr->isXor() &&
@@ -52,7 +52,7 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
     return kUnchanged;
   }
 
-  bool is_commutative = !instr->isSub();
+  bool is_commutative_or_compare = !instr->isSub();
   auto input0 = instr->getInput(0);
   auto input1 = instr->getInput(1);
 
@@ -61,30 +61,27 @@ RewriteResult rewriteBinaryOpConstantPosition(instr_iter_t instr_iter) {
   }
 
   // TODO: If both are registers we could constant fold here
-  if (is_commutative && !input1->isImm()) {
+  if (is_commutative_or_compare && !input1->isImm()) {
     // if the operation is commutative and the second input is not also an
     // immediate, just swap the operands
     if (instr->isCompare()) {
       instr->setOpcode(Instruction::flipComparisonDirection(instr->opcode()));
     }
-    auto imm = instr->removeInputOperand(0);
-    instr->appendInputOperand(std::move(imm));
+    auto imm = instr->removeInput(0);
+    instr->appendInput(std::move(imm));
     return kChanged;
   }
 
-  // otherwise, need to insert a move instruction
+  // Otherwise, replace the immediate with a new move instruction.
   auto constant = input0->getConstant();
   auto constant_size = input0->dataType();
 
   auto move = block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
-      OutVReg(constant_size),
-      Imm(constant, constant_size));
-
-  instr->allocateLinkedInput(move);
-  auto new_input = instr->removeInputOperand(instr->getNumInputs() - 1);
-  instr->replaceInputOperand(0, std::move(new_input));
+      OutVReg{constant_size},
+      Imm{constant, constant_size});
+  instr->setInput(0, std::make_unique<LinkedOperand>(move));
 
   return kChanged;
 }
@@ -95,17 +92,16 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   //     Vreg2 = BinOp Vreg1, Imm64
   // to
   //     Vreg0 = Mov Imm64
-  //     Vreg2 = BinOP Vreg1, VReg0
+  //     Vreg2 = BinOp Vreg1, VReg0
 
-  auto instr = instr_iter->get();
-
+  Instruction* instr = instr_iter->get();
   if (!instr->isAdd() && !instr->isSub() && !instr->isXor() &&
       !instr->isAnd() && !instr->isOr() && !instr->isMul() &&
       !instr->isCompare()) {
     return kUnchanged;
   }
 
-  // if first operand is an immediate, we need to swap the operands
+  // If first operand is an immediate, we need to swap the operands.
   if (instr->getInput(0)->isImm()) {
     // another rewrite will fix this later
     return kUnchanged;
@@ -122,7 +118,6 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   }
 
   auto constant = in1->getConstantOrAddress();
-
   if (fitsInt32(constant)) {
     return kUnchanged;
   }
@@ -131,25 +126,20 @@ RewriteResult rewriteBinaryOpLargeConstant(instr_iter_t instr_iter) {
   auto move = block->allocateInstrBefore(
       instr_iter,
       Instruction::kMove,
-      OutVReg(),
-      Imm(constant, in1->dataType()));
+      OutVReg{},
+      Imm{constant, in1->dataType()});
 
-  // remove the constant input
-  instr->setNumInputs(instr->getNumInputs() - 1);
-
-  auto in0_type = instr->getInput(0)->dataType();
-  if (in0_type == OperandBase::k32bit || in0_type == OperandBase::k16bit ||
-      in0_type == OperandBase::k8bit) {
-    // If the first operand is a signed integer and less than 64 bits, move
-    // with sign-extension.
+  // If the first operand is less than 64 bits, replace it with a
+  // sign-extension.
+  if (instr->getInput(0)->sizeInBits() < 64) {
     auto movsx = block->allocateInstrBefore(
-        instr_iter, Instruction::kMovSX, OutVReg(OperandBase::k64bit));
-
-    auto in0 = instr->removeInputOperand(0);
-    movsx->appendInputOperand(std::move(in0));
-    instr->allocateLinkedInput(movsx);
+        instr_iter, Instruction::kMovSX, OutVReg{OperandBase::k64bit});
+    movsx->appendInput(instr->releaseInput(0));
+    instr->setInput(0, std::make_unique<LinkedOperand>(movsx));
   }
-  instr->allocateLinkedInput(move);
+
+  // Replace the constant with the move.
+  instr->setInput(1, std::make_unique<LinkedOperand>(move));
 
   return kChanged;
 }
@@ -163,13 +153,9 @@ RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
   //     [Vreg0 + offset] = Vreg1
 
   auto instr = instr_iter->get();
-
-  if (!instr->isMove()) {
-    return kUnchanged;
-  }
-
   auto out = instr->output();
-  if (!out->isInd()) {
+
+  if (!instr->isMove() || !out->isInd()) {
     return kUnchanged;
   }
 
@@ -190,9 +176,9 @@ RewriteResult rewriteMoveToMemoryLargeConstant(instr_iter_t instr_iter) {
       OutVReg(),
       Imm(constant, input->dataType()));
 
-  // remove the constant input
-  instr->setNumInputs(instr->getNumInputs() - 1);
-  instr->allocateLinkedInput(move);
+  // Replace the constant input with the move.
+  instr->setInput(0, std::make_unique<LinkedOperand>(move));
+
   return kChanged;
 }
 
@@ -220,8 +206,7 @@ RewriteResult rewriteGuardLargeConstant(instr_iter_t instr_iter) {
       Instruction::kMove,
       OutVReg(),
       Imm(target_imm, target_opnd->dataType()));
-  auto instr_in = std::make_unique<LinkedOperand>(instr, move);
-  instr->replaceInputOperand(kTargetIndex, std::move(instr_in));
+  instr->setInput(kTargetIndex, std::make_unique<LinkedOperand>(move));
   return kChanged;
 }
 
@@ -251,7 +236,7 @@ RewriteResult rewriteBatchDecrefInstrs(instr_iter_t instr_iter) {
   // we translate BatchDecref by converting it to a Call instruction
   instr->setOpcode(Instruction::kCall);
 
-  instr->prependInputOperand(std::make_unique<Operand>(
+  instr->prependInput(std::make_unique<Operand>(
       nullptr,
       Operand::k64bit,
       Operand::kImm,

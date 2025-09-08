@@ -7,10 +7,10 @@
 
 namespace jit::lir {
 
-OperandBase::OperandBase(Instruction* parent) : parent_instr_(parent) {}
+OperandBase::OperandBase(Instruction* parent) : parent_instr_{parent} {}
 
 OperandBase::OperandBase(const OperandBase& ob)
-    : parent_instr_(ob.parent_instr_), last_use_(ob.last_use_) {}
+    : parent_instr_{ob.parent_instr_}, last_use_{ob.last_use_} {}
 
 size_t OperandBase::sizeInBits() const {
   return bitSize(dataType());
@@ -123,7 +123,7 @@ void MemoryIndirect::setBaseIndex(
   }
 }
 
-Operand::Operand(Instruction* parent) : OperandBase(parent) {}
+Operand::Operand(Instruction* parent) : OperandBase{parent} {}
 
 // Only copies simple fields (type and data type) from operand.
 // The value_ field is not copied.
@@ -299,17 +299,6 @@ bool Operand::isLinked() const {
   return false;
 }
 
-void Operand::addUse(LinkedOperand* use) {
-  use->def_opnd_ = this;
-}
-
-void Operand::removeUse(LinkedOperand* use) {
-  JIT_DCHECK(
-      use->getLinkedOperand() == this,
-      "Unable to remove use of another operand.");
-  use->def_opnd_ = nullptr;
-}
-
 uint64_t Operand::rawValue() const {
   if (const auto ptr = std::get_if<uint64_t>(&value_)) {
     return *ptr;
@@ -327,11 +316,13 @@ uint64_t Operand::rawValue() const {
   JIT_ABORT("Unknown operand value type, has index {}", value_.index());
 }
 
+LinkedOperand::LinkedOperand(Instruction* def_instr) {
+  def_opnd_ = def_instr->output();
+}
+
 LinkedOperand::LinkedOperand(Instruction* parent, Instruction* def_instr)
-    : OperandBase(parent), def_opnd_(nullptr) {
-  if (def_instr != nullptr) {
-    def_instr->output()->addUse(this);
-  }
+    : LinkedOperand{def_instr} {
+  assignToInstr(parent);
 }
 
 Operand* LinkedOperand::getLinkedOperand() {

@@ -25,7 +25,9 @@ class OperandBase {
   using DataType = DataType;
   using Type = OperandType;
 
+  OperandBase() = default;
   explicit OperandBase(Instruction* parent);
+
   virtual ~OperandBase() = default;
 
   OperandBase(const OperandBase& ob);
@@ -83,7 +85,7 @@ class OperandBase {
   virtual bool isLinked() const = 0;
 
  private:
-  Instruction* parent_instr_;
+  Instruction* parent_instr_{nullptr};
   bool last_use_{false};
 };
 
@@ -135,7 +137,9 @@ class MemoryIndirect {
 // instruction.
 class Operand : public OperandBase {
  public:
+  Operand() = default;
   explicit Operand(Instruction* parent);
+
   ~Operand() override = default;
 
   // Only copies simple fields (type and data type) from operand.
@@ -190,9 +194,6 @@ class Operand : public OperandBase {
 
   bool isLinked() const override;
 
-  void addUse(LinkedOperand* use);
-  void removeUse(LinkedOperand* use);
-
  private:
   uint64_t rawValue() const;
 
@@ -214,7 +215,9 @@ class Operand : public OperandBase {
 // Can only be the input of an instruction.
 class LinkedOperand : public OperandBase {
  public:
+  explicit LinkedOperand(Instruction* def);
   LinkedOperand(Instruction* parent, Instruction* def);
+
   ~LinkedOperand() override = default;
 
   Operand* getLinkedOperand();
@@ -242,7 +245,8 @@ class LinkedOperand : public OperandBase {
 
  private:
   friend class Operand;
-  Operand* def_opnd_;
+
+  Operand* def_opnd_{nullptr};
 };
 
 // OperandArg reqresents different operand data types, and is used as

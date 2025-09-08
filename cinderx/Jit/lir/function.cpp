@@ -124,7 +124,7 @@ void connectLinkedOperands(
     UnorderedMap<LinkedOperand*, int>& instr_refs_) {
   for (auto& [operand, instr_index] : instr_refs_) {
     auto instr = map_get_strict(output_index_map_, instr_index);
-    instr->output()->addUse(operand);
+    operand->setLinkedInstr(instr);
   }
 }
 

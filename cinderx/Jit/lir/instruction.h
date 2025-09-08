@@ -362,19 +362,23 @@ class Instruction {
     }
   }
 
-  // replace the input operand at index with operand.
-  void replaceInputOperand(size_t index, std::unique_ptr<OperandBase> operand);
+  // Set an input by index, deleting the previous input.  Does not resize the
+  // inputs list.
+  void setInput(size_t index, std::unique_ptr<OperandBase> input);
 
-  std::unique_ptr<OperandBase> removeInputOperand(size_t index);
+  // Remove an input by index, shifting all other inputs to the left.
+  std::unique_ptr<OperandBase> removeInput(size_t index);
 
   // Release the input operand at index from the instruction without
-  // deallocating it. The original index of inputs_ will be left with
-  // a null std::unique_ptr, which is supposed be removed from inputs_
-  // by an operation to follow.
-  std::unique_ptr<OperandBase> releaseInputOperand(size_t index);
+  // deallocating it.  The original input slot will be left with a nullptr,
+  // which is meant be removed afterwards.
+  std::unique_ptr<OperandBase> releaseInput(size_t index);
 
-  OperandBase* appendInputOperand(std::unique_ptr<OperandBase> operand);
-  OperandBase* prependInputOperand(std::unique_ptr<OperandBase> operand);
+  // Add a new input to the end of this instruction's input list.
+  OperandBase* appendInput(std::unique_ptr<OperandBase> operand);
+
+  // Add a new input to the beginning of this instruction's input list.
+  OperandBase* prependInput(std::unique_ptr<OperandBase> operand);
 
   // get the operand associated to a given predecessor in a phi instruction
   // returns nullptr if not found.
