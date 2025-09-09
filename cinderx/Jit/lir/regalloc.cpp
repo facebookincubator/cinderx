@@ -769,21 +769,21 @@ bool LinearScanAllocator::tryAllocateFreeReg(
 
   markDisallowedRegisters(freeUntilPos);
 
-  size_t reg = 0;
+  PhyLocation reg;
   LIRLocation regFreeUntil = START_LOCATION;
 
   // for preallocated intervals, try to honor the preallocated register.
   // the preallocated register is a soft constraint to the register
   // allocator. It will be satisfied with the best effort.
   if (current->isRegisterAllocated()) {
+    PhyLocation allocated = current->allocated_loc;
     JIT_CHECK(
-        is_fp == PhyLocation(current->allocated_loc).is_fp_register(),
+        is_fp == allocated.is_fp_register(),
         "Operand is allocated to register {} of incorrect type",
-        current->allocated_loc);
-    size_t areg = current->allocated_loc.loc;
-    if (freeUntilPos[areg] != START_LOCATION) {
-      reg = areg;
-      regFreeUntil = freeUntilPos[areg];
+        allocated);
+    if (freeUntilPos[allocated.loc] != START_LOCATION) {
+      reg = allocated;
+      regFreeUntil = freeUntilPos[allocated.loc];
     }
   }
 
@@ -797,7 +797,8 @@ bool LinearScanAllocator::tryAllocateFreeReg(
       return false;
     }
     regFreeUntil = *max_iter;
-    reg = std::distance(freeUntilPos.begin(), max_iter);
+    size_t bit_size = current->vreg->sizeInBits();
+    reg = PhyLocation(std::distance(freeUntilPos.begin(), max_iter), bit_size);
   }
 
   TRACE("Allocating free location {} to interval {}", reg, *current);
@@ -851,7 +852,8 @@ void LinearScanAllocator::allocateBlockedReg(
   auto end = std::prev(nextUsePos.end(), is_fp ? 0 : XMM_REG_BASE);
 
   auto reg_iter = std::max_element(start, end);
-  PhyLocation reg = std::distance(nextUsePos.begin(), reg_iter);
+  PhyLocation reg(
+      std::distance(nextUsePos.begin(), reg_iter), current->vreg->sizeInBits());
   auto& reg_use = *reg_iter;
 
   auto first_current_use = getUseAtOrAfter(current->vreg, current_start);
@@ -948,22 +950,25 @@ void LinearScanAllocator::splitAndSave(
   allocated_.emplace_back(std::move(new_interval));
 }
 
-int LinearScanAllocator::getStackSlot(const Operand* operand) {
+PhyLocation LinearScanAllocator::getStackSlot(const Operand* operand) {
   auto iter = operand_to_slot_.find(operand);
   if (iter != operand_to_slot_.end()) {
     return iter->second;
   }
 
-  int slot = newStackSlot(operand);
+  PhyLocation slot = newStackSlot(operand);
   operand_to_slot_.emplace(operand, slot);
   return slot;
 }
 
-int LinearScanAllocator::newStackSlot(const Operand* operand) {
-  int slot;
+PhyLocation LinearScanAllocator::newStackSlot(const Operand* operand) {
+  PhyLocation slot;
   if (free_stack_slots_.empty()) {
     max_stack_slot_ -= kPointerSize;
-    slot = max_stack_slot_;
+    // Intentionally set all new stack slots to be 8-bytes, regardless of the
+    // operand's size.  Uses more stack space but avoids alignment issues.
+    size_t bit_size = 64;
+    slot = PhyLocation{max_stack_slot_, bit_size};
     TRACE("Allocating new stack slot {} for operand {}", slot, *operand);
   } else {
     slot = free_stack_slots_.back();
@@ -971,8 +976,8 @@ int LinearScanAllocator::newStackSlot(const Operand* operand) {
     TRACE("Reusing stack slot {} for operand {}", slot, *operand);
   }
   JIT_CHECK(
-      slot < 0,
-      "Incorrectly allocated slot {} for stack-allocated operand {}",
+      slot.is_memory(),
+      "Incorrectly allocated {} for stack-allocated operand {}",
       slot,
       *operand);
   return slot;
@@ -985,9 +990,9 @@ void LinearScanAllocator::freeStackSlot(const Operand* operand) {
       "Operand {} doesn't seem to have been allocated a stack slot",
       *operand);
 
-  int slot = iter->second;
+  PhyLocation slot = iter->second;
   JIT_CHECK(
-      slot < 0,
+      slot.is_memory(),
       "Have mapped a stack-allocated operand {} to register {}",
       *operand,
       slot);
@@ -1331,6 +1336,8 @@ void LinearScanAllocator::resolveEdges() {
           auto reg = ret_opnd->getPhyRegOrStackSlot();
 
           auto target = ret_opnd->isFp() ? XMM0 : RAX;
+          target.bitSize = reg.bitSize;
+
           if (reg != target) {
             copies->addEdge(reg.loc, target.loc, ret_opnd->dataType());
           }
@@ -1340,7 +1347,7 @@ void LinearScanAllocator::resolveEdges() {
               std::prev(instrs.end()), Instruction::kMove);
           JIT_CHECK(!ret_opnd->isFp(), "only integer should be present");
           instr->allocateImmediateInput(ret_opnd->getConstant());
-          instr->output()->setPhyRegOrStackSlot(RAX);
+          instr->output()->setPhyRegister(RAX);
           instr->output()->setDataType(ret_opnd->dataType());
         }
       }
@@ -1482,18 +1489,20 @@ void LinearScanAllocator::rewriteLIREmitCopies(
     PhyLocation to = op.to;
     auto orig_opnd_size = op.type;
 
+    // All push and pop operations have to be 8-bytes in size as that's the size
+    // of all stack slots.
     switch (op.kind) {
       case CopyGraph::Op::Kind::kCopy: {
         if (to == CopyGraph::kTempLoc) {
           auto instr =
               block->allocateInstrBefore(instr_iter, Instruction::kPush);
           instr->allocatePhyRegOrStackInput(from)->setDataType(
-              OperandBase::k64bit);
+              DataType::k64bit);
         } else if (from == CopyGraph::kTempLoc) {
           auto instr =
               block->allocateInstrBefore(instr_iter, Instruction::kPop);
           instr->output()->setPhyRegOrStackSlot(to);
-          instr->output()->setDataType(OperandBase::k64bit);
+          instr->output()->setDataType(DataType::k64bit);
         } else if (to.is_register() || from.is_register()) {
           auto instr =
               block->allocateInstrBefore(instr_iter, Instruction::kMove);
@@ -1503,11 +1512,11 @@ void LinearScanAllocator::rewriteLIREmitCopies(
         } else {
           auto push =
               block->allocateInstrBefore(instr_iter, Instruction::kPush);
-          push->allocatePhyRegOrStackInput(from)->setDataType(
-              OperandBase::k64bit);
+          push->allocatePhyRegOrStackInput(from)->setDataType(DataType::k64bit);
+
           auto pop = block->allocateInstrBefore(instr_iter, Instruction::kPop);
           pop->output()->setPhyRegOrStackSlot(to);
-          pop->output()->setDataType(OperandBase::k64bit);
+          pop->output()->setDataType(DataType::k64bit);
         }
         break;
       }
@@ -1519,9 +1528,9 @@ void LinearScanAllocator::rewriteLIREmitCopies(
             to);
         auto instr =
             block->allocateInstrBefore(instr_iter, Instruction::kExchange);
+        instr->allocatePhyRegisterInput(from)->setDataType(orig_opnd_size);
         instr->output()->setPhyRegOrStackSlot(to);
         instr->output()->setDataType(orig_opnd_size);
-        instr->allocatePhyRegisterInput(from)->setDataType(orig_opnd_size);
         break;
       }
     }

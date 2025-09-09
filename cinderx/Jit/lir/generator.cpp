@@ -483,13 +483,14 @@ void LIRGenerator::MakeIncref(
     Instruction* r1 = bbb.appendInstr(
         OutVReg{OperandBase::k32bit},
         Instruction::kMove,
-        Ind{instr, kRefcountOffset});
+        Ind{instr, kRefcountOffset, DataType::k32bit});
     bbb.appendInstr(Instruction::kInc, r1);
     bbb.appendBranch(Instruction::kBranchE, end_incref);
     bbb.appendBlock(mortal);
-    bbb.appendInstr(OutInd{instr, kRefcountOffset}, Instruction::kMove, r1)
-        ->output()
-        ->setDataType(Operand::k32bit);
+    bbb.appendInstr(
+        OutInd{instr, kRefcountOffset, DataType::k32bit},
+        Instruction::kMove,
+        r1);
   } else {
     Instruction* r1 = bbb.appendInstr(
         OutVReg{}, Instruction::kMove, Ind{instr, kRefcountOffset});
@@ -1030,9 +1031,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         // as signed for purposes of checking for -1 here.
         Instruction* is_not_negative = bbb.appendInstr(
             Instruction::kNotEqual,
-            OutVReg{OperandBase::k8bit},
+            OutVReg{DataType::k8bit},
             src,
-            Imm{static_cast<uint64_t>(-1)});
+            Imm{static_cast<uint64_t>(-1), src->output()->dataType()});
 
         bbb.appendInstr(instr->output(), Instruction::kMove, Imm{0});
 
@@ -1137,7 +1138,10 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             break;
           case PrimitiveUnaryOpKind::kNotInt: {
             bbb.appendInstr(
-                instr->output(), Instruction::kEqual, instr->value(), Imm{0});
+                instr->output(),
+                Instruction::kEqual,
+                instr->value(),
+                Imm{0, hirTypeToDataType(instr->value()->type())});
             break;
           }
           default:
@@ -1226,7 +1230,8 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
               Instruction::kEqual,
               OutVReg{OperandBase::k8bit},
               type_var,
-              Imm{reinterpret_cast<uint64_t>(type.uniquePyType())});
+              Imm{reinterpret_cast<uint64_t>(type.uniquePyType()),
+                  DataType::kObject});
         } else {
           eq_res_var = emitSubclassCheck(bbb, instr.GetOperand(0), type);
         }
@@ -3091,7 +3096,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             Instruction::kCall,
             reinterpret_cast<uint64_t>(PyErr_Format),
             // TASK(T140174965): This should be MemImm.
-            Imm{reinterpret_cast<uint64_t>(instr.excType())},
+            Imm{reinterpret_cast<uint64_t>(instr.excType()), DataType::kObject},
             // TASK(T140174965): This should be MemImm.
             Imm{reinterpret_cast<uint64_t>(instr.fmt())});
         for (size_t operandIdx = 0; operandIdx < instr.NumOperands();

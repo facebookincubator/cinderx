@@ -133,11 +133,17 @@ struct PhyLocation {
 
   PhyLocation() = default;
 
-  /* implicit */ constexpr PhyLocation(RegId reg, int size = 64)
+  /* implicit */ constexpr PhyLocation(RegId reg, size_t size = 64)
       : PhyLocation{static_cast<int>(reg), size} {}
 
-  /* implicit */ constexpr PhyLocation(int l, int s = 64)
-      : loc(l), bitSize(s) {}
+  /* implicit */ constexpr PhyLocation(RegId reg, int size)
+      : PhyLocation{static_cast<int>(reg), static_cast<size_t>(size)} {}
+
+  /* implicit */ constexpr PhyLocation(int loc, size_t size = 64)
+      : loc{loc}, bitSize{size} {}
+
+  /* implicit */ constexpr PhyLocation(int loc, int size)
+      : PhyLocation{loc, static_cast<size_t>(size)} {}
 
   bool is_memory() const {
     return loc < 0;
@@ -160,14 +166,15 @@ struct PhyLocation {
 
   std::string toString() const;
 
-  int getRegSize() const {
-    // TODO: Hardcoding XMM size temporarily for correctness.
-    return is_fp_register() ? 128 : bitSize;
-  }
+  // Comparisons are based only on the register ID.
+  //
+  // TODO: This doesn't account for aliasing in stack slots, e.g.
+  // PhyLocation(loc=-8, bitSize=64) and PhyLocation(loc=-12, bitSize=32).
 
   bool operator==(const PhyLocation& rhs) const {
     return loc == rhs.loc;
   }
+
   bool operator==(int rhs) const {
     return loc == rhs;
   }
@@ -175,6 +182,7 @@ struct PhyLocation {
   bool operator!=(const PhyLocation& rhs) const {
     return loc != rhs.loc;
   }
+
   bool operator!=(int rhs) const {
     return loc != rhs;
   }

@@ -7,6 +7,7 @@
 #include "cinderx/Jit/jit_rt.h"
 #include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/operand.h"
+#include "cinderx/Jit/lir/printer.h"
 
 #include <optional>
 
@@ -38,16 +39,27 @@ void insertMoveToMemoryLocation(
     int index,
     const OperandBase* operand,
     PhyLocation temp = RAX) {
+  auto data_type = operand->dataType();
+
   if (operand->isImm()) {
     auto constant = operand->getConstant();
     if (!fitsInt32(constant) || operand->isFp()) {
       block->allocateInstrBefore(
-          instr_iter, Instruction::kMove, OutPhyReg(temp), Imm(constant));
+          instr_iter,
+          Instruction::kMove,
+          OutPhyReg{temp, data_type},
+          Imm{constant, data_type});
       block->allocateInstrBefore(
-          instr_iter, Instruction::kMove, OutInd(base, index), PhyReg(temp));
+          instr_iter,
+          Instruction::kMove,
+          OutInd{base, index, data_type},
+          PhyReg{temp, data_type});
     } else {
       block->allocateInstrBefore(
-          instr_iter, Instruction::kMove, OutInd(base, index), Imm(constant));
+          instr_iter,
+          Instruction::kMove,
+          OutInd{base, index, data_type},
+          Imm{constant, data_type});
     }
     return;
   }
@@ -55,15 +67,21 @@ void insertMoveToMemoryLocation(
   if (operand->isReg()) {
     PhyLocation loc = operand->getPhyRegister();
     block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutInd(base, index), PhyReg(loc));
+        instr_iter,
+        Instruction::kMove,
+        OutInd{base, index, data_type},
+        PhyReg{loc});
     return;
   }
 
   PhyLocation loc = operand->getStackSlot();
   block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutPhyReg(temp), Stk(loc));
+      instr_iter, Instruction::kMove, OutPhyReg{temp, data_type}, Stk{loc});
   block->allocateInstrBefore(
-      instr_iter, Instruction::kMove, OutInd(base, index), PhyReg(temp));
+      instr_iter,
+      Instruction::kMove,
+      OutInd{base, index, data_type},
+      PhyReg{temp, data_type});
 }
 
 int rewriteRegularFunction(instr_iter_t instr_iter) {
@@ -108,6 +126,7 @@ int rewriteRegularFunction(instr_iter_t instr_iter) {
     if (arg_reg < ARGUMENT_REGS.size()) {
       auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
       move->output()->setPhyRegister(ARGUMENT_REGS[arg_reg++]);
+      move->output()->setDataType(operand->dataType());
       move->appendInput(instr->releaseInput(i));
     } else {
       insertMoveToMemoryLocation(
@@ -157,6 +176,7 @@ int rewriteVectorCallFunctions(instr_iter_t instr_iter) {
   // first argument - set rdi
   auto move = block->allocateInstrBefore(instr_iter, Instruction::kMove);
   move->output()->setPhyRegister(PhyLocation::RDI);
+  move->output()->setDataType(instr->getInput(2)->dataType());
   move->appendInput(instr->releaseInput(2)); // self
 
   constexpr PhyLocation TMP_REG = RAX;
@@ -415,7 +435,7 @@ RewriteResult rewriteBranchInstrs(Function* function) {
 }
 
 // rewrite move instructions
-// optimimize move instruction in the following cases:
+// optimize move instruction in the following cases:
 //   1. remove the move instruction when source and destination are the same
 //   2. rewrite move instruction to xor when the source operand is 0.
 RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
@@ -435,15 +455,18 @@ RewriteResult optimizeMoveInstrs(instr_iter_t instr_iter) {
     return kRemoved;
   }
 
-  Operand* in_opnd = nullptr;
-  auto inp = instr->getInput(0);
-  if (inp->isImm() && !inp->isFp() && inp->getConstant() == 0 && out->isReg() &&
-      (in_opnd = dynamic_cast<Operand*>(inp))) {
+  if (in->isImm() && !in->isFp() && in->getConstant() == 0 && out->isReg()) {
+    auto in_opnd = dynamic_cast<Operand*>(in);
+    JIT_CHECK(
+        in_opnd != nullptr,
+        "Register allocation should have replaced linked operand {}",
+        *in);
     instr->setOpcode(Instruction::kXor);
     auto reg = out->getPhyRegister();
-    in_opnd->setPhyRegister(reg);
-    instr->allocatePhyRegisterInput(reg);
+    auto data_type = out->dataType();
     out->setNone();
+    instr->setNumInputs(0);
+    instr->addOperands(PhyReg{reg, data_type}, PhyReg{reg, data_type});
     return kChanged;
   }
 
@@ -662,13 +685,13 @@ RewriteResult rewriteByteMultiply(instr_iter_t instr_iter) {
   }
 
   BasicBlock* block = instr->basicblock();
-  if (in_reg != RAX) {
+  if (in_reg != AL) {
     block->allocateInstrBefore(
         instr_iter,
         Instruction::kMove,
         OutPhyReg(AL, OperandBase::k8bit),
         PhyReg(in_reg, OperandBase::k8bit));
-    input0->setPhyRegister(RAX);
+    input0->setPhyRegister(AL);
   }
   // asmjit only recognizes 8-bit imul if RAX is passed as 16-bit.
   input0->setDataType(OperandBase::k16bit);
@@ -688,26 +711,29 @@ bool insertMoveToRegister(
     instr_iter_t instr_iter,
     Operand* op,
     PhyLocation location) {
-  if (!op->isReg() || op->getPhyRegister() != location) {
-    auto move = block->allocateInstrBefore(
-        instr_iter, Instruction::kMove, OutPhyReg(location, op->dataType()));
-
-    if (op->isReg()) {
-      move->addOperands(PhyReg(op->getPhyRegister(), op->dataType()));
-    } else if (op->isImm()) {
-      move->addOperands(Imm(op->getConstant()));
-    } else if (op->isStack()) {
-      move->addOperands(Stk(op->getStackSlot(), op->dataType()));
-    } else if (op->isMem()) {
-      JIT_ABORT("Unsupported: div from mem");
-    } else {
-      JIT_ABORT("Unexpected operand base: {}", static_cast<int>(op->type()));
-    }
-
-    op->setPhyRegister(location);
-    return true;
+  // Already in the right place.
+  if (op->isReg() && op->getPhyRegister() == location) {
+    return false;
   }
-  return false;
+
+  auto data_type = op->dataType();
+  auto move = block->allocateInstrBefore(
+      instr_iter, Instruction::kMove, OutPhyReg(location, data_type));
+  if (op->isReg()) {
+    move->addOperands(PhyReg(op->getPhyRegister(), data_type));
+  } else if (op->isImm()) {
+    move->addOperands(Imm(op->getConstant(), data_type));
+  } else if (op->isStack()) {
+    move->addOperands(Stk(op->getStackSlot(), data_type));
+  } else if (op->isMem()) {
+    JIT_ABORT("Unsupported: div from mem");
+  } else {
+    JIT_ABORT("Unexpected operand base: {}", static_cast<int>(op->type()));
+  }
+
+  op->setPhyRegister(location);
+  op->setDataType(data_type);
+  return true;
 }
 
 // Rewrite division instructions to use correct registers.
@@ -929,7 +955,16 @@ RewriteResult optimizeMoveSequence(BasicBlock* basicblock) {
         }
 
         auto opnd = static_cast<Operand*>(operand);
+        auto data_type = opnd->dataType();
+        auto old_opnd = fmt::to_string(*opnd);
         opnd->setPhyRegister(reg);
+        JIT_CHECK(
+            bitSize(data_type) == bitSize(opnd->dataType()),
+            "Incorrectly changed data type from {} to {} in "
+            "{}",
+            old_opnd,
+            *opnd,
+            *instr);
         changed = kChanged;
 
         // if the stack location operand can be replaced by the register it came

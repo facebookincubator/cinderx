@@ -68,10 +68,12 @@ void copyOperand(
   switch (operand->type()) {
     case OperandBase::kReg: {
       operand_copy->setPhyRegister(operand->getPhyRegister());
+      operand_copy->setDataType(operand->dataType());
       break;
     }
     case OperandBase::kStack: {
       operand_copy->setStackSlot(operand->getStackSlot());
+      operand_copy->setDataType(operand->dataType());
       break;
     }
     case OperandBase::kMem: {
@@ -79,7 +81,7 @@ void copyOperand(
       break;
     }
     case OperandBase::kImm: {
-      operand_copy->setConstant(operand->getConstant());
+      operand_copy->setConstant(operand->getConstant(), operand->dataType());
       break;
     }
     case OperandBase::kLabel: {

@@ -175,8 +175,8 @@ class LinearScanAllocator {
   void
   splitAndSave(LiveInterval* interval, LIRLocation loc, UnhandledQueue& queue);
 
-  int getStackSlot(const Operand* operand);
-  int newStackSlot(const Operand* operand);
+  PhyLocation getStackSlot(const Operand* operand);
+  PhyLocation newStackSlot(const Operand* operand);
   void freeStackSlot(const Operand* operand);
 
   void rewriteLIR();
@@ -273,7 +273,7 @@ class LinearScanAllocator {
 
   int initial_max_stack_slot_;
   int max_stack_slot_;
-  std::vector<int> free_stack_slots_;
+  std::vector<PhyLocation> free_stack_slots_;
 
   codegen::PhyRegisterSet changed_regs_;
   int initial_yield_spill_size_{-1};
@@ -286,7 +286,7 @@ class LinearScanAllocator {
       bb_vreg_end_mapping_;
 
   // Map of operands to stack slots upon spilling.
-  UnorderedMap<const Operand*, int> operand_to_slot_;
+  UnorderedMap<const Operand*, PhyLocation> operand_to_slot_;
 
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocationNoSpill);
   FRIEND_TEST(LinearScanAllocatorTest, RegAllocation);
