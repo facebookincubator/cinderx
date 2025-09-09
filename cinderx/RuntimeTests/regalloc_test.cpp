@@ -233,7 +233,7 @@ BB %28
   auto opnd_id_map = buildOperandToIndexMap(parser.getOutputInstrMap());
 
   LinearScanAllocator lsallocator(lir_func.get());
-  lsallocator.sortBasicBlocks();
+  lir_func->sortBasicBlocks();
   lsallocator.calculateLiveIntervals();
   lsallocator.linearScan();
   ASSERT_FALSE(lsallocator.intervalList().empty());

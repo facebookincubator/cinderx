@@ -142,7 +142,6 @@ class LinearScanAllocator {
   // Get the interval for an operand.
   LiveInterval& getInterval(const Operand* operand);
 
-  void sortBasicBlocks();
   void calculateLiveIntervals();
 
   void spillRegistersForYield(int instr_id);
@@ -177,6 +176,7 @@ class LinearScanAllocator {
   splitAndSave(LiveInterval* interval, LIRLocation loc, UnhandledQueue& queue);
 
   int getStackSlot(const Operand* operand);
+  int newStackSlot(const Operand* operand);
   void freeStackSlot(const Operand* operand);
 
   void rewriteLIR();
@@ -216,6 +216,7 @@ class LinearScanAllocator {
       instr_iter_t instr_iter,
       std::unique_ptr<CopyGraphWithOperand> copies);
 
+  // Resolve allocations across block boundaries by emitting extra copies.
   void resolveEdges();
 
   std::unique_ptr<CopyGraphWithOperand> resolveEdgesGenCopies(
