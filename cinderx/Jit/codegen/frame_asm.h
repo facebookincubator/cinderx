@@ -32,7 +32,7 @@ class FrameAsm {
           std::pair<const asmjit::x86::Reg&, const asmjit::x86::Reg&>>&
           save_regs);
 
-  void generateUnlinkFrame(const asmjit::x86::Gp& tstate_r, bool is_generator);
+  void generateUnlinkFrame(bool is_generator);
 
   void setAssembler(asmjit::x86::Builder* as) {
     as_ = as;

@@ -1256,14 +1256,14 @@ void NativeGenerator::generateEpilogue(BaseNode* epilogue_cursor) {
   // object i.e. in generators_rt. For the initial yield unlinking happens as
   // part of the YieldInitial LIR instruction.
   if (!is_gen) {
-    frame_asm_.generateUnlinkFrame(x86::rdi, false);
+    frame_asm_.generateUnlinkFrame(false);
   }
 #else
   // Ideally this would also be the same in 3.10 as well but I spent maybe half
   // a day trying to change things and gave up. Our implementation is really
   // wonky and a clear ownership model is made difficult by shadow frames. It's
   // probably subtly broken somewhere.
-  frame_asm_.generateUnlinkFrame(x86::rdi, is_gen);
+  frame_asm_.generateUnlinkFrame(is_gen);
 #endif
 
   // If we return a primitive, set edx/xmm1 to 1 to indicate no error (in case

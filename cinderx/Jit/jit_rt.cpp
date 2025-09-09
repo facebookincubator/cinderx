@@ -782,14 +782,28 @@ void JITRT_DecrefFrame(PyFrameObject* frame) {
   }
 }
 
-void JITRT_UnlinkFrame(PyThreadState* tstate) {
 #if PY_VERSION_HEX < 0x030C0000
+void JITRT_UnlinkPyFrame(PyThreadState* tstate) {
   PyFrameObject* f = tstate->frame;
 
   f->f_state = FRAME_RETURNED;
 
   tstate->frame = f->f_back;
   JITRT_DecrefFrame(f);
+}
+#endif
+
+void JITRT_UnlinkFrame([[maybe_unused]] bool unlink_shadow_frame) {
+  PyThreadState* tstate = PyThreadState_GET();
+#if PY_VERSION_HEX < 0x030C0000
+  _PyShadowFrame* frame = tstate->shadow_frame;
+
+  if (unlink_shadow_frame) {
+    tstate->shadow_frame = frame->prev;
+  }
+  if (_PyShadowFrame_GetPtrKind(frame) == PYSF_PYFRAME) {
+    JITRT_UnlinkPyFrame(tstate);
+  }
 #else
   /*
    * The reference for this is _PyEvalFrameClearAndPop in ceval.c.

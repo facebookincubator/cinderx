@@ -375,70 +375,28 @@ void FrameAsm::generateLinkFrame(
 }
 #endif
 
-void FrameAsm::generateUnlinkFrame(
-    const x86::Gp& tstate_r,
-    [[maybe_unused]] bool is_generator) {
+void FrameAsm::generateUnlinkFrame([[maybe_unused]] bool is_generator) {
 #ifdef ENABLE_SHADOW_FRAMES
-  // It's safe to use caller saved registers in this function
-  auto scratch_reg = tstate_r == x86::rsi ? x86::rdx : x86::rsi;
-  x86::Mem shadow_stack_top_ptr = shadow_frame::getStackTopPtr(tstate_r);
-
-  // Check bit 0 of _PyShadowFrame::data to see if a frame needs
-  // unlinking. This bit will be set (pointer kind == PYSF_PYFRAME) if so.
-  // scratch_reg = tstate->shadow_frame
-  as_->mov(scratch_reg, shadow_stack_top_ptr);
-  static_assert(
-      PYSF_PYFRAME == 1 && _PyShadowFrame_NumPtrKindBits == 2,
-      "Unexpected constants");
-  bool might_have_heap_frame =
-      func_->canDeopt() || func_->frameMode == FrameMode::kNormal;
-  if (might_have_heap_frame) {
-    as_->bt(
-        x86::qword_ptr(scratch_reg, offsetof(_PyShadowFrame, data)),
-        _PyShadowFrame_PtrKindOff);
-  }
-
-  // Unlink shadow frame. The send implementation handles unlinking these for
+  // Unlink shadow frame? The send implementation handles unlinking these for
   // generators.
-  if (!is_generator) {
-    // tstate->shadow_frame = ((_PyShadowFrame*)scratch_reg)->prev
-    as_->mov(
-        scratch_reg,
-        x86::qword_ptr(scratch_reg, offsetof(_PyShadowFrame, prev)));
-    as_->mov(shadow_stack_top_ptr, scratch_reg);
-  }
-
-  // Unlink PyFrame if needed
-  asmjit::Label done = as_->newLabel();
-  if (might_have_heap_frame) {
-    as_->jnc(done);
-#endif
-
-#ifdef ENABLE_SHADOW_FRAMES
-    auto saved_rax_ptr = x86::ptr(x86::rbp, -8);
+  as_->mov(x86::rdi, is_generator ? 0 : 1);
+  auto saved_rax_ptr = x86::ptr(x86::rbp, -8);
 #else
   auto saved_rax_ptr = x86::ptr(x86::rbp, -frameHeaderSize());
 #endif
 
-    hir::Type ret_type = func_->return_type;
-    if (ret_type <= TCDouble) {
-      as_->movsd(saved_rax_ptr, x86::xmm0);
-    } else {
-      as_->mov(saved_rax_ptr, x86::rax);
-    }
-    if (tstate_r != x86::rdi) {
-      as_->mov(x86::rdi, tstate_r);
-    }
-    as_->call(reinterpret_cast<uint64_t>(JITRT_UnlinkFrame));
-    if (ret_type <= TCDouble) {
-      as_->movsd(x86::xmm0, saved_rax_ptr);
-    } else {
-      as_->mov(x86::rax, saved_rax_ptr);
-    }
-#ifdef ENABLE_SHADOW_FRAMES
-    as_->bind(done);
+  hir::Type ret_type = func_->return_type;
+  if (ret_type <= TCDouble) {
+    as_->movsd(saved_rax_ptr, x86::xmm0);
+  } else {
+    as_->mov(saved_rax_ptr, x86::rax);
   }
-#endif
+  as_->call(reinterpret_cast<uint64_t>(JITRT_UnlinkFrame));
+  if (ret_type <= TCDouble) {
+    as_->movsd(x86::xmm0, saved_rax_ptr);
+  } else {
+    as_->mov(x86::rax, saved_rax_ptr);
+  }
 }
 
 #ifdef ENABLE_SHADOW_FRAMES

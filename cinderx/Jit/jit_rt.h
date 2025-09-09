@@ -78,12 +78,19 @@ JITRT_UnlinkGenFrameAndReturnGenDataFooter(PyThreadState* tstate);
 void JITRT_DecrefFrame(PyFrameObject* frame);
 
 /*
+ * Helper function to unlink only the python frame.
+ *
+ * Designed to be used in tandem with JITRT_AllocateAndLinkFrame but when
+ * we have already unlinked the shadow frame.
+ */
+void JITRT_UnlinkPyFrame(PyThreadState* tstate);
+/*
  * Helper function to unlink a frame.
  *
  * Designed to be used in tandem with JITRT_AllocateAndLinkFrame. This checks
  * if the frame has escaped (> 1 refcount) and tracks it if so.
  */
-void JITRT_UnlinkFrame(PyThreadState* tstate);
+void JITRT_UnlinkFrame(bool unlink_shadow_frame);
 
 /*
  * Handles a call that includes kw arguments or excess tuple arguments

@@ -253,10 +253,7 @@ BasicBlock* LIRGenerator::GenerateEntryBlock() {
 }
 
 BasicBlock* LIRGenerator::GenerateExitBlock() {
-  auto block = lir_func_->allocateBasicBlock();
-  auto instr = block->allocateInstr(Instruction::kMove, nullptr);
-  instr->addOperands(OutPhyReg{codegen::RDI}, VReg{env_->asm_tstate});
-  return block;
+  return lir_func_->allocateBasicBlock();
 }
 
 void LIRGenerator::AnalyzeCopies() {
@@ -2940,7 +2937,9 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
         bbb.appendBranch(Instruction::kBranchNC, done_block);
         // TASK(T109445584): Remove this unused block.
         bbb.appendBlock(bbb.allocateBlock());
-        bbb.appendInvokeInstruction(JITRT_UnlinkFrame, env_->asm_tstate);
+        // We already unlinked the frame up above, this just needs to release
+        // the reified frame.
+        bbb.appendInvokeInstruction(JITRT_UnlinkPyFrame, env_->asm_tstate);
         bbb.appendBlock(done_block);
         if (kPyDebug) {
           bbb.appendInvokeInstruction(
@@ -2969,7 +2968,7 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 
         // The frame was materialized, let's use the unlink helper to clean
         // things up.
-        bbb.appendInvokeInstruction(JITRT_UnlinkFrame, env_->asm_tstate);
+        bbb.appendInvokeInstruction(JITRT_UnlinkFrame, false);
         bbb.appendBranch(Instruction::kBranch, done_block);
 
         // The frame was not materialized, we just need to update thread state
