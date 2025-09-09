@@ -2,13 +2,32 @@
 
 #include "cinderx/Jit/lir/rewrite.h"
 
-#include "cinderx/Common/log.h"
 #include "cinderx/Jit/lir/block.h"
+#include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/operand.h"
 
 #include <set>
 
 namespace jit::lir {
+
+Rewrite::Rewrite(Function* func, codegen::Environ* env)
+    : function_(func), env_(env) {}
+
+Function* Rewrite::function() {
+  return function_;
+}
+
+const Function* Rewrite::function() const {
+  return function_;
+}
+
+codegen::Environ* Rewrite::environment() {
+  return env_;
+}
+
+const codegen::Environ* Rewrite::environment() const {
+  return env_;
+}
 
 void Rewrite::run() {
   // collect all stages

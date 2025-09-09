@@ -5,6 +5,7 @@
 #include "cinderx/Jit/codegen/x86_64.h"
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/jit_rt.h"
+#include "cinderx/Jit/lir/function.h"
 #include "cinderx/Jit/lir/operand.h"
 
 #include <optional>

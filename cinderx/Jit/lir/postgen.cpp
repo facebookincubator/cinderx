@@ -3,6 +3,7 @@
 #include "cinderx/Jit/lir/postgen.h"
 
 #include "cinderx/Jit/lir/inliner.h"
+#include "cinderx/Jit/lir/printer.h"
 
 using namespace jit::codegen;
 

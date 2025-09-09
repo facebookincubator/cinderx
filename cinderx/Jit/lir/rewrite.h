@@ -5,10 +5,8 @@
 #include "cinderx/Common/concepts.h"
 #include "cinderx/Jit/codegen/environ.h"
 #include "cinderx/Jit/lir/block.h"
-#include "cinderx/Jit/lir/printer.h"
 
 #include <functional>
-#include <memory>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -42,23 +40,15 @@ using instruction_rewrite_t = function_type_t<instruction_rewrite_arg_t>;
 // This class implements a framework for LIR rewrites.
 class Rewrite {
  public:
-  Rewrite(Function* func, codegen::Environ* env) : function_(func), env_(env) {}
+  Rewrite(Function* func, codegen::Environ* env);
 
-  Function* function() {
-    return function_;
-  }
+  // Get the function being rewritten.
+  Function* function();
+  const Function* function() const;
 
-  const Function* function() const {
-    return function_;
-  }
-
-  codegen::Environ* environment() {
-    return env_;
-  }
-
-  const codegen::Environ* environment() const {
-    return env_;
-  }
+  // Get the codegen environment.
+  codegen::Environ* environment();
+  const codegen::Environ* environment() const;
 
   template <typename T>
   void registerOneRewriteFunction(RewriteResult (*rewrite)(T), int stage = 0) {
@@ -114,14 +104,14 @@ class Rewrite {
   template <
       AnyOf<function_rewrite_t, basic_block_rewrite_t, instruction_rewrite_t> T,
       typename V>
-  bool runOneTypeRewrites(const std::vector<T>& rewrites, V&& arg) {
+  bool runOneTypeRewrites(const std::vector<T>& rewrites, const V& arg) {
     bool changed = false;
     bool loop_changed = false;
 
     do {
       loop_changed = false;
       for (auto& rewrite : rewrites) {
-        auto r = rewrite(std::forward<V>(arg));
+        auto r = rewrite(arg);
         loop_changed |= (r != kUnchanged);
 
         if (r == kRemoved) {
