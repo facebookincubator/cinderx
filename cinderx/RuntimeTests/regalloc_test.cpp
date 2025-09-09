@@ -1,7 +1,7 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include <gtest/gtest.h>
 
-#include "cinderx/Jit/compiler.h"
 #include "cinderx/Jit/lir/operand.h"
 #include "cinderx/Jit/lir/parser.h"
 #include "cinderx/Jit/lir/regalloc.h"
@@ -56,10 +56,9 @@ class LinearScanAllocatorTest : public ::testing::Test {
     return res;
   }
 
-  std::unique_ptr<LinearScanAllocator> runAllocator(Function* func) {
-    auto allocator = std::make_unique<LinearScanAllocator>(func);
-    allocator->run();
-    return allocator;
+  void runAllocator(Function* func) {
+    LinearScanAllocator allocator{func};
+    allocator.run();
   }
 };
 
@@ -129,9 +128,8 @@ BB %14
   auto opnd_id_map = buildOperandToIndexMap(parser.getOutputInstrMap());
 
   LinearScanAllocator lsallocator(lir_func.get());
-  lsallocator.initialize();
   lsallocator.calculateLiveIntervals();
-  auto id_interval = buildIndexMap(lsallocator.vreg_interval_, opnd_id_map);
+  auto id_interval = buildIndexMap(lsallocator.intervalMap(), opnd_id_map);
   ASSERT_FALSE(id_interval.empty());
 
   std::vector<int> vregs;
@@ -178,7 +176,7 @@ BB %14
   lsallocator.linearScan();
 
   std::stringstream allocated;
-  for (auto& interval : lsallocator.allocated_) {
+  for (auto& interval : lsallocator.intervalList()) {
     fmt::print(
         allocated,
         "{}->{}\n",
@@ -235,11 +233,10 @@ BB %28
   auto opnd_id_map = buildOperandToIndexMap(parser.getOutputInstrMap());
 
   LinearScanAllocator lsallocator(lir_func.get());
-  lsallocator.initialize();
   lsallocator.sortBasicBlocks();
   lsallocator.calculateLiveIntervals();
   lsallocator.linearScan();
-  ASSERT_FALSE(lsallocator.allocated_.empty());
+  ASSERT_FALSE(lsallocator.intervalList().empty());
 
   ASSERT_GT(lsallocator.getFrameSize(), 0)
       << "Incorrect results - no registers have been spilled.";
@@ -247,7 +244,7 @@ BB %28
   std::vector<LiveInterval*> intervals;
   UnorderedMap<int, std::vector<LiveInterval*>> loc_interval_map;
   UnorderedMap<const Operand*, std::vector<LiveInterval*>> vreg_location_map;
-  for (auto& alloc : lsallocator.allocated_) {
+  for (auto& alloc : lsallocator.intervalList()) {
     if (!opnd_id_map.contains(alloc->vreg)) {
       continue;
     }
@@ -339,4 +336,5 @@ TEST_F(LinearScanAllocatorTest, CallWithSideEffectTest) {
   ASSERT_TRUE(a->opcode() == Instruction::kCall);
   ASSERT_TRUE(a->output()->type() == lir::Operand::kNone);
 }
+
 } // namespace jit::lir

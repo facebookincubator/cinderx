@@ -2,8 +2,10 @@
 
 #include "cinderx/Jit/lir/regalloc.h"
 
+#include "cinderx/Common/log.h"
+#include "cinderx/Jit/lir/printer.h"
+
 #include <algorithm>
-#include <iostream>
 #include <iterator>
 #include <limits>
 #include <utility>
@@ -13,6 +15,65 @@ using namespace jit::codegen;
 #define TRACE(...) JIT_LOGIF(getConfig().log.debug_regalloc, __VA_ARGS__)
 
 namespace jit::lir {
+
+namespace {
+
+struct LiveRangeCompare {
+  // Support searching by LIRLocation.
+  using is_transparent = void;
+
+  bool operator()(const LiveRange& lhs, const LiveRange& rhs) const {
+    return lhs.start < rhs.start;
+  }
+
+  bool operator()(const LiveRange& lhs, LIRLocation rhs) const {
+    return lhs.start < rhs;
+  }
+
+  bool operator()(LIRLocation lhs, const LiveRange& rhs) const {
+    return lhs < rhs.start;
+  }
+};
+
+void markDisallowedRegisters(std::vector<LIRLocation>& locs) {
+  auto stack_registers = STACK_REGISTERS;
+  while (!stack_registers.Empty()) {
+    auto reg = stack_registers.GetFirst();
+    stack_registers.RemoveFirst();
+
+    locs[reg.loc] = START_LOCATION;
+  }
+}
+
+} // namespace
+
+RegallocBlockState::RegallocBlockState(
+    const BasicBlock* b,
+    int index,
+    Instruction* instr)
+    : bb(b), block_start_index(index), block_first_instr(instr) {}
+
+LiveRange::LiveRange(LIRLocation s, LIRLocation e) : start{s}, end{e} {
+  JIT_CHECK(s < e, "Invalid live range.");
+}
+
+bool LiveRange::isInRange(const LIRLocation& loc) const {
+  return loc >= start && loc < end;
+}
+
+bool LiveRange::intersectsWith(const LiveRange& range) const {
+  const LiveRange* a = this;
+  const LiveRange* b = &range;
+
+  if (b->start < a->start) {
+    std::swap<const LiveRange*>(a, b);
+  }
+
+  return b->start < a->end;
+}
+
+LiveInterval::LiveInterval(const Operand* vr, PhyLocation loc)
+    : vreg(vr), allocated_loc(loc) {}
 
 void LiveInterval::addRange(LiveRange range) {
   constexpr int kInitRangeSize = 8;
@@ -90,6 +151,17 @@ void LiveInterval::setFrom(LIRLocation loc) {
   }
 }
 
+LIRLocation LiveInterval::startLocation() const {
+  JIT_DCHECK(
+      !ranges.empty(), "Cannot get start location for an empty interval.");
+  return ranges.begin()->start;
+}
+
+LIRLocation LiveInterval::endLocation() const {
+  JIT_DCHECK(!ranges.empty(), "Cannot get end location for an empty interval.");
+  return ranges.rbegin()->end;
+}
+
 bool LiveInterval::covers(LIRLocation loc) const {
   auto iter =
       std::upper_bound(ranges.begin(), ranges.end(), loc, LiveRangeCompare());
@@ -103,15 +175,8 @@ bool LiveInterval::covers(LIRLocation loc) const {
   return iter->end > loc;
 }
 
-bool LiveRange::intersectsWith(const LiveRange& range) const {
-  const LiveRange* a = this;
-  const LiveRange* b = &range;
-
-  if (b->start < a->start) {
-    std::swap<const LiveRange*>(a, b);
-  }
-
-  return b->start < a->end;
+bool LiveInterval::isEmpty() const {
+  return ranges.empty();
 }
 
 LIRLocation LiveInterval::intersectWith(const LiveRange& range) const {
@@ -181,28 +246,73 @@ std::unique_ptr<LiveInterval> LiveInterval::splitAt(LIRLocation loc) {
   return new_interval;
 }
 
-void LinearScanAllocator::initialize() {
-  vreg_interval_.clear();
-  vreg_phy_uses_.clear();
-  regalloc_blocks_.clear();
-  vreg_last_use_.clear();
-  vreg_global_last_use_.clear();
-
-  max_stack_slot_ = initial_max_stack_slot_;
-  free_stack_slots_.clear();
-
-  allocated_.clear();
-
-  changed_regs_.ResetAll();
+void LiveInterval::allocateTo(PhyLocation loc) {
+  allocated_loc = loc;
 }
 
+bool LiveInterval::isAllocated() const {
+  return allocated_loc != PhyLocation::REG_INVALID;
+}
+
+bool LiveInterval::isRegisterAllocated() const {
+  return isAllocated() && allocated_loc.is_register();
+}
+
+LinearScanAllocator::LinearScanAllocator(
+    Function* func,
+    int reserved_stack_space)
+    : func_{func},
+      initial_max_stack_slot_{-reserved_stack_space},
+      max_stack_slot_{initial_max_stack_slot_} {}
+
 void LinearScanAllocator::run() {
-  initialize();
   sortBasicBlocks();
   calculateLiveIntervals();
   linearScan();
   rewriteLIR();
   resolveEdges();
+}
+
+codegen::PhyRegisterSet LinearScanAllocator::getChangedRegs() const {
+  return changed_regs_;
+}
+
+int LinearScanAllocator::getFrameSize() const {
+  return -max_stack_slot_;
+}
+
+int LinearScanAllocator::initialYieldSpillSize() const {
+  JIT_CHECK(
+      initial_yield_spill_size_ != -1,
+      "Don't have InitialYield spill size yet");
+
+  return initial_yield_spill_size_;
+}
+
+bool LinearScanAllocator::isPredefinedUsed(const Operand* operand) const {
+  auto& block = func_->basicblocks()[0];
+
+  for (auto& succ : block->successors()) {
+    if (map_get(regalloc_blocks_, succ).livein.contains(operand)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+const LinearScanAllocator::IntervalMap& LinearScanAllocator::intervalMap()
+    const {
+  return intervals_;
+}
+
+const LinearScanAllocator::IntervalList& LinearScanAllocator::intervalList()
+    const {
+  return allocated_;
+}
+
+LiveInterval& LinearScanAllocator::getInterval(const Operand* operand) {
+  return intervals_.emplace(operand, operand).first->second;
 }
 
 // This function can be further optimized to reorder basic blocks so that
@@ -286,7 +396,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
     }
 
     for (auto live_opnd : live) {
-      getIntervalByVReg(live_opnd).addRange({bb_start_id, bb_end_id});
+      getInterval(live_opnd).addRange({bb_start_id, bb_end_id});
     }
 
     int instr_id = bb_end_id - kIdsPerInstr;
@@ -307,7 +417,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
         auto inserted = seen_outputs.insert(output_opnd).second;
         JIT_DCHECK(inserted, "LIR is not in SSA form");
 #endif
-        getIntervalByVReg(output_opnd).setFrom(instr_id + 1);
+        getInterval(output_opnd).setFrom(instr_id + 1);
         live.erase(output_opnd);
 
         if (instr->getOutputPhyRegUse()) {
@@ -318,7 +428,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       auto register_input = [&](const OperandBase* operand, bool reguse) {
         auto def = operand->getDefine();
 
-        auto pair = vreg_interval_.emplace(def, def);
+        auto pair = intervals_.emplace(def, def);
 
         bool live_across = operand->instr()->inputsLiveAcross();
         int range_end = live_across ? instr_id + kIdsPerInstr : instr_id + 1;
@@ -402,7 +512,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       }
 
       if (instr_opcode == Instruction::kBind) {
-        auto& interval = getIntervalByVReg(instr->output());
+        auto& interval = getInterval(instr->output());
         interval.allocateTo(instr->getInput(0)->getPhyRegister());
       }
     }
@@ -426,7 +536,7 @@ void LinearScanAllocator::calculateLiveIntervals() {
       for (auto& loop_end_id : loop_iter->second) {
         for (auto& opnd : live) {
           LiveRange loop_range(bb_start_id, loop_end_id);
-          getIntervalByVReg(opnd).addRange(loop_range);
+          getInterval(opnd).addRange(loop_range);
           // if the last use is in a loop, it is not a real last use
           auto opnd_iter = vreg_last_use_.find(opnd);
           if (opnd_iter == vreg_last_use_.end()) {
@@ -461,12 +571,8 @@ void LinearScanAllocator::calculateLiveIntervals() {
   }
 }
 
-int LinearScanAllocator::initialYieldSpillSize() const {
-  JIT_CHECK(
-      initial_yield_spill_size_ != -1,
-      "Don't have InitialYield spill size yet");
-
-  return initial_yield_spill_size_;
+void LinearScanAllocator::spillRegistersForYield(int instr_id) {
+  reserveRegisters(instr_id, INIT_REGISTERS);
 }
 
 void LinearScanAllocator::computeInitialYieldSpillSize(
@@ -485,16 +591,8 @@ void LinearScanAllocator::computeInitialYieldSpillSize(
   }
 }
 
-// this function blocks all the caller saved registers during a function call
-// by adding fixed ranges allocated to caller saved registers, so that
-// the spill function in linear scan will automatically save(spill) these
-// registers when used.
 void LinearScanAllocator::reserveCallerSaveRegisters(int instr_id) {
   reserveRegisters(instr_id, CALLER_SAVE_REGS);
-}
-
-void LinearScanAllocator::spillRegistersForYield(int instr_id) {
-  reserveRegisters(instr_id, INIT_REGISTERS);
 }
 
 void LinearScanAllocator::reserveRegisters(
@@ -522,7 +620,7 @@ void LinearScanAllocator::reserveRegisters(
     phy_regs.RemoveFirst();
 
     const Operand* vreg = &(vregs.at(reg));
-    LiveInterval& interval = getIntervalByVReg(vreg);
+    LiveInterval& interval = getInterval(vreg);
 
     // add a range at the very beginning of the function so that the fixed
     // intervals will be added to active/inactive interval set before any
@@ -539,20 +637,8 @@ void LinearScanAllocator::reserveRegisters(
   }
 }
 
-bool LinearScanAllocator::isPredefinedUsed(const Operand* operand) const {
-  auto& block = func_->basicblocks()[0];
-
-  for (auto& succ : block->successors()) {
-    if (map_get(regalloc_blocks_, succ).livein.contains(operand)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 void LinearScanAllocator::linearScan() {
-  for (auto& vi : vreg_interval_) {
+  for (auto& vi : intervals_) {
     if (vi.second.isEmpty()) {
       continue;
     }
@@ -596,42 +682,39 @@ void LinearScanAllocator::linearScan() {
 
     auto position = current->startLocation();
 
-    // free memory stack slot
-    auto end_iter = stack_intervals.begin();
-    while (end_iter != stack_intervals.end()) {
-      auto interval = *end_iter;
+    // Return no longer needed stack slots to the allocator.
+    for (LiveInterval* interval : stack_intervals) {
       auto vreg = interval->vreg;
       auto iter = vreg_global_last_use_.find(vreg);
-
       if (iter != vreg_global_last_use_.end() && iter->second <= position) {
         freeStackSlot(vreg);
       }
-
-      ++end_iter;
     }
-    stack_intervals.erase(stack_intervals.begin(), end_iter);
+    stack_intervals.clear();
 
-    for (auto act_iter = active.begin(); act_iter != active.end();) {
-      auto active_interval = *act_iter;
-      if (active_interval->endLocation() <= position) {
-        act_iter = active.erase(act_iter);
-      } else if (!active_interval->covers(position)) {
-        inactive.insert(active_interval);
-        act_iter = active.erase(act_iter);
+    // Process active intervals, updating to inactive.
+    for (auto iter = active.begin(); iter != active.end();) {
+      auto interval = *iter;
+      if (interval->endLocation() <= position) {
+        iter = active.erase(iter);
+      } else if (!interval->covers(position)) {
+        inactive.insert(interval);
+        iter = active.erase(iter);
       } else {
-        ++act_iter;
+        ++iter;
       }
     }
 
-    for (auto inact_iter = inactive.begin(); inact_iter != inactive.end();) {
-      auto inactive_interval = *inact_iter;
-      if (inactive_interval->endLocation() <= position) {
-        inact_iter = inactive.erase(inact_iter);
-      } else if (inactive_interval->covers(position)) {
-        active.insert(inactive_interval);
-        inact_iter = inactive.erase(inact_iter);
+    // Process inactive intervals, updating to active.
+    for (auto iter = inactive.begin(); iter != inactive.end();) {
+      auto interval = *iter;
+      if (interval->endLocation() <= position) {
+        iter = inactive.erase(iter);
+      } else if (interval->covers(position)) {
+        active.insert(interval);
+        iter = inactive.erase(iter);
       } else {
-        ++inact_iter;
+        ++iter;
       }
     }
 
@@ -650,8 +733,8 @@ void LinearScanAllocator::linearScan() {
   std::sort(
       allocated_.begin(),
       allocated_.end(),
-      [](const auto& lhs, const auto& rhs) -> bool {
-        return LiveIntervalPtrGreater()(rhs.get(), lhs.get());
+      [](const auto& lhs, const auto& rhs) {
+        return LiveIntervalPtrGreater{}(rhs.get(), lhs.get());
       });
 }
 
@@ -824,8 +907,6 @@ void LinearScanAllocator::allocateBlockedReg(
   }
 }
 
-// get the next use of physical register for the vreg at or after the location
-// loc.
 LIRLocation LinearScanAllocator::getUseAtOrAfter(
     const Operand* vreg,
     LIRLocation loc) const {
@@ -841,17 +922,6 @@ LIRLocation LinearScanAllocator::getUseAtOrAfter(
   }
 
   return *iter;
-}
-
-void LinearScanAllocator::markDisallowedRegisters(
-    std::vector<LIRLocation>& locs) {
-  auto stack_registers = STACK_REGISTERS;
-  while (!stack_registers.Empty()) {
-    auto reg = stack_registers.GetFirst();
-    stack_registers.RemoveFirst();
-
-    locs[reg.loc] = START_LOCATION;
-  }
 }
 
 void LinearScanAllocator::splitAndSave(
@@ -888,16 +958,18 @@ int LinearScanAllocator::getStackSlot(const Operand* operand) {
   return slot;
 }
 
+void LinearScanAllocator::freeStackSlot(const Operand* operand) {
+  int slot = map_get(operand_to_slot_, operand, 0);
+  JIT_DCHECK(slot < 0, "should not map an operand to a register");
+
+  operand_to_slot_.erase(operand);
+  free_stack_slots_.push_back(slot);
+}
+
 void LinearScanAllocator::rewriteLIR() {
   UnorderedMap<const Operand*, const LiveInterval*> mapping;
 
   auto allocated_iter = allocated_.begin();
-
-  struct LiveIntervalPtrEndGreater {
-    bool operator()(const LiveInterval* a, const LiveInterval* b) {
-      return a->endLocation() > b->endLocation();
-    }
-  };
 
   UnorderedSet<const lir::LinkedOperand*> last_use_vregs;
   for (auto& use_pair : vreg_last_use_) {
@@ -906,7 +978,7 @@ void LinearScanAllocator::rewriteLIR() {
     }
   }
 
-  // mapping before the first basic block
+  // Update mappings for before the entry block.
   while (allocated_iter != allocated_.end() &&
          (*allocated_iter)->startLocation() <= START_LOCATION) {
     auto& interval = *allocated_iter;
@@ -919,7 +991,7 @@ void LinearScanAllocator::rewriteLIR() {
   }
 
   int instr_id = -1;
-  for (auto& bb : func_->basicblocks()) {
+  for (BasicBlock* bb : func_->basicblocks()) {
     ++instr_id;
     TRACE(
         "{} - new basic block {:#x}",
@@ -1519,26 +1591,6 @@ std::ostream& operator<<(std::ostream& out, const LiveInterval& rhs) {
     sep = ", ";
   }
   return out;
-}
-
-void LinearScanAllocator::printAllIntervalsByVReg(
-    const jit::lir::Operand* vreg) const {
-  for (auto& a : allocated_) {
-    if (a->vreg == vreg) {
-      std::cerr << *(a.get()) << std::endl;
-    }
-  }
-}
-
-void LinearScanAllocator::printAllVregIntervals() const {
-  std::unordered_set<const Operand*> vregs;
-  for (auto& a : allocated_) {
-    vregs.emplace(a->vreg);
-  }
-
-  for (auto vreg : vregs) {
-    printAllIntervalsByVReg(vreg);
-  }
 }
 
 } // namespace jit::lir
