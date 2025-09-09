@@ -131,6 +131,14 @@ struct PhyLocation {
   FOREACH_XMM(DEFINE_REG)
 #undef DEFINE_REG
 
+  // Parse a register name and return the corresponding physical register.
+  // Return REG_INVALID if the name is not a valid register name.  Does not
+  // support parsing stack slots.
+  static PhyLocation parse(std::string_view name);
+
+  int32_t loc{REG_INVALID};
+  uint32_t bitSize{64};
+
   PhyLocation() = default;
 
   /* implicit */ constexpr PhyLocation(RegId reg, size_t size = 64)
@@ -140,7 +148,7 @@ struct PhyLocation {
       : PhyLocation{static_cast<int>(reg), static_cast<size_t>(size)} {}
 
   /* implicit */ constexpr PhyLocation(int loc, size_t size = 64)
-      : loc{loc}, bitSize{size} {}
+      : loc{loc}, bitSize{static_cast<uint32_t>(size)} {}
 
   /* implicit */ constexpr PhyLocation(int loc, int size)
       : PhyLocation{loc, static_cast<size_t>(size)} {}
@@ -161,9 +169,6 @@ struct PhyLocation {
     return is_register() && loc >= XMM_REG_BASE;
   }
 
-  int loc{REG_INVALID};
-  size_t bitSize{64};
-
   std::string toString() const;
 
   // Comparisons are based only on the register ID.
@@ -175,22 +180,9 @@ struct PhyLocation {
     return loc == rhs.loc;
   }
 
-  bool operator==(int rhs) const {
-    return loc == rhs;
-  }
-
   bool operator!=(const PhyLocation& rhs) const {
     return loc != rhs.loc;
   }
-
-  bool operator!=(int rhs) const {
-    return loc != rhs;
-  }
-
-  // Parses the register name in string and returns the corresponding
-  // physical register.
-  // Returns REG_INVALID if name is not a valid register name.
-  static PhyLocation parse(const std::string& name);
 };
 
 // Define global definitions like `RAX` and `XMM0`.
