@@ -773,7 +773,7 @@ class PyFlowGraph(FlowGraph):
                 if new_depth > maxdepth:
                     maxdepth = new_depth
 
-                assert new_depth >= 0, instr
+                assert new_depth >= 0, (instr, self.dump())
 
                 op = self.opcode.opmap[instr.opname]
                 if (

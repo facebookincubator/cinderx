@@ -25,9 +25,13 @@ class SbsCorpusCompileTests(TestCase):
 def add_test(modname: str, fname: str) -> None:
     if "3_12/" in fname and sys.version_info <= (3, 12):
         return
+    if "3_14/" in fname and sys.version_info <= (3, 14):
+        return
 
     def test_corpus(self: SbsCorpusCompileTests) -> None:
         if "/3_12/" in fname and sys.version_info[:2] != (3, 12):
+            return
+        if "/3_14/" in fname and sys.version_info[:2] != (3, 14):
             return
 
         with open(fname, "rb") as inp:

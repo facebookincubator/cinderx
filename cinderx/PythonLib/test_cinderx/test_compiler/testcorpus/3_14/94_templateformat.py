@@ -1,0 +1,6 @@
+t"{x}"
+t"{x}abc"
+t"abc{x}abc"
+t"{x}{x}"
+t"abc{x}{x}abc"
+t"abc{x}{x!r}abc"

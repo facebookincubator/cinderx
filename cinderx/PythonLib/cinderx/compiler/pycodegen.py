@@ -6607,6 +6607,59 @@ class CodeGenerator314(CodeGenerator312):
         gen.emit_noline("LOAD_CONST", tuple(attrs))
         gen.storeName("__static_attributes__")
 
+    # pyre-ignore[11]: No TemplateStr
+    def visitTemplateStr(self, node: ast.TemplateStr) -> None:
+        last_was_interpolation = True
+        stringslen = 0
+        for value in node.values:
+            # pyre-ignore[16]: No Interpolation
+            if isinstance(value, ast.Interpolation):
+                if last_was_interpolation:
+                    self.emit("LOAD_CONST", "")
+                    stringslen += 1
+                last_was_interpolation = True
+            else:
+                self.visit(value)
+                stringslen += 1
+                last_was_interpolation = False
+        if last_was_interpolation:
+            self.emit("LOAD_CONST", "")
+            stringslen += 1
+        self.emit("BUILD_TUPLE", stringslen)
+
+        interpolationslen = 0
+        for value in node.values:
+            # pyre-ignore[16]: No Interpolation
+            if isinstance(value, ast.Interpolation):
+                self.visit(value)
+                interpolationslen += 1
+        self.emit("BUILD_TUPLE", interpolationslen)
+        self.emit("BUILD_TEMPLATE")
+
+    # pyre-ignore[11]: No Interpolation
+    def visitInterpolation(self, node: ast.Interpolation) -> None:
+        self.visit(node.value)
+        self.emit("LOAD_CONST", node.str)
+
+        oparg = 2
+        if node.format_spec:
+            oparg += 1
+            self.visit(node.format_spec)
+
+        conversion = node.conversion
+        if conversion != -1:
+            match chr(conversion):
+                case "s":
+                    oparg |= FVC_STR << 2
+                case "r":
+                    oparg |= FVC_REPR << 2
+                case "a":
+                    oparg |= FVC_ASCII << 2
+                case _:
+                    raise SystemError(f"Unrecognized conversion character {conversion}")
+
+        self.emit("BUILD_INTERPOLATION", oparg)
+
 
 class CinderCodeGenerator310(CinderCodeGenBase, CodeGenerator310):
     flow_graph = PyFlowGraphCinder310
