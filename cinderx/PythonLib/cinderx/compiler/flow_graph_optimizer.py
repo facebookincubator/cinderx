@@ -9,7 +9,7 @@ import operator
 from typing import cast
 
 from .opcodes import find_op_idx, INTRINSIC_1
-from .optimizer import safe_lshift, safe_mod, safe_multiply, safe_power
+from .optimizer import PyLimits, safe_lshift, safe_mod, safe_multiply, safe_power
 
 TYPE_CHECKING = False
 if TYPE_CHECKING:
@@ -53,15 +53,15 @@ UNARY_OPS: dict[str, object] = {
 }
 
 BINARY_OPS: dict[int, Callable[[object, object], object]] = {
-    find_op_idx("NB_POWER"): safe_power,
-    find_op_idx("NB_MULTIPLY"): safe_multiply,
+    find_op_idx("NB_POWER"): lambda x, y: safe_power(x, y, PyLimits),
+    find_op_idx("NB_MULTIPLY"): lambda x, y: safe_multiply(x, y, PyLimits),
     find_op_idx("NB_TRUE_DIVIDE"): lambda left, right: left / right,
     find_op_idx("NB_FLOOR_DIVIDE"): lambda left, right: left // right,
-    find_op_idx("NB_MODULO"): safe_mod,
+    find_op_idx("NB_MODULO"): lambda x, y: safe_mod(x, y, PyLimits),
     find_op_idx("NB_ADD"): lambda left, right: left + right,
     find_op_idx("NB_SUBTRACT"): lambda left, right: left - right,
     find_op_idx("NB_SUBSCR"): lambda left, right: left[right],
-    find_op_idx("NB_LSHIFT"): safe_lshift,
+    find_op_idx("NB_LSHIFT"): lambda x, y: safe_lshift(x, y, PyLimits),
     find_op_idx("NB_RSHIFT"): lambda left, right: left >> right,
     find_op_idx("NB_AND"): lambda left, right: left & right,
     find_op_idx("NB_XOR"): lambda left, right: left ^ right,
