@@ -5292,7 +5292,7 @@ class CodeGenerator312(CodeGenerator):
         self.pop_fblock(TRY_EXCEPT)
         self.set_no_pos()
         self.emit("POP_BLOCK")
-        self.emit_jump_forward(orelse)
+        self.emit_jump_forward_noline(orelse)
 
         self.nextBlock(except_)
         self.emit("SETUP_CLEANUP", cleanup)
@@ -5390,16 +5390,16 @@ class CodeGenerator312(CodeGenerator):
         self.nextBlock(label="try*_insert_block")
 
         # Nothing to reraise
-        self.emit("POP_TOP")
-        self.emit("POP_BLOCK")
-        self.emit("POP_EXCEPT")
-        self.emit_jump_forward(end)
+        self.emit_noline("POP_TOP")
+        self.emit_noline("POP_BLOCK")
+        self.emit_noline("POP_EXCEPT")
+        self.emit_jump_forward_noline(end)
 
         self.nextBlock(reraise)
-        self.emit("POP_BLOCK")
-        self.emit("SWAP", 2)
-        self.emit("POP_EXCEPT")
-        self.emit("RERAISE", 0)
+        self.emit_noline("POP_BLOCK")
+        self.emit_noline("SWAP", 2)
+        self.emit_noline("POP_EXCEPT")
+        self.emit_noline("RERAISE", 0)
 
         self.nextBlock(cleanup)
         self.pop_except_and_reraise()

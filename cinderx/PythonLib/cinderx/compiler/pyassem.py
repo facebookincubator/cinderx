@@ -2476,7 +2476,6 @@ class PyFlowGraph314(PyFlowGraph312):
         self.duplicate_exits_without_lineno()
         self.propagate_line_numbers()
         self.firstline = self.firstline or self.first_inst_lineno or 1
-        self.guarantee_lineno_for_exits()
 
         self.stage = ORDERED
         self.stage = FINAL
@@ -2941,6 +2940,7 @@ class PyFlowGraph314(PyFlowGraph312):
         optimizer = self.flow_graph_optimizer(self)
         for block in self.ordered_blocks:
             optimizer.optimize_basic_block(block)
+
         self.remove_redundant_nops_and_pairs(optimizer)
 
         for block in self.ordered_blocks:
