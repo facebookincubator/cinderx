@@ -6178,6 +6178,9 @@ class CodeGenerator314(CodeGenerator312):
         if not self.maybe_optimize_function_call(node):
             super().visitCall(node)
 
+    def emit_match_jump_to_end(self, end: Block) -> None:
+        self.emit_noline("JUMP", end)
+
     def emit_noopt_call(self, node: ast.Call) -> None:
         self.visit(node.func)
         self.graph.emit_with_loc("PUSH_NULL", 0, node.func)
