@@ -6099,6 +6099,85 @@ class CodeGenerator314(CodeGenerator312):
         if not big:
             self.emit("BUILD_MAP", nkwargs)
 
+    def maybe_optimize_function_call(self, node: ast.Call) -> bool:
+        end = self.newBlock("end")
+        if not (
+            isinstance(node.func, ast.Name)
+            and len(node.args) == 1
+            and not node.keywords
+            and isinstance(node.args[0], ast.GeneratorExp)
+            and node.func.id in ("all", "any", "tuple")
+        ):
+            return False
+
+        skip_optimization = self.newBlock("skip_optimization")
+        attr = node.func
+        assert isinstance(attr, ast.Name)
+        if attr.id == "all":
+            const = all
+            continue_jump_opcode = "POP_JUMP_IF_TRUE"
+            initial_res = True
+        elif attr.id == "any":
+            const = any
+            continue_jump_opcode = "POP_JUMP_IF_FALSE"
+            initial_res = False
+        else:
+            assert attr.id == "tuple"
+            const = tuple
+            continue_jump_opcode = None
+            initial_res = False
+
+        loc = self.graph.loc
+        self.visit(node.func)
+        self.set_pos(node.func)
+        self.emit("COPY", 1)
+        self.emit("LOAD_COMMON_CONSTANT", const)
+        self.emit("IS_OP", 0)
+        self.emit("POP_JUMP_IF_FALSE", skip_optimization)
+        self.nextBlock()
+        self.emit("POP_TOP")
+
+        if const is tuple:
+            self.emit("BUILD_LIST", 0)
+        self.visit(node.args[0])
+        loop = self.newBlock("loop")
+        cleanup = self.newBlock("cleanup")
+
+        self.nextBlock(loop)
+        self.emit("FOR_ITER", cleanup)
+        if const is tuple:
+            self.emit("LIST_APPEND", 2)
+            self.emit("JUMP", loop)
+        else:
+            self.emit("TO_BOOL")
+            self.emit(continue_jump_opcode, loop)
+        self.nextBlock()
+
+        self.emit_noline("POP_ITER")
+        if const is not tuple:
+            self.emit("LOAD_CONST", not initial_res)
+        self.emit("JUMP", end)
+
+        self.nextBlock(cleanup)
+        self.emit("END_FOR")
+        self.emit("POP_ITER")
+        if const is tuple:
+            self.emit_call_intrinsic_1("INTRINSIC_LIST_TO_TUPLE")
+        else:
+            self.emit("LOAD_CONST", initial_res)
+        self.emit("JUMP", end)
+        self.nextBlock(skip_optimization)
+
+        self.set_pos(loc)
+        self.graph.emit_with_loc("PUSH_NULL", 0, node.func)
+        self._call_helper(0, node, node.args, node.keywords)
+        self.nextBlock(end)
+        return True
+
+    def visitCall(self, node: ast.Call) -> None:
+        if not self.maybe_optimize_function_call(node):
+            super().visitCall(node)
+
     def emit_noopt_call(self, node: ast.Call) -> None:
         self.visit(node.func)
         self.graph.emit_with_loc("PUSH_NULL", 0, node.func)

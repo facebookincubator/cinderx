@@ -2294,6 +2294,10 @@ class PyFlowGraph314(PyFlowGraph312):
     flow_graph_optimizer = FlowGraphOptimizer314
     _constant_idx = {
         AssertionError: 0,
+        NotImplementedError: 1,
+        tuple: 2,
+        all: 3,
+        any: 4,
     }
     _load_special_idx = {
         "__enter__": 0,
