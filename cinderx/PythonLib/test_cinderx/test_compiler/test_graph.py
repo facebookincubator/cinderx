@@ -91,7 +91,9 @@ class GraphTests(CompilerTest):
             pass"""
         )
 
-        if PRE_312:
+        if sys.version_info >= (3, 14):
+            g = ["entry", "try_except", "try_cleanup_body_0", "try_cleanup"]
+        elif PRE_312:
             g = ["entry", "try_body", "try_handlers", "try_cleanup_body0"]
         else:
             g = ["entry", "try_body", "try_except", "try_cleanup_body_0", "try_cleanup"]

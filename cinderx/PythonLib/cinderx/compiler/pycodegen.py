@@ -5132,7 +5132,7 @@ class CodeGenerator312(CodeGenerator):
         assert (
             try_body is not None and final_body is not None
         ) or node is not None, "should be called with nodes or body"
-        body = self.newBlock("try_finally_body")
+        body = self.make_try_body_block()
         end = self.newBlock("try_finally_end")
         exit_ = self.newBlock("try_finally_exit")
         cleanup = self.newBlock("cleanup")
@@ -5146,7 +5146,8 @@ class CodeGenerator312(CodeGenerator):
         # try block
         self.emit("SETUP_FINALLY", end)
 
-        self.nextBlock(body)
+        if body is not None:
+            self.nextBlock(body)
         self.push_fblock(Entry(FINALLY_TRY, body, end, final_body))
         if node is None:
             assert try_body
@@ -5183,15 +5184,19 @@ class CodeGenerator312(CodeGenerator):
     def emit_jump_eh_end(self, target: Block) -> None:
         self.emit_jump_forward(target)
 
+    def make_try_body_block(self) -> Block | None:
+        return self.newBlock("try_body")
+
     def emit_try_except(self, node: ast.Try) -> None:
-        body = self.newBlock("try_body")
+        body = self.make_try_body_block()
         except_ = self.newBlock("try_except")
         end = self.newBlock("try_end")
         cleanup = self.newBlock("try_cleanup")
 
         self.emit("SETUP_FINALLY", except_)
 
-        self.nextBlock(body)
+        if body is not None:
+            self.nextBlock(body)
         self.push_fblock(Entry(TRY_EXCEPT, body, None, None))
         self.visitStatements(node.body)
         self.pop_fblock(TRY_EXCEPT)
@@ -6222,6 +6227,9 @@ class CodeGenerator314(CodeGenerator312):
 
     def emit_jump_eh_end(self, target: Block) -> None:
         self.emit("JUMP_NO_INTERRUPT", target)
+
+    def make_try_body_block(self) -> Block | None:
+        return None
 
     def emit_binary_subscr(self) -> None:
         self.emit("BINARY_OP", find_op_idx("NB_SUBSCR"))
