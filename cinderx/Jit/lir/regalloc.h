@@ -50,14 +50,12 @@ struct LiveRange {
 };
 
 struct LiveInterval {
-  explicit LiveInterval(
-      const Operand* vr,
-      PhyLocation loc = PhyLocation::REG_INVALID);
+  explicit LiveInterval(const Operand* operand);
 
-  const Operand* vreg;
+  const Operand* operand;
 
   std::vector<LiveRange> ranges;
-  PhyLocation allocated_loc{PhyLocation::REG_INVALID};
+  PhyLocation allocated_loc;
   bool fixed{false}; // whether the allocated_loc is fixed.
 
   void addRange(LiveRange range);

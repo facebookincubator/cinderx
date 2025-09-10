@@ -78,8 +78,9 @@ bool LiveRange::intersectsWith(const LiveRange& range) const {
   return b->start < a->end;
 }
 
-LiveInterval::LiveInterval(const Operand* vr, PhyLocation loc)
-    : vreg(vr), allocated_loc(loc) {}
+LiveInterval::LiveInterval(const Operand* operand) : operand{operand} {
+  allocated_loc = PhyLocation{PhyLocation::REG_INVALID, operand->sizeInBits()};
+}
 
 void LiveInterval::addRange(LiveRange range) {
   constexpr int kInitRangeSize = 8;
@@ -225,7 +226,9 @@ std::unique_ptr<LiveInterval> LiveInterval::splitAt(LIRLocation loc) {
     return nullptr;
   }
 
-  auto new_interval = std::make_unique<LiveInterval>(vreg, allocated_loc);
+  auto new_interval = std::make_unique<LiveInterval>(operand);
+  new_interval->allocated_loc = allocated_loc;
+
   auto iter =
       std::lower_bound(ranges.begin(), ranges.end(), loc, LiveRangeCompare());
 
@@ -657,7 +660,7 @@ void LinearScanAllocator::linearScan() {
       const auto& rhs_end = rhs->endLocation();
 
       if (lhs_end == rhs_end) {
-        return lhs->vreg < rhs->vreg;
+        return lhs->operand < rhs->operand;
       }
       return lhs_end < rhs_end;
     }
@@ -678,10 +681,10 @@ void LinearScanAllocator::linearScan() {
 
     // Return no longer needed stack slots to the allocator.
     for (LiveInterval* interval : stack_intervals) {
-      auto vreg = interval->vreg;
-      auto iter = vreg_global_last_use_.find(vreg);
+      auto operand = interval->operand;
+      auto iter = vreg_global_last_use_.find(operand);
       if (iter != vreg_global_last_use_.end() && iter->second <= position) {
-        freeStackSlot(vreg);
+        freeStackSlot(operand);
       }
     }
     stack_intervals.clear();
@@ -745,10 +748,10 @@ bool LinearScanAllocator::tryAllocateFreeReg(
   // think about optimizations in the future.
   std::vector<LIRLocation> freeUntilPos(NUM_REGS, MAX_LOCATION);
 
-  bool is_fp = current->vreg->isFp();
+  bool is_fp = current->operand->isFp();
 
   for (auto& interval : active) {
-    if (interval->vreg->isFp() != is_fp) {
+    if (interval->operand->isFp() != is_fp) {
       continue;
     }
 
@@ -756,7 +759,7 @@ bool LinearScanAllocator::tryAllocateFreeReg(
   }
 
   for (auto& interval : inactive) {
-    if (interval->vreg->isFp() != is_fp) {
+    if (interval->operand->isFp() != is_fp) {
       continue;
     }
 
@@ -797,7 +800,7 @@ bool LinearScanAllocator::tryAllocateFreeReg(
       return false;
     }
     regFreeUntil = *max_iter;
-    size_t bit_size = current->vreg->sizeInBits();
+    size_t bit_size = current->operand->sizeInBits();
     reg = PhyLocation(std::distance(freeUntilPos.begin(), max_iter), bit_size);
   }
 
@@ -820,19 +823,20 @@ void LinearScanAllocator::allocateBlockedReg(
   UnorderedMap<PhyLocation, LiveInterval*> reg_active_interval;
   UnorderedMap<PhyLocation, std::vector<LiveInterval*>> reg_inactive_intervals;
 
-  bool is_fp = current->vreg->isFp();
+  bool is_fp = current->operand->isFp();
 
   auto current_start = current->startLocation();
   for (auto& interval : active) {
-    if (interval->vreg->isFp() != is_fp) {
+    if (interval->operand->isFp() != is_fp) {
       continue;
     }
     auto allocated_loc = interval->allocated_loc.loc;
-    nextUsePos[allocated_loc] = getUseAtOrAfter(interval->vreg, current_start);
+    nextUsePos[allocated_loc] =
+        getUseAtOrAfter(interval->operand, current_start);
     reg_active_interval.emplace(allocated_loc, interval);
   }
   for (auto& interval : inactive) {
-    if (interval->vreg->isFp() != is_fp) {
+    if (interval->operand->isFp() != is_fp) {
       continue;
     }
     auto intersect = interval->intersectWith(*current);
@@ -840,7 +844,7 @@ void LinearScanAllocator::allocateBlockedReg(
     if (intersect != INVALID_LOCATION) {
       nextUsePos[allocated_loc] = std::min(
           nextUsePos[allocated_loc],
-          getUseAtOrAfter(interval->vreg, current_start));
+          getUseAtOrAfter(interval->operand, current_start));
     }
 
     reg_inactive_intervals[allocated_loc].push_back(interval);
@@ -853,18 +857,19 @@ void LinearScanAllocator::allocateBlockedReg(
 
   auto reg_iter = std::max_element(start, end);
   PhyLocation reg(
-      std::distance(nextUsePos.begin(), reg_iter), current->vreg->sizeInBits());
+      std::distance(nextUsePos.begin(), reg_iter),
+      current->operand->sizeInBits());
   auto& reg_use = *reg_iter;
 
-  auto first_current_use = getUseAtOrAfter(current->vreg, current_start);
+  auto first_current_use = getUseAtOrAfter(current->operand, current_start);
   if (first_current_use >= reg_use) {
-    auto stack_slot = getStackSlot(current->vreg);
+    auto stack_slot = getStackSlot(current->operand);
     TRACE(
         "Allocating blocked location {} to interval {}", stack_slot, *current);
     current->allocateTo(stack_slot);
 
-    // first_current_use can be MAX_LOCATION when vreg is in a loop and there is
-    // no more uses after current_start
+    // First_current_use can be MAX_LOCATION when the operand is in a loop and
+    // there are no more uses after current_start.
     if (first_current_use < current->endLocation()) {
       splitAndSave(current, first_current_use, unhandled);
     }
@@ -909,9 +914,9 @@ void LinearScanAllocator::allocateBlockedReg(
 }
 
 LIRLocation LinearScanAllocator::getUseAtOrAfter(
-    const Operand* vreg,
+    const Operand* operand,
     LIRLocation loc) const {
-  auto vreg_use_iter = vreg_phy_uses_.find(vreg);
+  auto vreg_use_iter = vreg_phy_uses_.find(operand);
   if (vreg_use_iter == vreg_phy_uses_.end()) {
     return MAX_LOCATION;
   }
@@ -1017,11 +1022,11 @@ void LinearScanAllocator::rewriteLIR() {
   while (allocated_iter != allocated_.end() &&
          (*allocated_iter)->startLocation() <= START_LOCATION) {
     auto& interval = *allocated_iter;
-    auto [_, inserted] = mapping.emplace(interval->vreg, interval.get());
+    auto [_, inserted] = mapping.emplace(interval->operand, interval.get());
     JIT_CHECK(
         inserted,
-        "Created duplicate mapping for vreg {} in the entry block",
-        *interval->vreg);
+        "Created duplicate mapping for operand {} in the entry block",
+        *interval->operand);
     ++allocated_iter;
   }
 
@@ -1033,15 +1038,15 @@ void LinearScanAllocator::rewriteLIR() {
     // Remove mappings that end at the last basic block.
     // Inter-basic block resolution will be done later separately.
     for (auto map_iter = mapping.begin(); map_iter != mapping.end();) {
-      auto [vreg, interval] = *map_iter;
+      auto [operand, interval] = *map_iter;
       JIT_CHECK(
-          vreg == interval->vreg,
+          operand == interval->operand,
           "Mapping is not consistent: {} -> {}",
-          *vreg,
+          *operand,
           *interval);
 
       if (interval->endLocation() <= instr_id) {
-        TRACE("Removing interval {} for operand {}", *interval, *vreg);
+        TRACE("Removing interval {} for operand {}", *interval, *operand);
         map_iter = mapping.erase(map_iter);
       } else {
         ++map_iter;
@@ -1246,7 +1251,7 @@ void LinearScanAllocator::rewriteLIRUpdateMapping(
     UnorderedMap<const lir::Operand*, const LiveInterval*>& mapping,
     LiveInterval* interval,
     CopyGraphWithOperand* copies) {
-  auto operand = interval->vreg;
+  auto operand = interval->operand;
   auto [mapping_iter, inserted] = mapping.emplace(operand, interval);
   if (inserted) {
     TRACE("Adding interval {} for operand {}", *interval, *operand);
@@ -1445,24 +1450,24 @@ LinearScanAllocator::resolveEdgesGenCopies(
       // Even though LIR is in SSA, when the successor is a loop head, the
       // first instruction could be a define of the same vreg.  In that case,
       // we don't need to generate move instructions.
-      if (succ_first_instr->output() == interval->vreg) {
+      if (succ_first_instr->output() == interval->operand) {
         continue;
       }
 
-      auto vreg = interval->vreg;
-      auto from_interval = map_get(end_mapping, vreg, nullptr);
+      auto operand = interval->operand;
+      auto from_interval = map_get(end_mapping, operand, nullptr);
       if (from_interval == nullptr) {
         continue;
       }
       from = from_interval->allocated_loc;
       to = interval->allocated_loc;
-      data_type = from_interval->vreg->dataType();
+      data_type = from_interval->operand->dataType();
     } else {
-      auto vreg = interval->vreg;
-      auto from_interval = map_get(end_mapping, vreg);
+      auto operand = interval->operand;
+      auto from_interval = map_get(end_mapping, operand);
       from = from_interval->allocated_loc;
       to = interval->allocated_loc;
-      data_type = from_interval->vreg->dataType();
+      data_type = from_interval->operand->dataType();
     }
 
     if (from != to) {

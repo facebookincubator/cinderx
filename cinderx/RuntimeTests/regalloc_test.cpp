@@ -20,10 +20,10 @@ class LinearScanAllocatorTest : public ::testing::Test {
   static bool LiveIntervalPtrLess(
       const LiveInterval* lhs,
       const LiveInterval* rhs) {
-    if (lhs->vreg == rhs->vreg) {
+    if (lhs->operand == rhs->operand) {
       return lhs->startLocation() < rhs->startLocation();
     }
-    return lhs->vreg < rhs->vreg;
+    return lhs->operand < rhs->operand;
   }
 
   UnorderedMap<const Operand*, int> buildOperandToIndexMap(
@@ -63,7 +63,9 @@ class LinearScanAllocatorTest : public ::testing::Test {
 };
 
 TEST_F(LinearScanAllocatorTest, IntervalIntersectWithRange) {
-  LiveInterval i1(nullptr);
+  Operand operand;
+
+  LiveInterval i1{&operand};
   i1.addRange(LiveRange{10, 30});
   i1.addRange(LiveRange{40, 60});
 
@@ -77,8 +79,11 @@ TEST_F(LinearScanAllocatorTest, IntervalIntersectWithRange) {
 }
 
 TEST_F(LinearScanAllocatorTest, IntervalIntersectWithInterval) {
-  LiveInterval i1(nullptr);
-  LiveInterval i2(nullptr);
+  Operand operand1;
+  Operand operand2;
+
+  LiveInterval i1{&operand1};
+  LiveInterval i2{&operand2};
 
   EXPECT_EQ(i1.intersectWith(i2), INVALID_LOCATION);
   EXPECT_EQ(i2.intersectWith(i1), INVALID_LOCATION);
@@ -180,7 +185,7 @@ BB %14
     fmt::print(
         allocated,
         "{}->{}\n",
-        opnd_id_map.at(interval->vreg),
+        opnd_id_map.at(interval->operand),
         interval->allocated_loc.loc);
   }
 
@@ -245,11 +250,11 @@ BB %28
   UnorderedMap<int, std::vector<LiveInterval*>> loc_interval_map;
   UnorderedMap<const Operand*, std::vector<LiveInterval*>> vreg_location_map;
   for (auto& alloc : lsallocator.intervalList()) {
-    if (!opnd_id_map.contains(alloc->vreg)) {
+    if (!opnd_id_map.contains(alloc->operand)) {
       continue;
     }
     loc_interval_map[alloc->allocated_loc.loc].push_back(alloc.get());
-    vreg_location_map[alloc->vreg].push_back(alloc.get());
+    vreg_location_map[alloc->operand].push_back(alloc.get());
   }
 
   // check if the intervals allocated to the same location do not overlop
