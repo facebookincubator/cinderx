@@ -3786,6 +3786,15 @@ class INSTR_CLASS(
   int conversion_;
 };
 
+// Implements FORMAT_WITH_SPEC opcode, which handles f-string value formatting
+// with spec.
+DEFINE_SIMPLE_INSTR(
+    FormatWithSpec,
+    (TObject, TObject),
+    HasOutput,
+    Operands<2>,
+    DeoptBase);
+
 // Implements `del container[sub]`
 // Takes a container as operand 0
 // Takes a sub as operand 1

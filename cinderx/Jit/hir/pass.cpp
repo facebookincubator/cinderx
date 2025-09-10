@@ -240,6 +240,7 @@ Type outputType(
     }
 
     case Opcode::kFormatValue:
+    case Opcode::kFormatWithSpec:
       return TUnicode;
 
     case Opcode::kLoadVarObjectSize:

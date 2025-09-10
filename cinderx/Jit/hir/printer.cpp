@@ -229,6 +229,7 @@ static std::string format_immediates(const Instr& instr) {
     case Opcode::kDictSubscr:
     case Opcode::kDictUpdate:
     case Opcode::kEndInlinedFunction:
+    case Opcode::kFormatWithSpec:
     case Opcode::kGetAIter:
     case Opcode::kGetANext:
     case Opcode::kGetIter:

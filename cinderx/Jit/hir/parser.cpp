@@ -241,6 +241,12 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
       instruction = newInstr<FormatValue>(dst, fmt_spec, val, conversion);
       break;
     }
+    case Opcode::kFormatWithSpec: {
+      Register* val = ParseRegister();
+      Register* fmt_spec = ParseRegister();
+      instruction = newInstr<FormatWithSpec>(dst, val, fmt_spec);
+      break;
+    }
     case Opcode::kCallEx: {
       auto flags = CallFlags::None;
       if (peekNextToken() == "<") {

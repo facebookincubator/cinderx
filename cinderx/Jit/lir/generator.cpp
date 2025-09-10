@@ -3121,6 +3121,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             instr.conversion());
         break;
       }
+      case Opcode::kFormatWithSpec: {
+        const auto& instr = static_cast<const FormatWithSpec&>(i);
+        bbb.appendCallInstruction(
+            instr.output(),
+            PyObject_Format,
+            instr.GetOperand(0),
+            instr.GetOperand(1));
+        break;
+      }
       case Opcode::kBuildString: {
         const auto& instr = static_cast<const BuildString&>(i);
 

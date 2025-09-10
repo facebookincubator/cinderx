@@ -78,6 +78,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kFloatBinaryOp:
     case Opcode::kFloatCompare:
     case Opcode::kFormatValue:
+    case Opcode::kFormatWithSpec:
     case Opcode::kGetAIter:
     case Opcode::kGetANext:
     case Opcode::kGetIter:

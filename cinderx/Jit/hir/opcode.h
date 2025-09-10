@@ -56,6 +56,7 @@ namespace jit::hir {
   V(FloatBinaryOp)                     \
   V(FloatCompare)                      \
   V(FormatValue)                       \
+  V(FormatWithSpec)                    \
   V(GetAIter)                          \
   V(GetANext)                          \
   V(GetIter)                           \

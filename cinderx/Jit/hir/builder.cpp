@@ -98,6 +98,7 @@ bool isSupportedOpcode(int opcode) {
     case EXTENDED_ARG:
     case FAST_LEN:
     case FORMAT_VALUE:
+    case FORMAT_WITH_SPEC:
     case FOR_ITER:
     case GEN_START:
     case GET_AITER:
@@ -1408,6 +1409,10 @@ void HIRBuilder::translate(
         }
         case FORMAT_VALUE: {
           emitFormatValue(tc, bc_instr);
+          break;
+        }
+        case FORMAT_WITH_SPEC: {
+          emitFormatWithSpec(tc);
           break;
         }
         case MAP_ADD: {
@@ -4552,6 +4557,15 @@ void HIRBuilder::emitFormatValue(
 
   tc.emit<FormatValue>(dst, fmt_spec, value, which_conversion, tc.frame);
   tc.frame.stack.push(dst);
+}
+
+void HIRBuilder::emitFormatWithSpec(TranslationContext& tc) {
+  OperandStack& stack = tc.frame.stack;
+  Register* fmt_spec = stack.pop();
+  Register* value = stack.pop();
+  Register* out = temps_.AllocateStack();
+  tc.emit<FormatWithSpec>(out, value, fmt_spec, tc.frame);
+  stack.push(out);
 }
 
 void HIRBuilder::emitMapAdd(

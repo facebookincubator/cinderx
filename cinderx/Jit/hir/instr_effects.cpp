@@ -123,6 +123,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kFillTypeMethodCache:
     case Opcode::kFloatBinaryOp:
     case Opcode::kFormatValue:
+    case Opcode::kFormatWithSpec:
     case Opcode::kGetAIter:
     case Opcode::kGetANext:
     case Opcode::kGetIter:
@@ -457,6 +458,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kFillTypeMethodCache:
     case Opcode::kFloatBinaryOp:
     case Opcode::kFormatValue:
+    case Opcode::kFormatWithSpec:
     case Opcode::kGetAIter:
     case Opcode::kGetANext:
     case Opcode::kGetIter:

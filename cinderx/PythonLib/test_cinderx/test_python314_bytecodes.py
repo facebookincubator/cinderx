@@ -385,6 +385,16 @@ def x():
         self.assertEqual(t.interpolations, ())
         self._assertBytecodeContains(x, "BUILD_TEMPLATE")
 
+    def test_FORMAT_WITH_SPEC(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            value = 42
+            return f"{value:.2f}"
+
+        self.assertEqual(x(), "42.00")
+        self._assertBytecodeContains(x, "FORMAT_WITH_SPEC")
+
     def test_BUILD_INTERPOLATION(self):
         # Wrap this in an exec() to avoid breaking tests for earlier versions
         # of Python which don't support the new syntax.

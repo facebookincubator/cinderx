@@ -421,6 +421,7 @@ class HIRBuilder {
   void emitFormatValue(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitFormatWithSpec(TranslationContext& tc);
 
   void emitMapAdd(
       TranslationContext& tc,
