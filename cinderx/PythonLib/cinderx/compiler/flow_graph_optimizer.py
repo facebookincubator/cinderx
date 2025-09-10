@@ -902,8 +902,9 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         block: Block,
     ) -> int | None:
         if next_instr and next_instr.opname == "TO_BOOL":
-            instr.ioparg |= 16
-            next_instr.set_to_nop()
+            next_instr.opname = "COMPARE_OP"
+            next_instr.oparg = next_instr.ioparg = instr.ioparg | 16
+            instr.set_to_nop()
 
     def optimize_load_global(
         self: FlowGraphOptimizer,
