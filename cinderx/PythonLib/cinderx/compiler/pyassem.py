@@ -1346,6 +1346,7 @@ class PyFlowGraph(FlowGraph):
         last.set_to_nop()
         for instr in target.insts:
             block.insts.append(instr.copy())
+
         block.next = None
         block.is_exit = True
         block.has_fallthrough = False
@@ -2459,6 +2460,37 @@ class PyFlowGraph314(PyFlowGraph312):
             # pyre-fixme[16]: Item `AST` of `AST | SrcLocation` has no attribute `lineno`.
             if inst.loc.lineno >= 0:
                 return False
+        return True
+
+    def extend_block(self, block: Block) -> bool:
+        """If this block ends with an unconditional jump to an exit block,
+        then remove the jump and extend this block with the target.
+        """
+        if len(block.insts) == 0:
+            return False
+        last = block.insts[-1]
+        if last.opname not in UNCONDITIONAL_JUMP_OPCODES:
+            return False
+        target = last.target
+        assert target is not None
+        small_exit_block = target.exits and len(target.insts) <= MAX_COPY_SIZE
+        no_line_no_fallthrough = not target.has_fallthrough and target.has_no_lineno()
+        if not small_exit_block and not no_line_no_fallthrough:
+            return False
+        last = block.insts[-1]
+        removed = last.opname
+        last.set_to_nop()
+        for instr in target.insts:
+            block.insts.append(instr.copy())
+
+        last = block.insts[-1]
+        if last.opname in UNCONDITIONAL_JUMP_OPCODES and removed == "JUMP":
+            # Make sure we don't lose eval breaker checks
+            last.opname = "JUMP"
+
+        block.next = None
+        block.is_exit = True
+        block.has_fallthrough = False
         return True
 
     def finalize(self) -> None:
