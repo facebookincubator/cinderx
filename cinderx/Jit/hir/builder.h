@@ -199,6 +199,9 @@ class HIRBuilder {
   void emitLoadFast(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
+  void emitLoadFastLoadFast(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitLoadGlobal(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
@@ -239,6 +242,12 @@ class HIRBuilder {
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitStoreFast(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
+  void emitStoreFastStoreFast(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
+  void emitStoreFastLoadFast(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
   void emitBinarySlice(TranslationContext& tc);

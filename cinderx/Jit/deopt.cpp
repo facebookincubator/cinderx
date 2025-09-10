@@ -134,7 +134,7 @@ static void reifyLocalsplus(
       *localsplus = Ci_STACK_NULL;
     } else {
       PyObject* obj = mem.readOwned(*value).release();
-      *localsplus = obj == nullptr ? Ci_STACK_NULL : Ci_STACK_STEAL(obj);
+      *localsplus = Ci_STACK_STEAL(obj);
     }
     localsplus++;
   }

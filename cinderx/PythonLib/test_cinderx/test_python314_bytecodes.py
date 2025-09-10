@@ -1,7 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
 import dis
+import opcode
 import sys
+import types
 import unittest
 
 import cinderx.test_support as cinder_support
@@ -9,6 +11,44 @@ import cinderx.test_support as cinder_support
 
 def one():
     return 1
+
+
+def _reassemble_for_jit(ops, shell_function):
+    """
+    Takes a list of (opcode: str, arg: int) pairs and and replaces the
+    shell_function's code with these. Returns the shell_function
+    wrapped up using the cinder_support functions failUnlessJITCompiled
+    and fail_if_deopt. The shell function is modified.
+    """
+    code_list = []
+    for op, arg in ops:
+        code_list.append(opcode.opmap[op])
+        code_list.append(arg)
+    co = shell_function.__code__
+    new_code = types.CodeType(
+        co.co_argcount,
+        co.co_posonlyargcount,
+        co.co_kwonlyargcount,
+        co.co_nlocals,
+        co.co_stacksize,
+        co.co_flags,
+        bytes(code_list),
+        co.co_consts,
+        co.co_names,
+        co.co_varnames,
+        co.co_filename,
+        co.co_name,
+        co.co_qualname,
+        co.co_firstlineno,
+        co.co_linetable,
+        co.co_exceptiontable,
+        co.co_freevars,
+        co.co_cellvars,
+    )
+    shell_function.__code__ = new_code
+    f = cinder_support.failUnlessJITCompiled(shell_function)
+    f = cinder_support.fail_if_deopt(f)
+    return f
 
 
 @unittest.skipUnless(sys.version_info >= (3, 14), "Python 3.14+ only")
@@ -59,6 +99,56 @@ class Python314Bytecodes(unittest.TestCase):
 
         self.assertEqual(x(), 1)
         self._assertBytecodeContains(x, "LOAD_FAST_BORROW")
+
+    def test_LOAD_FAST_BORROW_LOAD_FAST_BORROW(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            a = 1
+            b = 2
+            return a + b
+
+        self.assertEqual(x(), 3)
+        self._assertBytecodeContains(x, "LOAD_FAST_BORROW_LOAD_FAST_BORROW")
+
+    def test_STORE_FAST_LOAD_FAST(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            return [i for i in [1, 2]]  # noqa: C416
+
+        self.assertEqual(sum(x()), 3)
+        self._assertBytecodeContains(x, "STORE_FAST_LOAD_FAST")
+
+    def test_STORE_FAST_STORE_FAST(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            x, y = (1, 2)
+            return x + y
+
+        self.assertEqual(x(), 3)
+        self._assertBytecodeContains(x, "STORE_FAST_STORE_FAST")
+
+    def test_LOAD_FAST_LOAD_FAST(self):
+        # Myself and LLMs tried really hard but we couldn't figure out a way to
+        # write a function in pure Python that has LOAD_FAST_LOAD_FAST. It
+        # still might be possible to generate though so here's a bytecode-level
+        # test.
+        def x(a, b):
+            pass
+
+        x_prime = _reassemble_for_jit(
+            [
+                ("RESUME", 0),
+                ("LOAD_FAST_LOAD_FAST", 1),  # pushes a (arg 0) then b (arg 1)
+                ("BUILD_TUPLE", 2),
+                ("RETURN_VALUE", 0),
+            ],
+            x,
+        )
+        self.assertEqual(x_prime(1, 2), (1, 2))
+        self._assertBytecodeContains(x, "LOAD_FAST_LOAD_FAST")
 
     def test_BINARY_OP_oparg_SUBSCR(self):
         @cinder_support.fail_if_deopt

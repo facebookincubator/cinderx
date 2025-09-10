@@ -158,7 +158,12 @@ inline PyCodeObject* frameCode(PyFrameObject* frame) {
 #else
 #define Ci_STACK_TYPE _PyStackRef
 #define Ci_STACK_NULL PyStackRef_NULL
-#define Ci_STACK_STEAL(VAL) PyStackRef_FromPyObjectSteal(VAL)
+#define Ci_STACK_STEAL(VAL)                                      \
+  [&]() {                                                        \
+    auto _val = (VAL);                                           \
+    return _val == nullptr ? PyStackRef_NULL                     \
+                           : PyStackRef_FromPyObjectSteal(_val); \
+  }()
 #define Ci_STACK_CLEAR(VAL) PyStackRef_CLEAR(VAL)
 #define Ci_STACK_XSETREF(DST, VAL)                     \
   do {                                                 \

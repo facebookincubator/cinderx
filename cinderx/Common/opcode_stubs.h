@@ -68,6 +68,8 @@
   X(LOAD_FAST_AND_CLEAR)               \
   X(LOAD_FAST_CHECK)                   \
   X(LOAD_FAST_BORROW)                  \
+  X(LOAD_FAST_BORROW_LOAD_FAST_BORROW) \
+  X(LOAD_FAST_LOAD_FAST)               \
   X(LOAD_FROM_DICT_OR_DEREF)           \
   X(LOAD_FROM_DICT_OR_GLOBALS)         \
   X(LOAD_LOCALS)                       \
@@ -84,6 +86,8 @@
   X(RETURN_CONST)                      \
   X(RETURN_GENERATOR)                  \
   X(SEND)                              \
+  X(STORE_FAST_STORE_FAST)             \
+  X(STORE_FAST_LOAD_FAST)              \
   X(STORE_SLICE)                       \
   X(STORE_SUBSCR_DICT)                 \
   X(SWAP)                              \
@@ -118,88 +122,92 @@ enum {
 
 #elif PY_VERSION_HEX < 0x030E0000
 
-#define STUB_OPCODE_DEFS(X)        \
-  X(BINARY_ADD)                    \
-  X(BINARY_AND)                    \
-  X(BINARY_FLOOR_DIVIDE)           \
-  X(BINARY_LSHIFT)                 \
-  X(BINARY_MATRIX_MULTIPLY)        \
-  X(BINARY_MODULO)                 \
-  X(BINARY_MULTIPLY)               \
-  X(BINARY_OR)                     \
-  X(BINARY_POWER)                  \
-  X(BINARY_RSHIFT)                 \
-  X(BINARY_SUBSCR_DICT_STR)        \
-  X(BINARY_SUBSCR_LIST)            \
-  X(BINARY_SUBSCR_TUPLE)           \
-  X(BINARY_SUBSCR_TUPLE_CONST_INT) \
-  X(BINARY_SUBTRACT)               \
-  X(BINARY_TRUE_DIVIDE)            \
-  X(BINARY_XOR)                    \
-  X(CALL_FUNCTION)                 \
-  X(CALL_FUNCTION_KW)              \
-  X(CALL_METHOD)                   \
-  X(COPY_DICT_WITHOUT_KEYS)        \
-  X(DUP_TOP)                       \
-  X(DUP_TOP_TWO)                   \
-  X(GEN_START)                     \
-  X(INPLACE_ADD)                   \
-  X(INPLACE_AND)                   \
-  X(INPLACE_FLOOR_DIVIDE)          \
-  X(INPLACE_LSHIFT)                \
-  X(INPLACE_MATRIX_MULTIPLY)       \
-  X(INPLACE_MODULO)                \
-  X(INPLACE_MULTIPLY)              \
-  X(INPLACE_OR)                    \
-  X(INPLACE_POWER)                 \
-  X(INPLACE_RSHIFT)                \
-  X(INPLACE_SUBTRACT)              \
-  X(INPLACE_TRUE_DIVIDE)           \
-  X(INPLACE_XOR)                   \
-  X(JUMP_ABSOLUTE)                 \
-  X(JUMP_IF_FALSE_OR_POP)          \
-  X(JUMP_IF_NOT_EXC_MATCH)         \
-  X(JUMP_IF_TRUE_OR_POP)           \
-  X(LIST_TO_TUPLE)                 \
-  X(LOAD_ATTR_DICT_DESCR)          \
-  X(LOAD_ATTR_DICT_NO_DESCR)       \
-  X(LOAD_ATTR_NO_DICT_DESCR)       \
-  X(LOAD_ATTR_POLYMORPHIC)         \
-  X(LOAD_ATTR_SPLIT_DICT)          \
-  X(LOAD_ATTR_SPLIT_DICT_DESCR)    \
-  X(LOAD_ATTR_SUPER)               \
-  X(LOAD_ATTR_S_MODULE)            \
-  X(LOAD_ATTR_TYPE)                \
-  X(LOAD_ATTR_UNCACHABLE)          \
-  X(LOAD_FAST_BORROW)              \
-  X(LOAD_METHOD_DICT_DESCR)        \
-  X(LOAD_METHOD_DICT_METHOD)       \
-  X(LOAD_METHOD_MODULE)            \
-  X(LOAD_METHOD_NO_DICT_DESCR)     \
-  X(LOAD_METHOD_NO_DICT_METHOD)    \
-  X(LOAD_METHOD_SPLIT_DICT_DESCR)  \
-  X(LOAD_METHOD_SPLIT_DICT_METHOD) \
-  X(LOAD_METHOD_SUPER)             \
-  X(LOAD_METHOD_S_MODULE)          \
-  X(LOAD_METHOD_TYPE)              \
-  X(LOAD_METHOD_TYPE_METHODLIKE)   \
-  X(LOAD_METHOD_UNCACHABLE)        \
-  X(LOAD_METHOD_UNSHADOWED_METHOD) \
-  X(LOAD_SMALL_INT)                \
-  X(MAKE_OPNAME)                   \
-  X(NOT_TAKEN)                     \
-  X(POP_ITER)                      \
-  X(ROT_FOUR)                      \
-  X(ROT_N)                         \
-  X(ROT_THREE)                     \
-  X(ROT_TWO)                       \
-  X(SETUP_ASYNC_WITH)              \
-  X(STORE_ATTR_DESCR)              \
-  X(STORE_ATTR_DICT)               \
-  X(STORE_ATTR_SPLIT_DICT)         \
-  X(STORE_ATTR_UNCACHABLE)         \
-  X(TO_BOOL)                       \
-  X(UNARY_POSITIVE)                \
+#define STUB_OPCODE_DEFS(X)            \
+  X(BINARY_ADD)                        \
+  X(BINARY_AND)                        \
+  X(BINARY_FLOOR_DIVIDE)               \
+  X(BINARY_LSHIFT)                     \
+  X(BINARY_MATRIX_MULTIPLY)            \
+  X(BINARY_MODULO)                     \
+  X(BINARY_MULTIPLY)                   \
+  X(BINARY_OR)                         \
+  X(BINARY_POWER)                      \
+  X(BINARY_RSHIFT)                     \
+  X(BINARY_SUBSCR_DICT_STR)            \
+  X(BINARY_SUBSCR_LIST)                \
+  X(BINARY_SUBSCR_TUPLE)               \
+  X(BINARY_SUBSCR_TUPLE_CONST_INT)     \
+  X(BINARY_SUBTRACT)                   \
+  X(BINARY_TRUE_DIVIDE)                \
+  X(BINARY_XOR)                        \
+  X(CALL_FUNCTION)                     \
+  X(CALL_FUNCTION_KW)                  \
+  X(CALL_METHOD)                       \
+  X(COPY_DICT_WITHOUT_KEYS)            \
+  X(DUP_TOP)                           \
+  X(DUP_TOP_TWO)                       \
+  X(GEN_START)                         \
+  X(INPLACE_ADD)                       \
+  X(INPLACE_AND)                       \
+  X(INPLACE_FLOOR_DIVIDE)              \
+  X(INPLACE_LSHIFT)                    \
+  X(INPLACE_MATRIX_MULTIPLY)           \
+  X(INPLACE_MODULO)                    \
+  X(INPLACE_MULTIPLY)                  \
+  X(INPLACE_OR)                        \
+  X(INPLACE_POWER)                     \
+  X(INPLACE_RSHIFT)                    \
+  X(INPLACE_SUBTRACT)                  \
+  X(INPLACE_TRUE_DIVIDE)               \
+  X(INPLACE_XOR)                       \
+  X(JUMP_ABSOLUTE)                     \
+  X(JUMP_IF_FALSE_OR_POP)              \
+  X(JUMP_IF_NOT_EXC_MATCH)             \
+  X(JUMP_IF_TRUE_OR_POP)               \
+  X(LIST_TO_TUPLE)                     \
+  X(LOAD_ATTR_DICT_DESCR)              \
+  X(LOAD_ATTR_DICT_NO_DESCR)           \
+  X(LOAD_ATTR_NO_DICT_DESCR)           \
+  X(LOAD_ATTR_POLYMORPHIC)             \
+  X(LOAD_ATTR_SPLIT_DICT)              \
+  X(LOAD_ATTR_SPLIT_DICT_DESCR)        \
+  X(LOAD_ATTR_SUPER)                   \
+  X(LOAD_ATTR_S_MODULE)                \
+  X(LOAD_ATTR_TYPE)                    \
+  X(LOAD_ATTR_UNCACHABLE)              \
+  X(LOAD_FAST_BORROW)                  \
+  X(LOAD_FAST_BORROW_LOAD_FAST_BORROW) \
+  X(LOAD_FAST_LOAD_FAST)               \
+  X(LOAD_METHOD_DICT_DESCR)            \
+  X(LOAD_METHOD_DICT_METHOD)           \
+  X(LOAD_METHOD_MODULE)                \
+  X(LOAD_METHOD_NO_DICT_DESCR)         \
+  X(LOAD_METHOD_NO_DICT_METHOD)        \
+  X(LOAD_METHOD_SPLIT_DICT_DESCR)      \
+  X(LOAD_METHOD_SPLIT_DICT_METHOD)     \
+  X(LOAD_METHOD_SUPER)                 \
+  X(LOAD_METHOD_S_MODULE)              \
+  X(LOAD_METHOD_TYPE)                  \
+  X(LOAD_METHOD_TYPE_METHODLIKE)       \
+  X(LOAD_METHOD_UNCACHABLE)            \
+  X(LOAD_METHOD_UNSHADOWED_METHOD)     \
+  X(LOAD_SMALL_INT)                    \
+  X(MAKE_OPNAME)                       \
+  X(NOT_TAKEN)                         \
+  X(POP_ITER)                          \
+  X(ROT_FOUR)                          \
+  X(ROT_N)                             \
+  X(ROT_THREE)                         \
+  X(ROT_TWO)                           \
+  X(SETUP_ASYNC_WITH)                  \
+  X(STORE_ATTR_DESCR)                  \
+  X(STORE_ATTR_DICT)                   \
+  X(STORE_ATTR_SPLIT_DICT)             \
+  X(STORE_ATTR_UNCACHABLE)             \
+  X(STORE_FAST_STORE_FAST)             \
+  X(STORE_FAST_LOAD_FAST)              \
+  X(TO_BOOL)                           \
+  X(UNARY_POSITIVE)                    \
   X(YIELD_FROM)
 
 #else

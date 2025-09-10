@@ -150,6 +150,8 @@ bool isSupportedOpcode(int opcode) {
     case LOAD_FAST:
     case LOAD_FAST_AND_CLEAR:
     case LOAD_FAST_BORROW:
+    case LOAD_FAST_BORROW_LOAD_FAST_BORROW:
+    case LOAD_FAST_LOAD_FAST:
     case LOAD_FAST_CHECK:
     case LOAD_FIELD:
     case LOAD_GLOBAL:
@@ -211,6 +213,8 @@ bool isSupportedOpcode(int opcode) {
     case STORE_ATTR:
     case STORE_DEREF:
     case STORE_FAST:
+    case STORE_FAST_LOAD_FAST:
+    case STORE_FAST_STORE_FAST:
     case STORE_FIELD:
     case STORE_LOCAL:
     case STORE_SLICE:
@@ -439,8 +443,8 @@ static bool should_snapshot(
     // unnecessary metadata in the lowered IR.
     case CONVERT_PRIMITIVE:
     case COPY:
-    case DUP_TOP:
     case DUP_TOP_TWO:
+    case DUP_TOP:
     case END_FOR:
     case EXTENDED_ARG:
     case IS_OP:
@@ -448,9 +452,12 @@ static bool should_snapshot(
     case LOAD_ASSERTION_ERROR:
     case LOAD_CLOSURE:
     case LOAD_CONST:
-    case LOAD_FAST:
     case LOAD_FAST_AND_CLEAR:
+    case LOAD_FAST_BORROW_LOAD_FAST_BORROW:
+    case LOAD_FAST_BORROW:
     case LOAD_FAST_CHECK:
+    case LOAD_FAST_LOAD_FAST:
+    case LOAD_FAST:
     case LOAD_LOCAL:
     case NOP:
     case POP_ITER:
@@ -462,9 +469,11 @@ static bool should_snapshot(
     case PUSH_NULL:
     case REFINE_TYPE:
     case ROT_FOUR:
+    case ROT_N:
     case ROT_THREE:
     case ROT_TWO:
-    case ROT_N:
+    case STORE_FAST_LOAD_FAST:
+    case STORE_FAST_STORE_FAST:
     case STORE_FAST:
     case STORE_LOCAL:
     case SWAP: {
@@ -1039,6 +1048,11 @@ void HIRBuilder::translate(
           emitLoadFast(tc, bc_instr);
           break;
         }
+        case LOAD_FAST_LOAD_FAST:
+        case LOAD_FAST_BORROW_LOAD_FAST_BORROW: {
+          emitLoadFastLoadFast(tc, bc_instr);
+          break;
+        }
         case LOAD_LOCAL: {
           emitLoadLocal(tc, bc_instr);
           break;
@@ -1223,6 +1237,14 @@ void HIRBuilder::translate(
         }
         case STORE_FAST: {
           emitStoreFast(tc, bc_instr);
+          break;
+        }
+        case STORE_FAST_STORE_FAST: {
+          emitStoreFastStoreFast(tc, bc_instr);
+          break;
+        }
+        case STORE_FAST_LOAD_FAST: {
+          emitStoreFastLoadFast(tc, bc_instr);
           break;
         }
         case STORE_LOCAL: {
@@ -2974,6 +2996,25 @@ void HIRBuilder::emitLoadFast(
   }
 }
 
+void HIRBuilder::emitLoadFastLoadFast(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  int var_idx1 = bc_instr.oparg() >> 4;
+  int var_idx2 = bc_instr.oparg() & 0xf;
+  size_t localsplus_size = tc.frame.localsplus.size();
+  JIT_CHECK(
+      var_idx1 < localsplus_size && var_idx2 < localsplus_size,
+      "LOAD_FAST_LOAD_FAST ({}, {}) out of bounds for localsplus array size {}",
+      var_idx1,
+      var_idx2,
+      tc.frame.localsplus.size());
+  Register* var1 = tc.frame.localsplus[var_idx1];
+  tc.frame.stack.push(var1);
+
+  Register* var2 = tc.frame.localsplus[var_idx2];
+  tc.frame.stack.push(var2);
+}
+
 void HIRBuilder::emitLoadLocal(
     TranslationContext& tc,
     const jit::BytecodeInstruction& bc_instr) {
@@ -3803,6 +3844,52 @@ void HIRBuilder::emitStoreFast(
   JIT_DCHECK(dst != nullptr, "no register");
   moveOverwrittenStackRegisters(tc, dst);
   tc.emit<Assign>(dst, src);
+}
+
+void HIRBuilder::emitStoreFastStoreFast(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  int var_idx1 = bc_instr.oparg() >> 4;
+  int var_idx2 = bc_instr.oparg() & 0xf;
+  size_t localsplus_size = tc.frame.localsplus.size();
+  JIT_CHECK(
+      var_idx1 < localsplus_size && var_idx2 < localsplus_size,
+      "STORE_FAST_STORE_FAST ({}, {}) out of bounds for localsplus array size "
+      "{}",
+      var_idx1,
+      var_idx2,
+      tc.frame.localsplus.size());
+  Register* src = tc.frame.stack.pop();
+  Register* dst = tc.frame.localsplus[var_idx1];
+  moveOverwrittenStackRegisters(tc, dst);
+  tc.emit<Assign>(dst, src);
+
+  src = tc.frame.stack.pop();
+  dst = tc.frame.localsplus[var_idx2];
+  moveOverwrittenStackRegisters(tc, dst);
+  tc.emit<Assign>(dst, src);
+}
+
+void HIRBuilder::emitStoreFastLoadFast(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  int var_idx1 = bc_instr.oparg() >> 4;
+  int var_idx2 = bc_instr.oparg() & 0xf;
+  size_t localsplus_size = tc.frame.localsplus.size();
+  JIT_CHECK(
+      var_idx1 < localsplus_size && var_idx2 < localsplus_size,
+      "STORE_FAST_LOAD_FAST ({}, {}) out of bounds for localsplus array size "
+      "{}",
+      var_idx1,
+      var_idx2,
+      tc.frame.localsplus.size());
+  Register* src = tc.frame.stack.pop();
+  Register* dst = tc.frame.localsplus[var_idx1];
+  moveOverwrittenStackRegisters(tc, dst);
+  tc.emit<Assign>(dst, src);
+
+  Register* var = tc.frame.localsplus[var_idx2];
+  tc.frame.stack.push(var);
 }
 
 void HIRBuilder::emitBinarySlice(TranslationContext& tc) {
