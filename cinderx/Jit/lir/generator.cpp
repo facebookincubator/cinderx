@@ -18,6 +18,7 @@
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pyerrors.h"
 #if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_interpolation.h"
 #include "internal/pycore_template.h"
 #endif
 
@@ -3267,6 +3268,19 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             hir_instr.GetOperand(1),
             Imm{0},
             env_->asm_interpreter_frame);
+        break;
+      }
+      case Opcode::kBuildInterpolation: {
+#if PY_VERSION_HEX >= 0x030E0000
+        auto& hir_instr = static_cast<const BuildInterpolation&>(i);
+        bbb.appendCallInstruction(
+            hir_instr.output(),
+            _PyInterpolation_Build,
+            hir_instr.GetOperand(0),
+            hir_instr.GetOperand(1),
+            hir_instr.conversion(),
+            hir_instr.GetOperand(2));
+#endif
         break;
       }
       case Opcode::kBuildTemplate: {

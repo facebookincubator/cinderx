@@ -3869,6 +3869,30 @@ DEFINE_SIMPLE_INSTR(
     HasOutput,
     DeoptBase);
 
+class INSTR_CLASS(
+    BuildInterpolation,
+    (TObject, TObject, TObject),
+    HasOutput,
+    Operands<3>,
+    DeoptBase) {
+ public:
+  BuildInterpolation(
+      Register* dst,
+      Register* value,
+      Register* str,
+      Register* format,
+      int conversion,
+      const FrameState& frame)
+      : InstrT(dst, value, str, format, frame), conversion_(conversion) {}
+
+  int conversion() const {
+    return conversion_;
+  }
+
+ private:
+  int conversion_;
+};
+
 DEFINE_SIMPLE_INSTR(
     BuildTemplate,
     (TObject, TObject),

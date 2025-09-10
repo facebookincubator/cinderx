@@ -64,6 +64,7 @@ bool isSupportedOpcode(int opcode) {
     case BUILD_SET:
     case BUILD_SLICE:
     case BUILD_STRING:
+    case BUILD_INTERPOLATION:
     case BUILD_TEMPLATE:
     case BUILD_TUPLE:
     case CALL:
@@ -1508,6 +1509,10 @@ void HIRBuilder::translate(
           Register* value = tc.frame.stack.pop();
           tc.frame.stack.pop();
           tc.frame.stack.push(value);
+          break;
+        }
+        case BUILD_INTERPOLATION: {
+          emitBuildInterpolation(tc, bc_instr);
           break;
         }
         case BUILD_TEMPLATE: {
@@ -4803,6 +4808,31 @@ void HIRBuilder::emitSend(
   BasicBlock* done_block = getBlockAtOff(bc_instr.getJumpTarget());
   BasicBlock* continue_block = getBlockAtOff(bc_instr.nextInstrOffset());
   tc.emit<CondBranch>(is_done, done_block, continue_block);
+}
+
+void HIRBuilder::emitBuildInterpolation(
+    [[maybe_unused]] TranslationContext& tc,
+    [[maybe_unused]] const jit::BytecodeInstruction& bc_instr) {
+#if PY_VERSION_HEX >= 0x030E0000
+  OperandStack& stack = tc.frame.stack;
+  auto oparg = bc_instr.oparg();
+  int conversion = oparg >> 2;
+
+  Register* format;
+  if (oparg & 1) {
+    format = stack.pop();
+  } else {
+    PyObject* empty = &_Py_STR(empty);
+    format = temps_.AllocateStack();
+    tc.emit<LoadConst>(format, Type::fromObject(empty));
+  }
+
+  Register* str = stack.pop();
+  Register* value = stack.pop();
+  Register* out = temps_.AllocateStack();
+  tc.emit<BuildInterpolation>(out, value, str, format, conversion, tc.frame);
+  stack.push(out);
+#endif
 }
 
 void HIRBuilder::emitBuildTemplate(TranslationContext& tc) {

@@ -55,6 +55,7 @@ bool isPassthrough(const Instr& instr) {
     case Opcode::kBinaryOp:
     case Opcode::kBuildSlice:
     case Opcode::kBuildString:
+    case Opcode::kBuildInterpolation:
     case Opcode::kBuildTemplate:
     case Opcode::kCallCFunc:
     case Opcode::kCallEx:

@@ -966,6 +966,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kBatchDecref:
     case Opcode::kBeginInlinedFunction:
     case Opcode::kBitCast:
+    case Opcode::kBuildInterpolation:
     case Opcode::kBuildSlice:
     case Opcode::kBuildString:
     case Opcode::kBuildTemplate:

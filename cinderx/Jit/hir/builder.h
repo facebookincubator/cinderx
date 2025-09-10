@@ -452,6 +452,10 @@ class HIRBuilder {
 
   void emitTypeAnnotationGuards(TranslationContext& tc);
 
+  void emitBuildInterpolation(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
+
   void emitBuildTemplate(TranslationContext& tc);
 
   BorrowedRef<> constArg(const jit::BytecodeInstruction& bc_instr);

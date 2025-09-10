@@ -742,6 +742,21 @@ static std::string format_immediates(const Instr& instr) {
           upi.lineNo(),
           upi.parent() != nullptr ? "has parent" : "no parent");
     }
+    case Opcode::kBuildInterpolation: {
+      const auto& bi = static_cast<const BuildInterpolation&>(instr);
+      switch (bi.conversion()) {
+        case FVC_NONE:
+          return "None";
+        case FVC_STR:
+          return "Str";
+        case FVC_REPR:
+          return "Repr";
+        case FVC_ASCII:
+          return "ASCII";
+        default:
+          JIT_ABORT("Unknown conversion type: {}", bi.conversion());
+      }
+    }
   }
   JIT_ABORT("Invalid opcode {}", static_cast<int>(instr.opcode()));
 }

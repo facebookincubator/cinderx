@@ -385,6 +385,33 @@ def x():
         self.assertEqual(t.interpolations, ())
         self._assertBytecodeContains(x, "BUILD_TEMPLATE")
 
+    def test_BUILD_INTERPOLATION(self):
+        # Wrap this in an exec() to avoid breaking tests for earlier versions
+        # of Python which don't support the new syntax.
+        locals = {"self": self}
+        exec(
+            """
+from string.templatelib import Interpolation
+
+@cinder_support.fail_if_deopt
+@cinder_support.failUnlessJITCompiled
+def x():
+    return t"The value is {42} {42!r} {42.:.2f}"
+
+
+t = x()
+self.assertEqual(t.strings, ("The value is ", " ", " ", ""))
+match t.interpolations:
+    case (Interpolation(42, '42', None, ''), Interpolation(42, '42', 'r', ''), Interpolation(42.0, '42.', None, '.2f')):
+        pass
+    case _:
+        self.fail(f"interpolations mismatch: {t.interpolations}")
+self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
+""",
+            globals(),
+            locals,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

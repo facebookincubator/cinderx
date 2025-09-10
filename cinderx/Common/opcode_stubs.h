@@ -29,6 +29,7 @@
   X(BINARY_SLICE)                      \
   X(BINARY_SUBSCR_LIST_INT)            \
   X(BINARY_SUBSCR_TUPLE_INT)           \
+  X(BUILD_INTERPOLATION)               \
   X(BUILD_TEMPLATE)                    \
   X(CACHE)                             \
   X(CALL)                              \
@@ -141,6 +142,7 @@ enum {
   X(BINARY_SUBTRACT)                   \
   X(BINARY_TRUE_DIVIDE)                \
   X(BINARY_XOR)                        \
+  X(BUILD_INTERPOLATION)               \
   X(BUILD_TEMPLATE)                    \
   X(CALL_FUNCTION)                     \
   X(CALL_FUNCTION_KW)                  \

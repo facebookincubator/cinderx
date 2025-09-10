@@ -179,6 +179,7 @@ Type outputType(
       return TObject;
     }
 
+    case Opcode::kBuildInterpolation:
     case Opcode::kBuildTemplate:
     case Opcode::kCallIntrinsic:
     case Opcode::kDictSubscr:

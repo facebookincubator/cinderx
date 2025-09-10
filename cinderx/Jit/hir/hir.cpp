@@ -196,6 +196,7 @@ bool Instr::isReplayable() const {
     case Opcode::kBinaryOp:
     case Opcode::kBranch:
     case Opcode::kBuildSlice:
+    case Opcode::kBuildInterpolation:
     case Opcode::kBuildTemplate:
     case Opcode::kCallCFunc:
     case Opcode::kCallEx:
