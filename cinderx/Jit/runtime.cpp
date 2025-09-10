@@ -13,6 +13,16 @@
 
 namespace jit {
 
+Runtime::Runtime() : zero_(Ref<>::create(PyLong_FromLong(0))) {
+#if PY_VERSION_HEX >= 0x030E0000
+  PyObject** common_consts = PyThreadState_GET()->interp->common_consts;
+  for (int i = 0; i < NUM_COMMON_CONSTANTS; i++) {
+    common_constant_types_.emplace_back(
+        hir::Type::fromObject(common_consts[i]));
+  }
+#endif
+}
+
 void Builtins::init() {
   ThreadedCompileSerialize guard;
   if (is_initialized_) {

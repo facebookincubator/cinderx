@@ -15,6 +15,7 @@
 #include "cinderx/Jit/containers.h"
 #include "cinderx/Jit/hir/ssa.h"
 #include "cinderx/Jit/hir/type.h"
+#include "cinderx/Jit/runtime.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
 #include "cinderx/StaticPython/classloader.h"
@@ -149,6 +150,7 @@ bool isSupportedOpcode(int opcode) {
     case LOAD_ATTR:
     case LOAD_ATTR_SUPER:
     case LOAD_CLOSURE:
+    case LOAD_COMMON_CONSTANT:
     case LOAD_CONST:
     case LOAD_DEREF:
     case LOAD_FAST:
@@ -1527,6 +1529,10 @@ void HIRBuilder::translate(
         }
         case FORMAT_SIMPLE: {
           emitFormatSimple(irfunc.cfg, tc);
+          break;
+        }
+        case LOAD_COMMON_CONSTANT: {
+          emitLoadCommonConstant(tc, bc_instr);
           break;
         }
         case CHECK_EG_MATCH:
@@ -4887,6 +4893,15 @@ void HIRBuilder::emitFormatSimple(CFG& cfg, TranslationContext& tc) {
 
   tc.block = done_block;
   stack.push(out);
+}
+
+void HIRBuilder::emitLoadCommonConstant(
+    TranslationContext& tc,
+    const BytecodeInstruction& bc_instr) {
+  Register* out = temps_.AllocateStack();
+  tc.emit<LoadConst>(
+      out, Runtime::get()->typeForCommonConstant(bc_instr.oparg()));
+  tc.frame.stack.push(out);
 }
 
 void HIRBuilder::insertEvalBreakerCheck(

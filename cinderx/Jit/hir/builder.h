@@ -461,6 +461,10 @@ class HIRBuilder {
 
   void emitFormatSimple(CFG& cfg, TranslationContext& tc);
 
+  void emitLoadCommonConstant(
+      TranslationContext& tc,
+      const BytecodeInstruction& bc_instr);
+
   BorrowedRef<> constArg(const jit::BytecodeInstruction& bc_instr);
 
   ExecutionBlock popBlock(CFG& cfg, TranslationContext& tc);

@@ -69,6 +69,7 @@
   X(JUMP_BACKWARD)                     \
   X(JUMP_BACKWARD_NO_INTERRUPT)        \
   X(KW_NAMES)                          \
+  X(LOAD_COMMON_CONSTANT)              \
   X(LOAD_FAST_AND_CLEAR)               \
   X(LOAD_FAST_CHECK)                   \
   X(LOAD_FAST_BORROW)                  \
@@ -183,6 +184,7 @@ enum {
   X(LOAD_ATTR_S_MODULE)                \
   X(LOAD_ATTR_TYPE)                    \
   X(LOAD_ATTR_UNCACHABLE)              \
+  X(LOAD_COMMON_CONSTANT)              \
   X(LOAD_FAST_BORROW)                  \
   X(LOAD_FAST_BORROW_LOAD_FAST_BORROW) \
   X(LOAD_FAST_LOAD_FAST)               \

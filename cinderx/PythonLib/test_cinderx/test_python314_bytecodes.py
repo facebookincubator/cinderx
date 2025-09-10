@@ -431,6 +431,15 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
             locals,
         )
 
+    def test_LOAD_COMMON_CONSTANT(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x(a):
+            assert a
+
+        x(True)
+        self._assertBytecodeContains(x, "LOAD_COMMON_CONSTANT")
+
 
 if __name__ == "__main__":
     unittest.main()

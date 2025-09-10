@@ -102,9 +102,8 @@ class Builtins {
 // Runtime owns all metadata created by the JIT.
 class Runtime : public IRuntime {
  public:
-  Runtime() {
-    zero_ = Ref<>::create(PyLong_FromLong(0));
-  }
+  Runtime();
+
   // Return the singleton Runtime, creating it first if necessary.
   static Runtime* get() {
     return static_cast<Runtime*>(cinderx::getModuleState()->runtime());
@@ -278,7 +277,13 @@ class Runtime : public IRuntime {
   void watchPendingTypes();
   void fixupFunctionEntryCachePostMultiThreadedCompile();
 
- private:
+  const hir::Type& typeForCommonConstant([[maybe_unused]] int i) const {
+#if PY_VERSION_HEX >= 0x030E0000
+    return common_constant_types_.at(i);
+#endif
+    JIT_ABORT("Common constants are a feature of 3.14+");
+  }
+
   // Allocate all CodeRuntimes together so they can be mlocked() without
   // including any other data that happened to be on the same page.
   SlabArena<CodeRuntime> code_runtimes_;
@@ -311,6 +316,8 @@ class Runtime : public IRuntime {
 
   Ref<> zero_;
   std::unordered_set<BorrowedRef<PyTypeObject>> pending_watches_;
+
+  std::vector<hir::Type> common_constant_types_;
 };
 
 } // namespace jit
