@@ -967,7 +967,8 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
             # pyre-ignore[16]: `Instruction` has no attribute `loc`.
             and next_instr.loc.lineno == instr.loc.lineno
         ):
-            instr.set_to_nop()
+            instr.opname = "POP_TOP"
+            instr.oparg = instr.ioparg = 0
 
     def optimize_contains_is_op(
         self: FlowGraphOptimizer,
