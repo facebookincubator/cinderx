@@ -488,6 +488,16 @@ class Block:
     ) -> None:
         self.insts.append(Instruction(opname, oparg, ioparg, loc, target, exc_handler))
 
+    def has_no_lineno(self) -> bool:
+        for inst in self.insts:
+            if inst.lineno >= 0:
+                return False
+        return True
+
+    @property
+    def exits(self) -> bool:
+        return len(self.insts) and self.insts[-1].opname in SCOPE_EXIT_OPCODES
+
     def copy(self) -> Block:
         # Cannot copy block if it has fallthrough, since a block can have only one
         # fallthrough predecessor
@@ -2360,11 +2370,8 @@ class PyFlowGraph314(PyFlowGraph312):
         return False
 
     def is_exit_without_line_number(self, target: Block) -> bool:
-        if target.is_exit or self.has_eval_break(target):
-            for inst in target.insts:
-                if inst.lineno >= 0:
-                    return False
-            return True
+        if target.exits or self.has_eval_break(target):
+            return target.has_no_lineno()
 
         return False
 
@@ -2441,7 +2448,7 @@ class PyFlowGraph314(PyFlowGraph312):
                     changes = True
 
     def should_inline_block(self, block: Block) -> bool:
-        if super().should_inline_block(block):
+        if block.exits and len(block.insts) <= MAX_COPY_SIZE:
             return True
 
         if block.has_fallthrough:
