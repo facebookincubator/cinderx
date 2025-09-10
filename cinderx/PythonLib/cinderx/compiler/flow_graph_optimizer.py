@@ -57,7 +57,7 @@ BINARY_OPS: dict[int, Callable[[object, object], object]] = {
     find_op_idx("NB_MULTIPLY"): lambda x, y: safe_multiply(x, y, PyLimits),
     find_op_idx("NB_TRUE_DIVIDE"): lambda left, right: left / right,
     find_op_idx("NB_FLOOR_DIVIDE"): lambda left, right: left // right,
-    find_op_idx("NB_MODULO"): lambda x, y: safe_mod(x, y, PyLimits),
+    find_op_idx("NB_REMAINDER"): lambda x, y: safe_mod(x, y, PyLimits),
     find_op_idx("NB_ADD"): lambda left, right: left + right,
     find_op_idx("NB_SUBTRACT"): lambda left, right: left - right,
     find_op_idx("NB_SUBSCR"): lambda left, right: left[right],
