@@ -509,6 +509,28 @@ class AstOptimizer314(AstOptimizer312):
 
         return self.update_node(node, left=lhs, right=rhs)
 
+    def visitMatchValue(self, node: ast.MatchValue) -> ast.MatchValue:
+        return self.update_node(node, value=self.fold_const_match_patterns(node.value))
+
+    def visitMatchMapping(self, node: ast.MatchMapping) -> ast.MatchMapping:
+        keys = [self.fold_const_match_patterns(key) for key in node.keys]
+        patterns = self.walk_list(node.patterns)
+        return self.update_node(node, keys=keys, patterns=patterns)
+
+    def fold_const_match_patterns(self, node: ast.expr) -> ast.expr:
+        if isinstance(node, ast.UnaryOp):
+            if isinstance(node.op, ast.USub) and isinstance(node.operand, ast.Constant):
+                return super().visitUnaryOp(node)
+        elif isinstance(node, ast.BinOp) and isinstance(node.op, (ast.Add, ast.Sub)):
+            if isinstance(node.right, ast.Constant):
+                node = self.update_node(
+                    node, left=self.fold_const_match_patterns(node.left)
+                )
+                if isinstance(node.left, ast.Constant):
+                    return super().visitBinOp(node)
+
+        return node
+
     def visitTuple(self, node: ast.Tuple) -> ast.expr:
         elts = self.walk_list(node.elts)
 
