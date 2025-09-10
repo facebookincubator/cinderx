@@ -6425,6 +6425,49 @@ class CodeGenerator314(CodeGenerator312):
         self.set_pos(comp)
         self.emit("END_ASYNC_FOR", send)
 
+    def visitBreak(self, node: ast.Break) -> None:
+        self.emit("NOP")  # for line number
+        loop = self.unwind_setup_entries(preserve_tos=False, stop_on_loop=True)
+        if loop is None:
+            raise self.syntax_error("'break' outside loop", node)
+        self.unwind_setup_entry(loop, preserve_tos=False)
+
+        jumpblock = loop.exit
+        if jumpblock is None:
+            loop.exit = jumpblock = self.newBlock("break")
+
+        self.emitJump(jumpblock)
+        self.nextBlock()
+
+    def visitFor(self, node: ast.For) -> None:
+        start = self.newBlock("for_start")
+        body = self.newBlock("for_body")
+        cleanup = self.newBlock("for_cleanup")
+
+        setup = Entry(FOR_LOOP, start, None, None)
+        self.push_fblock(setup)
+        self.visit(node.iter)
+        self.set_pos(node.iter)
+        self.emit("GET_ITER")
+
+        self.nextBlock(start)
+        self.emit("FOR_ITER", cleanup)
+        if IS_3_12_8:
+            self.graph.emit_with_loc("NOP", 0, node.target)
+        self.nextBlock(body)
+        self.visit(node.target)
+        self.visitStatements(node.body)
+        self.set_no_pos()
+        self.emitJump(start)
+        self.nextBlock(cleanup)
+        self.emit_end_for()
+        self.pop_loop()
+
+        if node.orelse:
+            self.visitStatements(node.orelse)
+        if setup.exit is not None:
+            self.nextBlock(setup.exit)
+
     def visitFormattedValue(self, node: ast.FormattedValue) -> None:
         self.visit(node.value)
 
