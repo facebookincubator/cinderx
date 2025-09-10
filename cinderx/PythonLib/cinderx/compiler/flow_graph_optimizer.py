@@ -583,10 +583,11 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
             if instr.ioparg == 1:
                 instr.set_to_nop()
                 next_instr.set_to_nop()
+                return
             elif instr.ioparg == 2 or instr.ioparg == 3:
                 instr.set_to_nop()
                 next_instr.opname = "SWAP"
-            return
+                return
         if instr_index >= instr.ioparg:
             self.fold_tuple_on_constants(instr_index, instr, block)
 
