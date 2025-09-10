@@ -97,6 +97,7 @@ bool isSupportedOpcode(int opcode) {
     case END_SEND:
     case EXTENDED_ARG:
     case FAST_LEN:
+    case FORMAT_SIMPLE:
     case FORMAT_VALUE:
     case FORMAT_WITH_SPEC:
     case FOR_ITER:
@@ -1522,6 +1523,10 @@ void HIRBuilder::translate(
         }
         case BUILD_TEMPLATE: {
           emitBuildTemplate(tc);
+          break;
+        }
+        case FORMAT_SIMPLE: {
+          emitFormatSimple(irfunc.cfg, tc);
           break;
         }
         case CHECK_EG_MATCH:
@@ -4855,6 +4860,32 @@ void HIRBuilder::emitBuildTemplate(TranslationContext& tc) {
   Register* strings = stack.pop();
   Register* out = temps_.AllocateStack();
   tc.emit<BuildTemplate>(strings, interpolations, out, tc.frame);
+  stack.push(out);
+}
+
+void HIRBuilder::emitFormatSimple(CFG& cfg, TranslationContext& tc) {
+  OperandStack& stack = tc.frame.stack;
+  Register* value = stack.pop();
+
+  BasicBlock* done_block = cfg.AllocateBlock();
+  BasicBlock* do_fmt_block = cfg.AllocateBlock();
+  BasicBlock* pass_through_block = cfg.AllocateBlock();
+
+  tc.emit<CondBranchCheckType>(
+      value, TUnicodeExact, pass_through_block, do_fmt_block);
+  Register* out = temps_.AllocateStack();
+
+  tc.block = do_fmt_block;
+  Register* fmt_spec = temps_.AllocateStack();
+  tc.emit<LoadConst>(fmt_spec, TNullptr);
+  tc.emit<FormatWithSpec>(out, value, fmt_spec, tc.frame);
+  tc.emit<Branch>(done_block);
+
+  tc.block = pass_through_block;
+  tc.emit<RefineType>(out, TUnicodeExact, value);
+  tc.emit<Branch>(done_block);
+
+  tc.block = done_block;
   stack.push(out);
 }
 

@@ -3790,7 +3790,7 @@ class INSTR_CLASS(
 // with spec.
 DEFINE_SIMPLE_INSTR(
     FormatWithSpec,
-    (TObject, TObject),
+    (TObject, TOptObject),
     HasOutput,
     Operands<2>,
     DeoptBase);

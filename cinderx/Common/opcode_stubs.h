@@ -47,6 +47,7 @@
   X(END_FOR)                           \
   X(END_SEND)                          \
   X(FORMAT_WITH_SPEC)                  \
+  X(FORMAT_SIMPLE)                     \
   X(INSTRUMENTED_CALL)                 \
   X(INSTRUMENTED_CALL_FUNCTION_EX)     \
   X(INSTRUMENTED_END_FOR)              \
@@ -152,6 +153,7 @@ enum {
   X(DUP_TOP)                           \
   X(DUP_TOP_TWO)                       \
   X(FORMAT_WITH_SPEC)                  \
+  X(FORMAT_SIMPLE)                     \
   X(GEN_START)                         \
   X(INPLACE_ADD)                       \
   X(INPLACE_AND)                       \

@@ -459,6 +459,8 @@ class HIRBuilder {
 
   void emitBuildTemplate(TranslationContext& tc);
 
+  void emitFormatSimple(CFG& cfg, TranslationContext& tc);
+
   BorrowedRef<> constArg(const jit::BytecodeInstruction& bc_instr);
 
   ExecutionBlock popBlock(CFG& cfg, TranslationContext& tc);
