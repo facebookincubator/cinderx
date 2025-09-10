@@ -364,6 +364,27 @@ def x():
         self.assertEqual(x(), 0)
         self._assertBytecodeContains(x, "POP_ITER")
 
+    def test_BUILD_TEMPLATE(self):
+        # Wrap this in an exec() to avoid breaking tests for earlier versions
+        # of Python which don't support the new syntax.
+        locals = {}
+        exec(
+            """
+@cinder_support.fail_if_deopt
+@cinder_support.failUnlessJITCompiled
+def x():
+    return t"foo"
+""",
+            globals(),
+            locals,
+        )
+        x = locals["x"]
+
+        t = x()
+        self.assertEqual(t.strings, ("foo",))
+        self.assertEqual(t.interpolations, ())
+        self._assertBytecodeContains(x, "BUILD_TEMPLATE")
+
 
 if __name__ == "__main__":
     unittest.main()

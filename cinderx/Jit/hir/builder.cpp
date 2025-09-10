@@ -64,6 +64,7 @@ bool isSupportedOpcode(int opcode) {
     case BUILD_SET:
     case BUILD_SLICE:
     case BUILD_STRING:
+    case BUILD_TEMPLATE:
     case BUILD_TUPLE:
     case CALL:
     case CALL_FUNCTION:
@@ -1507,6 +1508,10 @@ void HIRBuilder::translate(
           Register* value = tc.frame.stack.pop();
           tc.frame.stack.pop();
           tc.frame.stack.push(value);
+          break;
+        }
+        case BUILD_TEMPLATE: {
+          emitBuildTemplate(tc);
           break;
         }
         case CHECK_EG_MATCH:
@@ -4798,6 +4803,15 @@ void HIRBuilder::emitSend(
   BasicBlock* done_block = getBlockAtOff(bc_instr.getJumpTarget());
   BasicBlock* continue_block = getBlockAtOff(bc_instr.nextInstrOffset());
   tc.emit<CondBranch>(is_done, done_block, continue_block);
+}
+
+void HIRBuilder::emitBuildTemplate(TranslationContext& tc) {
+  OperandStack& stack = tc.frame.stack;
+  Register* interpolations = stack.pop();
+  Register* strings = stack.pop();
+  Register* out = temps_.AllocateStack();
+  tc.emit<BuildTemplate>(strings, interpolations, out, tc.frame);
+  stack.push(out);
 }
 
 void HIRBuilder::insertEvalBreakerCheck(

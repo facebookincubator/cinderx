@@ -33,6 +33,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kBitCast:
     case Opcode::kBuildSlice:
     case Opcode::kBuildString:
+    case Opcode::kBuildTemplate:
     case Opcode::kCast:
     case Opcode::kDeopt:
     case Opcode::kDeoptPatchpoint:
@@ -356,6 +357,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kBranch:
     case Opcode::kBuildSlice:
     case Opcode::kBuildString:
+    case Opcode::kBuildTemplate:
     case Opcode::kCast:
     case Opcode::kCondBranch:
     case Opcode::kCondBranchCheckType:

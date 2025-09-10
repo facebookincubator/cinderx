@@ -3869,6 +3869,13 @@ DEFINE_SIMPLE_INSTR(
     HasOutput,
     DeoptBase);
 
+DEFINE_SIMPLE_INSTR(
+    BuildTemplate,
+    (TObject, TObject),
+    Operands<2>,
+    HasOutput,
+    DeoptBase);
+
 class CFG;
 
 class BasicBlock {

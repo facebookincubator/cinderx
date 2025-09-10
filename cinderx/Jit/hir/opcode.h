@@ -17,6 +17,7 @@ namespace jit::hir {
   V(Branch)                            \
   V(BuildSlice)                        \
   V(BuildString)                       \
+  V(BuildTemplate)                     \
   V(CallCFunc)                         \
   V(CallEx)                            \
   V(CallIntrinsic)                     \

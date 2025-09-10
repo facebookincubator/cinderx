@@ -216,6 +216,7 @@ static std::string format_immediates(const Instr& instr) {
     case Opcode::kBatchDecref:
     case Opcode::kBitCast:
     case Opcode::kBuildString:
+    case Opcode::kBuildTemplate:
     case Opcode::kCheckErrOccurred:
     case Opcode::kCheckExc:
     case Opcode::kCheckNeg:

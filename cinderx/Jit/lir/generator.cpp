@@ -17,6 +17,9 @@
 #include "internal/pycore_import.h"
 #include "internal/pycore_interp.h"
 #include "internal/pycore_pyerrors.h"
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_template.h"
+#endif
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/py-portability.h"
@@ -3264,6 +3267,18 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             hir_instr.GetOperand(1),
             Imm{0},
             env_->asm_interpreter_frame);
+        break;
+      }
+      case Opcode::kBuildTemplate: {
+#if PY_VERSION_HEX >= 0x030E0000
+        auto& hir_instr = static_cast<const BuildTemplate&>(i);
+        bbb.appendInstr(
+            hir_instr.output(),
+            Instruction::kCall,
+            Imm{reinterpret_cast<uint64_t>(_PyTemplate_Build)},
+            hir_instr.GetOperand(0),
+            hir_instr.GetOperand(1));
+#endif
         break;
       }
     }
