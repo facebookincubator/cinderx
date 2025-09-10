@@ -1024,7 +1024,7 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
 
         try:
             res = op(lhs, rhs)
-        except (ArithmeticError, TypeError):
+        except (ArithmeticError, TypeError, ValueError, IndexError):
             return
 
         consts[0].set_to_nop_no_loc()
@@ -1044,7 +1044,7 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
 
         try:
             res = op(consts[0].oparg)
-        except (ArithmeticError, TypeError):
+        except (ArithmeticError, TypeError, ValueError, IndexError):
             return
 
         consts[0].set_to_nop_no_loc()
