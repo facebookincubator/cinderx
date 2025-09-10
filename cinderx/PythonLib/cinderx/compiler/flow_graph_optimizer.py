@@ -8,7 +8,7 @@ import operator
 
 from typing import cast
 
-from .opcodes import find_op_idx
+from .opcodes import find_op_idx, INTRINSIC_1
 from .optimizer import safe_lshift, safe_mod, safe_multiply, safe_power
 
 TYPE_CHECKING = False
@@ -1082,6 +1082,45 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         assert isinstance(self, FlowGraphOptimizer314)
         self.optimize_one_unary(instr_index, instr, block, operator.not_)
 
+    def fold_constrant_intrinsic_list_to_tuple(
+        self, block: Block, instr_index: int
+    ) -> None:
+        consts_found = 0
+        expect_append = True
+        for i in range(instr_index - 1, -1, -1):
+            instr = block.insts[i]
+            opcode = instr.opname
+            oparg = instr.oparg
+            if opcode == "NOP":
+                continue
+
+            if opcode == "BUILD_LIST" and oparg == 0:
+                if not expect_append:
+                    # Not a start sequence
+                    return
+
+                # Sequence start, we are done.
+                consts = []
+                if opcode == "BUILD_LIST" and oparg == 0:
+                    for newpos in range(instr_index - 1, i - 1, -1):
+                        instr = block.insts[newpos]
+                        if instr.opname in LOAD_CONST_INSTRS:
+                            const = instr.oparg
+                            consts.append(const)
+                        instr.set_to_nop_no_loc()
+
+                consts.reverse()
+                self.make_load_const(block.insts[instr_index], tuple(consts))
+                return
+
+            if expect_append:
+                if opcode != "LIST_APPEND" or oparg != 1:
+                    return
+            elif opcode not in LOAD_CONST_INSTRS:
+                return
+            consts_found += 1
+            expect_append = not expect_append
+
     def optimize_call_instrinsic_1(
         self: FlowGraphOptimizer,
         instr_index: int,
@@ -1091,9 +1130,14 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         block: Block,
     ) -> int | None:
         assert isinstance(self, FlowGraphOptimizer314)
-        if instr.oparg != "INTRINSIC_UNARY_POSITIVE":
-            return
-        self.optimize_one_unary(instr_index, instr, block, operator.pos)
+        intrins = INTRINSIC_1[instr.ioparg]
+        if intrins == "INTRINSIC_LIST_TO_TUPLE":
+            if next_instr is not None and next_instr.opname == "GET_ITER":
+                instr.set_to_nop()
+            else:
+                self.fold_constrant_intrinsic_list_to_tuple(block, instr_index)
+        if intrins == "INTRINSIC_UNARY_POSITIVE":
+            self.optimize_one_unary(instr_index, instr, block, operator.pos)
 
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
@@ -1111,7 +1155,7 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         "UNARY_INVERT": optimize_unary_invert,
         "UNARY_NEGATIVE": optimize_unary_negative,
         "UNARY_NOT": optimize_unary_not,
-        "CALL_INSTRINSIC_1": optimize_call_instrinsic_1,
+        "CALL_INTRINSIC_1": optimize_call_instrinsic_1,
     }
     del handlers["PUSH_NULL"]
     del handlers["LOAD_CONST"]
