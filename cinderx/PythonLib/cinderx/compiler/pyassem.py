@@ -2599,7 +2599,7 @@ class PyFlowGraph314(PyFlowGraph312):
         """Add a block to the worklist for processing."""
         assert (
             target.startdepth >= 0 and target.startdepth == start_depth
-        ), f"{target.startdepth} {start_depth}"
+        ), f"{target.startdepth} {start_depth} {self.firstline}"
         if target not in visited:
             visited.add(target)
             stack.append(target)
@@ -2631,7 +2631,6 @@ class PyFlowGraph314(PyFlowGraph312):
             refs.clear()
             for _ in range(block.startdepth):
                 refs.append(Ref(DUMMY_INSTR, NOT_LOCAL))
-
             for i, instr in enumerate(block.insts):
                 opcode = instr.opname
                 ioparg = instr.ioparg
@@ -2708,7 +2707,7 @@ class PyFlowGraph314(PyFlowGraph312):
                 ):
                     delta = self.opcode.stack_effect_raw(opcode, oparg, False)
                     assert delta >= 0
-                    for i in range(delta):
+                    for _ in range(delta):
                         refs.append(Ref(i, NOT_LOCAL))
 
                 # Opcodes that consume some inputs and push no new values
@@ -2753,9 +2752,8 @@ class PyFlowGraph314(PyFlowGraph312):
                         refs.pop()  # Pop super type
                         refs.pop()  # Pop super object
                     refs.append(Ref(i, NOT_LOCAL))
-                    if isinstance(oparg, tuple) or (
-                        isinstance(oparg, int) and oparg & 1
-                    ):  # A method call; conservatively assume self is pushed back
+                    if ioparg & 1:
+                        # A method call; conservatively assume self is pushed back
                         refs.append(Ref(self_ref.instr, self_ref.local))
 
                 elif opcode in ("LOAD_SPECIAL", "PUSH_EXC_INFO"):
