@@ -536,6 +536,9 @@ class BaseSymbolVisitor(ASTVisitor):
         ):
             scope.nested = True
 
+        if isinstance(parent, ClassScope):
+            scope.is_method = True
+
         parent.comp_iter_expr += 1
         self.visit(node.generators[0].iter, parent)
         parent.comp_iter_expr -= 1
