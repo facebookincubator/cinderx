@@ -5867,7 +5867,7 @@ class CodeGenerator312(CodeGenerator):
             else:
                 pattern = kwd_patterns[i - nargs]
             if self._wildcard_check(pattern):
-                self.emit("POP_TOP")
+                self.graph.emit_with_loc("POP_TOP", 0, node)
                 continue
 
             self._visit_subpattern(pattern, pc)
