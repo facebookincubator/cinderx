@@ -49,7 +49,9 @@ def str_of_block_instr(
     instr: Instruction, pc: int = 0, stack_effect: bool = False
 ) -> str:
     delta = str_of_stack_effect(instr) if stack_effect else ""
-    return f"{delta:>6} | {pc:3} {str_of_instr(instr)}"
+    eh = f" EH: {instr.exc_handler.bid}" if instr.exc_handler is not None else ""
+
+    return f"{delta:>6} | {pc:3} {str_of_instr(instr)}{eh}"
 
 
 def dump_block(

@@ -2973,6 +2973,7 @@ class PyFlowGraph314(PyFlowGraph312):
 
         self.remove_unreachable_basic_blocks()
         self.propagate_line_numbers()
+
         const_optimizer = FlowGraphConstOptimizer314(self)
         for block in self.ordered_blocks:
             const_optimizer.optimize_basic_block(block)

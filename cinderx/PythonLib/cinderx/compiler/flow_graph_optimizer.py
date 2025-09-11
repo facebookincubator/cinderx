@@ -688,7 +688,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
                 break
 
         if not more:
-            return
+            return None
 
         # Create an array with elements {0, 1, 2, ..., depth - 1}:
         stack = [i for i in range(depth)]
@@ -709,7 +709,7 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
         ## though, we can efficiently *shuffle* it! For this reason, we will be
         ## replacing instructions starting from the *end* of the run. Since the
         ## solution is optimal, we don't need to worry about running out of space:
-        current = cnt - 1
+        current = cnt - instr_index - 1
         VISITED = -1
         for i in range(depth):
             if stack[i] == VISITED or stack[i] == i:
@@ -726,8 +726,8 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
                 # item with itself is pointless:
                 if j:
                     # SWAPs are 1-indexed:
-                    instructions[current].opname = "SWAP"
-                    instructions[current].ioparg = j + 1
+                    instructions[current + instr_index].opname = "SWAP"
+                    instructions[current + instr_index].ioparg = j + 1
                     current -= 1
 
                 if stack[j] == VISITED:
@@ -739,11 +739,11 @@ class FlowGraphOptimizer312(FlowGraphOptimizer):
                 stack[j] = VISITED
                 j = next_j
 
-        while instr_index <= current:
-            instructions[current].set_to_nop()
+        while 0 <= current:
+            instructions[current + instr_index].set_to_nop()
             current -= 1
 
-        return cnt - 1
+        return cnt
 
     def jump_thread(
         self, block: Block, instr: Instruction, target: Instruction, opname: str
@@ -778,7 +778,7 @@ def is_small_int(const: object) -> bool:
     return type(const) is int and const >= 0 and const < 256
 
 
-class FlowGraphOptimizer314(FlowGraphOptimizer312):
+class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
     def opt_jump_if(
         self: FlowGraphOptimizer,
         instr_index: int,
@@ -1149,6 +1149,17 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         if intrins == "INTRINSIC_UNARY_POSITIVE":
             self.optimize_one_unary(instr_index, instr, block, operator.pos)
 
+    def optimize_swap(
+        self: FlowGraphOptimizer,
+        instr_index: int,
+        instr: Instruction,
+        next_instr: Instruction | None,
+        target: Instruction | None,
+        block: Block,
+    ) -> int | None:
+        if instr.oparg == 1:
+            instr.set_to_nop()
+
     handlers: dict[str, Handler] = {
         **FlowGraphOptimizer312.handlers,
         "JUMP_IF_FALSE": opt_jump_if,
@@ -1166,12 +1177,27 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         "UNARY_NEGATIVE": optimize_unary_negative,
         "UNARY_NOT": optimize_unary_not,
         "CALL_INTRINSIC_1": optimize_call_instrinsic_1,
+        "SWAP": optimize_swap,
     }
     del handlers["PUSH_NULL"]
     del handlers["LOAD_CONST"]
 
 
-class FlowGraphConstOptimizer314(FlowGraphOptimizer314):
+class FlowGraphOptimizer314(BaseFlowGraphOptimizer314):
+    def optimize_basic_block(self, block: Block) -> None:
+        super().optimize_basic_block(block)
+        i = 0
+        while i < len(block.insts):
+            inst = block.insts[i]
+            if inst.opname == "SWAP":
+                new_i = self.swaptimize(i, block)
+                self.apply_static_swaps(new_i or i, block)
+                if new_i is not None:
+                    i = new_i
+            i += 1
+
+
+class FlowGraphConstOptimizer314(BaseFlowGraphOptimizer314):
     def opt_load_const(
         self: FlowGraphOptimizer,
         instr_index: int,
