@@ -1080,6 +1080,15 @@ class FlowGraphOptimizer314(FlowGraphOptimizer312):
         target: Instruction | None,
         block: Block,
     ) -> int | None:
+        if next_instr is not None and next_instr.opname == "TO_BOOL":
+            instr.set_to_nop()
+            next_instr.opname = "UNARY_NOT"
+            return
+        if next_instr is not None and next_instr.opname == "UNARY_NOT":
+            instr.set_to_nop()
+            next_instr.set_to_nop()
+            return
+
         assert isinstance(self, FlowGraphOptimizer314)
         self.optimize_one_unary(instr_index, instr, block, operator.not_)
 
