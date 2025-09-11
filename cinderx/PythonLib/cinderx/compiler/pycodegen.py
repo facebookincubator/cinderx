@@ -6248,6 +6248,23 @@ class CodeGenerator314(CodeGenerator312):
         loc = self.compute_start_location_to_match_attr(node, node)
         self.graph.emit_with_loc("NOP", 0, loc)
 
+    def visitJoinedStr(self, node: ast.JoinedStr) -> None:
+        if len(node.values) > STACK_USE_GUIDELINE:
+            self.emit("LOAD_CONST", "")
+            self.emit("LOAD_ATTR", ("join", 1))
+            self.emit("BUILD_LIST")
+            for value in node.values:
+                self.visit(value)
+                self.emit("LIST_APPEND", 1)
+            self.emit("CALL", 1)
+        else:
+            for value in node.values:
+                self.visit(value)
+            if len(node.values) > 1:
+                self.emit("BUILD_STRING", len(node.values))
+            elif len(node.values) == 0:
+                self.emit("LOAD_CONST", "")
+
     def visitAsyncFor(self, node: ast.AsyncFor) -> None:
         start = self.newBlock("async_for_try")
         except_ = self.newBlock("except")
