@@ -10,6 +10,7 @@
 #include "internal/pycore_runtime.h"
 #endif
 
+#include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Interpreter/cinder_opcode.h"
 #include "cinderx/Jit/containers.h"
@@ -214,6 +215,7 @@ bool isSupportedOpcode(int opcode) {
     case SEQUENCE_GET:
     case SEQUENCE_SET:
     case SET_ADD:
+    case SET_FUNCTION_ATTRIBUTE:
     case SET_UPDATE:
     case SETUP_ASYNC_WITH:
     case SETUP_FINALLY:
@@ -1543,6 +1545,10 @@ void HIRBuilder::translate(
         }
         case LOAD_COMMON_CONSTANT: {
           emitLoadCommonConstant(tc, bc_instr);
+          break;
+        }
+        case SET_FUNCTION_ATTRIBUTE: {
+          emitSetFunctionAttribute(tc, bc_instr);
           break;
         }
         case CHECK_EG_MATCH:
@@ -3617,19 +3623,19 @@ void HIRBuilder::emitMakeFunction(
   // make a function
   tc.emit<MakeFunction>(func, codeobj, qualname, tc.frame);
 
-  if (oparg & 0x08) {
+  if (oparg & MAKE_FUNCTION_CLOSURE) {
     Register* closure = tc.frame.stack.pop();
     tc.emit<SetFunctionAttr>(closure, func, FunctionAttr::kClosure);
   }
-  if (oparg & 0x04) {
+  if (oparg & MAKE_FUNCTION_ANNOTATIONS) {
     Register* annotations = tc.frame.stack.pop();
     tc.emit<SetFunctionAttr>(annotations, func, FunctionAttr::kAnnotations);
   }
-  if (oparg & 0x02) {
+  if (oparg & MAKE_FUNCTION_KWDEFAULTS) {
     Register* kwdefaults = tc.frame.stack.pop();
     tc.emit<SetFunctionAttr>(kwdefaults, func, FunctionAttr::kKwDefaults);
   }
-  if (oparg & 0x01) {
+  if (oparg & MAKE_FUNCTION_DEFAULTS) {
     Register* defaults = tc.frame.stack.pop();
     tc.emit<SetFunctionAttr>(defaults, func, FunctionAttr::kDefaults);
   }
@@ -4935,6 +4941,42 @@ void HIRBuilder::emitLoadSpecial(
   tc.emit<GetSecondOutput>(null_or_self, TOptObject, method);
   stack.push(method);
   stack.push(null_or_self);
+}
+
+void HIRBuilder::emitSetFunctionAttribute(
+    TranslationContext& tc,
+    const BytecodeInstruction& bc_instr) {
+  OperandStack& stack = tc.frame.stack;
+  Register* func = stack.pop();
+  Register* value = stack.pop();
+
+  // Map the bytecode oparg to FunctionAttr enum
+  FunctionAttr attr;
+  switch (bc_instr.oparg()) {
+    case MAKE_FUNCTION_DEFAULTS:
+      attr = FunctionAttr::kDefaults;
+      break;
+    case MAKE_FUNCTION_KWDEFAULTS:
+      attr = FunctionAttr::kKwDefaults;
+      break;
+    case MAKE_FUNCTION_ANNOTATIONS:
+      attr = FunctionAttr::kAnnotations;
+      break;
+    case MAKE_FUNCTION_CLOSURE:
+      attr = FunctionAttr::kClosure;
+      break;
+#if PY_VERSION_HEX >= 0x030E0000
+    case MAKE_FUNCTION_ANNOTATE:
+      attr = FunctionAttr::kAnnotate;
+      break;
+#endif
+    default:
+      JIT_ABORT(
+          "Unsupported SET_FUNCTION_ATTRIBUTE oparg: {}", bc_instr.oparg());
+  }
+
+  tc.emit<SetFunctionAttr>(value, func, attr);
+  stack.push(func);
 }
 
 void HIRBuilder::insertEvalBreakerCheck(

@@ -985,6 +985,7 @@ enum class FunctionAttr {
   kAnnotations,
   kKwDefaults,
   kDefaults,
+  kAnnotate,
 };
 
 const char* functionFieldName(FunctionAttr field);
@@ -1016,6 +1017,12 @@ class INSTR_CLASS(SetFunctionAttr, (TObject, TFunc), Operands<2>) {
         return offsetof(PyFunctionObject, func_kwdefaults);
       case FunctionAttr::kDefaults:
         return offsetof(PyFunctionObject, func_defaults);
+      case FunctionAttr::kAnnotate:
+#if PY_VERSION_HEX >= 0x030E0000
+        return offsetof(PyFunctionObject, func_annotate);
+#else
+        JIT_ABORT("FunctionAttr::kAnnotate not supported before 3.14");
+#endif
     }
     JIT_ABORT("Invalid field {}", static_cast<int>(field_));
   }

@@ -451,6 +451,10 @@ class HIRBuilder {
 
   void emitSend(TranslationContext& tc, const BytecodeInstruction& bc_instr);
 
+  void emitSetFunctionAttribute(
+      TranslationContext& tc,
+      const BytecodeInstruction& bc_instr);
+
   void emitTypeAnnotationGuards(TranslationContext& tc);
 
   void emitBuildInterpolation(

@@ -93,6 +93,7 @@
   X(RETURN_CONST)                      \
   X(RETURN_GENERATOR)                  \
   X(SEND)                              \
+  X(SET_FUNCTION_ATTRIBUTE)            \
   X(STORE_FAST_STORE_FAST)             \
   X(STORE_FAST_LOAD_FAST)              \
   X(STORE_SLICE)                       \
@@ -217,6 +218,7 @@ enum {
   X(STORE_ATTR_DESCR)                  \
   X(STORE_ATTR_DICT)                   \
   X(STORE_ATTR_SPLIT_DICT)             \
+  X(SET_FUNCTION_ATTRIBUTE)            \
   X(STORE_ATTR_UNCACHABLE)             \
   X(STORE_FAST_STORE_FAST)             \
   X(STORE_FAST_LOAD_FAST)              \

@@ -179,3 +179,12 @@ inline PyCodeObject* frameCode(PyFrameObject* frame) {
 #define _PyObject_Call(tstate, callable, args, kwargs) \
   PyObject_Call(callable, args, kwargs)
 #endif
+
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_opcode_utils.h"
+#else
+#define MAKE_FUNCTION_DEFAULTS 0x01
+#define MAKE_FUNCTION_KWDEFAULTS 0x02
+#define MAKE_FUNCTION_ANNOTATIONS 0x04
+#define MAKE_FUNCTION_CLOSURE 0x08
+#endif

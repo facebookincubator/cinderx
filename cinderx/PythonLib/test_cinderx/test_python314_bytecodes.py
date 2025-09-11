@@ -479,6 +479,18 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
         self.assertEqual(x(), "'42'")
         self._assertBytecodeContains(x, "CONVERT_VALUE")
 
+    def test_SET_FUNCTION_ATTRIBUTE(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            def inner(a=1, b=2, *args, **kwargs):
+                return a + b
+
+            return inner()
+
+        self.assertEqual(x(), 3)
+        self._assertBytecodeContains(x, "SET_FUNCTION_ATTRIBUTE")
+
 
 if __name__ == "__main__":
     unittest.main()
