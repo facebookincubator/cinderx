@@ -191,6 +191,18 @@ _PyJIT_Result tryCompile(BorrowedRef<PyFunctionObject> func) {
   return result;
 }
 
+void incrementShadowcodeCall([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
+#if SHADOWCODE_SUPPORTED
+  // The interpreter will only increment up to the shadowcode threshold
+  // PYSHADOW_INIT_THRESHOLD. After that, it will stop incrementing. If someone
+  // sets -X jit-auto above the PYSHADOW_INIT_THRESHOLD, we still have to keep
+  // counting.
+  if (code->co_mutable->ncalls > PYSHADOW_INIT_THRESHOLD) {
+    code->co_mutable->ncalls++;
+  }
+#endif
+}
+
 // Python function entry point when AutoJIT is enabled.
 PyObject* autoJITVectorcall(
     PyObject* func_obj,
@@ -207,16 +219,10 @@ PyObject* autoJITVectorcall(
 
   // Interpret function as usual until it passes the call count threshold.
 
-  // The interpreter will only increment up to the shadowcode threshold
-  // PYSHADOW_INIT_THRESHOLD. After that, it will stop incrementing. If someone
-  // sets -X jit-auto above the PYSHADOW_INIT_THRESHOLD, we still have to keep
-  // counting.
-#if SHADOWCODE_SUPPORTED
-  if (code->co_mutable->ncalls > PYSHADOW_INIT_THRESHOLD) {
-    code->co_mutable->ncalls++;
-  }
-#endif
-  if (countCalls(code) < jit::getConfig().auto_jit_threshold) {
+  auto const calls = countCalls(code);
+
+  if (calls < jit::getConfig().auto_jit_threshold) {
+    incrementShadowcodeCall(code);
     auto entry = getInterpretedVectorcall(func);
     return entry(func_obj, stack, nargsf, kwnames);
   }
@@ -226,6 +232,7 @@ PyObject* autoJITVectorcall(
     return nullptr;
   }
   if (result == PYJIT_RESULT_RETRY) {
+    incrementShadowcodeCall(code);
     auto entry = getInterpretedVectorcall(func);
     return entry(func_obj, stack, nargsf, kwnames);
   }
@@ -1332,6 +1339,44 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
   Py_RETURN_NONE;
 }
 
+PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
+  Py_ssize_t calls = -1;
+  if (!PyArg_Parse(arg, "n:compile_after_n_calls", &calls)) {
+    return nullptr;
+  }
+  if (calls < 0) {
+    PyErr_Format(
+        PyExc_ValueError,
+        "Cannot configure JIT to compile functions after '%zd' calls",
+        calls);
+    return nullptr;
+  }
+  if (calls == 0) {
+    PyErr_Format(
+        PyExc_ValueError,
+        "compile_after_n_calls(0) not supported yet, use PYTHONJITALL=1");
+    return nullptr;
+  }
+
+  getMutableConfig().auto_jit_threshold = calls;
+  JIT_DLOG("Configuring JIT to compile functions after {} calls", calls);
+
+  Py_RETURN_NONE;
+}
+
+PyObject* auto_jit(PyObject* /* self */, PyObject* /* arg */) {
+  // Default value that works well for most applications.
+  constexpr size_t kThreshold = 1000;
+
+  getMutableConfig().auto_jit_threshold = kThreshold;
+
+  JIT_DLOG(
+      "Configuring JIT to compile functions automatically using default "
+      "behavior");
+
+  Py_RETURN_NONE;
+}
+
 PyObject* get_batch_compilation_time_ms(PyObject*, PyObject*) {
   return PyLong_FromLong(g_batch_compilation_time.count());
 }
@@ -2300,6 +2345,16 @@ PyMethodDef jit_methods[] = {
      METH_NOARGS,
      PyDoc_STR("Re-enable the JIT and re-attach compiled onto previously "
                "JIT-compiled functions.")},
+    {"auto",
+     auto_jit,
+     METH_NOARGS,
+     PyDoc_STR("Configure the JIT to automatically compile functions, using "
+               "default settings")},
+    {"compile_after_n_calls",
+     compile_after_n_calls,
+     METH_O,
+     PyDoc_STR("Configure the JIT to automatically compile functions after "
+               "they are called a set number of times.")},
     {"disassemble", disassemble, METH_O, "Disassemble JIT compiled functions."},
     {"dump_elf",
      dump_elf,

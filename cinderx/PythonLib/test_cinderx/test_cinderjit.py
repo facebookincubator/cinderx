@@ -30,6 +30,7 @@ import cinderx.jit
 import cinderx.test_support as cinder_support
 from cinderx.compiler.consts import CO_FUTURE_BARRY_AS_BDFL, CO_SUPPRESS_JIT
 from cinderx.jit import (
+    compile_after_n_calls,
     force_compile,
     force_uncompile,
     is_jit_compiled,
@@ -2564,6 +2565,16 @@ class JITSuppressTests(unittest.TestCase):
 
 @unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
 class BadArgumentTests(unittest.TestCase):
+    def test_compile_after_n_calls(self) -> None:
+        with self.assertRaises(TypeError):
+            compile_after_n_calls(None)
+        with self.assertRaises(TypeError):
+            compile_after_n_calls(is_jit_compiled)
+        with self.assertRaises(ValueError):
+            compile_after_n_calls(-1)
+        with self.assertRaises(ValueError):
+            compile_after_n_calls(0)
+
     def test_is_compiled(self) -> None:
         with self.assertRaises(TypeError):
             is_jit_compiled(None)

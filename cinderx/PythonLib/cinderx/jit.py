@@ -20,8 +20,10 @@ try:
     from cinderjit import (
         _deopt_gen,
         append_jit_list,
+        auto,
         auto_jit_threshold,
         clear_runtime_stats,
+        compile_after_n_calls,
         count_interpreted_calls,
         disable,
         disable_emit_type_annotation_guards,
@@ -78,10 +80,16 @@ except ImportError:
     def append_jit_list(entry: str) -> None:
         return None
 
+    def auto() -> None:
+        return None
+
     def auto_jit_threshold() -> int:
         return 0
 
     def clear_runtime_stats() -> None:
+        return None
+
+    def compile_after_n_calls(calls: int) -> None:
         return None
 
     def count_interpreted_calls(func: FuncAny) -> int:

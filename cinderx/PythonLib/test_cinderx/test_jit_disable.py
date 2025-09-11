@@ -2,7 +2,12 @@
 
 # pyre-unsafe
 
+import subprocess
+import sys
+import tempfile
+import textwrap
 import unittest
+from pathlib import Path
 
 from cinderx.jit import (
     disable as disable_jit,
@@ -17,6 +22,7 @@ from cinderx.jit import (
     lazy_compile,
     pause as pause_jit,
 )
+from cinderx.test_support import CINDERX_PATH
 
 
 @unittest.skipUnless(is_jit_enabled(), "Tests functionality on the JIT")
@@ -200,6 +206,100 @@ class DisableEnableTests(unittest.TestCase):
         # We need to evict it to support multiple runs of the test for refleak
         # detection.
         force_uncompile(foo)
+
+    def test_default(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            def inc(x):
+                return x + 1
+
+            assert not cinderx.jit.is_jit_compiled(inc)
+            cinderx.jit.force_compile(inc)
+            assert cinderx.jit.is_jit_compiled(inc)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={"PYTHONPATH": CINDERX_PATH},
+            )
+
+    def test_auto(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            cinderx.jit.auto()
+
+            def inc(x):
+                return x + 1
+
+            assert not cinderx.jit.is_jit_compiled(inc)
+            for i in range(1000):
+                inc(i)
+            assert not cinderx.jit.is_jit_compiled(inc)
+
+            inc(1001)
+            assert cinderx.jit.is_jit_compiled(inc)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={"PYTHONPATH": CINDERX_PATH},
+            )
+
+    def test_compile_after_n_calls(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            cinderx.jit.compile_after_n_calls(2)
+
+            def inc(x):
+                return x + 1
+
+            assert not cinderx.jit.is_jit_compiled(inc)
+            inc(1)
+            inc(2)
+            assert not cinderx.jit.is_jit_compiled(inc)
+
+            inc(3)
+            assert cinderx.jit.is_jit_compiled(inc)
+
+            cinderx.jit.compile_after_n_calls(5)
+
+            def dec(x):
+                return x - 1
+
+            assert not cinderx.jit.is_jit_compiled(dec)
+            dec(1)
+            dec(2)
+            dec(3)
+            dec(4)
+            dec(5)
+            assert not cinderx.jit.is_jit_compiled(dec)
+
+            dec(6)
+            assert cinderx.jit.is_jit_compiled(dec)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={"PYTHONPATH": CINDERX_PATH},
+            )
 
 
 if __name__ == "__main__":
