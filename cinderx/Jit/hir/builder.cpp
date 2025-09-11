@@ -76,6 +76,7 @@ bool isSupportedOpcode(int opcode) {
     case CALL_FUNCTION_KW:
     case CALL_INTRINSIC_1:
     case CALL_INTRINSIC_2:
+    case CALL_KW:
     case CALL_METHOD:
     case CAST:
     case CHECK_EG_MATCH:
@@ -936,6 +937,7 @@ void HIRBuilder::translate(
         case CALL_FUNCTION:
         case CALL_FUNCTION_EX:
         case CALL_FUNCTION_KW:
+        case CALL_KW:
         case CALL_METHOD:
         case INVOKE_FUNCTION:
         case INVOKE_METHOD:
@@ -1932,11 +1934,16 @@ void HIRBuilder::emitAnyCall(
       break;
     }
     case CALL:
+    case CALL_KW:
     case CALL_METHOD: {
       auto num_operands = static_cast<std::size_t>(bc_instr.oparg()) + 2;
       auto num_stack_inputs = num_operands;
-      if (kwnames_ != nullptr) {
-        num_operands += 1;
+      bool is_call_kw = bc_instr.opcode() == CALL_KW;
+      if (kwnames_ != nullptr || is_call_kw) {
+        if (is_call_kw) {
+          num_stack_inputs++;
+        }
+        num_operands++;
         flags |= CallFlags::KwArgs;
       }
 

@@ -35,6 +35,7 @@
   X(CALL)                              \
   X(CALL_INTRINSIC_1)                  \
   X(CALL_INTRINSIC_2)                  \
+  X(CALL_KW)                           \
   X(CHECK_EG_MATCH)                    \
   X(CHECK_EXC_MATCH)                   \
   X(CLEANUP_THROW)                     \
@@ -152,6 +153,7 @@ enum {
   X(BUILD_TEMPLATE)                    \
   X(CALL_FUNCTION)                     \
   X(CALL_FUNCTION_KW)                  \
+  X(CALL_KW)                           \
   X(CALL_METHOD)                       \
   X(CONVERT_VALUE)                     \
   X(COPY_DICT_WITHOUT_KEYS)            \

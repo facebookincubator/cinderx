@@ -491,6 +491,18 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
         self.assertEqual(x(), 3)
         self._assertBytecodeContains(x, "SET_FUNCTION_ATTRIBUTE")
 
+    def test_CALL_KW(self):
+        def one(a=0):
+            return a
+
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            return one(a=1)
+
+        self.assertEqual(x(), 1)
+        self._assertBytecodeContains(x, "CALL_KW")
+
 
 if __name__ == "__main__":
     unittest.main()
