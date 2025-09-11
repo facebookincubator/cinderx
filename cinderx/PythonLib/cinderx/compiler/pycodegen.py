@@ -4547,6 +4547,7 @@ class CodeGenerator312(CodeGenerator):
             else:
                 gen.set_pos(SrcLocation(node.lineno, node.lineno or 0, 0, 0))
             gen.emit("RETURN_VALUE")
+            gen.nextBlock()
             gen.finish_function()
         else:
             if isinstance(node, ast.Lambda):
