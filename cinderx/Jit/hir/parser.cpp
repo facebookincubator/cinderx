@@ -1014,6 +1014,7 @@ HIRParser::parseInstr(std::string_view opcode, Register* dst, int bb_index) {
     case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadSpecial:
     case Opcode::kLoadSplitDictItem:
     case Opcode::kLoadTypeMethodCacheEntryType:
     case Opcode::kLoadTypeMethodCacheEntryValue:

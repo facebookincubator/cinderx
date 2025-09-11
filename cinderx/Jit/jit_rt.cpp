@@ -23,6 +23,7 @@
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_stackref.h"
 #include "internal/pycore_unicodeobject.h"
 #endif
 
@@ -2139,3 +2140,32 @@ PyObject* JITRT_LookupAttrSpecial(
   return res;
 }
 #endif
+
+LoadMethodResult JITRT_LoadSpecial(
+    [[maybe_unused]] PyObject* self,
+    [[maybe_unused]] int special_idx) {
+#if PY_VERSION_HEX >= 0x030E0000
+  _PyStackRef method_and_self[2] = {
+      PyStackRef_NULL, PyStackRef_FromPyObjectNew(self)};
+  PyObject* name = _Py_SpecialMethods[special_idx].name;
+  int err = _PyObject_LookupSpecialMethod(name, method_and_self);
+  if (err <= 0) {
+    if (err == 0) {
+      PyObject* owner = PyStackRef_AsPyObjectBorrow(method_and_self[1]);
+      const char* errfmt = _PyEval_SpecialMethodCanSuggest(owner, special_idx)
+          ? _Py_SpecialMethods[special_idx].error_suggestion
+          : _Py_SpecialMethods[special_idx].error;
+      PyThreadState* tstate = PyThreadState_GET();
+      JIT_CHECK(!_PyErr_Occurred(tstate), "Unexpected existing exception");
+      JIT_CHECK(errfmt, "No error message for special method");
+      _PyErr_Format(tstate, PyExc_TypeError, errfmt, owner);
+    }
+    return {nullptr, nullptr};
+  }
+  LoadMethodResult result;
+  result.callable = PyStackRef_AsPyObjectSteal(method_and_self[0]);
+  result.self_or_null = PyStackRef_AsPyObjectSteal(method_and_self[1]);
+  return result;
+#endif
+  JIT_ABORT("JITRT_LoadSpecial not valid with this version of Python");
+}

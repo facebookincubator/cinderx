@@ -202,6 +202,7 @@ Type outputType(
     case Opcode::kLoadMethodSuper:
     case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
+    case Opcode::kLoadSpecial:
     case Opcode::kLoadTupleItem:
     case Opcode::kMatchKeys:
     case Opcode::kSend:

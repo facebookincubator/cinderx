@@ -6,6 +6,7 @@
 #include "cinderx/Jit/symbolizer.h"
 
 #if PY_VERSION_HEX >= 0x030E0000
+#include "pycore_ceval.h"
 #include "pycore_intrinsics.h"
 #endif
 
@@ -757,6 +758,25 @@ static std::string format_immediates(const Instr& instr) {
         default:
           JIT_ABORT("Unknown conversion type: {}", bi.conversion());
       }
+    }
+    case Opcode::kLoadSpecial: {
+#if PY_VERSION_HEX >= 0x030E0000
+      const auto& ls = static_cast<const LoadSpecial&>(instr);
+      switch (ls.specialIdx()) {
+        case SPECIAL___ENTER__:
+          return "__enter__";
+        case SPECIAL___EXIT__:
+          return "__exit__";
+        case SPECIAL___AENTER__:
+          return "__aenter__";
+        case SPECIAL___AEXIT__:
+          return "__aexit__";
+        default:
+          JIT_ABORT("Unknown special index: {}", ls.specialIdx());
+      }
+#else
+      JIT_ABORT("LoadSpecial not supported before 3.14");
+#endif
     }
   }
   JIT_ABORT("Invalid opcode {}", static_cast<int>(instr.opcode()));

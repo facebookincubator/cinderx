@@ -567,5 +567,6 @@ PyObject* JITRT_LookupAttrSpecial(
     PyObject* obj,
     PyObject* attr,
     const char* failure_fmt_str);
-
 #endif
+
+LoadMethodResult JITRT_LoadSpecial(PyObject* self, int special_idx);

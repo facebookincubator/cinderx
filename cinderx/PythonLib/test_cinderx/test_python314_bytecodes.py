@@ -440,6 +440,36 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
         x(True)
         self._assertBytecodeContains(x, "LOAD_COMMON_CONSTANT")
 
+    def test_LOAD_SPECIAL(self):
+        class DummyCM:
+            def __exit__(self, *_args):
+                pass
+
+            def __enter__(self):
+                return self
+
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            with DummyCM():
+                pass
+
+        self.assertEqual(x(), None)
+        self._assertBytecodeContains(x, "LOAD_SPECIAL")
+
+    def test_LOAD_SPECIAL_fail(self):
+        class InvalidCM:
+            pass
+
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            with InvalidCM():
+                pass
+
+        with self.assertRaises(TypeError):
+            x()
+        self._assertBytecodeContains(x, "LOAD_SPECIAL")
+
 
 if __name__ == "__main__":
     unittest.main()

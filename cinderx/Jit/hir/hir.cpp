@@ -252,6 +252,7 @@ bool Instr::isReplayable() const {
     case Opcode::kLoadModuleAttrCached:
     case Opcode::kLoadModuleMethodCached:
     case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadSpecial:
     case Opcode::kLongBinaryOp:
     case Opcode::kLongInPlaceOp:
     case Opcode::kMakeCell:

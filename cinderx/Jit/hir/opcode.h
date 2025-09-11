@@ -108,6 +108,7 @@ namespace jit::hir {
   V(LoadModuleAttrCached)              \
   V(LoadModuleMethodCached)            \
   V(LoadMethodSuper)                   \
+  V(LoadSpecial)                       \
   V(LoadSplitDictItem)                 \
   V(LoadTupleItem)                     \
   V(LoadTypeAttrCacheEntryType)        \

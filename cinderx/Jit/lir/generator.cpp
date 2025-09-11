@@ -3304,6 +3304,15 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
 #endif
         break;
       }
+      case Opcode::kLoadSpecial: {
+        auto& load_special = static_cast<const LoadSpecial&>(i);
+        bbb.appendCallInstruction(
+            load_special.output(),
+            JITRT_LoadSpecial,
+            load_special.GetOperand(0),
+            load_special.specialIdx());
+        break;
+      }
     }
 
     if (auto db = i.asDeoptBase()) {

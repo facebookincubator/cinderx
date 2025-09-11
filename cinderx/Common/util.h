@@ -87,6 +87,7 @@ const char* ss_get_string(const auto_jit_string_t& ss);
 // After 3.14 things are simpler and we always have a callable as the first
 // element, so free to use nullptr on error to trigger a deopt.
 struct LoadMethodResult {
+  LoadMethodResult() = default;
   LoadMethodResult(PyObject* none_or_callable, PyObject* inst_or_callable) {
     if constexpr (PY_VERSION_HEX >= 0x030E0000) {
       if (none_or_callable == nullptr) {

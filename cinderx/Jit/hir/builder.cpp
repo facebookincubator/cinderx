@@ -167,6 +167,7 @@ bool isSupportedOpcode(int opcode) {
     case LOAD_METHOD_STATIC:
     case LOAD_METHOD_SUPER:
     case LOAD_SMALL_INT:
+    case LOAD_SPECIAL:
     case LOAD_SUPER_ATTR:
     case LOAD_TYPE:
     case MAKE_CELL:
@@ -1065,6 +1066,10 @@ void HIRBuilder::translate(
         }
         case LOAD_SMALL_INT: {
           emitLoadSmallInt(tc, bc_instr);
+          break;
+        }
+        case LOAD_SPECIAL: {
+          emitLoadSpecial(tc, bc_instr);
           break;
         }
         case LOAD_TYPE: {
@@ -4902,6 +4907,19 @@ void HIRBuilder::emitLoadCommonConstant(
   tc.emit<LoadConst>(
       out, Runtime::get()->typeForCommonConstant(bc_instr.oparg()));
   tc.frame.stack.push(out);
+}
+
+void HIRBuilder::emitLoadSpecial(
+    TranslationContext& tc,
+    const BytecodeInstruction& bc_instr) {
+  OperandStack& stack = tc.frame.stack;
+  Register* self = stack.pop();
+  Register* method = temps_.AllocateStack();
+  Register* null_or_self = temps_.AllocateStack();
+  tc.emit<LoadSpecial>(method, self, bc_instr.oparg(), tc.frame);
+  tc.emit<GetSecondOutput>(null_or_self, TOptObject, method);
+  stack.push(method);
+  stack.push(null_or_self);
 }
 
 void HIRBuilder::insertEvalBreakerCheck(

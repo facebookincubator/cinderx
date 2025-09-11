@@ -3909,6 +3909,23 @@ DEFINE_SIMPLE_INSTR(
     HasOutput,
     DeoptBase);
 
+class INSTR_CLASS(LoadSpecial, (TObject), HasOutput, Operands<1>, DeoptBase) {
+ public:
+  LoadSpecial(
+      Register* method_and_self_o,
+      Register* self,
+      int special_idx,
+      const FrameState& frame)
+      : InstrT(method_and_self_o, self, frame), special_idx_(special_idx) {}
+
+  int specialIdx() const {
+    return special_idx_;
+  }
+
+ private:
+  int special_idx_;
+};
+
 class CFG;
 
 class BasicBlock {

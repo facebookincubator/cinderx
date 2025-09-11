@@ -79,6 +79,7 @@
   X(LOAD_FROM_DICT_OR_GLOBALS)         \
   X(LOAD_LOCALS)                       \
   X(LOAD_SMALL_INT)                    \
+  X(LOAD_SPECIAL)                      \
   X(LOAD_SUPER_ATTR)                   \
   X(MAKE_CELL)                         \
   X(NOT_TAKEN)                         \
@@ -202,6 +203,7 @@ enum {
   X(LOAD_METHOD_UNCACHABLE)            \
   X(LOAD_METHOD_UNSHADOWED_METHOD)     \
   X(LOAD_SMALL_INT)                    \
+  X(LOAD_SPECIAL)                      \
   X(MAKE_OPNAME)                       \
   X(NOT_TAKEN)                         \
   X(POP_ITER)                          \
