@@ -917,6 +917,14 @@ class PyFlowGraph(FlowGraph):
                 value,
                 type(value)(self.get_const_key(const) for const in value),
             )
+        elif isinstance(value, slice):
+            return (
+                type(value),
+                value,
+                type(value.start),
+                type(value.step),
+                type(value.stop),
+            )
 
         return type(value), value
 
