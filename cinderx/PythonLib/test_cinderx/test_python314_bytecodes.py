@@ -470,6 +470,15 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
             x()
         self._assertBytecodeContains(x, "LOAD_SPECIAL")
 
+    def test_CONVERT_VALUE(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            return f"{'42'!r}"
+
+        self.assertEqual(x(), "'42'")
+        self._assertBytecodeContains(x, "CONVERT_VALUE")
+
 
 if __name__ == "__main__":
     unittest.main()

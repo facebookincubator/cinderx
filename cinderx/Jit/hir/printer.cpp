@@ -20,6 +20,23 @@
 
 namespace jit::hir {
 
+namespace {
+
+const char* fvc_to_string(int conversion) {
+  static const char* kFvcStrings[] = {
+      "None", // FVC_NONE (0)
+      "Str", // FVC_STR (1)
+      "Repr", // FVC_REPR (2)
+      "ASCII" // FVC_ASCII (3)
+  };
+
+  if (conversion >= 0 && conversion < 4) {
+    return kFvcStrings[conversion];
+  }
+  return "Unknown";
+}
+} // namespace
+
 void HIRPrinter::Indent() {
   indent_level_ += 1;
 }
@@ -716,17 +733,7 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kFormatValue: {
       int conversion = static_cast<const FormatValue&>(instr).conversion();
-      switch (conversion) {
-        case FVC_NONE:
-          return "None";
-        case FVC_STR:
-          return "Str";
-        case FVC_REPR:
-          return "Repr";
-        case FVC_ASCII:
-          return "ASCII";
-      }
-      JIT_ABORT("Unknown conversion type.");
+      return fvc_to_string(conversion);
     }
     case Opcode::kUnpackExToTuple: {
       const auto& i = static_cast<const UnpackExToTuple&>(instr);
@@ -746,18 +753,7 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kBuildInterpolation: {
       const auto& bi = static_cast<const BuildInterpolation&>(instr);
-      switch (bi.conversion()) {
-        case FVC_NONE:
-          return "None";
-        case FVC_STR:
-          return "Str";
-        case FVC_REPR:
-          return "Repr";
-        case FVC_ASCII:
-          return "ASCII";
-        default:
-          JIT_ABORT("Unknown conversion type: {}", bi.conversion());
-      }
+      return fvc_to_string(bi.conversion());
     }
     case Opcode::kLoadSpecial: {
 #if PY_VERSION_HEX >= 0x030E0000
@@ -777,6 +773,10 @@ static std::string format_immediates(const Instr& instr) {
 #else
       JIT_ABORT("LoadSpecial not supported before 3.14");
 #endif
+    }
+    case Opcode::kConvertValue: {
+      const auto& cv = static_cast<const ConvertValue&>(instr);
+      return fvc_to_string(cv.converterIdx());
     }
   }
   JIT_ABORT("Invalid opcode {}", static_cast<int>(instr.opcode()));

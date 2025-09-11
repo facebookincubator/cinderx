@@ -68,6 +68,7 @@ bool isSupportedOpcode(int opcode) {
     case BUILD_INTERPOLATION:
     case BUILD_TEMPLATE:
     case BUILD_TUPLE:
+    case CONVERT_VALUE:
     case CALL:
     case CALL_FUNCTION:
     case CALL_FUNCTION_EX:
@@ -1530,6 +1531,10 @@ void HIRBuilder::translate(
         }
         case BUILD_TEMPLATE: {
           emitBuildTemplate(tc);
+          break;
+        }
+        case CONVERT_VALUE: {
+          emitConvertValue(tc, bc_instr);
           break;
         }
         case FORMAT_SIMPLE: {
@@ -4871,6 +4876,16 @@ void HIRBuilder::emitBuildTemplate(TranslationContext& tc) {
   Register* strings = stack.pop();
   Register* out = temps_.AllocateStack();
   tc.emit<BuildTemplate>(strings, interpolations, out, tc.frame);
+  stack.push(out);
+}
+
+void HIRBuilder::emitConvertValue(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
+  OperandStack& stack = tc.frame.stack;
+  Register* value = stack.pop();
+  Register* out = temps_.AllocateStack();
+  tc.emit<ConvertValue>(out, value, bc_instr.oparg(), tc.frame);
   stack.push(out);
 }
 

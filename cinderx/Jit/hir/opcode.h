@@ -36,6 +36,7 @@ namespace jit::hir {
   V(CheckField)                        \
   V(Compare)                           \
   V(CompareBool)                       \
+  V(ConvertValue)                      \
   V(CopyDictWithoutKeys)               \
   V(CondBranch)                        \
   V(CondBranchIterNotDone)             \

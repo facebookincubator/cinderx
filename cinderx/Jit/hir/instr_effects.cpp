@@ -112,6 +112,7 @@ MemoryEffects memoryEffects(const Instr& inst) {
     case Opcode::kCallStaticRetVoid:
     case Opcode::kCompare:
     case Opcode::kCompareBool:
+    case Opcode::kConvertValue:
     case Opcode::kCopyDictWithoutKeys:
     case Opcode::kDeleteAttr:
     case Opcode::kDeleteSubscr:
@@ -447,6 +448,7 @@ bool hasArbitraryExecution(const Instr& inst) {
     case Opcode::kCallStaticRetVoid:
     case Opcode::kCompare:
     case Opcode::kCompareBool:
+    case Opcode::kConvertValue:
     case Opcode::kCopyDictWithoutKeys:
     case Opcode::kDecref:
     case Opcode::kDeleteAttr:

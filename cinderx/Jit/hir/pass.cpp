@@ -182,6 +182,7 @@ Type outputType(
     case Opcode::kBuildInterpolation:
     case Opcode::kBuildTemplate:
     case Opcode::kCallIntrinsic:
+    case Opcode::kConvertValue:
     case Opcode::kDictSubscr:
     case Opcode::kEagerImportName:
     case Opcode::kFillTypeAttrCache:

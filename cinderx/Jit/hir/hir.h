@@ -3909,6 +3909,23 @@ DEFINE_SIMPLE_INSTR(
     HasOutput,
     DeoptBase);
 
+class INSTR_CLASS(ConvertValue, (TObject), HasOutput, Operands<1>, DeoptBase) {
+ public:
+  ConvertValue(
+      Register* dst,
+      Register* value,
+      int converter_idx,
+      const FrameState& frame)
+      : InstrT(dst, value, frame), converter_idx_(converter_idx) {}
+
+  int converterIdx() const {
+    return converter_idx_;
+  }
+
+ private:
+  int converter_idx_;
+};
+
 class INSTR_CLASS(LoadSpecial, (TObject), HasOutput, Operands<1>, DeoptBase) {
  public:
   LoadSpecial(

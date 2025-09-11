@@ -3313,6 +3313,16 @@ LIRGenerator::TranslatedBlock LIRGenerator::TranslateOneBasicBlock(
             load_special.specialIdx());
         break;
       }
+      case Opcode::kConvertValue: {
+#if PY_VERSION_HEX >= 0x030E0000
+        auto& convert_value = static_cast<const ConvertValue&>(i);
+        bbb.appendCallInstruction(
+            convert_value.output(),
+            _PyEval_ConversionFuncs[convert_value.converterIdx()],
+            convert_value.GetOperand(0));
+#endif
+        break;
+      }
     }
 
     if (auto db = i.asDeoptBase()) {

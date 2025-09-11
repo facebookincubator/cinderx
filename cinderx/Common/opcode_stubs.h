@@ -41,6 +41,7 @@
   X(COMPARE_OP_FLOAT)                  \
   X(COMPARE_OP_INT)                    \
   X(COMPARE_OP_STR)                    \
+  X(CONVERT_VALUE)                     \
   X(COPY)                              \
   X(COPY_FREE_VARS)                    \
   X(EAGER_IMPORT_NAME)                 \
@@ -151,6 +152,7 @@ enum {
   X(CALL_FUNCTION)                     \
   X(CALL_FUNCTION_KW)                  \
   X(CALL_METHOD)                       \
+  X(CONVERT_VALUE)                     \
   X(COPY_DICT_WITHOUT_KEYS)            \
   X(DUP_TOP)                           \
   X(DUP_TOP_TWO)                       \

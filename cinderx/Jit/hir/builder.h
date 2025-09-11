@@ -459,6 +459,10 @@ class HIRBuilder {
 
   void emitBuildTemplate(TranslationContext& tc);
 
+  void emitConvertValue(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
+
   void emitFormatSimple(CFG& cfg, TranslationContext& tc);
 
   void emitLoadCommonConstant(
