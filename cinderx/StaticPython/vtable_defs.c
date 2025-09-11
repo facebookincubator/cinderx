@@ -303,9 +303,9 @@ PyObject* call_descr(
   }
 
   if (Py_TYPE(descr)->tp_descr_get != NULL) {
-    PyObject* self = args[0];
+    PyObject* obj = args[0]; // object the descriptor is being accessed on
     PyObject* get =
-        Py_TYPE(descr)->tp_descr_get(descr, self, (PyObject*)Py_TYPE(self));
+        Py_TYPE(descr)->tp_descr_get(descr, obj, (PyObject*)Py_TYPE(obj));
     if (get == NULL) {
       return NULL;
     }
