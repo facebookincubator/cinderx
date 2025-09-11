@@ -496,7 +496,7 @@ class Block:
 
     @property
     def exits(self) -> bool:
-        return len(self.insts) and self.insts[-1].opname in SCOPE_EXIT_OPCODES
+        return len(self.insts) > 0 and self.insts[-1].opname in SCOPE_EXIT_OPCODES
 
     def copy(self) -> Block:
         # Cannot copy block if it has fallthrough, since a block can have only one
@@ -2303,7 +2303,7 @@ class PyFlowGraphCinder312(PyFlowGraphCinderMixin, PyFlowGraph312):
 
 class PyFlowGraph314(PyFlowGraph312):
     flow_graph_optimizer = FlowGraphOptimizer314
-    _constant_idx = {
+    _constant_idx: dict[object, int] = {
         AssertionError: 0,
         NotImplementedError: 1,
         tuple: 2,
