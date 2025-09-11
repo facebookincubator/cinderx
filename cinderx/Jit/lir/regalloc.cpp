@@ -250,6 +250,15 @@ std::unique_ptr<LiveInterval> LiveInterval::splitAt(LIRLocation loc) {
 }
 
 void LiveInterval::allocateTo(PhyLocation loc) {
+  JIT_CHECK(
+      allocated_loc.bitSize == loc.bitSize,
+      "Trying to change size of live interval: {} -> {}, with location {} -> "
+      "{}, for operand {}",
+      allocated_loc.bitSize,
+      loc.bitSize,
+      allocated_loc,
+      loc,
+      *operand);
   allocated_loc = loc;
 }
 
@@ -969,14 +978,15 @@ PhyLocation LinearScanAllocator::getStackSlot(const Operand* operand) {
 PhyLocation LinearScanAllocator::newStackSlot(const Operand* operand) {
   PhyLocation slot;
   if (free_stack_slots_.empty()) {
-    max_stack_slot_ -= kPointerSize;
-    // Intentionally set all new stack slots to be 8-bytes, regardless of the
+    // Intentionally align all new stack slots to 8-bytes, regardless of the
     // operand's size.  Uses more stack space but avoids alignment issues.
-    size_t bit_size = 64;
-    slot = PhyLocation{max_stack_slot_, bit_size};
+    max_stack_slot_ -= kPointerSize;
+    slot = PhyLocation{max_stack_slot_, operand->sizeInBits()};
     TRACE("Allocating new stack slot {} for operand {}", slot, *operand);
   } else {
     slot = free_stack_slots_.back();
+    // Update slot to the correct size.
+    slot.bitSize = operand->sizeInBits();
     free_stack_slots_.pop_back();
     TRACE("Reusing stack slot {} for operand {}", slot, *operand);
   }
