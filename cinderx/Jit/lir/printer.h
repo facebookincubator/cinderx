@@ -65,4 +65,6 @@ struct fmt::formatter<jit::lir::Instruction> : fmt::ostream_formatter {};
 template <>
 struct fmt::formatter<jit::lir::OperandBase> : fmt::ostream_formatter {};
 template <>
+struct fmt::formatter<jit::lir::Operand> : fmt::ostream_formatter {};
+template <>
 struct fmt::formatter<jit::lir::MemoryIndirect> : fmt::ostream_formatter {};

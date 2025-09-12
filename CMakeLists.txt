@@ -257,6 +257,7 @@ set(SOURCES
   ${PROJECT_SOURCE_DIR}/_cinderx-lib.cpp
   ${PROJECT_SOURCE_DIR}/async_lazy_value.cpp
   ${PROJECT_SOURCE_DIR}/module_state.cpp
+  ${PROJECT_SOURCE_DIR}/module_c_state.cpp
 )
 
 add_library(${PROJECT_NAME} SHARED ${SOURCES})
