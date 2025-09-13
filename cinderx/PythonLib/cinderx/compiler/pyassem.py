@@ -1117,8 +1117,7 @@ class PyFlowGraph(FlowGraph):
             if block.has_fallthrough:
                 next = block.next
                 assert next
-                if next.num_predecessors == 1:
-                    assert next.insts
+                if next.num_predecessors == 1 and next.insts:
                     next_instr = next.insts[0]
                     if next_instr.lineno == -1:
                         next_instr.loc = prev_loc
@@ -1130,8 +1129,9 @@ class PyFlowGraph(FlowGraph):
                 # Only actual jumps, not exception handlers
                 target = last_instr.target
                 assert target
-                if target.num_predecessors == 1:
-                    assert target.insts
+                # CPython doesn't check target.insts and instead can write
+                # to random memory...
+                if target.num_predecessors == 1 and target.insts:
                     next_instr = target.insts[0]
                     if next_instr.lineno == NO_LOCATION.lineno:
                         next_instr.loc = prev_loc
@@ -1157,6 +1157,10 @@ class PyFlowGraph(FlowGraph):
     def get_duplicate_exit_visitation_order(self) -> Iterable[Block]:
         raise NotImplementedError()
 
+    def get_target_block_for_exit(self, target: Block) -> Block:
+        assert target.insts
+        return target
+
     def duplicate_exits_without_lineno(self) -> None:
         """
         PEP 626 mandates that the f_lineno of a frame is correct
@@ -1176,7 +1180,7 @@ class PyFlowGraph(FlowGraph):
                     continue
                 target = last.target
                 assert target
-                assert target.insts
+                target = self.get_target_block_for_exit(target)
                 if target.insts[0].opname == "SETUP_CLEANUP":
                     # We have wrapped this block in a stopiteration handler.
                     # The SETUP_CLEANUP is a pseudo-op which will be removed in
@@ -1225,14 +1229,16 @@ class PyFlowGraph(FlowGraph):
                 if target.bid in seen_blocks:
                     last.opname = "JUMP_ABSOLUTE"
 
-    def remove_redundant_nops(self, optimizer: FlowGraphOptimizer) -> None:
+    def remove_redundant_nops(self, optimizer: FlowGraphOptimizer) -> bool:
         prev_block = None
+        cleaned = False
         for block in self.ordered_blocks:
             prev_lineno = -1
             if prev_block and prev_block.insts:
                 prev_lineno = prev_block.insts[-1].lineno
-            optimizer.clean_basic_block(block, prev_lineno)
+            cleaned |= optimizer.clean_basic_block(block, prev_lineno)
             prev_block = block if block.has_fallthrough else None
+        return cleaned
 
     def remove_redundant_jumps(
         self, optimizer: FlowGraphOptimizer, clean: bool = True
@@ -1278,6 +1284,19 @@ class PyFlowGraph(FlowGraph):
                 last.target = target
         self.ordered_blocks = [block for block in self.ordered_blocks if block.insts]
 
+    def unlink_unreachable_basic_blocks(self, reachable_blocks: set[int]) -> None:
+        self.ordered_blocks = [
+            block
+            for block in self.ordered_blocks
+            if block.bid in reachable_blocks or block.is_exc_handler
+        ]
+        prev = None
+        for block in self.ordered_blocks:
+            block.prev = prev
+            if prev is not None:
+                prev.next = block
+            prev = block
+
     def remove_unreachable_basic_blocks(self) -> None:
         # mark all reachable blocks
         for block in self.getBlocks():
@@ -1285,6 +1304,7 @@ class PyFlowGraph(FlowGraph):
 
         reachable_blocks = set()
         worklist = [self.entry]
+        self.entry.num_predecessors = 1
         while worklist:
             entry = worklist.pop()
             if entry.bid in reachable_blocks:
@@ -1303,17 +1323,7 @@ class PyFlowGraph(FlowGraph):
                 worklist.append(next)
                 next.num_predecessors += 1
 
-        self.ordered_blocks = [
-            block
-            for block in self.ordered_blocks
-            if block.bid in reachable_blocks or block.is_exc_handler
-        ]
-        prev = None
-        for block in self.ordered_blocks:
-            block.prev = prev
-            if prev is not None:
-                prev.next = block
-            prev = block
+        self.unlink_unreachable_basic_blocks(reachable_blocks)
 
     def normalize_basic_block(self, block: Block) -> None:
         """Sets the `fallthrough` and `exit` properties of a block, and ensures that the targets of
@@ -1697,6 +1707,9 @@ class PyFlowGraph312(PyFlowGraph):
     def make_explicit_jump_block(self) -> Block:
         return self.newBlock("explicit_jump")
 
+    def remove_redundant_nops_and_jumps(self, optimizer: FlowGraphOptimizer) -> None:
+        self.remove_redundant_jumps(optimizer, False)
+
     def push_cold_blocks_to_end(
         self, except_handlers: set[Block], optimizer: FlowGraphOptimizer
     ) -> None:
@@ -1744,7 +1757,7 @@ class PyFlowGraph312(PyFlowGraph):
 
         self.ordered_blocks = new_ordered + to_end
         if to_end:
-            self.remove_redundant_jumps(optimizer, False)
+            self.remove_redundant_nops_and_jumps(optimizer)
 
     def compute_warm(self) -> set[Block]:
         """Compute the set of 'warm' blocks, which are blocks that are reachable
@@ -2447,6 +2460,19 @@ class PyFlowGraph314(PyFlowGraph312):
                         ),
                     ]
 
+    def unlink_unreachable_basic_blocks(self, reachable_blocks: set[int]) -> None:
+        for block in self.ordered_blocks:
+            if block.num_predecessors == 0:
+                del block.insts[:]
+                block.is_exc_handler = False
+                block.has_fallthrough = True
+
+    def get_target_block_for_exit(self, target: Block) -> Block:
+        while not target.insts:
+            assert target.next is not None
+            target = target.next
+        return target
+
     def inline_small_exit_blocks(self) -> None:
         changes = True
         # every change removes a jump, ensuring convergence
@@ -2505,6 +2531,8 @@ class PyFlowGraph314(PyFlowGraph312):
         """Perform final optimizations and normalization of flow graph."""
         assert self.stage == ACTIVE, self.stage
         self.stage = CLOSED
+
+        self.eliminate_empty_basic_blocks()
 
         for block in self.ordered_blocks:
             self.normalize_basic_block(block)
@@ -2959,6 +2987,42 @@ class PyFlowGraph314(PyFlowGraph312):
                             instr, next_instr, "STORE_FAST_STORE_FAST"
                         )
 
+    def remove_redundant_jumps(
+        self, optimizer: FlowGraphOptimizer, clean: bool = True
+    ) -> bool:
+        # Delete jump instructions made redundant by previous step. If a non-empty
+        # block ends with a jump instruction, check if the next non-empty block
+        # reached through normal flow control is the target of that jump. If it
+        # is, then the jump instruction is redundant and can be deleted.
+        maybe_empty_blocks = False
+        for block in self.ordered_blocks:
+            if not block.insts:
+                continue
+            last = block.insts[-1]
+            if last.opname not in UNCONDITIONAL_JUMP_OPCODES:
+                continue
+            target = last.target
+            while not target.insts:
+                target = target.next
+            next = block.next
+            while next and not next.insts:
+                next = next.next
+            if target == next:
+                block.has_fallthrough = True
+                last.set_to_nop()
+                maybe_empty_blocks = True
+        return maybe_empty_blocks
+
+    def remove_redundant_nops_and_jumps(self, optimizer: FlowGraphOptimizer) -> None:
+        while True:
+            removed = False
+            for block in self.ordered_blocks:
+                removed |= optimizer.clean_basic_block(block, -1)
+
+            removed |= self.remove_redundant_jumps(optimizer, False)
+            if not removed:
+                break
+
     def optimizeCFG(self) -> None:
         """Optimize a well-formed CFG."""
         except_handlers = self.compute_except_handlers()
@@ -2966,8 +3030,6 @@ class PyFlowGraph314(PyFlowGraph312):
         self.label_exception_targets()
 
         assert self.stage == CLOSED, self.stage
-
-        self.eliminate_empty_basic_blocks()
 
         self.inline_small_exit_blocks()
 
@@ -2988,10 +3050,9 @@ class PyFlowGraph314(PyFlowGraph312):
             # remove redundant nops
             optimizer.clean_basic_block(block, -1)
 
+        self.remove_redundant_nops_and_pairs(optimizer)
         self.remove_unreachable_basic_blocks()
-        self.eliminate_empty_basic_blocks()
-
-        self.remove_redundant_jumps(optimizer, False)
+        self.remove_redundant_nops_and_jumps(optimizer)
 
         self.stage = OPTIMIZED
 

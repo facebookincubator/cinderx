@@ -76,10 +76,7 @@ class GraphTests(CompilerTest):
             pass"""
         )
 
-        if sys.version_info >= (3, 14):
-            expected = make_linear_graph(["entry", "", "if_end"])
-        else:
-            expected = make_linear_graph(["entry", "", "if_else", "if_end"])
+        expected = make_linear_graph(["entry", "", "if_else", "if_end"])
         self.assert_graph_equal(graph, expected)
 
     def test_try_except(self) -> None:
@@ -92,7 +89,14 @@ class GraphTests(CompilerTest):
         )
 
         if sys.version_info >= (3, 14):
-            g = ["entry", "try_except", "try_cleanup_body_0", "try_cleanup"]
+            g = [
+                "entry",
+                "try_except",
+                "try_cleanup_body_0",
+                "try_except_0",
+                "try_cleanup",
+                "try_end",
+            ]
         elif PRE_312:
             g = ["entry", "try_body", "try_handlers", "try_cleanup_body0"]
         else:

@@ -97,7 +97,10 @@ class FlowGraphOptimizer:
         if handler is not None:
             return handler(self, instr_index, instr, next_instr, target, block)
 
-    def clean_basic_block(self, block: Block, prev_lineno: int) -> None:
+    def skip_nops(self, next_block: Block, lineno: int) -> bool:
+        return False
+
+    def clean_basic_block(self, block: Block, prev_lineno: int) -> bool:
         """Remove all NOPs from a function when legal."""
         new_instrs = []
         num_instrs = len(block.insts)
@@ -126,11 +129,15 @@ class FlowGraphOptimizer:
                         next_block = next_block.next
                     # or if last instruction in BB and next BB has same line number
                     if next_block:
-                        if lineno == next_block.insts[0].lineno:
+                        if lineno == next_block.insts[0].lineno or self.skip_nops(
+                            next_block, lineno
+                        ):
                             continue
             new_instrs.append(instr)
             prev_lineno = instr.lineno
+        cleaned = len(block.insts) != len(new_instrs)
         block.insts = new_instrs
+        return cleaned
 
     def jump_thread(
         self, block: Block, instr: Instruction, target: Instruction, opname: str
@@ -779,6 +786,17 @@ def is_small_int(const: object) -> bool:
 
 
 class BaseFlowGraphOptimizer314(FlowGraphOptimizer312):
+    def skip_nops(self, next_block: Block, lineno: int) -> bool:
+        next_lineno = -1
+        for next_instr in next_block.insts:
+            # pyre-ignore[16]: no lineno
+            if next_instr.opname == "NOP" and next_instr.loc.lineno < 0:
+                # Skip over NOPs without a location, they will be removed
+                continue
+            # pyre-ignore[16]: no lineno
+            next_lineno = next_instr.loc.lineno
+        return lineno == next_lineno
+
     def opt_jump_if(
         self: FlowGraphOptimizer,
         instr_index: int,
