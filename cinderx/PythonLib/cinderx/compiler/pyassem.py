@@ -418,6 +418,8 @@ class Block:
         data.append(f"startdepth={self.startdepth}")
         if self.next:
             data.append(f"next={self.next.bid}")
+        if self.is_exc_handler:
+            data.append("EH")
         extras = ", ".join(data)
         if self.label:
             return f"<block {self.label} {extras}>"
@@ -2356,6 +2358,103 @@ class PyFlowGraph314(PyFlowGraph312):
 
         return res
 
+    def mark_except_handlers(self) -> None:
+        for block in self.ordered_blocks:
+            for instr in block.insts:
+                if instr.opname in SETUP_OPCODES:
+                    target = instr.target
+                    assert target is not None, "SETUP_* opcodes all have targets"
+                    target.is_exc_handler = True
+                    break
+
+    def push_cold_blocks_to_end(
+        self, except_handlers: set[Block] | None, optimizer: FlowGraphOptimizer
+    ) -> None:
+        warm = self.compute_warm()
+        cold = self.compute_cold(warm)
+
+        # If we have a cold block with fallthrough to a warm block, add
+        # an explicit jump instead of fallthrough
+        for block in list(self.ordered_blocks):
+            if block in cold and block.has_fallthrough and block.next in warm:
+                explicit_jump = self.make_explicit_jump_block()
+                explicit_jump.bid = self.get_new_block_id()
+                explicit_jump.num_predecessors = 1
+                cold.add(explicit_jump)
+                self.current = explicit_jump
+
+                next_block = block.next
+                assert next_block is not None
+
+                self.emit_jump_forward_noline(next_block)
+                self.ordered_blocks.insert(
+                    self.ordered_blocks.index(block) + 1, explicit_jump
+                )
+
+                explicit_jump.next = block.next
+                explicit_jump.has_fallthrough = False
+                block.next = explicit_jump
+
+        new_ordered = []
+        to_end = []
+        prev = None
+        for block in self.ordered_blocks:
+            if block in warm:
+                new_ordered.append(block)
+                if prev is not None:
+                    prev.next = block
+                block.prev = prev
+                prev = block
+            else:
+                to_end.append(block)
+
+        for block in to_end:
+            prev.next = block
+            block.prev = prev
+            prev = block
+
+        block.next = None
+
+        self.ordered_blocks = new_ordered + to_end
+        if to_end:
+            self.remove_redundant_nops_and_jumps(optimizer)
+
+    def has_fallthrough(self, block: Block) -> bool:
+        if not block.insts:
+            return True
+
+        last = block.insts[-1]
+        return (
+            last.opname not in UNCONDITIONAL_JUMP_OPCODES
+            and last.opname not in SCOPE_EXIT_OPCODES
+        )
+
+    def compute_cold(self, warm: set[Block]) -> set[Block]:
+        stack = []
+        cold = set()
+        visited = set()
+
+        for block in self.ordered_blocks:
+            if block.is_exc_handler:
+                assert block not in warm
+                stack.append(block)
+
+        for block in stack:
+            cold.add(block)
+            next = block.next
+            if next is not None and self.has_fallthrough(block):
+                if next not in warm and next not in visited:
+                    stack.append(next)
+                    visited.add(next)
+
+            for instr in block.insts:
+                if instr.is_jump(self.opcode):
+                    target = instr.target
+                    if target not in warm and target not in visited:
+                        stack.append(target)
+                        visited.add(target)
+        return cold
+
     # The following bits are chosen so that the value of
     # COMPARSION_BIT(left, right)
     # masked by the values below will be non-zero if the
@@ -3025,7 +3124,7 @@ class PyFlowGraph314(PyFlowGraph312):
 
     def optimizeCFG(self) -> None:
         """Optimize a well-formed CFG."""
-        except_handlers = self.compute_except_handlers()
+        self.mark_except_handlers()
 
         self.label_exception_targets()
 
@@ -3059,7 +3158,7 @@ class PyFlowGraph314(PyFlowGraph312):
         self.remove_unused_consts()
         self.add_checks_for_loads_of_uninitialized_variables()
         self.insert_superinstructions()
-        self.push_cold_blocks_to_end(except_handlers, optimizer)
+        self.push_cold_blocks_to_end(None, optimizer)
         self.propagate_line_numbers()
 
     _const_opcodes: set[str] = set(PyFlowGraph312._const_opcodes) | {"LOAD_SMALL_INT"}
