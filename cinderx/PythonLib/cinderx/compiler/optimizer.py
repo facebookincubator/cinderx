@@ -509,6 +509,12 @@ class AstOptimizer314(AstOptimizer312):
 
         return self.update_node(node, left=lhs, right=rhs)
 
+    def visitSubscript(self, node: ast.Subscript) -> ast.expr:
+        value = self.visit(node.value)
+        slice = self.visit(node.slice)
+
+        return self.update_node(node, value=value, slice=slice)
+
     def visitMatchValue(self, node: ast.MatchValue) -> ast.MatchValue:
         return self.update_node(node, value=self.fold_const_match_patterns(node.value))
 
