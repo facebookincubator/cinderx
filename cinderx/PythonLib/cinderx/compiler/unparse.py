@@ -81,27 +81,6 @@ def _format_compare(node: ast.Compare, level: int) -> str:
     )
 
 
-# ast.NameConstant, Num, Str are deprecated but we'll probably want to keep
-# formatting them until they're actually removed.
-with warnings.catch_warnings():
-    warnings.simplefilter("ignore", category=DeprecationWarning)
-
-    def _format_nameconstant(node: ast.NameConstant, level: int) -> str:
-        if node.value is None:
-            return "None"
-        elif node.value is True:
-            return "True"
-        elif node.value is False:
-            return "False"
-        return "<unknown constant>"
-
-    def _format_num(node: ast.Num, level: int) -> str:
-        return repr(node.n)
-
-    def _format_str(node: ast.Str, level: int) -> str:
-        return repr(node.s)
-
-
 def _format_attribute(node: ast.Attribute, level: int) -> str:
     value = to_expr(node.value, PR_ATOM)
     const = node.value
@@ -419,9 +398,6 @@ with warnings.catch_warnings():
             {
                 ast.Bytes: lambda node, level: repr(node.s),
                 ast.Ellipsis: lambda node, level: "...",
-                ast.NameConstant: _format_nameconstant,
-                ast.Num: _format_num,
-                ast.Str: _format_str,
             }
             if sys.version_info < (3, 14)
             else {}

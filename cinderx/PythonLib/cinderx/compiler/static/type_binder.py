@@ -47,7 +47,6 @@ from ast import (
     MatchValue,
     Module,
     Name,
-    NameConstant,
     Return,
     SetComp,
     Slice,
@@ -1460,9 +1459,9 @@ class TypeBinder(GenericVisitor[Optional[NarrowingEffect]]):
             self.visit(left)
             self.visit(right)
 
-            if isinstance(left, (Constant, NameConstant)) and left.value is None:
+            if isinstance(left, Constant) and left.value is None:
                 other = right
-            elif isinstance(right, (Constant, NameConstant)) and right.value is None:
+            elif isinstance(right, Constant) and right.value is None:
                 other = left
 
             if (effect := self.refine_truthy(other)) is not None:

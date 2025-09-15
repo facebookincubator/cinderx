@@ -31,7 +31,6 @@ from ast import (
     NodeVisitor,
     SetComp,
     stmt,
-    Str,
     Try,
 )
 from symtable import SymbolTable
@@ -819,7 +818,8 @@ class ImmutableTransformer(SymbolVisitor[None, ScopeData], AstRewriter):
                 [lineinfo(Name("__slots__", ast.Store()))],
                 lineinfo(
                     ast.Tuple(
-                        [lineinfo(Str(name)) for name in instance_fields], ast.Load()
+                        [lineinfo(Constant(name)) for name in instance_fields],
+                        ast.Load(),
                     )
                 ),
             )
