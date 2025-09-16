@@ -2573,6 +2573,8 @@ class BadArgumentTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             compile_after_n_calls(-1)
         with self.assertRaises(ValueError):
+            compile_after_n_calls(10_000_000_000)
+        with self.assertRaises(ValueError):
             compile_after_n_calls(0)
 
     def test_is_compiled(self) -> None:

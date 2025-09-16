@@ -1339,12 +1339,22 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
   Py_RETURN_NONE;
 }
 
+void compile_after_n_calls_impl(uint32_t calls) {
+  getMutableConfig().auto_jit_threshold = calls;
+
+  // Schedule all pre-existing functions for compilation.
+  walkFunctionObjects(
+      [](BorrowedRef<PyFunctionObject> func) { scheduleJitCompile(func); });
+
+  JIT_DLOG("Configuring JIT to compile functions after {} calls", calls);
+}
+
 PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
   Py_ssize_t calls = -1;
   if (!PyArg_Parse(arg, "n:compile_after_n_calls", &calls)) {
     return nullptr;
   }
-  if (calls < 0) {
+  if (calls < 0 || calls > std::numeric_limits<uint32_t>::max()) {
     PyErr_Format(
         PyExc_ValueError,
         "Cannot configure JIT to compile functions after '%zd' calls",
@@ -1358,21 +1368,14 @@ PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
     return nullptr;
   }
 
-  getMutableConfig().auto_jit_threshold = calls;
-  JIT_DLOG("Configuring JIT to compile functions after {} calls", calls);
+  compile_after_n_calls_impl(calls);
 
   Py_RETURN_NONE;
 }
 
 PyObject* auto_jit(PyObject* /* self */, PyObject* /* arg */) {
   // Default value that works well for most applications.
-  constexpr size_t kThreshold = 1000;
-
-  getMutableConfig().auto_jit_threshold = kThreshold;
-
-  JIT_DLOG(
-      "Configuring JIT to compile functions automatically using default "
-      "behavior");
+  compile_after_n_calls_impl(1000);
 
   Py_RETURN_NONE;
 }

@@ -207,7 +207,12 @@ class DisableEnableTests(unittest.TestCase):
         # detection.
         force_uncompile(foo)
 
-    def test_default(self) -> None:
+    def test_compile_no_config(self) -> None:
+        """
+        Test how code behaves when it forces compilation without any other
+        configuration or options enabled.
+        """
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             code = textwrap.dedent("""
             import cinderx.jit
@@ -230,9 +235,16 @@ class DisableEnableTests(unittest.TestCase):
             )
 
     def test_auto(self) -> None:
+        """
+        Basic test for cinderx.jit.auto().
+        """
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             code = textwrap.dedent("""
             import cinderx.jit
+
+            def predefined(x):
+                return x + x
 
             cinderx.jit.auto()
 
@@ -257,7 +269,44 @@ class DisableEnableTests(unittest.TestCase):
                 env={"PYTHONPATH": CINDERX_PATH},
             )
 
+    def test_auto_predefined(self) -> None:
+        """
+        Test that cinderx.jit.auto() works for functions that were defined
+        before it was called.
+        """
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            def predefined(x):
+                return x + x
+
+            cinderx.jit.auto()
+
+            assert not cinderx.jit.is_jit_compiled(predefined)
+            for i in range(1000):
+                predefined(i)
+            assert not cinderx.jit.is_jit_compiled(predefined)
+
+            predefined(1001)
+            assert cinderx.jit.is_jit_compiled(predefined)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={"PYTHONPATH": CINDERX_PATH},
+            )
+
     def test_compile_after_n_calls(self) -> None:
+        """
+        Basic test for cinderx.jit.compile_after_n_calls().
+        """
+
         with tempfile.TemporaryDirectory() as tmp_dir:
             code = textwrap.dedent("""
             import cinderx.jit
@@ -275,6 +324,8 @@ class DisableEnableTests(unittest.TestCase):
             inc(3)
             assert cinderx.jit.is_jit_compiled(inc)
 
+            # Change the setting and see it takes affect.
+
             cinderx.jit.compile_after_n_calls(5)
 
             def dec(x):
@@ -290,6 +341,39 @@ class DisableEnableTests(unittest.TestCase):
 
             dec(6)
             assert cinderx.jit.is_jit_compiled(dec)
+            """)
+
+            test_file = Path(tmp_dir) / "mod.py"
+            test_file.write_text(code)
+
+            subprocess.run(
+                [sys.executable, str(test_file)],
+                check=True,
+                env={"PYTHONPATH": CINDERX_PATH},
+            )
+
+    def test_compile_after_n_calls_predefined(self) -> None:
+        """
+        Test that cinderx.jit.compile_after_n_calls() works for functions that
+        were defined before it was called.
+        """
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            code = textwrap.dedent("""
+            import cinderx.jit
+
+            def predefined(x):
+                return x + x
+
+            cinderx.jit.compile_after_n_calls(2)
+
+            assert not cinderx.jit.is_jit_compiled(predefined)
+            predefined(1)
+            predefined(2)
+            assert not cinderx.jit.is_jit_compiled(predefined)
+
+            predefined(3)
+            assert cinderx.jit.is_jit_compiled(predefined)
             """)
 
             test_file = Path(tmp_dir) / "mod.py"
