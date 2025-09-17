@@ -923,10 +923,10 @@ void updateInState(Env& env, BasicBlock* block) {
     // If the value is borrowed from one or more now-dead Phi inputs, change it
     // to borrow from the corresponding Phi output(s) instead.
     if (rstate.isBorrowed() && rstate.support().intersects(phi_support.dead)) {
-      for (auto pair : phi_support.forwards) {
-        if (rstate.support().intersects(pair.first)) {
-          rstate.support().remove(pair.first);
-          rstate.support().add(pair.second);
+      for (auto forward_pair : phi_support.forwards) {
+        if (rstate.support().intersects(forward_pair.first)) {
+          rstate.support().remove(forward_pair.first);
+          rstate.support().add(forward_pair.second);
         }
       }
     }
