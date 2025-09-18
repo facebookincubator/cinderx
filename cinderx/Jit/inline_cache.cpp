@@ -851,11 +851,7 @@ PyObject* LoadTypeAttrCache::invokeSlowPath(
   }
 
   // Give up.
-  PyErr_Format(
-      PyExc_AttributeError,
-      "type object '%.50s' has no attribute '%U'",
-      type->tp_name,
-      name);
+  raise_attribute_error(obj, name);
   return nullptr;
 }
 
@@ -1067,11 +1063,7 @@ LoadMethodResult __attribute__((noinline)) LoadMethodCache::lookupSlowPath(
     return {Py_None, descr};
   }
 
-  PyErr_Format(
-      PyExc_AttributeError,
-      "'%.50s' object has no attribute '%U'",
-      tp->tp_name,
-      name);
+  raise_attribute_error(obj, name);
   return {nullptr, nullptr};
 }
 
@@ -1256,12 +1248,7 @@ LoadMethodResult LoadTypeMethodCache::lookup(
     return {Py_None, meta_attribute};
   }
 
-  /* Give up */
-  PyErr_Format(
-      PyExc_AttributeError,
-      "type object '%.50s' has no attribute '%U'",
-      obj->tp_name,
-      name);
+  raise_attribute_error(obj, name);
   return {nullptr, nullptr};
 }
 
