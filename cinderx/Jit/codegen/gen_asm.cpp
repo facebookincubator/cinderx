@@ -758,7 +758,7 @@ void* NativeGenerator::getVectorcallEntry() {
       if (gp_index < ARGUMENT_REGS.size()) {
         env_.arg_locations.push_back(ARGUMENT_REGS[gp_index++]);
       } else {
-        env_.arg_locations.push_back(PhyLocation::REG_INVALID);
+        env_.arg_locations.emplace_back(PhyLocation::REG_INVALID);
       }
     };
 
@@ -770,7 +770,7 @@ void* NativeGenerator::getVectorcallEntry() {
         } else {
           // The register will come in on the stack, and the backend
           // will access it via __asm_extra_args.
-          env_.arg_locations.push_back(PhyLocation::REG_INVALID);
+          env_.arg_locations.emplace_back(PhyLocation::REG_INVALID);
         }
       } else {
         add_gp();

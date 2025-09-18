@@ -384,12 +384,10 @@ void InlineFunctionCalls::Run(Function& irfunc) {
         }
 
         BorrowedRef<PyFunctionObject> callee{target->type().objectSpec()};
-        to_inline.emplace_back(
-            AbstractCall{callee, call->numArgs(), call, target});
+        to_inline.emplace_back(callee, call->numArgs(), call, target);
       } else if (instr.IsInvokeStaticFunction()) {
         auto call = static_cast<InvokeStaticFunction*>(&instr);
-        to_inline.emplace_back(
-            AbstractCall{call->func(), call->NumArgs() - 1, call});
+        to_inline.emplace_back(call->func(), call->NumArgs() - 1, call);
       }
     }
   }

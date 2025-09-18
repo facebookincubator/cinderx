@@ -36,8 +36,8 @@ void populateCodeSections(
     }
     auto section_start =
         static_cast<char*>(code_base_ptr) + asmjit_section->offset();
-    code_sections.push_back(std::make_pair(
-        reinterpret_cast<void*>(section_start), asmjit_section->realSize()));
+    code_sections.emplace_back(
+        reinterpret_cast<void*>(section_start), asmjit_section->realSize());
   });
 }
 
