@@ -743,11 +743,11 @@ exception_unwind:
             }
             if (lasti) {
                 int frame_lasti = _PyInterpreterFrame_LASTI(frame);
-                PyObject *lasti = PyLong_FromLong(frame_lasti);
-                if (lasti == NULL) {
+                PyObject *lasti_obj = PyLong_FromLong(frame_lasti);
+                if (lasti_obj == NULL) {
                     goto exception_unwind;
                 }
-                PUSH(lasti);
+                PUSH(lasti_obj);
             }
 
             /* Make the raw exception data
