@@ -152,6 +152,7 @@ bool isSupportedOpcode(int opcode) {
     case LOAD_ASSERTION_ERROR:
     case LOAD_ATTR:
     case LOAD_ATTR_SUPER:
+    case LOAD_BUILD_CLASS:
     case LOAD_CLOSURE:
     case LOAD_COMMON_CONSTANT:
     case LOAD_CONST:
@@ -1551,6 +1552,10 @@ void HIRBuilder::translate(
         }
         case SET_FUNCTION_ATTRIBUTE: {
           emitSetFunctionAttribute(tc, bc_instr);
+          break;
+        }
+        case LOAD_BUILD_CLASS: {
+          emitLoadBuildClass(tc);
           break;
         }
         case CHECK_EG_MATCH:
@@ -4984,6 +4989,20 @@ void HIRBuilder::emitSetFunctionAttribute(
 
   tc.emit<SetFunctionAttr>(value, func, attr);
   stack.push(func);
+}
+
+void HIRBuilder::emitLoadBuildClass(TranslationContext& tc) {
+  Register* result = temps_.AllocateStack();
+  Register* builtins = temps_.AllocateNonStack();
+  Register* key = temps_.AllocateNonStack();
+  tc.emit<LoadConst>(builtins, Type::fromObject(tc.frame.builtins));
+  // Starting at the preloader the JIT seems to assume builtins will be a
+  // dictionary, however I'm not sure there's any guarantee of this.
+  Register* builtins_dict = temps_.AllocateNonStack();
+  tc.emit<GuardType>(builtins_dict, TDictExact, builtins, tc.frame);
+  tc.emit<LoadConst>(key, Type::fromObject(Runtime::get()->strBuildClass()));
+  tc.emit<DictSubscr>(result, builtins_dict, key, tc.frame);
+  tc.frame.stack.push(result);
 }
 
 void HIRBuilder::insertEvalBreakerCheck(

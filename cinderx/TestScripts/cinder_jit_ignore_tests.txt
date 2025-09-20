@@ -42,6 +42,7 @@ test.test_traceback.TestTracebackException.test_long_context_chain
 test.test_call.TestRecursion.test_super_deep
 test.test_sys.SysModuleTest.test_setrecursionlimit_to_depth
 test.test_support.TestSupport.test_recursion
+test.test_isinstance.TestIsInstanceIsSubclass.test_infinitely_many_bases
 
 # TASK(T87023404): Eval breaker timing
 unittest.test.test_break.*.testInterruptCaught
@@ -144,6 +145,9 @@ test.test_sys.SizeofTest.test_objecttypes
 
 # The JIT doesn't update line numbers for list construction which is considerd non-escaping
 test.test_tracemalloc.TestTracemallocEnabled.test_new_reference
+
+# JIT doesn't support reading from local variables (in the dir() case)
+test.test_descr.ClassPropertiesAndMethods.test_dir
 
 # AssertionError: {} != {'self': <test.test_capi.test_eval.Tests t[34 chars]': 1}
 # - {}

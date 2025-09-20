@@ -302,6 +302,7 @@ def _computeSkipTests(huntrleaks, use_rr=False) -> Tuple[Set[str], Set[str]]:
         import cinderjit  # noqa: F401
 
         skip_list_files.append("cinder_jit_ignore_tests.txt")
+        skip_list_files.append(f"cinder_jit_ignore_tests_{version}.txt")
     except ImportError:
         pass
 
@@ -312,7 +313,10 @@ def _computeSkipTests(huntrleaks, use_rr=False) -> Tuple[Set[str], Set[str]]:
     skip_patterns = set()
 
     for skip_file in skip_list_files:
-        with open(os.path.join(os.path.dirname(__file__), skip_file)) as fp:
+        skip_file_path = os.path.join(os.path.dirname(__file__), skip_file)
+        if not os.path.exists(skip_file_path):
+            continue
+        with open(skip_file_path) as fp:
             for line in fp:
                 line = line.strip()
                 if not line or line.startswith("#"):

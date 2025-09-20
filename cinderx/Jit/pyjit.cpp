@@ -931,6 +931,14 @@ hir::Preloader* preload(BorrowedRef<> unit) {
       return nullptr;
     }
     BorrowedRef<PyFunctionObject>& outer_func = it->second;
+    // Assuming the builtins will always be a dictionary goes way back in the
+    // JIT's history. I'm not sure what guarantees this though. Tread carefully
+    // but try not to blow things up if this happens in production code.
+    JIT_DCHECK(
+        PyDict_CheckExact(outer_func->func_builtins),
+        "Unexpected type for builtins ({}) on function {}",
+        Py_TYPE(outer_func->func_builtins)->tp_name,
+        funcFullname(outer_func));
     preloader = hir::Preloader::makePreloader(
         code,
         outer_func->func_builtins,

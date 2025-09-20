@@ -13,7 +13,15 @@
 
 namespace jit {
 
-Runtime::Runtime() : zero_(Ref<>::create(PyLong_FromLong(0))) {
+Runtime::Runtime()
+    : zero_(Ref<>::create(PyLong_FromLong(0))),
+#if PY_VERSION_HEX >= 0x030C0000
+      str_build_class_(Ref<>::create(&_Py_ID(__build_class__)))
+#else
+      str_build_class_(
+          Ref<>::create(PyUnicode_InternFromString("__build_class__")))
+#endif
+{
 #if PY_VERSION_HEX >= 0x030E0000
   PyObject** common_consts = PyThreadState_GET()->interp->common_consts;
   for (int i = 0; i < NUM_COMMON_CONSTANTS; i++) {

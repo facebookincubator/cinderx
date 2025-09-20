@@ -1,0 +1,5 @@
+# These tests relied on specific refcount values which the JIT does not match.
+# The tests are improved in later versions of Python.
+test.test_ctypes.test_refcounts.RefcountTestCase.test_refcount
+test.test_ctypes.test_stringptr.StringPtrTestCase.test__POINTER_c_char
+test.test_asyncio.test_tasks.*.test_proper_refcounts

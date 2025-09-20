@@ -1,6 +1,5 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
-import dis
 import opcode
 import sys
 import types
@@ -52,35 +51,7 @@ def _reassemble_for_jit(ops, shell_function):
 
 
 @unittest.skipUnless(sys.version_info >= (3, 14), "Python 3.14+ only")
-class Python314Bytecodes(unittest.TestCase):
-    def _assertBytecodeContains(self, func, expected_opcode, expected_oparg=None):
-        try:
-            inner_function = func.inner_function
-        except AttributeError:
-            pass
-        else:
-            func = inner_function
-
-        bytecode_instructions = dis.get_instructions(func)
-
-        if expected_oparg is None:
-            opcodes = [instr.opname for instr in bytecode_instructions]
-            self.assertIn(
-                expected_opcode,
-                opcodes,
-                f"{expected_opcode} opcode should be present in {func.__name__} bytecode",
-            )
-        else:
-            matching_instructions = [
-                instr
-                for instr in bytecode_instructions
-                if instr.opname == expected_opcode and instr.arg == expected_oparg
-            ]
-            self.assertTrue(
-                len(matching_instructions) > 0,
-                f"{expected_opcode} opcode with oparg {expected_oparg} should be present in {func.__name__} bytecode",
-            )
-
+class Python314Bytecodes(unittest.TestCase, cinder_support.AssertBytecodeContainsMixin):
     def test_LOAD_SMALL_INT(self):
         @cinder_support.fail_if_deopt
         @cinder_support.failUnlessJITCompiled
@@ -88,7 +59,7 @@ class Python314Bytecodes(unittest.TestCase):
             return 1
 
         self.assertEqual(x(), 1)
-        self._assertBytecodeContains(x, "LOAD_SMALL_INT")
+        self.assertBytecodeContains(x, "LOAD_SMALL_INT")
 
     def test_LOAD_FAST_BORROW(self):
         @cinder_support.fail_if_deopt
@@ -98,7 +69,7 @@ class Python314Bytecodes(unittest.TestCase):
             return a
 
         self.assertEqual(x(), 1)
-        self._assertBytecodeContains(x, "LOAD_FAST_BORROW")
+        self.assertBytecodeContains(x, "LOAD_FAST_BORROW")
 
     def test_LOAD_FAST_BORROW_LOAD_FAST_BORROW(self):
         @cinder_support.fail_if_deopt
@@ -109,7 +80,7 @@ class Python314Bytecodes(unittest.TestCase):
             return a + b
 
         self.assertEqual(x(), 3)
-        self._assertBytecodeContains(x, "LOAD_FAST_BORROW_LOAD_FAST_BORROW")
+        self.assertBytecodeContains(x, "LOAD_FAST_BORROW_LOAD_FAST_BORROW")
 
     def test_STORE_FAST_LOAD_FAST(self):
         @cinder_support.fail_if_deopt
@@ -118,7 +89,7 @@ class Python314Bytecodes(unittest.TestCase):
             return [i for i in [1, 2]]  # noqa: C416
 
         self.assertEqual(sum(x()), 3)
-        self._assertBytecodeContains(x, "STORE_FAST_LOAD_FAST")
+        self.assertBytecodeContains(x, "STORE_FAST_LOAD_FAST")
 
     def test_STORE_FAST_STORE_FAST(self):
         @cinder_support.fail_if_deopt
@@ -128,7 +99,7 @@ class Python314Bytecodes(unittest.TestCase):
             return x + y
 
         self.assertEqual(x(), 3)
-        self._assertBytecodeContains(x, "STORE_FAST_STORE_FAST")
+        self.assertBytecodeContains(x, "STORE_FAST_STORE_FAST")
 
     def test_LOAD_FAST_LOAD_FAST(self):
         # Myself and LLMs tried really hard but we couldn't figure out a way to
@@ -148,7 +119,7 @@ class Python314Bytecodes(unittest.TestCase):
             x,
         )
         self.assertEqual(x_prime(1, 2), (1, 2))
-        self._assertBytecodeContains(x, "LOAD_FAST_LOAD_FAST")
+        self.assertBytecodeContains(x, "LOAD_FAST_LOAD_FAST")
 
     def test_BINARY_OP_oparg_SUBSCR(self):
         @cinder_support.fail_if_deopt
@@ -157,7 +128,7 @@ class Python314Bytecodes(unittest.TestCase):
             return [1, 2][0]
 
         self.assertEqual(x(), 1)
-        self._assertBytecodeContains(x, "BINARY_OP")
+        self.assertBytecodeContains(x, "BINARY_OP")
 
     def test_LOAD_ATTR_CALL_unbound(self):
         class C:
@@ -170,8 +141,8 @@ class Python314Bytecodes(unittest.TestCase):
             return o.m(2)
 
         self.assertEqual(x(C()), 3)
-        self._assertBytecodeContains(x, "LOAD_ATTR")
-        self._assertBytecodeContains(x, "CALL")
+        self.assertBytecodeContains(x, "LOAD_ATTR")
+        self.assertBytecodeContains(x, "CALL")
 
     def test_LOAD_ATTR_CALL_bound(self):
         class C:
@@ -184,8 +155,8 @@ class Python314Bytecodes(unittest.TestCase):
             return o.m(2)
 
         self.assertEqual(x(C()), 3)
-        self._assertBytecodeContains(x, "LOAD_ATTR")
-        self._assertBytecodeContains(x, "CALL")
+        self.assertBytecodeContains(x, "LOAD_ATTR")
+        self.assertBytecodeContains(x, "CALL")
 
     def test_LOAD_ATTR_CALL_bound_via_attr(self):
         class C:
@@ -201,8 +172,8 @@ class Python314Bytecodes(unittest.TestCase):
             return o.m_attr(2)
 
         self.assertEqual(x(C()), 3)
-        self._assertBytecodeContains(x, "LOAD_ATTR")
-        self._assertBytecodeContains(x, "CALL")
+        self.assertBytecodeContains(x, "LOAD_ATTR")
+        self.assertBytecodeContains(x, "CALL")
 
     def test_LOAD_ATTR_CALL_err(self):
         class C:
@@ -217,8 +188,8 @@ class Python314Bytecodes(unittest.TestCase):
         with self.assertRaises(AttributeError):
             x(C())
 
-        self._assertBytecodeContains(x, "LOAD_ATTR")
-        self._assertBytecodeContains(x, "CALL")
+        self.assertBytecodeContains(x, "LOAD_ATTR")
+        self.assertBytecodeContains(x, "CALL")
 
     def test_DICT_MERGE(self):
         def y(i=1, j=2):
@@ -230,7 +201,7 @@ class Python314Bytecodes(unittest.TestCase):
             return y(i=2, **k)
 
         self.assertEqual(x({"j": 3}), 6)
-        self._assertBytecodeContains(x, "DICT_MERGE")
+        self.assertBytecodeContains(x, "DICT_MERGE")
 
     def test_LOAD_SUPER_ATTR_CALL_bound(self):
         class A:
@@ -245,8 +216,8 @@ class Python314Bytecodes(unittest.TestCase):
                 return super().attr()
 
         self.assertEqual(B().m(), 1)
-        self._assertBytecodeContains(B.m, "LOAD_SUPER_ATTR")
-        self._assertBytecodeContains(B.m, "CALL")
+        self.assertBytecodeContains(B.m, "LOAD_SUPER_ATTR")
+        self.assertBytecodeContains(B.m, "CALL")
 
     def test_LOAD_GLOBAL_CALL(self):
         @cinder_support.fail_if_deopt
@@ -255,8 +226,8 @@ class Python314Bytecodes(unittest.TestCase):
             return one()
 
         self.assertEqual(f(), 1)
-        self._assertBytecodeContains(f, "LOAD_GLOBAL")
-        self._assertBytecodeContains(f, "CALL")
+        self.assertBytecodeContains(f, "LOAD_GLOBAL")
+        self.assertBytecodeContains(f, "CALL")
 
     def test_CALL_INTRINSIC_1(self):
         def y(*args):
@@ -269,7 +240,7 @@ class Python314Bytecodes(unittest.TestCase):
 
         self.assertEqual(x(2), 3)
 
-        self._assertBytecodeContains(x, "CALL_INTRINSIC_1")
+        self.assertBytecodeContains(x, "CALL_INTRINSIC_1")
 
     def test_CALL_INTRINSIC_2(self):
         # This test actually only tests JIT compilation of CALL_INTRINSIC_2.
@@ -308,7 +279,7 @@ def x():
             x()
         except ExceptionGroup:
             pass
-        self._assertBytecodeContains(x, "CALL_INTRINSIC_2")
+        self.assertBytecodeContains(x, "CALL_INTRINSIC_2")
 
     def test_COMPARE_OP(self):
         # This is just a very quick test to verify we're now basically using
@@ -321,7 +292,7 @@ def x():
             return 1 == 1
 
         self.assertEqual(x(), True)
-        self._assertBytecodeContains(x, "COMPARE_OP")
+        self.assertBytecodeContains(x, "COMPARE_OP")
 
     def test_COMPARE_OP_with_bool_coercion(self):
         @cinder_support.fail_if_deopt
@@ -332,7 +303,7 @@ def x():
             return 1
 
         self.assertEqual(x(), 1)
-        self._assertBytecodeContains(x, "COMPARE_OP", 88)  # bit 5 set
+        self.assertBytecodeContains(x, "COMPARE_OP", 88)  # bit 5 set
 
     def test_COMPARE_OP_without_bool_coercion(self):
         @cinder_support.fail_if_deopt
@@ -341,7 +312,7 @@ def x():
             return 1 == 2
 
         self.assertEqual(x(), False)
-        self._assertBytecodeContains(x, "COMPARE_OP", 72)  # bit 5 not set
+        self.assertBytecodeContains(x, "COMPARE_OP", 72)  # bit 5 not set
 
     def test_TO_BOOL_and_POP_JUMP_IF_FALSE(self):
         @cinder_support.fail_if_deopt
@@ -351,8 +322,8 @@ def x():
                 return 1
 
         self.assertEqual(x(2), 1)
-        self._assertBytecodeContains(x, "TO_BOOL")
-        self._assertBytecodeContains(x, "POP_JUMP_IF_FALSE")
+        self.assertBytecodeContains(x, "TO_BOOL")
+        self.assertBytecodeContains(x, "POP_JUMP_IF_FALSE")
 
     def test_POP_ITER(self):
         @cinder_support.fail_if_deopt
@@ -362,7 +333,7 @@ def x():
                 return y
 
         self.assertEqual(x(), 0)
-        self._assertBytecodeContains(x, "POP_ITER")
+        self.assertBytecodeContains(x, "POP_ITER")
 
     def test_BUILD_TEMPLATE(self):
         # Wrap this in an exec() to avoid breaking tests for earlier versions
@@ -383,7 +354,7 @@ def x():
         t = x()
         self.assertEqual(t.strings, ("foo",))
         self.assertEqual(t.interpolations, ())
-        self._assertBytecodeContains(x, "BUILD_TEMPLATE")
+        self.assertBytecodeContains(x, "BUILD_TEMPLATE")
 
     def test_FORMAT_WITH_SPEC(self):
         @cinder_support.fail_if_deopt
@@ -393,7 +364,7 @@ def x():
             return f"{value:.2f}"
 
         self.assertEqual(x(), "42.00")
-        self._assertBytecodeContains(x, "FORMAT_WITH_SPEC")
+        self.assertBytecodeContains(x, "FORMAT_WITH_SPEC")
 
     def test_FORMAT_SIMPLE(self):
         @cinder_support.fail_if_deopt
@@ -402,7 +373,7 @@ def x():
             return f"{'42'} {42} {forty_two}"
 
         self.assertEqual(x("42"), "42 42 42")
-        self._assertBytecodeContains(x, "FORMAT_SIMPLE")
+        self.assertBytecodeContains(x, "FORMAT_SIMPLE")
 
     def test_BUILD_INTERPOLATION(self):
         # Wrap this in an exec() to avoid breaking tests for earlier versions
@@ -425,7 +396,7 @@ match t.interpolations:
         pass
     case _:
         self.fail(f"interpolations mismatch: {t.interpolations}")
-self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
+self.assertBytecodeContains(x, "BUILD_INTERPOLATION")
 """,
             globals(),
             locals,
@@ -438,7 +409,7 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
             assert a
 
         x(True)
-        self._assertBytecodeContains(x, "LOAD_COMMON_CONSTANT")
+        self.assertBytecodeContains(x, "LOAD_COMMON_CONSTANT")
 
     def test_LOAD_SPECIAL(self):
         class DummyCM:
@@ -455,7 +426,7 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
                 pass
 
         self.assertEqual(x(), None)
-        self._assertBytecodeContains(x, "LOAD_SPECIAL")
+        self.assertBytecodeContains(x, "LOAD_SPECIAL")
 
     def test_LOAD_SPECIAL_fail(self):
         class InvalidCM:
@@ -468,7 +439,7 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
 
         with self.assertRaises(TypeError):
             x()
-        self._assertBytecodeContains(x, "LOAD_SPECIAL")
+        self.assertBytecodeContains(x, "LOAD_SPECIAL")
 
     def test_CONVERT_VALUE(self):
         @cinder_support.fail_if_deopt
@@ -477,7 +448,7 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
             return f"{'42'!r}"
 
         self.assertEqual(x(), "'42'")
-        self._assertBytecodeContains(x, "CONVERT_VALUE")
+        self.assertBytecodeContains(x, "CONVERT_VALUE")
 
     def test_SET_FUNCTION_ATTRIBUTE(self):
         @cinder_support.fail_if_deopt
@@ -489,7 +460,7 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
             return inner()
 
         self.assertEqual(x(), 3)
-        self._assertBytecodeContains(x, "SET_FUNCTION_ATTRIBUTE")
+        self.assertBytecodeContains(x, "SET_FUNCTION_ATTRIBUTE")
 
     def test_CALL_KW(self):
         def one(a=0):
@@ -501,7 +472,21 @@ self._assertBytecodeContains(x, "BUILD_INTERPOLATION")
             return one(a=1)
 
         self.assertEqual(x(), 1)
-        self._assertBytecodeContains(x, "CALL_KW")
+        self.assertBytecodeContains(x, "CALL_KW")
+
+    def test_LOAD_BUILD_CLASS(self):
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            class TestClass:
+                pass
+
+            return TestClass()
+
+        result = x()
+        self.assertIsNotNone(result)
+        self.assertEqual(result.__class__.__name__, "TestClass")
+        self.assertBytecodeContains(x, "LOAD_BUILD_CLASS")
 
 
 if __name__ == "__main__":

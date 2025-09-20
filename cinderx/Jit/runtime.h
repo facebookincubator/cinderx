@@ -274,6 +274,10 @@ class Runtime : public IRuntime {
     return zero_.get();
   }
 
+  BorrowedRef<> strBuildClass() {
+    return str_build_class_.get();
+  }
+
   void watchPendingTypes();
   void fixupFunctionEntryCachePostMultiThreadedCompile();
 
@@ -315,6 +319,7 @@ class Runtime : public IRuntime {
       type_deopt_patchers_;
 
   Ref<> zero_;
+  Ref<> str_build_class_;
   std::unordered_set<BorrowedRef<PyTypeObject>> pending_watches_;
 
   std::vector<hir::Type> common_constant_types_;

@@ -1,7 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 # pyre-strict
 
+import abc
 import ctypes
+import dis
 import importlib
 import multiprocessing
 import os.path
@@ -212,3 +214,49 @@ def run_in_subprocess(func: Callable[..., TRet]) -> Callable[..., TRet]:
         return value
 
     return wrapped
+
+
+class AssertBytecodeContainsMixin(abc.ABC):
+    @abc.abstractmethod
+    def assertIn(
+        self, expected: object, actual: Sequence[object], msg: str | None = None
+    ) -> None:
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def assertTrue(self, expr: object, msg: str | None = None) -> None:
+        raise NotImplementedError
+
+    def assertBytecodeContains(
+        self,
+        func: object,
+        expected_opcode: str,
+        expected_oparg: int | None = None,
+    ) -> None:
+        try:
+            # pyre-ignore[16] - for things wrapped by fail_if_deopt()
+            inner_function = func.inner_function
+        except AttributeError:
+            pass
+        else:
+            func = inner_function
+
+        bytecode_instructions = dis.get_instructions(func)
+
+        if expected_oparg is None:
+            opcodes = [instr.opname for instr in bytecode_instructions]
+            self.assertIn(
+                expected_opcode,
+                opcodes,
+                f"{expected_opcode} opcode should be present in {func.__name__} bytecode",
+            )
+        else:
+            matching_instructions = [
+                instr
+                for instr in bytecode_instructions
+                if instr.opname == expected_opcode and instr.arg == expected_oparg
+            ]
+            self.assertTrue(
+                len(matching_instructions) > 0,
+                f"{expected_opcode} opcode with oparg {expected_oparg} should be present in {func.__name__} bytecode",
+            )
