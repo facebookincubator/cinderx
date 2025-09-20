@@ -228,6 +228,7 @@ bool isSupportedOpcode(int opcode) {
     case STORE_FAST_LOAD_FAST:
     case STORE_FAST_STORE_FAST:
     case STORE_FIELD:
+    case STORE_GLOBAL:
     case STORE_LOCAL:
     case STORE_SLICE:
     case STORE_SUBSCR:
@@ -1556,6 +1557,10 @@ void HIRBuilder::translate(
         }
         case LOAD_BUILD_CLASS: {
           emitLoadBuildClass(tc);
+          break;
+        }
+        case STORE_GLOBAL: {
+          emitStoreGlobal(tc, bc_instr);
           break;
         }
         case CHECK_EG_MATCH:
@@ -5003,6 +5008,25 @@ void HIRBuilder::emitLoadBuildClass(TranslationContext& tc) {
   tc.emit<LoadConst>(key, Type::fromObject(Runtime::get()->strBuildClass()));
   tc.emit<DictSubscr>(result, builtins_dict, key, tc.frame);
   tc.frame.stack.push(result);
+}
+
+void HIRBuilder::emitStoreGlobal(
+    TranslationContext& tc,
+    const BytecodeInstruction& bc_instr) {
+  Register* globals = temps_.AllocateNonStack();
+  Register* key = temps_.AllocateNonStack();
+
+  tc.emit<LoadConst>(globals, Type::fromObject(tc.frame.globals));
+  // Starting at the preloader the JIT seems to assume globals will be a
+  // dictionary, however I'm not sure there's any guarantee of this.
+  Register* globals_dict = temps_.AllocateNonStack();
+  tc.emit<GuardType>(globals_dict, TDictExact, globals, tc.frame);
+  tc.emit<LoadConst>(
+      key,
+      Type::fromObject(PyTuple_GET_ITEM(code_->co_names, bc_instr.oparg())));
+  Register* value = tc.frame.stack.pop();
+  Register* result = temps_.AllocateNonStack();
+  tc.emit<SetDictItem>(result, globals_dict, key, value, tc.frame);
 }
 
 void HIRBuilder::insertEvalBreakerCheck(

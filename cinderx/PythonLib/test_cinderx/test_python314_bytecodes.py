@@ -488,6 +488,21 @@ self.assertBytecodeContains(x, "BUILD_INTERPOLATION")
         self.assertEqual(result.__class__.__name__, "TestClass")
         self.assertBytecodeContains(x, "LOAD_BUILD_CLASS")
 
+    def test_STORE_GLOBAL(self):
+        global test_STORE_GLOBAL_v
+
+        test_STORE_GLOBAL_v = 1
+
+        @cinder_support.fail_if_deopt
+        @cinder_support.failUnlessJITCompiled
+        def x():
+            global test_STORE_GLOBAL_v
+            test_STORE_GLOBAL_v = 42
+
+        x()
+        self.assertEqual(test_STORE_GLOBAL_v, 42)
+        self.assertBytecodeContains(x, "STORE_GLOBAL")
+
 
 if __name__ == "__main__":
     unittest.main()
