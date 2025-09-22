@@ -83,6 +83,10 @@ void Ci_WalkStack(PyThreadState* tstate, CiWalkStackCallback cb, void* data);
 
 #include "internal/pycore_frame.h"
 
+#if PY_VERSION_HEX >= 0x030E0000
+#include "internal/pycore_interpframe_structs.h"
+#endif
+
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/code_runtime.h"
@@ -157,6 +161,7 @@ void jitFrameInit(
     PyFunctionObject* func,
     PyCodeObject* code,
     int null_locals_from,
+    _frameowner owner,
     _PyInterpreterFrame* previous);
 
 // Gets the frame size (in number of words) that's required for the JIT

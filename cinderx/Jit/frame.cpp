@@ -1074,6 +1074,7 @@ void jitFrameInit(
     PyFunctionObject* func,
     PyCodeObject* code,
     int null_locals_from,
+    _frameowner owner,
     _PyInterpreterFrame* previous) {
 #if PY_VERSION_HEX >= 0x030E0000
   _PyFrame_Initialize(
@@ -1084,10 +1085,19 @@ void jitFrameInit(
       code,
       null_locals_from,
       previous);
+  // We must set `frame->owner` after calling `_PyFrame_Initialize`;
+  // `PyFrame_Initialize` sets `frame->owner` to `FRAME_OWNED_BY_THREAD`,
+  // potentially overriding any value we set earlier.
+  frame->owner = owner;
 #else
   (void)tstate;
 
 #ifdef ENABLE_LIGHTWEIGHT_FRAMES
+  // We must set `frame->owner` before calling `jitFrameSetFunction()`,
+  // otherwise assertions in callees will fail if the code object has
+  // generator-like flags but the frame's owner is not
+  // `FRAME_OWNED_BY_GENERATOR`.
+  frame->owner = owner;
   frame->f_code = (PyCodeObject*)Py_NewRef(code);
   frame->f_funcobj = Py_NewRef(cinderx::getModuleState()->frameReifier());
   frame->prev_instr = _PyCode_CODE(code) - 1;
@@ -1095,6 +1105,10 @@ void jitFrameInit(
 #else
   _PyFrame_Initialize(
       frame, (PyFunctionObject*)func, nullptr, code, null_locals_from);
+  // We must set `frame->owner` after calling `_PyFrame_Initialize`;
+  // `PyFrame_Initialize` sets `frame->owner` to `FRAME_OWNED_BY_THREAD`,
+  // potentially overriding any value we set earlier.
+  frame->owner = owner;
 #endif
   frame->previous = previous;
 

@@ -600,6 +600,7 @@ static void init_and_link_interpreter_frame(
     PyFunctionObject* func,
     PyCodeObject* co,
     PyThreadState* tstate,
+    _frameowner owner,
     _PyInterpreterFrame* frame) {
   jit::jitFrameInit(
       tstate,
@@ -609,6 +610,7 @@ static void init_and_link_interpreter_frame(
       // Zero all of localsplus. This allows _PyFrame_ClearExceptCode to
       // safely clear the locals.
       0,
+      owner,
       currentFrame(tstate));
 
   // For some reason this is not bumped in _PyFrame_Initialize but it is
@@ -641,7 +643,8 @@ static inline PyThreadState* allocate_and_link_interpreter_frame(
       Cix_PyThreadState_PushFrame(tstate, jit::jitFrameGetSize(co));
   JIT_CHECK(frame != nullptr, "Failed to allocate _PyInterpreterFrame");
 
-  init_and_link_interpreter_frame(func, co, tstate, frame);
+  init_and_link_interpreter_frame(
+      func, co, tstate, FRAME_OWNED_BY_THREAD, frame);
 
   return tstate;
 }
@@ -733,13 +736,13 @@ JITRT_AllocateAndLinkGenAndInterpreterFrame(
   _PyObject_GC_TRACK(gen);
 
   _PyInterpreterFrame* frame = generatorFrame(gen);
-  frame->owner = FRAME_OWNED_BY_GENERATOR;
   auto footer =
       reinterpret_cast<jit::GenDataFooter*>( // NOLINT performance-no-int-to-ptr
           reinterpret_cast<uintptr_t>(gen) + gen_size -
           sizeof(jit::GenDataFooter));
   *jitGenDataFooterPtr(gen, co) = footer;
-  init_and_link_interpreter_frame(func, co, tstate, frame);
+  init_and_link_interpreter_frame(
+      func, co, tstate, FRAME_OWNED_BY_GENERATOR, frame);
 
   footer->resumeEntry = resume_func;
   footer->yieldPoint = nullptr;
