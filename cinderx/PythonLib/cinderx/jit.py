@@ -159,7 +159,7 @@ except ImportError:
     def get_function_hir_opcode_counts(func: FuncAny) -> dict[str, int] | None:
         return {}
 
-    def get_inlined_functions_stats() -> dict[str, object]:
+    def get_inlined_functions_stats(func: FuncAny) -> dict[str, object]:
         return {}
 
     def get_jit_list() -> tuple[dict[str, set[str]], dict[str, dict[str, set[int]]]]:

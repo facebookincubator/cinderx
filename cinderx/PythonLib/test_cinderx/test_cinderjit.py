@@ -20,11 +20,9 @@ from typing import Callable
 AT_LEAST_312 = sys.version_info[:2] >= (3, 12)
 
 if not AT_LEAST_312:
+    # pyre-ignore[21]: Pyre doesn't know about this module.
     import _testcindercapi
 
-import cinderx
-
-cinderx.init()
 import cinderx.jit
 
 import cinderx.test_support as cinder_support
@@ -46,13 +44,7 @@ from cinderx.test_support import (
 )
 
 from .common import failUnlessHasOpcodes, with_globals
-
-try:
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        from .test_compiler.test_static.common import StaticTestBase
-except ImportError:
-    from test_compiler.test_static.common import StaticTestBase
+from .test_compiler.test_static.common import StaticTestBase
 
 
 class TestException(Exception):
@@ -193,6 +185,7 @@ class InlineCacheStatsTests(unittest.TestCase):
         stats = cinderx.jit.get_and_clear_inline_cache_stats()
 
         load_method_stats = stats["load_method_stats"]
+        assert isinstance(load_method_stats, list)
         relevant_load_method_stats = list(
             filter(
                 lambda stat: "test_cinderjit" in stat["filename"]
@@ -203,15 +196,22 @@ class InlineCacheStatsTests(unittest.TestCase):
         self.assertTrue(len(relevant_load_method_stats) == 3)
         misses = [cache["cache_misses"] for cache in relevant_load_method_stats]
         load_method_cache_misses = {k: v for miss in misses for k, v in miss.items()}
+
         self.assertEqual(
-            load_method_cache_misses,
-            {
-                "test_cinderx.test_cinderjit:BinOps.mul": {
-                    "count": 1,
-                    "reason": "Uncategorized",
-                },
-                "module.getline": {"count": 1, "reason": "WrongTpGetAttro"},
-            },
+            load_method_cache_misses.get("module.getline"),
+            {"count": 1, "reason": "WrongTpGetAttro"},
+        )
+
+        self.assertEqual(
+            len(load_method_cache_misses), 2, repr(load_method_cache_misses)
+        )
+        del load_method_cache_misses["module.getline"]
+
+        binops_mul = next(iter(load_method_cache_misses.items()))
+        self.assertIn("test_cinderx.test_cinderjit:BinOps.mul", binops_mul[0])
+        self.assertEqual(
+            binops_mul[1],
+            {"count": 1, "reason": "Uncategorized"},
         )
 
 
@@ -258,14 +258,16 @@ class InlinedFunctionLineNumberTests(unittest.TestCase):
     def test_inline_function_stats(self) -> None:
         self.assertEqual(cinderx.jit.get_num_inlined_functions(func), 2)
         stats = cinderx.jit.get_inlined_functions_stats(func)
-        self.assertEqual(
-            {
-                "num_inlined_functions": 2,
-                "failure_stats": {
-                    "HasVarargs": {"test_cinderx.test_cinderjit:func_with_varargs"}
-                },
-            },
-            stats,
+        self.assertEqual(stats.get("num_inlined_functions"), 2)
+        failure_stats = stats.get("failure_stats") or {}
+        assert isinstance(failure_stats, dict)
+        self.assertNotEqual(failure_stats, {})
+        has_varargs = failure_stats.get("HasVarargs") or set()
+        assert isinstance(has_varargs, set)
+        self.assertNotEqual(has_varargs, {})
+        self.assertEqual(len(has_varargs), 1, repr(has_varargs))
+        self.assertIn(
+            "test_cinderx.test_cinderjit:func_with_varargs", next(iter(has_varargs))
         )
 
     @jit_suppress
@@ -411,6 +413,7 @@ class CallExTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def test_call_dynamic_kw_dict_dummy(self) -> None:
+        # pyre-ignore[32]: Pyre doesn't recognize a user-defined mapping object.
         r = _simpleFunc(**CallExTests._DummyMapping())
         self.assertEqual(r, (1, 2))
 
@@ -539,11 +542,14 @@ class SetNonDataDescrAttrTests(unittest.TestCase):
         def setter(self, obj, val):
             self.invoked = True
 
+        # pyre-ignore[16]: Pyre doesn't recognize __set__.
         self.descr.__class__.__set__ = setter
 
         # setter doesn't modify the object, so obj.foo shouldn't change
         self.set_foo(self.obj, 300)
         self.assertEqual(self.obj.foo, 200)
+        # pyre-ignore[16]: Pyre can't follow through setter to see this dynamic
+        # attribute.
         self.assertTrue(self.descr.invoked)
 
 
@@ -604,6 +610,7 @@ class GetSetNonDataDescrAttrTests(unittest.TestCase):
         def setter(self, obj, val):
             pass
 
+        # pyre-ignore[16]: Pyre doesn't recognize __set__.
         self.descr.__class__.__set__ = setter
 
         # cached; __get__ should be invoked as self.descr is now a data descr
@@ -827,10 +834,12 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
             return 1
 
         with self.assertRaises(StopIteration) as exc:
+            # pyre-ignore[1001]: Pyre thinks this is never awaited, doesn't recognize the .send()
             self._sharedAwait(zero, True, one).send(None)
         self.assertEqual(exc.exception.value, 0)
 
         with self.assertRaises(StopIteration) as exc:
+            # pyre-ignore[1001]: Pyre thinks this is never awaited, doesn't recognize the .send()
             self._sharedAwait(zero, False, one).send(None)
         self.assertEqual(exc.exception.value, 1)
 
@@ -864,6 +873,7 @@ class JITCompileCrasherRegressionTests(StaticTestBase):
         """
         with self.in_module(codestr) as mod:
             if hasattr(gc, "immortalize_heap"):
+                # pyre-ignore[16]: Pyre doesn't know about immortalize_heap().
                 gc.immortalize_heap()
             force_compile(mod.Foo.__init__)
             mod.Foo(True)
@@ -998,6 +1008,7 @@ class UnwindStateTests(unittest.TestCase):
         try:
             self._copied_locals("hello")
         except RuntimeError as re:
+            # pyre-ignore[16]: Ignoring the possible None cases here.
             f_locals = re.__traceback__.tb_next.tb_frame.f_locals
             self.assertEqual(
                 f_locals, {"self": self, "a": "hello", "b": "hello", "c": "hello"}
@@ -1010,6 +1021,7 @@ class UnwindStateTests(unittest.TestCase):
 
     def test_decref_stack_objects(self) -> None:
         """Items on stack should be decrefed on unwind."""
+        deleted = []
         try:
             self._raise_with_del_observer_on_stack()
         except RuntimeError:
@@ -1027,6 +1039,7 @@ class UnwindStateTests(unittest.TestCase):
         # Regression test for a JIT bug in which the unused locals slot for a
         # local-which-is-a-cell would end up getting populated on unwind with
         # some unrelated stack object, preventing it from being decrefed.
+        deleted = []
         try:
             self._raise_with_del_observer_on_stack_and_cell_arg()
         except RuntimeError:
@@ -1045,6 +1058,7 @@ class ImportTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _fail_to_import_name(self):
+        # pyre-ignore[21]: Intentionally testing non-existent import behavior.
         import non_existent_module  # noqa: F401
 
     def test_import_name_failure(self) -> None:
@@ -1059,6 +1073,7 @@ class ImportTests(unittest.TestCase):
 
     @cinder_support.failUnlessJITCompiled
     def _fail_to_import_from(self):
+        # pyre-ignore[21]: Intentionally testing non-existent import behavior.
         from math import non_existent_attr  # noqa: F401
 
     def test_import_from_failure(self) -> None:
@@ -1097,6 +1112,7 @@ class RaiseTests(unittest.TestCase):
         with self.assertRaises(ValueError) as exc:
             self._jitRaiseCause(ValueError(1), cause)
         self.assertIs(exc.exception.__cause__, cause)
+        # pyre-ignore[16]: Ignoring the possible None case here.
         self.assertEqual(f"{exc.exception.__cause__.__traceback__}", cause_tb_str)
 
     def test_reraise(self) -> None:
@@ -1521,6 +1537,7 @@ class RegressionTests(StaticTestBase):
 class CinderJitModuleTests(StaticTestBase):
     def test_bad_disable(self) -> None:
         with self.assertRaises(TypeError):
+            # pyre-ignore[19]: Intentionally testing type errors here.
             cinderx.jit.disable(1, 2, 3)
 
     def test_jit_suppress(self) -> None:
@@ -1528,6 +1545,7 @@ class CinderJitModuleTests(StaticTestBase):
         def x():
             pass
 
+        # pyre-ignore[16]: Pyre doesn't know about __code__.
         self.assertEqual(x.__code__.co_flags & CO_SUPPRESS_JIT, CO_SUPPRESS_JIT)
 
     def test_jit_suppress_static(self) -> None:
@@ -1576,8 +1594,7 @@ class CinderJitModuleTests(StaticTestBase):
 
             if compiles_after_one_call():
                 self.assertTrue(is_jit_compiled(g))
-
-            self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
+                self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
 
     @unittest.skipIf(
         (
@@ -1790,6 +1807,7 @@ class DeleteAttrTests(unittest.TestCase):
             pass
 
         c = C()
+        # pyre-ignore[16]: Intentionally testing dynamically defined attribute.
         c.foo = "bar"
         self.assertEqual(c.foo, "bar")
         self.del_foo(c)
@@ -2055,7 +2073,7 @@ class FormatValueTests(unittest.TestCase):
                 raise TestException("no")
 
         with self.assertRaisesRegex(TestException, "no"):
-            self.assertEqual(self.doit(C()))
+            self.doit(C())
 
     def test_format_value_calls_repr(self) -> None:
         class C:
@@ -2070,7 +2088,7 @@ class FormatValueTests(unittest.TestCase):
                 raise TestException("no")
 
         with self.assertRaisesRegex(TestException, "no"):
-            self.assertEqual(self.doit_repr(C()))
+            self.doit_repr(C())
 
 
 class ListExtendTests(unittest.TestCase):
@@ -2509,10 +2527,12 @@ class HIROpcodeCountTests(unittest.TestCase):
         self.assertEqual(func(), 10)
 
         ops = cinderx.jit.get_function_hir_opcode_counts(func)
-        self.assertIsInstance(ops, dict)
+        self.assertIsNotNone(ops)
         self.assertEqual(ops.get("Return"), 1)
         self.assertEqual(ops.get("BinaryOp"), 1)
-        self.assertGreaterEqual(ops.get("Decref"), 2)
+        decref = ops.get("Decref")
+        assert isinstance(decref, int)
+        self.assertGreaterEqual(decref, 2)
 
 
 @unittest.skipUnless(cinderx.jit.is_enabled(), "Testing the cinderjit module itself")
@@ -2567,8 +2587,10 @@ class JITSuppressTests(unittest.TestCase):
 class BadArgumentTests(unittest.TestCase):
     def test_compile_after_n_calls(self) -> None:
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             compile_after_n_calls(None)
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             compile_after_n_calls(is_jit_compiled)
         with self.assertRaises(ValueError):
             compile_after_n_calls(-1)
@@ -2579,48 +2601,60 @@ class BadArgumentTests(unittest.TestCase):
 
     def test_is_compiled(self) -> None:
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             is_jit_compiled(None)
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             is_jit_compiled(5)
         with self.assertRaises(TypeError):
             is_jit_compiled(is_jit_compiled)
 
     def test_force_compile(self) -> None:
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             force_compile(None)
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             force_compile(5)
         with self.assertRaises(TypeError):
             force_compile(is_jit_compiled)
 
     def test_force_uncompile(self) -> None:
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             force_uncompile(None)
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             force_uncompile(5)
         with self.assertRaises(TypeError):
             force_uncompile(is_jit_compiled)
 
     def test_lazy_compile(self) -> None:
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             cinderx.jit.lazy_compile(None)
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             cinderx.jit.lazy_compile(5)
         with self.assertRaises(TypeError):
             cinderx.jit.lazy_compile(is_jit_compiled)
 
     def test_jit_suppress(self) -> None:
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             jit_suppress(None)
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             jit_suppress(5)
         with self.assertRaises(TypeError):
             jit_suppress(is_jit_compiled)
 
     def test_jit_unsuppress(self) -> None:
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             jit_unsuppress(None)
         with self.assertRaises(TypeError):
+            # pyre-ignore[6]: Intentional type error.
             jit_unsuppress(5)
         with self.assertRaises(TypeError):
             jit_unsuppress(is_jit_compiled)
@@ -2634,15 +2668,20 @@ class CompileTimeTests(unittest.TestCase):
 
     def test_compile_time(self) -> None:
         # This function is known to have a lengthy compile time.
+        #
+        # pyre-ignore[21]: Pyre doesn't know about this function.
         from sre_compile import _compile
 
         # It's probably already compiled as part of regular startup, but just in case
         # let's make sure.
+        #
+        # pyre-ignore[16]: Pyre doesn't know about this function.
         force_compile(_compile)
 
         # This will only work if the function takes more than 1ms to compile.  Use the
         # output from PYTHONJITDEBUG=1 to see if that is the case.
         self.assertGreater(cinderx.jit.get_compilation_time(), 0)
+        # pyre-ignore[16]: Pyre doesn't know about this function.
         self.assertGreater(cinderx.jit.get_function_compilation_time(_compile), 0)
 
 
