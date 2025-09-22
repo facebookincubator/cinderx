@@ -94,8 +94,6 @@ CompilerContext<Compiler>* jitCtx() {
   return nullptr;
 }
 
-JITList* g_jit_list{nullptr};
-
 // Function and code objects ("units") registered for compilation.
 std::unordered_set<BorrowedRef<>> jit_reg_units;
 
@@ -1211,7 +1209,7 @@ bool registerFunction(BorrowedRef<PyFunctionObject> func) {
 
   // If we have an active jit-list, scan this function's code object for any
   // nested functions that might be on the jit-list, and register them as well.
-  if (g_jit_list != nullptr) {
+  if (cinderx::getModuleState()->jitList() != nullptr) {
     PyObject* module = func->func_module;
     BorrowedRef<PyCodeObject> top_code{func->func_code};
     BorrowedRef<> top_consts{top_code->co_consts};
@@ -1720,29 +1718,31 @@ PyObject* dump_elf(PyObject* /* self */, PyObject* arg) {
 }
 
 PyObject* get_jit_list(PyObject* /* self */, PyObject*) {
-  if (g_jit_list == nullptr) {
-    Py_RETURN_NONE;
+  if (auto jit_list = cinderx::getModuleState()->jitList()) {
+    return jit_list->getList().release();
   }
-  return g_jit_list->getList().release();
+
+  Py_RETURN_NONE;
 }
 
 // Create a new JIT list if one doesn't exist yet, returning true if a new list
 // was made.
 bool ensureJitList() {
-  if (g_jit_list != nullptr) {
+  if (cinderx::getModuleState()->jitList() != nullptr) {
     return false;
   }
+  std::unique_ptr<JITList> jit_list;
   if (getConfig().allow_jit_list_wildcards) {
-    g_jit_list = WildcardJITList::create().release();
+    jit_list = WildcardJITList::create();
   } else {
-    g_jit_list = JITList::create().release();
+    jit_list = JITList::create();
   }
+  cinderx::getModuleState()->setJitList(std::move(jit_list));
   return true;
 }
 
 void deleteJitList() {
-  delete g_jit_list;
-  g_jit_list = nullptr;
+  cinderx::getModuleState()->setJitList(nullptr);
 }
 
 PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
@@ -1766,7 +1766,8 @@ PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
 
   // Parse in the new line.  If that fails and a new list was created, delete
   // it.
-  if (!g_jit_list->parseLine(line)) {
+  auto jit_list = cinderx::getModuleState()->jitList();
+  if (!jit_list->parseLine(line)) {
     if (new_list) {
       deleteJitList();
     }
@@ -1778,7 +1779,8 @@ PyObject* append_jit_list(PyObject* /* self */, PyObject* arg) {
   // Reset existing functions to have the JIT vectorcall entrypoint again if
   // they're now on the JIT list.
   walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
-    if (g_jit_list->lookupFunc(func)) {
+    auto jit_list = cinderx::getModuleState()->jitList();
+    if (jit_list->lookupFunc(func)) {
       scheduleJitCompile(func);
     }
   });
@@ -1805,8 +1807,9 @@ PyObject* read_jit_list(PyObject* /* self */, PyObject* arg) {
 
   // Parse in the new file.  If that fails and a new list was created, delete
   // it.
+  auto jit_list = cinderx::getModuleState()->jitList();
   try {
-    g_jit_list->parseFile(path);
+    jit_list->parseFile(path);
   } catch (const std::exception& exn) {
     if (new_list) {
       deleteJitList();
@@ -1819,7 +1822,8 @@ PyObject* read_jit_list(PyObject* /* self */, PyObject* arg) {
   // Reset existing functions to have the JIT vectorcall entrypoint again if
   // they're now on the JIT list.
   walkFunctionObjects([](BorrowedRef<PyFunctionObject> func) {
-    if (g_jit_list->lookupFunc(func)) {
+    auto jit_list = cinderx::getModuleState()->jitList();
+    if (jit_list->lookupFunc(func)) {
       scheduleJitCompile(func);
     }
   });
@@ -3011,7 +3015,7 @@ int initialize() {
 
   getMutableConfig().state = State::kRunning;
 
-  g_jit_list = jit_list.release();
+  mod_state->setJitList(std::move(jit_list));
 
   return 0;
 }
@@ -3075,8 +3079,8 @@ bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
   // Note: This is not the same as fetching the function's code object and
   // checking its module and qualname, as functions can be renamed after they
   // are created.  Code objects cannot.
-  if (g_jit_list != nullptr) {
-    return g_jit_list->lookupFunc(func) == 1;
+  if (auto jit_list = cinderx::getModuleState()->jitList()) {
+    return jit_list->lookupFunc(func) == 1;
   }
 
   BorrowedRef<PyCodeObject> code{func->func_code};
@@ -3091,9 +3095,9 @@ bool shouldScheduleCompile(
     return false;
   }
 
-  if (g_jit_list != nullptr) {
-    return g_jit_list->lookupCode(code) == 1 ||
-        g_jit_list->lookupName(module_name, code->co_qualname) == 1;
+  if (auto jit_list = cinderx::getModuleState()->jitList()) {
+    return jit_list->lookupCode(code) == 1 ||
+        jit_list->lookupName(module_name, code->co_qualname) == 1;
   }
 
   return shouldAlwaysScheduleCompile(code) ||
@@ -3240,7 +3244,7 @@ void funcDestroyed(BorrowedRef<PyFunctionObject> func) {
     }
 
     // erase any child code objects we registered too
-    if (g_jit_list != nullptr) {
+    if (cinderx::getModuleState()->jitList() != nullptr) {
       PyObject* module = func->func_module;
       BorrowedRef<PyCodeObject> top_code{func->func_code};
       BorrowedRef<> top_consts{top_code->co_consts};
