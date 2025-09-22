@@ -2,10 +2,7 @@
 
 #pragma once
 
-#include "cinderx/python.h"
-
 #include "cinderx/Common/ref.h"
-#include "cinderx/Common/util.h"
 
 #include <memory>
 #include <string_view>
@@ -24,6 +21,9 @@ class JITList {
  public:
   static std::unique_ptr<JITList> create();
   virtual ~JITList() {}
+
+  JITList(const JITList&) = delete;
+  JITList& operator=(const JITList&) = delete;
 
   // Parse a JIT list from a file.
   //
@@ -60,8 +60,6 @@ class JITList {
       std::string_view qualname);
 
  private:
-  DISALLOW_COPY_AND_ASSIGN(JITList);
-
   // Add a code object's name to the JIT list. Return true on success.
   bool
   addEntryCode(BorrowedRef<> name, BorrowedRef<> file, BorrowedRef<> line_no);

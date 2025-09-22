@@ -2,9 +2,13 @@
 
 #include "cinderx/Jit/jit_list.h"
 
+#include "cinderx/Common/log.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/config.h"
+#include "cinderx/Jit/threaded_compile.h"
 
 #include <fstream>
+#include <stdexcept>
 #include <string>
 
 namespace jit {
