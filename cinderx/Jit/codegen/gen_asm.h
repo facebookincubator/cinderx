@@ -98,22 +98,41 @@ class NativeGenerator {
   int calcInlineStackSize(const hir::Function* func);
   void generateCode(asmjit::CodeHolder& code);
   void generateFunctionEntry();
+  struct FrameInfo {
+    int header_and_spill_size{};
+    PhyRegisterSet saved_regs;
+    int arg_buffer_size{};
+
+    int saved_regs_size() const {
+      return saved_regs.count() * 8;
+    }
+
+    int size() const {
+      return header_and_spill_size + saved_regs_size() + arg_buffer_size;
+    }
+  };
+  FrameInfo computeFrameInfo();
   void setupFrameAndSaveCallerRegisters(
-#ifdef ENABLE_SHADOW_FRAMES
-      asmjit::x86::Gp tstate_reg
-#endif
-  );
+      const FrameInfo& frame_info,
+      asmjit::x86::Gp tstate_reg);
+  int allocateHeaderAndSpillSpace(const FrameInfo& frame_info);
+  void saveCallerRegisters(
+      const FrameInfo& frame_info,
+      asmjit::x86::Gp tstate_reg);
+
   int maxInlineStackSize();
   void generatePrologue(
+      const FrameInfo& frame_info,
       asmjit::Label correct_arg_count,
       asmjit::Label native_entry_point);
   bool linkFrameNeedsSpill();
   void generateEpilogue(asmjit::BaseNode* epilogue_cursor);
   void generateDeoptExits(const asmjit::CodeHolder& code);
   void linkDeoptPatchers(const asmjit::CodeHolder& code);
-  void generateResumeEntry();
+  void generateResumeEntry(const FrameInfo& frame_info);
   void generateStaticMethodTypeChecks(asmjit::Label setup_frame);
   void generateStaticEntryPoint(
+      const FrameInfo& frame_info,
       asmjit::Label native_entry_point,
       asmjit::Label static_jmp_location);
 

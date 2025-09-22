@@ -920,11 +920,7 @@ void NativeGenerator::generateFunctionEntry() {
   as_->mov(x86::rbp, x86::rsp);
 }
 
-void NativeGenerator::setupFrameAndSaveCallerRegisters(
-#ifdef ENABLE_SHADOW_FRAMES
-    x86::Gp tstate_reg
-#endif
-) {
+NativeGenerator::FrameInfo NativeGenerator::computeFrameInfo() {
   // During execution, the stack looks like the diagram below. The column to
   // left indicates how many words on the stack each line occupies.
   //
@@ -948,39 +944,56 @@ void NativeGenerator::setupFrameAndSaveCallerRegisters(
   // | * callee-saved regs   |
   // | ? call arg buffer     | <-- rsp
   // +-----------------------+
-  auto saved_regs = env_.changed_regs & CALLEE_SAVE_REGS;
-  int saved_regs_size = saved_regs.count() * 8;
-  // Make sure we have at least one word for scratch in the epilogue.
-  spill_stack_size_ = env_.shadow_frames_and_spill_size;
-  // The frame header size and inlined shadow frames are already included in
-  // env_.spill_size.
-  int spill_stack = std::max(spill_stack_size_, 8);
-
-  int arg_buffer_size = env_.max_arg_buffer_size;
-
-  if ((spill_stack + saved_regs_size + arg_buffer_size) % 16 != 0) {
-    spill_stack += 8;
+  FrameInfo info{
+      // The frame header size and inlined shadow frames are already included in
+      // env_.shadow_frames_and_spill_size.
+      // Make sure we have at least one word for scratch in the epilogue.
+      .header_and_spill_size =
+          std::max(env_.shadow_frames_and_spill_size, kPointerSize),
+      .saved_regs = env_.changed_regs & CALLEE_SAVE_REGS,
+      .arg_buffer_size = env_.max_arg_buffer_size,
+  };
+  if ((info.header_and_spill_size + info.saved_regs_size() +
+       info.arg_buffer_size) %
+      kStackAlign) {
+    info.header_and_spill_size += kPointerSize;
   }
+  spill_stack_size_ = env_.shadow_frames_and_spill_size;
+  env_.last_callee_saved_reg_off =
+      info.header_and_spill_size + info.saved_regs_size();
+  env_.stack_frame_size = info.size();
+  return info;
+}
 
-  // Allocate stack space and save the size of the function's stack.
-  as_->sub(x86::rsp, spill_stack);
-  env_.last_callee_saved_reg_off = spill_stack + saved_regs_size;
+int NativeGenerator::allocateHeaderAndSpillSpace(const FrameInfo& frame_info) {
+  int padding = frame_info.header_and_spill_size % kStackAlign;
+  as_->sub(x86::rsp, frame_info.header_and_spill_size + padding);
+  return padding;
+}
 
+void NativeGenerator::saveCallerRegisters(
+    const FrameInfo& frame_info,
+    [[maybe_unused]] x86::Gp tstate_reg) {
 #ifdef ENABLE_SHADOW_FRAMES
   frame_asm_.initializeFrameHeader(tstate_reg, x86::rax);
 #endif
-
   // Push used callee-saved registers.
+  auto saved_regs = frame_info.saved_regs;
   while (!saved_regs.Empty()) {
     as_->push(x86::gpq(saved_regs.GetFirst().loc));
     saved_regs.RemoveFirst();
   }
 
-  if (arg_buffer_size > 0) {
-    as_->sub(x86::rsp, arg_buffer_size);
+  if (frame_info.arg_buffer_size > 0) {
+    as_->sub(x86::rsp, frame_info.arg_buffer_size);
   }
+}
 
-  env_.stack_frame_size = spill_stack + saved_regs_size + arg_buffer_size;
+void NativeGenerator::setupFrameAndSaveCallerRegisters(
+    const FrameInfo& frame_info,
+    x86::Gp tstate_reg) {
+  as_->sub(x86::rsp, frame_info.header_and_spill_size);
+  saveCallerRegisters(frame_info, tstate_reg);
 }
 
 x86::Gp get_arg_location(int arg) {
@@ -1007,8 +1020,9 @@ bool NativeGenerator::linkFrameNeedsSpill() {
 }
 
 void NativeGenerator::generatePrologue(
+    const FrameInfo& frame_info,
     Label correct_arg_count,
-    Label native_entry_point) {
+    Label finish_frame_setup) {
   // The boxed return wrapper gets generated first, if it is necessary.
   auto [generic_entry_cursor, box_entry_cursor] = generateBoxedReturnWrapper();
 
@@ -1054,6 +1068,12 @@ void NativeGenerator::generatePrologue(
     save_regs.emplace_back(x86::rdi, kFuncPtrReg);
   }
 
+  // Ensure that rsp is below the fields in the stack allocated interpreter
+  // frame that may be initialized in the `generateLinkFrame` call below,
+  // preventing the signal handling routine in the kernel from overwriting
+  // them.
+  int padding = allocateHeaderAndSpillSpace(frame_info);
+
   frame_asm_.generateLinkFrame(
       kFuncPtrReg, x86::gpq(INITIAL_TSTATE_REG.loc), save_regs);
 
@@ -1084,17 +1104,18 @@ void NativeGenerator::generatePrologue(
   }
   env_.addAnnotation("Load arguments", load_args_cursor);
 
+  // We already allocated stack space for the header and spill data, clean
+  // up any alignment padding we added
+  if (padding) {
+    as_->add(x86::rsp, padding);
+  }
+
   // Finally allocate the saved space required for the actual function.
-  auto native_entry_cursor = as_->cursor();
-  as_->bind(native_entry_point);
+  auto finish_frame_setup_cursor = as_->cursor();
+  as_->bind(finish_frame_setup);
+  saveCallerRegisters(frame_info, x86::r11);
 
-  setupFrameAndSaveCallerRegisters(
-#ifdef ENABLE_SHADOW_FRAMES
-      x86::r11
-#endif
-  );
-
-  env_.addAnnotation("Native entry", native_entry_cursor);
+  env_.addAnnotation("Finish frame setup", finish_frame_setup_cursor);
 }
 
 static void
@@ -1410,7 +1431,7 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
   }
 }
 
-void NativeGenerator::generateResumeEntry() {
+void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {
   // Arbitrary scratch register for use throughout this function. Can be changed
   // to pretty much anything which doesn't conflict with arg registers.
   const auto scratch_r = x86::r8;
@@ -1424,11 +1445,7 @@ void NativeGenerator::generateResumeEntry() {
   as_->bind(env_.gen_resume_entry_label);
 
   generateFunctionEntry();
-  setupFrameAndSaveCallerRegisters(
-#ifdef ENABLE_SHADOW_FRAMES
-      x86::rcx
-#endif
-  );
+  setupFrameAndSaveCallerRegisters(frame_info, x86::rcx);
 
   // Setup RBP to use storage in generator rather than stack.
 
@@ -1475,7 +1492,8 @@ void NativeGenerator::generateResumeEntry() {
 }
 
 void NativeGenerator::generateStaticEntryPoint(
-    Label native_entry_point,
+    const FrameInfo& frame_info,
+    Label finish_frame_setup,
     Label static_jmp_location) {
   // Static entry point is the first thing in the method, we'll
   // jump back to hit it so that we have a fixed offset to jump from
@@ -1572,15 +1590,27 @@ void NativeGenerator::generateStaticEntryPoint(
     }
   }
 
+  // Ensure that rsp is below the fields in the stack allocated interpreter
+  // frame that may be initialized in the `generateLinkFrame` call below,
+  // preventing the signal handling routine in the kernel from overwriting
+  // them.
+  int padding = allocateHeaderAndSpillSpace(frame_info);
+
   frame_asm_.generateLinkFrame(
       x86::gpq(INITIAL_FUNC_REG.loc),
       x86::gpq(INITIAL_TSTATE_REG.loc),
       save_regs);
 
+  // We already allocated stack space for the header and spill data, clean
+  // up any alignment padding we added
+  if (padding) {
+    as_->add(x86::rsp, padding);
+  }
+
   if (need_extra_args_load) {
     as_->lea(x86::r10, x86::ptr(x86::rbp, 16));
   }
-  as_->jmp(native_entry_point);
+  as_->jmp(finish_frame_setup);
   env_.addAnnotation("StaticLinkFrame", static_link_cursor);
   auto static_entry_point_cursor = as_->cursor();
 
@@ -1607,14 +1637,16 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   as_->setCursor(prologue_cursor);
 
   Label correct_arg_count = as_->newLabel();
-  Label native_entry_point = as_->newLabel();
+  Label finish_frame_setup = as_->newLabel();
   Label static_jmp_location = as_->newLabel();
+  auto frame_info = computeFrameInfo();
 
   bool has_static_entry = hasStaticEntry();
   if (has_static_entry) {
     // Setup an entry point for direct static to static
     // calls using the native calling convention
-    generateStaticEntryPoint(native_entry_point, static_jmp_location);
+    generateStaticEntryPoint(
+        frame_info, finish_frame_setup, static_jmp_location);
   }
 
   // Setup an entry for when we have the correct number of arguments
@@ -1632,12 +1664,12 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
   // vectorcall convention
   Label vectorcall_entry_label = as_->newLabel();
   as_->bind(vectorcall_entry_label);
-  generatePrologue(correct_arg_count, native_entry_point);
+  generatePrologue(frame_info, correct_arg_count, finish_frame_setup);
 
   generateEpilogue(epilogue_cursor);
 
   if (GetFunction()->code->co_flags & kCoFlagsAnyGenerator) {
-    generateResumeEntry();
+    generateResumeEntry(frame_info);
   }
 
   if (env_.static_arg_typecheck_failed_label.isValid()) {
