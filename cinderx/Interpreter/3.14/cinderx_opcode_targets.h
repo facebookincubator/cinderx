@@ -1,5 +1,3 @@
-// Copyright (c) Meta Platforms, Inc. and affiliates.
-
 #if !Py_TAIL_CALL_INTERP
 static void *opcode_targets[256] = {
     &&TARGET_CACHE,
