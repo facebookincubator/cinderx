@@ -169,7 +169,9 @@ void FrameAsm::linkLightWeightFunctionFrame(
   //
   // We need to initialize the f_code, f_funcobj fields of
   // the frame along w/ the previous pointer.
+  asmjit::BaseNode* init_tstate_off_cursor = as_->cursor();
   initThreadStateOffset();
+  env_.addAnnotation("Init tstate offset", init_tstate_off_cursor);
 
   // We have precious caller saved registers that we can trash - rax
   // and r10 are the only non-argument registers, and our arguments
@@ -179,6 +181,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
   // only in ASAN builds) then we'll need to preserve that as well
   // after spilling and restoring the arguments around the call to
   // get the thread state.
+  asmjit::BaseNode* load_tstate_cursor = as_->cursor();
   auto scratch = x86::gpq(INITIAL_EXTRA_ARGS_REG.loc);
   if (tstate_offset == -1) {
     preserver.preserve();
@@ -191,6 +194,7 @@ void FrameAsm::linkLightWeightFunctionFrame(
     // too.
     as_->push(scratch);
   }
+  env_.addAnnotation("Load tstate", load_tstate_cursor);
 
   int frame_header_size = frameHeaderSizeExcludingSpillSpace();
   PyObject* frame_reifier = cinderx::getModuleState()->frameReifier();
@@ -201,10 +205,13 @@ void FrameAsm::linkLightWeightFunctionFrame(
 
   // Initialize the fields minus previous.
   // Store func before the header
+  asmjit::BaseNode* store_func_cursor = as_->cursor();
   as_->mov(x86::ptr(x86::rbp, -frame_header_size), func_reg);
   incRef(func_reg, ref_cnt);
+  env_.addAnnotation("Store func before frame header", store_func_cursor);
 
   // Store f_code
+  asmjit::BaseNode* store_f_code_cursor = as_->cursor();
   bool needs_load =
       storeConst(x86::rbp, FRAME_OFFSET(f_code), func_->code.get(), scratch);
   if (!_Py_IsImmortal(func_->code.get())) {
@@ -214,21 +221,33 @@ void FrameAsm::linkLightWeightFunctionFrame(
     }
     incRef(scratch, ref_cnt);
   }
+  env_.addAnnotation("Set _PyInterpreterFrame::f_code", store_f_code_cursor);
 
-  // Store f_funcobj as our helper frame object
+  // Store f_funcobj as our helper frame reifier object
+  asmjit::BaseNode* store_f_funcobj_cursor = as_->cursor();
   storeConst(x86::rbp, FRAME_OFFSET(f_funcobj), frame_reifier, scratch);
   JIT_DCHECK(_Py_IsImmortal(frame_reifier), "frame helper must be immortal");
+  env_.addAnnotation(
+      "Set _PyInterpreterFrame::f_funcobj to frame reifier",
+      store_f_funcobj_cursor);
 
   // Store prev_instr
+  asmjit::BaseNode* store_prev_instr_cursor = as_->cursor();
   _Py_CODEUNIT* code = _PyCode_CODE(GetFunction()->code.get()) - 1;
   storeConst(x86::rbp, FRAME_OFFSET(prev_instr), code, scratch);
+  env_.addAnnotation(
+      "Set _PyInterpreterFrame::prev_instr", store_prev_instr_cursor);
 
+  // Store owner
+  asmjit::BaseNode* store_owner_cursor = as_->cursor();
   as_->mov(
       x86::ptr(x86::rbp, FRAME_OFFSET(owner), sizeof(char)),
       FRAME_OWNED_BY_THREAD);
+  env_.addAnnotation("Set _PyInterpreterFrame::owner", store_owner_cursor);
 
   // Get the frame that is currently linked into thread state and update
   // our frames pointer back to it.
+  asmjit::BaseNode* get_tos_cursor = as_->cursor();
 #if PY_VERSION_HEX >= 0x030D0000
   // 3.14+ - current_frame is stored in PyThreadState.current_frame
   const asmjit::x86::Gp& frame_holder = tstate_reg;
@@ -242,13 +261,20 @@ void FrameAsm::linkLightWeightFunctionFrame(
   as_->mov(frame_holder, x86::ptr(tstate_reg, offsetof(PyThreadState, cframe)));
   as_->mov(scratch, x86::ptr(frame_holder, offsetof(_PyCFrame, current_frame)));
 #endif
+  env_.addAnnotation("Get topmost frame", get_tos_cursor);
 
+  asmjit::BaseNode* store_prev_cursor = as_->cursor();
   // cur_frame->previous = PyThreadState.cframe.current_frame
   as_->mov(x86::ptr(x86::rbp, FRAME_OFFSET(previous)), scratch);
+  env_.addAnnotation("Set _PyInterpreterFrame::previous", store_prev_cursor);
+
   // Then finally link in our frame to thread state
+  asmjit::BaseNode* update_linkage_cursor = as_->cursor();
   as_->lea(scratch, x86::ptr(x86::rbp, -frame_header_size + sizeof(PyObject*)));
   // (PyThreadState.cframe|PyThreadState).current_frame = &cur_frame
   as_->mov(x86::ptr(frame_holder, offsetof(_PyCFrame, current_frame)), scratch);
+  env_.addAnnotation(
+      "Set _PyInterpreterFrame as topmost frame", update_linkage_cursor);
 
   if (tstate_offset == -1) {
     as_->pop(scratch);
