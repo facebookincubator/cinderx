@@ -92,6 +92,7 @@ class TestEnablingParallelGc(unittest.TestCase):
                 args,
                 cwd=tmp,
                 stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 encoding=ENCODING,
                 env={
                     "PYTHONPATH": CINDERX_PATH,
