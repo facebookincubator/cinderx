@@ -9,6 +9,7 @@
 #endif
 
 #include "cinderx/Common/log.h"
+#include "fmt/ostream.h"
 
 #include <concepts>
 #include <limits>
@@ -200,15 +201,13 @@ inline std::ostream& operator<<(std::ostream& os, jit::BCIndex index) {
   return os << index.value();
 }
 
-inline auto format_as(const jit::BCOffset& offset) {
-  return offset.value();
-}
-
-inline auto format_as(const jit::BCIndex& idx) {
-  return idx.value();
-}
-
 } // namespace jit
+
+template <>
+struct fmt::formatter<jit::BCIndex> : fmt::ostream_formatter {};
+
+template <>
+struct fmt::formatter<jit::BCOffset> : fmt::ostream_formatter {};
 
 template <>
 struct std::hash<jit::BCOffset> {

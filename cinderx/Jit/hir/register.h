@@ -103,10 +103,6 @@ std::ostream& operator<<(std::ostream& os, const Register& reg);
 std::ostream& operator<<(std::ostream& os, RefKind kind);
 std::ostream& operator<<(std::ostream& os, ValueKind kind);
 
-inline auto format_as(const Register& reg) {
-  return reg.name();
-}
-
 inline auto format_as(const jit::hir::RefKind& kind) {
   return fmt::underlying(kind);
 }
@@ -116,3 +112,6 @@ inline auto format_as(const jit::hir::ValueKind& kind) {
 }
 
 } // namespace jit::hir
+
+template <>
+struct fmt::formatter<jit::hir::Register> : fmt::ostream_formatter {};
