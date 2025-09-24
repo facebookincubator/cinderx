@@ -5,8 +5,10 @@
 #if PY_VERSION_HEX < 0x030C0000
 #include "cinder/hooks.h"
 #endif
+// NOLINTNEXTLINE(facebook-unused-include-check)
 #include "internal/pycore_pystate.h" // _PyThreadState_GET()
 
+// NOLINTNEXTLINE(facebook-unused-include-check)
 #include "cinderx/StaticPython/classloader.h"
 
 #if PY_VERSION_HEX < 0x030C0000
