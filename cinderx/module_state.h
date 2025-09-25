@@ -127,6 +127,30 @@ class ModuleState {
     return sys_clear_caches_;
   }
 
+  BorrowedRef<> sysMonitoringRegisterCallback() {
+    return sys_monitoring_register_callback_;
+  }
+
+  void setSysMonitoringRegisterCallback(BorrowedRef<> func) {
+    sys_monitoring_register_callback_ = Ref<>::create(func);
+  }
+
+  BorrowedRef<> sysSetProfile() {
+    return sys_setprofile_;
+  }
+
+  void setSysSetProfile(BorrowedRef<> func) {
+    sys_setprofile_ = Ref<>::create(func);
+  }
+
+  BorrowedRef<> sysSetTrace() {
+    return sys_settrace_;
+  }
+
+  void setSysSetTrace(BorrowedRef<> func) {
+    sys_settrace_ = Ref<>::create(func);
+  }
+
   void setAnextAwaitableType(BorrowedRef<PyTypeObject> type) {
     anext_awaitable_type_ = Ref<PyTypeObject>::create(type);
   }
@@ -200,6 +224,10 @@ class ModuleState {
   Ref<> frame_reifier_;
 #endif
   Ref<> sys_clear_caches_, builtin_next_;
+
+  Ref<> sys_monitoring_register_callback_;
+  Ref<> sys_setprofile_;
+  Ref<> sys_settrace_;
 
   WatcherState watcher_state_;
 
