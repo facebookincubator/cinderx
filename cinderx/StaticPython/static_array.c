@@ -33,30 +33,6 @@ static inline void staticarray_zeroinitialize(
   memset(sa->ob_item, 0, size * PyStaticArray_Spec.itemsize);
 }
 
-static PyObject* staticarray_vectorcall(
-    PyObject* type,
-    PyObject* const* args,
-    size_t nargsf,
-    PyObject* kwnames) {
-  if (!_PyArg_NoKwnames("staticarray", kwnames)) {
-    return NULL;
-  }
-
-  Py_ssize_t nargs = PyVectorcall_NARGS(nargsf);
-  if (!_PyArg_CheckPositional("staticarray", nargs, 1, 1)) {
-    return NULL;
-  }
-
-  PyObject* length = args[0];
-  Py_ssize_t size = PyLong_AsSize_t(length);
-  if (size == -1 && PyErr_Occurred()) {
-    return NULL;
-  }
-  PyStaticArrayObject* new = staticarray_alloc(size);
-  staticarray_zeroinitialize(new, size);
-  return (PyObject*)new;
-}
-
 static PyObject* staticarray_to_list(PyObject* sa) {
   PyStaticArrayObject* array = (PyStaticArrayObject*)sa;
   PyObject* list = PyList_New(Py_SIZE(sa));
