@@ -11,6 +11,7 @@
 // clang-format off
 
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_c_state.h"
 
 // In 3.12 _PyAsyncGenValueWrapperNew needs thread-state. As this is used from
 // the JIT we could get the value from the thread-state register. This would be
@@ -603,4 +604,57 @@ PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def) {
 int init_upstream_borrow(void) {
   // Nothing to do here; retained for consistency with 3.10
   return 0;
+}
+
+// Internal dependencies for gen_dealloc.
+static inline PyCodeObject *
+_PyGen_GetCode(PyGenObject *gen) {
+    _PyInterpreterFrame *frame = (_PyInterpreterFrame *)(gen->gi_iframe);
+    return frame->f_code;
+}
+// End internal dependencies.
+// Use our own memory deallocation which handles generators that might be on
+// our custom free-list.
+#define PyObject_GC_Del(x) Ci_free_jit_list_gen(x)
+static void
+gen_dealloc(PyGenObject *gen)
+{
+    PyObject *self = (PyObject *) gen;
+
+    _PyObject_GC_UNTRACK(gen);
+
+    if (gen->gi_weakreflist != NULL)
+        PyObject_ClearWeakRefs(self);
+
+    _PyObject_GC_TRACK(self);
+
+    if (PyObject_CallFinalizerFromDealloc(self))
+        return;                     /* resurrected.  :( */
+
+    _PyObject_GC_UNTRACK(self);
+    if (PyAsyncGen_CheckExact(gen)) {
+        /* We have to handle this case for asynchronous generators
+           right here, because this code has to be between UNTRACK
+           and GC_Del. */
+        Py_CLEAR(((PyAsyncGenObject*)gen)->ag_origin_or_finalizer);
+    }
+    if (gen->gi_frame_state < FRAME_CLEARED) {
+        _PyInterpreterFrame *frame = (_PyInterpreterFrame *)gen->gi_iframe;
+        gen->gi_frame_state = FRAME_CLEARED;
+        frame->previous = NULL;
+        _PyFrame_ClearExceptCode(frame);
+    }
+    if (_PyGen_GetCode(gen)->co_flags & CO_COROUTINE) {
+        Py_CLEAR(((PyCoroObject *)gen)->cr_origin_or_finalizer);
+    }
+    Py_DECREF(_PyGen_GetCode(gen));
+    Py_CLEAR(gen->gi_name);
+    Py_CLEAR(gen->gi_qualname);
+    _PyErr_ClearExcState(&gen->gi_exc_state);
+    Py_CLEAR(gen->gi_ci_awaiter);
+    PyObject_GC_Del(gen);
+}
+#undef PyObject_GC_Del
+void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
+    gen_dealloc((PyGenObject*)obj);
 }

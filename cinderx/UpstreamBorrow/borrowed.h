@@ -234,7 +234,10 @@ PyObject* Cix_gc_freeze_impl(PyObject* module);
 
 #if PY_VERSION_HEX >= 0x030C0000
 PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
+#endif
 
+#if PY_VERSION_HEX >= 0x030C0000
+void Cix_gen_dealloc_with_custom_free(PyObject* obj);
 #endif
 
 #ifdef ENABLE_PEP523_HOOK

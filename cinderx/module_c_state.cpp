@@ -2,6 +2,7 @@
 
 #include "cinderx/module_c_state.h"
 
+#include "cinderx/Common/log.h"
 #include "cinderx/module_state.h"
 
 extern "C" {
@@ -45,6 +46,11 @@ Ci_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key) {
 
 PyObject** Ci_GetDictCache(PyObject* dict, PyObject* key) {
   return Ci_GetGlobalCache(dict, dict, key);
+}
+
+void Ci_free_jit_list_gen(PyGenObject* obj) {
+  cinderx::getModuleState()->jitGenFreeList()->free(
+      reinterpret_cast<PyObject*>(obj));
 }
 
 } // extern "C"

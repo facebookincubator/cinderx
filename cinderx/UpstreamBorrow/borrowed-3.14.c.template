@@ -8,6 +8,7 @@
 // clang-format off
 
 #include "cinderx/UpstreamBorrow/borrowed.h"
+#include "cinderx/module_c_state.h"
 #include "internal/pycore_intrinsics.h"
 #include "internal/pycore_bitutils.h"
 #include "internal/pycore_unicodeobject.h"
@@ -525,3 +526,15 @@ LONG_FLOAT_ACTION(compactlong_float_true_div, /)
 
 // @Borrow function _PyFloat_ExactDealloc from Objects/floatobject.c [3.14]
 // @Borrow function _PyFloat_FromDouble_ConsumeInputs from Objects/floatobject.c [3.14]
+
+// Internal dependencies for gen_dealloc.
+// @Borrow function gen_clear_frame from Objects/genobject.c [3.14]
+// End internal dependencies.
+// Use our own memory deallocation which handles generators that might be on
+// our custom free-list.
+#define PyObject_GC_Del(x) Ci_free_jit_list_gen(x)
+// @Borrow function gen_dealloc from Objects/genobject.c [3.14]
+#undef PyObject_GC_Del
+void Cix_gen_dealloc_with_custom_free(PyObject* obj) {
+    gen_dealloc(obj);
+}

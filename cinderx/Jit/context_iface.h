@@ -5,9 +5,11 @@
 #include "cinderx/python.h"
 
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/code_runtime.h"
 
 namespace jit {
+
+class alignas(16) CodeRuntime;
+
 class IJitContext {
  public:
   IJitContext() {}

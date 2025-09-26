@@ -28,6 +28,8 @@ Ci_GetGlobalCache(PyObject* builtins, PyObject* globals, PyObject* key);
 
 PyObject** Ci_GetDictCache(PyObject* dict, PyObject* key);
 
+void Ci_free_jit_list_gen(PyGenObject* obj);
+
 #ifdef __cplusplus
 } // extern "C"
 #endif

@@ -38,94 +38,42 @@ namespace {
 const destructor original_gen_dealloc = PyGen_Type.tp_dealloc;
 const destructor original_coro_dealloc = PyCoro_Type.tp_dealloc;
 
-// This is mostly a copy of gen_dealloc from genobject.c but with a deopt at the
-// start, using our own memory manager for free at the end, some minor
-// tweaks for C++, and to use public APIs.
 void jitgen_dealloc(PyObject* self) {
   if (!deopt_jit_gen(self)) {
     JIT_ABORT("Tried to dealloc a running JIT generator");
   }
 
-  PyGenObject* gen = reinterpret_cast<PyGenObject*>(self);
-
-  PyObject_GC_UnTrack(gen);
-
-  if (gen->gi_weakreflist != nullptr) {
-    PyObject_ClearWeakRefs(self);
-  }
-
-  PyObject_GC_Track(self);
-
-  if (PyObject_CallFinalizerFromDealloc(self)) {
-    return; /* resurrected.  :( */
-  }
-
-  PyObject_GC_UnTrack(self);
-  if (PyAsyncGen_CheckExact(gen)) {
-    /* We have to handle this case for asynchronous generators
-       right here, because this code has to be between UNTRACK
-       and GC_Del. */
-    Py_CLEAR(reinterpret_cast<PyAsyncGenObject*>(gen)->ag_origin_or_finalizer);
-  }
-  if (gen->gi_frame_state < FRAME_CLEARED) {
-    _PyInterpreterFrame* frame = generatorFrame(gen);
-    gen->gi_frame_state = FRAME_CLEARED;
-    frame->previous = nullptr;
-    _PyFrame_ClearExceptCode(frame);
-  }
-  PyCodeObject* code = frameCode(generatorFrame(gen));
-  if (code->co_flags & CO_COROUTINE) {
-    Py_CLEAR(reinterpret_cast<PyCoroObject*>(gen)->cr_origin_or_finalizer);
-  }
-  Py_DECREF(code);
-  Py_CLEAR(gen->gi_name);
-  Py_CLEAR(gen->gi_qualname);
-  _PyErr_ClearExcState(&gen->gi_exc_state);
-#if PY_VERSION_HEX < 0x030E0000
-  Py_CLEAR(gen->gi_ci_awaiter);
-#endif
-
-  cinderx::getModuleState()->jitGenFreeList()->free(self);
+  // CPython deallocation modified to respect our free-list.
+  Cix_gen_dealloc_with_custom_free(self);
 }
 
 int jitgen_traverse(PyObject* obj, visitproc visit, void* arg) {
   JitGenObject* jit_gen = JitGenObject::cast(obj);
-  if (jit_gen == nullptr) {
-    return Py_TYPE(obj)->tp_traverse(obj, visit, arg);
-  }
-
-  // Traverse basic fields as-per the default gen_tranverse.
-  Py_VISIT(jit_gen->gi_name);
-  Py_VISIT(jit_gen->gi_qualname);
-#ifdef ENABLE_GENERATOR_AWAITER
-  Py_VISIT(jit_gen->gi_ci_awaiter);
-#endif
-  Py_VISIT(jit_gen->gi_exc_state.exc_value);
-
-  // Traverse objects in JIT frame where possible.
-  if (jit_gen->gi_frame_state >= FRAME_COMPLETED) {
-    return 0;
-  }
-  const GenDataFooter* gen_footer = jit_gen->genDataFooter();
-  if (gen_footer->yieldPoint == nullptr) {
-    return 0;
-  }
-  size_t deopt_idx = gen_footer->yieldPoint->deoptIdx();
-  const DeoptMetadata& meta = Runtime::get()->getDeoptMetadata(deopt_idx);
-  for (const LiveValue& value : meta.live_values) {
-    if (value.ref_kind != hir::RefKind::kOwned) {
-      continue;
+  if (jit_gen != nullptr) {
+    const GenDataFooter* gen_footer = jit_gen->genDataFooter();
+    if (gen_footer->yieldPoint == nullptr) {
+      return 0;
     }
-    codegen::PhyLocation loc = value.location;
-    JIT_CHECK(
-        !loc.is_register(),
-        "DeoptMetadata for Yields should not reference registers");
-    PyObject* v = *reinterpret_cast<PyObject**>(
-        reinterpret_cast<uintptr_t>(gen_footer) + loc.loc);
-    Py_VISIT(v);
+    size_t deopt_idx = gen_footer->yieldPoint->deoptIdx();
+    const DeoptMetadata& meta = Runtime::get()->getDeoptMetadata(deopt_idx);
+    for (const LiveValue& value : meta.live_values) {
+      if (value.ref_kind != hir::RefKind::kOwned) {
+        continue;
+      }
+      codegen::PhyLocation loc = value.location;
+      JIT_CHECK(
+          !loc.is_register(),
+          "DeoptMetadata for Yields should not reference registers");
+      PyObject* v = *reinterpret_cast<PyObject**>(
+          reinterpret_cast<uintptr_t>(gen_footer) + loc.loc);
+      Py_VISIT(v);
+    }
+    JIT_CHECK(JitGen_CheckAny(obj), "Deopted during GC traversal");
   }
-  JIT_CHECK(JitGen_CheckAny(obj), "Deopted during GC traversal");
-  return 0;
+  // Try to use CPython traverse as much as we can as it has internals which
+  // are hard to borrow in 3.14 (compares 'visit' to a speicifc internal
+  // function).
+  return PyGen_Type.tp_traverse(obj, visit, arg);
 }
 
 void raise_already_running_exception(JitGenObject* jit_gen) {
@@ -157,7 +105,7 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
       gen_footer->yieldPoint != nullptr,
       "Attempting to resume a generator with no yield point");
   Ref<> result = Ref<>::steal(gen_footer->resumeEntry(
-      gen_obj, arg, 0 /* finish_yield_from (not used in 3.12) */, tstate));
+      gen_obj, arg, 0 /* finish_yield_from (not used in 3.12+) */, tstate));
 
   // If we deopted then the interpreter will handle setting frame state and
   // there will no longer be any JIT state. We can check if this happened by
