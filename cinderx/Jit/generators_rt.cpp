@@ -121,7 +121,13 @@ Ref<> send_core(JitGenObject* jit_gen, PyObject* arg, PyThreadState* tstate) {
       jit_gen->gi_frame_state = FRAME_CLEARED;
       jitFrameClearExceptCode(frame);
     } else {
+#if PY_VERSION_HEX >= 0x030E0000
+      jit_gen->gi_frame_state = gen_footer->yieldPoint->isYieldFrom()
+          ? FRAME_SUSPENDED_YIELD_FROM
+          : FRAME_SUSPENDED;
+#else
       jit_gen->gi_frame_state = FRAME_SUSPENDED;
+#endif
     }
   }
 
