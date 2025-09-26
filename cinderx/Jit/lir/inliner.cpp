@@ -17,6 +17,8 @@ bool LIRInliner::inlineCalls(Function* func) {
   bool changed = false;
   std::vector<BasicBlock*>& blocks = func->basicblocks();
 
+  // Do not convert to a range-based for loop because 'blocks' is updated
+  // inside the loop.
   for (size_t i = 0; i < blocks.size(); ++i) {
     BasicBlock* bb = blocks[i];
 

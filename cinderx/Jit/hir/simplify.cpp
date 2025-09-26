@@ -1816,10 +1816,7 @@ void Simplify::Run(Function& irfunc) {
        changed && i < iteration_limit && env.new_blocks < new_block_limit;
        ++i) {
     changed = false;
-    for (auto cfg_it = irfunc.cfg.blocks.begin();
-         cfg_it != irfunc.cfg.blocks.end();
-         ++cfg_it) {
-      BasicBlock& block = *cfg_it;
+    for (auto& block : irfunc.cfg.blocks) {
       env.block = &block;
 
       for (auto blk_it = block.begin(); blk_it != block.end();) {

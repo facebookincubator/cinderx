@@ -885,11 +885,10 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
   }
 
   auto& bs = state.block_stack;
-  if (bs.size() > 0) {
+  if (!bs.isEmpty()) {
     Indented(os) << "BlockStack {" << std::endl;
     Indent();
-    for (std::size_t i = 0; i < bs.size(); i++) {
-      auto& entry = bs.at(i);
+    for (const auto& entry : bs) {
       Indented(os) << fmt::format(
           "Opcode {} HandlerOff {} StackLevel {}\n",
           entry.opcode,

@@ -111,9 +111,8 @@ void CompilationPhaseTimer::dumpPhaseTimingsAndTidy() {
   int ts_digits = 0;
   int unattributed_time_digitls = 0;
   double leaf_total_time = 0;
-  for (auto it = flat_rows.begin(); it != flat_rows.end(); ++it) {
-    auto& [indent, phase, time_span, is_leaf, unattributed_time] = *it;
-
+  for (auto& [indent, phase, time_span, is_leaf, unattributed_time] :
+       flat_rows) {
     longest_phase =
         std::max(longest_phase, int(phase->sub_phase_name.size() + 1 + indent));
     ts_digits = std::max(ts_digits, int(log10(time_span) + 1));
@@ -121,15 +120,13 @@ void CompilationPhaseTimer::dumpPhaseTimingsAndTidy() {
         std::max(unattributed_time_digitls, int(log10(unattributed_time) + 1));
 
     if (is_leaf) {
-      int time_span = std::get<2>(*it);
       leaf_total_time += time_span;
     }
   }
 
   std::string phase_info;
-  for (auto it = flat_rows.begin(); it != flat_rows.end(); ++it) {
-    auto& [indent, phase, time_span, is_leaf, unattributed_time] = *it;
-
+  for (auto& [indent, phase, time_span, is_leaf, unattributed_time] :
+       flat_rows) {
     phase_info += fmt::format(
         "{:<{}}",
         fmt::format("{}>{}", std::string(indent, ' '), phase->sub_phase_name),
