@@ -77,11 +77,8 @@ test_cinderx.test_compiler_sbs_stdlib_9
 test_cinderx.test_cpython_overrides.test_dis
 test_cinderx.test_immortalize
 test_cinderx.test_jit_attr_cache
-test_cinderx.test_jit_coroutines
 test_cinderx.test_jit_disable
-test_cinderx.test_jit_exception
 test_cinderx.test_jit_frame
-test_cinderx.test_jit_generators
 test_cinderx.test_jit_global_cache
 test_cinderx.test_jit_perf_map
 test_cinderx.test_jit_preload

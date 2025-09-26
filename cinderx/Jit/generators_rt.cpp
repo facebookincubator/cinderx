@@ -209,7 +209,13 @@ PySendResult jitgen_am_send(PyObject* obj, PyObject* arg, PyObject** presult) {
   Py_CLEAR(gen->gi_ci_awaiter);
 #endif
 
+#if PY_VERSION_HEX < 0x030E0000
   _PyErr_ClearExcState(&gen->gi_exc_state);
+#else
+  JIT_DCHECK(
+      gen->gi_exc_state.exc_value == nullptr,
+      "Should not have an exception by now");
+#endif
   JIT_DCHECK(gen->gi_frame_state == FRAME_CLEARED, "Frame not cleared");
 
   *presult = result;

@@ -23,7 +23,17 @@ PyObject g_iterDoneSentinel = {
     nullptr};
 
 PyObject* invokeIterNext(PyObject* iterator) {
-  PyObject* val = (*iterator->ob_type->tp_iternext)(iterator);
+  iternextfunc internext_f = Py_TYPE(iterator)->tp_iternext;
+  // This check was introduced in 3.14+ but looks like it would be legit in all
+  // versions. I'm surprised it wasn't backported.
+  if (internext_f == nullptr) {
+    PyErr_Format(
+        PyExc_TypeError,
+        "'%.100s' object is not an iterator",
+        Py_TYPE(iterator)->tp_name);
+    return nullptr;
+  }
+  PyObject* val = internext_f(iterator);
   if (val != nullptr) {
     return val;
   }

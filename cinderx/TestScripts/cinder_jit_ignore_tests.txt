@@ -154,3 +154,11 @@ test.test_descr.ClassPropertiesAndMethods.test_dir
 # + {'self': <test.test_capi.test_eval.Tests testMethod=test_eval_getlocals>,
 # +  'x': 1}
 test.test_capi.test_eval.Tests.test_eval_getlocals
+
+# The JIT doesn't follow changes to local variables via the frame objects
+test.test_generators.ModifyUnderlyingIterableTest.test_modify_f_locals
+
+# TASK(T239036547) This relies on GC of a function's globals created in a call
+# to exec(). However, we keep all "globals" objects alive via the JIT's
+# PreloaderManager.
+test.test_generators.FinalizationTest.test_generator_resurrect
