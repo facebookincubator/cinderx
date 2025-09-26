@@ -457,12 +457,6 @@ static inline int notify_futures(
   return 0;
 }
 
-static inline PyObject* AsyncLazyValue_get_result(AsyncLazyValueObj* self) {
-  assert(self->alv_state == ALV_DONE);
-  Py_INCREF(self->alv_result);
-  return self->alv_result;
-}
-
 static int AsyncLazyValue_future_set_result(FutureObj* self, PyObject* res) {
   return future_set_result(self, res);
 }
@@ -1470,18 +1464,6 @@ static PyObject* AwaitableValueObj_get_value(
     void* Py_UNUSED(ignored)) {
   Py_INCREF(self->av_value);
   return self->av_value;
-}
-
-// Export _asyncio_create_awaitable_value?
-static PyObject* AwaitableValueObj_new(PyObject* value) {
-  AwaitableValueObj* self = PyObject_GC_New(
-      AwaitableValueObj, (PyTypeObject*)get_state()->awaitableValueType());
-  if (self == nullptr) {
-    return nullptr;
-  }
-  self->av_value = Py_NewRef(value);
-  PyObject_GC_Track(self);
-  return (PyObject*)self;
 }
 
 static PyGetSetDef awaitable_value_type__getsetlist[] = {
