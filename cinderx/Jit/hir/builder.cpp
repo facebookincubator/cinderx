@@ -1403,7 +1403,7 @@ void HIRBuilder::translate(
           break;
         }
         case YIELD_VALUE: {
-          emitYieldValue(tc);
+          emitYieldValue(tc, bc_instr);
           break;
         }
         case YIELD_FROM: {
@@ -4442,7 +4442,9 @@ void HIRBuilder::emitYieldFrom(TranslationContext& tc, Register* out) {
   stack.push(out);
 }
 
-void HIRBuilder::emitYieldValue(TranslationContext& tc) {
+void HIRBuilder::emitYieldValue(
+    TranslationContext& tc,
+    const jit::BytecodeInstruction& bc_instr) {
   auto& stack = tc.frame.stack;
   auto in = stack.pop();
   auto out = temps_.AllocateStack();
@@ -4458,7 +4460,7 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
   if constexpr (PY_VERSION_HEX < 0x030C0000) {
     advancePastYieldInstr(tc);
     tc.emit<YieldValue>(out, in, tc.frame);
-  } else {
+  } else if constexpr (PY_VERSION_HEX < 0x030E0000) {
     auto next_bc =
         BytecodeInstruction{code_, tc.frame.cur_instr_offs}.nextInstr();
 
@@ -4468,6 +4470,13 @@ void HIRBuilder::emitYieldValue(TranslationContext& tc) {
     if (next_bc.opcode() == RESUME && next_bc.oparg() >= 2) {
       tc.emit<YieldFrom>(out, in, stack.top(), tc.frame);
     } else {
+      tc.emit<YieldValue>(out, in, tc.frame);
+    }
+  } else {
+    if (bc_instr.oparg() == 1) {
+      tc.emit<YieldFrom>(out, in, stack.top(), tc.frame);
+    } else {
+      JIT_CHECK(bc_instr.oparg() == 0, "Invalid oparg {}", bc_instr.oparg());
       tc.emit<YieldValue>(out, in, tc.frame);
     }
   }

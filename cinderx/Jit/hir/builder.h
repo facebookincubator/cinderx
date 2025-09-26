@@ -366,7 +366,9 @@ class HIRBuilder {
   void emitSequenceSet(
       TranslationContext& tc,
       const jit::BytecodeInstruction& bc_instr);
-  void emitYieldValue(TranslationContext& tc);
+  void emitYieldValue(
+      TranslationContext& tc,
+      const jit::BytecodeInstruction& bc_instr);
   void emitGetAwaitable(
       CFG& cfg,
       TranslationContext& tc,
