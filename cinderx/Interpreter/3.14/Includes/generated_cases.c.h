@@ -6155,7 +6155,7 @@
             _PyStackRef awaitable;
             aiter = stack_pointer[-1];
             _PyFrame_SetStackPointer(frame, stack_pointer);
-            PyObject *awaitable_o = _PyEval_GetANext(PyStackRef_AsPyObjectBorrow(aiter));
+            PyObject *awaitable_o = Ci_PyEval_GetANext(PyStackRef_AsPyObjectBorrow(aiter));
             stack_pointer = _PyFrame_GetStackPointer(frame);
             if (awaitable_o == NULL) {
                 JUMP_TO_LABEL(error);
@@ -6179,7 +6179,7 @@
             _PyStackRef iter;
             iterable = stack_pointer[-1];
             _PyFrame_SetStackPointer(frame, stack_pointer);
-            PyObject *iter_o = _PyEval_GetAwaitable(PyStackRef_AsPyObjectBorrow(iterable), oparg);
+            PyObject *iter_o = Ci_PyEval_GetAwaitable(PyStackRef_AsPyObjectBorrow(iterable), oparg);
             stack_pointer = _PyFrame_GetStackPointer(frame);
             stack_pointer += -1;
             assert(WITHIN_STACK_BOUNDS());

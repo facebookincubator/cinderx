@@ -50,6 +50,8 @@
 #include "setobject.h"
 #include "pycore_stackref.h"
 
+#include "cinderx/Jit/generators_core.h"
+
 #include <stdbool.h>              // bool
 
 #if !defined(Py_BUILD_CORE)
@@ -306,6 +308,9 @@ static int get_exception_handler(PyCodeObject *, int, int*, int*, int*);
 static  _PyInterpreterFrame *
 _PyEvalFramePushAndInit_Ex(PyThreadState *tstate, _PyStackRef func,
     PyObject *locals, Py_ssize_t nargs, PyObject *callargs, PyObject *kwargs, _PyInterpreterFrame *previous);
+
+static PyObject *Ci_PyEval_GetAwaitable(PyObject *iterable, int oparg);
+static PyObject *Ci_PyEval_GetANext(PyObject *aiter);
 
 #ifdef HAVE_ERRNO_H
 #include <errno.h>
@@ -3203,7 +3208,6 @@ done:
 #define CANNOT_EXCEPT_STAR_EG "catching ExceptionGroup with except* "\
                               "is not allowed. Use except instead."
 
-#ifndef CINDERX_INTERPRETER
 int
 _PyEval_CheckExceptTypeValid(PyThreadState *tstate, PyObject* right)
 {
@@ -3422,8 +3426,10 @@ void Py_LeaveRecursiveCall(void)
     _Py_LeaveRecursiveCall();
 }
 
-PyObject *
-_PyEval_GetANext(PyObject *aiter)
+#endif // !CINDERX_INTERPRETER
+
+static PyObject *
+Ci_PyEval_GetANext(PyObject *aiter)
 {
     unaryfunc getter = NULL;
     PyObject *next_iter = NULL;
@@ -3449,7 +3455,8 @@ _PyEval_GetANext(PyObject *aiter)
         return NULL;
     }
 
-    PyObject *awaitable = _PyCoro_GetAwaitableIter(next_iter);
+    // CX: Changed from _PyCoro_GetAwaitableIter
+    PyObject *awaitable = JitCoro_GetAwaitableIter(next_iter);
     if (awaitable == NULL) {
         _PyErr_FormatFromCause(
             PyExc_TypeError,
@@ -3461,6 +3468,7 @@ _PyEval_GetANext(PyObject *aiter)
     return awaitable;
 }
 
+#ifndef CINDERX_INTERPRETER
 void
 _PyEval_LoadGlobalStackRef(PyObject *globals, PyObject *builtins, PyObject *name, _PyStackRef *writeto)
 {
@@ -3500,11 +3508,13 @@ _PyEval_LoadGlobalStackRef(PyObject *globals, PyObject *builtins, PyObject *name
         *writeto = PyStackRef_FromPyObjectSteal(res);
     }
 }
+#endif // !CINDERX_INTERPRETER
 
-PyObject *
-_PyEval_GetAwaitable(PyObject *iterable, int oparg)
+static PyObject *
+Ci_PyEval_GetAwaitable(PyObject *iterable, int oparg)
 {
-    PyObject *iter = _PyCoro_GetAwaitableIter(iterable);
+    // CX: Changed from _PyCoro_GetAwaitableIter
+    PyObject *iter = JitCoro_GetAwaitableIter(iterable);
 
     if (iter == NULL) {
         _PyEval_FormatAwaitableError(PyThreadState_GET(),
@@ -3525,6 +3535,7 @@ _PyEval_GetAwaitable(PyObject *iterable, int oparg)
     return iter;
 }
 
+#ifndef CINDERX_INTERPRETER
 PyObject *
 _PyEval_LoadName(PyThreadState *tstate, _PyInterpreterFrame *frame, PyObject *name)
 {
@@ -3557,7 +3568,6 @@ _PyEval_LoadName(PyThreadState *tstate, _PyInterpreterFrame *frame, PyObject *na
     }
     return value;
 }
-#endif // !CINDERX_INTERPRETER
 
 /* Check if a 'cls' provides the given special method. */
 static inline int
