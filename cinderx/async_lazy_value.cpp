@@ -2,6 +2,8 @@
 
 #include "cinderx/async_lazy_value.h"
 
+#include "cinderx/Jit/generators_core.h"
+
 // string.h and py-portability import pycore_ headers which bring in
 // atomics breaking things.
 // clang-format off
@@ -948,7 +950,7 @@ static PyObject* AsyncLazyValueCompute_create_and_set_subcoro(
   }
 
   // function being called is not a coroutine
-  PyObject* iter = _PyCoro_GetAwaitableIter(result);
+  PyObject* iter = JitCoro_GetAwaitableIter(result);
   Py_DECREF(result);
   if (iter == nullptr) {
     return nullptr;
