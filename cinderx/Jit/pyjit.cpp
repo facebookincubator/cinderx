@@ -9,10 +9,6 @@
 #include "internal/pycore_shadow_frame.h"
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000
-#include "internal/pycore_instruments.h"
-#endif
-
 #include "internal/pycore_pystate.h"
 
 #include "cinderx/Common/audit.h"
@@ -1296,9 +1292,17 @@ bool deoptFunc(BorrowedRef<PyFunctionObject> func) {
   return false;
 }
 
-void disable_jit_impl(bool deopt_all) {
+PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
+  int deopt_all = 0;
+
+  const char* keywords[] = {"deopt_all", nullptr};
+
+  if (!PyArg_ParseTupleAndKeywords(
+          args, kwargs, "|p", const_cast<char**>(keywords), &deopt_all)) {
+    return nullptr;
+  }
   if (jitCtx() == nullptr) {
-    return;
+    Py_RETURN_NONE;
   }
 
   if (deopt_all) {
@@ -1319,19 +1323,6 @@ void disable_jit_impl(bool deopt_all) {
     getMutableConfig().state = State::kPaused;
     JIT_DLOG("Disabled the JIT");
   }
-}
-
-PyObject* disable_jit(PyObject* /* self */, PyObject* args, PyObject* kwargs) {
-  int deopt_all = 0;
-
-  const char* keywords[] = {"deopt_all", nullptr};
-
-  if (!PyArg_ParseTupleAndKeywords(
-          args, kwargs, "|p", const_cast<char**>(keywords), &deopt_all)) {
-    return nullptr;
-  }
-
-  disable_jit_impl(deopt_all);
 
   Py_RETURN_NONE;
 }
@@ -2359,83 +2350,6 @@ int deopt_gen_visitor(PyObject* obj, void*) {
   return 1;
 }
 
-// Check if sys.monitoring is actively in use and monitoring events.
-bool haveSysMonitoringCallable() {
-#if PY_VERSION_HEX >= 0x030C0000
-  auto is = PyInterpreterState_Get();
-  for (int tool_id = 0; tool_id < PY_MONITORING_TOOL_IDS; ++tool_id) {
-    for (int event_id = 0; event_id < _PY_MONITORING_EVENTS; ++event_id) {
-      BorrowedRef<> entry = is->monitoring_callables[tool_id][event_id];
-      if (entry != nullptr && !Py_IsNone(entry)) {
-        return true;
-      }
-    }
-  }
-#endif
-  return false;
-}
-
-// Flip the JIT on or off depending on a boolean argument.
-void enableDisableJit(bool enable) {
-  if (enable) {
-    enable_jit(nullptr /* self */, nullptr /* args */);
-  } else {
-    disable_jit_impl(true /* deopt_all */);
-  }
-}
-
-PyObject* patched_sys_monitoring_register_callback(
-    PyObject* /* self */,
-    PyObject* const* args,
-    size_t nargs) {
-  auto mod_state = cinderx::getModuleState();
-  BorrowedRef<> original = mod_state->sysMonitoringRegisterCallback();
-  JIT_CHECK(
-      original != nullptr,
-      "Expecting to have sys.monitoring.register_callback already saved");
-
-  // Run the original function, if it generates an exception, do nothing.
-  PyObject* result =
-      PyObject_Vectorcall(original, args, nargs, nullptr /* kwnames */);
-  if (result == nullptr) {
-    return nullptr;
-  }
-
-  enableDisableJit(!haveSysMonitoringCallable());
-
-  return result;
-}
-
-PyObject* patched_sys_setprofile(PyObject* /* self */, PyObject* arg) {
-  auto mod_state = cinderx::getModuleState();
-  BorrowedRef<> original = mod_state->sysSetProfile();
-
-  // Run the original function, if it generates an exception, do nothing.
-  PyObject* result = PyObject_CallOneArg(original, arg);
-  if (result == nullptr) {
-    return nullptr;
-  }
-
-  enableDisableJit(Py_IsNone(arg));
-
-  return result;
-}
-
-PyObject* patched_sys_settrace(PyObject* /* self */, PyObject* arg) {
-  auto mod_state = cinderx::getModuleState();
-  BorrowedRef<> original = mod_state->sysSetTrace();
-
-  // Run the original function, if it generates an exception, do nothing.
-  PyObject* result = PyObject_CallOneArg(original, arg);
-  if (result == nullptr) {
-    return nullptr;
-  }
-
-  enableDisableJit(Py_IsNone(arg));
-
-  return result;
-}
-
 PyObject* after_fork_child(PyObject*, PyObject*) {
   perf::afterForkChild();
   Py_RETURN_NONE;
@@ -2674,18 +2588,6 @@ PyMethodDef jit_methods[] = {
      after_fork_child,
      METH_NOARGS,
      PyDoc_STR("Callback to be invoked by the runtime after fork().")},
-    {"patched_sys_monitoring_register_callback",
-     reinterpret_cast<PyCFunction>(patched_sys_monitoring_register_callback),
-     METH_FASTCALL,
-     PyDoc_STR("Patched version of sys.monitoring.register_callback")},
-    {"patched_sys_setprofile",
-     patched_sys_setprofile,
-     METH_O,
-     PyDoc_STR("Patched version of sys.setprofile")},
-    {"patched_sys_settrace",
-     patched_sys_settrace,
-     METH_O,
-     PyDoc_STR("Patched version of sys.settrace")},
     {"_deopt_gen",
      deopt_gen,
      METH_O,
@@ -2845,32 +2747,21 @@ void instanceTypeAssigned(PyTypeObject* old_ty, PyTypeObject* new_ty) {
   }
 }
 
-void handleSetAttrEvent(BorrowedRef<> args) {
-  if (PyTuple_GET_SIZE(args.get()) != 3) {
-    return;
+// JIT audit event callback. For now, we only pay attention to when an object's
+// __class__ is assigned to.
+int jit_audit_hook(const char* event, PyObject* args, void* /* data */) {
+  if (strcmp(event, "object.__setattr__") != 0 || PyTuple_GET_SIZE(args) != 3) {
+    return 0;
   }
-
-  BorrowedRef<> name(PyTuple_GET_ITEM(args.get(), 1));
+  BorrowedRef<> name(PyTuple_GET_ITEM(args, 1));
   if (!PyUnicode_Check(name) ||
       PyUnicode_CompareWithASCIIString(name, "__class__") != 0) {
-    return;
-  }
-
-  BorrowedRef<> object(PyTuple_GET_ITEM(args.get(), 0));
-  BorrowedRef<PyTypeObject> new_type(PyTuple_GET_ITEM(args.get(), 2));
-  instanceTypeAssigned(Py_TYPE(object), new_type);
-  return;
-}
-
-// Callback run by the JIT to handle sys.audit events.
-int jit_audit_hook(const char* raw_event, PyObject* args, void* /* data */) {
-  std::string_view event = raw_event;
-
-  if (event == "object.__setattr__") {
-    handleSetAttrEvent(args);
     return 0;
   }
 
+  BorrowedRef<> object(PyTuple_GET_ITEM(args, 0));
+  BorrowedRef<PyTypeObject> new_type(PyTuple_GET_ITEM(args, 2));
+  instanceTypeAssigned(Py_TYPE(object), new_type);
   return 0;
 }
 
@@ -2894,55 +2785,6 @@ void dump_jit_stats() {
   }
 
   JIT_LOG("JIT runtime stats:\n{}", PyUnicode_AsUTF8(stats_str.get()));
-}
-
-void patchTracingFunctions(
-    PyObject* cinderjit_module,
-    cinderx::ModuleState* mod_state) {
-  if (BorrowedRef<> monitoring = PySys_GetObject("monitoring")) {
-    if (BorrowedRef<> original =
-            PyObject_GetAttrString(monitoring, "register_callback")) {
-      mod_state->setSysMonitoringRegisterCallback(original);
-      check(PyObject_SetAttrString(
-          monitoring,
-          "register_callback",
-          check(PyObject_GetAttrString(
-              cinderjit_module, "patched_sys_monitoring_register_callback"))));
-    }
-  }
-
-  if (BorrowedRef<> original = PySys_GetObject("setprofile")) {
-    mod_state->setSysSetProfile(original);
-    check(PySys_SetObject(
-        "setprofile",
-        check(PyObject_GetAttrString(
-            cinderjit_module, "patched_sys_setprofile"))));
-  }
-
-  if (BorrowedRef<> original = PySys_GetObject("settrace")) {
-    mod_state->setSysSetTrace(original);
-    check(PySys_SetObject(
-        "settrace",
-        check(
-            PyObject_GetAttrString(cinderjit_module, "patched_sys_settrace"))));
-  }
-}
-
-void restoreTracingFunctions(cinderx::ModuleState* mod_state) {
-  if (BorrowedRef<> monitoring = PySys_GetObject("monitoring")) {
-    if (BorrowedRef<> patched = mod_state->sysMonitoringRegisterCallback()) {
-      // This often fails under normal operation, not clear why but it seems
-      // harmless.  Don't assert on the return value here.
-      PyObject_SetAttrString(monitoring, "register_callback", patched);
-    }
-  }
-
-  if (BorrowedRef<> patched = mod_state->sysSetProfile()) {
-    check(PySys_SetObject("setprofile", patched));
-  }
-  if (BorrowedRef<> patched = mod_state->sysSetTrace()) {
-    check(PySys_SetObject("settrace", patched));
-  }
 }
 
 void finalizeInternedStrings() {
@@ -3171,12 +3013,6 @@ int initialize() {
     return -1;
   }
 
-  try {
-    patchTracingFunctions(mod, mod_state);
-  } catch (const CAPIError&) {
-    return -1;
-  }
-
   getMutableConfig().state = State::kRunning;
 
   mod_state->setJitList(std::move(jit_list));
@@ -3226,12 +3062,6 @@ void finalize() {
   finalizeInternedStrings();
 
   g_aot_ctx.destroy();
-
-  try {
-    restoreTracingFunctions(mod_state);
-  } catch (const CAPIError&) {
-    JIT_ABORT("Hit error finalizing tracing functions saved by CinderX JIT");
-  }
 
   getMutableConfig().state = State::kNotInitialized;
 }

@@ -12,10 +12,6 @@ int ModuleState::traverse(visitproc visit, void* arg) {
 }
 
 int ModuleState::clear() {
-  sys_monitoring_register_callback_.reset();
-  sys_setprofile_.reset();
-  sys_settrace_.reset();
-
   sys_clear_caches_.reset();
   builtin_next_.reset();
   return 0;
