@@ -23,7 +23,7 @@ class PerfMapTests(unittest.TestCase):
             "perf_fork_helper.py",
         )
         proc: subprocess.CompletedProcess[str] = subprocess.run(
-            [sys.executable, "-X", "jit-all", "-X", "jit-perfmap", helper_file],
+            [sys.executable, "-X", "jit-perfmap", helper_file],
             stdout=subprocess.PIPE,
             encoding=ENCODING,
             env={"PYTHONPATH": CINDERX_PATH},
