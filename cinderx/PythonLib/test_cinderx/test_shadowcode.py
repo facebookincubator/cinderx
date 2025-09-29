@@ -17,7 +17,7 @@ import opcode
 import weakref
 from cinder import cached_property, strict_module_patch, StrictModule
 from types import CodeType, FunctionType
-from unittest import skipIf
+from unittest import skipIf, skipUnless
 
 import cinderx.jit
 from test.support.script_helper import assert_python_ok, run_python_until_end
@@ -3071,7 +3071,7 @@ def f(x):
         obj2.__class__ = Foo
         self.assertEqual(f(obj2), 200)
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_classmethod(self) -> None:
         code = f"""if 1:
             class Foo:
@@ -3094,7 +3094,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"100")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_staticmethod(self) -> None:
         code = f"""if 1:
             class Foo:
@@ -3117,7 +3117,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"100")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_wrapper_descr(self) -> None:
         code = f"""if 1:
             class Foo:
@@ -3139,7 +3139,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"'hello'")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_function(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3161,7 +3161,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_method_descriptor(self) -> None:
         code = f"""if 1:
             import gc
@@ -3180,7 +3180,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_immortal_builtin_function(self) -> None:
         code = f"""if 1:
             class Foo:
@@ -3201,7 +3201,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"True")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipIf(not hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_unshadowed_immortal_method_split_dict(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3226,7 +3226,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_shadowed_immortal_method_split_dict(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3255,7 +3255,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_unshadowed_immortal_method_combineddict(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3285,7 +3285,7 @@ def f(x):
         rc, out, err = assert_python_ok("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_shadowed_immortal_method_combineddict(self) -> None:
         code = f"""if 1:
             class Oracle:
@@ -3319,7 +3319,7 @@ def f(x):
         rc, out, err = skip_ret_code_check_for_leaking_test_in_asan_mode("-c", code)
         self.assertEqual(out.strip(), b"42")
 
-    @skipIf(not hasattr("gc", "is_immortal"), "no immortalization")
+    @skipUnless(hasattr(gc, "immortalize_heap"), "no immortalization")
     def test_load_unshadowed_immortal_method_no_dict(self) -> None:
         code = f"""if 1:
             import gc
