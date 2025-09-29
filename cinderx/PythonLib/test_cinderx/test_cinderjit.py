@@ -1596,15 +1596,13 @@ class CinderJitModuleTests(StaticTestBase):
                 self.assertTrue(is_jit_compiled(g))
                 self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
 
-    @unittest.skipIf(
-        (
-            cinderx.jit.auto_jit_threshold() == 0
-            or cinderx.jit.auto_jit_threshold() > 10000
-        )
-        and not cinderx.jit.is_compile_all(),
-        "Expecting the JIT to be compiling a bunch of code automatically",
-    )
     def test_max_code_size_slow(self) -> None:
+        call_limit = cinderx.jit.get_compile_after_n_calls()
+        if call_limit is None or call_limit > 10000:
+            raise unittest.SkipTest(
+                "Expecting the JIT to be compiling a bunch of code automatically"
+            )
+
         code = textwrap.dedent(
             """
             import cinderx.jit
@@ -2596,8 +2594,6 @@ class BadArgumentTests(unittest.TestCase):
             compile_after_n_calls(-1)
         with self.assertRaises(ValueError):
             compile_after_n_calls(10_000_000_000)
-        with self.assertRaises(ValueError):
-            compile_after_n_calls(0)
 
     def test_is_compiled(self) -> None:
         with self.assertRaises(TypeError):

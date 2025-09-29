@@ -164,10 +164,6 @@ bool isCinderModule(BorrowedRef<> module_name) {
 }
 
 bool shouldAlwaysScheduleCompile(BorrowedRef<PyCodeObject> code) {
-  if (getConfig().compile_all) {
-    return true;
-  }
-
   // There's a config option for forcing all Static Python functions to be
   // compiled.
   bool is_static = code->co_flags & CI_CO_STATICALLY_COMPILED;
@@ -201,48 +197,61 @@ void incrementShadowcodeCall([[maybe_unused]] BorrowedRef<PyCodeObject> code) {
 #endif
 }
 
-// Python function entry point when AutoJIT is enabled.
-PyObject* autoJITVectorcall(
+// Like jitVectorcall(), but ignores any call count requirements.
+PyObject* forcedJitVectorcall(
     PyObject* func_obj,
     PyObject* const* stack,
     size_t nargsf,
     PyObject* kwnames) {
   JIT_DCHECK(
       PyFunction_Check(func_obj),
-      "Called AutoJIT wrapper with {} object instead of a function",
+      "Called JIT wrapper with {} object instead of a function",
       Py_TYPE(func_obj)->tp_name);
-
-  auto func = reinterpret_cast<PyFunctionObject*>(func_obj);
-  auto code = reinterpret_cast<PyCodeObject*>(func->func_code);
-
-  // Interpret function as usual until it passes the call count threshold.
-
-  auto const calls = countCalls(code);
-
-  if (calls < jit::getConfig().auto_jit_threshold) {
-    incrementShadowcodeCall(code);
-    auto entry = getInterpretedVectorcall(func);
-    return entry(func_obj, stack, nargsf, kwnames);
-  }
+  BorrowedRef<PyFunctionObject> func{func_obj};
+  BorrowedRef<PyCodeObject> code{func->func_code};
 
   _PyJIT_Result result = tryCompile(func);
-  if (result == PYJIT_RESULT_PYTHON_EXCEPTION) {
-    return nullptr;
-  }
-  if (result == PYJIT_RESULT_RETRY) {
-    incrementShadowcodeCall(code);
-    auto entry = getInterpretedVectorcall(func);
-    return entry(func_obj, stack, nargsf, kwnames);
+  if (result == PYJIT_RESULT_OK) {
+    JIT_DCHECK(
+        isJitCompiled(func),
+        "JIT succeeded for function {} but it is not recognized as compiled",
+        funcFullname(func));
+  } else {
+    JIT_DCHECK(
+        !isJitCompiled(func),
+        "JIT failed (error: {}) for function {} but it seems to have been "
+        "compiled",
+        result,
+        funcFullname(func));
   }
 
-  JIT_DCHECK(
-      func->vectorcall != autoJITVectorcall,
-      "Auto-JIT left function as auto-JIT'able on {}",
-      jit::repr(func->func_qualname));
-  return func->vectorcall(func_obj, stack, nargsf, kwnames);
+  switch (result) {
+    case PYJIT_RESULT_OK:
+      return func->vectorcall(func_obj, stack, nargsf, kwnames);
+    case PYJIT_RESULT_RETRY: {
+      incrementShadowcodeCall(code);
+      auto entry = getInterpretedVectorcall(func);
+      return entry(func_obj, stack, nargsf, kwnames);
+    }
+    case PYJIT_RESULT_CANNOT_SPECIALIZE:
+    case PYJIT_RESULT_NOT_ON_JITLIST:
+    case PYJIT_NOT_INITIALIZED:
+    case PYJIT_RESULT_NO_PRELOADER:
+    case PYJIT_RESULT_UNKNOWN_ERROR:
+      return func->vectorcall(func_obj, stack, nargsf, kwnames);
+    case PYJIT_RESULT_PYTHON_EXCEPTION:
+      return nullptr;
+    default:
+      break;
+  }
+
+  JIT_ABORT(
+      "Unrecognized JIT result code {} for function {}",
+      result,
+      funcFullname(func));
 }
 
-// Python function entry point when the JIT is enabled, but not AutoJIT.
+// Python function entry point when the JIT is enabled.
 PyObject* jitVectorcall(
     PyObject* func_obj,
     PyObject* const* stack,
@@ -252,22 +261,21 @@ PyObject* jitVectorcall(
       PyFunction_Check(func_obj),
       "Called JIT wrapper with {} object instead of a function",
       Py_TYPE(func_obj)->tp_name);
-  auto func = reinterpret_cast<PyFunctionObject*>(func_obj);
+  BorrowedRef<PyFunctionObject> func{func_obj};
+  BorrowedRef<PyCodeObject> code{func->func_code};
 
-  _PyJIT_Result result = tryCompile(func);
-  if (result == PYJIT_RESULT_PYTHON_EXCEPTION) {
-    return nullptr;
-  }
-  if (result == PYJIT_RESULT_RETRY) {
-    auto entry = getInterpretedVectorcall(func);
-    return entry(func_obj, stack, nargsf, kwnames);
+  // If there's a call count limit, interpret the function as usual until the
+  // limit is reached.
+  if (auto limit = getConfig().compile_after_n_calls; limit.has_value()) {
+    auto const calls = countCalls(code);
+    if (calls < *limit) {
+      incrementShadowcodeCall(code);
+      auto entry = getInterpretedVectorcall(func);
+      return entry(func_obj, stack, nargsf, kwnames);
+    }
   }
 
-  JIT_DCHECK(
-      func->vectorcall != jitVectorcall,
-      "Lazy JIT left function as lazy-JIT'able on {}",
-      jit::repr(func->func_qualname));
-  return func->vectorcall(func_obj, stack, nargsf, kwnames);
+  return forcedJitVectorcall(func_obj, stack, nargsf, kwnames);
 }
 
 void setJitLogFile(const std::string& log_filename) {
@@ -353,14 +361,14 @@ FlagProcessor initFlagProcessor() {
   flag_processor.addOption(
       "jit-all",
       "PYTHONJITALL",
-      getMutableConfig().compile_all,
+      [](uint32_t val) { getMutableConfig().compile_after_n_calls = 0; },
       "Enable the JIT and set it to compile all functions as soon as they are "
       "called");
 
   flag_processor.addOption(
       "jit-auto",
       "PYTHONJITAUTO",
-      [](uint32_t val) { getMutableConfig().auto_jit_threshold = val; },
+      [](uint32_t val) { getMutableConfig().compile_after_n_calls = val; },
       "Enable auto-JIT mode, which compiles functions after the given "
       "threshold");
 
@@ -771,14 +779,6 @@ FlagProcessor initFlagProcessor() {
       "JIT specialized opcodes or to fall back to their generic counterparts.");
 
   flag_processor.setFlags(PySys_GetXOptions());
-
-  if (getConfig().auto_jit_threshold > 0 &&
-      getConfig().jit_list.filename != "") {
-    JIT_LOG(
-        "Warning: jit-auto and jit-list-file are both enabled; only functions "
-        "on the jit-list will be compiled, and only after {} calls.",
-        getConfig().auto_jit_threshold);
-  }
 
   // T198250666: Bit of a hack but this makes other things easier.  In 3.12 all
   // functions need access to the runtime PyFunctionObject, which prevents
@@ -1352,7 +1352,7 @@ PyObject* enable_jit(PyObject* /* self */, PyObject* /* arg */) {
 }
 
 void compile_after_n_calls_impl(uint32_t calls) {
-  getMutableConfig().auto_jit_threshold = calls;
+  getMutableConfig().compile_after_n_calls = calls;
 
   // Schedule all pre-existing functions for compilation.
   walkFunctionObjects(
@@ -1371,12 +1371,6 @@ PyObject* compile_after_n_calls(PyObject* /* self */, PyObject* arg) {
         PyExc_ValueError,
         "Cannot configure JIT to compile functions after '%zd' calls",
         calls);
-    return nullptr;
-  }
-  if (calls == 0) {
-    PyErr_Format(
-        PyExc_ValueError,
-        "compile_after_n_calls(0) not supported yet, use PYTHONJITALL=1");
     return nullptr;
   }
 
@@ -1496,7 +1490,7 @@ PyObject* lazy_compile(PyObject* /* self */, PyObject* arg) {
     Py_RETURN_FALSE;
   }
 
-  func->vectorcall = jitVectorcall;
+  func->vectorcall = forcedJitVectorcall;
   if (!registerFunction(func)) {
     func->vectorcall = getInterpretedVectorcall(func);
     Py_RETURN_FALSE;
@@ -1611,8 +1605,12 @@ PyObject* load_aot_bundle(PyObject* /* self */, PyObject* arg) {
   Py_RETURN_NONE;
 }
 
-PyObject* auto_jit_threshold(PyObject* /* self */, PyObject*) {
-  return PyLong_FromLong(getConfig().auto_jit_threshold);
+PyObject* get_compile_after_n_calls(PyObject* /* self */, PyObject*) {
+  auto limit = getConfig().compile_after_n_calls;
+  if (limit.has_value()) {
+    return PyLong_FromLong(*limit);
+  }
+  Py_RETURN_NONE;
 }
 
 PyObject* is_enabled(PyObject* /* self */, PyObject* /* args */) {
@@ -1632,10 +1630,6 @@ PyObject* count_interpreted_calls(PyObject* /* self */, PyObject* arg) {
 PyObject* is_jit_compiled(PyObject* /* self */, PyObject* arg) {
   BorrowedRef<PyFunctionObject> func = get_func_arg("is_jit_compiled", arg);
   return func != nullptr ? PyBool_FromLong(isJitCompiled(func)) : nullptr;
-}
-
-PyObject* is_compile_all(PyObject* /* self */, PyObject* /* arg */) {
-  return PyBool_FromLong(getConfig().compile_all);
 }
 
 PyObject* print_hir(PyObject* /* self */, PyObject* func) {
@@ -2391,11 +2385,11 @@ PyMethodDef jit_methods[] = {
                "file, whose filepath is passed as the first argument. Note: "
                "This does not actually work yet, it's being used for debugging "
                "purposes.")},
-    {"auto_jit_threshold",
-     auto_jit_threshold,
+    {"get_compile_after_n_calls",
+     get_compile_after_n_calls,
      METH_NOARGS,
-     PyDoc_STR("Return the current AutoJIT threshold, only makes sense when "
-               "the JIT is enabled.")},
+     PyDoc_STR("Get the current number of calls needed before a function is "
+               "automatically compiled.")},
     {"is_enabled",
      is_enabled,
      METH_NOARGS,
@@ -2409,11 +2403,6 @@ PyMethodDef jit_methods[] = {
      is_jit_compiled,
      METH_O,
      PyDoc_STR("Check if a function is jit compiled.")},
-    {"is_compile_all",
-     is_compile_all,
-     METH_NOARGS,
-     PyDoc_STR("Check if the compiler is configured to compile all functions "
-               "unconditionally.")},
     {"precompile_all",
      reinterpret_cast<PyCFunction>(precompile_all),
      METH_VARARGS | METH_KEYWORDS,
@@ -3085,7 +3074,7 @@ bool shouldScheduleCompile(BorrowedRef<PyFunctionObject> func) {
 
   BorrowedRef<PyCodeObject> code{func->func_code};
   return shouldAlwaysScheduleCompile(code) ||
-      getConfig().auto_jit_threshold > 0;
+      getConfig().compile_after_n_calls.has_value();
 }
 
 bool shouldScheduleCompile(
@@ -3101,7 +3090,7 @@ bool shouldScheduleCompile(
   }
 
   return shouldAlwaysScheduleCompile(code) ||
-      getConfig().auto_jit_threshold > 0;
+      getConfig().compile_after_n_calls.has_value();
 }
 
 bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
@@ -3125,8 +3114,7 @@ bool scheduleJitCompile(BorrowedRef<PyFunctionObject> func) {
     return false;
   }
 
-  func->vectorcall = jit::getConfig().auto_jit_threshold > 0 ? autoJITVectorcall
-                                                             : jitVectorcall;
+  func->vectorcall = jitVectorcall;
   if (!registerFunction(func)) {
     func->vectorcall = getInterpretedVectorcall(func);
     return false;

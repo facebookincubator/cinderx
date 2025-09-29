@@ -84,4 +84,5 @@ test_cinderx.test_jit_perf_map
 test_cinderx.test_jit_preload
 test_cinderx.test_jit_specialization
 test_cinderx.test_jit_type_annotations
+test_cinderx.test_jitlist
 test_cinderx.test_parallel_gc

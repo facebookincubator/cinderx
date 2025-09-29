@@ -1,10 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
+
 #include <gtest/gtest.h>
 
-#include "cinderx/Jit/codegen/copy_graph.h"
 #include "cinderx/Jit/generators_rt.h"
-#include "cinderx/Jit/jit_list.h"
-#include "cinderx/Jit/lir/inliner.h"
 #include "cinderx/Jit/perf_jitdump.h"
 #include "cinderx/Jit/pyjit.h"
 #include "cinderx/RuntimeTests/fixtures.h"
@@ -14,8 +12,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <memory>
-#include <ostream>
 #include <string>
 
 // Here we make sure that the JIT specific command line arguments
@@ -285,20 +281,8 @@ TEST_F(CmdLineTest, JITEnable) {
           []() {},
           []() {
             ASSERT_TRUE(isJitUsable());
-            ASSERT_TRUE(getConfig().compile_all);
+            ASSERT_EQ(getConfig().compile_after_n_calls, 0);
             ASSERT_EQ(is_intel_syntax(), 0); // default to AT&T syntax
-          }),
-      0);
-
-  ASSERT_EQ(
-      try_flag_and_envvar_effect(
-          L"jit-all=0",
-          "PYTHONJITALL=0",
-          []() {},
-          []() {
-            // JIT still usable when JitAll is not enabled.
-            ASSERT_TRUE(isJitUsable());
-            ASSERT_FALSE(getConfig().compile_all);
           }),
       0);
 }

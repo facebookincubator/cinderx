@@ -172,13 +172,11 @@ struct Config {
   // Size (in number of entries) of the LoadAttrCached and StoreAttrCached
   // inline caches used by the JIT.
   uint32_t attr_cache_size{1};
-  uint32_t auto_jit_threshold{0};
+  std::optional<uint32_t> compile_after_n_calls;
   GdbOptions gdb;
   JitListOptions jit_list;
   LogOptions log;
   bool compile_perf_trampoline_prefork{false};
-  // Compile all Python functions as soon as they are called.
-  bool compile_all{false};
 };
 
 // Get the JIT's current config object.

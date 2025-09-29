@@ -21,7 +21,6 @@ try:
         _deopt_gen,
         append_jit_list,
         auto,
-        auto_jit_threshold,
         clear_runtime_stats,
         compile_after_n_calls,
         count_interpreted_calls,
@@ -39,6 +38,7 @@ try:
         get_and_clear_inline_cache_stats,
         get_and_clear_runtime_stats,
         get_compilation_time,
+        get_compile_after_n_calls,
         get_compiled_functions,
         get_compiled_size,
         get_compiled_spill_stack_size,
@@ -48,7 +48,6 @@ try:
         get_inlined_functions_stats,
         get_jit_list,
         get_num_inlined_functions,
-        is_compile_all,
         is_enabled,
         is_hir_inliner_enabled,
         is_inline_cache_stats_collection_enabled,
@@ -82,9 +81,6 @@ except ImportError:
 
     def auto() -> None:
         return None
-
-    def auto_jit_threshold() -> int:
-        return 0
 
     def clear_runtime_stats() -> None:
         return None
@@ -141,6 +137,9 @@ except ImportError:
     def get_compilation_time() -> int:
         return 0
 
+    def get_compile_after_n_calls() -> int | None:
+        return None
+
     def get_compiled_functions() -> list[FuncAny]:
         return []
 
@@ -167,9 +166,6 @@ except ImportError:
 
     def get_num_inlined_functions(func: FuncAny) -> int:
         return 0
-
-    def is_compile_all() -> bool:
-        return False
 
     def is_enabled() -> bool:
         return False

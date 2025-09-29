@@ -88,7 +88,7 @@ def compiles_after_one_call() -> bool:
     """
     Check if CinderX will automatically compile functions after they are called once.
     """
-    return cinderx.jit.auto_jit_threshold() == 1 or cinderx.jit.is_compile_all()
+    return cinderx.jit.get_compile_after_n_calls() == 0
 
 
 def skip_if_jit(reason: str) -> Callable[[Callable[..., None]], Callable[..., None]]:

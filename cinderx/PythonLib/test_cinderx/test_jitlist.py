@@ -12,17 +12,16 @@ import textwrap
 import unittest
 from pathlib import Path
 
-from unittest import skipIf
-
-import cinderx
 import cinderx.jit
 
 from cinderx.test_support import CINDERX_PATH, ENCODING, skip_unless_jit
 
 
+@skip_unless_jit("Tests JIT list behavior")
 @unittest.skipUnless(
-    cinderx.jit.auto_jit_threshold() > 0,
-    "Requires the JIT but is incompatible with JitAll mode",
+    cinderx.jit.get_compile_after_n_calls() is None
+    or cinderx.jit.get_compile_after_n_calls() == 0,
+    "Expecting functions to compile on first call",
 )
 class JitListTest(unittest.TestCase):
     def test_comments(self) -> None:
@@ -34,25 +33,43 @@ class JitListTest(unittest.TestCase):
         self.assertEqual(initial_jit_list, cinderx.jit.get_jit_list())
 
     def test_py_func(self) -> None:
+        def victim() -> None:
+            pass
+
+        # Using `victim` to determine fully-qualified name, before `func` is actually
+        # created.  Want to set JIT list before creating function in case functions try
+        # to compile on creation.
+        cinderx.jit.append_jit_list(
+            f"{victim.__module__}:{victim.__qualname__}".replace("victim", "func")
+        )
+
         def func() -> None:
             pass
 
         def func_nojit() -> None:
             pass
 
-        cinderx.jit.append_jit_list(f"{func.__module__}:{func.__qualname__}")
-
         py_funcs = cinderx.jit.get_jit_list()[0]
         self.assertIn(func.__qualname__, py_funcs[__name__])
         self.assertNotIn(func_nojit.__qualname__, py_funcs[__name__])
 
         func()
-        if cinderx.jit.auto_jit_threshold() <= 1:
-            self.assertTrue(cinderx.jit.is_jit_compiled(func))
+        self.assertTrue(cinderx.jit.is_jit_compiled(func))
         func_nojit()
         self.assertFalse(cinderx.jit.is_jit_compiled(func_nojit))
 
     def test_py_meth(self) -> None:
+        class VictimClass:
+            def meth(self) -> None:
+                pass
+
+        victim = VictimClass.meth
+        cinderx.jit.append_jit_list(
+            f"{victim.__module__}:{victim.__qualname__}".replace(
+                "VictimClass", "JitClass"
+            )
+        )
+
         class JitClass:
             def meth(self) -> None:
                 pass
@@ -63,19 +80,34 @@ class JitListTest(unittest.TestCase):
         meth = JitClass.meth
         meth_nojit = JitClass.meth_nojit
 
-        cinderx.jit.append_jit_list(f"{meth.__module__}:{meth.__qualname__}")
-
         py_funcs = cinderx.jit.get_jit_list()[0]
         self.assertIn(meth.__qualname__, py_funcs[__name__])
         self.assertNotIn(meth_nojit.__qualname__, py_funcs[__name__])
 
         meth(JitClass())
-        if cinderx.jit.auto_jit_threshold() <= 1:
-            self.assertTrue(cinderx.jit.is_jit_compiled(meth))
+        self.assertTrue(cinderx.jit.is_jit_compiled(meth))
         meth_nojit(JitClass())
         self.assertFalse(cinderx.jit.is_jit_compiled(meth_nojit))
 
     def test_py_code(self) -> None:
+        def victim() -> None:
+            pass
+
+        # pyre-ignore[16]: Pyre doesn't know about __code__.
+        victim_code = victim.__code__
+        victim_name = victim.__qualname__
+
+        # This is _very_ fragile.  We're trying to compute what the line number of
+        # `code_func` is going to be, before we create it.
+        cinderx.jit.append_jit_list(
+            f"{victim_name}@{victim_code.co_filename}:{victim_code.co_firstlineno}".replace(
+                "victim", "code_func"
+            ).replace(
+                f"{victim_code.co_firstlineno}",
+                f"{victim_code.co_firstlineno + 18}",
+            )
+        )
+
         def code_func() -> None:
             pass
 
@@ -87,20 +119,22 @@ class JitListTest(unittest.TestCase):
 
         # Cheating a little here, because we don't have a code.co_qualname in 3.10.
         code_name = code_func.__qualname__
-        cinderx.jit.append_jit_list(
-            f"{code_name}@{code_obj.co_filename}:{code_obj.co_firstlineno}"
-        )
 
         py_code_objs = cinderx.jit.get_jit_list()[1]
         thisfile = os.path.basename(__file__)
+        self.assertIn(code_name, py_code_objs)
         self.assertIn(code_obj.co_firstlineno, py_code_objs[code_name][thisfile])
         code_func()
-        if cinderx.jit.auto_jit_threshold() <= 1:
-            self.assertTrue(cinderx.jit.is_jit_compiled(code_func))
+        self.assertTrue(cinderx.jit.is_jit_compiled(code_func))
         code_func_nojit()
         self.assertFalse(cinderx.jit.is_jit_compiled(code_func_nojit))
 
     def test_change_func_qualname(self) -> None:
+        # This should be a skipIf decorator, but that makes pyre unhappy for some
+        # unknown reason.
+        if cinderx.jit.get_compile_after_n_calls() == 0:
+            self.skipTest("Test doesn't support functions being compiled ASAP")
+
         def inner_func() -> int:
             return 24
 
@@ -113,8 +147,7 @@ class JitListTest(unittest.TestCase):
 
         inner_func.__qualname__ += "_foo"
         self.assertEqual(inner_func(), 24)
-        if cinderx.jit.auto_jit_threshold() <= 1:
-            self.assertTrue(cinderx.jit.is_jit_compiled(inner_func))
+        self.assertTrue(cinderx.jit.is_jit_compiled(inner_func))
 
     def test_batch_compile_nested_func(self) -> None:
         root = Path(
@@ -142,9 +175,6 @@ class JitListTest(unittest.TestCase):
         # other JIT-related tests.
         code = textwrap.dedent(
             """
-            import cinderx
-            cinderx.init()
-
             import cinderx.jit
 
             def func():
@@ -176,25 +206,32 @@ class JitListTest(unittest.TestCase):
         self.assertEqual(proc.stdout.strip(), "24")
 
     def test_read_jit_list(self) -> None:
-        def func() -> int:
-            return 35
+        def victim() -> None:
+            pass
 
-        entry = f"{func.__module__}:{func.__qualname__}"
+        entry = f"{victim.__module__}:{victim.__qualname__}".replace("victim", "func")
 
         with tempfile.NamedTemporaryFile("w+") as jit_list_file:
             jit_list_file.write(entry)
             jit_list_file.flush()
             cinderx.jit.read_jit_list(jit_list_file.name)
 
+        def func() -> int:
+            return 35
+
+        def func_nojit() -> int:
+            return 47
+
         entries = cinderx.jit.get_jit_list()[0]
         self.assertIn(func.__module__, entries)
         self.assertIn(func.__qualname__, entries[func.__module__])
+        self.assertNotIn(func_nojit.__qualname__, entries[func.__module__])
 
-        self.assertFalse(cinderx.jit.is_jit_compiled(func))
         self.assertEqual(func(), 35)
+        self.assertTrue(cinderx.jit.is_jit_compiled(func))
 
-        if cinderx.jit.auto_jit_threshold() <= 1:
-            self.assertTrue(cinderx.jit.is_jit_compiled(func))
+        self.assertEqual(func_nojit(), 47)
+        self.assertTrue(cinderx.jit.is_jit_compiled(func))
 
     def test_append_jit_list_parse_error(self) -> None:
         with self.assertRaisesRegex(RuntimeError, "Failed to parse new JIT list line"):
@@ -238,7 +275,12 @@ class JitListTest(unittest.TestCase):
                 encoding=ENCODING,
                 env={"PYTHONPATH": CINDERX_PATH},
             )
-        self.assertNotEqual(proc.returncode, 0, proc)
+
+        # Python 3.14 raises and logs the exception, but doesn't exit with a non-zero
+        # error code.
+        if sys.version_info[:2] < (3, 14):
+            self.assertNotEqual(proc.returncode, 0, proc)
+
         self.assertIn("Error while parsing line", proc.stderr)
         self.assertIn("in JIT list file", proc.stderr)
 

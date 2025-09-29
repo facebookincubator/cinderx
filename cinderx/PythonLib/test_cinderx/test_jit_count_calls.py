@@ -39,7 +39,8 @@ class CountCallsTest(unittest.TestCase):
             count_interpreted_calls(count_interpreted_calls)
 
     @unittest.skipUnless(
-        cinderx.jit.is_enabled() and cinderx.jit.auto_jit_threshold() > 0,
+        cinderx.jit.is_enabled()
+        and cinderx.jit.get_compile_after_n_calls() is not None,
         "Testing JitAuto functionality",
     )
     def test_basic_auto(self) -> None:
@@ -50,12 +51,14 @@ class CountCallsTest(unittest.TestCase):
         # call tracking.
         for i in range(2000):
             # Stops counting after it gets compiled.
-            expected = min(i, cinderx.jit.auto_jit_threshold())
+            call_limit = cinderx.jit.get_compile_after_n_calls()
+            self.assertIsNotNone(call_limit)
+            expected = min(i, call_limit)
             self.assertEqual(count_interpreted_calls(func), expected)
             func()
 
     @unittest.skipUnless(
-        cinderx.jit.is_enabled() and cinderx.jit.is_compile_all(),
+        cinderx.jit.is_enabled() and cinderx.jit.get_compile_after_n_calls() == 0,
         "Testing JitAll functionality",
     )
     def test_basic_all(self) -> None:
