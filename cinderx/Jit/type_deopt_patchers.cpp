@@ -41,6 +41,12 @@ BorrowedRef<PyTypeObject> TypeDeoptPatcher::type() const {
   return type_;
 }
 
+void TypeDeoptPatcher::onUnpatch() {
+  JIT_ABORT(
+      "TypeDeoptPatcher for type {} being unpatched but that's not supported!",
+      type_->tp_name);
+}
+
 TypeAttrDeoptPatcher::TypeAttrDeoptPatcher(
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<PyUnicodeObject> attr_name,

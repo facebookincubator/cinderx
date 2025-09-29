@@ -741,7 +741,14 @@ static std::string format_immediates(const Instr& instr) {
     }
     case Opcode::kDeoptPatchpoint: {
       const auto& dp = static_cast<const DeoptPatchpoint&>(instr);
-      return fmt::format("{}", getStablePointer(dp.patcher()));
+      auto patcher = dp.patcher();
+      if (patcher->isLinked()) {
+        return fmt::format(
+            "{} -> {}",
+            getStablePointer(patcher->patchpoint()),
+            getStablePointer(patcher->jumpTarget()));
+      }
+      return fmt::format("Patcher {}", getStablePointer(dp.patcher()));
     }
     case Opcode::kUpdatePrevInstr: {
       const auto& upi = static_cast<const UpdatePrevInstr&>(instr);

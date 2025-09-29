@@ -46,6 +46,10 @@ class MyDeoptPatcher : public jit::DeoptPatcher {
     patched_ = true;
   }
 
+  void onUnpatch() override {
+    patched_ = false;
+  }
+
   bool isLinked() const {
     return linked_;
   }
@@ -101,22 +105,32 @@ def func():
   EXPECT_TRUE(patcher->isLinked());
   EXPECT_FALSE(patcher->isPatched());
 
-  // Make sure things work in the nominal case
-  bool did_deopt = false;
-  auto callback = [&did_deopt](const jit::DeoptMetadata&) { did_deopt = true; };
+  size_t deopts = 0;
+  auto callback = [&deopts](const jit::DeoptMetadata&) { deopts += 1; };
   jit_rt->setGuardFailureCallback(callback);
+
+  // Make sure things work in the nominal case.
   auto res = Ref<>::steal(jitfunc->invoke(pyfunc, nullptr, 0));
   ASSERT_NE(res, nullptr);
   ASSERT_EQ(PyLong_AsLong(res), 314159);
-  EXPECT_FALSE(did_deopt);
+  EXPECT_EQ(deopts, 0);
   EXPECT_FALSE(patcher->isPatched());
 
-  // Patch and verify that a deopt occurred
+  // Patch and verify that a deopt occurred.
   patcher->patch();
   auto res2 = Ref<>::steal(jitfunc->invoke(pyfunc, nullptr, 0));
-  jit_rt->clearGuardFailureCallback();
   ASSERT_NE(res2, nullptr);
   ASSERT_EQ(PyLong_AsLong(res2), 314159);
-  EXPECT_TRUE(did_deopt);
+  EXPECT_EQ(deopts, 1);
   EXPECT_TRUE(patcher->isPatched());
+
+  // Unpatch and verify that the deopt did not occur.
+  patcher->unpatch();
+  auto res3 = Ref<>::steal(jitfunc->invoke(pyfunc, nullptr, 0));
+  ASSERT_NE(res3, nullptr);
+  ASSERT_EQ(PyLong_AsLong(res3), 314159);
+  EXPECT_EQ(deopts, 1);
+  EXPECT_FALSE(patcher->isPatched());
+
+  jit_rt->clearGuardFailureCallback();
 }

@@ -24,6 +24,8 @@ class TypeDeoptPatcher : public DeoptPatcher {
   BorrowedRef<PyTypeObject> type() const;
 
  protected:
+  void onUnpatch() override;
+
   // The type being watched.  It outlives this object because this object will
   // be cleaned up by a type watcher notification.
   BorrowedRef<PyTypeObject> type_;

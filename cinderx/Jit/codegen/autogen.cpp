@@ -263,7 +263,9 @@ void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
   // Generate patchpoint
   auto patchpoint_label = as->newLabel();
   as->bind(patchpoint_label);
-  DeoptPatcher::emitPatchpoint(*as);
+  for (uint8_t byte : kJmpNopBytes) {
+    as->db(byte);
+  }
 
   // Fill in deopt metadata
   auto index = instr->getInput(1)->getConstant();

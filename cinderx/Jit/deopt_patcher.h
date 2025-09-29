@@ -2,19 +2,21 @@
 
 #pragma once
 
-#include <asmjit/x86.h>
-
+#include <array>
 #include <cstdint>
 
 namespace jit {
 
+// 5-byte nop - https://www.felixcloutier.com/x86/nop
+//
+// Asmjit supports multi-byte nops but for whatever reason we can't get it to
+// emit the 5-byte version.
+constexpr auto kJmpNopBytes =
+    std::to_array<uint8_t>({0x0f, 0x1f, 0x44, 0x00, 0x00});
+
 // A DeoptPatcher is used by the runtime to invalidate compiled code when an
 // invariant that the compiled code relies on is invalidated. It is intended
 // to be used in conjunction with the DeoptPatchpoint HIR instruction.
-//
-// Most users will want to subclass DeoptPatcher and implement their own
-// `init()` method. This will typically arrange things so that `patch()` will
-// be called when necessary (e.g. by subscribing to changes on globals).
 //
 // Using a DeoptPatcher looks roughly like:
 //   1. Allocate a DeoptPatcher.
@@ -28,14 +30,12 @@ namespace jit {
 // has been destroyed.
 //
 // We implement this by writing a 5-byte nop into the generated code at the
-// point that we want to patch/invalidate. As a future optimization, we may
-// be able to avoid reserving some/all space for the patchpoint (e.g. if we
-// can prove that none of the 5-bytes following it are the target of a jump).
+// point that we want to patch/invalidate. As a future optimization, we may be
+// able to avoid reserving some/all space for the patchpoint (e.g. if we can
+// prove that none of the 5-bytes following it are the target of a jump and they
+// will never be unpatched).
 class DeoptPatcher {
  public:
-  // Write the nop that will be overwritten at runtime when patch() is called.
-  static void emitPatchpoint(asmjit::x86::Builder& as);
-
   virtual ~DeoptPatcher() = default;
 
   // Link the patcher to a specific location in generated code. This is
@@ -55,12 +55,31 @@ class DeoptPatcher {
   // The patcher must be linked before this can be called.
   void patch();
 
+  // Revert the patchpoint back to a nop.
+  //
+  // The patcher must be linked before this can be called.
+  void unpatch();
+
+  // Check if the patcher has been linked.
+  bool isLinked() const;
+
+  // Get where in the code to patch.  Will be nullptr before the patcher is
+  // linked.
+  uint8_t* patchpoint() const;
+
+  // Get the address where the patched code will jump.  Will be nullptr before
+  // the patcher is linked.
+  uint8_t* jumpTarget() const;
+
  protected:
   // Callback to execute after linking (e.g. subscribing to changes).
   virtual void onLink() {}
 
   // Callback to execute after patching (e.g. cleaning up the patcher).
   virtual void onPatch() {}
+
+  // Callback to execute after unpatching.
+  virtual void onUnpatch() {}
 
  private:
   // Where in the code we should patch
