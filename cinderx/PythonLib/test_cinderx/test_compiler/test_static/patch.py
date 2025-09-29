@@ -8,18 +8,15 @@ from unittest import skipIf
 from unittest.mock import MagicMock, Mock, patch
 
 try:
-    from cinderx import getknobs, setknobs
+    from cinder import getknobs, setknobs
 except ImportError:
     getknobs = setknobs = None
 
+import xxclassloader
 
 from cinderx.compiler.pycodegen import PythonCodeGenerator
 
-from test.support.import_helper import import_module
-
 from .common import StaticTestBase
-
-xxclassloader = import_module("xxclassloader")
 
 
 @contextmanager
@@ -195,6 +192,7 @@ class StaticPatchTests(StaticTestBase):
             f = mod.f
             import weakref
 
+            # pyre-ignore[61]: Not using `i` here.
             wr = weakref.ref(f, lambda *args: self.assertEqual(i, -1))  # noqa: F841
             del f
             for _ in range(100):
@@ -221,6 +219,7 @@ class StaticPatchTests(StaticTestBase):
                 autospec=True,
                 return_value=100,
             ):
+                # pyre-ignore[6]: Intentionally setting an integer key to mess with the module dict.
                 mod.__dict__[42] = 1
                 self.assertEqual(g(), 100)
 
@@ -556,7 +555,9 @@ class StaticPatchTests(StaticTestBase):
 
             C.f = 42
             a = D()
+            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
             a.f = 100
+            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
             self.assertEqual(a.get_f(), 100)
 
     def test_patch_static_to_static(self) -> None:
@@ -605,6 +606,8 @@ class StaticPatchTests(StaticTestBase):
             with self.assertRaisesRegex(
                 TypeError, "unexpected return type from E.f, expected str, got int"
             ):
+                # pyre-ignore[16]: Superclass is dynamically compiled and invisible to
+                # pyre.
                 self.assertEqual(E().get_lower_f(), "ABC")
 
     def test_patch_method_mock(self) -> None:
@@ -1668,7 +1671,7 @@ class StaticPatchTests(StaticTestBase):
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(mod.C()), 1)
             mod.C.prop = Desc()
-            self.assertRaises(
+            self.assertRaisesRegex(
                 TypeError,
                 "unexpected return type from C.prop, expected int, got str",
                 mod.f,

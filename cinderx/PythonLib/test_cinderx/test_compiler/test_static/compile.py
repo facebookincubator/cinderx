@@ -1,5 +1,7 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates.
 
+import __static__
+
 import ast
 import asyncio
 import builtins
@@ -15,7 +17,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from textwrap import dedent
 from types import ModuleType
-from typing import Callable
+from typing import Callable, cast
 from unittest import skip, skipIf, skipUnless
 from unittest.mock import patch
 
@@ -46,6 +48,8 @@ from .common import (
     StaticTestBase,
     type_mismatch,
 )
+
+STATIC_PATH: str = path.dirname(path.dirname(__static__.__file__))
 
 RICHARDS_PATH = path.join(
     path.dirname(__file__),
@@ -786,7 +790,7 @@ class StaticCompilationTests(StaticTestBase):
 
     def test_bind_instance(self) -> None:
         mod, comp = self.bind_module("class C: pass\na: C = C()")
-        assign = mod.body[1]
+        assign = cast(ast.AnnAssign, mod.body[1])
         types = comp.modules["foo"].types
         self.assertEqual(types[assign.target].name, "foo.C")
         self.assertEqual(repr(types[assign.target]), "<foo.C>")
@@ -808,6 +812,7 @@ class StaticCompilationTests(StaticTestBase):
                 x: bool = a
         """
         acomp = self.compile_strict(code)
+        assert acomp is not None
         x = self.find_code(acomp, "f")
         self.assertInBytecode(x, "CAST", ("builtins", "bool", "!"))
 
@@ -818,6 +823,7 @@ class StaticCompilationTests(StaticTestBase):
                 x: bool = a
         """
         acomp = self.compile_strict(code)
+        assert acomp is not None
         x = self.find_code(acomp, "f")
         self.assertInBytecode(x, "CAST", ("builtins", "bool", "!"))
 
@@ -1905,6 +1911,8 @@ class StaticCompilationTests(StaticTestBase):
         # do a direct invoke
         xxclassloader = sys.modules["xxclassloader"]
         try:
+            # pyre-ignore[6]: Pyre doesn't know that StrictModule is interchangeable
+            # with ModuleType.
             sys.modules["xxclassloader"] = StrictModule(xxclassloader.__dict__, False)
             codestr = """
             from xxclassloader import neg
@@ -5107,6 +5115,8 @@ class StaticCompilationTests(StaticTestBase):
             d = D()
             for _ in range(100):
                 try:
+                    # pyre-ignore[16]: Superclass is dynamically compiled and invisible
+                    # to pyre.
                     d.g().send(None)
                 except StopIteration as e:
                     self.assertEqual(e.args[0], 100)
@@ -5132,6 +5142,8 @@ class StaticCompilationTests(StaticTestBase):
 
             d = D()
             with self.assertRaises(TypeError):
+                # pyre-ignore[16]: Superclass is dynamically compiled and invisible to
+                # pyre.
                 d.g().send(None)
             loop.close()
 
@@ -5236,6 +5248,7 @@ class StaticCompilationTests(StaticTestBase):
                 async def f(self):
                     return 0
 
+            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
             coro = D().g()
             with self.assertRaises(IndexError):
                 coro.send(None)
@@ -5257,10 +5270,12 @@ class StaticCompilationTests(StaticTestBase):
                 def f(self):
                     return loop.create_future()
 
+            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
             coro = D().g()
             try:
                 coro.send(None)
             except RuntimeError as e:
+                # pyre-ignore[16]: Expecting __cause__ to exist.
                 self.assertEqual(e.__cause__.args[0], 100)
             loop.close()
 
@@ -5281,6 +5296,7 @@ class StaticCompilationTests(StaticTestBase):
                 def f(self):
                     return loop.create_future()
 
+            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
             coro = D().g()
             with self.assertRaises(TypeError):
                 coro.send(None)
@@ -5302,6 +5318,7 @@ class StaticCompilationTests(StaticTestBase):
                 async def f(self):
                     return 0
 
+            # pyre-ignore[16]: Superclass is dynamically compiled and invisible to pyre.
             coro = D().g()
             try:
                 coro.send(None)
@@ -5584,6 +5601,7 @@ class StaticCompilationTests(StaticTestBase):
                 (((mod.__name__,), "f"), 0),
             )
 
+    # pyre-ignore[56]: skip_unless_jit isn't fully typed yet.
     @skip_unless_jit("runs subprocess with JIT")
     def test_invoke_recursive_compile_respects_jitlist(self) -> None:
         with TemporaryDirectory() as d:
@@ -5628,7 +5646,9 @@ class StaticCompilationTests(StaticTestBase):
                 "install-strict-loader",
                 "main.py",
             ]
-            proc = subprocess.run(cmd, capture_output=True, cwd=str(d))
+            proc = subprocess.run(
+                cmd, capture_output=True, cwd=str(d), env={"PYTHONPATH": STATIC_PATH}
+            )
             self.assertEqual(proc.returncode, 0, proc.stderr)
 
     def test_module_level_final_decl(self) -> None:
