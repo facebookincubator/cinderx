@@ -172,13 +172,6 @@ class Runtime : public IRuntime {
   // Release any references this Runtime holds to Python objects.
   void releaseReferences();
 
-  template <typename T, typename... Args>
-  T* allocateDeoptPatcher(Args&&... args) {
-    deopt_patchers_.emplace_back(
-        std::make_unique<T>(std::forward<Args>(args)...));
-    return static_cast<T*>(deopt_patchers_.back().get());
-  }
-
   LoadAttrCache* allocateLoadAttrCache() {
     return load_attr_caches_.allocate();
   }
@@ -312,7 +305,6 @@ class Runtime : public IRuntime {
 
   // References to Python objects held by this Runtime
   std::unordered_set<ThreadedRef<PyObject>> references_;
-  std::vector<std::unique_ptr<DeoptPatcher>> deopt_patchers_;
   Builtins builtins_;
 
   std::unordered_map<BorrowedRef<PyTypeObject>, std::vector<TypeDeoptPatcher*>>

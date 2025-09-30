@@ -1429,6 +1429,14 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
       env_.rt->watchType(typed_patcher->type(), typed_patcher);
     }
   }
+
+  // Any patchers that aren't linked at this point are pointing to patch points
+  // that were optimized out.  It's safe to delete them.
+  std::erase_if(
+      const_cast<hir::Function*>(func_)->deopt_patchers,
+      [](std::unique_ptr<DeoptPatcher>& patcher) {
+        return !patcher->isLinked();
+      });
 }
 
 void NativeGenerator::generateResumeEntry(const FrameInfo& frame_info) {

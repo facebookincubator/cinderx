@@ -91,8 +91,7 @@ def func():
   ASSERT_TRUE(term->IsReturn()) << *term;
 
   // Insert a patchpoint immediately before the return
-  jit::Runtime* jit_rt = jit::Runtime::get();
-  auto patcher = jit_rt->allocateDeoptPatcher<MyDeoptPatcher>(123);
+  auto patcher = irfunc->allocateDeoptPatcher<MyDeoptPatcher>(123);
   EXPECT_EQ(patcher->id(), 123);
   auto patchpoint = jit::hir::DeoptPatchpoint::create(patcher);
   patchpoint->InsertBefore(*term);
@@ -107,6 +106,7 @@ def func():
 
   size_t deopts = 0;
   auto callback = [&deopts](const jit::DeoptMetadata&) { deopts += 1; };
+  jit::Runtime* jit_rt = jit::Runtime::get();
   jit_rt->setGuardFailureCallback(callback);
 
   // Make sure things work in the nominal case.

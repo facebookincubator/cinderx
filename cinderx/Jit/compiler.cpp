@@ -184,7 +184,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
   }
 
   Timer timer;
-  std::unique_ptr<jit::hir::Function> irfunc(jit::hir::buildHIR(preloader));
+  std::unique_ptr<hir::Function> irfunc(hir::buildHIR(preloader));
   if (nullptr != compilation_phase_timer) {
     compilation_phase_timer->end();
   }
@@ -253,6 +253,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       hir_opcode_counts,
       code_runtime);
   compiled_func->setCompileTime(compile_time);
+  compiled_func->setDeoptPatchers(std::move(irfunc->deopt_patchers));
   if (getConfig().log.debug) {
     irfunc->setCompilationPhaseTimer(nullptr);
     compiled_func->setHirFunc(std::move(irfunc));

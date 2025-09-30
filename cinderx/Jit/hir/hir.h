@@ -4408,9 +4408,16 @@ class Function {
 
   Environment env;
 
-  // optional property used to track time taken for individual compilation
+  // All the deopt patchers pointing to patch points in this function.
+  //
+  // These will be moved over to the CompiledFunction after compilation is
+  // complete.
+  std::vector<std::unique_ptr<DeoptPatcher>> deopt_patchers;
+
+  // Optional property used to track time taken for individual compilation
   // phases
-  std::unique_ptr<CompilationPhaseTimer> compilation_phase_timer{nullptr};
+  std::unique_ptr<CompilationPhaseTimer> compilation_phase_timer;
+
   // Return the total number of arguments (positional + kwonly + varargs +
   // varkeywords)
   int numArgs() const;
@@ -4439,6 +4446,13 @@ class Function {
   }
 
   bool canDeopt() const;
+
+  template <typename T, typename... Args>
+  T* allocateDeoptPatcher(Args&&... args) {
+    deopt_patchers.emplace_back(
+        std::make_unique<T>(std::forward<Args>(args)...));
+    return static_cast<T*>(deopt_patchers.back().get());
+  }
 
  private:
   DISALLOW_COPY_AND_ASSIGN(Function);
