@@ -81,6 +81,20 @@ class Annotations(ast.AST):
         return hash(self.parent)
 
 
+class TypeVarDefault(ast.AST):
+    """Artificial node to store the scope for a TypeParam w/ default values"""
+
+    # pyre-ignore[11]: Annotation `ast.TypeVar` is not defined as a type.
+    def __init__(self, parent: ast.TypeVar) -> None:
+        self.parent: ast.TypeVar = parent
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, TypeVarDefault) and self.parent == other.parent
+
+    def __hash__(self) -> int:
+        return hash(self.parent)
+
+
 class Scope:
     is_function_scope = False
     has_docstring = False
@@ -469,33 +483,52 @@ class BaseSymbolVisitor(ASTVisitor):
                 scope.add_def(".kwdefaults")
         return scope
 
-    # pyre-ignore[11]: Pyre doesn't know TypeVar
-    def visitTypeVar(self, node: ast.TypeVar, parent: Scope) -> None:
-        parent.add_def(node.name)
-        parent.add_type_param(node.name)
-
-        if node.bound:
+    def visit_type_param_bound_or_default(
+        self, bound_or_default: ast.expr, name: str, type_param: ast.AST, parent: Scope
+    ) -> None:
+        if bound_or_default:
             is_in_class = parent.can_see_class_scope
-            scope = TypeVarBoundScope(node.name, self.module)
+            scope = TypeVarBoundScope(name, self.module)
             scope.parent = parent
             scope.nested = True
             scope.can_see_class_scope = is_in_class
             if is_in_class:
                 scope.add_use("__classdict__")
 
-            self.visit(node.bound, scope)
-            self.scopes[node] = scope
+            self.visit(bound_or_default, scope)
+            self.scopes[type_param] = scope
             parent.add_child(scope)
+
+    # pyre-ignore[11]: Pyre doesn't know TypeVar
+    def visitTypeVar(self, node: ast.TypeVar, parent: Scope) -> None:
+        parent.add_def(node.name)
+        parent.add_type_param(node.name)
+
+        self.visit_type_param_bound_or_default(node.bound, node.name, node, parent)
+        if default_value := getattr(node, "default_value", None):
+            self.visit_type_param_bound_or_default(
+                default_value, node.name, TypeVarDefault(node), parent
+            )
 
     # pyre-ignore[11]: Pyre doesn't know TypeVarTuple
     def visitTypeVarTuple(self, node: ast.TypeVarTuple, parent: Scope) -> None:
         parent.add_def(node.name)
         parent.add_type_param(node.name)
 
+        if default_value := getattr(node, "default_value", None):
+            self.visit_type_param_bound_or_default(
+                default_value, node.name, node, parent
+            )
+
     # pyre-ignore[11]: Pyre doesn't know ParamSpec
     def visitParamSpec(self, node: ast.ParamSpec, parent: Scope) -> None:
         parent.add_def(node.name)
         parent.add_type_param(node.name)
+
+        if default_value := getattr(node, "default_value", None):
+            self.visit_type_param_bound_or_default(
+                default_value, node.name, node, parent
+            )
 
     def visitFunctionDef(self, node: ast.FunctionDef, parent: Scope) -> None:
         self._visit_func_impl(node, parent)

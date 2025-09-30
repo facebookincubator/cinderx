@@ -83,6 +83,7 @@ try:
         SymbolVisitor314,
         TypeParams,
         TypeParamScope,
+        TypeVarDefault,
     )
     from .unparse import to_expr
     from .visitor import ASTVisitor
@@ -427,6 +428,11 @@ class CodeGenerator(ASTVisitor):
 
     def set_qual_name(self, qualname: str) -> None:
         pass
+
+    def finish_type_params(
+        self, has_args: bool, num_typeparam_args: int, need_swap: bool = False
+    ) -> None:
+        raise NotImplementedError()
 
     @contextmanager
     def noEmit(self) -> Generator[None, None, None]:
@@ -4585,6 +4591,16 @@ class CodeGenerator312(CodeGenerator):
 
         return gen
 
+    def prepare_type_params(self) -> None:
+        self.emit("PUSH_NULL")
+
+    def finish_type_params(
+        self, has_args: bool, num_typeparam_args: int, need_swap: bool = False
+    ) -> None:
+        if need_swap:
+            self.emit("SWAP", num_typeparam_args + 1)
+        self.emit("CALL", num_typeparam_args)
+
     def build_function(
         self,
         node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda,
@@ -4594,7 +4610,7 @@ class CodeGenerator312(CodeGenerator):
         flags = 0
         type_params = getattr(node, "type_params", None)
         if type_params:
-            self.emit("PUSH_NULL")
+            self.prepare_type_params()
 
         if node.args.defaults:
             for default in node.args.defaults:
@@ -4671,10 +4687,7 @@ class CodeGenerator312(CodeGenerator):
             outer_gen.emit_call_intrinsic_2("INTRINSIC_SET_FUNCTION_TYPE_PARAMS")
             outer_gen.emit("RETURN_VALUE")
             self.emit_closure(outer_gen, 0)
-            if args:
-                self.emit("SWAP", num_typeparam_args + 1)
-
-            self.emit("CALL", num_typeparam_args)
+            self.finish_type_params(len(args) > 0, num_typeparam_args, True)
 
     def emit_function_decorators(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef
@@ -4684,6 +4697,43 @@ class CodeGenerator312(CodeGenerator):
             self.set_pos(dec)
             self.emit_call_one_arg()
         self.set_pos(node)
+
+    def compile_type_param_bound_or_default(
+        self,
+        bound: ast.expr,
+        name: str,
+        # pyre-ignore[11]: Annotation `ast.ParamSpec` is not defined as a type.
+        key: ast.TypeVar | ast.TypeVarTuple | ast.ParamSpec | TypeVarDefault,
+        allow_starred: bool,
+    ) -> None:
+        typevar_scope = self.symbols.scopes[key]
+        graph = self.flow_graph(
+            name,
+            self.graph.filename,
+            typevar_scope,
+            flags=CO_NESTED if typevar_scope.nested else 0,
+            args=(),
+            kwonlyargs=(),
+            starargs=(),
+            optimized=1,
+            docstring=None,
+            firstline=bound.lineno,
+            posonlyargs=0,
+            suppress_default_const=True,
+        )
+        outer_gen = self.make_child_codegen(key, graph, name=graph.name)
+        outer_gen.class_name = self.class_name
+        outer_gen.optimized = 1
+        outer_gen.visit(bound)
+        outer_gen.set_pos(key)
+        outer_gen.emit("RETURN_VALUE")
+        # This is dumb but will get optimized away. CPython will call
+        # optimize_and_assemble which will do this adding the extra const
+        # and then remove the LOAD_CONST/RETURN_VALUE as it's dead code.
+        outer_gen.emit("LOAD_CONST", None)
+        outer_gen.emit("RETURN_VALUE")
+
+        self.emit_closure(outer_gen, 0)
 
     def compile_type_params(
         self,
@@ -4696,35 +4746,9 @@ class CodeGenerator312(CodeGenerator):
                 self.set_pos(param)
                 self.emit("LOAD_CONST", param.name)
                 if param.bound:
-                    typevar_scope = self.symbols.scopes[param]
-                    graph = self.flow_graph(
-                        param.name,
-                        self.graph.filename,
-                        typevar_scope,
-                        flags=CO_NESTED if typevar_scope.nested else 0,
-                        args=(),
-                        kwonlyargs=(),
-                        starargs=(),
-                        optimized=1,
-                        docstring=None,
-                        firstline=param.lineno,
-                        posonlyargs=0,
-                        suppress_default_const=True,
+                    self.compile_type_param_bound_or_default(
+                        param.bound, param.name, param, False
                     )
-                    outer_gen = self.make_child_codegen(param, graph, name=graph.name)
-                    outer_gen.class_name = self.class_name
-                    outer_gen.optimized = 1
-                    outer_gen.visit(param.bound)
-                    outer_gen.set_pos(param)
-                    outer_gen.emit("RETURN_VALUE")
-                    # This is dumb but will get optimized away. CPython will call
-                    # optimize_and_assemble which will do this adding the extra const
-                    # and then remove the LOAD_CONST/RETURN_VALUE as it's dead code.
-                    outer_gen.emit("LOAD_CONST", None)
-                    outer_gen.emit("RETURN_VALUE")
-
-                    self.emit_closure(outer_gen, 0)
-
                     self.emit_call_intrinsic_2(
                         "INTRINSIC_TYPEVAR_WITH_CONSTRAINTS"
                         if isinstance(param.bound, ast.Tuple)
@@ -4733,6 +4757,11 @@ class CodeGenerator312(CodeGenerator):
                 else:
                     self.emit_call_intrinsic_1("INTRINSIC_TYPEVAR")
 
+                if default_value := getattr(param, "default_value", None):
+                    self.compile_type_param_bound_or_default(
+                        default_value, param.name, TypeVarDefault(param), False
+                    )
+                    self.emit_call_intrinsic_2("INTRINSIC_SET_TYPEPARAM_DEFAULT")
                 self.emit("COPY", 1)
                 self.storeName(param.name)
             # pyre-ignore[16]: Module `ast` has no attribute `TypeVarTuple`.
@@ -4740,6 +4769,11 @@ class CodeGenerator312(CodeGenerator):
                 self.set_pos(param)
                 self.emit("LOAD_CONST", param.name)
                 self.emit_call_intrinsic_1("INTRINSIC_TYPEVARTUPLE")
+                if default_value := getattr(param, "default_value", None):
+                    self.compile_type_param_bound_or_default(
+                        default_value, param.name, param, True
+                    )
+                    self.emit_call_intrinsic_2("INTRINSIC_SET_TYPEPARAM_DEFAULT")
                 self.emit("COPY", 1)
                 self.storeName(param.name)
             # pyre-ignore[16]: Module `ast` has no attribute `ParamSpec`.
@@ -4747,6 +4781,11 @@ class CodeGenerator312(CodeGenerator):
                 self.set_pos(param)
                 self.emit("LOAD_CONST", param.name)
                 self.emit_call_intrinsic_1("INTRINSIC_PARAMSPEC")
+                if default_value := getattr(param, "default_value", None):
+                    self.compile_type_param_bound_or_default(
+                        default_value, param.name, param, False
+                    )
+                    self.emit_call_intrinsic_2("INTRINSIC_SET_TYPEPARAM_DEFAULT")
                 self.emit("COPY", 1)
                 self.storeName(param.name)
             else:
@@ -4875,7 +4914,7 @@ class CodeGenerator312(CodeGenerator):
 
             assert outer_scope is not None, "type params are only in 3.12"
             outer_scope.emit_closure(self, 0)
-            outer_scope.emit("CALL", 0)
+            outer_scope.finish_type_params(False, 0)
         else:
             self._call_helper(2, None, node.bases, node.keywords)
 
@@ -4892,7 +4931,7 @@ class CodeGenerator312(CodeGenerator):
         outer_gen: CodeGenerator312 = self
         # pyre-ignore[16]: no attribute type_params
         if node.type_params:
-            self.emit("PUSH_NULL")
+            self.prepare_type_params()
             gen_param_scope = self.symbols.scopes[TypeParams(node)]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name}>",
@@ -4951,10 +4990,13 @@ class CodeGenerator312(CodeGenerator):
         res.optimized = 1
         return res
 
+    def emit_type_alias_set_func_defaults(self, code_gen: CodeGenerator) -> None:
+        pass
+
     def visitTypeAlias(self, node: ast.TypeAlias) -> None:
         outer_gen: CodeGenerator312 = self
         if node.type_params:
-            self.emit("PUSH_NULL")
+            self.prepare_type_params()
             generic_param_scope = self.symbols.scopes[TypeParams(node)]
             graph = self.flow_graph(
                 f"<generic parameters of {node.name.id}>",
@@ -4989,13 +5031,14 @@ class CodeGenerator312(CodeGenerator):
 
         outer_gen.set_pos(node)
         outer_gen.emit_closure(code_gen, 0)
+        self.emit_type_alias_set_func_defaults(outer_gen)
         outer_gen.emit("BUILD_TUPLE", 3)
         outer_gen.emit_call_intrinsic_1("INTRINSIC_TYPEALIAS")
 
         if node.type_params:
             outer_gen.emit("RETURN_VALUE")
             self.emit_closure(outer_gen, 0)
-            self.emit("CALL", 0)
+            self.finish_type_params(False, 0)
 
         self.storeName(node.name.id)
 
@@ -6106,6 +6149,54 @@ class CodeGenerator314(CodeGenerator312):
 
         return doc
 
+    def prepare_type_params(self) -> None:
+        pass
+
+    def finish_type_params(
+        self, has_args: bool, num_typeparam_args: int, need_swap: bool = False
+    ) -> None:
+        if has_args:
+            self.emit("SWAP", num_typeparam_args + 1)
+            self.emit("CALL", num_typeparam_args - 1)
+        else:
+            self.emit("PUSH_NULL")
+            self.emit("CALL", 0)
+
+    def compile_type_param_bound_or_default(
+        self, bound: ast.expr, name: str, key: ast.expr, allow_starred: bool
+    ) -> None:
+        typevar_scope = self.symbols.scopes[key]
+        # emit defaults
+        self.graph.emit_with_loc("LOAD_CONST", (1,), bound)
+        # pyre-ignore[6]: Expected Annotations, arguments, not expr
+        outer_gen = self.setup_annotations(bound, key, typevar_scope)
+        outer_gen.class_name = self.class_name
+        if allow_starred and isinstance(bound, ast.Starred):
+            outer_gen.visit(bound.value)
+            outer_gen.emit("UNPACK_SEQUENCE", 1)
+        else:
+            outer_gen.visit(bound)
+        outer_gen.emit("RETURN_VALUE")
+
+        loc = self.graph.loc
+        self.set_pos(bound)
+        self.emit_closure(outer_gen, 0)
+        self.emit("SET_FUNCTION_ATTRIBUTE", MAKE_FUNCTION_DEFAULTS)
+        self.set_pos(loc)
+
+    def make_type_alias_code_gen(self, node: ast.TypeAlias) -> CodeGenerator312:
+        # emit default param values
+        self.graph.emit_with_loc("LOAD_CONST", (1,), node)
+        symbols = self.symbols
+
+        scope = symbols.scopes[node]
+        res = self.setup_annotations(node, node, scope)
+        res.class_name = self.class_name
+        return res
+
+    def emit_type_alias_set_func_defaults(self, code_gen: CodeGenerator) -> None:
+        code_gen.emit("SET_FUNCTION_ATTRIBUTE", 1)
+
     def _fastcall_helper(
         self,
         argcnt: int,
@@ -6794,7 +6885,7 @@ class CodeGenerator314(CodeGenerator312):
     def setup_annotations(
         self,
         loc: AST | SrcLocation,
-        node: Annotations | ast.arguments,
+        node: ast.arguments | Annotations,
         gen_param_scope: Scope,
     ) -> CodeGenerator314:
         graph = self.flow_graph(
