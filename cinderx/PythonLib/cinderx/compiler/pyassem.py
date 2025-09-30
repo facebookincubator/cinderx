@@ -234,6 +234,7 @@ class FlowGraph:
         self.first_inst_lineno = 0
         # If non-zero, do not emit bytecode
         self.do_not_emit_bytecode = 0
+        self.annotations_block: Block | None = None
 
     def fetch_current(self) -> Block:
         current = self.current
@@ -2632,6 +2633,15 @@ class PyFlowGraph314(PyFlowGraph312):
         self.stage = CLOSED
 
         self.eliminate_empty_basic_blocks()
+
+        block = self.ordered_blocks[0]
+        for i, inst in enumerate(block.insts):
+            if inst.opname == "ANNOTATIONS_PLACEHOLDER":
+                if self.annotations_block is not None:
+                    block.insts[i : i + 1] = self.annotations_block.insts
+                else:
+                    inst.set_to_nop_no_loc()
+                break
 
         for block in self.ordered_blocks:
             self.normalize_basic_block(block)

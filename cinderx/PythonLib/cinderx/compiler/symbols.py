@@ -9,7 +9,8 @@ import ast
 import os
 import sys
 
-from typing import Iterable
+from contextlib import contextmanager
+from typing import Generator, Iterable
 
 from .consts import (
     CO_FUTURE_ANNOTATIONS,
@@ -67,6 +68,19 @@ class TypeParams(ast.AST):
         return hash(self.params)
 
 
+class Annotations(ast.AST):
+    """Artificial node to store the scope for annotations"""
+
+    def __init__(self, parent: Scope) -> None:
+        self.parent = parent
+
+    def __eq__(self, other: object) -> bool:
+        return isinstance(other, Annotations) and self.parent == other.parent
+
+    def __hash__(self) -> int:
+        return hash(self.parent)
+
+
 class Scope:
     is_function_scope = False
     has_docstring = False
@@ -109,6 +123,9 @@ class Scope:
         self.can_see_class_scope: bool = False
         self.child_free: bool = False
         self.free: bool = False
+        self.annotations: AnnotationScope | None = None
+        self.has_conditional_annotations = False
+        self.in_unevaluated_annotation = False
         if klass is not None:
             for i in range(len(klass)):
                 if klass[i] != "_":
@@ -299,7 +316,7 @@ class Scope:
             # Similarly, if the name is explicitly global in the class namespace (through the
             # global statement), we want to also treat it as a global in this scope.
             if class_entry is not None and name != "__classdict__":
-                if name in class_entry.globals:
+                if name in class_entry.explicit_globals:
                     self.explicit_globals[name] = 1
                     continue
                 elif name in class_entry.defs and name not in class_entry.nonlocals:
@@ -320,7 +337,10 @@ class Scope:
                 self.globals[name] = 1
 
     def get_cell_vars(self) -> Iterable[str]:
-        return sorted(self.cells.keys())
+        keys = list(self.cells.keys())
+        if self.has_conditional_annotations:
+            keys.append("__conditional_annotations__")
+        return sorted(keys)
 
 
 class ModuleScope(Scope):
@@ -385,6 +405,10 @@ class TypeVarBoundScope(Scope):
     pass
 
 
+class AnnotationScope(Scope):
+    annotations_used = False
+
+
 FUNCTION_LIKE_SCOPES = (
     FunctionScope,
     TypeVarBoundScope,
@@ -404,6 +428,16 @@ class BaseSymbolVisitor(ASTVisitor):
         self.scopes: dict[ast.AST, Scope] = {}
         self.klass: str | None = None
         self.module = ModuleScope()
+        self.in_conditional_block = False
+
+    @contextmanager
+    def conditional_block(self) -> Generator[None, None, None]:
+        in_conditional_block = self.in_conditional_block
+        self.in_conditional_block = True
+        try:
+            yield
+        finally:
+            self.in_conditional_block = in_conditional_block
 
     def enter_type_params(
         self,
@@ -742,6 +776,11 @@ class BaseSymbolVisitor(ASTVisitor):
 
     # operations that bind new names
 
+    def visitMatch(self, node: ast.Match, scope: Scope) -> None:
+        self.visit(node.subject, scope)
+        with self.conditional_block():
+            self.visit_list(node.cases, scope)
+
     def visitMatchAs(self, node: ast.MatchAs, scope: Scope) -> None:
         if node.pattern:
             self.visit(node.pattern, scope)
@@ -800,6 +839,13 @@ class BaseSymbolVisitor(ASTVisitor):
         self.visit(node.value, scope)
         self.visit(node.target, scope)
 
+    def visitWhile(self, node: ast.While, scope: Scope) -> None:
+        self.visit(node.test, scope)
+        with self.conditional_block():
+            self.visit_list(node.body, scope)
+            if node.orelse:
+                self.visit_list(node.orelse, scope)
+
     def visitFor(self, node: ast.For, scope: Scope) -> None:
         self.visit_for_impl(node, scope)
 
@@ -809,9 +855,10 @@ class BaseSymbolVisitor(ASTVisitor):
     def visit_for_impl(self, node: ast.For | ast.AsyncFor, scope: Scope) -> None:
         self.visit(node.target, scope)
         self.visit(node.iter, scope)
-        self.visit_list(node.body, scope)
-        if node.orelse:
-            self.visit_list(node.orelse, scope)
+        with self.conditional_block():
+            self.visit_list(node.body, scope)
+            if node.orelse:
+                self.visit_list(node.orelse, scope)
 
     def visitImportFrom(self, node: ast.ImportFrom, scope: Scope) -> None:
         for alias in node.names:
@@ -872,10 +919,14 @@ class BaseSymbolVisitor(ASTVisitor):
                 scope.add_def(target.id)
         else:
             self.visit(node.target, scope)
-        if not self.future_annotations:
-            self.visit(node.annotation, scope)
+        if annotation := node.annotation:
+            self.visit_annotation(annotation, scope)
         if node.value:
             self.visit(node.value, scope)
+
+    def visit_annotation(self, annotation: ast.expr, scope: Scope) -> None:
+        if not self.future_annotations:
+            self.visit(annotation, scope)
 
     def visitSubscript(self, node: ast.Subscript, scope: Scope) -> None:
         self.visit(node.value, scope)
@@ -906,9 +957,10 @@ class BaseSymbolVisitor(ASTVisitor):
 
     def visitIf(self, node: ast.If, scope: Scope) -> None:
         self.visit(node.test, scope)
-        self.visit_list(node.body, scope)
-        if node.orelse:
-            self.visit_list(node.orelse, scope)
+        with self.conditional_block():
+            self.visit_list(node.body, scope)
+            if node.orelse:
+                self.visit_list(node.orelse, scope)
 
     # a yield statement signals a generator
 
@@ -923,16 +975,27 @@ class BaseSymbolVisitor(ASTVisitor):
             self.visit(node.value, scope)
 
     def visitTry(self, node: ast.Try, scope: Scope) -> None:
-        self.visit_list(node.body, scope)
-        # Handle exception capturing vars
-        for handler in node.handlers:
-            if handler.type:
-                self.visit(handler.type, scope)
-            if handler.name:
-                scope.add_def(handler.name)
-            self.visit_list(handler.body, scope)
-        self.visit_list(node.orelse, scope)
-        self.visit_list(node.finalbody, scope)
+        with self.conditional_block():
+            self.visit_list(node.body, scope)
+            # Handle exception capturing vars
+            for handler in node.handlers:
+                if handler.type:
+                    self.visit(handler.type, scope)
+                if handler.name:
+                    scope.add_def(handler.name)
+                self.visit_list(handler.body, scope)
+            self.visit_list(node.orelse, scope)
+            self.visit_list(node.finalbody, scope)
+
+    def visitWith(self, node: ast.With, scope: Scope) -> None:
+        with self.conditional_block():
+            self.visit_list(node.items, scope)
+            self.visit_list(node.body, scope)
+
+    def visitAsyncWith(self, node: ast.AsyncWith, scope: Scope) -> None:
+        with self.conditional_block():
+            self.visit_list(node.items, scope)
+            self.visit_list(node.body, scope)
 
 
 class SymbolVisitor310(BaseSymbolVisitor):
@@ -1364,15 +1427,18 @@ class SymbolVisitor312(BaseSymbolVisitor):
             self.analyze_cells(scope, new_free, inlined_cells)
         elif isinstance(scope, ClassScope):
             # drop class free
-            if "__class__" in new_free:
-                new_free.remove("__class__")
-                scope.needs_class_closure = True
-            if "__classdict__" in new_free:
-                new_free.remove("__classdict__")
-                scope.needs_classdict = True
+            self.drop_class_free(scope, new_free)
 
         scope.update_symbols(bound, new_free)
         free |= new_free
+
+    def drop_class_free(self, scope: ClassScope, new_free: set[str]) -> None:
+        if "__class__" in new_free:
+            new_free.remove("__class__")
+            scope.needs_class_closure = True
+        if "__classdict__" in new_free:
+            new_free.remove("__classdict__")
+            scope.needs_classdict = True
 
     def analyze_child_block(
         self,
@@ -1465,4 +1531,185 @@ class SymbolVisitor312(BaseSymbolVisitor):
 
 
 class SymbolVisitor314(SymbolVisitor312):
-    pass
+    def enter_block(self, scope: Scope) -> None:
+        if isinstance(scope, (AnnotationScope, TypeAliasScope, TypeVarBoundScope)):
+            scope.add_param(".format")
+            scope.add_use(".format")
+
+    def enter_type_params(
+        self,
+        node: ast.ClassDef | ast.FunctionDef | ast.TypeAlias | ast.AsyncFunctionDef,
+        parent: Scope,
+    ) -> TypeParamScope:
+        res = super().enter_type_params(node, parent)
+        self.enter_block(res)
+        return res
+
+    def visitName(self, node: ast.Name, scope: Scope) -> None:
+        if not scope.in_unevaluated_annotation:
+            super().visitName(node, scope)
+
+    def visit_argannotations(self, args: list[ast.arg], scope: AnnotationScope) -> None:
+        for arg in args:
+            if arg.annotation is not None:
+                self.visit(arg.annotation, scope)
+                scope.annotations_used = True
+
+    def _do_args(self, scope: Scope, args: ast.arguments) -> None:
+        for n in args.defaults:
+            self.visit(n, scope.parent)
+        for n in args.kw_defaults:
+            if n:
+                self.visit(n, scope.parent)
+
+        for arg in args.posonlyargs:
+            name = arg.arg
+            scope.add_param(name)
+        for arg in args.args:
+            name = arg.arg
+            scope.add_param(name)
+        for arg in args.kwonlyargs:
+            name = arg.arg
+            scope.add_param(name)
+        if vararg := args.vararg:
+            scope.add_param(vararg.arg)
+        if kwarg := args.kwarg:
+            scope.add_param(kwarg.arg)
+
+    def drop_class_free(self, scope: ClassScope, new_free: set[str]) -> None:
+        super().drop_class_free(scope, new_free)
+        if "__conditional_annotations__" in new_free:
+            new_free.remove("__conditional_annotations__")
+            scope.has_conditional_annotations = True
+
+    def visit_annotation(self, annotation: ast.expr, scope: Scope) -> None:
+        # Annotations in local scopes are not executed and should not affect the symtable
+        is_unevaluated = isinstance(scope, FunctionScope)
+
+        # Module-level annotations are always considered conditional because the module
+        # may be partially executed.
+        if (
+            (isinstance(scope, ClassScope) and self.in_conditional_block)
+            or isinstance(scope, ModuleScope)
+        ) and not scope.has_conditional_annotations:
+            scope.has_conditional_annotations = True
+            scope.add_use("__conditional_annotations__")
+
+        if (annotations := scope.annotations) is None:
+            annotations = scope.annotations = AnnotationScope(
+                "__annotate__", scope.module
+            )
+            if scope.parent is not None and (
+                scope.parent.nested or isinstance(scope.parent, FUNCTION_LIKE_SCOPES)
+            ):
+                annotations.nested = True
+            annotations.parent = scope
+            if not self.future_annotations:
+                scope.children.append(annotations)
+            self.scopes[Annotations(scope)] = annotations
+            if isinstance(scope, ClassScope) and not self.future_annotations:
+                annotations.can_see_class_scope = True
+                annotations.add_use("__classdict__")
+
+        if is_unevaluated:
+            annotations.in_unevaluated_annotation = True
+
+        self.visit(annotation, annotations)
+
+        if is_unevaluated:
+            annotations.in_unevaluated_annotation = False
+
+    def visit_annotations(
+        self,
+        args: ast.arguments,
+        returns: ast.expr | None,
+        parent: Scope,
+    ) -> AnnotationScope:
+        scope = AnnotationScope("__annotate__", self.module, self.klass)
+        self.scopes[args] = scope
+
+        if not self.future_annotations:
+            # If "from __future__ import annotations" is active,
+            # annotation blocks shouldn't have any affect on the symbol table since in
+            # the compilation stage, they will all be transformed to strings.
+            parent.add_child(scope)
+        if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
+            scope.nested = True
+
+        scope.parent = parent
+        self.enter_block(scope)
+        is_in_class = parent.can_see_class_scope
+        if is_in_class or isinstance(parent, ClassScope):
+            scope.can_see_class_scope = True
+            scope.add_use("__classdict__")
+
+        if args.posonlyargs:
+            self.visit_argannotations(args.posonlyargs, scope)
+        if args.args:
+            self.visit_argannotations(args.args, scope)
+        if args.vararg and args.vararg.annotation:
+            scope.annotations_used = True
+            self.visit(args.vararg, scope)
+        if args.kwarg and args.kwarg.annotation:
+            scope.annotations_used = True
+            self.visit(args.kwarg, scope)
+        if args.kwonlyargs:
+            self.visit_argannotations(args.kwonlyargs, scope)
+        if returns:
+            scope.annotations_used = True
+            self.visit(returns, scope)
+        return scope
+
+    def visitLambda(self, node: ast.Lambda, parent: Scope) -> None:
+        scope = self._LambdaScope(self.module, self.klass, lineno=node.lineno)
+        scope.parent = parent
+
+        # bpo-37757: For now, disallow *all* assignment expressions in the
+        # outermost iterator expression of a comprehension, even those inside
+        # a nested comprehension or a lambda expression.
+        scope.comp_iter_expr = parent.comp_iter_expr
+        if parent.nested or isinstance(parent, FunctionScope):
+            scope.nested = True
+        self.scopes[node] = scope
+        self._do_args(scope, node.args)
+        self.visit(node.body, scope)
+        if isinstance(parent, ClassScope):
+            scope.is_method = True
+
+        parent.add_child(scope)
+
+    def _visit_func_impl(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef, parent: Scope
+    ) -> None:
+        if node.decorator_list:
+            self.visit_list(node.decorator_list, parent)
+        parent.add_def(node.name)
+
+        type_params = getattr(node, "type_params", ())
+        if type_params:
+            parent = self.enter_type_params(node, parent)
+            for param in type_params:
+                self.visit(param, parent)
+
+        scope = self._FunctionScope(
+            node.name, self.module, self.klass, lineno=node.lineno
+        )
+
+        doc = ast.get_docstring(node)
+        if doc is not None:
+            scope.has_docstring = True
+
+        if isinstance(parent, ClassScope):
+            scope.is_method = True
+
+        scope.annotations = self.visit_annotations(node.args, node.returns, parent)
+
+        scope.coroutine = isinstance(node, ast.AsyncFunctionDef)
+        scope.parent = parent
+        if parent.nested or isinstance(parent, FUNCTION_LIKE_SCOPES):
+            scope.nested = True
+        self.scopes[node] = scope
+        self._do_args(scope, node.args)
+        self.visit_list(node.body, scope)
+
+        parent.add_child(scope)

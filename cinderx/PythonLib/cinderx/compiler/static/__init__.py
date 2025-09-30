@@ -137,6 +137,14 @@ class InitSubClassGenerator:
         self.flow_graph = flow_graph
         self.qualname = qualname
 
+    @property
+    def scope(self) -> Scope:
+        raise NotImplementedError()
+
+    @property
+    def name(self) -> str:
+        return self.qualname
+
     def getCode(self) -> CodeType:
         code = self.flow_graph.getCode()
         _set_qualname(code, self.qualname)

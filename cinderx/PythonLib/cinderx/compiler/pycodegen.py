@@ -69,6 +69,8 @@ try:
         SrcLocation,
     )
     from .symbols import (
+        Annotations,
+        AnnotationScope,
         BaseSymbolVisitor,
         CinderSymbolVisitor,
         ClassScope,
@@ -137,9 +139,19 @@ MAKE_FUNCTION_ANNOTATE: int = 0x10
 FuncOrLambda = Union[ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda]
 CompNode = Union[ast.GeneratorExp, ast.SetComp, ast.DictComp, ast.ListComp]
 if sys.version_info >= (3, 12):
-    CodeGenTree = Union[FuncOrLambda, CompNode, ast.ClassDef, TypeParams, ast.TypeAlias]
+    CodeGenTree = Union[
+        FuncOrLambda,
+        CompNode,
+        ast.ClassDef,
+        TypeParams,
+        Annotations,
+        ast.arguments,
+        ast.TypeAlias,
+    ]
 else:
-    CodeGenTree = Union[FuncOrLambda, CompNode, ast.ClassDef, TypeParams]
+    CodeGenTree = Union[
+        FuncOrLambda, CompNode, ast.ClassDef, TypeParams, Annotations, ast.arguments
+    ]
 
 
 # A soft limit for stack use, to avoid excessive
@@ -387,6 +399,7 @@ class CodeGenerator(ASTVisitor):
         self._qual_name: str | None = None
         self.parent_code_gen = parent
         self.name: str = self.get_node_name(node) if name is None else name
+        self.in_conditional_block = 0
 
         # pyre-fixme[4] This appears to be unused.
         self.last_lineno = None
@@ -422,6 +435,14 @@ class CodeGenerator(ASTVisitor):
             yield
         finally:
             self.graph.do_not_emit_bytecode -= 1
+
+    @contextmanager
+    def conditional_block(self) -> Generator[None, None, None]:
+        self.in_conditional_block += 1
+        try:
+            yield
+        finally:
+            self.in_conditional_block -= 1
 
     def mangle(self, name: str) -> str:
         if self.class_name is not None:
@@ -510,9 +531,7 @@ class CodeGenerator(ASTVisitor):
         if node.body:
             self.set_pos(node.body[0])
 
-        if self.findAnn(node.body):
-            self.emit("SETUP_ANNOTATIONS")
-            self.did_setup_annotations = True
+        self.setup_module_annotations(node)
         doc = self.get_docstring(node)
         if doc is not None:
             self.emit("LOAD_CONST", doc)
@@ -526,6 +545,11 @@ class CodeGenerator(ASTVisitor):
             self.graph.first_inst_lineno = 1
 
         self.emit_module_return(node)
+
+    def setup_module_annotations(self, node: ast.Module) -> None:
+        if self.findAnn(node.body):
+            self.emit("SETUP_ANNOTATIONS")
+            self.did_setup_annotations = True
 
     def startModule(self) -> None:
         pass
@@ -578,9 +602,7 @@ class CodeGenerator(ASTVisitor):
         else:
             gen.visit(body)
 
-    def build_annotations(
-        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
-    ) -> bool:
+    def build_annotations(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> int:
         annotation_count = self.annotate_args(node)
         # Cannot annotate return type for lambda
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -594,8 +616,9 @@ class CodeGenerator(ASTVisitor):
         if annotation_count > 0:
             self.set_pos(node)
             self.emit("BUILD_TUPLE", annotation_count)
+            return MAKE_FUNCTION_ANNOTATIONS
 
-        return annotation_count > 0
+        return 0
 
     def emit_function_decorators(
         self, node: ast.FunctionDef | ast.AsyncFunctionDef
@@ -1284,18 +1307,22 @@ class CodeGenerator(ASTVisitor):
     def emit_store_annotation(self, name: str, node: ast.AnnAssign) -> None:
         raise NotImplementedError()
 
+    def emit_simple_ann_assign(self, node: ast.AnnAssign) -> None:
+        if node.simple and isinstance(self.tree, (ast.Module, ast.ClassDef)):
+            # If we have a simple name in a module or class, store the annotation
+            assert isinstance(node.target, ast.Name)
+            self.emit_store_annotation(node.target.id, node)
+        else:
+            # if not, still visit the annotation so we consistently catch bad ones
+            with self.noEmit():
+                self._visitAnnotation(node.annotation)
+
     def visitAnnAssign(self, node: ast.AnnAssign) -> None:
         if node.value:
             self.visit(node.value)
             self.visit(node.target)
         if isinstance(node.target, ast.Name):
-            # If we have a simple name in a module or class, store the annotation
-            if node.simple and isinstance(self.tree, (ast.Module, ast.ClassDef)):
-                self.emit_store_annotation(node.target.id, node)
-            else:
-                # if not, still visit the annotation so we consistently catch bad ones
-                with self.noEmit():
-                    self._visitAnnotation(node.annotation)
+            self.emit_simple_ann_assign(node)
         elif isinstance(node.target, ast.Attribute):
             if not node.value:
                 self.checkAnnExpr(node.target.value)
@@ -2608,7 +2635,7 @@ class CodeGenerator(ASTVisitor):
     ) -> CodeGenerator:
         raise NotImplementedError()
 
-    def get_qual_prefix(self, gen: CodeGenerator) -> str:
+    def get_qual_prefix(self, gen: CodeHolder) -> str:
         raise NotImplementedError()
 
     def generate_function(
@@ -2651,7 +2678,7 @@ class CodeGenerator(ASTVisitor):
     ) -> None:
         raise NotImplementedError()
 
-    def emit_closure(self, gen: CodeGenerator, flags: int) -> None:
+    def emit_closure(self, gen: CodeHolder, flags: int) -> None:
         prefix = ""
         # pyre-ignore[16]: Module `ast` has no attribute `TypeVar`.
         if not isinstance(gen.tree, self.unqualified_asts):
@@ -2963,8 +2990,8 @@ class CodeGenerator310(CodeGenerator):
         if self.emit_kwonlydefaults(node):
             flags |= MAKE_FUNCTION_KWDEFAULTS
 
-        if self.build_annotations(node):
-            flags |= MAKE_FUNCTION_ANNOTATIONS
+        if not isinstance(node, ast.Lambda):
+            flags |= self.build_annotations(node)
 
         self.emit_closure(gen, flags)
 
@@ -3028,7 +3055,7 @@ class CodeGenerator310(CodeGenerator):
 
         self._call_helper(2, None, node.bases, node.keywords)
 
-    def get_qual_prefix(self, gen: CodeGenerator) -> str:
+    def get_qual_prefix(self, gen: CodeHolder) -> str:
         prefix = ""
         if gen.scope.global_scope:
             return prefix
@@ -4633,8 +4660,8 @@ class CodeGenerator312(CodeGenerator):
             if node.args.defaults and (flags & MAKE_FUNCTION_KWDEFAULTS):
                 outer_gen.emit("LOAD_FAST", 1)
 
-        if outer_gen.build_annotations(node):
-            flags |= MAKE_FUNCTION_ANNOTATIONS
+        if not isinstance(node, ast.Lambda):
+            flags |= outer_gen.build_annotations(node)
 
         outer_gen.set_pos(node)
         outer_gen.emit_closure(gen, flags)
@@ -4972,7 +4999,7 @@ class CodeGenerator312(CodeGenerator):
 
         self.storeName(node.name.id)
 
-    def get_qual_prefix(self, gen: CodeGenerator) -> str:
+    def get_qual_prefix(self, gen: CodeHolder) -> str:
         prefix = ""
         if gen.scope.global_scope:
             return prefix
@@ -6006,6 +6033,9 @@ class CodeGenerator314(CodeGenerator312):
             parent, node, symbols, graph, flags, optimization_lvl, future_flags, name
         )
         self.static_attributes: set[str] = set()
+        self.deferred_annotations: list[ast.AnnAssign] = []
+        self.conditional_annotation_indices: list[int] = []
+        self.next_conditional_annotation_index = 0
 
     @classmethod
     def optimize_tree(
@@ -6033,6 +6063,7 @@ class CodeGenerator314(CodeGenerator312):
         if scope.has_docstring:
             flags |= CO_HAS_DOCSTRING
 
+        assert isinstance(scope, FunctionScope)
         if scope.is_method:
             flags |= CO_METHOD
 
@@ -6269,36 +6300,37 @@ class CodeGenerator314(CodeGenerator312):
                 self.emit("LOAD_CONST", "")
 
     def visitAsyncFor(self, node: ast.AsyncFor) -> None:
-        start = self.newBlock("async_for_try")
-        except_ = self.newBlock("except")
-        end = self.newBlock("end")
-        send = self.newBlock("send")
+        with self.conditional_block():
+            start = self.newBlock("async_for_try")
+            except_ = self.newBlock("except")
+            end = self.newBlock("end")
+            send = self.newBlock("send")
 
-        self.visit(node.iter)
-        self.graph.emit_with_loc("GET_AITER", 0, node.iter)
+            self.visit(node.iter)
+            self.graph.emit_with_loc("GET_AITER", 0, node.iter)
 
-        self.nextBlock(start)
+            self.nextBlock(start)
 
-        self.push_loop(FOR_LOOP, start, end)
-        self.emit("SETUP_FINALLY", except_)
-        self.emit("GET_ANEXT")
-        self.emit("LOAD_CONST", None)
-        self.nextBlock(send)
-        self.emit_yield_from(await_=True)
-        self.emit("POP_BLOCK")
-        self.emit("NOT_TAKEN")
-        self.visit(node.target)
-        self.visitStatements(node.body)
-        self.set_no_pos()
-        self.emitJump(start)
-        self.pop_fblock(FOR_LOOP)
+            self.push_loop(FOR_LOOP, start, end)
+            self.emit("SETUP_FINALLY", except_)
+            self.emit("GET_ANEXT")
+            self.emit("LOAD_CONST", None)
+            self.nextBlock(send)
+            self.emit_yield_from(await_=True)
+            self.emit("POP_BLOCK")
+            self.emit("NOT_TAKEN")
+            self.visit(node.target)
+            self.visitStatements(node.body)
+            self.set_no_pos()
+            self.emitJump(start)
+            self.pop_fblock(FOR_LOOP)
 
-        self.nextBlock(except_)
-        self.set_pos(node.iter)
-        self.emit("END_ASYNC_FOR", send)
-        if node.orelse:
-            self.visitStatements(node.orelse)
-        self.nextBlock(end)
+            self.nextBlock(except_)
+            self.set_pos(node.iter)
+            self.emit("END_ASYNC_FOR", send)
+            if node.orelse:
+                self.visitStatements(node.orelse)
+            self.nextBlock(end)
 
     def push_inlined_comprehension_state(
         self, scope: Scope
@@ -6460,33 +6492,57 @@ class CodeGenerator314(CodeGenerator312):
         self.nextBlock()
 
     def visitFor(self, node: ast.For) -> None:
-        start = self.newBlock("for_start")
-        body = self.newBlock("for_body")
-        cleanup = self.newBlock("for_cleanup")
+        with self.conditional_block():
+            start = self.newBlock("for_start")
+            body = self.newBlock("for_body")
+            cleanup = self.newBlock("for_cleanup")
 
-        setup = Entry(FOR_LOOP, start, None, None)
-        self.push_fblock(setup)
-        self.visit(node.iter)
-        self.set_pos(node.iter)
-        self.emit("GET_ITER")
+            setup = Entry(FOR_LOOP, start, None, None)
+            self.push_fblock(setup)
+            self.visit(node.iter)
+            self.set_pos(node.iter)
+            self.emit("GET_ITER")
 
-        self.nextBlock(start)
-        self.emit("FOR_ITER", cleanup)
-        if IS_3_12_8:
+            self.nextBlock(start)
+            self.emit("FOR_ITER", cleanup)
+            self.nextBlock(body)
             self.graph.emit_with_loc("NOP", 0, node.target)
-        self.nextBlock(body)
-        self.visit(node.target)
-        self.visitStatements(node.body)
-        self.set_no_pos()
-        self.emitJump(start)
-        self.nextBlock(cleanup)
-        self.emit_end_for()
-        self.pop_loop()
+            self.visit(node.target)
+            self.visitStatements(node.body)
+            self.set_no_pos()
+            self.emitJump(start)
+            self.nextBlock(cleanup)
+            self.emit_end_for()
+            self.pop_loop()
 
-        if node.orelse:
-            self.visitStatements(node.orelse)
-        if setup.exit is not None:
-            self.nextBlock(setup.exit)
+            if node.orelse:
+                self.visitStatements(node.orelse)
+            if setup.exit is not None:
+                self.nextBlock(setup.exit)
+
+    def visitIf(self, node: ast.If) -> None:
+        with self.conditional_block():
+            super().visitIf(node)
+
+    def visitMatch(self, node: ast.Match) -> None:
+        with self.conditional_block():
+            super().visitMatch(node)
+
+    def visitTry(self, node: ast.Try) -> None:
+        with self.conditional_block():
+            super().visitTry(node)
+
+    def visitTryStar(self, node: ast.Try) -> None:
+        with self.conditional_block():
+            super().visitTryStar(node)
+
+    def visitWith(self, node: ast.With) -> None:
+        with self.conditional_block():
+            super().visitWith(node)
+
+    def visitAsyncWith(self, node: ast.AsyncWith, pos: int = 0) -> None:
+        with self.conditional_block():
+            super().visitAsyncWith(node, pos)
 
     def visitFormattedValue(self, node: ast.FormattedValue) -> None:
         self.visit(node.value)
@@ -6675,26 +6731,27 @@ class CodeGenerator314(CodeGenerator312):
         self.emit_noline("POP_ITER")
 
     def visitWhile(self, node: ast.While) -> None:
-        loop = self.newBlock("while_loop")
-        body = self.newBlock("while_body")
-        else_ = self.newBlock("while_else")
-        after = self.newBlock("while_after")
+        with self.conditional_block():
+            loop = self.newBlock("while_loop")
+            body = self.newBlock("while_body")
+            else_ = self.newBlock("while_else")
+            after = self.newBlock("while_after")
 
-        self.push_loop(WHILE_LOOP, loop, after)
+            self.push_loop(WHILE_LOOP, loop, after)
 
-        self.nextBlock(loop)
-        self.compileJumpIf(node.test, else_, False)
+            self.nextBlock(loop)
+            self.compileJumpIf(node.test, else_, False)
 
-        self.nextBlock(body)
-        self.visitStatements(node.body)
-        self.emit_noline("JUMP", loop)
+            self.nextBlock(body)
+            self.visitStatements(node.body)
+            self.emit_noline("JUMP", loop)
 
-        self.pop_loop()
-        self.nextBlock(else_)
-        if node.orelse:
-            self.visitStatements(node.orelse)
+            self.pop_loop()
+            self.nextBlock(else_)
+            if node.orelse:
+                self.visitStatements(node.orelse)
 
-        self.nextBlock(after)
+            self.nextBlock(after)
 
     def emit_yield_value_for_yield_from(self) -> None:
         self.emit("YIELD_VALUE", 1)
@@ -6702,6 +6759,194 @@ class CodeGenerator314(CodeGenerator312):
     def emit_load_build_class(self) -> None:
         self.emit("LOAD_BUILD_CLASS")
         self.emit("PUSH_NULL")
+
+    def checkAnnotation(self, node: ast.AnnAssign) -> None:
+        # this is used for evaluating the annotation of an annotated assign. This is
+        # a nop in 3.14.
+        pass
+
+    def emit_simple_ann_assign(self, node: ast.AnnAssign) -> None:
+        if not node.simple or not isinstance(self.tree, (ast.Module, ast.ClassDef)):
+            return
+
+        if self.future_flags & CO_FUTURE_ANNOTATIONS:
+            # If we have a simple name in a module or class, store the annotation
+            assert isinstance(node.target, ast.Name)
+            self.emit_store_annotation(node.target.id, node)
+            return
+
+        self.deferred_annotations.append(node)
+        if isinstance(self.scope, ModuleScope) or self.in_conditional_block:
+            conditional_index = self.next_conditional_annotation_index
+            self.next_conditional_annotation_index += 1
+        else:
+            conditional_index = -1
+        self.conditional_annotation_indices.append(conditional_index)
+        if conditional_index >= 0:
+            self.emit(
+                "LOAD_DEREF" if isinstance(self.scope, ClassScope) else "LOAD_NAME",
+                "__conditional_annotations__",
+            )
+            self.emit("LOAD_CONST", conditional_index)
+            self.emit("SET_ADD", 1)
+            self.emit("POP_TOP")
+
+    def setup_annotations(
+        self,
+        loc: AST | SrcLocation,
+        node: Annotations | ast.arguments,
+        gen_param_scope: Scope,
+    ) -> CodeGenerator314:
+        graph = self.flow_graph(
+            gen_param_scope.name,
+            self.graph.filename,
+            gen_param_scope,
+            flags=CO_NESTED if gen_param_scope.nested else 0,
+            args=(".format",),
+            kwonlyargs=(),
+            starargs=(),
+            optimized=1,
+            docstring=None,
+            firstline=loc.lineno,  # pyre-ignore[16]: no attribute lineno
+            posonlyargs=1,
+        )
+
+        outer_gen = self.make_child_codegen(node, graph, name=graph.name)
+        outer_gen.optimized = 1
+        body = outer_gen.newBlock("body")
+        outer_gen.set_pos(loc)
+        outer_gen.class_name = self.class_name
+        outer_gen.emit("LOAD_FAST", ".format")
+        outer_gen.emit("LOAD_CONST", 2)  # _Py_ANNOTATE_FORMAT_VALUE_WITH_FAKE_GLOBALS
+        outer_gen.emit("COMPARE_OP", ">")
+        outer_gen.emit("POP_JUMP_IF_FALSE", body)
+        outer_gen.nextBlock()
+        outer_gen.emit("LOAD_COMMON_CONSTANT", NotImplementedError)
+        outer_gen.emit("RAISE_VARARGS", 1)
+        outer_gen.nextBlock(body)
+        assert isinstance(outer_gen, CodeGenerator314)
+        return outer_gen
+
+    def leave_annotations(self, gen: CodeGenerator) -> None:
+        self.emit_closure(AnnotationsCodeHolder(gen), 0)
+
+    def emit_argannotation(
+        self, id: str, annotation: ast.expr, loc: AST | SrcLocation
+    ) -> None:
+        mangled = self.mangle(id)
+        self.graph.emit_with_loc("LOAD_CONST", mangled, loc)
+        self._visitAnnotation(annotation)
+
+    def emit_argannotations(self, args: list[ast.arg], loc: AST | SrcLocation) -> int:
+        count = 0
+        for arg in args:
+            if arg.annotation is not None:
+                self.emit_argannotation(arg.arg, arg.annotation, loc)
+                count += 1
+        return count
+
+    def emit_function_annotations(
+        self, loc: AST | SrcLocation, args: ast.arguments, returns: ast.expr | None
+    ) -> bool:
+        scope = self.scopes[args]
+        assert isinstance(scope, AnnotationScope)
+        if not scope.annotations_used:
+            return False
+
+        ann_gen = self.setup_annotations(loc, args, scope)
+
+        count = ann_gen.emit_argannotations(args.args, loc)
+        count += ann_gen.emit_argannotations(args.posonlyargs, loc)
+        if args.vararg and args.vararg.annotation is not None:
+            ann_gen.emit_argannotation(args.vararg.arg, args.vararg.annotation, loc)
+            count += 1
+        count += ann_gen.emit_argannotations(args.kwonlyargs, loc)
+        if args.kwarg and args.kwarg.annotation is not None:
+            ann_gen.emit_argannotation(args.kwarg.arg, args.kwarg.annotation, loc)
+            count += 1
+        if returns is not None:
+            ann_gen.emit_argannotation("return", returns, loc)
+            count += 1
+
+        ann_gen.graph.emit_with_loc("BUILD_MAP", count, loc)
+        ann_gen.graph.emit_with_loc("RETURN_VALUE", 0, loc)
+        self.leave_annotations(ann_gen)
+        return True
+
+    def build_annotations(
+        self, node: ast.FunctionDef | ast.AsyncFunctionDef | ast.Lambda
+    ) -> int:
+        if self.emit_function_annotations(
+            node, node.args, None if isinstance(node, ast.Lambda) else node.returns
+        ):
+            return MAKE_FUNCTION_ANNOTATE
+        return 0
+
+    def emit_deferred_annotations_body(
+        self,
+        loc: AST | SrcLocation,
+        deferred: list[ast.AnnAssign],
+        conditional_indicies: list[int],
+    ) -> None:
+        self.graph.emit_with_loc("BUILD_MAP", 0, loc)
+        for augassign, conditional_index in zip(deferred, conditional_indicies):
+            assert isinstance(augassign.target, ast.Name)
+            mangled = self.mangle(augassign.target.id)
+            not_set = self.newBlock("not_set")
+            self.set_pos(augassign)
+            if conditional_index != -1:
+                self.emit("LOAD_CONST", conditional_index)
+                if isinstance(self.scope, ClassScope):
+                    self.emit("LOAD_DEREF", "__conditional_annotations__")
+                else:
+                    self.emit("LOAD_GLOBAL", "__conditional_annotations__")
+                self.emit("CONTAINS_OP")
+                self.emit("POP_JUMP_IF_FALSE", not_set)
+                self.nextBlock()
+
+            self.visit(augassign.annotation)
+            self.emit("COPY", 2)
+            self.emit("LOAD_CONST", mangled)
+            self.set_pos(loc)
+            self.emit("STORE_SUBSCR")
+            self.nextBlock(not_set)
+
+    def process_deferred_annotations(
+        self,
+        loc: AST | SrcLocation,
+        gen: CodeGenerator314,
+        ann_scope: AnnotationScope | None,
+    ) -> None:
+        if not self.deferred_annotations:
+            return
+
+        assert ann_scope is not None
+        need_separate_block = isinstance(self.scope, ModuleScope)
+        start_block = None
+        if need_separate_block:
+            start_block = self.graph.current
+            self.graph.current = self.graph.newBlock("annotations_setup")
+
+        ann_gen = self.setup_annotations(loc, Annotations(gen.scope), ann_scope)
+
+        ann_gen.emit_deferred_annotations_body(
+            loc, self.deferred_annotations, self.conditional_annotation_indices
+        )
+
+        ann_gen.graph.emit_with_loc("RETURN_VALUE", 0, loc)
+        self.set_pos(loc)
+        self.leave_annotations(ann_gen)
+
+        self._nameOp(
+            "STORE",
+            "__annotate_func__"
+            if isinstance(self.scope, ClassScope)
+            else "__annotate__",
+        )
+
+        if need_separate_block:
+            self.graph.annotations_block = self.graph.current
+            self.graph.current = start_block
 
     def emit_init_class_attrs(
         self, gen: CodeGenerator, node: ast.ClassDef, first_lineno: int
@@ -6740,11 +6985,27 @@ class CodeGenerator314(CodeGenerator312):
         self.maybe_add_static_attribute_to_class(node)
         super().visitAttribute(node)
 
+    def emit_module_return(self, node: ast.Module) -> None:
+        loc = node.body[0] if node.body else SrcLocation(1, 1, 0, 0)
+        self.process_deferred_annotations(loc, self, self.scope.annotations)
+        super().emit_module_return(node)
+
+    def setup_module_annotations(self, node: ast.Module) -> None:
+        self.emit("ANNOTATIONS_PLACEHOLDER")
+        if self.scope.has_conditional_annotations:
+            self.emit("BUILD_SET", 0)
+            self.emit("STORE_NAME", "__conditional_annotations__")
+
+        if self.future_flags & CO_FUTURE_ANNOTATIONS:
+            super().setup_module_annotations(node)
+
     def compile_body(self, gen: CodeGenerator, node: ast.ClassDef) -> None:
         assert isinstance(gen, CodeGenerator314)
-        if gen.findAnn(node.body):
+        if (self.future_flags & CO_FUTURE_ANNOTATIONS) and gen.findAnn(node.body):
             gen.did_setup_annotations = True
             gen.emit("SETUP_ANNOTATIONS")
+        if not node.body:
+            return
 
         doc = gen.get_docstring(node)
         if doc is not None:
@@ -6753,6 +7014,16 @@ class CodeGenerator314(CodeGenerator312):
             gen.storeName("__doc__")
 
         self.walkClassBody(node, gen)
+
+        if not (self.future_flags & CO_FUTURE_ANNOTATIONS):
+            lineno = (
+                node.lineno
+                if not node.decorator_list
+                else node.decorator_list[0].lineno
+            )
+            gen.process_deferred_annotations(
+                SrcLocation(lineno, lineno, 0, 0), gen, gen.scope.annotations
+            )
 
         attrs = list(gen.static_attributes)
         attrs.sort()
@@ -6961,6 +7232,36 @@ PythonCodeGenerator: type[CodeGenerator] = get_default_generator()
 
 class CodeHolder(Protocol):
     def getCode(self) -> CodeType: ...
+    @property
+    def scope(self) -> Scope: ...
+    @property
+    def name(self) -> str: ...
+
+
+class AnnotationsCodeHolder(CodeHolder):
+    def __init__(self, code_gen: CodeGenerator) -> None:
+        self.code_gen = code_gen
+
+    @property
+    def tree(self) -> ast.AST:
+        return self.code_gen.tree
+
+    @property
+    def scope(self) -> Scope:
+        return self.code_gen.scope
+
+    @property
+    def name(self) -> str:
+        return self.code_gen.name
+
+    def getCode(self) -> CodeType:
+        code = self.code_gen.getCode()
+        # We want the parameter to __annotate__ to be named "format" in the
+        # signature  shown by inspect.signature(), but we need to use a
+        # different name (.format) in the symtable; if the name
+        # "format" appears in the annotations, it doesn't get clobbered
+        # by this name.
+        return code.replace(co_varnames=("format",))
 
 
 if __name__ == "__main__":
