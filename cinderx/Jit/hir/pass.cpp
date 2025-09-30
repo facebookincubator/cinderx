@@ -720,10 +720,10 @@ bool removeUnreachableInstructions(CFG* cfg) {
       }
       // Remove all instructions after the Unreachable
       while (it != block->end()) {
-        Instr& instr = *it;
+        Instr& instrToDelete = *it;
         ++it;
-        instr.unlink();
-        delete &instr;
+        instrToDelete.unlink();
+        delete &instrToDelete;
       }
     }
     if (block->begin()->IsUnreachable()) {
