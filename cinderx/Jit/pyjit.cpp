@@ -247,7 +247,7 @@ PyObject* forcedJitVectorcall(
 
   JIT_ABORT(
       "Unrecognized JIT result code {} for function {}",
-      result,
+      static_cast<int>(result),
       funcFullname(func));
 }
 
