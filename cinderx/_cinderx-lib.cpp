@@ -642,6 +642,7 @@ void shadowcode_code_sizeof(struct _PyShadowCode* shadow, Py_ssize_t* res) {
 }
 #endif
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 int get_current_code_flags(PyThreadState* tstate) {
 #if PY_VERSION_HEX < 0x030C0000
   PyCodeObject* cur_code = nullptr;
