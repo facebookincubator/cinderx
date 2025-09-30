@@ -63,8 +63,6 @@ test_cinderx.test_compiler.test_static.walrus_operator
 test_cinderx.test_compiler.test_strict
 test_cinderx.test_compiler.test_unparse
 test_cinderx.test_compiler.test_visitor
-test_cinderx.test_compiler_sbs_stdlib_5
-test_cinderx.test_compiler_sbs_stdlib_8
 test_cinderx.test_cpython_overrides.test_dis
 test_cinderx.test_immortalize
 test_cinderx.test_jit_attr_cache

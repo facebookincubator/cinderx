@@ -2456,6 +2456,25 @@ class PyFlowGraph314(PyFlowGraph312):
                         visited.add(target)
         return cold
 
+    def flatten_graph(self) -> None:
+        # Init the ioparg of jump instructions to their index into
+        # the instruction sequence. This matches CPython's behavior
+        # in resolve_jump_offsets where i_target is initialized from
+        # i_oparg but i_oparg is not reset to zero.
+        offset = 0
+        label_map: dict[Block, int] = {}
+        for b in self.getBlocksInOrder():
+            label_map[b] = offset
+            offset += len(b.insts)
+
+        for b in self.getBlocksInOrder():
+            for inst in b.getInstructions():
+                if inst.is_jump(self.opcode):
+                    assert inst.target is not None
+                    inst.ioparg = label_map[inst.target]
+
+        super().flatten_graph()
+
     # The following bits are chosen so that the value of
     # COMPARSION_BIT(left, right)
     # masked by the values below will be non-zero if the
