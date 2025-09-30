@@ -920,7 +920,7 @@ int cinder_init() {
 
 #if PY_VERSION_HEX < 0x030C0000
   JIT_CHECK(
-      __strobe_CodeRuntime_py_code == jit::CodeRuntime::kPyCodeOffset,
+      __strobe_CodeRuntime_py_code == jit::CodeRuntime::codeOffset(),
       "Invalid PyCodeOffset for Strobelight");
   JIT_CHECK(
       __strobe_RuntimeFrameState_py_code ==

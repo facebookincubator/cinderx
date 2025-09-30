@@ -382,9 +382,9 @@ UnitState getUnitState(_PyShadowFrame* shadow_frame) {
   unit_state.reserve(unit_frames.size());
   _PyShadowFrame* non_inlined_sf = unit_frames[0];
   CodeRuntime* code_rt = getCodeRuntime(non_inlined_sf);
-  uintptr_t ip = getIP(non_inlined_sf, code_rt->frame_size());
+  uintptr_t ip = getIP(non_inlined_sf, code_rt->frameSize());
   std::optional<UnitCallStack> locs =
-      code_rt->debug_info()->getUnitCallStack(ip);
+      code_rt->debugInfo()->getUnitCallStack(ip);
   if (locs.has_value()) {
     if (locs->size() != unit_frames.size()) {
       JIT_LOG("DebugInfo frames:");
@@ -720,6 +720,7 @@ void Ci_WalkAsyncStack(
 #include "internal/pycore_frame.h"
 
 #include "cinderx/Common/py-portability.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/gen_data_footer.h"
 #include "cinderx/UpstreamBorrow/borrowed.h"
 
@@ -854,9 +855,9 @@ UnitState getUnitState(_PyInterpreterFrame* frame) {
   unit_state.reserve(unit_frames.size());
   _PyInterpreterFrame* non_inlined_sf = unit_frames[0];
   CodeRuntime* code_rt = getCodeRuntime(non_inlined_sf);
-  uintptr_t ip = getIP(non_inlined_sf, code_rt->frame_size());
+  uintptr_t ip = getIP(non_inlined_sf, code_rt->frameSize());
   std::optional<UnitCallStack> locs =
-      code_rt->debug_info()->getUnitCallStack(ip);
+      code_rt->debugInfo()->getUnitCallStack(ip);
   if (locs.has_value()) {
     // We may have a different number of unit_frames than locs, this happens
     // when we're updating the outer frame while we're in an inlined function,

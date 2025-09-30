@@ -8,7 +8,7 @@
 #include "cinder/genobject_jit.h"
 #endif
 
-#include "cinderx/Common/ref.h"
+#include "cinderx/Common/util.h"
 #include "cinderx/Jit/code_runtime.h"
 #include "cinderx/Jit/frame_header.h"
 

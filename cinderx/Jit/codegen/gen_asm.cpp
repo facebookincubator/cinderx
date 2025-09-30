@@ -785,8 +785,8 @@ void* NativeGenerator::getVectorcallEntry() {
   auto func = GetFunction();
 
   env_.rt = Runtime::get();
-  env_.code_rt =
-      env_.rt->allocateCodeRuntime(func->code, func->builtins, func->globals);
+  env_.code_rt = env_.rt->allocateCodeRuntime(
+      func->code.get(), func->builtins.get(), func->globals.get());
 
   for (auto& ref : func->env.references()) {
     env_.code_rt->addReference(ref);
@@ -892,7 +892,7 @@ void* NativeGenerator::getVectorcallEntry() {
 
   JIT_DCHECK(code.codeSize() < INT_MAX, "Code size is larger than INT_MAX");
   compiled_size_ = code.codeSize();
-  env_.code_rt->set_frame_size(env_.stack_frame_size);
+  env_.code_rt->setFrameSize(env_.stack_frame_size);
   return vectorcall_entry_;
 }
 
@@ -1727,7 +1727,7 @@ void NativeGenerator::generateCode(CodeHolder& codeholder) {
       "bad re-entry offset");
 
   linkDeoptPatchers(codeholder);
-  env_.code_rt->debug_info()->resolvePending(
+  env_.code_rt->debugInfo()->resolvePending(
       env_.pending_debug_locs, *GetFunction(), codeholder);
 
   vectorcall_entry_ = static_cast<char*>(code_start_) +

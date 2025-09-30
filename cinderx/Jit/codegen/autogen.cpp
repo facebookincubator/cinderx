@@ -366,9 +366,10 @@ void emitStoreGenYieldPoint(
       live_regs_input - num_live_regs,
       live_regs_input);
 
-  auto yield_from_offset = is_yield_from ? calc_spill_offset(2) : 0;
+  auto yield_from_offset =
+      is_yield_from ? calc_spill_offset(2) : kInvalidYieldFromOffset;
   GenYieldPoint* gen_yield_point = env->code_rt->addGenYieldPoint(
-      GenYieldPoint{deopt_idx, is_yield_from, yield_from_offset});
+      GenYieldPoint{deopt_idx, yield_from_offset});
 
   env->unresolved_gen_entry_labels.emplace(gen_yield_point, resume_label);
   if (yield->origin()) {
