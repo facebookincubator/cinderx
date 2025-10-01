@@ -446,8 +446,8 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
       [get_reg_idx](DeoptFrameMetadata& meta, hir::FrameState* fs) {
         size_t nlocalsplus = fs->localsplus.size();
         meta.localsplus.resize(nlocalsplus);
-        for (size_t i = 0; i < nlocalsplus; ++i) {
-          meta.localsplus[i] = get_reg_idx(fs->localsplus[i]);
+        for (size_t j = 0; j < nlocalsplus; ++j) {
+          meta.localsplus[j] = get_reg_idx(fs->localsplus[j]);
         }
       };
 
@@ -482,13 +482,13 @@ DeoptMetadata DeoptMetadata::fromInstr(const jit::hir::DeoptBase& instr) {
   meta.frame_meta.resize(num_frames + 1); // +1 for caller
 
   for (hir::FrameState* frame = fs; frame != nullptr; frame = frame->parent) {
-    int i = num_frames--;
+    int frame_idx = num_frames--;
     // Translate locals and cells
-    populate_localsplus(meta.frame_meta.at(i), frame);
-    populate_stack(meta.frame_meta.at(i), frame);
-    meta.frame_meta.at(i).block_stack = frame->block_stack;
-    meta.frame_meta.at(i).cause_instr_idx = frame->cur_instr_offs;
-    meta.frame_meta.at(i).code = frame->code.get();
+    populate_localsplus(meta.frame_meta.at(frame_idx), frame);
+    populate_stack(meta.frame_meta.at(frame_idx), frame);
+    meta.frame_meta.at(frame_idx).block_stack = frame->block_stack;
+    meta.frame_meta.at(frame_idx).cause_instr_idx = frame->cur_instr_offs;
+    meta.frame_meta.at(frame_idx).code = frame->code.get();
   }
 
   if (hir::Register* guilty_reg = instr.guiltyReg()) {
