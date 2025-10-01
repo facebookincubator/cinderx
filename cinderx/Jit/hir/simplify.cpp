@@ -956,6 +956,11 @@ Register* simplifyLoadAttrSplitDict(
     const LoadAttr* load_attr,
     BorrowedRef<PyTypeObject> type,
     BorrowedRef<PyUnicodeObject> name) {
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    // TODO(T229234686): Support new 3.14 inline values
+    return nullptr;
+  }
+
 #if PY_VERSION_HEX >= 0x030C0000
   if (!PyType_HasFeature(type, Py_TPFLAGS_MANAGED_DICT)) {
     return nullptr;
