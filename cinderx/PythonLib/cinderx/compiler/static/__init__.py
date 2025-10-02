@@ -37,11 +37,13 @@ from ..pyassem import (
     IndexedSet,
     PyFlowGraph,
     PyFlowGraph312,
+    PyFlowGraph314,
     PyFlowGraphCinder310,
 )
 from ..pycodegen import (
     CinderCodeGenerator310,
     CinderCodeGenerator312,
+    CinderCodeGenerator314,
     CodeGenerator,
     CodeGenTree,
     compile_code,
@@ -49,7 +51,11 @@ from ..pycodegen import (
     FuncOrLambda,
     PatternContext,
 )
-from ..strict import StrictCodeGenerator310, StrictCodeGenerator312
+from ..strict import (
+    StrictCodeGenerator310,
+    StrictCodeGenerator312,
+    StrictCodeGenerator314,
+)
 from ..strict.code_gen_base import StrictCodeGenBase
 from ..strict.common import FIXED_MODULES
 from ..symbols import BaseSymbolVisitor, ClassScope, ModuleScope, Scope
@@ -1354,7 +1360,14 @@ class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
         optype.emit_compare(op, self)
 
 
-if sys.version_info >= (3, 12):
+class Static314CodeGenerator(Static312CodeGenerator, CinderCodeGenerator314):
+    flow_graph = PyFlowGraph314
+    parent_impl = StrictCodeGenerator314
+
+
+if sys.version_info >= (3, 14):
+    StaticCodeGenerator = Static314CodeGenerator
+elif sys.version_info >= (3, 12):
     StaticCodeGenerator = Static312CodeGenerator
 else:
     StaticCodeGenerator = Static310CodeGenerator

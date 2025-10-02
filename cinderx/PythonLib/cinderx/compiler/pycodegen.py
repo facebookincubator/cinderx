@@ -7276,7 +7276,7 @@ class CinderCodeGenerator312(CinderCodeGenBase, CodeGenerator312):
         CodeGenerator312.visitCall(self, node)
 
 
-class CinderCodeGenerator314(CinderCodeGenBase, CodeGenerator314):
+class CinderCodeGenerator314(CinderCodeGenerator312, CodeGenerator314):
     flow_graph = PyFlowGraph314
 
 

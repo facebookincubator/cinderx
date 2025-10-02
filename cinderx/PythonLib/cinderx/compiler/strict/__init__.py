@@ -10,8 +10,12 @@ import sys
 from types import CodeType
 from typing import Any
 
-from ..pyassem import PyFlowGraph312, PyFlowGraphCinder310
-from ..pycodegen import CinderCodeGenerator310, CinderCodeGenerator312
+from ..pyassem import PyFlowGraph312, PyFlowGraph314, PyFlowGraphCinder310
+from ..pycodegen import (
+    CinderCodeGenerator310,
+    CinderCodeGenerator312,
+    CinderCodeGenerator314,
+)
 from .code_gen_base import StrictCodeGenBase
 
 
@@ -25,6 +29,10 @@ class StrictCodeGenerator310(StrictCodeGenBase, CinderCodeGenerator310):
 
 class StrictCodeGenerator312(StrictCodeGenBase, CinderCodeGenerator312):
     flow_graph = PyFlowGraph312
+
+
+class StrictCodeGenerator314(StrictCodeGenerator312, CinderCodeGenerator314):
+    flow_graph = PyFlowGraph314
 
 
 def strict_compile(
@@ -41,7 +49,9 @@ def strict_compile(
     return code_gen.getCode()
 
 
-if sys.version_info >= (3, 12):
+if sys.version_info >= (3, 14):
+    StrictCodeGenerator = StrictCodeGenerator314
+elif sys.version_info >= (3, 12):
     StrictCodeGenerator = StrictCodeGenerator312
 else:
     StrictCodeGenerator = StrictCodeGenerator310
