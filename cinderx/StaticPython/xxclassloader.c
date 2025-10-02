@@ -32,6 +32,7 @@ typedef struct {
   size_t uval;
 } spamobject;
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static Py_ssize_t spamobj_error(spamobject* self, Py_ssize_t val) {
   if (val) {
     PyErr_SetString(PyExc_TypeError, "no way!");
@@ -40,6 +41,7 @@ static Py_ssize_t spamobj_error(spamobject* self, Py_ssize_t val) {
   return 0;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static PyObject* spamobj_getstate(spamobject* self) {
   if (self->state) {
     Py_INCREF(self->state);
@@ -49,12 +51,14 @@ static PyObject* spamobj_getstate(spamobject* self) {
   return Py_None;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setstate(spamobject* self, PyObject* state) {
   Py_XDECREF(self->state);
   self->state = state;
   Py_INCREF(state);
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static PyObject* spamobj_setstate_untyped(spamobject* self, PyObject* state) {
   if (!_PyClassLoader_CheckParamType((PyObject*)self, state, 0)) {
     PyErr_SetString(PyExc_TypeError, "bad type");
@@ -66,6 +70,7 @@ static PyObject* spamobj_setstate_untyped(spamobject* self, PyObject* state) {
   Py_RETURN_NONE;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setstate_optional(spamobject* self, PyObject* state) {
   if (state == Py_None) {
     return;
@@ -75,81 +80,100 @@ static void spamobj_setstate_optional(spamobject* self, PyObject* state) {
   Py_INCREF(state);
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setint(spamobject* self, Py_ssize_t val) {
   self->val = val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setint8(spamobject* self, int8_t val) {
   self->val = val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setint16(spamobject* self, int16_t val) {
   self->val = val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setint32(spamobject* self, int32_t val) {
   self->val = val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setuint8(spamobject* self, uint8_t val) {
   self->uval = val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setuint16(spamobject* self, uint16_t val) {
   self->uval = val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setuint32(spamobject* self, uint32_t val) {
   self->uval = val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setuint64(spamobject* self, uint64_t val) {
   self->uval = val;
 }
 
 static Py_ssize_t
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 spamobj_twoargs(spamobject* self, Py_ssize_t x, Py_ssize_t y) {
   return x + y;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static Py_ssize_t spamobj_getint(spamobject* self) {
   return self->val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static int8_t spamobj_getint8(spamobject* self) {
   return self->val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static int16_t spamobj_getint16(spamobject* self) {
   return self->val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static int32_t spamobj_getint32(spamobject* self) {
   return self->val;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static uint8_t spamobj_getuint8(spamobject* self) {
   return self->uval;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static uint16_t spamobj_getuint16(spamobject* self) {
   return self->uval;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static uint32_t spamobj_getuint32(spamobject* self) {
   return self->uval;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static uint64_t spamobj_getuint64(spamobject* self) {
   return self->uval;
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static void spamobj_setstr(spamobject* self, PyObject* str) {
   Py_XDECREF(self->str);
   self->str = str;
   Py_INCREF(str);
 }
 
+// NOLINTNEXTLINE(clang-diagnostic-unused-function)
 static PyObject* spamobj_getstr(spamobject* self) {
   if (self->str == NULL) {
     Py_RETURN_NONE;
