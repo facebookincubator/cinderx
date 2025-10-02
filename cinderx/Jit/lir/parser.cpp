@@ -38,9 +38,9 @@ Parser::Token Parser::getNextToken(const char* str) {
       {"E[A-DS][IPX]", kPhyReg},
       {"[A-DS][IPX]L?", kPhyReg},
       {"XMM[0-9]+", kPhyReg},
-      {"\\[RBP[ ]?-[ ]?(\\d+)\\]", kStack},
+      {R"(\[RBP[ ]?-[ ]?(\d+)\])", kStack},
       {"\\[(0x[0-9a-fA-F]+)\\]", kAddress},
-      {"(\\d+)(\\(0x[0-9a-fA-F]+\\))?", kImmediate},
+      {R"((\d+)(\(0x[0-9a-fA-F]+\))?)", kImmediate},
       {"BB%(\\d+)", kBasicBlockRef},
       {"[A-Za-z_][A-Za-z0-9_]+", kId},
       {"=", kEqual},
@@ -49,8 +49,8 @@ Parser::Token Parser::getNextToken(const char* str) {
       {"\\)", kParRight},
       {"#.*\n", kComment},
       {":[A-Za-z0-9]+", kDataType},
-      {"\\[[^\\]]*\\]", kIndirect},
-      {"\"[^\"]+\"", kStringLiteral}};
+      {R"(\[[^\]]*\])", kIndirect},
+      {R"("[^"]+")", kStringLiteral}};
 
   std::cmatch m;
   for (auto& pattern : patterns) {
@@ -479,8 +479,8 @@ void Parser::parseIndirect(
   }
 
   // parse index and multiplier
-  std::regex index_reg = std::regex("\\+ %(\\d+):[0-9a-zA-Z]+( \\* (\\d+))?");
-  std::regex index_phys = std::regex("\\+ (R[0-9A-Z]+):Object( \\* (\\d+))?");
+  std::regex index_reg = std::regex(R"(\+ %(\d+):[0-9a-zA-Z]+( \* (\d+))?)");
+  std::regex index_phys = std::regex(R"(\+ (R[0-9A-Z]+):Object( \* (\d+))?)");
   bool index_re_success = false;
   if (std::regex_search(token.begin(), token.end(), m, index_reg)) {
     auto index_id = std::stoll(m.str(1).c_str(), nullptr, 0);

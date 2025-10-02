@@ -797,7 +797,7 @@ BB %5 - preds: %6
   caller.sortBasicBlocks();
   ss << caller;
   // Replace the string literal address
-  std::regex reg("\\d+\\(0x[0-9a-fA-F]+\\):Object, %21:Object, %20:Object");
+  std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %21:Object, %20:Object)");
   std::string caller_str =
       regex_replace(ss.str(), reg, "string_literal, %21:Object, %20:Object");
   ASSERT_EQ(expected_caller, caller_str);
@@ -870,7 +870,7 @@ BB %5 - preds: %6
   caller->sortBasicBlocks();
   ss << *caller;
   // Replace the string literal address
-  std::regex reg("\\d+\\(0x[0-9a-fA-F]+\\):Object, %21:Object, %20:Object");
+  std::regex reg(R"(\d+\(0x[0-9a-fA-F]+\):Object, %21:Object, %20:Object)");
   std::string caller_str =
       regex_replace(ss.str(), reg, "string_literal, %21:Object, %20:Object");
   ASSERT_EQ(expected_caller, caller_str);

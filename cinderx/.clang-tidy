@@ -6,4 +6,5 @@ InheritParentConfig: true
 
 Checks: '
 -facebook-hte-NullableReturn,
+modernize-raw-string-literal,
 '
