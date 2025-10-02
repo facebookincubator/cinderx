@@ -963,7 +963,7 @@ class Value:
     def emit_load_subscr(
         self, node: ast.Subscript, code_gen: StaticCodeGenBase
     ) -> None:
-        code_gen.emit("BINARY_SUBSCR")
+        code_gen.emit_binary_subscr()
 
     def emit_store_subscr(
         self, node: ast.Subscript, code_gen: StaticCodeGenBase
@@ -7599,7 +7599,7 @@ def common_sequence_emit_forloop(
         if seq_type == SEQ_TUPLE:
             # todo - we need to implement TUPLE_GET which supports primitive index
             code_gen.emit("PRIMITIVE_BOX", TYPED_INT64)
-            code_gen.emit("BINARY_SUBSCR", 2)
+            code_gen.emit_binary_subscr()
         else:
             code_gen.emit("SEQUENCE_GET", seq_type | SEQ_SUBSCR_UNCHECKED)
         code_gen.emit("LOAD_LOCAL", (loop_idx, descr))

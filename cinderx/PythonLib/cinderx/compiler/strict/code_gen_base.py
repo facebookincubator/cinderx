@@ -192,11 +192,11 @@ class StrictCodeGenBase(CinderCodeGenBase):
         # load and store <strict-modules>
         self.emit("LOAD_NAME", "<fixed-modules>")
         self.emit("LOAD_CONST", "__strict__")
-        self.emit("BINARY_SUBSCR")
+        self.emit_binary_subscr()
         self.emit_dup()
         self.emit("STORE_GLOBAL", "<strict-modules>")
         self.emit("LOAD_CONST", "freeze_type")
-        self.emit("BINARY_SUBSCR")
+        self.emit_binary_subscr()
         self.emit("STORE_GLOBAL", "<freeze-type>")
 
     def emit_load_builtin(self, name: str) -> None:
@@ -210,7 +210,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         else:
             self.emit("LOAD_NAME", "<builtins>")
             self.emit("LOAD_CONST", name)
-            self.emit("BINARY_SUBSCR")
+            self.emit_binary_subscr()
 
     def emit_init_globals(self) -> None:
         # Initialize the globals assignment list
@@ -594,7 +594,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         # Load the module into TOS...
         self.emit("LOAD_NAME", "<fixed-modules>")
         self.emit("LOAD_CONST", mod_name)
-        self.emit("BINARY_SUBSCR")  # TOS = mod
+        self.emit_binary_subscr()  # TOS = mod
 
         # Store all of the imported names from the module
         for _i, name in enumerate(node.names):
@@ -606,7 +606,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
                 self.emit_dup()
                 # var name
                 self.emit("LOAD_CONST", var_name)
-                self.emit("BINARY_SUBSCR")
+                self.emit_binary_subscr()
                 self.emit("STORE_GLOBAL", asname)
         # remove TOS (mod)
         self.emit("POP_TOP")

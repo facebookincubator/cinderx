@@ -6,7 +6,6 @@ test_cinderx.test_compiler.test_linepos
 test_cinderx.test_compiler.test_optimizer
 test_cinderx.test_compiler.test_static.annotated
 test_cinderx.test_compiler.test_static.array
-test_cinderx.test_compiler.test_static.asyncs
 test_cinderx.test_compiler.test_static.augassign
 test_cinderx.test_compiler.test_static.binop
 test_cinderx.test_compiler.test_static.cached_property
@@ -26,15 +25,12 @@ test_cinderx.test_compiler.test_static.elide_type_checks
 test_cinderx.test_compiler.test_static.enum
 test_cinderx.test_compiler.test_static.fields
 test_cinderx.test_compiler.test_static.final
-test_cinderx.test_compiler.test_static.fstring
-test_cinderx.test_compiler.test_static.implicit_none_return
 test_cinderx.test_compiler.test_static.inference
 test_cinderx.test_compiler.test_static.invoke
 test_cinderx.test_compiler.test_static.literals
 test_cinderx.test_compiler.test_static.match
 test_cinderx.test_compiler.test_static.mixin
 test_cinderx.test_compiler.test_static.module
-test_cinderx.test_compiler.test_static.narrowing
 test_cinderx.test_compiler.test_static.native
 test_cinderx.test_compiler.test_static.non_static_inheritance
 test_cinderx.test_compiler.test_static.obj_creation
