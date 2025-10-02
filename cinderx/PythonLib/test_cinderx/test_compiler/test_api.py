@@ -48,10 +48,17 @@ class ApiTests(CompilerTest):
 
     def test_compile_without_future_annotations_does_type_subscript(self) -> None:
         code = compile_code("a: List[int] = []", "foo", "exec", 0)
+        if sys.version_info >= (3, 14):
+            load = "LOAD_GLOBAL"
+            code = self.find_code(code, "__annotate__")
+            subscr = "BINARY_OP"
+        else:
+            load = "LOAD_NAME"
+            subscr = "BINARY_SUBSCR"
         self.assertNotInBytecode(code, "LOAD_CONST", "List[int]")
-        self.assertInBytecode(code, "LOAD_NAME", "List")
-        self.assertInBytecode(code, "LOAD_NAME", "int")
-        self.assertInBytecode(code, "BINARY_SUBSCR")
+        self.assertInBytecode(code, load, "List")
+        self.assertInBytecode(code, load, "int")
+        self.assertInBytecode(code, subscr)
 
     def test_compile_unoptimized(self) -> None:
         src_code = "assert True"
@@ -84,8 +91,8 @@ class ApiTests(CompilerTest):
 @skipIf(POST_312, "Python 3.10- only")
 class ApiTests310(CompilerTest):
     def test_compile_single(self) -> None:
-        code = compile_code("42", "foo", "single")
-        self.assertInBytecode(code, "LOAD_CONST", 42)
+        code = compile_code("300", "foo", "single")
+        self.assertInBytecode(code, "LOAD_CONST", 300)
         self.assertInBytecode(code, "PRINT_EXPR")
 
     def test_compile_eval(self) -> None:
@@ -122,8 +129,8 @@ except:
 @skipIf(PRE_312, "Python 3.12+ only")
 class ApiTests312(CompilerTest):
     def test_compile_single(self) -> None:
-        code = compile_code("42", "foo", "single")
-        self.assertInBytecode(code, "LOAD_CONST", 42)
+        code = compile_code("256", "foo", "single")
+        self.assertInBytecode(code, "LOAD_CONST", 256)
         self.assertInBytecode(code, "CALL_INTRINSIC_1", 1)  # INTRINSIC_PRINT
 
 
