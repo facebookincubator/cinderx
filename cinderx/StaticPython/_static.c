@@ -1556,8 +1556,7 @@ static PyObject* _static___build_cinder_class__(
   }
 
   int res;
-  res = _PyObject_GenericSetAttrWithDict(
-      type, s___final_method_names__, final_method_names, NULL);
+  res = PyObject_SetAttr(type, s___final_method_names__, final_method_names);
   if (res != 0) {
     goto error;
   }
