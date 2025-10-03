@@ -157,10 +157,10 @@ def test(x):
   auto locals = Ref<>::steal(PyObject_GetAttrString(tb_frame, "f_locals"));
   ASSERT_NE(locals.get(), nullptr);
   EXPECT_EQ(PyObject_Length(locals), 2);
-  PyObject* x = PyDict_GetItemString(locals, "x");
+  PyObject* x = PyMapping_GetItemString(locals, "x");
   ASSERT_TRUE(PyLong_CheckExact(x));
   EXPECT_EQ(PyLong_AsLong(x), 0);
-  PyObject* y = PyDict_GetItemString(locals, "z");
+  PyObject* y = PyMapping_GetItemString(locals, "z");
   ASSERT_TRUE(PyLong_CheckExact(y));
   EXPECT_EQ(PyLong_AsLong(y), 100);
 }
@@ -250,9 +250,9 @@ def test(x):
   auto locals = Ref<>::steal(PyObject_GetAttrString(tb_frame, "f_locals"));
   ASSERT_NE(locals.get(), nullptr);
   EXPECT_EQ(PyObject_Length(locals), 2);
-  PyObject* x = PyDict_GetItemString(locals, "x");
+  PyObject* x = PyMapping_GetItemString(locals, "x");
   ASSERT_EQ(x, arg);
-  PyObject* y = PyDict_GetItemString(locals, "y");
+  PyObject* y = PyMapping_GetItemString(locals, "y");
   ASSERT_TRUE(PyLong_CheckExact(y));
   EXPECT_EQ(PyLong_AsLong(y), 100);
 }
@@ -837,10 +837,10 @@ def test(x, y):
   auto locals = Ref<>::steal(PyObject_GetAttrString(tb_frame, "f_locals"));
   ASSERT_NE(locals.get(), nullptr);
   EXPECT_EQ(PyObject_Length(locals), 2);
-  PyObject* x = PyDict_GetItemString(locals, "x");
+  PyObject* x = PyMapping_GetItemString(locals, "x");
   ASSERT_TRUE(PyLong_CheckExact(x));
   EXPECT_EQ(PyLong_AsLong(x), 2);
-  PyObject* y = PyDict_GetItemString(locals, "y");
+  PyObject* y = PyMapping_GetItemString(locals, "y");
   ASSERT_EQ(y, arg2.get());
 }
 
