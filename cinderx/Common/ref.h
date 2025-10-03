@@ -174,7 +174,7 @@ class Ref : public RefBase<T> {
     ptr_ = nullptr;
   }
 
-  Ref(Ref&& other) {
+  Ref(Ref&& other) noexcept {
     ptr_ = other.ptr_;
     other.ptr_ = nullptr;
   }
@@ -185,7 +185,7 @@ class Ref : public RefBase<T> {
     ptr_ = reinterpret_cast<T*>(other.release());
   }
 
-  Ref& operator=(Ref&& other) {
+  Ref& operator=(Ref&& other) noexcept {
     if (this == &other) {
       return *this;
     }
