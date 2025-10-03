@@ -1597,6 +1597,7 @@ class CinderJitModuleTests(StaticTestBase):
                 self.assertEqual(cinderx.jit.get_num_inlined_functions(g), 1)
 
     def test_max_code_size_slow(self) -> None:
+        # TODO(T240152676): Improve stability of this test
         call_limit = cinderx.jit.get_compile_after_n_calls()
         if call_limit is None or call_limit > 10000:
             raise unittest.SkipTest(
@@ -1632,7 +1633,8 @@ class CinderJitModuleTests(StaticTestBase):
             def run_test(
                 asserts_func: Callable[[list[str]], None], params: list[str]
             ) -> None:
-                args = [sys.executable]
+                # Disable the import of the site module with `-S` so Imports Monitor isn't enabled
+                args = [sys.executable, "-S"]
                 args.extend(params)
                 args.append("mod.py")
                 proc = subprocess.run(
