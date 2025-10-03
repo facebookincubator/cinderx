@@ -10,13 +10,17 @@ InheritParentConfig: true
 #   tests and we don't do anything crazy with it.  It's more convenient to use
 #   it instead of pulling in a third party dependency like RE2.
 #
+# * Can't replace memcpy() with more secure forms as that requires internal
+#   libraries that don't exist externally.
+#
 # * The JIT converts between pointers and integers frequently, there's no way
 #   to avoid this.
 
 Checks: '
--facebook-hte-NullableReturn,
 -facebook-hte-GlibcRegexIsAwful,
+-facebook-hte-NullableReturn,
 -facebook-hte-StdRegexIsAwful,
+-facebook-security-vulnerable-memcpy,
 -performance-no-int-to-ptr,
 modernize-raw-string-literal,
 '
