@@ -50,13 +50,18 @@ macro(set_flag VAR)
   endif()
 endmacro()
 
+set_flag(ENABLE_ADAPTIVE_STATIC_PYTHON)
+set_flag(ENABLE_DISASSEMBLER)
 set_flag(ENABLE_ELF_READER)
 set_flag(ENABLE_EVAL_HOOK)
 set_flag(ENABLE_FUNC_EVENT_MODIFY_QUALNAME)
 set_flag(ENABLE_GENERATOR_AWAITER)
 set_flag(ENABLE_INTERPRETER_LOOP)
+set_flag(ENABLE_JIT_GENERATORS)
 set_flag(ENABLE_LAZY_IMPORTS)
+set_flag(ENABLE_LIGHTWEIGHT_FRAMES)
 set_flag(ENABLE_PARALLEL_GC)
+set_flag(ENABLE_PERF_TRAMPOLINE)
 set_flag(ENABLE_SYMBOLIZER)
 set_flag(ENABLE_USDT)
 
@@ -153,8 +158,8 @@ target_link_libraries(common PRIVATE asmjit::asmjit fmt::fmt ZLIB::ZLIB)
 ########################################
 # UpstreamBorrow/
 
-if (${PY_VERSION} EQUAL 3.12)
-  set(BORROWED_C ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-3.12.gen_cached.c)
+if (${PY_VERSION} EQUAL 3.12 OR ${PY_VERSION} EQUAL 3.14)
+  set(BORROWED_C ${PROJECT_SOURCE_DIR}/UpstreamBorrow/borrowed-${PY_VERSION}.gen_cached.c)
 else()
   set(BORROWED_C "${GENERATED_HEADER_DIR}/dummy-borrowed.c")
   file(WRITE ${BORROWED_C} "")
@@ -172,7 +177,7 @@ target_link_libraries(cached-properties PRIVATE common borrowed)
 ########################################
 # Interpreter/
 
-set(INTERP_SOURCES ${PROJECT_SOURCE_DIR}/Interpreter/iter_helpers.c)
+set(INTERP_SOURCES ${PROJECT_SOURCE_DIR}/Interpreter/cinder_opcode.c ${PROJECT_SOURCE_DIR}/Interpreter/iter_helpers.c)
 
 if (${PY_VERSION} EQUAL 3.12 OR ${PY_VERSION} EQUAL 3.14)
   set(SOURCE_CINDERX_OPCODE_TARGETS_H ${PROJECT_SOURCE_DIR}/Interpreter/${PY_VERSION}/cinderx_opcode_targets.h)
@@ -180,7 +185,7 @@ if (${PY_VERSION} EQUAL 3.12 OR ${PY_VERSION} EQUAL 3.14)
   set(SOURCE_CINDER_OPCODE_IDS_H ${PROJECT_SOURCE_DIR}/Interpreter/${PY_VERSION}/cinder_opcode_ids.h)
   set(SOURCE_CINDER_OPCODE_METADATA_H ${PROJECT_SOURCE_DIR}/Interpreter/${PY_VERSION}/cinder_opcode_metadata.h)
 
-  if (${META_PYTHON})
+  if (${ENABLE_INTERPRETER_LOOP})
     set(INTERP_SOURCES ${INTERP_SOURCES} ${PROJECT_SOURCE_DIR}/Interpreter/${PY_VERSION}/interpreter.c)
   endif()
 endif()

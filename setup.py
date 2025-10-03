@@ -43,6 +43,10 @@ def find_python_sources(path: str) -> list[str]:
     return find_files(path, lambda f: f.endswith(".py"))
 
 
+def compute_py_version() -> str:
+    return f"{sys.version_info.major}.{sys.version_info.minor}"
+
+
 class BuildCommand(build):
     # Don't use the setuptools default under "build/" as this clashes with
     # "build/fbcode_builder/" (auto-added to the OSS view of CinderX).
@@ -60,10 +64,11 @@ class BuildPy(build_py):
 
         super().run()
 
-        # Copy opcodes/3.12/opcode.py to cinderx/opcode.py.
+        # Copy opcodes/${PY_VERSION}/opcode.py to cinderx/opcode.py.
+        py_version = compute_py_version()
         out_path = self.get_module_outfile(self.build_lib, ["cinderx"], "opcode")
         self.copy_file(
-            os.path.join(PYTHON_LIB_DIR, "opcodes/3.12/opcode.py"),
+            os.path.join(PYTHON_LIB_DIR, f"opcodes/{py_version}/opcode.py"),
             out_path,
             preserve_mode=False,
         )
@@ -123,7 +128,7 @@ class BuildExt(build_ext):
             options[var] = value
 
         # Python version is always the same as what's running setuptools.
-        py_version = f"{sys.version_info.major}.{sys.version_info.minor}"
+        py_version = compute_py_version()
         options["PY_VERSION"] = py_version
 
         meta_python = "+meta" in sys.version
@@ -131,13 +136,18 @@ class BuildExt(build_ext):
         meta_312 = meta_python and py_version == "3.12"
 
         set_option("META_PYTHON", meta_python)
+        set_option("ENABLE_ADAPTIVE_STATIC_PYTHON", meta_312)
+        set_option("ENABLE_DISASSEMBLER", False)
         set_option("ENABLE_ELF_READER", linux)
         set_option("ENABLE_EVAL_HOOK", meta_312)
         set_option("ENABLE_FUNC_EVENT_MODIFY_QUALNAME", meta_312)
         set_option("ENABLE_GENERATOR_AWAITER", meta_312)
+        set_option("ENABLE_JIT_GENERATORS", meta_312)
         set_option("ENABLE_INTERPRETER_LOOP", meta_312)
         set_option("ENABLE_LAZY_IMPORTS", meta_312)
+        set_option("ENABLE_LIGHTWEIGHT_FRAMES", meta_312)
         set_option("ENABLE_PARALLEL_GC", meta_312)
+        set_option("ENABLE_PERF_TRAMPOLINE", meta_312)
         set_option("ENABLE_SYMBOLIZER", linux)
         set_option("ENABLE_USDT", linux)
 
