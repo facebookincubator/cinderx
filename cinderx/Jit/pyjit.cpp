@@ -2633,7 +2633,10 @@ _PyJIT_Result compile_func(BorrowedRef<PyFunctionObject> func) {
         targets.size() - 1);
   }
 
-  _PyJIT_Result result;
+  // Will return unknown error if none of the targets can find a matching
+  // preloader.
+  _PyJIT_Result result = PYJIT_RESULT_UNKNOWN_ERROR;
+
   for (BorrowedRef<PyFunctionObject> target : targets) {
     auto preloader = hir::preloaderManager().find(target);
     if (preloader == nullptr) {
