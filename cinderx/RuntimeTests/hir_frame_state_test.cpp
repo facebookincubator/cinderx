@@ -102,7 +102,119 @@ def test(fs):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "fs">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<6, 5> v3
+  }
+
+  bb 6 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<5>
+  }
+
+  bb 5 (preds 0, 6) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = LoadGlobal<0; "xs"> {
+      FrameState {
+        CurInstrOffset 2
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 12
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
+    v6 = GetIter v5 {
+      FrameState {
+        CurInstrOffset 12
+        Locals<2> v0 v1
+      }
+    }
+    v3 = Assign v6
+    Branch<7>
+  }
+
+  bb 7 (preds 2, 5) {
+    v9 = LoadEvalBreaker
+    CondBranch<8, 1> v9
+  }
+
+  bb 8 (preds 7) {
+    Snapshot {
+      CurInstrOffset 14
+      Locals<2> v0 v1
+      Stack<1> v3
+    }
+    v10 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 14
+        Locals<2> v0 v1
+        Stack<1> v3
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 7, 8) {
+    Snapshot {
+      CurInstrOffset 14
+      Locals<2> v0 v1
+      Stack<1> v3
+    }
+    v7 = InvokeIterNext v3 {
+      FrameState {
+        CurInstrOffset 14
+        Locals<2> v0 v1
+        Stack<1> v3
+      }
+    }
+    v4 = Assign v7
+    CondBranchIterNotDone<2, 4> v4
+  }
+
+  bb 2 (preds 1) {
+    Snapshot {
+      CurInstrOffset 18
+      Locals<2> v0 v1
+      Stack<2> v3 v4
+    }
+    v1 = Assign v4
+    Branch<7>
+  }
+
+  bb 4 (preds 1) {
+    Snapshot {
+      CurInstrOffset 26
+      Locals<2> v0 v1
+      Stack<1> v3
+    }
+    v8 = LoadConst<ImmortalNoneType>
+    Return v8
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "fs">
@@ -315,7 +427,80 @@ def test(x, y):
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
 
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<4, 3> v3
+  }
+
+  bb 4 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<2> v0 v1
+        Stack<1> v0
+      }
+    }
+    v6 = IntConvert<CBool> v5
+    v7 = PrimitiveBoxBool v6
+    Snapshot {
+      CurInstrOffset 14
+      Locals<2> v0 v1
+      Stack<2> v0 v7
+    }
+    v9 = LoadConst<ImmortalBool[True]>
+    v8 = PrimitiveCompare<Equal> v7 v9
+    v3 = Assign v0
+    CondBranch<1, 2> v8
+  }
+
+  bb 1 (preds 3) {
+    Snapshot {
+      CurInstrOffset 20
+      Locals<2> v0 v1
+      Stack<1> v3
+    }
+    v3 = Assign v1
+    Branch<2>
+  }
+
+  bb 2 (preds 1, 3) {
+    Snapshot {
+      CurInstrOffset 24
+      Locals<2> v0 v1
+      Stack<1> v3
+    }
+    Return v3
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -444,7 +629,80 @@ def test(x, y):
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
 
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<4, 3> v3
+  }
+
+  bb 4 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<3>
+  }
+
+  bb 3 (preds 0, 4) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<2> v0 v1
+        Stack<1> v0
+      }
+    }
+    v6 = IntConvert<CBool> v5
+    v7 = PrimitiveBoxBool v6
+    Snapshot {
+      CurInstrOffset 14
+      Locals<2> v0 v1
+      Stack<2> v0 v7
+    }
+    v9 = LoadConst<ImmortalBool[True]>
+    v8 = PrimitiveCompare<Equal> v7 v9
+    v3 = Assign v0
+    CondBranch<2, 1> v8
+  }
+
+  bb 1 (preds 3) {
+    Snapshot {
+      CurInstrOffset 20
+      Locals<2> v0 v1
+      Stack<1> v3
+    }
+    v3 = Assign v1
+    Branch<2>
+  }
+
+  bb 2 (preds 1, 3) {
+    Snapshot {
+      CurInstrOffset 24
+      Locals<2> v0 v1
+      Stack<1> v3
+    }
+    Return v3
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -570,7 +828,56 @@ def test(f, a):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "f">
+    v1 = LoadArg<1; "a">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = LoadConst<Nullptr>
+    v6 = CallMethod<3> v0 v5 v1 {
+      FrameState {
+        CurInstrOffset 8
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 16
+      Locals<2> v0 v1
+      Stack<1> v6
+    }
+    Return v6
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "f">
@@ -896,7 +1203,57 @@ def test(x, y):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = InPlaceOp<Xor> v0 v1 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 16
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
+    v0 = Assign v5
+    v6 = LoadConst<ImmortalNoneType>
+    Return v6
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -997,7 +1354,55 @@ def test(x, y):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = BinaryOp<Add> v0 v1 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 16
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
+    Return v5
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1093,7 +1498,64 @@ def test(x):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v0
+    }
+    v2 = LoadEvalBreaker
+    CondBranch<2, 1> v2
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v0
+    }
+    v3 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<1> v0
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<1> v0
+    }
+    v4 = IsTruthy v0 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<1> v0
+      }
+    }
+    v5 = IntConvert<CBool> v4
+    v6 = PrimitiveBoxBool v5
+    Snapshot {
+      CurInstrOffset 12
+      Locals<1> v0
+      Stack<1> v6
+    }
+    v8 = LoadConst<ImmortalBool[False]>
+    v7 = PrimitiveCompare<Equal> v8 v6
+    v9 = PrimitiveBoxBool v7
+    Snapshot {
+      CurInstrOffset 14
+      Locals<1> v0
+      Stack<1> v9
+    }
+    Return v9
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1180,7 +1642,55 @@ def test(x, y):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    StoreAttr<0; "foo"> v0 v1 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 14
+      Locals<2> v0 v1
+    }
+    v5 = LoadConst<ImmortalNoneType>
+    Return v5
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1277,7 +1787,61 @@ def test(x, y):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = LoadConst<ImmortalLongExact[1]>
+    Snapshot {
+      CurInstrOffset 6
+      Locals<2> v0 v1
+      Stack<3> v1 v0 v5
+    }
+    StoreSubscr v0 v5 v1 {
+      FrameState {
+        CurInstrOffset 6
+        Locals<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 10
+      Locals<2> v0 v1
+    }
+    v6 = LoadConst<ImmortalNoneType>
+    Return v6
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1376,7 +1940,72 @@ def test(x, y):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = LoadConst<ImmortalUnicodeExact["x"]>
+    v6 = LoadConst<ImmortalUnicodeExact["y"]>
+    v7 = MakeDict<2> {
+      FrameState {
+        CurInstrOffset 10
+        Locals<2> v0 v1
+        Stack<4> v5 v0 v6 v1
+      }
+    }
+    v8 = SetDictItem v7 v5 v0 {
+      FrameState {
+        CurInstrOffset 10
+        Locals<2> v0 v1
+        Stack<4> v5 v0 v6 v1
+      }
+    }
+    v9 = SetDictItem v7 v6 v1 {
+      FrameState {
+        CurInstrOffset 10
+        Locals<2> v0 v1
+        Stack<4> v5 v0 v6 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 12
+      Locals<2> v0 v1
+      Stack<1> v7
+    }
+    Return v7
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1508,7 +2137,56 @@ def test(x, y):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = MakeList<2> v0 v1 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v1
+        Stack<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 6
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
+    Return v5
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1606,7 +2284,56 @@ def test(x, y):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v1 = LoadArg<1; "y">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = MakeTuple<2> v0 v1 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v1
+        Stack<2> v0 v1
+      }
+    }
+    Snapshot {
+      CurInstrOffset 6
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
+    Return v5
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">
@@ -1706,7 +2433,76 @@ def test(x):
 )";
   std::unique_ptr<Function> irfunc;
   CompileToHIR(src, "test", irfunc);
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:test {
+  bb 0 {
+    v0 = LoadArg<0; "x">
+    v2 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v3 = LoadEvalBreaker
+    CondBranch<2, 1> v3
+  }
+
+  bb 2 (preds 0) {
+    Snapshot {
+      CurInstrOffset 0
+      Locals<2> v0 v1
+    }
+    v4 = RunPeriodicTasks {
+      FrameState {
+        CurInstrOffset 0
+        Locals<2> v0 v1
+      }
+    }
+    Branch<1>
+  }
+
+  bb 1 (preds 0, 2) {
+    Snapshot {
+      CurInstrOffset 2
+      Locals<2> v0 v1
+    }
+    v5 = MakeTuple<1> v0 {
+      FrameState {
+        CurInstrOffset 4
+        Locals<2> v0 v1
+        Stack<1> v0
+      }
+    }
+    Snapshot {
+      CurInstrOffset 6
+      Locals<2> v0 v1
+      Stack<1> v5
+    }
+    v6 = LoadConst<MortalCode["foo"]>
+    v8 = LoadConst<Nullptr>
+    v7 = MakeFunction v6 v8 {
+      FrameState {
+        CurInstrOffset 8
+        Locals<2> v0 v1
+        Stack<1> v5
+      }
+    }
+    Snapshot {
+      CurInstrOffset 10
+      Locals<2> v0 v1
+      Stack<2> v5 v7
+    }
+    SetFunctionAttr<func_defaults> v5 v7
+    Snapshot {
+      CurInstrOffset 12
+      Locals<2> v0 v1
+      Stack<1> v7
+    }
+    v1 = Assign v7
+    Return v1
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:test {
   bb 0 {
     v0 = LoadArg<0; "x">

@@ -1693,7 +1693,26 @@ TEST_F(HIRBuildTest, ListToTuple) {
       0};
   std::unique_ptr<Function> irfunc = build_test(bc, {Py_None});
 
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* expected = R"(fun jittestmodule:funcname {
+  bb 0 {
+    v0 = LoadArg<0; "param0">
+    v1 = LoadCurrentFunc
+    Snapshot {
+      CurInstrOffset 0
+      Locals<1> v0
+    }
+    v2 = CallIntrinsic<INTRINSIC_LIST_TO_TUPLE> v0
+    Snapshot {
+      CurInstrOffset 4
+      Locals<1> v0
+      Stack<1> v2
+    }
+    Return v2
+  }
+}
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* expected = R"(fun jittestmodule:funcname {
   bb 0 {
     v0 = LoadArg<0; "param0">

@@ -283,11 +283,48 @@ def write_if_changed(filename: str, old_lines: list[str], new_lines: list[str]) 
 
 
 CPP_TEST_NAME_RE: re.Pattern[str] = re.compile(r"^TEST(_F)?\(([^,]+), ([^)]+)\) {")
-CPP_MACRO_IF_3_12_START_RE: re.Pattern[str] = re.compile(
-    r"^#if PY_VERSION_HEX >= 0x030C0000"
-)
+# Dynamic regex patterns - will be generated based on versions found
 CPP_MACRO_ELSE_RE: re.Pattern[str] = re.compile(r"^#else")
 CPP_MACRO_ENDIF_RE: re.Pattern[str] = re.compile(r"^#endif")
+
+
+def python_version_to_hex(version: str) -> str:
+    """Convert Python version like '3.12' to hex like '0x030C0000'."""
+    parts = version.split(".")
+    if len(parts) != 2:
+        raise ValueError(f"Invalid Python version format: {version}")
+    major, minor = parts
+    if major != "3":
+        raise ValueError(f"Only Python 3.x versions supported, got: {version}")
+    return f"0x{int(major):02X}{int(minor):02X}0000"
+
+
+def parse_version_from_line(line: str) -> str | None:
+    """Extract Python version from #if or #elif preprocessor line."""
+    # Match #if PY_VERSION_HEX >= 0xABCD0000 or #elif PY_VERSION_HEX >= 0xABCD0000
+    match = re.match(
+        r"^#(?:el)?if PY_VERSION_HEX >= 0x([0-9A-F]{2})([0-9A-F]{2})0000", line
+    )
+    if not match:
+        return None
+    major_hex, minor_hex = match.groups()
+    major = int(major_hex, 16)
+    minor = int(minor_hex, 16)
+    return f"{major}.{minor}"
+
+
+def version_compare(v1: str, v2: str) -> int:
+    """Compare two Python versions. Returns -1 if v1 < v2, 0 if equal, 1 if v1 > v2."""
+    v1_parts = [int(x) for x in v1.split(".")]
+    v2_parts = [int(x) for x in v2.split(".")]
+    if v1_parts < v2_parts:
+        return -1
+    elif v1_parts > v2_parts:
+        return 1
+    else:
+        return 0
+
+
 CPP_EXPECTED_START_RE: re.Pattern[str] = re.compile(r"^(  const char\* ([^ ]+) =)")
 CPP_EXPECTED_END = ')";'
 CPP_TEST_END = "}"
@@ -312,12 +349,22 @@ class State(Enum):
     SKIP_EXPECTED = 3
 
 
+# pyre-ignore[30]
 def update_cpp_tests(  # noqa: C901
     failed_suites: SuiteOutputDict,
     failed_cpp_tests: set[tuple[str, str]],
     py_version: str,
 ) -> None:
-    assert py_version in ("3.10", "3.12"), "Only 3.10 and 3.12 versions supported"
+    # Validate Python version format
+    try:
+        parts = py_version.split(".")
+        if len(parts) != 2 or parts[0] != "3":
+            raise ValueError()
+        int(parts[1])  # Ensure minor version is a number
+    except (ValueError, IndexError):
+        raise AssertionError(
+            f"Invalid Python version format: {py_version}. Expected format: '3.X'"
+        )
 
     # pyre-fixme[53]: Captured variable `cpp_filename` is not annotated.
     # pyre-fixme[53]: Captured variable `lineno` is not annotated.
@@ -373,16 +420,25 @@ def update_cpp_tests(  # noqa: C901
                 new_lines.append(line)
                 continue
 
-            if CPP_MACRO_IF_3_12_START_RE.match(line):
-                assert (
-                    in_version_block is None
-                ), f"Nested version blocks @ line {lineno}"
-                in_version_block = "3.12"
+            # Dynamically detect version-specific preprocessor directives
+            detected_version = parse_version_from_line(line)
+            if detected_version is not None:
+                if line.startswith("#if"):
+                    assert (
+                        in_version_block is None
+                    ), f"Nested version blocks @ line {lineno}"
+                    in_version_block = detected_version
+                elif line.startswith("#elif"):
+                    assert (
+                        in_version_block is not None
+                    ), f"Unexpected elif at line {lineno}, not in version block"
+                    in_version_block = detected_version
                 new_lines.append(line)
                 continue
 
-            if in_version_block == "3.12" and CPP_MACRO_ELSE_RE.match(line):
-                in_version_block = "3.10"
+            if in_version_block is not None and CPP_MACRO_ELSE_RE.match(line):
+                # #else represents the fallback version (lowest supported version)
+                in_version_block = "3.10"  # Assume 3.10 as the lowest supported version
                 new_lines.append(line)
                 continue
 
@@ -397,29 +453,62 @@ def update_cpp_tests(  # noqa: C901
                 decl = m[1]
                 varname = m[2]
 
-                if in_version_block is not None and in_version_block != py_version:
-                    new_lines.append(line)
-                    continue
-
                 actual_lines = test_dict.pop(varname, None)
                 if actual_lines is None:
                     # This test has multiple expected variables, and this one is OK.
                     new_lines.append(line)
                     continue
 
-                # Upgrade to a Python version switched block
-                if in_version_block is None and py_version == "3.12":
-                    new_lines.append("#if PY_VERSION_HEX >= 0x030C0000")
+                # Handle upgrading existing version block to accommodate new version
+                if (
+                    in_version_block is not None
+                    and version_compare(py_version, in_version_block) > 0
+                ):
+                    # We're updating an existing version block to add newer version support
+                    # Find and update the most recent #if line to use the new version
+                    old_version_hex = python_version_to_hex(in_version_block)
+                    new_version_hex = python_version_to_hex(py_version)
+
+                    for i in range(len(new_lines) - 1, -1, -1):
+                        if f"#if PY_VERSION_HEX >= {old_version_hex}" in new_lines[i]:
+                            new_lines[i] = f"#if PY_VERSION_HEX >= {new_version_hex}"
+                            break
+
+                    # Add the new version content
                     new_lines.append(decl + ' R"(' + actual_lines[0])
                     new_lines += actual_lines[1:]
                     new_lines.append(CPP_EXPECTED_END)
-                    new_lines.append("#else")
+                    new_lines.append(f"#elif PY_VERSION_HEX >= {old_version_hex}")
+
+                    # Now the existing version content will be added
+                    new_lines.append(line)
+                    continue
+
+                if in_version_block is not None and in_version_block != py_version:
+                    new_lines.append(line)
+                    continue
+
+                # Upgrade unversioned code to version-switched block
+                if in_version_block is None:
+                    new_version_hex = python_version_to_hex(py_version)
+                    new_lines.append(f"#if PY_VERSION_HEX >= {new_version_hex}")
+                    new_lines.append(decl + ' R"(' + actual_lines[0])
+                    new_lines += actual_lines[1:]
+                    new_lines.append(CPP_EXPECTED_END)
+
+                    # Determine what the fallback block should be
+                    # If py_version > 3.10, use #elif for 3.10/older, otherwise use #else
+                    if version_compare(py_version, "3.10") > 0:
+                        fallback_hex = python_version_to_hex("3.10")
+                        new_lines.append(f"#elif PY_VERSION_HEX >= {fallback_hex}")
+                    else:
+                        new_lines.append("#else")
+
                     needs_to_close_upgraded_block = True
                     new_lines.append(line)
                     continue
 
-                # This may collapse a two-line start to the variable onto one
-                # line, which clang-format will clean up.
+                # Regular case: replace content in current version block
                 new_lines.append(decl + ' R"(' + actual_lines[0])
                 new_lines += actual_lines[1:]
                 state = State.SKIP_EXPECTED

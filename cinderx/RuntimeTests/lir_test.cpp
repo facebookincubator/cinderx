@@ -514,7 +514,34 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
 
   lir_func->sortBasicBlocks();
   ss << *lir_func << std::endl;
-#if PY_VERSION_HEX >= 0x030C0000
+#if PY_VERSION_HEX >= 0x030E0000
+  const char* lir_expected = R"(Function:
+BB %0 - succs: %5
+       %1:Object = Bind R10:Object
+       %2:Object = Bind R11:Object
+       %3:Object = Bind RDI:Object
+       %4:Object = Move [%2:Object + 0x48]:Object
+
+BB %5 - preds: %0
+
+# v9:Nullptr = LoadConst<Nullptr>
+       %6:Object = Move 0(0x0):Object
+
+# v10:Bottom = CheckVar<"a"> v9 {
+#   LiveValues<1> unc:v9
+#   FrameState {
+#     CurInstrOffset 2
+#     Locals<1> v9
+#   }
+# }
+                   Guard 4(0x4):64bit, 0(0x0):64bit, %6:Object, 0(0x0):64bit, %6:Object
+
+# Unreachable
+                   Unreachable
+
+
+)";
+#elif PY_VERSION_HEX >= 0x030C0000
   const char* lir_expected = R"(Function:
 BB %0 - succs: %6
        %1:Object = Bind R10:Object
