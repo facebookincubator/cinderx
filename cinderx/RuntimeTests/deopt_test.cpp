@@ -159,9 +159,15 @@ def test(a, b):
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 1};
-#if PY_VERSION_HEX >= 0x030C0000
+  // Resuming at BINARY_OP +
+#if PY_VERSION_HEX >= 0x030E0000
+  // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
+  dfm.cause_instr_idx = BCOffset{4};
+#elif PY_VERSION_HEX >= 0x030C0000
+  // Skip RESUME, LOAD_FAST, LOAD_FAST
   dfm.cause_instr_idx = BCOffset{6};
 #else
+  // Skip LOAD_FAST, LOAD_FAST
   dfm.cause_instr_idx = BCOffset{4};
 #endif
   dm.frame_meta = {std::move(dfm)};
@@ -209,9 +215,15 @@ def test(a, b):
   DeoptFrameMetadata dfm;
   dfm.localsplus = {0, 1};
   dfm.stack = {0, 1};
-#if PY_VERSION_HEX >= 0x030C0000
+  // Resuming at BINARY_OP +
+#if PY_VERSION_HEX >= 0x030E0000
+  // Skip RESUME, LOAD_FAST_BORROW_LOAD_FAST_BORROW
+  dfm.cause_instr_idx = BCOffset{4};
+#elif PY_VERSION_HEX >= 0x030C0000
+  // Skip RESUME, LOAD_FAST, LOAD_FAST
   dfm.cause_instr_idx = BCOffset{6};
 #else
+  // Skip LOAD_FAST, LOAD_FAST
   dfm.cause_instr_idx = BCOffset{4};
 #endif
   dm.frame_meta = {std::move(dfm)};

@@ -869,6 +869,11 @@ TEST_F(EdgeCaseTest, IgnoreUnreachableLoops) {
 #else
       JUMP_BACKWARD,
       2,
+#if PY_VERSION_HEX >= 0x030E0000
+      // inline-cache slot for 3.14+
+      0,
+      0
+#endif
 #endif
   };
   Ref<> bytecode = toByteString(bc);
