@@ -2,6 +2,13 @@
 
 #include <gtest/gtest.h>
 
+// clang-format off
+// This needs to come first on 3.14+ so it can redefine
+// _PyFrame_MakeAndSetFrameObject before it's used by the static inline
+// definition of _PyFrame_GetFrameObject in pycore_interpframe.h.
+#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
+// clang-format on
+
 #include "cinderx/Common/code.h"
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
@@ -17,7 +24,6 @@
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
-#include "cinderx/UpstreamBorrow/borrowed.h" // @donotremove
 
 #if PY_VERSION_HEX >= 0x030C0000
 #include "internal/pycore_frame.h"
