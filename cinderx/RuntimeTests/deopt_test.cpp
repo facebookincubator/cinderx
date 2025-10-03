@@ -78,6 +78,9 @@ static inline Ref<> runInInterpreterViaReify(
 #endif
   // PyEval_EvalFrame seems to steal the frame.
   PyFrameObject* frame_obj = _PyFrame_GetFrameObject(interp_frame);
+#if PY_VERSION_HEX >= 0x030E0000
+  _Py_Instrument(frameCode(interp_frame), tstate->interp);
+#endif
   return Ref<>::steal(PyEval_EvalFrame(frame_obj));
 #endif
 }
