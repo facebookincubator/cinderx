@@ -1,12 +1,22 @@
-# Disable check for explicitly marking of functions which return 'null'. We
-# would have to use this excessively due to Python often using null to propagate
-# exceptions.
-
 InheritParentConfig: true
+
+# Explaining why some of our options are set:
+#
+# * Tracking nullable returns requires depending on folly, which we don't do.
+#   It is also tedious as we would have to use this excessively due to Python
+#   often using null to propagate exceptions.
+#
+# * std::regex has known issues with stack overflows, but we only use it in
+#   tests and we don't do anything crazy with it.  It's more convenient to use
+#   it instead of pulling in a third party dependency like RE2.
+#
+# * The JIT converts between pointers and integers frequently, there's no way
+#   to avoid this.
 
 Checks: '
 -facebook-hte-NullableReturn,
 -facebook-hte-GlibcRegexIsAwful,
 -facebook-hte-StdRegexIsAwful,
+-performance-no-int-to-ptr,
 modernize-raw-string-literal,
 '
