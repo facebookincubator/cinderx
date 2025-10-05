@@ -143,8 +143,8 @@ PyObject* gti_calc_name(PyObject* type, _PyGenericTypeInst* new_inst) {
 
   Py_ssize_t len = strlen(orig_name);
   for (int i = 0; i < nargs; i++) {
-    PyTypeObject* type = new_inst->gti_inst[i].gtp_type;
-    len += strlen(type->tp_name);
+    PyTypeObject* param_type = new_inst->gti_inst[i].gtp_type;
+    len += strlen(param_type->tp_name);
     if (new_inst->gti_inst[i].gtp_optional) {
       len += strlen("Optional[]");
     }
@@ -155,14 +155,14 @@ PyObject* gti_calc_name(PyObject* type, _PyGenericTypeInst* new_inst) {
   strncpy(buf, orig_name, start - orig_name + 1);
   buf[start - orig_name + 1] = 0;
   for (int i = 0; i < nargs; i++) {
-    PyTypeObject* type = new_inst->gti_inst[i].gtp_type;
+    PyTypeObject* param_type = new_inst->gti_inst[i].gtp_type;
     if (i != 0) {
       strcat(buf, ", ");
     }
     if (new_inst->gti_inst[i].gtp_optional) {
       strcat(buf, "Optional[");
     }
-    strcat(buf, type->tp_name);
+    strcat(buf, param_type->tp_name);
     if (new_inst->gti_inst[i].gtp_optional) {
       strcat(buf, "]");
     }
