@@ -4,6 +4,8 @@
 
 #ifndef Py_LIMITED_API
 #ifdef __cplusplus
+#include <fmt/format.h>
+
 extern "C" {
 #endif
 
@@ -41,6 +43,9 @@ typedef enum {
 } _PyJIT_Result;
 
 #ifdef __cplusplus
+}
+inline auto format_as(_PyJIT_Result e) {
+  return fmt::underlying(e);
 }
 #endif
 #endif /* Py_LIMITED_API */
