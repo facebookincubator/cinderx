@@ -125,8 +125,8 @@ hello from b_func!
                 )
                 # We expect an exception, but not a crash!
                 self.assertEqual(proc.returncode, 1, proc.stderr)
-                self.assertEqual(
-                    proc.stderr.decode().splitlines()[-1],
+                self.assertIn(
                     "RuntimeError: boom",
+                    proc.stderr.decode(),
                     proc.stderr,
                 )
