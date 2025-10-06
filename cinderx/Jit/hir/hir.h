@@ -7,8 +7,8 @@
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
+#include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/config.h"
-#include "cinderx/Jit/deopt_patcher.h"
 #include "cinderx/Jit/hir/frame_state.h"
 #include "cinderx/Jit/hir/opcode.h"
 #include "cinderx/Jit/hir/register.h"
@@ -3548,15 +3548,15 @@ DEFINE_SIMPLE_INSTR(Deopt, (), Operands<0>, DeoptBase);
 // these.
 class INSTR_CLASS(DeoptPatchpoint, (), Operands<0>, DeoptBase) {
  public:
-  explicit DeoptPatchpoint(DeoptPatcher* patcher)
+  explicit DeoptPatchpoint(JumpPatcher* patcher)
       : InstrT(), patcher_(patcher) {}
 
-  DeoptPatcher* patcher() const {
+  JumpPatcher* patcher() const {
     return patcher_;
   }
 
  private:
-  DeoptPatcher* patcher_;
+  JumpPatcher* patcher_;
 };
 
 // A guard verifies that the operand is nonzero. When it's not, control is
@@ -4408,11 +4408,11 @@ class Function {
 
   Environment env;
 
-  // All the deopt patchers pointing to patch points in this function.
+  // All the code patchers pointing to patch points in this function.
   //
   // These will be moved over to the CompiledFunction after compilation is
   // complete.
-  std::vector<std::unique_ptr<DeoptPatcher>> deopt_patchers;
+  std::vector<std::unique_ptr<CodePatcher>> code_patchers;
 
   // Optional property used to track time taken for individual compilation
   // phases
@@ -4448,10 +4448,10 @@ class Function {
   bool canDeopt() const;
 
   template <typename T, typename... Args>
-  T* allocateDeoptPatcher(Args&&... args) {
-    deopt_patchers.emplace_back(
+  T* allocateCodePatcher(Args&&... args) {
+    code_patchers.emplace_back(
         std::make_unique<T>(std::forward<Args>(args)...));
-    return static_cast<T*>(deopt_patchers.back().get());
+    return static_cast<T*>(code_patchers.back().get());
   }
 
  private:

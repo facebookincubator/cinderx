@@ -58,9 +58,9 @@ void CompiledFunction::setCompileTime(std::chrono::nanoseconds time) {
   compile_time_ = time;
 }
 
-void CompiledFunction::setDeoptPatchers(
-    std::vector<std::unique_ptr<DeoptPatcher>>&& deopt_patchers) {
-  deopt_patchers_ = std::move(deopt_patchers);
+void CompiledFunction::setCodePatchers(
+    std::vector<std::unique_ptr<CodePatcher>>&& code_patchers) {
+  code_patchers_ = std::move(code_patchers);
 }
 
 void CompiledFunction::setHirFunc(std::unique_ptr<hir::Function>&& irfunc) {

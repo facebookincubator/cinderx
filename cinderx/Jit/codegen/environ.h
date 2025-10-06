@@ -53,9 +53,9 @@ struct Environ {
   std::vector<DeoptExit> deopt_exits;
 
   struct PendingDeoptPatcher {
-    PendingDeoptPatcher(DeoptPatcher* p, asmjit::Label pp, asmjit::Label de)
+    PendingDeoptPatcher(JumpPatcher* p, asmjit::Label pp, asmjit::Label de)
         : patcher(p), patchpoint(pp), deopt_exit(de) {}
-    DeoptPatcher* patcher;
+    JumpPatcher* patcher;
 
     // Location of the patchpoint
     asmjit::Label patchpoint;

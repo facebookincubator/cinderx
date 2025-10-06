@@ -8,7 +8,7 @@
 #include "cinderx/Jit/hir/printer.h"
 #include "cinderx/RuntimeTests/fixtures.h"
 
-class DeoptPatcherTest : public RuntimeTest {
+class CodePatcherTest : public RuntimeTest {
  public:
   std::unique_ptr<jit::CompiledFunction> generateCode(
       jit::codegen::NativeGenerator& ngen) {
@@ -34,41 +34,78 @@ class DeoptPatcherTest : public RuntimeTest {
   asmjit::JitRuntime rt_;
 };
 
-class MyDeoptPatcher : public jit::DeoptPatcher {
+class MyDeoptPatcher : public jit::JumpPatcher {
  public:
   explicit MyDeoptPatcher(int id) : id_(id) {}
 
   void onLink() override {
-    linked_ = true;
+    on_link_ = true;
   }
 
   void onPatch() override {
-    patched_ = true;
+    on_patch_ = true;
   }
 
   void onUnpatch() override {
-    patched_ = false;
-  }
-
-  bool isLinked() const {
-    return linked_;
-  }
-
-  bool isPatched() const {
-    return patched_;
+    on_unpatch_ = true;
   }
 
   int id() const {
     return id_;
   }
 
+  bool calledOnLink() const {
+    return on_link_;
+  }
+
+  bool calledOnPatch() const {
+    return on_patch_;
+  }
+
+  bool calledOnUnpatch() const {
+    return on_unpatch_;
+  }
+
  private:
   int id_{-1};
-  bool linked_{false};
-  bool patched_{false};
+  bool on_link_{false};
+  bool on_patch_{false};
+  bool on_unpatch_{false};
 };
 
-TEST_F(DeoptPatcherTest, Patch) {
+TEST_F(CodePatcherTest, CodePatch) {
+  // Intentionally leaving these together to catch accidental stack scribbling.
+  uint16_t x = 123;
+  uint16_t y = 456;
+  uint16_t z = 789;
+
+  std::array<uint8_t, 2> bytes{0xef, 0xbe};
+
+  jit::CodePatcher patcher;
+  EXPECT_FALSE(patcher.isLinked());
+  EXPECT_FALSE(patcher.isPatched());
+
+  patcher.link(reinterpret_cast<uintptr_t>(&y), bytes);
+  EXPECT_TRUE(patcher.isLinked());
+  EXPECT_FALSE(patcher.isPatched());
+  EXPECT_EQ(x, 123);
+  EXPECT_EQ(y, 456);
+  EXPECT_EQ(z, 789);
+
+  patcher.patch();
+  EXPECT_TRUE(patcher.isPatched());
+  EXPECT_EQ(x, 123);
+  EXPECT_EQ(y, 0xbeef);
+  EXPECT_EQ(z, 789);
+
+  patcher.unpatch();
+  EXPECT_FALSE(patcher.isPatched());
+  EXPECT_EQ(x, 123);
+  EXPECT_EQ(y, 456);
+  EXPECT_EQ(z, 789);
+}
+
+TEST_F(CodePatcherTest, DeoptPatch) {
   const char* pycode = R"(
 def func():
   a = 314159
@@ -91,7 +128,7 @@ def func():
   ASSERT_TRUE(term->IsReturn()) << *term;
 
   // Insert a patchpoint immediately before the return
-  auto patcher = irfunc->allocateDeoptPatcher<MyDeoptPatcher>(123);
+  auto patcher = irfunc->allocateCodePatcher<MyDeoptPatcher>(123);
   EXPECT_EQ(patcher->id(), 123);
   auto patchpoint = jit::hir::DeoptPatchpoint::create(patcher);
   patchpoint->InsertBefore(*term);
@@ -102,7 +139,9 @@ def func():
   auto jitfunc = generateCode(ngen);
   ASSERT_NE(jitfunc, nullptr);
   EXPECT_TRUE(patcher->isLinked());
+  EXPECT_TRUE(patcher->calledOnLink());
   EXPECT_FALSE(patcher->isPatched());
+  EXPECT_FALSE(patcher->calledOnPatch());
 
   size_t deopts = 0;
   auto callback = [&deopts](const jit::DeoptMetadata&) { deopts += 1; };
@@ -115,6 +154,7 @@ def func():
   ASSERT_EQ(PyLong_AsLong(res), 314159);
   EXPECT_EQ(deopts, 0);
   EXPECT_FALSE(patcher->isPatched());
+  EXPECT_FALSE(patcher->calledOnPatch());
 
   // Patch and verify that a deopt occurred.
   patcher->patch();
@@ -123,6 +163,7 @@ def func():
   ASSERT_EQ(PyLong_AsLong(res2), 314159);
   EXPECT_EQ(deopts, 1);
   EXPECT_TRUE(patcher->isPatched());
+  EXPECT_TRUE(patcher->calledOnPatch());
 
   // Unpatch and verify that the deopt did not occur.
   patcher->unpatch();
@@ -131,6 +172,7 @@ def func():
   ASSERT_EQ(PyLong_AsLong(res3), 314159);
   EXPECT_EQ(deopts, 1);
   EXPECT_FALSE(patcher->isPatched());
+  EXPECT_TRUE(patcher->calledOnUnpatch());
 
   jit_rt->clearGuardFailureCallback();
 }

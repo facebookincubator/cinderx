@@ -1422,7 +1422,7 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
   for (const auto& udp : env_.pending_deopt_patchers) {
     uint64_t patchpoint = base + code.labelOffsetFromBase(udp.patchpoint);
     uint64_t deopt_exit = base + code.labelOffsetFromBase(udp.deopt_exit);
-    udp.patcher->link(patchpoint, deopt_exit);
+    udp.patcher->linkJump(patchpoint, deopt_exit);
 
     // Register patcher with the runtime if it is type-based.
     if (auto typed_patcher = dynamic_cast<TypeDeoptPatcher*>(udp.patcher)) {
@@ -1433,8 +1433,8 @@ void NativeGenerator::linkDeoptPatchers(const asmjit::CodeHolder& code) {
   // Any patchers that aren't linked at this point are pointing to patch points
   // that were optimized out.  It's safe to delete them.
   std::erase_if(
-      const_cast<hir::Function*>(func_)->deopt_patchers,
-      [](std::unique_ptr<DeoptPatcher>& patcher) {
+      const_cast<hir::Function*>(func_)->code_patchers,
+      [](std::unique_ptr<CodePatcher>& patcher) {
         return !patcher->isLinked();
       });
 }

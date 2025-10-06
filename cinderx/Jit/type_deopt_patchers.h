@@ -1,12 +1,8 @@
 // Copyright (c) Meta Platforms, Inc. and affiliates.
 #pragma once
 
-#include "cinderx/python.h"
-
 #include "cinderx/Common/ref.h"
-#include "cinderx/Jit/deopt_patcher.h"
-
-#include <variant>
+#include "cinderx/Jit/code_patcher.h"
 
 namespace jit {
 
@@ -14,7 +10,7 @@ namespace jit {
 // should only be used (instead of a more specific subclass) in cases where it
 // is impossible to check the property we care about in maybePatch() (e.g., if
 // the change to the type happens after PyType_Modified() is called).
-class TypeDeoptPatcher : public DeoptPatcher {
+class TypeDeoptPatcher : public JumpPatcher {
  public:
   explicit TypeDeoptPatcher(BorrowedRef<PyTypeObject> type);
 

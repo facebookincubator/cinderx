@@ -54,8 +54,8 @@ bool isJitCompiled(const PyFunctionObject* func);
 #ifdef __cplusplus
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/code_runtime.h"
-#include "cinderx/Jit/deopt_patcher.h"
 #include "cinderx/Jit/hir/hir.h"
 
 #include <chrono>
@@ -130,8 +130,8 @@ class CompiledFunction {
   std::chrono::nanoseconds compileTime() const;
   void setCompileTime(std::chrono::nanoseconds time);
 
-  void setDeoptPatchers(
-      std::vector<std::unique_ptr<DeoptPatcher>>&& deopt_patchers);
+  void setCodePatchers(
+      std::vector<std::unique_ptr<CodePatcher>>&& code_patchers);
 
   void setHirFunc(std::unique_ptr<hir::Function>&& irfunc);
 
@@ -154,8 +154,8 @@ class CompiledFunction {
   std::chrono::nanoseconds compile_time_;
   hir::Function::InlineFunctionStats inline_function_stats_;
   hir::OpcodeCounts hir_opcode_counts_;
-  // All the deopt patchers pointing to patch points in this function.
-  std::vector<std::unique_ptr<DeoptPatcher>> deopt_patchers_;
+  // All the code patchers pointing to patch points in this function.
+  std::vector<std::unique_ptr<CodePatcher>> code_patchers_;
   std::unique_ptr<hir::Function> irfunc_;
   CodeRuntime* runtime_;
 };

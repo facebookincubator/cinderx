@@ -253,7 +253,7 @@ std::unique_ptr<CompiledFunction> Compiler::Compile(
       hir_opcode_counts,
       code_runtime);
   compiled_func->setCompileTime(compile_time);
-  compiled_func->setDeoptPatchers(std::move(irfunc->deopt_patchers));
+  compiled_func->setCodePatchers(std::move(irfunc->code_patchers));
   if (getConfig().log.debug) {
     irfunc->setCompilationPhaseTimer(nullptr);
     compiled_func->setHirFunc(std::move(irfunc));

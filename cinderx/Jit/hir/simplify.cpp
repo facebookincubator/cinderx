@@ -983,7 +983,7 @@ Register* simplifyLoadAttrSplitDict(
 
   Register* receiver = load_attr->GetOperand(0);
   auto patchpoint = env.emitInstr<DeoptPatchpoint>(
-      env.func.allocateDeoptPatcher<SplitDictDeoptPatcher>(type, name, keys));
+      env.func.allocateCodePatcher<SplitDictDeoptPatcher>(type, name, keys));
   patchpoint->setGuiltyReg(receiver);
   patchpoint->setDescr("SplitDictDeoptPatcher");
   env.emit<UseType>(receiver, receiver->type());
@@ -1057,7 +1057,7 @@ void emitTypeAttrDeoptPatcher(
   // notifies subtypes of the modified type, so we only have to watch the
   // object's type.
   auto patchpoint = env.emitInstr<DeoptPatchpoint>(
-      env.func.allocateDeoptPatcher<TypeAttrDeoptPatcher>(
+      env.func.allocateCodePatcher<TypeAttrDeoptPatcher>(
           info.py_type, info.attr_name, info.descr));
   patchpoint->setGuiltyReg(info.receiver);
   patchpoint->setDescr(description);
@@ -1143,7 +1143,7 @@ Register* simplifyLoadAttrGenericDescriptor(Env& env, const DescrInfo& info) {
     // patches on any changes to the type, since type_setattro() calls
     // PyType_Modified() before updating tp_descr_{get,set}.
     auto patchpoint = env.emitInstr<DeoptPatchpoint>(
-        env.func.allocateDeoptPatcher<TypeDeoptPatcher>(descr_type));
+        env.func.allocateCodePatcher<TypeDeoptPatcher>(descr_type));
     patchpoint->setGuiltyReg(info.receiver);
     patchpoint->setDescr("tp_descr_get/tp_descr_set");
   }

@@ -3,9 +3,9 @@
 #include "cinderx/Jit/codegen/autogen.h"
 
 #include "cinderx/Common/util.h"
+#include "cinderx/Jit/code_patcher.h"
 #include "cinderx/Jit/codegen/gen_asm_utils.h"
 #include "cinderx/Jit/codegen/x86_64.h"
-#include "cinderx/Jit/deopt_patcher.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
 #include "cinderx/Jit/jit_rt.h"
@@ -260,10 +260,15 @@ void TranslateGuard(Environ* env, const Instruction* instr) {
 void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
   auto as = env->as;
 
-  // Generate patchpoint
+  auto patcher =
+      reinterpret_cast<JumpPatcher*>(instr->getInput(0)->getMemoryAddress());
+
+  // Generate patchpoint by writing in an appropriately sized nop.  As a future
+  // optimization, we may be able to avoid reserving space for the patchpoint if
+  // we can prove that the following bytes are not the target of a jump.
   auto patchpoint_label = as->newLabel();
   as->bind(patchpoint_label);
-  for (uint8_t byte : kJmpNopBytes) {
+  for (uint8_t byte : patcher->storedBytes()) {
     as->db(byte);
   }
 
@@ -276,8 +281,6 @@ void TranslateDeoptPatchpoint(Environ* env, const Instruction* instr) {
 
   // The runtime will link the patcher to the appropriate point in the code
   // once code generation has completed.
-  auto patcher =
-      reinterpret_cast<DeoptPatcher*>(instr->getInput(0)->getMemoryAddress());
   env->pending_deopt_patchers.emplace_back(
       patcher, patchpoint_label, deopt_label);
 }
