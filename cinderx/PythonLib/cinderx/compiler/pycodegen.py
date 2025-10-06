@@ -13,6 +13,7 @@ try:
     import importlib.util
     import itertools
     import marshal
+    import opcode
     import os
     import sys
     from ast import AST, ClassDef
@@ -3897,7 +3898,11 @@ class CodeGenerator312(CodeGenerator):
         return super().check_name(name)
 
     def emit_import_name(self, name: str) -> None:
-        if isinstance(self.scope, ModuleScope) and not self.setups:
+        # If we're not on meta-Python we don't EAGER_IMPORT_NAME so only
+        # emit it when it's available.
+        if "EAGER_IMPORT_NAME" not in opcode.opmap or (
+            isinstance(self.scope, ModuleScope) and not self.setups
+        ):
             self.emit("IMPORT_NAME", name)
         else:
             self.emit("EAGER_IMPORT_NAME", name)
@@ -6358,9 +6363,6 @@ class CodeGenerator314(CodeGenerator312):
 
     def emit_binary_subscr(self) -> None:
         self.emit("BINARY_OP", find_op_idx("NB_SUBSCR"))
-
-    def emit_import_name(self, name: str) -> None:
-        self.emit("IMPORT_NAME", name)
 
     def emit_load_assertion_error(self, loc: AST | SrcLocation | None = None) -> None:
         if loc:
