@@ -188,6 +188,8 @@ int _PyOpcode_num_popped(int opcode, int oparg)  {
             return 5 + (oparg - 1);
         case DICT_UPDATE:
             return 2 + (oparg - 1);
+        case EAGER_IMPORT_NAME:
+            return 2;
         case END_ASYNC_FOR:
             return 2;
         case END_FOR:
@@ -675,6 +677,8 @@ int _PyOpcode_num_pushed(int opcode, int oparg)  {
             return 4 + (oparg - 1);
         case DICT_UPDATE:
             return 1 + (oparg - 1);
+        case EAGER_IMPORT_NAME:
+            return 1;
         case END_ASYNC_FOR:
             return 0;
         case END_FOR:
@@ -1153,6 +1157,7 @@ const struct opcode_metadata _PyOpcode_opcode_metadata[267] = {
     [DELETE_SUBSCR] = { true, INSTR_FMT_IX, HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
     [DICT_MERGE] = { true, INSTR_FMT_IB, HAS_ARG_FLAG | HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
     [DICT_UPDATE] = { true, INSTR_FMT_IB, HAS_ARG_FLAG | HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
+    [EAGER_IMPORT_NAME] = { true, INSTR_FMT_IB, HAS_ARG_FLAG | HAS_NAME_FLAG | HAS_ERROR_FLAG | HAS_ESCAPES_FLAG },
     [END_ASYNC_FOR] = { true, INSTR_FMT_IB, HAS_ARG_FLAG | HAS_JUMP_FLAG | HAS_ERROR_FLAG | HAS_ERROR_NO_POP_FLAG | HAS_ESCAPES_FLAG },
     [END_FOR] = { true, INSTR_FMT_IX, HAS_ESCAPES_FLAG | HAS_NO_SAVE_IP_FLAG },
     [END_SEND] = { true, INSTR_FMT_IX, HAS_ESCAPES_FLAG | HAS_PURE_FLAG },
@@ -1399,6 +1404,7 @@ _PyOpcode_macro_expansion[256] = {
     [DELETE_SUBSCR] = { .nuops = 1, .uops = { { _DELETE_SUBSCR, OPARG_SIMPLE, 0 } } },
     [DICT_MERGE] = { .nuops = 1, .uops = { { _DICT_MERGE, OPARG_SIMPLE, 0 } } },
     [DICT_UPDATE] = { .nuops = 1, .uops = { { _DICT_UPDATE, OPARG_SIMPLE, 0 } } },
+    [EAGER_IMPORT_NAME] = { .nuops = 1, .uops = { { _EAGER_IMPORT_NAME, OPARG_SIMPLE, 0 } } },
     [END_FOR] = { .nuops = 1, .uops = { { _END_FOR, OPARG_SIMPLE, 0 } } },
     [END_SEND] = { .nuops = 1, .uops = { { _END_SEND, OPARG_SIMPLE, 0 } } },
     [EXIT_INIT_CHECK] = { .nuops = 1, .uops = { { _EXIT_INIT_CHECK, OPARG_SIMPLE, 0 } } },
@@ -1594,6 +1600,7 @@ const char *_PyOpcode_OpName[267] = {
     [DELETE_SUBSCR] = "DELETE_SUBSCR",
     [DICT_MERGE] = "DICT_MERGE",
     [DICT_UPDATE] = "DICT_UPDATE",
+    [EAGER_IMPORT_NAME] = "EAGER_IMPORT_NAME",
     [END_ASYNC_FOR] = "END_ASYNC_FOR",
     [END_FOR] = "END_FOR",
     [END_SEND] = "END_SEND",
@@ -1787,7 +1794,6 @@ const uint8_t _PyOpcode_Caches[256] = {
 extern const uint8_t _PyOpcode_Deopt[256];
 #ifdef NEED_OPCODE_METADATA
 const uint8_t _PyOpcode_Deopt[256] = {
-    [121] = 121,
     [122] = 122,
     [123] = 123,
     [124] = 124,
@@ -1891,6 +1897,7 @@ const uint8_t _PyOpcode_Deopt[256] = {
     [DELETE_SUBSCR] = DELETE_SUBSCR,
     [DICT_MERGE] = DICT_MERGE,
     [DICT_UPDATE] = DICT_UPDATE,
+    [EAGER_IMPORT_NAME] = EAGER_IMPORT_NAME,
     [END_ASYNC_FOR] = END_ASYNC_FOR,
     [END_FOR] = END_FOR,
     [END_SEND] = END_SEND,
@@ -2048,7 +2055,6 @@ const uint8_t _PyOpcode_Deopt[256] = {
 #endif // NEED_OPCODE_METADATA
 
 #define EXTRA_CASES \
-    case 121: \
     case 122: \
     case 123: \
     case 124: \

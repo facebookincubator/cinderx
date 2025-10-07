@@ -5470,6 +5470,55 @@
             DISPATCH();
         }
 
+        TARGET(EAGER_IMPORT_NAME) {
+            #if Py_TAIL_CALL_INTERP
+            int opcode = EAGER_IMPORT_NAME;
+            (void)(opcode);
+            #endif
+            frame->instr_ptr = next_instr;
+            next_instr += 1;
+            INSTRUCTION_STATS(EAGER_IMPORT_NAME);
+            _PyStackRef level;
+            _PyStackRef fromlist;
+            _PyStackRef res;
+            fromlist = stack_pointer[-1];
+            level = stack_pointer[-2];
+            PyObject *name = GETITEM(FRAME_CO_NAMES, oparg);
+            #ifdef ENABLE_LAZY_IMPORTS
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            PyObject *res_o = _PyImport_ImportName(
+                tstate, BUILTINS(), GLOBALS(), LOCALS(), name,
+                PyStackRef_AsPyObjectBorrow(fromlist), PyStackRef_AsPyObjectBorrow(level));
+            stack_pointer = _PyFrame_GetStackPointer(frame);
+            #else
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            PyObject *res_o = _PyEval_ImportName(tstate, frame, name,
+                PyStackRef_AsPyObjectBorrow(fromlist),
+                PyStackRef_AsPyObjectBorrow(level));
+            stack_pointer = _PyFrame_GetStackPointer(frame);
+            #endif
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            _PyStackRef tmp = fromlist;
+            fromlist = PyStackRef_NULL;
+            stack_pointer[-1] = fromlist;
+            PyStackRef_CLOSE(tmp);
+            tmp = level;
+            level = PyStackRef_NULL;
+            stack_pointer[-2] = level;
+            PyStackRef_CLOSE(tmp);
+            stack_pointer = _PyFrame_GetStackPointer(frame);
+            stack_pointer += -2;
+            assert(WITHIN_STACK_BOUNDS());
+            if (res_o == NULL) {
+                JUMP_TO_LABEL(error);
+            }
+            res = PyStackRef_FromPyObjectSteal(res_o);
+            stack_pointer[0] = res;
+            stack_pointer += 1;
+            assert(WITHIN_STACK_BOUNDS());
+            DISPATCH();
+        }
+
         TARGET(END_ASYNC_FOR) {
             #if Py_TAIL_CALL_INTERP
             int opcode = END_ASYNC_FOR;
@@ -6315,9 +6364,23 @@
             _PyStackRef res;
             from = stack_pointer[-1];
             PyObject *name = GETITEM(FRAME_CO_NAMES, oparg);
+            #ifdef ENABLE_LAZY_IMPORTS
+            PyObject *from_o = PyStackRef_AsPyObjectBorrow(from);
+            PyObject *res_o;
+            if (PyLazyImport_CheckExact(from_o)) {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                res_o = _PyImport_LazyImportFrom(tstate, from_o, name);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+            } else {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                res_o = _PyImport_ImportFrom(tstate, from_o, name);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+            }
+            #else
             _PyFrame_SetStackPointer(frame, stack_pointer);
             PyObject *res_o = _PyEval_ImportFrom(tstate, PyStackRef_AsPyObjectBorrow(from), name);
             stack_pointer = _PyFrame_GetStackPointer(frame);
+            #endif
             if (res_o == NULL) {
                 JUMP_TO_LABEL(error);
             }
@@ -6342,10 +6405,32 @@
             fromlist = stack_pointer[-1];
             level = stack_pointer[-2];
             PyObject *name = GETITEM(FRAME_CO_NAMES, oparg);
+            #if defined(ENABLE_LAZY_IMPORTS) && !defined(Py_GIL_DISABLED)
+            PyObject *res_o;
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            bool active = _PyImport_IsLazyImportsActive(tstate);
+            stack_pointer = _PyFrame_GetStackPointer(frame);
+            if (active) {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                res_o = _PyImport_LazyImportName(
+                    tstate, BUILTINS(), GLOBALS(), LOCALS(), name,
+                    PyStackRef_AsPyObjectBorrow(fromlist), PyStackRef_AsPyObjectBorrow(level));
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+            } else {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                res_o = _PyImport_ImportName(
+                    tstate, BUILTINS(), GLOBALS(), LOCALS(), name,
+                    PyStackRef_AsPyObjectBorrow(fromlist), PyStackRef_AsPyObjectBorrow(level));
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+            }
+            #else
             _PyFrame_SetStackPointer(frame, stack_pointer);
             PyObject *res_o = _PyEval_ImportName(tstate, frame, name,
                 PyStackRef_AsPyObjectBorrow(fromlist),
                 PyStackRef_AsPyObjectBorrow(level));
+            stack_pointer = _PyFrame_GetStackPointer(frame);
+            #endif
+            _PyFrame_SetStackPointer(frame, stack_pointer);
             _PyStackRef tmp = fromlist;
             fromlist = PyStackRef_NULL;
             stack_pointer[-1] = fromlist;
@@ -8528,6 +8613,13 @@
                     assert(_PyOpcode_Deopt[opcode] == (LOAD_ATTR));
                     JUMP_TO_PREDICTED(LOAD_ATTR);
                 }
+                #ifdef ENABLE_LAZY_IMPORTS
+                if (PyLazyImport_CheckExact(attr_o)) {
+                    UPDATE_MISS_STATS(LOAD_ATTR);
+                    assert(_PyOpcode_Deopt[opcode] == (LOAD_ATTR));
+                    JUMP_TO_PREDICTED(LOAD_ATTR);
+                }
+                #endif
                 #ifdef Py_GIL_DISABLED
                 int increfed = _Py_TryIncrefCompareStackRef(&ep->me_value, attr_o, &attr);
                 if (!increfed) {
@@ -8915,6 +9007,13 @@
                         JUMP_TO_PREDICTED(LOAD_ATTR);
                     }
                 }
+                #ifdef ENABLE_LAZY_IMPORTS
+                if (PyLazyImport_CheckExact(attr_o)) {
+                    UPDATE_MISS_STATS(LOAD_ATTR);
+                    assert(_PyOpcode_Deopt[opcode] == (LOAD_ATTR));
+                    JUMP_TO_PREDICTED(LOAD_ATTR);
+                }
+                #endif
                 STAT_INC(LOAD_ATTR, hit);
                 #ifdef Py_GIL_DISABLED
                 int increfed = _Py_TryIncrefCompareStackRef(&ep->me_value, attr_o, &attr);
@@ -9442,6 +9541,13 @@
                     assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
                     JUMP_TO_PREDICTED(LOAD_GLOBAL);
                 }
+                #ifdef ENABLE_LAZY_IMPORTS
+                if (PyLazyImport_CheckExact(res_o)) {
+                    UPDATE_MISS_STATS(LOAD_GLOBAL);
+                    assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
+                    JUMP_TO_PREDICTED(LOAD_GLOBAL);
+                }
+                #endif
                 #if Py_GIL_DISABLED
                 int increfed = _Py_TryIncrefCompareStackRef(&entries[index].me_value, res_o, &res);
                 if (!increfed) {
@@ -9509,6 +9615,13 @@
                     assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
                     JUMP_TO_PREDICTED(LOAD_GLOBAL);
                 }
+                #ifdef ENABLE_LAZY_IMPORTS
+                if (PyLazyImport_CheckExact(res_o)) {
+                    UPDATE_MISS_STATS(LOAD_GLOBAL);
+                    assert(_PyOpcode_Deopt[opcode] == (LOAD_GLOBAL));
+                    JUMP_TO_PREDICTED(LOAD_GLOBAL);
+                }
+                #endif
                 #if Py_GIL_DISABLED
                 int increfed = _Py_TryIncrefCompareStackRef(&entries[index].me_value, res_o, &res);
                 if (!increfed) {

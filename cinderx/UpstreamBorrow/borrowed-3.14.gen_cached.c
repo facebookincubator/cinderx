@@ -20,6 +20,10 @@
 #include "internal/pycore_descrobject.h"
 #include "internal/pycore_long.h"
 #include "internal/pycore_optimizer.h"     // _PyExecutorObject
+#ifdef ENABLE_LAZY_IMPORTS
+#include "pycore_import.h"        // _PyImport_LoadLazyImport()
+#include "pycore_lazyimport.h"    // _PyLazyImport_New(), _PyLazyImport_GetName()
+#endif
 #include "opcode.h"
 
 #define _PyOpcode_Caches _CiOpcode_Caches
@@ -161,6 +165,8 @@ _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 
 #define PyDict_LOG_MINSIZE 3
 #define PyDict_MINSIZE 8
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
 #ifdef Py_GIL_DISABLED
 #define ASSERT_DICT_LOCKED(op) ASSERT_DICT_LOCKED(_Py_CAST(PyObject*, op))
 #define ASSERT_WORLD_STOPPED_OR_DICT_LOCKED(op)                         \
@@ -224,6 +230,11 @@ _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 #define STORE_KEYS_NENTRIES(keys, nentries) FT_ATOMIC_STORE_SSIZE_RELAXED(keys->dk_nentries, nentries)
 #define STORE_USED(mp, used) FT_ATOMIC_STORE_SSIZE_RELAXED(mp->ma_used, used)
 #define PERTURB_SHIFT 5
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
 #ifndef NDEBUG
 #endif
 #define DK_MASK(dk) (DK_SIZE(dk)-1)
@@ -242,6 +253,8 @@ _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 #else
 #endif
 #define GROWTH_RATE(d) ((d)->ma_used*3)
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
 #ifdef Py_GIL_DISABLED
 #endif
 #define Py_EMPTY_KEYS &empty_keys_struct
@@ -254,10 +267,21 @@ _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 #endif
 #define CHECK(expr) \
     do { if (!(expr)) { _PyObject_ASSERT_FAILED_MSG(op, Py_STRINGIFY(expr)); } } while (0)
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
 #undef CHECK
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
 #if SIZEOF_VOID_P > 4
 #endif
 #ifdef Py_REF_DEBUG
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
@@ -276,6 +300,28 @@ _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
 #ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
@@ -283,14 +329,61 @@ _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 #ifdef Py_GIL_DISABLED
 #else   // Py_GIL_DISABLED
 #endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
 #ifdef Py_GIL_DISABLED
 #endif
 #ifdef Py_GIL_DISABLED
 #else
 #endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
 #ifdef Py_GIL_DISABLED
 #endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
 #ifdef Py_REF_DEBUG
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
 #endif
 #ifdef Py_DEBUG
 #endif
@@ -300,17 +393,108 @@ _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 #ifdef Py_GIL_DISABLED
 #else
 #endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
 #ifdef Py_GIL_DISABLED
 #else
 #endif
 #ifdef Py_GIL_DISABLED
 #else
 #endif
-#ifdef Py_GIL_DISABLED
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
 #else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
 #endif
 #ifdef Py_GIL_DISABLED
 #else
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
@@ -331,6 +515,13 @@ _PyFunction_GetVersionForCurrentState(PyFunctionObject *func)
 #else
 #endif
 #ifdef Py_GIL_DISABLED
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
 #else
 #endif
 #ifdef Py_GIL_DISABLED
@@ -950,6 +1141,12 @@ error:
 #if _Py_ATTR_CACHE_UNUSED < MAX_VERSIONS_PER_CLASS
 #endif
 #ifdef Py_DEBUG
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
+#else
 #endif
 #ifdef Py_GIL_DISABLED
 #else
@@ -1632,6 +1829,8 @@ _PyLineTable_NextAddressRange(PyCodeAddressRange *range)
 #endif
 #ifdef Py_GIL_DISABLED
 #endif
+#ifdef ENABLE_LAZY_IMPORTS
+#endif
 #if !defined(Py_GIL_DISABLED) && defined(Py_STACKREF_DEBUG)
 #  ifdef Py_STACKREF_CLOSE_DEBUG
 #  endif
@@ -1639,6 +1838,8 @@ _PyLineTable_NextAddressRange(PyCodeAddressRange *range)
 #if !defined(Py_GIL_DISABLED) && defined(Py_STACKREF_DEBUG)
 #endif
 #ifdef Py_GIL_DISABLED
+#endif
+#ifdef ENABLE_LAZY_IMPORTS
 #endif
 #ifdef HAVE_FORK
 #endif
@@ -4022,6 +4223,11 @@ _Py_dict_lookup(PyDictObject *mp, PyObject *key, Py_hash_t hash, PyObject **valu
     PyDictKeysObject *dk;
     DictKeysKind kind;
     Py_ssize_t ix;
+#ifdef ENABLE_LAZY_IMPORTS
+    PyObject *startkey;
+    PyObject **value_ptr;
+    PyObject *value;
+#endif
 
     _Py_CRITICAL_SECTION_ASSERT_OBJECT_LOCKED(mp);
 start:
@@ -4055,15 +4261,31 @@ start:
         }
 
         if (ix >= 0) {
+#ifdef ENABLE_LAZY_IMPORTS
+            PyDictUnicodeEntry *ep = &DK_UNICODE_ENTRIES(dk)[ix];
+            startkey = ep->me_key;
+#endif
             if (kind == DICT_KEYS_SPLIT) {
+#ifdef ENABLE_LAZY_IMPORTS
+                assert(mp->ma_values != NULL);
+                value_ptr = &mp->ma_values->values[ix];
+#else
                 *value_addr = mp->ma_values->values[ix];
+#endif
             }
             else {
+#ifdef ENABLE_LAZY_IMPORTS
+                value_ptr = &ep->me_value;
+#else
                 *value_addr = DK_UNICODE_ENTRIES(dk)[ix].me_value;
+#endif
             }
         }
         else {
             *value_addr = NULL;
+#ifdef ENABLE_LAZY_IMPORTS
+            return ix;
+#endif
         }
     }
     else {
@@ -4072,12 +4294,60 @@ start:
             goto start;
         }
         if (ix >= 0) {
+#ifdef ENABLE_LAZY_IMPORTS
+            PyDictKeyEntry *ep = &DK_ENTRIES(dk)[ix];
+            startkey = ep->me_key;
+            value_ptr = &ep->me_value;
+#else
             *value_addr = DK_ENTRIES(dk)[ix].me_value;
+#endif
         }
         else {
             *value_addr = NULL;
+#ifdef ENABLE_LAZY_IMPORTS
+            return ix;
+#endif
         }
     }
+
+#ifdef ENABLE_LAZY_IMPORTS
+    value = *value_ptr;
+
+    if (value && PyLazyImport_CheckExact(value)) {
+        assert(dk->dk_lazy_imports);
+        PyObject *resolved_value = _PyImport_LoadLazyImport(value, 0);
+        if (resolved_value == NULL) {
+            *value_addr = NULL;
+            if (PyErr_Occurred()) {
+                return DKIX_VALUE_ERROR;
+            }
+            return DKIX_EMPTY;
+        }
+        /* If the dict hasn't mutated, update resolved_value, otherwise
+         * retry the lookup */
+        if (dk != mp->ma_keys || kind != dk->dk_kind) {
+            Py_DECREF(resolved_value);
+            goto start;
+        }
+        PyObject *key = kind != DICT_KEYS_GENERAL
+            ? DK_UNICODE_ENTRIES(dk)[ix].me_key : DK_ENTRIES(dk)[ix].me_key;
+        if (key != startkey) {
+            Py_DECREF(resolved_value);
+            goto start;
+        }
+        if (*value_ptr == value) {
+            Py_DECREF(*value_ptr);
+            *value_ptr = resolved_value;
+        } else {
+            // Just the value was replaced, so return the new value.
+            Py_DECREF(resolved_value);
+            resolved_value = *value_ptr;
+        }
+        value = resolved_value;
+    }
+
+    *value_addr = value;
+#endif
 
     return ix;
 }

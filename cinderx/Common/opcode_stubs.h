@@ -265,7 +265,6 @@ enum {
   X(COPY_DICT_WITHOUT_KEYS)        \
   X(DUP_TOP)                       \
   X(DUP_TOP_TWO)                   \
-  X(EAGER_IMPORT_NAME)             \
   X(FAST_LEN)                      \
   X(FORMAT_VALUE)                  \
   X(GEN_START)                     \
