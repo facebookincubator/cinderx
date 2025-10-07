@@ -40,6 +40,10 @@ class CodeHolderMetadata {
 class CodeSectionOverride {
  public:
   CodeSectionOverride() = delete;
+  CodeSectionOverride(const CodeSectionOverride&) = delete;
+  CodeSectionOverride& operator=(const CodeSectionOverride&) = delete;
+  CodeSectionOverride(CodeSectionOverride&&) = delete;
+  CodeSectionOverride& operator=(CodeSectionOverride&&) = delete;
 
   CodeSectionOverride(
       asmjit::x86::Builder* as,
