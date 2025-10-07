@@ -320,11 +320,13 @@ PyDoc_STRVAR(
     "\n"
     "Enables or disables delaying adaptive code until a function is hot.");
 PyObject* cinder_delay_adaptive(PyObject* mod, PyObject* delay) {
+#ifdef ENABLE_INTERPRETER_LOOP
   if (!PyBool_Check(delay)) {
     PyErr_SetString(PyExc_TypeError, "expected bool");
   }
 
   Ci_DelayAdaptiveCode = delay == Py_True;
+#endif
   Py_RETURN_NONE;
 }
 
@@ -335,11 +337,13 @@ PyDoc_STRVAR(
     "\n"
     "Sets the adaptive delay");
 PyObject* cinder_set_adaptive_delay(PyObject* mod, PyObject* delay) {
+#ifdef ENABLE_INTERPRETER_LOOP
   if (!PyLong_Check(delay)) {
     PyErr_SetString(PyExc_TypeError, "expected long");
   }
 
   Ci_AdaptiveThreshold = PyLong_AsLong(delay);
+#endif
   Py_RETURN_NONE;
 }
 
@@ -350,7 +354,11 @@ PyDoc_STRVAR(
     "\n"
     "Gets the adaptive delay");
 PyObject* cinder_get_adaptive_delay(PyObject* mod, PyObject*) {
+#ifdef ENABLE_INTERPRETER_LOOP
   return PyLong_FromUnsignedLongLong(Ci_AdaptiveThreshold);
+#else
+  return PyLong_FromLong(-1);
+#endif
 }
 
 #endif
@@ -955,7 +963,10 @@ int cinder_init() {
   char* patching = getenv("PYTHONENABLEPATCHING");
   enable_patching = patching != nullptr && strcmp(patching, "1") == 0;
 
+#ifdef ENABLE_INTERPRETER_LOOP
   Ci_InitOpcodes();
+#endif
+
 #endif
 
   // Create _static module

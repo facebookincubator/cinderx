@@ -7,13 +7,8 @@
 
 #if PY_VERSION_HEX >= 0x030C0000
 
-#include "cpython/code.h"
-
-#endif
-
-#if PY_VERSION_HEX >= 0x030C0000
-
 #include "cinderx/Interpreter/cinder_opcode.h"
+#include "cpython/code.h"
 
 #endif
 

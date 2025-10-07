@@ -61,6 +61,7 @@ set_flag(ENABLE_JIT_GENERATORS)
 set_flag(ENABLE_LAZY_IMPORTS)
 set_flag(ENABLE_LIGHTWEIGHT_FRAMES)
 set_flag(ENABLE_PARALLEL_GC)
+set_flag(ENABLE_PEP523_HOOK)
 set_flag(ENABLE_PERF_TRAMPOLINE)
 set_flag(ENABLE_SYMBOLIZER)
 set_flag(ENABLE_USDT)
@@ -213,7 +214,7 @@ add_library(interpreter ${INTERP_SOURCES})
 target_include_directories(
   interpreter
   PUBLIC
-  ${PROJECT_SOURCE_DIR}/Interpreter/Includes
+  ${PROJECT_SOURCE_DIR}/Interpreter/${PY_VERSION}/Includes
 )
 
 ########################################

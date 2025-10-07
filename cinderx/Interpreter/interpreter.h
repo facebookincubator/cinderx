@@ -52,11 +52,15 @@ PyObject* Ci_PyFunction_CallStatic(
  * Python functions.
  */
 static inline vectorcallfunc getInterpretedVectorcall(
-    const PyFunctionObject* func) {
+    [[maybe_unused]] const PyFunctionObject* func) {
   const PyCodeObject* code = (const PyCodeObject*)(func->func_code);
+#ifdef ENABLE_INTERPRETER_LOOP
   return (code->co_flags & CI_CO_STATICALLY_COMPILED)
       ? Ci_StaticFunction_Vectorcall
       : Ci_PyFunction_Vectorcall;
+#else
+  return Ci_PyFunction_Vectorcall;
+#endif
 }
 
 void Ci_InitOpcodes();
