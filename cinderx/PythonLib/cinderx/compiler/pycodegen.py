@@ -2422,6 +2422,8 @@ class CodeGenerator(ASTVisitor):
             return f"<params {[self.get_node_name(x) for x in node.params]}>"
         elif isinstance(node, ast.arguments):
             return "<arguments>"
+        elif isinstance(node, Annotations):
+            return "__annotate__"
 
         raise NotImplementedError("Unknown node type: " + type(node).__name__)
 

@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import ast
+import sys
 from ast import (
     alias,
     AnnAssign,
@@ -506,7 +507,7 @@ class ImmutableVisitor(SymbolVisitor[None, None]):
 
     @property
     def skip_annotations(self) -> bool:
-        return self.future_annotations()
+        return self.future_annotations() or sys.version_info >= (3, 14)
 
     def load_name(self, name: str) -> None:
         if self.is_global(name):

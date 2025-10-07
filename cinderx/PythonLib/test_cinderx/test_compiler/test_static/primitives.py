@@ -1497,7 +1497,8 @@ class PrimitivesTests(StaticTestBase):
                 return g
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, "argument annotation cannot be a primitive"
+            TypedSyntaxError,
+            "(argument annotation cannot be a primitive)|(cannot use primitives in global or closure scope)",
         ):
             self.compile(code)
 
@@ -1512,7 +1513,8 @@ class PrimitivesTests(StaticTestBase):
                 return g
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, "argument annotation cannot be a primitive"
+            TypedSyntaxError,
+            "(argument annotation cannot be a primitive)|(cannot use primitives in global or closure scope)",
         ):
             self.compile(code)
 
@@ -1527,7 +1529,8 @@ class PrimitivesTests(StaticTestBase):
                 return g
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, "argument annotation cannot be a primitive"
+            TypedSyntaxError,
+            "(argument annotation cannot be a primitive)|(cannot use primitives in global or closure scope)",
         ):
             self.compile(code)
 
@@ -1542,7 +1545,8 @@ class PrimitivesTests(StaticTestBase):
                 return g
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, "argument annotation cannot be a primitive"
+            TypedSyntaxError,
+            "(argument annotation cannot be a primitive)|(cannot use primitives in global or closure scope)",
         ):
             self.compile(code)
 
@@ -1834,7 +1838,8 @@ class PrimitivesTests(StaticTestBase):
                 return g
         """
         with self.assertRaisesRegex(
-            TypedSyntaxError, "return annotation cannot be a primitive"
+            TypedSyntaxError,
+            "(return annotation cannot be a primitive)|(cannot use primitives in global or closure scope)",
         ):
             self.compile(code)
 
@@ -2005,7 +2010,7 @@ class PrimitivesTests(StaticTestBase):
                 l = [1, 2, 3]
                 return l[x]
         """
-        f = self.find_code(self.compile(codestr))
+        f = self.find_code(self.compile(codestr), "f")
         self.assertInBytecode(f, "SEQUENCE_GET", SEQ_LIST)
         with self.in_module(codestr) as mod:
             self.assertEqual(mod.f(1), 2)

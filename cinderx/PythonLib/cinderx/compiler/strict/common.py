@@ -88,18 +88,34 @@ def _is_scoped_generator_node(node: AST) -> bool:
     )
 
 
+# SymbolTableType is new in 3.13
+if sys.version_info >= (3, 14):
+    ANNOTATION_TYPE: str = symtable.SymbolTableType.ANNOTATION
+
+    def is_annotation(x: symtable.SymbolTable) -> bool:
+        return x.get_type() == ANNOTATION_TYPE
+else:
+
+    def is_annotation(x: symtable.SymbolTable) -> bool:
+        return False
+
+
 @final
 class SymbolMapBuilder(ast.NodeVisitor):
     def __init__(self, symbols: SymbolTable) -> None:
         self.symbol_stack: deque[SymbolTable] = deque([symbols])
         children = self.symbol_stack.popleft().get_children()
-        self.symbol_stack.extendleft(reversed(children))
+        self.symbol_stack.extendleft(
+            (x for x in reversed(children) if not is_annotation(x))
+        )
         self.mapping: SymbolMap = {}
 
     def _process_scope_node(self, node: AST) -> None:
         current_symbol = self.mapping[node] = self.symbol_stack.popleft()
         children = current_symbol.get_children()
-        self.symbol_stack.extendleft(reversed(children))
+        self.symbol_stack.extendleft(
+            (x for x in reversed(children) if not is_annotation(x))
+        )
 
     def visit_ClassDef(self, node: ClassDef) -> None:
         for child in node.bases:

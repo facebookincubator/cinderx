@@ -39,7 +39,6 @@ test_cinderx.test_compiler.test_static.patch
 test_cinderx.test_compiler.test_static.perf_lint
 test_cinderx.test_compiler.test_static.primitives
 test_cinderx.test_compiler.test_static.property
-test_cinderx.test_compiler.test_static.protocol
 test_cinderx.test_compiler.test_static.refine_fields
 test_cinderx.test_compiler.test_static.reflection
 test_cinderx.test_compiler.test_static.return_cast_insertion

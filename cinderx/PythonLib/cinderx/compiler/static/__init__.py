@@ -745,9 +745,7 @@ class StaticCodeGenBase(StrictCodeGenBase):
                 self.visit(node.target)
         target = node.target
         if isinstance(target, ast.Name):
-            # If we have a simple name in a module or class, store the annotation
-            if node.simple and isinstance(self.tree, (ast.Module, ast.ClassDef)):
-                self.emit_store_annotation(target.id, node)
+            self.emit_simple_ann_assign(node)
         elif isinstance(target, ast.Attribute):
             if not node.value:
                 self.checkAnnExpr(target.value)
