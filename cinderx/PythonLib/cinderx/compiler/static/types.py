@@ -1153,7 +1153,9 @@ class Value:
     def emit_jumpif_only(
         self, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
-        code_gen.emit("POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next)
+        code_gen.emit_cond_jump(
+            "POP_JUMP_IF_TRUE" if is_if_true else "POP_JUMP_IF_FALSE", next
+        )
 
     def emit_jumpif_pop(
         self, test: AST, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
@@ -1164,7 +1166,7 @@ class Value:
     def emit_jumpif_pop_only(
         self, next: Block, is_if_true: bool, code_gen: StaticCodeGenBase
     ) -> None:
-        code_gen.emit(
+        code_gen.emit_cond_jump(
             "JUMP_IF_TRUE_OR_POP" if is_if_true else "JUMP_IF_FALSE_OR_POP", next
         )
 
