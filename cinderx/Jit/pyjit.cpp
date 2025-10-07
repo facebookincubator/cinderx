@@ -2789,6 +2789,22 @@ void finalizeInternedStrings() {
   }
 }
 
+constexpr std::string_view getCpuArchName() {
+#if defined(__x86_64__)
+  return "x86-64";
+#elif defined(__i386__)
+  return "x86 (32-bit)";
+#elif defined(__aarch64__)
+  return "arm64";
+#elif defined(__arm__)
+  return "arm";
+#elif defined(__riscv)
+  return "riscv";
+#else
+  return "unknown";
+#endif
+}
+
 } // namespace
 
 #if PY_VERSION_HEX < 0x030C0000
@@ -2964,6 +2980,15 @@ int initialize() {
     return 0;
   }
 
+  // Do this check after config is initialized, so we can use JIT_DLOG().
+#ifndef __x86_64__
+  JIT_DLOG(
+      "JIT only supported x86-64 platforms, detected current architecture as "
+      "'{}'. Disabling the JIT.",
+      getCpuArchName());
+  return 0;
+#endif
+
   std::unique_ptr<JITList> jit_list;
   if (!getConfig().jit_list.filename.empty()) {
     if (getConfig().allow_jit_list_wildcards) {
@@ -2992,7 +3017,14 @@ int initialize() {
   cinderx::ModuleState* mod_state = cinderx::getModuleState();
   mod_state->setCodeAllocator(CodeAllocator::make());
 
-  cinderx::getModuleState()->setJitContext(new CompilerContext<Compiler>());
+  // Initialize the main compiler object and its context.  This will throw if
+  // asmjit cannot initialize.
+  try {
+    cinderx::getModuleState()->setJitContext(new CompilerContext<Compiler>());
+  } catch (const std::exception& exn) {
+    PyErr_SetString(PyExc_RuntimeError, exn.what());
+    return -1;
+  }
 
   PyObject* mod = _Ci_CreateBuiltinModule(&jit_module, "cinderjit");
   if (mod == nullptr) {
