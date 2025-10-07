@@ -4,6 +4,13 @@
 
 #include "cinderx/python.h"
 
+#if PY_VERSION_HEX >= 0x030C0000
+// This needs to come before borrowed.h
+#include "pycore_dict.h"
+#endif
+
+#include "cinderx/UpstreamBorrow/borrowed.h"
+
 #include <stdbool.h>
 
 #ifdef __cplusplus
@@ -82,6 +89,18 @@ static inline uint32_t dictGetKeysVersion(
   uint32_t v = interp->dict_state.next_keys_version++;
   dictkeys->dk_version = v;
   return v;
+}
+#endif
+
+#if PY_VERSION_HEX >= 0x030E0000
+typedef uint32_t ci_dict_version_tag_t;
+static inline ci_dict_version_tag_t Ci_DictVersionTag(PyDictObject* dict) {
+  return _PyDict_GetKeysVersionForCurrentState(_PyInterpreterState_GET(), dict);
+}
+#else
+typedef uint64_t ci_dict_version_tag_t;
+static inline ci_dict_version_tag_t Ci_DictVersionTag(PyDictObject* dict) {
+  return dict->ma_version_tag;
 }
 #endif
 

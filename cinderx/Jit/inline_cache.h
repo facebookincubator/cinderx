@@ -4,6 +4,7 @@
 
 #include "cinderx/python.h"
 
+#include "cinderx/Common/dict.h"
 #include "cinderx/Common/ref.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/config.h"
@@ -330,11 +331,12 @@ class LoadModuleAttrCache {
 
  private:
   PyObject* lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
-  void fill(BorrowedRef<> obj, BorrowedRef<> value, uint64_t version);
+  void
+  fill(BorrowedRef<> obj, BorrowedRef<> value, ci_dict_version_tag_t version);
 
   // This corresponds to module __dict__'s version which allows us
   // to correctly invalidate the cache whenever the dictionary changes.
-  uint64_t version_{0};
+  ci_dict_version_tag_t version_{0};
   BorrowedRef<> module_;
   BorrowedRef<> value_;
 };
@@ -351,11 +353,12 @@ class LoadModuleMethodCache {
 
  private:
   LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
-  void fill(BorrowedRef<> obj, BorrowedRef<> value, uint64_t version);
+  void
+  fill(BorrowedRef<> obj, BorrowedRef<> value, ci_dict_version_tag_t version);
 
   // This corresponds to module __dict__'s version which allows us
   // to correctly invalidate the cache whenever the dictionary changes.
-  uint64_t module_version_{0};
+  ci_dict_version_tag_t module_version_{0};
   BorrowedRef<> module_obj_;
   BorrowedRef<> value_;
 };

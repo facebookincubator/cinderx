@@ -106,27 +106,23 @@ PyObject* __attribute__((noinline)) raise_attribute_error(
   return nullptr;
 }
 
-uint64_t getModuleVersion(BorrowedRef<PyModuleObject> mod) {
-#if PY_VERSION_HEX < 0x030E0000 // TASK(T229234686)
+ci_dict_version_tag_t getModuleVersion(BorrowedRef<PyModuleObject> mod) {
   if (mod->md_dict) {
     BorrowedRef<PyDictObject> md_dict = mod->md_dict;
-    return md_dict->ma_version_tag;
+    return Ci_DictVersionTag(md_dict.get());
   }
-#endif
   return 0;
 }
 
-uint64_t getModuleVersion(BorrowedRef<Ci_StrictModuleObject> mod) {
-#if PY_VERSION_HEX < 0x030E0000 // TASK(T229234686)
+ci_dict_version_tag_t getModuleVersion(BorrowedRef<Ci_StrictModuleObject> mod) {
   if (mod->globals) {
     BorrowedRef<PyDictObject> globals = mod->globals;
-    return globals->ma_version_tag;
+    return Ci_DictVersionTag(globals.get());
   }
-#endif
   return 0;
 }
 
-uint64_t getModuleVersion(BorrowedRef<> obj) {
+ci_dict_version_tag_t getModuleVersion(BorrowedRef<> obj) {
   if (PyModule_Check(obj)) {
     BorrowedRef<PyModuleObject> mod{obj};
     return getModuleVersion(mod);
@@ -1380,7 +1376,7 @@ LoadMethodResult LoadModuleMethodCache::lookup(
     BorrowedRef<> obj,
     BorrowedRef<> name) {
   if (module_obj_ == obj && value_ != nullptr) {
-    uint64_t version = 0;
+    ci_dict_version_tag_t version = 0;
     if (PyModule_Check(obj)) {
       BorrowedRef<PyModuleObject> mod{obj};
       version = getModuleVersion(mod);
@@ -1430,7 +1426,7 @@ LoadModuleMethodCache::lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name) {
 void LoadModuleMethodCache::fill(
     BorrowedRef<> obj,
     BorrowedRef<> value,
-    uint64_t version) {
+    ci_dict_version_tag_t version) {
   module_obj_ = obj;
   value_ = value;
   module_version_ = version;

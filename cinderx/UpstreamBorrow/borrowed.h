@@ -240,6 +240,12 @@ PyObject* Ci_Builtin_Next_Core(PyObject* it, PyObject* def);
 void Cix_gen_dealloc_with_custom_free(PyObject* obj);
 #endif
 
+#if PY_VERSION_HEX >= 0x030E0000
+uint32_t _CiDict_GetKeysVersionForCurrentState(
+    PyInterpreterState* interp,
+    PyDictObject* dict);
+#endif
+
 #ifdef ENABLE_PEP523_HOOK
 extern _PyFrameEvalFunction Ci_EvalFrameFunc;
 #endif
