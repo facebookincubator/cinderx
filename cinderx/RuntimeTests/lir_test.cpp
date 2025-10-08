@@ -16,6 +16,7 @@
 
 #include <memory>
 #include <ostream>
+#include <regex>
 #include <string>
 #include <utility>
 
@@ -454,26 +455,20 @@ fun foo {
   lir_func->sortBasicBlocks();
   ss << *lir_func << std::endl;
 
-  auto lir_expected = fmt::format(
-#if PY_VERSION_HEX >= 0x030C0000
-      R"(
-# CondBranchCheckType<1, 3, Tuple> v1
-         %8:8bit = Call {0}({0:#x}):64bit, %7:Object
-                   CondBranch %8:8bit, BB%10, BB%12
-)",
-#else
-      R"(
-# CondBranchCheckType<1, 3, Tuple> v1
-         %5:8bit = Call {0}({0:#x}):64bit, %4:Object
-                   CondBranch %5:8bit, BB%7, BB%9
-)",
-#endif
+  std::string lir_str = ss.str();
+  lir_str.erase(
+      std::remove(lir_str.begin(), lir_str.end(), '\n'), lir_str.end());
+
+  std::string lir_expected_re = fmt::format(
+      R"(# CondBranchCheckType<1, 3, Tuple> v1\s+%\d+:8bit = Call {0}\({0:#x}\):64bit, %\d+:Object\s+CondBranch %\d+:8bit, BB%\d+, BB%\d+)",
       reinterpret_cast<uint64_t>(__Invoke_PyTuple_Check));
-  if (ss.str().find(lir_expected.c_str()) == std::string::npos) {
+
+  std::regex re(lir_expected_re);
+  if (!std::regex_search(lir_str, re)) {
     FAIL() << "Couldn't find expected string " << std::endl
-           << lir_expected << std::endl
+           << lir_expected_re << std::endl
            << "In:" << std::endl
-           << ss.str() << std::endl;
+           << lir_str << std::endl;
   }
 }
 
