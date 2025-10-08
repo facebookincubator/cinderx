@@ -50,9 +50,11 @@ class ASTVisitor:
         meth = self._cache.get(klass, None)
         if meth is None:
             className = klass.__name__
-            meth = getattr(self, "visit" + className, self.generic_visit)
+            meth = getattr(type(self), "visit" + className, type(self).generic_visit)
             self._cache[klass] = meth
-        return meth(node, *args)
+        if not args:
+            return meth(self, node)
+        return meth(self, node, *args)
 
     def visit_list(self, nodes: Sequence[TAst], *args: object) -> None:
         if not isinstance(nodes, list):

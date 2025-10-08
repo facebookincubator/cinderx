@@ -2607,7 +2607,10 @@ class CodeGenerator(ASTVisitor):
         elif isinstance(node, (ast.stmt, ast.pattern)):
             self.set_pos(node)
 
-        ret = super().visit(node, *args)
+        if not args:
+            ret = super().visit(node)
+        else:
+            ret = super().visit(node, *args)
 
         if old_loc is not None:
             self.graph.loc = old_loc
@@ -2615,6 +2618,8 @@ class CodeGenerator(ASTVisitor):
         return ret
 
     def visitStatements(self, nodes: Sequence[AST], *args: object) -> None:
+        if not args:
+            return self.visit_list(nodes)
         self.visit_list(nodes, *args)
 
     # Methods defined in subclasses ----------------------------------------------

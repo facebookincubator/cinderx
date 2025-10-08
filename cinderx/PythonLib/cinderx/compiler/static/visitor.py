@@ -62,6 +62,10 @@ class GenericVisitor(ASTVisitor, Generic[TVisitRet]):
         # can catch errors and add node info then.
         ctx = self.error_context(node) if isinstance(node, AST) else nullcontext()
         with ctx:
+            if not args:
+                # pyre-ignore: ASTVisitor is not generic yet, can't assert the result is
+                # TVisitRet.
+                return super().visit(node)
             # pyre-ignore: ASTVisitor is not generic yet, can't assert the result is
             # TVisitRet.
             return super().visit(node, *args)
