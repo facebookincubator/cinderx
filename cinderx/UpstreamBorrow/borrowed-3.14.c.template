@@ -420,6 +420,7 @@ void _PyErr_SetObject(PyThreadState* tstate, PyObject* type, PyObject* value) {
 // @Borrow function _Py_dict_lookup from Objects/dictobject.c [3.14]
 // @Borrow function _PyDict_LookupIndex from Objects/dictobject.c [3.14]
 
+#define _PyFunction_Vectorcall Ci_PyFunction_Vectorcall
 // @Borrow CPP directives noinclude from Python/specialize.c
 // @Borrow typedef DescriptorClassification from Python/specialize.c [3.14]
 // @Borrow function set_opcode from Python/specialize.c [3.14]
