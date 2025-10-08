@@ -11,6 +11,7 @@ import os
 import os.path
 import shutil
 import sys
+import sysconfig
 
 from typing import Callable
 
@@ -130,6 +131,7 @@ class BuildExt(build_ext):
         # Python version is always the same as what's running setuptools.
         py_version = compute_py_version()
         options["PY_VERSION"] = py_version
+        options["Python_ROOT_DIR"] = self._find_python()
 
         meta_python = "+meta" in sys.version
         linux = sys.platform == "linux"
@@ -173,6 +175,12 @@ class BuildExt(build_ext):
         if result is None:
             raise RuntimeError(f"Cannot find `{name}` binary")
         return result
+
+    def _find_python(self) -> str:
+        # Normally this would use "data", but that goes to a temporary build directory
+        # under uv.  Work off of the include directory instead.
+        include_dir = sysconfig.get_path("include")
+        return os.path.join(include_dir, "..", "..")
 
 
 def main() -> None:
