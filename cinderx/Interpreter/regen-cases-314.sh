@@ -19,13 +19,5 @@ fbpython -- \
         $srcdir/Python/bytecodes.c \
         3.14/cinder-bytecodes.c
 
-
-PYTHONPATH=$srcdir/Tools/cases_generator \
-fbpython -- \
-    $srcdir/Tools/cases_generator/opcode_metadata_generator.py \
-        -o 3.14/cinder_opcode_metadata.h \
-        $srcdir/Python/bytecodes.c \
-        3.14/cinder-bytecodes.c
-
 gen='generated'
 sed -i "1i // @$gen" 3.14/Includes/generated_cases.c.h

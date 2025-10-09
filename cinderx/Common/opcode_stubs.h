@@ -48,6 +48,7 @@
   X(EAGER_IMPORT_NAME)                 \
   X(END_FOR)                           \
   X(END_SEND)                          \
+  X(EXTENDED_OPCODE)                   \
   X(FORMAT_WITH_SPEC)                  \
   X(FORMAT_SIMPLE)                     \
   X(INSTRUMENTED_CALL)                 \
@@ -161,6 +162,7 @@ enum {
   X(DUP_TOP_TWO)                       \
   X(FORMAT_WITH_SPEC)                  \
   X(FORMAT_SIMPLE)                     \
+  X(EXTENDED_OPCODE)                   \
   X(GEN_START)                         \
   X(INPLACE_ADD)                       \
   X(INPLACE_AND)                       \

@@ -10,6 +10,16 @@ BCOffset BytecodeInstruction::opcodeOffset() const {
 }
 
 int BytecodeInstruction::opcode() const {
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    calcOpcodeOffsetAndOparg();
+    _Py_CODEUNIT* cu = codeUnit(code_) + baseIndex().value();
+    while (_Py_OPCODE(*cu) == EXTENDED_ARG) {
+      cu++;
+    }
+    if (_Py_OPCODE(*cu) == EXTENDED_OPCODE) {
+      return EXTENDED_OPCODE_FLAG | _Py_OPCODE(word());
+    }
+  }
   return _Py_OPCODE(word());
 }
 
@@ -29,6 +39,21 @@ void BytecodeInstruction::calcOpcodeOffsetAndOparg() const {
     extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
     cu++;
     opcodeIndex_++;
+  }
+  if constexpr (PY_VERSION_HEX >= 0x030E0000) {
+    if (_Py_OPCODE(*cu) == EXTENDED_OPCODE) {
+      cu++;
+      opcodeIndex_++;
+      extendedOparg_ = 0;
+      while (_Py_OPCODE(*cu) == EXTENDED_ARG) {
+        JIT_DCHECK(
+            opcodeIndex_.value() < countIndices(code_),
+            "EXTENDED_ARG at end of bytecode");
+        extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
+        cu++;
+        opcodeIndex_++;
+      }
+    }
   }
   extendedOparg_ = (extendedOparg_ << 8) | _Py_OPARG(*cu);
 }

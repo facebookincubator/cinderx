@@ -79,7 +79,7 @@ class BytecodeInstruction {
   int uninstrumentedOpcode() const;
 
   // Get the instruction's code unit (opcode + oparg). The oparg is NOT extended
-  // from any prior EXTENDED_ARGs.
+  // from any prior EXTENDED_ARGs and doesn't include the EXTENDED_OPCODE_FLAG.
   _Py_CODEUNIT word() const;
 
   // Check if this instruction is a control-flow instruction with an absolute
@@ -191,5 +191,12 @@ class BytecodeInstructionBlock {
   BCIndex start_idx_;
   BCIndex end_idx_;
 };
+
+#if PY_VERSION_HEX >= 0x030E0000
+// 0x200 to make sure we don't collide with pseudo instructions
+#define EXTENDED_OPCODE_FLAG 0x0200
+#else
+#define EXTENDED_OPCODE_FLAG 0
+#endif
 
 } // namespace jit

@@ -479,6 +479,11 @@ dummy_func(
             iter = PyStackRef_FromPyObjectSteal(iter_o);
         }
 
+        override inst(EXTENDED_OPCODE, (args[oparg&0x03] -- top[oparg>>2])) {
+            PyErr_Format(PyExc_RuntimeError,
+                         "unsupported extended opcode: %d", (int)next_instr->op.code);
+            goto error;
+        }
 
 // END BYTECODES //
 

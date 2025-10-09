@@ -23,8 +23,6 @@
 #endif
 #include "opcode.h"
 
-#define _PyOpcode_Caches _CiOpcode_Caches
-#define _PyOpcode_Deopt _CiOpcode_Deopt
 #define _Py_type_getattro PyType_Type.tp_getattro
 
 getattrofunc Ci_tp_getattr_hook, Ci_tp_getattro;

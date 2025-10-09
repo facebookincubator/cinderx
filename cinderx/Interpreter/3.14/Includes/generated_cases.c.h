@@ -5677,6 +5677,21 @@
             DISPATCH_GOTO();
         }
 
+        TARGET(EXTENDED_OPCODE) {
+            #if Py_TAIL_CALL_INTERP
+            int opcode = EXTENDED_OPCODE;
+            (void)(opcode);
+            #endif
+            frame->instr_ptr = next_instr;
+            next_instr += 1;
+            INSTRUCTION_STATS(EXTENDED_OPCODE);
+            _PyFrame_SetStackPointer(frame, stack_pointer);
+            PyErr_Format(PyExc_RuntimeError,
+                         "unsupported extended opcode: %d", (int)next_instr->op.code);
+            stack_pointer = _PyFrame_GetStackPointer(frame);
+            JUMP_TO_LABEL(error);
+        }
+
         TARGET(FORMAT_SIMPLE) {
             #if Py_TAIL_CALL_INTERP
             int opcode = FORMAT_SIMPLE;

@@ -23,11 +23,6 @@
 
 #ifdef ENABLE_INTERPRETER_LOOP
 
-#define _PyOpcode_Caches _CiOpcode_Caches
-#define _PyOpcode_Deopt _CiOpcode_Deopt
-#define _PyOpcode_OpName _CiOpcode_OpName
-#define _PyOpcode_opcode_metadata _CiOpcode_opcode_metadata
-
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag);
 
