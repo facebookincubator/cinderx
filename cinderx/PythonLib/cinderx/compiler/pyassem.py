@@ -48,7 +48,7 @@ from .flow_graph_optimizer import (
 )
 from .opcode_cinder import opcode as cinder_opcode
 from .opcodebase import Opcode
-from .opcodes import opcode as opcodes_opcode
+from .opcodes import opcode as opcodes_opcode, STATIC_OPCODES
 from .symbols import ClassScope, Scope
 
 
@@ -832,7 +832,7 @@ class PyFlowGraph(FlowGraph):
                 self.stacksize = self.stackdepth_walk(block)
                 break
 
-    def instrsize(self, opname: str, oparg: int) -> int:
+    def instrsize(self, instr: Instruction, oparg: int) -> int:
         if oparg <= 0xFF:
             return 1
         elif oparg <= 0xFFFF:
@@ -878,17 +878,17 @@ class PyFlowGraph(FlowGraph):
 
                 for inst in b.getInstructions():
                     insts.append(inst)
-                    pc += self.instrsize(inst.opname, inst.ioparg)
+                    pc += self.instrsize(inst, inst.ioparg)
 
             pc = 0
             for inst in insts:
-                pc += self.instrsize(inst.opname, inst.ioparg)
+                pc += self.instrsize(inst, inst.ioparg)
                 op = self.opcode.opmap[inst.opname]
                 if self.opcode.has_jump(op):
                     offset = self.flatten_jump(inst, pc)
 
-                    if self.instrsize(inst.opname, inst.ioparg) != self.instrsize(
-                        inst.opname, offset
+                    if self.instrsize(inst, inst.ioparg) != self.instrsize(
+                        inst, offset
                     ):
                         extended_arg_recompile = True
 
@@ -1092,7 +1092,7 @@ class PyFlowGraph(FlowGraph):
                 lnotab.nextLine(t.lineno, prev_offset, offset)
                 prev_offset = offset
 
-            offset += self.instrsize(t.opname, t.ioparg) * self.opcode.CODEUNIT_SIZE
+            offset += self.instrsize(t, t.ioparg) * self.opcode.CODEUNIT_SIZE
 
         # Since the linetable format writes the end offset of bytecodes, we can't commit the
         # last write until all the instructions are iterated over.
@@ -2022,7 +2022,8 @@ class PyFlowGraph312(PyFlowGraph):
         assert nlocalsplus >= 0
         return nlocalsplus
 
-    def instrsize(self, opname: str, oparg: int) -> int:
+    def instrsize(self, instr: Instruction, oparg: int) -> int:
+        opname = instr.opname
         opcode_index = opcodes_opcode.opmap[opname]
         if opcode_index >= len(_inline_cache_entries):
             # T190611021: This should never happen as we should remove pseudo
@@ -2133,7 +2134,7 @@ class PyFlowGraph312(PyFlowGraph):
                 size = 0
 
             # The size is in terms of code units
-            size += self.instrsize(t.opname, t.ioparg)
+            size += self.instrsize(t, t.ioparg)
 
         # Since the linetable format writes the end offset of bytecodes, we can't commit the
         # last write until all the instructions are iterated over.
@@ -2152,7 +2153,7 @@ class PyFlowGraph312(PyFlowGraph):
                     exception_table.emit_entry(start, ioffset, handler)
                 start = ioffset
                 handler = instr.exc_handler
-            ioffset += self.instrsize(instr.opname, instr.ioparg)
+            ioffset += self.instrsize(instr, instr.ioparg)
         if handler:
             exception_table.emit_entry(start, ioffset, handler)
         return exception_table.getTable()
@@ -2356,6 +2357,9 @@ class PyFlowGraph314(PyFlowGraph312):
             # sys.monitoring needs to be able to find the matching END_SEND
             # but the target is the SEND, so we adjust it here.
             res -= self.END_SEND_OFFSET
+        elif inst.opname in STATIC_OPCODES:
+            # Account for EXTENDED_OPCODE
+            res += 2
 
         return res
 
@@ -2470,7 +2474,7 @@ class PyFlowGraph314(PyFlowGraph312):
         for b in self.getBlocksInOrder():
             for inst in b.getInstructions():
                 if inst.is_jump(self.opcode):
-                    assert inst.target is not None
+                    assert inst.target is not None, inst
                     inst.ioparg = label_map[inst.target]
 
         super().flatten_graph()
@@ -2543,8 +2547,23 @@ class PyFlowGraph314(PyFlowGraph312):
         "COMPARE_OP": _convert_compare_op,
     }
 
-    def instrsize(self, opname: str, oparg: int) -> int:
+    def get_ext_oparg(self, inst: Instruction) -> int:
+        pushed = self.opcode.get_num_pushed(inst.opname, inst.oparg)
+        popped = self.opcode.get_num_popped(inst.opname, inst.oparg)
+        assert pushed < 4, pushed
+        return popped << 2 | pushed
+
+    def instrsize(self, instr: Instruction, oparg: int) -> int:
+        opname = instr.opname
         base_size = _inline_cache_entries.get(opname, 0)
+        if opname in STATIC_OPCODES:
+            # extended opcode
+            base_size += 1
+            extoparg = self.get_ext_oparg(instr)
+            while extoparg >= 256:
+                extoparg >>= 8
+                base_size += 1
+
         if oparg <= 0xFF:
             return 1 + base_size
         elif oparg <= 0xFFFF:
@@ -2553,6 +2572,43 @@ class PyFlowGraph314(PyFlowGraph312):
             return 3 + base_size
         else:
             return 4 + base_size
+
+    def make_byte_code(self) -> bytes:
+        assert self.stage == FLAT, self.stage
+
+        code: bytearray = bytearray()
+
+        def addCode(opcode: int, oparg: int) -> None:
+            assert opcode < 256, opcode
+            assert oparg < 256, oparg
+            code.append(opcode)
+            code.append(oparg)
+
+        for t in self.insts:
+            if t.opname in STATIC_OPCODES:
+                extoparg = self.get_ext_oparg(t)
+
+                if extoparg > 0xFFFFFF:
+                    addCode(self.opcode.EXTENDED_ARG, (extoparg >> 24) & 0xFF)
+                if extoparg > 0xFFFF:
+                    addCode(self.opcode.EXTENDED_ARG, (extoparg >> 16) & 0xFF)
+                if extoparg > 0xFF:
+                    addCode(self.opcode.EXTENDED_ARG, (extoparg >> 8) & 0xFF)
+                addCode(self.opcode.EXTENDED_OPCODE, extoparg & 0xFF)
+
+            oparg = t.ioparg
+            assert 0 <= oparg <= 0xFFFFFFFF, oparg
+            if oparg > 0xFFFFFF:
+                addCode(self.opcode.EXTENDED_ARG, (oparg >> 24) & 0xFF)
+            if oparg > 0xFFFF:
+                addCode(self.opcode.EXTENDED_ARG, (oparg >> 16) & 0xFF)
+            if oparg > 0xFF:
+                addCode(self.opcode.EXTENDED_ARG, (oparg >> 8) & 0xFF)
+            addCode(self.opcode.opmap[t.opname], oparg & 0xFF)
+            self.emit_inline_cache(t.opname, addCode)
+
+        self.stage = DONE
+        return bytes(code)
 
     def emit_inline_cache(
         self, opcode: str, addCode: Callable[[int, int], None]

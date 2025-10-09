@@ -18,7 +18,6 @@ test_cinderx.test_compiler.test_static.context_decorator
 test_cinderx.test_compiler.test_static.crange
 test_cinderx.test_compiler.test_static.dataclass
 test_cinderx.test_compiler.test_static.decl_visitor
-test_cinderx.test_compiler.test_static.dependencies
 test_cinderx.test_compiler.test_static.double
 test_cinderx.test_compiler.test_static.dynamic_return
 test_cinderx.test_compiler.test_static.elide_type_checks
@@ -36,11 +35,9 @@ test_cinderx.test_compiler.test_static.non_static_inheritance
 test_cinderx.test_compiler.test_static.obj_creation
 test_cinderx.test_compiler.test_static.overrides
 test_cinderx.test_compiler.test_static.patch
-test_cinderx.test_compiler.test_static.perf_lint
 test_cinderx.test_compiler.test_static.primitives
 test_cinderx.test_compiler.test_static.property
 test_cinderx.test_compiler.test_static.refine_fields
-test_cinderx.test_compiler.test_static.reflection
 test_cinderx.test_compiler.test_static.return_cast_insertion
 test_cinderx.test_compiler.test_static.runtime
 test_cinderx.test_compiler.test_static.sequence
@@ -49,9 +46,7 @@ test_cinderx.test_compiler.test_static.subclass
 test_cinderx.test_compiler.test_static.super
 test_cinderx.test_compiler.test_static.sys_hexversion
 test_cinderx.test_compiler.test_static.type_alias
-test_cinderx.test_compiler.test_static.type_params
 test_cinderx.test_compiler.test_static.union
-test_cinderx.test_compiler.test_static.unknown_names
 test_cinderx.test_compiler.test_static.variadic_arg
 test_cinderx.test_compiler.test_static.walrus_operator
 test_cinderx.test_compiler.test_strict

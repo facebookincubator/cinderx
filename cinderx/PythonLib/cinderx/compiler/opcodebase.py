@@ -24,6 +24,7 @@ class Opcode:
 
     HAVE_ARGUMENT = 90  # Opcodes from here have an argument:
     EXTENDED_ARG = 144
+    EXTENDED_OPCODE = 126
     CODEUNIT_SIZE = 2
 
     def __init__(self) -> None:

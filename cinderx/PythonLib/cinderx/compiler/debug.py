@@ -60,7 +60,7 @@ def dump_block(
     print(str_of_block_header(block))
     for instr in block.getInstructions():
         print("    ", str_of_block_instr(instr, pc, stack_effect))
-        pc += graph.instrsize(instr.opname, instr.ioparg) * opcode.CODEUNIT_SIZE
+        pc += graph.instrsize(instr, instr.ioparg) * opcode.CODEUNIT_SIZE
     return pc
 
 
