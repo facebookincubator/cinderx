@@ -485,6 +485,45 @@ dummy_func(
             goto error;
         }
 
+        spilled label(start_frame) {
+            // Update call count.
+            {
+                PyObject *executable = PyStackRef_AsPyObjectBorrow(frame->f_executable);
+                if (PyCode_Check(executable)) {
+                    PyCodeObject* code = (PyCodeObject*)executable;
+                    if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) {
+                        CodeExtra *extra = codeExtra(code);
+                        if (extra != NULL) {
+                            extra->calls += 1;
+                        }
+                    }
+                }
+            }
+
+            int too_deep = _Py_EnterRecursivePy(tstate);
+            if (too_deep) {
+                goto exit_unwind;
+            }
+            next_instr = frame->instr_ptr;
+        #ifdef Py_DEBUG
+            int lltrace = maybe_lltrace_resume_frame(frame, GLOBALS());
+            if (lltrace < 0) {
+                JUMP_TO_LABEL(exit_unwind);
+            }
+            frame->lltrace = lltrace;
+            /* _PyEval_EvalFrameDefault() must not be called with an exception set,
+            because it can clear it (directly or indirectly) and so the
+            caller loses its exception */
+            assert(!_PyErr_Occurred(tstate));
+        #endif
+            RELOAD_STACK();
+#if Py_TAIL_CALL_INTERP
+            int opcode;
+#endif
+            DISPATCH();
+        }
+
+
 // END BYTECODES //
 
     }
