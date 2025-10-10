@@ -26,6 +26,13 @@
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag);
 
+bool Ci_DelayAdaptiveCode = false;
+uint64_t Ci_AdaptiveThreshold = 80;
+
+bool is_adaptive_enabled(CodeExtra *extra) {
+    return !Ci_DelayAdaptiveCode || extra->calls > Ci_AdaptiveThreshold;
+}
+
 #include "cinderx/Interpreter/3.14/Includes/ceval.c"
 
 #endif
@@ -409,13 +416,6 @@ void Ci_InitOpcodes() {
 #endif
 }
 
-bool Ci_DelayAdaptiveCode = false;
-uint64_t Ci_AdaptiveThreshold = 80;
-
-bool is_adaptive_enabled(CodeExtra *extra) {
-    return !Ci_DelayAdaptiveCode || extra->calls > Ci_AdaptiveThreshold;
-}
-
 static void
 _Ci_specialize(_Py_CODEUNIT *next_instr, int opcode)
 {
@@ -506,8 +506,7 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 #endif
 
     /* support for generator.throw() */
-    //bool adaptive_enabled = false;
-    /* support for generator.throw() */
+    bool adaptive_enabled = false;
     if (throwflag) {
         if (_Py_EnterRecursivePy(tstate)) {
             goto early_exit;
@@ -532,9 +531,9 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
         stack_pointer = _PyFrame_GetStackPointer(frame);
 #if Py_TAIL_CALL_INTERP
 #   if Py_STATS
-        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, lastopcode);
+        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, lastopcode, adaptive_enabled);
 #   else
-        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0);
+        return _TAIL_CALL_error(frame, stack_pointer, tstate, next_instr, 0, adaptive_enabled);
 #   endif
 #else
         goto error;
@@ -548,9 +547,9 @@ Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 #endif
 #if Py_TAIL_CALL_INTERP
 #   if Py_STATS
-        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0, lastopcode);
+        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0, lastopcode, adaptive_enabled);
 #   else
-        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0);
+        return _TAIL_CALL_start_frame(frame, NULL, tstate, NULL, 0, adaptive_enabled);
 #   endif
 #else
     goto start_frame;

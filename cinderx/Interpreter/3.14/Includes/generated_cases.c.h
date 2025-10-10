@@ -7688,6 +7688,7 @@
                 _Py_LeaveRecursiveCallPy(tstate);
                 _PyInterpreterFrame *dying = frame;
                 frame = tstate->current_frame = dying->previous;
+                CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
                 _PyEval_FrameClearAndPop(tstate, dying);
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 LOAD_IP(frame->return_offset);
@@ -7747,6 +7748,7 @@
                 _Py_LeaveRecursiveCallPy(tstate);
                 _PyInterpreterFrame *gen_frame = frame;
                 frame = tstate->current_frame = frame->previous;
+                CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
                 gen_frame->previous = NULL;
                 assert(INLINE_CACHE_ENTRIES_SEND == INLINE_CACHE_ENTRIES_FOR_ITER);
                 #if TIER_ONE
@@ -10717,6 +10719,7 @@
             _PyInterpreterFrame *prev = frame->previous;
             _PyThreadState_PopFrame(tstate, frame);
             frame = tstate->current_frame = prev;
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
             LOAD_IP(frame->return_offset);
             stack_pointer = _PyFrame_GetStackPointer(frame);
             res = PyStackRef_FromPyObjectStealMortal((PyObject *)gen);
@@ -10747,6 +10750,7 @@
             _Py_LeaveRecursiveCallPy(tstate);
             _PyInterpreterFrame *dying = frame;
             frame = tstate->current_frame = dying->previous;
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
             _PyEval_FrameClearAndPop(tstate, dying);
             stack_pointer = _PyFrame_GetStackPointer(frame);
             LOAD_IP(frame->return_offset);
@@ -12452,6 +12456,7 @@
             _Py_LeaveRecursiveCallPy(tstate);
             _PyInterpreterFrame *gen_frame = frame;
             frame = tstate->current_frame = frame->previous;
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
             gen_frame->previous = NULL;
             assert(INLINE_CACHE_ENTRIES_SEND == INLINE_CACHE_ENTRIES_FOR_ITER);
             #if TIER_ONE
@@ -12624,8 +12629,11 @@ JUMP_TO_LABEL(error);
                     PyCodeObject* code = (PyCodeObject*)executable;
                     if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) {
                         CodeExtra *extra = codeExtra(code);
-                        if (extra != NULL) {
+                        if (extra == NULL) {
+                            adaptive_enabled = false;
+                        } else {
                             extra->calls += 1;
+                            adaptive_enabled = is_adaptive_enabled(extra);
                         }
                     }
                 }

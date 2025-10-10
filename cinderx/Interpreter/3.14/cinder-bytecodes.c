@@ -485,6 +485,93 @@ dummy_func(
             goto error;
         }
 
+        override inst(RETURN_VALUE, (retval -- res)) {
+            assert(frame->owner != FRAME_OWNED_BY_INTERPRETER);
+            _PyStackRef temp = PyStackRef_MakeHeapSafe(retval);
+            DEAD(retval);
+            SAVE_STACK();
+            assert(STACK_LEVEL() == 0);
+            _Py_LeaveRecursiveCallPy(tstate);
+            // GH-99729: We need to unlink the frame *before* clearing it:
+            _PyInterpreterFrame *dying = frame;
+            frame = tstate->current_frame = dying->previous;
+
+            // CX: Maybe reactivate adaptive interpreter in caller
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
+            _PyEval_FrameClearAndPop(tstate, dying);
+            RELOAD_STACK();
+            LOAD_IP(frame->return_offset);
+            res = temp;
+            LLTRACE_RESUME_FRAME();
+        }
+
+        override inst(RETURN_GENERATOR, (-- res)) {
+            assert(PyStackRef_FunctionCheck(frame->f_funcobj));
+            PyFunctionObject *func = (PyFunctionObject *)PyStackRef_AsPyObjectBorrow(frame->f_funcobj);
+            PyGenObject *gen = (PyGenObject *)_Py_MakeCoro(func);
+            ERROR_IF(gen == NULL);
+            assert(STACK_LEVEL() == 0);
+            SAVE_STACK();
+            _PyInterpreterFrame *gen_frame = &gen->gi_iframe;
+            frame->instr_ptr++;
+            _PyFrame_Copy(frame, gen_frame);
+            assert(frame->frame_obj == NULL);
+            gen->gi_frame_state = FRAME_CREATED;
+            gen_frame->owner = FRAME_OWNED_BY_GENERATOR;
+            _Py_LeaveRecursiveCallPy(tstate);
+            _PyInterpreterFrame *prev = frame->previous;
+            _PyThreadState_PopFrame(tstate, frame);
+            frame = tstate->current_frame = prev;
+
+            // CX: Maybe reactivate adaptive interpreter in caller
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
+            LOAD_IP(frame->return_offset);
+            RELOAD_STACK();
+            res = PyStackRef_FromPyObjectStealMortal((PyObject *)gen);
+            LLTRACE_RESUME_FRAME();
+        }
+
+        override inst(YIELD_VALUE, (retval -- value)) {
+            // NOTE: It's important that YIELD_VALUE never raises an exception!
+            // The compiler treats any exception raised here as a failed close()
+            // or throw() call.
+            assert(frame->owner != FRAME_OWNED_BY_INTERPRETER);
+            frame->instr_ptr++;
+            PyGenObject *gen = _PyGen_GetGeneratorFromFrame(frame);
+            assert(FRAME_SUSPENDED_YIELD_FROM == FRAME_SUSPENDED + 1);
+            assert(oparg == 0 || oparg == 1);
+            gen->gi_frame_state = FRAME_SUSPENDED + oparg;
+            _PyStackRef temp = retval;
+            DEAD(retval);
+            SAVE_STACK();
+            tstate->exc_info = gen->gi_exc_state.previous_item;
+            gen->gi_exc_state.previous_item = NULL;
+            _Py_LeaveRecursiveCallPy(tstate);
+            _PyInterpreterFrame *gen_frame = frame;
+            frame = tstate->current_frame = frame->previous;
+
+            // CX: Maybe reactivate adaptive interpreter in caller
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
+            gen_frame->previous = NULL;
+            /* We don't know which of these is relevant here, so keep them equal */
+            assert(INLINE_CACHE_ENTRIES_SEND == INLINE_CACHE_ENTRIES_FOR_ITER);
+            #if TIER_ONE
+            assert(frame->instr_ptr->op.code == INSTRUMENTED_LINE ||
+                   frame->instr_ptr->op.code == INSTRUMENTED_INSTRUCTION ||
+                   _PyOpcode_Deopt[frame->instr_ptr->op.code] == SEND ||
+                   _PyOpcode_Deopt[frame->instr_ptr->op.code] == FOR_ITER ||
+                   _PyOpcode_Deopt[frame->instr_ptr->op.code] == INTERPRETER_EXIT ||
+                   _PyOpcode_Deopt[frame->instr_ptr->op.code] == ENTER_EXECUTOR);
+            #endif
+            RELOAD_STACK();
+            LOAD_IP(1 + INLINE_CACHE_ENTRIES_SEND);
+            value = PyStackRef_MakeHeapSafe(temp);
+            LLTRACE_RESUME_FRAME();
+        }
+
         spilled label(start_frame) {
             // Update call count.
             {
@@ -493,8 +580,11 @@ dummy_func(
                     PyCodeObject* code = (PyCodeObject*)executable;
                     if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) {
                         CodeExtra *extra = codeExtra(code);
-                        if (extra != NULL) {
+                        if (extra == NULL) {
+                            adaptive_enabled = false;
+                        } else {
                             extra->calls += 1;
+                            adaptive_enabled = is_adaptive_enabled(extra);
                         }
                     }
                 }

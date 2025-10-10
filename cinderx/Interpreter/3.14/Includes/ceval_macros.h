@@ -73,11 +73,11 @@
 #endif
 
 #ifdef Py_STATS
-#   define TAIL_CALL_PARAMS _PyInterpreterFrame *frame, _PyStackRef *stack_pointer, PyThreadState *tstate, _Py_CODEUNIT *next_instr, int oparg, int lastopcode
-#   define TAIL_CALL_ARGS frame, stack_pointer, tstate, next_instr, oparg, lastopcode
+#   define TAIL_CALL_PARAMS _PyInterpreterFrame *frame, _PyStackRef *stack_pointer, PyThreadState *tstate, _Py_CODEUNIT *next_instr, int oparg, int lastopcode, bool adaptive_enabled
+#   define TAIL_CALL_ARGS frame, stack_pointer, tstate, next_instr, oparg, lastopcode, adaptive_enabled
 #else
-#   define TAIL_CALL_PARAMS _PyInterpreterFrame *frame, _PyStackRef *stack_pointer, PyThreadState *tstate, _Py_CODEUNIT *next_instr, int oparg
-#   define TAIL_CALL_ARGS frame, stack_pointer, tstate, next_instr, oparg
+#   define TAIL_CALL_PARAMS _PyInterpreterFrame *frame, _PyStackRef *stack_pointer, PyThreadState *tstate, _Py_CODEUNIT *next_instr, int oparg, bool adaptive_enabled
+#   define TAIL_CALL_ARGS frame, stack_pointer, tstate, next_instr, oparg, adaptive_enabled
 #endif
 
 #if Py_TAIL_CALL_INTERP
@@ -98,12 +98,12 @@
 #   ifdef Py_STATS
 #       define JUMP_TO_PREDICTED(name) \
             do { \
-                Py_MUSTTAIL return (_TAIL_CALL_##name)(frame, stack_pointer, tstate, this_instr, oparg, lastopcode); \
+                Py_MUSTTAIL return (_TAIL_CALL_##name)(frame, stack_pointer, tstate, this_instr, oparg, lastopcode, adaptive_enabled); \
             } while (0)
 #   else
 #       define JUMP_TO_PREDICTED(name) \
             do { \
-                Py_MUSTTAIL return (_TAIL_CALL_##name)(frame, stack_pointer, tstate, this_instr, oparg); \
+                Py_MUSTTAIL return (_TAIL_CALL_##name)(frame, stack_pointer, tstate, this_instr, oparg, adaptive_enabled); \
             } while (0)
 #   endif
 #    define LABEL(name) TARGET(name)
@@ -281,9 +281,9 @@ GETITEM(PyObject *v, Py_ssize_t i) {
     backoff_counter_triggers(forge_backoff_counter((COUNTER)))
 
 #define ADVANCE_ADAPTIVE_COUNTER(COUNTER) \
-    do { \
+    if (adaptive_enabled) { \
         (COUNTER) = advance_backoff_counter((COUNTER)); \
-    } while (0);
+    }
 
 #define PAUSE_ADAPTIVE_COUNTER(COUNTER) \
     do { \
@@ -428,3 +428,17 @@ do { \
     _PyObjectArray_Free(NAME - 1, NAME##_temp);
 
 #define CONVERSION_FAILED(NAME) ((NAME) == NULL)
+
+// CO_NO_MONITORING_EVENTS indicates the code object is read-only and therefore
+// cannot have code-extra data added.
+#define CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE \
+    do { \
+        PyObject *executable = PyStackRef_AsPyObjectBorrow(frame->f_executable); \
+        if (PyCode_Check(executable)) { \
+            PyCodeObject* code = (PyCodeObject*)executable; \
+            if (!(code->co_flags & CO_NO_MONITORING_EVENTS)) { \
+                CodeExtra *extra = codeExtra(code); \
+                adaptive_enabled = extra != NULL && is_adaptive_enabled(extra); \
+            } \
+        } \
+    } while (0);
