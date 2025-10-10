@@ -129,43 +129,12 @@ void finiCodeExtraIndex() {
   code_extra_index = -1;
 }
 
-CodeExtra* initCodeExtra(PyCodeObject* code) {
-  if constexpr (!USE_CODE_EXTRA) {
-    return nullptr;
-  }
-  JIT_CHECK(
-      code_extra_index != -1,
-      "Cannot initialize code object extra data without registering the index");
-
-  auto code_obj = reinterpret_cast<PyObject*>(code);
-
-  // Make sure that this isn't going to overwrite existing extra data.
-  void* existing = nullptr;
-  if (PyUnstable_Code_GetExtra(code_obj, code_extra_index, &existing) < 0) {
-    JIT_CHECK(PyErr_Occurred(), "Expect a Python error when this API fails");
-    return nullptr;
-  }
-  if (existing != nullptr) {
-    return reinterpret_cast<CodeExtra*>(existing);
-  }
-
-  auto extra = reinterpret_cast<CodeExtra*>(PyMem_Calloc(1, sizeof(CodeExtra)));
-  if (extra == nullptr) {
-    PyErr_NoMemory();
-    return nullptr;
-  }
-
-  if (PyUnstable_Code_SetExtra(code_obj, code_extra_index, extra) < 0) {
-    JIT_CHECK(PyErr_Occurred(), "Expect a Python error when this API fails");
-    PyMem_Free(extra);
-    return nullptr;
-  }
-
-  return extra;
-}
-
 CodeExtra* codeExtra(PyCodeObject* code) {
   if constexpr (!USE_CODE_EXTRA) {
+    return nullptr;
+  }
+
+  if (code_extra_index == -1) {
     return nullptr;
   }
 
@@ -173,14 +142,29 @@ CodeExtra* codeExtra(PyCodeObject* code) {
 
   void* data_ptr = nullptr;
   if (PyUnstable_Code_GetExtra(code_obj, code_extra_index, &data_ptr) < 0) {
-    PyErr_WriteUnraisable(code_obj);
+    JIT_LOG("Failed to get code extra data for {}", codeName(code));
+    jit::printPythonException();
+    PyErr_Clear();
+    return nullptr;
   }
-  if (data_ptr == nullptr) {
-    JIT_DLOG(
-        "Missing extra data on code object {}",
-        PyUnicode_AsUTF8(code->co_qualname));
+  if (data_ptr != nullptr) {
+    return reinterpret_cast<CodeExtra*>(data_ptr);
   }
-  return reinterpret_cast<CodeExtra*>(data_ptr);
+
+  auto extra = reinterpret_cast<CodeExtra*>(PyMem_Calloc(1, sizeof(CodeExtra)));
+  if (extra == nullptr) {
+    return nullptr;
+  }
+
+  if (PyUnstable_Code_SetExtra(code_obj, code_extra_index, extra) < 0) {
+    JIT_LOG("Failed to set code extra data for {}", codeName(code));
+    jit::printPythonException();
+    PyErr_Clear();
+    PyMem_Free(extra);
+    return nullptr;
+  }
+
+  return extra;
 }
 
 int numLocals(PyCodeObject* code) {

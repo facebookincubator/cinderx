@@ -245,7 +245,7 @@ primitive_unary_op(PyObject *val, int oparg)
     }
     return res;
 }
-      
+
 #define INT_BIN_OPCODE_UNSIGNED(opid, op)                                 \
     case opid:                                                            \
         res = PyLong_FromVoidPtr((void*)(((size_t)PyLong_AsVoidPtr(l))op( \
@@ -412,6 +412,11 @@ Py_ssize_t load_method_static_cached_oparg_slot(int oparg) {
     return oparg >> 1;
 }
 
+#define CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE \
+    PyCodeObject* code = frame->f_code; \
+    CodeExtra *extra = codeExtra(code); \
+    adaptive_enabled = extra != NULL && is_adaptive_enabled(extra);
+
 PyObject* _Py_HOT_FUNCTION
 Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 {
@@ -504,12 +509,13 @@ start_frame:
     // Update call count.
     {
         PyCodeObject* code = frame->f_code;
-        CodeExtra *extra = initCodeExtra(code);
-        if (extra == NULL) {
-          goto exit_unwind;
+        CodeExtra *extra = codeExtra(code);
+        if (extra != NULL) {
+            extra->calls += 1;
+            adaptive_enabled = is_adaptive_enabled(extra);
+        } else {
+            adaptive_enabled = false;
         }
-        extra->calls += 1;
-        adaptive_enabled = is_adaptive_enabled(extra);
     }
 
     if (_Py_EnterRecursivePy(tstate)) {

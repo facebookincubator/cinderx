@@ -909,10 +909,8 @@ dummy_func(
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
 
-            PyCodeObject* code = frame->f_code;
-            CodeExtra *extra = initCodeExtra(code);
-            assert(extra != NULL); // was allocated on entry
-            adaptive_enabled =  is_adaptive_enabled(extra);
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
             goto resume_frame;
         }
 
@@ -1052,14 +1050,14 @@ dummy_func(
             bool is_classmethod =
                 load_method_static_cached_oparg_is_classmethod(cache);
             Py_ssize_t slot = load_method_static_cached_oparg_slot(cache);
-   
+
             _PyType_VTable* vtable;
             if (is_classmethod) {
                 vtable = (_PyType_VTable*)(((PyTypeObject*)self)->tp_cache);
             } else {
                 vtable = (_PyType_VTable*)self->ob_type->tp_cache;
             }
-    
+
             assert(!PyErr_Occurred());
             StaticMethodInfo res =
                 _PyClassLoader_LoadStaticMethod(vtable, slot, self);
@@ -1231,10 +1229,8 @@ dummy_func(
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
 
-            PyCodeObject* code = frame->f_code;
-            CodeExtra *extra = initCodeExtra(code);
-            assert(extra != NULL); // was allocated on entry
-            adaptive_enabled =  is_adaptive_enabled(extra);
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
             goto resume_frame;
         }
 
@@ -1255,10 +1251,8 @@ dummy_func(
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
 
-            PyCodeObject* code = frame->f_code;
-            CodeExtra *extra = initCodeExtra(code);
-            assert(extra != NULL); // was allocated on entry
-            adaptive_enabled =  is_adaptive_enabled(extra);
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
             goto resume_frame;
         }
 
@@ -1276,10 +1270,8 @@ dummy_func(
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
 
-            PyCodeObject* code = frame->f_code;
-            CodeExtra *extra = initCodeExtra(code);
-            assert(extra != NULL); // was allocated on entry
-            adaptive_enabled =  is_adaptive_enabled(extra);
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
             goto resume_frame;
         }
 
@@ -1301,10 +1293,8 @@ dummy_func(
             frame->prev_instr += frame->return_offset;
             _PyFrame_StackPush(frame, retval);
 
-            PyCodeObject* code = frame->f_code;
-            CodeExtra *extra = initCodeExtra(code);
-            assert(extra != NULL); // was allocated on entry
-            adaptive_enabled =  is_adaptive_enabled(extra);
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
             goto resume_frame;
         }
 
@@ -1325,10 +1315,8 @@ dummy_func(
             gen_frame->previous = NULL;
             _PyFrame_StackPush(frame, retval);
 
-            PyCodeObject* code = frame->f_code;
-            CodeExtra *extra = initCodeExtra(code);
-            assert(extra != NULL); // was allocated on entry
-            adaptive_enabled =  is_adaptive_enabled(extra);
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
             goto resume_frame;
         }
 
@@ -1348,10 +1336,8 @@ dummy_func(
             gen_frame->previous = NULL;
             _PyFrame_StackPush(frame, retval);
 
-            PyCodeObject* code = frame->f_code;
-            CodeExtra *extra = initCodeExtra(code);
-            assert(extra != NULL); // was allocated on entry
-            adaptive_enabled =  is_adaptive_enabled(extra);
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
             goto resume_frame;
         }
 
@@ -1376,10 +1362,8 @@ dummy_func(
             frame = cframe.current_frame = prev;
             _PyFrame_StackPush(frame, (PyObject *)gen);
 
-            PyCodeObject* code = frame->f_code;
-            CodeExtra *extra = initCodeExtra(code);
-            assert(extra != NULL); // was allocated on entry
-            adaptive_enabled =  is_adaptive_enabled(extra);
+            CI_SET_ADAPTIVE_INTERPRETER_ENABLED_STATE
+
             goto resume_frame;
         }
 

@@ -124,17 +124,9 @@ typedef struct {
 void initCodeExtraIndex();
 void finiCodeExtraIndex();
 
-// Allocate and set a new extra data object on a code object, and then return
-// it.  If the code object already has an attached extra data object, just
-// return that.
-//
-// Set a Python error and return nullptr on failure.
-CodeExtra* initCodeExtra(PyCodeObject* code);
-
-// Get the extra data object associated with a code object.
-//
-// Return NULL without setting an error if the code object doesn't have extra
-// data attached to it.
+// Get the extra data object associated with a code object. Lazily allocates
+// this data if this is the first access. Returns nullptr on failure with no
+// Python error set.
 CodeExtra* codeExtra(PyCodeObject* code);
 
 // Count the various frame variables that a code object will use.
