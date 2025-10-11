@@ -504,6 +504,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         start = self.newBlock()
         anchor = self.newBlock()
         after = self.newBlock()
+        body = self.newBlock()
 
         self.push_loop(FOR_LOOP, start, after)
         self.emit_load_class_list()
@@ -513,6 +514,7 @@ class StrictCodeGenBase(CinderCodeGenBase):
         # for <class> in <classes>
         # we don't actually need to assign to <class>
         self.emit("FOR_ITER", anchor)
+        self.nextBlock(body)
         self.emit("LOAD_GLOBAL", "<freeze-type>")
         # argument need to be top most
         self.emit_rotate_stack(2)
