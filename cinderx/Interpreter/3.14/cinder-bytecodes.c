@@ -526,6 +526,21 @@ dummy_func(
                 }
 #endif
                 DECREF_INPUTS();
+            } else if (extop == LOAD_LOCAL) {
+                int index = PyLong_AsInt(PyTuple_GET_ITEM(GETITEM(FRAME_CO_CONSTS, extoparg), 0));
+
+                _PyStackRef value = GETLOCAL(index);
+                if (PyStackRef_IsNull(value)) {
+                    // Primitive values are default initialized to zero, so they don't
+                    // need to be defined. We should consider stop doing that as it can
+                    // cause compatibility issues when the same code runs statically and
+                    // non statically.
+                    GETLOCAL(index) = PyStackRef_FromPyObjectSteal(PyLong_FromLong(0));
+                } else {
+                    value = PyStackRef_DUP(value);
+                }
+                top[0] = value;
+                DECREF_INPUTS();
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);

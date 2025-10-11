@@ -5756,6 +5756,24 @@
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
+            } else if (extop == LOAD_LOCAL) {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                int index = PyLong_AsInt(PyTuple_GET_ITEM(GETITEM(FRAME_CO_CONSTS, extoparg), 0));
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                _PyStackRef value = GETLOCAL(index);
+                if (PyStackRef_IsNull(value)) {
+                    GETLOCAL(index) = PyStackRef_FromPyObjectSteal(PyLong_FromLong(0));
+                } else {
+                    value = PyStackRef_DUP(value);
+                }
+                top[0] = value;
+                stack_pointer += -(oparg&0x03) + (oparg>>2);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg&0x03; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,
