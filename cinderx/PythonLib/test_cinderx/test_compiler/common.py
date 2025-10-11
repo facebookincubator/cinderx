@@ -15,10 +15,10 @@ from io import StringIO
 from os import path
 from subprocess import run
 from types import CodeType, FunctionType, MethodType
-from typing import Any, Callable, Generator
+from typing import Any, Callable, Generator, Iterable
 from unittest import TestCase
 
-from cinderx.compiler.opcodes import STATIC_OPNAMES
+from cinderx.compiler.opcodes import STATIC_CONST_OPCODES, STATIC_OPNAMES
 from cinderx.compiler.pyassem import Instruction, PyFlowGraph
 from cinderx.compiler.pycodegen import (
     CinderCodeGenerator310,
@@ -26,6 +26,16 @@ from cinderx.compiler.pycodegen import (
     CodeGenerator312,
     make_compiler,
 )
+
+if sys.version_info >= (3, 14):
+    from dis import (
+        _get_code_object,
+        _make_labels_map,
+        _parse_exception_table,
+        ArgResolver,
+        Bytecode,
+        Formatter,
+    )
 
 # Any value that can be passed into dis.dis() and dis.get_instructions().
 Disassembleable = Callable[..., Any] | CodeType | FunctionType | MethodType
@@ -69,8 +79,39 @@ class CompilerTest(TestCase):
 
     def get_disassembly_as_string(self, co: Disassembleable) -> str:
         s = StringIO()
-        dis.dis(co, file=s)
+        if sys.version_info < (3, 14):
+            dis.dis(co, file=s)
+            return s.getvalue()
+
+        # pyre-ignore[10]: Formatter defined for 3.14+
+        formatter = Formatter(file=s, offset_width=3)
+        # pyre-ignore[10]: Formatter defined for 3.14+
+        bc = Bytecode(co)
+        extended = False
+        for instr in bc:
+            if extended and instr.opname != "EXTENDED_ARG":
+                extended = False
+                instr = self.make_static_instr(instr, co)
+            elif instr.opname == "EXTENDED_OPCODE":
+                extended = True
+
+            formatter.print_instruction(instr, False)
+
         return s.getvalue()
+
+    def make_static_instr(
+        self, instr: dis.Instruction, co: Disassembleable
+    ) -> dis.Instruction:
+        if instr.opcode in STATIC_CONST_OPCODES:
+            return dis.Instruction(
+                STATIC_OPNAMES[instr.opcode],
+                instr[1],
+                instr.arg,
+                # pyre-ignore[10]: Formatter defined for 3.14+
+                _get_code_object(co).co_consts[instr.arg],
+                *instr[4:],
+            )
+        return dis.Instruction(STATIC_OPNAMES[instr.opcode], *instr[1:])
 
     def assertInBytecode(
         self,
@@ -81,7 +122,7 @@ class CompilerTest(TestCase):
         index: object = _UNSPECIFIED,
     ) -> dis.Instruction | None:
         """Returns instr if op is found, otherwise throws AssertionError"""
-        for i, instr in enumerate(dis.get_instructions(x)):
+        for i, instr in enumerate(self.get_instructions(x)):
             if instr.opname == opname:
                 argmatch = argval is _UNSPECIFIED or instr.argval == argval
                 indexmatch = index is _UNSPECIFIED or i == index
@@ -95,11 +136,27 @@ class CompilerTest(TestCase):
             msg = f"({opname},{argval}) not found in bytecode{loc_msg}:\n{disassembly}"
         self.fail(msg)
 
+    def get_instructions(self, x: Disassembleable) -> Iterable[dis.Instruction]:
+        if sys.version_info < (3, 14):
+            yield from dis.get_instructions(x)
+            return
+
+        extended = False
+        for instr in dis.get_instructions(x):
+            if instr.opname == "EXTENDED_OPCODE":
+                extended = True
+                yield instr
+            elif extended and instr.opname != "EXTENDED_ARG":
+                yield self.make_static_instr(instr, x)
+                extended = False
+            else:
+                yield instr
+
     def assertNotInBytecode(
         self, x: Disassembleable, opname: str, argval: object = _UNSPECIFIED
     ) -> None:
         """Throws AssertionError if op is found"""
-        for instr in dis.get_instructions(x):
+        for instr in self.get_instructions(x):
             if instr.opname == opname:
                 disassembly = self.get_disassembly_as_string(x)
                 if argval is _UNSPECIFIED:

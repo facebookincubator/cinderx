@@ -29,7 +29,6 @@ test_cinderx.test_compiler.test_static.invoke
 test_cinderx.test_compiler.test_static.literals
 test_cinderx.test_compiler.test_static.match
 test_cinderx.test_compiler.test_static.mixin
-test_cinderx.test_compiler.test_static.module
 test_cinderx.test_compiler.test_static.native
 test_cinderx.test_compiler.test_static.non_static_inheritance
 test_cinderx.test_compiler.test_static.obj_creation
@@ -38,7 +37,6 @@ test_cinderx.test_compiler.test_static.patch
 test_cinderx.test_compiler.test_static.primitives
 test_cinderx.test_compiler.test_static.property
 test_cinderx.test_compiler.test_static.refine_fields
-test_cinderx.test_compiler.test_static.return_cast_insertion
 test_cinderx.test_compiler.test_static.runtime
 test_cinderx.test_compiler.test_static.sequence
 test_cinderx.test_compiler.test_static.slots_with_default
