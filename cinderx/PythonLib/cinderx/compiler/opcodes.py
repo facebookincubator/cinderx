@@ -18,23 +18,33 @@ from opcode import (
 
 from .opcodebase import Opcode
 
+STATIC_OPMAP: dict[str, int] = {}
+STATIC_OPNAMES: list[str] = [f"<{i}>" for i in range(256)]
+STATIC_CONST_OPCODES: list[int] = []
+
 if sys.version_info >= (3, 12):
     from opcode import _cache_format, _inline_cache_entries, _specializations, hasarg
 
     from cinderx import opcode as cinderx_opcode
 
     cinderx_opcode.init(
-        opname,
-        opmap,
+        STATIC_OPNAMES if sys.version_info >= (3, 14) else opname,
+        STATIC_OPMAP,
         hasname,
         hasjrel,
         hasjabs,
-        hasconst,
+        STATIC_CONST_OPCODES if sys.version_info >= (3, 14) else hasconst,
         hasarg,
         _cache_format,
         _specializations,
         _inline_cache_entries,
     )
+    if sys.version_info >= (3, 14):
+        opname[126] = "EXTENDED_OPCODE"
+        opmap["EXTENDED_OPCODE"] = 126
+        hasarg.append(126)
+
+    opmap.update(STATIC_OPMAP)
 
     if "dis" in sys.modules:
         # Fix up dis module to use the CinderX opcodes
@@ -58,13 +68,17 @@ for opname, opnum in opmap.items():
     else:
         opcode.def_op(opname, opnum)
         if opnum in hasconst:
-            opcode.hasconst.add(opnum)
+            opcode.hasconst.add(opname)
         elif opnum in hasfree:
             opcode.hasfree.add(opnum)
         elif opnum in haslocal:
             opcode.haslocal.add(opnum)
         elif opnum in hascompare:
             opcode.hascompare.add(opnum)
+
+
+for opnum in STATIC_CONST_OPCODES:
+    opcode.hasconst.add(STATIC_OPNAMES[opnum])
 
 
 FVC_MASK = 0x3

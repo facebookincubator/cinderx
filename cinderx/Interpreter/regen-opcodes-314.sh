@@ -1,27 +1,7 @@
 #!/usr/bin/env bash
 # (c) Meta Platforms, Inc. and affiliates. Confidential and proprietary.
 
+root=$(sl root)
+buck2 run fbcode//cinderx/PythonLib/opcodes:assign_opcode_numbers314 $root/fbcode/cinderx/PythonLib/opcodes/3.14/opcode.py
 
-srcdir=$(sl root)/third-party/python/3.14/patched
-
-
-PYTHONPATH=$srcdir/Tools/cases_generator \
-fbpython -- \
-    $srcdir/Tools/cases_generator/opcode_id_generator.py \
-        -o 3.14/opcode.h \
-        $srcdir/Python/bytecodes.c \
-        3.14/cinder-bytecodes.c
-
-PYTHONPATH=$srcdir/Tools/cases_generator \
-fbpython -- \
-    $srcdir/Tools/cases_generator/opcode_metadata_generator.py \
-        -o 3.14/cinder_opcode_metadata.h \
-        $srcdir/Python/bytecodes.c \
-        3.14/cinder-bytecodes.c
-
-PYTHONPATH=$srcdir/Tools/cases_generator \
-fbpython -- \
-    $srcdir/Tools/cases_generator/target_generator.py \
-        -o 3.14/cinderx_opcode_targets.h \
-        $srcdir/Python/bytecodes.c \
-        3.14/cinder-bytecodes.c
+buck2 run :gen-opcodes-314 $root/fbcode/cinderx/Interpreter/3.14/cinder_opcode_ids.h

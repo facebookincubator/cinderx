@@ -18,6 +18,7 @@ from types import CodeType, FunctionType, MethodType
 from typing import Any, Callable, Generator
 from unittest import TestCase
 
+from cinderx.compiler.opcodes import STATIC_OPNAMES
 from cinderx.compiler.pyassem import Instruction, PyFlowGraph
 from cinderx.compiler.pycodegen import (
     CinderCodeGenerator310,

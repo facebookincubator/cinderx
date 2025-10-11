@@ -192,10 +192,7 @@ class BytecodeInstructionBlock {
   BCIndex end_idx_;
 };
 
-#if PY_VERSION_HEX >= 0x030E0000
-// 0x200 to make sure we don't collide with pseudo instructions
-#define EXTENDED_OPCODE_FLAG 0x0200
-#else
+#ifndef EXTENDED_OPCODE_FLAG
 #define EXTENDED_OPCODE_FLAG 0
 #endif
 

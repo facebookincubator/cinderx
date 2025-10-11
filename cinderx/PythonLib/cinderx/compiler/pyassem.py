@@ -1802,7 +1802,7 @@ class PyFlowGraph312(PyFlowGraph):
         # mark used consts
         for block in self.ordered_blocks:
             for instr in block.insts:
-                if self.opcode.opmap[instr.opname] in self.opcode.hasconst:
+                if instr.opname in self.opcode.hasconst:
                     index_map[instr.ioparg] = instr.ioparg
 
         used_consts = [x for x in index_map if x > -1]
@@ -1825,7 +1825,7 @@ class PyFlowGraph312(PyFlowGraph):
         # now update the existing opargs
         for block in self.ordered_blocks:
             for instr in block.insts:
-                if self.opcode.opmap[instr.opname] in self.opcode.hasconst:
+                if instr.opname in self.opcode.hasconst:
                     instr.ioparg = reverse_index_mapping[instr.ioparg]
 
     def add_checks_for_loads_of_uninitialized_variables(self) -> None:

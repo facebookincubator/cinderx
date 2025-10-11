@@ -28,7 +28,7 @@ class Opcode:
     CODEUNIT_SIZE = 2
 
     def __init__(self) -> None:
-        self.hasconst: set[int] = set()
+        self.hasconst: set[str] = set()
         self.hasname: set[int] = set()
         self.hasjrel: set[int] = set()
         self.hasjabs: set[int] = set()
@@ -127,7 +127,7 @@ class Opcode:
 
     def remove_op(self, opname: str) -> None:
         op = self.opmap[opname]
-        self.hasconst.discard(op)
+        self.hasconst.discard(opname)
         self.hasname.discard(op)
         self.hasjrel.discard(op)
         self.hasjabs.discard(op)

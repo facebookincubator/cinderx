@@ -8,6 +8,7 @@
 #  buck run PythonLib/opcodes:assign_opcode_numbers -- \
 #    PythonLib/opcodes/opcode_312.py
 
+import opcode
 import re
 import sys
 
@@ -100,7 +101,10 @@ def process_opcode(
             out.append(f'        specializations["{parent}"] = []')
             out.append(f'    specializations["{parent}"].append("{name}")')
         if cache_size:
-            out.append(f"    inline_cache_entries[{opcode_idx}] = {cache_size}")
+            if sys.version_info >= (3, 14):
+                out.append(f'    inline_cache_entries["{name}"] = {cache_size}')
+            else:
+                out.append(f"    inline_cache_entries[{opcode_idx}] = {cache_size}")
 
     else:
         out.append("    if not interp_only:")
@@ -111,7 +115,7 @@ def process_opcode(
             out.append(f"        hasarg.append({opcode_idx})")
 
 
-def assign_numbers() -> list[str]:
+def assign_numbers312() -> list[str]:
     i = START_NUM
     out: list[str] = []
 
@@ -140,13 +144,124 @@ def assign_numbers() -> list[str]:
     return out
 
 
+def build_size_map() -> dict[int, list[int]]:
+    size_by_name: dict[str, int] = {}
+
+    def add_one(name: str, size_from: str) -> None:
+        # pyre-ignore[16]: unknown attribute
+        size_by_name[name] = opcode._inline_cache_entries.get(size_from, 0)
+
+    # First add add the specialized opcodes based upon their parent
+    # pyre-ignore[16]: unknown attribute
+    for op, specializations in opcode._specializations.items():
+        add_one(op, op)
+        for specialization in specializations:
+            add_one(specialization, op)
+
+    # Then add all of the remaining non specialized opcodes
+    for op in opcode.opname:
+        if op == "POP_JUMP_IF_FALSE" or op == "POP_JUMP_IF_TRUE":
+            continue
+        if op not in size_by_name:
+            add_one(op, op)
+
+    size_groups: dict[int, list[int]] = {}
+    for op, size in size_by_name.items():
+        opnum = opcode.opname.index(op)
+        if opnum > 255 or opnum == 0:
+            continue
+        if size not in size_groups:
+            size_groups[size] = [opnum]
+        else:
+            size_groups[size].append(opnum)
+
+    for val in size_groups.values():
+        val.sort()
+    return size_groups
+
+
+def assign_numbers314() -> list[str]:
+    size_groups: dict[int, list[int]] = build_size_map()
+    start_num = 1
+    out: list[str] = []
+
+    def inc(cache_size: int, flags: int) -> int:
+        group = size_groups[cache_size]
+        i = None
+        # Try and assign our extended opcodes into instructions with like
+        # attributes so that things that naively look at extended ops see
+        # the something similar to what they expect.
+        for i, op in enumerate(group):
+            if flags & (cx.JABS | cx.JREL):
+                if op in opcode.hasjrel:
+                    break
+            elif flags & cx.NAME:
+                if op in opcode.hasname:
+                    break
+            elif (
+                op not in opcode.hasjrel
+                and op not in opcode.hasname
+                and op not in opcode.hasconst
+            ):
+                break
+        else:
+            raise NotImplementedError(
+                f"Couldn't find compatible opcode: {name} {flags:x} {group} {opcode.hasjrel}"
+            )
+
+        assert i is not None
+        res = group[i]
+        del group[i]
+        return res
+
+    name: str
+    for name, val in cx.CINDER_OPS.items():
+        if name in ("JUMP_IF_ZERO_OR_POP", "JUMP_IF_NONZERO_OR_POP"):
+            # special case - these are not used in 3.14.
+            continue
+
+        if isinstance(val, cx.Family):
+            # TODO: Enable cache formats eventually
+            cache_size = 0  # sum(val.cache_format.values())
+            cache_format = {}  # val.cache_format
+
+            process_opcode(
+                name,
+                val.flags,
+                out,
+                inc(cache_size, val.flags),
+                cache_size,
+                val.cache_format,
+            )
+            for specialization in val.specializations:
+                process_opcode(
+                    specialization,
+                    val.flags,
+                    out,
+                    inc(cache_size, val.flags),
+                    cache_size,
+                    parent=name,
+                )
+        elif name == "POP_JUMP_IF_ZERO":
+            process_opcode(name, val, out, opcode.opmap["POP_JUMP_IF_FALSE"], 1)
+        elif name == "POP_JUMP_IF_NONZERO":
+            process_opcode(name, val, out, opcode.opmap["POP_JUMP_IF_TRUE"], 1)
+        else:
+            process_opcode(name, val, out, inc(0, val))
+
+    return out
+
+
 def main() -> None:
     if len(sys.argv) != 2:
         print("Usage:\n  fbpython assign_opcode_numbers.py <outfile>")
         sys.exit()
 
     outfile = sys.argv[1]
-    out = assign_numbers()
+    if sys.version_info >= (3, 14):
+        out = assign_numbers314()
+    else:
+        out = assign_numbers312()
     with open(outfile, "w") as f:
         f.write(HEADER)
         f.write("\n".join(out))
