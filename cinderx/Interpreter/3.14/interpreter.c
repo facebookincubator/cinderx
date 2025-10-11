@@ -21,21 +21,6 @@
 #include "internal/pycore_stackref.h"
 #include "internal/pycore_interpframe.h"
 
-#ifdef ENABLE_INTERPRETER_LOOP
-
-PyObject* _Py_HOT_FUNCTION
-Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag);
-
-bool Ci_DelayAdaptiveCode = false;
-uint64_t Ci_AdaptiveThreshold = 80;
-
-bool is_adaptive_enabled(CodeExtra *extra) {
-    return !Ci_DelayAdaptiveCode || extra->calls > Ci_AdaptiveThreshold;
-}
-
-#include "cinderx/Interpreter/3.14/Includes/ceval.c"
-
-#endif
 #include "cinderx/StaticPython/classloader.h"
 #include "cinderx/StaticPython/checked_dict.h"
 #include "cinderx/StaticPython/checked_list.h"
@@ -44,6 +29,16 @@ bool is_adaptive_enabled(CodeExtra *extra) {
 #include "cinderx/Jit/generators_rt.h"
 
 
+#ifdef ENABLE_INTERPRETER_LOOP
+
+bool Ci_DelayAdaptiveCode = false;
+uint64_t Ci_AdaptiveThreshold = 80;
+
+bool is_adaptive_enabled(CodeExtra *extra) {
+    return !Ci_DelayAdaptiveCode || extra->calls > Ci_AdaptiveThreshold;
+}
+
+#endif
 
 /* _PyEval_EvalFrameDefault() is a *big* function,
  * so consume 3 units of C stack */
@@ -211,28 +206,8 @@ static void store_field(int field_type, void* addr, PyObject* value) {
             type->tp_name,                                                         \
             Py_TYPE(val)->tp_name);                                                \
         Py_DECREF(type);                                                           \
-        goto error;                                                                \
+        JUMP_TO_LABEL(error);                                                      \
     }
-
-static Py_ssize_t invoke_function_args(PyObject *consts, int oparg)
-{
-    PyObject* value = GETITEM(consts, oparg);
-    Py_ssize_t nargs = PyLong_AsLong(PyTuple_GET_ITEM(value, 1));
-    return nargs;
-}
-
-static Py_ssize_t invoke_native_args(PyObject *consts, int oparg)
-{
-    PyObject* value = GETITEM(consts, oparg);
-    PyObject* signature = PyTuple_GET_ITEM(value, 1);
-    return PyTuple_GET_SIZE(signature) - 1;
-}
-
-static Py_ssize_t build_checked_obj_size(PyObject *consts, int oparg)
-{
-    PyObject* map_info = GETITEM(consts, oparg);
-    return PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));
-}
 
 static int ci_build_dict(PyObject **map_items, Py_ssize_t map_size, PyObject *map)
 {
@@ -403,6 +378,16 @@ primitive_compare_op(PyObject *l, PyObject *r, int oparg)
 #define INLINE_CACHE_ENTRIES_BUILD_CHECKED_LIST 2
 #define INLINE_CACHE_ENTRIES_BUILD_CHECKED_MAP 2
 #endif
+
+#ifdef ENABLE_INTERPRETER_LOOP
+
+PyObject* _Py_HOT_FUNCTION
+Ci_EvalFrame(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag);
+
+#include "cinderx/Interpreter/3.14/Includes/ceval.c"
+
+#endif
+
 
 void Ci_InitOpcodes() {
 #ifdef ENABLE_ADAPTIVE_STATIC_PYTHON
