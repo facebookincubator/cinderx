@@ -480,9 +480,27 @@ dummy_func(
         }
 
         override inst(EXTENDED_OPCODE, (args[oparg&0x03] -- top[oparg>>2])) {
-            PyErr_Format(PyExc_RuntimeError,
-                         "unsupported extended opcode: %d", (int)next_instr->op.code);
-            goto error;
+            // Decode any extended oparg
+            int extop = (int)next_instr->op.code;
+            int extoparg = (int)next_instr->op.arg;
+            while (extop == EXTENDED_ARG) {
+                SKIP_OVER(1);
+                extoparg = extoparg << 8 | next_instr->op.arg;
+                extop = next_instr->op.code;
+            }
+            extop |= EXTENDED_OPCODE_FLAG;
+
+            // Switch isn't supported in opcodes
+            if (extop == PRIMITIVE_LOAD_CONST) {
+                top[0] = PyStackRef_FromPyObjectNew(PyTuple_GET_ITEM(GETITEM(FRAME_CO_CONSTS, extoparg), 0));
+                DECREF_INPUTS();
+            } else {
+                PyErr_Format(PyExc_RuntimeError,
+                            "unsupported extended opcode: %d", extop);
+                DECREF_INPUTS();
+                ERROR_IF(true);
+            }
+            SKIP_OVER(1);
         }
 
         override inst(RETURN_VALUE, (retval -- res)) {

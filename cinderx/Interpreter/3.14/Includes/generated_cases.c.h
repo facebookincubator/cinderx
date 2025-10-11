@@ -5685,11 +5685,45 @@
             frame->instr_ptr = next_instr;
             next_instr += 1;
             INSTRUCTION_STATS(EXTENDED_OPCODE);
-            _PyFrame_SetStackPointer(frame, stack_pointer);
-            PyErr_Format(PyExc_RuntimeError,
-                         "unsupported extended opcode: %d", (int)next_instr->op.code);
-            stack_pointer = _PyFrame_GetStackPointer(frame);
-            JUMP_TO_LABEL(error);
+            _PyStackRef *args;
+            _PyStackRef *top;
+            args = &stack_pointer[-(oparg&0x03)];
+            top = &stack_pointer[-(oparg&0x03)];
+            int extop = (int)next_instr->op.code;
+            int extoparg = (int)next_instr->op.arg;
+            while (extop == EXTENDED_ARG) {
+                SKIP_OVER(1);
+                extoparg = extoparg << 8 | next_instr->op.arg;
+                extop = next_instr->op.code;
+            }
+            extop |= EXTENDED_OPCODE_FLAG;
+            if (extop == PRIMITIVE_LOAD_CONST) {
+                top[0] = PyStackRef_FromPyObjectNew(PyTuple_GET_ITEM(GETITEM(FRAME_CO_CONSTS, extoparg), 0));
+                stack_pointer += -(oparg&0x03) + (oparg>>2);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg&0x03; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+            } else {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyErr_Format(PyExc_RuntimeError,
+                             "unsupported extended opcode: %d", extop);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                JUMP_TO_LABEL(error);
+            }
+            SKIP_OVER(1);
+            DISPATCH();
         }
 
         TARGET(FORMAT_SIMPLE) {
