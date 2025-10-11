@@ -58,18 +58,14 @@ static uint64_t signex_masks[] = {
 
 #ifdef ENABLE_INTERPRETER_LOOP
 
-static int8_t unbox_primitive_bool_and_decref(PyObject* x) {
+static int8_t unbox_primitive_bool(PyObject* x) {
     assert(PyBool_Check(x));
-    int8_t res = (x == Py_True) ? 1 : 0;
-    Py_DECREF(x);
-    return res;
+    return (x == Py_True) ? 1 : 0;
 }
 
-static Py_ssize_t unbox_primitive_int_and_decref(PyObject* x) {
+static Py_ssize_t unbox_primitive_int(PyObject* x) {
     assert(PyLong_Check(x));
-    Py_ssize_t res = (Py_ssize_t)PyLong_AsVoidPtr(x);
-    Py_DECREF(x);
-    return res;
+    return (Py_ssize_t)PyLong_AsVoidPtr(x);
 }
 
 static PyObject* box_primitive(int type, Py_ssize_t value) {
@@ -156,35 +152,34 @@ static PyObject* load_field(int field_type, void* addr) {
 static void store_field(int field_type, void* addr, PyObject* value) {
     switch (field_type) {
         case TYPED_BOOL:
-            *(int8_t*)addr = (int8_t)unbox_primitive_bool_and_decref(value);
+            *(int8_t*)addr = (int8_t)unbox_primitive_bool(value);
             break;
         case TYPED_INT8:
-            *(int8_t*)addr = (int8_t)unbox_primitive_int_and_decref(value);
+            *(int8_t*)addr = (int8_t)unbox_primitive_int(value);
             break;
         case TYPED_INT16:
-            *(int16_t*)addr = (int16_t)unbox_primitive_int_and_decref(value);
+            *(int16_t*)addr = (int16_t)unbox_primitive_int(value);
             break;
         case TYPED_INT32:
-            *(int32_t*)addr = (int32_t)unbox_primitive_int_and_decref(value);
+            *(int32_t*)addr = (int32_t)unbox_primitive_int(value);
             break;
         case TYPED_INT64:
-            *(int64_t*)addr = (int64_t)unbox_primitive_int_and_decref(value);
+            *(int64_t*)addr = (int64_t)unbox_primitive_int(value);
             break;
         case TYPED_UINT8:
-            *(uint8_t*)addr = (uint8_t)unbox_primitive_int_and_decref(value);
+            *(uint8_t*)addr = (uint8_t)unbox_primitive_int(value);
             break;
         case TYPED_UINT16:
-            *(uint16_t*)addr = (uint16_t)unbox_primitive_int_and_decref(value);
+            *(uint16_t*)addr = (uint16_t)unbox_primitive_int(value);
             break;
         case TYPED_UINT32:
-            *(uint32_t*)addr = (uint32_t)unbox_primitive_int_and_decref(value);
+            *(uint32_t*)addr = (uint32_t)unbox_primitive_int(value);
             break;
         case TYPED_UINT64:
-            *(uint64_t*)addr = (uint64_t)unbox_primitive_int_and_decref(value);
+            *(uint64_t*)addr = (uint64_t)unbox_primitive_int(value);
             break;
         case TYPED_DOUBLE:
             *((double*)addr) = PyFloat_AsDouble(value);
-            Py_DECREF(value);
             break;
         default:
             PyErr_SetString(PyExc_RuntimeError, "unsupported field type");

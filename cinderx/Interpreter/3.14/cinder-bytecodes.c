@@ -494,6 +494,38 @@ dummy_func(
             if (extop == PRIMITIVE_LOAD_CONST) {
                 top[0] = PyStackRef_FromPyObjectNew(PyTuple_GET_ITEM(GETITEM(FRAME_CO_CONSTS, extoparg), 0));
                 DECREF_INPUTS();
+            } else if (extop == STORE_LOCAL) {
+                _PyStackRef val = args[0];
+                PyObject* local = GETITEM(FRAME_CO_CONSTS, extoparg);
+                int index = PyLong_AsInt(PyTuple_GET_ITEM(local, 0));
+                int type =
+                    _PyClassLoader_ResolvePrimitiveType(PyTuple_GET_ITEM(local, 1));
+
+                if (type < 0) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                _PyStackRef tmp = GETLOCAL(index);
+                if (type == TYPED_DOUBLE) {
+                    GETLOCAL(index) = PyStackRef_DUP(val);
+                } else {
+                    Py_ssize_t ival = unbox_primitive_int(PyStackRef_AsPyObjectBorrow(val));
+                    GETLOCAL(index) = PyStackRef_FromPyObjectSteal(box_primitive(type, ival));
+                }
+
+                PyStackRef_XCLOSE(tmp);
+
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (adaptive_enabled) {
+                    if (index < INT8_MAX && type < INT8_MAX) {
+                        int16_t *cache = (int16_t*)next_instr;
+                        *cache = (index << 8) | type;
+                        _Ci_specialize(next_instr, STORE_LOCAL_CACHED);
+                    }
+                }
+#endif
+                DECREF_INPUTS();
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);

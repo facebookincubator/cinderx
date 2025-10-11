@@ -5706,6 +5706,56 @@
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
+            } else if (extop == STORE_LOCAL) {
+                _PyStackRef val = args[0];
+                PyObject* local = GETITEM(FRAME_CO_CONSTS, extoparg);
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                int index = PyLong_AsInt(PyTuple_GET_ITEM(local, 0));
+                int type =
+                _PyClassLoader_ResolvePrimitiveType(PyTuple_GET_ITEM(local, 1));
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (type < 0) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                _PyStackRef tmp = GETLOCAL(index);
+                if (type == TYPED_DOUBLE) {
+                    GETLOCAL(index) = PyStackRef_DUP(val);
+                } else {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    Py_ssize_t ival = unbox_primitive_int(PyStackRef_AsPyObjectBorrow(val));
+                    GETLOCAL(index) = PyStackRef_FromPyObjectSteal(box_primitive(type, ival));
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                }
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyStackRef_XCLOSE(tmp);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (adaptive_enabled) {
+                    if (index < INT8_MAX && type < INT8_MAX) {
+                        int16_t *cache = (int16_t*)next_instr;
+                        *cache = (index << 8) | type;
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        _Ci_specialize(next_instr, STORE_LOCAL_CACHED);
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                    }
+                }
+                #endif
+                stack_pointer += -(oparg&0x03) + (oparg>>2);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg&0x03; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,
