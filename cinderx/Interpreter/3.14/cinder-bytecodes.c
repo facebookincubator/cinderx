@@ -541,6 +541,9 @@ dummy_func(
                 }
                 top[0] = value;
                 DECREF_INPUTS();
+            } else if (extop == PRIMITIVE_BOX) {
+                top[0] = sign_extend_primitive(args[0], extoparg);
+                DEAD(args);
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);

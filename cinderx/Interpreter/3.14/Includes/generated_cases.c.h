@@ -5774,6 +5774,10 @@
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
+            } else if (extop == PRIMITIVE_BOX) {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                top[0] = sign_extend_primitive(args[0], extoparg);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,
@@ -5789,6 +5793,7 @@
                 stack_pointer += -(oparg&0x03);
                 assert(WITHIN_STACK_BOUNDS());
                 JUMP_TO_LABEL(error);
+                stack_pointer += -(oparg&0x03) + (oparg>>2);
             }
             SKIP_OVER(1);
             DISPATCH();

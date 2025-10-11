@@ -95,15 +95,15 @@ static PyObject* box_primitive(int type, Py_ssize_t value) {
   }
 }
 
-static PyObject* sign_extend_primitive(PyObject *obj, int type) {
+static _PyStackRef sign_extend_primitive(_PyStackRef obj, int type) {
     if ((type & (TYPED_INT_SIGNED)) && type != (TYPED_DOUBLE)) {
         /* We have a boxed value on the stack already, but we may have to
         * deal with sign extension */
-        PyObject* val = obj;
+        PyObject* val = PyStackRef_AsPyObjectBorrow(obj);
         size_t ival = (size_t)PyLong_AsVoidPtr(val);
         if (ival & ((size_t)1) << 63) {
-            obj = PyLong_FromSsize_t((int64_t)ival);
-            Py_DECREF(val);
+            PyStackRef_CLOSE(obj);
+            return PyStackRef_FromPyObjectSteal(PyLong_FromSsize_t((int64_t)ival));
         }
     }
     return obj;
