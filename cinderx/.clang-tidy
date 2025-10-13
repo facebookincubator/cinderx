@@ -17,8 +17,10 @@ InheritParentConfig: true
 #   to avoid this.
 
 Checks: '
+-facebook-hte-BoostRegexRisky,
 -facebook-hte-GlibcRegexIsAwful,
 -facebook-hte-NullableReturn,
+-facebook-hte-RE2ImplicitConversion,
 -facebook-hte-StdRegexIsAwful,
 -facebook-security-vulnerable-memcpy,
 -performance-no-int-to-ptr,
