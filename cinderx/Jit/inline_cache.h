@@ -339,6 +339,9 @@ class LoadModuleAttrCache {
   ci_dict_version_tag_t version_{0};
   BorrowedRef<> module_;
   BorrowedRef<> value_;
+#if PY_VERSION_HEX >= 0x030E0000
+  uint32_t index_;
+#endif
 };
 
 class LoadModuleMethodCache {
