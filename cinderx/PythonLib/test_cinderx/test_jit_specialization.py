@@ -135,8 +135,12 @@ class SpecializationTests(unittest.TestCase):
 
         specialize(f, lambda: f({"a": "b"}, "a"))
 
-        self.assertNotIn("BINARY_SUBSCR", opnames(f))
-        self.assertIn("BINARY_SUBSCR_DICT", opnames(f))
+        if sys.version_info >= (3, 14):
+            self.assertNotIn("BINARY_OP", opnames(f))
+            self.assertIn("BINARY_OP_SUBSCR_DICT", opnames(f))
+        else:
+            self.assertNotIn("BINARY_SUBSCR", opnames(f))
+            self.assertIn("BINARY_SUBSCR_DICT", opnames(f))
         self.assertEqual(f({"c": "d"}, "c"), "d")
 
     def test_binary_subscr_list_int(self) -> None:
@@ -145,8 +149,12 @@ class SpecializationTests(unittest.TestCase):
 
         specialize(f, lambda: f(["a", "b"], 0))
 
-        self.assertNotIn("BINARY_SUBSCR", opnames(f))
-        self.assertIn("BINARY_SUBSCR_LIST_INT", opnames(f))
+        if sys.version_info >= (3, 14):
+            self.assertNotIn("BINARY_OP", opnames(f))
+            self.assertIn("BINARY_OP_SUBSCR_LIST_INT", opnames(f))
+        else:
+            self.assertNotIn("BINARY_SUBSCR", opnames(f))
+            self.assertIn("BINARY_SUBSCR_LIST_INT", opnames(f))
         self.assertEqual(f(["c", "d"], 0), "c")
 
     def test_binary_subscr_tuple_int(self) -> None:
@@ -155,8 +163,12 @@ class SpecializationTests(unittest.TestCase):
 
         specialize(f, lambda: f(("a", "b"), 0))
 
-        self.assertNotIn("BINARY_SUBSCR", opnames(f))
-        self.assertIn("BINARY_SUBSCR_TUPLE_INT", opnames(f))
+        if sys.version_info >= (3, 14):
+            self.assertNotIn("BINARY_OP", opnames(f))
+            self.assertIn("BINARY_OP_SUBSCR_TUPLE_INT", opnames(f))
+        else:
+            self.assertNotIn("BINARY_SUBSCR", opnames(f))
+            self.assertIn("BINARY_SUBSCR_TUPLE_INT", opnames(f))
         self.assertEqual(f(("c", "d"), 0), "c")
 
     def test_compare_op_float(self) -> None:
