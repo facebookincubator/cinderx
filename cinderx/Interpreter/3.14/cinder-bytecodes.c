@@ -759,6 +759,22 @@ dummy_func(
                 DECREF_INPUTS();
                 top[0] = PyStackRef_FromPyObjectSteal(res.lmr_func);
                 top[1] = self_ref;
+            } else if (extop == INVOKE_METHOD) {
+                PyObject *target = PyStackRef_AsPyObjectBorrow(args[0]);
+                Py_ssize_t nargs = (oparg >> 2) - 1;
+
+                assert(!PyErr_Occurred());
+
+                STACKREFS_TO_PYOBJECTS(&args[1], nargs, args_o);
+                if (CONVERSION_FAILED(args_o)) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+                PyObject *res = PyObject_Vectorcall(target, args_o, nargs, NULL);
+                STACKREFS_TO_PYOBJECTS_CLEANUP(args_o);
+                DECREF_INPUTS();                
+                ERROR_IF(res == NULL);
+                top[0] = PyStackRef_FromPyObjectSteal(res);
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);

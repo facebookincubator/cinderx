@@ -6169,6 +6169,42 @@
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 top[0] = PyStackRef_FromPyObjectSteal(res.lmr_func);
                 top[1] = self_ref;
+            } else if (extop == INVOKE_METHOD) {
+                PyObject *target = PyStackRef_AsPyObjectBorrow(args[0]);
+                Py_ssize_t nargs = (oparg >> 2) - 1;
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                assert(!PyErr_Occurred());
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                STACKREFS_TO_PYOBJECTS(&args[1], nargs, args_o);
+                if (CONVERSION_FAILED(args_o)) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyObject *res = PyObject_Vectorcall(target, args_o, nargs, NULL);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                STACKREFS_TO_PYOBJECTS_CLEANUP(args_o);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (res == NULL) {
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                top[0] = PyStackRef_FromPyObjectSteal(res);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,
