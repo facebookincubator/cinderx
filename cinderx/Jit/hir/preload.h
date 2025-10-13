@@ -6,6 +6,7 @@
 
 #include "cinderx/Common/log.h"
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/hir.h"
 #include "cinderx/Jit/hir/type.h"
 #include "cinderx/StaticPython/typed-args-info.h"
@@ -93,7 +94,7 @@ class Preloader {
         func->func_code,
         func->func_builtins,
         func->func_globals,
-        func->func_annotations,
+        AnnotationIndex::from_function(func),
         funcFullname(func));
   }
 
@@ -101,15 +102,10 @@ class Preloader {
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
-      BorrowedRef<> func_annotations,
+      std::unique_ptr<AnnotationIndex> annotations,
       const std::string& fullname) {
-    BorrowedRef<PyTupleObject> annotations;
-    if (func_annotations && PyTuple_CheckExact(func_annotations)) {
-      annotations = BorrowedRef<PyTupleObject>{func_annotations};
-    }
-
-    auto preloader = std::unique_ptr<Preloader>(
-        new Preloader(code, builtins, globals, annotations, fullname));
+    auto preloader = std::unique_ptr<Preloader>(new Preloader(
+        code, builtins, globals, std::move(annotations), fullname));
     bool success = preloader->preload();
     JIT_DCHECK(
         success != static_cast<bool>(PyErr_Occurred()),
@@ -159,8 +155,8 @@ class Preloader {
     return builtins_;
   }
 
-  BorrowedRef<PyTupleObject> annotations() const {
-    return annotations_;
+  AnnotationIndex* annotations() const {
+    return annotations_.get();
   }
 
   const std::string& fullname() const {
@@ -205,12 +201,12 @@ class Preloader {
       BorrowedRef<PyCodeObject> code,
       BorrowedRef<PyDictObject> builtins,
       BorrowedRef<PyDictObject> globals,
-      BorrowedRef<PyTupleObject> annotations,
+      std::unique_ptr<AnnotationIndex> annotations,
       const std::string& fullname)
       : code_(Ref<>::create(code)),
         builtins_(Ref<>::create(builtins)),
         globals_(Ref<>::create(globals)),
-        annotations_(Ref<>::create(annotations)),
+        annotations_(std::move(annotations)),
         fullname_(fullname) {
     JIT_CHECK(PyCode_Check(code_), "Expected PyCodeObject");
   }
@@ -218,7 +214,7 @@ class Preloader {
   Ref<PyCodeObject> code_;
   Ref<PyDictObject> builtins_;
   Ref<PyDictObject> globals_;
-  Ref<PyTupleObject> annotations_;
+  std::unique_ptr<AnnotationIndex> annotations_;
   const std::string fullname_;
 
   // keyed by type descr tuple identity (they are interned in code objects)

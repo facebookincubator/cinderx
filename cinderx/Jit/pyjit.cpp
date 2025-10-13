@@ -29,6 +29,7 @@
 #include "cinderx/Jit/elf/writer.h"
 #include "cinderx/Jit/frame.h"
 #include "cinderx/Jit/generators_rt.h"
+#include "cinderx/Jit/hir/annotation_index.h"
 #include "cinderx/Jit/hir/preload.h"
 #include "cinderx/Jit/inline_cache.h"
 #include "cinderx/Jit/jit_flag_processor.h"
@@ -947,7 +948,7 @@ hir::Preloader* preload(BorrowedRef<> unit) {
         code,
         outer_func->func_builtins,
         outer_func->func_globals,
-        outer_func->func_annotations,
+        hir::AnnotationIndex::from_function(outer_func),
         codeFullname(outer_func->func_module, code));
   }
 

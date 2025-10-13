@@ -3,6 +3,9 @@
 #pragma once
 
 #include "cinderx/Common/ref.h"
+#include "cinderx/Jit/config.h"
+
+#include <memory>
 
 namespace jit::hir {
 // When building type annotation guards, we have to find the annotations by
@@ -11,19 +14,6 @@ namespace jit::hir {
 // dictionary and loop through that instead.
 class AnnotationIndex {
  public:
-  explicit AnnotationIndex(BorrowedRef<PyTupleObject> annotations)
-      : annotations_(annotations) {
-    size_ = PyTuple_GET_SIZE(annotations_);
-    if (size_ >= 16) {
-      dict_ = Ref<>::steal(PyDict_New());
-      for (Py_ssize_t index = 0; index < size_; index += 2) {
-        PyObject* key = PyTuple_GET_ITEM(annotations_, index);
-        PyObject* value = PyTuple_GET_ITEM(annotations_, index + 1);
-        PyDict_SetItem(dict_, key, value);
-      }
-    }
-  }
-
   // Retrieve the annotation for the given name, or return nullptr.
   PyObject* find(PyObject* name) {
     if (dict_) {
@@ -37,7 +27,26 @@ class AnnotationIndex {
     return nullptr;
   }
 
+  static std::unique_ptr<AnnotationIndex> from_function(
+      BorrowedRef<PyFunctionObject> func);
+
  private:
+  explicit AnnotationIndex(BorrowedRef<PyTupleObject> annotations)
+      : annotations_(annotations) {
+    size_ = PyTuple_GET_SIZE(annotations_);
+    if (size_ >= 16) {
+      dict_ = Ref<>::steal(PyDict_New());
+      for (Py_ssize_t index = 0; index < size_; index += 2) {
+        PyObject* key = PyTuple_GET_ITEM(annotations_, index);
+        PyObject* value = PyTuple_GET_ITEM(annotations_, index + 1);
+        PyDict_SetItem(dict_, key, value);
+      }
+    }
+  }
+
+  explicit AnnotationIndex(BorrowedRef<PyDictObject> dict)
+      : dict_(Ref<>::create((PyObject*)dict)) {}
+
   BorrowedRef<PyTupleObject> annotations_;
   Ref<> dict_ = nullptr;
   Py_ssize_t size_;

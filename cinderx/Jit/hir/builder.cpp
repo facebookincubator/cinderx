@@ -565,19 +565,18 @@ std::unique_ptr<Function> HIRBuilder::buildHIR() {
 // Loop through each of the arguments on the current translation context and
 // check and see if there is any annotation to guard against.
 void HIRBuilder::emitTypeAnnotationGuards(TranslationContext& tc) {
-  BorrowedRef<PyTupleObject> annotations = preloader_.annotations();
+  AnnotationIndex* index = preloader_.annotations();
 
   // Bail out if there are no annotations.
-  if (!annotations) {
+  if (!index) {
     return;
   }
 
   PyCodeObject* const code = tc.frame.code;
   bool first = true;
 
-  AnnotationIndex index(annotations);
   for (int arg_idx = 0; arg_idx < preloader_.numArgs(); arg_idx++) {
-    PyObject* annotation = index.find(getVarname(code, arg_idx));
+    PyObject* annotation = index->find(getVarname(code, arg_idx));
 
     // If there is no annotation or if the annotation is an unexpected type,
     // then skip over this argument.
@@ -656,9 +655,7 @@ BasicBlock* HIRBuilder::buildHIRImpl(
     entry_tc.emit<LoadCurrentFunc>(func_);
   }
 
-  if (getMutableConfig().emit_type_annotation_guards) {
-    emitTypeAnnotationGuards(entry_tc);
-  }
+  emitTypeAnnotationGuards(entry_tc);
 
   addInitializeCells(entry_tc);
 
