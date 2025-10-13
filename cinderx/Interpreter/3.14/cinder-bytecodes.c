@@ -681,7 +681,7 @@ dummy_func(
                 DECREF_INPUTS();
             } else if (extop == REFINE_TYPE) {
                 DEAD(args);
-            } else if(extop == BUILD_CHECKED_LIST) {
+            } else if (extop == BUILD_CHECKED_LIST) {
                 PyObject *list;
                 PyObject* list_info = GETITEM(FRAME_CO_CONSTS, extoparg);
                 PyObject* list_type = PyTuple_GET_ITEM(list_info, 0);
@@ -712,6 +712,53 @@ dummy_func(
                 }
                 DECREF_INPUTS();
                 top[0] = PyStackRef_FromPyObjectSteal(list);
+            } else if (extop == LOAD_METHOD_STATIC) {
+                PyObject *self = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject* value = GETITEM(FRAME_CO_CONSTS, extoparg);
+                PyObject* target = PyTuple_GET_ITEM(value, 0);
+                int is_classmethod = _PyClassLoader_IsClassMethodDescr(value);
+
+                Py_ssize_t slot = _PyClassLoader_ResolveMethod(target);
+                if (slot == -1) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+            if (adaptive_enabled) {
+                // We encode class method as the low bit hence the >> 1.
+                if (slot < (INT32_MAX >> 1)) {
+                    /* We smuggle in the information about whether the invocation was a
+                    * classmethod in the low bit of the oparg. This is necessary, as
+                    * without, the runtime won't be able to get the correct vtable from
+                    * self when the type is passed in.
+                    */
+                    int32_t *cache = (int32_t*)next_instr;
+                    *cache = load_method_static_cached_oparg(slot, is_classmethod);
+                    _Ci_specialize(next_instr, LOAD_METHOD_STATIC_CACHED);
+                }
+            }
+#endif
+
+                _PyType_VTable* vtable;
+                if (is_classmethod) {
+                    vtable = (_PyType_VTable*)(((PyTypeObject*)self)->tp_cache);
+                } else {
+                    vtable = (_PyType_VTable*)self->ob_type->tp_cache;
+                }
+
+                assert(!PyErr_Occurred());
+                StaticMethodInfo res =
+                    _PyClassLoader_LoadStaticMethod(vtable, slot, self);
+                if (res.lmr_func == NULL) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                _PyStackRef self_ref = PyStackRef_DUP(args[0]);
+                DECREF_INPUTS();
+                top[0] = PyStackRef_FromPyObjectSteal(res.lmr_func);
+                top[1] = self_ref;
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);
