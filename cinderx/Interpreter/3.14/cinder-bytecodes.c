@@ -712,6 +712,41 @@ dummy_func(
                 }
                 DECREF_INPUTS();
                 top[0] = PyStackRef_FromPyObjectSteal(list);
+            } else if (extop == BUILD_CHECKED_MAP) {
+                PyObject* map_info = GETITEM(FRAME_CO_CONSTS, extoparg);
+                PyObject* map_type = PyTuple_GET_ITEM(map_info, 0);
+                Py_ssize_t map_size = PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));
+
+                int optional;
+                int exact;
+                PyTypeObject* type =
+                    _PyClassLoader_ResolveType(map_type, &optional, &exact);
+                if (type == NULL) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+                assert(!optional);
+
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (adaptive_enabled) {
+                    specialize_with_value(next_instr, (PyObject *)type, BUILD_CHECKED_MAP_CACHED, 0, 0);
+                }
+#endif
+
+                PyObject *map = Ci_CheckedDict_NewPresized(type, map_size);
+                Py_DECREF(type);
+                if (map == NULL) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                if (ci_build_dict(args, map_size, map) < 0) {
+                    Py_DECREF(map);
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+                DECREF_INPUTS();
+                top[0] = PyStackRef_FromPyObjectSteal(map);
             } else if (extop == LOAD_METHOD_STATIC) {
                 PyObject *self = PyStackRef_AsPyObjectBorrow(args[0]);
                 PyObject* value = GETITEM(FRAME_CO_CONSTS, extoparg);

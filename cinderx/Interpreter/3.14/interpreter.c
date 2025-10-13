@@ -203,11 +203,11 @@ static void store_field(int field_type, void* addr, PyObject* value) {
         JUMP_TO_LABEL(error);                                                      \
     }
 
-static int ci_build_dict(PyObject **map_items, Py_ssize_t map_size, PyObject *map)
+static int ci_build_dict(_PyStackRef *map_items, Py_ssize_t map_size, PyObject *map)
 {
     for (Py_ssize_t i = 0; i < map_size; i++) {
-        PyObject* key = map_items[2 * i];
-        PyObject* value = map_items[2 * i + 1];
+        PyObject* key = PyStackRef_AsPyObjectBorrow(map_items[2 * i]);
+        PyObject* value = PyStackRef_AsPyObjectBorrow(map_items[2 * i + 1]);
         if (Ci_CheckedDict_SetItem(map, key, value) < 0) {
             return -1;
         }

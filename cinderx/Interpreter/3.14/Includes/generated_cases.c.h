@@ -6104,6 +6104,75 @@
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 top[0] = PyStackRef_FromPyObjectSteal(list);
+            } else if (extop == BUILD_CHECKED_MAP) {
+                PyObject* map_info = GETITEM(FRAME_CO_CONSTS, extoparg);
+                PyObject* map_type = PyTuple_GET_ITEM(map_info, 0);
+                Py_ssize_t map_size = PyLong_AsLong(PyTuple_GET_ITEM(map_info, 1));
+                int optional;
+                int exact;
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyTypeObject* type =
+                _PyClassLoader_ResolveType(map_type, &optional, &exact);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (type == NULL) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                assert(!optional);
+                #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (adaptive_enabled) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    specialize_with_value(next_instr, (PyObject *)type, BUILD_CHECKED_MAP_CACHED, 0, 0);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                }
+                #endif
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyObject *map = Ci_CheckedDict_NewPresized(type, map_size);
+                Py_DECREF(type);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (map == NULL) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                if (ci_build_dict(args, map_size, map) < 0) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    Py_DECREF(map);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                top[0] = PyStackRef_FromPyObjectSteal(map);
             } else if (extop == LOAD_METHOD_STATIC) {
                 PyObject *self = PyStackRef_AsPyObjectBorrow(args[0]);
                 PyObject* value = GETITEM(FRAME_CO_CONSTS, extoparg);
