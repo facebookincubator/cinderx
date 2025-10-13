@@ -6388,6 +6388,59 @@
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
                 top[0] = res;
+            } else if (extop == PRIMITIVE_UNARY_OP) {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyObject *res = primitive_unary_op(PyStackRef_AsPyObjectBorrow(args[0]), extoparg);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (res == NULL) {
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == PRIMITIVE_BINARY_OP) {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyObject *res = primitive_binary_op(PyStackRef_AsPyObjectBorrow(args[0]),
+                    PyStackRef_AsPyObjectBorrow(args[1]), extoparg);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (res == NULL) {
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == PRIMITIVE_COMPARE_OP) {
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyObject *res = primitive_compare_op(PyStackRef_AsPyObjectBorrow(args[0]),
+                    PyStackRef_AsPyObjectBorrow(args[1]), extoparg);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (res == NULL) {
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                top[0] = PyStackRef_FromPyObjectSteal(res);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,

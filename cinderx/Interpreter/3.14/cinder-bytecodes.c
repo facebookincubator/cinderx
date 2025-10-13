@@ -873,6 +873,23 @@ dummy_func(
                 _PyStackRef res = PyStackRef_FromPyObjectNew(val);
                 DECREF_INPUTS();
                 top[0] = res;
+            } else if (extop == PRIMITIVE_UNARY_OP) {
+                PyObject *res = primitive_unary_op(PyStackRef_AsPyObjectBorrow(args[0]), extoparg);
+                DECREF_INPUTS();
+                ERROR_IF(res == NULL);
+                top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == PRIMITIVE_BINARY_OP) {
+                PyObject *res = primitive_binary_op(PyStackRef_AsPyObjectBorrow(args[0]),
+                                                    PyStackRef_AsPyObjectBorrow(args[1]), extoparg);
+                DECREF_INPUTS();
+                ERROR_IF(res == NULL);
+                top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == PRIMITIVE_COMPARE_OP) {
+                PyObject *res = primitive_compare_op(PyStackRef_AsPyObjectBorrow(args[0]),
+                                                     PyStackRef_AsPyObjectBorrow(args[1]), extoparg);
+                DECREF_INPUTS();
+                ERROR_IF(res == NULL);
+                top[0] = PyStackRef_FromPyObjectSteal(res);
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);
