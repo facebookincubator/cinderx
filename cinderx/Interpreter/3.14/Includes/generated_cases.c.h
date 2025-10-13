@@ -6055,6 +6055,7 @@
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
+            } else if (extop == REFINE_TYPE) {
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,
@@ -6070,6 +6071,7 @@
                 stack_pointer += -(oparg&0x03);
                 assert(WITHIN_STACK_BOUNDS());
                 JUMP_TO_LABEL(error);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
                 stack_pointer += -(oparg&0x03) + (oparg>>2);
                 stack_pointer += -(oparg>>2) + (oparg&0x03);
             }

@@ -678,7 +678,9 @@ dummy_func(
                     ERROR_IF(true);
                 }
 
-                DECREF_INPUTS();                
+                DECREF_INPUTS();
+            } else if (extop == REFINE_TYPE) {
+                DEAD(args);
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);
