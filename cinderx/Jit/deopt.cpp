@@ -5,7 +5,6 @@
 #include "cinderx/Common/py-portability.h"
 #include "cinderx/Common/util.h"
 #include "cinderx/Jit/bytecode_offsets.h"
-#include "cinderx/Jit/hir/analysis.h"
 #include "cinderx/Jit/hir/printer.h"
 
 #ifdef ENABLE_USDT

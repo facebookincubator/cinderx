@@ -21,27 +21,6 @@ extern const RegisterSet kEmptyRegSet;
 
 std::ostream& operator<<(std::ostream& os, const RegisterSet& set);
 
-// Return true if the given instruction returns an exact copy of its input "at
-// runtime" (most passthrough instructions will be copy-propagated away in
-// LIR). The output differs only in some HIR-level property that is erased in
-// the generated code, usually its Type.
-//
-// This is used by modelReg() and optimizations that want to treat all
-// HIR-level copies of a value as one combined entity (see the 'Value copies'
-// section of Jit/hir/refcount_insertion.md for a concrete example).
-bool isPassthrough(const Instr& instr);
-
-// Return true if the instruction is an instance of LoadMethodBase.
-bool isLoadMethodBase(const Instr& instr);
-
-// Return true if the given instruction represents a subclass of LoadMethodBase
-// or a Phi composed of a FillTypeMethodCache and LoadTypeMethodCacheEntryValue.
-bool isAnyLoadMethod(const Instr& instr);
-
-// Trace through any passthrough instructions in the definition chain of the
-// given value, returning the original source of the value.
-Register* modelReg(Register* reg);
-
 // Returns true if each instruction in func properly type-checks
 // Writes to err if any failure occurs and returns false
 bool funcTypeChecks(const Function& func, std::ostream& err);

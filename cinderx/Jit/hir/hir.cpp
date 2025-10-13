@@ -347,6 +347,216 @@ BorrowedRef<PyCodeObject> Instr::code() const {
   return fs == nullptr ? block()->cfg->func->code : fs->code;
 }
 
+bool isLoadMethodBase(const Instr& instr) {
+  return dynamic_cast<const LoadMethodBase*>(&instr) != nullptr;
+}
+
+bool isAnyLoadMethod(const Instr& instr) {
+  if (isLoadMethodBase(instr)) {
+    return true;
+  }
+  if (!instr.IsPhi() || instr.NumOperands() != 2) {
+    return false;
+  }
+  const Instr* arg1 = instr.GetOperand(0)->instr();
+  const Instr* arg2 = instr.GetOperand(1)->instr();
+  return (arg1->IsLoadTypeMethodCacheEntryValue() &&
+          arg2->IsFillTypeMethodCache()) ||
+      (arg2->IsLoadTypeMethodCacheEntryValue() &&
+       arg1->IsFillTypeMethodCache());
+}
+
+bool isPassthrough(const Instr& instr) {
+  switch (instr.opcode()) {
+    case Opcode::kAssign:
+    case Opcode::kBitCast:
+    case Opcode::kCheckErrOccurred:
+    case Opcode::kCheckExc:
+    case Opcode::kCheckField:
+    case Opcode::kCheckFreevar:
+    case Opcode::kCheckNeg:
+    case Opcode::kCheckVar:
+    case Opcode::kGuardIs:
+    case Opcode::kGuardType:
+    case Opcode::kRefineType:
+    case Opcode::kUseType:
+      return true;
+
+    // Cast is pass-through except when we are casting to float, in which case
+    // we may coerce an incoming int to a new float.
+    case Opcode::kCast:
+      return (static_cast<const Cast*>(&instr))->pytype() != &PyFloat_Type;
+
+    case Opcode::kBinaryOp:
+    case Opcode::kBuildSlice:
+    case Opcode::kBuildString:
+    case Opcode::kBuildInterpolation:
+    case Opcode::kBuildTemplate:
+    case Opcode::kCallCFunc:
+    case Opcode::kCallEx:
+    case Opcode::kCallInd:
+    case Opcode::kCallIntrinsic:
+    case Opcode::kCallMethod:
+    case Opcode::kCallStatic:
+    case Opcode::kCallStaticRetVoid:
+    case Opcode::kCheckSequenceBounds:
+    case Opcode::kCompare:
+    case Opcode::kCompareBool:
+    case Opcode::kConvertValue:
+    case Opcode::kCopyDictWithoutKeys:
+    case Opcode::kDictMerge:
+    case Opcode::kDictSubscr:
+    case Opcode::kDictUpdate:
+    case Opcode::kDoubleBinaryOp:
+    case Opcode::kEagerImportName:
+    case Opcode::kFillTypeAttrCache:
+    case Opcode::kFillTypeMethodCache:
+    case Opcode::kFloatBinaryOp:
+    case Opcode::kFloatCompare:
+    case Opcode::kFormatValue:
+    case Opcode::kFormatWithSpec:
+    case Opcode::kGetAIter:
+    case Opcode::kGetANext:
+    case Opcode::kGetIter:
+    case Opcode::kGetLength:
+    case Opcode::kGetSecondOutput:
+    case Opcode::kGetTuple:
+    case Opcode::kImportFrom:
+    case Opcode::kImportName:
+    case Opcode::kInPlaceOp:
+    case Opcode::kIndexUnbox:
+    case Opcode::kInitialYield:
+    case Opcode::kIntBinaryOp:
+    case Opcode::kIntConvert:
+    case Opcode::kInvokeIterNext:
+    case Opcode::kInvokeStaticFunction:
+    case Opcode::kIsInstance:
+    case Opcode::kIsNegativeAndErrOccurred:
+    case Opcode::kIsTruthy:
+    case Opcode::kListAppend:
+    case Opcode::kListExtend:
+    case Opcode::kLoadArg:
+    case Opcode::kLoadArrayItem:
+    case Opcode::kLoadAttr:
+    case Opcode::kLoadAttrCached:
+    case Opcode::kLoadAttrSpecial:
+    case Opcode::kLoadAttrSuper:
+    case Opcode::kLoadCellItem:
+    case Opcode::kLoadConst:
+    case Opcode::kLoadCurrentFunc:
+    case Opcode::kLoadEvalBreaker:
+    case Opcode::kLoadField:
+    case Opcode::kLoadFieldAddress:
+    case Opcode::kLoadFunctionIndirect:
+    case Opcode::kLoadGlobal:
+    case Opcode::kLoadGlobalCached:
+    case Opcode::kLoadMethod:
+    case Opcode::kLoadMethodCached:
+    case Opcode::kLoadMethodSuper:
+    case Opcode::kLoadSpecial:
+    case Opcode::kLoadModuleAttrCached:
+    case Opcode::kLoadModuleMethodCached:
+    case Opcode::kLoadSplitDictItem:
+    case Opcode::kLoadTupleItem:
+    case Opcode::kLoadTypeAttrCacheEntryType:
+    case Opcode::kLoadTypeAttrCacheEntryValue:
+    case Opcode::kLoadTypeMethodCacheEntryType:
+    case Opcode::kLoadTypeMethodCacheEntryValue:
+    case Opcode::kLoadVarObjectSize:
+    case Opcode::kLongBinaryOp:
+    case Opcode::kLongInPlaceOp:
+    case Opcode::kLongCompare:
+    case Opcode::kMakeCell:
+    case Opcode::kMakeCheckedDict:
+    case Opcode::kMakeCheckedList:
+    case Opcode::kMakeDict:
+    case Opcode::kMakeFunction:
+    case Opcode::kMakeList:
+    case Opcode::kMakeSet:
+    case Opcode::kMakeTuple:
+    case Opcode::kMakeTupleFromList:
+    case Opcode::kMatchClass:
+    case Opcode::kMatchKeys:
+    case Opcode::kMergeSetUnpack:
+    case Opcode::kPhi:
+    case Opcode::kPrimitiveBox:
+    case Opcode::kPrimitiveBoxBool:
+    case Opcode::kPrimitiveCompare:
+    case Opcode::kPrimitiveUnaryOp:
+    case Opcode::kPrimitiveUnbox:
+    case Opcode::kRunPeriodicTasks:
+    case Opcode::kSend:
+    case Opcode::kSetCurrentAwaiter:
+    case Opcode::kSetDictItem:
+    case Opcode::kSetSetItem:
+    case Opcode::kSetUpdate:
+    case Opcode::kStealCellItem:
+    case Opcode::kStoreArrayItem:
+    case Opcode::kStoreAttr:
+    case Opcode::kStoreAttrCached:
+    case Opcode::kStoreSubscr:
+    case Opcode::kTpAlloc:
+    case Opcode::kUnaryOp:
+    case Opcode::kUnicodeCompare:
+    case Opcode::kUnicodeConcat:
+    case Opcode::kUnicodeRepeat:
+    case Opcode::kUnicodeSubscr:
+    case Opcode::kUnpackExToTuple:
+    case Opcode::kVectorCall:
+    case Opcode::kWaitHandleLoadCoroOrResult:
+    case Opcode::kWaitHandleLoadWaiter:
+    case Opcode::kYieldAndYieldFrom:
+    case Opcode::kYieldFrom:
+    case Opcode::kYieldFromHandleStopAsyncIteration:
+    case Opcode::kYieldValue:
+      return false;
+
+    case Opcode::kBatchDecref:
+    case Opcode::kBeginInlinedFunction:
+    case Opcode::kBranch:
+    case Opcode::kCondBranch:
+    case Opcode::kCondBranchCheckType:
+    case Opcode::kCondBranchIterNotDone:
+    case Opcode::kDecref:
+    case Opcode::kDeleteAttr:
+    case Opcode::kDeleteSubscr:
+    case Opcode::kDeopt:
+    case Opcode::kDeoptPatchpoint:
+    case Opcode::kEndInlinedFunction:
+    case Opcode::kGuard:
+    case Opcode::kHintType:
+    case Opcode::kIncref:
+    case Opcode::kInitFrameCellVars:
+    case Opcode::kRaise:
+    case Opcode::kRaiseAwaitableError:
+    case Opcode::kRaiseStatic:
+    case Opcode::kReturn:
+    case Opcode::kSetCellItem:
+    case Opcode::kSetFunctionAttr:
+    case Opcode::kSnapshot:
+    case Opcode::kStoreField:
+    case Opcode::kUpdatePrevInstr:
+    case Opcode::kUnreachable:
+    case Opcode::kWaitHandleRelease:
+    case Opcode::kXDecref:
+    case Opcode::kXIncref:
+      JIT_ABORT("Opcode {} has no output", instr.opname());
+  }
+  JIT_ABORT("Bad opcode {}", static_cast<int>(instr.opcode()));
+}
+
+Register* modelReg(Register* reg) {
+  auto orig_reg = reg;
+  // Even though GuardIs is a passthrough, it verifies that a runtime value is a
+  // specific object, breaking the dependency on the instruction that produced
+  // the runtime value
+  while (isPassthrough(*reg->instr()) && !(reg->instr()->IsGuardIs())) {
+    reg = reg->instr()->GetOperand(0);
+    JIT_DCHECK(reg != orig_reg, "Hit cycle while looking for model reg");
+  }
+  return reg;
+}
+
 Instr* BasicBlock::Append(Instr* instr) {
   instrs_.PushBack(*instr);
   instr->link(this);
