@@ -681,6 +681,37 @@ dummy_func(
                 DECREF_INPUTS();
             } else if (extop == REFINE_TYPE) {
                 DEAD(args);
+            } else if(extop == BUILD_CHECKED_LIST) {
+                PyObject *list;
+                PyObject* list_info = GETITEM(FRAME_CO_CONSTS, extoparg);
+                PyObject* list_type = PyTuple_GET_ITEM(list_info, 0);
+                Py_ssize_t list_size = PyLong_AsLong(PyTuple_GET_ITEM(list_info, 1));
+
+                int optional;
+                int exact;
+                PyTypeObject* type =
+                    _PyClassLoader_ResolveType(list_type, &optional, &exact);
+                assert(!optional);
+
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (adaptive_enabled) {
+                    specialize_with_value(next_instr, (PyObject *)type, BUILD_CHECKED_LIST_CACHED, 0, 0);
+                }
+#endif
+
+                list = Ci_CheckedList_New(type, list_size);
+                Py_DECREF(type);
+
+                if (list == NULL) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                for (Py_ssize_t i = 0; i < list_size; i++) {
+                    Ci_ListOrCheckedList_SET_ITEM(list, i, PyStackRef_AsPyObjectBorrow(args[i]));
+                }
+                DECREF_INPUTS();
+                top[0] = PyStackRef_FromPyObjectSteal(list);
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);

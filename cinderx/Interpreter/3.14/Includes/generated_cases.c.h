@@ -6056,6 +6056,54 @@
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
             } else if (extop == REFINE_TYPE) {
+            } else if(extop == BUILD_CHECKED_LIST) {
+                PyObject *list;
+                PyObject* list_info = GETITEM(FRAME_CO_CONSTS, extoparg);
+                PyObject* list_type = PyTuple_GET_ITEM(list_info, 0);
+                Py_ssize_t list_size = PyLong_AsLong(PyTuple_GET_ITEM(list_info, 1));
+                int optional;
+                int exact;
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyTypeObject* type =
+                _PyClassLoader_ResolveType(list_type, &optional, &exact);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                assert(!optional);
+                #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (adaptive_enabled) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    specialize_with_value(next_instr, (PyObject *)type, BUILD_CHECKED_LIST_CACHED, 0, 0);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                }
+                #endif
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                list = Ci_CheckedList_New(type, list_size);
+                Py_DECREF(type);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (list == NULL) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                for (Py_ssize_t i = 0; i < list_size; i++) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    Ci_ListOrCheckedList_SET_ITEM(list, i, PyStackRef_AsPyObjectBorrow(args[i]));
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                }
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                top[0] = PyStackRef_FromPyObjectSteal(list);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,
@@ -6071,6 +6119,7 @@
                 stack_pointer += -(oparg&0x03);
                 assert(WITHIN_STACK_BOUNDS());
                 JUMP_TO_LABEL(error);
+                stack_pointer += -(oparg&0x03) + (oparg>>2);
                 stack_pointer += -(oparg>>2) + (oparg&0x03);
                 stack_pointer += -(oparg&0x03) + (oparg>>2);
                 stack_pointer += -(oparg>>2) + (oparg&0x03);

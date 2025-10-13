@@ -216,6 +216,19 @@ static int ci_build_dict(PyObject **map_items, Py_ssize_t map_size, PyObject *ma
     return 0;
 }
 
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+static void specialize_with_value(_Py_CODEUNIT next_instr, PyObject *value, int opcode, 
+                                  int shift, int bits)
+{
+    int32_t index = _PyClassLoader_CacheValue(value);
+    if (index >= 0 && index <= (INT32_MAX >> 2)) {
+        int32_t *cache = (int32_t*)next_instr;
+        *cache = (int32_t)(index << shift) | bits;
+        _Ci_specialize(next_instr, opcode);
+    }
+}
+#endif
+
 #define INT_UNARY_OPCODE(opid, op)                                           \
     case opid:                                                               \
         res = PyLong_FromVoidPtr((void*)(op(size_t) PyLong_AsVoidPtr(val))); \
