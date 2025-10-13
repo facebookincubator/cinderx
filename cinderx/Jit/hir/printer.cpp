@@ -59,7 +59,7 @@ void HIRPrinter::Print(std::ostream& os, const Function& func) {
   Indent();
   Print(os, func.cfg);
   Dedent();
-  os << "}" << std::endl;
+  os << "}\n";
 }
 
 void HIRPrinter::Print(std::ostream& os, const CFG& cfg) {
@@ -69,7 +69,7 @@ void HIRPrinter::Print(std::ostream& os, const CFG& cfg) {
   for (auto block : blocks) {
     Print(os, *block);
     if (block != last_block) {
-      os << std::endl;
+      os << '\n';
     }
   }
 }
@@ -95,10 +95,10 @@ void HIRPrinter::Print(std::ostream& os, const BasicBlock& block) {
   Indent();
   for (auto& instr : block) {
     Print(os, instr);
-    os << std::endl;
+    os << '\n';
   }
   Dedent();
-  Indented(os) << "}" << std::endl;
+  Indented(os) << "}\n";
 }
 
 static void print_reg_states(
@@ -819,7 +819,7 @@ void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
   auto fs = get_frame_state(instr);
   auto db = instr.asDeoptBase();
   if (db != nullptr) {
-    os << " {" << std::endl;
+    os << " {\n";
     Indent();
     if (!db->descr().empty()) {
       Indented(os) << fmt::format("Descr '{}'\n", db->descr());
@@ -830,19 +830,19 @@ void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
     if (db->live_regs().size() > 0) {
       Indented(os) << "LiveValues";
       print_reg_states(os, db->live_regs());
-      os << std::endl;
+      os << '\n';
     }
     if (fs != nullptr) {
-      Indented(os) << "FrameState {" << std::endl;
+      Indented(os) << "FrameState {\n";
       Indent();
       Print(os, *fs);
       Dedent();
-      Indented(os) << "}" << std::endl;
+      Indented(os) << "}\n";
     }
     Dedent();
     Indented(os) << "}";
   } else if (fs != nullptr) {
-    os << " {" << std::endl;
+    os << " {\n";
     Indent();
     Print(os, *fs);
     Dedent();
@@ -851,7 +851,7 @@ void HIRPrinter::Print(std::ostream& os, const Instr& instr) {
 }
 
 void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
-  Indented(os) << "CurInstrOffset " << state.cur_instr_offs << std::endl;
+  Indented(os) << "CurInstrOffset " << state.cur_instr_offs << '\n';
 
   auto nlocals = state.nlocals;
   if (nlocals > 0) {
@@ -864,7 +864,7 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
         os << " " << reg->name();
       }
     }
-    os << std::endl;
+    os << '\n';
   }
 
   auto nlocalsplus = state.localsplus.size();
@@ -879,7 +879,7 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
         os << " " << reg->name();
       }
     }
-    os << std::endl;
+    os << '\n';
   }
 
   auto opstack_size = state.stack.size();
@@ -888,12 +888,12 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
     for (std::size_t i = 0; i < opstack_size; i++) {
       os << " " << state.stack.at(i)->name();
     }
-    os << std::endl;
+    os << '\n';
   }
 
   auto& bs = state.block_stack;
   if (!bs.isEmpty()) {
-    Indented(os) << "BlockStack {" << std::endl;
+    Indented(os) << "BlockStack {\n";
     Indent();
     for (const auto& entry : bs) {
       Indented(os) << fmt::format(
@@ -903,7 +903,7 @@ void HIRPrinter::Print(std::ostream& os, const FrameState& state) {
           entry.stack_level);
     }
     Dedent();
-    Indented(os) << "}" << std::endl;
+    Indented(os) << "}" << '\n';
   }
 }
 

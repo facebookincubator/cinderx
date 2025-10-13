@@ -100,7 +100,7 @@ struct Reader {
   std::string readUntilDelim() {
     std::ostringstream os;
     while (!isExhausted() && peekChar() != kDelimPrefix[0]) {
-      os << readLine() << std::endl;
+      os << readLine() << '\n';
     }
     return os.str();
   }

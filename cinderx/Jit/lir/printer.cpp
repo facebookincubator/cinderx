@@ -19,10 +19,10 @@ Printer::Printer() {
 }
 
 void Printer::print(std::ostream& out, const Function& func) {
-  out << "Function:" << std::endl;
+  out << "Function:\n";
   for (auto& block : func.basicblocks()) {
     print(out, *block);
-    out << std::endl;
+    out << '\n';
   }
 }
 
@@ -52,20 +52,20 @@ void Printer::print(std::ostream& out, const BasicBlock& block) {
   if (section != codegen::CodeSection::kHot) {
     out << " - section: " << codeSectionName(section);
   }
-  out << std::endl;
+  out << '\n';
 
   const hir::Instr* prev_instr = nullptr;
   for (auto& instr : block.instructions()) {
     if (getConfig().log.lir_origin && instr->origin() != prev_instr) {
       if (instr->origin()) {
-        out << std::endl;
+        out << '\n';
         hir_printer_.Print(out, *instr->origin());
-        out << std::endl;
+        out << '\n';
       }
       prev_instr = instr->origin();
     }
     print(out, *instr);
-    out << std::endl;
+    out << '\n';
   }
 }
 

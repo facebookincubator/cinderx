@@ -430,29 +430,29 @@ class DeoptStressTest : public RuntimeTest {
       PyObject* expected) {
     auto expected_str = Ref<>::steal(PyObject_ASCII(expected));
     ASSERT_NE(expected_str, nullptr);
-    std::cerr << "Expected: " << PyUnicode_AsUTF8(expected_str) << std::endl;
+    std::cerr << "Expected: " << PyUnicode_AsUTF8(expected_str) << '\n';
     std::cerr << "Actual: ";
     if (actual != nullptr) {
       auto actual_str = Ref<>::steal(PyObject_ASCII(actual));
       ASSERT_NE(actual_str, nullptr);
-      std::cerr << PyUnicode_AsUTF8(actual_str) << std::endl;
+      std::cerr << PyUnicode_AsUTF8(actual_str) << '\n';
     } else {
       std::cerr << "nullptr";
     }
-    std::cerr << std::endl;
-    std::cerr << "HIR of failed function:" << std::endl;
-    std::cerr << HIRPrinter().ToString(irfunc) << std::endl;
-    std::cerr << "Disassembly:" << std::endl;
+    std::cerr << '\n';
+    std::cerr << "HIR of failed function:\n";
+    std::cerr << HIRPrinter().ToString(irfunc) << '\n';
+    std::cerr << "Disassembly:\n";
     // Recompile so we get the annotated disassembly
     bool old_dump_asm = true;
     std::swap(jit::getMutableConfig().log.dump_asm, old_dump_asm);
     NativeGenerator gen(&irfunc);
     gen.getVectorcallEntry();
     jit::getMutableConfig().log.dump_asm = old_dump_asm;
-    std::cerr << std::endl;
+    std::cerr << '\n';
     std::cerr << "Python traceback: ";
     PyErr_Print();
-    std::cerr << std::endl;
+    std::cerr << '\n';
   }
 };
 

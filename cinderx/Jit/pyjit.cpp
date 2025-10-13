@@ -2971,7 +2971,7 @@ int initialize() {
 
   FlagProcessor flag_processor = initFlagProcessor();
   if (jit_help) {
-    std::cout << flag_processor.jitXOptionHelpMessage() << std::endl;
+    std::cout << flag_processor.jitXOptionHelpMessage() << '\n';
     // Return rather than exit here for arg printing test doesn't end early.
     return -2;
   }

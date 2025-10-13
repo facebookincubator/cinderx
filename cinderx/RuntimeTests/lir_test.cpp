@@ -60,7 +60,7 @@ class LIRGeneratorTest : public RuntimeTest {
     std::stringstream ss;
 
     lir_func->sortBasicBlocks();
-    ss << *lir_func << std::endl;
+    ss << *lir_func << '\n';
     return ss.str();
   }
 
@@ -453,7 +453,7 @@ fun foo {
   std::stringstream ss;
 
   lir_func->sortBasicBlocks();
-  ss << *lir_func << std::endl;
+  ss << *lir_func << '\n';
 
   std::string lir_str = ss.str();
   lir_str.erase(
@@ -465,10 +465,10 @@ fun foo {
 
   std::regex re(lir_expected_re);
   if (!std::regex_search(lir_str, re)) {
-    FAIL() << "Couldn't find expected string " << std::endl
-           << lir_expected_re << std::endl
-           << "In:" << std::endl
-           << lir_str << std::endl;
+    FAIL() << "Couldn't find expected string \n"
+           << lir_expected_re << '\n'
+           << "In:\n"
+           << lir_str << '\n';
   }
 }
 
@@ -508,7 +508,7 @@ TEST_F(LIRGeneratorTest, UnreachableFollowsBottomType) {
   std::stringstream ss;
 
   lir_func->sortBasicBlocks();
-  ss << *lir_func << std::endl;
+  ss << *lir_func << '\n';
 #if PY_VERSION_HEX >= 0x030E0000
   const char* lir_expected = R"(Function:
 BB %0 - succs: %5

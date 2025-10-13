@@ -87,7 +87,7 @@ BB %4
                    Return %14:Object
 )");
   std::stringstream ss;
-  ss << caller << std::endl;
+  ss << caller << '\n';
   ASSERT_EQ(ss.str().substr(0, lir_expected.size()), lir_expected);
 }
 
@@ -134,7 +134,7 @@ BB %4 - preds: %2 %3
 
 )");
   std::stringstream ss;
-  ss << caller << std::endl;
+  ss << caller << '\n';
   ASSERT_EQ(ss.str().substr(0, lir_expected.size()), lir_expected);
 }
 
@@ -177,7 +177,7 @@ BB %4 - preds: %2 %3
 
 )");
   std::stringstream ss;
-  ss << caller << std::endl;
+  ss << caller << '\n';
   ASSERT_EQ(ss.str(), lir_expected);
 }
 

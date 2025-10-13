@@ -126,7 +126,7 @@ void register_test(
       auto pass = registry.makePass(pass_name);
       if (pass == nullptr) {
         std::cerr << "ERROR [" << path << "] Unknown pass name " << pass_name
-                  << std::endl;
+                  << '\n';
         std::exit(1);
       }
     }
@@ -189,8 +189,7 @@ void registerCinderX() {
     setenv("PYTHONPATH", python_install_str.c_str(), 1);
   } catch (const std::exception&) {
     std::cerr << "Error: Failed to access bundled Python installation in buck "
-                 "build, re-running usually fixes the issue"
-              << std::endl;
+                 "build, re-running usually fixes the issue\n";
     throw;
   }
 
@@ -212,7 +211,7 @@ int main(int argc, char* argv[]) {
 
   // Needed for update_hir_expected.py to know which expected output to update.
   std::cout << "Python Version: " << PY_MAJOR_VERSION << "." << PY_MINOR_VERSION
-            << std::endl;
+            << '\n';
 
   register_test("clean_cfg_test.txt");
   register_test("dynamic_comparison_elimination_test.txt");
