@@ -6441,6 +6441,163 @@
                     JUMP_TO_LABEL(error);
                 }
                 top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == LOAD_FIELD) {
+                PyObject *self = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject* field = GETITEM(FRAME_CO_CONSTS, extoparg);
+                PyObject *value;
+                int field_type;
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                Py_ssize_t offset =
+                _PyClassLoader_ResolveFieldOffset(field, &field_type);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (offset == -1) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                if (field_type == TYPED_OBJECT) {
+                    value = *FIELD_OFFSET(self, offset);
+                    #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                    if (adaptive_enabled) {
+                        if (offset < INT32_MAX) {
+                            int32_t *cache = (int32_t*)next_instr;
+                            *cache = offset;
+                            _PyFrame_SetStackPointer(frame, stack_pointer);
+                            _Ci_specialize(next_instr, LOAD_OBJ_FIELD);
+                            stack_pointer = _PyFrame_GetStackPointer(frame);
+                        }
+                    }
+                    #endif
+
+                    if (value == NULL) {
+                        PyObject* name =
+                        PyTuple_GET_ITEM(field, PyTuple_GET_SIZE(field) - 1);
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        PyErr_Format(
+                                     PyExc_AttributeError,
+                                     "'%.50s' object has no attribute '%U'",
+                                     Py_TYPE(self)->tp_name,
+                                     name);
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    }
+                    Py_INCREF(value);
+                } else {
+                    #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                    if (adaptive_enabled) {
+                        if (offset <= INT32_MAX >> 8) {
+                            assert(field_type < 0xff);
+                            int32_t *cache = (int32_t*)next_instr;
+                            *cache = offset << 8 | field_type;
+                            _PyFrame_SetStackPointer(frame, stack_pointer);
+                            _Ci_specialize(next_instr, LOAD_PRIMITIVE_FIELD);
+                            stack_pointer = _PyFrame_GetStackPointer(frame);
+                        }
+                    }
+                    #endif
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    value = load_field(field_type, (char*)FIELD_OFFSET(self, offset));
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    if (value == NULL) {
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    }
+                }
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                top[0] = PyStackRef_FromPyObjectSteal(value);
+            } else if (extop == STORE_FIELD) {
+                PyObject *value = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *self = PyStackRef_AsPyObjectBorrow(args[1]);
+                PyObject* field = GETITEM(FRAME_CO_CONSTS, extoparg);
+                int field_type;
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                Py_ssize_t offset =
+                _PyClassLoader_ResolveFieldOffset(field, &field_type);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (offset == -1) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                PyObject** addr = FIELD_OFFSET(self, offset);
+                if (field_type == TYPED_OBJECT) {
+                    Py_INCREF(value);
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    Py_XDECREF(*addr);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    *addr = value;
+                    #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                    if (adaptive_enabled) {
+                        if (offset <= INT32_MAX) {
+                            int32_t *cache = (int32_t*)next_instr;
+                            *cache = offset;
+                            _PyFrame_SetStackPointer(frame, stack_pointer);
+                            _Ci_specialize(next_instr, STORE_OBJ_FIELD);
+                            stack_pointer = _PyFrame_GetStackPointer(frame);
+                        }
+                    }
+                    #endif
+                } else {
+                    #if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                    if (adaptive_enabled) {
+                        if (offset <= INT32_MAX >> 8) {
+                            assert(field_type < 0xff);
+                            int32_t *cache = (int32_t*)next_instr;
+                            *cache = offset << 8 | field_type;
+                            _PyFrame_SetStackPointer(frame, stack_pointer);
+                            _Ci_specialize(next_instr, STORE_PRIMITIVE_FIELD);
+                            stack_pointer = _PyFrame_GetStackPointer(frame);
+                        }
+                    }
+                    #endif
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    store_field(field_type, (char*)addr, value);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                }
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,

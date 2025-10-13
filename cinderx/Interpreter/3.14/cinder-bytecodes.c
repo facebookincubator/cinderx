@@ -890,6 +890,103 @@ dummy_func(
                 DECREF_INPUTS();
                 ERROR_IF(res == NULL);
                 top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == LOAD_FIELD) {
+                PyObject *self = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject* field = GETITEM(FRAME_CO_CONSTS, extoparg);
+                PyObject *value;
+                int field_type;
+                Py_ssize_t offset =
+                    _PyClassLoader_ResolveFieldOffset(field, &field_type);
+                if (offset == -1) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                if (field_type == TYPED_OBJECT) {
+                    value = *FIELD_OFFSET(self, offset);
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                    if (adaptive_enabled) {
+                        if (offset < INT32_MAX) {
+                            int32_t *cache = (int32_t*)next_instr;
+                            *cache = offset;
+                            _Ci_specialize(next_instr, LOAD_OBJ_FIELD);
+                        }
+                    }
+#endif
+
+                    if (value == NULL) {
+                        PyObject* name =
+                            PyTuple_GET_ITEM(field, PyTuple_GET_SIZE(field) - 1);
+                        PyErr_Format(
+                            PyExc_AttributeError,
+                            "'%.50s' object has no attribute '%U'",
+                            Py_TYPE(self)->tp_name,
+                            name);
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    }
+                    Py_INCREF(value);
+                } else {
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                    if (adaptive_enabled) {
+                        if (offset <= INT32_MAX >> 8) {
+                            assert(field_type < 0xff);
+                            int32_t *cache = (int32_t*)next_instr;
+                            *cache = offset << 8 | field_type;
+                            _Ci_specialize(next_instr, LOAD_PRIMITIVE_FIELD);
+                        }
+                    }
+#endif
+
+                    value = load_field(field_type, (char*)FIELD_OFFSET(self, offset));
+                    if (value == NULL) {
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    }
+                }
+                DECREF_INPUTS();
+                top[0] = PyStackRef_FromPyObjectSteal(value);
+            } else if (extop == STORE_FIELD) {
+                PyObject *value = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *self = PyStackRef_AsPyObjectBorrow(args[1]);
+                PyObject* field = GETITEM(FRAME_CO_CONSTS, extoparg);
+                int field_type;
+                Py_ssize_t offset =
+                    _PyClassLoader_ResolveFieldOffset(field, &field_type);
+                if (offset == -1) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                PyObject** addr = FIELD_OFFSET(self, offset);
+
+                if (field_type == TYPED_OBJECT) {
+                    Py_INCREF(value);
+                    Py_XDECREF(*addr);
+                    *addr = value;
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                    if (adaptive_enabled) {
+                        if (offset <= INT32_MAX) {
+                            int32_t *cache = (int32_t*)next_instr;
+                            *cache = offset;
+                            _Ci_specialize(next_instr, STORE_OBJ_FIELD);
+                        }
+                    }
+#endif
+                } else {
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                    if (adaptive_enabled) {
+                        if (offset <= INT32_MAX >> 8) {
+                            assert(field_type < 0xff);
+                            int32_t *cache = (int32_t*)next_instr;
+                            *cache = offset << 8 | field_type;
+                            _Ci_specialize(next_instr, STORE_PRIMITIVE_FIELD);
+                        }
+                    }
+#endif
+                    store_field(field_type, (char*)addr, value);
+                }
+                DECREF_INPUTS();
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);
