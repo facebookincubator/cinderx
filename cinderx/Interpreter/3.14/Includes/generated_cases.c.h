@@ -5687,8 +5687,8 @@
             INSTRUCTION_STATS(EXTENDED_OPCODE);
             _PyStackRef *args;
             _PyStackRef *top;
-            args = &stack_pointer[-(oparg&0x03)];
-            top = &stack_pointer[-(oparg&0x03)];
+            args = &stack_pointer[-(oparg>>2)];
+            top = &stack_pointer[-(oparg>>2)];
             int extop = (int)next_instr->op.code;
             int extoparg = (int)next_instr->op.arg;
             while (extop == EXTENDED_ARG) {
@@ -5699,10 +5699,10 @@
             extop |= EXTENDED_OPCODE_FLAG;
             if (extop == PRIMITIVE_LOAD_CONST) {
                 top[0] = PyStackRef_FromPyObjectNew(PyTuple_GET_ITEM(GETITEM(FRAME_CO_CONSTS, extoparg), 0));
-                stack_pointer += -(oparg&0x03) + (oparg>>2);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
                 assert(WITHIN_STACK_BOUNDS());
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                for (int _i = oparg&0x03; --_i >= 0;) {
+                for (int _i = oparg>>2; --_i >= 0;) {
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
@@ -5749,10 +5749,10 @@
                     }
                 }
                 #endif
-                stack_pointer += -(oparg&0x03) + (oparg>>2);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
                 assert(WITHIN_STACK_BOUNDS());
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                for (int _i = oparg&0x03; --_i >= 0;) {
+                for (int _i = oparg>>2; --_i >= 0;) {
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
@@ -5765,10 +5765,10 @@
                     GETLOCAL(index) = value = PyStackRef_FromPyObjectSteal(PyLong_FromLong(0));
                 }
                 value = PyStackRef_DUP(value);
-                stack_pointer += -(oparg&0x03) + (oparg>>2);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
                 assert(WITHIN_STACK_BOUNDS());
                 _PyFrame_SetStackPointer(frame, stack_pointer);
-                for (int _i = oparg&0x03; --_i >= 0;) {
+                for (int _i = oparg>>2; --_i >= 0;) {
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
@@ -5800,6 +5800,139 @@
                         JUMP_TO_LABEL(error);
                     }
                 }
+            } else if (extop == SEQUENCE_GET) {
+                PyObject *sequence = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *idx = PyStackRef_AsPyObjectBorrow(args[1]);
+                PyObject *item;
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                Py_ssize_t val = (Py_ssize_t)PyLong_AsVoidPtr(idx);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (val == -1 && _PyErr_Occurred(tstate)) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                if (val < 0) {
+                    val += Py_SIZE(sequence);
+                }
+                extoparg &= ~SEQ_SUBSCR_UNCHECKED;
+                if (extoparg == SEQ_LIST) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    item = PyList_GetItem(sequence, val);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    if (item == NULL) {
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    }
+                    Py_INCREF(item);
+                } else if (extoparg == SEQ_LIST_INEXACT) {
+                    if (PyList_CheckExact(sequence) ||
+                        Py_TYPE(sequence)->tp_as_sequence->sq_item ==
+                        PyList_Type.tp_as_sequence->sq_item) {
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        item = PyList_GetItem(sequence, val);
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        if (item == NULL) {
+                            stack_pointer += -(oparg>>2) + (oparg&0x03);
+                            assert(WITHIN_STACK_BOUNDS());
+                            _PyFrame_SetStackPointer(frame, stack_pointer);
+                            for (int _i = oparg>>2; --_i >= 0;) {
+                                PyStackRef_CLOSE(args[_i]);
+                            }
+                            stack_pointer = _PyFrame_GetStackPointer(frame);
+                            stack_pointer += -(oparg&0x03);
+                            assert(WITHIN_STACK_BOUNDS());
+                            JUMP_TO_LABEL(error);
+                        }
+                        Py_INCREF(item);
+                    } else {
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        item = PyObject_GetItem(sequence, idx);
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        if (item == NULL) {
+                            stack_pointer += -(oparg>>2) + (oparg&0x03);
+                            assert(WITHIN_STACK_BOUNDS());
+                            _PyFrame_SetStackPointer(frame, stack_pointer);
+                            for (int _i = oparg>>2; --_i >= 0;) {
+                                PyStackRef_CLOSE(args[_i]);
+                            }
+                            stack_pointer = _PyFrame_GetStackPointer(frame);
+                            stack_pointer += -(oparg&0x03);
+                            assert(WITHIN_STACK_BOUNDS());
+                            JUMP_TO_LABEL(error);
+                        }
+                    }
+                } else if (extoparg == SEQ_CHECKED_LIST) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    item = Ci_CheckedList_GetItem(sequence, val);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    if (item == NULL) {
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    }
+                } else if (extoparg == SEQ_ARRAY_INT64) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    item = _Ci_StaticArray_Get(sequence, val);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    if (item == NULL) {
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    }
+                } else {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    PyErr_Format(
+                                 PyExc_SystemError, "bad oparg for SEQUENCE_GET: %d", extoparg);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                top[0] = PyStackRef_FromPyObjectSteal(item);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,
@@ -5816,6 +5949,7 @@
                 assert(WITHIN_STACK_BOUNDS());
                 JUMP_TO_LABEL(error);
                 stack_pointer += -(oparg&0x03) + (oparg>>2);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
             }
             SKIP_OVER(1);
             DISPATCH();
