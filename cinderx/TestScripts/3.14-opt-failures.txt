@@ -20,7 +20,6 @@ test_cinderx.test_compiler.test_static.decl_visitor
 test_cinderx.test_compiler.test_static.double
 test_cinderx.test_compiler.test_static.dynamic_return
 test_cinderx.test_compiler.test_static.elide_type_checks
-test_cinderx.test_compiler.test_static.enum
 test_cinderx.test_compiler.test_static.fields
 test_cinderx.test_compiler.test_static.final
 test_cinderx.test_compiler.test_static.inference
@@ -39,9 +38,7 @@ test_cinderx.test_compiler.test_static.refine_fields
 test_cinderx.test_compiler.test_static.runtime
 test_cinderx.test_compiler.test_static.sequence
 test_cinderx.test_compiler.test_static.slots_with_default
-test_cinderx.test_compiler.test_static.subclass
 test_cinderx.test_compiler.test_static.super
-test_cinderx.test_compiler.test_static.sys_hexversion
 test_cinderx.test_compiler.test_static.type_alias
 test_cinderx.test_compiler.test_static.union
 test_cinderx.test_compiler.test_static.variadic_arg
@@ -55,6 +52,5 @@ test_cinderx.test_jit_attr_cache
 test_cinderx.test_jit_frame
 test_cinderx.test_jit_global_cache
 test_cinderx.test_jit_perf_map
-test_cinderx.test_jit_preload
 test_cinderx.test_jitlist
 test_cinderx.test_parallel_gc

@@ -775,6 +775,45 @@ dummy_func(
                 DECREF_INPUTS();                
                 ERROR_IF(res == NULL);
                 top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == INVOKE_FUNCTION) {
+                // We should move to encoding the number of args directly in the
+                // opcode, right now pulling them out via invoke_function_args is a little
+                // ugly.
+                PyObject* value = GETITEM(FRAME_CO_CONSTS, extoparg);
+                int nargs = oparg >> 2;
+                PyObject* target = PyTuple_GET_ITEM(value, 0);
+                PyObject* container;
+                PyObject* func = _PyClassLoader_ResolveFunction(target, &container);
+                if (func == NULL) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                STACKREFS_TO_PYOBJECTS(args, nargs, args_o);
+                if (CONVERSION_FAILED(args_o)) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+                PyObject *res = _PyObject_Vectorcall(func, args_o, nargs, NULL);
+                STACKREFS_TO_PYOBJECTS_CLEANUP(args_o);
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (adaptive_enabled) {
+                    if (_PyClassLoader_IsImmutable(container)) {
+                        /* frozen type, we don't need to worry about indirecting */
+                        specialize_with_value(next_instr, func, INVOKE_FUNCTION_CACHED, 0, 0);
+                    } else {
+                        PyObject** funcptr = _PyClassLoader_ResolveIndirectPtr(target);
+                        PyObject ***cache = (PyObject ***)next_instr;
+                        *cache = funcptr;
+                        _Ci_specialize(next_instr, INVOKE_INDIRECT_CACHED);
+                    }
+                }
+#endif
+                Py_DECREF(func);
+                Py_DECREF(container);
+                DECREF_INPUTS();
+                ERROR_IF(res == NULL);                
+                top[0] = PyStackRef_FromPyObjectSteal(res);
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);
