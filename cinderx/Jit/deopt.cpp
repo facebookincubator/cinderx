@@ -13,13 +13,7 @@
 #define USDT(...)
 #endif
 
-#if PY_VERSION_HEX >= 0x030C0000
-#include "internal/pycore_frame.h"
-#endif
-
 #include <shared_mutex>
-
-using jit::codegen::PhyLocation;
 
 namespace jit {
 
@@ -172,19 +166,15 @@ static void reifyStack(
   for (int i = frame_meta.stack.size() - 1; i >= 0; i--) {
     const auto& value = meta.getStackValue(i, frame_meta);
     Ref<> obj = mem.readOwned(value);
-    if (value.isLoadMethodResult()) {
-      // When we are deoptimizing a JIT-compiled function that contains an
-      // optimizable LoadMethod, we need to be able to know whether or not the
-      // LoadMethod returned a bound method object in order to properly
-      // reconstruct the stack for the interpreter. We use Py_None as the
-      // LoadMethodResult to indicate that it was a non-method like object,
-      // which we need to replace with nullptr to match the interpreter
-      // semantics.
-      if (obj == Py_None) {
-        *stack_top = Ci_STACK_NULL;
-      } else {
-        *stack_top = Ci_STACK_STEAL(obj.release());
-      }
+
+    // When we are deoptimizing a JIT-compiled function that contains an
+    // optimizable LoadMethod, we need to be able to know whether or not the
+    // LoadMethod returned a bound method object in order to properly
+    // reconstruct the stack for the interpreter. We use Py_None as the
+    // LoadMethodResult to indicate that it was a non-method like object, which
+    // we need to replace with nullptr to match the interpreter semantics.
+    if (value.isLoadMethodResult() && obj == Py_None) {
+      *stack_top = Ci_STACK_NULL;
     } else {
       *stack_top = Ci_STACK_STEAL(obj.release());
     }

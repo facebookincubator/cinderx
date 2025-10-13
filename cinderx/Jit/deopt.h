@@ -11,7 +11,6 @@
 #include <fmt/ostream.h>
 #include <fmt/ranges.h>
 
-#include <algorithm>
 #include <cstdint>
 
 namespace jit {
