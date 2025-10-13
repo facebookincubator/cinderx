@@ -1051,6 +1051,12 @@ class StaticCodeGenBase(StrictCodeGenBase):
         iter_type.emit_forloop(node, self)
         self.strictPostVisitFor(node)
 
+    def emit_invoke_function(self, descr: TypeDescr, arg_count: int) -> None:
+        # Emit a zero EXTENDED_ARG before so that we can optimize and insert the
+        # arg count
+        self.emit("EXTENDED_ARG", 0)
+        self.emit("INVOKE_FUNCTION", (descr, arg_count))
+
     def emit_invoke_method(
         self, descr: TypeDescr, arg_count: int, is_classmethod: bool = False
     ) -> None:
@@ -1361,6 +1367,25 @@ class Static312CodeGenerator(StaticCodeGenBase, CinderCodeGenerator312):
 class Static314CodeGenerator(Static312CodeGenerator, CinderCodeGenerator314):
     flow_graph = PyFlowGraph314
     parent_impl = StrictCodeGenerator314
+
+    def emit_invoke_function(self, descr: TypeDescr, arg_count: int) -> None:
+        self.emit("INVOKE_FUNCTION", (descr, arg_count))
+
+    def emit_invoke_method(
+        self, descr: TypeDescr, arg_count: int, is_classmethod: bool = False
+    ) -> None:
+        self.emit(
+            "INVOKE_METHOD",
+            (descr, arg_count, True) if is_classmethod else (descr, arg_count),
+        )
+
+    def emit_load_static_method(
+        self, descr: TypeDescr, is_classmethod: bool = False
+    ) -> None:
+        self.emit(
+            "LOAD_METHOD_STATIC",
+            (descr, True) if is_classmethod else (descr,),
+        )
 
 
 if sys.version_info >= (3, 14):

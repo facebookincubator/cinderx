@@ -3092,9 +3092,8 @@ class ArgMapping:
                 len(func_args) if extra_self else len(func_args) - 1,
             )
         else:
-            code_gen.emit("EXTENDED_ARG", 0)
             descr = self.descr_override or self.callable.type_descr
-            code_gen.emit("INVOKE_FUNCTION", (descr, len(func_args)))
+            code_gen.emit_invoke_function(descr, len(func_args))
 
     def infer_return_type(self, ret_type: Class) -> Value:
         # There's still more to do here in the case where the return
@@ -3169,8 +3168,7 @@ class ClassMethodArgMapping(ArgMapping):
                 is_classmethod=not self.is_instance_call,
             )
         else:
-            code_gen.emit("EXTENDED_ARG", 0)
-            code_gen.emit("INVOKE_FUNCTION", (self.callable.type_descr, len(func_args)))
+            code_gen.emit_invoke_function(self.callable.type_descr, len(func_args))
 
 
 class ArgEmitter:
@@ -4599,8 +4597,7 @@ class PropertyMethod(DecoratedMethod):
         self, node: Attribute, code_gen: StaticCodeGenBase, klass: Class
     ) -> None:
         if self.function.is_final or klass.is_final or klass.is_exact:
-            code_gen.emit("EXTENDED_ARG", 0)
-            code_gen.emit("INVOKE_FUNCTION", (self.getter_type_descr, 1))
+            code_gen.emit_invoke_function(self.getter_type_descr, 1)
         else:
             code_gen.perf_warning(
                 f"Getter for property {node.attr} can be overridden. Make "
@@ -4630,8 +4627,7 @@ class PropertyMethod(DecoratedMethod):
     ) -> None:
         if self.function.is_final or klass.is_final:
             code_gen.emit_rotate_stack(2)
-            code_gen.emit("EXTENDED_ARG", 0)
-            code_gen.emit("INVOKE_FUNCTION", (self.setter_type_descr, 2))
+            code_gen.emit_invoke_function(self.setter_type_descr, 2)
         else:
             self.emit_virtual_property_store(node, code_gen, klass)
         code_gen.emit("POP_TOP")
@@ -8951,8 +8947,7 @@ class CheckedDictInstance(Object[CheckedDict]):
     ) -> None:
         dict_descr = self.klass.type_descr
         getitem_descr = (dict_descr, "__getitem__")
-        code_gen.emit("EXTENDED_ARG", 0)
-        code_gen.emit("INVOKE_FUNCTION", (getitem_descr, 2))
+        code_gen.emit_invoke_function(getitem_descr, 2)
 
     def emit_store_subscr(
         self, node: ast.Subscript, code_gen: StaticCodeGenBase
@@ -8963,8 +8958,7 @@ class CheckedDictInstance(Object[CheckedDict]):
         code_gen.emit_rotate_stack(3)
         dict_descr = self.klass.type_descr
         setitem_descr = (dict_descr, "__setitem__")
-        code_gen.emit("EXTENDED_ARG", 0)
-        code_gen.emit("INVOKE_FUNCTION", (setitem_descr, 3))
+        code_gen.emit_invoke_function(setitem_descr, 3)
         code_gen.emit("POP_TOP")
 
     def get_fast_len_type(self) -> int:
