@@ -618,6 +618,67 @@ dummy_func(
 
                 DECREF_INPUTS();
                 top[0] = PyStackRef_FromPyObjectSteal(item);
+            } else if (extop == SEQUENCE_SET) {
+                PyObject *v = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *sequence = PyStackRef_AsPyObjectBorrow(args[1]);
+                PyObject *subscr = PyStackRef_AsPyObjectBorrow(args[2]);
+                int err;
+
+                Py_ssize_t idx = (Py_ssize_t)PyLong_AsVoidPtr(subscr);
+
+                if (idx == -1 && _PyErr_Occurred(tstate)) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                // Adjust index
+                if (idx < 0) {
+                    idx += Py_SIZE(sequence);
+                }
+
+                if (extoparg == SEQ_LIST) {
+                    Py_INCREF(v);   // PyList_SetItem steals the reference
+                    err = PyList_SetItem(sequence, idx, v);
+
+                    if (err != 0) {
+                        Py_DECREF(v);
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    }
+                } else if (extoparg == SEQ_LIST_INEXACT) {
+                    if (PyList_CheckExact(sequence) ||
+                        Py_TYPE(sequence)->tp_as_sequence->sq_ass_item ==
+                            PyList_Type.tp_as_sequence->sq_ass_item) {
+                        Py_INCREF(v);   // PyList_SetItem steals the reference
+                        err = PyList_SetItem(sequence, idx, v);
+
+                        if (err != 0) {
+                            Py_DECREF(v);
+                            DECREF_INPUTS();
+                            ERROR_IF(true);
+                        }
+                    } else {
+                        err = PyObject_SetItem(sequence, subscr, v);
+                        if (err != 0) {
+                            DECREF_INPUTS();
+                            ERROR_IF(true);
+                        }
+                    }
+                } else if (extoparg == SEQ_ARRAY_INT64) {
+                    err = _Ci_StaticArray_Set(sequence, idx, v);
+
+                    if (err != 0) {
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    }
+                } else {
+                    PyErr_Format(
+                        PyExc_SystemError, "bad oparg for SEQUENCE_SET: %d", oparg);
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                DECREF_INPUTS();                
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);
