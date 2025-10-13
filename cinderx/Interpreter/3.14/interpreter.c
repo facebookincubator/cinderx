@@ -192,7 +192,6 @@ static void store_field(int field_type, void* addr, PyObject* value) {
 #define CAST_COERCE_OR_ERROR(val, type, exact)                                     \
     if (type == &PyFloat_Type && PyObject_TypeCheck(val, &PyLong_Type)) {          \
         long lval = PyLong_AsLong(val);                                            \
-        Py_DECREF(val);                                                            \
         val = PyFloat_FromDouble(lval);                                            \
     } else {                                                                       \
         PyErr_Format(                                                              \

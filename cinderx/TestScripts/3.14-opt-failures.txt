@@ -3,14 +3,12 @@ test_cinderx.test_compiler.test_cinder
 test_cinderx.test_compiler.test_code_sbs
 test_cinderx.test_compiler.test_linepos
 test_cinderx.test_compiler.test_optimizer
-test_cinderx.test_compiler.test_static.annotated
 test_cinderx.test_compiler.test_static.array
 test_cinderx.test_compiler.test_static.augassign
 test_cinderx.test_compiler.test_static.binop
 test_cinderx.test_compiler.test_static.cached_property
 test_cinderx.test_compiler.test_static.checked_dict
 test_cinderx.test_compiler.test_static.checked_list
-test_cinderx.test_compiler.test_static.class_decorator
 test_cinderx.test_compiler.test_static.classmethod
 test_cinderx.test_compiler.test_static.compile
 test_cinderx.test_compiler.test_static.context_decorator
@@ -19,7 +17,6 @@ test_cinderx.test_compiler.test_static.dataclass
 test_cinderx.test_compiler.test_static.decl_visitor
 test_cinderx.test_compiler.test_static.double
 test_cinderx.test_compiler.test_static.dynamic_return
-test_cinderx.test_compiler.test_static.elide_type_checks
 test_cinderx.test_compiler.test_static.fields
 test_cinderx.test_compiler.test_static.final
 test_cinderx.test_compiler.test_static.inference
@@ -30,13 +27,11 @@ test_cinderx.test_compiler.test_static.mixin
 test_cinderx.test_compiler.test_static.native
 test_cinderx.test_compiler.test_static.non_static_inheritance
 test_cinderx.test_compiler.test_static.obj_creation
-test_cinderx.test_compiler.test_static.overrides
 test_cinderx.test_compiler.test_static.patch
 test_cinderx.test_compiler.test_static.primitives
 test_cinderx.test_compiler.test_static.property
 test_cinderx.test_compiler.test_static.refine_fields
 test_cinderx.test_compiler.test_static.runtime
-test_cinderx.test_compiler.test_static.sequence
 test_cinderx.test_compiler.test_static.slots_with_default
 test_cinderx.test_compiler.test_static.super
 test_cinderx.test_compiler.test_static.type_alias

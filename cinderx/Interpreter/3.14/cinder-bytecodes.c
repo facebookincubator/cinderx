@@ -814,6 +814,30 @@ dummy_func(
                 DECREF_INPUTS();
                 ERROR_IF(res == NULL);                
                 top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == CAST) {
+                PyObject *val = PyStackRef_AsPyObjectBorrow(args[0]);
+                int optional;
+                int exact;
+                PyTypeObject* type = _PyClassLoader_ResolveType(
+                    GETITEM(FRAME_CO_CONSTS, extoparg), &optional, &exact);
+                if (type == NULL) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (adaptive_enabled) {
+                    specialize_with_value(next_instr, (PyObject *)type, CAST_CACHED, 2, (exact << 1) | optional); 
+                }
+#endif
+                if (!_PyObject_TypeCheckOptional(val, type, optional, exact)) {
+                    CAST_COERCE_OR_ERROR(val, type, exact);
+                }
+
+                Py_DECREF(type);
+
+                _PyStackRef res = PyStackRef_FromPyObjectNew(val);
+                DECREF_INPUTS();
+                top[0] = res;
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);
