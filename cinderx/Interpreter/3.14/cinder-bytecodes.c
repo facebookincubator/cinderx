@@ -535,14 +535,25 @@ dummy_func(
                     // need to be defined. We should consider stop doing that as it can
                     // cause compatibility issues when the same code runs statically and
                     // non statically.
-                    GETLOCAL(index) = PyStackRef_FromPyObjectSteal(PyLong_FromLong(0));
-                } else {
-                    value = PyStackRef_DUP(value);
+                    GETLOCAL(index) = value = PyStackRef_FromPyObjectSteal(PyLong_FromLong(0));
                 }
-                top[0] = value;
+                value = PyStackRef_DUP(value);
                 DECREF_INPUTS();
+                top[0] = value;
             } else if (extop == PRIMITIVE_BOX) {
                 top[0] = sign_extend_primitive(args[0], extoparg);
+                DEAD(args);
+            } else if (extop == PRIMITIVE_UNBOX) {
+                PyObject *val = PyStackRef_AsPyObjectBorrow(args[0]);
+                if (PyLong_CheckExact(val)) {
+                    size_t value;
+                    int overflow = _PyClassLoader_CheckOverflow(val, extoparg, &value);
+                    if (!overflow) {
+                        PyErr_SetString(PyExc_OverflowError, "int overflow");
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    }
+                }
                 DEAD(args);
             } else {
                 PyErr_Format(PyExc_RuntimeError,

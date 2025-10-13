@@ -131,6 +131,13 @@ _PyClassLoader_OverflowCheck(PyObject* arg, int type, size_t* value) {
   return 1;
 }
 
+// alias for _PyClassLoader_OverflowCheck to use in the interpreter so it's
+// not seen as non-escaping.
+static inline int
+_PyClassLoader_CheckOverflow(PyObject* arg, int type, size_t* value) {
+  return _PyClassLoader_OverflowCheck(arg, type, value);
+}
+
 static inline void* _PyClassLoader_ConvertArg(
     PyObject* ctx,
     const Ci_Py_SigElement* sig_elem,
