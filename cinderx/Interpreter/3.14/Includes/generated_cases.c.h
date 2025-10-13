@@ -6598,6 +6598,25 @@
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
+            } else if (extop == RETURN_PRIMITIVE) {
+                assert(frame->owner != FRAME_OWNED_BY_INTERPRETER);
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                _PyStackRef temp = sign_extend_primitive(PyStackRef_MakeHeapSafe(args[0]), extoparg);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                assert(STACK_LEVEL() == 0);
+                _Py_LeaveRecursiveCallPy(tstate);
+                _PyInterpreterFrame *dying = frame;
+                frame = tstate->current_frame = dying->previous;
+                _PyEval_FrameClearAndPop(tstate, dying);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                LOAD_IP(frame->return_offset);
+                stack_pointer[0] = temp;
+                stack_pointer += 1;
+                LLTRACE_RESUME_FRAME();
+                DISPATCH();
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,

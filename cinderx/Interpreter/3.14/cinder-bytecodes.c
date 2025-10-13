@@ -987,6 +987,23 @@ dummy_func(
                     store_field(field_type, (char*)addr, value);
                 }
                 DECREF_INPUTS();
+            } else if (extop == RETURN_PRIMITIVE) {
+                assert(frame->owner != FRAME_OWNED_BY_INTERPRETER);
+                _PyStackRef temp = sign_extend_primitive(PyStackRef_MakeHeapSafe(args[0]), extoparg);
+                DEAD(args);
+                SAVE_STACK();
+                assert(STACK_LEVEL() == 0);
+                _Py_LeaveRecursiveCallPy(tstate);
+                // GH-99729: We need to unlink the frame *before* clearing it:
+                _PyInterpreterFrame *dying = frame;
+                frame = tstate->current_frame = dying->previous;
+                _PyEval_FrameClearAndPop(tstate, dying);
+                RELOAD_STACK();
+                LOAD_IP(frame->return_offset);
+                stack_pointer[0] = temp;
+                stack_pointer += 1;
+                LLTRACE_RESUME_FRAME();
+                DISPATCH();
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);
