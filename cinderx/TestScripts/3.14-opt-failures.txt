@@ -43,5 +43,4 @@ test_cinderx.test_jit_attr_cache
 test_cinderx.test_jit_frame
 test_cinderx.test_jit_global_cache
 test_cinderx.test_jit_perf_map
-test_cinderx.test_jitlist
 test_cinderx.test_parallel_gc

@@ -116,7 +116,7 @@ def init(
     jrel_op("POP_JUMP_IF_ZERO", 101)
     hasarg.append(101)
     inline_cache_entries["POP_JUMP_IF_ZERO"] = 1
-    jrel_op("POP_JUMP_IF_NONZERO", 104)
+    jrel_op("POP_JUMP_IF_NONZERO", 103)
     hasarg.append(104)
     inline_cache_entries["POP_JUMP_IF_NONZERO"] = 1
     def_op("PRIMITIVE_UNBOX", 18)
