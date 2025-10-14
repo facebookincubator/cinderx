@@ -156,9 +156,12 @@ _PyInterpreterFrame* reifyLightweightFrames(
 }
 #endif
 
-CiPyFrameObjType*
-prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
+CiPyFrameObjType* prepareForDeopt(
+    const uint64_t* regs,
+    [[maybe_unused]] CodeRuntime* code_runtime,
+    std::size_t deopt_idx) {
   JIT_CHECK(deopt_idx != -1ull, "deopt_idx must be valid");
+  auto runtime = Runtime::get();
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
   PyThreadState* tstate = _PyThreadState_UncheckedGet();
 #if PY_VERSION_HEX < 0x030C0000
@@ -244,7 +247,7 @@ prepareForDeopt(const uint64_t* regs, Runtime* runtime, std::size_t deopt_idx) {
 #if PY_VERSION_HEX < 0x030C0000
 PyObject* resumeInInterpreter(
     PyFrameObject* frame,
-    Runtime* runtime,
+    CodeRuntime* code_runtime,
     std::size_t deopt_idx) {
   if (frame->f_gen) {
     auto gen = reinterpret_cast<PyGenObject*>(frame->f_gen);
@@ -256,6 +259,7 @@ PyObject* resumeInInterpreter(
   PyThreadState* tstate = PyThreadState_Get();
   PyObject* result = nullptr;
   // Resume all of the inlined frames and the caller
+  auto runtime = Runtime::get();
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
   int inline_depth = deopt_meta.inline_depth();
   int err_occurred =
@@ -305,10 +309,11 @@ PyObject* resumeInInterpreter(
 
 PyObject* resumeInInterpreter(
     _PyInterpreterFrame* frame,
-    Runtime* runtime,
+    CodeRuntime* code_runtime,
     std::size_t deopt_idx) {
   PyThreadState* tstate = PyThreadState_Get();
 
+  auto runtime = Runtime::get();
   const DeoptMetadata& deopt_meta = runtime->getDeoptMetadata(deopt_idx);
   int err_occurred =
       (deopt_meta.reason != DeoptReason::kGuardFailure &&
@@ -413,6 +418,8 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // | index of deopt metadata |
   // | saved rip               |
   // | padding                 |
+  // | padding                 |
+  // | address of CodeRuntime  |
   // | address of epilogue     |
   // | r15                     | <-- rsp
   // +-------------------------+
@@ -460,6 +467,8 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // | index of deopt metadata |
   // | saved rip               |
   // | padding                 |
+  // | padding                 |
+  // | address of CodeRuntime  |
   // | address of epilogue     |
   // | r15                     |
   // | ...                     |
@@ -471,43 +480,59 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // +-------------------------+ <-- end of JIT's fixed frame
   // | saved rip               |
   // | saved rbp               | <-- rbp
+  // | padding                 |
   // | index of deopt metadata |
+  // | address of CodeRuntime  |
   // | address of epilogue     |
   // | r15                     |
   // | ...                     |
   // | rax                     | <-- rsp
   // +-------------------------+
-  //
+
+  annot_cursor = a.cursor();
+
+  // Setting up first argument to prepareForDeopt, the address of the saved
+  // registers.
+  a.mov(x86::rdi, x86::rsp);
+
   // Load the saved rip passed to us from the JIT-compiled function, which
   // resides where we're supposed to save rbp.
-  annot_cursor = a.cursor();
-  auto saved_rbp_addr = x86::ptr(x86::rsp, (NUM_GP_REGS + 2) * kPointerSize);
-  a.mov(x86::rdi, saved_rbp_addr);
-  // Save rbp and set up our frame
+  auto saved_rip = x86::rcx;
+  auto saved_rbp_addr = x86::ptr(x86::rsp, (NUM_GP_REGS + 4) * kPointerSize);
+  a.mov(saved_rip, saved_rbp_addr);
+
+  // Save rbp and set up our frame.
   a.mov(saved_rbp_addr, x86::rbp);
   a.lea(x86::rbp, saved_rbp_addr);
+
   // Load the index of the deopt metadata, which resides where we're supposed to
   // save rip.
+  auto deopt_idx = x86::rdx;
   auto saved_rip_addr = x86::ptr(x86::rbp, kPointerSize);
-  a.mov(x86::rsi, saved_rip_addr);
-  a.mov(saved_rip_addr, x86::rdi);
-  // Save the index of the deopt metadata
-  auto deopt_meta_addr = x86::ptr(x86::rbp, -kPointerSize);
-  a.mov(deopt_meta_addr, x86::rsi);
+  a.mov(deopt_idx, saved_rip_addr);
+  a.mov(saved_rip_addr, saved_rip);
+
+  // Save the deopt metadata index to the lower padding slot.
+  auto deopt_idx_addr = x86::ptr(x86::rbp, -2 * kPointerSize);
+  a.mov(deopt_idx_addr, deopt_idx);
+
+  // Fetch the CodeRuntime address from the stack.
+  auto code_rt_addr = x86::ptr(x86::rbp, -3 * kPointerSize);
+  auto code_rt = x86::rsi;
+  a.mov(code_rt, code_rt_addr);
+
   annot.add("Shuffle rip, rbp, and deopt index", &a, annot_cursor);
 
   // Prep the frame for evaluation in the interpreter.
   //
-  // We pass the array of saved registers, a pointer to the runtime, the index
-  // of deopt metadata, and the call method kind.
+  // We pass the array of saved registers, a pointer to the code runtime, and
+  // the index of the deopt metadata.
   annot_cursor = a.cursor();
-  a.mov(x86::rdi, x86::rsp);
-  a.mov(x86::rsi, reinterpret_cast<uint64_t>(Runtime::get()));
-  a.mov(x86::rdx, deopt_meta_addr);
+
   static_assert(
       std::is_same_v<
           decltype(prepareForDeopt),
-          CiPyFrameObjType*(const uint64_t*, Runtime*, std::size_t)>,
+          CiPyFrameObjType*(const uint64_t*, CodeRuntime*, std::size_t)>,
       "prepareForDeopt has unexpected signature");
   a.call(reinterpret_cast<uint64_t>(prepareForDeopt));
 
@@ -516,25 +541,30 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // This isn't strictly necessary but saves 128 bytes on the stack if we end
   // up resuming in the interpreter.
   a.add(x86::rsp, (NUM_GP_REGS - 1) * kPointerSize);
+
   // We have to restore our scratch register manually since it's callee-saved
   // and the stage 2 trampoline used it to hold the address of this
   // trampoline. We can't rely on the JIT epilogue to restore it for us, as the
   // JIT-compiled code may not have spilled it.
   a.pop(deopt_scratch_reg);
+
   annot.add("prepareForDeopt", &a, annot_cursor);
 
   // Resume execution in the interpreter.
   annot_cursor = a.cursor();
+
   // First argument: frame returned from prepareForDeopt.
   a.mov(x86::rdi, x86::rax);
-  // Second argument: runtime.
-  a.mov(x86::rsi, reinterpret_cast<uint64_t>(Runtime::get()));
-  // Third argument: DeoptMetadata index.
-  a.mov(x86::rdx, x86::ptr(x86::rsp, kPointerSize));
+  // Second argument: CodeRuntime, restored from the stack after
+  // prepareForDeopt.
+  a.mov(code_rt, code_rt_addr);
+  // Third argument: DeoptMetadata index, restored from the stack after
+  // prepareForDeopt.
+  a.mov(deopt_idx, deopt_idx_addr);
   static_assert(
       std::is_same_v<
           decltype(resumeInInterpreter),
-          PyObject*(CiPyFrameObjType*, Runtime*, std::size_t)>,
+          PyObject*(CiPyFrameObjType*, CodeRuntime*, std::size_t)>,
       "resumeInInterpreter has unexpected signature");
   a.call(reinterpret_cast<uint64_t>(resumeInInterpreter));
 
@@ -551,7 +581,7 @@ void* generateDeoptTrampoline(bool generator_mode) {
   // Now we're done. Get the address of the epilogue and jump there.
   annot_cursor = a.cursor();
 
-  auto epilogue_addr = x86::ptr(x86::rbp, -2 * kPointerSize);
+  auto epilogue_addr = x86::ptr(x86::rbp, -4 * kPointerSize);
   a.mov(x86::rdi, epilogue_addr);
   // Remove our frame from the stack
   a.leave();
@@ -1389,6 +1419,8 @@ void NativeGenerator::generateDeoptExits(const asmjit::CodeHolder& code) {
   // | index of deopt metadata |
   // | saved rip               |
   // | padding                 |
+  // | padding                 |
+  // | address of CodeRuntime  |
   // | address of epilogue     |
   // | r15                     |
   // +-------------------------+
@@ -1399,15 +1431,29 @@ void NativeGenerator::generateDeoptExits(const asmjit::CodeHolder& code) {
   //
   // If you change this make sure you update that code!
   as_->bind(deopt_exit);
-  // Add padding to keep the stack aligned
+
+  // Two slots for padding.  One of them will get the deopt metadata index
+  // shuffled in, making space to save RBP before calling prepareForDeopt.
   as_->push(deopt_scratch_reg);
-  // Save space for the epilogue
   as_->push(deopt_scratch_reg);
-  // Save our scratch register
+
+  // Save space for the CodeRuntime.
   as_->push(deopt_scratch_reg);
-  // Save the address of the epilogue
+
+  // Save space for the epilogue.
+  as_->push(deopt_scratch_reg);
+
+  // Save our scratch register.
+  as_->push(deopt_scratch_reg);
+
+  // Save the address of the CodeRuntime.
+  as_->mov(deopt_scratch_reg, reinterpret_cast<uintptr_t>(env_.code_rt));
+  as_->mov(x86::ptr(x86::rsp, kPointerSize * 2), deopt_scratch_reg);
+
+  // Save the address of the epilogue.
   as_->lea(deopt_scratch_reg, x86::ptr(env_.hard_exit_label));
   as_->mov(x86::ptr(x86::rsp, kPointerSize), deopt_scratch_reg);
+
   auto trampoline = GetFunction()->code->co_flags & kCoFlagsAnyGenerator
       ? deopt_trampoline_generators_
       : deopt_trampoline_;
