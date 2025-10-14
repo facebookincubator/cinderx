@@ -4,16 +4,13 @@ test_cinderx.test_compiler.test_code_sbs
 test_cinderx.test_compiler.test_linepos
 test_cinderx.test_compiler.test_optimizer
 test_cinderx.test_compiler.test_static.array
-test_cinderx.test_compiler.test_static.binop
 test_cinderx.test_compiler.test_static.cached_property
 test_cinderx.test_compiler.test_static.checked_dict
 test_cinderx.test_compiler.test_static.checked_list
 test_cinderx.test_compiler.test_static.classmethod
 test_cinderx.test_compiler.test_static.compile
 test_cinderx.test_compiler.test_static.context_decorator
-test_cinderx.test_compiler.test_static.crange
 test_cinderx.test_compiler.test_static.dataclass
-test_cinderx.test_compiler.test_static.double
 test_cinderx.test_compiler.test_static.final
 test_cinderx.test_compiler.test_static.inference
 test_cinderx.test_compiler.test_static.literals

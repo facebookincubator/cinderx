@@ -1026,6 +1026,44 @@ dummy_func(
                 stack_pointer += 1;
                 LLTRACE_RESUME_FRAME();
                 DISPATCH();
+            } else if (extop == POP_JUMP_IF_ZERO) {
+                PyObject *cond = PyStackRef_AsPyObjectBorrow(args[0]);
+                int is_nonzero = PyObject_IsTrue(cond);
+                DECREF_INPUTS();
+                if (!is_nonzero) {
+                    JUMPBY(extoparg);
+                    DISPATCH();
+                }
+                SKIP_OVER(1); // skip cache (for same format w/ POP_JUMP_IF_FALSE)
+            } else if (extop == POP_JUMP_IF_NONZERO) {
+                PyObject *cond = PyStackRef_AsPyObjectBorrow(args[0]);
+                int is_nonzero = PyObject_IsTrue(cond);
+                DECREF_INPUTS();
+                if (is_nonzero) {
+                    JUMPBY(extoparg);
+                    DISPATCH();
+                }
+                SKIP_OVER(1); // skip cache (for same format w/ POP_JUMP_IF_TRUE)
+            } else if (extop == CONVERT_PRIMITIVE) {
+                PyObject *val = PyStackRef_AsPyObjectBorrow(args[0]);
+                Py_ssize_t from_type = extoparg & 0xFF;
+                Py_ssize_t to_type = extoparg >> 4;
+                Py_ssize_t extend_sign =
+                    (from_type & TYPED_INT_SIGNED) && (to_type & TYPED_INT_SIGNED);
+                int size = to_type >> 1;
+                size_t ival = (size_t)PyLong_AsVoidPtr(val);
+
+                ival &= trunc_masks[size];
+
+                // Extend the sign if needed
+                if (extend_sign != 0 && (ival & signed_bits[size])) {
+                    ival |= (signex_masks[size]);
+                }
+
+                PyObject *res = PyLong_FromSize_t(ival);
+                DECREF_INPUTS();
+                ERROR_IF(res == NULL);
+                top[0] = PyStackRef_FromPyObjectSteal(res);
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);

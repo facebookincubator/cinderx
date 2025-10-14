@@ -46,7 +46,6 @@ bool is_adaptive_enabled(CodeExtra *extra) {
 
 // These are used to truncate primitives/check signed bits when converting
 // between them
-#if 0 // will be re-enabled w/ static Python opcodes
 static uint64_t trunc_masks[] = {0xFF, 0xFFFF, 0xFFFFFFFF, 0xFFFFFFFFFFFFFFFF};
 static uint64_t signed_bits[] = {0x80, 0x8000, 0x80000000, 0x8000000000000000};
 static uint64_t signex_masks[] = {
@@ -54,7 +53,6 @@ static uint64_t signex_masks[] = {
     0xFFFFFFFFFFFF0000,
     0xFFFFFFFF00000000,
     0x0};
-#endif
 
 #ifdef ENABLE_INTERPRETER_LOOP
 

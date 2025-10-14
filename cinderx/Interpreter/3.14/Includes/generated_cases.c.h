@@ -6663,6 +6663,70 @@
                 stack_pointer += 1;
                 LLTRACE_RESUME_FRAME();
                 DISPATCH();
+            } else if (extop == POP_JUMP_IF_ZERO) {
+                PyObject *cond = PyStackRef_AsPyObjectBorrow(args[0]);
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                int is_nonzero = PyObject_IsTrue(cond);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (!is_nonzero) {
+                    JUMPBY(extoparg);
+                    DISPATCH();
+                }
+                SKIP_OVER(1);
+            } else if (extop == POP_JUMP_IF_NONZERO) {
+                PyObject *cond = PyStackRef_AsPyObjectBorrow(args[0]);
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                int is_nonzero = PyObject_IsTrue(cond);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (is_nonzero) {
+                    JUMPBY(extoparg);
+                    DISPATCH();
+                }
+                SKIP_OVER(1);
+            } else if (extop == CONVERT_PRIMITIVE) {
+                PyObject *val = PyStackRef_AsPyObjectBorrow(args[0]);
+                Py_ssize_t from_type = extoparg & 0xFF;
+                Py_ssize_t to_type = extoparg >> 4;
+                Py_ssize_t extend_sign =
+                (from_type & TYPED_INT_SIGNED) && (to_type & TYPED_INT_SIGNED);
+                int size = to_type >> 1;
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                size_t ival = (size_t)PyLong_AsVoidPtr(val);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                ival &= trunc_masks[size];
+                if (extend_sign != 0 && (ival & signed_bits[size])) {
+                    ival |= (signex_masks[size]);
+                }
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyObject *res = PyLong_FromSize_t(ival);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (res == NULL) {
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                top[0] = PyStackRef_FromPyObjectSteal(res);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,
