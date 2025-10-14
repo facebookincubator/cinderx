@@ -194,6 +194,11 @@ def temp_sys_path() -> Generator[Path, None, None]:
             sys.modules = _orig_sys_modules
 
 
+class _ExceptionResult:
+    def __init__(self, exc: Exception) -> None:
+        self.exc = exc
+
+
 def run_in_subprocess(func: Callable[..., TRet]) -> Callable[..., TRet]:
     """
     Run a function in a subprocess.  This enables modifying process state in a
@@ -203,14 +208,20 @@ def run_in_subprocess(func: Callable[..., TRet]) -> Callable[..., TRet]:
     queue: multiprocessing.Queue = multiprocessing.Queue()
 
     def wrapper(queue: multiprocessing.Queue, *args: object) -> None:
-        result = func(*args)
-        queue.put(result, timeout=SUBPROCESS_TIMEOUT_SEC)
+        try:
+            result = func(*args)
+            queue.put(result, timeout=SUBPROCESS_TIMEOUT_SEC)
+        except Exception as e:
+            queue.put(_ExceptionResult(e), timeout=SUBPROCESS_TIMEOUT_SEC)
 
     def wrapped(*args: object) -> TRet:
-        p = multiprocessing.Process(target=wrapper, args=(queue, *args))
+        fork = multiprocessing.get_context("fork")
+        p = fork.Process(target=wrapper, args=(queue, *args))
         p.start()
         value = queue.get(timeout=SUBPROCESS_TIMEOUT_SEC)
         p.join(timeout=SUBPROCESS_TIMEOUT_SEC)
+        if isinstance(value, _ExceptionResult):
+            raise value.exc
         return value
 
     return wrapped

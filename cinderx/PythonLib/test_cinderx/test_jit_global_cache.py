@@ -133,7 +133,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
         finally:
             del builtins.__dict__[42]
 
-    @skip_unless_lazy_imports
+    @skip_unless_lazy_imports()
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     @run_in_subprocess
     def test_preload_side_effect_modifies_globals(self):
@@ -205,7 +205,7 @@ class LoadGlobalCacheTests(unittest.TestCase):
                 ]
                 self.assertEqual(relevant_deopts, [])
 
-    @skip_unless_lazy_imports
+    @skip_unless_lazy_imports()
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     @run_in_subprocess
     def test_preload_side_effect_makes_globals_unwatchable(self):
@@ -249,11 +249,10 @@ class LoadGlobalCacheTests(unittest.TestCase):
             tmp_a.get_a()
             self.assertEqual(tmp_a.get_a(), 5)
             self.assertTrue(
-                not cinderx.jit.is_jit_enabled()
-                or cinderx.jit.is_jit_compiled(tmp_a.get_a)
+                not cinderx.jit.is_enabled() or cinderx.jit.is_jit_compiled(tmp_a.get_a)
             )
 
-    @skip_unless_lazy_imports
+    @skip_unless_lazy_imports()
     @failUnlessHasOpcodes("LOAD_GLOBAL")
     @run_in_subprocess
     def test_preload_side_effect_makes_builtins_unwatchable(self):
@@ -291,11 +290,10 @@ class LoadGlobalCacheTests(unittest.TestCase):
             tmp_a.get_a()
             self.assertEqual(tmp_a.get_a(), 5)
             self.assertTrue(
-                not cinderx.jit.is_jit_enabled()
-                or cinderx.jit.is_jit_compiled(tmp_a.get_a)
+                not cinderx.jit.is_enabled() or cinderx.jit.is_jit_compiled(tmp_a.get_a)
             )
 
-    @skip_unless_lazy_imports
+    @skip_unless_lazy_imports()
     @run_in_subprocess
     def test_lazy_import_after_global_cached(self):
         with cinder_support.temp_sys_path() as tmp:
