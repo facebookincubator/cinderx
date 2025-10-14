@@ -20,7 +20,6 @@ extern PyTypeObject Ci_StrictModule_Type;
 PyObject* Ci_StrictModule_New(PyTypeObject*, PyObject*, PyObject*);
 
 #if !defined(Py_LIMITED_API)
-int Ci_strictmodule_is_unassigned(PyObject* dict, PyObject* name);
 PyObject* Ci_StrictModule_GetOriginal(PyObject* obj, PyObject* name);
 int Ci_do_strictmodule_patch(PyObject* self, PyObject* name, PyObject* value);
 PyObject* Ci_StrictModule_GetDictSetter(PyObject*);

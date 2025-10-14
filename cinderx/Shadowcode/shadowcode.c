@@ -1497,11 +1497,7 @@ static int _PyShadow_GetAttrModule(
 
     if (Ci_StrictModule_Check(owner)) {
       version = PYCACHE_STRICT_MODULE_VERSION(owner);
-      if (Ci_strictmodule_is_unassigned(dict, name) == 0) {
-        value = PyDict_GetItemWithError(dict, name);
-      } else {
-        value = NULL;
-      }
+      value = PyDict_GetItemWithError(dict, name);
     } else {
       version = PYCACHE_MODULE_VERSION(owner);
       value = PyDict_GetItemWithError(dict, name);
@@ -1794,11 +1790,7 @@ int _PyShadow_LoadMethodFromModule(
 
     if (Ci_StrictModule_Check(obj)) {
       version = PYCACHE_STRICT_MODULE_VERSION(obj);
-      if (Ci_strictmodule_is_unassigned(dict, name) == 0) {
-        value = PyDict_GetItemWithError(dict, name);
-      } else {
-        value = NULL;
-      }
+      value = PyDict_GetItemWithError(dict, name);
     } else {
       version = PYCACHE_MODULE_VERSION(obj);
       value = PyDict_GetItemWithError(dict, name);

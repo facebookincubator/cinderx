@@ -630,15 +630,15 @@ class StaticCodeGenBase(StrictCodeGenBase):
             self.emit("IMPORT_FROM", chkname)
             self.emit_rotate_stack(2)
             self.emit("POP_TOP")
-        else:
-            super().emit_load_builtin(name)
 
     def visitModule(self, node: Module) -> None:
         if ModuleFlag.CHECKED_DICTS in self.cur_mod.flags:
-            self.emit_restore_builtin("dict")
+            self.emit_load_builtin("dict")
+            self.storeName("dict")
 
         if ModuleFlag.CHECKED_LISTS in self.cur_mod.flags:
-            self.emit_restore_builtin("list")
+            self.emit_load_builtin("list")
+            self.storeName("list")
 
         super().visitModule(node)
 
@@ -726,7 +726,6 @@ class StaticCodeGenBase(StrictCodeGenBase):
                 self.emit_dup()
             if isinstance(elt, ast.AST):
                 self.visitAssignTarget(elt, node, node.value)
-        self.strictPostVisitAssign(node)
 
     def visitAnnAssign(self, node: ast.AnnAssign) -> None:
         self.set_pos(node)

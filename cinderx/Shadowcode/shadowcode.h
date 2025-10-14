@@ -899,12 +899,7 @@ static inline PyObject* _PyShadow_LoadAttrStrictModule(
   if (entry->module == owner) {
     if (entry->version != PYCACHE_STRICT_MODULE_VERSION(owner)) {
       PyObject* dict = ((Ci_StrictModuleObject*)owner)->globals;
-      int unassigned = Ci_strictmodule_is_unassigned(dict, entry->name);
-      if (unassigned == 0) {
-        entry->value = _PyDict_GetItem_UnicodeExact(dict, entry->name);
-      } else {
-        entry->value = NULL;
-      }
+      entry->value = _PyDict_GetItem_UnicodeExact(dict, entry->name);
 
       if (entry->value == NULL) {
         LOAD_ATTR_CACHE_MISS(LOAD_ATTR_S_MODULE, NULL)
@@ -1334,12 +1329,7 @@ static inline int _PyShadow_LoadMethodStrictModule(
   if (entry->module == obj) {
     if (entry->version != PYCACHE_STRICT_MODULE_VERSION(obj)) {
       PyObject* dict = ((Ci_StrictModuleObject*)obj)->globals;
-      int unassigned = Ci_strictmodule_is_unassigned(dict, entry->name);
-      if (unassigned != 0) {
-        entry->value = NULL;
-      } else {
-        entry->value = _PyDict_GetItem_UnicodeExact(dict, entry->name);
-      }
+      entry->value = _PyDict_GetItem_UnicodeExact(dict, entry->name);
 
       if (entry->value == NULL) {
         LOAD_METHOD_CACHE_MISS(LOAD_METHOD_S_MODULE, NULL)

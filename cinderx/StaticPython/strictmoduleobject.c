@@ -178,25 +178,6 @@ PyObject* Ci_StrictModule_GetDict(PyObject* obj) {
   return Ci_StrictModuleGetDict(obj);
 }
 
-int Ci_strictmodule_is_unassigned(PyObject* dict, PyObject* name) {
-  if (!PyUnicode_Check(name)) {
-    // somehow name is not unicode
-    return 0;
-  } else {
-    PyObject* assigned_name = PyUnicode_FromFormat("<assigned:%U>", name);
-    if (assigned_name == NULL) {
-      return -1;
-    }
-    PyObject* assigned_status = PyDict_GetItemWithError(dict, assigned_name);
-    Py_DECREF(assigned_name);
-    if (assigned_status == Py_False) {
-      // name has a corresponding <assigned:name> that's False
-      return 1;
-    }
-    return 0;
-  }
-}
-
 static PyObject* strict_module_dict_get(PyObject* self, void* closure) {
   Ci_StrictModuleObject* m = (Ci_StrictModuleObject*)self;
   if (m->globals == NULL) {
@@ -221,26 +202,11 @@ static PyObject* strict_module_dict_get(PyObject* self, void* closure) {
       if (angle == NULL) {
         goto error;
       }
-      Py_ssize_t angle_pos =
-          PyUnicode_Find(key, angle, 0, PyUnicode_GET_LENGTH(key), 1);
-      Py_DECREF(angle);
-      if (angle_pos == -2) {
+      const char* key_string = PyUnicode_AsUTF8(key);
+      if (key_string == NULL ||
+          PyDict_SetItemString(dict, key_string, value) < 0) {
         goto error;
       }
-      if (angle_pos != 0) {
-        // name does not start with <, report in __dict__
-        int unassigned = Ci_strictmodule_is_unassigned(m->globals, key);
-        if (unassigned < 0) {
-          goto error;
-        } else if (!unassigned) {
-          const char* key_string = PyUnicode_AsUTF8(key);
-          if (key_string == NULL ||
-              PyDict_SetItemString(dict, key_string, value) < 0) {
-            goto error;
-          }
-        }
-      }
-
     } else {
       if (PyDict_SetItem(dict, key, value) < 0) {
         goto error;
@@ -462,27 +428,22 @@ static PyObject* strictmodule_lookupattro_impl(
     /* Otherwise we have no other data descriptors, just look in the
      * dictionary  and elide the _PyType_Lookup */
     if (m->globals) {
-      int name_unassigned = Ci_strictmodule_is_unassigned(m->globals, name);
-      if (name_unassigned < 0) {
-        return NULL;
-      } else if (!name_unassigned) {
-        attr = PyDict_GetItemWithError(m->globals, name);
-        if (attr != NULL) {
-          Py_INCREF(attr);
-          return attr;
-        } else if (PyErr_Occurred()) {
-          if (suppress) {
-            if (PyErr_ExceptionMatches(PyExc_AttributeError)) {
-              PyErr_Clear();
-            }
-#ifdef ENABLE_LAZY_IMPORTS
-            if (PyErr_ExceptionMatches(PyExc_ImportCycleError)) {
-              PyErr_Clear();
-            }
-#endif
+      attr = PyDict_GetItemWithError(m->globals, name);
+      if (attr != NULL) {
+        Py_INCREF(attr);
+        return attr;
+      } else if (PyErr_Occurred()) {
+        if (suppress) {
+          if (PyErr_ExceptionMatches(PyExc_AttributeError)) {
+            PyErr_Clear();
           }
-          return NULL;
+#ifdef ENABLE_LAZY_IMPORTS
+          if (PyErr_ExceptionMatches(PyExc_ImportCycleError)) {
+            PyErr_Clear();
+          }
+#endif
         }
+        return NULL;
       }
     }
 

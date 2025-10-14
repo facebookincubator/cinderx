@@ -30,9 +30,6 @@ from .common import FIXED_MODULES, lineinfo
 from .feature_extractor import _IMPLICIT_GLOBALS, FeatureExtractor
 
 
-GLOBALS_HELPER_ALIAS = "<globals-helper>"
-
-
 def is_mutable(node: AST) -> bool:
     return isinstance(node, Name) and node.id in ("mutable")
 
@@ -91,10 +88,6 @@ class TryBodyHook(ast.stmt):
         self.body = body
         lineinfo(self, body[0] if body else None)
         self.trackers: list[str] = []
-
-
-def get_is_assigned_tracking_name(name: str) -> str:
-    return f"<assigned:{name}>"
 
 
 class StrictCodeGenBase(CinderCodeGenBase):
@@ -199,38 +192,6 @@ class StrictCodeGenBase(CinderCodeGenBase):
         self.emit_binary_subscr()
         self.emit("STORE_GLOBAL", "<freeze-type>")
 
-    def emit_load_builtin(self, name: str) -> None:
-        """
-        Directly load a builtin, bypassing any local aliasing
-        that may be in effect.
-        """
-
-        if name == "globals":
-            self.emit("LOAD_NAME", GLOBALS_HELPER_ALIAS)
-        else:
-            self.emit("LOAD_NAME", "<builtins>")
-            self.emit("LOAD_CONST", name)
-            self.emit_binary_subscr()
-
-    def emit_init_globals(self) -> None:
-        # Initialize the globals assignment list
-        for name in self.feature_extractor.globals:
-            if name in self.builtins:
-                self.emit("LOAD_CONST", name in _IMPLICIT_GLOBALS)
-                self.scope.add_global(get_is_assigned_tracking_name(name))
-                self.emit("STORE_NAME", get_is_assigned_tracking_name(name))
-
-            if name == "globals":
-                # we need to provide access to the globals, we just grab __dict__
-                # from our strict module object, which produces a new fresh snapshot
-                # of the globals when accessed.
-                self.emit_globals_function()
-
-                self.emit("LOAD_NAME", GLOBALS_HELPER_ALIAS)
-                self.emit("STORE_NAME", "globals")
-            elif name in self.builtins and name not in _IMPLICIT_GLOBALS:
-                self.emit_restore_builtin(name)
-
     def strictPreVisitCall(self, node: Call) -> None:
         func = node.func
         if isinstance(func, ast.Name):
@@ -258,28 +219,8 @@ class StrictCodeGenBase(CinderCodeGenBase):
 
         super().visitCall(node)
 
-    def emit_update_global_del_state(self, name: str, assigned: bool) -> None:
-        self.emit("LOAD_CONST", assigned)
-        self.storeName(get_is_assigned_tracking_name(name))
-
-    def emit_extra_assigns(self, target: AST) -> None:
-        """
-        Update the global delete state if required for target.
-        """
-        if isinstance(target, ast.Name):
-            if (
-                target.id in self.builtins
-                and target.id in self.feature_extractor.global_dels
-                and self.feature_extractor.is_global(target.id, self.scope)
-            ):
-                self.emit_update_global_del_state(target.id, True)
-        elif isinstance(target, (ast.List, ast.Tuple)):
-            for item in target.elts:
-                self.emit_extra_assigns(item)
-
     def visitForBodyHook(self, node: ForBodyHook) -> None:
         self.visit_list(node.body)
-        self.emit_extra_assigns(node.target)
 
     def strictPreVisitFor(self, node: ast.For) -> None:
         node.body = [ForBodyHook(node.body, node.target)]
@@ -292,138 +233,6 @@ class StrictCodeGenBase(CinderCodeGenBase):
         self.strictPreVisitFor(node)
         super().visitFor(node)
         self.strictPostVisitFor(node)
-
-    @final
-    def visitFunctionDef(self, node: ast.FunctionDef) -> None:
-        super().visitFunctionDef(node)
-        if self.feature_extractor.is_global(node.name, self.scope):
-            self.emit_update_global_del_state(node.name, True)
-
-    @final
-    def visitAsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:
-        super().visitAsyncFunctionDef(node)
-        if self.feature_extractor.is_global(node.name, self.scope):
-            self.emit_update_global_del_state(node.name, True)
-
-    @final
-    def visitClassDef(self, node: ast.ClassDef) -> None:
-        super().visitClassDef(node)
-        if self.feature_extractor.is_global(node.name, self.scope):
-            self.emit_update_global_del_state(node.name, True)
-
-    def visitAssign(self, node: ast.Assign) -> None:
-        super().visitAssign(node)
-        self.strictPostVisitAssign(node)
-
-    def strictPostVisitAssign(self, node: ast.Assign) -> None:
-        for target in node.targets:
-            self.emit_extra_assigns(target)
-
-    def visitTryFinallyHook(self, node: TryFinallyHook) -> None:
-        for tracker_name, builtin_name in node.handlers_to_restore:
-            # if tracker_name:
-            #   restore_builtin(builtin_name)
-            # del tracker_name
-            after = self.newBlock()
-            self.loadName(tracker_name)
-            self.emit("POP_JUMP_IF_FALSE", after)
-            self.emit_restore_builtin(builtin_name)
-            self.nextBlock(after)
-            self.emit("DELETE_NAME", tracker_name)
-
-        self.visit_list(node.finally_body)
-
-    def visitTryHandlerBodyHook(self, node: TryHandlerBodyHook) -> None:
-        self.emit("LOAD_CONST", True)
-        self.storeName(node.tracker_name)
-        self.visit_list(node.handler_body)
-
-    def visitTryBodyHook(self, node: TryBodyHook) -> None:
-        for tracker_name in node.trackers:
-            self.emit("LOAD_CONST", False)
-            self.emit("STORE_NAME", tracker_name)
-        self.visit_list(node.body)
-
-    @final
-    def visitTry(self, node: ast.Try) -> None:
-        def get_handler_tracker(handler: ast.ExceptHandler) -> str:
-            """gets a variable name to track exception state for aliased global"""
-            handler_type = handler.type
-            if isinstance(handler_type, Name):
-                desc = handler_type.id
-            elif handler.type is None:
-                desc = "bare"
-            else:
-                desc = "complex"
-
-            return f"<{desc} {handler.name} at {str(id(handler))}>"
-
-        for handler in node.handlers:
-            handler_name = handler.name
-            if handler_name is None or not self.feature_extractor.is_global(
-                handler_name, self.scope
-            ):
-                continue
-            if handler_name not in self.builtins:
-                continue
-
-            tracker_name = get_handler_tracker(handler)
-            self.scope.add_def(tracker_name)
-
-            if not isinstance(node.body, TryBodyHook):
-                node.body = [TryBodyHook(node.body)]
-            cast(TryBodyHook, node.body[0]).trackers.append(tracker_name)
-
-            handler.body = [TryHandlerBodyHook(handler.body, tracker_name)]
-
-            if not isinstance(node.finalbody, TryFinallyHook):
-                node.finalbody = [TryFinallyHook(node.finalbody)]
-            cast(TryFinallyHook, node.finalbody[0]).handlers_to_restore.append(
-                (tracker_name, handler_name)
-            )
-
-        super().visitTry(node)
-        return
-
-    def emit_restore_builtin(self, name: str) -> None:
-        self.emit_load_builtin(name)
-        self.storeName(name)
-
-    @final
-    def visitDelete(self, node: ast.Delete) -> None:
-        for target in node.targets:
-            if isinstance(target, ast.Name):
-                name = target.id
-                if name in self.builtins and self.feature_extractor.is_global(
-                    name, self.scope
-                ):
-                    # Transform a builtin delete into restoring the builtin value
-                    # If we can potentially delete the builtin value then we
-                    # also need to track whether or not it has been deleted, this
-                    # gives the right error for:
-                    #   min = 42
-                    #   del min
-                    #   del min
-
-                    # if not is_assigned(name):
-                    #   raise NameError(f"name '{name}' is not defined")
-                    after = self.newBlock()
-                    self.emit("LOAD_NAME", get_is_assigned_tracking_name(name))
-                    self.emit("POP_JUMP_IF_TRUE", after)
-                    self.emit_load_builtin("NameError")
-                    self.emit("LOAD_CONST", f"name '{name}' is not defined")
-                    self.emit_call_one_arg()
-                    self.emit("RAISE_VARARGS", 1)
-                    self.nextBlock(after)
-
-                    self.emit_restore_builtin(name)
-
-                    if name in self.feature_extractor.global_dels:
-                        self.emit_update_global_del_state(name, False)
-                    continue
-
-            # preserve this deletion
-            self.visit(target)
 
     def make_function(
         self, name: str, body: list[stmt], location_node: ast.AST | None = None
@@ -453,28 +262,6 @@ class StrictCodeGenBase(CinderCodeGenBase):
         self.scopes[func] = scope
 
         self.visitFunctionDef(func)
-
-    def emit_globals_function(self) -> None:
-        """Produces our faked out globals() which just grabs __dict__ from our
-        strict module object where the actual work of collecting the globals
-        comes from."""
-        self.make_function(
-            name=GLOBALS_HELPER_ALIAS,
-            body=[
-                lineinfo(
-                    ast.Return(
-                        lineinfo(
-                            ast.Attribute(
-                                lineinfo(ast.Name("<strict_module>", ast.Load())),
-                                "__dict__",
-                                ast.Load(),
-                            )
-                        )
-                    )
-                ),
-            ],
-            location_node=self.first_body_node,
-        )
 
     def emit_append_class_list(self) -> None:
         """
@@ -574,7 +361,6 @@ class StrictCodeGenBase(CinderCodeGenBase):
         if first_node:
             self.set_pos(first_node)
         self.emit_load_fixed_methods()
-        self.emit_init_globals()
         if self.has_class and not self.made_class_list:
             self.emit_create_class_list()
         super().startModule()

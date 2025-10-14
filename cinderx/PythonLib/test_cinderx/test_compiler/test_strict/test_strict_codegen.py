@@ -127,100 +127,6 @@ class StrictCompilationTests(StrictTestBase):
 
 
 class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
-    def test_deps_run(self) -> None:
-        """other things which interact with dependencies need to run"""
-
-        called = False
-
-        def side_effect(x: list[object]) -> None:
-            nonlocal called
-            called = True
-            self.assertEqual(x, [42])
-            x.append(23)
-
-        code = """
-            x = []
-            y = list(x)
-            x.append(42)
-            side_effect(x)
-        """
-        mod = self.compile_and_run(code, builtins={"side_effect": side_effect})
-        self.assertEqual(mod.y, [])
-        self.assertTrue(called)
-
-    def test_deps_run_2(self) -> None:
-        """other things which interact with dependencies need to run"""
-
-        called = False
-
-        def side_effect(x: list[object]) -> None:
-            nonlocal called
-            called = True
-            self.assertEqual(x, [42])
-            x.append(23)
-
-        code = """
-            x = []
-            y = list(x)
-            x.append(42)
-            side_effect(x)
-            y = list(x)
-        """
-
-        mod = self.compile_and_run(code, builtins={"side_effect": side_effect})
-        self.assertEqual(mod.y, [42, 23])
-        self.assertTrue(called)
-
-    def test_deps_not_run(self) -> None:
-        """independent pieces of code don't cause others to run"""
-
-        called = False
-
-        def side_effect(x: object) -> None:
-            nonlocal called
-            called = True
-
-        code = """
-            x = []
-            y = 2
-            side_effect(x)
-        """
-
-        mod = self.compile_and_run(code, builtins={"side_effect": side_effect})
-        self.assertEqual(mod.y, 2)
-        self.assertEqual(called, True)
-
-    def test_builtins(self) -> None:
-        code = """
-            x = 1
-            def f():
-                return min(x, 0)
-        """
-        mod = self.compile_and_run(code, builtins={"min": min})
-        self.assertEqual(mod.f(), 0)
-
-        code = """
-            x = 1
-            min = 3
-            del min
-            def f():
-                return min(x, 0)
-        """
-        mod = self.compile_and_run(code, builtins={"min": max})
-        self.assertEqual(mod.f(), 1)
-
-        # import pdb; pdb.set_trace()
-
-        code = """
-            x = 1
-            def f():
-                return min(x, 0)
-
-            x = globals()
-        """
-        mod = self.compile_and_run(code, builtins={"min": min, globals: None})
-        self.assertNotIn("min", mod.x)
-
     def test_del_shadowed_builtin(self) -> None:
         code = """
             min = None
@@ -229,18 +135,8 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return min(x, 0)
         """
-        mod = self.compile_and_run(code, builtins={"min": min, "NameError": NameError})
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
-
-        code = """
-            min = None
-            del min
-            x = 1
-            def f():
-                return min(x, 0)
-        """
-        mod = self.compile_and_run(code, builtins={"min": max})
-        self.assertEqual(mod.f(), 1)
 
     def test_del_shadowed_and_call_globals(self) -> None:
         code = """
@@ -495,16 +391,6 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
         mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), ([], []))
 
-        # exec can't modify globals
-        code = """
-            x = 1
-            def f():
-                exec('global x; x = 2')
-            f()
-        """
-        mod = self.compile_and_run(code)
-        self.assertEqual(mod.x, 1)
-
     def test_eval(self) -> None:
         code = """
             y = 42
@@ -540,7 +426,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return min(x, 0)
         """
-        mod = self.compile_and_run(code, builtins={"min": min, "NameError": NameError})
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
     def test_del_shadowed_via_tuple(self) -> None:
@@ -551,7 +437,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return min(x, 0)
         """
-        mod = self.compile_and_run(code, builtins={"max": max, "min": min})
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
     def test_del_shadowed_via_list(self) -> None:
@@ -562,7 +448,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return min(x, 0)
         """
-        mod = self.compile_and_run(code, builtins={"max": max, "min": min})
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
     def test_list_comp_aliased_builtin(self) -> None:
@@ -574,7 +460,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return y[0](x, 0)
         """
-        mod = self.compile_and_run(code, builtins={"min": min})
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
     def test_set_comp_aliased_builtin(self) -> None:
@@ -586,9 +472,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return next(iter(y))(x, 0)
         """
-        mod = self.compile_and_run(
-            code, builtins={"min": min, "iter": iter, "next": next}
-        )
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
     def test_gen_comp_aliased_builtin(self) -> None:
@@ -600,9 +484,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return next(iter(y))(x, 0)
         """
-        mod = self.compile_and_run(
-            code, builtins={"min": min, "iter": iter, "next": next}
-        )
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
     def test_dict_comp_aliased_builtin(self) -> None:
@@ -614,9 +496,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return next(iter(y))(x, 0)
         """
-        mod = self.compile_and_run(
-            code, builtins={"min": min, "iter": iter, "next": next}
-        )
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
     def test_try_except_alias_builtin(self) -> None:
@@ -629,7 +509,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return min(x, 0)
         """
-        mod = self.compile_and_run(code, builtins={"min": min, "Exception": Exception})
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
     def test_try_except_alias_builtin_2(self) -> None:
@@ -644,9 +524,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return min(x, 0)
         """
-        mod = self.compile_and_run(
-            code, builtins={"min": min, "Exception": Exception, "TypeError": TypeError}
-        )
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
     def test_try_except_alias_builtin_check_exc(self) -> None:
@@ -660,9 +538,7 @@ class StrictBuiltinCompilationTests(StrictTestWithCheckerBase):
             def f():
                 return min(x, 0)
         """
-        mod = self.compile_and_run(
-            code, builtins={"min": min, "Exception": Exception, "type": type}
-        )
+        mod = self.compile_and_run(code)
         self.assertEqual(mod.f(), 0)
 
 

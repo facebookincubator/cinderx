@@ -179,10 +179,6 @@ def make_assign_empty_list(name: str) -> Assign:
     )
 
 
-def is_assigned(name: str) -> str:
-    return f"<assigned:{name}>"
-
-
 GLOBALS_HELPER_ALIAS = "<globals-helper>"
 
 

@@ -1337,7 +1337,7 @@ static std::pair<uint64_t, PyObject*> getModuleAttribute(
       BorrowedRef<Ci_StrictModuleObject> mod{obj};
       BorrowedRef<> dict = mod->globals;
 
-      if (dict && Ci_strictmodule_is_unassigned(dict, name) == 0) {
+      if (dict) {
         return {getModuleVersion(mod), PyDict_GetItemWithError(dict, name)};
       }
     }
