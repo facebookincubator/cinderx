@@ -849,6 +849,28 @@ dummy_func(
                 DECREF_INPUTS();
                 ERROR_IF(res == NULL);                
                 top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == TP_ALLOC) {
+                int optional;
+                int exact;
+                PyTypeObject *type = _PyClassLoader_ResolveType(
+                    GETITEM(FRAME_CO_CONSTS, extoparg), &optional, &exact);
+                assert(!optional);
+                if (type == NULL) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                PyObject *inst = type->tp_alloc(type, 0);
+
+#if ENABLE_SPECIALIZATION && defined(ENABLE_ADAPTIVE_STATIC_PYTHON)
+                if (adaptive_enabled) {
+                    specialize_with_value(next_instr, func, TP_ALLOC_CACHED, 0, 0);
+                }
+ #endif
+                Py_DECREF(type);
+                DECREF_INPUTS();
+                ERROR_IF(inst == NULL);
+                top[0] = PyStackRef_FromPyObjectSteal(inst);
             } else if (extop == CAST) {
                 PyObject *val = PyStackRef_AsPyObjectBorrow(args[0]);
                 int optional;
