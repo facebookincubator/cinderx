@@ -5851,7 +5851,7 @@ class StaticCompilationTests(StaticTestBase):
         """
         with self.in_module(codestr, optimize=2) as mod:
             g = mod.g
-            self.assertInBytecode(g, "LOAD_CONST", 3)
+            self.assertLoadConstInBytecode(g, 3)
             self.assertBinOpInBytecode(g, "BINARY_ADD")
             self.assertEqual(g(1, 2), 4)
 

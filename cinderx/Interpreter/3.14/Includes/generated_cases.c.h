@@ -6055,6 +6055,52 @@
                     PyStackRef_CLOSE(args[_i]);
                 }
                 stack_pointer = _PyFrame_GetStackPointer(frame);
+            } else if (extop == FAST_LEN) {
+                PyObject *collection = PyStackRef_AsPyObjectBorrow(args[0]);
+                int inexact = extoparg & FAST_LEN_INEXACT;
+                extoparg &= ~FAST_LEN_INEXACT;
+                assert(FAST_LEN_LIST <= extoparg && extoparg <= FAST_LEN_STR);
+                PyObject *length;
+                if (inexact) {
+                    if ((extoparg == FAST_LEN_LIST && PyList_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_DICT && PyDict_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_SET && PyAnySet_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_TUPLE && PyTuple_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_ARRAY &&
+                         PyStaticArray_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_STR && PyUnicode_CheckExact(collection))) {
+                        inexact = 0;
+                    }
+                }
+                if (inexact) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    Py_ssize_t res = PyObject_Size(collection);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    length = res >= 0 ? PyLong_FromSsize_t(res) : NULL;
+                } else if (extoparg == FAST_LEN_DICT) {
+                    assert(PyDict_Check(collection));
+                    length = PyLong_FromLong(((PyDictObject*)collection)->ma_used);
+                } else if (extoparg == FAST_LEN_SET) {
+                    assert(PyDict_Check(collection));
+                    length = PyLong_FromLong(((PySetObject*)collection)->used);
+                } else {
+                    assert(PyTuple_Check(collection) || PyList_Check(collection) ||
+                           PyStaticArray_CheckExact(collection) || PyUnicode_Check(collection));
+                    length = PyLong_FromLong(Py_SIZE(collection));
+                }
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (length == NULL) {
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                top[0] = PyStackRef_FromPyObjectSteal(length);
             } else if (extop == REFINE_TYPE) {
             } else if (extop == BUILD_CHECKED_LIST) {
                 PyObject *list;

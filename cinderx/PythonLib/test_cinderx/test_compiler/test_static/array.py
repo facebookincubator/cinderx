@@ -241,7 +241,7 @@ class ArrayTests(StaticTestBase):
         """
         c = self.compile(codestr, modname="foo.py")
         m = self.find_code(c, "m")
-        self.assertInBytecode(m, "LOAD_CONST", 111)
+        self.assertLoadConstInBytecode(m, 111)
         self.assertNotInBytecode(m, "PRIMITIVE_LOAD_CONST")
         self.assertInBytecode(m, "PRIMITIVE_UNBOX")
         self.assertInBytecode(m, "SEQUENCE_GET", SEQ_ARRAY_INT64)
@@ -350,7 +350,7 @@ class ArrayTests(StaticTestBase):
                 c = self.compile(codestr, modname="foo.py")
                 m = self.find_code(c, "m")
                 self.assertInBytecode(m, "PRIMITIVE_LOAD_CONST", (val, TYPED_INT64))
-                self.assertInBytecode(m, "LOAD_CONST", 1)
+                self.assertLoadConstInBytecode(m, 1)
                 self.assertInBytecode(m, "SEQUENCE_SET", SEQ_ARRAY_INT64)
                 with self.in_module(codestr) as mod:
                     m = mod.m

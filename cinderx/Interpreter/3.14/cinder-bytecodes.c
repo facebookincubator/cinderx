@@ -679,6 +679,42 @@ dummy_func(
                 }
 
                 DECREF_INPUTS();
+            } else if (extop == FAST_LEN) {
+                PyObject *collection = PyStackRef_AsPyObjectBorrow(args[0]);
+                int inexact = extoparg & FAST_LEN_INEXACT;
+                extoparg &= ~FAST_LEN_INEXACT;
+                assert(FAST_LEN_LIST <= extoparg && extoparg <= FAST_LEN_STR);
+                PyObject *length;
+                if (inexact) {
+                    // see if we have an exact type match, and if so, use the fastpath.
+                    if ((extoparg == FAST_LEN_LIST && PyList_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_DICT && PyDict_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_SET && PyAnySet_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_TUPLE && PyTuple_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_ARRAY &&
+                        PyStaticArray_CheckExact(collection)) ||
+                        (extoparg == FAST_LEN_STR && PyUnicode_CheckExact(collection))) {
+                        inexact = 0;
+                    }
+                }
+                if (inexact) {
+                    Py_ssize_t res = PyObject_Size(collection);
+                    length = res >= 0 ? PyLong_FromSsize_t(res) : NULL;
+                } else if (extoparg == FAST_LEN_DICT) {
+                    assert(PyDict_Check(collection));
+                    length = PyLong_FromLong(((PyDictObject*)collection)->ma_used);
+                } else if (extoparg == FAST_LEN_SET) {
+                    assert(PyDict_Check(collection));
+                    length = PyLong_FromLong(((PySetObject*)collection)->used);
+                } else {
+                    // lists, tuples, arrays are all PyVarObject and use ob_size
+                    assert(PyTuple_Check(collection) || PyList_Check(collection) || 
+                           PyStaticArray_CheckExact(collection) || PyUnicode_Check(collection));
+                    length = PyLong_FromLong(Py_SIZE(collection));
+                }
+                DECREF_INPUTS();
+                ERROR_IF(length == NULL);
+                top[0] = PyStackRef_FromPyObjectSteal(length);
             } else if (extop == REFINE_TYPE) {
                 DEAD(args);
             } else if (extop == BUILD_CHECKED_LIST) {

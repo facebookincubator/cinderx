@@ -136,6 +136,17 @@ class CompilerTest(TestCase):
             msg = f"({opname},{argval}) not found in bytecode{loc_msg}:\n{disassembly}"
         self.fail(msg)
 
+    def assertLoadConstInBytecode(self, x: Disassembleable, const: object) -> None:
+        if (
+            isinstance(const, int)
+            and const >= 0
+            and const < 256
+            and sys.version_info >= (3, 14)
+        ):
+            self.assertInBytecode(x, "LOAD_SMALL_INT", const)
+        else:
+            self.assertInBytecode(x, "LOAD_CONST", const)
+
     def get_instructions(self, x: Disassembleable) -> Iterable[dis.Instruction]:
         if sys.version_info < (3, 14):
             yield from dis.get_instructions(x)
