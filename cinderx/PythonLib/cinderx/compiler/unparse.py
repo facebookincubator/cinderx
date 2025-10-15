@@ -305,9 +305,7 @@ def _format_gen_exp(node: ast.GeneratorExp, level: int) -> str:
 
 
 def format_fstring_elt(res: List[str], elt: ast.expr, is_format_spec: bool) -> None:
-    if isinstance(elt, ast.Str):
-        res.append(elt.s)
-    elif isinstance(elt, ast.Constant):
+    if isinstance(elt, ast.Constant):
         res.append(elt.value)
     elif isinstance(elt, ast.JoinedStr):
         res.append(format_joinedstr(elt, PR_TEST, is_format_spec))

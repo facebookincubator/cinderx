@@ -30,7 +30,10 @@ class VisitorTests(TestCase):
         class TestRewriter(ASTRewriter):
             def visitAssign(self, node):
                 return ast.AnnAssign(
-                    ast.Name("foo", ast.Store), ast.Str("foo"), ast.Num(1), True
+                    ast.Name("foo", ast.Store),
+                    ast.Constant("foo"),
+                    ast.Constant(1),
+                    True,
                 )
 
         tree = ast.parse("x = 1\nf()\n")
@@ -77,7 +80,7 @@ class VisitorTests(TestCase):
 
     def test_change_list_and_child(self):
         class TestRewriter(ASTRewriter):
-            def visitStr(self, node: ast.Str):
+            def visitStr(self, node: ast.Constant):
                 return ast.Str("bar")
 
             def visitAssign(self, node):
