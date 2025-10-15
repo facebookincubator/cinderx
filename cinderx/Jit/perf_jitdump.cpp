@@ -532,6 +532,9 @@ void registerFunction(
 }
 
 void afterForkChild() {
+  // Make sure the parent processes map is closed before copying into it,
+  // otherwise init is a nop.
+  PyUnstable_PerfMapState_Fini();
   copyParentPidMap();
   copyJitdumpFile();
 }
