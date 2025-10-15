@@ -14,7 +14,7 @@ from typing import Generator, Iterable, Sequence
 
 from cinderx.compiler import pyassem
 from cinderx.compiler.pyassem import Instruction, PyFlowGraph312
-from cinderx.compiler.pycodegen import CodeGenerator
+from cinderx.compiler.pycodegen import AnnotationsCodeHolder, CodeGenerator
 
 from .common import CompilerTest, glob_test, ParsedExceptionTable
 
@@ -24,10 +24,10 @@ def format_oparg(instr: Instruction) -> str:
         if instr.target.label:
             return f"Block({instr.target.bid}, label={instr.target.label!r})"
         return f"Block({instr.target.bid})"
-    elif isinstance(instr.oparg, CodeGenerator):
+    elif isinstance(instr.oparg, (AnnotationsCodeHolder, CodeGenerator)):
         # pyre-fixme[16]: `AST` has no attribute `lineno`.
         # pyre-fixme[16]: `AST` has no attribute `col_offset`.
-        return f"Code(({instr.oparg.tree.lineno},{instr.oparg.tree.col_offset}))"
+        return f"Code({instr.oparg.name!r})"
     elif isinstance(instr.oparg, (str, int, tuple, frozenset, type(None))):
         return repr(instr.oparg)
 
@@ -347,6 +347,8 @@ def add_test(modname: str, fname: str) -> None:
         return
     elif "/3.12/" in fname and version != (3, 12):
         return
+    elif "/3.14/" in fname and version != (3, 14):
+        return
     if fname.endswith("/__init__.py"):
         return
 
@@ -478,7 +480,7 @@ class Code:
         self.loc = loc
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, CodeGenerator):
+        if not isinstance(other, (AnnotationsCodeHolder, CodeGenerator)):
             return False
 
         if isinstance(self.loc, str):

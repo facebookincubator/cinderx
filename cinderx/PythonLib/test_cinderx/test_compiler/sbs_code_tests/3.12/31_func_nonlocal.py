@@ -2,9 +2,9 @@
 def foo():
     a = 1
 
-    def inner():
-        a
-
+    def bar():
+        nonlocal a
+        a = 2
 # EXPECTED:
 [
     ...,
@@ -14,16 +14,15 @@ def foo():
     ...,
     CODE_START('foo'),
     ...,
-    LOAD_CONST(1),
     STORE_DEREF('a'),
     LOAD_CLOSURE('a'),
     BUILD_TUPLE(1),
-    LOAD_CONST(Code(('inner'))),
+    LOAD_CONST(Code(('bar'))),
     ...,
     MAKE_FUNCTION(8),
     ...,
-    CODE_START('inner'),
+    CODE_START('bar'),
     ...,
-    LOAD_DEREF('a'),
+    STORE_DEREF('a'),
     ...,
 ]

@@ -1,4 +1,3 @@
 test_cinderx.test_cinderjit
-test_cinderx.test_compiler.test_code_sbs
 test_cinderx.test_compiler.test_strict
 test_cinderx.test_parallel_gc
