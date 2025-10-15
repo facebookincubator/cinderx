@@ -15,7 +15,6 @@ test_cinderx.test_compiler.test_static.match
 test_cinderx.test_compiler.test_static.native
 test_cinderx.test_compiler.test_static.non_static_inheritance
 test_cinderx.test_compiler.test_static.patch
-test_cinderx.test_compiler.test_static.primitives
 test_cinderx.test_compiler.test_static.refine_fields
 test_cinderx.test_compiler.test_static.super
 test_cinderx.test_compiler.test_static.variadic_arg

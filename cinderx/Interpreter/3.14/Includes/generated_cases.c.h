@@ -6101,6 +6101,38 @@
                     JUMP_TO_LABEL(error);
                 }
                 top[0] = PyStackRef_FromPyObjectSteal(length);
+            } else if (extop == LIST_DEL) {
+                PyObject *list = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *subscr = PyStackRef_AsPyObjectBorrow(args[1]);
+                int err;
+                Py_ssize_t idx = PyLong_AsLong(subscr);
+                if (idx == -1 && _PyErr_Occurred(tstate)) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                err = PyList_SetSlice(list, idx, idx + 1, NULL);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (err != 0) {
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
             } else if (extop == REFINE_TYPE) {
             } else if (extop == BUILD_CHECKED_LIST) {
                 PyObject *list;

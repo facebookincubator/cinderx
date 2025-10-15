@@ -715,6 +715,21 @@ dummy_func(
                 DECREF_INPUTS();
                 ERROR_IF(length == NULL);
                 top[0] = PyStackRef_FromPyObjectSteal(length);
+            } else if (extop == LIST_DEL) {
+                PyObject *list = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *subscr = PyStackRef_AsPyObjectBorrow(args[1]);
+                int err;
+
+                Py_ssize_t idx = PyLong_AsLong(subscr);
+
+                if (idx == -1 && _PyErr_Occurred(tstate)) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                err = PyList_SetSlice(list, idx, idx + 1, NULL);
+                DECREF_INPUTS();
+                ERROR_IF(err != 0);
             } else if (extop == REFINE_TYPE) {
                 DEAD(args);
             } else if (extop == BUILD_CHECKED_LIST) {
