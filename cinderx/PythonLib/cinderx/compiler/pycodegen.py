@@ -6955,7 +6955,9 @@ class CodeGenerator314(CodeGenerator312):
     def emit_function_annotations(
         self, loc: AST | SrcLocation, args: ast.arguments, returns: ast.expr | None
     ) -> bool:
-        scope = self.scopes[args]
+        scope = self.scopes.get(args)
+        if not scope:
+            return False
         assert isinstance(scope, AnnotationScope)
         if not scope.annotations_used:
             return False

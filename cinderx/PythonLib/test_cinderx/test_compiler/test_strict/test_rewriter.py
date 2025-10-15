@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import ast
 import symtable
+import sys
 from textwrap import dedent
 from types import FunctionType
 from typing import Any, final
@@ -266,6 +267,14 @@ z = y
         mod = self.compile_to_strict(code)
         self.assertEqual(mod.z, 1)
 
+    def get_annotations(self, mod: object) -> dict[str, type]:
+        if sys.version_info >= (3, 14):
+            import annotationlib
+
+            return annotationlib.get_annotations(mod)
+
+        return mod.__annotations__
+
     def test_annotations(self) -> None:
         """annotations are properly initialized"""
 
@@ -274,7 +283,7 @@ x: int = 1
     """
 
         mod = self.compile_to_strict(code)
-        self.assertEqual(mod.__annotations__, {"x": int})
+        self.assertEqual(self.get_annotations(mod), {"x": int})
         self.assertEqual(mod.x, 1)
 
     def test_annotations_no_value(self) -> None:
@@ -285,7 +294,7 @@ x: int
     """
 
         mod = self.compile_to_strict(code)
-        self.assertEqual(mod.__annotations__, {"x": int})
+        self.assertEqual(self.get_annotations(mod), {"x": int})
         with self.assertRaises(AttributeError):
             mod.x
 

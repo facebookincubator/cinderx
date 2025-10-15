@@ -74,7 +74,7 @@ class AnnotationRemover(ast.NodeTransformer):
         value = node.value
         if value is None:
             # pyre-fixme[20]: Argument `value` expected.
-            value = ast.Ellipsis()
+            value = ast.Constant(...)
             value.kind = None
             _copy_attrs(node, value)
 
