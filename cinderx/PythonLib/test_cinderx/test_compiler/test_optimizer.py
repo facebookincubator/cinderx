@@ -98,6 +98,7 @@ class AstOptimizerTests(CompilerTest):
     def to_graph_no_opt(self, code):
         return self.to_graph(code, ast_optimizer_enabled=False)
 
+    @skipIf(sys.version_info >= (3, 14), "AST optimizer does less on 3.14")
     def test_compile_opt_enabled(self):
         graph = self.to_graph("x = -1")
         self.assertNotInGraph(graph, "UNARY_NEGATIVE")
@@ -132,12 +133,14 @@ class AstOptimizerTests(CompilerTest):
                 self.assertNotInGraph(graph, "LOAD_CONST", True)
                 self.assertInGraph(graph, "DELETE_FAST", "__debug__")
 
+    @skipIf(sys.version_info >= (3, 14), "AST optimizer does less on 3.14")
     def test_const_fold(self):
         code = self.compile("x = 0.0\ny=-0.0")
         self.assertEqual(code.co_consts, (0.0, -0.0, None))
         self.assertEqual(math.copysign(1, code.co_consts[0]), 1)
         self.assertEqual(math.copysign(1, code.co_consts[1]), -1)
 
+    @skipIf(sys.version_info >= (3, 14), "AST optimizer does less on 3.14")
     def test_const_fold_tuple(self):
         code = self.compile("x = (0.0, )\ny=(-0.0, )")
         self.assertEqual(code.co_consts, ((0.0,), (-0.0,), None))
@@ -252,6 +255,7 @@ class AstOptimizerTests(CompilerTest):
             self.assertIsInstance(const, ast.Constant)
             self.assertEqual(const.value, elem)
 
+    @skipIf(sys.version_info >= (3, 14), "AST optimizer does less on 3.14")
     def test_folding_of_lists_of_constants(self):
         for line, elem in (
             # in/not in constants with BUILD_LIST should be folded to a tuple:
@@ -267,6 +271,7 @@ class AstOptimizerTests(CompilerTest):
             code.assert_added("LOAD_CONST", elem)
             code.assert_removed("BUILD_LIST")
 
+    @skipIf(sys.version_info >= (3, 14), "AST optimizer does less on 3.14")
     def test_folding_of_sets_of_constants(self):
         for line, elem in (
             ("a in {1,2,3}", frozenset({1, 2, 3})),
@@ -299,6 +304,7 @@ class AstOptimizerTests(CompilerTest):
         self.assertTrue(not g(3))
         self.assertTrue(g(4))
 
+    @skipIf(sys.version_info >= (3, 14), "AST optimizer does less on 3.14")
     def test_folding_of_binops_on_constants(self):
         for line, elem in (
             ("a = 2+3+4", 9),  # chained fold
@@ -339,6 +345,7 @@ class AstOptimizerTests(CompilerTest):
         code.assert_both("LOAD_CONST", 1000)
         self.assertNotIn(2**1000, consts)
 
+    @skipIf(sys.version_info >= (3, 14), "AST optimizer does less on 3.14")
     def test_binary_subscr_on_unicode(self):
         # valid code get optimized
         code = self.compare_graph('x = "foo"[0]')
