@@ -479,6 +479,24 @@ dummy_func(
             iter = PyStackRef_FromPyObjectSteal(iter_o);
         }
 
+        override inst(MAP_ADD, (dict_st, unused[oparg - 1], key, value -- dict_st, unused[oparg - 1])) {
+            PyObject *dict = PyStackRef_AsPyObjectBorrow(dict_st);
+            /* dict[key] = value */
+            int err = Ci_DictOrChecked_SetItem(dict, 
+                PyStackRef_AsPyObjectBorrow(key),
+                PyStackRef_AsPyObjectBorrow(value));
+            PyStackRef_CLOSE(value);
+            PyStackRef_CLOSE(key);
+            ERROR_IF(err != 0);
+        }
+
+        override inst(LIST_APPEND, (list, unused[oparg-1], v -- list, unused[oparg-1])) {
+            int err = Ci_ListOrCheckedList_Append(
+                (PyListObject*)PyStackRef_AsPyObjectBorrow(list), PyStackRef_AsPyObjectBorrow(v));
+            PyStackRef_CLOSE(v);
+            ERROR_IF(err < 0);
+        }
+
         override inst(EXTENDED_OPCODE, (args[oparg>>2] -- top[oparg&0x03])) {
             // Decode any extended oparg
             int extop = (int)next_instr->op.code;
