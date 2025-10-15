@@ -1,6 +1,5 @@
 test_cinderx.test_cinderjit
 test_cinderx.test_compiler.test_code_sbs
-test_cinderx.test_compiler.test_linepos
 test_cinderx.test_compiler.test_optimizer
 test_cinderx.test_compiler.test_strict
 test_cinderx.test_compiler.test_unparse

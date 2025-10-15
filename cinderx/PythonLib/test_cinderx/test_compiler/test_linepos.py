@@ -2,6 +2,8 @@
 
 # pyre-unsafe
 
+import sys
+
 from dis import get_instructions
 from textwrap import dedent
 from types import CodeType
@@ -9,7 +11,7 @@ from typing import Sequence
 from unittest import skipIf
 
 from cinderx.compiler.pyassem import LinePositionTable, SrcLocation
-from cinderx.compiler.pycodegen import CodeGenerator312
+from cinderx.compiler.pycodegen import CodeGenerator312, CodeGenerator314
 
 from .common import CompilerTest
 
@@ -224,6 +226,18 @@ class LinePositionTests(CompilerTest):
 
         return opcode
 
+    @property
+    def code_gen(self):
+        if sys.version_info >= (3, 14):
+            return CodeGenerator314
+        return CodeGenerator312
+
+    @property
+    def return_const(self):
+        if sys.version_info >= (3, 14):
+            return "RETURN_VALUE"
+        return "RETURN_CONST"
+
     @skipIf(
         not hasattr(test_scenarios.__code__, "co_positions"), "requires 312 or later"
     )
@@ -234,7 +248,7 @@ class LinePositionTests(CompilerTest):
                     def f():
                         return 42
                 """,
-                "RETURN_CONST",
+                self.return_const,
             ),
             (
                 """
@@ -280,9 +294,7 @@ class LinePositionTests(CompilerTest):
                     exec(test_code, d, d)
 
                     c_compiled = d["f"]
-                    py_compiled = self.run_code(test_code, generator=CodeGenerator312)[
-                        "f"
-                    ]
+                    py_compiled = self.run_code(test_code, generator=self.code_gen)["f"]
 
                     c_positions = list(c_compiled.__code__.co_positions())
                     py_positions = list(py_compiled.__code__.co_positions())
