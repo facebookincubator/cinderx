@@ -1995,19 +1995,18 @@ int check(int ret) {
 }
 
 Ref<> make_deopt_stats() {
-  auto runtime = Runtime::get();
   auto stats = Ref<>::steal(check(PyList_New(0)));
 
   for (auto& pair : jitCtx()->compiledCodes()) {
     const CompiledFunction& compiled_func = *pair.second;
     const CodeRuntime* code_runtime = compiled_func.runtime();
-
     auto const& deopt_metadatas = code_runtime->deoptMetadatas();
+
     for (size_t deopt_idx = 0; deopt_idx < deopt_metadatas.size();
          ++deopt_idx) {
       const DeoptMetadata& meta = deopt_metadatas[deopt_idx];
 
-      auto stat_ptr = runtime->deoptStat(code_runtime, deopt_idx);
+      auto stat_ptr = code_runtime->deoptStat(deopt_idx);
       if (stat_ptr == nullptr) {
         continue;
       }
@@ -2066,9 +2065,16 @@ Ref<> make_deopt_stats() {
     }
   }
 
-  runtime->clearDeoptStats();
-
   return stats;
+}
+
+void clear_deopt_stats() {
+  for (auto& pair : jitCtx()->compiledCodes()) {
+    CompiledFunction& compiled_func = *pair.second;
+    CodeRuntime* code_runtime = compiled_func.runtime();
+
+    code_runtime->clearDeoptStats();
+  }
 }
 
 PyObject* get_and_clear_runtime_stats(PyObject* /* self */, PyObject*) {
@@ -2084,11 +2090,13 @@ PyObject* get_and_clear_runtime_stats(PyObject* /* self */, PyObject*) {
     return nullptr;
   }
 
+  clear_deopt_stats();
+
   return stats.release();
 }
 
 PyObject* clear_runtime_stats(PyObject* /* self */, PyObject*) {
-  Runtime::get()->clearDeoptStats();
+  clear_deopt_stats();
   Py_RETURN_NONE;
 }
 
@@ -3082,7 +3090,6 @@ void finalize() {
 
   // Always release references from Runtime objects: C++ clients may have
   // invoked the JIT directly without initializing a full jit::Context.
-  jit::Runtime::get()->clearDeoptStats();
   jit::Runtime::get()->releaseReferences();
 
   deleteJitList();

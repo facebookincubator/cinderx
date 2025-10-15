@@ -72,20 +72,6 @@ inline PyObject* yieldFromValue(
       : nullptr;
 }
 
-// Information about the runtime behavior of a single deopt point: how often
-// it's been hit, and the frequency of guilty types, if applicable.
-struct DeoptStat {
-  std::size_t count;
-  FixedTypeProfiler<4> types;
-};
-
-// Map from CodeRuntime to stats about each deopt point.
-//
-// Uses an unordered map to store the deopt stats for each code object as it's
-// meant to be sparse.  We expect most deopt points to be unused.
-using DeoptStats = jit::
-    UnorderedMap<const CodeRuntime*, jit::UnorderedMap<std::size_t, DeoptStat>>;
-
 using InlineCacheStats = std::vector<CacheStats>;
 
 class Builtins {
@@ -137,22 +123,6 @@ class Runtime : public IRuntime {
   // Gets information about the primitive arguments that a function
   // is typed to.  Typed object references are explicitly excluded.
   _PyTypedArgsInfo* findFunctionPrimitiveArgInfo(PyFunctionObject* function);
-
-  // Record that a deopt of the given index happened at runtime, with an
-  // optional guilty value.
-  void recordDeopt(
-      CodeRuntime* code_runtime,
-      std::size_t idx,
-      BorrowedRef<> guilty_value);
-
-  // Get the stat object for a given deopt.  It will not exist if the deopt has
-  // never been hit.
-  const DeoptStat* deoptStat(
-      const CodeRuntime* code_runtime,
-      std::size_t deopt_idx) const;
-
-  // Clear all deopt stats.
-  void clearDeoptStats();
 
   // Get and clear inline cache stats.
   InlineCacheStats getAndClearLoadMethodCacheStats();
@@ -301,7 +271,6 @@ class Runtime : public IRuntime {
   FunctionEntryCacheMap function_entry_caches_;
 
   std::vector<DeoptMetadata> deopt_metadata_;
-  DeoptStats deopt_stats_;
   GuardFailureCallback guard_failure_callback_;
 
   // References to Python objects held by this Runtime

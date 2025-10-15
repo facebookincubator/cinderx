@@ -2,12 +2,6 @@
 
 #pragma once
 
-#include "cinderx/python.h"
-
-#if PY_VERSION_HEX < 0x030C0000
-#include "cinder/genobject_jit.h"
-#endif
-
 #include "cinderx/Common/ref.h"
 #include "cinderx/Jit/debug_info.h"
 #include "cinderx/Jit/deopt.h"
@@ -127,6 +121,17 @@ class alignas(16) CodeRuntime {
   // Get all deopt metadatas for the given CodeRuntime.
   const std::vector<DeoptMetadata>& deoptMetadatas() const;
 
+  // Record that a deopt of the given index happened at runtime, with an
+  // optional guilty value.
+  void recordDeopt(std::size_t idx, BorrowedRef<> guilty_value);
+
+  // Get the stat object for a given deopt.  It will not exist if the deopt has
+  // never been hit.
+  const DeoptStat* deoptStat(std::size_t idx) const;
+
+  // Clear all deopt stats.
+  void clearDeoptStats();
+
   // Get the top-level runtime frame state for this CodeRuntime's PyCodeObject.
   const RuntimeFrameState* frameState() const;
 
@@ -149,6 +154,11 @@ class alignas(16) CodeRuntime {
   // Metadata about deopt points.  Safe to use a vector as these are always
   // accessed by index.
   std::vector<DeoptMetadata> deopt_metadatas_;
+
+  // Stats on when deopt points are hit.  Stored out-of-line to keep the
+  // CodeRuntime structure read-only after it is finalized and avoid
+  // copy-on-write.
+  std::unique_ptr<DeoptStatMap> deopt_stats_;
 
   int frame_size_{-1};
   DebugInfo debug_info_;
