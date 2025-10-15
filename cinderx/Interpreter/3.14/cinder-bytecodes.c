@@ -1115,6 +1115,82 @@ dummy_func(
                 DECREF_INPUTS();
                 ERROR_IF(res == NULL);
                 top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == LOAD_ITERABLE_ARG) {
+                PyObject *tup = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *element;
+                int idx = extoparg;
+                _PyStackRef new_tup;
+                if (!PyTuple_CheckExact(tup)) {
+                    if (tup->ob_type->tp_iter == NULL && !PySequence_Check(tup)) {
+                        PyErr_Format(
+                            PyExc_TypeError,
+                            "argument after * "
+                            "must be an iterable, not %.200s",
+                            tup->ob_type->tp_name);
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    }
+                    tup = PySequence_Tuple(tup);
+                    if (tup == NULL) {
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    }
+                    new_tup = PyStackRef_FromPyObjectSteal(tup);
+                } else {
+                    new_tup = PyStackRef_FromPyObjectNew(tup);
+                }
+
+                element = PyTuple_GetItem(tup, idx);
+                if (element == NULL) {
+                    PyStackRef_CLOSE(new_tup);
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+                Py_INCREF(element);
+                DECREF_INPUTS();
+                top[0] = PyStackRef_FromPyObjectSteal(element);
+                top[1] = new_tup;
+            } else if (extop == LOAD_MAPPING_ARG) {
+                PyObject *defaultval, *mapping, *name;
+                if (extoparg == 3) {
+                    defaultval = PyStackRef_AsPyObjectBorrow(args[0]);
+                    mapping = PyStackRef_AsPyObjectBorrow(args[1]);
+                    name = PyStackRef_AsPyObjectBorrow(args[2]);
+                } else {
+                    defaultval = NULL;
+                    mapping = PyStackRef_AsPyObjectBorrow(args[0]);
+                    name = PyStackRef_AsPyObjectBorrow(args[1]);
+                }
+                PyObject *value;
+                if (!PyDict_Check(mapping) && !Ci_CheckedDict_Check(mapping)) {
+                    PyErr_Format(
+                        PyExc_TypeError,
+                        "argument after ** "
+                        "must be a dict, not %.200s",
+                        mapping->ob_type->tp_name);
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                value = PyDict_GetItemWithError(mapping, name);
+                if (value == NULL) {
+                    if (_PyErr_Occurred(tstate)) {
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    } else if (oparg == 2) {
+                        PyErr_Format(PyExc_TypeError, "missing argument %U", name);
+                        assert(defaultval == NULL);
+                        DECREF_INPUTS();
+                        ERROR_IF(true);
+                    } else {
+                        /* Default value is on the stack */
+                        value = defaultval;
+                    }
+                }
+
+                Py_INCREF(value);
+                DECREF_INPUTS();
+                top[0] = PyStackRef_FromPyObjectSteal(value);
             } else {
                 PyErr_Format(PyExc_RuntimeError,
                             "unsupported extended opcode: %d", extop);

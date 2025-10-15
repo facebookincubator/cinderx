@@ -6805,6 +6805,152 @@
                     JUMP_TO_LABEL(error);
                 }
                 top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == LOAD_ITERABLE_ARG) {
+                PyObject *tup = PyStackRef_AsPyObjectBorrow(args[0]);
+                PyObject *element;
+                int idx = extoparg;
+                _PyStackRef new_tup;
+                if (!PyTuple_CheckExact(tup)) {
+                    if (tup->ob_type->tp_iter == NULL && !PySequence_Check(tup)) {
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        PyErr_Format(
+                                     PyExc_TypeError,
+                                     "argument after * "
+                                     "must be an iterable, not %.200s",
+                                     tup->ob_type->tp_name);
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    }
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    tup = PySequence_Tuple(tup);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    if (tup == NULL) {
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    }
+                    new_tup = PyStackRef_FromPyObjectSteal(tup);
+                } else {
+                    new_tup = PyStackRef_FromPyObjectNew(tup);
+                }
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                element = PyTuple_GetItem(tup, idx);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (element == NULL) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    PyStackRef_CLOSE(new_tup);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                Py_INCREF(element);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                top[0] = PyStackRef_FromPyObjectSteal(element);
+                top[1] = new_tup;
+            } else if (extop == LOAD_MAPPING_ARG) {
+                PyObject *defaultval, *mapping, *name;
+                if (extoparg == 3) {
+                    defaultval = PyStackRef_AsPyObjectBorrow(args[0]);
+                    mapping = PyStackRef_AsPyObjectBorrow(args[1]);
+                    name = PyStackRef_AsPyObjectBorrow(args[2]);
+                } else {
+                    defaultval = NULL;
+                    mapping = PyStackRef_AsPyObjectBorrow(args[0]);
+                    name = PyStackRef_AsPyObjectBorrow(args[1]);
+                }
+                PyObject *value;
+                if (!PyDict_Check(mapping) && !Ci_CheckedDict_Check(mapping)) {
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    PyErr_Format(
+                                 PyExc_TypeError,
+                                 "argument after ** "
+                                 "must be a dict, not %.200s",
+                                 mapping->ob_type->tp_name);
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                value = PyDict_GetItemWithError(mapping, name);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (value == NULL) {
+                    if (_PyErr_Occurred(tstate)) {
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    } else if (oparg == 2) {
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        PyErr_Format(PyExc_TypeError, "missing argument %U", name);
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        assert(defaultval == NULL);
+                        stack_pointer += -(oparg>>2) + (oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        _PyFrame_SetStackPointer(frame, stack_pointer);
+                        for (int _i = oparg>>2; --_i >= 0;) {
+                            PyStackRef_CLOSE(args[_i]);
+                        }
+                        stack_pointer = _PyFrame_GetStackPointer(frame);
+                        stack_pointer += -(oparg&0x03);
+                        assert(WITHIN_STACK_BOUNDS());
+                        JUMP_TO_LABEL(error);
+                    } else {
+                        value = defaultval;
+                    }
+                }
+                Py_INCREF(value);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                top[0] = PyStackRef_FromPyObjectSteal(value);
             } else {
                 _PyFrame_SetStackPointer(frame, stack_pointer);
                 PyErr_Format(PyExc_RuntimeError,

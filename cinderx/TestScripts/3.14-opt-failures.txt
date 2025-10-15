@@ -5,7 +5,6 @@ test_cinderx.test_compiler.test_linepos
 test_cinderx.test_compiler.test_optimizer
 test_cinderx.test_compiler.test_static.cached_property
 test_cinderx.test_compiler.test_static.checked_dict
-test_cinderx.test_compiler.test_static.classmethod
 test_cinderx.test_compiler.test_static.compile
 test_cinderx.test_compiler.test_static.context_decorator
 test_cinderx.test_compiler.test_static.dataclass
@@ -17,7 +16,6 @@ test_cinderx.test_compiler.test_static.non_static_inheritance
 test_cinderx.test_compiler.test_static.patch
 test_cinderx.test_compiler.test_static.refine_fields
 test_cinderx.test_compiler.test_static.super
-test_cinderx.test_compiler.test_static.variadic_arg
 test_cinderx.test_compiler.test_strict
 test_cinderx.test_compiler.test_unparse
 test_cinderx.test_compiler.test_visitor

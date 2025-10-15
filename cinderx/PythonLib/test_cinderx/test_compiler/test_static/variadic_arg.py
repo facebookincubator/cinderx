@@ -2,6 +2,8 @@
 
 # pyre-strict
 
+import sys
+
 from cinderx.compiler.errors import TypedSyntaxError
 
 from .common import StaticTestBase
@@ -306,7 +308,14 @@ class VariadicArgTests(StaticTestBase):
         """
         y = self.find_code(self.compile(codestr, modname="foo"), name="y")
         self.assertInBytecode(y, "STORE_FAST", "_pystatic_.0._tmp__d")
-        self.assertInBytecode(y, "LOAD_FAST", "_pystatic_.0._tmp__d")
+        if sys.version_info >= (3, 14):
+            self.assertInBytecode(
+                y,
+                "STORE_FAST_LOAD_FAST",
+                ("_pystatic_.0._tmp__e", "_pystatic_.0._tmp__d"),
+            )
+        else:
+            self.assertInBytecode(y, "LOAD_FAST", "_pystatic_.0._tmp__d")
         with self.in_module(codestr) as mod:
             y_callable = mod.y
             self.assertTrue(y_callable())
@@ -344,7 +353,14 @@ class VariadicArgTests(StaticTestBase):
         """
         y = self.find_code(self.compile(codestr, modname="foo"), name="y")
         self.assertInBytecode(y, "STORE_FAST", "_pystatic_.0._tmp__d")
-        self.assertInBytecode(y, "LOAD_FAST", "_pystatic_.0._tmp__d")
+        if sys.version_info >= (3, 14):
+            self.assertInBytecode(
+                y,
+                "STORE_FAST_LOAD_FAST",
+                ("_pystatic_.0._tmp__e", "_pystatic_.0._tmp__d"),
+            )
+        else:
+            self.assertInBytecode(y, "LOAD_FAST", "_pystatic_.0._tmp__d")
         with self.in_module(codestr) as mod:
             y_callable = mod.y
             self.assertTrue(y_callable())
