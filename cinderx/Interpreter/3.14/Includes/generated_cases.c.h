@@ -6457,6 +6457,45 @@
                     JUMP_TO_LABEL(error);
                 }
                 top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == INVOKE_NATIVE) {
+                PyObject* value = GETITEM(FRAME_CO_CONSTS, extoparg);
+                assert(PyTuple_CheckExact(value));
+                Py_ssize_t nargs = oparg>>2;
+                PyObject* target = PyTuple_GET_ITEM(value, 0);
+                PyObject* name = PyTuple_GET_ITEM(target, 0);
+                PyObject* symbol = PyTuple_GET_ITEM(target, 1);
+                PyObject* signature = PyTuple_GET_ITEM(value, 1);
+                STACKREFS_TO_PYOBJECTS(args, nargs, args_o);
+                if (CONVERSION_FAILED(args_o)) {
+                    stack_pointer += -(oparg>>2) + (oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    _PyFrame_SetStackPointer(frame, stack_pointer);
+                    for (int _i = oparg>>2; --_i >= 0;) {
+                        PyStackRef_CLOSE(args[_i]);
+                    }
+                    stack_pointer = _PyFrame_GetStackPointer(frame);
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                PyObject *res = _PyClassloader_InvokeNativeFunction(
+                    name, symbol, signature, args_o, nargs);
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                STACKREFS_TO_PYOBJECTS_CLEANUP(args_o);
+                stack_pointer += -(oparg>>2) + (oparg&0x03);
+                assert(WITHIN_STACK_BOUNDS());
+                _PyFrame_SetStackPointer(frame, stack_pointer);
+                for (int _i = oparg>>2; --_i >= 0;) {
+                    PyStackRef_CLOSE(args[_i]);
+                }
+                stack_pointer = _PyFrame_GetStackPointer(frame);
+                if (res == NULL) {
+                    stack_pointer += -(oparg&0x03);
+                    assert(WITHIN_STACK_BOUNDS());
+                    JUMP_TO_LABEL(error);
+                }
+                top[0] = PyStackRef_FromPyObjectSteal(res);
             } else if (extop == TP_ALLOC) {
                 int optional;
                 int exact;

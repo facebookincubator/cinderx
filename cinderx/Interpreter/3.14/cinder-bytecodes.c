@@ -915,6 +915,28 @@ dummy_func(
                 DECREF_INPUTS();
                 ERROR_IF(res == NULL);                
                 top[0] = PyStackRef_FromPyObjectSteal(res);
+            } else if (extop == INVOKE_NATIVE) {
+                PyObject* value = GETITEM(FRAME_CO_CONSTS, extoparg);
+                assert(PyTuple_CheckExact(value));
+                Py_ssize_t nargs = oparg>>2;
+
+                PyObject* target = PyTuple_GET_ITEM(value, 0);
+                PyObject* name = PyTuple_GET_ITEM(target, 0);
+                PyObject* symbol = PyTuple_GET_ITEM(target, 1);
+                PyObject* signature = PyTuple_GET_ITEM(value, 1);
+
+                STACKREFS_TO_PYOBJECTS(args, nargs, args_o);
+                if (CONVERSION_FAILED(args_o)) {
+                    DECREF_INPUTS();
+                    ERROR_IF(true);
+                }
+
+                PyObject *res = _PyClassloader_InvokeNativeFunction(
+                    name, symbol, signature, args_o, nargs);
+                STACKREFS_TO_PYOBJECTS_CLEANUP(args_o);
+                DECREF_INPUTS();
+                ERROR_IF(res == NULL);
+                top[0] = PyStackRef_FromPyObjectSteal(res);
             } else if (extop == TP_ALLOC) {
                 int optional;
                 int exact;

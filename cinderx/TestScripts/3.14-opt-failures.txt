@@ -11,7 +11,6 @@ test_cinderx.test_compiler.test_static.dataclass
 test_cinderx.test_compiler.test_static.final
 test_cinderx.test_compiler.test_static.literals
 test_cinderx.test_compiler.test_static.match
-test_cinderx.test_compiler.test_static.native
 test_cinderx.test_compiler.test_static.non_static_inheritance
 test_cinderx.test_compiler.test_static.patch
 test_cinderx.test_compiler.test_static.refine_fields
