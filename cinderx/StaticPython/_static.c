@@ -1454,15 +1454,13 @@ static int init_cached_properties(
 
     // First setup the cached_property
     int res;
-    res =
-        _PyObject_GenericSetAttrWithDict((PyObject*)type, attr, property, NULL);
+    res = PyObject_SetAttr((PyObject*)type, attr, property);
     if (res != 0) {
       return -1;
     }
 
     // Next clear the backing slot
-    res = _PyObject_GenericSetAttrWithDict(
-        (PyObject*)type, impl_name, NULL, NULL);
+    res = PyObject_SetAttr((PyObject*)type, impl_name, NULL);
     if (res != 0) {
       return -1;
     }
