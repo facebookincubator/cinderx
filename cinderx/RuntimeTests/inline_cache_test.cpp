@@ -114,8 +114,13 @@ module_meth = functools._unwrap_partial
       << "Expected nullptr to be returned in self_or_null from cache lookup";
 #endif
 
+#if PY_VERSION_HEX < 0x030E0000
   ASSERT_EQ(PyObject_RichCompareBool(cache.value(), module_meth, Py_EQ), 1)
       << "Expected method " << name << " to be cached";
+#else
+  ASSERT_EQ(PyObject_RichCompareBool(*cache.cache(), module_meth, Py_EQ), 1)
+      << "Expected method " << name << " to be cached";
+#endif
   ASSERT_EQ(
       PyObject_RichCompareBool(cache.moduleObj(), functools_mod, Py_EQ), 1)
       << "Expected functools to be cached as an obj";

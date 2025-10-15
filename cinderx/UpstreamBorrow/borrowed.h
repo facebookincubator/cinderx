@@ -116,6 +116,8 @@ int _PyObject_HasLen(PyObject* o);
 extern PyObject *Cix_monitoring_disable, *Cix_monitoring_missing;
 
 int _Ci_Instrument(PyCodeObject* co, PyInterpreterState* interp);
+
+Py_ssize_t _PyDict_LookupIndex(PyDictObject*, PyObject*);
 #endif
 
 #if PY_VERSION_HEX >= 0x030C0000

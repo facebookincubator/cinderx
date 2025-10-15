@@ -336,11 +336,12 @@ class LoadModuleAttrCache {
 
   // This corresponds to module __dict__'s version which allows us
   // to correctly invalidate the cache whenever the dictionary changes.
-  ci_dict_version_tag_t version_{0};
   BorrowedRef<> module_;
-  BorrowedRef<> value_;
 #if PY_VERSION_HEX >= 0x030E0000
-  uint32_t index_;
+  PyObject** cache_;
+#else
+  ci_dict_version_tag_t version_{0};
+  BorrowedRef<> value_;
 #endif
 };
 
@@ -352,18 +353,26 @@ class LoadModuleMethodCache {
       BorrowedRef<> name);
   LoadMethodResult lookup(BorrowedRef<> obj, BorrowedRef<> name);
   BorrowedRef<> moduleObj();
+#if PY_VERSION_HEX < 0x030E0000
   BorrowedRef<> value();
+#else
+  PyObject** cache() {
+    return cache_;
+  }
+#endif
 
  private:
   LoadMethodResult lookupSlowPath(BorrowedRef<> obj, BorrowedRef<> name);
-  void
-  fill(BorrowedRef<> obj, BorrowedRef<> value, ci_dict_version_tag_t version);
 
   // This corresponds to module __dict__'s version which allows us
   // to correctly invalidate the cache whenever the dictionary changes.
-  ci_dict_version_tag_t module_version_{0};
   BorrowedRef<> module_obj_;
+#if PY_VERSION_HEX >= 0x030E0000
+  PyObject** cache_;
+#else
+  ci_dict_version_tag_t module_version_{0};
   BorrowedRef<> value_;
+#endif
 };
 
 // Invalidate all load/store attr caches for type
